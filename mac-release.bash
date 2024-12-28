@@ -9,15 +9,15 @@ set -euxo pipefail
 THIS_DIR=$(pwd)
 
 # Set default values for environment variables that are not set.
-CMAKE_C_COMPILER=${CMAKE_C_COMPILER:-clang-16}
-CMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER:-clang++-16}
+CMAKE_C_COMPILER=${CMAKE_C_COMPILER:-clang-18}
+CMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER:-clang++}
 CMAKE_C_FLAGS=${CMAKE_C_FLAGS:-}
 CMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS:-}
 CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-Release}
 RUNNER_TEMP=${RUNNER_TEMP:-/tmp}
 PACKAGE_JSON_LABEL=${PACKAGE_JSON_LABEL:-bun-webkit-$CMAKE_BUILD_TYPE}
-AR=${AR:-llvm-ar}
-RANLIB=${RANLIB:-llvm-ranlib}
+AR=${AR:-$(which llvm-ar)}
+RANLIB=${RANLIB:-$(which llvm-ranlib)}
 CMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET:-13.0}
 
 export DEFAULT_MALLOC_HEAP_BREAKDOWN=${DEFAULT_MALLOC_HEAP_BREAKDOWN:-"OFF"}
@@ -75,6 +75,7 @@ cp -f $RUNNER_TEMP/webkit-release/JavaScriptCore/Headers/JavaScriptCore/* \
 mkdir -p $RUNNER_TEMP/bun-webkit/Source/JavaScriptCore
 cp -r $THIS_DIR/Source/JavaScriptCore/Scripts $RUNNER_TEMP/bun-webkit/Source/JavaScriptCore
 cp $THIS_DIR/Source/JavaScriptCore/create_hash_table $RUNNER_TEMP/bun-webkit/Source/JavaScriptCore
+cp -r $RUNNER_TEMP/webkit-release/bin $RUNNER_TEMP/bun-webkit/bin
 echo "{ \"name\": \"$PACKAGE_JSON_LABEL\", \"version\": \"0.0.1-$GITHUB_SHA\", \"os\": [\"darwin\"], \"cpu\": [\"$PACKAGE_JSON_ARCH\"], \"repository\": \"https://github.com/$GITHUB_REPOSITORY\" }" >$RUNNER_TEMP/bun-webkit/package.json
 cd $RUNNER_TEMP
 tar -czf bun-webkit.tar.gz bun-webkit
