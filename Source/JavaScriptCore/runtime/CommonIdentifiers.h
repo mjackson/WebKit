@@ -180,6 +180,7 @@
     macro(isArray) \
     macro(isEnabled) \
     macro(isPrototypeOf) \
+    macro(isRawJSON) \
     macro(isView) \
     macro(isWatchpoint) \
     macro(isWellFormed) \
@@ -243,6 +244,7 @@
     macro(propertyIsEnumerable) \
     macro(prototype) \
     macro(raw) \
+    macro(rawJSON) \
     macro(read) \
     macro(region) \
     macro(replace) \

@@ -330,7 +330,6 @@ platform/cocoa/ThemeCocoa.mm
 platform/cocoa/ThermalMitigationNotifier.mm
 platform/cocoa/UserAgentCocoa.mm
 platform/cocoa/VideoPresentationModelVideoElement.mm
-platform/cocoa/VideoPresentationLayerProvider.mm
 platform/cocoa/VideoToolboxSoftLink.cpp
 platform/cocoa/WebCoreAdditions.mm @no-unify
 platform/cocoa/WebCoreNSErrorExtras.mm
@@ -458,6 +457,7 @@ platform/graphics/cocoa/ImageAdapterCocoa.mm
 platform/graphics/cocoa/MediaEngineConfigurationFactoryCocoa.cpp
 platform/graphics/cocoa/MediaPlayerCocoa.mm
 platform/graphics/cocoa/MediaPlayerPrivateWebM.mm @no-unify
+platform/graphics/cocoa/PlatformTimeRangesCocoa.mm @no-unify
 platform/graphics/cocoa/SourceBufferParser.cpp
 platform/graphics/cocoa/SourceBufferParserWebM.cpp
 platform/graphics/cocoa/SystemFontDatabaseCocoa.mm

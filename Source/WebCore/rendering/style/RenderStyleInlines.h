@@ -230,7 +230,7 @@ inline FlexWrap RenderStyle::flexWrap() const { return static_cast<FlexWrap>(m_n
 inline std::optional<FontSelectionValue> RenderStyle::fontItalic() const { return fontDescription().italic(); }
 inline const FontPalette& RenderStyle::fontPalette() const { return fontDescription().fontPalette(); }
 inline FontSizeAdjust RenderStyle::fontSizeAdjust() const { return fontDescription().fontSizeAdjust(); }
-inline FontSelectionValue RenderStyle::fontStretch() const { return fontDescription().stretch(); }
+inline FontSelectionValue RenderStyle::fontWidth() const { return fontDescription().width(); }
 inline FontOpticalSizing RenderStyle::fontOpticalSizing() const { return fontDescription().opticalSizing(); }
 inline FontVariationSettings RenderStyle::fontVariationSettings() const { return fontDescription().variationSettings(); }
 inline FontSelectionValue RenderStyle::fontWeight() const { return fontDescription().weight(); }
@@ -271,6 +271,10 @@ inline bool RenderStyle::hasAnyPublicPseudoStyles() const { return m_nonInherite
 // FIXME: Rename this function.
 inline bool RenderStyle::hasAppearance() const { return appearance() != StyleAppearance::None && appearance() != StyleAppearance::Base; }
 inline bool RenderStyle::hasAppleColorFilter() const { return !appleColorFilter().isEmpty(); }
+#if HAVE(CORE_MATERIAL)
+inline bool RenderStyle::hasAppleVisualEffect() const { return appleVisualEffect() != AppleVisualEffect::None; }
+inline bool RenderStyle::hasAppleVisualEffectRequiringBackdropFilter() const { return appleVisualEffectNeedsBackdrop(appleVisualEffect()); }
+#endif
 inline bool RenderStyle::hasAspectRatio() const { return aspectRatioType() == AspectRatioType::Ratio || aspectRatioType() == AspectRatioType::AutoAndRatio; }
 inline bool RenderStyle::hasAttrContent() const { return m_nonInheritedData->miscData->hasAttrContent; }
 inline bool RenderStyle::hasAutoAccentColor() const { return m_rareInheritedData->hasAutoAccentColor; }

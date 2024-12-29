@@ -139,6 +139,7 @@ bool defaultGamepadVibrationActuatorEnabled();
 
 #if PLATFORM(IOS_FAMILY)
 bool defaultAutomaticLiveResizeEnabled();
+bool defaultVisuallyContiguousBidiTextSelectionEnabled();
 #endif
 
 bool defaultRunningBoardThrottlingEnabled();
@@ -158,6 +159,10 @@ bool defaultUseSCContentSharingPicker();
 
 #if USE(LIBWEBRTC)
 bool defaultPeerConnectionEnabledAvailable();
+#endif
+
+#if ENABLE(WEB_PUSH_NOTIFICATIONS)
+bool defaultBuiltInNotificationsEnabled();
 #endif
 
 } // namespace WebKit

@@ -34,7 +34,6 @@
 
 namespace WebCore {
 
-class Frame;
 class HistoryItem;
 class HistoryItemClient;
 class LocalFrame;
@@ -51,7 +50,7 @@ class HistoryController final : public CanMakeCheckedPtr<HistoryController> {
 public:
     enum HistoryUpdateType { UpdateAll, UpdateAllExceptBackForwardList };
 
-    explicit HistoryController(Frame&);
+    explicit HistoryController(LocalFrame&);
     ~HistoryController();
 
     WEBCORE_EXPORT void saveScrollPositionAndViewStateToItem(HistoryItem*);
@@ -100,25 +99,29 @@ private:
     friend class Page;
     bool shouldStopLoadingForHistoryItem(HistoryItem&) const;
     void goToItem(HistoryItem&, FrameLoadType, ShouldTreatAsContinuingLoad);
+    void goToItemForNavigationAPI(HistoryItem&, FrameLoadType, const String& targetNavigationEntryKey);
 
     void initializeItem(HistoryItem&, RefPtr<DocumentLoader>);
     Ref<HistoryItem> createItem(HistoryItemClient&);
     Ref<HistoryItem> createItemTree(HistoryItemClient&, LocalFrame& targetFrame, bool clipAtTarget);
 
-    void recursiveSetProvisionalItem(HistoryItem&, HistoryItem*);
+    enum class ForNavigationAPI : bool { No, Yes };
+    void recursiveSetProvisionalItem(HistoryItem&, HistoryItem*, ForNavigationAPI = ForNavigationAPI::No);
     void recursiveGoToItem(HistoryItem&, HistoryItem*, FrameLoadType, ShouldTreatAsContinuingLoad);
     bool isReplaceLoadTypeWithProvisionalItem(FrameLoadType);
     bool isReloadTypeWithProvisionalItem(FrameLoadType);
     void recursiveUpdateForCommit();
     void recursiveUpdateForSameDocumentNavigation();
-    bool itemsAreClones(HistoryItem&, HistoryItem*) const;
+    static bool itemsAreClones(HistoryItem&, HistoryItem*);
     void updateBackForwardListClippedAtTarget(bool doClip);
     void updateCurrentItem();
     bool isFrameLoadComplete() const { return m_frameLoadComplete; }
 
-    Ref<Frame> protectedFrame() const;
+    struct FrameToNavigate;
+    static void recursiveGatherFramesToNavigate(LocalFrame&, Vector<FrameToNavigate>&, HistoryItem& targetItem, HistoryItem* fromItem);
+    Ref<LocalFrame> protectedFrame() const;
 
-    WeakRef<Frame> m_frame;
+    const WeakRef<LocalFrame> m_frame;
 
     RefPtr<HistoryItem> m_currentItem;
     RefPtr<HistoryItem> m_previousItem;

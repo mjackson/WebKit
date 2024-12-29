@@ -125,6 +125,7 @@ public:
     RefPtr<AccessibilityUIElement> focusableAncestor();
     RefPtr<AccessibilityUIElement> editableAncestor();
     RefPtr<AccessibilityUIElement> highestEditableAncestor();
+    JSRetainPtr<JSStringRef> selectedText();
 #else
     void syncPress() { press(); }
     void asyncIncrement() { }
@@ -132,7 +133,14 @@ public:
     RefPtr<AccessibilityUIElement> focusableAncestor() { return nullptr; }
     RefPtr<AccessibilityUIElement> editableAncestor() { return nullptr; }
     RefPtr<AccessibilityUIElement> highestEditableAncestor() { return nullptr; }
-#endif
+    JSRetainPtr<JSStringRef> selectedText() { return nullptr; }
+#endif // PLATFORM(MAC)
+
+#if PLATFORM(COCOA)
+    JSRetainPtr<JSStringRef> dateTimeValue() const;
+#else
+    JSRetainPtr<JSStringRef> dateTimeValue() const { return nullptr; }
+#endif // PLATFORM(COCOA)
 
     // Attributes - platform-independent implementations
     JSRetainPtr<JSStringRef> stringDescriptionOfAttributeValue(JSStringRef attribute);
@@ -282,8 +290,8 @@ public:
     RefPtr<AccessibilityUIElement> ownerElementAtIndex(unsigned);
     RefPtr<AccessibilityUIElement> ariaOwnsElementAtIndex(unsigned);
 
-    // ARIA Drag and Drop
-    bool ariaIsGrabbed() const;
+    // Drag and drop
+    bool isGrabbed() const;
     // A space concatentated string of all the drop effects.
     JSRetainPtr<JSStringRef> ariaDropEffects() const;
     
@@ -328,6 +336,7 @@ public:
     RefPtr<AccessibilityTextMarker> previousLineStartTextMarkerForTextMarker(AccessibilityTextMarker*);
     RefPtr<AccessibilityTextMarker> nextLineEndTextMarkerForTextMarker(AccessibilityTextMarker*);
     int lineIndexForTextMarker(AccessibilityTextMarker*) const;
+    RefPtr<AccessibilityTextMarkerRange> styleTextMarkerRangeForTextMarker(AccessibilityTextMarker*);
     RefPtr<AccessibilityTextMarkerRange> textMarkerRangeForSearchPredicate(JSContextRef, AccessibilityTextMarkerRange* startRange, bool forward, JSValueRef searchKey, JSStringRef searchText, bool visibleOnly, bool immediateDescendantsOnly);
     RefPtr<AccessibilityTextMarkerRange> misspellingTextMarkerRange(AccessibilityTextMarkerRange* start, bool forward);
     RefPtr<AccessibilityTextMarkerRange> textMarkerRangeForElement(AccessibilityUIElement*);

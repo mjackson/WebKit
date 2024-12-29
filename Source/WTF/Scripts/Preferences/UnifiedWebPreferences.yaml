@@ -1067,7 +1067,7 @@ BuiltInNotificationsEnabled:
     WebCore:
       default: false
     WebKit:
-      default: false
+      default: defaultBuiltInNotificationsEnabled()
   sharedPreferenceForWebProcess: true
   richJavaScript: true
 
@@ -2634,6 +2634,9 @@ DeviceOrientationEventEnabled:
       default: true
     WebCore:
       default: true
+  sharedPreferenceForWebProcess: true
+  richJavaScript: true
+
 
 DeviceOrientationPermissionAPIEnabled:
   type: bool
@@ -4854,6 +4857,7 @@ MediaControlsContextMenusEnabled:
       default: true
     WebCore:
       default: false
+  sharedPreferenceForWebProcess: true
 
 MediaControlsScaleWithPageZoom:
   type: bool
@@ -5128,6 +5132,7 @@ MediaStreamEnabled:
       default: true
     WebCore:
       default: true
+  sharedPreferenceForWebProcess: true
 
 MediaStreamTrackProcessingEnabled:
   type: bool
@@ -5283,6 +5288,21 @@ ModelElementEnabled:
       default: false
   disableInLockdownMode: true
   sharedPreferenceForWebProcess: true
+
+ModelNoPortalAttributeEnabled:
+  type: bool
+  status: unstable
+  condition: PLATFORM(VISION) && ENABLE(MODEL_PROCESS)
+  humanReadableName: "Model noportal attribute"
+  humanReadableDescription: "Enable Model noportal attribute support"
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
+  disableInLockdownMode: true
 
 ModelProcessEnabled:
   type: bool
@@ -5587,6 +5607,19 @@ OverlappingBackingStoreProvidersEnabled:
       default: true
     WebCore:
       default: true
+
+OverlayRegionsEnabled:
+  type: bool
+  status: testable
+  category: dom
+  humanReadableName: "Overlay Regions"
+  humanReadableDescription: "Generate and visualize overlay regions"
+  condition: ENABLE(OVERLAY_REGIONS_IN_EVENT_REGION)
+  webcoreBinding: none
+  exposed: [ WebKit ]
+  defaultValue:
+    WebKit:
+      default: false
 
 OverscrollBehaviorEnabled:
   type: bool
@@ -7798,7 +7831,9 @@ UseAVCaptureDeviceRotationCoordinatorAPI:
   condition: HAVE(AVCAPTUREDEVICEROTATIONCOORDINATOR)
   defaultValue:
     WebKit:
-      default: true
+      "PLATFORM(VISION)": true
+      "PLATFORM(APPLETV)": true
+      default: false
   sharedPreferenceForWebProcess: true
 
 UseAsyncUIKitInteractions:
@@ -7882,6 +7917,7 @@ UseGPUProcessForMediaEnabled:
     WebKit:
       "ENABLE(GPU_PROCESS_BY_DEFAULT)": true
       default: false
+  sharedPreferenceForWebProcess: true
 
 UseGPUProcessForWebGLEnabled:
   type: bool
@@ -7989,6 +8025,18 @@ UseSceneKitForModel:
   condition: HAVE(SCENEKIT)
   defaultValue:
     WebKit:
+      default: false
+
+UseSystemAppearance:
+  type: bool
+  status: embedder
+  webcoreOnChange: useSystemAppearanceChanged
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
       default: false
 
 UserActivationAPIEnabled:
@@ -8265,10 +8313,10 @@ VisuallyContiguousBidiTextSelectionEnabled:
   status: internal
   humanReadableName: "Visually Contiguous Bidi Selection"
   humanReadableDescription: "Visually contiguous bidi selection"
-  conditional: PLATFORM(IOS_FAMILY)
+  condition: PLATFORM(IOS_FAMILY)
   defaultValue:
     WebKit:
-      default: false
+      default: WebKit::defaultVisuallyContiguousBidiTextSelectionEnabled()
     WebKitLegacy:
       default: false
     WebCore:
@@ -9023,6 +9071,8 @@ WebSocketEnabled:
     WebCore:
       "PLATFORM(WATCHOS)": false
       default: true
+  sharedPreferenceForWebProcess: true
+
 
 WebTransportEnabled:
   type: bool

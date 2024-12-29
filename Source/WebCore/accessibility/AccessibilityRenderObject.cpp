@@ -444,7 +444,7 @@ AccessibilityObject* AccessibilityRenderObject::nextSibling() const
 
 static RenderBoxModelObject* nextContinuation(RenderObject& renderer)
 {
-    if (!renderer.isReplacedOrInlineBlock()) {
+    if (!renderer.isReplacedOrAtomicInline()) {
         if (auto* renderInline = dynamicDowncast<RenderInline>(renderer))
             return renderInline->continuation();
     }
@@ -2673,7 +2673,7 @@ bool AccessibilityRenderObject::hasPlainText() const
         && style.textDecorationsInEffect().isEmpty();
 }
 
-bool AccessibilityRenderObject::hasSameFont(const AXCoreObject& object) const
+bool AccessibilityRenderObject::hasSameFont(AXCoreObject& object)
 {
     auto* renderer = object.renderer();
     if (!m_renderer || !renderer)
@@ -2698,7 +2698,7 @@ ApplePayButtonType AccessibilityRenderObject::applePayButtonType() const
 }
 #endif
 
-bool AccessibilityRenderObject::hasSameFontColor(const AXCoreObject& object) const
+bool AccessibilityRenderObject::hasSameFontColor(AXCoreObject& object)
 {
     auto* renderer = object.renderer();
     if (!m_renderer || !renderer)
@@ -2707,7 +2707,7 @@ bool AccessibilityRenderObject::hasSameFontColor(const AXCoreObject& object) con
     return m_renderer->style().visitedDependentColor(CSSPropertyColor) == renderer->style().visitedDependentColor(CSSPropertyColor);
 }
 
-bool AccessibilityRenderObject::hasSameStyle(const AXCoreObject& object) const
+bool AccessibilityRenderObject::hasSameStyle(AXCoreObject& object)
 {
     auto* renderer = object.renderer();
     if (!m_renderer || !renderer)

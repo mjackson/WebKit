@@ -242,20 +242,22 @@ static UncheckedKeyHashMap<const CSSPrimitiveValue*, String>& serializedPrimitiv
 
 CSSUnitType CSSPrimitiveValue::primitiveType() const
 {
-    // FIXME: Use a switch statement here.
-
-    if (primitiveUnitType() == CSSUnitType::CSS_PROPERTY_ID || primitiveUnitType() == CSSUnitType::CSS_VALUE_ID || primitiveUnitType() == CSSUnitType::CustomIdent)
+    auto type = primitiveUnitType();
+    switch (type) {
+    case CSSUnitType::CSS_PROPERTY_ID:
+    case CSSUnitType::CSS_VALUE_ID:
+    case CSSUnitType::CustomIdent:
         return CSSUnitType::CSS_IDENT;
-
-    // Web-exposed content expects font family values to have CSSUnitType::CSS_STRING primitive type
-    // so we need to map our internal CSSUnitType::CSS_FONT_FAMILY type here.
-    if (primitiveUnitType() == CSSUnitType::CSS_FONT_FAMILY)
+    case CSSUnitType::CSS_FONT_FAMILY:
+        // Web-exposed content expects font family values to have CSSUnitType::CSS_STRING primitive type
+        // so we need to map our internal CSSUnitType::CSS_FONT_FAMILY type here.
         return CSSUnitType::CSS_STRING;
+    default:
+        if (!isCalculated())
+            return type;
 
-    if (!isCalculated())
-        return primitiveUnitType();
-
-    return m_value.calc->primitiveType();
+        return m_value.calc->primitiveType();
+    }
 }
 
 CSSPrimitiveValue::CSSPrimitiveValue(CSSPropertyID propertyID)
@@ -1041,7 +1043,7 @@ double CSSPrimitiveValue::doubleValue(const CSSToLengthConversionData& conversio
 
 double CSSPrimitiveValue::doubleValueDeprecated() const
 {
-    return isCalculated() ? m_value.calc->doubleValueDeprecated({ }) : m_value.number;
+    return isCalculated() ? m_value.calc->doubleValueDeprecated() : m_value.number;
 }
 
 // MARK: `doubleValueDividingBy100IfPercentage`.
@@ -1072,7 +1074,7 @@ double CSSPrimitiveValue::doubleValueDividingBy100IfPercentageDeprecated() const
     ASSERT(isNumberOrInteger() || isPercentage());
 
     if (isCalculated())
-        return m_value.calc->primitiveType() == CSSUnitType::CSS_PERCENTAGE ? m_value.calc->doubleValueDeprecated({ }) / 100.0 : m_value.calc->doubleValueDeprecated({ });
+        return m_value.calc->primitiveType() == CSSUnitType::CSS_PERCENTAGE ? m_value.calc->doubleValueDeprecated() / 100.0 : m_value.calc->doubleValueDeprecated();
     if (isPercentage())
         return m_value.number / 100.0;
     return m_value.number;

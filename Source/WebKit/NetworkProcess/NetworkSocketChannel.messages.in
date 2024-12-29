@@ -23,7 +23,8 @@
 [
     ExceptionForEnabledBy,
     DispatchedFrom=WebContent,
-    DispatchedTo=Networking
+    DispatchedTo=Networking,
+    EnabledBy=WebSocketEnabled
 ]
 messages -> NetworkSocketChannel {
     SendString(std::span<const uint8_t> message) -> ()

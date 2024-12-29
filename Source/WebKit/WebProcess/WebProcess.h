@@ -143,6 +143,7 @@ class WebAutomationSessionProxy;
 class WebBadgeClient;
 class WebBroadcastChannelRegistry;
 class WebCacheStorageProvider;
+class WebCompiledContentRuleListData;
 class WebCookieJar;
 class WebFileSystemStorageConnection;
 class WebFrame;
@@ -401,6 +402,10 @@ public:
     void postObserverNotification(const String& message);
 #endif
 
+#if ENABLE(CONTENT_EXTENSIONS)
+    void setResourceMonitorContentRuleList(WebCompiledContentRuleListData&&);
+#endif
+
     bool areAllPagesThrottleable() const;
 
     void messagesAvailableForPort(const WebCore::MessagePortIdentifier&);
@@ -478,6 +483,8 @@ public:
 #if ENABLE(ROUTING_ARBITRATION)
     AudioSessionRoutingArbitrator* audioSessionRoutingArbitrator() const { return m_routingArbitrator.get(); }
 #endif
+
+    bool mediaPlaybackEnabled() const { return m_mediaPlaybackEnabled; }
 
 private:
     WebProcess();
@@ -886,6 +893,7 @@ private:
     HashMap<WebTransportSessionIdentifier, WeakPtr<WebTransportSession>> m_webTransportSessions;
     HashSet<WebCore::RegistrableDomain> m_domainsWithStorageAccessQuirks;
     std::unique_ptr<ScriptTelemetryFilter> m_scriptTelemetryFilter;
+    bool m_mediaPlaybackEnabled { false };
 };
 
 } // namespace WebKit

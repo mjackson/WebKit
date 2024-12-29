@@ -302,6 +302,8 @@ set(WebKit_MESSAGES_IN_FILES
     UIProcess/WebProcessProxy
     UIProcess/WebScreenOrientationManagerProxy
 
+    UIProcess/Automation/WebAutomationSession
+
     UIProcess/Downloads/DownloadProxy
 
     UIProcess/GPU/GPUProcessProxy
@@ -419,6 +421,7 @@ set(WebKit_SERIALIZATION_IN_FILES
     GPUProcess/media/InitializationSegmentInfo.serialization.in
     GPUProcess/media/MediaDescriptionInfo.serialization.in
     GPUProcess/media/RemoteMediaPlayerProxyConfiguration.serialization.in
+    GPUProcess/media/RemoteTrackInfo.serialization.in
     GPUProcess/media/TextTrackPrivateRemoteConfiguration.serialization.in
     GPUProcess/media/TrackPrivateRemoteConfiguration.serialization.in
     GPUProcess/media/VideoTrackPrivateRemoteConfiguration.serialization.in

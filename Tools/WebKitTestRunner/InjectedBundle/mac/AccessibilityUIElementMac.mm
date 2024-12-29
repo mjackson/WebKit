@@ -1082,6 +1082,15 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::dateValue()
     return nullptr;
 }
 
+JSRetainPtr<JSStringRef> AccessibilityUIElement::dateTimeValue() const
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    return stringAttributeValueNS(@"AXDateTimeValue");
+    END_AX_OBJC_EXCEPTIONS
+
+    return nullptr;
+}
+
 JSRetainPtr<JSStringRef> AccessibilityUIElement::language()
 {
     BEGIN_AX_OBJC_EXCEPTIONS
@@ -1365,7 +1374,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::speakAs()
     return nullptr;
 }
 
-bool AccessibilityUIElement::ariaIsGrabbed() const
+bool AccessibilityUIElement::isGrabbed() const
 {
     return boolAttributeValueNS(NSAccessibilityGrabbedAttribute);
 }
@@ -1747,6 +1756,18 @@ void AccessibilityUIElement::scrollToMakeVisibleWithSubFocus(int x, int y, int w
         [m_element _accessibilityScrollToMakeVisibleWithSubFocus:rect];
     });
     END_AX_OBJC_EXCEPTIONS
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElement::selectedText()
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    auto string = attributeValue(@"AXSelectedText");
+    if (![string isKindOfClass:[NSString class]])
+        return nullptr;
+    return [string createJSStringRef];
+    END_AX_OBJC_EXCEPTIONS
+
+    return nullptr;
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::selectedTextRange()
@@ -2172,6 +2193,19 @@ int AccessibilityUIElement::lineIndexForTextMarker(AccessibilityTextMarker* mark
     END_AX_OBJC_EXCEPTIONS
 
     return -1;
+}
+
+RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::styleTextMarkerRangeForTextMarker(AccessibilityTextMarker* marker)
+{
+    if (!marker)
+        return nullptr;
+
+    BEGIN_AX_OBJC_EXCEPTIONS
+    auto textMarkerRange = attributeValueForParameter(@"AXStyleTextMarkerRangeForTextMarker", marker->platformTextMarker());
+    return AccessibilityTextMarkerRange::create(textMarkerRange.get());
+    END_AX_OBJC_EXCEPTIONS
+
+    return nullptr;
 }
 
 RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::textMarkerRangeForSearchPredicate(JSContextRef context, AccessibilityTextMarkerRange *startRange, bool forward, JSValueRef searchKey, JSStringRef searchText, bool visibleOnly, bool immediateDescendantsOnly)

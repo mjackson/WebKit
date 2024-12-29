@@ -1,4 +1,4 @@
-# Copyright (C) 2010-2023 Apple Inc. All rights reserved.
+# Copyright (C) 2010-2024 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -367,6 +367,7 @@ def serialized_identifiers():
         'WebCore::SharedWorkerIdentifier',
         'WebCore::SharedWorkerObjectIdentifierID',
         'WebCore::SleepDisablerIdentifier',
+        'WebCore::SnapshotIdentifier',
         'WebCore::SpeechRecognitionConnectionClientIdentifier',
         'WebCore::TextCheckingRequestIdentifier',
         'WebCore::TextManipulationItemIdentifier',
@@ -407,6 +408,7 @@ def serialized_identifiers():
         'WebKit::RemoteCDMInstanceSessionIdentifier',
         'WebKit::RemoteLegacyCDMIdentifier',
         'WebKit::RemoteLegacyCDMSessionIdentifier',
+        'WebKit::RemoteMediaRecorderPrivateWriterIdentifier',
         'WebKit::RemoteMediaResourceIdentifier',
         'WebKit::RemoteMediaSourceIdentifier',
         'WebKit::RemoteRemoteCommandListenerIdentifier',
@@ -557,6 +559,7 @@ def conditions_for_header(header):
         '"RemoteCDMInstanceSessionIdentifier.h"': ["ENABLE(GPU_PROCESS) && ENABLE(ENCRYPTED_MEDIA)"],
         '"RemoteLegacyCDMIdentifier.h"': ["ENABLE(GPU_PROCESS) && ENABLE(LEGACY_ENCRYPTED_MEDIA)"],
         '"RemoteLegacyCDMSessionIdentifier.h"': ["ENABLE(GPU_PROCESS) && ENABLE(LEGACY_ENCRYPTED_MEDIA)"],
+        '"RemoteMediaRecorderPrivateWriterIdentifier.h"': ["ENABLE(GPU_PROCESS) && ENABLE(MEDIA_RECORDER)"],
         '"RemoteMediaSourceIdentifier.h"': ["ENABLE(GPU_PROCESS) && ENABLE(MEDIA_SOURCE)"],
         '"RemoteSourceBufferIdentifier.h"': ["ENABLE(GPU_PROCESS) && ENABLE(MEDIA_SOURCE)"],
         '"SharedCARingBuffer.h"': ["PLATFORM(COCOA)"],
@@ -855,6 +858,7 @@ def headers_for_type(type):
         'IPC::StreamServerConnectionHandle': ['"StreamServerConnection.h"'],
         'JSC::MessageLevel': ['<JavaScriptCore/ConsoleTypes.h>'],
         'JSC::MessageSource': ['<JavaScriptCore/ConsoleTypes.h>'],
+        'JSC::MessageType': ['<JavaScriptCore/ConsoleTypes.h>'],
         'MachSendRight': ['<wtf/MachSendRight.h>'],
         'MediaTime': ['<wtf/MediaTime.h>'],
         'MonotonicTime': ['<wtf/MonotonicTime.h>'],
@@ -978,6 +982,8 @@ def headers_for_type(type):
         'WebCore::MediaProducerMediaState': ['<WebCore/MediaProducer.h>'],
         'WebCore::MediaProducerMutedState': ['<WebCore/MediaProducer.h>'],
         'WebCore::MediaPromise::Result': ['<WebCore/MediaPromiseTypes.h>'],
+        'WebCore::MediaRecorderPrivateWriter::Result': ['<WebCore/MediaRecorderPrivateWriter.h>'],
+        'WebCore::MediaSamplesBlock::MediaSampleItem': ['<WebCore/MediaSample.h>'],
         'WebCore::MediaSessionHelper::ShouldOverride': ['<WebCore/MediaSessionHelperIOS.h>'],
         'WebCore::MediaSettingsRange': ['<WebCore/MediaSettingsRange.h>'],
         'WebCore::MediaSourcePrivateAddStatus': ['<WebCore/MediaSourcePrivate.h>'],
@@ -1073,6 +1079,8 @@ def headers_for_type(type):
         'WebCore::TextManipulationTokenIdentifier': ['<WebCore/TextManipulationToken.h>'],
         'WebCore::ThirdPartyCookieBlockingMode': ['<WebCore/NetworkStorageSession.h>'],
         'WebCore::TrackID': ['<WebCore/TrackBase.h>'],
+        'WebCore::TrackInfo': ['<WebCore/MediaSample.h>'],
+        'WebCore::TrackInfo::TrackType': ['<WebCore/MediaSample.h>'],
         'WebCore::UserGestureTokenIdentifierID': ['"GeneratedSerializers.h"'],
         'WebCore::WritingTools::Context': ['<WebCore/WritingToolsTypes.h>'],
         'WebCore::WritingTools::ContextID': ['<WebCore/WritingToolsTypes.h>'],
@@ -1176,8 +1184,10 @@ def headers_for_type(type):
         'WebKit::RTC::Network::EcnMarking': ['"RTCNetwork.h"'],
         'WebKit::RTC::Network::IPAddress': ['"RTCNetwork.h"'],
         'WebKit::RTC::Network::SocketAddress': ['"RTCNetwork.h"'],
+        'WebKit::RemoteAudioInfo': ['"RemoteTrackInfo.h"'],
         'WebKit::RemoteVideoFrameReadReference': ['"RemoteVideoFrameIdentifier.h"'],
         'WebKit::RemoteVideoFrameWriteReference': ['"RemoteVideoFrameIdentifier.h"'],
+        'WebKit::RemoteVideoInfo': ['"RemoteTrackInfo.h"'],
         'WebKit::RespectSelectionAnchor': ['"GestureTypes.h"'],
         'WebKit::SandboxExtensionHandle': ['"SandboxExtension.h"'],
         'WebKit::ScriptTelemetryRules': ['"ScriptTelemetry.h"'],

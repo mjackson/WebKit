@@ -235,7 +235,6 @@ enum class TextZoom : bool;
 enum class TouchAction : uint8_t;
 enum class TransformBox : uint8_t;
 enum class TransformStyle3D : uint8_t;
-enum class TypographicMode : bool;
 enum class UnicodeBidi : uint8_t;
 enum class UsedClear : uint8_t;
 enum class UsedFloat : uint8_t;
@@ -586,7 +585,7 @@ public:
     inline FontOpticalSizing fontOpticalSizing() const;
     inline FontVariationSettings fontVariationSettings() const;
     inline FontSelectionValue fontWeight() const;
-    inline FontSelectionValue fontStretch() const;
+    inline FontSelectionValue fontWidth() const;
     inline std::optional<FontSelectionValue> fontItalic() const;
     inline const FontPalette& fontPalette() const;
     inline FontSizeAdjust fontSizeAdjust() const;
@@ -1154,6 +1153,8 @@ public:
 
 #if HAVE(CORE_MATERIAL)
     inline AppleVisualEffect appleVisualEffect() const;
+    inline bool hasAppleVisualEffect() const;
+    inline bool hasAppleVisualEffectRequiringBackdropFilter() const;
 #endif
 
     inline MathStyle mathStyle() const;
@@ -1289,7 +1290,7 @@ public:
     void setFontOpticalSizing(FontOpticalSizing);
     void setFontVariationSettings(FontVariationSettings);
     void setFontWeight(FontSelectionValue);
-    void setFontStretch(FontSelectionValue);
+    void setFontWidth(FontSelectionValue);
     void setFontItalic(std::optional<FontSelectionValue>);
     void setFontPalette(const FontPalette&);
 
@@ -1873,7 +1874,6 @@ public:
     bool lastChildState() const { return m_nonInheritedFlags.lastChildState; }
     void setLastChildState() { setUnique(); m_nonInheritedFlags.lastChildState = true; }
 
-    Style::Color unresolvedColorForProperty(CSSPropertyID colorProperty, bool visitedLink = false) const;
     Color colorResolvingCurrentColor(CSSPropertyID colorProperty, bool visitedLink) const;
 
     // Resolves the currentColor keyword, but must not be used for the "color" property which has a different semantic.
@@ -2406,6 +2406,8 @@ private:
     RenderStyle(RenderStyle&, RenderStyle&&);
 
     constexpr DisplayType originalDisplay() const { return static_cast<DisplayType>(m_nonInheritedFlags.originalDisplay); }
+
+    const Style::Color& unresolvedColorForProperty(CSSPropertyID, bool visitedLink = false) const;
 
     inline bool hasAutoLeftAndRight() const;
     inline bool hasAutoTopAndBottom() const;

@@ -557,11 +557,17 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     Modules/push-api/PushCrypto.h
     Modules/push-api/PushDatabase.h
+    Modules/push-api/PushEncryptionKeyName.h
+    Modules/push-api/PushManager.h
     Modules/push-api/PushMessageCrypto.h
     Modules/push-api/PushPermissionState.h
     Modules/push-api/PushStrategy.h
+    Modules/push-api/PushSubscription.h
     Modules/push-api/PushSubscriptionData.h
     Modules/push-api/PushSubscriptionIdentifier.h
+    Modules/push-api/PushSubscriptionJSON.h
+    Modules/push-api/PushSubscriptionOptionsInit.h
+    Modules/push-api/PushSubscriptionOwner.h
 
     Modules/reporting/DeprecationReportBody.h
     Modules/reporting/Report.h
@@ -733,6 +739,8 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     animation/ViewTimelineOptions.h
     animation/WebAnimationTime.h
     animation/WebAnimationTypes.h
+
+    automation/AutomationInstrumentation.h
 
     bindings/IDLTypes.h
 
@@ -965,6 +973,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/typedom/numeric/CSSNumericBaseType.h
     css/typedom/numeric/CSSNumericType.h
 
+    css/values/CSSNoConversionDataRequiredToken.h
     css/values/CSSValueAggregates.h
     css/values/CSSValueTypes.h
 
@@ -1043,6 +1052,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     dom/DeviceOrientationData.h
     dom/DeviceOrientationOrMotionPermissionState.h
     dom/Document.h
+    dom/DocumentClasses.h
     dom/DocumentEventTiming.h
     dom/DocumentFontLoader.h
     dom/DocumentFragment.h
@@ -1545,6 +1555,8 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     loader/ResourceLoaderIdentifier.h
     loader/ResourceLoaderOptions.h
     loader/ResourceLoaderTypes.h
+    loader/ResourceMonitor.h
+    loader/ResourceMonitorChecker.h
     loader/ResourceTimingInformation.h
     loader/ShouldTreatAsContinuingLoad.h
     loader/SubframeLoader.h
@@ -2182,6 +2194,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/graphics/ShareableBitmap.h
     platform/graphics/ShareableBitmapHandle.h
     platform/graphics/ShouldLocalizeAxisNames.h
+    platform/graphics/SnapshotIdentifier.h
     platform/graphics/SourceBrush.h
     platform/graphics/SourceBrushLogicalGradient.h
     platform/graphics/SourceBufferPrivate.h
@@ -2411,6 +2424,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/network/HTTPParsers.h
     platform/network/HTTPSByDefaultMode.h
     platform/network/HTTPStatusCodes.h
+    platform/network/ShouldPartitionCookie.h
     platform/network/NetworkLoadInformation.h
     platform/network/NetworkLoadMetrics.h
     platform/network/NetworkStateNotifier.h

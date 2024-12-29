@@ -26,7 +26,8 @@
 [
     ExceptionForEnabledBy,
     DispatchedFrom=WebContent,
-    DispatchedTo=GPU
+    DispatchedTo=GPU,
+    EnabledBy=MediaPlaybackEnabled
 ]
 messages -> RemoteMediaEngineConfigurationFactoryProxy {
     CreateDecodingConfiguration(struct WebCore::MediaDecodingConfiguration configuration) -> (struct WebCore::MediaCapabilitiesDecodingInfo decodingInfo)

@@ -187,7 +187,7 @@ public:
     static FontSizeAdjust convertFontSizeAdjust(const BuilderState&, const CSSValue&);
     static std::optional<FontSelectionValue> convertFontStyleFromValue(const BuilderState&, const CSSValue&);
     static FontSelectionValue convertFontWeight(const BuilderState&, const CSSValue&);
-    static FontSelectionValue convertFontStretch(const BuilderState&, const CSSValue&);
+    static FontSelectionValue convertFontWidth(const BuilderState&, const CSSValue&);
     static FontSelectionValue convertFontStyle(const BuilderState&, const CSSValue&);
     static FontFeatureSettings convertFontFeatureSettings(const BuilderState&, const CSSValue&);
     static FontVariationSettings convertFontVariationSettings(const BuilderState&, const CSSValue&);
@@ -1550,7 +1550,7 @@ inline FontSelectionValue BuilderConverter::convertFontWeight(const BuilderState
     return Style::fontWeightFromCSSValue(value, builderState.cssToLengthConversionData());
 }
 
-inline FontSelectionValue BuilderConverter::convertFontStretch(const BuilderState& builderState, const CSSValue& value)
+inline FontSelectionValue BuilderConverter::convertFontWidth(const BuilderState& builderState, const CSSValue& value)
 {
     return Style::fontStretchFromCSSValue(value, builderState.cssToLengthConversionData());
 }
@@ -2014,6 +2014,9 @@ inline Style::ViewTransitionName BuilderConverter::convertViewTransitionName(con
 
     if (value.valueID() == CSSValueAuto)
         return Style::ViewTransitionName::createWithAuto(state.styleScopeOrdinal());
+
+    if (value.valueID() == CSSValueMatchElement)
+        return Style::ViewTransitionName::createWithMatchElement(state.styleScopeOrdinal());
 
     return Style::ViewTransitionName::createWithCustomIdent(state.styleScopeOrdinal(), AtomString { primitiveValue->stringValue() });
 }

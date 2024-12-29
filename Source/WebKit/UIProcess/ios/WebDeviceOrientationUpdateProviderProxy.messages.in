@@ -24,7 +24,8 @@
 [
     ExceptionForEnabledBy,
     DispatchedFrom=WebContent,
-    DispatchedTo=UI
+    DispatchedTo=UI,
+    EnabledBy=DeviceOrientationEventEnabled
 ]
 messages -> WebDeviceOrientationUpdateProviderProxy {
     StartUpdatingDeviceOrientation();

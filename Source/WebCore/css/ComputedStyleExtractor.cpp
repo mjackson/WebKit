@@ -105,8 +105,6 @@
 #include "ViewTimeline.h"
 #include "WebAnimationUtilities.h"
 
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
-
 namespace WebCore {
 DEFINE_ALLOCATOR_WITH_HEAP_IDENTIFIER(ComputedStyleExtractor);
 
@@ -2546,14 +2544,14 @@ static Ref<CSSPrimitiveValue> fontWeight(const RenderStyle& style)
     return fontWeight(style.fontDescription().weight());
 }
 
-static Ref<CSSPrimitiveValue> fontStretch(FontSelectionValue stretch)
+static Ref<CSSPrimitiveValue> fontWidth(FontSelectionValue width)
 {
-    return CSSPrimitiveValue::create(static_cast<float>(stretch), CSSUnitType::CSS_PERCENTAGE);
+    return CSSPrimitiveValue::create(static_cast<float>(width), CSSUnitType::CSS_PERCENTAGE);
 }
 
-static Ref<CSSPrimitiveValue> fontStretch(const RenderStyle& style)
+static Ref<CSSPrimitiveValue> fontWidth(const RenderStyle& style)
 {
-    return fontStretch(style.fontDescription().stretch());
+    return fontWidth(style.fontDescription().width());
 }
 
 static Ref<CSSValue> fontStyle(std::optional<FontSelectionValue> italic, FontStyleAxis axis)
@@ -2688,7 +2686,7 @@ static CSSValueID convertToColumnBreak(BreakInside value)
 
 static inline bool isNonReplacedInline(RenderObject& renderer)
 {
-    return renderer.isInline() && !renderer.isReplacedOrInlineBlock();
+    return renderer.isInline() && !renderer.isReplacedOrAtomicInline();
 }
 
 static bool rendererCanHaveTrimmedMargin(const RenderBox& renderer, MarginTrimType marginTrimType)
@@ -3279,7 +3277,7 @@ String ComputedStyleExtractor::customPropertyText(const AtomString& propertyName
 static Ref<CSSFontValue> fontShorthandValue(const RenderStyle& style, ComputedStyleExtractor::PropertyValueType valueType)
 {
     auto& description = style.fontDescription();
-    auto fontStretch = fontStretchKeyword(description.stretch());
+    auto fontWidth = fontWidthKeyword(description.width());
     auto fontStyle = fontStyleKeyword(description.italic(), description.fontStyleAxis());
 
     auto propertiesResetByShorthandAreExpressible = [&] {
@@ -3290,7 +3288,7 @@ static Ref<CSSFontValue> fontShorthandValue(const RenderStyle& style, ComputedSt
 
         // When we add font-language-override, also add code to check for non-expressible values for it here.
         return variantSettingsOmittingExpressible.isAllNormal()
-            && fontStretch
+            && fontWidth
             && fontStyle
             && description.fontSizeAdjust().isNone()
             && description.kerning() == Kerning::Auto
@@ -3308,8 +3306,8 @@ static Ref<CSSFontValue> fontShorthandValue(const RenderStyle& style, ComputedSt
         computedFont->variant = CSSPrimitiveValue::create(CSSValueSmallCaps);
     if (float weight = description.weight(); weight != 400)
         computedFont->weight = CSSPrimitiveValue::create(weight);
-    if (*fontStretch != CSSValueNormal)
-        computedFont->stretch = CSSPrimitiveValue::create(*fontStretch);
+    if (*fontWidth != CSSValueNormal)
+        computedFont->width = CSSPrimitiveValue::create(*fontWidth);
     if (*fontStyle != CSSValueNormal)
         computedFont->style = CSSPrimitiveValue::create(*fontStyle);
     computedFont->size = fontSize(style);
@@ -3760,8 +3758,8 @@ RefPtr<CSSValue> ComputedStyleExtractor::valueForPropertyInStyle(const RenderSty
         return fontSizeAdjustFromStyle(style);
     case CSSPropertyFontStyle:
         return fontStyle(style);
-    case CSSPropertyFontStretch:
-        return fontStretch(style);
+    case CSSPropertyFontWidth:
+        return fontWidth(style);
     case CSSPropertyFontVariant:
         return fontVariantShorthandValue();
     case CSSPropertyFontWeight:
@@ -5047,9 +5045,11 @@ Ref<CSSValueList> ComputedStyleExtractor::getCSSPropertyValuesForShorthandProper
 
 RefPtr<CSSValueList> ComputedStyleExtractor::getCSSPropertyValuesFor2SidesShorthand(const StylePropertyShorthand& shorthand) const
 {
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
     // Assume the properties are in the usual order start, end.
     auto startValue = propertyValue(shorthand.properties()[0], UpdateLayout::No);
     auto endValue = propertyValue(shorthand.properties()[1], UpdateLayout::No);
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
     // All 2 properties must be specified.
     if (!startValue || !endValue)
@@ -5062,11 +5062,13 @@ RefPtr<CSSValueList> ComputedStyleExtractor::getCSSPropertyValuesFor2SidesShorth
 
 RefPtr<CSSValueList> ComputedStyleExtractor::getCSSPropertyValuesFor4SidesShorthand(const StylePropertyShorthand& shorthand) const
 {
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
     // Assume the properties are in the usual order top, right, bottom, left.
     auto topValue = propertyValue(shorthand.properties()[0], UpdateLayout::No);
     auto rightValue = propertyValue(shorthand.properties()[1], UpdateLayout::No);
     auto bottomValue = propertyValue(shorthand.properties()[2], UpdateLayout::No);
     auto leftValue = propertyValue(shorthand.properties()[3], UpdateLayout::No);
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
     // All 4 properties must be specified.
     if (!topValue || !rightValue || !bottomValue || !leftValue)
@@ -5193,5 +5195,3 @@ Ref<CSSValue> ComputedStyleExtractor::getMaskShorthandValue() const
 }
 
 } // namespace WebCore
-
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_END

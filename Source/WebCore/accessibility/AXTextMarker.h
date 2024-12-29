@@ -204,6 +204,8 @@ public:
     AXTextMarkerRange sentenceRange(SentenceRangeType) const;
     // Creates a range for the paragraph at the current marker.
     AXTextMarkerRange paragraphRange() const;
+    // Returns a range pointing to the start and end positions that have the same text styles as `this`.
+    AXTextMarkerRange rangeWithSameStyle() const;
     // Given a character offset relative to this marker, find the next marker the offset points to.
     AXTextMarker nextMarkerFromOffset(unsigned) const;
     // Returns the number of intermediate text markers between this and the root.
@@ -251,6 +253,7 @@ class AXTextMarkerRange {
 public:
     // Constructors.
     AXTextMarkerRange(const VisiblePositionRange&);
+    AXTextMarkerRange(const VisibleSelection&);
     AXTextMarkerRange(const std::optional<SimpleRange>&);
     AXTextMarkerRange(const AXTextMarker&, const AXTextMarker&);
     AXTextMarkerRange(AXTextMarker&&, AXTextMarker&&);
@@ -284,6 +287,7 @@ public:
 
     AXTextMarker start() const { return m_start; }
     AXTextMarker end() const { return m_end; }
+    bool isCollapsed() const { return m_start.isEqual(m_end); }
     bool isConfinedTo(std::optional<AXID>) const;
     bool isConfined() const;
 

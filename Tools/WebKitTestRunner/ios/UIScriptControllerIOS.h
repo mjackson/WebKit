@@ -149,6 +149,7 @@ private:
     void toggleCapsLock(JSValueRef) override;
     unsigned keyboardWillHideCount() const override;
     bool keyboardIsAutomaticallyShifted() const override;
+    unsigned keyboardUpdateForChangedSelectionCount() const final;
     bool isAnimatingDragCancel() const override;
     JSRetainPtr<JSStringRef> selectionCaretBackgroundColor() const override;
     JSObjectRef tapHighlightViewRect() const override;
@@ -186,6 +187,8 @@ private:
 
     void presentFindNavigator() override;
     void dismissFindNavigator() override;
+
+    JSRetainPtr<JSStringRef> frontmostViewAtPoint(int, int) final;
 
     void waitForModalTransitionToFinish() const;
     void waitForSingleTapToReset() const;

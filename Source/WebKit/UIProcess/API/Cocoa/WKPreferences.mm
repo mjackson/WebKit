@@ -217,6 +217,16 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     _preferences->setTabsToLinks(tabFocusesLinks);
 }
 
+- (BOOL)_useSystemAppearance
+{
+    return _preferences->useSystemAppearance();
+}
+
+- (void)_setUseSystemAppearance:(BOOL)useSystemAppearance
+{
+    _preferences->setUseSystemAppearance(useSystemAppearance);
+}
+
 #pragma mark WKObject protocol implementation
 
 - (API::Object&)_apiObject
@@ -1672,6 +1682,24 @@ static WebCore::EditableLinkBehavior toEditableLinkBehavior(_WKEditableLinkBehav
     return _preferences->cssTransformStyleSeparatedEnabled();
 }
 
+- (void)_setOverlayRegionsEnabled:(BOOL)enabled
+{
+#if ENABLE(OVERLAY_REGIONS_IN_EVENT_REGION)
+    _preferences->setOverlayRegionsEnabled(enabled);
+#else
+    UNUSED_PARAM(enabled);
+#endif
+}
+
+- (BOOL)_overlayRegionsEnabled
+{
+#if ENABLE(OVERLAY_REGIONS_IN_EVENT_REGION)
+    return _preferences->overlayRegionsEnabled();
+#else
+    return NO;
+#endif
+}
+
 - (void)_setSpatialVideoEnabled:(BOOL)enabled
 {
 #if ENABLE(LINEAR_MEDIA_PLAYER)
@@ -1689,6 +1717,37 @@ static WebCore::EditableLinkBehavior toEditableLinkBehavior(_WKEditableLinkBehav
     return NO;
 #endif
 }
+
+- (void)_setModelElementEnabled:(BOOL)enabled
+{
+    _preferences->setModelElementEnabled(enabled);
+}
+
+- (BOOL)_modelProcessEnabled
+{
+    return _preferences->modelProcessEnabled();
+}
+
+- (void)_setModelProcessEnabled:(BOOL)enabled
+{
+    _preferences->setModelProcessEnabled(enabled);
+}
+
+- (BOOL)_modelElementEnabled
+{
+    return _preferences->modelElementEnabled();
+}
+
+- (void)_setModelNoPortalAttributeEnabled:(BOOL)enabled
+{
+    _preferences->setModelNoPortalAttributeEnabled(enabled);
+}
+
+- (BOOL)_modelNoPortalAttributeEnabled
+{
+    return _preferences->modelNoPortalAttributeEnabled();
+}
+
 @end
 
 @implementation WKPreferences (WKDeprecated)
@@ -1844,5 +1903,9 @@ static WebCore::EditableLinkBehavior toEditableLinkBehavior(_WKEditableLinkBehav
 - (void)_setOfflineApplicationCacheIsEnabled:(BOOL)offlineApplicationCacheIsEnabled
 {
 }
+
+#if USE(APPLE_INTERNAL_SDK) && __has_include(<WebKitAdditions/WKPreferencesAdditions.mm>)
+#import <WebKitAdditions/WKPreferencesAdditions.mm>
+#endif
 
 @end
