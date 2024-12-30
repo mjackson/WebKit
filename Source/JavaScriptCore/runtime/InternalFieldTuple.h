@@ -4,6 +4,8 @@
 
 namespace JSC {
 
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
+
 // InternalFieldTuple is a generic InternalFieldObject that currently has two internal fields
 // It is used in
 // - On the global object to store a read/write ref to Bun's AsyncLocalStorage context
@@ -78,5 +80,7 @@ public:
 
     DECLARE_EXPORT_INFO;
 };
+
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 } // namespace JSC

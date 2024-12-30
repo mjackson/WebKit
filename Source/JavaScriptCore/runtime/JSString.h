@@ -38,7 +38,10 @@
 #include <wtf/ForbidHeapAllocation.h>
 #include <wtf/MathExtras.h>
 #include <wtf/text/StringView.h>
+
+#if USE(BUN_JSC_ADDITIONS)
 #include <wtf/ForkExtras.h>
+#endif
 
 #if OS(DARWIN)
 #include <mach/vm_param.h>
@@ -273,9 +276,9 @@ public:
 
     bool is8Bit() const;
 
-    // --- ADDED ---
+#if USE(BUN_JSC_ADDITIONS)
     inline void value(jsstring_iterator* iterator) const;
-    // --- ADDED ---
+#endif
 
     ALWAYS_INLINE JSString* tryReplaceOneChar(JSGlobalObject*, UChar, JSString* replacement);
 
@@ -285,7 +288,6 @@ protected:
     friend class JSCell;
 
     JS_EXPORT_PRIVATE bool equalSlowCase(JSGlobalObject*, JSString* other) const;
-    JS_EXPORT_PRIVATE bool equalSlowCase(JSGlobalObject*, const char* ptr, size_t len) const;
 
     inline JSString* tryReplaceOneCharImpl(JSGlobalObject*, UChar search, JSString* replacement, uint8_t* stackLimit, bool& found);
 
@@ -301,8 +303,6 @@ private:
     friend JSString* jsString(VM&, const String&);
     friend JSString* jsString(VM&, String&&);
     friend JSString* jsString(VM&, StringView);
-    friend JSString* jsString(VM&, const String&, GCDeferralContext*);
-    friend JSString* jsString(VM&, String&&, GCDeferralContext*);
     friend JSString* jsString(JSGlobalObject*, JSString*, JSString*);
     friend JSString* jsString(JSGlobalObject*, const String&, JSString*);
     friend JSString* jsString(JSGlobalObject*, JSString*, const String&);
@@ -620,11 +620,11 @@ public:
     JS_EXPORT_PRIVATE const String& resolveRopeWithoutGC() const;
 
     template<typename CharacterType>
-    static void resolveToBuffer(JSString*, JSString*, JSString*, std::span<CharacterType> buffer);
+    static void resolveToBuffer(JSString*, JSString*, JSString*, std::span<CharacterType> buffer, uint8_t* stackLimit);
 
 private:
     template<typename CharacterType>
-    static void resolveToBufferSlow(JSString*, JSString*, JSString*, std::span<CharacterType> buffer);
+    static void resolveToBufferSlow(JSString*, JSString*, JSString*, std::span<CharacterType> buffer, uint8_t* stackLimit);
 
     static JSRopeString* create(VM& vm, JSString* s1, JSString* s2)
     {
@@ -661,7 +661,7 @@ private:
     template<bool reportAllocation, typename Function> const String& resolveRopeWithFunction(JSGlobalObject* nullOrGlobalObjectForOOM, Function&&) const;
     JS_EXPORT_PRIVATE AtomString resolveRopeToAtomString(JSGlobalObject*) const;
     JS_EXPORT_PRIVATE RefPtr<AtomStringImpl> resolveRopeToExistingAtomString(JSGlobalObject*) const;
-    template<typename CharacterType> void resolveRopeInternalNoSubstring(std::span<CharacterType>) const;
+    template<typename CharacterType> void resolveRopeInternalNoSubstring(std::span<CharacterType>, uint8_t* stackLimit) const;
     Identifier toIdentifier(JSGlobalObject*) const;
     void outOfMemory(JSGlobalObject* nullOrGlobalObjectForOOM) const;
     GCOwnedDataScope<StringView> view(JSGlobalObject*) const;
@@ -908,7 +908,7 @@ inline GCOwnedDataScope<const String&> JSString::value(JSGlobalObject* globalObj
         return { this, static_cast<const JSRopeString*>(this)->resolveRope(globalObject) };
     return { this, valueInternal() };
 }
-
+#if USE(BUN_JSC_ADDITIONS)
 inline void JSString::value(jsstring_iterator* iterator) const
 {
       if (isRope()) {
@@ -926,6 +926,7 @@ inline void JSString::value(jsstring_iterator* iterator) const
         iterator->append16(iterator, (void*)span16.data(), span16.size());
     }
 }
+#endif
 
 inline GCOwnedDataScope<const String&> JSString::tryGetValue(bool allocationAllowed) const
 {
@@ -973,30 +974,6 @@ inline JSString* jsString(VM& vm, String&& s)
             return vm.smallStrings.singleCharacterString(c);
     }
     return JSString::create(vm, s.releaseImpl().releaseNonNull());
-}
-
-inline JSString* jsString(VM& vm, const String& s, GCDeferralContext* deferralContext)
-{
-    int size = s.length();
-    if (!size)
-        return vm.smallStrings.emptyString();
-    if (size == 1) {
-        if (auto c = s.characterAt(0); c <= maxSingleCharacterString)
-            return vm.smallStrings.singleCharacterString(c);
-    }
-    return JSString::create(vm, deferralContext, *s.impl());
-}
-
-inline JSString* jsString(VM& vm, String&& s, GCDeferralContext* deferralContext)
-{
-    int size = s.length();
-    if (!size)
-        return vm.smallStrings.emptyString();
-    if (size == 1) {
-        if (auto c = s.characterAt(0); c <= maxSingleCharacterString)
-            return vm.smallStrings.singleCharacterString(c);
-    }
-    return JSString::create(vm, deferralContext, s.releaseImpl().releaseNonNull());
 }
 
 ALWAYS_INLINE JSString* jsString(VM& vm, const AtomString& s)

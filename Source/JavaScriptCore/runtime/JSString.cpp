@@ -142,47 +142,9 @@ void JSString::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 DEFINE_VISIT_CHILDREN(JSString);
 
 template<typename CharacterType>
-void JSRopeString::resolveRopeInternalNoSubstring(std::span<CharacterType> buffer) const
+void JSRopeString::resolveRopeInternalNoSubstring(std::span<CharacterType> buffer, uint8_t* stackLimit) const
 {
-    resolveToBuffer(fiber0(), fiber1(), fiber2(), buffer);
-}
-
-void JSRopeString::iterRopeInternalNoSubstring(jsstring_iterator* iter) const
-{
-    for (size_t i = 0; i < s_maxInternalRopeLength && fiber(i) && !iter->stop; ++i) {
-        if (fiber(i)->isRope()) {
-            iterRopeSlowCase(iter);
-            return;
-        }
-    }
-
-    size_t position = 0;
-
-    for (size_t i = 0; i < s_maxInternalRopeLength && fiber(i) && !iter->stop; ++i) {
-        const StringImpl& fiberString = *fiber(i)->valueInternal().impl();
-        unsigned length = fiberString.length();
-        if (fiberString.is8Bit())
-            StringImpl::iterCharacters(iter, position, fiberString.span8().data(), length);
-        else
-            StringImpl::iterCharacters(iter, position, fiberString.span16().data(), length);
-        position += length;
-    }
-
-    ASSERT(iter->stop || length() == position);
-}
-
-bool JSString::equalSlowCase(JSGlobalObject* globalObject, const char* ptr, size_t len) const
-{
-    VM& vm = globalObject->vm();
-    auto scope = DECLARE_THROW_SCOPE(vm);
-
-    if (length() != len)
-        return false;
-
-    String str1 = value(globalObject);
-    RETURN_IF_EXCEPTION(scope, false);
-
-    return WTF::equal(*str1.impl(), StringView({ ptr, len }));
+    resolveToBuffer(fiber0(), fiber1(), fiber2(), buffer, stackLimit);
 }
 
 AtomString JSRopeString::resolveRopeToAtomString(JSGlobalObject* globalObject) const
@@ -204,14 +166,15 @@ AtomString JSRopeString::resolveRopeToAtomString(JSGlobalObject* globalObject) c
     }
 
     AtomString atomString;
+    uint8_t* stackLimit = std::bit_cast<uint8_t*>(vm.softStackLimit());
     if (!isSubstring()) {
         if (is8Bit()) {
             std::array<LChar, maxLengthForOnStackResolve> buffer;
-            resolveRopeInternalNoSubstring(std::span { buffer }.first(length()));
+            resolveRopeInternalNoSubstring(std::span { buffer }.first(length()), stackLimit);
             atomString = std::span<const LChar> { buffer }.first(length());
         } else {
             std::array<UChar, maxLengthForOnStackResolve> buffer;
-            resolveRopeInternalNoSubstring(std::span { buffer }.first(length()));
+            resolveRopeInternalNoSubstring(std::span { buffer }.first(length()), stackLimit);
             atomString = std::span<const UChar> { buffer }.first(length());
         }
     } else
@@ -244,13 +207,14 @@ RefPtr<AtomStringImpl> JSRopeString::resolveRopeToExistingAtomString(JSGlobalObj
     
     RefPtr<AtomStringImpl> existingAtomString;
     if (!isSubstring()) {
+        uint8_t* stackLimit = std::bit_cast<uint8_t*>(vm.softStackLimit());
         if (is8Bit()) {
             std::array<LChar, maxLengthForOnStackResolve> buffer;
-            resolveRopeInternalNoSubstring(std::span { buffer }.first(length()));
+            resolveRopeInternalNoSubstring(std::span { buffer }.first(length()), stackLimit);
             existingAtomString = AtomStringImpl::lookUp(std::span { buffer }.first(length()));
         } else {
             std::array<UChar, maxLengthForOnStackResolve> buffer;
-            resolveRopeInternalNoSubstring(std::span { buffer }.first(length()));
+            resolveRopeInternalNoSubstring(std::span { buffer }.first(length()), stackLimit);
             existingAtomString = AtomStringImpl::lookUp(std::span { buffer }.first(length()));
         }
     } else
@@ -283,7 +247,8 @@ const String& JSRopeString::resolveRopeWithFunction(JSGlobalObject* nullOrGlobal
         }
 
         size_t sizeToReport = newImpl->cost();
-        resolveRopeInternalNoSubstring(buffer);
+        uint8_t* stackLimit = std::bit_cast<uint8_t*>(vm.softStackLimit());
+        resolveRopeInternalNoSubstring(buffer, stackLimit);
         convertToNonRope(function(newImpl.releaseNonNull()));
         if constexpr (reportAllocation)
             vm.heap.reportExtraMemoryAllocated(this, sizeToReport);
@@ -298,7 +263,8 @@ const String& JSRopeString::resolveRopeWithFunction(JSGlobalObject* nullOrGlobal
     }
     
     size_t sizeToReport = newImpl->cost();
-    resolveRopeInternalNoSubstring(buffer);
+    uint8_t* stackLimit = std::bit_cast<uint8_t*>(vm.softStackLimit());
+    resolveRopeInternalNoSubstring(buffer, stackLimit);
     convertToNonRope(function(newImpl.releaseNonNull()));
     if constexpr (reportAllocation)
         vm.heap.reportExtraMemoryAllocated(this, sizeToReport);
@@ -319,76 +285,6 @@ const String& JSRopeString::resolveRopeWithoutGC() const
     return resolveRopeWithFunction<reportAllocation>(nullptr, [] (Ref<StringImpl>&& newImpl) {
         return WTFMove(newImpl);
     });
-}
-
-
-void JSRopeString::iterRope(jsstring_iterator *iter) const
-{
-     ASSERT(isRope());
-
-    if (isSubstring()) {
-        ASSERT(!substringBase()->isRope());
-        StringImpl *impl = substringBase()->valueInternal().impl();
-
-        if (impl->is8Bit()) {
-            auto ptr = impl->span8().data() + substringOffset();
-            size_t end = length();
-            iter->append8(iter, (void*)ptr, end);
-        } else {
-            auto ptr = impl->span16().data() + substringOffset();
-            size_t end = length();
-            iter->append16(iter, (void*)ptr, end);
-        }
-
-        return;
-    }
-
-
-    iterRopeInternalNoSubstring(iter);
-}
-
-void JSRopeString::iterRopeSlowCase(jsstring_iterator* iter) const
-{
-    size_t position = length(); // We will be working backwards over the rope.
-    Vector<JSString*, 32, UnsafeVectorOverflow> workQueue; // These strings are kept alive by the parent rope, so using a Vector is OK.
-
-    for (size_t i = 0; i < s_maxInternalRopeLength && fiber(i); ++i)
-        workQueue.append(fiber(i));
-
-    while (!workQueue.isEmpty() && !iter->stop) {
-        JSString* currentFiber = workQueue.last();
-        workQueue.removeLast();
-
-        if (currentFiber->isRope()) {
-            JSRopeString* currentFiberAsRope = static_cast<JSRopeString*>(currentFiber);
-            if (currentFiberAsRope->isSubstring()) {
-                ASSERT(!currentFiberAsRope->substringBase()->isRope());
-                StringImpl* string = static_cast<StringImpl*>(
-                    currentFiberAsRope->substringBase()->valueInternal().impl());
-                unsigned offset = currentFiberAsRope->substringOffset();
-                unsigned length = currentFiberAsRope->length();
-                position -= length;
-                if (string->is8Bit())
-                    StringImpl::iterCharacters(iter, position, string->span8().data() + offset, length);
-                else
-                    StringImpl::iterCharacters(iter, position, string->span16().data() + offset, length);
-                continue;
-            }
-            for (size_t i = 0; i < s_maxInternalRopeLength && currentFiberAsRope->fiber(i) && !iter->stop; ++i)
-                workQueue.append(currentFiberAsRope->fiber(i));
-            continue;
-        }
-
-        StringImpl* string = static_cast<StringImpl*>(currentFiber->valueInternal().impl());
-        unsigned length = string->length();
-        position -= length;
-        if (string->is8Bit())
-            StringImpl::iterCharacters(iter, position, string->span8().data(), length);
-        else
-            StringImpl::iterCharacters(iter, position, string->span16().data(), length);
-    }
-
-    ASSERT(position == 0 || iter->stop);
 }
 
 void JSRopeString::outOfMemory(JSGlobalObject* nullOrGlobalObjectForOOM) const
@@ -460,6 +356,103 @@ JSString* jsStringWithCacheSlowCase(VM& vm, StringImpl& stringImpl)
     vm.lastCachedString.setWithoutWriteBarrier(string);
     return string;
 }
+
+#if USE(BUN_JSC_ADDITIONS)
+
+void JSRopeString::iterRopeInternalNoSubstring(jsstring_iterator* iter) const
+{
+    for (size_t i = 0; i < s_maxInternalRopeLength && fiber(i) && !iter->stop; ++i) {
+        if (fiber(i)->isRope()) {
+            iterRopeSlowCase(iter);
+            return;
+        }
+    }
+
+    size_t position = 0;
+
+    for (size_t i = 0; i < s_maxInternalRopeLength && fiber(i) && !iter->stop; ++i) {
+        const StringImpl& fiberString = *fiber(i)->valueInternal().impl();
+        unsigned length = fiberString.length();
+        if (fiberString.is8Bit())
+            StringImpl::iterCharacters(iter, position, fiberString.span8().data(), length);
+        else
+            StringImpl::iterCharacters(iter, position, fiberString.span16().data(), length);
+        position += length;
+    }
+
+    ASSERT(iter->stop || length() == position);
+}
+
+void JSRopeString::iterRope(jsstring_iterator *iter) const
+{
+     ASSERT(isRope());
+
+    if (isSubstring()) {
+        ASSERT(!substringBase()->isRope());
+        StringImpl *impl = substringBase()->valueInternal().impl();
+
+        if (impl->is8Bit()) {
+            auto ptr = impl->span8().data() + substringOffset();
+            size_t end = length();
+            iter->append8(iter, (void*)ptr, end);
+        } else {
+            auto ptr = impl->span16().data() + substringOffset();
+            size_t end = length();
+            iter->append16(iter, (void*)ptr, end);
+        }
+
+        return;
+    }
+
+
+    iterRopeInternalNoSubstring(iter);
+}
+
+void JSRopeString::iterRopeSlowCase(jsstring_iterator* iter) const
+{
+    size_t position = length(); // We will be working backwards over the rope.
+    Vector<JSString*, 32, UnsafeVectorOverflow> workQueue; // These strings are kept alive by the parent rope, so using a Vector is OK.
+
+    for (size_t i = 0; i < s_maxInternalRopeLength && fiber(i); ++i)
+        workQueue.append(fiber(i));
+
+    while (!workQueue.isEmpty() && !iter->stop) {
+        JSString* currentFiber = workQueue.last();
+        workQueue.removeLast();
+
+        if (currentFiber->isRope()) {
+            JSRopeString* currentFiberAsRope = static_cast<JSRopeString*>(currentFiber);
+            if (currentFiberAsRope->isSubstring()) {
+                ASSERT(!currentFiberAsRope->substringBase()->isRope());
+                StringImpl* string = static_cast<StringImpl*>(
+                    currentFiberAsRope->substringBase()->valueInternal().impl());
+                unsigned offset = currentFiberAsRope->substringOffset();
+                unsigned length = currentFiberAsRope->length();
+                position -= length;
+                if (string->is8Bit())
+                    StringImpl::iterCharacters(iter, position, string->span8().data() + offset, length);
+                else
+                    StringImpl::iterCharacters(iter, position, string->span16().data() + offset, length);
+                continue;
+            }
+            for (size_t i = 0; i < s_maxInternalRopeLength && currentFiberAsRope->fiber(i) && !iter->stop; ++i)
+                workQueue.append(currentFiberAsRope->fiber(i));
+            continue;
+        }
+
+        StringImpl* string = static_cast<StringImpl*>(currentFiber->valueInternal().impl());
+        unsigned length = string->length();
+        position -= length;
+        if (string->is8Bit())
+            StringImpl::iterCharacters(iter, position, string->span8().data(), length);
+        else
+            StringImpl::iterCharacters(iter, position, string->span16().data(), length);
+    }
+
+    ASSERT(position == 0 || iter->stop);
+}
+
+#endif
 
 } // namespace JSC
 
