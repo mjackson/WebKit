@@ -77,6 +77,9 @@ class UnlinkedFunctionCodeBlock;
         JS_EXPORT_PRIVATE virtual void cacheBytecode(const BytecodeCacheGenerator&) const { }
         JS_EXPORT_PRIVATE virtual void updateCache(const UnlinkedFunctionExecutable*, const SourceCode&, CodeSpecializationKind, const UnlinkedFunctionCodeBlock*) const { }
         JS_EXPORT_PRIVATE virtual void commitCachedBytecode() const { }
+#if USE(BUN_JSC_ADDITIONS)
+        JS_EXPORT_PRIVATE virtual size_t memoryCost() const { return 0; }
+#endif
 
         JS_EXPORT_PRIVATE StringView getRange(int start, int end) const
         {

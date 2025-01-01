@@ -66,6 +66,10 @@ public:
     OrdinalNumber firstLine() const { return m_firstLine; }
     OrdinalNumber startColumn() const { return m_startColumn; }
 
+#if USE(BUN_JSC_ADDITIONS)
+    size_t memoryCost() const { return m_provider ? m_provider->memoryCost() : 0; }
+#endif
+
     SourceID providerID() const
     {
         if (!m_provider)

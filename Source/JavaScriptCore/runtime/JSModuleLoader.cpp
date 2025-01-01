@@ -416,6 +416,10 @@ JSC_DEFINE_HOST_FUNCTION(moduleLoaderParseModule, (JSGlobalObject* globalObject,
     }
 
     scope.release();
+#if USE(BUN_JSC_ADDITIONS)
+    size_t memoryCost = result.value()->sourceCode().memoryCost();
+    vm.heap.reportExtraMemoryAllocated(result.value(), memoryCost);
+#endif
     promise->fulfillWithNonPromise(globalObject, result.value());
     return JSValue::encode(promise);
 }

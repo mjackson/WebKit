@@ -37,6 +37,7 @@
 #include "VMTrapsInlines.h"
 #include "WebAssemblyModuleRecord.h"
 #include <wtf/text/MakeString.h>
+#include "HeapAnalyzer.h"
 
 namespace JSC {
 namespace AbstractModuleRecordInternal {
@@ -78,6 +79,27 @@ void AbstractModuleRecord::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 }
 
 DEFINE_VISIT_CHILDREN(AbstractModuleRecord);
+
+size_t AbstractModuleRecord::estimatedSize(JSCell* cell, VM& vm)
+{
+    size_t size = Base::estimatedSize(cell, vm);
+    auto* thisObject = jsCast<AbstractModuleRecord*>(cell);
+    size += thisObject->m_starExportEntries.capacity() * sizeof(ExportEntry);
+    size += thisObject->m_requestedModules.capacity() * sizeof(Identifier);
+    size += thisObject->m_exportEntries.byteSize();
+    size += thisObject->m_importEntries.byteSize();
+    return size;
+}
+
+void AbstractModuleRecord::analyzeHeap(JSCell* cell, HeapAnalyzer& analyzer)
+{
+    AbstractModuleRecord* thisObject = jsCast<AbstractModuleRecord*>(cell);
+    if (!thisObject->moduleKey().isSymbol() && !thisObject->moduleKey().isEmpty()) {
+        analyzer.setLabelForCell(cell, thisObject->moduleKey().string());
+    }
+
+    Base::analyzeHeap(cell, analyzer);
+}
 
 void AbstractModuleRecord::appendRequestedModule(const Identifier& moduleName, RefPtr<ScriptFetchParameters>&& attributes)
 {

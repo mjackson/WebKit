@@ -51,6 +51,8 @@ public:
         return vm.jsModuleRecordSpace<mode>();
     }
 
+    static size_t estimatedSize(JSCell*, VM&);
+
     static Structure* createStructure(VM&, JSGlobalObject*, JSValue);
     static JSModuleRecord* create(JSGlobalObject*, VM&, Structure*, const Identifier&, const SourceCode&, const VariableEnvironment&, const VariableEnvironment&, CodeFeatures);
 

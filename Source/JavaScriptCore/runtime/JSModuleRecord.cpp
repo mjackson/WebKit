@@ -59,6 +59,13 @@ JSModuleRecord::JSModuleRecord(VM& vm, Structure* structure, const Identifier& m
 {
 }
 
+#if USE(BUN_JSC_ADDITIONS)
+size_t JSModuleRecord::estimatedSize(JSCell* cell, VM& vm)
+{
+    const auto& thisObject = jsCast<JSModuleRecord*>(cell);
+    return Base::estimatedSize(cell, vm) + thisObject->sourceCode().memoryCost();
+}
+#endif
 void JSModuleRecord::destroy(JSCell* cell)
 {
     JSModuleRecord* thisObject = static_cast<JSModuleRecord*>(cell);
@@ -78,6 +85,10 @@ void JSModuleRecord::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
     Base::visitChildren(thisObject, visitor);
     visitor.append(thisObject->m_moduleProgramExecutable);
+
+#if USE(BUN_JSC_ADDITIONS)
+    visitor.reportExtraMemoryVisited(thisObject->sourceCode().memoryCost());
+#endif
 }
 
 DEFINE_VISIT_CHILDREN(JSModuleRecord);
