@@ -63,7 +63,12 @@ JSModuleRecord::JSModuleRecord(VM& vm, Structure* structure, const Identifier& m
 size_t JSModuleRecord::estimatedSize(JSCell* cell, VM& vm)
 {
     const auto& thisObject = jsCast<JSModuleRecord*>(cell);
-    return Base::estimatedSize(cell, vm) + thisObject->sourceCode().memoryCost();
+    size_t size = Base::estimatedSize(cell, vm);
+    const SourceCode& sourceCode = thisObject->sourceCode();
+    StringView view = sourceCode.provider() ? sourceCode.provider()->source() : StringView();
+    size += view.length() * (view.is8Bit() ? sizeof(LChar) : sizeof(UChar));
+    size += sourceCode.memoryCost();
+    return size;
 }
 #endif
 void JSModuleRecord::destroy(JSCell* cell)
