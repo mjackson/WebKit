@@ -1404,6 +1404,9 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
 
     runtime/JSModuleEnvironment.h
     runtime/JSModuleEnvironmentInlines.h
+
+    heap/BunV8HeapSnapshotBuilder.h
+    heap/HeapProfiler.h
 )
 
 if(USE_INSPECTOR_SOCKET_SERVER)
