@@ -123,7 +123,6 @@ public:
     const OrderedIdentifierSet& starExportEntries() const { return m_starExportEntries; }
 
     static size_t estimatedSize(JSCell*, VM&);
-    static void analyzeHeap(JSCell*, HeapAnalyzer&);
 
     void dump();
 

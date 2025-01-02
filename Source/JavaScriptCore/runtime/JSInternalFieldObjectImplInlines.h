@@ -27,10 +27,6 @@
 
 #include "JSInternalFieldObjectImpl.h"
 
-#if USE(BUN_JSC_ADDITIONS)
-#include "HeapAnalyzer.h"
-#endif
-
 namespace JSC {
 
 template<unsigned passedNumberOfInternalFields>
@@ -44,24 +40,5 @@ void JSInternalFieldObjectImpl<passedNumberOfInternalFields>::visitChildrenImpl(
 }
 
 DEFINE_VISIT_CHILDREN_WITH_MODIFIER(template<unsigned passedNumberOfInternalFields>, JSInternalFieldObjectImpl<passedNumberOfInternalFields>);
-
-#if USE(BUN_JSC_ADDITIONS)
-template<unsigned passedNumberOfInternalFields>
-void JSInternalFieldObjectImpl<passedNumberOfInternalFields>::analyzeHeap(JSCell* cell, JSC::HeapAnalyzer& analyzer)
-{
-    Base::analyzeHeap(cell, analyzer);
-    auto* thisObject = jsCast<JSInternalFieldObjectImpl*>(cell);
-    
-    for (unsigned i = 0; i < numberOfInternalFields; ++i) {
-        WriteBarrier<Unknown>& field = thisObject->internalField(i);
-        if (field) {
-            JSValue value = field.get();
-            if (value.isCell()) {
-                analyzer.analyzeIndexEdge(thisObject, value.asCell(), i);
-            }
-        }
-    }
-}
-#endif
 
 } // namespace JSC

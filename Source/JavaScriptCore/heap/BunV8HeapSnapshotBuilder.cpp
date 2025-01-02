@@ -1,5 +1,7 @@
 #include "config.h"
 
+#if USE(BUN_JSC_ADDITIONS)
+
 #include "BunV8HeapSnapshotBuilder.h"
 
 #include "DeferGC.h"
@@ -108,18 +110,32 @@ String BunV8HeapSnapshotBuilder::json()
 
 void BunV8HeapSnapshotBuilder::analyzeNode(JSCell* cell)
 {
-
     if (!cell)
         return;
 
-    Locker locker { m_buildingNodeMutex };
-    unsigned id = m_nodes.size();
-    if (auto existingId = m_cellToNodeId.get(cell)) {
-        WTF::atomicExchangeAdd(&m_nodes[existingId].hitCount, 1);
-        return;
+    {
+        Locker locker { m_cellToNodeIdMutex };
+        if (auto existingId = m_cellToNodeId.get(cell)) {
+            Locker locker { m_buildingNodeMutex };
+            WTF::atomicExchangeAdd(&m_nodes[existingId].hitCount, 1);
+            return;
+        }
     }
+
+    unsigned id = analyzeNodeInternal(cell);
+
+    {
+        Locker locker { m_cellToNodeIdMutex };
+        m_cellToNodeId.set(cell, id);
+    }
+}
+
+unsigned BunV8HeapSnapshotBuilder::analyzeNodeInternal(JSCell* cell)
+{
+
+    Locker locker { m_buildingNodeMutex };
     auto typeIndex = getNodeTypeIndex(cell);
-    m_cellToNodeId.set(cell, id);
+    unsigned id = m_nodes.size();
     m_nodes.append({
         .cell = cell,
         .id = id,
@@ -129,6 +145,8 @@ void BunV8HeapSnapshotBuilder::analyzeNode(JSCell* cell)
         .traceLocation = getTraceLocation(cell),
         .parentNodeId = std::nullopt,
     });
+
+    return id;
 }
 
 void BunV8HeapSnapshotBuilder::analyzeEdge(JSCell* from, JSCell* to, RootMarkReason reason)
@@ -140,24 +158,29 @@ void BunV8HeapSnapshotBuilder::analyzeEdge(JSCell* from, JSCell* to, RootMarkRea
         return;
 
     Locker locker { m_buildingEdgeMutex };
-
     Edge edge = {};
     edge.fromNodeId = from ? getOrCreateNodeId(from) : 0;
     edge.toNodeId = getOrCreateNodeId(to);
+
+    // Validate node IDs
+    ASSERT(edge.fromNodeId < m_nodes.size());
+    ASSERT(edge.toNodeId < m_nodes.size());
+
     edge.typeIndex = getEdgeTypeIndex(reason);
+
+    // Only track parent-child relationships for non-property and non-element edges
     switch (edge.typeIndex) {
-    case static_cast<unsigned>(V8EdgeType::Hidden):
     case static_cast<unsigned>(V8EdgeType::Element):
-        edge.index = m_nodes[edge.fromNodeId].hitCount++;
+    case static_cast<unsigned>(V8EdgeType::Property):
+    case static_cast<unsigned>(V8EdgeType::Context):
         break;
-    default:
-        edge.name = emptyString();
-        break;
+    default: {
+        Locker locker { m_buildingNodeMutex };
+        m_nodes[edge.toNodeId].parentNodeId = edge.fromNodeId;
+    } break;
     }
 
-    m_nodes[edge.toNodeId].parentNodeId = edge.fromNodeId;
-
-    m_edges.append(edge);
+    m_edges.append(WTFMove(edge));
 }
 
 void BunV8HeapSnapshotBuilder::analyzePropertyNameEdge(JSCell* from, JSCell* to, UniquedStringImpl* propertyName)
@@ -165,19 +188,12 @@ void BunV8HeapSnapshotBuilder::analyzePropertyNameEdge(JSCell* from, JSCell* to,
     if (!to || !propertyName)
         return;
 
-
-
+    Locker locker { m_buildingEdgeMutex };
     Edge edge = {};
     edge.fromNodeId = getOrCreateNodeId(from);
     edge.toNodeId = getOrCreateNodeId(to);
     edge.typeIndex = static_cast<unsigned>(V8EdgeType::Property);
     edge.name = WTF::String(propertyName);
-
-
-    Locker locker { m_buildingEdgeMutex };
-    m_nodes[edge.toNodeId].parentNodeId = edge.fromNodeId;
-    m_nodes[edge.fromNodeId].hitCount++;
-
     m_edges.append(WTFMove(edge));
 }
 
@@ -185,19 +201,15 @@ void BunV8HeapSnapshotBuilder::analyzeVariableNameEdge(JSCell* from, JSCell* to,
 {
     if (!to || !variableName)
         return;
-    
-    Edge edge = {};
 
+    Locker locker { m_buildingEdgeMutex };
+    Edge edge = {};
     edge.fromNodeId = getOrCreateNodeId(from);
     edge.toNodeId = getOrCreateNodeId(to);
-  
     edge.typeIndex = static_cast<unsigned>(V8EdgeType::Context);
     edge.name = String(variableName);
 
-    Locker locker { m_buildingEdgeMutex };
-    m_nodes[edge.toNodeId].parentNodeId = edge.fromNodeId;
-    m_nodes[edge.fromNodeId].hitCount++;
-
+   
     m_edges.append(WTFMove(edge));
 }
 
@@ -206,16 +218,12 @@ void BunV8HeapSnapshotBuilder::analyzeIndexEdge(JSCell* from, JSCell* to, uint32
     if (!to)
         return;
 
+    Locker locker { m_buildingEdgeMutex };
     Edge edge = {};
     edge.fromNodeId = getOrCreateNodeId(from);
     edge.toNodeId = getOrCreateNodeId(to);
-
     edge.typeIndex = static_cast<unsigned>(V8EdgeType::Element);
     edge.index = index;
-
-    Locker locker { m_buildingEdgeMutex };
-    m_nodes[edge.toNodeId].parentNodeId = edge.fromNodeId;
-    m_nodes[edge.fromNodeId].hitCount++;
 
     m_edges.append(WTFMove(edge));
 }
@@ -233,18 +241,18 @@ void BunV8HeapSnapshotBuilder::setLabelForCell(JSCell* cell, const String& label
 
 unsigned BunV8HeapSnapshotBuilder::getOrCreateNodeId(JSCell* cell)
 {
-    {
-        Locker locker { m_cellToNodeIdMutex };
-        auto it = m_cellToNodeId.find(cell);
-        if (it != m_cellToNodeId.end())
-            return it->value;
-    }
+    if (!cell)
+        return 0; // Only return 0 for root
 
-    analyzeNode(cell);
-    {
-        Locker locker { m_cellToNodeIdMutex };
-        return m_cellToNodeId.get(cell);
-    }
+    Locker locker { m_cellToNodeIdMutex };
+    auto it = m_cellToNodeId.find(cell);
+    if (it != m_cellToNodeId.end())
+        return it->value;
+
+
+    unsigned id = analyzeNodeInternal(cell);
+    m_cellToNodeId.set(cell, id);
+    return id;
 }
 
 unsigned BunV8HeapSnapshotBuilder::getNodeTypeIndex(JSCell* cell)
@@ -268,12 +276,6 @@ unsigned BunV8HeapSnapshotBuilder::getNodeTypeIndex(JSCell* cell)
     case JSType::StructureType: {
         return static_cast<unsigned>(V8NodeType::ObjectShape);
     }
-    case JSType::WithScopeType:
-    case JSType::GlobalLexicalEnvironmentType:
-    case JSType::LexicalEnvironmentType:
-    case JSType::ModuleEnvironmentType:{
-        return static_cast<unsigned>(V8NodeType::Native);
-    }
     case JSType::NativeExecutableType:
     case JSType::ProgramExecutableType:
     case JSType::ModuleProgramExecutableType:
@@ -289,7 +291,17 @@ unsigned BunV8HeapSnapshotBuilder::getNodeTypeIndex(JSCell* cell)
     case JSType::ShadowRealmType:
     case JSType::WebAssemblyModuleType:
     case JSType::WebAssemblyInstanceType:
+    case JSType::GetterSetterType:
+    case JSType::CustomGetterSetterType:
+    case JSType::APIValueWrapperType:
+    case JSType::JSSourceCodeType:
+    case JSType::JSScriptFetchParametersType:
+    case JSType::WithScopeType:
+    case JSType::GlobalLexicalEnvironmentType:
+    case JSType::LexicalEnvironmentType:
+    case JSType::ModuleEnvironmentType: {
         return static_cast<unsigned>(V8NodeType::Code);
+    }
     case JSType::HeapBigIntType:
         return static_cast<unsigned>(V8NodeType::BigInt);
     case JSType::SymbolType:
@@ -309,9 +321,11 @@ unsigned BunV8HeapSnapshotBuilder::getNodeTypeIndex(JSCell* cell)
             return static_cast<unsigned>(V8NodeType::Object);
         }
     }
+    case JSType::CellType:
+        return static_cast<unsigned>(V8NodeType::Hidden);
     }
 
-    return static_cast<unsigned>(V8NodeType::Hidden);
+    return static_cast<unsigned>(V8NodeType::Native);
 }
 
 String BunV8HeapSnapshotBuilder::getDetailedNodeType(JSCell* cell)
@@ -434,11 +448,10 @@ unsigned BunV8HeapSnapshotBuilder::getEdgeTypeIndex(RootMarkReason reason)
     case RootMarkReason::StrongHandles:
     case RootMarkReason::DOMGCOutput:
     case RootMarkReason::Output:
-        return static_cast<unsigned>(V8EdgeType::Context);
-
-    // Hidden/internal edges
     case RootMarkReason::ConservativeScan:
     case RootMarkReason::ExternalRememberedSet:
+        return static_cast<unsigned>(V8EdgeType::Context);
+
     case RootMarkReason::Debugger:
         return static_cast<unsigned>(V8EdgeType::Hidden);
 
@@ -457,17 +470,23 @@ unsigned BunV8HeapSnapshotBuilder::getEdgeTypeIndex(const String& type)
 
 unsigned BunV8HeapSnapshotBuilder::addString(const String& str)
 {
+    // Never return 0 for non-empty strings
     if (str.isEmpty())
         return 0;
 
     // Check if string already exists
-    for (unsigned i = 0; i < m_strings.size(); ++i) {
-        if (m_strings[i] == str)
-            return i;
-    }
+    unsigned hash = str.hash();
+    size_t hashKey = static_cast<size_t>(hash);
+    // 32 bits: hash
+    // 32 bits: length
+    hashKey |= static_cast<size_t>(str.length()) << (sizeof(size_t) * 8 - 32);
+    auto it = m_stringsLookupTable.find(hashKey);
+    if (it != m_stringsLookupTable.end())
+        return it->value;
 
     unsigned index = m_strings.size();
     m_strings.append(str);
+    m_stringsLookupTable.set(hashKey, index);
     return index;
 }
 
@@ -511,6 +530,65 @@ String BunV8HeapSnapshotBuilder::generateV8HeapSnapshot()
     // Extra pass #1: fill in the node names
     for (auto& node : m_nodes) {
         node.name = getDetailedNodeType(node.cell);
+        node.edgesCount = 0; // Reset edge counts for deduplication pass
+    }
+
+    // Sort edges by fromNodeId to ensure they're grouped correctly
+    std::sort(m_edges.begin(), m_edges.end(),
+        [](const Edge& a, const Edge& b) {
+            // First sort by fromNodeId
+            if (a.fromNodeId != b.fromNodeId)
+                return a.fromNodeId < b.fromNodeId;
+            
+            // Then by typeIndex
+            if (a.typeIndex != b.typeIndex)
+                return a.typeIndex < b.typeIndex;
+            
+            // Then by toNodeId
+            if (a.toNodeId != b.toNodeId)
+                return a.toNodeId < b.toNodeId;
+
+            // For element/hidden edges, compare by index
+            if (a.typeIndex == static_cast<unsigned>(V8EdgeType::Element) || 
+                a.typeIndex == static_cast<unsigned>(V8EdgeType::Hidden))
+                return a.index < b.index;
+            
+            // For named edges, compare by name
+            return WTF::codePointCompareLessThan(a.name, b.name);
+        });
+
+    // Deduplicate edges in-place and update edge counts
+    if (!m_edges.isEmpty()) {
+        size_t writeIndex = 1;
+        m_nodes[m_edges[0].fromNodeId].edgesCount = 1;
+
+        for (size_t readIndex = 1; readIndex < m_edges.size(); readIndex++) {
+            const auto& prev = m_edges[writeIndex - 1];
+            const auto& curr = m_edges[readIndex];
+
+            // Check if this is a duplicate edge
+            bool isDuplicate = prev.fromNodeId == curr.fromNodeId && 
+                             prev.toNodeId == curr.toNodeId && 
+                             prev.typeIndex == curr.typeIndex;
+
+            if (isDuplicate) {
+                if (prev.typeIndex == static_cast<unsigned>(V8EdgeType::Element) || 
+                    prev.typeIndex == static_cast<unsigned>(V8EdgeType::Hidden)) {
+                    isDuplicate = prev.index == curr.index;
+                } else {
+                    isDuplicate = prev.name == curr.name;
+                }
+            }
+
+            if (!isDuplicate) {
+                if (writeIndex != readIndex)
+                    m_edges[writeIndex] = WTFMove(m_edges[readIndex]);
+                m_nodes[curr.fromNodeId].edgesCount++;
+                writeIndex++;
+            }
+        }
+
+        m_edges.shrink(writeIndex);
     }
 
     StringBuilder json;
@@ -583,19 +661,13 @@ String BunV8HeapSnapshotBuilder::generateV8HeapSnapshot()
         json.append(',');
         json.append(String::number(addString(node.name)));
         json.append(',');
-        json.append(String::number(node.id));
+        json.append(String::number(node.id * NODE_FIELD_COUNT)); // Multiply by field count for V8 format
         json.append(',');
         json.append(String::number(node.selfSize));
         json.append(',');
-        json.append(String::number(node.edges.size()));
+        json.append(String::number(node.edgesCount));
         json.append(',');
-
-        // trace_node_id
-        // if (node.traceLocation)
-        //     json.append(String::number(i)); // Use node index as trace id
-        // else
-        json.append('0');
-
+        json.append('0'); // trace_node_id
         json.append(",0"_s); // detachedness
     }
     json.append("],\n"_s);
@@ -604,6 +676,11 @@ String BunV8HeapSnapshotBuilder::generateV8HeapSnapshot()
     json.append("\"edges\":["_s);
     for (unsigned i = 0; i < m_edges.size(); ++i) {
         const auto& edge = m_edges[i];
+        
+        // Validate node IDs
+        ASSERT(edge.fromNodeId < m_nodes.size());
+        ASSERT(edge.toNodeId < m_nodes.size());
+
         if (i)
             json.append(',');
 
@@ -620,7 +697,7 @@ String BunV8HeapSnapshotBuilder::generateV8HeapSnapshot()
         }
         json.append(',');
 
-        // Multiply node ID by field count as V8 expects
+        // Both fromNodeId and toNodeId need to be multiplied by field count
         json.append(String::number(edge.toNodeId * NODE_FIELD_COUNT));
     }
     json.append("],\n"_s);
@@ -771,10 +848,13 @@ String BunV8HeapSnapshotBuilder::generateV8HeapSnapshot()
 
     // Strings table
     json.append("\"strings\":["_s);
-    for (unsigned i = 0; i < m_strings.size(); ++i) {
-        if (i)
+
+    first = true;
+    for (const auto& str : m_strings) {
+        if (!first)
             json.append(',');
-        json.appendQuotedJSONString(m_strings[i]);
+        first = false;
+        json.appendQuotedJSONString(str);
     }
     json.append("]\n"_s);
 
@@ -784,3 +864,5 @@ String BunV8HeapSnapshotBuilder::generateV8HeapSnapshot()
 }
 
 } // namespace JSC
+
+#endif // USE(BUN_JSC_ADDITIONS)

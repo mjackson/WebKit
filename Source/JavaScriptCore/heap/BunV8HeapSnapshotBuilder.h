@@ -1,5 +1,7 @@
 #pragma once
 
+#if USE(BUN_JSC_ADDITIONS)
+
 #include "HeapAnalyzer.h"
 #include <functional>
 #include <optional>
@@ -38,6 +40,7 @@ public:
 
 private:
     String generateV8HeapSnapshot();
+    unsigned analyzeNodeInternal(JSCell*);
 
     struct TraceLocation {
     public:
@@ -59,6 +62,7 @@ private:
         std::optional<BunV8HeapSnapshotBuilder::TraceLocation> traceLocation = std::nullopt;
         std::optional<unsigned> parentNodeId = std::nullopt;
         unsigned hitCount { 0 };
+        unsigned edgesCount { 0 };
         unsigned childrenVectorIndex { std::numeric_limits<unsigned>::max() };
     };
     struct Edge {
@@ -108,8 +112,10 @@ private:
     Vector<Edge> m_edges;
     Lock m_cellToNodeIdMutex;
     HashMap<JSCell*, unsigned> m_cellToNodeId;
-    Vector<String> m_strings;
 
+    // TODO: make this not so inefficient
+    Vector<String> m_strings;
+    HashMap<size_t, unsigned> m_stringsLookupTable;
     // Type mapping
     Vector<String> m_nodeTypeNames;
     Vector<String> m_edgeTypeNames;
@@ -131,3 +137,5 @@ private:
 };
 
 } // namespace JSC
+
+#endif // USE(BUN_JSC_ADDITIONS)

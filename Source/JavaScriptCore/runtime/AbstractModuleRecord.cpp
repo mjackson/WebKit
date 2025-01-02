@@ -91,16 +91,6 @@ size_t AbstractModuleRecord::estimatedSize(JSCell* cell, VM& vm)
     return size;
 }
 
-void AbstractModuleRecord::analyzeHeap(JSCell* cell, HeapAnalyzer& analyzer)
-{
-    AbstractModuleRecord* thisObject = jsCast<AbstractModuleRecord*>(cell);
-    if (!thisObject->moduleKey().isSymbol() && !thisObject->moduleKey().isEmpty()) {
-        analyzer.setLabelForCell(cell, thisObject->moduleKey().string());
-    }
-
-    Base::analyzeHeap(cell, analyzer);
-}
-
 void AbstractModuleRecord::appendRequestedModule(const Identifier& moduleName, RefPtr<ScriptFetchParameters>&& attributes)
 {
     m_requestedModules.append({ moduleName.impl(), WTFMove(attributes) });
