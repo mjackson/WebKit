@@ -46,6 +46,7 @@
 #include <wtf/Assertions.h>
 #include <wtf/HexNumber.h>
 #include <wtf/dtoa.h>
+#include <wtf/text/ParsingUtilities.h>
 #include <wtf/text/StringBuilder.h>
 #include "ObjectConstructorInlines.h"
 
@@ -266,8 +267,7 @@ static double jsBinaryIntegerLiteral(std::span<const CharType>& data)
     auto firstDigitPosition = data;
     double number = 0;
     while (true) {
-        number = number * 2 + (data.front() - '0');
-        data = data.subspan(1);
+        number = number * 2 + (consumeSingleElement(data) - '0');
         if (data.empty())
             break;
         if (!isASCIIBinaryDigit(data.front()))
@@ -288,8 +288,7 @@ static double jsOctalIntegerLiteral(std::span<const CharType>& data)
     auto firstDigitPosition = data;
     double number = 0;
     while (true) {
-        number = number * 8 + (data.front() - '0');
-        data = data.subspan(1);
+        number = number * 8 + (consumeSingleElement(data) - '0');
         if (data.empty())
             break;
         if (!isASCIIOctalDigit(data.front()))
@@ -310,8 +309,7 @@ static double jsHexIntegerLiteral(std::span<const CharType>& data)
     auto firstDigitPosition = data;
     double number = 0;
     while (true) {
-        number = number * 16 + toASCIIHexValue(data.front());
-        data = data.subspan(1);
+        number = number * 16 + toASCIIHexValue(consumeSingleElement(data));
         if (data.empty())
             break;
         if (!isASCIIHexDigit(data.front()))
@@ -368,10 +366,7 @@ template <typename CharacterType>
 static double toDouble(std::span<const CharacterType> characters)
 {
     // Skip leading white space.
-    for (; !characters.empty(); characters = characters.subspan(1)) {
-        if (!isStrWhiteSpace(characters.front()))
-            break;
-    }
+    skipWhile<isStrWhiteSpace>(characters);
 
     // Empty string.
     if (characters.empty())
@@ -391,10 +386,8 @@ static double toDouble(std::span<const CharacterType> characters)
         number = jsStrDecimalLiteral(characters);
 
     // Allow trailing white space.
-    for (; !characters.empty(); characters = characters.subspan(1)) {
-        if (!isStrWhiteSpace(characters.front()))
-            break;
-    }
+    skipWhile<isStrWhiteSpace>(characters);
+
     if (!characters.empty())
         return PNaN;
 
@@ -446,10 +439,7 @@ static double parseFloat(StringView s)
         auto data = s.span8();
 
         // Skip leading white space.
-        for (; !data.empty(); data = data.subspan(1)) {
-            if (!isStrWhiteSpace(data.front()))
-                break;
-        }
+        skipWhile<isStrWhiteSpace>(data);
 
         // Empty string.
         if (data.empty())
@@ -461,10 +451,7 @@ static double parseFloat(StringView s)
     auto data = s.span16();
 
     // Skip leading white space.
-    for (; !data.empty(); data = data.subspan(1)) {
-        if (!isStrWhiteSpace(data.front()))
-            break;
-    }
+    skipWhile<isStrWhiteSpace>(data);
 
     // Empty string.
     if (data.empty())
@@ -847,15 +834,6 @@ JSC_DEFINE_HOST_FUNCTION(globalFuncBuiltinLog, (JSGlobalObject* globalObject, Ca
 JSC_DEFINE_HOST_FUNCTION(globalFuncBuiltinDescribe, (JSGlobalObject* globalObject, CallFrame* callFrame))
 {
     return JSValue::encode(jsString(globalObject->vm(), toString(callFrame->argument(0))));
-}
-
-JSC_DEFINE_HOST_FUNCTION(globalFuncImportMapStatus, (JSGlobalObject* globalObject, CallFrame*))
-{
-    // https://wicg.github.io/import-maps/#integration-wait-for-import-maps
-    globalObject->importMap().setAcquiringImportMaps();
-    if (auto* promise = globalObject->importMapStatusPromise())
-        return JSValue::encode(promise);
-    return JSValue::encode(jsUndefined());
 }
 
 JSC_DEFINE_HOST_FUNCTION(globalFuncImportModule, (JSGlobalObject* globalObject, CallFrame* callFrame))

@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 1999 Lars Knoll (knoll@kde.org)
  *           (C) 1999 Antti Koivisto (koivisto@kde.org)
- * Copyright (C) 2003-2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2003-2025 Apple Inc. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -179,6 +179,8 @@ public:
     inline LayoutSize contentLogicalSize() const;
     inline LayoutUnit contentLogicalWidth() const;
     inline LayoutUnit contentLogicalHeight() const;
+    inline LayoutUnit contentBoxLogicalWidth(LayoutUnit overridingBorderBoxWidth) const;
+    inline LayoutUnit contentBoxLogicalHeight(LayoutUnit overridingBorderBoxHeight) const;
 
     inline LayoutUnit paddingBoxWidth() const;
     inline LayoutUnit paddingBoxHeight() const;
@@ -270,34 +272,32 @@ public:
     LayoutUnit maxPreferredLogicalWidth() const override;
     virtual void computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const = 0;
 
-    std::optional<LayoutUnit> overridingLogicalWidth() const;
-    std::optional<LayoutUnit> overridingLogicalHeight() const;
-    void setOverridingLogicalHeight(LayoutUnit);
-    void setOverridingLogicalWidth(LayoutUnit);
-    void clearOverridingContentSize();
-    void clearOverridingLogicalHeight();
-    void clearOverridingLogicalWidth();
+    std::optional<LayoutUnit> overridingBorderBoxLogicalWidth() const;
+    std::optional<LayoutUnit> overridingBorderBoxLogicalHeight() const;
+    void setOverridingBorderBoxLogicalHeight(LayoutUnit);
+    void setOverridingBorderBoxLogicalWidth(LayoutUnit);
+    void clearOverridingBorderBoxLogicalHeight();
+    void clearOverridingBorderBoxLogicalWidth();
+    void clearOverridingSize();
 
-    inline LayoutUnit overridingContentLogicalWidth(LayoutUnit overridingLogicalWidth) const;
-    inline LayoutUnit overridingContentLogicalHeight(LayoutUnit overridingLogicalHeight) const;
-
-    using ContainingBlockOverrideValue = std::optional<LayoutUnit>;
-    std::optional<ContainingBlockOverrideValue> overridingContainingBlockContentWidth(WritingMode) const;
-    std::optional<ContainingBlockOverrideValue> overridingContainingBlockContentHeight(WritingMode) const;
-    std::optional<ContainingBlockOverrideValue> overridingContainingBlockContentLogicalWidth() const;
-    std::optional<ContainingBlockOverrideValue> overridingContainingBlockContentLogicalHeight() const;
-    void setOverridingContainingBlockContentLogicalWidth(ContainingBlockOverrideValue);
-    void setOverridingContainingBlockContentLogicalHeight(ContainingBlockOverrideValue);
-    void clearOverridingContainingBlockContentSize();
-    void clearOverridingContainingBlockContentLogicalHeight();
+    // Grid item's containing block is not the grid container, but the grid area, for which we don't have a renderer.
+    using GridAreaSize = std::optional<LayoutUnit>;
+    std::optional<GridAreaSize> gridAreaContentWidth(WritingMode) const;
+    std::optional<GridAreaSize> gridAreaContentHeight(WritingMode) const;
+    std::optional<GridAreaSize> gridAreaContentLogicalWidth() const;
+    std::optional<GridAreaSize> gridAreaContentLogicalHeight() const;
+    void setGridAreaContentLogicalWidth(GridAreaSize);
+    void setGridAreaContentLogicalHeight(GridAreaSize);
+    void clearGridAreaContentSize();
+    void clearGridAreaContentLogicalHeight();
 
     // These are currently only used by Flexbox code. In some cases we must layout flex items with a different main size
     // (the size in the main direction) than the one specified by the item in order to compute the value of flex basis, i.e.,
     // the initial main size of the flex item before the free space is distributed.
     std::optional<Length> overridingLogicalHeightForFlexBasisComputation() const;
     std::optional<Length> overridingLogicalWidthForFlexBasisComputation() const;
-    void setOverridingLogicalHeightForFlexBasisComputation(const Length&);
-    void setOverridingLogicalWidthForFlexBasisComputation(const Length&);
+    void setOverridingBorderBoxLogicalHeightForFlexBasisComputation(const Length&);
+    void setOverridingBorderBoxLogicalWidthForFlexBasisComputation(const Length&);
     void clearOverridingLogicalHeightForFlexBasisComputation();
     void clearOverridingLogicalWidthForFlexBasisComputation();
 
@@ -466,7 +466,7 @@ public:
     bool hasUnsplittableScrollingOverflow() const;
     bool isUnsplittableForPagination() const;
 
-    bool shouldTreatChildAsReplacedInTableCells() const;
+    bool shouldTreatChildAsReplaced() const;
 
     virtual LayoutRect overflowClipRect(const LayoutPoint& location, OverlayScrollbarSizeRelevancy = OverlayScrollbarSizeRelevancy::IgnoreOverlayScrollbarSize, PaintPhase = PaintPhase::BlockBackground) const;
     virtual LayoutRect overflowClipRectForChildLayers(const LayoutPoint& location, OverlayScrollbarSizeRelevancy relevancy) const { return overflowClipRect(location, relevancy); }

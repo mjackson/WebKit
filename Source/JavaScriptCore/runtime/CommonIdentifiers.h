@@ -310,6 +310,7 @@
     macro(weekday) \
     macro(weeks) \
     macro(weeksDisplay) \
+    macro(with) \
     macro(writable) \
     macro(written) \
     macro(year) \

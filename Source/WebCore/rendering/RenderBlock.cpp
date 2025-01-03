@@ -1729,7 +1729,7 @@ void RenderBlock::insertPositionedObject(RenderBox& positioned)
 {
     ASSERT(!isAnonymousBlock());
 
-    positioned.clearOverridingContainingBlockContentSize();
+    positioned.clearGridAreaContentSize();
 
     if (positioned.isRenderFragmentedFlow())
         return;
@@ -3198,10 +3198,10 @@ std::optional<LayoutUnit> RenderBlock::availableLogicalHeightForPercentageComput
 
     auto availableHeight = [&]() -> std::optional<LayoutUnit> {
         if (auto overridingLogicalHeightForFlex = (isFlexItem() ? downcast<RenderFlexibleBox>(parent())->usedFlexItemOverridingLogicalHeightForPercentageResolution(*this) : std::nullopt))
-            return overridingContentLogicalHeight(*overridingLogicalHeightForFlex);
+            return contentBoxLogicalHeight(*overridingLogicalHeightForFlex);
 
-        if (auto overridingLogicalHeightForGrid = (isGridItem() ? overridingLogicalHeight() : std::nullopt))
-            return overridingContentLogicalHeight(*overridingLogicalHeightForGrid);
+        if (auto overridingLogicalHeightForGrid = (isGridItem() ? overridingBorderBoxLogicalHeight() : std::nullopt))
+            return contentBoxLogicalHeight(*overridingLogicalHeightForGrid);
 
         auto& style = this->style();
         if (style.logicalHeight().isFixed()) {
