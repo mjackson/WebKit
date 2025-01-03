@@ -354,7 +354,7 @@ unsigned BunV8HeapSnapshotBuilder::getNodeTypeIndex(JSCell* cell)
     return static_cast<unsigned>(V8NodeType::Native);
 }
 
-String BunV8HeapSnapshotBuilder::getDetailedNodeType(JSCell* cell)
+String BunV8HeapSnapshotBuilder::getDetailedNodeType(JSCell* cell, bool recurse)
 {
     if (!cell)
         return "(root)"_s;
@@ -420,7 +420,21 @@ String BunV8HeapSnapshotBuilder::getDetailedNodeType(JSCell* cell)
     }
 
     if (JSPromise* promise = jsDynamicCast<JSPromise*>(cell)) {
-        return "Promise"_s;
+        auto& vm = promise->globalObject()->vm();
+        switch (promise->status(vm)) {
+        case JSPromise::Status::Pending:
+            return "Promise (pending)"_s;
+        case JSPromise::Status::Fulfilled: {
+            JSValue result = promise->result(vm);
+            if (result.isCell() && recurse) {
+                // set recurse to false to make sure we don't infinitely expand promises
+                return makeString("Promise (fulfilled: "_s, getDetailedNodeType(result.asCell(), false), ")"_s);
+            }
+            return "Promise (fulfilled)"_s;
+        }
+        case JSPromise::Status::Rejected:
+            return "Promise (rejected)"_s;
+        }
     }
 
     auto* object = cell->getObject();
