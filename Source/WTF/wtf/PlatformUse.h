@@ -306,7 +306,7 @@
 #endif
 
 #if !defined(USE_TZONE_MALLOC)
-#if (CPU(ARM64) || CPU(X86_64)) && OS(DARWIN) && (__SIZEOF_POINTER__ == 8)
+#if (CPU(ARM64) || CPU(X86_64)) && OS(DARWIN) && (__SIZEOF_POINTER__ == 8) && !USE(SYSTEM_MALLOC)
 #define USE_TZONE_MALLOC 1
 #else
 #define USE_TZONE_MALLOC 0
