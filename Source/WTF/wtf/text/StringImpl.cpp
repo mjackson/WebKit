@@ -34,6 +34,7 @@
 #include <wtf/text/AtomString.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/ExternalStringImpl.h>
+#include <wtf/text/ParsingUtilities.h>
 #include <wtf/text/StringBuffer.h>
 #include <wtf/text/StringView.h>
 #include <wtf/text/SymbolImpl.h>
@@ -806,14 +807,11 @@ template<typename CharacterType, class UCharPredicate> inline Ref<StringImpl> St
     
     while (true) {
         while (!from.empty() && predicate(from.front())) {
-            if (from.front() != ' ')
+            if (consume(from) != ' ')
                 changedToSpace = true;
-            from = from.subspan(1);
         }
-        while (!from.empty() && !predicate(from.front())) {
-            to[outc++] = from.front();
-            from = from.subspan(1);
-        }
+        while (!from.empty() && !predicate(from.front()))
+            to[outc++] = consume(from);
         if (!from.empty())
             to[outc++] = ' ';
         else

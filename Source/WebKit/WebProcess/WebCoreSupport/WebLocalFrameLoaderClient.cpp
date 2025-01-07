@@ -1235,7 +1235,7 @@ bool WebLocalFrameLoaderClient::shouldGoToHistoryItem(HistoryItem& item) const
     RefPtr webPage = m_frame->page();
     if (!webPage)
         return false;
-    webPage->send(Messages::WebPageProxy::WillGoToBackForwardListItem(item.identifier(), item.isInBackForwardCache()));
+    webPage->send(Messages::WebPageProxy::WillGoToBackForwardListItem(item.itemID(), item.isInBackForwardCache()));
     return true;
 }
 
@@ -2021,6 +2021,39 @@ bool WebLocalFrameLoaderClient::siteIsolationEnabled() const
         return coreFrame->settings().siteIsolationEnabled();
     return false;
 }
+
+RefPtr<WebCore::HistoryItem> WebLocalFrameLoaderClient::createHistoryItemTree(bool clipAtTarget, WebCore::BackForwardItemIdentifier itemID) const
+{
+    Ref frame = m_localFrame.get();
+    return frame->loader().history().createItemTree(frame, clipAtTarget, itemID);
+}
+
+#if ENABLE(CONTENT_EXTENSIONS)
+
+void WebLocalFrameLoaderClient::didExceedNetworkUsageThreshold()
+{
+    ASSERT(!m_frame->isMainFrame());
+
+    RefPtr webPage = m_frame->page();
+    RefPtr localMainFrame = webPage ? dynamicDowncast<LocalFrame>(webPage->mainFrame()) : nullptr;
+    RefPtr document = localMainFrame ? localMainFrame->document() : nullptr;
+    if (!document)
+        return;
+
+    auto url = document->url();
+    if (url.isEmpty())
+        return;
+
+    webPage->sendWithAsyncReply(Messages::WebPageProxy::ShouldOffloadIFrameForHost(url.host().toStringWithoutCopying()), [weakFrame = WeakPtr { m_frame->coreLocalFrame() }] (bool wasGranted) {
+        RefPtr frame = weakFrame.get();
+        if (!frame)
+            return;
+        if (wasGranted)
+            frame->showResourceMonitoringError();
+    });
+}
+
+#endif
 
 } // namespace WebKit
 

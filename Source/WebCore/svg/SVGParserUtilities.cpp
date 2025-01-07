@@ -65,24 +65,22 @@ template <typename CharacterType, typename FloatType = float> static std::option
         return std::nullopt;
 
     // read the integer part, build right-to-left
-    auto ptrStartIntPart = buffer.position();
+    auto spanStartIntPart = buffer.span();
     
     // Advance to first non-digit.
     skipWhile<isASCIIDigit>(buffer);
 
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
-    if (buffer.position() != ptrStartIntPart) {
-        auto ptrScanIntPart = buffer.position() - 1;
+    if (buffer.position() > spanStartIntPart.data()) {
+        size_t indexScanIntPart = buffer.position() - spanStartIntPart.data();
         FloatType multiplier = 1;
-        while (ptrScanIntPart >= ptrStartIntPart) {
-            integer += multiplier * static_cast<FloatType>(*(ptrScanIntPart--) - '0');
+        for (size_t i = indexScanIntPart; i > 0; --i) {
+            integer += multiplier * static_cast<FloatType>(spanStartIntPart[i - 1] - '0');
             multiplier *= 10;
         }
         // Bail out early if this overflows.
         if (!isValidRange(integer))
             return std::nullopt;
     }
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
     // read the decimals
     if (buffer.hasCharactersRemaining() && *buffer == '.') {
@@ -260,14 +258,14 @@ std::optional<FloatRect> parseRect(StringView string)
     });
 }
 
-std::optional<HashSet<String>> parseGlyphName(StringView string)
+std::optional<UncheckedKeyHashSet<String>> parseGlyphName(StringView string)
 {
     // FIXME: Parsing error detection is missing.
 
-    return readCharactersForParsing(string, [](auto buffer) -> HashSet<String> {
+    return readCharactersForParsing(string, [](auto buffer) -> UncheckedKeyHashSet<String> {
         skipOptionalSVGSpaces(buffer);
 
-        HashSet<String> values;
+        UncheckedKeyHashSet<String> values;
 
         while (buffer.hasCharactersRemaining()) {
             // Leading and trailing white space, and white space before and after separators, will be ignored.
@@ -366,13 +364,13 @@ template<typename CharacterType> static std::optional<UnicodeRange> parseUnicode
     return range;
 }
 
-std::optional<std::pair<UnicodeRanges, HashSet<String>>> parseKerningUnicodeString(StringView string)
+std::optional<std::pair<UnicodeRanges, UncheckedKeyHashSet<String>>> parseKerningUnicodeString(StringView string)
 {
     // FIXME: Parsing error detection is missing.
 
-    return readCharactersForParsing(string, [](auto buffer) -> std::pair<UnicodeRanges, HashSet<String>> {
+    return readCharactersForParsing(string, [](auto buffer) -> std::pair<UnicodeRanges, UncheckedKeyHashSet<String>> {
         UnicodeRanges rangeList;
-        HashSet<String> stringList;
+        UncheckedKeyHashSet<String> stringList;
 
         while (1) {
             auto inputStart = buffer.position();

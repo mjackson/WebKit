@@ -850,7 +850,6 @@ void UnifiedPDFPlugin::paintPDFContent(const WebCore::GraphicsLayer* layer, Grap
     }
 }
 
-#if ENABLE(UNIFIED_PDF_SELECTION_LAYER)
 void UnifiedPDFPlugin::paintPDFSelection(const GraphicsLayer* layer, GraphicsContext& context, const FloatRect& clipRect, std::optional<PDFLayoutRow> row)
 {
     if (!m_currentSelection || [m_currentSelection isEmpty] || !m_presentationController)
@@ -898,22 +897,21 @@ void UnifiedPDFPlugin::paintPDFSelection(const GraphicsLayer* layer, GraphicsCon
         auto transformForBox = m_documentLayout.toPageTransform(*pageGeometry).inverse().value_or(AffineTransform { });
         context.concatCTM(transformForBox);
 
-        if ([m_currentSelection respondsToSelector:@selector(enumerateRectsAndTransformsForPage:usingBlock:)]) {
-            [protectedCurrentSelection() enumerateRectsAndTransformsForPage:page.get() usingBlock:[&context, &selectionColor](CGRect cgRect, CGAffineTransform cgTransform) mutable {
-                // FIXME: Perf optimization -- consider coalescing rects by transform.
-                GraphicsContextStateSaver individualRectTransformPairStateSaver { context, /* saveAndRestore */ false };
+#if HAVE(PDFSELECTION_ENUMERATE_RECTS_AND_TRANSFORMS)
+        [protectedCurrentSelection() enumerateRectsAndTransformsForPage:page.get() usingBlock:[&context, &selectionColor](CGRect cgRect, CGAffineTransform cgTransform) mutable {
+            // FIXME: Perf optimization -- consider coalescing rects by transform.
+            GraphicsContextStateSaver individualRectTransformPairStateSaver { context, /* saveAndRestore */ false };
 
-                if (AffineTransform transform { cgTransform }; !transform.isIdentity()) {
-                    individualRectTransformPairStateSaver.save();
-                    context.concatCTM(transform);
-                }
+            if (AffineTransform transform { cgTransform }; !transform.isIdentity()) {
+                individualRectTransformPairStateSaver.save();
+                context.concatCTM(transform);
+            }
 
-                context.fillRect({ cgRect }, selectionColor);
-            }];
-        }
+            context.fillRect({ cgRect }, selectionColor);
+        }];
+#endif
     }
 }
-#endif
 
 static const WebCore::Color textAnnotationHoverColor()
 {
@@ -2255,6 +2253,47 @@ PDFDocumentLayout::DisplayMode UnifiedPDFPlugin::displayModeFromContextMenuItemT
     }
 }
 
+ContextMenuAction UnifiedPDFPlugin::contextMenuActionFromTag(ContextMenuItemTag tag) const
+{
+    switch (tag) {
+    case ContextMenuItemTag::ActualSize:
+        return ContextMenuItemPDFActualSize;
+    case ContextMenuItemTag::AutoSize:
+        return ContextMenuItemPDFAutoSize;
+    case ContextMenuItemTag::Copy:
+        return ContextMenuItemTagCopy;
+    case ContextMenuItemTag::CopyLink:
+        return ContextMenuItemTagCopyLinkToClipboard;
+    case ContextMenuItemTag::DictionaryLookup:
+        return ContextMenuItemTagLookUpInDictionary;
+    case ContextMenuItemTag::Invalid:
+    case ContextMenuItemTag::Unknown:
+        return ContextMenuItemTagNoAction;
+    case ContextMenuItemTag::NextPage:
+        return ContextMenuItemPDFNextPage;
+    case ContextMenuItemTag::OpenWithPreview:
+        return ContextMenuItemTagOpenWithDefaultApplication;
+    case ContextMenuItemTag::PreviousPage:
+        return ContextMenuItemPDFPreviousPage;
+    case ContextMenuItemTag::SinglePage:
+        return ContextMenuItemPDFSinglePage;
+    case ContextMenuItemTag::SinglePageContinuous:
+        return ContextMenuItemPDFSinglePageContinuous;
+    case ContextMenuItemTag::TwoPages:
+        return ContextMenuItemPDFTwoPages;
+    case ContextMenuItemTag::TwoPagesContinuous:
+        return ContextMenuItemPDFTwoPagesContinuous;
+    case ContextMenuItemTag::WebSearch:
+        return ContextMenuItemTagSearchWeb;
+    case ContextMenuItemTag::ZoomIn:
+        return ContextMenuItemPDFZoomIn;
+    case ContextMenuItemTag::ZoomOut:
+        return ContextMenuItemPDFZoomOut;
+    }
+
+    return ContextMenuItemTagNoAction;
+}
+
 auto UnifiedPDFPlugin::toContextMenuItemTag(int tagValue) const -> ContextMenuItemTag
 {
     static constexpr std::array regularContextMenuItemTags {
@@ -2391,14 +2430,14 @@ PDFContextMenuItem UnifiedPDFPlugin::contextMenuItem(ContextMenuItemTag tag, boo
         auto itemEnabled = disableItemDueToLockedDocument ? ContextMenuItemEnablement::Disabled : ContextMenuItemEnablement::Enabled;
         auto itemHasAction = hasAction && !disableItemDueToLockedDocument ? ContextMenuItemHasAction::Yes : ContextMenuItemHasAction::No;
 
-        return { titleForContextMenuItemTag(tag), state, enumToUnderlyingType(tag), itemEnabled, itemHasAction, ContextMenuItemIsSeparator::No };
+        return { titleForContextMenuItemTag(tag), state, enumToUnderlyingType(tag), contextMenuActionFromTag(tag), itemEnabled, itemHasAction, ContextMenuItemIsSeparator::No };
     }
     }
 }
 
 PDFContextMenuItem UnifiedPDFPlugin::separatorContextMenuItem() const
 {
-    return { { }, 0, enumToUnderlyingType(ContextMenuItemTag::Invalid), ContextMenuItemEnablement::Disabled, ContextMenuItemHasAction::No, ContextMenuItemIsSeparator::Yes };
+    return { { }, 0, enumToUnderlyingType(ContextMenuItemTag::Invalid), ContextMenuItemTagNoAction, ContextMenuItemEnablement::Disabled, ContextMenuItemHasAction::No, ContextMenuItemIsSeparator::Yes };
 }
 
 Vector<PDFContextMenuItem> UnifiedPDFPlugin::selectionContextMenuItems(const IntPoint& contextMenuEventRootViewPoint) const

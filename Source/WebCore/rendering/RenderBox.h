@@ -173,12 +173,12 @@ public:
 
     void applyTransform(TransformationMatrix&, const RenderStyle&, const FloatRect& boundingBox, OptionSet<RenderStyle::TransformOperationOption>) const override;
 
-    inline LayoutSize contentSize() const;
-    inline LayoutUnit contentWidth() const;
-    inline LayoutUnit contentHeight() const;
-    inline LayoutSize contentLogicalSize() const;
-    inline LayoutUnit contentLogicalWidth() const;
-    inline LayoutUnit contentLogicalHeight() const;
+    inline LayoutSize contentBoxSize() const;
+    inline LayoutUnit contentBoxWidth() const;
+    inline LayoutUnit contentBoxHeight() const;
+    inline LayoutSize contentBoxLogicalSize() const;
+    inline LayoutUnit contentBoxLogicalWidth() const;
+    inline LayoutUnit contentBoxLogicalHeight() const;
     inline LayoutUnit contentBoxLogicalWidth(LayoutUnit overridingBorderBoxWidth) const;
     inline LayoutUnit contentBoxLogicalHeight(LayoutUnit overridingBorderBoxHeight) const;
 
@@ -417,14 +417,8 @@ public:
     std::optional<LayoutUnit> computePercentageLogicalHeight(const Length& height, UpdatePercentageHeightDescendants = UpdatePercentageHeightDescendants::Yes) const;
     bool hasAutoHeightOrContainingBlockWithAutoHeight(UpdatePercentageHeightDescendants = UpdatePercentageHeightDescendants::Yes) const;
 
-    inline LayoutUnit availableLogicalWidth() const;
     virtual LayoutUnit availableLogicalHeight(AvailableLogicalHeightType) const;
     LayoutUnit availableLogicalHeightUsing(const Length&, AvailableLogicalHeightType) const;
-
-    // There are a few cases where we need to refer specifically to the available physical width and available physical height.
-    // Relative positioning is one of those cases, since left/top offsets are physical.
-    inline LayoutUnit availableWidth() const;
-    inline LayoutUnit availableHeight() const;
 
     WEBCORE_EXPORT virtual int verticalScrollbarWidth() const;
     WEBCORE_EXPORT virtual int horizontalScrollbarHeight() const;
@@ -465,8 +459,6 @@ public:
     bool percentageLogicalHeightIsResolvable() const;
     bool hasUnsplittableScrollingOverflow() const;
     bool isUnsplittableForPagination() const;
-
-    bool shouldTreatChildAsReplaced() const;
 
     virtual LayoutRect overflowClipRect(const LayoutPoint& location, OverlayScrollbarSizeRelevancy = OverlayScrollbarSizeRelevancy::IgnoreOverlayScrollbarSize, PaintPhase = PaintPhase::BlockBackground) const;
     virtual LayoutRect overflowClipRectForChildLayers(const LayoutPoint& location, OverlayScrollbarSizeRelevancy relevancy) const { return overflowClipRect(location, relevancy); }

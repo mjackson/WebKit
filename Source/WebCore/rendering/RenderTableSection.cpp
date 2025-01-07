@@ -28,8 +28,10 @@
 
 #include "BorderPainter.h"
 #include "Document.h"
-#include "HitTestResult.h"
+#include "HTMLFieldSetElement.h"
+#include "HTMLFormControlElement.h"
 #include "HTMLNames.h"
+#include "HitTestResult.h"
 #include "PaintInfo.h"
 #include "RenderBoxInlines.h"
 #include "RenderBoxModelObjectInlines.h"
@@ -473,7 +475,9 @@ static bool shouldFlexCellChild(const RenderTableCell& cell, const RenderBox& ce
         return false;
     if (cellDescendant.scrollsOverflowY())
         return true;
-    return cellDescendant.shouldTreatChildAsReplaced();
+    if (cellDescendant.isReplacedOrAtomicInline())
+        return true;
+    return is<HTMLFormControlElement>(cellDescendant.element()) && !is<HTMLFieldSetElement>(cellDescendant.element());
 }
 
 void RenderTableSection::relayoutCellIfFlexed(RenderTableCell& cell, int rowIndex, int rowHeight)
@@ -543,7 +547,7 @@ void RenderTableSection::layoutRows()
     unsigned totalRows = m_grid.size();
 
     // Set the width of our section now.  The rows will also be this width.
-    setLogicalWidth(table()->contentLogicalWidth());
+    setLogicalWidth(table()->contentBoxLogicalWidth());
     m_forceSlowPaintPathWithOverflowingCell = false;
 
     LayoutUnit vspacing = table()->vBorderSpacing();
@@ -903,8 +907,8 @@ std::optional<LayoutUnit> RenderTableSection::baselineFromCellContentEdges(ItemP
         const CellStruct& cs = row.at(i);
         const RenderTableCell* cell = cs.primaryCell();
         // Only cells with content have a baseline
-        if (cell && cell->contentLogicalHeight()) {
-            LayoutUnit candidate = cell->logicalTop() + cell->borderAndPaddingBefore() + cell->contentLogicalHeight();
+        if (cell && cell->contentBoxLogicalHeight()) {
+            LayoutUnit candidate = cell->logicalTop() + cell->borderAndPaddingBefore() + cell->contentBoxLogicalHeight();
             result = std::max(result.value_or(candidate), candidate);
         }
     }
@@ -1285,7 +1289,7 @@ void RenderTableSection::paintObject(PaintInfo& paintInfo, const LayoutPoint& pa
             // To make sure we properly repaint the section, we repaint all the overflowing cells that we collected.
             auto cells = copyToVector(m_overflowingCells);
 
-            HashSet<CheckedPtr<RenderTableCell>> spanningCells;
+            UncheckedKeyHashSet<CheckedPtr<RenderTableCell>> spanningCells;
 
             for (unsigned r = dirtiedRows.start; r < dirtiedRows.end; r++) {
                 RenderTableRow* row = m_grid[r].rowRenderer;

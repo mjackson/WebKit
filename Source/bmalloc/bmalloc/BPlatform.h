@@ -20,7 +20,7 @@
  * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #pragma once
@@ -123,20 +123,20 @@
 /* ==== Platform adaptation macros: these describe properties of the target environment. ==== */
 
 /* BCPU() - the target CPU architecture */
-#define BCPU(_FEATURE) (defined BCPU_##_FEATURE  && BCPU_##_FEATURE)
+#define BCPU(_FEATURE) (defined BCPU_##_FEATURE && BCPU_##_FEATURE)
 
 /* BCPU(X86) - i386 / x86 32-bit */
-#if defined(__i386__) \
-|| defined(i386)     \
-|| defined(_M_IX86)  \
-|| defined(_X86_)    \
-|| defined(__THW_INTEL)
+#if defined(__i386__)   \
+    || defined(i386)    \
+    || defined(_M_IX86) \
+    || defined(_X86_)   \
+    || defined(__THW_INTEL)
 #define BCPU_X86 1
 #endif
 
 /* BCPU(X86_64) - AMD64 / Intel64 / x86_64 64-bit */
 #if defined(__x86_64__) \
-|| defined(_M_X64)
+    || defined(_M_X64)
 #define BCPU_X86_64 1
 #endif
 
@@ -151,45 +151,45 @@
 /* BCPU(ARM) - ARM, any version*/
 #define BARM_ARCH_AT_LEAST(N) (BCPU(ARM) && BARM_ARCH_VERSION >= N)
 
-#if   defined(arm) \
-|| defined(__arm__) \
-|| defined(ARM) \
-|| defined(_ARM_)
+#if defined(arm)        \
+    || defined(__arm__) \
+    || defined(ARM)     \
+    || defined(_ARM_)
 #define BCPU_ARM 1
 
 /* Set BARM_ARCH_VERSION */
-#if   defined(__ARM_ARCH_4__) \
-|| defined(__ARM_ARCH_4T__) \
-|| defined(__MARM_ARMV4__)
+#if defined(__ARM_ARCH_4__)     \
+    || defined(__ARM_ARCH_4T__) \
+    || defined(__MARM_ARMV4__)
 #define BARM_ARCH_VERSION 4
 
-#elif defined(__ARM_ARCH_5__) \
-|| defined(__ARM_ARCH_5T__) \
-|| defined(__MARM_ARMV5__)
+#elif defined(__ARM_ARCH_5__)   \
+    || defined(__ARM_ARCH_5T__) \
+    || defined(__MARM_ARMV5__)
 #define BARM_ARCH_VERSION 5
 
-#elif defined(__ARM_ARCH_5E__) \
-|| defined(__ARM_ARCH_5TE__) \
-|| defined(__ARM_ARCH_5TEJ__)
+#elif defined(__ARM_ARCH_5E__)   \
+    || defined(__ARM_ARCH_5TE__) \
+    || defined(__ARM_ARCH_5TEJ__)
 #define BARM_ARCH_VERSION 5
 
-#elif defined(__ARM_ARCH_6__) \
-|| defined(__ARM_ARCH_6J__) \
-|| defined(__ARM_ARCH_6K__) \
-|| defined(__ARM_ARCH_6Z__) \
-|| defined(__ARM_ARCH_6ZK__) \
-|| defined(__ARM_ARCH_6T2__) \
-|| defined(__ARMV6__)
+#elif defined(__ARM_ARCH_6__)    \
+    || defined(__ARM_ARCH_6J__)  \
+    || defined(__ARM_ARCH_6K__)  \
+    || defined(__ARM_ARCH_6Z__)  \
+    || defined(__ARM_ARCH_6ZK__) \
+    || defined(__ARM_ARCH_6T2__) \
+    || defined(__ARMV6__)
 #define BARM_ARCH_VERSION 6
 
-#elif defined(__ARM_ARCH_7A__) \
-|| defined(__ARM_ARCH_7K__) \
-|| defined(__ARM_ARCH_7R__) \
-|| defined(__ARM_ARCH_7S__)
+#elif defined(__ARM_ARCH_7A__)  \
+    || defined(__ARM_ARCH_7K__) \
+    || defined(__ARM_ARCH_7R__) \
+    || defined(__ARM_ARCH_7S__)
 #define BARM_ARCH_VERSION 7
 
 #elif defined(__ARM_ARCH_8__) \
-|| defined(__ARM_ARCH_8A__)
+    || defined(__ARM_ARCH_8A__)
 #define BARM_ARCH_VERSION 8
 
 /* MSVC sets _M_ARM */
@@ -206,30 +206,30 @@
 #endif
 
 /* Set BTHUMB_ARCH_VERSION */
-#if   defined(__ARM_ARCH_4T__)
+#if defined(__ARM_ARCH_4T__)
 #define BTHUMB_ARCH_VERSION 1
 
-#elif defined(__ARM_ARCH_5T__) \
-|| defined(__ARM_ARCH_5TE__) \
-|| defined(__ARM_ARCH_5TEJ__)
+#elif defined(__ARM_ARCH_5T__)   \
+    || defined(__ARM_ARCH_5TE__) \
+    || defined(__ARM_ARCH_5TEJ__)
 #define BTHUMB_ARCH_VERSION 2
 
-#elif defined(__ARM_ARCH_6J__) \
-|| defined(__ARM_ARCH_6K__) \
-|| defined(__ARM_ARCH_6Z__) \
-|| defined(__ARM_ARCH_6ZK__) \
-|| defined(__ARM_ARCH_6M__)
+#elif defined(__ARM_ARCH_6J__)   \
+    || defined(__ARM_ARCH_6K__)  \
+    || defined(__ARM_ARCH_6Z__)  \
+    || defined(__ARM_ARCH_6ZK__) \
+    || defined(__ARM_ARCH_6M__)
 #define BTHUMB_ARCH_VERSION 3
 
 #elif defined(__ARM_ARCH_6T2__) \
-|| defined(__ARM_ARCH_7__) \
-|| defined(__ARM_ARCH_7A__) \
-|| defined(__ARM_ARCH_7K__) \
-|| defined(__ARM_ARCH_7M__) \
-|| defined(__ARM_ARCH_7R__) \
-|| defined(__ARM_ARCH_7S__) \
-|| defined(__ARM_ARCH_8__) \
-|| defined(__ARM_ARCH_8A__)
+    || defined(__ARM_ARCH_7__)  \
+    || defined(__ARM_ARCH_7A__) \
+    || defined(__ARM_ARCH_7K__) \
+    || defined(__ARM_ARCH_7M__) \
+    || defined(__ARM_ARCH_7R__) \
+    || defined(__ARM_ARCH_7S__) \
+    || defined(__ARM_ARCH_8__)  \
+    || defined(__ARM_ARCH_8A__)
 #define BTHUMB_ARCH_VERSION 4
 
 /* RVCT sets __TARGET_ARCH_THUMB */
@@ -244,22 +244,21 @@
 /* BCPU(ARM_THUMB2) - Thumb2 instruction set is available */
 /* Only one of these will be defined. */
 #if !defined(BCPU_ARM_TRADITIONAL) && !defined(BCPU_ARM_THUMB2)
-#  if defined(thumb2) || defined(__thumb2__) \
-|| ((defined(__thumb) || defined(__thumb__)) && BTHUMB_ARCH_VERSION == 4)
-#    define BCPU_ARM_TRADITIONAL 0
-#    define BCPU_ARM_THUMB2 1
-#  elif BARM_ARCH_AT_LEAST(4)
-#    define BCPU_ARM_TRADITIONAL 1
-#    define BCPU_ARM_THUMB2 0
-#  else
-#    error "Not supported ARM architecture"
-#  endif
+#if defined(thumb2) || defined(__thumb2__) \
+    || ((defined(__thumb) || defined(__thumb__)) && BTHUMB_ARCH_VERSION == 4)
+#define BCPU_ARM_TRADITIONAL 0
+#define BCPU_ARM_THUMB2 1
+#elif BARM_ARCH_AT_LEAST(4)
+#define BCPU_ARM_TRADITIONAL 1
+#define BCPU_ARM_THUMB2 0
+#else
+#error "Not supported ARM architecture"
+#endif
 #elif BCPU(ARM_TRADITIONAL) && BCPU(ARM_THUMB2) /* Sanity Check */
-#  error "Cannot use both of BCPU_ARM_TRADITIONAL and BCPU_ARM_THUMB2 platforms"
+#error "Cannot use both of BCPU_ARM_TRADITIONAL and BCPU_ARM_THUMB2 platforms"
 #endif /* !defined(BCPU_ARM_TRADITIONAL) && !defined(BCPU_ARM_THUMB2) */
 
 #endif /* ARM */
-
 
 #if BCOMPILER(GCC_COMPATIBLE)
 /* __LP64__ is not defined on 64bit Windows since it uses LLP64. Using __SIZEOF_POINTER__ is simpler. */

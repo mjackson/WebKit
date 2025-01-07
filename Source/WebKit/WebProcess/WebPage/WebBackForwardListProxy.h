@@ -46,12 +46,13 @@ public:
 private:
     WebBackForwardListProxy(WebPage&);
 
-    void addItem(WebCore::FrameIdentifier, Ref<WebCore::HistoryItem>&&) override;
-    void setChildItem(WebCore::BackForwardItemIdentifier, Ref<WebCore::HistoryItem>&&) final;
+    void addItem(Ref<WebCore::HistoryItem>&&) override;
+    void setChildItem(WebCore::BackForwardFrameItemIdentifier, Ref<WebCore::HistoryItem>&&) final;
 
     void goToItem(WebCore::HistoryItem&) override;
     void goToProvisionalItem(const WebCore::HistoryItem&) final;
     void clearProvisionalItem(const WebCore::HistoryItem&) final;
+    void commitProvisionalItem(const WebCore::HistoryItem&) final;
 
     RefPtr<WebCore::HistoryItem> itemAtIndex(int, WebCore::FrameIdentifier) override;
     unsigned backListCount() const override;

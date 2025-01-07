@@ -242,9 +242,9 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(Page);
 
-static HashSet<WeakRef<Page>>& allPages()
+static UncheckedKeyHashSet<WeakRef<Page>>& allPages()
 {
-    static NeverDestroyed<HashSet<WeakRef<Page>>> set;
+    static NeverDestroyed<UncheckedKeyHashSet<WeakRef<Page>>> set;
     return set;
 }
 
@@ -559,7 +559,7 @@ void Page::clearPreviousItemFromAllPages(BackForwardItemIdentifier itemID)
             return;
 
         CheckedRef controller = localMainFrame->loader().history();
-        if (controller->previousItem() && controller->previousItem()->identifier() == itemID) {
+        if (controller->previousItem() && controller->previousItem()->itemID() == itemID) {
             controller->clearPreviousItem();
             return;
         }
@@ -935,7 +935,6 @@ void Page::goToItem(LocalFrame& frame, HistoryItem& item, FrameLoadType type, Sh
     // being deref()-ed. Make sure we can still use it with HistoryController::goToItem later.
     Ref protectedItem { item };
 
-    ASSERT(frame.isRootFrame());
     if (frame.loader().checkedHistory()->shouldStopLoadingForHistoryItem(item))
         frame.protectedLoader()->stopAllLoadersAndCheckCompleteness();
     frame.loader().checkedHistory()->goToItem(item, type, shouldTreatAsContinuingLoad);
@@ -943,7 +942,6 @@ void Page::goToItem(LocalFrame& frame, HistoryItem& item, FrameLoadType type, Sh
 
 void Page::goToItemForNavigationAPI(LocalFrame& frame, HistoryItem& item, FrameLoadType type, LocalFrame& triggeringFrame, NavigationAPIMethodTracker* tracker)
 {
-    ASSERT(frame.isRootFrame());
     if (frame.loader().checkedHistory()->shouldStopLoadingForHistoryItem(item))
         frame.protectedLoader()->stopAllLoadersAndCheckCompleteness();
     frame.loader().checkedHistory()->goToItemForNavigationAPI(item, type, triggeringFrame, tracker);
@@ -4335,7 +4333,7 @@ void Page::forEachLocalFrame(const Function<void(LocalFrame&)>& functor)
 
 void Page::forEachWindowEventLoop(const Function<void(WindowEventLoop&)>& functor)
 {
-    HashSet<Ref<WindowEventLoop>> windowEventLoops;
+    UncheckedKeyHashSet<Ref<WindowEventLoop>> windowEventLoops;
     WindowEventLoop* lastEventLoop = nullptr;
     for (RefPtr frame = &mainFrame(); frame; frame = frame->tree().traverseNext()) {
         RefPtr localFrame = dynamicDowncast<LocalFrame>(frame);

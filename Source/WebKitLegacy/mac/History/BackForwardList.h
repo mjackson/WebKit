@@ -28,6 +28,7 @@
 #pragma once
 
 #include <WebCore/BackForwardClient.h>
+#include <WebCore/BackForwardFrameItemIdentifier.h>
 #include <WebCore/BackForwardItemIdentifier.h>
 #include <WebCore/FrameIdentifier.h>
 #include <wtf/HashSet.h>
@@ -45,13 +46,14 @@ public:
 
     WebView *webView() { return m_webView; }
 
-    void addItem(WebCore::FrameIdentifier, Ref<WebCore::HistoryItem>&&) override;
-    void setChildItem(WebCore::BackForwardItemIdentifier, Ref<WebCore::HistoryItem>&&) final { }
+    void addItem(Ref<WebCore::HistoryItem>&&) override;
+    void setChildItem(WebCore::BackForwardFrameItemIdentifier, Ref<WebCore::HistoryItem>&&) final { }
     void goBack();
     void goForward();
     void goToItem(WebCore::HistoryItem&) override;
     void goToProvisionalItem(const WebCore::HistoryItem&) final;
     void clearProvisionalItem(const WebCore::HistoryItem&) final;
+    void commitProvisionalItem(const WebCore::HistoryItem&) final { }
 
     RefPtr<WebCore::HistoryItem> backItem();
     RefPtr<WebCore::HistoryItem> currentItem();

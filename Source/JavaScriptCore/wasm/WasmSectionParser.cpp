@@ -451,7 +451,7 @@ auto SectionParser::parseExport() -> PartialResult
     RELEASE_ASSERT(!m_info->exports.capacity());
     WASM_PARSER_FAIL_IF(!m_info->exports.tryReserveInitialCapacity(exportCount), "can't allocate enough memory for "_s, exportCount, " exports"_s);
 
-    HashSet<String> exportNames;
+    UncheckedKeyHashSet<String> exportNames;
     for (uint32_t exportNumber = 0; exportNumber < exportCount; ++exportNumber) {
         uint32_t fieldLen;
         Name fieldString;
@@ -508,9 +508,10 @@ auto SectionParser::parseStart() -> PartialResult
     WASM_PARSER_FAIL_IF(!parseVarUInt32(startFunctionIndex), "can't get Start index"_s);
     WASM_PARSER_FAIL_IF(startFunctionIndex >= m_info->functionIndexSpaceSize(), "Start index "_s, startFunctionIndex, " exceeds function index space "_s, m_info->functionIndexSpaceSize());
     TypeIndex typeIndex = m_info->typeIndexFromFunctionIndexSpace(FunctionSpaceIndex(startFunctionIndex));
-    const auto& signature = TypeInformation::getFunctionSignature(typeIndex);
-    WASM_PARSER_FAIL_IF(signature.argumentCount(), "Start function can't have arguments"_s);
-    WASM_PARSER_FAIL_IF(!signature.returnsVoid(), "Start function can't return a value"_s);
+    auto signature = TypeInformation::tryGetFunctionSignature(typeIndex);
+    WASM_PARSER_FAIL_IF(!signature.has_value(), "can't get Start function signature"_s);
+    WASM_PARSER_FAIL_IF(signature.value()->argumentCount(), "Start function can't have arguments"_s);
+    WASM_PARSER_FAIL_IF(!signature.value()->returnsVoid(), "Start function can't return a value"_s);
     m_info->startFunctionIndexSpace = startFunctionIndex;
     return { };
 }

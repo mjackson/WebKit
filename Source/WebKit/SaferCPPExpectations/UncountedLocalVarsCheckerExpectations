@@ -15,7 +15,6 @@ Shared/API/c/cg/WKImageCG.cpp
 Shared/APIWebArchive.mm
 Shared/Cocoa/APIObject.mm
 Shared/ContextMenuContextData.cpp
-Shared/WebBackForwardListItem.cpp
 Shared/WebContextMenuItem.cpp
 Shared/WebHitTestResultData.cpp
 UIProcess/API/APIHTTPCookieStore.cpp
@@ -97,7 +96,6 @@ WebProcess/MediaStream/UserMediaPermissionRequestManager.cpp
 WebProcess/Model/mac/ARKitInlinePreviewModelPlayerMac.mm
 WebProcess/Network/NetworkProcessConnection.cpp
 WebProcess/Network/WebLoaderStrategy.cpp
-WebProcess/Network/WebResourceLoader.cpp
 WebProcess/Network/WebSocketChannel.cpp
 WebProcess/Network/webrtc/LibWebRTCNetworkManager.cpp
 WebProcess/Network/webrtc/LibWebRTCProvider.cpp

@@ -29,6 +29,7 @@
 
 #pragma once
 
+#include "BackForwardItemIdentifier.h"
 #include "FrameLoader.h"
 #include <wtf/CheckedPtr.h>
 
@@ -88,6 +89,7 @@ public:
     HistoryItem* provisionalItem() const { return m_provisionalItem.get(); }
     RefPtr<HistoryItem> protectedProvisionalItem() const;
     void setProvisionalItem(RefPtr<HistoryItem>&&);
+    void clearProvisionalItem();
 
     void pushState(RefPtr<SerializedScriptValue>&&, const String& url);
     void replaceState(RefPtr<SerializedScriptValue>&&, const String& url);
@@ -96,6 +98,8 @@ public:
 
     Ref<HistoryItem> createItemWithLoader(HistoryItemClient&, DocumentLoader*);
 
+    WEBCORE_EXPORT RefPtr<HistoryItem> createItemTree(LocalFrame& targetFrame, bool clipAtTarget, BackForwardItemIdentifier);
+
 private:
     friend class Page;
     bool shouldStopLoadingForHistoryItem(HistoryItem&) const;
@@ -103,8 +107,8 @@ private:
     void goToItemForNavigationAPI(HistoryItem&, FrameLoadType, LocalFrame& triggeringFrame, NavigationAPIMethodTracker*);
 
     void initializeItem(HistoryItem&, RefPtr<DocumentLoader>);
-    Ref<HistoryItem> createItem(HistoryItemClient&);
-    Ref<HistoryItem> createItemTree(HistoryItemClient&, LocalFrame& targetFrame, bool clipAtTarget);
+    Ref<HistoryItem> createItem(HistoryItemClient&, BackForwardItemIdentifier);
+    Ref<HistoryItem> createItemTree(HistoryItemClient&, LocalFrame& targetFrame, bool clipAtTarget, BackForwardItemIdentifier);
 
     enum class ForNavigationAPI : bool { No, Yes };
     void recursiveSetProvisionalItem(HistoryItem&, HistoryItem*, ForNavigationAPI = ForNavigationAPI::No);
@@ -117,6 +121,7 @@ private:
     void updateBackForwardListClippedAtTarget(bool doClip);
     void updateCurrentItem();
     bool isFrameLoadComplete() const { return m_frameLoadComplete; }
+    void commitProvisionalItem();
 
     struct FrameToNavigate;
     static void recursiveGatherFramesToNavigate(LocalFrame&, Vector<FrameToNavigate>&, HistoryItem& targetItem, HistoryItem* fromItem);

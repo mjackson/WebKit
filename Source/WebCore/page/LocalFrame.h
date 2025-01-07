@@ -332,7 +332,7 @@ public:
     WEBCORE_EXPORT void setScrollingMode(ScrollbarMode);
 
 #if ENABLE(CONTENT_EXTENSIONS)
-    void networkUsageDidExceedThreshold();
+    WEBCORE_EXPORT void showResourceMonitoringError();
 #endif
 
 protected:
@@ -356,10 +356,6 @@ private:
     void reinitializeDocumentSecurityContext() final;
     FrameLoaderClient& loaderClient() final;
     void documentURLForConsoleLog(CompletionHandler<void(const URL&)>&&) final;
-
-#if ENABLE(CONTENT_EXTENSIONS)
-    void showResourceMonitoringError(String&& htmlContent);
-#endif
 
     WeakHashSet<FrameDestructionObserver> m_destructionObservers;
 
@@ -409,7 +405,7 @@ private:
     const WeakRef<LocalFrame> m_rootFrame;
     SandboxFlags m_sandboxFlags;
     UniqueRef<EventHandler> m_eventHandler;
-    HashSet<RegistrableDomain> m_storageAccessExceptionDomains;
+    UncheckedKeyHashSet<RegistrableDomain> m_storageAccessExceptionDomains;
 };
 
 inline LocalFrameView* LocalFrame::view() const

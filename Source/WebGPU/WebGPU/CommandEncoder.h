@@ -75,8 +75,8 @@ public:
 
     ~CommandEncoder();
 
-    Ref<ComputePassEncoder> beginComputePass(const WGPUComputePassDescriptor&);
-    Ref<RenderPassEncoder> beginRenderPass(const WGPURenderPassDescriptor&);
+    Ref<ComputePassEncoder> beginComputePass(const WGPUComputePassDescriptor&) HAS_SWIFTCXX_THUNK;
+    Ref<RenderPassEncoder> beginRenderPass(const WGPURenderPassDescriptor&) HAS_SWIFTCXX_THUNK;
     void copyBufferToBuffer(const Buffer& source, uint64_t sourceOffset, Buffer& destination, uint64_t destinationOffset, uint64_t size) HAS_SWIFTCXX_THUNK;
     void copyBufferToTexture(const WGPUImageCopyBuffer& source, const WGPUImageCopyTexture& destination, const WGPUExtent3D& copySize) HAS_SWIFTCXX_THUNK;
     void copyTextureToBuffer(const WGPUImageCopyTexture& source, const WGPUImageCopyBuffer& destination, const WGPUExtent3D& copySize) HAS_SWIFTCXX_THUNK;
@@ -133,9 +133,9 @@ private PUBLIC_IN_WEBGPU_SWIFT:
 private:
     NSString* validateFinishError() const;
     bool validatePopDebugGroup() const;
+private PUBLIC_IN_WEBGPU_SWIFT:
     NSString* errorValidatingComputePassDescriptor(const WGPUComputePassDescriptor&) const;
     NSString* errorValidatingRenderPassDescriptor(const WGPURenderPassDescriptor&) const;
-private PUBLIC_IN_WEBGPU_SWIFT:
     void clearTextureIfNeeded(const WGPUImageCopyTexture&, NSUInteger);
 private:
     NSString* errorValidatingImageCopyBuffer(const WGPUImageCopyBuffer&) const;
@@ -146,10 +146,14 @@ private PUBLIC_IN_WEBGPU_SWIFT:
 private:
     void discardCommandBuffer();
 
+    RefPtr<CommandBuffer> protectedCachedCommandBuffer() const { return m_cachedCommandBuffer.get(); }
+
+private PUBLIC_IN_WEBGPU_SWIFT:
     id<MTLCommandBuffer> m_commandBuffer { nil };
+    id<MTLCommandEncoder> m_existingCommandEncoder { nil };
+private:
     id<MTLSharedEvent> m_abortCommandBuffer { nil };
     id<MTLBlitCommandEncoder> m_blitCommandEncoder { nil };
-    id<MTLCommandEncoder> m_existingCommandEncoder { nil };
 
     uint64_t m_debugGroupStackSize { 0 };
     ThreadSafeWeakPtr<CommandBuffer> m_cachedCommandBuffer;

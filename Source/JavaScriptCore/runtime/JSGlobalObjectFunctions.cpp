@@ -263,11 +263,11 @@ template <typename CharType>
 static double jsBinaryIntegerLiteral(std::span<const CharType>& data)
 {
     // Binary number.
-    data = data.subspan(2);
+    skip(data, 2);
     auto firstDigitPosition = data;
     double number = 0;
     while (true) {
-        number = number * 2 + (consumeSingleElement(data) - '0');
+        number = number * 2 + (consume(data) - '0');
         if (data.empty())
             break;
         if (!isASCIIBinaryDigit(data.front()))
@@ -284,11 +284,11 @@ template <typename CharType>
 static double jsOctalIntegerLiteral(std::span<const CharType>& data)
 {
     // Octal number.
-    data = data.subspan(2);
+    skip(data, 2);
     auto firstDigitPosition = data;
     double number = 0;
     while (true) {
-        number = number * 8 + (consumeSingleElement(data) - '0');
+        number = number * 8 + (consume(data) - '0');
         if (data.empty())
             break;
         if (!isASCIIOctalDigit(data.front()))
@@ -305,11 +305,11 @@ template <typename CharType>
 static double jsHexIntegerLiteral(std::span<const CharType>& data)
 {
     // Hex number.
-    data = data.subspan(2);
+    skip(data, 2);
     auto firstDigitPosition = data;
     double number = 0;
     while (true) {
-        number = number * 16 + toASCIIHexValue(consumeSingleElement(data));
+        number = number * 16 + toASCIIHexValue(consume(data));
         if (data.empty())
             break;
         if (!isASCIIHexDigit(data.front()))
@@ -330,7 +330,7 @@ static double jsStrDecimalLiteral(std::span<const CharType>& data)
     size_t parsedLength;
     double number = parseDouble(data, parsedLength);
     if (parsedLength) {
-        data = data.subspan(parsedLength);
+        skip(data, parsedLength);
         return number;
     }
 
@@ -338,21 +338,21 @@ static double jsStrDecimalLiteral(std::span<const CharType>& data)
     switch (data.front()) {
     case 'I':
         if (isInfinity(data)) {
-            data = data.subspan(SizeOfInfinity);
+            skip(data, SizeOfInfinity);
             return std::numeric_limits<double>::infinity();
         }
         break;
 
     case '+':
         if (isInfinity(data.subspan(1))) {
-            data = data.subspan(SizeOfInfinity + 1);
+            skip(data, SizeOfInfinity + 1);
             return std::numeric_limits<double>::infinity();
         }
         break;
 
     case '-':
         if (isInfinity(data.subspan(1))) {
-            data = data.subspan(SizeOfInfinity + 1);
+            skip(data, SizeOfInfinity + 1);
             return -std::numeric_limits<double>::infinity();
         }
         break;

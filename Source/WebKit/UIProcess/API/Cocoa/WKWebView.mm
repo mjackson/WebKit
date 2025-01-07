@@ -234,6 +234,9 @@ static const BOOL defaultFastClickingEnabled = NO;
 #endif
 
 #if ENABLE(SCREEN_TIME)
+@interface STWebpageController (Staging_138865295)
+@property (nonatomic, copy) NSString *profileIdentifier;
+@end
 static void *screenTimeWebpageControllerBlockedKVOContext = &screenTimeWebpageControllerBlockedKVOContext;
 #endif
 
@@ -362,6 +365,9 @@ static uint32_t convertSystemLayoutDirection(NSUserInterfaceLayoutDirection dire
         _screenTimeWebpageController = adoptNS([PAL::allocSTWebpageControllerInstance() init]);
         [_screenTimeWebpageController addObserver:self forKeyPath:@"URLIsBlocked" options:(NSKeyValueObservingOptionOld | NSKeyValueObservingOptionNew) context:&screenTimeWebpageControllerBlockedKVOContext];
         _isBlockedByScreenTime = NO;
+
+        if ([_screenTimeWebpageController respondsToSelector:@selector(setProfileIdentifier:)])
+            [_screenTimeWebpageController setProfileIdentifier:[_configuration websiteDataStore].identifier.UUIDString];
 
         RetainPtr screenTimeView = [_screenTimeWebpageController view];
         [screenTimeView setTranslatesAutoresizingMaskIntoConstraints:NO];
@@ -1960,8 +1966,10 @@ inline OptionSet<WebKit::FindOptions> toFindOptions(WKFindConfiguration *configu
     if (pdfConfiguration && !CGRectIsNull(pdfConfiguration.rect))
         floatRect = WebCore::FloatRect(pdfConfiguration.rect);
 
-    auto drawToPDFFunction = _page->preferences().siteIsolationEnabled() ? &WebKit::WebPageProxy::drawCompositedToPDF : &WebKit::WebPageProxy::drawToPDF;
     bool allowTransparentBackground = pdfConfiguration && pdfConfiguration.allowTransparentBackground;
+
+    bool useDrawRemote = _page->preferences().remoteSnapshottingEnabled() && _page->preferences().useGPUProcessForDOMRenderingEnabled();
+    auto drawToPDFFunction = useDrawRemote ? &WebKit::WebPageProxy::drawRemoteToPDF : &WebKit::WebPageProxy::drawToPDF;
 
     (*_page.*drawToPDFFunction)(*frameID, floatRect, allowTransparentBackground, [handler = makeBlockPtr(completionHandler)](RefPtr<WebCore::SharedBuffer>&& pdfData) {
         if (!pdfData || pdfData->isEmpty()) {
@@ -4613,18 +4621,6 @@ static inline OptionSet<WebKit::FindOptions> toFindOptions(_WKFindOptions wkFind
 {
     THROW_IF_SUSPENDED;
     _page->setCanUseCredentialStorage(canUseCredentialStorage);
-}
-
-// FIXME: Remove old `-[WKWebView _themeColor]` SPI <rdar://76662644>
-- (WebCore::CocoaColor *)_themeColor
-{
-    return [self themeColor];
-}
-
-// FIXME: Remove old `-[WKWebView _pageExtendedBackgroundColor]` SPI <rdar://77789732>
-- (WebCore::CocoaColor *)_pageExtendedBackgroundColor
-{
-    return cocoaColorOrNil(_page->pageExtendedBackgroundColor()).autorelease();
 }
 
 - (WebCore::CocoaColor *)_sampledPageTopColor

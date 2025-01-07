@@ -6,10 +6,10 @@
  * are met:
  *
  * 1.  Redistributions of source code must retain the above copyright
- *     notice, this list of conditions and the following disclaimer. 
+ *     notice, this list of conditions and the following disclaimer.
  * 2.  Redistributions in binary form must reproduce the above copyright
  *     notice, this list of conditions and the following disclaimer in the
- *     documentation and/or other materials provided with the distribution. 
+ *     documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY APPLE AND ITS CONTRIBUTORS "AS IS" AND ANY
  * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
@@ -47,6 +47,7 @@
 #endif
 
 #if PLATFORM(COCOA)
+#include <wtf/cocoa/Entitlements.h>
 #include <wtf/darwin/LibraryPathDiagnostics.h>
 #endif
 
@@ -68,7 +69,6 @@
 namespace WTF {
 
 Lock Thread::s_allThreadsLock;
-
 
 // During suspend, suspend or resume should not be executed from the other threads.
 // We use global lock instead of per thread lock.
@@ -162,7 +162,9 @@ public:
     {
     }
 
-    enum class Stage { Start, EstablishedHandle, Initialized };
+    enum class Stage { Start,
+        EstablishedHandle,
+        Initialized };
     Stage stage { Stage::Start };
     ASCIILiteral name;
     Function<void()> entryPoint;
@@ -174,9 +176,9 @@ public:
 #endif
 };
 
-HashSet<Thread*>& Thread::allThreads()
+UncheckedKeyHashSet<Thread*>& Thread::allThreads()
 {
-    static LazyNeverDestroyed<HashSet<Thread*>> allThreads;
+    static LazyNeverDestroyed<UncheckedKeyHashSet<Thread*>> allThreads;
     static std::once_flag onceKey;
     std::call_once(onceKey, [&] {
         allThreads.construct();
@@ -497,6 +499,15 @@ void Thread::dump(PrintStream& out) const
 ThreadSpecificKey Thread::s_key = InvalidThreadSpecificKey;
 #endif
 
+#if USE(TZONE_MALLOC)
+#if PLATFORM(COCOA)
+static bool hasDisableTZoneEntitlement()
+{
+    return processHasEntitlement("webkit.tzone.disable"_s);
+}
+#endif
+#endif
+
 void initialize()
 {
     static std::once_flag onceKey;
@@ -506,8 +517,11 @@ void initialize()
 #endif
         setPermissionsOfConfigPage();
         Config::initialize();
-#if USE(TZONE_MALLOC) && !USE(SYSTEM_MALLOC)
-        bmalloc::api::TZoneHeapManager::singleton(); // Force initialization.
+#if USE(TZONE_MALLOC)
+#if PLATFORM(COCOA)
+        bmalloc::api::TZoneHeapManager::setHasDisableTZoneEntitlementCallback(hasDisableTZoneEntitlement);
+#endif
+        bmalloc::api::TZoneHeapManager::ensureSingleton(); // Force initialization.
 #endif
         Gigacage::ensureGigacage();
         Config::AssertNotFrozenScope assertScope;

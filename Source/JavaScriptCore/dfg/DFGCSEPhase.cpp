@@ -105,7 +105,7 @@ struct ImpureDataTranslator {
 };
 
 class ImpureMap {
-    WTF_MAKE_TZONE_ALLOCATED(ImpureMap);
+    WTF_MAKE_TZONE_NON_HEAP_ALLOCATABLE(ImpureMap);
     WTF_MAKE_NONCOPYABLE(ImpureMap);
 public:
     ImpureMap() = default;
@@ -219,7 +219,7 @@ public:
     }
 
 private:
-    typedef HashSet<std::unique_ptr<ImpureDataSlot>, ImpureDataSlotHash> Map;
+    typedef UncheckedKeyHashSet<std::unique_ptr<ImpureDataSlot>, ImpureDataSlotHash> Map;
 
     const ImpureDataSlot* addImpl(const HeapLocation& location, const LazyNode& node)
     {

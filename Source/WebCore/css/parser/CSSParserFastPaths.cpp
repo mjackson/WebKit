@@ -46,6 +46,7 @@
 #include "ColorConversion.h"
 #include "HashTools.h"
 #include "StylePropertyShorthand.h"
+#include <wtf/text/ParsingUtilities.h>
 
 namespace WebCore {
 
@@ -134,23 +135,23 @@ static inline bool parseSimpleLength(std::span<const CharacterType> characters, 
 enum class RequireUnits : bool { No, Yes };
 
 template <typename CharacterType>
-static inline bool parseSimpleAngle(std::span<const CharacterType> characters, RequireUnits requireUnits, CSSUnitType& unit, double& number)
+static inline bool parseSimpleAngle(std::span<const CharacterType> characters, RequireUnits requireUnits, CSS::AngleUnit& unit, double& number)
 {
     // "0deg" or "1rad"
     if (characters.size() >= 4) {
         if (isASCIIAlphaCaselessEqual(characters[characters.size() - 3], 'd') && isASCIIAlphaCaselessEqual(characters[characters.size() - 2], 'e') && isASCIIAlphaCaselessEqual(characters[characters.size() - 1], 'g')) {
             characters = characters.first(characters.size() - 3);
-            unit = CSSUnitType::CSS_DEG;
+            unit = CSS::AngleUnit::Deg;
         } else if (isASCIIAlphaCaselessEqual(characters[characters.size() - 3], 'r') && isASCIIAlphaCaselessEqual(characters[characters.size() - 2], 'a') && isASCIIAlphaCaselessEqual(characters[characters.size() - 1], 'd')) {
             characters = characters.first(characters.size() - 3);
-            unit = CSSUnitType::CSS_RAD;
+            unit = CSS::AngleUnit::Rad;
         } else if (requireUnits == RequireUnits::Yes)
             return false;
     } else {
         if (requireUnits == RequireUnits::Yes || !characters.size())
             return false;
 
-        unit = CSSUnitType::CSS_DEG;
+        unit = CSS::AngleUnit::Deg;
     }
 
     auto parsedNumber = parseCSSNumber(characters);
@@ -287,25 +288,20 @@ static std::optional<uint8_t> parseColorIntOrPercentage(std::span<const Characte
     auto current = string;
     double localValue = 0;
     bool negative = false;
-    while (!current.empty() && isASCIIWhitespace<CharacterType>(current.front()))
-        current = current.subspan(1);
+    skipWhile<isASCIIWhitespace>(current);
 
-    if (!current.empty() && current.front() == '-') {
+    if (skipExactly(current, '-'))
         negative = true;
-        current = current.subspan(1);
-    }
 
     if (current.empty() || !isASCIIDigit(current.front()))
         return std::nullopt;
 
     while (!current.empty() && isASCIIDigit(current.front())) {
-        double newValue = localValue * 10 + current.front() - '0';
-        current = current.subspan(1);
+        double newValue = localValue * 10 + consume(current) - '0';
         if (newValue >= 255) {
             // Clamp values at 255.
             localValue = 255;
-            while (!current.empty() && isASCIIDigit(current.front()))
-                current = current.subspan(1);
+            skipWhile<isASCIIDigit>(current);
             break;
         }
         localValue = newValue;
@@ -324,7 +320,7 @@ static std::optional<uint8_t> parseColorIntOrPercentage(std::span<const Characte
         size_t numCharactersParsed = parseDouble(current, '%', percentage);
         if (!numCharactersParsed)
             return std::nullopt;
-        current = current.subspan(numCharactersParsed);
+        skip(current, numCharactersParsed);
         if (current.front() != '%')
             return std::nullopt;
         localValue += percentage;
@@ -333,23 +329,20 @@ static std::optional<uint8_t> parseColorIntOrPercentage(std::span<const Characte
     if (expectedUnitType == CSSUnitType::CSS_PERCENTAGE && current.front() != '%')
         return std::nullopt;
 
-    if (current.front() == '%') {
+    if (skipExactly(current, '%')) {
         expectedUnitType = CSSUnitType::CSS_PERCENTAGE;
         localValue = localValue / 100.0 * 255.0;
         // Clamp values at 255 for percentages over 100%
         if (localValue > 255)
             localValue = 255;
-        current = current.subspan(1);
     } else
         expectedUnitType = CSSUnitType::CSS_NUMBER;
 
-    while (!current.empty() && isASCIIWhitespace<CharacterType>(current.front()))
-        current = current.subspan(1);
+    skipWhile<isASCIIWhitespace>(current);
 
-    if (current.empty() || current.front() != terminator)
+    if (!skipExactly(current, terminator))
         return std::nullopt;
 
-    current = current.subspan(1);
     string = current;
 
     // Clamp negative values at zero.
@@ -374,15 +367,12 @@ static inline bool isTenthAlpha(std::span<const CharacterType> string)
 template <typename CharacterType>
 static inline std::optional<uint8_t> parseRGBAlphaValue(std::span<const CharacterType>& string, char terminator)
 {
-    while (!string.empty() && isASCIIWhitespace<CharacterType>(string.front()))
-        string = string.subspan(1);
+    skipWhile<isASCIIWhitespace>(string);
 
     bool negative = false;
 
-    if (!string.empty() && string.front() == '-') {
+    if (skipExactly(string, '-'))
         negative = true;
-        string = string.subspan(1);
-    }
 
     size_t length = string.size();
     if (length < 2)
@@ -521,8 +511,7 @@ template<typename CharacterType> static std::optional<SRGBA<uint8_t>> parseLegac
         return std::nullopt;
 
     auto skipWhitespace = [](std::span<const CharacterType>& characters) ALWAYS_INLINE_LAMBDA {
-        while (!characters.empty() && isCSSSpace(characters.front()))
-            characters = characters.subspan(1);
+        skipWhile<isCSSSpace>(characters);
     };
 
     auto parsePercentageWithOptionalLeadingWhitespace = [&](std::span<const CharacterType>& characters) -> std::optional<double> {
@@ -533,29 +522,24 @@ template<typename CharacterType> static std::optional<SRGBA<uint8_t>> parseLegac
         if (!numCharactersParsed)
             return std::nullopt;
 
-        characters = characters.subspan(numCharactersParsed);
-        if (characters.empty() || characters.front() != '%')
+        skip(characters, numCharactersParsed);
+        if (!skipExactly(characters, '%'))
             return std::nullopt;
 
-        characters = characters.subspan(1); // Skip the '%'.
         return value;
     };
 
     auto skipComma = [](std::span<const CharacterType>& characters) {
-        if (characters.empty() || characters.front() != ',')
-            return false;
-
-        characters = characters.subspan(1);
-        return true;
+        return skipExactly(characters, ',');
     };
 
     double hue;
     auto angleChars = characters.first(delimiter);
-    auto angleUnit = CSSUnitType::CSS_DEG;
+    auto angleUnit = CSS::AngleUnit::Deg;
     if (!parseSimpleAngle(angleChars, RequireUnits::No, angleUnit, hue))
         return std::nullopt;
 
-    characters = characters.subspan(delimiter);
+    skip(characters, delimiter);
     if (!skipComma(characters))
         return std::nullopt;
 
@@ -576,12 +560,12 @@ template<typename CharacterType> static std::optional<SRGBA<uint8_t>> parseLegac
         size_t numCharactersParsed;
         double alpha = 1;
         if ((numCharactersParsed = parseDouble(characters, ')', alpha))) {
-            characters = characters.subspan(numCharactersParsed);
+            skip(characters, numCharactersParsed);
             return alpha;
         }
 
         if ((numCharactersParsed = parseDouble(characters, '%', alpha))) {
-            characters = characters.subspan(numCharactersParsed + 1); // Skip the '%'
+            skip(characters, numCharactersParsed + 1); // Skip the '%'
             return alpha / 100.0;
         }
 
@@ -604,7 +588,7 @@ template<typename CharacterType> static std::optional<SRGBA<uint8_t>> parseLegac
         return std::nullopt;
 
     auto parsedColor = StyleColorParseType<HSLFunctionLegacy> {
-        Style::Angle<>      { narrowPrecisionToFloat(CSSPrimitiveValue::computeDegrees(angleUnit, hue)) },
+        Style::Angle<>      { narrowPrecisionToFloat(CSS::convertAngle<CSS::AngleUnit::Deg>(hue, angleUnit)) },
         Style::Percentage<> { narrowPrecisionToFloat(*saturation) },
         Style::Percentage<> { narrowPrecisionToFloat(*lightness) },
         Style::Number<>     { narrowPrecisionToFloat(alpha) }
@@ -837,17 +821,14 @@ static RefPtr<CSSValue> parseTransformAngleArgument(CharType*& pos, CharType* en
         return nullptr;
 
     unsigned argumentLength = static_cast<unsigned>(delimiter);
-    CSSUnitType unit = CSSUnitType::CSS_NUMBER;
+    auto angleUnit = CSS::AngleUnit::Deg;
     double number;
-    if (!parseSimpleAngle(std::span<const CharType> { pos, argumentLength }, RequireUnits::Yes, unit, number))
+    if (!parseSimpleAngle(std::span<const CharType> { pos, argumentLength }, RequireUnits::Yes, angleUnit, number))
         return nullptr;
-
-    if (!number && unit == CSSUnitType::CSS_NUMBER)
-        unit = CSSUnitType::CSS_DEG;
 
     pos += argumentLength + 1;
 
-    return CSSPrimitiveValue::create(number, unit);
+    return CSSPrimitiveValue::create(number, CSS::toCSSUnitType(angleUnit));
 }
 
 template <typename CharType>

@@ -53,7 +53,7 @@
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(WritingToolsController);
-WTF_MAKE_TZONE_ALLOCATED_IMPL_NESTED(WritingToolsController, EditingScope);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(WritingToolsController::EditingScope);
 
 #pragma mark - EditingScope
 
@@ -307,7 +307,7 @@ void WritingToolsController::proofreadingSessionDidReceiveSuggestions(const Writ
 
     auto adjustedProcessedRangeBeforeReplacement = resolveCharacterRange(sessionRange, { adjustedProcessedRangeLocation, processedRange.length });
 
-    HashSet<WTF::UUID> transparentContentMarkerIdentifiers;
+    UncheckedKeyHashSet<WTF::UUID> transparentContentMarkerIdentifiers;
 
     document->markers().forEach(adjustedProcessedRangeBeforeReplacement, { DocumentMarkerType::TransparentContent }, [&](auto&, auto marker) {
         auto& data = std::get<DocumentMarker::TransparentContentData>(marker.data());
