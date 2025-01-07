@@ -140,6 +140,9 @@ void JSModuleRecord::instantiateDeclarations(JSGlobalObject* globalObject, Modul
             RETURN_IF_EXCEPTION(scope, void());
             switch (resolution.type) {
             case Resolution::Type::NotFound: {
+#if USE(BUN_JSC_ADDITIONS)
+                if(m_isTypeScript) break;
+#endif
                 throwSyntaxError(globalObject, scope, makeString("export '"_s, StringView(exportEntry.exportName.impl()), "' not found in '"_s, StringView(exportEntry.moduleName.impl()), "'"_s));
                 return;
             }
@@ -191,11 +194,19 @@ void JSModuleRecord::instantiateDeclarations(JSGlobalObject* globalObject, Modul
             break;
         }
 
+#if USE(BUN_JSC_ADDITIONS)
+        case AbstractModuleRecord::ImportEntryType::SingleTypeScript:
+#endif
         case AbstractModuleRecord::ImportEntryType::Single: {
             Resolution resolution = importedModule->resolveExport(globalObject, importEntry.importName);
             RETURN_IF_EXCEPTION(scope, void());
             switch (resolution.type) {
             case Resolution::Type::NotFound: {
+#if USE(BUN_JSC_ADDITIONS)
+                if(importEntry.type == AbstractModuleRecord::ImportEntryType::SingleTypeScript) {
+                    break;
+                }
+#endif
                 if (!(importEntry.localName.isNull() || importEntry.localName.isPrivateName() || importEntry.localName.isSymbol())) {
                     Resolution otherResolution = importedModule->resolveExport(globalObject, vm.propertyNames->defaultKeyword);
                     if (otherResolution.type == Resolution::Type::Resolved && otherResolution.localName == importEntry.localName) {

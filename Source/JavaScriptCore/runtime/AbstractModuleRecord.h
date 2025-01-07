@@ -89,7 +89,14 @@ public:
         Identifier localName;
     };
 
-    enum class ImportEntryType { Single, Namespace };
+    enum class ImportEntryType {
+        Single, 
+#if USE(BUN_JSC_ADDITIONS)
+        // If the corresponding export is not found, do not emit an error.
+        SingleTypeScript,
+#endif
+        Namespace,
+    };
     struct ImportEntry {
         ImportEntryType type;
         Identifier moduleRequest;
@@ -160,6 +167,8 @@ public:
     JS_EXPORT_PRIVATE JSValue evaluate(JSGlobalObject*, JSValue sentValue, JSValue resumeMode);
     WriteBarrier<Unknown>& internalField(Field field) { return Base::internalField(static_cast<uint32_t>(field)); }
     WriteBarrier<Unknown> internalField(Field field) const { return Base::internalField(static_cast<uint32_t>(field)); }
+
+    bool m_isTypeScript = false;
 
 protected:
     AbstractModuleRecord(VM&, Structure*, const Identifier&);

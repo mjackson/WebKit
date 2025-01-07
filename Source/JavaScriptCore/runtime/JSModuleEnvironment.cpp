@@ -99,7 +99,11 @@ void JSModuleEnvironment::getOwnSpecialPropertyNames(JSObject* cell, JSGlobalObj
     if (propertyNamesArray.includeStringProperties()) {
         for (const auto& pair : thisObject->moduleRecord()->importEntries()) {
             const AbstractModuleRecord::ImportEntry& importEntry = pair.value;
-            if (importEntry.type == AbstractModuleRecord::ImportEntryType::Single)
+            if (importEntry.type == AbstractModuleRecord::ImportEntryType::Single
+#if USE(BUN_JSC_ADDITIONS)
+                || importEntry.type == AbstractModuleRecord::ImportEntryType::SingleTypeScript
+#endif
+            )
                 propertyNamesArray.add(importEntry.localName);
         }
     }

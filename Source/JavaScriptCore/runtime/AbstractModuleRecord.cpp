@@ -781,6 +781,9 @@ JSModuleNamespaceObject* AbstractModuleRecord::getModuleNamespace(JSGlobalObject
         RETURN_IF_EXCEPTION(scope, nullptr);
         switch (resolution.type) {
         case Resolution::Type::NotFound:
+#if USE(BUN_JSC_ADDITIONS)
+            if(m_isTypeScript) break;
+#endif
             throwSyntaxError(globalObject, scope, makeString("Exported binding name '"_s, StringView(name.get()), "' is not found."_s));
             return nullptr;
 
