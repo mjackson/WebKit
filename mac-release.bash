@@ -39,8 +39,8 @@ cmake \
     -DENABLE_FTL_JIT=ON \
     -DCMAKE_C_COMPILER="$CMAKE_C_COMPILER" \
     -DCMAKE_CXX_COMPILER="$CMAKE_CXX_COMPILER" \
-    -DCMAKE_C_FLAGS="$CMAKE_C_FLAGS -ffile-prefix-map=$THIS_DIR/Source=vendor/WebKit/Source " \
-    -DCMAKE_CXX_FLAGS="$CMAKE_CXX_FLAGS -ffile-prefix-map=$THIS_DIR/Source=vendor/WebKit/Source " \
+    -DCMAKE_C_FLAGS="-g $CMAKE_C_FLAGS -ffile-prefix-map=$THIS_DIR/Source=vendor/WebKit/Source" \
+    -DCMAKE_CXX_FLAGS="-g $CMAKE_CXX_FLAGS -ffile-prefix-map=$THIS_DIR/Source=vendor/WebKit/Source" \
     -DENABLE_MALLOC_HEAP_BREAKDOWN=$ENABLE_MALLOC_HEAP_BREAKDOWN \
     -DUSE_BUN_JSC_ADDITIONS=ON \
     -DUSE_BUN_EVENT_LOOP=OFF \
