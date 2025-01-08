@@ -24,6 +24,10 @@ if(USE_BUN_JSC_ADDITIONS)
     if(WIN32)
         SET_AND_EXPOSE_TO_BUILD(JS_NO_EXPORT 1)
     endif()
+
+    # Causing test/cli/test/bun-test.test.ts to fail.
+    SET_AND_EXPOSE_TO_BUILD(BUSE_TZONE 0)
+    SET_AND_EXPOSE_TO_BUILD(USE_TZONE_MALLOC 0)
 endif()
 
 WEBKIT_OPTION_END()
