@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -16,6 +16,7 @@
  * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL APPLE INC. OR
  * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
  * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
  * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
@@ -23,17 +24,33 @@
  */
 
 #include "config.h"
-#include "StyleNone.h"
+#include <wtf/ContinuousTime.h>
 
-#include <wtf/text/TextStream.h>
+#include <wtf/MonotonicTime.h>
+#include <wtf/PrintStream.h>
+#include <wtf/WallTime.h>
 
-namespace WebCore {
-namespace Style {
+namespace WTF {
 
-WTF::TextStream& operator<<(WTF::TextStream& ts, const None&)
+WallTime ContinuousTime::approximateWallTime() const
 {
-    return ts << "none";
+    if (isInfinity())
+        return WallTime::fromRawSeconds(m_value);
+    return *this - now() + WallTime::now();
 }
 
-} // namespace Style
-} // namespace WebCore
+MonotonicTime ContinuousTime::approximateMonotonicTime() const
+{
+    if (isInfinity())
+        return MonotonicTime::fromRawSeconds(m_value);
+    return *this - now() + MonotonicTime::now();
+}
+
+void ContinuousTime::dump(PrintStream& out) const
+{
+    out.print("Continuous(", m_value, " sec)");
+}
+
+} // namespace WTF
+
+

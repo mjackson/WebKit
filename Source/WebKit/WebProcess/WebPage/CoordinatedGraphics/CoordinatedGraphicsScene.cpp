@@ -72,7 +72,12 @@ void CoordinatedGraphicsScene::paintToCurrentGLContext(const TransformationMatri
             }
         }
 
-        const auto& damageSinceLastSurfaceUse = m_client->addSurfaceDamage(frameDamage);
+        if (!matrix.isIdentity()) {
+            // FIXME: Add support for viewport scale != 1.
+            frameDamage.add(clipRect);
+        }
+
+        const auto& damageSinceLastSurfaceUse = m_client->addSurfaceDamage(!frameDamage.isInvalid() && !frameDamage.isEmpty() ? frameDamage : Damage::invalid());
         if (!damageSinceLastSurfaceUse.isInvalid()) {
             actualClipRect = static_cast<FloatRoundedRect>(damageSinceLastSurfaceUse.bounds());
             didChangeClipRect = true;
@@ -113,9 +118,9 @@ void CoordinatedGraphicsScene::updateSceneState()
     if (!m_textureMapper)
         m_textureMapper = TextureMapper::create();
 
-    m_sceneState->rootLayer().flushCompositingState();
+    m_sceneState->rootLayer().flushCompositingState(*m_textureMapper);
     for (auto& layer : m_sceneState->committedLayers())
-        layer->flushCompositingState();
+        layer->flushCompositingState(*m_textureMapper);
 }
 
 void CoordinatedGraphicsScene::purgeGLResources()
@@ -129,7 +134,6 @@ void CoordinatedGraphicsScene::purgeGLResources()
 void CoordinatedGraphicsScene::detach()
 {
     ASSERT(RunLoop::isMain());
-    m_isActive = false;
     m_client = nullptr;
 }
 

@@ -3359,6 +3359,7 @@ webkit.org/b/3652 http/tests/misc/prefetch-purpose.html [ Skip ]
 http/tests/cookies/only-accept-first-party-cookies.html [ Skip ]
 # Enable on appropriate platforms: rdar://140222322
 http/tests/cookies/accept-partitioned-first-and-third-party-cookies.https.html [ Skip ]
+http/tests/cookies/multiple-cookies-with-partitioned.https.html [ Skip ]
 http/tests/clear-site-data/set-and-clear-cookies.https.html [ Skip ]
 
 # Disabled WPT tests
@@ -6637,8 +6638,6 @@ imported/w3c/web-platform-tests/css/css-tables/visibility-collapse-border-spacin
 imported/w3c/web-platform-tests/css/css-tables/visibility-collapse-colspan-003.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-tables/visibility-collapse-rowspan-005.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-tables/whitespace-001.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-tables/zero-rowspan-001.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-tables/zero-rowspan-002.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-tables/html5-table-formatting-fixed-layout-1.html [ Pass Failure ]
 
 # New failures after re-importing css-overflow
@@ -6923,7 +6922,6 @@ imported/w3c/web-platform-tests/scroll-animations/css/animation-timeline-none.ht
 webkit.org/b/284299 imported/w3c/web-platform-tests/scroll-animations/view-timelines/animation-events.html [ Pass Failure ]
 
 # webkit.org/b/263872 [scroll-animations] some WPT tests are ImageOnlyFailure
-imported/w3c/web-platform-tests/scroll-animations/css/animation-fill-outside-range-test.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/scroll-animations/css/printing/animation-timeline-none-with-progress-print.tentative.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/scroll-animations/css/printing/scroll-timeline-default-iframe-print.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/scroll-animations/css/printing/scroll-timeline-default-print.tentative.html [ ImageOnlyFailure ]
@@ -6938,8 +6936,6 @@ imported/w3c/web-platform-tests/scroll-animations/css/scroll-timeline-update-rev
 imported/w3c/web-platform-tests/scroll-animations/css/view-timeline-range-update-reversed-animation.html [ Skip ]
 imported/w3c/web-platform-tests/scroll-animations/css/view-timeline-range-update.html [ Skip ]
 imported/w3c/web-platform-tests/scroll-animations/css/view-timeline-subject-bounds-update.html [ Skip ]
-
-webkit.org/b/283149 imported/w3c/web-platform-tests/scroll-animations/css/view-timeline-inset-animation.html [ Skip ]
 
 # CSS @scope with shadow DOM
 imported/w3c/web-platform-tests/css/css-cascade/scope-visited.html [ ImageOnlyFailure ]

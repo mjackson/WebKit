@@ -51,12 +51,12 @@ private:
     bool pictureInPictureWasStartedWhenEnteringBackground() const final { return false; }
     bool mayAutomaticallyShowVideoPictureInPicture() const final { return false; }
     bool isPlayingVideoInEnhancedFullscreen() const final { return false; }
-    void setupFullscreen(UIView &, const FloatRect &, const FloatSize &, UIView *, HTMLMediaElementEnums::VideoFullscreenMode, bool, bool, bool) final {}
-    void hasVideoChanged(bool) final {}
-    void finalizeSetup() final {}
-    void updateRouteSharingPolicy() final {}
-    void setupPlayerViewController() final {}
-    void invalidatePlayerViewController() final {}
+    void setupFullscreen(const FloatRect&, const FloatSize&, UIView*, HTMLMediaElementEnums::VideoFullscreenMode, bool, bool, bool) final { }
+    void hasVideoChanged(bool) final { }
+    void finalizeSetup() final { }
+    void updateRouteSharingPolicy() final { }
+    void setupPlayerViewController() final { }
+    void invalidatePlayerViewController() final { }
     UIViewController *playerViewController() const final { return nullptr; }
     void tryToStartPictureInPicture() final {}
     void stopPictureInPicture() final {}

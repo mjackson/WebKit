@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -22,33 +22,16 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "config.h"
-#include "CSSPropertyParserConsumer+NoneDefinitions.h"
+#pragma once
 
-#include "CSSCalcSymbolsAllowed.h"
-#include "CSSParserTokenRange.h"
-#include "CSSPropertyParserConsumer+Ident.h"
-#include "CSSPropertyParserOptions.h"
+#include "CSSPropertyParserConsumer+MetaConsumerDefinitions.h"
 
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
-std::optional<CSS::NoneRaw> validatedNoneRaw(CSS::NoneRaw value, CSSPropertyParserOptions)
-{
-    return value;
-}
-
-std::optional<CSS::NoneRaw> NoneKnownTokenTypeIdentConsumer::consume(CSSParserTokenRange& range, const CSSParserContext&, CSSCalcSymbolsAllowed, CSSPropertyParserOptions)
-{
-    ASSERT(range.peek().type() == IdentToken);
-
-    if (range.peek().id() == CSSValueNone) {
-        range.consumeIncludingWhitespace();
-        return CSS::NoneRaw { };
-    }
-
-    return std::nullopt;
-}
+template<CSSValueID Id> struct ConsumerDefinition<Constant<Id>> {
+    using IdentToken = KeywordConsumer<Constant<Id>>;
+};
 
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

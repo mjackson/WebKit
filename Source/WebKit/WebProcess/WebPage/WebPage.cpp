@@ -1588,7 +1588,7 @@ EditorState WebPage::editorState(ShouldPerformLayout shouldPerformLayout) const
     if (shouldPerformLayout == ShouldPerformLayout::Yes || requiresPostLayoutDataForEditorState(*frame))
         document->updateLayout(); // May cause document destruction
 
-    if (auto* frameView = document->view(); frameView && !frameView->needsLayout()) {
+    if (auto* frameView = document->view(); frameView && !frameView->needsLayout() && !document->hasNodesWithMissingStyle()) {
         if (!result.postLayoutData)
             result.postLayoutData = std::optional<EditorState::PostLayoutData> { EditorState::PostLayoutData { } };
         result.postLayoutData->canCut = editor.canCut();
@@ -4827,10 +4827,6 @@ void WebPage::updatePreferences(const WebPreferencesStore& store)
     PlatformMediaSessionManager::setUseSCContentSharingPicker(settings.useSCContentSharingPicker());
 #endif
 
-#if ENABLE(VORBIS)
-    PlatformMediaSessionManager::setVorbisDecoderEnabled(DeprecatedGlobalSettings::vorbisDecoderEnabled());
-#endif
-
 #if ENABLE(OPUS)
     PlatformMediaSessionManager::setOpusDecoderEnabled(DeprecatedGlobalSettings::opusDecoderEnabled());
 #endif
@@ -6369,7 +6365,7 @@ void WebPage::setCustomTextEncodingName(const String& encoding)
         localMainFrame->loader().reloadWithOverrideEncoding(encoding);
 }
 
-void WebPage::didRemoveBackForwardItem(const BackForwardItemIdentifier& itemID)
+void WebPage::didRemoveBackForwardItem(BackForwardItemIdentifier itemID)
 {
     WebBackForwardListProxy::removeItem(itemID);
 }

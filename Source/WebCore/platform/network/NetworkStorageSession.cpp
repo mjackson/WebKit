@@ -70,7 +70,7 @@ void NetworkStorageSession::permitProcessToUseCookieAPI(bool value)
 }
 
 #if !PLATFORM(COCOA)
-Vector<Cookie> NetworkStorageSession::domCookiesForHost(const String&)
+Vector<Cookie> NetworkStorageSession::domCookiesForHost(const URL&)
 {
     ASSERT_NOT_IMPLEMENTED_YET();
     return { };
@@ -232,7 +232,7 @@ bool NetworkStorageSession::shouldExemptDomainPairFromThirdPartyCookieBlocking(c
 
 String NetworkStorageSession::cookiePartitionIdentifier(const URL& firstPartyForCookies)
 {
-    return Site { firstPartyForCookies }.string();
+    return Site { firstPartyForCookies }.toString();
 }
 
 String NetworkStorageSession::cookiePartitionIdentifier(const ResourceRequest& request)

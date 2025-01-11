@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -16,43 +16,41 @@
  * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL APPLE INC. OR
  * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
  * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
  * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
+#include "config.h"
+#include <wtf/ContinuousApproximateTime.h>
 
-#include "CSSNone.h"
-#include "StyleValueTypes.h"
+#include <wtf/MonotonicTime.h>
+#include <wtf/PrintStream.h>
+#include <wtf/WallTime.h>
 
-namespace WebCore {
-namespace Style {
+namespace WTF {
 
-struct None {
-    using CSS = WebCore::CSS::None;
-    using Raw = WebCore::CSS::NoneRaw;
+WallTime ContinuousApproximateTime::approximateWallTime() const
+{
+    if (isInfinity())
+        return WallTime::fromRawSeconds(m_value);
+    return *this - now() + WallTime::now();
+}
 
-    constexpr bool operator==(const None&) const = default;
-};
+MonotonicTime ContinuousApproximateTime::approximateMonotonicTime() const
+{
+    if (isInfinity())
+        return MonotonicTime::fromRawSeconds(m_value);
+    return *this - now() + MonotonicTime::now();
+}
 
-template<> struct ToCSSMapping<None> { using type = CSS::None; };
-template<> struct ToCSS<None> {
-    template<typename... Rest> constexpr auto operator()(const None&, Rest&&...) -> CSS::None { return { }; }
-};
+void ContinuousApproximateTime::dump(PrintStream& out) const
+{
+    out.print("ContinuousApproximate(", m_value, " sec)");
+}
 
-template<> struct ToStyleMapping<CSS::None> { using type = None; };
-template<> struct ToStyle<CSS::None> {
-    template<typename... Rest> constexpr auto operator()(const CSS::None&, Rest&&...) -> None { return { }; }
-};
+} // namespace WTF
 
-template<> struct Blending<None> {
-    constexpr auto canBlend(const None&, const None&) -> bool { return true; }
-    constexpr auto blend(const None&, const None&, const BlendingContext&) -> None { return { }; }
-};
 
-WTF::TextStream& operator<<(WTF::TextStream&, const None&);
-
-} // namespace Style
-} // namespace WebCore

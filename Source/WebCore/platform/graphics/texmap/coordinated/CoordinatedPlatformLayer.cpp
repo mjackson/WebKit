@@ -446,8 +446,6 @@ void CoordinatedPlatformLayer::setContentsScale(float contentsScale)
         return;
 
     m_contentsScale = contentsScale;
-    if (m_backingStoreProxy)
-        m_backingStoreProxy->setContentsScale(m_contentsScale);
     notifyCompositionRequired();
 }
 
@@ -800,7 +798,7 @@ void CoordinatedPlatformLayer::waitUntilPaintingComplete()
         m_backingStoreProxy->waitUntilPaintingComplete();
 }
 
-void CoordinatedPlatformLayer::flushCompositingState()
+void CoordinatedPlatformLayer::flushCompositingState(TextureMapper& textureMapper)
 {
     ASSERT(!isMainThread());
     Locker locker { m_lock };
@@ -925,6 +923,8 @@ void CoordinatedPlatformLayer::flushCompositingState()
             m_backingStore->removeTile(tileID);
         for (const auto& tileUpdate : update.tilesToUpdate())
             m_backingStore->updateTile(tileUpdate.tileID, tileUpdate.dirtyRect, tileUpdate.tileRect, tileUpdate.buffer.copyRef(), { });
+
+        m_backingStore->processPendingUpdates(textureMapper);
     } else {
         layer.setBackingStore(nullptr);
         layer.setAnimatedBackingStoreClient(nullptr);

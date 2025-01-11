@@ -412,9 +412,9 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     Modules/identity/CredentialRequestCoordinator.h
     Modules/identity/CredentialRequestCoordinatorClient.h
+    Modules/identity/DigitalCredentialRequest.h
     Modules/identity/DigitalCredentialRequestOptions.h
     Modules/identity/IdentityCredentialsContainer.h
-    Modules/identity/IdentityRequestProvider.h
     Modules/identity/OpenID4VPRequest.h
 
     Modules/indexeddb/IDBActiveDOMObject.h
@@ -991,7 +991,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     css/values/motion/CSSRayFunction.h
 
-    css/values/primitives/CSSNone.h
     css/values/primitives/CSSPosition.h
     css/values/primitives/CSSPrimitiveNumericConcepts.h
     css/values/primitives/CSSPrimitiveNumericRange.h
@@ -2664,7 +2663,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     style/values/motion/StyleRayFunction.h
 
-    style/values/primitives/StyleNone.h
     style/values/primitives/StylePosition.h
     style/values/primitives/StylePrimitiveNumericConcepts.h
     style/values/primitives/StylePrimitiveNumericTypes.h

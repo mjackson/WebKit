@@ -96,20 +96,6 @@ AVKitContentSourceEnabled:
     WebCore:
       default: false
 
-AbortSignalAnyOperationEnabled:
-  type: bool
-  category: dom
-  status: stable
-  humanReadableName: "AbortSignal.any() API"
-  humanReadableDescription: "Enable AbortSignal.any() API"
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
-    WebCore:
-      default: true
-
 AcceleratedCompositingEnabled:
   type: bool
   status: embedder
@@ -2480,20 +2466,6 @@ DateTimeInputsEditableComponentsEnabled:
     WebCore:
       default: false
 
-DeclarativeShadowRootsParserAPIsEnabled:
-  type: bool
-  status: stable
-  category: dom
-  humanReadableName: "Declarative Shadow Roots Parser APIs"
-  humanReadableDescription: "Declarative Shadow Roots Parser APIs (Element/ShadowRoot's setHTMLUnsafe() and Document.parseHTMLUnsafe())"
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
-    WebCore:
-      default: true
-
 DeclarativeShadowRootsSerializerAPIsEnabled:
   type: bool
   status: stable
@@ -2601,20 +2573,6 @@ DetachableMediaSourceEnabled:
       default: false
     WebCore:
       default: false
-
-DetailsNameAttributeEnabled:
-  type: bool
-  status: stable
-  category: html
-  humanReadableName: "HTML <details name> attribute"
-  humanReadableDescription: "Enable HTML <details name> attribute"
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
-    WebCore:
-      default: true
 
 DeveloperExtrasEnabled:
   type: bool
@@ -4250,20 +4208,6 @@ LayoutViewportHeightExpansionFactor:
     WebCore:
       default: 0
 
-LazyIframeLoadingEnabled:
-  type: bool
-  status: stable
-  category: html
-  humanReadableName: "Lazy iframe loading"
-  humanReadableDescription: "Enable lazy iframe loading support"
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
-    WebCore:
-      default: true
-
 LazyImageLoadingEnabled:
   type: bool
   status: stable
@@ -4368,20 +4312,6 @@ LinearMediaPlayerEnabled:
     WebCore:
       default: false
 
-LinkModulePreloadEnabled:
-  type: bool
-  status: stable
-  category: networking
-  humanReadableName: "Link rel=modulepreload"
-  humanReadableDescription: "Enable Link rel=modulepreload"
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
-    WebCore:
-      default: true
-
 LinkPreconnect:
   type: bool
   status: embedder
@@ -4430,20 +4360,6 @@ LinkPreloadEnabled:
   defaultValue:
     WebKitLegacy:
       default: false
-    WebKit:
-      default: true
-    WebCore:
-      default: true
-
-LinkPreloadResponsiveImagesEnabled:
-  type: bool
-  status: stable
-  category: networking
-  humanReadableName: "Link preload responsive images"
-  humanReadableDescription: "Enable link preload responsive images"
-  defaultValue:
-    WebKitLegacy:
-      default: true
     WebKit:
       default: true
     WebCore:
@@ -6043,7 +5959,7 @@ ProcessSwapOnCrossSiteNavigationEnabled:
 
 PropagateDamagingInformation:
    type: bool
-   status: unstable
+   status: testable
    category: dom
    humanReadableName: "Propagate Damaging Information"
    humanReadableDescription: "Propagate Damaging Information"
@@ -6156,20 +6072,6 @@ ReplayCGDisplayListsIntoBackingStore:
     WebKit:
       default: false
 
-ReportingEnabled:
-  type: bool
-  status: stable
-  category: dom
-  humanReadableName: "Reporting API"
-  humanReadableDescription: "Enable Reporting API"
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
-    WebCore:
-      default: true
-
 RequestIdleCallbackEnabled:
   type: bool
   status: testable
@@ -6228,6 +6130,17 @@ RequireUAGetDisplayMediaPrompt:
       default: true
     WebCore:
       default: true
+
+RequiresPageVisibilityForVideoToBeNowPlaying:
+  type: bool
+  status: embedder
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: defaultRequiresPageVisibilityForVideoToBeNowPlaying()
+    WebCore:
+      default: false
 
 RequiresPageVisibilityToPlayAudio:
   type: bool
@@ -6338,20 +6251,6 @@ RespondToThermalPressureAggressively:
     WebCore:
       "PLATFORM(IOS_FAMILY)": true
       default: false
-
-# FIXME: This is not relevent for WebKitLegacy, so should be excluded from WebKitLegacy entirely.
-RestrictedHTTPResponseAccess:
-  type: bool
-  status: internal
-  category: networking
-  humanReadableName: "Filter HTTP Response for Web Processes"
-  humanReadableDescription: "Enable HTTP Response filtering for Web Processes"
-  webcoreBinding: DeprecatedGlobalSettings
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
 
 RubberBandingForSubScrollableRegionsEnabled:
   type: bool
@@ -6746,20 +6645,6 @@ SelectionHonorsOverflowScrolling:
       default: false
     WebCore:
       default: false
-
-SendMouseEventsToDisabledFormControlsEnabled:
-  type: bool
-  status: stable
-  category: html
-  humanReadableName: "Send mouse events to disabled form controls"
-  humanReadableDescription: "Send mouse events to disabled form controls"
-  defaultValue:
-    WebKit:
-      default: true
-    WebKitLegacy:
-      default: true
-    WebCore:
-      default: true
 
 SerifFontFamily:
   type: String
@@ -8200,7 +8085,22 @@ VideoFullscreenRequiresElementFullscreen:
     WebCore:
       default: false
   sharedPreferenceForWebProcess: true
-
+      
+VideoPresentationManagerEnabled:
+  type: bool
+  status: embedder
+  defaultValue:
+    WebKitLegacy:
+      "PLATFORM(VISION)" : true
+      default: false
+    WebKit:
+      "PLATFORM(VISION)" : true
+      default: false
+    WebCore:
+      "PLATFORM(VISION)" : true
+      default: false
+  sharedPreferenceForWebProcess: true
+  
 VideoPresentationModeAPIEnabled:
   type: bool
   status: embedder
@@ -8351,19 +8251,6 @@ VisuallyContiguousBidiTextSelectionEnabled:
       default: false
     WebCore:
       default: false
-
-VorbisDecoderEnabled:
-  type: bool
-  status: mature
-  humanReadableName: "Vorbis audio decoder"
-  humanReadableDescription: "Enable Vorbis audio decoder"
-  condition: ENABLE(VORBIS)
-  webcoreBinding: DeprecatedGlobalSettings
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
 
 WantsBalancedSetDefersLoadingBehavior:
   type: bool
@@ -8786,18 +8673,6 @@ WebLocksAPIEnabled:
   disableInLockdownMode: true
   sharedPreferenceForWebProcess: true
   richJavaScript: true
-
-# FIXME: Is this implemented for WebKitLegacy? If not, this should be excluded from WebKitLegacy entirely.
-WebMParserEnabled:
-  type: bool
-  status: embedder
-  webcoreBinding: DeprecatedGlobalSettings
-  condition: ENABLE(MEDIA_SOURCE)
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
 
 WebRTCAV1CodecEnabled:
   type: bool

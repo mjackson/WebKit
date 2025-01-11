@@ -2191,7 +2191,6 @@ FOR_EACH_WASM_MEMORY_STORE_OP(CREATE_CASE)
     }
 
     case ExtGC: {
-        WASM_PARSER_FAIL_IF(!Options::useWasmGC(), "Wasm GC is not enabled"_s);
         WASM_PARSER_FAIL_IF(!parseVarUInt32(m_currentExtOp), "can't parse extended GC opcode"_s);
         m_context.willParseExtendedOpcode();
 
@@ -2961,8 +2960,6 @@ FOR_EACH_WASM_MEMORY_STORE_OP(CREATE_CASE)
     }
 
     case RefEq: {
-        WASM_PARSER_FAIL_IF(!Options::useWasmGC(), "Wasm GC is not enabled"_s);
-
         TypedExpression ref0;
         TypedExpression ref1;
         WASM_TRY_POP_EXPRESSION_STACK_INTO(ref0, "ref.eq"_s);
@@ -3373,7 +3370,6 @@ FOR_EACH_WASM_MEMORY_STORE_OP(CREATE_CASE)
         WASM_FAIL_IF_HELPER_FAILS(parseExceptionIndex(exceptionIndex));
         TypeIndex typeIndex = m_info.typeIndexFromExceptionIndexSpace(exceptionIndex);
         const TypeDefinition& signature = TypeInformation::get(typeIndex).expand();
-        WASM_VALIDATOR_FAIL_IF(!signature.is<FunctionSignature>(), "invalid type index (not a function signature) for catch, got ", exceptionIndex);
         const auto& exceptionSignature = *signature.as<FunctionSignature>();
 
         ControlEntry& controlEntry = m_controlStack.last();
@@ -3447,7 +3443,6 @@ FOR_EACH_WASM_MEMORY_STORE_OP(CREATE_CASE)
                 WASM_PARSER_FAIL_IF(!parseExceptionIndex(exceptionTag), "can't read tag of try_table catch at index "_s, i);
                 TypeIndex typeIndex = m_info.typeIndexFromExceptionIndexSpace(exceptionTag);
                 const TypeDefinition& specifiedSignature = TypeInformation::get(typeIndex).expand();
-                WASM_VALIDATOR_FAIL_IF(!specifiedSignature.is<FunctionSignature>(), "invalid type index (not a function signature) for try_table, got ", exceptionTag);
                 const auto& exceptionSignature = *specifiedSignature.as<FunctionSignature>();
 
                 signature = &specifiedSignature;
@@ -3530,7 +3525,6 @@ FOR_EACH_WASM_MEMORY_STORE_OP(CREATE_CASE)
         WASM_FAIL_IF_HELPER_FAILS(parseExceptionIndex(exceptionIndex));
         TypeIndex typeIndex = m_info.typeIndexFromExceptionIndexSpace(exceptionIndex);
         const TypeDefinition& signature = TypeInformation::get(typeIndex).expand();
-        WASM_VALIDATOR_FAIL_IF(!signature.is<FunctionSignature>(), "invalid type index (not a function signature) for throw, got ", exceptionIndex);
         const auto& exceptionSignature = *signature.as<FunctionSignature>();
 
         WASM_VALIDATOR_FAIL_IF(m_expressionStack.size() < exceptionSignature.argumentCount(), "Too few arguments on stack for the exception being thrown. The exception expects ", exceptionSignature.argumentCount(), ", but only ", m_expressionStack.size(), " were present. Exception has signature: ", exceptionSignature.toString());
@@ -3776,7 +3770,6 @@ auto FunctionParser<Context>::parseUnreachableExpression() -> PartialResult
         WASM_FAIL_IF_HELPER_FAILS(parseExceptionIndex(exceptionIndex));
         TypeIndex typeIndex = m_info.typeIndexFromExceptionIndexSpace(exceptionIndex);
         const TypeDefinition& signature = TypeInformation::get(typeIndex).expand();
-        WASM_VALIDATOR_FAIL_IF(!signature.is<FunctionSignature>(), "invalid type index (not a function signature) for catch, got ", exceptionIndex);
         const auto& exceptionSignature = *signature.as<FunctionSignature>();
 
         if (m_unreachableBlocks > 1)
@@ -4103,7 +4096,6 @@ auto FunctionParser<Context>::parseUnreachableExpression() -> PartialResult
     }
 
     case ExtGC: {
-        WASM_PARSER_FAIL_IF(!Options::useWasmGC(), "Wasm GC is not enabled"_s);
         WASM_PARSER_FAIL_IF(!parseVarUInt32(m_currentExtOp), "can't parse extended GC opcode"_s);
         m_context.willParseExtendedOpcode();
 

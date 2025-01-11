@@ -43,16 +43,6 @@ void GPUProcessPreferences::copyEnabledWebPreferences(const WebPreferences& webP
         opusDecoderEnabled = true;
 #endif
 
-#if ENABLE(VORBIS)
-    if (webPreferences.vorbisDecoderEnabled())
-        vorbisDecoderEnabled = true;
-#endif
-
-#if ENABLE(MEDIA_SOURCE) && ENABLE(VP9)
-    if (webPreferences.webMParserEnabled())
-        webMParserEnabled = true;
-#endif
-
 #if USE(MODERN_AVCONTENTKEYSESSION)
     if (webPreferences.shouldUseModernAVContentKeySession())
         shouldUseModernAVContentKeySession = true;

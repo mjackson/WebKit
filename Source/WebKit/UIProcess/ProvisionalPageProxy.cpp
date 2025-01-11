@@ -443,7 +443,7 @@ void ProvisionalPageProxy::didCommitLoadForFrame(IPC::Connection& connection, Fr
         if (RefPtr openerPage = openerFrame ? openerFrame->page() : nullptr) {
             Site openerSite(openerFrame->url());
             Site openedSite(request.url());
-            if (openerSite != openedSite) {
+            if (openerSite != openedSite && m_browsingContextGroup.ptr() == &page->browsingContextGroup()) {
                 page->legacyMainFrameProcess().send(Messages::WebPage::LoadDidCommitInAnotherProcess(page->mainFrame()->frameID(), std::nullopt), page->webPageIDInMainFrameProcess());
                 m_browsingContextGroup->transitionPageToRemotePage(*page, openerSite);
             }
@@ -522,7 +522,7 @@ void ProvisionalPageProxy::startURLSchemeTask(IPC::Connection& connection, URLSc
         page->startURLSchemeTaskShared(connection, protectedProcess(), m_webPageID, WTFMove(parameters));
 }
 
-void ProvisionalPageProxy::backForwardGoToItem(IPC::Connection& connection, const WebCore::BackForwardItemIdentifier& identifier, CompletionHandler<void(const WebBackForwardListCounts&)>&& completionHandler)
+void ProvisionalPageProxy::backForwardGoToItem(IPC::Connection& connection, WebCore::BackForwardItemIdentifier identifier, CompletionHandler<void(const WebBackForwardListCounts&)>&& completionHandler)
 {
     if (RefPtr page = m_page.get())
         page->backForwardGoToItemShared(connection, identifier, WTFMove(completionHandler));

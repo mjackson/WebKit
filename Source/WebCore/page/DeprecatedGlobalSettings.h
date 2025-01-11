@@ -83,9 +83,6 @@ public:
     static void setCustomPasteboardDataEnabled(bool isEnabled) { shared().m_isCustomPasteboardDataEnabled = isEnabled; }
     static bool customPasteboardDataEnabled() { return shared().m_isCustomPasteboardDataEnabled; }
 
-    static void setRestrictedHTTPResponseAccess(bool isEnabled) { shared().m_isRestrictedHTTPResponseAccess = isEnabled; }
-    static bool restrictedHTTPResponseAccess() { return shared().m_isRestrictedHTTPResponseAccess; }
-
     static void setAttrStyleEnabled(bool isEnabled) { shared().m_attrStyleEnabled = isEnabled; }
     static bool attrStyleEnabled() { return shared().m_attrStyleEnabled; }
 
@@ -115,16 +112,6 @@ public:
 
     static void setArePDFImagesEnabled(bool isEnabled) { shared().m_arePDFImagesEnabled = isEnabled; }
     static bool arePDFImagesEnabled() { return shared().m_arePDFImagesEnabled; }
-
-#if ENABLE(MEDIA_SOURCE)
-    static void setWebMParserEnabled(bool isEnabled) { shared().m_webMParserEnabled = isEnabled; }
-    static bool webMParserEnabled() { return shared().m_webMParserEnabled; }
-#endif
-
-#if ENABLE(VORBIS)
-    WEBCORE_EXPORT static void setVorbisDecoderEnabled(bool);
-    static bool vorbisDecoderEnabled() { return shared().m_vorbisDecoderEnabled; }
-#endif
 
 #if ENABLE(OPUS)
     WEBCORE_EXPORT static void setOpusDecoderEnabled(bool);
@@ -170,7 +157,6 @@ private:
     bool m_allowsAnySSLCertificate { false };
 
     bool m_isCustomPasteboardDataEnabled { false };
-    bool m_isRestrictedHTTPResponseAccess { true };
     bool m_attrStyleEnabled { false };
     bool m_webSQLEnabled { false };
 
@@ -191,14 +177,6 @@ private:
 #endif
 
     bool m_arePDFImagesEnabled { true };
-
-#if ENABLE(MEDIA_SOURCE)
-    bool m_webMParserEnabled { false };
-#endif
-
-#if ENABLE(VORBIS)
-    bool m_vorbisDecoderEnabled { false };
-#endif
 
 #if ENABLE(OPUS)
     bool m_opusDecoderEnabled { false };
