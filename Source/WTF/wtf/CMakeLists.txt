@@ -73,7 +73,6 @@ set(WTF_PUBLIC_HEADERS
     DebugUtilities.h
     DeferrableRefCounted.h
     Deque.h
-    DisallowCType.h
     Dominators.h
     DoublyLinkedList.h
     EmbeddedFixedVector.h
@@ -93,6 +92,7 @@ set(WTF_PUBLIC_HEADERS
     FixedBitVector.h
     FixedVector.h
     FixedWidthDouble.h
+    FlatteningVariantAdaptor.h
     FlipBytes.h
     Float16.h
     ForbidHeapAllocation.h

@@ -97,7 +97,7 @@ String canonicalizeUsername(StringView value, BaseURLStringType valueType)
     URL dummyURL(dummyURLCharacters);
     dummyURL.setUser(value);
 
-    return dummyURL.user();
+    return dummyURL.encodedUser().toString();
 }
 
 // https://urlpattern.spec.whatwg.org/#canonicalize-a-password, combined with https://urlpattern.spec.whatwg.org/#process-password-for-init
@@ -112,7 +112,7 @@ String canonicalizePassword(StringView value, BaseURLStringType valueType)
     URL dummyURL(dummyURLCharacters);
     dummyURL.setPassword(value);
 
-    return dummyURL.password();
+    return dummyURL.encodedPassword().toString();
 }
 
 // https://urlpattern.spec.whatwg.org/#canonicalize-a-hostname, combined with https://urlpattern.spec.whatwg.org/#process-hostname-for-init
@@ -161,17 +161,20 @@ ExceptionOr<String> canonicalizePort(StringView portValue, const std::optional<S
     if (portValueType == BaseURLStringType::Pattern)
         return portValue.toString();
 
+    auto parsedPort = parseInteger<uint16_t>(portValue, 10, WTF::ParseIntegerWhitespacePolicy::Disallow);
+    if (!parsedPort)
+        return Exception { ExceptionCode::TypeError, "Invalid input to canonicalize a URL port string."_s };
+
     URL dummyURL(dummyURLCharacters);
 
     if (protocolValue) {
-        auto parsedPort = parseInteger<uint16_t>(portValue);
-        if (!parsedPort || isDefaultPortForProtocol(*parsedPort, *protocolValue))
+        if (isDefaultPortForProtocol(*parsedPort, *protocolValue))
             return String { emptyString() };
 
         dummyURL.setProtocol(*protocolValue);
     }
 
-    dummyURL.setPort(parseInteger<uint16_t>(portValue));
+    dummyURL.setPort(*parsedPort);
 
     if (!dummyURL.isValid())
         return Exception { ExceptionCode::TypeError, "Invalid input to canonicalize a URL port string."_s };

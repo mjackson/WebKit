@@ -1662,6 +1662,9 @@ http/tests/webgpu/webgpu/api/validation/queue/submit.html [ Pass ]
 http/tests/webgpu/webgpu/api/validation/queue/destroyed [ Pass ]
 [ arm64 ] http/tests/webgpu/webgpu/api/operation/command_buffer/queries [ Pass ]
 
+# this test is very slow so expect a timeout or pass
+http/tests/webgpu/webgpu/web_platform/copyToTexture/ImageBitmap.html [ Pass Timeout ]
+
 http/tests/webgpu/webgpu/shader/execution/flow_control/switch.html [ Pass ]
 # arm64 release only because the tests are incredibly slow due to their extensiveness
 [ Release arm64 ] http/tests/webgpu/webgpu/shader/execution/shader_io [ Pass ]
@@ -1850,10 +1853,6 @@ editing/input/scroll-viewport-page-up-down.html [ Pass Failure ]
 # webkit.org/b/280413 [ macOS wk2 arm64 ] fast/forms/password-scrolled-after-caps-lock-toggled.html is a flaky failure 
 [ arm64 ] fast/forms/password-scrolled-after-caps-lock-toggled.html  [ Pass Failure ]
 
-# webkit.org/b/280415 [ Sequoia wk2 release arm64 ] 2x fast/selectors/* are flaky image only failures. 
-[ Sequoia+ arm64 Release ] fast/selectors/selection-window-inactive-stroke-color.html [ Pass ImageOnlyFailure ]
-[ Sequoia+ arm64 Release ] fast/selectors/text-field-selection-stroke-color.html [ Pass ImageOnlyFailure ]
-
 # webkit.org/b/280418 [ Sequoia wk2 ] fast/speechsynthesis/mac/samantha-voice-available.html is a constant failure. 
 [ Sequoia+ ] fast/speechsynthesis/mac/samantha-voice-available.html [ Pass Failure ]
 
@@ -1879,9 +1878,6 @@ imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-summary-
 
 # webkit.org/b/277908 [ iOS macOS Debug wk2 ] imported/w3c/web-platform-tests/mediacapture-insertable-streams/VideoTrackGenerator-with-window-tracks.https.html is a flaky text failure
 [ Debug ] imported/w3c/web-platform-tests/mediacapture-insertable-streams/VideoTrackGenerator-with-window-tracks.https.html [ Pass Failure ]
-
-webkit.org/b/281531 [ Sequoia+ ] accessibility/mac/basic-embed-pdf-accessibility.html [ Timeout ]
-webkit.org/b/281531 [ Sequoia+ ] accessibility/mac/iframe-pdf.html [ Timeout ]
 
 # webkit.org/b/282046 REGRESSION(285592@main): [ macOS iOS wk2 ] http/tests/site-isolation/l oad-event.html are near constant failures.
 http/tests/site-isolation/load-event.html [ Pass Failure ]
@@ -1937,5 +1933,13 @@ webkit.org/b/232282 [ Ventura+ ] fast/scrolling/mac/scrollbars/overlay-scrollbar
 
 webkit.org/b/285033 [ Ventura+ ] http/tests/download/sandboxed-iframe-download-not-allowed.html [ Pass Failure ]
 
-webkit.org/b/285627 [ Ventura+ ] http/tests/navigation/forward-and-cancel.html [ Pass Crash ]
+# webkit.org/b/288409 [ MacOS iOS ] 3x imported/w3c/web-platform-tests/navigation-api/navigation are consistent failures 
+imported/w3c/web-platform-tests/navigation-api/navigation-activation/activation-traverse-not-in-entries.html [ Failure ]
+imported/w3c/web-platform-tests/navigation-api/navigation-methods/disambigaute-forward.html [ Failure ]
+imported/w3c/web-platform-tests/navigation-api/navigation-methods/disambigaute-traverseTo-forward-multiple.html [ Failure ]
 
+webkit.org/b/285934 [ Ventura+ Debug arm64 ] http/tests/security/contentSecurityPolicy/connect-src-star-websocket-allowed.html [ Pass Crash ]
+
+# webkit.org/b/280415 [ Sequoia wk2 release arm64 ] 2x fast/selectors/* are flaky image only failures.
+[ Ventura+ arm64 ] fast/selectors/selection-window-inactive-stroke-color.html [ Pass ImageOnlyFailure ]
+[ Ventura+ arm64 ] fast/selectors/text-field-selection-stroke-color.html [ Pass ImageOnlyFailure ]

@@ -130,6 +130,7 @@
 #import <WebCore/Path.h>
 #import <WebCore/PathUtilities.h>
 #import <WebCore/PlatformTextAlternatives.h>
+#import <WebCore/PointerEventTypeNames.h>
 #import <WebCore/PromisedAttachmentInfo.h>
 #import <WebCore/ScrollTypes.h>
 #import <WebCore/Scrollbar.h>
@@ -3884,11 +3885,20 @@ static void cancelPotentialTapIfNecessary(WKContentView* contentView)
     RELEASE_LOG(ViewGestures, "Single tap recognized - commit potential tap (%p, pageProxyID=%llu)", self, _page->identifier().toUInt64());
 
     WebCore::PointerID pointerId = WebCore::mousePointerID;
+    String pointerType = WebCore::mousePointerEventType();
     if (auto* singleTapTouchIdentifier = [_singleTapGestureRecognizer lastActiveTouchIdentifier]) {
         pointerId = [singleTapTouchIdentifier unsignedIntValue];
         _commitPotentialTapPointerId = pointerId;
+
+        if (auto maybeTouchType = [_singleTapGestureRecognizer lastActiveTouchType]) {
+            auto touchType = *maybeTouchType;
+            if (touchType == UITouchTypePencil)
+                pointerType = WebCore::penPointerEventType();
+            else if (touchType == UITouchTypeDirect)
+                pointerType = WebCore::touchPointerEventType();
+        }
     }
-    _page->commitPotentialTap(WebKit::webEventModifierFlags(gestureRecognizer.modifierFlags), _layerTreeTransactionIdAtLastInteractionStart, pointerId);
+    _page->commitPotentialTap(WebKit::webEventModifierFlags(gestureRecognizer.modifierFlags), _layerTreeTransactionIdAtLastInteractionStart, pointerId, pointerType);
 
     if (!_isExpectingFastSingleTapCommit)
         [self _finishInteraction];
@@ -6727,7 +6737,25 @@ static WebKit::WritingDirection coreWritingDirection(NSWritingDirection directio
     WebKit::InsertTextOptions options;
     options.processingUserGesture = _isHandlingActiveKeyEvent || _isHandlingActivePressesEvent;
     options.shouldSimulateKeyboardInput = [self _shouldSimulateKeyboardInputOnTextInsertion];
-    _page->insertTextAsync(aStringValue, WebKit::EditingRange(), WTFMove(options));
+    options.directionFromCurrentInputMode = [self] -> std::optional<WebCore::TextDirection> {
+        NSString *inputLanguage = self.textInputMode.primaryLanguage;
+        if (!inputLanguage.length)
+            return { };
+
+        switch ([NSLocale characterDirectionForLanguage:inputLanguage]) {
+        case NSLocaleLanguageDirectionRightToLeft:
+            return WebCore::TextDirection::RTL;
+        case NSLocaleLanguageDirectionLeftToRight:
+            return WebCore::TextDirection::LTR;
+        case NSLocaleLanguageDirectionTopToBottom:
+        case NSLocaleLanguageDirectionBottomToTop:
+        case NSLocaleLanguageDirectionUnknown:
+            return { };
+        }
+        ASSERT_NOT_REACHED();
+        return { };
+    }();
+    _page->insertTextAsync(aStringValue, { }, WTFMove(options));
 
     if (_focusedElementInformation.autocapitalizeType == WebCore::AutocapitalizeType::Words && aStringValue.length) {
         _lastInsertedCharacterToOverrideCharacterBeforeSelection = [aStringValue characterAtIndex:aStringValue.length - 1];
@@ -8506,8 +8534,8 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     if (!scroller)
         return;
 
-    auto possiblyStaleScrollPosition = state.visualData->enclosingScrollPosition;
-    auto scrollDelta = possiblyStaleScrollPosition - WebCore::roundedIntPoint([scroller contentOffset]);
+    auto possiblyStaleScrollOffset = state.visualData->enclosingScrollOffset;
+    auto scrollDelta = possiblyStaleScrollOffset - WebCore::roundedIntPoint([scroller contentOffset]);
 
     static constexpr auto adjustmentThreshold = 1;
     if (std::abs(scrollDelta.width()) <= adjustmentThreshold && std::abs(scrollDelta.height()) <= adjustmentThreshold)

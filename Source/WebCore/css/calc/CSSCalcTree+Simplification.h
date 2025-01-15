@@ -58,6 +58,11 @@ struct SimplificationOptions {
     bool allowNonMatchingUnits = false;
 };
 
+
+// MARK: Can Simplify
+
+bool canSimplify(const Tree&, const SimplificationOptions&);
+
 // MARK: Copy & Simplify
 
 Tree copyAndSimplify(const Tree&, const SimplificationOptions&);
@@ -97,6 +102,7 @@ std::optional<Child> simplify(Log&, const SimplificationOptions&);
 std::optional<Child> simplify(Exp&, const SimplificationOptions&);
 std::optional<Child> simplify(Abs&, const SimplificationOptions&);
 std::optional<Child> simplify(Sign&, const SimplificationOptions&);
+std::optional<Child> simplify(Random&, const SimplificationOptions&);
 std::optional<Child> simplify(Progress&, const SimplificationOptions&);
 std::optional<Child> simplify(MediaProgress&, const SimplificationOptions&);
 std::optional<Child> simplify(ContainerProgress&, const SimplificationOptions&);

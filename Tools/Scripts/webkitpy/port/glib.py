@@ -109,6 +109,10 @@ class GLibPort(Port):
         environment['GST_DEBUG'] = '*:ERROR'
         if gst_debug_override:
             environment['GST_DEBUG'] += f',{gst_debug_override}'
+        else:
+            # If there is no user-supplied GST_DEBUG we can assume this runtime is some test bot, so
+            # disable color output, making -stderr files more human-readable.
+            environment['GST_DEBUG_NO_COLOR'] = '1'
 
         environment['WEBKIT_GST_ALLOW_PLAYBACK_OF_INVISIBLE_VIDEOS'] = '1'
         environment['WEBKIT_GST_WEBRTC_FORCE_EARLY_VIDEO_DECODING'] = '1'
@@ -171,3 +175,16 @@ class GLibPort(Port):
     def _get_crash_log(self, name, pid, stdout, stderr, newer_than, target_host=None):
         return GDBCrashLogGenerator(self._executive, name, pid, newer_than,
                                     self._filesystem, self._path_to_driver, self.port_name, self.get_option('configuration')).generate_crash_log(stdout, stderr)
+
+    def setup_environ_for_webdriver(self):
+        return self.setup_environ_for_minibrowser()
+
+    def run_webdriver(self, args):
+        env = self.setup_environ_for_webdriver()
+        webDriver = self._built_executables_path(self.webdriver_name)
+        if not (os.path.isfile(webDriver) and os.access(webDriver, os.X_OK)):
+            raise RuntimeError(f'Unable to find an executable at path: {webDriver}')
+        command = [webDriver]
+        if self._should_use_jhbuild():
+            command = self._jhbuild_wrapper + command
+        return self._executive.run_command(command + args, cwd=self.webkit_base(), stdout=None, return_stderr=False, decode_output=False, env=env)

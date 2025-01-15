@@ -59,9 +59,6 @@ public:
     WEBCORE_EXPORT static void setAudioSessionCategoryOverride(unsigned);
     static unsigned audioSessionCategoryOverride();
 
-    WEBCORE_EXPORT static void setNetworkDataUsageTrackingEnabled(bool);
-    static bool networkDataUsageTrackingEnabled() { return shared().m_networkDataUsageTrackingEnabled; }
-
     WEBCORE_EXPORT static void setNetworkInterfaceName(const String&);
     static const String& networkInterfaceName() { return shared().m_networkInterfaceName; }
 
@@ -113,11 +110,6 @@ public:
     static void setArePDFImagesEnabled(bool isEnabled) { shared().m_arePDFImagesEnabled = isEnabled; }
     static bool arePDFImagesEnabled() { return shared().m_arePDFImagesEnabled; }
 
-#if ENABLE(OPUS)
-    WEBCORE_EXPORT static void setOpusDecoderEnabled(bool);
-    static bool opusDecoderEnabled() { return shared().m_opusDecoderEnabled; }
-#endif
-
 #if ENABLE(WEB_PUSH_NOTIFICATIONS)
     static void setBuiltInNotificationsEnabled(bool isEnabled) { shared().m_builtInNotificationsEnabled = isEnabled; }
     WEBCORE_EXPORT static bool builtInNotificationsEnabled();
@@ -146,7 +138,6 @@ private:
     bool m_usesOverlayScrollbars { false };
 
 #if PLATFORM(IOS_FAMILY)
-    bool m_networkDataUsageTrackingEnabled { false };
     String m_networkInterfaceName;
     bool m_shouldOptOutOfNetworkStateObservation { false };
     bool m_disableScreenSizeOverride { false };
@@ -177,10 +168,6 @@ private:
 #endif
 
     bool m_arePDFImagesEnabled { true };
-
-#if ENABLE(OPUS)
-    bool m_opusDecoderEnabled { false };
-#endif
 
 #if ENABLE(WEB_PUSH_NOTIFICATIONS)
     bool m_builtInNotificationsEnabled { false };

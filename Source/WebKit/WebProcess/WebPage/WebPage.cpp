@@ -4827,10 +4827,6 @@ void WebPage::updatePreferences(const WebPreferencesStore& store)
     PlatformMediaSessionManager::setUseSCContentSharingPicker(settings.useSCContentSharingPicker());
 #endif
 
-#if ENABLE(OPUS)
-    PlatformMediaSessionManager::setOpusDecoderEnabled(DeprecatedGlobalSettings::opusDecoderEnabled());
-#endif
-
 #if ENABLE(VP9)
     PlatformMediaSessionManager::setSWVPDecodersAlwaysEnabled(store.getBoolValueForKey(WebPreferencesKey::sWVPDecodersAlwaysEnabledKey()));
 #endif
@@ -5219,8 +5215,7 @@ Ref<VideoPresentationManager> WebPage::protectedVideoPresentationManager()
 void WebPage::videoControlsManagerDidChange()
 {
 #if ENABLE(FULLSCREEN_API)
-    if (auto* manager = fullScreenManager())
-        manager->videoControlsManagerDidChange();
+    fullScreenManager().videoControlsManagerDidChange();
 #endif
 }
 
@@ -5312,11 +5307,16 @@ void WebPage::setAllowsMediaDocumentInlinePlayback(bool allows)
 #endif
 
 #if ENABLE(FULLSCREEN_API)
-WebFullScreenManager* WebPage::fullScreenManager()
+WebFullScreenManager& WebPage::fullScreenManager()
 {
     if (!m_fullScreenManager)
         m_fullScreenManager = WebFullScreenManager::create(*this);
-    return m_fullScreenManager.get();
+    return *m_fullScreenManager;
+}
+
+Ref<WebFullScreenManager> WebPage::protectedFullscreenManager()
+{
+    return fullScreenManager();
 }
 
 void WebPage::isInFullscreenChanged(IsInFullscreenMode isInFullscreenMode)
@@ -6226,7 +6226,7 @@ bool WebPage::dispatchMessage(IPC::Connection& connection, IPC::Decoder& decoder
 
 #if ENABLE(FULLSCREEN_API)
     if (decoder.messageReceiverName() == Messages::WebFullScreenManager::messageReceiverName()) {
-        fullScreenManager()->didReceiveMessage(connection, decoder);
+        fullScreenManager().didReceiveMessage(connection, decoder);
         return true;
     }
 #endif
@@ -7048,6 +7048,31 @@ void WebPage::insertTextAsync(const String& text, const EditingRange& replacemen
         }
     } else
         frame->editor().confirmComposition(text);
+
+    auto baseWritingDirectionFromInputMode = [&] -> std::optional<WritingDirection> {
+        auto direction = options.directionFromCurrentInputMode;
+        if (!direction)
+            return { };
+
+        if (text != "\n"_s)
+            return { };
+
+        auto selection = frame->selection().selection();
+        if (!selection.isCaret() || !selection.isContentEditable())
+            return { };
+
+        auto start = selection.visibleStart();
+        if (!isStartOfLine(start) || !isEndOfLine(start))
+            return { };
+
+        if (direction == directionOfEnclosingBlock(start.deepEquivalent()))
+            return { };
+
+        return { direction == TextDirection::LTR ? WritingDirection::LeftToRight : WritingDirection::RightToLeft };
+    }();
+
+    if (baseWritingDirectionFromInputMode)
+        frame->editor().setBaseWritingDirection(*baseWritingDirectionFromInputMode);
 
     if (focusedElement && options.shouldSimulateKeyboardInput) {
         focusedElement->dispatchEvent(Event::create(eventNames().keyupEvent, Event::CanBubble::Yes, Event::IsCancelable::Yes));
@@ -10179,7 +10204,7 @@ void WebPage::simulateClickOverFirstMatchingTextInViewportWithUserInteraction(co
 
     auto locationInWindow = view->contentsToWindow(location);
     auto makeSyntheticEvent = [&](PlatformEvent::Type type) -> PlatformMouseEvent {
-        return { locationInWindow, locationInWindow, MouseButton::Left, type, 1, { }, WallTime::now(), ForceAtClick, SyntheticClickType::OneFingerTap, mousePointerID };
+        return { locationInWindow, locationInWindow, MouseButton::Left, type, 1, { }, WallTime::now(), ForceAtClick, SyntheticClickType::OneFingerTap, mousePointerEventType(), mousePointerID };
     };
 
     WEBPAGE_RELEASE_LOG(MouseHandling, "Simulating click - dispatching events");

@@ -76,6 +76,7 @@
 #include "WebWorkerClient.h"
 #include <WebCore/AppHighlight.h>
 #include <WebCore/AXObjectCache.h>
+#include <WebCore/BarcodeDetectorInterface.h>
 #include <WebCore/ColorChooser.h>
 #include <WebCore/ContentRuleListResults.h>
 #include <WebCore/CookieConsentDecisionResult.h>
@@ -84,6 +85,7 @@
 #include <WebCore/DocumentLoader.h>
 #include <WebCore/DocumentStorageAccess.h>
 #include <WebCore/ElementInlines.h>
+#include <WebCore/FaceDetectorInterface.h>
 #include <WebCore/FileChooser.h>
 #include <WebCore/FileIconLoader.h>
 #include <WebCore/FrameLoader.h>
@@ -102,6 +104,7 @@
 #include <WebCore/SecurityOrigin.h>
 #include <WebCore/SecurityOriginData.h>
 #include <WebCore/Settings.h>
+#include <WebCore/TextDetectorInterface.h>
 #include <WebCore/TextIndicator.h>
 #include <WebCore/TextRecognitionOptions.h>
 #include <WebCore/ViewportConfiguration.h>
@@ -1318,14 +1321,14 @@ void WebChromeClient::clearVideoFullscreenMode(HTMLVideoElement& videoElement, H
 
 bool WebChromeClient::supportsFullScreenForElement(const Element& element, bool withKeyboard)
 {
-    return protectedPage()->fullScreenManager()->supportsFullScreenForElement(element, withKeyboard);
+    return protectedPage()->fullScreenManager().supportsFullScreenForElement(element, withKeyboard);
 }
 
 void WebChromeClient::enterFullScreenForElement(Element& element, HTMLMediaElementEnums::VideoFullscreenMode mode)
 {
-    protectedPage()->fullScreenManager()->enterFullScreenForElement(&element, mode);
+    protectedPage()->fullScreenManager().enterFullScreenForElement(element, mode);
 #if ENABLE(VIDEO_PRESENTATION_MODE)
-    if (RefPtr videoElement = dynamicDowncast<HTMLVideoElement>(&element); videoElement && mode == HTMLMediaElementEnums::VideoFullscreenModeInWindow)
+    if (RefPtr videoElement = dynamicDowncast<HTMLVideoElement>(element); videoElement && mode == HTMLMediaElementEnums::VideoFullscreenModeInWindow)
         setVideoFullscreenMode(*videoElement, mode);
 #endif
 }
@@ -1333,7 +1336,7 @@ void WebChromeClient::enterFullScreenForElement(Element& element, HTMLMediaEleme
 #if ENABLE(QUICKLOOK_FULLSCREEN)
 void WebChromeClient::updateImageSource(Element& element)
 {
-    protectedPage()->fullScreenManager()->updateImageSource(element);
+    protectedPage()->fullScreenManager().updateImageSource(element);
 }
 #endif // ENABLE(QUICKLOOK_FULLSCREEN)
 
@@ -1346,7 +1349,7 @@ void WebChromeClient::exitFullScreenForElement(Element* element)
             exitingInWindowFullscreen = videoElement->fullscreenMode() == HTMLMediaElementEnums::VideoFullscreenModeInWindow;
     }
 #endif
-    protectedPage()->fullScreenManager()->exitFullScreenForElement(element);
+    protectedPage()->fullScreenManager().exitFullScreenForElement(element);
 #if ENABLE(VIDEO_PRESENTATION_MODE)
     if (exitingInWindowFullscreen)
         clearVideoFullscreenMode(*dynamicDowncast<HTMLVideoElement>(*element), HTMLMediaElementEnums::VideoFullscreenModeInWindow);

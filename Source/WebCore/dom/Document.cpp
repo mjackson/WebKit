@@ -47,6 +47,7 @@
 #include "CachedFontLoadRequest.h"
 #include "CachedFrame.h"
 #include "CachedResourceLoader.h"
+#include "CalculationRandomKeyMap.h"
 #include "CanvasRenderingContext2D.h"
 #include "CaretPosition.h"
 #include "CaretPositionFromPointOptions.h"
@@ -2732,7 +2733,7 @@ bool Document::updateStyleIfNeeded()
 {
     ScriptDisallowedScope::InMainThread scriptDisallowedScope;
 
-    if (isResolvingContainerQueriesForSelfOrAncestor())
+    if (isInStyleInterleavedLayoutForSelfOrAncestor())
         return false;
 
     RefPtr frameView = view();
@@ -3042,15 +3043,6 @@ void Document::setIsResolvingTreeStyle(bool value)
 {
     RELEASE_ASSERT(value != m_isResolvingTreeStyle);
     m_isResolvingTreeStyle = value;
-}
-
-bool Document::isResolvingContainerQueriesForSelfOrAncestor() const
-{
-    if (m_isResolvingContainerQueries)
-        return true;
-    if (RefPtr owner = ownerElement())
-        return owner->document().isResolvingContainerQueriesForSelfOrAncestor();
-    return false;
 }
 
 bool Document::isInStyleInterleavedLayoutForSelfOrAncestor() const
@@ -3613,7 +3605,7 @@ ExceptionOr<Document&> Document::openForBindings(Document* entryDocument, const 
 
 ExceptionOr<void> Document::open(Document* entryDocument)
 {
-    if (entryDocument && !entryDocument->securityOrigin().isSameOriginAs(securityOrigin()))
+    if (entryDocument && !entryDocument->protectedSecurityOrigin()->isSameOriginAs(protectedSecurityOrigin()))
         return Exception { ExceptionCode::SecurityError };
 
     if (m_unloadCounter)
@@ -3681,7 +3673,7 @@ bool Document::isFullyActive() const
     RefPtr parentFrame = dynamicDowncast<LocalFrame>(frame->tree().parent());
     if (!parentFrame)
         return true;
-    return parentFrame->document() && parentFrame->document()->isFullyActive();
+    return parentFrame->document() && parentFrame->protectedDocument()->isFullyActive();
 }
 
 void Document::detachParser()
@@ -4566,12 +4558,12 @@ bool Document::canNavigateInternal(Frame& targetFrame)
 
 void Document::willLoadScriptElement(const URL& scriptURL)
 {
-    m_hasLoadedThirdPartyScript = m_hasLoadedThirdPartyScript || !securityOrigin().isSameOriginAs(SecurityOrigin::create(scriptURL));
+    m_hasLoadedThirdPartyScript = m_hasLoadedThirdPartyScript || !protectedSecurityOrigin()->isSameOriginAs(SecurityOrigin::create(scriptURL));
 }
 
 void Document::willLoadFrameElement(const URL& frameURL)
 {
-    m_hasLoadedThirdPartyFrame = m_hasLoadedThirdPartyFrame || !securityOrigin().isSameOriginAs(SecurityOrigin::create(frameURL));
+    m_hasLoadedThirdPartyFrame = m_hasLoadedThirdPartyFrame || !protectedSecurityOrigin()->isSameOriginAs(SecurityOrigin::create(frameURL));
 }
 
 // Prevent cross-site top-level redirects from third-party iframes unless the user has ever interacted with the frame.
@@ -5699,7 +5691,7 @@ void Document::flushAutofocusCandidates()
 
     while (!m_autofocusCandidates.isEmpty()) {
         RefPtr element = m_autofocusCandidates.first().get();
-        if (!element || !element->document().isFullyActive() || &element->document().topDocument() != this) {
+        if (!element || !element->protectedDocument()->isFullyActive() || &element->document().topDocument() != this) {
             m_autofocusCandidates.removeFirst();
             continue;
         }
@@ -11212,6 +11204,13 @@ ResourceMonitor* Document::parentResourceMonitorIfExists()
 }
 
 #endif
+
+Ref<Calculation::RandomKeyMap> Document::randomKeyMap() const
+{
+    if (!m_randomKeyMap)
+        m_randomKeyMap = Calculation::RandomKeyMap::create();
+    return *m_randomKeyMap;
+}
 
 } // namespace WebCore
 

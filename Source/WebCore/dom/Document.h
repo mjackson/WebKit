@@ -343,6 +343,10 @@ using MediaProducerMediaStateFlags = OptionSet<MediaProducerMediaState>;
 using MediaProducerMutedStateFlags = OptionSet<MediaProducerMutedState>;
 using PlatformDisplayID = uint32_t;
 
+namespace Calculation {
+class RandomKeyMap;
+}
+
 namespace Style {
 class CustomPropertyRegistry;
 class Resolver;
@@ -1547,7 +1551,6 @@ public:
     bool inStyleRecalc() const { return m_inStyleRecalc; }
     bool inRenderTreeUpdate() const { return m_inRenderTreeUpdate; }
     bool isResolvingContainerQueries() const { return m_isResolvingContainerQueries; }
-    bool isResolvingContainerQueriesForSelfOrAncestor() const;
     bool isInStyleInterleavedLayout() const { return m_isResolvingContainerQueries || m_isResolvingAnchorPositionedElements; };
     bool isInStyleInterleavedLayoutForSelfOrAncestor() const;
     bool isResolvingTreeStyle() const { return m_isResolvingTreeStyle; }
@@ -1971,6 +1974,8 @@ public:
     Ref<ResourceMonitor> protectedResourceMonitor();
     ResourceMonitor* parentResourceMonitorIfExists();
 #endif
+
+    Ref<Calculation::RandomKeyMap> randomKeyMap() const;
 
 protected:
     enum class ConstructionFlag : uint8_t {
@@ -2680,6 +2685,8 @@ private:
 #if ENABLE(CONTENT_EXTENSIONS)
     RefPtr<ResourceMonitor> m_resourceMonitor;
 #endif
+
+    mutable RefPtr<Calculation::RandomKeyMap> m_randomKeyMap;
 
     Ref<DocumentSyncData> m_syncData;
 }; // class Document

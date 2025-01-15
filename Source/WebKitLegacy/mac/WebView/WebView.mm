@@ -161,6 +161,7 @@
 #import <WebCore/EmptyBadgeClient.h>
 #import <WebCore/Event.h>
 #import <WebCore/EventHandler.h>
+#import <WebCore/FloatConversion.h>
 #import <WebCore/FocusController.h>
 #import <WebCore/FontAttributes.h>
 #import <WebCore/FontCache.h>
@@ -2944,7 +2945,6 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
 #if PLATFORM(IOS_FAMILY)
     WebCore::DeprecatedGlobalSettings::setAudioSessionCategoryOverride([preferences audioSessionCategoryOverride]);
-    WebCore::DeprecatedGlobalSettings::setNetworkDataUsageTrackingEnabled([preferences networkDataUsageTrackingEnabled]);
     WebCore::DeprecatedGlobalSettings::setNetworkInterfaceName([preferences networkInterfaceName]);
 #endif
 
@@ -4793,7 +4793,7 @@ IGNORE_WARNINGS_END
 - (void)_setUnobscuredSafeAreaInsets:(WebEdgeInsets)insets
 {
     if (auto page = _private->page)
-        page->setUnobscuredSafeAreaInsets(WebCore::FloatBoxExtent(insets.top, insets.right, insets.bottom, insets.left));
+        page->setUnobscuredSafeAreaInsets({ WebCore::narrowPrecisionToFloatFromCGFloat(insets.top), WebCore::narrowPrecisionToFloatFromCGFloat(insets.right), WebCore::narrowPrecisionToFloatFromCGFloat(insets.bottom), WebCore::narrowPrecisionToFloatFromCGFloat(insets.left) });
 }
 
 - (WebEdgeInsets)_unobscuredSafeAreaInsets

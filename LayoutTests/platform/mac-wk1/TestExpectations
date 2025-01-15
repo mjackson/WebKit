@@ -1035,6 +1035,9 @@ http/tests/local/blob/navigate-blob.html [ Skip ]
 # Not supported on WK1
 media/no-fullscreen-when-hidden.html [ Skip ]
 
+# The Trusted Types API is not supported in WebKit1.
+imported/w3c/web-platform-tests/trusted-types [ Skip ]
+
 # Beacon is not supported on WK1.
 http/tests/blink/sendbeacon/ [ Skip ]
 http/tests/inspector/network/beacon-type.html [ Skip ]
@@ -1189,9 +1192,11 @@ media/video-currenttime-monotonic.html [ Failure ]
 # Screenshots timeline does not capture screenshots for changes in WebKitLegacy.
 webkit.org/b/251113 inspector/timeline/timeline-event-screenshots.html [ Skip ]
 
-# The CookieStore API is not fully implemented on macOS WK1 yet.
+# The Cookie Store API is not supported on WK1.
 imported/w3c/web-platform-tests/cookie-store [ Skip ]
 imported/w3c/web-platform-tests/cookies/partitioned-cookies/partitioned-cookies.tentative.https.html [ Skip ]
+http/tests/cookies/cookie-store-get-secure.https.html [ Skip ]
+http/tests/cookies/cookie-store-set-secure.https.html [ Skip ]
 
 # View Transitions API is disabled in WK1.
 imported/w3c/web-platform-tests/css/css-view-transitions [ Skip ]

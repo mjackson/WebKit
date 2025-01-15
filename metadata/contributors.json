@@ -4398,6 +4398,13 @@
       ]
    },
    {
+      "emails" : [
+         "jchoukroun@apple.com"
+      ],
+      "github" : "jonchoukroun",
+      "name" : "Jon Choukroun"
+   },
+   {
       "aliases" : [
          "John Honeycutt"
       ],
@@ -6597,6 +6604,14 @@
          "philn"
       ],
       "status" : "reviewer"
+   },
+   {
+      "emails" : [
+         "phipson_lee@apple.com",
+         "phipsonleecy@gmail.com"
+      ],
+      "github" : "Phipson",
+      "name" : "Phipson Lee"
    },
    {
       "emails" : [

@@ -476,6 +476,8 @@ void CookieStore::set(CookieInit&& options, Ref<DeferredPromise>&& promise)
         break;
     }
 
+    cookie.secure = true;
+
     m_promises.add(++m_nextPromiseIdentifier, WTFMove(promise));
     auto completionHandler = [promiseIdentifier = m_nextPromiseIdentifier](CookieStore& cookieStore, std::optional<Exception>&& result) {
         auto promise = cookieStore.takePromise(promiseIdentifier);
@@ -536,9 +538,8 @@ void CookieStore::cookiesAdded(const String& host, const Vector<Cookie>& cookies
     ASSERT_UNUSED(host, host == downcast<Document>(context)->url().host().toString());
 
     CookieChangeEventInit eventInit;
-    auto currentTime = WallTime::now().secondsSinceEpoch().milliseconds();
     for (auto cookie : cookies) {
-        if (cookie.expires && *cookie.expires < currentTime) {
+        if (cookie.expires && *cookie.expires <= cookie.created) {
             cookie.value = nullString();
             eventInit.deleted.append(CookieListItem { WTFMove(cookie) });
         } else
