@@ -281,7 +281,7 @@ String ErrorInstance::sanitizedNameString(JSGlobalObject* globalObject)
     }
     RETURN_IF_EXCEPTION(scope, {});
 
-    if (!nameValue || !nameValue.isPrimitive())
+    if (!nameValue || !nameValue.isPrimitive() || nameValue.isUndefined())
         return "Error"_s;
     RELEASE_AND_RETURN(scope, nameValue.toWTFString(globalObject));
 }
