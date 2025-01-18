@@ -92,7 +92,8 @@ void RunLoop::stop()
 
 void RunLoop::wakeUp()
 {
-    ASSERT_NOT_REACHED();
+    // Do nothing. This means that JSRunLoopTimer::Manager::PerVMData's RunLoop::Timer leaks instead
+    // of being freed.
 }
 
 RunLoop::CycleResult RunLoop::cycle(RunLoopMode mode)
