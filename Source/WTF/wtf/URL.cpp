@@ -816,8 +816,23 @@ void URL::setQuery(StringView newQuery)
 
 static String escapePathWithoutCopying(StringView path)
 {
-    auto questionMarkOrNumberSignOrNonASCII = [] (UChar character) {
-        return character == '?' || character == '#' || !isASCII(character);
+    auto questionMarkOrNumberSignOrNonASCII = [](UChar character) {
+        return character == '\0'
+            || character == '\t'
+            || character == '\n'
+            || character == '\r'
+            || character == ' '
+            || character == '"'
+            || character == '#'
+            || character == '%'
+            || character == '?'
+            || character == '['
+            || character == '\\'
+            || character == ']'
+            || character == '^'
+            || character == '|'
+            || character == '~'
+            || !isASCII(character);
     };
     return percentEncodeCharacters(path, questionMarkOrNumberSignOrNonASCII);
 }
