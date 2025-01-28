@@ -814,10 +814,24 @@ void URL::setQuery(StringView newQuery)
         maybeTrimTrailingSpacesFromOpaquePath();
 }
 
+// To match Node.js pathToFileURL, the following chars are escaped: \0, \t, \n, \r, " # % ? [ ] ^ | ~
+// https://github.com/nodejs/node/blob/532fff6b27be6b0d833d06b4a9fe46d6fb7f0f6c/src/node_url.cc#L82-L121
+// RFC1738 defines the following chars as "unsafe" for URLs
+// @see https://www.ietf.org/rfc/rfc1738.txt 2.2. URL Character Encoding Issues
+static constexpr uint64_t escapeTable[] = {
+    // 0-63: Only specific control chars (\0, \t, \n, \r), space, ", #, %, ?
+    (1ULL << 0) | (1ULL << '\t') | (1ULL << '\n') | (1ULL << '\r') | 
+    (1ULL << ' ') | (1ULL << '"') | (1ULL << '#') | (1ULL << '%') | (1ULL << '?'),
+    
+    // 64-127: [, \, ], ^, |, ~
+    (1ULL << ('[' - 64)) | (1ULL << ('\\' - 64)) | (1ULL << (']' - 64)) |
+    (1ULL << ('^' - 64)) | (1ULL << ('|' - 64)) | (1ULL << ('~' - 64))
+};
+
 static String escapePathWithoutCopying(StringView path)
 {
-    auto questionMarkOrNumberSignOrNonASCII = [] (UChar character) {
-        return character == '?' || character == '#' || !isASCII(character);
+    auto questionMarkOrNumberSignOrNonASCII = [](UChar character) {
+        return character >= 128 || ((escapeTable[character >> 6] >> (character & 63)) & 1);
     };
     return percentEncodeCharacters(path, questionMarkOrNumberSignOrNonASCII);
 }
