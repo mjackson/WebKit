@@ -281,23 +281,6 @@ public:
         m_savedLastStackTop = lastStackTop;
     }
 
-#if USE(BUN_JSC_ADDITIONS) && OS(LINUX)
-    enum ThreadStateFlags : uint8_t {
-        IsBlockedInSyscall = 1 << 0,
-        HasPendingSuspension = 1 << 1
-    };
-    std::atomic<uint8_t> m_threadState { 0 };
-
-    void setIsEnteringSyscall();
-
-    bool isBlockedInSyscall() const
-    {
-        return m_threadState.load(std::memory_order_relaxed) & IsBlockedInSyscall;
-    }
-
-    void setIsExitingSyscall();
-#endif
-
 #if OS(DARWIN)
     mach_port_t machThread() { return m_platformThread; }
 #endif
