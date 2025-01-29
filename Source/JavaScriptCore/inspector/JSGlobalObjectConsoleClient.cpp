@@ -48,7 +48,13 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(JSGlobalObjectConsoleClient);
 
 bool JSGlobalObjectConsoleClient::logToSystemConsole()
 {
+#if USE(BUN_JSC_ADDITIONS)
+    // Disable debug-mode logs that only appear when the inspector is enabled.
+    // Bun already logs console messages to standard output / error.
+    return false;
+#else
     return sLogToSystemConsole;
+#endif
 }
 
 void JSGlobalObjectConsoleClient::setLogToSystemConsole(bool shouldLog)
