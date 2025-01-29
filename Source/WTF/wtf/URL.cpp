@@ -814,26 +814,38 @@ void URL::setQuery(StringView newQuery)
         maybeTrimTrailingSpacesFromOpaquePath();
 }
 
+static String escapePathWithoutCopying(StringView path)
+{
+    auto questionMarkOrNumberSignOrNonASCII = [](UChar character) {
+        return character == '?' || character == '#' || !isASCII(character);
+    };
+    return percentEncodeCharacters(path, questionMarkOrNumberSignOrNonASCII);
+}
+
 // To match Node.js pathToFileURL, the following chars are escaped: \0, \t, \n, \r, " # % ? [ ] ^ | ~
 // https://github.com/nodejs/node/blob/532fff6b27be6b0d833d06b4a9fe46d6fb7f0f6c/src/node_url.cc#L82-L121
 // RFC1738 defines the following chars as "unsafe" for URLs
 // @see https://www.ietf.org/rfc/rfc1738.txt 2.2. URL Character Encoding Issues
-static constexpr uint64_t escapeTable[] = {
+static constexpr uint64_t filePathEscapeTable[] = {
     // 0-63: Only specific control chars (\0, \t, \n, \r), space, ", #, %, ?
     (1ULL << 0) | (1ULL << '\t') | (1ULL << '\n') | (1ULL << '\r') | 
     (1ULL << ' ') | (1ULL << '"') | (1ULL << '#') | (1ULL << '%') | (1ULL << '?'),
     
     // 64-127: [, \, ], ^, |, ~
-    (1ULL << ('[' - 64)) | (1ULL << ('\\' - 64)) | (1ULL << (']' - 64)) |
-    (1ULL << ('^' - 64)) | (1ULL << ('|' - 64)) | (1ULL << ('~' - 64))
+    // On windows, backslash is interpreted as a path separator.
+#if OS(WINDOWS)
+    (1ULL << ('[' - 64)) | (1ULL << (']' - 64)) | (1ULL << ('^' - 64)) | (1ULL << ('|' - 64)) | (1ULL << ('~' - 64))
+#else
+    (1ULL << ('[' - 64)) | (1ULL << ('\\' - 64)) | (1ULL << (']' - 64)) | (1ULL << ('^' - 64)) | (1ULL << ('|' - 64)) | (1ULL << ('~' - 64))
+#endif
 };
 
-static String escapePathWithoutCopying(StringView path)
+static String escapeFilePathWithoutCopying(StringView path)
 {
-    auto questionMarkOrNumberSignOrNonASCII = [](UChar character) {
-        return character >= 128 || ((escapeTable[character >> 6] >> (character & 63)) & 1);
+    auto isEscapeCharacter = [](UChar character) {
+        return character >= 128 || ((filePathEscapeTable[character >> 6] >> (character & 63)) & 1);
     };
-    return percentEncodeCharacters(path, questionMarkOrNumberSignOrNonASCII);
+    return percentEncodeCharacters(path, isEscapeCharacter);
 }
 
 void URL::setPath(StringView path)
@@ -1233,13 +1245,13 @@ URL URL::fileURLWithFileSystemPath(StringView path)
 #if OS(WINDOWS)
     // Handle UNC paths on Windows. should result in file://server/share
     if (isUNCLikePath(path)) {
-        return URL(makeString("file://"_s, escapePathWithoutCopying(path.substring(2))));
+        return URL(makeString("file://"_s, escapeFilePathWithoutCopying(path.substring(2))));
     }
 #endif
     return URL(makeString(
         "file://"_s,
         path.startsWith('/') ? ""_s : "/"_s,
-        escapePathWithoutCopying(path)
+        escapeFilePathWithoutCopying(path)
     ));
 }
 
