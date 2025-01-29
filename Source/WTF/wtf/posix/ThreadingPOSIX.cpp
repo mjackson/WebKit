@@ -216,6 +216,49 @@ void Thread::initializePlatformThreading()
 #endif
 }
 
+#if USE(BUN_JSC_ADDITIONS) && OS(LINUX)
+void Thread::setIsEnteringSyscall()
+{
+    uint8_t oldState;
+    uint8_t newState;
+    do {
+        oldState = m_threadState.load(std::memory_order_relaxed);
+        newState = oldState | IsBlockedInSyscall;
+    } while (!m_threadState.compare_exchange_weak(oldState, newState, std::memory_order_release));
+}
+
+void Thread::setIsExitingSyscall()
+{
+    uint8_t oldState;
+    uint8_t newState;
+    bool needsSuspend = false;
+
+    // Clear IsBlockedInSyscall flag and capture suspension state atomically
+    do {
+        oldState = m_threadState.load(std::memory_order_relaxed);
+        newState = oldState & ~IsBlockedInSyscall;
+        needsSuspend = oldState & HasPendingSuspension;
+        if (needsSuspend)
+            newState &= ~HasPendingSuspension;
+    } while (!m_threadState.compare_exchange_weak(oldState, newState, std::memory_order_acquire));
+
+    if (needsSuspend) {
+        // Signal that we're suspended
+        globalSemaphoreForSuspendResume->post();
+
+        sigset_t blockedSignalSet;
+        sigfillset(&blockedSignalSet);
+        sigdelset(&blockedSignalSet, g_wtfConfig.sigThreadSuspendResume);
+        sigsuspend(&blockedSignalSet);
+
+        m_platformRegisters = nullptr;
+
+        // Signal that we're resumed
+        globalSemaphoreForSuspendResume->post();
+    }
+}
+#endif
+
 #if OS(LINUX)
 ThreadIdentifier Thread::currentID()
 {
@@ -455,19 +498,33 @@ auto Thread::suspend(const ThreadSuspendLocker&) -> Expected<void, PlatformSuspe
 #else
     if (!m_suspendCount) {
         targetThread.store(this);
+#if USE(BUN_JSC_ADDITIONS) && OS(LINUX)
+        // Try to mark suspension pending if in syscall
+        uint8_t oldState = m_threadState.load(std::memory_order_relaxed);
+        if (oldState & IsBlockedInSyscall) {
+            // Thread is in syscall, set pending suspension
+            uint8_t newState;
+            do {
+                newState = oldState | HasPendingSuspension;
+            } while (!m_threadState.compare_exchange_weak(oldState, newState, std::memory_order_release));
+        } else {
+#endif
+            while (true) {
+                // We must use pthread_kill to avoid queue-overflow problem with real-time signals.
+                int result = pthread_kill(m_handle, g_wtfConfig.sigThreadSuspendResume);
+                if (result)
+                    return makeUnexpected(result);
+                globalSemaphoreForSuspendResume->wait();
+                if (m_platformRegisters)
+                    break;
+                // Because of an alternative signal stack, we failed to suspend this thread.
+                // Retry suspension again after yielding.
+                Thread::yield();
+            }
 
-        while (true) {
-            // We must use pthread_kill to avoid queue-overflow problem with real-time signals.
-            int result = pthread_kill(m_handle, g_wtfConfig.sigThreadSuspendResume);
-            if (result)
-                return makeUnexpected(result);
-            globalSemaphoreForSuspendResume->wait();
-            if (m_platformRegisters)
-                break;
-            // Because of an alternative signal stack, we failed to suspend this thread.
-            // Retry suspension again after yielding.
-            Thread::yield();
+#if USE(BUN_JSC_ADDITIONS) && OS(LINUX)
         }
+#endif
     }
     ++m_suspendCount;
     return { };
@@ -489,6 +546,17 @@ void Thread::resume(const ThreadSuspendLocker&)
         // In this implementaiton, we take (3). m_suspendCount is used to distinguish it.
         // Note that we must use pthread_kill to avoid queue-overflow problem with real-time signals.
         targetThread.store(this);
+
+#if USE(BUN_JSC_ADDITIONS) && OS(LINUX)
+        // Clear any pending suspension flag
+        uint8_t oldState;
+        do {
+            oldState = m_threadState.load(std::memory_order_relaxed);
+        } while (!m_threadState.compare_exchange_weak(oldState,
+            oldState & ~HasPendingSuspension,
+            std::memory_order_release));
+#endif
+
         if (pthread_kill(m_handle, g_wtfConfig.sigThreadSuspendResume) == ESRCH)
             return;
         globalSemaphoreForSuspendResume->wait();
