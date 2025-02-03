@@ -122,7 +122,7 @@ jobs:
           PACKAGE_JSON_LABEL: ${{matrix.label}}
           ENABLE_MALLOC_HEAP_BREAKDOWN: ${{matrix.ENABLE_MALLOC_HEAP_BREAKDOWN}}
         run: GITHUB_REPOSITORY=$GITHUB_REPOSITORY bash mac-release.bash
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{matrix.label}}
           path: ${{runner.temp}}/bun-webkit.tar.gz
@@ -201,7 +201,7 @@ jobs:
           rm -rf bun-webkit/lib/*.so.*
           tar -czf bun-webkit.tar.gz bun-webkit
           rm -rf bun-webkit
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{matrix.label}}
           path: ${{runner.temp}}/bun-webkit.tar.gz
@@ -250,7 +250,7 @@ jobs:
           $env:PACKAGE_JSON_ARCH = "${{matrix.package_json_arch}}"
           $env:GITHUB_REPOSITORY = "${{ github.repository }}"
           ./windows-release.ps1
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{matrix.label}}
           path: bun-webkit.tar.gz
@@ -316,7 +316,7 @@ jobs:
           rm -rf bun-webkit/lib/*.so.*
           tar -czf bun-webkit.tar.gz bun-webkit
           rm -rf bun-webkit
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{matrix.label}}
           path: ${{runner.temp}}/bun-webkit.tar.gz
