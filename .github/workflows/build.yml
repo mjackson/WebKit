@@ -30,6 +30,14 @@ jobs:
             brew_prefix: /usr/local/opt
             package_json_arch: "x64"
             CMAKE_BUILD_TYPE: Debug
+          - runner: macos-13-large
+            cpp_flags: "-D_LIBCXX_ENABLE_ASSERTIONS=1 -DENABLE_SANITIZERS=address"
+            cpu: haswell
+            label: bun-webkit-macos-amd64-debug-asan
+            brew_prefix: /usr/local/opt
+            package_json_arch: "x64"
+            CMAKE_BUILD_TYPE: Debug
+            ENABLE_MALLOC_HEAP_BREAKDOWN: "OFF"
           - runner: macos-13-xlarge
             cpp_flags: "-D_LIBCXX_ENABLE_ASSERTIONS=1"
             cpu: native
@@ -37,6 +45,14 @@ jobs:
             brew_prefix: /opt/homebrew/opt
             package_json_arch: "arm64"
             CMAKE_BUILD_TYPE: Debug
+          - runner: macos-13-xlarge
+            cpp_flags: "-D_LIBCXX_ENABLE_ASSERTIONS=1 -DENABLE_SANITIZERS=address"
+            cpu: native
+            label: bun-webkit-macos-arm64-debug-asan
+            brew_prefix: /opt/homebrew/opt
+            package_json_arch: "arm64"
+            CMAKE_BUILD_TYPE: Debug
+            ENABLE_MALLOC_HEAP_BREAKDOWN: "OFF"
           # We aren't doing LTO on macOS, for now.
           # - runner: macos-13-large
           #   cpp_flags: -flto=full -fwhole-program-vtables -fforce-emit-vtables -D_LIBCXX_ENABLE_ASSERTIONS=0
@@ -104,8 +120,9 @@ jobs:
           CMAKE_BUILD_TYPE: ${{matrix.CMAKE_BUILD_TYPE}}
           PACKAGE_JSON_ARCH: ${{matrix.package_json_arch}}
           PACKAGE_JSON_LABEL: ${{matrix.label}}
+          ENABLE_MALLOC_HEAP_BREAKDOWN: ${{matrix.ENABLE_MALLOC_HEAP_BREAKDOWN}}
         run: GITHUB_REPOSITORY=$GITHUB_REPOSITORY bash mac-release.bash
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{matrix.label}}
           path: ${{runner.temp}}/bun-webkit.tar.gz
@@ -184,7 +201,7 @@ jobs:
           rm -rf bun-webkit/lib/*.so.*
           tar -czf bun-webkit.tar.gz bun-webkit
           rm -rf bun-webkit
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{matrix.label}}
           path: ${{runner.temp}}/bun-webkit.tar.gz
@@ -233,7 +250,7 @@ jobs:
           $env:PACKAGE_JSON_ARCH = "${{matrix.package_json_arch}}"
           $env:GITHUB_REPOSITORY = "${{ github.repository }}"
           ./windows-release.ps1
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{matrix.label}}
           path: bun-webkit.tar.gz
@@ -299,7 +316,7 @@ jobs:
           rm -rf bun-webkit/lib/*.so.*
           tar -czf bun-webkit.tar.gz bun-webkit
           rm -rf bun-webkit
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{matrix.label}}
           path: ${{runner.temp}}/bun-webkit.tar.gz
