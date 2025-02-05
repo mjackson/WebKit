@@ -27,6 +27,8 @@ fi
 
 ENABLE_MALLOC_HEAP_BREAKDOWN=${ENABLE_MALLOC_HEAP_BREAKDOWN:-$DEFAULT_MALLOC_HEAP_BREAKDOWN}
 
+echo "Building for mac: [ $ENABLE_MALLOC_HEAP_BREAKDOWN ] [ $ENABLE_SANITIZERS ]"
+
 rm -rf $RUNNER_TEMP/webkit-release $RUNNER_TEMP/bun-webkit $RUNNER_TEMP/bun-webkit $RUNNER_TEMP/bun-webkit.tar.gz
 mkdir -p $RUNNER_TEMP/webkit-release
 cd $RUNNER_TEMP/webkit-release
@@ -53,6 +55,7 @@ cmake \
     -DPTHREAD_JIT_PERMISSIONS_API=1 \
     -DUSE_PTHREAD_JIT_PERMISSIONS_API=ON \
     -DENABLE_REMOTE_INSPECTOR=ON \
+    -DENABLE_SANITIZERS="$ENABLE_SANITIZERS" \
     $THIS_DIR \
     $RUNNER_TEMP/webkit-release &&
     cmake --build $RUNNER_TEMP/webkit-release --config $CMAKE_BUILD_TYPE --target jsc

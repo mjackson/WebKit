@@ -31,13 +31,14 @@ jobs:
             package_json_arch: "x64"
             CMAKE_BUILD_TYPE: Debug
           - runner: macos-13-large
-            cpp_flags: "-D_LIBCXX_ENABLE_ASSERTIONS=1 -DENABLE_SANITIZERS=address"
+            cpp_flags: "-D_LIBCXX_ENABLE_ASSERTIONS=1"
             cpu: haswell
             label: bun-webkit-macos-amd64-debug-asan
             brew_prefix: /usr/local/opt
             package_json_arch: "x64"
             CMAKE_BUILD_TYPE: Debug
             ENABLE_MALLOC_HEAP_BREAKDOWN: "OFF"
+            ENABLE_SANITIZERS: "address"
           - runner: macos-13-xlarge
             cpp_flags: "-D_LIBCXX_ENABLE_ASSERTIONS=1"
             cpu: native
@@ -46,13 +47,14 @@ jobs:
             package_json_arch: "arm64"
             CMAKE_BUILD_TYPE: Debug
           - runner: macos-13-xlarge
-            cpp_flags: "-D_LIBCXX_ENABLE_ASSERTIONS=1 -DENABLE_SANITIZERS=address"
+            cpp_flags: "-D_LIBCXX_ENABLE_ASSERTIONS=1"
             cpu: native
             label: bun-webkit-macos-arm64-debug-asan
             brew_prefix: /opt/homebrew/opt
             package_json_arch: "arm64"
             CMAKE_BUILD_TYPE: Debug
             ENABLE_MALLOC_HEAP_BREAKDOWN: "OFF"
+            ENABLE_SANITIZERS: "address"
           # We aren't doing LTO on macOS, for now.
           # - runner: macos-13-large
           #   cpp_flags: -flto=full -fwhole-program-vtables -fforce-emit-vtables -D_LIBCXX_ENABLE_ASSERTIONS=0
@@ -121,6 +123,7 @@ jobs:
           PACKAGE_JSON_ARCH: ${{matrix.package_json_arch}}
           PACKAGE_JSON_LABEL: ${{matrix.label}}
           ENABLE_MALLOC_HEAP_BREAKDOWN: ${{matrix.ENABLE_MALLOC_HEAP_BREAKDOWN}}
+          ENABLE_SANITIZERS: ${{matrix.ENABLE_SANITIZERS}}
         run: GITHUB_REPOSITORY=$GITHUB_REPOSITORY bash mac-release.bash
       - uses: actions/upload-artifact@v4
         with:
