@@ -26,7 +26,6 @@
 #pragma once
 
 #include "BExport.h"
-#include "BPlatform.h"
 
 #if BUSE(TZONE)
 
@@ -144,7 +143,6 @@ public:
 
     static void setHasDisableTZoneEntitlementCallback(bool (*hasDisableTZoneEntitlement)());
 
-    pas_heap_ref* heapRefForIsoFallback(const TZoneSpecification&);
     pas_heap_ref* heapRefForTZoneType(const TZoneSpecification&);
     pas_heap_ref* heapRefForTZoneTypeDifferentSize(size_t requestedSize, const TZoneSpecification&);
 
@@ -157,11 +155,6 @@ public:
 
     static bool s_tzoneEnabled;
 private:
-    struct IsoFallbackRecord {
-        bmalloc_type typeDescriptor;
-        pas_heap_ref heapRef;
-    };
-
     void init();
 
     BINLINE Mutex& mutex() { return m_mutex; }
@@ -184,12 +177,7 @@ private:
 #endif
     Map<SizeAndAlignment::Value, TZoneTypeBuckets*, SizeAndAlignment> m_heapRefsBySizeAndAlignment;
     Map<TZoneTypeKey, pas_heap_ref*, TZoneTypeKey> m_differentSizedHeapRefs;
-    SegmentedVector<bmalloc_type, 16> m_isoTypeDescriptors;
-    SegmentedVector<pas_heap_ref, 16> m_isoHeapRefs;
 };
-
-void tzoneFreeFast(void*);
-void tzoneFreeWithDebugMalloc(void*);
 
 } } // namespace bmalloc::api
 

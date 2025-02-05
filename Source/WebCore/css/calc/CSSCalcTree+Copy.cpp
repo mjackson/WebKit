@@ -109,9 +109,9 @@ template<typename Op> Child copy(const IndirectNode<Op>& root)
     return makeChild(WTF::apply([](const auto& ...x) { return Op { copy(x)... }; } , *root), root.type);
 }
 
-Anchor::Side copy(const Anchor::Side& root)
+AnchorSide copy(const AnchorSide& root)
 {
-    return WTF::switchOn(root, [&](const auto& root) { return Anchor::Side { copy(root) }; });
+    return WTF::switchOn(root, [&](const auto& root) { return AnchorSide { copy(root) }; });
 }
 
 Child copy(const IndirectNode<Anchor>& anchor)
@@ -137,9 +137,7 @@ Tree copy(const Tree& tree)
     return Tree {
         .root = copy(tree.root),
         .type = tree.type,
-        .category = tree.category,
         .stage = tree.stage,
-        .range = tree.range,
         .requiresConversionData = tree.requiresConversionData
     };
 }

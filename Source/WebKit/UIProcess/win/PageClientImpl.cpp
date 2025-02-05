@@ -164,6 +164,11 @@ IntPoint PageClientImpl::screenToRootView(const IntPoint& point)
     return IntPoint();
 }
 
+IntPoint PageClientImpl::rootViewToScreen(const IntPoint& point)
+{
+    return IntPoint();
+}
+
 IntRect PageClientImpl::rootViewToScreen(const IntRect& rect)
 {
     return IntRect();
@@ -193,13 +198,6 @@ RefPtr<WebPopupMenuProxy> PageClientImpl::createPopupMenuProxy(WebPageProxy& pag
 Ref<WebContextMenuProxy> PageClientImpl::createContextMenuProxy(WebPageProxy& page, ContextMenuContextData&& context, const UserData& userData)
 {
     return WebContextMenuProxyWin::create(page, WTFMove(context), userData);
-}
-#endif
-
-#if ENABLE(INPUT_TYPE_COLOR)
-RefPtr<WebColorPicker> PageClientImpl::createColorPicker(WebPageProxy*, const WebCore::Color& intialColor, const WebCore::IntRect&, ColorControlSupportsAlpha supportsAlpha, Vector<WebCore::Color>&&)
-{
-    return nullptr;
 }
 #endif
 
@@ -303,6 +301,10 @@ void PageClientImpl::didCommitLoadForMainFrame(const String& /* mimeType */, boo
 WebFullScreenManagerProxyClient& PageClientImpl::fullScreenManagerProxyClient()
 {
     return *this;
+}
+
+void PageClientImpl::setFullScreenClientForTesting(std::unique_ptr<WebFullScreenManagerProxyClient>&&)
+{
 }
 
 void PageClientImpl::closeFullScreenManager()

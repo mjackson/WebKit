@@ -291,7 +291,7 @@ std::optional<OpusCookieContents> parseOpusPrivateData(std::span<const uint8_t> 
     //
     //     This is an 8-octet (64-bit) field that allows codec
     //     identification and is human readable.
-    if (strncmp("OpusHead", byteCast<char>(codecPrivateData.data()), 8))
+    if (!spanHasPrefix(codecPrivateData, "OpusHead"_span8))
         return { };
 
     OpusCookieContents cookie;

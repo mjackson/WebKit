@@ -207,6 +207,10 @@ enum class AXProperty : uint16_t {
     KeyShortcuts,
     Language,
     LinethroughColor,
+#if ENABLE(AX_THREAD_TEXT_APIS)
+    ListMarkerLineID,
+    ListMarkerText,
+#endif // ENABLE(AX_THREAD_TEXT_APIS)
     LiveRegionAtomic,
     LiveRegionRelevant,
     LiveRegionStatus,
@@ -297,12 +301,13 @@ using AXPropertyValueVariant = std::variant<std::nullptr_t, Markable<AXID>, Stri
 #if PLATFORM(COCOA)
     , RetainPtr<NSAttributedString>
     , RetainPtr<id>
-#endif
+#endif // PLATFORM(COCOA)
 #if ENABLE(AX_THREAD_TEXT_APIS)
     , RetainPtr<CTFontRef>
     , AXTextRuns
     , TextEmissionBehavior
-#endif
+    , AXTextRunLineID
+#endif // ENABLE(AX_THREAD_TEXT_APIS)
 >;
 using AXPropertyMap = UncheckedKeyHashMap<AXProperty, AXPropertyValueVariant, IntHash<AXProperty>, WTF::StrongEnumHashTraits<AXProperty>>;
 WTF::TextStream& operator<<(WTF::TextStream&, const AXPropertyMap&);
@@ -350,7 +355,7 @@ class AXIsolatedTree : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<AX
     friend WTF::TextStream& operator<<(WTF::TextStream&, AXIsolatedTree&);
     friend void streamIsolatedSubtreeOnMainThread(TextStream&, const AXIsolatedTree&, AXID, const OptionSet<AXStreamOptions>&);
 public:
-    static Ref<AXIsolatedTree> create(AXObjectCache&);
+    static RefPtr<AXIsolatedTree> create(AXObjectCache&);
     // Creates a tree consisting of only the Scrollview and the WebArea objects. This tree is used as a temporary placeholder while the whole tree is being built.
     static Ref<AXIsolatedTree> createEmpty(AXObjectCache&);
     constexpr bool isEmptyContentTree() const { return m_isEmptyContentTree; }

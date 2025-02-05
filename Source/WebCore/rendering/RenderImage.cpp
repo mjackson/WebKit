@@ -127,8 +127,8 @@ void RenderImage::collectSelectionGeometries(Vector<SelectionGeometry>& geometri
         int selectionTop = !containingBlock->writingMode().isBlockFlipped() ? selectionLogicalRect.y() - logicalTop() : logicalBottom() - selectionLogicalRect.maxY();
         int selectionHeight = selectionLogicalRect.height();
         imageRect = IntRect { 0,  selectionTop, logicalWidth(), selectionHeight };
-        isFirstOnLine = !run->previousOnLine();
-        isLastOnLine = !run->nextOnLine();
+        isFirstOnLine = !run->nextLineLeftwardOnLine();
+        isLastOnLine = !run->nextLineRightwardOnLine();
         LogicalSelectionOffsetCaches cache(*containingBlock);
         LayoutUnit leftOffset = containingBlock->logicalLeftSelectionOffset(*containingBlock, LayoutUnit(run->logicalTop()), cache);
         LayoutUnit rightOffset = containingBlock->logicalRightSelectionOffset(*containingBlock, LayoutUnit(run->logicalTop()), cache);
@@ -741,13 +741,11 @@ ImageDrawResult RenderImage::paintIntoRect(PaintInfo& paintInfo, const FloatRect
     if (!img || img->isNull())
         return ImageDrawResult::DidNothing;
 
-    auto* imageElement = dynamicDowncast<HTMLImageElement>(element());
-
     // FIXME: Document when image != img.get().
     auto* image = imageResource().image().get();
 
     ImagePaintingOptions options = {
-        imageElement ? imageElement->compositeOperator() : CompositeOperator::SourceOver,
+        CompositeOperator::SourceOver,
         decodingModeForImageDraw(*image, paintInfo),
         imageOrientation(),
         image ? chooseInterpolationQuality(paintInfo.context(), *image, image, LayoutSize(rect.size())) : InterpolationQuality::Default,
@@ -771,6 +769,7 @@ ImageDrawResult RenderImage::paintIntoRect(PaintInfo& paintInfo, const FloatRect
         imageResource().cachedImage()->addClientWaitingForAsyncDecoding(*this);
 
 #if USE(SYSTEM_PREVIEW)
+    auto* imageElement = dynamicDowncast<HTMLImageElement>(element());
     if (imageElement && imageElement->isSystemPreviewImage() && drawResult == ImageDrawResult::DidDraw && imageElement->document().settings().systemPreviewEnabled())
         theme().paintSystemPreviewBadge(*img, paintInfo, rect);
 #endif

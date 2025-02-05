@@ -450,7 +450,12 @@ IntPoint PageClientImpl::screenToRootView(const IntPoint& point)
     NSPoint windowCoord = [m_view.window convertPointFromScreen:point];
     return IntPoint([m_view convertPoint:windowCoord fromView:nil]);
 }
-    
+
+IntPoint PageClientImpl::rootViewToScreen(const IntPoint& point)
+{
+    return IntPoint([m_view.window convertPointToScreen:[m_view convertPoint:point toView:nil]]);
+}
+
 IntRect PageClientImpl::rootViewToScreen(const IntRect& rect)
 {
     NSRect tempRect = rect;
@@ -519,26 +524,20 @@ void PageClientImpl::didDismissContextMenu()
 
 #endif // ENABLE(CONTEXT_MENUS)
 
-#if ENABLE(INPUT_TYPE_COLOR)
-RefPtr<WebColorPicker> PageClientImpl::createColorPicker(WebPageProxy* page, const WebCore::Color& initialColor, const WebCore::IntRect& rect, ColorControlSupportsAlpha supportsAlpha, Vector<WebCore::Color>&& suggestions)
+RefPtr<WebColorPicker> PageClientImpl::createColorPicker(WebPageProxy& page, const WebCore::Color& initialColor, const WebCore::IntRect& rect, ColorControlSupportsAlpha supportsAlpha, Vector<WebCore::Color>&& suggestions)
 {
-    return WebColorPickerMac::create(&page->colorPickerClient(), initialColor, rect, supportsAlpha, WTFMove(suggestions), m_view);
+    return WebColorPickerMac::create(&page.colorPickerClient(), initialColor, rect, supportsAlpha, WTFMove(suggestions), m_view);
 }
-#endif
 
-#if ENABLE(DATALIST_ELEMENT)
 RefPtr<WebDataListSuggestionsDropdown> PageClientImpl::createDataListSuggestionsDropdown(WebPageProxy& page)
 {
     return WebDataListSuggestionsDropdownMac::create(page, m_view);
 }
-#endif
 
-#if ENABLE(DATE_AND_TIME_INPUT_TYPES)
 RefPtr<WebDateTimePicker> PageClientImpl::createDateTimePicker(WebPageProxy& page)
 {
     return WebDateTimePickerMac::create(page, m_view);
 }
-#endif
 
 Ref<ValidationBubble> PageClientImpl::createValidationBubble(const String& message, const ValidationBubble::Settings& settings)
 {
@@ -661,7 +660,7 @@ bool PageClientImpl::showShareSheet(const ShareDataWithParsedURL& shareData, WTF
 
 void PageClientImpl::wheelEventWasNotHandledByWebCore(const NativeWebWheelEvent& event)
 {
-    if (auto gestureController = m_impl->gestureController())
+    if (RefPtr gestureController = m_impl->gestureController())
         gestureController->wheelEventWasNotHandledByWebCore(event.nativeEvent());
 }
 
@@ -791,6 +790,8 @@ void PageClientImpl::didEndViewGesture()
 
 WebFullScreenManagerProxyClient& PageClientImpl::fullScreenManagerProxyClient()
 {
+    if (m_fullscreenClientForTesting)
+        return *m_fullscreenClientForTesting;
     return *this;
 }
 
@@ -840,7 +841,7 @@ void PageClientImpl::navigationGestureDidBegin()
     m_impl->dismissContentRelativeChildWindowsWithAnimation(true);
 
     if (auto webView = this->webView()) {
-        if (auto* navigationState = NavigationState::fromWebPage(*webView->_page))
+        if (RefPtr navigationState = NavigationState::fromWebPage(Ref { *webView->_page }))
             navigationState->navigationGestureDidBegin();
     }
 }
@@ -848,7 +849,7 @@ void PageClientImpl::navigationGestureDidBegin()
 void PageClientImpl::navigationGestureWillEnd(bool willNavigate, WebBackForwardListItem& item)
 {
     if (auto webView = this->webView()) {
-        if (auto* navigationState = NavigationState::fromWebPage(*webView->_page))
+        if (RefPtr navigationState = NavigationState::fromWebPage(Ref { *webView->_page }))
             navigationState->navigationGestureWillEnd(willNavigate, item);
     }
 }
@@ -856,7 +857,7 @@ void PageClientImpl::navigationGestureWillEnd(bool willNavigate, WebBackForwardL
 void PageClientImpl::navigationGestureDidEnd(bool willNavigate, WebBackForwardListItem& item)
 {
     if (auto webView = this->webView()) {
-        if (auto* navigationState = NavigationState::fromWebPage(*webView->_page))
+        if (RefPtr navigationState = NavigationState::fromWebPage(Ref { *webView->_page }))
             navigationState->navigationGestureDidEnd(willNavigate, item);
     }
 }
@@ -868,7 +869,7 @@ void PageClientImpl::navigationGestureDidEnd()
 void PageClientImpl::willRecordNavigationSnapshot(WebBackForwardListItem& item)
 {
     if (auto webView = this->webView()) {
-        if (auto* navigationState = NavigationState::fromWebPage(*webView->_page))
+        if (RefPtr navigationState = NavigationState::fromWebPage(Ref { *webView->_page }))
             navigationState->willRecordNavigationSnapshot(item);
     }
 }
@@ -876,26 +877,26 @@ void PageClientImpl::willRecordNavigationSnapshot(WebBackForwardListItem& item)
 void PageClientImpl::didRemoveNavigationGestureSnapshot()
 {
     if (auto webView = this->webView()) {
-        if (auto* navigationState = NavigationState::fromWebPage(*webView->_page))
-        navigationState->navigationGestureSnapshotWasRemoved();
+        if (RefPtr navigationState = NavigationState::fromWebPage(Ref { *webView->_page }))
+            navigationState->navigationGestureSnapshotWasRemoved();
     }
 }
 
 void PageClientImpl::didStartProvisionalLoadForMainFrame()
 {
-    if (auto gestureController = m_impl->gestureController())
+    if (RefPtr gestureController = m_impl->gestureController())
         gestureController->didStartProvisionalLoadForMainFrame();
 }
 
 void PageClientImpl::didFirstVisuallyNonEmptyLayoutForMainFrame()
 {
-    if (auto gestureController = m_impl->gestureController())
+    if (RefPtr gestureController = m_impl->gestureController())
         gestureController->didFirstVisuallyNonEmptyLayoutForMainFrame();
 }
 
 void PageClientImpl::didFinishNavigation(API::Navigation* navigation)
 {
-    if (auto gestureController = m_impl->gestureController())
+    if (RefPtr gestureController = m_impl->gestureController())
         gestureController->didFinishNavigation(navigation);
 
     NSAccessibilityPostNotification(NSAccessibilityUnignoredAncestor(m_view), kAXLoadCompleteNotification);
@@ -903,7 +904,7 @@ void PageClientImpl::didFinishNavigation(API::Navigation* navigation)
 
 void PageClientImpl::didFailNavigation(API::Navigation* navigation)
 {
-    if (auto gestureController = m_impl->gestureController())
+    if (RefPtr gestureController = m_impl->gestureController())
         gestureController->didFailNavigation(navigation);
 
     NSAccessibilityPostNotification(NSAccessibilityUnignoredAncestor(m_view), kAXLoadCompleteNotification);
@@ -911,7 +912,7 @@ void PageClientImpl::didFailNavigation(API::Navigation* navigation)
 
 void PageClientImpl::didSameDocumentNavigationForMainFrame(SameDocumentNavigationType type)
 {
-    if (auto gestureController = m_impl->gestureController())
+    if (RefPtr gestureController = m_impl->gestureController())
         gestureController->didSameDocumentNavigationForMainFrame(type);
 }
 

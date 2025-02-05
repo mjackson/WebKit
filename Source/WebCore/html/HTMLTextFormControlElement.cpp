@@ -492,7 +492,7 @@ TextFieldSelectionDirection HTMLTextFormControlElement::computeSelectionDirectio
         return SelectionHasNoDirection;
 
     const VisibleSelection& selection = frame->selection().selection();
-    return selection.isDirectional() ? (selection.isBaseFirst() ? SelectionHasForwardDirection : SelectionHasBackwardDirection) : SelectionHasNoDirection;
+    return selection.directionality() == Directionality::Strong ? (selection.isBaseFirst() ? SelectionHasForwardDirection : SelectionHasBackwardDirection) : SelectionHasNoDirection;
 }
 
 static void setContainerAndOffsetForRange(Node& node, unsigned offset, RefPtr<Node>& containerNode, unsigned& offsetInContainer)
@@ -812,7 +812,7 @@ String HTMLTextFormControlElement::valueWithHardLineBreaks() const
 
     auto skipToNextSoftLineBreakPosition = [&] {
         while (currentLineBox) {
-            auto lastRun = currentLineBox->lastLeafBox();
+            auto lastRun = currentLineBox->lineRightmostLeafBox();
             ASSERT(lastRun);
             // Skip last line.
             currentLineBox.traverseNext();

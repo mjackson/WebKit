@@ -193,6 +193,8 @@ public:
     WEBCORE_EXPORT void deviceOrPageScaleFactorChanged() override;
     void setShouldUpdateRootRelativeScaleFactor(bool value) override { m_shouldUpdateRootRelativeScaleFactor = value; }
 
+    float rootRelativeScaleFactor() { return m_rootRelativeScaleFactor; }
+
     FloatSize pixelAlignmentOffset() const override { return m_pixelAlignmentOffset; }
 
     struct CommitState {
@@ -267,7 +269,7 @@ private:
 
     bool isCommittingChanges() const override { return m_isCommittingChanges; }
     bool isUsingDisplayListDrawing(PlatformCALayer*) const override { return m_usesDisplayListDrawing; }
-#if HAVE(HDR_SUPPORT)
+#if ENABLE(HDR_FOR_IMAGES)
     bool hdrForImagesEnabled() const override { return client().hdrForImagesEnabled(); }
 #endif
 

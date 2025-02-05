@@ -125,7 +125,7 @@ static constexpr ASCIILiteral textEncodingNameBlocklist[] = { "UTF-7"_s, "BOCU-1
 static bool isUndesiredAlias(ASCIILiteral alias)
 {
     // Reject aliases with version numbers that are supported by some back-ends (such as "ISO_2022,locale=ja,version=0" in ICU).
-    if (strchr(alias.characters(), ','))
+    if (contains(alias.span(), ','))
         return true;
     // 8859_1 is known to (at least) ICU, but other browsers don't support this name - and having it caused a compatibility
     // problem, see bug 43554.
@@ -136,7 +136,7 @@ static bool isUndesiredAlias(ASCIILiteral alias)
 
 static void addToTextEncodingNameMap(ASCIILiteral alias, ASCIILiteral name) WTF_REQUIRES_LOCK(encodingRegistryLock)
 {
-    ASSERT(strlen(alias) <= maxEncodingNameLength);
+    ASSERT(alias.length() <= maxEncodingNameLength);
     if (isUndesiredAlias(alias))
         return;
     ASCIILiteral atomName = textEncodingNameMap->get(name);

@@ -168,7 +168,7 @@ CString CodeBlock::hashAsStringIfPossible() const
 {
     if (hasHash() || isSafeToComputeHash())
         return toCString(hash());
-    return "<no-hash>";
+    return "<no-hash>"_s;
 }
 
 void CodeBlock::dumpAssumingJITType(PrintStream& out, JITType jitType) const

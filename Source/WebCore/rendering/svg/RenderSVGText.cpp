@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006-2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2006-2025 Apple Inc. All rights reserved.
  * Copyright (C) 2006 Alexander Kellett <lypanov@kde.org>
  * Copyright (C) 2006 Oliver Hunt <ojh16@student.canterbury.ac.nz>
  * Copyright (C) 2007 Nikolas Zimmermann <zimmermann@kde.org>
@@ -365,7 +365,7 @@ void RenderSVGText::layout()
         else if (auto* rootObject = lineageOfType<RenderSVGRoot>(*this).first())
             isLayoutSizeChanged = rootObject->isLayoutSizeChanged();
 
-        if (m_needsTextMetricsUpdate || isLayoutSizeChanged) {
+        if (m_needsTextMetricsUpdate || isLayoutSizeChanged || m_needsTransformUpdate) {
             // If the root layout size changed (eg. window size changes) or the transform to the root
             // context has changed then recompute the on-screen font size.
             updateFontInAllDescendants(*this);
@@ -481,7 +481,7 @@ void RenderSVGText::layoutCharactersInTextBoxes(const InlineIterator::InlineBoxI
 {
     auto descendants = parent->descendants();
 
-    for (auto child = descendants.begin(), end = descendants.end(); child != end; child.traverseNextOnLineSkippingChildren()) {
+    for (auto child = descendants.begin(), end = descendants.end(); child != end; child.traverseLineRightwardOnLineSkippingChildren()) {
         if (auto* textBox = dynamicDowncast<InlineIterator::SVGTextBox>(*child)) {
             characterLayout.layoutInlineTextBox(*textBox);
             continue;
@@ -910,12 +910,12 @@ void RenderSVGText::paintInlineChildren(PaintInfo& paintInfo, const LayoutPoint&
             contextStack.append({ const_cast<RenderElement&>(*renderer), paintInfo, SVGRenderingContext::SaveGraphicsContext });
 
             if (!contextStack.last().isRenderingPrepared() || renderer->hasSelfPaintingLayer()) {
-                box.traverseNextOnLineSkippingChildren();
+                box.traverseLineRightwardOnLineSkippingChildren();
                 continue;
             }
         }
 
-        box.traverseNextOnLine();
+        box.traverseLineRightwardOnLine();
     }
 
     while (!contextStack.isEmpty())
@@ -1011,5 +1011,10 @@ SVGRootInlineBox* RenderSVGText::legacyRootBox() const
     return downcast<SVGRootInlineBox>(RenderSVGBlock::legacyRootBox());
 }
 
+bool RenderSVGText::isObjectBoundingBoxValid() const
+{
+    // If we don't have any line boxes, then consider the bbox invalid.
+    return legacyRootBox();
+}
 
 }

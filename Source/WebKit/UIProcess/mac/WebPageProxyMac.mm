@@ -42,6 +42,7 @@
 #import "PageClient.h"
 #import "PageClientImplMac.h"
 #import "PlatformFontInfo.h"
+#import "PlatformWritingToolsUtilities.h"
 #import "RemoteLayerTreeHost.h"
 #import "RemoteLayerTreeNode.h"
 #import "TextChecker.h"
@@ -68,8 +69,10 @@
 #import <mach-o/dyld.h>
 #import <pal/spi/mac/NSApplicationSPI.h>
 #import <pal/spi/mac/NSMenuSPI.h>
+#import <wtf/FileSystem.h>
 #import <wtf/ProcessPrivilege.h>
 #import <wtf/cocoa/RuntimeApplicationChecksCocoa.h>
+#import <wtf/text/cf/StringConcatenateCF.h>
 
 #define MESSAGE_CHECK(assertion, connection) MESSAGE_CHECK_BASE(assertion, connection)
 #define MESSAGE_CHECK_COMPLETION(assertion, connection, completion) MESSAGE_CHECK_COMPLETION_BASE(assertion, connection, completion)
@@ -517,11 +520,7 @@ static NSString *pathToPDFOnDisk(const String& suggestedFilename)
 
     NSFileManager *fileManager = [NSFileManager defaultManager];
     if ([fileManager fileExistsAtPath:path]) {
-        NSString *pathTemplatePrefix = [pdfDirectoryPath stringByAppendingPathComponent:@"XXXXXX-"];
-        NSString *pathTemplate = [pathTemplatePrefix stringByAppendingString:suggestedFilename];
-        CString pathTemplateRepresentation = [pathTemplate fileSystemRepresentation];
-
-        int fd = mkstemps(pathTemplateRepresentation.mutableSpanIncludingNullTerminator().data(), pathTemplateRepresentation.length() - strlen([pathTemplatePrefix fileSystemRepresentation]) + 1);
+        auto [fd, pathTemplateRepresentation] = FileSystem::createTemporaryFileInDirectory(pdfDirectoryPath, makeString('-', suggestedFilename));
         if (fd < 0) {
             WTFLogAlways("Cannot create PDF file in the temporary directory (%s).", suggestedFilename.utf8().data());
             return nil;
@@ -918,6 +917,25 @@ void WebPageProxy::handleContextMenuCopySubject(const String& preferredMIMEType)
 #endif // ENABLE(IMAGE_ANALYSIS_ENHANCEMENTS)
 
 #if ENABLE(WRITING_TOOLS)
+
+bool WebPageProxy::shouldEnableWritingToolsRequestedTool(WebCore::WritingTools::RequestedTool tool) const
+{
+    WTRequestedTool requestedTool = convertToPlatformRequestedTool(tool);
+
+    if (requestedTool == WTRequestedToolIndex)
+        return true;
+
+    auto& editorState = this->editorState();
+    bool editorStateIsContentEditable = editorState.isContentEditable;
+
+    if (requestedTool == WTRequestedToolCompose)
+        return editorStateIsContentEditable;
+
+    if (editorStateIsContentEditable)
+        return editorState.hasPostLayoutData() && !editorState.postLayoutData->paragraphContextForCandidateRequest.isEmpty();
+
+    return true;
+}
 
 void WebPageProxy::handleContextMenuWritingTools(WebCore::WritingTools::RequestedTool tool)
 {

@@ -55,6 +55,20 @@ static String processBaseURLString(StringView input, BaseURLStringType type)
     return URLPatternUtilities::escapePatternString(input);
 }
 
+// https://urlpattern.spec.whatwg.org/#hostname-pattern-is-an-ipv6-address
+static bool isHostnamePatternIPv6(StringView hostname)
+{
+    if (hostname.length() < 2)
+        return false;
+    if (hostname[0] == '[')
+        return true;
+    if (hostname[0] == '{' && hostname[1] == '[')
+        return true;
+    if (hostname[0] == '\\' && hostname[1] == '[')
+        return true;
+    return false;
+}
+
 URLPattern::URLPattern() = default;
 
 // https://urlpattern.spec.whatwg.org/#process-a-urlpatterninit
@@ -163,20 +177,19 @@ static ExceptionOr<URLPatternInit> processInit(URLPatternInit&& init, BaseURLStr
     if (!init.pathname.isNull()) {
         result.pathname = init.pathname;
 
-        if (!baseURL.isNull() && baseURL.hasOpaquePath() && !isAbsolutePathname(result.pathname, type)) {
+        if (!baseURL.isNull() && !baseURL.hasOpaquePath() && !isAbsolutePathname(result.pathname, type)) {
             auto baseURLPath = processBaseURLString(baseURL.path(), type);
             size_t slashIndex = baseURLPath.reverseFind('/');
 
             if (slashIndex != notFound)
                 result.pathname = makeString(StringView { baseURLPath }.left(slashIndex + 1), result.pathname);
-
-            auto pathResult = processPathname(result.pathname, baseURL.protocol(), type);
-
-            if (pathResult.hasException())
-                return pathResult.releaseException();
-
-            result.pathname = pathResult.releaseReturnValue();
         }
+        auto pathResult = processPathname(result.pathname, result.protocol, type);
+
+        if (pathResult.hasException())
+            return pathResult.releaseException();
+
+        result.pathname = pathResult.releaseReturnValue();
     }
 
     if (!init.search.isNull()) {
@@ -214,8 +227,11 @@ ExceptionOr<Ref<URLPattern>> URLPattern::create(ScriptExecutionContext& context,
         if (baseURL.isNull() && init.protocol.isEmpty())
             return Exception { ExceptionCode::TypeError, "Relative constructor string must have additional baseURL argument."_s };
         init.baseURL = WTFMove(baseURL);
-    } else if (std::holds_alternative<URLPatternInit>(input))
+    } else if (std::holds_alternative<URLPatternInit>(input)) {
+        if (!baseURL.isNull())
+            return Exception { ExceptionCode::TypeError, "Constructor with a URLPatternInit should have a null baseURL argument."_s };
         init = std::get<URLPatternInit>(input);
+    }
 
     auto maybeProcessedInit = processInit(WTFMove(init), BaseURLStringType::Pattern);
 
@@ -307,7 +323,7 @@ ExceptionOr<void> URLPattern::compileAllComponents(ScriptExecutionContext& conte
         return maybePasswordComponent.releaseException();
     m_passwordComponent = maybePasswordComponent.releaseReturnValue();
 
-    auto hostnameEncodingCallbackType = URL::isIPv6Address(processedInit.hostname) ? EncodingCallbackType::IPv6Host : EncodingCallbackType::Host;
+    auto hostnameEncodingCallbackType = isHostnamePatternIPv6(processedInit.hostname) ? EncodingCallbackType::IPv6Host : EncodingCallbackType::Host;
     auto maybeHostnameComponent = URLPatternUtilities::URLPatternComponent::compile(vm, processedInit.hostname, hostnameEncodingCallbackType, URLPatternUtilities::URLPatternStringOptions { .delimiterCodepoint = "."_s });
     if (maybeHostnameComponent.hasException())
         return maybeHostnameComponent.releaseException();
@@ -352,91 +368,16 @@ static inline void matchHelperAssignInputsFromURL(const URL& input, String& prot
     hash = input.fragmentIdentifier().toString();
 }
 
-// https://urlpattern.spec.whatwg.org/#process-protocol-for-init
-static ExceptionOr<String> processProtocolForInit(const String& protocol)
+static inline void matchHelperAssignInputsFromInit(const URLPatternInit& input, String& protocol, String& username, String& password, String& hostname, String& port, String& pathname, String& search, String& hash)
 {
-    // canonicalizeProtocol does both steps.
-    return canonicalizeProtocol(protocol, BaseURLStringType::URL);
-}
-
-// https://urlpattern.spec.whatwg.org/#process-username-for-init
-static ExceptionOr<String> processUsernameForInit(const String& username)
-{
-    return canonicalizeUsername(username, BaseURLStringType::URL);
-}
-
-// https://urlpattern.spec.whatwg.org/#process-password-for-init
-static ExceptionOr<String> processPasswordForInit(const String& password)
-{
-    return canonicalizePassword(password, BaseURLStringType::URL);
-}
-
-// https://urlpattern.spec.whatwg.org/#process-hostname-for-init
-static ExceptionOr<String> processHostnameForInit(const String& hostname)
-{
-    return canonicalizeHostname(hostname, BaseURLStringType::URL);
-}
-
-// https://urlpattern.spec.whatwg.org/#process-port-for-init
-static ExceptionOr<String> processPortForInit(const String& port, const String& protocol)
-{
-    std::optional<StringView> protocolValue;
-    if (!protocol.isNull())
-        protocolValue = StringView { protocol };
-    return canonicalizePort(port, protocolValue, BaseURLStringType::URL);
-}
-
-// https://urlpattern.spec.whatwg.org/#process-search-for-init
-static ExceptionOr<String> processSearchForInit(const String& search)
-{
-    // canonicalizeSearch does both steps.
-    return canonicalizeSearch(search, BaseURLStringType::URL);
-}
-
-// https://urlpattern.spec.whatwg.org/#process-hash-for-init
-static ExceptionOr<String> processHashForInit(const String& hash)
-{
-    // canonicalizeHash does both steps.
-    return canonicalizeHash(hash, BaseURLStringType::URL);
-}
-
-static inline ExceptionOr<void> matchHelperAssignInputsFromInit(const URLPatternInit& input, String& protocol, String& username, String& password, String& hostname, String& port, String& pathname, String& search, String& hash)
-{
-    auto canonicalizedProtocol = processProtocolForInit(input.protocol);
-    if (canonicalizedProtocol.hasException())
-        return canonicalizedProtocol.releaseException();
-    auto canonicalizedUsername = processUsernameForInit(input.username);
-    if (canonicalizedUsername.hasException())
-        return canonicalizedUsername.releaseException();
-    auto canonicalizedPassword = processPasswordForInit(input.password);
-    if (canonicalizedPassword.hasException())
-        return canonicalizedPassword.releaseException();
-    auto canonicalizedHostname = processHostnameForInit(input.hostname);
-    if (canonicalizedHostname.hasException())
-        return canonicalizedHostname.releaseException();
-    auto canonicalizedPort = processPortForInit(input.port, canonicalizedProtocol.returnValue());
-    if (canonicalizedPort.hasException())
-        return canonicalizedPort.releaseException();
-    auto canonicalizedPathname = processPathname(input.pathname, canonicalizedProtocol.returnValue(), BaseURLStringType::URL);
-    if (canonicalizedPathname.hasException())
-        return canonicalizedPathname.releaseException();
-    auto canonicalizedSearch = processSearchForInit(input.search);
-    if (canonicalizedSearch.hasException())
-        return canonicalizedSearch.releaseException();
-    auto canonicalizedHash = processHashForInit(input.hash);
-    if (canonicalizedHash.hasException())
-        return canonicalizedHash.releaseException();
-
-    protocol = canonicalizedProtocol.releaseReturnValue();
-    username = canonicalizedUsername.releaseReturnValue();
-    password = canonicalizedPassword.releaseReturnValue();
-    hostname = canonicalizedHostname.releaseReturnValue();
-    port = canonicalizedPort.releaseReturnValue();
-    pathname = canonicalizedPathname.releaseReturnValue();
-    search = canonicalizedSearch.releaseReturnValue();
-    hash = canonicalizedHash.releaseReturnValue();
-
-    return { };
+    protocol = input.protocol;
+    username = input.username;
+    password = input.password;
+    hostname = input.hostname;
+    port = input.port;
+    pathname = input.pathname;
+    search = input.search;
+    hash = input.hash;
 }
 
 // https://urlpattern.spec.whatwg.org/#url-pattern-match
@@ -462,10 +403,7 @@ ExceptionOr<std::optional<URLPatternResult>> URLPattern::match(ScriptExecutionCo
             if (maybeResult.hasException())
                 return true;
 
-            URLPatternInit processedInit = maybeResult.releaseReturnValue();
-            auto parsingResult = matchHelperAssignInputsFromInit(processedInit, protocol, username, password, hostname, port, pathname, search, hash);
-            if (parsingResult.hasException())
-                return parsingResult.releaseException();
+            matchHelperAssignInputsFromInit(maybeResult.releaseReturnValue(), protocol, username, password, hostname, port, pathname, search, hash);
             return false;
         }, [&](const String& value) -> ExceptionOr<bool> {
             URL baseURL;

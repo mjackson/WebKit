@@ -63,7 +63,6 @@ class DrawFocusRingPath;
 class DrawFocusRingRects;
 class DrawGlyphs;
 class DrawDecomposedGlyphs;
-class DrawDisplayListItems;
 class DrawImageBuffer;
 class DrawLine;
 class DrawLinesForText;
@@ -143,7 +142,6 @@ using Item = std::variant
     , DrawFocusRingRects
     , DrawGlyphs
     , DrawDecomposedGlyphs
-    , DrawDisplayListItems
     , DrawImageBuffer
     , DrawLine
     , DrawLinesForText
@@ -215,7 +213,7 @@ struct ApplyItemResult {
 };
 
 enum class ReplayOption : uint8_t {
-    FlushImagesAndWaitForCompletion = 1 << 0,
+    FlushAcceleratedImagesAndWaitForCompletion = 1 << 0,
 };
 
 enum class AsTextFlag : uint8_t {

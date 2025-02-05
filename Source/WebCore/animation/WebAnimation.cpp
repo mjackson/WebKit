@@ -228,7 +228,6 @@ void WebAnimation::setEffectInternal(RefPtr<AnimationEffect>&& newEffect, bool d
         oldEffect->setAnimation(nullptr);
         if (!doNotRemoveFromTimeline && previousTarget && previousTarget != newTarget)
             previousTarget->animationWasRemoved(*this);
-        updateRelevance();
     }
 
     if (m_effect) {
@@ -236,6 +235,8 @@ void WebAnimation::setEffectInternal(RefPtr<AnimationEffect>&& newEffect, bool d
         if (newTarget && previousTarget != newTarget)
             newTarget->animationWasAdded(*this);
     }
+
+    updateRelevance();
 
     InspectorInstrumentation::didSetWebAnimationEffect(*this);
 }
@@ -1479,7 +1480,7 @@ void WebAnimation::autoAlignStartTime()
 
     RefPtr scrollTimeline = dynamicDowncast<ScrollTimeline>(m_timeline);
     ASSERT(scrollTimeline);
-    auto interval = scrollTimeline->intervalForAttachmentRange(m_timelineRange);
+    auto interval = scrollTimeline->intervalForAttachmentRange(range());
 
     // 5. Let start offset be the resolved timeline time corresponding to the start of the animation
     // attachment range. In the case of view timelines, it requires a calculation based on the proportion
@@ -1890,10 +1891,10 @@ void WebAnimation::setBindingsRangeStart(TimelineRangeValue&& rangeStartValue)
         return;
 
     auto rangeStart = SingleTimelineRange::parse(WTFMove(rangeStartValue), keyframeEffect->target(), SingleTimelineRange::Type::Start);
-    if (rangeStart == m_timelineRange.start)
+    if (m_specifiedRangeStart == rangeStart)
         return;
 
-    m_timelineRange.start = rangeStart;
+    m_specifiedRangeStart = WTFMove(rangeStart);
     if (RefPtr effect = this->effect())
         effect->animationRangeDidChange();
 }
@@ -1905,7 +1906,27 @@ void WebAnimation::setBindingsRangeEnd(TimelineRangeValue&& rangeEndValue)
         return;
 
     auto rangeEnd = SingleTimelineRange::parse(WTFMove(rangeEndValue), keyframeEffect->target(), SingleTimelineRange::Type::End);
-    if (rangeEnd == m_timelineRange.end)
+    if (m_specifiedRangeEnd == rangeEnd)
+        return;
+
+    m_specifiedRangeEnd = WTFMove(rangeEnd);
+    if (RefPtr effect = this->effect())
+        effect->animationRangeDidChange();
+}
+
+void WebAnimation::setRangeStart(SingleTimelineRange rangeStart)
+{
+    if (m_timelineRange.start == rangeStart)
+        return;
+
+    m_timelineRange.start = rangeStart;
+    if (RefPtr effect = this->effect())
+        effect->animationRangeDidChange();
+}
+
+void WebAnimation::setRangeEnd(SingleTimelineRange rangeEnd)
+{
+    if (m_timelineRange.end == rangeEnd)
         return;
 
     m_timelineRange.end = rangeEnd;
@@ -1913,21 +1934,23 @@ void WebAnimation::setBindingsRangeEnd(TimelineRangeValue&& rangeEndValue)
         effect->animationRangeDidChange();
 }
 
-void WebAnimation::setRange(TimelineRange range)
+const TimelineRange& WebAnimation::range()
 {
-    if (m_timelineRange == range)
-        return;
+    if (RefPtr keyframeEffect = dynamicDowncast<KeyframeEffect>(m_effect)) {
+        if (m_specifiedRangeStart)
+            m_timelineRange.start = SingleTimelineRange::range(*m_specifiedRangeStart, SingleTimelineRange::Type::Start, nullptr, keyframeEffect->target());
+        if (m_specifiedRangeEnd)
+            m_timelineRange.end = SingleTimelineRange::range(*m_specifiedRangeEnd, SingleTimelineRange::Type::End, nullptr, keyframeEffect->target());
+    }
 
-    m_timelineRange = range;
-    if (RefPtr effect = this->effect())
-        effect->animationRangeDidChange();
+    return m_timelineRange;
 }
 
 void WebAnimation::progressBasedTimelineSourceDidChangeMetrics()
 {
     ASSERT(m_timeline && m_timeline->isProgressBased());
     RefPtr effect = m_effect;
-    if (effect && !m_timelineRange.isDefault())
+    if (effect && !range().isDefault())
         effect->animationProgressBasedTimelineSourceDidChangeMetrics();
 }
 

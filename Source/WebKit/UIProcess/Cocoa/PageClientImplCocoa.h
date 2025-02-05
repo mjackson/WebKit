@@ -70,6 +70,10 @@ public:
 
     void themeColorWillChange() final;
     void themeColorDidChange() final;
+#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
+    void spatialBackdropSourceWillChange() final;
+    void spatialBackdropSourceDidChange() final;
+#endif
     void underPageBackgroundColorWillChange() final;
     void underPageBackgroundColorDidChange() final;
     void sampledPageTopColorWillChange() final;
@@ -147,11 +151,18 @@ public:
 
     void processDidUpdateThrottleState() final;
 
+private:
+#if ENABLE(FULLSCREEN_API)
+    void setFullScreenClientForTesting(std::unique_ptr<WebFullScreenManagerProxyClient>&&) final;
+#endif
 protected:
     RetainPtr<WKWebView> webView() const { return m_webView.get(); }
 
     WeakObjCPtr<WKWebView> m_webView;
     std::unique_ptr<WebCore::AlternativeTextUIController> m_alternativeTextUIController;
+#if ENABLE(FULLSCREEN_API)
+    std::unique_ptr<WebFullScreenManagerProxyClient> m_fullscreenClientForTesting;
+#endif
 };
 
 } // namespace WebKit

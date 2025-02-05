@@ -374,7 +374,7 @@ void GraphicsContextCG::drawNativeImageInternal(NativeImage& nativeImage, const 
     auto oldBlendMode = blendMode();
     setCGBlendMode(context, options.compositeOperator(), options.blendMode());
 
-#if HAVE(HDR_SUPPORT)
+#if ENABLE(HDR_FOR_IMAGES)
     auto oldHeadroom = CGContextGetEDRTargetHeadroom(context);
     if (auto headroom = options.headroom(); headroom > 1)
         CGContextSetEDRTargetHeadroom(context, headroom);
@@ -406,7 +406,7 @@ void GraphicsContextCG::drawNativeImageInternal(NativeImage& nativeImage, const 
         CGContextSetShouldAntialias(context, wasAntialiased);
 #endif
         setCGBlendMode(context, oldCompositeOperator, oldBlendMode);
-#if HAVE(HDR_SUPPORT)
+#if ENABLE(HDR_FOR_IMAGES)
         CGContextSetEDRTargetHeadroom(context, oldHeadroom);
 #endif
     }
@@ -1140,12 +1140,10 @@ void GraphicsContextCG::setCGStyle(const std::optional<GraphicsStyle>& style, bo
         },
         [&] (const GraphicsColorMatrix& colorMatrix) {
 #if HAVE(CGSTYLE_COLORMATRIX_BLUR)
-            CGColorMatrixStyle colorMatrixStyle = { 1, { 0 } };
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
-            for (size_t i = 0; i < colorMatrix.values.size(); ++i)
-                colorMatrixStyle.matrix[i] = colorMatrix.values[i];
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
-            auto style = adoptCF(CGStyleCreateColorMatrix(&colorMatrixStyle));
+            CGColorMatrixStyle cgColorMatrix = { 1, { 0 } };
+            for (auto [dst, src] : zippedRange(cgColorMatrix.matrix, colorMatrix.values))
+                dst = src;
+            auto style = adoptCF(CGStyleCreateColorMatrix(&cgColorMatrix));
             CGContextSetStyle(context, style.get());
 #else
             ASSERT_NOT_REACHED();
@@ -1382,81 +1380,16 @@ FloatRect GraphicsContextCG::roundToDevicePixels(const FloatRect& rect) const
     return cgRoundToDevicePixelsNonIdentity(deviceMatrix, rect);
 }
 
-void GraphicsContextCG::drawLinesForText(const FloatPoint& point, float thickness, const DashArray& widths, bool printing, bool doubleLines, StrokeStyle strokeStyle)
+void GraphicsContextCG::drawLinesForText(const FloatPoint& origin, float thickness, std::span<const FloatSegment> lineSegments, bool isPrinting, bool doubleLines, StrokeStyle strokeStyle)
 {
-    if (!widths.size())
+    auto [rects, color] = computeRectsAndStrokeColorForLinesForText(origin, thickness, lineSegments, isPrinting, doubleLines, strokeStyle);
+    if (rects.isEmpty())
         return;
-
-    Color localStrokeColor(strokeColor());
-
-    FloatRect bounds = computeLineBoundsAndAntialiasingModeForText(FloatRect(point, FloatSize(widths.last(), thickness)), printing, localStrokeColor);
-    if (bounds.isEmpty())
-        return;
-
-    bool fillColorIsNotEqualToStrokeColor = fillColor() != localStrokeColor;
-
-    Vector<CGRect, 4> dashBounds;
-    ASSERT(!(widths.size() % 2));
-    dashBounds.reserveInitialCapacity(dashBounds.size() / 2);
-
-    float dashWidth = 0;
-    switch (strokeStyle) {
-    case StrokeStyle::DottedStroke:
-        dashWidth = bounds.height();
-        break;
-    case StrokeStyle::DashedStroke:
-        dashWidth = 2 * bounds.height();
-        break;
-    case StrokeStyle::SolidStroke:
-    default:
-        break;
-    }
-
-    for (size_t i = 0; i < widths.size(); i += 2) {
-        auto left = widths[i];
-        auto width = widths[i+1] - widths[i];
-        if (!dashWidth)
-            dashBounds.append(CGRectMake(bounds.x() + left, bounds.y(), width, bounds.height()));
-        else {
-            auto doubleWidth = 2 * dashWidth;
-            auto quotient = static_cast<int>(left / doubleWidth);
-            auto startOffset = left - quotient * doubleWidth;
-            auto effectiveLeft = left + startOffset;
-            auto startParticle = static_cast<int>(std::floor(effectiveLeft / doubleWidth));
-            auto endParticle = static_cast<int>(std::ceil((left + width) / doubleWidth));
-
-            for (auto j = startParticle; j < endParticle; ++j) {
-                auto actualDashWidth = dashWidth;
-                auto dashStart = bounds.x() + j * doubleWidth;
-
-                if (j == startParticle && startOffset > 0 && startOffset < dashWidth) {
-                    actualDashWidth -= startOffset;
-                    dashStart += startOffset;
-                }
-
-                if (j == endParticle - 1) {
-                    auto remainingWidth = left + width - (j * doubleWidth);
-                    if (remainingWidth < dashWidth)
-                        actualDashWidth = remainingWidth;
-                }
-
-                dashBounds.append(CGRectMake(dashStart, bounds.y(), actualDashWidth, bounds.height()));
-            }
-        }
-    }
-
-    if (doubleLines) {
-        // The space between double underlines is equal to the height of the underline
-        for (size_t i = 0; i < widths.size(); i += 2)
-            dashBounds.append(CGRectMake(bounds.x() + widths[i], bounds.y() + 2 * bounds.height(), widths[i+1] - widths[i], bounds.height()));
-    }
-
-    if (fillColorIsNotEqualToStrokeColor)
-        setCGFillColor(platformContext(), localStrokeColor);
-
-    CGContextFillRects(platformContext(), dashBounds.data(), dashBounds.size());
-
-    if (fillColorIsNotEqualToStrokeColor)
+    bool changeFillColor = fillColor() != color;
+    if (changeFillColor)
+        setCGFillColor(platformContext(), color);
+    CGContextFillRects(platformContext(), rects.data(), rects.size());
+    if (changeFillColor)
         setCGFillColor(platformContext(), fillColor());
 }
 

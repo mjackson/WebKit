@@ -234,6 +234,7 @@
 #include "ShadowRealmConstructorInlines.h"
 #include "ShadowRealmObjectInlines.h"
 #include "ShadowRealmPrototypeInlines.h"
+#include "SourceCodeKey.h"
 #include "StrictEvalActivationInlines.h"
 #include "StringConstructorInlines.h"
 #include "StringIteratorPrototypeInlines.h"
@@ -2690,6 +2691,7 @@ void JSGlobalObject::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     thisObject->m_callbackConstructorStructure.visit(visitor);
     thisObject->m_callbackFunctionStructure.visit(visitor);
     thisObject->m_callbackObjectStructure.visit(visitor);
+    thisObject->m_rawJSONObjectStructure.visit(visitor);
 #if JSC_OBJC_API_ENABLED
     thisObject->m_objcCallbackFunctionStructure.visit(visitor);
     thisObject->m_objcWrapperObjectStructure.visit(visitor);
@@ -3440,6 +3442,59 @@ void JSGlobalObject::clearWeakTickets()
     WaiterListManager::singleton().unregister(this);
     // Clear the rest tickets safely.
     vm().deferredWorkTimer->cancelPendingWorkSafe(this);
+}
+
+FunctionExecutable* JSGlobalObject::tryGetCachedFunctionExecutableForFunctionConstructor(const Identifier& name, const SourceCode& source, LexicallyScopedFeatures lexicallyScopedFeatures, FunctionConstructionMode functionConstructionMode)
+{
+    if (!defaultCodeGenerationMode().isEmpty())
+        return nullptr;
+
+    auto* executable = m_executableForCachedFunctionExecutableForFunctionConstructor.get();
+    if (!executable)
+        return nullptr;
+
+    auto* unlinkedExecutable = executable->unlinkedExecutable();
+    if (name != unlinkedExecutable->name())
+        return nullptr;
+
+    if (lexicallyScopedFeatures != unlinkedExecutable->lexicallyScopedFeatures())
+        return nullptr;
+
+    auto storedSource = executable->source();
+    if (source.firstLine() != storedSource.firstLine())
+        return nullptr;
+
+    int offset = functionConstructorPrefix(functionConstructionMode).length() + name.length();
+    if ((source.startColumn().zeroBasedInt() + offset) != storedSource.startColumn().zeroBasedInt())
+        return nullptr;
+
+    if (source.view().substring(offset) != storedSource.view())
+        return nullptr;
+
+    RefPtr storedProvider = executable->source().provider();
+    RefPtr provider = source.provider();
+    if (storedProvider->startPosition() != provider->startPosition())
+        return nullptr;
+
+    if (storedProvider->sourceOrigin() != provider->sourceOrigin())
+        return nullptr;
+
+    if (storedProvider->sourceURL() != provider->sourceURL())
+        return nullptr;
+
+    return executable;
+}
+
+void JSGlobalObject::cachedFunctionExecutableForFunctionConstructor(FunctionExecutable* executable)
+{
+    if (!defaultCodeGenerationMode().isEmpty())
+        return;
+    if (executable->source().provider()->couldBeTainted())
+        return;
+    auto* unlinkedExecutable = executable->unlinkedExecutable();
+    if (unlinkedExecutable->features() & NoEvalCacheFeature)
+        return;
+    m_executableForCachedFunctionExecutableForFunctionConstructor.set(vm(), executable);
 }
 
 } // namespace JSC

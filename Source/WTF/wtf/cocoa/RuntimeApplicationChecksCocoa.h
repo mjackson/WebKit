@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2023 Apple Inc. All rights reserved.
+ * Copyright (C) 2009-2025 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -153,9 +153,6 @@ WTF_EXPORT_PRIVATE void setApplicationBundleIdentifierOverride(const String&);
 WTF_EXPORT_PRIVATE String applicationBundleIdentifier();
 WTF_EXPORT_PRIVATE void clearApplicationBundleIdentifierTestingOverride();
 
-WTF_EXPORT_PRIVATE void setPresentingApplicationBundleIdentifier(const String&);
-WTF_EXPORT_PRIVATE const String& presentingApplicationBundleIdentifier();
-
 namespace CocoaApplication {
 
 WTF_EXPORT_PRIVATE bool isIBooks();
@@ -172,7 +169,6 @@ WTF_EXPORT_PRIVATE bool isAppleMail();
 WTF_EXPORT_PRIVATE bool isMiniBrowser();
 WTF_EXPORT_PRIVATE bool isQuickenEssentials();
 WTF_EXPORT_PRIVATE bool isSafari();
-WTF_EXPORT_PRIVATE bool isSolidStateNetworksDownloader();
 WTF_EXPORT_PRIVATE bool isVersions();
 WTF_EXPORT_PRIVATE bool isHRBlock();
 WTF_EXPORT_PRIVATE bool isEpsonSoftwareUpdater();
@@ -243,14 +239,12 @@ using WTF::clearApplicationBundleIdentifierTestingOverride;
 using WTF::disableAllSDKAlignedBehaviors;
 using WTF::enableAllSDKAlignedBehaviors;
 using WTF::linkedOnOrAfterSDKWithBehavior;
-using WTF::presentingApplicationBundleIdentifier;
 using WTF::processIsExtension;
 using WTF::SDKAlignedBehavior;
 using WTF::sdkAlignedBehaviors;
 using WTF::SDKAlignedBehaviors;
 using WTF::setApplicationBundleIdentifier;
 using WTF::setApplicationBundleIdentifierOverride;
-using WTF::setPresentingApplicationBundleIdentifier;
 using WTF::setProcessIsExtension;
 using WTF::setSDKAlignedBehaviors;
 

@@ -36,9 +36,11 @@
 #import "_WKErrorRecoveryAttempting.h"
 #import "_WKRemoteObjectInterfaceInternal.h"
 #import <objc/runtime.h>
+#import <wtf/ObjCRuntimeExtras.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/Scope.h>
 #import <wtf/SetForScope.h>
+#import <wtf/cocoa/NSStringExtras.h>
 #import <wtf/cocoa/TypeCastsCocoa.h>
 #import <wtf/spi/cocoa/SecuritySPI.h>
 #import <wtf/text/CString.h>
@@ -152,9 +154,9 @@ static void encodeInvocationArguments(WKRemoteObjectEncoder *encoder, NSInvocati
     ASSERT(firstArgument <= argumentCount);
 
     for (NSUInteger i = firstArgument; i < argumentCount; ++i) {
-        const char* type = [methodSignature getArgumentTypeAtIndex:i];
+        auto type = unsafeSpan([methodSignature getArgumentTypeAtIndex:i]);
 
-        switch (*type) {
+        switch (type[0]) {
         // double
         case 'd': {
             double value;
@@ -288,13 +290,14 @@ static void encodeInvocationArguments(WKRemoteObjectEncoder *encoder, NSInvocati
 
         // struct
         case '{':
-            if (!strcmp(type, @encode(NSRange))) {
+            if (equalSpans(type, objcEncode<NSRange>())) {
                 NSRange value;
                 [invocation getArgument:&value atIndex:i];
 
                 encodeToObjectStream(encoder, [NSValue valueWithRange:value]);
                 break;
-            } else if (!strcmp(type, @encode(CGSize))) {
+            }
+            if (equalSpans(type, objcEncode<CGSize>())) {
                 CGSize value;
                 [invocation getArgument:&value atIndex:i];
 
@@ -305,7 +308,7 @@ static void encodeInvocationArguments(WKRemoteObjectEncoder *encoder, NSInvocati
             FALLTHROUGH;
 
         default:
-            [NSException raise:NSInvalidArgumentException format:@"Unsupported invocation argument type '%s'", type];
+            [NSException raise:NSInvalidArgumentException format:@"Unsupported invocation argument type '%.*s'", static_cast<int>(type.size()), type.data()];
         }
     }
 }
@@ -806,16 +809,18 @@ static const HashSet<CFTypeRef> alwaysAllowedClasses()
     return classes.get();
 }
 
-NO_RETURN static void crashWithClassName(const char* className)
+template<typename CharacterType>
+NO_RETURN static void crashWithClassName(std::span<const CharacterType> className) requires(sizeof(CharacterType) == 1)
 {
     std::array<uint64_t, 6> values { 0, 0, 0, 0, 0, 0 };
-    strncpy(reinterpret_cast<char*>(values.data()), className, sizeof(values));
+    auto valuesAsBytes  = asMutableByteSpan(std::span { values });
+    memcpySpan(valuesAsBytes, className.first(valuesAsBytes.size()));
     CRASH_WITH_INFO(values[0], values[1], values[2], values[3], values[4], values[5]);
 }
 
 NO_RETURN static void crashWithClassName(Class objectClass)
 {
-    crashWithClassName(NSStringFromClass(objectClass).UTF8String);
+    crashWithClassName(span(NSStringFromClass(objectClass)));
 }
 
 static void checkIfClassIsAllowed(WKRemoteObjectDecoder *decoder, Class objectClass)
@@ -859,9 +864,9 @@ static void decodeInvocationArguments(WKRemoteObjectDecoder *decoder, NSInvocati
     ASSERT(firstArgument <= argumentCount);
 
     for (NSUInteger i = firstArgument; i < argumentCount; ++i) {
-        const char* type = [methodSignature getArgumentTypeAtIndex:i];
+        auto type = unsafeSpan([methodSignature getArgumentTypeAtIndex:i]);
 
-        switch (*type) {
+        switch (type[0]) {
         // double
         case 'd': {
             double value = [decodeObjectFromObjectStream(decoder, { (__bridge CFTypeRef)[NSNumber class] }) doubleValue];
@@ -966,11 +971,12 @@ static void decodeInvocationArguments(WKRemoteObjectDecoder *decoder, NSInvocati
 
         // struct
         case '{':
-            if (!strcmp(type, @encode(NSRange))) {
+            if (equalSpans(type, objcEncode<NSRange>())) {
                 NSRange value = [decodeObjectFromObjectStream(decoder, { (__bridge CFTypeRef)[NSValue class] }) rangeValue];
                 [invocation setArgument:&value atIndex:i];
                 break;
-            } else if (!strcmp(type, @encode(CGSize))) {
+            }
+            if (equalSpans(type, objcEncode<CGSize>())) {
                 CGSize value;
                 value.width = [decodeObjectFromObjectStream(decoder, { (__bridge CFTypeRef)[NSNumber class] }) doubleValue];
                 value.height = [decodeObjectFromObjectStream(decoder, { (__bridge CFTypeRef)[NSNumber class] }) doubleValue];
@@ -980,7 +986,7 @@ static void decodeInvocationArguments(WKRemoteObjectDecoder *decoder, NSInvocati
             FALLTHROUGH;
 
         default:
-            [NSException raise:NSInvalidArgumentException format:@"Unsupported invocation argument type '%s' for argument %zu", type, (unsigned long)i];
+            [NSException raise:NSInvalidArgumentException format:@"Unsupported invocation argument type '%.*s' for argument %zu", static_cast<int>(type.size()), type.data(), (unsigned long)i];
         }
     }
 }
@@ -1050,7 +1056,7 @@ static id decodeObject(WKRemoteObjectDecoder *decoder)
 
     Class objectClass = objc_lookUpClass(className.data());
     if (!objectClass)
-        crashWithClassName(className.data());
+        crashWithClassName(className.span());
 
     validateClass(decoder, objectClass);
 

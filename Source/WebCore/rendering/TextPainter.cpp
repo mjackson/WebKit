@@ -2,6 +2,7 @@
  * (C) 1999 Lars Knoll (knoll@kde.org)
  * (C) 2000 Dirk Mueller (mueller@kde.org)
  * Copyright (C) 2004-2022 Apple Inc. All rights reserved.
+ * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -127,7 +128,10 @@ void TextPainter::paintTextOrEmphasisMarks(const FontCascade& font, const TextRu
         m_context.drawText(font, textRun, textOrigin, startOffset, endOffset);
     else {
         // Replaying back a whole cached glyph run to the GraphicsContext.
-        m_context.drawDisplayListItems(m_glyphDisplayList->items(), m_glyphDisplayList->resourceHeap(), ControlFactory::shared(), textOrigin);
+        m_context.translate(textOrigin);
+        DisplayList::Replayer replayer(m_context, m_glyphDisplayList->items(), m_glyphDisplayList->resourceHeap(), ControlFactory::shared());
+        replayer.replay();
+        m_context.translate(-textOrigin);
     }
     m_glyphDisplayList = nullptr;
 }

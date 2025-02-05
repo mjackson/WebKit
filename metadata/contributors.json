@@ -4026,6 +4026,14 @@
    },
    {
       "emails" : [
+         "jean.haberer@apple.com",
+         "jean.haberer@hotmail.fr"
+      ],
+      "github" : "jeanhbr",
+      "name" : "Jean Haberer"
+   },
+   {
+      "emails" : [
          "jean-yves.avenard@apple.com",
          "jya@apple.com",
          "jyavenard@gmail.com"
@@ -5490,12 +5498,14 @@
    },
    {
       "emails" : [
+         "mario@igalia.com",
+         "msanchez@igalia.com",
          "mario@webkit.org",
          "mario@endlessm.com",
-         "mario.prada@samsung.com",
-         "msanchez@igalia.com"
+         "mario.prada@samsung.com"
       ],
       "expertise" : "WebKitGTK, Accessibility, WebKit2, Epiphany/WebKit Contributor",
+      "github" : "mariospr",
       "name" : "Mario Sanchez Prada",
       "nicks" : [
          "msanchez"

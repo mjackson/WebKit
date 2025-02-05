@@ -357,8 +357,8 @@ void RemoteLayerTreePropertyApplier::applyPropertiesToLayer(CALayer *layer, Remo
             playerLayer = [(WKVideoView*)layerTreeNode->uiView() playerLayer];
 #endif
         ASSERT([playerLayer respondsToSelector:@selector(setVideoGravity:)]);
-        if ([playerLayer respondsToSelector:@selector(setVideoGravity:)])
-            [(WebAVPlayerLayer*)playerLayer setVideoGravity:convertMediaPlayerToAVLayerVideoGravity(properties.videoGravity)];
+        if (RetainPtr webAVPlayerLayer = dynamic_objc_cast<WebAVPlayerLayer>(playerLayer))
+            [webAVPlayerLayer setVideoGravity:convertMediaPlayerToAVLayerVideoGravity(properties.videoGravity)];
     }
 #endif
 
@@ -366,7 +366,7 @@ void RemoteLayerTreePropertyApplier::applyPropertiesToLayer(CALayer *layer, Remo
         auto contentsFormat = properties.contentsFormat;
         if (NSString *formatString = contentsFormatString(contentsFormat))
             [layer setContentsFormat:formatString];
-#if HAVE(HDR_SUPPORT)
+#if ENABLE(PIXEL_FORMAT_RGBA16F)
         if (contentsFormat == ContentsFormat::RGBA16F) {
             [layer setWantsExtendedDynamicRangeContent:true];
             [layer setToneMapMode:CAToneMapModeIfSupported];
@@ -376,9 +376,9 @@ void RemoteLayerTreePropertyApplier::applyPropertiesToLayer(CALayer *layer, Remo
 
 #if HAVE(CORE_MATERIAL)
     if (properties.changedProperties & LayerChange::AppleVisualEffectChanged) {
-        if ([layer isKindOfClass:PAL::getMTMaterialLayerClass()]) {
+        if (RetainPtr materialLayer = dynamic_objc_cast<MTMaterialLayer>(layer)) {
             if (RetainPtr recipe = materialRecipeForAppleVisualEffect(properties.appleVisualEffect))
-                [(MTMaterialLayer *)layer setRecipe:recipe.get()];
+                [materialLayer setRecipe:recipe.get()];
         }
     }
 #endif
@@ -411,7 +411,7 @@ void RemoteLayerTreePropertyApplier::applyProperties(RemoteLayerTreeNode& node, 
         if (node.visibleRect() && node.shouldBeSeparated()) {
             node.layer().separated = true;
             configureSeparatedLayer(node.layer());
-        } else
+        } else if (node.layer().isSeparated)
             node.layer().separated = false;
     }
 #endif

@@ -193,7 +193,7 @@ public:
 
     std::optional<SharedPreferencesForWebProcess> sharedPreferencesForWebProcess() const { return m_sharedPreferencesForWebProcess; }
     SharedPreferencesForWebProcess sharedPreferencesForWebProcessValue() const { return m_sharedPreferencesForWebProcess; }
-    std::optional<SharedPreferencesForWebProcess> updateSharedPreferencesForWebProcess(const WebPreferencesStore&);
+    std::optional<SharedPreferencesForWebProcess> updateSharedPreferences(const WebPreferencesStore&);
     void didSyncSharedPreferencesForWebProcessWithNetworkProcess(uint64_t syncedPreferencesVersion);
 #if ENABLE(GPU_PROCESS)
     void didSyncSharedPreferencesForWebProcessWithGPUProcess(uint64_t syncedPreferencesVersion);
@@ -251,6 +251,10 @@ public:
     Vector<WeakPtr<RemotePageProxy>> remotePages() const;
 
     void activePagesDomainsForTesting(CompletionHandler<void(Vector<String>&&)>&&); // This is what is reported to ActivityMonitor.
+
+#if ENABLE(NOTIFY_BLOCKING)
+    void getNotifyStateForTesting(const String&, CompletionHandler<void(std::optional<uint64_t>)>&&);
+#endif
 
     bool isRunningServiceWorkers() const { return !!m_serviceWorkerInformation; }
     bool isStandaloneServiceWorkerProcess() const { return isRunningServiceWorkers() && !pageCount(); }
@@ -542,7 +546,8 @@ public:
 
 #if ENABLE(CONTENT_EXTENSIONS)
     void requestResourceMonitorRuleLists();
-    void setResourceMonitorRuleListsIfRequired(WebCompiledContentRuleList*);
+    void setResourceMonitorRuleListsIfRequired(RefPtr<WebCompiledContentRuleList>);
+    void setResourceMonitorRuleLists(RefPtr<WebCompiledContentRuleList>, CompletionHandler<void()>&&);
 #endif
 
 private:
@@ -661,9 +666,7 @@ private:
 
     void updateRuntimeStatistics();
     void enableMediaPlaybackIfNecessary();
-
-    void updateSharedWorkerProcessAssertion();
-    void updateServiceWorkerProcessAssertion();
+    void sharedPreferencesDidChange();
 
 #if ENABLE(LOGD_BLOCKING_IN_WEBCONTENT)
     void setupLogStream(uint32_t pid, IPC::StreamServerConnectionHandle&&, LogStreamIdentifier, CompletionHandler<void(IPC::Semaphore& streamWakeUpSemaphore, IPC::Semaphore& streamClientWaitSemaphore)>&&);
@@ -774,10 +777,10 @@ private:
         RemoteWorkerInitializationData initializationData;
         RefPtr<ProcessThrottler::Activity> activity;
         WeakHashSet<WebProcessProxy> clientProcesses;
-        bool hasBackgroundProcessing { false };
     };
     std::optional<RemoteWorkerInformation> m_serviceWorkerInformation;
     std::optional<RemoteWorkerInformation> m_sharedWorkerInformation;
+    bool m_hasServiceWorkerBackgroundProcessing { false };
 
     struct AudibleMediaActivity {
         Ref<ProcessAssertion> assertion;

@@ -245,6 +245,7 @@ public:
     virtual void scroll(const IntSize&, const IntRect&, const IntRect&) = 0;
 
     virtual IntPoint screenToRootView(const IntPoint&) const = 0;
+    virtual IntPoint rootViewToScreen(const IntPoint&) const = 0;
     virtual IntRect rootViewToScreen(const IntRect&) const = 0;
     virtual IntPoint accessibilityScreenToRootView(const IntPoint&) const = 0;
     virtual IntRect rootViewToAccessibilityScreen(const IntRect&) const = 0;
@@ -287,7 +288,10 @@ public:
     virtual void themeColorChanged() const { }
     virtual void pageExtendedBackgroundColorDidChange() const { }
     virtual void sampledPageTopColorChanged() const { }
-    
+#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
+    virtual void spatialBackdropSourceChanged() const { }
+#endif
+
 #if ENABLE(APP_HIGHLIGHTS)
     virtual WebCore::HighlightVisibility appHighlightsVisiblility() const { return HighlightVisibility::Hidden; };
 #endif
@@ -355,18 +359,12 @@ public:
     virtual IntDegrees deviceOrientation() const = 0;
 #endif
 
-#if ENABLE(INPUT_TYPE_COLOR)
     virtual RefPtr<ColorChooser> createColorChooser(ColorChooserClient&, const Color&) = 0;
-#endif
 
-#if ENABLE(DATALIST_ELEMENT)
     virtual RefPtr<DataListSuggestionPicker> createDataListSuggestionPicker(DataListSuggestionsClient&) = 0;
     virtual bool canShowDataListSuggestionLabels() const = 0;
-#endif
 
-#if ENABLE(DATE_AND_TIME_INPUT_TYPES)
     virtual RefPtr<DateTimeChooser> createDateTimeChooser(DateTimeChooserClient&) = 0;
-#endif
 
     virtual void setTextIndicator(const TextIndicatorData&) const = 0;
 
@@ -547,11 +545,6 @@ public:
     virtual FloatSize minimumWindowSize() const { return FloatSize(100, 100); };
 
     virtual bool isEmptyChromeClient() const { return false; }
-
-    virtual String plugInStartLabelTitle(const String& mimeType) const { UNUSED_PARAM(mimeType); return String(); }
-    virtual String plugInStartLabelSubtitle(const String& mimeType) const { UNUSED_PARAM(mimeType); return String(); }
-    virtual String plugInExtraStyleSheet() const { return String(); }
-    virtual String plugInExtraScript() const { return String(); }
 
     virtual void didAssociateFormControls(const Vector<RefPtr<Element>>&, LocalFrame&) { };
     virtual bool shouldNotifyOnFormChanges() { return false; };

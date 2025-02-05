@@ -47,6 +47,7 @@
 #import <WebCore/Scrollbar.h>
 #import <WebCore/WebAccessibilityObjectWrapperMac.h>
 #import <pal/spi/cocoa/NSAccessibilitySPI.h>
+#import <wtf/ObjCRuntimeExtras.h>
 #import <wtf/cocoa/VectorCocoa.h>
 
 namespace ax = WebCore::Accessibility;
@@ -163,9 +164,9 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
     static std::atomic<unsigned> screenHeight { 0 };
     if (UNLIKELY(!didInitialize)) {
         didInitialize = true;
-        callOnMainRunLoopAndWait([] {
+        callOnMainRunLoopAndWait([protectedSelf = retainPtr(self)] {
             if (!WebCore::AXObjectCache::accessibilityEnabled())
-                WebCore::AXObjectCache::enableAccessibility();
+                [protectedSelf enableAccessibilityForAllProcesses];
 
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
             if (WebCore::AXObjectCache::isIsolatedTreeEnabled())
@@ -311,7 +312,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_BEGIN
 ALLOW_DEPRECATED_IMPLEMENTATIONS_END
 {
     WebCore::FloatPoint pageOverlayPoint;
-    if ([parameter isKindOfClass:[NSValue class]] && !strcmp([(NSValue *)parameter objCType], @encode(NSPoint)))
+    if ([parameter isKindOfClass:[NSValue class]] && nsValueHasObjCType<NSPoint>((NSValue *)parameter))
         pageOverlayPoint = [self convertScreenPointToRootView:[(NSValue *)parameter pointValue]];
     else
         return nil;

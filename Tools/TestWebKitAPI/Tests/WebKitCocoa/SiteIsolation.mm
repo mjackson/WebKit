@@ -3779,8 +3779,9 @@ TEST(SiteIsolation, ProcessReuse)
 TEST(SiteIsolation, ProcessTerminationReason)
 {
     HTTPServer server({
-        { "/example"_s, { "<iframe src='https://webkit.org/iframe'></iframe>"_s } },
-        { "/iframe"_s, { "hi"_s } }
+        { "/example"_s, { "<iframe id='onlyiframe' src='https://webkit.org/iframe'></iframe>"_s } },
+        { "/iframe"_s, { "hi"_s } },
+        { "/iframe2"_s, { "hi"_s } }
     }, HTTPServer::Protocol::HttpsProxy);
 
     RetainPtr configuration = server.httpsProxyConfiguration();
@@ -3797,9 +3798,13 @@ TEST(SiteIsolation, ProcessTerminationReason)
     Util::runFor(0.1_s);
     EXPECT_EQ(server.totalRequests(), 2u);
 
+    [webView evaluateJavaScript:@"onlyiframe.src='https://webkit.org/iframe2'" completionHandler:nil];
+    while (server.totalRequests() < 3u)
+        Util::spinRunLoop();
+
     kill([webView mainFrame].info._processIdentifier, 9);
     [navigationDelegate waitForDidFinishNavigation];
-    EXPECT_EQ(server.totalRequests(), 4u);
+    EXPECT_EQ(server.totalRequests(), 5u);
 }
 
 TEST(SiteIsolation, FormSubmit)
@@ -3857,6 +3862,23 @@ TEST(SiteIsolation, ContentRuleListFrameURL)
 
     [webView evaluateJavaScript:@"var iframe = document.createElement('iframe');document.body.appendChild(iframe);iframe.src = 'https://webkit.org/alert_when_loaded'" completionHandler:nil];
     EXPECT_WK_STREQ([webView _test_waitForAlert], "loaded second iframe");
+}
+
+TEST(SiteIsolation, ReuseConfiguration)
+{
+    HTTPServer server({
+        { "/example"_s, { "<iframe src='https://webkit.org/iframe'></iframe>"_s } },
+        { "/iframe"_s, { "hi"_s } }
+    }, HTTPServer::Protocol::HttpsProxy);
+    RetainPtr configuration = server.httpsProxyConfiguration();
+
+    auto [webView1, navigationDelegate1] = siteIsolatedViewAndDelegate(configuration);
+    [webView1 loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
+    [navigationDelegate1 waitForDidFinishNavigation];
+
+    auto [webView2, navigationDelegate2] = siteIsolatedViewAndDelegate(configuration);
+    [webView2 loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
+    [navigationDelegate2 waitForDidFinishNavigation];
 }
 
 }

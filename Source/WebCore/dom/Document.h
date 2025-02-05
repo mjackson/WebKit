@@ -27,6 +27,7 @@
 
 #pragma once
 
+#include "AsyncNodeDeletionQueue.h"
 #include "Color.h"
 #include "ContainerNode.h"
 #include "ContextDestructionObserverInlines.h"
@@ -47,6 +48,7 @@
 #include "RenderPtr.h"
 #include "ReportingClient.h"
 #include "ScriptExecutionContext.h"
+#include "SpatialBackdropSource.h"
 #include "StringWithDirection.h"
 #include "Supplementable.h"
 #include "TextIndicator.h"
@@ -159,6 +161,7 @@ class HTMLCanvasElement;
 class HTMLCollection;
 class HTMLDialogElement;
 class HTMLDocument;
+class HTMLDocumentParser;
 class HTMLElement;
 class HTMLFrameOwnerElement;
 class HTMLHeadElement;
@@ -465,11 +468,16 @@ public:
 
     ALWAYS_INLINE void decrementReferencingNodeCount(unsigned count = 1)
     {
+        ASSERT_WITH_SECURITY_IMPLICATION(m_referencingNodeCount >= count);
+
         m_referencingNodeCount -= count;
         if (!m_referencingNodeCount && !refCount()) {
-            if (deletionHasBegun())
-                return;
-            setStateFlag(StateFlag::HasStartedDeletion);
+            // Restore the the final overlooking ref that deref() maintains.
+            m_refCountAndParentBit = s_refCountIncrement;
+
+#if ASSERT_ENABLED
+            setStateFlag(StateFlag::DeletionHasBegun);
+#endif
             delete this;
         }
     }
@@ -517,6 +525,7 @@ public:
     WEBCORE_EXPORT DOMImplementation& implementation();
     
     Element* documentElement() const { return m_documentElement.get(); }
+    AsyncNodeDeletionQueue& asyncNodeDeletionQueue() { return m_asyncNodeDeletionQueue; };
     inline RefPtr<Element> protectedDocumentElement() const; // Defined in DocumentInlines.h.
     static constexpr ptrdiff_t documentElementMemoryOffset() { return OBJECT_OFFSETOF(Document, m_documentElement); }
 
@@ -705,6 +714,9 @@ public:
 
     WEBCORE_EXPORT bool useElevatedUserInterfaceLevel() const;
     WEBCORE_EXPORT bool useDarkAppearance(const RenderStyle*) const;
+#if ENABLE(DARK_MODE_CSS)
+    OptionSet<ColorScheme> resolvedColorScheme(const RenderStyle*) const;
+#endif
 
     OptionSet<StyleColorOptions> styleColorOptions(const RenderStyle*) const;
     CompositeOperator compositeOperatorForBackgroundColor(const Color&, const RenderObject&) const;
@@ -874,7 +886,8 @@ public:
     DocumentParser* parser() const { return m_parser.get(); }
     inline RefPtr<DocumentParser> protectedParser() const; // Defined in DocumentInlines.h.
     ScriptableDocumentParser* scriptableDocumentParser() const;
-    
+    HTMLDocumentParser* htmlDocumentParser() const;
+
     bool printing() const { return m_printing; }
     void setPrinting(bool p) { m_printing = p; }
 
@@ -904,6 +917,10 @@ public:
 #endif
 
     const Color& themeColor();
+
+#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
+    const std::optional<SpatialBackdropSource>& spatialBackdropSource() const { return m_cachedSpatialBackdropSource; }
+#endif
 
     void setTextColor(const Color& color) { m_textColor = color; }
     const Color& textColor() const { return m_textColor; }
@@ -1037,15 +1054,16 @@ public:
         DOMNodeRemovedFromDocument = 1 << 3,
         DOMNodeInsertedIntoDocument = 1 << 4,
         DOMCharacterDataModified = 1 << 5,
-        Scroll = 1 << 6,
-        ForceWillBegin = 1 << 7,
-        ForceChanged = 1 << 8,
-        ForceDown = 1 << 8,
-        ForceUp = 1 << 10,
-        FocusIn = 1 << 11,
-        FocusOut = 1 << 12,
-        CSSTransition = 1 << 13,
-        CSSAnimation = 1 << 14,
+        OverflowChanged = 1 << 6,
+        Scroll = 1 << 7,
+        ForceWillBegin = 1 << 8,
+        ForceChanged = 1 << 9,
+        ForceDown = 1 << 10,
+        ForceUp = 1 << 11,
+        FocusIn = 1 << 12,
+        FocusOut = 1 << 13,
+        CSSTransition = 1 << 14,
+        CSSAnimation = 1 << 15,
     };
 
     bool hasListenerType(ListenerType listenerType) const { return m_listenerTypes.contains(listenerType); }
@@ -1093,6 +1111,10 @@ public:
     void processReferrerPolicy(const String& policy, ReferrerPolicySource);
 
     void metaElementThemeColorChanged(HTMLMetaElement&);
+
+#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
+    void spatialBackdropLinkElementChanged();
+#endif
 
 #if ENABLE(DARK_MODE_CSS)
     void processColorScheme(const String& colorScheme);
@@ -1225,8 +1247,9 @@ public:
 
     WEBCORE_EXPORT Document* parentDocument() const;
     RefPtr<Document> protectedParentDocument() const { return parentDocument(); }
-    WEBCORE_EXPORT Document& topDocument() const;
-    Ref<Document> protectedTopDocument() const { return topDocument(); }
+
+    WEBCORE_EXPORT Document* mainFrameDocument() const;
+    RefPtr<Document> protectedMainFrameDocument() const { return mainFrameDocument(); }
     WEBCORE_EXPORT bool isTopDocument() const;
 
     WEBCORE_EXPORT RefPtr<Document> localTopDocument() const;
@@ -1376,6 +1399,7 @@ public:
 
     void queueTaskToDispatchEvent(TaskSource, Ref<Event>&&);
     void queueTaskToDispatchEventOnWindow(TaskSource, Ref<Event>&&);
+    void enqueueOverflowEvent(Ref<Event>&&);
     void dispatchPageshowEvent(PageshowEventPersistence);
     void dispatchPagehideEvent(PageshowEventPersistence);
     void dispatchPageswapEvent(bool canTriggerCrossDocumentViewTransition, RefPtr<NavigationActivation>&&);
@@ -1608,8 +1632,6 @@ public:
 
     Ref<FontFaceSet> fonts();
 
-    void ensurePlugInsInjectedScript(DOMWrapperWorld&);
-
     void setVisualUpdatesAllowedByClient(bool);
 
     std::optional<Vector<uint8_t>> wrapCryptoKey(const Vector<uint8_t>&) final;
@@ -1827,7 +1849,7 @@ public:
     enum class ImplicitRenderBlocking : bool { No, Yes };
     void blockRenderingOn(Element&, ImplicitRenderBlocking = ImplicitRenderBlocking::No);
     void unblockRenderingOn(Element&);
-    void processInternalResourceLinks(HTMLAnchorElement* = nullptr);
+    void processInternalResourceLinks(Element* = nullptr);
 
 #if ENABLE(VIDEO)
     WEBCORE_EXPORT void forEachMediaElement(const Function<void(HTMLMediaElement&)>&);
@@ -1852,9 +1874,6 @@ public:
     PaintWorklet& ensurePaintWorklet();
     PaintWorkletGlobalScope* paintWorkletGlobalScopeForName(const String& name);
     void setPaintWorkletGlobalScopeForName(const String& name, Ref<PaintWorkletGlobalScope>&&);
-
-    WEBCORE_EXPORT bool isRunningUserScripts() const;
-    WEBCORE_EXPORT void setAsRunningUserScripts();
 
     WEBCORE_EXPORT bool hitTest(const HitTestRequest&, HitTestResult&);
     bool hitTest(const HitTestRequest&, const HitTestLocation&, HitTestResult&);
@@ -1973,6 +1992,9 @@ public:
     ResourceMonitor& resourceMonitor();
     Ref<ResourceMonitor> protectedResourceMonitor();
     ResourceMonitor* parentResourceMonitorIfExists();
+
+    bool shouldSkipResourceMonitorThrottling() const { return m_shouldSkipResourceMonitorThrottling; }
+    void setShouldSkipResourceMonitorThrottling(bool flag) { m_shouldSkipResourceMonitorThrottling = flag; }
 #endif
 
     Ref<Calculation::RandomKeyMap> randomKeyMap() const;
@@ -2056,6 +2078,11 @@ private:
     WeakPtr<HTMLMetaElement, WeakPtrImplWithEventTargetData> determineActiveThemeColorMetaElement();
     void themeColorChanged();
 
+#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
+    std::optional<SpatialBackdropSource> determineActiveSpatialBackdropSource() const;
+    void spatialBackdropSourceChanged();
+#endif
+
     void invalidateAccessKeyCacheSlowCase();
     void buildAccessKeyCache();
 
@@ -2078,6 +2105,7 @@ private:
         Suspension     = 1 << 2,
         RenderBlocking = 1 << 3,
     };
+    friend WTF::TextStream& operator<<(WTF::TextStream&, const VisualUpdatesPreventedReason&);
     static constexpr OptionSet<VisualUpdatesPreventedReason> visualUpdatePreventReasonsClearedByTimer() { return { VisualUpdatesPreventedReason::ReadyState, VisualUpdatesPreventedReason::RenderBlocking }; }
     static constexpr OptionSet<VisualUpdatesPreventedReason> visualUpdatePreventRequiresLayoutMilestones() { return { VisualUpdatesPreventedReason::Client, VisualUpdatesPreventedReason::ReadyState }; }
 
@@ -2140,11 +2168,13 @@ private:
     void updateCaptureAccordingToMutedState();
     MediaProducerMediaStateFlags computeCaptureState() const;
 #endif
-    bool isTopDocumentLegacy() const { return &topDocument() == this; }
+    bool isTopDocumentLegacy() const { return mainFrameDocument() == this; }
     void securityOriginDidChange() final;
 
     Ref<DocumentSyncData> syncData() { return m_syncData.get(); }
     void populateDocumentSyncDataForNewlyConstructedDocument(ProcessSyncDataType);
+
+    bool mainFrameDocumentHasHadUserInteraction() const;
 
     const Ref<const Settings> m_settings;
 
@@ -2153,6 +2183,7 @@ private:
     RefPtr<LocalDOMWindow> m_domWindow;
     WeakPtr<Document, WeakPtrImplWithEventTargetData> m_contextDocument;
     OptionSet<ParserContentPolicy> m_parserContentPolicy;
+    AsyncNodeDeletionQueue m_asyncNodeDeletionQueue;
 
     RefPtr<CachedResourceLoader> m_cachedResourceLoader;
     RefPtr<DocumentParser> m_parser;
@@ -2212,6 +2243,10 @@ private:
     std::optional<Vector<WeakPtr<HTMLMetaElement, WeakPtrImplWithEventTargetData>>> m_metaThemeColorElements;
     WeakPtr<HTMLMetaElement, WeakPtrImplWithEventTargetData> m_activeThemeColorMetaElement;
     Color m_applicationManifestThemeColor;
+
+#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
+    std::optional<SpatialBackdropSource> m_cachedSpatialBackdropSource;
+#endif
 
     Color m_textColor { Color::black };
     Color m_linkColor;
@@ -2602,7 +2637,6 @@ private:
     bool m_sawElementsInKnownNamespaces { false };
     bool m_isSrcdocDocument { false };
 
-    bool m_hasInjectedPlugInsScript { false };
     bool m_renderTreeBeingDestroyed { false };
     bool m_hasPreparedForDestruction { false };
 
@@ -2684,6 +2718,7 @@ private:
 
 #if ENABLE(CONTENT_EXTENSIONS)
     RefPtr<ResourceMonitor> m_resourceMonitor;
+    bool m_shouldSkipResourceMonitorThrottling { false };
 #endif
 
     mutable RefPtr<Calculation::RandomKeyMap> m_randomKeyMap;
@@ -2694,6 +2729,7 @@ private:
 Element* eventTargetElementForDocument(Document*);
 
 WTF::TextStream& operator<<(WTF::TextStream&, const Document&);
+WTF::TextStream& operator<<(WTF::TextStream&, const Document::VisualUpdatesPreventedReason&);
 
 } // namespace WebCore
 

@@ -110,7 +110,6 @@ colspan
 command
 commandfor
 compact
-composite
 content
 contenteditable
 controls
@@ -405,6 +404,7 @@ src
 srcdoc
 srclang
 srcset
+stagemode
 standby
 start
 step

@@ -678,6 +678,11 @@ bool WKPreferencesGetMainContentUserGestureOverrideEnabled(WKPreferencesRef pref
     return toImpl(preferencesRef)->mainContentUserGestureOverrideEnabled();
 }
 
+bool WKPreferencesGetVerifyUserGestureInUIProcessEnabled(WKPreferencesRef preferencesRef)
+{
+    return toImpl(preferencesRef)->verifyWindowOpenUserGestureFromUIProcess();
+}
+
 void WKPreferencesSetManagedMediaSourceLowThreshold(WKPreferencesRef preferencesRef, double threshold)
 {
     toImpl(preferencesRef)->setManagedMediaSourceLowThreshold(threshold);
@@ -1126,16 +1131,6 @@ void WKPreferencesSetMediaDevicesEnabled(WKPreferencesRef preferencesRef, bool e
 bool WKPreferencesGetMediaDevicesEnabled(WKPreferencesRef preferencesRef)
 {
     return toImpl(preferencesRef)->mediaDevicesEnabled();
-}
-
-void WKPreferencesSetMediaStreamEnabled(WKPreferencesRef preferencesRef, bool enabled)
-{
-    toImpl(preferencesRef)->setMediaStreamEnabled(enabled);
-}
-
-bool WKPreferencesGetMediaStreamEnabled(WKPreferencesRef preferencesRef)
-{
-    return toImpl(preferencesRef)->mediaStreamEnabled();
 }
 
 void WKPreferencesSetPeerConnectionEnabled(WKPreferencesRef preferencesRef, bool enabled)
@@ -2114,6 +2109,15 @@ void WKPreferencesSetServerTimingEnabled(WKPreferencesRef, bool)
 }
 
 bool WKPreferencesGetServerTimingEnabled(WKPreferencesRef)
+{
+    return true;
+}
+
+void WKPreferencesSetMediaStreamEnabled(WKPreferencesRef preferencesRef, bool enabled)
+{
+}
+
+bool WKPreferencesGetMediaStreamEnabled(WKPreferencesRef preferencesRef)
 {
     return true;
 }

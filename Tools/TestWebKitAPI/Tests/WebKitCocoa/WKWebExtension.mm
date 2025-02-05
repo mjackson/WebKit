@@ -2111,9 +2111,32 @@ TEST(WKWebExtension, LoadFromDirectory)
     auto extension = adoptNS([[WKWebExtension alloc] _initWithResourceBaseURL:extensionURL error:nullptr]);
     auto manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
 
-    [manager loadAndRun];
+    [manager load];
+    [manager runUntilTestMessage:@"Load Tab"];
 
-    EXPECT_NS_EQUAL(manager.get().yieldMessage, @"Load Tab");
+    auto *urlRequest = server.requestWithLocalhost();
+    [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
+    [manager.get().defaultTab.webView loadRequest:urlRequest];
+
+    [manager run];
+}
+
+TEST(WKWebExtension, LoadFromDirectoryWithoutTrailingSlash)
+{
+    TestWebKitAPI::HTTPServer server({
+        { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, ""_s } }
+    }, TestWebKitAPI::HTTPServer::Protocol::Http);
+
+    auto *extensionURLAbsoluteString = [NSBundle.test_resourcesBundle URLForResource:@"web-extension" withExtension:@""].absoluteString;
+    auto *extensionURLAbsoluteStringWithoutTrailingSlash = [extensionURLAbsoluteString substringToIndex:extensionURLAbsoluteString.length - 1];
+    auto *extensionURL = [NSURL URLWithString:extensionURLAbsoluteStringWithoutTrailingSlash];
+    EXPECT_NOT_NULL(extensionURL);
+
+    auto extension = adoptNS([[WKWebExtension alloc] _initWithResourceBaseURL:extensionURL error:nullptr]);
+    auto manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
+
+    [manager load];
+    [manager runUntilTestMessage:@"Load Tab"];
 
     auto *urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
@@ -2134,9 +2157,8 @@ TEST(WKWebExtension, LoadFromZipArchiveWithoutParentDirectory)
     auto extension = adoptNS([[WKWebExtension alloc] _initWithResourceBaseURL:extensionURL error:nullptr]);
     auto manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
 
-    [manager loadAndRun];
-
-    EXPECT_NS_EQUAL(manager.get().yieldMessage, @"Load Tab");
+    [manager load];
+    [manager runUntilTestMessage:@"Load Tab"];
 
     auto *urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
@@ -2157,9 +2179,8 @@ TEST(WKWebExtension, LoadFromZipArchiveWithParentDirectory)
     auto extension = adoptNS([[WKWebExtension alloc] _initWithResourceBaseURL:extensionURL error:nullptr]);
     auto manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
 
-    [manager loadAndRun];
-
-    EXPECT_NS_EQUAL(manager.get().yieldMessage, @"Load Tab");
+    [manager load];
+    [manager runUntilTestMessage:@"Load Tab"];
 
     auto *urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
@@ -2180,9 +2201,8 @@ TEST(WKWebExtension, LoadFromChromeExtensionArchive)
     auto extension = adoptNS([[WKWebExtension alloc] _initWithResourceBaseURL:extensionURL error:nullptr]);
     auto manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
 
-    [manager loadAndRun];
-
-    EXPECT_NS_EQUAL(manager.get().yieldMessage, @"Load Tab");
+    [manager load];
+    [manager runUntilTestMessage:@"Load Tab"];
 
     auto *urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
@@ -2206,9 +2226,8 @@ TEST(WKWebExtension, LoadFromMacAppExtensionBundle)
     auto extension = adoptNS([[WKWebExtension alloc] _initWithAppExtensionBundle:extensionBundle error:nullptr]);
     auto manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
 
-    [manager loadAndRun];
-
-    EXPECT_NS_EQUAL(manager.get().yieldMessage, @"Load Tab");
+    [manager load];
+    [manager runUntilTestMessage:@"Load Tab"];
 
     auto *urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
@@ -2232,9 +2251,8 @@ TEST(WKWebExtension, LoadFromiOSAppExtensionBundle)
     auto extension = adoptNS([[WKWebExtension alloc] _initWithAppExtensionBundle:extensionBundle error:nullptr]);
     auto manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
 
-    [manager loadAndRun];
-
-    EXPECT_NS_EQUAL(manager.get().yieldMessage, @"Load Tab");
+    [manager load];
+    [manager runUntilTestMessage:@"Load Tab"];
 
     auto *urlRequest = server.requestWithLocalhost();
     [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];

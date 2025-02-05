@@ -537,6 +537,8 @@ auto FunctionParser<Context>::parseBody() -> PartialResult
         m_context.didParseOpcode();
     }
     WASM_FAIL_IF_HELPER_FAILS(m_context.endTopLevel({ m_signature.as<FunctionSignature>(), nullptr }, m_expressionStack));
+    if (Context::validateFunctionBodySize)
+        WASM_PARSER_FAIL_IF(m_offset != source().size(), "function body size doesn't match the expected size");
 
     ASSERT(op == OpType::End);
     return { };
@@ -1505,7 +1507,7 @@ auto FunctionParser<Context>::parseTableIndex(unsigned& result) -> PartialResult
 }
 
 template<typename Context>
-auto FunctionParser<Context>::parseIndexForLocal(uint32_t& resultIndex) -> PartialResult
+ALWAYS_INLINE auto FunctionParser<Context>::parseIndexForLocal(uint32_t& resultIndex) -> PartialResult
 {
     uint32_t index;
     WASM_PARSER_FAIL_IF(!parseVarUInt32(index), "can't get index for local"_s);
@@ -2704,6 +2706,7 @@ FOR_EACH_WASM_MEMORY_STORE_OP(CREATE_CASE)
                     WASM_VALIDATOR_FAIL_IF(!isSubtype(ref.type(), externrefType()), opName, " to type "_s, ref.type(), " expected an externref"_s);
                     break;
                 case TypeKind::Exn:
+                case TypeKind::Nullexn:
                     WASM_VALIDATOR_FAIL_IF(!isSubtype(ref.type(), exnrefType()), opName, " to type "_s, ref.type(), " expected an exn"_s);
                     break;
                 case TypeKind::Eqref:
@@ -2954,7 +2957,10 @@ FOR_EACH_WASM_MEMORY_STORE_OP(CREATE_CASE)
         WASM_TRY_ADD_TO_CONTEXT(addBranchNull(data, ref, m_expressionStack, true, unused));
 
         // On a non-taken branch, the value is null so it's not needed on the stack.
+        // We add a drop to ensure the context knows we are discarding this ref value,
+        // not popping it before use in some operation.
         WASM_TRY_POP_EXPRESSION_STACK_INTO(ref, "br_on_non_null"_s);
+        WASM_TRY_ADD_TO_CONTEXT(addDrop(ref));
 
         return { };
     }
@@ -3667,10 +3673,9 @@ FOR_EACH_WASM_MEMORY_STORE_OP(CREATE_CASE)
     }
 
     case Drop: {
-        WASM_PARSER_FAIL_IF(!m_expressionStack.size(), "can't drop on empty stack"_s);
-        auto last = m_expressionStack.takeLast();
+        TypedExpression last;
+        WASM_TRY_POP_EXPRESSION_STACK_INTO(last, "can't drop on empty stack"_s);
         WASM_TRY_ADD_TO_CONTEXT(addDrop(last));
-        m_context.didPopValueFromStack(last, "Drop"_s);
         return { };
     }
 

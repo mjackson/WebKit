@@ -78,6 +78,7 @@
 #include "RenderLayerInlines.h"
 #include "RenderLayerScrollableArea.h"
 #include "RenderLayoutState.h"
+#include "RenderMathMLBlock.h"
 #include "RenderMultiColumnFlow.h"
 #include "RenderObjectInlines.h"
 #include "RenderSVGResourceClipper.h"
@@ -1626,6 +1627,7 @@ BleedAvoidance RenderBox::determineBleedAvoidance(GraphicsContext& context) cons
 
     if (borderObscuresBackgroundEdge(contextScaling))
         return BleedAvoidance::ShrinkBackground;
+
     if (!style.hasUsedAppearance() && borderObscuresBackground() && backgroundHasOpaqueTopLayer())
         return BleedAvoidance::BackgroundOverBorder;
 
@@ -1868,8 +1870,8 @@ bool RenderBox::computeBackgroundIsKnownToBeObscured(const LayoutPoint& paintOff
     // FIXME: This test can be much more comprehensive.
     if (!hasBackground())
         return false;
-    // Table and root background painting is special.
-    if (isRenderTable() || isDocumentElementRenderer())
+    // Root background painting is special.
+    if (isDocumentElementRenderer())
         return false;
 
     LayoutRect backgroundRect;
@@ -2618,6 +2620,13 @@ void RenderBox::computeLogicalWidth(LogicalExtentComputedValues& computedValues)
         // FIXME: This calculation is not patched for block-flow yet.
         // https://bugs.webkit.org/show_bug.cgi?id=46500
         computePositionedLogicalWidth(computedValues);
+        return;
+    }
+
+    // The parent box is flexing us, so it has increased or decreased our width. Use the width from the style context.
+    // FIXME: Account for block-flow in flexible boxes (webkit.org/b/46418)
+    if (auto logicalWidth = (parent()->isFlexibleBoxIncludingDeprecated() ? this->overridingBorderBoxLogicalWidth() : std::nullopt)) {
+        computedValues.m_extent = *logicalWidth;
         return;
     }
 
@@ -4171,13 +4180,13 @@ static std::optional<float> positionWithRTLInlineBoxContainingBlock(const Render
     if (!renderInline || containingBlock.writingMode().isLogicalLeftInlineStart())
         return { };
 
-    auto firstInlineBox = InlineIterator::firstInlineBoxFor(*renderInline);
+    auto firstInlineBox = InlineIterator::lineLeftmostInlineBoxFor(*renderInline);
     if (!firstInlineBox)
         return { };
 
     auto lastInlineBox = [&] {
         auto inlineBox = firstInlineBox;
-        for (; inlineBox->nextInlineBox(); inlineBox.traverseNextInlineBox()) { }
+        for (; inlineBox->nextInlineBoxLineRightward(); inlineBox.traverseInlineBoxLineRightward()) { }
         return inlineBox;
     }();
     if (firstInlineBox == lastInlineBox)
@@ -5093,7 +5102,7 @@ VisiblePosition RenderBox::positionForPoint(const LayoutPoint& point, HitTestSou
 
     for (auto& renderer : childrenOfType<RenderBox>(*this)) {
         if (CheckedPtr fragmentedFlow = dynamicDowncast<RenderFragmentedFlow>(*this)) {
-            ASSERT(fragment);
+            ASSERT(fragment || fragmentedFlow->isSkippedContent());
             if (!fragmentedFlow->objectShouldFragmentInFlowFragment(&renderer, fragment))
                 continue;
         }
@@ -5162,14 +5171,20 @@ bool RenderBox::shrinkToAvoidFloats() const
     return style().width().isAuto();
 }
 
-bool RenderBox::establishesIndependentFormattingContext() const
-{
-    return isGridItem() || RenderElement::establishesIndependentFormattingContext();
-}
-
 bool RenderBox::avoidsFloats() const
 {
-    return isReplacedOrAtomicInline() || isLegend() || isFieldset() || createsNewFormattingContext() || (element() && element()->isFormControlElement());
+    if (is<RenderReplaced>(*this) || isLegend() || (element() && element()->isFormControlElement()))
+        return true;
+
+#if ENABLE(MATHML)
+    if (is<RenderMathMLBlock>(*this))
+        return true;
+#endif
+
+    if (CheckedPtr renderBlock = dynamicDowncast<RenderBlock>(*this))
+        return renderBlock->createsNewFormattingContext();
+
+    return false;
 }
 
 void RenderBox::addVisualEffectOverflow()

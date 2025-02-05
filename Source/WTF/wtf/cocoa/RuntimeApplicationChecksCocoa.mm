@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2011-2025 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -360,22 +360,6 @@ void clearApplicationBundleIdentifierTestingOverride()
 #endif
 }
 
-static String& presentingApplicationBundleIdentifierStorage()
-{
-    static MainThreadNeverDestroyed<String> identifier;
-    return identifier;
-}
-
-void setPresentingApplicationBundleIdentifier(const String& identifier)
-{
-    presentingApplicationBundleIdentifierStorage() = identifier;
-}
-
-const String& presentingApplicationBundleIdentifier()
-{
-    return presentingApplicationBundleIdentifierStorage();
-}
-
 static bool applicationBundleIsEqualTo(const String& bundleIdentifierString)
 {
     return applicationBundleIdentifier() == bundleIdentifierString;
@@ -437,12 +421,6 @@ bool MacApplication::isHRBlock()
 {
     static bool isHRBlock = applicationBundleIsEqualTo("com.hrblock.tax.2010"_s);
     return isHRBlock;
-}
-
-bool MacApplication::isSolidStateNetworksDownloader()
-{
-    static bool isSolidStateNetworksDownloader = applicationBundleIsEqualTo("com.solidstatenetworks.awkhost"_s);
-    return isSolidStateNetworksDownloader;
 }
 
 bool MacApplication::isEpsonSoftwareUpdater()

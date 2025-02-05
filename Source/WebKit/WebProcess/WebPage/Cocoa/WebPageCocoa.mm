@@ -147,8 +147,10 @@ void WebPage::platformInitialize(const WebPageCreationParameters& parameters)
     setInsertionPointColor(parameters.insertionPointColor);
     setHardwareKeyboardState(parameters.hardwareKeyboardState);
 #endif
-    WebCore::setAdditionalSupportedImageTypes(parameters.additionalSupportedImageTypes);
-    WebCore::setImageSourceAllowableTypes(WebCore::allowableImageTypes());
+    if (!WebProcess::singleton().isLockdownModeEnabled()) {
+        WebCore::setAdditionalSupportedImageTypes(parameters.additionalSupportedImageTypes);
+        WebCore::setImageSourceAllowableTypes(WebCore::allowableImageTypes());
+    }
 }
 
 #if HAVE(SANDBOX_STATE_FLAGS)
@@ -470,7 +472,7 @@ void WebPage::bindRemoteAccessibilityFrames(int processIdentifier, WebCore::Fram
         return completionHandler({ }, 0);
     }
 
-    registerRemoteFrameAccessibilityTokens(processIdentifier, dataToken.span());
+    registerRemoteFrameAccessibilityTokens(processIdentifier, dataToken.span(), frameID);
 
     // Get our remote token data and send back to the RemoteFrame.
 #if PLATFORM(MAC)
@@ -571,17 +573,45 @@ void WebPage::getProcessDisplayName(CompletionHandler<void(String&&)>&& completi
 #endif
 }
 
+static bool rendererIsTransparentOrFullyClipped(const RenderObject& renderer)
+{
+    CheckedPtr enclosingLayer = renderer.enclosingLayer();
+    if (enclosingLayer && enclosingLayer->isTransparentRespectingParentFrames())
+        return true;
+
+    return renderer.hasEmptyVisibleRectRespectingParentFrames();
+}
+
 bool WebPage::isTransparentOrFullyClipped(const Node& node) const
 {
     CheckedPtr renderer = node.renderer();
     if (!renderer)
         return false;
+    return rendererIsTransparentOrFullyClipped(*renderer);
+}
 
-    auto* enclosingLayer = renderer->enclosingLayer();
-    if (enclosingLayer && enclosingLayer->isTransparentRespectingParentFrames())
-        return true;
+static bool selectionIsTransparentOrFullyClipped(const VisibleSelection& selection)
+{
+    RefPtr startContainer = selection.start().containerNode();
+    if (!startContainer)
+        return false;
 
-    return renderer->hasNonEmptyVisibleRectRespectingParentFrames();
+    RefPtr endContainer = selection.end().containerNode();
+    if (!endContainer)
+        return false;
+
+    CheckedPtr startRenderer = startContainer->renderer();
+    if (!startRenderer)
+        return false;
+
+    CheckedPtr endRenderer = endContainer->renderer();
+    if (!endRenderer)
+        return false;
+
+    if (!rendererIsTransparentOrFullyClipped(*startRenderer))
+        return false;
+
+    return startRenderer == endRenderer || rendererIsTransparentOrFullyClipped(*endRenderer);
 }
 
 void WebPage::getPlatformEditorStateCommon(const LocalFrame& frame, EditorState& result) const
@@ -667,10 +697,8 @@ void WebPage::getPlatformEditorStateCommon(const LocalFrame& frame, EditorState&
 #if PLATFORM(IOS_FAMILY)
         result.visualData->editableRootBounds = rootViewInteractionBounds(Ref { *editableRootOrFormControl });
 #endif
-    } else if (result.selectionIsRange) {
-        if (RefPtr ancestorContainer = commonInclusiveAncestor(selection.start(), selection.end()))
-            postLayoutData.selectionIsTransparentOrFullyClipped = isTransparentOrFullyClipped(*ancestorContainer);
-    }
+    } else if (result.selectionIsRange)
+        postLayoutData.selectionIsTransparentOrFullyClipped = selectionIsTransparentOrFullyClipped(selection);
 
 #if PLATFORM(IOS_FAMILY)
     bool honorOverflowScrolling = m_page->settings().selectionHonorsOverflowScrolling();
@@ -964,9 +992,10 @@ void WebPage::didEndWritingToolsSession(const WebCore::WritingTools::Session& se
     corePage()->didEndWritingToolsSession(session, accepted);
 }
 
-void WebPage::compositionSessionDidReceiveTextWithReplacementRange(const WebCore::WritingTools::Session& session, const WebCore::AttributedString& attributedText, const WebCore::CharacterRange& range, const WebCore::WritingTools::Context& context, bool finished)
+void WebPage::compositionSessionDidReceiveTextWithReplacementRange(const WebCore::WritingTools::Session& session, const WebCore::AttributedString& attributedText, const WebCore::CharacterRange& range, const WebCore::WritingTools::Context& context, bool finished, CompletionHandler<void()>&& completionHandler)
 {
     corePage()->compositionSessionDidReceiveTextWithReplacementRange(session, attributedText, range, context, finished);
+    completionHandler();
 }
 
 void WebPage::writingToolsSessionDidReceiveAction(const WritingTools::Session& session, WebCore::WritingTools::Action action)

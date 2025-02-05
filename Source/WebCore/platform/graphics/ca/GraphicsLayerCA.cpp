@@ -1525,7 +1525,7 @@ void GraphicsLayerCA::flushCompositingState(const FloatRect& visibleRect)
     // There is no backdrop root above the root layer, and we can just assume the backing
     // will be opaque. RenderLayerBacking will force an explicit backdrop root outside
     // of any filters if needed.
-    commitState.backdropRootIsOpaque = true;
+    commitState.backdropRootIsOpaque = client().backdropRootIsOpaque(this);
     m_previousCommittedVisibleRect = visibleRect;
 
 #if PLATFORM(IOS_FAMILY)
@@ -1934,7 +1934,7 @@ void GraphicsLayerCA::recursiveCommitChanges(CommitState& commitState, const Tra
     }
 
     if (isBackdropRoot())
-        childCommitState.backdropRootIsOpaque = backgroundColor().isOpaque();
+        childCommitState.backdropRootIsOpaque = backgroundColor().isOpaque() || client().backdropRootIsOpaque(this);
 
     if (GraphicsLayerCA* maskLayer = downcast<GraphicsLayerCA>(m_maskLayer.get())) {
         maskLayer->setVisibleAndCoverageRects(rects);
@@ -2376,9 +2376,9 @@ void GraphicsLayerCA::updateSublayerList(bool maxLayerDepthReached)
     bool structuralLayerHostsChildren = !clippingLayerHostsChildren && m_structuralLayer && structuralLayerPurpose() != StructuralLayerPurpose::StructuralLayerForBackdrop;
     if (m_contentsClippingLayer) {
         PlatformCALayerList clippingChildren;
+        appendContentsLayer(clippingChildren);
         if (clippingLayerHostsChildren)
             buildChildLayerList(clippingChildren);
-        appendContentsLayer(clippingChildren);
         m_contentsClippingLayer->setSublayers(clippingChildren);
     }
 
@@ -2615,9 +2615,8 @@ void GraphicsLayerCA::updateBackdropFilters(CommitState& commitState)
 
     // If nothing actually changed, no need to touch the layer properties.
     if (!(m_uncommittedChanges & BackdropFiltersChanged) && m_backdropLayer) {
-        // Opaque state depends on ancestor state, and is cheap to set, so just unconditionally update it.
-        m_backdropLayer->setBackdropRootIsOpaque(commitState.backdropRootIsOpaque);
-        return;
+        if (m_backdropLayer->backdropRootIsOpaque() == commitState.backdropRootIsOpaque)
+            return;
     }
 
     auto expectedLayerType = PlatformCALayer::LayerType::LayerTypeBackdropLayer;
@@ -4240,9 +4239,11 @@ void GraphicsLayerCA::updateRootRelativeScale()
     };
 
     float rootRelativeScaleFactor = hasNonIdentityTransform() ? computeMaxScaleFromTransform(transform()) : 1;
-
-    if (auto* parentLayer = parent(); parentLayer && parentLayer->hasNonIdentityChildrenTransform())
-        rootRelativeScaleFactor = std::max(rootRelativeScaleFactor, computeMaxScaleFromTransform(parentLayer->childrenTransform()));
+    if (m_parent) {
+        if (m_parent->hasNonIdentityChildrenTransform())
+            rootRelativeScaleFactor *= computeMaxScaleFromTransform(m_parent->childrenTransform());
+        rootRelativeScaleFactor *= downcast<GraphicsLayerCA>(*m_parent).rootRelativeScaleFactor();
+    }
 
     if (rootRelativeScaleFactor != m_rootRelativeScaleFactor) {
         m_rootRelativeScaleFactor = rootRelativeScaleFactor;

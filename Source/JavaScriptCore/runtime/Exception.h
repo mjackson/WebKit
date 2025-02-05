@@ -67,6 +67,10 @@ public:
     bool didNotifyInspectorOfThrow() const { return m_didNotifyInspectorOfThrow; }
     void setDidNotifyInspectorOfThrow() { m_didNotifyInspectorOfThrow = true; }
 
+#if ENABLE(WEBASSEMBLY)
+    void wrapValueForJSTag(JSGlobalObject*);
+#endif
+
     ~Exception();
 
 private:

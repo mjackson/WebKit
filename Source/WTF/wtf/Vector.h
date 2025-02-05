@@ -922,7 +922,7 @@ public:
 
     void insert(size_t position, value_type&& value) { insert<value_type>(position, std::forward<value_type>(value)); }
     void insertFill(size_t position, const T& value, size_t dataSize);
-    template<typename U> void insert(size_t position, const U*, size_t);
+    template<typename U, std::size_t Extent = std::dynamic_extent> void insertSpan(size_t position, std::span<U, Extent>);
     template<typename U> void insert(size_t position, U&&);
     template<typename U, size_t c, typename OH, size_t m, typename M> void insertVector(size_t position, const Vector<U, c, OH, m, M>&);
 
@@ -1315,8 +1315,7 @@ void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::resizeToFi
 template<typename T, size_t inlineCapacity, typename OverflowHandler, size_t minCapacity, typename Malloc>
 void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::shrink(size_t size)
 {
-    ASSERT_WITH_SECURITY_IMPLICATION(size <= m_size);
-    TypeOperations::destruct(begin() + size, end());
+    TypeOperations::destruct(mutableSpan().subspan(size).data(), end());
     asanBufferSizeWillChangeTo(size);
     m_size = size;
 }
@@ -1628,21 +1627,20 @@ inline void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::app
 }
 
 template<typename T, size_t inlineCapacity, typename OverflowHandler, size_t minCapacity, typename Malloc>
-template<typename U>
-void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::insert(size_t position, const U* data, size_t dataSize)
+template<typename U, std::size_t Extent>
+void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::insertSpan(size_t position, std::span<U, Extent> data)
 {
-    ASSERT_WITH_SECURITY_IMPLICATION(position <= size());
-    size_t newSize = m_size + dataSize;
+    size_t newSize = m_size + data.size();
     if (newSize > capacity()) {
-        data = expandCapacity<FailureAction::Crash>(newSize, data);
+        data = unsafeMakeSpan<U, Extent>(expandCapacity<FailureAction::Crash>(newSize, data.data()), data.size());
         ASSERT(begin());
     }
     if (newSize < m_size)
         CRASH();
     asanBufferSizeWillChangeTo(newSize);
-    T* spot = begin() + position;
-    TypeOperations::moveOverlapping(spot, end(), spot + dataSize);
-    VectorCopier<std::is_trivial<T>::value, U>::uninitializedCopy(data, std::addressof(data[dataSize]), spot);
+    T* spot = mutableSpan().subspan(position).data();
+    TypeOperations::moveOverlapping(spot, end(), spot + data.size());
+    VectorCopier<std::is_trivial<T>::value, U>::uninitializedCopy(std::to_address(data.begin()), std::to_address(data.end()), spot);
     m_size = newSize;
 }
 
@@ -1650,8 +1648,6 @@ template<typename T, size_t inlineCapacity, typename OverflowHandler, size_t min
 template<typename U>
 inline void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::insert(size_t position, U&& value)
 {
-    ASSERT_WITH_SECURITY_IMPLICATION(position <= size());
-
     auto ptr = const_cast<std::remove_cvref_t<U>*>(std::addressof(value));
     if (size() == capacity()) {
         ptr = expandCapacity<FailureAction::Crash>(size() + 1, ptr);
@@ -1660,7 +1656,7 @@ inline void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::ins
 
     asanBufferSizeWillChangeTo(m_size + 1);
 
-    T* spot = begin() + position;
+    T* spot = mutableSpan().subspan(position).data();
     TypeOperations::moveOverlapping(spot, end(), spot + 1);
     new (NotNull, spot) T(std::forward<U>(*ptr));
     ++m_size;
@@ -1669,7 +1665,6 @@ inline void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::ins
 template<typename T, size_t inlineCapacity, typename OverflowHandler, size_t minCapacity, typename Malloc>
 void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::insertFill(size_t position, const T& data, size_t dataSize)
 {
-    ASSERT_WITH_SECURITY_IMPLICATION(position <= size());
     size_t newSize = m_size + dataSize;
     if (newSize > capacity()) {
         expandCapacity<FailureAction::Crash>(newSize);
@@ -1678,7 +1673,7 @@ void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::insertFill
     if (newSize < m_size)
         CRASH();
     asanBufferSizeWillChangeTo(newSize);
-    T* spot = begin() + position;
+    T* spot = mutableSpan().subspan(position).data();
     TypeOperations::moveOverlapping(spot, end(), spot + dataSize);
     TypeOperations::uninitializedFill(spot, spot + dataSize, data);
     m_size = newSize;
@@ -1688,14 +1683,13 @@ template<typename T, size_t inlineCapacity, typename OverflowHandler, size_t min
 template<typename U, size_t c, typename OH, size_t m, typename M>
 inline void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::insertVector(size_t position, const Vector<U, c, OH, m, M>& val)
 {
-    insert(position, val.begin(), val.size());
+    insertSpan(position, val.span());
 }
 
 template<typename T, size_t inlineCapacity, typename OverflowHandler, size_t minCapacity, typename Malloc>
 inline void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::remove(size_t position)
 {
-    ASSERT_WITH_SECURITY_IMPLICATION(position < size());
-    T* spot = begin() + position;
+    T* spot = mutableSpan().subspan(position).data();
     spot->~T();
     TypeOperations::moveOverlapping(spot + 1, end(), spot);
     asanBufferSizeWillChangeTo(m_size - 1);
@@ -1705,12 +1699,10 @@ inline void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::rem
 template<typename T, size_t inlineCapacity, typename OverflowHandler, size_t minCapacity, typename Malloc>
 inline void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::remove(size_t position, size_t length)
 {
-    ASSERT_WITH_SECURITY_IMPLICATION(position <= size());
-    ASSERT_WITH_SECURITY_IMPLICATION(position + length <= size());
-    T* beginSpot = begin() + position;
-    T* endSpot = beginSpot + length;
-    TypeOperations::destruct(beginSpot, endSpot); 
-    TypeOperations::moveOverlapping(endSpot, end(), beginSpot);
+    auto beginSpot = mutableSpan().subspan(position);
+    T* endSpot = beginSpot.subspan(length).data();
+    TypeOperations::destruct(beginSpot.data(), endSpot);
+    TypeOperations::moveOverlapping(endSpot, end(), beginSpot.data());
     asanBufferSizeWillChangeTo(m_size - length);
     m_size -= length;
 }

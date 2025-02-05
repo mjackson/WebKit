@@ -74,6 +74,7 @@
 #include "LabelsNodeList.h"
 #include "LocalFrame.h"
 #include "LocalFrameView.h"
+#include "Logging.h"
 #include "MediaControlsHost.h"
 #include "MutableStyleProperties.h"
 #include "NodeName.h"
@@ -1069,8 +1070,10 @@ static void runPopoverFocusingSteps(HTMLElement& popover)
     if (!control->document().isSameOriginAsTopDocument())
         return;
 
-    Ref topDocument = control->document().topDocument();
-    topDocument->clearAutofocusCandidates();
+    if (RefPtr mainFrameDocument = control->document().mainFrameDocument())
+        mainFrameDocument->clearAutofocusCandidates();
+    else
+        LOG_ONCE(SiteIsolation, "Unable to fully perform runPopoverFocusingSteps() without access to the main frame document ");
     page->setAutofocusProcessed();
 }
 
@@ -1351,7 +1354,7 @@ void dumpInnerHTML(WebCore::HTMLElement*);
 
 void dumpInnerHTML(WebCore::HTMLElement* element)
 {
-    printf("%s\n", element->innerHTML().ascii().data());
+    SAFE_PRINTF("%s\n", element->innerHTML().ascii());
 }
 
 #endif

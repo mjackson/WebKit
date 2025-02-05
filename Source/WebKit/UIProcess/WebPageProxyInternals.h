@@ -35,6 +35,7 @@
 #include "ScrollingAccelerationCurve.h"
 #include "VisibleWebPageCounter.h"
 #include "WebColorPicker.h"
+#include "WebDataListSuggestionsDropdown.h"
 #include "WebFrameProxy.h"
 #include "WebNotificationManagerMessageHandler.h"
 #include "WebPageProxy.h"
@@ -46,15 +47,12 @@
 #include <WebCore/PrivateClickMeasurement.h>
 #include <WebCore/RegistrableDomain.h>
 #include <WebCore/ResourceRequest.h>
+#include <WebCore/SpatialBackdropSource.h>
 #include <pal/HysteresisActivity.h>
 #include <wtf/UUID.h>
 
 #if ENABLE(APPLE_PAY)
 #include "WebPaymentCoordinatorProxy.h"
-#endif
-
-#if ENABLE(DATALIST_ELEMENT)
-#include "WebDataListSuggestionsDropdown.h"
 #endif
 
 #if ENABLE(DRAG_SUPPORT)
@@ -257,9 +255,7 @@ struct WebPageProxy::Internals final : WebPopupMenuProxy::Client
 #if ENABLE(APPLE_PAY)
     , WebPaymentCoordinatorProxy::Client
 #endif
-#if ENABLE(INPUT_TYPE_COLOR)
     , WebColorPickerClient
-#endif
 #if PLATFORM(MACCATALYST)
     , EndowmentStateTrackerClient
 #endif
@@ -331,6 +327,9 @@ public:
     WebCore::ScrollPinningBehavior scrollPinningBehavior { WebCore::ScrollPinningBehavior::DoNotPin };
     WebCore::IntSize sizeToContentAutoSizeMaximumSize;
     WebCore::Color themeColor;
+#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
+    std::optional<WebCore::SpatialBackdropSource> spatialBackdropSource;
+#endif
     RunLoop::Timer tryCloseTimeoutTimer;
     WebCore::Color underPageBackgroundColorOverride;
     WebCore::Color underlayColor;
@@ -366,9 +365,7 @@ public:
     PAL::HysteresisActivity wheelEventActivityHysteresis;
 #endif
 
-#if ENABLE(DATALIST_ELEMENT)
     RefPtr<WebDataListSuggestionsDropdown> dataListSuggestionsDropdown;
-#endif
 
 #if ENABLE(DRAG_SUPPORT)
     WebCore::IntRect currentDragCaretEditableElementRect;
@@ -376,9 +373,7 @@ public:
     WebCore::DragHandlingMethod currentDragHandlingMethod { WebCore::DragHandlingMethod::None };
 #endif
 
-#if ENABLE(INPUT_TYPE_COLOR)
     RefPtr<WebColorPicker> colorPicker;
-#endif
 
 #if ENABLE(MAC_GESTURE_EVENTS)
     Deque<NativeWebGestureEvent> gestureEventQueue;
@@ -497,11 +492,9 @@ public:
     CocoaWindow *paymentCoordinatorPresentingWindow(const WebPaymentCoordinatorProxy&) const final;
 #endif
 
-#if ENABLE(INPUT_TYPE_COLOR)
     // WebColorPickerClient
     void didChooseColor(const WebCore::Color&) final;
     void didEndColorPicker() final;
-#endif
 
 #if PLATFORM(MACCATALYST)
     // EndowmentStateTrackerClient
@@ -537,6 +530,7 @@ public:
 #if ENABLE(WINDOW_PROXY_PROPERTY_ACCESS_NOTIFICATION)
     RefPtr<WebPageProxyFrameLoadStateObserver> protectedFrameLoadStateObserver() { return frameLoadStateObserver.get(); }
 #endif
+    Ref<GeolocationPermissionRequestManagerProxy> protectedGeolocationPermissionRequestManager() { return geolocationPermissionRequestManager; }
 };
 
 } // namespace WebKit

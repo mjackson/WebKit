@@ -129,6 +129,11 @@ inline bool isAnyref(Type type)
     return isRefType(type) && type.index == static_cast<TypeIndex>(TypeKind::Anyref);
 }
 
+inline bool isNullexnref(Type type)
+{
+    return isRefType(type) && type.index == static_cast<TypeIndex>(TypeKind::Nullexn);
+}
+
 inline bool isNullref(Type type)
 {
     return isRefType(type) && type.index == static_cast<TypeIndex>(TypeKind::Nullref);
@@ -289,7 +294,9 @@ inline bool isSubtypeIndex(TypeIndex sub, TypeIndex parent)
     return subRTT.value()->isSubRTT(*parentRTT.value());
 }
 
-inline bool isSubtype(Type sub, Type parent)
+bool isSubtype(Type, Type);
+
+inline bool isSubtypeSlow(Type sub, Type parent)
 {
     // Before the typed funcref proposal there is no non-trivial subtyping.
     if (sub.isNullable() && !parent.isNullable())
@@ -327,10 +334,21 @@ inline bool isSubtype(Type sub, Type parent)
     if (isNullexternref(sub) && isExternref(parent))
         return true;
 
+    if (isNullexnref(sub) && isExnref(parent))
+        return true;
+
     if (sub.isRef() && parent.isRefNull())
         return sub.index == parent.index;
 
-    return sub == parent;
+    return false;
+}
+
+ALWAYS_INLINE bool isSubtype(Type sub, Type parent)
+{
+    // Fast path.
+    if (sub == parent)
+        return true;
+    return isSubtypeSlow(sub, parent);
 }
 
 inline bool isSubtype(StorageType sub, StorageType parent)
@@ -353,6 +371,7 @@ inline bool isValidHeapTypeKind(intptr_t kind)
     case static_cast<intptr_t>(TypeKind::Structref):
     case static_cast<intptr_t>(TypeKind::Eqref):
     case static_cast<intptr_t>(TypeKind::Anyref):
+    case static_cast<intptr_t>(TypeKind::Nullexn):
     case static_cast<intptr_t>(TypeKind::Nullref):
     case static_cast<intptr_t>(TypeKind::Nullfuncref):
     case static_cast<intptr_t>(TypeKind::Nullexternref):
@@ -390,6 +409,8 @@ inline const char* heapTypeKindAsString(TypeKind kind)
         return "noextern";
     case TypeKind::Exn:
         return "exn";
+    case TypeKind::Nullexn:
+        return "nullexn";
     default:
         RELEASE_ASSERT_NOT_REACHED();
         return "";
@@ -775,7 +796,7 @@ struct InternalFunction {
 
 extern const uintptr_t NullWasmCallee;
 
-struct WasmCallableFunction {
+struct alignas(8) WasmCallableFunction {
     WTF_MAKE_STRUCT_FAST_ALLOCATED;
     using LoadLocation = CodePtr<WasmEntryPtrTag>*;
     static constexpr ptrdiff_t offsetOfEntrypointLoadLocation() { return OBJECT_OFFSETOF(WasmCallableFunction, entrypointLoadLocation); }
@@ -802,16 +823,19 @@ struct WasmToWasmImportableFunction : public WasmCallableFunction {
 };
 using FunctionIndexSpace = Vector<WasmToWasmImportableFunction>;
 
-struct WasmOrJSImportableFunction final : public WasmToWasmImportableFunction {
+struct WasmOrJSImportableFunction : public WasmToWasmImportableFunction {
     WTF_MAKE_STRUCT_FAST_ALLOCATED;
     using LoadLocation = CodePtr<WasmEntryPtrTag>*;
 
     CodePtr<WasmEntryPtrTag> importFunctionStub;
     WriteBarrier<JSObject> importFunction { };
-    DataOnlyCallLinkInfo callLinkInfo { };
     uintptr_t boxedCallee { 0xBEEF };
+};
 
-    static constexpr ptrdiff_t offsetOfCallLinkInfo() { return OBJECT_OFFSETOF(WasmOrJSImportableFunction, callLinkInfo); }
+struct WasmOrJSImportableFunctionCallLinkInfo final : public WasmOrJSImportableFunction {
+    WTF_MAKE_STRUCT_FAST_ALLOCATED;
+    std::unique_ptr<DataOnlyCallLinkInfo> callLinkInfo { };
+    static constexpr ptrdiff_t offsetOfCallLinkInfo() { return OBJECT_OFFSETOF(WasmOrJSImportableFunctionCallLinkInfo, callLinkInfo); }
 };
 
 } } // namespace JSC::Wasm

@@ -105,6 +105,13 @@ static inline OptionSet<AutoplayQuirk> allowedAutoplayQuirks(Document& document)
     return loader->allowedAutoplayQuirks();
 }
 
+static inline OptionSet<AutoplayQuirk> allowedAutoplayQuirks(Document* document)
+{
+    if (!document)
+        return { };
+    return allowedAutoplayQuirks(*document);
+}
+
 static HashMap<RegistrableDomain, String>& updatableStorageAccessUserAgentStringQuirks()
 {
     // FIXME: Make this a member of Quirks.
@@ -179,7 +186,7 @@ bool Quirks::needsAutoplayPlayPauseEvents() const
     if (allowedAutoplayQuirks(document).contains(AutoplayQuirk::SynthesizedPauseEvents))
         return true;
 
-    return allowedAutoplayQuirks(document->topDocument()).contains(AutoplayQuirk::SynthesizedPauseEvents);
+    return allowedAutoplayQuirks(document->mainFrameDocument()).contains(AutoplayQuirk::SynthesizedPauseEvents);
 }
 
 // netflix.com https://bugs.webkit.org/show_bug.cgi?id=173030
@@ -197,7 +204,7 @@ bool Quirks::needsPerDocumentAutoplayBehavior() const
 {
 #if PLATFORM(MAC)
     Ref document = *m_document;
-    ASSERT(document.ptr() == &document->topDocument());
+    ASSERT(document->isTopDocument());
     return needsQuirks() && allowedAutoplayQuirks(document).contains(AutoplayQuirk::PerDocumentAutoplayBehavior);
 #else
     return needsQuirks() && m_quirksData.isNetflix;
@@ -591,6 +598,16 @@ bool Quirks::needsWeChatScrollingQuirk() const
 #endif
 }
 
+// zomato.com <rdar://problem/128962778>
+bool Quirks::needsZomatoEmailLoginLabelQuirk() const
+{
+#if PLATFORM(MAC)
+    return needsQuirks() && m_quirksData.needsZomatoEmailLoginLabelQuirk;
+#else
+    return false;
+#endif
+}
+
 // maps.google.com rdar://67358928
 bool Quirks::needsGoogleMapsScrollingQuirk() const
 {
@@ -857,6 +874,11 @@ bool Quirks::shouldDisableImageCaptureQuirk() const
 {
     return needsQuirks() && m_quirksData.shouldDisableImageCaptureQuirk;
 }
+
+bool Quirks::shouldEnableSpeakerSelectionPermissionsPolicyQuirk() const
+{
+    return needsQuirks() && m_quirksData.shouldEnableSpeakerSelectionPermissionsPolicyQuirk;
+}
 #endif
 
 // hulu.com rdar://55041979
@@ -904,7 +926,7 @@ static bool isKinjaLoginAvatarElement(const Element& element)
         svgElement = element.parentElement();
 
     if (svgElement && svgElement->hasAttributes()) {
-        auto ariaLabelAttr = svgElement->attributes().getNamedItem("aria-label"_s);
+        auto ariaLabelAttr = svgElement->attributesMap().getNamedItem("aria-label"_s);
         if (ariaLabelAttr && ariaLabelAttr->value() == "UserFilled icon"_s)
             return true;
     }
@@ -1001,7 +1023,8 @@ void Quirks::triggerOptionalStorageAccessIframeQuirk(const URL& frameURL, Comple
                 return;
             }
         }
-        if (subFrameDomainsForStorageAccessQuirk().contains(RegistrableDomain { frameURL })) {
+        bool isMSOLoginButNotMSTeams = document->url().hasQuery() && document->url().host() == "login.microsoftonline.com"_s && !document->url().query().contains("redirect_uri=https%3A%2F%2Fteams.microsoft.com"_s);
+        if (!isMSOLoginButNotMSTeams && subFrameDomainsForStorageAccessQuirk().contains(RegistrableDomain { frameURL })) {
             return DocumentStorageAccess::requestStorageAccessForNonDocumentQuirk(*document, RegistrableDomain { frameURL }, [completionHandler = WTFMove(completionHandler)](StorageAccessWasGranted) mutable {
                 completionHandler();
             });
@@ -1376,12 +1399,6 @@ bool Quirks::shouldFlipScreenDimensions() const
 #endif
 }
 
-// FIXME: Remove this when rdar://137625935 is resolved.
-bool Quirks::shouldAllowDownloadsInSpiteOfCSP() const
-{
-    return needsQuirks() && m_quirksData.shouldAllowDownloadsInSpiteOfCSPQuirk;
-}
-
 // This section is dedicated to UA override for iPad. iPads (but iPad Mini) are sending a desktop user agent
 // to websites. In some cases, the website breaks in some ways, not expecting a touch interface for the website.
 // Controls not active or too small, form factor, etc. In this case it is better to send the iPad Mini UA.
@@ -1570,11 +1587,7 @@ bool Quirks::shouldHideCoarsePointerCharacteristics() const
 // hulu.com rdar://126096361
 bool Quirks::implicitMuteWhenVolumeSetToZero() const
 {
-#if HAVE(MEDIA_VOLUME_PER_ELEMENT)
     return needsQuirks() && m_quirksData.implicitMuteWhenVolumeSetToZero;
-#else
-    return false;
-#endif
 }
 
 #if ENABLE(TOUCH_EVENTS)
@@ -1713,6 +1726,15 @@ bool Quirks::shouldAvoidStartingSelectionOnMouseDown(const Node& target) const
     return false;
 }
 
+bool Quirks::shouldReuseLiveRangeForSelectionUpdate() const
+{
+    if (!needsQuirks())
+        return false;
+    if (!m_quirksData.needsReuseLiveRangeForSelectionUpdateQuirk)
+        m_quirksData.needsReuseLiveRangeForSelectionUpdateQuirk = isDomain("scribd.com"_s);
+    return *m_quirksData.needsReuseLiveRangeForSelectionUpdateQuirk;
+}
+
 #if PLATFORM(IOS_FAMILY)
 
 bool Quirks::needsPointerTouchCompatibility(const Element& target) const
@@ -1792,6 +1814,28 @@ bool Quirks::needsFacebookStoriesCreationFormQuirk(const Element& element, const
 #else
     UNUSED_PARAM(element);
     UNUSED_PARAM(computedStyle);
+    return false;
+#endif
+}
+
+// hotels.com rdar://126631968
+bool Quirks::needsHotelsAnimationQuirk(Element& element, const RenderStyle& style) const
+{
+    if (!needsQuirks() || !m_quirksData.needsHotelsAnimationQuirk)
+        return false;
+
+    if (!style.hasAnimations())
+        return false;
+
+    auto matches = Ref { element }->matches(".uitk-menu-mounted .uitk-menu-container.uitk-menu-container-autoposition.uitk-menu-container-has-intersection-root-el"_s);
+    return !matches.hasException() && matches.returnValue();
+}
+
+bool Quirks::needsLimitedMatroskaSupport() const
+{
+#if ENABLE(MEDIA_RECORDER) && ENABLE(ALTERNATE_WEBM_PLAYER)
+    return isDomain("zencastr.com"_s);
+#else
     return false;
 #endif
 }
@@ -2082,6 +2126,17 @@ static void handleBaiduQuirks(QuirksData& quirksData, const URL& quirksURL, cons
     quirksData.shouldEnableLegacyGetUserMediaQuirk = true;
 }
 
+static void handleCodepenQuirks(QuirksData& quirksData, const URL& quirksURL, const String& quirksDomainString, const URL& documentURL)
+{
+    UNUSED_PARAM(quirksDomainString);
+    UNUSED_PARAM(documentURL);
+    auto topDocumentHost = quirksURL.host();
+    if (topDocumentHost != "codepen.io"_s)
+        return;
+
+    quirksData.shouldEnableSpeakerSelectionPermissionsPolicyQuirk = true;
+}
+
 static void handleWarbyParkerQuirks(QuirksData& quirksData, const URL& quirksURL, const String& quirksDomainString, const URL& documentURL)
 {
     if (quirksDomainString != "warbyparker.com"_s)
@@ -2168,17 +2223,6 @@ static void handleAmazonQuirks(QuirksData& quirksData, const URL& quirksURL, con
     // amazon.com rdar://128962002
     quirksData.needsPrimeVideoUserSelectNoneQuirk = true;
 #endif
-}
-
-static void handleAppleQuirks(QuirksData& quirksData, const URL& quirksURL, const String& quirksDomainString, const URL& documentURL)
-{
-    if (quirksDomainString != "apple.com"_s)
-        return;
-
-    UNUSED_PARAM(quirksURL);
-    UNUSED_PARAM(documentURL);
-    // FIXME: Remove this when rdar://137625935 is resolved.
-    quirksData.shouldAllowDownloadsInSpiteOfCSPQuirk = true;
 }
 
 static void handleBBCQuirks(QuirksData& quirksData, const URL& quirksURL, const String& quirksDomainString, const URL& documentURL)
@@ -2306,6 +2350,12 @@ static void handleHBOMaxQuirks(QuirksData& quirksData, const URL& quirksURL, con
 
     // play.hbomax.com https://bugs.webkit.org/show_bug.cgi?id=244737
     quirksData.shouldEnableFontLoadingAPIQuirk = true;
+}
+
+static void handleHotelsQuirks(QuirksData& quirksData, const URL&, const String& quirksDomainString, const URL&)
+{
+    // hotels.com rdar://126631968
+    quirksData.needsHotelsAnimationQuirk = quirksDomainString == "hotels.com"_s;
 }
 
 static void handleHuluQuirks(QuirksData& quirksData, const URL& quirksURL, const String& quirksDomainString, const URL& documentURL)
@@ -2627,6 +2677,18 @@ static void handleZillowQuirks(QuirksData& quirksData, const URL& quirksURL, con
 #endif
 }
 
+#if PLATFORM(MAC)
+static void handleZomatoQuirks(QuirksData& quirksData, const URL& quirksURL, const String& quirksDomainString, const URL& documentURL)
+{
+    if (quirksDomainString != "zomato.com"_s)
+        return;
+
+    UNUSED_PARAM(quirksURL);
+    UNUSED_PARAM(documentURL);
+    quirksData.needsZomatoEmailLoginLabelQuirk = true;
+}
+#endif
+
 static void handleZoomQuirks(QuirksData& quirksData, const URL& quirksURL, const String& quirksDomainString, const URL& documentURL)
 {
     if (quirksDomainString != "zoom.us"_s)
@@ -2683,7 +2745,6 @@ void Quirks::determineRelevantQuirks()
         { "365scores"_s, &handle365ScoresQuirks },
 #endif
         { "amazon"_s, &handleAmazonQuirks },
-        { "apple"_s, &handleAppleQuirks },
 #if PLATFORM(IOS_FAMILY)
         { "as"_s, &handleASQuirks },
         { "att"_s, &handleATTQuirks },
@@ -2691,6 +2752,7 @@ void Quirks::determineRelevantQuirks()
         { "bbc"_s, &handleBBCQuirks },
 #if ENABLE(MEDIA_STREAM)
         { "baidu"_s, &handleBaiduQuirks },
+        { "codepen"_s, &handleCodepenQuirks },
 #endif
         { "bankofamerica"_s, &handleBankOfAmericaQuirks },
         { "bing"_s, &handleBingQuirks },
@@ -2714,6 +2776,7 @@ void Quirks::determineRelevantQuirks()
 #endif
         { "google"_s, &handleGoogleQuirks },
         { "hbomax"_s, &handleHBOMaxQuirks },
+        { "hotels"_s, &handleHotelsQuirks },
         { "hulu"_s, &handleHuluQuirks },
 #if PLATFORM(MAC)
         { "icloud"_s, &handleICloudQuirks },
@@ -2789,6 +2852,9 @@ void Quirks::determineRelevantQuirks()
 #endif
         { "youtube"_s, &handleYouTubeQuirks },
         { "zillow"_s, &handleZillowQuirks },
+#if PLATFORM(MAC)
+        { "zomato"_s, &handleZomatoQuirks },
+#endif
         { "zoom"_s, &handleZoomQuirks },
     });
 

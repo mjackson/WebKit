@@ -175,7 +175,7 @@ void RenderBlockFlow::willBeDestroyed()
     }
 
     if (svgTextLayout())
-        svgTextLayout()->lineBoxes().deleteLineBoxes();
+        svgTextLayout()->deleteLegacyRootBox();
 
     // NOTE: This jumps down to RenderBox, bypassing RenderBlock since it would do duplicate work.
     RenderBox::willBeDestroyed();
@@ -655,9 +655,9 @@ inline LayoutUnit RenderBlockFlow::shiftForAlignContent(LayoutUnit intrinsicLogi
         }
     } else if (svgTextLayout()) {
         if (isHorizontalWritingMode())
-            svgTextLayout()->lineBoxes().shiftLinesBy(0, space);
+            svgTextLayout()->shiftLineBy(0, space);
         else
-            svgTextLayout()->lineBoxes().shiftLinesBy(-space, 0);
+            svgTextLayout()->shiftLineBy(-space, 0);
     } else if (inlineLayout())
         inlineLayout()->shiftLinesBy(space);
     if (m_floatingObjects)
@@ -1900,7 +1900,7 @@ RenderBlockFlow::LinePaginationAdjustment RenderBlockFlow::computeLineAdjustment
     auto computeLeafBoxTopAndBottom = [&] {
         auto lineTop = LayoutUnit::max();
         auto lineBottom = LayoutUnit::min();
-        for (auto box = lineBox->firstLeafBox(); box; box.traverseNextOnLine()) {
+        for (auto box = lineBox->lineLeftmostLeafBox(); box; box.traverseLineRightwardOnLine()) {
             if (box->logicalTop() < lineTop)
                 lineTop = box->logicalTop();
             if (box->logicalBottom() > lineBottom)
@@ -3214,10 +3214,12 @@ std::optional<LayoutUnit> RenderBlockFlow::inlineBlockBaseline(LineDirectionMode
     if (shouldApplyLayoutContainment())
         return RenderBlock::inlineBlockBaseline(lineDirection);
 
+    RefPtr element = this->element();
+    bool isHTMLFormControlElement = element && element->isFormControlElement();
     if (style().display() == DisplayType::InlineBlock) {
         // The baseline of an 'inline-block' is the baseline of its last line box in the normal flow, unless it has either no in-flow line boxes or if its 'overflow'
         // property has a computed value other than 'visible'. see https://www.w3.org/TR/CSS22/visudet.html
-        auto shouldSynthesizeBaseline = !style().isOverflowVisible() && !is<HTMLFormControlElement>(element()) && !isRenderTextControlInnerBlock();
+        auto shouldSynthesizeBaseline = !style().isOverflowVisible() && !isHTMLFormControlElement && !isRenderTextControlInnerBlock();
         if (shouldSynthesizeBaseline)
             return { };
     }
@@ -3247,10 +3249,24 @@ std::optional<LayoutUnit> RenderBlockFlow::inlineBlockBaseline(LineDirectionMode
         } else if (inlineLayout())
             lastBaseline = floorToInt(inlineLayout()->lastLineLogicalBaseline());
     }
-    // According to the CSS spec http://www.w3.org/TR/CSS21/visudet.html, we shouldn't be performing this min, but should
-    // instead be returning boxHeight directly. However, we feel that a min here is better behavior (and is consistent
-    // enough with the spec to not cause tons of breakages).
-    return LayoutUnit { style().overflowY() == Overflow::Visible ? lastBaseline : std::min(boxHeight, lastBaseline) };
+
+    if (style().overflowY() == Overflow::Visible)
+        return lastBaseline;
+
+    // While css-align-3 defines the last baseline form block containers which are
+    // scroll containers (with an initial baseline-source value) as the block-end margin
+    // edge, we instead maintain our legacy behavior for form controls and content
+    // inside form controls to maintain compatibility.
+    auto isInFormControl = [&] {
+        if (!element)
+            return false;
+        if (auto* shadowHost = element->shadowHost())
+            return shadowHost->isFormControlElement();
+        return false;
+    };
+    if (isHTMLFormControlElement || isInFormControl())
+        return std::min(boxHeight, lastBaseline);
+    return boxHeight;
 }
 
 LayoutUnit RenderBlockFlow::adjustEnclosingTopForPrecedingBlock(LayoutUnit top) const
@@ -3343,7 +3359,7 @@ GapRects RenderBlockFlow::inlineSelectionGaps(RenderBlock& rootBlock, const Layo
         GapRects result;
 
         auto firstSelectedBox = [&]() -> InlineIterator::LeafBoxIterator {
-            for (auto box = lineBox->firstLeafBox(); box; box.traverseNextOnLine()) {
+            for (auto box = lineBox->lineLeftmostLeafBox(); box; box.traverseLineRightwardOnLine()) {
                 if (box->selectionState() != RenderObject::HighlightState::None)
                     return box;
             }
@@ -3351,7 +3367,7 @@ GapRects RenderBlockFlow::inlineSelectionGaps(RenderBlock& rootBlock, const Layo
         }();
 
         auto lastSelectedBox = [&]() -> InlineIterator::LeafBoxIterator {
-            for (auto box = lineBox->lastLeafBox(); box; box.traversePreviousOnLine()) {
+            for (auto box = lineBox->lineRightmostLeafBox(); box; box.traverseLineLeftwardOnLine()) {
                 if (box->selectionState() != RenderObject::HighlightState::None)
                     return box;
             }
@@ -3378,7 +3394,7 @@ GapRects RenderBlockFlow::inlineSelectionGaps(RenderBlock& rootBlock, const Layo
             // Now fill in any gaps on the line that occurred between two selected elements.
             LayoutUnit lastLogicalLeft { firstSelectedBox->logicalRightIgnoringInlineDirection() };
             bool isPreviousBoxSelected = firstSelectedBox->selectionState() != RenderObject::HighlightState::None;
-            for (auto box = firstSelectedBox; box; box.traverseNextOnLine()) {
+            for (auto box = firstSelectedBox; box; box.traverseLineRightwardOnLine()) {
                 if (box->selectionState() != RenderObject::HighlightState::None) {
                     LayoutRect logicalRect { lastLogicalLeft, selTop, LayoutUnit(box->logicalLeftIgnoringInlineDirection() - lastLogicalLeft), selHeight };
                     logicalRect.move(isHorizontalWritingMode() ? offsetFromRootBlock : LayoutSize(offsetFromRootBlock.height(), offsetFromRootBlock.width()));
@@ -3482,7 +3498,7 @@ int RenderBlockFlow::lineCount() const
 bool RenderBlockFlow::containsNonZeroBidiLevel() const
 {
     for (auto lineBox = InlineIterator::firstLineBoxFor(*this); lineBox; lineBox.traverseNext()) {
-        for (auto box = lineBox->firstLeafBox(); box; box = box.traverseNextOnLine()) {
+        for (auto box = lineBox->lineLeftmostLeafBox(); box; box = box.traverseLineRightwardOnLine()) {
             if (box->bidiLevel())
                 return true;
         }
@@ -3557,7 +3573,7 @@ RenderText* RenderBlockFlow::findClosestTextAtAbsolutePoint(const FloatPoint& po
     // experience has shown that hit tests on an exploded text node can fail when within the
     // overflow fragment.
     auto previousRootInlineBoxBottom = std::optional<float> { };
-    for (auto box = InlineIterator::firstRootInlineBoxFor(blockFlow); box; box.traverseNextInlineBox()) {
+    for (auto box = InlineIterator::firstRootInlineBoxFor(blockFlow); box; box.traverseInlineBoxLineRightward()) {
         if (previousRootInlineBoxBottom) {
             if (localPoint.y() < *previousRootInlineBoxBottom)
                 return nullptr;
@@ -3591,7 +3607,7 @@ VisiblePosition RenderBlockFlow::positionForPointWithInlineChildren(const Layout
     InlineIterator::LineBoxIterator firstLineBoxWithChildren;
     InlineIterator::LineBoxIterator lastLineBoxWithChildren;
     for (auto lineBox = firstLineBox; lineBox; lineBox.traverseNext()) {
-        if (!lineBox->firstLeafBox())
+        if (!lineBox->lineLeftmostLeafBox())
             continue;
         if (!firstLineBoxWithChildren)
             firstLineBoxWithChildren = lineBox;
@@ -3607,7 +3623,7 @@ VisiblePosition RenderBlockFlow::positionForPointWithInlineChildren(const Layout
         if (pointInLogicalContents.y() < selectionBottom || (blocksAreFlipped && pointInLogicalContents.y() == selectionBottom)) {
             if (linesAreFlipped) {
                 auto nextLineBoxWithChildren = lineBox->next();
-                while (nextLineBoxWithChildren && !nextLineBoxWithChildren->firstLeafBox())
+                while (nextLineBoxWithChildren && !nextLineBoxWithChildren->lineLeftmostLeafBox())
                     nextLineBoxWithChildren.traverseNext();
 
                 if (nextLineBoxWithChildren && nextLineBoxWithChildren->isFirstAfterPageBreak()
@@ -3632,9 +3648,9 @@ VisiblePosition RenderBlockFlow::positionForPointWithInlineChildren(const Layout
             auto firstLineWithChildrenTop = LayoutUnit { std::min(previousLineBoxContentBottomOrBorderAndPadding(*firstLineBoxWithChildren), firstLineBoxWithChildren->contentLogicalTop()) };
             if (pointInLogicalContents.y() < firstLineWithChildrenTop
                 || (blocksAreFlipped && pointInLogicalContents.y() == firstLineWithChildrenTop)) {
-                auto box = firstLineBoxWithChildren->firstLeafBox();
+                auto box = firstLineBoxWithChildren->lineLeftmostLeafBox();
                 if (box->isLineBreak()) {
-                    if (auto next = box->nextOnLineIgnoringLineBreak())
+                    if (auto next = box->nextLineRightwardOnLineIgnoringLineBreak())
                         box = next;
                 }
                 // y coordinate is above first root line box, so return the start of the first
@@ -3678,7 +3694,7 @@ VisiblePosition RenderBlockFlow::positionForPoint(const LayoutPoint& point, HitT
 void RenderBlockFlow::addFocusRingRectsForInlineChildren(Vector<LayoutRect>& rects, const LayoutPoint& additionalOffset, const RenderLayerModelObject*) const
 {
     ASSERT(childrenInline());
-    for (auto box = InlineIterator::firstRootInlineBoxFor(*this); box; box.traverseNextInlineBox()) {
+    for (auto box = InlineIterator::firstRootInlineBoxFor(*this); box; box.traverseInlineBoxLineRightward()) {
         auto lineBox = box->lineBox();
         // FIXME: This is mixing physical and logical coordinates.
         auto unflippedVisualRect = box->visualRectIgnoringBlockDirection();

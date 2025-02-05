@@ -28,6 +28,8 @@
 #ifdef __cplusplus
 
 #import "PDFPluginIdentifier.h"
+#import "WKIntelligenceReplacementTextEffectCoordinator.h"
+#import "WKIntelligenceSmartReplyTextEffectCoordinator.h"
 #import "WKIntelligenceTextEffectCoordinator.h"
 #import "WKTextAnimationType.h"
 #import <WebKit/WKShareSheet.h>
@@ -261,7 +263,7 @@ struct PerWebProcessState {
     RetainPtr<NSMapTable<NSUUID *, WTTextSuggestion *>> _writingToolsTextSuggestions;
     RetainPtr<WTSession> _activeWritingToolsSession;
 
-    RetainPtr<WKIntelligenceTextEffectCoordinator> _intelligenceTextEffectCoordinator;
+    RetainPtr<id<WKIntelligenceTextEffectCoordinating>> _intelligenceTextEffectCoordinator;
 
     NSUInteger _partialIntelligenceTextAnimationCount;
     BOOL _writingToolsTextReplacementsFinished;
@@ -394,6 +396,10 @@ struct PerWebProcessState {
     String _defaultSTSLabel;
 #endif
 
+#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
+    RetainPtr<_WKSpatialBackdropSource> _cachedSpatialBackdropSource;
+#endif
+
     BOOL _didAccessBackForwardList;
     BOOL _dontResetTransientActivationAfterRunJavaScript;
 
@@ -415,6 +421,10 @@ struct PerWebProcessState {
 
 #if PLATFORM(MAC) && HAVE(NSWINDOW_SNAPSHOT_READINESS_HANDLER)
 - (void)_invalidateWindowSnapshotReadinessHandler;
+#endif
+
+#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
+- (void)_spatialBackdropSourceDidChange;
 #endif
 
 #if ENABLE(ATTACHMENT_ELEMENT)

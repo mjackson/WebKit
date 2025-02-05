@@ -709,6 +709,11 @@ IntPoint WebChromeClient::screenToRootView(const IntPoint& point) const
     return protectedPage()->screenToRootView(point);
 }
 
+IntPoint WebChromeClient::rootViewToScreen(const IntPoint& point) const
+{
+    return protectedPage()->rootViewToScreen(point);
+}
+
 IntRect WebChromeClient::rootViewToScreen(const IntRect& rect) const
 {
     return protectedPage()->rootViewToScreen(rect);
@@ -838,16 +843,10 @@ void WebChromeClient::print(LocalFrame& frame, const StringWithDirection& title)
     page->sendSyncWithDelayedReply(Messages::WebPageProxy::PrintFrame(webFrame->frameID(), truncatedTitle.string, pdfFirstPageSize));
 }
 
-#if ENABLE(INPUT_TYPE_COLOR)
-
 RefPtr<ColorChooser> WebChromeClient::createColorChooser(ColorChooserClient& client, const Color& initialColor)
 {
     return WebColorChooser::create(protectedPage().ptr(), &client, initialColor);
 }
-
-#endif
-
-#if ENABLE(DATALIST_ELEMENT)
 
 RefPtr<DataListSuggestionPicker> WebChromeClient::createDataListSuggestionPicker(DataListSuggestionsClient& client)
 {
@@ -863,16 +862,10 @@ bool WebChromeClient::canShowDataListSuggestionLabels() const
 #endif
 }
 
-#endif
-
-#if ENABLE(DATE_AND_TIME_INPUT_TYPES)
-
 RefPtr<DateTimeChooser> WebChromeClient::createDateTimeChooser(DateTimeChooserClient& client)
 {
     return WebDateTimeChooser::create(protectedPage(), client);
 }
-
-#endif
 
 void WebChromeClient::runOpenPanel(LocalFrame& frame, FileChooser& fileChooser)
 {
@@ -1432,6 +1425,13 @@ void WebChromeClient::sampledPageTopColorChanged() const
     protectedPage()->sampledPageTopColorChanged();
 }
 
+#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
+void WebChromeClient::spatialBackdropSourceChanged() const
+{
+    protectedPage()->spatialBackdropSourceChanged();
+}
+#endif
+
 #if ENABLE(APP_HIGHLIGHTS)
 WebCore::HighlightVisibility WebChromeClient::appHighlightsVisiblility() const
 {
@@ -1442,26 +1442,6 @@ WebCore::HighlightVisibility WebChromeClient::appHighlightsVisiblility() const
 void WebChromeClient::wheelEventHandlersChanged(bool hasHandlers)
 {
     protectedPage()->wheelEventHandlersChanged(hasHandlers);
-}
-
-String WebChromeClient::plugInStartLabelTitle(const String& mimeType) const
-{
-    return protectedPage()->injectedBundleUIClient().plugInStartLabelTitle(mimeType);
-}
-
-String WebChromeClient::plugInStartLabelSubtitle(const String& mimeType) const
-{
-    return protectedPage()->injectedBundleUIClient().plugInStartLabelSubtitle(mimeType);
-}
-
-String WebChromeClient::plugInExtraStyleSheet() const
-{
-    return protectedPage()->injectedBundleUIClient().plugInExtraStyleSheet();
-}
-
-String WebChromeClient::plugInExtraScript() const
-{
-    return protectedPage()->injectedBundleUIClient().plugInExtraScript();
 }
 
 void WebChromeClient::enableSuddenTermination()

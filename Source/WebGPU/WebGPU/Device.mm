@@ -725,16 +725,20 @@ id<MTLRenderPipelineState> Device::indexBufferClampPipeline(MTLIndexType indexTy
     using namespace metal;
     [[vertex]] void vsUshortIndexClamp(device const ushort* indexBuffer [[buffer(0)]], device MTLDrawIndexedPrimitivesIndirectArguments& indexedOutput [[buffer(1)]], const constant uint* data [[buffer(2)]], uint indexId [[vertex_id]])
     {
-        ushort vertexIndex = data[primitiveRestart] + indexBuffer[indexId];
-        if (vertexIndex + indexedOutput.baseVertex >= data[vertexCount] + data[primitiveRestart]) {
+        ushort indexBufferValue = indexBuffer[indexId];
+        ushort vertexIndex = data[primitiveRestart] + indexBufferValue;
+        bool negativeCondition = indexedOutput.baseVertex + data[primitiveRestart] < indexedOutput.baseVertex;
+        if (negativeCondition || (vertexIndex + indexedOutput.baseVertex >= data[vertexCount] + data[primitiveRestart])) {
             indexedOutput.indexCount = 0u;
             *(&indexedOutput.baseInstance + 1) = 1;
         }
     }
     [[vertex]] void vsUintIndexClamp(device const uint* indexBuffer [[buffer(0)]], device MTLDrawIndexedPrimitivesIndirectArguments& indexedOutput [[buffer(1)]], const constant uint* data [[buffer(2)]], uint indexId [[vertex_id]])
     {
-        uint vertexIndex = data[primitiveRestart] + indexBuffer[indexId];
-        if (vertexIndex + indexedOutput.baseVertex >= data[vertexCount] + data[primitiveRestart]) {
+        uint indexBufferValue = indexBuffer[indexId];
+        uint vertexIndex = data[primitiveRestart] + indexBufferValue;
+        bool negativeCondition = indexedOutput.baseVertex + data[primitiveRestart] < indexedOutput.baseVertex;
+        if (negativeCondition || (vertexIndex + indexedOutput.baseVertex >= data[vertexCount] + data[primitiveRestart])) {
             indexedOutput.indexCount = 0u;
             *(&indexedOutput.baseInstance + 1) = 1;
         }
@@ -866,9 +870,10 @@ id<MTLRenderPipelineState> Device::indirectBufferClampPipeline(NSUInteger raster
             || input.vertexCount + input.vertexStart > minCounts[0]
             || input.vertexStart >= minCounts[0];
         bool instanceCondition = input.baseInstance + input.instanceCount > minCounts[1] || input.baseInstance >= minCounts[1];
-        bool condition = vertexCondition || instanceCondition;
-        output.vertexCount = metal::select(input.vertexCount, 0u, condition);
-        output.instanceCount = input.instanceCount;
+        auto minVertexCountMinusVertexStart = minCounts[0] > input.vertexStart ? (minCounts[0] - input.vertexStart) : 0u;
+        output.vertexCount = metal::select(input.vertexCount, minVertexCountMinusVertexStart, vertexCondition);
+        auto minInstanceCountMinusInstanceStart = minCounts[1] > input.baseInstance ? (minCounts[1] - input.baseInstance) : 0u;
+        output.instanceCount = metal::select(input.instanceCount, minInstanceCountMinusInstanceStart, instanceCondition);
         output.vertexStart = input.vertexStart;
         output.baseInstance = input.baseInstance;
         if (lostCondition)
@@ -993,8 +998,10 @@ id<MTLFunction> Device::icbCommandClampFunction(MTLIndexType indexType)
     {
         device const IndexDataUint& data = *indexData;
         uint32_t k = (data.primitiveType == primitive_type::triangle_strip || data.primitiveType == primitive_type::line_strip) ? 1 : 0;
-        uint32_t vertexIndex = data.indexBuffer[indexId + data.firstIndex] + k;
-        if (data.baseVertex + vertexIndex >= data.minVertexCount + k) {
+        uint32_t indexBufferValue = data.indexBuffer[indexId + data.firstIndex];
+        uint32_t vertexIndex = indexBufferValue + k;
+        bool negativeCondition = data.baseVertex + k < data.baseVertex;
+        if (negativeCondition || (data.baseVertex + vertexIndex >= data.minVertexCount + k)) {
             *icb_container->outOfBoundsRead = 1;
             render_command cmd(icb_container->commandBuffer, data.renderCommand);
             cmd.draw_indexed_primitives(data.primitiveType,
@@ -1012,8 +1019,10 @@ id<MTLFunction> Device::icbCommandClampFunction(MTLIndexType indexType)
     {
         device const IndexDataUshort& data = *indexData;
         uint32_t k = (data.primitiveType == primitive_type::triangle_strip || data.primitiveType == primitive_type::line_strip) ? 1 : 0;
-        ushort vertexIndex = data.indexBuffer[indexId + data.firstIndex] + k;
-        if (data.baseVertex + vertexIndex >= data.minVertexCount + k) {
+        ushort indexBufferValue = data.indexBuffer[indexId + data.firstIndex];
+        ushort vertexIndex = indexBufferValue + k;
+        bool negativeCondition = data.baseVertex + k < data.baseVertex;
+        if (negativeCondition || (data.baseVertex + vertexIndex >= data.minVertexCount + k)) {
             *icb_container->outOfBoundsRead = 1;
             render_command cmd(icb_container->commandBuffer, data.renderCommand);
             cmd.draw_indexed_primitives(data.primitiveType,

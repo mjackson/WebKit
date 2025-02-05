@@ -958,16 +958,18 @@ void UserMediaPermissionRequestManagerProxy::computeFilteredDeviceList(FrameIden
 
             switch (device.type()) {
             case WebCore::CaptureDevice::DeviceType::Camera:
+                cameraCount++;
                 if (shouldRestrictCamera) {
-                    if (device.type() == WebCore::CaptureDevice::DeviceType::Camera && cameraCount++ < defaultMaximumCameraCount)
+                    if (cameraCount <= defaultMaximumCameraCount)
                         filteredDevices.append({ { { }, WebCore::CaptureDevice::DeviceType::Camera, { }, { } }, { } });
                     break;
                 }
                 filteredDevices.append(deviceWithCapabilities);
                 break;
             case WebCore::CaptureDevice::DeviceType::Microphone:
+                microphoneCount++;
                 if (shouldRestrictMicrophone) {
-                    if (device.type() == WebCore::CaptureDevice::DeviceType::Microphone && microphoneCount++ < defaultMaximumMicrophoneCount)
+                    if (microphoneCount <= defaultMaximumMicrophoneCount)
                         filteredDevices.append({ { { }, WebCore::CaptureDevice::DeviceType::Microphone, { }, { } }, { } });
                     break;
                 }
@@ -985,6 +987,10 @@ void UserMediaPermissionRequestManagerProxy::computeFilteredDeviceList(FrameIden
         }
 
         ALWAYS_LOG(logIdentifier, "exposing ", cameraCount, " camera(s) filtering = ", shouldRestrictCamera, ", ", microphoneCount, " microphone(s) filtering = ", shouldRestrictMicrophone, ", ", speakerCount, " speaker(s) filtering = ", shouldRestrictSpeaker);
+
+#if RELEASE_LOG_DISABLED
+        UNUSED_VARIABLE(speakerCount);
+#endif
 
         completion(WTFMove(filteredDevices));
     });

@@ -414,7 +414,8 @@ void serializeMathFunctionArguments(StringBuilder& builder, const IndirectNode<A
     WTF::switchOn(anchor->side,
         [&](CSSValueID valueID) {
             builder.append(nameLiteralForSerialization(valueID));
-        }, [&](const Child& percentage) {
+        },
+        [&](const Child& percentage) {
             // As anchor() is not actually a "math function", calc() can't be omitted in arguments.
             serializeWithoutOmittingPrefix(builder, percentage, state);
         }
@@ -690,32 +691,34 @@ template<typename Op> void serializeCalculationTree(StringBuilder& builder, cons
 
 // MARK: Exposed interface
 
-void serializationForCSS(StringBuilder& builder, const Tree& tree)
+void serializationForCSS(StringBuilder& builder, const Tree& tree, const SerializationOptions& options)
 {
     SerializationState state {
         .stage = tree.stage,
-        .range = tree.range
+        .range = options.range
     };
     serializeMathFunction(builder, tree.root, state);
 }
 
-String serializationForCSS(const Tree& tree)
+String serializationForCSS(const Tree& tree, const SerializationOptions& options)
 {
     StringBuilder builder;
-    serializationForCSS(builder, tree);
+    serializationForCSS(builder, tree, options);
     return builder.toString();
 }
 
-void serializationForCSS(StringBuilder& builder, const Child& child)
+void serializationForCSS(StringBuilder& builder, const Child& child, const SerializationOptions& options)
 {
-    SerializationState state { };
+    SerializationState state {
+        .range = options.range
+    };
     serializeCalculationTree(builder, child, state);
 }
 
-String serializationForCSS(const Child& child)
+String serializationForCSS(const Child& child, const SerializationOptions& options)
 {
     StringBuilder builder;
-    serializationForCSS(builder, child);
+    serializationForCSS(builder, child, options);
     return builder.toString();
 }
 

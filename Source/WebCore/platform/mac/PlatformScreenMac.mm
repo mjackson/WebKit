@@ -29,6 +29,7 @@
 #if PLATFORM(MAC)
 
 #import "ContentsFormat.h"
+#import "FloatPoint.h"
 #import "FloatRect.h"
 #import "HostWindow.h"
 #import "LocalFrameView.h"
@@ -366,12 +367,12 @@ DestinationColorSpace screenColorSpace(Widget* widget)
 
 ContentsFormat screenContentsFormat(Widget* widget, PlatformCALayerClient* client)
 {
-#if HAVE(HDR_SUPPORT)
+#if ENABLE(PIXEL_FORMAT_RGBA16F)
     if (client && client->hdrForImagesEnabled() && screenSupportsHighDynamicRange(widget))
         return ContentsFormat::RGBA16F;
 #endif
 
-#if HAVE(IOSURFACE_RGB10)
+#if ENABLE(PIXEL_FORMAT_RGB10)
     if (screenSupportsExtendedColor(widget))
         return ContentsFormat::RGBA10;
 #endif
@@ -433,6 +434,13 @@ FloatRect toUserSpaceForPrimaryScreen(const NSRect& rect)
     FloatRect userRect = rect;
     userRect.setY(NSMaxY(screenRectForDisplay(primaryScreenDisplayID())) - (userRect.y() + userRect.height())); // flip
     return userRect;
+}
+
+FloatPoint toUserSpaceForPrimaryScreen(const NSPoint& point)
+{
+    FloatPoint userPoint = point;
+    userPoint.setY(NSMaxY(screenRectForDisplay(primaryScreenDisplayID())) - userPoint.y()); // flip
+    return userPoint;
 }
 
 NSRect toDeviceSpace(const FloatRect& rect, NSWindow *source)

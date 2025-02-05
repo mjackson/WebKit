@@ -54,7 +54,7 @@ public:
     bool requiresLayer() const override;
 
     bool requiresLayerWithScrollableArea() const;
-    bool backgroundIsKnownToBeOpaqueInRect(const LayoutRect& localRect) const final;
+    bool backgroundIsKnownToBeOpaqueInRect(const LayoutRect& localRect) const override;
 
     LayoutUnit x() const { return m_frameRect.x(); }
     LayoutUnit y() const { return m_frameRect.y(); }
@@ -507,7 +507,7 @@ public:
     LayoutUnit synthesizeBaseline(FontBaseline baselineType, BaselineSynthesisEdge) const;
 
     bool shrinkToAvoidFloats() const;
-    virtual bool avoidsFloats() const;
+    bool avoidsFloats() const;
 
     virtual void markForPaginationRelayoutIfNeeded() { }
     
@@ -618,8 +618,6 @@ public:
     std::optional<LayoutUnit> explicitIntrinsicInnerHeight() const;
     inline std::optional<LayoutUnit> explicitIntrinsicInnerLogicalWidth() const;
     inline std::optional<LayoutUnit> explicitIntrinsicInnerLogicalHeight() const;
-
-    bool establishesIndependentFormattingContext() const override;
 
     void updateFloatPainterAfterSelfPaintingLayerChange();
 

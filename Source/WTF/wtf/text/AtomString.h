@@ -33,8 +33,6 @@ public:
     AtomString(std::span<const LChar>);
     AtomString(std::span<const UChar>);
 
-    ALWAYS_INLINE static AtomString fromLatin1(const char* characters) { return AtomString(characters); }
-
     AtomString(AtomStringImpl*);
     AtomString(RefPtr<AtomStringImpl>&&);
     AtomString(Ref<AtomStringImpl>&&);
@@ -169,11 +167,6 @@ inline AtomString::AtomString()
 {
 }
 
-inline AtomString::AtomString(const char* string)
-    : m_string(AtomStringImpl::addCString(string))
-{
-}
-
 inline AtomString::AtomString(std::span<const LChar> string)
     : m_string(AtomStringImpl::add(string))
 {
@@ -282,7 +275,7 @@ inline AtomString AtomString::fromUTF8(const char* characters)
         return nullAtom();
     if (!*characters)
         return emptyAtom();
-    return fromUTF8Internal(span(characters));
+    return fromUTF8Internal(unsafeSpan(characters));
 }
 
 inline AtomString String::toExistingAtomString() const

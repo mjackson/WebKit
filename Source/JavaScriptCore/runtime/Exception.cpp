@@ -29,7 +29,9 @@
 #include "Interpreter.h"
 #include "JSCJSValueInlines.h"
 #include "JSObjectInlines.h"
+#include "JSWebAssemblyException.h"
 #include "StructureInlines.h"
+#include "WasmTag.h"
 
 namespace JSC {
 
@@ -63,7 +65,6 @@ void Exception::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     visitor.append(thisObject->m_value);
     for (StackFrame& frame : thisObject->m_stack)
         frame.visitAggregate(visitor);
-
     visitor.reportExtraMemoryVisited(thisObject->m_stack.sizeInBytes());
 }
 
@@ -94,5 +95,17 @@ void Exception::finishCreation(VM& vm, StackCaptureAction action)
     m_stack = WTFMove(stackTrace);
     vm.heap.reportExtraMemoryAllocated(this, m_stack.sizeInBytes());
 }
+
+#if ENABLE(WEBASSEMBLY)
+
+void Exception::wrapValueForJSTag(JSGlobalObject* globalObject)
+{
+    VM& vm = globalObject->vm();
+    FixedVector<uint64_t> payload { static_cast<uint64_t>(JSValue::encode(m_value.get())) };
+    auto* wrapper = JSWebAssemblyException::create(vm, globalObject->webAssemblyExceptionStructure(), Wasm::Tag::jsExceptionTag(), WTFMove(payload));
+    m_value.set(vm, this, wrapper);
+}
+
+#endif
 
 } // namespace JSC

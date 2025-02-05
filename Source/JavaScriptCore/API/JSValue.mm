@@ -1250,7 +1250,7 @@ static StructHandlers* createStructHandlerMap()
     // Step 1: find all valueWith<Foo>:inContext: class methods in JSValue.
     forEachMethodInClass(object_getClass([JSValue class]), ^(Method method){
         SEL selector = method_getName(method);
-        auto name = span(sel_getName(selector));
+        auto name = unsafeSpan(sel_getName(selector));
         // Check for valueWith<Foo>:context:
         if (name.size() < valueWithXinContextLength || !spanHasPrefix(name, "valueWith"_span) || !spanHasSuffix(name, ":inContext:"_span))
             return;
@@ -1277,7 +1277,7 @@ static StructHandlers* createStructHandlerMap()
     // Step 2: find all to<Foo> instance methods in JSValue.
     forEachMethodInClass([JSValue class], ^(Method method){
         SEL selector = method_getName(method);
-        auto name = span(sel_getName(selector));
+        auto name = unsafeSpan(sel_getName(selector));
         // Check for to<Foo>
         if (name.size() < toXLength || !spanHasPrefix(name, "to"_span))
             return;
@@ -1292,7 +1292,7 @@ static StructHandlers* createStructHandlerMap()
         StructTagHandler& handler = iter->value;
 
         // check that strlen(<foo>) == strlen(<Foo>)
-        auto valueWithName = span(sel_getName(handler.typeToValueSEL));
+        auto valueWithName = unsafeSpan(sel_getName(handler.typeToValueSEL));
         if (valueWithName.size() - valueWithXinContextLength != name.size() - toXLength)
             return;
         // Check that <Foo> == <Foo>

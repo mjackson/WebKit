@@ -686,10 +686,11 @@ void WebPage::updateRemotePageAccessibilityOffset(WebCore::FrameIdentifier, WebC
     [accessibilityRemoteObject() setRemoteFrameOffset:offset];
 }
 
-void WebPage::registerRemoteFrameAccessibilityTokens(pid_t pid, std::span<const uint8_t> elementToken)
+void WebPage::registerRemoteFrameAccessibilityTokens(pid_t pid, std::span<const uint8_t> elementToken, WebCore::FrameIdentifier frameID)
 {
     createMockAccessibilityElement(pid);
     [m_mockAccessibilityElement setRemoteTokenData:toNSData(elementToken).get()];
+    [m_mockAccessibilityElement setFrameIdentifier:frameID];
 }
 
 void WebPage::createMockAccessibilityElement(pid_t pid)
@@ -1809,6 +1810,11 @@ static std::pair<std::optional<SimpleRange>, SelectionWasFlipped> rangeForPointI
     std::optional<SimpleRange> range;
     SelectionWasFlipped selectionFlipped = SelectionWasFlipped::No;
 
+    auto shouldUseOldExtentAsNewBase = [&] {
+        return frame.settings().visuallyContiguousBidiTextSelectionEnabled()
+            && crossesBidiTextBoundaryInSameLine(result, baseIsStart ? selectionEnd : selectionStart);
+    };
+
     if (targetNode)
         result = frame.eventHandler().selectionExtentRespectingEditingBoundary(frame.selection().selection(), hitTest.localPoint(), targetNode.get()).deepEquivalent();
     else
@@ -1823,7 +1829,7 @@ static std::pair<std::optional<SimpleRange>, SelectionWasFlipped> rangeForPointI
             result = VisibleSelection::adjustPositionForEnd(result.deepEquivalent(), containerNode.get());
         
         if (selectionFlippingEnabled && flipSelection) {
-            range = makeSimpleRange(result, selectionStart);
+            range = makeSimpleRange(result, shouldUseOldExtentAsNewBase() ? selectionEnd : selectionStart);
             selectionFlipped = SelectionWasFlipped::Yes;
         } else
             range = makeSimpleRange(selectionStart, result);
@@ -1836,7 +1842,7 @@ static std::pair<std::optional<SimpleRange>, SelectionWasFlipped> rangeForPointI
             result = VisibleSelection::adjustPositionForStart(result.deepEquivalent(), containerNode.get());
 
         if (selectionFlippingEnabled && flipSelection) {
-            range = makeSimpleRange(selectionEnd, result);
+            range = makeSimpleRange(shouldUseOldExtentAsNewBase() ? selectionStart : selectionEnd, result);
             selectionFlipped = SelectionWasFlipped::Yes;
         } else
             range = makeSimpleRange(result, selectionEnd);
@@ -2095,7 +2101,7 @@ void WebPage::updateSelectionWithTouches(const IntPoint& point, SelectionTouch s
 {
     RefPtr frame = m_page->checkedFocusController()->focusedOrMainFrame();
     if (!frame)
-        return;
+        return completionHandler(point, selectionTouch, { });
 
 #if ENABLE(PDF_PLUGIN)
     if (RefPtr pluginView = focusedPluginViewForFrame(*frame)) {
@@ -2106,6 +2112,14 @@ void WebPage::updateSelectionWithTouches(const IntPoint& point, SelectionTouch s
         return completionHandler(point, selectionTouch, resultFlags);
     }
 #endif
+
+    if (selectionTouch == SelectionTouch::Moved
+        && m_bidiSelectionFlippingState != BidiSelectionFlippingState::NotFlipping
+        && baseIsStart == (m_bidiSelectionFlippingState == BidiSelectionFlippingState::FlippingToStart)) {
+        // The last selection update caused the selection base and extent to swap. Ignore any in-flight selection
+        // update that's still trying to adjust the new selection base (after flipping).
+        return completionHandler(point, selectionTouch, { });
+    }
 
     if (selectionTouch == SelectionTouch::Started)
         addTextInteractionSources(TextInteractionSource::Touch);
@@ -2159,8 +2173,11 @@ void WebPage::updateSelectionWithTouches(const IntPoint& point, SelectionTouch s
         break;
     }
 
-    if (selectionFlipped == SelectionWasFlipped::Yes)
-        flags = SelectionFlags::SelectionFlipped;
+    if (selectionFlipped == SelectionWasFlipped::Yes) {
+        flags.add(SelectionFlags::SelectionFlipped);
+        m_bidiSelectionFlippingState = baseIsStart ? BidiSelectionFlippingState::FlippingToStart : BidiSelectionFlippingState::FlippingToEnd;
+    } else
+        m_bidiSelectionFlippingState = BidiSelectionFlippingState::NotFlipping;
 
     completionHandler(point, selectionTouch, flags);
 }
@@ -2712,6 +2729,7 @@ void WebPage::setSelectionRange(const WebCore::IntPoint& point, WebCore::TextGra
     auto range = rangeForGranularityAtPoint(*frame, point, granularity, isInteractingWithFocusedElement);
     if (range)
         frame->selection().setSelectedRange(*range, Affinity::Upstream, WebCore::FrameSelection::ShouldCloseTyping::Yes, UserTriggered::Yes);
+
     m_initialSelection = range;
 }
 
@@ -2741,8 +2759,8 @@ void WebPage::selectTextWithGranularityAtPoint(const WebCore::IntPoint& point, W
 
 void WebPage::beginSelectionInDirection(WebCore::SelectionDirection direction, CompletionHandler<void(bool)>&& completionHandler)
 {
-    m_selectionAnchor = direction == SelectionDirection::Left ? Start : End;
-    completionHandler(m_selectionAnchor == Start);
+    m_selectionAnchor = direction == SelectionDirection::Left ? SelectionAnchor::Start : SelectionAnchor::End;
+    completionHandler(m_selectionAnchor == SelectionAnchor::Start);
 }
 
 void WebPage::updateSelectionWithExtentPointAndBoundary(const WebCore::IntPoint& point, WebCore::TextGranularity granularity, bool isInteractingWithFocusedElement, TextInteractionSource source, CompletionHandler<void(bool)>&& callback)
@@ -2803,13 +2821,13 @@ void WebPage::updateSelectionWithExtentPoint(const WebCore::IntPoint& point, boo
     VisiblePosition selectionEnd;
     
     if (respectSelectionAnchor == RespectSelectionAnchor::Yes) {
-        if (m_selectionAnchor == Start) {
+        if (m_selectionAnchor == SelectionAnchor::Start) {
             selectionStart = frame->selection().selection().visibleStart();
             selectionEnd = position;
             if (position <= selectionStart) {
                 selectionStart = selectionStart.previous();
                 selectionEnd = frame->selection().selection().visibleEnd();
-                m_selectionAnchor = End;
+                m_selectionAnchor = SelectionAnchor::End;
             }
         } else {
             selectionStart = position;
@@ -2817,7 +2835,7 @@ void WebPage::updateSelectionWithExtentPoint(const WebCore::IntPoint& point, boo
             if (position >= selectionEnd) {
                 selectionStart = frame->selection().selection().visibleStart();
                 selectionEnd = selectionEnd.next();
-                m_selectionAnchor = Start;
+                m_selectionAnchor = SelectionAnchor::Start;
             }
         }
     } else {
@@ -2835,7 +2853,7 @@ void WebPage::updateSelectionWithExtentPoint(const WebCore::IntPoint& point, boo
     if (auto range = makeSimpleRange(selectionStart, selectionEnd))
         frame->selection().setSelectedRange(range, Affinity::Upstream, WebCore::FrameSelection::ShouldCloseTyping::Yes, UserTriggered::Yes);
 
-    callback(m_selectionAnchor == Start);
+    callback(m_selectionAnchor == SelectionAnchor::Start);
 }
 
 void WebPage::didReleaseAllTouchPoints()
@@ -3240,15 +3258,11 @@ static inline bool isAssistableElement(Element& element)
         return true;
     if (RefPtr inputElement = dynamicDowncast<HTMLInputElement>(element)) {
         // FIXME: This laundry list of types is not a good way to factor this. Need a suitable function on HTMLInputElement itself.
-#if ENABLE(INPUT_TYPE_COLOR)
-        if (inputElement->isColorControl())
-            return true;
-#endif
 #if ENABLE(INPUT_TYPE_WEEK_PICKER)
         if (inputElement->isWeekField())
             return true;
 #endif
-        return inputElement->isTextField() || inputElement->isDateField() || inputElement->isDateTimeLocalField() || inputElement->isMonthField() || inputElement->isTimeField();
+        return inputElement->isTextField() || inputElement->isDateField() || inputElement->isDateTimeLocalField() || inputElement->isMonthField() || inputElement->isTimeField() || inputElement->isColorControl();
     }
     if (is<HTMLIFrameElement>(element))
         return false;
@@ -3257,13 +3271,18 @@ static inline bool isAssistableElement(Element& element)
 
 static inline bool isObscuredElement(Element& element)
 {
-    Ref topDocument = element.document().topDocument();
+    RefPtr mainFrameDocument = element.document().protectedMainFrameDocument();
+    if (!mainFrameDocument) {
+        LOG_ONCE(SiteIsolation, "Unable to properly perform isObscuredElement() without access to the main frame document ");
+        return false;
+    }
+
     auto elementRectInMainFrame = element.boundingBoxInRootViewCoordinates();
 
     constexpr OptionSet<HitTestRequest::Type> hitType { HitTestRequest::Type::ReadOnly, HitTestRequest::Type::Active, HitTestRequest::Type::AllowChildFrameContent, HitTestRequest::Type::DisallowUserAgentShadowContent, HitTestRequest::Type::IgnoreClipping };
     HitTestResult result(elementRectInMainFrame.center());
 
-    topDocument->hitTest(hitType, result);
+    mainFrameDocument->hitTest(hitType, result);
     result.setToNonUserAgentShadowAncestor();
 
     if (result.targetElement() == &element)
@@ -3600,7 +3619,6 @@ static void selectionPositionInformation(WebPage& page, const InteractionInforma
 #endif
 }
 
-#if ENABLE(DATALIST_ELEMENT)
 static void textInteractionPositionInformation(WebPage& page, const HTMLInputElement& input, const InteractionInformationRequest& request, InteractionInformationAtPosition& info)
 {
     if (!input.list())
@@ -3614,7 +3632,6 @@ static void textInteractionPositionInformation(WebPage& page, const HTMLInputEle
     if (result.innerNode() == input.dataListButtonElement())
         info.preventTextInteraction = true;
 }
-#endif
 
 RefPtr<ShareableBitmap> WebPage::shareableBitmapSnapshotForNode(Element& element)
 {
@@ -3838,10 +3855,8 @@ InteractionInformationAtPosition WebPage::positionInformation(const InteractionI
     selectionPositionInformation(*this, request, info);
 
     // Prevent the callout bar from showing when tapping on the datalist button.
-#if ENABLE(DATALIST_ELEMENT)
     if (RefPtr input = dynamicDowncast<HTMLInputElement>(nodeRespondingToClickEvents))
         textInteractionPositionInformation(*this, *input, request, info);
-#endif
 
 #if ENABLE(PDF_PLUGIN)
     if (pluginView) {
@@ -4161,21 +4176,15 @@ std::optional<FocusedElementInformation> WebPage::focusedElementInformation()
                     information.elementType = InputType::Search;
             }
         }
-#if ENABLE(INPUT_TYPE_COLOR)
         else if (element->isColorControl()) {
             information.elementType = InputType::Color;
             information.colorValue = element->valueAsColor();
             information.supportsAlpha = element->alpha() ? WebKit::ColorControlSupportsAlpha::Yes : WebKit::ColorControlSupportsAlpha::No;
-#if ENABLE(DATALIST_ELEMENT)
             information.suggestedColors = element->suggestedColors();
-#endif
         }
-#endif
 
-#if ENABLE(DATALIST_ELEMENT)
         information.isFocusingWithDataListDropdown = element->isFocusingWithDataListDropdown();
         information.hasSuggestions = !!element->list();
-#endif
         information.inputMode = element->canonicalInputMode();
         information.enterKeyHint = element->canonicalEnterKeyHint();
         information.isReadOnly = element->isReadOnly();
@@ -5506,10 +5515,14 @@ void WebPage::requestDocumentEditingContext(DocumentEditingContextRequest&& requ
             if (RefPtr rootEditableElement = selection.rootEditableElement()) {
                 VisiblePosition startOfEditableRoot { firstPositionInOrBeforeNode(rootEditableElement.get()) };
                 VisiblePosition endOfEditableRoot { lastPositionInOrAfterNode(rootEditableElement.get()) };
-                if (rangeOfInterest.start < startOfEditableRoot)
-                    rangeOfInterest.start = WTFMove(startOfEditableRoot);
-                if (rangeOfInterest.end > endOfEditableRoot)
-                    rangeOfInterest.end = WTFMove(endOfEditableRoot);
+                auto clampToEditableRoot = [&](VisiblePosition& position) {
+                    if (position < startOfEditableRoot)
+                        position = startOfEditableRoot;
+                    else if (position > endOfEditableRoot)
+                        position = endOfEditableRoot;
+                };
+                clampToEditableRoot(rangeOfInterest.start);
+                clampToEditableRoot(rangeOfInterest.end);
             }
         }
     } else if (!selection.isNone())

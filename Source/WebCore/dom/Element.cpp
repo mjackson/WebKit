@@ -360,7 +360,7 @@ bool Element::isNonceable() const
         static constexpr auto scriptString = "<script"_s;
         static constexpr auto styleString = "<style"_s;
 
-        for (const auto& attribute : attributesIterator()) {
+        for (auto& attribute : attributes()) {
             auto name = attribute.localNameLowercase();
             auto value = attribute.value().convertToASCIILowercase();
             if (name.contains(scriptString)
@@ -703,7 +703,7 @@ void Element::setBooleanAttribute(const QualifiedName& name, bool value)
         removeAttribute(name);
 }
 
-NamedNodeMap& Element::attributes() const
+NamedNodeMap& Element::attributesMap() const
 {
     ElementRareData& rareData = const_cast<Element*>(this)->ensureElementRareData();
     if (NamedNodeMap* attributeMap = rareData.attributeMap())
@@ -805,7 +805,7 @@ Vector<String> Element::getAttributeNames() const
     if (!hasAttributes())
         return { };
 
-    auto attributes = attributesIterator();
+    auto attributes = this->attributes();
     return WTF::map(attributes, [](auto& attribute) {
         return attribute.name().toString();
     });
@@ -2238,9 +2238,9 @@ void Element::attributeChanged(const QualifiedName& name, const AtomString& oldV
 
         if (CheckedPtr observerRegistry = treeScope().idTargetObserverRegistryIfExists()) {
             if (!oldValue.isEmpty())
-                observerRegistry->notifyObservers(oldValue);
+                observerRegistry->notifyObservers(*this, oldValue);
             if (!newValue.isEmpty())
-                observerRegistry->notifyObservers(newValue);
+                observerRegistry->notifyObservers(*this, newValue);
         }
         break;
     }
@@ -2601,6 +2601,7 @@ void Element::invalidateStyleInternal()
 
 void Element::invalidateStyleForAnimation()
 {
+    ASSERT(!document().inStyleRecalc());
     Node::invalidateStyle(Style::Validity::AnimationInvalid);
 }
 
@@ -2928,8 +2929,12 @@ Node::InsertedIntoAncestorResult Element::insertedIntoAncestor(InsertionType ins
         }
         if (UNLIKELY(isDefinedCustomElement()))
             CustomElementReactionQueue::enqueueConnectedCallbackIfNeeded(*this);
-        if (shouldAutofocus(*this))
-            Ref { document().topDocument() }->appendAutofocusCandidate(*this);
+        if (shouldAutofocus(*this)) {
+            if (RefPtr mainFrameDocument = document().mainFrameDocument())
+                mainFrameDocument->appendAutofocusCandidate(*this);
+            else
+                LOG_ONCE(SiteIsolation, "Unable to properly perform Element::insertedIntoAncestor() without access to the main frame document ");
+        }
     }
 
     if (parentNode() == &parentOfInsertedTree) {
@@ -3423,6 +3428,7 @@ void Element::finishParsingChildren()
     setIsParsingChildrenFinished();
 
     Style::ChildChangeInvalidation::invalidateAfterFinishedParsingChildren(*this);
+    document().processInternalResourceLinks(this);
 }
 
 static void appendAttributes(StringBuilder& builder, const Element& element)
@@ -5343,7 +5349,7 @@ void Element::detachAllAttrNodesFromElement()
     auto* attrNodeList = attrNodeListForElement(*this);
     ASSERT(attrNodeList);
 
-    for (const Attribute& attribute : attributesIterator()) {
+    for (auto& attribute : attributes()) {
         if (RefPtr<Attr> attrNode = findAttrNodeInList(*attrNodeList, attribute.name()))
             attrNode->detachFromElementWithValue(attribute.value());
     }
@@ -5500,7 +5506,7 @@ void Element::cloneAttributesFromElement(const Element& other)
         inputElement->initializeInputTypeAfterParsingOrCloning();
     }
 
-    for (const Attribute& attribute : attributesIterator())
+    for (auto& attribute : attributes())
         notifyAttributeChanged(attribute.name(), nullAtom(), attribute.value(), AttributeModificationReason::ByCloning);
 
     setNonce(other.nonce());

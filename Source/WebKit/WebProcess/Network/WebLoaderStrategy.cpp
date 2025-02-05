@@ -358,7 +358,6 @@ static void addParametersShared(const LocalFrame* frame, NetworkResourceLoadPara
 
     if (auto* page = frame->page()) {
         parameters.pageHasResourceLoadClient = page->hasResourceLoadClient();
-        parameters.shouldRelaxThirdPartyCookieBlocking = page->shouldRelaxThirdPartyCookieBlocking();
         page->logMediaDiagnosticMessage(parameters.request.httpBody());
 
 #if ENABLE(WK_WEB_EXTENSIONS) && PLATFORM(COCOA)
@@ -889,21 +888,15 @@ void WebLoaderStrategy::didFinishPingLoad(WebCore::ResourceLoaderIdentifier ping
 
 void WebLoaderStrategy::preconnectTo(FrameLoader& frameLoader, const URL& url, StoredCredentialsPolicy storedCredentialsPolicy, ShouldPreconnectAsFirstParty shouldPreconnectAsFirstParty, PreconnectCompletionHandler&& completionHandler)
 {
-    auto* webFrameLoaderClient = toWebLocalFrameLoaderClient(frameLoader.client());
-    if (!webFrameLoaderClient) {
-        if (completionHandler)
-            completionHandler(internalError(url));
-        return;
-    }
-    auto& webFrame = webFrameLoaderClient->webFrame();
-    auto* webPage = webFrame.page();
-    if (!webPage) {
-        if (completionHandler)
-            completionHandler(internalError(url));
-        return;
-    }
+    RefPtr webFrame = WebProcess::singleton().webFrame(frameLoader.frameID());
+    if (!webFrame)
+        return completionHandler(internalError(url));
 
-    preconnectTo(ResourceRequest { url }, *webPage, webFrame, storedCredentialsPolicy, shouldPreconnectAsFirstParty, WTFMove(completionHandler));
+    RefPtr webPage = webFrame->page();
+    if (!webPage)
+        return completionHandler(internalError(url));
+
+    preconnectTo(ResourceRequest { url }, *webPage, *webFrame, storedCredentialsPolicy, shouldPreconnectAsFirstParty, WTFMove(completionHandler));
 }
 
 void WebLoaderStrategy::preconnectTo(WebCore::ResourceRequest&& request, WebPage& webPage, WebFrame& webFrame, WebCore::StoredCredentialsPolicy storedCredentialsPolicy, ShouldPreconnectAsFirstParty shouldPreconnectAsFirstParty, PreconnectCompletionHandler&& completionHandler)
@@ -1074,6 +1067,63 @@ void WebLoaderStrategy::prioritizeResourceLoads(const Vector<WebCore::Subresourc
 
     auto& connection = WebProcess::singleton().ensureNetworkProcessConnection().connection();
     connection.send(Messages::NetworkConnectionToWebProcess::PrioritizeResourceLoads(identifiers), 0);
+}
+
+ResourceError WebLoaderStrategy::cancelledError(const ResourceRequest& request) const
+{
+    return WebKit::cancelledError(request);
+}
+
+ResourceError WebLoaderStrategy::blockedError(const ResourceRequest& request) const
+{
+    return WebKit::blockedError(request);
+}
+
+ResourceError WebLoaderStrategy::blockedByContentBlockerError(const ResourceRequest& request) const
+{
+    return WebKit::blockedByContentBlockerError(request);
+}
+
+ResourceError WebLoaderStrategy::cannotShowURLError(const ResourceRequest& request) const
+{
+    return WebKit::cannotShowURLError(request);
+}
+
+ResourceError WebLoaderStrategy::interruptedForPolicyChangeError(const ResourceRequest& request) const
+{
+    return WebKit::interruptedForPolicyChangeError(request);
+}
+
+#if ENABLE(CONTENT_FILTERING)
+ResourceError WebLoaderStrategy::blockedByContentFilterError(const ResourceRequest& request) const
+{
+    return WebKit::blockedByContentFilterError(request);
+}
+#endif
+
+ResourceError WebLoaderStrategy::cannotShowMIMETypeError(const ResourceResponse& response) const
+{
+    return WebKit::cannotShowMIMETypeError(response);
+}
+
+ResourceError WebLoaderStrategy::fileDoesNotExistError(const ResourceResponse& response) const
+{
+    return WebKit::fileDoesNotExistError(response);
+}
+
+ResourceError WebLoaderStrategy::httpsUpgradeRedirectLoopError(const ResourceRequest& request) const
+{
+    return WebKit::httpsUpgradeRedirectLoopError(request);
+}
+
+ResourceError WebLoaderStrategy::httpNavigationWithHTTPSOnlyError(const ResourceRequest& request) const
+{
+    return WebKit::httpNavigationWithHTTPSOnlyError(request);
+}
+
+ResourceError WebLoaderStrategy::pluginWillHandleLoadError(const ResourceResponse& response) const
+{
+    return WebKit::pluginWillHandleLoadError(response);
 }
 
 } // namespace WebKit

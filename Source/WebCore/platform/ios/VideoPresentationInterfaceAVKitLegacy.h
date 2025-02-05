@@ -71,6 +71,8 @@ public:
 private:
     WEBCORE_EXPORT VideoPresentationInterfaceAVKitLegacy(PlaybackSessionInterfaceIOS&);
 
+    WebAVPlayerLayer *fullscreenPlayerLayer() const;
+
     void updateRouteSharingPolicy() final;
     void setupPlayerViewController() final;
     void invalidatePlayerViewController() final;

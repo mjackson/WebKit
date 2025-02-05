@@ -49,6 +49,7 @@
 #import "AccessibilityTableCell.h"
 #import "AccessibilityTableColumn.h"
 #import "AccessibilityTableRow.h"
+#import "CGUtilities.h"
 #import "Chrome.h"
 #import "ChromeClient.h"
 #import "ContextMenuController.h"
@@ -80,6 +81,7 @@
 #import "VisibleUnits.h"
 #import "WebCoreFrameView.h"
 #import <pal/spi/cocoa/NSAccessibilitySPI.h>
+#import <wtf/ObjCRuntimeExtras.h>
 #import <wtf/RuntimeApplicationChecks.h>
 #import <wtf/cocoa/TypeCastsCocoa.h>
 #import <wtf/cocoa/VectorCocoa.h>
@@ -90,424 +92,6 @@ using namespace WebCore;
 
 static id attributeValueForTesting(const RefPtr<AXCoreObject>&, NSString *);
 static id parameterizedAttributeValueForTesting(const RefPtr<AXCoreObject>&, NSString *, id);
-
-#ifndef NSAccessibilityActiveElementAttribute
-#define NSAccessibilityActiveElementAttribute @"AXActiveElement"
-#endif
-
-// Cell Tables
-#ifndef NSAccessibilitySelectedCellsAttribute
-#define NSAccessibilitySelectedCellsAttribute @"AXSelectedCells"
-#endif
-
-#ifndef NSAccessibilityVisibleCellsAttribute
-#define NSAccessibilityVisibleCellsAttribute @"AXVisibleCells"
-#endif
-
-#ifndef NSAccessibilityRowIndexRangeAttribute
-#define NSAccessibilityRowIndexRangeAttribute @"AXRowIndexRange"
-#endif
-
-#ifndef NSAccessibilityColumnIndexRangeAttribute
-#define NSAccessibilityColumnIndexRangeAttribute @"AXColumnIndexRange"
-#endif
-
-#ifndef NSAccessibilityCellForColumnAndRowParameterizedAttribute
-#define NSAccessibilityCellForColumnAndRowParameterizedAttribute @"AXCellForColumnAndRow"
-#endif
-
-#ifndef NSAccessibilityCellRole
-#define NSAccessibilityCellRole @"AXCell"
-#endif
-
-#ifndef NSAccessibilityDefinitionListSubrole
-#define NSAccessibilityDefinitionListSubrole @"AXDefinitionList"
-#endif
-
-// Miscellaneous
-#ifndef NSAccessibilityAccessKeyAttribute
-#define NSAccessibilityAccessKeyAttribute @"AXAccessKey"
-#endif
-
-#ifndef NSAccessibilityValueAutofillAvailableAttribute
-#define NSAccessibilityValueAutofillAvailableAttribute @"AXValueAutofillAvailable"
-#endif
-
-#ifndef NSAccessibilityValueAutofillTypeAttribute
-#define NSAccessibilityValueAutofillTypeAttribute @"AXValueAutofillType"
-#endif
-
-#ifndef NSAccessibilityLanguageAttribute
-#define NSAccessibilityLanguageAttribute @"AXLanguage"
-#endif
-
-#ifndef NSAccessibilityRequiredAttribute
-#define NSAccessibilityRequiredAttribute @"AXRequired"
-#endif
-
-#ifndef NSAccessibilityInvalidAttribute
-#define NSAccessibilityInvalidAttribute @"AXInvalid"
-#endif
-
-#ifndef NSAccessibilityOwnsAttribute
-#define NSAccessibilityOwnsAttribute @"AXOwns"
-#endif
-
-#ifndef NSAccessibilityGrabbedAttribute
-#define NSAccessibilityGrabbedAttribute @"AXGrabbed"
-#endif
-
-#ifndef NSAccessibilityDatetimeValueAttribute
-#define NSAccessibilityDatetimeValueAttribute @"AXDateTimeValue"
-#endif
-
-#ifndef NSAccessibilityInlineTextAttribute
-#define NSAccessibilityInlineTextAttribute @"AXInlineText"
-#endif
-
-#ifndef NSAccessibilityDropEffectsAttribute
-#define NSAccessibilityDropEffectsAttribute @"AXDropEffects"
-#endif
-
-#ifndef NSAccessibilityARIALiveAttribute
-#define NSAccessibilityARIALiveAttribute @"AXARIALive"
-#endif
-
-#ifndef NSAccessibilityARIAAtomicAttribute
-#define NSAccessibilityARIAAtomicAttribute @"AXARIAAtomic"
-#endif
-
-#ifndef NSAccessibilityARIARelevantAttribute
-#define NSAccessibilityARIARelevantAttribute @"AXARIARelevant"
-#endif
-
-#ifndef NSAccessibilityElementBusyAttribute
-#define NSAccessibilityElementBusyAttribute @"AXElementBusy"
-#endif
-
-#ifndef NSAccessibilityARIAPosInSetAttribute
-#define NSAccessibilityARIAPosInSetAttribute @"AXARIAPosInSet"
-#endif
-
-#ifndef NSAccessibilityARIASetSizeAttribute
-#define NSAccessibilityARIASetSizeAttribute @"AXARIASetSize"
-#endif
-
-#ifndef NSAccessibilityLoadingProgressAttribute
-#define NSAccessibilityLoadingProgressAttribute @"AXLoadingProgress"
-#endif
-
-#ifndef NSAccessibilityHasPopupAttribute
-#define NSAccessibilityHasPopupAttribute @"AXHasPopup"
-#endif
-
-#ifndef NSAccessibilityPopupValueAttribute
-#define NSAccessibilityPopupValueAttribute @"AXPopupValue"
-#endif
-
-#ifndef NSAccessibilityPlaceholderValueAttribute
-#define NSAccessibilityPlaceholderValueAttribute @"AXPlaceholderValue"
-#endif
-
-#ifndef NSAccessibilityScrollToVisibleAction
-#define NSAccessibilityScrollToVisibleAction @"AXScrollToVisible"
-#endif
-
-#ifndef NSAccessibilityPathAttribute
-#define NSAccessibilityPathAttribute @"AXPath"
-#endif
-
-#define NSAccessibilityDOMIdentifierAttribute @"AXDOMIdentifier"
-#define NSAccessibilityDOMClassListAttribute @"AXDOMClassList"
-
-#ifndef NSAccessibilityARIACurrentAttribute
-#define NSAccessibilityARIACurrentAttribute @"AXARIACurrent"
-#endif
-
-#ifndef NSAccessibilityKeyShortcutsAttribute
-#define NSAccessibilityKeyShortcutsAttribute @"AXKeyShortcutsValue"
-#endif
-
-// Table/grid attributes
-#ifndef NSAccessibilityARIAColumnIndexAttribute
-#define NSAccessibilityARIAColumnIndexAttribute @"AXARIAColumnIndex"
-#endif
-
-#ifndef NSAccessibilityARIARowIndexAttribute
-#define NSAccessibilityARIARowIndexAttribute @"AXARIARowIndex"
-#endif
-
-#ifndef NSAccessibilityARIAColumnCountAttribute
-#define NSAccessibilityARIAColumnCountAttribute @"AXARIAColumnCount"
-#endif
-
-#ifndef NSAccessibilityARIARowCountAttribute
-#define NSAccessibilityARIARowCountAttribute @"AXARIARowCount"
-#endif
-
-
-#ifndef NSAccessibilityUIElementsForSearchPredicateParameterizedAttribute
-#define NSAccessibilityUIElementsForSearchPredicateParameterizedAttribute @"AXUIElementsForSearchPredicate"
-#endif
-
-// Text selection
-#ifndef NSAccessibilitySelectTextActivity
-#define NSAccessibilitySelectTextActivity @"AXSelectTextActivity"
-#endif
-
-#ifndef NSAccessibilitySelectTextActivityFindAndReplace
-#define NSAccessibilitySelectTextActivityFindAndReplace @"AXSelectTextActivityFindAndReplace"
-#endif
-
-#ifndef NSAccessibilitySelectTextActivityFindAndSelect
-#define NSAccessibilitySelectTextActivityFindAndSelect @"AXSelectTextActivityFindAndSelect"
-#endif
-
-#ifndef kAXSelectTextActivityFindAndCapitalize
-#define kAXSelectTextActivityFindAndCapitalize @"AXSelectTextActivityFindAndCapitalize"
-#endif
-
-#ifndef kAXSelectTextActivityFindAndLowercase
-#define kAXSelectTextActivityFindAndLowercase @"AXSelectTextActivityFindAndLowercase"
-#endif
-
-#ifndef kAXSelectTextActivityFindAndUppercase
-#define kAXSelectTextActivityFindAndUppercase @"AXSelectTextActivityFindAndUppercase"
-#endif
-
-#ifndef NSAccessibilitySelectTextAmbiguityResolution
-#define NSAccessibilitySelectTextAmbiguityResolution @"AXSelectTextAmbiguityResolution"
-#endif
-
-#ifndef NSAccessibilitySelectTextAmbiguityResolutionClosestAfterSelection
-#define NSAccessibilitySelectTextAmbiguityResolutionClosestAfterSelection @"AXSelectTextAmbiguityResolutionClosestAfterSelection"
-#endif
-
-#ifndef NSAccessibilitySelectTextAmbiguityResolutionClosestBeforeSelection
-#define NSAccessibilitySelectTextAmbiguityResolutionClosestBeforeSelection @"AXSelectTextAmbiguityResolutionClosestBeforeSelection"
-#endif
-
-#ifndef NSAccessibilitySelectTextAmbiguityResolutionClosestToSelection
-#define NSAccessibilitySelectTextAmbiguityResolutionClosestToSelection @"AXSelectTextAmbiguityResolutionClosestToSelection"
-#endif
-
-#ifndef NSAccessibilitySelectTextReplacementString
-#define NSAccessibilitySelectTextReplacementString @"AXSelectTextReplacementString"
-#endif
-
-#ifndef NSAccessibilitySelectTextSearchStrings
-#define NSAccessibilitySelectTextSearchStrings @"AXSelectTextSearchStrings"
-#endif
-
-#ifndef NSAccessibilitySelectTextWithCriteriaParameterizedAttribute
-#define NSAccessibilitySelectTextWithCriteriaParameterizedAttribute @"AXSelectTextWithCriteria"
-#endif
-
-#ifndef NSAccessibilityIntersectionWithSelectionRangeAttribute
-#define NSAccessibilityIntersectionWithSelectionRangeAttribute @"AXIntersectionWithSelectionRange"
-#endif
-
-// Text search
-
-#ifndef NSAccessibilitySearchTextWithCriteriaParameterizedAttribute
-/* Performs a text search with the given parameters.
- Returns an NSArray of text marker ranges of the search hits.
- */
-#define NSAccessibilitySearchTextWithCriteriaParameterizedAttribute @"AXSearchTextWithCriteria"
-#endif
-
-#ifndef NSAccessibilitySearchTextSearchStrings
-// NSArray of strings to search for.
-#define NSAccessibilitySearchTextSearchStrings @"AXSearchTextSearchStrings"
-#endif
-
-#ifndef NSAccessibilitySearchTextStartFrom
-// NSString specifying the start point of the search: selection, begin or end.
-#define NSAccessibilitySearchTextStartFrom @"AXSearchTextStartFrom"
-#endif
-
-#ifndef NSAccessibilitySearchTextStartFromBegin
-// Value for SearchTextStartFrom.
-#define NSAccessibilitySearchTextStartFromBegin @"AXSearchTextStartFromBegin"
-#endif
-
-#ifndef NSAccessibilitySearchTextStartFromSelection
-// Value for SearchTextStartFrom.
-#define NSAccessibilitySearchTextStartFromSelection @"AXSearchTextStartFromSelection"
-#endif
-
-#ifndef NSAccessibilitySearchTextStartFromEnd
-// Value for SearchTextStartFrom.
-#define NSAccessibilitySearchTextStartFromEnd @"AXSearchTextStartFromEnd"
-#endif
-
-#ifndef NSAccessibilitySearchTextDirection
-// NSString specifying the direction of the search: forward, backward, closest, all.
-#define NSAccessibilitySearchTextDirection @"AXSearchTextDirection"
-#endif
-
-#ifndef NSAccessibilitySearchTextDirectionForward
-// Value for SearchTextDirection.
-#define NSAccessibilitySearchTextDirectionForward @"AXSearchTextDirectionForward"
-#endif
-
-#ifndef NSAccessibilitySearchTextDirectionBackward
-// Value for SearchTextDirection.
-#define NSAccessibilitySearchTextDirectionBackward @"AXSearchTextDirectionBackward"
-#endif
-
-#ifndef NSAccessibilitySearchTextDirectionClosest
-// Value for SearchTextDirection.
-#define NSAccessibilitySearchTextDirectionClosest @"AXSearchTextDirectionClosest"
-#endif
-
-#ifndef NSAccessibilitySearchTextDirectionAll
-// Value for SearchTextDirection.
-#define NSAccessibilitySearchTextDirectionAll @"AXSearchTextDirectionAll"
-#endif
-
-// Text operations
-
-#ifndef NSAccessibilityTextOperationParameterizedAttribute
-// Performs an operation on the given text.
-#define NSAccessibilityTextOperationParameterizedAttribute @"AXTextOperation"
-#endif
-
-#ifndef NSAccessibilityTextOperationMarkerRanges
-// Text on which to perform operation.
-#define NSAccessibilityTextOperationMarkerRanges @"AXTextOperationMarkerRanges"
-#endif
-
-#ifndef NSAccessibilityTextOperationType
-// The type of operation to be performed: select, replace, capitalize....
-#define NSAccessibilityTextOperationType @"AXTextOperationType"
-#endif
-
-#ifndef NSAccessibilityTextOperationSelect
-// Value for TextOperationType.
-#define NSAccessibilityTextOperationSelect @"TextOperationSelect"
-#endif
-
-#ifndef NSAccessibilityTextOperationReplace
-// Value for TextOperationType.
-#define NSAccessibilityTextOperationReplace @"TextOperationReplace"
-#endif
-
-#ifndef NSAccessibilityTextOperationReplacePreserveCase
-// Value for TextOperationType.
-#define NSAccessibilityTextOperationReplacePreserveCase @"TextOperationReplacePreserveCase"
-#endif
-
-#ifndef NSAccessibilityTextOperationCapitalize
-// Value for TextOperationType.
-#define NSAccessibilityTextOperationCapitalize @"Capitalize"
-#endif
-
-#ifndef NSAccessibilityTextOperationLowercase
-// Value for TextOperationType.
-#define NSAccessibilityTextOperationLowercase @"Lowercase"
-#endif
-
-#ifndef NSAccessibilityTextOperationUppercase
-// Value for TextOperationType.
-#define NSAccessibilityTextOperationUppercase @"Uppercase"
-#endif
-
-#ifndef NSAccessibilityTextOperationReplacementString
-// Replacement text for operation replace.
-#define NSAccessibilityTextOperationReplacementString @"AXTextOperationReplacementString"
-#endif
-
-#ifndef NSAccessibilityTextOperationIndividualReplacementStrings
-// Array of replacement text for operation replace. The array should contain
-// the same number of items as the number of text operation ranges.
-#define NSAccessibilityTextOperationIndividualReplacementStrings @"AXTextOperationIndividualReplacementStrings"
-#endif
-
-#ifndef NSAccessibilityTextOperationSmartReplace
-// Boolean specifying whether a smart replacement should be performed.
-#define NSAccessibilityTextOperationSmartReplace @"AXTextOperationSmartReplace"
-#endif
-
-// Math attributes
-#define NSAccessibilityMathRootRadicandAttribute @"AXMathRootRadicand"
-#define NSAccessibilityMathRootIndexAttribute @"AXMathRootIndex"
-#define NSAccessibilityMathFractionDenominatorAttribute @"AXMathFractionDenominator"
-#define NSAccessibilityMathFractionNumeratorAttribute @"AXMathFractionNumerator"
-#define NSAccessibilityMathBaseAttribute @"AXMathBase"
-#define NSAccessibilityMathSubscriptAttribute @"AXMathSubscript"
-#define NSAccessibilityMathSuperscriptAttribute @"AXMathSuperscript"
-#define NSAccessibilityMathUnderAttribute @"AXMathUnder"
-#define NSAccessibilityMathOverAttribute @"AXMathOver"
-#define NSAccessibilityMathFencedOpenAttribute @"AXMathFencedOpen"
-#define NSAccessibilityMathFencedCloseAttribute @"AXMathFencedClose"
-#define NSAccessibilityMathLineThicknessAttribute @"AXMathLineThickness"
-#define NSAccessibilityMathPrescriptsAttribute @"AXMathPrescripts"
-#define NSAccessibilityMathPostscriptsAttribute @"AXMathPostscripts"
-
-#ifndef NSAccessibilityPreventKeyboardDOMEventDispatchAttribute
-#define NSAccessibilityPreventKeyboardDOMEventDispatchAttribute @"AXPreventKeyboardDOMEventDispatch"
-#endif
-
-#ifndef NSAccessibilityCaretBrowsingEnabledAttribute
-#define NSAccessibilityCaretBrowsingEnabledAttribute @"AXCaretBrowsingEnabled"
-#endif
-
-#ifndef NSAccessibilitFocusableAncestorAttribute
-#define NSAccessibilityFocusableAncestorAttribute @"AXFocusableAncestor"
-#endif
-
-#ifndef NSAccessibilityEditableAncestorAttribute
-#define NSAccessibilityEditableAncestorAttribute @"AXEditableAncestor"
-#endif
-
-#ifndef NSAccessibilityHighestEditableAncestorAttribute
-#define NSAccessibilityHighestEditableAncestorAttribute @"AXHighestEditableAncestor"
-#endif
-
-#ifndef NSAccessibilityLinkRelationshipTypeAttribute
-#define NSAccessibilityLinkRelationshipTypeAttribute @"AXLinkRelationshipType"
-#endif
-
-#ifndef NSAccessibilityRelativeFrameAttribute
-#define NSAccessibilityRelativeFrameAttribute @"AXRelativeFrame"
-#endif
-
-#ifndef NSAccessibilityBrailleLabelAttribute
-#define NSAccessibilityBrailleLabelAttribute @"AXBrailleLabel"
-#endif
-
-#ifndef NSAccessibilityBrailleRoleDescriptionAttribute
-#define NSAccessibilityBrailleRoleDescriptionAttribute @"AXBrailleRoleDescription"
-#endif
-
-#ifndef NSAccessibilityEmbeddedImageDescriptionAttribute
-#define NSAccessibilityEmbeddedImageDescriptionAttribute @"AXEmbeddedImageDescription"
-#endif
-
-#ifndef NSAccessibilityImageOverlayElementsAttribute
-#define NSAccessibilityImageOverlayElementsAttribute @"AXImageOverlayElements"
-#endif
-
-#ifndef AXHasDocumentRoleAncestorAttribute
-#define AXHasDocumentRoleAncestorAttribute @"AXHasDocumentRoleAncestor"
-#endif
-
-#ifndef AXHasWebApplicationAncestorAttribute
-#define AXHasWebApplicationAncestorAttribute @"AXHasWebApplicationAncestor"
-#endif
-
-#ifndef NSAccessibilityTextInputMarkedRangeAttribute
-#define NSAccessibilityTextInputMarkedRangeAttribute @"AXTextInputMarkedRange"
-#endif
-
-#ifndef NSAccessibilityTextInputMarkedTextMarkerRangeAttribute
-#define NSAccessibilityTextInputMarkedTextMarkerRangeAttribute @"AXTextInputMarkedTextMarkerRange"
-#endif
-
-#ifndef kAXConvertRelativeFrameParameterizedAttribute
-#define kAXConvertRelativeFrameParameterizedAttribute @"AXConvertRelativeFrame"
-#endif
 
 // Static C helper functions.
 
@@ -1433,19 +1017,19 @@ static void convertToVector(NSArray* array, AccessibilityObject::AccessibilityCh
 
 static void WebTransformCGPathToNSBezierPath(void* info, const CGPathElement *element)
 {
+    auto points = pointsSpan(element);
     NSBezierPath *bezierPath = (__bridge NSBezierPath *)info;
     switch (element->type) {
     case kCGPathElementMoveToPoint:
-        [bezierPath moveToPoint:NSPointFromCGPoint(element->points[0])];
+        [bezierPath moveToPoint:NSPointFromCGPoint(points[0])];
         break;
     case kCGPathElementAddLineToPoint:
-        [bezierPath lineToPoint:NSPointFromCGPoint(element->points[0])];
+        [bezierPath lineToPoint:NSPointFromCGPoint(points[0])];
         break;
-    case kCGPathElementAddCurveToPoint:
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
-        [bezierPath curveToPoint:NSPointFromCGPoint(element->points[0]) controlPoint1:NSPointFromCGPoint(element->points[1]) controlPoint2:NSPointFromCGPoint(element->points[2])];
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
+    case kCGPathElementAddCurveToPoint: {
+        [bezierPath curveToPoint:NSPointFromCGPoint(points[0]) controlPoint1:NSPointFromCGPoint(points[1]) controlPoint2:NSPointFromCGPoint(points[2])];
         break;
+    }
     case kCGPathElementCloseSubpath:
         [bezierPath closePath];
         break;
@@ -2389,7 +1973,7 @@ id parameterizedAttributeValueForTesting(const RefPtr<AXCoreObject>& backingObje
         markerRef = (AXTextMarkerRef)parameter;
     else if (AXObjectIsTextMarkerRange(parameter))
         markerRangeRef = (AXTextMarkerRangeRef)parameter;
-    else if ([parameter isKindOfClass:[NSValue class]] && !strcmp([(NSValue *)parameter objCType], @encode(NSRange)))
+    else if ([parameter isKindOfClass:[NSValue class]] && nsValueHasObjCType<NSRange>((NSValue *)parameter))
         nsRange = [(NSValue*)parameter rangeValue];
     else
         return nil;
@@ -3086,7 +2670,9 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
 
 static void formatForDebugger(const VisiblePositionRange& range, char* buffer, unsigned length)
 {
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
     strlcpy(buffer, makeString("from "_s, range.start.debugDescription(), " to "_s, range.end.debugDescription()).utf8().data(), length);
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 }
 #endif
 
@@ -3123,8 +2709,8 @@ enum class TextUnit {
         case TextUnit::Paragraph:
             return inputMarker.paragraphRange().platformData().autorelease();
         default:
-            // TODO: Not implemented!
-            break;
+            ASSERT_NOT_REACHED();
+            return nil;
         }
     }
 #endif // ENABLE(AX_THREAD_TEXT_APIS)
@@ -3223,6 +2809,10 @@ enum class TextUnit {
             return inputMarker.nextParagraphEnd().platformData().autorelease();
         case TextUnit::PreviousParagraphStart:
             return inputMarker.previousParagraphStart().platformData().autorelease();
+        case TextUnit::NextWordEnd:
+            return inputMarker.nextWordEnd().platformData().autorelease();
+        case TextUnit::PreviousWordStart:
+            return inputMarker.previousWordStart().platformData().autorelease();
         default:
             // TODO: Not implemented!
             break;
@@ -3325,13 +2915,13 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
         array = parameter;
     else if ([parameter isKindOfClass:[NSDictionary class]])
         dictionary = parameter;
-    else if ([parameter isKindOfClass:[NSValue class]] && !strcmp([(NSValue*)parameter objCType], @encode(NSPoint))) {
+    else if ([parameter isKindOfClass:[NSValue class]] && nsValueHasObjCType<NSPoint>((NSValue*)parameter)) {
         pointSet = true;
         point = [(NSValue*)parameter pointValue];
-    } else if ([parameter isKindOfClass:[NSValue class]] && !strcmp([(NSValue*)parameter objCType], @encode(NSRange))) {
+    } else if ([parameter isKindOfClass:[NSValue class]] && nsValueHasObjCType<NSRange>((NSValue*)parameter)) {
         rangeSet = true;
         range = [(NSValue*)parameter rangeValue];
-    } else if ([parameter isKindOfClass:[NSValue class]] && !strcmp([(NSValue*)parameter objCType], @encode(NSRect)))
+    } else if ([parameter isKindOfClass:[NSValue class]] && nsValueHasObjCType<NSRect>((NSValue*)parameter))
         rect = [(NSValue*)parameter rectValue];
     else {
         // Attribute type is not supported. Allow super to handle.

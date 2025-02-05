@@ -72,7 +72,9 @@ RenderPassEncoder::RenderPassEncoder(id<MTLRenderCommandEncoder> renderCommandEn
     , m_parentEncoder(rawParentEncoder)
     , m_visibilityResultBuffer(visibilityResultBuffer)
     , m_descriptor(descriptor)
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
     , m_descriptorColorAttachments(descriptor.colorAttachmentCount ? Vector<WGPURenderPassColorAttachment>(std::span { descriptor.colorAttachments, descriptor.colorAttachmentCount }) : Vector<WGPURenderPassColorAttachment>())
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
     , m_descriptorDepthStencilAttachment(descriptor.depthStencilAttachment ? *descriptor.depthStencilAttachment : WGPURenderPassDepthStencilAttachment())
 #if CPU(X86_64)
     , m_metalDescriptor(metalDescriptor)
@@ -200,22 +202,23 @@ void RenderPassEncoder::beginOcclusionQuery(uint32_t queryIndex)
 {
     RETURN_IF_FINISHED();
 
+    auto initialQueryIndex = queryIndex;
     queryIndex *= sizeof(uint64_t);
     if (m_occlusionQueryActive || m_queryBufferIndicesToClear.contains(queryIndex)) {
         makeInvalid(@"beginOcclusionQuery validation failure");
         return;
     }
+    if (initialQueryIndex >= m_visibilityResultBufferSize / sizeof(uint64_t)) {
+        makeInvalid(@"beginOcclusionQuery validation failure");
+        return;
+    }
+
     m_occlusionQueryActive = true;
     m_visibilityResultBufferOffset = queryIndex;
     m_queryBufferIndicesToClear.add(m_visibilityResultBufferOffset);
 
-
     if (occlusionQueryIsDestroyed())
         return;
-    if (!m_visibilityResultBufferSize || queryIndex >= m_visibilityResultBufferSize) {
-        makeInvalid(@"beginOcclusionQuery validation failure");
-        return;
-    }
 
     if (m_queryBufferUtilizedIndices.contains(queryIndex))
         return;
@@ -610,7 +613,6 @@ bool RenderPassEncoder::executePreDrawCommands(uint32_t firstInstance, uint32_t 
     ASSERT(m_fragmentDynamicOffsets.size());
     [commandEncoder setFragmentBytes:&m_fragmentDynamicOffsets[0] length:m_fragmentDynamicOffsets.size() * sizeof(m_fragmentDynamicOffsets[0]) atIndex:m_device->maxBuffersForFragmentStage()];
 
-    m_bindGroupDynamicOffsets.clear();
     incrementDrawCount();
 
     return true;
@@ -725,8 +727,14 @@ RenderPassEncoder::IndexCall RenderPassEncoder::clampIndexBufferToValidValues(ui
 
     [renderCommandEncoder memoryBarrierWithScope:MTLBarrierScopeBuffers afterStages:MTLRenderStageVertex beforeStages:MTLRenderStageVertex];
 
-    [encoder.protectedParentEncoder()->commandBuffer() addCompletedHandler:[protectedDevice = Ref { device }, firstIndex, indexCount, baseVertex, minVertexCount, indexType, refIndexBuffer = Ref { *apiIndexBuffer }, indexedIndirectBuffer](id<MTLCommandBuffer>) {
-        protectedDevice->protectedQueue()->scheduleWork([firstIndex, indexCount, baseVertex, minVertexCount, indexType, refIndexBuffer = WTFMove(refIndexBuffer), indexedIndirectBuffer]() mutable {
+    auto encoderHandle = device.protectedQueue()->retainEncoder(encoder.protectedParentEncoder());
+    [encoder.protectedParentEncoder()->commandBuffer() addCompletedHandler:[encoderHandle, protectedDevice = Ref { device }, firstIndex, indexCount, baseVertex, minVertexCount, indexType, refIndexBuffer = Ref { *apiIndexBuffer }, indexedIndirectBuffer](id<MTLCommandBuffer> completedCommandBuffer) {
+        if (completedCommandBuffer.status != MTLCommandBufferStatusCompleted) {
+            protectedDevice->protectedQueue()->releaseEncoder(encoderHandle);
+            return;
+        }
+        protectedDevice->protectedQueue()->scheduleWork([encoderHandle, protectedDevice = WTFMove(protectedDevice), firstIndex, indexCount, baseVertex, minVertexCount, indexType, refIndexBuffer = WTFMove(refIndexBuffer), indexedIndirectBuffer]() mutable {
+            protectedDevice->protectedQueue()->releaseEncoder(encoderHandle);
             if (indexedIndirectBuffer.length != sizeof(MTLDrawIndexedPrimitivesIndirectArguments) + sizeof(uint32_t))
                 return;
 
@@ -748,8 +756,14 @@ RenderPassEncoder::IndexCall RenderPassEncoder::clampIndexBufferToValidValues(ui
 
 static void checkForIndirectDrawDeviceLost(Device &device, RenderPassEncoder &encoder, id<MTLBuffer> indirectBuffer)
 {
-    [encoder.protectedParentEncoder()->commandBuffer() addCompletedHandler:[protectedDevice = Ref { device }, indirectBuffer](id<MTLCommandBuffer>) {
-        protectedDevice->protectedQueue()->scheduleWork([indirectBuffer, protectedDevice = WTFMove(protectedDevice)]() mutable {
+    auto encoderHandle = device.protectedQueue()->retainEncoder(encoder.protectedParentEncoder());
+    [encoder.protectedParentEncoder()->commandBuffer() addCompletedHandler:[encoderHandle, protectedDevice = Ref { device }, indirectBuffer](id<MTLCommandBuffer> completedCommandBuffer) {
+        if (completedCommandBuffer.status != MTLCommandBufferStatusCompleted) {
+            protectedDevice->protectedQueue()->releaseEncoder(encoderHandle);
+            return;
+        }
+        protectedDevice->protectedQueue()->scheduleWork([encoderHandle, indirectBuffer, protectedDevice = WTFMove(protectedDevice)]() mutable {
+            protectedDevice->protectedQueue()->releaseEncoder(encoderHandle);
             if (indirectBuffer.length != sizeof(MTLDrawPrimitivesIndirectArguments) + sizeof(uint32_t))
                 return;
 
@@ -1104,7 +1118,9 @@ void RenderPassEncoder::executeBundles(Vector<Ref<RenderBundle>>&& bundles)
                     auto minVertexCount = data.indexData.minVertexCount;
                     auto indexType = data.indexType;
                     auto baseVertex = data.indexData.baseVertex;
-                    if (!indexBuffer || indexBuffer->canSkipDrawIndexedValidation(firstIndex, indexCount, minVertexCount + baseVertex, indexType))
+                    if (!indexBuffer)
+                        continue;
+                    if (indexBuffer->canSkipDrawIndexedValidation(firstIndex, indexCount, minVertexCount + baseVertex, indexType, icb.indirectCommandBuffer) && !indexBuffer->didReadOOB(icb.indirectCommandBuffer))
                         continue;
 
                     id<MTLRenderPipelineState> renderPipelineState = Ref { m_device }->icbCommandClampPipeline(data.indexType, m_rasterSampleCount);
@@ -1121,11 +1137,17 @@ void RenderPassEncoder::executeBundles(Vector<Ref<RenderBundle>>&& bundles)
                     [commandEncoder useResource:icb.outOfBoundsReadFlag usage:MTLResourceUsageWrite stages:MTLRenderStageVertex];
                     [commandEncoder drawPrimitives:MTLPrimitiveTypePoint vertexStart:0 vertexCount:data.indexData.indexCount];
 
-                    [protectedParentEncoder()->commandBuffer() addCompletedHandler:[protectedDevice = Ref { m_device }, firstIndex, indexCount, baseVertex, minVertexCount, indexType, refIndexBuffer = Ref { *indexBuffer }, icb](id<MTLCommandBuffer>) {
-                        protectedDevice->protectedQueue()->scheduleWork([icb, firstIndex, indexCount, baseVertex, minVertexCount, indexType, refIndexBuffer = WTFMove(refIndexBuffer)]() mutable {
-                            id<MTLBuffer> indirectCommandBufferContainer = icb.indirectCommandBufferContainer;
-                            refIndexBuffer->didReadOOB(*static_cast<uint32_t*>(indirectCommandBufferContainer.contents));
-                            refIndexBuffer->drawIndexedValidated(firstIndex, indexCount, minVertexCount + baseVertex, indexType);
+                    auto encoderHandle = m_device->protectedQueue()->retainEncoder(protectedParentEncoder());
+                    [protectedParentEncoder()->commandBuffer() addCompletedHandler:[encoderHandle, protectedDevice = Ref { m_device }, firstIndex, indexCount, baseVertex, minVertexCount, indexType, refIndexBuffer = Ref { *indexBuffer }, icb](id<MTLCommandBuffer> completedCommandBuffer) {
+                        if (completedCommandBuffer.status != MTLCommandBufferStatusCompleted) {
+                            protectedDevice->protectedQueue()->releaseEncoder(encoderHandle);
+                            return;
+                        }
+                        protectedDevice->protectedQueue()->scheduleWork([protectedDevice = WTFMove(protectedDevice), encoderHandle, icb, firstIndex, indexCount, baseVertex, minVertexCount, indexType, refIndexBuffer = WTFMove(refIndexBuffer)]() mutable {
+                            protectedDevice->protectedQueue()->releaseEncoder(encoderHandle);
+                            id<MTLBuffer> outOfBoundsReadFlag = icb.outOfBoundsReadFlag;
+                            refIndexBuffer->didReadOOB(*static_cast<uint32_t*>(outOfBoundsReadFlag.contents), icb.indirectCommandBuffer);
+                            refIndexBuffer->drawIndexedValidated(firstIndex, indexCount, minVertexCount + baseVertex, indexType, icb.indirectCommandBuffer);
                         });
                     }];
                     splitPass = true;
@@ -1361,7 +1383,9 @@ void RenderPassEncoder::setPipeline(const RenderPipeline& pipeline)
     m_pipeline = &pipeline;
 
     m_vertexDynamicOffsets.resize(pipeline.protectedPipelineLayout()->sizeOfVertexDynamicOffsets());
+    m_vertexDynamicOffsets.fill(0);
     m_fragmentDynamicOffsets.resize(pipeline.protectedPipelineLayout()->sizeOfFragmentDynamicOffsets() + RenderBundleEncoder::startIndexForFragmentDynamicOffsets);
+    m_fragmentDynamicOffsets.fill(0);
 
     if (m_fragmentDynamicOffsets.size() < RenderBundleEncoder::startIndexForFragmentDynamicOffsets)
         m_fragmentDynamicOffsets.grow(RenderBundleEncoder::startIndexForFragmentDynamicOffsets);

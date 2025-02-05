@@ -36,6 +36,7 @@
 #include <WebCore/LayerHostingContextIdentifier.h>
 #include <WebCore/ModelPlayer.h>
 #include <WebCore/ModelPlayerIdentifier.h>
+#include <WebCore/StageModeOperations.h>
 #include <WebKitAdditions/REPtr.h>
 #include <WebKitAdditions/REModelLoaderClient.h>
 #include <simd/simd.h>
@@ -132,6 +133,9 @@ public:
     void setCurrentTime(Seconds, CompletionHandler<void()>&&) final;
     void setEnvironmentMap(Ref<WebCore::SharedBuffer>&& data) final;
     void setHasPortal(bool) final;
+    void setStageMode(WebCore::StageModeOperation) final;
+
+    USING_CAN_MAKE_WEAKPTR(WebCore::REModelLoaderClient);
 
 private:
     ModelProcessModelPlayerProxy(ModelProcessModelPlayerManagerProxy&, WebCore::ModelPlayerIdentifier, Ref<IPC::Connection>&&);
@@ -149,6 +153,8 @@ private:
     RefPtr<WebCore::REModel> m_model;
     RetainPtr<WKSRKEntity> m_modelRKEntity;
     REPtr<RESceneRef> m_scene;
+    REPtr<REEntityRef> m_hostingEntity;
+    REPtr<REEntityRef> m_containerEntity;
     RetainPtr<WKModelProcessModelPlayerProxyObjCAdapter> m_objCAdapter;
 
     WebCore::Color m_backgroundColor;
@@ -165,6 +171,8 @@ private:
 
     RefPtr<WebCore::SharedBuffer> m_transientEnvironmentMapData;
     bool m_hasPortal { true };
+
+    WebCore::StageModeOperation m_stageModeOperation { WebCore::StageModeOperation::None };
 };
 
 } // namespace WebKit

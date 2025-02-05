@@ -84,6 +84,7 @@
 #include <WebCore/JSRange.h>
 #include <WebCore/LocalFrame.h>
 #include <WebCore/LocalFrameView.h>
+#include <WebCore/MouseEventTypes.h>
 #include <WebCore/OriginAccessPatterns.h>
 #include <WebCore/Page.h>
 #include <WebCore/PluginDocument.h>
@@ -1238,7 +1239,13 @@ inline DocumentLoader* WebFrame::policySourceDocumentLoader() const
     if (!document)
         return nullptr;
 
-    RefPtr policySourceDocumentLoader = document->topDocument().loader();
+    RefPtr mainFrameDocument = document->protectedMainFrameDocument();
+    if (!mainFrameDocument) {
+        LOG_ONCE(SiteIsolation, "Unable to properly calculate WebFrame::policySourceDocumentLoader() without access to the main frame document ");
+        return nullptr;
+    }
+
+    RefPtr policySourceDocumentLoader = mainFrameDocument->loader();
     if (!policySourceDocumentLoader)
         return nullptr;
 

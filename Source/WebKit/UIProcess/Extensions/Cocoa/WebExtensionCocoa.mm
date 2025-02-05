@@ -40,6 +40,7 @@
 #import "WebExtensionUtilities.h"
 #import <CoreFoundation/CFBundle.h>
 #import <WebCore/LocalizedStrings.h>
+#import <wtf/FileSystem.h>
 #import <wtf/cf/TypeCastsCF.h>
 #import <wtf/text/MakeString.h>
 
@@ -85,8 +86,7 @@ WebExtension::WebExtension(NSBundle *appExtensionBundle, NSURL *resourceURL, Ref
                 return;
             }
 
-            ASSERT(temporaryDirectory.right(1) != "/"_s);
-            m_resourceBaseURL = URL::fileURLWithFileSystemPath(makeString(temporaryDirectory, '/'));
+            m_resourceBaseURL = URL::fileURLWithFileSystemPath(temporaryDirectory);
             m_resourcesAreTemporary = true;
         }
 
@@ -107,7 +107,9 @@ WebExtension::WebExtension(NSBundle *appExtensionBundle, NSURL *resourceURL, Ref
 
     RELEASE_ASSERT(m_resourceBaseURL.protocolIsFile());
     RELEASE_ASSERT(m_resourceBaseURL.hasPath());
-    RELEASE_ASSERT(m_resourceBaseURL.path().right(1) == "/"_s);
+
+    if (m_resourceBaseURL.path().right(1) != "/"_s)
+        m_resourceBaseURL = URL::fileURLWithFileSystemPath(FileSystem::pathByAppendingComponent(m_resourceBaseURL.path(), "/"_s));
 
     if (!manifestParsedSuccessfully()) {
         ASSERT(!m_errors.isEmpty());
@@ -121,10 +123,10 @@ WebExtension::WebExtension(NSDictionary *manifest, Resources&& resources)
 {
     RELEASE_ASSERT(manifest);
 
-    auto *manifestData = encodeJSONData(manifest);
-    RELEASE_ASSERT(manifestData);
+    auto *manifestString = encodeJSONString(manifest);
+    RELEASE_ASSERT(manifestString);
 
-    m_resources.set("manifest.json"_s, API::Data::createWithoutCopying(manifestData));
+    m_resources.set("manifest.json"_s, manifestString);
 }
 
 NSDictionary *WebExtension::manifestDictionary()
@@ -241,11 +243,18 @@ RefPtr<API::Data> WebExtension::resourceDataForPath(const String& originalPath, 
     if ([cocoaPath hasPrefix:@"/"])
         cocoaPath = [cocoaPath substringFromIndex:1];
 
-    if (RefPtr cachedObject = m_resources.get(path))
-        return cachedObject;
-
     if ([cocoaPath isEqualToString:generatedBackgroundPageFilename] || [cocoaPath isEqualToString:generatedBackgroundServiceWorkerFilename])
         return API::Data::create(generatedBackgroundContent().utf8().span());
+
+    if (auto entry = m_resources.find(path); entry != m_resources.end()) {
+        return WTF::switchOn(entry->value,
+            [](const Ref<API::Data>& data) {
+                return data;
+            },
+            [](const String& string) {
+                return API::Data::create(string.utf8().span());
+            });
+    }
 
     auto *resourceURL = static_cast<NSURL *>(resourceFileURLForPath(path));
     if (!resourceURL) {

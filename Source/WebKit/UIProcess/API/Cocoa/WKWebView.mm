@@ -126,6 +126,7 @@
 #import "_WKPageLoadTimingInternal.h"
 #import "_WKRemoteObjectRegistryInternal.h"
 #import "_WKSessionStateInternal.h"
+#import "_WKSpatialBackdropSourceInternal.h"
 #import "_WKTargetedElementInfoInternal.h"
 #import "_WKTargetedElementRequestInternal.h"
 #import "_WKTextInputContextInternal.h"
@@ -159,6 +160,7 @@
 #import <WebCore/RunJavaScriptParameters.h>
 #import <WebCore/Settings.h>
 #import <WebCore/SharedBuffer.h>
+#import <WebCore/SpatialBackdropSource.h>
 #import <WebCore/StringUtilities.h>
 #import <WebCore/TextAnimationTypes.h>
 #import <WebCore/TextManipulationController.h>
@@ -368,6 +370,8 @@ static uint32_t convertSystemLayoutDirection(NSUserInterfaceLayoutDirection dire
 
         if ([_screenTimeWebpageController respondsToSelector:@selector(setProfileIdentifier:)])
             [_screenTimeWebpageController setProfileIdentifier:[_configuration websiteDataStore].identifier.UUIDString];
+
+        [_screenTimeWebpageController setSuppressUsageRecording:![_configuration websiteDataStore].isPersistent];
 
         RetainPtr screenTimeView = [_screenTimeWebpageController view];
         [screenTimeView setTranslatesAutoresizingMaskIntoConstraints:NO];
@@ -1863,6 +1867,16 @@ inline OptionSet<WebKit::FindOptions> toFindOptions(WKFindConfiguration *configu
 }
 #endif
 
+#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
+- (void)_spatialBackdropSourceDidChange
+{
+    if (auto spatialBackdropSource = _page->spatialBackdropSource())
+        _cachedSpatialBackdropSource = adoptNS([[_WKSpatialBackdropSource alloc] initWithSpatialBackdropSource:spatialBackdropSource.value()]);
+    else
+        _cachedSpatialBackdropSource = nil;
+}
+#endif
+
 #if ENABLE(ATTACHMENT_ELEMENT)
 
 - (void)_didInsertAttachment:(API::Attachment&)attachment withSource:(NSString *)source
@@ -2248,10 +2262,14 @@ static _WKSelectionAttributes selectionAttributes(const WebKit::EditorState& edi
 
     _page->didBeginWritingToolsSession(*webSession, contextData);
 
-    if (session.type == WTSessionTypeProofreading) {
-        _intelligenceTextEffectCoordinator = adoptNS([WebKit::allocWKIntelligenceTextEffectCoordinatorInstance() initWithDelegate:(id<WKIntelligenceTextEffectCoordinatorDelegate>)self]);
-        [_intelligenceTextEffectCoordinator startAnimationForRange:contexts.firstObject.range completion:^{ }];
-    }
+    if (session.type == WTSessionTypeProofreading)
+        _intelligenceTextEffectCoordinator = adoptNS([WebKit::allocWKIntelligenceReplacementTextEffectCoordinatorInstance() initWithDelegate:(id<WKIntelligenceTextEffectCoordinatorDelegate>)self]);
+    else if (session.type == WTSessionTypeComposition && session.compositionSessionType == WTCompositionSessionTypeSmartReply)
+        _intelligenceTextEffectCoordinator = adoptNS([WebKit::allocWKIntelligenceSmartReplyTextEffectCoordinatorInstance() initWithDelegate:(id<WKIntelligenceTextEffectCoordinatorDelegate>)self]);
+    else
+        _intelligenceTextEffectCoordinator = nil;
+
+    [_intelligenceTextEffectCoordinator startAnimationForRange:contexts.firstObject.range completion:^{ }];
 }
 
 - (void)proofreadingSession:(WTSession *)session didReceiveSuggestions:(NSArray<WTTextSuggestion *> *)suggestions processedRange:(NSRange)range inContext:(WTContext *)context finished:(BOOL)finished
@@ -2281,7 +2299,7 @@ static _WKSelectionAttributes selectionAttributes(const WebKit::EditorState& edi
         [_writingToolsTextSuggestions setObject:suggestion forKey:suggestion.uuid];
     }
 
-    NSInteger delta = [WebKit::getWKIntelligenceTextEffectCoordinatorClass() characterDeltaForReceivedSuggestions:suggestions];
+    NSInteger delta = [WebKit::getWKIntelligenceReplacementTextEffectCoordinatorClass() characterDeltaForReceivedSuggestions:suggestions];
 
     auto operation = makeBlockPtr([webSession, replacementData, range, webContext, finished, weakSelf = WeakObjCPtr<WKWebView>(self)](void (^completion)(void)) {
         auto strongSelf = weakSelf.get();
@@ -2340,7 +2358,7 @@ static _WKSelectionAttributes selectionAttributes(const WebKit::EditorState& edi
     _activeWritingToolsSession = nil;
     [_writingToolsTextSuggestions removeAllObjects];
 
-    if (session.type != WTSessionTypeProofreading) {
+    if (!_intelligenceTextEffectCoordinator) {
         _page->setWritingToolsActive(false);
         _page->didEndWritingToolsSession(*webSession, accepted);
         return;
@@ -2360,9 +2378,20 @@ static _WKSelectionAttributes selectionAttributes(const WebKit::EditorState& edi
         strongSelf->_page->setWritingToolsActive(false);
 
         strongSelf->_page->willEndWritingToolsSession(*webSession, accepted, [webSession, accepted, weakSelf] {
-            [weakSelf.get()->_intelligenceTextEffectCoordinator restoreSelectionAcceptedReplacements:accepted completion:makeBlockPtr([webSession, accepted, weakSelf] {
+            // At this point, the selection will have been restored by the intelligence effects coordinator
+            // assuming that the replacements have been accepted. If this is not the case, the selection should
+            // be updated accordingly.
+            //
+            // If the user ends a session before the animation ends, and they have accepted the changes, then the
+            // selection should not show up (this case is handled within the intelligence effects coordinator).
+
+            if (accepted)
                 weakSelf.get()->_page->didEndWritingToolsSession(*webSession, accepted);
-            }).get()];
+            else {
+                [weakSelf.get()->_intelligenceTextEffectCoordinator restoreSelectionAcceptedReplacements:accepted completion:makeBlockPtr([webSession, accepted, weakSelf] {
+                    weakSelf.get()->_page->didEndWritingToolsSession(*webSession, accepted);
+                }).get()];
+            }
         });
     }).get()];
 }
@@ -2381,10 +2410,42 @@ static _WKSelectionAttributes selectionAttributes(const WebKit::EditorState& edi
         return;
     }
 
-    _writingToolsTextReplacementsFinished = finished;
-    _partialIntelligenceTextAnimationCount += 1;
+    // FIXME: This branch can be removed once all composition types use the new effects system.
+    if (!_intelligenceTextEffectCoordinator) {
+        _writingToolsTextReplacementsFinished = finished;
+        _partialIntelligenceTextAnimationCount += 1;
 
-    _page->compositionSessionDidReceiveTextWithReplacementRange(*webSession, WebCore::AttributedString::fromNSAttributedString(attributedText), { range }, *webContext, finished);
+        _page->compositionSessionDidReceiveTextWithReplacementRange(*webSession, WebCore::AttributedString::fromNSAttributedString(attributedText), { range }, *webContext, finished, [] { });
+        return;
+    }
+
+    auto convertedAttributedText = WebCore::AttributedString::fromNSAttributedString(attributedText);
+
+    auto operation = makeBlockPtr([webSession, convertedAttributedText, range, webContext, finished, weakSelf = WeakObjCPtr<WKWebView>(self)](void (^completion)(void)) {
+        auto strongSelf = weakSelf.get();
+        if (!strongSelf) {
+            completion();
+            return;
+        }
+
+        strongSelf->_page->compositionSessionDidReceiveTextWithReplacementRange(*webSession, convertedAttributedText, { range }, *webContext, finished, [completion = makeBlockPtr(completion)] {
+            completion();
+        });
+    });
+
+    // With Smart Replies, the `range` parameter will always be `(0, 0)` instead of the actual replacement range,
+    // which is in fact just the current selection and always starts at the beginning, and so this range is used instead.
+
+    auto& editorState = _page->editorState();
+    auto selectedTextCharacterCount = editorState.postLayoutData
+        .transform([](auto& postLayoutData) { return postLayoutData.selectedTextLength; })
+        .value_or(0);
+
+    // The character delta is the difference between the existing text and the text after the replacement.
+
+    auto characterDelta = attributedText.length - selectedTextCharacterCount;
+
+    [_intelligenceTextEffectCoordinator requestReplacementWithProcessedRange:NSMakeRange(0, selectedTextCharacterCount) finished:finished characterDelta:characterDelta operation:operation.get() completion:^{ }];
 }
 
 - (void)writingToolsSession:(WTSession *)session didReceiveAction:(WTAction)action
@@ -2410,18 +2471,18 @@ static _WKSelectionAttributes selectionAttributes(const WebKit::EditorState& edi
 #if !PLATFORM(APPLETV) && !PLATFORM(WATCHOS)
 
 #if PLATFORM(IOS_FAMILY)
-- (UIView *)viewForIntelligenceTextEffectCoordinator:(WKIntelligenceTextEffectCoordinator *)coordinator
+- (UIView *)viewForIntelligenceTextEffectCoordinator:(id<WKIntelligenceTextEffectCoordinating>)coordinator
 {
     return _contentView.get();
 }
 #else
-- (NSView *)viewForIntelligenceTextEffectCoordinator:(WKIntelligenceTextEffectCoordinator *)coordinator
+- (NSView *)viewForIntelligenceTextEffectCoordinator:(id<WKIntelligenceTextEffectCoordinating>)coordinator
 {
     return self;
 }
 #endif
 
-- (void)intelligenceTextEffectCoordinator:(WKIntelligenceTextEffectCoordinator *)coordinator rectsForProofreadingSuggestionsInRange:(NSRange)range completion:(void (^)(NSArray<NSValue *> *))completion
+- (void)intelligenceTextEffectCoordinator:(id<WKIntelligenceTextEffectCoordinating>)coordinator rectsForProofreadingSuggestionsInRange:(NSRange)range completion:(void (^)(NSArray<NSValue *> *))completion
 {
     _page->proofreadingSessionSuggestionTextRectsInRootViewCoordinates(range, [completion = makeBlockPtr(completion)](auto&& rects) {
         RetainPtr nsArray = createNSArray(rects, [](auto& rect) {
@@ -2432,7 +2493,7 @@ static _WKSelectionAttributes selectionAttributes(const WebKit::EditorState& edi
     });
 }
 
-- (void)intelligenceTextEffectCoordinator:(WKIntelligenceTextEffectCoordinator *)coordinator updateTextVisibilityForRange:(NSRange)range visible:(BOOL)visible identifier:(NSUUID *)identifier completion:(void (^)(void))completion
+- (void)intelligenceTextEffectCoordinator:(id<WKIntelligenceTextEffectCoordinating>)coordinator updateTextVisibilityForRange:(NSRange)range visible:(BOOL)visible identifier:(NSUUID *)identifier completion:(void (^)(void))completion
 {
     auto convertedIdentifier = WTF::UUID::fromNSUUID(identifier);
     if (!convertedIdentifier) {
@@ -2454,7 +2515,7 @@ static _WKSelectionAttributes selectionAttributes(const WebKit::EditorState& edi
 }
 
 #if PLATFORM(IOS_FAMILY)
-- (void)intelligenceTextEffectCoordinator:(WKIntelligenceTextEffectCoordinator *)coordinator textPreviewsForRange:(NSRange)range completion:(void (^)(UITargetedPreview *))completion
+- (void)intelligenceTextEffectCoordinator:(id<WKIntelligenceTextEffectCoordinating>)coordinator textPreviewsForRange:(NSRange)range completion:(void (^)(UITargetedPreview *))completion
 {
     _page->textPreviewDataForActiveWritingToolsSession(range, [completion = makeBlockPtr(completion), weakSelf = WeakObjCPtr<WKWebView>(self)](auto&& textIndicatorData) {
         auto strongSelf = weakSelf.get();
@@ -2473,7 +2534,7 @@ static _WKSelectionAttributes selectionAttributes(const WebKit::EditorState& edi
     });
 }
 #else
-- (void)intelligenceTextEffectCoordinator:(WKIntelligenceTextEffectCoordinator *)coordinator textPreviewsForRange:(NSRange)range completion:(void (^)(NSArray<_WKTextPreview *> *))completion
+- (void)intelligenceTextEffectCoordinator:(id<WKIntelligenceTextEffectCoordinating>)coordinator textPreviewsForRange:(NSRange)range completion:(void (^)(NSArray<_WKTextPreview *> *))completion
 {
     // FIXME: This logic is currently duplicated in a bunch of places; it should be unified.
     _page->textPreviewDataForActiveWritingToolsSession(range, [completion = makeBlockPtr(completion)](auto&& textIndicatorData) {
@@ -2520,7 +2581,7 @@ static _WKSelectionAttributes selectionAttributes(const WebKit::EditorState& edi
 }
 #endif
 
-- (void)intelligenceTextEffectCoordinator:(WKIntelligenceTextEffectCoordinator *)coordinator contentPreviewForRange:(NSRange)range completion:(void (^)(_WKTextPreview *))completion
+- (void)intelligenceTextEffectCoordinator:(id<WKIntelligenceTextEffectCoordinating>)coordinator contentPreviewForRange:(NSRange)range completion:(void (^)(_WKTextPreview *))completion
 {
     // FIXME: This logic is currently duplicated in a bunch of places; it should be unified.
     _page->textPreviewDataForActiveWritingToolsSession(range, [completion = makeBlockPtr(completion)](auto&& textIndicatorData) {
@@ -2559,14 +2620,14 @@ static _WKSelectionAttributes selectionAttributes(const WebKit::EditorState& edi
     });
 }
 
-- (void)intelligenceTextEffectCoordinator:(WKIntelligenceTextEffectCoordinator *)coordinator decorateReplacementsForRange:(NSRange)range completion:(void (^)(void))completion
+- (void)intelligenceTextEffectCoordinator:(id<WKIntelligenceTextEffectCoordinating>)coordinator decorateReplacementsForRange:(NSRange)range completion:(void (^)(void))completion
 {
     _page->decorateTextReplacementsForActiveWritingToolsSession(range, [completion = makeBlockPtr(completion)] {
         completion();
     });
 }
 
-- (void)intelligenceTextEffectCoordinator:(WKIntelligenceTextEffectCoordinator *)coordinator setSelectionForRange:(NSRange)range completion:(void (^)(void))completion
+- (void)intelligenceTextEffectCoordinator:(id<WKIntelligenceTextEffectCoordinating>)coordinator setSelectionForRange:(NSRange)range completion:(void (^)(void))completion
 {
     _page->setSelectionForActiveWritingToolsSession(range, [completion = makeBlockPtr(completion)] {
         completion();
@@ -4667,6 +4728,15 @@ static inline OptionSet<WebKit::FindOptions> toFindOptions(_WKFindOptions wkFind
     return cocoaColorOrNil(_page->sampledPageTopColor()).autorelease();
 }
 
+- (_WKSpatialBackdropSource *)_spatialBackdropSource
+{
+#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
+    return _cachedSpatialBackdropSource.get();
+#else
+    return nil;
+#endif
+}
+
 - (id <_WKInputDelegate>)_inputDelegate
 {
     return _inputDelegate.getAutoreleased();
@@ -5004,8 +5074,11 @@ static inline OptionSet<WebKit::FindOptions> toFindOptions(_WKFindOptions wkFind
         coreState.add(WebCore::MediaProducerMutedState::AudioIsMuted);
     if (mutedState & _WKMediaCaptureDevicesMuted)
         coreState.add(WebCore::MediaProducer::AudioAndVideoCaptureIsMuted);
-    if (mutedState & _WKMediaScreenCaptureMuted)
+    if (mutedState & _WKMediaScreenCaptureMuted) {
         coreState.add(WebCore::MediaProducerMutedState::ScreenCaptureIsMuted);
+        coreState.add(WebCore::MediaProducerMutedState::WindowCaptureIsMuted);
+        coreState.add(WebCore::MediaProducerMutedState::SystemAudioCaptureIsMuted);
+    }
 
     _page->setMuted(coreState, WebKit::WebPageProxy::FromApplication::Yes);
 }
@@ -5239,7 +5312,7 @@ static Vector<Ref<API::TargetedElementInfo>> elementsFromWKElements(NSArray<_WKT
             return;
         }
 
-        RetainPtr preview = [strongSelf->_contentView _createTargetedPreviewFromTextIndicator:*textIndicatorData previewContainer:[strongSelf scrollView]];
+        RetainPtr preview = [strongSelf->_contentView _createTargetedPreviewFromTextIndicator:*textIndicatorData previewContainer:strongSelf.get()];
         completionHandler(preview.get());
     });
 }

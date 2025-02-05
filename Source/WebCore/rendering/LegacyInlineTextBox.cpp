@@ -48,6 +48,7 @@
 #include "RenderHighlight.h"
 #include "RenderLineBreak.h"
 #include "RenderStyleInlines.h"
+#include "RenderSVGInlineText.h"
 #include "RenderTheme.h"
 #include "RenderView.h"
 #include "RenderedDocumentMarker.h"
@@ -60,6 +61,7 @@
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/TextStream.h>
+
 
 namespace WebCore {
 
@@ -75,12 +77,27 @@ static_assert(sizeof(LegacyInlineTextBox) == sizeof(SameSizeAsLegacyInlineTextBo
 typedef UncheckedKeyHashMap<const LegacyInlineTextBox*, LayoutRect> LegacyInlineTextBoxOverflowMap;
 static LegacyInlineTextBoxOverflowMap* gTextBoxesWithOverflow;
 
+LegacyInlineTextBox::LegacyInlineTextBox(RenderSVGInlineText& renderer)
+    : LegacyInlineBox(renderer)
+{
+}
+
 LegacyInlineTextBox::~LegacyInlineTextBox()
 {
     if (!knownToHaveNoOverflow() && gTextBoxesWithOverflow)
         gTextBoxesWithOverflow->remove(this);
     if (isInGlyphDisplayListCache())
         removeBoxFromGlyphDisplayListCache(*this);
+}
+
+RenderSVGInlineText& LegacyInlineTextBox::renderer() const
+{
+    return downcast<RenderSVGInlineText>(LegacyInlineBox::renderer());
+}
+
+const RenderStyle& LegacyInlineTextBox::lineStyle() const
+{
+    return isFirstLine() ? renderer().firstLineStyle() : renderer().style();
 }
 
 bool LegacyInlineTextBox::hasTextContent() const
@@ -155,7 +172,7 @@ const FontCascade& LegacyInlineTextBox::lineFont() const
     return lineStyle().fontCascade();
 }
 
-LayoutRect snappedSelectionRect(const LayoutRect& selectionRect, float logicalRight, float selectionTop, float selectionHeight, bool isHorizontal)
+LayoutRect snappedSelectionRect(const LayoutRect& selectionRect, float logicalRight, WritingMode writingMode)
 {
     auto snappedSelectionRect = enclosingIntRect(selectionRect);
     LayoutUnit logicalWidth = snappedSelectionRect.width();
@@ -164,19 +181,16 @@ LayoutRect snappedSelectionRect(const LayoutRect& selectionRect, float logicalRi
     else if (snappedSelectionRect.maxX() > logicalRight)
         logicalWidth = logicalRight - snappedSelectionRect.x();
 
-    LayoutPoint topPoint;
-    LayoutUnit width;
-    LayoutUnit height;
-    if (isHorizontal) {
-        topPoint = LayoutPoint { snappedSelectionRect.x(), selectionTop };
-        width = logicalWidth;
-        height = selectionHeight;
-    } else {
-        topPoint = LayoutPoint { selectionTop, snappedSelectionRect.x() };
-        width = selectionHeight;
-        height = logicalWidth;
+    if (writingMode.isHorizontal()) {
+        return {
+            snappedSelectionRect.x(), selectionRect.y(),
+            logicalWidth, selectionRect.height(),
+        };
     }
-    return LayoutRect { topPoint, LayoutSize { width, height } };
+    return {
+        selectionRect.y(), snappedSelectionRect.x(),
+        selectionRect.height(), logicalWidth,
+    };
 }
 
 LayoutRect LegacyInlineTextBox::localSelectionRect(unsigned startPos, unsigned endPos) const
@@ -186,40 +200,21 @@ LayoutRect LegacyInlineTextBox::localSelectionRect(unsigned startPos, unsigned e
     if (clampedStart >= clampedEnd && !(startPos == endPos && startPos >= start() && startPos <= (start() + len())))
         return { };
 
-    LayoutUnit selectionTop = this->selectionTop();
-    LayoutUnit selectionHeight = this->selectionHeight();
-
     TextRun textRun = createTextRun();
 
-    LayoutRect selectionRect { LayoutUnit(logicalLeft()), selectionTop, LayoutUnit(logicalWidth()), selectionHeight };
+    LayoutRect selectionRect { LayoutUnit(logicalLeft()), this->selectionTop(), LayoutUnit(logicalWidth()), this->selectionHeight() };
     // Avoid measuring the text when the entire line box is selected as an optimization.
     if (clampedStart || clampedEnd != textRun.length())
         lineFont().adjustSelectionRectForText(renderer().canUseSimplifiedTextMeasuring().value_or(false), textRun, selectionRect, clampedStart, clampedEnd);
     // FIXME: The computation of the snapped selection rect differs from the computation of this rect
     // in paintMarkedTextBackground(). See <https://bugs.webkit.org/show_bug.cgi?id=138913>.
-    return snappedSelectionRect(selectionRect, logicalRight(), selectionTop, selectionHeight, isHorizontal());
+    return snappedSelectionRect(selectionRect, logicalRight(), renderer().writingMode());
 }
 
 void LegacyInlineTextBox::deleteLine()
 {
     renderer().removeTextBox(*this);
     delete this;
-}
-
-void LegacyInlineTextBox::extractLine()
-{
-    if (extracted())
-        return;
-
-    renderer().extractTextBox(*this);
-}
-
-void LegacyInlineTextBox::attachLine()
-{
-    if (!extracted())
-        return;
-    
-    renderer().attachTextBox(*this);
 }
 
 bool LegacyInlineTextBox::isLineBreak() const

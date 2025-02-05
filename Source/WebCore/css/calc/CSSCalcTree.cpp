@@ -28,6 +28,7 @@
 
 #include "CSSCalcTree+Serialization.h"
 #include "CSSUnits.h"
+#include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/TextStream.h>
 
 namespace WebCore {
@@ -291,10 +292,10 @@ std::optional<Type> toType(const Max& root)
 std::optional<Type> toType(const Clamp& root)
 {
     auto type = getValidatedTypeFor(root, root.val);
-    if (std::holds_alternative<Child>(root.min))
-        type = mergeTypesFor(root, type, getValidatedTypeFor(root, std::get<Child>(root.min)));
-    if (std::holds_alternative<Child>(root.max))
-        type = mergeTypesFor(root, type, getValidatedTypeFor(root, std::get<Child>(root.max)));
+    if (WTF::holdsAlternative<Child>(root.min))
+        type = mergeTypesFor(root, type, getValidatedTypeFor(root, std::get<Child>(root.min.value)));
+    if (WTF::holdsAlternative<Child>(root.max))
+        type = mergeTypesFor(root, type, getValidatedTypeFor(root, std::get<Child>(root.max.value)));
     return transformTypeFor(root, type);
 }
 
@@ -447,7 +448,7 @@ std::optional<Type> toType(const ContainerProgress&)
 
 TextStream& operator<<(TextStream& ts, Tree tree)
 {
-    return ts << "CSSCalc::Tree [ " << serializationForCSS(tree) << " ]";
+    return ts << "CSSCalc::Tree [ " << serializationForCSS(tree, { .range = CSS::All }) << " ]";
 }
 
 } // namespace CSSCalc

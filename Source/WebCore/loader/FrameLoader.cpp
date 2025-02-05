@@ -1058,6 +1058,7 @@ void FrameLoader::loadURLIntoChildFrame(const URL& url, const String& referer, L
     if (parentItem && parentItem->children().size() && isBackForwardLoadType(loadType()) && !m_frame->document()->loadEventFinished()) {
         if (RefPtr childItem = parentItem->childItemWithTarget(childFrame.tree().uniqueName())) {
             Ref childLoader = childFrame.loader();
+            childItem->setFrameID(childFrame.frameID());
             childLoader->m_requestedHistoryItem = childItem;
             childLoader->loadDifferentDocumentItem(*childItem, nullptr, loadType(), MayAttemptCacheOnlyLoadForFormSubmissionItem, ShouldTreatAsContinuingLoad::No);
             return;
@@ -1823,6 +1824,9 @@ void FrameLoader::loadWithDocumentLoader(DocumentLoader* loader, FrameLoadType t
 
     if (!isNavigationAllowed())
         return;
+
+    if (RefPtr page = frame->page(); page && page->isInSwipeAnimation())
+        loader->setLoadStartedDuringSwipeAnimation();
 
     if (frame->document())
         m_previousURL = frame->document()->url();
@@ -4466,29 +4470,29 @@ void FrameLoader::retryAfterFailedCacheOnlyMainResourceLoad()
     }
 }
 
-ResourceError FrameLoader::cancelledError(const ResourceRequest& request) const
+ResourceError FrameLoader::cancelledError(const ResourceRequest& request)
 {
-    ResourceError error = m_client->cancelledError(request);
+    ResourceError error = platformStrategies()->loaderStrategy()->cancelledError(request);
     error.setType(ResourceError::Type::Cancellation);
     return error;
 }
 
-ResourceError FrameLoader::blockedByContentBlockerError(const ResourceRequest& request) const
+ResourceError FrameLoader::blockedByContentBlockerError(const ResourceRequest& request)
 {
-    return m_client->blockedByContentBlockerError(request);
+    return platformStrategies()->loaderStrategy()->blockedByContentBlockerError(request);
 }
 
-ResourceError FrameLoader::blockedError(const ResourceRequest& request) const
+ResourceError FrameLoader::blockedError(const ResourceRequest& request)
 {
-    ResourceError error = m_client->blockedError(request);
+    ResourceError error = platformStrategies()->loaderStrategy()->blockedError(request);
     error.setType(ResourceError::Type::Cancellation);
     return error;
 }
 
 #if ENABLE(CONTENT_FILTERING)
-ResourceError FrameLoader::blockedByContentFilterError(const ResourceRequest& request) const
+ResourceError FrameLoader::blockedByContentFilterError(const ResourceRequest& request)
 {
-    ResourceError error = m_client->blockedByContentFilterError(request);
+    ResourceError error = platformStrategies()->loaderStrategy()->blockedByContentFilterError(request);
     error.setType(ResourceError::Type::General);
     return error;
 }
@@ -4633,6 +4637,11 @@ void FrameLoader::loadProgressingStatusChanged()
 void FrameLoader::completePageTransitionIfNeeded()
 {
     m_client->completePageTransitionIfNeeded();
+}
+
+void FrameLoader::setDocumentVisualUpdatesAllowed(bool allowed)
+{
+    m_client->setDocumentVisualUpdatesAllowed(allowed);
 }
 
 void FrameLoader::clearTestingOverrides()
