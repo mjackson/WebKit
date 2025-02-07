@@ -175,7 +175,17 @@ void Thread::signalHandlerSuspendResume(int, siginfo_t*, void* ucontext)
 void Thread::initializePlatformThreading()
 {
     if (!g_wtfConfig.isUserSpecifiedThreadSuspendResumeSignalConfigured) {
+#if USE(BUN_JSC_ADDITIONS)
+        // By default, JavaScriptCore's garbage collector sends SIGUSR1 to the JS thread to suspend
+        // and resume it in order to scan its stack memory. Whatever signal it uses can't be
+        // reliably intercepted by JS code, and several npm packages use SIGUSR1 for various
+        // features. We tell it to use SIGPWR instead, which we assume is unlikely to be reliable
+        // for its stated purpose. Mono's garbage collector also uses SIGPWR:
+        // https://www.mono-project.com/docs/advanced/embedding/#signal-handling
+        g_wtfConfig.sigThreadSuspendResume = SIGPWR;
+#else
         g_wtfConfig.sigThreadSuspendResume = SIGUSR1;
+#endif
         if (const char* string = getenv("JSC_SIGNAL_FOR_GC")) {
             int32_t value = 0;
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
