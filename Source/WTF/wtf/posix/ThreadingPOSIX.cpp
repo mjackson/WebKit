@@ -175,7 +175,7 @@ void Thread::signalHandlerSuspendResume(int, siginfo_t*, void* ucontext)
 void Thread::initializePlatformThreading()
 {
     if (!g_wtfConfig.isUserSpecifiedThreadSuspendResumeSignalConfigured) {
-#if USE(BUN_JSC_ADDITIONS)
+#if OS(LINUX) && USE(BUN_JSC_ADDITIONS)
         // By default, JavaScriptCore's garbage collector sends SIGUSR1 to the JS thread to suspend
         // and resume it in order to scan its stack memory. Whatever signal it uses can't be
         // reliably intercepted by JS code, and several npm packages use SIGUSR1 for various
