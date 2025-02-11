@@ -1,6 +1,17 @@
 #include "config.h"
 #include <wtf/RunLoop.h>
 
+// We need the definition of RunLoop::TimerBase::ScheduledTask, as well as the definitions of
+// RunLoopGeneric member functions (which we redefine to be on RunLoopGenericState instead)
+#include "../generic/RunLoopGeneric.cpp"
+
+// Ensure we cleaned up the mess in RunLoopGeneric.cpp
+#if defined(RunLoop)
+#error RunLoop was not undef'd
+#elif defined(m_runLoop)
+#error m_runLoop was not undef'd
+#endif
+
 namespace WTF {
 
 // Functions exported by Timer.zig
@@ -11,11 +22,21 @@ extern "C" __attribute__((weak)) bool WTFTimer__isActive(const RunLoop::TimerBas
 extern "C" __attribute__((weak)) double WTFTimer__secondsUntilTimer(const RunLoop::TimerBase::Bun__WTFTimer*);
 extern "C" __attribute__((weak)) void WTFTimer__cancel(RunLoop::TimerBase::Bun__WTFTimer*);
 
+extern "C" __attribute__((weak)) bool Bun__thisThreadHasVM();
+
+// Default definition for the JSC shell. Returning false will make us use a RunLoopGeneric which
+// works when Bun's event loop is not active.
+bool Bun__thisThreadHasVM()
+{
+    return false;
+}
+
 RunLoop::TimerBase::TimerBase(Ref<RunLoop>&& loop)
     : m_runLoop(WTFMove(loop))
+    , m_scheduledTask(ScheduledTask::create(*this))
     // check if the zig function is actually available (it won't be in JSC shell, since that doesn't
     // link Bun's zig code)
-    , m_zigTimer(&WTFTimer__create ? WTFTimer__create(this) : nullptr)
+    , m_zigTimer(Bun__thisThreadHasVM() ? WTFTimer__create(this) : nullptr)
 {
 }
 
@@ -25,43 +46,53 @@ RunLoop::TimerBase::TimerBase(Ref<RunLoop>&& loop)
 
 RunLoop::TimerBase::~TimerBase()
 {
-    if (&WTFTimer__deinit) {
-        if (m_zigTimer)
-            WTFTimer__deinit(m_zigTimer);
+    switch (kind()) {
+    case Kind::Generic:
+        destructGeneric();
+        break;
+    case Kind::Bun:
+        WTFTimer__deinit(m_zigTimer);
+        break;
     }
 }
 
 void RunLoop::TimerBase::stop()
 {
-    if (&WTFTimer__cancel) {
-        if (m_zigTimer)
-            WTFTimer__cancel(m_zigTimer);
+    switch (kind()) {
+    case Kind::Generic:
+        return stopGeneric();
+    case Kind::Bun:
+        return WTFTimer__cancel(m_zigTimer);
     }
 }
 
 bool RunLoop::TimerBase::isActive() const
 {
-    if (&WTFTimer__isActive) {
-        if (m_zigTimer)
-            return WTFTimer__isActive(m_zigTimer);
+    switch (kind()) {
+    case Kind::Generic:
+        return isActiveGeneric();
+    case Kind::Bun:
+        return WTFTimer__isActive(m_zigTimer);
     }
-    return false;
 }
 
 Seconds RunLoop::TimerBase::secondsUntilFire() const
 {
-    if (&WTFTimer__secondsUntilTimer) {
-        if (m_zigTimer)
-            return Seconds(WTFTimer__secondsUntilTimer(m_zigTimer));
+    switch (kind()) {
+    case Kind::Generic:
+        return secondsUntilFireGeneric();
+    case Kind::Bun:
+        return Seconds(WTFTimer__secondsUntilTimer(m_zigTimer));
     }
-    return -1.0_s;
 }
 
 void RunLoop::TimerBase::start(Seconds interval, bool repeat)
 {
-    if (&WTFTimer__update) {
-        if (m_zigTimer)
-            WTFTimer__update(m_zigTimer, interval.value(), repeat);
+    switch (kind()) {
+    case Kind::Generic:
+        return startGeneric(interval, repeat);
+    case Kind::Bun:
+        return WTFTimer__update(m_zigTimer, interval.value(), repeat);
     }
 }
 
@@ -74,20 +105,42 @@ extern "C" void WTFTimer__fire(RunLoop::TimerBase* timer)
 
 RunLoop::RunLoop()
 {
+    if (!Bun__thisThreadHasVM()) {
+        m_genericState.emplace(*this);
+    } else {
+        // these functions should all be defined if we're in Bun
+        ASSERT(WTFTimer__create);
+        ASSERT(WTFTimer__update);
+        ASSERT(WTFTimer__deinit);
+        ASSERT(WTFTimer__isActive);
+        ASSERT(WTFTimer__secondsUntilTimer);
+        ASSERT(WTFTimer__cancel);
+    }
 }
 
 RunLoop::~RunLoop()
 {
+    // if m_genericState has a value, ~RunLoopGenericState() will be called, so we don't need
+    // to do anything else here
 }
 
 void RunLoop::run()
 {
-    ASSERT_NOT_REACHED();
+    if (RunLoop::current().m_genericState) {
+        // matches RunLoopGeneric implementation
+        RunLoop::current().m_genericState->runImpl(RunLoopGenericState::RunMode::Drain);
+    } else {
+        ASSERT_NOT_REACHED();
+    }
 }
 
 void RunLoop::stop()
 {
-    ASSERT_NOT_REACHED();
+    if (m_genericState) {
+        m_genericState->stop();
+    } else {
+        ASSERT_NOT_REACHED();
+    }
 }
 
 void RunLoop::wakeUp()
@@ -96,11 +149,16 @@ void RunLoop::wakeUp()
     // of being freed.
 }
 
-RunLoop::CycleResult RunLoop::cycle(RunLoopMode mode)
+RunLoop::CycleResult RunLoop::cycle(RunLoopMode)
 {
-    (void)mode;
-    ASSERT_NOT_REACHED();
-    return RunLoop::CycleResult::Stop;
+    if (RunLoop::current().m_genericState) {
+        // matches RunLoopGeneric implementation
+        RunLoop::current().m_genericState->runImpl(RunLoopGenericState::RunMode::Iterate);
+        return CycleResult::Continue;
+    } else {
+        ASSERT_NOT_REACHED();
+        return RunLoop::CycleResult::Stop;
+    }
 }
 
 } // namespace WTF

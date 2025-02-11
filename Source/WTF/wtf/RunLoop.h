@@ -54,7 +54,7 @@
 #include <wtf/glib/GRefPtr.h>
 #endif
 
-#if USE(GENERIC_EVENT_LOOP)
+#if USE(GENERIC_EVENT_LOOP) || USE(BUN_EVENT_LOOP)
 #include <wtf/RedBlackTree.h>
 #endif
 
@@ -76,6 +76,22 @@ using RunLoopMode = unsigned;
 
 // Classes that offer Timers should be ref-counted of CanMakeCheckedPtr. Please do not add new exceptions.
 template<typename T> struct IsDeprecatedTimerSmartPointerException : std::false_type { };
+
+// WTF::RunLoop is designed to have only one implementation compiled in, depending on build
+// configuration. Bun would like to use either the implementation for GENERIC_EVENT_LOOP, on threads
+// that do not have a virtual machine (because these threads don't have a Bun event loop), or a Bun-
+// specific implementation that stubs almost all functionality except that needed for JSRunLoopTimer
+// (we integrate those timers into our event loop so that we do GC work at the times JSC wants to).
+// RunLoop has some fields that always exist, and some fields that are enabled depending on which
+// kind of RunLoop is being used. Our solution is to, when USE(BUN_EVENT_LOOP) is true, move all the
+// fields specific to GENERIC_EVENT_LOOP into a separate class (RunLoop::RunLoopGenericState), and
+// then give RunLoop a std::optional of that class. When a RunLoop is created, if there is a Bun VM
+// on its thread, we use the stub implementation; otherwise, we initialize m_genericState and use
+// those functions.
+//
+// Since RunLoopGeneric.cpp is not compiled in when building for Bun, we #include it in RunLoop.cpp
+// and use some #defines to make it define member functions of RunLoop::RunLoopGenericState instead
+// of RunLoop.
 
 class WTF_CAPABILITY("is current") RunLoop final : public GuaranteedSerialFunctionDispatcher {
     WTF_MAKE_NONCOPYABLE(RunLoop);
@@ -131,6 +147,10 @@ public:
     static void registerRunLoopMessageWindowClass();
 #endif
 
+#if USE(BUN_EVENT_LOOP)
+    enum class Kind { Generic, Bun };
+#endif
+
     class TimerBase {
         friend class RunLoop;
     public:
@@ -173,14 +193,32 @@ public:
         GRefPtr<GSource> m_source;
         bool m_isRepeating { false };
         Seconds m_interval { 0 };
-#elif USE(GENERIC_EVENT_LOOP)
+#elif USE(GENERIC_EVENT_LOOP) || USE(BUN_EVENT_LOOP)
+#if USE(BUN_EVENT_LOOP)
+        bool isActiveWithLock() const;
+        void stopWithLock();
+#else
         bool isActiveWithLock() const WTF_REQUIRES_LOCK(m_runLoop->m_loopLock);
         void stopWithLock() WTF_REQUIRES_LOCK(m_runLoop->m_loopLock);
+#endif
 
         class ScheduledTask;
         Ref<ScheduledTask> m_scheduledTask;
-#elif USE(BUN_EVENT_LOOP)
-        Bun__WTFTimer* m_zigTimer;
+#endif
+#if USE(BUN_EVENT_LOOP)
+        // These functions will be defined in RunLoopGeneric.cpp.
+        // RunLoopBun.cpp defines non-`Generic` versions which choose which implementation to use
+        // based on m_isGenericTimer.
+        void destructGeneric();
+        void startGeneric(Seconds interval, bool repeat);
+        void stopGeneric();
+        bool isActiveGeneric() const;
+        Seconds secondsUntilFireGeneric() const;
+
+        inline Kind kind() const { return m_zigTimer ? Kind::Bun : Kind::Generic; }
+
+        // Null if we are not on a Bun JS thread
+        Bun__WTFTimer* const m_zigTimer;
 #endif
     };
 
@@ -285,10 +323,29 @@ private:
     Vector<GRefPtr<GMainLoop>> m_mainLoops;
     GRefPtr<GSource> m_source;
     WeakHashSet<Observer> m_observers;
-#elif USE(GENERIC_EVENT_LOOP)
+#elif USE(GENERIC_EVENT_LOOP) || USE(BUN_EVENT_LOOP)
+#if USE(BUN_EVENT_LOOP)
+class RunLoopGenericState {
+public:
+    RunLoopGenericState(RunLoop& parent);
+    ~RunLoopGenericState();
+    WTF_MAKE_NONCOPYABLE(RunLoopGenericState);
+    using CycleResult = ::WTF::RunLoop::CycleResult;
+    friend class ::WTF::RunLoop;
+private:
+    void scheduleWithLock(TimerBase::ScheduledTask&);
+    void unscheduleWithLock(TimerBase::ScheduledTask&);
+    void wakeUpWithLock();
+    void wakeUp();
+    void stop();
+    CycleResult static cycle(RunLoopMode = DefaultRunLoopMode);
+
+    RunLoop& m_parent;
+#else
     void scheduleWithLock(TimerBase::ScheduledTask&) WTF_REQUIRES_LOCK(m_loopLock);
     void unscheduleWithLock(TimerBase::ScheduledTask&) WTF_REQUIRES_LOCK(m_loopLock);
     void wakeUpWithLock() WTF_REQUIRES_LOCK(m_loopLock);
+#endif
 
     enum class RunMode {
         Iterate,
@@ -311,10 +368,21 @@ private:
     Vector<Status*> m_mainLoops;
     bool m_shutdown { false };
     bool m_pendingTasks { false };
+    Function<void()> m_wakeUpCallback;
+#if USE(BUN_EVENT_LOOP)
+};
+#endif
 #endif
 
-#if USE(GENERIC_EVENT_LOOP) || USE(WINDOWS_EVENT_LOOP)
+// Bun moves this field to RunLoopGenericState
+#if !USE(BUN_EVENT_LOOP) && (USE(GENERIC_EVENT_LOOP) || USE(WINDOWS_EVENT_LOOP))
     Function<void()> m_wakeUpCallback;
+#endif
+
+#if USE(BUN_EVENT_LOOP)
+    std::optional<RunLoopGenericState> m_genericState;
+
+    inline Kind kind() const { return m_genericState ? Kind::Generic : Kind::Bun; }
 #endif
 };
 
