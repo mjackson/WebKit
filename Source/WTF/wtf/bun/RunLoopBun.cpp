@@ -166,8 +166,14 @@ void RunLoop::stop()
 
 void RunLoop::wakeUp()
 {
-    // Do nothing. This means that JSRunLoopTimer::Manager::PerVMData's RunLoop::Timer leaks instead
-    // of being freed.
+    switch (kind()) {
+    case Kind::Generic:
+        m_genericState->wakeUp();
+        return;
+    case Kind::Bun:
+        // Do nothing. This means that JSRunLoopTimer::Manager::PerVMData's RunLoop::Timer leaks instead
+        // of being freed.
+    }
 }
 
 RunLoop::CycleResult RunLoop::cycle(RunLoopMode)
