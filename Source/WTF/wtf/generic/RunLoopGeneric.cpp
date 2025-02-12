@@ -120,11 +120,22 @@ private:
     bool m_isScheduled { };
 };
 
+#if USE(BUN_EVENT_LOOP)
+// This constructor and destructor can't be fixed by the `#define RunLoop RunLoop::RunLoopGenericState`
+// because that would make their names include `RunLoop::` twice.
+RunLoop::RunLoopGenericState::RunLoopGenericState(RunLoop& parent)
+    : m_parent(parent)
+#else
 RunLoop::RunLoop()
+#endif
 {
 }
 
+#if USE(BUN_EVENT_LOOP)
+RunLoop::RunLoopGenericState::~RunLoopGenericState()
+#else
 RunLoop::~RunLoop()
+#endif
 {
     Locker locker { m_loopLock };
     m_shutdown = true;
@@ -134,6 +145,11 @@ RunLoop::~RunLoop()
     if (!m_mainLoops.isEmpty())
         m_stopCondition.wait(m_loopLock);
 }
+
+#if USE(BUN_EVENT_LOOP)
+// Make the following member functions be defined on the right class
+#define RunLoop RunLoop::RunLoopGenericState
+#endif
 
 inline bool RunLoop::populateTasks(RunMode runMode, Status& statusOfThisLoop, Deque<Ref<TimerBase::ScheduledTask>>& firedTimers)
 {
@@ -174,13 +190,28 @@ inline bool RunLoop::populateTasks(RunMode runMode, Status& statusOfThisLoop, De
 
 void RunLoop::runImpl(RunMode runMode)
 {
+#if USE(BUN_EVENT_LOOP)
+    // We need to #undef because RunLoopGenericState doesn't have a current()
+    // And we need &m_parent instead of `this` because `this` is a RunLoopGenericState,
+    // not a RunLoop.
+#undef RunLoop
+    ASSERT(&m_parent == &RunLoop::current());
+    // Undo the #undef above
+#define RunLoop RunLoop::RunLoopGenericState
+#else
     ASSERT(this == &RunLoop::current());
+#endif
 
     if constexpr (report) {
         static LazyNeverDestroyed<Timer> reporter;
         static std::once_flag onceKey;
         std::call_once(onceKey, [&] {
+#if USE(BUN_EVENT_LOOP)
+            // construct() needs a RunLoop, not a RunLoopGenericState
+            reporter.construct(m_parent, [this] {
+#else
             reporter.construct(*this, [this] {
+#endif
                 unsigned count = 0;
                 unsigned active = 0;
                 for (auto task = m_schedules.first(); task; task = task->successor()) {
@@ -227,10 +258,20 @@ void RunLoop::runImpl(RunMode runMode)
                 scheduleWithLock(task.get());
             }
         }
+#if USE(BUN_EVENT_LOOP)
+        // This function is defined on RunLoop, not RunLoopGenericState (and it's in RunLoop.cpp so
+        // it isn't getting moved to RunLoopGenericState)
+        m_parent.performWork();
+#else
         performWork();
+#endif
     }
 }
 
+#if !USE(BUN_EVENT_LOOP)
+// RunLoop::run() is defined in RunLoopBun.cpp
+// RunLoop::setWakeUpCallback() is left undefined as it only exists for the generic and Windows
+// run loops, so the rest of WebKit would never call it with USE(BUN_EVENT_LOOP) defined
 void RunLoop::run()
 {
     RunLoop::current().runImpl(RunMode::Drain);
@@ -240,6 +281,7 @@ void RunLoop::setWakeUpCallback(WTF::Function<void()>&& function)
 {
     RunLoop::current().m_wakeUpCallback = WTFMove(function);
 }
+#endif
 
 // RunLoop operations are thread-safe. These operations can be called from outside of the RunLoop's thread.
 // For example, WorkQueue::{dispatch, dispatchAfter} call the operations of the WorkQueue thread's RunLoop
@@ -273,11 +315,13 @@ void RunLoop::wakeUp()
     wakeUpWithLock();
 }
 
+#if !USE(BUN_EVENT_LOOP)
 RunLoop::CycleResult RunLoop::cycle(RunLoopMode)
 {
     RunLoop::current().runImpl(RunMode::Iterate);
     return CycleResult::Continue;
 }
+#endif
 
 void RunLoop::scheduleWithLock(TimerBase::ScheduledTask& task)
 {
@@ -295,21 +339,45 @@ void RunLoop::unscheduleWithLock(TimerBase::ScheduledTask& task)
     }
 }
 
+#if USE(BUN_EVENT_LOOP)
+#undef RunLoop
+// Now we have to make the TimerBase implementations work. They all access fields on m_runLoop, but
+// those fields won't exist anymore since we moved them to RunLoopGenericState. So we need to make
+// them access m_genericState (this is undefined behavior if m_genericState is nullopt, but none
+// of these functions should even get called if the run loop is not the generic implementation).
+#define m_runLoop (m_runLoop->m_genericState)
+// And m_scheduledTask needs to be accessed via the std::variant on TimerBase
+#define m_scheduledTask (std::get<Ref<ScheduledTask>>(m_impl))
+#endif
+
 // Since RunLoop does not own the registered TimerBase,
 // TimerBase and its owner should manage these lifetime.
+#if !USE(BUN_EVENT_LOOP)
+// For Bun, this is defined in RunLoopBun.cpp
 RunLoop::TimerBase::TimerBase(Ref<RunLoop>&& runLoop)
     : m_runLoop(WTFMove(runLoop))
     , m_scheduledTask(ScheduledTask::create(*this))
 {
 }
+#endif
 
+#if USE(BUN_EVENT_LOOP)
+// For Bun, ~TimerBase() is defined in RunLoopBun.cpp and it will call destructGeneric() if it
+// needs to.
+void RunLoop::TimerBase::destructGeneric()
+#else
 RunLoop::TimerBase::~TimerBase()
+#endif
 {
     Locker locker { m_runLoop->m_loopLock };
     stopWithLock();
 }
 
+#if USE(BUN_EVENT_LOOP)
+void RunLoop::TimerBase::startGeneric(Seconds interval, bool repeating)
+#else
 void RunLoop::TimerBase::start(Seconds interval, bool repeating)
+#endif
 {
     Locker locker { m_runLoop->m_loopLock };
     stopWithLock();
@@ -324,13 +392,21 @@ void RunLoop::TimerBase::stopWithLock()
     m_scheduledTask->deactivate();
 }
 
+#if USE(BUN_EVENT_LOOP)
+void RunLoop::TimerBase::stopGeneric()
+#else
 void RunLoop::TimerBase::stop()
+#endif
 {
     Locker locker { m_runLoop->m_loopLock };
     stopWithLock();
 }
 
+#if USE(BUN_EVENT_LOOP)
+bool RunLoop::TimerBase::isActiveGeneric() const
+#else
 bool RunLoop::TimerBase::isActive() const
+#endif
 {
     Locker locker { m_runLoop->m_loopLock };
     return isActiveWithLock();
@@ -341,12 +417,21 @@ bool RunLoop::TimerBase::isActiveWithLock() const
     return m_scheduledTask->isActive();
 }
 
+#if USE(BUN_EVENT_LOOP)
+Seconds RunLoop::TimerBase::secondsUntilFireGeneric() const
+#else
 Seconds RunLoop::TimerBase::secondsUntilFire() const
+#endif
 {
     Locker locker { m_runLoop->m_loopLock };
     if (isActiveWithLock())
         return std::max<Seconds>(m_scheduledTask->scheduledTimePoint() - MonotonicTime::now(), 0_s);
     return 0_s;
 }
+
+#if USE(BUN_EVENT_LOOP)
+#undef m_runLoop
+#undef m_scheduledTask
+#endif
 
 } // namespace WTF
