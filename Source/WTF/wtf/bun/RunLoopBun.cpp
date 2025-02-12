@@ -22,14 +22,15 @@ extern "C" __attribute__((weak)) bool WTFTimer__isActive(const RunLoop::TimerBas
 extern "C" __attribute__((weak)) double WTFTimer__secondsUntilTimer(const RunLoop::TimerBase::Bun__WTFTimer*);
 extern "C" __attribute__((weak)) void WTFTimer__cancel(RunLoop::TimerBase::Bun__WTFTimer*);
 
+// Weak, so that Bun can override it
 extern "C" __attribute__((weak)) bool Bun__thisThreadHasVM();
 
 // Default definition for the JSC shell. Returning false will make us use a RunLoopGeneric which
 // works when Bun's event loop is not active.
 bool Bun__thisThreadHasVM()
 {
-    // Bun should override this function, so if we reach here then all the WTFTimer functions should
-    // not be defined
+    // Bun should override this function, so we should only reach here if we are *not* running in
+    // Bun in which case all the WTFTimer functions should not be defined
     ASSERT(!WTFTimer__create);
     ASSERT(!WTFTimer__update);
     ASSERT(!WTFTimer__deinit);

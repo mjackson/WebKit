@@ -54,6 +54,7 @@
 #include <wtf/glib/GRefPtr.h>
 #endif
 
+// BUN_EVENT_LOOP ends up compiling much of the generic code too, so we need this include
 #if USE(GENERIC_EVENT_LOOP) || USE(BUN_EVENT_LOOP)
 #include <wtf/RedBlackTree.h>
 #endif
@@ -195,20 +196,25 @@ public:
         Seconds m_interval { 0 };
 #elif USE(GENERIC_EVENT_LOOP) || USE(BUN_EVENT_LOOP)
 #if USE(BUN_EVENT_LOOP)
-        bool isActiveWithLock() const;
-        void stopWithLock();
+        bool isActiveWithLock() const WTF_REQUIRES_LOCK(m_runLoop->m_genericState->m_loopLock);
+        void stopWithLock() WTF_REQUIRES_LOCK(m_runLoop->m_genericState->m_loopLock);
 #else
         bool isActiveWithLock() const WTF_REQUIRES_LOCK(m_runLoop->m_loopLock);
         void stopWithLock() WTF_REQUIRES_LOCK(m_runLoop->m_loopLock);
 #endif
 
         class ScheduledTask;
+        // TODO avoid init-ing this in BUN_EVENT_LOOP?
         Ref<ScheduledTask> m_scheduledTask;
 #endif
 #if USE(BUN_EVENT_LOOP)
         // These functions will be defined in RunLoopGeneric.cpp.
         // RunLoopBun.cpp defines non-`Generic` versions which choose which implementation to use
         // based on m_isGenericTimer.
+        // I could have also done something like RunLoopGenericState, and moved the Generic-specific
+        // fields into another class, but since there are so few TimerBase member functions and
+        // fields I decided it would be less intrusive to rename the functions and include both the
+        // Generic field and the Bun field.
         void destructGeneric();
         void startGeneric(Seconds interval, bool repeat);
         void stopGeneric();
@@ -325,6 +331,8 @@ private:
     WeakHashSet<Observer> m_observers;
 #elif USE(GENERIC_EVENT_LOOP) || USE(BUN_EVENT_LOOP)
 #if USE(BUN_EVENT_LOOP)
+    // Here we make these fields be in their own class rather than existing on RunLoop.
+    // This is so RunLoop can wrap it all in an std::optional.
 class RunLoopGenericState {
 public:
     RunLoopGenericState(RunLoop& parent);
@@ -333,13 +341,18 @@ public:
     using CycleResult = ::WTF::RunLoop::CycleResult;
     friend class ::WTF::RunLoop;
 private:
-    void scheduleWithLock(TimerBase::ScheduledTask&);
-    void unscheduleWithLock(TimerBase::ScheduledTask&);
-    void wakeUpWithLock();
+    // The member function definitions in RunLoopGeneric.cpp will go on this class instead of on
+    // RunLoop, so we need declarations here.
+    void scheduleWithLock(TimerBase::ScheduledTask&) WTF_REQUIRES_LOCK(m_loopLock);
+    void unscheduleWithLock(TimerBase::ScheduledTask&) WTF_REQUIRES_LOCK(m_loopLock);
+    void wakeUpWithLock() WTF_REQUIRES_LOCK(m_loopLock);
     void wakeUp();
     void stop();
     CycleResult static cycle(RunLoopMode = DefaultRunLoopMode);
 
+    // Some of the above member functions need to call RunLoop member functions, and they can't call
+    // them directly anymore since they are not on the same class. So the RunLoopGenericState needs
+    // access to the RunLoop containing it.
     RunLoop& m_parent;
 #else
     void scheduleWithLock(TimerBase::ScheduledTask&) WTF_REQUIRES_LOCK(m_loopLock);
@@ -368,8 +381,12 @@ private:
     Vector<Status*> m_mainLoops;
     bool m_shutdown { false };
     bool m_pendingTasks { false };
-    Function<void()> m_wakeUpCallback;
 #if USE(BUN_EVENT_LOOP)
+    // This field is normally defined separately form the main `#if USE(GENERIC_EVENT_LOOP)`,
+    // because it also exists on Windows. So we have to explicitly move it up into
+    // RunLoopGenericState.
+    Function<void()> m_wakeUpCallback;
+    // Close the RunLoopGenericState class
 };
 #endif
 #endif
@@ -380,6 +397,7 @@ private:
 #endif
 
 #if USE(BUN_EVENT_LOOP)
+    // nullopt if this run loop uses the Bun implementation
     std::optional<RunLoopGenericState> m_genericState;
 
     inline Kind kind() const { return m_genericState ? Kind::Generic : Kind::Bun; }
