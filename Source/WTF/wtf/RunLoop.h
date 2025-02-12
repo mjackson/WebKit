@@ -150,6 +150,7 @@ public:
 
 #if USE(BUN_EVENT_LOOP)
     enum class Kind { Generic, Bun };
+    WTF_EXPORT_PRIVATE Kind kind() const { return m_genericState ? Kind::Generic : Kind::Bun; }
 #endif
 
     class TimerBase {
@@ -400,8 +401,6 @@ private:
 #if USE(BUN_EVENT_LOOP)
     // nullopt if this run loop uses the Bun implementation
     std::optional<RunLoopGenericState> m_genericState;
-
-    inline Kind kind() const { return m_genericState ? Kind::Generic : Kind::Bun; }
 #endif
 };
 
