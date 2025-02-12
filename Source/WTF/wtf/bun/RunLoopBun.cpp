@@ -126,19 +126,25 @@ RunLoop::~RunLoop()
 
 void RunLoop::run()
 {
-    if (RunLoop::current().m_genericState) {
+    switch (RunLoop::current().kind()) {
+    case Kind::Generic:
         // matches RunLoopGeneric implementation
         RunLoop::current().m_genericState->runImpl(RunLoopGenericState::RunMode::Drain);
-    } else {
+        return;
+    case Kind::Bun:
+        // Our event loop should not call this function
         ASSERT_NOT_REACHED();
     }
 }
 
 void RunLoop::stop()
 {
-    if (m_genericState) {
+    switch (kind()) {
+    case Kind::Generic:
         m_genericState->stop();
-    } else {
+        return;
+    case Kind::Bun:
+        // Our event loop should not call this function
         ASSERT_NOT_REACHED();
     }
 }
@@ -151,11 +157,13 @@ void RunLoop::wakeUp()
 
 RunLoop::CycleResult RunLoop::cycle(RunLoopMode)
 {
-    if (RunLoop::current().m_genericState) {
+    switch (RunLoop::current().kind()) {
+    case Kind::Generic:
         // matches RunLoopGeneric implementation
         RunLoop::current().m_genericState->runImpl(RunLoopGenericState::RunMode::Iterate);
         return CycleResult::Continue;
-    } else {
+    case Kind::Bun:
+        // Our event loop should not call this function
         ASSERT_NOT_REACHED();
         return RunLoop::CycleResult::Stop;
     }
