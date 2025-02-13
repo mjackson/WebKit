@@ -223,10 +223,14 @@ public:
         bool isActiveGeneric() const;
         Seconds secondsUntilFireGeneric() const;
 
-        inline Kind kind() const { return std::holds_alternative<Bun__WTFTimer*>(m_impl) ? Kind::Bun : Kind::Generic; }
+        inline Kind kind() const { return std::holds_alternative<Ref<ScheduledTask>>(m_impl) ? Kind::Generic : Kind::Bun; }
 
-        // Bun__WTFTimer* for Bun implementation, Ref<ScheduledTask> for generic implementation
-        std::variant<Ref<ScheduledTask>, Bun__WTFTimer*> m_impl;
+        // Bun__WTFTimer reference for Bun implementation, Ref<ScheduledTask> for generic implementation.
+        // The Bun__WTFTimer pointer could be null if (in Bun)
+        // VirtualMachine.is_bundler_thread_for_bytecode_cache is true. In that case we use a
+        // special tag.
+        enum NullWTFTimerTag { NullWTFTimer };
+        std::variant<Ref<ScheduledTask>, std::reference_wrapper<Bun__WTFTimer>, NullWTFTimerTag> m_impl;
 #endif
     };
 
