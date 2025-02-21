@@ -36,6 +36,16 @@ fast/forms/ios [ Pass ]
 fast/forms/ios/ipad [ Skip ]
 fast/forms/switch [ Pass ]
 
+# Missing public painting code
+fast/forms/switch/click-animation-redundant-checked.html [ ImageOnlyFailure ]
+fast/forms/switch/click-animation-redundant-disabled.html [ ImageOnlyFailure ]
+fast/forms/switch/click-animation.html [ ImageOnlyFailure ]
+
+# These require touch event support
+fast/forms/switch/pointer-tracking-there-and-back-again-rtl.html [ Skip ]
+fast/forms/switch/pointer-tracking-there-and-back-again.html [ Skip ]
+fast/forms/switch/pointer-tracking.html [ Skip ]
+
 # These tests fail or are flaky in non-internal iOS 14 simulator
 fast/forms/ios/inputmode-none-with-hardware-keyboard.html [ Pass Failure ]
 
@@ -4500,6 +4510,10 @@ fast/images/pagewide-play-pause-offscreen-animations.html [ Pass ]
 
 # Only applicable on platforms with HDR support
 compositing/hdr/hdr-basic-canvas.html [ Pass ]
+compositing/hdr/hdr-basic-image.html [ Pass ]
+compositing/hdr/hdr-css-image.html [ Pass ]
+fast/images/hdr-basic-image.html [ Pass ]
+fast/images/hdr-css-image.html [ Pass ]
 
 # Re-enabling tests fixed by DocumentManager in iOS16+ rdar://102159271
 fast/forms/ios/file-upload-panel-capture.html [ Pass Crash ] # remove crash after this is resolved: webkit.org/b/268568
@@ -6920,12 +6934,6 @@ http/wpt/opener/iframe-access-top-via-windowproxy.html [ Pass ]
 http/wpt/opener/parent-access-child-via-windowproxy.html [ Pass ]
 http/wpt/opener/same-site-child-access-parent-iframe-via-windowproxy.html [ Pass ]
 
-# webkit.org/b/267890 REGRESSION (273260@main): [ iOS17 ] 3 tests in fast/forms/switch regularly timeout
-# fast/forms/switch/pointer-tracking-there-and-back-again-rtl.html [ Timeout ]
-# fast/forms/switch/pointer-tracking-there-and-back-again.html [ Timeout ]
-# fast/forms/switch/pointer-tracking.html [ Timeout ]
-# UNCOMMENT ABOVE AND REMOVE FROM platform/ios-17/TestExpectations WHEN BELOW IS RESOLVED.
-
 webkit.org/b/267796 [ Release ] imported/w3c/web-platform-tests/requestidlecallback/deadline-max-rAF-dynamic.html [ Pass Failure ]
 
 webkit.org/b/264296 fast/forms/ios/show-and-dismiss-date-input-in-landscape.html [ Pass Timeout Crash ]
@@ -7307,11 +7315,6 @@ webkit.org/b/284300 imported/w3c/web-platform-tests/scroll-animations/view-timel
 
 webkit.org/b/269506 fast/forms/ios/autocapitalize-words.html [ Pass Failure ]
 
-# webkit.org/b/271850 [iOS] 10 fast/forms/switch/click-animation*.html layout tests are passing.
-fast/forms/switch/click-animation-redundant-checked.html [ ImageOnlyFailure ]
-fast/forms/switch/click-animation-redundant-disabled.html [ ImageOnlyFailure ]
-fast/forms/switch/click-animation.html [ ImageOnlyFailure ]
-
 webkit.org/b/272910 fast/scrolling/ios/video-atop-overflow-scroll.html [ Skip ]
 
 webkit.org/b/273848 [ Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-iframe-element/iframe-loading-lazy-multiple-times.html [ Pass Failure ]
@@ -7666,9 +7669,6 @@ imported/w3c/web-platform-tests/html/interaction/focus/sequential-focus-navigati
 fast/writing-mode/inline-block-baseline.html [ ImageOnlyFailure ]
 fast/writing-mode/vertical-subst-font-vert-no-dflt.html [ ImageOnlyFailure ]
 
-# webkit.org/b/267890 REGRESSION (273260@main): [ iOS17 ] 3 tests in fast/forms/switch regularly timeout
-fast/forms/switch/pointer-tracking.html [ Timeout ]
-
 # webkit.org/b/288409 [ MacOS iOS ] 3x imported/w3c/web-platform-tests/navigation-api/navigation are consistent failures 
 imported/w3c/web-platform-tests/navigation-api/navigation-activation/activation-traverse-not-in-entries.html [ Failure ]
 imported/w3c/web-platform-tests/navigation-api/navigation-methods/disambigaute-forward.html [ Failure ]
@@ -7686,12 +7686,6 @@ webkit.org/b/286318 http/tests/iframe-monitor [ Pass ]
 
 # webkit.org/b/286934 [ Debug ] ipc/create-media-source-with-invalid-constraints-crash.html [ Skip ]
 
-# webkit.org/b/287098 fast/forms/switch/click-animation-twice-fast.html [ Timeout ]
-
-# webkit.org/b/287181 [ iOS ] 2x fast/forms/switch/pointer-tracking-there-and-back-again*.html are constant timeouts
-fast/forms/switch/pointer-tracking-there-and-back-again-rtl.html [ Timeout ]
-fast/forms/switch/pointer-tracking-there-and-back-again.html [ Timeout ]
-
 webkit.org/b/287204 [ Release ] fast/forms/date/date-input-rendering-basic.html [ Pass Failure ]
 
 webkit.org/b/287291 http/tests/site-isolation/selection-focus.html [ ImageOnlyFailure ]
@@ -7701,3 +7695,9 @@ webkit.org/b/287660 fast/forms/ios/file-upload-panel.html [ Pass Crash ]
 webkit.org/b/287672 imported/w3c/web-platform-tests/css/css-cascade/all-prop-initial-xml.html [ Failure ]
 
 webkit.org/b/287741 fast/viewport/ios/non-responsive-viewport-after-changing-view-scale.html [ Pass Failure ]
+
+# webkit.org/b/288036 NEW TEST(289843@main): [macOS iOS Debug]: ASSERTION FAILED: frame->presentationTime() >= m_lastMuxedSampleStartTime
+[ Debug ] http/wpt/mediarecorder/MediaRecorder-matroska-AV-audio-video-dataavailable.html [ Skip ]
+[ Debug ] http/wpt/mediarecorder/MediaRecorder-webm-AV-audio-video-dataavailable.html [ Skip ]
+
+webkit.org/b/288133 imported/w3c/web-platform-tests/scroll-to-text-fragment/find-range-from-text-directive.html [ Pass Failure ]

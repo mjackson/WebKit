@@ -495,7 +495,7 @@ private:
 
 void Interpreter::getStackTrace(JSCell* owner, Vector<StackFrame>& results, size_t framesToSkip, size_t maxStackSize, JSCell* caller, JSCell* ownerOfCallLinkInfo, CallLinkInfo* callLinkInfo)
 {
-    DisallowGC disallowGC;
+    AssertNoGC assertNoGC;
     VM& vm = this->vm();
     CallFrame* callFrame = vm.topCallFrame;
     if (!callFrame || !maxStackSize)
@@ -510,7 +510,7 @@ void Interpreter::getStackTrace(JSCell* owner, Vector<StackFrame>& results, size
         return false;
     };
 
-    // This is OK since we never cause GC inside it (see DisallowGC).
+    // This is OK since we never cause GC inside it (see AssertNoGC).
     Vector<std::tuple<CodeBlock*, BytecodeIndex>, 16> reconstructedFrames;
     auto countFrame = [&](CodeBlock* codeBlock, BytecodeIndex bytecodeIndex) {
         if (skippedFrames < framesToSkip) {
@@ -1181,7 +1181,7 @@ failedJSONP:
         }
 
         {
-            DisallowGC disallowGC; // Ensure no GC happens. GC can replace CodeBlock in Executable.
+            AssertNoGC assertNoGC; // Ensure no GC happens. GC can replace CodeBlock in Executable.
             jitCode = program->generatedJITCode();
             protoCallFrame.init(codeBlock, globalObject, globalCallee, thisObj, 1);
         }
@@ -1276,7 +1276,7 @@ ALWAYS_INLINE JSValue Interpreter::executeCallImpl(VM& vm, JSObject* function, c
         }
 
         {
-            DisallowGC disallowGC; // Ensure no GC happens. GC can replace CodeBlock in Executable.
+            AssertNoGC assertNoGC; // Ensure no GC happens. GC can replace CodeBlock in Executable.
             if (isJSCall)
                 jitCode = functionExecutable->generatedJITCodeForCall();
             protoCallFrame.init(newCodeBlock, globalObject, function, thisValue, argsCount, args.data());
@@ -1375,7 +1375,7 @@ JSObject* Interpreter::executeConstruct(JSObject* constructor, const CallData& c
         }
 
         {
-            DisallowGC disallowGC; // Ensure no GC happens. GC can replace CodeBlock in Executable.
+            AssertNoGC assertNoGC; // Ensure no GC happens. GC can replace CodeBlock in Executable.
             if (isJSConstruct)
                 jitCode = constructData.js.functionExecutable->generatedJITCodeForConstruct();
             protoCallFrame.init(newCodeBlock, globalObject, constructor, newTarget, argsCount, args.data());
@@ -1594,7 +1594,7 @@ JSValue Interpreter::executeEval(EvalExecutable* eval, JSValue thisValue, JSScop
         }
 
         {
-            DisallowGC disallowGC; // Ensure no GC happens. GC can replace CodeBlock in Executable.
+            AssertNoGC assertNoGC; // Ensure no GC happens. GC can replace CodeBlock in Executable.
             jitCode = eval->generatedJITCode();
             protoCallFrame.init(codeBlock, globalObject, callee, thisValue, 1);
         }
@@ -1662,7 +1662,7 @@ JSValue Interpreter::executeModuleProgram(JSModuleRecord* record, ModuleProgramE
         }
 
         {
-            DisallowGC disallowGC; // Ensure no GC happens. GC can replace CodeBlock in Executable.
+            AssertNoGC assertNoGC; // Ensure no GC happens. GC can replace CodeBlock in Executable.
             jitCode = executable->generatedJITCode();
 
             // The |this| of the module is always `undefined`.

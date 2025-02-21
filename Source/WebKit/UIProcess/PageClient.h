@@ -119,6 +119,7 @@ class WebMediaSessionManager;
 class SelectionData;
 #endif
 
+enum class ElementIdentifierType;
 enum class MouseEventPolicy : uint8_t;
 enum class RouteSharingPolicy : uint8_t;
 enum class ScrollbarStyle : uint8_t;
@@ -150,6 +151,8 @@ struct PromisedAttachmentInfo;
 #if HAVE(TRANSLATION_UI_SERVICES) && ENABLE(CONTEXT_MENUS)
 struct TranslationContextMenuInfo;
 #endif
+
+using ElementIdentifier = ObjectIdentifier<ElementIdentifierType>;
 
 #if ENABLE(WRITING_TOOLS)
 namespace WritingTools {
@@ -443,7 +446,7 @@ public:
 
     virtual RefPtr<WebPopupMenuProxy> createPopupMenuProxy(WebPageProxy&) = 0;
 #if ENABLE(CONTEXT_MENUS)
-    virtual Ref<WebContextMenuProxy> createContextMenuProxy(WebPageProxy&, ContextMenuContextData&&, const UserData&) = 0;
+    virtual Ref<WebContextMenuProxy> createContextMenuProxy(WebPageProxy&, FrameInfoData&&, ContextMenuContextData&&, const UserData&) = 0;
     virtual void didShowContextMenu() { }
     virtual void didDismissContextMenu() { }
 #endif
@@ -708,6 +711,10 @@ public:
     virtual void didHandleAdditionalDragItemsRequest(bool added) = 0;
     virtual void willReceiveEditDragSnapshot() = 0;
     virtual void didReceiveEditDragSnapshot(std::optional<WebCore::TextIndicatorData>) = 0;
+#endif
+
+#if ENABLE(MODEL_PROCESS)
+    virtual void didReceiveInteractiveModelElement(std::optional<WebCore::ElementIdentifier>) = 0;
 #endif
 
     virtual void requestDOMPasteAccess(WebCore::DOMPasteAccessCategory, WebCore::DOMPasteRequiresInteraction, const WebCore::IntRect& elementRect, const String& originIdentifier, CompletionHandler<void(WebCore::DOMPasteAccessResponse)>&&) = 0;

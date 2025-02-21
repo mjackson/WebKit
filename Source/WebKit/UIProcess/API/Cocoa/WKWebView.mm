@@ -317,8 +317,10 @@ RetainPtr<NSError> nsErrorFromExceptionDetails(const WebCore::ExceptionDetails& 
     [userInfo setObject:@(details.lineNumber) forKey:_WKJavaScriptExceptionLineNumberErrorKey];
     [userInfo setObject:@(details.columnNumber) forKey:_WKJavaScriptExceptionColumnNumberErrorKey];
 
-    if (!details.sourceURL.isEmpty())
-        [userInfo setObject:[NSURL _web_URLWithWTFString:details.sourceURL] forKey:_WKJavaScriptExceptionSourceURLErrorKey];
+    if (!details.sourceURL.isEmpty()) {
+        if (NSURL *url = URL(details.sourceURL))
+            [userInfo setObject:url forKey:_WKJavaScriptExceptionSourceURLErrorKey];
+    }
 
     return adoptNS([[NSError alloc] initWithDomain:WKErrorDomain code:errorCode userInfo:userInfo.get()]);
 }
@@ -663,7 +665,7 @@ static uint32_t convertSystemLayoutDirection(NSUserInterfaceLayoutDirection dire
         pageConfiguration->setWebExtensionController(&controller._webExtensionController);
 
     if (auto *controller = _configuration.get()._weakWebExtensionController)
-        pageConfiguration->setWeakWebExtensionController(&controller._webExtensionController);
+        pageConfiguration->setWeakWebExtensionController(Ref { controller._webExtensionController }.ptr());
 #endif
 
     NSString *groupIdentifier = [_configuration _groupIdentifier];
@@ -1408,7 +1410,7 @@ static WKMediaPlaybackState toWKMediaPlaybackState(WebKit::MediaPlaybackState me
         frameID = frame._handle->_frameHandle->frameID();
 
     auto removeTransientActivation = !_dontResetTransientActivationAfterRunJavaScript && WebKit::shouldEvaluateJavaScriptWithoutTransientActivation() ? WebCore::RemoveTransientActivation::Yes : WebCore::RemoveTransientActivation::No;
-    _page->runJavaScriptInFrameInScriptWorld({ javaScriptString, JSC::SourceTaintedOrigin::Untainted, sourceURL, !!asAsyncFunction, WTFMove(argumentsMap), !!forceUserGesture, removeTransientActivation }, frameID, *world->_contentWorld.get(), [handler] (auto&& result) {
+    _page->runJavaScriptInFrameInScriptWorld({ javaScriptString, JSC::SourceTaintedOrigin::Untainted, sourceURL, !!asAsyncFunction, WTFMove(argumentsMap), !!forceUserGesture, removeTransientActivation }, frameID, Ref { *world->_contentWorld }, [handler] (auto&& result) {
         if (!handler)
             return;
 
@@ -3622,6 +3624,32 @@ static RetainPtr<NSArray> wkTextManipulationErrors(NSArray<_WKTextManipulationIt
 #endif
 }
 
+- (void)_convertPoint:(CGPoint)point fromFrame:(WKFrameInfo *)frame toMainFrameCoordinates:(void (^)(CGPoint, NSError *error))completionHandler
+{
+    if (!frame)
+        [NSException raise:NSInternalInconsistencyException format:@"frame must be non-null"];
+
+    _page->convertPointToMainFrameCoordinates(point, frame->_frameInfo->frameInfoData().frameID.asOptional(), [completionHandler = makeBlockPtr(completionHandler)] (std::optional<WebCore::FloatPoint> result) {
+        if (result)
+            completionHandler(*result, nil);
+        else
+            completionHandler({ }, [NSError errorWithDomain:WKErrorDomain code:WKErrorUnknown userInfo:nil]);
+    });
+}
+
+- (void)_convertRect:(CGRect)rect fromFrame:(WKFrameInfo *)frame toMainFrameCoordinates:(void (^)(CGRect, NSError *error))completionHandler
+{
+    if (!frame)
+        [NSException raise:NSInternalInconsistencyException format:@"frame must be non-null"];
+
+    _page->convertRectToMainFrameCoordinates(rect, frame->_frameInfo->frameInfoData().frameID.asOptional(), [completionHandler = makeBlockPtr(completionHandler)] (std::optional<WebCore::FloatRect> result) {
+        if (result)
+            completionHandler(*result, nil);
+        else
+            completionHandler({ }, [NSError errorWithDomain:WKErrorDomain code:WKErrorUnknown userInfo:nil]);
+    });
+}
+
 - (void)_toggleInWindow
 {
     THROW_IF_SUSPENDED;
@@ -4335,7 +4363,7 @@ static void convertAndAddHighlight(Vector<Ref<WebCore::SharedMemory>>& buffers, 
 - (void)_clearBackForwardCache
 {
     THROW_IF_SUSPENDED;
-    _page->configuration().processPool().protectedBackForwardCache()->removeEntriesForPage(*_page);
+    _page->configuration().protectedProcessPool()->protectedBackForwardCache()->removeEntriesForPage(*_page);
 }
 
 + (BOOL)_handlesSafeBrowsing

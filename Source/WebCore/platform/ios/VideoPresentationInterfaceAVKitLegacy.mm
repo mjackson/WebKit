@@ -865,7 +865,7 @@ void VideoPresentationInterfaceAVKitLegacy::setupPlayerViewController()
 
     if (!m_currentMode.hasPictureInPicture() && !m_changingStandbyOnly) {
         ALWAYS_LOG_IF_POSSIBLE(LOGIDENTIFIER, "Moving videoView to fullscreen WebAVPlayerLayerView");
-        [playerLayerView() transferVideoViewTo:[m_playerViewController playerLayerView]];
+        transferVideoViewToFullscreen();
     }
 
 #if PLATFORM(WATCHOS)
@@ -930,6 +930,11 @@ bool VideoPresentationInterfaceAVKitLegacy::isExternalPlaybackActive() const
 bool VideoPresentationInterfaceAVKitLegacy::willRenderToLayer() const
 {
     return true;
+}
+
+void VideoPresentationInterfaceAVKitLegacy::transferVideoViewToFullscreen()
+{
+    [playerLayerView() transferVideoViewTo:[m_playerViewController playerLayerView]];
 }
 
 void VideoPresentationInterfaceAVKitLegacy::returnVideoView()

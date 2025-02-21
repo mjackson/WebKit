@@ -90,6 +90,7 @@ private:
 #endif // ENABLE(GPU_PROCESS)
 #if ENABLE(MODEL_PROCESS)
     void didCreateContextInModelProcessForVisibilityPropagation(LayerHostingContextID) override;
+    void didReceiveInteractiveModelElement(std::optional<WebCore::ElementIdentifier>) override;
 #endif // ENABLE(MODEL_PROCESS)
 #if USE(EXTENSIONKIT)
     UIView *createVisibilityPropagationView() override;
@@ -252,7 +253,7 @@ private:
     void updateImageSource() override;
 #endif
     void exitFullScreen(CompletionHandler<void()>&&) override;
-    void beganEnterFullScreen(const WebCore::IntRect& initialFrame, const WebCore::IntRect& finalFrame) override;
+    void beganEnterFullScreen(const WebCore::IntRect& initialFrame, const WebCore::IntRect& finalFrame, CompletionHandler<void(bool)>&&) override;
     void beganExitFullScreen(const WebCore::IntRect& initialFrame, const WebCore::IntRect& finalFrame, CompletionHandler<void()>&&) override;
     bool lockFullscreenOrientation(WebCore::ScreenOrientationType) override;
     void unlockFullscreenOrientation() override;

@@ -264,6 +264,7 @@ public:
 
     void networkProcessConnectionClosed(NetworkProcessConnection*);
     NetworkProcessConnection* existingNetworkProcessConnection() { return m_networkProcessConnection.get(); }
+    RefPtr<NetworkProcessConnection> protectedNetworkProcessConnection();
     WebLoaderStrategy& webLoaderStrategy();
     WebFileSystemStorageConnection& fileSystemStorageConnection();
 
@@ -762,7 +763,7 @@ private:
 
     String m_uiProcessBundleIdentifier;
     RefPtr<NetworkProcessConnection> m_networkProcessConnection;
-    UniqueRef<WebLoaderStrategy> m_webLoaderStrategy;
+    const UniqueRef<WebLoaderStrategy> m_webLoaderStrategy;
     RefPtr<WebFileSystemStorageConnection> m_fileSystemStorageConnection;
 
 #if ENABLE(GPU_PROCESS)
@@ -783,7 +784,7 @@ private:
     RefPtr<ModelProcessConnection> m_modelProcessConnection;
 #endif
 
-    Ref<WebCacheStorageProvider> m_cacheStorageProvider;
+    const Ref<WebCacheStorageProvider> m_cacheStorageProvider;
     Ref<WebBadgeClient> m_badgeClient;
 #if ENABLE(GPU_PROCESS) && ENABLE(VIDEO)
     Ref<RemoteMediaPlayerManager> m_remoteMediaPlayerManager;
@@ -791,11 +792,11 @@ private:
 #if ENABLE(GPU_PROCESS) && HAVE(AVASSETREADER)
     Ref<RemoteImageDecoderAVFManager> m_remoteImageDecoderAVFManager;
 #endif
-    Ref<WebBroadcastChannelRegistry> m_broadcastChannelRegistry;
-    Ref<WebCookieJar> m_cookieJar;
+    const Ref<WebBroadcastChannelRegistry> m_broadcastChannelRegistry;
+    const Ref<WebCookieJar> m_cookieJar;
     WebSocketChannelManager m_webSocketChannelManager;
 
-    std::unique_ptr<LibWebRTCNetwork> m_libWebRTCNetwork;
+    const std::unique_ptr<LibWebRTCNetwork> m_libWebRTCNetwork;
 
     HashSet<String> m_dnsPrefetchedHosts;
     PAL::HysteresisActivity m_dnsPrefetchHystereris;

@@ -608,8 +608,7 @@ void SpeculativeJIT::terminateSpeculativeExecution(ExitKind kind, JSValueRegs js
         return;
     speculationCheck(kind, jsValueRegs, node, jump());
     m_compileOkay = false;
-    if (verboseCompilationEnabled())
-        dataLog("Bailing compilation.\n");
+    dataLogLnIf(verboseCompilationEnabled(), "Bailing compilation.");
 }
 
 void SpeculativeJIT::terminateSpeculativeExecution(ExitKind kind, JSValueRegs jsValueRegs, Edge nodeUse)
@@ -2019,8 +2018,7 @@ void SpeculativeJIT::compileCheckDetached(Node* node)
 
 void SpeculativeJIT::bail(AbortReason reason)
 {
-    if (verboseCompilationEnabled())
-        dataLog("Bailing compilation.\n");
+    dataLogLnIf(verboseCompilationEnabled(), "Bailing compilation.");
     m_compileOkay = true;
     abortWithReason(reason, m_lastGeneratedNode);
     clearGenerationInfo();
@@ -2116,8 +2114,7 @@ void SpeculativeJIT::compileCurrentBlock()
         
         ASSERT(m_currentNode->shouldGenerate());
         
-        if (verboseCompilationEnabled())
-            dataLogLn("SpeculativeJIT generating Node @", (int)m_currentNode->index(), " (", m_currentNode->origin.semantic.bytecodeIndex().offset(), ") at JIT offset 0x", debugOffset());
+        dataLogLnIf(verboseCompilationEnabled(), "SpeculativeJIT generating Node @", (int)m_currentNode->index(), " (", m_currentNode->origin.semantic.bytecodeIndex().offset(), ") at JIT offset 0x", debugOffset());
 
         if (Options::validateDFGExceptionHandling() && (mayExit(m_graph, m_currentNode) != DoesNotExit || m_currentNode->isTerminal()))
             jitReleaseAssertNoException(vm());
@@ -2305,13 +2302,15 @@ void SpeculativeJIT::linkOSREntries(LinkBuffer& linkBuffer)
 
     ASSERT(osrEntryIndex == m_osrEntryHeads.size());
     
-    if (verboseCompilationEnabled()) {
-        DumpContext dumpContext;
-        dataLog("OSR Entries:\n");
-        for (OSREntryData& entryData : jitCode()->m_osrEntry)
-            dataLog("    ", inContext(entryData, &dumpContext), "\n");
-        if (!dumpContext.isEmpty())
-            dumpContext.dump(WTF::dataFile());
+    if (UNLIKELY(verboseCompilationEnabled())) {
+        WTF::dataFile().atomically([&](auto& out) {
+            DumpContext dumpContext;
+            dataLogLn("OSR Entries:");
+            for (OSREntryData& entryData : jitCode()->m_osrEntry)
+                dataLogLn("    ", inContext(entryData, &dumpContext));
+            if (!dumpContext.isEmpty())
+                dumpContext.dump(out);
+        });
     }
 }
     
@@ -8843,7 +8842,7 @@ void SpeculativeJIT::compileSpread(Node* node)
         lshift32(lengthGPR, TrustedImm32(3), scratch1GPR);
         add32(TrustedImm32(JSImmutableButterfly::offsetOfData()), scratch1GPR);
 
-        emitAllocateVariableSizedCell<JSImmutableButterfly>(vm(), resultGPR, TrustedImmPtr(m_graph.registerStructure(vm().immutableButterflyStructures[arrayIndexFromIndexingType(CopyOnWriteArrayWithContiguous) - NumberOfIndexingShapes].get())), scratch1GPR, scratch1GPR, scratch2GPR, slowPath, SlowAllocationResult::UndefinedBehavior);
+        emitAllocateVariableSizedCell<JSImmutableButterfly>(vm(), resultGPR, TrustedImmPtr(m_graph.registerStructure(vm().immutableButterflyStructure(CopyOnWriteArrayWithContiguous))), scratch1GPR, scratch1GPR, scratch2GPR, slowPath, SlowAllocationResult::UndefinedBehavior);
         static_assert(JSImmutableButterfly::offsetOfPublicLength() + static_cast<ptrdiff_t>(sizeof(uint32_t)) == JSImmutableButterfly::offsetOfVectorLength());
         storePair32(lengthGPR, lengthGPR, resultGPR, TrustedImm32(JSImmutableButterfly::offsetOfPublicLength()));
 
@@ -12443,10 +12442,11 @@ void SpeculativeJIT::emitBinarySwitchStringRecurse(
     static constexpr bool verbose = false;
     
     if (verbose) {
-        dataLog("We're down to the following cases, alreadyCheckedLength = ", alreadyCheckedLength, ":\n");
-        for (unsigned i = begin; i < end; ++i) {
-            dataLog("    ", cases[i].string, "\n");
-        }
+        WTF::dataFile().atomically([&](auto&) {
+            dataLogLn("We're down to the following cases, alreadyCheckedLength = ", alreadyCheckedLength, ":");
+            for (unsigned i = begin; i < end; ++i)
+                dataLogLn("    ", cases[i].string);
+        });
     }
     
     if (begin == end) {
@@ -12463,8 +12463,7 @@ void SpeculativeJIT::emitBinarySwitchStringRecurse(
             j < std::min(cases[begin].string->length(), cases[i].string->length());
             ++j) {
             if (cases[begin].string->at(j) != cases[i].string->at(j)) {
-                if (verbose)
-                    dataLog("string(", cases[i].string, ")[", j, "] != string(", cases[begin].string, ")[", j, "]\n");
+                dataLogLnIf(verbose, "string(", cases[i].string, ")[", j, "] != string(", cases[begin].string, ")[", j, "]");
                 break;
             }
             myCommonChars++;
@@ -12482,8 +12481,7 @@ void SpeculativeJIT::emitBinarySwitchStringRecurse(
     
     RELEASE_ASSERT(minLength >= commonChars);
     
-    if (verbose)
-        dataLog("length = ", minLength, ", commonChars = ", commonChars, ", allLengthsEqual = ", allLengthsEqual, "\n");
+    dataLogLnIf(verbose, "length = ", minLength, ", commonChars = ", commonChars, ", allLengthsEqual = ", allLengthsEqual);
     
     if (!allLengthsEqual && alreadyCheckedLength < minLength)
         branch32(Below, length, Imm32(minLength), data->fallThrough.block);
@@ -12539,8 +12537,7 @@ void SpeculativeJIT::emitBinarySwitchStringRecurse(
     currentCase.end = begin + 1;
     for (unsigned i = begin + 1; i < end; ++i) {
         if (cases[i].string->at(commonChars) != currentCase.character) {
-            if (verbose)
-                dataLog("string(", cases[i].string, ")[", commonChars, "] != string(", cases[begin].string, ")[", commonChars, "]\n");
+            dataLogLnIf(verbose, "string(", cases[i].string, ")[", commonChars, "] != string(", cases[begin].string, ")[", commonChars, "]");
             currentCase.end = i;
             characterCases.append(currentCase);
             currentCase.character = cases[i].string->at(commonChars);
@@ -13301,6 +13298,54 @@ void SpeculativeJIT::compileLazyJSConstant(Node* node)
     JSValueRegs resultRegs = result.regs();
     node->lazyJSValue().emit(*this, resultRegs, m_graph.m_plan);
     jsValueResult(resultRegs, node);
+}
+
+void SpeculativeJIT::compileMaterializeNewArrayWithConstantSize(Node* node)
+{
+    ObjectMaterializationData& data = node->objectMaterializationData();
+
+    GPRTemporary size(this);
+    GPRTemporary result(this);
+
+    GPRReg sizeGPR = size.gpr();
+    GPRReg storageGPR = result.gpr();
+    GPRReg resultGPR = result.gpr();
+
+    // Step 1: Speculate appropriately on all of the children.
+    for (unsigned i = 0; i < node->numChildren(); ++i)
+        speculate(node, m_graph.varArgChild(node, i));
+
+    // Step 1: Create a new array with constant size.
+    compileNewArrayWithConstantSizeImpl(node, sizeGPR, resultGPR);
+
+    // Step 2: Get the butterfly storage and fill the slots.
+    loadPtr(Address(resultGPR, JSObject::butterflyOffset()), storageGPR);
+    ASSERT(node->numChildren() == data.m_properties.size());
+    for (unsigned i = 0; i < node->numChildren(); ++i) {
+        Edge edge = m_graph.varArgChild(node, i);
+        unsigned index = data.m_properties[i].info();
+        switch (node->indexingType()) {
+        case ALL_DOUBLE_INDEXING_TYPES: {
+            SpeculateDoubleOperand value(this, edge);
+            storeDouble(value.fpr(), Address(storageGPR, sizeof(double) * index));
+            break;
+        }
+        case ALL_INT32_INDEXING_TYPES:
+        case ALL_CONTIGUOUS_INDEXING_TYPES: {
+            JSValueOperand value(this, edge, ManualOperandSpeculation);
+            JSValueRegs valueRegs = value.jsValueRegs();
+            if (hasInt32(node->indexingType()))
+                speculateInt32(edge, valueRegs);
+            storeValue(value.jsValueRegs(), Address(storageGPR, sizeof(EncodedJSValue) * index));
+            break;
+        }
+        default:
+            DFG_CRASH(m_graph, node, "Bad indexing type");
+            break;
+        }
+    }
+
+    cellResult(resultGPR, node);
 }
 
 void SpeculativeJIT::compileMaterializeNewObject(Node* node)
@@ -14401,22 +14446,27 @@ void SpeculativeJIT::compileNewArrayWithSize(Node* node)
     cellResult(resultGPR, node);
 }
 
-void SpeculativeJIT::compileNewArrayWithConstantSize(Node* node)
+void SpeculativeJIT::compileNewArrayWithConstantSizeImpl(Node* node, GPRReg sizeGPR, GPRReg resultGPR)
 {
     ASSERT(m_graph.isWatchingHavingABadTimeWatchpoint(node));
     ASSERT(!hasAnyArrayStorage(node->indexingType()));
 
+    move(TrustedImm32(node->newArraySize()), sizeGPR);
+
+    constexpr bool shouldConvertLargeSizeToArrayStorage = false;
+    compileAllocateNewArrayWithSize(node, resultGPR, sizeGPR, node->indexingType(), shouldConvertLargeSizeToArrayStorage);
+}
+
+void SpeculativeJIT::compileNewArrayWithConstantSize(Node* node)
+{
     GPRTemporary size(this);
     GPRTemporary result(this);
 
     GPRReg sizeGPR = size.gpr();
     GPRReg resultGPR = result.gpr();
 
-    move(TrustedImm32(node->newArraySize()), sizeGPR);
-
-    constexpr bool shouldConvertLargeSizeToArrayStorage = false;
-    compileAllocateNewArrayWithSize(node, resultGPR, sizeGPR, node->indexingType(), shouldConvertLargeSizeToArrayStorage);
-    cellResult(resultGPR, node);
+    compileNewArrayWithConstantSizeImpl(node, sizeGPR, resultGPR);
+    cellResult(result.gpr(), node);
 }
 
 void SpeculativeJIT::compileNewArrayWithSpecies(Node* node)

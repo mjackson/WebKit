@@ -1253,6 +1253,12 @@ void Internals::setForceUpdateImageDataEnabledForTesting(HTMLImageElement& eleme
         cachedImage->setForceUpdateImageDataEnabledForTesting(enabled);
 }
 
+void Internals::setHeadroomForTesting(HTMLImageElement& element, float headroom)
+{
+    if (auto* bitmapImage = bitmapImageFromImageElement(element))
+        bitmapImage->setHeadroomForTesting(headroom);
+}
+
 #if ENABLE(WEB_CODECS)
 bool Internals::hasPendingActivity(const WebCodecsVideoDecoder& decoder) const
 {
@@ -3949,7 +3955,7 @@ void Internals::setScreenContentsFormatsForTesting(const Vector<Internals::Conte
         }
     }
 
-#if HAVE(HDR_SUPPORT)
+#if HAVE(SUPPORT_HDR_DISPLAY)
     WebCore::setScreenContentsFormatsForTesting(contentsFormats);
 #else
     UNUSED_PARAM(contentsFormats);

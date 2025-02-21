@@ -1076,6 +1076,11 @@ PluginData& Page::pluginData()
     return *m_pluginData;
 }
 
+Ref<PluginData> Page::protectedPluginData()
+{
+    return pluginData();
+}
+
 void Page::clearPluginData()
 {
     m_pluginData = nullptr;
@@ -4230,10 +4235,10 @@ void Page::setFullscreenAutoHideDuration(Seconds duration)
     });
 }
 
-#if HAVE(HDR_SUPPORT)
-bool Page::canDrawHDRContents() const
+#if HAVE(SUPPORT_HDR_DISPLAY)
+bool Page::canDrawHDRContent() const
 {
-    if (!(m_settings->hdrForImagesEnabled() || m_settings->canvasPixelFormatEnabled()))
+    if (!(m_settings->supportHDRDisplayEnabled() || m_settings->canvasPixelFormatEnabled()))
         return false;
 
     return screenSupportsHighDynamicRange();

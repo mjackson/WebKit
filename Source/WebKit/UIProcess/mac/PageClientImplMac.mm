@@ -513,9 +513,9 @@ RefPtr<WebPopupMenuProxy> PageClientImpl::createPopupMenuProxy(WebPageProxy& pag
 
 #if ENABLE(CONTEXT_MENUS)
 
-Ref<WebContextMenuProxy> PageClientImpl::createContextMenuProxy(WebPageProxy& page, ContextMenuContextData&& context, const UserData& userData)
+Ref<WebContextMenuProxy> PageClientImpl::createContextMenuProxy(WebPageProxy& page, FrameInfoData&& frameInfo, ContextMenuContextData&& context, const UserData& userData)
 {
-    return WebContextMenuProxyMac::create(m_view, page, WTFMove(context), userData);
+    return WebContextMenuProxyMac::create(m_view, page, WTFMove(frameInfo), WTFMove(context), userData);
 }
 
 void PageClientImpl::didShowContextMenu()
@@ -838,9 +838,13 @@ void PageClientImpl::exitFullScreen(CompletionHandler<void()>&& completionHandle
     [m_impl->fullScreenWindowController() exitFullScreen:WTFMove(completionHandler)];
 }
 
-void PageClientImpl::beganEnterFullScreen(const IntRect& initialFrame, const IntRect& finalFrame)
+void PageClientImpl::beganEnterFullScreen(const IntRect& initialFrame, const IntRect& finalFrame, CompletionHandler<void(bool)>&& completionHandler)
 {
-    [m_impl->fullScreenWindowController() beganEnterFullScreenWithInitialFrame:initialFrame finalFrame:finalFrame];
+    if (m_impl->fullScreenWindowController())
+        [m_impl->fullScreenWindowController() beganEnterFullScreenWithInitialFrame:initialFrame finalFrame:finalFrame completionHandler:WTFMove(completionHandler)];
+    else
+        completionHandler(false);
+
     m_impl->updateSupportsArbitraryLayoutModes();
 }
 

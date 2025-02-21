@@ -293,7 +293,7 @@ RefPtr<WebPopupMenuProxy> PageClientImpl::createPopupMenuProxy(WebPageProxy& pag
 }
 
 #if ENABLE(CONTEXT_MENUS)
-Ref<WebContextMenuProxy> PageClientImpl::createContextMenuProxy(WebPageProxy& page, ContextMenuContextData&& context, const UserData& userData)
+Ref<WebContextMenuProxy> PageClientImpl::createContextMenuProxy(WebPageProxy& page, FrameInfoData&&, ContextMenuContextData&& context, const UserData& userData)
 {
     return WebContextMenuProxyWPE::create(page, WTFMove(context), userData);
 }
@@ -467,16 +467,16 @@ void PageClientImpl::exitFullScreen(CompletionHandler<void()>&& completionHandle
     }
 #endif
 
-    WebFullScreenManagerProxy* fullScreenManagerProxy = m_view.page().fullScreenManager();
-    if (fullScreenManagerProxy) {
-        if (!static_cast<WKWPE::ViewLegacy&>(m_view).setFullScreen(false))
-            fullScreenManagerProxy->didEnterFullScreen();
+    if (m_view.page().fullScreenManager()) {
+        bool success = static_cast<WKWPE::ViewLegacy&>(m_view).setFullScreen(false);
+        ASSERT_UNUSED(success, success);
     }
 }
 
-void PageClientImpl::beganEnterFullScreen(const WebCore::IntRect& /* initialFrame */, const WebCore::IntRect& /* finalFrame */)
+void PageClientImpl::beganEnterFullScreen(const WebCore::IntRect& /* initialFrame */, const WebCore::IntRect& /* finalFrame */, CompletionHandler<void(bool)>&& completionHandler)
 {
     notImplemented();
+    completionHandler(true);
 }
 
 void PageClientImpl::beganExitFullScreen(const WebCore::IntRect& /* initialFrame */, const WebCore::IntRect& /* finalFrame */, CompletionHandler<void()>&& completionHandler)

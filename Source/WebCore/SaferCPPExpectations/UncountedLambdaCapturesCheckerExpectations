@@ -84,7 +84,6 @@ dom/ContainerNode.cpp
 dom/ContentVisibilityDocumentState.cpp
 dom/CustomElementDefaultARIA.cpp
 dom/Document.cpp
-dom/EventTarget.cpp
 dom/MessagePort.cpp
 dom/Node.cpp
 dom/Subscriber.cpp
@@ -152,7 +151,6 @@ platform/mediastream/cocoa/IncomingAudioMediaStreamTrackRendererUnit.cpp
 platform/mediastream/mac/AVVideoCaptureSource.mm
 platform/mediastream/mac/RealtimeIncomingVideoSourceCocoa.mm
 platform/mediastream/mac/ScreenCaptureKitCaptureSource.mm
-platform/network/CacheValidation.cpp
 rendering/BackgroundPainter.cpp
 rendering/BorderPainter.cpp
 rendering/MotionPath.cpp

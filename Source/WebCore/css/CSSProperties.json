@@ -4033,7 +4033,7 @@
                 "no-limit"
             ],
             "codegen-properties": {
-                "settings-flag": "cssDynamicRangeLimitPropertyEnabled",
+                "settings-flag": "supportHDRDisplayEnabled",
                 "style-builder-converter": "DynamicRangeLimit",
                 "parser-function": "consumeDynamicRangeLimit",
                 "parser-grammar-unused": "<<values>> | <dynamic-range-limit-mix()>",
@@ -11224,7 +11224,7 @@
                 "all"
             ],
            "codegen-properties": {
-               "style-builder-converter": "TimelineScope",
+               "style-builder-converter": "NameScope",
                "parser-grammar": "none | all | <dashed-ident>#",
                "settings-flag": "scrollDrivenAnimationsEnabled"
            },

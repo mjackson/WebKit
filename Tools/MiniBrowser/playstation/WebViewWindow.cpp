@@ -108,11 +108,10 @@ WebViewWindow::WebViewWindow(WKPageConfigurationRef configuration, Client&& wind
         },
 
         // enterFullScreen
-        [](WKViewRef view, const void*) {
-            WKViewDidEnterFullScreen(view);
+        [](WKViewRef, const void*) {
         },
         // exitFullScreen
-        [](WKViewRef view, const void*) {
+        [](WKViewRef, const void*) {
         },
         nullptr, // closeFullScreen
         nullptr, // beganEnterFullScreen

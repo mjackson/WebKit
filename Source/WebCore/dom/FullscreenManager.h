@@ -74,8 +74,7 @@ public:
         ExemptIFrameAllowFullscreenRequirement,
     };
     WEBCORE_EXPORT void requestFullscreenForElement(Ref<Element>&&, FullscreenCheckType, CompletionHandler<void(ExceptionOr<void>)>&&, HTMLMediaElementEnums::VideoFullscreenMode = HTMLMediaElementEnums::VideoFullscreenModeStandard);
-    WEBCORE_EXPORT void willEnterFullscreen(Element&, HTMLMediaElementEnums::VideoFullscreenMode, CompletionHandler<void(ExceptionOr<void>)>&&);
-    WEBCORE_EXPORT bool didEnterFullscreen();
+    WEBCORE_EXPORT ExceptionOr<void> willEnterFullscreen(Element&, HTMLMediaElementEnums::VideoFullscreenMode);
     WEBCORE_EXPORT bool willExitFullscreen();
     WEBCORE_EXPORT void didExitFullscreen(CompletionHandler<void(ExceptionOr<void>)>&&);
 
@@ -108,15 +107,15 @@ private:
     WTFLogChannel& logChannel() const;
 #endif
 
-    Document* mainFrameDocument();
-    RefPtr<Document> protectedMainFrameDocument();
+    Document* mainFrameDocument() { return document().mainFrameDocument(); }
+    RefPtr<Document> protectedMainFrameDocument() { return mainFrameDocument(); }
 
     RefPtr<Element> fullscreenOrPendingElement() const { return m_fullscreenElement ? m_fullscreenElement : m_pendingFullscreenElement; }
 
+    bool didEnterFullscreen();
     void addElementToChangeEventQueue(Node& target) { m_fullscreenChangeEventTargetQueue.append(GCReachableRef(target)); }
 
     WeakRef<Document, WeakPtrImplWithEventTargetData> m_document;
-    WeakPtr<Document, WeakPtrImplWithEventTargetData> m_topDocument;
 
     RefPtr<Element> m_pendingFullscreenElement;
     RefPtr<Element> m_fullscreenElement;

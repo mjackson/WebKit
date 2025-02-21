@@ -367,6 +367,7 @@ public:
 
     static void refreshPlugins(bool reload);
     WEBCORE_EXPORT PluginData& pluginData();
+    WEBCORE_EXPORT Ref<PluginData> protectedPluginData();
     void clearPluginData();
 
     OpportunisticTaskScheduler& opportunisticTaskScheduler() const { return m_opportunisticTaskScheduler.get(); }
@@ -663,8 +664,8 @@ public:
 
     Document* outermostFullscreenDocument() const;
 
-#if HAVE(HDR_SUPPORT)
-    bool canDrawHDRContents() const;
+#if HAVE(SUPPORT_HDR_DISPLAY)
+    bool canDrawHDRContent() const;
 #endif
 
     bool shouldSuppressScrollbarAnimations() const { return m_suppressScrollbarAnimations; }

@@ -745,7 +745,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     animation/StyleOriginatedTimelinesController.h
     animation/TimelineRange.h
     animation/TimelineRangeOffset.h
-    animation/TimelineScope.h
     animation/ViewTimeline.h
     animation/ViewTimelineOptions.h
     animation/WebAnimationTime.h
@@ -941,6 +940,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/MediaList.h
     css/MediaQueryParserContext.h
     css/MutableStyleProperties.h
+    css/NameScope.h
     css/Quad.h
     css/Rect.h
     css/RectBase.h
@@ -2182,6 +2182,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/graphics/MediaPlayerIdentifier.h
     platform/graphics/MediaPlayerPrivate.h
     platform/graphics/MediaResourceSniffer.h
+    platform/graphics/MediaSourceConfiguration.h
     platform/graphics/MediaSourcePrivate.h
     platform/graphics/MediaSourcePrivateClient.h
     platform/graphics/MediaUsageInfo.h
@@ -2205,6 +2206,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/graphics/PlatformAudioTrackConfiguration.h
     platform/graphics/PlatformColorSpace.h
     platform/graphics/PlatformDisplay.h
+    platform/graphics/PlatformDynamicRangeLimit.h
     platform/graphics/PlatformGraphicsContext.h
     platform/graphics/PlatformImage.h
     platform/graphics/PlatformLayer.h

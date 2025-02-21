@@ -300,9 +300,9 @@ RefPtr<WebPopupMenuProxy> PageClientImpl::createPopupMenuProxy(WebPageProxy& pag
 }
 
 #if ENABLE(CONTEXT_MENUS)
-Ref<WebContextMenuProxy> PageClientImpl::createContextMenuProxy(WebPageProxy& page, ContextMenuContextData&& context, const UserData& userData)
+Ref<WebContextMenuProxy> PageClientImpl::createContextMenuProxy(WebPageProxy& page, FrameInfoData&& frameInfoData, ContextMenuContextData&& context, const UserData& userData)
 {
-    return WebContextMenuProxyGtk::create(m_viewWidget, page, WTFMove(context), userData);
+    return WebContextMenuProxyGtk::create(m_viewWidget, page, WTFMove(frameInfoData), WTFMove(context), userData);
 }
 #endif // ENABLE(CONTEXT_MENUS)
 
@@ -441,9 +441,10 @@ void PageClientImpl::exitFullScreen(CompletionHandler<void()>&& completionHandle
         webkitWebViewBaseExitFullScreen(WEBKIT_WEB_VIEW_BASE(m_viewWidget));
 }
 
-void PageClientImpl::beganEnterFullScreen(const IntRect& /* initialFrame */, const IntRect& /* finalFrame */)
+void PageClientImpl::beganEnterFullScreen(const IntRect& /* initialFrame */, const IntRect& /* finalFrame */, CompletionHandler<void(bool)>&& completionHandler)
 {
     notImplemented();
+    completionHandler(true);
 }
 
 void PageClientImpl::beganExitFullScreen(const IntRect& /* initialFrame */, const IntRect& /* finalFrame */, CompletionHandler<void()>&& completionHandler)

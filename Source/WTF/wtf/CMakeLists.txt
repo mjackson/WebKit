@@ -6,6 +6,7 @@ set(WTF_PUBLIC_HEADERS
     AccessibleAddress.h
     AggregateLogger.h
     Algorithms.h
+    AlignedStorage.h
     AnsiColors.h
     ApproximateTime.h
     ArgumentCoder.h
@@ -181,7 +182,6 @@ set(WTF_PUBLIC_HEADERS
     Mmap.h
     MonotonicTime.h
     NakedPtr.h
-    NakedRef.h
     NativePromise.h
     NaturalLoops.h
     NeverDestroyed.h

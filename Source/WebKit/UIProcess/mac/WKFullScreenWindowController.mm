@@ -52,7 +52,6 @@
 #import <pal/spi/mac/NSWindowSPI.h>
 #import <pal/system/SleepDisabler.h>
 #import <wtf/BlockObjCExceptions.h>
-#import <wtf/NakedRef.h>
 
 static const NSTimeInterval DefaultWatchdogTimerInterval = 1;
 
@@ -94,7 +93,7 @@ static void makeResponderFirstResponderIfDescendantOfView(NSWindow *window, NSRe
 
 #pragma mark -
 #pragma mark Initialization
-- (id)initWithWindow:(NSWindow *)window webView:(NSView *)webView page:(NakedRef<WebKit::WebPageProxy>)page
+- (id)initWithWindow:(NSWindow *)window webView:(NSView *)webView page:(std::reference_wrapper<WebKit::WebPageProxy>)page
 {
     self = [super initWithWindow:window];
     if (!self)
@@ -124,7 +123,7 @@ static void makeResponderFirstResponderIfDescendantOfView(NSWindow *window, NSRe
     [self windowDidLoad];
     [window displayIfNeeded];
     _webView = webView;
-    _page = page.ptr();
+    _page = page.get();
 
     [self videoControlsManagerDidChange];
 
@@ -139,6 +138,8 @@ static void makeResponderFirstResponderIfDescendantOfView(NSWindow *window, NSRe
     
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 
+    if (_enterFullScreenCompletionHandler)
+        _enterFullScreenCompletionHandler(false);
     if (_beganExitFullScreenCompletionHandler)
         _beganExitFullScreenCompletionHandler();
     if (_exitFullScreenCompletionHandler)
@@ -285,10 +286,11 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     [self _manager]->willEnterFullScreen(WTFMove(completionHandler));
 }
 
-- (void)beganEnterFullScreenWithInitialFrame:(NSRect)initialFrame finalFrame:(NSRect)finalFrame
+- (void)beganEnterFullScreenWithInitialFrame:(NSRect)initialFrame finalFrame:(NSRect)finalFrame completionHandler:(CompletionHandler<void(bool)>&&)completionHandler
 {
     if (_fullScreenState != WaitingToEnterFullScreen)
-        return;
+        return completionHandler(false);
+    _enterFullScreenCompletionHandler = WTFMove(completionHandler);
     _fullScreenState = EnteringFullScreen;
 
     _initialFrame = initialFrame;
@@ -336,7 +338,8 @@ static const float minVideoWidth = 468; // Keep in sync with `--controls-bar-wid
     if (completed) {
         _fullScreenState = InFullScreen;
 
-        [self _manager]->didEnterFullScreen();
+        if (_enterFullScreenCompletionHandler)
+            _enterFullScreenCompletionHandler(true);
         [self _manager]->setAnimatingFullScreen(false);
         _page->setSuppressVisibilityUpdates(false);
 

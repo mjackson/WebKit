@@ -603,11 +603,13 @@ const int kDefaultSliderThumbSize = 16;
 void RenderThemeIOS::adjustSliderTrackStyle(RenderStyle& style, const Element* element) const
 {
 #if ENABLE(MAC_STYLE_CONTROLS_ON_CATALYST)
-    if (adjustSliderTrackStyleForCatalyst(style, element))
+    if (element && element->document().settings().macStyleControlsOnCatalyst()) {
+        RenderThemeCocoa::adjustSliderTrackStyle(style, element);
         return;
+    }
 #endif
 
-    RenderThemeCocoa::adjustSliderTrackStyle(style, element);
+    RenderTheme::adjustSliderTrackStyle(style, element);
 
     // FIXME: We should not be relying on border radius for the appearance of our controls <rdar://problem/7675493>.
     int radius = static_cast<int>(kTrackRadius);
@@ -619,8 +621,8 @@ constexpr auto nativeControlBorderInlineSize = 1.0f;
 bool RenderThemeIOS::paintSliderTrack(const RenderObject& box, const PaintInfo& paintInfo, const IntRect& rect)
 {
 #if ENABLE(MAC_STYLE_CONTROLS_ON_CATALYST)
-    if (paintSliderTrackForCatalyst(box, paintInfo, rect))
-        return false;
+    if (box.settings().macStyleControlsOnCatalyst())
+        return RenderThemeCocoa::paintSliderTrack(box, paintInfo, rect);
 #endif
 
     auto* renderSlider = dynamicDowncast<RenderSlider>(box);
@@ -698,8 +700,10 @@ bool RenderThemeIOS::paintSliderTrack(const RenderObject& box, const PaintInfo& 
 void RenderThemeIOS::adjustSliderThumbSize(RenderStyle& style, const Element* element) const
 {
 #if ENABLE(MAC_STYLE_CONTROLS_ON_CATALYST)
-    if (adjustSliderThumbSizeForCatalyst(style, element))
+    if (element && element->document().settings().macStyleControlsOnCatalyst()) {
+        RenderThemeCocoa::adjustSliderThumbSize(style, element);
         return;
+    }
 #else
     UNUSED_PARAM(element);
 #endif
@@ -1282,14 +1286,6 @@ Color RenderThemeIOS::pictureFrameColor(const RenderObject& buttonRenderer)
     return buttonRenderer.style().visitedDependentColor(CSSPropertyBorderTopColor);
 }
 
-Color RenderThemeIOS::controlTintColor(const RenderStyle& style, OptionSet<StyleColorOptions> options) const
-{
-    if (!style.hasAutoAccentColor())
-        return style.usedAccentColor(options);
-
-    return systemColor(CSSValueAppleSystemBlue, options);
-}
-
 #if ENABLE(ATTACHMENT_ELEMENT)
 
 RenderThemeIOS::IconAndSize RenderThemeIOS::iconForAttachment(const String& fileName, const String& attachmentType, const String& title)
@@ -1562,8 +1558,8 @@ void RenderThemeIOS::paintCheckboxRadioInnerShadow(const PaintInfo& paintInfo, c
 bool RenderThemeIOS::paintCheckbox(const RenderObject& box, const PaintInfo& paintInfo, const FloatRect& rect)
 {
 #if ENABLE(MAC_STYLE_CONTROLS_ON_CATALYST)
-    if (paintCheckboxForCatalyst(box, paintInfo, rect))
-        return false;
+    if (box.settings().macStyleControlsOnCatalyst())
+        return RenderThemeCocoa::paintCheckbox(box, paintInfo, rect);
 #endif
 
     bool isVision = PAL::currentUserInterfaceIdiomIsVision();
@@ -1652,8 +1648,8 @@ bool RenderThemeIOS::paintCheckbox(const RenderObject& box, const PaintInfo& pai
 bool RenderThemeIOS::paintRadio(const RenderObject& box, const PaintInfo& paintInfo, const FloatRect& rect)
 {
 #if ENABLE(MAC_STYLE_CONTROLS_ON_CATALYST)
-    if (paintRadioForCatalyst(box, paintInfo, rect))
-        return false;
+    if (box.settings().macStyleControlsOnCatalyst())
+        return RenderThemeCocoa::paintRadio(box, paintInfo, rect);
 #endif
 
     bool isVision = PAL::currentUserInterfaceIdiomIsVision();
@@ -1714,8 +1710,8 @@ bool RenderThemeIOS::supportsMeter(StyleAppearance appearance) const
 bool RenderThemeIOS::paintMeter(const RenderObject& renderer, const PaintInfo& paintInfo, const IntRect& rect)
 {
 #if ENABLE(MAC_STYLE_CONTROLS_ON_CATALYST)
-    if (paintMeterForCatalyst(renderer, paintInfo, rect))
-        return false;
+    if (renderer.settings().macStyleControlsOnCatalyst())
+        return RenderThemeCocoa::paintMeter(renderer, paintInfo, rect);
 #endif
 
     auto* renderMeter = dynamicDowncast<RenderMeter>(renderer);

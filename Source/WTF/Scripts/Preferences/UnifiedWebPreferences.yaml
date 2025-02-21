@@ -1228,20 +1228,6 @@ CSSDPropertyEnabled:
     WebCore:
       default: false
 
-CSSDynamicRangeLimitPropertyEnabled:
-  type: bool
-  status: testable
-  category: css
-  humanReadableName: "CSS dynamic-range-limit"
-  humanReadableDescription: "Enable support for the CSS Color HDR Module Level 1 dynamic-range-limit CSS property"
-  defaultValue:
-    WebKitLegacy:
-      default: false
-    WebKit:
-      default: false
-    WebCore:
-      default: false
-
 CSSFieldSizingEnabled:
   type: bool
   status: testable
@@ -1374,20 +1360,6 @@ CSSMotionPathEnabled:
   category: css
   humanReadableName: "CSS Motion Path"
   humanReadableDescription: "Enable CSS Motion Path support"
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
-    WebCore:
-      default: true
-
-CSSNestingEnabled:
-  type: bool
-  status: stable
-  category: css
-  humanReadableName: "CSS Nesting"
-  humanReadableDescription: "Enable support for CSS nesting https://www.w3.org/TR/css-nesting-1/"
   defaultValue:
     WebKitLegacy:
       default: true
@@ -3405,22 +3377,6 @@ GraphicsContextFiltersEnabled:
        default: true
      WebCore:
        default: true
-
-HDRForImagesEnabled:
-  type: bool
-  status: testable
-  category: media
-  webcoreOnChange: setNeedsRelayoutAllFrames
-  humanReadableName: "HDR for Images Support"
-  humanReadableDescription: "HDR for Images Support"
-  condition: ENABLE(HDR_FOR_IMAGES)
-  defaultValue:
-    WebKitLegacy:
-      default: false
-    WebKit:
-      default: false
-    WebCore:
-      default: false
 
 HTTPEquivEnabled:
   type: bool
@@ -6482,7 +6438,8 @@ ScreenOrientationLockingAPIEnabled:
 
 ScreenTimeEnabled:
   type: bool
-  status: unstable
+  status: internal
+  defaultsOverridable: true
   condition: ENABLE(SCREEN_TIME)
   humanReadableName: "Screen Time"
   humanReadableDescription: "Enable Screen Time"
@@ -7393,6 +7350,21 @@ StorageBlockingPolicy:
     WebCore:
       default: StorageBlockingPolicy::AllowAll
 
+SupportHDRDisplayEnabled:
+  type: bool
+  status: testable
+  category: media
+  webcoreOnChange: setNeedsRelayoutAllFrames
+  humanReadableName: "Support HDR Display"
+  humanReadableDescription: "Support HDR Display"
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
+
 SuppressesIncrementalRendering:
   type: bool
   status: embedder
@@ -7613,6 +7585,21 @@ TextRecognitionInVideosEnabled:
       default: defaultTextRecognitionInVideosEnabled()
   sharedPreferenceForWebProcess: true
   mediaPlaybackRelated: true
+
+TextTracksInMSEEnabled:
+  type: bool
+  status: testable
+  category: media
+  humanReadableName: "Text Tracks in MSE"
+  humanReadableDescription: "Enable Text Tracks in Media Source Extension"
+  condition: ENABLE(MEDIA_SOURCE)
+  defaultValue:
+    WebCore:
+      default: false
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
 
 ThreadedAnimationResolutionEnabled:
   type: bool
@@ -8547,7 +8534,6 @@ WebAuthenticationEnabled:
     WebCore:
       default: true
   sharedPreferenceForWebProcess: true
-  richJavaScript: true
 
 WebCodecsAV1Enabled:
   type: bool
@@ -8667,21 +8653,6 @@ WebExtensionSidebarEnabled:
     WebCore:
       default: false
 
-WebExtensionWebDriverEnabled:
-  type: bool
-  status: testable
-  category: extensions
-  humanReadableName: "WebExtensions in WebDriver"
-  humanReadableDescription: "Enable support for WebExtensions in WebDriver"
-  condition: ENABLE(WK_WEB_EXTENSIONS_IN_WEBDRIVER)
-  defaultValue:
-    WebKitLegacy:
-      default: false
-    WebKit:
-      default: false
-    WebCore:
-      default: false
-
 WebGLDraftExtensionsEnabled:
   type: bool
   status: testable
@@ -8754,13 +8725,13 @@ WebGPUHDREnabled:
   humanReadableDescription: "WebGPU High Dynamic Range through canvas configuration tone mapping mode"
   defaultValue:
     WebKitLegacy:
-      "ENABLE(WEBGPU_BY_DEFAULT) && ENABLE(WEBGPU_HDR_BY_DEFAULT)": true
+      "ENABLE(WEBGPU_BY_DEFAULT) && HAVE(SUPPORT_HDR_DISPLAY)": true
       default: false
     WebKit:
-      "ENABLE(WEBGPU_BY_DEFAULT) && ENABLE(WEBGPU_HDR_BY_DEFAULT)": true
+      "ENABLE(WEBGPU_BY_DEFAULT) && HAVE(SUPPORT_HDR_DISPLAY)": true
       default: false
     WebCore:
-      "ENABLE(WEBGPU_BY_DEFAULT) && ENABLE(WEBGPU_HDR_BY_DEFAULT)": true
+      "ENABLE(WEBGPU_BY_DEFAULT) && HAVE(SUPPORT_HDR_DISPLAY)": true
       default: false
   disableInLockdownMode: true
   sharedPreferenceForWebProcess: true
@@ -9168,7 +9139,6 @@ WebXREnabled:
       default: true
   disableInLockdownMode: true
   sharedPreferenceForWebProcess: true
-  richJavaScript: true
 
 WebXRGamepadsModuleEnabled:
   type: bool

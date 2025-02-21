@@ -226,6 +226,7 @@
 #include <WebCore/HTMLFormElement.h>
 #include <WebCore/HTMLImageElement.h>
 #include <WebCore/HTMLInputElement.h>
+#include <WebCore/HTMLModelElement.h>
 #include <WebCore/HTMLPlugInElement.h>
 #include <WebCore/HTMLSelectElement.h>
 #include <WebCore/HTMLTextFormControlElement.h>
@@ -3509,10 +3510,10 @@ void WebPage::didDismissContextMenu()
     corePage()->contextMenuController().didDismissContextMenu();
 }
 
-void WebPage::showContextMenuFromFrame(const WebCore::FrameIdentifier& frameID, const ContextMenuContextData& contextMenuContextData, const UserData& userData)
+void WebPage::showContextMenuFromFrame(const FrameInfoData& frameInfo, const ContextMenuContextData& contextMenuContextData, const UserData& userData)
 {
     flushPendingEditorStateUpdate();
-    send(Messages::WebPageProxy::ShowContextMenuFromFrame(frameID, contextMenuContextData, userData));
+    send(Messages::WebPageProxy::ShowContextMenuFromFrame(frameInfo, contextMenuContextData, userData));
     m_hasEverDisplayedContextMenu = true;
     scheduleFullEditorStateUpdate();
 }
@@ -5580,6 +5581,29 @@ void WebPage::dragCancelled()
 
 #endif // ENABLE(DRAG_SUPPORT)
 
+#if ENABLE(MODEL_PROCESS)
+void WebPage::requestInteractiveModelElementAtPoint(IntPoint clientPosition)
+{
+    if (RefPtr localMainFrame = dynamicDowncast<LocalFrame>(m_page->mainFrame())) {
+        auto elementID = localMainFrame->eventHandler().requestInteractiveModelElementAtPoint(clientPosition);
+        send(Messages::WebPageProxy::DidReceiveInteractiveModelElement(elementID));
+    } else
+        send(Messages::WebPageProxy::DidReceiveInteractiveModelElement(std::nullopt));
+}
+
+void WebPage::stageModeSessionDidUpdate(std::optional<ElementIdentifier> elementID, const TransformationMatrix& transform)
+{
+    if (RefPtr localMainFrame = dynamicDowncast<LocalFrame>(m_page->mainFrame()))
+        localMainFrame->eventHandler().stageModeSessionDidUpdate(elementID, transform);
+}
+
+void WebPage::stageModeSessionDidEnd(std::optional<ElementIdentifier> elementID)
+{
+    if (RefPtr localMainFrame = dynamicDowncast<LocalFrame>(m_page->mainFrame()))
+        localMainFrame->eventHandler().stageModeSessionDidEnd(elementID);
+}
+#endif
+
 WebUndoStep* WebPage::webUndoStep(WebUndoStepID stepID)
 {
     return m_undoStepMap.get(stepID);
@@ -5938,9 +5962,9 @@ Ref<MediaKeySystemPermissionRequestManager> WebPage::protectedMediaKeySystemPerm
     return m_mediaKeySystemPermissionRequestManager.get();
 }
 
-void WebPage::mediaKeySystemWasGranted(MediaKeySystemRequestIdentifier mediaKeySystemID)
+void WebPage::mediaKeySystemWasGranted(MediaKeySystemRequestIdentifier mediaKeySystemID, String&& mediaKeysHashSalt)
 {
-    protectedMediaKeySystemPermissionRequestManager()->mediaKeySystemWasGranted(mediaKeySystemID);
+    protectedMediaKeySystemPermissionRequestManager()->mediaKeySystemWasGranted(mediaKeySystemID, WTFMove(mediaKeysHashSalt));
 }
 
 void WebPage::mediaKeySystemWasDenied(MediaKeySystemRequestIdentifier mediaKeySystemID, String&& message)
@@ -6099,7 +6123,7 @@ void WebPage::restoreSelectionInFocusedEditableElement()
 bool WebPage::mainFrameHasCustomContentProvider() const
 {
     if (RefPtr frame = localMainFrame()) {
-        auto* webFrameLoaderClient = toWebLocalFrameLoaderClient(frame->loader().client());
+        auto* webFrameLoaderClient = dynamicDowncast<WebLocalFrameLoaderClient>(frame->loader().client());
         ASSERT(webFrameLoaderClient);
         return webFrameLoaderClient->frameHasCustomContentProvider();
     }
@@ -7884,6 +7908,10 @@ void WebPage::didCommitLoad(WebFrame* frame)
     m_elementsToExcludeFromRemoveBackground.clear();
 #endif
 
+#if USE(UICONTEXTMENU)
+    m_hasActiveContextMenuInteraction = false;
+#endif
+
     flushDeferredDidReceiveMouseEvent();
 }
 
@@ -8436,7 +8464,7 @@ void WebPage::setUseIconLoadingClient(bool useIconLoadingClient)
     RefPtr localMainFrame = dynamicDowncast<WebCore::LocalFrame>(corePage()->mainFrame());
     if (!localMainFrame)
         return;
-    if (auto* client = toWebLocalFrameLoaderClient(localMainFrame->loader().client()))
+    if (auto* client = dynamicDowncast<WebLocalFrameLoaderClient>(localMainFrame->loader().client()))
         client->setUseIconLoadingClient(useIconLoadingClient);
 }
 
@@ -9893,45 +9921,47 @@ void WebPage::requestTextExtraction(std::optional<FloatRect>&& collectionRectInR
     completion(TextExtraction::extractItem(WTFMove(collectionRectInRootView), Ref { *corePage() }));
 }
 
-template<typename T> T WebPage::remoteViewToRootView(WebCore::FrameIdentifier frameID, T geometry)
+template<typename T> T WebPage::contentsToRootView(WebCore::FrameIdentifier frameID, T geometry)
 {
     RefPtr webFrame = WebProcess::singleton().webFrame(frameID);
     if (!webFrame)
         return geometry;
 
-    RefPtr coreRemoteFrame = webFrame->coreRemoteFrame();
-    if (!coreRemoteFrame) {
+    RefPtr coreFrame = webFrame->coreFrame();
+    if (!coreFrame) {
         ASSERT_NOT_REACHED();
         return geometry;
     }
 
-    RefPtr view = coreRemoteFrame->view();
-    if (!view)
+    RefPtr view = coreFrame->virtualView();
+    if (!view) {
+        ASSERT_NOT_REACHED();
         return geometry;
+    }
 
     return view->contentsToRootView(geometry);
 }
 
-void WebPage::remoteViewRectToRootView(FrameIdentifier frameID, FloatRect rect, CompletionHandler<void(FloatRect)>&& completionHandler)
+void WebPage::contentsToRootViewRect(FrameIdentifier frameID, FloatRect rect, CompletionHandler<void(FloatRect)>&& completionHandler)
 {
-    completionHandler(remoteViewToRootView(frameID, rect));
+    completionHandler(contentsToRootView(frameID, rect));
 }
 
-void WebPage::remoteViewPointToRootView(FrameIdentifier frameID, FloatPoint point, CompletionHandler<void(FloatPoint)>&& completionHandler)
+void WebPage::contentsToRootViewPoint(FrameIdentifier frameID, FloatPoint point, CompletionHandler<void(FloatPoint)>&& completionHandler)
 {
-    completionHandler(remoteViewToRootView(frameID, point));
+    completionHandler(contentsToRootView(frameID, point));
 }
 
 void WebPage::remoteDictionaryPopupInfoToRootView(WebCore::FrameIdentifier frameID, WebCore::DictionaryPopupInfo popupInfo, CompletionHandler<void(WebCore::DictionaryPopupInfo)>&& completionHandler)
 {
-    popupInfo.origin = remoteViewToRootView<FloatPoint>(frameID, popupInfo.origin);
+    popupInfo.origin = contentsToRootView<FloatPoint>(frameID, popupInfo.origin);
 #if PLATFORM(COCOA)
-    popupInfo.textIndicator.selectionRectInRootViewCoordinates = remoteViewToRootView<FloatRect>(frameID, popupInfo.textIndicator.selectionRectInRootViewCoordinates);
-    popupInfo.textIndicator.textBoundingRectInRootViewCoordinates = remoteViewToRootView<FloatRect>(frameID, popupInfo.textIndicator.textBoundingRectInRootViewCoordinates);
-    popupInfo.textIndicator.contentImageWithoutSelectionRectInRootViewCoordinates = remoteViewToRootView<FloatRect>(frameID, popupInfo.textIndicator.contentImageWithoutSelectionRectInRootViewCoordinates);
+    popupInfo.textIndicator.selectionRectInRootViewCoordinates = contentsToRootView<FloatRect>(frameID, popupInfo.textIndicator.selectionRectInRootViewCoordinates);
+    popupInfo.textIndicator.textBoundingRectInRootViewCoordinates = contentsToRootView<FloatRect>(frameID, popupInfo.textIndicator.textBoundingRectInRootViewCoordinates);
+    popupInfo.textIndicator.contentImageWithoutSelectionRectInRootViewCoordinates = contentsToRootView<FloatRect>(frameID, popupInfo.textIndicator.contentImageWithoutSelectionRectInRootViewCoordinates);
 
     for (auto& textRect : popupInfo.textIndicator.textRectsInBoundingRectCoordinates)
-        textRect = remoteViewToRootView<FloatRect>(frameID, textRect);
+        textRect = contentsToRootView<FloatRect>(frameID, textRect);
 #endif
     completionHandler(popupInfo);
 }

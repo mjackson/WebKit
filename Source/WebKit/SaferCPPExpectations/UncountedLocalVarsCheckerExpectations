@@ -1,4 +1,3 @@
-NetworkProcess/NetworkLoad.cpp
 NetworkProcess/PingLoad.h
 NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementDatabase.cpp
 NetworkProcess/cache/NetworkCacheSpeculativeLoadManager.cpp
@@ -11,7 +10,6 @@ Shared/Cocoa/APIObject.mm
 Shared/ContextMenuContextData.cpp
 Shared/WebContextMenuItem.cpp
 Shared/WebHitTestResultData.cpp
-UIProcess/API/APIHTTPCookieStore.cpp
 UIProcess/API/C/WKContext.cpp
 UIProcess/API/C/WKContextMenuListener.cpp
 UIProcess/API/C/WKFrame.cpp
@@ -25,7 +23,6 @@ UIProcess/API/Cocoa/WKBrowsingContextController.mm
 UIProcess/API/Cocoa/WKDownload.mm
 UIProcess/API/Cocoa/WKFrameInfo.mm
 UIProcess/API/Cocoa/WKNSURLAuthenticationChallenge.mm
-UIProcess/API/Cocoa/WKNavigationAction.mm
 UIProcess/API/Cocoa/WKProcessPool.mm
 UIProcess/API/Cocoa/WKWebViewTesting.mm
 UIProcess/API/Cocoa/_WKDataTask.mm
@@ -96,7 +93,6 @@ WebProcess/WebCoreSupport/ShareableBitmapUtilities.cpp
 WebProcess/WebCoreSupport/WebChromeClient.cpp
 WebProcess/WebCoreSupport/WebFileSystemStorageConnection.cpp
 WebProcess/WebCoreSupport/WebFrameLoaderClient.cpp
-WebProcess/WebCoreSupport/WebLocalFrameLoaderClient.cpp
 WebProcess/WebCoreSupport/WebRemoteFrameClient.cpp
 WebProcess/WebCoreSupport/WebResourceLoadObserver.cpp
 WebProcess/WebCoreSupport/WebSpeechSynthesisClient.cpp

@@ -1,7 +1,6 @@
 NetworkProcess/Downloads/Download.cpp
 NetworkProcess/Downloads/DownloadManager.cpp
 NetworkProcess/Downloads/cocoa/DownloadCocoa.mm
-NetworkProcess/NetworkLoad.cpp
 NetworkProcess/PingLoad.cpp
 NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementClientImpl.cpp
 UIProcess/API/C/WKPage.cpp
@@ -13,7 +12,6 @@ UIProcess/Inspector/InspectorTargetProxy.cpp
 UIProcess/MediaKeySystemPermissionRequestManagerProxy.cpp
 UIProcess/Notifications/WebNotificationManagerProxy.cpp
 UIProcess/ProvisionalFrameProxy.cpp
-UIProcess/UserMediaPermissionRequestManagerProxy.cpp
 UIProcess/WebContextMenuProxy.cpp
 UIProcess/WebEditCommandProxy.cpp
 UIProcess/WebURLSchemeTask.cpp

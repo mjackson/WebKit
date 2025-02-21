@@ -411,9 +411,13 @@ class ShareableBitmap;
 class ShareableBitmapHandle;
 class ShareableResourceHandle;
 class Site;
+class TransformationMatrix;
 struct TextAnimationData;
 enum class ImageDecodingError : uint8_t;
+enum class ElementIdentifierType;
 enum class ExceptionCode : uint8_t;
+
+using ElementIdentifier = ObjectIdentifier<ElementIdentifierType>;
 }
 
 namespace WebKit {
@@ -1177,6 +1181,13 @@ public:
 #endif
 #endif // PLATFORM(IOS_FAMILY)
 
+#if ENABLE(MODEL_PROCESS)
+    void requestInteractiveModelElementAtPoint(WebCore::IntPoint);
+    void didReceiveInteractiveModelElement(std::optional<WebCore::ElementIdentifier>);
+    void stageModeSessionDidUpdate(std::optional<WebCore::ElementIdentifier>, const WebCore::TransformationMatrix&);
+    void stageModeSessionDidEnd(std::optional<WebCore::ElementIdentifier>);
+#endif
+
 #if PLATFORM(COCOA)
     void insertTextPlaceholder(const WebCore::IntSize&, CompletionHandler<void(const std::optional<WebCore::ElementContext>&)>&&);
     void removeTextPlaceholder(const WebCore::ElementContext&, CompletionHandler<void()>&&);
@@ -1701,8 +1712,13 @@ public:
     // Called by the WebContextMenuProxy.
     void didShowContextMenu();
     void didDismissContextMenu();
-    void contextMenuItemSelected(const WebContextMenuItemData&);
+    void contextMenuItemSelected(const WebContextMenuItemData&, const FrameInfoData&);
     void handleContextMenuKeyEvent();
+#endif
+
+#if USE(UICONTEXTMENU)
+    void willBeginContextMenuInteraction();
+    void didEndContextMenuInteraction();
 #endif
 
 #if ENABLE(CONTEXT_MENU_EVENT)
@@ -2288,6 +2304,9 @@ public:
     void setHasExecutedAppBoundBehaviorBeforeNavigation() { m_hasExecutedAppBoundBehaviorBeforeNavigation = true; }
 
     WebPopupMenuProxy* activePopupMenu() const { return m_activePopupMenu.get(); }
+#if ENABLE(CONTEXT_MENUS) && PLATFORM(WIN)
+    WebContextMenuProxy* activeContextMenu() const { return m_activeContextMenu.get(); }
+#endif
 
     void preconnectTo(WebCore::ResourceRequest&&);
 
@@ -2330,6 +2349,7 @@ public:
 #endif
 
 #if ENABLE(MEDIA_STREAM)
+    UserMediaPermissionRequestManagerProxy* userMediaPermissionRequestManagerIfExists();
     WebCore::CaptureSourceOrError createRealtimeMediaSourceForSpeechRecognition();
     void clearUserMediaPermissionRequestHistory(WebCore::PermissionName);
     bool shouldListenToVoiceActivity() const { return m_shouldListenToVoiceActivity; }
@@ -2600,6 +2620,9 @@ public:
 
     void forEachWebContentProcess(NOESCAPE Function<void(WebProcessProxy&, WebCore::PageIdentifier)>&&);
 
+    void convertPointToMainFrameCoordinates(WebCore::FloatPoint, std::optional<WebCore::FrameIdentifier>, CompletionHandler<void(std::optional<WebCore::FloatPoint>)>&&);
+    void convertRectToMainFrameCoordinates(WebCore::FloatRect, std::optional<WebCore::FrameIdentifier>, CompletionHandler<void(std::optional<WebCore::FloatRect>)>&&);
+
 #if HAVE(SPATIAL_TRACKING_LABEL)
     void setDefaultSpatialTrackingLabel(const String&);
     const String& defaultSpatialTrackingLabel() const;
@@ -2843,7 +2866,7 @@ private:
     MediaKeySystemPermissionRequestManagerProxy& mediaKeySystemPermissionRequestManager();
     Ref<MediaKeySystemPermissionRequestManagerProxy> protectedMediaKeySystemPermissionRequestManager();
 #endif
-    void requestMediaKeySystemPermissionForFrame(IPC::Connection&, WebCore::MediaKeySystemRequestIdentifier, WebCore::FrameIdentifier, const WebCore::SecurityOriginData& topLevelDocumentOriginIdentifier, const String&);
+    void requestMediaKeySystemPermissionForFrame(IPC::Connection&, WebCore::MediaKeySystemRequestIdentifier, WebCore::FrameIdentifier, WebCore::ClientOrigin&&, const String&);
 
     void runModal();
     void notifyScrollerThumbIsVisibleInRect(const WebCore::IntRect&);
@@ -2947,8 +2970,8 @@ private:
     void hidePopupMenu();
 
 #if ENABLE(CONTEXT_MENUS)
-    void showContextMenuFromFrame(WebCore::FrameIdentifier, ContextMenuContextData&&, UserData&&);
-    void showContextMenu(ContextMenuContextData&&, const UserData&);
+    void showContextMenuFromFrame(FrameInfoData&&, ContextMenuContextData&&, UserData&&);
+    void showContextMenu(FrameInfoData&&, ContextMenuContextData&&, const UserData&);
 #endif
 
 #if ENABLE(CONTEXT_MENU_EVENT)

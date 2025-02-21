@@ -150,7 +150,7 @@ enum class CursorType : uint8_t;
 enum class CursorVisibility : bool;
 enum class DisplayType : uint8_t;
 enum class EmptyCell : bool;
-enum class EventListenerRegionType : uint8_t;
+enum class EventListenerRegionType : uint16_t;
 enum class FieldSizing : bool;
 enum class FillAttachment : uint8_t;
 enum class FillBox : uint8_t;
@@ -272,7 +272,7 @@ struct ScrollSnapAlign;
 struct ScrollSnapType;
 struct ScrollbarGutter;
 struct ScrollbarColor;
-struct TimelineScope;
+struct NameScope;
 struct ViewTimelineInsets;
 
 struct TabSize;
@@ -1023,9 +1023,9 @@ public:
     inline void setViewTimelineInsets(const Vector<ViewTimelineInsets>&);
     inline void setViewTimelineNames(const Vector<AtomString>&);
 
-    static inline const TimelineScope initialTimelineScope();
-    inline const TimelineScope& timelineScope() const;
-    inline void setTimelineScope(const TimelineScope&);
+    static inline const NameScope initialTimelineScope();
+    inline const NameScope& timelineScope() const;
+    inline void setTimelineScope(const NameScope&);
 
     inline const AnimationList* animations() const;
     inline const AnimationList* transitions() const;

@@ -27,7 +27,6 @@
 
 #import <AppKit/AppKit.h>
 #import <wtf/CompletionHandler.h>
-#import <wtf/NakedRef.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/WeakObjCPtr.h>
 #import <wtf/WeakPtr.h>
@@ -60,6 +59,7 @@ typedef enum FullScreenState : NSInteger FullScreenState;
     RetainPtr<NSArray> _savedConstraints;
 
     FullScreenState _fullScreenState;
+    CompletionHandler<void(bool)> _enterFullScreenCompletionHandler;
     CompletionHandler<void()> _beganExitFullScreenCompletionHandler;
     CompletionHandler<void()> _exitFullScreenCompletionHandler;
 
@@ -71,7 +71,7 @@ typedef enum FullScreenState : NSInteger FullScreenState;
 @property (readonly) NSRect finalFrame;
 @property (assign) NSArray *savedConstraints;
 
-- (id)initWithWindow:(NSWindow *)window webView:(NSView *)webView page:(NakedRef<WebKit::WebPageProxy>)page;
+- (id)initWithWindow:(NSWindow *)window webView:(NSView *)webView page:(std::reference_wrapper<WebKit::WebPageProxy>)page;
 
 - (WebCoreFullScreenPlaceholderView*)webViewPlaceholder;
 
@@ -82,7 +82,7 @@ typedef enum FullScreenState : NSInteger FullScreenState;
 - (void)exitFullScreenImmediately;
 - (void)requestExitFullScreen;
 - (void)close;
-- (void)beganEnterFullScreenWithInitialFrame:(NSRect)initialFrame finalFrame:(NSRect)finalFrame;
+- (void)beganEnterFullScreenWithInitialFrame:(NSRect)initialFrame finalFrame:(NSRect)finalFrame completionHandler:(CompletionHandler<void(bool)>&&)completionHandler;
 - (void)beganExitFullScreenWithInitialFrame:(NSRect)initialFrame finalFrame:(NSRect)finalFrame completionHandler:(CompletionHandler<void()>&&)completionHandler;
 
 - (void)videoControlsManagerDidChange;

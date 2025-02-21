@@ -2502,6 +2502,7 @@ private:
         case Identity: // This should have been cleaned up.
         case BooleanToNumber:
         case PhantomNewObject:
+        case PhantomNewArrayWithConstantSize:
         case PhantomNewFunction:
         case PhantomNewGeneratorFunction:
         case PhantomNewAsyncGeneratorFunction:
@@ -2523,6 +2524,7 @@ private:
         case CheckStructureOrEmpty:
         case CheckArrayOrEmpty:
         case MaterializeNewObject:
+        case MaterializeNewArrayWithConstantSize:
         case MaterializeCreateActivation:
         case MaterializeNewInternalFieldObject:
         case PutStack:
@@ -4136,8 +4138,20 @@ private:
 
         // Check that searchRegExp.exec is the primordial RegExp.prototype.exec
         emitPrimordialCheckFor(globalObject->regExpProtoExecFunction(), vm().propertyNames->exec.impl());
+        // Check that searchRegExp.flags is the primordial RegExp.prototype.flags
+        emitPrimordialCheckFor(globalObject->regExpProtoFlagsGetter(), vm().propertyNames->flags.impl());
+        // Check that searchRegExp.dotAll is the primordial RegExp.prototype.dotAll
+        emitPrimordialCheckFor(globalObject->regExpProtoDotAllGetter(), vm().propertyNames->dotAll.impl());
         // Check that searchRegExp.global is the primordial RegExp.prototype.global
         emitPrimordialCheckFor(globalObject->regExpProtoGlobalGetter(), vm().propertyNames->global.impl());
+        // Check that searchRegExp.hasIndices is the primordial RegExp.prototype.hasIndices
+        emitPrimordialCheckFor(globalObject->regExpProtoHasIndicesGetter(), vm().propertyNames->hasIndices.impl());
+        // Check that searchRegExp.ignoreCase is the primordial RegExp.prototype.ignoreCase
+        emitPrimordialCheckFor(globalObject->regExpProtoIgnoreCaseGetter(), vm().propertyNames->ignoreCase.impl());
+        // Check that searchRegExp.multiline is the primordial RegExp.prototype.multiline
+        emitPrimordialCheckFor(globalObject->regExpProtoMultilineGetter(), vm().propertyNames->multiline.impl());
+        // Check that searchRegExp.sticky is the primordial RegExp.prototype.sticky
+        emitPrimordialCheckFor(globalObject->regExpProtoStickyGetter(), vm().propertyNames->sticky.impl());
         // Check that searchRegExp.unicode is the primordial RegExp.prototype.unicode
         emitPrimordialCheckFor(globalObject->regExpProtoUnicodeGetter(), vm().propertyNames->unicode.impl());
         // Check that searchRegExp.unicodeSets is the primordial RegExp.prototype.unicodeSets

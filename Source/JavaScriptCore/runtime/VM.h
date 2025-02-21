@@ -424,6 +424,8 @@ public:
     };
     JS_EXPORT_PRIVATE void performOpportunisticallyScheduledTasks(MonotonicTime deadline, OptionSet<SchedulerOptions>);
 
+    Structure* immutableButterflyStructure(IndexingType indexingType) { return rawImmutableButterflyStructure(indexingType).get(); }
+
     // Keep super frequently accessed fields top in VM.
     unsigned disallowVMEntryCount { 0 };
 private:
@@ -460,6 +462,8 @@ private:
         m_entryScopeServices.remove(service);
     }
 
+    WriteBarrier<Structure>& rawImmutableButterflyStructure(IndexingType indexingType) { return immutableButterflyStructures[arrayIndexFromIndexingType(indexingType) - NumberOfIndexingShapes]; }
+
 public:
     Heap heap;
     GCClient::Heap clientHeap;
@@ -480,6 +484,10 @@ public:
     ALWAYS_INLINE CompleteSubspace& cellSpace() { return heap.cellSpace; }
     ALWAYS_INLINE CompleteSubspace& variableSizedCellSpace() { return heap.variableSizedCellSpace; }
     ALWAYS_INLINE CompleteSubspace& destructibleObjectSpace() { return heap.destructibleObjectSpace; }
+#if ENABLE(WEBASSEMBLY)
+    template<SubspaceAccess mode>
+    ALWAYS_INLINE GCClient::PreciseSubspace* webAssemblyInstanceSpace() { return heap.webAssemblyInstanceSpace<mode>(); }
+#endif
 
 #define DEFINE_ISO_SUBSPACE_ACCESSOR(name, heapCellType, type) \
     ALWAYS_INLINE GCClient::IsoSubspace& name() { return clientHeap.name; }
