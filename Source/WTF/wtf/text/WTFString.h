@@ -52,6 +52,8 @@ WTF_EXPORT_PRIVATE float charactersToFloat(std::span<const UChar>, size_t& parse
 
 template<bool isSpecialCharacter(UChar), typename CharacterType, std::size_t Extent> bool containsOnly(std::span<const CharacterType, Extent>);
 
+inline const String& nullString();
+
 enum class TrailingZerosPolicy : bool { Keep, Truncate };
 
 class String final {
@@ -216,6 +218,20 @@ public:
     // into the buffer returned in data before the returned string is used.
     static String createUninitialized(unsigned length, std::span<UChar>& data) { return StringImpl::createUninitialized(length, data); }
     static String createUninitialized(unsigned length, std::span<LChar>& data) { return StringImpl::createUninitialized(length, data); }
+
+    static String tryCreateUninitialized(size_t length, std::span<UChar>& data) {
+        RefPtr<StringImpl> impl = StringImpl::tryCreateUninitialized(length, data);
+        if (UNLIKELY(!impl))
+            return nullString();
+        return impl;
+    }
+
+    static String tryCreateUninitialized(size_t length, std::span<LChar>& data) {
+        RefPtr<StringImpl> impl = StringImpl::tryCreateUninitialized(length, data);
+        if (UNLIKELY(!impl))
+            return nullString();
+        return impl;
+    }
 
     using SplitFunctor = WTF::Function<void(StringView)>;
 
