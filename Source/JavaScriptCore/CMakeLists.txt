@@ -1368,7 +1368,6 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     bytecode/StubInfoSummary.h
     runtime/CommonSlowPaths.h
     runtime/DirectArguments.h
-    runtime/GenericArguments.h
     runtime/ScopedArguments.h
     runtime/JSLexicalEnvironment.h
     jit/JITDisassembler.h
