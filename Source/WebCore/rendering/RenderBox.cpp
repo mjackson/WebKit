@@ -166,6 +166,8 @@ void RenderBox::willBeDestroyed()
             view().unregisterContainerQueryBox(*this);
         if (!style().anchorNames().isEmpty())
             view().unregisterAnchor(*this);
+        if (!style().positionTryFallbacks().isEmpty())
+            view().unregisterPositionTryBox(*this);
     }
 
     RenderBoxModelObject::willBeDestroyed();
@@ -299,6 +301,11 @@ void RenderBox::styleWillChange(StyleDifference diff, const RenderStyle& newStyl
         view().registerAnchor(*this);
     else if (oldStyle && !oldStyle->anchorNames().isEmpty())
         view().unregisterAnchor(*this);
+
+    if (!style().positionTryFallbacks().isEmpty() && style().hasOutOfFlowPosition())
+        view().registerPositionTryBox(*this);
+    else if (oldStyle && !oldStyle->positionTryFallbacks().isEmpty() && oldStyle->hasOutOfFlowPosition())
+        view().unregisterPositionTryBox(*this);
 
     RenderBoxModelObject::styleWillChange(diff, newStyle);
 }
@@ -6105,6 +6112,11 @@ bool RenderBox::hasAutoHeightOrContainingBlockWithAutoHeight(UpdatePercentageHei
         return false;
 
     return !containingBlock->hasDefiniteLogicalHeight();
+}
+
+bool RenderBox::overflowChangesMayAffectLayout() const
+{
+    return !canUseOverlayScrollbars() && (style().overflowY() == Overflow::Auto || style().overflowX() == Overflow::Auto);
 }
 
 } // namespace WebCore

@@ -1595,7 +1595,6 @@ class ReferenceTerm:
             return all_rules.rules_by_name[name_for_lookup].grammar.root_term.perform_fixups(all_rules)
         return self
 
-
     def perform_fixups_for_values_references(self, values):
         # NOTE: The actual name in the grammar is "<<values>>", which we store as is_internal + 'values'.
         if self.is_internal and self.name.name == "values":
@@ -1609,6 +1608,10 @@ class ReferenceTerm:
     @property
     def supported_keywords(self):
         return set()
+
+    @property
+    def has_non_builtin_reference_terms(self):
+        return not self.is_builtin
 
 
 # LiteralTerm represents a direct match of a literal character or string. The
@@ -1641,6 +1644,10 @@ class LiteralTerm:
     @property
     def supported_keywords(self):
         return set()
+
+    @property
+    def has_non_builtin_reference_terms(self):
+        return False
 
 
 # KeywordTerm represents a direct keyword match. The syntax in the CSS specifications
@@ -1676,6 +1683,10 @@ class KeywordTerm:
     @property
     def supported_keywords(self):
         return {self.value.name}
+
+    @property
+    def has_non_builtin_reference_terms(self):
+        return False
 
     @property
     def requires_context(self):
@@ -1773,6 +1784,10 @@ class MatchOneTerm:
             result.update(term.supported_keywords)
         return result
 
+    @property
+    def has_non_builtin_reference_terms(self):
+        return any(term.has_non_builtin_reference_terms for term in self.terms)
+
 
 # GroupTerm represents matching a list of provided terms with
 # options for whether the matches are ordered and whether all
@@ -1838,6 +1853,10 @@ class GroupTerm:
             result.update(subterm.supported_keywords)
         return result
 
+    @property
+    def has_non_builtin_reference_terms(self):
+        return any(term.has_non_builtin_reference_terms for term in self.subterms)
+
 
 # OptionalTerm represents matching a term that is allowed to
 # be ommited. The syntax in the CSS specifications uses a
@@ -1878,6 +1897,10 @@ class OptionalTerm:
     @property
     def supported_keywords(self):
         return self.subterm.supported_keywords
+
+    @property
+    def has_non_builtin_reference_terms(self):
+        return self.subterm.has_non_builtin_reference_terms
 
 
 # UnboundedRepetitionTerm represents matching a list of terms
@@ -1949,6 +1972,10 @@ class UnboundedRepetitionTerm:
     def supported_keywords(self):
         return self.repeated_term.supported_keywords
 
+    @property
+    def has_non_builtin_reference_terms(self):
+        return self.repeated_term.has_non_builtin_reference_terms
+
 
 # BoundedRepetitionTerm represents matching a list of terms
 # separated by either spaces or commas where the list of terms
@@ -2003,6 +2030,10 @@ class BoundedRepetitionTerm:
     def supported_keywords(self):
         return self.repeated_term.supported_keywords
 
+    @property
+    def has_non_builtin_reference_terms(self):
+        return self.repeated_term.has_non_builtin_reference_terms
+
 
 # FixedSizeRepetitionTerm represents matching a list of terms
 # separated by either spaces or commas where the list of terms
@@ -2056,6 +2087,10 @@ class FixedSizeRepetitionTerm:
     def supported_keywords(self):
         return self.repeated_term.supported_keywords
 
+    @property
+    def has_non_builtin_reference_terms(self):
+        return self.repeated_term.has_non_builtin_reference_terms
+
 
 # FunctionTerm represents matching a use of the CSS function call syntax
 # which provides a way for specifications to differentiate groups by
@@ -2092,6 +2127,10 @@ class FunctionTerm:
     def supported_keywords(self):
         return self.parameter_group_term.supported_keywords
 
+    @property
+    def has_non_builtin_reference_terms(self):
+        return self.parameter_group_term.has_non_builtin_reference_terms
+
 
 # Container for the name and root term for a grammar. Used for both shared rules and property specific grammars.
 class Grammar:
@@ -2118,6 +2157,10 @@ class Grammar:
         self.root_term = self.root_term.perform_fixups_for_values_references(values)
 
     def check_against_values(self, values):
+        if self.has_non_builtin_reference_terms:
+            # If the grammar has any  non-builtin references, the grammar is incomplete and this check cannot be performed.
+            return
+
         keywords_supported_by_grammar = self.supported_keywords
         keywords_listed_as_values = frozenset(value.name for value in values)
 
@@ -2162,6 +2205,10 @@ class Grammar:
     @property
     def supported_keywords(self):
         return self.root_term.supported_keywords
+
+    @property
+    def has_non_builtin_reference_terms(self):
+        return self.root_term.has_non_builtin_reference_terms
 
 
 # A shared grammar rule and metadata describing it. Part of the set of rules tracked by SharedGrammarRules.
@@ -2413,10 +2460,10 @@ class GenerationContext:
         to.newline()
 
     def generate_property_id_bit_set(self, *, to, name, iterable, mapping_to_property=lambda p: p):
-        to.write(f"const WTF::BitSet<numCSSProperties> {name} = ([]() -> WTF::BitSet<numCSSProperties> {{")
+        to.write(f"const WTF::BitSet<cssPropertyIDEnumValueCount> {name} = ([]() -> WTF::BitSet<cssPropertyIDEnumValueCount> {{")
 
         with to.indent():
-            to.write(f"WTF::BitSet<numCSSProperties> result;")
+            to.write(f"WTF::BitSet<cssPropertyIDEnumValueCount> result;")
 
             for item in iterable:
                 to.write(f"result.set({mapping_to_property(item).id});")
@@ -2494,7 +2541,7 @@ class GenerateCSSPropertyNames:
         )
 
         to.write_block("""\
-            static_assert(numCSSProperties + 1 <= std::numeric_limits<uint16_t>::max(), "CSSPropertyID should fit into uint16_t.");
+            static_assert(cssPropertyIDEnumValueCount <= (std::numeric_limits<uint16_t>::max() + 1), "CSSPropertyID should fit into uint16_t.");
             """)
 
         all_computed_property_ids = (f"{property.id}," for property in self.properties_and_descriptors.style_properties.all_computed)
@@ -2693,7 +2740,7 @@ class GenerateCSSPropertyNames:
     def _generate_is_inherited_property(self, *, to):
         all_inherited_and_ids = (f'{"true " if hasattr(property, "inherited") and property.inherited else "false"}, // {property.id}' for property in self.properties_and_descriptors.all_unique)
 
-        to.write(f"constexpr bool isInheritedPropertyTable[numCSSProperties + {GenerationContext.number_of_predefined_properties}] = {{")
+        to.write(f"constexpr bool isInheritedPropertyTable[cssPropertyIDEnumValueCount] = {{")
         with to.indent():
             to.write(f"false, // CSSPropertyID::CSSPropertyInvalid")
             to.write(f"true , // CSSPropertyID::CSSPropertyCustom")
@@ -2703,7 +2750,7 @@ class GenerateCSSPropertyNames:
         to.write_block("""
             bool CSSProperty::isInheritedProperty(CSSPropertyID id)
             {
-                ASSERT(id < firstCSSProperty + numCSSProperties);
+                ASSERT(id < cssPropertyIDEnumValueCount);
                 ASSERT(id != CSSPropertyID::CSSPropertyInvalid);
                 return isInheritedPropertyTable[id];
             }
@@ -3014,8 +3061,18 @@ class GenerateCSSPropertyNames:
         to.write(f"}};")
         to.newline()
 
+        to.write(f"// Enum value of the first \"real\" CSS property, which excludes")
+        to.write(f"// CSSPropertyInvalid and CSSPropertyCustom.")
         to.write(f"constexpr uint16_t firstCSSProperty = {first};")
+
+        to.write(f"// Total number of enum values in the CSSPropertyID enum. If making an array")
+        to.write(f"// that can be indexed into using the enum value, use this as the size.")
+        to.write(f"constexpr uint16_t cssPropertyIDEnumValueCount = {count};")
+
+        to.write(f"// Number of \"real\" CSS properties. This differs from cssPropertyIDEnumValueCount,")
+        to.write(f"// as this doesn't consider CSSPropertyInvalid and CSSPropertyCustom.")
         to.write(f"constexpr uint16_t numCSSProperties = {num};")
+
         to.write(f"constexpr unsigned maxCSSPropertyNameLength = {max_length};")
         to.write(f"constexpr auto firstTopPriorityProperty = {first_top_priority_property.id};")
         to.write(f"constexpr auto lastTopPriorityProperty = {last_top_priority_property.id};")

@@ -2582,7 +2582,7 @@ RefPtr<API::Navigation> WebPageProxy::goToBackForwardItem(WebBackForwardListFram
 
     Ref frameState = item->mainFrameState();
     if (protectedPreferences()->siteIsolationEnabled()) {
-        if (RefPtr frame = WebFrameProxy::webFrame(frameItem.frameID())) {
+        if (RefPtr frame = WebFrameProxy::webFrame(frameItem.frameID()); frame && frame->page() == this) {
             process = frame->process();
             frameState = frameItem.copyFrameStateWithChildren();
         }
@@ -4987,7 +4987,7 @@ void WebPageProxy::receivedPolicyDecision(PolicyAction action, API::Navigation* 
     std::optional<DownloadID> downloadID;
     if (action == PolicyAction::Download) {
         // Create a download proxy.
-        auto download = m_legacyMainFrameProcess->protectedProcessPool()->createDownloadProxy(m_websiteDataStore, navigationAction->request(), this, navigation ? navigation->originatingFrameInfo() : FrameInfoData { });
+        auto download = m_legacyMainFrameProcess->protectedProcessPool()->createDownloadProxy(m_websiteDataStore, navigationAction->request(), this, navigation ? std::optional(navigation->originatingFrameInfo()) : std::nullopt);
         download->setDidStartCallback([weakThis = WeakPtr { *this }, navigationAction = WTFMove(navigationAction)] (auto* downloadProxy) {
             RefPtr protectedThis = weakThis.get();
             if (!protectedThis || !downloadProxy)
@@ -5024,7 +5024,7 @@ void WebPageProxy::receivedNavigationResponsePolicyDecision(WebCore::PolicyActio
 
     std::optional<DownloadID> downloadID;
     if (action == PolicyAction::Download) {
-        auto download = m_legacyMainFrameProcess->protectedProcessPool()->createDownloadProxy(m_websiteDataStore, request, this, navigation ? navigation->originatingFrameInfo() : FrameInfoData { });
+        auto download = m_legacyMainFrameProcess->protectedProcessPool()->createDownloadProxy(m_websiteDataStore, request, this, navigation ? std::optional(navigation->originatingFrameInfo()) : std::nullopt);
         download->setDidStartCallback([weakThis = WeakPtr { *this }, navigationResponse = WTFMove(navigationResponse)] (auto* downloadProxy) {
             RefPtr protectedThis = weakThis.get();
             if (!protectedThis || !downloadProxy)
@@ -5139,12 +5139,8 @@ void WebPageProxy::continueNavigationInNewProcess(API::Navigation& navigation, W
         loadParameters.ownerPermissionsPolicy = navigation.lastNavigationAction().ownerPermissionsPolicy;
         loadParameters.isPerformingHTTPFallback = isPerformingHTTPFallback == IsPerformingHTTPFallback::Yes;
 
-        RefPtr provisionalPage = m_provisionalPage;
-        Ref processNavigatingFrom = frame.isMainFrame() && provisionalPage ? provisionalPage->process() : frame.process();
-        if (RefPtr parentFrame = frame.parentFrame(); parentFrame && parentFrame->process() == processNavigatingFrom) {
-            if (RefPtr currentItem = m_backForwardList->currentItem())
-                frame.setPendingChildBackForwardItem(currentItem->protectedNavigatedFrameItem()->protectedChildItemForFrameID(parentFrame->frameID()).get());
-        }
+        if (navigation.isInitialFrameSrcLoad())
+            frame.setIsPendingInitialHistoryItem(true);
 
         frame.prepareForProvisionalLoadInProcess(newProcess, navigation, m_browsingContextGroup, [
             loadParameters = WTFMove(loadParameters),
@@ -7814,7 +7810,7 @@ void WebPageProxy::decidePolicyForNavigationAction(Ref<WebProcessProxy>&& proces
 
     bool shouldOpenAppLinks = !m_shouldSuppressAppLinksInNextNavigationPolicyDecision
     && destinationFrameInfo->isMainFrame()
-    && (m_mainFrame && m_mainFrame->url().host() != request.url().host())
+    && (m_mainFrame && (!m_mainFrame->url().isNull() || !m_hasCommittedAnyProvisionalLoads) && m_mainFrame->url().host() != request.url().host())
     && navigationActionData.navigationType != WebCore::NavigationType::BackForward;
 
     RefPtr userInitiatedActivity = process->userInitiatedActivity(navigationActionData.userGestureTokenIdentifier);
@@ -8562,6 +8558,23 @@ void WebPageProxy::enterFullscreen()
     playbackSessionModel->enterFullscreen();
 }
 
+void WebPageProxy::setPlayerIdentifierForVideoElement()
+{
+    RefPtr playbackSessionManager = m_playbackSessionManager;
+    if (!playbackSessionManager)
+        return;
+
+    RefPtr controlsManagerInterface = playbackSessionManager->controlsManagerInterface();
+    if (!controlsManagerInterface)
+        return;
+
+    CheckedPtr playbackSessionModel = controlsManagerInterface->playbackSessionModel();
+    if (!playbackSessionModel)
+        return;
+
+    playbackSessionModel->setPlayerIdentifierForVideoElement();
+}
+
 void WebPageProxy::didEnterFullscreen(PlaybackSessionContextIdentifier identifier)
 {
     if (RefPtr pageClient = this->pageClient())
@@ -8989,8 +9002,10 @@ void WebPageProxy::setMediaVolume(float volume)
     
     if (!hasRunningProcess())
         return;
-    
-    send(Messages::WebPage::SetMediaVolume(volume));
+
+    forEachWebContentProcess([&](auto& webProcess, auto pageID) {
+        webProcess.send(Messages::WebPage::SetMediaVolume(volume), pageID);
+    });
 }
 
 #if ENABLE(MEDIA_STREAM)
@@ -9060,7 +9075,9 @@ void WebPageProxy::setMuted(WebCore::MediaProducerMutedStateFlags state, FromApp
         WebProcessProxy::muteCaptureInPagesExcept(m_webPageID);
 #endif // ENABLE(MEDIA_STREAM)
 
-    protectedLegacyMainFrameProcess()->pageMutedStateChanged(m_webPageID, state);
+    forEachWebContentProcess([&] (auto& process, auto pageID) {
+        process.pageMutedStateChanged(pageID, state);
+    });
 
 #if ENABLE(MEDIA_STREAM)
     auto newState = applyWebAppDesiredMutedKinds(state, m_mutedCaptureKindsDesiredByWebApp);
@@ -9069,7 +9086,11 @@ void WebPageProxy::setMuted(WebCore::MediaProducerMutedStateFlags state, FromApp
 #endif
     WEBPAGEPROXY_RELEASE_LOG(Media, "setMuted, app state = %d, final state = %d", state.toRaw(), newState.toRaw());
 
-    sendWithAsyncReply(Messages::WebPage::SetMuted(newState), WTFMove(completionHandler));
+    auto aggregator = CallbackAggregator::create(WTFMove(completionHandler));
+    forEachWebContentProcess([&](auto& webProcess, auto pageID) {
+        webProcess.sendWithAsyncReply(Messages::WebPage::SetMuted(newState), [aggregator] { }, pageID);
+    });
+
     activityStateDidChange({ ActivityState::IsAudible, ActivityState::IsCapturingMedia });
 }
 
@@ -9598,8 +9619,12 @@ void WebPageProxy::backForwardAddItemShared(IPC::Connection& connection, Ref<Fra
 #endif
 
     if (RefPtr targetFrame = WebFrameProxy::webFrame(navigatedFrameState->frameID)) {
-        if (RefPtr pendingChildBackForwardItem = targetFrame->takePendingChildBackForwardItem())
-            return pendingChildBackForwardItem->setChild(WTFMove(navigatedFrameState));
+        if (targetFrame->isPendingInitialHistoryItem()) {
+            targetFrame->setIsPendingInitialHistoryItem(false);
+            if (RefPtr parent = targetFrame->parentFrame())
+                m_backForwardList->addChildItem(parent->frameID(), WTFMove(navigatedFrameState));
+            return;
+        }
     } else
         return;
 
@@ -10056,10 +10081,8 @@ void WebPageProxy::didShowContextMenu()
 
 void WebPageProxy::didDismissContextMenu()
 {
-    RunLoop::protectedMain()->dispatch([weakPage = WeakPtr { *this }] {
-        if (RefPtr page = weakPage.get())
-            page->send(Messages::WebPage::DidDismissContextMenu());
-    });
+    send(Messages::WebPage::DidDismissContextMenu());
+
     if (RefPtr pageClient = this->pageClient())
         pageClient->didDismissContextMenu();
 }
@@ -16203,6 +16226,23 @@ bool WebPageProxy::canStartNavigationSwipeAtLastInteractionLocation() const
     RefPtr client = pageClient();
     return !client || client->canStartNavigationSwipeAtLastInteractionLocation();
 }
+
+#if ENABLE(PDF_PLUGIN)
+void WebPageProxy::pluginDidInstallPDFDocument()
+{
+    resetViewportConfigurationForPDFPluginIfNeeded();
+}
+
+void WebPageProxy::resetViewportConfigurationForPDFPluginIfNeeded()
+{
+#if PLATFORM(IOS_FAMILY)
+    if (mainFramePluginOverridesViewScale()) {
+        if (layoutSizeScaleFactorFromClient() != 1)
+            setViewportConfigurationViewLayoutSize(viewLayoutSize(), 1, minimumEffectiveDeviceWidth());
+    }
+#endif
+}
+#endif
 
 } // namespace WebKit
 

@@ -33,6 +33,7 @@
 #include "MessageSenderInlines.h"
 #include "RemotePageFullscreenManagerProxy.h"
 #include "WebAutomationSession.h"
+#include "WebFrameProxy.h"
 #include "WebFullScreenManagerMessages.h"
 #include "WebFullScreenManagerProxyMessages.h"
 #include "WebPageProxy.h"
@@ -41,6 +42,7 @@
 #include <WebCore/IntRect.h>
 #include <WebCore/MIMETypeRegistry.h>
 #include <WebCore/ScreenOrientationType.h>
+#include <wtf/CallbackAggregator.h>
 #include <wtf/LoggerHelper.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/MakeString.h>
@@ -86,16 +88,6 @@ WebFullScreenManagerProxy::~WebFullScreenManagerProxy()
 std::optional<SharedPreferencesForWebProcess> WebFullScreenManagerProxy::sharedPreferencesForWebProcess(const IPC::Connection& connection) const
 {
     return dynamicDowncast<WebProcessProxy>(AuxiliaryProcessProxy::fromConnection(connection))->sharedPreferencesForWebProcess();
-}
-
-void WebFullScreenManagerProxy::willEnterFullScreen(CompletionHandler<void(bool)>&& completionHandler)
-{
-    ALWAYS_LOG(LOGIDENTIFIER);
-    m_fullscreenState = FullscreenState::EnteringFullscreen;
-
-    if (RefPtr page = m_page.get())
-        page->fullscreenClient().willEnterFullscreen(page.get());
-    completionHandler(true);
 }
 
 template<typename M> void WebFullScreenManagerProxy::sendToWebProcess(M&& message)
@@ -199,12 +191,11 @@ bool WebFullScreenManagerProxy::blocksReturnToFullscreenFromPictureInPicture() c
     return m_blocksReturnToFullscreenFromPictureInPicture;
 }
 
-void WebFullScreenManagerProxy::enterFullScreen(IPC::Connection& connection, bool blocksReturnToFullscreenFromPictureInPicture, FullScreenMediaDetails&& mediaDetails, CompletionHandler<void(bool)>&& completionHandler)
+void WebFullScreenManagerProxy::enterFullScreen(IPC::Connection& connection, FrameIdentifier frameID, bool blocksReturnToFullscreenFromPictureInPicture, FullScreenMediaDetails&& mediaDetails, CompletionHandler<void(bool)>&& completionHandler)
 {
     m_fullScreenProcess = dynamicDowncast<WebProcessProxy>(AuxiliaryProcessProxy::fromConnection(connection));
     m_blocksReturnToFullscreenFromPictureInPicture = blocksReturnToFullscreenFromPictureInPicture;
 #if PLATFORM(IOS_FAMILY)
-
 #if ENABLE(VIDEO_USES_ELEMENT_FULLSCREEN)
     m_isVideoElement = mediaDetails.type == FullScreenMediaDetails::Type::Video;
 #endif
@@ -215,20 +206,49 @@ void WebFullScreenManagerProxy::enterFullScreen(IPC::Connection& connection, boo
             m_imageBuffer = sharedMemoryBuffer->createSharedBuffer(sharedMemoryBuffer->size());
     }
     m_imageMIMEType = mediaDetails.mimeType;
-#endif // QUICKLOOK_FULLSCREEN
+#endif // ENABLE(QUICKLOOK_FULLSCREEN)
+#endif // PLATFORM(IOS_FAMILY)
 
-    auto mediaDimensions = mediaDetails.mediaDimensions;
-    if (CheckedPtr client = m_client)
-        client->enterFullScreen(mediaDimensions, WTFMove(completionHandler));
-    else
-        completionHandler(false);
-#else
-    UNUSED_PARAM(mediaDetails);
-    if (CheckedPtr client = m_client)
-        client->enterFullScreen(WTFMove(completionHandler));
-    else
-        completionHandler(false);
-#endif
+    CheckedPtr client = m_client;
+    if (!client)
+        return completionHandler(false);
+
+    client->enterFullScreen(mediaDetails.mediaDimensions, [this, protectedThis = Ref { *this }, completionHandler = WTFMove(completionHandler), frameID, logIdentifier = LOGIDENTIFIER] (bool success) mutable {
+        ALWAYS_LOG(logIdentifier);
+        if (!success)
+            return completionHandler(false);
+        m_fullscreenState = FullscreenState::EnteringFullscreen;
+        if (RefPtr page = m_page.get())
+            page->fullscreenClient().willEnterFullscreen(page.get());
+        enterFullScreenForOwnerElementsInOtherProcesses(frameID, [completionHandler = WTFMove(completionHandler)] mutable {
+            completionHandler(true);
+        });
+    });
+}
+
+void WebFullScreenManagerProxy::enterFullScreenForOwnerElementsInOtherProcesses(FrameIdentifier frameID, CompletionHandler<void()>&& completionHandler)
+{
+    Ref aggregator = CallbackAggregator::create(WTFMove(completionHandler));
+
+    RefPtr webFrame = WebFrameProxy::webFrame(frameID);
+    if (!webFrame)
+        return;
+    RefPtr page = m_page.get();
+    if (!page)
+        return;
+
+    // Traverse from the frame's parent to the main frame and tell each unique process the lowest frame to start fullscreening.
+    HashSet<ProcessIdentifier> processes { webFrame->process().coreProcessIdentifier() };
+    for (RefPtr currentFrame = webFrame; currentFrame; currentFrame = currentFrame->parentFrame()) {
+        RefPtr ancestor = currentFrame->parentFrame();
+        if (!ancestor)
+            break;
+        auto addResult = processes.add(ancestor->process().coreProcessIdentifier());
+        if (addResult.isNewEntry) {
+            Ref process = ancestor->process();
+            process->sendWithAsyncReply(Messages::WebFullScreenManager::EnterFullScreenForOwnerElements(currentFrame->frameID()), [aggregator] { }, page->webPageIDInProcess(process));
+        }
+    }
 }
 
 #if ENABLE(QUICKLOOK_FULLSCREEN)
@@ -302,19 +322,19 @@ void WebFullScreenManagerProxy::beganEnterFullScreen(const IntRect& initialFrame
     });
 }
 
-void WebFullScreenManagerProxy::beganExitFullScreen(const IntRect& initialFrame, const IntRect& finalFrame, CompletionHandler<void()>&& completionHandler)
+void WebFullScreenManagerProxy::beganExitFullScreen(FrameIdentifier frameID, const IntRect& initialFrame, const IntRect& finalFrame, CompletionHandler<void()>&& completionHandler)
 {
     CheckedPtr client = m_client;
     if (!client)
         return completionHandler();
-    client->beganExitFullScreen(initialFrame, finalFrame, [this, protectedThis = Ref { *this }, completionHandler = WTFMove(completionHandler), logIdentifier = LOGIDENTIFIER] mutable {
+    client->beganExitFullScreen(initialFrame, finalFrame, [this, protectedThis = Ref { *this }, completionHandler = WTFMove(completionHandler), frameID, logIdentifier = LOGIDENTIFIER] mutable {
         m_fullscreenState = FullscreenState::NotInFullscreen;
         RefPtr page = m_page.get();
         if (!page)
             return completionHandler();
         ALWAYS_LOG(logIdentifier);
         page->fullscreenClient().didExitFullscreen(page.get());
-        completionHandler();
+        exitFullScreenInOtherProcesses(frameID, WTFMove(completionHandler));
 
         if (page->isControlledByAutomation()) {
             if (RefPtr automationSession = page->configuration().processPool().automationSession())
@@ -322,6 +342,28 @@ void WebFullScreenManagerProxy::beganExitFullScreen(const IntRect& initialFrame,
         }
         callCloseCompletionHandlers();
     });
+}
+
+void WebFullScreenManagerProxy::exitFullScreenInOtherProcesses(FrameIdentifier frameID, CompletionHandler<void()>&& completionHandler)
+{
+    Ref aggregator = CallbackAggregator::create(WTFMove(completionHandler));
+
+    RefPtr webFrame = WebFrameProxy::webFrame(frameID);
+    if (!webFrame)
+        return;
+    RefPtr page = m_page.get();
+    if (!page)
+        return;
+
+    // Traverse from the frame's parent to the main frame and tell each unique process start unfullscreening.
+    HashSet<ProcessIdentifier> processes { webFrame->process().coreProcessIdentifier() };
+    for (RefPtr ancestor = webFrame->parentFrame(); ancestor; ancestor = ancestor->parentFrame()) {
+        auto addResult = processes.add(ancestor->process().coreProcessIdentifier());
+        if (addResult.isNewEntry) {
+            Ref process = ancestor->process();
+            process->sendWithAsyncReply(Messages::WebFullScreenManager::ExitFullScreenInMainFrame(), [aggregator] { }, page->webPageIDInProcess(process));
+        }
+    }
 }
 
 bool WebFullScreenManagerProxy::lockFullscreenOrientation(WebCore::ScreenOrientationType orientation)

@@ -333,6 +333,11 @@ void UnifiedPDFPlugin::installPDFDocument()
     }
 
     sizeToFitContentsIfNeeded();
+
+    RefPtr frame = m_frame.get();
+    if (!frame || !frame->page())
+        return;
+    frame->protectedPage()->send(Messages::WebPageProxy::PluginDidInstallPDFDocument());
 }
 
 bool UnifiedPDFPlugin::shouldSizeToFitContent() const
@@ -1584,6 +1589,12 @@ bool UnifiedPDFPlugin::shouldCachePagePreviews() const
 
 OptionSet<TiledBackingScrollability> UnifiedPDFPlugin::computeScrollability() const
 {
+    if (shouldSizeToFitContent()) {
+        RefPtr frameView = m_frame->coreLocalFrame()->view();
+        if (frameView)
+            return frameView->computeScrollability();
+    }
+
     OptionSet<TiledBacking::Scrollability> scrollability = TiledBacking::Scrollability::NotScrollable;
     if (allowsHorizontalScrolling())
         scrollability.add(TiledBacking::Scrollability::HorizontallyScrollable);
@@ -2713,7 +2724,7 @@ bool UnifiedPDFPlugin::isEditingCommandEnabled(const String& commandName)
         return true;
 
     if (equalLettersIgnoringASCIICase(commandName, "copy"_s) || equalLettersIgnoringASCIICase(commandName, "takefindstringfromselection"_s))
-        return m_currentSelection;
+        return !!m_currentSelection;
 
     return false;
 }
@@ -4474,19 +4485,12 @@ FloatRect UnifiedPDFPlugin::absoluteBoundingRectForSmartMagnificationAtPoint(Flo
 
 bool UnifiedPDFPlugin::shouldUseInProcessBackingStore() const
 {
-    // FIXME: We should allow GPUP-owned backing store on platforms that have
-    // memory limits only once we figure out why there are spikes of unattributed
-    // memory when zooming (see bug 287478).
-#if PLATFORM(IOS_FAMILY)
-    return true;
-#else
     return false;
-#endif
 }
 
 bool UnifiedPDFPlugin::layerNeedsPlatformContext(const GraphicsLayer* layer) const
 {
-    return !shouldUseInProcessBackingStore() && (layer == layerForHorizontalScrollbar() || layer == layerForVerticalScrollbar() || layer == layerForScrollCorner());
+    return shouldUseInProcessBackingStore() && (layer == layerForHorizontalScrollbar() || layer == layerForVerticalScrollbar() || layer == layerForScrollCorner());
 }
 
 ViewportConfiguration::Parameters UnifiedPDFPlugin::viewportParameters()

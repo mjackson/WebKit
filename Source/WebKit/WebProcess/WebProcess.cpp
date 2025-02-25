@@ -246,9 +246,11 @@
 #define RELEASE_LOG_SESSION_ID (m_sessionID ? m_sessionID->toUInt64() : 0)
 #if RELEASE_LOG_DISABLED
 #define WEBPROCESS_RELEASE_LOG(channel, fmt, ...) UNUSED_VARIABLE(this)
+#define WEBPROCESS_RELEASE_LOG_FORWARDABLE(channel, fmt, ...) UNUSED_VARIABLE(this)
 #define WEBPROCESS_RELEASE_LOG_ERROR(channel, fmt, ...) UNUSED_VARIABLE(this)
 #else
 #define WEBPROCESS_RELEASE_LOG(channel, fmt, ...) RELEASE_LOG(channel, "%p - [sessionID=%" PRIu64 "] WebProcess::" fmt, this, RELEASE_LOG_SESSION_ID, ##__VA_ARGS__)
+#define WEBPROCESS_RELEASE_LOG_FORWARDABLE(channel, fmt, ...) RELEASE_LOG_FORWARDABLE(channel, fmt, RELEASE_LOG_SESSION_ID, ##__VA_ARGS__)
 #define WEBPROCESS_RELEASE_LOG_ERROR(channel, fmt, ...) RELEASE_LOG_ERROR(channel, "%p - [sessionID=%" PRIu64 "] WebProcess::" fmt, this, RELEASE_LOG_SESSION_ID, ##__VA_ARGS__)
 #endif
 
@@ -288,8 +290,8 @@ static void crashAfter10Seconds(IPC::Connection*)
 
 WebProcess& WebProcess::singleton()
 {
-    static WebProcess& process = *new WebProcess;
-    return process;
+    static NeverDestroyed<Ref<WebProcess>> process = adoptRef(*new WebProcess);
+    return process.get().get();
 }
 
 WebProcess::WebProcess()
@@ -405,12 +407,12 @@ void WebProcess::initializeConnection(IPC::Connection* connection)
     connection->setShouldExitOnSyncMessageSendFailure(true);
 #endif
 
-    m_eventDispatcher.initializeConnection(*connection);
+    protectedEventDispatcher()->initializeConnection(*connection);
 #if PLATFORM(IOS_FAMILY)
     m_viewUpdateDispatcher.initializeConnection(*connection);
 #endif // PLATFORM(IOS_FAMILY)
 
-    m_webInspectorInterruptDispatcher.initializeConnection(*connection);
+    protectedWebInspectorInterruptDispatcher()->initializeConnection(*connection);
 
     for (auto& supplement : m_supplements.values())
         supplement->initializeConnection(connection);
@@ -630,7 +632,7 @@ void WebProcess::initializeWebProcess(WebProcessCreationParameters&& parameters,
     setEnabledServices(parameters.hasImageServices, parameters.hasSelectionServices, parameters.hasRichContentServices);
 #endif
 
-#if ENABLE(REMOTE_INSPECTOR) && PLATFORM(COCOA)
+#if ENABLE(REMOTE_INSPECTOR) && PLATFORM(COCOA) && !ENABLE(REMOVE_XPC_AND_MACH_SANDBOX_EXTENSIONS_IN_WEBCONTENT)
     if (std::optional<audit_token_t> auditToken = protectedParentProcessConnection()->getAuditToken()) {
         RetainPtr<CFDataRef> auditData = adoptCF(CFDataCreate(nullptr, (const UInt8*)&*auditToken, sizeof(*auditToken)));
         Inspector::RemoteInspector::singleton().setParentProcessInformation(legacyPresentingApplicationPID(), auditData);
@@ -1674,7 +1676,8 @@ void WebProcess::prepareToSuspend(bool isSuspensionImminent, MonotonicTime estim
     auto nowTime = MonotonicTime::now();
     double remainingRunTime = nowTime > estimatedSuspendTime ? (nowTime - estimatedSuspendTime).value() : 0.0;
 #endif
-    WEBPROCESS_RELEASE_LOG(ProcessSuspension, "prepareToSuspend: isSuspensionImminent=%d, remainingRunTime=%fs", isSuspensionImminent, remainingRunTime);
+
+    WEBPROCESS_RELEASE_LOG_FORWARDABLE(ProcessSuspension, WEBPROCESS_PREPARE_TO_SUSPEND, isSuspensionImminent, remainingRunTime);
     SetForScope allowExitScope(m_allowExitOnMemoryPressure, false);
     m_processIsSuspended = true;
 
@@ -1682,7 +1685,7 @@ void WebProcess::prepareToSuspend(bool isSuspensionImminent, MonotonicTime estim
 
 #if PLATFORM(COCOA)
     if (m_processType == ProcessType::PrewarmedWebContent) {
-        WEBPROCESS_RELEASE_LOG(ProcessSuspension, "prepareToSuspend: Process is ready to suspend");
+        WEBPROCESS_RELEASE_LOG_FORWARDABLE(ProcessSuspension, WEBPROCESS_READY_TO_SUSPEND);
         return completionHandler();
     }
 #endif
@@ -1714,7 +1717,7 @@ void WebProcess::prepareToSuspend(bool isSuspensionImminent, MonotonicTime estim
 #endif
 
     markAllLayersVolatile([this, protectedThis = Ref { *this }, completionHandler = WTFMove(completionHandler)]() mutable {
-        WEBPROCESS_RELEASE_LOG(ProcessSuspension, "prepareToSuspend: Process is ready to suspend");
+        WEBPROCESS_RELEASE_LOG_FORWARDABLE(ProcessSuspension, WEBPROCESS_READY_TO_SUSPEND);
         completionHandler();
     });
 }
@@ -1735,7 +1738,7 @@ void WebProcess::accessibilityRelayProcessSuspended(bool suspended)
 
 void WebProcess::markAllLayersVolatile(CompletionHandler<void()>&& completionHandler)
 {
-    WEBPROCESS_RELEASE_LOG(ProcessSuspension, "markAllLayersVolatile:");
+    WEBPROCESS_RELEASE_LOG_FORWARDABLE(ProcessSuspension, WEBPROCESS_MARK_ALL_LAYERS_VOLATILE);
     auto callbackAggregator = CallbackAggregator::create(WTFMove(completionHandler));
     for (auto& page : m_pageMap.values()) {
         page->markLayersVolatile([this, protectedThis = Ref { *this }, callbackAggregator, pageID = page->identifier()] (bool succeeded) {
@@ -1756,7 +1759,7 @@ void WebProcess::cancelMarkAllLayersVolatile()
 
 void WebProcess::freezeAllLayerTrees()
 {
-    WEBPROCESS_RELEASE_LOG(ProcessSuspension, "freezeAllLayerTrees: WebProcess is freezing all layer trees");
+    WEBPROCESS_RELEASE_LOG_FORWARDABLE(ProcessSuspension, WEBPROCESS_FREEZE_ALL_LAYER_TREES);
     for (auto& page : m_pageMap.values())
         page->freezeLayerTree(WebPage::LayerTreeFreezeReason::ProcessSuspended);
 }
@@ -2155,13 +2158,13 @@ void WebProcess::grantUserMediaDeviceSandboxExtensions(MediaDeviceSandboxExtensi
 {
     for (size_t i = 0; i < extensions.size(); i++) {
         const auto& extension = extensions[i];
-        extension.second->consume();
+        RefPtr { extension.second }->consume();
         WEBPROCESS_RELEASE_LOG(WebRTC, "grantUserMediaDeviceSandboxExtensions: granted extension %s", extension.first.utf8().data());
         m_mediaCaptureSandboxExtensions.add(extension.first, extension.second.copyRef());
     }
     m_machBootstrapExtension = extensions.machBootstrapExtension();
-    if (m_machBootstrapExtension)
-        m_machBootstrapExtension->consume();
+    if (RefPtr machBootstrapExtension = m_machBootstrapExtension)
+        machBootstrapExtension->consume();
 }
 
 static inline void checkDocumentsCaptureStateConsistency(const Vector<String>& extensionIDs)
@@ -2248,7 +2251,7 @@ void WebProcess::setClientBadge(WebPageProxyIdentifier pageIdentifier, const Web
 void WebProcess::displayDidRefresh(uint32_t displayID, const DisplayUpdate& displayUpdate)
 {
     ASSERT(RunLoop::isMain());
-    m_eventDispatcher.notifyScrollingTreesDisplayDidRefresh(displayID);
+    protectedEventDispatcher()->notifyScrollingTreesDisplayDidRefresh(displayID);
     DisplayRefreshMonitorManager::sharedManager().displayDidRefresh(displayID, displayUpdate);
 }
 #endif

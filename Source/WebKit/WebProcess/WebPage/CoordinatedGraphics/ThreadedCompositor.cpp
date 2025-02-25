@@ -178,6 +178,7 @@ void ThreadedCompositor::invalidate()
     m_layerTreeHost = nullptr;
     m_surface->willDestroyCompositingRunLoop();
     m_compositingRunLoop = nullptr;
+    m_surface = nullptr;
 }
 
 void ThreadedCompositor::suspend()
@@ -278,6 +279,9 @@ void ThreadedCompositor::paintToCurrentGLContext(const TransformationMatrix& mat
         }
 
         const auto& damageSinceLastSurfaceUse = m_surface->addDamage(!frameDamage.isInvalid() && !frameDamage.isEmpty() ? frameDamage : Damage::invalid());
+        if (m_frameDamageHistory)
+            m_frameDamageHistory->addDamage(std::make_pair(!frameDamage.isInvalid(), frameDamage.region()));
+
         if (!m_damageVisualizer && !damageSinceLastSurfaceUse.isInvalid() && !FloatRect(damageSinceLastSurfaceUse.bounds()).contains(clipRect))
             rectContainingRegionThatActuallyChanged = FloatRoundedRect(damageSinceLastSurfaceUse.bounds());
     }
@@ -466,6 +470,13 @@ void ThreadedCompositor::sceneUpdateFinished()
     m_compositingRunLoop->updateCompleted(stateLocker);
 }
 #endif // !HAVE(DISPLAY_LINK)
+
+#if ENABLE(DAMAGE_TRACKING)
+void ThreadedCompositor::resetFrameDamageHistory()
+{
+    m_frameDamageHistory = WTF::makeUnique<FrameDamageHistory>();
+}
+#endif
 
 }
 #endif // USE(COORDINATED_GRAPHICS)

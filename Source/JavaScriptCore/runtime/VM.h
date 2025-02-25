@@ -445,7 +445,7 @@ private:
     VMTraps m_traps;
 
     VMIdentifier m_identifier;
-    RefPtr<JSLock> m_apiLock;
+    const Ref<JSLock> m_apiLock;
     Ref<WTF::RunLoop> m_runLoop;
 
     WeakRandom m_random;
@@ -576,7 +576,7 @@ public:
     Weak<NativeExecutable> m_fastRemoteFunctionExecutable;
     Weak<NativeExecutable> m_slowRemoteFunctionExecutable;
 
-    Ref<DeferredWorkTimer> deferredWorkTimer;
+    const Ref<DeferredWorkTimer> deferredWorkTimer;
 
     JSCell* currentlyDestructingCallbackObject { nullptr };
     const ClassInfo* currentlyDestructingCallbackObjectClassInfo { nullptr };
@@ -891,7 +891,7 @@ public:
 
     bool currentThreadIsHoldingAPILock() const { return m_apiLock->currentThreadIsHoldingLock(); }
 
-    JSLock& apiLock() { return *m_apiLock; }
+    JSLock& apiLock() { return m_apiLock.get(); }
     CodeCache* codeCache() { return m_codeCache.get(); }
     IntlCache& intlCache() { return *m_intlCache; }
 
@@ -1147,7 +1147,7 @@ private:
     LazyUniqueRef<VM, HeapProfiler> m_heapProfiler;
     LazyUniqueRef<VM, AdaptiveStringSearcherTables> m_stringSearcherTables;
 #if ENABLE(SAMPLING_PROFILER)
-    RefPtr<SamplingProfiler> m_samplingProfiler;
+    const RefPtr<SamplingProfiler> m_samplingProfiler;
 #endif
     std::unique_ptr<FuzzerAgent> m_fuzzerAgent;
     LazyUniqueRef<VM, ShadowChicken> m_shadowChicken;

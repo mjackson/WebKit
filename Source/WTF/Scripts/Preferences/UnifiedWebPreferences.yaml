@@ -1186,6 +1186,20 @@ CSSContrastColorEnabled:
     WebCore:
       default: true
 
+CSSCornerShapeEnabled:
+  type: bool
+  category: css
+  status: testable
+  humanReadableName: "CSS corner-shape property"
+  humanReadableDescription: "Enable support for CSS corner-shape property"
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
+
 CSSCounterStyleAtRuleImageSymbolsEnabled:
   type: bool
   status: testable
@@ -2900,7 +2914,7 @@ ExposeSpeakersEnabled:
   condition: ENABLE(MEDIA_STREAM)
   defaultValue:
     WebKit:
-      "PLATFORM(MAC)": true
+      "PLATFORM(COCOA)": true
       default: false
     WebCore:
       default: false
@@ -2914,7 +2928,7 @@ ExposeSpeakersWithoutMicrophoneEnabled:
   condition: ENABLE(MEDIA_STREAM)
   defaultValue:
     WebKit:
-      "PLATFORM(MAC)": true
+      "PLATFORM(COCOA)": true
       default: false
     WebCore:
       default: false
@@ -3089,17 +3103,17 @@ FixedFontFamily:
 
 FlexFormattingContextIntegrationEnabled:
   type: bool
-  status: unstable
+  status: stable
   category: dom
   humanReadableName: "Next-generation flex layout integration (FFC)"
   humanReadableDescription: "Enable next-generation flex layout integration (FFC)"
   defaultValue:
     WebKitLegacy:
-      default: false
+      default: true
     WebKit:
-      default: false
+      default: true
     WebCore:
-      default: false
+      default: true
 
 ForceAlwaysUserScalable:
   type: bool
@@ -5775,7 +5789,7 @@ PerElementSpeakerSelectionEnabled:
   condition: ENABLE(MEDIA_STREAM)
   defaultValue:
     WebKit:
-      "PLATFORM(MAC)": true
+      "PLATFORM(COCOA)": true
       default: false
     WebCore:
       default: false

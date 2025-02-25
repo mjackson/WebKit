@@ -366,8 +366,11 @@ enum class EventHandlerRemoval : bool { One, All };
 using EventTargetSet = WeakHashCountedSet<Node, WeakPtrImplWithEventTargetData>;
 
 enum class DimensionsCheck : uint8_t {
-    Width = 1 << 0,
-    Height = 1 << 1
+    Left = 1 << 0,
+    Top = 1 << 1,
+    Width = 1 << 2,
+    Height = 1 << 3,
+    IgnoreOverflow = 1 << 4,
 };
 
 enum class HttpEquivPolicy : uint8_t {
@@ -514,7 +517,7 @@ public:
     WEBCORE_EXPORT ExceptionOr<Ref<ProcessingInstruction>> createProcessingInstruction(String&& target, String&& data);
     WEBCORE_EXPORT ExceptionOr<Ref<Attr>> createAttribute(const AtomString& name);
     WEBCORE_EXPORT ExceptionOr<Ref<Attr>> createAttributeNS(const AtomString& namespaceURI, const AtomString& qualifiedName, bool shouldIgnoreNamespaceChecks = false);
-    WEBCORE_EXPORT ExceptionOr<Ref<Node>> importNode(Node& nodeToImport, std::optional<std::variant<bool, ImportNodeOptions>>&&);
+    WEBCORE_EXPORT ExceptionOr<Ref<Node>> importNode(Node& nodeToImport, std::variant<bool, ImportNodeOptions>&&);
     WEBCORE_EXPORT ExceptionOr<Ref<Element>> createElementNS(const AtomString& namespaceURI, const AtomString& qualifiedName);
 
     WEBCORE_EXPORT Ref<Element> createElement(const QualifiedName&, bool createdByParser, CustomElementRegistry* = nullptr);
@@ -766,7 +769,7 @@ public:
     bool hasLivingRenderTree() const { return renderView() && !renderTreeBeingDestroyed(); }
     void updateRenderTree(std::unique_ptr<Style::Update> styleUpdate);
 
-    bool updateLayoutIfDimensionsOutOfDate(Element&, OptionSet<DimensionsCheck> = { DimensionsCheck::Width, DimensionsCheck::Height });
+    bool updateLayoutIfDimensionsOutOfDate(Element&, OptionSet<DimensionsCheck> = { DimensionsCheck::Width, DimensionsCheck::Height }, OptionSet<LayoutOptions> = { });
 
     inline AXObjectCache* existingAXObjectCache() const;
     WEBCORE_EXPORT AXObjectCache* axObjectCache() const;

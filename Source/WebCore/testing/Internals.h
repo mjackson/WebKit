@@ -55,6 +55,10 @@
 #include "MediaUniqueIdentifier.h"
 #endif
 
+#if ENABLE(DAMAGE_TRACKING)
+#include "Damage.h"
+#endif
+
 #if USE(AUDIO_SESSION)
 #include "AudioSession.h"
 #endif
@@ -922,6 +926,7 @@ public:
     void setMediaControlsHidePlaybackRates(HTMLMediaElement&, bool);
 #endif // ENABLE(VIDEO)
 
+    float pageMediaVolume();
     void setPageMediaVolume(float);
 
     String userVisibleString(const DOMURL&);
@@ -1553,10 +1558,22 @@ public:
     void setResourceCachingDisabledByWebInspector(bool);
 
 #if ENABLE(CONTENT_EXTENSIONS)
-    void setResourceMonitorNetworkUsageThreshold(size_t threshold, double randomness = ResourceMonitorChecker::networkUsageThresholdRandomness);
+    void setResourceMonitorNetworkUsageThreshold(size_t threshold, double randomness = ResourceMonitorChecker::defaultNetworkUsageThresholdRandomness);
     bool shouldSkipResourceMonitorThrottling() const;
     void setShouldSkipResourceMonitorThrottling(bool);
 #endif
+
+#if ENABLE(DAMAGE_TRACKING)
+    using DamagePropagation = Damage::Propagation;
+    struct FrameDamage {
+        unsigned sequenceId { 0 };
+        bool isValid { false };
+        RefPtr<DOMRectReadOnly> bounds;
+        Vector<Ref<DOMRectReadOnly>> rects;
+    };
+    std::optional<DamagePropagation> getCurrentDamagePropagation() const;
+    ExceptionOr<Vector<FrameDamage>> getFrameDamageHistory() const;
+#endif // ENABLE(DAMAGE_TRACKING)
 
 private:
     explicit Internals(Document&);

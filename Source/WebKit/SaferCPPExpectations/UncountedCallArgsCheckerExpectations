@@ -7,7 +7,6 @@ NetworkProcess/Downloads/DownloadManager.cpp
 NetworkProcess/Downloads/PendingDownload.cpp
 NetworkProcess/Downloads/cocoa/DownloadCocoa.mm
 NetworkProcess/Downloads/cocoa/WKDownloadProgress.mm
-NetworkProcess/NetworkDataTask.cpp
 NetworkProcess/PingLoad.cpp
 NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementClientImpl.cpp
 NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementManager.cpp
@@ -19,14 +18,12 @@ NetworkProcess/cache/NetworkCacheEntry.cpp
 NetworkProcess/cache/NetworkCacheSpeculativeLoad.cpp
 NetworkProcess/cache/NetworkCacheSpeculativeLoadManager.cpp
 NetworkProcess/cache/NetworkCacheStorage.cpp
-NetworkProcess/cocoa/NetworkDataTaskCocoa.mm
 NetworkProcess/mac/SecItemShim.cpp
 NetworkProcess/storage/BackgroundFetchStoreImpl.cpp
 NetworkProcess/storage/BackgroundFetchStoreManager.cpp
 NetworkProcess/storage/IDBStorageRegistry.cpp
 Platform/IPC/ArgumentCoders.h
 Shared/API/APIArray.h
-Shared/API/APISerializedScriptValue.h
 Shared/API/c/WKArray.cpp
 Shared/API/c/WKContextMenuItem.cpp
 Shared/API/c/WKData.cpp
@@ -57,7 +54,6 @@ Shared/APIWebArchiveResource.mm
 Shared/BlobDataFileReferenceWithSandboxExtension.cpp
 Shared/Cocoa/APIObject.mm
 Shared/Cocoa/WKNSData.mm
-Shared/Cocoa/WKNSDictionary.mm
 Shared/Cocoa/WKNSString.mm
 Shared/Cocoa/WKNSURL.mm
 Shared/ContextMenuContextData.cpp
@@ -176,7 +172,6 @@ UIProcess/Cocoa/SOAuthorization/SOAuthorizationSession.mm
 UIProcess/Cocoa/SOAuthorization/WKSOAuthorizationDelegate.mm
 UIProcess/Cocoa/UserMediaPermissionRequestManagerProxy.mm
 UIProcess/Cocoa/WKEditCommand.mm
-UIProcess/DeviceIdHashSaltStorage.cpp
 UIProcess/Extensions/Cocoa/WebExtensionActionCocoa.mm
 UIProcess/Extensions/Cocoa/WebExtensionCommandCocoa.mm
 UIProcess/Extensions/Cocoa/WebExtensionURLSchemeHandlerCocoa.mm
@@ -195,9 +190,7 @@ UIProcess/ProvisionalFrameProxy.cpp
 UIProcess/RemoteLayerTree/mac/RemoteLayerTreeEventDispatcher.cpp
 UIProcess/RemotePageProxy.cpp
 UIProcess/SpeechRecognitionPermissionManager.cpp
-UIProcess/SuspendedPageProxy.cpp
 UIProcess/UserMediaPermissionRequestManagerProxy.cpp
-UIProcess/ViewSnapshotStore.cpp
 UIProcess/WebAuthentication/AuthenticatorManager.cpp
 UIProcess/WebAuthentication/Cocoa/LocalService.mm
 UIProcess/WebAuthentication/Cocoa/NfcService.mm
@@ -217,10 +210,7 @@ UIProcess/WebPreferences.h
 UIProcess/WebProcessActivityState.cpp
 UIProcess/WebURLSchemeHandler.cpp
 UIProcess/WebURLSchemeTask.cpp
-UIProcess/WebsiteData/Cocoa/WebsiteDataStoreCocoa.mm
 UIProcess/WebsiteData/WebDeviceOrientationAndMotionAccessController.cpp
-UIProcess/WebsiteData/WebsiteDataStore.cpp
-UIProcess/WebsiteData/WebsiteDataStoreClient.h
 UIProcess/mac/CorrectionPanel.mm
 UIProcess/mac/DisplayCaptureSessionManager.mm
 UIProcess/mac/UserMediaPermissionRequestProxyMac.mm
@@ -275,7 +265,6 @@ WebProcess/GPU/media/RemoteImageDecoderAVFManager.cpp
 WebProcess/GPU/media/RemoteLegacyCDM.cpp
 WebProcess/GPU/media/RemoteLegacyCDMFactory.cpp
 WebProcess/GPU/media/RemoteLegacyCDMSession.cpp
-WebProcess/GPU/media/RemoteMediaEngineConfigurationFactory.cpp
 WebProcess/GPU/media/RemoteMediaPlayerMIMETypeCache.cpp
 WebProcess/GPU/media/RemoteMediaPlayerManager.cpp
 WebProcess/GPU/media/RemoteRemoteCommandListener.cpp
@@ -375,7 +364,6 @@ WebProcess/WebCoreSupport/mac/WebContextMenuClientMac.mm
 WebProcess/WebCoreSupport/mac/WebDragClientMac.mm
 WebProcess/WebCoreSupport/mac/WebEditorClientMac.mm
 WebProcess/WebPage/DrawingArea.cpp
-WebProcess/WebPage/EventDispatcher.cpp
 WebProcess/WebPage/FindController.cpp
 WebProcess/WebPage/RemoteLayerTree/GraphicsLayerCARemote.mm
 WebProcess/WebPage/RemoteLayerTree/PlatformCALayerRemote.mm
@@ -398,7 +386,6 @@ WebProcess/WebPage/mac/TiledCoreAnimationDrawingArea.mm
 WebProcess/WebPage/mac/TiledCoreAnimationScrollingCoordinator.mm
 WebProcess/WebPage/mac/WKAccessibilityWebPageObjectBase.mm
 WebProcess/WebPage/mac/WKAccessibilityWebPageObjectMac.mm
-WebProcess/WebProcess.cpp
 WebProcess/WebStorage/StorageAreaMap.cpp
 WebProcess/WebSystemSoundDelegate.cpp
 WebProcess/cocoa/AudioSessionRoutingArbitrator.cpp

@@ -167,6 +167,11 @@
 #include <WebCore/ScrollbarsControllerMock.h>
 #endif
 
+#if ENABLE(DAMAGE_TRACKING)
+#include "LayerTreeHost.h"
+#include <WebCore/Damage.h>
+#endif
+
 namespace WebKit {
 using namespace WebCore;
 using namespace HTMLNames;
@@ -318,7 +323,7 @@ RefPtr<Page> WebChromeClient::createWindow(LocalFrame& frame, const String& open
 {
 #if ENABLE(FULLSCREEN_API)
     if (RefPtr document = frame.document())
-        document->fullscreenManager().cancelFullscreen();
+        document->fullscreenManager().fullyExitFullscreen();
 #endif
 
     auto& webProcess = WebProcess::singleton();
@@ -345,6 +350,7 @@ RefPtr<Page> WebChromeClient::createWindow(LocalFrame& frame, const String& open
         false, /* openedByDOMWithOpener */
         navigationAction.newFrameOpenerPolicy() == NewFrameOpenerPolicy::Allow, /* hasOpener */
         frame.loader().isHTTPFallbackInProgress(),
+        navigationAction.isInitialFrameSrcLoad(),
         openedMainFrameName,
         { }, /* requesterOrigin */
         { }, /* requesterTopOrigin */
@@ -1264,6 +1270,11 @@ void WebChromeClient::enterVideoFullscreenForVideoElement(HTMLVideoElement& vide
     protectedPage()->videoPresentationManager().enterVideoFullscreenForVideoElement(videoElement, mode, standby);
 }
 
+void WebChromeClient::setPlayerIdentifierForVideoElement(HTMLVideoElement& videoElement)
+{
+    protectedPage()->videoPresentationManager().setPlayerIdentifierForVideoElement(videoElement);
+}
+
 void WebChromeClient::exitVideoFullscreenForVideoElement(HTMLVideoElement& videoElement, CompletionHandler<void(bool)>&& completionHandler)
 {
     protectedPage()->videoPresentationManager().exitVideoFullscreenForVideoElement(videoElement, WTFMove(completionHandler));
@@ -1993,5 +2004,29 @@ void WebChromeClient::didProgrammaticallyClearTextFormControl(const HTMLTextForm
 {
     protectedPage()->didProgrammaticallyClearTextFormControl(element);
 }
+
+#if ENABLE(DAMAGE_TRACKING)
+void WebChromeClient::resetDamageHistoryForTesting()
+{
+    const auto* drawingArea = page().drawingArea();
+    if (!drawingArea)
+        return;
+
+    if (auto* frameDamageForTesting = drawingArea->frameDamageForTesting())
+        frameDamageForTesting->resetFrameDamageHistory();
+}
+
+WebCore::FrameDamageHistory* WebChromeClient::damageHistoryForTesting() const
+{
+    const auto* drawingArea = page().drawingArea();
+    if (!drawingArea)
+        return nullptr;
+
+    if (const auto* frameDamageForTesting = drawingArea->frameDamageForTesting())
+        return frameDamageForTesting->frameDamageHistory();
+
+    return nullptr;
+}
+#endif
 
 } // namespace WebKit

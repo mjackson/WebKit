@@ -1190,14 +1190,6 @@ public:
         return call;
     }
 
-    JITCompiler::Call callThrowOperationWithCallFrameRollback(V_JITOperation_Cb operation, GPRReg codeBlockGPR)
-    {
-        setupArguments<V_JITOperation_Cb>(codeBlockGPR);
-        JITCompiler::Call call = appendCall(operation);
-        exceptionJumpWithCallFrameRollback();
-        return call;
-    }
-
     void prepareForExternalCall()
     {
 #if !defined(NDEBUG) && !CPU(ARM_THUMB2)
@@ -1686,7 +1678,7 @@ public:
     void compileGetRestLength(Node*);
     void compileArraySlice(Node*);
     void compileArraySplice(Node*);
-    void compileArrayIndexOf(Node*);
+    void compileArrayIndexOfOrArrayIncludes(Node*);
     void compileArrayPush(Node*);
     void compileNotifyWrite(Node*);
     void compileRegExpExec(Node*);

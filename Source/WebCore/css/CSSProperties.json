@@ -2224,6 +2224,10 @@
                     "status": "unimplemented"
                 },
                 {
+                    "value": "intrinsic",
+                    "status": "non-standard"
+                },
+                {
                     "value": "min-intrinsic",
                     "status": "non-standard"
                 },
@@ -3821,6 +3825,169 @@
                 "url": "https://www.w3.org/TR/css-content-3/#content-property"
             }
         },
+        "corner-shape": {
+            "animation-type": "discrete",
+            "initial": "round",
+            "codegen-properties": {
+                "longhands": [
+                    "corner-top-left-shape",
+                    "corner-top-right-shape",
+                    "corner-bottom-right-shape",
+                    "corner-bottom-left-shape"
+                ],
+                "disables-native-appearance": true,
+                "settings-flag": "cssCornerShapeEnabled"
+            },
+            "specification": {
+                "category": "css-borders",
+                "url": "https://drafts.csswg.org/css-borders-4/#corner-shaping"
+            }
+        },
+        "corner-top-left-shape": {
+            "animation-type": "discrete",
+            "initial": "round",
+            "codegen-properties": {
+                "disables-native-appearance": true,
+                "logical-property-group": {
+                    "name": "corner-shape",
+                    "resolver": "top-left"
+                },
+                "parser-grammar": "<corner-shape-value>",
+                "render-style-initial": "initialCornerShape",
+                "settings-flag": "cssCornerShapeEnabled"
+            },
+            "specification": {
+                "category": "css-borders",
+                "url": "https://drafts.csswg.org/css-borders-4/#corner-shaping"
+            }
+        },
+        "corner-top-right-shape": {
+            "animation-type": "discrete",
+            "initial": "round",
+            "codegen-properties": {
+                "disables-native-appearance": true,
+                "logical-property-group": {
+                    "name": "corner-shape",
+                    "resolver": "top-right"
+                },
+                "parser-grammar": "<corner-shape-value>",
+                "render-style-initial": "initialCornerShape",
+                "settings-flag": "cssCornerShapeEnabled"
+            },
+            "specification": {
+                "category": "css-borders",
+                "url": "https://drafts.csswg.org/css-borders-4/#corner-shaping"
+            }
+        },
+        "corner-bottom-left-shape": {
+            "animation-type": "discrete",
+            "initial": "round",
+            "codegen-properties": {
+                "disables-native-appearance": true,
+                "logical-property-group": {
+                    "name": "corner-shape",
+                    "resolver": "bottom-left"
+                },
+                "parser-grammar": "<corner-shape-value>",
+                "render-style-initial": "initialCornerShape",
+                "settings-flag": "cssCornerShapeEnabled"
+            },
+            "specification": {
+                "category": "css-borders",
+                "url": "https://drafts.csswg.org/css-borders-4/#corner-shaping"
+            }
+        },
+        "corner-bottom-right-shape": {
+            "animation-type": "discrete",
+            "initial": "round",
+            "codegen-properties": {
+                "disables-native-appearance": true,
+                "logical-property-group": {
+                    "name": "corner-shape",
+                    "resolver": "bottom-right"
+                },
+                "parser-grammar": "<corner-shape-value>",
+                "render-style-initial": "initialCornerShape",
+                "settings-flag": "cssCornerShapeEnabled"
+            },
+            "specification": {
+                "category": "css-borders",
+                "url": "https://drafts.csswg.org/css-borders-4/#corner-shaping"
+            }
+        },
+        "corner-start-start-shape": {
+            "animation-type": "discrete",
+            "initial": "round",
+            "codegen-properties": {
+                "skip-style-builder": true,
+                "disables-native-appearance": true,
+                "logical-property-group": {
+                    "name": "corner-shape",
+                    "resolver": "start-start"
+                },
+                "parser-grammar": "<corner-shape-value>",
+                "settings-flag": "cssCornerShapeEnabled"
+            },
+            "specification": {
+                "category": "css-borders",
+                "url": "https://drafts.csswg.org/css-borders-4/#corner-shaping"
+            }
+        },
+        "corner-start-end-shape": {
+            "animation-type": "discrete",
+            "initial": "round",
+            "codegen-properties": {
+                "skip-style-builder": true,
+                "disables-native-appearance": true,
+                "logical-property-group": {
+                    "name": "corner-shape",
+                    "resolver": "start-end"
+                },
+                "parser-grammar": "<corner-shape-value>",
+                "parser-exported": true,
+                "settings-flag": "cssCornerShapeEnabled"
+            },
+            "specification": {
+                "category": "css-borders",
+                "url": "https://drafts.csswg.org/css-borders-4/#corner-shaping"
+            }
+        },
+        "corner-end-start-shape": {
+            "animation-type": "discrete",
+            "initial": "round",
+            "codegen-properties": {
+                "skip-style-builder": true,
+                "disables-native-appearance": true,
+                "logical-property-group": {
+                    "name": "corner-shape",
+                    "resolver": "end-start"
+                },
+                "parser-grammar": "<corner-shape-value>",
+                "settings-flag": "cssCornerShapeEnabled"
+            },
+            "specification": {
+                "category": "css-borders",
+                "url": "https://drafts.csswg.org/css-borders-4/#corner-shaping"
+            }
+        },
+        "corner-end-end-shape": {
+            "animation-type": "discrete",
+            "initial": "round",
+            "codegen-properties": {
+                "skip-style-builder": true,
+                "disables-native-appearance": true,
+                "logical-property-group": {
+                    "name": "corner-shape",
+                    "resolver": "end-end"
+                },
+                "parser-grammar": "<corner-shape-value>",
+                "settings-flag": "cssCornerShapeEnabled"
+            },
+            "specification": {
+                "category": "css-borders",
+                "url": "https://drafts.csswg.org/css-borders-4/#corner-shaping"
+            }
+        },
         "counter-increment": {
             "animation-type": "by computed value",
             "initial": "none",
@@ -4242,6 +4409,10 @@
                     "status": "unimplemented"
                 },
                 {
+                    "value": "intrinsic",
+                    "status": "non-standard"
+                },
+                {
                     "value": "min-intrinsic",
                     "status": "non-standard"
                 },
@@ -4351,6 +4522,10 @@
                 {
                     "value": "contain",
                     "status": "unimplemented"
+                },
+                {
+                    "value": "intrinsic",
+                    "status": "non-standard"
                 },
                 {
                     "value": "min-intrinsic",
@@ -5532,6 +5707,10 @@
                     "status": "unimplemented"
                 },
                 {
+                    "value": "intrinsic",
+                    "status": "non-standard"
+                },
+                {
                     "value": "min-intrinsic",
                     "status": "non-standard"
                 },
@@ -5585,6 +5764,10 @@
                     "status": "unimplemented"
                 },
                 {
+                    "value": "intrinsic",
+                    "status": "non-standard"
+                },
+                {
                     "value": "min-intrinsic",
                     "status": "non-standard"
                 },
@@ -5634,6 +5817,10 @@
                 {
                     "value": "contain",
                     "status": "unimplemented"
+                },
+                {
+                    "value": "intrinsic",
+                    "status": "non-standard"
                 },
                 {
                     "value": "min-intrinsic",
@@ -5707,6 +5894,10 @@
                     "status": "unimplemented"
                 },
                 {
+                    "value": "intrinsic",
+                    "status": "non-standard"
+                },
+                {
                     "value": "min-intrinsic",
                     "status": "non-standard"
                 },
@@ -5756,6 +5947,10 @@
                 {
                     "value": "contain",
                     "status": "unimplemented"
+                },
+                {
+                    "value": "intrinsic",
+                    "status": "non-standard"
                 },
                 {
                     "value": "min-intrinsic",
@@ -5811,6 +6006,10 @@
                     "status": "unimplemented"
                 },
                 {
+                    "value": "intrinsic",
+                    "status": "non-standard"
+                },
+                {
                     "value": "min-intrinsic",
                     "status": "non-standard"
                 },
@@ -5860,6 +6059,10 @@
                 {
                     "value": "contain",
                     "status": "unimplemented"
+                },
+                {
+                    "value": "intrinsic",
+                    "status": "non-standard"
                 },
                 {
                     "value": "min-intrinsic",
@@ -5913,6 +6116,10 @@
                 {
                     "value": "contain",
                     "status": "unimplemented"
+                },
+                {
+                    "value": "intrinsic",
+                    "status": "non-standard"
                 },
                 {
                     "value": "min-intrinsic",
@@ -7762,6 +7969,10 @@
                     "status": "unimplemented"
                 },
                 {
+                    "value": "intrinsic",
+                    "status": "non-standard"
+                },
+                {
                     "value": "min-intrinsic",
                     "status": "non-standard"
                 },
@@ -8945,6 +9156,10 @@
                 {
                     "value": "contain",
                     "status": "unimplemented"
+                },
+                {
+                    "value": "intrinsic",
+                    "status": "non-standard"
                 },
                 {
                     "value": "min-intrinsic",
@@ -11328,7 +11543,15 @@
             "animation-type": "discrete",
             "initial": "none",
             "values": [
-                "none"
+                "none",
+                {
+                    "value": "auto",
+                    "status": "non-standard"
+                },
+                {
+                    "value": "match-element",
+                    "status": "non-standard"
+                }
             ],
             "codegen-properties": {
                 "style-builder-converter": "ViewTransitionName",
@@ -11358,6 +11581,19 @@
                 "url": "https://drafts.csswg.org/css-anchor-position-1/#name"
             }
         },
+        "anchor-scope": {
+            "animation-type": "discrete",
+            "initial": "none",
+            "codegen-properties": {
+                "style-builder-converter": "NameScope",
+                "parser-grammar": "none | all | <dashed-ident>#",
+                "settings-flag": "cssAnchorPositioningEnabled"
+            },
+            "specification": {
+                "category": "css-anchor-position",
+                "url": "https://drafts.csswg.org/css-anchor-position-1/#anchor-scope"
+            }
+       },
         "position-anchor": {
             "animation-type": "discrete",
             "initial": "auto",
@@ -12145,6 +12381,11 @@
             "longname": "CSS Backgrounds and Borders Module",
             "url": "https://www.w3.org/TR/css3-background/"
         },
+        "css-borders": {
+            "shortname": "CSS Borders and Box Decorations",
+            "longname": "CSS Borders and Box Decorations Module",
+            "url": "https://drafts.csswg.org/css-borders-4/"
+        },
         "css-box-4": {
             "shortname": "CSS Box 4",
             "longname": "CSS Box Model Module Level 4",
@@ -12914,6 +13155,14 @@
             "specification": {
                 "category": "css-animations",
                 "url": "https://www.w3.org/TR/css-animations-1/#typedef-single-animation-play-state"
+            }
+        },
+        "<corner-shape-value>": {
+            "grammar": "round | scoop | bevel | notch | straight",
+            "exported": true,
+            "specification": {
+                "category": "css-borders",
+                "url": "https://drafts.csswg.org/css-borders-4/#corner-shaping"
             }
         },
         "<transition-behavior-value>": {

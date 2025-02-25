@@ -7295,6 +7295,24 @@ bool HTMLMediaElement::videoUsesElementFullscreen() const
     return false;
 }
 
+void HTMLMediaElement::setPlayerIdentifierForVideoElement()
+{
+    ALWAYS_LOG(LOGIDENTIFIER);
+
+    RefPtr page = document().page();
+    if (!page || page->mediaPlaybackIsSuspended())
+        return;
+
+    RefPtr window = document().domWindow();
+    if (!window)
+        return;
+
+    if (RefPtr asVideo = dynamicDowncast<HTMLVideoElement>(*this)) {
+        auto& client = document().page()->chrome().client();
+        client.setPlayerIdentifierForVideoElement(*asVideo);
+    }
+}
+
 void HTMLMediaElement::enterFullscreen(VideoFullscreenMode mode)
 {
     ALWAYS_LOG(LOGIDENTIFIER, ", m_videoFullscreenMode = ", m_videoFullscreenMode, ", mode = ", mode);
@@ -7394,7 +7412,7 @@ void HTMLMediaElement::exitFullscreen()
     if (document().fullscreenManager().fullscreenElement() == this) {
         if (document().fullscreenManager().isFullscreen()) {
             m_changingVideoFullscreenMode = true;
-            protectedDocument()->checkedFullscreenManager()->cancelFullscreen();
+            protectedDocument()->checkedFullscreenManager()->fullyExitFullscreen();
         }
 
         if (isInWindowOrStandardFullscreen(m_videoFullscreenMode))

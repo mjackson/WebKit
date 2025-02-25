@@ -306,7 +306,6 @@ bindings/js/CachedModuleScriptLoader.cpp
 bindings/js/CommonVM.cpp
 bindings/js/DOMPromiseProxy.h
 bindings/js/DOMWrapperWorld.cpp
-bindings/js/IDBBindingUtilities.cpp
 bindings/js/JSAudioBufferCustom.cpp
 bindings/js/JSAudioBufferSourceNodeCustom.cpp
 bindings/js/JSAudioWorkletGlobalScopeCustom.cpp
@@ -333,7 +332,6 @@ bindings/js/JSDOMIterator.h
 bindings/js/JSDOMMapLike.h
 bindings/js/JSDOMPromiseDeferred.cpp
 bindings/js/JSDOMPromiseDeferred.h
-bindings/js/JSDOMQuadCustom.cpp
 bindings/js/JSDOMSetLike.h
 bindings/js/JSDOMWindowBase.cpp
 bindings/js/JSDOMWindowCustom.cpp
@@ -403,7 +401,6 @@ bindings/js/ScriptBufferSourceProvider.h
 bindings/js/ScriptCachedFrameData.cpp
 bindings/js/ScriptModuleLoader.cpp
 bindings/js/ScriptSourceCode.h
-bindings/js/SerializedScriptValue.cpp
 bindings/js/WebAssemblyScriptBufferSourceProvider.h
 bindings/js/WebCoreJSClientData.cpp
 bindings/js/WebCoreTypedArrayController.cpp
@@ -595,7 +592,6 @@ dom/RejectedPromiseTracker.cpp
 dom/ScriptExecutionContext.cpp
 dom/ScriptExecutionContext.h
 dom/ScriptRunner.cpp
-dom/ScriptedAnimationController.cpp
 dom/SecurityContext.cpp
 dom/SelectorQuery.cpp
 dom/ShadowRoot.cpp
@@ -808,8 +804,6 @@ html/canvas/WebGLVertexArrayObjectBase.cpp
 html/canvas/WebGLVertexArrayObjectOES.cpp
 html/parser/HTMLConstructionSite.cpp
 html/parser/HTMLConstructionSite.h
-html/parser/HTMLDocumentParser.cpp
-html/parser/HTMLDocumentParserFastPath.cpp
 html/parser/HTMLParserScheduler.cpp
 html/parser/HTMLScriptRunner.cpp
 html/parser/HTMLTreeBuilder.cpp
@@ -885,7 +879,6 @@ loader/ApplicationManifestLoader.cpp
 loader/CrossOriginAccessControl.cpp
 loader/CrossOriginOpenerPolicy.cpp
 loader/CrossOriginPreflightChecker.cpp
-loader/DocumentLoader.cpp
 loader/DocumentThreadableLoader.cpp
 loader/DocumentWriter.cpp
 loader/FormSubmission.cpp
@@ -901,7 +894,6 @@ loader/PolicyChecker.cpp
 loader/ResourceLoadNotifier.cpp
 loader/ResourceLoader.cpp
 loader/SubframeLoader.cpp
-loader/SubresourceLoader.cpp
 loader/WorkerThreadableLoader.cpp
 loader/appcache/ApplicationCache.cpp
 loader/appcache/ApplicationCacheGroup.cpp
@@ -947,7 +939,6 @@ page/IntersectionObserver.cpp
 page/LocalDOMWindow.cpp
 page/LocalFrame.cpp
 page/LocalFrameView.cpp
-page/LocalFrameViewLayoutContext.cpp
 page/Location.cpp
 page/Navigation.cpp
 page/NavigationDestination.cpp
@@ -956,7 +947,6 @@ page/NavigationHistoryEntry.cpp
 page/NavigationTransition.cpp
 page/Navigator.cpp
 page/NavigatorLoginStatus.cpp
-page/OpportunisticTaskScheduler.cpp
 page/PageConsoleClient.cpp
 page/PageOverlay.cpp
 page/PageOverlayController.cpp
@@ -1002,7 +992,6 @@ page/scrolling/AsyncScrollingCoordinator.cpp
 page/scrolling/ScrollAnchoringController.cpp
 page/scrolling/ScrollSnapOffsetsInfo.cpp
 page/scrolling/ScrollingCoordinator.cpp
-page/scrolling/ScrollingStateTree.cpp
 page/scrolling/ScrollingThread.cpp
 page/scrolling/ScrollingTreeGestureState.cpp
 page/scrolling/ScrollingTreeScrollingNodeDelegate.h
@@ -1061,11 +1050,9 @@ platform/graphics/TransparencyLayerContextSwitcher.cpp
 platform/graphics/WidthIterator.cpp
 platform/graphics/avfoundation/AudioSourceProviderAVFObjC.mm
 platform/graphics/avfoundation/InbandMetadataTextTrackPrivateAVF.cpp
-platform/graphics/avfoundation/MediaSelectionGroupAVFObjC.mm
 platform/graphics/avfoundation/objc/CDMInstanceFairPlayStreamingAVFObjC.h
 platform/graphics/avfoundation/objc/CDMInstanceFairPlayStreamingAVFObjC.mm
 platform/graphics/avfoundation/objc/CDMSessionAVContentKeySession.mm
-platform/graphics/avfoundation/objc/LocalSampleBufferDisplayLayer.mm
 platform/graphics/avfoundation/objc/MediaSourcePrivateAVFObjC.mm
 platform/graphics/avfoundation/objc/WebAVContentKeyGroup.mm
 platform/graphics/avfoundation/objc/WebCoreAVFResourceLoader.mm
@@ -1082,7 +1069,6 @@ platform/graphics/cocoa/FontCacheCoreText.cpp
 platform/graphics/cocoa/ImageAdapterCocoa.mm
 platform/graphics/cocoa/SourceBufferParser.cpp
 platform/graphics/cocoa/VideoMediaSampleRenderer.mm
-platform/graphics/cocoa/WebMAudioUtilitiesCocoa.mm
 platform/graphics/cocoa/WebProcessGraphicsContextGLCocoa.mm
 platform/graphics/controls/ApplePayButtonPart.cpp
 platform/graphics/controls/ButtonPart.h
@@ -1171,8 +1157,6 @@ rendering/LegacyLineLayout.cpp
 rendering/MarkedText.cpp
 rendering/MotionPath.cpp
 rendering/RenderAttachment.cpp
-rendering/RenderBlock.cpp
-rendering/RenderBlock.h
 rendering/RenderBox.cpp
 rendering/RenderBoxModelObject.cpp
 rendering/RenderButton.cpp
@@ -1189,7 +1173,6 @@ rendering/RenderImageResourceStyleImage.cpp
 rendering/RenderImageResourceStyleImage.h
 rendering/RenderLayer.cpp
 rendering/RenderLayerBacking.cpp
-rendering/RenderLayerCompositor.cpp
 rendering/RenderLayerFilters.cpp
 rendering/RenderLayerModelObject.cpp
 rendering/RenderListBox.cpp
@@ -1225,8 +1208,6 @@ rendering/RenderTheme.cpp
 rendering/RenderTreeAsText.cpp
 rendering/RenderVTTCue.cpp
 rendering/RenderVideo.cpp
-rendering/RenderView.cpp
-rendering/RenderViewTransitionCapture.cpp
 rendering/RenderWidget.cpp
 rendering/TextBoxPainter.cpp
 rendering/TextPaintStyle.cpp

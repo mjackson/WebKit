@@ -51,8 +51,8 @@ enum class PrintColorAdjust : bool {
 // - StyleDifference::RepaintIfText - The object needs to be repainted if it contains text.
 // - StyleDifference::RepaintLayer - The layer and its descendant layers needs to be repainted.
 // - StyleDifference::LayoutPositionedMovementOnly - Only the position of this positioned object has been updated
-// - StyleDifference::SimplifiedLayout - Only overflow needs to be recomputed
-// - StyleDifference::SimplifiedLayoutAndPositionedMovement - Both positioned movement and simplified layout updates are required.
+// - StyleDifference::Overflow - Only overflow needs to be recomputed
+// - StyleDifference::OverflowAndPositionedMovement - Both positioned movement and overflow updates are required.
 // - StyleDifference::Layout - A full layout is required.
 enum class StyleDifference : uint8_t {
     Equal,
@@ -61,8 +61,8 @@ enum class StyleDifference : uint8_t {
     RepaintIfText,
     RepaintLayer,
     LayoutPositionedMovementOnly,
-    SimplifiedLayout,
-    SimplifiedLayoutAndPositionedMovement,
+    Overflow,
+    OverflowAndPositionedMovement,
     Layout,
     NewStyle
 };
@@ -240,6 +240,14 @@ enum class BorderPrecedence : uint8_t {
     RowGroup,
     Row,
     Cell
+};
+
+enum class CornerShape : uint8_t {
+    Round,
+    Scoop,
+    Bevel,
+    Notch,
+    Straight,
 };
 
 enum class OutlineIsAuto : bool {
@@ -1264,6 +1272,7 @@ WTF::TextStream& operator<<(WTF::TextStream&, ColumnSpan);
 WTF::TextStream& operator<<(WTF::TextStream&, ContentDistribution);
 WTF::TextStream& operator<<(WTF::TextStream&, ContentPosition);
 WTF::TextStream& operator<<(WTF::TextStream&, ContentVisibility);
+WTF::TextStream& operator<<(WTF::TextStream&, CornerShape);
 WTF::TextStream& operator<<(WTF::TextStream&, CursorType);
 #if ENABLE(CURSOR_VISIBILITY)
 WTF::TextStream& operator<<(WTF::TextStream&, CursorVisibility);

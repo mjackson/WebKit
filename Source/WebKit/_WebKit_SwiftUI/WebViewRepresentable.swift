@@ -23,7 +23,6 @@
 
 internal import SwiftUI
 @_spi(Private) @_spi(CrossImportOverlay) import WebKit
-internal import WebKit_Internal
 
 @MainActor
 struct WebViewRepresentable {
@@ -52,10 +51,16 @@ struct WebViewRepresentable {
         webView.allowsBackForwardNavigationGestures = environment.webViewAllowsBackForwardNavigationGestures.value != .disabled
         webView.allowsLinkPreview = environment.webViewAllowsLinkPreview.value != .disabled
 
+        let isOpaque = environment.webViewContentBackground != .hidden
+
 #if os(macOS)
-        webView._drawsBackground = environment.webViewContentBackground != .hidden
+        if webView._drawsBackground != isOpaque {
+            webView._drawsBackground = isOpaque
+        }
 #else
-        webView.isOpaque = environment.webViewContentBackground != .hidden
+        if webView.isOpaque != isOpaque {
+            webView.isOpaque = isOpaque
+        }
 #endif
 
         if EquatableScrollBounceBehavior(environment.verticalScrollBounceBehavior) == .always || EquatableScrollBounceBehavior(environment.verticalScrollBounceBehavior) == .automatic {
@@ -76,6 +81,8 @@ struct WebViewRepresentable {
 
         webView.configuration.preferences.isTextInteractionEnabled = environment.webViewTextSelection
         webView.configuration.preferences.isElementFullscreenEnabled = environment.webViewAllowsElementFullscreen
+
+        platformView.onScrollGeometryChange = environment.webViewOnScrollGeometryChange
 
         context.coordinator.update(platformView, configuration: self, environment: environment)
 

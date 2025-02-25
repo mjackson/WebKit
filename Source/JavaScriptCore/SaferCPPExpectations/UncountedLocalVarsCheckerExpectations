@@ -60,7 +60,6 @@ ftl/FTLOSRExitHandle.cpp
 ftl/FTLOperations.cpp
 ftl/FTLPatchpointExceptionHandle.cpp
 heap/ConservativeRoots.cpp
-heap/Heap.cpp
 heap/HeapHelperPool.cpp
 heap/JITStubRoutineSet.cpp
 heap/MachineStackMarker.cpp
@@ -118,7 +117,6 @@ runtime/StructureInlines.h
 runtime/SymbolConstructor.cpp
 runtime/SymbolTable.h
 runtime/TypeSet.cpp
-runtime/VM.cpp
 runtime/VMEntryScope.cpp
 runtime/VMTraps.cpp
 runtime/WaiterListManager.h

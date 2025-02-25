@@ -314,7 +314,8 @@ private:
     bool supportsVideoFullscreen(WebCore::HTMLMediaElementEnums::VideoFullscreenMode) final;
     bool supportsVideoFullscreenStandby() final;
     void setMockVideoPresentationModeEnabled(bool) final;
-    void enterVideoFullscreenForVideoElement(WebCore::HTMLVideoElement&, WebCore::HTMLMediaElementEnums::VideoFullscreenMode, bool standby) final;
+    void enterVideoFullscreenForVideoElement(WebCore::HTMLVideoElement&, WebCore::HTMLMediaElementEnums::VideoFullscreenMode, bool) final;
+    void setPlayerIdentifierForVideoElement(WebCore::HTMLVideoElement&) final;
     void exitVideoFullscreenForVideoElement(WebCore::HTMLVideoElement&, WTF::CompletionHandler<void(bool)>&& = [](bool) { }) final;
     void setUpPlaybackControlsManager(WebCore::HTMLMediaElement&) final;
     void clearPlaybackControlsManager() final;
@@ -556,6 +557,12 @@ private:
     void didDispatchClickEvent(const WebCore::PlatformMouseEvent&, WebCore::Node&) final;
 
     void didProgrammaticallyClearTextFormControl(const WebCore::HTMLTextFormControlElement&) final;
+
+#if ENABLE(DAMAGE_TRACKING)
+    void resetDamageHistoryForTesting() final;
+
+    WebCore::FrameDamageHistory* damageHistoryForTesting() const final;
+#endif
 
     mutable bool m_cachedMainFrameHasHorizontalScrollbar { false };
     mutable bool m_cachedMainFrameHasVerticalScrollbar { false };

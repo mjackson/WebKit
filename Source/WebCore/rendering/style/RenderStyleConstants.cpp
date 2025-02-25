@@ -396,6 +396,18 @@ TextStream& operator<<(TextStream& ts, ContentVisibility contentVisibility)
     return ts;
 }
 
+TextStream& operator<<(TextStream& ts, CornerShape shape)
+{
+    switch (shape) {
+    case CornerShape::Round: ts << "round"; break;
+    case CornerShape::Scoop: ts << "scoop"; break;
+    case CornerShape::Bevel: ts << "bevel"; break;
+    case CornerShape::Notch: ts << "notch"; break;
+    case CornerShape::Straight: ts << "straight"; break;
+    }
+    return ts;
+}
+
 TextStream& operator<<(TextStream& ts, CursorType cursor)
 {
     switch (cursor) {
@@ -1082,8 +1094,8 @@ TextStream& operator<<(TextStream& ts, StyleDifference diff)
     case StyleDifference::RepaintIfText: ts << "repaint if text"; break;
     case StyleDifference::RepaintLayer: ts << "repaint layer"; break;
     case StyleDifference::LayoutPositionedMovementOnly: ts << "layout positioned movement only"; break;
-    case StyleDifference::SimplifiedLayout: ts << "simplified layout"; break;
-    case StyleDifference::SimplifiedLayoutAndPositionedMovement: ts << "simplified layout and positioned movement"; break;
+    case StyleDifference::Overflow: ts << "overflow"; break;
+    case StyleDifference::OverflowAndPositionedMovement: ts << "overflow and positioned movement"; break;
     case StyleDifference::Layout: ts << "layout"; break;
     case StyleDifference::NewStyle: ts << "new style"; break;
     }

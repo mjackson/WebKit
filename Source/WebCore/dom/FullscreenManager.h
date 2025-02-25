@@ -47,7 +47,7 @@ class FullscreenManager final : public CanMakeWeakPtr<FullscreenManager>, public
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(FullscreenManager);
 public:
     FullscreenManager(Document&);
-    ~FullscreenManager();
+    ~FullscreenManager() = default;
 
     Document& document() { return m_document.get(); }
     const Document& document() const { return m_document.get(); }
@@ -63,11 +63,11 @@ public:
     RefPtr<Element> protectedFullscreenElement() const { return fullscreenElement(); }
     WEBCORE_EXPORT bool isFullscreenEnabled() const;
     WEBCORE_EXPORT void exitFullscreen(CompletionHandler<void(ExceptionOr<void>)>&&);
+    WEBCORE_EXPORT void fullyExitFullscreen();
 
-    // Mozilla versions.
+    // Legacy Mozilla API.
     bool isFullscreen() const { return fullscreenElement(); }
     bool isFullscreenKeyboardInputAllowed() const { return fullscreenElement() && m_areKeysEnabledInFullscreen; }
-    WEBCORE_EXPORT void cancelFullscreen();
 
     enum FullscreenCheckType {
         EnforceIFrameAllowFullscreenRequirement,
@@ -78,26 +78,22 @@ public:
     WEBCORE_EXPORT bool willExitFullscreen();
     WEBCORE_EXPORT void didExitFullscreen(CompletionHandler<void(ExceptionOr<void>)>&&);
 
+    WEBCORE_EXPORT static void elementEnterFullscreen(Element&);
+
     void dispatchPendingEvents();
 
     enum class ExitMode : bool { Resize, NoResize };
-    void finishExitFullscreen(Document&, ExitMode);
+    WEBCORE_EXPORT static void finishExitFullscreen(Frame&, ExitMode);
 
     void exitRemovedFullscreenElement(Element&);
 
     WEBCORE_EXPORT bool isAnimatingFullscreen() const;
     WEBCORE_EXPORT void setAnimatingFullscreen(bool);
 
-    void clear();
-    void emptyEventQueue();
-
 protected:
     friend class Document;
 
-    enum class EventType : bool { Change, Error };
-    void dispatchFullscreenChangeOrErrorEvent(Deque<GCReachableRef<Node>>&, EventType, bool shouldNotifyMediaElement);
-    void dispatchEventForNode(Node&, EventType);
-    void queueFullscreenChangeEventForDocument(Document&);
+    void clearPendingEvents() { m_pendingEvents.clear(); }
 
 private:
 #if !RELEASE_LOG_DISABLED
@@ -110,18 +106,15 @@ private:
     Document* mainFrameDocument() { return document().mainFrameDocument(); }
     RefPtr<Document> protectedMainFrameDocument() { return mainFrameDocument(); }
 
-    RefPtr<Element> fullscreenOrPendingElement() const { return m_fullscreenElement ? m_fullscreenElement : m_pendingFullscreenElement; }
-
     bool didEnterFullscreen();
-    void addElementToChangeEventQueue(Node& target) { m_fullscreenChangeEventTargetQueue.append(GCReachableRef(target)); }
+
+    enum class EventType : bool { Change, Error };
+    static void queueFullscreenChangeEventForDocument(Document&);
+    void queueFullscreenChangeEventForElement(Element& target) { m_pendingEvents.append({ EventType::Change, GCReachableRef(target) }); }
 
     WeakRef<Document, WeakPtrImplWithEventTargetData> m_document;
 
-    RefPtr<Element> m_pendingFullscreenElement;
-    RefPtr<Element> m_fullscreenElement;
-
-    Deque<GCReachableRef<Node>> m_fullscreenChangeEventTargetQueue;
-    Deque<GCReachableRef<Node>> m_fullscreenErrorEventTargetQueue;
+    Deque<std::pair<EventType, GCReachableRef<Element>>> m_pendingEvents;
 
     bool m_areKeysEnabledInFullscreen { false };
     bool m_isAnimatingFullscreen { false };
@@ -130,6 +123,22 @@ private:
 #if !RELEASE_LOG_DISABLED
     const uint64_t m_logIdentifier;
 #endif
+
+    class CompletionHandlerScope final {
+    public:
+        CompletionHandlerScope(CompletionHandler<void(ExceptionOr<void>)>&& completionHandler)
+            : m_completionHandler(WTFMove(completionHandler)) { }
+        CompletionHandlerScope(CompletionHandlerScope&&) = default;
+        CompletionHandlerScope& operator=(CompletionHandlerScope&&) = default;
+        ~CompletionHandlerScope()
+        {
+            if (m_completionHandler)
+                m_completionHandler({ });
+        }
+        CompletionHandler<void(ExceptionOr<void>)> release() { return WTFMove(m_completionHandler); }
+    private:
+        CompletionHandler<void(ExceptionOr<void>)> m_completionHandler;
+    };
 };
 
 }

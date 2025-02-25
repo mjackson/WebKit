@@ -413,7 +413,7 @@
 #include "HTMLVideoElement.h"
 #endif
 
-#define DOCUMENT_RELEASE_LOG(channel, fmt, ...) RELEASE_LOG(channel, "%p - [pageID=%" PRIu64 ", frameID=%" PRIu64 ", isMainFrame=%d] Document::" fmt, this, pageID() ? pageID()->toUInt64() : 0, frameID() ? frameID()->object().toUInt64() : 0, this == &topDocument(), ##__VA_ARGS__)
+#define DOCUMENT_RELEASE_LOG(channel, fmt, ...) RELEASE_LOG(channel, "%p - [pageID=%" PRIu64 ", frameID=%" PRIu64 ", isMainFrame=%d] Document::" fmt, this, pageID() ? pageID()->toUInt64() : 0, frameID() ? frameID()->object().toUInt64() : 0, this->isTopDocument(), ##__VA_ARGS__)
 #define DOCUMENT_RELEASE_LOG_ERROR(channel, fmt, ...) RELEASE_LOG_ERROR(channel, "%p - [pageID=%" PRIu64 ", frameID=%" PRIu64 ", isMainFrame=%d] Document::" fmt, this, pageID() ? pageID()->toUInt64() : 0, frameID() ? frameID()->object().toUInt64() : 0, this->isTopDocument(), ##__VA_ARGS__)
 
 namespace WebCore {
@@ -862,10 +862,6 @@ void Document::removedLastRef()
         m_focusNavigationStartingNode = nullptr;
         m_userActionElements.clear();
         m_asyncNodeDeletionQueue.deleteNodesNow();
-#if ENABLE(FULLSCREEN_API)
-        if (CheckedPtr fullscreenManager = m_fullscreenManager.get())
-            m_fullscreenManager->clear();
-#endif
         m_associatedFormControls.clear();
         m_pendingRenderTreeUpdate = { };
 
@@ -917,7 +913,7 @@ void Document::commonTeardown()
 
 #if ENABLE(FULLSCREEN_API)
     if (CheckedPtr fullscreenManager = m_fullscreenManager.get())
-        fullscreenManager->emptyEventQueue();
+        fullscreenManager->clearPendingEvents();
 #endif
 
     if (CheckedPtr svgExtensions = svgExtensionsIfExists())
@@ -1595,19 +1591,16 @@ Ref<CSSStyleDeclaration> Document::createCSSStyleDeclaration()
     return propertySet->ensureCSSStyleDeclaration();
 }
 
-ExceptionOr<Ref<Node>> Document::importNode(Node& nodeToImport, std::optional<std::variant<bool, ImportNodeOptions>>&& argument)
+ExceptionOr<Ref<Node>> Document::importNode(Node& nodeToImport, std::variant<bool, ImportNodeOptions>&& argument)
 {
-    bool deep = false;
+    bool subtree = false;
     RefPtr<CustomElementRegistry> registry;
-    if (argument) {
-        auto argumentValue = argument.value();
-        if (std::holds_alternative<ImportNodeOptions>(argumentValue)) {
-            auto options = std::get<ImportNodeOptions>(argumentValue);
-            deep = options.deep;
-            registry = WTFMove(options.customElements);
-        } else if (std::get<bool>(argumentValue))
-            deep = true;
-    }
+    if (std::holds_alternative<ImportNodeOptions>(argument)) {
+        auto options = std::get<ImportNodeOptions>(argument);
+        subtree = !options.selfOnly;
+        registry = WTFMove(options.customElements);
+    } else if (std::get<bool>(argument))
+        subtree = true;
     if (!registry)
         registry = customElementRegistry();
     switch (nodeToImport.nodeType()) {
@@ -1620,7 +1613,7 @@ ExceptionOr<Ref<Node>> Document::importNode(Node& nodeToImport, std::optional<st
     case Node::CDATA_SECTION_NODE:
     case Node::PROCESSING_INSTRUCTION_NODE:
     case Node::COMMENT_NODE:
-        return nodeToImport.cloneNodeInternal(*this, deep ? Node::CloningOperation::Everything : Node::CloningOperation::OnlySelf, registry.get());
+        return nodeToImport.cloneNodeInternal(*this, subtree ? Node::CloningOperation::Everything : Node::CloningOperation::OnlySelf, registry.get());
 
     case Node::ATTRIBUTE_NODE: {
         auto& attribute = uncheckedDowncast<Attr>(nodeToImport);
@@ -2763,7 +2756,7 @@ void Document::resolveStyle(ResolveStyleType type)
                 updateRenderTree(WTFMove(styleUpdate));
 
                 if (frameView->layoutContext().needsLayout())
-                    frameView->layoutContext().layout();
+                    frameView->layoutContext().interleavedLayout();
             }
 
             styleUpdate = resolver.resolve();
@@ -3005,13 +2998,13 @@ std::unique_ptr<RenderStyle> Document::styleForElementIgnoringPendingStylesheets
     return WTFMove(elementStyle.style);
 }
 
-bool Document::updateLayoutIfDimensionsOutOfDate(Element& element, OptionSet<DimensionsCheck> dimensionsCheck)
+bool Document::updateLayoutIfDimensionsOutOfDate(Element& element, OptionSet<DimensionsCheck> dimensionsCheck, OptionSet<LayoutOptions> layoutOptions)
 {
     ASSERT(isMainThread());
 
     // If the stylesheets haven't loaded, just give up and do a full layout ignoring pending stylesheets.
     if (!haveStylesheetsLoaded()) {
-        updateLayoutIgnorePendingStylesheets();
+        updateLayoutIgnorePendingStylesheets(layoutOptions);
         return true;
     }
 
@@ -3028,7 +3021,7 @@ bool Document::updateLayoutIfDimensionsOutOfDate(Element& element, OptionSet<Dim
     // Mimic the structure of updateLayout(), but at each step, see if we have been forced into doing a full layout.
     if (RefPtr owner = ownerElement()) {
         if (owner->protectedDocument()->updateLayoutIfDimensionsOutOfDate(*owner)) {
-            updateLayout({ }, &element);
+            updateLayout(layoutOptions, &element);
             return true;
         }
     }
@@ -3037,19 +3030,41 @@ bool Document::updateLayoutIfDimensionsOutOfDate(Element& element, OptionSet<Dim
 
     updateStyleIfNeeded();
 
+    if (layoutOptions.contains(LayoutOptions::ContentVisibilityForceLayout)) {
+        if (CheckedPtr renderer = element.renderer(); renderer &&  renderer->style().hasSkippedContent()) {
+            if (auto wasSkippedDuringLastLayout = renderer->wasSkippedDuringLastLayoutDueToContentVisibility()) {
+                if (*wasSkippedDuringLastLayout)
+                    renderer->setNeedsLayout();
+            }
+        }
+    }
+
     if (!element.renderer() || !frameView->layoutContext().needsLayout()) {
         // Tree is clean, we don't need to walk the ancestor chain to figure out whether we have a sufficiently clean subtree.
         return false;
     }
 
-    // If the renderer needs layout for any reason, give up.
+    // If the renderer needs layout for any reason other than simplified (updating overflow), give up.
     // Also, turn off this optimization for input elements with shadow content.
-    bool requireFullLayout = element.renderer()->needsLayout() || is<HTMLInputElement>(element);
+    bool requireFullLayout = is<HTMLInputElement>(element);
+    {
+        CheckedPtr renderer = element.renderer();
+        if (renderer->selfNeedsLayout() || renderer->normalChildNeedsLayout() || renderer->posChildNeedsLayout() || renderer->needsPositionedMovementLayout())
+            requireFullLayout = true;
+        if (renderer->needsSimplifiedNormalFlowLayout()) {
+            if (!dimensionsCheck.contains(DimensionsCheck::IgnoreOverflow))
+                requireFullLayout = true;
+            else if (CheckedPtr block = dynamicDowncast<RenderBlock>(*renderer); !dimensionsCheck.contains(DimensionsCheck::IgnoreOverflow) || !block || !block->canPerformSimplifiedLayout())
+                requireFullLayout = true;
+        }
+    }
+
     if (!requireFullLayout) {
         CheckedPtr<RenderBox> previousBox;
         CheckedPtr<RenderBox> currentBox;
 
         CheckedPtr renderer = element.renderer();
+
         bool hasSpecifiedLogicalHeight = renderer->style().logicalMinHeight() == Length(0, LengthType::Fixed) && renderer->style().logicalHeight().isFixed() && renderer->style().logicalMaxHeight().isAuto();
         bool isVertical = !renderer->isHorizontalWritingMode();
         bool checkingLogicalWidth = (dimensionsCheck.contains(DimensionsCheck::Width) && !isVertical) || (dimensionsCheck.contains(DimensionsCheck::Height) && isVertical);
@@ -3068,6 +3083,11 @@ bool Document::updateLayoutIfDimensionsOutOfDate(Element& element, OptionSet<Dim
             previousBox = std::exchange(currentBox, WTFMove(currentRendererBox));
 
             if (currentBox->style().containerType() != ContainerType::Normal) {
+                requireFullLayout = true;
+                break;
+            }
+
+            if (dimensionsCheck.containsAny({ DimensionsCheck::Left, DimensionsCheck::Top }) && (currentBox->needsPositionedMovementLayout() || currentBox->normalChildNeedsLayout())) {
                 requireFullLayout = true;
                 break;
             }
@@ -3109,7 +3129,7 @@ bool Document::updateLayoutIfDimensionsOutOfDate(Element& element, OptionSet<Dim
 
     // Only do a layout if changes have occurred that make it necessary.
     if (requireFullLayout)
-        updateLayout({ }, &element);
+        updateLayout(layoutOptions, &element);
 
     return requireFullLayout;
 }
@@ -11331,8 +11351,10 @@ ResourceMonitor& Document::resourceMonitor()
 {
     ASSERT(!frame()->isMainFrame());
 
-    if (!m_resourceMonitor)
+    if (!m_resourceMonitor) {
         m_resourceMonitor = ResourceMonitor::create(*frame());
+        DOCUMENT_RELEASE_LOG(ResourceMonitoring, "ResourceMonitor is created for the document.");
+    }
     return *m_resourceMonitor.get();
 }
 
