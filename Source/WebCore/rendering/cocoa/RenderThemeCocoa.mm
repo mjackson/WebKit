@@ -29,16 +29,23 @@
 #import "AttachmentLayout.h"
 #import "CaretRectComputation.h"
 #import "ColorBlending.h"
+#import "DateComponents.h"
 #import "DrawGlyphsRecorder.h"
 #import "FloatRoundedRect.h"
 #import "FontCacheCoreText.h"
 #import "GraphicsContextCG.h"
+#import "HTMLButtonElement.h"
 #import "HTMLDataListElement.h"
 #import "HTMLInputElement.h"
 #import "HTMLMeterElement.h"
 #import "HTMLOptionElement.h"
+#import "HTMLSelectElement.h"
 #import "ImageBuffer.h"
+#import "LocalizedDateCache.h"
+#import "NodeRenderStyle.h"
 #import "Page.h"
+#import "RenderButton.h"
+#import "RenderMenulist.h"
 #import "RenderMeter.h"
 #import "RenderProgress.h"
 #import "RenderSlider.h"
@@ -95,7 +102,12 @@ static bool renderThemePaintSwitchTrack(OptionSet<ControlStyle::State>, const Re
     return true;
 }
 
+static Vector<String> additionalMediaControlsStyleSheets(const HTMLMediaElement&)
+{
+    return { };
 }
+
+} // namespace WebCore
 
 #endif
 
@@ -210,11 +222,15 @@ void RenderThemeCocoa::adjustApplePayButtonStyle(RenderStyle& style, const Eleme
 
 #if ENABLE(VIDEO)
 
-String RenderThemeCocoa::mediaControlsStyleSheet()
+Vector<String> RenderThemeCocoa::mediaControlsStyleSheets(const HTMLMediaElement& mediaElement)
 {
     if (m_mediaControlsStyleSheet.isEmpty())
         m_mediaControlsStyleSheet = StringImpl::createWithoutCopying(ModernMediaControlsUserAgentStyleSheet);
-    return m_mediaControlsStyleSheet;
+
+    auto mediaControlsStyleSheets = Vector<String>::from(m_mediaControlsStyleSheet);
+    mediaControlsStyleSheets.appendVector(additionalMediaControlsStyleSheets(mediaElement));
+
+    return mediaControlsStyleSheets;
 }
 
 Vector<String, 2> RenderThemeCocoa::mediaControlsScripts()
@@ -437,6 +453,16 @@ void RenderThemeCocoa::adjustInnerSpinButtonStyle(RenderStyle& style, const Elem
     RenderTheme::adjustInnerSpinButtonStyle(style, element);
 }
 
+bool RenderThemeCocoa::paintInnerSpinButton(const RenderObject& box, const PaintInfo& paintInfo, const FloatRect& rect)
+{
+#if ENABLE(VECTOR_BASED_CONTROLS_ON_MAC)
+    if (paintInnerSpinButtonStyleForVectorBasedControls(box, paintInfo, rect))
+        return false;
+#endif
+
+    return RenderTheme::paintInnerSpinButton(box, paintInfo, rect);
+}
+
 void RenderThemeCocoa::adjustTextFieldStyle(RenderStyle& style, const Element* element) const
 {
 #if ENABLE(VECTOR_BASED_CONTROLS_ON_MAC)
@@ -545,6 +571,16 @@ void RenderThemeCocoa::paintMenuListButtonDecorations(const RenderBox& box, cons
 #endif
 
     RenderTheme::paintMenuListButtonDecorations(box, paintInfo, rect);
+}
+
+bool RenderThemeCocoa::paintMenuListButton(const RenderObject& box, const PaintInfo& paintInfo, const IntRect& rect)
+{
+#if ENABLE(VECTOR_BASED_CONTROLS_ON_MAC)
+    if (paintMenuListButtonForVectorBasedControls(box, paintInfo, rect))
+        return false;
+#endif
+
+    return RenderTheme::paintMenuListButton(box, paintInfo, rect);
 }
 
 void RenderThemeCocoa::adjustMeterStyle(RenderStyle& style, const Element* element) const
@@ -820,6 +856,23 @@ bool RenderThemeCocoa::paintSwitchTrack(const RenderObject& renderer, const Pain
 #endif
 
     return renderThemePaintSwitchTrack(extractControlStyleStatesForRenderer(renderer), renderer, paintInfo, rect);
+}
+
+bool RenderThemeCocoa::supportsFocusRing(const RenderObject& renderer, const RenderStyle& style) const
+{
+#if ENABLE(VECTOR_BASED_CONTROLS_ON_MAC)
+
+#if PLATFORM(MAC)
+    auto tryFocusRingForVectorBasedControls = renderer.settings().vectorBasedControlsOnMacEnabled();
+#else
+    auto tryFocusRingForVectorBasedControls = renderer.settings().macStyleControlsOnCatalyst();
+#endif
+    if (tryFocusRingForVectorBasedControls)
+        return supportsFocusRingForVectorBasedControls(renderer, style);
+
+#endif
+
+    return RenderTheme::supportsFocusRing(renderer, style);
 }
 
 }

@@ -205,14 +205,14 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 + (JSContext *)currentContext
 {
-    Thread& thread = Thread::current();
+    auto& thread = Thread::currentSingleton();
     CallbackData *entry = (CallbackData *)thread.m_apiData;
     return entry ? entry->context : nil;
 }
 
 + (JSValue *)currentThis
 {
-    Thread& thread = Thread::current();
+    auto& thread = Thread::currentSingleton();
     CallbackData *entry = (CallbackData *)thread.m_apiData;
     if (!entry)
         return nil;
@@ -221,7 +221,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 + (JSValue *)currentCallee
 {
-    Thread& thread = Thread::current();
+    auto& thread = Thread::currentSingleton();
     CallbackData *entry = (CallbackData *)thread.m_apiData;
     // calleeValue may be null if we are initializing a promise.
     if (!entry || !entry->calleeValue)
@@ -231,7 +231,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 + (NSArray *)currentArguments
 {
-    Thread& thread = Thread::current();
+    auto& thread = Thread::currentSingleton();
     CallbackData *entry = (CallbackData *)thread.m_apiData;
 
     if (!entry)
@@ -256,11 +256,13 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 - (NSString *)name
 {
-    auto name = adopt(JSGlobalContextCopyName(m_context));
+    // FIXME: This looks like a static analysis false positive (rdar://145661220).
+    SUPPRESS_UNCOUNTED_ARG auto name = adopt(JSGlobalContextCopyName(m_context));
     if (!name)
         return nil;
 
-    return adoptCF(JSStringCopyCFString(kCFAllocatorDefault, name.get())).bridgingAutorelease();
+    // FIXME: This looks like a static analysis false positive (rdar://145661220).
+    SUPPRESS_UNCOUNTED_ARG return adoptCF(JSStringCopyCFString(kCFAllocatorDefault, name.get())).bridgingAutorelease();
 }
 
 - (void)setName:(NSString *)name
@@ -376,7 +378,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 - (void)beginCallbackWithData:(CallbackData *)callbackData calleeValue:(JSValueRef)calleeValue thisValue:(JSValueRef)thisValue argumentCount:(size_t)argumentCount arguments:(const JSValueRef *)arguments
 {
-    Thread& thread = Thread::current();
+    auto& thread = Thread::currentSingleton();
     [self retain];
     CallbackData *prevStack = (CallbackData *)thread.m_apiData;
     *callbackData = CallbackData { prevStack, self, self.exception, calleeValue, thisValue, argumentCount, arguments, nil };
@@ -386,7 +388,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 - (void)endCallbackWithData:(CallbackData *)callbackData
 {
-    Thread& thread = Thread::current();
+    auto& thread = Thread::currentSingleton();
     self.exception = callbackData->preservedException.get();
     thread.m_apiData = callbackData->next;
     [self release];

@@ -128,7 +128,7 @@ inline const NinePieceImage& RenderStyle::borderImage() const { return border().
 inline NinePieceImageRule RenderStyle::borderImageHorizontalRule() const { return border().image().horizontalRule(); }
 inline const LengthBox& RenderStyle::borderImageOutset() const { return border().image().outset(); }
 inline LayoutBoxExtent RenderStyle::borderImageOutsets() const { return imageOutsets(borderImage()); }
-inline const LengthBox& RenderStyle::borderImageSlices() const { return border().image().imageSlices(); }
+inline const LengthBox& RenderStyle::borderImageSlice() const { return border().image().imageSlices(); }
 inline StyleImage* RenderStyle::borderImageSource() const { return border().image().image(); }
 inline NinePieceImageRule RenderStyle::borderImageVerticalRule() const { return border().image().verticalRule(); }
 inline const LengthBox& RenderStyle::borderImageWidth() const { return border().image().borderSlices(); }
@@ -137,7 +137,7 @@ inline const Style::Color& RenderStyle::borderLeftColor() const { return border(
 inline bool RenderStyle::borderLeftIsTransparent() const { return border().left().isTransparent(); }
 inline BorderStyle RenderStyle::borderLeftStyle() const { return border().left().style(); }
 inline float RenderStyle::borderLeftWidth() const { return border().borderLeftWidth(); }
-inline const BorderDataRadii& RenderStyle::borderRadii() const { return border().m_radii; }
+inline const RectCorners<LengthSize>& RenderStyle::borderRadii() const { return border().m_radii; }
 inline const BorderValue& RenderStyle::borderRight() const { return border().right(); }
 inline const Style::Color& RenderStyle::borderRightColor() const { return border().right().color(); }
 inline bool RenderStyle::borderRightIsTransparent() const { return border().right().isTransparent(); }
@@ -395,7 +395,7 @@ constexpr ContainerType RenderStyle::initialContainerType() { return ContainerTy
 constexpr OptionSet<Containment> RenderStyle::initialContainment() { return { }; }
 constexpr StyleContentAlignmentData RenderStyle::initialContentAlignment() { return { }; }
 constexpr ContentVisibility RenderStyle::initialContentVisibility() { return ContentVisibility::Visible; }
-constexpr CornerShape RenderStyle::initialCornerShape() { return CornerShape::Round; }
+constexpr Style::CornerShapeValue RenderStyle::initialCornerShapeValue() { return Style::CornerShapeValue::round(); }
 constexpr CursorType RenderStyle::initialCursor() { return CursorType::Auto; }
 constexpr StyleSelfAlignmentData RenderStyle::initialDefaultAlignment() { return { ItemPosition::Normal, OverflowAlignment::Default }; }
 constexpr TextDirection RenderStyle::initialDirection() { return TextDirection::LTR; }
@@ -632,7 +632,7 @@ inline const NinePieceImage& RenderStyle::maskBorder() const { return m_nonInher
 inline NinePieceImageRule RenderStyle::maskBorderHorizontalRule() const { return maskBorder().horizontalRule(); }
 inline const LengthBox& RenderStyle::maskBorderOutset() const { return maskBorder().outset(); }
 inline LayoutBoxExtent RenderStyle::maskBorderOutsets() const { return imageOutsets(maskBorder()); }
-inline const LengthBox& RenderStyle::maskBorderSlices() const { return maskBorder().imageSlices(); }
+inline const LengthBox& RenderStyle::maskBorderSlice() const { return maskBorder().imageSlices(); }
 inline StyleImage* RenderStyle::maskBorderSource() const { return maskBorder().image(); }
 inline NinePieceImageRule RenderStyle::maskBorderVerticalRule() const { return maskBorder().verticalRule(); }
 inline const LengthBox& RenderStyle::maskBorderWidth() const { return maskBorder().borderSlices(); }
@@ -820,10 +820,10 @@ inline float RenderStyle::zoom() const { return m_nonInheritedData->rareData->zo
 
 inline bool RenderStyle::nativeAppearanceDisabled() const { return m_nonInheritedData->rareData->nativeAppearanceDisabled; }
 
-inline CornerShape RenderStyle::cornerBottomLeftShape() const { return border().bottomLeftCornerShape(); }
-inline CornerShape RenderStyle::cornerBottomRightShape() const { return border().bottomRightCornerShape(); }
-inline CornerShape RenderStyle::cornerTopLeftShape() const { return border().topLeftCornerShape(); }
-inline CornerShape RenderStyle::cornerTopRightShape() const { return border().topRightCornerShape(); }
+inline const Style::CornerShapeValue& RenderStyle::cornerBottomLeftShape() const { return border().bottomLeftCornerShape(); }
+inline const Style::CornerShapeValue& RenderStyle::cornerBottomRightShape() const { return border().bottomRightCornerShape(); }
+inline const Style::CornerShapeValue& RenderStyle::cornerTopLeftShape() const { return border().topLeftCornerShape(); }
+inline const Style::CornerShapeValue& RenderStyle::cornerTopRightShape() const { return border().topRightCornerShape(); }
 
 // ignore non-standard ::-webkit-scrollbar when standard properties are in use
 inline bool RenderStyle::usesStandardScrollbarStyle() const { return scrollbarWidth() != ScrollbarWidth::Auto || scrollbarColor().has_value(); }

@@ -30,6 +30,8 @@
 
 #include "ServiceWorkerInspectorProxy.h"
 #include "ServiceWorkerThreadProxy.h"
+#include "WorkerRunLoop.h"
+#include <JavaScriptCore/RemoteInspector.h>
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {

@@ -54,6 +54,7 @@
 #include "DiagnosticLoggingKeys.h"
 #include "DiagnosticLoggingResultType.h"
 #include "Document.h"
+#include "DocumentFullscreen.h"
 #include "DocumentInlines.h"
 #include "DocumentLoader.h"
 #include "ElementChildIteratorInlines.h"
@@ -61,7 +62,6 @@
 #include "EventNames.h"
 #include "FourCC.h"
 #include "FrameLoader.h"
-#include "FullscreenManager.h"
 #include "HTMLAudioElement.h"
 #include "HTMLParserIdioms.h"
 #include "HTMLSourceElement.h"
@@ -6858,8 +6858,8 @@ void HTMLMediaElement::mediaVolumeDidChange()
 bool HTMLMediaElement::elementIsHidden() const
 {
 #if ENABLE(FULLSCREEN_API)
-    auto* fullscreenManager = document().fullscreenManagerIfExists();
-    if (isVideo() && fullscreenManager && fullscreenManager->isFullscreen() && fullscreenManager->fullscreenElement())
+    auto* documentFullscreen = document().fullscreenIfExists();
+    if (isVideo() && documentFullscreen && documentFullscreen->isFullscreen() && documentFullscreen->fullscreenElement())
         return false;
 #endif
 
@@ -7247,8 +7247,8 @@ bool HTMLMediaElement::taintsOrigin(const SecurityOrigin& origin) const
 bool HTMLMediaElement::isFullscreen() const
 {
 #if ENABLE(FULLSCREEN_API)
-    CheckedPtr fullscreenManager = document().fullscreenManagerIfExists();
-    if (fullscreenManager && fullscreenManager->isFullscreen() && fullscreenManager->fullscreenElement() == this)
+    CheckedPtr documentFullscreen = document().fullscreenIfExists();
+    if (documentFullscreen && documentFullscreen->isFullscreen() && documentFullscreen->fullscreenElement() == this)
         return true;
 #endif
 
@@ -7258,8 +7258,8 @@ bool HTMLMediaElement::isFullscreen() const
 bool HTMLMediaElement::isStandardFullscreen() const
 {
 #if ENABLE(FULLSCREEN_API)
-    CheckedPtr fullscreenManager = document().fullscreenManagerIfExists();
-    if (fullscreenManager && fullscreenManager->isFullscreen() && fullscreenManager->fullscreenElement() == this)
+    CheckedPtr documentFullscreen = document().fullscreenIfExists();
+    if (documentFullscreen && documentFullscreen->isFullscreen() && documentFullscreen->fullscreenElement() == this)
         return true;
 #endif
 
@@ -7335,12 +7335,12 @@ void HTMLMediaElement::enterFullscreen(VideoFullscreenMode mode)
     m_changingVideoFullscreenMode = true;
 
 #if ENABLE(FULLSCREEN_API) && ENABLE(VIDEO_USES_ELEMENT_FULLSCREEN)
-    if (videoUsesElementFullscreen() && page->isFullscreenManagerEnabled() && isInWindowOrStandardFullscreen(mode)) {
+    if (videoUsesElementFullscreen() && page->isDocumentFullscreenEnabled() && isInWindowOrStandardFullscreen(mode)) {
         m_temporarilyAllowingInlinePlaybackAfterFullscreen = false;
         m_waitingToEnterFullscreen = true;
-        FullscreenManager::FullscreenCheckType fullscreenCheckType = m_ignoreFullscreenPermissionsPolicy ? FullscreenManager::ExemptIFrameAllowFullscreenRequirement : FullscreenManager::EnforceIFrameAllowFullscreenRequirement;
+        auto fullscreenCheckType = m_ignoreFullscreenPermissionsPolicy ? DocumentFullscreen::ExemptIFrameAllowFullscreenRequirement : DocumentFullscreen::EnforceIFrameAllowFullscreenRequirement;
         m_ignoreFullscreenPermissionsPolicy = false;
-        protectedDocument()->checkedFullscreenManager()->requestFullscreenForElement(*this, fullscreenCheckType, [weakThis = WeakPtr { *this }](ExceptionOr<void> result) {
+        protectedDocument()->checkedFullscreen()->requestFullscreen(*this, fullscreenCheckType, [weakThis = WeakPtr { *this }](ExceptionOr<void> result) {
             RefPtr protectedThis = weakThis.get();
             if (!protectedThis || !result.hasException())
                 return;
@@ -7409,10 +7409,10 @@ void HTMLMediaElement::exitFullscreen()
     m_waitingToEnterFullscreen = false;
 
 #if ENABLE(FULLSCREEN_API)
-    if (document().fullscreenManager().fullscreenElement() == this) {
-        if (document().fullscreenManager().isFullscreen()) {
+    if (document().fullscreen().fullscreenElement() == this) {
+        if (document().fullscreen().isFullscreen()) {
             m_changingVideoFullscreenMode = true;
-            protectedDocument()->checkedFullscreenManager()->fullyExitFullscreen();
+            protectedDocument()->checkedFullscreen()->fullyExitFullscreen();
         }
 
         if (isInWindowOrStandardFullscreen(m_videoFullscreenMode))
@@ -7906,6 +7906,18 @@ void HTMLMediaElement::markCaptionAndSubtitleTracksAsUnconfigured(ReconfigureMod
         scheduleConfigureTextTracks();
 }
 
+PlatformDynamicRangeLimit HTMLMediaElement::computePlayerDynamicRangeLimit() const
+{
+    bool shouldSuppressHDR = [this]() {
+        if (Page* page = document().page())
+            return page->shouldSuppressHDR();
+        return false;
+    }();
+    if (!shouldSuppressHDR)
+        return m_platformDynamicRangeLimit;
+    return std::min(m_platformDynamicRangeLimit, PlatformDynamicRangeLimit::constrainedHigh());
+}
+
 // Use WTF_IGNORES_THREAD_SAFETY_ANALYSIS because this function does conditional locking of m_audioSourceNode->processLock()
 // which analysis doesn't support.
 void HTMLMediaElement::createMediaPlayer() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
@@ -7948,6 +7960,7 @@ void HTMLMediaElement::createMediaPlayer() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
     player->setBufferingPolicy(m_bufferingPolicy);
     player->setPreferredDynamicRangeMode(m_overrideDynamicRangeMode.value_or(preferredDynamicRangeMode(document().protectedView().get())));
     player->setShouldDisableHDR(shouldDisableHDR());
+    player->setPlatformDynamicRangeLimit(computePlayerDynamicRangeLimit());
     player->setVolumeLocked(m_volumeLocked);
     player->setMuted(effectiveMuted());
     RefPtr page = document().page();
@@ -8383,6 +8396,19 @@ void HTMLMediaElement::setOverridePreferredDynamicRangeMode(DynamicRangeMode mod
     Ref player = *m_player;
     player->setPreferredDynamicRangeMode(mode);
     player->setShouldDisableHDR(shouldDisableHDR());
+}
+
+void HTMLMediaElement::dynamicRangeLimitDidChange(PlatformDynamicRangeLimit platformDynamicRangeLimit)
+{
+    m_platformDynamicRangeLimit = platformDynamicRangeLimit;
+    if (RefPtr player = m_player)
+        player->setPlatformDynamicRangeLimit(computePlayerDynamicRangeLimit());
+}
+
+void HTMLMediaElement::shouldSuppressHDRDidChange()
+{
+    if (RefPtr player = m_player)
+        player->setPlatformDynamicRangeLimit(computePlayerDynamicRangeLimit());
 }
 
 Vector<String> HTMLMediaElement::mediaPlayerPreferredAudioCharacteristics() const
@@ -9282,6 +9308,17 @@ void HTMLMediaElement::visibilityAdjustmentStateDidChange()
     player->setMuted(muted);
 }
 
+#if PLATFORM(IOS_FAMILY)
+void HTMLMediaElement::sceneIdentifierDidChange()
+{
+    if (RefPtr page = document().page()) {
+        ALWAYS_LOG(LOGIDENTIFIER, page->sceneIdentifier());
+        if (RefPtr player = m_player)
+            player->setSceneIdentifier(page->sceneIdentifier());
+    }
+}
+#endif
+
 void HTMLMediaElement::pageMutedStateDidChange()
 {
     if (RefPtr page = document().page()) {
@@ -9798,6 +9835,16 @@ void HTMLMediaElement::defaultSpatialTrackingLabelChanged(const String& defaultS
         m_player->setDefaultSpatialTrackingLabel(defaultSpatialTrackingLabel);
 }
 #endif
+
+void HTMLMediaElement::setSoundStageSize(SoundStageSize size)
+{
+    if (m_soundStageSize == size)
+        return;
+    m_soundStageSize = size;
+
+    if (m_player)
+        m_player->soundStageSizeDidChange();
+}
 
 bool HTMLMediaElement::shouldLogWatchtimeEvent() const
 {

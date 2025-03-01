@@ -146,12 +146,11 @@ enum class Containment : uint8_t;
 enum class ContentDistribution : uint8_t;
 enum class ContentPosition : uint8_t;
 enum class ContentVisibility : uint8_t;
-enum class CornerShape : uint8_t;
 enum class CursorType : uint8_t;
 enum class CursorVisibility : bool;
 enum class DisplayType : uint8_t;
 enum class EmptyCell : bool;
-enum class EventListenerRegionType : uint16_t;
+enum class EventListenerRegionType : uint32_t;
 enum class FieldSizing : bool;
 enum class FillAttachment : uint8_t;
 enum class FillBox : uint8_t;
@@ -251,7 +250,6 @@ enum class WhiteSpaceCollapse : uint8_t;
 enum class WordBreak : uint8_t;
 
 struct BlockEllipsis;
-struct BorderDataRadii;
 struct CounterDirectiveMap;
 struct FillRepeatXY;
 struct FontPalette;
@@ -284,6 +282,7 @@ struct TransformOperationData;
 
 template<typename> class FontTaggedSettings;
 template<typename> class RectEdges;
+template<typename> class RectCorners;
 
 using FontVariationSettings = FontTaggedSettings<float>;
 using IntOutsets = RectEdges<int>;
@@ -293,6 +292,7 @@ class CustomPropertyRegistry;
 class ViewTransitionName;
 struct Color;
 struct ColorScheme;
+struct CornerShapeValue;
 struct DynamicRangeLimit;
 struct ScopedName;
 struct ScrollMargin;
@@ -506,7 +506,7 @@ public:
 
     inline const NinePieceImage& borderImage() const;
     inline StyleImage* borderImageSource() const;
-    inline const LengthBox& borderImageSlices() const;
+    inline const LengthBox& borderImageSlice() const;
     inline const LengthBox& borderImageWidth() const;
     inline const LengthBox& borderImageOutset() const;
     inline NinePieceImageRule borderImageHorizontalRule() const;
@@ -516,7 +516,7 @@ public:
     inline const LengthSize& borderTopRightRadius() const;
     inline const LengthSize& borderBottomLeftRadius() const;
     inline const LengthSize& borderBottomRightRadius() const;
-    inline const BorderDataRadii& borderRadii() const;
+    inline const RectCorners<LengthSize>& borderRadii() const;
     inline bool hasBorderRadius() const;
     inline bool hasExplicitlySetBorderBottomLeftRadius() const;
     inline bool hasExplicitlySetBorderBottomRightRadius() const;
@@ -549,15 +549,15 @@ public:
 
     inline bool borderIsEquivalentForPainting(const RenderStyle&) const;
 
-    inline CornerShape cornerBottomLeftShape() const;
-    inline CornerShape cornerBottomRightShape() const;
-    inline CornerShape cornerTopLeftShape() const;
-    inline CornerShape cornerTopRightShape() const;
+    inline const Style::CornerShapeValue& cornerBottomLeftShape() const;
+    inline const Style::CornerShapeValue& cornerBottomRightShape() const;
+    inline const Style::CornerShapeValue& cornerTopLeftShape() const;
+    inline const Style::CornerShapeValue& cornerTopRightShape() const;
 
-    void setCornerBottomLeftShape(CornerShape);
-    void setCornerBottomRightShape(CornerShape);
-    void setCornerTopLeftShape(CornerShape);
-    void setCornerTopRightShape(CornerShape);
+    void setCornerBottomLeftShape(Style::CornerShapeValue&&);
+    void setCornerBottomRightShape(Style::CornerShapeValue&&);
+    void setCornerTopLeftShape(Style::CornerShapeValue&&);
+    void setCornerTopRightShape(Style::CornerShapeValue&&);
 
     float outlineSize() const { return std::max<float>(0, outlineWidth() + outlineOffset()); }
     float outlineWidth() const;
@@ -688,7 +688,7 @@ public:
     inline Ref<const FillLayer> protectedMaskLayers() const; // Defined in RenderStyleInlines.h.
     inline const NinePieceImage& maskBorder() const;
     inline StyleImage* maskBorderSource() const;
-    inline const LengthBox& maskBorderSlices() const;
+    inline const LengthBox& maskBorderSlice() const;
     inline const LengthBox& maskBorderWidth() const;
     inline const LengthBox& maskBorderOutset() const;
     inline NinePieceImageRule maskBorderHorizontalRule() const;
@@ -1240,7 +1240,7 @@ public:
     inline void setBorderImage(const NinePieceImage&);
     void setBorderImageSource(RefPtr<StyleImage>&&);
     void setBorderImageSliceFill(bool);
-    void setBorderImageSlices(LengthBox&&);
+    void setBorderImageSlice(LengthBox&&);
     void setBorderImageWidth(LengthBox&&);
     void setBorderImageWidthOverridesBorderWidths(bool);
     void setBorderImageOutset(LengthBox&&);
@@ -1262,7 +1262,7 @@ public:
     RoundedRect getRoundedInnerBorderFor(const LayoutRect& borderRect, RectEdges<bool> closedEdges) const;
 
     RoundedRect getRoundedInnerBorderFor(const LayoutRect& borderRect, LayoutUnit topWidth, LayoutUnit bottomWidth, LayoutUnit leftWidth, LayoutUnit rightWidth, RectEdges<bool> closedEdges) const;
-    static RoundedRect getRoundedInnerBorderFor(const LayoutRect&, LayoutUnit topWidth, LayoutUnit bottomWidth, LayoutUnit leftWidth, LayoutUnit rightWidth, std::optional<BorderDataRadii>, RectEdges<bool> closedEdges);
+    static RoundedRect getRoundedInnerBorderFor(const LayoutRect&, LayoutUnit topWidth, LayoutUnit bottomWidth, LayoutUnit leftWidth, LayoutUnit rightWidth, std::optional<RectCorners<LengthSize>>, RectEdges<bool> closedEdges);
 
     inline void setBorderLeftWidth(float);
     inline void setBorderLeftStyle(BorderStyle);
@@ -1379,7 +1379,7 @@ public:
     inline void setMaskBorder(const NinePieceImage&);
     void setMaskBorderSource(RefPtr<StyleImage>&&);
     void setMaskBorderSliceFill(bool);
-    void setMaskBorderSlices(LengthBox&&);
+    void setMaskBorderSlice(LengthBox&&);
     void setMaskBorderWidth(LengthBox&&);
     void setMaskBorderOutset(LengthBox&&);
     void setMaskBorderHorizontalRule(NinePieceImageRule);
@@ -1432,6 +1432,10 @@ public:
     inline void setPaddingBottom(Length&&);
     inline void setPaddingLeft(Length&&);
     inline void setPaddingRight(Length&&);
+    void setPaddingStart(Length&&);
+    void setPaddingEnd(Length&&);
+    void setPaddingBefore(Length&&);
+    void setPaddingAfter(Length&&);
 
     void setCursor(CursorType c) { m_inheritedFlags.cursor = static_cast<unsigned>(c); }
     void addCursor(RefPtr<StyleImage>&&, const std::optional<IntPoint>& hotSpot);
@@ -1945,7 +1949,7 @@ public:
     static constexpr BorderStyle initialBorderStyle();
     static constexpr OutlineIsAuto initialOutlineStyleIsAuto();
     static inline LengthSize initialBorderRadius();
-    static constexpr CornerShape initialCornerShape();
+    static constexpr Style::CornerShapeValue initialCornerShapeValue();
     static constexpr CaptionSide initialCaptionSide();
     static constexpr ColumnAxis initialColumnAxis();
     static constexpr ColumnProgression initialColumnProgression();

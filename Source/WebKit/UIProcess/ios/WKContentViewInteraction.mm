@@ -2331,7 +2331,7 @@ typedef NS_ENUM(NSInteger, EndEditingReason) {
     if (gestureRecognizer == [_webView scrollView].pinchGestureRecognizer)
         return YES;
 
-    // The gesture recognizer is another UIPichGestureRecognizer known to lead to pinch-to-zoom.
+    // The gesture recognizer is another UIPinchGestureRecognizer known to lead to pinch-to-zoom.
     if ([gestureRecognizer isKindOfClass:[UIPinchGestureRecognizer class]]) {
         if (auto uiDelegate = static_cast<id<WKUIDelegatePrivate>>(self.webView.UIDelegate)) {
             if ([uiDelegate respondsToSelector:@selector(_webView:gestureRecognizerCouldPinch:)])
@@ -6130,8 +6130,14 @@ static void logTextInteraction(const char* methodName, UIGestureRecognizer *loup
     if (_showDebugTapHighlightsForFastClicking && !enabled)
         _tapHighlightInformation.color = [self _tapHighlightColorForFastClick:YES];
 
-    [_doubleTapGestureRecognizer setEnabled:enabled];
-    [_nonBlockingDoubleTapGestureRecognizer setEnabled:!enabled];
+    _doubleTapGesturesAreDisabledTemporarilyForFastTap = !enabled;
+    [self _updateDoubleTapGestureRecognizerEnablement];
+}
+
+- (void)_updateDoubleTapGestureRecognizerEnablement
+{
+    [_doubleTapGestureRecognizer setEnabled:!_doubleTapGesturesAreDisabledTemporarilyForFastTap && [_webView _allowsMagnification]];
+    [_nonBlockingDoubleTapGestureRecognizer setEnabled:_doubleTapGesturesAreDisabledTemporarilyForFastTap && [_webView _allowsMagnification]];
     [self _resetIsDoubleTapPending];
 }
 
@@ -6425,7 +6431,7 @@ static NSArray<WKTextSelectionRect *> *textSelectionRects(const Vector<WebCore::
     // to achieve the visual effect that the caret is narrow when zoomed in and wide
     // when zoomed out.
     double inverseScale = [self inverseScale];
-    if (bool isHorizontalCaret = caretRect.width() < caretRect.height())
+    if (caretRect.width() < caretRect.height())
         caretRect.setWidth(caretRect.width() * inverseScale);
     else
         caretRect.setHeight(caretRect.height() * inverseScale);
@@ -6438,7 +6444,7 @@ static NSArray<WKTextSelectionRect *> *textSelectionRects(const Vector<WebCore::
     // to achieve the visual effect that the caret is narrow when zoomed in and wide
     // when zoomed out.
     double inverseScale = [self inverseScale];
-    if (bool isHorizontalCaret = caretRect.width() < caretRect.height()) {
+    if (caretRect.width() < caretRect.height()) {
         float originalWidth = caretRect.width();
         caretRect.setWidth(originalWidth * inverseScale);
         caretRect.move(caretRect.width() - originalWidth, 0);
@@ -14351,6 +14357,29 @@ static inline WKTextAnimationType toWKTextAnimationType(WebCore::TextAnimationTy
     [_contactPicker dismissWithContacts:contacts];
 #endif
 }
+
+#if ENABLE(MODEL_PROCESS)
+- (void)_simulateModelInteractionPanGestureBeginAtPoint:(CGPoint)hitPoint
+{
+    [self modelInteractionPanGestureDidBeginAtPoint:hitPoint];
+}
+
+- (void)_simulateModelInteractionPanGestureUpdateAtPoint:(CGPoint)hitPoint
+{
+    [self modelInteractionPanGestureDidUpdateWithPoint:hitPoint];
+}
+
+- (NSDictionary *)_stageModeInfoForTesting
+{
+    if (!_stageModeSession)
+        return @{ };
+
+    return @{
+        @"awaitingResult" : @(_stageModeSession->isPreparingForInteraction),
+        @"hitTestSuccessful" : @(_stageModeSession->elementID.has_value()),
+    };
+}
+#endif
 
 - (UITapGestureRecognizer *)singleTapGestureRecognizer
 {

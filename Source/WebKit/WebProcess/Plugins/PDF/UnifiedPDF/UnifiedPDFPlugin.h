@@ -51,6 +51,7 @@ class TextStream;
 
 namespace WebCore {
 class FrameView;
+class LocalFrameView;
 class PageOverlay;
 class PlatformWheelEvent;
 class ShadowRoot;
@@ -103,6 +104,11 @@ private:
     bool m_isBeingHovered { false };
 };
 
+struct VisiblePDFPosition {
+    PDFDocumentLayout::PageIndex pageIndex { 0 };
+    WebCore::FloatPoint pagePoint;
+};
+
 enum class AnnotationSearchDirection : bool {
     Forward,
     Backward
@@ -133,6 +139,7 @@ public:
     };
     using PDFElementTypes = OptionSet<PDFElementType>;
 
+    WebCore::LocalFrameView* frameView() const;
     WebCore::FrameView* mainFrameView() const;
 
     CGRect pluginBoundsForAnnotation(RetainPtr<PDFAnnotation>&) const final;
@@ -160,9 +167,12 @@ public:
 
     bool shouldCachePagePreviews() const;
 
-#if PLATFORM(MAC)
     WebCore::FloatRect convertFromPDFPageToScreenForAccessibility(const WebCore::FloatRect&, PDFDocumentLayout::PageIndex) const;
+#if PLATFORM(MAC)
     void accessibilityScrollToPage(PDFDocumentLayout::PageIndex);
+#endif
+#if !PLATFORM(MAC)
+    id accessibilityHitTestInPageForIOS(WebCore::FloatPoint);
 #endif
 
 #if ENABLE(UNIFIED_PDF_DATA_DETECTION)
@@ -307,6 +317,7 @@ private:
     void didAttachScrollingNode() final;
 
     bool geometryDidChange(const WebCore::IntSize&, const WebCore::AffineTransform&) override;
+    void visibilityDidChange(bool) override;
 
     RefPtr<WebCore::FragmentedSharedBuffer> liveResourceData() const override;
 
@@ -526,6 +537,18 @@ private:
     void resetZoom();
 #endif
 
+#if ENABLE(PDF_PAGE_NUMBER_INDICATOR)
+    WebCore::IntRect frameForPageNumberIndicatorInRootViewCoordinates() const;
+    bool pageNumberIndicatorEnabled() const;
+    bool shouldShowPageNumberIndicator() const;
+    void updatePageNumberIndicatorVisibility();
+    void updatePageNumberIndicatorLocation();
+    void updatePageNumberIndicatorCurrentPage(const std::optional<WebCore::IntRect>& unobscuredContentRectInRootView);
+    void updatePageNumberIndicator(const std::optional<WebCore::IntRect>& unobscuredContentRectInRootView = { });
+#endif
+
+    void frameViewLayoutOrVisualViewportChanged(const WebCore::IntRect&) final;
+
     bool supportsPasswordForm() const;
     void installAnnotationContainer();
 
@@ -690,6 +713,12 @@ private:
     static constexpr double minimumZoomScale = 0.2;
 #endif
     static constexpr double maximumZoomScale = 6.0;
+
+#if PLATFORM(MAC)
+    static constexpr bool hasFullAnnotationSupport = true;
+#else
+    static constexpr bool hasFullAnnotationSupport = false;
+#endif
 };
 
 WTF::TextStream& operator<<(WTF::TextStream&, RepaintRequirement);

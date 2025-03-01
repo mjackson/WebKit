@@ -16,12 +16,10 @@
     <script>
       setupTestCase({disableConsoleLog: true});
 
-      processAnimationFrameSequence([
-          () => {}, // Skip one RAF callback to make sure initial painting is done.
+      processAnimationFrameSequence({skipFirstFrameToEnsureInitialPaintingDone: true}, [
           () => {
               spawnNewElementWithClass("div", "simpleRect");
           },
-          // FIXME: Check if we need to skip one RAF callback.
           () => {
               var damage = latestFrameDamage();
               assertValid(damage);

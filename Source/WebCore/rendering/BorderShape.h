@@ -59,7 +59,11 @@ public:
 
     BorderShape(const BorderShape&) = default;
 
+    BorderShape shapeWithBorderWidths(const RectEdges<LayoutUnit>&) const;
+
     LayoutRect borderRect() const { return m_borderRect.rect(); }
+    LayoutRect innerEdgeRect() const { return m_innerEdgeRect.rect(); }
+
     // Takes `closedEdges` into account.
     const RectEdges<LayoutUnit>& borderWidths() const { return m_borderWidths; }
 
@@ -107,8 +111,9 @@ public:
     void fillOuterShape(GraphicsContext&, const Color&, float deviceScaleFactor) const;
     void fillInnerShape(GraphicsContext&, const Color&, float deviceScaleFactor) const;
 
+    void fillRectWithInnerHoleShape(GraphicsContext&, const LayoutRect& outerRect, const Color&, float deviceScaleFactor) const;
+
 private:
-    LayoutRect innerEdgeRect() const;
     static RoundedRect computeInnerEdgeRoundedRect(const RoundedRect& borderRoundedRect, const RectEdges<LayoutUnit>& borderWidths);
 
     RoundedRect m_borderRect;

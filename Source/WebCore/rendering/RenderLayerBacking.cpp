@@ -91,7 +91,7 @@
 #include <wtf/text/TextStream.h>
 
 #if ENABLE(FULLSCREEN_API)
-#include "FullscreenManager.h"
+#include "DocumentFullscreen.h"
 #endif
 
 #if PLATFORM(IOS_FAMILY)
@@ -151,7 +151,7 @@ public:
         : m_backing(inBacking)
     {
 #if HAVE(SUPPORT_HDR_DISPLAY)
-        if (m_backing.renderer().page().canDrawHDRContent()) {
+        if (m_backing.renderer().document().canDrawHDRContent()) {
             m_hdrContent = RequestState::Unknown;
             m_isReplacedElementWithHDR = RequestState::Unknown;
         }
@@ -304,10 +304,10 @@ RenderLayerBacking::RenderLayerBacking(RenderLayer& layer)
             return false;
 
         // Only use background layers on the fullscreen element's backdrop.
-        CheckedPtr fullscreenManager = box->document().fullscreenManagerIfExists();
-        if (!fullscreenManager)
+        CheckedPtr documentFullscreen = box->document().fullscreenIfExists();
+        if (!documentFullscreen)
             return false;
-        auto* fullscreenElement = fullscreenManager->fullscreenElement();
+        auto* fullscreenElement = documentFullscreen->fullscreenElement();
         if (!fullscreenElement || !fullscreenElement->renderer() || fullscreenElement->renderer()->backdropRenderer() != &renderer)
             return false;
 
@@ -3907,6 +3907,24 @@ static RefPtr<Pattern> patternForEventListenerRegionType(EventListenerRegionType
         case EventListenerRegionType::NonPassiveTouchCancel:
         case EventListenerRegionType::NonPassiveTouchMove:
             return { "sync touch"_s, { 0, 9 }, SRGBA<uint8_t> { 200, 200, 0, 128 } };
+        case EventListenerRegionType::PointerDown:
+        case EventListenerRegionType::PointerEnter:
+        case EventListenerRegionType::PointerLeave:
+        case EventListenerRegionType::PointerMove:
+        case EventListenerRegionType::PointerOut:
+        case EventListenerRegionType::PointerOver:
+        case EventListenerRegionType::PointerUp:
+            return { "pointer"_s, { }, Color::lightGray.colorWithAlphaByte(128) };
+        case EventListenerRegionType::NonPassivePointerDown:
+        case EventListenerRegionType::NonPassivePointerEnter:
+        case EventListenerRegionType::NonPassivePointerLeave:
+        case EventListenerRegionType::NonPassivePointerMove:
+        case EventListenerRegionType::NonPassivePointerOut:
+        case EventListenerRegionType::NonPassivePointerOver:
+        case EventListenerRegionType::NonPassivePointerUp:
+            return { "sync pointer"_s, { 0, 9 }, SRGBA<uint8_t> { 200, 200, 0, 128 } };
+        default:
+            return { ""_s, { }, Color::black };
         }
         ASSERT_NOT_REACHED();
         return { ""_s, { }, Color::black };

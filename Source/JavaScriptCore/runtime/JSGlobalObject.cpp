@@ -3506,4 +3506,11 @@ void JSGlobalObject::cachedFunctionExecutableForFunctionConstructor(FunctionExec
     m_executableForCachedFunctionExecutableForFunctionConstructor.set(vm(), executable);
 }
 
+#if ENABLE(REMOTE_INSPECTOR)
+Ref<JSGlobalObjectDebuggable> JSGlobalObject::protectedInspectorDebuggable()
+{
+    return inspectorDebuggable();
+}
+#endif
+
 } // namespace JSC

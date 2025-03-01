@@ -512,7 +512,7 @@ void FunctionDefinitionWriter::emitNecessaryHelpers()
             IndentationScope scope(m_indent);
             m_stringBuilder.append(m_indent, "auto o = min(offset, 32u);\n"_s,
                 m_indent, "auto c = min(count, 32u - o);\n"_s,
-                m_indent, "return extract_bits(e, o, c);\n"_s);
+                m_indent, "return extract_bits(e, min(o, 31u), c);\n"_s);
         }
         m_stringBuilder.append(m_indent, "}\n"_s);
     }
@@ -540,6 +540,20 @@ void FunctionDefinitionWriter::emitNecessaryHelpers()
             m_stringBuilder.append(m_indent, "return T(select(clamp(value, max(S(numeric_limits<T>::min()), numeric_limits<S>::lowest()), numeric_limits<S>::max()), S(0), isnan(value)));\n"_s);
             m_stringBuilder.append(m_indent, "else\n"_s);
             m_stringBuilder.append(m_indent, "return T(select(clamp(value, S(numeric_limits<T>::min()), S(numeric_limits<T>::max() - ((128 << (!is_signed_v<T>)) - 1))), S(0), isnan(value)));\n"_s);
+        }
+        m_stringBuilder.append(m_indent, "}\n\n"_s);
+    }
+
+    if (m_shaderModule.usesInsertBits()) {
+        m_stringBuilder.append(m_indent, "template <typename T>\n"_s,
+            m_indent, "static T __wgslInsertBits(T e, T newBits, unsigned offset, unsigned count)\n"_s,
+            m_indent, "{\n"_s);
+        {
+            IndentationScope scope(m_indent);
+            m_stringBuilder.append(m_indent, "constexpr unsigned w = 8 * static_cast<unsigned>(sizeof(make_scalar_t<T>));\n"_s);
+            m_stringBuilder.append(m_indent, "const unsigned o = min(offset, w);\n"_s);
+            m_stringBuilder.append(m_indent, "const unsigned c = min(count, w - o);\n"_s);
+            m_stringBuilder.append(m_indent, "return insert_bits(e, newBits, min(o, w - 1), c);\n"_s);
         }
         m_stringBuilder.append(m_indent, "}\n\n"_s);
     }
@@ -2031,7 +2045,7 @@ void FunctionDefinitionWriter::visit(const Type* type, AST::CallExpression& call
             { "frexp"_s, "__wgslFrexp"_s },
             { "fwidthCoarse"_s, "fwidth"_s },
             { "fwidthFine"_s, "fwidth"_s },
-            { "insertBits"_s, "insert_bits"_s },
+            { "insertBits"_s, "__wgslInsertBits"_s },
             { "inverseSqrt"_s, "rsqrt"_s },
             { "modf"_s, "__wgslModf"_s },
             { "pack2x16snorm"_s, "pack_float_to_snorm2x16"_s },

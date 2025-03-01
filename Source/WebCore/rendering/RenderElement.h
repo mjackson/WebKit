@@ -142,8 +142,7 @@ public:
     void setOutOfFlowChildNeedsStaticPositionLayout();
     void clearChildNeedsLayout();
     void setNeedsPositionedMovementLayout(const RenderStyle* oldStyle);
-    void setNeedsLayoutForStyleDifference(StyleDifference, const RenderStyle* oldStyle);
-    void setNeedsLayoutForOverflowChange();
+    void setNeedsSimplifiedNormalFlowLayout();
 
     // paintOffset is the offset from the origin of the GraphicsContext at which to paint the current object.
     virtual void paint(PaintInfo&, const LayoutPoint& paintOffset) = 0;
@@ -284,6 +283,7 @@ public:
     Overflow effectiveOverflowY() const;
     inline Overflow effectiveOverflowInlineDirection() const;
     inline Overflow effectiveOverflowBlockDirection() const;
+    virtual bool overflowChangesMayAffectLayout() const { return false; }
 
     bool isWritingModeRoot() const { return !parent() || parent()->style().writingMode().computedWritingMode() != style().writingMode().computedWritingMode(); }
 
@@ -302,7 +302,8 @@ public:
     bool renderBoxHasShapeOutsideInfo() const { return m_renderBoxHasShapeOutsideInfo; }
     bool hasCachedSVGResource() const { return m_hasCachedSVGResource; }
 
-    virtual bool overflowChangesMayAffectLayout() const { return false; }
+    const Element* defaultAnchor() const;
+    const RenderElement* defaultAnchorRenderer() const;
 
 protected:
     RenderElement(Type, Element&, RenderStyle&&, OptionSet<TypeFlag>, TypeSpecificFlags);
@@ -350,9 +351,6 @@ protected:
 
     bool shouldApplyLayoutOrPaintContainment(bool) const;
     inline bool shouldApplySizeOrStyleContainment(bool) const;
-
-    const Element* defaultAnchor() const;
-    const RenderElement* defaultAnchorRenderer() const;
 
 private:
     RenderElement(Type, ContainerNode&, RenderStyle&&, OptionSet<TypeFlag>, TypeSpecificFlags);

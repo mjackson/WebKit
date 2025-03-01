@@ -921,7 +921,8 @@ static bool rareDataChangeRequiresLayout(const StyleRareNonInheritedData& first,
     if (first.overflowContinue != second.overflowContinue)
         return true;
 
-    if (first.positionArea != second.positionArea)
+    // CSS Anchor Positioning.
+    if (first.anchorScope != second.anchorScope || first.positionArea != second.positionArea)
         return true;
 
     return false;
@@ -2545,10 +2546,10 @@ void RenderStyle::setBoxShadow(std::unique_ptr<ShadowData> shadowData, bool add)
 static RoundedRect::Radii calcRadiiFor(const BorderData::Radii& radii, const LayoutSize& size)
 {
     return {
-        sizeForLengthSize(radii.topLeft, size),
-        sizeForLengthSize(radii.topRight, size),
-        sizeForLengthSize(radii.bottomLeft, size),
-        sizeForLengthSize(radii.bottomRight, size)
+        sizeForLengthSize(radii.topLeft(), size),
+        sizeForLengthSize(radii.topRight(), size),
+        sizeForLengthSize(radii.bottomLeft(), size),
+        sizeForLengthSize(radii.bottomRight(), size)
     };
 }
 
@@ -3363,6 +3364,64 @@ void RenderStyle::setMarginAfter(Length&& margin)
     }
 }
 
+void RenderStyle::setPaddingStart(Length&& margin)
+{
+    if (writingMode().isHorizontal()) {
+        if (writingMode().isInlineLeftToRight())
+            setPaddingLeft(WTFMove(margin));
+        else
+            setPaddingRight(WTFMove(margin));
+    } else {
+        if (writingMode().isInlineTopToBottom())
+            setPaddingTop(WTFMove(margin));
+        else
+            setPaddingBottom(WTFMove(margin));
+    }
+}
+
+void RenderStyle::setPaddingEnd(Length&& margin)
+{
+    if (writingMode().isHorizontal()) {
+        if (writingMode().isInlineLeftToRight())
+            setPaddingRight(WTFMove(margin));
+        else
+            setPaddingLeft(WTFMove(margin));
+    } else {
+        if (writingMode().isInlineTopToBottom())
+            setPaddingBottom(WTFMove(margin));
+        else
+            setPaddingTop(WTFMove(margin));
+    }
+}
+
+void RenderStyle::setPaddingBefore(Length&& margin)
+{
+    switch (writingMode().blockDirection()) {
+    case FlowDirection::TopToBottom:
+        return setPaddingTop(WTFMove(margin));
+    case FlowDirection::BottomToTop:
+        return setPaddingBottom(WTFMove(margin));
+    case FlowDirection::LeftToRight:
+        return setPaddingLeft(WTFMove(margin));
+    case FlowDirection::RightToLeft:
+        return setPaddingRight(WTFMove(margin));
+    }
+}
+
+void RenderStyle::setPaddingAfter(Length&& margin)
+{
+    switch (writingMode().blockDirection()) {
+    case FlowDirection::TopToBottom:
+        return setPaddingBottom(WTFMove(margin));
+    case FlowDirection::BottomToTop:
+        return setPaddingTop(WTFMove(margin));
+    case FlowDirection::LeftToRight:
+        return setPaddingRight(WTFMove(margin));
+    case FlowDirection::RightToLeft:
+        return setPaddingLeft(WTFMove(margin));
+    }
+}
+
 TextEmphasisMark RenderStyle::textEmphasisMark() const
 {
     auto mark = static_cast<TextEmphasisMark>(m_rareInheritedData->textEmphasisMark);
@@ -3424,7 +3483,7 @@ void RenderStyle::setBorderImageSliceFill(bool fill)
     m_nonInheritedData.access().surroundData.access().border.m_image.setFill(fill);
 }
 
-void RenderStyle::setBorderImageSlices(LengthBox&& slices)
+void RenderStyle::setBorderImageSlice(LengthBox&& slices)
 {
     if (m_nonInheritedData->surroundData->border.m_image.imageSlices() == slices)
         return;
@@ -3480,7 +3539,7 @@ void RenderStyle::setMaskBorderSliceFill(bool fill)
     m_nonInheritedData.access().rareData.access().maskBorder.setFill(fill);
 }
 
-void RenderStyle::setMaskBorderSlices(LengthBox&& slices)
+void RenderStyle::setMaskBorderSlice(LengthBox&& slices)
 {
     if (m_nonInheritedData->rareData->maskBorder.imageSlices() == slices)
         return;

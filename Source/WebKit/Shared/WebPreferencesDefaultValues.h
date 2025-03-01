@@ -58,7 +58,7 @@
 #define Webgpu_webxr_feature_status Unstable
 #endif
 
-#if defined(ENABLE_UNIFIED_PDF_BY_DEFAULT) && ENABLE_UNIFIED_PDF_BY_DEFAULT
+#if defined(ENABLE_UNIFIED_PDF_BY_DEFAULT) && ENABLE_UNIFIED_PDF_BY_DEFAULT && PLATFORM(MAC)
 #define Unifiedpdf_feature_status Mature
 #elif defined(ENABLE_UNIFIED_PDF_AS_PREVIEW) && ENABLE_UNIFIED_PDF_AS_PREVIEW
 #define Unifiedpdf_feature_status Preview
@@ -70,6 +70,12 @@
 #define Backdropfilter_feature_status Stable
 #else
 #define Backdropfilter_feature_status Testable
+#endif
+
+#if defined(ENABLE_MODEL_ELEMENT) && ENABLE_MODEL_ELEMENT && PLATFORM(VISION)
+#define Modelelement_feature_status Stable
+#else
+#define Modelelement_feature_status Testable
 #endif
 
 namespace WebKit {
@@ -131,6 +137,10 @@ bool defaultRemoveBackgroundEnabled();
 bool defaultGamepadVibrationActuatorEnabled();
 #endif
 
+#if ENABLE(WEB_AUTHN)
+bool defaultDigitalCredentialsEnabled();
+#endif
+
 #if PLATFORM(IOS_FAMILY)
 bool defaultAutomaticLiveResizeEnabled();
 bool defaultVisuallyContiguousBidiTextSelectionEnabled();
@@ -168,8 +178,28 @@ bool defaultCookieStoreAPIEnabled();
 bool defaultContentInsetBackgroundFillEnabled();
 #endif
 
+#if ENABLE(SCREEN_TIME)
+bool defaultScreenTimeEnabled();
+#endif
+
+#if ENABLE(MAC_STYLE_CONTROLS_ON_CATALYST)
+bool defaultMacStyleControlsOnCatalyst();
+#endif
+
+#if ENABLE(VECTOR_BASED_CONTROLS_ON_MAC)
+bool defaultVectorBasedControlsOnMacEnabled();
+#endif
+
 #if ENABLE(CONTENT_EXTENSIONS)
 bool defaultIFrameResourceMonitoringEnabled();
+#endif
+
+#if HAVE(SPATIAL_AUDIO_EXPERIENCE)
+bool defaultPreferSpatialAudioExperience();
+#endif
+
+#if HAVE(MATERIAL_HOSTING)
+bool defaultHostedBlurMaterialInMediaControlsEnabled();
 #endif
 
 } // namespace WebKit

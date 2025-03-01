@@ -39,6 +39,7 @@ typedef NS_ENUM(NSInteger, WKHostedMaterialEffectType) {
     WKHostedMaterialEffectTypeNone,
     WKHostedMaterialEffectTypeBlur,
     WKHostedMaterialEffectTypeThinBlur,
+    WKHostedMaterialEffectTypeMediaControls,
 };
 
 typedef NS_ENUM(NSInteger, WKHostedMaterialColorScheme) {
@@ -53,12 +54,12 @@ NS_SWIFT_UI_ACTOR
 
 + (BOOL)isMaterialHostingAvailable;
 
-+ (CALayer *)createHostingLayer;
++ (CALayer *)hostingLayer;
 + (void)updateHostingLayer:(CALayer *)hostingLayer materialEffectType:(WKHostedMaterialEffectType)materialEffectType colorScheme:(WKHostedMaterialColorScheme) colorScheme cornerRadius:(CGFloat)cornerRadius;
 + (nullable CALayer *)contentLayerForMaterialHostingLayer:(CALayer *)hostingLayer;
 
 #if PLATFORM(IOS_FAMILY)
-+ (UIView *)createHostingView:(UIView *)contentView;
++ (UIView *)hostingView:(UIView *)contentView;
 + (void)updateHostingView:(UIView *)hostingView contentView:(UIView *)contentView materialEffectType:(WKHostedMaterialEffectType)materialEffectType colorScheme:(WKHostedMaterialColorScheme) colorScheme cornerRadius:(CGFloat)cornerRadius;
 #endif
 

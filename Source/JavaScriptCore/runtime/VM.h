@@ -300,7 +300,7 @@ public:
     // WebCore has a one-to-one mapping of threads to VMs;
     // create() should only be called once
     // on a thread, this is the 'default' VM (it uses the
-    // thread's default string uniquing table from Thread::current()).
+    // thread's default string uniquing table from Thread::currentSingleton()).
     enum class VMType { Default, APIContextGroup };
 
     struct ClientData {
@@ -542,7 +542,8 @@ public:
     WriteBarrier<Structure> regExpStructure;
     WriteBarrier<Structure> symbolStructure;
     WriteBarrier<Structure> symbolTableStructure;
-    WriteBarrier<Structure> immutableButterflyStructures[NumberOfCopyOnWriteIndexingModes];
+    std::array<WriteBarrier<Structure>, NumberOfCopyOnWriteIndexingModes> immutableButterflyStructures;
+    WriteBarrier<Structure> immutableButterflyOnlyAtomStringsStructure;
     WriteBarrier<Structure> sourceCodeStructure;
     WriteBarrier<Structure> scriptFetcherStructure;
     WriteBarrier<Structure> scriptFetchParametersStructure;
@@ -630,6 +631,7 @@ public:
     }
 
     WeakGCMap<SymbolImpl*, Symbol, PtrHash<SymbolImpl*>> symbolImplToSymbolMap;
+    WeakGCMap<StringImpl*, JSString, PtrHash<StringImpl*>> atomStringToJSStringMap;
 
     enum class DeletePropertyMode {
         // Default behaviour of deleteProperty, matching the spec.

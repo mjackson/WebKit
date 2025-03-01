@@ -242,6 +242,10 @@
 #include "LaunchServicesDatabaseManager.h"
 #endif
 
+#if PLATFORM(MAC)
+#import <wtf/spi/darwin/SandboxSPI.h>
+#endif
+
 #undef WEBPROCESS_RELEASE_LOG
 #define RELEASE_LOG_SESSION_ID (m_sessionID ? m_sessionID->toUInt64() : 0)
 #if RELEASE_LOG_DISABLED
@@ -538,6 +542,14 @@ void WebProcess::initializeWebProcess(WebProcessCreationParameters&& parameters,
 #endif
 
     SandboxExtension::consumePermanently(parameters.additionalSandboxExtensionHandles);
+
+#if PLATFORM(MAC) && HAVE(SANDBOX_STATE_FLAGS)
+    if (!parameters.injectedBundlePath.endsWith("StoreWebBundle.bundle"_s)) {
+        auto auditToken = auditTokenForSelf();
+        if (!sandbox_enable_state_flag("WebProcessDidNotInjectStoreBundle", auditToken.value()))
+            WEBPROCESS_RELEASE_LOG_ERROR(Process, "Could not state sandbox state flag");
+    }
+#endif
 
     if (!parameters.injectedBundlePath.isEmpty()) {
         if (RefPtr injectedBundle = InjectedBundle::create(parameters, transformHandlesToObjects(parameters.initializationUserData.protectedObject().get())))
@@ -953,6 +965,9 @@ void WebProcess::createWebPage(PageIdentifier pageID, WebPageCreationParameters&
         accessibilityRelayProcessSuspended(false);
     }
     ASSERT(result.iterator->value);
+
+    if (m_shouldSuppressHDR)
+        RefPtr { result.iterator->value }->setShouldSuppressHDR(m_shouldSuppressHDR);
 }
 
 void WebProcess::removeWebPage(PageIdentifier pageID)
@@ -1001,14 +1016,14 @@ bool WebProcess::dispatchMessage(IPC::Connection& connection, IPC::Decoder& deco
     if (decoder.messageReceiverName() == Messages::WebSWContextManagerConnection::messageReceiverName()) {
         ASSERT(SWContextManager::singleton().connection());
         if (RefPtr contextManagerConnection = SWContextManager::singleton().connection())
-            static_cast<WebSWContextManagerConnection&>(*contextManagerConnection).didReceiveMessage(connection, decoder);
+            downcast<WebSWContextManagerConnection>(*contextManagerConnection).didReceiveMessage(connection, decoder);
         return true;
     }
 
     if (decoder.messageReceiverName() == Messages::WebSharedWorkerContextManagerConnection::messageReceiverName()) {
         ASSERT(SharedWorkerContextManager::singleton().connection());
         if (RefPtr contextManagerConnection = SharedWorkerContextManager::singleton().connection())
-            static_cast<WebSharedWorkerContextManagerConnection&>(*contextManagerConnection).didReceiveMessage(connection, decoder);
+            downcast<WebSharedWorkerContextManagerConnection>(*contextManagerConnection).didReceiveMessage(connection, decoder);
         return true;
     }
     return false;
@@ -1268,7 +1283,10 @@ NetworkProcessConnection& WebProcess::ensureNetworkProcessConnection()
         // The NSApplication initialization is being done in [NSApplication _accessibilityInitialize]
         LaunchServicesDatabaseManager::singleton().waitForDatabaseUpdate();
 #endif
-
+#if ENABLE(LAUNCHSERVICES_SANDBOX_EXTENSION_BLOCKING)
+        if (auto auditToken = auditTokenForSelf())
+            m_networkProcessConnection->protectedConnection()->send(Messages::NetworkConnectionToWebProcess::CheckInWebProcess(*auditToken), 0);
+#endif
         // This can be called during a WebPage's constructor, so wait until after the constructor returns to touch the WebPage.
         RunLoop::protectedMain()->dispatch([this, protectedThis = Ref { *this }] {
             for (auto& webPage : m_pageMap.values())
@@ -1541,6 +1559,16 @@ void WebProcess::setTextCheckerState(OptionSet<TextCheckerState> textCheckerStat
         if (grammarCheckingTurnedOff)
             page->unmarkAllBadGrammar();
     }
+}
+
+void WebProcess::setShouldSuppressHDR(bool shouldSuppressHDR)
+{
+    m_shouldSuppressHDR = shouldSuppressHDR;
+
+#if ENABLE(VIDEO)
+    for (auto& page : m_pageMap.values())
+        page->setShouldSuppressHDR(shouldSuppressHDR);
+#endif // ENABLE(VIDEO)
 }
 
 void WebProcess::fetchWebsiteData(OptionSet<WebsiteDataType> websiteDataTypes, CompletionHandler<void(WebsiteData&&)>&& completionHandler)
@@ -1953,10 +1981,10 @@ RefPtr<API::Object> WebProcess::transformHandlesToObjects(API::Object* object)
         {
             switch (object.type()) {
             case API::Object::Type::FrameHandle:
-                return static_cast<const API::FrameHandle&>(object).isAutoconverting();
+                return downcast<const API::FrameHandle>(object).isAutoconverting();
 
             case API::Object::Type::PageHandle:
-                return static_cast<const API::PageHandle&>(object).isAutoconverting();
+                return downcast<const API::PageHandle>(object).isAutoconverting();
 
             default:
                 return false;
@@ -1967,11 +1995,11 @@ RefPtr<API::Object> WebProcess::transformHandlesToObjects(API::Object* object)
         {
             switch (object.type()) {
             case API::Object::Type::FrameHandle: {
-                auto frameID = static_cast<const API::FrameHandle&>(object).frameID();
+                auto frameID = downcast<const API::FrameHandle>(object).frameID();
                 return frameID ? WebProcess::singleton().webFrame(*frameID) : nullptr;
             }
             case API::Object::Type::PageHandle:
-                return WebProcess::singleton().webPage(static_cast<const API::PageHandle&>(object).webPageID());
+                return WebProcess::singleton().webPage(downcast<const API::PageHandle>(object).webPageID());
 
             default:
                 return &object;
@@ -2001,10 +2029,10 @@ RefPtr<API::Object> WebProcess::transformObjectsToHandles(API::Object* object)
         {
             switch (object.type()) {
             case API::Object::Type::BundleFrame:
-                return API::FrameHandle::createAutoconverting(static_cast<const WebFrame&>(object).frameID());
+                return API::FrameHandle::createAutoconverting(downcast<const WebFrame>(object).frameID());
 
             case API::Object::Type::BundlePage:
-                return API::PageHandle::createAutoconverting(static_cast<const WebPage&>(object).webPageProxyIdentifier(), static_cast<const WebPage&>(object).identifier());
+                return API::PageHandle::createAutoconverting(downcast<const WebPage>(object).webPageProxyIdentifier(), downcast<const WebPage>(object).identifier());
 
             default:
                 return &object;

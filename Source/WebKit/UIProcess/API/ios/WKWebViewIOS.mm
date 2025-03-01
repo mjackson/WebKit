@@ -104,6 +104,10 @@
 #import <WebKitAdditions/WKWebViewIOSAdditionsBefore.mm>
 #endif
 
+#if HAVE(SUPPORT_HDR_DISPLAY_APIS)
+#import <UIKit/_UITraitHDRHeadroomUsage.h>
+#endif
+
 #import <pal/ios/ManagedConfigurationSoftLink.h>
 
 #define FORWARD_ACTION_TO_WKCONTENTVIEW(_action) \
@@ -238,6 +242,11 @@ static WebCore::IntDegrees deviceOrientationForUIInterfaceOrientation(UIInterfac
 #if HAVE(UIKIT_RESIZABLE_WINDOWS)
     [center addObserver:self selector:@selector(_enhancedWindowingToggled:) name:_UIWindowSceneEnhancedWindowingModeChanged object:nil];
 #endif
+
+#if HAVE(SUPPORT_HDR_DISPLAY_APIS)
+    [self registerForTraitChanges:@[[_UITraitHDRHeadroomUsage class]] withAction:@selector(_UITraitHDRHeadroomUsageDidChange)];
+    [self _UITraitHDRHeadroomUsageDidChange];
+#endif // HAVE(SUPPORT_HDR_DISPLAY_APIS)
 }
 
 - (BOOL)_isShowingVideoPictureInPicture
@@ -982,7 +991,7 @@ static void changeContentOffsetBoundedInValidRange(UIScrollView *scrollView, Web
 
     [_scrollView setMinimumZoomScale:minimumScaleFactor];
     [_scrollView setMaximumZoomScale:maximumScaleFactor];
-    [_scrollView _setZoomEnabledInternal:allowsUserScaling];
+    [_scrollView _setZoomEnabledInternal:allowsUserScaling && self._allowsMagnification];
     if ([_scrollView showsHorizontalScrollIndicator] && [_scrollView showsVerticalScrollIndicator]) {
         [_scrollView setShowsHorizontalScrollIndicator:(_page->scrollingCoordinatorProxy()->mainFrameScrollbarWidth() != WebCore::ScrollbarWidth::None)];
         [_scrollView setShowsVerticalScrollIndicator:(_page->scrollingCoordinatorProxy()->mainFrameScrollbarWidth() != WebCore::ScrollbarWidth::None)];
@@ -2322,6 +2331,10 @@ static WebCore::FloatPoint constrainContentOffset(WebCore::FloatPoint contentOff
         scrollPerfData->didScroll([self visibleRectInViewCoordinates]);
 
     [_contentView updateSelection];
+
+#if ENABLE(PDF_PAGE_NUMBER_INDICATOR)
+    [self _updatePDFPageNumberIndicatorIfNeeded];
+#endif
 }
 
 - (void)scrollViewDidZoom:(UIScrollView *)scrollView
@@ -2956,6 +2969,10 @@ static bool scrollViewCanScroll(UIScrollView *scrollView)
         auto callback = _visibleContentRectUpdateCallbacks.takeLast();
         callback();
     }
+
+#if ENABLE(PDF_PAGE_NUMBER_INDICATOR)
+    [self _updatePDFPageNumberIndicatorIfNeeded];
+#endif
 
     if ((timeNow - _timeOfRequestForVisibleContentRectUpdate) > delayBeforeNoVisibleContentsRectsLogging)
         WKWEBVIEW_RELEASE_LOG("%p -[WKWebView _updateVisibleContentRects:] finally ran %.2fs after being scheduled", self, (timeNow - _timeOfRequestForVisibleContentRectUpdate).value());
@@ -3655,6 +3672,14 @@ static WebCore::UserInterfaceLayoutDirection toUserInterfaceLayoutDirection(UISe
 
 #endif // HAVE(UIKIT_RESIZABLE_WINDOWS)
 
+#if HAVE(SUPPORT_HDR_DISPLAY_APIS)
+- (void)_UITraitHDRHeadroomUsageDidChange
+{
+    const _UIHDRHeadroomUsage _headroomUsage = [[self traitCollection] _headroomUsage];
+    _page->setShouldSuppressHDR(_headroomUsage != _UIHDRHeadroomUsageEnabled);
+}
+#endif // HAVE(SUPPORT_HDR_DISPLAY_APIS)
+
 #if ENABLE(LOCKDOWN_MODE_API)
 
 // Note: Use the legacy 'CaptivePortal' string to avoid losing users choice from earlier releases.
@@ -3888,12 +3913,23 @@ static bool isLockdownModeWarningNeeded()
     _overriddenZoomScaleParameters = { minimumZoomScale, maximumZoomScale, allowUserScaling };
     [_scrollView setMinimumZoomScale:minimumZoomScale];
     [_scrollView setMaximumZoomScale:maximumZoomScale];
-    [_scrollView _setZoomEnabledInternal:allowUserScaling];
+    [_scrollView _setZoomEnabledInternal:allowUserScaling && self._allowsMagnification];
 }
 
 - (void)_clearOverrideZoomScaleParameters
 {
     _overriddenZoomScaleParameters = std::nullopt;
+}
+
+- (BOOL)_allowsMagnification
+{
+    return _allowsMagnification;
+}
+
+- (void)_setAllowsMagnification:(BOOL)allowsMagnification
+{
+    _allowsMagnification = allowsMagnification;
+    [_contentView _updateDoubleTapGestureRecognizerEnablement];
 }
 
 #if ENABLE(MODEL_PROCESS)
@@ -4369,7 +4405,7 @@ static bool isLockdownModeWarningNeeded()
     CGFloat oldWebViewWidthInContentViewCoordinates = oldUnobscuredContentRect.width();
     _perProcessState.animatedResizeOriginalContentWidth = [&] {
 #if HAVE(UIKIT_RESIZABLE_WINDOWS)
-        if (self._isWindowResizingEnabled)
+        if (self._isWindowResizingEnabled && !self._isDisplayingPDF)
             return contentSizeInContentViewCoordinates.width;
 #endif
         return std::min(contentSizeInContentViewCoordinates.width, oldWebViewWidthInContentViewCoordinates);

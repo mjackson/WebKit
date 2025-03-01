@@ -31,7 +31,6 @@ internal import WebKit_Internal
 @MainActor
 @_spi(CrossImportOverlay)
 public final class WebPageWebView: WKWebView {
-    @_spi(CrossImportOverlay)
     public weak var delegate: (any Delegate)? = nil
 
 #if os(iOS)
@@ -61,7 +60,6 @@ public final class WebPageWebView: WKWebView {
 
 extension WebPageWebView {
     @MainActor
-    @_spi(CrossImportOverlay)
     public protocol Delegate: AnyObject {
 #if os(iOS)
         func findInteraction(_ interaction: UIFindInteraction, didBegin session: UIFindSession)
@@ -79,52 +77,65 @@ extension WebPageWebView {
     // MARK: Platform-agnostic scrolling capabilities
 
 #if canImport(UIKit)
-    @_spi(CrossImportOverlay)
     public var alwaysBounceVertical: Bool {
         get { scrollView.alwaysBounceVertical }
         set { scrollView.alwaysBounceVertical = newValue }
     }
 
-    @_spi(CrossImportOverlay)
     public var alwaysBounceHorizontal: Bool {
         get { scrollView.alwaysBounceHorizontal }
         set { scrollView.alwaysBounceHorizontal = newValue }
     }
 
-    @_spi(CrossImportOverlay)
     public var bouncesVertically: Bool {
         get { scrollView.bouncesVertically }
         set { scrollView.bouncesVertically = newValue }
     }
 
-    @_spi(CrossImportOverlay)
     public var bouncesHorizontally: Bool {
         get { scrollView.bouncesHorizontally }
         set { scrollView.bouncesHorizontally = newValue }
     }
+
+    public var allowsMagnification: Bool {
+        get { self._allowsMagnification }
+        set { self._allowsMagnification = newValue }
+    }
+
+    public func setContentOffset(_ offset: CGPoint, animated: Bool) {
+        scrollView.setContentOffset(offset, animated: animated)
+    }
+
+    public func scrollTo(edge: NSDirectionalRectEdge, animated: Bool) {
+        self._scroll(to: _WKRectEdge(edge), animated: animated)
+    }
 #else
-    @_spi(CrossImportOverlay)
     public var alwaysBounceVertical: Bool {
         get { self._alwaysBounceVertical }
         set { self._alwaysBounceVertical = newValue }
     }
 
-    @_spi(CrossImportOverlay)
     public var alwaysBounceHorizontal: Bool {
         get { self._alwaysBounceHorizontal }
         set { self._alwaysBounceHorizontal = newValue }
     }
 
-    @_spi(CrossImportOverlay)
     public var bouncesVertically: Bool {
         get { self._rubberBandingEnabled.contains(.top) && self._rubberBandingEnabled.contains(.bottom) }
         set { self._rubberBandingEnabled.formUnion([.top, .bottom]) }
     }
 
-    @_spi(CrossImportOverlay)
     public var bouncesHorizontally: Bool {
         get { self._rubberBandingEnabled.contains(.left) && self._rubberBandingEnabled.contains(.right) }
         set { self._rubberBandingEnabled.formUnion([.left, .right]) }
+    }
+
+    public func setContentOffset(_ offset: CGPoint, animated: Bool) {
+        self._setContentOffset(offset, animated: animated)
+    }
+
+    public func scrollTo(edge: NSDirectionalRectEdge, animated: Bool) {
+        self._scroll(to: _WKRectEdge(edge), animated: animated)
     }
 #endif
 }

@@ -60,6 +60,7 @@
 		078B04482CF118BD00B453A6 /* URLSchemeHandlerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 078B04472CF118BD00B453A6 /* URLSchemeHandlerTests.swift */; };
 		078B044A2CF139BF00B453A6 /* Foundation+Extras.swift in Sources */ = {isa = PBXBuildFile; fileRef = 078B04492CF139BF00B453A6 /* Foundation+Extras.swift */; };
 		079D45F22A2A6BBE003830C7 /* Viewport.mm in Sources */ = {isa = PBXBuildFile; fileRef = 079D45F12A2A6BBE003830C7 /* Viewport.mm */; };
+		07C02FD22D6D6FBC0004ED97 /* rtl-sideways-scrolling.html in Copy Resources */ = {isa = PBXBuildFile; fileRef = 07C02FD12D6D6FBC0004ED97 /* rtl-sideways-scrolling.html */; };
 		07C046CA1E4262A8007201E7 /* CARingBufferTest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07C046C91E42573E007201E7 /* CARingBufferTest.cpp */; };
 		07CE1CF31F06A7E000BF89F5 /* GetUserMediaNavigation.mm in Sources */ = {isa = PBXBuildFile; fileRef = 07CE1CF21F06A7E000BF89F5 /* GetUserMediaNavigation.mm */; };
 		07E499911F9E56DF002F1EF3 /* GetUserMediaReprompt.mm in Sources */ = {isa = PBXBuildFile; fileRef = 07E499901F9E56A1002F1EF3 /* GetUserMediaReprompt.mm */; };
@@ -636,6 +637,9 @@
 		A14FC58B1B89927100D107EB /* ContentFilteringPlugIn.mm in Sources */ = {isa = PBXBuildFile; fileRef = A14FC5891B89927100D107EB /* ContentFilteringPlugIn.mm */; };
 		A170E3AA2ABA7857009EA799 /* VectorCocoa.mm in Sources */ = {isa = PBXBuildFile; fileRef = A170E3A22ABA7857009EA799 /* VectorCocoa.mm */; };
 		A17191AD2CD2DB090088944E /* WKWebViewLogging.mm in Sources */ = {isa = PBXBuildFile; fileRef = A17191AC2CD2DB090088944E /* WKWebViewLogging.mm */; };
+		A176D24B2D6D2A4E00C63915 /* GPUExtension.appex in Embed Extensions */ = {isa = PBXBuildFile; fileRef = A176D2472D6D295400C63915 /* GPUExtension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		A176D24C2D6D2A4E00C63915 /* NetworkingExtension.appex in Embed Extensions */ = {isa = PBXBuildFile; fileRef = A176D2482D6D295400C63915 /* NetworkingExtension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		A176D24D2D6D2A4E00C63915 /* WebContentExtension.appex in Embed Extensions */ = {isa = PBXBuildFile; fileRef = A176D2492D6D295400C63915 /* WebContentExtension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		A1798B7F22431D2B000764BD /* libWebCoreTestSupport.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = A1798B7E22431D2B000764BD /* libWebCoreTestSupport.dylib */; };
 		A1798B8522433647000764BD /* WebProcessPlugInWithInternals.mm in Sources */ = {isa = PBXBuildFile; fileRef = A1798B8422433647000764BD /* WebProcessPlugInWithInternals.mm */; };
 		A17991881E1C994E00A505ED /* SharedBuffer.mm in Sources */ = {isa = PBXBuildFile; fileRef = A17991861E1C994E00A505ED /* SharedBuffer.mm */; };
@@ -1293,6 +1297,7 @@
 		EB9AD8C727646E7400D893A4 /* PushDatabase.cpp in Sources */ = {isa = PBXBuildFile; fileRef = EB9AD8C627646E7300D893A4 /* PushDatabase.cpp */; };
 		EBA75C49275ED7C700D6D31C /* PushMessageCrypto.cpp in Sources */ = {isa = PBXBuildFile; fileRef = EBA75C48275ED7BE00D6D31C /* PushMessageCrypto.cpp */; };
 		ECA680CE1E68CC0900731D20 /* StringUtilities.mm in Sources */ = {isa = PBXBuildFile; fileRef = ECA680CD1E68CC0900731D20 /* StringUtilities.mm */; };
+		EEA52EAB2D69203B00D578B5 /* stagemode-model-page.html in Copy Resources */ = {isa = PBXBuildFile; fileRef = EEA52EA32D69202E00D578B5 /* stagemode-model-page.html */; };
 		F4010B8024DA24AC00A876E2 /* NavigationSwipeTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = F4010B7F24DA24AC00A876E2 /* NavigationSwipeTests.mm */; };
 		F4010B8324DA267F00A876E2 /* PoseAsClass.mm in Sources */ = {isa = PBXBuildFile; fileRef = F4010B8124DA267F00A876E2 /* PoseAsClass.mm */; };
 		F402F56C23ECC2FB00865549 /* UIWKInteractionViewProtocol.mm in Sources */ = {isa = PBXBuildFile; fileRef = F402F56B23ECC2FB00865549 /* UIWKInteractionViewProtocol.mm */; };
@@ -1379,6 +1384,23 @@
 		FF910EA5297A0D1100D1A24D /* FixedBitVector.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FF910E9D297A0D1100D1A24D /* FixedBitVector.cpp */; };
 		FFD3FF372AF9BD8F0057C508 /* DragonBoxTest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FFD3FF2F2AF9BD8F0057C508 /* DragonBoxTest.cpp */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXBuildRule section */
+		A176D2552D6D35D400C63915 /* PBXBuildRule */ = {
+			isa = PBXBuildRule;
+			compilerSpec = com.apple.compilers.proxy.script;
+			filePatterns = "*.appex";
+			fileType = pattern.proxy;
+			inputFiles = (
+				"$(SRCROOT)/../TestRunnerShared/Scripts/install-extensions-rule.sh",
+			);
+			isEditable = 1;
+			outputFiles = (
+				"$(BUILT_PRODUCTS_DIR)/$(EXTENSIONS_FOLDER_PATH)/$(INPUT_FILE_NAME)",
+			);
+			script = "\"${SCRIPT_INPUT_FILE_0}\"\n";
+		};
+/* End PBXBuildRule section */
 
 /* Begin PBXContainerItemProxy section */
 		3A15785B28D1506E00142DB1 /* PBXContainerItemProxy */ = {
@@ -1579,6 +1601,19 @@
 				7B6FF89728C22D9400CA76B0 /* WebKit.framework in Product Dependencies */,
 			);
 			name = "Product Dependencies";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A176D23F2D6D079900C63915 /* Embed Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(EXTENSIONS_FOLDER_PATH)";
+			dstSubfolderSpec = 16;
+			files = (
+				A176D24B2D6D2A4E00C63915 /* GPUExtension.appex in Embed Extensions */,
+				A176D24C2D6D2A4E00C63915 /* NetworkingExtension.appex in Embed Extensions */,
+				A176D24D2D6D2A4E00C63915 /* WebContentExtension.appex in Embed Extensions */,
+			);
+			name = "Embed Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		A17C464B2C98E4520023F3C7 /* Copy Resources */ = {
@@ -1978,6 +2013,7 @@
 				A17C47F22C98E5C20023F3C7 /* rich-color-filtered.html in Copy Resources */,
 				A17C47F32C98E5C20023F3C7 /* rich-text-attributes.html in Copy Resources */,
 				F470A9772D41DAB200F2A137 /* rtl-bidi-text.html in Copy Resources */,
+				07C02FD22D6D6FBC0004ED97 /* rtl-sideways-scrolling.html in Copy Resources */,
 				A17C46E62C98E54B0023F3C7 /* scroll-to-anchor.html in Copy Resources */,
 				A17C46652C98E4BB0023F3C7 /* scrollable-page.html in Copy Resources */,
 				A17C47F42C98E5C20023F3C7 /* selected-text-and-textarea.html in Copy Resources */,
@@ -2006,6 +2042,7 @@
 				A17C47FC2C98E5C20023F3C7 /* SpaceOnly.otf in Copy Resources */,
 				A17C47FD2C98E5C20023F3C7 /* speechrecognition-basic.html in Copy Resources */,
 				A17C47FE2C98E5C20023F3C7 /* speechrecognition-user-permission-persistence.html in Copy Resources */,
+				EEA52EAB2D69203B00D578B5 /* stagemode-model-page.html in Copy Resources */,
 				A17C47FF2C98E5C20023F3C7 /* start-offset.ts in Copy Resources */,
 				A17C46872C98E4D20023F3C7 /* StopLoadingFromDidReceiveResponse.html in Copy Resources */,
 				A17C48002C98E5C20023F3C7 /* StoreBlobToBeDeleted.html in Copy Resources */,
@@ -2191,6 +2228,7 @@
 		0794742C25CB33B000C597EE /* camera-to-canvas.html */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.html; path = "camera-to-canvas.html"; sourceTree = "<group>"; };
 		0799C34A1EBA32F4003B7532 /* disableGetUserMedia.html */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.html; path = disableGetUserMedia.html; sourceTree = "<group>"; };
 		079D45F12A2A6BBE003830C7 /* Viewport.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = Viewport.mm; sourceTree = "<group>"; };
+		07C02FD12D6D6FBC0004ED97 /* rtl-sideways-scrolling.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "rtl-sideways-scrolling.html"; sourceTree = "<group>"; };
 		07C046C91E42573E007201E7 /* CARingBufferTest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = CARingBufferTest.cpp; sourceTree = "<group>"; };
 		07CC7DFD2266330800E39181 /* MediaBufferingPolicy.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MediaBufferingPolicy.mm; sourceTree = "<group>"; };
 		07CC7DFD2266330800E39281 /* NoResumeSoundPlayedToTheEndAfterThePageBecomesVisible.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = NoResumeSoundPlayedToTheEndAfterThePageBecomesVisible.mm; sourceTree = "<group>"; };
@@ -3327,6 +3365,9 @@
 		A16F66B91C40EA2000BD4D24 /* ContentFiltering.html */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.html; path = ContentFiltering.html; sourceTree = "<group>"; };
 		A170E3A22ABA7857009EA799 /* VectorCocoa.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = VectorCocoa.mm; sourceTree = "<group>"; };
 		A17191AC2CD2DB090088944E /* WKWebViewLogging.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WKWebViewLogging.mm; sourceTree = "<group>"; };
+		A176D2472D6D295400C63915 /* GPUExtension.appex */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.extensionkit-extension"; path = GPUExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A176D2482D6D295400C63915 /* NetworkingExtension.appex */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.extensionkit-extension"; path = NetworkingExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A176D2492D6D295400C63915 /* WebContentExtension.appex */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.extensionkit-extension"; path = WebContentExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1798B7E22431D2B000764BD /* libWebCoreTestSupport.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; path = libWebCoreTestSupport.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1798B8122431D65000764BD /* ApplePay.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ApplePay.mm; sourceTree = "<group>"; };
 		A1798B8322433647000764BD /* WebProcessPlugInWithInternals.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WebProcessPlugInWithInternals.h; sourceTree = "<group>"; };
@@ -3728,6 +3769,7 @@
 		EBCD30F72B7C075F00268DA5 /* MemoryFootprintThreshold.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MemoryFootprintThreshold.mm; sourceTree = "<group>"; };
 		EC79F168BE454E579E417B05 /* Markable.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = Markable.cpp; sourceTree = "<group>"; };
 		ECA680CD1E68CC0900731D20 /* StringUtilities.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = StringUtilities.mm; sourceTree = "<group>"; };
+		EEA52EA32D69202E00D578B5 /* stagemode-model-page.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "stagemode-model-page.html"; sourceTree = "<group>"; };
 		F3CEF6B82808F2D3001E23A5 /* TimeZoneOverride.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = TimeZoneOverride.mm; sourceTree = "<group>"; };
 		F3FC3EE213678B7300126A65 /* libgtest.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libgtest.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		F4010B7F24DA24AC00A876E2 /* NavigationSwipeTests.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = NavigationSwipeTests.mm; sourceTree = "<group>"; };
@@ -4281,6 +4323,9 @@
 		1AB674ADFE9D54B511CA2CBB /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				A176D2472D6D295400C63915 /* GPUExtension.appex */,
+				A176D2482D6D295400C63915 /* NetworkingExtension.appex */,
+				A176D2492D6D295400C63915 /* WebContentExtension.appex */,
 				7B9FC57E28A26137007570E7 /* TestIPC */,
 				8DD76FA10486AA7600D96B5E /* TestWebKitAPI */,
 				3A15785328D1505B00142DB1 /* TestWGSL */,
@@ -5374,6 +5419,7 @@
 				F46849BF1EEF5EDC00B937FE /* rich-and-plain-text.html */,
 				1CE6FAC12320264F00E48F6E /* rich-color-filtered.html */,
 				2E92B8F6216490C3005B64F0 /* rich-text-attributes.html */,
+				07C02FD12D6D6FBC0004ED97 /* rtl-sideways-scrolling.html */,
 				F4E0A295211FC5A300AF7C7F /* selected-text-and-textarea.html */,
 				F4D65DA71F5E46C0009D8C27 /* selected-text-image-link-and-editable.html */,
 				467C565221B5ECDF0057516D /* SetSessionCookie.html */,
@@ -5970,6 +6016,7 @@
 				51E780361919AFF8001829A2 /* simple2.html */,
 				51E780371919AFF8001829A2 /* simple3.html */,
 				C02B7882126615410026BF0F /* spacebar-scrolling.html */,
+				EEA52EA32D69202E00D578B5 /* stagemode-model-page.html */,
 				51C234C72970E11400E35C4B /* test-mse-audio.webm */,
 				CD59F53319E910BC00CF1835 /* test-mse.mp4 */,
 				51BB6B7E296E8FFD0059B107 /* test-mse.webm */,
@@ -6512,8 +6559,10 @@
 				A17C57FE2C9AA12F009DD0B5 /* Sources */,
 				A17C57FF2C9AA12F009DD0B5 /* Frameworks */,
 				A1B8D7622D67CD6E0045C305 /* Copy Resources */,
+				A176D23F2D6D079900C63915 /* Embed Extensions */,
 			);
 			buildRules = (
+				A176D2552D6D35D400C63915 /* PBXBuildRule */,
 			);
 			dependencies = (
 				A18899202CAC690400FEB09A /* PBXTargetDependency */,

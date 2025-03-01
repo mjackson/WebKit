@@ -38,6 +38,7 @@
 #include "ContainerNode.h"
 #include "ContentVisibilityDocumentState.h"
 #include "DebugPageOverlays.h"
+#include "DocumentFullscreen.h"
 #include "DocumentInlines.h"
 #include "DocumentLoader.h"
 #include "DocumentMarkerController.h"
@@ -55,7 +56,6 @@
 #include "FrameLoader.h"
 #include "FrameSelection.h"
 #include "FrameTree.h"
-#include "FullscreenManager.h"
 #include "GraphicsContext.h"
 #include "HTMLBodyElement.h"
 #include "HTMLEmbedElement.h"
@@ -2436,9 +2436,9 @@ void LocalFrameView::scrollElementToRect(const Element& element, const IntRect& 
     setScrollPosition(IntPoint(bounds.x() - centeringOffsetX - rect.x(), bounds.y() - centeringOffsetY - rect.y()));
 }
 
-void LocalFrameView::setScrollPosition(const ScrollPosition& scrollPosition, const ScrollPositionChangeOptions& options)
+void LocalFrameView::setScrollOffsetWithOptions(const ScrollOffset& scrollOffset, const ScrollPositionChangeOptions& options)
 {
-    LOG_WITH_STREAM(Scrolling, stream << "LocalFrameView::setScrollPosition " << scrollPosition << " animated " << (options.animated == ScrollIsAnimated::Yes) << ", clearing anchor");
+    LOG_WITH_STREAM(Scrolling, stream << "LocalFrameView::setScrollOffset " << scrollOffset << " animated " << (options.animated == ScrollIsAnimated::Yes) << ", clearing anchor");
 
     auto oldScrollType = currentScrollType();
     setCurrentScrollType(options.type);
@@ -2450,7 +2450,7 @@ void LocalFrameView::setScrollPosition(const ScrollPosition& scrollPosition, con
     if (page && page->isMonitoringWheelEvents())
         scrollAnimator().setWheelEventTestMonitor(page->wheelEventTestMonitor());
 
-    ScrollOffset snappedOffset = ceiledIntPoint(scrollAnimator().scrollOffsetAdjustedForSnapping(scrollOffsetFromPosition(scrollPosition), options.snapPointSelectionMethod));
+    ScrollOffset snappedOffset = ceiledIntPoint(scrollAnimator().scrollOffsetAdjustedForSnapping(scrollOffset, options.snapPointSelectionMethod));
     auto snappedPosition = scrollPositionFromOffset(snappedOffset);
 
     if (options.animated == ScrollIsAnimated::Yes)
@@ -2459,6 +2459,35 @@ void LocalFrameView::setScrollPosition(const ScrollPosition& scrollPosition, con
         ScrollView::setScrollPosition(snappedPosition, options);
 
     setCurrentScrollType(oldScrollType);
+}
+
+void LocalFrameView::scrollToEdgeWithOptions(RectEdges<bool> edges, const ScrollPositionChangeOptions& options)
+{
+    LOG_WITH_STREAM(Scrolling, stream << "LocalFrameView::scrollToEdgeWithOptions " << edges << " animated " << (options.animated == ScrollIsAnimated::Yes) << ", clearing anchor");
+
+    ASSERT(std::ranges::count_if(WebCore::allBoxSides, [edges](auto side) { return edges[side]; }) == 1);
+
+    auto currentOffset = scrollOffsetFromPosition(scrollPosition());
+    auto minimumScrollOffset = scrollOffsetFromPosition(minimumScrollPosition());
+    auto maximumScrollOffset = scrollOffsetFromPosition(maximumScrollPosition());
+
+    if (edges.top())
+        currentOffset.setY(minimumScrollOffset.y());
+    else if (edges.left())
+        currentOffset.setX(minimumScrollOffset.x());
+    else if (edges.bottom())
+        currentOffset.setY(maximumScrollOffset.y());
+    else if (edges.right())
+        currentOffset.setX(maximumScrollOffset.x());
+
+    setScrollOffsetWithOptions(currentOffset, options);
+}
+
+void LocalFrameView::setScrollPosition(const ScrollPosition& scrollPosition, const ScrollPositionChangeOptions& options)
+{
+    LOG_WITH_STREAM(Scrolling, stream << "LocalFrameView::setScrollPosition " << scrollPosition << " animated " << (options.animated == ScrollIsAnimated::Yes) << ", clearing anchor");
+
+    setScrollOffsetWithOptions(scrollOffsetFromPosition(scrollPosition), options);
 }
 
 void LocalFrameView::resetScrollAnchor()
@@ -3243,6 +3272,9 @@ void LocalFrameView::layoutOrVisualViewportChanged()
         if (RefPtr scrollingCoordinator = this->scrollingCoordinator())
             scrollingCoordinator->frameViewVisualViewportChanged(*this);
     }
+
+    if (RefPtr page = m_frame->page())
+        page->chrome().client().frameViewLayoutOrVisualViewportChanged(*this);
 }
 
 void LocalFrameView::unobscuredContentSizeChanged()
@@ -4541,11 +4573,11 @@ Color LocalFrameView::documentBackgroundColor() const
 
 #if ENABLE(FULLSCREEN_API)
     Color fullscreenBackgroundColor = [&] () -> Color {
-        CheckedPtr fullscreenManager = backgroundDocument->fullscreenManagerIfExists();
-        if (!fullscreenManager)
+        CheckedPtr documentFullscreen = backgroundDocument->fullscreenIfExists();
+        if (!documentFullscreen)
             return { };
 
-        RefPtr fullscreenElement = fullscreenManager->fullscreenElement();
+        RefPtr fullscreenElement = documentFullscreen->fullscreenElement();
         if (!fullscreenElement)
             return { };
 

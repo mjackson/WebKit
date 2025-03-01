@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2022-2025 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -370,6 +370,8 @@ bool WebExtensionContext::load(WebExtensionController& controller, String storag
         if (!isLoaded())
             return;
 
+        m_safeToInjectContent = true;
+
         loadBackgroundWebViewDuringLoad();
 
 #if ENABLE(INSPECTOR_EXTENSIONS)
@@ -419,6 +421,7 @@ bool WebExtensionContext::unload(NSError **outError)
     m_dynamicallyInjectedUserStyleSheets.clear();
     m_injectedScriptsPerPatternMap.clear();
     m_injectedStyleSheetsPerPatternMap.clear();
+    m_safeToInjectContent = false;
 
     m_extensionController = nullptr;
     m_contentScriptWorld = nullptr;
@@ -743,7 +746,7 @@ void WebExtensionContext::setHasAccessToPrivateData(bool hasAccess)
 
     m_hasAccessToPrivateData = hasAccess;
 
-    if (!isLoaded())
+    if (!safeToInjectContent())
         return;
 
     if (m_hasAccessToPrivateData) {
@@ -1737,7 +1740,7 @@ WebExtensionContext::PermissionState WebExtensionContext::permissionState(const 
     if (!pattern.isValid())
         return PermissionState::Unknown;
 
-    if (pattern.matchesURL(baseURL()))
+    if (!pattern.matchesAllURLs() && pattern.matchesURL(baseURL()))
         return PermissionState::GrantedImplicitly;
 
     if (!pattern.matchesAllURLs() && !WebExtensionMatchPattern::validSchemes().contains(pattern.scheme()))
@@ -4364,7 +4367,7 @@ void WebExtensionContext::inspectorEffectiveAppearanceDidChange(API::InspectorEx
 
 void WebExtensionContext::addInjectedContent(const InjectedContentVector& injectedContents)
 {
-    if (!isLoaded())
+    if (!safeToInjectContent())
         return;
 
     // Only add content for one "all hosts" pattern if the extension has the permission.
@@ -4383,7 +4386,7 @@ void WebExtensionContext::addInjectedContent(const InjectedContentVector& inject
 
 void WebExtensionContext::addInjectedContent(const InjectedContentVector& injectedContents, const MatchPatternSet& grantedMatchPatterns)
 {
-    if (!isLoaded())
+    if (!safeToInjectContent())
         return;
 
     if (hasAccessToAllHosts()) {
@@ -4444,7 +4447,7 @@ API::ContentWorld& WebExtensionContext::toContentWorld(WebExtensionContentWorldT
 
 void WebExtensionContext::addInjectedContent(const InjectedContentVector& injectedContents, WebExtensionMatchPattern& pattern)
 {
-    if (!isLoaded())
+    if (!safeToInjectContent())
         return;
 
     auto scriptAddResult = m_injectedScriptsPerPatternMap.ensure(pattern, [&] {
@@ -4527,9 +4530,9 @@ void WebExtensionContext::addInjectedContent(const InjectedContentVector& inject
 
         auto injectedFrames = injectedContentData.injectsIntoAllFrames ? WebCore::UserContentInjectedFrames::InjectInAllFrames : WebCore::UserContentInjectedFrames::InjectInTopFrameOnly;
         auto injectionTime = toImpl(injectedContentData.injectionTime);
-        auto waitForNotification = WebCore::WaitForNotificationBeforeInjecting::No;
         Ref executionWorld = toContentWorld(injectedContentData.contentWorldType);
         auto styleLevel = injectedContentData.styleLevel;
+        auto matchParentFrame = injectedContentData.matchParentFrame;
 
         auto scriptID = injectedContentData.identifier;
         bool isRegisteredScript = !scriptID.isEmpty();
@@ -4544,7 +4547,7 @@ void WebExtensionContext::addInjectedContent(const InjectedContentVector& inject
                 continue;
             }
 
-            Ref userScript = API::UserScript::create(WebCore::UserScript { WTFMove(scriptString), URL { m_baseURL, scriptPath }, makeVector<String>(includeMatchPatterns), makeVector<String>(excludeMatchPatterns), injectionTime, injectedFrames, waitForNotification }, executionWorld);
+            Ref userScript = API::UserScript::create(WebCore::UserScript { WTFMove(scriptString), URL { m_baseURL, scriptPath }, makeVector<String>(includeMatchPatterns), makeVector<String>(excludeMatchPatterns), injectionTime, injectedFrames, matchParentFrame }, executionWorld);
             originInjectedScripts.append(userScript);
 
             for (Ref userContentController : userContentControllers)
@@ -4570,7 +4573,7 @@ void WebExtensionContext::addInjectedContent(const InjectedContentVector& inject
 
             styleSheetString = localizedResourceString(styleSheetString, "text/css"_s);
 
-            Ref userStyleSheet = API::UserStyleSheet::create(WebCore::UserStyleSheet { WTFMove(styleSheetString), URL { m_baseURL, styleSheetPath }, makeVector<String>(includeMatchPatterns), makeVector<String>(excludeMatchPatterns), injectedFrames, styleLevel, std::nullopt }, executionWorld);
+            Ref userStyleSheet = API::UserStyleSheet::create(WebCore::UserStyleSheet { WTFMove(styleSheetString), URL { m_baseURL, styleSheetPath }, makeVector<String>(includeMatchPatterns), makeVector<String>(excludeMatchPatterns), injectedFrames, matchParentFrame, styleLevel, std::nullopt }, executionWorld);
             originInjectedStyleSheets.append(userStyleSheet);
 
             for (Ref userContentController : userContentControllers)
@@ -4590,6 +4593,9 @@ void WebExtensionContext::addInjectedContent(const InjectedContentVector& inject
 
 void WebExtensionContext::addInjectedContent(WebUserContentControllerProxy& userContentController)
 {
+    if (!safeToInjectContent())
+        return;
+
     for (auto& entry : m_injectedScriptsPerPatternMap) {
         for (auto& userScript : entry.value)
             userContentController.addUserScript(userScript, InjectUserScriptImmediately::Yes);

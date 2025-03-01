@@ -53,6 +53,7 @@
 #include "InjectUserScriptImmediately.h"
 #include "InjectedBundle.h"
 #include "InjectedBundleScriptWorld.h"
+#include "JavaScriptEvaluationResult.h"
 #include "LibWebRTCCodecs.h"
 #include "LibWebRTCProvider.h"
 #include "LoadParameters.h"
@@ -196,6 +197,7 @@
 #include <WebCore/DeprecatedGlobalSettings.h>
 #include <WebCore/Document.h>
 #include <WebCore/DocumentFragment.h>
+#include <WebCore/DocumentFullscreen.h>
 #include <WebCore/DocumentInlines.h>
 #include <WebCore/DocumentLoader.h>
 #include <WebCore/DocumentMarkerController.h>
@@ -219,7 +221,6 @@
 #include <WebCore/FragmentDirectiveUtilities.h>
 #include <WebCore/FrameLoadRequest.h>
 #include <WebCore/FrameLoaderTypes.h>
-#include <WebCore/FullscreenManager.h>
 #include <WebCore/GeometryUtilities.h>
 #include <WebCore/HTMLAttachmentElement.h>
 #include <WebCore/HTMLBodyElement.h>
@@ -769,7 +770,7 @@ WebPage::WebPage(PageIdentifier pageID, WebPageCreationParameters&& parameters)
         makeUniqueRef<WebSpeechRecognitionProvider>(pageID),
         WebProcess::singleton().broadcastChannelRegistry(),
         makeUniqueRef<WebStorageProvider>(WebProcess::singleton().mediaKeysStorageDirectory(), WebProcess::singleton().mediaKeysStorageSalt()),
-        makeUniqueRef<WebModelPlayerProvider>(*this),
+        WebModelPlayerProvider::create(*this),
         WebProcess::singleton().badgeClient(),
         m_historyItemClient.copyRef(),
 #if ENABLE(CONTEXT_MENUS)
@@ -834,7 +835,6 @@ WebPage::WebPage(PageIdentifier pageID, WebPageCreationParameters&& parameters)
     pageConfiguration.corsDisablingPatterns = parseAndAllowAccessToCORSDisablingPatterns(m_corsDisablingPatterns);
 
     pageConfiguration.maskedURLSchemes = parameters.maskedURLSchemes;
-    pageConfiguration.userScriptsShouldWaitUntilNotification = parameters.userScriptsShouldWaitUntilNotification;
     pageConfiguration.loadsSubresources = parameters.loadsSubresources;
     pageConfiguration.allowedNetworkHosts = parameters.allowedNetworkHosts;
     pageConfiguration.shouldRelaxThirdPartyCookieBlocking = parameters.shouldRelaxThirdPartyCookieBlocking;
@@ -2966,6 +2966,11 @@ void WebPage::setUnderPageBackgroundColorOverride(WebCore::Color&& underPageBack
     protectedCorePage()->setUnderPageBackgroundColorOverride(WTFMove(underPageBackgroundColorOverride));
 }
 
+void WebPage::setShouldSuppressHDR(bool shouldSuppressHDR)
+{
+    protectedCorePage()->setShouldSuppressHDR(shouldSuppressHDR);
+}
+
 #if !PLATFORM(IOS_FAMILY)
 
 void WebPage::setHeaderPageBanner(PageBanner* pageBanner)
@@ -3812,7 +3817,7 @@ void WebPage::setNeedsFontAttributes(bool needsFontAttributes)
 
 void WebPage::setCurrentHistoryItemForReattach(Ref<FrameState>&& mainFrameState)
 {
-    if (RefPtr localMainFrame = this->localMainFrame())
+    if (RefPtr localMainFrame = m_mainFrame->provisionalFrame() ? m_mainFrame->provisionalFrame() : m_mainFrame->coreLocalFrame())
         localMainFrame->loader().protectedHistory()->setCurrentItem(toHistoryItem(m_historyItemClient, mainFrameState));
 }
 
@@ -4379,25 +4384,25 @@ KeyboardUIMode WebPage::keyboardUIMode()
     return static_cast<KeyboardUIMode>((fullKeyboardAccessEnabled ? KeyboardAccessFull : KeyboardAccessDefault) | (m_tabToLinks ? KeyboardAccessTabsToLinks : 0));
 }
 
-void WebPage::runJavaScript(WebFrame* frame, RunJavaScriptParameters&& parameters, ContentWorldIdentifier worldIdentifier, CompletionHandler<void(std::span<const uint8_t>, const std::optional<WebCore::ExceptionDetails>&)>&& completionHandler)
+void WebPage::runJavaScript(WebFrame* frame, RunJavaScriptParameters&& parameters, ContentWorldIdentifier worldIdentifier, CompletionHandler<void(Expected<JavaScriptEvaluationResult, std::optional<WebCore::ExceptionDetails>>)>&& completionHandler)
 {
     // NOTE: We need to be careful when running scripts that the objects we depend on don't
     // disappear during script execution.
 
     if (!frame || !frame->coreLocalFrame()) {
-        completionHandler({ }, ExceptionDetails { "Unable to execute JavaScript: Target frame could not be found in the page"_s, 0, 0, ExceptionDetails::Type::InvalidTargetFrame });
+        completionHandler(makeUnexpected(ExceptionDetails { "Unable to execute JavaScript: Target frame could not be found in the page"_s, 0, 0, ExceptionDetails::Type::InvalidTargetFrame }));
         return;
     }
 
     RefPtr world = m_userContentController->worldForIdentifier(worldIdentifier);
     if (!world) {
-        completionHandler({ }, ExceptionDetails { "Unable to execute JavaScript: Cannot find specified content world"_s });
+        completionHandler(makeUnexpected(ExceptionDetails { "Unable to execute JavaScript: Cannot find specified content world"_s }));
         return;
     }
 
 #if ENABLE(APP_BOUND_DOMAINS)
     if (frame->shouldEnableInAppBrowserPrivacyProtections()) {
-        completionHandler({ }, ExceptionDetails { "Unable to execute JavaScript in a frame that is not in an app-bound domain"_s, 0, 0, ExceptionDetails::Type::AppBoundDomain });
+        completionHandler(makeUnexpected(ExceptionDetails { "Unable to execute JavaScript in a frame that is not in an app-bound domain"_s, 0, 0, ExceptionDetails::Type::AppBoundDomain }));
         if (RefPtr localTopDocument = protectedCorePage()->localTopDocument())
             localTopDocument->addConsoleMessage(MessageSource::Security, MessageLevel::Warning, "Ignoring user script injection for non-app bound domain."_s);
         WEBPAGE_RELEASE_LOG_ERROR(Loading, "runJavaScript: Ignoring user script injection for non app-bound domain");
@@ -4422,27 +4427,27 @@ void WebPage::runJavaScript(WebFrame* frame, RunJavaScriptParameters&& parameter
 
     SetForScope userIsInteractingChange { m_userIsInteracting, shouldAllowUserInteraction };
     auto resolveFunction = [world = Ref { *world }, frame = Ref { *frame }, coreFrame = Ref { *frame->coreLocalFrame() }, completionHandler = WTFMove(completionHandler)] (ValueOrException result) mutable {
-        RefPtr<SerializedScriptValue> serializedResultValue;
-        if (result) {
-            serializedResultValue = SerializedScriptValue::create(frame->jsContextForWorld(world.ptr()),
-                toRef(coreFrame->script().globalObject(Ref { world->coreWorld() }), result.value()), nullptr);
-        }
-
-        std::span<const uint8_t> dataReference;
-        if (serializedResultValue)
-            dataReference = serializedResultValue->wireBytes();
-
-        std::optional<ExceptionDetails> details;
         if (!result)
-            details = result.error();
+            return completionHandler(makeUnexpected(result.error()));
 
-        completionHandler(dataReference, details);
+        JSGlobalContextRef context = frame->jsContextForWorld(world.ptr());
+        JSValueRef jsValue = toRef(coreFrame->script().globalObject(Ref { world->coreWorld() }), result.value());
+#if PLATFORM(COCOA)
+        completionHandler(JavaScriptEvaluationResult::extract(context, jsValue));
+#else
+        if (RefPtr serializedResultValue = SerializedScriptValue::create(context, jsValue, nullptr)) {
+            if (auto wireBytes = serializedResultValue->wireBytes(); !wireBytes.isEmpty())
+                return completionHandler(JavaScriptEvaluationResult { wireBytes });
+            return completionHandler(makeUnexpected(std::nullopt));
+        }
+        return completionHandler(makeUnexpected(std::nullopt));
+#endif
     };
     JSLockHolder lock(commonVM());
     frame->coreLocalFrame()->script().executeAsynchronousUserAgentScriptInWorld(world->protectedCoreWorld(), WTFMove(parameters), WTFMove(resolveFunction));
 }
 
-void WebPage::runJavaScriptInFrameInScriptWorld(RunJavaScriptParameters&& parameters, std::optional<WebCore::FrameIdentifier> frameID, const ContentWorldData& worldData, CompletionHandler<void(std::span<const uint8_t>, const std::optional<WebCore::ExceptionDetails>&)>&& completionHandler)
+void WebPage::runJavaScriptInFrameInScriptWorld(RunJavaScriptParameters&& parameters, std::optional<WebCore::FrameIdentifier> frameID, const ContentWorldData& worldData, CompletionHandler<void(Expected<JavaScriptEvaluationResult, std::optional<WebCore::ExceptionDetails>>)>&& completionHandler)
 {
     WEBPAGE_RELEASE_LOG(Process, "runJavaScriptInFrameInScriptWorld: frameID=%" PRIu64, frameID ? frameID->object().toUInt64() : 0);
     RefPtr webFrame = frameID ? WebProcess::singleton().webFrame(*frameID) : &mainWebFrame();
@@ -4455,15 +4460,15 @@ void WebPage::runJavaScriptInFrameInScriptWorld(RunJavaScriptParameters&& parame
         }
     }
 
-    runJavaScript(webFrame.get(), WTFMove(parameters), worldData.identifier, [this, protectedThis = Ref { *this }, completionHandler = WTFMove(completionHandler)](std::span<const uint8_t> result, const std::optional<WebCore::ExceptionDetails>& exception) mutable {
+    runJavaScript(webFrame.get(), WTFMove(parameters), worldData.identifier, [this, protectedThis = Ref { *this }, completionHandler = WTFMove(completionHandler)](auto&& result) mutable {
 #if RELEASE_LOG_DISABLED
         UNUSED_PARAM(this);
 #endif
-        if (exception)
-            WEBPAGE_RELEASE_LOG_ERROR(Process, "runJavaScriptInFrameInScriptWorld: Request to run JavaScript failed with error %" PRIVATE_LOG_STRING, exception->message.utf8().data());
+        if (!result && result.error())
+            WEBPAGE_RELEASE_LOG_ERROR(Process, "runJavaScriptInFrameInScriptWorld: Request to run JavaScript failed with error %" PRIVATE_LOG_STRING, result.error()->message.utf8().data());
         else
             WEBPAGE_RELEASE_LOG(Process, "runJavaScriptInFrameInScriptWorld: Request to run JavaScript succeeded");
-        completionHandler(result, exception);
+        completionHandler(WTFMove(result));
     });
 }
 
@@ -5953,6 +5958,11 @@ void WebPage::setMockCaptureDevicesInterrupted(bool isCameraInterrupted, bool is
 {
     MockRealtimeMediaSourceCenter::setMockCaptureDevicesInterrupted(isCameraInterrupted, isMicrophoneInterrupted);
 }
+
+void WebPage::triggerMockCaptureConfigurationChange(bool forCamera, bool forMicrophone, bool forDisplay)
+{
+    MockRealtimeMediaSourceCenter::singleton().triggerMockCaptureConfigurationChange(forCamera, forMicrophone, forDisplay);
+}
 #endif // USE(GSTREAMER)
 
 #endif // ENABLE(MEDIA_STREAM)
@@ -7430,8 +7440,8 @@ void WebPage::elementDidFocus(Element& element, const FocusOptions& options)
 #if PLATFORM(IOS_FAMILY)
 
 #if ENABLE(FULLSCREEN_API)
-        if (element.document().fullscreenManager().isFullscreen())
-            element.document().fullscreenManager().fullyExitFullscreen();
+        if (element.document().fullscreen().isFullscreen())
+            element.document().fullscreen().fullyExitFullscreen();
 #endif
         if (isChangingFocusedElement && (m_userIsInteracting || m_keyboardIsAttached))
             m_sendAutocorrectionContextAfterFocusingElement = true;
@@ -8163,12 +8173,6 @@ void WebPage::updateWebsitePolicies(WebsitePoliciesData&& websitePolicies)
 #endif
 }
 
-void WebPage::notifyUserScripts()
-{
-    if (RefPtr page = m_page)
-        page->notifyToInjectUserScripts();
-}
-
 unsigned WebPage::extendIncrementalRenderingSuppression()
 {
     unsigned token = m_maximumRenderingSuppressionToken + 1;
@@ -8325,16 +8329,16 @@ void WebPage::imageOrMediaDocumentSizeChanged(const IntSize& newSize)
     send(Messages::WebPageProxy::ImageOrMediaDocumentSizeChanged(newSize));
 }
 
-void WebPage::addUserScript(String&& source, InjectedBundleScriptWorld& world, WebCore::UserContentInjectedFrames injectedFrames, WebCore::UserScriptInjectionTime injectionTime)
+void WebPage::addUserScript(String&& source, InjectedBundleScriptWorld& world, WebCore::UserContentInjectedFrames injectedFrames, WebCore::UserScriptInjectionTime injectionTime, WebCore::UserContentMatchParentFrame matchParentFrame)
 {
-    WebCore::UserScript userScript { WTFMove(source), URL(aboutBlankURL()), Vector<String>(), Vector<String>(), injectionTime, injectedFrames, WebCore::WaitForNotificationBeforeInjecting::No };
+    WebCore::UserScript userScript { WTFMove(source), URL(aboutBlankURL()), Vector<String>(), Vector<String>(), injectionTime, injectedFrames, matchParentFrame };
 
     Ref { m_userContentController }->addUserScript(world, WTFMove(userScript));
 }
 
 void WebPage::addUserStyleSheet(const String& source, WebCore::UserContentInjectedFrames injectedFrames)
 {
-    WebCore::UserStyleSheet userStyleSheet { source, aboutBlankURL(), Vector<String>(), Vector<String>(), injectedFrames, UserStyleLevel::User };
+    WebCore::UserStyleSheet userStyleSheet { source, aboutBlankURL(), Vector<String>(), Vector<String>(), injectedFrames };
 
     Ref { m_userContentController }->addUserStyleSheet(InjectedBundleScriptWorld::normalWorldSingleton(), WTFMove(userStyleSheet));
 }
@@ -9521,6 +9525,30 @@ void WebPage::scrollToRect(const WebCore::FloatRect& targetRect, const WebCore::
     frameView->setScrollPosition(IntPoint(targetRect.minXMinYCorner()));
 }
 
+void WebPage::setContentOffset(WebCore::ScrollOffset offset, WebCore::ScrollIsAnimated animated)
+{
+    RefPtr frameView = localMainFrameView();
+    if (!frameView)
+        return;
+
+    auto options = WebCore::ScrollPositionChangeOptions::createProgrammatic();
+    options.animated = animated;
+
+    frameView->setScrollOffsetWithOptions(offset, options);
+}
+
+void WebPage::scrollToEdge(WebCore::RectEdges<bool> edges, WebCore::ScrollIsAnimated animated)
+{
+    RefPtr frameView = localMainFrameView();
+    if (!frameView)
+        return;
+
+    auto options = WebCore::ScrollPositionChangeOptions::createProgrammatic();
+    options.animated = animated;
+
+    frameView->scrollToEdgeWithOptions(edges, options);
+}
+
 #if ENABLE(IMAGE_ANALYSIS) && ENABLE(VIDEO)
 void WebPage::beginTextRecognitionForVideoInElementFullScreen(const HTMLVideoElement& element)
 {
@@ -10337,6 +10365,17 @@ void WebPage::setPresentingApplicationAuditTokenAndBundleIdentifier(CoreIPCAudit
     page->setPresentingApplicationBundleIdentifier(WTFMove(bundleIdentifier));
 }
 #endif
+
+void WebPage::frameViewLayoutOrVisualViewportChanged(const LocalFrameView& frameView)
+{
+#if ENABLE(PDF_PLUGIN)
+    Ref frame = frameView.frame();
+    if (RefPtr plugin = pluginViewForFrame(frame.ptr()))
+        plugin->frameViewLayoutOrVisualViewportChanged(frameView.unobscuredContentRect());
+#else
+    UNUSED_PARAM(frameView);
+#endif
+}
 
 } // namespace WebKit
 

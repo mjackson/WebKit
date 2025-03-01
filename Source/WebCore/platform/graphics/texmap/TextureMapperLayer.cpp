@@ -28,6 +28,7 @@
 #include "TextureMapper.h"
 #include "TextureMapperLayer3DRenderingContext.h"
 #include <wtf/MathExtras.h>
+#include <wtf/Scope.h>
 #include <wtf/SetForScope.h>
 #include <wtf/TZoneMallocInlines.h>
 
@@ -373,7 +374,7 @@ void TextureMapperLayer::paint(TextureMapper& textureMapper)
 #if ENABLE(DAMAGE_TRACKING)
 void TextureMapperLayer::setDamage(const Damage& damage)
 {
-    m_damage = damage;
+    m_receivedDamage = damage;
 }
 
 void TextureMapperLayer::collectDamage(TextureMapper& textureMapper, Damage& damage)
@@ -399,13 +400,55 @@ void TextureMapperLayer::collectDamageRecursive(TextureMapperPaintOptions& optio
 void TextureMapperLayer::collectDamageSelfAndChildren(TextureMapperPaintOptions& options, Damage& damage)
 {
     collectDamageSelf(options, damage);
+
+    bool shouldClip = (m_state.masksToBounds || m_state.contentsRectClipsDescendants) && !m_state.preserves3D;
+    if (shouldClip) {
+        TransformationMatrix clipTransform;
+        clipTransform.translate(options.offset.width(), options.offset.height());
+        clipTransform.multiply(options.transform);
+        clipTransform.multiply(m_layerTransforms.combined);
+        if (m_state.contentsRectClipsDescendants)
+            options.textureMapper.beginClipWithoutApplying(clipTransform, m_state.contentsClippingRect.rect());
+        else {
+            clipTransform.translate(m_state.boundsOrigin.x(), m_state.boundsOrigin.y());
+            options.textureMapper.beginClipWithoutApplying(clipTransform, layerRect());
+        }
+
+        if (options.textureMapper.clipBounds().isEmpty()) {
+            options.textureMapper.endClipWithoutApplying();
+            return;
+        }
+    }
+
     for (auto* child : m_children)
         child->collectDamageRecursive(options, damage);
+
+    if (shouldClip)
+        options.textureMapper.endClip();
+}
+
+static FloatRect transformRectFromLayerToGlobalCoordinateSpace(const FloatRect& rect, const TransformationMatrix& transform, const TextureMapperPaintOptions& options)
+{
+    auto transformedRect = transform.mapRect(rect);
+    // Some layers are drawn on an intermediate surface and have this offset applied to convert to the
+    // intermediate surface coordinates. In order to translate back to actual coordinates,
+    // we have to undo it.
+    transformedRect.move(-options.offset);
+    auto clipBounds = options.textureMapper.clipBounds();
+    clipBounds.move(-options.offset);
+    transformedRect.intersect(clipBounds);
+    return transformedRect;
 }
 
 void TextureMapperLayer::collectDamageSelf(TextureMapperPaintOptions& options, Damage& damage)
 {
     ASSERT(m_damagePropagation);
+
+    auto cleanup = WTF::makeScopeExit([&]() {
+        m_receivedDamage = { };
+        m_inferredLayerDamage = { };
+        m_inferredGlobalDamage = { };
+    });
 
     if (!m_state.visible || !m_state.contentsVisible)
         return;
@@ -414,35 +457,49 @@ void TextureMapperLayer::collectDamageSelf(TextureMapperPaintOptions& options, D
     if (targetRect.isEmpty())
         return;
 
+    if ((!isFlattened() || m_flattenedLayer->needsUpdate())
+        && !m_state.backgroundColor.isValid()
+        && !m_backingStore
+        && (!m_state.solidColor.isValid() || !m_state.solidColor.isVisible())
+        && !m_contentsLayer) {
+        // Layers that have no visuals on their own should not contribute to the damage.
+        return;
+    }
+
     TransformationMatrix transform;
     transform.translate(options.offset.width(), options.offset.height());
     transform.multiply(options.transform);
     transform.multiply(m_layerTransforms.combined);
 
-    ASSERT(!m_damage.isInvalid());
-    ASSERT(!m_inferredDamage.isInvalid());
-    if (!m_inferredDamage.isEmpty()) {
-        for (const auto& rect : m_inferredDamage.rects()) {
+    ASSERT(!m_receivedDamage.isInvalid());
+    ASSERT(!m_inferredLayerDamage.isInvalid());
+    ASSERT(!m_inferredGlobalDamage.isInvalid());
+    // Inferred damage always takes precedence over any other kind of damage as it stores
+    // the damage that is a result of the layer-level operations.
+    if (!m_inferredGlobalDamage.isEmpty() || !m_inferredLayerDamage.isEmpty()) {
+        const auto& clipBounds = options.textureMapper.clipBounds();
+        for (const auto& rect : m_inferredGlobalDamage.rects()) {
             ASSERT(!rect.isEmpty());
-            damage.add(rect);
+            damage.add(intersection(rect, clipBounds));
+        }
+        for (const auto& rect : m_inferredLayerDamage.rects()) {
+            ASSERT(!rect.isEmpty());
+            damage.add(intersection(transformRectFromLayerToGlobalCoordinateSpace(rect, transform, options), clipBounds));
         }
     } else if (m_contentsLayer) {
         // Layers with content layer are fully damaged if there's no explicit damage.
         // FIXME: Remove that special case.
-        damage.add(transformRectForDamage(targetRect, transform, options));
+        damage.add(transformRectFromLayerToGlobalCoordinateSpace(targetRect, transform, options));
     } else {
         // Use the damage information we received from the GraphicsLayer
         // Here we ignore the targetRect parameter as it should already have
         // been covered by the damage tracking in setNeedsDisplay/setNeedsDisplayInRect
         // calls from GraphicsLayer.
-        for (const auto& rect : m_damage.rects()) {
+        for (const auto& rect : m_receivedDamage.rects()) {
             ASSERT(!rect.isEmpty());
-            damage.add(transformRectForDamage(rect, transform, options));
+            damage.add(transformRectFromLayerToGlobalCoordinateSpace(rect, transform, options));
         }
     }
-
-    m_damage = { };
-    m_inferredDamage = { };
 }
 
 void TextureMapperLayer::collectDamageSelfChildrenReplicaFilterAndMask(TextureMapperPaintOptions& options, Damage& damage)
@@ -473,7 +530,7 @@ void TextureMapperLayer::collectDamageSelfChildrenFilterAndMask(TextureMapperPai
                 IntRect tileRect(IntPoint(x, y), maxTextureSize);
                 tileRect.intersect(rect);
 
-                m_accumulatedOverlapRegionDamage.unite(transformRectForDamage(tileRect, options.transform, options));
+                m_accumulatedOverlapRegionDamage.unite(transformRectFromLayerToGlobalCoordinateSpace(tileRect, options.transform, options));
             }
         }
     }
@@ -486,21 +543,8 @@ void TextureMapperLayer::damageWholeLayerDueToTransformChange(const Transformati
 {
     // When the layer's transform changes, we must not only damage whole layer using new transform,
     // but also using old transform to cover the area not affected by layer anymore.
-    m_inferredDamage.add(afterChange.mapRect(layerRect()));
-    m_inferredDamage.add(beforeChange.mapRect(layerRect()));
-}
-
-FloatRect TextureMapperLayer::transformRectForDamage(const FloatRect& rect, const TransformationMatrix& transform, const TextureMapperPaintOptions& options)
-{
-    auto transformedRect = transform.mapRect(rect);
-    // Some layers are drawn on an intermediate surface and have this offset applied to convert to the
-    // intermediate surface coordinates. In order to translate back to actual coordinates,
-    // we have to undo it.
-    transformedRect.move(-options.offset);
-    auto clipBounds = options.textureMapper.clipBounds();
-    clipBounds.move(-options.offset);
-    transformedRect.intersect(clipBounds);
-    return transformedRect;
+    m_inferredGlobalDamage.add(afterChange.mapRect(layerRect()));
+    m_inferredGlobalDamage.add(beforeChange.mapRect(layerRect()));
 }
 #endif
 
@@ -1262,9 +1306,10 @@ void TextureMapperLayer::setSize(const FloatSize& size)
 {
 #if ENABLE(DAMAGE_TRACKING)
     if (canInferDamage() && m_state.size != size) {
-        // When layer size changes, we damage whole layer for now.
+        // When layer size changes, we damage whole layer (before and after) for now.
         // FIXME: Damage only affected area.
-        m_inferredDamage.add(m_state.transform.mapRect(FloatRect(FloatPoint::zero(), size)));
+        m_inferredLayerDamage.add(FloatRect(FloatPoint::zero(), m_state.size));
+        m_inferredLayerDamage.add(FloatRect(FloatPoint::zero(), size));
     }
 #endif
     m_state.size = size;

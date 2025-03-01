@@ -170,6 +170,7 @@ static MTCoreMaterialRecipe materialRecipeForAppleVisualEffect(AppleVisualEffect
 #if HAVE(MATERIAL_HOSTING)
     case AppleVisualEffect::HostedBlurMaterial:
     case AppleVisualEffect::HostedThinBlurMaterial:
+    case AppleVisualEffect::HostedMediaControlsMaterial:
 #endif
     case AppleVisualEffect::VibrancyLabel:
     case AppleVisualEffect::VibrancySecondaryLabel:
@@ -209,6 +210,7 @@ static MTCoreMaterialVisualStyle materialVisualStyleForAppleVisualEffect(AppleVi
 #if HAVE(MATERIAL_HOSTING)
     case AppleVisualEffect::HostedBlurMaterial:
     case AppleVisualEffect::HostedThinBlurMaterial:
+    case AppleVisualEffect::HostedMediaControlsMaterial:
 #endif
         ASSERT_NOT_REACHED();
         return nil;
@@ -237,6 +239,7 @@ static MTCoreMaterialVisualStyleCategory materialVisualStyleCategoryForAppleVisu
 #if HAVE(MATERIAL_HOSTING)
     case AppleVisualEffect::HostedBlurMaterial:
     case AppleVisualEffect::HostedThinBlurMaterial:
+    case AppleVisualEffect::HostedMediaControlsMaterial:
 #endif
         ASSERT_NOT_REACHED();
         return nil;
@@ -252,6 +255,8 @@ static WKHostedMaterialEffectType hostedMaterialEffectTypeForAppleVisualEffect(A
         return WKHostedMaterialEffectTypeBlur;
     case AppleVisualEffect::HostedThinBlurMaterial:
         return WKHostedMaterialEffectTypeThinBlur;
+    case AppleVisualEffect::HostedMediaControlsMaterial:
+        return WKHostedMaterialEffectTypeMediaControls;
     case AppleVisualEffect::None:
     case AppleVisualEffect::BlurUltraThinMaterial:
     case AppleVisualEffect::BlurThinMaterial:
@@ -545,7 +550,9 @@ void RemoteLayerTreePropertyApplier::applyPropertiesToLayer(CALayer *layer, Remo
             [layer setContentsFormat:formatString];
 #if ENABLE(PIXEL_FORMAT_RGBA16F)
         if (contentsFormat == ContentsFormat::RGBA16F) {
+            ALLOW_DEPRECATED_DECLARATIONS_BEGIN
             [layer setWantsExtendedDynamicRangeContent:true];
+            ALLOW_DEPRECATED_DECLARATIONS_END
             [layer setToneMapMode:CAToneMapModeIfSupported];
         }
 #endif

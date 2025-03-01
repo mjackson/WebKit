@@ -94,7 +94,6 @@ Modules/webtransport/WebTransport.cpp
 StyleBuilderGenerated.cpp
 accessibility/AXCoreObject.cpp
 accessibility/AXCoreObject.h
-accessibility/AXImage.cpp
 accessibility/AXLogger.cpp
 accessibility/AXObjectCache.cpp
 accessibility/AXObjectCache.h
@@ -136,7 +135,6 @@ animation/AnimationTimeline.cpp
 animation/AnimationTimelinesController.cpp
 animation/BlendingKeyframes.cpp
 animation/CSSAnimation.cpp
-animation/CSSPropertyAnimation.cpp
 animation/CSSTransition.cpp
 animation/DocumentTimeline.cpp
 animation/KeyframeEffect.cpp
@@ -280,6 +278,7 @@ dom/ComposedTreeIterator.h
 dom/ContainerNodeAlgorithms.cpp
 dom/Document.cpp
 dom/DocumentFragment.cpp
+dom/DocumentFullscreen.cpp
 dom/DocumentStorageAccess.cpp
 dom/Element.cpp
 dom/ElementAndTextDescendantIterator.h
@@ -289,7 +288,6 @@ dom/ElementTraversal.h
 dom/EventPath.cpp
 dom/FragmentDirectiveGenerator.cpp
 dom/FragmentDirectiveRangeFinder.cpp
-dom/FullscreenManager.cpp
 dom/InlineStyleSheetOwner.cpp
 dom/KeyboardEvent.cpp
 dom/MessagePort.cpp
@@ -725,6 +723,8 @@ style/StyleBuilder.cpp
 style/StyleBuilderConverter.h
 style/StyleBuilderCustom.h
 style/StyleBuilderState.cpp
+style/StyleInterpolationFunctions.h
+style/StyleInterpolationWrappers.h
 style/StyleInvalidationFunctions.h
 style/StyleInvalidator.cpp
 style/StylePendingResources.cpp

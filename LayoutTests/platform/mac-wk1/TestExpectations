@@ -1985,10 +1985,6 @@ http/wpt/webauthn/ [ Skip ]
 imported/w3c/web-platform-tests/credential-management/ [ Skip ]
 imported/w3c/web-platform-tests/webauthn [ Skip ]
 
-# Skip Digital Credentials API
-http/wpt/identity/ [ Skip ]
-imported/w3c/web-platform-tests/digital-credentials/ [ Skip ]
-
 webkit.org/b/182554 transitions/transition-display-property.html [ Pass ImageOnlyFailure ]
 
 webkit.org/b/184456 imported/w3c/web-platform-tests/html/semantics/embedded-content/the-embed-element/embed-in-object-fallback.html [ Pass Failure ]
@@ -2216,6 +2212,8 @@ accessibility/deep-tree.html [ Skip ]
 accessibility/mac/table-wrapped-by-role-grid.html [ Skip ]
 accessibility/aria-labeled-with-hidden-node.html [ Skip ]
 accessibility/text-alternative-calculation-from-unrendered-table.html [ Skip ]
+# Mac-WK1 does not support activeElement
+accessibility/textbox-active-element.html
 
 # <rdar://problem/61066929> [ Stress GC ] flaky JSC::ExceptionScope::assertNoException crash under WebCore::ReadableStreamDefaultController
 webkit.org/b/211923 imported/w3c/web-platform-tests/fetch/api/basic/stream-safe-creation.any.html [ Pass Crash ]
@@ -2335,7 +2333,7 @@ webkit.org/b/218341 [ Debug ] inspector/dom-debugger/attribute-modified-style.ht
 
 webkit.org/b/219498 imported/w3c/web-platform-tests/css/css-scroll-snap/scroll-target-padding-003.html [ Pass ImageOnlyFailure ]
 
-webkit.org/b/244538 [ Debug ] imported/w3c/web-platform-tests/css/css-scroll-snap/scroll-target-margin-003.html [ Pass ImageOnlyFailure ]
+webkit.org/b/244538 imported/w3c/web-platform-tests/css/css-scroll-snap/scroll-target-margin-003.html [ Pass ImageOnlyFailure ]
 
 webkit.org/b/245034 imported/w3c/web-platform-tests/css/css-scroll-snap/scroll-target-align-003.html [ Pass ImageOnlyFailure ]
 
@@ -2696,7 +2694,6 @@ webkit.org/b/260280 fullscreen/fullscreen-no-scrollbars-on-ancestor-root.html [ 
 
 # webkit.org/b/260320 Mark expectations for multiple Mac wk1 tests slowing down EWS
 imported/w3c/web-platform-tests/css/css-fonts/font-size-adjust-reload.html [ ImageOnlyFailure Pass ]
-imported/w3c/web-platform-tests/css/selectors/invalidation/nth-child-in-shadow-root.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-backgrounds/background-clip-content-box-002.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/selectors/invalidation/nth-last-child-in-shadow-root.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-contain/content-visibility/content-visibility-085.html [ ImageOnlyFailure ]
@@ -2787,7 +2784,7 @@ imported/w3c/web-platform-tests/scroll-animations/scroll-timelines/scroll-timeli
 
 fast/css/transform-function-perspective-crash.html [ Failure ]
 
-webkit.org/b/265535 inspector/layers/layers-for-node.html [ Pass Timeout ]
+webkit.org/b/265535 inspector/layers/layers-for-node.html [ Pass Timeout Failure ]
 
 webkit.org/b/265783 fast/ruby/ruby-line-height.html [ Skip ]
 webkit.org/b/265783 accessibility/mac/ruby-hierarchy-roles.html [ Skip ]
@@ -3006,9 +3003,7 @@ webkit.org/b/286602 media/media-source/media-detachablemse-append.html [ Pass Fa
 
 webkit.org/b/255555 imported/w3c/web-platform-tests/xhr/request-content-length.any.worker.html [ Pass Failure ]
 
-webkit.org/b/287713 printing/background-clip-text.html [ Failure ]
-
-webkit.org/b/287810 http/tests/webarchive/cross-origin-stylesheet-crash.html [ Failure ]
+webkit.org/b/287713 printing/background-clip-text.html [ Skip ]
 
 webkit.org/b/287833 [ Release arm64 ] imported/w3c/web-platform-tests/css/css-masking/clip-path/animations/clip-path-animation-font-size-mixed-change.html [ Pass ImageOnlyFailure ]
 
@@ -3026,4 +3021,31 @@ webkit.org/b/215773 http/tests/websocket/tests/hybi/client-close-2.html [ Pass F
 
 webkit.org/b/287976 imported/w3c/web-platform-tests/css/css-box/margin-trim/computed-margin-values/block-container-block-start-self-collapsing-nested.html [ Pass Failure ]
 
-webkit.org/b/288378 fast/harness/internals-object-property-access-on-window-without-frame-crash.html [ Skip ]
+webkit.org/b/288627 editing/spelling/spellcheck-async-mutation.html [ Timeout ]
+
+webkit.org/b/288725 http/tests/security/file-system-access-via-dataTransfer.html [ Pass Failure ]
+
+webkit.org/b/288757 [ Sonoma ] imported/w3c/web-platform-tests/fullscreen/rendering/fullscreen-css-invalidation.html [ Pass Failure ]
+webkit.org/b/288757 [ Sequoia Release ] imported/w3c/web-platform-tests/fullscreen/rendering/fullscreen-css-invalidation.html [ Pass Failure ]
+
+webkit.org/b/288827 http/wpt/webaudio/audioworklet-addModule-cors.sub.https.html [ Failure ]
+
+webkit.org/b/288831 [ Debug ] fast/css/shadow-box-recursion-depth.html [ Pass Timeout ]
+
+webkit.org/b/288843 [ Release ] compositing/repaint/iframes/compositing-iframe-scroll-repaint.html [ Pass Failure ]
+
+webkit.org/b/288862 fast/repaint/switch-overflow-vertical-rl.html [ Pass Failure ]
+
+webkit.org/b/288865 imported/w3c/web-platform-tests/fullscreen/rendering/fullscreen-root-block-size.html [ Pass Failure ]
+
+webkit.org/b/288872 [ X86_64 ] imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/selectors/cue/color_hsla.html [ ImageOnlyFailure ]
+
+webkit.org/b/288871 imported/w3c/web-platform-tests/workers/WorkerGlobalScope_ErrorEvent_message.htm [ Pass Failure ]
+
+webkit.org/b/288874 [ x86_64 ] fast/canvas/image-buffer-backend-variants.html [ Pass Failure ]
+
+webkit.org/b/288885 fullscreen/element-clear-during-fullscreen-crash.html [ Pass Timeout ]
+
+webkit.org/b/288882 fast/scrolling/page-cache-back-overflow-scroll-restore.html [ Pass Timeout ]
+
+webkit.org/b/288889 media/track/track-in-band.html [ Pass Timeout ]

@@ -1,13 +1,9 @@
-NetworkProcess/PingLoad.h
-NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementDatabase.cpp
-NetworkProcess/cache/NetworkCacheSpeculativeLoadManager.cpp
 Platform/cocoa/WKPaymentAuthorizationDelegate.mm
 Shared/API/APIArray.cpp
 Shared/API/APIObject.h
 Shared/API/c/cg/WKImageCG.cpp
 Shared/APIWebArchive.mm
 Shared/Cocoa/APIObject.mm
-Shared/ContextMenuContextData.cpp
 Shared/WebContextMenuItem.cpp
 Shared/WebHitTestResultData.cpp
 UIProcess/API/C/WKContext.cpp
@@ -32,8 +28,6 @@ UIProcess/Cocoa/GroupActivities/GroupActivitiesSessionNotifier.mm
 UIProcess/Cocoa/SOAuthorization/SubFrameSOAuthorizationSession.mm
 UIProcess/Gamepad/UIGamepadProvider.cpp
 UIProcess/Notifications/ServiceWorkerNotificationHandler.cpp
-UIProcess/Notifications/WebNotificationManagerProxy.cpp
-UIProcess/UserMediaPermissionRequestManagerProxy.cpp
 UIProcess/WebAuthentication/AuthenticatorManager.cpp
 UIProcess/WebAuthentication/Cocoa/NfcService.mm
 UIProcess/WebPreferences.cpp
@@ -46,8 +40,6 @@ WebProcess/Automation/WebAutomationSessionProxy.cpp
 WebProcess/EncryptedMedia/MediaKeySystemPermissionRequestManager.cpp
 WebProcess/Extensions/Bindings/JSWebExtensionWrapper.cpp
 WebProcess/FullScreen/WebFullScreenManager.cpp
-WebProcess/GPU/media/RemoteAudioDestinationProxy.cpp
-WebProcess/GPU/webrtc/LibWebRTCCodecs.cpp
 WebProcess/GPU/webrtc/SampleBufferDisplayLayerManager.cpp
 WebProcess/Geolocation/GeolocationPermissionRequestManager.cpp
 WebProcess/InjectedBundle/API/Cocoa/WKWebProcessPlugInFrame.mm
@@ -108,4 +100,3 @@ WebProcess/WebSleepDisablerClient.cpp
 WebProcess/WebStorage/StorageAreaMap.cpp
 WebProcess/cocoa/TextTrackRepresentationCocoa.mm
 WebProcess/cocoa/WebProcessCocoa.mm
-webpushd/PushService.mm

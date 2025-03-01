@@ -191,21 +191,14 @@ class Name(object):
 
 
 class PropertyName(Name):
-    def __init__(self, name, *, name_for_methods=None):
+    def __init__(self, name):
         super().__init__(name)
-        self.name_for_methods = PropertyName._compute_name_for_methods(name_for_methods, self.id_without_prefix)
 
     def __str__(self):
         return self.name
 
     def __repr__(self):
         return self.__str__()
-
-    @staticmethod
-    def _compute_name_for_methods(name_for_methods, id_without_prefix):
-        if name_for_methods:
-            return name_for_methods
-        return id_without_prefix.replace("Webkit",  "")
 
     @property
     def id_without_scope(self):
@@ -214,6 +207,10 @@ class PropertyName(Name):
     @property
     def id(self):
         return f"CSSPropertyID::CSSProperty{self.id_without_prefix}"
+
+    @property
+    def name_for_methods(self):
+        return self.id_without_prefix.replace("Webkit", "")
 
 
 class ValueKeywordName(Name):
@@ -456,7 +453,19 @@ class Longhand:
 class StylePropertyCodeGenProperties:
     schema = Schema(
         Schema.Entry("aliases", allowed_types=[list], default_value=[]),
+        Schema.Entry("animation-getter", allowed_types=[str]),
+        Schema.Entry("animation-initial", allowed_types=[str]),
+        Schema.Entry("animation-name-for-methods", allowed_types=[str]),
+        Schema.Entry("animation-setter", allowed_types=[str]),
         Schema.Entry("animation-property", allowed_types=[bool], default_value=False),
+        Schema.Entry("animation-wrapper", allowed_types=[str]),
+        Schema.Entry("animation-wrapper-acceleration", allowed_types=[str]),
+        Schema.Entry("animation-wrapper-requires-additional-parameters", allowed_types=[list], default_value=[]),
+        Schema.Entry("animation-wrapper-requires-computed-getter", allowed_types=[bool], default_value=False),
+        Schema.Entry("animation-wrapper-requires-non-additive-or-cumulative-interpolation", allowed_types=[bool], default_value=False),
+        Schema.Entry("animation-wrapper-requires-non-normalized-discrete-interpolation", allowed_types=[bool], default_value=False),
+        Schema.Entry("animation-wrapper-requires-override-parameters", allowed_types=[list]),
+        Schema.Entry("animation-wrapper-requires-render-style", allowed_types=[bool], default_value=False),
         Schema.Entry("auto-functions", allowed_types=[bool], default_value=False),
         Schema.Entry("cascade-alias", allowed_types=[str]),
         Schema.Entry("color-property", allowed_types=[bool], default_value=False),
@@ -464,7 +473,15 @@ class StylePropertyCodeGenProperties:
         Schema.Entry("disables-native-appearance", allowed_types=[bool], default_value=False),
         Schema.Entry("enable-if", allowed_types=[str]),
         Schema.Entry("fast-path-inherited", allowed_types=[bool], default_value=False),
+        Schema.Entry("fill-layer-getter", allowed_types=[str]),
+        Schema.Entry("fill-layer-initial", allowed_types=[str]),
+        Schema.Entry("fill-layer-name-for-methods", allowed_types=[str]),
+        Schema.Entry("fill-layer-setter", allowed_types=[str]),
         Schema.Entry("fill-layer-property", allowed_types=[bool], default_value=False),
+        Schema.Entry("font-description-getter", allowed_types=[str]),
+        Schema.Entry("font-description-initial", allowed_types=[str]),
+        Schema.Entry("font-description-name-for-methods", allowed_types=[str]),
+        Schema.Entry("font-description-setter", allowed_types=[str]),
         Schema.Entry("font-property", allowed_types=[bool], default_value=False),
         Schema.Entry("high-priority", allowed_types=[bool], default_value=False),
         Schema.Entry("internal-only", allowed_types=[bool], default_value=False),
@@ -512,6 +529,23 @@ class StylePropertyCodeGenProperties:
         return self.__str__()
 
     @staticmethod
+    def _complete_name_family(json_value, family_name, property_name):
+        if f"{family_name}-name-for-methods" not in json_value:
+            json_value[f"{family_name}-name-for-methods"] = property_name.name_for_methods
+
+        if f"{family_name}-getter" not in json_value:
+            json_value[f"{family_name}-getter"] = json_value[f"{family_name}-name-for-methods"][0].lower() + json_value[f"{family_name}-name-for-methods"][1:]
+
+        if f"{family_name}-setter" not in json_value:
+            json_value[f"{family_name}-setter"] = "set" + json_value[f"{family_name}-name-for-methods"]
+
+        if f"{family_name}-initial" not in json_value:
+            if family_name == "fill-layer":
+                json_value[f"{family_name}-initial"] = f"initialFill" + json_value[f"{family_name}-name-for-methods"]
+            else:
+                json_value[f"{family_name}-initial"] = f"initial" + json_value[f"{family_name}-name-for-methods"]
+
+    @staticmethod
     def from_json(parsing_context, key_path, name, json_value):
         if type(json_value) is list:
             json_value = parsing_context.select_enabled_variant(json_value, label=f"{key_path}.codegen-properties")
@@ -519,19 +553,24 @@ class StylePropertyCodeGenProperties:
         assert(type(json_value) is dict)
         StylePropertyCodeGenProperties.schema.validate_dictionary(parsing_context, f"{key_path}.codegen-properties", json_value, label=f"StylePropertyCodeGenProperties")
 
-        property_name = PropertyName(name, name_for_methods=json_value.get("render-style-name-for-methods"))
+        property_name = PropertyName(name)
 
-        if "render-style-getter" not in json_value:
-            json_value["render-style-getter"] = property_name.name_for_methods[0].lower() + property_name.name_for_methods[1:]
+        StylePropertyCodeGenProperties._complete_name_family(json_value, "render-style", property_name)
 
-        if "render-style-setter" not in json_value:
-            json_value["render-style-setter"] = f"set{property_name.name_for_methods}"
+        if "fill-layer-property" in json_value:
+            StylePropertyCodeGenProperties._complete_name_family(json_value, "fill-layer", property_name)
 
-        if "render-style-initial" not in json_value:
-            if "fill-layer-property" in json_value:
-                json_value["render-style-initial"] = f"initialFill{property_name.name_for_methods}"
-            else:
-                json_value["render-style-initial"] = f"initial{property_name.name_for_methods}"
+        if "font-property" in json_value:
+            StylePropertyCodeGenProperties._complete_name_family(json_value, "font-description", property_name)
+
+        if "animation-property" in json_value:
+            StylePropertyCodeGenProperties._complete_name_family(json_value, "animation", property_name)
+
+        if "animation-wrapper-acceleration" in json_value:
+            if json_value["animation-wrapper-acceleration"] not in ['always', 'threaded-only']:
+                raise Exception(f"{key_path} must be either 'always' or 'threaded-only'.")
+            if json_value["animation-wrapper-acceleration"] == 'threaded-only' and not parsing_context.is_enabled(conditional="ENABLE_THREADED_ANIMATION_RESOLUTION"):
+                json_value["animation-wrapper-acceleration"] = None
 
         if "style-builder-custom" not in json_value:
             json_value["style-builder-custom"] = ""
@@ -676,11 +715,11 @@ class StyleProperty:
             if json_value["animation-type"] not in VALID_ANIMATION_TYPES:
                 raise Exception(f"'{name}' specified invalid animation type '{json_value['animation-type']}'. Must specify an animation type from {VALID_ANIMATION_TYPES}.")
         else:
-            if not (codegen_properties.longhands or codegen_properties.cascade_alias):
+            if not (codegen_properties.is_logical or codegen_properties.longhands):
                 raise Exception(f"'{name}' must specify an 'animation-type'.")
 
         if "initial" not in json_value:
-            if not (codegen_properties.longhands or codegen_properties.cascade_alias or codegen_properties.skip_style_builder):
+            if not (codegen_properties.is_logical or codegen_properties.longhands or codegen_properties.cascade_alias or codegen_properties.skip_style_builder):
                 raise Exception(f"'{name}' must specify 'initial'.")
 
         if "values" in json_value:
@@ -768,10 +807,6 @@ class StyleProperty:
     @property
     def name_for_parsing_methods(self):
         return self.id_without_prefix
-
-    @property
-    def name_for_methods(self):
-        return self.property_name.name_for_methods
 
     @property
     def name(self):
@@ -1364,23 +1399,23 @@ class Term:
         if multiplier.kind == BNFNodeMultiplier.Kind.ZERO_OR_ONE:
             return OptionalTerm.wrapping_term(term, annotation=multiplier.annotation)
         elif multiplier.kind == BNFNodeMultiplier.Kind.SPACE_SEPARATED_ZERO_OR_MORE:
-            return UnboundedRepetitionTerm.wrapping_term(term, variation=' ', min=0, annotation=multiplier.annotation)
+            return UnboundedRepetitionTerm.wrapping_term(term, separator=' ', min=0, annotation=multiplier.annotation)
         elif multiplier.kind == BNFNodeMultiplier.Kind.SPACE_SEPARATED_ONE_OR_MORE:
-            return UnboundedRepetitionTerm.wrapping_term(term, variation=' ', min=1, annotation=multiplier.annotation)
+            return UnboundedRepetitionTerm.wrapping_term(term, separator=' ', min=1, annotation=multiplier.annotation)
         elif multiplier.kind == BNFNodeMultiplier.Kind.SPACE_SEPARATED_EXACT:
-            return FixedSizeRepetitionTerm.wrapping_term(term, variation=' ', size=multiplier.range.min, annotation=multiplier.annotation)
+            return FixedSizeRepetitionTerm.wrapping_term(term, separator=' ', size=multiplier.range.min, annotation=multiplier.annotation)
         elif multiplier.kind == BNFNodeMultiplier.Kind.SPACE_SEPARATED_AT_LEAST:
-            return UnboundedRepetitionTerm.wrapping_term(term, variation=' ', min=multiplier.range.min, annotation=multiplier.annotation)
+            return UnboundedRepetitionTerm.wrapping_term(term, separator=' ', min=multiplier.range.min, annotation=multiplier.annotation)
         elif multiplier.kind == BNFNodeMultiplier.Kind.SPACE_SEPARATED_BETWEEN:
-            return BoundedRepetitionTerm.wrapping_term(term, variation=' ', min=multiplier.range.min, max=multiplier.range.max, annotation=multiplier.annotation)
+            return BoundedRepetitionTerm.wrapping_term(term, separator=' ', min=multiplier.range.min, max=multiplier.range.max, annotation=multiplier.annotation)
         elif multiplier.kind == BNFNodeMultiplier.Kind.COMMA_SEPARATED_ONE_OR_MORE:
-            return UnboundedRepetitionTerm.wrapping_term(term, variation=',', min=1, annotation=multiplier.annotation)
+            return UnboundedRepetitionTerm.wrapping_term(term, separator=',', min=1, annotation=multiplier.annotation)
         elif multiplier.kind == BNFNodeMultiplier.Kind.COMMA_SEPARATED_EXACT:
-            return FixedSizeRepetitionTerm.wrapping_term(term, variation=',', size=multiplier.range.min, annotation=multiplier.annotation)
+            return FixedSizeRepetitionTerm.wrapping_term(term, separator=',', size=multiplier.range.min, annotation=multiplier.annotation)
         elif multiplier.kind == BNFNodeMultiplier.Kind.COMMA_SEPARATED_AT_LEAST:
-            return UnboundedRepetitionTerm.wrapping_term(term, variation=',', min=multiplier.range.min, annotation=multiplier.annotation)
+            return UnboundedRepetitionTerm.wrapping_term(term, separator=',', min=multiplier.range.min, annotation=multiplier.annotation)
         elif multiplier.kind == BNFNodeMultiplier.Kind.COMMA_SEPARATED_BETWEEN:
-            return BoundedRepetitionTerm.wrapping_term(term, variation=',', min=multiplier.range.min, max=multiplier.range.max, annotation=multiplier.annotation)
+            return BoundedRepetitionTerm.wrapping_term(term, separator=',', min=multiplier.range.min, max=multiplier.range.max, annotation=multiplier.annotation)
 
     @staticmethod
     def from_node(node):
@@ -1419,40 +1454,36 @@ class Term:
 
 
 class BuiltinSchema:
-    class OptionalParameter:
-        def __init__(self, name, values, default):
+    class StringParameter:
+        def __init__(self, name, *, mappings=None, default=None):
             self.name = name
-            self.values = values
+            self.mappings = mappings
             self.default = default
 
-    class RequiredParameter:
-        def __init__(self, name, values):
+    class RangeParameter:
+        def __init__(self, name, *, mappings=None, default=None):
             self.name = name
-            self.values = values
+            self.mappings = mappings
+            self.default = default
 
     class Entry:
         def __init__(self, name, consume_function_name, *parameter_descriptors):
             self.name = Name(name)
             self.consume_function_name = consume_function_name
 
-            # Mapping of descriptor name (e.g. 'value_range' or 'mode') to OptionalParameter descriptor.
-            self.optionals = {}
+            # Mapping of descriptor name (e.g. 'mode') to StringParameter descriptor.
+            self.string_parameter_descriptors = {}
 
-            # Mapping of descriptor name (e.g. 'value_range' or 'mode') to RequiredParameter descriptor.
-            self.requireds = {}
-
-            # Mapping from all the potential values (e.g. 'svg', 'unitless-allowed') to the parameter descriptor (e.g. OptionalParameter/RequiredParameter instances).
-            self.value_to_descriptor = {}
+            # RangeParameter descriptor, if specified.
+            self.range_parameter_descriptor = None
 
             for parameter_descriptor in parameter_descriptors:
-                if isinstance(parameter_descriptor, BuiltinSchema.OptionalParameter):
-                    self.optionals[parameter_descriptor.name] = parameter_descriptor
-                    for value in parameter_descriptor.values.keys():
-                        self.value_to_descriptor[value] = parameter_descriptor
-                if isinstance(parameter_descriptor, BuiltinSchema.RequiredParameter):
-                    self.requireds[parameter_descriptor.name] = parameter_descriptor
-                    for value in parameter_descriptor.values.keys():
-                        self.value_to_descriptor[value] = parameter_descriptor
+                if isinstance(parameter_descriptor, BuiltinSchema.StringParameter):
+                    self.string_parameter_descriptors[parameter_descriptor.name] = parameter_descriptor
+                if isinstance(parameter_descriptor, BuiltinSchema.RangeParameter):
+                    if self.range_parameter_descriptor is not None:
+                        raise Exception("BuiltinScheme entry {name} may only specify a since RangeParameter.")
+                    self.range_parameter_descriptor = parameter_descriptor
 
             def builtin_schema_type_init(self, parameters):
                 # Map from descriptor name (e.g. 'value_range' or 'mode') to mapped value (e.g. `ValueRange::NonNegative` or `HTMLStandardMode`) for all of the parameters.
@@ -1461,26 +1492,67 @@ class BuiltinSchema:
                 # Map from descriptor name (e.g. 'value_range' or 'mode') to parameter value (e.g. `[0,inf]` or `strict`) for all of the parameters.
                 descriptors_used = {}
 
-                # Example parameters is ['svg', 'unitless-allowed'].
+                # Example parameters: [ReferenceTerm.StringParameter('svg'), ReferenceTerm.StringParameter('excluding', ['auto','none']), ReferenceTerm.RangeParameter(0, 'inf')].
                 for parameter in parameters:
-                    if parameter not in self.entry.value_to_descriptor:
+                    if type(parameter) is ReferenceTerm.StringParameter:
+                        if parameter.name not in self.entry.string_parameter_descriptors:
+                            raise Exception(f"Unknown parameter '{parameter}' passed to <{self.entry.name.name}>. Supported parameters are {', '.join(quote_iterable(self.entry.string_parameter_descriptors.keys()))}.")
+
+                        descriptor = self.entry.string_parameter_descriptors[parameter.name]
+                        if descriptor.name in descriptors_used:
+                            raise Exception(f"More than one parameter of type '{descriptor.name}` passed to <{self.entry.name.name}>, pick one: {descriptors_used[descriptor.name]}, {parameter}.")
+                        descriptors_used[descriptor.name] = parameter.name
+
+                        if descriptor.mappings:
+                            if not parameter.value:
+                                raise Exception(f"'{parameter}' passed to <{self.entry.name.name}> has no value associated with it. Supported values are {', '.join(quote_iterable(descriptor.mappings.keys()))}.")
+
+                            if len(parameter.value) != 1:
+                                raise Exception(f"'{parameter}' passed to <{self.entry.name.name}> has more than one value associated with it, but only one is allowed. Supported values are {', '.join(quote_iterable(descriptor.mappings.keys()))}.")
+
+                            value = parameter.value[0]
+                            if value not in descriptor.mappings:
+                                raise Exception(f"'{parameter}' passed to <{self.entry.name.name}> does not match any of the supported mappings. Supported mappings are {', '.join(quote_iterable(descriptor.mappings.keys()))}.")
+
+                            self.parameter_map[descriptor.name] = descriptor.mappings[value]
+                        else:
+                            self.parameter_map[descriptor.name] = parameter.value
+                    elif type(parameter) is ReferenceTerm.RangeParameter:
+                        if self.entry.range_parameter_descriptor is None:
+                            raise Exception(f"Range parameter '{parameter}' passed to <{self.entry.name.name}>. Range parameters are not supported for this entry.")
+
+                        descriptor = self.entry.range_parameter_descriptor
+                        if descriptor.name in descriptors_used:
+                            raise Exception(f"More than one parameter of type '{descriptor.name}` passed to <{self.entry.name.name}>, pick one: {descriptors_used[descriptor.name]}, {parameter}.")
+                        descriptors_used[descriptor.name] = descriptor
+
+                        if descriptor.mappings:
+                            if (parameter.min, parameter.max) not in descriptor.mappings:
+                                raise Exception(f"'{parameter}' passed to <{self.entry.name.name}> does not match any of the supported mappings. Supported mappings are {', '.join(quote_iterable(descriptor.mappings.keys()))}.")
+
+                            self.parameter_map[descriptor.name] = descriptor.mappings[(parameter.min, parameter.max)]
+                        else:
+                            self.parameter_map[descriptor.name] = parameter
+                    else:
                         raise Exception(f"Unknown parameter '{parameter}' passed to <{self.entry.name.name}>. Supported parameters are {', '.join(quote_iterable(self.entry.value_to_descriptor.keys()))}.")
-
-                    descriptor = self.entry.value_to_descriptor[parameter]
-                    if descriptor.name in descriptors_used:
-                        raise Exception(f"More than one parameter of type '{descriptor.name}` passed to <{self.entry.name.name}>, pick one: {descriptors_used[descriptor.name]}, {parameter}.")
-                    descriptors_used[descriptor.name] = parameter
-
-                    self.parameter_map[descriptor.name] = descriptor.values[parameter]
 
                 # Fill `results` with mappings from `names` (e.g. `value_range`) to mapped to value (e.g. `ValueRange::NonNegative`)
                 self.results = {}
-                for descriptor in self.entry.optionals.values():
-                    self.results[descriptor.name] = self.parameter_map.get(descriptor.name, descriptor.default)
-                for descriptor in self.entry.requireds.values():
-                    if descriptor.name not in self.parameter_map:
-                        raise Exception(f"Required parameter of type '{descriptor.name}` not passed to <{self.entry.name.name}>. Pick one of {', '.join(quote_iterable(descriptor.values.keys()))}.")
-                    self.results[descriptor.name] = self.parameter_map.get(descriptor.name)
+                for descriptor in self.entry.string_parameter_descriptors.values():
+                    if descriptor.name in self.parameter_map:
+                        self.results[descriptor.name] = self.parameter_map[descriptor.name]
+                    elif descriptor.mappings and descriptor.default:
+                        self.results[descriptor.name] = descriptor.mappings[descriptor.default]
+                    else:
+                        self.results[descriptor.name] = None
+                if self.entry.range_parameter_descriptor is not None:
+                    descriptor = self.entry.range_parameter_descriptor
+                    if descriptor.name in self.parameter_map:
+                        self.results[descriptor.name] = self.parameter_map[descriptor.name]
+                    elif descriptor.mappings and descriptor.default:
+                        self.results[descriptor.name] = descriptor.mappings[descriptor.default]
+                    else:
+                        self.results[descriptor.name] = None
 
             def builtin_schema_type_parameter_string_getter(name, self):
                 return self.results[name]
@@ -1493,7 +1565,10 @@ class BuiltinSchema:
                 "entry": self,
             }
 
-            for name in itertools.chain(self.optionals.keys(), self.requireds.keys()):
+            for name in self.string_parameter_descriptors.keys():
+                class_attributes[name.replace('-', '_')] = property(functools.partial(builtin_schema_type_parameter_string_getter, name))
+            if self.range_parameter_descriptor is not None:
+                name = self.range_parameter_descriptor.name
                 class_attributes[name.replace('-', '_')] = property(functools.partial(builtin_schema_type_parameter_string_getter, name))
 
             self.constructor = type(class_name, (), class_attributes)
@@ -1517,42 +1592,83 @@ class BuiltinSchema:
 #
 #   e.g. "<length unitless-allowed>"
 #
+
+# BuiltinSchema.StringParameter Mappings
+MODE_MAPPINGS = {'svg': 'SVGAttributeMode', 'strict': 'HTMLStandardMode'}
+UNITLESS_MAPPINGS = {'allowed': 'UnitlessQuirk::Allow', 'forbidden': 'UnitlessQuirk::Forbid'}
+UNITLESS_ZERO_MAPPINGS = {'allowed': 'UnitlessZeroQuirk::Allow', 'forbidden': 'UnitlessZeroQuirk::Forbid'}
+ANCHOR_MAPPINGS = {'allowed': 'AnchorPolicy::Allow', 'forbidden': 'AnchorPolicy::Forbid'}
+ANCHOR_SIZE_MAPPINGS = {'allowed': 'AnchorSizePolicy::Allow', 'forbidden': 'AnchorSizePolicy::Forbid'}
+QUIRKY_COLORS_MAPPINGS = {'allowed': True, 'forbidden': False}
+
+# BuiltinSchema.RangeParameter Mappings
+# NOTE: "FontWeight" is not supported value and is just here until arbitrary ranges are fully supported.
+VALUE_RANGE_MAPPINGS = {('0','inf'): 'ValueRange::NonNegative', ('-inf','inf'): 'ValueRange::All', ('1','1000'): 'ValueRange::FontWeight'}
+CSS_RANGE_MAPPINGS = {('0','inf'): 'CSS::Range{0, CSS::Range::infinity}', ('1','inf'): 'CSS::Range{1, CSS::Range::infinity}', ('-inf','inf'): 'CSS::Range{-CSS::Range::infinity, CSS::Range::infinity}'}
+
 class ReferenceTerm:
     builtins = BuiltinSchema(
-        BuiltinSchema.Entry("angle", "consumeAngle",
-            BuiltinSchema.OptionalParameter("unitless", values={"unitless-allowed": "UnitlessQuirk::Allow"}, default="UnitlessQuirk::Forbid"),
-            BuiltinSchema.OptionalParameter("unitless-zero", values={"unitless-zero-allowed": "UnitlessZeroQuirk::Allow"}, default="UnitlessZeroQuirk::Forbid")),
-        BuiltinSchema.Entry("length", "consumeLength",
-            BuiltinSchema.OptionalParameter("value_range", values={"[0,inf]": "ValueRange::NonNegative"}, default="ValueRange::All"),
-            BuiltinSchema.OptionalParameter("mode", values={"svg": "SVGAttributeMode", "strict": "HTMLStandardMode"}, default=None),
-            BuiltinSchema.OptionalParameter("unitless", values={"unitless-allowed": "UnitlessQuirk::Allow"}, default="UnitlessQuirk::Forbid")),
-        BuiltinSchema.Entry("length-percentage", "consumeLengthPercentage",
-            BuiltinSchema.OptionalParameter("value_range", values={"[0,inf]": "ValueRange::NonNegative"}, default="ValueRange::All"),
-            BuiltinSchema.OptionalParameter("unitless", values={"unitless-allowed": "UnitlessQuirk::Allow"}, default="UnitlessQuirk::Forbid"),
-            BuiltinSchema.OptionalParameter("unitless_zero", values={"unitless-zero-forbidden": "UnitlessZeroQuirk::Forbid"}, default="UnitlessZeroQuirk::Allow"),
-            BuiltinSchema.OptionalParameter("anchor", values={"anchor-allowed": "AnchorPolicy::Allow"}, default="AnchorPolicy::Forbid"),
-            BuiltinSchema.OptionalParameter("anchor_size", values={"anchor-size-allowed": "AnchorSizePolicy::Allow"}, default="AnchorSizePolicy::Forbid")),
-        BuiltinSchema.Entry("time", "consumeTime",
-            BuiltinSchema.OptionalParameter("value_range", values={"[0,inf]": "ValueRange::NonNegative"}, default="ValueRange::All")),
-        BuiltinSchema.Entry("integer", "consumeInteger",
-            BuiltinSchema.OptionalParameter("value_range", values={"[0,inf]": "CSS::Range{0, CSS::Range::infinity}", "[1,inf]": "CSS::Range{1, CSS::Range::infinity}"}, default="CSS::Range{-CSS::Range::infinity, CSS::Range::infinity}")),
-        BuiltinSchema.Entry("number", "consumeNumber",
-            # FIXME: "FontWeight" is not real. Add support for arbitrary ranges.
-            BuiltinSchema.OptionalParameter("value_range", values={"[0,inf]": "ValueRange::NonNegative", "[1,1000]": "ValueRange::FontWeight"}, default="ValueRange::All")),
-        BuiltinSchema.Entry("percentage", "consumePercentage",
-            BuiltinSchema.OptionalParameter("value_range", values={"[0,inf]": "ValueRange::NonNegative"}, default="ValueRange::All")),
-        BuiltinSchema.Entry("position", "consumePosition",
-            BuiltinSchema.OptionalParameter("unitless", values={"unitless-allowed": "UnitlessQuirk::Allow"}, default="UnitlessQuirk::Forbid")),
-        BuiltinSchema.Entry("color", "consumeColor",
-            BuiltinSchema.OptionalParameter("quirky_colors", values={"accept-quirky-colors-in-quirks-mode": True}, default=False)),
-        BuiltinSchema.Entry("resolution", "consumeResolution"),
-        BuiltinSchema.Entry("string", "consumeString"),
-        BuiltinSchema.Entry("custom-ident", "consumeCustomIdent"),
-        BuiltinSchema.Entry("dashed-ident", "consumeDashedIdent"),
-        BuiltinSchema.Entry("url", "consumeURL"),
-        BuiltinSchema.Entry("feature-tag-value", "consumeFeatureTagValue"),
-        BuiltinSchema.Entry("variation-tag-value", "consumeVariationTagValue"),
+        BuiltinSchema.Entry('angle', 'consumeAngle',
+            BuiltinSchema.StringParameter('unitless', mappings=UNITLESS_MAPPINGS, default='forbidden'),
+            BuiltinSchema.StringParameter('unitless-zero', mappings=UNITLESS_ZERO_MAPPINGS, default='forbidden')),
+        BuiltinSchema.Entry('length', 'consumeLength',
+            BuiltinSchema.RangeParameter('value-range', mappings=VALUE_RANGE_MAPPINGS, default=('-inf','inf')),
+            BuiltinSchema.StringParameter('mode', mappings=MODE_MAPPINGS),
+            BuiltinSchema.StringParameter('unitless', mappings=UNITLESS_MAPPINGS, default='forbidden')),
+        BuiltinSchema.Entry('length-percentage', 'consumeLengthPercentage',
+            BuiltinSchema.RangeParameter('value-range', mappings=VALUE_RANGE_MAPPINGS, default=('-inf','inf')),
+            BuiltinSchema.StringParameter('unitless', mappings=UNITLESS_MAPPINGS, default='forbidden'),
+            BuiltinSchema.StringParameter('unitless-zero', mappings=UNITLESS_ZERO_MAPPINGS, default='allowed'),
+            BuiltinSchema.StringParameter('anchor', mappings=ANCHOR_MAPPINGS, default='forbidden'),
+            BuiltinSchema.StringParameter('anchor-size', mappings=ANCHOR_SIZE_MAPPINGS, default='forbidden')),
+        BuiltinSchema.Entry('time', 'consumeTime',
+            BuiltinSchema.RangeParameter('value-range', mappings=VALUE_RANGE_MAPPINGS, default=('-inf','inf'))),
+        BuiltinSchema.Entry('integer', 'consumeInteger',
+            BuiltinSchema.RangeParameter('value-range', mappings=CSS_RANGE_MAPPINGS, default=('-inf','inf'))),
+        BuiltinSchema.Entry('number', 'consumeNumber',
+            BuiltinSchema.RangeParameter('value-range', mappings=VALUE_RANGE_MAPPINGS, default=('-inf','inf'))),
+        BuiltinSchema.Entry('percentage', 'consumePercentage',
+            BuiltinSchema.RangeParameter('value-range', mappings=VALUE_RANGE_MAPPINGS, default=('-inf','inf'))),
+        BuiltinSchema.Entry('resolution', 'consumeResolution'),
+        BuiltinSchema.Entry('position', 'consumePosition',
+            BuiltinSchema.StringParameter('unitless', mappings=UNITLESS_MAPPINGS, default='forbidden')),
+        BuiltinSchema.Entry('color', 'consumeColor',
+            BuiltinSchema.StringParameter('quirky-colors-in-quirks-mode', mappings=QUIRKY_COLORS_MAPPINGS, default='forbidden')),
+        BuiltinSchema.Entry('string', 'consumeString'),
+        BuiltinSchema.Entry('custom-ident', 'consumeCustomIdent',
+            BuiltinSchema.StringParameter('excluding')),
+        BuiltinSchema.Entry('dashed-ident', 'consumeDashedIdent'),
+        BuiltinSchema.Entry('url', 'consumeURL'),
+        BuiltinSchema.Entry('feature-tag-value', 'consumeFeatureTagValue'),
+        BuiltinSchema.Entry('variation-tag-value', 'consumeVariationTagValue')
     )
+
+    class StringParameter:
+        def __init__(self, name, value):
+            self.name = name
+            self.value = value
+
+        def __str__(self):
+            if self.value:
+                return str(self.name) + '=' + str(self.value)
+            return str(self.name)
+
+    class RangeParameter:
+        def __init__(self, min, max):
+            self.min = min
+            self.max = max
+
+        def __str__(self):
+            return '[' + str(self.min) + ',' + str(self.max) + ']'
+
+    class Parameter:
+        @staticmethod
+        def from_node(node):
+            if type(node) is BNFReferenceNode.StringAttribute:
+                return ReferenceTerm.StringParameter(node.name, node.value)
+            if type(node) is BNFReferenceNode.RangeAttribute:
+                return ReferenceTerm.RangeParameter(node.min, node.max)
+            raise Exception(f"Unknown reference term attribute '{node}'.")
 
     def __init__(self, name, is_internal, is_function_reference, parameters):
         # Store the first (and perhaps only) part as the reference's name (e.g. for <length-percentage [0,inf] unitless-allowed> store 'length-percentage').
@@ -1575,7 +1691,7 @@ class ReferenceTerm:
             name = self.name.name + '()'
         else:
             name = self.name.name
-        base = ' '.join([name] + self.parameters)
+        base = ' '.join([name] + [str(p) for p in self.parameters])
         if self.is_internal:
             return f"<<{base}>>"
         return f"<{base}>"
@@ -1586,7 +1702,7 @@ class ReferenceTerm:
     @staticmethod
     def from_node(node):
         assert(type(node) is BNFReferenceNode)
-        return ReferenceTerm(node.name, node.is_internal, node.is_function_reference, [str(attribute) for attribute in node.attributes])
+        return ReferenceTerm(node.name, node.is_internal, node.is_function_reference, [ReferenceTerm.Parameter.from_node(attribute) for attribute in node.attributes])
 
     def perform_fixups(self, all_rules):
         # Replace a reference with the term it references if it can be found.
@@ -1911,9 +2027,9 @@ class OptionalTerm:
 #   e.g. "<length>#" or "<length>+"
 #
 class UnboundedRepetitionTerm:
-    def __init__(self, repeated_term, *, variation, min, annotation):
+    def __init__(self, repeated_term, *, separator, min, annotation):
         self.repeated_term = repeated_term
-        self.variation = variation
+        self.separator = separator
         self.min = min
 
         self.single_value_optimization = True
@@ -1927,19 +2043,19 @@ class UnboundedRepetitionTerm:
 
     @property
     def stringified_suffix(self):
-        if self.variation == ' ':
+        if self.separator == ' ':
             if self.min == 0:
                 return '*'
             elif self.min == 1:
                 return '+'
             else:
                 return '{' + str(self.min) + ',}'
-        if self.variation == ',':
+        if self.separator == ',':
             if self.min == 1:
                 return '#'
             else:
                 return '#{' + str(self.min) + ',}'
-        raise Exception(f"Unknown UnboundedRepetitionTerm variation '{self.variation}'")
+        raise Exception(f"Unknown UnboundedRepetitionTerm with separator '{self.separator}'")
 
     @property
     def stringified_annotation(self):
@@ -1957,8 +2073,8 @@ class UnboundedRepetitionTerm:
                 raise Exception(f"Unknown multiplier annotation directive '{directive}'.")
 
     @staticmethod
-    def wrapping_term(term, *, variation, min, annotation):
-        return UnboundedRepetitionTerm(term, variation=variation, min=min, annotation=annotation)
+    def wrapping_term(term, *, separator, min, annotation):
+        return UnboundedRepetitionTerm(term, separator=separator, min=min, annotation=annotation)
 
     def perform_fixups(self, all_rules):
         self.repeated_term = self.repeated_term.perform_fixups(all_rules)
@@ -1981,14 +2097,14 @@ class UnboundedRepetitionTerm:
 # separated by either spaces or commas where the list of terms
 # has a length between provided upper and lower bounds . The
 # syntax in the CSS specifications uses a trailing 'multiplier'
-# range '{A,B}' with a '#' prefix for comma speparation.
+# range '{A,B}' with a '#' prefix for comma separation.
 #
 #   e.g. "<length>{1,2}" or "<length>#{3,5}"
 #
 class BoundedRepetitionTerm:
-    def __init__(self, repeated_term, *, variation, min, max, annotation):
+    def __init__(self, repeated_term, *, separator, min, max, annotation):
         self.repeated_term = repeated_term
-        self.variation = variation
+        self.separator = separator
         self.min = min
         self.max = max
 
@@ -2002,11 +2118,11 @@ class BoundedRepetitionTerm:
 
     @property
     def stringified_suffix(self):
-        if self.variation == ' ':
+        if self.separator == ' ':
             return '{' + str(self.min) + ',' + str(self.max) + '}'
-        if self.variation == ',':
+        if self.separator == ',':
             return '#{' + str(self.min) + ',' + str(self.max) + '}'
-        raise Exception(f"Unknown BoundedRepetitionTerm variation '{self.variation}'")
+        raise Exception(f"Unknown BoundedRepetitionTerm with separator '{self.separator}'")
 
     def _process_annotation(self, annotation):
         if not annotation:
@@ -2015,8 +2131,8 @@ class BoundedRepetitionTerm:
             raise Exception(f"Unknown bounded repetition term annotation directive '{directive}'.")
 
     @staticmethod
-    def wrapping_term(term, *, variation, min, max, annotation):
-        return BoundedRepetitionTerm(term, variation=variation, min=min, max=max, annotation=annotation)
+    def wrapping_term(term, *, separator, min, max, annotation):
+        return BoundedRepetitionTerm(term, separator=separator, min=min, max=max, annotation=annotation)
 
     def perform_fixups(self, all_rules):
         self.repeated_term = self.repeated_term.perform_fixups(all_rules)
@@ -2044,9 +2160,9 @@ class BoundedRepetitionTerm:
 #   e.g. "<length>{2}" or "<length>#{4}"
 #
 class FixedSizeRepetitionTerm:
-    def __init__(self, repeated_term, *, variation, size, annotation):
+    def __init__(self, repeated_term, *, separator, size, annotation):
         self.repeated_term = repeated_term
-        self.variation = variation
+        self.separator = separator
         self.size = size
 
         self._process_annotation(annotation)
@@ -2059,11 +2175,11 @@ class FixedSizeRepetitionTerm:
 
     @property
     def stringified_suffix(self):
-        if self.variation == ' ':
+        if self.separator == ' ':
             return '{' + str(self.size) + '}'
-        if self.variation == ',':
+        if self.separator == ',':
             return '#{' + str(self.size) + '}'
-        raise Exception(f"Unknown FixedSizeRepetitionTerm variation '{self.variation}'")
+        raise Exception(f"Unknown FixedSizeRepetitionTerm separator '{self.separator}'")
 
     def _process_annotation(self, annotation):
         if not annotation:
@@ -2072,8 +2188,8 @@ class FixedSizeRepetitionTerm:
             raise Exception(f"Unknown fixed size repetition term annotation directive '{directive}'.")
 
     @staticmethod
-    def wrapping_term(term, *, variation, size, annotation):
-        return FixedSizeRepetitionTerm(term, variation=variation, size=size, annotation=annotation)
+    def wrapping_term(term, *, separator, size, annotation):
+        return FixedSizeRepetitionTerm(term, separator=separator, size=size, annotation=annotation)
 
     def perform_fixups(self, all_rules):
         self.repeated_term = self.repeated_term.perform_fixups(all_rules)
@@ -2105,7 +2221,7 @@ class FunctionTerm:
         self.parameter_group_term = parameter_group_term
 
     def __str__(self):
-        return self.name + '(' + str(self.parameter_group_term) + ')'
+        return str(self.name) + '(' + str(self.parameter_group_term) + ')'
 
     def __repr__(self):
         return self.__str__()
@@ -2113,7 +2229,7 @@ class FunctionTerm:
     @staticmethod
     def from_node(node):
         assert(type(node) is BNFFunctionNode)
-        return FunctionTerm(node.name, Term.from_node(node.parameter_group))
+        return FunctionTerm(ValueKeywordName(node.name), Term.from_node(node.parameter_group))
 
     def perform_fixups(self, all_rules):
         self.parameter_group_term = self.parameter_group_term.perform_fixups(all_rules)
@@ -2524,6 +2640,7 @@ class GenerateCSSPropertyNames:
                 "<wtf/ASCIICType.h>",
                 "<wtf/Hasher.h>",
                 "<wtf/text/AtomString.h>",
+                "<wtf/text/TextStream.h>",
             ]
         )
 
@@ -2788,6 +2905,65 @@ class GenerateCSSPropertyNames:
         to.write(f"}}")
         to.newline()
 
+    def _generate_animation_property_functions(self, *, to):
+        self.generation_context.generate_property_id_switch_function_bool(
+            to=to,
+            signature="bool CSSProperty::animationUsesNonAdditiveOrCumulativeInterpolation(CSSPropertyID id)",
+            iterable=(p for p in self.properties_and_descriptors.style_properties.all if p.codegen_properties.animation_wrapper_requires_non_additive_or_cumulative_interpolation)
+        )
+
+        self.generation_context.generate_property_id_switch_function_bool(
+            to=to,
+            signature="bool CSSProperty::animationUsesNonNormalizedDiscreteInterpolation(CSSPropertyID id)",
+            iterable=(p for p in self.properties_and_descriptors.style_properties.all if p.codegen_properties.animation_wrapper_requires_non_normalized_discrete_interpolation)
+        )
+
+        self.generation_context.generate_property_id_switch_function(
+            to=to,
+            signature="bool CSSProperty::animationIsAccelerated(CSSPropertyID id, [[maybe_unused]] const Settings& settings)",
+            iterable=(p for p in self.properties_and_descriptors.style_properties.all if p.codegen_properties.animation_wrapper_acceleration),
+            mapping=lambda p: f"return {self._property_is_accelerated_return_clause(p)};",
+            default="return false;"
+        )
+
+        to.write(f"std::span<const CSSPropertyID> CSSProperty::allAcceleratedAnimationProperties([[maybe_unused]] const Settings& settings)")
+        to.write(f"{{")
+
+        with to.indent():
+            to.write(f"static constexpr std::array propertiesExcludingThreadedOnly {{")
+
+            with to.indent():
+                has_threaded_acceleration = False
+                for property in self.properties_and_descriptors.style_properties.all:
+                    if property.codegen_properties.animation_wrapper_acceleration is None:
+                        continue
+                    if property.codegen_properties.animation_wrapper_acceleration == 'threaded-only':
+                        has_threaded_acceleration = True
+                        continue
+                    to.write(f"{property.id},")
+
+            to.write(f"}};")
+
+            if has_threaded_acceleration:
+                to.write(f"static constexpr std::array propertiesIncludingThreadedOnly {{")
+
+                with to.indent():
+                    for property in self.properties_and_descriptors.style_properties.all:
+                        if property.codegen_properties.animation_wrapper_acceleration is None:
+                            continue
+                        to.write(f"{property.id},")
+
+                to.write(f"}};")
+
+                to.write(f"if (settings.threadedAnimationResolutionEnabled())")
+                with to.indent():
+                    to.write(f"return std::span<const CSSPropertyID> {{ propertiesIncludingThreadedOnly }};")
+
+            to.write(f"return std::span<const CSSPropertyID> {{ propertiesExcludingThreadedOnly }};")
+
+        to.write(f"}}")
+        to.newline()
+
     def _generate_css_property_settings_constructor(self, *, to):
         first_settings_initializer, *remaining_settings_initializers = [f"{flag} {{ settings.{flag}() }}" for flag in self.properties_and_descriptors.settings_flags]
 
@@ -2829,6 +3005,14 @@ class GenerateCSSPropertyNames:
         to.write(f"}}")
         to.newline()
 
+    def _generate_css_property_id_text_stream(self, *, to):
+        to.write_block("""
+            TextStream& operator<<(TextStream& stream, CSSPropertyID property)
+            {
+                return stream << nameLiteral(property);
+            }
+            """)
+
     def _term_matches_number_or_integer(self, term):
         if isinstance(term, ReferenceTerm):
             if term.name.name == "number" or term.name.name == "integer":
@@ -2847,6 +3031,11 @@ class GenerateCSSPropertyNames:
         if not p.codegen_properties.parser_grammar:
             return False
         return self._term_matches_number_or_integer(p.codegen_properties.parser_grammar.root_term)
+
+    def _property_is_accelerated_return_clause(self, p):
+        if p.codegen_properties.animation_wrapper_acceleration == 'threaded-only':
+            return "settings.threadedAnimationResolutionEnabled()"
+        return "true"
 
     def generate_css_property_names_gperf(self):
         with open('CSSPropertyNames.gperf', 'w') as output_file:
@@ -2991,6 +3180,10 @@ class GenerateCSSPropertyNames:
                 iterable=self.properties_and_descriptors.all_descriptor_only
             )
 
+            self._generate_animation_property_functions(
+                to=writer
+            )
+
             self._generate_css_property_settings_constructor(
                 to=writer
             )
@@ -3000,6 +3193,10 @@ class GenerateCSSPropertyNames:
             )
 
             self._generate_css_property_settings_hasher(
+                to=writer
+            )
+
+            self._generate_css_property_id_text_stream(
                 to=writer
             )
 
@@ -3149,6 +3346,8 @@ class GenerateCSSPropertyNames:
             {
                 return static_cast<uint16_t>(property) >= static_cast<uint16_t>(firstShorthandProperty) && static_cast<uint16_t>(property) <= static_cast<uint16_t>(lastShorthandProperty);
             }
+
+            WTF::TextStream& operator<<(WTF::TextStream&, CSSPropertyID);
             """)
 
     def _generate_css_property_names_h_hash_traits(self, *, to):
@@ -3396,19 +3595,19 @@ class GenerateStyleBuilderGenerated:
         to.write(f"if (builderState.applyPropertyToRegularStyle())")
         to.write(f"    builderState.style().{property.codegen_properties.render_style_setter}({initial_function}());")
         to.write(f"if (builderState.applyPropertyToVisitedLinkStyle())")
-        to.write(f"    builderState.style().setVisitedLink{property.name_for_methods}({initial_function}());")
+        to.write(f"    builderState.style().setVisitedLink{property.codegen_properties.render_style_name_for_methods}({initial_function}());")
 
     def _generate_color_property_inherit_value_setter(self, to, property):
         to.write(f"if (builderState.applyPropertyToRegularStyle())")
         to.write(f"    builderState.style().{property.codegen_properties.render_style_setter}(builderState.parentStyle().{property.codegen_properties.render_style_getter}());")
         to.write(f"if (builderState.applyPropertyToVisitedLinkStyle())")
-        to.write(f"    builderState.style().setVisitedLink{property.name_for_methods}(builderState.parentStyle().{property.codegen_properties.render_style_getter}());")
+        to.write(f"    builderState.style().setVisitedLink{property.codegen_properties.render_style_name_for_methods}(builderState.parentStyle().{property.codegen_properties.render_style_getter}());")
 
     def _generate_color_property_value_setter(self, to, property, value):
         to.write(f"if (builderState.applyPropertyToRegularStyle())")
         to.write(f"    builderState.style().{property.codegen_properties.render_style_setter}(builderState.createStyleColor({value}, ForVisitedLink::No));")
         to.write(f"if (builderState.applyPropertyToVisitedLinkStyle())")
-        to.write(f"    builderState.style().setVisitedLink{property.name_for_methods}(builderState.createStyleColor({value}, ForVisitedLink::Yes));")
+        to.write(f"    builderState.style().setVisitedLink{property.codegen_properties.render_style_name_for_methods}(builderState.createStyleColor({value}, ForVisitedLink::Yes));")
 
     # Animation property setters.
 
@@ -3416,22 +3615,22 @@ class GenerateStyleBuilderGenerated:
         to.write(f"auto& list = builderState.style().{property.method_name_for_ensure_animations_or_transitions}();")
         to.write(f"if (list.isEmpty())")
         to.write(f"    list.append(Animation::create());")
-        to.write(f"list.animation(0).{property.codegen_properties.render_style_setter}(Animation::{property.codegen_properties.render_style_initial}());")
+        to.write(f"list.animation(0).{property.codegen_properties.animation_setter}(Animation::{property.codegen_properties.animation_initial}());")
         to.write(f"for (auto& animation : list)")
-        to.write(f"    animation->clear{property.name_for_methods}();")
+        to.write(f"    animation->clear{property.codegen_properties.animation_name_for_methods}();")
 
     def _generate_animation_property_inherit_value_setter(self, to, property):
         to.write(f"auto& list = builderState.style().{property.method_name_for_ensure_animations_or_transitions}();")
         to.write(f"auto* parentList = builderState.parentStyle().{property.method_name_for_animations_or_transitions}();")
         to.write(f"size_t i = 0, parentSize = parentList ? parentList->size() : 0;")
-        to.write(f"for ( ; i < parentSize && parentList->animation(i).is{property.name_for_methods}Set(); ++i) {{")
+        to.write(f"for ( ; i < parentSize && parentList->animation(i).is{property.codegen_properties.animation_name_for_methods}Set(); ++i) {{")
         to.write(f"    if (list.size() <= i)")
         to.write(f"        list.append(Animation::create());")
-        to.write(f"    list.animation(i).{property.codegen_properties.render_style_setter}(parentList->animation(i).{property.codegen_properties.render_style_getter}());")
+        to.write(f"    list.animation(i).{property.codegen_properties.animation_setter}(parentList->animation(i).{property.codegen_properties.animation_getter}());")
         to.write(f"}}")
         to.write(f"// Reset any remaining animations to not have the property set.")
         to.write(f"for ( ; i < list.size(); ++i)")
-        to.write(f"    list.animation(i).clear{property.name_for_methods}();")
+        to.write(f"    list.animation(i).clear{property.codegen_properties.animation_name_for_methods}();")
 
     def _generate_animation_property_value_setter(self, to, property):
         to.write(f"auto& list = builderState.style().{property.method_name_for_ensure_animations_or_transitions}();")
@@ -3441,50 +3640,50 @@ class GenerateStyleBuilderGenerated:
         to.write(f"    for (auto& currentValue : *valueList) {{")
         to.write(f"        if (childIndex >= list.size())")
         to.write(f"            list.append(Animation::create());")
-        to.write(f"        builderState.styleMap().mapAnimation{property.name_for_methods}(list.animation(childIndex), currentValue);")
+        to.write(f"        builderState.styleMap().mapAnimation{property.codegen_properties.animation_name_for_methods}(list.animation(childIndex), currentValue);")
         to.write(f"        ++childIndex;")
         to.write(f"    }}")
         to.write(f"}} else {{")
         to.write(f"    if (list.isEmpty())")
         to.write(f"        list.append(Animation::create());")
-        to.write(f"    builderState.styleMap().mapAnimation{property.name_for_methods}(list.animation(childIndex), value);")
+        to.write(f"    builderState.styleMap().mapAnimation{property.codegen_properties.animation_name_for_methods}(list.animation(childIndex), value);")
         to.write(f"    childIndex = 1;")
         to.write(f"}}")
         to.write(f"for ( ; childIndex < list.size(); ++childIndex) {{")
         to.write(f"    // Reset all remaining animations to not have the property set.")
-        to.write(f"    list.animation(childIndex).clear{property.name_for_methods}();")
+        to.write(f"    list.animation(childIndex).clear{property.codegen_properties.animation_name_for_methods}();")
         to.write(f"}}")
 
     # Font property setters.
 
     def _generate_font_property_initial_value_setter(self, to, property):
         to.write(f"auto fontDescription = builderState.fontDescription();")
-        to.write(f"fontDescription.{property.codegen_properties.render_style_setter}(FontCascadeDescription::{property.codegen_properties.render_style_initial}());")
+        to.write(f"fontDescription.{property.codegen_properties.font_description_setter}(FontCascadeDescription::{property.codegen_properties.font_description_initial}());")
         to.write(f"builderState.setFontDescription(WTFMove(fontDescription));")
 
     def _generate_font_property_inherit_value_setter(self, to, property):
         to.write(f"auto fontDescription = builderState.fontDescription();")
-        to.write(f"auto inheritedValue = builderState.parentFontDescription().{property.codegen_properties.render_style_getter}();")
-        to.write(f"fontDescription.{property.codegen_properties.render_style_setter}(WTFMove(inheritedValue));")
+        to.write(f"auto inheritedValue = builderState.parentFontDescription().{property.codegen_properties.font_description_getter}();")
+        to.write(f"fontDescription.{property.codegen_properties.font_description_setter}(WTFMove(inheritedValue));")
         to.write(f"builderState.setFontDescription(WTFMove(fontDescription));")
 
     def _generate_font_property_value_setter(self, to, property, value):
         to.write(f"auto fontDescription = builderState.fontDescription();")
-        to.write(f"fontDescription.{property.codegen_properties.render_style_setter}({value});")
+        to.write(f"fontDescription.{property.codegen_properties.font_description_setter}({value});")
         to.write(f"builderState.setFontDescription(WTFMove(fontDescription));")
 
     # Fill Layer property setters.
 
     def _generate_fill_layer_property_initial_value_setter(self, to, property):
-        initial = f"FillLayer::{property.codegen_properties.render_style_initial}({property.enum_name_for_layers_type})"
+        initial = f"FillLayer::{property.codegen_properties.fill_layer_initial}({property.enum_name_for_layers_type})"
         to.write(f"// Check for (single-layer) no-op before clearing anything.")
         to.write(f"auto& layers = builderState.style().{property.method_name_for_layers}();")
-        to.write(f"if (!layers.next() && (!layers.is{property.name_for_methods}Set() || layers.{property.codegen_properties.render_style_getter}() == {initial}))")
+        to.write(f"if (!layers.next() && (!layers.is{property.codegen_properties.fill_layer_name_for_methods}Set() || layers.{property.codegen_properties.fill_layer_getter}() == {initial}))")
         to.write(f"    return;")
         to.write(f"auto* child = &builderState.style().{property.method_name_for_ensure_layers}();")
-        to.write(f"child->{property.codegen_properties.render_style_setter}({initial});")
+        to.write(f"child->{property.codegen_properties.fill_layer_setter}({initial});")
         to.write(f"for (child = child->next(); child; child = child->next())")
-        to.write(f"    child->clear{property.name_for_methods}();")
+        to.write(f"    child->clear{property.codegen_properties.fill_layer_name_for_methods}();")
 
     def _generate_fill_layer_property_inherit_value_setter(self, to, property):
         to.write(f"// Check for no-op before copying anything.")
@@ -3492,17 +3691,17 @@ class GenerateStyleBuilderGenerated:
         to.write(f"    return;")
         to.write(f"auto* child = &builderState.style().{property.method_name_for_ensure_layers}();")
         to.write(f"FillLayer* previousChild = nullptr;")
-        to.write(f"for (auto* parent = &builderState.parentStyle().{property.method_name_for_layers}(); parent && parent->is{property.name_for_methods}Set(); parent = parent->next()) {{")
+        to.write(f"for (auto* parent = &builderState.parentStyle().{property.method_name_for_layers}(); parent && parent->is{property.codegen_properties.fill_layer_name_for_methods}Set(); parent = parent->next()) {{")
         to.write(f"    if (!child) {{")
         to.write(f"        previousChild->setNext(FillLayer::create({property.enum_name_for_layers_type}));")
         to.write(f"        child = previousChild->next();")
         to.write(f"    }}")
-        to.write(f"    child->{property.codegen_properties.render_style_setter}(parent->{property.codegen_properties.render_style_getter}());")
+        to.write(f"    child->{property.codegen_properties.fill_layer_setter}(parent->{property.codegen_properties.fill_layer_getter}());")
         to.write(f"    previousChild = child;")
         to.write(f"    child = previousChild->next();")
         to.write(f"}}")
         to.write(f"for (; child; child = child->next())")
-        to.write(f"    child->clear{property.name_for_methods}();")
+        to.write(f"    child->clear{property.codegen_properties.fill_layer_name_for_methods}();")
 
     def _generate_fill_layer_property_value_setter(self, to, property):
         to.write(f"auto* child = &builderState.style().{property.method_name_for_ensure_layers}();")
@@ -3514,16 +3713,16 @@ class GenerateStyleBuilderGenerated:
         to.write(f"            previousChild->setNext(FillLayer::create({property.enum_name_for_layers_type}));")
         to.write(f"            child = previousChild->next();")
         to.write(f"        }}")
-        to.write(f"        builderState.styleMap().mapFill{property.name_for_methods}(id, *child, item);")
+        to.write(f"        builderState.styleMap().mapFill{property.codegen_properties.fill_layer_name_for_methods}(id, *child, item);")
         to.write(f"        previousChild = child;")
         to.write(f"        child = child->next();")
         to.write(f"    }}")
         to.write(f"}} else {{")
-        to.write(f"    builderState.styleMap().mapFill{property.name_for_methods}(id, *child, value);")
+        to.write(f"    builderState.styleMap().mapFill{property.codegen_properties.fill_layer_name_for_methods}(id, *child, value);")
         to.write(f"    child = child->next();")
         to.write(f"}}")
         to.write(f"for (; child; child = child->next())")
-        to.write(f"    child->clear{property.name_for_methods}();")
+        to.write(f"    child->clear{property.codegen_properties.fill_layer_name_for_methods}();")
 
     # SVG property setters.
 
@@ -3555,7 +3754,7 @@ class GenerateStyleBuilderGenerated:
 
         with to.indent():
             if property.codegen_properties.auto_functions:
-                to.write(f"builderState.style().setHasAuto{property.name_for_methods}();")
+                to.write(f"builderState.style().setHasAuto{property.codegen_properties.render_style_name_for_methods}();")
             elif property.codegen_properties.visited_link_color_support:
                 self._generate_color_property_initial_value_setter(to, property)
             elif property.codegen_properties.animation_property:
@@ -3580,9 +3779,9 @@ class GenerateStyleBuilderGenerated:
 
         with to.indent():
             if property.codegen_properties.auto_functions:
-                to.write(f"if (builderState.parentStyle().hasAuto{property.name_for_methods}()) {{")
+                to.write(f"if (builderState.parentStyle().hasAuto{property.codegen_properties.render_style_name_for_methods}()) {{")
                 with to.indent():
-                    to.write(f"builderState.style().setHasAuto{property.name_for_methods}();")
+                    to.write(f"builderState.style().setHasAuto{property.codegen_properties.render_style_name_for_methods}();")
                     to.write(f"return;")
                 to.write(f"}}")
 
@@ -3636,7 +3835,7 @@ class GenerateStyleBuilderGenerated:
             if property.codegen_properties.auto_functions:
                 to.write(f"if (value.valueID() == CSSValueAuto) {{")
                 with to.indent():
-                    to.write(f"builderState.style().setHasAuto{property.name_for_methods}();")
+                    to.write(f"builderState.style().setHasAuto{property.codegen_properties.render_style_name_for_methods}();")
                     to.write(f"return;")
                 to.write(f"}}")
                 if property.codegen_properties.svg:
@@ -4034,6 +4233,7 @@ class GenerateCSSPropertyParsing:
             self.generation_context.generate_includes(
                 to=writer,
                 headers=[
+                    "CSSFunctionValue.h",
                     "CSSParserContext.h",
                     "CSSParserIdioms.h",
                     "CSSPropertyParser.h",
@@ -4047,7 +4247,6 @@ class GenerateCSSPropertyParsing:
                     "CSSPropertyParserConsumer+Box.h",
                     "CSSPropertyParserConsumer+Color.h",
                     "CSSPropertyParserConsumer+ColorAdjust.h",
-                    "CSSPropertyParserConsumer+Conditional.h",
                     "CSSPropertyParserConsumer+Contain.h",
                     "CSSPropertyParserConsumer+Content.h",
                     "CSSPropertyParserConsumer+CounterStyles.h",
@@ -4288,6 +4487,265 @@ class GenerateCSSPropertyParsing:
         to.newline()
 
 
+# Generates `StyleInterpolationWrapperMap.h` and `StyleInterpolationWrapperMap.cpp`.
+class GenerateStyleInterpolationWrapperMap:
+    def __init__(self, generation_context):
+        self.generation_context = generation_context
+
+    def generate(self):
+        self.generate_css_property_animation_wrapper_map_h()
+        self.generate_css_property_animation_wrapper_map_cpp()
+
+    @property
+    def properties_and_descriptors(self):
+        return self.generation_context.properties_and_descriptors
+
+    @property
+    def properties(self):
+        return self.generation_context.properties_and_descriptors.style_properties
+
+    def generate_css_property_animation_wrapper_map_h(self):
+        with open('StyleInterpolationWrapperMap.h', 'w') as output_file:
+            writer = Writer(output_file)
+
+            self.generation_context.generate_heading(
+                to=writer
+            )
+
+            self.generation_context.generate_required_header_pragma(
+                to=writer
+            )
+
+            self.generation_context.generate_includes(
+                to=writer,
+                headers=[
+                    "CSSPropertyNames.h",
+                ],
+                system_headers=[
+                    "<array>",
+                    "<wtf/NeverDestroyed.h>",
+                ]
+            )
+
+            with self.generation_context.namespaces(["WebCore", "Style", "Interpolation"], to=writer):
+                self.generation_context.generate_forward_declarations(
+                    to=writer,
+                    classes=[
+                        "WrapperBase",
+                    ]
+                )
+
+                self._generate_css_property_animation_wrapper_map_h_wrapper_map_declaration(
+                    to=writer
+                )
+
+    def generate_css_property_animation_wrapper_map_cpp(self):
+        with open('StyleInterpolationWrapperMap.cpp', 'w') as output_file:
+            writer = Writer(output_file)
+
+            self.generation_context.generate_heading(
+                to=writer
+            )
+
+            self.generation_context.generate_cpp_required_includes(
+                to=writer,
+                header="StyleInterpolationWrapperMap.h"
+            )
+
+            self.generation_context.generate_includes(
+                to=writer,
+                headers=[
+                    "StylePropertyShorthand.h",
+                ]
+            )
+
+            writer.write("#define STYLE_INTERPOLATION_GENERATED_INCLUDE_TRAP 1")
+            writer.write("#include \"StyleInterpolationWrappers.h\"")
+            writer.write("#undef STYLE_INTERPOLATION_GENERATED_INCLUDE_TRAP")
+
+            with self.generation_context.namespaces(["WebCore", "Style", "Interpolation"], to=writer):
+                self._generate_css_property_animation_wrapper_map_cpp_constructor(
+                    to=writer
+                )
+
+    # MARK: - Helper generator functions for StyleInterpolationWrapperMap.h
+
+    def _generate_css_property_animation_wrapper_map_h_wrapper_map_declaration(self, *, to):
+        to.write_block("""\
+            class WrapperMap final {
+            public:
+                static WrapperMap& singleton()
+                {
+                    static NeverDestroyed<WrapperMap> map;
+                    return map;
+                }
+
+                WrapperBase* wrapper(CSSPropertyID id)
+                {
+                    if (id >= cssPropertyIDEnumValueCount)
+                        return nullptr;
+                    return m_wrappers[id];
+                }
+
+            private:
+                friend class WTF::NeverDestroyed<WrapperMap>;
+
+                WrapperMap();
+                ~WrapperMap() = delete;
+
+                std::array<WrapperBase*, cssPropertyIDEnumValueCount> m_wrappers;
+            };""")
+
+        to.newline()
+
+    # MARK: - Helper generator functions for StyleInterpolationWrapperMap.cpp
+
+    def _generate_css_property_animation_wrapper_map_cpp_longhand_wrapper_construction(self, property):
+        # Compute animation wrapper type.
+        if property.codegen_properties.animation_wrapper is not None:
+            property_wrapper_type = property.codegen_properties.animation_wrapper
+        elif property.animation_type == 'discrete':
+            if property.codegen_properties.svg:
+                property_wrapper_type = 'DiscreteSVGWrapper'
+            elif property.codegen_properties.font_property:
+                property_wrapper_type = 'DiscreteFontDescriptionTypedWrapper'
+            else:
+                property_wrapper_type = 'DiscreteWrapper'
+        else:
+            raise Exception(f"'{property.name}' animation wrapper type is not defined")
+
+        # Compute animation wrapper constructor parameters.
+        if property.codegen_properties.animation_wrapper_requires_override_parameters is not None:
+            property_wrapper_parameters = property.codegen_properties.animation_wrapper_requires_override_parameters
+        else:
+            # Add CSSPropertyID
+            property_wrapper_parameters = [property.id]
+
+            # Compute style class.
+            if property.codegen_properties.svg and not property.codegen_properties.animation_wrapper_requires_render_style:
+                style_type = "SVGRenderStyle"
+                name_for_methods = property.codegen_properties.render_style_name_for_methods
+                getter = property.codegen_properties.render_style_getter
+                setter = property.codegen_properties.render_style_setter
+            elif property.codegen_properties.font_property and not property.codegen_properties.animation_wrapper_requires_render_style:
+                style_type = "FontCascadeDescription"
+                name_for_methods = property.codegen_properties.font_description_name_for_methods
+                getter = property.codegen_properties.font_description_getter
+                setter = property.codegen_properties.font_description_setter
+            else:
+                style_type = "RenderStyle"
+                name_for_methods = property.codegen_properties.render_style_name_for_methods
+                getter = property.codegen_properties.render_style_getter
+                setter = property.codegen_properties.render_style_setter
+
+            if property.codegen_properties.fill_layer_property and property.codegen_properties.animation_wrapper is not None:
+                property_wrapper_parameters += [f"&{style_type}::{property.method_name_for_layers}", f"&{style_type}::{property.method_name_for_ensure_layers}"]
+            else:
+                # Add getter
+                if property.codegen_properties.animation_wrapper_requires_computed_getter:
+                    property_wrapper_parameters += [f"&{style_type}::computed{name_for_methods}"]
+                else:
+                    property_wrapper_parameters += [f"&{style_type}::{getter}"]
+
+                # Add setter
+                property_wrapper_parameters += [f"&{style_type}::{setter}"]
+
+                # Add property type specific parameters
+                if property.codegen_properties.visited_link_color_support:
+                    property_wrapper_parameters += [f"&{style_type}::visitedLink{name_for_methods}", f"&{style_type}::setVisitedLink{name_for_methods}"]
+
+                # Add additional specified parameters
+                if property.codegen_properties.animation_wrapper_requires_additional_parameters is not None:
+                    property_wrapper_parameters += property.codegen_properties.animation_wrapper_requires_additional_parameters
+
+        return f"new {property_wrapper_type}({', '.join(property_wrapper_parameters)})"
+
+    def _shorthand_contains_animatable_longhands(self, property, animatable_longhands):
+        for longhand in property.codegen_properties.longhands:
+            if longhand in animatable_longhands:
+                return True
+            if longhand.codegen_properties.is_logical:
+                name = longhand.codegen_properties.logical_property_group.name
+                physical_properties = self.properties_and_descriptors.style_properties.logical_property_groups[name]['physical']
+                return any(p in animatable_longhands for p in physical_properties.values())
+        return False
+
+    def _generate_css_property_animation_wrapper_map_cpp_constructor(self, *, to):
+        NOT_ANIMATABLE_TYPES = [
+            'not animatable',
+            'not animatable (needs triage)',
+            'not animatable (legacy)',
+            'not animatable (internal)'
+        ]
+
+        to.write_block("""\
+            static WrapperBase* makeShorthandWrapper(CSSPropertyID id, const std::array<WrapperBase*, cssPropertyIDEnumValueCount>& wrappers)
+            {
+                auto shorthand = shorthandForProperty(id);
+                ASSERT(shorthand.length());
+
+                auto longhandWrappers = WTF::compactMap(shorthand, [&](auto longhand) -> std::optional<WrapperBase*> {
+                    auto wrapper = wrappers[longhand];
+                    if (!wrapper)
+                        return std::nullopt;
+                    return wrapper;
+                });
+
+                return new ShorthandWrapper(id, WTFMove(longhandWrappers));
+            }
+            """)
+
+        to.write("WrapperMap::WrapperMap()")
+
+        with to.indent():
+            animatable_longhands = set()
+            animatable_shorthands = set()
+
+            to.write(": m_wrappers {")
+
+            with to.indent():
+                to.write(f"nullptr, // CSSPropertyID::CSSPropertyInvalid")
+                to.write(f"nullptr, // CSSPropertyID::CSSPropertyCustom")
+
+                for property in self.properties_and_descriptors.all_unique:
+                    if not property.codegen_properties.longhands:
+                        # Don't include descriptors.
+                        if property in self.properties_and_descriptors.all_descriptor_only:
+                            to.write(f"nullptr, // {property.id} - not animatable (descriptor only)")
+                            continue
+                        # Don't include logical properties.
+                        if property.codegen_properties.is_logical:
+                            to.write(f"nullptr, // {property.id} - logical, handled via resolution to physical")
+                            continue
+                        # Don't include not animatable properties.
+                        if property.animation_type in NOT_ANIMATABLE_TYPES:
+                            to.write(f"nullptr, // {property.id} - {property.animation_type}")
+                            continue
+
+                        construction = self._generate_css_property_animation_wrapper_map_cpp_longhand_wrapper_construction(property)
+                        to.write(f"{construction}, // {property.id}")
+                        animatable_longhands.add(property)
+                    else:
+                        if property.name == 'all' or self._shorthand_contains_animatable_longhands(property, animatable_longhands):
+                            to.write(f"nullptr, // {property.id} - shorthand, will perform fix-up below")
+                            animatable_shorthands.add(property)
+                        else:
+                            to.write(f"nullptr, // {property.id} - not animatable (shorthand, has no animatable longhands)")
+            to.write("}")
+
+        to.write("{")
+
+        with to.indent():
+            to.write("// Build animatable shorthand wrappers from longhand wrappers initialized above.")
+            to.newline()
+            for property in self.properties_and_descriptors.all_unique:
+                if property in animatable_shorthands:
+                    to.write(f"m_wrappers[{property.id}] = makeShorthandWrapper({property.id}, m_wrappers);")
+
+        to.write("}")
+        to.newline()
+
+
 # Helper class for representing a function parameter.
 class FunctionParameter:
     def __init__(self, type, name):
@@ -4400,12 +4858,78 @@ class TermGeneratorFunctionTerm(TermGenerator):
         self.requires_context = self.parameter_group_generator.requires_context
 
     def generate_conditional(self, *, to, range_string, context_string):
-        # FIXME: Implement generation.
-        pass
+        self._generate_consume_lambda(to=to, range_string=range_string, context_string=context_string)
+        self._generate_create_value_lambda(to=to, range_string=range_string, context_string=context_string)
+        to.write(f"if (auto result = {self._generate_call_string(range_string=range_string, context_string=context_string)})")
+        with to.indent():
+            to.write(f"return result;")
 
     def generate_unconditional(self, *, to, range_string, context_string):
-        # FIXME: Implement generation.
-        pass
+        self._generate_consume_lambda(to=to, range_string=range_string, context_string=context_string)
+        self._generate_create_value_lambda(to=to, range_string=range_string, context_string=context_string)
+        to.write(f"return {self._generate_call_string(range_string=range_string, context_string=context_string)};")
+
+    @property
+    def _consume_lambda_name(self):
+        return f"consume{self.term.name.id_without_prefix}Function"
+
+    @property
+    def _create_value_lambda_name(self):
+        return f"create{self.term.name.id_without_prefix}FunctionValue"
+
+    def _generate_consume_lambda(self, *, to, range_string, context_string):
+        lambda_declaration_paramaters = ["CSSParserTokenRange& range"]
+        if self.parameter_group_generator.requires_context:
+            lambda_declaration_paramaters += ["const CSSParserContext& context"]
+
+        to.write(f"auto {self._consume_lambda_name} = []({', '.join(lambda_declaration_paramaters)}) -> RefPtr<CSSValue> {{")
+        with to.indent():
+            inner_lambda_declaration_paramaters = ["CSSParserTokenRange& args"]
+            inner_lambda_declaration_calling_parameters = ["args"]
+            if self.parameter_group_generator.requires_context:
+                inner_lambda_declaration_paramaters += ["const CSSParserContext& context"]
+                inner_lambda_declaration_calling_parameters += ["context"]
+
+            to.write(f"auto consumeParameters = []({', '.join(inner_lambda_declaration_paramaters)}) -> RefPtr<CSSValue> {{")
+            with to.indent():
+                self.parameter_group_generator.generate_unconditional(to=to, range_string="args", context_string="context")
+            to.write(f"}};")
+
+            to.write(f"if (range.peek().functionId() != {self.term.name.id})")
+            with to.indent():
+                to.write(f"return nullptr;")
+
+            to.write(f"CSSParserTokenRange rangeCopy = range;")
+            to.write(f"CSSParserTokenRange args = consumeFunction(rangeCopy);")
+
+            to.write(f"auto result = consumeParameters({', '.join(inner_lambda_declaration_calling_parameters)});")
+            to.write(f"if (!result)")
+            with to.indent():
+                to.write(f"return nullptr;")
+
+            to.write(f"if (!args.atEnd())")
+            with to.indent():
+                to.write(f"return nullptr;")
+
+            to.write(f"range = rangeCopy;")
+            to.write(f"return result;")
+        to.write(f"}};")
+
+    def _generate_create_value_lambda(self, *, to, range_string, context_string):
+        to.write(f"auto {self._create_value_lambda_name} = [](RefPtr<CSSValue>&& parameterValues) -> RefPtr<CSSValue> {{")
+        with to.indent():
+            to.write(f"if (!parameterValues)")
+            with to.indent():
+                to.write(f"return nullptr;")
+            to.write(f"return CSSFunctionValue::create({self.term.name.id}, parameterValues.releaseNonNull());")
+        to.write(f"}};")
+
+    def _generate_call_string(self, *, range_string, context_string):
+        parameters = [range_string]
+        if self.parameter_group_generator.requires_context:
+            parameters += [context_string]
+
+        return f"{self._create_value_lambda_name}({self._consume_lambda_name}({', '.join(parameters)}))"
 
 
 class TermGeneratorLiteralTerm(TermGenerator):
@@ -4453,8 +4977,9 @@ class TermGeneratorUnboundedRepetitionTerm(TermGenerator):
         if self.repeated_term_generator.requires_context:
             parameters += [context_string]
 
-        with_or_without = 'With' if self.term.single_value_optimization else 'Without'
-        return f"consumeCommaSeparatedList{with_or_without}SingleValueOptimization({', '.join(parameters)})"
+        optimization = 'SingleValue' if self.term.single_value_optimization else 'None'
+
+        return f"consumeListSeparatedBy<'{self.term.separator}', ListBounds::minimumOf({self.term.min}), ListOptimization::{optimization}>({', '.join(parameters)})"
 
 
 class TermGeneratorMatchOneTerm(TermGenerator):
@@ -4471,8 +4996,7 @@ class TermGeneratorMatchOneTerm(TermGenerator):
         non_fast_path_keyword_terms = []
         reference_terms = []
         repetition_terms = []
-        group_terms = []
-        optional_terms = []
+        function_terms = []
 
         for sub_term in term.terms:
             if isinstance(sub_term, KeywordTerm):
@@ -4484,16 +5008,10 @@ class TermGeneratorMatchOneTerm(TermGenerator):
                 reference_terms.append(sub_term)
             elif isinstance(sub_term, UnboundedRepetitionTerm):
                 repetition_terms.append(sub_term)
-            elif isinstance(sub_term, BoundedRepetitionTerm):
-                repetition_terms.append(sub_term)
-            elif isinstance(sub_term, FixedSizeRepetitionTerm):
-                repetition_terms.append(sub_term)
-            elif isinstance(sub_term, GroupTerm):
-                group_terms.append(sub_term)
-            elif isinstance(sub_term, OptionalTerm):
-                optional_terms.append(sub_term)
+            elif isinstance(sub_term, FunctionTerm):
+                function_terms.append(sub_term)
             else:
-                raise Exception(f"Only KeywordTerm, ReferenceTerm and UnboundedRepetitionTerm terms are supported inside MatchOneTerm at this time: '{term}' - {sub_term}")
+                raise Exception(f"Only KeywordTerm, ReferenceTerm, UnboundedRepetitionTerm and FunctionTerms terms are supported inside MatchOneTerm at this time: '{term}' - {sub_term}")
 
         # Build a list of generators for the terms, starting with all (if any) the keywords at once.
         term_generators = []
@@ -4506,10 +5024,8 @@ class TermGeneratorMatchOneTerm(TermGenerator):
             term_generators += [TermGeneratorReferenceTerm(sub_term) for sub_term in reference_terms]
         if repetition_terms:
             term_generators += [TermGeneratorUnboundedRepetitionTerm(sub_term) for sub_term in repetition_terms]
-        if group_terms:
-            term_generators += [TermGeneratorGroupTerm(sub_term) for sub_term in group_terms]
-        if repetition_terms:
-            term_generators += [TermGeneratorOptionalTerm(sub_term) for sub_term in optional_terms]
+        if function_terms:
+            term_generators += [TermGeneratorFunctionTerm(sub_term) for sub_term in function_terms]
         return term_generators
 
     def generate_conditional(self, *, to, range_string, context_string):
@@ -4564,9 +5080,13 @@ class TermGeneratorReferenceTerm(TermGenerator):
             elif isinstance(builtin, BuiltinPositionConsumer):
                 return f"{builtin.consume_function_name}({range_string}, {context_string}, {builtin.unitless}, PositionSyntax::Position)"
             elif isinstance(builtin, BuiltinColorConsumer):
-                if builtin.quirky_colors:
+                if builtin.quirky_colors_in_quirks_mode:
                     return f"{builtin.consume_function_name}({range_string}, {context_string}, {{ .acceptQuirkyColors = ({context_string}.mode == HTMLQuirksMode) }})"
                 return f"{builtin.consume_function_name}({range_string}, {context_string})"
+            elif isinstance(builtin, BuiltinCustomIdentConsumer):
+                if builtin.excluding:
+                    return f"{builtin.consume_function_name}Excluding({range_string}, {{ { ', '.join(ValueKeywordName(id).id for id in builtin.excluding)} }})"
+                return f"{builtin.consume_function_name}({range_string})"
             elif self.requires_context:
                 return f"{builtin.consume_function_name}({range_string}, {context_string})"
             else:
@@ -5246,6 +5766,7 @@ class BNFToken(StringEqualingEnum):
 
     # Literals
     SLASH   = re.compile(r'/')
+    EQUAL   = re.compile(r'=')
 
     # Identifiers.
     FUNC    = re.compile(r'[_a-zA-Z\-][_a-zA-Z0-9\-]*\(')
@@ -5534,6 +6055,16 @@ class BNFFunctionNode:
 
 
 class BNFReferenceNode:
+    class StringAttribute:
+        def __init__(self, name):
+            self.name = name
+            self.value = []
+
+        def __str__(self):
+            if self.value:
+                return str(self.name) + '=' + str(self.value)
+            return str(self.name)
+
     class RangeAttribute:
         def __init__(self):
             self.min = None
@@ -5662,10 +6193,13 @@ class BNFParserState(enum.Enum):
     REFERENCE_INITIAL = enum.auto()
     REFERENCE_SEEN_FUNCTION_OPEN = enum.auto()
     REFERENCE_SEEN_ID_OR_FUNCTION = enum.auto()
-    REFERENCE_RANGE_INITIAL = enum.auto()
-    REFERENCE_RANGE_SEEN_MIN = enum.auto()
-    REFERENCE_RANGE_SEEN_MIN_AND_COMMA = enum.auto()
-    REFERENCE_RANGE_SEEN_MAX = enum.auto()
+    REFERENCE_STRING_ATTRIBUTE_INITIAL = enum.auto()
+    REFERENCE_STRING_ATTRIBUTE_SEEN_EQUAL = enum.auto()
+    REFERENCE_STRING_ATTRIBUTE_SEEN_VALUE = enum.auto()
+    REFERENCE_RANGE_ATTRIBUTE_INITIAL = enum.auto()
+    REFERENCE_RANGE_ATTRIBUTE_SEEN_MIN = enum.auto()
+    REFERENCE_RANGE_ATTRIBUTE_SEEN_MIN_AND_COMMA = enum.auto()
+    REFERENCE_RANGE_ATTRIBUTE_SEEN_MAX = enum.auto()
     REPETITION_MODIFIER_INITIAL = enum.auto()
     REPETITION_MODIFIER_SEEN_MIN = enum.auto()
     REPETITION_MODIFIER_SEEN_MIN_AND_COMMA = enum.auto()
@@ -5697,7 +6231,7 @@ class BNFParser:
 
     SUPPORTED_UNQUOTED_LITERALS = {
         BNFToken.COMMA.name,
-        BNFToken.SLASH.name
+        BNFToken.SLASH.name,
     }
 
     DEBUG_PRINT_STATE = 0
@@ -5723,10 +6257,13 @@ class BNFParser:
             BNFParserState.REFERENCE_INITIAL: BNFParser.parse_REFERENCE_INITIAL,
             BNFParserState.REFERENCE_SEEN_FUNCTION_OPEN: BNFParser.parse_REFERENCE_SEEN_FUNCTION_OPEN,
             BNFParserState.REFERENCE_SEEN_ID_OR_FUNCTION: BNFParser.parse_REFERENCE_SEEN_ID_OR_FUNCTION,
-            BNFParserState.REFERENCE_RANGE_INITIAL: BNFParser.parse_REFERENCE_RANGE_INITIAL,
-            BNFParserState.REFERENCE_RANGE_SEEN_MIN: BNFParser.parse_REFERENCE_RANGE_SEEN_MIN,
-            BNFParserState.REFERENCE_RANGE_SEEN_MIN_AND_COMMA: BNFParser.parse_REFERENCE_RANGE_SEEN_MIN_AND_COMMA,
-            BNFParserState.REFERENCE_RANGE_SEEN_MAX: BNFParser.parse_REFERENCE_RANGE_SEEN_MAX,
+            BNFParserState.REFERENCE_STRING_ATTRIBUTE_INITIAL: BNFParser.parse_REFERENCE_STRING_ATTRIBUTE_INITIAL,
+            BNFParserState.REFERENCE_STRING_ATTRIBUTE_SEEN_EQUAL: BNFParser.parse_REFERENCE_STRING_ATTRIBUTE_SEEN_EQUAL,
+            BNFParserState.REFERENCE_STRING_ATTRIBUTE_SEEN_VALUE: BNFParser.parse_REFERENCE_STRING_ATTRIBUTE_SEEN_VALUE,
+            BNFParserState.REFERENCE_RANGE_ATTRIBUTE_INITIAL: BNFParser.parse_REFERENCE_RANGE_ATTRIBUTE_INITIAL,
+            BNFParserState.REFERENCE_RANGE_ATTRIBUTE_SEEN_MIN: BNFParser.parse_REFERENCE_RANGE_ATTRIBUTE_SEEN_MIN,
+            BNFParserState.REFERENCE_RANGE_ATTRIBUTE_SEEN_MIN_AND_COMMA: BNFParser.parse_REFERENCE_RANGE_ATTRIBUTE_SEEN_MIN_AND_COMMA,
+            BNFParserState.REFERENCE_RANGE_ATTRIBUTE_SEEN_MAX: BNFParser.parse_REFERENCE_RANGE_ATTRIBUTE_SEEN_MAX,
             BNFParserState.REPETITION_MODIFIER_INITIAL: BNFParser.parse_REPETITION_MODIFIER_INITIAL,
             BNFParserState.REPETITION_MODIFIER_SEEN_MIN: BNFParser.parse_REPETITION_MODIFIER_SEEN_MIN,
             BNFParserState.REPETITION_MODIFIER_SEEN_MIN_AND_COMMA: BNFParser.parse_REPETITION_MODIFIER_SEEN_MIN_AND_COMMA,
@@ -5768,11 +6305,11 @@ class BNFParser:
         return self.state_stack[-1]
 
     def unexpected(self, token, state):
-        return Exception(f"Unexpected token '{token}' found while in state '{state.state.name}'")
+        return Exception(f"Unexpected token '{token}' found while in state '{state.state.name}' while parsing '{self.data}'")
 
     # COMMON ACTIONS.
 
-    # Root BNFGroupingNode. Syntatically isn't surrounded by square brackets.
+    # Root BNFGroupingNode. Syntactically isn't surrounded by square brackets.
     def enter_initial_grouping(self):
         self.push(BNFParserState.UNKNOWN_GROUPING_INITIAL, self.root)
 
@@ -5829,9 +6366,17 @@ class BNFParser:
         self.pop()
         self.top.node.last.multiplier.add(state.node)
 
+    # BNFReferenceNode.StringAttribute. e.g. allows-quirks or excludes=auto,none
+    def enter_string_attribute(self, token, state):
+        self.push(BNFParserState.REFERENCE_STRING_ATTRIBUTE_INITIAL, BNFReferenceNode.StringAttribute(token.value))
+
+    def exit_string_attribute(self, token, state):
+        self.pop()
+        self.top.node.add_attribute(state.node)
+
     # BNFReferenceNode.RangeAttribute. e.g. [0,inf]
     def enter_range_attribute(self, token, state):
-        self.push(BNFParserState.REFERENCE_RANGE_INITIAL, BNFReferenceNode.RangeAttribute())
+        self.push(BNFParserState.REFERENCE_RANGE_ATTRIBUTE_INITIAL, BNFReferenceNode.RangeAttribute())
 
     def exit_range_attribute(self, token, state):
         self.pop()
@@ -6104,8 +6649,7 @@ class BNFParser:
 
     def parse_REFERENCE_SEEN_ID_OR_FUNCTION(self, token, state):
         if token.name == BNFToken.ID:
-            state.node.add_attribute(token.value)
-            # Remain in BNFParserState.REFERENCE_SEEN_ID_OR_FUNCTION.
+            self.enter_string_attribute(token, state)
             return
 
         if token.name == BNFToken.LSQUARE:
@@ -6142,30 +6686,72 @@ class BNFParser:
 
         raise self.unexpected(token, state)
 
-    def parse_REFERENCE_RANGE_INITIAL(self, token, state):
-        if token.name == BNFToken.INT or token.name == BNFToken.FLOAT or (token.name == BNFToken.ID and token.value == "inf"):
-            self.transition_top(to=BNFParserState.REFERENCE_RANGE_SEEN_MIN)
+    def parse_REFERENCE_STRING_ATTRIBUTE_INITIAL(self, token, state):
+        if token.name == BNFToken.EQUAL:
+            self.transition_top(to=BNFParserState.REFERENCE_STRING_ATTRIBUTE_SEEN_EQUAL)
+            return
+
+        self.exit_string_attribute(token, state)
+
+        if token.name == BNFToken.LSQUARE:
+            self.enter_range_attribute(token, state)
+            return
+
+        if token.name == BNFToken.GT:
+            self.exit_reference(token, state)
+            return
+
+    def parse_REFERENCE_STRING_ATTRIBUTE_SEEN_EQUAL(self, token, state):
+        if token.name == BNFToken.ID:
+            self.transition_top(to=BNFParserState.REFERENCE_STRING_ATTRIBUTE_SEEN_VALUE)
+            state.node.value.append(token.value)
+            return
+
+        raise self.unexpected(token, state)
+
+    def parse_REFERENCE_STRING_ATTRIBUTE_SEEN_VALUE(self, token, state):
+        if token.name == BNFToken.COMMA:
+            self.transition_top(to=BNFParserState.REFERENCE_STRING_ATTRIBUTE_SEEN_EQUAL)
+            return
+
+        self.exit_string_attribute(token, state)
+
+        if token.name == BNFToken.ID:
+            self.enter_string_attribute(token, state)
+            return
+
+        if token.name == BNFToken.LSQUARE:
+            self.enter_range_attribute(token, state)
+            return
+
+        if token.name == BNFToken.GT:
+            self.exit_reference(token, state)
+            return
+
+    def parse_REFERENCE_RANGE_ATTRIBUTE_INITIAL(self, token, state):
+        if token.name == BNFToken.INT or token.name == BNFToken.FLOAT or (token.name == BNFToken.ID and token.value == '-inf'):
+            self.transition_top(to=BNFParserState.REFERENCE_RANGE_ATTRIBUTE_SEEN_MIN)
             state.node.min = token.value
             return
 
         raise self.unexpected(token, state)
 
-    def parse_REFERENCE_RANGE_SEEN_MIN(self, token, state):
+    def parse_REFERENCE_RANGE_ATTRIBUTE_SEEN_MIN(self, token, state):
         if token.name == BNFToken.COMMA:
-            self.transition_top(to=BNFParserState.REFERENCE_RANGE_SEEN_MIN_AND_COMMA)
+            self.transition_top(to=BNFParserState.REFERENCE_RANGE_ATTRIBUTE_SEEN_MIN_AND_COMMA)
             return
 
         raise self.unexpected(token, state)
 
-    def parse_REFERENCE_RANGE_SEEN_MIN_AND_COMMA(self, token, state):
-        if token.name == BNFToken.INT or token.name == BNFToken.FLOAT or (token.name == BNFToken.ID and token.value == "inf"):
-            self.transition_top(to=BNFParserState.REFERENCE_RANGE_SEEN_MAX)
+    def parse_REFERENCE_RANGE_ATTRIBUTE_SEEN_MIN_AND_COMMA(self, token, state):
+        if token.name == BNFToken.INT or token.name == BNFToken.FLOAT or (token.name == BNFToken.ID and token.value == 'inf'):
+            self.transition_top(to=BNFParserState.REFERENCE_RANGE_ATTRIBUTE_SEEN_MAX)
             state.node.max = token.value
             return
 
         raise self.unexpected(token, state)
 
-    def parse_REFERENCE_RANGE_SEEN_MAX(self, token, state):
+    def parse_REFERENCE_RANGE_ATTRIBUTE_SEEN_MAX(self, token, state):
         if token.name == BNFToken.RSQUARE:
             self.exit_range_attribute(token, state)
             return
@@ -6223,7 +6809,7 @@ class BNFParser:
             self.exit_quoted_literal(token, state)
             return
 
-        # Append the value regardles of the token value.
+        # Append the value regardless of the token value.
         state.node.value = state.node.value + token.value
 
     def parse_ANNOTATION_INITIAL(self, token, state):
@@ -6282,6 +6868,7 @@ def main():
         GenerateCSSPropertyParsing,
         GenerateCSSStyleDeclarationPropertyNames,
         GenerateStyleBuilderGenerated,
+        GenerateStyleInterpolationWrapperMap,
         GenerateStylePropertyShorthandFunctions,
     ]
 

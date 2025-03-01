@@ -51,8 +51,8 @@ enum class PrintColorAdjust : bool {
 // - StyleDifference::RepaintIfText - The object needs to be repainted if it contains text.
 // - StyleDifference::RepaintLayer - The layer and its descendant layers needs to be repainted.
 // - StyleDifference::LayoutPositionedMovementOnly - Only the position of this positioned object has been updated
-// - StyleDifference::Overflow - Only overflow needs to be recomputed
-// - StyleDifference::OverflowAndPositionedMovement - Both positioned movement and overflow updates are required.
+// - StyleDifference::SimplifiedLayout - Only overflow needs to be recomputed
+// - StyleDifference::SimplifiedLayoutAndPositionedMovement - Both positioned movement and simplified layout updates are required.
 // - StyleDifference::Layout - A full layout is required.
 enum class StyleDifference : uint8_t {
     Equal,
@@ -61,8 +61,8 @@ enum class StyleDifference : uint8_t {
     RepaintIfText,
     RepaintLayer,
     LayoutPositionedMovementOnly,
-    Overflow,
-    OverflowAndPositionedMovement,
+    SimplifiedLayout,
+    SimplifiedLayoutAndPositionedMovement,
     Layout,
     NewStyle
 };
@@ -240,14 +240,6 @@ enum class BorderPrecedence : uint8_t {
     RowGroup,
     Row,
     Cell
-};
-
-enum class CornerShape : uint8_t {
-    Round,
-    Scoop,
-    Bevel,
-    Notch,
-    Straight,
 };
 
 enum class OutlineIsAuto : bool {
@@ -1165,18 +1157,38 @@ enum class FontLoadingBehavior : uint8_t {
     Optional
 };
 
-enum class EventListenerRegionType : uint16_t {
-    Wheel                 = 1 << 0,
-    NonPassiveWheel       = 1 << 1,
-    MouseClick            = 1 << 2,
-    TouchStart            = 1 << 3,
-    NonPassiveTouchStart  = 1 << 4,
-    TouchEnd              = 1 << 5,
-    NonPassiveTouchEnd    = 1 << 6,
-    TouchCancel           = 1 << 7,
-    NonPassiveTouchCancel = 1 << 8,
-    TouchMove             = 1 << 9,
-    NonPassiveTouchMove   = 1 << 10,
+enum class EventListenerRegionType : uint32_t {
+    Wheel                  = 1 << 0,
+    NonPassiveWheel        = 1 << 1,
+    MouseClick             = 1 << 2,
+    TouchStart             = 1 << 3,
+    NonPassiveTouchStart   = 1 << 4,
+    TouchEnd               = 1 << 5,
+    NonPassiveTouchEnd     = 1 << 6,
+    TouchCancel            = 1 << 7,
+    NonPassiveTouchCancel  = 1 << 8,
+    TouchMove              = 1 << 9,
+    NonPassiveTouchMove    = 1 << 10,
+    PointerDown            = 1 << 11,
+    NonPassivePointerDown  = 1 << 12,
+    PointerEnter           = 1 << 13,
+    NonPassivePointerEnter = 1 << 14,
+    PointerLeave           = 1 << 15,
+    NonPassivePointerLeave = 1 << 16,
+    PointerMove            = 1 << 17,
+    NonPassivePointerMove  = 1 << 18,
+    PointerOut             = 1 << 19,
+    NonPassivePointerOut   = 1 << 20,
+    PointerOver            = 1 << 21,
+    NonPassivePointerOver  = 1 << 22,
+    PointerUp              = 1 << 23,
+    NonPassivePointerUp    = 1 << 24,
+    MouseDown              = 1 << 25,
+    NonPassiveMouseDown    = 1 << 26,
+    MouseUp                = 1 << 27,
+    NonPassiveMouseUp      = 1 << 28,
+    MouseMove              = 1 << 29,
+    NonPassiveMouseMove    = 1 << 30,
 };
 
 enum class MathStyle : bool {
@@ -1272,7 +1284,6 @@ WTF::TextStream& operator<<(WTF::TextStream&, ColumnSpan);
 WTF::TextStream& operator<<(WTF::TextStream&, ContentDistribution);
 WTF::TextStream& operator<<(WTF::TextStream&, ContentPosition);
 WTF::TextStream& operator<<(WTF::TextStream&, ContentVisibility);
-WTF::TextStream& operator<<(WTF::TextStream&, CornerShape);
 WTF::TextStream& operator<<(WTF::TextStream&, CursorType);
 #if ENABLE(CURSOR_VISIBILITY)
 WTF::TextStream& operator<<(WTF::TextStream&, CursorVisibility);

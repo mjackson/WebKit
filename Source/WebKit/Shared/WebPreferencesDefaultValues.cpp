@@ -263,6 +263,17 @@ bool defaultGamepadVibrationActuatorEnabled()
 }
 #endif
 
+#if ENABLE(WEB_AUTHN)
+bool defaultDigitalCredentialsEnabled()
+{
+#if HAVE(DIGITAL_CREDENTIALS_UI)
+    return true;
+#else
+    return false;
+#endif
+}
+#endif
+
 bool defaultShouldEnableScreenOrientationAPI()
 {
 #if PLATFORM(MAC)
@@ -353,6 +364,17 @@ bool defaultIFrameResourceMonitoringEnabled()
 #else
     return false;
 #endif
+}
+#endif
+
+#if HAVE(SPATIAL_AUDIO_EXPERIENCE)
+bool defaultPreferSpatialAudioExperience()
+{
+#if defined(WEB_PREFERENCES_PREFER_SPATIAL_AUDIO_EXPERIENCE_ADDITIONS)
+    WEB_PREFERENCES_PREFER_SPATIAL_AUDIO_EXPERIENCE_ADDITIONS;
+#endif
+
+    return false;
 }
 #endif
 

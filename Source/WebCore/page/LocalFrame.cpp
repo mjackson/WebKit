@@ -5,7 +5,7 @@
  *                     2000 Simon Hausmann <hausmann@kde.org>
  *                     2000 Stefan Schimanski <1Stein@gmx.de>
  *                     2001 George Staikos <staikos@kde.org>
- * Copyright (C) 2004-2023 Apple Inc. All rights reserved.
+ * Copyright (C) 2004-2025 Apple Inc. All rights reserved.
  * Copyright (C) 2005 Alexey Proskuryakov <ap@nypop.com>
  * Copyright (C) 2008 Nokia Corporation and/or its subsidiary(-ies)
  * Copyright (C) 2008 Eric Seidel <eric@webkit.org>
@@ -735,20 +735,16 @@ void LocalFrame::injectUserScripts(UserScriptInjectionTime injectionTime)
         return;
 
     RefPtr page = this->page();
-    bool pageWasNotified = page->hasBeenNotifiedToInjectUserScripts();
-    page->protectedUserContentProvider()->forEachUserScript([this, protectedThis = Ref { *this }, injectionTime, pageWasNotified] (DOMWrapperWorld& world, const UserScript& script) {
-        if (script.injectionTime() == injectionTime) {
-            if (script.waitForNotificationBeforeInjecting() == WaitForNotificationBeforeInjecting::Yes && !pageWasNotified)
-                addUserScriptAwaitingNotification(world, script);
-            else
-                injectUserScriptImmediately(world, script);
-        }
+    page->protectedUserContentProvider()->forEachUserScript([this, protectedThis = Ref { *this }, injectionTime] (DOMWrapperWorld& world, const UserScript& script) {
+        if (script.injectionTime() == injectionTime)
+            injectUserScriptImmediately(world, script);
     });
 }
 
 void LocalFrame::injectUserScriptImmediately(DOMWrapperWorld& world, const UserScript& script)
 {
     Ref loader = this->loader();
+
 #if ENABLE(APP_BOUND_DOMAINS)
     if (loader->client().shouldEnableInAppBrowserPrivacyProtections()) {
         if (RefPtr document = this->document())
@@ -756,34 +752,47 @@ void LocalFrame::injectUserScriptImmediately(DOMWrapperWorld& world, const UserS
         FRAME_RELEASE_LOG_ERROR(Loading, "injectUserScriptImmediately: Ignoring user script injection for non app-bound domain");
         return;
     }
+
     loader->client().notifyPageOfAppBoundBehavior();
 #endif
 
     RefPtr document = this->document();
     if (!document)
         return;
+
     RefPtr page = document->protectedPage();
     if (!page)
         return;
+
     if (script.injectedFrames() == UserContentInjectedFrames::InjectInTopFrameOnly && !isMainFrame())
         return;
-    if (!UserContentURLPattern::matchesPatterns(document->url(), script.allowlist(), script.blocklist()))
+
+    auto url = document->url();
+
+    if (RefPtr parentDocument = document->parentDocument()) {
+        switch (script.matchParentFrame()) {
+        case UserContentMatchParentFrame::ForOpaqueOrigins:
+            if (url.protocolIsAbout() || url.protocolIsBlob() || url.protocolIsData())
+                url = parentDocument->url();
+            break;
+
+        case UserContentMatchParentFrame::ForAboutBlank:
+            if (url.isAboutBlank())
+                url = parentDocument->url();
+            break;
+
+        case UserContentMatchParentFrame::Never:
+            break;
+        }
+    }
+
+    if (!UserContentURLPattern::matchesPatterns(url, script.allowlist(), script.blocklist()))
         return;
 
     page->setHasInjectedUserScript();
     loader->client().willInjectUserScript(world);
+
     checkedScript()->evaluateInWorldIgnoringException(ScriptSourceCode(script.source(), JSC::SourceTaintedOrigin::Untainted, URL(script.url())), world);
-}
-
-void LocalFrame::addUserScriptAwaitingNotification(DOMWrapperWorld& world, const UserScript& script)
-{
-    m_userScriptsAwaitingNotification.append({ world, makeUniqueRef<UserScript>(script) });
-}
-
-void LocalFrame::injectUserScriptsAwaitingNotification()
-{
-    for (const auto& [world, script] : std::exchange(m_userScriptsAwaitingNotification, { }))
-        injectUserScriptImmediately(world, script.get());
 }
 
 RenderView* LocalFrame::contentRenderer() const

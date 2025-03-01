@@ -727,7 +727,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     animation/AnimationFrameRatePreset.h
     animation/AnimationTimeline.h
     animation/AnimationTimelinesController.h
-    animation/CSSPropertyBlendingClient.h
     animation/CustomAnimationOptions.h
     animation/CompositeOperation.h
     animation/EffectTiming.h
@@ -987,7 +986,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/values/CSSValueConcepts.h
     css/values/CSSValueTypes.h
 
-    css/values/backgrounds/CSSBorderRadius.h
+    css/values/borders/CSSBorderRadius.h
 
     css/values/color/CSSColor.h
     css/values/color/CSSColorDescriptors.h
@@ -1117,7 +1116,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     dom/FragmentDirectiveParser.h
     dom/FragmentDirectiveRangeFinder.h
     dom/FragmentDirectiveUtilities.h
-    dom/FullscreenManager.h
     dom/GCReachableRef.h
     dom/GetHTMLOptions.h
     dom/ImageOverlay.h
@@ -1916,6 +1914,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/PromisedAttachmentInfo.h
     platform/PublicSuffix.h
     platform/PublicSuffixStore.h
+    platform/RectCorners.h
     platform/RectEdges.h
     platform/ReferrerPolicy.h
     platform/RegistrableDomain.h
@@ -2683,13 +2682,15 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/PseudoElementIdentifier.h
     style/ScopedName.h
     style/StyleChange.h
+    style/StyleInterpolationClient.h
     style/StyleScope.h
     style/StyleScopeOrdinal.h
     style/StyleUpdate.h
     style/StyleValidity.h
     style/Styleable.h
 
-    style/values/backgrounds/StyleBorderRadius.h
+    style/values/borders/StyleBorderRadius.h
+    style/values/borders/StyleCornerShapeValue.h
 
     style/values/color/StyleColor.h
     style/values/color/StyleColorOptions.h
@@ -2756,6 +2757,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     testing/MockGamepad.h
     testing/MockGamepadProvider.h
 
+    workers/FetchingWorkerIdentifier.h
     workers/ScriptBuffer.h
     workers/WorkerAnimationController.h
     workers/WorkerDebuggerProxy.h

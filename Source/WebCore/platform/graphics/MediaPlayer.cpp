@@ -975,6 +975,14 @@ bool MediaPlayer::canShowWhileLocked() const
 {
     return client().canShowWhileLocked();
 }
+
+void MediaPlayer::setSceneIdentifier(const String& identifier)
+{
+    if (m_sceneIdentifier == identifier)
+        return;
+    m_sceneIdentifier = identifier;
+    m_private->sceneIdentifierDidChange();
+}
 #endif
 
 void MediaPlayer::videoLayerSizeDidChange(const FloatSize& size)
@@ -1897,6 +1905,14 @@ void MediaPlayer::setPreferredDynamicRangeMode(DynamicRangeMode mode)
     m_private->setPreferredDynamicRangeMode(mode);
 }
 
+void MediaPlayer::setPlatformDynamicRangeLimit(PlatformDynamicRangeLimit platformDynamicRangeLimit)
+{
+    if (m_platformDynamicRangeLimit == platformDynamicRangeLimit)
+        return;
+    m_platformDynamicRangeLimit = platformDynamicRangeLimit;
+    m_private->setPlatformDynamicRangeLimit(platformDynamicRangeLimit);
+}
+
 void MediaPlayer::audioOutputDeviceChanged()
 {
     m_private->audioOutputDeviceChanged();
@@ -2009,6 +2025,26 @@ void MediaPlayer::setSpatialTrackingLabel(const String& spatialTrackingLabel)
     m_private->setSpatialTrackingLabel(spatialTrackingLabel);
 }
 #endif
+
+#if HAVE(SPATIAL_AUDIO_EXPERIENCE)
+void MediaPlayer::setPrefersSpatialAudioExperience(bool value)
+{
+    if (m_prefersSpatialAudioExperience == value)
+        return;
+    m_prefersSpatialAudioExperience = value;
+    m_private->prefersSpatialAudioExperienceChanged();
+}
+#endif
+
+auto MediaPlayer::soundStageSize() const -> SoundStageSize
+{
+    return client().mediaPlayerSoundStageSize();
+}
+
+void MediaPlayer::soundStageSizeDidChange()
+{
+    m_private->soundStageSizeDidChange();
+}
 
 void MediaPlayer::setInFullscreenOrPictureInPicture(bool isInFullscreenOrPictureInPicture)
 {

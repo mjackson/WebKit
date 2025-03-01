@@ -47,6 +47,7 @@
 #include "DOMRect.h"
 #include "DOMRectList.h"
 #include "DOMTokenList.h"
+#include "DocumentFullscreen.h"
 #include "DocumentInlines.h"
 #include "DocumentSharedObjectPool.h"
 #include "Editing.h"
@@ -64,7 +65,6 @@
 #include "FormAssociatedCustomElement.h"
 #include "FrameLoader.h"
 #include "FrameSelection.h"
-#include "FullscreenManager.h"
 #include "FullscreenOptions.h"
 #include "GetAnimationsOptions.h"
 #include "GetHTMLOptions.h"
@@ -91,6 +91,7 @@
 #include "IdTargetObserverRegistry.h"
 #include "InputType.h"
 #include "InspectorInstrumentation.h"
+#include "JSCustomElementRegistry.h"
 #include "JSDOMPromiseDeferred.h"
 #include "JSLazyEventListener.h"
 #include "KeyboardEvent.h"
@@ -160,6 +161,7 @@
 #include "XMLNSNames.h"
 #include "XMLNames.h"
 #include "markup.h"
+#include <JavaScriptCore/JSCJSValue.h>
 #include <JavaScriptCore/JSONObject.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/Scope.h>
@@ -3108,7 +3110,7 @@ void Element::removedFromAncestor(RemovalType removalType, ContainerNode& oldPar
 
 #if ENABLE(FULLSCREEN_API)
         if (UNLIKELY(hasFullscreenFlag()))
-            oldDocument->fullscreenManager().exitRemovedFullscreenElement(*this);
+            oldDocument->fullscreen().exitRemovedFullscreenElement(*this);
 #endif
 
         if (UNLIKELY(isInTopLayer()))
@@ -3267,7 +3269,9 @@ ExceptionOr<ShadowRoot&> Element::attachShadow(const ShadowRootInit& init, Custo
         }
         return Exception { ExceptionCode::NotSupportedError };
     }
-    RefPtr registry = init.customElements;
+    RefPtr<CustomElementRegistry> registry;
+    if (auto* wrapper = jsDynamicCast<JSCustomElementRegistry*>(init.customElements))
+        registry = &wrapper->wrapped();
     auto scopedRegistry = ShadowRoot::ScopedCustomElementRegistry::No;
     if (registryKind == CustomElementRegistryKind::Null) {
         ASSERT(!registry);
@@ -3300,7 +3304,7 @@ ExceptionOr<ShadowRoot&> Element::attachDeclarativeShadow(ShadowRootMode mode, S
         clonable == ShadowRootClonable::Yes,
         serializable == ShadowRootSerializable::Yes,
         SlotAssignmentMode::Named,
-        nullptr,
+        JSC::jsUndefined(),
         referenceTarget,
     }, registryKind);
     if (exceptionOrShadowRoot.hasException())
@@ -4912,7 +4916,7 @@ void Element::webkitRequestFullscreen()
 // FIXME: Options are currently ignored.
 void Element::requestFullscreen(FullscreenOptions&&, RefPtr<DeferredPromise>&& promise)
 {
-    protectedDocument()->fullscreenManager().requestFullscreenForElement(*this, FullscreenManager::EnforceIFrameAllowFullscreenRequirement, [promise = WTFMove(promise)] (auto result) {
+    protectedDocument()->fullscreen().requestFullscreen(*this, DocumentFullscreen::EnforceIFrameAllowFullscreenRequirement, [promise = WTFMove(promise)] (auto result) {
         if (!promise)
             return;
         if (result.hasException())

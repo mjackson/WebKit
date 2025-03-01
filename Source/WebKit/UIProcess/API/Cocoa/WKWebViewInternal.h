@@ -42,6 +42,7 @@
 #import <variant>
 #import <wtf/BlockPtr.h>
 #import <wtf/CompletionHandler.h>
+#import <wtf/HashMap.h>
 #import <wtf/NakedPtr.h>
 #import <wtf/RefPtr.h>
 #import <wtf/RetainPtr.h>
@@ -156,6 +157,10 @@ class ViewGestureController;
 
 #if PLATFORM(MAC)
 @class WKTextFinderClient;
+#endif
+
+#if ENABLE(PDF_PAGE_NUMBER_INDICATOR)
+@class WKPDFPageNumberIndicator;
 #endif
 
 @protocol _WKTextManipulationDelegate;
@@ -429,6 +434,12 @@ struct PerWebProcessState {
     WebCore::FixedContainerEdges _fixedContainerEdges;
 
     RetainPtr<WKScrollGeometry> _currentScrollGeometry;
+
+    BOOL _allowsMagnification;
+
+#if ENABLE(PDF_PAGE_NUMBER_INDICATOR)
+    std::pair<Markable<WebKit::PDFPluginIdentifier>, RetainPtr<WKPDFPageNumberIndicator>> _pdfPageNumberIndicator;
+#endif
 }
 
 - (BOOL)_isValid;
@@ -532,11 +543,22 @@ struct PerWebProcessState {
 #endif
 #endif
 
+#if ENABLE(PDF_PAGE_NUMBER_INDICATOR)
+
+- (void)_createPDFPageNumberIndicator:(WebKit::PDFPluginIdentifier)identifier withFrame:(CGRect)rect pageCount:(size_t)pageCount;
+- (void)_removePDFPageNumberIndicator:(WebKit::PDFPluginIdentifier)identifier;
+- (void)_updatePDFPageNumberIndicator:(WebKit::PDFPluginIdentifier)identifier withFrame:(CGRect)rect;
+- (void)_updatePDFPageNumberIndicator:(WebKit::PDFPluginIdentifier)identifier currentPage:(size_t)pageIndex;
+- (void)_updatePDFPageNumberIndicatorIfNeeded;
+- (void)_removeAnyPDFPageNumberIndicator;
+
+#endif
+
 @property (nonatomic, setter=_setHasActiveNowPlayingSession:) BOOL _hasActiveNowPlayingSession;
 
 @end
 
-RetainPtr<NSError> nsErrorFromExceptionDetails(const WebCore::ExceptionDetails&);
+RetainPtr<NSError> nsErrorFromExceptionDetails(const std::optional<WebCore::ExceptionDetails>&);
 
 #if ENABLE(FULLSCREEN_API) && PLATFORM(IOS_FAMILY)
 @interface WKWebView (FullScreenAPI_Internal)
@@ -565,6 +587,14 @@ RetainPtr<NSError> nsErrorFromExceptionDetails(const WebCore::ExceptionDetails&)
 #if PLATFORM(MAC)
 @property (nonatomic, setter=_setAlwaysBounceVertical:) BOOL _alwaysBounceVertical;
 @property (nonatomic, setter=_setAlwaysBounceHorizontal:) BOOL _alwaysBounceHorizontal;
+
+- (void)_setContentOffset:(CGPoint)contentOffset animated:(BOOL)animated;
 #endif
+
+#if PLATFORM(IOS_FAMILY)
+@property (nonatomic, setter=_setAllowsMagnification:) BOOL _allowsMagnification;
+#endif
+
+- (void)_scrollToEdge:(_WKRectEdge)edge animated:(BOOL)animated;
 
 @end

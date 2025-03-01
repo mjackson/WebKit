@@ -1687,8 +1687,6 @@ webkit.org/b/267880 [ Sonoma+ ] fast/scrolling/mac/scrollbars/select-overlay-scr
 
 webkit.org/b/267885 [ Sonoma+ Release ] fast/scrolling/rtl-scrollbars-overlay-no-push-contents.html [ Pass ImageOnlyFailure ]
 
-webkit.org/b/267796 [ Release ] imported/w3c/web-platform-tests/requestidlecallback/deadline-max-rAF-dynamic.html [ Pass Failure ]
-
 webkit.org/b/268018 [ Sonoma+ Release ] fast/images/text-recognition/mac/select-word-in-transparent-image-overlay.html [ Pass ImageOnlyFailure ]
 
 webkit.org/b/264001 [ Debug ] imported/w3c/web-platform-tests/requestidlecallback/callback-multiple-calls.html [ Pass Failure ]
@@ -1880,8 +1878,6 @@ webkit.org/b/284492 [ Sequoia+ ] imported/w3c/web-platform-tests/fetch/api/cors/
 
 webkit.org/b/232282 fast/scrolling/mac/scrollbars/overlay-scrollbar-hovered.html [ Pass Failure ]
 
-webkit.org/b/285033 http/tests/download/sandboxed-iframe-download-not-allowed.html [ Pass Failure ]
-
 # webkit.org/b/288409 [ MacOS iOS ] 3x imported/w3c/web-platform-tests/navigation-api/navigation are consistent failures 
 imported/w3c/web-platform-tests/navigation-api/navigation-activation/activation-traverse-not-in-entries.html [ Failure ]
 imported/w3c/web-platform-tests/navigation-api/navigation-methods/disambigaute-forward.html [ Failure ]
@@ -1890,8 +1886,6 @@ imported/w3c/web-platform-tests/navigation-api/navigation-methods/disambigaute-t
 # webkit.org/b/280415 [ Sequoia wk2 release arm64 ] 2x fast/selectors/* are flaky image only failures.
 [ arm64 ] fast/selectors/selection-window-inactive-stroke-color.html [ Pass ImageOnlyFailure ]
 [ arm64 ] fast/selectors/text-field-selection-stroke-color.html [ Pass ImageOnlyFailure ]
-
-webkit.org/b/286371 [ Sequoia Release x86_64 ] webrtc/captureCanvas-webrtc-software-h264-high.html [ Failure ]
 
 webkit.org/b/286318 http/tests/iframe-monitor [ Pass ]
 
@@ -1912,8 +1906,6 @@ webkit.org/b/287122 imported/w3c/web-platform-tests/html/capability-delegation/d
 
 webkit.org/b/287865 [ Release ] pdf/two-pages-continuous-to-discrete.html [ Pass ImageOnlyFailure ]
 webkit.org/b/287865 [ Debug ] pdf/two-pages-continuous-to-discrete.html [ Pass Crash ]
-
-webkit.org/b/287889 [ Debug ] imported/w3c/web-platform-tests/file-system-access/getDirectory.https.any.sharedworker.html [ Skip ]
 
 # webkit.org/b/287875 [ macOS Release wk2 x86_64 ] 2x fast/borders/border-painting-*.html are consistently failing.
 [ Sonoma x86_64 Release ] fast/borders/border-painting-inset.html [ Pass ImageOnlyFailure  ]
@@ -1969,3 +1961,79 @@ webkit.org/b/288404 [ Sonoma+ Release ] fast/text/canvas-color-fonts/stroke-grad
 webkit.org/b/287012 [ Sonoma+ Debug ] http/tests/pdf/linearized-pdf-in-iframe.html [ Pass Crash ]
 
 webkit.org/b/288411 [ Sequoia x86_64 ] imported/w3c/web-platform-tests/webrtc/simulcast/getStats.https.html [ Failure ]
+
+webkit.org/b/288493 [ Sequoia+ Debug ] http/tests/media/fairplay/legacy-fairplay-mse-muxed-nowait.html [ Crash ]
+webkit.org/b/288493 [ Sequoia+ Debug ] http/tests/media/fairplay/legacy-fairplay-mse-v2.html [ Crash ]
+webkit.org/b/288493 [ Sequoia+ Debug ] http/tests/media/fairplay/legacy-fairplay-mse-v3.html [ Crash ]
+
+webkit.org/b/288521 [ Sequoia+ X86_64 ] swipe/swipe-disables-view-transition.html [ Timeout ]
+
+webkit.org/b/288535 [ Sequoia+ X86_64 ] swipe/pushstate-with-manual-scrollrestoration.html [ Timeout ]
+
+webkit.org/b/288545 [ Sequoia x86_64 ] imported/w3c/web-platform-tests/requestidlecallback/deadline-max-rAF-dynamic.html [ Failure ]
+webkit.org/b/288545 [ Sonoma Release ] imported/w3c/web-platform-tests/requestidlecallback/deadline-max-rAF-dynamic.html [ Pass Failure ]
+
+webkit.org/b/288603 imported/w3c/web-platform-tests/screen-orientation/hidden_document.html [ Pass Failure ]
+
+webkit.org/b/288613 [ Sonoma+ ] pdf/pdf-in-embed-with-root-page-zoom.html [ Pass Timeout Failure ]
+
+# webkit.org/b/288642 [Sonoma H Release x86_64 EWS ] webgl/1.0.x/conformance/glsl/bugs/sampler-array-using-loop-index.html and webgl/2.0.y/conformance/glsl/bugs/sampler-array-using-loop-index.html failure
+[ Sonoma Release x86_64 ] webgl/1.0.x/conformance/glsl/bugs/sampler-array-using-loop-index.html [ Skip ]
+[ Sonoma Release x86_64 ] webgl/2.0.y/conformance/glsl/bugs/sampler-array-using-loop-index.html [ Skip ]
+
+# webkit.org/b/288651 [ macOS-Ventura-Release-WK2-Intel-Tests-EWS] mediacapabilities/vp9 are failing on Intel machine.
+[ Sonoma Release x86_64 ] media/mediacapabilities/vp9.html [ Skip ]
+[ Sonoma Release x86_64 ] platform/mac/media/mediacapabilities/vp9-decodingInfo-sw.html [ Skip ]
+
+webkit.org/b/288655 [ Sequoia x86_64 ] webrtc/captureCanvas-webrtc-software-h264-high.html [ Failure ]
+
+webkit.org/b/288660 [ Sonoma Release x86_64 ] media/media-hevc-video-as-img.html [ Skip ]
+
+# webkit.org/b/280189 [EWS] imported/w3c/web-platform-tests/webcodecs/videoFrame-construction.any.html is a constant failure on Ventura+ Intel EWS
+[ Sonoma Release x86_64 ] imported/w3c/web-platform-tests/webcodecs/videoFrame-construction.any.html [ Skip ]
+
+# webkit.org/b/280186 [EWS] imported/w3c/web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/drawimage_canvas.html is failing on Ventura+ Intel EWS
+[ Sonoma Release x86_64 ] imported/w3c/web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/drawimage_canvas.html [ Skip ]
+
+# webkit.org/b/280219 [EWS] imported/w3c/web-platform-t ests/css/css-view-transitio ns/massive-element-below-vi ewport-offscreen-old.html is a constant failure on Ventura+ Intel 
+[ Sonoma Release x86_64 ] imported/w3c/web-platform-tests/css/css-view-transitions/massive-element-below-viewport-offscreen-old.html [ Skip ]
+
+webkit.org/b/288670 [ Release x86_64 ] media/media-source/media-source-vp8-hiddenframes.html [ Pass ImageOnlyFailure ]
+
+# webkit.org/b/288620 REGRESSION(290300@main): SaveAsPDF crashes if site-isolation is enabled
+[ Debug ] ipc/large-vector-allocate-failure-crash.html [ Skip ]
+[ Debug ] ipc/invalid-path-segments-crash.html [ Skip ]
+
+webkit.org/b/288742 [ Debug ] ipc/media-player-invalid-test.html [ Crash ]
+
+# webkit.org/b/288732 [Sonoma Release wk2] Multiple tests in imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element are flaky failure
+[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/security.dataURI.html [ Skip ]
+[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toBlob.jpeg.html [ Skip ]
+[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toBlob.png.html [ Skip ]
+[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.arguments.1.html [ Skip ]
+[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.arguments.2.html [ Skip ]
+[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.arguments.3.html [ Skip ]
+[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.bogustype.html [ Skip ]
+[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.default.html [ Skip ]
+[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.jpeg.primarycolours.html [ Skip ]
+[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.jpg.html [ Skip ]
+[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.lowercase.ascii.html [ Skip ]
+[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.lowercase.unicode.html [ Skip ]
+[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.png.complexcolours.html [ Skip ]
+[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.png.html [ Skip ]
+[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.png.primarycolours.html [ Skip ]
+[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.unrecognised.html [ Skip ]
+[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-img-element/currentSrc-blob-cache.html [ Skip ]
+[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/forms/form-submission-target/rel-base-target.html [ Skip ]
+[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/forms/form-submission-target/rel-button-target.html [ Skip ]
+[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/forms/form-submission-target/rel-form-target.html [ Skip ]
+[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/forms/form-submission-target/rel-input-target.html [ Skip ]
+
+webkit.org/b/288878 media/modern-media-controls/tracks-support/audio-multiple-tracks.html [ Pass Timeout ]
+
+# webkit.org/b/287889 [macOS Debug] imported/w3c/web-platform-tests/file-system-access/getDirectory.https.any.sharedworker.html is flaky crash(flaky in EWS)
+[ Debug ] imported/w3c/web-platform-tests/file-system-access/getDirectory.https.any.sharedworker.html [ Skip ]
+[ Debug ] imported/w3c/web-platform-tests/css/css-view-transitions/writing-mode-container-resize.html [ Skip ]
+[ Debug ] imported/w3c/web-platform-tests/file-system-access/getDirectory.https.any.html [ Skip ]
+[ Debug ] imported/w3c/web-platform-tests/file-system-access/getDirectory.https.any.serviceworker.html [ Skip ]
+[ Debug ] imported/w3c/web-platform-tests/file-system-access/getDirectory.https.any.worker.html [ Skip ]

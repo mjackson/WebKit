@@ -699,9 +699,7 @@ protected:
     void computePreferredLogicalWidths(const Length& minLogicalWidth, const Length& maxLogicalWidth, LayoutUnit borderAndPaddingLogicalWidth);
     
     bool isAspectRatioDegenerate(double aspectRatio) const { return !aspectRatio || isnan(aspectRatio); }
-
-    bool overflowChangesMayAffectLayout() const final;
-
+    
 private:
     bool replacedMinMaxLogicalHeightComputesAsNone(SizeType) const;
 
@@ -720,15 +718,10 @@ private:
     // Returns true if we did a full repaint.
     bool repaintLayerRectsForImage(WrappedImagePtr, const FillLayer& layers, bool drawingBackground);
 
+    struct PositionedLayoutConstraints;
     void computePositionedLogicalHeight(LogicalExtentComputedValues&) const;
-    void computePositionedLogicalWidthUsing(SizeType, Length logicalWidth, const RenderBoxModelObject& containerBlock, WritingMode containerWritingMode,
-                                            LayoutUnit containerLogicalWidth, LayoutUnit bordersPlusPadding,
-                                            Length logicalLeft, Length logicalRight, Length marginLogicalLeft, Length marginLogicalRight,
-                                            LogicalExtentComputedValues&) const;
-    void computePositionedLogicalHeightUsing(SizeType, Length logicalHeightLength, const RenderBoxModelObject& containerBlock,
-                                             LayoutUnit containerLogicalHeight, LayoutUnit bordersPlusPadding, LayoutUnit logicalHeight,
-                                             Length logicalTop, Length logicalBottom, Length marginLogicalTop, Length marginLogicalBottom,
-                                             LogicalExtentComputedValues&) const;
+    LayoutUnit computePositionedLogicalWidthUsing(SizeType, Length logicalWidth, const PositionedLayoutConstraints&) const;
+    LayoutUnit computePositionedLogicalHeightUsing(SizeType, Length logicalHeightLength, LayoutUnit computedHeight, const PositionedLayoutConstraints&) const;
 
     void computePositionedLogicalHeightReplaced(LogicalExtentComputedValues&) const;
     void computePositionedLogicalWidthReplaced(LogicalExtentComputedValues&) const;
@@ -758,7 +751,7 @@ private:
     ShapeOutsideInfo& ensureShapeOutsideInfo();
     void removeShapeOutsideInfo();
 
-    void computeAnchorCenteredPosition(LogicalExtentComputedValues&, CheckedPtr<const RenderBoxModelObject> defaultAnchorBox, Length logicalLeftLength, Length logicalRightLength, LayoutUnit containerLogicalWidth, bool computeHorizontally) const;
+    void computeAnchorCenteredPosition(const PositionedLayoutConstraints&, LogicalExtentComputedValues&) const;
 
 private:
     // The width/height of the contents + borders + padding.  The x/y location is relative to our container (which is not always our parent).

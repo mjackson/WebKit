@@ -191,6 +191,7 @@ private:
     NSArray *timedMetadata() const final;
     String accessLog() const final;
     String errorLog() const final;
+    void sceneIdentifierDidChange() final;
 #endif
 
     bool supportsAcceleratedRendering() const final { return true; }
@@ -342,6 +343,8 @@ private:
     void setShouldObserveTimeControlStatus(bool);
 
     void setPreferredDynamicRangeMode(DynamicRangeMode) final;
+    void setPlatformDynamicRangeLimit(PlatformDynamicRangeLimit) final;
+
     void audioOutputDeviceChanged() final;
 
     void currentTimeDidChange(MediaTime&&) const;

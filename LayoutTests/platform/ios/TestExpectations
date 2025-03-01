@@ -2299,6 +2299,7 @@ accessibility/aria-checked-mixed-value.html [ Pass ]
 accessibility/aria-controlled-table-row-visibility.html [ Pass ]
 accessibility/aria-describedby-on-input.html [ Pass ]
 accessibility/body-element-aria-hidden.html [ Pass ]
+accessibility/button-in-deep-dom.html [ Pass ]
 accessibility/display-contents/aria-hidden.html [ Pass ]
 accessibility/aria-multiline.html [ Pass ]
 accessibility/aria-readonly-updates-after-dynamic-change.html [ Pass ]
@@ -2772,8 +2773,6 @@ css3/viewport-percentage-lengths/vh-auto-size.html [ ImageOnlyFailure ]
 
 # This test relies on the ::selection pseudoclass which isn't honored on iOS.
 webkit.org/b/169517 fast/text/complex-text-selection.html [ ImageOnlyFailure ]
-
-webkit.org/b/124933 svg/animations/getCurrentTime-pause-unpause.html [ Pass Failure ]
 
 webkit.org/b/172610 media/ios/autoplay-only-in-main-document.html [ Skip ]
 webkit.org/b/172672 fast/events/before-unload-returnValue.html [ Skip ]
@@ -7469,6 +7468,7 @@ fast/forms/ios/time-picker-value-change.html [ Pass Failure ]
 
 # webkit.org/b/277897 (Regression: 282030@main? [ iOS 17 Release ] imported/w3c/web-platform-tests/css/css-anchor-position/anchor-position-inline-004.html is a flaky text failure (277897))
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-position-inline-004.html [ Pass Failure ]
+imported/w3c/web-platform-tests/css/css-anchor-position/position-try-cascade-layer-reorder.html [ Failure ]
 
 # FAIL results are platform dependent
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-invalid-fallback.html [ Failure ]
@@ -7701,3 +7701,11 @@ webkit.org/b/287741 fast/viewport/ios/non-responsive-viewport-after-changing-vie
 [ Debug ] http/wpt/mediarecorder/MediaRecorder-webm-AV-audio-video-dataavailable.html [ Skip ]
 
 webkit.org/b/288133 imported/w3c/web-platform-tests/scroll-to-text-fragment/find-range-from-text-directive.html [ Pass Failure ]
+
+webkit.org/b/288677 [ Debug arm64 ] fast/scrolling/ios/body-overflow-hidden-keyboard.html [ Pass Crash ]
+
+webkit.org/b/288694 [ Debug arm64 ] fast/multicol/body-stuck-with-dirty-bit-with-columns.html [ Crash ]
+
+webkit.org/b/288888 [ arm64 ] compositing/contents-format/deep-color-backing-store.html [ Failure ]
+
+webkit.org/b/288896 editing/caret/caret-position-vertical-rl.html [ Failure ]

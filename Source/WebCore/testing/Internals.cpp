@@ -71,6 +71,7 @@
 #include "DisabledAdaptations.h"
 #include "DisplayList.h"
 #include "Document.h"
+#include "DocumentFullscreen.h"
 #include "DocumentInlines.h"
 #include "DocumentLoader.h"
 #include "DocumentMarkerController.h"
@@ -92,7 +93,6 @@
 #include "FormController.h"
 #include "FragmentDirectiveGenerator.h"
 #include "FrameLoader.h"
-#include "FullscreenManager.h"
 #include "GCObservation.h"
 #include "GridPosition.h"
 #include "HEVCUtilities.h"
@@ -4602,7 +4602,22 @@ void Internals::enableGStreamerHolePunching(HTMLVideoElement& element)
 #endif
 }
 
+double Internals::effectiveDynamicRangeLimitValue(const HTMLMediaElement& media)
+{
+    return media.computePlayerDynamicRangeLimit().value();
+}
+
 #endif
+
+ExceptionOr<void> Internals::setPageShouldSuppressHDR(bool shouldSuppressHDR)
+{
+    Document* document = contextDocument();
+    if (!document || !document->page())
+        return Exception { ExceptionCode::InvalidAccessError };
+
+    document->page()->setShouldSuppressHDR(shouldSuppressHDR);
+    return { };
+}
 
 bool Internals::isSelectPopupVisible(HTMLSelectElement& element)
 {
@@ -6265,6 +6280,7 @@ void Internals::setMediaStreamTrackMuted(MediaStreamTrack& track, bool muted)
 
 void Internals::removeMediaStreamTrack(MediaStream& stream, MediaStreamTrack& track)
 {
+    stream.allowEventTracksForTesting();
     stream.privateStream().removeTrack(track.privateTrack());
 }
 
@@ -6286,6 +6302,11 @@ void Internals::setMediaStreamSourceInterrupted(MediaStreamTrack& track, bool in
 const String& Internals::mediaStreamTrackPersistentId(const MediaStreamTrack& track)
 {
     return track.source().persistentID();
+}
+
+size_t Internals::audioCaptureSourceCount() const
+{
+    return PlatformMediaSessionManager::singleton().audioCaptureSourceCount();
 }
 
 bool Internals::isMediaStreamSourceInterrupted(MediaStreamTrack& track) const

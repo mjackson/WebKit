@@ -61,7 +61,7 @@ private:
     void initialize();
     void updateCachedWidths();
     void checkCanConstrainInlineItems();
-    EntryPretty layoutSingleLineForPretty(InlineItemRange layoutRange, InlineLayoutUnit idealLineWidth, EntryPretty lastValidEntry);
+    EntryPretty layoutSingleLineForPretty(InlineItemRange layoutRange, InlineLayoutUnit idealLineWidth, EntryPretty lastValidEntry, size_t previousBreakIndex);
 
     std::optional<Vector<LayoutUnit>> balanceRangeWithLineRequirement(InlineItemRange, InlineLayoutUnit idealLineWidth, size_t numberOfLines, bool isFirstChunk);
     std::optional<Vector<LayoutUnit>> balanceRangeWithNoLineRequirement(InlineItemRange, InlineLayoutUnit idealLineWidth, bool isFirstChunk);
@@ -82,6 +82,7 @@ private:
     Vector<LayoutUnit> m_originalLineConstraints;
     LayoutUnit m_maximumLineWidthConstraint { 0 };
     Vector<bool> m_originalLineEndsWithForcedBreak;
+    InlineLayoutUnit m_inlineItemWidthsMax { 0 };
     Vector<InlineLayoutUnit> m_inlineItemWidths;
     Vector<InlineLayoutUnit> m_firstLineStyleInlineItemWidths;
     size_t m_numberOfLinesInOriginalLayout { 0 };

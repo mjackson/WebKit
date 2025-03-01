@@ -291,7 +291,6 @@ animation/AnimationEffectTiming.cpp
 animation/AnimationTimeline.cpp
 animation/AnimationTimelinesController.cpp
 animation/BlendingKeyframes.cpp
-animation/CSSPropertyAnimation.cpp
 animation/CSSTransition.cpp
 animation/CustomEffect.cpp
 animation/DocumentTimeline.cpp
@@ -531,7 +530,7 @@ dom/Attr.cpp
 dom/BoundaryPoint.cpp
 dom/BroadcastChannel.cpp
 dom/ChildListMutationScope.h
-dom/ComposedTreeIterator.cpp
+dom/ComposedTreeIterator.h
 dom/ContainerNode.cpp
 dom/ContainerNodeAlgorithms.cpp
 dom/ContentVisibilityDocumentState.cpp
@@ -546,6 +545,8 @@ dom/DataTransferItemList.cpp
 dom/Document.cpp
 dom/DocumentFontLoader.cpp
 dom/DocumentFragment.cpp
+dom/DocumentFullscreen.cpp
+dom/DocumentFullscreen.h
 dom/DocumentInlines.h
 dom/DocumentOrShadowRootFullscreen.cpp
 dom/DocumentStorageAccess.cpp
@@ -558,8 +559,6 @@ dom/EmptyScriptExecutionContext.h
 dom/EventPath.cpp
 dom/ExtensionStyleSheets.cpp
 dom/FragmentDirectiveRangeFinder.cpp
-dom/FullscreenManager.cpp
-dom/FullscreenManager.h
 dom/GCReachableRef.h
 dom/IdleCallbackController.cpp
 dom/IdleDeadline.cpp
@@ -1018,7 +1017,6 @@ platform/audio/PlatformMediaSessionManager.cpp
 platform/audio/PushPullFIFO.cpp
 platform/audio/Reverb.cpp
 platform/audio/ReverbConvolver.cpp
-platform/audio/cocoa/AudioDestinationCocoa.cpp
 platform/audio/cocoa/AudioFileReaderCocoa.cpp
 platform/audio/cocoa/AudioSampleDataSource.mm
 platform/cocoa/DragImageCocoa.mm
@@ -1027,7 +1025,6 @@ platform/cocoa/VideoPresentationModelVideoElement.mm
 platform/cocoa/WebAVPlayerLayer.mm
 platform/encryptedmedia/CDMProxy.cpp
 platform/encryptedmedia/CDMProxy.h
-platform/encryptedmedia/clearkey/CDMClearKey.cpp
 platform/graphics/BitmapImage.cpp
 platform/graphics/BitmapImage.h
 platform/graphics/BitmapImageDescriptor.cpp
@@ -1068,7 +1065,6 @@ platform/graphics/cg/PDFDocumentImage.cpp
 platform/graphics/cocoa/FontCacheCoreText.cpp
 platform/graphics/cocoa/ImageAdapterCocoa.mm
 platform/graphics/cocoa/SourceBufferParser.cpp
-platform/graphics/cocoa/VideoMediaSampleRenderer.mm
 platform/graphics/cocoa/WebProcessGraphicsContextGLCocoa.mm
 platform/graphics/controls/ApplePayButtonPart.cpp
 platform/graphics/controls/ButtonPart.h
@@ -1308,6 +1304,9 @@ style/StyleBuilder.cpp
 style/StyleBuilderConverter.h
 style/StyleBuilderCustom.h
 style/StyleBuilderState.cpp
+style/StyleInterpolation.cpp
+style/StyleInterpolationFunctions.h
+style/StyleInterpolationWrappers.h
 style/StyleInvalidator.cpp
 style/StylePendingResources.cpp
 style/StyleResolveForDocument.cpp

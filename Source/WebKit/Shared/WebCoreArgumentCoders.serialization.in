@@ -1836,7 +1836,8 @@ enum class WebCore::ContentsFormat : uint8_t {
 #endif
 };
 
-class WebCore::PlatformDynamicRangeLimit {
+header: <WebCore/PlatformDynamicRangeLimit.h>
+[CustomHeader, AdditionalEncoder=StreamConnectionEncoder] class WebCore::PlatformDynamicRangeLimit {
     float m_value;
 };
 
@@ -2838,6 +2839,7 @@ class WebCore::UserStyleSheet {
     Vector<String> allowlist();
     Vector<String> blocklist();
     WebCore::UserContentInjectedFrames injectedFrames();
+    WebCore::UserContentMatchParentFrame matchParentFrame();
     WebCore::UserStyleLevel level();
     std::optional<WebCore::PageIdentifier> pageID();
 };
@@ -4787,6 +4789,13 @@ enum class WebCore::MediaPlayerPitchCorrectionAlgorithm : uint8_t {
     BestForSpeech,
 };
 
+enum class WebCore::MediaPlayerSoundStageSize : uint8_t {
+    Auto,
+    Small,
+    Medium,
+    Large,
+};
+
 class WebCore::GeolocationPositionData {
     double timestamp;
     double latitude;
@@ -5277,6 +5286,7 @@ header: <WebCore/ImageTypes.h>
     WebCore::ImageOrientation::Orientation orientation().orientation();
     WebCore::InterpolationQuality interpolationQuality();
     WebCore::Headroom headroom();
+    WebCore::PlatformDynamicRangeLimit dynamicRangeLimit();
 };
 
 [AdditionalEncoder=StreamConnectionEncoder] struct WebCore::FloatSegment {
@@ -6116,16 +6126,6 @@ struct WebCore::VideoFrameTimeMetadata {
     WebCore::FontSmoothingMode smoothingMode;
 };
 
-#if ENABLE(TOUCH_EVENT_REGIONS)
-header: <WebCore/EventRegion.h>
-[CustomHeader] struct WebCore::TouchEventListenerRegion {
-    WebCore::Region start;
-    WebCore::Region end;
-    WebCore::Region move;
-    WebCore::Region cancel;
-};
-#endif
-
 class WebCore::EventRegion {
     WebCore::Region m_region;
 #if ENABLE(TOUCH_ACTION_REGIONS)
@@ -6136,8 +6136,7 @@ class WebCore::EventRegion {
     WebCore::Region m_nonPassiveWheelEventListenerRegion;
 #endif
 #if ENABLE(TOUCH_EVENT_REGIONS)
-    WebCore::TouchEventListenerRegion m_touchEventListenerRegion;
-    WebCore::TouchEventListenerRegion m_nonPassiveTouchEventListenerRegion;
+    WebCore::EventTrackingRegions m_touchEventListenerRegion;
 #endif
 #if ENABLE(EDITABLE_REGION)
     std::optional<WebCore::Region> m_editableRegion;
@@ -6478,7 +6477,8 @@ struct WebCore::DigitalCredentialsResponseData {
 };
 
 [Nested] enum class WebCore::IdentityCredentialProtocol : uint8_t {
-    Openid4vp
+    Openid4vp,
+    OrgIsoMdoc
 };
 
 #endif // HAVE(DIGITAL_CREDENTIALS_UI)
@@ -6521,6 +6521,7 @@ header: <WebCore/MockMediaDevice.h>
     String persistentId;
     String label;
     OptionSet<WebCore::MockMediaDevice::Flag> flags;
+    bool isDefault;
     std::variant<WebCore::MockMicrophoneProperties, WebCore::MockSpeakerProperties, WebCore::MockCameraProperties, WebCore::MockDisplayProperties> properties;
 };
 
@@ -7523,9 +7524,13 @@ header: <WebCore/FontTaggedSettings.h>
 
 enum class WebCore::UserScriptInjectionTime : bool;
 
-enum class WebCore::WaitForNotificationBeforeInjecting : bool;
-
 enum class WebCore::UserContentInjectedFrames : bool;
+
+enum class WebCore::UserContentMatchParentFrame : uint8_t {
+    Never,
+    ForAboutBlank,
+    ForOpaqueOrigins
+}
 
 class WebCore::UserScript {
     String source();
@@ -7534,7 +7539,7 @@ class WebCore::UserScript {
     Vector<String> blocklist();
     WebCore::UserScriptInjectionTime injectionTime();
     WebCore::UserContentInjectedFrames injectedFrames();
-    WebCore::WaitForNotificationBeforeInjecting waitForNotificationBeforeInjecting();
+    WebCore::UserContentMatchParentFrame matchParentFrame();
 }
 
 header: <WebCore/GraphicsContextState.h>
@@ -8045,6 +8050,7 @@ enum class WebCore::AppleVisualEffect : uint8_t {
 #if HAVE(MATERIAL_HOSTING)
     HostedBlurMaterial,
     HostedThinBlurMaterial,
+    HostedMediaControlsMaterial,
 #endif
     VibrancyLabel,
     VibrancySecondaryLabel,

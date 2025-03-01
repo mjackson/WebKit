@@ -1,7 +1,5 @@
 AutomationProtocolObjects.h
-NetworkProcess/Downloads/cocoa/DownloadCocoa.mm
 Platform/cocoa/CocoaHelpers.mm
-Shared/API/APIArray.h
 Shared/API/APIDictionary.h
 Shared/API/c/WKSharedAPICast.h
 Shared/API/c/cf/WKStringCF.mm
@@ -29,6 +27,5 @@ WebProcess/WebPage/ViewGestureGeometryCollector.cpp
 WebProcess/WebPage/WebFrame.cpp
 WebProcess/WebPage/WebPageTesting.cpp
 WebProcess/WebPage/mac/TiledCoreAnimationDrawingArea.mm
-WebProcess/WebProcess.cpp
 WebProcess/WebStorage/StorageAreaMap.cpp
 WebProcess/cocoa/WebProcessCocoa.mm

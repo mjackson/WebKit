@@ -65,7 +65,6 @@
 #import "LocalCurrentTraitCollection.h"
 #import "LocalFrame.h"
 #import "LocalFrameView.h"
-#import "LocalizedDateCache.h"
 #import "NodeRenderStyle.h"
 #import "PaintInfo.h"
 #import "PathUtilities.h"
@@ -220,8 +219,10 @@ void RenderThemeIOS::adjustRadioStyle(RenderStyle& style, const Element* element
 void RenderThemeIOS::adjustTextFieldStyle(RenderStyle& style, const Element* element) const
 {
 #if ENABLE(MAC_STYLE_CONTROLS_ON_CATALYST)
-    if (adjustTextFieldStyleForCatalyst(style, element))
+    if (element && element->document().settings().macStyleControlsOnCatalyst()) {
+        RenderThemeCocoa::adjustTextFieldStyle(style, element);
         return;
+    }
 #endif
 
     if (!element)
@@ -314,8 +315,10 @@ void RenderThemeIOS::paintTextFieldDecorations(const RenderBox& box, const Paint
 void RenderThemeIOS::adjustTextAreaStyle(RenderStyle& style, const Element* element) const
 {
 #if ENABLE(MAC_STYLE_CONTROLS_ON_CATALYST)
-    if (adjustTextAreaStyleForCatalyst(style, element))
+    if (element && element->document().settings().macStyleControlsOnCatalyst()) {
+        RenderThemeCocoa::adjustTextAreaStyle(style, element);
         return;
+    }
 #endif
 
     if (!element)
@@ -346,10 +349,6 @@ const int MenuListMinHeight = 15;
 
 const float MenuListBaseHeight = 20;
 const float MenuListBaseFontSize = 11;
-
-const float MenuListArrowWidth = 7;
-const float MenuListArrowHeight = 6;
-const float MenuListButtonPaddingAfter = 19;
 
 LengthBox RenderThemeIOS::popupInternalPaddingBox(const RenderStyle& style) const
 {
@@ -404,7 +403,7 @@ void RenderThemeIOS::adjustRoundBorderRadius(RenderStyle& style, RenderBox& box)
 static void applyCommonButtonPaddingToStyle(RenderStyle& style, const Element& element)
 {
     Document& document = element.document();
-    auto emSize = CSSPrimitiveValue::create(0.5, CSSUnitType::CSS_EM);
+    Ref emSize = CSSPrimitiveValue::create(0.5, CSSUnitType::CSS_EM);
     // We don't need this element's parent style to calculate `em` units, so it's okay to pass nullptr for it here.
     int pixels = emSize->resolveAsLength<int>({ style, document.renderStyle(), nullptr, document.renderView() });
 
@@ -423,7 +422,7 @@ static void adjustSelectListButtonStyle(RenderStyle& style, const Element& eleme
     // Enforce "line-height: normal".
     style.setLineHeight(Length(LengthType::Normal));
 }
-    
+
 class RenderThemeMeasureTextClient : public MeasureTextClient {
 public:
     RenderThemeMeasureTextClient(const FontCascade& font, const RenderStyle& style)
@@ -462,7 +461,7 @@ static void adjustInputElementButtonStyle(RenderStyle& style, const HTMLInputEle
 
     // Enforce the width and set the box-sizing to content-box to not conflict with the padding.
     FontCascade font = style.fontCascade();
-    
+
     float maximumWidth = localizedDateCache().maximumWidthForDateType(dateType, font, RenderThemeMeasureTextClient(font, style));
 
     ASSERT(maximumWidth >= 0);
@@ -477,8 +476,10 @@ static void adjustInputElementButtonStyle(RenderStyle& style, const HTMLInputEle
 void RenderThemeIOS::adjustMenuListButtonStyle(RenderStyle& style, const Element* element) const
 {
 #if ENABLE(MAC_STYLE_CONTROLS_ON_CATALYST)
-    if (adjustMenuListButtonStyleForCatalyst(style, element))
+    if (element && element->document().settings().macStyleControlsOnCatalyst()) {
+        RenderThemeCocoa::adjustMenuListButtonStyle(style, element);
         return;
+    }
 #endif
 
     // Set the min-height to be at least MenuListMinHeight.
@@ -504,8 +505,8 @@ void RenderThemeIOS::adjustMenuListButtonStyle(RenderStyle& style, const Element
 void RenderThemeIOS::paintMenuListButtonDecorations(const RenderBox& box, const PaintInfo& paintInfo, const FloatRect& rect)
 {
 #if ENABLE(MAC_STYLE_CONTROLS_ON_CATALYST)
-    if (paintMenuListButtonDecorationsForCatalyst(box, paintInfo, rect))
-        return;
+    if (box.settings().macStyleControlsOnCatalyst())
+        return RenderThemeCocoa::paintMenuListButtonDecorations(box, paintInfo, rect);
 #endif
 
     if (is<HTMLInputElement>(box.element()))
@@ -834,11 +835,13 @@ int RenderThemeIOS::sliderTickOffsetFromTrackCenter() const
 void RenderThemeIOS::adjustSearchFieldStyle(RenderStyle& style, const Element* element) const
 {
 #if ENABLE(MAC_STYLE_CONTROLS_ON_CATALYST)
-    if (adjustSearchFieldStyleForCatalyst(style, element))
+    if (element && element->document().settings().macStyleControlsOnCatalyst()) {
+        RenderThemeCocoa::adjustSearchFieldStyle(style, element);
         return;
+    }
 #endif
 
-    RenderThemeCocoa::adjustSearchFieldStyle(style, element);
+    RenderTheme::adjustSearchFieldStyle(style, element);
 
     if (!element)
         return;
@@ -851,19 +854,6 @@ void RenderThemeIOS::adjustSearchFieldStyle(RenderStyle& style, const Element* e
         return;
 
     adjustRoundBorderRadius(style, *box);
-}
-
-bool RenderThemeIOS::paintSearchField(const RenderObject& renderer, const PaintInfo& paintInfo, const FloatRect& rect)
-{
-#if ENABLE(MAC_STYLE_CONTROLS_ON_CATALYST)
-    if (paintSearchFieldForCatalyst(renderer, paintInfo, rect))
-        return false;
-#else
-    UNUSED_PARAM(renderer);
-    UNUSED_PARAM(paintInfo);
-    UNUSED_PARAM(rect);
-#endif
-    return true;
 }
 
 void RenderThemeIOS::paintSearchFieldDecorations(const RenderBox& box, const PaintInfo& paintInfo, const IntRect& rect)
@@ -921,8 +911,10 @@ void RenderThemeIOS::adjustButtonLikeControlStyle(RenderStyle& style, const Elem
 void RenderThemeIOS::adjustButtonStyle(RenderStyle& style, const Element* element) const
 {
 #if ENABLE(MAC_STYLE_CONTROLS_ON_CATALYST)
-    if (adjustButtonStyleForCatalyst(style, element))
+    if (element && element->document().settings().macStyleControlsOnCatalyst()) {
+        RenderThemeCocoa::adjustButtonStyle(style, element);
         return;
+    }
 #endif
 
     // If no size is specified, ensure the height of the button matches ControlBaseHeight scaled
@@ -1044,12 +1036,13 @@ bool RenderThemeIOS::shouldHaveSpinButton(const HTMLInputElement&) const
 bool RenderThemeIOS::supportsFocusRing(const RenderObject& renderer, const RenderStyle& style) const
 {
 #if ENABLE(MAC_STYLE_CONTROLS_ON_CATALYST)
-    return supportsFocusRingForCatalyst(renderer, style);
+    if (renderer.settings().macStyleControlsOnCatalyst())
+        return RenderThemeCocoa::supportsFocusRing(renderer, style);
 #else
     UNUSED_PARAM(renderer);
     UNUSED_PARAM(style);
-    return false;
 #endif
+    return false;
 }
 
 bool RenderThemeIOS::supportsBoxShadow(const RenderStyle& style) const
@@ -1721,8 +1714,8 @@ bool RenderThemeIOS::paintMeter(const RenderObject& renderer, const PaintInfo& p
 bool RenderThemeIOS::paintListButton(const RenderObject& box, const PaintInfo& paintInfo, const FloatRect& rect)
 {
 #if ENABLE(MAC_STYLE_CONTROLS_ON_CATALYST)
-    if (paintListButtonForCatalyst(box, paintInfo, rect))
-        return false;
+    if (box.settings().macStyleControlsOnCatalyst())
+        return RenderThemeCocoa::paintListButton(box, paintInfo, rect);
 #endif
 
     auto& context = paintInfo.context();
@@ -1827,8 +1820,10 @@ void RenderThemeIOS::paintSliderTicks(const RenderObject& box, const PaintInfo& 
 void RenderThemeIOS::paintColorWellDecorations(const RenderObject& renderer, const PaintInfo& paintInfo, const FloatRect& rect)
 {
 #if ENABLE(MAC_STYLE_CONTROLS_ON_CATALYST)
-    if (paintColorWellDecorationsForCatalyst(renderer, paintInfo, rect))
+    if (renderer.settings().macStyleControlsOnCatalyst()) {
+        RenderThemeCocoa::paintColorWellDecorations(renderer, paintInfo, rect);
         return;
+    }
 #else
     UNUSED_PARAM(renderer);
 #endif
@@ -1866,8 +1861,10 @@ void RenderThemeIOS::paintColorWellDecorations(const RenderObject& renderer, con
 void RenderThemeIOS::adjustSearchFieldDecorationPartStyle(RenderStyle& style, const Element* element) const
 {
 #if ENABLE(MAC_STYLE_CONTROLS_ON_CATALYST)
-    if (adjustSearchFieldDecorationPartStyleForCatalyst(style, element))
+    if (element && element->document().settings().macStyleControlsOnCatalyst()) {
+        RenderThemeCocoa::adjustSearchFieldDecorationPartStyle(style, element);
         return;
+    }
 #endif
 
     if (!element)
@@ -1889,8 +1886,8 @@ void RenderThemeIOS::adjustSearchFieldDecorationPartStyle(RenderStyle& style, co
 bool RenderThemeIOS::paintSearchFieldDecorationPart(const RenderObject& box, const PaintInfo& paintInfo, const IntRect& rect)
 {
 #if ENABLE(MAC_STYLE_CONTROLS_ON_CATALYST)
-    if (paintSearchFieldDecorationPartForCatalyst(box, paintInfo, rect))
-        return false;
+    if (box.settings().macStyleControlsOnCatalyst())
+        return RenderThemeCocoa::paintSearchFieldDecorationPart(box, paintInfo, rect);
 #endif
 
     auto& context = paintInfo.context();
@@ -1932,41 +1929,21 @@ bool RenderThemeIOS::paintSearchFieldDecorationPart(const RenderObject& box, con
 
 void RenderThemeIOS::adjustSearchFieldResultsDecorationPartStyle(RenderStyle& style, const Element* element) const
 {
-#if ENABLE(MAC_STYLE_CONTROLS_ON_CATALYST)
-    if (adjustSearchFieldResultsDecorationPartStyleForCatalyst(style, element))
-        return;
-#endif
-
     adjustSearchFieldDecorationPartStyle(style, element);
 }
 
 bool RenderThemeIOS::paintSearchFieldResultsDecorationPart(const RenderBox& box, const PaintInfo& paintInfo, const IntRect& rect)
 {
-#if ENABLE(MAC_STYLE_CONTROLS_ON_CATALYST)
-    if (paintSearchFieldResultsDecorationPartForCatalyst(box, paintInfo, rect))
-        return false;
-#endif
-
     return paintSearchFieldDecorationPart(box, paintInfo, rect);
 }
 
 void RenderThemeIOS::adjustSearchFieldResultsButtonStyle(RenderStyle& style, const Element* element) const
 {
-#if ENABLE(MAC_STYLE_CONTROLS_ON_CATALYST)
-    if (adjustSearchFieldResultsButtonStyleForCatalyst(style, element))
-        return;
-#endif
-
     adjustSearchFieldDecorationPartStyle(style, element);
 }
 
 bool RenderThemeIOS::paintSearchFieldResultsButton(const RenderBox& box, const PaintInfo& paintInfo, const IntRect& rect)
 {
-#if ENABLE(MAC_STYLE_CONTROLS_ON_CATALYST)
-    if (paintSearchFieldResultsButtonForCatalyst(box, paintInfo, rect))
-        return false;
-#endif
-
     return paintSearchFieldDecorationPart(box, paintInfo, rect);
 }
 

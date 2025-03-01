@@ -814,7 +814,11 @@ public:
     ExceptionOr<void> setOverridePreferredDynamicRangeMode(HTMLMediaElement&, const String&);
 
     void enableGStreamerHolePunching(HTMLVideoElement&);
+
+    double effectiveDynamicRangeLimitValue(const HTMLMediaElement&);
 #endif
+
+    ExceptionOr<void> setPageShouldSuppressHDR(bool);
 
     ExceptionOr<void> setIsPlayingToBluetoothOverride(std::optional<bool>);
 
@@ -1021,6 +1025,7 @@ public:
     void setMediaStreamTrackIdentifier(MediaStreamTrack&, String&& id);
     void setMediaStreamSourceInterrupted(MediaStreamTrack&, bool);
     const String& mediaStreamTrackPersistentId(const MediaStreamTrack&);
+    size_t audioCaptureSourceCount() const;
     bool isMediaStreamSourceInterrupted(MediaStreamTrack&) const;
     bool isMediaStreamSourceEnded(MediaStreamTrack&) const;
     bool isMockRealtimeMediaSourceCenterEnabled();

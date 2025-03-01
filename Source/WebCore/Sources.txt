@@ -545,6 +545,7 @@ Modules/webxr/XRLayerEvent.cpp
 Modules/webxr/XRProjectionLayer.cpp
 Modules/webxr/XRReferenceSpaceEvent.cpp
 Modules/webxr/XRSessionEvent.cpp
+Modules/webxr/XRSubImage.cpp
 Modules/webxr/XRWebGLBinding.cpp
 Modules/webxr/XRWebGLSubImage.cpp
 accessibility/AXCoreObject.cpp
@@ -601,7 +602,6 @@ animation/AnimationTimeline.cpp
 animation/BlendingKeyframes.cpp
 animation/CSSAnimation.cpp
 animation/CSSAnimationEvent.cpp
-animation/CSSPropertyAnimation.cpp
 animation/CSSTransition.cpp
 animation/CSSTransitionEvent.cpp
 animation/CompositeOperation.cpp
@@ -1039,7 +1039,6 @@ css/parser/CSSPropertyParserConsumer+Box.cpp
 css/parser/CSSPropertyParserConsumer+Color.cpp
 css/parser/CSSPropertyParserConsumer+ColorAdjust.cpp
 css/parser/CSSPropertyParserConsumer+ColorInterpolationMethod.cpp
-css/parser/CSSPropertyParserConsumer+Conditional.cpp
 css/parser/CSSPropertyParserConsumer+Contain.cpp
 css/parser/CSSPropertyParserConsumer+Content.cpp
 css/parser/CSSPropertyParserConsumer+CounterStyles.cpp
@@ -1154,7 +1153,7 @@ css/typedom/transform/CSSTranslate.cpp
 css/values/CSSSerializationContext.cpp
 css/values/CSSValueAggregates.cpp
 css/values/CSSValueTypes.cpp
-css/values/backgrounds/CSSBorderRadius.cpp
+css/values/borders/CSSBorderRadius.cpp
 css/values/color-adjust/CSSColorScheme.cpp
 css/values/color/CSSColor.cpp
 css/values/color/CSSColorLayers.cpp
@@ -1277,7 +1276,6 @@ dom/FragmentDirectiveGenerator.cpp
 dom/FragmentDirectiveRangeFinder.cpp
 dom/FragmentDirectiveParser.cpp
 dom/FragmentDirectiveUtilities.cpp
-dom/FullscreenManager.cpp
 dom/GCReachableRef.cpp
 dom/HashChangeEvent.cpp
 dom/IdTargetObserver.cpp
@@ -3131,6 +3129,7 @@ style/StyleBuilder.cpp
 style/StyleBuilderState.cpp
 style/StyleChange.cpp
 style/StyleFontSizeFunctions.cpp
+style/StyleInterpolation.cpp
 style/StyleInvalidator.cpp
 style/StylePendingResources.cpp
 style/StyleRelations.cpp
@@ -3146,8 +3145,9 @@ style/StyleUpdate.cpp
 style/Styleable.cpp
 style/TransformOperationsBuilder.cpp
 style/UserAgentStyle.cpp
-style/values/backgrounds/StyleBorderRadius.cpp
-style/values/backgrounds/StyleBoxShadow.cpp
+style/values/borders/StyleBorderRadius.cpp
+style/values/borders/StyleBoxShadow.cpp
+style/values/borders/StyleCornerShapeValue.cpp
 style/values/color-adjust/StyleColorScheme.cpp
 style/values/color/StyleColor.cpp
 style/values/color/StyleColorLayers.cpp
@@ -3468,6 +3468,7 @@ MathMLElementFactory.cpp
 ProcessSyncClient.cpp
 SVGElementFactory.cpp
 StyleBuilderGenerated.cpp
+StyleInterpolationWrapperMap.cpp
 StylePropertyShorthandFunctions.cpp
 UserAgentStyleSheetsData.cpp
 WebCoreJSBuiltinInternals.cpp

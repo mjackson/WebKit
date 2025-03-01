@@ -2733,8 +2733,8 @@ void WKPageEvaluateJavaScriptInMainFrame(WKPageRef pageRef, WKStringRef scriptRe
     toImpl(pageRef)->runJavaScriptInMainFrame({ toImpl(scriptRef)->string(), JSC::SourceTaintedOrigin::Untainted, URL { }, false, std::nullopt, true, RemoveTransientActivation::Yes }, [context, callback] (auto&& result) {
         if (!callback)
             return;
-        if (result.has_value())
-            callback(API::SerializedScriptValue::deserializeWK(result.value()->internalRepresentation()).get(), nullptr, context);
+        if (result)
+            callback(result->toWK().get(), nullptr, context);
         else
             callback(nullptr, nullptr, context);
     });
@@ -3377,7 +3377,11 @@ void WKPageTriggerMockCaptureConfigurationChange(WKPageRef pageRef, bool forCame
 {
     CRASH_IF_SUSPENDED;
 #if ENABLE(MEDIA_STREAM)
+#if USE(GSTREAMER)
+    toImpl(pageRef)->triggerMockCaptureConfigurationChange(forCamera, forMicrophone, forDisplay);
+#else
     MockRealtimeMediaSourceCenter::singleton().triggerMockCaptureConfigurationChange(forCamera, forMicrophone, forDisplay);
+#endif // USE(GSTREAMER)
 
 #if ENABLE(GPU_PROCESS)
     auto preferences = toImpl(pageRef)->protectedPreferences();

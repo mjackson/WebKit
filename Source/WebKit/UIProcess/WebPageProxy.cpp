@@ -88,6 +88,7 @@
 #include "FrameTreeNodeData.h"
 #include "GoToBackForwardItemParameters.h"
 #include "ImageOptions.h"
+#include "JavaScriptEvaluationResult.h"
 #include "LegacyGlobalSettings.h"
 #include "LoadParameters.h"
 #include "LoadedWebArchive.h"
@@ -1559,7 +1560,7 @@ void WebPageProxy::didAttachToRunningProcess()
         videoPresentationManager->setMockVideoPresentationModeEnabled(m_mockVideoPresentationModeEnabled);
 #endif
 
-#if ENABLE(APPLE_PAY)
+#if ENABLE(APPLE_PAY) && !ENABLE(APPLE_PAY_REMOTE_UI)
     ASSERT(!internals().paymentCoordinator);
     internals().paymentCoordinator = WebPaymentCoordinatorProxy::create(internals());
 #endif
@@ -1982,10 +1983,6 @@ void WebPageProxy::prepareToLoadWebPage(WebProcessProxy& process, LoadParameters
 #if ENABLE(NETWORK_ISSUE_REPORTING)
     if (NetworkIssueReporter::isEnabled())
         m_networkIssueReporter = makeUnique<NetworkIssueReporter>();
-#endif
-
-#if ENABLE(SCREEN_TIME)
-    m_pageClient->installScreenTimeWebpageController();
 #endif
 }
 
@@ -2774,6 +2771,12 @@ void WebPageProxy::setObscuredContentInsets(const WebCore::FloatBoxExtent& obscu
 Color WebPageProxy::underlayColor() const
 {
     return internals().underlayColor;
+}
+
+void WebPageProxy::setShouldSuppressHDR(bool shouldSuppressHDR)
+{
+    if (hasRunningProcess())
+        send(Messages::WebPage::SetShouldSuppressHDR(shouldSuppressHDR));
 }
 
 void WebPageProxy::setUnderlayColor(const Color& color)
@@ -4342,11 +4345,20 @@ void WebPageProxy::updateTouchEventTracking(const WebTouchEvent& touchStartEvent
         auto update = [this, location](TrackingType& trackingType, EventTrackingRegions::EventType eventType) {
             if (trackingType == TrackingType::Synchronous)
                 return;
+#if ENABLE(TOUCH_EVENT_REGIONS)
+            if (RefPtr drawingAreaProxy = dynamicDowncast<RemoteLayerTreeDrawingAreaProxy>(*m_drawingArea)) {
+                auto trackingTypeForLocation = drawingAreaProxy->eventTrackingTypeForPoint(eventType, WebCore::IntPoint(location));
+                trackingType = mergeTrackingTypes(trackingType, trackingTypeForLocation);
+            }
+#else
             auto trackingTypeForLocation = m_scrollingCoordinatorProxy->eventTrackingTypeForPoint(eventType, location);
             trackingType = mergeTrackingTypes(trackingType, trackingTypeForLocation);
+#endif
         };
+
         auto& tracking = internals().touchEventTracking;
         using Type = EventTrackingRegions::EventType;
+
         update(tracking.touchForceChangedTracking, Type::Touchforcechange);
         update(tracking.touchStartTracking, Type::Touchstart);
         update(tracking.touchMoveTracking, Type::Touchmove);
@@ -6144,18 +6156,18 @@ void WebPageProxy::launchInitialProcessIfNecessary()
         launchProcess(Site(aboutBlankURL()), ProcessLaunchReason::InitialProcess);
 }
 
-void WebPageProxy::runJavaScriptInMainFrame(RunJavaScriptParameters&& parameters, CompletionHandler<void(Expected<RefPtr<API::SerializedScriptValue>, WebCore::ExceptionDetails>&&)>&& callbackFunction)
+void WebPageProxy::runJavaScriptInMainFrame(RunJavaScriptParameters&& parameters, CompletionHandler<void(Expected<JavaScriptEvaluationResult, std::optional<WebCore::ExceptionDetails>>)>&& callbackFunction)
 {
     runJavaScriptInFrameInScriptWorld(WTFMove(parameters), std::nullopt, API::ContentWorld::pageContentWorldSingleton(), WTFMove(callbackFunction));
 }
 
-void WebPageProxy::runJavaScriptInFrameInScriptWorld(RunJavaScriptParameters&& parameters, std::optional<WebCore::FrameIdentifier> frameID, API::ContentWorld& world, CompletionHandler<void(Expected<RefPtr<API::SerializedScriptValue>, WebCore::ExceptionDetails>&&)>&& callbackFunction)
+void WebPageProxy::runJavaScriptInFrameInScriptWorld(RunJavaScriptParameters&& parameters, std::optional<WebCore::FrameIdentifier> frameID, API::ContentWorld& world, CompletionHandler<void(Expected<JavaScriptEvaluationResult, std::optional<WebCore::ExceptionDetails>>)>&& callbackFunction)
 {
     // For backward-compatibility support running script in a WebView which has not done any loads yets.
     launchInitialProcessIfNecessary();
 
     if (!hasRunningProcess())
-        return callbackFunction({ nullptr });
+        return callbackFunction(makeUnexpected(std::nullopt));
 
     RefPtr<ProcessThrottler::Activity> activity;
 #if USE(RUNNINGBOARD)
@@ -6163,15 +6175,9 @@ void WebPageProxy::runJavaScriptInFrameInScriptWorld(RunJavaScriptParameters&& p
         activity = m_legacyMainFrameProcess->throttler().foregroundActivity("WebPageProxy::runJavaScriptInFrameInScriptWorld"_s);
 #endif
 
-    auto completionHandler = [activity = WTFMove(activity), callbackFunction = WTFMove(callbackFunction)] (std::span<const uint8_t> dataReference, std::optional<ExceptionDetails>&& details) mutable {
-        if (details)
-            return callbackFunction(makeUnexpected(WTFMove(*details)));
-        if (dataReference.empty())
-            return callbackFunction({ nullptr });
-        callbackFunction({ API::SerializedScriptValue::createFromWireBytes(Vector(dataReference)).ptr() });
-    };
-
-    sendWithAsyncReplyToProcessContainingFrame(frameID, Messages::WebPage::RunJavaScriptInFrameInScriptWorld(parameters, frameID, world.worldData()), WTFMove(completionHandler));
+    sendWithAsyncReplyToProcessContainingFrame(frameID, Messages::WebPage::RunJavaScriptInFrameInScriptWorld(parameters, frameID, world.worldData()), [activity = WTFMove(activity), callbackFunction = WTFMove(callbackFunction)] (auto&& result) mutable {
+        callbackFunction(WTFMove(result));
+    });
 }
 
 void WebPageProxy::getRenderTreeExternalRepresentation(CompletionHandler<void(const String&)>&& callback)
@@ -7113,6 +7119,9 @@ void WebPageProxy::didCommitLoadForFrame(IPC::Connection& connection, FrameIdent
 #if ENABLE(PDF_HUD)
         protectedPageClient->removeAllPDFHUDs();
 #endif
+#if ENABLE(PDF_PAGE_NUMBER_INDICATOR)
+        protectedPageClient->removeAnyPDFPageNumberIndicator();
+#endif
 #if ENABLE(GAMEPAD)
         resetRecentGamepadAccessState();
 #endif
@@ -7166,6 +7175,11 @@ void WebPageProxy::didCommitLoadForFrame(IPC::Connection& connection, FrameIdent
     if (frame->isMainFrame() && preferences->textExtractionEnabled())
         prepareTextExtractionSupportIfNeeded();
 #endif
+
+    if (isBackForwardLoadType(frameLoadType)) {
+        if (RefPtr provisionalItem = m_backForwardList->provisionalItem(); provisionalItem && provisionalItem->navigatedFrameID() == frameID)
+            m_backForwardList->commitProvisionalItem();
+    }
 }
 
 void WebPageProxy::didFinishDocumentLoadForFrame(IPC::Connection& connection, FrameIdentifier frameID, std::optional<WebCore::NavigationIdentifier> navigationID, const UserData& userData, WallTime timestamp)
@@ -7677,13 +7691,6 @@ void WebPageProxy::mainFramePluginHandlesPageScaleGestureDidChange(bool mainFram
     m_mainFramePluginHandlesPageScaleGesture = mainFramePluginHandlesPageScaleGesture;
     m_pluginMinZoomFactor = minScale;
     m_pluginMaxZoomFactor = maxScale;
-}
-
-bool WebPageProxy::mainFramePluginOverridesViewScale() const
-{
-    if (m_mainFramePluginHandlesPageScaleGesture)
-        return false;
-    return m_pluginMaxZoomFactor.has_value() || m_pluginMinZoomFactor.has_value();
 }
 
 #if !PLATFORM(COCOA)
@@ -8941,6 +8948,7 @@ void WebPageProxy::showContactPicker(IPC::Connection& connection, const Contacts
         pageClient->showContactPicker(requestData, WTFMove(completionHandler));
 }
 
+#if ENABLE(WEB_AUTHN)
 void WebPageProxy::showDigitalCredentialsPicker(IPC::Connection& connection, const WebCore::DigitalCredentialsRequestData& requestData, WTF::CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&& completionHandler)
 {
     MESSAGE_CHECK_COMPLETION_BASE(
@@ -8975,6 +8983,7 @@ void WebPageProxy::dismissDigitalCredentialsPicker(IPC::Connection& connection, 
     completionHandler(false);
 #endif
 }
+#endif // ENABLE(WEB_AUTHN)
 
 void WebPageProxy::printFrame(IPC::Connection& connection, FrameIdentifier frameID, const String& title, const FloatSize& pdfFirstPageSize, CompletionHandler<void()>&& completionHandler)
 {
@@ -9286,7 +9295,7 @@ void WebPageProxy::hasVideoInPictureInPictureDidChange(bool value)
 {
     uiClient().hasVideoInPictureInPictureDidChange(this, value);
 #if ENABLE(SCREEN_TIME)
-    m_pageClient->setURLIsPictureInPictureForScreenTime(value);
+    protectedPageClient()->setURLIsPictureInPictureForScreenTime(value);
 #endif
 }
 
@@ -9729,12 +9738,6 @@ void WebPageProxy::backForwardClearProvisionalItem(IPC::Connection& connection, 
     if (RefPtr frameItem = WebBackForwardListFrameItem::itemForID(itemID, frameItemID))
         m_backForwardList->clearProvisionalItem(*frameItem);
     completionHandler(m_backForwardList->counts());
-}
-
-void WebPageProxy::backForwardCommitProvisionalItem(IPC::Connection& connection, BackForwardItemIdentifier itemID, BackForwardFrameItemIdentifier frameItemID)
-{
-    if (RefPtr frameItem = WebBackForwardListFrameItem::itemForID(itemID, frameItemID))
-        m_backForwardList->commitProvisionalItem(*frameItem);
 }
 
 void WebPageProxy::backForwardItemAtIndex(int32_t index, FrameIdentifier frameID, CompletionHandler<void(RefPtr<FrameState>&&)>&& completionHandler)
@@ -11025,6 +11028,10 @@ void WebPageProxy::resetStateAfterProcessTermination(ProcessTerminationReason re
     if (RefPtr pageClient = this->pageClient())
         pageClient->removeAllPDFHUDs();
 #endif
+#if ENABLE(PDF_PAGE_NUMBER_INDICATOR)
+    if (RefPtr pageClient = this->pageClient())
+        pageClient->removeAnyPDFPageNumberIndicator();
+#endif
 
     if (reason != ProcessTerminationReason::NavigationSwap) {
         // For bringup of process swapping, NavigationSwap termination will not go out to clients.
@@ -11685,7 +11692,6 @@ WebPageCreationParameters WebPageProxy::creationParameters(WebProcessProxy& proc
     parameters.overriddenMediaType = m_overriddenMediaType;
     parameters.corsDisablingPatterns = corsDisablingPatterns();
     parameters.maskedURLSchemes = m_configuration->maskedURLSchemes();
-    parameters.userScriptsShouldWaitUntilNotification = m_configuration->userScriptsShouldWaitUntilNotification();
     parameters.allowedNetworkHosts = m_configuration->allowedNetworkHosts();
     parameters.loadsSubresources = m_configuration->loadsSubresources();
     parameters.crossOriginAccessControlCheckEnabled = m_configuration->crossOriginAccessControlCheckEnabled();
@@ -12173,20 +12179,12 @@ void WebPageProxy::microphoneMuteStatusChanged(bool isMuting)
     // We are updating both the internal and web app muting states so that only microphone changes, and not camera or screenshare.
     auto mutedState = internals().mutedState;
     if (isMuting) {
-#if PLATFORM(MAC)
-        mutedState.add(WebCore::MediaProducer::MediaStreamCaptureIsMuted);
-#else
         mutedState.add(WebCore::MediaProducerMutedState::AudioCaptureIsMuted);
-#endif
         m_mutedCaptureKindsDesiredByWebApp.add(WebCore::MediaProducerMediaCaptureKind::Microphone);
     } else {
         WebProcessProxy::muteCaptureInPagesExcept(m_webPageID);
 
-#if PLATFORM(MAC)
-        mutedState.remove(WebCore::MediaProducer::MediaStreamCaptureIsMuted);
-#else
         mutedState.remove(WebCore::MediaProducerMutedState::AudioCaptureIsMuted);
-#endif
         m_mutedCaptureKindsDesiredByWebApp.remove(WebCore::MediaProducerMediaCaptureKind::Microphone);
     }
 
@@ -12816,19 +12814,6 @@ void WebPageProxy::convertRectToMainFrameCoordinates(WebCore::FloatRect rect, st
             return completionHandler(std::nullopt);
         protectedThis->convertRectToMainFrameCoordinates(convertedRect, nextFrameID, WTFMove(completionHandler));
     });
-}
-
-void WebPageProxy::notifyUserScripts()
-{
-    m_userScriptsNotified = true;
-    send(Messages::WebPage::NotifyUserScripts());
-}
-
-bool WebPageProxy::userScriptsNeedNotification() const
-{
-    if (!m_configuration->userScriptsShouldWaitUntilNotification())
-        return false;
-    return !m_userScriptsNotified;
 }
 
 void WebPageProxy::didFinishLoadingDataForCustomContentProvider(const String& suggestedFilename, std::span<const uint8_t> dataReference)
@@ -13639,7 +13624,7 @@ void WebPageProxy::updatePlayingMediaDidChange(CanDelayNotification canDelayNoti
 
 #if ENABLE(SCREEN_TIME)
     if (oldState.contains(MediaProducerMediaState::IsPlayingVideo) != newState.contains(MediaProducerMediaState::IsPlayingVideo))
-        m_pageClient->setURLIsPlayingVideoForScreenTime(newState.contains(MediaProducerMediaState::IsPlayingVideo));
+        protectedPageClient()->setURLIsPlayingVideoForScreenTime(newState.contains(MediaProducerMediaState::IsPlayingVideo));
 #endif
 }
 
@@ -14996,6 +14981,11 @@ void WebPageProxy::setMockCaptureDevicesInterrupted(bool isCameraInterrupted, bo
 {
     send(Messages::WebPage::SetMockCaptureDevicesInterrupted(isCameraInterrupted, isMicrophoneInterrupted));
 }
+
+void WebPageProxy::triggerMockCaptureConfigurationChange(bool forCamera, bool forMicrophone, bool forDisplay)
+{
+    send(Messages::WebPage::TriggerMockCaptureConfigurationChange(forCamera, forMicrophone, forDisplay));
+}
 #endif
 
 void WebPageProxy::getLoadedSubresourceDomains(CompletionHandler<void(Vector<RegistrableDomain>&&)>&& completionHandler)
@@ -15328,6 +15318,16 @@ void WebPageProxy::requestScrollToRect(const FloatRect& targetRect, const FloatP
 void WebPageProxy::scrollToRect(const FloatRect& targetRect, const FloatPoint& origin)
 {
     send(Messages::WebPage::ScrollToRect(targetRect, origin));
+}
+
+void WebPageProxy::setContentOffset(WebCore::ScrollOffset offset, WebCore::ScrollIsAnimated animated)
+{
+    send(Messages::WebPage::SetContentOffset(offset, animated));
+}
+
+void WebPageProxy::scrollToEdge(WebCore::RectEdges<bool> edges, WebCore::ScrollIsAnimated animated)
+{
+    send(Messages::WebPage::ScrollToEdge(edges, animated));
 }
 
 bool WebPageProxy::shouldEnableLockdownMode() const
@@ -16226,23 +16226,6 @@ bool WebPageProxy::canStartNavigationSwipeAtLastInteractionLocation() const
     RefPtr client = pageClient();
     return !client || client->canStartNavigationSwipeAtLastInteractionLocation();
 }
-
-#if ENABLE(PDF_PLUGIN)
-void WebPageProxy::pluginDidInstallPDFDocument()
-{
-    resetViewportConfigurationForPDFPluginIfNeeded();
-}
-
-void WebPageProxy::resetViewportConfigurationForPDFPluginIfNeeded()
-{
-#if PLATFORM(IOS_FAMILY)
-    if (mainFramePluginOverridesViewScale()) {
-        if (layoutSizeScaleFactorFromClient() != 1)
-            setViewportConfigurationViewLayoutSize(viewLayoutSize(), 1, minimumEffectiveDeviceWidth());
-    }
-#endif
-}
-#endif
 
 } // namespace WebKit
 
