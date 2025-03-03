@@ -1,0 +1,86 @@
+# Dynamic ICU Support for WebKit/Bun
+
+This directory contains files for supporting dynamic ICU data loading in the WebKit fork used by Bun.
+
+## Overview
+
+Bun supports two ways of handling ICU (International Components for Unicode) data:
+
+1. **Full ICU Mode** - All locale data is embedded in the binary, providing comprehensive internationalization support but with a larger binary size.
+
+2. **Small ICU Mode** - Only English locale data is embedded, resulting in a smaller binary size.
+
+Both modes support loading additional ICU data from an external file at runtime, following a similar approach to Node.js.
+
+## Files in this Directory
+
+- `ICULoader.h` - Header with helper functions for loading ICU data
+- `ICUDataLoader.c` - C file with code to initialize ICU during JSC startup
+- `create-bun-builds.sh` - Script to create both full and small ICU builds
+- `create-small-icu-bun.sh` - Script to create only the small ICU build
+- `README.md` - This documentation file
+
+## Key ICU Version Information
+
+- Current ICU Version: ${ICU_VERSION}
+- Data Filename: ${ICU_DATA_NAME}.dat
+
+## How Dynamic ICU Data Loading Works
+
+1. At build time, ICU data is processed in two ways:
+   - Full data is embedded in a `.o` file
+   - Small (English-only) data is filtered and embedded in a separate `.o` file
+
+2. At runtime, the loader checks for:
+   - Embedded data in the binary (preferred)
+   - Environment variable `BUN_ICU_DATA` pointing to a directory with ICU data files
+   - Environment variable `NODE_ICU_DATA` (for compatibility with Node.js)
+
+3. If no data is found, a warning is emitted and only basic internationalization features work.
+
+## Usage
+
+### Embedding ICU Data in Binaries
+
+To build binaries with embedded ICU data:
+
+```bash
+.bun/create-bun-builds.sh /path/to/output /path/to/icu/data /path/to/source/jsc
+```
+
+This will create:
+- `/path/to/output/bin/jsc` - With full ICU data
+- `/path/to/output/bin/jsc-small` - With small ICU data
+
+### Building Small-Only Binary
+
+For a smaller binary with only English locale support:
+
+```bash
+.bun/create-small-icu-bun.sh /path/to/output /path/to/icu/data /path/to/source/jsc [output-name]
+```
+
+### Using Dynamic Data Loading
+
+To use external ICU data with a binary:
+
+```bash
+export BUN_ICU_DATA=/path/to/icu/data/dir
+./bin/jsc
+```
+
+The loader will look for files named:
+- `full_${ICU_DATA_NAME}.dat` - Full ICU data
+- `small_${ICU_DATA_NAME}.dat` - Small ICU data
+- `${ICU_DATA_NAME}.dat` - Standard ICU data file
+
+## Building From Source
+
+The Dockerfile in the WebKit repository handles building ICU with the appropriate options and creating the data files.
+
+If building manually, ensure ICU is configured with:
+```
+./configure --with-data-packaging=files
+```
+
+This enables proper dynamic data loading.

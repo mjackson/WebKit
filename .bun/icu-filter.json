@@ -1,0 +1,27 @@
+{
+  "comment": "ICU filter for minimal English locale support in Bun",
+  "includes": [
+    "root/res_index.res",
+    "root/icuver.res",
+    "root/en.res",
+    "root/en_US.res",
+    "coll/ucadata.icu",
+    "coll/invuca.icu",
+    "coll/en.res",
+    "coll/en_US.res",
+    "coll/root.res",
+    "brkitr/root.res",
+    "brkitr/en.res",
+    "brkitr/en_US.res",
+    "zone/en.res",
+    "zone/root.res",
+    "zone/tzdbNames.res",
+    "curr/en.res",
+    "curr/en_US.res",
+    "curr/root.res",
+    "pool.res",
+    "supplementalData.res",
+    "zoneinfo64.res",
+    "likelySubtags.res"
+  ]
+}
