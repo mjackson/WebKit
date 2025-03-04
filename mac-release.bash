@@ -40,6 +40,7 @@ cmake \
     -DUSE_THIN_ARCHIVES=OFF \
     -DENABLE_FTL_JIT=ON \
     -DCMAKE_C_COMPILER="$CMAKE_C_COMPILER" \
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
     -DCMAKE_CXX_COMPILER="$CMAKE_CXX_COMPILER" \
     -DCMAKE_C_FLAGS="-g $CMAKE_C_FLAGS -ffile-prefix-map=$THIS_DIR/Source=vendor/WebKit/Source" \
     -DCMAKE_CXX_FLAGS="-g $CMAKE_CXX_FLAGS -ffile-prefix-map=$THIS_DIR/Source=vendor/WebKit/Source" \
