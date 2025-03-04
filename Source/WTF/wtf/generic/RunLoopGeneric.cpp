@@ -195,11 +195,11 @@ void RunLoop::runImpl(RunMode runMode)
     // And we need &m_parent instead of `this` because `this` is a RunLoopGenericState,
     // not a RunLoop.
 #undef RunLoop
-    ASSERT(&m_parent == &RunLoop::current());
+    ASSERT(&m_parent == &RunLoop::currentSingleton());
     // Undo the #undef above
 #define RunLoop RunLoop::RunLoopGenericState
 #else
-    ASSERT(this == &RunLoop::current());
+    ASSERT(this == &RunLoop::currentSingleton());
 #endif
 
     if constexpr (report) {
@@ -274,12 +274,12 @@ void RunLoop::runImpl(RunMode runMode)
 // run loops, so the rest of WebKit would never call it with USE(BUN_EVENT_LOOP) defined
 void RunLoop::run()
 {
-    RunLoop::current().runImpl(RunMode::Drain);
+    RunLoop::currentSingleton().runImpl(RunMode::Drain);
 }
 
 void RunLoop::setWakeUpCallback(WTF::Function<void()>&& function)
 {
-    RunLoop::current().m_wakeUpCallback = WTFMove(function);
+    RunLoop::currentSingleton().m_wakeUpCallback = WTFMove(function);
 }
 #endif
 
@@ -318,7 +318,7 @@ void RunLoop::wakeUp()
 #if !USE(BUN_EVENT_LOOP)
 RunLoop::CycleResult RunLoop::cycle(RunLoopMode)
 {
-    RunLoop::current().runImpl(RunMode::Iterate);
+    RunLoop::currentSingleton().runImpl(RunMode::Iterate);
     return CycleResult::Continue;
 }
 #endif

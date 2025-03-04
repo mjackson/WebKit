@@ -232,6 +232,8 @@ public:
         return m_queue.isEmpty();
     }
 
+    size_t size() const { return m_queue.size(); }
+
     void clear()
     {
         m_queue.clear();
