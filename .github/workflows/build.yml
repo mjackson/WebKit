@@ -141,31 +141,31 @@ jobs:
             os: big-ubuntu
             package_json_arch: "x64"
             CMAKE_BUILD_TYPE: "Debug"
-            RELEASE_FLAGS: "-O2 -DNDEBUG=1"
+            RELEASE_FLAGS: "-O3 -DNDEBUG=1"
           - lto_flag: ""
             label: bun-webkit-linux-arm64-debug
             os: linux-arm64-gh
             package_json_arch: "arm64"
             CMAKE_BUILD_TYPE: "Debug"
-            RELEASE_FLAGS: "-O2 -DNDEBUG=1"
+            RELEASE_FLAGS: "-O3 -DNDEBUG=1"
           - lto_flag: "-flto=full -fwhole-program-vtables -fforce-emit-vtables"
             label: bun-webkit-linux-arm64-lto
             os: linux-arm64-gh
             package_json_arch: "arm64"
             CMAKE_BUILD_TYPE: "Release"
-            RELEASE_FLAGS: "-O2 -DNDEBUG=1"
+            RELEASE_FLAGS: "-O3 -DNDEBUG=1"
           - lto_flag: ""
             label: bun-webkit-linux-arm64
             os: linux-arm64-gh
             package_json_arch: "arm64"
             CMAKE_BUILD_TYPE: "Release"
-            RELEASE_FLAGS: "-O2 -DNDEBUG=1"
+            RELEASE_FLAGS: "-O3 -DNDEBUG=1"
           - lto_flag: "-flto=full  -fwhole-program-vtables -fforce-emit-vtables"
             label: bun-webkit-linux-amd64-lto
             os: big-ubuntu
             package_json_arch: "x64"
             CMAKE_BUILD_TYPE: "Release"
-            RELEASE_FLAGS: "-O2 -DNDEBUG=1"
+            RELEASE_FLAGS: "-O3 -DNDEBUG=1"
           - lto_flag: "-flto=full  -fwhole-program-vtables -fforce-emit-vtables -Os"
             label: bun-webkit-linux-amd64-smol
             os: big-ubuntu
@@ -177,7 +177,7 @@ jobs:
             os: big-ubuntu
             package_json_arch: "x64"
             CMAKE_BUILD_TYPE: "Release"
-            RELEASE_FLAGS: "-O2 -DNDEBUG=1"
+            RELEASE_FLAGS: "-O3 -DNDEBUG=1"
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4

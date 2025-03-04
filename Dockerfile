@@ -2,7 +2,7 @@ ARG MARCH_FLAG=""
 ARG WEBKIT_RELEASE_TYPE=Release
 ARG CPU=native
 ARG LTO_FLAG="-flto=full -fwhole-program-vtables -fforce-emit-vtables "
-ARG RELEASE_FLAGS="-O2 -DNDEBUG=1"
+ARG RELEASE_FLAGS="-O3 -DNDEBUG=1"
 ARG LLVM_VERSION="18"
 ARG DEFAULT_CFLAGS="-mno-omit-leaf-frame-pointer -g -fno-omit-frame-pointer -ffunction-sections -fdata-sections -faddrsig -fno-unwind-tables -fno-asynchronous-unwind-tables -DU_STATIC_IMPLEMENTATION=1 "
 
