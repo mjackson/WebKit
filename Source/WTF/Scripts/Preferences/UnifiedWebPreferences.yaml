@@ -3730,6 +3730,7 @@ IndexedDBAPIEnabled:
     WebCore:
       default: true
   disableInLockdownMode: true
+  sharedPreferenceForWebProcess: true
 
 InlineMediaPlaybackRequiresPlaysInlineAttribute:
   type: bool
@@ -5363,7 +5364,7 @@ MutationEventsEnabled:
     WebKitLegacy:
       default: false
     WebKit:
-      default: false
+      default: WebKit::defaultMutationEventsEnabled()
     WebCore:
       default: false
 
@@ -6891,6 +6892,7 @@ SharedWorkerEnabled:
       default: false
     WebKit:
       default: true
+  sharedPreferenceForWebProcess: true
 
 ShouldAllowUserInstalledFonts:
   type: bool
@@ -8272,6 +8274,21 @@ VerticalFormControlsEnabled:
       "PLATFORM(COCOA)": true
       default: false
 
+VideoFullsceenPrefersMostVisibleHeuristic:
+  type: bool
+  status: testable
+  category: media
+  humanReadableName: "Prefers most visible video in element fullscreen."
+  humanReadableDescription: "Prefers most visible video in element fullscreen."
+  condition: ENABLE(FULLSCREEN_API)
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
+
 VideoFullscreenRequiresElementFullscreen:
   type: bool
   status: embedder
@@ -8284,7 +8301,7 @@ VideoFullscreenRequiresElementFullscreen:
     WebCore:
       default: false
   sharedPreferenceForWebProcess: true
-      
+
 VideoPresentationManagerEnabled:
   type: bool
   status: embedder
@@ -9147,6 +9164,9 @@ WebShareEnabled:
       default: false
     WebCore:
       default: false
+  sharedPreferenceForWebProcess: true
+  richJavaScript: true
+  disableInLockdownMode: true
 
 WebShareFileAPIEnabled:
   type: bool

@@ -196,6 +196,7 @@ enum class PaintOrder : uint8_t;
 enum class PaintType : uint8_t;
 enum class PointerEvents : uint8_t;
 enum class PositionType : uint8_t;
+enum class PositionVisibility : uint8_t;
 enum class PrintColorAdjust : bool;
 enum class PseudoId : uint32_t;
 enum class QuoteType : uint8_t;
@@ -264,7 +265,6 @@ struct MasonryAutoFlow;
 struct NamedGridAreaMap;
 struct NamedGridLinesMap;
 struct OrderedNamedGridLinesMap;
-struct PositionTryFallback;
 struct SingleTimelineRange;
 
 struct ScrollSnapAlign;
@@ -294,6 +294,7 @@ struct Color;
 struct ColorScheme;
 struct CornerShapeValue;
 struct DynamicRangeLimit;
+struct PositionTryFallback;
 struct ScopedName;
 struct ScrollMargin;
 struct ScrollMarginEdge;
@@ -1258,11 +1259,6 @@ public:
     inline void setHasExplicitlySetBorderBottomRightRadius(bool);
     inline void setHasExplicitlySetBorderTopLeftRadius(bool);
     inline void setHasExplicitlySetBorderTopRightRadius(bool);
-
-    RoundedRect getRoundedInnerBorderFor(const LayoutRect& borderRect, RectEdges<bool> closedEdges) const;
-
-    RoundedRect getRoundedInnerBorderFor(const LayoutRect& borderRect, LayoutUnit topWidth, LayoutUnit bottomWidth, LayoutUnit leftWidth, LayoutUnit rightWidth, RectEdges<bool> closedEdges) const;
-    static RoundedRect getRoundedInnerBorderFor(const LayoutRect&, LayoutUnit topWidth, LayoutUnit bottomWidth, LayoutUnit leftWidth, LayoutUnit rightWidth, std::optional<RectCorners<LengthSize>>, RectEdges<bool> closedEdges);
 
     inline void setBorderLeftWidth(float);
     inline void setBorderLeftStyle(BorderStyle);
@@ -2352,9 +2348,13 @@ public:
     inline Style::PositionTryOrder positionTryOrder() const;
     inline void setPositionTryOrder(Style::PositionTryOrder);
 
-    static Vector<PositionTryFallback> initialPositionTryFallbacks();
-    const Vector<PositionTryFallback>& positionTryFallbacks() const;
-    void setPositionTryFallbacks(const Vector<PositionTryFallback>&);
+    static Vector<Style::PositionTryFallback> initialPositionTryFallbacks();
+    const Vector<Style::PositionTryFallback>& positionTryFallbacks() const;
+    void setPositionTryFallbacks(const Vector<Style::PositionTryFallback>&);
+
+    static constexpr OptionSet<PositionVisibility> initialPositionVisibility();
+    inline OptionSet<PositionVisibility> positionVisibility() const;
+    inline void setPositionVisibility(OptionSet<PositionVisibility>);
 
 private:
     struct NonInheritedFlags {

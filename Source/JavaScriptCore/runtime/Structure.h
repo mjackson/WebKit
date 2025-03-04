@@ -356,6 +356,7 @@ public:
         
     bool isDictionary() const { return dictionaryKind() != NoneDictionaryKind; }
     bool isUncacheableDictionary() const { return dictionaryKind() == UncachedDictionaryKind; }
+    bool isCacheableDictionary() const { return dictionaryKind() == CachedDictionaryKind; }
   
     bool prototypeQueriesAreCacheable()
     {

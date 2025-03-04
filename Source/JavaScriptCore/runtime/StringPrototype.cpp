@@ -480,6 +480,7 @@ static ALWAYS_INLINE JSString* replaceUsingRegExpSearchWithCache(VM& vm, JSGloba
     auto scope = DECLARE_THROW_SCOPE(vm);
     SuperSamplerScope superSamplerScope(true);
 
+    ASSERT(!string->isRope()); // This is already resolved.
     ASSERT(source.length() >= Options::thresholdForStringReplaceCache());
     // Currently not caching results when named captures are specified.
     ASSERT(!regExp->hasNamedCaptures());
@@ -513,7 +514,7 @@ static ALWAYS_INLINE JSString* replaceUsingRegExpSearchWithCache(VM& vm, JSGloba
                 if (matchStart < 0)
                     patternValue = jsUndefined();
                 else {
-                    patternValue = jsSubstring(globalObject, string, matchStart, matchLen);
+                    patternValue = jsSubstringOfResolved(vm, string, matchStart, matchLen);
                     RETURN_IF_EXCEPTION(scope, { });
                 }
 
@@ -576,32 +577,57 @@ static ALWAYS_INLINE JSString* replaceUsingRegExpSearchWithCache(VM& vm, JSGloba
     CachedCall cachedCall(globalObject, replaceFunction, argCount);
     RETURN_IF_EXCEPTION(scope, nullptr);
     size_t replacementIndex = 0;
-    for (unsigned cursor = 0; cursor < length; cursor += cachedCount) {
-        cachedCall.clearArguments();
-        for (unsigned i = 0; i < cachedCount; ++i)
-            cachedCall.appendArgument(result->get(cursor + i));
-        cachedCall.appendArgument(string);
+    if (argCount == 3) {
+        ASSERT(!regExp->numSubpatterns());
+        ASSERT(cachedCount == 2);
+        for (unsigned cursor = 0; cursor < length; cursor += 2) {
+            JSString* matchedString = asString(result->get(cursor + 0));
+            JSValue startOffset = result->get(cursor + 1);
 
-        int32_t start = result->get(cursor + cachedCount - 1).asInt32();
-        int32_t end = start + asString(result->get(cursor))->length();
+            int32_t start = startOffset.asInt32();
+            int32_t end = start + matchedString->length();
 
-        sourceRanges.constructAndAppend(lastIndex, start);
+            JSValue jsResult = cachedCall.callWithArguments(globalObject, jsUndefined(), matchedString, startOffset, string);
+            RETURN_IF_EXCEPTION_WITH_TRAPS_DEFERRED(scope, nullptr);
 
-        cachedCall.setThis(jsUndefined());
-        if (UNLIKELY(cachedCall.hasOverflowedArguments())) {
-            throwOutOfMemoryError(globalObject, scope);
-            return nullptr;
+            auto string = jsResult.toWTFString(globalObject);
+            RETURN_IF_EXCEPTION_WITH_TRAPS_DEFERRED(scope, nullptr);
+
+            sourceRanges.constructAndAppend(lastIndex, start);
+            replacements[replacementIndex++] = WTFMove(string);
+
+            lastIndex = end;
         }
+    } else {
+        for (unsigned cursor = 0; cursor < length; cursor += cachedCount) {
+            cachedCall.clearArguments();
+            for (unsigned i = 0; i < cachedCount; ++i)
+                cachedCall.appendArgument(result->get(cursor + i));
+            cachedCall.appendArgument(string);
 
-        JSValue jsResult = cachedCall.call();
-        RETURN_IF_EXCEPTION(scope, nullptr);
-        auto string = jsResult.toWTFString(globalObject);
-        RETURN_IF_EXCEPTION(scope, nullptr);
-        replacements[replacementIndex++] = WTFMove(string);
+            int32_t start = result->get(cursor + cachedCount - 1).asInt32();
+            int32_t end = start + asString(result->get(cursor))->length();
 
-        lastIndex = end;
+            sourceRanges.constructAndAppend(lastIndex, start);
+
+            cachedCall.setThis(jsUndefined());
+            if (UNLIKELY(cachedCall.hasOverflowedArguments())) {
+                throwOutOfMemoryError(globalObject, scope);
+                return nullptr;
+            }
+
+            JSValue jsResult = cachedCall.call();
+            RETURN_IF_EXCEPTION_WITH_TRAPS_DEFERRED(scope, nullptr);
+
+            auto string = jsResult.toWTFString(globalObject);
+            RETURN_IF_EXCEPTION_WITH_TRAPS_DEFERRED(scope, nullptr);
+
+            replacements[replacementIndex++] = WTFMove(string);
+
+            lastIndex = end;
+        }
+        ASSERT(replacementIndex == replacements.size());
     }
-    ASSERT(replacementIndex == replacements.size());
 
     if (static_cast<unsigned>(lastIndex) < sourceLen)
         sourceRanges.constructAndAppend(lastIndex, sourceLen);
@@ -1539,7 +1565,7 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncSplitFast, (JSGlobalObject* globalObject
                 if (makeAtomStringsArray) {
                     Identifier identifier = string->toIdentifier(globalObject);
                     RETURN_IF_EXCEPTION(scope, { });
-                    string = vm.atomStringToJSStringMap.set(identifier.impl(), string).iterator->value.get();
+                    string = vm.atomStringToJSStringMap.add(identifier.impl(), string).iterator->value.get();
                 }
                 newButterfly->setIndex(vm, i, string);
             }
@@ -1907,12 +1933,14 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncToLocaleUpperCase, (JSGlobalObject* glob
     return toLocaleCase<CaseConversionMode::Upper>(globalObject, callFrame);
 }
 
-enum {
+enum class TrimKind : uint8_t {
     TrimStart = 1,
-    TrimEnd = 2
+    TrimEnd = 2,
+    TrimBoth = TrimStart | TrimEnd
 };
 
-static inline JSValue trimString(JSGlobalObject* globalObject, JSValue thisValue, int trimKind)
+template<TrimKind trimKind>
+static inline JSValue trimString(JSGlobalObject* globalObject, JSValue thisValue)
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -1923,12 +1951,12 @@ static inline JSValue trimString(JSGlobalObject* globalObject, JSValue thisValue
     RETURN_IF_EXCEPTION(scope, { });
 
     unsigned left = 0;
-    if (trimKind & TrimStart) {
+    if constexpr (static_cast<uint8_t>(trimKind) & static_cast<uint8_t>(TrimKind::TrimStart)) {
         while (left < str.length() && isStrWhiteSpace(str[left]))
             left++;
     }
     unsigned right = str.length();
-    if (trimKind & TrimEnd) {
+    if constexpr (static_cast<uint8_t>(trimKind) & static_cast<uint8_t>(TrimKind::TrimEnd)) {
         while (right > left && isStrWhiteSpace(str[right - 1]))
             right--;
     }
@@ -1943,19 +1971,19 @@ static inline JSValue trimString(JSGlobalObject* globalObject, JSValue thisValue
 JSC_DEFINE_HOST_FUNCTION(stringProtoFuncTrim, (JSGlobalObject* globalObject, CallFrame* callFrame))
 {
     JSValue thisValue = callFrame->thisValue();
-    return JSValue::encode(trimString(globalObject, thisValue, TrimStart | TrimEnd));
+    return JSValue::encode(trimString<TrimKind::TrimBoth>(globalObject, thisValue));
 }
 
 JSC_DEFINE_HOST_FUNCTION(stringProtoFuncTrimStart, (JSGlobalObject* globalObject, CallFrame* callFrame))
 {
     JSValue thisValue = callFrame->thisValue();
-    return JSValue::encode(trimString(globalObject, thisValue, TrimStart));
+    return JSValue::encode(trimString<TrimKind::TrimStart>(globalObject, thisValue));
 }
 
 JSC_DEFINE_HOST_FUNCTION(stringProtoFuncTrimEnd, (JSGlobalObject* globalObject, CallFrame* callFrame))
 {
     JSValue thisValue = callFrame->thisValue();
-    return JSValue::encode(trimString(globalObject, thisValue, TrimEnd));
+    return JSValue::encode(trimString<TrimKind::TrimEnd>(globalObject, thisValue));
 }
 
 static inline unsigned clampAndTruncateToUnsigned(double value, unsigned min, unsigned max)

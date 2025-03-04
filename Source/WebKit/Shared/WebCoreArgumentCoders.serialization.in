@@ -1678,6 +1678,24 @@ struct WebCore::AuthenticationExtensionsClientOutputs {
     int64_t alg;
 };
 
+struct WebCore::UnknownCredentialOptions {
+    String rpId;
+    String credentialId;
+};
+
+struct WebCore::AllAcceptedCredentialsOptions {
+    String rpId;
+    String userId;
+    Vector<String> allAcceptedCredentialIds;
+};
+
+struct WebCore::CurrentUserDetailsOptions {
+    String rpId;
+    String userId;
+    String name;
+    String displayName;
+};
+
 struct WebCore::AuthenticatorSelectionCriteria {
     std::optional<WebCore::AuthenticatorAttachment> authenticatorAttachment;
     std::optional<WebCore::ResidentKeyRequirement> residentKey;
@@ -4272,12 +4290,12 @@ enum class WebCore::RunAsAsyncFunction : bool;
 enum class WebCore::ForceUserGesture : bool;
 enum class WebCore::RemoveTransientActivation : bool;
 
-struct WebCore::RunJavaScriptParameters {
+struct WebKit::RunJavaScriptParameters {
     String source;
     JSC::SourceTaintedOrigin taintedness;
     URL sourceURL;
     WebCore::RunAsAsyncFunction runAsAsyncFunction;
-    std::optional<WebCore::ArgumentWireBytesMap> arguments;
+    std::optional<Vector<std::pair<String, WebKit::JavaScriptEvaluationResult>>> arguments;
     WebCore::ForceUserGesture forceUserGesture;
     WebCore::RemoveTransientActivation removeTransientActivation;
 }
@@ -8763,7 +8781,6 @@ header: <WebCore/InspectorFrontendClient.h>
 using Inspector::ExtensionTabID = String
 #endif
 
-using WebCore::ArgumentWireBytesMap = HashMap<String, Vector<uint8_t>>
 using WebCore::IDBKeyPath = std::variant<String, Vector<String>>;
 using WebCore::ServiceWorkerOrClientData = std::variant<WebCore::ServiceWorkerData, WebCore::ServiceWorkerClientData>
 enum class WebCore::CrossOriginMode : bool

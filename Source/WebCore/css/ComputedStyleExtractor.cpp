@@ -1114,13 +1114,20 @@ static Ref<CSSValue> valueForTextShadow(const ShadowData* shadow, const RenderSt
     return CSSTextShadowPropertyValue::create(CSS::TextShadowProperty { WTFMove(list) });
 }
 
-static Ref<CSSValue> valueForPositionTryFallbacks(const Vector<PositionTryFallback>& fallbacks)
+static Ref<CSSValue> valueForPositionTryFallbacks(const Vector<Style::PositionTryFallback>& fallbacks)
 {
     if (fallbacks.isEmpty())
         return CSSPrimitiveValue::create(CSSValueNone);
 
     CSSValueListBuilder list;
     for (auto& fallback : fallbacks) {
+        if (fallback.positionAreaProperties) {
+            auto areaValue = fallback.positionAreaProperties->getPropertyCSSValue(CSSPropertyPositionArea);
+            if (areaValue)
+                list.append(*areaValue);
+            continue;
+        }
+
         CSSValueListBuilder singleFallbackList;
         if (fallback.positionTryRuleName)
             singleFallbackList.append(valueForScopedName(*fallback.positionTryRuleName));
@@ -3407,6 +3414,22 @@ static Ref<CSSValue> viewTimelineShorthandValue(const Vector<Ref<ViewTimeline>>&
     return CSSValueList::createCommaSeparated(WTFMove(list));
 }
 
+static Ref<CSSValue> valueForPositionVisibility(OptionSet<PositionVisibility> positionVisibility)
+{
+    CSSValueListBuilder list;
+    if (positionVisibility & PositionVisibility::AnchorsValid)
+        list.append(CSSPrimitiveValue::create(CSSValueAnchorsValid));
+    if (positionVisibility & PositionVisibility::AnchorsVisible)
+        list.append(CSSPrimitiveValue::create(CSSValueAnchorsVisible));
+    if (positionVisibility & PositionVisibility::NoOverflow)
+        list.append(CSSPrimitiveValue::create(CSSValueNoOverflow));
+
+    if (list.isEmpty())
+        return CSSPrimitiveValue::create(CSSValueAlways);
+
+    return CSSValueList::createSpaceSeparated(WTFMove(list));
+}
+
 RefPtr<CSSValue> ComputedStyleExtractor::customPropertyValue(const AtomString& propertyName) const
 {
     Element* styledElement = m_element.get();
@@ -5035,6 +5058,8 @@ RefPtr<CSSValue> ComputedStyleExtractor::valueForPropertyInStyle(const RenderSty
         ASSERT_NOT_REACHED();
         return CSSPrimitiveValue::create(CSSValueNormal);
     }
+    case CSSPropertyPositionVisibility:
+        return valueForPositionVisibility(style.positionVisibility());
     case CSSPropertyTimelineScope:
         return valueForNameScope(style.timelineScope());
 

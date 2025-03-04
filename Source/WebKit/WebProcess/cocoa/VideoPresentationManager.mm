@@ -122,6 +122,12 @@ void VideoPresentationInterfaceContext::documentVisibilityChanged(bool isDocumen
         manager->documentVisibilityChanged(m_contextId, isDocumentVisible);
 }
 
+void VideoPresentationInterfaceContext::isChildOfElementFullscreenChanged(bool isChildOfElementFullscreen)
+{
+    if (RefPtr manager = m_manager.get())
+        manager->isChildOfElementFullscreenChanged(m_contextId, isChildOfElementFullscreen);
+}
+
 void VideoPresentationInterfaceContext::videoDimensionsChanged(const FloatSize& videoDimensions)
 {
     if (m_manager)
@@ -494,13 +500,13 @@ void VideoPresentationManager::exitVideoFullscreenForVideoElement(HTMLVideoEleme
         return;
     }
 
-    m_page->sendWithAsyncReply(Messages::VideoPresentationManagerProxy::ExitFullscreen(*contextId, inlineVideoFrame(videoElement)), [protectedThis = Ref { *this }, this, videoElementPtr = &videoElement, interface = WTFMove(interface), completionHandler = WTFMove(completionHandler)](auto success) mutable {
+    m_page->sendWithAsyncReply(Messages::VideoPresentationManagerProxy::ExitFullscreen(*contextId, inlineVideoFrame(videoElement)), [protectedThis = Ref { *this }, this, videoElement = Ref { videoElement }, interface = WTFMove(interface), completionHandler = WTFMove(completionHandler)](auto success) mutable {
         if (!success) {
             completionHandler(false);
             return;
         }
 
-        if (m_videoElementInPictureInPicture == videoElementPtr)
+        if (m_videoElementInPictureInPicture == videoElement.ptr())
             m_videoElementInPictureInPicture = nullptr;
 
         protectedThis->setCurrentlyInFullscreen(interface, false);
@@ -567,6 +573,12 @@ void VideoPresentationManager::documentVisibilityChanged(PlaybackSessionContextI
 {
     if (RefPtr page = m_page.get())
         page->send(Messages::VideoPresentationManagerProxy::SetDocumentVisibility(contextId, isDocumentVisibile));
+}
+
+void VideoPresentationManager::isChildOfElementFullscreenChanged(PlaybackSessionContextIdentifier contextId, bool isChildOfElementFullscreen)
+{
+    if (RefPtr page = m_page.get())
+        page->send(Messages::VideoPresentationManagerProxy::SetIsChildOfElementFullscreen(contextId, isChildOfElementFullscreen));
 }
 
 void VideoPresentationManager::videoDimensionsChanged(PlaybackSessionContextIdentifier contextId, const FloatSize& videoDimensions)

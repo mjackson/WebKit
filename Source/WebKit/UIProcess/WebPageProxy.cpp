@@ -6130,11 +6130,6 @@ void WebPageProxy::hideFindUI()
     send(Messages::WebPage::HideFindUI());
 }
 
-void WebPageProxy::hideFindIndicator()
-{
-    send(Messages::WebPage::HideFindIndicator());
-}
-
 void WebPageProxy::countStringMatches(const String& string, OptionSet<FindOptions> options, unsigned maxMatchCount)
 {
     if (!hasRunningProcess())
@@ -9123,7 +9118,11 @@ void WebPageProxy::stopMediaCapture(MediaProducerMediaCaptureKind kind, Completi
 #if ENABLE(MEDIA_STREAM)
     if (RefPtr manager = m_userMediaPermissionRequestManager)
         manager->resetAccess();
-    sendWithAsyncReply(Messages::WebPage::StopMediaCapture(kind), WTFMove(completionHandler));
+
+    auto aggregator = CallbackAggregator::create(WTFMove(completionHandler));
+    forEachWebContentProcess([&](auto& webProcess, auto pageID) {
+        webProcess.sendWithAsyncReply(Messages::WebPage::StopMediaCapture(kind), [aggregator] { }, pageID);
+    });
 #endif
 }
 
@@ -13694,6 +13693,12 @@ void WebPageProxy::videoControlsManagerDidChange()
 {
     if (RefPtr pageClient = this->pageClient())
         pageClient->videoControlsManagerDidChange();
+}
+
+void WebPageProxy::videosInElementFullscreenChanged()
+{
+    if (RefPtr pageClient = this->pageClient())
+        pageClient->videosInElementFullscreenChanged();
 }
 
 bool WebPageProxy::hasActiveVideoForControlsManager() const

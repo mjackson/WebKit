@@ -246,6 +246,7 @@ public:
     static Vector<ScopedName> convertAnchorName(BuilderState&, const CSSValue&);
     static std::optional<ScopedName> convertPositionAnchor(BuilderState&, const CSSValue&);
     static std::optional<PositionArea> convertPositionArea(BuilderState&, const CSSValue&);
+    static OptionSet<PositionVisibility> convertPositionVisibility(BuilderState&, const CSSValue&);
 
     static BlockEllipsis convertBlockEllipsis(BuilderState&, const CSSValue&);
     static size_t convertMaxLines(BuilderState&, const CSSValue&);
@@ -2670,6 +2671,23 @@ inline std::optional<PositionArea> BuilderConverter::convertPositionArea(Builder
     };
 }
 
+inline OptionSet<PositionVisibility> BuilderConverter::convertPositionVisibility(BuilderState& builderState, const CSSValue& value)
+{
+    if (value.valueID() == CSSValueAlways)
+        return { };
+
+    auto maybeList = requiredListDowncast<CSSValueList, CSSPrimitiveValue>(builderState, value);
+    if (!maybeList)
+        return { };
+    auto list = *maybeList;
+
+    OptionSet<PositionVisibility> result;
+    for (const auto& value : list)
+        result.add(fromCSSValue<PositionVisibility>(value));
+
+    return result;
+}
+
 inline BlockEllipsis BuilderConverter::convertBlockEllipsis(BuilderState& builderState, const CSSValue& value)
 {
     if (value.valueID() == CSSValueNone)
@@ -2738,13 +2756,22 @@ inline NameScope BuilderConverter::convertNameScope(BuilderState& builderState, 
 
 inline Vector<PositionTryFallback> BuilderConverter::convertPositionTryFallbacks(BuilderState& builderState, const CSSValue& value)
 {
-    auto fallbackForValueList = [&](const CSSValueList& valueList) -> std::optional<PositionTryFallback> {
-        if (valueList.separator() != CSSValueList::SpaceSeparator)
+    auto convertFallback = [&](const CSSValue& fallbackValue) -> std::optional<PositionTryFallback> {
+        auto* valueList = dynamicDowncast<CSSValueList>(fallbackValue);
+        if (!valueList) {
+            // Turn the inlined position-area fallback into properties object that can be applied similarly to @position-try declarations.
+            auto property = CSSProperty { CSSPropertyPositionArea, Ref { const_cast<CSSValue&>(fallbackValue) } };
+            return PositionTryFallback {
+                .positionAreaProperties = ImmutableStyleProperties::create(std::span { &property, 1 }, HTMLStandardMode)
+            };
+        }
+
+        if (valueList->separator() != CSSValueList::SpaceSeparator)
             return { };
 
         auto fallback = PositionTryFallback { };
 
-        for (auto& item : valueList) {
+        for (auto& item : *valueList) {
             if (item.isCustomIdent())
                 fallback.positionTryRuleName = Style::ScopedName { AtomString { item.customIdent() }, builderState.styleScopeOrdinal() };
             else
@@ -2753,28 +2780,18 @@ inline Vector<PositionTryFallback> BuilderConverter::convertPositionTryFallbacks
         return fallback;
     };
 
-    if (auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
-        switch (primitiveValue->valueID()) {
-        case CSSValueNone:
-            return { };
-        default:
-            ASSERT_NOT_REACHED();
-            return { };
-        }
-    }
+    if (value.valueID() == CSSValueNone)
+        return { };
+
+    if (auto fallback = convertFallback(value))
+        return { *fallback };
 
     auto* list = dynamicDowncast<CSSValueList>(value);
     if (!list)
         return { };
 
-    if (auto fallback = fallbackForValueList(*list))
-        return { *fallback };
-
     return WTF::map(*list, [&](auto& item) {
-        auto* itemList = dynamicDowncast<CSSValueList>(item);
-        if (!itemList)
-            return PositionTryFallback { };
-        auto fallback = fallbackForValueList(*itemList);
+        auto fallback = convertFallback(item);
         return fallback ? *fallback : PositionTryFallback { };
     });
 }
@@ -2804,12 +2821,12 @@ inline Style::DynamicRangeLimit BuilderConverter::convertDynamicRangeLimit(Build
         }
 
         builderState.setCurrentPropertyInvalidAtComputedValueTime();
-        return Style::DynamicRangeLimit { CSS::Keyword::NoLimit { } };
+        return Style::DynamicRangeLimit { CSS::Keyword::ConstrainedHigh { } };
     }
 
     RefPtr dynamicRangeLimit = requiredDowncast<CSSDynamicRangeLimitValue>(builderState, value);
     if (!dynamicRangeLimit)
-        return Style::DynamicRangeLimit { CSS::Keyword::NoLimit { } };
+        return Style::DynamicRangeLimit { CSS::Keyword::ConstrainedHigh { } };
 
     return toStyle(dynamicRangeLimit->dynamicRangeLimit(), builderState);
 }
