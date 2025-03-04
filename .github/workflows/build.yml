@@ -278,22 +278,22 @@ jobs:
             label: bun-webkit-linux-arm64-musl-lto
             os: linux-arm64-gh
             package_json_arch: "arm64"
-            CMAKE_BUILD_TYPE: "Release"
+            CMAKE_BUILD_TYPE: "MinSizeRel"
           - lto_flag: ""
             label: bun-webkit-linux-arm64-musl
             os: linux-arm64-gh
             package_json_arch: "arm64"
-            CMAKE_BUILD_TYPE: "Release"
+            CMAKE_BUILD_TYPE: "MinSizeRel"
           - lto_flag: "-flto=full  -fwhole-program-vtables -fforce-emit-vtables"
             label: bun-webkit-linux-amd64-musl-lto
             os: big-ubuntu
             package_json_arch: "x64"
-            CMAKE_BUILD_TYPE: "Release"
+            CMAKE_BUILD_TYPE: "MinSizeRel"
           - lto_flag: ""
             label: bun-webkit-linux-amd64-musl
             os: big-ubuntu
             package_json_arch: "x64"
-            CMAKE_BUILD_TYPE: "Release"
+            CMAKE_BUILD_TYPE: "MinSizeRel"
 
     timeout-minutes: 90
     steps:
