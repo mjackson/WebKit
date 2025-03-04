@@ -169,10 +169,10 @@ RunLoop::~RunLoop()
 
 void RunLoop::run()
 {
-    switch (RunLoop::current().kind()) {
+    switch (RunLoop::currentSingleton().kind()) {
     case Kind::Generic:
         // matches RunLoopGeneric implementation
-        RunLoop::current().m_genericState->runImpl(RunLoopGenericState::RunMode::Drain);
+        RunLoop::currentSingleton().m_genericState->runImpl(RunLoopGenericState::RunMode::Drain);
         return;
     case Kind::Bun:
         // Our event loop should not call this function
@@ -206,10 +206,10 @@ void RunLoop::wakeUp()
 
 RunLoop::CycleResult RunLoop::cycle(RunLoopMode)
 {
-    switch (RunLoop::current().kind()) {
+    switch (RunLoop::currentSingleton().kind()) {
     case Kind::Generic:
         // matches RunLoopGeneric implementation
-        RunLoop::current().m_genericState->runImpl(RunLoopGenericState::RunMode::Iterate);
+        RunLoop::currentSingleton().m_genericState->runImpl(RunLoopGenericState::RunMode::Iterate);
         return CycleResult::Continue;
     case Kind::Bun:
         // Our event loop should not call this function
