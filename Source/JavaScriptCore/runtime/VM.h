@@ -859,7 +859,7 @@ public:
     bool enableControlFlowProfiler();
     bool disableControlFlowProfiler();
 
-    void queueMicrotask(QueuedTask&& task) { m_microtaskQueue.enqueue(WTFMove(task)); }
+    void queueMicrotask(QueuedTask&& task) { m_defaultMicrotaskQueue.enqueue(WTFMove(task)); }
     class JS_EXPORT_PRIVATE DrainMicrotaskDelayScope {
     public:
         explicit DrainMicrotaskDelayScope(VM&);
