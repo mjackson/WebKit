@@ -433,10 +433,8 @@ static FloatRect transformRectFromLayerToGlobalCoordinateSpace(const FloatRect& 
     // Some layers are drawn on an intermediate surface and have this offset applied to convert to the
     // intermediate surface coordinates. In order to translate back to actual coordinates,
     // we have to undo it.
+    transformedRect.intersect(options.textureMapper.clipBounds());
     transformedRect.move(-options.offset);
-    auto clipBounds = options.textureMapper.clipBounds();
-    clipBounds.move(-options.offset);
-    transformedRect.intersect(clipBounds);
     return transformedRect;
 }
 
@@ -479,12 +477,12 @@ void TextureMapperLayer::collectDamageSelf(TextureMapperPaintOptions& options, D
     if (!m_inferredGlobalDamage.isEmpty() || !m_inferredLayerDamage.isEmpty()) {
         const auto& clipBounds = options.textureMapper.clipBounds();
         for (const auto& rect : m_inferredGlobalDamage.rects()) {
-            ASSERT(!rect.isEmpty());
-            damage.add(intersection(rect, clipBounds));
+            if (!rect.isEmpty())
+                damage.add(intersection(rect, clipBounds));
         }
         for (const auto& rect : m_inferredLayerDamage.rects()) {
-            ASSERT(!rect.isEmpty());
-            damage.add(intersection(transformRectFromLayerToGlobalCoordinateSpace(rect, transform, options), clipBounds));
+            if (!rect.isEmpty())
+                damage.add(intersection(transformRectFromLayerToGlobalCoordinateSpace(rect, transform, options), clipBounds));
         }
     } else if (m_contentsLayer) {
         // Layers with content layer are fully damaged if there's no explicit damage.
@@ -496,8 +494,8 @@ void TextureMapperLayer::collectDamageSelf(TextureMapperPaintOptions& options, D
         // been covered by the damage tracking in setNeedsDisplay/setNeedsDisplayInRect
         // calls from GraphicsLayer.
         for (const auto& rect : m_receivedDamage.rects()) {
-            ASSERT(!rect.isEmpty());
-            damage.add(transformRectFromLayerToGlobalCoordinateSpace(rect, transform, options));
+            if (!rect.isEmpty())
+                damage.add(transformRectFromLayerToGlobalCoordinateSpace(rect, transform, options));
         }
     }
 }

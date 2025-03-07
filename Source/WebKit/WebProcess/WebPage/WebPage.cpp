@@ -5204,7 +5204,7 @@ unsigned WebPage::remoteImagesCountForTesting() const
 #if ENABLE(GPU_PROCESS)
     if (!m_remoteRenderingBackendProxy)
         return 0;
-    return m_remoteRenderingBackendProxy->remoteResourceCacheProxy().imagesCount();
+    return m_remoteRenderingBackendProxy->remoteResourceCacheProxy().imagesCountForTesting();
 #else
     return 0;
 #endif
@@ -5755,11 +5755,6 @@ void WebPage::setActiveOpenPanelResultListener(Ref<WebOpenPanelResultListener>&&
 void WebPage::setTextIndicator(const WebCore::TextIndicatorData& indicatorData)
 {
     send(Messages::WebPageProxy::SetTextIndicatorFromFrame(m_mainFrame->frameID(), indicatorData, static_cast<uint64_t>(WebCore::TextIndicatorLifetime::Temporary)));
-}
-
-bool WebPage::findStringFromInjectedBundle(const String& target, OptionSet<FindOptions> options)
-{
-    return protectedCorePage()->findString(target, core(options)).has_value();
 }
 
 void WebPage::replaceStringMatchesFromInjectedBundle(const Vector<uint32_t>& matchIndices, const String& replacementText, bool selectionOnly)

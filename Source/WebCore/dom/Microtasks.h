@@ -22,6 +22,7 @@
 #pragma once
 
 #include "EventLoop.h"
+#include <JavaScriptCore/MicrotaskQueue.h>
 #include <wtf/Forward.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/Vector.h>
@@ -33,13 +34,33 @@ class VM;
 
 namespace WebCore {
 
+class WebCoreMicrotaskDispatcher : public JSC::MicrotaskDispatcher {
+    WTF_MAKE_TZONE_ALLOCATED(WebCoreMicrotaskDispatcher);
+public:
+    WebCoreMicrotaskDispatcher(Type type, EventLoopTaskGroup& group)
+        : JSC::MicrotaskDispatcher(type)
+        , m_group(group)
+    {
+    }
+
+    bool isRunnable() const final
+    {
+        return currentRunnability() == JSC::QueuedTask::Result::Executed;
+    }
+
+    JSC::QueuedTask::Result currentRunnability() const;
+
+private:
+    WeakPtr<EventLoopTaskGroup> m_group;
+};
+
 class MicrotaskQueue final {
     WTF_MAKE_TZONE_ALLOCATED_EXPORT(MicrotaskQueue, WEBCORE_EXPORT);
 public:
     WEBCORE_EXPORT MicrotaskQueue(JSC::VM&, EventLoop&);
     WEBCORE_EXPORT ~MicrotaskQueue();
 
-    WEBCORE_EXPORT void append(std::unique_ptr<EventLoopTask>&&);
+    WEBCORE_EXPORT void append(JSC::QueuedTask&&);
     WEBCORE_EXPORT void performMicrotaskCheckpoint();
 
     WEBCORE_EXPORT void addCheckpointTask(std::unique_ptr<EventLoopTask>&&);
@@ -51,12 +72,16 @@ private:
     JSC::VM& vm() const { return m_vm.get(); }
 
     bool m_performingMicrotaskCheckpoint { false };
-    EventLoop::TaskVector m_microtaskQueue;
     // For the main thread the VM lives forever. For workers it's lifetime is tied to our owning WorkerGlobalScope. Regardless, we retain the VM here to be safe.
     Ref<JSC::VM> m_vm;
     WeakPtr<EventLoop> m_eventLoop;
+    JSC::MicrotaskQueue m_microtaskQueue;
 
     EventLoop::TaskVector m_checkpointTasks;
 };
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::WebCoreMicrotaskDispatcher)
+    static bool isType(const JSC::MicrotaskDispatcher& dispatcher) { return dispatcher.isWebCoreMicrotaskDispatcher(); }
+SPECIALIZE_TYPE_TRAITS_END()

@@ -95,10 +95,6 @@ Modules/indexeddb/IDBTransaction.cpp
 Modules/indexeddb/client/IDBConnectionProxy.cpp
 Modules/indexeddb/client/IDBConnectionToServer.cpp
 Modules/indexeddb/client/TransactionOperation.h
-Modules/indexeddb/server/MemoryBackingStoreTransaction.cpp
-Modules/indexeddb/server/MemoryIDBBackingStore.cpp
-Modules/indexeddb/server/MemoryIndex.cpp
-Modules/indexeddb/server/UniqueIDBDatabaseConnection.cpp
 Modules/mediacontrols/MediaControlsHost.cpp
 Modules/mediarecorder/MediaRecorder.cpp
 Modules/mediarecorder/MediaRecorder.h
@@ -158,7 +154,6 @@ Modules/paymentrequest/PaymentResponse.cpp
 Modules/permissions/MainThreadPermissionObserver.cpp
 Modules/permissions/Permissions.cpp
 Modules/pictureinpicture/HTMLVideoElementPictureInPicture.cpp
-Modules/plugins/YouTubePluginReplacement.cpp
 Modules/push-api/PushDatabase.cpp
 Modules/push-api/PushManager.cpp
 Modules/push-api/PushSubscription.cpp
@@ -375,7 +370,6 @@ bindings/js/JSReportingObserverCustom.cpp
 bindings/js/JSResizeObserverCustom.cpp
 bindings/js/JSResizeObserverEntryCustom.cpp
 bindings/js/JSSVGViewSpecCustom.cpp
-bindings/js/JSServiceWorkerGlobalScopeCustom.cpp
 bindings/js/JSShadowRootCustom.cpp
 bindings/js/JSStaticRangeCustom.cpp
 bindings/js/JSStylePropertyMapReadOnlyCustom.cpp
@@ -541,7 +535,6 @@ dom/DataTransferItemList.cpp
 dom/Document.cpp
 dom/DocumentFontLoader.cpp
 dom/DocumentFragment.cpp
-dom/DocumentInlines.h
 dom/DocumentStorageAccess.cpp
 dom/Element.cpp
 dom/ElementData.cpp
@@ -575,7 +568,6 @@ dom/Observable.cpp
 dom/PendingScript.cpp
 dom/Position.cpp
 dom/PositionIterator.cpp
-dom/PositionIterator.h
 dom/ProcessingInstruction.cpp
 dom/QualifiedName.cpp
 dom/Range.cpp
@@ -681,7 +673,6 @@ html/FormAssociatedElement.cpp
 html/FormListedElement.cpp
 html/HTMLAllCollection.cpp
 html/HTMLAnchorElement.cpp
-html/HTMLArticleElement.cpp
 html/HTMLAttachmentElement.cpp
 html/HTMLBaseElement.cpp
 html/HTMLBodyElement.cpp
@@ -689,16 +680,11 @@ html/HTMLButtonElement.cpp
 html/HTMLCanvasElement.cpp
 html/HTMLCollection.cpp
 html/HTMLCollectionInlines.h
-html/HTMLDetailsElement.cpp
-html/HTMLDialogElement.cpp
 html/HTMLElement.cpp
-html/HTMLEmbedElement.cpp
 html/HTMLFormControlElement.cpp
 html/HTMLFormControlsCollection.cpp
 html/HTMLFormElement.cpp
 html/HTMLFrameElementBase.cpp
-html/HTMLFrameOwnerElement.cpp
-html/HTMLFrameSetElement.cpp
 html/HTMLIFrameElement.cpp
 html/HTMLImageElement.cpp
 html/HTMLImageLoader.cpp
@@ -719,7 +705,6 @@ html/HTMLPlugInImageElement.cpp
 html/HTMLProgressElement.cpp
 html/HTMLSelectElement.cpp
 html/HTMLStyleElement.cpp
-html/HTMLSummaryElement.cpp
 html/HTMLTableCellElement.cpp
 html/HTMLTableElement.cpp
 html/HTMLTablePartElement.cpp
@@ -1433,7 +1418,6 @@ workers/service/FetchEvent.cpp
 workers/service/NavigationPreloadManager.cpp
 workers/service/ServiceWorker.cpp
 workers/service/ServiceWorkerClientData.cpp
-workers/service/ServiceWorkerClients.cpp
 workers/service/ServiceWorkerContainer.cpp
 workers/service/ServiceWorkerGlobalScope.cpp
 workers/service/ServiceWorkerRegistration.cpp
@@ -1442,16 +1426,8 @@ workers/service/background-fetch/BackgroundFetch.cpp
 workers/service/background-fetch/BackgroundFetchEngine.cpp
 workers/service/background-fetch/BackgroundFetchRegistration.cpp
 workers/service/background-fetch/ServiceWorkerRegistrationBackgroundFetchAPI.cpp
-workers/service/context/SWContextManager.cpp
-workers/service/context/ServiceWorkerFetch.cpp
-workers/service/context/ServiceWorkerInspectorProxy.cpp
-workers/service/context/ServiceWorkerThread.cpp
-workers/service/context/ServiceWorkerThreadProxy.cpp
-workers/service/server/SWScriptStorage.cpp
 workers/shared/SharedWorker.cpp
 workers/shared/SharedWorkerScriptLoader.cpp
-workers/shared/context/SharedWorkerContextManager.cpp
-workers/shared/context/SharedWorkerThreadProxy.cpp
 worklets/PaintWorkletGlobalScope.cpp
 worklets/WorkletGlobalScope.cpp
 worklets/WorkletPendingTasks.cpp

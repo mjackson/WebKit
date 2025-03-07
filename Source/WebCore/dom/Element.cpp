@@ -103,6 +103,7 @@
 #include "Logging.h"
 #include "MutationObserverInterestGroup.h"
 #include "MutationRecord.h"
+#include "NodeInlines.h"
 #include "NodeName.h"
 #include "NodeRenderStyle.h"
 #include "PlatformMouseEvent.h"
@@ -3156,6 +3157,17 @@ void Element::clearPopoverData()
         elementRareData()->setPopoverData(nullptr);
 }
 
+Element* Element::invokedPopover() const
+{
+    return hasRareData() ? elementRareData()->invokedPopover() : nullptr;
+}
+
+void Element::setInvokedPopover(RefPtr<Element>&& element)
+{
+    auto& data = ensureElementRareData();
+    data.setInvokedPopover(WTFMove(element));
+}
+
 void Element::addShadowRoot(Ref<ShadowRoot>&& newShadowRoot)
 {
     ASSERT(!newShadowRoot->hasChildNodes());
@@ -3262,11 +3274,7 @@ ExceptionOr<ShadowRoot&> Element::attachShadow(const ShadowRootInit& init, Custo
         }
         return Exception { ExceptionCode::NotSupportedError };
     }
-    RefPtr<CustomElementRegistry> registry;
-    if (document().settings().scopedCustomElementRegistryEnabled() && !init.customElements.isEmpty()) {
-        if (auto* wrapper = jsDynamicCast<JSCustomElementRegistry*>(init.customElements))
-            registry = &wrapper->wrapped();
-    }
+    RefPtr registry = init.customElementRegistry;
     auto scopedRegistry = ShadowRoot::ScopedCustomElementRegistry::No;
     if (registryKind == CustomElementRegistryKind::Null) {
         ASSERT(!registry);
@@ -3299,7 +3307,7 @@ ExceptionOr<ShadowRoot&> Element::attachDeclarativeShadow(ShadowRootMode mode, S
         clonable == ShadowRootClonable::Yes,
         serializable == ShadowRootSerializable::Yes,
         SlotAssignmentMode::Named,
-        JSC::jsUndefined(),
+        nullptr,
         referenceTarget,
     }, registryKind);
     if (exceptionOrShadowRoot.hasException())

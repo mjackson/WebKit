@@ -523,6 +523,7 @@ public:
 
     WEBCORE_EXPORT Ref<Element> createElement(const QualifiedName&, bool createdByParser, CustomElementRegistry* = nullptr);
 
+    RefPtr<CustomElementRegistry> customElementRegistryForBindings();
     static CustomElementNameValidationStatus validateCustomElementName(const AtomString&);
     void setActiveCustomElementRegistry(CustomElementRegistry*);
     CustomElementRegistry* activeCustomElementRegistry() { return m_activeCustomElementRegistry.get(); }
@@ -1418,8 +1419,8 @@ public:
     const DocumentFullscreen* fullscreenIfExists() const { return m_fullscreen.get(); }
     WEBCORE_EXPORT DocumentFullscreen& fullscreen();
     WEBCORE_EXPORT const DocumentFullscreen& fullscreen() const;
-    CheckedRef<DocumentFullscreen> checkedFullscreen(); // Defined in DocumentInlines.h.
-    CheckedRef<const DocumentFullscreen> checkedFullscreen() const; // Defined in DocumentInlines.h.
+    WEBCORE_EXPORT Ref<DocumentFullscreen> protectedFullscreen();
+    WEBCORE_EXPORT Ref<const DocumentFullscreen> protectedFullscreen() const;
 #endif
 
 #if ENABLE(POINTER_LOCK)

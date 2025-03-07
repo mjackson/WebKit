@@ -735,7 +735,7 @@ bool CSSPropertyParser::consumeFont(bool important)
             continue;
         if (!fontVariantCaps && (fontVariantCaps = consumeIdent<CSSValueSmallCaps>(range)))
             continue;
-        if (!fontWeight && (fontWeight = consumeFontWeight(range, m_context)))
+        if (!fontWeight && (fontWeight = CSSPropertyParsing::consumeFontWeight(range, m_context)))
             continue;
         if (!fontWidth && (fontWidth = CSSPropertyParsing::consumeFontWidthAbsolute(range)))
             continue;
@@ -1984,7 +1984,7 @@ static RefPtr<CSSValue> consumeBackgroundComponent(CSSPropertyID property, CSSPa
     switch (property) {
     // background-*
     case CSSPropertyBackgroundClip:
-        return consumeSingleBackgroundClip(range, context);
+        return CSSPropertyParsing::consumeSingleBackgroundClip(range, context);
     case CSSPropertyBackgroundBlendMode:
         return CSSPropertyParsing::consumeSingleBackgroundBlendMode(range);
     case CSSPropertyBackgroundAttachment:

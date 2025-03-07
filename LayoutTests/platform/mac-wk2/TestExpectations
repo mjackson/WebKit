@@ -977,7 +977,6 @@ webkit.org/b/206708 fast/animation/request-animation-frame-iframe.html [ Pass Fa
 imported/w3c/web-platform-tests/webrtc-encoded-transform/script-metadata-transform.https.html [ Pass Failure ]
 imported/w3c/web-platform-tests/webrtc-encoded-transform/script-transform.https.html [ Pass Failure ]
 imported/w3c/web-platform-tests/webrtc-encoded-transform/script-write-twice-transform.https.html [ Pass Failure ]
-imported/w3c/web-platform-tests/webrtc-encoded-transform/sframe-transform-in-worker.https.html [ Pass Failure ]
 
 webkit.org/b/206903 inspector/heap/getRemoteObject.html [ Pass Crash Failure ]
 
@@ -1391,7 +1390,6 @@ webkit.org/b/245010 imported/w3c/web-platform-tests/html/browsers/browsing-the-w
 #webkit.org/b/248537 Batch mark expectations for Ventura test failures
 webrtc/canvas-to-peer-connection-2d.html [ Pass Failure ]
 webrtc/canvas-to-peer-connection.html [ Pass Failure ]
-[ Sequoia x86_64 ] webrtc/captureCanvas-webrtc-software-h264-baseline.html [ Pass Failure ]
 webaudio/decode-audio-data-webm-vorbis.html [ Failure ]
 [ x86_64 ] scrollbars/scrolling-by-page-accounting-oversized-fixed-elements-on-keyboard-spacebar.html [ Pass Failure ]
 imported/w3c/web-platform-tests/html/semantics/embedded-content/media-elements/autoplay-allowed-by-feature-policy-attribute.https.sub.html [ Pass Failure ]
@@ -1914,10 +1912,6 @@ webkit.org/b/287865 [ Debug ] pdf/two-pages-continuous-to-discrete.html [ Pass C
 
 webkit.org/b/287877 pdf/pdf-plugin-printing.html [ Pass Timeout ]
 
-# webkit.org/287922 REGRESSION (289994@main?): [macOS Debug] imported/w3c/web-platform-tests/fullscreen/api/element tests are flaky failure
-[ Debug ] imported/w3c/web-platform-tests/fullscreen/api/element-request-fullscreen-namespaces.html [ Pass Failure ]
-[ Debug ] imported/w3c/web-platform-tests/fullscreen/api/element-ready-check-containing-iframe.html [ Pass Failure ]
-
 webkit.org/b/287967 media/modern-media-controls/overflow-support/playback-speed.html [ Pass Timeout ]
 
 webkit.org/b/287974 [ Sonoma Release arm64 ] imported/w3c/web-platform-tests/css/css-view-transitions/massive-element-below-viewport-offscreen-old.html [ Pass Failure ]
@@ -1963,10 +1957,6 @@ webkit.org/b/287012 [ Sonoma+ Debug ] http/tests/pdf/linearized-pdf-in-iframe.ht
 
 webkit.org/b/288411 [ Sequoia x86_64 ] imported/w3c/web-platform-tests/webrtc/simulcast/getStats.https.html [ Failure ]
 
-webkit.org/b/288493 [ Sequoia+ Debug ] http/tests/media/fairplay/legacy-fairplay-mse-muxed-nowait.html [ Crash ]
-webkit.org/b/288493 [ Sequoia+ Debug ] http/tests/media/fairplay/legacy-fairplay-mse-v2.html [ Crash ]
-webkit.org/b/288493 [ Sequoia+ Debug ] http/tests/media/fairplay/legacy-fairplay-mse-v3.html [ Crash ]
-
 webkit.org/b/288521 [ Sequoia+ X86_64 ] swipe/swipe-disables-view-transition.html [ Timeout ]
 
 webkit.org/b/288535 [ Sequoia+ X86_64 ] swipe/pushstate-with-manual-scrollrestoration.html [ Timeout ]
@@ -1986,8 +1976,6 @@ webkit.org/b/288613 [ Sonoma+ ] pdf/pdf-in-embed-with-root-page-zoom.html [ Pass
 [ Sonoma Release x86_64 ] media/mediacapabilities/vp9.html [ Skip ]
 [ Sonoma Release x86_64 ] platform/mac/media/mediacapabilities/vp9-decodingInfo-sw.html [ Skip ]
 
-webkit.org/b/288655 [ Sequoia x86_64 ] webrtc/captureCanvas-webrtc-software-h264-high.html [ Failure ]
-
 webkit.org/b/288660 [ Sonoma Release x86_64 ] media/media-hevc-video-as-img.html [ Skip ]
 
 # webkit.org/b/280189 [EWS] imported/w3c/web-platform-tests/webcodecs/videoFrame-construction.any.html is a constant failure on Ventura+ Intel EWS
@@ -2003,54 +1991,44 @@ webkit.org/b/288670 [ Release x86_64 ] media/media-source/media-source-vp8-hidde
 
 webkit.org/b/288742 [ Debug ] ipc/media-player-invalid-test.html [ Crash ]
 
-# webkit.org/b/288732 [Sonoma Release wk2] Multiple tests in imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element are flaky failure
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/security.dataURI.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toBlob.jpeg.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toBlob.png.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.arguments.1.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.arguments.2.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.arguments.3.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.bogustype.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.default.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.jpeg.primarycolours.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.jpg.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.lowercase.ascii.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.lowercase.unicode.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.png.complexcolours.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.png.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.png.primarycolours.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-canvas-element/toDataURL.unrecognised.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-img-element/currentSrc-blob-cache.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/forms/form-submission-target/rel-base-target.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/forms/form-submission-target/rel-button-target.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/forms/form-submission-target/rel-form-target.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/semantics/forms/form-submission-target/rel-input-target.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/canvas/element/manual/text/canvas.2d.disconnected.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.toBlob.p3.canvas.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/canvas/offscreen/manual/convert-to-blob/offscreencanvas.convert.to.blob.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/canvas/offscreen/manual/convert-to-blob/offscreencanvas.convert.to.blob.w.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/canvas/offscreen/manual/wide-gamut-canvas/2d.color.space.p3.convertToBlobp3.canvas.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/cross-origin-opener-policy/tentative/noopener/coop-noopener-allow-popups.https.html [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/cross-origin-opener-policy/tentative/restrict-properties/iframe-popup-to-so.https.html?1-2 [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/cross-origin-opener-policy/tentative/restrict-properties/iframe-popup-to-so.https.html?3-4 [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/cross-origin-opener-policy/tentative/restrict-properties/iframe-popup-to-so.https.html?5-6 [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/cross-origin-opener-policy/tentative/restrict-properties/iframe-popup-to-so.https.html?7-8 [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/cross-origin-opener-policy/tentative/restrict-properties/iframe-popup-to-soap.https.html?1-2 [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/cross-origin-opener-policy/tentative/restrict-properties/iframe-popup-to-soap.https.html?3-4 [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/cross-origin-opener-policy/tentative/restrict-properties/iframe-popup-to-soap.https.html?5-6 [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/cross-origin-opener-policy/tentative/restrict-properties/iframe-popup-to-soap.https.html?7-8 [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/infrastructure/urls/resolving-urls/query-encoding/utf-8.html?include=loading [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/infrastructure/urls/resolving-urls/query-encoding/utf-8.html?include=nested-browsing [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/infrastructure/urls/resolving-urls/query-encoding/windows-1251.html?include=loading [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/infrastructure/urls/resolving-urls/query-encoding/windows-1251.html?include=nested-browsing [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/infrastructure/urls/resolving-urls/query-encoding/windows-1252.html?include=loading [ Skip ]
-[ Sonoma Release ] imported/w3c/web-platform-tests/html/infrastructure/urls/resolving-urls/query-encoding/windows-1252.html?include=nested-browsing [ Skip ]
-
 webkit.org/b/288878 media/modern-media-controls/tracks-support/audio-multiple-tracks.html [ Pass Timeout ]
 
-# webkit.org/b/287889 [macOS Debug] imported/w3c/web-platform-tests/file-system-access/getDirectory.https.any.sharedworker.html is flaky crash(flaky in EWS)
-[ Debug ] imported/w3c/web-platform-tests/file-system-access/getDirectory.https.any.sharedworker.html [ Skip ]
-[ Debug ] imported/w3c/web-platform-tests/css/css-view-transitions/writing-mode-container-resize.html [ Skip ]
-[ Debug ] imported/w3c/web-platform-tests/file-system-access/getDirectory.https.any.html [ Skip ]
-[ Debug ] imported/w3c/web-platform-tests/file-system-access/getDirectory.https.any.serviceworker.html [ Skip ]
-[ Debug ] imported/w3c/web-platform-tests/file-system-access/getDirectory.https.any.worker.html [ Skip ]
+webkit.org/b/289090 [ Debug arm64 ] imported/w3c/web-platform-tests/dom/nodes/remove-from-shadow-host-and-adopt-into-iframe.html [ Pass Timeout ]
+
+webkit.org/b/289092 http/wpt/background-fetch/background-fetch-abort.window.html [ Pass Failure ]
+
+# webkit.org/b/289095 REGRESSION(291032@main): [macOS iOS Debug] ipc/large-vector-allocate-failure-crash.html is constantly crashing ( failure in EWS)
+[ Debug ] ipc/large-vector-allocate-failure-crash.html [ Skip ]
+[ Debug ] ipc/invalid-path-segments-crash.html [ Skip ]
+
+webkit.org/b/289094 [ Sequoia Debug ] imported/w3c/web-platform-tests/webcodecs/audio-data.crossOriginIsolated.https.any.html [ Pass Timeout ]
+
+webkit.org/b/289098 [ Debug ] ipc/serialized-type-info.html [ Failure ]
+
+webkit.org/b/289121 imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-mandatory-getStats.https.html [ Pass Failure ]
+
+webkit.org/b/289176 [ Debug ] http/tests/site-isolation/history/add-iframes-and-go-back.html [ Timeout ]
+
+webkit.org/b/289183 imported/w3c/web-platform-tests/mediacapture-record/MediaRecorder-disabled-tracks.https.html [ Pass Failure ]
+
+webkit.org/b/289199 [ Debug ] imported/w3c/web-platform-tests/mediacapture-record/MediaRecorder-peerconnection.https.html [ Pass Crash Failure ]
+
+webkit.org/b/289200 imported/w3c/web-platform-tests/fullscreen/rendering/backdrop-object.html [ Pass ImageOnlyFailure ]
+
+webkit.org/b/289211 [ Sequoia Release x86_64 ] imported/w3c/web-platform-tests/mediacapture-insertable-streams/VideoTrackGenerator-with-window-tracks.https.html [ Failure ]
+
+webkit.org/b/289254 [ Debug ] imported/w3c/web-platform-tests/mediacapture-streams/historical.https.html [ Pass Crash ]
+
+# webkit.org/b/289272 [ macOS wk2 arm64 ] 2x imported/w3c/web-platform-tests/editing/other/delete-in-child-of-head.tentative.html?designMode=on&method=* are flaky failures.
+[ arm64 ] imported/w3c/web-platform-tests/editing/other/delete-in-child-of-head.tentative.html?designMode=on&method=forwarddelete [ Pass Failure ]
+[ arm64 ] imported/w3c/web-platform-tests/editing/other/delete-in-child-of-head.tentative.html?designMode=on&method=backspace [ Pass Failure ]
+
+# webkit.org/b/289276 [ macOS wk2 arm64 ] 4x imported/w3c/web-platform-tests/editing/other/insertparagraph-in-child-of-head.tentative.html?designMode=on&white-space=* are flaky failures. 
+[ arm64 ] imported/w3c/web-platform-tests/editing/other/insertparagraph-in-child-of-head.tentative.html?designMode=on&white-space=pre-wrap [ Pass Failure ]
+[ arm64 ] imported/w3c/web-platform-tests/editing/other/insertparagraph-in-child-of-head.tentative.html?designMode=on&white-space=pre-line [ Pass Failure ]
+[ arm64 ] imported/w3c/web-platform-tests/editing/other/insertparagraph-in-child-of-head.tentative.html?designMode=on&white-space=pre [ Pass Failure ]
+[ arm64 ] imported/w3c/web-platform-tests/editing/other/insertparagraph-in-child-of-head.tentative.html?designMode=on&white-space=normal [ Pass Failure ]
+
+webkit.org/b/289284 fast/canvas/image-buffer-resource-limits.html [ Pass Timeout Crash ]
+
+webkit.org/b/289287 [ Release ] accessibility/accessibility-node-memory-management.html [ Timeout ]

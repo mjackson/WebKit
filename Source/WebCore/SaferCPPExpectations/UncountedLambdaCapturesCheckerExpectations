@@ -93,8 +93,6 @@ fileapi/FileReader.cpp
 html/DirectoryFileListCreator.cpp
 html/FileInputType.cpp
 html/FormAssociatedCustomElement.cpp
-html/HTMLDialogElement.cpp
-html/HTMLFrameElementBase.cpp
 html/HTMLImageElement.cpp
 html/HTMLMediaElement.cpp
 html/HTMLTextFormControlElement.cpp
@@ -170,6 +168,5 @@ workers/WorkerThread.cpp
 workers/service/ExtendableEvent.cpp
 workers/service/ServiceWorkerContainer.cpp
 workers/service/ServiceWorkerGlobalScope.cpp
-workers/service/context/ServiceWorkerThreadProxy.cpp
 workers/shared/SharedWorkerObjectConnection.cpp
 xml/XMLHttpRequest.cpp

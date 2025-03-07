@@ -912,7 +912,7 @@ void Document::commonTeardown()
     stopActiveDOMObjects();
 
 #if ENABLE(FULLSCREEN_API)
-    if (CheckedPtr fullscreen = m_fullscreen.get())
+    if (RefPtr fullscreen = m_fullscreen.get())
         fullscreen->clearPendingEvents();
 #endif
 
@@ -1013,7 +1013,7 @@ VisitedLinkState& Document::ensureVisitedLinkState()
 DocumentFullscreen& Document::ensureFullscreen()
 {
     ASSERT(m_constructionDidFinish);
-    lazyInitialize(m_fullscreen, makeUnique<DocumentFullscreen>(*this));
+    lazyInitialize(m_fullscreen, makeUniqueWithoutRefCountedCheck<DocumentFullscreen>(*this));
     return *m_fullscreen;
 }
 #endif
@@ -1515,7 +1515,7 @@ ExceptionOr<Ref<Element>> Document::createElementForBindings(const AtomString& n
     RefPtr<CustomElementRegistry> registry;
     if (UNLIKELY(argument)) {
         if (auto* options = std::get_if<ElementCreationOptions>(&*argument))
-            registry = options->customElements;
+            registry = options->customElementRegistry;
     }
 
     auto result = [&]() -> ExceptionOr<Ref<Element>> {
@@ -1601,7 +1601,7 @@ ExceptionOr<Ref<Node>> Document::importNode(Node& nodeToImport, std::variant<boo
     if (std::holds_alternative<ImportNodeOptions>(argument)) {
         auto options = std::get<ImportNodeOptions>(argument);
         subtree = !options.selfOnly;
-        registry = WTFMove(options.customElements);
+        registry = WTFMove(options.customElementRegistry);
     } else if (std::get<bool>(argument))
         subtree = true;
     if (!registry)
@@ -1766,6 +1766,13 @@ static inline bool operator<(char32_t a, const UnicodeCodePointRange& b)
     return a < b.minimum;
 }
 
+RefPtr<CustomElementRegistry> Document::customElementRegistryForBindings()
+{
+    if (RefPtr window = document().domWindow())
+        return &window->ensureCustomElementRegistry();
+    return nullptr;
+}
+
 static inline bool isPotentialCustomElementNameCharacter(char32_t character)
 {
     static const UnicodeCodePointRange ranges[] = {
@@ -1918,7 +1925,7 @@ ExceptionOr<Ref<Element>> Document::createElementNS(const AtomString& namespaceU
     RefPtr<CustomElementRegistry> registry;
     if (UNLIKELY(argument)) {
         if (auto* options = std::get_if<ElementCreationOptions>(&*argument))
-            registry = options->customElements;
+            registry = options->customElementRegistry;
     }
 
     auto opportunisticallyMatchedBuiltinElement = ([&]() -> RefPtr<Element> {
@@ -2770,37 +2777,39 @@ void Document::resolveStyle(ResolveStyleType type)
                 documentElement->invalidateStyleForSubtree();
         }
 
-        Style::TreeResolver resolver(*this, WTFMove(m_pendingRenderTreeUpdate));
-        auto styleUpdate = resolver.resolve();
+        {
+            Style::TreeResolver resolver(*this, WTFMove(m_pendingRenderTreeUpdate));
+            auto styleUpdate = resolver.resolve();
 
-        while (resolver.hasUnresolvedQueryContainers() || resolver.hasUnresolvedAnchorPositionedElements()) {
-            if (styleUpdate) {
-                SetForScope resolvingContainerQueriesScope(m_isResolvingContainerQueries, resolver.hasUnresolvedQueryContainers());
-                SetForScope resolvingAnchorPositionedElementsScope(m_isResolvingAnchorPositionedElements, resolver.hasUnresolvedAnchorPositionedElements());
+            while (resolver.hasUnresolvedQueryContainers() || resolver.hasUnresolvedAnchorPositionedElements()) {
+                if (styleUpdate) {
+                    SetForScope resolvingContainerQueriesScope(m_isResolvingContainerQueries, resolver.hasUnresolvedQueryContainers());
+                    SetForScope resolvingAnchorPositionedElementsScope(m_isResolvingAnchorPositionedElements, resolver.hasUnresolvedAnchorPositionedElements());
 
-                updateRenderTree(WTFMove(styleUpdate));
+                    updateRenderTree(WTFMove(styleUpdate));
 
-                if (frameView->layoutContext().needsLayout())
-                    frameView->layoutContext().interleavedLayout();
+                    if (frameView->layoutContext().needsLayout())
+                        frameView->layoutContext().interleavedLayout();
+                }
+
+                styleUpdate = resolver.resolve();
             }
 
-            styleUpdate = resolver.resolve();
-        }
+            m_lastStyleUpdateSizeForTesting = styleUpdate ? styleUpdate->size() : 0;
 
-        m_lastStyleUpdateSizeForTesting = styleUpdate ? styleUpdate->size() : 0;
+            setHasValidStyle();
+            clearChildNeedsStyleRecalc();
+            unscheduleStyleRecalc();
 
-        setHasValidStyle();
-        clearChildNeedsStyleRecalc();
-        unscheduleStyleRecalc();
+            m_inStyleRecalc = false;
 
-        m_inStyleRecalc = false;
+            if (RefPtr fontLoader = m_fontLoader.get())
+                fontLoader->loadPendingFonts();
 
-        if (RefPtr fontLoader = m_fontLoader.get())
-            fontLoader->loadPendingFonts();
-
-        if (styleUpdate) {
-            updateRenderTree(WTFMove(styleUpdate));
-            frameView->styleAndRenderTreeDidChange();
+            if (styleUpdate) {
+                updateRenderTree(WTFMove(styleUpdate));
+                frameView->styleAndRenderTreeDidChange();
+            }
         }
 
         updatedCompositingLayers = frameView->layoutContext().updateCompositingLayersAfterStyleChange();
@@ -3251,6 +3260,11 @@ void Document::createRenderTree()
     renderView->setIsInWindow(true);
 
     resolveStyle(ResolveStyleType::Rebuild);
+
+#if PLATFORM(MAC)
+    if (CheckedPtr cache = existingAXObjectCache())
+        cache->onDocumentRenderTreeCreation(*this);
+#endif // PLATFORM(MAC)
 }
 
 void Document::didBecomeCurrentDocumentInFrame()
@@ -8614,12 +8628,12 @@ const DocumentFullscreen& Document::fullscreen() const
     return *m_fullscreen;
 }
 
-CheckedRef<DocumentFullscreen> Document::checkedFullscreen()
+Ref<DocumentFullscreen> Document::protectedFullscreen()
 {
     return fullscreen();
 }
 
-CheckedRef<const DocumentFullscreen> Document::checkedFullscreen() const
+Ref<const DocumentFullscreen> Document::protectedFullscreen() const
 {
     return fullscreen();
 }
@@ -9125,7 +9139,7 @@ Element* eventTargetElementForDocument(Document* document)
     if (!document)
         return nullptr;
 #if ENABLE(FULLSCREEN_API) && ENABLE(VIDEO)
-    if (CheckedPtr documentFullscreen = document->fullscreenIfExists(); documentFullscreen && documentFullscreen->isFullscreen() && is<HTMLVideoElement>(documentFullscreen->fullscreenElement()))
+    if (RefPtr documentFullscreen = document->fullscreenIfExists(); documentFullscreen && documentFullscreen->isFullscreen() && is<HTMLVideoElement>(documentFullscreen->fullscreenElement()))
         return documentFullscreen->fullscreenElement();
 #endif
     Element* element = document->focusedElement();

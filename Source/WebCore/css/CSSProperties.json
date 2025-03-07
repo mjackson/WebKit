@@ -737,10 +737,8 @@
                 "font-property": true,
                 "high-priority": true,
                 "style-builder-converter": "FontWeight",
-                "parser-function": "consumeFontWeight",
-                "parser-function-allows-number-or-integer-input": true,
-                "parser-grammar-unused": "<font-weight-absolute> | bolder | lighter",
-                "parser-grammar-unused-reason": "Needs support for arbitrary ranges on <number>."
+                "parser-grammar": "<font-weight-absolute> | bolder | lighter",
+                "parser-exported": true
             },
             "specification": {
                 "category": "css-fonts-4",
@@ -2080,9 +2078,7 @@
                 "fill-layer-property": true,
                 "separator": " ",
                 "disables-native-appearance": true,
-                "parser-function": "consumeBackgroundClip",
-                "parser-grammar-unused": "<single-background-clip>#",
-                "parser-grammar-unused-reason": "Needs support for settings-enabled keywords in the grammaer."
+                "parser-grammar": "<single-background-clip>#"
             },
             "specification": {
                 "category": "css-backgrounds",
@@ -12636,9 +12632,7 @@
         "@font-palette-values": {
             "font-family": {
                 "codegen-properties": {
-                    "parser-function": "consumeFontPaletteValuesFontFamily",
-                    "parser-grammar-unused": "<family-name>#",
-                    "parser-grammar-unused-reason": "Needs support for special 'family-name' processing."
+                    "parser-grammar": "<family-name>#@(no-single-item-opt)"
                 },
                 "specification": {
                     "category": "css-fonts-4",
@@ -13358,7 +13352,7 @@
             }
         },
         "<single-background-clip>": {
-            "grammar": "<box> | text | -webkit-text",
+            "grammar": "<box> | border-area@(settings-flag=cssBackgroundClipBorderAreaEnabled) | text | -webkit-text",
             "exported": true,
             "specification": {
                 "category": "css-backgrounds",

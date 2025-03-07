@@ -25,10 +25,12 @@
 
 #include "CommonVM.h"
 #include "EventLoop.h"
+#include "JSExecState.h"
 #include "RejectedPromiseTracker.h"
 #include "ScriptExecutionContext.h"
 #include "WorkerGlobalScope.h"
 #include <JavaScriptCore/CatchScope.h>
+#include <JavaScriptCore/MicrotaskQueueInlines.h>
 #include <wtf/MainThread.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/SetForScope.h>
@@ -37,18 +39,31 @@
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(MicrotaskQueue);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(WebCoreMicrotaskDispatcher);
+
+
+JSC::QueuedTask::Result WebCoreMicrotaskDispatcher::currentRunnability() const
+{
+    auto group = m_group.get();
+    if (!group || group->isStoppedPermanently())
+        return JSC::QueuedTask::Result::Discard;
+    if (group->isSuspended())
+        return JSC::QueuedTask::Result::Suspended;
+    return JSC::QueuedTask::Result::Executed;
+}
 
 MicrotaskQueue::MicrotaskQueue(JSC::VM& vm, EventLoop& eventLoop)
     : m_vm(vm)
     , m_eventLoop(eventLoop)
+    , m_microtaskQueue(vm)
 {
 }
 
 MicrotaskQueue::~MicrotaskQueue() = default;
 
-void MicrotaskQueue::append(std::unique_ptr<EventLoopTask>&& task)
+void MicrotaskQueue::append(JSC::QueuedTask&& task)
 {
-    m_microtaskQueue.append(WTFMove(task));
+    m_microtaskQueue.enqueue(WTFMove(task));
 }
 
 void MicrotaskQueue::performMicrotaskCheckpoint()
@@ -61,25 +76,28 @@ void MicrotaskQueue::performMicrotaskCheckpoint()
     JSC::JSLockHolder locker(vm);
     auto catchScope = DECLARE_CATCH_SCOPE(vm);
 
-    EventLoop::TaskVector toKeep;
-    while (!m_microtaskQueue.isEmpty() && !vm->executionForbidden()) {
-        auto queue = WTFMove(m_microtaskQueue);
-        for (auto& task : queue) {
-            auto* group = task->group();
-            if (!group || group->isStoppedPermanently())
-                continue;
-            if (group->isSuspended())
-                toKeep.append(WTFMove(task));
-            else {
-                task->execute();
-                if (UNLIKELY(!catchScope.clearExceptionExceptTermination()))
-                    break; // Encountered termination.
-            }
-        }
-    }
+    m_microtaskQueue.performMicrotaskCheckpoint(vm,
+        [&](JSC::QueuedTask& task) ALWAYS_INLINE_LAMBDA {
+            RefPtr dispatcher = downcast<WebCoreMicrotaskDispatcher>(task.dispatcher());
+            if (UNLIKELY(!dispatcher))
+                return JSC::QueuedTask::Result::Discard;
 
+            auto result = dispatcher->currentRunnability();
+            if (result == JSC::QueuedTask::Result::Executed) {
+                switch (dispatcher->type()) {
+                case WebCoreMicrotaskDispatcher::Type::JavaScript:
+                    JSExecState::runTask(task.globalObject(), task);
+                    break;
+                case WebCoreMicrotaskDispatcher::Type::None:
+                case WebCoreMicrotaskDispatcher::Type::UserGestureIndicator:
+                case WebCoreMicrotaskDispatcher::Type::Function:
+                    dispatcher->run(task);
+                    break;
+                }
+            }
+            return result;
+        });
     vm->finalizeSynchronousJSExecution();
-    m_microtaskQueue = WTFMove(toKeep);
 
     if (!vm->executionForbidden()) {
         auto checkpointTasks = std::exchange(m_checkpointTasks, { });
@@ -120,10 +138,7 @@ void MicrotaskQueue::addCheckpointTask(std::unique_ptr<EventLoopTask>&& task)
 
 bool MicrotaskQueue::hasMicrotasksForFullyActiveDocument() const
 {
-    return m_microtaskQueue.containsIf([](auto& task) {
-        auto group = task->group();
-        return group && !group->isStoppedPermanently() && !group->isSuspended();
-    });
+    return m_microtaskQueue.hasMicrotasksForFullyActiveDocument();
 }
 
 } // namespace WebCore

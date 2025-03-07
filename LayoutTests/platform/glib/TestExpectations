@@ -971,7 +971,6 @@ webkit.org/b/212300 fast/text/font-collection-2.html [ ImageOnlyFailure ]
 
 webkit.org/b/213114 fast/flexbox/line-clamp-with-anchor-content-only.html [ ImageOnlyFailure ]
 
-webkit.org/b/287629 imported/w3c/web-platform-tests/css/css-fonts/lang-attribute-affects-rendering.html [ ImageOnlyFailure ]
 webkit.org/b/189483 imported/w3c/web-platform-tests/css/css-fonts/variations/slnt-variable.html [ ImageOnlyFailure ]
 webkit.org/b/189483 imported/w3c/web-platform-tests/css/css-fonts/variations/slnt-backslant-variable.html [ ImageOnlyFailure ]
 
@@ -3242,6 +3241,8 @@ webkit.org/b/68512 accessibility/aria-hidden-updates-alldescendants.html [ Failu
 webkit.org/b/77568 fast/text/locale-shaping-complex.html [ ImageOnlyFailure ]
 webkit.org/b/77568 fast/text/locale-shaping.html [ ImageOnlyFailure ]
 
+webkit.org/b/161587 fast/text/locale-shaping-3.html  [ ImageOnlyFailure ]
+
 # Fails because MutationObservers are not notified at end-of-task.
 webkit.org/b/78290 fast/dom/MutationObserver/end-of-task-delivery.html [ Failure ]
 
@@ -4359,8 +4360,6 @@ webkit.org/b/213331 imported/w3c/web-platform-tests/webaudio/the-audio-api/the-m
 webkit.org/b/213508 [ Debug ] imported/w3c/web-platform-tests/service-workers/service-worker/fetch-audio-tainting.https.html [ Crash Pass ]
 
 webkit.org/b/213783 webanimations/accelerated-animation-with-easing.html [ Failure Pass ]
-
-webkit.org/b/216763 webrtc/captureCanvas-webrtc-software-h264-high.html [ Skip ] # Timeout
 
 webkit.org/b/285921 media/media-source/media-source-seek-past-end.html [ Failure ]
 

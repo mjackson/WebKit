@@ -86,8 +86,18 @@ ServiceWorkerThreadProxy::ServiceWorkerThreadProxy(Ref<Page>&& page, ServiceWork
 
 #if ENABLE(REMOTE_INSPECTOR)
     m_remoteDebuggable->init();
+
+#if ENABLE(REMOTE_INSPECTOR_SERVICE_WORKER_AUTO_INSPECTION)
+    thread().runLoop().postDebuggerTask([this, protectedThis = Ref { *this }](ScriptExecutionContext&) {
+        callOnMainThread([this, protectedThis] {
+            threadStartedRunningDebuggerTasks();
+        });
+    });
+#else
     m_remoteDebuggable->setInspectable(m_page->inspectable());
-#endif
+#endif // not ENABLE(REMOTE_INSPECTOR_SERVICE_WORKER_AUTO_INSPECTION)
+
+#endif // not ENABLE(REMOTE_INSPECTOR)
 }
 
 ServiceWorkerThreadProxy::~ServiceWorkerThreadProxy()
@@ -100,6 +110,21 @@ ServiceWorkerThreadProxy::~ServiceWorkerThreadProxy()
 
     m_serviceWorkerThread->clearProxies();
 }
+
+#if ENABLE(REMOTE_INSPECTOR) && ENABLE(REMOTE_INSPECTOR_SERVICE_WORKER_AUTO_INSPECTION)
+
+void ServiceWorkerThreadProxy::threadStartedRunningDebuggerTasks()
+{
+    m_remoteDebuggable->setInspectable(m_page->inspectable());
+
+    // In case the worker is paused running debugger tasks, ensure we break out of
+    // the pause since this will be the last debugger task we send to the worker.
+    thread().runLoop().postDebuggerTask([this, protectedThis = Ref { *this }](ScriptExecutionContext&) {
+        thread().stopRunningDebuggerTasks();
+    });
+}
+
+#endif
 
 void ServiceWorkerThreadProxy::setLastNavigationWasAppInitiated(bool wasAppInitiated)
 {
@@ -153,7 +178,7 @@ RefPtr<CacheStorageConnection> ServiceWorkerThreadProxy::createCacheStorageConne
 {
     ASSERT(isMainThread());
     if (!m_cacheStorageConnection)
-        m_cacheStorageConnection = m_cacheStorageProvider.createCacheStorageConnection();
+        m_cacheStorageConnection = Ref { m_cacheStorageProvider.get() }->createCacheStorageConnection();
     return m_cacheStorageConnection;
 }
 
@@ -174,8 +199,8 @@ std::unique_ptr<FetchLoader> ServiceWorkerThreadProxy::createBlobLoader(FetchLoa
 
 void ServiceWorkerThreadProxy::networkStateChanged(bool isOnLine)
 {
-    for (auto& proxy : allServiceWorkerThreadProxies())
-        proxy.notifyNetworkStateChange(isOnLine);
+    for (Ref proxy : allServiceWorkerThreadProxies())
+        proxy->notifyNetworkStateChange(isOnLine);
 }
 
 void ServiceWorkerThreadProxy::notifyNetworkStateChange(bool isOnline)
@@ -356,8 +381,8 @@ void ServiceWorkerThreadProxy::firePushEvent(std::optional<Vector<uint8_t>>&& da
         payloadCopy = *proposedPayload;
 
     bool isPosted = postTaskForModeToWorkerOrWorkletGlobalScope([this, protectedThis = Ref { *this }, identifier, data = crossThreadCopy(WTFMove(data)), proposedPayload = crossThreadCopy(WTFMove(proposedPayload))](auto&) mutable {
-        thread().queueTaskToFirePushEvent(WTFMove(data), WTFMove(proposedPayload), [this, protectedThis = WTFMove(protectedThis), identifier](bool result, std::optional<NotificationPayload> resultPayload) mutable {
-            callOnMainThread([this, protectedThis = WTFMove(protectedThis), identifier, result, resultPayload = crossThreadCopy(WTFMove(resultPayload))]() mutable {
+        thread().queueTaskToFirePushEvent(WTFMove(data), WTFMove(proposedPayload), [this, protectedThis = Ref { *this }, identifier](bool result, std::optional<NotificationPayload> resultPayload) mutable {
+            callOnMainThread([this, protectedThis = Ref { *this }, identifier, result, resultPayload = crossThreadCopy(WTFMove(resultPayload))]() mutable {
                 if (auto callback = m_ongoingNotificationPayloadFunctionalEventTasks.take(identifier))
                     callback(result, WTFMove(resultPayload));
                 if (m_ongoingNotificationPayloadFunctionalEventTasks.isEmpty())
@@ -391,8 +416,8 @@ void ServiceWorkerThreadProxy::fireNotificationEvent(NotificationData&& data, No
     ASSERT(!m_ongoingFunctionalEventTasks.contains(identifier));
     m_ongoingFunctionalEventTasks.add(identifier, WTFMove(callback));
     bool isPosted = postTaskForModeToWorkerOrWorkletGlobalScope([this, protectedThis = Ref { *this }, identifier, data = WTFMove(data).isolatedCopy(), eventType](auto&) mutable {
-        thread().queueTaskToFireNotificationEvent(WTFMove(data), eventType, [this, protectedThis = WTFMove(protectedThis), identifier](bool result) mutable {
-            callOnMainThread([this, protectedThis = WTFMove(protectedThis), identifier, result]() mutable {
+        thread().queueTaskToFireNotificationEvent(WTFMove(data), eventType, [this, protectedThis = Ref { *this }, identifier](bool result) mutable {
+            callOnMainThread([this, protectedThis = Ref { *this }, identifier, result]() mutable {
                 if (auto callback = m_ongoingFunctionalEventTasks.take(identifier))
                     callback(result);
                 if (m_ongoingFunctionalEventTasks.isEmpty())
@@ -418,8 +443,8 @@ void ServiceWorkerThreadProxy::fireBackgroundFetchEvent(BackgroundFetchInformati
     ASSERT(!m_ongoingFunctionalEventTasks.contains(identifier));
     m_ongoingFunctionalEventTasks.add(identifier, WTFMove(callback));
     bool isPosted = postTaskForModeToWorkerOrWorkletGlobalScope([this, protectedThis = Ref { *this }, identifier, info = crossThreadCopy(WTFMove(info))](auto&) mutable {
-        thread().queueTaskToFireBackgroundFetchEvent(WTFMove(info), [this, protectedThis = WTFMove(protectedThis), identifier](bool result) mutable {
-            callOnMainThread([this, protectedThis = WTFMove(protectedThis), identifier, result]() mutable {
+        thread().queueTaskToFireBackgroundFetchEvent(WTFMove(info), [this, protectedThis = Ref { *this }, identifier](bool result) mutable {
+            callOnMainThread([this, protectedThis = Ref { *this }, identifier, result]() mutable {
                 if (auto callback = m_ongoingFunctionalEventTasks.take(identifier))
                     callback(result);
                 if (m_ongoingFunctionalEventTasks.isEmpty())
@@ -440,8 +465,8 @@ void ServiceWorkerThreadProxy::fireBackgroundFetchClickEvent(BackgroundFetchInfo
     ASSERT(!m_ongoingFunctionalEventTasks.contains(identifier));
     m_ongoingFunctionalEventTasks.add(identifier, WTFMove(callback));
     bool isPosted = postTaskForModeToWorkerOrWorkletGlobalScope([this, protectedThis = Ref { *this }, identifier, info = crossThreadCopy(WTFMove(info))](auto&) mutable {
-        thread().queueTaskToFireBackgroundFetchClickEvent(WTFMove(info), [this, protectedThis = WTFMove(protectedThis), identifier](bool result) mutable {
-            callOnMainThread([this, protectedThis = WTFMove(protectedThis), identifier, result]() mutable {
+        thread().queueTaskToFireBackgroundFetchClickEvent(WTFMove(info), [this, protectedThis = Ref { *this }, identifier](bool result) mutable {
+            callOnMainThread([this, protectedThis = Ref { *this }, identifier, result]() mutable {
                 if (auto callback = m_ongoingFunctionalEventTasks.take(identifier))
                     callback(result);
                 if (m_ongoingFunctionalEventTasks.isEmpty())

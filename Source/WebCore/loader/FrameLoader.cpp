@@ -682,7 +682,7 @@ static inline bool shouldClearWindowName(const LocalFrame& frame, const Document
     if (frame.opener())
         return false;
 
-    return !newDocument.protectedSecurityOrigin()->isSameOriginAs(frame.document()->protectedSecurityOrigin());
+    return !newDocument.protectedSecurityOrigin()->isSameOriginAs(frame.protectedDocument()->protectedSecurityOrigin());
 }
 
 void FrameLoader::clear(RefPtr<Document>&& newDocument, bool clearWindowProperties, bool clearScriptObjects, bool clearFrameView, Function<void()>&& handleDOMWindowCreation)
@@ -1330,7 +1330,7 @@ void FrameLoader::loadInSameDocument(URL url, RefPtr<SerializedScriptValue> stat
 
     if (RefPtr parentFrame = dynamicDowncast<LocalFrame>(m_frame->tree().parent()); parentFrame
         && (document->processingLoadEvent() || document->loadEventFinished())
-        && !document->protectedSecurityOrigin()->isSameOriginAs(parentFrame->document()->protectedSecurityOrigin()))
+        && !document->protectedSecurityOrigin()->isSameOriginAs(parentFrame->protectedDocument()->protectedSecurityOrigin()))
         m_frame->protectedOwnerElement()->dispatchEvent(Event::create(eventNames().loadEvent, Event::CanBubble::No, Event::IsCancelable::No));
 
     // LocalFrameLoaderClient::didFinishLoad() tells the internal load delegate the load finished with no error
@@ -2381,9 +2381,13 @@ void FrameLoader::commitProvisionalLoad()
 
 #if PLATFORM(IOS_FAMILY)
         page->chrome().setDispatchViewportDataDidChangeSuppressed(false);
-        page->chrome().dispatchViewportPropertiesDidChange(frame->page()->viewportArguments());
 #endif
-        page->chrome().dispatchDisabledAdaptationsDidChange(frame->page()->disabledAdaptations());
+        if (RefPtr framePage = frame->page()) {
+#if PLATFORM(IOS_FAMILY)
+            page->chrome().dispatchViewportPropertiesDidChange(framePage->viewportArguments());
+#endif
+            page->chrome().dispatchDisabledAdaptationsDidChange(framePage->disabledAdaptations());
+        }
 
         auto& title = m_documentLoader->title();
         if (!title.string.isNull())
@@ -3503,7 +3507,7 @@ void FrameLoader::loadPostRequest(FrameLoadRequest&& request, const String& refe
             openerPolicy = NewFrameOpenerPolicy::Suppress;
         }
 
-        if (frame->protectedDocument()->settingsValues().blobRegistryTopOriginPartitioningEnabled && request.resourceRequest().url().protocolIsBlob() && !frame->document()->protectedSecurityOrigin()->isSameOriginAs(frame->document()->protectedTopOrigin())) {
+        if (frame->protectedDocument()->settingsValues().blobRegistryTopOriginPartitioningEnabled && request.resourceRequest().url().protocolIsBlob() && !frame->document()->protectedSecurityOrigin()->isSameOriginAs(frame->protectedDocument()->protectedTopOrigin())) {
             frameName = blankTargetFrameName();
             openerPolicy = NewFrameOpenerPolicy::Suppress;
         }
@@ -3966,8 +3970,17 @@ void FrameLoader::continueLoadAfterNavigationPolicy(const ResourceRequest& reque
         if (navigationPolicyDecision != NavigationPolicyDecision::LoadWillContinueInAnotherProcess)
             checkLoadComplete();
 
-        if ((isTargetItem || frame->isMainFrame()) && isBackForwardLoadType(policyChecker().loadType()))
-            history().clearProvisionalItem();
+        // If the navigation request came from the back/forward menu, and we punt on it, we have the
+        // problem that we have optimistically moved the b/f cursor already, so move it back. For sanity,
+        // we only do this when punting a navigation for the target frame or top-level frame.
+        if ((isTargetItem || frame->isMainFrame()) && isBackForwardLoadType(policyChecker().loadType())) {
+            if (RefPtr page = frame->page()) {
+                if (RefPtr localMainFrame = frame->localMainFrame()) {
+                    if (RefPtr resetItem = localMainFrame->loader().history().currentItem())
+                        page->checkedBackForward()->setCurrentItem(*resetItem);
+                }
+            }
+        }
         return;
     }
 
@@ -4205,7 +4218,7 @@ bool FrameLoader::shouldTreatURLAsSameAsCurrent(const SecurityOrigin* requesterO
 {
     if (!history().currentItem())
         return false;
-    if (requesterOrigin && (!m_frame->document() || !requesterOrigin->isSameOriginAs(m_frame->document()->protectedSecurityOrigin())))
+    if (requesterOrigin && (!m_frame->document() || !requesterOrigin->isSameOriginAs(m_frame->protectedDocument()->protectedSecurityOrigin())))
         return false;
     return url == history().currentItem()->url() || url == history().currentItem()->originalURL();
 }

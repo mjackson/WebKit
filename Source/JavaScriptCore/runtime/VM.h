@@ -50,7 +50,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include "JSLock.h"
 #include "JSONAtomStringCache.h"
 #include "KeyAtomStringCache.h"
-#include "Microtask.h"
+#include "MicrotaskQueue.h"
 #include "NativeFunction.h"
 #include "NumericStrings.h"
 #include "SlotVisitorMacros.h"
@@ -67,7 +67,6 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include <variant>
 #include <wtf/BumpPointerAllocator.h>
 #include <wtf/CheckedArithmetic.h>
-#include <wtf/Deque.h>
 #include <wtf/DoublyLinkedList.h>
 #include <wtf/Forward.h>
 #include <wtf/Gigacage.h>
@@ -184,73 +183,6 @@ class Signature;
 }
 
 struct EntryFrame;
-
-class MicrotaskQueue;
-class QueuedTask {
-    WTF_MAKE_TZONE_ALLOCATED(QueuedTask);
-    friend class MicrotaskQueue;
-public:
-    static constexpr unsigned maxArguments = 4;
-
-    QueuedTask(MicrotaskIdentifier identifier, JSValue job, JSValue argument0, JSValue argument1, JSValue argument2, JSValue argument3)
-        : m_identifier(identifier)
-        , m_job(job)
-        , m_arguments { argument0, argument1, argument2, argument3 }
-    {
-    }
-
-    void run();
-
-    MicrotaskIdentifier identifier() const { return m_identifier; }
-
-private:
-    MicrotaskIdentifier m_identifier;
-    JSValue m_job;
-    JSValue m_arguments[maxArguments];
-};
-
-class MicrotaskQueue {
-    WTF_MAKE_TZONE_ALLOCATED(MicrotaskQueue);
-    WTF_MAKE_NONCOPYABLE(MicrotaskQueue);
-public:
-    MicrotaskQueue() = default;
-
-    QueuedTask dequeue()
-    {
-        if (m_markedBefore)
-            --m_markedBefore;
-        return m_queue.takeFirst();
-    }
-
-    void enqueue(QueuedTask&& task)
-    {
-        m_queue.append(WTFMove(task));
-    }
-
-    bool isEmpty() const
-    {
-        return m_queue.isEmpty();
-    }
-
-    size_t size() const { return m_queue.size(); }
-
-    void clear()
-    {
-        m_queue.clear();
-        m_markedBefore = 0;
-    }
-
-    void beginMarking()
-    {
-        m_markedBefore = 0;
-    }
-
-    DECLARE_VISIT_AGGREGATE;
-
-private:
-    Deque<QueuedTask> m_queue;
-    unsigned m_markedBefore { 0 };
-};
 
 DECLARE_ALLOCATOR_WITH_HEAP_IDENTIFIER(VM);
 
@@ -948,16 +880,11 @@ public:
     DrainMicrotaskDelayScope drainMicrotaskDelayScope() { return DrainMicrotaskDelayScope { *this }; }
     JS_EXPORT_PRIVATE void drainMicrotasks();
     void setOnEachMicrotaskTick(WTF::Function<void(VM&)>&& func) { m_onEachMicrotaskTick = WTFMove(func); }
-
-    WTF::Function<void(VM&, SourceProvider*, LineColumn&)>& computeLineColumnWithSourcemap() { return m_computeLineColumnWithSourcemap; }
-    void setComputeLineColumnWithSourcemap(WTF::Function<void(VM&, SourceProvider*, LineColumn&)>&& func) { m_computeLineColumnWithSourcemap = WTFMove(func); }
-
-#if USE(BUN_JSC_ADDITIONS)
-    const ErrorInfoFunction& onComputeErrorInfo() const { return m_onComputeErrorInfo; }
-    const ErrorInfoFunctionJSValue& onComputeErrorInfoJSValue() const { return m_onComputeErrorInfoJSValue; }
-    void setOnComputeErrorInfo(ErrorInfoFunction&& func) { m_onComputeErrorInfo = WTFMove(func); }
-    void setOnComputeErrorInfoJSValue(ErrorInfoFunctionJSValue&& func) { m_onComputeErrorInfoJSValue = WTFMove(func); }
-#endif
+    void callOnEachMicrotaskTick()
+    {
+        if (m_onEachMicrotaskTick)
+            m_onEachMicrotaskTick(*this);
+    }
     void finalizeSynchronousJSExecution()
     {
         ASSERT(currentThreadIsHoldingAPILock());
@@ -1122,6 +1049,7 @@ private:
 #endif
 
 public:
+    SentinelLinkedList<MicrotaskQueue, BasicRawSentinelNode<MicrotaskQueue>> m_microtaskQueues;
     bool didEnterVM { false };
 private:
     bool m_failNextNewCodeBlock { false };
@@ -1145,7 +1073,6 @@ private:
     FunctionHasExecutedCache m_functionHasExecutedCache;
     std::unique_ptr<ControlFlowProfiler> m_controlFlowProfiler;
     unsigned m_controlFlowProfilerEnabledCount { 0 };
-    MicrotaskQueue m_microtaskQueue;
     MallocPtr<EncodedJSValue, VMMalloc> m_exceptionFuzzBuffer;
     LazyRef<VM, Watchdog> m_watchdog;
     LazyUniqueRef<VM, HeapProfiler> m_heapProfiler;
@@ -1178,6 +1105,7 @@ private:
     Lock m_loopHintExecutionCountLock;
     UncheckedKeyHashMap<const JSInstruction*, std::pair<unsigned, std::unique_ptr<uintptr_t>>> m_loopHintExecutionCounts;
 
+    MicrotaskQueue m_defaultMicrotaskQueue;
     Ref<Waiter> m_syncWaiter;
 
     std::atomic<int64_t> m_numberOfActiveJITPlans { 0 };

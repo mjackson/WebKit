@@ -73,6 +73,7 @@
 #include "FrameTree.h"
 #include "Gradient.h"
 #include "GraphicsContext.h"
+#include "HTMLCanvasElement.h"
 #include "HTMLFormControlElement.h"
 #include "HTMLFrameElement.h"
 #include "HTMLFrameOwnerElement.h"
@@ -4508,6 +4509,9 @@ void RenderLayer::setSnapshottedScrollOffsetForAnchorPositioning(LayoutSize offs
     // FIXME: Scroll offset should be adjusted in the scrolling tree so layers stay exactly in sync.
     m_snapshottedScrollOffsetForAnchorPositioning = offset;
     updateTransform();
+
+    if (isComposited())
+        setNeedsCompositingGeometryUpdate();
 }
 
 void RenderLayer::clearSnapshottedScrollOffsetForAnchorPositioning()
@@ -4517,6 +4521,9 @@ void RenderLayer::clearSnapshottedScrollOffsetForAnchorPositioning()
 
     m_snapshottedScrollOffsetForAnchorPositioning = { };
     updateTransform();
+
+    if (isComposited())
+        setNeedsCompositingGeometryUpdate();
 }
 
 // hitTestLocation and hitTestRect are relative to rootLayer.

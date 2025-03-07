@@ -500,7 +500,7 @@ RefPtr<Element> AnchorPositionEvaluator::findAnchorForAnchorFunctionAndAttemptRe
     // should also have layout information for the anchor-positioned element alongside
     // the anchors referenced by the anchor-positioned element. Until then, we cannot
     // resolve this anchor() instance.
-    if (anchorPositionedState.stage == AnchorPositionResolutionStage::FindAnchors)
+    if (anchorPositionedState.stage <= AnchorPositionResolutionStage::FindAnchors)
         return { };
 
     CheckedPtr anchorPositionedRenderer = anchorPositionedElement->renderer();
@@ -522,7 +522,7 @@ RefPtr<Element> AnchorPositionEvaluator::findAnchorForAnchorFunctionAndAttemptRe
 
     if (auto* state = anchorPositionedStates.get(*anchorElement)) {
         // Check if the anchor is itself anchor-positioned but hasn't been positioned yet.
-        if (state->stage != AnchorPositionResolutionStage::Positioned)
+        if (state->stage && *state->stage < AnchorPositionResolutionStage::Positioned)
             return { };
     }
 
@@ -782,17 +782,6 @@ static CheckedPtr<Element> anchorScopeForAnchorElement(const Element& anchorElem
     return nullptr;
 }
 
-// Checks if `parent` is the parent of `descendant` within the composed tree.
-static bool elementIsParentOfElementInComposedTree(const Element& parent, const Element& descendant)
-{
-    for (CheckedPtr currentAncestor = descendant.parentElementInComposedTree(); currentAncestor; currentAncestor = currentAncestor->parentElementInComposedTree()) {
-        if (currentAncestor.get() == &parent)
-            return true;
-    }
-
-    return false;
-}
-
 // See: https://drafts.csswg.org/css-anchor-position-1/#acceptable-anchor-element
 static bool isAcceptableAnchorElement(const RenderBoxModelObject& anchorRenderer, Ref<const Element> anchorPositionedElement)
 {
@@ -805,7 +794,7 @@ static bool isAcceptableAnchorElement(const RenderBoxModelObject& anchorRenderer
 
     if (auto anchorScopeElement = anchorScopeForAnchorElement(*anchorElement, anchorRenderer.style().anchorNames())) {
         // If the anchor is scoped, the anchor-positioned element must also be in the same scope.
-        if (!elementIsParentOfElementInComposedTree(*anchorScopeElement, anchorPositionedElement))
+        if (!anchorPositionedElement->isComposedTreeDescendantOf(*anchorScopeElement))
             return false;
     }
 
@@ -909,12 +898,15 @@ void AnchorPositionEvaluator::updateAnchorPositioningStatesAfterInterleavedLayou
 
 void AnchorPositionEvaluator::updateAnchorPositionedStateForLayoutTimePositioned(Element& element, const RenderStyle& style)
 {
-    if (!isLayoutTimeAnchorPositioned(style))
+    if (!style.positionAnchor())
         return;
 
     auto* state = element.document().styleScope().anchorPositionedStates().ensure(element, [&] {
         return makeUnique<AnchorPositionedState>();
     }).iterator->value.get();
+
+    if (!state->stage)
+        state->stage = AnchorPositionResolutionStage::FindAnchors;
 
     state->anchorNames.add(style.positionAnchor()->name);
 }
