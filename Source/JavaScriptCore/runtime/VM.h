@@ -905,6 +905,11 @@ public:
     ShadowChicken* shadowChicken() { return m_shadowChicken.getIfExists(); }
     ShadowChicken& ensureShadowChicken() { return m_shadowChicken.get(*this); }
     
+#if USE(BUN_JSC_ADDITIONS)
+    ErrorInfoFunction& onComputeErrorInfo() { return m_onComputeErrorInfo; }
+    ErrorInfoFunctionJSValue& onComputeErrorInfoJSValue() { return m_onComputeErrorInfoJSValue; }
+#endif
+    
     template<typename Func>
     void logEvent(CodeBlock*, const char* summary, const Func& func);
 
