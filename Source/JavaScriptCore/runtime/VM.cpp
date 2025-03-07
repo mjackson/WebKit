@@ -1307,10 +1307,6 @@ void VM::dumpTypeProfilerData()
     typeProfiler()->dumpTypeProfilerData(*this);
 }
 
-void VM::queueMicrotask(QueuedTask&& task)
-{
-    m_defaultMicrotaskQueue.enqueue(WTFMove(task));
-}
 
 void VM::callPromiseRejectionCallback(Strong<JSPromise>& promise)
 {

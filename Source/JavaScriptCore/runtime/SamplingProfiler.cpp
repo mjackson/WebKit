@@ -1109,10 +1109,12 @@ Ref<JSON::Value> SamplingProfiler::stackTracesAsJSON()
         result->setString("location"_s, descriptionForLocation(stackFrame.semanticLocation, stackFrame.wasmCompilationMode, stackFrame.wasmOffset));
         LineColumn sourceMappedLineColumn = stackFrame.semanticLocation.lineColumn;
         if (provider) {
+#if USE(BUN_JSC_ADDITIONS)
             auto& fn = m_vm.computeLineColumnWithSourcemap();
             if (fn) {
                 fn(m_vm, provider, sourceMappedLineColumn);
             }
+#endif
         }
         result->setDouble("line"_s, sourceMappedLineColumn.line);
         result->setDouble("column"_s, sourceMappedLineColumn.column);
@@ -1130,10 +1132,12 @@ Ref<JSON::Value> SamplingProfiler::stackTracesAsJSON()
             inliner->setString("location"_s, descriptionForLocation(machineLocation->first, std::nullopt, BytecodeIndex()));
             LineColumn sourceMappedLineColumn = machineLocation->first.lineColumn;
             if (provider) {
+#if USE(BUN_JSC_ADDITIONS)
                 auto& fn = m_vm.computeLineColumnWithSourcemap();
                 if (fn) {
                     fn(m_vm, provider, sourceMappedLineColumn);
                 }
+#endif
             }
             inliner->setDouble("line"_s, sourceMappedLineColumn.line);
             inliner->setDouble("column"_s, sourceMappedLineColumn.column);

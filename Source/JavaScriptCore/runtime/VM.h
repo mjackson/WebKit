@@ -908,6 +908,7 @@ public:
 #if USE(BUN_JSC_ADDITIONS)
     ErrorInfoFunction& onComputeErrorInfo() { return m_onComputeErrorInfo; }
     ErrorInfoFunctionJSValue& onComputeErrorInfoJSValue() { return m_onComputeErrorInfoJSValue; }
+    WTF::Function<void(VM&, SourceProvider*, LineColumn&)>& computeLineColumnWithSourcemap() { return m_computeLineColumnWithSourcemap; }
 #endif
     
     template<typename Func>
