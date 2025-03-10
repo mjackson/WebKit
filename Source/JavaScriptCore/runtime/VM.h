@@ -376,6 +376,9 @@ public:
     EntryFrame* topEntryFrame { nullptr };
 private:
     OptionSet<EntryScopeService> m_entryScopeServices;
+public:
+    bool didEnterVM { false };
+private:
     VMTraps m_traps;
 
     VMIdentifier m_identifier;
@@ -1019,7 +1022,17 @@ private:
         return m_exception;
     }
 
-    JS_EXPORT_PRIVATE void clearException();
+    void clearException()
+    {
+#if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
+        m_needExceptionCheck = false;
+        m_nativeStackTraceOfLastThrow = nullptr;
+        m_throwingThread = nullptr;
+#endif
+        m_exception = nullptr;
+        traps().clearTrapBit(VMTraps::NeedExceptionHandling);
+    }
+
     JS_EXPORT_PRIVATE void setException(Exception*);
 
 #if ENABLE(C_LOOP)
@@ -1065,7 +1078,6 @@ private:
 
 public:
     SentinelLinkedList<MicrotaskQueue, BasicRawSentinelNode<MicrotaskQueue>> m_microtaskQueues;
-    bool didEnterVM { false };
 private:
     bool m_failNextNewCodeBlock { false };
     bool m_globalConstRedeclarationShouldThrow { true };

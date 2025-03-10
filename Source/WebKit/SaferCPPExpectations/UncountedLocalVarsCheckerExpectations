@@ -23,9 +23,7 @@ UIProcess/API/Cocoa/WKWebViewTesting.mm
 UIProcess/API/Cocoa/_WKDataTask.mm
 UIProcess/API/Cocoa/_WKDownload.mm
 UIProcess/Cocoa/GroupActivities/GroupActivitiesSessionNotifier.mm
-UIProcess/Cocoa/SOAuthorization/SubFrameSOAuthorizationSession.mm
 UIProcess/mac/WebContextMenuProxyMac.mm
-UIProcess/mac/WebViewImpl.mm
 WebProcess/Automation/WebAutomationSessionProxy.cpp
 WebProcess/EncryptedMedia/MediaKeySystemPermissionRequestManager.cpp
 WebProcess/Extensions/Bindings/JSWebExtensionWrapper.cpp
@@ -78,7 +76,6 @@ WebProcess/WebCoreSupport/mac/WebDragClientMac.mm
 WebProcess/WebPage/FindController.cpp
 WebProcess/WebPage/RemoteLayerTree/PlatformCALayerRemote.mm
 WebProcess/WebPage/RemoteLayerTree/RemoteLayerTreeContext.mm
-WebProcess/WebPage/ViewGestureGeometryCollector.cpp
 WebProcess/WebPage/ViewUpdateDispatcher.cpp
 WebProcess/WebPage/WebFrame.cpp
 WebProcess/WebPage/mac/TiledCoreAnimationDrawingArea.mm

@@ -290,6 +290,7 @@ public:
 
     // Returns the root object for a specific frame.
     WEBCORE_EXPORT AXCoreObject* rootObjectForFrame(LocalFrame&);
+    WEBCORE_EXPORT void buildAccessibilityTreeIfNeeded();
 
     // Creation/retrieval of AX objects associated with a DOM or RenderTree object.
     inline AccessibilityObject* getOrCreate(RenderObject* renderer)
@@ -606,8 +607,8 @@ public:
 #endif
 
 #if PLATFORM(MAC)
-    AXCoreObject::AccessibilityChildrenVector sortedLiveRegions() const;
-    AXCoreObject::AccessibilityChildrenVector sortedNonRootWebAreas() const;
+    AXCoreObject::AccessibilityChildrenVector sortedLiveRegions();
+    AXCoreObject::AccessibilityChildrenVector sortedNonRootWebAreas();
     void addSortedObject(AccessibilityObject&, PreSortedObjectType);
     void removeLiveRegion(AccessibilityObject&);
     void initializeSortedIDLists();

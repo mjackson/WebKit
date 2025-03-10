@@ -1088,6 +1088,17 @@ AXCoreObject* AXObjectCache::rootObjectForFrame(LocalFrame& frame)
     return getOrCreate(frame.view());
 }
 
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+void AXObjectCache::buildAccessibilityTreeIfNeeded()
+{
+    if (!gAccessibilityEnabled)
+        return;
+
+    if (isIsolatedTreeEnabled())
+        isolatedTreeRootObject();
+}
+#endif
+
 AccessibilityObject* AXObjectCache::create(AccessibilityRole role)
 {
     RefPtr<AccessibilityObject> object;
@@ -2866,15 +2877,11 @@ void AXObjectCache::handleAttributeChange(Element* element, const QualifiedName&
         postNotification(element, AXNotification::LiveRegionStatusChanged);
 
 #if PLATFORM(MAC)
-        if (m_sortedIDListsInitialized) {
-            // Once the sorted ID lists have been initialized for the first time, we rely
-            // on handling these dynamic updates to keep them up-to-date.
-            if (RefPtr object = getOrCreate(element)) {
-                if (object->supportsLiveRegion())
-                    addSortedObject(*object, PreSortedObjectType::LiveRegion);
-                else
-                    removeLiveRegion(*object);
-            }
+        if (RefPtr object = getOrCreate(element)) {
+            if (object->supportsLiveRegion())
+                addSortedObject(*object, PreSortedObjectType::LiveRegion);
+            else
+                removeLiveRegion(*object);
         }
 #endif // PLATFORM(MAC)
     }

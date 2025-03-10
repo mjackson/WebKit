@@ -789,6 +789,8 @@ webkit.org/b/212805 accessibility/svg-text.html [ Failure ]
 
 accessibility/combobox/mac [ Skip ]
 
+accessibility/textarea-line-for-index.html [ Skip ]
+
 # AX support for datetime input elements needs to be completed in glib platforms.
 accessibility/datetime [ Skip ]
 
@@ -3184,6 +3186,7 @@ imported/w3c/web-platform-tests/css/css-ui/compute-kind-widget-generated/kind-of
 imported/w3c/web-platform-tests/css/css-ui/compute-kind-widget-generated/kind-of-widget-fallback-textarea-border-start-start-radius-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-ui/compute-kind-widget-generated/kind-of-widget-fallback-textarea-border-top-left-radius-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-ui/compute-kind-widget-generated/kind-of-widget-fallback-textarea-border-top-right-radius-001.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-ui/compute-kind-widget-generated/grouped-kind-of-widget-fallback-border-top-left-radius-001.html [ ImageOnlyFailure ]
 
 webkit.org/b/264582 imported/w3c/web-platform-tests/css/cssom-view/scrollIntoView-stuck.tentative.html [ Failure ]
 
@@ -4368,8 +4371,6 @@ imported/w3c/web-platform-tests/mixed-content/gen/top.meta/unset/img-tag.https.h
 imported/w3c/web-platform-tests/upgrade-insecure-requests/gen/iframe-blank-inherit.meta/unset/img-tag.https.html [ Failure Pass ]
 imported/w3c/web-platform-tests/upgrade-insecure-requests/gen/srcdoc-inherit.meta/unset/img-tag.https.html [ Failure Pass ]
 imported/w3c/web-platform-tests/upgrade-insecure-requests/gen/top.meta/unset/img-tag.https.html [ Failure Pass ]
-
-webkit.org/b/288471 platform/glib/damage/transform-3d-dynamic-addition.html [ Failure ]
 
 fullscreen/full-screen-enter-while-exiting-mid-completion-handler.html [ Skip ]
 

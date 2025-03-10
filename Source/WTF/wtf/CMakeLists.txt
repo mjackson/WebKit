@@ -701,6 +701,7 @@ elseif (APPLE)
 
         darwin/OSLogPrintStream.h
         darwin/WeakLinking.h
+        darwin/XPCExtras.h
 
         spi/cf/CFBundleSPI.h
         spi/cf/CFStringSPI.h

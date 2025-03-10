@@ -1203,6 +1203,8 @@ public:
 
     PartialResult WARN_UNUSED_RETURN addArrayNewFixed(uint32_t typeIndex, ArgumentList& args, ExpressionType& result);
 
+    void emitArrayGetPayload(StorageType, GPRReg arrayGPR, GPRReg payloadGPR);
+
     PartialResult WARN_UNUSED_RETURN addArrayGet(ExtGCOpType arrayGetKind, uint32_t typeIndex, ExpressionType arrayref, ExpressionType index, ExpressionType& result);
 
     PartialResult WARN_UNUSED_RETURN addArraySet(uint32_t typeIndex, ExpressionType arrayref, ExpressionType index, ExpressionType value);
@@ -1930,11 +1932,7 @@ private:
 
     void emitMove(Value src, Location dst);
 
-    enum class ShuffleStatus {
-        ToMove,
-        BeingMoved,
-        Moved
-    };
+    using ShuffleStatus = CCallHelpers::ShuffleStatus;
 
     template<size_t N, typename OverflowHandler>
     void emitShuffleMove(Vector<Value, N, OverflowHandler>& srcVector, Vector<Location, N, OverflowHandler>& dstVector, Vector<ShuffleStatus, N, OverflowHandler>& statusVector, unsigned index);

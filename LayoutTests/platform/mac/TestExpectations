@@ -120,6 +120,8 @@ accessibility/aria-checkbox-sends-notification.html
 accessibility/aria-switch-sends-notification.html
 accessibility/multiselect-list-reports-active-option.html
 
+accessibility/mac/style-range.html [ Timeout ]
+
 # uiController.simulateRotationLikeSafari() is not implemented on macOS.
 fast/screen-orientation/orientation-in-resize-event.html [ Skip ]
 
@@ -1572,9 +1574,6 @@ webkit.org/b/215450 imported/w3c/web-platform-tests/media-source/mediasource-cha
 # <rdar://problem/59785942> [ iOS macOS ] imported/w3c/web-platform-tests/content-security-policy/form-action/form-action-src-blocked.sub.html is flaky failing
 imported/w3c/web-platform-tests/content-security-policy/form-action/form-action-src-blocked.sub.html [ Pass Failure ]
 
-# <rdar://problem/60173203> [ Mac ] accessibility/accessibility-node-memory-management.html is flaky failing and crashing.
-accessibility/accessibility-node-memory-management.html [ Pass Failure Crash ]
-
 # <rdar://problem/60290943> [ Mac ] inspector/unit-tests/test-harness-expect-functions.html is flaky crashing.
 inspector/unit-tests/test-harness-expect-functions.html [ Pass Crash ]
 
@@ -1843,6 +1842,9 @@ webkit.org/b/227998 imported/w3c/web-platform-tests/html/semantics/embedded-cont
 webkit.org/b/228311 imported/w3c/web-platform-tests/css/css-scoping/css-scoping-shadow-dynamic-remove-style-detached.html [ Pass Failure Timeout ]
 
 webkit.org/b/229291 imported/w3c/web-platform-tests/html/rendering/replaced-elements/images/revoked-blob-print.html [ Pass ImageOnlyFailure ]
+
+# Below test is flaky and only fail on 'stress' test bot and sometime due to race condition, show result of other tests
+imported/w3c/web-platform-tests/html/rendering/widgets/button-layout/block-in-inline.html [ ImageOnlyFailure ]
 
 #rdar://82146367 ([Mac, iOS Release] imported/w3c/web-platform-tests/worklets/layout-worklet-csp.https.html is a flaky failure) 
 imported/w3c/web-platform-tests/worklets/layout-worklet-csp.https.html [ Pass Failure ]
@@ -2412,3 +2414,12 @@ webkit.org/b/260320 imported/w3c/web-platform-tests/css/selectors/invalidation/n
 webkit.org/b/289204 imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/focus-after-close.html [ Pass Failure ]
 
 webkit.org/b/289275 [ Release ] media/media-garbage-collection.html [ Pass Failure Timeout ]
+
+# webkit.org/b/289392 REGRESSION(291726@main): 7x imported/w3c/web-platform-tests/svg/pservers/reftests/meshgradient-*.svg are constant failures. 
+imported/w3c/web-platform-tests/svg/pservers/reftests/meshgradient-basic-001.svg [ Failure ]
+imported/w3c/web-platform-tests/svg/pservers/reftests/meshgradient-basic-002.svg [ Failure ]
+imported/w3c/web-platform-tests/svg/pservers/reftests/meshgradient-basic-003.svg [ Failure ]
+imported/w3c/web-platform-tests/svg/pservers/reftests/meshgradient-basic-004.svg [ Failure ]
+imported/w3c/web-platform-tests/svg/pservers/reftests/meshgradient-basic-005.svg [ Failure ]
+imported/w3c/web-platform-tests/svg/pservers/reftests/meshgradient-bicubic-001.svg [ Failure ]
+imported/w3c/web-platform-tests/svg/pservers/reftests/meshgradient-complex-001.svg [ Failure ]

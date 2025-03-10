@@ -184,6 +184,7 @@ imported/w3c/web-platform-tests/payment-request/payment-request-show-method.http
 imported/w3c/web-platform-tests/payment-request/rejects_if_not_active.https.html [ WontFix ]
 
 imported/w3c/web-platform-tests/html/rendering/non-replaced-elements/form-controls/text-transform.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/rendering/non-replaced-elements/phrasing-content-0/br-wbr-content/content-property.tentative.html [ ImageOnlyFailure ]
 
 webkit.org/b/259089 imported/w3c/web-platform-tests/css/css-ui/text-overflow-028.html [ ImageOnlyFailure ]
 
@@ -996,7 +997,6 @@ imported/w3c/web-platform-tests/css/css-shadow-parts/invalidation-part-pseudo.ht
 
 # No test_driver.click() support for iOS testing
 webkit.org/b/264285 imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-summary-element/interactive-content.html [ Skip ]
-webkit.org/b/266665 imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/button-event-dispatch.tentative.html [ Skip ]
 
 # Overscroll-behavior on iOS needs SkyEcho19E179/StarE21E168a: https://bugs.webkit.org/show_bug.cgi?id=235852
 fast/scrolling/sync-scroll-overscroll-behavior-element.html [ Skip ]
@@ -3794,6 +3794,10 @@ imported/w3c/web-platform-tests/css/css-transforms/ttwf-css-3d-polygon-cycle.htm
 
 # These tests have similar image failures, rounded edges issues. See webkit.org/b/244046
 imported/w3c/web-platform-tests/css/css-ui/compute-kind-widget-generated/kind-of-widget-fallback-select-menulist-button-border-top-right-radius-001.html [ Pass ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-ui/compute-kind-widget-generated/grouped-kind-of-widget-fallback-background-attachment-001.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-ui/compute-kind-widget-generated/grouped-kind-of-widget-fallback-background-color-001.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-ui/compute-kind-widget-generated/grouped-kind-of-widget-fallback-border-image-source-001.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-ui/compute-kind-widget-generated/grouped-kind-of-widget-fallback-border-top-left-radius-001.html [ ImageOnlyFailure ]
 
 # These pass on iOS but not elsewhere.
 imported/w3c/web-platform-tests/css/css-ui/compute-kind-widget-generated/kind-of-widget-fallback-button-background-color-001.html [ Pass ]
@@ -4608,16 +4612,13 @@ media/media-can-play-h265-video.html [ Failure ]
 media/media-can-play-mpeg4-video.html [ Failure ]
 media/media-can-play-wav-audio.html [ Failure ]
 platform/ipad/fast/viewport/viewport-unchanged-by-minimum-effective-width-if-not-ignore-meta-viewport.html [ Failure ]
-imported/w3c/web-platform-tests/html/semantics/popovers/popover-hover-hide-hide.tentative.html [ Crash ]
-imported/w3c/web-platform-tests/html/semantics/popovers/popover-hover-hide-show.tentative.html [ Crash ]
-imported/w3c/web-platform-tests/html/semantics/popovers/popover-hover-hide-toggle.tentative.html [ Crash ]
 imported/w3c/web-platform-tests/html/semantics/popovers/popover-close-request.html [ Skip ]
 imported/w3c/web-platform-tests/html/semantics/popovers/popover-focus-2.html [ Failure ]
 imported/w3c/web-platform-tests/html/semantics/popovers/popover-focus-harness.html [ Failure ]
-imported/w3c/web-platform-tests/html/semantics/popovers/popover-light-dismiss-hint.tentative.html [ Failure ]
+imported/w3c/web-platform-tests/html/semantics/popovers/popover-light-dismiss-hint.html [ Failure ]
 imported/w3c/web-platform-tests/html/semantics/popovers/popover-light-dismiss-with-anchor.tentative.html [ Failure ]
 imported/w3c/web-platform-tests/html/semantics/popovers/popover-top-layer-nesting-anchor.tentative.html [ Skip ]
-imported/w3c/web-platform-tests/html/semantics/popovers/popover-top-layer-nesting-hints.tentative.html [ Failure ]
+imported/w3c/web-platform-tests/html/semantics/popovers/popover-top-layer-nesting-hints.html [ Failure ]
 imported/w3c/web-platform-tests/html/semantics/popovers/popover-top-layer-nesting.html [ Skip ]
 imported/w3c/web-platform-tests/html/semantics/popovers/popover-open-in-beforetoggle.html [ Failure ]
 imported/w3c/web-platform-tests/html/semantics/popovers/popover-change-type.html [ Failure ]
@@ -7409,6 +7410,9 @@ imported/w3c/web-platform-tests/intersection-observer/root-margin.html [ Pass Fa
 imported/w3c/web-platform-tests/intersection-observer/same-document-no-root.html [ Pass Failure ]
 imported/w3c/web-platform-tests/intersection-observer/same-document-zero-size-target.html [ Pass Failure ]
 imported/w3c/web-platform-tests/intersection-observer/text-target.html [ Pass Failure ]
+imported/w3c/web-platform-tests/intersection-observer/svg-rect-target.html [ Skip ]
+imported/w3c/web-platform-tests/intersection-observer/svg-clipped-rect-target.html [ Skip ]
+imported/w3c/web-platform-tests/intersection-observer/svg-intersection-with-fractional-bounds.html [ Skip ]
 
 # webkit.org/b/276562 ([ iOS18 ] 3 wpt/webcodecs/* layout tests are constantly failing.)
 imported/w3c/web-platform-tests/webcodecs/full-cycle-test.https.any.html?h264_annexb [ Failure DumpJSConsoleLogInStdErr ]
@@ -7439,12 +7443,6 @@ imported/w3c/web-platform-tests/mathml/relations/html5-tree/tabindex-002.tentati
 imported/w3c/web-platform-tests/mathml/relations/css-styling/mozilla-393760-1.xml [ ImageOnlyFailure ]
 
 webkit.org/b/277195 imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/inert-label-focus.html [ Failure ]
-
-# webkit.org/b/277196 (REGRESSION (281345@main): [ iOS ] 2 imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/* layout tests are constantly failing.)
-imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/on-dialog-behavior.tentative.html [ Failure ]
-imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/on-dialog-invalid-behavior.tentative.html [ Failure ]
-imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/on-popover-behavior.tentative.html [ Failure ]
-imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/on-popover-invalid-behavior.tentative.html [ Failure ]
 
 # webkit.org/b/277308 (webgl/1.0.3/conformance/uniforms/out-of-bounds-uniform-array-access.html needs to be marked as slow.)
 webgl/1.0.3/conformance/uniforms/out-of-bounds-uniform-array-access.html [ Slow ]
@@ -7706,8 +7704,6 @@ webkit.org/b/288694 [ Debug arm64 ] fast/multicol/body-stuck-with-dirty-bit-with
 
 webkit.org/b/288888 [ arm64 ] compositing/contents-format/deep-color-backing-store.html [ Failure ]
 
-webkit.org/b/288896 editing/caret/caret-position-vertical-rl.html [ Failure ]
-
 webkit.org/b/287569 http/tests/site-isolation/page-visibility-onvisibilitychange-in-iframe.html [ Timeout ]
 
 webkit.org/b/287033 fast/mediastream/microphone-interruption-and-audio-session.html [ Failure ]
@@ -7738,3 +7734,12 @@ webkit.org/b/289109 imported/w3c/web-platform-tests/css/css-view-transitions/tra
 imported/w3c/web-platform-tests/scroll-animations/scroll-timelines/animation-with-transform.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/scroll-animations/scroll-timelines/two-animations-attach-to-same-scroll-timeline-cancel-one.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/scroll-animations/scroll-timelines/two-animations-attach-to-same-scroll-timeline.html [ ImageOnlyFailure ]
+
+# webkit.org/b/289392 REGRESSION(291726@main): 7x imported/w3c/web-platform-tests/svg/pservers/reftests/meshgradient-*.svg are constant failures. 
+imported/w3c/web-platform-tests/svg/pservers/reftests/meshgradient-basic-001.svg [ Failure ]
+imported/w3c/web-platform-tests/svg/pservers/reftests/meshgradient-basic-002.svg [ Failure ]
+imported/w3c/web-platform-tests/svg/pservers/reftests/meshgradient-basic-003.svg [ Failure ]
+imported/w3c/web-platform-tests/svg/pservers/reftests/meshgradient-basic-004.svg [ Failure ]
+imported/w3c/web-platform-tests/svg/pservers/reftests/meshgradient-basic-005.svg [ Failure ]
+imported/w3c/web-platform-tests/svg/pservers/reftests/meshgradient-bicubic-001.svg [ Failure ]
+imported/w3c/web-platform-tests/svg/pservers/reftests/meshgradient-complex-001.svg [ Failure ]

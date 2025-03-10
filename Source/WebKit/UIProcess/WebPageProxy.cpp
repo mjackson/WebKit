@@ -11779,6 +11779,8 @@ WebPageCreationParameters WebPageProxy::creationParameters(WebProcessProxy& proc
     parameters.presentingApplicationBundleIdentifier = presentingApplicationBundleIdentifier();
 #endif
 
+    parameters.hasReceivedAXRequestInUIProcess = protectedLegacyMainFrameProcess()->processPool().hasReceivedAXRequestInUIProcess();
+
     return parameters;
 }
 
@@ -13958,6 +13960,13 @@ void WebPageProxy::didChangeBackgroundColor()
 {
     if (RefPtr pageClient = this->pageClient())
         pageClient->didChangeBackgroundColor();
+}
+
+Awaitable<void> WebPageProxy::nextPresentationUpdate()
+{
+    co_return co_await AwaitableFromCompletionHandler<void> { [this, protectedThis = Ref { *this }] (auto completionHandler) {
+        callAfterNextPresentationUpdate(WTFMove(completionHandler));
+    } };
 }
 
 #if !PLATFORM(GTK) && !PLATFORM(WPE)

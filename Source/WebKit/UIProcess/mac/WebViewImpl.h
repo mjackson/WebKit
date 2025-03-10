@@ -227,7 +227,6 @@ public:
     NSWindow *window();
 
     WebPageProxy& page() { return m_page.get(); }
-    Ref<WebPageProxy> protectedPage() const;
 
     WKWebView *view() const { return m_view.getAutoreleased(); }
 
@@ -503,8 +502,9 @@ public:
     id accessibilityFocusedUIElement();
     bool accessibilityIsIgnored() const { return false; }
     id accessibilityHitTest(CGPoint);
-    void enableAccessibilityIfNecessary();
+    void enableAccessibilityIfNecessary(NSString *attribute = nil);
     id accessibilityAttributeValue(NSString *, id parameter = nil);
+    RetainPtr<NSAccessibilityRemoteUIElement> remoteAccessibilityChildIfNotSuspended();
 
     void updatePrimaryTrackingAreaOptions(NSTrackingAreaOptions);
 
@@ -581,6 +581,7 @@ public:
 
     ViewGestureController* gestureController() { return m_gestureController.get(); }
     ViewGestureController& ensureGestureController();
+    Ref<ViewGestureController> ensureProtectedGestureController();
     void setAllowsBackForwardNavigationGestures(bool);
     bool allowsBackForwardNavigationGestures() const { return m_allowsBackForwardNavigationGestures; }
     void setAllowsMagnification(bool);
@@ -891,8 +892,8 @@ private:
     std::optional<EditorState::PostLayoutData> postLayoutDataForContentEditable();
 
     WeakObjCPtr<WKWebView> m_view;
-    std::unique_ptr<PageClient> m_pageClient;
-    Ref<WebPageProxy> m_page;
+    const UniqueRef<PageClient> m_pageClient;
+    const Ref<WebPageProxy> m_page;
 
     DrawingAreaType m_drawingAreaType { DrawingAreaType::TiledCoreAnimation };
 

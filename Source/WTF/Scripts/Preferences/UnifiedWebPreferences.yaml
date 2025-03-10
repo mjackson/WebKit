@@ -193,11 +193,11 @@ AccessibilityThreadTextApisEnabled:
   condition: ENABLE(AX_THREAD_TEXT_APIS)
   defaultValue:
     WebKitLegacy:
-      default: false
+      default: true
     WebKit:
-      default: false
+      default: true
     WebCore:
-      default: false
+      default: true
 
 AggressiveTileRetentionEnabled:
   type: bool
@@ -2818,6 +2818,20 @@ EmbedElementEnabled:
       default: true
   disableInLockdownMode: true
 
+EnableAccessibilityOnDemand:
+  type: bool
+  status: internal
+  category: networking
+  humanReadableName: "Enable Accessibility On Demand"
+  humanReadableDescription: "Enable Accessibility On Demand"
+  webcoreBinding: none
+  condition: PLATFORM(MAC)
+  exposed: [ WebKit ]
+  defaultValue:
+    WebKit:
+      "ENABLE(INITIALIZE_ACCESSIBILITY_ON_DEMAND)": true
+      default: false
+
 EnableInheritURIQueryComponent:
   type: bool
   status: embedder
@@ -3672,11 +3686,11 @@ IncludeIgnoredInCoreAXTree:
   humanReadableDescription: "When true, accessibility-is-ignored is not used to build the core, platform-agnostic accessibility tree, and instead is expected to be applied at any platform-exposed layer."
   defaultValue:
     WebKitLegacy:
-      default: false
+      default: true
     WebKit:
-      default: false
+      default: true
     WebCore:
-      default: false
+      default: true
 
 IncompleteImageBorderEnabled:
   type: bool
@@ -5132,8 +5146,10 @@ MediaSourcePrefersDecompressionSession:
     WebKitLegacy:
       default: false
     WebKit:
+      "PLATFORM(VISION)": false
       default: true
     WebCore:
+      "PLATFORM(VISION)": false
       default: true
   sharedPreferenceForWebProcess: true
 
@@ -8537,7 +8553,7 @@ WebAnimationsCustomFrameRateEnabled:
 
 WebAnimationsOverallProgressPropertyEnabled:
   type: bool
-  status: testable
+  status: preview
   category: animation
   humanReadableName: "Web Animations 'overallProgress' property"
   humanReadableDescription: "Support for Animation's overallProgress property"

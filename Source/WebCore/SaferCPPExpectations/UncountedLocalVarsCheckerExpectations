@@ -35,7 +35,6 @@ Modules/mediastream/MediaDevices.cpp
 Modules/mediastream/MediaStream.cpp
 Modules/mediastream/PeerConnectionBackend.cpp
 Modules/mediastream/RTCController.cpp
-Modules/mediastream/RTCDataChannel.cpp
 Modules/mediastream/RTCPeerConnection.cpp
 Modules/mediastream/RTCRtpScriptTransformer.cpp
 Modules/mediastream/UserMediaController.cpp
@@ -79,7 +78,6 @@ Modules/webaudio/WaveShaperDSPKernel.cpp
 Modules/webaudio/WaveShaperNode.cpp
 Modules/webauthn/AuthenticatorCoordinator.cpp
 Modules/webauthn/PublicKeyCredential.cpp
-Modules/webcodecs/WebCodecsUtilities.h
 Modules/webcodecs/WebCodecsVideoFrameAlgorithms.cpp
 Modules/webdatabase/ChangeVersionWrapper.cpp
 Modules/webdatabase/Database.cpp
@@ -245,7 +243,6 @@ css/StyleProperties.cpp
 css/StyleRule.cpp
 css/StyleRuleImport.cpp
 css/StyleSheetContents.cpp
-css/parser/CSSParserImpl.cpp
 css/query/ContainerQueryFeatures.cpp
 css/query/MediaQueryFeatures.cpp
 css/typedom/CSSNumericValue.cpp
@@ -359,7 +356,6 @@ html/HTMLAttachmentElement.cpp
 html/HTMLCanvasElement.cpp
 html/HTMLCollection.cpp
 html/HTMLDocument.cpp
-html/HTMLElement.cpp
 html/HTMLFieldSetElement.cpp
 html/HTMLFormControlsCollection.cpp
 html/HTMLFormElement.cpp
@@ -373,7 +369,6 @@ html/HTMLOptionElement.cpp
 html/HTMLPictureElement.cpp
 html/HTMLSelectElement.cpp
 html/HTMLSlotElement.cpp
-html/HTMLStyleElement.cpp
 html/HTMLTableElement.cpp
 html/HTMLTableRowElement.cpp
 html/HTMLTextFormControlElement.cpp
@@ -564,7 +559,6 @@ platform/ThreadGlobalData.cpp
 platform/ThreadGlobalData.h
 platform/animation/AcceleratedEffect.cpp
 platform/animation/AcceleratedEffectValues.cpp
-platform/audio/AudioBus.cpp
 platform/cocoa/PlaybackSessionModelMediaElement.mm
 platform/cocoa/VideoPresentationModelVideoElement.mm
 platform/graphics/ComplexTextController.cpp
@@ -602,8 +596,6 @@ platform/mac/WidgetMac.mm
 platform/mediastream/mac/RealtimeIncomingVideoSourceCocoa.mm
 platform/mock/MockRealtimeMediaSourceCenter.cpp
 platform/mock/MockRealtimeVideoSource.cpp
-platform/network/BlobRegistryImpl.cpp
-platform/network/FormData.cpp
 platform/text/BidiContext.cpp
 platform/text/BidiResolver.h
 plugins/DOMPluginArray.cpp
