@@ -51,9 +51,12 @@ JSObject* createUndefinedVariableError(JSGlobalObject* globalObject, const Ident
 {
     if (ident.isPrivateName())
         return createReferenceError(globalObject, makeString("Can't find private variable: PrivateSymbol."_s, ident.string()));
+#if USE(BUN_JSC_ADDITIONS)
+    return createReferenceError(globalObject, makeString(ident.string(), " is not defined"_s));
+#endif
     return createReferenceError(globalObject, makeString("Can't find variable: "_s, ident.string()));
 }
-    
+
 String errorDescriptionForValue(JSGlobalObject* globalObject, JSValue v)
 {
     if (v.isString()) {
@@ -79,7 +82,7 @@ String errorDescriptionForValue(JSGlobalObject* globalObject, JSValue v)
     }
     return v.toString(globalObject)->value(globalObject);
 }
-    
+
 static StringView clampErrorMessage(const String& originalMessage LIFETIME_BOUND)
 {
     // Hopefully this is sufficiently long. Note, this is the length of the string not the number of bytes used.
@@ -102,7 +105,7 @@ String defaultSourceAppender(const String& originalMessage, StringView sourceTex
 }
 
 static StringView functionCallBase(StringView sourceText)
-{ 
+{
     // This function retrieves the 'foo.bar' substring from 'foo.bar(baz)'.
     // FIXME: This function has simple processing of /* */ style comments.
     // It doesn't properly handle embedded comments of string literals that contain
@@ -113,7 +116,7 @@ static StringView functionCallBase(StringView sourceText)
     unsigned idx = sourceLength - 1;
     if (sourceLength < 2 || sourceText[idx] != ')') {
         // For function calls that have many new lines in between their open parenthesis
-        // and their closing parenthesis, the text range passed into the message appender 
+        // and their closing parenthesis, the text range passed into the message appender
         // will not include the text in between these parentheses, it will just be the desired
         // text that precedes the parentheses.
         return String();
@@ -122,7 +125,7 @@ static StringView functionCallBase(StringView sourceText)
     unsigned parenStack = 1;
     bool isInMultiLineComment = false;
     idx -= 1;
-    // Note that we're scanning text right to left instead of the more common left to right, 
+    // Note that we're scanning text right to left instead of the more common left to right,
     // so syntax detection is backwards.
     while (parenStack && idx) {
         UChar curChar = sourceText[idx];
@@ -259,7 +262,7 @@ String constructErrorMessage(JSGlobalObject* globalObject, JSValue value, const 
 {
     auto scope = DECLARE_THROW_SCOPE(globalObject->vm());
     String valueDescription = errorDescriptionForValue(globalObject, value);
-    RETURN_IF_EXCEPTION(scope, { });
+    RETURN_IF_EXCEPTION(scope, {});
     if (!valueDescription)
         return valueDescription;
     return tryMakeString(valueDescription, ' ', message);
@@ -345,7 +348,7 @@ JSObject* createTDZError(JSGlobalObject* globalObject)
     return createReferenceError(globalObject, "Cannot access uninitialized variable."_s);
 }
 
-JSObject* createTDZError(JSGlobalObject* globalObject, const Identifier &ident)
+JSObject* createTDZError(JSGlobalObject* globalObject, const Identifier& ident)
 {
     if (ident.isSymbol() || ident.isPrivateName() || ident.isEmpty()) {
         return createTDZError(globalObject);
