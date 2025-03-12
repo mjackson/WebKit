@@ -78,6 +78,7 @@ void VideoPresentationModelVideoElement::cleanVideoListeners()
         return;
     m_isListening = false;
     if (m_videoElement) {
+        m_videoElement->removeClient(*this);
         for (auto& eventName : observedEventNames())
             m_videoElement->removeEventListener(eventName, m_videoListener, false);
     }
@@ -104,6 +105,7 @@ void VideoPresentationModelVideoElement::setVideoElement(HTMLVideoElement* video
     ALWAYS_LOG_IF_POSSIBLE(LOGIDENTIFIER);
 
     if (m_videoElement) {
+        m_videoElement->addClient(*this);
         m_document = m_videoElement->document();
         for (auto& eventName : observedEventNames())
             m_videoElement->addEventListener(eventName, m_videoListener, false);
@@ -155,6 +157,10 @@ void VideoPresentationModelVideoElement::updateForEventName(const WTF::AtomStrin
             return std::nullopt;
         }());
     }
+
+    // FIXME: We should only tag a media element as having been interacting with if those events were trigger by a user gesture.
+    if (eventName == eventNames().playEvent || eventName == eventNames().pauseEvent)
+        videoInteractedWith();
 }
 
 void VideoPresentationModelVideoElement::documentVisibilityChanged()
@@ -203,6 +209,21 @@ void VideoPresentationModelVideoElement::documentFullscreenChanged()
         client->isChildOfElementFullscreenChanged(m_isChildOfElementFullscreen);
 }
 #endif
+
+void VideoPresentationModelVideoElement::videoInteractedWith()
+{
+    RefPtr videoElement = m_videoElement;
+
+    if (!videoElement)
+        return;
+
+    CheckedPtr mediaSession = videoElement->mediaSessionIfExists();
+    if (!mediaSession || (!mediaSession->mostRecentUserInteractionTime() && mediaSession->hasBehaviorRestriction(MediaElementSession::RequireUserGestureForAudioRateChange)))
+        return;
+
+    for (auto& client : copyToVector(m_clients))
+        client->hasBeenInteractedWith();
+}
 
 void VideoPresentationModelVideoElement::willExitFullscreen()
 {
@@ -309,7 +330,7 @@ void VideoPresentationModelVideoElement::setVideoLayerGravity(MediaPlayer::Video
 
 std::span<const AtomString> VideoPresentationModelVideoElement::observedEventNames()
 {
-    static NeverDestroyed names = std::array { eventNames().resizeEvent, eventNames().loadstartEvent, eventNames().loadedmetadataEvent };
+    static NeverDestroyed names = std::array { eventNames().resizeEvent, eventNames().loadstartEvent, eventNames().loadedmetadataEvent, eventNames().playEvent, eventNames().pauseEvent };
     return names.get();
 }
 
@@ -440,6 +461,12 @@ void VideoPresentationModelVideoElement::setTextTrackRepresentationBounds(const 
 
     ALWAYS_LOG_IF_POSSIBLE(LOGIDENTIFIER, bounds.size());
     videoElement->setTextTrackRepresentataionBounds(bounds);
+}
+
+void VideoPresentationModelVideoElement::audioSessionCategoryChanged(AudioSessionCategory category, AudioSessionMode mode, RouteSharingPolicy policy)
+{
+    for (auto& client : copyToVector(m_clients))
+        client->audioSessionCategoryChanged(category, mode, policy);
 }
 
 #if !RELEASE_LOG_DISABLED

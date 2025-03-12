@@ -846,6 +846,7 @@ constexpr Isolation RenderStyle::initialIsolation() { return Isolation::Auto; }
 inline bool RenderStyle::isInSubtreeWithBlendMode() const { return m_rareInheritedData->isInSubtreeWithBlendMode; }
 inline bool RenderStyle::isInVisibilityAdjustmentSubtree() const { return m_rareInheritedData->isInVisibilityAdjustmentSubtree; }
 inline Isolation RenderStyle::isolation() const { return static_cast<Isolation>(m_nonInheritedData->rareData->isolation); }
+inline bool RenderStyle::usesAnchorFunctions() const { return m_nonInheritedData->rareData->usesAnchorFunctions; }
 
 inline Visibility RenderStyle::usedVisibility() const
 {
@@ -891,6 +892,9 @@ inline TextSizeAdjustment RenderStyle::textSizeAdjust() const { return m_rareInh
 #if ENABLE(TOUCH_EVENTS)
 inline Style::Color RenderStyle::tapHighlightColor() const { return m_rareInheritedData->tapHighlightColor; }
 #endif
+
+inline bool RenderStyle::insideDefaultButton() const { return m_rareInheritedData->insideDefaultButton; }
+inline bool RenderStyle::shouldApplyColorFilterWhenInactive() const { return m_rareInheritedData->shouldApplyColorFilterWhenInactive; }
 
 inline bool RenderStyle::NonInheritedFlags::hasPseudoStyle(PseudoId pseudo) const
 {

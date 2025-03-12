@@ -617,7 +617,6 @@ enum class WebEventModifier : uint8_t;
 enum class WebEventType : uint8_t;
 enum class WindowKind : uint8_t;
 
-template<typename> class Awaitable;
 template<typename> class MonotonicObjectIdentifier;
 
 using ActivityStateChangeID = uint64_t;
@@ -742,7 +741,7 @@ public:
     void destroyInspectorTarget(IPC::Connection&, const String& targetId);
     void sendMessageToInspectorFrontend(const String& targetId, const String& message);
 
-    void getAllFrames(CompletionHandler<void(FrameTreeNodeData&&)>&&);
+    void getAllFrames(CompletionHandler<void(std::optional<FrameTreeNodeData>&&)>&&);
     void getAllFrameTrees(CompletionHandler<void(Vector<FrameTreeNodeData>&&)>&&);
     void getFrameInfo(WebCore::FrameIdentifier, CompletionHandler<void(API::FrameInfo*)>&&);
 
@@ -767,6 +766,7 @@ public:
 
 #if ENABLE(FULLSCREEN_API)
     WebFullScreenManagerProxy* fullScreenManager();
+    RefPtr<WebFullScreenManagerProxy> protectedFullScreenManager();
     void setFullScreenClientForTesting(std::unique_ptr<WebKit::WebFullScreenManagerProxyClient>&&);
 
     API::FullscreenClient& fullscreenClient() const { return *m_fullscreenClient; }
@@ -894,7 +894,7 @@ public:
     void loadAlternateHTML(Ref<WebCore::DataSegment>&&, const String& encoding, const URL& baseURL, const URL& unreachableURL, API::Object* userData = nullptr);
     void navigateToPDFLinkWithSimulatedClick(const String& url, WebCore::IntPoint documentPoint, WebCore::IntPoint screenPoint);
 
-    void loadAndDecodeImage(WebCore::ResourceRequest&&, std::optional<WebCore::FloatSize>, size_t, CompletionHandler<void(std::variant<WebCore::ResourceError, Ref<WebCore::ShareableBitmap>>&&)>&&);
+    void loadAndDecodeImage(WebCore::ResourceRequest&&, std::optional<WebCore::FloatSize>, size_t, CompletionHandler<void(Expected<Ref<WebCore::ShareableBitmap>, WebCore::ResourceError>&&)>&&);
 #if PLATFORM(COCOA)
     void getInformationFromImageData(Vector<uint8_t>&& data, CompletionHandler<void(Expected<std::pair<String, Vector<WebCore::IntSize>>, WebCore::ImageDecodingError>&&)>&&);
     void createIconDataFromImageData(Ref<WebCore::SharedBuffer>&&, const Vector<unsigned>&, CompletionHandler<void(RefPtr<WebCore::SharedBuffer>&&)>&&);
@@ -1582,8 +1582,8 @@ public:
     void getSelectionAsWebArchiveData(CompletionHandler<void(API::Data*)>&&);
     void getSourceForFrame(WebFrameProxy*, CompletionHandler<void(const String&)>&&);
     void getWebArchiveOfFrame(WebFrameProxy*, CompletionHandler<void(API::Data*)>&&);
-    void runJavaScriptInMainFrame(RunJavaScriptParameters&&, CompletionHandler<void(Expected<JavaScriptEvaluationResult, std::optional<WebCore::ExceptionDetails>>)>&&);
-    void runJavaScriptInFrameInScriptWorld(RunJavaScriptParameters&&, std::optional<WebCore::FrameIdentifier>, API::ContentWorld&, CompletionHandler<void(Expected<JavaScriptEvaluationResult, std::optional<WebCore::ExceptionDetails>>)>&&);
+    void runJavaScriptInMainFrame(RunJavaScriptParameters&&, bool, CompletionHandler<void(Expected<JavaScriptEvaluationResult, std::optional<WebCore::ExceptionDetails>>)>&&);
+    void runJavaScriptInFrameInScriptWorld(RunJavaScriptParameters&&, std::optional<WebCore::FrameIdentifier>, API::ContentWorld&, bool, CompletionHandler<void(Expected<JavaScriptEvaluationResult, std::optional<WebCore::ExceptionDetails>>)>&&);
     void getAccessibilityTreeData(CompletionHandler<void(API::Data*)>&&);
     void updateRenderingWithForcedRepaint(CompletionHandler<void()>&&);
 

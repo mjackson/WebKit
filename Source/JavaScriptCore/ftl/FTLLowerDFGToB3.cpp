@@ -1063,6 +1063,12 @@ private:
         case GetTypedArrayLengthAsInt52:
             compileGetTypedArrayLengthAsInt52();
             break;
+        case DataViewGetByteLength:
+            compileDataViewGetByteLength();
+            break;
+        case DataViewGetByteLengthAsInt52:
+            compileDataViewGetByteLengthAsInt52();
+            break;
         case GetVectorLength:
             compileGetVectorLength();
             break;
@@ -1239,6 +1245,9 @@ private:
             break;
         case NewTypedArray:
             compileNewTypedArray();
+            break;
+        case NewTypedArrayBuffer:
+            compileNewTypedArrayBuffer();
             break;
         case GetTypedArrayByteOffset:
             compileGetTypedArrayByteOffset();
@@ -5768,6 +5777,36 @@ IGNORE_CLANG_WARNINGS_END
             patchpoint->clobber(RegisterSetBuilder::macroClobberedGPRs());
             patchpoint->numGPScratchRegisters = 2;
 
+            if (typedArrayType.has_value() && typedArrayType.value() == TypeDataView) {
+                unsigned osrExitArgumentOffset = patchpoint->numChildren();
+                OSRExitDescriptor* exitDescriptor = appendOSRExitDescriptor(jsValueValue(base), m_node);
+                patchpoint->appendColdAnys(buildExitArguments(exitDescriptor, m_origin.forExit, jsValueValue(base)));
+
+                State* state = &m_ftlState;
+                NodeOrigin origin = m_origin;
+                auto nodeIndex = m_nodeIndexInGraph;
+
+                patchpoint->setGenerator([=] (CCallHelpers& jit, const StackmapGenerationParams& params) {
+                    JIT_COMMENT(jit, "dataViewByteLength");
+                    AllowMacroScratchRegisterUsage allowScratch(jit);
+
+                    GPRReg resultGPR = params[0].gpr();
+                    GPRReg baseGPR = params[1].gpr();
+                    GPRReg scratch1GPR = params.gpScratch(0);
+                    GPRReg scratch2GPR = params.gpScratch(1);
+
+                    RefPtr<OSRExitHandle> handle = exitDescriptor->emitOSRExitLater(*state, OutOfBounds, origin, params, nodeIndex, osrExitArgumentOffset);
+                    RefPtr<FTL::JITCode> jitCode = state->jitCode;
+
+                    auto [outOfBounds, doneCases] = jit.loadDataViewByteLength(baseGPR, resultGPR, scratch1GPR, scratch2GPR, TypeDataView);
+                    jit.addLinkTask([=, protectedJitCode = jitCode](LinkBuffer& linkBuffer) {
+                        linkBuffer.link(outOfBounds, linkBuffer.locationOf<NoPtrTag>(handle->label));
+                    });
+                    doneCases.link(&jit);
+                });
+                return patchpoint;
+            }
+
             patchpoint->setGenerator([=] (CCallHelpers& jit, const StackmapGenerationParams& params) {
                 JIT_COMMENT(jit, "typedArrayLength");
                 AllowMacroScratchRegisterUsage allowScratch(jit);
@@ -5869,6 +5908,18 @@ IGNORE_CLANG_WARNINGS_END
         }
     }
 
+    void compileDataViewGetByteLength()
+    {
+        LValue length = typedArrayLength(lowDataViewObject(m_node->child1()), m_node->mayBeResizableOrGrowableSharedArrayBuffer(), std::optional { TypeDataView }, m_node->child1());
+#if USE(LARGE_TYPED_ARRAYS)
+        speculate(Overflow, noValue(), nullptr, m_out.above(length, m_out.constInt64(std::numeric_limits<int32_t>::max())));
+        setInt32(m_out.castToInt32(length));
+#else
+        setInt32(length);
+#endif
+        return;
+    }
+
 IGNORE_CLANG_WARNINGS_BEGIN("missing-noreturn")
     void compileGetTypedArrayLengthAsInt52()
     {
@@ -5878,6 +5929,12 @@ IGNORE_CLANG_WARNINGS_BEGIN("missing-noreturn")
         RELEASE_ASSERT(sizeof(size_t) == sizeof(uint64_t));
         DFG::ArrayMode arrayMode = m_node->arrayMode();
         setStrictInt52(typedArrayLength(lowCell(m_node->child1()), arrayMode.mayBeResizableOrGrowableSharedTypedArray(), arrayMode.type() == Array::AnyTypedArray ? std::nullopt : std::optional { arrayMode.typedArrayType() }, m_node->child1()));
+    }
+
+    void compileDataViewGetByteLengthAsInt52()
+    {
+        RELEASE_ASSERT(sizeof(size_t) == sizeof(uint64_t));
+        setStrictInt52(typedArrayLength(lowDataViewObject(m_node->child1()), m_node->mayBeResizableOrGrowableSharedArrayBuffer(), { TypeDataView }, m_node->child1()));
     }
 IGNORE_CLANG_WARNINGS_END
 
@@ -9581,6 +9638,34 @@ IGNORE_CLANG_WARNINGS_END
             LValue argument = lowJSValue(m_node->child1());
             LValue result = vmCall(pointerType(), operationNewTypedArrayWithOneArgumentForType(typedArrayType), weakPointer(globalObject), argument);
             setJSValue(result);
+            return;
+        }
+
+        default:
+            DFG_CRASH(m_graph, m_node, "Bad use kind");
+            return;
+        }
+    }
+
+    void compileNewTypedArrayBuffer()
+    {
+        JSGlobalObject* globalObject = m_graph.globalObjectFor(m_origin.semantic);
+        switch (m_node->child1().useKind()) {
+        case Int32Use: {
+            LValue size = m_out.signExt32To64(lowInt32(m_node->child1()));
+            setJSValue(vmCall(pointerType(), operationNewTypedArrayBufferWithSize, weakPointer(globalObject), weakStructure(m_node->structure()), size));
+            return;
+        }
+
+        case Int52RepUse: {
+            LValue size = lowStrictInt52(m_node->child1());
+            setJSValue(vmCall(pointerType(), operationNewTypedArrayBufferWithSize, weakPointer(globalObject), weakStructure(m_node->structure()), size));
+            return;
+        }
+
+        case UntypedUse: {
+            LValue argument = lowJSValue(m_node->child1());
+            setJSValue(vmCall(pointerType(), operationNewTypedArrayBuffer, weakPointer(globalObject), weakStructure(m_node->structure()), argument));
             return;
         }
 

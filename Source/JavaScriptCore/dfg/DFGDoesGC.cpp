@@ -297,6 +297,8 @@ bool doesGC(Graph& graph, Node* node)
     case Construct:
     case ConstructForwardVarargs:
     case ConstructVarargs:
+    case DataViewGetByteLength:
+    case DataViewGetByteLengthAsInt52:
     case DefineDataProperty:
     case DefineAccessorProperty:
     case DeleteById:
@@ -424,6 +426,7 @@ bool doesGC(Graph& graph, Node* node)
     case NewAsyncFunction:
     case NewBoundFunction:
     case NewTypedArray:
+    case NewTypedArrayBuffer:
     case ThrowStaticError:
     case GetPropertyEnumerator:
     case EnumeratorInByVal:

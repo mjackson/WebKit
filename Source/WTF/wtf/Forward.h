@@ -95,6 +95,7 @@ using SegmentedVectorMalloc = FastMalloc;
 
 template<typename> struct DefaultRefDerefTraits;
 
+template<typename> class Awaitable;
 template<typename> class CompactPtr;
 template<typename> class CompletionHandler;
 template<typename, size_t = 0> class Deque;
@@ -197,6 +198,7 @@ using WTF::AbstractLocker;
 using WTF::AtomString;
 using WTF::AtomStringImpl;
 using WTF::AtomicObjectIdentifier;
+using WTF::Awaitable;
 using WTF::BinarySemaphore;
 using WTF::CString;
 using WTF::CompletionHandler;

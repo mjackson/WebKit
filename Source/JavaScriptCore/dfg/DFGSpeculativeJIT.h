@@ -1552,6 +1552,10 @@ public:
 #if USE(LARGE_TYPED_ARRAYS)
     void compileGetTypedArrayLengthAsInt52(Node*);
 #endif
+    void compileDataViewGetByteLength(Node*);
+#if USE(LARGE_TYPED_ARRAYS)
+    void compileDataViewGetByteLengthAsInt52(Node*);
+#endif
 
     void compileCheckTypeInfoFlags(Node*);
     void compileCheckIdent(Node*);
@@ -1757,6 +1761,7 @@ public:
     void compileNewArrayWithSpecies(Node*);
     void compileNewArrayWithSizeAndStructure(Node*);
     void compileNewTypedArray(Node*);
+    void compileNewTypedArrayBuffer(Node*);
     void compileToThis(Node*);
     void compileOwnPropertyKeysVariant(Node*);
     void compileObjectAssign(Node*);

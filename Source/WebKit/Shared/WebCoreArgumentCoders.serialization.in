@@ -673,7 +673,7 @@ struct WebCore::IDBDatabaseNameAndVersion {
 
 class WebCore::IDBKeyData {
     bool isPlaceholder()
-    std::variant<std::nullptr_t, WebCore::IDBKeyData::Invalid, Vector<WebCore::IDBKeyData>, String, double, WebCore::IDBKeyData::Date, WebCore::ThreadSafeDataBuffer, WebCore::IDBKeyData::Min, WebCore::IDBKeyData::Max> value()
+    [Validator='WebCore::IDBKeyData::isValidValue(*value)'] std::variant<std::nullptr_t, WebCore::IDBKeyData::Invalid, Vector<WebCore::IDBKeyData>, String, double, WebCore::IDBKeyData::Date, WebCore::ThreadSafeDataBuffer, WebCore::IDBKeyData::Min, WebCore::IDBKeyData::Max> value()
 }
 
 [Nested] struct WebCore::IDBKeyData::Invalid {
@@ -5566,8 +5566,8 @@ header: <WebCore/ServiceWorkerRoute.h>
 [CustomHeader] struct WebCore::ServiceWorkerRouteCondition {
     std::optional<WebCore::ServiceWorkerRoutePattern> urlPattern;
     String requestMethod;
-    std::optional<WebCore::FetchRequestMode> requestMode;
-    std::optional<WebCore::FetchRequestDestination> requestDestination;
+    std::optional<WebCore::FetchOptionsMode> requestMode;
+    std::optional<WebCore::FetchOptionsDestination> requestDestination;
     std::optional<WebCore::RunningStatus> runningStatus;
 
     Vector<WebCore::ServiceWorkerRouteCondition> orConditions;

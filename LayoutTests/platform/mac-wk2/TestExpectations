@@ -1496,8 +1496,10 @@ webkit.org/b/260113 [ arm64 ] http/wpt/webauthn/ctap-hid-failure.https.html [ Pa
 [ Sequoia+ ] compositing/hdr/hdr-basic-canvas.html [ Pass ]
 [ Sequoia+ ] compositing/hdr/hdr-basic-image.html [ Pass ]
 [ Sequoia+ ] compositing/hdr/hdr-css-image.html [ Pass ]
+[ Sequoia+ ] compositing/hdr/hdr-svg-inline-image.html [ Pass ]
 [ Sequoia+ ] fast/images/hdr-basic-image.html [ Pass ]
 [ Sequoia+ ] fast/images/hdr-css-image.html [ Pass ]
+[ Sequoia+ ] fast/images/hdr-svg-inline-image.html [ Pass ]
 
 # The direct image codepath is not used with the remote layer tree.
 [ Sonoma+ ] compositing/images/direct-image-object-fit.html [ Skip ]
@@ -1971,8 +1973,6 @@ webkit.org/b/288660 [ Sonoma Release x86_64 ] media/media-hevc-video-as-img.html
 # webkit.org/b/280219 [EWS] imported/w3c/web-platform-t ests/css/css-view-transitio ns/massive-element-below-vi ewport-offscreen-old.html is a constant failure on Ventura+ Intel 
 [ Sonoma Release x86_64 ] imported/w3c/web-platform-tests/css/css-view-transitions/massive-element-below-viewport-offscreen-old.html [ Skip ]
 
-webkit.org/b/288670 [ Release x86_64 ] media/media-source/media-source-vp8-hiddenframes.html [ Pass ImageOnlyFailure ]
-
 webkit.org/b/288742 [ Debug ] ipc/media-player-invalid-test.html [ Crash ]
 
 webkit.org/b/288878 media/modern-media-controls/tracks-support/audio-multiple-tracks.html [ Pass Timeout ]
@@ -1986,8 +1986,6 @@ webkit.org/b/289092 http/wpt/background-fetch/background-fetch-abort.window.html
 [ Debug ] ipc/invalid-path-segments-crash.html [ Skip ]
 
 webkit.org/b/289094 [ Sequoia Debug ] imported/w3c/web-platform-tests/webcodecs/audio-data.crossOriginIsolated.https.any.html [ Pass Timeout ]
-
-webkit.org/b/289098 [ Debug ] ipc/serialized-type-info.html [ Failure ]
 
 webkit.org/b/289121 imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-mandatory-getStats.https.html [ Pass Failure ]
 
@@ -2027,3 +2025,9 @@ webkit.org/b/289299 imported/w3c/web-platform-tests/css/css-view-transitions/pse
 webkit.org/b/289356 [ Sequoia Debug arm64 ] webrtc/datachannel/bufferedAmount-afterClose.html [ Pass Failure ]
 
 webkit.org/b/289370 [ Debug arm64 ] media/video-webm-seek-singlekeyframe.html [ Pass Failure ]
+
+webkit.org/b/289487 [ Sequoia Release x86_64 ] fast/webgpu/nocrash/RenderBundle_WRITE.html [ Pass Timeout ]
+
+webkit.org/b/289556 [ Sequoia Release x86_64 ] fast/events/page-visibility-transition-test.html [ Pass Timeout ]
+
+webkit.org/b/289576 [ Release ] imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/top-layer-remove-popover-attribute.html [ Pass Failure ]

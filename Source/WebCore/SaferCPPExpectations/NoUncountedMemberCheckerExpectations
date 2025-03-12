@@ -13,7 +13,6 @@ accessibility/AXCoreObject.h
 accessibility/AXSearchManager.h
 bindings/js/JSEventTargetCustom.h
 bindings/js/JSLazyEventListener.cpp
-css/CSSFontFaceSource.h
 css/CSSFontSelector.h
 css/CSSPrimitiveValueMappings.h
 css/CSSRuleList.h
@@ -74,7 +73,6 @@ platform/graphics/avfoundation/objc/WebCoreAVFResourceLoader.mm
 platform/graphics/ca/TileController.h
 platform/graphics/controls/PlatformControl.h
 platform/graphics/cv/GraphicsContextGLCVCocoa.h
-platform/graphics/mac/controls/ControlMac.h
 platform/mediarecorder/MediaRecorderPrivate.h
 platform/mediastream/AudioMediaStreamTrackRenderer.h
 platform/mediastream/MediaStreamPrivate.h
@@ -83,7 +81,6 @@ platform/mock/ScrollbarsControllerMock.h
 platform/network/mac/WebCoreResourceHandleAsOperationQueueDelegate.h
 plugins/PluginData.h
 rendering/RenderQuote.cpp
-rendering/RenderVTTCue.h
 rendering/TextBoxPainter.h
 rendering/style/StyleGeneratedImage.cpp
 rendering/svg/SVGTextLayoutAttributesBuilder.h

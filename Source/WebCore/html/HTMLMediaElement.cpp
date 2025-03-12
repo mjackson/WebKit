@@ -396,7 +396,7 @@ struct MediaElementSessionInfo {
     WeakPtr<const MediaElementSession> session;
     MediaElementSession::PlaybackControlsPurpose purpose;
 
-    MonotonicTime timeOfLastUserInteraction;
+    Markable<MonotonicTime> timeOfLastUserInteraction;
     bool canShowControlsManager : 1;
     bool isVisibleInViewportOrFullscreen : 1;
     bool isLargeEnoughForMainContent : 1;
@@ -442,7 +442,7 @@ static bool preferMediaControlsForCandidateSessionOverOtherCandidateSession(cons
         return session.hasEverNotifiedAboutPlaying;
 
     // As a tiebreaker, prioritize elements that the user recently interacted with.
-    return session.timeOfLastUserInteraction > otherSession.timeOfLastUserInteraction;
+    return session.timeOfLastUserInteraction.value_or(MonotonicTime { }) > otherSession.timeOfLastUserInteraction.value_or(MonotonicTime { });
 }
 
 static bool mediaSessionMayBeConfusedWithMainContent(const MediaElementSessionInfo& session, MediaElementSession::PlaybackControlsPurpose purpose)
@@ -7912,14 +7912,16 @@ void HTMLMediaElement::markCaptionAndSubtitleTracksAsUnconfigured(ReconfigureMod
 
 PlatformDynamicRangeLimit HTMLMediaElement::computePlayerDynamicRangeLimit() const
 {
+    constexpr auto maxLimitWhenSuppressingHDR = PlatformDynamicRangeLimit::defaultWhenSuppressingHDRInVideos();
+    if (m_platformDynamicRangeLimit <= maxLimitWhenSuppressingHDR)
+        return m_platformDynamicRangeLimit;
+
     bool shouldSuppressHDR = [this]() {
         if (Page* page = document().page())
             return page->shouldSuppressHDR();
         return false;
     }();
-    if (!shouldSuppressHDR)
-        return m_platformDynamicRangeLimit;
-    return std::min(m_platformDynamicRangeLimit, PlatformDynamicRangeLimit::constrainedHigh());
+    return shouldSuppressHDR ? maxLimitWhenSuppressingHDR : m_platformDynamicRangeLimit;
 }
 
 // Use WTF_IGNORES_THREAD_SAFETY_ANALYSIS because this function does conditional locking of m_audioSourceNode->processLock()
@@ -9573,6 +9575,25 @@ void HTMLMediaElement::setFullscreenMode(VideoFullscreenMode mode)
     schedulePlaybackControlsManagerUpdate();
 
     computeAcceleratedRenderingStateAndUpdateMediaPlayer();
+}
+
+void HTMLMediaElement::addClient(HTMLMediaElementClient& client)
+{
+    ASSERT(!m_clients.contains(client));
+    m_clients.add(client);
+}
+
+void HTMLMediaElement::removeClient(const HTMLMediaElementClient& client)
+{
+    ASSERT(m_clients.contains(client));
+    m_clients.remove(client);
+}
+
+void HTMLMediaElement::audioSessionCategoryChanged(AudioSessionCategory category, AudioSessionMode mode, RouteSharingPolicy policy)
+{
+    m_clients.forEach([category, mode, policy] (auto& client) {
+        client.audioSessionCategoryChanged(category, mode, policy);
+    });
 }
 
 #if !RELEASE_LOG_DISABLED

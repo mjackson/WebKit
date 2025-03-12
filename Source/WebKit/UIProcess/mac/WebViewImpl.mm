@@ -111,6 +111,7 @@
 #import <WebCore/LocalizedStrings.h>
 #import <WebCore/NowPlayingInfo.h>
 #import <WebCore/Pasteboard.h>
+#import <WebCore/PlatformDynamicRangeLimitCocoa.h>
 #import <WebCore/PlatformEventFactoryMac.h>
 #import <WebCore/PlatformPlaybackSessionInterface.h>
 #import <WebCore/PlatformScreen.h>
@@ -1254,36 +1255,29 @@ static bool isInRecoveryOS()
 }
 
 #if HAVE(SUPPORT_HDR_DISPLAY_APIS)
-static void setEDRStrengthRecursive(CALayer* layer, float strength, bool animate)
+static void setDynamicRangeLimitRecursive(CALayer* layer, LayerDynamicRangeLimitSetter layerDynamicRangeLimitSetter)
 {
     ALLOW_DEPRECATED_DECLARATIONS_BEGIN
-    if ([layer wantsExtendedDynamicRangeContent] && [layer respondsToSelector:@selector(setContentsEDRStrength:)]) {
+    if ([layer wantsExtendedDynamicRangeContent]) {
     ALLOW_DEPRECATED_DECLARATIONS_END
-        if (animate) {
-            CASpringAnimation* animation = [[CASpringAnimation alloc] initWithPerceptualDuration:3.f bounce:0];
-            animation.keyPath = @"contentsEDRStrength";
-            animation.fromValue = @([layer contentsEDRStrength]);
-            animation.toValue = @(strength);
-            [layer addAnimation:animation forKey:@"contentsEDRStrength"];
-            [animation release];
-        }
-        [layer setContentsEDRStrength:strength];
+        layerDynamicRangeLimitSetter(layer);
     }
     for (CALayer* sublayer in [layer sublayers])
-        setEDRStrengthRecursive(sublayer, strength, animate);
+        setDynamicRangeLimitRecursive(sublayer, layerDynamicRangeLimitSetter);
 }
 #endif
 
-static void setEDRStrength(CALayer* layer, float strength, bool animate)
+static void setDynamicRangeLimit(CALayer* layer, PlatformDynamicRangeLimit platformDynamicRangeLimit, bool animate)
 {
 #if HAVE(SUPPORT_HDR_DISPLAY_APIS)
-    [CATransaction begin];
-    [CATransaction setDisableActions:YES];
-    setEDRStrengthRecursive(layer, strength, animate);
-    [CATransaction commit];
+    if (animate)
+        [CATransaction begin];
+    setDynamicRangeLimitRecursive(layer, layerDynamicRangeLimitSetter(platformDynamicRangeLimit));
+    if (animate)
+        [CATransaction commit];
 #else
     UNUSED_PARAM(layer);
-    UNUSED_PARAM(strength);
+    UNUSED_PARAM(platformDynamicRangeLimit);
     UNUSED_PARAM(animate);
 #endif
 }
@@ -2103,25 +2097,25 @@ void WebViewImpl::windowDidOrderOnScreen()
 
 void WebViewImpl::windowDidBecomeKey(NSWindow *keyWindow)
 {
-    updateHDRState();
     if (keyWindow == [m_view window] || keyWindow == [m_view window].attachedSheet) {
 #if ENABLE(GAMEPAD)
         UIGamepadProvider::singleton().viewBecameActive(m_page.get());
 #endif
         updateSecureInputState();
         m_page->activityStateDidChange(WebCore::ActivityState::WindowIsActive);
+        updateHDRState(HDRConstrainingReasonAction::Remove, HDRConstrainingReason::WindowIsNotActive);
     }
 }
 
 void WebViewImpl::windowDidResignKey(NSWindow *formerKeyWindow)
 {
-    updateHDRState();
     if (formerKeyWindow == [m_view window] || formerKeyWindow == [m_view window].attachedSheet) {
 #if ENABLE(GAMEPAD)
         UIGamepadProvider::singleton().viewBecameInactive(m_page.get());
 #endif
         updateSecureInputState();
         m_page->activityStateDidChange(WebCore::ActivityState::WindowIsActive);
+        updateHDRState(HDRConstrainingReasonAction::Add, HDRConstrainingReason::WindowIsNotActive);
     }
 }
 
@@ -2191,21 +2185,27 @@ void WebViewImpl::screenDidChangeColorSpace()
     m_page->configuration().protectedProcessPool()->screenPropertiesChanged();
 }
 
-void WebViewImpl::updateHDRState()
+void WebViewImpl::updateHDRState(HDRConstrainingReasonAction action, HDRConstrainingReason reason)
 {
-    setEDRStrength(m_rootLayer.get(), (m_hdrAllowed && m_page->isViewWindowActive()) ? 1.f : 0.f, true);
+    auto wasEmpty = m_hdrConstrainingReason.isEmpty();
+
+    if (action == HDRConstrainingReasonAction::Add)
+        m_hdrConstrainingReason.add(reason);
+    else
+        m_hdrConstrainingReason.remove(reason);
+
+    if (m_hdrConstrainingReason.isEmpty() != wasEmpty)
+        setDynamicRangeLimit(m_rootLayer.get(), m_hdrConstrainingReason.isEmpty() ? PlatformDynamicRangeLimit::noLimit() : PlatformDynamicRangeLimit::defaultWhenSuppressingHDR(), true);
 }
 
 void WebViewImpl::applicationShouldSuppressHDR()
 {
-    m_hdrAllowed = false;
-    updateHDRState();
+    updateHDRState(HDRConstrainingReasonAction::Add, HDRConstrainingReason::ShouldSuppressHDR);
 }
 
 void WebViewImpl::applicationShouldAllowHDR()
 {
-    m_hdrAllowed = true;
-    updateHDRState();
+    updateHDRState(HDRConstrainingReasonAction::Remove, HDRConstrainingReason::ShouldSuppressHDR);
 }
 
 bool WebViewImpl::mightBeginDragWhileInactive()
@@ -2399,15 +2399,23 @@ void WebViewImpl::activeSpaceDidChange()
     m_page->activityStateDidChange(WebCore::ActivityState::IsVisible);
 }
 
-void WebViewImpl::pageDidScroll(const WebCore::IntPoint& scrollPosition)
+void WebViewImpl::pageDidScroll(const IntPoint& scrollPosition)
 {
 #if HAVE(NSSCROLLVIEW_SEPARATOR_TRACKING_ADAPTER)
-    if ((scrollPosition.y() <= 0) != m_pageIsScrolledToTop) {
-        [m_view willChangeValueForKey:@"hasScrolledContentsUnderTitlebar"];
-        m_pageIsScrolledToTop = !m_pageIsScrolledToTop;
-        [m_view didChangeValueForKey:@"hasScrolledContentsUnderTitlebar"];
-    }
+    bool pageIsScrolledToTop = scrollPosition.y() <= 0;
+    if (pageIsScrolledToTop == m_pageIsScrolledToTop)
+        return;
+
+    [m_view willChangeValueForKey:@"hasScrolledContentsUnderTitlebar"];
+
+    m_pageIsScrolledToTop = pageIsScrolledToTop;
+
+#if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
+    updateContentInsetFillViews();
 #endif
+
+    [m_view didChangeValueForKey:@"hasScrolledContentsUnderTitlebar"];
+#endif // HAVE(NSSCROLLVIEW_SEPARATOR_TRACKING_ADAPTER)
 }
 
 #if HAVE(NSSCROLLVIEW_SEPARATOR_TRACKING_ADAPTER)
@@ -5745,23 +5753,23 @@ void WebViewImpl::flagsChanged(NSEvent *event)
 static TextStream& operator<<(TextStream& ts, NSEventType eventType)
 {
     switch (eventType) {
-    case NSEventTypeLeftMouseDown: ts << "NSEventTypeLeftMouseDown"; break;
-    case NSEventTypeLeftMouseUp: ts << "NSEventTypeLeftMouseUp"; break;
-    case NSEventTypeRightMouseDown: ts << "NSEventTypeRightMouseDown"; break;
-    case NSEventTypeRightMouseUp: ts << "NSEventTypeRightMouseUp"; break;
-    case NSEventTypeMouseMoved: ts << "NSEventTypeMouseMoved"; break;
-    case NSEventTypeLeftMouseDragged: ts << "NSEventTypeLeftMouseDragged"; break;
-    case NSEventTypeRightMouseDragged: ts << "NSEventTypeRightMouseDragged"; break;
-    case NSEventTypeMouseEntered: ts << "NSEventTypeMouseEntered"; break;
-    case NSEventTypeMouseExited: ts << "NSEventTypeMouseExited"; break;
-    case NSEventTypeKeyDown: ts << "NSEventTypeKeyDown"; break;
-    case NSEventTypeKeyUp: ts << "NSEventTypeKeyUp"; break;
-    case NSEventTypeScrollWheel: ts << "NSEventTypeScrollWheel"; break;
-    case NSEventTypeOtherMouseDown: ts << "NSEventTypeOtherMouseDown"; break;
-    case NSEventTypeOtherMouseUp: ts << "NSEventTypeOtherMouseUp"; break;
-    case NSEventTypeOtherMouseDragged: ts << "NSEventTypeOtherMouseDragged"; break;
+    case NSEventTypeLeftMouseDown: ts << "NSEventTypeLeftMouseDown"_s; break;
+    case NSEventTypeLeftMouseUp: ts << "NSEventTypeLeftMouseUp"_s; break;
+    case NSEventTypeRightMouseDown: ts << "NSEventTypeRightMouseDown"_s; break;
+    case NSEventTypeRightMouseUp: ts << "NSEventTypeRightMouseUp"_s; break;
+    case NSEventTypeMouseMoved: ts << "NSEventTypeMouseMoved"_s; break;
+    case NSEventTypeLeftMouseDragged: ts << "NSEventTypeLeftMouseDragged"_s; break;
+    case NSEventTypeRightMouseDragged: ts << "NSEventTypeRightMouseDragged"_s; break;
+    case NSEventTypeMouseEntered: ts << "NSEventTypeMouseEntered"_s; break;
+    case NSEventTypeMouseExited: ts << "NSEventTypeMouseExited"_s; break;
+    case NSEventTypeKeyDown: ts << "NSEventTypeKeyDown"_s; break;
+    case NSEventTypeKeyUp: ts << "NSEventTypeKeyUp"_s; break;
+    case NSEventTypeScrollWheel: ts << "NSEventTypeScrollWheel"_s; break;
+    case NSEventTypeOtherMouseDown: ts << "NSEventTypeOtherMouseDown"_s; break;
+    case NSEventTypeOtherMouseUp: ts << "NSEventTypeOtherMouseUp"_s; break;
+    case NSEventTypeOtherMouseDragged: ts << "NSEventTypeOtherMouseDragged"_s; break;
     default:
-        ts << "Other";
+        ts << "Other"_s;
     }
 
     return ts;

@@ -1149,6 +1149,7 @@ private:
             break;
         }
 
+        case DataViewGetByteLength:
         case GetTypedArrayByteOffset:
         case GetArrayLength:
         case GetUndetachedTypeArrayLength:
@@ -1157,6 +1158,7 @@ private:
             break;
         }
 
+        case DataViewGetByteLengthAsInt52:
         case GetTypedArrayLengthAsInt52:
         case GetTypedArrayByteOffsetAsInt52: {
             setPrediction(SpecInt52Any);
@@ -1340,6 +1342,11 @@ private:
             
         case NewTypedArray: {
             setPrediction(speculationFromTypedArrayType(m_currentNode->typedArrayType()));
+            break;
+        }
+
+        case NewTypedArrayBuffer: {
+            setPrediction(SpecObjectOther);
             break;
         }
             

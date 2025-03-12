@@ -23,8 +23,6 @@ Modules/mediarecorder/MediaRecorder.cpp
 Modules/mediasession/MediaMetadata.cpp
 Modules/mediasource/MediaSource.cpp
 Modules/mediasource/SourceBuffer.cpp
-Modules/mediastream/MediaDevices.cpp
-Modules/mediastream/MediaStreamTrack.cpp
 Modules/mediastream/PeerConnectionBackend.cpp
 Modules/mediastream/RTCDataChannel.cpp
 Modules/mediastream/RTCPeerConnection.cpp
@@ -90,7 +88,6 @@ html/canvas/GPUCanvasContextCocoa.mm
 html/canvas/WebGLRenderingContextBase.cpp
 html/track/LoadableTextTrack.cpp
 html/track/TrackBase.cpp
-html/track/VTTCue.cpp
 inspector/InspectorOverlay.cpp
 inspector/agents/page/PageDOMDebuggerAgent.cpp
 loader/FrameLoader.cpp

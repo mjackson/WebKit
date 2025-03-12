@@ -145,6 +145,8 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         case EnumeratorInByVal:
         case EnumeratorHasOwnProperty:
         case GetIndexedPropertyStorage:
+        case DataViewGetByteLength:
+        case DataViewGetByteLengthAsInt52:
         case GetArrayLength:
         case GetUndetachedTypeArrayLength:
         case GetTypedArrayLengthAsInt52:
@@ -1637,6 +1639,18 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         }
     }
 
+    case DataViewGetByteLength:
+    case DataViewGetByteLengthAsInt52: {
+        read(MiscFields);
+        if (node->mayBeResizableOrGrowableSharedArrayBuffer())
+            write(MiscFields);
+        else {
+            auto location = node->op() == DataViewGetByteLength ? DataViewByteLengthLoc : DataViewByteLengthAsInt52Loc;
+            def(HeapLocation(location, MiscFields, node->child1()), LazyNode(node));
+        }
+        return;
+    }
+
     case GetUndetachedTypeArrayLength: {
         ArrayMode mode = node->arrayMode();
         DFG_ASSERT(graph, node, mode.isSomeTypedArrayView());
@@ -1775,6 +1789,7 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         return;
 
     case NewTypedArray:
+    case NewTypedArrayBuffer:
         switch (node->child1().useKind()) {
         case Int32Use:
         case Int52RepUse:

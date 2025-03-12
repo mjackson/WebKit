@@ -722,9 +722,6 @@ static uint32_t convertSystemLayoutDirection(NSUserInterfaceLayoutDirection dire
     preferences->setSystemLayoutDirection(static_cast<uint32_t>(WebCore::TextDirection::LTR));
     preferences->setAllowSettingAnyXHRHeaderFromFileURLs(shouldAllowSettingAnyXHRHeaderFromFileURLs());
     preferences->setShouldDecidePolicyBeforeLoadingQuickLookPreview(!![_configuration _shouldDecidePolicyBeforeLoadingQuickLookPreview]);
-#if ENABLE(DEVICE_ORIENTATION)
-    preferences->setDeviceOrientationPermissionAPIEnabled(linkedOnOrAfterSDKWithBehavior(SDKAlignedBehavior::SupportsDeviceOrientationAndMotionPermissionAPI));
-#endif
 #if USE(SYSTEM_PREVIEW)
     preferences->setSystemPreviewEnabled(!![_configuration _systemPreviewEnabled]);
 #endif
@@ -1383,14 +1380,20 @@ static WKMediaPlaybackState toWKMediaPlaybackState(WebKit::MediaPlaybackState me
     NSString *errorMessage = nil;
 
     for (id key in arguments) {
-        id value = [arguments objectForKey:key];
+        NSString *keyString = dynamic_objc_cast<NSString>(key);
+        if (!keyString) {
+            errorMessage = @"Key value must be NSString";
+            break;
+        }
+
+        id value = [arguments objectForKey:keyString];
         auto serializedValue = WebKit::JavaScriptEvaluationResult::extract(value);
         if (!serializedValue) {
             errorMessage = @"Function argument values must be one of the following types, or contain only the following types: NSNumber, NSNull, NSDate, NSString, NSArray, and NSDictionary";
             break;
         }
 
-        argumentsMap->append({ key, WTFMove(*serializedValue) });
+        argumentsMap->append({ keyString, WTFMove(*serializedValue) });
     }
 
     if (errorMessage && handler) {
@@ -1421,7 +1424,7 @@ static WKMediaPlaybackState toWKMediaPlaybackState(WebKit::MediaPlaybackState me
         WTFMove(argumentsMap),
         forceUserGesture ? WebCore::ForceUserGesture::Yes : WebCore::ForceUserGesture::No,
         removeTransientActivation
-    }, frameID, Ref { *world->_contentWorld }, [handler] (auto&& result) {
+    }, frameID, Ref { *world->_contentWorld }, !!handler, [handler] (auto&& result) {
         if (!handler)
             return;
 
@@ -3247,8 +3250,10 @@ FOR_EACH_PRIVATE_WKCONTENTVIEW_ACTION(FORWARD_ACTION_TO_WKCONTENTVIEW)
 
 - (void)_frames:(void (^)(_WKFrameTreeNode *))completionHandler
 {
-    _page->getAllFrames([completionHandler = makeBlockPtr(completionHandler), page = Ref { *_page.get() }] (WebKit::FrameTreeNodeData&& data) {
-        completionHandler(wrapper(API::FrameTreeNode::create(WTFMove(data), page.get())).get());
+    _page->getAllFrames([completionHandler = makeBlockPtr(completionHandler), page = Ref { *_page.get() }] (std::optional<WebKit::FrameTreeNodeData>&& data) {
+        if (!data)
+            return completionHandler(nil);
+        completionHandler(wrapper(API::FrameTreeNode::create(WTFMove(*data), page.get())).get());
     });
 }
 
@@ -3992,18 +3997,18 @@ static void convertAndAddHighlight(Vector<Ref<WebCore::SharedMemory>>& buffers, 
     auto sizeConstraint = (maxSize.height || maxSize.width) ? std::optional(WebCore::FloatSize(maxSize)) : std::nullopt;
     WebCore::ResourceRequest resourceRequest(request);
     auto url = resourceRequest.url();
-    _page->loadAndDecodeImage(request, sizeConstraint, maximumBytesFromNetwork, [completionHandler = makeBlockPtr(completionHandler), url](std::variant<WebCore::ResourceError, Ref<WebCore::ShareableBitmap>>&& result) mutable {
-        WTF::switchOn(WTFMove(result), [&] (WebCore::ResourceError&& error) {
-            if (error.isNull())
+    _page->loadAndDecodeImage(request, sizeConstraint, maximumBytesFromNetwork, [completionHandler = makeBlockPtr(completionHandler), url](Expected<Ref<WebCore::ShareableBitmap>, WebCore::ResourceError>&& result) mutable {
+        if (!result) {
+            if (result.error().isNull())
                 return completionHandler(nil, WebCore::internalError(url)); // This can happen if IPC fails.
-            completionHandler(nil, error.nsError());
-        }, [&] (Ref<WebCore::ShareableBitmap>&& bitmap) {
+            return completionHandler(nil, result.error().nsError());
+        }
+        Ref bitmap = result.value();
 #if PLATFORM(MAC)
-            completionHandler(adoptNS([[NSImage alloc] initWithCGImage:bitmap->makeCGImageCopy().get() size:bitmap->size()]).get(), nil);
+        completionHandler(adoptNS([[NSImage alloc] initWithCGImage:bitmap->makeCGImageCopy().get() size:bitmap->size()]).get(), nil);
 #else
-            completionHandler(adoptNS([[UIImage alloc] initWithCGImage:bitmap->makeCGImageCopy().get()]).get(), nil);
+        completionHandler(adoptNS([[UIImage alloc] initWithCGImage:bitmap->makeCGImageCopy().get()]).get(), nil);
 #endif
-        });
     });
 }
 

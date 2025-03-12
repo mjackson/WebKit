@@ -198,7 +198,7 @@ messages -> WebPage WantsAsyncDispatchMessage {
     CreateRemoteSubframe(WebCore::FrameIdentifier parentID, WebCore::FrameIdentifier newChildID, String frameName)
 
     GetFrameInfo(WebCore::FrameIdentifier frameID) -> (std::optional<WebKit::FrameInfoData> data)
-    GetFrameTree() -> (struct WebKit::FrameTreeNodeData data)
+    GetFrameTree() -> (std::optional<WebKit::FrameTreeNodeData> data)
     DidFinishLoadInAnotherProcess(WebCore::FrameIdentifier frameID)
     FrameWasRemovedInAnotherProcess(WebCore::FrameIdentifier frameID)
 
@@ -238,7 +238,7 @@ messages -> WebPage WantsAsyncDispatchMessage {
     GetWebArchiveOfFrame(std::optional<WebCore::FrameIdentifier> frameID) -> (std::optional<IPC::SharedBufferReference> dataReference)
     GetWebArchiveOfFrameWithFileName(WebCore::FrameIdentifier frameID, Vector<WebCore::MarkupExclusionRule> markupExclusionRules, String fileName) -> (std::optional<IPC::SharedBufferReference> dataReference)
 
-    RunJavaScriptInFrameInScriptWorld(struct WebKit::RunJavaScriptParameters parameters, std::optional<WebCore::FrameIdentifier> frameID, struct WebKit::ContentWorldData world) -> (Expected<WebKit::JavaScriptEvaluationResult, std::optional<WebCore::ExceptionDetails>> result)
+    RunJavaScriptInFrameInScriptWorld(struct WebKit::RunJavaScriptParameters parameters, std::optional<WebCore::FrameIdentifier> frameID, struct WebKit::ContentWorldData world, bool wantsResult) -> (Expected<WebKit::JavaScriptEvaluationResult, std::optional<WebCore::ExceptionDetails>> result)
 
     GetAccessibilityTreeData() -> (std::optional<IPC::SharedBufferReference> dataReference)
     UpdateRenderingWithForcedRepaint() -> ()
@@ -674,7 +674,7 @@ messages -> WebPage WantsAsyncDispatchMessage {
     ZoomPDFIn(WebKit::PDFPluginIdentifier identifier)
     ZoomPDFOut(WebKit::PDFPluginIdentifier identifier)
     SavePDF(WebKit::PDFPluginIdentifier identifier) -> (String filename, URL url, std::span<const uint8_t> data)
-    OpenPDFWithPreview(WebKit::PDFPluginIdentifier identifier) -> (String filename, struct WebKit::FrameInfoData frameInfo, std::span<const uint8_t> data, String uuid)
+    OpenPDFWithPreview(WebKit::PDFPluginIdentifier identifier) -> (String filename, std::optional<WebKit::FrameInfoData> frameInfo, std::span<const uint8_t> data, String uuid)
 #endif
 
     UpdateCurrentModifierState(OptionSet<WebCore::PlatformEventModifier> modifiers)
@@ -855,7 +855,7 @@ messages -> WebPage WantsAsyncDispatchMessage {
     StartObservingNowPlayingMetadata()
     StopObservingNowPlayingMetadata()
 
-    LoadAndDecodeImage(WebCore::ResourceRequest request, std::optional<WebCore::FloatSize> sizeConstraint, size_t maximumBytesFromNetwork) -> (std::variant<WebCore::ResourceError, Ref<WebCore::ShareableBitmap>> result)
+    LoadAndDecodeImage(WebCore::ResourceRequest request, std::optional<WebCore::FloatSize> sizeConstraint, size_t maximumBytesFromNetwork) -> (Expected<Ref<WebCore::ShareableBitmap>, WebCore::ResourceError> result)
 #if PLATFORM(COCOA)
     GetInformationFromImageData(Vector<uint8_t> imageData) -> (Expected<std::pair<String, Vector<WebCore::IntSize>>, WebCore::ImageDecodingError> result)
     CreateIconDataFromImageData(Ref<WebCore::SharedBuffer> imageData, Vector<unsigned> lengths) -> (RefPtr<WebCore::SharedBuffer> result)

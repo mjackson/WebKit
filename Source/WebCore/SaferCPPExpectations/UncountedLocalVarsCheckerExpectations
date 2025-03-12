@@ -209,7 +209,6 @@ css/CSSComputedStyleDeclaration.cpp
 css/CSSCounterStyleDescriptors.cpp
 css/CSSFontFace.cpp
 css/CSSFontFaceSet.cpp
-css/CSSFontFaceSource.cpp
 css/CSSFontSelector.cpp
 css/CSSGroupingRule.cpp
 css/CSSImageSetValue.cpp
@@ -428,7 +427,6 @@ html/track/TextTrackCueGeneric.cpp
 html/track/TextTrackList.cpp
 html/track/TrackBase.cpp
 html/track/VTTCue.cpp
-html/track/VTTRegion.cpp
 html/track/VideoTrackList.cpp
 inspector/CommandLineAPIHost.cpp
 inspector/DOMPatchSupport.cpp
@@ -576,7 +574,6 @@ platform/graphics/avfoundation/AudioSourceProviderAVFObjC.mm
 platform/graphics/avfoundation/objc/CDMInstanceFairPlayStreamingAVFObjC.mm
 platform/graphics/avfoundation/objc/MediaSourcePrivateAVFObjC.mm
 platform/graphics/avfoundation/objc/WebCoreAVFResourceLoader.mm
-platform/graphics/ca/GraphicsLayerCA.cpp
 platform/graphics/ca/TileGrid.cpp
 platform/graphics/ca/cocoa/PlatformCALayerCocoa.mm
 platform/graphics/cocoa/controls/ApplePayButtonCocoa.mm
@@ -586,7 +583,6 @@ platform/graphics/displaylists/DisplayListItems.cpp
 platform/graphics/displaylists/DisplayListRecorder.cpp
 platform/graphics/displaylists/DisplayListRecorderImpl.cpp
 platform/graphics/filters/FilterOperations.cpp
-platform/graphics/mac/controls/ImageControlsButtonMac.mm
 platform/graphics/mac/controls/MeterMac.mm
 platform/graphics/mac/controls/ProgressBarMac.mm
 platform/graphics/mac/controls/SliderTrackMac.mm

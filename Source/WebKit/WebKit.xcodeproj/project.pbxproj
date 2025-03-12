@@ -960,6 +960,7 @@
 		31B362952141EBCD007BFA53 /* _WKInternalDebugFeature.h in Headers */ = {isa = PBXBuildFile; fileRef = 31B362942141EBAD007BFA53 /* _WKInternalDebugFeature.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		31BA924E148831260062EDB5 /* WebNotificationManagerMessages.h in Headers */ = {isa = PBXBuildFile; fileRef = 31BA9249148830810062EDB5 /* WebNotificationManagerMessages.h */; };
 		31D755C11D91B81500843BD1 /* WKTextChecker.h in Headers */ = {isa = PBXBuildFile; fileRef = 314888FF1D91B11D00377042 /* WKTextChecker.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		33058F192D7F820300F375A9 /* CoreIPCPKPaymentSetupFeature.mm in Sources */ = {isa = PBXBuildFile; fileRef = 33058F182D7F81ED00F375A9 /* CoreIPCPKPaymentSetupFeature.mm */; };
 		330934481315B9220097A7BC /* WebCookieManagerMessages.h in Headers */ = {isa = PBXBuildFile; fileRef = 330934441315B9220097A7BC /* WebCookieManagerMessages.h */; };
 		330934501315B94D0097A7BC /* WebCookieManager.h in Headers */ = {isa = PBXBuildFile; fileRef = 3309344D1315B94D0097A7BC /* WebCookieManager.h */; };
 		3309345B1315B9980097A7BC /* WKCookieManager.h in Headers */ = {isa = PBXBuildFile; fileRef = 330934591315B9980097A7BC /* WKCookieManager.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -2445,8 +2446,10 @@
 		EB44A69B2C8A4F6E006595BF /* WebClipCache.mm in Sources */ = {isa = PBXBuildFile; fileRef = EB44A69A2C8A4F6E006595BF /* WebClipCache.mm */; };
 		EB44A69C2C8A4F6E006595BF /* WebClipCache.h in Headers */ = {isa = PBXBuildFile; fileRef = EB44A6992C8A4F6E006595BF /* WebClipCache.h */; };
 		EB450E0F2996C7B6009724B1 /* WKWebsiteDataStoreRefPrivateMac.h in Headers */ = {isa = PBXBuildFile; fileRef = EB450E0D2996C7A1009724B1 /* WKWebsiteDataStoreRefPrivateMac.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		EB517B802D7C09690019E451 /* AboutSchemeHandlerCocoa.mm in Sources */ = {isa = PBXBuildFile; fileRef = EB517B7A2D7BC03B0019E451 /* AboutSchemeHandlerCocoa.mm */; };
 		EB579C3729AEBD0800894C1C /* EarlyHintsResourceLoader.h in Headers */ = {isa = PBXBuildFile; fileRef = EB579C3629AEBCF100894C1C /* EarlyHintsResourceLoader.h */; };
 		EB7D252B27B31B77009CB586 /* com.apple.WebKit.webpushd.mac.sb in Resources */ = {isa = PBXBuildFile; fileRef = EB7D252A27B31B3F009CB586 /* com.apple.WebKit.webpushd.mac.sb */; };
+		EB8322162D72600C009515DA /* AboutSchemeHandler.h in Headers */ = {isa = PBXBuildFile; fileRef = EB8322132D72600C009515DA /* AboutSchemeHandler.h */; };
 		EBA8D3AB27A5E31300CB7900 /* ApplePushServiceSPI.h in Headers */ = {isa = PBXBuildFile; fileRef = EBA8D3AA27A5E31300CB7900 /* ApplePushServiceSPI.h */; };
 		EBA8D3B227A5E33F00CB7900 /* ApplePushServiceConnection.mm in Sources */ = {isa = PBXBuildFile; fileRef = EBA8D3AC27A5E33E00CB7900 /* ApplePushServiceConnection.mm */; };
 		EBA8D3B327A5E33F00CB7900 /* MockPushServiceConnection.h in Headers */ = {isa = PBXBuildFile; fileRef = EBA8D3AD27A5E33E00CB7900 /* MockPushServiceConnection.h */; };
@@ -2565,7 +2568,6 @@
 		FABBBC862D35B59A00820017 /* UnifiedSource139.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FABBBC822D35B59A00820017 /* UnifiedSource139.cpp */; };
 		FABBDEA12B85557500EFAFC4 /* CoreIPCNSURLCredential.mm in Sources */ = {isa = PBXBuildFile; fileRef = FABBDE9E2B85550100EFAFC4 /* CoreIPCNSURLCredential.mm */; };
 		FAC7C0C22D712E2900E7297E /* CoreIPCNumber.mm in Sources */ = {isa = PBXBuildFile; fileRef = FAC7C0C12D712AAF00E7297E /* CoreIPCNumber.mm */; };
-		FAD2A1EE2BF6D51000953297 /* CoroutineUtilities.h in Headers */ = {isa = PBXBuildFile; fileRef = FAD2A1ED2BF6D4FD00953297 /* CoroutineUtilities.h */; };
 		FAE61CE62D0A5608000D238D /* UnifiedSource132.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FAE61CDF2D0A5606000D238D /* UnifiedSource132.cpp */; };
 		FAE61CE72D0A5608000D238D /* UnifiedSource134.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FAE61CE02D0A5606000D238D /* UnifiedSource134.cpp */; };
 		FAE61CE82D0A5608000D238D /* UnifiedSource136.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FAE61CE12D0A5606000D238D /* UnifiedSource136.cpp */; };
@@ -5013,6 +5015,8 @@
 		31F060DD1654317500F3281C /* NetworkSocketChannelMessageReceiver.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = NetworkSocketChannelMessageReceiver.cpp; sourceTree = "<group>"; };
 		32DBCF5E0370ADEE00C91783 /* WebKit2Prefix.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WebKit2Prefix.h; sourceTree = "<group>"; };
 		3302293F2938263E001F00FA /* WebExtensionAPIWebNavigationEvent.idl */ = {isa = PBXFileReference; lastKnownFileType = text; path = WebExtensionAPIWebNavigationEvent.idl; sourceTree = "<group>"; };
+		33058F172D7F81ED00F375A9 /* CoreIPCPKPaymentSetupFeature.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CoreIPCPKPaymentSetupFeature.h; sourceTree = "<group>"; };
+		33058F182D7F81ED00F375A9 /* CoreIPCPKPaymentSetupFeature.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = CoreIPCPKPaymentSetupFeature.mm; sourceTree = "<group>"; };
 		33066F09293A90DC008C5749 /* WebExtensionAPIWebNavigation.idl */ = {isa = PBXFileReference; lastKnownFileType = text; path = WebExtensionAPIWebNavigation.idl; sourceTree = "<group>"; };
 		330934431315B9220097A7BC /* WebCookieManagerMessageReceiver.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = WebCookieManagerMessageReceiver.cpp; sourceTree = "<group>"; };
 		330934441315B9220097A7BC /* WebCookieManagerMessages.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WebCookieManagerMessages.h; sourceTree = "<group>"; };
@@ -8236,10 +8240,13 @@
 		EB44A69A2C8A4F6E006595BF /* WebClipCache.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WebClipCache.mm; sourceTree = "<group>"; };
 		EB450E0D2996C7A1009724B1 /* WKWebsiteDataStoreRefPrivateMac.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = WKWebsiteDataStoreRefPrivateMac.h; path = mac/WKWebsiteDataStoreRefPrivateMac.h; sourceTree = "<group>"; };
 		EB450E0E2996C7A1009724B1 /* WKWebsiteDataStoreRefPrivateMac.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = WKWebsiteDataStoreRefPrivateMac.mm; path = mac/WKWebsiteDataStoreRefPrivateMac.mm; sourceTree = "<group>"; };
+		EB517B7A2D7BC03B0019E451 /* AboutSchemeHandlerCocoa.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AboutSchemeHandlerCocoa.mm; sourceTree = "<group>"; };
 		EB579C3529AEBCF100894C1C /* EarlyHintsResourceLoader.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = EarlyHintsResourceLoader.cpp; sourceTree = "<group>"; };
 		EB579C3629AEBCF100894C1C /* EarlyHintsResourceLoader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = EarlyHintsResourceLoader.h; sourceTree = "<group>"; };
 		EB7D252927B316A6009CB586 /* com.apple.WebKit.webpushd.mac.sb.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = com.apple.WebKit.webpushd.mac.sb.in; sourceTree = "<group>"; };
 		EB7D252A27B31B3F009CB586 /* com.apple.WebKit.webpushd.mac.sb */ = {isa = PBXFileReference; lastKnownFileType = file; path = com.apple.WebKit.webpushd.mac.sb; sourceTree = "<group>"; };
+		EB8322132D72600C009515DA /* AboutSchemeHandler.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AboutSchemeHandler.h; sourceTree = "<group>"; };
+		EB8322142D72600C009515DA /* AboutSchemeHandler.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = AboutSchemeHandler.cpp; sourceTree = "<group>"; };
 		EBA8D3AA27A5E31300CB7900 /* ApplePushServiceSPI.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ApplePushServiceSPI.h; sourceTree = "<group>"; };
 		EBA8D3AC27A5E33E00CB7900 /* ApplePushServiceConnection.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = ApplePushServiceConnection.mm; sourceTree = "<group>"; };
 		EBA8D3AD27A5E33E00CB7900 /* MockPushServiceConnection.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MockPushServiceConnection.h; sourceTree = "<group>"; };
@@ -8496,7 +8503,6 @@
 		FAC8498B2A9E92DE00D407EF /* WebTransportSession.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = WebTransportSession.cpp; path = Network/WebTransportSession.cpp; sourceTree = "<group>"; };
 		FAC8498C2A9E92DE00D407EF /* WebTransportSession.messages.in */ = {isa = PBXFileReference; lastKnownFileType = text; name = WebTransportSession.messages.in; path = Network/WebTransportSession.messages.in; sourceTree = "<group>"; };
 		FAC8498E2A9E92DF00D407EF /* WebTransportSession.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = WebTransportSession.h; path = Network/WebTransportSession.h; sourceTree = "<group>"; };
-		FAD2A1ED2BF6D4FD00953297 /* CoroutineUtilities.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CoroutineUtilities.h; sourceTree = "<group>"; };
 		FAE61CDF2D0A5606000D238D /* UnifiedSource132.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = UnifiedSource132.cpp; sourceTree = "<group>"; };
 		FAE61CE02D0A5606000D238D /* UnifiedSource134.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = UnifiedSource134.cpp; sourceTree = "<group>"; };
 		FAE61CE12D0A5606000D238D /* UnifiedSource136.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = UnifiedSource136.cpp; sourceTree = "<group>"; };
@@ -9820,6 +9826,7 @@
 				57FD316B22B3367E008D0E8B /* SOAuthorization */,
 				5CA26D80217ABBB600F97A35 /* _WKWarningView.h */,
 				5CA26D7F217ABBB600F97A35 /* _WKWarningView.mm */,
+				EB517B7A2D7BC03B0019E451 /* AboutSchemeHandlerCocoa.mm */,
 				F404455A2D5CFB56000E587E /* AppKitSoftLink.h */,
 				F404455B2D5CFB56000E587E /* AppKitSoftLink.mm */,
 				99C81D551C20DFBE005C4C82 /* AutomationClient.h */,
@@ -12228,6 +12235,8 @@
 				51AD568D2B1C46EF001A0ECB /* CoreIPCPersonNameComponents.h */,
 				51AD568E2B1C46EF001A0ECB /* CoreIPCPersonNameComponents.mm */,
 				51AD568F2B1C46F0001A0ECB /* CoreIPCPersonNameComponents.serialization.in */,
+				33058F172D7F81ED00F375A9 /* CoreIPCPKPaymentSetupFeature.h */,
+				33058F182D7F81ED00F375A9 /* CoreIPCPKPaymentSetupFeature.mm */,
 				FAF27D2E2D2850D400F1F0BB /* CoreIPCPKSecureElementPass.h */,
 				FAF27D2F2D2850D400F1F0BB /* CoreIPCPKSecureElementPass.mm */,
 				F4B63E162C49586700BC59EF /* CoreIPCPlist.serialization.in */,
@@ -14419,6 +14428,8 @@
 				57608294202BD84900116678 /* WebAuthentication */,
 				1A53C2A31A325691004E8C70 /* WebsiteData */,
 				118502592673B07100A6425E /* XR */,
+				EB8322142D72600C009515DA /* AboutSchemeHandler.cpp */,
+				EB8322132D72600C009515DA /* AboutSchemeHandler.h */,
 				E1513C64166EABB200149FCB /* AuxiliaryProcessProxy.cpp */,
 				E1513C65166EABB200149FCB /* AuxiliaryProcessProxy.h */,
 				46A2B6061E5675A200C3DEDA /* BackgroundProcessResponsivenessTimer.cpp */,
@@ -15127,7 +15138,6 @@
 				1A7E814E1152D2240003695B /* mac */,
 				CE1A0BCA1A48E6C60054EF74 /* spi */,
 				51B15A7D138439B200321AD8 /* unix */,
-				FAD2A1ED2BF6D4FD00953297 /* CoroutineUtilities.h */,
 				ECA680D31E6904B500731D20 /* ExtraPrivateSymbolsForTAPI.h */,
 				ECBFC1DB1E6A4D66000300C7 /* ExtraPublicSymbolsForTAPI.h */,
 				E3C788F02D035CED00D6C13D /* LogClient.cpp */,
@@ -16623,6 +16633,7 @@
 				A115DC72191D82DA00DA8072 /* _WKWebViewPrintFormatter.h in Headers */,
 				A19DD3C01D07D16800AC823B /* _WKWebViewPrintFormatterInternal.h in Headers */,
 				07E4BDC72A3A7089000D5509 /* _WKWebViewTextInputNotifications.h in Headers */,
+				EB8322162D72600C009515DA /* AboutSchemeHandler.h in Headers */,
 				E3CAAA442413279900CED2E2 /* AccessibilitySupportSPI.h in Headers */,
 				E3B8F7F82BA8AC4D006E97B6 /* AccessibilityUtilitiesSPI.h in Headers */,
 				A7D792D81767CCA300881CBE /* ActivityAssertion.h in Headers */,
@@ -16811,7 +16822,6 @@
 				37C21CAE1E994C0C0029D5F9 /* CorePredictionSPI.h in Headers */,
 				1C62900D28EE2CD300C26B60 /* CoreSVGSPI.h in Headers */,
 				F43E893D2AEDBB9000097D2D /* CoreTelephonyUtilities.h in Headers */,
-				FAD2A1EE2BF6D51000953297 /* CoroutineUtilities.h in Headers */,
 				B878B615133428DC006888E9 /* CorrectionPanel.h in Headers */,
 				57597EBD218184900037F924 /* CtapAuthenticator.h in Headers */,
 				526C5722284ADCBC00E08955 /* CtapCcidDriver.h in Headers */,
@@ -18261,7 +18271,7 @@
 				07275C4B2D00C934002315A5 /* Sources */,
 				07275C4C2D00C934002315A5 /* Frameworks */,
 				07275C4D2D00C934002315A5 /* Resources */,
-				07275CBE2D014A44002315A5 /* Create Symlink to Alt Root Path */,
+				07275CBE2D014A44002315A5 /* Create Symlink to Cryptex Path */,
 			);
 			buildRules = (
 			);
@@ -18283,7 +18293,7 @@
 				2D56C1C728A367A00081BD25 /* Resources */,
 				2D56C1CA28A367A00081BD25 /* Unlock keychain */,
 				2D56C1CB28A367A00081BD25 /* Process Model entitlements */,
-				2D56C1CC28A367A00081BD25 /* Create Symlink to Alt Root Path */,
+				2D56C1CC28A367A00081BD25 /* Create Symlink to Cryptex Path */,
 			);
 			buildRules = (
 			);
@@ -18305,7 +18315,7 @@
 				2D9FB221237523830049F936 /* Resources */,
 				2D9FB222237523830049F936 /* Unlock keychain */,
 				2D9FB223237523830049F936 /* Process GPU entitlements */,
-				6577FFBF2769C7550011AEC8 /* Create Symlink to Alt Root Path */,
+				6577FFBF2769C7550011AEC8 /* Create Symlink to Cryptex Path */,
 				3AB34B6528D4F098009DAAB6 /* Update Info.plist for RunningBoard management */,
 			);
 			buildRules = (
@@ -18327,7 +18337,7 @@
 				372EBB3D2017E64300085064 /* Frameworks */,
 				372EBB402017E64300085064 /* Resources */,
 				7AFCBD5520B8917D00F55C9C /* Process WebContent entitlements */,
-				6577FFBD2769C70F0011AEC8 /* Create Symlink to Alt Root Path */,
+				6577FFBD2769C70F0011AEC8 /* Create Symlink to Cryptex Path */,
 			);
 			buildRules = (
 			);
@@ -18488,7 +18498,7 @@
 				7A7E8DEB2748392500DCC97A /* Frameworks */,
 				7A7E8DEE2748392500DCC97A /* Resources */,
 				7A7E8DF22748392500DCC97A /* Process WebContent entitlements */,
-				6577FFBC2769C6D90011AEC8 /* Create Symlink to Alt Root Path */,
+				6577FFBC2769C6D90011AEC8 /* Create Symlink to Cryptex Path */,
 				3AB34B6228D4F01C009DAAB6 /* Update Info.plist for RunningBoard management */,
 			);
 			buildRules = (
@@ -18545,7 +18555,7 @@
 				5379C7AC21E5288500E4A8F6 /* Check .xcfilelists */,
 				933170072234674500B32554 /* Create symlinks to XPC services and dylibs */,
 				0FB94836239F31B700926A8F /* Copy Testing Headers */,
-				6577FFB92769C1460011AEC8 /* Create Symlink to Alt Root Path */,
+				6577FFB92769C1460011AEC8 /* Create Symlink to Cryptex Path */,
 				EBE4D2AD28A2F3BD00C0FAE7 /* Copy Signpost Plists */,
 				DD00C28D2A37908400CBB4D9 /* Work around rdar://109484516 */,
 				DD4BDE9F2CAB1275001A3339 /* Create legacy Swift overlay symlink */,
@@ -18578,7 +18588,7 @@
 				BC3DE46415A91763008D26FC /* Resources */,
 				7AFCBD5420B8911D00F55C9C /* Process WebContent entitlements */,
 				4157853721279CC600DD3800 /* Copy Custom WebContent Resources to Framework Private Headers */,
-				6577FFBB2769C6AA0011AEC8 /* Create Symlink to Alt Root Path */,
+				6577FFBB2769C6AA0011AEC8 /* Create Symlink to Cryptex Path */,
 				3AFFC9A428D43977006D6076 /* Update Info.plist for RunningBoard management */,
 			);
 			buildRules = (
@@ -18601,7 +18611,7 @@
 				BC8283AF16B4BF7700A278FE /* Resources */,
 				41D0FC8020E43B4500076AE8 /* Unlock keychain */,
 				41D0FC8120E43B7000076AE8 /* Process Network entitlements */,
-				6577FFBE2769C7370011AEC8 /* Create Symlink to Alt Root Path */,
+				6577FFBE2769C7370011AEC8 /* Create Symlink to Cryptex Path */,
 				3AB34B6428D4F092009DAAB6 /* Update Info.plist for RunningBoard management */,
 			);
 			buildRules = (
@@ -18623,7 +18633,7 @@
 				CD95493126159004008372D9 /* Headers */,
 				CD95493226159004008372D9 /* Sources */,
 				CD95493326159004008372D9 /* Frameworks */,
-				6577FFBA2769C64A0011AEC8 /* Create Symlink to Alt Root Path */,
+				6577FFBA2769C64A0011AEC8 /* Create Symlink to Cryptex Path */,
 			);
 			buildRules = (
 			);
@@ -18829,7 +18839,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		07275CBE2D014A44002315A5 /* Create Symlink to Alt Root Path */ = {
+		07275CBE2D014A44002315A5 /* Create Symlink to Cryptex Path */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 8;
 			files = (
@@ -18838,14 +18848,14 @@
 			);
 			inputPaths = (
 			);
-			name = "Create Symlink to Alt Root Path";
+			name = "Create Symlink to Cryptex Path";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
-			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-altroot.sh\"\n";
+			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-cryptex.sh\"\n";
 		};
 		1A07D2F51919AA8A00ECDA16 /* Make Frameworks Symbolic Link */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -18906,7 +18916,7 @@
 			shellPath = /bin/sh;
 			shellScript = "Scripts/process-entitlements.sh\n";
 		};
-		2D56C1CC28A367A00081BD25 /* Create Symlink to Alt Root Path */ = {
+		2D56C1CC28A367A00081BD25 /* Create Symlink to Cryptex Path */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 8;
 			files = (
@@ -18915,14 +18925,14 @@
 			);
 			inputPaths = (
 			);
-			name = "Create Symlink to Alt Root Path";
+			name = "Create Symlink to Cryptex Path";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
-			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-altroot.sh\"\n";
+			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-cryptex.sh\"\n";
 		};
 		2D7DEBDF21269C9F00B9F73C /* Generate Unified Sources */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -19300,7 +19310,7 @@
 			shellPath = /bin/sh;
 			shellScript = "Scripts/copy-launchd-plist-and-create-symlink.sh\n";
 		};
-		6577FFB92769C1460011AEC8 /* Create Symlink to Alt Root Path */ = {
+		6577FFB92769C1460011AEC8 /* Create Symlink to Cryptex Path */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 8;
 			files = (
@@ -19309,16 +19319,16 @@
 			);
 			inputPaths = (
 			);
-			name = "Create Symlink to Alt Root Path";
+			name = "Create Symlink to Cryptex Path";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
-			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-altroot.sh\"\n";
+			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-cryptex.sh\"\n";
 		};
-		6577FFBA2769C64A0011AEC8 /* Create Symlink to Alt Root Path */ = {
+		6577FFBA2769C64A0011AEC8 /* Create Symlink to Cryptex Path */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 8;
 			files = (
@@ -19327,16 +19337,16 @@
 			);
 			inputPaths = (
 			);
-			name = "Create Symlink to Alt Root Path";
+			name = "Create Symlink to Cryptex Path";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
-			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-altroot.sh\"\n";
+			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-cryptex.sh\"\n";
 		};
-		6577FFBB2769C6AA0011AEC8 /* Create Symlink to Alt Root Path */ = {
+		6577FFBB2769C6AA0011AEC8 /* Create Symlink to Cryptex Path */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 8;
 			files = (
@@ -19345,16 +19355,16 @@
 			);
 			inputPaths = (
 			);
-			name = "Create Symlink to Alt Root Path";
+			name = "Create Symlink to Cryptex Path";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
-			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-altroot.sh\"\n";
+			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-cryptex.sh\"\n";
 		};
-		6577FFBC2769C6D90011AEC8 /* Create Symlink to Alt Root Path */ = {
+		6577FFBC2769C6D90011AEC8 /* Create Symlink to Cryptex Path */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 8;
 			files = (
@@ -19363,16 +19373,16 @@
 			);
 			inputPaths = (
 			);
-			name = "Create Symlink to Alt Root Path";
+			name = "Create Symlink to Cryptex Path";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
-			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-altroot.sh\"\n";
+			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-cryptex.sh\"\n";
 		};
-		6577FFBD2769C70F0011AEC8 /* Create Symlink to Alt Root Path */ = {
+		6577FFBD2769C70F0011AEC8 /* Create Symlink to Cryptex Path */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 8;
 			files = (
@@ -19381,16 +19391,16 @@
 			);
 			inputPaths = (
 			);
-			name = "Create Symlink to Alt Root Path";
+			name = "Create Symlink to Cryptex Path";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
-			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-altroot.sh\"\n";
+			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-cryptex.sh\"\n";
 		};
-		6577FFBE2769C7370011AEC8 /* Create Symlink to Alt Root Path */ = {
+		6577FFBE2769C7370011AEC8 /* Create Symlink to Cryptex Path */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 8;
 			files = (
@@ -19399,16 +19409,16 @@
 			);
 			inputPaths = (
 			);
-			name = "Create Symlink to Alt Root Path";
+			name = "Create Symlink to Cryptex Path";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
-			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-altroot.sh\"\n";
+			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-cryptex.sh\"\n";
 		};
-		6577FFBF2769C7550011AEC8 /* Create Symlink to Alt Root Path */ = {
+		6577FFBF2769C7550011AEC8 /* Create Symlink to Cryptex Path */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 8;
 			files = (
@@ -19417,14 +19427,14 @@
 			);
 			inputPaths = (
 			);
-			name = "Create Symlink to Alt Root Path";
+			name = "Create Symlink to Cryptex Path";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
-			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-altroot.sh\"\n";
+			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-cryptex.sh\"\n";
 		};
 		7A7E8DF22748392500DCC97A /* Process WebContent entitlements */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -19753,7 +19763,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
-			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-altroot.sh\"\n";
+			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-cryptex.sh\"\n";
 		};
 		E311D2AA2B770DB80074BC7E /* Create symlink */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -19771,7 +19781,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
-			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-altroot.sh\"\n";
+			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-cryptex.sh\"\n";
 		};
 		E311D2AB2B770DDD0074BC7E /* Create symlink */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -19789,7 +19799,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
-			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-altroot.sh\"\n";
+			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-cryptex.sh\"\n";
 		};
 		E311D2AD2B770E020074BC7E /* Create symlink */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -19807,7 +19817,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/zsh;
-			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-altroot.sh\"\n";
+			shellScript = "\"${SRCROOT}/Scripts/create-symlink-to-cryptex.sh\"\n";
 		};
 		E352B54F2AB25EA8006F6B0D /* Process entitlements */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -20064,6 +20074,7 @@
 				FAC7C0C22D712E2900E7297E /* CoreIPCNumber.mm in Sources */,
 				5157AE0B2B23E97400C0E095 /* CoreIPCPassKit.mm in Sources */,
 				51AD56902B1C46FE001A0ECB /* CoreIPCPersonNameComponents.mm in Sources */,
+				33058F192D7F820300F375A9 /* CoreIPCPKPaymentSetupFeature.mm in Sources */,
 				FAF27D302D2851EB00F1F0BB /* CoreIPCPKSecureElementPass.mm in Sources */,
 				F4F12CB32C48B8C100BC1254 /* CoreIPCPlistArray.mm in Sources */,
 				F4F12CB02C48B2C800BC1254 /* CoreIPCPlistDictionary.mm in Sources */,
@@ -20122,6 +20133,7 @@
 				337822432947F679002106BB /* _WKWebExtensionWebNavigationURLFilter.mm in Sources */,
 				3370420A2B58A8390077FF78 /* _WKWebExtensionWebRequestFilter.mm in Sources */,
 				07E4BDC82A3A7089000D5509 /* _WKWebViewTextInputNotifications.mm in Sources */,
+				EB517B802D7C09690019E451 /* AboutSchemeHandlerCocoa.mm in Sources */,
 				E37AE22D2D5E7A100010402E /* AdditionalFonts.mm in Sources */,
 				EBA8D3B227A5E33F00CB7900 /* ApplePushServiceConnection.mm in Sources */,
 				A1D615722B06C7C2002D0E19 /* AssertionCapability.mm in Sources */,

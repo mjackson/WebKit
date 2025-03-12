@@ -321,6 +321,7 @@
 #include <WebCore/WritingDirection.h>
 #include <WebCore/markup.h>
 #include <pal/SessionID.h>
+#include <wtf/CoroutineUtilities.h>
 #include <wtf/ProcessID.h>
 #include <wtf/RunLoop.h>
 #include <wtf/Scope.h>
@@ -1206,9 +1207,9 @@ void WebPage::getFrameInfo(WebCore::FrameIdentifier frameID, CompletionHandler<v
     completionHandler(frame->info());
 }
 
-void WebPage::getFrameTree(CompletionHandler<void(FrameTreeNodeData&&)>&& completionHandler)
+Awaitable<std::optional<FrameTreeNodeData>> WebPage::getFrameTree()
 {
-    completionHandler(m_mainFrame->frameTreeData());
+    co_return m_mainFrame->frameTreeData();
 }
 
 void WebPage::didFinishLoadInAnotherProcess(WebCore::FrameIdentifier frameID)
@@ -2142,6 +2143,7 @@ void WebPage::loadRequest(LoadParameters&& loadParameters)
     frameLoadRequest.setLockHistory(loadParameters.lockHistory);
     frameLoadRequest.setLockBackForwardList(loadParameters.lockBackForwardList);
     frameLoadRequest.setClientRedirectSourceForHistory(loadParameters.clientRedirectSourceForHistory);
+    frameLoadRequest.setIsHandledByAboutSchemeHandler(loadParameters.isHandledByAboutSchemeHandler);
     if (loadParameters.isRequestFromClientOrUserInput)
         frameLoadRequest.setIsRequestFromClientOrUserInput();
     if (loadParameters.advancedPrivacyProtections)
@@ -4385,7 +4387,7 @@ KeyboardUIMode WebPage::keyboardUIMode()
     return static_cast<KeyboardUIMode>((fullKeyboardAccessEnabled ? KeyboardAccessFull : KeyboardAccessDefault) | (m_tabToLinks ? KeyboardAccessTabsToLinks : 0));
 }
 
-void WebPage::runJavaScript(WebFrame* frame, RunJavaScriptParameters&& parameters, ContentWorldIdentifier worldIdentifier, CompletionHandler<void(Expected<JavaScriptEvaluationResult, std::optional<WebCore::ExceptionDetails>>)>&& completionHandler)
+void WebPage::runJavaScript(WebFrame* frame, RunJavaScriptParameters&& parameters, ContentWorldIdentifier worldIdentifier, bool wantsResult, CompletionHandler<void(Expected<JavaScriptEvaluationResult, std::optional<WebCore::ExceptionDetails>>)>&& completionHandler)
 {
     // NOTE: We need to be careful when running scripts that the objects we depend on don't
     // disappear during script execution.
@@ -4427,9 +4429,12 @@ void WebPage::runJavaScript(WebFrame* frame, RunJavaScriptParameters&& parameter
     }();
 
     SetForScope userIsInteractingChange { m_userIsInteracting, shouldAllowUserInteraction };
-    auto resolveFunction = [world = Ref { *world }, frame = Ref { *frame }, coreFrame = Ref { *frame->coreLocalFrame() }, completionHandler = WTFMove(completionHandler)] (ValueOrException result) mutable {
+    auto resolveFunction = [world = Ref { *world }, frame = Ref { *frame }, coreFrame = Ref { *frame->coreLocalFrame() }, wantsResult, completionHandler = WTFMove(completionHandler)] (ValueOrException result) mutable {
         if (!result)
             return completionHandler(makeUnexpected(result.error()));
+
+        if (!wantsResult)
+            return completionHandler(makeUnexpected(std::nullopt));
 
         JSGlobalContextRef context = frame->jsContextForWorld(world.ptr());
         JSValueRef jsValue = toRef(coreFrame->script().globalObject(Ref { world->coreWorld() }), result.value());
@@ -4471,7 +4476,7 @@ void WebPage::runJavaScript(WebFrame* frame, RunJavaScriptParameters&& parameter
     frame->coreLocalFrame()->script().executeAsynchronousUserAgentScriptInWorld(world->protectedCoreWorld(), WTFMove(coreParameters), WTFMove(resolveFunction));
 }
 
-void WebPage::runJavaScriptInFrameInScriptWorld(RunJavaScriptParameters&& parameters, std::optional<WebCore::FrameIdentifier> frameID, const ContentWorldData& worldData, CompletionHandler<void(Expected<JavaScriptEvaluationResult, std::optional<WebCore::ExceptionDetails>>)>&& completionHandler)
+void WebPage::runJavaScriptInFrameInScriptWorld(RunJavaScriptParameters&& parameters, std::optional<WebCore::FrameIdentifier> frameID, const ContentWorldData& worldData, bool wantsResult, CompletionHandler<void(Expected<JavaScriptEvaluationResult, std::optional<WebCore::ExceptionDetails>>)>&& completionHandler)
 {
     WEBPAGE_RELEASE_LOG(Process, "runJavaScriptInFrameInScriptWorld: frameID=%" PRIu64, frameID ? frameID->object().toUInt64() : 0);
     RefPtr webFrame = frameID ? WebProcess::singleton().webFrame(*frameID) : &mainWebFrame();
@@ -4484,7 +4489,7 @@ void WebPage::runJavaScriptInFrameInScriptWorld(RunJavaScriptParameters&& parame
         }
     }
 
-    runJavaScript(webFrame.get(), WTFMove(parameters), worldData.identifier, [this, protectedThis = Ref { *this }, completionHandler = WTFMove(completionHandler)](auto&& result) mutable {
+    runJavaScript(webFrame.get(), WTFMove(parameters), worldData.identifier, wantsResult, [this, protectedThis = Ref { *this }, completionHandler = WTFMove(completionHandler)](auto&& result) mutable {
 #if RELEASE_LOG_DISABLED
         UNUSED_PARAM(this);
 #endif
@@ -8056,39 +8061,38 @@ void WebPage::scheduleFullEditorStateUpdate()
     protectedCorePage()->scheduleRenderingUpdate(RenderingUpdateStep::LayerFlush);
 }
 
-void WebPage::loadAndDecodeImage(WebCore::ResourceRequest&& request, std::optional<WebCore::FloatSize> sizeConstraint, size_t maximumBytesFromNetwork, CompletionHandler<void(std::variant<WebCore::ResourceError, Ref<WebCore::ShareableBitmap>>&&)>&& completionHandler)
+void WebPage::loadAndDecodeImage(WebCore::ResourceRequest&& request, std::optional<WebCore::FloatSize> sizeConstraint, size_t maximumBytesFromNetwork, CompletionHandler<void(Expected<Ref<WebCore::ShareableBitmap>, WebCore::ResourceError>&&)>&& completionHandler)
 {
     URL url = request.url();
-    WebProcess::singleton().ensureNetworkProcessConnection().protectedConnection()->sendWithAsyncReply(Messages::NetworkConnectionToWebProcess::LoadImageForDecoding(WTFMove(request), m_webPageProxyIdentifier, maximumBytesFromNetwork), [completionHandler = WTFMove(completionHandler), sizeConstraint, url] (std::variant<WebCore::ResourceError, Ref<WebCore::FragmentedSharedBuffer>>&& result) mutable {
-        WTF::switchOn(WTFMove(result), [&] (WebCore::ResourceError&& error) {
-            completionHandler(WTFMove(error));
-        }, [&] (Ref<WebCore::FragmentedSharedBuffer>&& buffer) {
-            Ref bitmapImage = WebCore::BitmapImage::create(nullptr);
-            bitmapImage->setData(buffer.ptr(), true);
-            RefPtr nativeImage = bitmapImage->primaryNativeImage();
-            if (!nativeImage)
-                return completionHandler(decodeError(url));
+    WebProcess::singleton().ensureNetworkProcessConnection().protectedConnection()->sendWithAsyncReply(Messages::NetworkConnectionToWebProcess::LoadImageForDecoding(WTFMove(request), m_webPageProxyIdentifier, maximumBytesFromNetwork), [completionHandler = WTFMove(completionHandler), sizeConstraint, url] (Expected<Ref<WebCore::FragmentedSharedBuffer>, WebCore::ResourceError>&& result) mutable {
+        if (!result)
+            return completionHandler(makeUnexpected(WTFMove(result.error())));
 
-            FloatSize sourceSize = nativeImage->size();
-            FloatSize destinationSize = sourceSize;
-            if (sizeConstraint)
-                destinationSize = largestRectWithAspectRatioInsideRect(sourceSize.aspectRatio(), FloatRect({ }, sizeConstraint->shrunkTo(sourceSize))).size();
+        Ref bitmapImage = WebCore::BitmapImage::create(nullptr);
+        bitmapImage->setData(result->ptr(), true);
+        RefPtr nativeImage = bitmapImage->primaryNativeImage();
+        if (!nativeImage)
+            return completionHandler(makeUnexpected(decodeError(url)));
 
-            IntSize roundedDestinationSize = flooredIntSize(destinationSize);
-            auto sourceColorSpace = nativeImage->colorSpace();
-            auto destinationColorSpace = sourceColorSpace.supportsOutput() ? sourceColorSpace : DestinationColorSpace::SRGB();
-            auto bitmap = ShareableBitmap::create({ roundedDestinationSize, destinationColorSpace });
-            if (!bitmap)
-                return completionHandler({ });
+        FloatSize sourceSize = nativeImage->size();
+        FloatSize destinationSize = sourceSize;
+        if (sizeConstraint)
+            destinationSize = largestRectWithAspectRatioInsideRect(sourceSize.aspectRatio(), FloatRect({ }, sizeConstraint->shrunkTo(sourceSize))).size();
 
-            auto context = bitmap->createGraphicsContext();
-            if (!context)
-                return completionHandler({ });
+        IntSize roundedDestinationSize = flooredIntSize(destinationSize);
+        auto sourceColorSpace = nativeImage->colorSpace();
+        auto destinationColorSpace = sourceColorSpace.supportsOutput() ? sourceColorSpace : DestinationColorSpace::SRGB();
+        auto bitmap = ShareableBitmap::create({ roundedDestinationSize, destinationColorSpace });
+        if (!bitmap)
+            return completionHandler(makeUnexpected<ResourceError>({ }));
 
-            context->drawNativeImage(*nativeImage, FloatRect({ }, roundedDestinationSize), FloatRect({ }, sourceSize), { CompositeOperator::Copy });
+        auto context = bitmap->createGraphicsContext();
+        if (!context)
+            return completionHandler(makeUnexpected<ResourceError>({ }));
 
-            completionHandler(bitmap.releaseNonNull());
-        });
+        context->drawNativeImage(*nativeImage, FloatRect({ }, roundedDestinationSize), FloatRect({ }, sourceSize), { CompositeOperator::Copy });
+
+        completionHandler(bitmap.releaseNonNull());
     });
 }
 

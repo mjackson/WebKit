@@ -231,6 +231,15 @@
    },
    {
       "emails" : [
+         "adrian_taylor@apple.com"
+      ],
+      "name" : "Adrian Taylor",
+      "nicks" : [
+         "adetaylor"
+      ]
+   },
+   {
+      "emails" : [
          "enne@google.com",
          "enne@chromium.org"
       ],
@@ -4408,6 +4417,12 @@
    },
    {
       "emails" : [
+         "jonbutler@apple.com"
+      ],
+      "name" : "Jon Butler"
+   },
+   {
+      "emails" : [
          "jchoukroun@apple.com"
       ],
       "github" : "jonchoukroun",
@@ -7019,6 +7034,17 @@
    },
    {
       "emails" : [
+         "ronan_turner@apple.com",
+         "ronan.turner@apple.com"
+      ],
+      "github" : "ronan-apple",
+      "name" : "Ronan Turner",
+      "nicks" : [
+         "ronan-apple"
+      ]
+   },
+   {
+      "emails" : [
          "ross.kirsling@sony.com",
          "rkirsling@gmail.com"
       ],
@@ -7615,6 +7641,13 @@
          "tadeuzagallo"
       ],
       "status" : "reviewer"
+   },
+   {
+      "emails" : [
+         "taher_ali@apple.com"
+      ],
+      "github" : "nullhook",
+      "name" : "Taher Ali"
    },
    {
       "emails" : [

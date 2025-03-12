@@ -2781,10 +2781,9 @@ void Document::resolveStyle(ResolveStyleType type)
             Style::TreeResolver resolver(*this, WTFMove(m_pendingRenderTreeUpdate));
             auto styleUpdate = resolver.resolve();
 
-            while (resolver.hasUnresolvedQueryContainers() || resolver.hasUnresolvedAnchorPositionedElements()) {
+            while (resolver.needsInterleavedLayout()) {
                 if (styleUpdate) {
-                    SetForScope resolvingContainerQueriesScope(m_isResolvingContainerQueries, resolver.hasUnresolvedQueryContainers());
-                    SetForScope resolvingAnchorPositionedElementsScope(m_isResolvingAnchorPositionedElements, resolver.hasUnresolvedAnchorPositionedElements());
+                    SetForScope interleavedLayoutScope(m_isInStyleInterleavedLayout, true);
 
                     updateRenderTree(WTFMove(styleUpdate));
 
@@ -2995,7 +2994,8 @@ auto Document::updateLayout(OptionSet<LayoutOptions> layoutOptions, const Elemen
         if (RefPtr frameView = view())
             frameView->updateScrollAnchoringPositionForScrollableAreas();
     }
-
+    if (RefPtr frame = this->frame())
+        frame->eventHandler().scheduleCursorUpdate();
     m_ignorePendingStylesheets = oldIgnore;
     return result;
 }
@@ -11048,10 +11048,10 @@ TextStream& operator<<(TextStream& ts, const Document& document)
 TextStream& operator<<(TextStream& ts, const Document::VisualUpdatesPreventedReason& reason)
 {
     switch (reason) {
-    case Document::VisualUpdatesPreventedReason::Client: ts << "Client"; break;
-    case Document::VisualUpdatesPreventedReason::ReadyState: ts << "ReadyState"; break;
-    case Document::VisualUpdatesPreventedReason::Suspension: ts << "Suspension"; break;
-    case Document::VisualUpdatesPreventedReason::RenderBlocking: ts << "RenderBlocking"; break;
+    case Document::VisualUpdatesPreventedReason::Client: ts << "Client"_s; break;
+    case Document::VisualUpdatesPreventedReason::ReadyState: ts << "ReadyState"_s; break;
+    case Document::VisualUpdatesPreventedReason::Suspension: ts << "Suspension"_s; break;
+    case Document::VisualUpdatesPreventedReason::RenderBlocking: ts << "RenderBlocking"_s; break;
     }
     return ts;
 }

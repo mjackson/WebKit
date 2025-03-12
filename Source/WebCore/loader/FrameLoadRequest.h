@@ -20,7 +20,7 @@
  * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #pragma once
@@ -41,7 +41,7 @@ class SecurityOrigin;
 
 class FrameLoadRequest {
 public:
-    WEBCORE_EXPORT FrameLoadRequest(Ref<Document>&&, SecurityOrigin&, ResourceRequest&&, const AtomString& frameName, InitiatedByMainFrame, const AtomString& downloadAttribute = { });
+    WEBCORE_EXPORT FrameLoadRequest(Ref<Document>&&, SecurityOrigin&, ResourceRequest&&, const AtomString& frameName, InitiatedByMainFrame, const AtomString& downloadAttribute = {});
     WEBCORE_EXPORT FrameLoadRequest(LocalFrame&, const ResourceRequest&, const SubstituteData& = SubstituteData());
 
     WEBCORE_EXPORT ~FrameLoadRequest();
@@ -113,6 +113,13 @@ public:
 
     NavigationHistoryBehavior navigationHistoryBehavior() const { return m_navigationHistoryBehavior; }
     void setNavigationHistoryBehavior(NavigationHistoryBehavior historyHandling) { m_navigationHistoryBehavior = historyHandling; }
+
+    bool isFromNavigationAPI() const { return m_isFromNavigationAPI; }
+    void setIsFromNavigationAPI(bool isFromNavigationAPI) { m_isFromNavigationAPI = isFromNavigationAPI; }
+
+    bool isHandledByAboutSchemeHandler() const { return m_isHandledByAboutSchemeHandler; }
+    void setIsHandledByAboutSchemeHandler(bool isHandledByAboutSchemeHandler) { m_isHandledByAboutSchemeHandler = isHandledByAboutSchemeHandler; }
+
 private:
     Ref<Document> m_requester;
     Ref<SecurityOrigin> m_requesterSecurityOrigin;
@@ -136,6 +143,7 @@ private:
     bool m_isInitialFrameSrcLoad { false };
     std::optional<OptionSet<AdvancedPrivacyProtections>> m_advancedPrivacyProtections;
     NavigationHistoryBehavior m_navigationHistoryBehavior { NavigationHistoryBehavior::Auto };
+    bool m_isFromNavigationAPI { false };
 };
 
 } // namespace WebCore

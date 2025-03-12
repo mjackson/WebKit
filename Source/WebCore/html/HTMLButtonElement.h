@@ -40,6 +40,9 @@ public:
     
     const AtomString& value() const;
 
+    const AtomString& command() const;
+    void setCommand(const AtomString&);
+
     RefPtr<Element> commandForElement() const;
 
     bool willRespondToMouseClickEventsWithEditability(Editability) const final;
@@ -87,6 +90,8 @@ private:
     bool computeWillValidate() const final;
 
     bool isSubmitButton() const final;
+
+    void computeType(const AtomString& typeAttrValue);
 
     Type m_type;
     bool m_isActivatedSubmit;

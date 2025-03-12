@@ -1169,21 +1169,21 @@ void NavigationState::NavigationClient::didReceiveAuthenticationChallenge(WebPag
 {
     RefPtr navigationState = m_navigationState.get();
     if (!navigationState)
-        return authenticationChallenge.protectedListener()->completeChallenge(WebKit::AuthenticationChallengeDisposition::RejectProtectionSpaceAndContinue);
+        return authenticationChallenge.listener().completeChallenge(WebKit::AuthenticationChallengeDisposition::RejectProtectionSpaceAndContinue);
 
     if (!navigationState->m_navigationDelegateMethods.webViewDidReceiveAuthenticationChallengeCompletionHandler)
-        return authenticationChallenge.protectedListener()->completeChallenge(WebKit::AuthenticationChallengeDisposition::RejectProtectionSpaceAndContinue);
+        return authenticationChallenge.listener().completeChallenge(WebKit::AuthenticationChallengeDisposition::RejectProtectionSpaceAndContinue);
 
     auto navigationDelegate = navigationState->navigationDelegate();
     if (!navigationDelegate)
-        return authenticationChallenge.protectedListener()->completeChallenge(WebKit::AuthenticationChallengeDisposition::RejectProtectionSpaceAndContinue);
+        return authenticationChallenge.listener().completeChallenge(WebKit::AuthenticationChallengeDisposition::RejectProtectionSpaceAndContinue);
 
     auto checker = CompletionHandlerCallChecker::create(navigationDelegate.get(), @selector(webView:didReceiveAuthenticationChallenge:completionHandler:));
     [static_cast<id<WKNavigationDelegatePrivate>>(navigationDelegate) webView:navigationState->webView().get() didReceiveAuthenticationChallenge:wrapper(authenticationChallenge) completionHandler:makeBlockPtr([challenge = Ref { authenticationChallenge }, checker = WTFMove(checker)](NSURLSessionAuthChallengeDisposition disposition, NSURLCredential *credential) {
         if (checker->completionHandlerHasBeenCalled())
             return;
         checker->didCallCompletionHandler();
-        challenge->protectedListener()->completeChallenge(WebKit::toAuthenticationChallengeDisposition(disposition), Credential(credential));
+        challenge->listener().completeChallenge(WebKit::toAuthenticationChallengeDisposition(disposition), Credential(credential));
     }).get()];
 }
 
@@ -1611,7 +1611,7 @@ void NavigationState::didChangeIsLoading()
         }
         if (!m_networkActivity) {
             RELEASE_LOG(ProcessSuspension, "%p - NavigationState is taking a process network assertion because a page load started", this);
-            m_networkActivity = webView->_page->legacyMainFrameProcess().throttler().backgroundActivity("Page Load"_s);
+            m_networkActivity = webView->_page->legacyMainFrameProcess().protectedThrottler()->backgroundActivity("Page Load"_s);
         }
     } else if (m_networkActivity) {
         // The application is visible so we delay releasing the background activity for 3 seconds to give it a chance to start another navigation
@@ -1744,7 +1744,7 @@ void NavigationState::didSwapWebProcesses()
     // Transfer our background assertion from the old process to the new one.
     auto webView = this->webView();
     if (m_networkActivity && webView)
-        m_networkActivity = webView->_page->legacyMainFrameProcess().throttler().backgroundActivity("Page Load"_s);
+        m_networkActivity = webView->_page->legacyMainFrameProcess().protectedThrottler()->backgroundActivity("Page Load"_s);
 #endif
 }
 

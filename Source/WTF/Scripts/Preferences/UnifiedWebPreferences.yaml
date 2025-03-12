@@ -2650,7 +2650,7 @@ DeviceOrientationPermissionAPIEnabled:
     WebKitLegacy:
       default: false
     WebKit:
-      default: false
+      default: defaultDeviceOrientationPermissionAPIEnabled()
     WebCore:
       default: false
   sharedPreferenceForWebProcess: true

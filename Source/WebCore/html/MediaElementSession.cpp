@@ -708,7 +708,7 @@ bool MediaElementSession::isMainContentForPurposesOfAutoplayEvents() const
     return isElementMainContentForPurposesOfAutoplay(m_element, false);
 }
 
-MonotonicTime MediaElementSession::mostRecentUserInteractionTime() const
+Markable<MonotonicTime> MediaElementSession::mostRecentUserInteractionTime() const
 {
     return m_mostRecentUserInteractionTime;
 }
@@ -870,6 +870,11 @@ void MediaElementSession::playbackTargetPickerWasDismissed()
     client().playbackTargetPickerWasDismissed();
 }
 
+void MediaElementSession::audioSessionCategoryChanged(AudioSessionCategory category, AudioSessionMode mode, RouteSharingPolicy policy)
+{
+    m_element.audioSessionCategoryChanged(category, mode, policy);
+}
+
 void MediaElementSession::mediaStateDidChange(MediaProducerMediaStateFlags state)
 {
     m_element.document().playbackTargetPickerClientStateDidChange(*this, state);
@@ -914,7 +919,7 @@ bool MediaElementSession::requiresFullscreenForVideoPlayback() const
     if (!m_element.document().settings().inlineMediaPlaybackRequiresPlaysInlineAttribute())
         return false;
 
-#if PLATFORM(MEDIA_STREAM)
+#if ENABLE(MEDIA_STREAM)
     if (m_element.hasMediaStreamSrcObject())
         return false;
 #endif
@@ -963,7 +968,7 @@ void MediaElementSession::mediaEngineUpdated()
 
 void MediaElementSession::resetPlaybackSessionState()
 {
-    m_mostRecentUserInteractionTime = MonotonicTime();
+    m_mostRecentUserInteractionTime.reset();
     addBehaviorRestriction(RequireUserGestureToControlControlsManager | RequirePlaybackToControlControlsManager);
 }
 

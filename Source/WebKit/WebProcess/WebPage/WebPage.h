@@ -579,7 +579,7 @@ public:
     void zoomPDFIn(PDFPluginIdentifier);
     void zoomPDFOut(PDFPluginIdentifier);
     void savePDF(PDFPluginIdentifier, CompletionHandler<void(const String&, const URL&, std::span<const uint8_t>)>&&);
-    void openPDFWithPreview(PDFPluginIdentifier, CompletionHandler<void(const String&, FrameInfoData&&, std::span<const uint8_t>, const String&)>&&);
+    void openPDFWithPreview(PDFPluginIdentifier, CompletionHandler<void(const String&, std::optional<FrameInfoData>&&, std::span<const uint8_t>, const String&)>&&);
 #endif
 
     void frameViewLayoutOrVisualViewportChanged(const WebCore::LocalFrameView&);
@@ -751,7 +751,7 @@ public:
     void createRemoteSubframe(WebCore::FrameIdentifier parentID, WebCore::FrameIdentifier newChildID, const String& newChildFrameName);
 
     void getFrameInfo(WebCore::FrameIdentifier, CompletionHandler<void(std::optional<FrameInfoData>&&)>&&);
-    void getFrameTree(CompletionHandler<void(FrameTreeNodeData&&)>&&);
+    Awaitable<std::optional<FrameTreeNodeData>> getFrameTree();
     void didFinishLoadInAnotherProcess(WebCore::FrameIdentifier);
     void frameWasRemovedInAnotherProcess(WebCore::FrameIdentifier);
 
@@ -1591,7 +1591,7 @@ public:
 
     void flushPendingEditorStateUpdate();
 
-    void loadAndDecodeImage(WebCore::ResourceRequest&&, std::optional<WebCore::FloatSize> sizeConstraint, size_t, CompletionHandler<void(std::variant<WebCore::ResourceError, Ref<WebCore::ShareableBitmap>>&&)>&&);
+    void loadAndDecodeImage(WebCore::ResourceRequest&&, std::optional<WebCore::FloatSize> sizeConstraint, size_t, CompletionHandler<void(Expected<Ref<WebCore::ShareableBitmap>, WebCore::ResourceError>&&)>&&);
 #if PLATFORM(COCOA)
     void getInformationFromImageData(const Vector<uint8_t>&, CompletionHandler<void(Expected<std::pair<String, Vector<WebCore::IntSize>>, WebCore::ImageDecodingError>&&)>&&);
     void createIconDataFromImageData(Ref<WebCore::SharedBuffer>&&, const Vector<unsigned>&, CompletionHandler<void(RefPtr<WebCore::SharedBuffer>&&)>&&);
@@ -2192,8 +2192,8 @@ private:
     void getSourceForFrame(WebCore::FrameIdentifier, CompletionHandler<void(const String&)>&&);
     void getWebArchiveOfFrame(std::optional<WebCore::FrameIdentifier>, CompletionHandler<void(const std::optional<IPC::SharedBufferReference>&)>&&);
     void getWebArchiveOfFrameWithFileName(WebCore::FrameIdentifier, const Vector<WebCore::MarkupExclusionRule>&, const String& fileName, CompletionHandler<void(const std::optional<IPC::SharedBufferReference>&)>&&);
-    void runJavaScript(WebFrame*, RunJavaScriptParameters&&, ContentWorldIdentifier, CompletionHandler<void(Expected<JavaScriptEvaluationResult, std::optional<WebCore::ExceptionDetails>>)>&&);
-    void runJavaScriptInFrameInScriptWorld(RunJavaScriptParameters&&, std::optional<WebCore::FrameIdentifier>, const ContentWorldData&, CompletionHandler<void(Expected<JavaScriptEvaluationResult, std::optional<WebCore::ExceptionDetails>>)>&&);
+    void runJavaScript(WebFrame*, RunJavaScriptParameters&&, ContentWorldIdentifier, bool, CompletionHandler<void(Expected<JavaScriptEvaluationResult, std::optional<WebCore::ExceptionDetails>>)>&&);
+    void runJavaScriptInFrameInScriptWorld(RunJavaScriptParameters&&, std::optional<WebCore::FrameIdentifier>, const ContentWorldData&, bool, CompletionHandler<void(Expected<JavaScriptEvaluationResult, std::optional<WebCore::ExceptionDetails>>)>&&);
     void getAccessibilityTreeData(CompletionHandler<void(const std::optional<IPC::SharedBufferReference>&)>&&);
     void updateRenderingWithForcedRepaint(CompletionHandler<void()>&&);
     void takeSnapshot(WebCore::IntRect snapshotRect, WebCore::IntSize bitmapSize, SnapshotOptions, CompletionHandler<void(std::optional<WebCore::ShareableBitmap::Handle>&&)>&&);

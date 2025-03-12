@@ -62,6 +62,7 @@
 #include "APIURL.h"
 #include "APIURLRequest.h"
 #include "APIWebsitePolicies.h"
+#include "AboutSchemeHandler.h"
 #include "AuthenticationChallengeProxy.h"
 #include "AuthenticationDecisionListener.h"
 #include "AuthenticationManager.h"
@@ -71,7 +72,6 @@
 #include "CallbackID.h"
 #include "ColorControlSupportsAlpha.h"
 #include "Connection.h"
-#include "CoroutineUtilities.h"
 #include "DidFilterKnownLinkDecoration.h"
 #include "DownloadManager.h"
 #include "DownloadProxy.h"
@@ -263,6 +263,7 @@
 #include <optional>
 #include <stdio.h>
 #include <wtf/CallbackAggregator.h>
+#include <wtf/CoroutineUtilities.h>
 #include <wtf/EnumTraits.h>
 #include <wtf/FileSystem.h>
 #include <wtf/ListHashSet.h>
@@ -913,6 +914,8 @@ WebPageProxy::WebPageProxy(PageClient& pageClient, WebProcessProxy& process, Ref
     if (RefPtr gpuProcess = GPUProcessProxy::singletonIfCreated())
         gpuProcess->setPresentingApplicationAuditToken(process.coreProcessIdentifier(), m_webPageID, m_presentingApplicationAuditToken);
 #endif
+
+    setURLSchemeHandlerForScheme(AboutSchemeHandler::singleton(), AboutSchemeHandler::scheme);
 }
 
 WebPageProxy::~WebPageProxy()
@@ -1560,7 +1563,7 @@ void WebPageProxy::didAttachToRunningProcess()
         videoPresentationManager->setMockVideoPresentationModeEnabled(m_mockVideoPresentationModeEnabled);
 #endif
 
-#if ENABLE(APPLE_PAY) && !ENABLE(APPLE_PAY_REMOTE_UI)
+#if ENABLE(APPLE_PAY)
     ASSERT(!internals().paymentCoordinator);
     internals().paymentCoordinator = WebPaymentCoordinatorProxy::create(internals());
 #endif
@@ -2097,6 +2100,7 @@ void WebPageProxy::loadRequestWithNavigationShared(Ref<WebProcessProxy>&& proces
     loadParameters.advancedPrivacyProtections = navigation.originatorAdvancedPrivacyProtections();
     loadParameters.isRequestFromClientOrUserInput = navigation.isRequestFromClientOrUserInput();
     loadParameters.isPerformingHTTPFallback = isPerformingHTTPFallback == IsPerformingHTTPFallback::Yes;
+    loadParameters.isHandledByAboutSchemeHandler = AboutSchemeHandler::singleton().canHandleURL(url);
 
 #if ENABLE(CONTENT_EXTENSIONS)
     if (protectedPreferences()->iFrameResourceMonitoringEnabled())
@@ -2322,6 +2326,7 @@ RefPtr<API::Navigation> WebPageProxy::loadSimulatedRequest(WebCore::ResourceRequ
     loadParameters.lockBackForwardList = navigation->lockBackForwardList();
     loadParameters.clientRedirectSourceForHistory = navigation->clientRedirectSourceForHistory();
     loadParameters.isNavigatingToAppBoundDomain = isNavigatingToAppBoundDomain();
+    loadParameters.isHandledByAboutSchemeHandler = AboutSchemeHandler::singleton().canHandleURL(loadParameters.request.url());
 
     simulatedResponse.setExpectedContentLength(loadParameters.data->size());
     simulatedResponse.includeCertificateInfo();
@@ -4966,6 +4971,7 @@ void WebPageProxy::receivedNavigationActionPolicyDecision(WebProcessProxy& proce
             loadParameters.navigationID = navigation->navigationID();
             loadParameters.ownerPermissionsPolicy = navigation->ownerPermissionsPolicy();
             loadParameters.isPerformingHTTPFallback = navigationAction->data().isPerformingHTTPFallback;
+            loadParameters.isHandledByAboutSchemeHandler = AboutSchemeHandler::singleton().canHandleURL(loadParameters.request.url());
             processNavigatingTo->send(Messages::WebPage::LoadRequest(WTFMove(loadParameters)), webPageIDInProcess(processNavigatingTo));
         }
 
@@ -5154,6 +5160,7 @@ void WebPageProxy::continueNavigationInNewProcess(API::Navigation& navigation, W
         loadParameters.lockBackForwardList = !!navigation.backForwardFrameLoadType() ? LockBackForwardList::Yes : LockBackForwardList::No;
         loadParameters.ownerPermissionsPolicy = navigation.lastNavigationAction().ownerPermissionsPolicy;
         loadParameters.isPerformingHTTPFallback = isPerformingHTTPFallback == IsPerformingHTTPFallback::Yes;
+        loadParameters.isHandledByAboutSchemeHandler = AboutSchemeHandler::singleton().canHandleURL(loadParameters.request.url());
 
         if (navigation.isInitialFrameSrcLoad())
             frame.setIsPendingInitialHistoryItem(true);
@@ -6178,12 +6185,12 @@ void WebPageProxy::launchInitialProcessIfNecessary()
         launchProcess(Site(aboutBlankURL()), ProcessLaunchReason::InitialProcess);
 }
 
-void WebPageProxy::runJavaScriptInMainFrame(RunJavaScriptParameters&& parameters, CompletionHandler<void(Expected<JavaScriptEvaluationResult, std::optional<WebCore::ExceptionDetails>>)>&& callbackFunction)
+void WebPageProxy::runJavaScriptInMainFrame(RunJavaScriptParameters&& parameters, bool wantsResult, CompletionHandler<void(Expected<JavaScriptEvaluationResult, std::optional<WebCore::ExceptionDetails>>)>&& callbackFunction)
 {
-    runJavaScriptInFrameInScriptWorld(WTFMove(parameters), std::nullopt, API::ContentWorld::pageContentWorldSingleton(), WTFMove(callbackFunction));
+    runJavaScriptInFrameInScriptWorld(WTFMove(parameters), std::nullopt, API::ContentWorld::pageContentWorldSingleton(), wantsResult, WTFMove(callbackFunction));
 }
 
-void WebPageProxy::runJavaScriptInFrameInScriptWorld(RunJavaScriptParameters&& parameters, std::optional<WebCore::FrameIdentifier> frameID, API::ContentWorld& world, CompletionHandler<void(Expected<JavaScriptEvaluationResult, std::optional<WebCore::ExceptionDetails>>)>&& callbackFunction)
+void WebPageProxy::runJavaScriptInFrameInScriptWorld(RunJavaScriptParameters&& parameters, std::optional<WebCore::FrameIdentifier> frameID, API::ContentWorld& world, bool wantsResult, CompletionHandler<void(Expected<JavaScriptEvaluationResult, std::optional<WebCore::ExceptionDetails>>)>&& callbackFunction)
 {
     // For backward-compatibility support running script in a WebView which has not done any loads yets.
     launchInitialProcessIfNecessary();
@@ -6194,10 +6201,10 @@ void WebPageProxy::runJavaScriptInFrameInScriptWorld(RunJavaScriptParameters&& p
     RefPtr<ProcessThrottler::Activity> activity;
 #if USE(RUNNINGBOARD)
     if (RefPtr pageClient = this->pageClient(); pageClient && pageClient->canTakeForegroundAssertions())
-        activity = m_legacyMainFrameProcess->throttler().foregroundActivity("WebPageProxy::runJavaScriptInFrameInScriptWorld"_s);
+        activity = m_legacyMainFrameProcess->protectedThrottler()->foregroundActivity("WebPageProxy::runJavaScriptInFrameInScriptWorld"_s);
 #endif
 
-    sendWithAsyncReplyToProcessContainingFrame(frameID, Messages::WebPage::RunJavaScriptInFrameInScriptWorld(parameters, frameID, world.worldData()), [activity = WTFMove(activity), callbackFunction = WTFMove(callbackFunction)] (auto&& result) mutable {
+    sendWithAsyncReplyToProcessContainingFrame(frameID, Messages::WebPage::RunJavaScriptInFrameInScriptWorld(parameters, frameID, world.worldData(), wantsResult), [activity = WTFMove(activity), callbackFunction = WTFMove(callbackFunction)] (auto&& result) mutable {
         callbackFunction(WTFMove(result));
     });
 }
@@ -6233,7 +6240,7 @@ void WebPageProxy::getContentsAsAttributedString(CompletionHandler<void(const We
 }
 #endif
 
-void WebPageProxy::getAllFrames(CompletionHandler<void(FrameTreeNodeData&&)>&& completionHandler)
+void WebPageProxy::getAllFrames(CompletionHandler<void(std::optional<FrameTreeNodeData>&&)>&& completionHandler)
 {
     RefPtr mainFrame = m_mainFrame;
     if (!mainFrame)
@@ -6273,8 +6280,9 @@ void WebPageProxy::getAllFrameTrees(CompletionHandler<void(Vector<FrameTreeNodeD
 
     Ref aggregator = FrameTreeCallbackAggregator::create(WTFMove(completionHandler));
     forEachWebContentProcess([&] (auto& process, auto pageID) {
-        process.sendWithAsyncReply(Messages::WebPage::GetFrameTree(), [aggregator] (FrameTreeNodeData&& data) {
-            aggregator->addFrameTree(WTFMove(data));
+        process.sendWithAsyncReply(Messages::WebPage::GetFrameTree(), [aggregator] (std::optional<FrameTreeNodeData>&& data) {
+            if (data)
+                aggregator->addFrameTree(WTFMove(*data));
         }, pageID);
     });
 }
@@ -9240,16 +9248,14 @@ void WebPageProxy::dataTaskWithRequest(WebCore::ResourceRequest&& request, const
     protectedWebsiteDataStore()->protectedNetworkProcess()->dataTaskWithRequest(*this, sessionID(), WTFMove(request), topOrigin, shouldRunAtForegroundPriority, WTFMove(completionHandler));
 }
 
-void WebPageProxy::loadAndDecodeImage(WebCore::ResourceRequest&& request, std::optional<WebCore::FloatSize> sizeConstraint, size_t maximumBytesFromNetwork, CompletionHandler<void(std::variant<WebCore::ResourceError, Ref<WebCore::ShareableBitmap>>&&)>&& completionHandler)
+void WebPageProxy::loadAndDecodeImage(WebCore::ResourceRequest&& request, std::optional<WebCore::FloatSize> sizeConstraint, size_t maximumBytesFromNetwork, CompletionHandler<void(Expected<Ref<WebCore::ShareableBitmap>, WebCore::ResourceError>&&)>&& completionHandler)
 {
-    if (isClosed()) {
-        completionHandler(decodeError(request.url()));
-        return;
-    }
+    if (isClosed())
+        return completionHandler(makeUnexpected(decodeError(request.url())));
 
     if (!hasRunningProcess())
         launchProcess(Site(aboutBlankURL()), ProcessLaunchReason::InitialProcess);
-    sendWithAsyncReply(Messages::WebPage::LoadAndDecodeImage(request, sizeConstraint, maximumBytesFromNetwork), [preventProcessShutdownScope = protectedLegacyMainFrameProcess()->shutdownPreventingScope(), completionHandler = WTFMove(completionHandler)] (std::variant<WebCore::ResourceError, Ref<WebCore::ShareableBitmap>>&& result) mutable {
+    sendWithAsyncReply(Messages::WebPage::LoadAndDecodeImage(request, sizeConstraint, maximumBytesFromNetwork), [preventProcessShutdownScope = protectedLegacyMainFrameProcess()->shutdownPreventingScope(), completionHandler = WTFMove(completionHandler)] (Expected<Ref<WebCore::ShareableBitmap>, WebCore::ResourceError>&& result) mutable {
         completionHandler(WTFMove(result));
     });
 }
@@ -9498,6 +9504,11 @@ void WebPageProxy::resourceLoadDidCompleteWithError(ResourceLoadInfo&& loadInfo,
 WebFullScreenManagerProxy* WebPageProxy::fullScreenManager()
 {
     return m_fullScreenManager.get();
+}
+
+RefPtr<WebFullScreenManagerProxy> WebPageProxy::protectedFullScreenManager()
+{
+    return fullScreenManager();
 }
 
 void WebPageProxy::setFullscreenClient(std::unique_ptr<API::FullscreenClient>&& client)
@@ -11906,7 +11917,7 @@ void WebPageProxy::didReceiveAuthenticationChallengeProxy(Ref<AuthenticationChal
             if (shouldAllowLegacyTLS)
                 m_navigationClient->didReceiveAuthenticationChallenge(*this, authenticationChallenge.get());
             else
-                authenticationChallenge->protectedListener()->completeChallenge(AuthenticationChallengeDisposition::Cancel);
+                authenticationChallenge->listener().completeChallenge(AuthenticationChallengeDisposition::Cancel);
         });
         return;
     }
@@ -15051,10 +15062,8 @@ void WebPageProxy::gpuProcessExited(ProcessTerminationReason)
 #if PLATFORM(IOS_FAMILY)
         gpuProcess->setOrientationForMediaCapture(m_orientationForMediaCapture);
 #endif
-#if PLATFORM(MEDIA_STREAM)
         if (m_shouldListenToVoiceActivity)
             gpuProcess->setShouldListenToVoiceActivity(*this, m_shouldListenToVoiceActivity);
-#endif
     }
 #endif
 }

@@ -85,6 +85,7 @@ inline CapabilityLevel canCompile(Node* node)
     case Spread:
     case NewArrayBuffer:
     case NewTypedArray:
+    case NewTypedArrayBuffer:
     case GetByOffset:
     case GetGetterSetterByOffset:
     case GetGetter:
@@ -472,6 +473,8 @@ inline CapabilityLevel canCompile(Node* node)
     case CreatePromise:
     case CreateGenerator:
     case CreateAsyncGenerator:
+    case DataViewGetByteLength:
+    case DataViewGetByteLengthAsInt52:
     case DataViewGetInt:
     case DataViewGetFloat:
     case DataViewSet:

@@ -277,6 +277,14 @@ void VideoPresentationManagerProxy::setIsChildOfElementFullscreen(PlaybackSessio
         videosInElementFullscreenChanged();
 }
 
+void VideoPresentationManagerProxy::hasBeenInteractedWith(PlaybackSessionContextIdentifier contextId)
+{
+    Ref model = ensureModel(contextId);
+
+    if (std::exchange(m_lastInteractedWithVideo, contextId) != contextId && model->isChildOfElementFullscreen())
+        videosInElementFullscreenChanged();
+}
+
 void VideoPresentationManagerProxy::videosInElementFullscreenChanged()
 {
     if (RefPtr page = m_page.get())
@@ -292,6 +300,13 @@ void VideoPresentationModelContext::setVideoDimensions(const WebCore::FloatSize&
     ALWAYS_LOG_IF_POSSIBLE(LOGIDENTIFIER, videoDimensions, ", clients=", m_clients.computeSize());
     m_clients.forEach([&](auto& client) {
         client.videoDimensionsChanged(videoDimensions);
+    });
+}
+
+void VideoPresentationModelContext::audioSessionCategoryChanged(WebCore::AudioSessionCategory category, WebCore::AudioSessionMode mode, WebCore::RouteSharingPolicy policy)
+{
+    m_clients.forEach([&](auto& client) {
+        client.audioSessionCategoryChanged(category, mode, policy);
     });
 }
 
@@ -1063,6 +1078,12 @@ void VideoPresentationManagerProxy::setPlayerIdentifier(PlaybackSessionContextId
         interface->setPlayerIdentifier(playerIdentifier);
 }
 
+void VideoPresentationManagerProxy::audioSessionCategoryChanged(PlaybackSessionContextIdentifier contextId, WebCore::AudioSessionCategory category, WebCore::AudioSessionMode mode, WebCore::RouteSharingPolicy policy)
+{
+    // FIXME: This is a false positive in the static analyzer. See rdar://146719371
+    SUPPRESS_UNCOUNTED_ARG Ref { ensureModel(contextId) }->audioSessionCategoryChanged(category, mode, policy);
+}
+
 void VideoPresentationManagerProxy::setHasVideo(PlaybackSessionContextIdentifier contextId, bool hasVideo)
 {
     if (m_mockVideoPresentationModeEnabled)
@@ -1557,6 +1578,10 @@ Ref<PlaybackSessionManagerProxy> VideoPresentationManagerProxy::protectedPlaybac
 
 RefPtr<PlatformVideoPresentationInterface> VideoPresentationManagerProxy::bestVideoForElementFullscreen()
 {
+    if (m_lastInteractedWithVideo) {
+        if (auto* modelAndInterface = findModelAndInterface(*m_lastInteractedWithVideo); modelAndInterface && modelAndInterface->first->isChildOfElementFullscreen())
+            return Ref { modelAndInterface->second };
+    }
 #if PLATFORM(IOS_FAMILY)
     if (!m_page)
         return nullptr;

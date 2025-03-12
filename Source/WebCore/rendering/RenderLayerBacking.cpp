@@ -153,7 +153,7 @@ public:
 #if HAVE(SUPPORT_HDR_DISPLAY)
         if (m_backing.renderer().document().canDrawHDRContent()) {
             m_hdrContent = RequestState::Unknown;
-            m_isReplacedElementWithHDR = RequestState::Unknown;
+            m_isRenderElementWithHDR = RequestState::Unknown;
         }
 #endif
     }
@@ -193,7 +193,7 @@ public:
     bool isContentsTypeSatisfied() const
     {
 #if HAVE(SUPPORT_HDR_DISPLAY)
-        if (m_isReplacedElementWithHDR == RequestState::Unknown)
+        if (m_isRenderElementWithHDR == RequestState::Unknown)
             return false;
 #endif
         return m_contentsType != ContentsType::Unknown;
@@ -219,10 +219,10 @@ public:
     }
 
 #if HAVE(SUPPORT_HDR_DISPLAY)
-    bool isReplacedElementWithHDR()
+    bool isRenderElementWithHDR()
     {
         determineContentsType();
-        return m_isReplacedElementWithHDR == RequestState::True;
+        return m_isRenderElementWithHDR == RequestState::True;
     }
 #endif
 
@@ -231,7 +231,7 @@ public:
     RequestState m_content { RequestState::Unknown };
 #if HAVE(SUPPORT_HDR_DISPLAY)
     RequestState m_hdrContent { RequestState::DontCare };
-    RequestState m_isReplacedElementWithHDR { RequestState::DontCare };
+    RequestState m_isRenderElementWithHDR { RequestState::DontCare };
 #endif
 
     ContentsType m_contentsType { ContentsType::Unknown };
@@ -274,8 +274,8 @@ void PaintedContentsInfo::determineContentsType()
         m_contentsType = ContentsType::Painted;
 
 #if HAVE(SUPPORT_HDR_DISPLAY)
-    if (m_isReplacedElementWithHDR == RequestState::Unknown)
-        m_isReplacedElementWithHDR = m_backing.isReplacedElementWithHDR() ? RequestState::True : RequestState::False;
+    if (m_isRenderElementWithHDR == RequestState::Unknown)
+        m_isRenderElementWithHDR = m_backing.isRenderElementWithHDR() ? RequestState::True : RequestState::False;
 #endif
 }
 
@@ -2024,7 +2024,7 @@ void RenderLayerBacking::updateDrawsContent(PaintedContentsInfo& contentsInfo)
         m_backgroundLayer->setDrawsContent(m_backgroundLayerPaintsFixedRootBackground ? hasPaintedContent : contentsInfo.paintsBoxDecorations());
 
 #if HAVE(SUPPORT_HDR_DISPLAY)
-    if (contentsInfo.paintsHDRContent() || contentsInfo.isReplacedElementWithHDR())
+    if (contentsInfo.paintsHDRContent() || contentsInfo.isRenderElementWithHDR())
         m_graphicsLayer->setDrawsHDRContent(true);
 #endif
 }
@@ -3365,9 +3365,9 @@ bool RenderLayerBacking::isUnscaledBitmapOnly() const
 }
 
 #if HAVE(SUPPORT_HDR_DISPLAY)
-bool RenderLayerBacking::isReplacedElementWithHDR() const
+bool RenderLayerBacking::isRenderElementWithHDR() const
 {
-    return m_owningLayer.isReplacedElementWithHDR();
+    return m_owningLayer.isRenderElementWithHDR();
 }
 #endif
 
@@ -4558,30 +4558,30 @@ double RenderLayerBacking::backingStoreMemoryEstimate() const
 
 TextStream& operator<<(TextStream& ts, const RenderLayerBacking& backing)
 {
-    ts << "RenderLayerBacking " << &backing << " bounds " << backing.compositedBounds();
+    ts << "RenderLayerBacking "_s << &backing << " bounds "_s << backing.compositedBounds();
 
     if (backing.isFrameLayerWithTiledBacking())
-        ts << " frame layer tiled backing";
+        ts << " frame layer tiled backing"_s;
     if (backing.paintsIntoWindow())
-        ts << " paintsIntoWindow";
+        ts << " paintsIntoWindow"_s;
     if (backing.paintsIntoCompositedAncestor())
-        ts << " paintsIntoCompositedAncestor";
+        ts << " paintsIntoCompositedAncestor"_s;
 
-    ts << " primary layer ID " << (backing.graphicsLayer()->primaryLayerID() ? backing.graphicsLayer()->primaryLayerID()->object().toUInt64() : 0);
+    ts << " primary layer ID "_s << (backing.graphicsLayer()->primaryLayerID() ? backing.graphicsLayer()->primaryLayerID()->object().toUInt64() : 0);
     if (auto nodeID = backing.scrollingNodeIDForRole(ScrollCoordinationRole::ViewportConstrained))
-        ts << " viewport constrained scrolling node " << nodeID;
+        ts << " viewport constrained scrolling node "_s << nodeID;
     if (auto nodeID = backing.scrollingNodeIDForRole(ScrollCoordinationRole::Scrolling))
-        ts << " scrolling node " << nodeID;
+        ts << " scrolling node "_s << nodeID;
 
     if (backing.ancestorClippingStack())
-        ts << " ancestor clip stack " << *backing.ancestorClippingStack();
+        ts << " ancestor clip stack "_s << *backing.ancestorClippingStack();
 
     if (auto nodeID = backing.scrollingNodeIDForRole(ScrollCoordinationRole::FrameHosting))
-        ts << " frame hosting node " << nodeID;
+        ts << " frame hosting node "_s << nodeID;
     if (auto nodeID = backing.scrollingNodeIDForRole(ScrollCoordinationRole::PluginHosting))
-        ts << " plugin hosting node " << nodeID;
+        ts << " plugin hosting node "_s << nodeID;
     if (auto nodeID = backing.scrollingNodeIDForRole(ScrollCoordinationRole::Positioning))
-        ts << " positioning node " << nodeID;
+        ts << " positioning node "_s << nodeID;
     return ts;
 }
 

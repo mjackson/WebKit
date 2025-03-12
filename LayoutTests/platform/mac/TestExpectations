@@ -2407,8 +2407,6 @@ webkit.org/b/288546 imported/w3c/web-platform-tests/fullscreen/api/element-ready
 
 webkit.org/b/288631 imported/w3c/web-platform-tests/dom/events/scrolling/scrollend-event-fired-after-snap.html [ Failure ]
 
-webkit.org/b/288670 [ Debug x86_64 ] media/media-source/media-source-vp8-hiddenframes.html [ ImageOnlyFailure ]
-
 webkit.org/b/260320 imported/w3c/web-platform-tests/css/selectors/invalidation/nth-child-in-shadow-root.html [ ImageOnlyFailure ]
 
 webkit.org/b/289204 imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/focus-after-close.html [ Pass Failure ]
@@ -2423,3 +2421,7 @@ imported/w3c/web-platform-tests/svg/pservers/reftests/meshgradient-basic-004.svg
 imported/w3c/web-platform-tests/svg/pservers/reftests/meshgradient-basic-005.svg [ Failure ]
 imported/w3c/web-platform-tests/svg/pservers/reftests/meshgradient-bicubic-001.svg [ Failure ]
 imported/w3c/web-platform-tests/svg/pservers/reftests/meshgradient-complex-001.svg [ Failure ]
+
+# webkit.org/b/289495 REGRESSION(291808@main): [ macOS ] 2x svg/W3C-I18N/tspan-dirRTL-ubEmbed-in-*-context.svg are constant failures.
+svg/W3C-I18N/tspan-dirRTL-ubEmbed-in-ltr-context.svg [ Failure ]
+svg/W3C-I18N/tspan-dirRTL-ubEmbed-in-default-context.svg [ Failure ]
