@@ -99,7 +99,6 @@ namespace JSC {
     macro(Log2Intrinsic) \
     macro(RegExpExecIntrinsic) \
     macro(RegExpTestIntrinsic) \
-    macro(RegExpTestFastIntrinsic) \
     macro(RegExpMatchFastIntrinsic) \
     macro(ObjectAssignIntrinsic) \
     macro(ObjectCreateIntrinsic) \
@@ -118,8 +117,10 @@ namespace JSC {
     macro(StringPrototypeLocaleCompareIntrinsic) \
     macro(StringPrototypeValueOfIntrinsic) \
     macro(StringPrototypeReplaceIntrinsic) \
+    macro(StringPrototypeReplaceAllIntrinsic) \
     macro(StringPrototypeReplaceRegExpIntrinsic) \
     macro(StringPrototypeReplaceStringIntrinsic) \
+    macro(StringPrototypeReplaceAllStringIntrinsic) \
     macro(StringPrototypeSliceIntrinsic) \
     macro(StringPrototypeSubstringIntrinsic) \
     macro(StringPrototypeToLowerCaseIntrinsic) \

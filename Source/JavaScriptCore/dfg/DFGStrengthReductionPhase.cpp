@@ -1029,6 +1029,7 @@ private:
         }
 
         case StringReplace:
+        case StringReplaceAll:
         case StringReplaceRegExp: {
             Node* stringNode = m_node->child1().node();
             String string = stringNode->tryGetString(m_graph);
@@ -1284,6 +1285,22 @@ private:
                 }
                 break;
             }
+
+            case Array::Uint8Array:
+            case Array::Uint16Array:
+            case Array::Uint32Array: {
+                if (m_node->op() == PutByVal || m_node->op() == PutByValDirect || m_node->op() == PutByValAlias) {
+                    Edge& valueEdge = m_graph.child(m_node, 2);
+                    if (valueEdge.useKind() == Int32Use) {
+                        if (valueEdge->op() == UInt32ToNumber && valueEdge->child1().useKind() == Int32Use) {
+                            valueEdge = valueEdge->child1();
+                            m_changed = true;
+                        }
+                    }
+                }
+                break;
+            }
+
             default:
                 break;
             }
@@ -1345,6 +1362,44 @@ private:
 
             if (foldPurifyNaNOnBinary(m_node))
                 m_changed = true;
+            break;
+        }
+
+        case CheckInBounds: {
+            auto isInt32OrKnownInt32Use = [](UseKind useKind) {
+                return useKind == Int32Use || useKind == KnownInt32Use;
+            };
+
+            if (!isInt32OrKnownInt32Use(m_node->child1().useKind()) || !isInt32OrKnownInt32Use(m_node->child2().useKind()))
+                break;
+
+            if (m_node->child2()->isInt32Constant()) {
+                int32_t length = m_node->child2()->asInt32();
+                if (length < 0)
+                    break;
+
+                switch (m_node->child1()->op()) {
+                case ArithBitRShift: {
+                    if (!m_node->child1()->isBinaryUseKind(Int32Use))
+                        break;
+                    if (m_node->child1()->child2()->isInt32Constant()) {
+                        int32_t shiftAmount = m_node->child1()->child2()->asInt32();
+                        if (shiftAmount < 0 || shiftAmount > 31)
+                            break;
+                        auto result = static_cast<int64_t>(length) << shiftAmount;
+                        if (result > INT32_MAX)
+                            break;
+                        m_node->child1() = Edge(m_node->child1()->child1().node(), Int32Use);
+                        m_node->child2() = Edge(m_insertionSet.insertConstant(m_nodeIndex, m_node->origin, jsNumber(static_cast<int32_t>(result))), KnownInt32Use);
+                        m_changed = true;
+                        break;
+                    }
+                    break;
+                }
+                default:
+                    break;
+                }
+            }
             break;
         }
 

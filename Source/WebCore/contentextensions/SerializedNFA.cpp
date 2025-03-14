@@ -35,11 +35,11 @@ namespace WebCore {
 namespace ContentExtensions {
 
 template<typename T>
-bool writeAllToFile(FileSystem::PlatformFileHandle file, const T& container)
+bool writeAllToFile(FileSystem::FileHandle& file, const T& container)
 {
     auto bytes = spanReinterpretCast<const uint8_t>(container.span());
     while (!bytes.empty()) {
-        auto written = FileSystem::writeToFile(file, bytes);
+        auto written = file.write(bytes);
         if (written == -1)
             return false;
         skip(bytes, written);
@@ -49,24 +49,24 @@ bool writeAllToFile(FileSystem::PlatformFileHandle file, const T& container)
 
 std::optional<SerializedNFA> SerializedNFA::serialize(NFA&& nfa)
 {
-    auto [filename, file] = FileSystem::openTemporaryFile("SerializedNFA"_s);
-    if (!FileSystem::isHandleValid(file))
+    auto [filename, fileHandle] = FileSystem::openTemporaryFile("SerializedNFA"_s);
+    if (!fileHandle)
         return std::nullopt;
 
-    bool wroteSuccessfully = writeAllToFile(file, nfa.nodes)
-        && writeAllToFile(file, nfa.transitions)
-        && writeAllToFile(file, nfa.targets)
-        && writeAllToFile(file, nfa.epsilonTransitionsTargets)
-        && writeAllToFile(file, nfa.actions);
+    bool wroteSuccessfully = writeAllToFile(fileHandle, nfa.nodes)
+        && writeAllToFile(fileHandle, nfa.transitions)
+        && writeAllToFile(fileHandle, nfa.targets)
+        && writeAllToFile(fileHandle, nfa.epsilonTransitionsTargets)
+        && writeAllToFile(fileHandle, nfa.actions);
     if (!wroteSuccessfully) {
-        FileSystem::closeFile(file);
+        fileHandle = { };
         FileSystem::deleteFile(filename);
         return std::nullopt;
     }
 
     bool mappedSuccessfully = false;
-    FileSystem::MappedFileData mappedFile(file, FileSystem::MappedFileMode::Private, mappedSuccessfully);
-    FileSystem::closeFile(file);
+    FileSystem::MappedFileData mappedFile(fileHandle, FileSystem::MappedFileMode::Private, mappedSuccessfully);
+    fileHandle = { };
     FileSystem::deleteFile(filename);
     if (!mappedSuccessfully)
         return std::nullopt;

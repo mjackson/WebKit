@@ -226,6 +226,7 @@
 #include <WebCore/GlobalFrameIdentifier.h>
 #include <WebCore/GlobalWindowIdentifier.h>
 #include <WebCore/ImageBuffer.h>
+#include <WebCore/LegacySchemeRegistry.h>
 #include <WebCore/LengthBox.h>
 #include <WebCore/LinkDecorationFilteringData.h>
 #include <WebCore/MIMETypeRegistry.h>
@@ -2025,9 +2026,7 @@ RefPtr<API::Navigation> WebPageProxy::loadRequest(WebCore::ResourceRequest&& req
     if (lastNavigationAction)
         navigation->setLastNavigationAction(*lastNavigationAction);
 
-    auto navigationData = navigation->lastNavigationAction();
-    navigationData.isRequestFromClientOrUserInput = true;
-    navigation->setLastNavigationAction(WTFMove(navigationData));
+    navigation->markRequestAsFromClientInput();
 
     if (shouldForceForegroundPriorityForClientNavigation())
         navigation->setClientNavigationActivity(legacyMainFrameProcess().protectedThrottler()->foregroundActivity("Client navigation"_s));
@@ -2167,9 +2166,7 @@ RefPtr<API::Navigation> WebPageProxy::loadFile(const String& fileURLString, cons
 
     Ref navigation = protectedNavigationState()->createLoadRequestNavigation(legacyMainFrameProcess().coreProcessIdentifier(), ResourceRequest(fileURL), m_backForwardList->protectedCurrentItem());
 
-    auto navigationData = navigation->lastNavigationAction();
-    navigationData.isRequestFromClientOrUserInput = true;
-    navigation->setLastNavigationAction(WTFMove(navigationData));
+    navigation->markRequestAsFromClientInput();
 
     if (shouldForceForegroundPriorityForClientNavigation())
         navigation->setClientNavigationActivity(legacyMainFrameProcess().protectedThrottler()->foregroundActivity("Client navigation"_s));
@@ -4816,12 +4813,25 @@ void WebPageProxy::receivedNavigationActionPolicyDecision(WebProcessProxy& proce
     }
 
 #if ENABLE(DEVICE_ORIENTATION)
-    if (navigation && (!navigation->websitePolicies() || navigation->websitePolicies()->deviceOrientationAndMotionAccessState() == WebCore::DeviceOrientationOrMotionPermissionState::Prompt)) {
-        auto deviceOrientationPermission = websiteDataStore->protectedDeviceOrientationAndMotionAccessController()->cachedDeviceOrientationPermission(SecurityOriginData::fromURLWithoutStrictOpaqueness(navigation->currentRequest().url()));
-        if (deviceOrientationPermission != WebCore::DeviceOrientationOrMotionPermissionState::Prompt) {
-            if (!navigation->websitePolicies())
+    if (navigation) {
+        bool isPermissionSet = false;
+        auto origin = SecurityOriginData::fromURL(navigation->currentRequest().url());
+        Ref deviceOrientationAndMotionAccessController = websiteDataStore->deviceOrientationAndMotionAccessController();
+        RefPtr websitePolicies = navigation->websitePolicies();
+        if (websitePolicies) {
+            // Update cache with permission in navigation policy as this is the most recent decision.
+            if (auto permission = websitePolicies->deviceOrientationAndMotionAccessState()) {
+                deviceOrientationAndMotionAccessController->setCachedDeviceOrientationPermission(origin, *permission);
+                isPermissionSet = true;
+            }
+        }
+        if (!isPermissionSet) {
+            if (!websitePolicies) {
                 navigation->setWebsitePolicies(API::WebsitePolicies::create());
-            navigation->protectedWebsitePolicies()->setDeviceOrientationAndMotionAccessState(deviceOrientationPermission);
+                websitePolicies = navigation->websitePolicies();
+            }
+            auto cachedPermission = deviceOrientationAndMotionAccessController->cachedDeviceOrientationPermission(origin);
+            websitePolicies->setDeviceOrientationAndMotionAccessState(cachedPermission);
         }
     }
 #endif
@@ -5158,7 +5168,7 @@ void WebPageProxy::continueNavigationInNewProcess(API::Navigation& navigation, W
         loadParameters.navigationID = navigation.navigationID();
         loadParameters.effectiveSandboxFlags = frame.effectiveSandboxFlags();
         loadParameters.lockBackForwardList = !!navigation.backForwardFrameLoadType() ? LockBackForwardList::Yes : LockBackForwardList::No;
-        loadParameters.ownerPermissionsPolicy = navigation.lastNavigationAction().ownerPermissionsPolicy;
+        loadParameters.ownerPermissionsPolicy = navigation.ownerPermissionsPolicy();
         loadParameters.isPerformingHTTPFallback = isPerformingHTTPFallback == IsPerformingHTTPFallback::Yes;
         loadParameters.isHandledByAboutSchemeHandler = AboutSchemeHandler::singleton().canHandleURL(loadParameters.request.url());
 
@@ -7051,7 +7061,7 @@ void WebPageProxy::didCommitLoadForFrame(IPC::Connection& connection, FrameIdent
     // FIXME: We should message check that navigationID is not zero here, but it's currently zero for some navigations through the back/forward cache.
     RefPtr<API::Navigation> navigation;
     if (frame->isMainFrame() && navigationID && (navigation = protectedNavigationState()->navigation(*navigationID))) {
-        auto requesterOrigin = navigation->lastNavigationAction().requesterOrigin;
+        auto requesterOrigin = navigation->requesterOrigin();
         auto currentRequest = navigation->currentRequest();
         auto navigationDataTransfer = checkIfNavigationContainsDataTransfer(requesterOrigin, currentRequest);
         if (!navigationDataTransfer.isEmpty()) {
@@ -7110,7 +7120,7 @@ void WebPageProxy::didCommitLoadForFrame(IPC::Connection& connection, FrameIdent
         if (internals().privateClickMeasurement)
             privateClickMeasurement = internals().privateClickMeasurement->pcm;
         else if (navigation && navigation->privateClickMeasurement())
-            privateClickMeasurement = navigation->privateClickMeasurement();
+            privateClickMeasurement = *navigation->privateClickMeasurement();
         if (privateClickMeasurement) {
             if (privateClickMeasurement->destinationSite().matches(frame->url()) || privateClickMeasurement->isSKAdNetworkAttribution())
                 protectedWebsiteDataStore()->storePrivateClickMeasurement(*privateClickMeasurement);
@@ -7513,7 +7523,10 @@ void WebPageProxy::didChangeMainDocument(FrameIdentifier frameID, std::optional<
             Ref navigationState = *m_navigationState;
             if (!navigationID || !navigationState->hasNavigation(*navigationID))
                 return true;
-            return navigationState->navigation(*navigationID)->isRequestFromClientOrUserInput();
+            RefPtr navigation = navigationState->navigation(*navigationID);
+            if (!navigation)
+                return true;
+            return navigation->isRequestFromClientOrUserInput();
         };
         protectedUserMediaPermissionRequestManager()->resetAccess(shouldClearAllGrantedRequests() ? nullptr : frame.get());
 
@@ -7793,10 +7806,10 @@ void WebPageProxy::decidePolicyForNavigationAction(Ref<WebProcessProxy>&& proces
     // When process-swapping on a redirect, the navigationActionData / originatingFrameInfoData provided by the fresh new WebProcess are inaccurate since
     // the new process does not have sufficient information. To address the issue, we restore the information we stored on the NavigationAction during the original request
     // policy decision.
-    if (!navigationActionData.redirectResponse.isNull() && navigation) {
+    if (!navigationActionData.redirectResponse.isNull() && navigation && navigation->lastNavigationAction()) {
         bool canHandleRequest = navigationActionData.canHandleRequest;
         auto redirectResponse = WTFMove(navigationActionData.redirectResponse);
-        navigationActionData = navigation->lastNavigationAction();
+        navigationActionData = *navigation->lastNavigationAction();
         navigationActionData.redirectResponse = WTFMove(redirectResponse);
         navigationActionData.canHandleRequest = canHandleRequest;
         frameInfo.securityOrigin = navigation->destinationFrameSecurityOrigin();
@@ -12449,6 +12462,7 @@ void WebPageProxy::requestMediaKeySystemPermissionForFrame(IPC::Connection& conn
 }
 
 #if ENABLE(DEVICE_ORIENTATION)
+
 void WebPageProxy::shouldAllowDeviceOrientationAndMotionAccess(IPC::Connection& connection, FrameIdentifier frameID, FrameInfoData&& frameInfo, bool mayPrompt, CompletionHandler<void(DeviceOrientationOrMotionPermissionState)>&& completionHandler)
 {
     RefPtr frame = WebFrameProxy::webFrame(frameID);
@@ -12457,6 +12471,15 @@ void WebPageProxy::shouldAllowDeviceOrientationAndMotionAccess(IPC::Connection& 
 
     protectedWebsiteDataStore()->protectedDeviceOrientationAndMotionAccessController()->shouldAllowAccess(*this, *frame, WTFMove(frameInfo), mayPrompt, WTFMove(completionHandler));
 }
+
+bool WebPageProxy::originHasDeviceOrientationAndMotionAccess(const WebCore::SecurityOriginData& origin)
+{
+    if (!protectedPreferences()->deviceOrientationPermissionAPIEnabled())
+        return true;
+
+    return protectedWebsiteDataStore()->protectedDeviceOrientationAndMotionAccessController()->cachedDeviceOrientationPermission(origin) == DeviceOrientationOrMotionPermissionState::Granted;
+}
+
 #endif
 
 
@@ -14146,6 +14169,7 @@ void WebPageProxy::setURLSchemeHandlerForScheme(Ref<WebURLSchemeHandler>&& handl
     auto handlerIdentifierResult = internals().urlSchemeHandlersByIdentifier.add(handlerIdentifier, WTFMove(handler));
     ASSERT_UNUSED(handlerIdentifierResult, handlerIdentifierResult.isNewEntry);
 
+    WebCore::LegacySchemeRegistry::registerURLSchemeAsHandledBySchemeHandler(scheme);
     send(Messages::WebPage::RegisterURLSchemeHandler(handlerIdentifier, canonicalizedScheme.value()));
 }
 
@@ -14646,6 +14670,14 @@ void WebPageProxy::willAcquireUniversalFileReadSandboxExtension(WebProcessProxy&
 
 void WebPageProxy::simulateDeviceOrientationChange(double alpha, double beta, double gamma)
 {
+#if ENABLE(DEVICE_ORIENTATION)
+    auto origin = SecurityOrigin::createFromString(protectedPageLoadState()->activeURL())->data();
+    if (!originHasDeviceOrientationAndMotionAccess(origin)) {
+        WEBPAGEPROXY_RELEASE_LOG_ERROR(Process, "simulateDeviceOrientationChange: Not sending simulated orientation change to page because origin %" SENSITIVE_LOG_STRING " does not have access.", origin.toString().utf8().data());
+        return;
+    }
+#endif
+
     send(Messages::WebPage::SimulateDeviceOrientationChange(alpha, beta, gamma));
 }
 

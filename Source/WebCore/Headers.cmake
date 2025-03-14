@@ -1849,7 +1849,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/DragItem.h
     platform/EventTrackingRegions.h
     platform/FileChooser.h
-    platform/FileHandle.h
     platform/FileMonitor.h
     platform/FileStreamClient.h
     platform/FixedContainerEdges.h
@@ -2628,6 +2627,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     rendering/style/OutlineValue.h
     rendering/style/PositionArea.h
     rendering/style/PositionTryFallback.h
+    rendering/style/PositionTryOrder.h
     rendering/style/RenderStyle.h
     rendering/style/RenderStyleConstants.h
     rendering/style/RenderStyleInlines.h

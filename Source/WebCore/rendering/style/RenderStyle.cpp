@@ -43,7 +43,7 @@
 #include "PathTraversalState.h"
 #include "QuotesData.h"
 #include "RenderBlock.h"
-#include "RenderObject.h"
+#include "RenderElement.h"
 #include "RenderStyleDifference.h"
 #include "RenderStyleSetters.h"
 #include "RenderTheme.h"
@@ -2749,11 +2749,6 @@ const FontCascade& RenderStyle::fontCascade() const
     return m_inheritedData->fontData->fontCascade;
 }
 
-FontCascade& RenderStyle::fontCascade()
-{
-    return m_inheritedData.access().fontData.access().fontCascade;
-}
-
 const FontMetrics& RenderStyle::metricsOfPrimaryFont() const
 {
     return m_inheritedData->fontData->fontCascade.metricsOfPrimaryFont();
@@ -3927,7 +3922,7 @@ Color RenderStyle::computedStrokeColor() const
     return visitedDependentColor(usedStrokeColorProperty());
 }
 
-UsedClear RenderStyle::usedClear(const RenderObject& renderer)
+UsedClear RenderStyle::usedClear(const RenderElement& renderer)
 {
     auto computedClear = renderer.style().clear();
     auto writingMode = renderer.containingBlock()->writingMode();
@@ -3949,7 +3944,7 @@ UsedClear RenderStyle::usedClear(const RenderObject& renderer)
     RELEASE_ASSERT_NOT_REACHED();
 }
 
-UsedFloat RenderStyle::usedFloat(const RenderObject& renderer)
+UsedFloat RenderStyle::usedFloat(const RenderElement& renderer)
 {
     auto computedFloat = renderer.style().floating();
     auto writingMode = renderer.containingBlock()->writingMode();

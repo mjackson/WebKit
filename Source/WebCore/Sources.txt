@@ -891,13 +891,11 @@ css/CSSFontFaceSource.cpp
 css/CSSFontFaceSrcValue.cpp
 css/CSSFontFeatureValue.cpp
 css/CSSFontFeatureValuesRule.cpp
-css/CSSFontPaletteValuesOverrideColorsValue.cpp
 css/CSSFontPaletteValuesRule.cpp
 css/CSSFontSelector.cpp
 css/CSSFontStyleRangeValue.cpp
 css/CSSFontStyleWithAngleValue.cpp
 css/CSSFontValue.cpp
-css/CSSFontVariantAlternatesValue.cpp
 css/CSSFontVariationValue.cpp
 css/CSSFunctionValue.cpp
 css/CSSGradientValue.cpp
@@ -1063,7 +1061,6 @@ css/parser/CSSPropertyParserConsumer+Position.cpp
 css/parser/CSSPropertyParserConsumer+PositionTry.cpp
 css/parser/CSSPropertyParserConsumer+Primitives.cpp
 css/parser/CSSPropertyParserConsumer+Resolution.cpp
-css/parser/CSSPropertyParserConsumer+Ruby.cpp
 css/parser/CSSPropertyParserConsumer+SVG.cpp
 css/parser/CSSPropertyParserConsumer+ScrollSnap.cpp
 css/parser/CSSPropertyParserConsumer+Scrollbars.cpp
@@ -2281,7 +2278,6 @@ platform/DragData.cpp
 platform/DragImage.cpp
 platform/EventTrackingRegions.cpp
 platform/FileChooser.cpp
-platform/FileHandle.cpp
 platform/FileMonitor.cpp
 platform/FileStream.cpp
 platform/FrameRateMonitor.cpp
@@ -2955,6 +2951,7 @@ rendering/style/OffsetRotation.cpp
 rendering/style/QuotesData.cpp
 rendering/style/PositionArea.cpp
 rendering/style/PositionTryFallback.cpp
+rendering/style/PositionTryOrder.cpp
 rendering/style/RenderStyle.cpp
 rendering/style/RenderStyleConstants.cpp
 rendering/style/SVGRenderStyle.cpp

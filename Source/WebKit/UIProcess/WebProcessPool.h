@@ -839,13 +839,6 @@ private:
     RetainPtr<WKProcessPoolWeakObserver> m_weakObserver;
 #endif
 
-#if HAVE(SUPPORT_HDR_DISPLAY_APIS)
-#if PLATFORM(MAC)
-    RetainPtr<NSObject> m_beginSuppressingHDRObserver;
-    RetainPtr<NSObject> m_endSuppressingHDRObserver;
-#endif // PLATFORM(MAC)
-#endif // HAVE(SUPPORT_HDR_DISPLAY_APIS)
-
     bool m_processTerminationEnabled { true };
 
     bool m_memoryCacheDisabled { false };
@@ -1043,3 +1036,7 @@ inline Ref<WebProcessPool> WebProcessProxy::protectedProcessPool() const
 }
 
 } // namespace WebKit
+
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebKit::WebProcessPool)
+static bool isType(const API::Object& object) { return object.type() == API::Object::Type::ProcessPool; }
+SPECIALIZE_TYPE_TRAITS_END()

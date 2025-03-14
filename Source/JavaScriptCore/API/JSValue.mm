@@ -873,6 +873,7 @@ static void reportExceptionToInspector(JSGlobalContextRef context, JSC::JSValue 
 }
 #endif
 
+// Similar to JavaScriptEvaluationResult::toVariant.
 static JSContainerConvertor::Task valueToObjectWithoutCopy(JSGlobalContextRef context, JSValueRef value)
 {
     if (!JSValueIsObject(context, value)) {

@@ -772,22 +772,12 @@ void URL::setFragmentIdentifier(StringView identifier)
     parseAllowingC0AtEnd(makeString(StringView(m_string).left(m_queryEnd), '#', identifier));
 }
 
-void URL::maybeTrimTrailingSpacesFromOpaquePath()
-{
-    if (!m_isValid || !hasOpaquePath() || hasFragmentIdentifier() || hasQuery())
-        return;
-
-    parse(makeString(StringView(m_string).left(m_pathEnd)));
-}
-
 void URL::removeFragmentIdentifier()
 {
     if (!m_isValid)
         return;
 
     m_string = m_string.left(m_queryEnd);
-
-    maybeTrimTrailingSpacesFromOpaquePath();
 }
 
 void URL::removeQueryAndFragmentIdentifier()
@@ -797,8 +787,6 @@ void URL::removeQueryAndFragmentIdentifier()
 
     m_string = m_string.left(m_pathEnd);
     m_queryEnd = m_pathEnd;
-
-    maybeTrimTrailingSpacesFromOpaquePath();
 }
 
 void URL::setQuery(StringView newQuery)
@@ -815,9 +803,6 @@ void URL::setQuery(StringView newQuery)
         newQuery,
         StringView(m_string).substring(m_queryEnd)
     ));
-
-    if (newQuery.isNull())
-        maybeTrimTrailingSpacesFromOpaquePath();
 }
 
 static String escapePathWithoutCopying(StringView path)

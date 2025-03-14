@@ -35,7 +35,6 @@
 #include "CSSBorderImageWidthValue.h"
 #include "CSSComputedStyleDeclaration.h"
 #include "CSSCustomPropertyValue.h"
-#include "CSSFontPaletteValuesOverrideColorsValue.h"
 #include "CSSFontStyleRangeValue.h"
 #include "CSSFontVariantLigaturesParser.h"
 #include "CSSFontVariantNumericParser.h"
@@ -418,9 +417,9 @@ std::pair<RefPtr<CSSValue>, CSSCustomPropertySyntax::Type> CSSPropertyParser::co
         case CSSCustomPropertySyntax::Type::String:
             return consumeString(range);
         case CSSCustomPropertySyntax::Type::TransformFunction:
-            return consumeTransformFunction(m_range, m_context);
+            return CSSPropertyParsing::consumeTransformFunction(m_range, m_context);
         case CSSCustomPropertySyntax::Type::TransformList:
-            return consumeTransformList(m_range, m_context);
+            return CSSPropertyParsing::consumeTransformList(m_range, m_context);
         case CSSCustomPropertySyntax::Type::Unknown:
             return nullptr;
         }
@@ -824,7 +823,7 @@ bool CSSPropertyParser::consumeFontVariantShorthand(bool important)
         if (!positionValue && (positionValue = CSSPropertyParsing::consumeFontVariantPosition(m_range)))
             continue;
 
-        if (!alternatesValue && (alternatesValue = consumeFontVariantAlternates(m_range, m_context)))
+        if (!alternatesValue && (alternatesValue = CSSPropertyParsing::consumeFontVariantAlternates(m_range)))
             continue;
 
         CSSFontVariantLigaturesParser::ParseResult ligaturesParseResult = ligaturesParser.consumeLigature(m_range);
@@ -2904,7 +2903,7 @@ bool CSSPropertyParser::consumeAnimationRangeShorthand(bool important)
     CSSValueListBuilder startList;
     CSSValueListBuilder endList;
     do {
-        RefPtr start = consumeAnimationRange(m_range, m_context, SingleTimelineRange::Type::Start);
+        RefPtr start = consumeSingleAnimationRangeStart(m_range, m_context);
         if (!start)
             return false;
 
@@ -2927,7 +2926,7 @@ bool CSSPropertyParser::consumeAnimationRangeShorthand(bool important)
                 end = rangeEndValueForStartValue(startPair->first());
             }
         } else {
-            end = consumeAnimationRange(m_range, m_context, SingleTimelineRange::Type::End);
+            end = consumeSingleAnimationRangeEnd(m_range, m_context);
             m_range.consumeWhitespace();
             if (!end)
                 return false;
@@ -2993,7 +2992,7 @@ bool CSSPropertyParser::consumeViewTimelineShorthand(bool important)
         // Both a view-timeline-axis and a view-timeline-inset are optional.
         if (m_range.peek().type() != CommaToken && !m_range.atEnd()) {
             RefPtr axis = CSSPropertyParsing::consumeAxis(m_range);
-            RefPtr insets = consumeViewTimelineInsetListItem(m_range, m_context);
+            RefPtr insets = consumeSingleViewTimelineInsetItem(m_range, m_context);
             // Since the order of view-timeline-axis and view-timeline-inset is not guaranteed, let's try view-timeline-axis again.
             if (!axis)
                 axis = CSSPropertyParsing::consumeAxis(m_range);

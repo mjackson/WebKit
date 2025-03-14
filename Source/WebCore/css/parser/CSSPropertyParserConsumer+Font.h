@@ -112,10 +112,6 @@ RefPtr<CSSValue> consumeFamilyName(CSSParserTokenRange&, const CSSParserContext&
 const AtomString& genericFontFamily(CSSValueID);
 WebKitFontFamilyNames::FamilyNamesIndex genericFontFamilyIndex(CSSValueID);
 
-// MARK: 'font-variant-alternates'
-// https://drafts.csswg.org/css-fonts-4/#font-variant-alternates-prop
-RefPtr<CSSValue> consumeFontVariantAlternates(CSSParserTokenRange&, const CSSParserContext&);
-
 // MARK: 'font-size-adjust'
 // https://drafts.csswg.org/css-fonts-4/#font-size-adjust-prop
 RefPtr<CSSValue> consumeFontSizeAdjust(CSSParserTokenRange&, const CSSParserContext&);
@@ -177,12 +173,6 @@ RefPtr<CSSValue> parseFontFaceFontWidth(const String&, ScriptExecutionContext&);
 // MARK: @font-face 'font-weight'
 // https://drafts.csswg.org/css-fonts-4/#descdef-font-face-font-weight
 RefPtr<CSSValue> parseFontFaceFontWeight(const String&, ScriptExecutionContext&);
-
-// MARK: - @font-palette-values descriptor consumers:
-
-// MARK: @font-palette-values 'override-colors'
-// https://drafts.csswg.org/css-fonts-4/#descdef-font-palette-values-override-colors
-RefPtr<CSSValue> consumeFontPaletteValuesOverrideColors(CSSParserTokenRange&, const CSSParserContext&);
 
 // MARK: - @font-feature-values descriptor consumers
 

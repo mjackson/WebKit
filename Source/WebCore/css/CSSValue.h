@@ -92,11 +92,9 @@ public:
     bool isFontFaceSrcLocalValue() const { return m_classType == ClassType::FontFaceSrcLocal; }
     bool isFontFaceSrcResourceValue() const { return m_classType == ClassType::FontFaceSrcResource; }
     bool isFontFeatureValue() const { return m_classType == ClassType::FontFeature; }
-    bool isFontPaletteValuesOverrideColorsValue() const { return m_classType == ClassType::FontPaletteValuesOverrideColors; }
     bool isFontStyleRangeValue() const { return m_classType == ClassType::FontStyleRange; }
     bool isFontStyleWithAngleValue() const { return m_classType == ClassType::FontStyleWithAngle; }
     bool isFontValue() const { return m_classType == ClassType::Font; }
-    bool isFontVariantAlternatesValue() const { return m_classType == ClassType::FontVariantAlternates; }
     bool isFontVariationValue() const { return m_classType == ClassType::FontVariation; }
     bool isFunctionValue() const { return m_classType == ClassType::Function; }
     bool isGradientValue() const { return m_classType == ClassType::Gradient; }
@@ -232,10 +230,8 @@ protected:
         FontFaceSrcLocal,
         FontFaceSrcResource,
         FontFeature,
-        FontPaletteValuesOverrideColors,
         FontStyleRange,
         FontStyleWithAngle,
-        FontVariantAlternates,
         FontVariation,
         GridLineNames,
         GridLineValue,
