@@ -697,6 +697,16 @@ public:
         m_op = MultiPutByOffset;
     }
 
+    void convertToNewRegExp(FrozenValue* regExp, Edge index)
+    {
+        ASSERT(m_op == NewRegExpUntyped);
+        setOpAndDefaultFlags(NewRegExp);
+        m_opInfo = OpInfoWrapper(regExp);
+        m_opInfo2 = OpInfoWrapper();
+        children = AdjacencyList();
+        children.setChild1(index);
+    }
+
     void convertToPhantomNewArrayWithConstantSize()
     {
         ASSERT(m_op == NewArrayWithConstantSize);
@@ -781,10 +791,10 @@ public:
         children = AdjacencyList();
     }
 
-    void convertToPhantomNewRegexp()
+    void convertToPhantomNewRegExp()
     {
-        ASSERT(m_op == NewRegexp);
-        setOpAndDefaultFlags(PhantomNewRegexp);
+        ASSERT(m_op == NewRegExp);
+        setOpAndDefaultFlags(PhantomNewRegExp);
         m_opInfo = OpInfoWrapper();
         m_opInfo2 = OpInfoWrapper();
         children = AdjacencyList();
@@ -1339,9 +1349,27 @@ public:
     NodeFlags arithNodeFlags()
     {
         NodeFlags result = m_flags & NodeArithFlagsMask;
-        if (op() == ArithMul || op() == ArithDiv || op() == ValueDiv || op() == ArithMod || op() == ArithNegate || op() == ArithPow || op() == ArithRound || op() == ArithFloor || op() == ArithCeil || op() == ArithTrunc || op() == DoubleAsInt32 || op() == ValueNegate || op() == ValueMul || op() == ValueDiv)
+        switch (op()) {
+        case ArithMul:
+        case ArithDiv:
+        case ArithMod:
+        case ArithNegate:
+        case ArithPow:
+        case ArithRound:
+        case ArithFloor:
+        case ArithCeil:
+        case ArithTrunc:
+        case ValueMul:
+        case ValueDiv:
+        case ValueMod:
+        case ValueNegate:
+        case ValuePow:
+        case DoubleAsInt32:
+        case Int52Rep:
             return result;
-        return result & ~NodeBytecodeNeedsNegZero;
+        default:
+            return result & ~NodeBytecodeNeedsNegZero;
+        }
     }
 
     bool mayHaveNonIntResult()
@@ -2129,7 +2157,7 @@ public:
         case NewBoundFunction:
         case CreateActivation:
         case MaterializeCreateActivation:
-        case NewRegexp:
+        case NewRegExp:
         case NewArrayBuffer:
         case PhantomNewArrayBuffer:
         case CompareEqPtr:
@@ -2355,6 +2383,7 @@ public:
         case NewAsyncGenerator:
         case NewInternalFieldObject:
         case NewStringObject:
+        case NewRegExpUntyped:
         case NewMap:
         case NewSet:
         case NewArrayWithSizeAndStructure:
@@ -2539,7 +2568,7 @@ public:
         case PhantomNewAsyncGeneratorFunction:
         case PhantomNewInternalFieldObject:
         case PhantomCreateActivation:
-        case PhantomNewRegexp:
+        case PhantomNewRegExp:
             return true;
         default:
             return false;

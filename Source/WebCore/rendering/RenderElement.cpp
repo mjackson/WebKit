@@ -1696,6 +1696,9 @@ VisibleInViewportState RenderElement::imageVisibleInViewport(const Document& doc
 
 void RenderElement::notifyFinished(CachedResource& resource, const NetworkLoadMetrics&, LoadWillContinueInAnotherProcess)
 {
+    if (auto* cachedImage = dynamicDowncast<CachedImage>(resource))
+        imageContentChanged(*cachedImage);
+
     document().protectedCachedResourceLoader()->notifyFinished(resource);
 }
 
@@ -1715,16 +1718,20 @@ void RenderElement::didRemoveCachedImageClient(CachedImage& cachedImage)
 void RenderElement::imageContentChanged(CachedImage& cachedImage)
 {
 #if HAVE(SUPPORT_HDR_DISPLAY)
-    if (!document().hasPaintedHDRContent()) {
-        if (cachedImage.hasPaintedHDRContent())
-            document().setHasPaintedHDRContent();
+    if (!document().hasHDRContent()) {
+        if (cachedImage.hasHDRContent())
+            document().setHasHDRContent();
+    }
+
+    if (document().hasHDRContent()) {
+        if (CheckedPtr rendererLayer = enclosingLayer()) {
+            if (CheckedPtr layer = rendererLayer->enclosingCompositingLayer())
+                layer->contentChanged(ContentChangeType::Image);
+        }
     }
 #else
     UNUSED_PARAM(cachedImage);
 #endif
-
-    if (auto layer = enclosingLayer())
-        layer->contentChanged(ContentChangeType::Image);
 }
 
 void RenderElement::scheduleRenderingUpdateForImage(CachedImage&)

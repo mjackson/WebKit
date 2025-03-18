@@ -40,8 +40,9 @@ constexpr auto FileSystemTestData = "This is a test"_s;
 
 static void createTestFile(const String& path)
 {
-    int written = FileSystem::overwriteEntireFile(path, FileSystemTestData.span8());
-    EXPECT_GE(written, 0);
+    auto written = FileSystem::overwriteEntireFile(path, FileSystemTestData.span8());
+    EXPECT_TRUE(written);
+    EXPECT_GE(*written, 0u);
 }
 
 // FIXME: Refactor FileSystemTest and FragmentedSharedBufferTest as a single class.
@@ -232,7 +233,7 @@ TEST_F(FileSystemTest, UnicodeDirectoryName)
 // --------------------- Truncate ----------------------------
 TEST_F(FileSystemTest, openExistingFileTruncate)
 {
-    auto handle = FileSystem::openFile(tempFilePath(), FileSystem::FileOpenMode::Truncate, FileSystem::FileAccessPermission::All, false);
+    auto handle = FileSystem::openFile(tempFilePath(), FileSystem::FileOpenMode::Truncate, FileSystem::FileAccessPermission::All, { }, false);
     EXPECT_TRUE(!!handle);
     // Check the existing file WAS truncated when the operation succeded.
     EXPECT_EQ(FileSystem::fileSize(tempFilePath()), 0);
@@ -243,7 +244,7 @@ TEST_F(FileSystemTest, openExistingFileTruncate)
 
 TEST_F(FileSystemTest, openExistingFileTruncateFailIfFileExists)
 {
-    auto handle = FileSystem::openFile(tempFilePath(), FileSystem::FileOpenMode::Truncate, FileSystem::FileAccessPermission::All, true);
+    auto handle = FileSystem::openFile(tempFilePath(), FileSystem::FileOpenMode::Truncate, FileSystem::FileAccessPermission::All, { }, true);
     EXPECT_TRUE(!handle);
     // Check the existing file wasn't truncated when the operation failed.
     EXPECT_EQ(FileSystem::fileSize(tempFilePath()), strlen(FileSystemTestData));
@@ -252,7 +253,7 @@ TEST_F(FileSystemTest, openExistingFileTruncateFailIfFileExists)
 // -------------------- ReadWrite ----------------------------
 TEST_F(FileSystemTest, openExistingFileReadWrite)
 {
-    auto handle = FileSystem::openFile(tempFilePath(), FileSystem::FileOpenMode::ReadWrite, FileSystem::FileAccessPermission::All, false);
+    auto handle = FileSystem::openFile(tempFilePath(), FileSystem::FileOpenMode::ReadWrite, FileSystem::FileAccessPermission::All, { }, false);
     EXPECT_TRUE(!!handle);
     // ReadWrite mode shouldn't truncate the contents of the file.
     EXPECT_EQ(FileSystem::fileSize(tempFilePath()), strlen(FileSystemTestData));
@@ -264,7 +265,7 @@ TEST_F(FileSystemTest, openExistingFileReadWrite)
 
 TEST_F(FileSystemTest, openExistingFileReadWriteFailIfFileExists)
 {
-    auto handle = FileSystem::openFile(tempFilePath(), FileSystem::FileOpenMode::ReadWrite, FileSystem::FileAccessPermission::All, true);
+    auto handle = FileSystem::openFile(tempFilePath(), FileSystem::FileOpenMode::ReadWrite, FileSystem::FileAccessPermission::All, { }, true);
     EXPECT_TRUE(!handle);
     // Check the existing file wasn't truncated when the operation failed.
     EXPECT_EQ(FileSystem::fileSize(tempFilePath()), strlen(FileSystemTestData));
@@ -287,7 +288,7 @@ TEST_F(FileSystemTest, openNonExistingFileTruncate)
     auto doesNotExistPath = FileSystem::pathByAppendingComponent(tempEmptyFolderPath(), "does-not-exist"_s);
     EXPECT_FALSE(FileSystem::fileExists(doesNotExistPath));
 
-    auto handle = FileSystem::openFile(doesNotExistPath, FileSystem::FileOpenMode::Truncate, FileSystem::FileAccessPermission::All, false);
+    auto handle = FileSystem::openFile(doesNotExistPath, FileSystem::FileOpenMode::Truncate, FileSystem::FileAccessPermission::All, { }, false);
     EXPECT_TRUE(!!handle);
 
     // The file exists at the latest by the time we request a flush (or close the handle).
@@ -300,7 +301,7 @@ TEST_F(FileSystemTest, openNonExistingFileTruncateFailIfFileExists)
     auto doesNotExistPath = FileSystem::pathByAppendingComponent(tempEmptyFolderPath(), "does-not-exist"_s);
     EXPECT_FALSE(FileSystem::fileExists(doesNotExistPath));
 
-    auto handle = FileSystem::openFile(doesNotExistPath, FileSystem::FileOpenMode::Truncate, FileSystem::FileAccessPermission::All, true);
+    auto handle = FileSystem::openFile(doesNotExistPath, FileSystem::FileOpenMode::Truncate, FileSystem::FileAccessPermission::All, { }, true);
     EXPECT_TRUE(!!handle);
 
     // The file exists at the latest by the time we request a flush (or close the handle).
@@ -315,7 +316,7 @@ TEST_F(FileSystemTest, openNonExistingFileReadWrite)
     auto doesNotExistPath = FileSystem::pathByAppendingComponent(tempEmptyFolderPath(), "does-not-exist"_s);
     EXPECT_FALSE(FileSystem::fileExists(doesNotExistPath));
 
-    auto handle = FileSystem::openFile(doesNotExistPath, FileSystem::FileOpenMode::ReadWrite, FileSystem::FileAccessPermission::All, false);
+    auto handle = FileSystem::openFile(doesNotExistPath, FileSystem::FileOpenMode::ReadWrite, FileSystem::FileAccessPermission::All, { }, false);
     EXPECT_TRUE(!!handle);
 
     // The file exists at the latest by the time we request a flush (or close the handle).
@@ -327,7 +328,7 @@ TEST_F(FileSystemTest, openNonExistingFileReadWriteFailIfFileExists)
     auto doesNotExistPath = FileSystem::pathByAppendingComponent(tempEmptyFolderPath(), "does-not-exist"_s);
     EXPECT_FALSE(FileSystem::fileExists(doesNotExistPath));
 
-    auto handle = FileSystem::openFile(doesNotExistPath, FileSystem::FileOpenMode::ReadWrite, FileSystem::FileAccessPermission::All, true);
+    auto handle = FileSystem::openFile(doesNotExistPath, FileSystem::FileOpenMode::ReadWrite, FileSystem::FileAccessPermission::All, { }, true);
     EXPECT_TRUE(!!handle);
 
     // The file exists at the latest by the time we request a flush (or close the handle).

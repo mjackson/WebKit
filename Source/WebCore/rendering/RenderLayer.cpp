@@ -408,8 +408,8 @@ RenderLayer::~RenderLayer()
 RenderLayer::PaintedContentRequest::PaintedContentRequest(const RenderLayer& owningLayer)
 {
 #if HAVE(SUPPORT_HDR_DISPLAY)
-    if (owningLayer.renderer().document().canDrawHDRContent())
-        makePaintedHDRContentUnknown();
+    if (owningLayer.renderer().document().drawsHDRContent())
+        makeHDRContentUnknown();
 #else
     UNUSED_PARAM(owningLayer);
 #endif
@@ -5822,35 +5822,55 @@ static bool hasVisibleBoxDecorationsOrBackground(const RenderElement& renderer)
 }
 
 #if HAVE(SUPPORT_HDR_DISPLAY)
-static bool isRenderElementWithHDR(const RenderElement& renderer)
+static bool rendererHasHDRContent(const RenderElement& renderer)
 {
     if (CheckedPtr imageRenderer = dynamicDowncast<RenderImage>(renderer)) {
         if (auto* cachedImage = imageRenderer->cachedImage()) {
-            if (cachedImage->hasPaintedHDRContent())
+            if (cachedImage->hasHDRContent())
                 return true;
         }
-        return false;
-    }
-
-    if (CheckedPtr imageRenderer = dynamicDowncast<LegacyRenderSVGImage>(renderer)) {
+    } else if (CheckedPtr imageRenderer = dynamicDowncast<LegacyRenderSVGImage>(renderer)) {
         if (auto* cachedImage = imageRenderer->imageResource().cachedImage()) {
-            if (cachedImage->hasPaintedHDRContent())
+            if (cachedImage->hasHDRContent())
                 return true;
         }
-        return false;
-    }
-
 #if ENABLE(PIXEL_FORMAT_RGBA16F)
-    if (CheckedPtr canavsRenderer = dynamicDowncast<RenderHTMLCanvas>(renderer)) {
+    } else if (CheckedPtr canavsRenderer = dynamicDowncast<RenderHTMLCanvas>(renderer)) {
         if (auto* renderingContext = canavsRenderer->canvasElement().renderingContext()) {
             if (renderingContext->isHDR())
                 return true;
         }
-        return false;
-    }
 #endif
+    }
 
-    return false;
+    auto styleHasHDRContent = [](const auto* style) {
+        if (!style)
+            return false;
+
+        if (style->hasBackgroundImage()) {
+            if (style->backgroundLayers().hasHDRContent())
+                return true;
+        }
+
+        if (style->hasBorderImage()) {
+            auto image = style->borderImage().image();
+            if (auto* cachedImage = image ? image->cachedImage() : nullptr) {
+                if (cachedImage->hasHDRContent())
+                    return true;
+            }
+        }
+
+        if (auto image = style->listStyleImage()) {
+            if (auto* cachedImage = image->cachedImage()) {
+                if (cachedImage->hasHDRContent())
+                    return true;
+            }
+        }
+
+        return false;
+    };
+
+    return styleHasHDRContent(&renderer.style());
 }
 #endif
 
@@ -5902,8 +5922,8 @@ static void determineNonLayerDescendantsPaintedContent(const RenderElement& rend
         }
 
 #if HAVE(SUPPORT_HDR_DISPLAY)
-        if (!request.isPaintedHDRContentSatisfied() && isRenderElementWithHDR(*childElement)) {
-            request.setHasPaintedHDRContent();
+        if (!request.isHDRContentSatisfied() && rendererHasHDRContent(*childElement)) {
+            request.setHasHDRContent();
 
             if (request.isSatisfied())
                 return;
@@ -5923,11 +5943,11 @@ void RenderLayer::determineNonLayerDescendantsPaintedContent(PaintedContentReque
 }
 
 #if HAVE(SUPPORT_HDR_DISPLAY)
-bool RenderLayer::isRenderElementWithHDR() const
+bool RenderLayer::rendererHasHDRContent() const
 {
     if (auto* imageDocument = dynamicDowncast<ImageDocument>(renderer().document()))
-        return imageDocument->hasPaintedHDRContent();
-    return WebCore::isRenderElementWithHDR(renderer());
+        return imageDocument->hasHDRContent();
+    return WebCore::rendererHasHDRContent(renderer());
 }
 #endif
 

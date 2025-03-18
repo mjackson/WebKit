@@ -229,6 +229,9 @@ Awaitable<bool> WebFullScreenManagerProxy::enterFullScreen(IPC::Connection& conn
         enterFullScreenForOwnerElementsInOtherProcesses(frameID, WTFMove(completionHandler));
     } };
 
+    if (RefPtr page = m_page.get(); page && page->preferences().siteIsolationEnabled())
+        co_await page->nextPresentationUpdate();
+
     co_return true;
 }
 
@@ -300,7 +303,7 @@ void WebFullScreenManagerProxy::prepareQuickLookImageURL(CompletionHandler<void(
         auto [filePath, fileHandle] = FileSystem::openTemporaryFile("QuickLook"_s, suffix);
         ASSERT(fileHandle);
 
-        size_t byteCount = fileHandle.write(buffer->span());
+        auto byteCount = fileHandle.write(buffer->span());
         ASSERT_UNUSED(byteCount, byteCount == buffer->size());
         fileHandle = { };
 

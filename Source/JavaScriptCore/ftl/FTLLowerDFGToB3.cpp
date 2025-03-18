@@ -1204,6 +1204,9 @@ private:
         case NewStringObject:
             compileNewStringObject();
             break;
+        case NewRegExpUntyped:
+            compileNewRegExpUntyped();
+            break;
         case NewSymbol:
             compileNewSymbol();
             break;
@@ -1744,8 +1747,8 @@ private:
         case RegExpMatchFastGlobal:
             compileRegExpMatchFastGlobal();
             break;
-        case NewRegexp:
-            compileNewRegexp();
+        case NewRegExp:
+            compileNewRegExp();
             break;
         case NewMap:
             compileNewMap();
@@ -1866,7 +1869,7 @@ private:
         case PhantomNewArrayWithSpread:
         case PhantomNewArrayBuffer:
         case PhantomClonedArguments:
-        case PhantomNewRegexp:
+        case PhantomNewRegExp:
         case PutHint:
         case BottomValue:
         case KillStack:
@@ -2246,14 +2249,15 @@ private:
             setStrictInt52(m_out.signExt32To64(lowInt32(m_node->child1())));
             return;
 
-        case AnyIntUse:
-            setStrictInt52(
-                jsValueToStrictInt52(
-                    m_node->child1(), lowJSValue(m_node->child1(), ManualOperandSpeculation)));
+        case AnyIntUse: {
+            bool canIgnoreNegativeZero = bytecodeCanIgnoreNegativeZero(m_node->arithNodeFlags());
+            setStrictInt52(jsValueToStrictInt52(m_node->child1(), lowJSValue(m_node->child1(), ManualOperandSpeculation), canIgnoreNegativeZero));
             return;
+        }
 
         case DoubleRepAnyIntUse: {
-            LValue result = doubleToStrictInt52(Int52Overflow, m_node->child1(), lowDouble(m_node->child1()));
+            bool canIgnoreNegativeZero = bytecodeCanIgnoreNegativeZero(m_node->arithNodeFlags());
+            LValue result = doubleToStrictInt52(Int52Overflow, m_node->child1(), lowDouble(m_node->child1()), canIgnoreNegativeZero);
             m_interpreter.filter(m_node->child1(), SpecAnyIntAsDouble);
             setStrictInt52(result);
             return;
@@ -8804,6 +8808,16 @@ IGNORE_CLANG_WARNINGS_END
 
         m_out.appendTo(continuation, lastNext);
         setJSValue(m_out.phi(pointerType(), fastResult, slowResult));
+    }
+
+    void compileNewRegExpUntyped()
+    {
+        JSGlobalObject* globalObject = m_graph.globalObjectFor(m_origin.semantic);
+        if (m_node->child1().useKind() == StringUse && m_node->child2().useKind() == StringUse) {
+            setJSValue(vmCall(pointerType(), operationNewRegExpString, weakPointer(globalObject), lowString(m_node->child1()), lowString(m_node->child2())));
+            return;
+        }
+        setJSValue(vmCall(pointerType(), operationNewRegExpUntyped, weakPointer(globalObject), lowJSValue(m_node->child1()), lowJSValue(m_node->child2())));
     }
 
     void compileNewSymbol()
@@ -17155,7 +17169,7 @@ IGNORE_CLANG_WARNINGS_END
         setJSValue(result);
     }
 
-    void compileNewRegexp()
+    void compileNewRegExp()
     {
         JSGlobalObject* globalObject = m_graph.globalObjectFor(m_origin.semantic);
         FrozenValue* regexp = m_node->cellOperand();
@@ -17181,7 +17195,7 @@ IGNORE_CLANG_WARNINGS_END
         LValue slowResultValue = lazySlowPath(
             [=, &vm] (const Vector<Location>& locations) -> RefPtr<LazySlowPath::Generator> {
                 return createLazyCallGenerator(vm,
-                    operationNewRegexpWithLastIndex, locations[0].directGPR(), CCallHelpers::TrustedImmPtr(globalObject),
+                    operationNewRegExpWithLastIndex, locations[0].directGPR(), CCallHelpers::TrustedImmPtr(globalObject),
                     CCallHelpers::TrustedImmPtr(regexpCell), locations[1].directGPR());
             }, lastIndex);
         ValueFromBlock slowResult = m_out.anchor(slowResultValue);
@@ -21957,7 +21971,7 @@ IGNORE_CLANG_WARNINGS_END
         return m_out.sub(m_out.bitCast(doubleValue, Int64), m_numberTag);
     }
 
-    LValue jsValueToStrictInt52(Edge edge, LValue boxedValue)
+    LValue jsValueToStrictInt52(Edge edge, LValue boxedValue, bool canIgnoreNegativeZero)
     {
         LBasicBlock intCase = m_out.newBlock();
         LBasicBlock doubleCase = m_out.newBlock();
@@ -21979,7 +21993,7 @@ IGNORE_CLANG_WARNINGS_END
         m_out.appendTo(doubleCase, continuation);
         speculate(BadType, jsValueValue(boxedValue), edge.node(), isNotNumber(boxedValue, provenType(edge) & ~SpecInt32Only));
         LValue doubleValue = unboxDouble(boxedValue);
-        ValueFromBlock doubleToInt52 = m_out.anchor(doubleToStrictInt52(BadType, edge, doubleValue));
+        ValueFromBlock doubleToInt52 = m_out.anchor(doubleToStrictInt52(BadType, edge, doubleValue, canIgnoreNegativeZero));
         m_out.jump(continuation);
 
         m_out.appendTo(continuation, lastNext);
@@ -21987,7 +22001,7 @@ IGNORE_CLANG_WARNINGS_END
         return m_out.phi(Int64, intToInt52, doubleToInt52);
     }
 
-    LValue doubleToStrictInt52(ExitKind exitKind, Edge edge, LValue value)
+    LValue doubleToStrictInt52(ExitKind exitKind, Edge edge, LValue value, bool canIgnoreNegativeZero)
     {
         LValue integerValue = m_out.doubleToInt64(value);
         LValue integerValueConvertedToDouble = tryDoubleToInt64AsDouble(value);
@@ -21995,6 +22009,17 @@ IGNORE_CLANG_WARNINGS_END
             integerValueConvertedToDouble = m_out.intToDouble(integerValue);
         LValue valueNotConvertibleToInteger = m_out.doubleNotEqualOrUnordered(value, integerValueConvertedToDouble);
         speculate(exitKind, doubleValue(value), edge.node(), valueNotConvertibleToInteger);
+
+        auto speculateInt52Range = [&](LValue integerValue) {
+            LValue added = m_out.add(m_out.constInt64(0xfff8000000000000ULL), integerValue);
+            LValue shifted = m_out.lShr(added, m_out.constInt32(52));
+            speculate(exitKind, doubleValue(value), edge.node(), m_out.belowOrEqual(shifted, m_out.constInt64(4094)));
+        };
+
+        if (canIgnoreNegativeZero) {
+            speculateInt52Range(integerValue);
+            return integerValue;
+        }
 
         LBasicBlock valueIsZero = m_out.newBlock();
         LBasicBlock valueIsNotZero = m_out.newBlock();
@@ -22007,9 +22032,7 @@ IGNORE_CLANG_WARNINGS_END
         m_out.jump(continuation);
 
         m_out.appendTo(valueIsNotZero, continuation);
-        LValue added = m_out.add(m_out.constInt64(0xfff8000000000000ULL), integerValue);
-        LValue shifted = m_out.lShr(added, m_out.constInt32(52));
-        speculate(exitKind, doubleValue(value), edge.node(), m_out.belowOrEqual(shifted, m_out.constInt64(4094)));
+        speculateInt52Range(integerValue);
         m_out.jump(continuation);
 
         m_out.appendTo(continuation, lastNext);
@@ -22418,7 +22441,8 @@ IGNORE_CLANG_WARNINGS_END
         if (!m_interpreter.needsTypeCheck(edge))
             return;
 
-        jsValueToStrictInt52(edge, lowJSValue(edge, ManualOperandSpeculation));
+        constexpr bool canIgnoreNegativeZero = false;
+        jsValueToStrictInt52(edge, lowJSValue(edge, ManualOperandSpeculation), canIgnoreNegativeZero);
     }
 
     LValue isCellWithType(LValue cell, JSTypeRange queriedTypeRange, std::optional<SpeculatedType> speculatedTypeForQuery, SpeculatedType type = SpecFullTop)
@@ -23166,7 +23190,8 @@ IGNORE_CLANG_WARNINGS_END
         if (!m_interpreter.needsTypeCheck(edge))
             return;
 
-        doubleToStrictInt52(BadType, edge, lowDouble(edge));
+        constexpr bool canIgnoreNegativeZero = false;
+        doubleToStrictInt52(BadType, edge, lowDouble(edge), canIgnoreNegativeZero);
         m_interpreter.filter(edge, SpecAnyIntAsDouble);
     }
 

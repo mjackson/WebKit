@@ -1333,7 +1333,7 @@ public:
         });
 
         String filename = cachePath();
-        auto handle = FileSystem::openAndLockFile(filename, FileSystem::FileOpenMode::ReadWrite, { FileSystem::FileLockMode::Exclusive, FileSystem::FileLockMode::Nonblocking });
+        auto handle = FileSystem::openFile(filename, FileSystem::FileOpenMode::ReadWrite, FileSystem::FileAccessPermission::All, { FileSystem::FileLockMode::Exclusive, FileSystem::FileLockMode::Nonblocking });
         if (!handle)
             return;
 
@@ -1351,9 +1351,9 @@ public:
             return;
 
         m_cachedBytecode->commitUpdates([&] (off_t offset, std::span<const uint8_t> data) {
-            long long result = handle.seek(offset, FileSystem::FileSeekOrigin::Beginning);
-            ASSERT_UNUSED(result, result != -1);
-            size_t bytesWritten = static_cast<size_t>(handle.write(data));
+            auto result = handle.seek(offset, FileSystem::FileSeekOrigin::Beginning);
+            ASSERT_UNUSED(result, !!result);
+            auto bytesWritten = handle.write(data);
             ASSERT_UNUSED(bytesWritten, bytesWritten == data.size());
         });
     }
@@ -1377,7 +1377,7 @@ private:
         if (filename.isNull())
             return;
 
-        auto handle = FileSystem::openAndLockFile(filename, FileSystem::FileOpenMode::Read, { FileSystem::FileLockMode::Shared, FileSystem::FileLockMode::Nonblocking });
+        auto handle = FileSystem::openFile(filename, FileSystem::FileOpenMode::Read, FileSystem::FileAccessPermission::All, { FileSystem::FileLockMode::Shared, FileSystem::FileLockMode::Nonblocking });
         if (!handle)
             return;
 
@@ -2092,14 +2092,16 @@ JSC_DEFINE_HOST_FUNCTION(functionWriteFile, (JSGlobalObject* globalObject, CallF
     if (!handle)
         return throwVMError(globalObject, scope, "Could not open file."_s);
 
-    int size = std::visit(WTF::makeVisitor([&](const String& string) {
+    auto size = std::visit(WTF::makeVisitor([&](const String& string) {
         CString utf8 = string.utf8();
         return handle.write(byteCast<uint8_t>(utf8.span()));
     }, [&] (const std::span<const uint8_t>& data) {
         return handle.write(data);
     }), data);
 
-    return JSValue::encode(jsNumber(size));
+    if (!size)
+        return JSValue::encode(jsNumber(-1));
+    return JSValue::encode(jsNumber(*size));
 }
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END

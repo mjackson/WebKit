@@ -2507,10 +2507,14 @@ fast/images/animated-jpegxl-loop-count.html [ Skip ]
 # Only applicable on platforms with HDR support
 compositing/hdr/hdr-basic-canvas.html [ Skip ]
 compositing/hdr/hdr-basic-image.html [ Skip ]
-compositing/hdr/hdr-css-image.html [ Skip ]
+compositing/hdr/hdr-background-image.html [ Skip ]
+compositing/hdr/hdr-border-image.html [ Skip ]
+compositing/hdr/hdr-pseudo-before-image.html [ Skip ]
 compositing/hdr/hdr-svg-inline-image.html [ Skip ]
 fast/images/hdr-basic-image.html [ Skip ]
-fast/images/hdr-css-image.html [ Skip ]
+fast/images/hdr-background-image.html [ Skip ]
+fast/images/hdr-border-image.html [ Skip ]
+fast/images/hdr-pseudo-before-image.html [ Skip ]
 fast/images/hdr-svg-inline-image.html [ Skip ]
 
 # Experimental H265 support.
@@ -4712,8 +4716,7 @@ webgl/2.0.y/conformance2/extensions/ext-conservative-depth.html [ Pass ]
 webgl/2.0.y/conformance2/extensions/ext-render-snorm.html [ Pass ]
 webgl/2.0.y/conformance2/extensions/ext-texture-norm16.html [ Pass ]
 webgl/2.0.y/conformance2/extensions/nv-shader-noperspective-interpolation.html [ Pass ]
-# Make this explicit Pass when it passes.
-webkit.org/b/287192 webgl/2.0.y/conformance2/extensions/oes-draw-buffers-indexed.html [ Failure ]
+webgl/2.0.y/conformance2/extensions/oes-draw-buffers-indexed.html [ Pass ]
 webgl/2.0.y/conformance2/extensions/oes-sample-variables.html [ Pass ]
 webgl/2.0.y/conformance2/extensions/oes-shader-multisample-interpolation.html [ Pass ]
 webgl/2.0.y/conformance2/extensions/promoted-extensions-in-shaders.html [ Pass ]
@@ -7593,10 +7596,13 @@ webkit.org/b/282024 fast/text/text-box-edge-with-margin-padding-border-simple.ht
 # -- Anchor Positioning -- #
 
 # general failures
+webkit.org/b/289743 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-position-multicol-007.html [ ImageOnlyFailure ]
+webkit.org/b/289743 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-position-multicol-008.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-position-top-layer-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-position-top-layer-003.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-position-top-layer-005.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-position-top-layer-006.html [ ImageOnlyFailure ]
+webkit.org/b/289743 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scope-scroll.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-chained-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-chained-002.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-chained-003.html [ ImageOnlyFailure ]
@@ -7611,6 +7617,7 @@ imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-to-sticky-
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-update-003.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-update-007.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/position-area-inline-container.html [ ImageOnlyFailure ]
+webkit.org/b/289743 imported/w3c/web-platform-tests/css/css-anchor-position/position-area-scrolling-004.tentative.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/position-area-scroll-adjust.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/position-anchor-002.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/position-try-switch-to-fixed-anchor.html [ ImageOnlyFailure ]
@@ -7763,3 +7770,4 @@ imported/w3c/web-platform-tests/css/CSS2/floats/float-nowrap-hyphen-rewind-1.htm
 # This test is flaky. Resizing the window exposures the failure
 webkit.org/b/288689 svg/text/bidi-text-query.svg [ Skip ]
 
+webkit.org/b/289782 http/tests/security/contentSecurityPolicy/script-src-strict-dynamic-and-script-src-elem.html [ Pass Failure ]

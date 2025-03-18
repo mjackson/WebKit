@@ -343,13 +343,10 @@ history/CachedPage.cpp
 history/HistoryItem.cpp
 html/Autofill.cpp
 html/BaseCheckableInputType.cpp
-html/BaseDateAndTimeInputType.cpp
 html/CachedHTMLCollectionInlines.h
 html/CanvasBase.cpp
 html/CollectionTraversalInlines.h
-html/ColorInputType.cpp
 html/CustomPaintImage.cpp
-html/FileInputType.cpp
 html/FormAssociatedCustomElement.cpp
 html/FormListedElement.cpp
 html/HTMLAnchorElement.cpp
@@ -365,8 +362,6 @@ html/HTMLInputElement.cpp
 html/HTMLLabelElement.cpp
 html/HTMLMapElement.cpp
 html/HTMLMediaElement.cpp
-html/HTMLOptGroupElement.cpp
-html/HTMLOptionElement.cpp
 html/HTMLPictureElement.cpp
 html/HTMLSlotElement.cpp
 html/HTMLTableElement.cpp
@@ -383,16 +378,13 @@ html/NumberInputType.cpp
 html/OffscreenCanvas.cpp
 html/PermissionsPolicy.cpp
 html/PluginDocument.cpp
-html/RadioInputType.cpp
 html/RangeInputType.cpp
-html/SearchInputType.cpp
 html/TextFieldInputType.cpp
 html/UserActivation.cpp
 html/ValidatedFormListedElement.cpp
 html/ValidationMessage.cpp
 html/canvas/ANGLEInstancedArrays.cpp
 html/canvas/CanvasRenderingContext2D.cpp
-html/canvas/CanvasRenderingContext2DBase.cpp
 html/canvas/EXTClipControl.cpp
 html/canvas/EXTDisjointTimerQuery.cpp
 html/canvas/EXTDisjointTimerQueryWebGL2.cpp
@@ -574,7 +566,6 @@ platform/graphics/GraphicsLayer.cpp
 platform/graphics/Image.cpp
 platform/graphics/Path.cpp
 platform/graphics/SourceBrush.cpp
-platform/graphics/SystemFallbackFontCache.cpp
 platform/graphics/WidthIterator.cpp
 platform/graphics/avfoundation/AudioSourceProviderAVFObjC.mm
 platform/graphics/avfoundation/objc/CDMInstanceFairPlayStreamingAVFObjC.mm
@@ -691,7 +682,6 @@ rendering/updating/RenderTreeUpdater.cpp
 rendering/updating/RenderTreeUpdaterGeneratedContent.cpp
 storage/Storage.cpp
 style/AttributeChangeInvalidation.cpp
-style/ChildChangeInvalidation.cpp
 style/ClassChangeInvalidation.cpp
 style/CustomPropertyRegistry.cpp
 style/ElementRuleCollector.cpp

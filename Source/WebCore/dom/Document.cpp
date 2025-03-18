@@ -328,6 +328,7 @@
 #include "XPathNSResolver.h"
 #include "XPathResult.h"
 #include <JavaScriptCore/ConsoleMessage.h>
+#include <JavaScriptCore/JSGlobalObject.h>
 #include <JavaScriptCore/RegularExpression.h>
 #include <JavaScriptCore/ScriptCallStack.h>
 #include <JavaScriptCore/VM.h>
@@ -460,10 +461,15 @@ static void CallbackForContainIntrinsicSize(const Vector<Ref<ResizeObserverEntry
             ASSERT(box->style().hasAutoLengthContainIntrinsicSize());
 
             auto contentBoxSize = entry->contentBoxSize().at(0);
-            if (box->style().containIntrinsicLogicalWidthHasAuto())
-                target->setLastRememberedLogicalWidth(LayoutUnit(contentBoxSize->inlineSize()));
-            if (box->style().containIntrinsicLogicalHeightHasAuto())
-                target->setLastRememberedLogicalHeight(LayoutUnit(contentBoxSize->blockSize()));
+            if (box->style().containIntrinsicLogicalWidthHasAuto()) {
+                auto adjustedWidth = LayoutUnit { applyZoom(contentBoxSize->inlineSize(), box->style()) };
+                target->setLastRememberedLogicalWidth(adjustedWidth);
+            }
+
+            if (box->style().containIntrinsicLogicalHeightHasAuto()) {
+                auto adjustedHeight = LayoutUnit { applyZoom(contentBoxSize->blockSize(), box->style()) };
+                target->setLastRememberedLogicalHeight(adjustedHeight);
+            }
         }
     }
 }
@@ -4594,7 +4600,7 @@ void Document::disableWebAssembly(const String& errorMessage)
     frame->checkedScript()->setWebAssemblyEnabled(false, errorMessage);
 }
 
-void Document::setRequiresTrustedTypes(bool required)
+void Document::setTrustedTypesEnforcement(JSC::TrustedTypesEnforcement enforcement)
 {
     if (!settings().trustedTypesEnabled())
         return;
@@ -4603,8 +4609,8 @@ void Document::setRequiresTrustedTypes(bool required)
     if (!frame)
         return;
 
-    frame->checkedScript()->setRequiresTrustedTypes(required);
-    m_requiresTrustedTypes = required;
+    frame->checkedScript()->setTrustedTypesEnforcement(enforcement);
+    m_requiresTrustedTypes = enforcement != JSC::TrustedTypesEnforcement::None;
 }
 
 IDBClient::IDBConnectionProxy* Document::idbConnectionProxy()
@@ -7707,12 +7713,12 @@ bool Document::hasSVGRootNode() const
 }
 
 #if HAVE(SUPPORT_HDR_DISPLAY)
-bool Document::canDrawHDRContent() const
+bool Document::drawsHDRContent() const
 {
     if (!(settings().supportHDRDisplayEnabled() || settings().canvasPixelFormatEnabled()))
         return false;
 
-    if (!hasPaintedHDRContent())
+    if (!hasHDRContent())
         return false;
 
     if (RefPtr frameView = view())
@@ -9567,14 +9573,6 @@ void Document::didLoadResourceSynchronously(const URL& url)
         page->cookieJar().clearCacheForHost(url.host().toString());
 }
 
-std::optional<Vector<uint8_t>> Document::wrapCryptoKey(const Vector<uint8_t>& key)
-{
-    RefPtr page = this->page();
-    if (!page)
-        return std::nullopt;
-    return page->cryptoClient().wrapCryptoKey(key);
-}
-
 std::optional<Vector<uint8_t>> Document::serializeAndWrapCryptoKey(CryptoKeyData&& keyData)
 {
     RefPtr page = this->page();
@@ -9857,8 +9855,6 @@ void Document::updateIntersectionObservations(const Vector<WeakPtr<IntersectionO
         return;
     }
 
-    LOG_WITH_STREAM(IntersectionObserver, stream << "Document " << this << " updateIntersectionObservations - notifying observers");
-
     Vector<WeakPtr<IntersectionObserver>> intersectionObserversWithPendingNotifications;
 
     for (auto& weakObserver : intersectionObservers) {
@@ -9870,6 +9866,9 @@ void Document::updateIntersectionObservations(const Vector<WeakPtr<IntersectionO
         if (needNotify == IntersectionObserver::NeedNotify::Yes)
             intersectionObserversWithPendingNotifications.append(observer);
     }
+
+    if (intersectionObserversWithPendingNotifications.size())
+        LOG_WITH_STREAM(IntersectionObserver, stream << "Document " << this << " updateIntersectionObservations - notifying observers");
 
     for (auto& weakObserver : intersectionObserversWithPendingNotifications) {
         if (RefPtr observer = weakObserver.get())
@@ -9910,7 +9909,7 @@ bool Document::hasResizeObservers()
 
 size_t Document::gatherResizeObservations(size_t deeperThan)
 {
-    LOG_WITH_STREAM(ResizeObserver, stream << "Document " << *this << " gatherResizeObservations");
+    LOG_WITH_STREAM(ResizeObserver, stream << *this << " gatherResizeObservations");
     size_t minDepth = ResizeObserver::maxElementDepth();
     for (auto& weakObserver : m_resizeObservers) {
         RefPtr observer = weakObserver.get();
@@ -9927,13 +9926,13 @@ size_t Document::gatherResizeObservationsForContainIntrinsicSize()
     if (!m_resizeObserverForContainIntrinsicSize)
         return ResizeObserver::maxElementDepth();
 
-    LOG_WITH_STREAM(ResizeObserver, stream << "Document " << *this << " gatherResizeObservationsForContainIntrinsicSize");
+    LOG_WITH_STREAM(ResizeObserver, stream << *this << " gatherResizeObservationsForContainIntrinsicSize");
     return m_resizeObserverForContainIntrinsicSize->gatherObservations(0);
 }
 
 void Document::deliverResizeObservations()
 {
-    LOG_WITH_STREAM(ResizeObserver, stream << "Document " << *this << " deliverResizeObservations");
+    LOG_WITH_STREAM(ResizeObserver, stream << *this << " deliverResizeObservations");
     if (m_resizeObserverForContainIntrinsicSize)
         m_resizeObserverForContainIntrinsicSize->deliverObservations();
 

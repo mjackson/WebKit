@@ -1981,11 +1981,21 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
             clobberTop();
         return;
 
+    case NewRegExpUntyped:
+        if (node->child1().useKind() == StringUse && node->child2().useKind() == StringUse) {
+            // SyntaxError may happen.
+            read(World);
+            write(SideState);
+            write(HeapObjectCount);
+        } else
+            clobberTop();
+        return;
+
     case NewObject:
     case NewGenerator:
     case NewAsyncGenerator:
     case NewInternalFieldObject:
-    case NewRegexp:
+    case NewRegExp:
     case NewStringObject:
     case NewMap:
     case NewSet:
@@ -1999,7 +2009,7 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case MaterializeNewInternalFieldObject:
     case PhantomCreateActivation:
     case MaterializeCreateActivation:
-    case PhantomNewRegexp:
+    case PhantomNewRegExp:
         read(HeapObjectCount);
         write(HeapObjectCount);
         return;

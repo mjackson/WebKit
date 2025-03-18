@@ -73,7 +73,7 @@ bool FileStream::openForRead(const String& path, long long offset, long long len
 
     // Jump to the beginning position if the file has been sliced.
     if (offset > 0) {
-        if (m_handle.seek(offset, FileSystem::FileSeekOrigin::Beginning) < 0)
+        if (!m_handle.seek(offset, FileSystem::FileSeekOrigin::Beginning))
             return false;
     }
 
@@ -95,15 +95,15 @@ int FileStream::read(std::span<uint8_t> buffer)
 
     long long remaining = m_totalBytesToRead - m_bytesProcessed;
     int bytesToRead = remaining < static_cast<int>(buffer.size()) ? static_cast<int>(remaining) : static_cast<int>(buffer.size());
-    int bytesRead = 0;
+    std::optional<uint64_t> bytesRead = 0;
     if (bytesToRead > 0)
         bytesRead = m_handle.read(buffer.first(bytesToRead));
-    if (bytesRead < 0)
+    if (!bytesRead)
         return -1;
-    if (bytesRead > 0)
-        m_bytesProcessed += bytesRead;
+    if (*bytesRead > 0)
+        m_bytesProcessed += *bytesRead;
 
-    return bytesRead;
+    return *bytesRead;
 }
 
 } // namespace WebCore

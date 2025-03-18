@@ -194,14 +194,14 @@ static OSStatus enableSandboxStyleFileQuarantine()
 #if USE(CACHE_COMPILED_SANDBOX)
 static std::optional<Vector<uint8_t>> fileContents(const String& path, bool shouldLock = false, OptionSet<FileSystem::FileLockMode> lockMode = FileSystem::FileLockMode::Exclusive)
 {
-    auto fileHandle = shouldLock ? FileSystem::openAndLockFile(path, FileSystem::FileOpenMode::Read, lockMode) : FileSystem::openFile(path, FileSystem::FileOpenMode::Read);
+    auto fileHandle = FileSystem::openFile(path, FileSystem::FileOpenMode::Read, FileSystem::FileAccessPermission::All, lockMode);
     if (!fileHandle)
         return std::nullopt;
 
     std::array<uint8_t, 4096> chunk;
     Vector<uint8_t> contents;
     contents.reserveInitialCapacity(chunk.size());
-    while (size_t bytesRead = fileHandle.read(chunk))
+    while (auto bytesRead = fileHandle.read(chunk).value_or(0))
         contents.append(std::span { chunk }.first(bytesRead));
     contents.shrinkToFit();
 
@@ -379,7 +379,7 @@ static bool writeSandboxDataToCacheFile(const SandboxInfo& info, const Vector<ui
     // then rename it to the final cache path.
     auto temporaryPath = makeString(info.filePath, '-', getpid());
     auto fileHandle = FileSystem::openFile(temporaryPath, FileSystem::FileOpenMode::Truncate);
-    if (fileHandle.write(cacheFile.span()) != safeCast<int>(cacheFile.size())) {
+    if (fileHandle.write(cacheFile.span()) != cacheFile.size()) {
         FileSystem::deleteFile(temporaryPath);
         return false;
     }

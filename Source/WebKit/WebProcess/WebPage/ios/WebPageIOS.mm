@@ -5592,15 +5592,19 @@ void WebPage::requestDocumentEditingContext(DocumentEditingContextRequest&& requ
                 return end;
             }();
 
-            rangeOfInterest.start = std::clamp(rangeOfInterest.start, startPositionNearSelection, endPositionNearSelection);
-            rangeOfInterest.end = std::clamp(rangeOfInterest.end, startPositionNearSelection, endPositionNearSelection);
+            if (startPositionNearSelection <= endPositionNearSelection) {
+                rangeOfInterest.start = std::clamp(rangeOfInterest.start, startPositionNearSelection, endPositionNearSelection);
+                rangeOfInterest.end = std::clamp(rangeOfInterest.end, startPositionNearSelection, endPositionNearSelection);
+            }
         }
         if (request.options.contains(DocumentEditingContextRequest::Options::SpatialAndCurrentSelection)) {
             if (RefPtr rootEditableElement = selection.rootEditableElement()) {
                 VisiblePosition startOfEditableRoot { firstPositionInOrBeforeNode(rootEditableElement.get()) };
                 VisiblePosition endOfEditableRoot { lastPositionInOrAfterNode(rootEditableElement.get()) };
-                rangeOfInterest.start = std::clamp(rangeOfInterest.start, startOfEditableRoot, endOfEditableRoot);
-                rangeOfInterest.end = std::clamp(rangeOfInterest.end, startOfEditableRoot, endOfEditableRoot);
+                if (startOfEditableRoot <= endOfEditableRoot) {
+                    rangeOfInterest.start = std::clamp(rangeOfInterest.start, startOfEditableRoot, endOfEditableRoot);
+                    rangeOfInterest.end = std::clamp(rangeOfInterest.end, startOfEditableRoot, endOfEditableRoot);
+                }
             }
         }
     } else if (!selection.isNone())
@@ -6028,8 +6032,17 @@ void WebPage::computeEnclosingLayerID(EditorState& state, const VisibleSelection
         if (!layer->isComposited())
             continue;
 
-        auto* layerBacking = layer->backing();
-        RefPtr graphicsLayer = layerBacking->scrolledContentsLayer() ?: layerBacking->graphicsLayer();
+        RefPtr graphicsLayer = [layer] -> RefPtr<GraphicsLayer> {
+            auto* backing = layer->backing();
+            if (RefPtr scrolledContentsLayer = backing->scrolledContentsLayer())
+                return scrolledContentsLayer;
+
+            if (RefPtr foregroundLayer = backing->foregroundLayer())
+                return foregroundLayer;
+
+            return backing->graphicsLayer();
+        }();
+
         if (!graphicsLayer)
             continue;
 
@@ -6177,27 +6190,31 @@ void WebPage::didEndContextMenuInteraction()
 
 void WebPage::createPDFPageNumberIndicator(PDFPluginBase& plugin, const IntRect& boundingBox, size_t pageCount)
 {
-    auto addResult = m_pdfPlugInsWithPageNumberIndicator.add(plugin.identifier(), plugin);
-    if (addResult.isNewEntry)
-        send(Messages::WebPageProxy::CreatePDFPageNumberIndicator(plugin.identifier(), boundingBox, pageCount));
+    ASSERT(!m_pdfPlugInWithPageNumberIndicator.first || m_pdfPlugInWithPageNumberIndicator.first == plugin.identifier());
+    if (m_pdfPlugInWithPageNumberIndicator.first == plugin.identifier())
+        return;
+    m_pdfPlugInWithPageNumberIndicator = std::make_pair(plugin.identifier(), WeakPtr { plugin });
+    send(Messages::WebPageProxy::CreatePDFPageNumberIndicator(plugin.identifier(), boundingBox, pageCount));
 }
 
 void WebPage::updatePDFPageNumberIndicatorLocation(PDFPluginBase& plugin, const IntRect& boundingBox)
 {
-    if (m_pdfPlugInsWithPageNumberIndicator.contains(plugin.identifier()))
+    if (m_pdfPlugInWithPageNumberIndicator.first == plugin.identifier())
         send(Messages::WebPageProxy::UpdatePDFPageNumberIndicatorLocation(plugin.identifier(), boundingBox));
 }
 
 void WebPage::updatePDFPageNumberIndicatorCurrentPage(PDFPluginBase& plugin, size_t pageIndex)
 {
-    if (m_pdfPlugInsWithPageNumberIndicator.contains(plugin.identifier()))
+    if (m_pdfPlugInWithPageNumberIndicator.first == plugin.identifier())
         send(Messages::WebPageProxy::UpdatePDFPageNumberIndicatorCurrentPage(plugin.identifier(), pageIndex));
 }
 
 void WebPage::removePDFPageNumberIndicator(PDFPluginBase& plugin)
 {
-    if (m_pdfPlugInsWithPageNumberIndicator.remove(plugin.identifier()))
+    if (m_pdfPlugInWithPageNumberIndicator.first == plugin.identifier()) {
+        m_pdfPlugInWithPageNumberIndicator = std::make_pair(Markable<PDFPluginIdentifier> { }, nullptr);
         send(Messages::WebPageProxy::RemovePDFPageNumberIndicator(plugin.identifier()));
+    }
 }
 
 #endif

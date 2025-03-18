@@ -631,9 +631,9 @@ public:
     virtual bool isFrameSet() const { return false; }
 
 #if HAVE(SUPPORT_HDR_DISPLAY)
-    void setHasPaintedHDRContent() { m_hasPaintedHDRContent = true; }
-    bool hasPaintedHDRContent() const { return m_hasPaintedHDRContent; }
-    bool canDrawHDRContent() const;
+    void setHasHDRContent() { m_hasHDRContent = true; }
+    bool hasHDRContent() const { return m_hasHDRContent; }
+    bool drawsHDRContent() const;
 #endif
 
     static constexpr ptrdiff_t documentClassesMemoryOffset() { return OBJECT_OFFSETOF(Document, m_documentClasses); }
@@ -851,7 +851,7 @@ public:
 
     void disableEval(const String& errorMessage) final;
     void disableWebAssembly(const String& errorMessage) final;
-    void setRequiresTrustedTypes(bool required) final;
+    void setTrustedTypesEnforcement(JSC::TrustedTypesEnforcement) final;
 
     bool requiresTrustedTypes() const { return m_requiresTrustedTypes; }
 
@@ -1619,7 +1619,6 @@ public:
 
     void setVisualUpdatesAllowedByClient(bool);
 
-    std::optional<Vector<uint8_t>> wrapCryptoKey(const Vector<uint8_t>&) final;
     std::optional<Vector<uint8_t>> serializeAndWrapCryptoKey(CryptoKeyData&&) final;
     std::optional<Vector<uint8_t>> unwrapCryptoKey(const Vector<uint8_t>&) final;
 
@@ -2668,7 +2667,7 @@ private:
 #endif
 
 #if HAVE(SUPPORT_HDR_DISPLAY)
-    bool m_hasPaintedHDRContent { false };
+    bool m_hasHDRContent { false };
 #endif
 
     bool m_hasViewTransitionPseudoElementTree { false };

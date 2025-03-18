@@ -29,6 +29,7 @@
 #include "FloatQuad.h"
 #include "GraphicsContext.h"
 #include "HitTestResult.h"
+#include "ImageQualityController.h"
 #include "LayoutRepainter.h"
 #include "LegacyRenderSVGResource.h"
 #include "PointerEventsHitRules.h"
@@ -70,16 +71,8 @@ void LegacyRenderSVGImage::notifyFinished(CachedResource& newImage, const Networ
     if (renderTreeBeingDestroyed())
         return;
 
-#if HAVE(SUPPORT_HDR_DISPLAY)
-    if (!document().hasPaintedHDRContent()) {
-        CachedImage* cachedImage = imageResource().cachedImage();
-
-        if (cachedImage && cachedImage->hasPaintedHDRContent()) {
-            document().setHasPaintedHDRContent();
-            page().didFinishLoadingImageForSVGImage(imageElement());
-        }
-    }
-#endif
+    if (RefPtr image = dynamicDowncast<SVGImageElement>(LegacyRenderSVGModelObject::element()))
+        page().didFinishLoadingImageForSVGImage(*image);
 
     LegacyRenderSVGModelObject::notifyFinished(newImage, metrics, loadWillContinueInAnotherProcess);
 }
@@ -232,7 +225,12 @@ void LegacyRenderSVGImage::paintForeground(PaintInfo& paintInfo)
 
     imageElement().preserveAspectRatio().transformRect(destRect, srcRect);
 
-    paintInfo.context().drawImage(*image, destRect, srcRect);
+    ImagePaintingOptions options = {
+        imageOrientation(),
+        ImageQualityController::chooseInterpolationQualityForSVG(paintInfo.context(), this, *image)
+    };
+
+    paintInfo.context().drawImage(*image, destRect, srcRect, options);
 }
 
 void LegacyRenderSVGImage::invalidateBufferedForeground()

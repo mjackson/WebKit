@@ -354,9 +354,10 @@ static bool videoEncoderSetEncoder(WebKitVideoEncoder* self, EncoderId encoderId
         gst_bin_add(GST_BIN_CAST(self), priv->inputCapsFilter.get());
     }
 
-    bool useVideoConvertScale = webkitGstCheckVersion(1, 22, 0);
-
-    if (useVideoConvertScale) {
+    // Keep videoconvertscale disabled for now due to some performance issues.
+    // https://gitlab.freedesktop.org/gstreamer/gstreamer/-/issues/3815
+    auto useVideoConvertScale = StringView::fromLatin1(std::getenv("WEBKIT_GST_USE_VIDEOCONVERT_SCALE"));
+    if (useVideoConvertScale == "1"_s) {
         if (!priv->videoConvert) {
             priv->videoConvert = makeGStreamerElement("videoconvertscale", nullptr);
             gst_bin_add(GST_BIN_CAST(self), priv->videoConvert.get());
@@ -606,7 +607,7 @@ static void videoEncoderConstructed(GObject* encoder)
     self->priv->bitrateMode = CONSTANT_BITRATE_MODE;
     self->priv->latencyMode = REALTIME_LATENCY_MODE;
 
-    auto* sinkPad = webkitGstGhostPadFromStaticTemplate(&encoderSinkTemplate, "sink", nullptr);
+    auto* sinkPad = webkitGstGhostPadFromStaticTemplate(&encoderSinkTemplate, "sink"_s, nullptr);
     GST_OBJECT_FLAG_SET(sinkPad, GST_PAD_FLAG_NEED_PARENT);
     gst_pad_set_event_function(sinkPad, reinterpret_cast<GstPadEventFunction>(+[](GstPad* pad, GstObject* parent, GstEvent* event) -> gboolean {
         if (GST_EVENT_TYPE(event) == GST_EVENT_CUSTOM_DOWNSTREAM_OOB) {
@@ -646,7 +647,7 @@ static void videoEncoderConstructed(GObject* encoder)
     }));
     gst_element_add_pad(GST_ELEMENT_CAST(self), sinkPad);
 
-    gst_element_add_pad(GST_ELEMENT_CAST(self), webkitGstGhostPadFromStaticTemplate(&encoderSrcTemplate, "src", nullptr));
+    gst_element_add_pad(GST_ELEMENT_CAST(self), webkitGstGhostPadFromStaticTemplate(&encoderSrcTemplate, "src"_s, nullptr));
 }
 
 static void setupVaEncoder(WebKitVideoEncoder* self)

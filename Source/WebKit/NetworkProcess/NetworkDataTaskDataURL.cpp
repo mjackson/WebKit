@@ -159,7 +159,7 @@ void NetworkDataTaskDataURL::didDecodeDataURL(std::optional<WebCore::DataURLDeco
 
 void NetworkDataTaskDataURL::downloadDecodedData(Vector<uint8_t>&& data)
 {
-    auto downloadDestinationFile = FileSystem::openFile(m_pendingDownloadLocation, FileSystem::FileOpenMode::Truncate, FileSystem::FileAccessPermission::All, !m_allowOverwriteDownload);
+    auto downloadDestinationFile = FileSystem::openFile(m_pendingDownloadLocation, FileSystem::FileOpenMode::Truncate, FileSystem::FileAccessPermission::All, { }, !m_allowOverwriteDownload);
     if (!downloadDestinationFile) {
 #if USE(CURL)
         ResourceError error(CURLE_WRITE_ERROR, m_response.url());
@@ -177,7 +177,7 @@ void NetworkDataTaskDataURL::downloadDecodedData(Vector<uint8_t>&& data)
     downloadManager.dataTaskBecameDownloadTask(*m_pendingDownloadID, download.copyRef());
     download->didCreateDestination(m_pendingDownloadLocation);
 
-    if (downloadDestinationFile.write(data.span()) == -1) {
+    if (!downloadDestinationFile.write(data.span())) {
         downloadDestinationFile = { };
         FileSystem::deleteFile(m_pendingDownloadLocation);
 #if USE(CURL)

@@ -3565,8 +3565,8 @@ Value* OMGIRGenerator::emitGetArrayPayloadBase(Wasm::StorageType fieldType, Valu
     if (JSWebAssemblyArray::needsAlignmentCheck(fieldType)) {
         auto isPreciseAllocation = m_currentBlock->appendNew<Value>(m_proc, BitAnd, origin(), arrayref, constant(pointerType(), PreciseAllocation::halfAlignment));
         return m_currentBlock->appendNew<Value>(m_proc, B3::Select, origin(), isPreciseAllocation,
-            m_currentBlock->appendNew<Value>(m_proc, Add, origin(), payloadBase, constant(pointerType(), PreciseAllocation::halfAlignment)),
-            payloadBase);
+            payloadBase,
+            m_currentBlock->appendNew<Value>(m_proc, Add, origin(), payloadBase, constant(pointerType(), JSWebAssemblyArray::v128AlignmentShift)));
     }
     return payloadBase;
 }
@@ -4103,7 +4103,7 @@ Value* OMGIRGenerator::emitLoadRTTFromFuncref(Value* funcref)
 
 Value* OMGIRGenerator::emitLoadRTTFromObject(Value* reference)
 {
-    return append<MemoryValue>(heapTop(), m_proc, B3::Load, toB3Type(Types::Ref), origin(), reference, safeCast<int32_t>(WebAssemblyGCObjectBase::offsetOfRTT()));
+    return append<MemoryValue>(heapTop(), m_proc, B3::Load, toB3Type(Types::Ref), origin(), reference, safeCast<int32_t>(WebAssemblyGCStructure::offsetOfRTT()));
 }
 
 Value* OMGIRGenerator::emitNotRTTKind(Value* rtt, RTTKind targetKind)

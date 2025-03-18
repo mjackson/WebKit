@@ -3442,7 +3442,7 @@ RegisterID* BytecodeGenerator::emitNewArrayWithSpecies(RegisterID* dst, Register
 
 RegisterID* BytecodeGenerator::emitNewRegExp(RegisterID* dst, RegExp* regExp)
 {
-    OpNewRegexp::emit(this, dst, addConstantValue(regExp));
+    OpNewRegExp::emit(this, dst, addConstantValue(regExp));
     return dst;
 }
 
