@@ -1,7 +1,7 @@
 name: CI
 
 env:
-  LLVM_VERSION: 18
+  LLVM_VERSION: 19
 
 # Controls when the workflow will run
 on:
@@ -13,7 +13,7 @@ on:
     inputs:
       llvm_version:
         description: "LLVM version"
-        default: "18"
+        default: "19"
 
 jobs:
   macos:
@@ -232,7 +232,7 @@ jobs:
       - name: Install LLVM and Ninja
         run: |
           scoop install ninja
-          scoop install llvm@18.1.8
+          scoop install llvm@19.1.7
           Join-Path (Resolve-Path ~).Path "scoop\apps\llvm\current\bin" >> $Env:GITHUB_PATH
       - uses: cygwin/cygwin-install-action@006ad0b0946ca6d0a3ea2d4437677fa767392401
       - uses: actions/checkout@v4

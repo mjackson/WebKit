@@ -2,7 +2,7 @@ ARG MARCH_FLAG=""
 ARG WEBKIT_RELEASE_TYPE=Release
 ARG CPU=native
 ARG LTO_FLAG="-flto=full -fwhole-program-vtables -fforce-emit-vtables "
-ARG LLVM_VERSION="18"
+ARG LLVM_VERSION="19"
 ARG DEFAULT_CFLAGS="-mno-omit-leaf-frame-pointer -g -fno-omit-frame-pointer -ffunction-sections -fdata-sections -faddrsig -fno-unwind-tables -fno-asynchronous-unwind-tables -DU_STATIC_IMPLEMENTATION=1 "
 
 FROM alpine:3.21 as base
@@ -17,8 +17,8 @@ ARG DEFAULT_CFLAGS
 RUN apk update
 RUN apk add --no-cache cmake make clang18 clang18-static clang18-dev llvm18-dev llvm18-static musl-dev git lld18 libgcc gcc g++ libstdc++ build-base lld18-dev llvm18-libs libc-dev xz zlib zlib-dev libxml2 libxml2-dev
 
-ENV CXX=clang++-18
-ENV CC=clang-18
+ENV CXX=clang++-19
+ENV CC=clang-19
 ENV LDFLAGS='-L/usr/include -L/usr/include/llvm18'
 ENV CXXFLAGS="-I/usr/include -I/usr/include/llvm18"
 ENV PATH="/usr/bin:/usr/local/bin:/zig/bin:/usr/lib/llvm18/bin:$PATH"
