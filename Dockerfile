@@ -8,7 +8,7 @@ ARG DEFAULT_CFLAGS="-mno-omit-leaf-frame-pointer -g -fno-omit-frame-pointer -ffu
 
 # Use different base images for ARM64 vs x86_64
 FROM --platform=$BUILDPLATFORM ubuntu:20.04 as base-arm64
-FROM --platform=$BUILDPLATFORM ubuntu:18.04 as base-amd64
+FROM --platform=$BUILDPLATFORM ubuntu:20.04 as base-amd64
 FROM base-$TARGETARCH as base
 
 ARG MARCH_FLAG
@@ -72,7 +72,7 @@ RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 130 \
 # Install LLVM 19
 RUN wget https://apt.llvm.org/llvm.sh \
     && chmod +x llvm.sh \
-    && ./llvm.sh 19 all -nfocal \
+    && ./llvm.sh 19 all \
     && rm llvm.sh \
     && rm -rf /var/lib/apt/lists/*
 
