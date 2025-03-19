@@ -283,8 +283,7 @@ bool webkitGstSetElementStateSynchronously(GstElement*, GstState, Function<bool(
 GstBuffer* gstBufferNewWrappedFast(void* data, size_t length);
 
 // These functions should be used for elements not provided by WebKit itself and not provided by GStreamer -core.
-GstElement* makeGStreamerElement(const char* factoryName, const char* name);
-GstElement* makeGStreamerBin(const char* description, bool ghostUnlinkedPads);
+GstElement* makeGStreamerElement(ASCIILiteral factoryName, const String& name = emptyString());
 
 template<typename T>
 std::optional<T> gstStructureGet(const GstStructure*, ASCIILiteral key);
@@ -313,9 +312,9 @@ void configureVideoDecoderForHarnessing(const GRefPtr<GstElement>&);
 void configureMediaStreamVideoDecoder(GstElement*);
 void configureVideoRTPDepayloader(GstElement*);
 
-bool gstObjectHasProperty(GstObject*, const char* name);
-bool gstObjectHasProperty(GstElement*, const char* name);
-bool gstObjectHasProperty(GstPad*, const char* name);
+bool gstObjectHasProperty(GstObject*, ASCIILiteral name);
+bool gstObjectHasProperty(GstElement*, ASCIILiteral name);
+bool gstObjectHasProperty(GstPad*, ASCIILiteral name);
 
 bool gstElementMatchesFactoryAndHasProperty(GstElement*, ASCIILiteral factoryNamePattern, ASCIILiteral propertyName);
 

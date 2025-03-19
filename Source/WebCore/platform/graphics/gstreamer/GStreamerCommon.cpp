@@ -988,14 +988,16 @@ bool gstElementFactoryEquals(GstElement* element, ASCIILiteral name)
 
 GstElement* createAutoAudioSink(const String& role)
 {
-    auto* audioSink = makeGStreamerElement("autoaudiosink", nullptr);
+    auto* audioSink = makeGStreamerElement("autoaudiosink"_s);
     g_signal_connect_data(audioSink, "child-added", G_CALLBACK(+[](GstChildProxy*, GObject* object, gchar*, gpointer userData) {
         auto* role = reinterpret_cast<StringImpl*>(userData);
         auto* objectClass = G_OBJECT_GET_CLASS(object);
         if (role && g_object_class_find_property(objectClass, "stream-properties")) {
             GUniquePtr<GstStructure> properties(gst_structure_new("stream-properties", "media.role", G_TYPE_STRING, role->utf8().data(), nullptr));
             g_object_set(object, "stream-properties", properties.get(), nullptr);
+IGNORE_WARNINGS_BEGIN("cast-align")
             GST_DEBUG("Set media.role as %s on %" GST_PTR_FORMAT, role->utf8().data(), GST_ELEMENT_CAST(object));
+IGNORE_WARNINGS_END
         }
         if (g_object_class_find_property(objectClass, "client-name")) {
             auto& clientName = getApplicationName();
@@ -1074,31 +1076,18 @@ GstBuffer* gstBufferNewWrappedFast(void* data, size_t length)
     return gst_buffer_new_wrapped_full(static_cast<GstMemoryFlags>(0), data, length, 0, length, data, fastFree);
 }
 
-GstElement* makeGStreamerElement(const char* factoryName, const char* name)
+GstElement* makeGStreamerElement(ASCIILiteral factoryName, const String& name)
 {
     static Lock lock;
-    static Vector<const char*> cache WTF_GUARDED_BY_LOCK(lock);
-    auto* element = gst_element_factory_make(factoryName, name);
+    static Vector<String> cache WTF_GUARDED_BY_LOCK(lock);
+    auto* element = gst_element_factory_make(factoryName.characters(), name.isEmpty() ? nullptr : name.ascii().data());
     Locker locker { lock };
     if (!element && !cache.contains(factoryName)) {
         cache.append(factoryName);
-        WTFLogAlways("GStreamer element %s not found. Please install it", factoryName);
+        WTFLogAlways("GStreamer element %s not found. Please install it", factoryName.characters());
+        ASSERT_NOT_REACHED_WITH_MESSAGE("GStreamer element %s not found. Please install it", factoryName.characters());
     }
     return element;
-}
-
-GstElement* makeGStreamerBin(const char* description, bool ghostUnlinkedPads)
-{
-    static Lock lock;
-    static Vector<const char*> cache WTF_GUARDED_BY_LOCK(lock);
-    GUniqueOutPtr<GError> error;
-    auto* bin = gst_parse_bin_from_description(description, ghostUnlinkedPads, &error.outPtr());
-    Locker locker { lock };
-    if (!bin && !cache.contains(description)) {
-        cache.append(description);
-        WTFLogAlways("Unable to create bin for description: \"%s\". Error: %s", description, error->message);
-    }
-    return bin;
 }
 
 #if USE(GSTREAMER_WEBRTC)
@@ -1639,7 +1628,7 @@ void fillVideoInfoColorimetryFromColorSpace(GstVideoInfo* info, const PlatformVi
 
 void configureAudioDecoderForHarnessing(const GRefPtr<GstElement>& element)
 {
-    if (gstObjectHasProperty(element.get(), "max-errors"))
+    if (gstObjectHasProperty(element.get(), "max-errors"_s))
         g_object_set(element.get(), "max-errors", 0, nullptr);
 
     // rawaudioparse-specific:
@@ -1649,10 +1638,10 @@ void configureAudioDecoderForHarnessing(const GRefPtr<GstElement>& element)
 
 void configureVideoDecoderForHarnessing(const GRefPtr<GstElement>& element)
 {
-    if (gstObjectHasProperty(element.get(), "max-threads"))
+    if (gstObjectHasProperty(element.get(), "max-threads"_s))
         g_object_set(element.get(), "max-threads", 1, nullptr);
 
-    if (gstObjectHasProperty(element.get(), "max-errors"))
+    if (gstObjectHasProperty(element.get(), "max-errors"_s))
         g_object_set(element.get(), "max-errors", 0, nullptr);
 
     // avdec-specific:
@@ -1669,39 +1658,39 @@ void configureVideoDecoderForHarnessing(const GRefPtr<GstElement>& element)
 
 void configureMediaStreamVideoDecoder(GstElement* element)
 {
-    if (gstObjectHasProperty(element, "automatic-request-sync-points"))
+    if (gstObjectHasProperty(element, "automatic-request-sync-points"_s))
         g_object_set(element, "automatic-request-sync-points", TRUE, nullptr);
 
-    if (gstObjectHasProperty(element, "discard-corrupted-frames"))
+    if (gstObjectHasProperty(element, "discard-corrupted-frames"_s))
         g_object_set(element, "discard-corrupted-frames", TRUE, nullptr);
 
-    if (gstObjectHasProperty(element, "output-corrupt"))
+    if (gstObjectHasProperty(element, "output-corrupt"_s))
         g_object_set(element, "output-corrupt", FALSE, nullptr);
 
-    if (gstObjectHasProperty(element, "max-errors"))
+    if (gstObjectHasProperty(element, "max-errors"_s))
         g_object_set(element, "max-errors", -1, nullptr);
 }
 
 void configureVideoRTPDepayloader(GstElement* element)
 {
-    if (gstObjectHasProperty(element, "request-keyframe"))
+    if (gstObjectHasProperty(element, "request-keyframe"_s))
         g_object_set(element, "request-keyframe", TRUE, nullptr);
 
-    if (gstObjectHasProperty(element, "wait-for-keyframe"))
+    if (gstObjectHasProperty(element, "wait-for-keyframe"_s))
         g_object_set(element, "wait-for-keyframe", TRUE, nullptr);
 }
 
-bool gstObjectHasProperty(GstObject* gstObject, const char* name)
+bool gstObjectHasProperty(GstObject* gstObject, ASCIILiteral name)
 {
-    return g_object_class_find_property(G_OBJECT_GET_CLASS(gstObject), name);
+    return g_object_class_find_property(G_OBJECT_GET_CLASS(gstObject), name.characters());
 }
 
-bool gstObjectHasProperty(GstElement* element, const char* name)
+bool gstObjectHasProperty(GstElement* element, ASCIILiteral name)
 {
     return gstObjectHasProperty(GST_OBJECT_CAST(element), name);
 }
 
-bool gstObjectHasProperty(GstPad* pad, const char* name)
+bool gstObjectHasProperty(GstPad* pad, ASCIILiteral name)
 {
     return gstObjectHasProperty(GST_OBJECT_CAST(pad), name);
 }
@@ -1710,13 +1699,13 @@ bool gstElementMatchesFactoryAndHasProperty(GstElement* element, ASCIILiteral fa
 {
     auto factory = gst_element_get_factory(element);
     if (!factory)
-        return gstObjectHasProperty(element, propertyName.characters());
+        return gstObjectHasProperty(element, propertyName);
 
     auto nameView = StringView::fromLatin1(GST_OBJECT_NAME(factory));
     if (fnmatch(factoryNamePattern.characters(), nameView.toStringWithoutCopying().ascii().data(), 0))
         return false;
 
-    return gstObjectHasProperty(element, propertyName.characters());
+    return gstObjectHasProperty(element, propertyName);
 }
 
 GRefPtr<GstBuffer> wrapSpanData(const std::span<const uint8_t>& span)

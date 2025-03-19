@@ -110,12 +110,10 @@ Modules/mediasource/MediaSourceInterfaceWorker.cpp
 Modules/mediasource/SampleMap.cpp
 Modules/mediasource/SourceBuffer.cpp
 Modules/mediastream/CanvasCaptureMediaStreamTrack.cpp
-Modules/mediastream/MediaDevices.cpp
 Modules/mediastream/MediaStream.cpp
 Modules/mediastream/MediaStream.h
 Modules/mediastream/MediaStreamTrack.cpp
 Modules/mediastream/MediaStreamTrackProcessor.cpp
-Modules/mediastream/NavigatorMediaDevices.cpp
 Modules/mediastream/PeerConnectionBackend.cpp
 Modules/mediastream/RTCController.cpp
 Modules/mediastream/RTCDTMFSender.cpp
@@ -417,6 +415,7 @@ css/CSSCounterValue.h
 css/CSSCrossfadeValue.cpp
 css/CSSCursorImageValue.cpp
 css/CSSFontFace.cpp
+css/CSSFontFaceDescriptors.cpp
 css/CSSFontFaceRule.cpp
 css/CSSFontFaceSet.cpp
 css/CSSFontFeatureValue.cpp
@@ -451,6 +450,7 @@ css/CSSScrollValue.cpp
 css/CSSScrollValue.h
 css/CSSSegmentedFontFace.cpp
 css/CSSSelector.cpp
+css/CSSStyleProperties.cpp
 css/CSSStyleRule.cpp
 css/CSSStyleSheet.cpp
 css/CSSStyleSheetObservableArray.cpp
@@ -471,7 +471,6 @@ css/MediaList.cpp
 css/MediaQueryList.cpp
 css/MediaQueryMatcher.cpp
 css/MutableStyleProperties.cpp
-css/PropertySetCSSStyleDeclaration.cpp
 css/Quad.h
 css/Rect.h
 css/SVGCSSComputedStyleDeclaration.cpp

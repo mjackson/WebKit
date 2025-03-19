@@ -42,7 +42,7 @@ namespace FileSystemImpl {
 
 #if OS(WINDOWS)
 typedef HANDLE PlatformFileHandle;
-const PlatformFileHandle invalidPlatformFileHandle = reinterpret_cast<HANDLE>(-1);
+const PlatformFileHandle invalidPlatformFileHandle = INVALID_HANDLE_VALUE;
 typedef FILE_ID_128 PlatformFileID;
 
 struct Win32HandleMarkableTraits {

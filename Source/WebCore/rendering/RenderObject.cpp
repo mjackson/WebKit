@@ -740,7 +740,7 @@ RenderBlock* RenderObject::containingBlockForPositionType(PositionType positionT
 
     if (positionType == PositionType::Absolute) {
         auto containingBlockForAbsolutePosition = [&] {
-            if (is<RenderInline>(renderer) && renderer.style().position() == PositionType::Relative) {
+            if (CheckedPtr renderInline = dynamicDowncast<RenderInline>(renderer); renderInline && renderInline->style().position() == PositionType::Relative) {
                 // A relatively positioned RenderInline forwards its absolute positioned descendants to
                 // its nearest non-anonymous containing block (to avoid having positioned objects list in RenderInlines).
                 return nearestNonAnonymousContainingBlockIncludingSelf(renderer.parent());
@@ -1571,7 +1571,7 @@ void RenderObject::mapAbsoluteToLocalPoint(OptionSet<MapCoordinatesMode> mode, T
     }
 }
 
-bool RenderObject::shouldUseTransformFromContainer(const RenderObject* containerObject) const
+bool RenderObject::shouldUseTransformFromContainer(const RenderElement* containerObject) const
 {
     if (isTransformed())
         return true;
@@ -2623,14 +2623,13 @@ static void makeBidiSelectionVisuallyContiguousIfNeeded(const SelectionEndpointD
         return;
     }
 
-    auto makeSelectionQuad = [](const Position& position, const IntRect& selectionBounds, TextDirection lineDirection, bool caretIsOnVisualLeftEdge) -> FloatQuad {
+    auto makeSelectionQuad = [](const Position& position, const IntRect& selectionBounds, bool caretIsOnVisualLeftEdge) -> FloatQuad {
         VisiblePosition visiblePosition { position };
-        bool reachedBoundary = false;
-        auto visibleExtent = caretIsOnVisualLeftEdge
-            ? rightBoundaryOfLine(visiblePosition, lineDirection, &reachedBoundary)
-            : leftBoundaryOfLine(visiblePosition, lineDirection, &reachedBoundary);
+        RenderedPosition renderedPosition { position };
         auto boundingRect = selectionBounds;
-        boundingRect.uniteIfNonZero(visibleExtent.absoluteCaretBounds());
+        boundingRect.uniteIfNonZero(caretIsOnVisualLeftEdge
+            ? renderedPosition.rightBoundaryOfBidiRun(0).absoluteRect(CaretRectMode::ExpandToEndOfLine)
+            : renderedPosition.leftBoundaryOfBidiRun(0).absoluteRect(CaretRectMode::ExpandToEndOfLine));
         auto caretRect = visiblePosition.absoluteCaretBounds();
         auto rectOnLeftEdge = caretIsOnVisualLeftEdge ? caretRect : boundingRect;
         auto rectOnRightEdge = caretIsOnVisualLeftEdge ? boundingRect : caretRect;
@@ -2642,12 +2641,10 @@ static void makeBidiSelectionVisuallyContiguousIfNeeded(const SelectionEndpointD
         };
     };
 
-    auto firstLineDirection = start.primaryDirection();
-    auto lastLineDirection = end.primaryDirection();
-    startGeometry->setDirection(firstLineDirection);
-    startGeometry->setQuad(makeSelectionQuad(start, selectionBoundsOnFirstLine, firstLineDirection, firstLineDirection == TextDirection::LTR));
-    endGeometry->setDirection(lastLineDirection);
-    endGeometry->setQuad(makeSelectionQuad(end, selectionBoundsOnLastLine, lastLineDirection, lastLineDirection == TextDirection::RTL));
+    startGeometry->setDirection(directions.firstLine);
+    startGeometry->setQuad(makeSelectionQuad(start, selectionBoundsOnFirstLine, directions.firstLine == TextDirection::LTR));
+    endGeometry->setDirection(directions.lastLine);
+    endGeometry->setQuad(makeSelectionQuad(end, selectionBoundsOnLastLine, directions.lastLine == TextDirection::RTL));
     geometries.appendList({ WTFMove(*startGeometry), WTFMove(*endGeometry) });
 }
 
