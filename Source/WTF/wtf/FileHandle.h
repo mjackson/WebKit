@@ -32,7 +32,7 @@
 
 #if OS(WINDOWS)
 #include <wtf/win/Win32Handle.h>
-#elif OS(LINUX)
+#else
 #include <sys/types.h>
 #endif
 
