@@ -651,11 +651,6 @@ public:
 
     virtual bool hasIntrinsicAspectRatio() const { return isReplacedOrAtomicInline() && (isImage() || isRenderVideo() || isRenderHTMLCanvas() || isRenderViewTransitionCapture()); }
     bool isAnonymous() const { return m_typeFlags.contains(TypeFlag::IsAnonymous); }
-    bool isAnonymousBlock() const;
-    bool isAnonymousForPercentageResolution() const { return isAnonymous() && !isViewTransitionPseudo(); }
-    bool isBlockBox() const;
-    inline bool isBlockLevelBox() const;
-    bool isBlockContainer() const;
 
     bool isFloating() const { return m_stateBitfields.hasFlag(StateFlag::Floating); }
 
@@ -774,8 +769,6 @@ public:
     // is true if the renderer returned is an ancestor of repaintContainer.
     RenderElement* container() const;
     RenderElement* container(const RenderLayerModelObject* repaintContainer, bool& repaintContainerSkipped) const;
-
-    RenderBoxModelObject* offsetParent() const;
 
     RenderElement* markContainingBlocksForLayout(RenderElement* layoutRoot = nullptr);
     void setNeedsLayout(MarkingBehavior = MarkContainingBlockChain);
@@ -1116,15 +1109,10 @@ public:
     virtual void mapLocalToContainer(const RenderLayerModelObject* repaintContainer, TransformState&, OptionSet<MapCoordinatesMode>, bool* wasFixed = nullptr) const;
     virtual void mapAbsoluteToLocalPoint(OptionSet<MapCoordinatesMode>, TransformState&) const;
 
-    // Pushes state onto RenderGeometryMap about how to map coordinates from this renderer to its container, or ancestorToStopAt (whichever is encountered first).
-    // Returns the renderer which was mapped to (container or ancestorToStopAt).
-    virtual const RenderObject* pushMappingToContainer(const RenderLayerModelObject* ancestorToStopAt, RenderGeometryMap&) const;
-    
     bool shouldUseTransformFromContainer(const RenderElement* container) const;
     void getTransformFromContainer(const LayoutSize& offsetInContainer, TransformationMatrix&) const;
     
     void pushOntoTransformState(TransformState&, OptionSet<MapCoordinatesMode>, const RenderLayerModelObject* repaintContainer, const RenderElement* container, const LayoutSize& offsetInContainer, bool containerSkipped) const;
-    void pushOntoGeometryMap(RenderGeometryMap&, const RenderLayerModelObject* repaintContainer, RenderElement* container, bool containerSkipped) const;
 
     bool participatesInPreserve3D() const;
 
@@ -1450,24 +1438,6 @@ inline RenderFragmentedFlow* RenderObject::enclosingFragmentedFlow() const
         return nullptr;
 
     return locateEnclosingFragmentedFlow();
-}
-
-inline bool RenderObject::isAnonymousBlock() const
-{
-    // This function must be kept in sync with anonymous block creation conditions in RenderBlock::createAnonymousBlock().
-    // FIXME: That seems difficult. Can we come up with a simpler way to make behavior correct?
-    // FIXME: Does this relatively long function benefit from being inlined?
-    return isAnonymous()
-        && (style().display() == DisplayType::Block || style().display() == DisplayType::Box)
-        && style().pseudoElementType() == PseudoId::None
-        && isRenderBlock()
-#if ENABLE(MATHML)
-        && !isRenderMathMLBlock()
-#endif
-        && !isRenderListMarker()
-        && !isRenderFragmentedFlow()
-        && !isRenderMultiColumnSet()
-        && !isRenderView();
 }
 
 inline bool RenderObject::needsLayout() const

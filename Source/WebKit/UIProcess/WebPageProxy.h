@@ -424,6 +424,7 @@ using ElementIdentifier = ObjectIdentifier<ElementIdentifierType>;
 
 namespace WebKit {
 
+class AboutSchemeHandler;
 class AudioSessionRoutingArbitratorProxy;
 class AuthenticationChallengeProxy;
 class BrowsingContextGroup;
@@ -2720,6 +2721,8 @@ public:
     bool hasAccessibilityActivityForTesting();
 #endif
 
+    Ref<AboutSchemeHandler> protectedAboutSchemeHandler();
+
 private:
     WebPageProxy(PageClient&, WebProcessProxy&, Ref<API::PageConfiguration>&&);
     void platformInitialize();
@@ -3321,6 +3324,7 @@ private:
     void postMessageToRemote(WebCore::FrameIdentifier source, const String& sourceOrigin, WebCore::FrameIdentifier target, std::optional<WebCore::SecurityOriginData> targetOrigin, const WebCore::MessageWithMessagePorts&);
     void renderTreeAsTextForTesting(WebCore::FrameIdentifier, size_t baseIndent, OptionSet<WebCore::RenderAsTextFlag>, CompletionHandler<void(String&&)>&&);
     void layerTreeAsTextForTesting(WebCore::FrameIdentifier, size_t baseIndent, OptionSet<WebCore::LayerTreeAsTextOptions>, CompletionHandler<void(String&&)>&&);
+    void addMessageToConsoleForTesting(String&&);
     void frameTextForTesting(WebCore::FrameIdentifier, CompletionHandler<void(String&&)>&&);
     void bindRemoteAccessibilityFrames(int processIdentifier, WebCore::FrameIdentifier, Vector<uint8_t>&& dataToken, CompletionHandler<void(Vector<uint8_t>, int)>&&);
     void updateRemoteFrameAccessibilityOffset(WebCore::FrameIdentifier, WebCore::IntPoint);
@@ -3370,7 +3374,7 @@ private:
     bool hasValidOpeningAppLinkActivity() const;
 #endif
 
-RefPtr<SpeechRecognitionPermissionManager> protectedSpeechRecognitionPermissionManager();
+    RefPtr<SpeechRecognitionPermissionManager> protectedSpeechRecognitionPermissionManager();
 
 #if PLATFORM(COCOA)
     String presentingApplicationBundleIdentifier() const;
@@ -3894,6 +3898,7 @@ RefPtr<SpeechRecognitionPermissionManager> protectedSpeechRecognitionPermissionM
     std::optional<audit_token_t> m_presentingApplicationAuditToken;
 #endif
 
+    Ref<AboutSchemeHandler> m_aboutSchemeHandler;
     RefPtr<WebPageProxyTesting> m_pageForTesting;
 };
 

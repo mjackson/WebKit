@@ -258,6 +258,7 @@
 #include <JavaScriptCore/InspectorFrontendChannel.h>
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSCJSValue.h>
+#include <wtf/FileHandle.h>
 #include <wtf/FileSystem.h>
 #include <wtf/HexNumber.h>
 #include <wtf/JSONValues.h>
@@ -7888,11 +7889,9 @@ ExceptionOr<Vector<Internals::FrameDamage>> Internals::getFrameDamageHistory() c
 
     Vector<Internals::FrameDamage> damageDetails;
     size_t sequenceId = 0;
-    for (const auto& [isValid, region] : damageForTesting->damageInformation()) {
+    for (const auto& region : damageForTesting->damageInformation()) {
         FrameDamage details;
         details.sequenceId = sequenceId++;
-
-        details.isValid = isValid;
 
         const auto& regionBounds = region.bounds();
         details.bounds = DOMRectReadOnly::create(regionBounds.x(), regionBounds.y(), regionBounds.width(), regionBounds.height());

@@ -306,6 +306,17 @@ public:
     const Element* defaultAnchor() const;
     const RenderElement* defaultAnchorRenderer() const;
 
+    bool isAnonymousBlock() const;
+    bool isAnonymousForPercentageResolution() const { return isAnonymous() && !isViewTransitionPseudo(); }
+    inline bool isBlockBox() const;
+    inline bool isBlockLevelBox() const;
+    inline bool isBlockContainer() const;
+
+    RenderBoxModelObject* offsetParent() const;
+    // Pushes state onto RenderGeometryMap about how to map coordinates from this renderer to its container, or ancestorToStopAt (whichever is encountered first).
+    // Returns the renderer which was mapped to (container or ancestorToStopAt).
+    virtual const RenderElement* pushMappingToContainer(const RenderLayerModelObject* ancestorToStopAt, RenderGeometryMap&) const;
+
 protected:
     RenderElement(Type, Element&, RenderStyle&&, OptionSet<TypeFlag>, TypeSpecificFlags);
     RenderElement(Type, Document&, RenderStyle&&, OptionSet<TypeFlag>, TypeSpecificFlags);
@@ -327,6 +338,8 @@ protected:
     void willBeRemovedFromTree() override;
     void willBeDestroyed() override;
     void notifyFinished(CachedResource&, const NetworkLoadMetrics&, LoadWillContinueInAnotherProcess) override;
+
+    void pushOntoGeometryMap(RenderGeometryMap&, const RenderLayerModelObject* repaintContainer, RenderElement* container, bool containerSkipped) const;
 
     void setHasContinuationChainNode(bool b) { m_hasContinuationChainNode = b; }
 

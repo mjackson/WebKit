@@ -4560,8 +4560,8 @@ imported/w3c/web-platform-tests/webaudio/idlharness.https.window.html [ Pass Cra
 imported/w3c/web-platform-tests/webaudio/the-audio-api/the-audionode-interface/audionode-connect-method-chaining.html [ Pass Crash ]
 storage/indexeddb/modern/deleteindex-4-private.html [ Pass Crash ]
 
-# rdar://104694723 ([ iOS16+ debug ] media/vp9.html is a consistent timeout)
-[ Debug ] media/vp9.html [ Timeout ]
+# No VP9 decoder on simulator and no ability to load VideoToolbox plugins.
+media/vp9.html [ Skip ]
 
 # Requires specific encoder behavior.
 http/wpt/webcodecs/encoder-task-failing.html [ Failure ]
@@ -7725,9 +7725,8 @@ webkit.org/b/289090 imported/w3c/web-platform-tests/dom/nodes/remove-from-shadow
 
 webkit.org/b/289097 imported/w3c/web-platform-tests/css/css-position/sticky/position-sticky-fixed-ancestor.html [ Pass Failure ]
 
-# webkit.org/b/289095 REGRESSION(291032@main): [macOS iOS Debug] ipc/large-vector-allocate-failure-crash.html is constantly crashing ( failure in EWS)
+# webkit.org/b/289620 ipc/large-vector-allocate-failure-crash.html should be a macOS only test
 [ Debug ] ipc/large-vector-allocate-failure-crash.html [ Skip ]
-[ Debug ] ipc/invalid-path-segments-crash.html [ Skip ]
 
 webkit.org/b/289094 imported/w3c/web-platform-tests/webcodecs/audio-data.crossOriginIsolated.https.any.html [ Pass Timeout ]
 
@@ -7749,3 +7748,10 @@ imported/w3c/web-platform-tests/svg/pservers/reftests/meshgradient-complex-001.s
 
 # webkit.org/b/289656 ([iOS-18-Simulator-WK2-Tests-EWS] fast/forms/ios/focus-input-via-button-no-scaling.html is crashing
 fast/forms/ios/focus-input-via-button-no-scaling.html [ Pass Crash ]
+
+imported/w3c/web-platform-tests/css/css-position/position-absolute-semi-replaced-stretch-input.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-position/sticky/position-sticky-escape-scroller-004.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-position/multicol/static-position/vlr-ltr-ltr-in-multicol.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-position/multicol/static-position/vrl-ltr-ltr-in-multicol.html [ ImageOnlyFailure ]
+
+webkit.org/b/289986 [ Debug ] imported/w3c/web-platform-tests/html/infrastructure/safe-passing-of-structured-data/shared-array-buffers/no-coop-coep.https.any.html [ Crash ]

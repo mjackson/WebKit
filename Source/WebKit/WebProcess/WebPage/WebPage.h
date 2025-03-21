@@ -37,6 +37,7 @@
 #include <WebCore/FocusOptions.h>
 #include <WebCore/FrameIdentifier.h>
 #include <WebCore/FrameLoaderTypes.h>
+#include <WebCore/FrameTreeSyncData.h>
 #include <WebCore/HighlightVisibility.h>
 #include <WebCore/IntSizeHash.h>
 #include <WebCore/LayerHostingContextIdentifier.h>
@@ -748,12 +749,13 @@ public:
     RefPtr<WebCore::LocalFrame> localMainFrame() const;
     RefPtr<WebCore::Document> localTopDocument() const;
 
-    void createRemoteSubframe(WebCore::FrameIdentifier parentID, WebCore::FrameIdentifier newChildID, const String& newChildFrameName);
+    void createRemoteSubframe(WebCore::FrameIdentifier parentID, WebCore::FrameIdentifier newChildID, const String& newChildFrameName, Ref<WebCore::FrameTreeSyncData>&&);
 
     void getFrameInfo(WebCore::FrameIdentifier, CompletionHandler<void(std::optional<FrameInfoData>&&)>&&);
     Awaitable<std::optional<FrameTreeNodeData>> getFrameTree();
     void didFinishLoadInAnotherProcess(WebCore::FrameIdentifier);
     void frameWasRemovedInAnotherProcess(WebCore::FrameIdentifier);
+    void updateFrameTreeSyncData(WebCore::FrameIdentifier, Ref<WebCore::FrameTreeSyncData>&&);
 
     void processSyncDataChangedInAnotherProcess(const WebCore::ProcessSyncData&);
     void topDocumentSyncDataChangedInAnotherProcess(Ref<WebCore::DocumentSyncData>&&);
@@ -1976,6 +1978,8 @@ public:
     bool hasActiveContextMenuInteraction() const { return m_hasActiveContextMenuInteraction; }
 #endif
 
+    bool shouldSendConsoleLogsToUIProcessForTesting() const { return m_shouldSendConsoleLogsToUIProcessForTesting; }
+
 private:
     WebPage(WebCore::PageIdentifier, WebPageCreationParameters&&);
 
@@ -2581,6 +2585,7 @@ private:
 #if ENABLE(APP_BOUND_DOMAINS)
     bool m_needsInAppBrowserPrivacyQuirks { false };
 #endif
+    const bool m_shouldSendConsoleLogsToUIProcessForTesting { false };
 
 #if PLATFORM(COCOA)
     bool m_pdfPluginEnabled { false };

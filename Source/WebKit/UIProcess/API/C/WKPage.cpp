@@ -1221,7 +1221,9 @@ void WKPageSetFullScreenClientForTesting(WKPageRef pageRef, const WKPageFullScre
         {
             if (!m_client.willEnterFullScreen)
                 return completionHandler(false);
-            completionHandler(m_client.willEnterFullScreen(toAPI(m_page.get()), m_client.base.clientInfo));
+            m_client.willEnterFullScreen(toAPI(m_page.get()), toAPI(CompletionListener::create([completionHandler = WTFMove(completionHandler)] mutable {
+                completionHandler(true);
+            }).ptr()), m_client.base.clientInfo);
         }
 
         void beganEnterFullScreen(const WebCore::IntRect& initialFrame, const WebCore::IntRect& finalFrame, CompletionHandler<void(bool)>&& completionHandler) override
@@ -1922,6 +1924,13 @@ void WKPageSetPageUIClient(WKPageRef pageRef, const WKPageUIClientBase* wkClient
             }
 
             completionHandler(String());
+        }
+
+        void addMessageToConsoleForTesting(WebPageProxy& page, String&& message) final
+        {
+            if (!m_client.addMessageToConsole)
+                return;
+            m_client.addMessageToConsole(toAPI(&page), toAPI(message.impl()), m_client.base.clientInfo);
         }
 
         void setStatusText(WebPageProxy* page, const String& text) final

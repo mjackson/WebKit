@@ -80,6 +80,7 @@
 #include "ProgressTracker.h"
 #include "Range.h"
 #include "RenderButton.h"
+#include "RenderElementInlines.h"
 #include "RenderFileUploadControl.h"
 #include "RenderHTMLCanvas.h"
 #include "RenderImage.h"
@@ -337,27 +338,24 @@ AccessibilityObject* AccessibilityRenderObject::previousSibling() const
     // last child is our previous sibling (or further back in the continuation chain)
     RenderInline* startOfConts;
     WeakPtr renderBlock = dynamicDowncast<RenderBlock>(*m_renderer);
-    if (renderBlock && (startOfConts = startOfContinuations(*m_renderer)))
-        previousSibling = childBeforeConsideringContinuations(startOfConts, renderer());
-
-    // Case 2: Anonymous block parent of the end of a continuation - skip all the way to before
-    // the parent of the start, since everything in between will be linked up via the continuation.
-    else if (renderBlock && m_renderer->isAnonymousBlock() && firstChildIsInlineContinuation(*renderBlock)) {
+    if (renderBlock && (startOfConts = startOfContinuations(*renderBlock)))
+        previousSibling = childBeforeConsideringContinuations(startOfConts, renderBlock.get());
+    else if (renderBlock && renderBlock->isAnonymousBlock() && firstChildIsInlineContinuation(*renderBlock)) {
+        // Case 2: Anonymous block parent of the end of a continuation - skip all the way to before
+        // the parent of the start, since everything in between will be linked up via the continuation.
         auto* firstParent = startOfContinuations(*renderBlock->firstChild())->parent();
         ASSERT(firstParent);
         while (firstChildIsInlineContinuation(*firstParent))
             firstParent = startOfContinuations(*firstParent->firstChild())->parent();
         previousSibling = firstParent->previousSibling();
-    }
-
-    // Case 3: The node has an actual previous sibling
-    else if (RenderObject* ps = m_renderer->previousSibling())
+    } else if (RenderObject* ps = m_renderer->previousSibling()) {
+        // Case 3: The node has an actual previous sibling
         previousSibling = ps;
-
-    // Case 4: This node has no previous siblings, but its parent is an inline,
-    // and is another node's inline continutation. Follow the continuation chain.
-    else if (is<RenderInline>(m_renderer->parent()) && (startOfConts = startOfContinuations(*m_renderer->parent())))
+    } else if (is<RenderInline>(m_renderer->parent()) && (startOfConts = startOfContinuations(*m_renderer->parent()))) {
+        // Case 4: This node has no previous siblings, but its parent is an inline,
+        // and is another node's inline continutation. Follow the continuation chain.
         previousSibling = childBeforeConsideringContinuations(startOfConts, m_renderer->parent()->firstChild());
+    }
 
     if (!previousSibling)
         return nullptr;
@@ -388,25 +386,21 @@ AccessibilityObject* AccessibilityRenderObject::nextSibling() const
     WeakPtr renderBlock = dynamicDowncast<RenderBlock>(*m_renderer);
     if (renderBlock && (inlineContinuation = renderBlock->inlineContinuation()))
         nextSibling = firstChildConsideringContinuation(*inlineContinuation);
-
-    // Case 2: Anonymous block parent of the start of a continuation - skip all the way to
-    // after the parent of the end, since everything in between will be linked up via the continuation.
-    else if (renderBlock && m_renderer->isAnonymousBlock() && lastChildHasContinuation(*renderBlock)) {
+    else if (renderBlock && renderBlock->isAnonymousBlock() && lastChildHasContinuation(*renderBlock)) {
+        // Case 2: Anonymous block parent of the start of a continuation - skip all the way to
+        // after the parent of the end, since everything in between will be linked up via the continuation.
         auto* lastParent = endOfContinuations(*renderBlock->lastChild())->parent();
         ASSERT(lastParent);
         while (lastChildHasContinuation(*lastParent))
             lastParent = endOfContinuations(*lastParent->lastChild())->parent();
         nextSibling = lastParent->nextSibling();
-    }
-
-    // Case 3: node has an actual next sibling
-    else if (RenderObject* ns = m_renderer->nextSibling())
+    } else if (RenderObject* ns = m_renderer->nextSibling())
         nextSibling = ns;
-
-    // Case 4: node is an inline with a continuation. Next sibling is the next sibling of the end 
-    // of the continuation chain.
-    else if (isInlineWithContinuation(*m_renderer))
+    else if (isInlineWithContinuation(*m_renderer)) {
+        // Case 4: node is an inline with a continuation. Next sibling is the next sibling of the end
+        // of the continuation chain.
         nextSibling = endOfContinuations(*m_renderer)->nextSibling();
+    }
 
     // Case 5: node has no next sibling, and its parent is an inline with a continuation.
     // Case 5.1: After case 4, (the element was inline w/ continuation but had no sibling), then check it's parent.
@@ -416,9 +410,10 @@ AccessibilityObject* AccessibilityRenderObject::nextSibling() const
         // Case 5a: continuation is a block - in this case the block itself is the next sibling.
         if (is<RenderBlock>(continuation))
             nextSibling = &continuation;
-        // Case 5b: continuation is an inline - in this case the inline's first child is the next sibling
-        else
+        else {
+            // Case 5b: continuation is an inline - in this case the inline's first child is the next sibling
             nextSibling = firstChildConsideringContinuation(continuation);
+        }
     }
 
     if (!nextSibling)
@@ -581,8 +576,8 @@ Element* AccessibilityRenderObject::anchorElement() const
 
     // Search up the render tree for a RenderObject with a DOM node.  Defer to an earlier continuation, though.
     for (currentRenderer = renderer(); currentRenderer && !currentRenderer->node(); currentRenderer = currentRenderer->parent()) {
-        if (currentRenderer->isAnonymousBlock()) {
-            if (auto* continuation = uncheckedDowncast<RenderBlock>(*currentRenderer).continuation())
+        if (CheckedPtr blockRenderer = dynamicDowncast<RenderBlock>(*currentRenderer); blockRenderer && blockRenderer->isAnonymousBlock()) {
+            if (auto* continuation = blockRenderer->continuation())
                 return cache->getOrCreate(*continuation)->anchorElement();
         }
     }
@@ -1410,12 +1405,12 @@ AXTextRuns AccessibilityRenderObject::textRuns()
     CheckedPtr renderer = this->renderer();
     if (auto* renderLineBreak = dynamicDowncast<RenderLineBreak>(renderer.get())) {
         auto box = InlineIterator::boxFor(*renderLineBreak);
-        return { renderLineBreak->containingBlock(), { AXTextRun(box ? box->lineIndex() : 0, makeString('\n').isolatedCopy(), { lengthOneDomOffsets }) }, /* estimatedCharacterSize */ 12 };
+        return { renderLineBreak->containingBlock(), { AXTextRun(box ? box->lineIndex() : 0, makeString('\n').isolatedCopy(), { lengthOneDomOffsets }) } };
     }
 
     if (is<HTMLImageElement>(node()) || is<HTMLMediaElement>(node())) {
         auto* containingBlock = renderer ? renderer->containingBlock() : nullptr;
-        return containingBlock ? AXTextRuns(containingBlock, { AXTextRun(0, String(span(objectReplacementCharacter)), { lengthOneDomOffsets }) }, /* estimatedCharacterSize */ 255) : AXTextRuns();
+        return containingBlock ? AXTextRuns(containingBlock, { AXTextRun(0, String(span(objectReplacementCharacter)), { lengthOneDomOffsets }) }) : AXTextRuns();
     }
 
     WeakPtr renderText = dynamicDowncast<RenderText>(renderer.get());
@@ -1426,7 +1421,6 @@ AXTextRuns AccessibilityRenderObject::textRuns()
     // other text in the line, and AccessibilityRenderObject::computeIsIgnored ignores the
     // first-letter RenderText, meaning we can't recover it later by combining text across AX objects.
 
-    std::optional<uint8_t> estimatedCharacterWidth;
     Vector<AXTextRun> runs;
     StringBuilder lineString;
     // Appends text to the current lineString, collapsing whitespace as necessary (similar to how TextIterator::handleTextRun() does).
@@ -1434,14 +1428,6 @@ AXTextRuns AccessibilityRenderObject::textRuns()
         auto text = textBox->originalText();
         if (text.isEmpty())
             return;
-
-        if (!estimatedCharacterWidth) {
-            auto textRun = textBox->textRun(InlineIterator::TextRunMode::Editing);
-            unsigned end = textRun.length() - 1;
-            float width = renderText->style().fontCascade().widthOfTextRange(textRun, 0, end);
-            float perCharacterWidth = width / end + 1;
-            estimatedCharacterWidth = std::min(static_cast<unsigned>(std::numeric_limits<uint8_t>::max()), static_cast<unsigned>(std::ceil(perCharacterWidth)));
-        }
 
         bool collapseTabs = textBox->style().collapseWhiteSpace();
         bool collapseNewlines = !textBox->style().preserveNewline();
@@ -1487,7 +1473,7 @@ AXTextRuns AccessibilityRenderObject::textRuns()
 
     if (!lineString.isEmpty())
         runs.append({ currentLineIndex, lineString.toString().isolatedCopy(), WTFMove(textRunDomOffsets) });
-    return { renderText->containingBlock(), WTFMove(runs), estimatedCharacterWidth.value_or(AXTextRuns::defaultEstimatedCharacterWidth) };
+    return { renderText->containingBlock(), WTFMove(runs) };
 }
 
 AXTextRunLineID AccessibilityRenderObject::listMarkerLineID() const
@@ -2206,8 +2192,8 @@ AccessibilityRole AccessibilityRenderObject::determineAccessibilityRole()
 
 #if !PLATFORM(COCOA)
     // This block should be deleted for all platforms, but doing so causes a lot of test failures that need to be sorted out.
-    if (m_renderer->isRenderBlockFlow())
-        return m_renderer->isAnonymousBlock() ? AccessibilityRole::TextGroup : AccessibilityRole::Generic;
+    if (CheckedPtr blockRenderer = dynamicDowncast<RenderBlockFlow>(m_renderer.get()))
+        return blockRenderer->isAnonymousBlock() ? AccessibilityRole::TextGroup : AccessibilityRole::Generic;
 #endif
     
     // InlineRole is the final fallback before assigning AccessibilityRole::Unknown to an object. It makes it
@@ -2606,7 +2592,7 @@ void AccessibilityRenderObject::addChildren()
                 addChildIfNeeded(*childObject);
         }
     } else {
-        if (m_renderer->isAnonymousBlock())
+        if (auto* blockRenderer = dynamicDowncast<RenderBlock>(m_renderer.get()); blockRenderer && blockRenderer->isAnonymousBlock())
             return;
         // If we are a valid anonymous renderer (pseudo-element, list marker), use
         // AXChildIterator to walk the render tree / DOM (we may walk between the

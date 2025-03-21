@@ -30,6 +30,7 @@
 
 #import "UIKitSPI.h"
 #import <WebCore/FloatPoint.h>
+#import <WebCore/FloatQuad.h>
 #import <wtf/BlockPtr.h>
 #import <wtf/cocoa/TypeCastsCocoa.h>
 
@@ -239,6 +240,15 @@ static UIAxis axesForDelta(WebCore::FloatSize delta)
     return NO;
 }
 
+- (void)_wk_collectDescendantsIncludingSelf:(Vector<RetainPtr<UIView>>&)descendants matching:(NS_NOESCAPE BOOL(^)(UIView *))block
+{
+    if (block(self))
+        descendants.append(self);
+
+    for (UIView *subview in self.subviews)
+        [subview _wk_collectDescendantsIncludingSelf:descendants matching:block];
+}
+
 - (UIViewController *)_wk_viewControllerForFullScreenPresentation
 {
     auto controller = self.window.rootViewController;
@@ -246,6 +256,16 @@ static UIAxis axesForDelta(WebCore::FloatSize delta)
     while ((nextPresentedController = controller.presentedViewController))
         controller = nextPresentedController;
     return controller.viewIfLoaded.window == self.window ? controller : nil;
+}
+
+- (WebCore::FloatQuad)_wk_convertQuad:(const WebCore::FloatQuad&)quad toCoordinateSpace:(id<UICoordinateSpace>)destination
+{
+    return {
+        [self convertPoint:quad.p1() toCoordinateSpace:destination],
+        [self convertPoint:quad.p2() toCoordinateSpace:destination],
+        [self convertPoint:quad.p3() toCoordinateSpace:destination],
+        [self convertPoint:quad.p4() toCoordinateSpace:destination],
+    };
 }
 
 @end

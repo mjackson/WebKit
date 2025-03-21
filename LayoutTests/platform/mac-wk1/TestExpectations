@@ -245,6 +245,8 @@ imported/w3c/web-platform-tests/encoding/textdecoder-streaming.any.sharedworker.
 imported/w3c/web-platform-tests/eventsource/eventsource-constructor-empty-url.any.sharedworker.html [ Skip ]
 imported/w3c/web-platform-tests/eventsource/eventsource-constructor-url-bogus.any.sharedworker.html [ Skip ]
 imported/w3c/web-platform-tests/eventsource/shared-worker [ Skip ]
+imported/w3c/web-platform-tests/event-timing/idlharness.any.serviceworker.html [ Skip ]
+imported/w3c/web-platform-tests/event-timing/idlharness.any.sharedworker.html [ Skip ]
 imported/w3c/web-platform-tests/fetch/api/abort/cache.https.any.serviceworker.html [ Skip ]
 imported/w3c/web-platform-tests/fetch/api/abort/cache.https.any.sharedworker.html [ Skip ]
 imported/w3c/web-platform-tests/fetch/api/abort/cache.https.any.worker.html [ Skip ]
@@ -2914,6 +2916,9 @@ fast/canvas/image-buffer-resource-limits.html [ Skip ]
 platform/mac/media/media-source/is-type-supported-vp9-codec-check.html [ Skip ]
 platform/mac/media/mediacapabilities/vp9-decodingInfo-sw.html [ Skip ]
 
+# no VP9 decoder on WK1
+media/vp9.html [ Skip ]
+
 # webkit.org/b/235733 Skip 2 editing/execCommand tests for making subsequent tests fail on wk1 Apple Silicon macs.
 [ Release ] editing/execCommand/insert-newline-in-quoted-content-crash.html [ Skip ]
 [ Release ] editing/execCommand/paste-as-quotation-disconnected-paragraph-ancestor-crash.html [ Skip ]
@@ -3071,3 +3076,5 @@ webkit.org/b/289355 http/tests/navigation/fetch-pagecache.html [ Pass Failure ]
 webkit.org/b/289369 fast/workers/dedicated-worker-lifecycle.html [ Pass Timeout ]
 
 webkit.org/b/289612 http/tests/navigation/https-in-page-cache.html [ Pass Timeout ]
+
+imported/w3c/web-platform-tests/css/css-position/sticky/position-sticky-escape-scroller-004.html [ ImageOnlyFailure ]
