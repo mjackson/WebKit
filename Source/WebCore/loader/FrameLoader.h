@@ -9,13 +9,13 @@
  * are met:
  *
  * 1.  Redistributions of source code must retain the above copyright
- *     notice, this list of conditions and the following disclaimer. 
+ *     notice, this list of conditions and the following disclaimer.
  * 2.  Redistributions in binary form must reproduce the above copyright
  *     notice, this list of conditions and the following disclaimer in the
- *     documentation and/or other materials provided with the distribution. 
+ *     documentation and/or other materials provided with the distribution.
  * 3.  Neither the name of Apple Inc. ("Apple") nor the names of
  *     its contributors may be used to endorse or promote products derived
- *     from this software without specific prior written permission. 
+ *     from this software without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY APPLE AND ITS CONTRIBUTORS "AS IS" AND ANY
  * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
@@ -93,8 +93,10 @@ enum class NavigationPolicyDecision : uint8_t;
 enum class ShouldTreatAsContinuingLoad : uint8_t;
 enum class UsedLegacyTLS : bool;
 enum class WasPrivateRelayed : bool;
-enum class IsMainResource : bool { No, Yes };
-enum class ShouldUpdateAppInitiatedValue : bool { No, Yes };
+enum class IsMainResource : bool { No,
+    Yes };
+enum class ShouldUpdateAppInitiatedValue : bool { No,
+    Yes };
 
 struct WindowFeatures;
 
@@ -107,6 +109,7 @@ class FrameLoader final : public CanMakeWeakPtr<FrameLoader> {
     WTF_MAKE_NONCOPYABLE(FrameLoader);
     WTF_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(Loader);
     friend class PolicyChecker;
+
 public:
     FrameLoader(LocalFrame&, CompletionHandler<UniqueRef<LocalFrameLoaderClient>(LocalFrame&, FrameLoader&)>&& clientCreator);
     ~FrameLoader();
@@ -147,7 +150,7 @@ public:
     void changeLocation(FrameLoadRequest&&, Event* = nullptr, std::optional<PrivateClickMeasurement>&& = std::nullopt);
     void submitForm(Ref<FormSubmission>&&);
 
-    WEBCORE_EXPORT void reload(OptionSet<ReloadOption> = { }, bool isRequestFromClientOrUserInput = false);
+    WEBCORE_EXPORT void reload(OptionSet<ReloadOption> = {}, bool isRequestFromClientOrUserInput = false);
     WEBCORE_EXPORT void reloadWithOverrideEncoding(const String& overrideEncoding);
 
     void open(CachedFrameBase&);
@@ -188,11 +191,12 @@ public:
     RefPtr<DocumentLoader> protectedProvisionalDocumentLoader() const;
     FrameState state() const { return m_state; }
 
-    enum class CanIncludeCurrentDocumentLoader : bool { No, Yes };
+    enum class CanIncludeCurrentDocumentLoader : bool { No,
+        Yes };
     WEBCORE_EXPORT RefPtr<DocumentLoader> loaderForWebsitePolicies(CanIncludeCurrentDocumentLoader = CanIncludeCurrentDocumentLoader::Yes) const;
 
     bool shouldReportResourceTimingToParentFrame() const { return m_shouldReportResourceTimingToParentFrame; };
-    
+
 #if PLATFORM(IOS_FAMILY)
     RetainPtr<CFDictionaryRef> connectionProperties(ResourceLoader*);
 #endif
@@ -305,7 +309,10 @@ public:
 
     WEBCORE_EXPORT bool shouldClose();
 
-    enum class PageDismissalType { None, BeforeUnload, PageHide, Unload };
+    enum class PageDismissalType { None,
+        BeforeUnload,
+        PageHide,
+        Unload };
     PageDismissalType pageDismissalEventBeingDispatched() const { return m_pageDismissalEventBeingDispatched; }
 
     WEBCORE_EXPORT NetworkingContext* networkingContext() const;
@@ -341,8 +348,10 @@ public:
     void setAlwaysAllowLocalWebarchive(bool alwaysAllowLocalWebarchive) { m_alwaysAllowLocalWebarchive = alwaysAllowLocalWebarchive; }
     bool alwaysAllowLocalWebarchive() const { return m_alwaysAllowLocalWebarchive; }
 
-    enum class IsServiceWorkerNavigationLoad : bool { No, Yes };
-    enum class WillOpenInNewWindow : bool { No, Yes };
+    enum class IsServiceWorkerNavigationLoad : bool { No,
+        Yes };
+    enum class WillOpenInNewWindow : bool { No,
+        Yes };
     // For subresource requests the FrameLoadType parameter has no effect and can be skipped.
     void updateRequestAndAddExtraFields(ResourceRequest&, IsMainResource, FrameLoadType = FrameLoadType::Standard, ShouldUpdateAppInitiatedValue = ShouldUpdateAppInitiatedValue::Yes, IsServiceWorkerNavigationLoad = IsServiceWorkerNavigationLoad::No, WillOpenInNewWindow = WillOpenInNewWindow::No, Document* = nullptr);
 
@@ -357,6 +366,9 @@ public:
     HistoryItem* requestedHistoryItem() const { return m_requestedHistoryItem.get(); }
 
     void updateURLAndHistory(const URL&, RefPtr<SerializedScriptValue>&& stateObject, NavigationHistoryBehavior = NavigationHistoryBehavior::Replace);
+
+    void setRequiredCookiesVersion(uint64_t version) { m_requiredCookiesVersion = version; }
+    uint64_t requiredCookiesVersion() const { return m_requiredCookiesVersion; }
 
 private:
     enum FormSubmissionCacheLoadPolicy {
@@ -450,7 +462,9 @@ private:
     bool isNavigationAllowed() const;
     bool isStopLoadingAllowed() const;
 
-    enum class LoadContinuingState : uint8_t { NotContinuing, ContinuingWithRequest, ContinuingWithHistoryItem };
+    enum class LoadContinuingState : uint8_t { NotContinuing,
+        ContinuingWithRequest,
+        ContinuingWithHistoryItem };
     bool shouldTreatCurrentLoadAsContinuingLoad() const { return m_currentLoadContinuingState != LoadContinuingState::NotContinuing; }
 
     // SubframeLoader specific.
@@ -480,7 +494,7 @@ private:
     FrameState m_state;
     FrameLoadType m_loadType;
 
-    // Document loaders for the three phases of frame loading. Note that while 
+    // Document loaders for the three phases of frame loading. Note that while
     // a new request is being loaded, the old document loader may still be referenced.
     // E.g. while a new request is in the "policy" state, the old document loader may
     // be consulted in particular as it makes sense to imply certain settings on the new loader.
@@ -542,6 +556,8 @@ private:
     bool m_shouldRestoreScrollPositionAndViewState { false };
 
     bool m_errorOccurredInLoading { false };
+    bool m_doNotAbortNavigationAPI { false };
+    uint64_t m_requiredCookiesVersion { 0 };
 };
 
 // This function is called by createWindow() in JSDOMWindowBase.cpp, for example, for
@@ -551,7 +567,8 @@ private:
 //
 // FIXME: Consider making this function part of an appropriate class (not FrameLoader)
 // and moving it to a more appropriate location.
-enum class CreatedNewPage : bool { No, Yes };
+enum class CreatedNewPage : bool { No,
+    Yes };
 std::pair<RefPtr<Frame>, CreatedNewPage> createWindow(LocalFrame& openerFrame, FrameLoadRequest&&, WindowFeatures&&);
 
 } // namespace WebCore

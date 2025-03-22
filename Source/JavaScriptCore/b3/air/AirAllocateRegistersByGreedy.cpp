@@ -53,12 +53,9 @@ namespace JSC { namespace B3 { namespace Air {
 namespace Greedy {
 
 // Experiments
-static constexpr bool eagerGroups = true;
-static constexpr bool eagerGroupsSplitFully = false;
 static constexpr bool eagerGroupsExhaustiveSearch = false;
 static constexpr bool spillCostDivideBySize = true;
 static constexpr bool spillCostSizeBias = 1000; // Only relevant when spillCostDivideBySize
-static constexpr bool evictHeuristicAggregatorIsMax = false;
 
 // Quickly filters out short ranges from live range splitting consideration.
 static constexpr size_t splitMinRangeSize = 8;
@@ -498,8 +495,16 @@ private:
     AllocatedIntervalSet m_allocations;
 };
 
-// Auxillary register allocator data per Tmp.
+// Auxiliary register allocator data per Tmp.
 struct TmpData {
+    // When an unspillable or fastTmp is coalesced with another tmp, we don't want the spillCost of the
+    // group to be unspillableCost or fastTmpCost, so this property is tracked independent of useDefCost.
+    enum class Spillability : uint8_t {
+        Spillable,
+        FastTmp,
+        Unspillable,
+    };
+
     struct CoalescableWith {
         void dump(PrintStream& out) const
         {
@@ -514,7 +519,7 @@ struct TmpData {
     {
         out.print("{stage = ", stage, " liveRange = ", liveRange, ", preferredReg = ", preferredReg,
             ", coalescables = ", listDump(coalescables), ", subGroup0 = ", subGroup0, ", subGroup1 = ", subGroup1,
-            ", useDefCost = ", useDefCost, ", unspillable = ", unspillable, ", assigned = ", assigned, ", spilled = ", pointerDump(spillSlot), ", splitMetadataIndex = ", splitMetadataIndex, "}");
+            ", useDefCost = ", useDefCost, ", spillability = ", spillability, ", assigned = ", assigned, ", spilled = ", pointerDump(spillSlot), ", splitMetadataIndex = ", splitMetadataIndex, "}");
     }
 
     bool isGroup()
@@ -526,9 +531,16 @@ struct TmpData {
     float spillCost()
     {
         ASSERT(liveRange.size()); // 0-sized ranges shouldn't be allocated
-        if (unspillable)
+        switch (spillability) {
+        case Spillability::Unspillable:
             return unspillableCost;
-
+        case Spillability::FastTmp:
+            return fastTmpSpillCost;
+        case Spillability::Spillable:
+            break;
+        default:
+            ASSERT_NOT_REACHED();
+        }
         // Heuristic that favors not spilling higher use/def frequency-adjusted counts and
         // shorter ranges. The spillCostSizeBias causes the penalty for larger ranges to
         // be more dramatic as the range size gets larger.
@@ -559,7 +571,7 @@ struct TmpData {
     Tmp subGroup0, subGroup1;
     uint32_t splitMetadataIndex { 0 };
     Stage stage { Stage::New };
-    bool unspillable { false };
+    Spillability spillability { Spillability::Spillable };
     Reg preferredReg;
     Reg assigned;
 };
@@ -1100,17 +1112,12 @@ private:
                         return aSize < bSize;
                     return a.tmp.tmpIndex(bank) < b.tmp.tmpIndex(bank);
             });
-
-            if (!eagerGroups)
-                return;
-
             for (auto& with : m_map[tmp].coalescables) {
                 if (tmp.tmpIndex(bank) < with.tmp.tmpIndex(bank))
                     moves.append({ tmp, with.tmp, with.moveCost });
             }
         });
 
-        ASSERT_IMPLIES(!eagerGroups, moves.isEmpty());
         std::sort(moves.begin(), moves.end(),
             [](Move& a, Move& b) -> bool {
                 if (a.cost != b.cost)
@@ -1221,9 +1228,8 @@ private:
         }
 
         for (Reg reg : m_allowedRegistersInPriorityOrder[bank])
-            m_map[Tmp(reg)].unspillable = true;
+            m_map[Tmp(reg)].spillability = TmpData::Spillability::Unspillable;
 
-        // FIXME: tmps alive only in one gap should be unspillable.
         m_code.forEachTmp<bank>([&](Tmp tmp) {
             ASSERT(tmp.bank() == bank);
             ASSERT(!tmp.isReg());
@@ -1237,7 +1243,7 @@ private:
 
             if (cannotSpillInPlace.contains(tmp)
                 && tmpData.liveRange.intervals().size() == 1 && tmpData.liveRange.size() <= pointsPerInst) {
-                tmpData.unspillable = true;
+                tmpData.spillability = TmpData::Spillability::Unspillable;
                 m_stats[bank].numUnspillableTmps++;
             }
             tmpData.validate();
@@ -1245,8 +1251,8 @@ private:
         m_code.forEachFastTmp([&](Tmp tmp) {
             if (tmp.bank() != bank)
                 return;
-            m_map[tmp].unspillable = true;
-            m_stats[bank].numUnspillableTmps++;
+            m_map[tmp].spillability = TmpData::Spillability::FastTmp;
+            m_stats[bank].numFastTmps++;
             dataLogLnIf(verbose(), "FastTmp: ", tmp);
         });
     }
@@ -1269,7 +1275,7 @@ private:
     Tmp addSpillTmpWithInterval(Tmp spilledTmp, Interval interval)
     {
         Tmp tmp = newTmp(spilledTmp, 0, interval);
-        m_map[tmp].unspillable = true;
+        m_map[tmp].spillability = TmpData::Spillability::Unspillable;
         dataLogLnIf(verbose(), "New spill for ", spilledTmp, " tmp: ", tmp, ": ", m_map[tmp]);
         setStageAndEnqueue(tmp, m_map[tmp], Stage::Unspillable);
         m_stats[tmp.bank()].numSpillTmps++;
@@ -1282,7 +1288,6 @@ private:
         ASSERT(m_map[tmp].liveRange.size()); // 0-size ranges don't need a register and spillCost() depends on size() != 0
         ASSERT(stage == Stage::Unspillable || stage == Stage::TryAllocate || stage == Stage::TrySplit || stage == Stage::Spill);
         ASSERT(!tmpData.parentGroup); // Group member should not be enquened
-        ASSERT_IMPLIES(!eagerGroups, !tmpData.isGroup());
         tmpData.validate();
 
         tmpData.stage = stage;
@@ -1313,10 +1318,8 @@ private:
         m_code.forEachTmp<bank>([&](Tmp tmp) {
             ASSERT(!tmp.isReg());
             TmpData& tmpData = m_map[tmp];
-            if (tmpData.parentGroup) {
-                ASSERT(eagerGroups);
+            if (tmpData.parentGroup)
                 return;
-            }
             if (tmpData.liveRange.intervals().isEmpty())
                 return;
             setStageAndEnqueue(tmp, tmpData, Stage::TryAllocate);
@@ -1453,6 +1456,17 @@ private:
             insertFixupCode(); // So that the log shows the fixup code too
             StringPrintStream out;
             out.println("FATAL: no register for ", tmp);
+            out.println("Unspillable Conflicts:");
+            for (Reg r : m_allowedRegistersInPriorityOrder[bank]) {
+                out.print("  ", r, ": ");
+                m_regRanges[r].forEachConflict(m_map[tmp].liveRange,
+                    [&](auto& conflict) -> IterationStatus {
+                        if (m_map[conflict.tmp].spillCost() == unspillableCost)
+                            out.print("{", conflict.tmp, ", ", conflict.interval, "}, ");
+                        return IterationStatus::Continue;
+                    });
+                out.println("");
+            }
             out.println("Code:", m_code);
             out.println("Register Allocator State:\n", pointerDump(this));
             dataLogLn(out.toCString());
@@ -1482,8 +1496,9 @@ private:
                         conflictsSpillCost = unspillableCost;
                         return IterationStatus::Done;
                     }
-                    if (evictHeuristicAggregatorIsMax)
-                        conflictsSpillCost = std::max(conflictsSpillCost, cost);
+                    if (UNLIKELY(cost == std::numeric_limits<float>::max()
+                        || conflictsSpillCost == std::numeric_limits<float>::max()))
+                        conflictsSpillCost = std::numeric_limits<float>::max();
                     else
                         conflictsSpillCost += cost;
                     return conflictsSpillCost >= minSpillCost ? IterationStatus::Done : IterationStatus::Continue;
@@ -1546,20 +1561,12 @@ private:
     {
         if (!tmpData.isGroup())
             return false;
-        ASSERT(eagerGroups);
         auto enqueueSubgroup = [&](Tmp subGrp) {
             m_map[subGrp].parentGroup = Tmp();
             setStageAndEnqueue(subGrp, m_map[subGrp], Stage::TryAllocate);
         };
-        if (eagerGroupsSplitFully) {
-            forEachTmpInGroup(tmp, [&](Tmp member) {
-                enqueueSubgroup(member);
-                return IterationStatus::Continue;
-            });
-        } else {
-            enqueueSubgroup(tmpData.subGroup0);
-            enqueueSubgroup(tmpData.subGroup1);
-        }
+        enqueueSubgroup(tmpData.subGroup0);
+        enqueueSubgroup(tmpData.subGroup1);
         tmpData.stage = Stage::Replaced;
         dataLogLnIf(verbose(), "Split (group) ", tmp);
         tmpData.validate();
