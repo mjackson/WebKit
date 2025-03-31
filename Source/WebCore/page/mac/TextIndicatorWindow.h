@@ -32,6 +32,7 @@
 #import <wtf/RetainPtr.h>
 #import <wtf/RunLoop.h>
 #import <wtf/TZoneMalloc.h>
+#import <wtf/WeakObjCPtr.h>
 
 OBJC_CLASS NSView;
 OBJC_CLASS WebTextIndicatorLayer;
@@ -49,6 +50,7 @@ public:
     WEBCORE_EXPORT ~TextIndicatorWindow();
 
     WEBCORE_EXPORT void setTextIndicator(Ref<TextIndicator>, CGRect contentRect, TextIndicatorLifetime);
+    WEBCORE_EXPORT void updateTextIndicator(Ref<TextIndicator>&&, CGRect contentRect);
     WEBCORE_EXPORT void clearTextIndicator(TextIndicatorDismissalAnimation);
 
     WEBCORE_EXPORT void setAnimationProgress(float);
@@ -58,7 +60,7 @@ private:
 
     void startFadeOut();
 
-    NSView *m_targetView;
+    WeakObjCPtr<NSView> m_targetView;
     RefPtr<TextIndicator> m_textIndicator;
     RetainPtr<NSWindow> m_textIndicatorWindow;
     RetainPtr<NSView> m_textIndicatorView;

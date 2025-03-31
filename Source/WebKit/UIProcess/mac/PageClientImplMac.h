@@ -33,6 +33,7 @@
 #include <WebCore/DOMPasteAccess.h>
 #include <wtf/CompletionHandler.h>
 #include <wtf/Forward.h>
+#include <wtf/WeakObjCPtr.h>
 
 @class WKEditorUndoTarget;
 @class WKView;
@@ -83,7 +84,6 @@ private:
     bool isViewVisibleOrOccluded() override;
     bool isViewInWindow() override;
     bool isVisuallyIdle() override;
-    LayerHostingMode viewLayerHostingMode() override;
     WebCore::DestinationColorSpace colorSpace() override;
     void setRemoteLayerTreeRootNode(RemoteLayerTreeNode*) override;
     CALayer *acceleratedCompositingRootLayer() const override;
@@ -167,6 +167,7 @@ private:
     Ref<WebCore::ValidationBubble> createValidationBubble(const String& message, const WebCore::ValidationBubble::Settings&) final;
 
     void setTextIndicator(Ref<WebCore::TextIndicator>, WebCore::TextIndicatorLifetime) override;
+    void updateTextIndicator(Ref<WebCore::TextIndicator>) override;
     void clearTextIndicator(WebCore::TextIndicatorDismissalAnimation) override;
     void setTextIndicatorAnimationProgress(float) override;
 
@@ -327,7 +328,7 @@ private:
     void didCleanupFullscreen() final { }
 #endif
 
-    NSView *m_view;
+    WeakObjCPtr<NSView> m_view;
     WeakPtr<WebViewImpl> m_impl;
 #if USE(AUTOCORRECTION_PANEL)
     CorrectionPanel m_correctionPanel;

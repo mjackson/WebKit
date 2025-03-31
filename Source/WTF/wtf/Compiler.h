@@ -563,8 +563,11 @@
 #if COMPILER(APPLE_CLANG) || defined(CLANG_WEBKIT_BRANCH) || !defined __clang_major__ || __clang_major__ >= 19
 #define SUPPRESS_UNCOUNTED_LAMBDA_CAPTURE \
     IGNORE_CLANG_STATIC_ANALYZER_WARNINGS_ATTRIBUTE("webkit.UncountedLambdaCapturesChecker")
+#define SUPPRESS_UNRETAINED_LOCAL \
+    IGNORE_CLANG_STATIC_ANALYZER_WARNINGS_ATTRIBUTE("alpha.webkit.UnretainedLocalVarsChecker")
 #else
 #define SUPPRESS_UNCOUNTED_LAMBDA_CAPTURE
+#define SUPPRESS_UNRETAINED_LOCAL
 #endif
 
 #define SUPPRESS_REFCOUNTED_WITHOUT_VIRTUAL_DESTRUCTOR \
@@ -578,6 +581,12 @@
 
 #define IGNORE_NULL_CHECK_WARNINGS_BEGIN IGNORE_WARNINGS_BEGIN("nonnull")
 #define IGNORE_NULL_CHECK_WARNINGS_END IGNORE_WARNINGS_END
+
+#if COMPILER(CLANG)
+#define DECLARE_SYSTEM_HEADER _Pragma(_COMPILER_STRINGIZE(clang system_header))
+#else
+#define DECLARE_SYSTEM_HEADER
+#endif
 
 /* NOESCAPE */
 /* This attribute promises that a function argumemnt will only be used for the duration of the function,

@@ -26,6 +26,13 @@
 
 namespace WTF {
 
+RetainPtr<NSString> String::createNSString() const
+{
+    if (RefPtr impl = m_impl)
+        return impl->createNSString();
+    return @"";
+}
+
 RetainPtr<id> makeNSArrayElement(const String& vectorElement)
 {
     return bridge_cast(vectorElement.createCFString());

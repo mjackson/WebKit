@@ -176,9 +176,12 @@ static inline bool elementAndAncestorsAreOnlyRenderedChildren(const Element& ele
         return false;
 
     for (auto& ancestor : ancestorsOfType<RenderElement>(*renderer)) {
+        if (ancestor.style().usedVisibility() == Visibility::Hidden)
+            continue;
+
         unsigned numberOfVisibleChildren = 0;
         for (auto& child : childrenOfType<RenderObject>(ancestor)) {
-            if (child.style().usedVisibility() == Visibility::Hidden)
+            if (CheckedPtr renderElement = dynamicDowncast<RenderElement>(child); renderElement && renderElement->style().usedVisibility() == Visibility::Hidden)
                 continue;
 
             if (++numberOfVisibleChildren >= 2)
@@ -1567,8 +1570,14 @@ static void adjustRegionAfterViewportSizeChange(Region& region, FloatSize oldSiz
 
 void ElementTargetingController::adjustVisibilityInRepeatedlyTargetedRegions(Document& document)
 {
-    if (!document.isTopDocument())
+    if (m_didCollectInitialAdjustments && (!m_page || !m_page->hasEverSetVisibilityAdjustment()))
         return;
+
+    if (!document.isTopDocument()) {
+        // Only the top document supports declarative visibility adjustment via element selectors.
+        m_didCollectInitialAdjustments = true;
+        return;
+    }
 
     RefPtr frameView = document.view();
     if (!frameView)

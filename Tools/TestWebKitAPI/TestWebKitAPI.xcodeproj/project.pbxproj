@@ -51,7 +51,6 @@
 		041A1E34216FFDBC00789E0A /* PublicSuffix.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 041A1E33216FFDBC00789E0A /* PublicSuffix.cpp */; };
 		04DB2396235E43EC00328F17 /* BumpPointerAllocator.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0451A5A6235E438E009DF945 /* BumpPointerAllocator.cpp */; };
 		07275CBC2D01398C002315A5 /* _WebKit_SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 07275CBB2D01398C002315A5 /* _WebKit_SwiftUI.framework */; };
-		07492B3B1DF8B14C00633DE1 /* EnumerateMediaDevices.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 07492B3A1DF8AE2D00633DE1 /* EnumerateMediaDevices.cpp */; };
 		074E87E52CF920A20059E469 /* Bundle+Extras.swift in Sources */ = {isa = PBXBuildFile; fileRef = 074E87E42CF920A20059E469 /* Bundle+Extras.swift */; };
 		075A9CF526177218006DFA3A /* MediaSessionCoordinatorTest.mm in Sources */ = {isa = PBXBuildFile; fileRef = 075A9CF426177217006DFA3A /* MediaSessionCoordinatorTest.mm */; };
 		076E507F1F4513D6006E9F5A /* Logging.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 076E507E1F45031E006E9F5A /* Logging.cpp */; };
@@ -2218,7 +2217,6 @@
 		0746645822FF630500E3451A /* AccessibilityTestPlugin.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AccessibilityTestPlugin.mm; sourceTree = "<group>"; };
 		07492B391DF8ADA400633DE1 /* enumerateMediaDevices.html */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.html; path = enumerateMediaDevices.html; sourceTree = "<group>"; };
 		07492B391DF8ADA400633DQ1 /* playable-audio.html */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.html; path = "playable-audio.html"; sourceTree = "<group>"; };
-		07492B3A1DF8AE2D00633DE1 /* EnumerateMediaDevices.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = EnumerateMediaDevices.cpp; sourceTree = "<group>"; };
 		074AD7092B604E7600FFA67B /* WritingTools.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WritingTools.mm; sourceTree = "<group>"; };
 		074E87E42CF920A20059E469 /* Bundle+Extras.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Bundle+Extras.swift"; sourceTree = "<group>"; };
 		075A9CF426177217006DFA3A /* MediaSessionCoordinatorTest.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MediaSessionCoordinatorTest.mm; sourceTree = "<group>"; };
@@ -3040,6 +3038,7 @@
 		63A33C552A339ED500EF94B8 /* WKWebViewInspection.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WKWebViewInspection.mm; sourceTree = "<group>"; };
 		63A61B8A1FAD204D00F06885 /* display-mode.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "display-mode.html"; sourceTree = "<group>"; };
 		63CAD04F2C478A55009CE119 /* GetMatchedCSSRules.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = GetMatchedCSSRules.mm; sourceTree = "<group>"; };
+		63D138CF2D90B08E0072E181 /* HistoryDelegate.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = HistoryDelegate.mm; sourceTree = "<group>"; };
 		63F668201F97C3AA0032EE51 /* ApplicationManifest.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ApplicationManifest.mm; sourceTree = "<group>"; };
 		6B0A07F621FA9C2B00D57391 /* PrivateClickMeasurement.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = PrivateClickMeasurement.cpp; sourceTree = "<group>"; };
 		6B25A75125DC8D4E0070744F /* EventAttribution.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = EventAttribution.mm; sourceTree = "<group>"; };
@@ -4015,6 +4014,8 @@
 		FA65EFFC2C87F43C00A0A123 /* CoroutineUtilities.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CoroutineUtilities.h; sourceTree = "<group>"; };
 		FA65F0042C87F4CF00A0A123 /* NetworkConnection.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NetworkConnection.h; sourceTree = "<group>"; };
 		FA65F0052C87F4CF00A0A123 /* NetworkConnection.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = NetworkConnection.mm; sourceTree = "<group>"; };
+		FA6F19CC2D921C4C0077CE6D /* TestScriptMessageHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = TestScriptMessageHandler.h; path = cocoa/TestScriptMessageHandler.h; sourceTree = "<group>"; };
+		FA6F19CD2D921C4C0077CE6D /* TestScriptMessageHandler.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = TestScriptMessageHandler.mm; sourceTree = "<group>"; };
 		FA8650312C7D01CA00117287 /* WebTransportServer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WebTransportServer.h; sourceTree = "<group>"; };
 		FA8650322C7D01CA00117287 /* WebTransportServer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WebTransportServer.mm; sourceTree = "<group>"; };
 		FA8650332C7D047B00117287 /* WebTransport.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WebTransport.mm; sourceTree = "<group>"; };
@@ -4265,6 +4266,8 @@
 				A14FC58E1B8AE36500D107EB /* TestProtocol.mm */,
 				F4C192CD2B027C93001F75CE /* TestResourceLoadDelegate.h */,
 				F4C192CE2B027C93001F75CE /* TestResourceLoadDelegate.mm */,
+				FA6F19CC2D921C4C0077CE6D /* TestScriptMessageHandler.h */,
+				FA6F19CD2D921C4C0077CE6D /* TestScriptMessageHandler.mm */,
 				5CBAA7F324327F6B00564A8B /* TestUIDelegate.h */,
 				5CBAA7F424327F6B00564A8B /* TestUIDelegate.mm */,
 				B63EF53E2995797F00A190A3 /* TestWebExtensionsDelegate.h */,
@@ -4471,6 +4474,7 @@
 				0738012E275EADAB000FA77C /* GetDisplayMediaWindowAndScreen.mm */,
 				2DADF26221CB8F32003D3E3A /* GetResourceData.mm */,
 				465E2806255B2A690063A787 /* GPUProcess.mm */,
+				63D138CF2D90B08E0072E181 /* HistoryDelegate.mm */,
 				5CB5990A269E74EC002A7CFF /* HSTS.mm */,
 				51AF23DE1EF1A3720072F281 /* IconLoadingDelegate.mm */,
 				EB230D3E245E726300C66AD1 /* IDBCheckpointWAL.mm */,
@@ -5669,7 +5673,6 @@
 				F6F49C6715545C8D0007F39D /* DOMWindowExtensionNoCache.cpp */,
 				F6F49C6615545C8D0007F39D /* DOMWindowExtensionNoCache_Bundle.cpp */,
 				C045F9441385C2E900C0F3CD /* DownloadDecideDestinationCrash.cpp */,
-				07492B3A1DF8AE2D00633DE1 /* EnumerateMediaDevices.cpp */,
 				448D7E451EA6C55500ECC756 /* EnvironmentUtilitiesTest.cpp */,
 				75F3133F18C171B70041CAEC /* EphemeralSessionPushStateNoHistoryCallback.cpp */,
 				1A5FEFDC1270E2A3000E2921 /* EvaluateJavaScript.cpp */,
@@ -7152,7 +7155,6 @@
 				7CCE7EBF1A411A7E00447C4C /* ElementAtPointInWebFrame.mm in Sources */,
 				C13D82D92416F13200A62793 /* EnableAccessibility.mm in Sources */,
 				F4CF32802366552200D3AD07 /* EnterKeyHintTests.mm in Sources */,
-				07492B3B1DF8B14C00633DE1 /* EnumerateMediaDevices.cpp in Sources */,
 				448D7E471EA6C55500ECC756 /* EnvironmentUtilitiesTest.cpp in Sources */,
 				7CCE7EEF1A411AE600447C4C /* EphemeralSessionPushStateNoHistoryCallback.cpp in Sources */,
 				7CCE7EF01A411AE600447C4C /* EvaluateJavaScript.cpp in Sources */,

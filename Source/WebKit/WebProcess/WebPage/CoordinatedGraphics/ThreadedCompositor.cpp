@@ -263,16 +263,11 @@ void ThreadedCompositor::paintToCurrentGLContext(const TransformationMatrix& mat
     std::optional<FloatRoundedRect> rectContainingRegionThatActuallyChanged;
     currentRootLayer.prepareForPainting(*m_textureMapper);
     if (m_damagePropagation != Damage::Propagation::None) {
-        Damage frameDamage;
+        Damage frameDamage(size, m_damagePropagation == Damage::Propagation::Unified ? Damage::Mode::BoundingBox : Damage::Mode::Rectangles);
+
         WTFBeginSignpost(this, CollectDamage);
         currentRootLayer.collectDamage(*m_textureMapper, frameDamage);
         WTFEndSignpost(this, CollectDamage);
-
-        if (m_damagePropagation == Damage::Propagation::Unified) {
-            Damage boundsDamage;
-            boundsDamage.add(frameDamage.bounds());
-            frameDamage = WTFMove(boundsDamage);
-        }
 
         if (m_frameDamageHistory)
             m_frameDamageHistory->addDamage(frameDamage);

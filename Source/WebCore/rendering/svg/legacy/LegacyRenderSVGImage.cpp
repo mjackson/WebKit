@@ -227,7 +227,7 @@ void LegacyRenderSVGImage::paintForeground(PaintInfo& paintInfo)
 
     ImagePaintingOptions options = {
         imageOrientation(),
-        ImageQualityController::chooseInterpolationQualityForSVG(paintInfo.context(), this, *image)
+        ImageQualityController::chooseInterpolationQualityForSVG(paintInfo.context(), *this, *image)
     };
 
     paintInfo.context().drawImage(*image, destRect, srcRect, options);
@@ -277,7 +277,7 @@ void LegacyRenderSVGImage::imageChanged(WrappedImagePtr, const IntRect*)
     // The image resource defaults to nullImage until the resource arrives.
     // This empty image may be cached by SVG resources which must be invalidated.
     if (auto* resources = SVGResourcesCache::cachedResourcesForRenderer(*this))
-        resources->removeClientFromCache(*this);
+        resources->removeClientFromCacheAndMarkForInvalidation(*this);
 
     // Eventually notify parent resources, that we've changed.
     LegacyRenderSVGResource::markForLayoutAndParentResourceInvalidation(*this, false);

@@ -84,15 +84,17 @@ RetainPtr<NSAttributedString> AXTextMarkerRange::toAttributedString(AXCoreObject
     if (!end.isValid())
         return nil;
 
+    String listMarkerText = listMarkerTextOnSameLine(start);
+
     if (start.isolatedObject() == end.isolatedObject()) {
         size_t minOffset = std::min(start.offset(), end.offset());
         size_t maxOffset = std::max(start.offset(), end.offset());
         // FIXME: createAttributedString takes a StringView, but we create a full-fledged String. Could we create a
         // new substringView method that returns a StringView?
-        return start.isolatedObject()->createAttributedString(start.runs()->substring(minOffset, maxOffset - minOffset), spellCheck).autorelease();
+        return start.isolatedObject()->createAttributedString(makeString(listMarkerText, start.runs()->substring(minOffset, maxOffset - minOffset)), spellCheck).autorelease();
     }
 
-    RetainPtr<NSMutableAttributedString> result = start.isolatedObject()->createAttributedString(start.runs()->substring(start.offset()), spellCheck);
+    RetainPtr<NSMutableAttributedString> result = start.isolatedObject()->createAttributedString(makeString(listMarkerText, start.runs()->substring(start.offset())), spellCheck);
     auto emitNewlineOnExit = [&] (AXIsolatedObject& object) {
         // FIXME: This function should not just be emitting newlines, but instead handling every character type in TextEmissionBehavior.
         auto behavior = object.textEmissionBehavior();
@@ -131,14 +133,11 @@ AXTextMarkerRange::AXTextMarkerRange(AXTextMarkerRangeRef textMarkerRangeRef)
         return;
     }
 
-    auto start = AXTextMarkerRangeCopyStartMarker(textMarkerRangeRef);
-    auto end = AXTextMarkerRangeCopyEndMarker(textMarkerRangeRef);
+    RetainPtr start = adoptCF(AXTextMarkerRangeCopyStartMarker(textMarkerRangeRef));
+    RetainPtr end = adoptCF(AXTextMarkerRangeCopyEndMarker(textMarkerRangeRef));
 
-    m_start = start;
-    m_end = end;
-
-    CFRelease(start);
-    CFRelease(end);
+    m_start = start.get();
+    m_end = end.get();
 }
 
 RetainPtr<AXTextMarkerRangeRef> AXTextMarkerRange::platformData() const

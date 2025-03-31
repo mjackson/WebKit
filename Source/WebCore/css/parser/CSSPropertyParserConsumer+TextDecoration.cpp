@@ -31,7 +31,6 @@
 #include "CSSPrimitiveValue.h"
 #include "CSSPropertyParserConsumer+Color.h"
 #include "CSSPropertyParserConsumer+Ident.h"
-#include "CSSPropertyParserConsumer+Length.h"
 #include "CSSPropertyParserConsumer+LengthDefinitions.h"
 #include "CSSPropertyParserConsumer+List.h"
 #include "CSSPropertyParserConsumer+MetaConsumer.h"
@@ -142,33 +141,6 @@ RefPtr<CSSValue> consumeTextShadow(CSSParserTokenRange& range, const CSSParserCo
 
     if (auto property = consumeUnresolvedTextShadow(range, context))
         return CSSTextShadowPropertyValue::create({ WTFMove(*property) });
-    return nullptr;
-}
-
-RefPtr<CSSValue> consumeTextUnderlinePosition(CSSParserTokenRange& range, const CSSParserContext& context)
-{
-    // <'text-underline-position'> = auto | [ [ under | from-font ] || [ left | right ] ]
-    // https://drafts.csswg.org/css-text-decor-4/#text-underline-position-property
-
-    if (auto ident = consumeIdent<CSSValueAuto>(range))
-        return ident;
-
-    auto metric = consumeIdentRaw<CSSValueUnder, CSSValueFromFont>(range);
-
-    std::optional<CSSValueID> side;
-    if (context.cssTextUnderlinePositionLeftRightEnabled)
-        side = consumeIdentRaw<CSSValueLeft, CSSValueRight>(range);
-
-    if (side && !metric)
-        metric = consumeIdentRaw<CSSValueUnder, CSSValueFromFont>(range);
-
-    if (metric && side)
-        return CSSValuePair::create(CSSPrimitiveValue::create(*metric), CSSPrimitiveValue::create(*side));
-    if (metric)
-        return CSSPrimitiveValue::create(*metric);
-    if (side)
-        return CSSPrimitiveValue::create(*side);
-
     return nullptr;
 }
 

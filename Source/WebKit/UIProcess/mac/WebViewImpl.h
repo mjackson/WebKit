@@ -36,6 +36,7 @@
 #include "WKTextAnimationType.h"
 #include <WebCore/DOMPasteAccess.h>
 #include <WebCore/FocusDirection.h>
+#include <WebCore/KeypressCommand.h>
 #include <WebCore/PlatformPlaybackSessionInterface.h>
 #include <WebCore/ScrollTypes.h>
 #include <WebCore/ShareableBitmap.h>
@@ -184,7 +185,6 @@ enum class ReplacementBehavior : uint8_t;
 
 namespace WebCore {
 struct DragItem;
-struct KeypressCommand;
 #if ENABLE(DIGITAL_CREDENTIALS_UI)
 struct DigitalCredentialsRequestData;
 #endif
@@ -274,6 +274,8 @@ public:
     void updateLayer();
     static bool wantsUpdateLayer() { return true; }
 
+    void layerTreeCommitComplete();
+
     void drawRect(CGRect);
     bool canChangeFrameLayout(WebFrameProxy&);
     NSPrintOperation *printOperationWithPrintInfo(NSPrintInfo *, WebFrameProxy&);
@@ -321,7 +323,6 @@ public:
     void windowWillBeginSheet();
     void windowDidChangeBackingProperties(CGFloat oldBackingScaleFactor);
     void windowDidChangeScreen();
-    void windowDidChangeLayerHosting();
     void windowDidChangeOcclusionState();
     void windowWillClose();
     void screenDidChangeColorSpace();
@@ -474,6 +475,7 @@ public:
     void preferencesDidChange();
 
     void setTextIndicator(WebCore::TextIndicator&, WebCore::TextIndicatorLifetime = WebCore::TextIndicatorLifetime::Permanent);
+    void updateTextIndicator(WebCore::TextIndicator&);
     void clearTextIndicatorWithAnimation(WebCore::TextIndicatorDismissalAnimation);
     void setTextIndicatorAnimationProgress(float);
     void dismissContentRelativeChildWindowsFromViewOnly();
@@ -527,7 +529,7 @@ public:
     CALayer *acceleratedCompositingRootLayer() const { return m_rootLayer.get(); }
 
     void setThumbnailView(_WKThumbnailView *);
-    _WKThumbnailView *thumbnailView() const { return m_thumbnailView; }
+    RetainPtr<_WKThumbnailView> thumbnailView() const { return m_thumbnailView.get(); }
 
     void setHeaderBannerLayer(CALayer *);
     CALayer *headerBannerLayer() const { return m_headerBannerLayer.get(); }
@@ -817,6 +819,10 @@ private:
     void suppressContentRelativeChildViews();
     void restoreContentRelativeChildViews();
 
+#if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
+    void updateContentInsetFillBackdropLayerParentIfNeeded();
+#endif
+
     bool m_clientWantsMediaPlaybackControlsView { false };
     bool m_canCreateTouchBars { false };
     bool m_startedListeningToCustomizationEvents { false };
@@ -985,7 +991,7 @@ private:
     RetainPtr<CALayer> m_headerBannerLayer;
     RetainPtr<CALayer> m_footerBannerLayer;
 
-    _WKThumbnailView *m_thumbnailView { nullptr };
+    WeakObjCPtr<_WKThumbnailView> m_thumbnailView;
 
     RetainPtr<_WKRemoteObjectRegistry> m_remoteObjectRegistry;
 
@@ -1012,7 +1018,14 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     // the application to distinguish the case of a new event from one
     // that has been already sent to WebCore.
     RetainPtr<NSEvent> m_keyDownEventBeingResent;
-    Vector<WebCore::KeypressCommand>* m_collectedKeypressCommands { nullptr };
+
+    struct CheckedCommands : public CanMakeCheckedPtr<CheckedCommands> {
+        WTF_MAKE_FAST_ALLOCATED;
+        WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(CheckedCommands);
+    public:
+        Vector<WebCore::KeypressCommand> commands;
+    };
+    CheckedPtr<CheckedCommands> m_collectedKeypressCommands;
 
     String m_lastStringForCandidateRequest;
     NSInteger m_lastCandidateRequestSequenceNumber;

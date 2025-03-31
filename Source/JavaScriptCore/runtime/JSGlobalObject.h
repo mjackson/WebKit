@@ -129,6 +129,9 @@ struct GlobalObjectMethodTable;
 
 template<typename Watchpoint> class ObjectPropertyChangeAdaptiveWatchpoint;
 
+enum class JSCJSGlobalObjectSignpostIdentifierType { };
+using JSCJSGlobalObjectSignpostIdentifier = AtomicObjectIdentifier<JSCJSGlobalObjectSignpostIdentifierType>;
+
 enum class ScriptExecutionStatus {
     Running,
     Suspended,
@@ -653,6 +656,8 @@ public:
 
     const Ref<ImportMap> m_importMap;
 
+    HashMap<String, JSCJSGlobalObjectSignpostIdentifier> m_signposts;
+
 #if ASSERT_ENABLED
     const JSGlobalObject* m_globalObjectAtDebuggerEntry { nullptr };
 #endif
@@ -693,6 +698,9 @@ public:
 
     std::optional<unsigned> stackTraceLimit() const { return m_stackTraceLimit; }
     void setStackTraceLimit(std::optional<unsigned> value) { m_stackTraceLimit = value; }
+
+    void startSignpost(String&&);
+    void stopSignpost(String&&);
 
 protected:
     JS_EXPORT_PRIVATE explicit JSGlobalObject(VM&, Structure*, const GlobalObjectMethodTable* = nullptr);

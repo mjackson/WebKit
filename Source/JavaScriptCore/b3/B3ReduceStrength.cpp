@@ -999,10 +999,14 @@ private:
 
                     Value* magicQuotient = nullptr;
                     if constexpr (isARM64() || isX86()) {
-                        magicQuotient = m_insertionSet.insert<Value>(m_index, MulHigh, m_value->origin(),
-                            dividend,
-                            m_insertionSet.insert<Const32Value>(m_index, m_value->origin(), magic.magicMultiplier));
-                    } else {
+                        if (!(divisor > 0 && magic.magicMultiplier < 0) && !(divisor < 0 && magic.magicMultiplier > 0)) {
+                            magicQuotient = m_insertionSet.insert<Value>(m_index, MulHigh, m_value->origin(),
+                                dividend,
+                                m_insertionSet.insert<Const32Value>(m_index, m_value->origin(), magic.magicMultiplier));
+                        }
+                    }
+
+                    if (!magicQuotient) {
                         magicQuotient = m_insertionSet.insert<Value>(
                             m_index, Trunc, m_value->origin(),
                             m_insertionSet.insert<Value>(
@@ -1020,17 +1024,18 @@ private:
                     if (divisor > 0 && magic.magicMultiplier < 0) {
                         magicQuotient = m_insertionSet.insert<Value>(
                             m_index, Add, m_value->origin(), magicQuotient, dividend);
-                    }
-                    if (divisor < 0 && magic.magicMultiplier > 0) {
+                    } else if (divisor < 0 && magic.magicMultiplier > 0) {
                         magicQuotient = m_insertionSet.insert<Value>(
                             m_index, Sub, m_value->origin(), magicQuotient, dividend);
                     }
+
                     if (magic.shift > 0) {
                         magicQuotient = m_insertionSet.insert<Value>(
                             m_index, SShr, m_value->origin(), magicQuotient,
                             m_insertionSet.insert<Const32Value>(
                                 m_index, m_value->origin(), magic.shift));
                     }
+
                     replaceWithIdentity(
                         m_insertionSet.insert<Value>(
                             m_index, Add, m_value->origin(), magicQuotient,
@@ -2060,15 +2065,17 @@ private:
                 break;
             }
 
+            // Trunc(SShr(..., $12)) cases
             if (m_value->child(0)->opcode() == SShr && m_value->child(0)->child(1)->hasInt32()) {
                 int32_t shiftAmountConstant = m_value->child(0)->child(1)->asInt32();
-                auto wrapped = m_value->child(0)->child(0);
+                auto sshrArg0 = m_value->child(0)->child(0);
 
                 // Turn this: Trunc(SShr(Shl(SExt32(@a), $12), $12))
                 // Into this: @a
-                if (wrapped->opcode() == Shl && wrapped->child(1)->asInt32() == shiftAmountConstant && shiftAmountConstant < 31
-                    && wrapped->child(0)->opcode() == SExt32) {
-                    replaceWithIdentity(wrapped->child(0)->child(0));
+                if (sshrArg0->opcode() == Shl && sshrArg0->child(1)->hasInt32()
+                    && sshrArg0->child(1)->asInt32() == shiftAmountConstant && shiftAmountConstant < 31
+                    && sshrArg0->child(0)->opcode() == SExt32) {
+                    replaceWithIdentity(sshrArg0->child(0)->child(0));
                     break;
                 }
 
@@ -2090,14 +2097,14 @@ private:
                 //
                 //  Thus, attempt to wipe conversion round-trip.
                 if (isInt52ToInt32(m_value)) {
-                    switch (wrapped->opcode()) {
+                    switch (sshrArg0->opcode()) {
                     case Add: {
                         // Turn this: Trunc(SShr(Add(@a, constant), $12))
                         // Into this: Add(Trunc(SShr(@a, $12), converted-constant)
-                        if (wrapped->child(1)->hasInt64()) {
+                        if (sshrArg0->child(1)->hasInt64()) {
                             auto* shiftAmount = m_value->child(0)->child(1);
-                            int64_t constant = wrapped->child(1)->asInt64();
-                            auto* shifted = m_insertionSet.insert<Value>(m_index, SShr, m_value->child(0)->origin(), wrapped->child(0), shiftAmount);
+                            int64_t constant = sshrArg0->child(1)->asInt64();
+                            auto* shifted = m_insertionSet.insert<Value>(m_index, SShr, m_value->child(0)->origin(), sshrArg0->child(0), shiftAmount);
                             auto* lhs = m_insertionSet.insert<Value>(m_index, Trunc, m_value->origin(), shifted);
                             auto* rhs = m_insertionSet.insert<Const32Value>(m_index, m_value->origin(), static_cast<int32_t>(constant >> JSValue::int52ShiftAmount));
                             replaceWithNew<Value>(Add, m_value->origin(), rhs, lhs);
@@ -2106,8 +2113,8 @@ private:
 
                         // Turn this: Trunc(SShr(Add(Shl(SExt32(@a), $12), Shl(SExt32(@b), $12)), $12))
                         // Into this: Add(@a, @b)
-                        if (isInt32ToInt52(wrapped->child(0)) && isInt32ToInt52(wrapped->child(1))) {
-                            replaceWithNew<Value>(Add, m_value->origin(), wrapped->child(0)->child(0)->child(0), wrapped->child(1)->child(0)->child(0));
+                        if (isInt32ToInt52(sshrArg0->child(0)) && isInt32ToInt52(sshrArg0->child(1))) {
+                            replaceWithNew<Value>(Add, m_value->origin(), sshrArg0->child(0)->child(0)->child(0), sshrArg0->child(1)->child(0)->child(0));
                             break;
                         }
                         break;

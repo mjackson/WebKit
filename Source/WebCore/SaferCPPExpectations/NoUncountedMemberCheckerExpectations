@@ -1,6 +1,5 @@
 Modules/WebGPU/GPUPresentationContextDescriptor.h
 Modules/encryptedmedia/MediaKeyStatusMap.h
-Modules/fetch/FetchBodyOwner.h
 Modules/mediastream/RTCPeerConnection.h
 Modules/mediastream/libwebrtc/LibWebRTCObservers.h
 Modules/notifications/NotificationResourcesLoader.h
@@ -60,18 +59,17 @@ page/WheelEventTestMonitor.h
 page/scrolling/ScrollLatchingController.h
 page/scrolling/ScrollingCoordinator.h
 page/scrolling/ScrollingTreeGestureState.h
-page/scrolling/ScrollingTreeScrollingNodeDelegate.h
 page/scrolling/mac/ScrollerMac.h
 platform/PODInterval.h
 platform/encryptedmedia/CDMProxy.h
 platform/graphics/ComplexTextController.h
-platform/graphics/DrawGlyphsRecorder.h
 platform/graphics/GraphicsLayer.h
 platform/graphics/avfoundation/AudioSourceProviderAVFObjC.mm
 platform/graphics/avfoundation/objc/MediaSourcePrivateAVFObjC.h
 platform/graphics/avfoundation/objc/WebCoreAVFResourceLoader.mm
 platform/graphics/ca/TileController.h
 platform/graphics/controls/PlatformControl.h
+platform/graphics/coretext/DrawGlyphsRecorder.h
 platform/graphics/cv/GraphicsContextGLCVCocoa.h
 platform/mediarecorder/MediaRecorderPrivate.h
 platform/mediastream/AudioMediaStreamTrackRenderer.h

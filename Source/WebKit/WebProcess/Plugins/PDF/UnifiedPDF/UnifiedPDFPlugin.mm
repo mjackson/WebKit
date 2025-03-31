@@ -80,6 +80,7 @@
 #include <WebCore/GraphicsContext.h>
 #include <WebCore/GraphicsLayer.h>
 #include <WebCore/GraphicsLayerClient.h>
+#include <WebCore/GraphicsLayerFactory.h>
 #include <WebCore/GraphicsTypes.h>
 #include <WebCore/HTMLNames.h>
 #include <WebCore/HTMLPlugInElement.h>
@@ -312,7 +313,7 @@ void UnifiedPDFPlugin::installPDFDocument()
 
     auto handlePDFTestCallback = makeScopeExit([testCallback = WTFMove(m_pdfTestCallback)] {
         if (testCallback)
-            testCallback->handleEvent();
+            testCallback->invoke();
     });
 
     m_documentLayout.setPDFDocument(m_pdfDocument.get());
@@ -644,13 +645,13 @@ void UnifiedPDFPlugin::createScrollingNodeIfNecessary()
 #if ENABLE(SCROLLING_THREAD)
     m_scrollContainerLayer->setScrollingNodeID(*m_scrollingNodeID);
 
-    if (auto* layer = layerForHorizontalScrollbar())
+    if (RefPtr layer = layerForHorizontalScrollbar())
         layer->setScrollingNodeID(*m_scrollingNodeID);
 
-    if (auto* layer = layerForVerticalScrollbar())
+    if (RefPtr layer = layerForVerticalScrollbar())
         layer->setScrollingNodeID(*m_scrollingNodeID);
 
-    if (auto* layer = layerForScrollCorner())
+    if (RefPtr layer = layerForScrollCorner())
         layer->setScrollingNodeID(*m_scrollingNodeID);
 #endif
 
@@ -751,8 +752,8 @@ void UnifiedPDFPlugin::didChangeIsInWindow()
     m_presentationController->updateIsInWindow(isInWindow);
 
     if (!isInWindow) {
-        auto& scrollingCoordinator = *page->scrollingCoordinator();
-        scrollingCoordinator.scrollableAreaWillBeDetached(*this);
+        RefPtr scrollingCoordinator = page->scrollingCoordinator();
+        scrollingCoordinator->scrollableAreaWillBeDetached(*this);
     }
 }
 
@@ -1201,8 +1202,10 @@ void UnifiedPDFPlugin::setScaleFactor(double scale, std::optional<WebCore::IntPo
 void UnifiedPDFPlugin::setPageScaleFactor(double scale, std::optional<WebCore::IntPoint> origin)
 {
     deviceOrPageScaleFactorChanged(CheckForMagnificationGesture::Yes);
-    if (!handlesPageScaleFactor())
+    if (!handlesPageScaleFactor()) {
+        mainFramePageScaleFactorDidChange();
         return;
+    }
 
     if (origin) {
         // Compensate for the subtraction of content insets that happens in ViewGestureController::handleMagnificationGestureEvent();
@@ -1222,6 +1225,12 @@ void UnifiedPDFPlugin::setPageScaleFactor(double scale, std::optional<WebCore::I
     auto internalScale = fromNormalizedScaleFactor(scale);
     LOG_WITH_STREAM(PDF, stream << "UnifiedPDFPlugin::setPageScaleFactor " << scale << " mapped to " << internalScale);
     setScaleFactor(internalScale, origin);
+}
+
+void UnifiedPDFPlugin::mainFramePageScaleFactorDidChange()
+{
+    ASSERT(!handlesPageScaleFactor());
+    updateScrollingExtents();
 }
 
 bool UnifiedPDFPlugin::geometryDidChange(const IntSize& pluginSize, const AffineTransform& pluginToRootViewTransform)
@@ -1527,11 +1536,11 @@ bool UnifiedPDFPlugin::updateOverflowControlsLayers(bool needsHorizontalScrollba
 
     layersChanged |= createOrDestroyLayer(m_layerForScrollCorner, needsScrollCornerLayer, "scroll corner"_s);
 
-    auto& scrollingCoordinator = *page->scrollingCoordinator();
+    RefPtr scrollingCoordinator = page->scrollingCoordinator();
     if (horizontalScrollbarLayerChanged)
-        scrollingCoordinator.scrollableAreaScrollbarLayerDidChange(*this, ScrollbarOrientation::Horizontal);
+        scrollingCoordinator->scrollableAreaScrollbarLayerDidChange(*this, ScrollbarOrientation::Horizontal);
     if (verticalScrollbarLayerChanged)
-        scrollingCoordinator.scrollableAreaScrollbarLayerDidChange(*this, ScrollbarOrientation::Vertical);
+        scrollingCoordinator->scrollableAreaScrollbarLayerDidChange(*this, ScrollbarOrientation::Vertical);
 
     return layersChanged;
 }
@@ -1545,13 +1554,13 @@ void UnifiedPDFPlugin::positionOverflowControlsLayers()
         layer.setSize(scrollbarRect.size());
     };
 
-    if (auto* layer = layerForHorizontalScrollbar())
+    if (RefPtr layer = layerForHorizontalScrollbar())
         positionScrollbarLayer(*layer, viewRelativeHorizontalScrollbarRect());
 
-    if (auto* layer = layerForVerticalScrollbar())
+    if (RefPtr layer = layerForVerticalScrollbar())
         positionScrollbarLayer(*layer, viewRelativeVerticalScrollbarRect());
 
-    if (auto* layer = layerForScrollCorner()) {
+    if (RefPtr layer = layerForScrollCorner()) {
         auto cornerRect = viewRelativeScrollCornerRect();
         layer->setPosition(cornerRect.location());
         layer->setSize(cornerRect.size());
@@ -1563,7 +1572,7 @@ void UnifiedPDFPlugin::positionOverflowControlsLayers()
 void UnifiedPDFPlugin::invalidateScrollbarRect(WebCore::Scrollbar& scrollbar, const WebCore::IntRect& rect)
 {
     if (&scrollbar == m_verticalScrollbar.get()) {
-        if (auto* layer = layerForVerticalScrollbar()) {
+        if (RefPtr layer = layerForVerticalScrollbar()) {
             layer->setNeedsDisplayInRect(rect);
             return;
         }
@@ -1572,7 +1581,7 @@ void UnifiedPDFPlugin::invalidateScrollbarRect(WebCore::Scrollbar& scrollbar, co
     }
 
     if (&scrollbar == m_horizontalScrollbar.get()) {
-        if (auto* layer = layerForHorizontalScrollbar()) {
+        if (RefPtr layer = layerForHorizontalScrollbar()) {
             layer->setNeedsDisplayInRect(rect);
             return;
         }
@@ -1582,7 +1591,7 @@ void UnifiedPDFPlugin::invalidateScrollbarRect(WebCore::Scrollbar& scrollbar, co
 
 void UnifiedPDFPlugin::invalidateScrollCornerRect(const WebCore::IntRect& rect)
 {
-    if (auto* layer = layerForScrollCorner()) {
+    if (RefPtr layer = layerForScrollCorner()) {
         layer->setNeedsDisplayInRect(rect);
         return;
     }
@@ -1688,8 +1697,8 @@ void UnifiedPDFPlugin::updateScrollingExtents()
         setCurrentScrollType(oldScrollType);
     }
 
-    auto& scrollingCoordinator = *page->scrollingCoordinator();
-    scrollingCoordinator.setScrollingNodeScrollableAreaGeometry(m_scrollingNodeID, *this);
+    RefPtr scrollingCoordinator = page->scrollingCoordinator();
+    scrollingCoordinator->setScrollingNodeScrollableAreaGeometry(m_scrollingNodeID, *this);
 
     m_presentationController->updateForCurrentScrollability(computeScrollability());
 
@@ -1709,8 +1718,8 @@ bool UnifiedPDFPlugin::requestScrollToPosition(const ScrollPosition& position, c
     if (!page)
         return false;
 
-    auto& scrollingCoordinator = *page->scrollingCoordinator();
-    return scrollingCoordinator.requestScrollToPosition(*this, position, options);
+    RefPtr scrollingCoordinator = page->scrollingCoordinator();
+    return scrollingCoordinator->requestScrollToPosition(*this, position, options);
 }
 
 bool UnifiedPDFPlugin::requestStartKeyboardScrollAnimation(const KeyboardScroll& scrollData)
@@ -1719,8 +1728,8 @@ bool UnifiedPDFPlugin::requestStartKeyboardScrollAnimation(const KeyboardScroll&
     if (!page)
         return false;
 
-    auto& scrollingCoordinator = *page->scrollingCoordinator();
-    return scrollingCoordinator.requestStartKeyboardScrollAnimation(*this, scrollData);
+    RefPtr scrollingCoordinator = page->scrollingCoordinator();
+    return scrollingCoordinator->requestStartKeyboardScrollAnimation(*this, scrollData);
 }
 
 bool UnifiedPDFPlugin::requestStopKeyboardScrollAnimation(bool immediate)
@@ -1729,8 +1738,8 @@ bool UnifiedPDFPlugin::requestStopKeyboardScrollAnimation(bool immediate)
     if (!page)
         return false;
 
-    auto& scrollingCoordinator = *page->scrollingCoordinator();
-    return scrollingCoordinator.requestStopKeyboardScrollAnimation(*this, immediate);
+    RefPtr scrollingCoordinator = page->scrollingCoordinator();
+    return scrollingCoordinator->requestStopKeyboardScrollAnimation(*this, immediate);
 }
 
 WebCore::OverscrollBehavior UnifiedPDFPlugin::overscrollBehavior() const
@@ -3945,13 +3954,13 @@ void UnifiedPDFPlugin::handlePDFActionForAnnotation(PDFAnnotation *annotation, P
             return;
 
 #if HAVE(PDFDOCUMENT_RESET_FORM_FIELDS)
-        if ([action isKindOfClass:getPDFActionResetFormClass()])
-            [m_pdfDocument resetFormFields:static_cast<PDFActionResetForm *>(action)];
+        if (RetainPtr resetAction = dynamic_objc_cast<PDFActionResetForm>(action))
+            [m_pdfDocument resetFormFields:resetAction.get()];
 #endif
 
         RetainPtr actionType = [action type];
         if ([actionType isEqualToString:@"Named"]) {
-            auto actionName = [static_cast<PDFActionNamed *>(action) name];
+            auto actionName = [checked_objc_cast<PDFActionNamed>(action) name];
             switch (actionName) {
             case kPDFActionNamedNextPage:
                 if (currentPageIndex + 1 < m_documentLayout.pageCount())
