@@ -27,6 +27,12 @@
 
 static unsigned generateHashID(JSCell* cell, void* optionalHashId)
 {
+    // Attempt to use the wrapped object as the hash id if it exists
+    // If it doesn't exist, use the cell pointer since that's the best we can do.
+    if (optionalHashId == nullptr) {
+        optionalHashId = cell;
+    }
+
     // We hash:
     // - void* optionalHashId
     // - cell->type()
@@ -154,7 +160,7 @@ unsigned BunV8HeapSnapshotBuilder::analyzeNodeInternal(JSCell* cell, void* optio
 
     m_nodes.append({
         .cell = cell,
-        .id = optionalHashId ? generateHashID(cell, optionalHashId) : id,
+        .id = generateHashID(cell, optionalHashId),
         .typeIndex = typeIndex,
         .selfSize = cell->estimatedSizeInBytes(m_profiler.vm()),
         .edges = {},
