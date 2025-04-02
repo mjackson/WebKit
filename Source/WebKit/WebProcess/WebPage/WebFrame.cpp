@@ -137,7 +137,7 @@ Ref<WebFrame> WebFrame::createSubframe(WebPage& page, WebFrame& parent, const At
     if (RefPtr parentLocalFrame = parent.coreLocalFrame())
         effectiveSandboxFlags.add(parentLocalFrame->effectiveSandboxFlags());
 
-    auto frameID = WebCore::FrameIdentifier::generate();
+    auto frameID = WebCore::generateFrameIdentifier();
     auto frame = create(page, frameID);
     ASSERT(page.corePage());
     auto coreFrame = LocalFrame::createSubframe(*page.corePage(), [frame] (auto& localFrame, auto& frameLoader) {
@@ -277,7 +277,7 @@ RefPtr<WebCore::Frame> WebFrame::protectedCoreFrame() const
     return coreFrame();
 }
 
-FrameInfoData WebFrame::info() const
+FrameInfoData WebFrame::info(WithCertificateInfo withCertificateInfo) const
 {
     RefPtr parent = parentFrame();
     RefPtr coreFrame = this->coreFrame();
@@ -305,7 +305,7 @@ FrameInfoData WebFrame::info() const
         frameID(),
         parent ? std::optional { parent->frameID() } : std::nullopt,
         document ? std::optional { document->identifier() } : std::nullopt,
-        certificateInfo(),
+        withCertificateInfo == WithCertificateInfo::Yes ? certificateInfo() : CertificateInfo(),
         getCurrentProcessID(),
         isFocused(),
         coreLocalFrame ? coreLocalFrame->loader().errorOccurredInLoading() : false,

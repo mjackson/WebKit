@@ -8048,6 +8048,18 @@
    },
    {
       "emails" : [
+         "u_uckun@apple.com",
+         "utku.uckun@gmail.com"
+      ],
+      "expertise" : "Accessibility",
+      "github" : "utkuuckun",
+      "name" : "Utku Uckun",
+      "nicks" : [
+         "utkuuckun"
+      ]
+   },
+   {
+      "emails" : [
          "vangelis@chromium.org"
       ],
       "name" : "Vangelis Kokkevis",

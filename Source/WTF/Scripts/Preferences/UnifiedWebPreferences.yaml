@@ -2158,7 +2158,6 @@ ContentInsetBackgroundFillEnabled:
   status: internal
   humanReadableName: "Content Inset Background Fill"
   humanReadableDescription: "Fill content insets with background colors"
-  condition: PLATFORM(COCOA)
   defaultValue:
     WebKit:
       default: WebKit::defaultContentInsetBackgroundFillEnabled()
@@ -3559,6 +3558,22 @@ IFrameResourceMonitoringEnabled:
   defaultsOverridable: true
   humanReadableName: "Frame Resource Monitoring Support"
   humanReadableDescription: "Enable Usage Monitoring of Frame Resource Support"
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
+
+IFrameResourceMonitoringTestingSettingsEnabled:
+  type: bool
+  status: internal
+  category: networking
+  condition: ENABLE(CONTENT_EXTENSIONS)
+  defaultsOverridable: true
+  humanReadableName: "Frame Resource Monitoring Settings For Testing"
+  humanReadableDescription: "Use Resource Monitoring Settings for testing"
   defaultValue:
     WebKitLegacy:
       default: false
@@ -5172,8 +5187,10 @@ MediaSourcePrefersDecompressionSession:
     WebKitLegacy:
       default: false
     WebKit:
+      "PLATFORM(IOS)": false
       default: true
     WebCore:
+      "PLATFORM(IOS)": false
       default: true
   sharedPreferenceForWebProcess: true
 
@@ -5938,9 +5955,9 @@ PictureInPicturePlaybackStateEnabled:
   condition: HAVE(PIP_SKIP_PREROLL)
   defaultValue:
     WebKitLegacy:
-      default: false
+      default: true
     WebKit:
-      default: false
+      default: true
     WebCore:
       default: false
   disableInLockdownMode: true
@@ -9412,6 +9429,20 @@ WirelessPlaybackTargetAPIEnabled:
     WebCore:
       "PLATFORM(VISION)" : false
       default: true
+
+WorkerAsynchronousURLErrorHandlingEnabled:
+  type: bool
+  status: preview
+  category: dom
+  humanReadableName: "Worker asynchronous URL error handling"
+  humanReadableDescription: "Worker asynchronous URL error handling"
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
 
 WriteRichTextDataWhenCopyingOrDragging:
   type: bool

@@ -128,6 +128,26 @@ private:
     void initializePlatformProperties(const Ref<const AccessibilityObject>&);
 
     void setProperty(AXProperty, AXPropertyValueVariant&&);
+    void setPropertyInVector(AXProperty property, AXPropertyValueVariant&& value)
+    {
+        if (size_t existingIndex = indexOfProperty(property); existingIndex != notFound)
+            m_properties[existingIndex].second = WTFMove(value);
+        else
+            m_properties.append(std::pair(property, WTFMove(value)));
+    }
+    void removePropertyInVector(AXProperty property)
+    {
+        m_properties.removeFirstMatching([&property] (const auto& propertyAndValue) {
+            return propertyAndValue.first == property;
+        });
+    }
+    size_t indexOfProperty(AXProperty property) const
+    {
+        return m_properties.findIf([&property] (const auto& propertyAndValue) {
+            return propertyAndValue.first == property;
+        });
+    }
+    void shrinkPropertiesAfterUpdates() { m_properties.shrinkToFit(); }
     void setObjectProperty(AXProperty, AXCoreObject*);
     void setObjectVectorProperty(AXProperty, const AccessibilityChildrenVector&);
 
@@ -158,7 +178,7 @@ private:
     template<typename T> T propertyValue(AXProperty) const;
 
     // The following method performs a lazy caching of the given property.
-    // If the property is already in m_propertyMap, returns the existing value.
+    // If the property is already in m_properties, returns the existing value.
     // If not, retrieves the property from the main thread and cache it for later use.
     template<typename T> T getOrRetrievePropertyValue(AXProperty);
 
@@ -535,13 +555,7 @@ private:
     ScrollView* scrollView() const final;
     void detachFromParent() final;
 
-    OptionSet<AXAncestorFlag> ancestorFlags() const { return optionSetAttributeValue<AXAncestorFlag>(AXProperty::AncestorFlags); }
-
-    bool hasDocumentRoleAncestor() const final { return ancestorFlags().contains(AXAncestorFlag::HasDocumentRoleAncestor); }
-    bool hasWebApplicationAncestor() const final { return ancestorFlags().contains(AXAncestorFlag::HasWebApplicationAncestor); }
-    bool isInDescriptionListDetail() const final { return ancestorFlags().contains(AXAncestorFlag::IsInDescriptionListDetail); }
-    bool isInDescriptionListTerm() const final { return ancestorFlags().contains(AXAncestorFlag::IsInDescriptionListTerm); }
-    bool isInCell() const final { return ancestorFlags().contains(AXAncestorFlag::IsInCell); }
+    bool isInDescriptionListTerm() const final;
 
     String nameAttribute() const final { return stringAttributeValue(AXProperty::NameAttribute); }
 #if PLATFORM(COCOA)
@@ -565,7 +579,7 @@ private:
     bool m_childrenDirty { true };
     Vector<AXID> m_childrenIDs;
     Vector<Ref<AXCoreObject>> m_children;
-    AXPropertyMap m_propertyMap;
+    AXPropertyVector m_properties;
     OptionSet<AXPropertyFlag> m_propertyFlags;
     // Some objects (e.g. display:contents) form their geometry through their children.
     bool m_getsGeometryFromChildren { false };
@@ -579,15 +593,14 @@ private:
 };
 
 template<typename T>
-inline T AXIsolatedObject::propertyValue(AXProperty propertyName) const
+inline T AXIsolatedObject::propertyValue(AXProperty property) const
 {
-    auto it = m_propertyMap.find(propertyName);
-    if (it == m_propertyMap.end())
+    size_t index = indexOfProperty(property);
+    if (index == notFound)
         return { };
 
-    auto value = it->value;
-    return WTF::switchOn(value,
-        [] (T& typedValue) { return typedValue; },
+    return WTF::switchOn(m_properties[index].second,
+        [] (const T& typedValue) { return typedValue; },
         [] (auto&) { ASSERT_NOT_REACHED();
             return T(); }
     );

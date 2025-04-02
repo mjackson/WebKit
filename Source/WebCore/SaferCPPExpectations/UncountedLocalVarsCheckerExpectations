@@ -213,7 +213,6 @@ css/CSSImageSetValue.cpp
 css/CSSImageValue.cpp
 css/CSSKeyframeRule.cpp
 css/CSSLayerBlockRule.cpp
-css/CSSPageRule.cpp
 css/CSSPrimitiveValue.cpp
 css/CSSRule.cpp
 css/CSSStyleProperties.cpp
@@ -740,7 +739,6 @@ testing/MockCDMFactory.cpp
 testing/MockPageOverlayClient.cpp
 testing/ServiceWorkerInternals.cpp
 testing/js/WebCoreTestSupport.cpp
-workers/AbstractWorker.cpp
 workers/Worker.cpp
 workers/WorkerConsoleClient.cpp
 workers/WorkerGlobalScope.cpp

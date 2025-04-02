@@ -209,7 +209,7 @@ RefPtr<WebProcessProxy> WebProcessProxy::processForIdentifier(ProcessIdentifier 
 
 Ref<WebProcessProxy> WebProcessProxy::fromConnection(const IPC::Connection& connection)
 {
-    auto* process = dynamicDowncast<WebProcessProxy>(AuxiliaryProcessProxy::fromConnection(connection));
+    RefPtr process = dynamicDowncast<WebProcessProxy>(AuxiliaryProcessProxy::fromConnection(connection));
     RELEASE_ASSERT(process);
     return *process;
 }
@@ -3107,12 +3107,12 @@ const WebCore::ProcessIdentity& WebProcessProxy::processIdentity()
 #endif
 
 #if ENABLE(CONTENT_EXTENSIONS)
-void WebProcessProxy::requestResourceMonitorRuleLists()
+void WebProcessProxy::requestResourceMonitorRuleLists(bool forTesting)
 {
     if (RefPtr processPool = m_processPool.get()) {
         m_resourceMonitorRuleListRequestedBySomePage = true;
 
-        if (RefPtr ruleList = processPool->cachedResourceMonitorRuleList())
+        if (RefPtr ruleList = processPool->cachedResourceMonitorRuleList(forTesting))
             setResourceMonitorRuleListsIfRequired(WTFMove(ruleList));
     }
 }

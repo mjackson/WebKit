@@ -147,7 +147,7 @@
 #include "LayoutContext.h"
 
 #define PAGE_ID (m_frame->pageID() ? m_frame->pageID()->toUInt64() : 0)
-#define FRAME_ID m_frame->frameID().object().toUInt64()
+#define FRAME_ID m_frame->frameID().toUInt64()
 #define FRAMEVIEW_RELEASE_LOG(channel, fmt, ...) RELEASE_LOG_FORWARDABLE(channel, fmt, PAGE_ID, FRAME_ID, m_frame->isMainFrame(), ##__VA_ARGS__)
 
 namespace WebCore {
@@ -1821,6 +1821,29 @@ LayoutRect LocalFrameView::visualViewportRect() const
     return visibleDocumentRect(visibleContentRect, headerHeight(), footerHeight(), totalContentsSize(), frameScaleFactor());
 }
 
+LayoutRect LocalFrameView::layoutViewportRectIncludingObscuredInsets() const
+{
+    auto layoutViewportRect = this->layoutViewportRect();
+    if (!m_frame->isMainFrame())
+        return layoutViewportRect;
+
+    FloatBoxExtent insets;
+    if (RefPtr page = m_frame->page()) {
+#if PLATFORM(IOS_FAMILY)
+        insets = page->obscuredInsets();
+#else
+        insets = page->obscuredContentInsets();
+#endif
+    }
+    layoutViewportRect.expand({
+        LayoutUnit::fromFloatRound(insets.top()),
+        LayoutUnit::fromFloatRound(insets.right()),
+        LayoutUnit::fromFloatRound(insets.bottom()),
+        LayoutUnit::fromFloatRound(insets.left()),
+    });
+    return layoutViewportRect;
+}
+
 LayoutRect LocalFrameView::viewportConstrainedVisibleContentRect() const
 {
     ASSERT(!m_frame->settings().visualViewportEnabled());
@@ -2380,7 +2403,9 @@ bool LocalFrameView::scrollToFragment(const URL& url)
 {
     ASSERT(m_frame->document());
     Ref document = *m_frame->document();
-    
+
+    document->fragmentHighlightRegistry().clear();
+
     auto fragmentIdentifier = url.fragmentIdentifier();
     auto fragmentDirective = document->fragmentDirective();
     
@@ -2407,6 +2432,7 @@ bool LocalFrameView::scrollToFragment(const URL& url)
                 TemporarySelectionChange selectionChange(document, { range }, { TemporarySelectionOption::RevealSelection, TemporarySelectionOption::RevealSelectionBounds, TemporarySelectionOption::UserTriggered, TemporarySelectionOption::ForceCenterScroll });
                 if (m_frame->settings().scrollToTextFragmentIndicatorEnabled() && !m_frame->page()->isControlledByAutomation())
                     m_delayedTextFragmentIndicatorTimer.startOneShot(100_ms);
+
                 maintainScrollPositionAtScrollToTextFragmentRange(range);
                 return true;
             }

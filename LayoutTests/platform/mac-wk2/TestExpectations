@@ -13,6 +13,7 @@ editing/undo-manager [ Pass ]
 editing/pasteboard/dom-paste [ Pass ]
 fast/attachment/cocoa [ Pass ]
 fast/attachment/mac [ Pass ]
+fast/css/cocoa [ Pass ]
 fast/css/mac [ Pass ]
 fast/element-targeting [ Pass ]
 fast/events/cursors [ Pass ]
@@ -1299,8 +1300,6 @@ imported/w3c/web-platform-tests/xhr/xhr-timeout-longtask.any.html [ Pass Failure
 
 webkit.org/b/229561 http/tests/navigation/page-cache-video.html [ Pass Failure ]
 
-webkit.org/b/239099 [ Debug ] accessibility/ancestor-computation.html [ Pass Timeout ]
-
 webkit.org/b/231088 [ Release ] http/tests/loading/preload-slow-loading.py [ Pass Failure ]
 
 webkit.org/b/228127 imported/w3c/web-platform-tests/html/cross-origin-opener-policy/resource-popup.https.html [ Pass Crash Failure ]
@@ -2116,3 +2115,8 @@ imported/w3c/web-platform-tests/css/css-position/sticky/position-sticky-scrolled
 webkit.org/b/290346 [ arm64 ] gamepad/gamepad-event-handlers.html [ Pass Timeout ]
 
 webkit.org/b/290564 [ Sequoia Debug ] imported/w3c/web-platform-tests/css/css-viewport/computedStyle-zoom.html [ Pass Timeout ]
+
+webkit.org/b/290856 [ Sequoia Debug ] imported/w3c/web-platform-tests/css/css-view-transitions/navigation/navigation-auto-excludes-reload.html [ Pass Timeout ]
+webkit.org/b/290856 [ Sequoia Debug ] imported/w3c/web-platform-tests/css/css-viewport/zoom/background-image.html [ Pass Timeout ]
+
+webkit.org/b/290869 [ Debug ] ipc/send-gpu-GetShareableBitmap-RemoteRenderingBackend.html [ Pass Timeout ]
