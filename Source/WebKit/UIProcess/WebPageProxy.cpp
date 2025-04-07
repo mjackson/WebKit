@@ -13215,12 +13215,8 @@ void WebPageProxy::setOverlayScrollbarStyle(std::optional<WebCore::ScrollbarOver
 
     m_scrollbarOverlayStyle = scrollbarStyle;
 
-    std::optional<uint32_t> scrollbarStyleForMessage;
-    if (scrollbarStyle)
-        scrollbarStyleForMessage = static_cast<ScrollbarOverlayStyle>(scrollbarStyle.value());
-
     if (hasRunningProcess())
-        protectedLegacyMainFrameProcess()->send(Messages::WebPage::SetScrollbarOverlayStyle(scrollbarStyleForMessage), m_webPageID);
+        protectedLegacyMainFrameProcess()->send(Messages::WebPage::SetScrollbarOverlayStyle(scrollbarStyle), m_webPageID);
 }
 
 void WebPageProxy::getWebCryptoMasterKey(CompletionHandler<void(std::optional<Vector<uint8_t>>&&)>&& completionHandler)
@@ -15325,9 +15321,9 @@ void WebPageProxy::scrollToRect(const FloatRect& targetRect, const FloatPoint& o
     send(Messages::WebPage::ScrollToRect(targetRect, origin));
 }
 
-void WebPageProxy::setContentOffset(WebCore::ScrollOffset offset, WebCore::ScrollIsAnimated animated)
+void WebPageProxy::setContentOffset(std::optional<int> x, std::optional<int> y, WebCore::ScrollIsAnimated animated)
 {
-    send(Messages::WebPage::SetContentOffset(offset, animated));
+    send(Messages::WebPage::SetContentOffset(x, y, animated));
 }
 
 void WebPageProxy::scrollToEdge(WebCore::RectEdges<bool> edges, WebCore::ScrollIsAnimated animated)

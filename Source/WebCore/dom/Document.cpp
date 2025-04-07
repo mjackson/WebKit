@@ -2985,23 +2985,37 @@ auto Document::updateLayout(OptionSet<LayoutOptions> layoutOptions, const Elemen
                 if (context && !context->renderer())
                     return false;
 
+                auto shouldForceLayoutOnRenderer = [&](auto& renderer) {
+                    auto everhadLayoutAndWasSkippedDuringLast = renderer.wasSkippedDuringLastLayoutDueToContentVisibility();
+                    if (!everhadLayoutAndWasSkippedDuringLast) {
+                        // Never had layout.
+                        return true;
+                    }
+                    if (*everhadLayoutAndWasSkippedDuringLast) {
+                        // Was skipped at the last layout.
+                        return true;
+                    }
+                    return renderer.needsLayout();
+                };
+
                 if (context) {
                     if (!context->renderer()->style().isSkippedRootOrSkippedContent())
                         return false;
 
                     auto& skippedRootRenderer = *context->renderer();
-                    auto everhadLayoutAndWasSkippedDuringLast = skippedRootRenderer.wasSkippedDuringLastLayoutDueToContentVisibility();
-                    if (everhadLayoutAndWasSkippedDuringLast && !*everhadLayoutAndWasSkippedDuringLast)
+                    if (!shouldForceLayoutOnRenderer(skippedRootRenderer))
                         return false;
-
                     skippedRootRenderer.setNeedsLayout();
                 } else {
                     ASSERT(!layoutOptions.contains(LayoutOptions::TreatContentVisibilityHiddenAsVisible));
 
                     auto isSkippedContentStale = false;
                     for (auto& descendant : descendantsOfType<RenderBlock>(*renderView())) {
-                        auto everhadLayoutAndWasSkippedDuringLast = descendant.wasSkippedDuringLastLayoutDueToContentVisibility();
-                        if (everhadLayoutAndWasSkippedDuringLast && *everhadLayoutAndWasSkippedDuringLast) {
+                        if (descendant.style().usedContentVisibility() != ContentVisibility::Auto) {
+                            // FIXME: While 'c-v: auto' is used 'hidden' inside 'c-v: hidden' we could entirly skip hidden subtrees.
+                            continue;
+                        }
+                        if (shouldForceLayoutOnRenderer(descendant)) {
                             descendant.setNeedsLayout();
                             isSkippedContentStale = true;
                         }
@@ -7699,6 +7713,26 @@ Document* Document::mainFrameDocument() const
     while (HTMLFrameOwnerElement* element = document->ownerElement())
         document = &element->document();
     return document;
+}
+
+RefPtr<Document> Document::sameOriginTopLevelTraversable() const
+{
+    if (!m_frame)
+        return nullptr;
+
+    RefPtr<Frame> topLevelAncestorFrame = m_frame.get();
+    for (Frame* parent = topLevelAncestorFrame->tree().parent(); parent; parent = parent->tree().parent())
+        topLevelAncestorFrame = parent;
+
+    RefPtr localTopAncestor = dynamicDowncast<LocalFrame>(topLevelAncestorFrame);
+    if (!localTopAncestor)
+        return nullptr;
+
+    RefPtr document = localTopAncestor->document();
+    if (!document)
+        return nullptr;
+
+    return document->protectedSecurityOrigin()->isSameOriginDomain(protectedSecurityOrigin()) ? document : nullptr;
 }
 
 RefPtr<LocalFrame> Document::localMainFrame() const

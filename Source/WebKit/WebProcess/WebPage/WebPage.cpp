@@ -4898,13 +4898,9 @@ static void detectDataInFrame(const Ref<Frame>& frame, OptionSet<WebCore::DataDe
     }
 
     DataDetection::detectContentInFrame(localFrame.get(), dataDetectorTypes, dataDetectionReferenceDate, [localFrame, mainFrameResult = WTFMove(mainFrameResult), dataDetectionReferenceDate, completionHandler = WTFMove(completionHandler), dataDetectorTypes](NSArray *results) mutable {
-        auto retainedResults = retainPtr(results);
-
-        RefPtr protectedLocalFrame { localFrame };
-
-        protectedLocalFrame->dataDetectionResults().setDocumentLevelResults(retainedResults.get());
-        if (protectedLocalFrame->isMainFrame())
-            mainFrameResult->results = retainedResults;
+        localFrame->dataDetectionResults().setDocumentLevelResults(results);
+        if (localFrame->isMainFrame())
+            mainFrameResult->results = results;
 
         RefPtr next = localFrame->tree().traverseNext();
         if (!next) {
@@ -8202,13 +8198,10 @@ void WebPage::setScrollPinningBehavior(WebCore::ScrollPinningBehavior pinning)
         localMainFrame->protectedView()->setScrollPinningBehavior(m_internals->scrollPinningBehavior);
 }
 
-void WebPage::setScrollbarOverlayStyle(std::optional<uint32_t> scrollbarStyle)
+void WebPage::setScrollbarOverlayStyle(std::optional<WebCore::ScrollbarOverlayStyle> scrollbarStyle)
 {
-    if (scrollbarStyle)
-        m_scrollbarOverlayStyle = static_cast<ScrollbarOverlayStyle>(scrollbarStyle.value());
-    else
-        m_scrollbarOverlayStyle = std::optional<ScrollbarOverlayStyle>();
-    
+    m_scrollbarOverlayStyle = scrollbarStyle;
+
     if (RefPtr localMainFrame = this->localMainFrame())
         localMainFrame->protectedView()->recalculateScrollbarOverlayStyle();
 }
@@ -9499,7 +9492,7 @@ void WebPage::scrollToRect(const WebCore::FloatRect& targetRect, const WebCore::
     frameView->setScrollPosition(IntPoint(targetRect.minXMinYCorner()));
 }
 
-void WebPage::setContentOffset(WebCore::ScrollOffset offset, WebCore::ScrollIsAnimated animated)
+void WebPage::setContentOffset(std::optional<int> x, std::optional<int> y, WebCore::ScrollIsAnimated animated)
 {
     RefPtr frameView = localMainFrameView();
     if (!frameView)
@@ -9508,7 +9501,7 @@ void WebPage::setContentOffset(WebCore::ScrollOffset offset, WebCore::ScrollIsAn
     auto options = WebCore::ScrollPositionChangeOptions::createProgrammatic();
     options.animated = animated;
 
-    frameView->setScrollOffsetWithOptions(offset, options);
+    frameView->setScrollOffsetWithOptions(x, y, options);
 }
 
 void WebPage::scrollToEdge(WebCore::RectEdges<bool> edges, WebCore::ScrollIsAnimated animated)

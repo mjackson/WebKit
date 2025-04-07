@@ -77,6 +77,7 @@
 #include "WebGeolocationManagerProxy.h"
 #include "WebInspectorUtilities.h"
 #include "WebKit2Initialize.h"
+#include "WebKitServiceNames.h"
 #include "WebMemorySampler.h"
 #include "WebNotificationManagerProxy.h"
 #include "WebPageGroup.h"
@@ -886,12 +887,12 @@ WebProcessDataStoreParameters WebProcessPool::webProcessDataStoreParameters(WebP
 #endif
 
 #if PLATFORM(IOS_FAMILY)
-    std::optional<SandboxExtension::Handle> containerCachesDirectoryExtensionHandle;
-    if (auto directory = websiteDataStore.resolvedContainerCachesWebContentDirectory(); !directory.isEmpty())
-        containerCachesDirectoryExtensionHandle = SandboxExtension::createHandleWithoutResolvingPath(directory, SandboxExtension::Type::ReadWrite);
     std::optional<SandboxExtension::Handle> containerTemporaryDirectoryExtensionHandle;
-    if (auto directory = websiteDataStore.resolvedContainerTemporaryDirectory(); !directory.isEmpty())
-        containerTemporaryDirectoryExtensionHandle = SandboxExtension::createHandleWithoutResolvingPath(directory, SandboxExtension::Type::ReadWrite);
+    if (auto directory = websiteDataStore.resolvedContainerTemporaryDirectory(); !directory.isEmpty()) {
+        if (m_cachedWebContentTempDirectory.isEmpty())
+            m_cachedWebContentTempDirectory = resolveAndCreateReadWriteDirectoryForSandboxExtension(FileSystem::pathByAppendingComponent(directory, webContentServiceName));
+        containerTemporaryDirectoryExtensionHandle = SandboxExtension::createHandleWithoutResolvingPath(m_cachedWebContentTempDirectory, SandboxExtension::Type::ReadWrite);
+    }
 #endif
 
     return WebProcessDataStoreParameters {
@@ -913,7 +914,6 @@ WebProcessDataStoreParameters WebProcessPool::webProcessDataStoreParameters(WebP
         WTFMove(modelElementCacheDirectoryExtensionHandle),
 #endif
 #if PLATFORM(IOS_FAMILY)
-        WTFMove(containerCachesDirectoryExtensionHandle),
         WTFMove(containerTemporaryDirectoryExtensionHandle),
 #endif
         websiteDataStore.trackingPreventionEnabled()
@@ -2336,11 +2336,6 @@ void WebProcessPool::clearAudibleActivity()
 
 void WebProcessPool::updateAudibleMediaAssertions()
 {
-#if ENABLE(EXTENSION_CAPABILITIES)
-    if (PlatformMediaSessionManager::mediaCapabilityGrantsEnabled())
-        return;
-#endif
-
     if (!m_webProcessWithAudibleMediaCounter.value()) {
         WEBPROCESSPOOL_RELEASE_LOG(ProcessSuspension, "updateAudibleMediaAssertions: Starting timer to clear audible activity in %g seconds because we are no longer playing audio", audibleActivityClearDelay.seconds());
         // We clear the audible activity on a timer for 2 reasons:

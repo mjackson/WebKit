@@ -1961,15 +1961,20 @@ String WebProcessProxy::environmentIdentifier() const
 
 void WebProcessProxy::updateAudibleMediaAssertions()
 {
-#if ENABLE(EXTENSION_CAPABILITIES)
-    if (PlatformMediaSessionManager::mediaCapabilityGrantsEnabled())
-        return;
-#endif
-
     bool hasAudibleMainPage = WTF::anyOf(pages(), [] (auto& page) {
+#if ENABLE(EXTENSION_CAPABILITIES)
+        if (page->preferences().mediaCapabilityGrantsEnabled())
+            return false;
+#endif
         return page->isPlayingAudio();
     });
     bool hasAudibleRemotePage = WTF::anyOf(remotePages(), [](auto& remotePage) {
+#if ENABLE(EXTENSION_CAPABILITIES)
+        if (RefPtr page = remotePage ? remotePage->protectedPage() : nullptr) {
+            if (page->preferences().mediaCapabilityGrantsEnabled())
+                return false;
+        }
+#endif
         return remotePage ? remotePage->mediaState().contains(MediaProducerMediaState::IsPlayingAudio) : false;
     });
     bool hasAudibleWebPage = hasAudibleMainPage || hasAudibleRemotePage;
@@ -2883,14 +2888,6 @@ void WebProcessProxy::setAppBadge(std::optional<WebPageProxyIdentifier> pageIden
     // and that's just fine.
     if (RefPtr page = m_pageMap.get(*pageIdentifier))
         page->uiClient().updateAppBadge(*page, origin, badge);
-}
-
-void WebProcessProxy::setClientBadge(WebPageProxyIdentifier pageIdentifier, const SecurityOriginData& origin, std::optional<uint64_t> badge)
-{
-    // This page might have gone away since the WebContent process sent this message,
-    // and that's just fine.
-    if (RefPtr page = m_pageMap.get(pageIdentifier))
-        page->uiClient().updateClientBadge(*page, origin, badge);
 }
 
 const WeakHashSet<WebProcessProxy>* WebProcessProxy::serviceWorkerClientProcesses() const

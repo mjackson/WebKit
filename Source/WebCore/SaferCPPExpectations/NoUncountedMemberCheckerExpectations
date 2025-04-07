@@ -16,8 +16,6 @@ css/CSSFontSelector.h
 css/CSSPrimitiveValueMappings.h
 css/CSSRuleList.h
 css/CSSStyleProperties.h
-css/CSSStyleSheet.cpp
-css/CSSStyleSheet.h
 css/CSSValueList.h
 css/MediaList.h
 css/SelectorChecker.h
@@ -35,7 +33,6 @@ dom/QualifiedName.h
 dom/TreeScope.h
 editing/cocoa/HTMLConverter.mm
 html/FormListedElement.cpp
-html/LinkIconCollector.h
 html/MediaElementSession.h
 html/parser/HTMLTreeBuilder.h
 html/track/TrackBase.h

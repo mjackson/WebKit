@@ -46,7 +46,6 @@
 #import "RemoteLayerTreeHost.h"
 #import "RemoteLayerTreeNode.h"
 #import "TextChecker.h"
-#import "WKBrowsingContextControllerInternal.h"
 #import "WKQuickLookPreviewController.h"
 #import "WKSharingServicePickerDelegate.h"
 #import "WebContextMenuProxyMac.h"
@@ -569,7 +568,7 @@ void WebPageProxy::savePDFToTemporaryFolderAndOpenWithNativeApplication(const St
     m_uiClient->confirmPDFOpening(*this, pdfFileURL, WTFMove(frameInfo), [pdfFileURL] (bool allowed) {
         if (!allowed)
             return;
-        [[NSWorkspace sharedWorkspace] openURL:pdfFileURL];
+        [[NSWorkspace sharedWorkspace] openURL:pdfFileURL.createNSURL().get()];
     });
 }
 
@@ -878,7 +877,7 @@ void WebPageProxy::showImageInQuickLookPreviewPanel(ShareableBitmap& imageBitmap
     if (!CGImageDestinationFinalize(destination.get()))
         return;
 
-    m_quickLookPreviewController = adoptNS([[WKQuickLookPreviewController alloc] initWithPage:*this imageData:(__bridge NSData *)imageData.get() title:tooltip imageURL:imageURL activity:activity]);
+    m_quickLookPreviewController = adoptNS([[WKQuickLookPreviewController alloc] initWithPage:*this imageData:(__bridge NSData *)imageData.get() title:tooltip imageURL:imageURL.createNSURL().get() activity:activity]);
 
     // When presenting the shared QLPreviewPanel, QuickLook will search the responder chain for a suitable panel controller.
     // Make sure that we (by default) start the search at the web view, which knows how to vend the Visual Search preview

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2019 Apple Inc. All rights reserved.
+ * Copyright (C) 2025 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -23,18 +23,20 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#import <WebKit/WKFoundation.h>
+#pragma once
 
-#import <Foundation/Foundation.h>
+namespace WTF {
 
-@class WKProcessGroup;
+// Make your class inherit from this class when the class knows how to dispose each subtype
+// without using a virtual destructor. It supresses webkit.RefCntblBaseVirtualDtor warnings.
+class NoVirtualDestructorBase {
+protected:
+    NoVirtualDestructorBase() = default;
+    NoVirtualDestructorBase(const NoVirtualDestructorBase&) = default;
+    NoVirtualDestructorBase(NoVirtualDestructorBase&&) = default;
+    ~NoVirtualDestructorBase() = default;
+};
 
-WK_CLASS_DEPRECATED_WITH_REPLACEMENT("WKProcessPool", macos(10.10, 10.14.4), ios(8.0, 12.2))
-@interface WKProcessGroup : NSObject
+}
 
-- (id)initWithInjectedBundleURL:(NSURL *)bundleURL;
-- (id)initWithInjectedBundleURL:(NSURL *)bundleURL andCustomClassesForParameterCoder:(NSSet *)classesForCoder;
-
-#pragma mark Delegates
-
-@end
+using WTF::NoVirtualDestructorBase;

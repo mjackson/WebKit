@@ -2004,20 +2004,6 @@ ClearSiteDataHTTPHeaderEnabled:
     WebCore:
       default: false
 
-ClientBadgeEnabled:
-  type: bool
-  status: unstable
-  category: dom
-  humanReadableName: "Client Badge"
-  humanReadableDescription: "Enable Client Badge"
-  defaultValue:
-    WebKitLegacy:
-      default: false
-    WebKit:
-      default: false
-    WebCore:
-      default: false
-
 CloseWatcherEnabled:
   type: bool
   status: testable
@@ -4856,6 +4842,7 @@ MediaCapabilityGrantsEnabled:
     WebCore:
       "PLATFORM(IOS_FAMILY_SIMULATOR)": false
       default: true
+  sharedPreferenceForWebProcess: true
 
 MediaCaptionFormatTypesAllowedInLockdownMode:
   type: String

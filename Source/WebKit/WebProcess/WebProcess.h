@@ -77,6 +77,10 @@ OBJC_CLASS NSMutableDictionary;
 #include "RendererBufferTransportMode.h"
 #endif
 
+#if PLATFORM(WPE)
+#include "AvailableInputDevices.h"
+#endif
+
 #if PLATFORM(IOS_FAMILY)
 #include "ViewUpdateDispatcher.h"
 #endif
@@ -465,7 +469,6 @@ public:
     void reloadExecutionContextsForOrigin(const WebCore::ClientOrigin&, std::optional<WebCore::FrameIdentifier> triggeringFrame, CompletionHandler<void()>&&);
 
     void setAppBadge(std::optional<WebPageProxyIdentifier>, const WebCore::SecurityOriginData&, std::optional<uint64_t>);
-    void setClientBadge(WebPageProxyIdentifier, const WebCore::SecurityOriginData&, std::optional<uint64_t>);
 
     void deferNonVisibleProcessEarlyMemoryCleanupTimer();
 
@@ -477,6 +480,14 @@ public:
     const OptionSet<RendererBufferTransportMode>& rendererBufferTransportMode() const { return m_rendererBufferTransportMode; }
     void initializePlatformDisplayIfNeeded() const;
 #endif
+
+#if PLATFORM(WPE)
+    const OptionSet<AvailableInputDevices>& availableInputDevices() const { return m_availableInputDevices; }
+    std::optional<AvailableInputDevices> primaryPointingDevice() const;
+#if ENABLE(WPE_PLATFORM)
+    void setAvailableInputDevices(OptionSet<AvailableInputDevices>);
+#endif // ENABLE(WPE_PLATFORM)
+#endif // PLATFORM(WPE)
 
     String mediaKeysStorageDirectory() const { return m_mediaKeysStorageDirectory; }
     FileSystem::Salt mediaKeysStorageSalt() const { return m_mediaKeysStorageSalt; }
@@ -836,6 +847,10 @@ private:
 
 #if PLATFORM(GTK) || PLATFORM(WPE)
     OptionSet<RendererBufferTransportMode> m_rendererBufferTransportMode;
+#endif
+
+#if PLATFORM(WPE)
+    OptionSet<AvailableInputDevices> m_availableInputDevices;
 #endif
 
     bool m_hasSuspendedPageProxy { false };

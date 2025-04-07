@@ -94,7 +94,6 @@ accessibility/AXRemoteFrame.cpp
 accessibility/AXSearchManager.cpp
 accessibility/AXTextMarker.cpp
 accessibility/AccessibilityARIAGridRow.cpp
-accessibility/AccessibilityImageMapLink.cpp
 accessibility/AccessibilityList.cpp
 accessibility/AccessibilityListBox.cpp
 accessibility/AccessibilityListBoxOption.cpp
@@ -366,7 +365,6 @@ html/ImageBitmap.cpp
 html/ImageInputType.cpp
 html/LazyLoadFrameObserver.cpp
 html/LazyLoadImageObserver.cpp
-html/LinkIconCollector.cpp
 html/MediaElementSession.cpp
 html/ModelDocument.cpp
 html/NumberInputType.cpp

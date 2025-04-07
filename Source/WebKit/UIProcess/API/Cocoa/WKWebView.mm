@@ -299,8 +299,8 @@ RetainPtr<NSError> nsErrorFromExceptionDetails(const std::optional<WebCore::Exce
     [userInfo setObject:@(details->columnNumber) forKey:_WKJavaScriptExceptionColumnNumberErrorKey];
 
     if (!details->sourceURL.isEmpty()) {
-        if (NSURL *url = URL(details->sourceURL))
-            [userInfo setObject:url forKey:_WKJavaScriptExceptionSourceURLErrorKey];
+        if (RetainPtr url = URL(details->sourceURL).createNSURL())
+            [userInfo setObject:url.get() forKey:_WKJavaScriptExceptionSourceURLErrorKey];
     }
 
     return adoptNS([[NSError alloc] initWithDomain:WKErrorDomain code:errorCode userInfo:userInfo.get()]);
@@ -1074,7 +1074,7 @@ static uint32_t convertSystemLayoutDirection(NSUserInterfaceLayoutDirection dire
 
 - (NSURL *)_resourceDirectoryURL
 {
-    return _page->currentResourceDirectoryURL();
+    return _page->currentResourceDirectoryURL().createNSURL().autorelease();
 }
 
 - (BOOL)isLoading
@@ -3081,7 +3081,7 @@ static WebCore::CocoaColor *sampledFixedPositionContentColor(const WebCore::Fixe
 #if PLATFORM(MAC)
             [extensionView setWantsLayer:YES];
 #endif
-            [extensionView layer].name = [NSString stringWithFormat:@"Fixed color extension fill (%s)", [side] {
+            [extensionView layer].name = adoptNS([[NSString alloc] initWithFormat:@"Fixed color extension fill (%s)", [side] {
                 switch (side) {
                 case WebCore::BoxSide::Top:
                     return "Top";
@@ -3095,7 +3095,7 @@ static WebCore::CocoaColor *sampledFixedPositionContentColor(const WebCore::Fixe
                     ASSERT_NOT_REACHED();
                     return "";
                 }
-            }()];
+            }()]).get();
             [parentView addSubview:extensionView.get()];
             _fixedColorExtensionViews.setAt(side, extensionView);
         }
@@ -3392,7 +3392,7 @@ static RetainPtr<NSDictionary<NSString *, id>> createUserInfo(const std::optiona
 
     auto result = adoptNS([[NSMutableDictionary alloc] initWithCapacity:3]);
     if (!info->documentURL.isNull())
-        [result setObject:(NSURL *)info->documentURL forKey:_WKTextManipulationTokenUserInfoDocumentURLKey];
+        [result setObject:info->documentURL.createNSURL().get() forKey:_WKTextManipulationTokenUserInfoDocumentURLKey];
     if (!info->tagName.isNull())
         [result setObject:info->tagName.createNSString().get() forKey:_WKTextManipulationTokenUserInfoTagNameKey];
     if (!info->roleAttribute.isNull())
@@ -4011,7 +4011,7 @@ static void convertAndAddHighlight(Vector<Ref<WebCore::SharedMemory>>& buffers, 
 - (NSURL *)_mainFrameURL
 {
     if (RefPtr frame = _page->mainFrame())
-        return frame->url();
+        return frame->url().createNSURL().autorelease();
     return nil;
 }
 
@@ -4554,7 +4554,7 @@ static void convertAndAddHighlight(Vector<Ref<WebCore::SharedMemory>>& buffers, 
                 return completionHandler(NO, nil);
             }
         }, [&] (URL url) {
-            completionHandler(NO, url);
+            completionHandler(NO, url.createNSURL().get());
         });
     };
 #if PLATFORM(MAC)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Apple Inc. All rights reserved.
+ * Copyright (C) 2025 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -23,20 +23,13 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#import <WebKit/WKProcessGroup.h>
+#pragma once
 
-#import <WebKit/WKBase.h>
+namespace WebKit {
 
-#if TARGET_OS_IPHONE
-@class WKGeolocationProviderIOS;
-#endif
+constexpr ASCIILiteral webContentServiceName { "com.apple.WebKit.WebContent"_s };
+constexpr ASCIILiteral networkingServiceName { "com.apple.WebKit.Networking"_s };
+constexpr ASCIILiteral gpuServiceName { "com.apple.WebKit.GPU"_s };
+constexpr ASCIILiteral modelServiceName { "com.apple.WebKit.Model"_s };
 
-@interface WKProcessGroup (Private)
-
-@property(readonly) WKContextRef _contextRef;
-
-#if TARGET_OS_IPHONE
-@property(readonly) WKGeolocationProviderIOS *_geolocationProvider;
-#endif
-
-@end
+}

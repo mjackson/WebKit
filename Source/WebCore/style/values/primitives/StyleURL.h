@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -22,18 +22,41 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "config.h"
-#include "CSSFilterReference.h"
+#pragma once
 
-#include "CSSMarkup.h"
+#include "CSSURL.h"
+#include "StyleValueTypes.h"
 
 namespace WebCore {
-namespace CSS {
+namespace Style {
 
-void Serialize<FilterReference>::operator()(StringBuilder& builder, const SerializationContext&, const FilterReference& value)
+struct URL {
+    WTF::URL resolved;
+
+    static URL none() { return { .resolved = { } }; }
+    bool isNone() const { return resolved.isNull(); }
+
+    bool operator==(const URL&) const = default;
+};
+
+template<size_t I> const auto& get(const URL& value)
 {
-    builder.append(serializeURL(value.url));
+    return value.resolved;
 }
 
-} // namespace CSS
+// MARK: Conversion
+
+// Special conversion function for use by filters code.
+URL toStyleWithBaseURL(const CSS::URL&, const WTF::URL& baseURL);
+
+template<> struct ToCSS<URL> { auto operator()(const URL&, const RenderStyle&) -> CSS::URL; };
+template<> struct ToStyle<CSS::URL> { auto operator()(const CSS::URL&, const BuilderState&) -> URL; };
+
+// MARK: Logging
+
+TextStream& operator<<(TextStream&, const URL&);
+
+} // namespace Style
 } // namespace WebCore
+
+DEFINE_TUPLE_LIKE_CONFORMANCE(WebCore::Style::URL, 1)

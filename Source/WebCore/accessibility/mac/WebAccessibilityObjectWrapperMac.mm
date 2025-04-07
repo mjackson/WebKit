@@ -1091,7 +1091,7 @@ static NSArray *children(AXCoreObject& backingObject)
     if (backingObject.isTreeItem())
         return makeNSArray(backingObject.ariaTreeItemContent());
 
-    return makeNSArray(backingObject.unignoredChildren());
+    return makeNSArray(unignoredChildren);
 }
 
 static NSString *roleString(AXCoreObject& backingObject)
@@ -1169,12 +1169,6 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
     RefPtr<AXCoreObject> backingObject = self.updateObjectBackingStore;
     if (!backingObject) {
         AXLOG(makeString("No backingObject for wrapper "_s, hex(reinterpret_cast<uintptr_t>(self))));
-        return nil;
-    }
-
-    if (backingObject->isDetachedFromParent()) {
-        AXLOG("backingObject is detached from parent!!!");
-        AXLOG(backingObject);
         return nil;
     }
 
@@ -1289,7 +1283,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
         URL url = backingObject->url();
         if (url.isNull())
             return nil;
-        return (NSURL*)url;
+        return url.createNSURL().autorelease();
     }
 
     if ([attributeName isEqualToString:NSAccessibilityIncrementButtonAttribute]) {

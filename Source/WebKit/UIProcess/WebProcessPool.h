@@ -46,6 +46,7 @@
 #include <pal/SessionID.h>
 #include <wtf/CheckedRef.h>
 #include <wtf/Forward.h>
+#include <wtf/Function.h>
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
 #include <wtf/MemoryPressureHandler.h>
@@ -965,6 +966,7 @@ private:
 #if PLATFORM(IOS_FAMILY)
     bool m_processesShouldSuspend { false };
     HardwareKeyboardState m_hardwareKeyboardState;
+    String m_cachedWebContentTempDirectory;
 #endif
 
 #if ENABLE(ADVANCED_PRIVACY_PROTECTIONS)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Apple Inc. All rights reserved.
+ * Copyright (C) 2025 Igalia S.L.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -23,19 +23,18 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#import "WKBrowsingContextControllerPrivate.h"
+#pragma once
 
-#import "WebPageProxy.h"
-#import <wtf/WeakObjCPtr.h>
+#if PLATFORM(WPE)
 
-@interface WKBrowsingContextController () {
-@package
-    WeakObjCPtr<id <WKBrowsingContextHistoryDelegate>> _historyDelegate;
-}
+namespace WebKit {
 
-+ (NSMutableSet *)customSchemes;
-+ (WKBrowsingContextController *)_browsingContextControllerForPageRef:(WKPageRef)pageRef;
+enum class AvailableInputDevices : uint8_t {
+    Mouse       = (1 << 0),
+    Keyboard    = (1 << 1),
+    Touchscreen = (1 << 2),
+};
 
-- (instancetype)_initWithPageRef:(WKPageRef)pageRef;
+} // namespace WebKit
 
-@end
+#endif // PLATFORM(WPE)

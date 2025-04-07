@@ -178,7 +178,6 @@ enum class AccessibilityRole : uint8_t {
     Inline,
     Image,
     ImageMap,
-    ImageMapLink,
     Insertion,
     Label,
     LandmarkBanner,
@@ -371,8 +370,6 @@ ALWAYS_INLINE String accessibilityRoleToString(AccessibilityRole role)
         return "Image"_s;
     case AccessibilityRole::ImageMap:
         return "ImageMap"_s;
-    case AccessibilityRole::ImageMapLink:
-        return "ImageMapLink"_s;
     case AccessibilityRole::Insertion:
         return "Insertion"_s;
     case AccessibilityRole::Label:
@@ -1310,7 +1307,6 @@ public:
     AXCoreObject* deepestLastChildIncludingIgnored(bool updateChildrenIfNeeded);
 
     virtual void detachFromParent() = 0;
-    virtual bool isDetachedFromParent() = 0;
 
     AccessibilityChildrenVector listboxSelectedChildren();
     AccessibilityChildrenVector selectedRows();

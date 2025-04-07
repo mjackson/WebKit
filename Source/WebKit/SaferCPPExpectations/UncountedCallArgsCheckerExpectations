@@ -6,8 +6,6 @@ Platform/IPC/ArgumentCoders.h
 Platform/IPC/Connection.cpp
 Platform/IPC/Connection.h
 Platform/IPC/StreamClientConnection.cpp
-Shared/Cocoa/WKObject.mm
-Shared/JavaScriptEvaluationResult.mm
 UIProcess/API/C/WKAuthenticationChallenge.cpp
 UIProcess/API/C/WKBackForwardListRef.cpp
 UIProcess/API/C/WKContext.cpp
@@ -52,7 +50,6 @@ UIProcess/API/Cocoa/WKHTTPCookieStore.mm
 UIProcess/API/Cocoa/WKNavigationAction.mm
 UIProcess/API/Cocoa/WKOpenPanelParameters.mm
 UIProcess/API/Cocoa/WKPreferences.mm
-UIProcess/API/Cocoa/WKProcessGroup.mm
 UIProcess/API/Cocoa/WKProcessPool.mm
 UIProcess/API/Cocoa/WKURLSchemeTask.mm
 UIProcess/API/Cocoa/WKUserContentController.mm

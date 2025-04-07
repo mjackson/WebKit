@@ -58,7 +58,6 @@
 #import "UIGamepadProvider.h"
 #import "UndoOrRedo.h"
 #import "ViewGestureController.h"
-#import "WKBrowsingContextControllerInternal.h"
 #import "WKEditCommand.h"
 #import "WKErrorInternal.h"
 #import "WKFullScreenWindowController.h"
@@ -4508,36 +4507,36 @@ static BOOL fileExists(NSString *path)
     return !lstat([path fileSystemRepresentation], &statBuffer);
 }
 
-static NSString *pathWithUniqueFilenameForPath(NSString *path)
+static RetainPtr<NSString> pathWithUniqueFilenameForPath(NSString *path)
 {
     // "Fix" the filename of the path.
-    NSString *filename = filenameByFixingIllegalCharacters([path lastPathComponent]);
-    path = [[path stringByDeletingLastPathComponent] stringByAppendingPathComponent:filename];
+    RetainPtr filename = filenameByFixingIllegalCharacters([path lastPathComponent]);
+    RetainPtr updatedPath = [[path stringByDeletingLastPathComponent] stringByAppendingPathComponent:filename.get()];
 
-    if (fileExists(path)) {
+    if (fileExists(updatedPath.get())) {
         // Don't overwrite existing file by appending "-n", "-n.ext" or "-n.ext.ext" to the filename.
-        NSString *extensions = nil;
-        NSString *pathWithoutExtensions;
-        NSString *lastPathComponent = [path lastPathComponent];
+        RetainPtr<NSString> extensions;
+        RetainPtr<NSString> pathWithoutExtensions;
+        RetainPtr<NSString> lastPathComponent = [updatedPath lastPathComponent];
         NSRange periodRange = [lastPathComponent rangeOfString:@"."];
 
         if (periodRange.location == NSNotFound) {
-            pathWithoutExtensions = path;
+            pathWithoutExtensions = updatedPath;
         } else {
             extensions = [lastPathComponent substringFromIndex:periodRange.location + 1];
             lastPathComponent = [lastPathComponent substringToIndex:periodRange.location];
-            pathWithoutExtensions = [[path stringByDeletingLastPathComponent] stringByAppendingPathComponent:lastPathComponent];
+            pathWithoutExtensions = [[updatedPath stringByDeletingLastPathComponent] stringByAppendingPathComponent:lastPathComponent.get()];
         }
 
         for (unsigned i = 1; ; i++) {
-            NSString *pathWithAppendedNumber = [NSString stringWithFormat:@"%@-%d", pathWithoutExtensions, i];
-            path = [extensions length] ? [pathWithAppendedNumber stringByAppendingPathExtension:extensions] : pathWithAppendedNumber;
-            if (!fileExists(path))
+            RetainPtr pathWithAppendedNumber = adoptNS([[NSString alloc] initWithFormat:@"%@-%d", pathWithoutExtensions.get(), i]);
+            updatedPath = [extensions length] ? [pathWithAppendedNumber stringByAppendingPathExtension:extensions.get()] : pathWithAppendedNumber;
+            if (!fileExists(updatedPath.get()))
                 break;
         }
     }
 
-    return path;
+    return updatedPath;
 }
 
 NSArray *WebViewImpl::namesOfPromisedFilesDroppedAtDestination(NSURL *dropDestination)
@@ -4559,13 +4558,13 @@ NSArray *WebViewImpl::namesOfPromisedFilesDroppedAtDestination(NSURL *dropDestin
     }
 
     // FIXME: Report an error if we fail to create a file.
-    NSString *path = [[dropDestination path] stringByAppendingPathComponent:[wrapper preferredFilename]];
-    path = pathWithUniqueFilenameForPath(path);
-    if (![wrapper writeToURL:[NSURL fileURLWithPath:path isDirectory:NO] options:NSFileWrapperWritingWithNameUpdating originalContentsURL:nil error:nullptr])
+    RetainPtr<NSString> path = [[dropDestination path] stringByAppendingPathComponent:[wrapper preferredFilename]];
+    path = pathWithUniqueFilenameForPath(path.get());
+    if (![wrapper writeToURL:[NSURL fileURLWithPath:path.get() isDirectory:NO] options:NSFileWrapperWritingWithNameUpdating originalContentsURL:nil error:nullptr])
         LOG_ERROR("Failed to create image file via -[NSFileWrapper writeToURL:options:originalContentsURL:error:]");
 
     if (!m_promisedURL.isEmpty())
-        FileSystem::setMetadataURL(String(path), m_promisedURL);
+        FileSystem::setMetadataURL(String(path.get()), m_promisedURL);
 
     return @[[path lastPathComponent]];
 }
@@ -6752,8 +6751,8 @@ int32_t WebViewImpl::processImageAnalyzerRequest(CocoaImageAnalyzerRequest *requ
 static RetainPtr<CocoaImageAnalyzerRequest> createImageAnalyzerRequest(CGImageRef image, const URL& imageURL, const URL& pageURL, VKAnalysisTypes types)
 {
     auto request = createImageAnalyzerRequest(image, types);
-    [request setImageURL:imageURL];
-    [request setPageURL:pageURL];
+    [request setImageURL:imageURL.createNSURL().get()];
+    [request setPageURL:pageURL.createNSURL().get()];
     return request;
 }
 
@@ -6774,7 +6773,7 @@ void WebViewImpl::requestTextRecognition(const URL& imageURL, ShareableBitmap::H
 
 #if ENABLE(IMAGE_ANALYSIS_ENHANCEMENTS)
     if (!targetLanguageIdentifier.isEmpty())
-        return requestVisualTranslation(ensureImageAnalyzer(), imageURL, sourceLanguageIdentifier, targetLanguageIdentifier, cgImage.get(), WTFMove(completion));
+        return requestVisualTranslation(ensureImageAnalyzer(), imageURL.createNSURL().get(), sourceLanguageIdentifier, targetLanguageIdentifier, cgImage.get(), WTFMove(completion));
 #else
     UNUSED_PARAM(sourceLanguageIdentifier);
     UNUSED_PARAM(targetLanguageIdentifier);

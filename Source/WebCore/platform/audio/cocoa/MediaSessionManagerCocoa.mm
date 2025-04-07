@@ -78,9 +78,9 @@ void MediaSessionManagerCocoa::ensureCodecsRegistered()
 #if ENABLE(VP9)
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        if (WebCore::shouldEnableVP9Decoder())
+        if (shouldEnableVP9Decoder())
             registerSupplementalVP9Decoder();
-        if (WebCore::shouldEnableSWVP9Decoder())
+        if (shouldEnableSWVP9Decoder())
             registerWebKitVP9Decoder();
     });
 #endif
@@ -238,6 +238,10 @@ void MediaSessionManagerCocoa::beginInterruption(PlatformMediaSession::Interrupt
 
 void MediaSessionManagerCocoa::prepareToSendUserMediaPermissionRequestForPage(Page& page)
 {
+#if ENABLE(EXTENSION_CAPABILITIES)
+    if (page.settings().mediaCapabilityGrantsEnabled())
+        return;
+#endif
     providePresentingApplicationPIDIfNecessary(page.presentingApplicationPID());
 }
 
