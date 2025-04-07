@@ -32,8 +32,10 @@
 #include <climits>
 #include <concepts>
 #include <cstring>
+#include <errno.h>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <span>
 #include <type_traits>
 #include <utility>
@@ -1117,15 +1119,20 @@ bool spanHasSuffix(std::span<T, TExtent> span, std::span<U, UExtent> suffix)
 }
 
 template<typename T, std::size_t TExtent, typename U, std::size_t UExtent>
-int compareSpans(std::span<T, TExtent> a, std::span<U, UExtent> b)
+std::strong_ordering compareSpans(std::span<T, TExtent> a, std::span<U, UExtent> b)
 {
     static_assert(sizeof(T) == sizeof(U));
     static_assert(std::has_unique_object_representations_v<T>);
     static_assert(std::has_unique_object_representations_v<U>);
     int result = memcmp(a.data(), b.data(), std::min(a.size_bytes(), b.size_bytes())); // NOLINT
-    if (!result && a.size() != b.size())
-        result = (a.size() > b.size()) ? 1 : -1;
-    return result;
+    if (result) {
+        if (result < 0)
+            return std::strong_ordering::less;
+        return std::strong_ordering::greater;
+    }
+    if (a.size() != b.size())
+        return a.size() > b.size() ? std::strong_ordering::greater : std::strong_ordering::less;
+    return std::strong_ordering::equal;
 }
 
 // Returns the index of the first occurrence of |needed| in |haystack| or notFound if not present.
@@ -1555,6 +1562,19 @@ ALWAYS_INLINE void lazyInitialize(const std::unique_ptr<T>& ptr, std::unique_ptr
     const_cast<std::unique_ptr<T>&>(ptr) = std::move(obj);
 }
 
+ALWAYS_INLINE std::optional<double> stringToDouble(std::span<const char> buffer, size_t& parsedLength)
+{
+    RELEASE_ASSERT(buffer.back() == '\0');
+    char* end;
+    auto result = std::strtod(buffer.data(), &end);
+    if (errno == ERANGE) {
+        parsedLength = 0;
+        return std::nullopt;
+    }
+    parsedLength = end - buffer.data();
+    return result;
+}
+
 } // namespace WTF
 
 #define WTFMove(value) std::move<WTF::CheckMoveParameter>(value)
@@ -1618,6 +1638,7 @@ using WTF::spanHasPrefix;
 using WTF::spanHasSuffix;
 using WTF::spansOverlap;
 using WTF::spanReinterpretCast;
+using WTF::stringToDouble;
 using WTF::toTwosComplement;
 using WTF::tryBinarySearch;
 using WTF::unsafeMakeSpan;
