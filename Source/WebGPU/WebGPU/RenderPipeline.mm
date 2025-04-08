@@ -1670,8 +1670,10 @@ Ref<BindGroupLayout> RenderPipeline::getBindGroupLayout(uint32_t groupIndex)
     }
 
     if (groupIndex >= pipelineLayout->numberOfBindGroupLayouts()) {
-        device->generateAValidationError("getBindGroupLayout: groupIndex is out of range"_s);
-        pipelineLayout->makeInvalid();
+        if (groupIndex >= device->limits().maxBindGroups) {
+            device->generateAValidationError("getBindGroupLayout: groupIndex is out of range"_s);
+            pipelineLayout->makeInvalid();
+        }
         return BindGroupLayout::createInvalid(device.get());
     }
 
@@ -1812,6 +1814,7 @@ RefPtr<RenderPipeline> RenderPipeline::recomputeLastStrideAsStride() const
     }
 
     NSError *error = nil;
+    RELEASE_ASSERT(m_device->device());
     id<MTLRenderPipelineState> renderPipelineState = [m_device->device() newRenderPipelineStateWithDescriptor:clonedRenderPipelineDescriptor error:&error];
     if (!renderPipelineState) {
         if (error)

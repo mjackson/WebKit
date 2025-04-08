@@ -353,7 +353,6 @@ bool RenderBundleEncoder::executePreDrawCommands(bool needsValidationLayerWorkar
     if (!icbCommand)
         return true;
 
-#if CPU(X86_64)
     RefPtr renderPassEncoder = m_renderPassEncoder.get();
     if (renderPassEncoder && passWasSplit) {
         id<MTLRenderCommandEncoder> commandEncoder = renderPassEncoder->renderCommandEncoder();
@@ -381,9 +380,6 @@ bool RenderBundleEncoder::executePreDrawCommands(bool needsValidationLayerWorkar
             }
         }
     }
-#else
-    UNUSED_PARAM(passWasSplit);
-#endif
 
     for (auto& [groupIndex, group] : m_bindGroups) {
         RefPtr protectedGroup = group;
@@ -983,6 +979,9 @@ void RenderBundleEncoder::endCurrentICB()
 
 bool RenderBundleEncoder::validToEncodeCommand() const
 {
+    if (!m_device->isValid())
+        return false;
+
     return !m_finished || (m_renderPassEncoder && RefPtr { m_renderPassEncoder.get() }->renderCommandEncoder() && !m_makeSubmitInvalid);
 }
 
