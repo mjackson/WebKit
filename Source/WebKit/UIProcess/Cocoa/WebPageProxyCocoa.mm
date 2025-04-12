@@ -67,6 +67,7 @@
 #import <Foundation/NSURLRequest.h>
 #import <WebCore/AppHighlight.h>
 #import <WebCore/ApplePayAMSUIRequest.h>
+#import <WebCore/DictationAlternative.h>
 #import <WebCore/DragItem.h>
 #import <WebCore/GeometryUtilities.h>
 #import <WebCore/HighlightVisibility.h>
@@ -239,7 +240,7 @@ void WebPageProxy::beginSafeBrowsingCheck(const URL& url, bool forMainFrameNavig
 #if HAVE(SAFE_BROWSING)
     if (!url.isValid())
         return listener.didReceiveSafeBrowsingResults({ });
-    SSBLookupContext *context = [SSBLookupContext sharedLookupContext];
+    RetainPtr context = [SSBLookupContext sharedLookupContext];
     if (!context)
         return listener.didReceiveSafeBrowsingResults({ });
     [context lookUpURL:url.createNSURL().get() completionHandler:makeBlockPtr([listener = Ref { listener }, forMainFrameNavigation, url = url] (SSBLookupResult *result, NSError *error) mutable {
@@ -295,16 +296,18 @@ void WebPageProxy::createSandboxExtensionsIfNeeded(const Vector<String>& files, 
 
         if (token) {
             if (auto handle = SandboxExtension::createHandleForReadByAuditToken(path, *token))
-                return WTFMove(*handle);
-        } else if (auto handle = SandboxExtension::createHandle(path, SandboxExtension::Type::ReadOnly))
-            return WTFMove(*handle);
-        return SandboxExtension::Handle();
+                return handle;
+        }
+        return SandboxExtension::createHandle(path, SandboxExtension::Type::ReadOnly);
     };
 
     if (files.size() == 1) {
         BOOL isDirectory;
         if ([[NSFileManager defaultManager] fileExistsAtPath:files[0] isDirectory:&isDirectory] && !isDirectory) {
-            fileReadHandle = createSandboxExtension("/"_s);
+            if (auto handle = createSandboxExtension("/"_s))
+                fileReadHandle = WTFMove(*handle);
+            else if (auto handle = createSandboxExtension(files[0]))
+                fileReadHandle = WTFMove(*handle);
             willAcquireUniversalFileReadSandboxExtension(m_legacyMainFrameProcess);
         }
     }
@@ -312,7 +315,8 @@ void WebPageProxy::createSandboxExtensionsIfNeeded(const Vector<String>& files, 
     for (auto& file : files) {
         if (![[NSFileManager defaultManager] fileExistsAtPath:file])
             continue;
-        fileUploadHandles.append(createSandboxExtension(file));
+        if (auto handle = createSandboxExtension(file))
+            fileUploadHandles.append(WTFMove(*handle));
     }
 }
 
@@ -449,9 +453,9 @@ void WebPageProxy::addDictationAlternative(TextAlternativeWithRange&& alternativ
     if (!pageClient)
         return;
 
-    auto nsAlternatives = alternative.alternatives.get();
-    auto context = pageClient->addDictationAlternatives(nsAlternatives);
-    protectedLegacyMainFrameProcess()->sendWithAsyncReply(Messages::WebPage::AddDictationAlternative { nsAlternatives.primaryString, *context }, [context, weakThis = WeakPtr { *this }](bool success) {
+    RetainPtr nsAlternatives = alternative.alternatives.get();
+    auto context = pageClient->addDictationAlternatives(nsAlternatives.get());
+    protectedLegacyMainFrameProcess()->sendWithAsyncReply(Messages::WebPage::AddDictationAlternative { nsAlternatives.get().primaryString, *context }, [context, weakThis = WeakPtr { *this }](bool success) {
         if (RefPtr protectedThis = weakThis.get(); protectedThis && !success)
             protectedThis->removeDictationAlternatives(*context);
     }, webPageIDInMainFrameProcess());
@@ -740,11 +744,11 @@ void WebPageProxy::fullscreenVideoTextRecognitionTimerFired()
 
 bool WebPageProxy::updateIconForDirectory(NSFileWrapper *fileWrapper, const String& identifier)
 {
-    auto image = [fileWrapper icon];
+    RetainPtr image = [fileWrapper icon];
     if (!image)
         return false;
 
-    auto convertedImage = convertPlatformImageToBitmap(image, iconSize);
+    auto convertedImage = convertPlatformImageToBitmap(image.get(), iconSize);
     if (!convertedImage)
         return false;
 
@@ -803,6 +807,15 @@ void WebPageProxy::addActivityStateUpdateCompletionHandler(CompletionHandler<voi
     }
 
     m_activityStateUpdateCallbacks.append(WTFMove(completionHandler));
+}
+
+void WebPageProxy::createTextFragmentDirectiveFromSelection(CompletionHandler<void(URL&&)>&& completionHandler)
+{
+    if (!hasRunningProcess())
+        return;
+
+    protectedLegacyMainFrameProcess()->sendWithAsyncReply(Messages::WebPage::CreateTextFragmentDirectiveFromSelection(), WTFMove(completionHandler), webPageIDInMainFrameProcess());
+
 }
 
 #if ENABLE(APP_HIGHLIGHTS)
@@ -889,7 +902,7 @@ void WebPageProxy::startApplePayAMSUISession(URL&& originatingURL, ApplePayAMSUI
     // FIXME: When in element fullscreen, UIClient::presentingViewController() may not return the
     // WKFullScreenViewController even though that is the presenting view controller of the WKWebView.
     // We should call PageClientImpl::presentingViewController() instead.
-    PlatformViewController *presentingViewController = uiClient().presentingViewController();
+    RetainPtr presentingViewController = uiClient().presentingViewController();
     if (!presentingViewController) {
         completionHandler(std::nullopt);
         return;
@@ -900,7 +913,7 @@ void WebPageProxy::startApplePayAMSUISession(URL&& originatingURL, ApplePayAMSUI
 
     auto amsBag = retainPtr([getAMSUIEngagementTaskClass() createBagForSubProfile]);
 
-    m_applePayAMSUISession = adoptNS([allocAMSUIEngagementTaskInstance() initWithRequest:amsRequest.get() bag:amsBag.get() presentingViewController:presentingViewController]);
+    m_applePayAMSUISession = adoptNS([allocAMSUIEngagementTaskInstance() initWithRequest:amsRequest.get() bag:amsBag.get() presentingViewController:presentingViewController.get()]);
     [m_applePayAMSUISession setRemotePresentation:YES];
 
     auto amsResult = retainPtr([m_applePayAMSUISession presentEngagement]);
@@ -1009,13 +1022,13 @@ NSDictionary *WebPageProxy::contentsOfUserInterfaceItem(NSString *userInterfaceI
 #if PLATFORM(MAC)
 bool WebPageProxy::isQuarantinedAndNotUserApproved(const String& fileURLString)
 {
-    NSURL *fileURL = [NSURL URLWithString:fileURLString];
-    if ([fileURL.pathExtension caseInsensitiveCompare:@"webarchive"] != NSOrderedSame)
+    RetainPtr fileURL = adoptNS([[NSURL alloc] initWithString:fileURLString]);
+    if ([fileURL.get().pathExtension caseInsensitiveCompare:@"webarchive"] != NSOrderedSame)
         return false;
 
     qtn_file_t qf = qtn_file_alloc();
 
-    int quarantineError = qtn_file_init_with_path(qf, fileURL.path.fileSystemRepresentation);
+    int quarantineError = qtn_file_init_with_path(qf, fileURL.get().path.fileSystemRepresentation);
 
     if (quarantineError == ENOENT || quarantineError == QTN_NOT_QUARANTINED)
         return false;
@@ -1072,7 +1085,7 @@ void WebPageProxy::replaceImageForRemoveBackground(const ElementContext& element
 
 bool WebPageProxy::useGPUProcessForDOMRenderingEnabled() const
 {
-    if (id useGPUProcessForDOMRendering = [[NSUserDefaults standardUserDefaults] objectForKey:@"WebKit2GPUProcessForDOMRendering"])
+    if (RetainPtr useGPUProcessForDOMRendering = [[NSUserDefaults standardUserDefaults] objectForKey:@"WebKit2GPUProcessForDOMRendering"])
         return [useGPUProcessForDOMRendering boolValue];
 
     if (protectedPreferences()->useGPUProcessForDOMRenderingEnabled())
@@ -1511,8 +1524,15 @@ void WebPageProxy::getInformationFromImageData(Vector<uint8_t>&& data, Completio
 
 void WebPageProxy::createIconDataFromImageData(Ref<WebCore::SharedBuffer>&& buffer, const Vector<unsigned>& lengths, CompletionHandler<void(RefPtr<WebCore::SharedBuffer>&&)>&& completionHandler)
 {
-    ensureProtectedRunningProcess()->sendWithAsyncReply(Messages::WebPage::CreateIconDataFromImageData(WTFMove(buffer), lengths), [preventProcessShutdownScope = protectedLegacyMainFrameProcess()->shutdownPreventingScope(), completionHandler = WTFMove(completionHandler)] (auto result) mutable {
-        completionHandler(WTFMove(result));
+    // Supported ICO image sizes by ImageIO.
+    constexpr std::array<unsigned, 5> availableLengths { { 16, 32, 48, 128, 256 } };
+    auto targetLengths = lengths.isEmpty() ? std::span { availableLengths } : lengths;
+
+    ensureProtectedRunningProcess()->sendWithAsyncReply(Messages::WebPage::CreateBitmapsFromImageData(WTFMove(buffer), targetLengths), [preventProcessShutdownScope = protectedLegacyMainFrameProcess()->shutdownPreventingScope(), completionHandler = WTFMove(completionHandler)] (auto bitmaps) mutable {
+        if (bitmaps.isEmpty())
+            return completionHandler(nullptr);
+
+        completionHandler(createIconDataFromBitmaps(WTFMove(bitmaps)));
     }, webPageIDInMainFrameProcess());
 }
 
@@ -1527,11 +1547,11 @@ String WebPageProxy::presentingApplicationBundleIdentifier() const
 {
     if (std::optional auditToken = presentingApplicationAuditToken()) {
         NSError *error = nil;
-        auto bundleProxy = [LSBundleProxy bundleProxyWithAuditToken:*auditToken error:&error];
+        RetainPtr bundleProxy = [LSBundleProxy bundleProxyWithAuditToken:*auditToken error:&error];
         if (error)
             RELEASE_LOG_ERROR(WebRTC, "Failed to get attribution bundleID from audit token with error: %@.", error.localizedDescription);
         else
-            return bundleProxy.bundleIdentifier;
+            return bundleProxy.get().bundleIdentifier;
     }
 #if PLATFORM(MAC)
     else

@@ -88,6 +88,7 @@ UIProcess/API/Cocoa/_WKWebAuthenticationPanel.mm
 UIProcess/API/Cocoa/_WKWebsiteDataStoreConfiguration.mm
 WebDriverBidiBackendDispatchers.cpp
 WebDriverBidiFrontendDispatchers.cpp
+WebDriverBidiProtocolObjects.h
 WebProcess/ApplePay/WebPaymentCoordinator.cpp
 WebProcess/Automation/WebAutomationDOMWindowObserver.cpp
 WebProcess/Cache/WebCacheStorageConnection.cpp
@@ -152,7 +153,6 @@ WebProcess/Inspector/WebInspectorClient.cpp
 WebProcess/Inspector/WebInspectorInternal.cpp
 WebProcess/Inspector/WebInspectorUI.cpp
 WebProcess/Inspector/WebInspectorUIExtensionController.cpp
-WebProcess/Network/NetworkProcessConnection.cpp
 WebProcess/Network/WebLoaderStrategy.cpp
 WebProcess/Network/WebMockContentFilterManager.cpp
 WebProcess/Network/WebSocketChannel.cpp
@@ -199,7 +199,6 @@ WebProcess/WebCoreSupport/mac/WebContextMenuClientMac.mm
 WebProcess/WebCoreSupport/mac/WebDragClientMac.mm
 WebProcess/WebCoreSupport/mac/WebEditorClientMac.mm
 WebProcess/WebPage/Cocoa/WebPageCocoa.mm
-WebProcess/WebPage/FindController.cpp
 WebProcess/WebPage/RemoteLayerTree/GraphicsLayerCARemote.mm
 WebProcess/WebPage/RemoteLayerTree/PlatformCALayerRemote.mm
 WebProcess/WebPage/RemoteLayerTree/PlatformCALayerRemoteCustom.mm
@@ -230,3 +229,4 @@ WebProcess/cocoa/TextTrackRepresentationCocoa.mm
 WebProcess/cocoa/UserMediaCaptureManager.cpp
 WebProcess/cocoa/VideoPresentationManager.mm
 WebProcess/cocoa/WebProcessCocoa.mm
+WebKitBuild/Release/DerivedSources/WebKit/NetworkConnectionToWebProcessMessages.h

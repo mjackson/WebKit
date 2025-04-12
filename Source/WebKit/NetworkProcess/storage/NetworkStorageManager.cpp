@@ -56,6 +56,7 @@
 #include <WebCore/IDBRequestData.h>
 #include <WebCore/SecurityOriginData.h>
 #include <WebCore/ServiceWorkerContextData.h>
+#include <WebCore/StorageEstimate.h>
 #include <WebCore/StorageUtilities.h>
 #include <WebCore/UniqueIDBDatabaseConnection.h>
 #include <WebCore/UniqueIDBDatabaseTransaction.h>
@@ -830,7 +831,7 @@ void NetworkStorageManager::cloneSessionStorageNamespace(StorageNamespaceIdentif
     }
 }
 
-void NetworkStorageManager::fetchSessionStorageForWebPage(WebPageProxyIdentifier pageIdentifier, CompletionHandler<void(HashMap<WebCore::ClientOrigin, HashMap<String, String>>&&)>&& completionHandler)
+void NetworkStorageManager::fetchSessionStorageForWebPage(WebPageProxyIdentifier pageIdentifier, CompletionHandler<void(std::optional<HashMap<WebCore::ClientOrigin, HashMap<String, String>>>&&)>&& completionHandler)
 {
     ASSERT(RunLoop::isMain());
     ASSERT(!m_closed);
@@ -1377,7 +1378,7 @@ void NetworkStorageManager::syncLocalStorage(CompletionHandler<void()>&& complet
     });
 }
 
-void NetworkStorageManager::fetchLocalStorage(CompletionHandler<void(HashMap<WebCore::ClientOrigin, HashMap<String, String>>&&)>&& completionHandler)
+void NetworkStorageManager::fetchLocalStorage(CompletionHandler<void(std::optional<HashMap<WebCore::ClientOrigin, HashMap<String, String>>>&&)>&& completionHandler)
 {
     ASSERT(RunLoop::isMain());
     ASSERT(!m_closed);

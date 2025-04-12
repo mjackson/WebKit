@@ -33,6 +33,7 @@
 #include "DeviceIdHashSaltStorage.h"
 #include "DownloadProxy.h"
 #include "GPUProcessProxy.h"
+#include "ITPThirdPartyData.h"
 #include "Logging.h"
 #include "MockAuthenticatorManager.h"
 #include "NetworkProcessConnectionInfo.h"
@@ -52,8 +53,10 @@
 #include "WebProcessCache.h"
 #include "WebProcessMessages.h"
 #include "WebProcessPool.h"
+#include "WebPushMessage.h"
 #include "WebResourceLoadStatisticsStore.h"
 #include "WebsiteData.h"
+#include "WebsiteDataFetchOption.h"
 #include "WebsiteDataStoreClient.h"
 #include "WebsiteDataStoreParameters.h"
 #include <WebCore/ApplicationCacheStorage.h>
@@ -2876,12 +2879,12 @@ void WebsiteDataStore::setRestrictedOpenerTypeForDomainForTesting(const WebCore:
     m_restrictedOpenerTypesForTesting.set(domain, type);
 }
 
-void WebsiteDataStore::fetchLocalStorage(CompletionHandler<void(HashMap<WebCore::ClientOrigin, HashMap<String, String>>&&)>&& completionHandler)
+void WebsiteDataStore::fetchLocalStorage(CompletionHandler<void(std::optional<HashMap<WebCore::ClientOrigin, HashMap<String, String>>>&&)>&& completionHandler)
 {
     if (RefPtr networkProcess = networkProcessIfExists())
         networkProcess->fetchLocalStorage(m_sessionID, WTFMove(completionHandler));
     else
-        completionHandler({ });
+        protectedNetworkProcess()->fetchLocalStorage(m_sessionID, WTFMove(completionHandler));
 }
 
 void WebsiteDataStore::restoreLocalStorage(HashMap<WebCore::ClientOrigin, HashMap<String, String>>&& localStorage, CompletionHandler<void(bool)>&& completionHandler)

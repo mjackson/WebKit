@@ -456,7 +456,7 @@ void WebPushXPCConnectionMessageSender::sendWithoutUsingIPCConnection(M&& messag
 {
     TestEncoder encoder;
     encoder.encodeHeader<M>();
-    encoder << message.arguments();
+    message.encode(encoder);
     auto dictionary = messageDictionaryFromEncoder(WTFMove(encoder));
     xpc_connection_send_message(m_connection.get(), dictionary.get());
 }
@@ -466,7 +466,7 @@ void WebPushXPCConnectionMessageSender::sendWithAsyncReplyWithoutUsingIPCConnect
 {
     TestEncoder encoder;
     encoder.encodeHeader<M>();
-    encoder << message.arguments();
+    message.encode(encoder);
     auto dictionary = messageDictionaryFromEncoder(WTFMove(encoder));
     xpc_connection_send_message_with_reply(m_connection.get(), dictionary.get(), dispatch_get_main_queue(), makeBlockPtr([this, completionHandler = WTFMove(completionHandler)] (xpc_object_t reply) mutable {
         if (xpc_get_type(reply) == XPC_TYPE_ERROR) {
@@ -921,7 +921,7 @@ public:
 
         RetainPtr<_WKWebsiteDataStoreConfiguration> dataStoreConfiguration;
         if (dataStoreIdentifier)
-            dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initWithIdentifier:*dataStoreIdentifier]);
+            dataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initWithIdentifier:dataStoreIdentifier->createNSUUID().get()]);
         else
             dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
         [dataStoreConfiguration setWebPushPartitionString:pushPartition];

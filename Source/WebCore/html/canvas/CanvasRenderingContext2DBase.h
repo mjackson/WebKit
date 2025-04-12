@@ -386,7 +386,6 @@ protected:
 
     static String normalizeSpaces(const String&);
 
-    void drawText(const String& text, double x, double y, bool fill, std::optional<double> maxWidth = std::nullopt);
     bool canDrawText(double x, double y, bool fill, std::optional<double> maxWidth = std::nullopt);
     void drawTextUnchecked(const TextRun&, double x, double y, bool fill, std::optional<double> maxWidth = std::nullopt);
 
@@ -407,6 +406,7 @@ private:
         DeferrableOneShotTimer evictionTimer;
     };
 
+    void setHasInvertibleTransform(bool);
     void applyLineDash() const;
     void setShadow(const FloatSize& offset, float blur, const Color&);
     void applyShadow();
@@ -486,8 +486,6 @@ private:
 #endif
     bool hasDeferredOperations() const final;
     void flushDeferredOperations() final;
-
-    bool hasInvertibleTransform() const final { return state().hasInvertibleTransform; }
 
     // The relationship between FontCascade and CanvasRenderingContext2D::FontProxy must hold certain invariants.
     // Therefore, all font operations must pass through the proxy.

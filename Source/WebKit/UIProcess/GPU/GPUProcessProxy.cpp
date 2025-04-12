@@ -59,7 +59,6 @@
 #include <wtf/TranslatedProcess.h>
 
 #if PLATFORM(IOS_FAMILY)
-#include <WebCore/AGXCompilerService.h>
 #include <wtf/spi/darwin/XPCSPI.h>
 #endif
 
@@ -194,12 +193,6 @@ GPUProcessProxy::GPUProcessProxy()
         auto tempDirectory = resolveAndCreateReadWriteDirectoryForSandboxExtension(FileSystem::pathByAppendingComponent(containerTemporaryDirectory, gpuServiceName));
         if (auto handle = SandboxExtension::createHandleWithoutResolvingPath(tempDirectory, SandboxExtension::Type::ReadWrite))
             parameters.containerTemporaryDirectoryExtensionHandle = WTFMove(*handle);
-    }
-#endif
-#if PLATFORM(IOS_FAMILY) && HAVE(AGX_COMPILER_SERVICE)
-    if (WebCore::deviceHasAGXCompilerService()) {
-        parameters.compilerServiceExtensionHandles = SandboxExtension::createHandlesForMachLookup(WebCore::agxCompilerServices(), std::nullopt);
-        parameters.dynamicIOKitExtensionHandles = SandboxExtension::createHandlesForIOKitClassExtensions(WebCore::agxCompilerClasses(), std::nullopt);
     }
 #endif
 
@@ -922,6 +915,18 @@ void GPUProcessProxy::requestSharedSimulationConnection(audit_token_t modelProce
 {
     sendWithAsyncReply(Messages::GPUProcess::RequestSharedSimulationConnection { modelProcessAuditToken }, WTFMove(completionHandler));
 }
+
+#if HAVE(TASK_IDENTITY_TOKEN)
+void GPUProcessProxy::createMemoryAttributionIDForTask(WebCore::ProcessIdentity processIdentity, CompletionHandler<void(const std::optional<String>&)>&& completionHandler)
+{
+    sendWithAsyncReply(Messages::GPUProcess::CreateMemoryAttributionIDForTask { WTFMove(processIdentity) }, WTFMove(completionHandler));
+}
+
+void GPUProcessProxy::unregisterMemoryAttributionID(const String& attributionID, CompletionHandler<void()>&& completionHandler)
+{
+    sendWithAsyncReply(Messages::GPUProcess::UnregisterMemoryAttributionID { attributionID }, WTFMove(completionHandler));
+}
+#endif
 #endif
 
 } // namespace WebKit

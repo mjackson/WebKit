@@ -35,6 +35,7 @@
 #include "DidFilterKnownLinkDecoration.h"
 #include "Download.h"
 #include "DownloadProxyMessages.h"
+#include "FormDataReference.h"
 #include "ITPThirdPartyData.h"
 #if ENABLE(LEGACY_CUSTOM_PROTOCOL_MANAGER)
 #include "LegacyCustomProtocolManager.h"
@@ -3183,11 +3184,11 @@ void NetworkProcess::setPersistedDomains(PAL::SessionID sessionID, HashSet<Regis
         session->setPersistedDomains(WTFMove(domains));
 }
 
-void NetworkProcess::fetchLocalStorage(PAL::SessionID sessionID, CompletionHandler<void(HashMap<WebCore::ClientOrigin, HashMap<String, String>>&&)>&& completionHandler)
+void NetworkProcess::fetchLocalStorage(PAL::SessionID sessionID, CompletionHandler<void(std::optional<HashMap<WebCore::ClientOrigin, HashMap<String, String>>>&&)>&& completionHandler)
 {
     CheckedPtr session = networkSession(sessionID);
     if (!session) {
-        completionHandler({ });
+        completionHandler(std::nullopt);
         return;
     }
 
@@ -3205,11 +3206,11 @@ void NetworkProcess::restoreLocalStorage(PAL::SessionID sessionID, HashMap<WebCo
     session->protectedStorageManager()->restoreLocalStorage(WTFMove(localStorageMap), WTFMove(completionHandler));
 }
 
-void NetworkProcess::fetchSessionStorage(PAL::SessionID sessionID, WebPageProxyIdentifier pageID, CompletionHandler<void(HashMap<WebCore::ClientOrigin, HashMap<String, String>>&&)>&& completionHandler)
+void NetworkProcess::fetchSessionStorage(PAL::SessionID sessionID, WebPageProxyIdentifier pageID, CompletionHandler<void(std::optional<HashMap<WebCore::ClientOrigin, HashMap<String, String>>>&&)>&& completionHandler)
 {
     CheckedPtr session = networkSession(sessionID);
     if (!session) {
-        completionHandler({ });
+        completionHandler(std::nullopt);
         return;
     }
 

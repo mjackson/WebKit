@@ -54,7 +54,7 @@ public:
         BasicBlock* loopBody(uint32_t i) { return loop->at(i).node(); }
         BasicBlock* header() const { return loop->header().node(); }
         // If operand is a constant, it indicates that we can do fully unrolling.
-        bool shouldFullyUnroll() const { return std::holds_alternative<CheckedInt32>(operand); }
+        bool shouldFullyUnroll() const { return std::holds_alternative<CheckedInt32>(operand) && std::holds_alternative<CheckedInt32>(initialValue); }
 
         Node* condition() const
         {
@@ -73,8 +73,8 @@ public:
 
         // for (i = initialValue; condition(i, operand); i = update(i, updateValue)) { ... }
         Node* inductionVariable { nullptr };
-        CheckedInt32 initialValue { INT_MIN };
-        std::variant<Node*, CheckedInt32> operand { INT_MIN };
+        std::variant<std::monostate, Node*, CheckedInt32> initialValue { };
+        std::variant<std::monostate, Node*, CheckedInt32> operand { };
         Node* update { nullptr };
         CheckedInt32 updateValue { INT_MIN };
         CheckedUint32 iterationCount { 0 };
@@ -159,7 +159,7 @@ public:
 
         LoopData data = { loop };
 
-        if (!shouldUnrollLoop(data))
+        if (Options::disallowLoopUnrollingForNonInnermost() && !data.loop->isInnerMostLoop())
             return false;
 
         // PreHeader                          PreHeader
@@ -188,6 +188,17 @@ public:
         if (!identifyInductionVariable(data))
             return false;
         dataLogLnIf(Options::verboseLoopUnrolling(), "\tFound InductionVariable with LoopData=", data);
+
+        if (!isLoopBodyUnrollable(data))
+            return false;
+        dataLogLnIf(Options::verboseLoopUnrolling(), "\tFound LoopBody is within threshold and clonable");
+
+        if (!Options::usePartialLoopUnrolling()) {
+            if (!data.shouldFullyUnroll()) {
+                dataLogLnIf(Options::verboseLoopUnrolling(), "\tPartial Unrolling is disabled");
+                return false;
+            }
+        }
 
         BasicBlock* header = data.header();
         unrollLoop(data);
@@ -229,44 +240,40 @@ public:
     bool locateTail(LoopData& data)
     {
         BasicBlock* header = data.header();
-        BasicBlock* tail = nullptr;
 
+        // TailBlock: A block that branches back to the header (i.e., loop back edge)
+        BasicBlock* tail = nullptr;
         for (BasicBlock* predecessor : header->predecessors) {
             if (!m_graph.m_cpsDominators->dominates(header, predecessor))
                 continue;
-
             if (tail) {
                 dataLogLnIf(Options::verboseLoopUnrolling(), "Skipping loop with header ", *header, " since it contains two tails: ", *predecessor, " and ", *tail);
                 return false;
             }
-
             tail = predecessor;
         }
-
         if (!tail) {
             dataLogLnIf(Options::verboseLoopUnrolling(), "Skipping loop with header ", *header, " since it has no tail");
             return false;
         }
 
-        // PreHeader                          PreHeader
-        //  |                                  |
-        // Header <---                        Header_0
-        //  |        |       unrolled to       |
-        //  |       Tail  =================>  Branch_0
-        //  |        |                         |
-        // Branch ----                        Tail_0
-        //  |                                  |
-        // Next                               ...
-        //                                     |
-        //                                    Header_n
-        //                                     |
-        //                                    Branch_n
-        //                                     |
-        //                                    Next
-        //
-        // FIXME: This is not supported yet. We should do it only if it's profitable.
-        if (!tail->terminal()->isBranch()) {
-            dataLogLnIf(Options::verboseLoopUnrolling(), "Skipping loop with header ", *header, " since it has a non-branch tail");
+        // ExitBlock: A block that exits the loop.
+        BasicBlock* exit = nullptr;
+        for (unsigned i = 0; i < data.loopSize(); ++i) {
+            BasicBlock* body = data.loopBody(i);
+            for (BasicBlock* successor : body->successors()) {
+                if (data.loop->contains(successor))
+                    continue;
+                if (exit) {
+                    dataLogLnIf(Options::verboseLoopUnrolling(), "Skipping loop with header ", *header, " since it contains two exit blocks: ", *body, " and ", *exit);
+                    return false;
+                }
+                exit = body;
+            }
+        }
+
+        if (tail != exit) {
+            dataLogLnIf(Options::verboseLoopUnrolling(), "Skipping loop with header ", *header, " since the exit ", *exit, " and tail ", *tail, " are not the same one");
             return false;
         }
 
@@ -329,10 +336,8 @@ public:
             Edge operand = condition->child2();
             if (operand->isInt32Constant() && operand.useKind() == Int32Use)
                 data.operand = operand->asInt32();
-            else if (Options::usePartialLoopUnrolling())
-                data.operand = operand.node();
             else
-                return false;
+                data.operand = operand.node();
             data.update = condition->child1().node();
             data.updateValue = update->child2()->asInt32();
             data.inductionVariable = condition->child1()->child1().node();
@@ -345,14 +350,18 @@ public:
 
         auto isInitialValueValid = [&]() ALWAYS_INLINE_LAMBDA {
             Node* initialization = nullptr;
-            for (Node* n : *data.preHeader) {
-                if (n->op() != SetLocal || !data.isInductionVariable(n))
+            for (Node* node : *data.preHeader) {
+                if (node->op() != SetLocal || !data.isInductionVariable(node))
                     continue;
-                initialization = n;
+                initialization = node;
             }
-            if (!initialization || !initialization->child1()->isInt32Constant())
+            if (!initialization)
                 return false;
-            data.initialValue = initialization->child1()->asInt32();
+            Node* initialValue = initialization->child1().node();
+            if (initialValue->isInt32Constant())
+                data.initialValue = initialValue->asInt32();
+            else
+                data.initialValue = initialValue;
             return true;
         };
         if (!isInitialValueValid()) {
@@ -388,7 +397,7 @@ public:
             CheckedUint32 iterationCount = 0;
             auto compare = comparisonFunction(condition, data.inverseCondition);
             auto update = updateFunction(data.update);
-            for (CheckedInt32 i = data.initialValue; compare(i, std::get<CheckedInt32>(data.operand));) {
+            for (CheckedInt32 i = std::get<CheckedInt32>(data.initialValue); compare(i, std::get<CheckedInt32>(data.operand));) {
                 if (iterationCount > Options::maxLoopUnrollingIterationCount()) {
                     dataLogLnIf(Options::verboseLoopUnrolling(), "Skipping loop with header ", *data.header(), " since maxLoopUnrollingIterationCount =", Options::maxLoopUnrollingIterationCount());
                     return false;
@@ -413,11 +422,8 @@ public:
         return true;
     }
 
-    bool shouldUnrollLoop(LoopData& data)
+    bool isLoopBodyUnrollable(LoopData& data)
     {
-        if (Options::disallowLoopUnrollingForNonInnermost() && !data.loop->isInnerMostLoop())
-            return false;
-
         uint32_t materialNodeCount = 0;
         uint32_t maxLoopUnrollingBodyNodeSize = data.shouldFullyUnroll() ? Options::maxLoopUnrollingBodyNodeSize() : Options::maxPartialLoopUnrollingBodyNodeSize();
         for (uint32_t i = 0; i < data.loopSize(); ++i) {
@@ -648,11 +654,15 @@ void LoopUnrollingPhase::LoopData::dump(PrintStream& out) const
         out.print("<null>");
     out.print(", ");
 
-    out.print("initValue=", initialValue, ", ");
-    if (shouldFullyUnroll())
-        out.print("operand=", std::get<CheckedInt32>(operand), ", ");
-    else
-        out.print("operand=", std::get<Node*>(operand), ", ");
+    if (auto* value = std::get_if<CheckedInt32>(&initialValue))
+        out.print("initValue=", *value, ", ");
+    else if (auto* value = std::get_if<Node*>(&initialValue))
+        out.print("initValue=", *value, ", ");
+
+    if (auto* value = std::get_if<CheckedInt32>(&operand))
+        out.print("operand=", *value, ", ");
+    else if (auto* value = std::get_if<Node*>(&operand))
+        out.print("operand=", *value, ", ");
 
     out.print("update=");
     if (update)

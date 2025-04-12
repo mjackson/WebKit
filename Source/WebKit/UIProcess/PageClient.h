@@ -51,7 +51,6 @@
 #include <WebCore/TextAnimationTypes.h>
 #include <WebCore/UserInterfaceLayoutDirection.h>
 #include <WebCore/ValidationBubble.h>
-#include <variant>
 #include <wtf/CompletionHandler.h>
 #include <wtf/Forward.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -119,7 +118,7 @@ class WebMediaSessionManager;
 class SelectionData;
 #endif
 
-enum class ElementIdentifierType;
+struct ElementIdentifierType;
 enum class MouseEventPolicy : uint8_t;
 enum class RouteSharingPolicy : uint8_t;
 enum class ScrollbarStyle : uint8_t;

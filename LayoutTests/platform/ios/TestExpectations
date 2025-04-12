@@ -1801,9 +1801,6 @@ fast/flexbox/overhanging-floats-removed.html [ Failure ]
 fast/forms/autofocus-opera-003.html [ Failure ]
 fast/forms/button-with-float.html [ ImageOnlyFailure ]
 
-# <rdar://122127465>
-fast/forms/ios/focus-input-in-fixed.html [ Pass Crash ]
-
 fast/forms/datalist/input-list.html [ Failure ]
 fast/forms/fieldset-legend-padding-unclipped-fieldset-border.html [ Failure ]
 fast/forms/fieldset-with-float.html [ Failure ]
@@ -1884,7 +1881,6 @@ fast/multicol/single-line.html [ Failure ]
 fast/multicol/span/generated-child-split-flow-crash.html [ Failure ]
 fast/multicol/split-in-top-margin.html [ ImageOnlyFailure ]
 fast/multicol/vertical-rl/rule-style.html [ Failure ]
-fast/multicol/simple-line-layout-line-index-after-strut.html [ ImageOnlyFailure ]
 fast/overflow/horizontal-scroll-after-back.html [ Failure ]
 fast/overflow/overflow-y-scroll.html [ Failure ]
 fast/overflow/scrollbar-restored-and-then-locked.html [ Failure ]
@@ -4531,9 +4527,7 @@ fast/images/hdr-pseudo-before-image.html [ Pass ]
 fast/images/hdr-svg-inline-image.html [ Pass ]
 
 # Re-enabling tests fixed by DocumentManager in iOS16+ rdar://102159271
-fast/forms/ios/file-upload-panel-capture.html [ Pass Crash ] # remove crash after this is resolved: webkit.org/b/268568
 fast/forms/ios/show-file-upload-context-menu-above-keyboard.html [ Pass ]
-fast/forms/ios/file-upload-panel-accept.html [ Pass ]
 
 # rdar://110034620 (REGRESSION ( iOS17 ): [ iOS17 ] compositing/clipping/nested-overflow-with-border-radius.html is a consistent image failure)
 compositing/clipping/nested-overflow-with-border-radius.html [ ImageOnlyFailure ]
@@ -7682,8 +7676,6 @@ webkit.org/b/286318 http/tests/iframe-monitor [ Pass ]
 
 webkit.org/b/287291 http/tests/site-isolation/selection-focus.html [ ImageOnlyFailure ]
 
-webkit.org/b/287660 fast/forms/ios/file-upload-panel.html [ Pass Crash ]
-
 webkit.org/b/287672 imported/w3c/web-platform-tests/css/css-cascade/all-prop-initial-xml.html [ Failure ]
 
 webkit.org/b/287741 fast/viewport/ios/non-responsive-viewport-after-changing-view-scale.html [ Pass Failure ]
@@ -7837,3 +7829,22 @@ webkit.org/b/291099 imported/w3c/web-platform-tests/css/css-view-transitions/upd
 webkit.org/b/291108 [ Release ] imported/w3c/web-platform-tests/html/webappapis/dynamic-markup-insertion/document-write/049.html [ Pass Timeout ]
 
 webkit.org/b/291115 imported/w3c/web-platform-tests/websockets/back-forward-cache-with-closed-websocket-connection-ccns.tentative.window.html [ Pass Failure ]
+
+webkit.org/b/290568 fast/multicol/simple-line-layout-line-index-after-strut.html [ Crash ImageOnlyFailure ]
+
+webkit.org/b/291278 http/tests/IndexedDB/storage-limit-1.https.html [ Pass Failure ]
+
+# webkit.org/b/291345 [ iOS ] 7x imported/w3c/web-platform-tests/trusted-types/ServiceWorkerContainer-*.https.html are flaky failures. 
+imported/w3c/web-platform-tests/trusted-types/ServiceWorkerContainer-register.https.html [ Pass Failure ]
+imported/w3c/web-platform-tests/trusted-types/ServiceWorker-block-eval-function-constructor.https.html [ Pass Failure ]
+imported/w3c/web-platform-tests/trusted-types/ServiceWorker-eval.https.html [ Pass Failure ]
+imported/w3c/web-platform-tests/trusted-types/ServiceWorker-importScripts.https.html [ Pass Failure ]
+imported/w3c/web-platform-tests/trusted-types/ServiceWorkerContainer-register-from-DedicatedWorker.https.html [ Pass Failure ]
+imported/w3c/web-platform-tests/trusted-types/ServiceWorkerContainer-register-from-ServiceWorker.https.html [ Pass Failure ]
+imported/w3c/web-platform-tests/trusted-types/ServiceWorkerContainer-register-from-SharedWorker.https.html [ Pass Failure ]
+
+webkit.org/b/291436 http/tests/security/contentSecurityPolicy/extensions/manifest-v3/default-src/manifest-v3-default-src-block-wildcard.html [ Failure ]
+
+webkit.org/b/291451 imported/w3c/web-platform-tests/navigation-api/navigation-methods/return-value/navigate-intercept-interrupted.html [ Pass Crash ]
+
+webkit.org/b/291456 fast/forms/state-restore-per-form.html [ Pass Timeout ]

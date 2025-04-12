@@ -4336,7 +4336,7 @@ FOR_EACH_PRIVATE_WKCONTENTVIEW_ACTION(FORWARD_ACTION_TO_WKWEBVIEW)
 {
     if (!_page->editorState().postLayoutData)
         return nil;
-    return (NSString *)_page->editorState().postLayoutData->wordAtSelection;
+    return _page->editorState().postLayoutData->wordAtSelection.createNSString().autorelease();
 }
 
 - (NSArray *)alternativesForSelectedText
@@ -14047,7 +14047,7 @@ static inline WKTextAnimationType toWKTextAnimationType(WebCore::TextAnimationTy
         return;
 
     if (data.style == WebCore::TextAnimationType::Final)
-        [_sourceAnimationIDtoDestinationAnimationID setObject:uuid forKey:data.sourceAnimationUUID];
+        [_sourceAnimationIDtoDestinationAnimationID setObject:uuid forKey:data.sourceAnimationUUID.createNSUUID().get()];
 
     if (!_textAnimationManager)
         _textAnimationManager = adoptNS([WebKit::allocWKSTextAnimationManagerInstance() initWithDelegate:self]);

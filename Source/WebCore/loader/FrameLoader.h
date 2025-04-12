@@ -308,6 +308,7 @@ public:
     bool quickRedirectComing() const { return m_quickRedirectComing; }
 
     WEBCORE_EXPORT bool shouldClose();
+    MayNeedBeforeUnloadPrompt mayNeedBeforeUnloadPrompt();
 
     enum class PageDismissalType { None,
         BeforeUnload,

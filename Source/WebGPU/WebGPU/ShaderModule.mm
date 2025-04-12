@@ -94,16 +94,14 @@ ALLOW_DEPRECATED_DECLARATIONS_BEGIN
 ALLOW_DEPRECATED_DECLARATIONS_END
 #endif
     // FIXME(PERFORMANCE): Run the asynchronous version of this
-    id<MTLLibrary> library = [device newLibraryWithSource:msl options:options error:error];
+    id<MTLLibrary> library = [device newLibraryWithSource:msl.createNSString().get() options:options error:error];
     if (error && *error) {
-        *error = [NSError errorWithDomain:@"WebGPU" code:1 userInfo:@{ NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Failed to compile the shader source, generated metal:\n%@", (NSString*)msl] }];
-#ifndef NDEBUG
         // FIXME: https://bugs.webkit.org/show_bug.cgi?id=250442
         WTFLogAlways("MSL compilation error: %@", [*error localizedDescription]);
-#endif
+        *error = [NSError errorWithDomain:@"WebGPU" code:1 userInfo:@{ NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Failed to compile the shader source, generated metal:\n%@ - error %@", (NSString*)msl, [*error localizedDescription]] }];
         return nil;
     }
-    library.label = label;
+    library.label = label.createNSString().get();
     return library;
 }
 
@@ -784,7 +782,7 @@ void ShaderModule::getCompilationInfo(CompletionHandler<void(WGPUCompilationInfo
 void ShaderModule::setLabel(String&& label)
 {
     if (m_library)
-        m_library.label = label;
+        m_library.label = label.createNSString().get();
 }
 
 static auto wgslBindingType(WGPUBufferBindingType bindingType)
