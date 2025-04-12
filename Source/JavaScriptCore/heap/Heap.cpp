@@ -94,6 +94,11 @@
 #include <wtf/Threading.h>
 #include "InternalFieldTuple.h"
 
+#if USE(BUN_JSC_ADDITIONS)
+#include "JSString.h"
+#include <wtf/text/ExternalStringImpl.h>
+#endif
+
 #if USE(BMALLOC_MEMORY_FOOTPRINT_API)
 #include <bmalloc/bmalloc.h>
 #endif
@@ -333,6 +338,10 @@ Heap::Heap(VM& vm, HeapType heapType)
     , m_threadLock(Box<Lock>::create())
     , m_threadCondition(AutomaticThreadCondition::create())
 
+#if USE(BUN_JSC_ADDITIONS)
+    , m_largeStringWeakSet(vm)
+#endif
+
     // HeapCellTypes
     , auxiliaryHeapCellType(CellAttributes(DoesNotNeedDestruction, HeapCell::Auxiliary))
     , immutableButterflyHeapCellType(CellAttributes(DoesNotNeedDestruction, HeapCell::JSCellWithIndexingHeader))
@@ -391,7 +400,6 @@ Heap::Heap(VM& vm, HeapType heapType)
     , webAssemblyTableHeapCellType(IsoHeapCellType::Args<JSWebAssemblyTable>())
     , webAssemblyTagHeapCellType(IsoHeapCellType::Args<JSWebAssemblyTag>())
 #endif
-
     // AlignedMemoryAllocators
     , fastMallocAllocator(makeUnique<FastMallocAlignedMemoryAllocator>())
     , primitiveGigacageAllocator(makeUnique<GigacageAlignedMemoryAllocator>(Gigacage::Primitive))
@@ -732,6 +740,36 @@ void Heap::addReference(JSCell* cell, ArrayBuffer* buffer)
         didAllocate(buffer->gcSizeEstimateInBytes());
     }
 }
+
+#if USE(BUN_JSC_ADDITIONS)
+
+class LargeStringHandleOwner : public WeakHandleOwner {
+public:
+    void finalize(JSC::Handle<JSC::Unknown>, void* context) final;
+};
+
+static inline WeakHandleOwner* wrapperOwner()
+{
+    static NeverDestroyed<LargeStringHandleOwner> owner;
+    return &owner.get();
+}
+
+void LargeStringHandleOwner::finalize(Handle<Unknown> handle, void* /*context*/) {
+    JSCell* cell = handle.slot()->asCell();
+    JSString* jsString = static_cast<JSString*>(cell);
+    ASSERT(!jsString->isRope());
+    const StringImpl* stringImpl = jsString->tryGetValueImpl();
+    ExternalStringImpl* externalImpl = const_cast<ExternalStringImpl*>(reinterpret_cast<const ExternalStringImpl*>(stringImpl));
+    if (externalImpl->hasOneRef()) {
+        externalImpl->releaseBufferEarly();
+    }
+}
+
+void Heap::registerLargeString(JSString* string)
+{
+    m_largeStringWeakSet.allocate(string, wrapperOwner(), 0);
+}
+#endif
 
 template<typename CellType, typename CellSet>
 void Heap::finalizeMarkedUnconditionalFinalizers(CellSet& cellSet, CollectionScope collectionScope)

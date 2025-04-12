@@ -41,6 +41,9 @@ public:
     WTF_EXPORT_PRIVATE static Ref<ExternalStringImpl> createStatic(std::span<const LChar> characters);
     WTF_EXPORT_PRIVATE static Ref<ExternalStringImpl> createStatic(std::span<const UChar> characters);
 
+    void releaseBufferEarly();
+    static const uintptr_t isAlreadyReleasedMarker = 0xDEADB33F;
+
 private:
     friend class StringImpl;
 
@@ -57,7 +60,8 @@ private:
 
 ALWAYS_INLINE void ExternalStringImpl::freeExternalBuffer(void* buffer, unsigned bufferSize)
 {
-    m_free(m_freeCtx, buffer, bufferSize);
+    if (LIKELY(reinterpret_cast<uintptr_t>(m_freeCtx) != isAlreadyReleasedMarker))
+        m_free(m_freeCtx, buffer, bufferSize);
 }
 
 } // namespace WTF

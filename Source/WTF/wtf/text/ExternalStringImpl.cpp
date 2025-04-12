@@ -91,5 +91,11 @@ ExternalStringImpl::ExternalStringImpl(std::span<const UChar> characters, Extern
     m_refCount |= s_refCountFlagIsStaticString;
 }
 
+void ExternalStringImpl::releaseBufferEarly()
+{
+    void* free_ctx = std::exchange(m_freeCtx, reinterpret_cast<void*>(isAlreadyReleasedMarker));
+    if (reinterpret_cast<uintptr_t>(free_ctx) != isAlreadyReleasedMarker)
+        m_free(free_ctx, const_cast<LChar*>(m_data8), m_length);
+}
 
 } // namespace WTF
