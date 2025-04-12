@@ -758,11 +758,16 @@ void LargeStringHandleOwner::finalize(Handle<Unknown> handle, void* /*context*/)
     JSCell* cell = handle.slot()->asCell();
     JSString* jsString = static_cast<JSString*>(cell);
     ASSERT(!jsString->isRope());
+
     const StringImpl* stringImpl = jsString->tryGetValueImpl();
-    ExternalStringImpl* externalImpl = const_cast<ExternalStringImpl*>(reinterpret_cast<const ExternalStringImpl*>(stringImpl));
-    if (externalImpl->hasOneRef()) {
-        externalImpl->releaseBufferEarly();
+    if (LIKELY(stringImpl)) {
+        ExternalStringImpl* externalImpl = const_cast<ExternalStringImpl*>(reinterpret_cast<const ExternalStringImpl*>(stringImpl));
+        if (externalImpl->hasOneRef()) {
+            externalImpl->releaseBufferEarly();
+        }
     }
+
+     JSC::WeakSet::deallocate(JSC::WeakImpl::asWeakImpl(handle.slot()));
 }
 
 void Heap::registerLargeString(JSString* string)
