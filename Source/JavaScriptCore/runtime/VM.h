@@ -165,6 +165,7 @@ class Waiter;
 constexpr bool validateDFGDoesGC = ENABLE_DFG_DOES_GC_VALIDATION;
 
 #if USE(BUN_JSC_ADDITIONS)
+using StackTraceAppenderFunction = WTF::Function<void(VM&, JSCell* owner, Vector<StackFrame>& stackTrace, size_t maxToAppend)>;
 using ErrorInfoFunction = WTF::Function<String(VM&, Vector<StackFrame>& stackTrace, unsigned& line, unsigned& column, String& sourceURL)>;
 using ErrorInfoFunctionJSValue = WTF::Function<JSValue(VM&, Vector<StackFrame>& stackTrace, unsigned& line, unsigned& column, String& sourceURL, JSC::JSObject*)>;
 #endif
@@ -908,6 +909,9 @@ public:
     ShadowChicken& ensureShadowChicken() { return m_shadowChicken.get(*this); }
     
 #if USE(BUN_JSC_ADDITIONS)
+    const StackTraceAppenderFunction& onAppendStackTrace() const { return m_onAppendStackTrace; }
+    StackTraceAppenderFunction& onAppendStackTrace() { return m_onAppendStackTrace; }
+    
     const ErrorInfoFunction& onComputeErrorInfo() const { return m_onComputeErrorInfo; }
     ErrorInfoFunction& onComputeErrorInfo() { return m_onComputeErrorInfo; }
     
@@ -917,6 +921,7 @@ public:
     const WTF::Function<void(VM&, SourceProvider*, LineColumn&)>& computeLineColumnWithSourcemap() const { return m_computeLineColumnWithSourcemap; }
     WTF::Function<void(VM&, SourceProvider*, LineColumn&)>& computeLineColumnWithSourcemap() { return m_computeLineColumnWithSourcemap; }
     
+    void setOnAppendStackTrace(StackTraceAppenderFunction&& function) { m_onAppendStackTrace = WTFMove(function); }
     void setOnComputeErrorInfo(ErrorInfoFunction&& function) { m_onComputeErrorInfo = WTFMove(function); }
     void setOnComputeErrorInfoJSValue(ErrorInfoFunctionJSValue&& function) { m_onComputeErrorInfoJSValue = WTFMove(function); }
     void setComputeLineColumnWithSourcemap(WTF::Function<void(VM&, SourceProvider*, LineColumn&)>&& function) { m_computeLineColumnWithSourcemap = WTFMove(function); }
@@ -1118,6 +1123,7 @@ private:
 #if USE(BUN_JSC_ADDITIONS)
     ErrorInfoFunction m_onComputeErrorInfo;
     ErrorInfoFunctionJSValue m_onComputeErrorInfoJSValue;
+    StackTraceAppenderFunction m_onAppendStackTrace;
     WTF::Function<void(VM&, SourceProvider*, LineColumn&)> m_computeLineColumnWithSourcemap;
 #endif
     uintptr_t m_currentWeakRefVersion { 0 };

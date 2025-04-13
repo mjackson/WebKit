@@ -583,6 +583,15 @@ void Interpreter::getStackTrace(JSCell* owner, Vector<StackFrame>& results, size
     GetStackTraceFunctor functor(vm, owner, results, skippedFrames - skippedFramesInReconstructedFrames, reconstructedFrames.size());
     StackVisitor::visit(callFrame, vm, functor);
     ASSERT(functor.frameCountInResults() == results.size());
+
+#if USE(BUN_JSC_ADDITIONS)
+    // Add the single async frame if it exists and we have space
+    if (maxStackSize > results.size()) {
+        const auto& appender = vm.onAppendStackTrace();
+        if (appender)
+            appender(vm, owner, results, maxStackSize - results.size());
+    }
+#endif
 }
 
 String Interpreter::stackTraceAsString(VM& vm, const Vector<StackFrame>& stackTrace)
