@@ -160,6 +160,12 @@ jobs:
             CMAKE_BUILD_TYPE: "Release"
             RELEASE_FLAGS: "-O3 -DNDEBUG=1"
           - lto_flag: ""
+            label: bun-webkit-linux-amd64
+            os: big-ubuntu
+            package_json_arch: "x64"
+            CMAKE_BUILD_TYPE: "Release"
+            RELEASE_FLAGS: "-O3 -DNDEBUG=1"
+          - lto_flag: ""
             label: bun-webkit-linux-amd64-asan
             os: big-ubuntu
             package_json_arch: "x64"
