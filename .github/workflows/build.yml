@@ -30,15 +30,6 @@ jobs:
             brew_prefix: /usr/local/opt
             package_json_arch: "x64"
             CMAKE_BUILD_TYPE: Debug
-          - runner: macos-13-large
-            cpp_flags: "-D_LIBCXX_ENABLE_ASSERTIONS=1"
-            cpu: haswell
-            label: bun-webkit-macos-amd64-debug-asan
-            brew_prefix: /usr/local/opt
-            package_json_arch: "x64"
-            CMAKE_BUILD_TYPE: Debug
-            ENABLE_MALLOC_HEAP_BREAKDOWN: "OFF"
-            ENABLE_SANITIZERS: "address"
           - runner: macos-13-xlarge
             cpp_flags: "-D_LIBCXX_ENABLE_ASSERTIONS=1"
             cpu: native
@@ -54,7 +45,7 @@ jobs:
             package_json_arch: "arm64"
             CMAKE_BUILD_TYPE: Debug
             ENABLE_MALLOC_HEAP_BREAKDOWN: "OFF"
-            ENABLE_SANITIZERS: "address"
+            ENABLE_SANITIZERS: "address,undefined"
           # We aren't doing LTO on macOS, for now.
           # - runner: macos-13-large
           #   cpp_flags: -flto=full -fwhole-program-vtables -fforce-emit-vtables -D_LIBCXX_ENABLE_ASSERTIONS=0
@@ -142,12 +133,14 @@ jobs:
             package_json_arch: "x64"
             CMAKE_BUILD_TYPE: "Debug"
             RELEASE_FLAGS: "-O3 -DNDEBUG=1"
+            ENABLE_SANITIZERS: "address,undefined"
           - lto_flag: ""
             label: bun-webkit-linux-arm64-debug
             os: linux-arm64-gh
             package_json_arch: "arm64"
             CMAKE_BUILD_TYPE: "Debug"
             RELEASE_FLAGS: "-O3 -DNDEBUG=1"
+            ENABLE_SANITIZERS: "address,undefined"
           - lto_flag: "-flto=full -fwhole-program-vtables -fforce-emit-vtables"
             label: bun-webkit-linux-arm64-lto
             os: linux-arm64-gh
@@ -166,18 +159,20 @@ jobs:
             package_json_arch: "x64"
             CMAKE_BUILD_TYPE: "Release"
             RELEASE_FLAGS: "-O3 -DNDEBUG=1"
-          - lto_flag: "-flto=full  -fwhole-program-vtables -fforce-emit-vtables -Os"
-            label: bun-webkit-linux-amd64-smol
-            os: big-ubuntu
-            package_json_arch: "x64"
-            CMAKE_BUILD_TYPE: "Release"
-            RELEASE_FLAGS: "-Os -DNDEBUG=1"
           - lto_flag: ""
-            label: bun-webkit-linux-amd64
+            label: bun-webkit-linux-amd64-asan
             os: big-ubuntu
             package_json_arch: "x64"
             CMAKE_BUILD_TYPE: "Release"
             RELEASE_FLAGS: "-O3 -DNDEBUG=1"
+            ENABLE_SANITIZERS: "address,undefined"
+          - lto_flag: ""
+            label: bun-webkit-linux-arm64-asan
+            os: linux-arm64-gh
+            package_json_arch: "arm64"
+            CMAKE_BUILD_TYPE: "Release"
+            RELEASE_FLAGS: "-O3 -DNDEBUG=1"
+            ENABLE_SANITIZERS: "address,undefined"
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
@@ -194,9 +189,10 @@ jobs:
       - name: Run
         env:
           RELEASE_FLAGS: ${{matrix.RELEASE_FLAGS}}
+          ENABLE_SANITIZERS: ${{matrix.ENABLE_SANITIZERS}}
         run: |
           rm -rf ${{runner.temp}}/bun-webkit ${{runner.temp}}/bun-webkit.tar.gz
-          WEBKIT_RELEASE_TYPE=${{matrix.CMAKE_BUILD_TYPE}} CPU="native" cpu=native LTO_FLAG="${{matrix.lto_flag}}" temp=${{runner.temp}} bash release.sh
+          WEBKIT_RELEASE_TYPE=${{matrix.CMAKE_BUILD_TYPE}} CPU="native" cpu=native LTO_FLAG="${{matrix.lto_flag}}" temp=${{runner.temp}} ENABLE_SANITIZERS=$ENABLE_SANITIZERS bash release.sh
           cd ${{runner.temp}}
           echo "#define BUN_WEBKIT_VERSION \"${{github.sha}}\"" >> bun-webkit/include/cmakeconfig.h
           echo '{ "name": "${{matrix.label}}", "version": "0.0.1-${{github.sha}}", "os": ["linux"], "cpu": ["${{matrix.package_json_arch}}"], "repository": "https://github.com/${{github.repository}}" }' > bun-webkit/package.json
@@ -371,10 +367,6 @@ jobs:
           path: ${{runner.temp}}/bun-webkit-macos-amd64-debug
       - uses: actions/download-artifact@v4
         with:
-          name: bun-webkit-macos-amd64-debug-asan
-          path: ${{runner.temp}}/bun-webkit-macos-amd64-debug-asan
-      - uses: actions/download-artifact@v4
-        with:
           name: bun-webkit-macos-amd64
           path: ${{runner.temp}}/bun-webkit-macos-amd64
       - uses: actions/download-artifact@v4
@@ -417,10 +409,6 @@ jobs:
         with:
           name: bun-webkit-linux-arm64-musl-lto
           path: ${{runner.temp}}/bun-webkit-linux-arm64-musl-lto
-      - uses: actions/download-artifact@v4
-        with:
-          name: bun-webkit-linux-amd64-smol
-          path: ${{runner.temp}}/bun-webkit-linux-amd64-smol
 
       - name: Rename files
         run: |
@@ -434,17 +422,17 @@ jobs:
           mv ${{runner.temp}}/bun-webkit-linux-arm64-debug/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-arm64-debug.tar.gz
           mv ${{runner.temp}}/bun-webkit-linux-amd64-musl-debug/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-amd64-musl-debug.tar.gz
           mv ${{runner.temp}}/bun-webkit-linux-arm64-musl-debug/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-arm64-musl-debug.tar.gz
+          mv ${{runner.temp}}/bun-webkit-linux-amd64-asan/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-amd64-asan.tar.gz
+          mv ${{runner.temp}}/bun-webkit-linux-arm64-asan/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-arm64-asan.tar.gz
           mv ${{runner.temp}}/bun-webkit-macos-arm64-debug/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-macos-arm64-debug.tar.gz
           mv ${{runner.temp}}/bun-webkit-macos-arm64-debug-asan/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-macos-arm64-debug-asan.tar.gz
           mv ${{runner.temp}}/bun-webkit-macos-amd64-debug/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-macos-amd64-debug.tar.gz
-          mv ${{runner.temp}}/bun-webkit-macos-amd64-debug-asan/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-macos-amd64-debug-asan.tar.gz
           mv ${{runner.temp}}/bun-webkit-linux-amd64-lto/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-amd64-lto.tar.gz
           mv ${{runner.temp}}/bun-webkit-linux-arm64-lto/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-arm64-lto.tar.gz
           mv ${{runner.temp}}/bun-webkit-linux-amd64-musl-lto/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-amd64-musl-lto.tar.gz
           mv ${{runner.temp}}/bun-webkit-linux-arm64-musl-lto/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-arm64-musl-lto.tar.gz
           mv ${{runner.temp}}/bun-webkit-windows-amd64/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-windows-amd64.tar.gz
           mv ${{runner.temp}}/bun-webkit-windows-amd64-debug/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-windows-amd64-debug.tar.gz
-          mv ${{runner.temp}}/bun-webkit-linux-amd64-smol/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-amd64-smol.tar.gz
       - name: Release
         uses: softprops/action-gh-release@v1
         id: release
@@ -459,7 +447,6 @@ jobs:
             ${{runner.temp}}/bun-webkit-macos-arm64-debug.tar.gz
             ${{runner.temp}}/bun-webkit-macos-arm64-debug-asan.tar.gz
             ${{runner.temp}}/bun-webkit-macos-amd64-debug.tar.gz
-            ${{runner.temp}}/bun-webkit-macos-amd64-debug-asan.tar.gz
             ${{runner.temp}}/bun-webkit-linux-amd64.tar.gz
             ${{runner.temp}}/bun-webkit-linux-arm64.tar.gz
             ${{runner.temp}}/bun-webkit-linux-amd64-musl.tar.gz
@@ -472,4 +459,5 @@ jobs:
             ${{runner.temp}}/bun-webkit-linux-arm64-musl-lto.tar.gz
             ${{runner.temp}}/bun-webkit-windows-amd64.tar.gz
             ${{runner.temp}}/bun-webkit-windows-amd64-debug.tar.gz
-            ${{runner.temp}}/bun-webkit-linux-amd64-smol.tar.gz
+            ${{runner.temp}}/bun-webkit-linux-amd64-asan.tar.gz
+            ${{runner.temp}}/bun-webkit-linux-arm64-asan.tar.gz

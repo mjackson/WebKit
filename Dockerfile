@@ -5,6 +5,7 @@ ARG LTO_FLAG="-flto=full -fwhole-program-vtables -fforce-emit-vtables "
 ARG RELEASE_FLAGS="-O3 -DNDEBUG=1"
 ARG LLVM_VERSION="19"
 ARG DEFAULT_CFLAGS="-mno-omit-leaf-frame-pointer -g -fno-omit-frame-pointer -ffunction-sections -fdata-sections -faddrsig -fno-unwind-tables -fno-asynchronous-unwind-tables -DU_STATIC_IMPLEMENTATION=1 "
+ARG ENABLE_SANITIZERS=""
 
 # Use different base images for ARM64 vs x86_64
 FROM --platform=$BUILDPLATFORM ubuntu:20.04 as base-arm64
@@ -19,6 +20,7 @@ ARG RELEASE_FLAGS
 ARG LLVM_VERSION
 ARG DEFAULT_CFLAGS
 ARG TARGETARCH
+ARG ENABLE_SANITIZERS
 
 # Prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
@@ -187,7 +189,11 @@ ENV RELEASE_FLAGS=${RELEASE_FLAGS}
 RUN --mount=type=tmpfs,target=/webkitbuild \
     export CFLAGS="$CFLAGS $LTO_FLAG -ffile-prefix-map=/webkit/Source=vendor/WebKit/Source  -ffile-prefix-map=/webkitbuild/=. " && \
     export CXXFLAGS="$CXXFLAGS $LTO_FLAG -fno-c++-static-destructors -ffile-prefix-map=/webkit/Source=vendor/WebKit/Source -ffile-prefix-map=/webkitbuild/=. " && \
+    export ENABLE_ASSERTS="AUTO" && \
     export LDFLAGS="-fuse-ld=lld $LDFLAGS " && \
+    if [ -n "$ENABLE_SANITIZERS" ]; then \
+        export ENABLE_ASSERTS="ON"; \
+    fi && \
     cd /webkitbuild && \
     cmake \
     -DPORT="JSCOnly" \
@@ -209,6 +215,8 @@ RUN --mount=type=tmpfs,target=/webkitbuild \
     -DCMAKE_C_FLAGS_RELEASE="$RELEASE_FLAGS" \
     -DCMAKE_CXX_FLAGS_RELEASE="$RELEASE_FLAGS" \
     -DICU_ROOT=/icu \
+    -DENABLE_SANITIZERS="$ENABLE_SANITIZERS" \
+    -DENABLE_ASSERTS="$ENABLE_ASSERTS" \
     -G Ninja \
     /webkit && \
     cd /webkitbuild && \

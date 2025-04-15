@@ -43,6 +43,7 @@ fi
 export DEBIAN_VERSION="bookworm"
 
 export temp=${temp:-"$(mktemp -d -t bun-webkit-linux-$BUILDKIT_ARCH-release-$(date +%s)-XXXX)"}
+export ENABLE_SANITIZERS=${ENABLE_SANITIZERS:-}
 
 mkdir -p $temp
 rm -rf $temp/bun-webkit
@@ -52,6 +53,7 @@ echo "Building $CONTAINER_NAME to $temp/bun-webkit"
 docker buildx build \
   -f Dockerfile \
   -t $CONTAINER_NAME \
+  --build-arg ENABLE_SANITIZERS=$ENABLE_SANITIZERS \
   --build-arg LTO_FLAG="$LTO_FLAG" \
   --build-arg RELEASE_FLAGS="$RELEASE_FLAGS" \
   --build-arg WEBKIT_RELEASE_TYPE=$WEBKIT_RELEASE_TYPE \
