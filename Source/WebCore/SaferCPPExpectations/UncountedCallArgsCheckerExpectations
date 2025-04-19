@@ -400,7 +400,6 @@ css/CSSCrossfadeValue.cpp
 css/CSSCursorImageValue.cpp
 css/CSSFontFace.cpp
 css/CSSFontFaceRule.cpp
-css/CSSFontFaceSet.cpp
 css/CSSFontFeatureValue.cpp
 css/CSSFontSelector.cpp
 css/CSSFontStyleRangeValue.cpp
@@ -511,7 +510,6 @@ dom/DOMImplementation.cpp
 dom/DataTransfer.cpp
 dom/DataTransferItemList.cpp
 dom/Document.cpp
-dom/DocumentFontLoader.cpp
 dom/DocumentFragment.cpp
 dom/DocumentStorageAccess.cpp
 dom/Element.cpp
@@ -815,7 +813,6 @@ loader/ApplicationManifestLoader.cpp
 loader/CrossOriginAccessControl.cpp
 loader/CrossOriginOpenerPolicy.cpp
 loader/CrossOriginPreflightChecker.cpp
-loader/DocumentLoader.cpp
 loader/DocumentThreadableLoader.cpp
 loader/DocumentWriter.cpp
 loader/FormSubmission.cpp
@@ -1177,7 +1174,6 @@ rendering/svg/SVGLayerTransformComputation.h
 rendering/svg/SVGRenderTreeAsText.cpp
 rendering/svg/SVGRenderingContext.cpp
 rendering/svg/SVGTextBoxPainter.cpp
-rendering/svg/SVGTextLayoutAttributesBuilder.cpp
 rendering/svg/legacy/LegacyRenderSVGEllipse.cpp
 rendering/svg/legacy/LegacyRenderSVGForeignObject.cpp
 rendering/svg/legacy/LegacyRenderSVGImage.cpp

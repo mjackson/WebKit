@@ -92,9 +92,9 @@ public:
 
     WEBCORE_EXPORT virtual bool isPaymentRequest() const;
 
-    using AddEventListenerOptionsOrBoolean = std::variant<AddEventListenerOptions, bool>;
+    using AddEventListenerOptionsOrBoolean = Variant<AddEventListenerOptions, bool>;
     WEBCORE_EXPORT void addEventListenerForBindings(const AtomString& eventType, RefPtr<EventListener>&&, AddEventListenerOptionsOrBoolean&&);
-    using EventListenerOptionsOrBoolean = std::variant<EventListenerOptions, bool>;
+    using EventListenerOptionsOrBoolean = Variant<EventListenerOptions, bool>;
     WEBCORE_EXPORT void removeEventListenerForBindings(const AtomString& eventType, RefPtr<EventListener>&&, EventListenerOptionsOrBoolean&&);
     WEBCORE_EXPORT ExceptionOr<bool> dispatchEventForBindings(Event&);
 
@@ -152,14 +152,14 @@ public:
     }
 
     template<typename CallbackType>
-    void enumerateEventListenerTypes(CallbackType callback) const
+    void enumerateEventListenerTypes(NOESCAPE const CallbackType& callback) const
     {
         if (auto* data = eventTargetData())
             data->eventListenerMap.enumerateEventListenerTypes(callback);
     }
 
     template<typename CallbackType>
-    bool containsMatchingEventListener(CallbackType callback) const
+    bool containsMatchingEventListener(NOESCAPE const CallbackType& callback) const
     {
         if (auto* data = eventTargetData())
             return data->eventListenerMap.containsMatchingEventListener(callback);

@@ -1444,6 +1444,12 @@ AXTextRuns AccessibilityRenderObject::textRuns()
         if (text.isEmpty())
             return;
 
+        if (textBox->style().textTransform().contains(TextTransform::FullSizeKana)) {
+            // We don't want to serve transformed kana text to AT since it is a visual affordance.
+            // Using the original text from the renderer provides the untransformed string.
+            text = textBox->renderer().originalText().substring(textBox->start(), textBox->length());
+        }
+
         bool collapseTabs = textBox->style().collapseWhiteSpace();
         bool collapseNewlines = !textBox->style().preserveNewline();
 
@@ -1739,7 +1745,7 @@ VisiblePosition AccessibilityRenderObject::visiblePositionForIndex(int index) co
     if (m_renderer) {
         if (isNativeTextControl()) {
             auto& textControl = uncheckedDowncast<RenderTextControl>(*m_renderer).textFormControlElement();
-            return textControl.visiblePositionForIndex(std::clamp(index, 0, static_cast<int>(textControl.value().length())));
+            return textControl.visiblePositionForIndex(std::clamp(index, 0, static_cast<int>(textControl.value()->length())));
         }
 
         if (!allowsTextRanges() && !is<RenderText>(*m_renderer))
@@ -1834,13 +1840,13 @@ void AccessibilityRenderObject::setSelectedVisiblePositionRange(const VisiblePos
                 auto innerRange = makeVisiblePositionRange(AXObjectCache::rangeForNodeContents(*innerText));
 
                 if (range.start.equals(textControlRange.end))
-                    start = textControl->value().length();
+                    start = textControl->value()->length();
                 else if (range.start <= innerRange.start)
                     start = 0;
 
                 if (range.end >= innerRange.end
                     || range.end.equals(textControlRange.end))
-                    end = textControl->value().length();
+                    end = textControl->value()->length();
             }
         }
 

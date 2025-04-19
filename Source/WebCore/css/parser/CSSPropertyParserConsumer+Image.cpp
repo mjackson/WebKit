@@ -735,7 +735,7 @@ template<CSSValueID Name> static RefPtr<CSSValue> consumeRadialGradient(CSSParse
 
     std::optional<ShapeKeyword> shape;
 
-    using Size = std::variant<CSS::RadialGradient::Extent, CSS::Length<CSS::Nonnegative>, SpaceSeparatedArray<CSS::LengthPercentage<CSS::Nonnegative>, 2>>;
+    using Size = Variant<CSS::RadialGradient::Extent, CSS::Length<CSS::Nonnegative>, SpaceSeparatedArray<CSS::LengthPercentage<CSS::Nonnegative>, 2>>;
     std::optional<Size> size;
 
     // First part of grammar, the size/shape clause:
@@ -1259,7 +1259,7 @@ RefPtr<CSSValue> consumeImage(CSSParserTokenRange& range, CSS::PropertyParserSta
     }
 
     if (allowedImageTypes.contains(AllowedImageType::URLFunction)) {
-        if (auto imageURL = consumeURLRaw(range, state))
+        if (auto imageURL = consumeURLRaw(range, state, { AllowedURLModifiers::CrossOrigin, AllowedURLModifiers::ReferrerPolicy }))
             return CSSImageValue::create(WTFMove(*imageURL));
     }
 

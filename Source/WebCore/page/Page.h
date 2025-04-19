@@ -615,7 +615,7 @@ public:
 
     // This can return nullopt if throttling reasons result in a frequency less than one, in which case
     // preferredRenderingUpdateInterval provides the frequency.
-    // FIXME: Have a single function that returns a std::variant<>.
+    // FIXME: Have a single function that returns a Variant<>.
     enum class PreferredRenderingUpdateOption : uint8_t {
         IncludeThrottlingReasons    = 1 << 0,
         IncludeAnimationsFrameRate  = 1 << 1
@@ -1319,7 +1319,7 @@ private:
 
     static void firstTimeInitialization();
 
-    WEBCORE_EXPORT void initGroup();
+    void initGroup();
 
     void setIsInWindowInternal(bool);
     void setIsVisibleInternal(bool);

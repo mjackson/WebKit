@@ -118,13 +118,6 @@ SOFT_LINK_CLASS_OPTIONAL(Synapse, SYNotesActivationObserver)
 #import <WebCore/RenderThemeMac.h>
 #endif
 
-#if PLATFORM(IOS) || PLATFORM(VISION)
-#import <pal/spi/cocoa/WebFilterEvaluatorSPI.h>
-
-SOFT_LINK_PRIVATE_FRAMEWORK(WebContentAnalysis);
-SOFT_LINK_CLASS(WebContentAnalysis, WebFilterEvaluator);
-#endif
-
 #if HAVE(SCREEN_CAPTURE_KIT)
 #import <WebCore/ScreenCaptureKitSharingSessionManager.h>
 #endif
@@ -303,7 +296,7 @@ void WebPageProxy::createSandboxExtensionsIfNeeded(const Vector<String>& files, 
 
     if (files.size() == 1) {
         BOOL isDirectory;
-        if ([[NSFileManager defaultManager] fileExistsAtPath:files[0] isDirectory:&isDirectory] && !isDirectory) {
+        if ([[NSFileManager defaultManager] fileExistsAtPath:files[0].createNSString().get() isDirectory:&isDirectory] && !isDirectory) {
             if (auto handle = createSandboxExtension("/"_s))
                 fileReadHandle = WTFMove(*handle);
             else if (auto handle = createSandboxExtension(files[0]))
@@ -313,7 +306,7 @@ void WebPageProxy::createSandboxExtensionsIfNeeded(const Vector<String>& files, 
     }
 
     for (auto& file : files) {
-        if (![[NSFileManager defaultManager] fileExistsAtPath:file])
+        if (![[NSFileManager defaultManager] fileExistsAtPath:file.createNSString().get()])
             continue;
         if (auto handle = createSandboxExtension(file))
             fileUploadHandles.append(WTFMove(*handle));
@@ -354,7 +347,7 @@ void WebPageProxy::platformRegisterAttachment(Ref<API::Attachment>&& attachment,
         return;
 
     RetainPtr fileWrapper = adoptNS([pageClient->allocFileWrapperInstance() initRegularFileWithContents:bufferCopy.unsafeBuffer()->createNSData().get()]);
-    [fileWrapper setPreferredFilename:preferredFileName];
+    [fileWrapper setPreferredFilename:preferredFileName.createNSString().get()];
     attachment->setFileWrapper(fileWrapper.get());
 }
 
@@ -367,7 +360,7 @@ void WebPageProxy::platformRegisterAttachment(Ref<API::Attachment>&& attachment,
     if (!pageClient)
         return;
 
-    RetainPtr fileWrapper = adoptNS([pageClient->allocFileWrapperInstance() initWithURL:[NSURL fileURLWithPath:filePath] options:0 error:nil]);
+    RetainPtr fileWrapper = adoptNS([pageClient->allocFileWrapperInstance() initWithURL:adoptNS([[NSURL alloc] initFileURLWithPath:filePath.createNSString().get()]).get() options:0 error:nil]);
     attachment->setFileWrapper(fileWrapper.get());
 }
 
@@ -490,7 +483,7 @@ PlatformTextAlternatives *WebPageProxy::platformDictationAlternatives(WebCore::D
 
 ResourceError WebPageProxy::errorForUnpermittedAppBoundDomainNavigation(const URL& url)
 {
-    return { WKErrorDomain, WKErrorNavigationAppBoundDomain, url, localizedDescriptionForErrorCode(WKErrorNavigationAppBoundDomain) };
+    return { WKErrorDomain, WKErrorNavigationAppBoundDomain, url, localizedDescriptionForErrorCode(WKErrorNavigationAppBoundDomain).get() };
 }
 
 WebPageProxy::Internals::~Internals() = default;
@@ -908,7 +901,7 @@ void WebPageProxy::startApplePayAMSUISession(URL&& originatingURL, ApplePayAMSUI
         return;
     }
 
-    RetainPtr amsRequest = adoptNS([allocAMSEngagementRequestInstance() initWithRequestDictionary:dynamic_objc_cast<NSDictionary>([NSJSONSerialization JSONObjectWithData:[WTFMove(request.engagementRequest) dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil])]);
+    RetainPtr amsRequest = adoptNS([allocAMSEngagementRequestInstance() initWithRequestDictionary:dynamic_objc_cast<NSDictionary>([NSJSONSerialization JSONObjectWithData:[request.engagementRequest.createNSString() dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil])]);
     [amsRequest setOriginatingURL:originatingURL.createNSURL().get()];
 
     auto amsBag = retainPtr([getAMSUIEngagementTaskClass() createBagForSubProfile]);
@@ -1022,7 +1015,7 @@ NSDictionary *WebPageProxy::contentsOfUserInterfaceItem(NSString *userInterfaceI
 #if PLATFORM(MAC)
 bool WebPageProxy::isQuarantinedAndNotUserApproved(const String& fileURLString)
 {
-    RetainPtr fileURL = adoptNS([[NSURL alloc] initWithString:fileURLString]);
+    RetainPtr fileURL = adoptNS([[NSURL alloc] initWithString:fileURLString.createNSString().get()]);
     if ([fileURL.get().pathExtension caseInsensitiveCompare:@"webarchive"] != NSOrderedSame)
         return false;
 
@@ -1366,7 +1359,7 @@ void WebPageProxy::addTextAnimationForAnimationIDWithCompletionHandler(IPC::Conn
     // Storing and sending information for the different shaped SPI on iOS.
     if (styleData.runMode == WebCore::TextAnimationRunMode::RunAnimation) {
         if (styleData.style == WebCore::TextAnimationType::Source)
-            internals().sourceAnimationIDtoDestinationAnimationID.add(styleData.destinationAnimationUUID, uuid);
+            internals().sourceAnimationIDtoDestinationAnimationID.add(*styleData.destinationAnimationUUID, uuid);
 
         if (styleData.style == WebCore::TextAnimationType::Final) {
             if (auto sourceAnimationID = internals().sourceAnimationIDtoDestinationAnimationID.take(uuid)) {

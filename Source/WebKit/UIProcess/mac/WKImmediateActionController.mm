@@ -477,7 +477,7 @@
     if (!hitTestResult)
         return nil;
 
-    RetainPtr menuItems = [[PAL::getDDActionsManagerClass() sharedManager] menuItemsForTargetURL:hitTestResult->absoluteLinkURL() actionContext:_currentActionContext.get()];
+    RetainPtr menuItems = [[PAL::getDDActionsManagerClass() sharedManager] menuItemsForTargetURL:hitTestResult->absoluteLinkURL().createNSString().get() actionContext:_currentActionContext.get()];
 
     if (menuItems.get().count != 1)
         return nil;
@@ -500,8 +500,8 @@
 
     return WebCore::DictionaryLookup::animationControllerForPopup(dictionaryPopupInfo, _view, [self](WebCore::TextIndicator& textIndicator) {
         CheckedPtr { _viewImpl.get() }->setTextIndicator(textIndicator, WebCore::TextIndicatorLifetime::Permanent);
-    }, nullptr, [self]() {
-        CheckedPtr { _viewImpl.get() }->clearTextIndicatorWithAnimation(WebCore::TextIndicatorDismissalAnimation::None);
+    }, nullptr, [strongSelf = retainPtr(self)]() {
+        CheckedPtr { strongSelf->_viewImpl.get() }->clearTextIndicatorWithAnimation(WebCore::TextIndicatorDismissalAnimation::None);
     });
 }
 

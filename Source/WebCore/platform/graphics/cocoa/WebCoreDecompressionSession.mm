@@ -95,6 +95,7 @@ Expected<RetainPtr<VTDecompressionSessionRef>, OSStatus> WebCoreDecompressionSes
         auto status = VTDecompressionSessionWaitForAsynchronousFrames(m_decompressionSession.get());
         Ref sample = MediaSampleAVFObjC::create(cmSample, 0);
         m_decompressionSession = nullptr;
+        m_isHardwareAccelerated.reset();
         if (!(sample->flags() & MediaSample::IsSync)) {
             RELEASE_LOG_INFO(Media, "VTDecompressionSession can't accept format description change on non-keyframe status:%d", int(status));
             return makeUnexpected(status == kVTInvalidSessionErr ? status : kVTVideoDecoderBadDataErr);
@@ -290,16 +291,22 @@ RetainPtr<CVPixelBufferRef> WebCoreDecompressionSession::decodeSampleSync(CMSamp
     return pixelBuffer;
 }
 
+bool WebCoreDecompressionSession::isNonRecoverableError(OSStatus status) const
+{
+    return status != noErr && status != kVTVideoDecoderReferenceMissingErr;
+}
+
 void WebCoreDecompressionSession::handleDecompressionOutput(bool displaying, OSStatus status, VTDecodeInfoFlags, CVImageBufferRef rawImageBuffer, CMTime presentationTimeStamp, CMTime presentationDuration)
 {
     assertIsCurrent(m_decompressionQueue.get());
 
-    if (status != noErr) {
+    if (isNonRecoverableError(status)) {
+        RELEASE_LOG_ERROR(Media, "Video sample decompression failed with error:%d", int(status));
         m_lastDecodingError = status;
         return;
     }
 
-    if (!displaying)
+    if (!displaying || !rawImageBuffer)
         return;
 
     CMVideoFormatDescriptionRef rawImageBufferDescription = nullptr;
@@ -370,6 +377,21 @@ Ref<MediaPromise> WebCoreDecompressionSession::initializeVideoDecoder(FourCharCo
     });
 
     return promise;
+}
+
+bool WebCoreDecompressionSession::isHardwareAccelerated() const
+{
+    Locker lock { m_lock };
+    if (m_videoDecoder)
+        return false;
+    if (m_isHardwareAccelerated)
+        return *m_isHardwareAccelerated;
+    if (!m_decompressionSession)
+        return false;
+    CFBooleanRef isHardwareAccelerated = NULL;
+    VTSessionCopyProperty(m_decompressionSession.get(), kVTDecompressionPropertyKey_UsingHardwareAcceleratedVideoDecoder, kCFAllocatorDefault, &isHardwareAccelerated);
+    m_isHardwareAccelerated = isHardwareAccelerated && isHardwareAccelerated == kCFBooleanTrue;
+    return *m_isHardwareAccelerated;
 }
 
 } // namespace WebCore

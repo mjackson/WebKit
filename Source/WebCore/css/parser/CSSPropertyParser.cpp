@@ -497,7 +497,7 @@ std::pair<RefPtr<CSSValue>, CSSCustomPropertySyntax::Type> CSSPropertyParser::co
         case CSSCustomPropertySyntax::Type::Image:
             return consumeImage(range, state, { AllowedImageType::URLFunction, AllowedImageType::GeneratedImage });
         case CSSCustomPropertySyntax::Type::URL:
-            return consumeURL(range, state);
+            return consumeURL(range, state, { });
         case CSSCustomPropertySyntax::Type::String:
             return consumeString(range);
         case CSSCustomPropertySyntax::Type::TransformFunction:
@@ -1096,7 +1096,7 @@ struct InitialNumericValue {
     double number;
     CSSUnitType type { CSSUnitType::CSS_NUMBER };
 };
-using InitialValue = std::variant<CSSValueID, InitialNumericValue>;
+using InitialValue = Variant<CSSValueID, InitialNumericValue>;
 
 static constexpr InitialValue initialValueForLonghand(CSSPropertyID longhand)
 {

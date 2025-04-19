@@ -71,8 +71,13 @@ namespace Metal {
     template <typename T>\n \
     auto __wgsl##__capitalizedName(T value)\n \
     {\n \
-        volatile auto result = __name(value);\n \
-        return result;\n \
+        if constexpr(__wgslMetalAppleGPUFamily < 9) { \n\
+            volatile auto result = __name(value);\n \
+            return result;\n \
+        } else { \n\
+            auto result = __name(value);\n \
+            return result;\n \
+        }\n \
     }\n)
 
 #define DEFINE_VOLATILE_HELPER(__name, __capitalizedName) \
@@ -2541,7 +2546,7 @@ void FunctionDefinitionWriter::visit(AST::DiscardStatement&)
 #if CPU(X86_64)
     m_body.append("__asm volatile(\"\"); discard_fragment()"_s);
 #else
-    m_body.append("discard_fragment()"_s);
+    m_body.append("{ volatile bool __wgslDiscardFragmentWorkaround = true; if (__wgslDiscardFragmentWorkaround) discard_fragment(); }"_s);
 #endif
 }
 

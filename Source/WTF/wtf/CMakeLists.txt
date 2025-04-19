@@ -144,6 +144,7 @@ set(WTF_PUBLIC_HEADERS
     JSValueMalloc.h
     KeyValuePair.h
     LEBDecoder.h
+    LLVMProfilingUtils.h
     Language.h
     LazyRef.h
     LazyUniqueRef.h
@@ -307,6 +308,7 @@ set(WTF_PUBLIC_HEADERS
     StackShotProfiler.h
     StackStats.h
     StackTrace.h
+    StatisticsManager.h
     StdFilesystem.h
     StdIntExtras.h
     StdLibExtras.h
@@ -367,6 +369,7 @@ set(WTF_PUBLIC_HEADERS
     VMTags.h
     ValidatedReinterpretCast.h
     ValueCheck.h
+    ValueOrReference.h
     Variant.h
     VariantExtras.h
     VariantList.h
@@ -605,6 +608,7 @@ set(WTF_SOURCES
     StackPointer.cpp
     StackStats.cpp
     StackTrace.cpp
+    StatisticsManager.cpp
     StringPrintStream.cpp
     SuspendableWorkQueue.cpp
     ThreadGroup.cpp

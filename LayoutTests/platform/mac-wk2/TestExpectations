@@ -2029,7 +2029,9 @@ webkit.org/b/288120 [ Sonoma+ Release ] fast/animation/request-animation-frame-t
 
 webkit.org/b/288404 [ Sonoma+ Release ] fast/text/canvas-color-fonts/stroke-gradient-COLR.html [ Pass ImageOnlyFailure ]
 
-webkit.org/b/287012 [ Sonoma+ Debug ] http/tests/pdf/linearized-pdf-in-iframe.html [ Pass Crash ]
+# webkit.org/b/287012 PDF tests crashing at WTF::Lock::assertIsOwner() under PDFPluginBase::streamedBytesForDebugLogging()
+[ Debug ] http/tests/pdf/linearized-pdf-in-iframe.html [ Pass Crash ]
+[ Debug ] http/tests/pdf/linearized-pdf-in-display-none-iframe.html [ Pass Crash ]
 
 webkit.org/b/288411 [ Sequoia x86_64 ] imported/w3c/web-platform-tests/webrtc/simulcast/getStats.https.html [ Failure ]
 
@@ -2102,8 +2104,6 @@ webkit.org/b/289370 [ Debug arm64 ] media/video-webm-seek-singlekeyframe.html [ 
 
 webkit.org/b/289487 [ Sequoia Release x86_64 ] fast/webgpu/nocrash/RenderBundle_WRITE.html [ Pass Timeout ]
 
-webkit.org/b/289556 [ Sequoia Release x86_64 ] fast/events/page-visibility-transition-test.html [ Pass Timeout ]
-
 webkit.org/b/289975 fast/css/mac/focus-ring-color-should-not-expose-accent-color.html [ Failure ]
 
 imported/w3c/web-platform-tests/css/css-position/backdrop-inherit-rendered.html [ Pass ImageOnlyFailure ]
@@ -2122,8 +2122,6 @@ webkit.org/b/290869 [ Debug ] ipc/send-gpu-GetShareableBitmap-RemoteRenderingBac
 
 webkit.org/b/290281 [ Sequoia Debug arm64 ] imported/w3c/web-platform-tests/svg/struct/scripted/svg-checkIntersection-001.svg [ Pass Timeout ]
 
-webkit.org/b/291035 webaudio/decode-audio-data-too-short.html [ Pass Failure ]
-
 webkit.org/b/291108 [ Sequoia Debug ] imported/w3c/web-platform-tests/html/webappapis/dynamic-markup-insertion/document-write/049.html [ Pass Timeout ]
 
 webkit.org/b/291115 [ Sequoia Debug ] imported/w3c/web-platform-tests/websockets/back-forward-cache-with-closed-websocket-connection-ccns.tentative.window.html [ Pass Failure ]
@@ -2134,4 +2132,4 @@ webkit.org/b/291236 [ Debug ] http/tests/pdf/page-in-window-update-with-lineariz
 
 webkit.org/b/291394 [ Debug ] imported/w3c/web-platform-tests/wasm/webapi/esm-integration/script-src-blocks-wasm.tentative.sub.html [ Pass Failure ]
 
-webkit.org/b/291436 http/tests/security/contentSecurityPolicy/extensions/manifest-v3/default-src/manifest-v3-default-src-block-wildcard.html [ Failure ]
+webkit.org/b/291710 [ Debug ] swipe/basic-cached-back-swipe.html [ Pass Timeout ]

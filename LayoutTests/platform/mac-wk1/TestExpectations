@@ -63,6 +63,7 @@ css-dark-mode [ Skip ]
 media/audioSession [ Skip ]
 
 http/wpt/mediasession [ Skip ]
+imported/w3c/web-platform-tests/mediasession/media-session-artwork-fetch.https.html [ Skip ]
 
 # Media Stream API testing is not supported for WK1 yet.
 fast/mediastream
@@ -1179,6 +1180,7 @@ media/media-vp8-webm-with-poster.html [ Skip ]
 media/media-vp8-webm-with-preload.html [ Skip ]
 media/media-vp9-dar-webm.html [ Skip ]
 media/media-vp9-sar-webm.html [ Skip ]
+media/media-vp9-yuv422p10.html [ Skip ]
 media/video-src-webm-blob.html [ Failure ]
 media/track/audio-track-configuration-webm.html [ Skip ]
 media/track/media-audio-track.html [ Failure ]
@@ -1234,6 +1236,10 @@ accessibility/mac/text-operation/text-operation-replace.html [ Skip ]
 accessibility/mac/text-operation/text-operation-select.html [ Skip ]
 accessibility/mac/text-operation/text-operation-smart-replace.html [ Skip ]
 accessibility/mac/text-operation/text-operation-uppercase.html [ Skip ]
+
+# Missing text marker API implementations for WK1.
+accessibility/mac/editable-single-letter-soft-linebreak-lines.html [ Skip ]
+accessibility/mac/line-range-in-contenteditable.html [ Skip ]
 
 # Skipping because AXTextMarkerRangeIsValid is not supported on WK1.
 accessibility/mac/attributed-string-with-image.html [ Skip ]
@@ -3061,8 +3067,6 @@ webkit.org/b/288757 [ Sequoia Release ] imported/w3c/web-platform-tests/fullscre
 
 webkit.org/b/288827 http/wpt/webaudio/audioworklet-addModule-cors.sub.https.html [ Failure ]
 
-webkit.org/b/288831 [ Debug ] fast/css/shadow-box-recursion-depth.html [ Pass Timeout ]
-
 webkit.org/b/288843 [ Release ] compositing/repaint/iframes/compositing-iframe-scroll-repaint.html [ Pass Failure ]
 
 webkit.org/b/288862 fast/repaint/switch-overflow-vertical-rl.html [ Pass Failure ]
@@ -3093,3 +3097,6 @@ imported/w3c/web-platform-tests/css/css-position/sticky/position-sticky-escape-s
 [ Sequoia ] fast/encoding/idn-security.html [ Pass Failure ]
 
 webkit.org/b/291207 fullscreen/full-screen-document-background-color.html [ Pass Failure ]
+
+webkit.org/b/132766 fast/hidpi/filters-reference.html [ ImageOnlyFailure ]
+

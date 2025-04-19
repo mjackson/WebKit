@@ -64,19 +64,6 @@ bool CoreIPCError::hasValidUserInfo(const RetainPtr<CFDictionaryRef>& userInfo)
             return false;
     }
 
-    if (RetainPtr<id> nsErrorFailingURL = [info objectForKey:@"NSErrorFailingURLKey"]) {
-        RetainPtr failingURL = dynamic_objc_cast<NSURL>(nsErrorFailingURL.get());
-        if (!failingURL)
-            return false;
-        if (RetainPtr<id> nsErrorFailingURLString = [info objectForKey:@"NSErrorFailingURLStringKey"]) {
-            RetainPtr failingURLString = dynamic_objc_cast<NSString>(nsErrorFailingURLString.get());
-            if (!failingURLString)
-                return false;
-            if (![failingURL isEqual:URL(failingURLString.get()).createNSURL().get()])
-                return false;
-        }
-    }
-
     return true;
 }
 
@@ -89,9 +76,9 @@ RetainPtr<id> CoreIPCError::toID() const
 
         auto mutableUserInfo = adoptCF(CFDictionaryCreateMutableCopy(kCFAllocatorDefault, CFDictionaryGetCount(m_userInfo.get()) + 1, m_userInfo.get()));
         CFDictionarySetValue(mutableUserInfo.get(), (__bridge CFStringRef)NSUnderlyingErrorKey, (__bridge CFTypeRef)underlyingNSError.get());
-        return adoptNS([[NSError alloc] initWithDomain:m_domain code:m_code userInfo:(__bridge NSDictionary *)mutableUserInfo.get()]);
+        return adoptNS([[NSError alloc] initWithDomain:m_domain.createNSString().get() code:m_code userInfo:(__bridge NSDictionary *)mutableUserInfo.get()]);
     }
-    return adoptNS([[NSError alloc] initWithDomain:m_domain code:m_code userInfo:(__bridge NSDictionary *)m_userInfo.get()]);
+    return adoptNS([[NSError alloc] initWithDomain:m_domain.createNSString().get() code:m_code userInfo:(__bridge NSDictionary *)m_userInfo.get()]);
 }
 
 bool CoreIPCError::isSafeToEncodeUserInfo(id value)

@@ -554,7 +554,6 @@ platform/graphics/GraphicsLayer.cpp
 platform/graphics/Image.cpp
 platform/graphics/Path.cpp
 platform/graphics/SourceBrush.cpp
-platform/graphics/WidthIterator.cpp
 platform/graphics/avfoundation/AudioSourceProviderAVFObjC.mm
 platform/graphics/avfoundation/objc/CDMInstanceFairPlayStreamingAVFObjC.mm
 platform/graphics/avfoundation/objc/MediaSourcePrivateAVFObjC.mm
@@ -674,6 +673,7 @@ style/ElementRuleCollector.cpp
 style/HasSelectorFilter.cpp
 style/IdChangeInvalidation.cpp
 style/InspectorCSSOMWrappers.cpp
+style/MatchResultCache.cpp
 style/MatchedDeclarationsCache.cpp
 style/PageRuleCollector.cpp
 style/PropertyCascade.cpp

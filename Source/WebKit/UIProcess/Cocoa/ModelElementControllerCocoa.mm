@@ -169,7 +169,7 @@ void ModelElementController::modelElementCreateRemotePreview(String uuid, WebCor
         return;
     }
 
-    auto nsUUID = adoptNS([[NSUUID alloc] initWithUUIDString:uuid]);
+    auto nsUUID = adoptNS([[NSUUID alloc] initWithUUIDString:uuid.createNSString().get()]);
     auto preview = adoptNS([allocASVInlinePreviewInstance() initWithFrame:CGRectMake(0, 0, size.width(), size.height()) UUID:nsUUID.get()]);
 
     LOG(ModelElement, "Created remote preview with UUID %s.", uuid.utf8().data());
@@ -229,7 +229,7 @@ void ModelElementController::modelElementLoadRemotePreview(String uuid, URL file
     });
 
     RELEASE_ASSERT(isMainRunLoop());
-    [preview preparePreviewOfFileAtURL:adoptNS([[NSURL alloc] initFileURLWithPath:fileURL.fileSystemPath()]).get() completionHandler:makeBlockPtr([
+    [preview preparePreviewOfFileAtURL:adoptNS([[NSURL alloc] initFileURLWithPath:fileURL.fileSystemPath().createNSString().get()]).get() completionHandler:makeBlockPtr([
         weakThis = WeakPtr { *this },
 #if PLATFORM(MAC)
         preview, // FIXME: Remove when rdar://143993062 is fixed.
@@ -423,9 +423,9 @@ void ModelElementController::setAnimationIsPlayingForModelElement(ModelIdentifie
 
 #if ENABLE(ARKIT_INLINE_PREVIEW_ANIMATIONS_CONTROL)
     [preview setIsPlaying:isPlaying reply:makeBlockPtr([weakThis = WeakPtr { *this }, completionHandler = WTFMove(completionHandler)] (BOOL, NSError *error) mutable {
-        callOnMainRunLoop([error, weakThis = WTFMove(weakThis), completionHandler = WTFMove(completionHandler)] () mutable {
+        callOnMainRunLoop([success = !error, weakThis = WTFMove(weakThis), completionHandler = WTFMove(completionHandler)] () mutable {
             if (weakThis)
-                completionHandler(!error);
+                completionHandler(success);
         });
     }).get()];
 #else

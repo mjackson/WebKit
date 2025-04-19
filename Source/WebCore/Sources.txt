@@ -1022,7 +1022,6 @@ css/parser/CSSCustomPropertySyntax.cpp
 css/parser/CSSParser.cpp
 css/parser/CSSParserContext.cpp
 css/parser/CSSParserFastPaths.cpp
-css/parser/CSSParserImpl.cpp
 css/parser/CSSParserObserverWrapper.cpp
 css/parser/CSSParserToken.cpp
 css/parser/CSSParserTokenRange.cpp
@@ -2278,6 +2277,7 @@ platform/FileStream.cpp
 platform/FrameRateMonitor.cpp
 platform/KeyboardScroll.cpp
 platform/KeyboardScrollingAnimator.cpp
+platform/LLVMProfiling.cpp
 platform/LayoutUnit.cpp
 platform/LegacySchemeRegistry.cpp
 platform/Length.cpp

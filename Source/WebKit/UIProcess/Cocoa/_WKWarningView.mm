@@ -311,13 +311,13 @@ static RetainPtr<ViewType> makeLabel(NSAttributedString *attributedString)
 
 @implementation _WKWarningView
 
-- (instancetype)initWithFrame:(RectType)frame browsingWarning:(const WebKit::BrowsingWarning&)warning completionHandler:(CompletionHandler<void(std::variant<WebKit::ContinueUnsafeLoad, URL>&&)>&&)completionHandler
+- (instancetype)initWithFrame:(RectType)frame browsingWarning:(const WebKit::BrowsingWarning&)warning completionHandler:(CompletionHandler<void(Variant<WebKit::ContinueUnsafeLoad, URL>&&)>&&)completionHandler
 {
     if (!(self = [super initWithFrame:frame])) {
         completionHandler(WebKit::ContinueUnsafeLoad::Yes);
         return nil;
     }
-    _completionHandler = [weakSelf = WeakObjCPtr<_WKWarningView>(self), completionHandler = WTFMove(completionHandler)] (std::variant<WebKit::ContinueUnsafeLoad, URL>&& result) mutable {
+    _completionHandler = [weakSelf = WeakObjCPtr<_WKWarningView>(self), completionHandler = WTFMove(completionHandler)] (Variant<WebKit::ContinueUnsafeLoad, URL>&& result) mutable {
 #if PLATFORM(WATCHOS)
         if (auto strongSelf = weakSelf.get())
             [strongSelf.get()->_previousFirstResponder becomeFirstResponder];
@@ -341,14 +341,14 @@ static RetainPtr<ViewType> makeLabel(NSAttributedString *attributedString)
 - (void)addContent
 {
     RetainPtr warningViewIcon = viewForIconImage(self);
-    auto title = makeLabel(adoptNS([[NSAttributedString alloc] initWithString:_warning->title() attributes:@{
+    auto title = makeLabel(adoptNS([[NSAttributedString alloc] initWithString:_warning->title().createNSString().get() attributes:@{
         NSFontAttributeName:fontOfSize(WarningTextSize::Title),
         NSForegroundColorAttributeName:colorForItem(WarningItem::TitleText, self)
 #if PLATFORM(WATCHOS)
         , NSHyphenationFactorDocumentAttribute:@1
 #endif
     }]).get());
-    auto warning = makeLabel(adoptNS([[NSAttributedString alloc] initWithString:_warning->warning() attributes:@{
+    auto warning = makeLabel(adoptNS([[NSAttributedString alloc] initWithString:_warning->warning().createNSString().get() attributes:@{
         NSFontAttributeName:fontOfSize(WarningTextSize::Body),
         NSForegroundColorAttributeName:colorForItem(WarningItem::MessageText, self)
 #if PLATFORM(WATCHOS)

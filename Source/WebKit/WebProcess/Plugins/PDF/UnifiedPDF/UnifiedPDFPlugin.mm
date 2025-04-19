@@ -250,7 +250,7 @@ void UnifiedPDFPlugin::teardown()
         m_frame->coreLocalFrame()->protectedView()->removePluginScrollableAreaForScrollingNodeID(*m_scrollingNodeID);
     }
 
-    [[NSNotificationCenter defaultCenter] removeObserver:m_pdfMutationObserver.get() name:mutationObserverNotificationString() object:m_pdfDocument.get()];
+    [[NSNotificationCenter defaultCenter] removeObserver:m_pdfMutationObserver.get() name:mutationObserverNotificationString().createNSString().get() object:m_pdfDocument.get()];
     m_pdfMutationObserver = nullptr;
 
 #if ENABLE(UNIFIED_PDF_DATA_DETECTION)
@@ -338,7 +338,7 @@ void UnifiedPDFPlugin::installPDFDocument()
     if (m_view)
         m_view->layerHostingStrategyDidChange();
 
-    [[NSNotificationCenter defaultCenter] addObserver:m_pdfMutationObserver.get() selector:@selector(formChanged:) name:mutationObserverNotificationString() object:m_pdfDocument.get()];
+    [[NSNotificationCenter defaultCenter] addObserver:m_pdfMutationObserver.get() selector:@selector(formChanged:) name:mutationObserverNotificationString().createNSString().get() object:m_pdfDocument.get()];
 
 #if ENABLE(UNIFIED_PDF_DATA_DETECTION)
     enableDataDetection();
@@ -464,7 +464,7 @@ void UnifiedPDFPlugin::attemptToUnlockPDF(const String& password)
     if (isLocked())
         shouldUpdateAutoSizeScaleOverride = ShouldUpdateAutoSizeScale::Yes;
 
-    if (![m_pdfDocument unlockWithPassword:password]) {
+    if (![m_pdfDocument unlockWithPassword:password.createNSString().get()]) {
         m_passwordField->resetField();
         m_passwordForm->unlockFailed();
         return;
@@ -1426,12 +1426,12 @@ RetainPtr<PDFPage> UnifiedPDFPlugin::pageAtIndex(PDFDocumentLayout::PageIndex pa
 
 RefPtr<FragmentedSharedBuffer> UnifiedPDFPlugin::liveResourceData() const
 {
-    NSData *pdfData = liveData();
+    RetainPtr pdfData = liveData();
 
     if (!pdfData)
         return nullptr;
 
-    return SharedBuffer::create(pdfData);
+    return SharedBuffer::create(pdfData.get());
 }
 
 NSData *UnifiedPDFPlugin::liveData() const
@@ -1995,7 +1995,7 @@ bool UnifiedPDFPlugin::handleMouseEvent(const WebMouseEvent& event)
             notifyCursorChanged(toWebCoreCursorType(pdfElementTypes, altKeyIsActive));
 
             RetainPtr annotationUnderMouse = annotationForRootViewPoint(event.position());
-            if (auto* currentTrackedAnnotation = m_annotationTrackingState.trackedAnnotation(); (currentTrackedAnnotation && currentTrackedAnnotation != annotationUnderMouse) || (currentTrackedAnnotation && !m_annotationTrackingState.isBeingHovered()))
+            if (RetainPtr currentTrackedAnnotation = m_annotationTrackingState.trackedAnnotation(); (currentTrackedAnnotation && currentTrackedAnnotation.get() != annotationUnderMouse) || (currentTrackedAnnotation.get() && !m_annotationTrackingState.isBeingHovered()))
                 finishTrackingAnnotation(annotationUnderMouse.get(), mouseEventType, mouseEventButton, RepaintRequirement::HoverOverlay);
 
             if (!m_annotationTrackingState.trackedAnnotation() && annotationUnderMouse && annotationIsWidgetOfType(annotationUnderMouse.get(), WidgetType::Text) && supportsForms())
@@ -2342,8 +2342,8 @@ void UnifiedPDFPlugin::revealFragmentIfNeeded()
     }
 
     if (auto remainder = remainderForPrefix("nameddest="_s)) {
-        if (auto destination = [m_pdfDocument namedDestination:remainder->createNSString().get()])
-            revealPDFDestination(destination);
+        if (RetainPtr destination = [m_pdfDocument namedDestination:remainder->createNSString().get()])
+            revealPDFDestination(destination.get());
         return;
     }
 }
@@ -2392,7 +2392,7 @@ ContextMenuAction UnifiedPDFPlugin::contextMenuActionFromTag(ContextMenuItemTag 
         return ContextMenuItemTagNoAction;
     case ContextMenuItemTag::NextPage:
         return ContextMenuItemPDFNextPage;
-    case ContextMenuItemTag::OpenWithPreview:
+    case ContextMenuItemTag::OpenWithDefaultViewer:
         return ContextMenuItemTagOpenWithDefaultApplication;
     case ContextMenuItemTag::PreviousPage:
         return ContextMenuItemPDFPreviousPage;
@@ -2424,7 +2424,7 @@ auto UnifiedPDFPlugin::toContextMenuItemTag(int tagValue) -> ContextMenuItemTag
         ContextMenuItemTag::Copy,
         ContextMenuItemTag::CopyLink,
         ContextMenuItemTag::NextPage,
-        ContextMenuItemTag::OpenWithPreview,
+        ContextMenuItemTag::OpenWithDefaultViewer,
         ContextMenuItemTag::PreviousPage,
         ContextMenuItemTag::SinglePage,
         ContextMenuItemTag::SinglePageContinuous,
@@ -2464,7 +2464,7 @@ std::optional<PDFContextMenu> UnifiedPDFPlugin::createContextMenu(const WebMouse
         addSeparator();
     }
 
-    menuItems.append(contextMenuItem(ContextMenuItemTag::OpenWithPreview));
+    menuItems.append(contextMenuItem(ContextMenuItemTag::OpenWithDefaultViewer));
 
     addSeparator();
 
@@ -2483,7 +2483,7 @@ std::optional<PDFContextMenu> UnifiedPDFPlugin::createContextMenu(const WebMouse
 
     auto contextMenuPoint = frameView->contentsToScreen(IntRect(frameView->windowToContents(contextMenuEventRootViewPoint), IntSize())).location();
 
-    return PDFContextMenu { contextMenuPoint, WTFMove(menuItems), { enumToUnderlyingType(ContextMenuItemTag::OpenWithPreview) } };
+    return PDFContextMenu { contextMenuPoint, WTFMove(menuItems), { enumToUnderlyingType(ContextMenuItemTag::OpenWithDefaultViewer) } };
 }
 
 bool UnifiedPDFPlugin::isDisplayModeContextMenuItemTag(ContextMenuItemTag tag) const
@@ -2508,8 +2508,9 @@ String UnifiedPDFPlugin::titleForContextMenuItemTag(ContextMenuItemTag tag) cons
         return contextMenuItemTagCopyLinkToClipboard();
     case ContextMenuItemTag::NextPage:
         return contextMenuItemPDFNextPage();
-    case ContextMenuItemTag::OpenWithPreview:
-        return contextMenuItemPDFOpenWithPreview();
+    // The title for the OpenWithDefaultViewer item is determined in the UI Process.
+    case ContextMenuItemTag::OpenWithDefaultViewer:
+        return ""_s;
     case ContextMenuItemTag::PreviousPage:
         return contextMenuItemPDFPreviousPage();
     case ContextMenuItemTag::SinglePage:
@@ -2547,7 +2548,7 @@ PDFContextMenuItem UnifiedPDFPlugin::contextMenuItem(ContextMenuItemTag tag, boo
         } else if (tag == ContextMenuItemTag::AutoSize)
             state = m_shouldUpdateAutoSizeScale == ShouldUpdateAutoSizeScale::Yes;
 
-        bool disableItemDueToLockedDocument = isLocked() && tag != ContextMenuItemTag::OpenWithPreview;
+        bool disableItemDueToLockedDocument = isLocked() && tag != ContextMenuItemTag::OpenWithDefaultViewer;
         auto itemEnabled = disableItemDueToLockedDocument ? ContextMenuItemEnablement::Disabled : ContextMenuItemEnablement::Enabled;
         auto itemHasAction = hasAction && !disableItemDueToLockedDocument ? ContextMenuItemHasAction::Yes : ContextMenuItemHasAction::No;
 
@@ -2567,9 +2568,9 @@ Vector<PDFContextMenuItem> UnifiedPDFPlugin::selectionContextMenuItems(const Int
         return { };
 
     Vector<PDFContextMenuItem> items {
-        contextMenuItem(ContextMenuItemTag::WebSearch),
-        separatorContextMenuItem(),
         contextMenuItem(ContextMenuItemTag::DictionaryLookup),
+        separatorContextMenuItem(),
+        contextMenuItem(ContextMenuItemTag::WebSearch),
         separatorContextMenuItem(),
         contextMenuItem(ContextMenuItemTag::Copy),
     };
@@ -2639,8 +2640,8 @@ void UnifiedPDFPlugin::performContextMenuAction(ContextMenuItemTag tag, const In
     case ContextMenuItemTag::CopyLink:
         performCopyLinkOperation(contextMenuEventRootViewPoint);
         break;
-    // The OpenWithPreview action is handled in the UI Process.
-    case ContextMenuItemTag::OpenWithPreview: return;
+    // The OpenWithDefaultViewer action is handled in the UI Process.
+    case ContextMenuItemTag::OpenWithDefaultViewer: return;
     case ContextMenuItemTag::SinglePage:
     case ContextMenuItemTag::SinglePageContinuous:
     case ContextMenuItemTag::TwoPagesContinuous:
@@ -2814,8 +2815,8 @@ bool UnifiedPDFPlugin::performCopyEditingOperation() const
 
     Vector<PasteboardItem> pasteboardItems;
 
-    if (NSData *htmlData = htmlDataFromSelection(m_currentSelection.get()))
-        pasteboardItems.append({ htmlData, htmlPasteboardType() });
+    if (RetainPtr htmlData = htmlDataFromSelection(m_currentSelection.get()))
+        pasteboardItems.append({ WTFMove(htmlData), htmlPasteboardType() });
 
 #if HAVE(PDFSELECTION_HTMLDATA_RTFDATA)
     if ([m_currentSelection respondsToSelector:@selector(rtfData)]) {
@@ -3248,7 +3249,7 @@ unsigned UnifiedPDFPlugin::countFindMatches(const String& target, WebCore::FindO
         return 0;
 
     NSStringCompareOptions nsOptions = options.contains(FindOption::CaseInsensitive) ? NSCaseInsensitiveSearch : 0;
-    return [[m_pdfDocument findString:target withOptions:nsOptions] count];
+    return [[m_pdfDocument findString:target.createNSString().get() withOptions:nsOptions] count];
 }
 
 static NSStringCompareOptions compareOptionsForFindOptions(WebCore::FindOptions options)
@@ -3287,10 +3288,11 @@ bool UnifiedPDFPlugin::findString(const String& target, WebCore::FindOptions opt
     auto nextMatchForString = [&]() -> RetainPtr<PDFSelection> {
         if (!target.length())
             return nullptr;
-        RetainPtr foundSelection = [m_pdfDocument findString:target fromSelection:m_currentSelection.get() withOptions:compareOptions];
+        RetainPtr nsTarget = target.createNSString();
+        RetainPtr foundSelection = [m_pdfDocument findString:nsTarget.get() fromSelection:m_currentSelection.get() withOptions:compareOptions];
         if (!foundSelection && wrapSearch) {
             auto emptySelection = adoptNS([allocPDFSelectionInstance() initWithDocument:m_pdfDocument.get()]);
-            foundSelection = [m_pdfDocument findString:target fromSelection:emptySelection.get() withOptions:compareOptions];
+            foundSelection = [m_pdfDocument findString:nsTarget.get() fromSelection:emptySelection.get() withOptions:compareOptions];
         }
         return foundSelection;
     };
@@ -3324,7 +3326,7 @@ void UnifiedPDFPlugin::collectFindMatchRects(const String& target, WebCore::Find
 {
     m_findMatchRects.clear();
 
-    RetainPtr foundSelections = [m_pdfDocument findString:target withOptions:compareOptionsForFindOptions(options)];
+    RetainPtr foundSelections = [m_pdfDocument findString:target.createNSString().get() withOptions:compareOptionsForFindOptions(options)];
     for (PDFSelection *selection in foundSelections.get()) {
         for (PDFPage *page in selection.pages) {
             auto pageIndex = m_documentLayout.indexForPage(page);
@@ -3358,7 +3360,7 @@ Vector<WebFoundTextRange::PDFData> UnifiedPDFPlugin::findTextMatches(const Strin
     if (!target.length())
         return matches;
 
-    RetainPtr foundSelections = [m_pdfDocument findString:target withOptions:compareOptionsForFindOptions(options)];
+    RetainPtr foundSelections = [m_pdfDocument findString:target.createNSString().get() withOptions:compareOptionsForFindOptions(options)];
     for (PDFSelection *selection in foundSelections.get()) {
         RetainPtr startPage = [[selection pages] firstObject];
         NSRange startPageRange = [selection rangeAtIndex:0 onPage:startPage.get()];
@@ -3568,7 +3570,7 @@ WebCore::DictionaryPopupInfo UnifiedPDFPlugin::dictionaryPopupInfoForSelection(P
     if (!selection.string.length)
         return dictionaryPopupInfo;
 
-    NSAttributedString *nsAttributedString = [selection] {
+    RetainPtr nsAttributedString = [selection] {
         static constexpr unsigned maximumSelectionLength = 250;
         if (selection.string.length > maximumSelectionLength)
             return [selection.attributedString attributedSubstringFromRange:NSMakeRange(0, maximumSelectionLength)];
@@ -3576,7 +3578,7 @@ WebCore::DictionaryPopupInfo UnifiedPDFPlugin::dictionaryPopupInfoForSelection(P
     }();
 
     dictionaryPopupInfo.origin = rectForSelectionInRootView(selection).location();
-    dictionaryPopupInfo.platformData.attributedString = WebCore::AttributedString::fromNSAttributedString(nsAttributedString);
+    dictionaryPopupInfo.platformData.attributedString = WebCore::AttributedString::fromNSAttributedString(nsAttributedString.get());
 
     if (auto textIndicator = textIndicatorForSelection(selection, { }, presentationTransition))
         dictionaryPopupInfo.textIndicator = textIndicator->data();
@@ -3655,9 +3657,9 @@ std::pair<String, RetainPtr<PDFSelection>> UnifiedPDFPlugin::textForImmediateAct
     }
 
 #if ENABLE(REVEAL)
-    NSString *lookupText = DictionaryLookup::stringForPDFSelection(wordSelection.get());
-    if (lookupText && lookupText.length)
-        return { lookupText, wordSelection };
+    RetainPtr lookupText = DictionaryLookup::stringForPDFSelection(wordSelection.get());
+    if (lookupText && lookupText.get().length)
+        return { lookupText.get(), wordSelection };
 #endif
 
     return { { }, wordSelection };
@@ -3868,13 +3870,13 @@ static RetainPtr<PDFAnnotation> findFirstTextAnnotationStartingAtIndex(const Ret
     if (!annotations || startingIndex >= [annotations count])
         return nullptr;
 
-    auto indexRange = [&] {
+    RetainPtr indexRange = [&] {
         if (searchDirection == AnnotationSearchDirection::Forward)
-            return [NSIndexSet indexSetWithIndexesInRange:NSMakeRange(startingIndex, [annotations count] - startingIndex)];
-        return [NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, startingIndex + 1)];
+            return adoptNS([[NSIndexSet alloc] initWithIndexesInRange:NSMakeRange(startingIndex, [annotations count] - startingIndex)]);
+        return adoptNS([[NSIndexSet alloc] initWithIndexesInRange:NSMakeRange(0, startingIndex + 1)]);
     }();
 
-    auto searchResult = [annotations indexOfObjectAtIndexes:indexRange options:searchDirection == AnnotationSearchDirection::Forward ? 0 : NSEnumerationReverse passingTest:^BOOL(PDFAnnotation* annotation, NSUInteger, BOOL *) {
+    auto searchResult = [annotations indexOfObjectAtIndexes:indexRange.get() options:searchDirection == AnnotationSearchDirection::Forward ? 0 : NSEnumerationReverse passingTest:^BOOL(PDFAnnotation* annotation, NSUInteger, BOOL *) {
         return annotationIsWidgetOfType(annotation, WidgetType::Text) && ![annotation isReadOnly] && [annotation shouldDisplay];
     }];
 
@@ -4196,7 +4198,7 @@ void UnifiedPDFPlugin::setTextAnnotationValueForTesting(unsigned pageIndex, unsi
     if (!annotationIsWidgetOfType(annotation.get(), WidgetType::Text))
         return;
 
-    [annotation setWidgetStringValue:value];
+    [annotation setWidgetStringValue:value.createNSString().get()];
     setNeedsRepaintForAnnotation(annotation.get(), repaintRequirementsForAnnotation(annotation.get(), IsAnnotationCommit::Yes));
 }
 

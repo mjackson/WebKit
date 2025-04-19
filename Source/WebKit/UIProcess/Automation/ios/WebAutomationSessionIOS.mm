@@ -69,7 +69,7 @@ void WebAutomationSession::sendSynthesizedEventsToPage(WebPageProxy& page, NSArr
 #pragma mark Commands for Platform: 'iOS'
 
 #if ENABLE(WEBDRIVER_KEYBOARD_INTERACTIONS)
-void WebAutomationSession::platformSimulateKeyboardInteraction(WebPageProxy& page, KeyboardInteraction interaction, std::variant<VirtualKey, CharKey>&& key)
+void WebAutomationSession::platformSimulateKeyboardInteraction(WebPageProxy& page, KeyboardInteraction interaction, Variant<VirtualKey, CharKey>&& key)
 {
     // The modifiers changed by the virtual key when it is pressed or released.
     WebEventFlags changedModifiers = 0;
@@ -117,8 +117,8 @@ void WebAutomationSession::platformSimulateKeyboardInteraction(WebPageProxy& pag
             }
         },
         [&] (CharKey charKey) {
-            characters = charKey;
-            unmodifiedCharacters = charKey;
+            characters = charKey.createNSString();
+            unmodifiedCharacters = characters;
         }
     );
 
@@ -167,10 +167,10 @@ void WebAutomationSession::platformSimulateKeySequence(WebPageProxy& page, const
     // This command is more similar to the 'insertText:' editing command, except
     // that this emits keyup/keydown/keypress events for roughly each character.
     // This API should move more towards that direction in the future.
-    NSString *text = keySequence;
+    RetainPtr text = keySequence.createNSString();
     BOOL isTabKey = [text isEqualToString:@"\t"];
 
-    [text enumerateSubstringsInRange:NSMakeRange(0, text.length) options:NSStringEnumerationByComposedCharacterSequences usingBlock:^(NSString *substring, NSRange substringRange, NSRange enclosingRange, BOOL *stop) {
+    [text enumerateSubstringsInRange:NSMakeRange(0, text.get().length) options:NSStringEnumerationByComposedCharacterSequences usingBlock:^(NSString *substring, NSRange substringRange, NSRange enclosingRange, BOOL *stop) {
         auto keyDownEvent = adoptNS([[::WebEvent alloc] initWithKeyEventType:WebEventKeyDown timeStamp:CFAbsoluteTimeGetCurrent() characters:substring charactersIgnoringModifiers:substring modifiers:m_currentModifiers isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:0 isTabKey:isTabKey]);
         [eventsToBeSent addObject:keyDownEvent.get()];
         auto keyUpEvent = adoptNS([[::WebEvent alloc] initWithKeyEventType:WebEventKeyUp timeStamp:CFAbsoluteTimeGetCurrent() characters:substring charactersIgnoringModifiers:substring modifiers:m_currentModifiers isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:0 isTabKey:isTabKey]);

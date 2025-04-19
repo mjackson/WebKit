@@ -45,8 +45,8 @@ public:
     size_t size() const { return span().size(); }
     JS_EXPORT_PRIVATE std::span<const uint8_t> span() const;
 
-private:
-    using DataType = std::variant<MallocSpan<uint8_t, VMMalloc>, FileSystem::MappedFileData, std::span<uint8_t>>;
+    private:
+    using DataType = Variant<MallocSpan<uint8_t, VMMalloc>, FileSystem::MappedFileData, std::span<uint8_t>>;
     explicit CachePayload(DataType&&, Destructor&& = {nullptr});
 
     DataType m_data;

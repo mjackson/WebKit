@@ -340,7 +340,7 @@ void WebPage::getPlatformEditorState(LocalFrame& frame, EditorState& result) con
 
     if (frame.editor().hasComposition()) {
         if (auto compositionRange = frame.editor().compositionRange()) {
-            visualData.markedTextRects = RenderObject::collectSelectionGeometries(*compositionRange);
+            visualData.markedTextRects = RenderObject::collectSelectionGeometries(*compositionRange).geometries;
             convertContentToRootView(view, visualData.markedTextRects);
 
             postLayoutData.markedText = plainTextForContext(*compositionRange);
@@ -373,8 +373,8 @@ void WebPage::getPlatformEditorState(LocalFrame& frame, EditorState& result) con
         selectedRange = selection.toNormalizedRange();
         String selectedText;
         if (selectedRange) {
-            visualData.selectionGeometries = RenderObject::collectSelectionGeometries(*selectedRange);
-            convertContentToRootView(view, visualData.selectionGeometries);
+            auto [selectionGeometries, intersectingLayerIDs] = RenderObject::collectSelectionGeometries(*selectedRange);
+            convertContentToRootView(view, selectionGeometries);
             selectedText = plainTextForDisplay(*selectedRange);
             postLayoutData.selectedTextLength = selectedText.length();
             const int maxSelectedTextLength = 200;
@@ -401,6 +401,9 @@ void WebPage::getPlatformEditorState(LocalFrame& frame, EditorState& result) con
 
             if (auto imageElement = findSelectedEditableImageElement())
                 postLayoutData.selectedEditableImage = contextForElement(*imageElement);
+
+            visualData.selectionGeometries = WTFMove(selectionGeometries);
+            visualData.intersectingLayerIDs = WTFMove(intersectingLayerIDs);
         }
         // FIXME: We should disallow replace when the string contains only CJ characters.
         postLayoutData.isReplaceAllowed = result.isContentEditable && !result.isInPasswordField && !selectedText.containsOnly<isASCIIWhitespace>();
@@ -3067,7 +3070,7 @@ void WebPage::requestAutocorrectionData(const String& textForAutocorrection, Com
 
     Vector<SelectionGeometry> selectionGeometries;
     if (textForRange == textForAutocorrection)
-        selectionGeometries = RenderObject::collectSelectionGeometries(*range);
+        selectionGeometries = RenderObject::collectSelectionGeometries(*range).geometries;
 
     auto rootViewSelectionRects = selectionGeometries.map([&](const auto& selectionGeometry) -> FloatRect {
         return frame->view()->contentsToRootView(selectionGeometry.rect());
@@ -5579,7 +5582,7 @@ void WebPage::requestDocumentEditingContext(DocumentEditingContextRequest&& requ
             rangeOfInterest.end = closestEditablePositionInElementForAbsolutePoint(*element, roundedIntPoint(request.rect.maxXMaxYCorner()));
         } else if (RefPtr textFormControlElement = dynamicDowncast<HTMLTextFormControlElement>(element)) {
             rangeOfInterest.start = textFormControlElement->visiblePositionForIndex(0);
-            rangeOfInterest.end = textFormControlElement->visiblePositionForIndex(textFormControlElement->value().length());
+            rangeOfInterest.end = textFormControlElement->visiblePositionForIndex(textFormControlElement->value()->length());
         } else {
             rangeOfInterest.start = firstPositionInOrBeforeNode(element.get());
             rangeOfInterest.end = lastPositionInOrAfterNode(element.get());
@@ -5706,7 +5709,7 @@ void WebPage::requestDocumentEditingContext(DocumentEditingContextRequest&& requ
         if (wantsAttributedText)
             return editingAttributedStringReplacingNoBreakSpace(*range, textBehaviors, { IncludedElement::Images, IncludedElement::Attachments });
 
-        return AttributedString::fromNSAttributedString(adoptNS([[NSAttributedString alloc] initWithString:plainTextReplacingNoBreakSpace(*range, textBehaviors)]));
+        return AttributedString::fromNSAttributedString(adoptNS([[NSAttributedString alloc] initWithString:plainTextReplacingNoBreakSpace(*range, textBehaviors).createNSString().get()]));
     };
 
     DocumentEditingContext context;
@@ -5718,7 +5721,7 @@ void WebPage::requestDocumentEditingContext(DocumentEditingContextRequest&& requ
         auto markedTextLength = context.markedText.string.length();
 
         ptrdiff_t distanceToSelectionStart = distanceBetweenPositions(rangeOfInterestInSelection.start, compositionVisiblePositionRange.start);
-        ptrdiff_t distanceToSelectionEnd = distanceToSelectionStart + [context.selectedText.string length];
+        ptrdiff_t distanceToSelectionEnd = distanceToSelectionStart + [context.selectedText.string.createNSString() length];
 
         distanceToSelectionStart = clampTo<ptrdiff_t>(distanceToSelectionStart, 0, markedTextLength);
         distanceToSelectionEnd = clampTo<ptrdiff_t>(distanceToSelectionEnd, 0, markedTextLength);
@@ -5730,7 +5733,7 @@ void WebPage::requestDocumentEditingContext(DocumentEditingContextRequest&& requ
         };
     } else if (auto* suggestion = frame->editor().writingSuggestionData()) {
         if (auto suffix = suggestion->content(); !suffix.isEmpty()) {
-            context.markedText = AttributedString::fromNSAttributedString(adoptNS([[NSAttributedString alloc] initWithString:WTFMove(suffix)]));
+            context.markedText = AttributedString::fromNSAttributedString(adoptNS([[NSAttributedString alloc] initWithString:suffix.createNSString().get()]));
             context.selectedRangeInMarkedText = { 0, 0 };
         }
     }
@@ -6087,6 +6090,9 @@ void WebPage::computeEnclosingLayerID(EditorState& state, const VisibleSelection
             if (RefPtr foregroundLayer = backing->foregroundLayer())
                 return foregroundLayer;
 
+            if (backing->isFrameLayerWithTiledBacking())
+                return backing->parentForSublayers();
+
             return backing->graphicsLayer();
         }();
 
@@ -6137,9 +6143,6 @@ void WebPage::computeEnclosingLayerID(EditorState& state, const VisibleSelection
             break;
         }
     }
-
-    if (!state.visualData->enclosingScrollingNodeID)
-        return;
 
     if (selection.isCaret()) {
         state.visualData->scrollingNodeIDAtStart = state.visualData->enclosingScrollingNodeID;

@@ -684,8 +684,10 @@ void HTMLMediaElement::initializeMediaSession()
     }
 #endif
 
+#if ENABLE(REQUIRES_PAGE_VISIBILITY_FOR_NOW_PLAYING)
     if (document->settings().requiresPageVisibilityForVideoToBeNowPlaying())
         m_mediaSession->addBehaviorRestriction(MediaElementSession::RequirePageVisibilityForVideoToBeNowPlaying);
+#endif
 
     registerWithDocument(document);
 
@@ -6788,7 +6790,8 @@ bool HTMLMediaElement::virtualHasPendingActivity() const
         if (isPlaying())
             return true;
 
-        RefPtr mediaSession = this->mediaSessionIfExists();
+        // This function could be called on a non-main thread.
+        SUPPRESS_UNCOUNTED_LOCAL auto* mediaSession = this->mediaSessionIfExists();
         if (!mediaSession)
             return false;
 
@@ -7514,6 +7517,14 @@ void HTMLMediaElement::didStopBeingFullscreenElement()
     m_changingVideoFullscreenMode = false;
 }
 
+#if ENABLE(FULLSCREEN_API)
+void HTMLMediaElement::documentFullscreenChanged(bool isChildOfElementFullscreen)
+{
+    m_isChildOfElementFullscreen = isChildOfElementFullscreen;
+    updatePlayerDynamicRangeLimit();
+}
+#endif
+
 PlatformLayer* HTMLMediaElement::platformLayer() const
 {
     return m_player ? m_player->platformLayer() : nullptr;
@@ -7910,8 +7921,15 @@ PlatformDynamicRangeLimit HTMLMediaElement::computePlayerDynamicRangeLimit() con
     bool shouldSuppressHDR = [this]() {
         if (m_videoFullscreenMode == VideoFullscreenModeStandard)
             return false;
+
+#if ENABLE(FULLSCREEN_API)
+        if (m_isChildOfElementFullscreen)
+            return false;
+#endif
+
         if (Page* page = document().page())
             return page->shouldSuppressHDR();
+
         return false;
     }();
     return shouldSuppressHDR ? maxLimitWhenSuppressingHDR : m_platformDynamicRangeLimit;

@@ -895,7 +895,7 @@ void MediaPlayerPrivateAVFoundationObjC::createAVAssetForURL(const URL& url, Ret
     // FIXME: rdar://problem/20354688
     String identifier = player->sourceApplicationIdentifier();
     if (!identifier.isEmpty())
-        [options setObject:identifier forKey:AVURLAssetClientBundleIdentifierKey];
+        [options setObject:identifier.createNSString().get() forKey:AVURLAssetClientBundleIdentifierKey];
 #endif
     if (player->prefersSandboxedParsing() && PAL::canLoad_AVFoundation_AVAssetPrefersSandboxedParsingOptionKey())
         [options setObject:@YES forKey:AVAssetPrefersSandboxedParsingOptionKey];
@@ -933,7 +933,7 @@ void MediaPlayerPrivateAVFoundationObjC::createAVAssetForURL(const URL& url, Ret
 #if PLATFORM(IOS_FAMILY)
     String networkInterfaceName = player->mediaPlayerNetworkInterfaceName();
     if (!networkInterfaceName.isEmpty())
-        [options setObject:networkInterfaceName forKey:AVURLAssetBoundNetworkInterfaceName];
+        [options setObject:networkInterfaceName.createNSString().get() forKey:AVURLAssetBoundNetworkInterfaceName];
 #endif
 
     bool usePersistentCache = player->shouldUsePersistentCache();
@@ -3195,21 +3195,21 @@ void MediaPlayerPrivateAVFoundationObjC::processCue(NSArray *attributedStrings, 
 {
     ASSERT(time >= MediaTime::zeroTime());
 
-    RefPtr currentTextTrack = m_currentTextTrack.get();
-    if (!currentTextTrack) {
+    RefPtr track = currentTextTrack().get();
+    if (!track) {
         ALWAYS_LOG(LOGIDENTIFIER, "no current text track");
         return;
     }
 
-    currentTextTrack->processCue((__bridge CFArrayRef)attributedStrings, (__bridge CFArrayRef)nativeSamples, time);
+    track->processCue((__bridge CFArrayRef)attributedStrings, (__bridge CFArrayRef)nativeSamples, time);
 }
 
 void MediaPlayerPrivateAVFoundationObjC::flushCues()
 {
     INFO_LOG(LOGIDENTIFIER);
 
-    if (RefPtr currentTextTrack = m_currentTextTrack.get())
-        currentTextTrack->resetCueValues();
+    if (RefPtr track = currentTextTrack().get())
+        track->resetCueValues();
 }
 
 void MediaPlayerPrivateAVFoundationObjC::setCurrentTextTrack(InbandTextTrackPrivateAVF *track)
@@ -3219,9 +3219,10 @@ void MediaPlayerPrivateAVFoundationObjC::setCurrentTextTrack(InbandTextTrackPriv
 
     ALWAYS_LOG(LOGIDENTIFIER, "selecting track with language ", track ? track->language() : emptyAtom());
 
-    m_currentTextTrack = track;
-
     if (track) {
+
+        m_currentTextTrack = *track;
+
         if (track->textTrackCategory() == InbandTextTrackPrivateAVF::LegacyClosedCaption)
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
             [m_avPlayer setClosedCaptionDisplayEnabled:YES];
@@ -3242,6 +3243,8 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
         return;
     }
+
+    m_currentTextTrack = { };
 
     @try {
         [m_avPlayerItem selectMediaOption:0 inMediaSelectionGroup:safeMediaSelectionGroupForLegibleMedia()];
@@ -3362,14 +3365,14 @@ MediaPlayer::WirelessPlaybackTargetType MediaPlayerPrivateAVFoundationObjC::wire
 }
 
 #if PLATFORM(IOS_FAMILY)
-static NSString *exernalDeviceDisplayNameForPlayer(AVPlayer *player)
+static RetainPtr<NSString> exernalDeviceDisplayNameForPlayer(AVPlayer *player)
 {
 #if HAVE(MEDIAEXPERIENCE_AVSYSTEMCONTROLLER)
     if (!PAL::isAVFoundationFrameworkAvailable())
         return nil;
 
     if (auto context = PAL::OutputContext::sharedAudioPresentationOutputContext())
-        return context->deviceName();
+        return context->deviceName().createNSString();
 
     if (player.externalPlaybackType != AVPlayerExternalPlaybackTypeAirPlay)
         return nil;
@@ -3378,7 +3381,7 @@ static NSString *exernalDeviceDisplayNameForPlayer(AVPlayer *player)
     if (!pickableRoutes || !CFArrayGetCount(pickableRoutes.get()))
         return nil;
 
-    NSString *displayName = nil;
+    RetainPtr<NSString> displayName = nil;
     for (NSDictionary *pickableRoute in (__bridge NSArray *)pickableRoutes.get()) {
         if (![pickableRoute[AVController_RouteDescriptionKey_RouteCurrentlyPicked] boolValue])
             continue;
@@ -3390,7 +3393,7 @@ static NSString *exernalDeviceDisplayNameForPlayer(AVPlayer *player)
             break;
 
         // The route is a speaker or HDMI out, override the name to be the localized device model.
-        NSString *localizedDeviceModelName = localizedDeviceModel();
+        RetainPtr localizedDeviceModelName = localizedDeviceModel().createNSString();
 
         // In cases where a route with that name already exists, prefix the name with the model.
         BOOL includeLocalizedDeviceModelName = NO;
@@ -3398,14 +3401,14 @@ static NSString *exernalDeviceDisplayNameForPlayer(AVPlayer *player)
             if (otherRoute == pickableRoute)
                 continue;
 
-            if ([otherRoute[AVController_RouteDescriptionKey_RouteName] rangeOfString:displayName].location != NSNotFound) {
+            if ([otherRoute[AVController_RouteDescriptionKey_RouteName] rangeOfString:displayName.get()].location != NSNotFound) {
                 includeLocalizedDeviceModelName = YES;
                 break;
             }
         }
 
         if (includeLocalizedDeviceModelName)
-            displayName = [NSString stringWithFormat:@"%@ %@", localizedDeviceModelName, displayName];
+            displayName = adoptNS([[NSString alloc] initWithFormat:@"%@ %@", localizedDeviceModelName.get(), displayName.get()]);
         else
             displayName = localizedDeviceModelName;
 
@@ -3430,7 +3433,7 @@ String MediaPlayerPrivateAVFoundationObjC::wirelessPlaybackTargetName() const
     if (RefPtr playbackTarget = m_playbackTarget)
         wirelessTargetName = playbackTarget->deviceName();
 #else
-    wirelessTargetName = exernalDeviceDisplayNameForPlayer(m_avPlayer.get());
+    wirelessTargetName = exernalDeviceDisplayNameForPlayer(m_avPlayer.get()).get();
 #endif
 
     return wirelessTargetName;
@@ -4099,7 +4102,7 @@ void MediaPlayerPrivateAVFoundationObjC::updateSpatialTrackingLabel()
 
     if (!m_spatialTrackingLabel.isNull()) {
         INFO_LOG(LOGIDENTIFIER, "Explicitly set STSLabel: ", m_spatialTrackingLabel);
-        [m_avPlayer _setSTSLabel:m_spatialTrackingLabel];
+        [m_avPlayer _setSTSLabel:m_spatialTrackingLabel.createNSString().get()];
         return;
     }
 
@@ -4114,7 +4117,7 @@ void MediaPlayerPrivateAVFoundationObjC::updateSpatialTrackingLabel()
     if (!m_defaultSpatialTrackingLabel.isNull()) {
         // If a default spatial tracking label was explicitly set, use it.
         INFO_LOG(LOGIDENTIFIER, "Default STSLabel: ", m_defaultSpatialTrackingLabel);
-        [m_avPlayer _setSTSLabel:m_defaultSpatialTrackingLabel];
+        [m_avPlayer _setSTSLabel:m_defaultSpatialTrackingLabel.createNSString().get()];
         return;
     }
 

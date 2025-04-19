@@ -1401,9 +1401,6 @@ svg/as-image/svg-nested.html
 # Height of actual image is 1-2 pixels shorter than expected image.
 fast/backgrounds/gradient-background-on-subpixel-position.html [ ImageOnlyFailure ]
 
-# Difference of less 0.03% between images.
-svg/as-image/svg-image-with-data-uri-from-canvas.html [ ImageOnlyFailure ]
-
 # HTTP tests that time out:
 http/tests/security/XFrameOptions/x-frame-options-deny-delete-frame-in-load-event.html
 http/tests/local/blob/send-hybrid-blob.html
@@ -2918,6 +2915,7 @@ fast/mediastream/getDisplayMedia-max-constraints3.html [ Skip ]
 fast/mediastream/getDisplayMedia-max-constraints5.html [ Skip ]
 webkit.org/b/263466 fast/mediastream/getDisplayMedia-max-constraints4.html [ Failure ]
 webrtc/getDisplayMedia-pc.html [ Skip ]
+webrtc/getDisplayMedia-odd-size.html [ Skip ]
 
 fast/mediastream/getDisplayMedia-size.html [ Skip ]
 
@@ -4558,6 +4556,7 @@ storage/indexeddb/modern/deleteindex-4-private.html [ Pass Crash ]
 
 # No VP9 decoder on simulator and no ability to load VideoToolbox plugins.
 media/vp9.html [ Skip ]
+media/media-vp9-yuv422p10.html [ Skip ]
 
 # Requires specific encoder behavior.
 http/wpt/webcodecs/encoder-task-failing.html [ Failure ]
@@ -4772,6 +4771,11 @@ imported/w3c/web-platform-tests/svg/painting/reftests/marker-path-002.svg [ Imag
 imported/w3c/web-platform-tests/svg/painting/reftests/marker-path-021.svg [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/painting/reftests/marker-path-022.svg [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/painting/reftests/marker-path-023.svg [ ImageOnlyFailure ]
+
+# Difference of 0.04% between images.
+imported/w3c/web-platform-tests/svg/embedded/image-embedding-nested-data-url-from-canvas-post-window-load.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/svg/embedded/image-embedding-nested-data-url-from-canvas-window-load.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/svg/embedded/image-embedding-nested-data-url-from-canvas.html [ ImageOnlyFailure ]
 
 webkit.org/b/269852 imported/w3c/web-platform-tests/css/filter-effects/backdrop-filter-edge-behavior.html [ ImageOnlyFailure ]
 
@@ -7748,10 +7752,6 @@ webkit.org/b/290413 [ Debug ] imported/w3c/web-platform-tests/html/browsers/brow
 
 webkit.org/b/290416 [ Debug ] imported/w3c/web-platform-tests/html/semantics/embedded-content/the-iframe-element/iframe-loading-lazy-multiple-times.html [ Pass Failure ]
 
-webkit.org/b/290420 [ Debug ] ipc/invalid-message-to-web-process.html [ Timeout ]
-
-webkit.org/b/290457 [ Debug ] ipc/ui-send-empty-uuid.html [ Failure ]
-
 webkit.org/b/290462 contact-picker/contacts-select-after-dismissing-picker.html [ Pass Timeout ]
 
 webkit.org/b/290483 [ Debug ] imported/w3c/web-platform-tests/navigation-api/scroll-behavior/manual-scroll-fragment-does-not-exist.html [ Pass Failure ]
@@ -7818,8 +7818,6 @@ webkit.org/b/291001 imported/w3c/web-platform-tests/scroll-animations/css/animat
 
 webkit.org/b/290281 imported/w3c/web-platform-tests/svg/struct/scripted/svg-checkIntersection-001.svg [ Pass Timeout ]
 
-webkit.org/b/291035 webaudio/decode-audio-data-too-short.html [ Pass Failure ]
-
 # webkit.org/b/287204 REGRESSION(292441@main): [ iOS ] 2x fast/forms/date/date-*.html are constant failures.
 fast/forms/date/date-input-rendering-basic.html [ Failure ]
 fast/forms/date/date-pseudo-elements.html [ Failure ]
@@ -7848,3 +7846,7 @@ webkit.org/b/291436 http/tests/security/contentSecurityPolicy/extensions/manifes
 webkit.org/b/291451 imported/w3c/web-platform-tests/navigation-api/navigation-methods/return-value/navigate-intercept-interrupted.html [ Pass Crash ]
 
 webkit.org/b/291456 fast/forms/state-restore-per-form.html [ Pass Timeout ]
+
+webkit.org/b/291459 imported/w3c/web-platform-tests/css/css-shapes/shape-outside/shape-image/shape-image-018.html [ Pass Failure ]
+
+webkit.org/b/291767 media/video-aspect-ratio.html [ Pass Failure ]

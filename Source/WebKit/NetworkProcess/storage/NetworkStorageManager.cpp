@@ -1795,29 +1795,32 @@ WebCore::IDBServer::UniqueIDBDatabaseTransaction* NetworkStorageManager::idbTran
     return m_idbStorageRegistry->transaction(requestData.transactionIdentifier());
 }
 
-void NetworkStorageManager::createObjectStore(const WebCore::IDBRequestData& requestData, const WebCore::IDBObjectStoreInfo& objectStoreInfo)
+void NetworkStorageManager::createObjectStore(IPC::Connection& connection, const WebCore::IDBRequestData& requestData, const WebCore::IDBObjectStoreInfo& objectStoreInfo)
 {
     RefPtr transaction = idbTransaction(requestData);
-    if (!transaction || !transaction->isVersionChange())
+    if (!transaction)
         return;
+    MESSAGE_CHECK(transaction->isVersionChange(), connection);
 
     transaction->createObjectStore(requestData, objectStoreInfo);
 }
 
-void NetworkStorageManager::deleteObjectStore(const WebCore::IDBRequestData& requestData, const String& objectStoreName)
+void NetworkStorageManager::deleteObjectStore(IPC::Connection& connection, const WebCore::IDBRequestData& requestData, const String& objectStoreName)
 {
     RefPtr transaction = idbTransaction(requestData);
-    if (!transaction || !transaction->isVersionChange())
+    if (!transaction)
         return;
+    MESSAGE_CHECK(transaction->isVersionChange(), connection);
 
     transaction->deleteObjectStore(requestData, objectStoreName);
 }
 
-void NetworkStorageManager::renameObjectStore(const WebCore::IDBRequestData& requestData, WebCore::IDBObjectStoreIdentifier objectStoreIdentifier, const String& newName)
+void NetworkStorageManager::renameObjectStore(IPC::Connection& connection, const WebCore::IDBRequestData& requestData, WebCore::IDBObjectStoreIdentifier objectStoreIdentifier, const String& newName)
 {
     RefPtr transaction = idbTransaction(requestData);
-    if (!transaction || !transaction->isVersionChange())
+    if (!transaction)
         return;
+    MESSAGE_CHECK(transaction->isVersionChange(), connection);
 
     transaction->renameObjectStore(requestData, objectStoreIdentifier, newName);
 }
@@ -1831,20 +1834,32 @@ void NetworkStorageManager::clearObjectStore(const WebCore::IDBRequestData& requ
 void NetworkStorageManager::createIndex(IPC::Connection& connection, const WebCore::IDBRequestData& requestData, const WebCore::IDBIndexInfo& indexInfo)
 {
     MESSAGE_CHECK(!requestData.requestIdentifier().isEmpty(), connection);
-    if (RefPtr transaction = idbTransaction(requestData))
-        transaction->createIndex(requestData, indexInfo);
+    RefPtr transaction = idbTransaction(requestData);
+    if (!transaction)
+        return;
+    MESSAGE_CHECK(transaction->isVersionChange(), connection);
+
+    transaction->createIndex(requestData, indexInfo);
 }
 
-void NetworkStorageManager::deleteIndex(const WebCore::IDBRequestData& requestData, WebCore::IDBObjectStoreIdentifier objectStoreIdentifier, const String& indexName)
+void NetworkStorageManager::deleteIndex(IPC::Connection& connection, const WebCore::IDBRequestData& requestData, WebCore::IDBObjectStoreIdentifier objectStoreIdentifier, const String& indexName)
 {
-    if (RefPtr transaction = idbTransaction(requestData))
-        transaction->deleteIndex(requestData, objectStoreIdentifier, indexName);
+    RefPtr transaction = idbTransaction(requestData);
+    if (!transaction)
+        return;
+    MESSAGE_CHECK(transaction->isVersionChange(), connection);
+
+    transaction->deleteIndex(requestData, objectStoreIdentifier, indexName);
 }
 
-void NetworkStorageManager::renameIndex(const WebCore::IDBRequestData& requestData, WebCore::IDBObjectStoreIdentifier objectStoreIdentifier, WebCore::IDBIndexIdentifier indexIdentifier, const String& newName)
+void NetworkStorageManager::renameIndex(IPC::Connection& connection, const WebCore::IDBRequestData& requestData, WebCore::IDBObjectStoreIdentifier objectStoreIdentifier, WebCore::IDBIndexIdentifier indexIdentifier, const String& newName)
 {
-    if (RefPtr transaction = idbTransaction(requestData))
-        transaction->renameIndex(requestData, objectStoreIdentifier, indexIdentifier, newName);
+    RefPtr transaction = idbTransaction(requestData);
+    if (!transaction)
+        return;
+    MESSAGE_CHECK(transaction->isVersionChange(), connection);
+
+    transaction->renameIndex(requestData, objectStoreIdentifier, indexIdentifier, newName);
 }
 
 void NetworkStorageManager::putOrAdd(IPC::Connection& connection, const WebCore::IDBRequestData& requestData, const WebCore::IDBKeyData& keyData, const WebCore::IDBValue& value, const WebCore::IndexIDToIndexKeyMap& indexKeys, WebCore::IndexedDB::ObjectStoreOverwriteMode overwriteMode)
@@ -1920,6 +1935,7 @@ void NetworkStorageManager::iterateCursor(const WebCore::IDBRequestData& request
 
 void NetworkStorageManager::getAllDatabaseNamesAndVersions(IPC::Connection& connection, const WebCore::IDBResourceIdentifier& requestIdentifier, const WebCore::ClientOrigin& origin)
 {
+    MESSAGE_CHECK(requestIdentifier.connectionIdentifier(), connection);
     Ref connectionToClient = m_idbStorageRegistry->ensureConnectionToClient(connection.uniqueID(), *requestIdentifier.connectionIdentifier());
     auto result = checkedOriginStorageManager(origin)->idbStorageManager(*m_idbStorageRegistry).getAllDatabaseNamesAndVersions();
     connectionToClient->didGetAllDatabaseNamesAndVersions(requestIdentifier, WTFMove(result));
@@ -2129,7 +2145,7 @@ void NetworkStorageManager::clearServiceWorkerRegistrations(CompletionHandler<vo
     });
 }
 
-void NetworkStorageManager::importServiceWorkerRegistrations(CompletionHandler<void(std::optional<Vector<WebCore::ServiceWorkerContextData>>)>&& completionHandler)
+void NetworkStorageManager::importServiceWorkerRegistrations(CompletionHandler<void(std::optional<Vector<WebCore::ServiceWorkerContextData>>&&)>&& completionHandler)
 {
     ASSERT(RunLoop::isMain());
 
@@ -2153,7 +2169,7 @@ void NetworkStorageManager::importServiceWorkerRegistrations(CompletionHandler<v
                 removeOriginStorageManagerIfPossible(origin);
             }
             if (hasResult)
-                result = registrations;
+                result = WTFMove(registrations);
         }
 
         RunLoop::protectedMain()->dispatch([protectedThis = WTFMove(protectedThis), result = crossThreadCopy(WTFMove(result)), completionHandler = WTFMove(completionHandler)]() mutable {

@@ -79,7 +79,7 @@
 
 - (NSString *)title
 {
-    return _page->pageLoadState().title();
+    return _page->pageLoadState().title().createNSString().autorelease();
 }
 
 - (NSURL *)URL
@@ -130,9 +130,7 @@ _WKRemoteObjectRegistry *WKPageGetObjectRegistry(WKPageRef pageRef)
 
 bool WKPageIsURLKnownHSTSHost(WKPageRef page, WKURLRef url)
 {
-    WebKit::WebPageProxy* webPageProxy = WebKit::toImpl(page);
-
-    return webPageProxy->configuration().processPool().isURLKnownHSTSHost(WebKit::toImpl(url)->string());
+    return WebKit::toProtectedImpl(page)->configuration().processPool().isURLKnownHSTSHost(WebKit::toImpl(url)->string());
 }
 
 WKNavigation *WKPageLoadURLRequestReturningNavigation(WKPageRef pageRef, WKURLRequestRef urlRequestRef)

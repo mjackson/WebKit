@@ -32,6 +32,7 @@
 
 namespace WebCore {
 class FloatQuad;
+enum class BoxSide : uint8_t;
 }
 
 @interface UIScrollView (WebKitInternal)
@@ -62,6 +63,7 @@ class FloatQuad;
 - (WebCore::FloatQuad)_wk_convertQuad:(const WebCore::FloatQuad&)quad toCoordinateSpace:(id<UICoordinateSpace>)destination;
 @property (nonatomic, readonly) UIScrollView *_wk_parentScrollView;
 @property (nonatomic, readonly) UIViewController *_wk_viewControllerForFullScreenPresentation;
+@property (nonatomic, readonly) UIView *_wk_previousSibling;
 @end
 
 @interface UIViewController (WebKitInternal)
@@ -80,6 +82,7 @@ namespace WebKit {
 
 RetainPtr<UIAlertController> createUIAlertController(NSString *title, NSString *message);
 UIScrollView *scrollViewForTouches(NSSet<UITouch *> *);
+UIRectEdge uiRectEdgeForSide(WebCore::BoxSide);
 
 } // namespace WebKit
 

@@ -29,6 +29,7 @@
 #if PLATFORM(IOS_FAMILY)
 
 #import "UIKitSPI.h"
+#import <WebCore/BoxSides.h>
 #import <WebCore/FloatPoint.h>
 #import <WebCore/FloatQuad.h>
 #import <wtf/BlockPtr.h>
@@ -268,6 +269,21 @@ static UIAxis axesForDelta(WebCore::FloatSize delta)
     };
 }
 
+- (UIView *)_wk_previousSibling
+{
+    RetainPtr superview = [self superview];
+    if (!superview)
+        return nil;
+
+    UIView *previousSibling = nil;
+    for (UIView *currentSibling in [superview subviews]) {
+        if (currentSibling == self)
+            break;
+        previousSibling = currentSibling;
+    }
+    return previousSibling;
+}
+
 @end
 
 @implementation UIViewController (WebKitInternal)
@@ -350,6 +366,22 @@ UIScrollView *scrollViewForTouches(NSSet<UITouch *> *touches)
             return scrollView;
     }
     return nil;
+}
+
+UIRectEdge uiRectEdgeForSide(WebCore::BoxSide side)
+{
+    switch (side) {
+    case WebCore::BoxSide::Top:
+        return UIRectEdgeTop;
+    case WebCore::BoxSide::Right:
+        return UIRectEdgeRight;
+    case WebCore::BoxSide::Bottom:
+        return UIRectEdgeBottom;
+    case WebCore::BoxSide::Left:
+        return UIRectEdgeLeft;
+    }
+    ASSERT_NOT_REACHED();
+    return UIRectEdgeNone;
 }
 
 } // namespace WebKit

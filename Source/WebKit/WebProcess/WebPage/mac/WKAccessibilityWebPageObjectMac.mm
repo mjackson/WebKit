@@ -289,19 +289,19 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
 
 - (id)accessibilityDataDetectorValue:(NSString *)attribute point:(WebCore::FloatPoint&)point
 {
-    return ax::retrieveValueFromMainThread<RetainPtr<id>>([&attribute, &point, PROTECTED_SELF] () -> RetainPtr<id> {
+    return ax::retrieveValueFromMainThread<RetainPtr<id>>([attribute = retainPtr(attribute), point, PROTECTED_SELF] () -> RetainPtr<id> {
         if (!protectedSelf->m_page)
             return nil;
         RetainPtr<id> value;
         if ([attribute isEqualToString:@"AXDataDetectorExistsAtPoint"] || [attribute isEqualToString:@"AXDidShowDataDetectorMenuAtPoint"]) {
             bool boolValue;
-            if (protectedSelf->m_page->corePage()->pageOverlayController().copyAccessibilityAttributeBoolValueForPoint(attribute, point, boolValue))
+            if (protectedSelf->m_page->corePage()->pageOverlayController().copyAccessibilityAttributeBoolValueForPoint(attribute.get(), point, boolValue))
                 value = [NSNumber numberWithBool:boolValue];
         }
         if ([attribute isEqualToString:@"AXDataDetectorTypeAtPoint"]) {
             String stringValue;
-            if (protectedSelf->m_page->corePage()->pageOverlayController().copyAccessibilityAttributeStringValueForPoint(attribute, point, stringValue))
-                value = adoptNS([[NSString alloc] initWithString:stringValue]);
+            if (protectedSelf->m_page->corePage()->pageOverlayController().copyAccessibilityAttributeStringValueForPoint(attribute.get(), point, stringValue))
+                value = stringValue.createNSString();
         }
         return value;
     }).autorelease();

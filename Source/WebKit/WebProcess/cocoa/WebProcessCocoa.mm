@@ -256,7 +256,7 @@ id WebProcess::accessibilityFocusedUIElement()
         }
 
         RefPtr object = (*isolatedTree)->focusedNode();
-        id objectWrapper = object ? object->wrapper() : nil;
+        RetainPtr objectWrapper = object ? object->wrapper() : nil;
         if (objectWrapper) {
             ALLOW_DEPRECATED_DECLARATIONS_BEGIN
             id associatedParent = [objectWrapper accessibilityAttributeValue:@"_AXAssociatedPluginParent"];
@@ -264,7 +264,7 @@ id WebProcess::accessibilityFocusedUIElement()
             if (associatedParent)
                 objectWrapper = associatedParent;
         }
-        return objectWrapper;
+        return objectWrapper.autorelease();
     }
 #endif
 
@@ -604,7 +604,7 @@ void WebProcess::platformSetWebsiteDataStoreParameters(WebProcessDataStoreParame
 #endif
 #if PLATFORM(IOS_FAMILY)
     if (auto& handle = parameters.containerTemporaryDirectoryExtensionHandle)
-        SandboxExtension::consumePermanently(*handle);
+        grantAccessToContainerTempDirectory(*handle);
 #endif
 
     if (!parameters.javaScriptConfigurationDirectory.isEmpty()) {
@@ -981,8 +981,8 @@ static NSURL *origin(WebPage& page)
     auto rootFrameOriginString = page.rootFrameOriginString();
     // +[NSURL URLWithString:] returns nil when its argument is malformed. It's unclear when we would have a malformed URL here,
     // but it happens in practice according to <rdar://problem/14173389>. Leaving an assertion in to catch a reproducible case.
-    ASSERT([NSURL URLWithString:rootFrameOriginString]);
-    return [NSURL URLWithString:rootFrameOriginString];
+    ASSERT([NSURL URLWithString:rootFrameOriginString.createNSString().get()]);
+    return [NSURL URLWithString:rootFrameOriginString.createNSString().get()];
 }
 
 static Vector<String> activePagesOrigins(const HashMap<PageIdentifier, RefPtr<WebPage>>& pageMap)
@@ -992,11 +992,11 @@ static Vector<String> activePagesOrigins(const HashMap<PageIdentifier, RefPtr<We
         if (page->usesEphemeralSession())
             continue;
 
-        NSURL *originAsURL = origin(*page);
+        RetainPtr originAsURL = origin(*page);
         if (!originAsURL)
             continue;
 
-        origins.append(WTF::userVisibleString(originAsURL));
+        origins.append(WTF::userVisibleString(originAsURL.get()));
     }
     return origins;
 }
@@ -1328,19 +1328,19 @@ void WebProcess::dispatchSimulatedNotificationsForPreferenceChange(const String&
     // of the system, we must re-post the notification in the Web Content process after updating the default.
     
     if (key == userAccentColorPreferenceKey()) {
-        auto notificationCenter = [NSNotificationCenter defaultCenter];
+        RetainPtr notificationCenter = [NSNotificationCenter defaultCenter];
         [notificationCenter postNotificationName:@"kCUINotificationAquaColorVariantChanged" object:nil];
         [notificationCenter postNotificationName:@"NSSystemColorsWillChangeNotification" object:nil];
         [notificationCenter postNotificationName:NSSystemColorsDidChangeNotification object:nil];
     } else if (key == userHighlightColorPreferenceKey()) {
-        auto notificationCenter = [NSNotificationCenter defaultCenter];
+        RetainPtr notificationCenter = [NSNotificationCenter defaultCenter];
         [notificationCenter postNotificationName:@"NSSystemColorsWillChangeNotification" object:nil];
         [notificationCenter postNotificationName:NSSystemColorsDidChangeNotification object:nil];
     }
 #endif
     if (key == captionProfilePreferenceKey()) {
-        auto notificationCenter = CFNotificationCenterGetLocalCenter();
-        CFNotificationCenterPostNotification(notificationCenter, kMAXCaptionAppearanceSettingsChangedNotification, nullptr, nullptr, true);
+        RetainPtr notificationCenter = CFNotificationCenterGetLocalCenter();
+        CFNotificationCenterPostNotification(notificationCenter.get(), kMAXCaptionAppearanceSettingsChangedNotification, nullptr, nullptr, true);
     }
 }
 
@@ -1529,7 +1529,7 @@ void WebProcess::postNotification(const String& message, std::optional<uint64_t>
 
 void WebProcess::postObserverNotification(const String& message)
 {
-    [[NSNotificationCenter defaultCenter] postNotificationName:message object:nil];
+    [[NSNotificationCenter defaultCenter] postNotificationName:message.createNSString().get() object:nil];
 }
 
 void WebProcess::setNotifyState(const String& name, uint64_t state)

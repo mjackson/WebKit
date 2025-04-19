@@ -27,6 +27,7 @@
 #include "WebFrameProxy.h"
 
 #include "APINavigation.h"
+#include "APIUIClient.h"
 #include "BrowsingContextGroup.h"
 #include "Connection.h"
 #include "DrawingAreaMessages.h"
@@ -351,11 +352,6 @@ WebFramePolicyListenerProxy& WebFrameProxy::setUpPolicyListenerProxy(CompletionH
     return *m_activeListener;
 }
 
-void WebFrameProxy::dispatchBeforeUnloadEventForCrossProcessNavigation(CompletionHandler<void(bool)>&& completionHandler)
-{
-    sendWithAsyncReply(Messages::WebFrame::DispatchBeforeUnloadEventForCrossProcessNavigation(), WTFMove(completionHandler));
-}
-
 void WebFrameProxy::getWebArchive(CompletionHandler<void(API::Data*)>&& callback)
 {
     if (RefPtr page = m_page.get())
@@ -596,7 +592,7 @@ Ref<FrameTreeSyncData> WebFrameProxy::calculateFrameTreeSyncData() const
     bool isSecureForPaymentSession = false;
 #endif
 
-    return FrameTreeSyncData::create(isSecureForPaymentSession);
+    return FrameTreeSyncData::create(isSecureForPaymentSession, WebCore::SecurityOrigin::create(url()));
 }
 
 void WebFrameProxy::broadcastFrameTreeSyncData(Ref<FrameTreeSyncData>&& data)
@@ -765,6 +761,12 @@ void WebFrameProxy::updateRemoteFrameSize(WebCore::IntSize size)
 {
     m_remoteFrameSize = size;
     send(Messages::WebFrame::UpdateFrameSize(size));
+}
+
+void WebFrameProxy::setAppBadge(const WebCore::SecurityOriginData& origin, std::optional<uint64_t> badge)
+{
+    if (RefPtr webPageProxy = m_page.get())
+        webPageProxy->uiClient().updateAppBadge(*webPageProxy, origin, badge);
 }
 
 std::optional<SharedPreferencesForWebProcess> WebFrameProxy::sharedPreferencesForWebProcess() const

@@ -147,7 +147,7 @@ enum class HTMLMediaElementSourceType : uint8_t {
     StoredStream,
 };
 
-using MediaProvider = std::optional < std::variant <
+using MediaProvider = std::optional < Variant <
 #if ENABLE(MEDIA_STREAM)
     RefPtr<MediaStream>,
 #endif
@@ -529,6 +529,10 @@ public:
     WEBCORE_EXPORT void exitFullscreen();
     WEBCORE_EXPORT void prepareForVideoFullscreenStandby();
 
+#if ENABLE(FULLSCREEN_API)
+    void documentFullscreenChanged(bool isChildOfElementFullscreen);
+#endif
+
     bool hasClosedCaptions() const override;
     bool closedCaptionsVisible() const override;
     void setClosedCaptionsVisible(bool) override;
@@ -574,7 +578,7 @@ public:
     RefPtr<VideoPlaybackQuality> getVideoPlaybackQuality() const;
 
     MediaPlayer::Preload preloadValue() const { return m_preload; }
-    RefPtr<MediaElementSession> mediaSessionIfExists() const { return m_mediaSession.get(); }
+    MediaElementSession* mediaSessionIfExists() const { return m_mediaSession.get(); }
     WEBCORE_EXPORT MediaElementSession& mediaSession() const;
 
     void pageScaleFactorChanged();
@@ -1225,6 +1229,9 @@ private:
 
     VideoFullscreenMode m_videoFullscreenMode { VideoFullscreenModeNone };
     bool m_videoFullscreenStandby { false };
+#if ENABLE(FULLSCREEN_API)
+    bool m_isChildOfElementFullscreen { false };
+#endif
     bool m_preparedForInline;
     Function<void()> m_preparedForInlineCompletionHandler;
 

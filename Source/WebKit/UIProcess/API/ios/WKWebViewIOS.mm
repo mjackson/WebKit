@@ -509,7 +509,7 @@ static CGSize roundScrollViewContentSize(const WebKit::WebPageProxy& page, CGSiz
         [_customContentView removeFromSuperview];
         [_customContentFixedOverlayView removeFromSuperview];
 
-        _customContentView = adoptNS([[representationClass alloc] web_initWithFrame:self.bounds webView:self mimeType:mimeType]);
+        _customContentView = adoptNS([[representationClass alloc] web_initWithFrame:self.bounds webView:self mimeType:mimeType.createNSString().get()]);
         _customContentFixedOverlayView = adoptNS([[UIView alloc] initWithFrame:self.bounds]);
         [_customContentFixedOverlayView layer].name = @"CustomContentFixedOverlay";
         [_customContentFixedOverlayView setUserInteractionEnabled:NO];
@@ -553,7 +553,7 @@ static CGSize roundScrollViewContentSize(const WebKit::WebPageProxy& page, CGSiz
 - (void)_didFinishLoadingDataForCustomContentProviderWithSuggestedFilename:(const String&)suggestedFilename data:(NSData *)data
 {
     ASSERT(_customContentView);
-    [_customContentView web_setContentProviderData:data suggestedFilename:suggestedFilename];
+    [_customContentView web_setContentProviderData:data suggestedFilename:suggestedFilename.createNSString().get()];
 
     // FIXME: It may make more sense for custom content providers to invoke this when they're ready,
     // because there's no guarantee that all custom content providers will lay out synchronously.
@@ -3982,7 +3982,7 @@ static bool isLockdownModeWarningNeeded()
         return nil;
 
     URL destinationURL { makeString("https://"_s, attribution->destinationDomain) };
-    return adoptNS([[UIEventAttribution alloc] initWithSourceIdentifier:attribution->sourceID destinationURL:destinationURL.createNSURL().get() sourceDescription:attribution->sourceDescription purchaser:attribution->purchaser]).autorelease();
+    return adoptNS([[UIEventAttribution alloc] initWithSourceIdentifier:attribution->sourceID destinationURL:destinationURL.createNSURL().get() sourceDescription:attribution->sourceDescription.createNSString().get() purchaser:attribution->purchaser.createNSString().get()]).autorelease();
 #else
     return nil;
 #endif
@@ -4984,7 +4984,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
             return;
         }
 
-        UIAction *dimmingAction = [UIAction actionWithTitle:WEB_UI_STRING("Auto Dimming", "Menu item label to toggle automatic scene dimming in fullscreen (visionOS only)") image:[UIImage _systemImageNamed:@"circle.lefthalf.dotted.inset.half.filled"] identifier:nil handler:[weakSelf] (UIAction *) {
+        UIAction *dimmingAction = [UIAction actionWithTitle:WEB_UI_STRING("Auto Dimming", "Menu item label to toggle automatic scene dimming in fullscreen (visionOS only)").createNSString().get() image:[UIImage _systemImageNamed:@"circle.lefthalf.dotted.inset.half.filled"] identifier:nil handler:[weakSelf] (UIAction *) {
             auto strongSelf = weakSelf.get();
             if (!strongSelf)
                 return;

@@ -53,14 +53,13 @@ messages -> RemoteDisplayListRecorder Stream {
     SetDropShadow(struct std::optional<WebCore::GraphicsDropShadow> dropShadow) StreamBatched
     SetStyle(std::optional<WebCore::GraphicsStyle> style) StreamBatched
     SetAlpha(float alpha) StreamBatched
-    SetTextDrawingMode(enum:uint8_t WebCore::TextDrawingModeFlags mode) StreamBatched
+    SetTextDrawingMode(WebCore::TextDrawingModeFlags mode) StreamBatched
     SetImageInterpolationQuality(enum:uint8_t WebCore::InterpolationQuality quality) StreamBatched
     SetShouldAntialias(bool shouldAntialias) StreamBatched
     SetShouldSmoothFonts(bool shouldSmooth) StreamBatched
     SetShouldSubpixelQuantizeFonts(bool shouldQuantize) StreamBatched
     SetShadowsIgnoreTransforms(bool shouldIgnore) StreamBatched
     SetDrawLuminanceMask(bool shouldDraw) StreamBatched
-    SetUseDarkAppearance(bool shouldUse) StreamBatched
     SetLineCap(enum:uint8_t WebCore::LineCap lineCap) StreamBatched
     SetLineDash(WebCore::DashArray dashArray, float dashOffset) StreamBatched
     SetLineJoin(enum:uint8_t WebCore::LineJoin lineJoin) StreamBatched

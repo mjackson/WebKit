@@ -2035,7 +2035,16 @@ FixedContainerEdges LocalFrameView::fixedContainerEdges(BoxSideSet sides) const
 
         document->hitTest({ HitTestSource::User, hitTestOptions }, result);
 
-        RefPtr hitNode = result.isRectBasedTest() ? result.listBasedTestResult().first().ptr() : result.innerNonSharedNode();
+        RefPtr hitNode = [&] -> RefPtr<Node> {
+            if (!result.isRectBasedTest())
+                return result.innerNonSharedNode();
+
+            if (auto& resultsList = result.listBasedTestResult(); !resultsList.isEmpty())
+                return resultsList.first().ptr();
+
+            return { };
+        }();
+
         if (!hitNode)
             return { };
 
@@ -5035,7 +5044,7 @@ void LocalFrameView::willPaintContents(GraphicsContext& context, const IntRect&,
 
     paintingState.isFlatteningPaintOfRootFrame = (m_paintBehavior & PaintBehavior::FlattenCompositingLayers) && !m_frame->ownerElement() && !context.detectingContentfulPaint();
     if (paintingState.isFlatteningPaintOfRootFrame)
-        notifyWidgetsInAllFrames(WillPaintFlattened);
+        notifyWidgetsInAllFrames(WidgetNotification::WillPaintFlattened);
 
     ASSERT(!m_isPainting);
     m_isPainting = true;
@@ -5046,7 +5055,7 @@ void LocalFrameView::didPaintContents(GraphicsContext& context, const IntRect& d
     m_isPainting = false;
 
     if (paintingState.isFlatteningPaintOfRootFrame)
-        notifyWidgetsInAllFrames(DidPaintFlattened);
+        notifyWidgetsInAllFrames(WidgetNotification::DidPaintFlattened);
 
     m_paintBehavior = paintingState.paintBehavior;
     m_lastPaintTime = MonotonicTime::now();

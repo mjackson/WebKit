@@ -1292,6 +1292,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
 
     tools/Integrity.h
     tools/IntegrityInlines.h
+    tools/LLVMProfiling.h
     tools/SourceProfiler.h
     tools/VMInspector.h
     tools/VMInspectorInlines.h

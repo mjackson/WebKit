@@ -272,9 +272,6 @@ public:
     // Given Cocoa idioms, this is a more useful default. Clients that need to preserve the
     // null string can check isNull explicitly.
     RetainPtr<NSString> createNSString() const;
-
-    // FIXME: Port call sites to createNSString() and remove this.
-    operator NSString *() const;
 #endif
 
 #if OS(WINDOWS)
@@ -344,8 +341,6 @@ static_assert(sizeof(String) == sizeof(void*), "String should effectively be a p
 
 inline bool operator==(const String& a, const String& b) { return equal(a.impl(), b.impl()); }
 inline bool operator==(const String& a, ASCIILiteral b) { return equal(a.impl(), b); }
-inline bool operator==(ASCIILiteral a, const String& b) { return equal(b.impl(), a); }
-template<size_t inlineCapacity> inline bool operator==(const Vector<char, inlineCapacity>& a, const String& b) { return equal(b.impl(), a.data(), a.size()); }
 template<size_t inlineCapacity> inline bool operator==(const String& a, const Vector<char, inlineCapacity>& b) { return b == a; }
 
 bool equalIgnoringASCIICase(const String&, const String&);
@@ -549,13 +544,6 @@ inline Expected<std::invoke_result_t<Func, std::span<const char8_t>>, UTF8Conver
 }
 
 #if USE(FOUNDATION) && defined(__OBJC__)
-
-inline String::operator NSString *() const
-{
-    if (!m_impl)
-        return @"";
-    SUPPRESS_UNCOUNTED_ARG return *m_impl;
-}
 
 inline RetainPtr<NSString> String::createNSString() const
 {
