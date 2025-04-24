@@ -22,9 +22,8 @@
 <script>
 var output = "This test ensures we compute the right frame for opacity: 0 elements.\n\n";
 
-let observedVariance;
 var current;
-function verifyRoleAndRect(expectedRole, expectedY) {
+function verifyRoleAndRect(expectedRole) {
     output += expect(`current.role.toLowerCase().includes("${expectedRole}")`, "true");
     output += `x: ${current.pageX}\n`;
     output += `y: ${current.pageY}\n`;
