@@ -2032,6 +2032,9 @@ webkit.org/b/288404 [ Sonoma+ Release ] fast/text/canvas-color-fonts/stroke-grad
 # webkit.org/b/287012 PDF tests crashing at WTF::Lock::assertIsOwner() under PDFPluginBase::streamedBytesForDebugLogging()
 [ Debug ] http/tests/pdf/linearized-pdf-in-iframe.html [ Pass Crash ]
 [ Debug ] http/tests/pdf/linearized-pdf-in-display-none-iframe.html [ Pass Crash ]
+[ Debug ] pdf/annotations/checkbox-set-active.html [ Pass Crash ]
+[ Debug ] pdf/annotations/dropdown-select-second-option.html [ Pass Crash ]
+[ Debug ] pdf/annotations/radio-buttons-select-second.html [ Pass Crash ]
 
 webkit.org/b/288411 [ Sequoia x86_64 ] imported/w3c/web-platform-tests/webrtc/simulcast/getStats.https.html [ Failure ]
 
@@ -2133,3 +2136,9 @@ webkit.org/b/291236 [ Debug ] http/tests/pdf/page-in-window-update-with-lineariz
 webkit.org/b/291394 [ Debug ] imported/w3c/web-platform-tests/wasm/webapi/esm-integration/script-src-blocks-wasm.tentative.sub.html [ Pass Failure ]
 
 webkit.org/b/291710 [ Debug ] swipe/basic-cached-back-swipe.html [ Pass Timeout ]
+
+webkit.org/b/291861 [ Release x86_64 ] media/media-vp8-hiddenframes.html [ Pass ImageOnlyFailure ]
+
+webkit.org/b/291878 [ Sequoia Release arm64 ] http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/textureSampleBias.html [ Failure ]
+
+webkit.org/b/291966 [ Sequoia+ Release ] http/tests/webgpu/webgpu/api/validation/render_pipeline/fragment_state.html [ Pass Timeout ]

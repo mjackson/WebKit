@@ -10572,7 +10572,7 @@ void SpeculativeJIT::compileCallDOM(Node* node)
 
     // FIXME: We should have a way to call functions with the vector of registers.
     // https://bugs.webkit.org/show_bug.cgi?id=163099
-    using OperandVariant = Variant<SpeculateCellOperand, SpeculateInt32Operand, SpeculateBooleanOperand>;
+    using OperandVariant = Variant<SpeculateCellOperand, SpeculateInt32Operand, SpeculateStrictInt52Operand, SpeculateBooleanOperand>;
     Vector<OperandVariant, JSC_DOMJIT_SIGNATURE_MAX_ARGUMENTS_INCLUDING_THIS> operands;
     Vector<GPRReg, JSC_DOMJIT_SIGNATURE_MAX_ARGUMENTS_INCLUDING_THIS> regs;
 
@@ -10946,7 +10946,6 @@ GPRReg SpeculativeJIT::temporaryRegisterForPutByVal(GPRTemporary& temporary, Arr
 
 void SpeculativeJIT::compileToStringOrCallStringConstructorOrStringValueOf(Node* node)
 {
-    ASSERT(node->op() != StringValueOf || node->child1().useKind() == UntypedUse);
     switch (node->child1().useKind()) {
     case NotCellUse: {
         JSValueOperand op1(this, node->child1(), ManualOperandSpeculation);
@@ -10986,16 +10985,21 @@ void SpeculativeJIT::compileToStringOrCallStringConstructorOrStringValueOf(Node*
         doneCases.append(jump());
 
         notCell.link(this);
-        auto isUndefined = branchIfUndefined(argRegs);
-        auto isNull = branchIfNull(argRegs);
-        DFG_TYPE_CHECK(argRegs, edge, SpecCellCheck | SpecOther, jump());
+        if (node->op() == StringValueOf) {
+            DFG_TYPE_CHECK(argRegs, edge, SpecCellCheck | SpecOther, branchIfNotOther(argRegs, resultGPR));
+            addSlowPathGenerator(slowPathCall(jump(), this, operationStringValueOf, resultGPR, LinkableConstant::globalObject(*this, node), argRegs));
+        } else {
+            auto isUndefined = branchIfUndefined(argRegs);
+            auto isNull = branchIfNull(argRegs);
+            DFG_TYPE_CHECK(argRegs, edge, SpecCellCheck | SpecOther, jump());
 
-        isUndefined.link(this);
-        loadLinkableConstant(LinkableConstant(*this, vm().smallStrings.undefinedString()), resultGPR);
-        doneCases.append(jump());
+            isUndefined.link(this);
+            loadLinkableConstant(LinkableConstant(*this, vm().smallStrings.undefinedString()), resultGPR);
+            doneCases.append(jump());
 
-        isNull.link(this);
-        loadLinkableConstant(LinkableConstant(*this, vm().smallStrings.nullString()), resultGPR);
+            isNull.link(this);
+            loadLinkableConstant(LinkableConstant(*this, vm().smallStrings.nullString()), resultGPR);
+        }
 
         doneCases.link(this);
         cellResult(resultGPR, node);

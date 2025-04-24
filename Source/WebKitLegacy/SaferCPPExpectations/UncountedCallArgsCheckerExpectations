@@ -1,7 +1,9 @@
+Storage/InProcessIDBServer.cpp
 Storage/StorageAreaImpl.cpp
 Storage/StorageAreaSync.cpp
 Storage/StorageNamespaceImpl.cpp
 Storage/StorageThread.cpp
+Storage/WebDatabaseProvider.cpp
 Storage/WebStorageNamespaceProvider.cpp
 WebCoreSupport/PageStorageSessionProvider.h
 WebCoreSupport/PingHandle.h
@@ -92,7 +94,6 @@ mac/DOM/DOMHTMLTableSectionElement.mm
 mac/DOM/DOMHTMLTextAreaElement.mm
 mac/DOM/DOMHTMLTitleElement.mm
 mac/DOM/DOMHTMLUListElement.mm
-mac/DOM/DOMHTMLVideoElement.mm
 mac/DOM/DOMImplementation.mm
 mac/DOM/DOMKeyboardEvent.mm
 mac/DOM/DOMMediaList.mm

@@ -762,7 +762,7 @@ inline static RetainPtr<NSString> textRelativeToSelectionStart(WKRelativeTextRan
 @end
 
 @interface WKFocusedElementInfo : NSObject <_WKFocusedElementInfo>
-- (instancetype)initWithFocusedElementInformation:(const WebKit::FocusedElementInformation&)information isUserInitiated:(BOOL)isUserInitiated userObject:(NSObject <NSSecureCoding> *)userObject;
+- (instancetype)initWithFocusedElementInformation:(const WebKit::FocusedElementInformation&)information isUserInitiated:(BOOL)isUserInitiated webView:(WKWebView *)webView userObject:(NSObject <NSSecureCoding> *)userObject;
 @end
 
 @implementation WKFormInputSession {
@@ -918,9 +918,10 @@ inline static RetainPtr<NSString> textRelativeToSelectionStart(WKRelativeTextRan
     RetainPtr<NSObject <NSSecureCoding>> _userObject;
     RetainPtr<NSString> _placeholder;
     RetainPtr<NSString> _label;
+    RetainPtr<WKFrameInfo> _frame;
 }
 
-- (instancetype)initWithFocusedElementInformation:(const WebKit::FocusedElementInformation&)information isUserInitiated:(BOOL)isUserInitiated userObject:(NSObject <NSSecureCoding> *)userObject
+- (instancetype)initWithFocusedElementInformation:(const WebKit::FocusedElementInformation&)information isUserInitiated:(BOOL)isUserInitiated webView:(WKWebView *)webView userObject:(NSObject <NSSecureCoding> *)userObject
 {
     if (!(self = [super init]))
         return nil;
@@ -989,6 +990,8 @@ inline static RetainPtr<NSString> textRelativeToSelectionStart(WKRelativeTextRan
     _userObject = userObject;
     _placeholder = information.placeholder.createNSString().get();
     _label = information.label.createNSString().get();
+    if (information.frame)
+        _frame = wrapper(API::FrameInfo::create(WebKit::FrameInfoData { *information.frame }, [webView _page].get()));
     return self;
 }
 
@@ -1020,6 +1023,11 @@ inline static RetainPtr<NSString> textRelativeToSelectionStart(WKRelativeTextRan
 - (NSString *)placeholder
 {
     return _placeholder.get();
+}
+
+- (WKFrameInfo *)frame
+{
+    return _frame.get();
 }
 
 @end
@@ -4700,6 +4708,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     // FIXME: Some of the following checks should be removed once internal clients move to the underscore-prefixed versions.
     if (action == @selector(toggleBoldface:) || action == @selector(toggleItalics:) || action == @selector(toggleUnderline:) || action == @selector(_toggleStrikeThrough:)
         || action == @selector(_alignLeft:) || action == @selector(_alignRight:) || action == @selector(_alignCenter:) || action == @selector(_alignJustified:)
+        || action == @selector(alignLeft:) || action == @selector(alignRight:) || action == @selector(alignCenter:) || action == @selector(alignJustified:)
         || action == @selector(_setTextColor:sender:) || action == @selector(_setFont:sender:) || action == @selector(_setFontSize:sender:)
         || action == @selector(_insertOrderedList:) || action == @selector(_insertUnorderedList:) || action == @selector(_insertNestedOrderedList:) || action == @selector(_insertNestedUnorderedList:)
         || action == @selector(_increaseListLevel:) || action == @selector(_decreaseListLevel:) || action == @selector(_changeListType:) || action == @selector(_indent:) || action == @selector(_outdent:)
@@ -8324,7 +8333,7 @@ static RetainPtr<NSObject <WKFormPeripheral>> createInputPeripheralWithView(WebK
     _didAccessoryTabInitiateFocus = _isChangingFocusUsingAccessoryTab;
 
     id <_WKInputDelegate> inputDelegate = [_webView _inputDelegate];
-    RetainPtr<WKFocusedElementInfo> focusedElementInfo = adoptNS([[WKFocusedElementInfo alloc] initWithFocusedElementInformation:information isUserInitiated:userIsInteracting userObject:userObject]);
+    RetainPtr<WKFocusedElementInfo> focusedElementInfo = adoptNS([[WKFocusedElementInfo alloc] initWithFocusedElementInformation:information isUserInitiated:userIsInteracting webView:_webView.get().get() userObject:userObject]);
 
     _WKFocusStartsInputSessionPolicy startInputSessionPolicy = _WKFocusStartsInputSessionPolicyAuto;
 
@@ -11506,7 +11515,7 @@ static Vector<WebCore::IntSize> sizesOfPlaceholderElementsToInsertWhenDroppingIt
 
     if (_focusedElementInformation.nonAutofillCredentialType == WebCore::NonAutofillCredentialType::WebAuthn) {
         context.get()[@"_page_id"] = [NSNumber numberWithUnsignedLong:_page->webPageIDInMainFrameProcess().toUInt64()];
-        context.get()[@"_frame_id"] = [NSNumber numberWithUnsignedLong:_focusedElementInformation.frameID ? _focusedElementInformation.frameID->toUInt64() : 0];
+        context.get()[@"_frame_id"] = [NSNumber numberWithUnsignedLong:_focusedElementInformation.frame ? _focusedElementInformation.frame->frameID.toUInt64() : 0];
         context.get()[@"_credential_type"] = WebCore::nonAutofillCredentialTypeString(_focusedElementInformation.nonAutofillCredentialType).createNSString().get();
     }
     return context.autorelease();
@@ -13992,7 +14001,7 @@ inline static NSString *extendSelectionCommand(UITextLayoutDirection direction)
     [self reloadInputViews];
 }
 
-- (PlatformWritingToolsResultOptions)allowedWritingToolsResultOptions
+- (CocoaWritingToolsResultOptions)allowedWritingToolsResultOptions
 {
     return [_webView allowedWritingToolsResultOptions];
 }

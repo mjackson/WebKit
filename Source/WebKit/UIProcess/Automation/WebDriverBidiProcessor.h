@@ -36,11 +36,12 @@
 
 namespace WebKit {
 
+class BidiBrowserAgent;
 class WebAutomationSession;
+class WebPageProxy;
 
 class WebDriverBidiProcessor final
     : public Inspector::FrontendChannel
-    , public Inspector::BidiBrowserBackendDispatcherHandler
     , public Inspector::BidiBrowsingContextBackendDispatcherHandler
     , public Inspector::BidiScriptBackendDispatcherHandler {
     WTF_MAKE_TZONE_ALLOCATED(WebDriverBidiProcessor);
@@ -61,11 +62,9 @@ public:
     void close(const Inspector::Protocol::BidiBrowsingContext::BrowsingContext&, std::optional<bool>&& optionalPromptUnload, Inspector::CommandCallback<void>&&) override;
     void create(Inspector::Protocol::BidiBrowsingContext::CreateType, const Inspector::Protocol::BidiBrowsingContext::BrowsingContext& optionalReferenceContext, std::optional<bool>&& optionalBackground, const String& optionalUserContext, Inspector::CommandCallback<String>&&) override;
     void getTree(const Inspector::Protocol::BidiBrowsingContext::BrowsingContext& optionalRoot, std::optional<double>&& optionalMaxDepth, Inspector::CommandCallback<Ref<JSON::ArrayOf<Inspector::Protocol::BidiBrowsingContext::Info>>>&&) override;
+    void handleUserPrompt(const Inspector::Protocol::BidiBrowsingContext::BrowsingContext&, std::optional<bool>&& optionalShouldAccept, const String& userText, Inspector::CommandCallback<void>&&) override;
     void navigate(const Inspector::Protocol::BidiBrowsingContext::BrowsingContext&, const String& url, std::optional<Inspector::Protocol::BidiBrowsingContext::ReadinessState>&&, Inspector::CommandCallbackOf<String, Inspector::Protocol::BidiBrowsingContext::Navigation>&&) override;
     void reload(const Inspector::Protocol::BidiBrowsingContext::BrowsingContext&, std::optional<bool>&& optionalIgnoreCache, std::optional<Inspector::Protocol::BidiBrowsingContext::ReadinessState>&& optionalWait, Inspector::CommandCallbackOf<String, String>&&) override;
-
-    // Inspector::BidiBrowserBackendDispatcherHandler methods.
-    Inspector::Protocol::ErrorStringOr<void> close() override;
 
     // Inspector::BidiScriptBackendDispatcherHandler methods.
     void callFunction(const String& functionDeclaration, bool awaitPromise, Ref<JSON::Object>&& target, RefPtr<JSON::Array>&& optionalArguments, std::optional<Inspector::Protocol::BidiScript::ResultOwnership>&&, RefPtr<JSON::Object>&& optionalSerializationOptions, RefPtr<JSON::Object>&& optionalThis, std::optional<bool>&& optionalUserActivation, Inspector::CommandCallbackOf<Inspector::Protocol::BidiScript::EvaluateResultType, String, RefPtr<Inspector::Protocol::BidiScript::RemoteValue>, RefPtr<Inspector::Protocol::BidiScript::ExceptionDetails>>&&) override;
@@ -73,7 +72,8 @@ public:
 
     // Event entry points called from the owning WebAutomationSession.
     void logEntryAdded(const String& level, const String& source, const String& message, double timestamp, const String& type, const String& method);
-
+    void userPromptOpenedOnPage(WebPageProxy&, const Inspector::Protocol::BidiBrowsingContext::UserPromptType&, const Inspector::Protocol::BidiSession::UserPromptHandlerType&, const String& message, std::optional<String>&& defaultValue);
+    void userPromptClosedOnPage(WebPageProxy&, const Inspector::Protocol::BidiBrowsingContext::UserPromptType&, bool accepted, std::optional<String>&& userText);
 private:
     Ref<Inspector::FrontendRouter> protectedFrontendRouter() const;
     Ref<Inspector::BackendDispatcher> protectedBackendDispatcher() const;
@@ -83,10 +83,11 @@ private:
     Ref<Inspector::FrontendRouter> m_frontendRouter;
     Ref<Inspector::BackendDispatcher> m_backendDispatcher;
 
-    Ref<Inspector::BidiBrowserBackendDispatcher> m_browserDomainDispatcher;
     Ref<Inspector::BidiBrowsingContextBackendDispatcher> m_browsingContextDomainDispatcher;
     Ref<Inspector::BidiScriptBackendDispatcher> m_scriptDomainDispatcher;
 
+    std::unique_ptr<BidiBrowserAgent> m_browserAgent;
+    std::unique_ptr<Inspector::BidiBrowsingContextFrontendDispatcher> m_browsingContextDomainNotifier;
     std::unique_ptr<Inspector::BidiLogFrontendDispatcher> m_logDomainNotifier;
 };
 

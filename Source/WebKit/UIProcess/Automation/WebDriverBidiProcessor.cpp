@@ -30,6 +30,7 @@
 
 // For AutomationError codes.
 #include "AutomationProtocolObjects.h"
+#include "BidiBrowserAgent.h"
 #include "Logging.h"
 #include "PageLoadState.h"
 #include "WebAutomationSession.h"
@@ -50,6 +51,8 @@ using namespace Inspector;
 using BrowsingContext = Inspector::Protocol::BidiBrowsingContext::BrowsingContext;
 using ReadinessState = Inspector::Protocol::BidiBrowsingContext::ReadinessState;
 using PageLoadStrategy = Inspector::Protocol::Automation::PageLoadStrategy;
+using UserPromptType = Inspector::Protocol::BidiBrowsingContext::UserPromptType;
+using UserPromptHandlerType = Inspector::Protocol::BidiSession::UserPromptHandlerType;
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(WebDriverBidiProcessor);
 
@@ -57,9 +60,10 @@ WebDriverBidiProcessor::WebDriverBidiProcessor(WebAutomationSession& session)
     : m_session(session)
     , m_frontendRouter(FrontendRouter::create())
     , m_backendDispatcher(BackendDispatcher::create(m_frontendRouter.copyRef()))
-    , m_browserDomainDispatcher(BidiBrowserBackendDispatcher::create(m_backendDispatcher, this))
     , m_browsingContextDomainDispatcher(BidiBrowsingContextBackendDispatcher::create(m_backendDispatcher, this))
     , m_scriptDomainDispatcher(BidiScriptBackendDispatcher::create(m_backendDispatcher, this))
+    , m_browserAgent(makeUnique<BidiBrowserAgent>(session, m_backendDispatcher))
+    , m_browsingContextDomainNotifier(makeUnique<BidiBrowsingContextFrontendDispatcher>(m_frontendRouter))
     , m_logDomainNotifier(makeUnique<BidiLogFrontendDispatcher>(m_frontendRouter))
 {
     protectedFrontendRouter()->connectFrontend(*this);
@@ -217,6 +221,23 @@ void WebDriverBidiProcessor::getTree(const BrowsingContext& optionalRoot, std::o
     callback({ { WTFMove(infos) } });
 }
 
+void WebDriverBidiProcessor::handleUserPrompt(const BrowsingContext& browsingContext, std::optional<bool>&& optionalShouldAccept, const String&, CommandCallback<void>&& callback)
+{
+    RefPtr session = m_session.get();
+    ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!session, InternalError);
+
+    // FIXME: implement `userText` option.
+
+    if (optionalShouldAccept && *optionalShouldAccept) {
+        callback(session->acceptCurrentJavaScriptDialog(browsingContext));
+        return;
+    }
+
+    // FIXME: this should consider the session's user prompt handler. <https://webkit.org/b/291666>
+    callback(session->dismissCurrentJavaScriptDialog(browsingContext));
+}
+
+
 // https://www.w3.org/TR/webdriver/#dfn-session-page-load-timeout
 static constexpr Seconds defaultPageLoadTimeout = 300_s;
 static constexpr ReadinessState defaultReadinessState = ReadinessState::None;
@@ -277,16 +298,22 @@ void WebDriverBidiProcessor::reload(const BrowsingContext& browsingContext, std:
     });
 }
 
-// MARK: Inspector::BidiBrowserDispatcherHandler methods.
-
-Inspector::Protocol::ErrorStringOr<void> WebDriverBidiProcessor::close()
+void WebDriverBidiProcessor::userPromptOpenedOnPage(WebPageProxy& page, const UserPromptType& promptType, const UserPromptHandlerType& handlerType, const String& message, std::optional<String>&& defaultValue)
 {
     RefPtr session = m_session.get();
-    SYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!session, InternalError);
+    if (!session)
+        return;
 
-    session->terminate();
+    m_browsingContextDomainNotifier->userPromptOpened(session->handleForWebPageProxy(page), promptType, handlerType, message, defaultValue.value_or(emptyString()));
+}
 
-    return { };
+void WebDriverBidiProcessor::userPromptClosedOnPage(WebPageProxy& page, const UserPromptType& promptType, bool accepted, std::optional<String>&& userText)
+{
+    RefPtr session = m_session.get();
+    if (!session)
+        return;
+
+    m_browsingContextDomainNotifier->userPromptClosed(session->handleForWebPageProxy(page), promptType, accepted, userText.value_or(emptyString()));
 }
 
 // MARK: Log domain.

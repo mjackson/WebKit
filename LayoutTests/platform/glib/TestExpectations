@@ -673,6 +673,12 @@ imported/w3c/web-platform-tests/navigation-api/navigation-history-entry/key-id-b
 # Accessibility-related bugs
 #////////////////////////////////////////////////////////////////////////////////////////
 
+# Static text elements aren't exposed in the accessibility tree on ATSPI, which this test relies on.
+# https://bugs.webkit.org/show_bug.cgi?id=282117
+# https://github.com/WebKit/WebKit/blob/e666928e70449224996d14a5868c902134facf30/Source/WebCore/accessibility/atspi/AccessibilityObjectAtspi.cpp#L1395#L1397
+accessibility/opacity-0-bounding-box.html [ Skip ]
+accessibility/clip-path-bounding-box.html [ Skip ]
+
 # AXObjectCache::announce not implemented.
 accessibility/announcement-notification.html [ Skip ]
 
@@ -1709,6 +1715,8 @@ imported/w3c/web-platform-tests/css/css-masking/clip-path-svg-content/mask-objec
 imported/w3c/web-platform-tests/css/css-masking/clip-path-svg-content/mask-objectboundingbox-content-clip.svg [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-masking/clip-path-svg-content/mask-userspaceonuse-content-clip-transform.svg [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-masking/clip-path-svg-content/mask-userspaceonuse-content-clip.svg [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/svg/painting/marker-005.svg [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/svg/painting/marker-006.svg [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/painting/reftests/marker-path-001.svg [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/painting/reftests/marker-path-011.svg [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/geometry/reftests/circle-003.svg [ ImageOnlyFailure ]
@@ -2281,6 +2289,8 @@ webkit.org/b/235885 imported/w3c/web-platform-tests/webrtc-encoded-transform/scr
 webkit.org/b/235885 imported/w3c/web-platform-tests/webrtc-encoded-transform/script-transform-sendKeyFrameRequest.https.html [ Skip ]
 imported/w3c/web-platform-tests/webrtc-encoded-transform/RTCRtpScriptTransform-encoded-transform.https.html [ Skip ]
 imported/w3c/web-platform-tests/webrtc-encoded-transform/RTCRtpScriptTransform-sender-worker-single-frame.https.html  [ Skip ]
+imported/w3c/web-platform-tests/webrtc-encoded-transform/encoded-frame-constructors.https.html [ Skip ]
+imported/w3c/web-platform-tests/webrtc-encoded-transform/encoded-frame-clone.https.html [ Skip ]
 imported/w3c/web-platform-tests/webrtc-encoded-transform/sframe-transform.html [ Skip ]
 imported/w3c/web-platform-tests/webrtc-encoded-transform/sframe-transform-in-worker.https.html [ Skip ]
 imported/w3c/web-platform-tests/webrtc-encoded-transform/sframe-keys.https.html [ Skip ]
