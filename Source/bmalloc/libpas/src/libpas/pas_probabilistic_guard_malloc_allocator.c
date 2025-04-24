@@ -46,7 +46,7 @@
 #include <unistd.h>
 
 /* PlayStation does not currently support the backtrace API. */
-#if !PAS_PLATFORM(PLAYSTATION)
+#if !PAS_PLATFORM(PLAYSTATION) && __has_include (<execinfo.h>)
 #include <execinfo.h>
 #else
 size_t backtrace(void** buffer, size_t size)
