@@ -2911,20 +2911,20 @@ JSC_DEFINE_JIT_OPERATION(operationStringReplaceStringEmptyString, JSString*, (JS
         OPERATION_RETURN(scope, result);
     OPERATION_RETURN_IF_EXCEPTION(scope, nullptr);
 
-    auto string = stringCell->view(globalObject);
+    auto string = stringCell->value(globalObject);
     OPERATION_RETURN_IF_EXCEPTION(scope, nullptr);
 
-    auto search = searchCell->view(globalObject);
+    auto search = searchCell->value(globalObject);
     OPERATION_RETURN_IF_EXCEPTION(scope, nullptr);
 
-    size_t matchStart = string->find(vm.adaptiveStringSearcherTables(), search);
+    size_t matchStart = StringView(string).find(vm.adaptiveStringSearcherTables(), StringView(search));
     if (matchStart == notFound)
         OPERATION_RETURN(scope,  stringCell);
 
     // Because replacement string is empty, it cannot include backreferences.
     size_t searchLength = search->length();
     size_t matchEnd = matchStart + searchLength;
-    auto result = tryMakeString(string->substring(0, matchStart), string->substring(matchEnd, string->length() - matchEnd));
+    auto result = tryMakeString(StringView(string).substring(0, matchStart), StringView(string).substring(matchEnd, string->length() - matchEnd));
     if (UNLIKELY(!result)) {
         throwOutOfMemoryError(globalObject, scope);
         OPERATION_RETURN(scope,  nullptr);
