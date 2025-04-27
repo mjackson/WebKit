@@ -2,7 +2,7 @@
   "domain": "HTTPServer",
   "description": "Provides events and commands for debugging server-side HTTP requests and responses within the Bun runtime.",
   "debuggableTypes": ["itml", "javascript"],
-  "targetTypes": ["itml", "javascript", "worker"],
+  "targetTypes": ["itml", "javascript"],
   "types": [
     {
       "id": "ServerId",

@@ -2,7 +2,7 @@
   "domain": "BunFrontendDevServer",
   "description": "Provides an interface for tools to interact with Bun's development server.",
   "debuggableTypes": ["itml", "javascript"],
-  "targetTypes": ["itml", "javascript", "worker"],
+  "targetTypes": ["itml", "javascript"],
   "types": [
     {
       "id": "BuildErrorLocation",
