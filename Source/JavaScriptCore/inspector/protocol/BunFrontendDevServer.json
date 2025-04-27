@@ -196,6 +196,11 @@
           "items": { "type": "string" },
           "optional": true,
           "description": "File paths that triggered this bundle operation, if applicable (e.g., not for initial build)."
+        },
+        {
+          "name": "id",
+          "type": "integer",
+          "description": "Unique identifier for this bundle operation."
         }
       ]
     },
@@ -219,6 +224,11 @@
           "name": "duration",
           "type": "number",
           "description": "Time taken for the bundle operation in milliseconds."
+        },
+        {
+          "name": "id",
+          "type": "integer",
+          "description": "Unique identifier for this bundle operation."
         }
       ]
     },
@@ -231,6 +241,11 @@
           "type": "array",
           "items": { "$ref": "BuildError" },
           "description": "List of errors and warnings encountered during the build."
+        },
+        {
+          "name": "id",
+          "type": "integer",
+          "description": "Unique identifier for this bundle operation."
         }
       ]
     },
@@ -293,6 +308,12 @@
           "items": { "$ref": "ClientStackFrame" },
           "optional": true,
           "description": "The stack trace associated with the error, remapped to source files if possible."
+        },
+        {
+          "name": "url",
+          "type": "string",
+          "optional": true,
+          "description": "The URL of the page where the error occurred."
         }
       ]
     }
