@@ -93,6 +93,7 @@ $(PROJECT_DIR)/inspector/InjectedScriptSource.js
 $(PROJECT_DIR)/inspector/protocol/Animation.json
 $(PROJECT_DIR)/inspector/protocol/Audit.json
 $(PROJECT_DIR)/inspector/protocol/Browser.json
+$(PROJECT_DIR)/inspector/protocol/BunFrontendDevServer.json
 $(PROJECT_DIR)/inspector/protocol/CPUProfiler.json
 $(PROJECT_DIR)/inspector/protocol/CSS.json
 $(PROJECT_DIR)/inspector/protocol/Canvas.json
@@ -102,14 +103,13 @@ $(PROJECT_DIR)/inspector/protocol/DOMDebugger.json
 $(PROJECT_DIR)/inspector/protocol/DOMStorage.json
 $(PROJECT_DIR)/inspector/protocol/Debugger.json
 $(PROJECT_DIR)/inspector/protocol/GenericTypes.json
+$(PROJECT_DIR)/inspector/protocol/HTTPServer.json
 $(PROJECT_DIR)/inspector/protocol/Heap.json
 $(PROJECT_DIR)/inspector/protocol/IndexedDB.json
 $(PROJECT_DIR)/inspector/protocol/Inspector.json
 $(PROJECT_DIR)/inspector/protocol/LayerTree.json
 $(PROJECT_DIR)/inspector/protocol/Memory.json
 $(PROJECT_DIR)/inspector/protocol/Network.json
-$(PROJECT_DIR)/inspector/protocol/HTTPServer.json
-$(PROJECT_DIR)/inspector/protocol/BunFrontendDevServer.json
 $(PROJECT_DIR)/inspector/protocol/Page.json
 $(PROJECT_DIR)/inspector/protocol/Recording.json
 $(PROJECT_DIR)/inspector/protocol/Runtime.json
