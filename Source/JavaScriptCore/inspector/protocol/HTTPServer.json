@@ -283,7 +283,7 @@
   ],
   "events": [
     {
-      "name": "serverStarted",
+      "name": "listen",
       "description": "Fired when an HTTP server starts listening.",
       "parameters": [
         {
@@ -304,7 +304,7 @@
       ]
     },
     {
-      "name": "serverStopped",
+      "name": "close",
       "description": "Fired when an HTTP server stops listening.",
       "parameters": [
         {
