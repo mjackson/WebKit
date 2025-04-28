@@ -5,6 +5,11 @@
   "targetTypes": ["itml", "javascript"],
   "types": [
     {
+      "id": "ServerId",
+      "type": "integer",
+      "description": "Unique identifier for Bun.serve"
+    },
+    {
       "id": "ConnectionId",
       "type": "integer",
       "description": "Unique identifier for a connected HMR WebSocket client."
@@ -28,13 +33,18 @@
     {
       "name": "disable",
       "description": "Disables the BunFrontendDevServer domain, stopping further events from being sent."
-    }
+    },
   ],
   "events": [
     {
       "name": "clientConnected",
       "description": "Fired when a new HMR WebSocket client connects.",
       "parameters": [
+        {
+          "name": "severId",
+          "$ref": "ServerId",
+          "description": "Server ID"
+        },
         {
           "name": "connectionId",
           "$ref": "ConnectionId",
@@ -47,6 +57,11 @@
       "description": "Fired when an HMR WebSocket client disconnects.",
       "parameters": [
         {
+          "name": "severId",
+          "$ref": "ServerId",
+          "description": "Server ID"
+        },
+        {
           "name": "connectionId",
           "$ref": "ConnectionId",
           "description": "Identifier for the disconnected client."
@@ -58,15 +73,15 @@
       "description": "Fired when the DevServer starts processing a new bundle.",
       "parameters": [
         {
+          "name": "severId",
+          "$ref": "ServerId",
+          "description": "Server ID"
+        },
+        {
           "name": "triggerFiles",
           "type": "array",
           "items": { "type": "string" },
           "description": "List of file paths that triggered this bundle."
-        },
-        {
-          "name": "buildId",
-          "type": "integer",
-          "description": "Build id"
         }
       ]
     },
@@ -75,14 +90,14 @@
       "description": "Fired when the DevServer successfully completes a bundle without build errors.",
       "parameters": [
         {
+          "name": "severId",
+          "$ref": "ServerId",
+          "description": "Server ID"
+        },
+        {
           "name": "durationMs",
           "type": "number",
           "description": "Time taken for the bundle in milliseconds."
-        },
-        {
-          "name": "buildId",
-          "type": "integer",
-          "description": "Build id"
         }
       ]
     },
@@ -91,14 +106,14 @@
       "description": "Fired when the DevServer completes a bundle with build errors. The payload is the base64 encoded binary data corresponding to the 'errors' MessageId.",
       "parameters": [
         {
+          "name": "severId",
+          "$ref": "ServerId",
+          "description": "Server ID"
+        },
+        {
           "name": "buildErrorsPayloadBase64",
           "$ref": "SerializedPayloadBase64",
           "description": "Base64 encoded binary payload containing serialized build errors (MessageId.errors format)."
-        },
-        {
-          "name": "buildId",
-          "type": "integer",
-          "description": "Build id"
         }
       ]
     },
@@ -106,6 +121,11 @@
       "name": "clientNavigated",
       "description": "Fired when a connected client navigates to a new URL (via history API or initial load).",
       "parameters": [
+       {
+          "name": "severId",
+          "$ref": "ServerId",
+          "description": "Server ID"
+        },
         {
           "name": "connectionId",
           "$ref": "ConnectionId",
@@ -128,6 +148,11 @@
       "name": "clientErrorReported",
       "description": "Fired when an error reported by a client (via the /_bun/report_error endpoint) has been processed and potentially remapped by the server. The payload is the base64 encoded binary data corresponding to the remapped error format (similar to MessageId.errors but potentially containing only one error).",
       "parameters": [
+       {
+          "name": "severId",
+          "$ref": "ServerId",
+          "description": "Server ID"
+        },
         {
           "name": "clientErrorPayloadBase64",
           "$ref": "SerializedPayloadBase64",
@@ -135,16 +160,5 @@
         }
       ]
     },
-    {
-      "name": "graphUpdate",
-      "description": "Fired when the incremental graph visualization data changes. The payload is the base64 encoded binary data corresponding to the 'visualizer' MessageId.",
-      "parameters": [
-        {
-          "name": "visualizerPayloadBase64",
-          "$ref": "SerializedPayloadBase64",
-          "description": "Base64 encoded binary payload for the incremental visualizer (MessageId.visualizer format)."
-        }
-      ]
-    }
   ]
 }
