@@ -33,7 +33,7 @@
     {
       "name": "disable",
       "description": "Disables the BunFrontendDevServer domain, stopping further events from being sent."
-    },
+    }
   ],
   "events": [
     {
@@ -159,6 +159,6 @@
           "description": "Base64 encoded binary payload containing the processed/remapped client error."
         }
       ]
-    },
+    }
   ]
 }
