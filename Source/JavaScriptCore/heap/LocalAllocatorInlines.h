@@ -30,6 +30,12 @@
 
 namespace JSC {
 
+// Workaround crash in Clang Analyzer when ALWAYS_INLINE_LAMBDA is in use here.
+#if defined(__clang_analyzer__) && defined(ALWAYS_INLINE_LAMBDA)
+#undef ALWAYS_INLINE_LAMBDA
+#define ALWAYS_INLINE_LAMBDA
+#endif
+
 ALWAYS_INLINE void* LocalAllocator::allocate(JSC::Heap& heap, size_t cellSize, GCDeferralContext* deferralContext, AllocationFailureMode failureMode)
 {
     VM& vm = heap.vm();
@@ -41,6 +47,11 @@ ALWAYS_INLINE void* LocalAllocator::allocate(JSC::Heap& heap, size_t cellSize, G
             return static_cast<HeapCell*>(allocateSlowCase(heap, cellSize, deferralContext, failureMode));
         }, cellSize);
 }
+
+#if defined(__clang_analyzer__) && defined(ALWAYS_INLINE_LAMBDA)
+#undef ALWAYS_INLINE_LAMBDA
+#define ALWAYS_INLINE_LAMBDA __attribute__((__always_inline__))
+#endif
 
 } // namespace JSC
 
