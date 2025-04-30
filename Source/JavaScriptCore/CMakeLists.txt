@@ -1410,6 +1410,9 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
 
     heap/BunV8HeapSnapshotBuilder.h
     heap/HeapProfiler.h
+
+    bytecode/GlobalCodeBlock.h
+    bytecode/ProgramCodeBlock.h
 )
 
 if(USE_INSPECTOR_SOCKET_SERVER)
