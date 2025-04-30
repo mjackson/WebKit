@@ -159,6 +159,26 @@
           "description": "Base64 encoded binary payload containing the processed/remapped client error."
         }
       ]
+    },
+    {
+      "name": "consoleLog",
+      "description": "Fired when the client logs a message to the console.",
+      "parameters": [
+        {
+          "name": "serverId",
+          "$ref": "ServerId"
+        },
+        {
+          "name": "kind",
+          "type": "number",
+          "description": "The kind of log message."
+        },
+        {
+          "name": "message",
+          "type": "string",
+          "description": "The log message."
+        }
+      ]
     }
   ]
 }
