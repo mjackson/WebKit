@@ -240,6 +240,18 @@
    },
    {
       "emails" : [
+         "adrien.destugues@opensource.viveris.fr",
+         "pulkomandy@pulkomandy.tk"
+      ],
+      "expertise" : "The Haiku Port",
+      "github" : "pulkomandy",
+      "name" : "Adrien Destugues",
+      "nicks" : [
+         "PulkoMandy"
+      ]
+   },
+   {
+      "emails" : [
          "enne@google.com",
          "enne@chromium.org"
       ],
@@ -3723,6 +3735,15 @@
    },
    {
       "emails" : [
+         "ikohli@apple.com",
+         "ishaankohli.work@gmail.com"
+      ],
+      "github" : "ik128484",
+      "name" : "Ishaan Kohli",
+      "status" : "committer"
+   },
+   {
+      "emails" : [
          "iagho@apple.com"
       ],
       "github" : "asiagho",
@@ -5650,13 +5671,6 @@
    },
    {
       "emails" : [
-         "krzywix@apple.com"
-      ],
-      "github" : "mkrzywix",
-      "name" : "Mateusz Krzywicki"
-   },
-   {
-      "emails" : [
          "mattbaker01@gmail.com"
       ],
       "expertise" : "Web Inspector",
@@ -6536,7 +6550,8 @@
          "pvarangot",
          "pedrov",
          "piter"
-      ]
+      ],
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -6823,6 +6838,14 @@
       "nicks" : [
          "rafaelw"
       ]
+   },
+   {
+      "emails" : [
+         "rahim_abdi@apple.com",
+         "abdi.abdirahim@gmail.com"
+      ],
+      "github" : "rahimabdi",
+      "name" : "Rahim Abdi"
    },
    {
       "emails" : [

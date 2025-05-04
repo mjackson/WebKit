@@ -33,6 +33,7 @@
 
 #if ENABLE(VIDEO)
 
+#include "CSSValueKeywords.h"
 #include "HTMLElement.h"
 #include "SpeechSynthesisUtterance.h"
 #include "TextTrackCue.h"
@@ -258,6 +259,8 @@ private:
     void beginSpeaking() final;
     void pauseSpeaking() final;
     void cancelSpeaking() final;
+
+    RefPtr<DocumentFragment> protectedWebVTTNodeTree() const { return m_webVTTNodeTree.get(); }
 
 #if !RELEASE_LOG_DISABLED
     const Logger& logger() const final { return *m_logger; }

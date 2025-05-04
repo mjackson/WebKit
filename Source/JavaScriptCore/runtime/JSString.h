@@ -456,7 +456,7 @@ public:
 
         bool append(JSString* jsString)
         {
-            if (UNLIKELY(this->hasOverflowed()))
+            if (this->hasOverflowed()) [[unlikely]]
                 return false;
             if (!jsString->length())
                 return true;

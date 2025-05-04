@@ -42,9 +42,7 @@
 /* ==== Platform additions: additions to PlatformHave.h from outside the main repository ==== */
 
 // This can't use USE(APPLE_INTERNAL_SDK) because this comes before PlatformUse.h.
-/* rdar://147082710: Temporarily work around unavailability of WebKitAdditions
-   when generating platform-enabled-swift-args.resp in installhdrs actions. */
-#if PLATFORM(COCOA) && !defined(__WK_GENERATING_PLATFORM_ARGS__) && __has_include(<WebKitAdditions/AdditionalPlatformHave.h>)
+#if PLATFORM(COCOA) && __has_include(<WebKitAdditions/AdditionalPlatformHave.h>)
 #include <WebKitAdditions/AdditionalPlatformHave.h>
 #endif
 
@@ -196,7 +194,7 @@
 #define HAVE_DISPATCH_H 1
 #endif
 
-#if OS(DARWIN)
+#if OS(DARWIN) || OS(HAIKU)
 #define HAVE_MADV_FREE 1
 #endif
 
@@ -204,7 +202,7 @@
 #define HAVE_MADV_FREE_REUSE 1
 #endif
 
-#if OS(DARWIN)
+#if OS(DARWIN) || OS(HAIKU)
 #define HAVE_MADV_DONTNEED 1
 #endif
 

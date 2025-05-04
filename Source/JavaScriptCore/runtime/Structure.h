@@ -856,7 +856,7 @@ public:
     
     void startWatchingInternalPropertiesIfNecessary(VM& vm)
     {
-        if (LIKELY(didWatchInternalProperties()))
+        if (didWatchInternalProperties()) [[likely]]
             return;
         startWatchingInternalProperties(vm);
     }

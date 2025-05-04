@@ -466,7 +466,7 @@ JSC_DEFINE_HOST_FUNCTION(dumpAndClearSamplingProfilerSamples, (JSGlobalObject* g
     }
 
     auto json = vm.takeSamplingProfilerSamplesAsJSON();
-    if (UNLIKELY(!json))
+    if (!json) [[unlikely]]
         return JSValue::encode(jsUndefined());
 
     auto jsonData = json->toJSONString();
@@ -1883,7 +1883,7 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
 
     initStaticGlobals(vm);
     
-    if (UNLIKELY(Options::useDollarVM()))
+    if (Options::useDollarVM()) [[unlikely]]
         exposeDollarVM(vm);
 
 #if ENABLE(WEBASSEMBLY)
@@ -2019,7 +2019,7 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
 
     fixupPrototypeChainWithObjectPrototype(vm);
 
-    if (UNLIKELY(Options::alwaysHaveABadTime()))
+    if (Options::alwaysHaveABadTime()) [[unlikely]]
         this->haveABadTime(vm);
 }
 
@@ -2032,7 +2032,7 @@ bool JSGlobalObject::put(JSCell* cell, JSGlobalObject* globalObject, PropertyNam
     JSGlobalObject* thisObject = jsCast<JSGlobalObject*>(cell);
     ASSERT(!Heap::heap(value) || Heap::heap(value) == Heap::heap(thisObject));
 
-    if (UNLIKELY(isThisValueAltered(slot, thisObject))) {
+    if (isThisValueAltered(slot, thisObject)) [[unlikely]] {
         SymbolTableEntry::Fast entry = thisObject->symbolTable()->get(propertyName.uid());
         if (!entry.isNull()) {
             if (entry.isReadOnly())
@@ -2094,7 +2094,7 @@ bool JSGlobalObject::canDeclareGlobalFunction(const Identifier& ident)
     PropertySlot slot(this, PropertySlot::InternalMethodType::GetOwnProperty);
     bool hasProperty = getOwnPropertySlot(this, this, ident, slot);
     scope.assertNoExceptionExceptTermination();
-    if (LIKELY(!hasProperty))
+    if (!hasProperty) [[likely]]
         return isStructureExtensible();
 
     bool isConfigurable = !(slot.attributes() & PropertyAttribute::DontDelete);
@@ -2115,7 +2115,7 @@ void JSGlobalObject::createGlobalFunctionBinding(const Identifier& ident)
     PropertySlot slot(this, PropertySlot::InternalMethodType::GetOwnProperty);
     bool hasProperty = getOwnPropertySlot(this, this, ident, slot);
     scope.assertNoExceptionExceptTermination();
-    if (UNLIKELY(hasProperty)) {
+    if (hasProperty) [[unlikely]] {
         if (slot.attributes() & PropertyAttribute::DontDelete) {
             ASSERT(!(slot.attributes() & PropertyAttribute::ReadOnly));
             // Nothing to do here: there is either a symbol table entry or non-configurable writable property

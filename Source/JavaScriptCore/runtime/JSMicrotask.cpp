@@ -42,11 +42,11 @@ void runJSMicrotask(JSGlobalObject* globalObject, MicrotaskIdentifier identifier
     VM& vm = globalObject->vm();
     auto scope = DECLARE_CATCH_SCOPE(vm);
 
-    if (UNLIKELY(!job.isObject()))
+    if (!job.isObject()) [[unlikely]]
         return;
 
     // If termination is issued, do not run microtasks. Otherwise, microtask should not care about exceptions.
-    if (UNLIKELY(!scope.clearExceptionExceptTermination()))
+    if (!scope.clearExceptionExceptTermination()) [[unlikely]]
         return;
 
     auto handlerCallData = JSC::getCallData(job);
@@ -59,16 +59,18 @@ void runJSMicrotask(JSGlobalObject* globalObject, MicrotaskIdentifier identifier
         ++count;
     }
 
-    if (UNLIKELY(globalObject->hasDebugger()))
+    if (globalObject->hasDebugger()) [[unlikely]] {
         globalObject->debugger()->willRunMicrotask(globalObject, identifier);
+    }
 
-    if (LIKELY(!vm.hasPendingTerminationException())) {
+    if (!vm.hasPendingTerminationException()) [[likely]] {
         profiledCall(globalObject, ProfilingReason::Microtask, job, handlerCallData, jsUndefined(), ArgList { std::bit_cast<EncodedJSValue*>(arguments.data()), count });
         scope.clearExceptionExceptTermination();
     }
 
-    if (UNLIKELY(globalObject->hasDebugger()))
+    if (globalObject->hasDebugger()) [[unlikely]] {
         globalObject->debugger()->didRunMicrotask(globalObject, identifier);
+    }
 }
 
 } // namespace JSC

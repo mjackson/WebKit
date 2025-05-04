@@ -158,7 +158,7 @@ void StreamingCompiler::didComplete()
             VM& vm = globalObject->vm();
             auto scope = DECLARE_THROW_SCOPE(vm);
 
-            if (UNLIKELY(!result.has_value())) {
+            if (!result.has_value()) [[unlikely]] {
                 throwException(globalObject, scope, createJSWebAssemblyCompileError(globalObject, vm, result.error()));
                 promise->rejectWithCaughtException(globalObject, scope);
                 return;
@@ -180,7 +180,7 @@ void StreamingCompiler::didComplete()
             VM& vm = globalObject->vm();
             auto scope = DECLARE_THROW_SCOPE(vm);
 
-            if (UNLIKELY(!result.has_value())) {
+            if (!result.has_value()) [[unlikely]] {
                 throwException(globalObject, scope, createJSWebAssemblyCompileError(globalObject, vm, result.error()));
                 promise->rejectWithCaughtException(globalObject, scope);
                 return;
@@ -188,7 +188,7 @@ void StreamingCompiler::didComplete()
 
             JSWebAssemblyModule* module = JSWebAssemblyModule::create(vm, globalObject->webAssemblyModuleStructure(), WTFMove(result.value()));
             JSWebAssembly::instantiateForStreaming(vm, globalObject, promise, module, importObject);
-            if (UNLIKELY(scope.exception())) {
+            if (scope.exception()) [[unlikely]] {
                 promise->rejectWithCaughtException(globalObject, scope);
                 return;
             }

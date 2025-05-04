@@ -64,6 +64,7 @@
 #include "CSSValuePool.h"
 #include "CSSViewValue.h"
 #include "ComposedTreeAncestorIterator.h"
+#include "ContainerNodeInlines.h"
 #include "ContentData.h"
 #include "CursorList.h"
 #include "CustomPropertyRegistry.h"
@@ -82,6 +83,7 @@
 #include "RenderElementInlines.h"
 #include "RenderGrid.h"
 #include "RenderInline.h"
+#include "RenderObjectInlines.h"
 #include "RotateTransformOperation.h"
 #include "SVGElement.h"
 #include "SVGRenderStyle.h"
@@ -2329,7 +2331,7 @@ static Ref<CSSValue> valueForTextEmphasisStyle(const RenderStyle& style)
     case TextEmphasisMark::Auto:
         ASSERT_NOT_REACHED();
 #if !ASSERT_ENABLED
-        FALLTHROUGH;
+        [[fallthrough]];
 #endif
     case TextEmphasisMark::Dot:
     case TextEmphasisMark::Circle:
@@ -4184,6 +4186,12 @@ RefPtr<CSSValue> ComputedStyleExtractor::valueForPropertyInStyle(const RenderSty
             return CSSPrimitiveValue::create(CSSValueBlock);
         if (marginTrim.containsAll({ MarginTrimType::InlineStart, MarginTrimType::InlineEnd }) && !marginTrim.containsAny({ MarginTrimType::BlockStart, MarginTrimType::BlockEnd }))
             return CSSPrimitiveValue::create(CSSValueInline);
+        if (marginTrim.containsAll({ MarginTrimType::BlockStart, MarginTrimType::BlockEnd, MarginTrimType::InlineStart, MarginTrimType::InlineEnd })) {
+            CSSValueListBuilder list;
+            list.append(CSSPrimitiveValue::create(CSSValueBlock));
+            list.append(CSSPrimitiveValue::create(CSSValueInline));
+            return CSSValueList::createSpaceSeparated(WTFMove(list));
+        }
 
         CSSValueListBuilder list;
         if (marginTrim.contains(MarginTrimType::BlockStart))
@@ -4338,7 +4346,7 @@ RefPtr<CSSValue> ComputedStyleExtractor::valueForPropertyInStyle(const RenderSty
     case CSSPropertyTextDecorationThickness:
         return textDecorationThicknessToCSSValue(style, style.textDecorationThickness());
     case CSSPropertyWebkitTextDecorationsInEffect:
-        return renderTextDecorationLineFlagsToCSSValue(style.textDecorationsInEffect());
+        return renderTextDecorationLineFlagsToCSSValue(style.textDecorationLineInEffect());
     case CSSPropertyWebkitTextFillColor:
         return currentColorOrValidColor(style, style.textFillColor());
     case CSSPropertyTextEmphasisColor:

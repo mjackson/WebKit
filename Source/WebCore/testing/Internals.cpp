@@ -39,6 +39,7 @@
 #include "BackForwardController.h"
 #include "BitmapImage.h"
 #include "Blob.h"
+#include "BoundaryPointInlines.h"
 #include "CSSKeyframesRule.h"
 #include "CSSMediaRule.h"
 #include "CSSPropertyParser.h"
@@ -58,6 +59,7 @@
 #include "ColorChooser.h"
 #include "ColorSerialization.h"
 #include "ComposedTreeIterator.h"
+#include "ContainerNodeInlines.h"
 #include "CookieJar.h"
 #include "CrossOriginPreflightResultCache.h"
 #include "Cursor.h"
@@ -165,6 +167,7 @@
 #include "NavigatorBeacon.h"
 #include "NavigatorMediaDevices.h"
 #include "NetworkLoadInformation.h"
+#include "NodeInlines.h"
 #include "Page.h"
 #include "PageOverlay.h"
 #include "PathUtilities.h"
@@ -192,6 +195,7 @@
 #include "RenderLayerScrollableArea.h"
 #include "RenderListBox.h"
 #include "RenderMenuList.h"
+#include "RenderObjectInlines.h"
 #include "RenderSearchField.h"
 #include "RenderTheme.h"
 #include "RenderTreeAsText.h"
@@ -236,7 +240,7 @@
 #include "TextPlaceholderElement.h"
 #include "TextRecognitionOptions.h"
 #include "ThreadableBlobRegistry.h"
-#include "TreeScope.h"
+#include "TreeScopeInlines.h"
 #include "TypeConversions.h"
 #include "UserContentURLPattern.h"
 #include "UserGestureIndicator.h"
@@ -2086,7 +2090,7 @@ ExceptionOr<String> Internals::dumpMarkerRects(const String& markerTypeString)
     rectString.append("marker rects: "_s);
     for (const auto& rect : rects)
         rectString.append('(', rect.x(), ", "_s, rect.y(), ", "_s, FormattedNumber::fixedPrecision(rect.width()), ", "_s, rect.height(), ") "_s);
-    return rectString.toString();
+    return String { rectString.toString() };
 }
 
 ExceptionOr<void> Internals::setMarkedTextMatchesAreHighlighted(bool flag)
@@ -4363,7 +4367,7 @@ ExceptionOr<String> Internals::getCurrentCursorInfo()
     if (cursor.imageScaleFactor() != 1)
         result.append(" scale="_s, cursor.imageScaleFactor());
 #endif
-    return result.toString();
+    return String { result.toString() };
 #else
     return "FAIL: Cursor details not available on this platform."_str;
 #endif
@@ -4984,7 +4988,7 @@ ExceptionOr<String> Internals::mediaSessionRestrictions(const String& mediaTypeS
             builder.append(',');
         builder.append("interruptedplaybacknotpermitted"_s);
     }
-    return builder.toString();
+    return String { builder.toString() };
 }
 
 void Internals::setMediaElementRestrictions(HTMLMediaElement& element, StringView restrictionsString)
@@ -5650,7 +5654,7 @@ ExceptionOr<String> Internals::scrollSnapOffsets(Element& element)
         serializeOffsets(result, offsetInfo->verticalSnapOffsets);
     }
 
-    return result.toString();
+    return String { result.toString() };
 }
 
 ExceptionOr<bool> Internals::isScrollSnapInProgress(Element& element)

@@ -36,6 +36,7 @@
 #include "InjectedBundleNodeHandle.h"
 #include "InjectedBundleRangeHandle.h"
 #include "InjectedBundleScriptWorld.h"
+#include "Logging.h"
 #include "MessageSenderInlines.h"
 #include "NetworkConnectionToWebProcessMessages.h"
 #include "NetworkProcessConnection.h"
@@ -459,6 +460,8 @@ void WebFrame::createProvisionalFrame(ProvisionalFrameCreationParameters&& param
 
     if (parameters.layerHostingContextIdentifier)
         setLayerHostingContextIdentifier(*parameters.layerHostingContextIdentifier);
+    if (parameters.initialSize)
+        updateLocalFrameSize(localFrame, *parameters.initialSize);
 }
 
 void WebFrame::destroyProvisionalFrame()
@@ -1199,8 +1202,12 @@ void WebFrame::updateFrameSize(WebCore::IntSize newSize)
     RefPtr localFrame = coreLocalFrame();
     if (!localFrame)
         return;
+    updateLocalFrameSize(*localFrame, newSize);
+}
 
-    RefPtr frameView = localFrame->view();
+void WebFrame::updateLocalFrameSize(WebCore::LocalFrame& localFrame, WebCore::IntSize newSize)
+{
+    RefPtr frameView = localFrame.view();
     if (!frameView)
         return;
 

@@ -123,7 +123,7 @@ void EventDispatcher::internalWheelEvent(PageIdentifier pageID, const WebWheelEv
     ensureOnMainRunLoop([pageID] {
         if (RefPtr webPage = WebProcess::singleton().webPage(pageID)) {
             if (RefPtr corePage = webPage->corePage()) {
-                if (auto* keyboardScrollingAnimator = corePage->currentKeyboardScrollingAnimator())
+                if (CheckedPtr keyboardScrollingAnimator = corePage->currentKeyboardScrollingAnimator())
                     keyboardScrollingAnimator->stopScrollingImmediately();
             }
         }
