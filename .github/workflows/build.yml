@@ -452,6 +452,8 @@ jobs:
           mv ${{runner.temp}}/bun-webkit-linux-arm64-musl/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-arm64-musl.tar.gz
           mv ${{runner.temp}}/bun-webkit-macos-arm64/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-macos-arm64.tar.gz
           mv ${{runner.temp}}/bun-webkit-macos-amd64/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-macos-amd64.tar.gz
+          mv ${{runner.temp}}/bun-webkit-linux-amd64-debug-asan/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-amd64-debug-asan.tar.gz
+          mv ${{runner.temp}}/bun-webkit-linux-arm64-debug-asan/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-arm64-debug-asan.tar.gz
           mv ${{runner.temp}}/bun-webkit-linux-amd64-debug/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-amd64-debug.tar.gz
           mv ${{runner.temp}}/bun-webkit-linux-arm64-debug/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-arm64-debug.tar.gz
           mv ${{runner.temp}}/bun-webkit-linux-amd64-musl-debug/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-amd64-musl-debug.tar.gz
