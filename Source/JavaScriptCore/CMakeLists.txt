@@ -1245,6 +1245,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/StructureTransitionTable.h
     runtime/SubspaceAccess.h
     runtime/Symbol.h
+    runtime/SymbolObject.h
     runtime/SymbolPrototype.h
     runtime/SymbolTable.h
     runtime/SymbolTableOrScopeDepth.h
