@@ -33,6 +33,7 @@
 #include "JSModuleEnvironment.h"
 #include "JSModuleNamespaceObject.h"
 #include "JSModuleRecord.h"
+#include "ObjectConstructor.h"
 #include "SyntheticModuleRecord.h"
 #include "VMTrapsInlines.h"
 #include "WebAssemblyModuleRecord.h"
@@ -171,6 +172,16 @@ AbstractModuleRecord* AbstractModuleRecord::hostResolveImportedModule(JSGlobalOb
     JSValue entry = m_dependenciesMap->JSMap::get(globalObject, moduleNameValue);
     RETURN_IF_EXCEPTION(scope, nullptr);
     RELEASE_AND_RETURN(scope, entry.getAs<AbstractModuleRecord*>(globalObject, Identifier::fromString(vm, "module"_s)));
+}
+
+void AbstractModuleRecord::setImportedModule(JSGlobalObject* globalObject, const Identifier& moduleName, AbstractModuleRecord* record)
+{
+    VM& vm = globalObject->vm();
+    JSValue moduleNameValue = identifierToJSValue(vm, moduleName);
+    JSObject* object = JSC::constructEmptyObject(globalObject, globalObject->objectPrototype(), 1);
+    object->putDirect(vm, PropertyName(Identifier::fromString(vm, "module"_s)), record);
+    // TODO(@heimskr): perhaps more properties, such as state
+    m_dependenciesMap->JSMap::set(globalObject, moduleNameValue, object);
 }
 
 auto AbstractModuleRecord::resolveImport(JSGlobalObject* globalObject, const Identifier& localName) -> Resolution
