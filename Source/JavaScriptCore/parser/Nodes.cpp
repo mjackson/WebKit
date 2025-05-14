@@ -66,6 +66,11 @@ StatementNode* SourceElements::singleStatement() const
     return m_head == m_tail ? m_head : nullptr;
 }
 
+StatementNode* SourceElements::firstStatement() const
+{
+    return m_head;
+}
+
 StatementNode* SourceElements::lastStatement() const
 {
     return m_tail;
