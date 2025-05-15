@@ -554,6 +554,7 @@ public:
     FunctionExecutable* functionDecl(int index) { return m_functionDecls[index].get(); }
     int numberOfFunctionDecls() { return m_functionDecls.size(); }
     FunctionExecutable* functionExpr(int index) { return m_functionExprs[index].get(); }
+    size_t numberOfFunctionExprs() const { return m_functionExprs.size(); }
     
     const BitVector& bitVector(size_t i) { return m_unlinkedCode->bitVector(i); }
 
