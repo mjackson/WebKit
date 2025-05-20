@@ -2585,9 +2585,9 @@ bool GenericCacheEntry::decode(Decoder& decoder, SourceCodeKey& key) const
 
     switch (m_tag) {
     case CachedProgramCodeBlockTag:
-        return __bit_cast<const CacheEntry<UnlinkedProgramCodeBlock>*>(this)->decode(decoder, key);
+        return std::bit_cast<const CacheEntry<UnlinkedProgramCodeBlock>*>(this)->decode(decoder, key);
     case CachedModuleCodeBlockTag:
-        return __bit_cast<const CacheEntry<UnlinkedModuleProgramCodeBlock>*>(this)->decode(decoder, key);
+        return std::bit_cast<const CacheEntry<UnlinkedModuleProgramCodeBlock>*>(this)->decode(decoder, key);
     case CachedEvalCodeBlockTag:
         // We do not cache eval code blocks
         return false;
@@ -2653,7 +2653,7 @@ RefPtr<CachedBytecode> encodeFunctionCodeBlock(VM& vm, const UnlinkedFunctionCod
 
 std::optional<SourceCodeKey> decodeSourceCodeKey(VM& vm, Ref<CachedBytecode> cachedBytecode)
 {
-    const auto* cachedEntry = __bit_cast<const GenericCacheEntry*>(cachedBytecode->span().data());
+    const auto* cachedEntry = std::bit_cast<const GenericCacheEntry*>(cachedBytecode->span().data());
     Ref<Decoder> decoder = Decoder::create(vm, WTFMove(cachedBytecode));
 
     SourceCodeKey key;

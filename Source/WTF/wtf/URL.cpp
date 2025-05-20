@@ -343,7 +343,7 @@ static inline String fileSystemPathWindows(WTF::StringView host, WTF::StringView
 
     // UNC paths look like '\\server\share\etc', but in a URL they look like 'file://server/share/etc'.
     String decodedPath = path.is8Bit() ? decodeEscapeSequencesFromParsedURLForWindowsPath<LChar>(path.span8()) : decodeEscapeSequencesFromParsedURLForWindowsPath<UChar>(path.span16());   
-    if (UNLIKELY(host.length() > 0)) {
+    if (host.length() > 0) [[unlikely]] {
         return makeString("\\\\"_s, host, "\\"_s, decodedPath);
     }
     return decodedPath;

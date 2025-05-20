@@ -222,14 +222,14 @@ public:
 
     static String tryCreateUninitialized(size_t length, std::span<UChar>& data) {
         RefPtr<StringImpl> impl = StringImpl::tryCreateUninitialized(length, data);
-        if (UNLIKELY(!impl))
+        if (!impl) [[unlikely]]
             return nullString();
         return impl;
     }
 
     static String tryCreateUninitialized(size_t length, std::span<LChar>& data) {
         RefPtr<StringImpl> impl = StringImpl::tryCreateUninitialized(length, data);
-        if (UNLIKELY(!impl))
+        if (!impl) [[unlikely]]
             return nullString();
         return impl;
     }

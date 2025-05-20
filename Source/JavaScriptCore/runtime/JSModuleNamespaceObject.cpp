@@ -212,7 +212,7 @@ bool JSModuleNamespaceObject::put(JSCell* cell, JSGlobalObject* globalObject, Pr
     auto* thisObject = jsCast<JSModuleNamespaceObject*>(cell);
     if (thisObject->m_isOverridingValue) {
         return true;
-    } else if (UNLIKELY(propertyName == vm.propertyNames->__esModule && !thisObject->m_exports.contains(propertyName.uid()))) {
+    } else if (propertyName == vm.propertyNames->__esModule && !thisObject->m_exports.contains(propertyName.uid())) [[unlikely]] {
         RELEASE_AND_RETURN(scope, Base::put(thisObject, globalObject, propertyName, value, slot));
     }
 #endif

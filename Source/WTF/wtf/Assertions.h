@@ -47,7 +47,7 @@
 #include <stdlib.h>
 #include <wtf/ExportMacros.h>
 
-#if OS(DARWIN)
+#if OS(DARWIN) && !USE(BUN_JSC_ADDITIONS)
 #include <wtf/spi/darwin/ReasonSPI.h>
 #endif
 
@@ -1003,7 +1003,7 @@ inline void compilerFenceForCrash()
 
 #endif /* __cplusplus */
 
-#if OS(DARWIN)
+#if OS(DARWIN) && !USE(BUN_JSC_ADDITIONS)
 #define CRASH_WITH_EXTRA_SECURITY_IMPLICATION_AND_INFO(abortReason, abortMsg, ...) do { \
         if (g_wtfConfig.useSpecialAbortForExtraSecurityImplications) \
             abort_with_reason(OS_REASON_WEBKIT, abortReason, abortMsg, OS_REASON_FLAG_SECURITY_SENSITIVE); \

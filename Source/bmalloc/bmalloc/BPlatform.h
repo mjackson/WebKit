@@ -173,14 +173,14 @@
     || defined(__ARM_ARCH_5TEJ__)
 #define BARM_ARCH_VERSION 5
 
-#elif defined(__ARM_ARCH_6__) \
-|| defined(__ARM_ARCH_6J__) \
-|| defined(__ARM_ARCH_6K__) \
-|| defined(__ARM_ARCH_6Z__) \
-|| defined(__ARM_ARCH_6KZ__) \
-|| defined(__ARM_ARCH_6ZK__) \
-|| defined(__ARM_ARCH_6T2__) \
-|| defined(__ARMV6__)
+#elif defined(__ARM_ARCH_6__)    \
+    || defined(__ARM_ARCH_6J__)  \
+    || defined(__ARM_ARCH_6K__)  \
+    || defined(__ARM_ARCH_6Z__)  \
+    || defined(__ARM_ARCH_6KZ__) \
+    || defined(__ARM_ARCH_6ZK__) \
+    || defined(__ARM_ARCH_6T2__) \
+    || defined(__ARMV6__)
 #define BARM_ARCH_VERSION 6
 
 #elif defined(__ARM_ARCH_7A__)  \
@@ -338,6 +338,7 @@
 
 /* This is used for debugging when hacking on how bmalloc calculates its physical footprint. */
 #define ENABLE_PHYSICAL_PAGE_MAP 0
+#endif
 
 /* BENABLE(LIBPAS) is enabling libpas build. But this does not mean we use libpas for bmalloc replacement. */
 #if !defined(BENABLE_LIBPAS)

@@ -1248,8 +1248,6 @@ private:
     void initializeAggregateErrorConstructor(LazyClassStructure::Initializer&);
     void initializeSuppressedErrorConstructor(LazyClassStructure::Initializer&);
 
-    void initializeSuppressedErrorConstructor(LazyClassStructure::Initializer&);
-
     JS_EXPORT_PRIVATE void init(VM&);
     void initStaticGlobals(VM&);
     void fixupPrototypeChainWithObjectPrototype(VM&);

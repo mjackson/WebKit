@@ -1050,7 +1050,7 @@ template<typename CharacterType> ALWAYS_INLINE RefPtr<StringImpl> StringImpl::tr
         return nullptr;
     }
     SUPPRESS_UNCOUNTED_LOCAL StringImpl* result = (StringImpl*)StringImplMalloc::tryMalloc(allocationSize<CharacterType>(length));
-    if (UNLIKELY(!result)) {
+    if (!result) [[unlikely]] {
         output = { };
         return nullptr;
     }

@@ -438,10 +438,6 @@ public:
     size_t externalMemorySize() { return m_externalMemorySize; }
 #endif
 
-#if USE(BUN_JSC_ADDITIONS)
-    JS_EXPORT_PRIVATE void registerLargeString(JSString*);
-#endif
-
     // Use this API to report non-GC memory if you can't use the better API above.
     void deprecatedReportExtraMemory(size_t);
 
@@ -979,10 +975,6 @@ private:
     Box<Lock> m_threadLock;
     Ref<AutomaticThreadCondition> m_threadCondition; // The mutator must not wait on this. It would cause a deadlock.
     RefPtr<AutomaticThread> m_thread;
-
-#if USE(BUN_JSC_ADDITIONS)
-    WeakSet m_largeStringWeakSet;
-#endif
 
     RefPtr<Thread> m_collectContinuouslyThread { nullptr };
     

@@ -60,7 +60,7 @@ private:
 
 ALWAYS_INLINE void ExternalStringImpl::freeExternalBuffer(void* buffer, unsigned bufferSize)
 {
-    if (LIKELY(reinterpret_cast<uintptr_t>(m_freeCtx) != isAlreadyReleasedMarker))
+    if (reinterpret_cast<uintptr_t>(m_freeCtx) != isAlreadyReleasedMarker) [[likely]]
         m_free(m_freeCtx, buffer, bufferSize);
 }
 
