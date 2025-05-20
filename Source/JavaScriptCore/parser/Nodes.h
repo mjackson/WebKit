@@ -1649,6 +1649,7 @@ namespace JSC {
         void append(StatementNode*);
 
         StatementNode* singleStatement() const;
+        StatementNode* firstStatement() const;
         StatementNode* lastStatement() const;
 
         bool hasCompletionValue() const;
@@ -1989,6 +1990,7 @@ namespace JSC {
             return m_numConstants + 2;
         }
 
+        SourceElements* statements() const { return m_statements; }
         StatementNode* singleStatement() const;
 
         bool hasCompletionValue() const override;
@@ -2121,6 +2123,8 @@ namespace JSC {
     class ModuleDeclarationNode : public StatementNode {
     public:
         virtual bool analyzeModule(ModuleAnalyzer&) = 0;
+        virtual bool isImportDeclarationNode() const { return false; }
+        virtual bool hasAttributesList() const { return false; }
         bool hasCompletionValue() const override { return false; }
         bool isModuleDeclarationNode() const override { return true; }
 
@@ -2135,6 +2139,9 @@ namespace JSC {
             Deferred
         };
         ImportDeclarationNode(const JSTokenLocation&, ImportType, ImportSpecifierListNode*, ModuleNameNode*, ImportAttributesListNode*);
+
+        bool isImportDeclarationNode() const override { return true; }
+        bool hasAttributesList() const override { return true; }
 
         ImportSpecifierListNode* specifierList() const { return m_specifierList; }
         ModuleNameNode* moduleName() const { return m_moduleName; }
@@ -2153,6 +2160,8 @@ namespace JSC {
     class ExportAllDeclarationNode final : public ModuleDeclarationNode {
     public:
         ExportAllDeclarationNode(const JSTokenLocation&, ModuleNameNode*, ImportAttributesListNode*);
+
+        bool hasAttributesList() const override { return true; }
 
         ModuleNameNode* moduleName() const { return m_moduleName; }
         ImportAttributesListNode* attributesList() const { return m_attributesList; }
@@ -2221,6 +2230,8 @@ namespace JSC {
     class ExportNamedDeclarationNode final : public ModuleDeclarationNode {
     public:
         ExportNamedDeclarationNode(const JSTokenLocation&, ExportSpecifierListNode*, ModuleNameNode*, ImportAttributesListNode*);
+
+        bool hasAttributesList() const override { return true; }
 
         ExportSpecifierListNode* specifierList() const { return m_specifierList; }
         ModuleNameNode* moduleName() const { return m_moduleName; }

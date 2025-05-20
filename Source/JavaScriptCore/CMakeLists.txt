@@ -1419,7 +1419,9 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     heap/HeapProfiler.h
 
     bytecode/GlobalCodeBlock.h
+    bytecode/ModuleProgramCodeBlock.h
     bytecode/ProgramCodeBlock.h
+    parser/ModuleAnalyzer.h
 )
 
 if(USE_INSPECTOR_SOCKET_SERVER)
