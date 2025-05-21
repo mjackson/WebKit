@@ -44,6 +44,8 @@ public:
         return adoptRef(*new WorkerScriptFetcher(WTFMove(parameters), credentials, destination, referrerPolicy));
     }
 
+    Type type() const final { return Type::Worker; }
+
     FetchOptions::Credentials credentials() const { return m_credentials; }
     FetchOptions::Destination destination() const { return m_destination; }
     ReferrerPolicy referrerPolicy() const { return m_referrerPolicy; }
