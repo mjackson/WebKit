@@ -48,6 +48,10 @@
 #include <xf86drm.h>
 #endif
 
+#if USE(MANETTE)
+#include "WPEGamepadManagerManette.h"
+#endif
+
 /**
  * WPEDisplay:
  *
@@ -59,6 +63,7 @@ struct _WPEDisplayPrivate {
     HashMap<String, bool> extensionsMap;
     GRefPtr<WPEBufferDMABufFormats> preferredDMABufFormats;
     GRefPtr<WPEKeymap> keymap;
+    GRefPtr<WPEClipboard> clipboard;
     GRefPtr<WPESettings> settings;
     WPEAvailableInputDevices availableInputDevices;
 };
@@ -389,6 +394,31 @@ WPEKeymap* wpe_display_get_keymap(WPEDisplay* display)
 }
 
 /**
+ * wpe_display_get_clipboard:
+ * @display: a #WPEDisplay
+ *
+ * Get the #WPEClipboard of @display. If the platform doesn't
+ * support clipboard, a local #WPEClipboard is created.
+ *
+ * Returns: (transfer none): a #WPEClipboard
+ */
+WPEClipboard* wpe_display_get_clipboard(WPEDisplay* display)
+{
+    g_return_val_if_fail(WPE_IS_DISPLAY(display), nullptr);
+
+    auto* priv = display->priv;
+    if (!priv->clipboard) {
+        auto* wpeDisplayClass = WPE_DISPLAY_GET_CLASS(display);
+        if (wpeDisplayClass->get_clipboard)
+            priv->clipboard = wpeDisplayClass->get_clipboard(display);
+
+        if (!priv->clipboard)
+            priv->clipboard = adoptGRef(wpe_clipboard_new(display));
+    }
+    return priv->clipboard.get();
+}
+
+/**
  * wpe_display_get_settings:
  * @display: a #WPEDisplay
  *
@@ -666,7 +696,7 @@ WPEAvailableInputDevices wpe_display_get_available_input_devices(WPEDisplay* dis
  *
  * This function should only be called by platform implementations.
  */
-void wpe_display_set_available_input_devices(WPEDisplay *display, WPEAvailableInputDevices devices)
+void wpe_display_set_available_input_devices(WPEDisplay* display, WPEAvailableInputDevices devices)
 {
     g_return_if_fail(WPE_IS_DISPLAY(display));
 
@@ -675,4 +705,25 @@ void wpe_display_set_available_input_devices(WPEDisplay *display, WPEAvailableIn
 
     display->priv->availableInputDevices = devices;
     g_object_notify_by_pspec(G_OBJECT(display), sObjProperties[PROP_AVAILABLE_INPUT_DEVICES]);
+}
+
+/**
+ * wpe_display_create_gamepad_manager:
+ * @display: a #WPEDisplay
+ *
+ * Create a #WPEGamepadManager to handle gamepads
+ *
+ * Returns: (transfer full) (nullable): a new #WPEGamepadManager or %NULL if not supported
+ */
+WPEGamepadManager* wpe_display_create_gamepad_manager(WPEDisplay* display)
+{
+    g_return_val_if_fail(WPE_IS_DISPLAY(display), nullptr);
+
+    auto* wpeDisplayClass = WPE_DISPLAY_GET_CLASS(display);
+    auto* manager = wpeDisplayClass->create_gamepad_manager ? wpeDisplayClass->create_gamepad_manager(display) : nullptr;
+#if USE(MANETTE)
+    if (!manager)
+        manager = wpeGamepadManagerManetteCreate();
+#endif
+    return manager;
 }

@@ -37,6 +37,7 @@
 #include <wtf/HashSet.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/Vector.h>
+#include <wtf/text/OrdinalNumber.h>
 #include <wtf/text/TextPosition.h>
 
 namespace JSC {
@@ -259,7 +260,7 @@ private:
     using ViolatedDirectiveCallback = std::function<void (const ContentSecurityPolicyDirective&)>;
 
     template<typename Predicate, typename... Args>
-    typename std::enable_if<!std::is_convertible<Predicate, ViolatedDirectiveCallback>::value, bool>::type allPoliciesWithDispositionAllow(Disposition, Predicate&&, Args&&...) const;
+    bool allPoliciesWithDispositionAllow(Disposition, Predicate&&, Args&&...) const requires (!std::is_convertible_v<Predicate, ViolatedDirectiveCallback>);
 
     template<typename Predicate, typename... Args>
     bool allPoliciesWithDispositionAllow(Disposition, ViolatedDirectiveCallback&&, Predicate&&, Args&&...) const;

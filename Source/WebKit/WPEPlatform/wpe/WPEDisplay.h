@@ -32,7 +32,9 @@
 
 #include <glib-object.h>
 #include <wpe/WPEBufferDMABufFormats.h>
+#include <wpe/WPEClipboard.h>
 #include <wpe/WPEDefines.h>
+#include <wpe/WPEGamepadManager.h>
 #include <wpe/WPEInputMethodContext.h>
 #include <wpe/WPEKeymap.h>
 #include <wpe/WPEScreen.h>
@@ -63,6 +65,7 @@ struct _WPEDisplayClass
     gpointer                (* get_egl_display)               (WPEDisplay *display,
                                                                GError    **error);
     WPEKeymap              *(* get_keymap)                    (WPEDisplay *display);
+    WPEClipboard           *(* get_clipboard)                 (WPEDisplay *display);
     WPEBufferDMABufFormats *(* get_preferred_dma_buf_formats) (WPEDisplay *display);
     guint                   (* get_n_screens)                 (WPEDisplay *display);
     WPEScreen              *(* get_screen)                    (WPEDisplay *display,
@@ -70,9 +73,9 @@ struct _WPEDisplayClass
     const char             *(* get_drm_device)                (WPEDisplay *display);
     const char             *(* get_drm_render_node)           (WPEDisplay *display);
     gboolean                (* use_explicit_sync)             (WPEDisplay *display);
-
     WPEInputMethodContext  *(* create_input_method_context)   (WPEDisplay *display,
                                                                WPEView    *view);
+    WPEGamepadManager      *(* create_gamepad_manager)        (WPEDisplay *display);
 
     gpointer padding[32];
 };
@@ -100,6 +103,7 @@ WPE_API gboolean                 wpe_display_connect                       (WPED
 WPE_API gpointer                 wpe_display_get_egl_display               (WPEDisplay *display,
                                                                             GError    **error);
 WPE_API WPEKeymap               *wpe_display_get_keymap                    (WPEDisplay *display);
+WPE_API WPEClipboard            *wpe_display_get_clipboard                 (WPEDisplay *display);
 WPE_API WPEBufferDMABufFormats  *wpe_display_get_preferred_dma_buf_formats (WPEDisplay *display);
 WPE_API guint                    wpe_display_get_n_screens                 (WPEDisplay *display);
 WPE_API WPEScreen               *wpe_display_get_screen                    (WPEDisplay *display,
@@ -116,6 +120,7 @@ WPE_API WPESettings             *wpe_display_get_settings                  (WPED
 WPE_API WPEAvailableInputDevices wpe_display_get_available_input_devices   (WPEDisplay *display);
 WPE_API void                     wpe_display_set_available_input_devices   (WPEDisplay *display,
                                                                             WPEAvailableInputDevices devices);
+WPE_API WPEGamepadManager       *wpe_display_create_gamepad_manager        (WPEDisplay *display);
 
 G_END_DECLS
 

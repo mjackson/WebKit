@@ -37,7 +37,6 @@
 #include "EventNames.h"
 #include "EventTarget.h"
 #include "EventTargetInterfaces.h"
-#include "ExceptionOr.h"
 #include "IDLTypes.h"
 #include "MediaTrackConstraints.h"
 #include "RealtimeMediaSourceCenter.h"
@@ -126,6 +125,9 @@ private:
         Display = 1 << 2,
     };
     bool computeUserGesturePriviledge(GestureAllowedRequest);
+
+    enum class UserActivation : bool { No, Yes };
+    void queueTaskForDeviceChangeEvent(UserActivation);
 
     RunLoop::Timer m_scheduledEventTimer;
     Markable<UserMediaClient::DeviceChangeObserverToken> m_deviceChangeToken;

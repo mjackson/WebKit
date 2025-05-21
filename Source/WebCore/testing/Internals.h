@@ -74,7 +74,6 @@ namespace WebCore {
 class AccessibilityObject;
 class AbstractRange;
 class AnimationTimeline;
-class ArtworkImageLoader;
 class AudioContext;
 class AudioTrack;
 class BaseAudioContext;
@@ -187,6 +186,8 @@ class PlatformSpeechSynthesizerMock;
 #endif
 
 #if ENABLE(WEB_CODECS)
+class ArtworkImageLoader;
+class WebCodecsVideoFrame;
 class WebCodecsVideoDecoder;
 #endif
 
@@ -1404,7 +1405,12 @@ public:
     bool hasSandboxMachLookupAccessToXPCServiceName(const String& process, const String& service);
     bool hasSandboxIOKitOpenAccessToClass(const String& process, const String& ioKitClass);
     bool hasSandboxUnixSyscallAccess(const String& process, unsigned syscall) const;
-        
+
+#if ENABLE(LOGD_BLOCKING_IN_WEBCONTENT)
+    bool emitWebCoreLogs(unsigned logCount, bool useMainThread) const;
+    bool emitLogs(const String& logString, unsigned logCount, bool useMainThread) const;
+#endif
+
     String highlightPseudoElementColor(const AtomString& highlightName, Element&);
 
     String windowLocationHost(DOMWindow&);
@@ -1459,8 +1465,10 @@ public:
     ExceptionOr<double> currentMediaSessionPosition(const MediaSession&);
     ExceptionOr<void> sendMediaSessionAction(MediaSession&, const MediaSessionActionDetails&);
 
-        using ArtworkImagePromise = DOMPromiseDeferred<IDLInterface<ImageData>>;
+#if ENABLE(WEB_CODECS)
+    using ArtworkImagePromise = DOMPromiseDeferred<IDLInterface<WebCodecsVideoFrame>>;
     void loadArtworkImage(String&&, ArtworkImagePromise&&);
+#endif
     ExceptionOr<Vector<String>> platformSupportedCommands() const;
 
 #if ENABLE(MEDIA_SESSION_COORDINATOR)
@@ -1551,6 +1559,7 @@ public:
     void getImageBufferResourceLimits(ImageBufferResourceLimitsPromise&&);
 
     void setResourceCachingDisabledByWebInspector(bool);
+    ExceptionOr<void> lowerAllFrameMemoryMonitorLimits();
 
 #if ENABLE(CONTENT_EXTENSIONS)
     void setResourceMonitorNetworkUsageThreshold(size_t threshold, double randomness = ResourceMonitorChecker::defaultNetworkUsageThresholdRandomness);
@@ -1568,6 +1577,10 @@ public:
     std::optional<DamagePropagation> getCurrentDamagePropagation() const;
     ExceptionOr<Vector<FrameDamage>> getFrameDamageHistory() const;
 #endif // ENABLE(DAMAGE_TRACKING)
+
+#if ENABLE(MODEL_ELEMENT)
+    void disableModelLoadDelaysForTesting();
+#endif
 
 private:
     explicit Internals(Document&);
@@ -1616,7 +1629,7 @@ private:
     RefPtr<RealtimeMediaSource> m_trackSource;
     int m_trackVideoRotation { 0 };
 #endif
-#if ENABLE(MEDIA_SESSION)
+#if ENABLE(MEDIA_SESSION) && ENABLE(WEB_CODECS)
     std::unique_ptr<ArtworkImageLoader> m_artworkLoader;
     std::unique_ptr<ArtworkImagePromise> m_artworkImagePromise;
 #endif

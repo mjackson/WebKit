@@ -484,7 +484,6 @@ public:
     // -----------------------------------------------------------------------------
     // Integration with rendering tree
 
-    // As renderer() includes a branch you should avoid calling it repeatedly in hot code paths.
     RenderObject* renderer() const { return m_renderer; }
     inline CheckedPtr<RenderObject> checkedRenderer() const; // Defined in NodeInlines.h
     void setRenderer(RenderObject*); // Defined in NodeInlines.h
@@ -885,24 +884,6 @@ ALWAYS_INLINE void Node::setStyleFlag(NodeStyleFlag flag)
     auto bitfields = styleBitfields();
     bitfields.setFlag(flag);
     setStyleBitfields(bitfields);
-}
-
-inline void EventTarget::ref()
-{
-    auto* node = dynamicDowncast<Node>(*this);
-    if (node) [[likely]]
-        node->ref();
-    else
-        refEventTarget();
-}
-
-inline void EventTarget::deref()
-{
-    auto* node = dynamicDowncast<Node>(*this);
-    if (node) [[likely]]
-        node->deref();
-    else
-        derefEventTarget();
 }
 
 WEBCORE_EXPORT WTF::TextStream& operator<<(WTF::TextStream&, const Node&);

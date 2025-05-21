@@ -43,7 +43,6 @@ struct RenderBlockRareData;
 using TrackedRendererListHashSet = SingleThreadWeakListHashSet<RenderBox>;
 
 enum CaretType { CursorCaret, DragCaret };
-enum ContainingBlockState { NewContainingBlock, SameContainingBlock };
 enum class RelayoutChildren : bool { No, Yes };
 
 enum TextRunFlag {
@@ -79,7 +78,8 @@ public:
 
     void insertPositionedObject(RenderBox&);
     static void removePositionedObject(const RenderBox&);
-    void removePositionedObjects(const RenderBlock*, ContainingBlockState = SameContainingBlock);
+    enum class ContainingBlockState : bool { NewContainingBlock, SameContainingBlock };
+    void removePositionedObjects(const RenderBlock*, ContainingBlockState = ContainingBlockState::SameContainingBlock);
 
     TrackedRendererListHashSet* positionedObjects() const;
     bool hasPositionedObjects() const
@@ -97,9 +97,7 @@ public:
         return objects && !objects->isEmptyIgnoringNullReferences();
     }
     static bool hasPercentHeightContainerMap();
-    static bool hasPercentHeightDescendant(RenderBox&);
     static void clearPercentHeightDescendantsFrom(RenderBox&);
-    static void removePercentHeightDescendantIfNeeded(RenderBox&);
 
     bool isContainingBlockAncestorFor(RenderObject&) const;
 
@@ -143,8 +141,7 @@ public:
     void addContinuationWithOutline(RenderInline*);
     bool paintsContinuationOutline(RenderInline*);
 
-    static RenderPtr<RenderBlock> createAnonymousWithParentRendererAndDisplay(const RenderBox& parent, DisplayType = DisplayType::Block);
-    RenderPtr<RenderBlock> createAnonymousBlock(DisplayType = DisplayType::Block) const;
+    RenderPtr<RenderBlock> createAnonymousBlock() const;
 
     RenderPtr<RenderBox> createAnonymousBoxWithSameTypeAs(const RenderBox&) const override;
 
@@ -353,7 +350,7 @@ protected:
     virtual void computeChildIntrinsicLogicalWidths(RenderBox&, LayoutUnit& minPreferredLogicalWidth, LayoutUnit& maxPreferredLogicalWidth) const;
 
 private:
-    static RenderPtr<RenderBlock> createAnonymousBlockWithStyleAndDisplay(Document&, const RenderStyle&, DisplayType);
+    static RenderPtr<RenderBlock> createAnonymousBlockWithStyle(Document&, const RenderStyle&);
 
     // FIXME-BLOCKFLOW: Remove virtualizaion when all callers have moved to RenderBlockFlow
     virtual LayoutUnit logicalRightFloatOffsetForLine(LayoutUnit, LayoutUnit fixedOffset, LayoutUnit) const { return fixedOffset; };
@@ -406,7 +403,7 @@ private:
         LayoutUnit lastLogicalTop, LayoutUnit lastLogicalLeft, LayoutUnit lastLogicalRight, LayoutUnit logicalBottom, const LogicalSelectionOffsetCaches&, const PaintInfo*);
 
     // FIXME-BLOCKFLOW: Remove virtualizaion when all callers have moved to RenderBlockFlow
-    virtual void clipOutFloatingObjects(RenderBlock&, const PaintInfo*, const LayoutPoint&, const LayoutSize&) { };
+    virtual void clipOutFloatingBoxes(RenderBlock&, const PaintInfo*, const LayoutPoint&, const LayoutSize&) { };
     friend class LogicalSelectionOffsetCaches;
 
     void paintContinuationOutlines(PaintInfo&, const LayoutPoint&);
@@ -417,7 +414,7 @@ private:
 
     RenderFragmentedFlow* updateCachedEnclosingFragmentedFlow(RenderFragmentedFlow*) const;
 
-    void removePositionedObjectsIfNeeded(const RenderStyle& oldStyle, const RenderStyle& newStyle);
+    void removePositionedObjectsIfNeededOnStyleChange(const RenderStyle& oldStyle, const RenderStyle& newStyle);
 
     void absoluteQuadsIgnoringContinuation(const FloatRect&, Vector<FloatQuad>&, bool* wasFixed) const override;
 

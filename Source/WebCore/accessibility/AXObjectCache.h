@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003-2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2003-2025 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -165,6 +165,7 @@ protected:
     macro(AutocorrectionOccured) \
     macro(AutofillTypeChanged) \
     macro(ARIAColumnIndexChanged) \
+    macro(ARIARoleDescriptionChanged) \
     macro(ARIARowIndexChanged) \
     macro(BrailleLabelChanged) \
     macro(BrailleRoleDescriptionChanged) \
@@ -193,6 +194,7 @@ protected:
     macro(HasPopupChanged) \
     macro(IdAttributeChanged) \
     macro(ImageOverlayChanged) \
+    macro(InputTypeChanged) \
     macro(IsAtomicChanged) \
     macro(KeyShortcutsChanged) \
     macro(LabelChanged) \
@@ -207,7 +209,6 @@ protected:
     macro(PopoverTargetChanged) \
     macro(PositionInSetChanged) \
     macro(RoleChanged) \
-    macro(RoleDescriptionChanged) \
     macro(RowIndexChanged) \
     macro(RowSpanChanged) \
     macro(CellScopeChanged) \
@@ -396,6 +397,12 @@ public:
     void onSlottedContentChange(const HTMLSlotElement&);
     void onStyleChange(Element&, OptionSet<Style::Change>, const RenderStyle* oldStyle, const RenderStyle* newStyle);
     void onStyleChange(RenderText&, StyleDifference, const RenderStyle* oldStyle, const RenderStyle& newStyle);
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+    // Returns true if the font changes, requiring all descendants to update the Font property.
+    bool onFontChange(Element&, const RenderStyle*, const RenderStyle*);
+    // Returns true if the text color changes, requiring all descendants to update the TextColor property.
+    bool onTextColorChange(Element&, const RenderStyle*, const RenderStyle*);
+#endif
     void onTextSecurityChanged(HTMLInputElement&);
     void onTitleChange(Document&);
     void onValidityChange(Element&);
@@ -637,7 +644,7 @@ public:
     void updateRelations(Element&, const QualifiedName&);
 
 #if PLATFORM(IOS_FAMILY)
-    void relayNotification(const String&, RetainPtr<NSData>);
+    void relayNotification(String&&, RetainPtr<NSData>&&);
 #endif
 
 #if PLATFORM(MAC)
@@ -764,8 +771,9 @@ private:
     void deferRowspanChange(AccessibilityObject*);
     void handleChildrenChanged(AccessibilityObject&);
     void handleAllDeferredChildrenChanged();
+    void handleInputTypeChanged(Element&);
     void handleRoleChanged(Element&, const AtomString&, const AtomString&);
-    void handleRoleDescriptionChanged(Element&);
+    void handleARIARoleDescriptionChanged(Element&);
     void handleMenuOpened(Element&);
     void handleLiveRegionCreated(Element&);
     void handleMenuItemSelected(Element*);
@@ -1007,6 +1015,9 @@ bool isRowGroup(Element&);
 bool isRowGroup(Node*);
 ContainerNode* composedParentIgnoringDocumentFragments(Node&);
 ContainerNode* composedParentIgnoringDocumentFragments(Node*);
+
+ElementName elementName(Node*);
+ElementName elementName(Node&);
 
 // Returns true if the element has an attribute that will result in an accname being computed.
 // https://www.w3.org/TR/accname-1.2/

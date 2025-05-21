@@ -5661,12 +5661,14 @@ public:
             return;
         }
 
-        if (isRepresentableAs<int32_t>(imm.m_value) && LIKELY(imm.m_value != INT32_MIN))
-            m_assembler.leaq_mr(-imm.m_value, src, dest);
-        else {
-            move(src, dest);
-            sub64(imm, dest);
+        if (isRepresentableAs<int32_t>(imm.m_value)) {
+            if (imm.m_value != INT32_MIN) [[likely]] {
+                m_assembler.leaq_mr(-imm.m_value, src, dest);
+                return;
+            }
         }
+        move(src, dest);
+        sub64(imm, dest);
     }
 
     void sub64(TrustedImm32 imm, Address address)
@@ -7667,8 +7669,25 @@ public:
 
     void sub64(FPRegisterID left, FPRegisterID right, FPRegisterID dest)
     {
-        ASSERT(supportsAVX());
-        m_assembler.vpsubq_rrr(right, left, dest);
+        if (supportsAVX()) {
+            m_assembler.vpsubq_rrr(right, left, dest);
+            return;
+        }
+
+        // SSE implementation uses macro assembler register.
+        if (dest == left) {
+            m_assembler.psubq_rr(right, dest);
+            return;
+        }
+
+        FPRegisterID safeRight = right;
+        if (dest == right) {
+            moveDouble(right, fpTempRegister);
+            safeRight = fpTempRegister;
+        }
+
+        moveDouble(left, dest);
+        m_assembler.psubq_rr(safeRight, dest);
     }
 
     void vectorAdd(SIMDInfo simdInfo, FPRegisterID left, FPRegisterID right, FPRegisterID dest)

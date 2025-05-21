@@ -77,6 +77,7 @@
 #include "EventNames.h"
 #include "ExtensionStyleSheets.h"
 #include "FilterRenderingMode.h"
+#include "FixedContainerEdges.h"
 #include "FocusController.h"
 #include "FontCache.h"
 #include "FragmentDirectiveGenerator.h"
@@ -439,6 +440,7 @@ Page::Page(PageConfiguration&& pageConfiguration)
     , m_allowedNetworkHosts(WTFMove(pageConfiguration.allowedNetworkHosts))
     , m_loadsSubresources(pageConfiguration.loadsSubresources)
     , m_shouldRelaxThirdPartyCookieBlocking(pageConfiguration.shouldRelaxThirdPartyCookieBlocking)
+    , m_fixedContainerEdgesAndElements(std::make_pair(makeUniqueRef<FixedContainerEdges>(), WeakElementEdges { }))
     , m_httpsUpgradeEnabled(pageConfiguration.httpsUpgradeEnabled)
     , m_portsForUpgradingInsecureSchemeForTesting(WTFMove(pageConfiguration.portsForUpgradingInsecureSchemeForTesting))
     , m_storageProvider(WTFMove(pageConfiguration.storageProvider))
@@ -851,6 +853,18 @@ void Page::setMainFrameURLAndOrigin(const URL& url, RefPtr<SecurityOrigin>&& ori
     processSyncClient().broadcastTopDocumentSyncDataToOtherProcesses(m_topDocumentSyncData.get());
 }
 
+void Page::setIsClosing()
+{
+    m_topDocumentSyncData->isClosing = true;
+    if (settings().siteIsolationEnabled())
+        processSyncClient().broadcastIsClosingToOtherProcesses(true);
+}
+
+bool Page::isClosing() const
+{
+    return m_topDocumentSyncData->isClosing;
+}
+
 #if ENABLE(DOM_AUDIO_SESSION)
 void Page::setAudioSessionType(DOMAudioSessionType audioSessionType)
 {
@@ -923,6 +937,7 @@ void Page::updateProcessSyncData(const ProcessSyncData& data)
     case ProcessSyncDataType::DocumentURL:
     case ProcessSyncDataType::HasInjectedUserScript:
     case ProcessSyncDataType::IsAutofocusProcessed:
+    case ProcessSyncDataType::IsClosing:
     case ProcessSyncDataType::UserDidInteractWithPage:
 #if ENABLE(DOM_AUDIO_SESSION)
     case ProcessSyncDataType::AudioSessionType:
@@ -1807,6 +1822,8 @@ void Page::didCommitLoad()
     if (auto* geolocationController = GeolocationController::from(this))
         geolocationController->didNavigatePage();
 #endif
+
+    m_fixedContainerEdgesAndElements = std::make_pair(makeUniqueRef<FixedContainerEdges>(), WeakElementEdges { });
 
     m_elementTargetingController->reset();
 
@@ -4719,15 +4736,14 @@ OptionSet<FilterRenderingMode> Page::preferredFilterRenderingModes() const
         modes.add(FilterRenderingMode::Accelerated);
 #endif
 #if USE(GRAPHICS_CONTEXT_FILTERS)
-    if (settings().graphicsContextFiltersEnabled())
-        modes.add(FilterRenderingMode::GraphicsContext);
+    modes.add(FilterRenderingMode::GraphicsContext);
 #endif
     return modes;
 }
 
 bool Page::shouldDisableCorsForRequestTo(const URL& url) const
 {
-    return WTF::anyOf(m_corsDisablingPatterns, [&] (const auto& pattern) {
+    return std::ranges::any_of(m_corsDisablingPatterns, [&](auto& pattern) {
         return pattern.matches(url);
     });
 }
@@ -5226,6 +5242,41 @@ void Page::setObscuredInsets(const FloatBoxExtent& insets)
 }
 #endif
 
+void Page::updateFixedContainerEdges(BoxSideSet sides)
+{
+    RefPtr mainFrame = localMainFrame();
+    if (!mainFrame)
+        return;
+
+    RefPtr frameView = mainFrame->view();
+    if (!frameView)
+        return;
+
+    auto [edges, elements] = frameView->fixedContainerEdges(sides);
+    for (auto sideFlag : sides) {
+        auto side = boxSideFromFlag(sideFlag);
+        if (edges.hasFixedEdge(side))
+            continue;
+
+        WeakPtr lastElement = m_fixedContainerEdgesAndElements.second.at(side);
+        if (!lastElement)
+            continue;
+
+        if (!lastElement->renderer())
+            continue;
+
+        elements.setAt(side, WTFMove(lastElement));
+        edges.colors.setAt(side, m_fixedContainerEdgesAndElements.first->colors.at(side));
+    }
+
+    m_fixedContainerEdgesAndElements = std::make_pair(makeUniqueRef<FixedContainerEdges>(WTFMove(edges)), WTFMove(elements));
+}
+
+Color Page::lastTopFixedContainerColor() const
+{
+    return m_fixedContainerEdgesAndElements.first->predominantColor(BoxSide::Top);
+}
+
 void Page::setPortsForUpgradingInsecureSchemeForTesting(uint16_t upgradeFromInsecurePort, uint16_t upgradeToSecurePort)
 {
     m_portsForUpgradingInsecureSchemeForTesting = { upgradeFromInsecurePort, upgradeToSecurePort };
@@ -5671,5 +5722,21 @@ void Page::setPresentingApplicationAuditToken(std::optional<audit_token_t> prese
         mediaSessionManager->updatePresentingApplicationPIDIfNecessary(presentingApplicationPID());
 }
 #endif
+
+bool Page::requiresUserGestureForAudioPlayback() const
+{
+    auto autoplayPolicy = m_mainFrame->autoplayPolicy();
+    if (autoplayPolicy != AutoplayPolicy::Default)
+        return autoplayPolicy == AutoplayPolicy::AllowWithoutSound || autoplayPolicy == AutoplayPolicy::Deny;
+    return m_settings->requiresUserGestureForAudioPlayback();
+}
+
+bool Page::requiresUserGestureForVideoPlayback() const
+{
+    auto autoplayPolicy = m_mainFrame->autoplayPolicy();
+    if (autoplayPolicy != AutoplayPolicy::Default)
+        return autoplayPolicy == AutoplayPolicy::Deny;
+    return m_settings->requiresUserGestureForVideoPlayback();
+}
 
 } // namespace WebCore

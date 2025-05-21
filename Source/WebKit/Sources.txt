@@ -267,6 +267,7 @@ Shared/WebPushMessage.cpp
 Shared/WebTouchEvent.cpp
 Shared/WebWheelEventCoalescer.cpp
 Shared/WebWheelEvent.cpp
+Shared/WebsiteAutoplayPolicy.cpp
 Shared/WebsitePoliciesData.cpp
 
 Shared/API/APIArray.cpp
@@ -718,6 +719,7 @@ WebProcess/Model/WebModelPlayerProvider.cpp
 WebProcess/Model/ModelProcessConnection.cpp
 WebProcess/Model/ModelProcessModelPlayer.cpp
 WebProcess/Model/ModelProcessModelPlayerManager.cpp
+WebProcess/Model/ModelProcessModelPlayerTransformState.cpp
 
 WebProcess/GPU/GPUProcessConnection.cpp
 WebProcess/GPU/RemoteSharedResourceCacheProxy.cpp

@@ -105,6 +105,7 @@
 #include <WebCore/SecurityOrigin.h>
 #include <WebCore/SecurityOriginData.h>
 #include <WebCore/Settings.h>
+#include <WebCore/SystemPreviewInfo.h>
 #include <WebCore/TextDetectorInterface.h>
 #include <WebCore/TextIndicator.h>
 #include <WebCore/TextRecognitionOptions.h>
@@ -551,7 +552,7 @@ bool WebChromeClient::canRunBeforeUnloadConfirmPanel()
     return page && page->canRunBeforeUnloadConfirmPanel();
 }
 
-bool WebChromeClient::runBeforeUnloadConfirmPanel(const String& message, LocalFrame& frame)
+bool WebChromeClient::runBeforeUnloadConfirmPanel(String&& message, LocalFrame& frame)
 {
     auto webFrame = WebFrame::fromCoreFrame(frame);
 
@@ -563,7 +564,7 @@ bool WebChromeClient::runBeforeUnloadConfirmPanel(const String& message, LocalFr
 
     auto relay = AXRelayProcessSuspendedNotification(*page);
 
-    auto sendResult = page->sendSyncWithDelayedReply(Messages::WebPageProxy::RunBeforeUnloadConfirmPanel(webFrame->frameID(), webFrame->info(), message));
+    auto sendResult = page->sendSyncWithDelayedReply(Messages::WebPageProxy::RunBeforeUnloadConfirmPanel(webFrame->frameID(), webFrame->info(), WTFMove(message)));
     auto [shouldClose] = sendResult.takeReplyOr(false);
     return shouldClose;
 }
@@ -1001,16 +1002,16 @@ void WebChromeClient::runOpenPanel(LocalFrame& frame, FileChooser& fileChooser)
     page->send(Messages::WebPageProxy::RunOpenPanel(webFrame->frameID(), webFrame->info(), fileChooser.settings()));
 }
     
-void WebChromeClient::showShareSheet(ShareDataWithParsedURL& shareData, CompletionHandler<void(bool)>&& callback)
+void WebChromeClient::showShareSheet(ShareDataWithParsedURL&& shareData, CompletionHandler<void(bool)>&& callback)
 {
     if (RefPtr page = m_page.get())
-        page->showShareSheet(shareData, WTFMove(callback));
+        page->showShareSheet(WTFMove(shareData), WTFMove(callback));
 }
 
-void WebChromeClient::showContactPicker(const WebCore::ContactsRequestData& requestData, WTF::CompletionHandler<void(std::optional<Vector<WebCore::ContactInfo>>&&)>&& callback)
+void WebChromeClient::showContactPicker(WebCore::ContactsRequestData&& requestData, WTF::CompletionHandler<void(std::optional<Vector<WebCore::ContactInfo>>&&)>&& callback)
 {
     if (RefPtr page = m_page.get())
-        page->showContactPicker(requestData, WTFMove(callback));
+        page->showContactPicker(WTFMove(requestData), WTFMove(callback));
 }
 
 #if HAVE(DIGITAL_CREDENTIALS_UI)
@@ -2364,27 +2365,17 @@ void WebChromeClient::resetDamageHistoryForTesting()
     if (!m_page)
         return;
 
-    const auto* drawingArea = m_page->drawingArea();
-    if (!drawingArea)
-        return;
-
-    if (auto* frameDamageForTesting = drawingArea->frameDamageForTesting())
-        frameDamageForTesting->resetFrameDamageHistory();
+    if (auto* drawingArea = m_page->drawingArea())
+        drawingArea->resetDamageHistoryForTesting();
 }
 
-WebCore::FrameDamageHistory* WebChromeClient::damageHistoryForTesting() const
+void WebChromeClient::foreachRegionInDamageHistoryForTesting(Function<void(const Region&)>&& callback) const
 {
     if (!m_page)
-        return nullptr;
+        return;
 
-    const auto* drawingArea = m_page->drawingArea();
-    if (!drawingArea)
-        return nullptr;
-
-    if (const auto* frameDamageForTesting = drawingArea->frameDamageForTesting())
-        return frameDamageForTesting->frameDamageHistory();
-
-    return nullptr;
+    if (const auto* drawingArea = m_page->drawingArea())
+        drawingArea->foreachRegionInDamageHistoryForTesting(WTFMove(callback));
 }
 #endif
 

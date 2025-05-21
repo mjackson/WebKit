@@ -1812,16 +1812,6 @@ static RetainPtr<NSString>& classIBCreatorID()
     [self _setBoolValue:flag forKey:WebKitSpatialNavigationEnabledPreferenceKey];
 }
 
-- (BOOL)hyperlinkAuditingEnabled
-{
-    return [self _boolValueForKey:WebKitHyperlinkAuditingEnabledPreferenceKey];
-}
-
-- (void)setHyperlinkAuditingEnabled:(BOOL)flag
-{
-    [self _setBoolValue:flag forKey:WebKitHyperlinkAuditingEnabledPreferenceKey];
-}
-
 - (BOOL)usePreHTML5ParserQuirks
 {
     return [self _boolValueForKey:WebKitUsePreHTML5ParserQuirksKey];
@@ -2845,16 +2835,6 @@ static RetainPtr<NSString>& classIBCreatorID()
     [self _setBoolValue:flag forKey:WebKitVisualViewportAPIEnabledPreferenceKey];
 }
 
-- (BOOL)CSSOMViewSmoothScrollingEnabled
-{
-    return [self _boolValueForKey:WebKitCSSOMViewSmoothScrollingEnabledPreferenceKey];
-}
-
-- (void)setCSSOMViewSmoothScrollingEnabled:(BOOL)flag
-{
-    [self _setBoolValue:flag forKey:WebKitCSSOMViewSmoothScrollingEnabledPreferenceKey];
-}
-
 - (BOOL)webAnimationsCompositeOperationsEnabled
 {
     return [self _boolValueForKey:WebKitWebAnimationsCompositeOperationsEnabledPreferenceKey];
@@ -2971,6 +2951,24 @@ static RetainPtr<NSString>& classIBCreatorID()
 
 // The preferences in this category are deprecated and have no effect. They should
 // be removed when it is considered safe to do so.
+
+- (BOOL)hyperlinkAuditingEnabled
+{
+    return YES;
+}
+
+- (void)setHyperlinkAuditingEnabled:(BOOL)flag
+{
+}
+
+- (BOOL)CSSOMViewSmoothScrollingEnabled
+{
+    return YES;
+}
+
+- (void)setCSSOMViewSmoothScrollingEnabled:(BOOL)flag
+{
+}
 
 - (BOOL)mediaStreamEnabled
 {

@@ -338,10 +338,6 @@ Heap::Heap(VM& vm, HeapType heapType)
     , m_threadLock(Box<Lock>::create())
     , m_threadCondition(AutomaticThreadCondition::create())
 
-#if USE(BUN_JSC_ADDITIONS)
-    , m_largeStringWeakSet(vm)
-#endif
-
     // HeapCellTypes
     , auxiliaryHeapCellType(CellAttributes(DoesNotNeedDestruction, HeapCell::Auxiliary))
     , immutableButterflyHeapCellType(CellAttributes(DoesNotNeedDestruction, HeapCell::JSCellWithIndexingHeader))
@@ -675,7 +671,10 @@ void Heap::deprecatedReportExtraMemorySlowCase(size_t size)
     // https://bugs.webkit.org/show_bug.cgi?id=170411
     CheckedSize checkedNewSize = m_deprecatedExtraMemorySize;
     checkedNewSize += size;
-    m_deprecatedExtraMemorySize = UNLIKELY(checkedNewSize.hasOverflowed()) ? std::numeric_limits<size_t>::max() : checkedNewSize.value();
+    size_t newSize = std::numeric_limits<size_t>::max();
+    if (!checkedNewSize.hasOverflowed()) [[likely]]
+        newSize = checkedNewSize.value();
+    m_deprecatedExtraMemorySize = newSize;
     reportExtraMemoryAllocatedSlowCase(nullptr, nullptr, size);
 }
 
@@ -740,41 +739,6 @@ void Heap::addReference(JSCell* cell, ArrayBuffer* buffer)
         didAllocate(buffer->gcSizeEstimateInBytes());
     }
 }
-
-#if USE(BUN_JSC_ADDITIONS)
-
-class LargeStringHandleOwner : public WeakHandleOwner {
-public:
-    void finalize(JSC::Handle<JSC::Unknown>, void* context) final;
-};
-
-static inline WeakHandleOwner* wrapperOwner()
-{
-    static NeverDestroyed<LargeStringHandleOwner> owner;
-    return &owner.get();
-}
-
-void LargeStringHandleOwner::finalize(Handle<Unknown> handle, void* /*context*/) {
-    JSCell* cell = handle.slot()->asCell();
-    JSString* jsString = static_cast<JSString*>(cell);
-    ASSERT(!jsString->isRope());
-
-    const StringImpl* stringImpl = jsString->tryGetValueImpl();
-    if (LIKELY(stringImpl)) {
-        ExternalStringImpl* externalImpl = const_cast<ExternalStringImpl*>(reinterpret_cast<const ExternalStringImpl*>(stringImpl));
-        if (externalImpl->hasOneRef()) {
-            externalImpl->releaseBufferEarly();
-        }
-    }
-
-     JSC::WeakSet::deallocate(JSC::WeakImpl::asWeakImpl(handle.slot()));
-}
-
-void Heap::registerLargeString(JSString* string)
-{
-    m_largeStringWeakSet.allocate(string, wrapperOwner(), 0);
-}
-#endif
 
 template<typename CellType, typename CellSet>
 void Heap::finalizeMarkedUnconditionalFinalizers(CellSet& cellSet, CollectionScope collectionScope)
@@ -1044,7 +1008,9 @@ size_t Heap::extraMemorySize()
     CheckedSize checkedTotal = m_extraMemorySize;
     checkedTotal += m_deprecatedExtraMemorySize;
     checkedTotal += m_arrayBuffers.size();
-    size_t total = UNLIKELY(checkedTotal.hasOverflowed()) ? std::numeric_limits<size_t>::max() : checkedTotal.value();
+    size_t total = std::numeric_limits<size_t>::max();
+    if (!checkedTotal.hasOverflowed()) [[likely]]
+        total = checkedTotal.value();
 
     // It would be nice to have `ASSERT(m_objectSpace.capacity() >= m_objectSpace.size());` here but `m_objectSpace.size()`
     // requires having heap access which thread might not. Specifically, we might be called from the resource usage thread.
@@ -2817,7 +2783,9 @@ void Heap::reportExtraMemoryVisited(size_t size)
         // https://bugs.webkit.org/show_bug.cgi?id=170411
         CheckedSize checkedNewSize = oldSize;
         checkedNewSize += size;
-        size_t newSize = UNLIKELY(checkedNewSize.hasOverflowed()) ? std::numeric_limits<size_t>::max() : checkedNewSize.value();
+        size_t newSize = std::numeric_limits<size_t>::max();
+        if (!checkedNewSize.hasOverflowed()) [[likely]]
+            newSize = checkedNewSize.value();
         if (WTF::atomicCompareExchangeWeakRelaxed(counter, oldSize, newSize))
             return;
     }

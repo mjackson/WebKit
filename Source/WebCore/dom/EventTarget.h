@@ -32,13 +32,13 @@
 
 #include "EventListenerMap.h"
 #include "EventListenerOptions.h"
-#include "ExceptionOr.h"
 #include "ScriptWrappable.h"
 #include <memory>
 #include <wtf/CheckedPtr.h>
 #include <wtf/Forward.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/WeakPtr.h>
+#include <wtf/WeakPtrImpl.h>
 
 namespace JSC {
 class JSValue;
@@ -48,10 +48,11 @@ class JSObject;
 namespace WebCore {
 
 enum class EventTargetInterfaceType : uint8_t;
-struct AddEventListenerOptions;
 class DOMWrapperWorld;
 class EventTarget;
 class JSEventListener;
+struct AddEventListenerOptions;
+template<typename> class ExceptionOr;
 
 struct EventTargetData {
     WTF_MAKE_TZONE_ALLOCATED(EventTargetData);
@@ -84,8 +85,8 @@ class EventTarget : public ScriptWrappable, public CanMakeWeakPtrWithBitField<Ev
 public:
     static Ref<EventTarget> create(ScriptExecutionContext&);
 
-    inline void ref(); // Defined in Node.h.
-    inline void deref(); // Defined in Node.h.
+    inline void ref(); // Defined in EventTargetInlines.h.
+    inline void deref(); // Defined in EventTargetInlines.h.
 
     virtual enum EventTargetInterfaceType eventTargetInterface() const = 0;
     virtual ScriptExecutionContext* scriptExecutionContext() const = 0;

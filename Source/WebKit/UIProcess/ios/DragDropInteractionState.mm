@@ -33,6 +33,7 @@
 #import <WebCore/DragItem.h>
 #import <WebCore/Image.h>
 #import <WebCore/LocalCurrentTraitCollection.h>
+#import <WebCore/NativeImage.h>
 #import <wtf/cocoa/VectorCocoa.h>
 
 namespace WebKit {
@@ -367,6 +368,11 @@ void DragDropInteractionState::clearStagedDragSource(DidBecomeActive didBecomeAc
     if (didBecomeActive == DidBecomeActive::Yes)
         m_activeDragSources.append(stagedDragSource());
     m_stagedDragSource = std::nullopt;
+}
+
+void DragDropInteractionState::setElementIdentifier(const std::optional<ElementIdentifier>& elementID)
+{
+    m_elementIdentifier = elementID;
 }
 
 void DragDropInteractionState::dragAndDropSessionsDidBecomeInactive()

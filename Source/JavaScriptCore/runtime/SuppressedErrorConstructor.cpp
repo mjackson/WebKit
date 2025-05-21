@@ -26,13 +26,13 @@
 #include "config.h"
 #include "SuppressedErrorConstructor.h"
 
-#include "SuppressedError.h"
-#include "SuppressedErrorPrototype.h"
 #include "ClassInfo.h"
 #include "ExceptionScope.h"
 #include "GCAssertions.h"
 #include "JSCInlines.h"
 #include "RuntimeType.h"
+#include "SuppressedError.h"
+#include "SuppressedErrorPrototype.h"
 
 namespace JSC {
 
@@ -50,7 +50,7 @@ SuppressedErrorConstructor::SuppressedErrorConstructor(VM& vm, Structure* struct
 
 void SuppressedErrorConstructor::finishCreation(VM& vm, SuppressedErrorPrototype* prototype)
 {
-    Base::finishCreation(vm, 2, errorTypeName(ErrorType::SuppressedError), PropertyAdditionMode::WithoutStructureTransition);
+    Base::finishCreation(vm, 3, errorTypeName(ErrorType::SuppressedError), PropertyAdditionMode::WithoutStructureTransition);
     ASSERT(inherits(info()));
 
     putDirectWithoutTransition(vm, vm.propertyNames->prototype, prototype, PropertyAttribute::DontDelete | PropertyAttribute::ReadOnly | PropertyAttribute::DontEnum);
@@ -62,9 +62,8 @@ JSC_DEFINE_HOST_FUNCTION(callSuppressedErrorConstructor, (JSGlobalObject* global
     JSValue error = callFrame->argument(0);
     JSValue suppressed = callFrame->argument(1);
     JSValue message = callFrame->argument(2);
-    JSValue options = callFrame->argument(3);
     Structure* errorStructure = globalObject->errorStructure(ErrorType::SuppressedError);
-    return JSValue::encode(createSuppressedError(globalObject, vm, errorStructure, error, suppressed, message, options, nullptr, TypeNothing, false));
+    return JSValue::encode(createSuppressedError(globalObject, vm, errorStructure, error, suppressed, message, nullptr, TypeNothing, false));
 }
 
 JSC_DEFINE_HOST_FUNCTION(constructSuppressedErrorConstructor, (JSGlobalObject* globalObject, CallFrame* callFrame))
@@ -74,14 +73,13 @@ JSC_DEFINE_HOST_FUNCTION(constructSuppressedErrorConstructor, (JSGlobalObject* g
     JSValue error = callFrame->argument(0);
     JSValue suppressed = callFrame->argument(1);
     JSValue message = callFrame->argument(2);
-    JSValue options = callFrame->argument(3);
 
     JSObject* newTarget = asObject(callFrame->newTarget());
     Structure* errorStructure = JSC_GET_DERIVED_STRUCTURE(vm, errorStructureWithErrorType<ErrorType::SuppressedError>, newTarget, callFrame->jsCallee());
     RETURN_IF_EXCEPTION(scope, { });
     ASSERT(errorStructure);
 
-    RELEASE_AND_RETURN(scope, JSValue::encode(createSuppressedError(globalObject, vm, errorStructure, error, suppressed, message, options, nullptr, TypeNothing, false)));
+    RELEASE_AND_RETURN(scope, JSValue::encode(createSuppressedError(globalObject, vm, errorStructure, error, suppressed, message, nullptr, TypeNothing, false)));
 }
 
 } // namespace JSC

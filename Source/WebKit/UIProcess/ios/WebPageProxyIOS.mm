@@ -34,6 +34,7 @@
 #import "APIWebsitePolicies.h"
 #import "Connection.h"
 #import "DocumentEditingContext.h"
+#import "DragInitiationResult.h"
 #import "DrawingAreaProxy.h"
 #import "EditingRange.h"
 #import "GlobalFindInPageState.h"
@@ -770,10 +771,10 @@ void WebPageProxy::registerWebProcessAccessibilityToken(std::span<const uint8_t>
         pageClient->accessibilityWebProcessTokenReceived(data, protectedLegacyMainFrameProcess()->protectedConnection()->remoteProcessID());
 }
 
-void WebPageProxy::relayAccessibilityNotification(const String& notificationName, std::span<const uint8_t> data)
+void WebPageProxy::relayAccessibilityNotification(String&& notificationName, std::span<const uint8_t> data)
 {
     if (RefPtr pageClient = this->pageClient())
-        pageClient->relayAccessibilityNotification(notificationName, toNSData(data).get());
+        pageClient->relayAccessibilityNotification(WTFMove(notificationName), toNSData(data));
 }
 
 void WebPageProxy::assistiveTechnologyMakeFirstResponder()
@@ -817,15 +818,29 @@ void WebPageProxy::didEndUserTriggeredZooming()
     legacyMainFrameProcess().send(Messages::WebPage::DidEndUserTriggeredZooming(), webPageIDInMainFrameProcess());
 }
 
-void WebPageProxy::potentialTapAtPosition(const WebCore::FloatPoint& position, bool shouldRequestMagnificationInformation, WebKit::TapIdentifier requestID)
+void WebPageProxy::potentialTapAtPosition(std::optional<WebCore::FrameIdentifier> remoteFrameID, const WebCore::FloatPoint& position, bool shouldRequestMagnificationInformation, WebKit::TapIdentifier requestID)
 {
     hideValidationMessage();
-    legacyMainFrameProcess().send(Messages::WebPage::PotentialTapAtPosition(requestID, position, shouldRequestMagnificationInformation), webPageIDInMainFrameProcess());
+    sendWithAsyncReplyToProcessContainingFrame(remoteFrameID, Messages::WebPage::PotentialTapAtPosition(remoteFrameID, requestID, position, shouldRequestMagnificationInformation), Messages::WebPage::PotentialTapAtPosition::Reply { [weakThis = WeakPtr { *this }, shouldRequestMagnificationInformation, requestID] (auto data) {
+        if (!data)
+            return;
+        RefPtr protectedThis = weakThis.get();
+        if (!protectedThis)
+            return;
+        protectedThis->potentialTapAtPosition(data->targetFrameID, data->transformedPoint, shouldRequestMagnificationInformation, requestID);
+    } });
 }
 
-void WebPageProxy::commitPotentialTap(OptionSet<WebEventModifier> modifiers, TransactionID layerTreeTransactionIdAtLastTouchStart, WebCore::PointerID pointerId)
+void WebPageProxy::commitPotentialTap(std::optional<WebCore::FrameIdentifier> remoteFrameID, OptionSet<WebEventModifier> modifiers, TransactionID layerTreeTransactionIdAtLastTouchStart, WebCore::PointerID pointerId)
 {
-    legacyMainFrameProcess().send(Messages::WebPage::CommitPotentialTap(modifiers, layerTreeTransactionIdAtLastTouchStart, pointerId), webPageIDInMainFrameProcess());
+    sendWithAsyncReplyToProcessContainingFrame(remoteFrameID, Messages::WebPage::CommitPotentialTap(remoteFrameID, modifiers, layerTreeTransactionIdAtLastTouchStart, pointerId), Messages::WebPage::CommitPotentialTap::Reply { [weakThis = WeakPtr { *this }, modifiers, layerTreeTransactionIdAtLastTouchStart, pointerId] (auto targetFrameID) {
+        if (!targetFrameID)
+            return;
+        RefPtr protectedThis = weakThis.get();
+        if (!protectedThis)
+            return;
+        protectedThis->commitPotentialTap(targetFrameID, modifiers, layerTreeTransactionIdAtLastTouchStart, pointerId);
+    } });
 }
 
 void WebPageProxy::cancelPotentialTap()
@@ -1206,13 +1221,13 @@ void WebPageProxy::dispatchDidUpdateEditorState()
     m_waitingForPostLayoutEditorStateUpdateAfterFocusingElement = false;
 }
 
-void WebPageProxy::showValidationMessage(const IntRect& anchorClientRect, const String& message)
+void WebPageProxy::showValidationMessage(const IntRect& anchorClientRect, String&& message)
 {
     RefPtr pageClient = this->pageClient();
     if (!pageClient)
         return;
 
-    m_validationBubble = pageClient->createValidationBubble(message, { m_preferences->minimumFontSize() });
+    m_validationBubble = pageClient->createValidationBubble(WTFMove(message), { m_preferences->minimumFontSize() });
 
     // FIXME: When in element fullscreen, UIClient::presentingViewController() may not return the
     // WKFullScreenViewController even though that is the presenting view controller of the WKWebView.
@@ -1295,28 +1310,38 @@ void WebPageProxy::requestDocumentEditingContext(WebKit::DocumentEditingContextR
 
 #if ENABLE(DRAG_SUPPORT)
 
-void WebPageProxy::didHandleDragStartRequest(bool started)
+void WebPageProxy::requestDragStart(std::optional<WebCore::FrameIdentifier> remoteFrameID, const WebCore::IntPoint& clientPosition, const WebCore::IntPoint& globalPosition, OptionSet<WebCore::DragSourceAction> allowedActionsMask, CompletionHandler<void(bool)>&& completionHandler)
 {
-    if (RefPtr pageClient = this->pageClient())
-        pageClient->didHandleDragStartRequest(started);
+    if (!hasRunningProcess())
+        return completionHandler(false);
+
+    sendWithAsyncReplyToProcessContainingFrame(remoteFrameID, Messages::WebPage::RequestDragStart(remoteFrameID, clientPosition, globalPosition, allowedActionsMask), Messages::WebPage::RequestDragStart::Reply { [weakThis = WeakPtr { *this }, allowedActionsMask, completionHandler = WTFMove(completionHandler)] (auto result) mutable {
+        WTF::switchOn(result.result, [&] (bool handled) {
+            completionHandler(handled);
+        }, [&] (DragInitiationResult::RemoteFrameData& data) {
+            RefPtr protectedThis = weakThis.get();
+            if (!protectedThis)
+                return completionHandler(false);
+            protectedThis->requestDragStart(data.targetFrameID, data.transformedClientPosition, data.transformedGlobalPosition, allowedActionsMask, WTFMove(completionHandler));
+        });
+    } });
 }
 
-void WebPageProxy::didHandleAdditionalDragItemsRequest(bool added)
+void WebPageProxy::requestAdditionalItemsForDragSession(std::optional<WebCore::FrameIdentifier> remoteFrameID, const IntPoint& clientPosition, const IntPoint& globalPosition, OptionSet<WebCore::DragSourceAction> allowedActionsMask, CompletionHandler<void(bool)>&& completionHandler)
 {
-    if (RefPtr pageClient = this->pageClient())
-        pageClient->didHandleAdditionalDragItemsRequest(added);
-}
+    if (!hasRunningProcess())
+        return completionHandler(false);
 
-void WebPageProxy::requestDragStart(const WebCore::IntPoint& clientPosition, const WebCore::IntPoint& globalPosition, OptionSet<WebCore::DragSourceAction> allowedActionsMask)
-{
-    if (hasRunningProcess())
-        m_legacyMainFrameProcess->send(Messages::WebPage::RequestDragStart(clientPosition, globalPosition, allowedActionsMask), webPageIDInMainFrameProcess());
-}
-
-void WebPageProxy::requestAdditionalItemsForDragSession(const IntPoint& clientPosition, const IntPoint& globalPosition, OptionSet<WebCore::DragSourceAction> allowedActionsMask)
-{
-    if (hasRunningProcess())
-        m_legacyMainFrameProcess->send(Messages::WebPage::RequestAdditionalItemsForDragSession(clientPosition, globalPosition, allowedActionsMask), webPageIDInMainFrameProcess());
+    sendWithAsyncReplyToProcessContainingFrame(remoteFrameID, Messages::WebPage::RequestAdditionalItemsForDragSession(remoteFrameID, clientPosition, globalPosition, allowedActionsMask), Messages::WebPage::RequestAdditionalItemsForDragSession::Reply { [weakThis = WeakPtr { *this }, allowedActionsMask, completionHandler = WTFMove(completionHandler)] (auto result) mutable {
+        WTF::switchOn(result.result, [&] (bool handled) {
+            completionHandler(handled);
+        }, [&] (DragInitiationResult::RemoteFrameData& data) {
+            RefPtr protectedThis = weakThis.get();
+            if (!protectedThis)
+                return completionHandler(false);
+            protectedThis->requestAdditionalItemsForDragSession(data.targetFrameID, data.transformedClientPosition, data.transformedGlobalPosition, allowedActionsMask, WTFMove(completionHandler));
+        });
+    } });
 }
 
 void WebPageProxy::insertDroppedImagePlaceholders(const Vector<IntSize>& imageSizes, CompletionHandler<void(const Vector<IntRect>&, std::optional<WebCore::TextIndicatorData>)>&& completionHandler)

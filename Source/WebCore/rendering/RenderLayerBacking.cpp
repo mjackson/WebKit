@@ -55,6 +55,7 @@
 #include "Model.h"
 #include "NullGraphicsContext.h"
 #include "Page.h"
+#include "PathOperation.h"
 #include "PerformanceLoggingClient.h"
 #include "PluginViewBase.h"
 #include "ProgressTracker.h"
@@ -79,7 +80,9 @@
 #include "RenderVideo.h"
 #include "RenderView.h"
 #include "RenderViewTransitionCapture.h"
+#include "RotateTransformOperation.h"
 #include "SVGGraphicsElement.h"
+#include "ScaleTransformOperation.h"
 #include "ScrollingCoordinator.h"
 #include "Settings.h"
 #include "StyleResolver.h"
@@ -1171,7 +1174,7 @@ bool RenderLayerBacking::updateConfiguration(const RenderLayer* compositingAnces
     if (updateTransformFlatteningLayer(compositingAncestor))
         layerConfigChanged = true;
 
-    if (updateViewportConstrainedSublayers(compositor.viewportConstrainedSublayers(m_owningLayer)))
+    if (updateViewportConstrainedSublayers(compositor.viewportConstrainedSublayers(m_owningLayer, compositingAncestor)))
         layerConfigChanged = true;
 
     setBackgroundLayerPaintsFixedRootBackground(compositor.needsFixedRootBackgroundLayer(m_owningLayer));
@@ -1524,7 +1527,7 @@ void RenderLayerBacking::updateGeometry(const RenderLayer* compositedAncestor)
 
     bool isRunningAcceleratedTransformAnimation = false;
     if (auto styleable = Styleable::fromRenderer(renderer()))
-        isRunningAcceleratedTransformAnimation = styleable->isRunningAcceleratedTransformAnimation();
+        isRunningAcceleratedTransformAnimation = styleable->isRunningAcceleratedAnimationOfProperty(CSSPropertyTransform);
 
     updateTransform(style);
     updateOpacity(style);
@@ -1572,7 +1575,14 @@ void RenderLayerBacking::updateGeometry(const RenderLayer* compositedAncestor)
 
     if (m_viewportAnchorLayer) {
         if (m_viewportClippingLayer) {
+            ASSERT(compositedAncestor == renderer().view().layer());
             auto fixedPositionRect = renderer().view().frameView().rectForFixedPositionLayout();
+            if (m_ancestorClippingStack) {
+                for (auto& entry : m_ancestorClippingStack->stack()) {
+                    if (entry.clippingLayer)
+                        fixedPositionRect.moveBy(-LayoutPoint { entry.clippingLayer->position() });
+                }
+            }
             m_viewportClippingLayer->setPosition(fixedPositionRect.location());
             m_viewportClippingLayer->setSize(fixedPositionRect.size());
             primaryLayerPosition.moveBy(-fixedPositionRect.location());
@@ -3573,8 +3583,8 @@ GraphicsLayer* RenderLayerBacking::childForSuperlayers() const
         // If the document element is captured, then the RenderView's layer will get attached
         // into the view-transition tree, and we instead want to attach the root of the VT tree to our ancestor.
         if (m_owningLayer.renderer().protectedDocument()->activeViewTransitionCapturedDocumentElement()) {
-            if (WeakPtr viewTransitionRoot = m_owningLayer.renderer().view().viewTransitionRoot(); viewTransitionRoot && viewTransitionRoot->hasLayer() && viewTransitionRoot->layer()->backing())
-                return viewTransitionRoot->layer()->backing()->childForSuperlayers();
+            if (WeakPtr viewTransitionContainingBlock = m_owningLayer.renderer().view().viewTransitionContainingBlock(); viewTransitionContainingBlock && viewTransitionContainingBlock->hasLayer() && viewTransitionContainingBlock->layer()->backing())
+                return viewTransitionContainingBlock->layer()->backing()->childForSuperlayers();
         }
     }
     return childForSuperlayersExcludingViewTransitions();

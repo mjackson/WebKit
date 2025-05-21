@@ -611,7 +611,11 @@ template <typename T>
 ALWAYS_INLINE bool Lexer<T>::atEnd() const
 {
     ASSERT(!m_current || m_code < m_codeEnd);
-    return UNLIKELY(UNLIKELY(!m_current) && m_code == m_codeEnd);
+    if (m_current) [[likely]]
+        return false;
+    if (m_code == m_codeEnd) [[unlikely]]
+        return true;
+    return false;
 }
 
 template <typename T>
@@ -2715,7 +2719,9 @@ JSTokenType Lexer<T>::scanRegExp(JSToken* tokenRecord, UChar patternPrefix)
     m_buffer16.shrink(0);
 
     ASSERT(m_buffer8.isEmpty());
-    while (LIKELY(isLatin1(m_current)) && isIdentPart(static_cast<LChar>(m_current))) {
+    while (isLatin1(m_current)) [[likely]] {
+        if (!isIdentPart(static_cast<LChar>(m_current)))
+            break;
         record8(static_cast<LChar>(m_current));
         shift();
     }

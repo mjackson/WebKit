@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2014-2025 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -47,6 +47,7 @@
 #import "WKDownloadInternal.h"
 #import "WKFrameInfoInternal.h"
 #import "WKHistoryDelegatePrivate.h"
+#import "WKMarketplaceKit.h"
 #import "WKNSDictionary.h"
 #import "WKNSURLAuthenticationChallenge.h"
 #import "WKNSURLExtras.h"
@@ -101,16 +102,7 @@
 #import <pal/spi/cocoa/LaunchServicesSPI.h>
 #endif
 
-#if HAVE(MARKETPLACE_KIT)
 #import "WebKitSwiftSoftLink.h"
-
-SOFT_LINK_CLASS_FOR_HEADER(WebKit, WKMarketplaceKit)
-SOFT_LINK_CLASS_FOR_SOURCE_OPTIONAL(WebKit, WebKitSwift, WKMarketplaceKit)
-
-@interface WKMarketplaceKit : NSObject
-+ (void)requestAppInstallationWithTopOrigin:(NSURL *)topOrigin url:(NSURL *)url completionHandler:(void (^)(NSError *))completionHandler;
-@end
-#endif
 
 namespace WebKit {
 using namespace WebCore;
@@ -489,9 +481,6 @@ static void interceptMarketplaceKitNavigation(Ref<API::NavigationAction>&& actio
         return;
     }
 
-    if (![getWKMarketplaceKitClass() respondsToSelector:@selector(requestAppInstallationWithTopOrigin:url:completionHandler:)])
-        return;
-
     [getWKMarketplaceKitClass() requestAppInstallationWithTopOrigin:requesterTopOriginURL.get() url:url.get() completionHandler:makeBlockPtr([addConsoleError = WTFMove(addConsoleError)](NSError *error) mutable {
         if (error)
             addConsoleError(error.description);
@@ -507,7 +496,7 @@ static void tryInterceptNavigation(Ref<API::NavigationAction>&& navigationAction
         interceptMarketplaceKitNavigation(WTFMove(navigationAction), page);
         return completionHandler(true /* interceptedNavigation */);
     }
-#endif
+#endif // HAVE(MARKETPLACE_KIT)
 
 #if HAVE(APP_LINKS)
     if (navigationAction->shouldOpenAppLinks()) {
@@ -697,7 +686,7 @@ void NavigationState::NavigationClient::decidePolicyForNavigationAction(WebPageP
                     localListener->ignore();
                     return;
                 }
-#endif
+#endif // HAVE(MARKETPLACE_KIT)
 
                 trySOAuthorization(WTFMove(navigationAction), webPageProxy, [localListener = WTFMove(localListener), websitePolicies = WTFMove(apiWebsitePolicies)] (bool optimizedLoad) {
                     if (optimizedLoad) {
@@ -867,7 +856,7 @@ void NavigationState::NavigationClient::didReceiveServerRedirectForProvisionalNa
     [navigationDelegate webView:navigationState->webView().get() didReceiveServerRedirectForProvisionalNavigation:wrapper(navigation)];
 }
 
-void NavigationState::NavigationClient::willPerformClientRedirect(WebPageProxy& page, const WTF::String& urlString, double delay)
+void NavigationState::NavigationClient::willPerformClientRedirect(WebPageProxy& page, WTF::String&& urlString, double delay)
 {
     RefPtr navigationState = m_navigationState.get();
     if (!navigationState)
@@ -880,7 +869,7 @@ void NavigationState::NavigationClient::willPerformClientRedirect(WebPageProxy& 
     if (!navigationDelegate)
         return;
 
-    URL url { urlString };
+    URL url { WTFMove(urlString) };
 
     [static_cast<id<WKNavigationDelegatePrivate>>(navigationDelegate) _webView:navigationState->webView().get() willPerformClientRedirectToURL:url.createNSURL().get() delay:delay];
 }

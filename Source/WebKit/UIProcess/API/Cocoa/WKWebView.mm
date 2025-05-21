@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2014-2025 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -39,6 +39,7 @@
 #import "ContentAsStringIncludesChildFrames.h"
 #import "DefaultWebBrowserChecks.h"
 #import "DiagnosticLoggingClient.h"
+#import "EditingRange.h"
 #import "FindClient.h"
 #import "FullscreenClient.h"
 #import "GlobalFindInPageState.h"
@@ -68,6 +69,7 @@
 #import "WKBackForwardListInternal.h"
 #import "WKBackForwardListItemInternal.h"
 #import "WKBrowsingContextHandleInternal.h"
+#import "WKColorExtensionView.h"
 #import "WKContentWorldInternal.h"
 #import "WKDataDetectorTypesInternal.h"
 #import "WKDownloadInternal.h"
@@ -205,6 +207,10 @@
 #import "WKWebExtensionControllerInternal.h"
 #endif
 
+#if ENABLE(DATA_DETECTION)
+#import "DataDetectionResult.h"
+#endif
+
 #if HAVE(DIGITAL_CREDENTIALS_UI)
 #if USE(APPLE_INTERNAL_SDK)  && __has_include(<WebKitAdditions/WKDigitalCredentialsPickerAdditions.h>)
 #import <WebKitAdditions/WKDigitalCredentialsPickerAdditions.h>
@@ -310,6 +316,13 @@ RetainPtr<NSError> nsErrorFromExceptionDetails(const std::optional<WebCore::Exce
 
     return adoptNS([[NSError alloc] initWithDomain:WKErrorDomain code:errorCode userInfo:userInfo.get()]);
 }
+
+#if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
+
+@interface WKWebView (WKColorExtensionView) <WKColorExtensionViewDelegate>
+@end
+
+#endif
 
 @implementation WKWebView
 
@@ -1970,6 +1983,9 @@ inline OptionSet<WebKit::FindOptions> toFindOptions(WKFindConfiguration *configu
 
 #if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
     [self _updateFixedColorExtensionViews];
+#if PLATFORM(MAC)
+    _impl->updateContentInsetFillViews();
+#endif
 #endif
 
     auto maximumViewportInsetSize = WebCore::FloatSize(maximumViewportInset.left + additionalInsets.left() + maximumViewportInset.right, maximumViewportInset.top + additionalInsets.top() + maximumViewportInset.bottom);
@@ -2161,7 +2177,7 @@ inline OptionSet<WebKit::FindOptions> toFindOptions(WKFindConfiguration *configu
 - (void)createWebArchiveDataWithCompletionHandler:(void (^)(NSData *, NSError *))completionHandler
 {
     THROW_IF_SUSPENDED;
-    _page->getWebArchiveOfFrame(nullptr, [completionHandler = makeBlockPtr(completionHandler)](API::Data* data) {
+    _page->getWebArchive([completionHandler = makeBlockPtr(completionHandler)](API::Data* data) {
         if (data)
             completionHandler(wrapper(data), nil);
         else
@@ -3124,20 +3140,28 @@ static WebCore::CocoaColor *sampledFixedPositionContentColor(const WebCore::Fixe
     if (!_page || !_page->protectedPreferences()->contentInsetBackgroundFillEnabled())
         return;
 
-    enum class HasFixedEdge : bool { No, Yes };
-
     RetainPtr parentView = [self _containerForFixedColorExtension];
+    auto addColorExtensionView = [&](CocoaView *extensionView) {
+#if PLATFORM(MAC)
+        if (RetainPtr contentInsetFillView = _impl->topContentInsetFillView()) {
+            [parentView addSubview:extensionView positioned:NSWindowBelow relativeTo:contentInsetFillView.get()];
+            return;
+        }
+#endif
+        [parentView addSubview:extensionView];
+    };
+
     auto insets = [self _obscuredInsetsForFixedColorExtension];
-    auto updateExtensionView = [&](WebCore::BoxSide side) -> HasFixedEdge {
+    auto updateExtensionView = [&](WebCore::BoxSide side) {
         BOOL needsView = insets.at(side) > 0 && _fixedContainerEdges.hasFixedEdge(side);
         RetainPtr extensionView = _fixedColorExtensionViews.at(side);
         if (!needsView) {
-            [extensionView setHidden:YES];
-            return HasFixedEdge::No;
+            [extensionView fadeOut];
+            return;
         }
 
         if (!extensionView) {
-            extensionView = adoptNS([CocoaView new]);
+            extensionView = adoptNS([[WKColorExtensionView alloc] initWithFrame:CGRectZero delegate:self]);
 #if PLATFORM(MAC)
             [extensionView setWantsLayer:YES];
 #endif
@@ -3156,35 +3180,17 @@ static WebCore::CocoaColor *sampledFixedPositionContentColor(const WebCore::Fixe
                     return "";
                 }
             }()]).get();
-            [parentView addSubview:extensionView.get()];
+            addColorExtensionView(extensionView.get());
             _fixedColorExtensionViews.setAt(side, extensionView);
         }
 
         RetainPtr predominantColor = cocoaColorOrNil(_fixedContainerEdges.predominantColor(side));
-        [extensionView setBackgroundColor:predominantColor.get() ?: [self underPageBackgroundColor]];
-        [extensionView setHidden:NO];
-        return HasFixedEdge::Yes;
+        [extensionView fadeToColor:predominantColor.get() ?: self.underPageBackgroundColor];
+        return;
     };
 
-#if PLATFORM(IOS_FAMILY)
-    UIRectEdge fixedEdges = UIRectEdgeNone;
-#endif
-
-    for (auto side : WebCore::allBoxSides) {
-        auto hasFixedEdge = updateExtensionView(side);
-#if PLATFORM(IOS_FAMILY)
-        if (hasFixedEdge == HasFixedEdge::Yes)
-            fixedEdges |= WebKit::uiRectEdgeForSide(side);
-#else
-        UNUSED_PARAM(hasFixedEdge);
-#endif
-    }
-
-#if PLATFORM(IOS_FAMILY)
-    [_scrollView _setFixedColorExtensionEdges:fixedEdges];
-#else
-    _impl->updateContentInsetFillViews();
-#endif
+    for (auto side : WebCore::allBoxSides)
+        updateExtensionView(side);
 
     [self _updateFixedColorExtensionViewFrames];
 }
@@ -3209,6 +3215,44 @@ static WebCore::CocoaColor *sampledFixedPositionContentColor(const WebCore::Fixe
 
     if (RetainPtr view = _fixedColorExtensionViews.bottom(); view && ![view isHidden])
         [view setFrame:[parentView convertRect:CGRectMake(insets.left(), bounds.height() - insets.bottom(), bounds.width() - insets.left() - insets.right(), insets.bottom()) fromView:self]];
+}
+
+- (void)_updateFixedColorExtensionEdges
+{
+#if PLATFORM(IOS_FAMILY)
+    [_scrollView _setFixedColorExtensionEdges:[&] {
+        UIRectEdge edges = UIRectEdgeNone;
+        if ([self _hasVisibleColorExtensionView:WebCore::BoxSide::Top])
+            edges |= UIRectEdgeTop;
+        if ([self _hasVisibleColorExtensionView:WebCore::BoxSide::Right])
+            edges |= UIRectEdgeRight;
+        if ([self _hasVisibleColorExtensionView:WebCore::BoxSide::Bottom])
+            edges |= UIRectEdgeBottom;
+        if ([self _hasVisibleColorExtensionView:WebCore::BoxSide::Left])
+            edges |= UIRectEdgeLeft;
+        return edges;
+    }()];
+#else
+    _impl->updateContentInsetFillViews();
+#endif
+}
+
+- (BOOL)_hasVisibleColorExtensionView:(WebCore::BoxSide)side
+{
+    RetainPtr view = _fixedColorExtensionViews.at(side);
+    return view && ![view isHiddenOrFadingOut];
+}
+
+#pragma mark - WKColorExtensionViewDelegate
+
+- (void)colorExtensionViewWillFadeOut:(WKColorExtensionView *)view
+{
+    [self _updateFixedColorExtensionEdges];
+}
+
+- (void)colorExtensionViewDidFadeIn:(WKColorExtensionView *)view
+{
+    [self _updateFixedColorExtensionEdges];
 }
 
 #endif // ENABLE(CONTENT_INSET_BACKGROUND_FILL)
@@ -5704,9 +5748,9 @@ static inline OptionSet<WebKit::FindOptions> toFindOptions(_WKFindOptions wkFind
 {
     THROW_IF_SUSPENDED;
 #if ENABLE(DATA_DETECTION)
-    _page->removeDataDetectedLinks([completion = makeBlockPtr(completion), page = WeakPtr { _page.get() }] (auto& result) {
+    _page->removeDataDetectedLinks([completion = makeBlockPtr(completion), page = WeakPtr { _page.get() }] (auto&& result) {
         if (page)
-            page->setDataDetectionResult(result);
+            page->setDataDetectionResult(WTFMove(result));
         if (completion)
             completion();
     });
@@ -6063,15 +6107,9 @@ static Vector<Ref<API::TargetedElementInfo>> elementsFromWKElements(NSArray<_WKT
 
 @implementation WKWebView (WKTextExtraction)
 
-- (void)_requestTextExtractionForSwift:(WKTextExtractionRequest *)context
-{
-    [self _requestTextExtraction:context.rectInWebView completionHandler:makeBlockPtr([context = retainPtr(context)](WKTextExtractionItem *result) {
-        [context fulfill:result];
-    }).get()];
-}
-
 - (void)_requestTextExtraction:(CGRect)rectInWebView completionHandler:(void(^)(WKTextExtractionItem *))completionHandler
 {
+#if USE(APPLE_INTERNAL_SDK) || (!PLATFORM(WATCHOS) && !PLATFORM(APPLETV))
     if (!self._isValid || !_page->protectedPreferences()->textExtractionEnabled())
         return completionHandler(nil);
 
@@ -6095,6 +6133,7 @@ static Vector<Ref<API::TargetedElementInfo>> elementsFromWKElements(NSArray<_WKT
             return rectInRootView;
         }).get());
     });
+#endif // USE(APPLE_INTERNAL_SDK) || (!PLATFORM(WATCHOS) && !PLATFORM(APPLETV))
 }
 
 @end

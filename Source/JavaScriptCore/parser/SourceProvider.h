@@ -49,113 +49,118 @@ class SourceCode;
 class UnlinkedFunctionExecutable;
 class UnlinkedFunctionCodeBlock;
 
-    enum class JS_EXPORT_PRIVATE SourceProviderSourceType : uint8_t {
-        Program,
-        Module,
-        WebAssembly,
-        JSON,
-        Synthetic,
-        ImportMap,
+enum class JS_EXPORT_PRIVATE SourceProviderSourceType : uint8_t {
+    Program,
+    Module,
+    WebAssembly,
+    JSON,
+    Synthetic,
+    ImportMap,
 #if USE(BUN_JSC_ADDITIONS)
-        BunTranspiledModule,
+    BunTranspiledModule,
 #endif
-    };
+};
 
-    using BytecodeCacheGenerator = Function<RefPtr<CachedBytecode>()>;
+using BytecodeCacheGenerator = Function<RefPtr<CachedBytecode>()>;
 
-    class JS_EXPORT_PRIVATE SourceProvider : public RefCounted<SourceProvider> {
-    public:
-        static const intptr_t nullID = 1;
-        
-        JS_EXPORT_PRIVATE SourceProvider(const SourceOrigin&, String&& sourceURL, String&& preRedirectURL, SourceTaintedOrigin, const TextPosition& startPosition, SourceProviderSourceType);
+class JS_EXPORT_PRIVATE SourceProvider : public ThreadSafeRefCounted<SourceProvider> {
+public:
+    static const intptr_t nullID = 1;
 
-        JS_EXPORT_PRIVATE virtual ~SourceProvider();
+    JS_EXPORT_PRIVATE SourceProvider(const SourceOrigin&, String&& sourceURL, String&& preRedirectURL, SourceTaintedOrigin, const TextPosition& startPosition, SourceProviderSourceType);
+    JS_EXPORT_PRIVATE virtual ~SourceProvider();
 
-        JS_EXPORT_PRIVATE virtual unsigned hash() const = 0;
-        JS_EXPORT_PRIVATE virtual StringView source() const = 0;
-        JS_EXPORT_PRIVATE virtual RefPtr<CachedBytecode> cachedBytecode() const { return nullptr; }
-        JS_EXPORT_PRIVATE virtual void cacheBytecode(const BytecodeCacheGenerator&) const { }
-        JS_EXPORT_PRIVATE virtual void updateCache(const UnlinkedFunctionExecutable*, const SourceCode&, CodeSpecializationKind, const UnlinkedFunctionCodeBlock*) const { }
-        JS_EXPORT_PRIVATE virtual void commitCachedBytecode() const { }
+    JS_EXPORT_PRIVATE virtual unsigned hash() const = 0;
+    JS_EXPORT_PRIVATE virtual StringView source() const = 0;
+    JS_EXPORT_PRIVATE virtual RefPtr<CachedBytecode> cachedBytecode() const { return nullptr; }
+    JS_EXPORT_PRIVATE virtual void cacheBytecode(const BytecodeCacheGenerator&) const { }
+    JS_EXPORT_PRIVATE virtual void updateCache(const UnlinkedFunctionExecutable*, const SourceCode&, CodeSpecializationKind, const UnlinkedFunctionCodeBlock*) const { }
+    JS_EXPORT_PRIVATE virtual void commitCachedBytecode() const { }
 #if USE(BUN_JSC_ADDITIONS)
-        JS_EXPORT_PRIVATE virtual size_t memoryCost() const { return 0; }
+    JS_EXPORT_PRIVATE virtual size_t memoryCost() const { return 0; }
 #endif
 
-        JS_EXPORT_PRIVATE StringView getRange(int start, int end) const
-        {
-            return source().substring(start, end - start);
-        }
+    JS_EXPORT_PRIVATE StringView getRange(int start, int end) const
+    {
+        return source().substring(start, end - start);
+    }
 
-        const SourceOrigin& sourceOrigin() const { return m_sourceOrigin; }
+    const SourceOrigin& sourceOrigin() const { return m_sourceOrigin; }
 
-        // This is NOT the path that should be used for computing relative paths from a script. Use SourceOrigin's URL for that, the values may or may not be the same...
-        const String& sourceURL() const { return m_sourceURL; }
-        const String& sourceURLStripped();
-        const String& preRedirectURL() const { return m_preRedirectURL; }
-        const String& sourceURLDirective() const { return m_sourceURLDirective; }
-        const String& sourceMappingURLDirective() const { return m_sourceMappingURLDirective; }
+    // This is NOT the path that should be used for computing relative paths from a script. Use SourceOrigin's URL for that, the values may or may not be the same...
+    const String& sourceURL() const { return m_sourceURL; }
+    const String& sourceURLStripped();
+    const String& preRedirectURL() const { return m_preRedirectURL; }
+    const String& sourceURLDirective() const { return m_sourceURLDirective; }
+    const String& sourceMappingURLDirective() const { return m_sourceMappingURLDirective; }
 
-        JS_EXPORT_PRIVATE TextPosition startPosition() const { return m_startPosition; }
-        JS_EXPORT_PRIVATE SourceProviderSourceType sourceType() const { return m_sourceType; }
+    JS_EXPORT_PRIVATE TextPosition startPosition() const { return m_startPosition; }
+    JS_EXPORT_PRIVATE SourceProviderSourceType sourceType() const { return m_sourceType; }
 
-        SourceID asID()
-        {
-            if (!m_id)
-                getID();
-            return m_id;
-        }
+    SourceID asID()
+    {
+        if (!m_id)
+            getID();
+        return m_id;
+    }
 
-        void setSourceURLDirective(const String& sourceURLDirective) { m_sourceURLDirective = sourceURLDirective; }
-        void setSourceMappingURLDirective(const String& sourceMappingURLDirective) { m_sourceMappingURLDirective = sourceMappingURLDirective; }
-        void setSourceTaintedOrigin(SourceTaintedOrigin taintedness) { m_taintedness = taintedness; }
+    void setSourceURLDirective(const String& sourceURLDirective) { m_sourceURLDirective = sourceURLDirective; }
+    void setSourceMappingURLDirective(const String& sourceMappingURLDirective) { m_sourceMappingURLDirective = sourceMappingURLDirective; }
+    void setSourceTaintedOrigin(SourceTaintedOrigin taintedness) { m_taintedness = taintedness; }
 
-        SourceTaintedOrigin sourceTaintedOrigin() const { return m_taintedness; }
-        bool couldBeTainted() const { return m_taintedness != SourceTaintedOrigin::Untainted; }
+    SourceTaintedOrigin sourceTaintedOrigin() const { return m_taintedness; }
+    bool couldBeTainted() const { return m_taintedness != SourceTaintedOrigin::Untainted; }
 
-    private:
-        JS_EXPORT_PRIVATE void getID();
+    JS_EXPORT_PRIVATE void lockUnderlyingBuffer();
+    JS_EXPORT_PRIVATE void unlockUnderlyingBuffer();
 
-        SourceProviderSourceType m_sourceType;
-        SourceOrigin m_sourceOrigin;
-        String m_sourceURL;
-        String m_sourceURLStripped;
-        String m_preRedirectURL;
-        String m_sourceURLDirective;
-        String m_sourceMappingURLDirective;
-        TextPosition m_startPosition;
-        SourceID m_id { 0 };
-        SourceTaintedOrigin m_taintedness;
-    };
+private:
+    JS_EXPORT_PRIVATE virtual void lockUnderlyingBufferImpl();
+    JS_EXPORT_PRIVATE virtual void unlockUnderlyingBufferImpl();
+    JS_EXPORT_PRIVATE void getID();
 
-    DECLARE_ALLOCATOR_WITH_HEAP_IDENTIFIER(StringSourceProvider);
-    class JS_EXPORT_PRIVATE StringSourceProvider : public SourceProvider {
-        WTF_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(StringSourceProvider);
-    public:
-        static Ref<StringSourceProvider> create(const String& source, const SourceOrigin& sourceOrigin, String sourceURL, SourceTaintedOrigin taintedness, const TextPosition& startPosition = TextPosition(), SourceProviderSourceType sourceType = SourceProviderSourceType::Program)
-        {
-            return adoptRef(*new StringSourceProvider(source, sourceOrigin, taintedness, WTFMove(sourceURL), startPosition, sourceType));
-        }
-        
-        JS_EXPORT_PRIVATE unsigned hash() const override
-        {
-            return m_source.get().hash();
-        }
+    std::atomic<unsigned> m_lockingCount { 0 };
+    SourceProviderSourceType m_sourceType;
+    SourceOrigin m_sourceOrigin;
+    String m_sourceURL;
+    String m_sourceURLStripped;
+    String m_preRedirectURL;
+    String m_sourceURLDirective;
+    String m_sourceMappingURLDirective;
+    TextPosition m_startPosition;
+    SourceID m_id { 0 };
+    SourceTaintedOrigin m_taintedness;
+};
 
-        JS_EXPORT_PRIVATE StringView source() const override
-        {
-            return m_source.get();
-        }
+DECLARE_ALLOCATOR_WITH_HEAP_IDENTIFIER(StringSourceProvider);
+class StringSourceProvider : public SourceProvider {
+    WTF_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(StringSourceProvider);
+public:
+    static Ref<StringSourceProvider> create(const String& source, const SourceOrigin& sourceOrigin, String sourceURL, SourceTaintedOrigin taintedness, const TextPosition& startPosition = TextPosition(), SourceProviderSourceType sourceType = SourceProviderSourceType::Program)
+    {
+        return adoptRef(*new StringSourceProvider(source, sourceOrigin, taintedness, WTFMove(sourceURL), startPosition, sourceType));
+    }
 
-    protected:
-        StringSourceProvider(const String& source, const SourceOrigin& sourceOrigin, SourceTaintedOrigin taintedness, String&& sourceURL, const TextPosition& startPosition, SourceProviderSourceType sourceType)
-            : SourceProvider(sourceOrigin, WTFMove(sourceURL), String(), taintedness, startPosition, sourceType)
-            , m_source(source.isNull() ? *StringImpl::empty() : *source.impl())
-        {
-        }
+    unsigned hash() const override
+    {
+        return m_source.get().hash();
+    }
 
-    private:
-        Ref<StringImpl> m_source;
-    };
+    StringView source() const override
+    {
+        return m_source.get();
+    }
+
+protected:
+    StringSourceProvider(const String& source, const SourceOrigin& sourceOrigin, SourceTaintedOrigin taintedness, String&& sourceURL, const TextPosition& startPosition, SourceProviderSourceType sourceType)
+        : SourceProvider(sourceOrigin, WTFMove(sourceURL), String(), taintedness, startPosition, sourceType)
+        , m_source(source.isNull() ? *StringImpl::empty() : *source.impl())
+    {
+    }
+
+private:
+    Ref<StringImpl> m_source;
+};
 
     class SyntheticSourceProvider final : public SourceProvider {
     public:
@@ -194,80 +199,99 @@ class UnlinkedFunctionCodeBlock;
     };
 
 #if ENABLE(WEBASSEMBLY)
-   class BaseWebAssemblySourceProvider : public SourceProvider {
-    public:
-        virtual const uint8_t* data() = 0;
-        virtual size_t size() const = 0;
-        virtual void lockUnderlyingBuffer() { }
-        virtual void unlockUnderlyingBuffer() { }
+class BaseWebAssemblySourceProvider : public SourceProvider {
+public:
+    virtual const uint8_t* data() = 0;
+    virtual size_t size() const = 0;
+protected:
+    JS_EXPORT_PRIVATE BaseWebAssemblySourceProvider(const SourceOrigin&, String&& sourceURL);
+};
 
-    protected:
-        JS_EXPORT_PRIVATE BaseWebAssemblySourceProvider(const SourceOrigin&, String&& sourceURL);
-    };
+class WebAssemblySourceProvider final : public BaseWebAssemblySourceProvider {
+public:
+    static Ref<WebAssemblySourceProvider> create(Vector<uint8_t>&& data, const SourceOrigin& sourceOrigin, String sourceURL)
+    {
+        return adoptRef(*new WebAssemblySourceProvider(WTFMove(data), sourceOrigin, WTFMove(sourceURL)));
+    }
 
-    class WebAssemblySourceProvider final : public BaseWebAssemblySourceProvider {
-    public:
-        static Ref<WebAssemblySourceProvider> create(Vector<uint8_t>&& data, const SourceOrigin& sourceOrigin, String sourceURL)
-        {
-            return adoptRef(*new WebAssemblySourceProvider(WTFMove(data), sourceOrigin, WTFMove(sourceURL)));
-        }
+    unsigned hash() const final
+    {
+        return m_source.impl()->hash();
+    }
 
-        unsigned hash() const final
-        {
-            return m_source.impl()->hash();
-        }
+    StringView source() const final
+    {
+        return m_source;
+    }
 
-        StringView source() const final
-        {
-            return m_source;
-        }
+    const uint8_t* data() final
+    {
+        return m_data.data();
+    }
 
-        const uint8_t* data() final
-        {
-            return m_data.data();
-        }
+    size_t size() const final
+    {
+        return m_data.size();
+    }
 
-        size_t size() const final
-        {
-            return m_data.size();
-        }
+    const Vector<uint8_t>& dataVector() const
+    {
+        return m_data;
+    }
 
-        const Vector<uint8_t>& dataVector() const
-        {
-            return m_data;
-        }
+private:
+    JS_EXPORT_PRIVATE WebAssemblySourceProvider(Vector<uint8_t>&& data, const SourceOrigin& sourceOrigin, String&& sourceURL)
+        : BaseWebAssemblySourceProvider(sourceOrigin, WTFMove(sourceURL))
+        , m_source("[WebAssembly source]"_s)
+        , m_data(WTFMove(data))
+    {
+    }
 
-    private:
-        JS_EXPORT_PRIVATE WebAssemblySourceProvider(Vector<uint8_t>&& data, const SourceOrigin& sourceOrigin, String&& sourceURL)
-            : BaseWebAssemblySourceProvider(sourceOrigin, WTFMove(sourceURL))
-            , m_source("[WebAssembly source]"_s)
-            , m_data(WTFMove(data))
-        {
-        }
+    String m_source;
+    Vector<uint8_t> m_data;
+};
 
-        String m_source;
-        Vector<uint8_t> m_data;
-    };
+// RAII class for managing a Wasm source provider's underlying buffer.
+class WebAssemblySourceProviderBufferGuard {
+public:
+    explicit WebAssemblySourceProviderBufferGuard(BaseWebAssemblySourceProvider* sourceProvider)
+        : m_sourceProvider(sourceProvider)
+    {
+        if (m_sourceProvider)
+            m_sourceProvider->lockUnderlyingBuffer();
+    }
 
-    // RAII class for managing a Wasm source provider's underlying buffer.
-    class WebAssemblySourceProviderBufferGuard {
-    public:
-        explicit WebAssemblySourceProviderBufferGuard(BaseWebAssemblySourceProvider* sourceProvider)
-            : m_sourceProvider(sourceProvider)
-        {
-            if (m_sourceProvider)
-                m_sourceProvider->lockUnderlyingBuffer();
-        }
+    ~WebAssemblySourceProviderBufferGuard()
+    {
+        if (m_sourceProvider)
+            m_sourceProvider->unlockUnderlyingBuffer();
+    }
 
-        ~WebAssemblySourceProviderBufferGuard()
-        {
-            if (m_sourceProvider)
-                m_sourceProvider->unlockUnderlyingBuffer();
-        }
-
-    private:
-        RefPtr<BaseWebAssemblySourceProvider> m_sourceProvider;
-    };
+private:
+    RefPtr<BaseWebAssemblySourceProvider> m_sourceProvider;
+};
 #endif
+
+// RAII class for managing a source provider's underlying buffer.
+class SourceProviderBufferGuard {
+public:
+    explicit SourceProviderBufferGuard(SourceProvider* sourceProvider)
+        : m_sourceProvider(sourceProvider)
+    {
+        if (m_sourceProvider)
+            m_sourceProvider->lockUnderlyingBuffer();
+    }
+
+    ~SourceProviderBufferGuard()
+    {
+        if (m_sourceProvider)
+            m_sourceProvider->unlockUnderlyingBuffer();
+    }
+
+private:
+    // This must not be RefPtr. It is possible that this is used by the concurrent compiler and
+    // we are ensuring that this does not go away with different mechanism. But SourceProvider etc. can have main-thread-only affinity.
+    SourceProvider* m_sourceProvider { nullptr };
+};
 
 } // namespace JSC

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2012-2025 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -495,7 +495,7 @@ IntPoint PageClientImpl::accessibilityScreenToRootView(const IntPoint& point)
     return IntPoint(rootViewPoint);
 }
 
-void PageClientImpl::relayAccessibilityNotification(const String& notificationName, const RetainPtr<NSData>& notificationData)
+void PageClientImpl::relayAccessibilityNotification(String&& notificationName, RetainPtr<NSData>&& notificationData)
 {
     auto contentView = this->contentView();
     if ([contentView respondsToSelector:@selector(accessibilityRelayNotification:notificationData:)])
@@ -517,7 +517,7 @@ void PageClientImpl::doneWithKeyEvent(const NativeWebKeyboardEvent& event, bool 
 }
 
 #if ENABLE(TOUCH_EVENTS)
-void PageClientImpl::doneWithTouchEvent(const NativeWebTouchEvent& nativeWebTouchEvent, bool eventHandled)
+void PageClientImpl::doneWithTouchEvent(const WebTouchEvent& nativeWebTouchEvent, bool eventHandled)
 {
     [contentView() _touchEvent:nativeWebTouchEvent preventsNativeGestures:eventHandled];
 }
@@ -759,13 +759,13 @@ bool PageClientImpl::handleRunOpenPanel(const WebPageProxy& page, const WebFrame
     return true;
 }
 
-bool PageClientImpl::showShareSheet(const ShareDataWithParsedURL& shareData, WTF::CompletionHandler<void(bool)>&& completionHandler)
+bool PageClientImpl::showShareSheet(ShareDataWithParsedURL&& shareData, WTF::CompletionHandler<void(bool)>&& completionHandler)
 {
     [contentView() _showShareSheet:shareData inRect:std::nullopt completionHandler:WTFMove(completionHandler)];
     return true;
 }
 
-void PageClientImpl::showContactPicker(const WebCore::ContactsRequestData& requestData, WTF::CompletionHandler<void(std::optional<Vector<WebCore::ContactInfo>>&&)>&& completionHandler)
+void PageClientImpl::showContactPicker(WebCore::ContactsRequestData&& requestData, WTF::CompletionHandler<void(std::optional<Vector<WebCore::ContactInfo>>&&)>&& completionHandler)
 {
     [contentView() _showContactPicker:requestData completionHandler:WTFMove(completionHandler)];
 }
@@ -1036,9 +1036,9 @@ WebCore::UserInterfaceLayoutDirection PageClientImpl::userInterfaceLayoutDirecti
     return WebCore::UserInterfaceLayoutDirection::LTR;
 }
 
-Ref<ValidationBubble> PageClientImpl::createValidationBubble(const String& message, const ValidationBubble::Settings& settings)
+Ref<ValidationBubble> PageClientImpl::createValidationBubble(String&& message, const ValidationBubble::Settings& settings)
 {
-    return ValidationBubble::create(m_contentView.getAutoreleased(), message, settings);
+    return ValidationBubble::create(m_contentView.getAutoreleased(), WTFMove(message), settings);
 }
 
 RefPtr<WebDataListSuggestionsDropdown> PageClientImpl::createDataListSuggestionsDropdown(WebPageProxy& page)
@@ -1052,22 +1052,12 @@ void PageClientImpl::didPerformDragOperation(bool handled)
     [contentView() _didPerformDragOperation:handled];
 }
 
-void PageClientImpl::didHandleDragStartRequest(bool started)
-{
-    [contentView() _didHandleDragStartRequest:started];
-}
-
-void PageClientImpl::didHandleAdditionalDragItemsRequest(bool added)
-{
-    [contentView() _didHandleAdditionalDragItemsRequest:added];
-}
-
-void PageClientImpl::startDrag(const DragItem& item, ShareableBitmap::Handle&& image)
+void PageClientImpl::startDrag(const DragItem& item, ShareableBitmap::Handle&& image, const std::optional<ElementIdentifier>& elementID)
 {
     auto bitmap = ShareableBitmap::create(WTFMove(image));
     if (!bitmap)
         return;
-    [contentView() _startDrag:bitmap->makeCGImageCopy() item:item];
+    [contentView() _startDrag:bitmap->makeCGImageCopy() item:item elementID:elementID];
 }
 
 void PageClientImpl::willReceiveEditDragSnapshot()

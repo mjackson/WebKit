@@ -31,8 +31,10 @@
 #import "VideoPresentationManager.h"
 #import "VideoPresentationManagerProxyMessages.h"
 #import "WebPage.h"
+#import <WebCore/DocumentInlines.h>
 #import <WebCore/GraphicsContext.h>
 #import <WebCore/HTMLVideoElement.h>
+#import <WebCore/NativeImage.h>
 #import <WebCore/NodeInlines.h>
 #import <WebCore/Page.h>
 

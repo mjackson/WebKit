@@ -318,7 +318,9 @@
     macro(written) \
     macro(year) \
     macro(years) \
-    macro(yearsDisplay)
+    macro(yearsDisplay) \
+    macro(SuppressedError) \
+    macro(DisposableStack)
 
 #define JSC_COMMON_IDENTIFIERS_EACH_PRIVATE_FIELD(macro) \
     macro(constructor)
@@ -389,7 +391,6 @@
     macro(unscopables) \
     macro(dispose) \
     macro(asyncDispose)
-
 
 #define JSC_PARSER_PRIVATE_NAMES(macro) \
     macro(generator) \

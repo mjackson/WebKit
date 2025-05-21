@@ -39,12 +39,14 @@
 #include "ImageBuffer.h"
 #include "JSDOMPromiseDeferred.h"
 #include "JSPlaneLayout.h"
+#include "NativeImage.h"
 #include "OffscreenCanvas.h"
 #include "PixelBuffer.h"
 #include "SVGImageElement.h"
 #include "SecurityOrigin.h"
 #include "VideoColorSpace.h"
 #include "WebCodecsVideoFrameAlgorithms.h"
+#include <JavaScriptCore/ConsoleTypes.h>
 #include <wtf/Seconds.h>
 #include <wtf/text/MakeString.h>
 
@@ -331,6 +333,11 @@ ExceptionOr<Ref<WebCodecsVideoFrame>> WebCodecsVideoFrame::create(ScriptExecutio
         return Exception { ExceptionCode::TypeError, "Unable to create internal resource from data"_s };
 
     return WebCodecsVideoFrame::create(context, videoFrame.releaseNonNull(), WTFMove(init));
+}
+
+ExceptionOr<Ref<WebCodecsVideoFrame>> WebCodecsVideoFrame::create(ScriptExecutionContext& context, Ref<NativeImage>&& image)
+{
+    return initializeFrameWithResourceAndSize(context, WTFMove(image), { });
 }
 
 Ref<WebCodecsVideoFrame> WebCodecsVideoFrame::create(ScriptExecutionContext& context, Ref<VideoFrame>&& videoFrame, BufferInit&& init)

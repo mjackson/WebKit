@@ -54,8 +54,8 @@ public:
     
     JS_EXPORT_PRIVATE unsigned index() const { return m_index; }
     
-    JS_EXPORT_PRIVATE const char* abbreviatedName() const { return m_abbreviatedName.data(); }
-    JS_EXPORT_PRIVATE const char* name() const { return m_name.data(); }
+    JS_EXPORT_PRIVATE const char* abbreviatedName() const LIFETIME_BOUND { return m_abbreviatedName.data(); }
+    JS_EXPORT_PRIVATE const char* name() const LIFETIME_BOUND { return m_name.data(); }
     
     JS_EXPORT_PRIVATE void resetStats();
     

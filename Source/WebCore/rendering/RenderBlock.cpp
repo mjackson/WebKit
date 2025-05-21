@@ -31,6 +31,7 @@
 #include "Element.h"
 #include "ElementInlines.h"
 #include "EventRegion.h"
+#include "EventTargetInlines.h"
 #include "FloatQuad.h"
 #include "FrameSelection.h"
 #include "GraphicsContext.h"
@@ -328,27 +329,20 @@ RenderBlock::~RenderBlock()
     // Do not add any more code here. Add it to willBeDestroyed() instead.
 }
 
-void RenderBlock::removePositionedObjectsIfNeeded(const RenderStyle& oldStyle, const RenderStyle& newStyle)
+void RenderBlock::removePositionedObjectsIfNeededOnStyleChange(const RenderStyle& oldStyle, const RenderStyle& newStyle)
 {
-    bool hadTransform = oldStyle.hasTransformRelatedProperty();
-    bool willHaveTransform = newStyle.hasTransformRelatedProperty();
-    bool hadLayoutContainment = oldStyle.containsLayout();
-    bool willHaveLayoutContainment = newStyle.containsLayout();
-    if (oldStyle.position() == newStyle.position() && hadTransform == willHaveTransform && hadLayoutContainment == willHaveLayoutContainment)
-        return;
+    auto wasContainingBlockForFixedContent = canContainFixedPositionObjects(&oldStyle);
+    auto wasContainingBlockForAbsoluteContent = canContainAbsolutelyPositionedObjects(&oldStyle);
+    auto isContainingBlockForFixedContent = canContainFixedPositionObjects(&newStyle);
+    auto isContainingBlockForAbsoluteContent = canContainAbsolutelyPositionedObjects(&newStyle);
 
-    // We are no longer the containing block for out-of-flow descendants.
-    bool outOfFlowDescendantsHaveNewContainingBlock = (hadTransform && !willHaveTransform) || (newStyle.position() == PositionType::Static && !willHaveTransform);
-    if (hadLayoutContainment != willHaveLayoutContainment)
-        outOfFlowDescendantsHaveNewContainingBlock = hadLayoutContainment && !willHaveLayoutContainment;
-    if (outOfFlowDescendantsHaveNewContainingBlock) {
-        // Our out-of-flow descendants will be inserted into a new containing block's positioned objects list during the next layout.
-        removePositionedObjects(nullptr, NewContainingBlock);
-        return;
+    if ((wasContainingBlockForFixedContent && !isContainingBlockForFixedContent) || (wasContainingBlockForAbsoluteContent && !isContainingBlockForAbsoluteContent)) {
+        // We are no longer the containing block for out-of-flow descendants.
+        removePositionedObjects({ }, ContainingBlockState::NewContainingBlock);
     }
 
-    // We are a new containing block.
-    if (oldStyle.position() == PositionType::Static && !hadTransform) {
+    if ((!wasContainingBlockForFixedContent && isContainingBlockForFixedContent) || (!wasContainingBlockForAbsoluteContent && isContainingBlockForAbsoluteContent)) {
+        // We are a new containing block.
         // Remove our absolutely positioned descendants from their current containing block.
         // They will be inserted into our positioned objects list during layout.
         auto* containingBlock = parent();
@@ -361,7 +355,7 @@ void RenderBlock::removePositionedObjectsIfNeeded(const RenderStyle& oldStyle, c
             containingBlock = containingBlock->parent();
         }
         if (CheckedPtr renderBlock = dynamicDowncast<RenderBlock>(containingBlock))
-            renderBlock->removePositionedObjects(this, NewContainingBlock);
+            renderBlock->removePositionedObjects(this, ContainingBlockState::NewContainingBlock);
     }
 }
 
@@ -370,7 +364,7 @@ void RenderBlock::styleWillChange(StyleDifference diff, const RenderStyle& newSt
     const RenderStyle* oldStyle = hasInitializedStyle() ? &style() : nullptr;
     setReplacedOrAtomicInline(newStyle.isDisplayInlineType());
     if (oldStyle) {
-        removePositionedObjectsIfNeeded(*oldStyle, newStyle);
+        removePositionedObjectsIfNeededOnStyleChange(*oldStyle, newStyle);
         if (isLegend() && !oldStyle->isFloating() && newStyle.isFloating())
             setIsExcludedFromNormalLayout(false);
     }
@@ -1362,7 +1356,7 @@ void RenderBlock::paintObject(PaintInfo& paintInfo, const LayoutPoint& paintOffs
     if ((paintPhase == PaintPhase::Outline || paintPhase == PaintPhase::SelfOutline) && hasOutline() && style().usedVisibility() == Visibility::Visible) {
         // Don't paint focus ring for anonymous block continuation because the
         // inline element having outline-style:auto paints the whole focus ring.
-        bool hasOutlineStyleAuto = style().outlineStyleIsAuto() == OutlineIsAuto::On;
+        bool hasOutlineStyleAuto = style().hasAutoOutlineStyle();
         if (!hasOutlineStyleAuto || !isContinuation())
             paintOutline(paintInfo, LayoutRect(paintOffset, size()));
     }
@@ -1647,7 +1641,7 @@ GapRects RenderBlock::selectionGaps(RenderBlock& rootBlock, const LayoutPoint& r
             for (RenderBlock* cb = containingBlock(); cb && !is<RenderView>(*cb); cb = cb->containingBlock())
                 clipOutPositionedObjects(paintInfo, LayoutPoint(cb->x(), cb->y()), cb->positionedObjects()); // FIXME: Not right for flipped writing modes.
         }
-        clipOutFloatingObjects(rootBlock, paintInfo, rootBlockPhysicalPosition, offsetFromRootBlock);
+        clipOutFloatingBoxes(rootBlock, paintInfo, rootBlockPhysicalPosition, offsetFromRootBlock);
     }
 
     // FIXME: overflow: auto/scroll fragments need more math here, since painting in the border box is different from painting in the padding box (one is scrolled, the other is fixed).
@@ -1904,42 +1898,54 @@ void RenderBlock::removePositionedObject(const RenderBox& rendererToRemove)
     positionedDescendantsMap().removeDescendant(rendererToRemove);
 }
 
+static inline void markRendererAndParentForLayout(RenderBox& renderer)
+{
+    renderer.setChildNeedsLayout(MarkOnlyThis);
+    if (renderer.needsPreferredWidthsRecalculation())
+        renderer.setPreferredLogicalWidthsDirty(true, MarkOnlyThis);
+    auto* parentBlock = RenderObject::containingBlockForPositionType(PositionType::Static, renderer);
+    if (!parentBlock) {
+        ASSERT_NOT_REACHED();
+        return;
+    }
+    // Parent has to be mark for layout to run static positioning on the out-of-flow content.
+    parentBlock->setChildNeedsLayout();
+}
+
 void RenderBlock::removePositionedObjects(const RenderBlock* newContainingBlockCandidate, ContainingBlockState containingBlockState)
 {
     auto* positionedDescendants = positionedObjects();
     if (!positionedDescendants)
         return;
-    
-    Vector<CheckedRef<RenderBox>, 16> renderersToRemove;
-    for (auto& renderer : *positionedDescendants) {
-        if (newContainingBlockCandidate && !renderer.isDescendantOf(newContainingBlockCandidate))
-            continue;
-        renderersToRemove.append(renderer);
-        if (containingBlockState == NewContainingBlock) {
-            renderer.setChildNeedsLayout(MarkOnlyThis);
-            if (renderer.needsPreferredWidthsRecalculation())
-                renderer.setPreferredLogicalWidthsDirty(true, MarkOnlyThis);
-        }
-        // It is the parent block's job to add positioned children to positioned objects list of its containing block.
-        // Dirty the parent to ensure this happens. We also need to make sure the new containing block is dirty as well so
-        // that it gets to these new positioned objects.
-        auto* parent = renderer.parent();
-        while (parent && !is<RenderBlock>(parent))
-            parent = parent->parent();
-        if (parent)
-            parent->setChildNeedsLayout();
 
-        if (renderer.isFixedPositioned())
-            view().setNeedsLayout();
-        else if (auto* newContainingBlock = containingBlock()) {
-            // During style change, at this point the renderer's containing block is still "this" renderer, and "this" renderer is still positioned.
-            // FIXME: During subtree moving, this is mostly invalid but either the subtree is detached (we don't even get here) or renderers
-            // are already marked dirty.
-            for (; newContainingBlock && !newContainingBlock->canContainAbsolutelyPositionedObjects(); newContainingBlock = newContainingBlock->containingBlock()) { }
-            if (newContainingBlock)
-                newContainingBlock->setNeedsLayout();
+    Vector<CheckedRef<RenderBox>, 16> renderersToRemove;
+    if (!newContainingBlockCandidate) {
+        // We don't form containing block for these boxes anymore (either through style change or internal render tree shuffle)
+        for (auto& renderer : *positionedDescendants) {
+            renderersToRemove.append(renderer);
+
+            markRendererAndParentForLayout(renderer);
+            auto markNewContainingBlockForLayout = [&] {
+                auto isAbsolutePositioned = renderer.isAbsolutelyPositioned();
+                // During style change we can't tell which ancestor is going to be the final containing block, so let's just mark the new candidate dirty.
+                auto* newContainingBlock = containingBlock();
+                for (; newContainingBlock && (isAbsolutePositioned ? !newContainingBlock->canContainAbsolutelyPositionedObjects() : newContainingBlock->canContainFixedPositionObjects()); newContainingBlock = newContainingBlock->containingBlock()) { }
+                if (newContainingBlock)
+                    newContainingBlock->setNeedsLayout();
+            };
+            markNewContainingBlockForLayout();
         }
-    }
+    } else if (containingBlockState == ContainingBlockState::NewContainingBlock) {
+        // Some of the positioned boxes are getting transferred over to newContainingBlockCandidate.
+        for (auto& renderer : *positionedDescendants) {
+            if (!renderer.isDescendantOf(newContainingBlockCandidate))
+                continue;
+            renderersToRemove.append(renderer);
+            markRendererAndParentForLayout(renderer);
+        }
+    } else
+        ASSERT_NOT_REACHED();
+
     for (auto& renderer : renderersToRemove)
         removePositionedObject(renderer);
 }
@@ -1951,6 +1957,9 @@ void RenderBlock::addPercentHeightDescendant(RenderBox& descendant)
 
 void RenderBlock::removePercentHeightDescendant(RenderBox& descendant)
 {
+    // We query the map directly, rather than looking at style's
+    // logicalHeight()/logicalMinHeight()/logicalMaxHeight() since those
+    // can change with writing mode/directional changes.
     removeFromTrackedRendererMaps(descendant);
 }
 
@@ -1964,41 +1973,14 @@ bool RenderBlock::hasPercentHeightContainerMap()
     return percentHeightContainerMap;
 }
 
-bool RenderBlock::hasPercentHeightDescendant(RenderBox& descendant)
-{
-    // We don't null check percentHeightContainerMap since the caller
-    // already ensures this and we need to call this function on every
-    // descendant in clearPercentHeightDescendantsFrom().
-    ASSERT(percentHeightContainerMap);
-    return percentHeightContainerMap->contains(descendant);
-}
-
-void RenderBlock::removePercentHeightDescendantIfNeeded(RenderBox& descendant)
-{
-    // We query the map directly, rather than looking at style's
-    // logicalHeight()/logicalMinHeight()/logicalMaxHeight() since those
-    // can change with writing mode/directional changes.
-    if (!hasPercentHeightContainerMap())
-        return;
-
-    if (!hasPercentHeightDescendant(descendant))
-        return;
-
-    removePercentHeightDescendant(descendant);
-}
-
 void RenderBlock::clearPercentHeightDescendantsFrom(RenderBox& parent)
 {
-    ASSERT(percentHeightContainerMap);
-    for (RenderObject* child = parent.firstChild(); child; child = child->nextInPreOrder(&parent)) {
-        CheckedPtr box = dynamicDowncast<RenderBox>(*child);
-        if (!box)
-            continue;
- 
-        if (!hasPercentHeightDescendant(*box))
-            continue;
+    if (!percentHeightContainerMap)
+        return;
 
-        removePercentHeightDescendant(*box);
+    for (RenderObject* child = parent.firstChild(); child; child = child->nextInPreOrder(&parent)) {
+        if (CheckedPtr box = dynamicDowncast<RenderBox>(*child))
+            removeFromTrackedRendererMaps(*box);
     }
 }
 
@@ -3006,15 +2988,9 @@ void RenderBlock::addFocusRingRects(Vector<LayoutRect>& rects, const LayoutPoint
         inlineContinuation->addFocusRingRects(rects, flooredLayoutPoint(LayoutPoint(additionalOffset + inlineContinuation->containingBlock()->location() - location())), paintContainer);
 }
 
-RenderPtr<RenderBlock> RenderBlock::createAnonymousBlockWithStyleAndDisplay(Document& document, const RenderStyle& style, DisplayType display)
+RenderPtr<RenderBlock> RenderBlock::createAnonymousBlockWithStyle(Document& document, const RenderStyle& style)
 {
-    // FIXME: Do we need to convert all our inline displays to block-type in the anonymous logic ?
-    RenderPtr<RenderBlock> newBox;
-    if (display == DisplayType::Flex || display == DisplayType::InlineFlex)
-        newBox = createRenderer<RenderFlexibleBox>(RenderObject::Type::FlexibleBox, document, RenderStyle::createAnonymousStyleWithDisplay(style, DisplayType::Flex));
-    else
-        newBox = createRenderer<RenderBlockFlow>(RenderObject::Type::BlockFlow, document, RenderStyle::createAnonymousStyleWithDisplay(style, DisplayType::Block));
-    
+    RenderPtr<RenderBlock> newBox = createRenderer<RenderBlockFlow>(RenderObject::Type::BlockFlow, document, RenderStyle::createAnonymousStyleWithDisplay(style, DisplayType::Block));
     newBox->initializeStyle();
     return newBox;
 }

@@ -29,6 +29,6 @@
 
 namespace JSC {
 
-ErrorInstance* createSuppressedError(JSGlobalObject*, VM&, Structure*, JSValue errors, JSValue suppressed, JSValue message, JSValue options, ErrorInstance::SourceAppender = nullptr, RuntimeType = TypeNothing, bool useCurrentFrame = true);
+ErrorInstance* createSuppressedError(JSGlobalObject*, VM&, Structure*, JSValue error, JSValue suppressed, JSValue message, ErrorInstance::SourceAppender = nullptr, RuntimeType = TypeNothing, bool useCurrentFrame = true);
 
 } // namespace JSC

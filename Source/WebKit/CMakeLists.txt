@@ -324,6 +324,8 @@ set(WebKit_MESSAGES_IN_FILES
 
     WebProcess/Databases/IndexedDB/WebIDBConnectionToServer
 
+    WebProcess/DigitalCredentials/DigitalCredentialsCoordinator
+
     WebProcess/Extensions/WebExtensionContextProxy
     WebProcess/Extensions/WebExtensionControllerProxy
 
@@ -494,6 +496,7 @@ set(WebKit_SERIALIZATION_IN_FILES
     Shared/ProvisionalFrameCreationParameters.serialization.in
     Shared/RTCNetwork.serialization.in
     Shared/RTCPacketOptions.serialization.in
+    Shared/RemoteWebTouchEvent.serialization.in
     Shared/RemoteWorkerInitializationData.serialization.in
     Shared/RemoteWorkerType.serialization.in
     Shared/ResourceLoadInfo.serialization.in
@@ -798,6 +801,7 @@ WEBKIT_INCLUDE_CONFIG_FILES_IF_EXISTS()
 if (PORT STREQUAL GTK OR PORT STREQUAL WPE)
     WEBKIT_ADD_TARGET_CXX_FLAGS(WebKit
         -Wunsafe-buffer-usage
+        -Wunsafe-buffer-usage-in-libc-call
         -fsafe-buffer-usage-suggestions
     )
 endif ()

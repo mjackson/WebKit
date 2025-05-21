@@ -48,7 +48,6 @@ crypto/SubtleCrypto.cpp
 css/CSSPendingSubstitutionValue.cpp
 css/CSSValue.cpp
 css/CSSVariableReferenceValue.cpp
-css/ComputedStyleExtractor.cpp
 css/StyleRule.cpp
 dom/BroadcastChannel.cpp
 dom/ContentVisibilityDocumentState.cpp
@@ -110,7 +109,6 @@ rendering/updating/RenderTreeUpdater.cpp
 style/Styleable.cpp
 style/values/StyleValueTypes.h
 style/values/images/StyleGradient.cpp
-testing/Internals.cpp
 testing/MockMediaSessionCoordinator.cpp
 workers/Worker.cpp
 workers/WorkerMessagingProxy.cpp

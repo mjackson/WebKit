@@ -27,30 +27,27 @@
 #include "SuppressedError.h"
 
 #include "ExceptionScope.h"
-#include "IteratorOperations.h"
 #include "JSCJSValueInlines.h"
 #include "JSGlobalObjectInlines.h"
 
 namespace JSC {
 
-ErrorInstance* createSuppressedError(JSGlobalObject* globalObject, VM& vm, Structure* structure, JSValue error, JSValue suppressed, JSValue message, JSValue options, ErrorInstance::SourceAppender appender, RuntimeType type, bool useCurrentFrame)
+ErrorInstance* createSuppressedError(JSGlobalObject* globalObject, VM& vm, Structure* structure, JSValue error, JSValue suppressed, JSValue message, ErrorInstance::SourceAppender appender, RuntimeType type, bool useCurrentFrame)
 {
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     String messageString = message.isUndefined() ? String() : message.toWTFString(globalObject);
     RETURN_IF_EXCEPTION(scope, nullptr);
 
-    JSValue cause;
-    if (options.isObject()) {
-        // Since `throw undefined;` is valid, we need to distinguish the case where `cause` is an explicit undefined.
-        cause = asObject(options)->getIfPropertyExists(globalObject, vm.propertyNames->cause);
-        RETURN_IF_EXCEPTION(scope, nullptr);
-    }
+    auto* suppressedError = ErrorInstance::create(vm, structure, messageString, JSValue(), appender, type, ErrorType::SuppressedError, useCurrentFrame);
 
-    auto* inst = ErrorInstance::create(vm, structure, messageString, cause, appender, type, ErrorType::SuppressedError, useCurrentFrame);
-    inst->putDirect(vm, vm.propertyNames->error, error, static_cast<unsigned>(0));
-    inst->putDirect(vm, vm.propertyNames->suppressed, suppressed, static_cast<unsigned>(0));
-    return inst;
+    suppressedError->putDirect(vm, vm.propertyNames->error, error, static_cast<unsigned>(PropertyAttribute::DontEnum));
+    RETURN_IF_EXCEPTION(scope, nullptr);
+
+    suppressedError->putDirect(vm, vm.propertyNames->suppressed, suppressed, static_cast<unsigned>(PropertyAttribute::DontEnum));
+    RETURN_IF_EXCEPTION(scope, nullptr);
+
+    return suppressedError;
 }
 
 } // namespace JSC

@@ -30,6 +30,7 @@
 #include "GStreamerCommon.h"
 #include "GStreamerEMEUtilities.h"
 #include "GStreamerQuirks.h"
+#include "GUniquePtrGStreamer.h"
 #include "ImageOrientation.h"
 #include "Logging.h"
 #include "MainThreadNotifier.h"
@@ -338,7 +339,7 @@ protected:
     void ensureAudioSourceProvider();
     virtual void checkPlayingConsistency();
 
-    virtual bool doSeek(const SeekTarget& position, float rate);
+    virtual bool doSeek(const SeekTarget& position, float rate, bool isAsync = false);
     void invalidateCachedPosition() const;
     void ensureSeekFlags();
 
@@ -416,6 +417,7 @@ protected:
     mutable Lock m_sampleMutex;
     GRefPtr<GstSample> m_sample WTF_GUARDED_BY_LOCK(m_sampleMutex);
 
+    mutable IntSize m_videoSizeFromCaps;
     mutable FloatSize m_videoSize;
     bool m_isUsingFallbackVideoSink { false };
     bool m_canRenderingBeAccelerated { false };
@@ -485,6 +487,8 @@ private:
     void didEnd();
     void setPlaybackFlags(bool isMediaStream);
     void recalculateDurationIfNeeded() const; // It's called from other const methods.
+
+    ImageOrientation getVideoOrientation(const GstTagList*);
 
     GstElement* createVideoSink();
     GstElement* createAudioSink();

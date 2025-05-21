@@ -89,10 +89,14 @@ static void testWebKitSettings(Test*, gconstpointer)
     webkit_settings_set_javascript_can_open_windows_automatically(settings, TRUE);
     g_assert_true(webkit_settings_get_javascript_can_open_windows_automatically(settings));
 
-    // By default hyper link auditing is enabled.
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+    // Hyperlink auditing is deprecated and always enabled.
+    Test::removeLogFatalFlag(G_LOG_LEVEL_WARNING);
     g_assert_true(webkit_settings_get_enable_hyperlink_auditing(settings));
     webkit_settings_set_enable_hyperlink_auditing(settings, FALSE);
-    g_assert_false(webkit_settings_get_enable_hyperlink_auditing(settings));
+    g_assert_true(webkit_settings_get_enable_hyperlink_auditing(settings));
+    Test::addLogFatalFlag(G_LOG_LEVEL_WARNING);
+    ALLOW_DEPRECATED_DECLARATIONS_END
 
     // Default font family is "sans-serif".
     g_assert_cmpstr(webkit_settings_get_default_font_family(settings), ==, "sans-serif");
@@ -312,10 +316,10 @@ static void testWebKitSettings(Test*, gconstpointer)
     webkit_settings_set_enable_encrypted_media(settings, TRUE);
     g_assert_true(webkit_settings_get_enable_encrypted_media(settings));
 
-    // MediaCapabilities is disabled by default
-    g_assert_false(webkit_settings_get_enable_media_capabilities(settings));
-    webkit_settings_set_enable_media_capabilities(settings, TRUE);
+    // MediaCapabilities is enabled by default
     g_assert_true(webkit_settings_get_enable_media_capabilities(settings));
+    webkit_settings_set_enable_media_capabilities(settings, FALSE);
+    g_assert_false(webkit_settings_get_enable_media_capabilities(settings));
 
     // File access from file URLs is not allowed by default.
     g_assert_false(webkit_settings_get_allow_file_access_from_file_urls(settings));

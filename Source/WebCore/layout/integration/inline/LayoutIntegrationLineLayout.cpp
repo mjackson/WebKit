@@ -28,7 +28,6 @@
 
 #include "BlockFormattingState.h"
 #include "BlockLayoutState.h"
-#include "ElementInlines.h"
 #include "EventRegion.h"
 #include "FormattingContextBoxIterator.h"
 #include "HitTestLocation.h"
@@ -48,18 +47,12 @@
 #include "PaintInfo.h"
 #include "PlacedFloats.h"
 #include "RenderBlockFlow.h"
-#include "RenderBoxInlines.h"
-#include "RenderChildIterator.h"
 #include "RenderDescendantIterator.h"
-#include "RenderElementInlines.h"
-#include "RenderFrameSet.h"
 #include "RenderInline.h"
 #include "RenderLayer.h"
 #include "RenderLayoutState.h"
 #include "RenderLineBreak.h"
 #include "RenderView.h"
-#include "SVGTextFragment.h"
-#include "Settings.h"
 #include "ShapeOutsideInfo.h"
 #include <wtf/Assertions.h>
 #include <wtf/Range.h>
@@ -150,6 +143,9 @@ static bool shouldInvalidateLineLayoutPathAfterChangeFor(const RenderBlockFlow& 
 
     auto rootHasNonSupportedRenderer = [&] (bool shouldOnlyCheckForRelativeDimension = false) {
         for (auto* sibling = rootBlockContainer.firstChild(); sibling; sibling = sibling->nextSibling()) {
+            if (auto* inlineBox = dynamicDowncast<RenderInline>(*sibling); inlineBox && !inlineBox->style().textAutospace().isNoAutospace())
+                return true;
+
             auto siblingHasRelativeDimensions = false;
             if (auto* renderBox = dynamicDowncast<RenderBox>(*sibling); renderBox && renderBox->hasRelativeDimensions())
                 siblingHasRelativeDimensions = true;
@@ -232,6 +228,7 @@ static const InlineDisplay::Line& lastLineWithInlineContent(const InlineDisplay:
 
 LineLayout::LineLayout(RenderBlockFlow& flow)
     : m_rootLayoutBox(BoxTreeUpdater { flow }.build())
+    , m_document(flow.document())
     , m_layoutState(flow.view().layoutState())
     , m_blockFormattingState(layoutState().ensureBlockFormattingState(rootLayoutBox()))
     , m_inlineContentCache(layoutState().inlineContentCache(rootLayoutBox()))
@@ -244,7 +241,7 @@ LineLayout::~LineLayout()
     auto& rootRenderer = flow();
     auto shouldPopulateBreakingPositionCache = [&] {
         auto mayHaveInvalidContent = isDamaged() || !m_inlineContent;
-        if (rootRenderer.document().renderTreeBeingDestroyed() || mayHaveInvalidContent)
+        if (m_document->renderTreeBeingDestroyed() || mayHaveInvalidContent)
             return false;
         return !m_inlineContentCache.inlineItems().isPopulatedFromCache();
     };
@@ -257,7 +254,7 @@ LineLayout::~LineLayout()
     m_lineDamage = { };
     m_rootLayoutBox = nullptr;
 
-    BoxTreeUpdater { rootRenderer }.tearDown();
+    BoxTreeUpdater { rootRenderer, *m_document }.tearDown();
 }
 
 static inline bool isContentRenderer(const RenderObject& renderer)
@@ -613,7 +610,7 @@ void LineLayout::updateRenderTreePositions(const Vector<LineAdjustment>& lineAdj
         if (layoutBox.isFloatingPositioned()) {
             // FIXME: Find out what to do with discarded (see line-clamp) floats in render tree.
             auto isInitialLetter = layoutBox.style().pseudoElementType() == PseudoId::FirstLetter;
-            auto& floatingObject = flow().insertFloatingObjectForIFC(renderer);
+            auto& floatingObject = flow().insertFloatingBox(renderer);
             auto [marginBoxVisualRect, borderBoxVisualRect] = toMarginAndBorderBoxVisualRect(logicalGeometry, m_inlineContentConstraints->containerRenderSize(), placedFloatsWritingMode);
 
             auto paginationOffset = floatPaginationOffsetMap.getOptional(layoutBox);

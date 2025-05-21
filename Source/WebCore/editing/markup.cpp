@@ -490,7 +490,7 @@ inline StyledMarkupAccumulator::StyledMarkupAccumulator(const Position& start, c
     SerializeComposedTree serializeComposedTree, IgnoreUserSelectNone ignoreUserSelectNone, AnnotateForInterchange annotate,
     StandardFontFamilySerializationMode standardFontFamilySerializationMode, MSOListMode msoListMode, bool needsPositionStyleConversion,
     PreserveDirectionForInlineText preserveDirectionForInlineText, Node* highestNodeToBeSerialized)
-    : MarkupAccumulator(nodes, resolveURLs, start.document()->isHTMLDocument() ? SerializationSyntax::HTML : SerializationSyntax::XML)
+    : MarkupAccumulator(nodes, resolveURLs, MarkupAccumulator::serializationSyntax(*start.document()))
     , m_start(start)
     , m_end(end)
     , m_annotate(annotate)
@@ -601,12 +601,12 @@ void StyledMarkupAccumulator::appendText(StringBuilder& out, const Text& text)
 
     if (!shouldAnnotate() || parentIsTextarea) {
         auto content = textContentRespectingRange(text);
-        appendCharactersReplacingEntities(out, content, 0, content.length(), entityMaskForText(text));
+        appendCharactersReplacingEntities(out, content, entityMaskForText(text));
     } else {
         const bool useRenderedText = !enclosingElementWithTag(firstPositionInNode(const_cast<Text*>(&text)), selectTag);
         String content = useRenderedText ? renderedTextRespectingRange(text) : textContentRespectingRange(text);
         StringBuilder buffer;
-        appendCharactersReplacingEntities(buffer, content, 0, content.length(), EntityMaskInPCDATA);
+        appendCharactersReplacingEntities(buffer, content, EntityMaskInPCDATA);
         out.append(convertHTMLTextToInterchangeFormat(buffer.toString(), &text));
     }
 
@@ -1280,7 +1280,7 @@ Ref<DocumentFragment> createFragmentFromMarkup(Document& document, const String&
 String serializeFragment(const Node& node, SerializedNodes root, Vector<Ref<Node>>* nodes, ResolveURLs resolveURLs, std::optional<SerializationSyntax> serializationSyntax, SerializeShadowRoots serializeShadowRoots, Vector<Ref<ShadowRoot>>&& explicitShadowRoots, const Vector<MarkupExclusionRule>& exclusionRules)
 {
     if (!serializationSyntax)
-        serializationSyntax = node.document().isHTMLDocument() ? SerializationSyntax::HTML : SerializationSyntax::XML;
+        serializationSyntax = MarkupAccumulator::serializationSyntax(node.document());
 
     MarkupAccumulator accumulator(nodes, resolveURLs, *serializationSyntax, serializeShadowRoots, WTFMove(explicitShadowRoots), exclusionRules);
     return accumulator.serializeNodes(const_cast<Node&>(node), root);
@@ -1289,7 +1289,7 @@ String serializeFragment(const Node& node, SerializedNodes root, Vector<Ref<Node
 String serializeFragmentWithURLReplacement(const Node& node, SerializedNodes root, Vector<Ref<Node>>* nodes, ResolveURLs resolveURLs, std::optional<SerializationSyntax> serializationSyntax, UncheckedKeyHashMap<String, String>&& replacementURLStrings, UncheckedKeyHashMap<Ref<CSSStyleSheet>, String>&& replacementURLStringsForCSSStyleSheet, SerializeShadowRoots serializeShadowRoots, Vector<Ref<ShadowRoot>>&& explicitShadowRoots, const Vector<MarkupExclusionRule>& exclusionRules)
 {
     if (!serializationSyntax)
-        serializationSyntax = node.document().isHTMLDocument() ? SerializationSyntax::HTML : SerializationSyntax::XML;
+        serializationSyntax = MarkupAccumulator::serializationSyntax(node.document());
 
     MarkupAccumulator accumulator(nodes, resolveURLs, *serializationSyntax, serializeShadowRoots, WTFMove(explicitShadowRoots), exclusionRules);
     accumulator.enableURLReplacement(WTFMove(replacementURLStrings), WTFMove(replacementURLStringsForCSSStyleSheet));
@@ -1446,7 +1446,7 @@ String urlToMarkup(const URL& url, const String& title)
 {
     StringBuilder markup;
     markup.append("<a href=\""_s, url.string(), "\">"_s);
-    MarkupAccumulator::appendCharactersReplacingEntities(markup, title, 0, title.length(), EntityMaskInPCDATA);
+    MarkupAccumulator::appendCharactersReplacingEntities(markup, title, EntityMaskInPCDATA);
     markup.append("</a>"_s);
     return markup.toString();
 }

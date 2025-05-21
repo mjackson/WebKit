@@ -20,8 +20,6 @@
 
 #include "config.h"
 #include "AppendPipeline.h"
-#include "AbortableTaskQueue.h"
-#include "MediaSourcePrivateGStreamer.h"
 
 #if ENABLE(VIDEO) && USE(GSTREAMER) && ENABLE(MEDIA_SOURCE)
 
@@ -33,6 +31,7 @@
 #include "InbandTextTrackPrivateGStreamer.h"
 #include "MediaDescription.h"
 #include "MediaSampleGStreamer.h"
+#include "MediaSourcePrivateGStreamer.h"
 #include "SourceBufferPrivateGStreamer.h"
 #include "VideoTrackPrivateGStreamer.h"
 #include <functional>
@@ -108,6 +107,12 @@ static void assertedElementSetState(GstElement* element, GstState desiredState)
 void AppendPipeline::configureOptionalDemuxerFromAnyThread()
 {
     ASSERT(m_demux);
+#if !LOG_DISABLED
+    GRefPtr<GstPad> demuxerSinkPad = adoptGRef(gst_element_get_static_pad(m_demux.get(), "sink"));
+    m_demuxerDataEnteringPadProbeInformation.appendPipeline = this;
+    m_demuxerDataEnteringPadProbeInformation.description = "demuxer data entering";
+    m_demuxerDataEnteringPadProbeInformation.probeId = gst_pad_add_probe(demuxerSinkPad.get(), GST_PAD_PROBE_TYPE_BUFFER, reinterpret_cast<GstPadProbeCallback>(appendPipelinePadProbeDebugInformation), &m_demuxerDataEnteringPadProbeInformation, nullptr);
+#endif
 
     String elementClass = unsafeSpan(gst_element_get_metadata(m_demux.get(), GST_ELEMENT_METADATA_KLASS));
     // We try to detect special cases of demuxers that have a single static src pad, such as id3demux.
@@ -236,16 +241,8 @@ AppendPipeline::AppendPipeline(SourceBufferPrivateGStreamer& sourceBufferPrivate
 
     // m_demux might be null at this point if there's a typefind pending to identify the proper demuxer to be used
     // (see the audio/mpeg case right above).
-    if (m_demux) {
-#if !LOG_DISABLED
-        GRefPtr<GstPad> demuxerPad = adoptGRef(gst_element_get_static_pad(m_demux.get(), "sink"));
-        m_demuxerDataEnteringPadProbeInformation.appendPipeline = this;
-        m_demuxerDataEnteringPadProbeInformation.description = "demuxer data entering";
-        m_demuxerDataEnteringPadProbeInformation.probeId = gst_pad_add_probe(demuxerPad.get(), GST_PAD_PROBE_TYPE_BUFFER, reinterpret_cast<GstPadProbeCallback>(appendPipelinePadProbeDebugInformation), &m_demuxerDataEnteringPadProbeInformation, nullptr);
-#endif
-
+    if (m_demux)
         configureOptionalDemuxerFromAnyThread();
-    }
 
     // The added elements had their floating references sunk after being assigned to the GRefPtr, so the transfer-floating
     // parameters are working as transfer-none here.
@@ -497,7 +494,7 @@ void AppendPipeline::didReceiveInitializationSegment()
 
     if (isFirstInitializationSegment) {
         // Create a Track object per pad.
-        for (GstPad* pad : GstIteratorAdaptor<GstPad>(GUniquePtr<GstIterator>(gst_element_iterate_src_pads(m_demux.get())))) {
+        for (GstPad* pad : GstIteratorAdaptor<GstPad>(gst_element_iterate_src_pads(m_demux.get()))) {
             auto [createTrackResult, track] = tryCreateTrackFromPad(pad);
             if (createTrackResult == CreateTrackResult::AppendParsingFailed) {
                 // appendParsingFailed() will immediately cause a resetParserState() which will stop demuxing, then the
@@ -512,7 +509,7 @@ void AppendPipeline::didReceiveInitializationSegment()
         UncheckedKeyHashSet<String> videoPadStreamIDs;
         UncheckedKeyHashSet<String> audioPadStreamIDs;
         UncheckedKeyHashSet<String> textPadStreamIDs;
-        for (auto pad : GstIteratorAdaptor<GstPad>(GUniquePtr<GstIterator>(gst_element_iterate_src_pads(m_demux.get())))) {
+        for (auto pad : GstIteratorAdaptor<GstPad>(gst_element_iterate_src_pads(m_demux.get()))) {
             auto [parsedCaps, streamType, presentationSize] = parseDemuxerSrcPadCaps(adoptGRef(gst_pad_get_current_caps(pad)).get());
             UNUSED_VARIABLE(parsedCaps);
             UNUSED_VARIABLE(presentationSize);
@@ -568,7 +565,7 @@ void AppendPipeline::didReceiveInitializationSegment()
 
         // Link pads to existing Track objects that don't have a linked pad yet. Existing linked
         // tracks are recycled if their stream type matches the new demuxer source pads.
-        for (GstPad* pad : GstIteratorAdaptor<GstPad>(GUniquePtr<GstIterator>(gst_element_iterate_src_pads(m_demux.get())))) {
+        for (GstPad* pad : GstIteratorAdaptor<GstPad>(gst_element_iterate_src_pads(m_demux.get()))) {
             if (!recycleTrackForPad(pad)) {
                 GST_WARNING_OBJECT(pipeline(), "Can't match pad to existing tracks in the AppendPipeline: %" GST_PTR_FORMAT, pad);
                 m_sourceBufferPrivate.appendParsingFailed();

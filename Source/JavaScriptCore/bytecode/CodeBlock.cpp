@@ -74,6 +74,7 @@
 #include "ProgramCodeBlock.h"
 #include "ReduceWhitespace.h"
 #include "SlotVisitorInlines.h"
+#include "SourceProvider.h"
 #include "StackVisitor.h"
 #include "StructureStubInfo.h"
 #include "TypeLocationCache.h"
@@ -132,7 +133,7 @@ CString CodeBlock::inferredName() const
 
 String CodeBlock::inferredNameWithHash() const
 {
-    return makeString(inferredName(), "#"_s, hashAsStringIfPossible());
+    return makeString(inferredName(), "#"_s, hash());
 }
 
 bool CodeBlock::hasHash() const
@@ -140,18 +141,26 @@ bool CodeBlock::hasHash() const
     return !!m_hash;
 }
 
-bool CodeBlock::isSafeToComputeHash() const
-{
-    return !isCompilationThread();
-}
-
 CodeBlockHash CodeBlock::hash() const
 {
-    if (!m_hash) {
-        RELEASE_ASSERT(isSafeToComputeHash());
-        m_hash = CodeBlockHash(ownerExecutable()->source(), specializationKind());
-    }
-    return m_hash;
+    if (auto hash = m_hash)
+        return hash;
+
+    // Do not copy. It is not allowed from the concurrent compiler thread. But so long as this CodeBlock is alive, it is ensured that this reference is valid.
+    const auto& source = ownerExecutable()->source();
+
+    // Why do we need this guard? WebCore can replace underlying source with NetworkProcess cached data in the main thread.
+    // If we are reading source from the main thread, we cannot have conflict. But if we are reading the source from the compiler thread,
+    // it is possible that the main thread is now replacing it with the cached new content. SourceProviderBufferGuard allows us to keep
+    // the old one until this scope gets destroyed.
+    std::optional<SourceProviderBufferGuard> guard;
+    if (isCompilationThread() || Thread::mayBeGCThread())
+        guard.emplace(source.provider());
+
+    auto hash = CodeBlockHash(source, specializationKind());
+    WTF::storeStoreFence();
+    m_hash = hash;
+    return hash;
 }
 
 CString CodeBlock::sourceCodeForTools() const
@@ -168,13 +177,6 @@ CString CodeBlock::sourceCodeForTools() const
 CString CodeBlock::sourceCodeOnOneLine() const
 {
     return reduceWhitespace(sourceCodeForTools());
-}
-
-CString CodeBlock::hashAsStringIfPossible() const
-{
-    if (hasHash() || isSafeToComputeHash())
-        return toCString(hash());
-    return "<no-hash>"_s;
 }
 
 void CodeBlock::dumpAssumingJITType(PrintStream& out, JITType jitType) const
@@ -759,11 +761,6 @@ bool CodeBlock::finishCreation(VM& vm, ScriptExecutable* ownerExecutable, Unlink
 
     if (m_unlinkedCode->wasCompiledWithControlFlowProfilerOpcodes())
         insertBasicBlockBoundariesForControlFlowProfiler();
-
-    // If the concurrent thread will want the code block's hash, then compute it here
-    // synchronously.
-    if (Options::alwaysComputeHash())
-        hash();
 
     if (Options::dumpGeneratedBytecodes())
         dumpBytecode();

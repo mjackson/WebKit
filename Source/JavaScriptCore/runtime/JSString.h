@@ -37,6 +37,7 @@
 #include <wtf/CheckedArithmetic.h>
 #include <wtf/ForbidHeapAllocation.h>
 #include <wtf/MathExtras.h>
+#include <wtf/UnalignedAccess.h>
 #include <wtf/text/StringView.h>
 
 #if USE(BUN_JSC_ADDITIONS)

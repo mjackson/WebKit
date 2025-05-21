@@ -478,12 +478,13 @@ void TextureMapperLayer::collectDamageSelf(TextureMapperPaintOptions& options, D
     if (targetRect.isEmpty())
         return;
 
-    if ((!isFlattened() || m_flattenedLayer->needsUpdate())
+    if (m_parent
+        && (!isFlattened() || m_flattenedLayer->needsUpdate())
         && !m_state.backgroundColor.isValid()
         && !m_backingStore
         && (!m_state.solidColor.isValid() || !m_state.solidColor.isVisible())
         && !m_contentsLayer) {
-        // Layers that have no visuals on their own should not contribute to the damage.
+        // Layers that have no visuals on their own should not contribute to the damage - except for the root layer.
         return;
     }
 
@@ -504,13 +505,17 @@ void TextureMapperLayer::collectDamageSelf(TextureMapperPaintOptions& options, D
     // layer-level operations such as resizes, transformations, etc.
     const auto& clipBounds = options.textureMapper.clipBounds();
     if (m_damageInGlobalCoordinateSpace) {
-        for (const auto& rect : *m_damageInGlobalCoordinateSpace)
-            damage.add(intersection(rect, clipBounds));
+        for (const auto& rect : m_damageInGlobalCoordinateSpace->rects()) {
+            if (!rect.isEmpty())
+                damage.add(intersection(rect, clipBounds));
+        }
     }
 
     if (m_damageInLayerCoordinateSpace) {
-        for (const auto& rect : *m_damageInLayerCoordinateSpace)
-            damage.add(intersection(transformRectFromLayerToGlobalCoordinateSpace(rect, transform, options), clipBounds));
+        for (const auto& rect : m_damageInLayerCoordinateSpace->rects()) {
+            if (!rect.isEmpty())
+                damage.add(intersection(transformRectFromLayerToGlobalCoordinateSpace(rect, transform, options), clipBounds));
+        }
     }
 }
 
@@ -1504,6 +1509,10 @@ bool TextureMapperLayer::syncAnimations(MonotonicTime time)
     m_animations.apply(applicationResults, time);
 
     m_layerTransforms.localTransform = applicationResults.transform.value_or(m_state.transform);
+#if ENABLE(DAMAGE_TRACKING)
+    if (canInferDamage() && m_currentOpacity != applicationResults.opacity.value_or(m_state.opacity))
+        damageWholeLayer();
+#endif
     m_currentOpacity = applicationResults.opacity.value_or(m_state.opacity);
     m_currentFilters = applicationResults.filters.value_or(m_state.filters);
 

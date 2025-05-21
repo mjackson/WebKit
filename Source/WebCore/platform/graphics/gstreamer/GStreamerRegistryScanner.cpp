@@ -1178,9 +1178,10 @@ Vector<RTCRtpCapabilities::HeaderExtensionCapability> GStreamerRegistryScanner::
 
 GStreamerRegistryScanner::RegistryLookupResult GStreamerRegistryScanner::isRtpPacketizerSupported(const String& encoding)
 {
-    static UncheckedKeyHashMap<String, ASCIILiteral> mapping = { { "h264"_s, "video/x-h264"_s }, { "vp8"_s, "video/x-vp8"_s },
-        { "vp9"_s, "video/x-vp9"_s }, { "av1"_s, "video/x-av1"_s }, { "h265"_s, "video/x-h265"_s }, { "opus"_s, "audio/x-opus"_s },
-        { "g722"_s, "audio/G722"_s }, { "pcma"_s, "audio/x-alaw"_s }, { "pcmu"_s, "audio/x-mulaw"_s } };
+    static UncheckedKeyHashMap<String, ASCIILiteral> mapping = {
+        { "h264"_s, "video/x-h264"_s }, { "vp8"_s, "video/x-vp8"_s }, { "vp9"_s, "video/x-vp9"_s }, { "av1"_s, "video/x-av1"_s }, { "h265"_s, "video/x-h265"_s },
+        { "avc1"_s, "video/x-h264"_s }, { "vp08"_s, "video/x-vp8"_s }, { "vp09"_s, "video/x-vp9"_s }, { "av01"_s, "video/x-av1"_s }, { "hvc1"_s, "video/x-h265"_s },
+        { "opus"_s, "audio/x-opus"_s }, { "g722"_s, "audio/G722"_s }, { "pcma"_s, "audio/x-alaw"_s }, { "pcmu"_s, "audio/x-mulaw"_s } };
     auto gstCapsName = mapping.getOptional(encoding);
     if (!gstCapsName) {
         GST_WARNING("Unhandled RTP encoding-name: %s", encoding.ascii().data());
@@ -1189,6 +1190,27 @@ GStreamerRegistryScanner::RegistryLookupResult GStreamerRegistryScanner::isRtpPa
 
     ElementFactories factories(ElementFactories::Type::RtpPayloader);
     return factories.hasElementForMediaType(ElementFactories::Type::RtpPayloader, *gstCapsName);
+}
+
+bool GStreamerRegistryScanner::isRtpHeaderExtensionSupported(StringView uri)
+{
+#if GST_CHECK_VERSION(1, 20, 0)
+    return adoptGRef(gst_rtp_header_extension_create_from_uri(uri.toStringWithoutCopying().ascii().data()));
+#endif
+
+    for (auto& u : m_commonRtpExtensions) {
+        if (u == uri)
+            return true;
+    }
+    for (auto& u : m_allAudioRtpExtensions) {
+        if (u == uri)
+            return true;
+    }
+    for (auto& u : m_allVideoRtpExtensions) {
+        if (u == uri)
+            return true;
+    }
+    return false;
 }
 
 #endif // USE(GSTREAMER_WEBRTC)

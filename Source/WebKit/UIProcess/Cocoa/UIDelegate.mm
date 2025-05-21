@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2014-2025 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,6 +31,7 @@
 #import "APIFrameInfo.h"
 #import "APIHitTestResult.h"
 #import "APIInspectorConfiguration.h"
+#import "BrowsingContextGroup.h"
 #import "CompletionHandlerCallChecker.h"
 #import "FrameProcess.h"
 #import "MediaPermissionUtilities.h"
@@ -355,7 +356,7 @@ void UIDelegate::UIClient::createNewPage(WebKit::WebPageProxy&, Ref<API::PageCon
     }
 
     auto apiWindowFeatures = API::WindowFeatures::create(*configuration->windowFeatures());
-    auto openerInfo = configuration->openerInfo();
+    auto openerFrameIdentifier = configuration->openerInfo() ? std::optional(configuration->openerInfo()->frameID) : std::nullopt;
 
     ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     // FIXME: Remove this once the cause of rdar://148942809 is found and fixed.
@@ -366,7 +367,7 @@ void UIDelegate::UIClient::createNewPage(WebKit::WebPageProxy&, Ref<API::PageCon
     if (uiDelegate->m_delegateMethods.webViewCreateWebViewWithConfigurationForNavigationActionWindowFeaturesAsync) {
         auto checker = CompletionHandlerCallChecker::create(delegate.get(), @selector(_webView:createWebViewWithConfiguration:forNavigationAction:windowFeatures:completionHandler:));
 
-        [delegate _webView:uiDelegate->m_webView.get().get() createWebViewWithConfiguration:wrapper(configuration) forNavigationAction:wrapper(navigationAction) windowFeatures:wrapper(apiWindowFeatures) completionHandler:makeBlockPtr([siteIsolationEnabled, relatedWebView, completionHandler = WTFMove(completionHandler), checker = WTFMove(checker), openerInfo] (WKWebView *webView) mutable {
+        [delegate _webView:uiDelegate->m_webView.get().get() createWebViewWithConfiguration:wrapper(configuration) forNavigationAction:wrapper(navigationAction) windowFeatures:wrapper(apiWindowFeatures) completionHandler:makeBlockPtr([siteIsolationEnabled, relatedWebView, completionHandler = WTFMove(completionHandler), checker = WTFMove(checker), openerFrameIdentifier] (WKWebView *webView) mutable {
             if (checker->completionHandlerHasBeenCalled())
                 return;
             checker->didCallCompletionHandler();
@@ -376,7 +377,7 @@ void UIDelegate::UIClient::createNewPage(WebKit::WebPageProxy&, Ref<API::PageCon
 
             // FIXME: Move this to WebPageProxy once rdar://134317255 and rdar://134317400 are resolved.
             if (siteIsolationEnabled) {
-                if (openerInfo != Ref { *webView->_configuration->_pageConfiguration }->openerInfo())
+                if (openerFrameIdentifier != webView->_page->openerFrameIdentifier())
                     [NSException raise:NSInternalInconsistencyException format:@"Returned WKWebView was not created with the given configuration."];
             } else {
                 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
@@ -398,7 +399,7 @@ void UIDelegate::UIClient::createNewPage(WebKit::WebPageProxy&, Ref<API::PageCon
 
     // FIXME: Move this to WebPageProxy once rdar://134317255 and rdar://134317400 are resolved.
     if (siteIsolationEnabled) {
-        if (openerInfo != Ref { *webView.get()->_configuration->_pageConfiguration }->openerInfo())
+        if (openerFrameIdentifier != webView->_page->openerFrameIdentifier())
             [NSException raise:NSInternalInconsistencyException format:@"Returned WKWebView was not created with the given configuration."];
     } else {
         ALLOW_DEPRECATED_DECLARATIONS_BEGIN
@@ -632,7 +633,7 @@ bool UIDelegate::UIClient::canRunBeforeUnloadConfirmPanel() const
     return uiDelegate && uiDelegate->m_delegateMethods.webViewRunBeforeUnloadConfirmPanelWithMessageInitiatedByFrameCompletionHandler;
 }
 
-void UIDelegate::UIClient::runBeforeUnloadConfirmPanel(WebPageProxy& page, const WTF::String& message, WebFrameProxy*, FrameInfoData&& frameInfo, Function<void(bool)>&& completionHandler)
+void UIDelegate::UIClient::runBeforeUnloadConfirmPanel(WebPageProxy& page, WTF::String&& message, WebFrameProxy*, FrameInfoData&& frameInfo, Function<void(bool)>&& completionHandler)
 {
     RefPtr uiDelegate = m_uiDelegate.get();
     if (!uiDelegate)

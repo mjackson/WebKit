@@ -213,7 +213,7 @@ Ref<ScriptCallStack> createScriptCallStackFromStackTrace(JSC::JSGlobalObject* gl
 Ref<ScriptCallStack> createScriptCallStackFromException(JSC::JSGlobalObject* globalObject, JSC::Exception* exception, size_t maxStackSize)
 {
     const auto stackTrace = exception->stack();
-    return createScriptCallStackFromStackTrace(globalObject, { stackTrace.begin(), stackTrace.end() }, exception->value(), maxStackSize);
+    return createScriptCallStackFromStackTrace(globalObject, stackTrace, exception->value(), maxStackSize);
 }
 
 Ref<ScriptArguments> createScriptArguments(JSC::JSGlobalObject* globalObject, JSC::CallFrame* callFrame, unsigned skipArgumentCount)
