@@ -141,7 +141,6 @@ static SDKAlignedBehaviors computeSDKAlignedBehaviors()
         disableBehavior(SDKAlignedBehavior::HasUIContextMenuInteraction);
         disableBehavior(SDKAlignedBehavior::WKContentViewDoesNotOverrideKeyCommands);
         disableBehavior(SDKAlignedBehavior::SupportsOverflowHiddenOnMainFrame);
-        disableBehavior(SDKAlignedBehavior::NoIMDbCSSOMViewScrollingQuirk);
         disableBehavior(SDKAlignedBehavior::DownloadDelegatesCalledOnTheMainThread);
     }
 
@@ -212,7 +211,6 @@ static SDKAlignedBehaviors computeSDKAlignedBehaviors()
         disableBehavior(SDKAlignedBehavior::FullySuspendsBackgroundContent);
         disableBehavior(SDKAlignedBehavior::RunningBoardThrottling);
         disableBehavior(SDKAlignedBehavior::PopoverAttributeEnabled);
-        disableBehavior(SDKAlignedBehavior::LiveRangeSelectionEnabledForAllApps);
         disableBehavior(SDKAlignedBehavior::DoesNotOverrideUAFromNSUserDefault);
         disableBehavior(SDKAlignedBehavior::EvaluateJavaScriptWithoutTransientActivation);
         disableBehavior(SDKAlignedBehavior::ResettingTransitionCancelsRunningTransitionQuirk);
@@ -480,18 +478,6 @@ bool IOSApplication::isSafariViewService()
     return isSafariViewService;
 }
 
-bool IOSApplication::isIMDb()
-{
-    static bool isIMDb = applicationBundleIsEqualTo("com.imdb.imdb"_s);
-    return isIMDb;
-}
-
-bool IOSApplication::isGmail()
-{
-    static bool isGmail = applicationBundleIsEqualTo("com.google.Gmail"_s);
-    return isGmail;
-}
-
 bool IOSApplication::isWebBookmarksD()
 {
     static bool isWebBookmarksD = applicationBundleIsEqualTo("com.apple.webbookmarksd"_s);
@@ -510,12 +496,6 @@ bool IOSApplication::isMobileStore()
 {
     static bool isMobileStore = applicationBundleIsEqualTo("com.apple.MobileStore"_s);
     return isMobileStore;
-}
-
-bool IOSApplication::isSpringBoard()
-{
-    static bool isSpringBoard = applicationBundleIsEqualTo("com.apple.springboard"_s);
-    return isSpringBoard;
 }
 
 // FIXME: this needs to be changed when the WebProcess is changed to an XPC service.

@@ -105,6 +105,7 @@ http/tests/ssl/curl [ Skip ]
 model-element [ Skip ]
 http/tests/model [ Skip ]
 http/wpt/model-element [ Skip ]
+http/tests/security/model-element [ Skip ]
 system-preview [ Skip ]
 editing/pasteboard/dom-paste [ Skip ]
 editing/pasteboard/mac [ Skip ]
@@ -1828,6 +1829,8 @@ imported/w3c/web-platform-tests/css/selectors/case-insensitive-parent.html [ Ima
 imported/w3c/web-platform-tests/css/selectors/selectors-4/lang-017.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/selectors/selectors-4/lang-018.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/selectors/selectors-4/lang-020.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/selectors/selectors-4/details-open-pseudo-001.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/selectors/selectors-4/details-open-pseudo-002.html [ ImageOnlyFailure ]
 
 # This test is bit heavy for debug
 [ Debug ] imported/w3c/web-platform-tests/css/selectors/invalidation/has-complexity.html [ Skip ]
@@ -7096,7 +7099,6 @@ imported/w3c/web-platform-tests/css/css-view-transitions/iframe-and-main-frame-t
 imported/w3c/web-platform-tests/css/css-view-transitions/paint-holding-in-iframe.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-view-transitions/auto-name-get-animations.html [ Failure ]
 imported/w3c/web-platform-tests/css/css-view-transitions/fractional-translation-from-transform.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-view-transitions/nested-elements-in-overflow.html [ ImageOnlyFailure ]
 
 # Timeouts
 imported/w3c/web-platform-tests/css/css-view-transitions/iframe-transition.sub.html [ Skip ]

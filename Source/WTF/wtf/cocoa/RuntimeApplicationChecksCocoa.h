@@ -75,7 +75,6 @@ enum class SDKAlignedBehavior {
     MutationEventsDisabledByDefault,
     NoClientCertificateLookup,
     NoExpandoIndexedPropertiesOnWindow,
-    NoIMDbCSSOMViewScrollingQuirk,
     NoLaBanquePostaleQuirks,
     NoMoviStarPlusCORSPreflightQuirk,
     NoPokerBrosBuiltInTagQuirk,
@@ -115,7 +114,6 @@ enum class SDKAlignedBehavior {
     UsesGameControllerPhysicalInputProfile,
     ScreenOrientationAPIEnabled,
     PopoverAttributeEnabled,
-    LiveRangeSelectionEnabledForAllApps,
     DoesNotOverrideUAFromNSUserDefault,
     EvaluateJavaScriptWithoutTransientActivation,
     ResettingTransitionCancelsRunningTransitionQuirk,
@@ -207,8 +205,6 @@ WTF_EXPORT_PRIVATE bool isFeedly();
 WTF_EXPORT_PRIVATE bool isFirefox();
 WTF_EXPORT_PRIVATE bool isHimalaya();
 WTF_EXPORT_PRIVATE bool isHoYoLAB();
-WTF_EXPORT_PRIVATE bool isIMDb();
-WTF_EXPORT_PRIVATE bool isGmail();
 WTF_EXPORT_PRIVATE bool isJWLibrary();
 WTF_EXPORT_PRIVATE bool isLaBanquePostale();
 WTF_EXPORT_PRIVATE bool isLutron();
@@ -231,7 +227,6 @@ WTF_EXPORT_PRIVATE bool isBackboneApp();
 WTF_EXPORT_PRIVATE bool isIBooksStorytime();
 WTF_EXPORT_PRIVATE bool isMobileStore();
 WTF_EXPORT_PRIVATE bool isMoviStarPlus();
-WTF_EXPORT_PRIVATE bool isSpringBoard();
 WTF_EXPORT_PRIVATE bool isUNIQLOApp();
 WTF_EXPORT_PRIVATE bool isWechat();
 WTF_EXPORT_PRIVATE bool isDOFUSTouch();
