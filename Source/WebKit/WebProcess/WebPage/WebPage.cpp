@@ -2137,6 +2137,9 @@ void WebPage::loadRequest(LoadParameters&& loadParameters)
 
     platformDidReceiveLoadParameters(loadParameters);
 
+    if (loadParameters.originatingFrame && !loadParameters.frameIdentifier)
+        m_mainFrameNavigationInitiator = makeUnique<FrameInfoData>(*loadParameters.originatingFrame);
+
     // Initate the load in WebCore.
     ASSERT(localFrame->document());
     FrameLoadRequest frameLoadRequest { *localFrame, WTFMove(loadParameters.request) };
@@ -2176,6 +2179,7 @@ void WebPage::loadDataImpl(std::optional<WebCore::NavigationIdentifier> navigati
 #if ENABLE(APP_BOUND_DOMAINS)
     Ref mainFrame = m_mainFrame.copyRef();
     setIsNavigatingToAppBoundDomain(isNavigatingToAppBoundDomain, mainFrame.get());
+    mainFrame->setIsSafeBrowsingCheckOngoing(SafeBrowsingCheckOngoing::No);
 #else
     UNUSED_PARAM(isNavigatingToAppBoundDomain);
 #endif
@@ -5748,7 +5752,7 @@ void WebPage::setActiveOpenPanelResultListener(Ref<WebOpenPanelResultListener>&&
 
 void WebPage::setTextIndicator(const WebCore::TextIndicatorData& indicatorData)
 {
-    send(Messages::WebPageProxy::SetTextIndicatorFromFrame(m_mainFrame->frameID(), indicatorData, static_cast<uint64_t>(WebCore::TextIndicatorLifetime::Temporary)));
+    send(Messages::WebPageProxy::SetTextIndicatorFromFrame(m_mainFrame->frameID(), indicatorData, WebCore::TextIndicatorLifetime::Temporary));
 }
 
 void WebPage::updateTextIndicator(const WebCore::TextIndicatorData& indicatorData)
@@ -9268,7 +9272,7 @@ void WebPage::requestTextRecognition(Element& element, TextRecognitionOptions&& 
         for (auto& completionHandler : protectedPage->m_elementsPendingTextRecognition[matchIndex].second)
             completionHandler(imageOverlayHost.copyRef());
 
-        protectedPage->m_elementsPendingTextRecognition.remove(matchIndex);
+        protectedPage->m_elementsPendingTextRecognition.removeAt(matchIndex);
     });
 }
 
@@ -10420,6 +10424,11 @@ bool WebPage::shouldDisableModelLoadDelaysForTesting() const
     return m_page && m_page->shouldDisableModelLoadDelaysForTesting();
 }
 #endif
+
+std::unique_ptr<FrameInfoData> WebPage::takeMainFrameNavigationInitiator()
+{
+    return std::exchange(m_mainFrameNavigationInitiator, nullptr);
+}
 
 } // namespace WebKit
 

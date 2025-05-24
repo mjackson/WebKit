@@ -1708,6 +1708,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     page/FrameSnapshotting.h
     page/FrameTree.h
     page/FrameView.h
+    page/GetComposedRangesOptions.h
     page/GlobalFrameIdentifier.h
     page/GlobalWindowIdentifier.h
     page/HandleUserInputEventResult.h
@@ -1919,6 +1920,9 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/MediaSessionIdentifier.h
     platform/MediaStrategy.h
     platform/MediaUniqueIdentifier.h
+    platform/MessageClientForTesting.h
+    platform/MessageForTesting.h
+    platform/MessageTargetForTesting.h
     platform/NowPlayingManager.h
     platform/NotImplemented.h
     platform/OrientationNotifier.h

@@ -1260,7 +1260,7 @@ void Document::addResultForSelectorAll(ContainerNode& context, const String& sel
     });
     auto& entries = result.iterator->value->entries;
     if (entries.size() >= QuerySelectorAllResults::maxSize)
-        entries.remove(weakRandomNumber<uint32_t>() % entries.size());
+        entries.removeAt(weakRandomNumber<uint32_t>() % entries.size());
     entries.append({ selectorString, nodeList, classNameToMatch });
 }
 
@@ -1292,7 +1292,7 @@ void Document::invalidateQuerySelectorAllResultsForClassAttributeChange(Node& st
         while (index < entries.size()) {
             auto& entry = entries[index];
             if (!entry.classNameToMatch.isNull() && oldClasses.contains(entry.classNameToMatch) != newClasses.contains(entry.classNameToMatch))
-                entries.remove(index);
+                entries.removeAt(index);
             else
                 ++index;
         }
@@ -3486,6 +3486,10 @@ void Document::destroyRenderTree()
         // FIXME: This is a workaround for leftover content (see webkit.org/b/182547).
         while (m_renderView->firstChild())
             builder.destroy(*m_renderView->firstChild());
+
+        if (RefPtr view = this->view())
+            view->layoutContext().deleteDetachedRenderersNow();
+
         m_renderView->destroy();
     }
     m_renderView.release();
@@ -5212,7 +5216,7 @@ void Document::processColorScheme(const String& colorSchemeString)
 
 void Document::metaElementColorSchemeChanged()
 {
-    const auto& context = this->cssParserContext();
+    auto& context = this->cssParserContext();
 
     auto parseColorScheme = [&](const auto& metaElement) -> std::optional<CSS::ColorScheme> {
         const AtomString& nameValue = metaElement.attributeWithoutSynchronization(nameAttr);
@@ -10882,7 +10886,7 @@ CSSCounterStyleRegistry& Document::counterStyleRegistry()
     return styleScope().counterStyleRegistry();
 }
 
-CSSParserContext Document::cssParserContext() const
+const CSSParserContext& Document::cssParserContext() const
 {
     if (!m_cachedCSSParserContext)
         m_cachedCSSParserContext = makeUnique<CSSParserContext>(*this, URL { }, ""_s);

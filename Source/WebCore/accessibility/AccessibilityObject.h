@@ -521,7 +521,7 @@ public:
 
     void updateRole();
     bool childrenInitialized() const { return m_childrenInitialized; }
-    const AccessibilityChildrenVector& children(bool updateChildrenIfNeeded = true) override;
+    const AccessibilityChildrenVector& children(bool updateChildrenIfNeeded = true) final;
     virtual void addChildren() { }
     enum class DescendIfIgnored : bool { No, Yes };
     void insertChild(AccessibilityObject&, unsigned, DescendIfIgnored = DescendIfIgnored::Yes);
@@ -980,7 +980,7 @@ inline unsigned AccessibilityObject::getLengthForTextRange() const { return text
 inline bool AccessibilityObject::hasTextContent() const
 {
     return isStaticText()
-        || roleValue() == AccessibilityRole::WebCoreLink
+        || roleValue() == AccessibilityRole::Link
         || isTextControl() || isTabItem();
 }
 
@@ -988,7 +988,7 @@ inline bool AccessibilityObject::hasTextContent() const
 inline bool AccessibilityObject::hasAttributedText() const
 {
     return (isStaticText() && !isARIAStaticText())
-        || roleValue() == AccessibilityRole::WebCoreLink
+        || roleValue() == AccessibilityRole::Link
         || isTextControl() || isTabItem();
 }
 #endif

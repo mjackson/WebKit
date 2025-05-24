@@ -3575,13 +3575,14 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
                             break;
                         }
                     }
-                } else {
-                    setForNode(node, m_graph.globalObjectFor(node->origin.semantic)->originalArrayStructureForIndexingType(CopyOnWriteArrayWithContiguous));
-                    break;
                 }
             }
 #endif
-            setForNode(node, m_graph.globalObjectFor(node->origin.semantic)->originalArrayStructureForIndexingType(ArrayWithContiguous));
+            JSGlobalObject* globalObject = m_graph.globalObjectFor(node->origin.semantic);
+            RegisteredStructureSet structureSet;
+            structureSet.add(m_graph.registerStructure(globalObject->originalArrayStructureForIndexingType(ArrayWithContiguous)));
+            structureSet.add(m_graph.registerStructure(globalObject->originalArrayStructureForIndexingType(CopyOnWriteArrayWithContiguous)));
+            setForNode(node, structureSet);
         } else {
             setForNode(node, 
                 m_graph.globalObjectFor(node->origin.semantic)->arrayStructureForIndexingTypeDuringAllocation(ArrayWithContiguous));
@@ -4039,7 +4040,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         setTypeForNode(node, SpecObject);
         break;
     }
-        
+
     case GetScope: {
         JSValue value = forNode(node->child1()).value();
         if (value) {
@@ -4061,6 +4062,11 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
             setTypeForNode(node, SpecObjectOther);
             break;
         }
+        break;
+    }
+
+    case GetEvalScope: {
+        setTypeForNode(node, SpecObjectOther);
         break;
     }
 

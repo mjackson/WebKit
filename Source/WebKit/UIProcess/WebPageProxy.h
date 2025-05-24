@@ -38,6 +38,7 @@
 #include <WebCore/ProcessSyncData.h>
 #include <WebCore/SnapshotIdentifier.h>
 #include <WebCore/SpatialBackdropSource.h>
+#include <WebCore/TextIndicator.h>
 #include <pal/HysteresisActivity.h>
 #include <wtf/ApproximateTime.h>
 #include <wtf/CheckedRef.h>
@@ -398,10 +399,11 @@ OBJC_CLASS NSWindow;
 OBJC_CLASS QLPreviewPanel;
 OBJC_CLASS STWebpageController;
 OBJC_CLASS SYNotesActivationObserver;
+OBJC_CLASS UIViewController;
+OBJC_CLASS WebTextIndicatorLayer;
 OBJC_CLASS WKQuickLookPreviewController;
 OBJC_CLASS WKWebView;
 OBJC_CLASS _WKRemoteObjectRegistry;
-OBJC_CLASS UIViewController;
 
 struct WKPageInjectedBundleClientBase;
 struct wpe_view_backend;
@@ -1548,10 +1550,13 @@ public:
     void hideFindUI();
     void countStringMatches(const String&, OptionSet<FindOptions>, unsigned maxMatchCount);
     void replaceMatches(Vector<uint32_t>&& matchIndices, const String& replacementText, bool selectionOnly, CompletionHandler<void(uint64_t)>&&);
-    void setTextIndicator(const WebCore::TextIndicatorData&, uint64_t /* WebCore::TextIndicatorLifetime */ lifetime = 0 /* Permanent */);
+    void setTextIndicator(const WebCore::TextIndicatorData&, WebCore::TextIndicatorLifetime = WebCore::TextIndicatorLifetime::Permanent);
     void updateTextIndicator(const WebCore::TextIndicatorData&);
     void setTextIndicatorAnimationProgress(float);
     void clearTextIndicator();
+    void clearTextIndicatorWithAnimation(WebCore::TextIndicatorDismissalAnimation);
+    void teardownTextIndicatorLayer();
+    void startTextIndicatorFadeOut();
 
     void findTextRangesForStringMatches(const String&, OptionSet<FindOptions>, unsigned maxMatchCount, CompletionHandler<void(Vector<WebFoundTextRange>&&)>&&);
     void replaceFoundTextRangeWithString(const WebFoundTextRange&, const String&);
@@ -2753,6 +2758,8 @@ private:
     bool shouldForceForegroundPriorityForClientNavigation() const;
 
     bool canCreateFrame(WebCore::FrameIdentifier) const;
+    Ref<WebPageProxy> downloadOriginatingPage(const API::Navigation*);
+    Ref<WebPageProxy> navigationOriginatingPage(const FrameInfoData&);
 
     RefPtr<API::Navigation> goToBackForwardItem(WebBackForwardListFrameItem&, WebCore::FrameLoadType);
 
@@ -3331,8 +3338,8 @@ private:
     void updateRemoteFrameAccessibilityOffset(WebCore::FrameIdentifier, WebCore::IntPoint);
     void documentURLForConsoleLog(WebCore::FrameIdentifier, CompletionHandler<void(const URL&)>&&);
 
-    void setTextIndicatorFromFrame(WebCore::FrameIdentifier, WebCore::TextIndicatorData&&, uint64_t);
-    void updateTextIndicatorFromFrame(WebCore::FrameIdentifier, WebCore::TextIndicatorData&&);
+    void setTextIndicatorFromFrame(WebCore::FrameIdentifier, const WebCore::TextIndicatorData&, WebCore::TextIndicatorLifetime);
+    void updateTextIndicatorFromFrame(WebCore::FrameIdentifier, const WebCore::TextIndicatorData&);
 
     void frameNameChanged(IPC::Connection&, WebCore::FrameIdentifier, const String& frameName);
 
@@ -3413,6 +3420,12 @@ private:
     std::unique_ptr<WebPageLoadTiming> m_pageLoadTiming;
     HashSet<WebCore::FrameIdentifier> m_framesWithSubresourceLoadingForPageLoadTiming;
     RunLoop::Timer m_generatePageLoadTimingTimer;
+
+#if PLATFORM(COCOA)
+    RunLoop::Timer m_textIndicatorFadeTimer;
+    RefPtr<WebCore::TextIndicator> m_textIndicator;
+    RetainPtr<WebTextIndicatorLayer> m_textIndicatorLayer;
+#endif
 
     RefPtr<DrawingAreaProxy> m_drawingArea;
 #if PLATFORM(COCOA)

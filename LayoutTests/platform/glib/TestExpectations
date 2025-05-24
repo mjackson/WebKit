@@ -680,6 +680,7 @@ accessibility/opacity-0-bounding-box.html [ Skip ]
 accessibility/clip-path-bounding-box.html [ Skip ]
 
 accessibility/dynamic-content-visibility.html [ Skip ]
+accessibility/password-notifications-timing.html [ Skip ]
 
 # AXObjectCache::announce not implemented.
 accessibility/announcement-notification.html [ Skip ]
@@ -701,6 +702,9 @@ accessibility/dynamic-datetime-attribute.html [ Skip ]
 
 # AccessibilityUIElement::isAttributeSupported needs to be updated to handle AXSelectedRows.
 accessibility/aria-table-selection-support.html [ Skip ]
+
+# AccessibilityUIElement::isAttributeSupported doesn't handle AXExpanded.
+accessibility/aria-expanded-links.html [ Skip ]
 
 # AccessibilityUIElement::customContent is not implemented.
 accessibility/dynamic-aria-describedby-subtree.html [ Skip ]

@@ -2654,6 +2654,12 @@ enum class WebCore::ImageBufferPixelFormat : uint8_t {
     WebCore::TextIndicatorData data();
 };
 
+header: <WebCore/TextIndicator.h>
+[CustomHeader] enum class WebCore::TextIndicatorLifetime : uint8_t {
+    Permanent,
+    Temporary,
+};
+
 #if USE(SOUP)
 header: "ArgumentCodersGLib.h"
 #endif
@@ -6132,12 +6138,13 @@ enum class WebCore::AllowsContentJavaScript : bool
     HTTPSFirst,
     HTTPSOnly,
     HTTPSOnlyExplicitlyBypassedForDomain,
-    FailClosed,
+    FailClosedForUnreachableHosts,
     WebSearchContent,
     FingerprintingProtections,
     EnhancedNetworkPrivacy,
     LinkDecorationFiltering,
     ScriptTelemetry,
+    FailClosedForAllHosts,
 };
 
 enum class WebCore::ViolationReportType : uint8_t {
@@ -9141,4 +9148,9 @@ enum class WebCore::ProcessSwapDisposition : uint8_t {
     None,
     COOP,
     Other
+};
+
+struct WebCore::MessageForTesting {
+    AtomString type;
+    String data;
 };

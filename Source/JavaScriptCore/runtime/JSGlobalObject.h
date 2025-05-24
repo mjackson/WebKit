@@ -232,6 +232,7 @@ public:
     WriteBarrier<JSScope> m_globalScopeExtension;
     WriteBarrier<JSCallee> m_globalCallee;
     WriteBarrier<JSCallee> m_partiallyInitializedFrameCallee;
+    WriteBarrier<JSCallee> m_evalCallee;
 
     JS_GLOBAL_OBJECT_ADDITIONS_1;
 
@@ -710,8 +711,8 @@ public:
     std::optional<unsigned> stackTraceLimit() const { return m_stackTraceLimit; }
     void setStackTraceLimit(std::optional<unsigned> value) { m_stackTraceLimit = value; }
 
-    void startSignpost(String&&);
-    void stopSignpost(String&&);
+    JS_EXPORT_PRIVATE void startSignpost(String&&);
+    JS_EXPORT_PRIVATE void stopSignpost(String&&);
 
 protected:
     JS_EXPORT_PRIVATE explicit JSGlobalObject(VM&, Structure*, const GlobalObjectMethodTable* = nullptr);
@@ -746,6 +747,7 @@ public:
     void clearGlobalScopeExtension();
 
     JSCallee* globalCallee() { return m_globalCallee.get(); }
+    JSCallee* evalCallee() { return m_evalCallee.get(); }
 
     // The following accessors return pristine values, even if a script 
     // replaces the global object's associated property.

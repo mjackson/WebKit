@@ -551,6 +551,7 @@ public:
 
     FunctionExecutable* functionDecl(int index) { return m_functionDecls[index].get(); }
     int numberOfFunctionDecls() { return m_functionDecls.size(); }
+    std::span<const WriteBarrier<FunctionExecutable>> functionDecls() { return m_functionDecls.span(); }
     FunctionExecutable* functionExpr(int index) { return m_functionExprs[index].get(); }
     size_t numberOfFunctionExprs() const { return m_functionExprs.size(); }
     

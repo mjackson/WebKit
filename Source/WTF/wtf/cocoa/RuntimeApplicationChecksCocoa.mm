@@ -94,7 +94,6 @@ static SDKAlignedBehaviors computeSDKAlignedBehaviors()
         disableBehavior(SDKAlignedBehavior::RequiresUserGestureToLoadVideo);
         disableBehavior(SDKAlignedBehavior::LinkPreviewEnabledByDefault);
         disableBehavior(SDKAlignedBehavior::ConvertsInvalidURLsToBlank);
-        disableBehavior(SDKAlignedBehavior::NoTheSecretSocietyHiddenMysteryWindowOpenQuirk);
         disableBehavior(SDKAlignedBehavior::UnprefixedPlaysInlineAttribute);
     }
 
@@ -128,7 +127,6 @@ static SDKAlignedBehaviors computeSDKAlignedBehaviors()
 
     if (linkedBefore(dyld_spring_2019_os_versions, DYLD_IOS_VERSION_12_2, DYLD_MACOSX_VERSION_10_14_4)) {
         disableBehavior(SDKAlignedBehavior::LazyGestureRecognizerInstallation);
-        disableBehavior(SDKAlignedBehavior::ProcessSwapOnCrossSiteNavigation);
     }
 
     if (linkedBefore(dyld_fall_2019_os_versions, DYLD_IOS_VERSION_13_0, DYLD_MACOSX_VERSION_10_15)) {
@@ -140,7 +138,6 @@ static SDKAlignedBehaviors computeSDKAlignedBehaviors()
         disableBehavior(SDKAlignedBehavior::ModernCompabilityModeByDefault);
         disableBehavior(SDKAlignedBehavior::HasUIContextMenuInteraction);
         disableBehavior(SDKAlignedBehavior::WKContentViewDoesNotOverrideKeyCommands);
-        disableBehavior(SDKAlignedBehavior::SupportsOverflowHiddenOnMainFrame);
         disableBehavior(SDKAlignedBehavior::DownloadDelegatesCalledOnTheMainThread);
     }
 
@@ -158,7 +155,6 @@ static SDKAlignedBehaviors computeSDKAlignedBehaviors()
         disableBehavior(SDKAlignedBehavior::InitializeWebKit2MainThreadAssertion);
         disableBehavior(SDKAlignedBehavior::WKWebsiteDataStoreInitReturningNil);
         disableBehavior(SDKAlignedBehavior::WebSQLDisabledByDefaultInLegacyWebKit);
-        disableBehavior(SDKAlignedBehavior::NoLaBanquePostaleQuirks);
         disableBehavior(SDKAlignedBehavior::NoPokerBrosBuiltInTagQuirk);
     }
 
@@ -238,6 +234,9 @@ static SDKAlignedBehaviors computeSDKAlignedBehaviors()
         disableBehavior(SDKAlignedBehavior::BlockCrossOriginRedirectDownloads);
         disableBehavior(SDKAlignedBehavior::SupportGameControllerEventInteractionAPI);
     }
+
+    if (linkedBefore(dyld_2024_SU_F_os_versions, DYLD_IOS_VERSION_18_5, DYLD_MACOSX_VERSION_15_5))
+        disableBehavior(SDKAlignedBehavior::NavigationActionSourceFrameNonNull);
 
     disableAdditionalSDKAlignedBehaviors(behaviors);
 
@@ -516,12 +515,6 @@ bool IOSApplication::isIBooksStorytime()
     return isIBooksStorytime;
 }
 
-bool IOSApplication::isTheSecretSocietyHiddenMystery()
-{
-    static bool isTheSecretSocietyHiddenMystery = applicationBundleIsEqualTo("com.g5e.secretsociety"_s);
-    return isTheSecretSocietyHiddenMystery;
-}
-
 bool IOSApplication::isCardiogram()
 {
     static bool isCardiogram = applicationBundleIsEqualTo("com.cardiogram.ios.heart"_s);
@@ -540,12 +533,6 @@ bool IOSApplication::isMoviStarPlus()
     return isMoviStarPlus;
 }
 
-bool IOSApplication::isFirefox()
-{
-    static bool isFirefox = applicationBundleIsEqualTo("org.mozilla.ios.Firefox"_s);
-    return isFirefox;
-}
-
 bool IOSApplication::isHoYoLAB()
 {
     static bool isHoYoLAB = applicationBundleIsEqualTo("com.miHoYo.HoYoLAB"_s);
@@ -562,12 +549,6 @@ bool IOSApplication::isEvernote()
 {
     static bool isEvernote = applicationBundleIsEqualTo("com.evernote.iPhone.Evernote"_s);
     return isEvernote;
-}
-
-bool IOSApplication::isEventbrite()
-{
-    static bool isEventbrite = applicationBundleIsEqualTo("com.eventbrite.attendee"_s);
-    return isEventbrite;
 }
 
 bool IOSApplication::isDataActivation()
@@ -610,12 +591,6 @@ bool IOSApplication::isEssentialSkeleton()
 {
     static bool isEssentialSkeleton = applicationBundleIsEqualTo("com.3d4medical.EssentialSkeleton"_s);
     return isEssentialSkeleton;
-}
-
-bool IOSApplication::isLaBanquePostale()
-{
-    static bool isLaBanquePostale = applicationBundleIsEqualTo("fr.labanquepostale.moncompte"_s);
-    return isLaBanquePostale;
 }
 
 bool IOSApplication::isESPNFantasySports()

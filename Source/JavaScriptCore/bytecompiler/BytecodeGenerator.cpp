@@ -954,9 +954,11 @@ BytecodeGenerator::BytecodeGenerator(VM& vm, EvalNode* evalNode, UnlinkedEvalCod
     m_cachedParentTDZ = parentScopeTDZVariables;
 
     emitEnter();
-
     allocateScope();
-    
+    m_topLevelScopeRegister = addVar();
+    m_topLevelScopeRegister->ref();
+    move(m_topLevelScopeRegister, scopeRegister());
+
     for (FunctionMetadataNode* function : evalNode->functionStack()) {
         m_codeBlock->addFunctionDecl(makeFunction(function));
         m_functionsToInitialize.append(std::make_pair(function, TopLevelFunctionVariable));
@@ -1048,11 +1050,11 @@ BytecodeGenerator::BytecodeGenerator(VM& vm, ModuleProgramNode* moduleProgramNod
     }
 
     emitEnter();
-
     allocateScope();
-    RegisterID* moduleScope = addVar();
-    move(moduleScope, scopeRegister());
-    
+    m_topLevelScopeRegister = addVar();
+    m_topLevelScopeRegister->ref();
+    move(m_topLevelScopeRegister, scopeRegister());
+
     m_calleeRegister.setIndex(CallFrameSlot::callee);
 
     m_codeBlock->setNumParameters(static_cast<unsigned>(AbstractModuleRecord::Argument::NumberOfArguments) + 1); // Allocate space for "this" + async module arguments.
@@ -1094,7 +1096,7 @@ BytecodeGenerator::BytecodeGenerator(VM& vm, ModuleProgramNode* moduleProgramNod
     pushTDZVariables(lexicalVariables, TDZCheckOptimization::Optimize, TDZRequirement::UnderTDZ);
     bool isWithScope = false;
 
-    m_lexicalScopeStack.append({ moduleEnvironmentSymbolTable, moduleScope, isWithScope, constantSymbolTable->index() });
+    m_lexicalScopeStack.append({ moduleEnvironmentSymbolTable, m_topLevelScopeRegister, isWithScope, constantSymbolTable->index() });
     emitPrefillStackTDZVariables(lexicalVariables, moduleEnvironmentSymbolTable);
 
     // makeFunction assumes that there's correct TDZ stack entries.
@@ -2315,7 +2317,10 @@ RegisterID* BytecodeGenerator::emitResolveScopeForHoistingFuncDeclInEval(Registe
 {
     RefPtr<RegisterID> result = finalDestination(dst);
     RefPtr<RegisterID> scope = newTemporary();
-    OpGetScope::emit(this, scope.get());
+    if (m_topLevelScopeRegister)
+        move(scope.get(), m_topLevelScopeRegister);
+    else
+        OpGetScope::emit(this, scope.get());
     OpResolveScopeForHoistingFuncDeclInEval::emit(this, kill(result.get()), scope.get(), addConstant(property));
     return result.get();
 }
@@ -3981,11 +3986,6 @@ RegisterID* BytecodeGenerator::emitToPropertyKeyOrNumber(RegisterID* dst, Regist
     return dst;
 }
 
-void BytecodeGenerator::emitGetScope()
-{
-    OpGetScope::emit(this, scopeRegister());
-}
-
 RegisterID* BytecodeGenerator::emitPushWithScope(RegisterID* objectScope)
 {
     pushLocalControlFlowScope();
@@ -4202,7 +4202,10 @@ void BytecodeGenerator::restoreScopeRegister(int lexicalScopeIndex)
     }
     // Note that if we don't find a local scope in the current function/program,
     // we must grab the outer-most scope of this bytecode generation.
-    emitGetScope();
+    if (m_topLevelScopeRegister)
+        move(scopeRegister(), m_topLevelScopeRegister);
+    else
+        OpGetScope::emit(this, scopeRegister());
 }
 
 void BytecodeGenerator::restoreScopeRegister()

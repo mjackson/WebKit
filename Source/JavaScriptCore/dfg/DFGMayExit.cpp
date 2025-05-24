@@ -82,6 +82,7 @@ ExitMode mayExitImpl(Graph& graph, Node* node, StateType& state)
     case SetArgumentCountIncludingThis:
     case GetRestLength:
     case GetScope:
+    case GetEvalScope:
     case PhantomLocal:
     case CountExecution:
     case SuperSamplerBegin:
@@ -126,7 +127,9 @@ ExitMode mayExitImpl(Graph& graph, Node* node, StateType& state)
 
     case Int52Rep:
         switch (node->child1().useKind()) {
+        case AnyIntUse:
         case RealNumberUse:
+        case DoubleRepAnyIntUse:
         case DoubleRepRealUse:
             return Exits;
         default:

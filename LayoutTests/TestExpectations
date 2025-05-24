@@ -433,6 +433,9 @@ imported/w3c/web-platform-tests/editing/crashtests/insertparagraph-in-listitem-i
 imported/w3c/web-platform-tests/selection/anonymous/details-ancestor.html [ Pass Failure ]
 imported/w3c/web-platform-tests/selection/caret/move-around-contenteditable-false.html [ Pass Failure ]
 
+# This test hits a debug assertion
+[ Debug ] imported/w3c/web-platform-tests/selection/caret/move-around-generated-content.html [ Skip ]
+
 # This crash test is a timeout.
 imported/w3c/web-platform-tests/selection/crashtests/selectall-and-find-svg-text-on-selectstart.html [ Timeout ]
 
@@ -449,13 +452,6 @@ imported/w3c/web-platform-tests/editing/run/undo-redo.html [ Skip ]
 
 # Failing as we disable setting kAUVoiceIOProperty_MuteOutput
 http/wpt/mediasession/voiceActivityDetection.html [ Failure ]
-
-http/wpt/selection-live-range/collapse-00.html [ Slow ]
-http/wpt/selection-live-range/collapse-15.html [ Slow ]
-http/wpt/selection-live-range/collapse-30.html [ Slow ]
-http/wpt/selection-live-range/collapse-45.html [ Slow ]
-http/wpt/selection-live-range/extend-00.html [ Slow ]
-http/wpt/selection-live-range/extend-20.html [ Slow ]
 
 # Newly imported service worker tests that are timing out.
 imported/w3c/web-platform-tests/service-workers/service-worker/dedicated-worker-service-worker-interception.https.html [ Skip ]
@@ -942,6 +938,7 @@ imported/w3c/web-platform-tests/html/rendering/non-replaced-elements/the-page/bo
 imported/w3c/web-platform-tests/html/rendering/replaced-elements/embedded-content/change-src-while-not-displayed.html [ ImageOnlyFailure Pass ]
 imported/w3c/web-platform-tests/html/rendering/replaced-elements/images/input-image-content.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/rendering/replaced-elements/the-select-element/select-empty.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/rendering/replaced-elements/the-select-element/select-button-min-height-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/rendering/widgets/button-layout/anonymous-button-content-box.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/rendering/widgets/button-layout/inline-level.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/rendering/widgets/button-layout/propagate-text-decoration.html [ ImageOnlyFailure ]
@@ -1115,6 +1112,8 @@ imported/w3c/web-platform-tests/IndexedDB/fire-error-event-exception.html [ Dump
 imported/w3c/web-platform-tests/IndexedDB/fire-success-event-exception.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/css/css-properties-values-api/url-resolution.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/subresource-integrity [ DumpJSConsoleLogInStdErr ]
+
+imported/w3c/web-platform-tests/subresource-integrity/integrity-policy [ Skip ]
 
 webkit.org/b/222750 imported/w3c/web-platform-tests/html/semantics/scripting-1/the-script-element/css-module/css-module-worker-test.html [ Pass Failure Crash DumpJSConsoleLogInStdErr ]
 
@@ -2206,6 +2205,8 @@ imported/w3c/web-platform-tests/svg/shapes/ellipse-06.svg [ Skip ]
 imported/w3c/web-platform-tests/svg/shapes/ellipse-07.svg [ Skip ]
 imported/w3c/web-platform-tests/svg/shapes/ellipse-08.svg [ Skip ]
 imported/w3c/web-platform-tests/svg/text/reftests/text-clipped-offscreen-move-onscreen.html [ Skip ]
+imported/w3c/web-platform-tests/svg/text/reftests/first-letter.svg [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/svg/text/reftests/opacity.svg [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/animations/repeat-iteration-event-002.svg [ Skip ]
 imported/w3c/web-platform-tests/svg/animations/repeat-iteration-event-003.svg [ Skip ]
 imported/w3c/web-platform-tests/svg/animations/repeat-iteration-event-004.svg [ Skip ]
@@ -2452,7 +2453,6 @@ webkit.org/b/84772 ietestcenter/css3/multicolumn/column-width-applies-to-010.htm
 webkit.org/b/84773 ietestcenter/css3/multicolumn/column-width-applies-to-012.htm [ ImageOnlyFailure ]
 webkit.org/b/84777 ietestcenter/css3/multicolumn/column-width-applies-to-015.htm [ ImageOnlyFailure ]
 webkit.org/b/85308 ietestcenter/css3/valuesandunits/units-000.htm [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/svg/text/reftests/first-letter.svg [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/text/reftests/lang-attribute.svg [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/text/reftests/text-bidi-controls-anchors-1.svg [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/text/reftests/text-bidi-controls-anchors-2.svg [ ImageOnlyFailure ]
@@ -3061,7 +3061,6 @@ http/tests/security/contentSecurityPolicy/block-all-mixed-content/insecure-css-i
 imported/w3c/web-platform-tests/css/css-text/text-spacing-trim [ Skip ]
 
 # command/commandfor future: These tests cover additions to the command invokers API which aren't specced yet
-imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/on-dialog-behavior-request-close.tentative.html [ Skip ]
 imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/fullscreen-behavior.tentative.html [ Skip ]
 imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/on-audio-behavior.tentative.html [ Skip ]
 imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/on-audio-invalid-behavior.tentative.html [ Skip ]
@@ -7094,8 +7093,6 @@ imported/w3c/web-platform-tests/css/css-view-transitions/new-content-captures-di
 imported/w3c/web-platform-tests/css/css-view-transitions/fractional-translation-from-position.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-view-transitions/scroller-child.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-view-transitions/scroller.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-view-transitions/iframe-and-main-frame-transition-old-main-new-iframe.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-view-transitions/iframe-and-main-frame-transition-old-main-old-iframe.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-view-transitions/paint-holding-in-iframe.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-view-transitions/auto-name-get-animations.html [ Failure ]
 imported/w3c/web-platform-tests/css/css-view-transitions/fractional-translation-from-transform.html [ ImageOnlyFailure ]
@@ -7658,7 +7655,6 @@ imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-chained-00
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-chained-003.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-chained-004.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-chained-fallback.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-composited-scrolling-006.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-fixedpos.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-position-try-012.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-to-sticky-002.html [ ImageOnlyFailure ]
@@ -7672,18 +7668,12 @@ imported/w3c/web-platform-tests/css/css-anchor-position/position-area-scroll-adj
 imported/w3c/web-platform-tests/css/css-anchor-position/position-anchor-002.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/position-try-switch-to-fixed-anchor.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-add-no-overflow.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-anchors-visible.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-anchors-visible-after-scroll-out.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-anchors-visible-position-fixed.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-anchors-visible-with-position.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-anchors-valid.tentative.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-anchors-visible-chained-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-anchors-visible-chained-002.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-anchors-visible-chained-003.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-anchors-visible-chained-004.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-anchors-visible-css-visibility.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-anchors-visible-stacked-child.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-anchors-visible-stacked-child.tentative.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-no-overflow.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-no-overflow-scroll.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-no-overflow-stacked-child.html [ ImageOnlyFailure ]
