@@ -11957,6 +11957,9 @@ WebPageCreationParameters WebPageProxy::creationParameters(WebProcessProxy& proc
 
     parameters.hasReceivedAXRequestInUIProcess = m_configuration->processPool().hasReceivedAXRequestInUIProcess();
 
+#if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
+    parameters.defaultContentInsetBackgroundFillEnabled = defaultContentInsetBackgroundFillEnabled();
+#endif
     return parameters;
 }
 
@@ -12223,8 +12226,10 @@ void WebPageProxy::queryPermission(const ClientOrigin& clientOrigin, const Permi
     } else if (descriptor.name == PermissionName::Geolocation) {
 #if ENABLE(GEOLOCATION)
         name = "geolocation"_s;
-        // FIXME: We should set shouldChangeDeniedToPrompt after the first
-        // permission request like we do for notifications.
+
+        // The decision to change denied to prompt is made directly in the WebProcess.
+        // (See the Permissions API code).
+        shouldChangeDeniedToPrompt = false;
 #endif
     } else if (descriptor.name == PermissionName::Notifications || descriptor.name == PermissionName::Push) {
 #if ENABLE(NOTIFICATIONS)

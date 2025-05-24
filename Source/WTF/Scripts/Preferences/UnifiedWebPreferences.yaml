@@ -1284,21 +1284,6 @@ CSSMediaProgressFunctionEnabled:
     WebCore:
       default: false
 
-CSSOMViewScrollingAPIEnabled:
-  type: bool
-  status: stable
-  category: css
-  humanReadableName: "CSSOM View Scrolling API"
-  humanReadableDescription: "Implement standard behavior for scrollLeft, scrollTop, scrollWidth, scrollHeight, scrollTo, scrollBy and scrollingElement."
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      "PLATFORM(IOS_FAMILY)": WebKit::defaultCSSOMViewScrollingAPIEnabled()
-      default: true
-    WebCore:
-      default: false
-
 CSSPaintingAPIEnabled:
   type: bool
   status: testable
@@ -2750,6 +2735,19 @@ ExposeCaptureDevicesAfterCaptureEnabled:
       default: true
     WebCore:
       default: false
+
+ExposeDefaultSpeakerAsSpecificDeviceEnabled:
+  type: bool
+  status: internal
+  category: media
+  humanReadableName: "Expose the system default speaker as a specific device"
+  humanReadableDescription: "Expose the system default speaker as a specific device"
+  condition: ENABLE(MEDIA_STREAM)
+  defaultValue:
+    WebKit:
+      default: true
+    WebCore:
+      default: true
 
 ExposeSpeakersEnabled:
   type: bool
@@ -4326,20 +4324,6 @@ LinkSanitizerEnabled:
       default: false
     WebCore:
       default: false
-
-LiveRangeSelectionEnabled:
-  type: bool
-  status: stable
-  category: dom
-  humanReadableName: "Live Ranges in Selection"
-  humanReadableDescription: "Live range behavior for ranges in the Selection object"
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: WebKit::defaultLiveRangeSelectionEnabled()
-    WebCore:
-      default: true
 
 LoadDeferringEnabled:
   type: bool

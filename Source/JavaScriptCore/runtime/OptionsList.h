@@ -147,6 +147,7 @@ bool hasCapacityToUseLargeGigacage();
     v(Bool, dumpBBQDisassembly, false, Normal, "dumps disassembly of BBQ wasm code upon compilation"_s) \
     v(Bool, dumpOMGDisassembly, false, Normal, "dumps disassembly of OMG wasm code upon compilation"_s) \
     v(Bool, useJITDump, false, Normal, "generates JITDump side-data") \
+    v(Bool, useGdbJITInfo, false, Normal, "generates GDB JIT API side-data; to use with lldb on macos, add `settings set plugin.jit-loader.gdb.enable on` to .lldbinit") \
     v(Bool, useTextMarkers, false, Normal, "generates text markers side-data") \
     v(OptionString, jitDumpDirectory, nullptr, Normal, "Directory to place JITDump"_s) \
     v(OptionString, textMarkersDirectory, nullptr, Normal, "Directory to place MarkerTxt") \
@@ -312,7 +313,7 @@ bool hasCapacityToUseLargeGigacage();
     \
     v(Unsigned, maximumFTLCandidateBytecodeCost, 20000, Normal, nullptr) \
     \
-    v(Double, ratioFTLNodesToBytecodeCost, 1.8, Normal, "Ratio converting FTL # of DFG nodes to approx bytecode cost") \
+    v(Double, ratioFTLNodesToBytecodeCost, 1.9, Normal, "Ratio converting FTL # of DFG nodes to approx bytecode cost") \
     \
     /* Depth of inline stack, so 1 = no inlining, 2 = one level, etc. */ \
     v(Unsigned, maximumInliningDepth, 5, Normal, "maximum allowed inlining depth.  Depth of 1 means no inlining"_s) \
