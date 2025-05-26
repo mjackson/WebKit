@@ -126,13 +126,7 @@
         {
           "name": "stream",
           "type": "integer",
-          "enum": ["stdout", "stderr"],
           "description": "The stdio stream that produced the data."
-        },
-        {
-          "name": "data",
-          "type": "string",
-          "description": "The stdio data as a string."
         }
       ]
     },
