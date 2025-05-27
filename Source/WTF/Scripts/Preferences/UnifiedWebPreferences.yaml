@@ -1130,6 +1130,20 @@ CSSColorLayersEnabled:
     WebCore:
       default: false
 
+CSSConstrainedDynamicRangeLimitEnabled:
+  type: bool
+  category: css
+  status: testable
+  humanReadableName: "CSS dynamic-range-limit: constrained-high"
+  humanReadableDescription: "Enable support for CSS dynamic-range-limit value constrained-high"
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
+
 CSSContainerProgressFunctionEnabled:
   type: bool
   category: css
@@ -1200,9 +1214,23 @@ CSSDPropertyEnabled:
     WebCore:
       default: false
 
+CSSDynamicRangeLimitMixEnabled:
+  type: bool
+  category: css
+  status: testable
+  humanReadableName: "CSS dynamic-range-limit-mix()"
+  humanReadableDescription: "Enable support for CSS dynamic-range-limit-mix(), but animation stays unsupported"
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
+
 CSSFieldSizingEnabled:
   type: bool
-  status: testable
+  status: preview
   category: css
   humanReadableName: "CSS field-sizing property"
   humanReadableDescription: "Enable field-sizing CSS property"
@@ -4000,7 +4028,7 @@ JavaScriptCanOpenWindowsAutomatically:
   status: embedder
   defaultValue:
     WebKitLegacy:
-      "PLATFORM(IOS_FAMILY)": WebKit::defaultJavaScriptCanOpenWindowsAutomatically()
+      "PLATFORM(IOS_FAMILY)": false
       default: true
     WebKit:
       "PLATFORM(IOS_FAMILY) || PLATFORM(GTK) || PLATFORM(WPE)": false

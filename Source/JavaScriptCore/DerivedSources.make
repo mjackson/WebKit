@@ -308,6 +308,8 @@ INSPECTOR_DOMAINS := \
     $(JavaScriptCore)/inspector/protocol/Debugger.json \
     $(JavaScriptCore)/inspector/protocol/GenericTypes.json \
     $(JavaScriptCore)/inspector/protocol/HTTPServer.json \
+    $(JavaScriptCore)/inspector/protocol/File.json \
+    $(JavaScriptCore)/inspector/protocol/Process.json \
     $(JavaScriptCore)/inspector/protocol/Heap.json \
     $(JavaScriptCore)/inspector/protocol/IndexedDB.json \
     $(JavaScriptCore)/inspector/protocol/Inspector.json \

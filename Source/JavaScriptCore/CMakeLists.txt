@@ -1524,6 +1524,8 @@ set(JavaScriptCore_INSPECTOR_DOMAINS
     ${JAVASCRIPTCORE_DIR}/inspector/protocol/TestReporter.json
     ${JAVASCRIPTCORE_DIR}/inspector/protocol/BunFrontendDevServer.json
     ${JAVASCRIPTCORE_DIR}/inspector/protocol/HTTPServer.json
+    ${JAVASCRIPTCORE_DIR}/inspector/protocol/File.json
+    ${JAVASCRIPTCORE_DIR}/inspector/protocol/Process.json
 )
 
 add_custom_command(

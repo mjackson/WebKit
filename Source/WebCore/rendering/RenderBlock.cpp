@@ -1094,7 +1094,7 @@ void RenderBlock::paint(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
         CheckedPtr layer = this->layer();
         if (hasNonVisibleOverflow() && layer && layer->scrollableArea() && style().usedVisibility() == Visibility::Visible
             && paintInfo.shouldPaintWithinRoot(*this) && !paintInfo.paintRootBackgroundOnly()) {
-            layer->checkedScrollableArea()->paintOverflowControls(paintInfo.context(), roundedIntPoint(adjustedPaintOffset), snappedIntRect(paintInfo.rect));
+            layer->checkedScrollableArea()->paintOverflowControls(paintInfo.context(), paintInfo.paintBehavior, roundedIntPoint(adjustedPaintOffset), snappedIntRect(paintInfo.rect));
         }
     }
 }
@@ -1140,6 +1140,11 @@ bool RenderBlock::paintChild(RenderBox& child, PaintInfo& paintInfo, const Layou
 
     if (child.isExcludedAndPlacedInBorder())
         return true;
+
+    if (child.isSkippedContent()) {
+        ASSERT(child.isColumnSpanner());
+        return true;
+    }
 
     // Check for page-break-before: always, and if it's set, break and bail.
     bool checkBeforeAlways = !childrenInline() && (usePrintRect && alwaysPageBreak(child.style().breakBefore()));

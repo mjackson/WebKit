@@ -105,6 +105,8 @@ $(PROJECT_DIR)/inspector/protocol/DOMStorage.json
 $(PROJECT_DIR)/inspector/protocol/Debugger.json
 $(PROJECT_DIR)/inspector/protocol/GenericTypes.json
 $(PROJECT_DIR)/inspector/protocol/HTTPServer.json
+$(PROJECT_DIR)/inspector/protocol/File.json
+$(PROJECT_DIR)/inspector/protocol/Process.json
 $(PROJECT_DIR)/inspector/protocol/Heap.json
 $(PROJECT_DIR)/inspector/protocol/IndexedDB.json
 $(PROJECT_DIR)/inspector/protocol/Inspector.json

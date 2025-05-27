@@ -184,7 +184,7 @@ static bool frameTreesMatch(_WKFrameTreeNode *actualRoot, ExpectedFrameTree&& ex
         });
         if (index == WTF::notFound)
             return false;
-        expectedRoot.children.remove(index);
+        expectedRoot.children.removeAt(index);
     }
     return expectedRoot.children.isEmpty();
 }
@@ -200,7 +200,7 @@ static bool frameTreesMatch(NSSet<_WKFrameTreeNode *> *actualFrameTrees, Vector<
         });
         if (index == WTF::notFound)
             return false;
-        expectedFrameTrees.remove(index);
+        expectedFrameTrees.removeAt(index);
     }
     return expectedFrameTrees.isEmpty();
 }
@@ -4749,6 +4749,58 @@ TEST(SiteIsolation, CreateWebArchive)
                     @"WebResourceTextEncodingName" : @"UTF-8",
                     @"WebResourceURL" : @"https://apple.com/iframe"
                 }
+            } ],
+        };
+        EXPECT_TRUE([expectedDictionary isEqualToDictionary:actualDictionary]);
+        done = true;
+    }];
+    Util::run(&done);
+    done = false;
+}
+
+TEST(SiteIsolation, CreateWebArchiveNestedFrame)
+{
+    HTTPServer server({
+        { "/mainframe"_s, { "<iframe src='https://domain2.com/subframe'></iframe>"_s } },
+        { "/subframe"_s, { "<iframe src='https://domain3.com/nestedframe'></iframe>"_s } },
+        { "/nestedframe"_s, { "<p>hello</p>"_s } }
+    }, HTTPServer::Protocol::HttpsProxy);
+
+    auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(server);
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://domain1.com/mainframe"]]];
+    [navigationDelegate waitForDidFinishNavigation];
+
+    static bool done = false;
+    [webView createWebArchiveDataWithCompletionHandler:^(NSData *result, NSError *error) {
+        EXPECT_NULL(error);
+        EXPECT_NOT_NULL(result);
+        NSDictionary* actualDictionary = [NSPropertyListSerialization propertyListWithData:result options:0 format:nil error:nil];
+        EXPECT_NOT_NULL(actualDictionary);
+        NSDictionary *expectedDictionary = @{
+            @"WebMainResource" : @{
+                @"WebResourceData" : [@"<html><head></head><body><iframe src=\"https://domain2.com/subframe\"></iframe></body></html>" dataUsingEncoding:NSUTF8StringEncoding],
+                @"WebResourceFrameName" : @"",
+                @"WebResourceMIMEType" : @"text/html",
+                @"WebResourceTextEncodingName" : @"UTF-8",
+                @"WebResourceURL" : @"https://domain1.com/mainframe"
+            },
+            @"WebSubframeArchives" : @[ @{
+                @"WebMainResource" : @{
+                    @"WebResourceData" : [@"<html><head></head><body><iframe src=\"https://domain3.com/nestedframe\"></iframe></body></html>" dataUsingEncoding:NSUTF8StringEncoding],
+                    @"WebResourceFrameName" : @"<!--frame1-->",
+                    @"WebResourceMIMEType" : @"text/html",
+                    @"WebResourceTextEncodingName" : @"UTF-8",
+                    @"WebResourceURL" : @"https://domain2.com/subframe"
+                },
+                @"WebSubframeArchives" : @[ @{
+                    @"WebMainResource" : @{
+                        @"WebResourceData" : [@"<html><head></head><body><p>hello</p></body></html>" dataUsingEncoding:NSUTF8StringEncoding],
+                        @"WebResourceFrameName" : @"<!--frame2-->",
+                        @"WebResourceMIMEType" : @"text/html",
+                        @"WebResourceTextEncodingName" : @"UTF-8",
+                        @"WebResourceURL" : @"https://domain3.com/nestedframe"
+                    }
+                } ]
             } ],
         };
         EXPECT_TRUE([expectedDictionary isEqualToDictionary:actualDictionary]);

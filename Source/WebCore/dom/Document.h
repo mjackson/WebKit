@@ -30,7 +30,7 @@
 #include "AsyncNodeDeletionQueue.h"
 #include "Color.h"
 #include "ContainerNode.h"
-#include "ContextDestructionObserverInlines.h"
+#include "ContextDestructionObserver.h"
 #include "DocumentClasses.h"
 #include "DocumentEnums.h"
 #include "DocumentEventTiming.h"
@@ -677,7 +677,7 @@ public:
     const CSSCounterStyleRegistry& counterStyleRegistry() const;
     CSSCounterStyleRegistry& counterStyleRegistry();
 
-    WEBCORE_EXPORT CSSParserContext cssParserContext() const;
+    WEBCORE_EXPORT const CSSParserContext& cssParserContext() const;
     void invalidateCachedCSSParserContext();
 
     bool gotoAnchorNeededAfterStylesheetsLoad() { return m_gotoAnchorNeededAfterStylesheetsLoad; }

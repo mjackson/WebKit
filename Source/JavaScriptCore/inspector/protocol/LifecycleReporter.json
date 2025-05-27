@@ -3,7 +3,6 @@
   "description": "LifecycleReporter domain allows reporting of lifecycle events.",
   "debuggableTypes": ["itml", "javascript"],
   "targetTypes": ["itml", "javascript"],
-  "types": [],
   "commands": [
     {
       "name": "enable",
@@ -20,6 +19,41 @@
     {
       "name": "stopPreventingExit",
       "description": "Does not prevent the process from exiting."
+    },
+    {
+      "name": "getModuleGraph",
+      "description": "Returns the current module graph containing ESM and CJS modules.",
+      "returns": [
+        {
+          "name": "esm",
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Array of ESM module paths."
+        },
+        {
+          "name": "cjs",
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Array of CJS module paths."
+        },
+        {
+          "name": "cwd",
+          "type": "string",
+          "items": { "type": "string" },
+          "description": "Current working directory"
+        },
+        {
+          "name": "main",
+          "type": "string",
+          "description": "The main file"
+        },
+        {
+          "name": "argv",
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "argv that launched the process"
+        }
+      ]
     }
   ],
   "events": [
