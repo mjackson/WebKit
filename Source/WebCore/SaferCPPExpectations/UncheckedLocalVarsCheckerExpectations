@@ -117,7 +117,6 @@ dom/CustomElementReactionQueue.cpp
 dom/DeviceMotionController.cpp
 dom/DeviceOrientationController.cpp
 dom/Document.cpp
-dom/DocumentFragment.cpp
 dom/Element.cpp
 dom/ElementAndTextDescendantIterator.h
 dom/ElementInlines.h
@@ -188,13 +187,11 @@ editing/markup.cpp
 fileapi/BlobURL.cpp
 history/CachedFrame.cpp
 html/Autofill.cpp
-html/BaseCheckableInputType.cpp
 html/BaseDateAndTimeInputType.cpp
 html/CachedHTMLCollectionInlines.h
 html/CanvasBase.cpp
 html/CollectionTraversalInlines.h
 html/CustomPaintImage.cpp
-html/FileInputType.cpp
 html/FormAssociatedCustomElement.cpp
 html/FormListedElement.cpp
 html/HTMLAttachmentElement.cpp
@@ -225,10 +222,8 @@ html/HTMLTableRowElement.cpp
 html/HTMLTextFormControlElement.cpp
 html/HTMLTitleElement.cpp
 html/HTMLVideoElement.cpp
-html/ImageInputType.cpp
 html/MediaElementSession.cpp
 html/ModelDocument.cpp
-html/NumberInputType.cpp
 html/PermissionsPolicy.cpp
 html/PluginDocument.cpp
 html/RangeInputType.cpp
@@ -492,7 +487,6 @@ rendering/RenderTable.cpp
 rendering/RenderTableCaption.cpp
 rendering/RenderTableCell.cpp
 rendering/RenderTableCellInlines.h
-rendering/RenderTableCol.cpp
 rendering/RenderTableRow.cpp
 rendering/RenderTableSection.cpp
 rendering/RenderText.cpp

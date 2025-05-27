@@ -1,5 +1,5 @@
 /*
-* Copyright (C) 2012, Google Inc. All rights reserved.
+* Copyright (C) 2012 Google Inc. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions
@@ -783,7 +783,7 @@ bool AccessibilityNodeObject::isNativeImage() const
     if (is<HTMLImageElement>(*node))
         return true;
 
-    auto elementName = WebCore::elementName(node);
+    auto elementName = WebCore::elementName(*node);
     if (elementName == ElementName::HTML_applet || elementName == ElementName::HTML_embed || elementName == ElementName::HTML_object)
         return true;
 
@@ -2290,7 +2290,7 @@ String AccessibilityNodeObject::textUnderElement(TextUnderElementMode mode) cons
 
 String AccessibilityNodeObject::title() const
 {
-    WeakPtr node = this->node();
+    RefPtr node = this->node();
     if (!node)
         return { };
 

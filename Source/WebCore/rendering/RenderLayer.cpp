@@ -5002,6 +5002,9 @@ RenderLayer::HitLayer RenderLayer::hitTestList(LayerList layerIterator, RenderLa
     if (!hasSelfPaintingLayerDescendant())
         return { };
 
+    if (CheckedPtr renderBox = this->renderBox(); renderBox && isSkippedContentRoot(*renderBox))
+        return { };
+
     auto resultLayer = HitLayer { nullptr, -std::numeric_limits<double>::infinity() };
 
     RefPtr<HitTestingTransformState> flattenedTransformState;
@@ -6840,6 +6843,9 @@ static void outputPaintOrderTreeRecursive(TextStream& stream, const WebCore::Ren
 
             stream << "}"_s;
         }
+
+        if (backing.subpixelOffsetFromRenderer() != WebCore::LayoutSize())
+            stream << " (subpixel offset "_s << backing.subpixelOffsetFromRenderer() << ")"_s;
     }
     stream << " "_s << layer.name();
     stream.nextLine();

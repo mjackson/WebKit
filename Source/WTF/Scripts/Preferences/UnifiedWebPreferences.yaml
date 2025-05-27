@@ -295,17 +295,6 @@ AllowRunningOfInsecureContent:
     WebCore:
       default: false
 
-AllowSettingAnyXHRHeaderFromFileURLs:
-  type: bool
-  status: embedder
-  defaultValue:
-    WebKitLegacy:
-      default: false
-    WebKit:
-      default: false
-    WebCore:
-      default: false
-
 AllowTestOnlyIPC:
   type: bool
   status: embedder
@@ -5939,13 +5928,14 @@ PropagateDamagingInformation:
    category: dom
    humanReadableName: "Propagate Damaging Information"
    humanReadableDescription: "Propagate Damaging Information"
-   condition: USE(COORDINATED_GRAPHICS)
+   condition: ENABLE(DAMAGE_TRACKING)
    defaultValue:
-     WebCore:
-       default: false
      WebKitLegacy:
        default: false
      WebKit:
+       "PLATFORM(GTK)": true
+       default: false
+     WebCore:
        default: false
 
 PunchOutWhiteBackgroundsInDarkMode:
@@ -7009,6 +6999,22 @@ ShouldUseServiceWorkerShortTimeout:
     WebCore:
       default: false
 
+ShowFrameProcessBordersEnabled:
+  type: bool
+  status: internal
+  defaultsOverridable: true
+  humanReadableName: "Show frame process borders"
+  webcoreName: showFrameProcessBorders
+  webcoreOnChange: setNeedsRecalcStyleInAllFrames
+  inspectorOverride: true
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
+
 ShowMediaStatsContextMenuItemEnabled:
   type: bool
   status: developer
@@ -7744,13 +7750,14 @@ UnifyDamagedRegions:
    category: dom
    humanReadableName: "Unify Damaged Regions"
    humanReadableDescription: "Unify Damaged Regions"
-   condition: USE(COORDINATED_GRAPHICS)
+   condition: ENABLE(DAMAGE_TRACKING)
    defaultValue:
-     WebCore:
-       default: false
      WebKitLegacy:
        default: false
      WebKit:
+       "PLATFORM(GTK)": true
+       default: false
+     WebCore:
        default: false
 
 UpgradeKnownHostsToHTTPSEnabled:
@@ -7831,6 +7838,21 @@ UseCGDisplayListsForDOMRendering:
     WebKit:
       default: true
   sharedPreferenceForWebProcess: true
+
+UseDamagingInformationForCompositing:
+  type: bool
+  status: testable
+  category: dom
+  humanReadableName: "Use the Damaging Information to optimize compositing"
+  humanReadableDescription: "Use the Damaging Information to optimize compositing"
+  condition: ENABLE(DAMAGE_TRACKING)
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
 
 UseGPUProcessForCanvasRenderingEnabled:
   type: bool

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012, Google Inc. All rights reserved.
+ * Copyright (C) 2012 Google Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -132,9 +132,7 @@ void MediaStreamAudioSourceNode::provideInput(AudioBus& bus, size_t framesToProc
 
 void MediaStreamAudioSourceNode::process(size_t numberOfFrames)
 {
-    RefPtr outputBus = output(0)->bus();
-    if (!outputBus)
-        return;
+    Ref outputBus = output(0)->bus();
 
     // Use tryLock() to avoid contention in the real-time audio thread.
     // If we fail to acquire the lock then the MediaStream must be in the middle of
@@ -160,7 +158,7 @@ void MediaStreamAudioSourceNode::process(size_t numberOfFrames)
     } else {
         // Bypass the resampler completely if the source is at the context's sample-rate.
         ASSERT(m_sourceSampleRate == sampleRate());
-        provideInput(*outputBus, numberOfFrames);
+        provideInput(outputBus, numberOfFrames);
     }
 }
 

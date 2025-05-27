@@ -1,5 +1,4 @@
 EventNames.h
-StyleExtractorGenerated.cpp
 Modules/ShapeDetection/BarcodeDetector.cpp
 Modules/ShapeDetection/FaceDetector.cpp
 Modules/ShapeDetection/TextDetector.cpp
@@ -199,7 +198,6 @@ Modules/webaudio/GainNode.cpp
 Modules/webaudio/MediaElementAudioSourceNode.cpp
 Modules/webaudio/MediaStreamAudioDestinationNode.cpp
 Modules/webaudio/MediaStreamAudioSourceNode.cpp
-Modules/webaudio/OfflineAudioContext.cpp
 Modules/webaudio/OfflineAudioDestinationNode.cpp
 Modules/webaudio/OscillatorNode.cpp
 Modules/webaudio/PannerNode.cpp
@@ -236,6 +234,7 @@ Modules/websockets/WebSocketChannelInspector.cpp
 Modules/websockets/WorkerThreadableWebSocketChannel.cpp
 Modules/webtransport/WebTransport.cpp
 StyleBuilderGenerated.cpp
+StyleExtractorGenerated.cpp
 accessibility/AXImage.cpp
 accessibility/AXLogger.cpp
 accessibility/AXObjectCache.cpp
@@ -516,8 +515,6 @@ dom/DOMImplementation.cpp
 dom/DataTransfer.cpp
 dom/DataTransferItemList.cpp
 dom/Document.cpp
-dom/DocumentFragment.cpp
-dom/DocumentStorageAccess.cpp
 dom/Element.cpp
 dom/ElementData.cpp
 dom/ElementInlines.h
@@ -633,10 +630,6 @@ history/CachedFrame.cpp
 history/CachedPage.cpp
 history/HistoryItem.cpp
 html/AttachmentAssociatedElement.cpp
-html/BaseButtonInputType.cpp
-html/BaseCheckableInputType.cpp
-html/BaseClickableWithKeyInputType.cpp
-html/BaseTextInputType.cpp
 html/CachedHTMLCollection.h
 html/CachedHTMLCollectionInlines.h
 html/CheckboxInputType.cpp
@@ -702,15 +695,12 @@ html/MediaController.cpp
 html/MediaDocument.cpp
 html/MediaElementSession.cpp
 html/ModelDocument.cpp
-html/NumberInputType.cpp
 html/OffscreenCanvas.cpp
 html/PermissionsPolicy.cpp
 html/PluginDocument.cpp
 html/PublicURLManager.cpp
 html/RadioNodeList.cpp
 html/RangeInputType.cpp
-html/ResetInputType.cpp
-html/SubmitInputType.cpp
 html/TextFieldInputType.cpp
 html/ValidatedFormListedElement.cpp
 html/ValidatedFormListedElement.h
@@ -722,7 +712,6 @@ html/canvas/CanvasRenderingContext2D.cpp
 html/canvas/CanvasRenderingContext2DBase.cpp
 html/canvas/CanvasStyle.cpp
 html/canvas/EXTDisjointTimerQuery.cpp
-html/canvas/EXTDisjointTimerQueryWebGL2.cpp
 html/canvas/GPUCanvasContextCocoa.mm
 html/canvas/ImageBitmapRenderingContext.cpp
 html/canvas/OffscreenCanvasRenderingContext2D.cpp
@@ -979,7 +968,6 @@ platform/graphics/ImageFrame.cpp
 platform/graphics/ImageFrameWorkQueue.cpp
 platform/graphics/MediaPlayer.cpp
 platform/graphics/Path.cpp
-platform/graphics/Path.h
 platform/graphics/SourceBufferPrivate.cpp
 platform/graphics/TransparencyLayerContextSwitcher.cpp
 platform/graphics/WidthIterator.cpp
@@ -1049,7 +1037,6 @@ platform/mediastream/RealtimeOutgoingVideoSource.cpp
 platform/mediastream/cocoa/AudioMediaStreamTrackRendererCocoa.cpp
 platform/mediastream/cocoa/AudioMediaStreamTrackRendererUnit.cpp
 platform/mediastream/cocoa/IncomingAudioMediaStreamTrackRendererUnit.cpp
-platform/mediastream/libwebrtc/LibWebRTCAudioModule.cpp
 platform/mediastream/mac/AVCaptureDeviceManager.mm
 platform/mediastream/mac/MediaStreamTrackAudioSourceProviderCocoa.cpp
 platform/mediastream/mac/MockAudioSharedUnit.mm
@@ -1236,6 +1223,7 @@ style/StyleBuilderState.cpp
 style/StyleExtractor.cpp
 style/StyleExtractorConverter.h
 style/StyleExtractorCustom.h
+style/StyleExtractorSerializer.h
 style/StyleInterpolation.cpp
 style/StyleInterpolationFunctions.h
 style/StyleInterpolationWrappers.h

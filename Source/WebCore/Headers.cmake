@@ -2658,6 +2658,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     rendering/style/GridLength.h
     rendering/style/GridPosition.h
     rendering/style/GridPositionsResolver.h
+    rendering/style/GridSpan.h
     rendering/style/GridTrackSize.h
     rendering/style/LineClampValue.h
     rendering/style/ListStyleType.h
@@ -2729,10 +2730,12 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     style/AnchorPositionEvaluator.h
     style/PseudoElementIdentifier.h
+    style/ResolvedScopedName.h
     style/ScopedName.h
     style/StyleChange.h
     style/StyleInterpolationClient.h
     style/StyleScope.h
+    style/StyleScopeIdentifier.h
     style/StyleScopeOrdinal.h
     style/StyleUpdate.h
     style/StyleValidity.h

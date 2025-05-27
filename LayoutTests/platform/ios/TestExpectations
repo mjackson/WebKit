@@ -1387,6 +1387,10 @@ imported/w3c/web-platform-tests/css/css-view-transitions/navigation/hide-before-
 imported/w3c/web-platform-tests/css/css-view-transitions/navigation/pageswap-push-from-click.html [ Failure ]
 
 imported/w3c/web-platform-tests/css/css-view-transitions/snapshot-containing-block-static-iframe.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-view-transitions/fractional-box-old.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-view-transitions/fractional-box-with-shadow-old.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-view-transitions/inline-child-with-filter.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-view-transitions/inline-child-with-composited-filter.html [ ImageOnlyFailure ]
 
 # Needs special fuzziness on iOS.
 imported/w3c/web-platform-tests/css/css-view-transitions/rotated-cat-off-top-edge.html [ ImageOnlyFailure ]
@@ -3483,6 +3487,9 @@ http/tests/media/video-webm-stall.html [ Skip ]
 webkit.org/b/229291 imported/w3c/web-platform-tests/html/rendering/replaced-elements/images/revoked-blob-print.html [ Pass ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/rendering/widgets/input-checkbox-switch-rtl.tentative.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/rendering/widgets/input-date-baseline-min-height.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/rendering/widgets/button-layout/propagate-text-decoration.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/rendering/widgets/input-date-whitespace-pre-1.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/rendering/widgets/input-date-whitespace-pre-2.html [ ImageOnlyFailure ]
 
 #rdar://82146367 ([Mac, iOS Release] imported/w3c/web-platform-tests/worklets/layout-worklet-csp.https.html is a flaky failure) imported/w3c/web-platform-tests/worklets/layout-worklet-csp.https.html [ Pass Failure ] 
 
@@ -7861,3 +7868,5 @@ imported/w3c/web-platform-tests/navigation-api/navigate-event/navigate-form-with
 imported/w3c/web-platform-tests/navigation-api/navigate-event/navigate-form.html [ Failure ]
 
 webkit.org/b/292650 http/tests/iframe-monitor/throttler.html [ Timeout ]
+
+webkit.org/b/293642 imported/w3c/web-platform-tests/css/cssom/stylesheet-same-origin.sub.html [ Failure ]

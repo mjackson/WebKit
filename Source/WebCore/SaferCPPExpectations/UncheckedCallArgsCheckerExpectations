@@ -1,4 +1,3 @@
-StyleExtractorGenerated.cpp
 Modules/airplay/WebMediaSessionManager.cpp
 Modules/applepay-ams-ui/ApplePayAMSUIPaymentHandler.cpp
 Modules/applicationmanifest/ApplicationManifestParser.cpp
@@ -51,9 +50,7 @@ Modules/screen-wake-lock/WakeLock.cpp
 Modules/screen-wake-lock/WakeLockManager.cpp
 Modules/speech/SpeechRecognitionCaptureSource.cpp
 Modules/storage/StorageManager.cpp
-Modules/webaudio/AudioContext.cpp
 Modules/webaudio/AudioWorkletMessagingProxy.cpp
-Modules/webaudio/BaseAudioContext.cpp
 Modules/webaudio/BiquadFilterNode.cpp
 Modules/webaudio/DefaultAudioDestinationNode.cpp
 Modules/webaudio/IIRFilterNode.cpp
@@ -69,6 +66,7 @@ Modules/webdatabase/SQLTransaction.cpp
 Modules/websockets/WebSocketChannelInspector.cpp
 Modules/websockets/WorkerThreadableWebSocketChannel.cpp
 StyleBuilderGenerated.cpp
+StyleExtractorGenerated.cpp
 accessibility/AXImage.cpp
 accessibility/AXObjectCache.cpp
 accessibility/AXObjectCache.h
@@ -174,7 +172,6 @@ dom/DeviceMotionController.cpp
 dom/DeviceOrientationController.cpp
 dom/Document.cpp
 dom/DocumentFullscreen.cpp
-dom/DocumentStorageAccess.cpp
 dom/Element.cpp
 dom/ElementInternals.cpp
 dom/ElementIteratorInlines.h
@@ -280,9 +277,6 @@ history/BackForwardCache.cpp
 history/CachedFrame.cpp
 html/AttachmentAssociatedElement.cpp
 html/BaseButtonInputType.cpp
-html/BaseCheckableInputType.cpp
-html/BaseClickableWithKeyInputType.cpp
-html/BaseTextInputType.cpp
 html/CachedHTMLCollection.h
 html/CachedHTMLCollectionInlines.h
 html/CheckboxInputType.cpp
@@ -352,15 +346,11 @@ html/LazyLoadImageObserver.cpp
 html/MediaDocument.cpp
 html/MediaElementSession.cpp
 html/ModelDocument.cpp
-html/NumberInputType.cpp
-html/OffscreenCanvas.cpp
 html/PermissionsPolicy.cpp
 html/PluginDocument.cpp
 html/RadioNodeList.cpp
 html/RangeInputType.cpp
-html/ResetInputType.cpp
 html/SearchInputType.cpp
-html/SubmitInputType.cpp
 html/TextFieldInputType.cpp
 html/ValidatedFormListedElement.cpp
 html/ValidationMessage.cpp
@@ -368,9 +358,7 @@ html/canvas/CanvasRenderingContext2D.cpp
 html/canvas/CanvasRenderingContext2DBase.cpp
 html/canvas/CanvasRenderingContext2DBase.h
 html/canvas/EXTDisjointTimerQuery.cpp
-html/canvas/EXTDisjointTimerQueryWebGL2.cpp
 html/canvas/OffscreenCanvasRenderingContext2D.cpp
-html/canvas/PlaceholderRenderingContext.cpp
 html/canvas/WebGL2RenderingContext.cpp
 html/canvas/WebGLRenderingContextBase.cpp
 html/parser/HTMLConstructionSite.cpp
@@ -747,7 +735,6 @@ rendering/RenderTable.h
 rendering/RenderTableCaption.cpp
 rendering/RenderTableCell.cpp
 rendering/RenderTableCellInlines.h
-rendering/RenderTableCol.cpp
 rendering/RenderTableRow.cpp
 rendering/RenderTableRowInlines.h
 rendering/RenderTableSection.cpp
@@ -908,6 +895,7 @@ style/StyleBuilderStateInlines.h
 style/StyleExtractor.cpp
 style/StyleExtractorConverter.h
 style/StyleExtractorCustom.h
+style/StyleExtractorSerializer.h
 style/StyleInterpolation.cpp
 style/StyleInvalidationFunctions.h
 style/StyleInvalidator.cpp
