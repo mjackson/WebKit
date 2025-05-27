@@ -31,7 +31,17 @@ namespace JSC {
 
 class ScriptFetcher : public RefCounted<ScriptFetcher> {
 public:
-    virtual ~ScriptFetcher() { }
+    virtual ~ScriptFetcher() = default;
+
+#if USE(BUN_JSC_ADDITIONS)
+    enum class Type: uint8_t {
+        Cached,
+        Worker,
+        NodeVM,
+    };
+
+    virtual Type fetcherType() const = 0;
+#endif
 };
 
 } // namespace JSC
