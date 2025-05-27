@@ -44,7 +44,9 @@ public:
 
     static Ref<CachedScriptFetcher> create(const AtomString& charset);
 
-    Type type() const final { return Type::Cached; }
+#if USE(BUN_JSC_ADDITIONS)
+    Type fetcherType() const final { return Type::Cached; }
+#endif
 
 protected:
     CachedScriptFetcher(const String& nonce, ReferrerPolicy referrerPolicy, RequestPriority fetchPriority, const AtomString& charset, const AtomString& initiatorType, bool isInUserAgentShadowTree)
