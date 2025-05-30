@@ -277,6 +277,12 @@ Copy-Item -r -Force $WebKitBuild/JavaScriptCore/DerivedSources/*.json $output/
 Copy-Item -r $WebKitBuild/WTF/DerivedSources/* $output/include/wtf/
 Copy-Item -r $WebKitBuild/WTF/Headers/wtf/* $output/include/wtf/
 
+# Copy bmalloc headers if they exist (libpas support)
+if (Test-Path -Path $WebKitBuild/bmalloc) {
+    $null = mkdir -ErrorAction SilentlyContinue $output/include/bmalloc
+    Copy-Item -r $WebKitBuild/bmalloc/Headers/bmalloc/* $output/include/bmalloc/
+}
+
 (Get-Content -Path $output/include/JavaScriptCore/JSValueInternal.h) `
     -replace "#import <JavaScriptCore/JSValuePrivate.h>", "#include <JavaScriptCore/JSValuePrivate.h>" `
 | Set-Content -Path $output/include/JavaScriptCore/JSValueInternal.h
