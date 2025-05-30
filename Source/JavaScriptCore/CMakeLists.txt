@@ -340,6 +340,7 @@ set(JavaScriptCore_BUILTINS_SOURCES
     ${JAVASCRIPTCORE_DIR}/builtins/AsyncFunctionPrototype.js
     ${JAVASCRIPTCORE_DIR}/builtins/AsyncGeneratorPrototype.js
     ${JAVASCRIPTCORE_DIR}/builtins/AsyncIteratorPrototype.js
+    ${JAVASCRIPTCORE_DIR}/builtins/DisposableStackPrototype.js
     ${JAVASCRIPTCORE_DIR}/builtins/FunctionPrototype.js
     ${JAVASCRIPTCORE_DIR}/builtins/GeneratorPrototype.js
     ${JAVASCRIPTCORE_DIR}/builtins/GlobalOperations.js
@@ -949,6 +950,9 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/ArrayStorage.h
     runtime/ArrayStorageInlines.h
     runtime/AssertInvariants.h
+    runtime/AsyncDisposableStackConstructor.h
+    runtime/AsyncDisposableStackPrototype.h
+    runtime/AsyncDisposableStackPrototypeInlines.h
     runtime/AsyncIteratorPrototype.h
     runtime/AuxiliaryBarrier.h
     runtime/AuxiliaryBarrierInlines.h
@@ -1076,6 +1080,8 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/JSArrayBufferView.h
     runtime/JSArrayBufferViewInlines.h
     runtime/JSArrayIterator.h
+    runtime/JSAsyncDisposableStack.h
+    runtime/JSAsyncDisposableStackInlines.h
     runtime/JSAsyncFromSyncIterator.h
     runtime/JSBigInt.h
     runtime/JSBoundFunction.h
@@ -1673,4 +1679,8 @@ endif()
 
 if (ENABLE_JAVASCRIPT_SHELL)
   add_subdirectory(shell)
+endif ()
+
+if (ENABLE_DEVELOPER_MODE)
+    WEBKIT_PREPEND_GLOBAL_COMPILER_FLAGS(-DENABLE_OFFLINE_ASM_ALT_ENTRY=1)
 endif ()

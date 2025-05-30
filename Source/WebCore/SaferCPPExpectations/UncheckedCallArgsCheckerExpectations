@@ -6,7 +6,6 @@ Modules/cookie-store/CookieStore.cpp
 Modules/credentialmanagement/CredentialsContainer.cpp
 Modules/encryptedmedia/legacy/LegacyCDM.cpp
 Modules/encryptedmedia/legacy/WebKitMediaKeySession.cpp
-Modules/entriesapi/FileSystemDirectoryReader.cpp
 Modules/fetch/FetchBody.cpp
 Modules/fetch/FetchBody.h
 Modules/fetch/FetchBodyOwner.cpp
@@ -976,7 +975,6 @@ workers/service/server/SWRegistrationDatabase.cpp
 workers/shared/context/SharedWorkerThreadProxy.cpp
 worklets/PaintWorkletGlobalScope.cpp
 worklets/WorkletGlobalScope.cpp
-xml/NativeXPathNSResolver.cpp
 xml/XMLHttpRequestProgressEventThrottle.cpp
 xml/XMLHttpRequestUpload.cpp
 xml/XPathExpression.cpp

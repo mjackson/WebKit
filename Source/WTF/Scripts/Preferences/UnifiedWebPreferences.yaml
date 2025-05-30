@@ -433,21 +433,6 @@ AlternateFullScreenControlDesignEnabled:
     WebCore:
       default: false
 
-AlternateWebMPlayerEnabled:
-  type: bool
-  status: mature
-  category: media
-  humanReadableName: "Alternate WebM Player"
-  humanReadableDescription: "Enable Alternate WebM Player"
-  condition: ENABLE(ALTERNATE_WEBM_PLAYER) && ENABLE(MEDIA_SOURCE)
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
-    WebCore:
-      default: true
-
 AltitudeAngleEnabled:
   type: bool
   status: stable
@@ -1123,8 +1108,8 @@ CSSConstrainedDynamicRangeLimitEnabled:
   type: bool
   category: css
   status: testable
-  humanReadableName: "CSS dynamic-range-limit: constrained-high"
-  humanReadableDescription: "Enable support for CSS dynamic-range-limit value constrained-high"
+  humanReadableName: "CSS dynamic-range-limit: constrained"
+  humanReadableDescription: "Enable support for CSS dynamic-range-limit value constrained"
   defaultValue:
     WebKitLegacy:
       default: false
@@ -4981,7 +4966,7 @@ MediaSourceInWorkerEnabled:
 
 MediaSourcePrefersDecompressionSession:
   type: bool
-  status: stable
+  status: preview
   category: media
   humanReadableName: "MediaSource prefers DecompressionSession"
   humanReadableDescription: "MediaSource prefers DecompressionSession"
@@ -4990,9 +4975,9 @@ MediaSourcePrefersDecompressionSession:
     WebKitLegacy:
       default: false
     WebKit:
-      default: true
+      default: false
     WebCore:
-      default: true
+      default: false
   sharedPreferenceForWebProcess: true
 
 MediaStreamTrackProcessingEnabled:

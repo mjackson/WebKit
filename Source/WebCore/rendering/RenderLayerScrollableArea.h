@@ -273,6 +273,10 @@ public:
 
     void scrollbarWidthChanged(ScrollbarWidth) override;
 
+#if ENABLE(VECTOR_BASED_CONTROLS_ON_MAC)
+    bool vectorBasedControlsEnabled() const override;
+#endif
+
 private:
     bool hasHorizontalOverflow() const;
     bool hasVerticalOverflow() const;
@@ -314,6 +318,8 @@ private:
     bool m_updatingMarqueePosition { false };
     
     bool m_isRegisteredForAnimatedScroll { false };
+
+    bool m_useDarkAppearanceForScrollbars { false };
 
     // The width/height of our scrolled area.
     int m_scrollWidth { 0 };

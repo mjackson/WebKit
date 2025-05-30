@@ -484,10 +484,10 @@ EncodedJSValue JSCallbackObject<Parent>::constructImpl(JSGlobalObject* globalObj
             });
             JSValueRef exception = nullptr;
             JSObject* result;
-            // {
-                // JSLock::DropAllLocks dropAllLocks(globalObject);
-                result = toJS(callAsConstructor(execRef, constructorRef, argumentCount, arguments.data(), &exception));
-            // }
+            {
+                JSLock::DropAllLocks dropAllLocks(globalObject);
+                result = toJS(callAsConstructor(execRef, constructorRef, argumentCount, arguments.span().data(), &exception));
+            }
             if (exception) {
                 throwException(globalObject, scope, toJS(globalObject, exception));
                 return JSValue::encode(jsUndefined());
@@ -561,10 +561,10 @@ EncodedJSValue JSCallbackObject<Parent>::callImpl(JSGlobalObject* globalObject, 
 
             JSValueRef exception = nullptr;
             JSValue result;
-            // {
-                // JSLock::DropAllLocks dropAllLocks(globalObject);
-                result = toJS(globalObject, callAsFunction(execRef, functionRef, thisObjRef, argumentCount, arguments.data(), &exception));
-            // }
+            {
+                JSLock::DropAllLocks dropAllLocks(globalObject);
+                result = toJS(globalObject, callAsFunction(execRef, functionRef, thisObjRef, argumentCount, arguments.span().data(), &exception));
+            }
             if (exception) {
                 throwException(globalObject, scope, toJS(globalObject, exception));
                 return JSValue::encode(jsUndefined());

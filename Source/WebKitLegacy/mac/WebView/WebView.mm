@@ -289,6 +289,7 @@
 #import <wtf/spi/darwin/dyldSPI.h>
 
 #if !PLATFORM(IOS_FAMILY)
+#import "TextIndicatorWindow.h"
 #import "WebContextMenuClient.h"
 #import "WebFullScreenController.h"
 #import "WebImmediateActionController.h"
@@ -299,7 +300,6 @@
 #import "WebPDFView.h"
 #import "WebVideoFullscreenController.h"
 #import <WebCore/TextIndicator.h>
-#import <WebCore/TextIndicatorWindow.h>
 #import <pal/spi/cocoa/AVKitSPI.h>
 #import <pal/spi/mac/LookupSPI.h>
 #import <pal/spi/mac/NSImmediateActionGestureRecognizerSPI.h>
@@ -8799,8 +8799,10 @@ FORWARD(toggleUnderline)
 
 - (void)_didCompleteRenderingUpdateDisplay
 {
-    if (_private->page)
+    if (_private->page) {
+        _private->page->didUpdateRendering();
         _private->page->didCompleteRenderingUpdateDisplay();
+    }
 
     if (_private->renderingUpdateScheduler)
         _private->renderingUpdateScheduler->didCompleteRenderingUpdateDisplay();
@@ -9030,8 +9032,13 @@ FORWARD(toggleUnderline)
 
 - (id)_animationControllerForDictionaryLookupPopupInfo:(const WebCore::DictionaryPopupInfo&)dictionaryPopupInfo
 {
+#if ENABLE(LEGACY_PDFKIT_PLUGIN)
     if (!dictionaryPopupInfo.platformData.attributedString.nsAttributedString())
         return nil;
+#else
+    if (!dictionaryPopupInfo.text)
+        return nil;
+#endif
 
     [self _prepareForDictionaryLookup];
 
@@ -9062,7 +9069,7 @@ FORWARD(toggleUnderline)
 - (void)_setTextIndicator:(WebCore::TextIndicator&)textIndicator withLifetime:(WebCore::TextIndicatorLifetime)lifetime
 {
     if (!_private->textIndicatorWindow)
-        _private->textIndicatorWindow = makeUnique<WebCore::TextIndicatorWindow>(self);
+        _private->textIndicatorWindow = makeUnique<TextIndicatorWindow>(self);
 
     NSRect textBoundingRectInWindowCoordinates = [self convertRect:[self _convertRectFromRootView:textIndicator.textBoundingRectInRootViewCoordinates()] toView:nil];
     NSRect textBoundingRectInScreenCoordinates = [self.window convertRectToScreen:textBoundingRectInWindowCoordinates];
@@ -9098,8 +9105,13 @@ FORWARD(toggleUnderline)
 
 - (void)_showDictionaryLookupPopup:(const WebCore::DictionaryPopupInfo&)dictionaryPopupInfo
 {
+#if ENABLE(LEGACY_PDFKIT_PLUGIN)
     if (!dictionaryPopupInfo.platformData.attributedString.nsAttributedString())
         return;
+#else
+    if (!dictionaryPopupInfo.text)
+        return;
+#endif
 
     [self _prepareForDictionaryLookup];
 

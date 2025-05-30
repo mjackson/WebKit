@@ -162,8 +162,6 @@ static SDKAlignedBehaviors computeSDKAlignedBehaviors()
         disableBehavior(SDKAlignedBehavior::DataURLFragmentRemoval);
         disableBehavior(SDKAlignedBehavior::HTMLDocumentSupportedPropertyNames);
         disableBehavior(SDKAlignedBehavior::ObservesClassProperty);
-        disableBehavior(SDKAlignedBehavior::NoWeChatScrollingQuirk);
-        disableBehavior(SDKAlignedBehavior::SharedNetworkProcess);
         disableBehavior(SDKAlignedBehavior::BlanksViewOnJSPrompt);
         disableBehavior(SDKAlignedBehavior::NoClientCertificateLookup);
         disableBehavior(SDKAlignedBehavior::DefaultsToPassiveWheelListenersOnDocument);
@@ -607,22 +605,10 @@ bool IOSApplication::isCrunchyroll()
     return isCrunchyroll;
 }
 
-bool IOSApplication::isWechat()
-{
-    static bool isWechat = applicationBundleIsEqualTo("com.tencent.xin"_s);
-    return isWechat;
-}
-
 bool IOSApplication::isUNIQLOApp()
 {
     static bool isUNIQLO = applicationBundleIdentifier().startsWith("com.uniqlo"_s);
     return isUNIQLO;
-}
-
-bool IOSApplication::isLutron()
-{
-    static bool isLutronApp = applicationBundleIsEqualTo("com.lutron.lsb"_s);
-    return isLutronApp;
 }
 
 bool IOSApplication::isDOFUSTouch()

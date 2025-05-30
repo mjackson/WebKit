@@ -498,7 +498,7 @@ public:
     VisiblePosition positionForPoint(const LayoutPoint&, HitTestSource, const RenderFragmentContainer*) override;
 
     void removeFloatingAndInvalidateForLayout();
-    void removeFloatingOrPositionedChildFromBlockLists();
+    void removeFloatingOrOutOfFlowChildFromBlockLists();
     
     RenderLayer* enclosingFloatPaintingLayer() const;
     
@@ -541,7 +541,7 @@ public:
     bool hasRenderOverflow() const { return !!m_overflow; }
     bool hasVisualOverflow() const { return m_overflow && !borderBoxRect().contains(m_overflow->visualOverflowRect()); }
 
-    virtual bool needsPreferredWidthsRecalculation() const;
+    virtual bool shouldInvalidatePreferredWidths() const;
     virtual void computeIntrinsicRatioInformation(FloatSize& /* intrinsicSize */, FloatSize& /* intrinsicRatio */) const { }
 
     ScrollPosition scrollPosition() const;
@@ -584,7 +584,7 @@ public:
     void markShapeOutsideDependentsForLayout()
     {
         if (isFloating())
-            removeFloatingOrPositionedChildFromBlockLists();
+            removeFloatingOrOutOfFlowChildFromBlockLists();
     }
 
     // True if this box can have a range in an outside fragmentation context.

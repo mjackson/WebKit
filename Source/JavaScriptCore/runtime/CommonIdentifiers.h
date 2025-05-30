@@ -320,7 +320,13 @@
     macro(years) \
     macro(yearsDisplay) \
     macro(SuppressedError) \
-    macro(DisposableStack)
+    macro(DisposableStack) \
+    macro(adopt) \
+    macro(disposed) \
+    macro(dispose) \
+    macro(use) \
+    macro(move) \
+    macro(AsyncDisposableStack)
 
 #define JSC_COMMON_IDENTIFIERS_EACH_PRIVATE_FIELD(macro) \
     macro(constructor)

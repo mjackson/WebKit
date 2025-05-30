@@ -1006,8 +1006,10 @@ header: <WebCore/RenderStyleConstants.h>
 struct WebCore::DictionaryPopupInfo {
     WebCore::FloatPoint origin;
     WebCore::TextIndicatorData textIndicator;
-#if PLATFORM(COCOA)
+#if ENABLE(LEGACY_PDFKIT_PLUGIN)
     WebCore::DictionaryPopupInfoCocoa platformData;
+#else
+    String text;
 #endif
 };
 
@@ -6516,6 +6518,8 @@ header: <WebCore/ISOVTTCue.h>
     bool expectCancel;
     bool supportClientPin;
     bool supportInternalUV;
+    long maxCredentialCountInList;
+    long maxCredentialIdLength;
 };
 
 [Nested] enum class WebCore::MockWebAuthenticationConfiguration::NfcError : uint8_t {

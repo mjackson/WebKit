@@ -4847,10 +4847,6 @@ void WebPage::updatePreferences(const WebPreferencesStore& store)
 #endif // ENABLE(MODEL_PROCESS)
 #endif // ENABLE(IPC_TESTING_API)
     
-#if ENABLE(ALTERNATE_WEBM_PLAYER)
-    PlatformMediaSessionManager::setAlternateWebMPlayerEnabled(settings.alternateWebMPlayerEnabled());
-#endif
-
 #if ENABLE(VP9) && PLATFORM(COCOA)
     VP9TestingOverrides::singleton().setSWVPDecodersAlwaysEnabled(store.getBoolValueForKey(WebPreferencesKey::sWVPDecodersAlwaysEnabledKey()));
 #endif
@@ -5085,23 +5081,24 @@ String WebPage::rootFrameOriginString()
     return makeString(rootFrameURL.protocol(), ':');
 }
 
-void WebPage::didUpdateRendering()
+void WebPage::didUpdateRendering(OptionSet<DidUpdateRenderingFlags> flags)
 {
-    didPaintLayers();
-
-    if (m_didUpdateRenderingAfterCommittingLoad)
-        return;
-
-    m_didUpdateRenderingAfterCommittingLoad = true;
-    send(Messages::WebPageProxy::DidUpdateRenderingAfterCommittingLoad());
-}
-
-void WebPage::didPaintLayers()
-{
+    if (flags & DidUpdateRenderingFlags::PaintedLayers) {
 #if ENABLE(GPU_PROCESS)
-    if (RefPtr proxy = m_remoteRenderingBackendProxy)
-        proxy->didPaintLayers();
+        if (RefPtr proxy = m_remoteRenderingBackendProxy)
+            proxy->didPaintLayers();
 #endif
+    }
+
+    if (flags & DidUpdateRenderingFlags::NotifyUIProcess) {
+        if (m_didUpdateRenderingAfterCommittingLoad)
+            return;
+
+        m_didUpdateRenderingAfterCommittingLoad = true;
+        send(Messages::WebPageProxy::DidUpdateRenderingAfterCommittingLoad());
+    }
+
+    protectedCorePage()->didUpdateRendering();
 }
 
 bool WebPage::shouldTriggerRenderingUpdate(unsigned rescheduledRenderingUpdateCount) const

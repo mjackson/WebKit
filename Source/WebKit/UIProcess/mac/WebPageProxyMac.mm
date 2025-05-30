@@ -75,6 +75,7 @@
 #import <wtf/FileSystem.h>
 #import <wtf/ProcessPrivilege.h>
 #import <wtf/cocoa/RuntimeApplicationChecksCocoa.h>
+#import <wtf/cocoa/SpanCocoa.h>
 #import <wtf/text/cf/StringConcatenateCF.h>
 
 #define MESSAGE_CHECK(assertion, connection) MESSAGE_CHECK_BASE(assertion, connection)
@@ -421,20 +422,20 @@ void WebPageProxy::updateContentInsetsIfAutomatic()
     if (!m_automaticallyAdjustsContentInsets)
         return;
 
-    m_pendingObscuredContentInsets = std::nullopt;
+    m_internals->pendingObscuredContentInsets = std::nullopt;
 
     scheduleSetObscuredContentInsetsDispatch();
 }
 
 void WebPageProxy::setObscuredContentInsetsAsync(const FloatBoxExtent& obscuredContentInsets)
 {
-    m_pendingObscuredContentInsets = obscuredContentInsets;
+    m_internals->pendingObscuredContentInsets = obscuredContentInsets;
     scheduleSetObscuredContentInsetsDispatch();
 }
 
 FloatBoxExtent WebPageProxy::pendingOrActualObscuredContentInsets() const
 {
-    return m_pendingObscuredContentInsets.value_or(m_obscuredContentInsets);
+    return m_internals->pendingObscuredContentInsets.value_or(m_internals->obscuredContentInsets);
 }
 
 void WebPageProxy::scheduleSetObscuredContentInsetsDispatch()
@@ -457,23 +458,23 @@ void WebPageProxy::dispatchSetObscuredContentInsets()
     if (!wasScheduled)
         return;
 
-    if (!m_pendingObscuredContentInsets) {
+    if (!m_internals->pendingObscuredContentInsets) {
         if (!m_automaticallyAdjustsContentInsets)
             return;
 
         if (RefPtr pageClient = this->pageClient()) {
             if (auto automaticTopInset = pageClient->computeAutomaticTopObscuredInset()) {
-                m_pendingObscuredContentInsets = m_obscuredContentInsets;
-                m_pendingObscuredContentInsets->setTop(*automaticTopInset);
+                m_internals->pendingObscuredContentInsets = m_internals->obscuredContentInsets;
+                m_internals->pendingObscuredContentInsets->setTop(*automaticTopInset);
             }
         }
 
-        if (!m_pendingObscuredContentInsets)
-            m_pendingObscuredContentInsets = FloatBoxExtent { };
+        if (!m_internals->pendingObscuredContentInsets)
+            m_internals->pendingObscuredContentInsets = FloatBoxExtent { };
     }
 
-    setObscuredContentInsets(*m_pendingObscuredContentInsets);
-    m_pendingObscuredContentInsets = std::nullopt;
+    setObscuredContentInsets(*m_internals->pendingObscuredContentInsets);
+    m_internals->pendingObscuredContentInsets = std::nullopt;
 }
 
 void WebPageProxy::setRemoteLayerTreeRootNode(RemoteLayerTreeNode* rootNode)
@@ -573,7 +574,7 @@ void WebPageProxy::savePDFToTemporaryFolderAndOpenWithNativeApplication(const St
 
     auto permissions = adoptNS([[NSNumber alloc] initWithInt:S_IRUSR]);
     auto fileAttributes = adoptNS([[NSDictionary alloc] initWithObjectsAndKeys:permissions.get(), NSFilePosixPermissions, nil]);
-    auto nsData = adoptNS([[NSData alloc] initWithBytesNoCopy:(void*)data.data() length:data.size() freeWhenDone:NO]);
+    RetainPtr nsData = toNSDataNoCopy(data, FreeWhenDone::No);
 
     if (![[NSFileManager defaultManager] createFileAtPath:nsPath.get() contents:nsData.get() attributes:fileAttributes.get()]) {
         WTFLogAlways("Cannot create PDF file in the temporary directory (%s).", sanitizedFilename.utf8().data());
