@@ -413,7 +413,7 @@ double DateCache::parseDate(JSGlobalObject* globalObject, VM& vm, const String& 
             double value = v8::ParseDateTimeString(dateString.data(), dateString.size(), local);
 
             if (local)
-                value -= localTimeOffset(static_cast<int64_t>(value), WTF::LocalTime).offset;
+                value -= localTimeOffset(static_cast<int64_t>(value), TimeType::LocalTime).offset;
 
             return v8::TimeClip(value);
         }
