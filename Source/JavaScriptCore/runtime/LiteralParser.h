@@ -29,6 +29,7 @@
 #include "GetVM.h"
 #include "Identifier.h"
 #include "JSCJSValue.h"
+#include "JSGlobalObject.h"
 #include <array>
 #include <wtf/Range.h>
 #include <wtf/text/MakeString.h>
@@ -39,7 +40,12 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 namespace JSC {
 
+#if USE(BUN_JSC_ADDITIONS)
+enum ParserMode : uint8_t { StrictJSON, SloppyJSON, SuperSloppyJSON, JSONP };
+#else
 enum ParserMode : uint8_t { StrictJSON, SloppyJSON, JSONP };
+#endif
+
 enum class JSONReviverMode : uint8_t { Disabled, Enabled };
 
 enum JSONPPathEntryType : uint8_t {
@@ -204,6 +210,33 @@ public:
     bool tryJSONPParse(Vector<JSONPData>&, bool needsFullSourceInfo)
         requires (reviverMode == JSONReviverMode::Disabled);
 
+#if USE(BUN_JSC_ADDITIONS)
+    
+    size_t getBytesConsumed() const {
+        return (m_lexer.ptr() - m_lexer.start()) * sizeof(CharType);
+    }
+
+    size_t getCharactersConsumed() const {
+        return static_cast<size_t>(m_lexer.ptr() - m_lexer.start());
+    }
+
+
+    JSValue tryStreamingParse(size_t &consumedCharacters)
+        requires (reviverMode == JSONReviverMode::Disabled) 
+    {
+        ASSERT(m_mode == SuperSloppyJSON);
+        m_streamingValueEndPosition = nullptr;
+        m_lexer.next();
+        JSValue result = parse(getVM(m_globalObject), StartParseExpression, nullptr);
+        // Use the position at the end of the value, not the current lexer position
+        if (m_streamingValueEndPosition)
+            consumedCharacters = m_streamingValueEndPosition - m_lexer.start();
+        else
+            consumedCharacters = getCharactersConsumed();
+        return result;
+    }    
+#endif
+
 private:
     class Lexer {
     public:
@@ -257,6 +290,9 @@ private:
 
         const CharType* ptr() const { return m_ptr; }
         const CharType* start() const { return m_start; }
+#if USE(BUN_JSC_ADDITIONS)
+        const CharType* lastTokenEnd() const { return m_lastTokenEnd; }
+#endif
         inline const CharType* currentTokenStart() const;
         inline const CharType* currentTokenEnd() const;
         
@@ -278,6 +314,9 @@ private:
         const CharType* m_start;
         const CharType* m_currentTokenStart { nullptr };
         const CharType* m_currentTokenEnd { nullptr };
+#if USE(BUN_JSC_ADDITIONS)
+        const CharType* m_lastTokenEnd { nullptr };
+#endif
 #if ASSERT_ENABLED
         unsigned m_currentTokenID { 0 };
 #endif
@@ -308,6 +347,9 @@ private:
     Vector<ParserState, 16, UnsafeVectorOverflow> m_stateStack;
     Vector<Identifier, 16, UnsafeVectorOverflow> m_identifierStack;
     Vector<JSONRanges::Entry, 8> m_rangesStack;
+#if USE(BUN_JSC_ADDITIONS)
+    const CharType* m_streamingValueEndPosition { nullptr };
+#endif
 };
 
 } // namespace JSC

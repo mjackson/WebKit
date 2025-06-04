@@ -433,6 +433,10 @@ static JSC_DECLARE_HOST_FUNCTION(functionPerformanceNow);
 static JSC_DECLARE_HOST_FUNCTION(functionPerformanceMark);
 static JSC_DECLARE_HOST_FUNCTION(functionPerformanceMeasure);
 
+#if USE(BUN_JSC_ADDITIONS)
+static JSC_DECLARE_HOST_FUNCTION(functionJSONStreamingParse);
+#endif
+
 #if ENABLE(FUZZILLI)
 static JSC_DECLARE_HOST_FUNCTION(functionFuzzilli);
 #endif
@@ -822,6 +826,10 @@ private:
         addFunction(vm, "asDoubleNumber"_s, functionAsDoubleNumber, 1);
 
         addFunction(vm, "dropAllLocks"_s, functionDropAllLocks, 1);
+
+#if USE(BUN_JSC_ADDITIONS)
+        addFunction(vm, "JSONStreamingParse"_s, functionJSONStreamingParse, 1);
+#endif
 
         JSObject* performance = JSFinalObject::create(vm, plainObjectStructure);
         putDirect(vm, Identifier::fromString(vm, "performance"_s), performance, DontEnum);
@@ -3393,6 +3401,26 @@ JSC_DEFINE_HOST_FUNCTION(functionPerformanceMeasure, (JSGlobalObject* globalObje
     globalObject->stopSignpost(WTFMove(message));
     return JSValue::encode(jsUndefined());
 }
+
+#if USE(BUN_JSC_ADDITIONS)
+JSC_DEFINE_HOST_FUNCTION(functionJSONStreamingParse, (JSGlobalObject* globalObject, CallFrame* callFrame))
+{
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    auto json = callFrame->argument(0).toWTFString(globalObject);
+    RETURN_IF_EXCEPTION(scope, EncodedJSValue());
+
+    size_t consumedCharacters = 0;
+    JSValue result = JSONStreamingParse(globalObject, json, consumedCharacters);
+    RETURN_IF_EXCEPTION(scope, EncodedJSValue());
+
+    JSArray* array = constructEmptyArray(globalObject, nullptr);
+    array->putDirectIndex(globalObject, 0, result);
+    array->putDirectIndex(globalObject, 1, jsNumber(consumedCharacters));
+    return JSValue::encode(array);
+}
+#endif
 
 #if ENABLE(FUZZILLI)
 
