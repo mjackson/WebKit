@@ -61,9 +61,5 @@ JS_EXPORT_PRIVATE JSValue JSONParse(JSGlobalObject*, StringView);
 JSValue JSONParseWithException(JSGlobalObject*, StringView);
 JS_EXPORT_PRIVATE String JSONStringify(JSGlobalObject*, JSValue, JSValue space);
 JS_EXPORT_PRIVATE String JSONStringify(JSGlobalObject*, JSValue, unsigned indent);
-
-#if USE(BUN_JSC_ADDITIONS)
-JSValue JSONStreamingParse(JSGlobalObject*, StringView, size_t &consumedCharacters);
-#endif
     
 } // namespace JSC

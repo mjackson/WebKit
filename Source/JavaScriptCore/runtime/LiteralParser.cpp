@@ -740,45 +740,8 @@ ALWAYS_INLINE TokenType LiteralParser<CharType, reviverMode>::Lexer::lex(Literal
     m_currentTokenID++;
 #endif
 
-#if USE(BUN_JSC_ADDITIONS)
-    if (m_mode == SuperSloppyJSON) {
-        // Skip whitespace and comments (// and /* */)
-        while (m_ptr < m_end) {
-            if (isJSONWhiteSpace(*m_ptr)) {
-                ++m_ptr;
-                continue;
-            }
-            // Check for comments
-            if (m_ptr + 1 < m_end && *m_ptr == '/') {
-                if (m_ptr[1] == '/') {
-                    // Line comment - skip to end of line or EOF
-                    m_ptr += 2;
-                    while (m_ptr < m_end && *m_ptr != '\n' && *m_ptr != '\r')
-                        ++m_ptr;
-                    continue;
-                } else if (m_ptr[1] == '*') {
-                    // Multi-line comment - skip until */ or EOF
-                    m_ptr += 2;
-                    while (m_ptr + 1 < m_end) {
-                        if (*m_ptr == '*' && m_ptr[1] == '/') {
-                            m_ptr += 2;
-                            break;
-                        }
-                        ++m_ptr;
-                    }
-                    // If we hit EOF without finding */, that's ok in sloppy mode
-                    continue;
-                }
-            }
-            break;
-        }
-    } else {
-#endif
-        while (m_ptr < m_end && isJSONWhiteSpace(*m_ptr))
-            ++m_ptr;
-#if USE(BUN_JSC_ADDITIONS)
-    }
-#endif
+    while (m_ptr < m_end && isJSONWhiteSpace(*m_ptr))
+        ++m_ptr;
 
     if constexpr (reviverMode == JSONReviverMode::Enabled) {
         m_currentTokenStart = m_ptr;
@@ -904,11 +867,6 @@ ALWAYS_INLINE TokenType LiteralParser<CharType, reviverMode>::Lexer::lexIdentifi
 template<typename CharType, JSONReviverMode reviverMode>
 ALWAYS_INLINE TokenType LiteralParser<CharType, reviverMode>::Lexer::next()
 {
-#if USE(BUN_JSC_ADDITIONS)
-    // Save the current position as the end of the last token
-    // before we skip whitespace and advance to the next token
-    m_lastTokenEnd = m_ptr;
-#endif
     TokenType result = lex<JSONIdentifierHint::Unknown>(m_currentToken);
     ASSERT(m_currentToken.type == result);
     return result;
@@ -1031,7 +989,7 @@ TokenType LiteralParser<CharType, reviverMode>::Lexer::lexStringSlow(LiteralPars
             m_builder.append(std::span { runStart, m_ptr });
 
 slowPathBegin:
-        if ((m_mode != SloppyJSON && m_mode != SuperSloppyJSON) && m_ptr < m_end && *m_ptr == '\\') {
+        if ((m_mode != SloppyJSON) && m_ptr < m_end && *m_ptr == '\\') {
             if (m_builder.isEmpty() && runStart < m_ptr)
                 m_builder.append(std::span { runStart, m_ptr });
             ++m_ptr;
@@ -1098,7 +1056,7 @@ slowPathBegin:
                     return TokError;
             }
         }
-    } while ((m_mode != SloppyJSON && m_mode != SuperSloppyJSON) && m_ptr != runStart && (m_ptr < m_end) && *m_ptr != terminator);
+    } while ((m_mode != SloppyJSON) && m_ptr != runStart && (m_ptr < m_end) && *m_ptr != terminator);
 
     if (m_ptr >= m_end || *m_ptr != terminator) {
         m_lexErrorMessage = "Unterminated string"_s;
@@ -1249,12 +1207,6 @@ ALWAYS_INLINE JSValue LiteralParser<CharType, reviverMode>::parsePrimitiveValue(
     }
     case TokNumber: {
         JSValue result = jsNumber(m_lexer.currentToken()->numberToken);
-#if USE(BUN_JSC_ADDITIONS)
-        if (m_mode == SuperSloppyJSON) {
-            // Record position before next() for streaming parse
-            m_streamingValueEndPosition = m_lexer.ptr();
-        }
-#endif
         m_lexer.next();
         return result;
     }
@@ -1589,16 +1541,8 @@ JSValue LiteralParser<CharType, reviverMode>::parse(VM& vm, ParserState initialS
             TokenType lastToken = m_lexer.currentToken()->type;
             if (m_lexer.next() == TokRBracket) {
                 if (lastToken == TokComma) [[unlikely]] {
-#if USE(BUN_JSC_ADDITIONS)
-                    if (m_mode == SuperSloppyJSON) {
-                        // Allow trailing commas in super sloppy mode
-                    } else {
-#endif
-                        m_parseErrorMessage = "Unexpected comma at the end of array expression"_s;
-                        return { };
-#if USE(BUN_JSC_ADDITIONS)
-                    }
-#endif
+                    m_parseErrorMessage = "Unexpected comma at the end of array expression"_s;
+                    return { };
                 }
                 if constexpr (reviverMode == JSONReviverMode::Enabled) {
                     if (sourceRanges) {
@@ -1608,12 +1552,6 @@ JSValue LiteralParser<CharType, reviverMode>::parse(VM& vm, ParserState initialS
                     }
                 }
                 m_lexer.next();
-#if USE(BUN_JSC_ADDITIONS)
-                // For streaming parse, record where the array ended (after ])
-                if (m_mode == SuperSloppyJSON) {
-                    m_streamingValueEndPosition = m_lexer.lastTokenEnd();
-                }
-#endif
                 lastValue = m_objectStack.takeLast();
                 break;
             }
@@ -1646,12 +1584,6 @@ JSValue LiteralParser<CharType, reviverMode>::parse(VM& vm, ParserState initialS
                 }
             }
             m_lexer.next();
-#if USE(BUN_JSC_ADDITIONS)
-            // For streaming parse, record where the array ended (after ])
-            if (m_mode == SuperSloppyJSON) {
-                m_streamingValueEndPosition = m_lexer.ptr();
-            }
-#endif
             lastValue = m_objectStack.takeLast();
             break;
         }
@@ -1732,27 +1664,6 @@ JSValue LiteralParser<CharType, reviverMode>::parse(VM& vm, ParserState initialS
                         break;
 
                     nextType = m_lexer.next();
-#if USE(BUN_JSC_ADDITIONS)
-                    if (m_mode == SuperSloppyJSON && nextType == TokRBrace) {
-                        // Allow trailing commas in objects
-                        if constexpr (reviverMode == JSONReviverMode::Enabled) {
-                            if (sourceRanges) {
-                                auto entry = m_rangesStack.takeLast();
-                                entry.range = { entry.range.begin(), static_cast<unsigned>(m_lexer.currentTokenEnd() - m_lexer.start()) };
-                                lastValueRange = WTFMove(entry);
-                            }
-                        }
-                        m_lexer.next();
-#if USE(BUN_JSC_ADDITIONS)
-                        // For streaming parse, record where the object ended (after })
-                        if (m_mode == SuperSloppyJSON) {
-                            m_streamingValueEndPosition = m_lexer.lastTokenEnd();
-                        }
-#endif
-                        lastValue = object;
-                        break;
-                    }
-#endif
                     if (nextType != TokString && (m_mode == StrictJSON || nextType != TokIdentifier)) [[unlikely]] {
                         m_parseErrorMessage = "Property name must be a string literal"_s;
                         return { };
@@ -1772,12 +1683,6 @@ JSValue LiteralParser<CharType, reviverMode>::parse(VM& vm, ParserState initialS
                     }
                 }
                 m_lexer.next();
-#if USE(BUN_JSC_ADDITIONS)
-                // For streaming parse, record where the object ended (after })
-                if (m_mode == SuperSloppyJSON) {
-                    m_streamingValueEndPosition = m_lexer.lastTokenEnd();
-                }
-#endif
                 lastValue = object;
                 break;
             }
@@ -1795,12 +1700,6 @@ JSValue LiteralParser<CharType, reviverMode>::parse(VM& vm, ParserState initialS
                 }
             }
             m_lexer.next();
-#if USE(BUN_JSC_ADDITIONS)
-            // For streaming parse, record where the object ended (after })
-            if (m_mode == SuperSloppyJSON) {
-                m_streamingValueEndPosition = m_lexer.ptr();
-            }
-#endif
             lastValue = object;
             break;
         }
@@ -1848,21 +1747,8 @@ JSValue LiteralParser<CharType, reviverMode>::parse(VM& vm, ParserState initialS
                         std::get<JSONRanges::Object>(m_rangesStack.last().properties).set(ident.impl(), WTFMove(lastValueRange));
                 }
             }
-            if (m_lexer.currentToken()->type == TokComma) {
-#if USE(BUN_JSC_ADDITIONS)
-                // Check for trailing comma
-                TokenType nextType = m_lexer.next();
-                if (m_mode == SuperSloppyJSON && nextType == TokRBrace) {
-                    // Allow trailing comma - just continue to close the object
-                    // Don't goto doParseObjectStartExpression
-                } else {
-                    // Back up and continue parsing
-                    goto doParseObjectStartExpression;
-                }
-#else
+            if (m_lexer.currentToken()->type == TokComma)
                 goto doParseObjectStartExpression;
-#endif
-            }
             if (m_lexer.currentToken()->type != TokRBrace) [[unlikely]] {
                 setErrorMessageForToken(TokRBrace);
                 return { };
@@ -1876,12 +1762,6 @@ JSValue LiteralParser<CharType, reviverMode>::parse(VM& vm, ParserState initialS
                 }
             }
             m_lexer.next();
-#if USE(BUN_JSC_ADDITIONS)
-            // For streaming parse, record where the array ended (after ])
-            if (m_mode == SuperSloppyJSON) {
-                m_streamingValueEndPosition = m_lexer.ptr();
-            }
-#endif
             lastValue = m_objectStack.takeLast();
             break;
         }
@@ -1908,13 +1788,6 @@ JSValue LiteralParser<CharType, reviverMode>::parse(VM& vm, ParserState initialS
             lastValue = parsePrimitiveValue(vm);
             if (!lastValue) [[unlikely]]
                 return { };
-#if USE(BUN_JSC_ADDITIONS)
-            // For streaming parse, record where the primitive value ended
-            // Use lastTokenEnd which points to the end of the value before whitespace
-            if (m_mode == SuperSloppyJSON) {
-                m_streamingValueEndPosition = m_lexer.lastTokenEnd();
-            }
-#endif
             if constexpr (reviverMode == JSONReviverMode::Enabled) {
                 if (sourceRanges)
                     lastValueRange.value = sourceRanges->record(lastValue);

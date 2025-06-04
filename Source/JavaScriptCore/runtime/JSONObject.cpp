@@ -1918,35 +1918,6 @@ JSValue JSONParseWithException(JSGlobalObject* globalObject, StringView json)
     return result;
 }
 
-#if USE(BUN_JSC_ADDITIONS)
-JSValue JSONStreamingParse(JSGlobalObject* globalObject, StringView json, size_t &consumedCharacters)
-{
-    VM& vm = globalObject->vm();
-    auto scope = DECLARE_THROW_SCOPE(vm);
-
-    if (json.isNull())
-        return jsUndefined();
-
-    if (json.is8Bit()) {    
-        LiteralParser<LChar, JSONReviverMode::Disabled> jsonParser(globalObject, json.span8(), SuperSloppyJSON);
-        JSValue result = jsonParser.tryStreamingParse(consumedCharacters);
-        RETURN_IF_EXCEPTION(scope, { });
-        if (!result) [[unlikely]] {
-            throwSyntaxError(globalObject, scope, jsonParser.getErrorMessage());
-        }
-        return result;
-    }
-
-    LiteralParser<UChar, JSONReviverMode::Disabled> jsonParser(globalObject, json.span16(), SuperSloppyJSON);
-    JSValue result = jsonParser.tryStreamingParse(consumedCharacters);
-    RETURN_IF_EXCEPTION(scope, { });
-    if (!result) [[unlikely]] {
-        throwSyntaxError(globalObject, scope, jsonParser.getErrorMessage());
-    }
-    return result;
-}
-#endif
-
 String JSONStringify(JSGlobalObject* globalObject, JSValue value, JSValue space)
 {
     return stringify(*globalObject, value, jsNull(), space);
