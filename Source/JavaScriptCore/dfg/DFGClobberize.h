@@ -1547,11 +1547,13 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         else {
             if (effect.domReads)
                 read(AbstractHeap(DOMState, effect.domReads.rawRepresentation()));
+            WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
             for (unsigned i = 0; i < 4; ++i) {
                 if (effect.reads[i] == InvalidAbstractHeap)
                     break;
                 read(effect.reads[i]);
             }
+            WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
         }
         if (effect.domWrites == DOMJIT::HeapRange::top()) {
             if (Options::validateDFGClobberize())
@@ -1561,11 +1563,13 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         else {
             if (effect.domWrites) 
                 write(AbstractHeap(DOMState, effect.domWrites.rawRepresentation()));
+            WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
             for (unsigned i = 0; i < 4; ++i) {
                 if (effect.writes[i] == InvalidAbstractHeap)
                     break;
                 write(effect.writes[i]);
             }
+            WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
         }
         if (effect.def != DOMJIT::HeapRange::top()) {
             DOMJIT::HeapRange range = effect.def;
@@ -1588,11 +1592,13 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         else {
             if (effect.domReads)
                 read(AbstractHeap(DOMState, effect.domReads.rawRepresentation()));
+            WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
             for (unsigned i = 0; i < 4; ++i) {
                 if (effect.reads[i] == InvalidAbstractHeap)
                     break;
                 read(effect.reads[i]);
             }
+            WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
         }
         if (effect.domWrites == DOMJIT::HeapRange::top()) {
             if (Options::validateDFGClobberize())
@@ -1602,11 +1608,13 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         else {
             if (effect.domWrites) 
                 write(AbstractHeap(DOMState, effect.domWrites.rawRepresentation()));
+            WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
             for (unsigned i = 0; i < 4; ++i) {
                 if (effect.writes[i] == InvalidAbstractHeap)
                     break;
                 write(effect.writes[i]);
             }
+            WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
         }
 #ifndef BUN_SKIP_FAILING_ASSERTIONS
         ASSERT_WITH_MESSAGE(effect.def == DOMJIT::HeapRange::top(), "Currently, we do not accept any def for CallDOM.");

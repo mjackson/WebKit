@@ -138,7 +138,7 @@ void BunV8HeapSnapshotBuilder::analyzeNode(JSCell* cell)
 
     {
         Locker locker { m_cellToNodeIdMutex };
-        if (auto existingId = m_cellToNodeId.get(cell)) {
+        if (m_cellToNodeId.get(cell)) {
             return;
         }
     }
@@ -562,7 +562,7 @@ std::optional<BunV8HeapSnapshotBuilder::TraceLocation> BunV8HeapSnapshotBuilder:
     return { location };
 }
 
-void BunV8HeapSnapshotBuilder::TraceLocation::sourcemap(VM& vm)
+void BunV8HeapSnapshotBuilder::TraceLocation::sourcemap(VM&)
 {
     if (scriptName.isEmpty()) {
         return;

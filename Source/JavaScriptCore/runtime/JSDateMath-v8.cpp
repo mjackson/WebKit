@@ -24,6 +24,8 @@
 #include "config.h"
 #include "JSDateMath-v8.h"
 
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
+
 namespace v8 {
 
 constexpr int kMaxInt = 0x7FFFFFFF;
@@ -137,7 +139,7 @@ private:
         // Advance to the next character of the string.
         void Next()
         {
-            ch_ = (index_ < size_) ? buffer_[index_] : 0;
+            ch_ = (static_cast<size_t>(index_) < size_) ? buffer_[index_] : 0;
             index_++;
         }
 
@@ -1173,3 +1175,5 @@ double ParseDateTimeString(const unsigned char* str, size_t size, bool& local)
 }
 
 } // namespace v8
+
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END

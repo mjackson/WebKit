@@ -153,7 +153,7 @@ void ErrorInstance::captureStackTrace(VM& vm, JSGlobalObject* globalObject, size
             remaining = std::min(remaining, m_stackTrace->size());
             if (remaining > 0) {
                 ASSERT(m_stackTrace->size() >= remaining);
-                stackTrace->append(std::span { m_stackTrace->data(), remaining });
+                stackTrace->append(m_stackTrace->span().first(remaining));
             }
         }
 
