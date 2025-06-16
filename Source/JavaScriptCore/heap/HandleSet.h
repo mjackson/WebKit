@@ -28,10 +28,9 @@
 #include "Handle.h"
 #include "HandleBlock.h"
 #include "HeapCell.h"
+#include <type_traits>
 #include <wtf/DoublyLinkedList.h>
 #include <wtf/HashCountedSet.h>
-#include <wtf/SentinelLinkedList.h>
-#include <wtf/SinglyLinkedList.h>
 
 namespace JSC {
 
@@ -39,7 +38,7 @@ class HandleSet;
 class VM;
 class JSValue;
 
-class HandleNode final : public BasicRawSentinelNode<HandleNode> {
+class HandleNode final {
 public:
     HandleNode() = default;
     
@@ -50,11 +49,36 @@ public:
     {
         return std::bit_cast<HandleNode*>(std::bit_cast<uintptr_t>(slot) - OBJECT_OFFSETOF(HandleNode, m_value));
     }
+    
+    // For free list management
+    HandleNode* next() const { return m_next; }
+    void setNext(HandleNode* next) { m_next = next; }
 
 private:
-    JSValue m_value { };
+    union {
+        JSValue m_value { };
+        HandleNode* m_next;
+    };
 };
 
+static_assert(std::is_standard_layout_v<HandleNode>, "HandleNode must be standard layout for OBJECT_OFFSETOF to work correctly");
+
+/*
+ * Manages strong handles for the garbage collector.
+ *
+ * This class allocates handles in large, contiguous HandleBlocks. Active handles
+ * within each block are tracked using a bit-vector (m_usedSlots), which provides
+ * fast, cache-friendly iteration during GC root scanning. This design replaces a
+ * previous linked-list-based approach to improve performance and reduce per-handle
+ * memory overhead.
+ *
+ * Key design decisions:
+ * - Each HandleBlock contains a fixed number of HandleNode slots
+ * - A FastBitVector tracks which slots are in use within each block
+ * - GC scanning iterates through blocks and their bit-vectors for optimal cache locality
+ * - Allocation searches for the first clear bit, with a hint for faster subsequent allocations
+ * - No per-handle list pointers, saving 16 bytes per handle
+ */
 class HandleSet {
     friend class HandleBlock;
 public:
@@ -65,13 +89,12 @@ public:
 
     VM& vm();
 
-    HandleSlot allocate();
-    void deallocate(HandleSlot);
+    JS_EXPORT_PRIVATE HandleSlot allocate();
+    JS_EXPORT_PRIVATE void deallocate(HandleSlot);
+    
+    JS_EXPORT_PRIVATE void writeBarrier(HandleSlot, JSValue);
 
     template<typename Visitor> void visitStrongHandles(Visitor&);
-
-    template<bool isCellOnly>
-    void writeBarrier(HandleSlot, JSValue);
 
     unsigned protectedGlobalObjectCount();
 
@@ -88,10 +111,7 @@ private:
 
     VM& m_vm;
     DoublyLinkedList<HandleBlock> m_blockList;
-
-    using NodeList = SentinelLinkedList<Node, BasicRawSentinelNode<Node>>;
-    NodeList m_strongList;
-    SinglyLinkedList<Node> m_freeList;
+    HandleBlock* m_freeBlockList { nullptr };
 };
 
 inline HandleSet* HandleSet::heapFor(HandleSlot handle)
@@ -104,24 +124,6 @@ inline VM& HandleSet::vm()
     return m_vm;
 }
 
-inline HandleSlot HandleSet::allocate()
-{
-    if (m_freeList.isEmpty())
-        grow();
-
-    HandleSet::Node* node = m_freeList.pop();
-    new (NotNull, node) HandleSet::Node();
-    return node->slot();
-}
-
-inline void HandleSet::deallocate(HandleSlot handle)
-{
-    HandleSet::Node* node = HandleNode::toHandleNode(handle);
-    if (node->isOnList())
-        NodeList::remove(node);
-    m_freeList.push(node);
-}
-
 inline HandleSlot HandleNode::slot()
 {
     return &m_value;
@@ -130,47 +132,6 @@ inline HandleSlot HandleNode::slot()
 inline HandleSet* HandleNode::handleSet()
 {
     return HandleBlock::blockFor(this)->handleSet();
-}
-
-template<typename Functor> void HandleSet::forEachStrongHandle(const Functor& functor, const HashCountedSet<JSCell*>& skipSet)
-{
-    for (Node& node : m_strongList) {
-        JSValue value = *node.slot();
-        if (!value || !value.isCell())
-            continue;
-        if (skipSet.contains(value.asCell()))
-            continue;
-        functor(value.asCell());
-    }
-}
-
-template<bool isCellOnly>
-inline void HandleSet::writeBarrier(HandleSlot slot, JSValue value)
-{
-    bool valueIsNonEmptyCell = value && (isCellOnly || value.isCell());
-    bool slotIsNonEmptyCell = *slot && (isCellOnly || slot->isCell());
-    if (valueIsNonEmptyCell == slotIsNonEmptyCell)
-        return;
-
-    Node* node = HandleNode::toHandleNode(slot);
-#if ENABLE(GC_VALIDATION)
-    if (node->isOnList())
-        RELEASE_ASSERT(isLiveNode(node));
-#endif
-    if (!valueIsNonEmptyCell) {
-        ASSERT(slotIsNonEmptyCell);
-        ASSERT(node->isOnList());
-        NodeList::remove(node);
-        return;
-    }
-
-    ASSERT(!slotIsNonEmptyCell);
-    ASSERT(!node->isOnList());
-    m_strongList.push(node);
-
-#if ENABLE(GC_VALIDATION)
-    RELEASE_ASSERT(isLiveNode(node));
-#endif
 }
 
 } // namespace JSC

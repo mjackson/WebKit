@@ -70,10 +70,21 @@ inline HandleNode* HandleBlock::nodeAtIndex(unsigned i)
     return &nodes()[i];
 }
 
-inline unsigned HandleBlock::nodeCapacity()
+inline const char* HandleBlock::payload() const
+{
+    return reinterpret_cast<const char*>(this) + WTF::roundUpToMultipleOf<sizeof(double)>(sizeof(HandleBlock));
+}
+
+inline const char* HandleBlock::payloadEnd() const
+{
+    return reinterpret_cast<const char*>(this) + blockSize;
+}
+
+inline unsigned HandleBlock::nodeCapacity() const
 {
     return (payloadEnd() - payload()) / sizeof(HandleNode);
 }
+
 
 } // namespace JSC
 

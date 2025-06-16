@@ -739,8 +739,10 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     heap/GCSegmentedArray.h
     heap/Handle.h
     heap/HandleBlock.h
+    heap/HandleBlockInlines.h
     heap/HandleForward.h
     heap/HandleSet.h
+    heap/HandleSetInlines.h
     heap/HandleTypes.h
     heap/Heap.h
     heap/HeapAnalyzer.h

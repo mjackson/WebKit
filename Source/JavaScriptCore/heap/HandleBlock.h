@@ -26,6 +26,7 @@
 #pragma once
 
 #include <wtf/DoublyLinkedList.h>
+#include <wtf/FastBitVector.h>
 
 namespace JSC {
 
@@ -43,15 +44,34 @@ public:
 
     HandleSet* handleSet();
 
-    HandleNode* nodes();
-    HandleNode* nodeAtIndex(unsigned);
-    unsigned nodeCapacity();
+    inline HandleNode* nodes();
+    inline HandleNode* nodeAtIndex(unsigned);
+    inline unsigned nodeCapacity() const;
+    
+    bool isUsed(unsigned index) const { return m_usedSlots[index]; }
+    void setUsed(unsigned index, bool value) { m_usedSlots[index] = value; }
+    
+    bool isCell(unsigned index) const { return m_cellSlots[index]; }
+    void setCell(unsigned index, bool value) { m_cellSlots[index] = value; }
+    
+    HandleNode* freeListHead() { return m_freeListHead; }
+    void setFreeListHead(HandleNode* head) { m_freeListHead = head; }
+    
+    HandleBlock* nextInFreeList() { return m_nextInFreeList; }
+    void setNextInFreeList(HandleBlock* next) { m_nextInFreeList = next; }
+    
+    WTF::FastBitVector m_usedSlots;
+    WTF::FastBitVector m_cellSlots;
+    HandleNode* m_freeListHead { nullptr };
+    HandleBlock* m_nextInFreeList { nullptr };
 
 private:
     HandleBlock(HandleSet*);
 
     char* payload();
     char* payloadEnd();
+    const char* payload() const;
+    const char* payloadEnd() const;
 
     static constexpr size_t s_blockMask = ~(blockSize - 1);
 

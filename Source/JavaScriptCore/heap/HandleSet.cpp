@@ -48,22 +48,87 @@ void HandleSet::grow()
 {
     HandleBlock* newBlock = HandleBlock::create(this);
     m_blockList.append(newBlock);
+    newBlock->m_usedSlots.resize(newBlock->nodeCapacity());
+    newBlock->m_cellSlots.resize(newBlock->nodeCapacity());
 
+    HandleNode* listHead = nullptr;
     for (int i = newBlock->nodeCapacity() - 1; i >= 0; --i) {
-        Node* node = newBlock->nodeAtIndex(i);
-        new (NotNull, node) Node;
-        m_freeList.push(node);
+        HandleNode* node = newBlock->nodeAtIndex(i);
+        node->setNext(listHead);
+        listHead = node;
     }
+    newBlock->setFreeListHead(listHead);
+
+    newBlock->setNextInFreeList(m_freeBlockList);
+    m_freeBlockList = newBlock;
+}
+
+HandleSlot HandleSet::allocate()
+{
+    if (!m_freeBlockList)
+        grow(); // Creates a new block and puts it on the free list.
+
+    HandleBlock* block = m_freeBlockList;
+    HandleNode* node = block->freeListHead();
+    ASSERT(node); // The block wouldn't be on the list if it had no free nodes.
+
+    block->setFreeListHead(node->next());
+
+    if (!block->freeListHead()) {
+        // This was the last free node in the block. Remove the block from the free list.
+        m_freeBlockList = block->nextInFreeList();
+        block->setNextInFreeList(nullptr);
+    }
+
+    unsigned index = node - block->nodes();
+    ASSERT(!block->isUsed(index));
+    block->setUsed(index, true);
+    block->setCell(index, false); // New handles start empty (not pointing to cells)
+
+    new (node) HandleNode();
+    return node->slot();
+}
+
+void HandleSet::deallocate(HandleSlot handle)
+{
+    HandleNode* node = HandleNode::toHandleNode(handle);
+    HandleBlock* block = HandleBlock::blockFor(node);
+    unsigned index = node - block->nodes();
+
+    ASSERT(block->isUsed(index));
+    block->setUsed(index, false);
+    block->setCell(index, false);
+
+    bool wasFull = !block->freeListHead();
+
+    node->setNext(block->freeListHead());
+    block->setFreeListHead(node);
+
+    if (wasFull) {
+        block->setNextInFreeList(m_freeBlockList);
+        m_freeBlockList = block;
+    }
+}
+
+void HandleSet::writeBarrier(HandleSlot slot, JSValue value)
+{
+    HandleNode* node = HandleNode::toHandleNode(slot);
+    HandleBlock* block = HandleBlock::blockFor(node);
+    unsigned index = node - block->nodes();
+    
+    // Update the cell bit based on whether the new value is a cell
+    block->setCell(index, value && value.isCell());
 }
 
 template<typename Visitor>
 void HandleSet::visitStrongHandles(Visitor& visitor)
 {
-    for (Node& node : m_strongList) {
-#if ENABLE(GC_VALIDATION)
-        RELEASE_ASSERT(isLiveNode(&node));
-#endif
-        visitor.appendUnbarriered(*node.slot());
+    for (HandleBlock* block = m_blockList.head(); block; block = block->next()) {
+        // Visit only slots that are both used AND contain cells
+        auto cellHandles = block->m_usedSlots & block->m_cellSlots;
+        cellHandles.forEachSetBit([&] (unsigned i) {
+            visitor.appendUnbarriered(*block->nodeAtIndex(i)->slot());
+        });
     }
 }
 
@@ -73,10 +138,14 @@ template void HandleSet::visitStrongHandles(SlotVisitor&);
 unsigned HandleSet::protectedGlobalObjectCount()
 {
     unsigned count = 0;
-    for (Node& node : m_strongList) {
-        JSValue value = *node.slot();
-        if (value.isObject() && asObject(value.asCell())->isGlobalObject())
-            count++;
+    for (HandleBlock* block = m_blockList.head(); block; block = block->next()) {
+        // Only check slots that are both used AND contain cells
+        auto cellHandles = block->m_usedSlots & block->m_cellSlots;
+        cellHandles.forEachSetBit([&] (unsigned i) {
+            JSValue value = *block->nodeAtIndex(i)->slot();
+            if (value.isObject() && asObject(value.asCell())->isGlobalObject())
+                count++;
+        });
     }
     return count;
 }
@@ -84,12 +153,23 @@ unsigned HandleSet::protectedGlobalObjectCount()
 #if ENABLE(GC_VALIDATION) || ASSERT_ENABLED
 bool HandleSet::isLiveNode(Node* node)
 {
-    if (node->prev()->next() != node)
+    HandleBlock* block = HandleBlock::blockFor(node);
+    // Verify the block is part of this HandleSet. A full search is slow but fine for validation.
+    bool blockFound = false;
+    for (HandleBlock* b = m_blockList.head(); b; b = b->next()) {
+        if (b == block) {
+            blockFound = true;
+            break;
+        }
+    }
+    if (!blockFound)
         return false;
-    if (node->next()->prev() != node)
-        return false;
-        
-    return true;
+
+    // A node is live if its used bit is set.
+    // Note: We don't check m_cellSlots here because a handle containing a primitive
+    // is still a "live" handle - it's just not visited during GC.
+    unsigned index = node - block->nodes();
+    return block->isUsed(index);
 }
 #endif // ENABLE(GC_VALIDATION) || ASSERT_ENABLED
 

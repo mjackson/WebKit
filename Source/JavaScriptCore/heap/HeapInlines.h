@@ -26,6 +26,7 @@
 #pragma once
 
 #include "GCDeferralContext.h"
+#include "HandleSetInlines.h"
 #include "Heap.h"
 #include "HeapCellInlines.h"
 #include "IndexingHeader.h"
