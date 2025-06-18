@@ -624,7 +624,7 @@ static inline void pas_lock_lock(pas_lock* lock)
         
         /* Wait if locked or contended */
         LONG expected = PAS_LOCK_CONTENDED;
-        RtlWaitOnAddress(&lock->state, &expected, sizeof(expected), NULL);
+        RtlWaitOnAddress((PVOID)&lock->state, &expected, sizeof(expected), NULL);
     }
 }
 
@@ -645,7 +645,7 @@ static inline void pas_lock_unlock(pas_lock* lock)
     
     /* Wake one waiter if there was contention */
     if (old_state == PAS_LOCK_CONTENDED) {
-        RtlWakeAddressSingle(&lock->state);
+        RtlWakeAddressSingle((PVOID)&lock->state);
     }
 }
 
