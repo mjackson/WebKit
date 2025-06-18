@@ -157,7 +157,7 @@ public:
         // in asan builds of bun, for some reason backtrace_symbols() calls the plain malloc() function
         // instead of asan's instrumented version of malloc(), which means that asan doesn't know
         // that the return value of backtrace_symbols() is okay to free
-#if !USE(BUN_JSC_ADDITIONS)
+#if !(USE(BUN_JSC_ADDITIONS) && ASAN_ENABLED)
         free(symbols);
 #endif
 #endif
