@@ -153,7 +153,13 @@ public:
             free(symbols[i]);
         free(symbols);
 #elif HAVE(BACKTRACE_SYMBOLS)
+        // TODO(@190n) get this to play nice with AddressSanitizer
+        // in asan builds of bun, for some reason backtrace_symbols() calls the plain malloc() function
+        // instead of asan's instrumented version of malloc(), which means that asan doesn't know
+        // that the return value of backtrace_symbols() is okay to free
+#if !USE(BUN_JSC_ADDITIONS)
         free(symbols);
+#endif
 #endif
     }
 private:
