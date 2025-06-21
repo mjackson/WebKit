@@ -56,8 +56,8 @@ StreamingCompiler::StreamingCompiler(VM& vm, CompilerMode compilerMode, JSGlobal
     m_ticket = vm.deferredWorkTimer->addPendingWork(DeferredWorkTimer::WorkType::AtSomePoint, vm, promise, WTFMove(dependencies));
 #ifndef BUN_SKIP_FAILING_ASSERTIONS
     ASSERT(vm.deferredWorkTimer->hasPendingWork(m_ticket));
-#endif
     ASSERT(!importObject || vm.deferredWorkTimer->hasDependencyInPendingWork(m_ticket, importObject));
+#endif
 }
 
 StreamingCompiler::~StreamingCompiler()
