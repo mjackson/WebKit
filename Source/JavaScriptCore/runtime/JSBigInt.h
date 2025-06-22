@@ -82,6 +82,9 @@ public:
 
     static JSBigInt* createFrom(JSGlobalObject*, VM&, int32_t value);
 
+    JS_EXPORT_PRIVATE static JSBigInt* tryCreateFromWords(VM&, std::span<const uint64_t> words, bool sign);
+    static JSBigInt* createFromWords(JSGlobalObject*, std::span<const uint64_t> words, bool sign);
+
     static constexpr size_t offsetOfLength()
     {
         return OBJECT_OFFSETOF(JSBigInt, m_length);
@@ -147,7 +150,8 @@ public:
     static String tryGetString(VM&, JSBigInt*, unsigned radix);
 
     String toString(JSGlobalObject*, unsigned radix);
-    
+    JS_EXPORT_PRIVATE size_t toWordsArray(std::span<uint64_t> words);
+
     enum class ComparisonMode {
         LessThan,
         LessThanOrEqual

@@ -378,6 +378,61 @@ JSBigInt* JSBigInt::createFrom(JSGlobalObject* globalObject, double value)
     RELEASE_AND_RETURN(scope, result->rightTrim(globalObject));
 }
 
+
+JSBigInt* JSBigInt::tryCreateFromWords(VM& vm, std::span<const uint64_t> words, bool sign)
+{
+    // Trim leading zeroes
+    size_t wordCount = words.size();
+    while (wordCount > 0 && words[wordCount - 1] == 0) {
+        wordCount--;
+    }
+
+    if (wordCount == 0) {
+        return tryCreateZero(vm);
+    }
+
+    // Check size limit
+    if (wordCount > maxLength) [[unlikely]] {
+        return nullptr;
+    }
+
+    JSBigInt* bigInt = tryCreateWithLength(vm, wordCount);
+    if (!bigInt) [[unlikely]]
+        return nullptr;
+
+    bigInt->setSign(sign);
+
+    // Fast path: use memcpy to copy all words at once
+    // No need to initialize to zero first since we're copying all the data
+    memcpy(bigInt->dataStorage(), words.data(), wordCount * sizeof(uint64_t));
+
+    return bigInt;
+}
+
+JSBigInt* JSBigInt::createFromWords(JSGlobalObject* globalObject, std::span<const uint64_t> words, bool sign)
+{
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    JSBigInt* result = tryCreateFromWords(vm, words, sign);
+    if (!result) {
+        throwOutOfMemoryError(globalObject, scope, "BigInt generated from this operation is too big"_s);
+        return nullptr;
+    }
+
+    RELEASE_AND_RETURN(scope, result);
+}
+
+size_t JSBigInt::toWordsArray(std::span<uint64_t> words)
+{
+    size_t copyCount = std::min(words.size(), static_cast<size_t>(length()));
+    if (copyCount > 0) {
+        // Fast path: use memcpy to copy all words at once
+        memcpy(words.data(), dataStorage(), copyCount * sizeof(uint64_t));
+    }
+    return copyCount;
+}
+
 JSValue JSBigInt::toPrimitive(JSGlobalObject*, PreferredPrimitiveType) const
 {
     return const_cast<JSBigInt*>(this);
