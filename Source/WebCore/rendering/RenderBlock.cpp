@@ -520,7 +520,7 @@ void RenderBlock::layout()
     invalidateBackgroundObscurationStatus();
 }
 
-RenderBlockRareData* RenderBlock::getBlockRareData() const
+RenderBlockRareData* RenderBlock::blockRareData() const
 {
     if (!renderBlockHasRareData())
         return nullptr;
@@ -758,9 +758,9 @@ bool RenderBlock::canPerformSimplifiedLayout() const
         return false;
     if (auto wasSkippedDuringLastLayout = wasSkippedDuringLastLayoutDueToContentVisibility(); wasSkippedDuringLastLayout && *wasSkippedDuringLastLayout)
         return false;
-    if (layoutContext().isSkippedContentRootForLayout(*this) && (posChildNeedsLayout() || canContainFixedPositionObjects()))
+    if (layoutContext().isSkippedContentRootForLayout(*this) && (outOfFlowChildNeedsLayout() || canContainFixedPositionObjects()))
         return false;
-    return posChildNeedsLayout() || needsSimplifiedNormalFlowLayout();
+    return outOfFlowChildNeedsLayout() || needsSimplifiedNormalFlowLayout();
 }
 
 bool RenderBlock::simplifiedLayout()
@@ -769,7 +769,7 @@ bool RenderBlock::simplifiedLayout()
         return false;
 
     LayoutStateMaintainer statePusher(*this, locationOffset(), isTransformed() || hasReflection() || writingMode().isBlockFlipped());
-    if (needsPositionedMovementLayout() && !tryLayoutDoingPositionedMovementOnly())
+    if (needsOutOfFlowMovementLayout() && !tryLayoutDoingOutOfFlowMovementOnly())
         return false;
 
     // Lay out positioned descendants or objects that just need to recompute overflow.
@@ -783,12 +783,12 @@ bool RenderBlock::simplifiedLayout()
 
     // Lay out our positioned objects if our positioned child bit is set.
     // Also, if an absolute position element inside a relative positioned container moves, and the absolute element has a fixed position
-    // child, neither the fixed element nor its container learn of the movement since posChildNeedsLayout() is only marked as far as the 
+    // child, neither the fixed element nor its container learn of the movement since outOfFlowChildNeedsLayout() is only marked as far as the
     // relative positioned container. So if we can have fixed pos objects in our positioned objects list check if any of them
     // are statically positioned and thus need to move with their absolute ancestors.
     bool canContainFixedPosObjects = canContainFixedPositionObjects();
-    if (posChildNeedsLayout() || canContainFixedPosObjects)
-        layoutOutOfFlowBoxes(RelayoutChildren::No, !posChildNeedsLayout() && canContainFixedPosObjects);
+    if (outOfFlowChildNeedsLayout() || canContainFixedPosObjects)
+        layoutOutOfFlowBoxes(RelayoutChildren::No, !outOfFlowChildNeedsLayout() && canContainFixedPosObjects);
 
     // Recompute our overflow information.
     // FIXME: We could do better here by computing a temporary overflow object from layoutOutOfFlowBoxes and only
@@ -887,7 +887,7 @@ void RenderBlock::layoutOutOfFlowBox(RenderBox& outOfFlowBox, RelayoutChildren r
     
     // We don't have to do a full layout.  We just have to update our position. Try that first. If we have shrink-to-fit width
     // and we hit the available width constraint, the layoutIfNeeded() will catch it and do a full layout.
-    if (outOfFlowBox.needsPositionedMovementLayoutOnly() && outOfFlowBox.tryLayoutDoingPositionedMovementOnly())
+    if (outOfFlowBox.needsOutOfFlowMovementLayoutOnly() && outOfFlowBox.tryLayoutDoingOutOfFlowMovementOnly())
         outOfFlowBox.clearNeedsLayout();
 
     // If we are paginated or in a line grid, compute a vertical position for our object now.
@@ -1804,8 +1804,8 @@ void RenderBlock::addOutOfFlowBox(RenderBox& outOfFlowBox)
     // FIXME: Find out if we can do this as part of outOfFlowBox.setChildNeedsLayout(MarkOnlyThis)
     if (outOfFlowBox.needsLayout()) {
         // We should turn this bit on only while in layout.
-        ASSERT(posChildNeedsLayout() || view().frameView().layoutContext().isInLayout());
-        setPosChildNeedsLayoutBit(true);
+        ASSERT(outOfFlowChildNeedsLayout() || view().frameView().layoutContext().isInLayout());
+        setOutOfFlowChildNeedsLayoutBit(true);
     }
     outOfFlowDescendantsMap().addDescendant(*this, outOfFlowBox);
 }
@@ -2133,12 +2133,12 @@ bool RenderBlock::hitTestContents(const HitTestRequest& request, HitTestResult& 
     return false;
 }
 
-static inline bool isEditingBoundary(RenderElement* ancestor, RenderObject& child)
+static inline bool isEditingBoundary(RenderElement* ancestor, RenderBox& child)
 {
     ASSERT(!ancestor || ancestor->nonPseudoElement());
-    ASSERT(child.nonPseudoNode());
+    ASSERT(child.nonPseudoElement());
     return !ancestor || !ancestor->parent() || (ancestor->hasLayer() && ancestor->parent()->isRenderView())
-        || ancestor->protectedNonPseudoElement()->hasEditableStyle() == child.protectedNonPseudoNode()->hasEditableStyle();
+        || ancestor->protectedNonPseudoElement()->hasEditableStyle() == child.protectedNonPseudoElement()->hasEditableStyle();
 }
 
 // FIXME: This function should go on RenderObject as an instance method. Then
@@ -2652,30 +2652,26 @@ static inline RenderBlock* findFirstLetterBlock(RenderBlock* start)
     return nullptr;
 }
 
-void RenderBlock::getFirstLetter(RenderObject*& firstLetter, RenderElement*& firstLetterContainer, RenderObject* skipObject)
+std::pair<RenderObject*, RenderElement*> RenderBlock::firstLetterAndContainer(RenderObject* skipThisAsFirstLetter)
 {
-    firstLetter = nullptr;
-    firstLetterContainer = nullptr;
-
     // Don't recur
     if (style().pseudoElementType() == PseudoId::FirstLetter)
-        return;
+        return { };
     
     // FIXME: We need to destroy the first-letter object if it is no longer the first child. Need to find
     // an efficient way to check for that situation though before implementing anything.
-    firstLetterContainer = findFirstLetterBlock(this);
+    RenderElement* firstLetterContainer = findFirstLetterBlock(this);
     if (!firstLetterContainer)
-        return;
+        return { };
     
     // Drill into inlines looking for our first text descendant.
-    firstLetter = firstLetterContainer->firstChild();
+    auto* firstLetter = firstLetterContainer->firstChild();
     while (firstLetter) {
         if (is<RenderText>(*firstLetter)) {
-            if (firstLetter == skipObject) {
+            if (firstLetter == skipThisAsFirstLetter) {
                 firstLetter = firstLetter->nextSibling();
                 continue;
             }
-            
             break;
         }
 
@@ -2701,12 +2697,14 @@ void RenderBlock::getFirstLetter(RenderObject*& firstLetter, RenderElement*& fir
     }
     
     if (!firstLetter)
-        firstLetterContainer = nullptr;
+        return { };
+
+    return { firstLetter, firstLetterContainer };
 }
 
 RenderFragmentedFlow* RenderBlock::cachedEnclosingFragmentedFlow() const
 {
-    RenderBlockRareData* rareData = getBlockRareData();
+    RenderBlockRareData* rareData = blockRareData();
 
     if (!rareData || !rareData->m_enclosingFragmentedFlow)
         return nullptr;
@@ -2716,7 +2714,7 @@ RenderFragmentedFlow* RenderBlock::cachedEnclosingFragmentedFlow() const
 
 bool RenderBlock::cachedEnclosingFragmentedFlowNeedsUpdate() const
 {
-    RenderBlockRareData* rareData = getBlockRareData();
+    RenderBlockRareData* rareData = blockRareData();
 
     if (!rareData || !rareData->m_enclosingFragmentedFlow)
         return true;
@@ -2740,7 +2738,7 @@ RenderFragmentedFlow* RenderBlock::updateCachedEnclosingFragmentedFlow(RenderFra
 
 RenderFragmentedFlow* RenderBlock::locateEnclosingFragmentedFlow() const
 {
-    RenderBlockRareData* rareData = getBlockRareData();
+    RenderBlockRareData* rareData = blockRareData();
     if (!rareData || !rareData->m_enclosingFragmentedFlow)
         return updateCachedEnclosingFragmentedFlow(RenderBox::locateEnclosingFragmentedFlow());
 
@@ -2761,19 +2759,19 @@ void RenderBlock::resetEnclosingFragmentedFlowAndChildInfoIncludingDescendants(R
 
 LayoutUnit RenderBlock::paginationStrut() const
 {
-    RenderBlockRareData* rareData = getBlockRareData();
+    RenderBlockRareData* rareData = blockRareData();
     return rareData ? rareData->m_paginationStrut : 0_lu;
 }
 
 LayoutUnit RenderBlock::pageLogicalOffset() const
 {
-    RenderBlockRareData* rareData = getBlockRareData();
+    RenderBlockRareData* rareData = blockRareData();
     return rareData ? rareData->m_pageLogicalOffset : 0_lu;
 }
 
 void RenderBlock::setPaginationStrut(LayoutUnit strut)
 {
-    RenderBlockRareData* rareData = getBlockRareData();
+    RenderBlockRareData* rareData = blockRareData();
     if (!rareData) {
         if (!strut)
             return;
@@ -2784,7 +2782,7 @@ void RenderBlock::setPaginationStrut(LayoutUnit strut)
 
 void RenderBlock::setPageLogicalOffset(LayoutUnit logicalOffset)
 {
-    RenderBlockRareData* rareData = getBlockRareData();
+    RenderBlockRareData* rareData = blockRareData();
     if (!rareData) {
         if (!logicalOffset)
             return;
@@ -3414,13 +3412,13 @@ LayoutRect RenderBlock::paintRectToClipOutFromBorder(const LayoutRect& paintRect
 
 LayoutUnit RenderBlock::intrinsicBorderForFieldset() const
 {
-    auto* rareData = getBlockRareData();
+    auto* rareData = blockRareData();
     return rareData ? rareData->m_intrinsicBorderForFieldset : 0_lu;
 }
 
 void RenderBlock::setIntrinsicBorderForFieldset(LayoutUnit padding)
 {
-    auto* rareData = getBlockRareData();
+    auto* rareData = blockRareData();
     if (!rareData) {
         if (!padding)
             return;

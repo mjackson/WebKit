@@ -636,7 +636,7 @@ using GeolocationIdentifier = ObjectIdentifier<GeolocationIdentifierType>;
 using LayerHostingContextID = uint32_t;
 using NetworkResourceLoadIdentifier = ObjectIdentifier<NetworkResourceLoadIdentifierType>;
 using PDFPluginIdentifier = ObjectIdentifier<PDFPluginIdentifierType>;
-using PlaybackSessionContextIdentifier = WebCore::HTMLMediaElementIdentifier;
+using PlaybackSessionContextIdentifier = WebCore::ProcessQualified<WebCore::HTMLMediaElementIdentifier>;
 using SnapshotOptions = OptionSet<SnapshotOption>;
 using SpeechRecognitionPermissionRequestCallback = CompletionHandler<void(std::optional<WebCore::SpeechRecognitionError>&&)>;
 using SpellDocumentTag = int64_t;
@@ -680,7 +680,6 @@ public:
     DrawingAreaProxy* provisionalDrawingArea() const;
 
     WebNavigationState& navigationState() { return *m_navigationState; }
-    Ref<WebNavigationState> protectedNavigationState();
 
     WebsiteDataStore& websiteDataStore() { return m_websiteDataStore; }
     Ref<WebsiteDataStore> protectedWebsiteDataStore() const;
@@ -787,6 +786,7 @@ public:
     PlaybackSessionManagerProxy* playbackSessionManager();
     RefPtr<PlaybackSessionManagerProxy> protectedPlaybackSessionManager();
     VideoPresentationManagerProxy* videoPresentationManager();
+    RefPtr<VideoPresentationManagerProxy> protectedVideoPresentationManager();
     void setMockVideoPresentationModeEnabled(bool);
 #endif
 
@@ -991,7 +991,9 @@ public:
     void requestScroll(const WebCore::FloatPoint& scrollPosition, const WebCore::IntPoint& scrollOrigin, WebCore::ScrollIsAnimated);
     
     WebCore::FloatPoint viewScrollPosition() const;
-    
+
+    void setNeedsScrollGeometryUpdates(bool);
+
     void setHasActiveAnimatedScrolls(bool isRunning);
 
     void setPrivateClickMeasurement(std::nullopt_t);
@@ -2333,6 +2335,10 @@ public:
     void didCleanupFullscreen(PlaybackSessionContextIdentifier);
     void didChangePlaybackRate(PlaybackSessionContextIdentifier);
     void didChangeCurrentTime(PlaybackSessionContextIdentifier);
+#if PLATFORM(IOS_FAMILY)
+    void didEnterStandby(PlaybackSessionContextIdentifier);
+    void didExitStandby(PlaybackSessionContextIdentifier);
+#endif
 #else
     void didEnterFullscreen();
     void didExitFullscreen();
@@ -2703,7 +2709,7 @@ public:
     void startNetworkRequestsForPageLoadTiming(WebCore::FrameIdentifier);
     void endNetworkRequestsForPageLoadTiming(WebCore::FrameIdentifier, WallTime);
 
-    WebProcessActivityState& processActivityState();
+    WebProcessActivityState& processActivityState() { return m_mainFrameProcessActivityState; }
 
 #if ENABLE(WEB_PROCESS_SUSPENSION_DELAY)
     void updateWebProcessSuspensionDelay();
@@ -2713,6 +2719,8 @@ public:
 
 #if PLATFORM(IOS_FAMILY)
     void isPotentialTapInProgress(CompletionHandler<void(bool)>&&);
+
+    void didRefreshDisplay();
 #endif
 
 #if PLATFORM(COCOA) && ENABLE(ASYNC_SCROLLING)
@@ -3387,6 +3395,7 @@ private:
 #endif
 
     void setCustomUserAgentInternal();
+    HashSet<Ref<WebProcessProxy>> webContentProcessesWithFrame();
 
     const UniqueRef<Internals> m_internals;
     Identifier m_identifier;
@@ -3412,7 +3421,7 @@ private:
     std::unique_ptr<WebPageInjectedBundleClient> m_injectedBundleClient;
     RefPtr<PageLoadStateObserverBase> m_pageLoadStateObserver;
 
-    UniqueRef<WebNavigationState> m_navigationState;
+    const UniqueRef<WebNavigationState> m_navigationState;
     String m_failingProvisionalLoadURL;
     bool m_isLoadingAlternateHTMLStringForFailingProvisionalLoad { false };
 
@@ -3550,7 +3559,7 @@ private:
 #endif
     bool m_allowsMediaDocumentInlinePlayback { false };
 
-    UniqueRef<WebProcessActivityState> m_mainFrameProcessActivityState;
+    const UniqueRef<WebProcessActivityState> m_mainFrameProcessActivityState;
 
     bool m_initialCapitalizationEnabled { false };
     std::optional<double> m_cpuLimit;
@@ -3859,6 +3868,8 @@ private:
     bool m_isRunningModalJavaScriptDialog { false };
     bool m_isSuspended { false };
     bool m_isLockdownModeExplicitlySet { false };
+
+    bool m_needsScrollGeometryUpdates { false };
 
 #if ENABLE(ADVANCED_PRIVACY_PROTECTIONS)
     RefPtr<ListDataObserver> m_linkDecorationFilteringDataUpdateObserver;

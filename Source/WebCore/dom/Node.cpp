@@ -2,7 +2,7 @@
  * Copyright (C) 1999 Lars Knoll (knoll@kde.org)
  *           (C) 1999 Antti Koivisto (koivisto@kde.org)
  *           (C) 2001 Dirk Mueller (mueller@kde.org)
- * Copyright (C) 2004-2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2004-2025 Apple Inc. All rights reserved.
  * Copyright (C) 2008 Nokia Corporation and/or its subsidiary(-ies)
  * Copyright (C) 2009 Torch Mobile Inc. All rights reserved. (http://www.torchmobile.com/)
  *
@@ -2460,7 +2460,7 @@ static inline bool tryAddEventListener(Node* targetNode, const AtomString& event
 
 #if PLATFORM(IOS_FAMILY)
     if (targetNode == document.ptr() && typeInfo.type() == EventType::scroll) {
-        if (RefPtr window = document->domWindow())
+        if (RefPtr window = document->window())
             window->incrementScrollEventListenersCount();
     }
 
@@ -2512,7 +2512,7 @@ static inline bool didRemoveEventListenerOfType(Node& targetNode, const AtomStri
 
 #if PLATFORM(IOS_FAMILY)
     if (&targetNode == document.ptr() && typeInfo.type() == EventType::scroll) {
-        if (RefPtr window = document->domWindow())
+        if (RefPtr window = document->window())
             window->decrementScrollEventListenersCount();
     }
 
@@ -2749,7 +2749,7 @@ void Node::defaultEventHandler(Event& event)
                 CheckedPtr renderBox = dynamicDowncast<RenderBox>(*renderer);
                 if (renderBox && renderBox->canBeScrolledAndHasScrollableArea()) {
                     if (RefPtr frame = document().frame())
-                        frame->checkedEventHandler()->startPanScrolling(*renderBox);
+                        frame->eventHandler().startPanScrolling(*renderBox);
                     break;
                 }
             }

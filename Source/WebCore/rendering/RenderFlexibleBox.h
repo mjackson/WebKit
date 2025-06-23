@@ -127,10 +127,10 @@ public:
 
     bool hasModernLayout() const { return m_hasFlexFormattingContextLayout && *m_hasFlexFormattingContextLayout; }
 
+    bool shouldResetFlexItemLogicalHeightBeforeLayout() const { return m_shouldResetFlexItemLogicalHeightBeforeLayout; }
+
 protected:
     void computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const override;
-
-    bool shouldResetChildLogicalHeightBeforeLayout(const RenderBox&) const override { return m_shouldResetFlexItemLogicalHeightBeforeLayout; }
 
 private:
     class FlexLayoutItem {
@@ -340,11 +340,11 @@ private:
 
     // This is used to cache the preferred size for orthogonal flow children so we
     // don't have to relayout to get it
-    UncheckedKeyHashMap<SingleThreadWeakRef<const RenderBox>, LayoutUnit> m_intrinsicSizeAlongMainAxis;
+    HashMap<SingleThreadWeakRef<const RenderBox>, LayoutUnit> m_intrinsicSizeAlongMainAxis;
     
     // This is used to cache the intrinsic size on the cross axis to avoid
     // relayouts when stretching.
-    UncheckedKeyHashMap<SingleThreadWeakRef<const RenderBox>, LayoutUnit> m_intrinsicContentLogicalHeights;
+    HashMap<SingleThreadWeakRef<const RenderBox>, LayoutUnit> m_intrinsicContentLogicalHeights;
 
     // This set is used to keep track of which children we laid out in this
     // current layout iteration. We need it because the ones in this set may

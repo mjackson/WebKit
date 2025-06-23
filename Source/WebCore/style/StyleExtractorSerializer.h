@@ -48,7 +48,7 @@ class ExtractorSerializer {
 public:
     // MARK: Strong value conversions
 
-    template<typename T> static void serializeStyleType(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const T&);
+    template<typename T, typename... Rest> static void serializeStyleType(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const T&, Rest&&...);
 
     // MARK: Primitive serializations
 
@@ -82,7 +82,6 @@ public:
     // MARK: SVG serializations
 
     static void serializeSVGURIReference(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const URL&);
-    static void serializeSVGPaint(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, SVGPaintType, const URL&, const Color&);
 
     // MARK: Transform serializations
 
@@ -99,7 +98,6 @@ public:
     static void serializeGlyphOrientationOrAuto(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, GlyphOrientation);
     static void serializeListStyleType(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const ListStyleType&);
     static void serializeMarginTrim(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, OptionSet<MarginTrimType>);
-    static void serializeBasicShape(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const BasicShape&, PathConversion = PathConversion::None);
     static void serializeShapeValue(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const ShapeValue*);
     static void serializePathOperation(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const PathOperation*, PathConversion = PathConversion::None);
     static void serializePathOperationForceAbsolute(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const PathOperation*);
@@ -140,8 +138,6 @@ public:
     static void serializeLineBoxContain(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, OptionSet<Style::LineBoxContain>);
     static void serializeWebkitRubyPosition(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, RubyPosition);
     static void serializePosition(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const LengthPoint&);
-    static void serializePositionOrAuto(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const LengthPoint&);
-    static void serializePositionOrAutoOrNormal(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const LengthPoint&);
     static void serializeContainIntrinsicSize(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const ContainIntrinsicSizeType&, const std::optional<WebCore::Length>&);
     static void serializeTouchAction(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, OptionSet<TouchAction>);
     static void serializeTextTransform(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, OptionSet<TextTransform>);
@@ -158,7 +154,6 @@ public:
     static void serializeWebkitColumnBreak(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, BreakInside);
     static void serializeSelfOrDefaultAlignmentData(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const StyleSelfAlignmentData&);
     static void serializeContentAlignmentData(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const StyleContentAlignmentData&);
-    static void serializeOffsetRotate(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const OffsetRotation&);
     static void serializePaintOrder(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, PaintOrder);
     static void serializeScrollTimelineAxes(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const FixedVector<ScrollAxis>&);
     static void serializeScrollTimelineNames(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const FixedVector<AtomString>&);
@@ -246,9 +241,9 @@ public:
 
 // MARK: - Strong value serializations
 
-template<typename T> void ExtractorSerializer::serializeStyleType(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, const T& value)
+template<typename T, typename... Rest> void ExtractorSerializer::serializeStyleType(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, const T& value, Rest&&... rest)
 {
-    serializationForCSS(builder, context, state.style, value);
+    serializationForCSS(builder, context, state.style, value, std::forward<Rest>(rest)...);
 }
 
 // MARK: - Primitive serializations
@@ -484,35 +479,6 @@ inline void ExtractorSerializer::serializeSVGURIReference(ExtractorState& state,
     }
 
     serializationForCSS(builder, context, state.style, marker);
-}
-
-inline void ExtractorSerializer::serializeSVGPaint(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, SVGPaintType paintType, const URL& url, const Color& color)
-{
-    switch (paintType) {
-    case SVGPaintType::URI:
-        CSS::serializationForCSS(builder, context, toCSS(url, state.style));
-        return;
-
-    case SVGPaintType::URINone:
-        CSS::serializationForCSS(builder, context, toCSS(url, state.style));
-        builder.append(' ');
-        [[fallthrough]];
-    case SVGPaintType::None:
-        CSS::serializationForCSS(builder, context, CSS::Keyword::None { });
-        return;
-
-    case SVGPaintType::URICurrentColor:
-    case SVGPaintType::URIRGBColor:
-        CSS::serializationForCSS(builder, context, toCSS(url, state.style));
-        builder.append(' ');
-        [[fallthrough]];
-    case SVGPaintType::RGBColor:
-    case SVGPaintType::CurrentColor:
-        serializeStyleType(state, builder, context, color);
-        return;
-    }
-
-    RELEASE_ASSERT_NOT_REACHED();
 }
 
 // MARK: - Transform serializations
@@ -854,18 +820,6 @@ inline void ExtractorSerializer::serializeMarginTrim(ExtractorState& state, Stri
     appendOption(MarginTrimType::InlineEnd, CSSValueInlineEnd);
 }
 
-inline void ExtractorSerializer::serializeBasicShape(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, const BasicShape& basicShape, PathConversion pathConversion)
-{
-    WTF::switchOn(basicShape,
-        [&](const auto& shape) {
-            CSS::serializationForCSS(builder, context, CSS::BasicShape { toCSS(shape, state.style) });
-        },
-        [&](const PathFunction& path)  {
-            CSS::serializationForCSS(builder, context, CSS::BasicShape { overrideToCSS(path, state.style, pathConversion) });
-        }
-    );
-}
-
 inline void ExtractorSerializer::serializeShapeValue(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, const ShapeValue* shapeValue)
 {
     if (!shapeValue) {
@@ -874,7 +828,7 @@ inline void ExtractorSerializer::serializeShapeValue(ExtractorState& state, Stri
     }
 
     if (shapeValue->type() == ShapeValue::Type::Box) {
-        serialize(state, builder, context, shapeValue->cssBox());
+        serializationForCSS(builder, context, state.style, shapeValue->cssBox());
         return;
     }
 
@@ -885,13 +839,13 @@ inline void ExtractorSerializer::serializeShapeValue(ExtractorState& state, Stri
 
     ASSERT(shapeValue->type() == ShapeValue::Type::Shape);
     if (shapeValue->cssBox() == CSSBoxType::BoxMissing) {
-        serializeBasicShape(state, builder, context, *shapeValue->shape());
+        serializationForCSS(builder, context, state.style, *shapeValue->shape());
         return;
     }
 
-    serializeBasicShape(state, builder, context, *shapeValue->shape());
+    serializationForCSS(builder, context, state.style, *shapeValue->shape());
     builder.append(' ');
-    serialize(state, builder, context, shapeValue->cssBox());
+    serializationForCSS(builder, context, state.style, shapeValue->cssBox());
 }
 
 inline void ExtractorSerializer::serializePathOperation(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, const PathOperation* operation, PathConversion conversion)
@@ -911,13 +865,13 @@ inline void ExtractorSerializer::serializePathOperation(ExtractorState& state, S
     case PathOperation::Type::Shape: {
         auto& shape = uncheckedDowncast<ShapePathOperation>(*operation);
         if (shape.referenceBox() == CSSBoxType::BoxMissing) {
-            serializeBasicShape(state, builder, context, shape.shape(), conversion);
+            serializeStyleType(state, builder, context, shape.shape(), conversion);
             return;
         }
 
-        serializeBasicShape(state, builder, context, shape.shape(), conversion);
+        serializeStyleType(state, builder, context, shape.shape(), conversion);
         builder.append(' ');
-        serialize(state, builder, context, shape.referenceBox());
+        serializeStyleType(state, builder, context, shape.referenceBox());
         return;
     }
 
@@ -955,7 +909,7 @@ inline void ExtractorSerializer::serializeDPath(ExtractorState& state, StringBui
         return;
     }
 
-    CSS::serializationForCSS(builder, context, overrideToCSS(Ref { *path }->path(), state.style, PathConversion::ForceAbsolute));
+    serializationForCSS(builder, context, state.style, Ref { *path }->path(), PathConversion::ForceAbsolute);
 }
 
 inline void ExtractorSerializer::serializeStrokeDashArray(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, const FixedVector<WebCore::Length>& dashes)
@@ -1521,31 +1475,6 @@ inline void ExtractorSerializer::serializePosition(ExtractorState& state, String
     serializeLength(state, builder, context, position.y);
 }
 
-inline void ExtractorSerializer::serializePositionOrAuto(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, const LengthPoint& position)
-{
-    if (position.x.isAuto() && position.y.isAuto()) {
-        serializationForCSS(builder, context, state.style, CSS::Keyword::Auto { });
-        return;
-    }
-
-    serializePosition(state, builder, context, position);
-}
-
-inline void ExtractorSerializer::serializePositionOrAutoOrNormal(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, const LengthPoint& position)
-{
-    if (position.x.isAuto() && position.y.isAuto()) {
-        serializationForCSS(builder, context, state.style, CSS::Keyword::Auto { });
-        return;
-    }
-
-    if (position.x.isNormal()) {
-        serializationForCSS(builder, context, state.style, CSS::Keyword::Normal { });
-        return;
-    }
-
-    serializePosition(state, builder, context, position);
-}
-
 inline void ExtractorSerializer::serializeContainIntrinsicSize(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, const ContainIntrinsicSizeType& type, const std::optional<WebCore::Length>& containIntrinsicLength)
 {
     switch (type) {
@@ -1873,16 +1802,6 @@ inline void ExtractorSerializer::serializeContentAlignmentData(ExtractorState& s
     ASSERT(list.size() > 0);
     ASSERT(list.size() <= 3);
     builder.append(CSSValueList::createSpaceSeparated(WTFMove(list))->cssText(context));
-}
-
-inline void ExtractorSerializer::serializeOffsetRotate(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, const OffsetRotation& rotation)
-{
-    if (rotation.hasAuto()) {
-        serializationForCSS(builder, context, state.style, CSS::Keyword::Auto { });
-        builder.append(' ');
-        CSS::serializationForCSS(builder, context, CSS::AngleRaw<> { CSS::AngleUnit::Deg, rotation.angle() });
-    } else
-        CSS::serializationForCSS(builder, context, CSS::AngleRaw<> { CSS::AngleUnit::Deg, rotation.angle() });
 }
 
 inline void ExtractorSerializer::serializePaintOrder(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, PaintOrder paintOrder)

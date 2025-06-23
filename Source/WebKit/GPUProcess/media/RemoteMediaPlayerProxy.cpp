@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2023 Apple Inc. All rights reserved.
+ * Copyright (C) 2019-2025 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -119,7 +119,7 @@ RemoteMediaPlayerProxy::~RemoteMediaPlayerProxy()
         m_performTaskAtTimeCompletionHandler(std::nullopt);
     setShouldEnableAudioSourceProvider(false);
 
-    for (auto& request : std::exchange(m_layerHostingContextIDRequests, { }))
+    for (auto& request : std::exchange(m_layerHostingContextRequests, { }))
         request({ });
 }
 
@@ -644,7 +644,7 @@ void RemoteMediaPlayerProxy::mediaPlayerRenderingModeChanged()
     protectedConnection()->send(Messages::MediaPlayerPrivateRemote::RenderingModeChanged(), m_id);
 }
 
-void RemoteMediaPlayerProxy::requestHostingContextID(LayerHostingContextIDCallback&& completionHandler)
+void RemoteMediaPlayerProxy::requestHostingContext(LayerHostingContextCallback&& completionHandler)
 {
     completionHandler({ });
 }
@@ -1083,7 +1083,7 @@ void RemoteMediaPlayerProxy::cdmInstanceAttached(RemoteCDMInstanceIdentifier&& i
         return;
 
     if (RefPtr instanceProxy = manager->gpuConnectionToWebProcess()->protectedCdmFactoryProxy()->getInstance(instanceId))
-        protectedPlayer()->cdmInstanceAttached(instanceProxy->protectedInstance());
+        protectedPlayer()->cdmInstanceAttached(instanceProxy->instance());
 }
 
 void RemoteMediaPlayerProxy::cdmInstanceDetached(RemoteCDMInstanceIdentifier&& instanceId)
@@ -1094,7 +1094,7 @@ void RemoteMediaPlayerProxy::cdmInstanceDetached(RemoteCDMInstanceIdentifier&& i
         return;
 
     if (RefPtr instanceProxy = manager->gpuConnectionToWebProcess()->protectedCdmFactoryProxy()->getInstance(instanceId))
-        protectedPlayer()->cdmInstanceDetached(instanceProxy->protectedInstance());
+        protectedPlayer()->cdmInstanceDetached(instanceProxy->instance());
 }
 
 void RemoteMediaPlayerProxy::attemptToDecryptWithInstance(RemoteCDMInstanceIdentifier&& instanceId)
@@ -1105,7 +1105,7 @@ void RemoteMediaPlayerProxy::attemptToDecryptWithInstance(RemoteCDMInstanceIdent
         return;
 
     if (RefPtr instanceProxy = manager->gpuConnectionToWebProcess()->protectedCdmFactoryProxy()->getInstance(instanceId))
-        protectedPlayer()->attemptToDecryptWithInstance(instanceProxy->protectedInstance());
+        protectedPlayer()->attemptToDecryptWithInstance(instanceProxy->instance());
 }
 #endif
 

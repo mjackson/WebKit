@@ -1779,6 +1779,9 @@ private:
         case RegExpMatchFastGlobal:
             compileRegExpMatchFastGlobal();
             break;
+        case RegExpSearch:
+            compileRegExpSearch();
+            break;
         case NewRegExp:
             compileNewRegExp();
             break;
@@ -4311,6 +4314,7 @@ private:
         JSGlobalObject* globalObject = m_graph.globalObjectFor(m_origin.semantic);
         LValue object = lowObject(m_graph.child(m_node, 0));
         LValue subscript = lowString(m_graph.child(m_node, 1));
+        bool needsRopeCase = canBeRope(m_graph.child(m_node, 1));
 
         PatchpointValue* patchpoint = m_out.patchpoint(Int64);
         patchpoint->appendSomeRegister(object);
@@ -4324,7 +4328,7 @@ private:
 
         State* state = &m_ftlState;
         CodeOrigin nodeSemanticOrigin = m_node->origin.semantic;
-        patchpoint->setGenerator([=] (CCallHelpers& jit, const StackmapGenerationParams& params) {
+        patchpoint->setGenerator([=](CCallHelpers& jit, const StackmapGenerationParams& params) {
             JIT_COMMENT(jit, "GetByValMegamorphic");
             AllowMacroScratchRegisterUsage allowScratch(jit);
 
@@ -4349,7 +4353,8 @@ private:
             CCallHelpers::JumpList slowCases;
 
             jit.loadPtr(CCallHelpers::Address(subscriptGPR, JSString::offsetOfValue()), scratch4GPR);
-            slowCases.append(jit.branchIfRopeStringImpl(scratch4GPR));
+            if (needsRopeCase)
+                slowCases.append(jit.branchIfRopeStringImpl(scratch4GPR));
             slowCases.append(jit.branchTest32(CCallHelpers::Zero, CCallHelpers::Address(scratch4GPR, StringImpl::flagsOffset()), CCallHelpers::TrustedImm32(StringImpl::flagIsAtom())));
 
             slowCases.append(jit.loadMegamorphicProperty(state->vm(), baseGPR, scratch4GPR, nullptr, resultGPR, scratch1GPR, scratch2GPR, scratch3GPR));
@@ -4579,6 +4584,7 @@ private:
         LValue cell = lowCell(m_graph.child(m_node, 0));
         LValue thisValue = lowJSValue(m_graph.child(m_node, 1));
         LValue subscript = lowJSValue(m_graph.child(m_node, 2));
+        bool needsRopeCase = canBeRope(m_graph.child(m_node, 2));
 
         PatchpointValue* patchpoint = m_out.patchpoint(Int64);
         patchpoint->appendSomeRegister(cell);
@@ -4593,7 +4599,7 @@ private:
 
         State* state = &m_ftlState;
         CodeOrigin nodeSemanticOrigin = m_node->origin.semantic;
-        patchpoint->setGenerator([=] (CCallHelpers& jit, const StackmapGenerationParams& params) {
+        patchpoint->setGenerator([=](CCallHelpers& jit, const StackmapGenerationParams& params) {
             AllowMacroScratchRegisterUsage allowScratch(jit);
 
             CallSiteIndex callSiteIndex = state->jitCode->common.codeOrigins->addUniqueCallSiteIndex(nodeSemanticOrigin);
@@ -4620,7 +4626,8 @@ private:
             slowCases.append(jit.branchIfNotCell(subscriptGPR));
             slowCases.append(jit.branchIfNotString(subscriptGPR));
             jit.loadPtr(CCallHelpers::Address(subscriptGPR, JSString::offsetOfValue()), scratch4GPR);
-            slowCases.append(jit.branchIfRopeStringImpl(scratch4GPR));
+            if (needsRopeCase)
+                slowCases.append(jit.branchIfRopeStringImpl(scratch4GPR));
             slowCases.append(jit.branchTest32(CCallHelpers::Zero, CCallHelpers::Address(scratch4GPR, StringImpl::flagsOffset()), CCallHelpers::TrustedImm32(StringImpl::flagIsAtom())));
 
             slowCases.append(jit.loadMegamorphicProperty(state->vm(), baseGPR, scratch4GPR, nullptr, resultGPR, scratch1GPR, scratch2GPR, scratch3GPR));
@@ -4916,6 +4923,7 @@ private:
         LValue cell = lowCell(m_graph.child(m_node, 0));
         LValue subscript = lowString(m_graph.child(m_node, 1));
         LValue value = lowJSValue(m_graph.child(m_node, 2));
+        bool needsRopeCase = canBeRope(m_graph.child(m_node, 1));
 
         PatchpointValue* patchpoint = m_out.patchpoint(Void);
         patchpoint->appendSomeRegister(cell);
@@ -4931,7 +4939,7 @@ private:
         State* state = &m_ftlState;
         CodeOrigin nodeSemanticOrigin = m_node->origin.semantic;
         ECMAMode ecmaMode = m_node->ecmaMode();
-        patchpoint->setGenerator([=] (CCallHelpers& jit, const StackmapGenerationParams& params) {
+        patchpoint->setGenerator([=](CCallHelpers& jit, const StackmapGenerationParams& params) {
             AllowMacroScratchRegisterUsage allowScratch(jit);
 
             CallSiteIndex callSiteIndex = state->jitCode->common.codeOrigins->addUniqueCallSiteIndex(nodeSemanticOrigin);
@@ -4955,7 +4963,8 @@ private:
             CCallHelpers::JumpList slowCases;
 
             jit.loadPtr(CCallHelpers::Address(subscriptGPR, JSString::offsetOfValue()), scratch4GPR);
-            slowCases.append(jit.branchIfRopeStringImpl(scratch4GPR));
+            if (needsRopeCase)
+                slowCases.append(jit.branchIfRopeStringImpl(scratch4GPR));
             slowCases.append(jit.branchTest32(CCallHelpers::Zero, CCallHelpers::Address(scratch4GPR, StringImpl::flagsOffset()), CCallHelpers::TrustedImm32(StringImpl::flagIsAtom())));
 
             CCallHelpers::JumpList slow, reallocating;
@@ -15842,6 +15851,7 @@ IGNORE_CLANG_WARNINGS_END
         JSGlobalObject* globalObject = m_graph.globalObjectFor(m_origin.semantic);
         LValue cell = lowCell(m_graph.child(m_node, 0));
         LValue subscript = lowString(m_graph.child(m_node, 1));
+        bool needsRopeCase = canBeRope(m_graph.child(m_node, 1));
 
         PatchpointValue* patchpoint = m_out.patchpoint(Int64);
         patchpoint->appendSomeRegister(cell);
@@ -15855,7 +15865,7 @@ IGNORE_CLANG_WARNINGS_END
 
         State* state = &m_ftlState;
         CodeOrigin nodeSemanticOrigin = m_node->origin.semantic;
-        patchpoint->setGenerator([=] (CCallHelpers& jit, const StackmapGenerationParams& params) {
+        patchpoint->setGenerator([=](CCallHelpers& jit, const StackmapGenerationParams& params) {
             JIT_COMMENT(jit, "InByValMegamorphic");
             AllowMacroScratchRegisterUsage allowScratch(jit);
 
@@ -15880,7 +15890,8 @@ IGNORE_CLANG_WARNINGS_END
             CCallHelpers::JumpList slowCases;
 
             jit.loadPtr(CCallHelpers::Address(subscriptGPR, JSString::offsetOfValue()), scratch4GPR);
-            slowCases.append(jit.branchIfRopeStringImpl(scratch4GPR));
+            if (needsRopeCase)
+                slowCases.append(jit.branchIfRopeStringImpl(scratch4GPR));
             slowCases.append(jit.branchTest32(CCallHelpers::Zero, CCallHelpers::Address(scratch4GPR, StringImpl::flagsOffset()), CCallHelpers::TrustedImm32(StringImpl::flagIsAtom())));
 
             slowCases.append(jit.hasMegamorphicProperty(state->vm(), baseGPR, scratch4GPR, nullptr, resultGPR, scratch1GPR, scratch2GPR, scratch3GPR));
@@ -17706,6 +17717,25 @@ IGNORE_CLANG_WARNINGS_END
         LValue argument = lowString(m_node->child2());
         LValue result = vmCall(Int64, operationRegExpMatchFastGlobalString, globalObject, frozenPointer(m_node->cellOperand()), argument);
         setJSValue(result);
+    }
+
+    void compileRegExpSearch()
+    {
+        ASSERT(m_node->child2().useKind() == RegExpObjectUse);
+        LValue globalObject = lowCell(m_node->child1());
+        LValue base = lowRegExpObject(m_node->child2());
+        speculate(
+            ExoticObjectMode, noValue(), nullptr,
+            m_out.testNonZeroPtr(
+                m_out.loadPtr(base, m_heaps.RegExpObject_regExpAndFlags),
+                m_out.constIntPtr(RegExpObject::lastIndexIsNotWritableFlag)));
+        if (m_node->child3().useKind() == StringUse) {
+            LValue argument = lowString(m_node->child3());
+            setInt32(vmCall(Int32, operationRegExpSearchString, globalObject, base, argument));
+            return;
+        }
+        LValue argument = lowJSValue(m_node->child3());
+        setInt32(vmCall(Int32, operationRegExpSearch, globalObject, base, argument));
     }
 
     void compileRegExpTest()
@@ -23255,41 +23285,36 @@ IGNORE_CLANG_WARNINGS_END
             m_out.constInt32(StringType));
     }
 
+    bool canBeRope(Edge edge)
+    {
+        if (!edge)
+            return true;
+
+        if (!((provenType(edge) & SpecString) & ~SpecStringResolved))
+            return false;
+        if (JSValue value = provenValue(edge)) {
+            if (value.isCell() && value.asCell()->type() == StringType && !asString(value)->isRope())
+                return false;
+        }
+        String value = edge->tryGetString(m_graph);
+        if (!value.isNull()) {
+            // If this value is LazyValue, it will be converted to JSString, and the result must be non-rope string.
+            return false;
+        }
+        return true;
+    }
+
     LValue isRopeString(LValue string, Edge edge = Edge())
     {
-        if (edge) {
-            if (!((provenType(edge) & SpecString) & ~SpecStringResolved))
-                return m_out.booleanFalse;
-            if (JSValue value = provenValue(edge)) {
-                if (value.isCell() && value.asCell()->type() == StringType && !asString(value)->isRope())
-                    return m_out.booleanFalse;
-            }
-            String value = edge->tryGetString(m_graph);
-            if (!value.isNull()) {
-                // If this value is LazyValue, it will be converted to JSString, and the result must be non-rope string.
-                return m_out.booleanFalse;
-            }
-        }
-
+        if (!canBeRope(edge))
+            return m_out.booleanFalse;
         return m_out.testNonZeroPtr(m_out.loadPtr(string, m_heaps.JSString_value), m_out.constIntPtr(JSString::isRopeInPointer));
     }
 
     LValue isNotRopeString(LValue string, Edge edge = Edge())
     {
-        if (edge) {
-            if (!((provenType(edge) & SpecString) & ~SpecStringResolved))
-                return m_out.booleanTrue;
-            if (JSValue value = provenValue(edge)) {
-                if (value.isCell() && value.asCell()->type() == StringType && !asString(value)->isRope())
-                    return m_out.booleanTrue;
-            }
-            String value = edge->tryGetString(m_graph);
-            if (!value.isNull()) {
-                // If this value is LazyValue, it will be converted to JSString, and the result must be non-rope string.
-                return m_out.booleanTrue;
-            }
-        }
-
+        if (!canBeRope(edge))
+            return m_out.booleanTrue;
         return m_out.testIsZeroPtr(m_out.loadPtr(string, m_heaps.JSString_value), m_out.constIntPtr(JSString::isRopeInPointer));
     }
 

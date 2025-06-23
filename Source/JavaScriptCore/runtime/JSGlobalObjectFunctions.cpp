@@ -571,7 +571,7 @@ JSC_DEFINE_HOST_FUNCTION(globalFuncParseFloat, (JSGlobalObject* globalObject, Ca
 JSC_DEFINE_HOST_FUNCTION(globalFuncDecodeURI, (JSGlobalObject* globalObject, CallFrame* callFrame))
 {
     static constexpr auto doNotUnescapeWhenDecodingURI = makeLatin1CharacterBitSet(
-        "#$&+,/:;=?@"
+        "#$&+,/:;=?@"_s
     );
 
     return JSValue::encode(decode(globalObject, callFrame->argument(0), doNotUnescapeWhenDecodingURI, true));
@@ -589,7 +589,7 @@ JSC_DEFINE_HOST_FUNCTION(globalFuncEncodeURI, (JSGlobalObject* globalObject, Cal
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         "abcdefghijklmnopqrstuvwxyz"
         "0123456789"
-        "!#$&'()*+,-./:;=?@_~"
+        "!#$&'()*+,-./:;=?@_~"_s
     );
     return JSValue::encode(encode(globalObject, callFrame->argument(0), doNotEscapeWhenEncodingURI));
 }
@@ -600,7 +600,7 @@ JSC_DEFINE_HOST_FUNCTION(globalFuncEncodeURIComponent, (JSGlobalObject* globalOb
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         "abcdefghijklmnopqrstuvwxyz"
         "0123456789"
-        "!'()*-._~"
+        "!'()*-._~"_s
     );
     return JSValue::encode(encode(globalObject, callFrame->argument(0), doNotEscapeWhenEncodingURIComponent));
 }
@@ -612,7 +612,7 @@ JSC_DEFINE_HOST_FUNCTION(globalFuncEscape, (JSGlobalObject* globalObject, CallFr
             "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
             "abcdefghijklmnopqrstuvwxyz"
             "0123456789"
-            "*+-./@_"
+            "*+-./@_"_s
         );
 
         VM& vm = globalObject->vm();

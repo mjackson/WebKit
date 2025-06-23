@@ -480,6 +480,8 @@ private:
 #endif
     }
 
+    bool needsScrollGeometryUpdates() const final;
+
 #if ENABLE(TEXT_AUTOSIZING)
     void textAutosizingUsesIdempotentModeChanged() final;
 #endif
@@ -567,6 +569,8 @@ private:
 #endif
 
     void setNeedsFixedContainerEdgesUpdate() final;
+
+    bool usePluginRendererScrollableArea(WebCore::LocalFrame&) const final;
 
     mutable bool m_cachedMainFrameHasHorizontalScrollbar { false };
     mutable bool m_cachedMainFrameHasVerticalScrollbar { false };

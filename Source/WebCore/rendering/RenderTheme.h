@@ -99,7 +99,7 @@ public:
 
     virtual String extraDefaultStyleSheet() { return String(); }
 #if ENABLE(VIDEO)
-    virtual Vector<String> mediaControlsStyleSheets(const HTMLMediaElement&) { return { }; }
+    virtual Vector<String, 2> mediaControlsStyleSheets(const HTMLMediaElement&) { return { }; }
     virtual Vector<String, 2> mediaControlsScripts() { return { }; }
     virtual String mediaControlsBase64StringForIconNameAndType(const String&, const String&) { return String(); }
     virtual String mediaControlsFormattedStringForDuration(double) { return String(); }
@@ -398,7 +398,7 @@ protected:
     virtual bool controlRequiresPreWhiteSpace(StyleAppearance) const { return false; }
 
 private:
-    OptionSet<ControlStyle::State> extractControlStyleStatesForRendererInternal(const RenderObject&) const;
+    OptionSet<ControlStyle::State> extractControlStyleStatesForRendererInternal(const RenderElement&) const;
 
     void adjustButtonOrCheckboxOrColorWellOrInnerSpinButtonOrRadioStyle(RenderStyle&, const Element*) const;
 
@@ -415,12 +415,12 @@ public:
     bool isPresenting(const RenderObject&) const;
     bool isReadOnlyControl(const RenderObject&) const;
     bool isDefault(const RenderObject&) const;
-    bool hasListButton(const RenderObject&) const;
-    bool hasListButtonPressed(const RenderObject&) const;
+    bool hasListButton(const RenderElement&) const;
+    bool hasListButtonPressed(const RenderElement&) const;
 
 protected:
     struct ColorCache {
-        UncheckedKeyHashMap<int, Color> systemStyleColors;
+        HashMap<int, Color> systemStyleColors;
 
         Color systemLinkColor;
         Color systemActiveLinkColor;
@@ -463,7 +463,7 @@ private:
     Color dictationAlternativesMarkerColor(OptionSet<StyleColorOptions>) const;
     Color grammarMarkerColor(OptionSet<StyleColorOptions>) const;
 
-    mutable UncheckedKeyHashMap<uint8_t, ColorCache, DefaultHash<uint8_t>, WTF::UnsignedWithZeroKeyHashTraits<uint8_t>> m_colorCacheMap;
+    mutable HashMap<uint8_t, ColorCache, DefaultHash<uint8_t>, WTF::UnsignedWithZeroKeyHashTraits<uint8_t>> m_colorCacheMap;
 
     bool m_useFormSemanticContext { false };
 };

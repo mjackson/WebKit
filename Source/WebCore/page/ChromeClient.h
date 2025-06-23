@@ -687,6 +687,8 @@ public:
 #endif
     virtual bool needsImageOverlayControllerForSelectionPainting() const { return false; }
 
+    virtual bool needsScrollGeometryUpdates() const { return false; }
+
 #if ENABLE(MEDIA_CONTROLS_CONTEXT_MENUS) && USE(UICONTEXTMENU)
     virtual void showMediaControlsContextMenu(FloatRect&&, Vector<MediaControlsContextMenuItem>&&, CompletionHandler<void(MediaControlsContextMenuItem::ID)>&& completionHandler) { completionHandler(MediaControlsContextMenuItem::invalidID); }
 #endif // ENABLE(MEDIA_CONTROLS_CONTEXT_MENUS) && USE(UICONTEXTMENU)
@@ -763,6 +765,8 @@ public:
     virtual void resetDamageHistoryForTesting() { }
     virtual void foreachRegionInDamageHistoryForTesting(Function<void(const Region&)>&&) const { }
 #endif
+
+    virtual bool usePluginRendererScrollableArea(LocalFrame&) const { return true; }
 
     WEBCORE_EXPORT virtual ~ChromeClient();
 

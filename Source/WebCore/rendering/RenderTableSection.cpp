@@ -591,7 +591,10 @@ void RenderTableSection::layoutRows()
 
             relayoutCellIfFlexed(*cell, r, rHeight);
 
-            cell->computeIntrinsicPadding(rHeight);
+            if (cell->computeIntrinsicPadding(rHeight)) {
+                // FIXME: Changing an intrinsic padding shouldn't trigger a relayout as it only shifts the cell inside the row but doesn't change the logical height.
+                cell->setChildNeedsLayout(MarkOnlyThis);
+            }
 
             LayoutRect oldCellRect = cell->frameRect();
 
@@ -1317,7 +1320,7 @@ void RenderTableSection::paintObject(PaintInfo& paintInfo, const LayoutPoint& pa
         // To make sure we properly repaint the section, we repaint all the overflowing cells that we collected.
         auto cells = copyToVector(m_overflowingCells);
 
-        UncheckedKeyHashSet<CheckedPtr<RenderTableCell>> spanningCells;
+        HashSet<CheckedPtr<RenderTableCell>> spanningCells;
 
         for (unsigned r = dirtiedRows.start; r < dirtiedRows.end; r++) {
             paintRowOutline(r, paintInfo.phase);

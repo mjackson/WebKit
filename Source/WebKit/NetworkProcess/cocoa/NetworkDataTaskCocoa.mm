@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2023 Apple Inc. All rights reserved.
+ * Copyright (C) 2016-2025 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -229,14 +229,11 @@ NetworkDataTaskCocoa::NetworkDataTaskCocoa(NetworkSession& session, NetworkDataT
     if (parameters.isMainFrameNavigation
         || parameters.hadMainFrameMainResourcePrivateRelayed
         || request.url().host() == request.firstPartyForCookies().host()) {
-        if ([mutableRequest respondsToSelector:@selector(_setPrivacyProxyFailClosedForUnreachableNonMainHosts:)])
-            [mutableRequest _setPrivacyProxyFailClosedForUnreachableNonMainHosts:YES];
+        [mutableRequest _setPrivacyProxyFailClosedForUnreachableNonMainHosts:YES];
     }
 
-#if HAVE(PROHIBIT_PRIVACY_PROXY)
     if (!parameters.allowPrivacyProxy)
         [mutableRequest _setProhibitPrivacyProxy:YES];
-#endif
 
     auto advancedPrivacyProtections = parameters.advancedPrivacyProtections;
 #if ENABLE(ADVANCED_PRIVACY_PROTECTIONS)
@@ -246,23 +243,17 @@ NetworkDataTaskCocoa::NetworkDataTaskCocoa(NetworkSession& session, NetworkDataT
     enableAdvancedPrivacyProtections(mutableRequest.get(), advancedPrivacyProtections);
 #endif
 
-#if HAVE(PRIVACY_PROXY_FAIL_CLOSED_FOR_UNREACHABLE_HOSTS)
-    if ([mutableRequest respondsToSelector:@selector(_setPrivacyProxyFailClosedForUnreachableHosts:)] && advancedPrivacyProtections.contains(WebCore::AdvancedPrivacyProtections::FailClosedForUnreachableHosts))
+    if (advancedPrivacyProtections.contains(WebCore::AdvancedPrivacyProtections::FailClosedForUnreachableHosts))
         [mutableRequest _setPrivacyProxyFailClosedForUnreachableHosts:YES];
-#endif
 
-#if HAVE(NETWORK_CONNECTION_PRIVACY_STANCE)
-    if ([mutableRequest respondsToSelector:@selector(_setPrivacyProxyFailClosed:)] && advancedPrivacyProtections.contains(WebCore::AdvancedPrivacyProtections::FailClosedForAllHosts))
+    if (advancedPrivacyProtections.contains(WebCore::AdvancedPrivacyProtections::FailClosedForAllHosts))
         [mutableRequest _setPrivacyProxyFailClosed:YES];
-#endif
 
-    if ([mutableRequest respondsToSelector:@selector(_setWebSearchContent:)] && advancedPrivacyProtections.contains(WebCore::AdvancedPrivacyProtections::WebSearchContent))
+    if (advancedPrivacyProtections.contains(WebCore::AdvancedPrivacyProtections::WebSearchContent))
         [mutableRequest _setWebSearchContent:YES];
 
-#if HAVE(ALLOW_PRIVATE_ACCESS_TOKENS_FOR_THIRD_PARTY)
-    if ([mutableRequest respondsToSelector:@selector(_setAllowPrivateAccessTokensForThirdParty:)] && parameters.request.isPrivateTokenUsageByThirdPartyAllowed())
+    if (parameters.request.isPrivateTokenUsageByThirdPartyAllowed())
         [mutableRequest _setAllowPrivateAccessTokensForThirdParty:YES];
-#endif
 
 #if HAVE(ALLOW_ONLY_PARTITIONED_COOKIES)
     if (isOptInCookiePartitioningEnabled() && [mutableRequest respondsToSelector:@selector(_setAllowOnlyPartitionedCookies:)]) {

@@ -286,7 +286,7 @@ bool LocalDOMWindow::dispatchAllPendingBeforeUnloadEvents()
         if (!frame)
             continue;
 
-        if (!frame->protectedLoader()->shouldClose())
+        if (!frame->loader().shouldClose())
             return false;
 
         window->enableSuddenTermination();
@@ -400,7 +400,7 @@ bool LocalDOMWindow::canShowModalDialog(const LocalFrame& frame)
 {
     // Override support for layout testing purposes.
     if (RefPtr document = frame.document()) {
-        if (RefPtr window = document->domWindow()) {
+        if (RefPtr window = document->window()) {
             if (window->m_canShowModalDialogOverride)
                 return window->m_canShowModalDialogOverride.value();
         }
@@ -613,7 +613,7 @@ void LocalDOMWindow::resumeFromBackForwardCache()
 bool LocalDOMWindow::isCurrentlyDisplayedInFrame() const
 {
     RefPtr frame = localFrame();
-    return frame && frame->document()->domWindow() == this;
+    return frame && frame->document()->window() == this;
 }
 
 CustomElementRegistry& LocalDOMWindow::ensureCustomElementRegistry()
@@ -1091,7 +1091,7 @@ void LocalDOMWindow::focus(bool allowFocus)
     if (focusedFrame && focusedFrame != frame)
         focusedFrame->protectedDocument()->setFocusedElement(nullptr);
 
-    frame->checkedEventHandler()->focusDocumentView();
+    frame->eventHandler().focusDocumentView();
 }
 
 void LocalDOMWindow::blur()
@@ -1157,7 +1157,7 @@ void LocalDOMWindow::stop()
     SetForScope isStopping { m_isStopping, true };
     // We must check whether the load is complete asynchronously, because we might still be parsing
     // the document until the callstack unwinds.
-    frame->protectedLoader()->stopForUserCancel(true);
+    frame->loader().stopForUserCancel(true);
 }
 
 void LocalDOMWindow::alert(const String& message)
@@ -1477,7 +1477,7 @@ void LocalDOMWindow::setName(const AtomString& string)
         return;
 
     frame->tree().setSpecifiedName(string);
-    frame->protectedLoader()->client().frameNameChanged(string.string());
+    frame->loader().client().frameNameChanged(string.string());
 }
 
 void LocalDOMWindow::setStatus(const String& string)
@@ -2212,7 +2212,7 @@ void LocalDOMWindow::failedToRegisterDeviceMotionEventListener()
     if (RegistrableDomain::uncheckedCreateFromRegistrableDomainString("chase.com"_s).matches(document()->url())) {
         // Fire a fake DeviceMotionEvent with acceleration data to unblock the site's login flow.
         protectedDocument()->postTask([](auto& context) {
-            if (RefPtr window = downcast<Document>(context).domWindow()) {
+            if (RefPtr window = downcast<Document>(context).window()) {
                 auto acceleration = DeviceMotionData::Acceleration::create();
                 window->dispatchEvent(DeviceMotionEvent::create(eventNames().devicemotionEvent, DeviceMotionData::create(acceleration.copyRef(), acceleration.copyRef(), DeviceMotionData::RotationRate::create(), std::nullopt).ptr()));
             }
@@ -2699,7 +2699,7 @@ ExceptionOr<RefPtr<WindowProxy>> LocalDOMWindow::open(LocalDOMWindow& activeWind
     if (!firstWindow.allowPopUp()) {
         // Because FrameTree::findFrameForNavigation() returns true for empty strings, we must check for empty frame names.
         // Otherwise, illegitimate window.open() calls with no name will pass right through the popup blocker.
-        if (frameName.isEmpty() || !frame->protectedLoader()->findFrameForNavigation(frameName, activeDocument.get()))
+        if (frameName.isEmpty() || !frame->loader().findFrameForNavigation(frameName, activeDocument.get()))
             return RefPtr<WindowProxy> { nullptr };
     }
 

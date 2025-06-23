@@ -400,7 +400,7 @@ void WebFrame::loadDidCommitInAnotherProcess(std::optional<WebCore::LayerHosting
     }
 
     auto invalidator = frameLoaderClient->takeFrameInvalidator();
-    auto* ownerRenderer = localFrame->ownerRenderer();
+    RefPtr ownerRenderer = localFrame->ownerRenderer();
     localFrame->setView(nullptr);
 
     if (ownerElement)
@@ -500,7 +500,7 @@ void WebFrame::commitProvisionalFrame()
 
     RefPtr parent = remoteFrame->tree().parent();
     RefPtr ownerElement = remoteFrame->ownerElement();
-    auto* ownerRenderer = remoteFrame->ownerRenderer();
+    RefPtr ownerRenderer = remoteFrame->ownerRenderer();
 
     if (parent)
         parent->tree().replaceChild(*remoteFrame, *localFrame);
@@ -1445,8 +1445,8 @@ bool WebFrame::handleKeyEvent(const WebKeyboardEvent& keyboardEvent)
         return false;
 
     if (keyboardEvent.type() == WebEventType::Char && keyboardEvent.isSystemKey())
-        return coreFrame->checkedEventHandler()->handleAccessKey(platform(keyboardEvent));
-    return coreFrame->checkedEventHandler()->keyEvent(platform(keyboardEvent));
+        return coreFrame->eventHandler().handleAccessKey(platform(keyboardEvent));
+    return coreFrame->eventHandler().keyEvent(platform(keyboardEvent));
 }
 
 bool WebFrame::isFocused() const

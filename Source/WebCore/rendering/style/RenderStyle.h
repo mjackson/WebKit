@@ -5,6 +5,7 @@
  * Copyright (C) 2003-2023 Apple Inc. All rights reserved.
  * Copyright (C) 2014-2021 Google Inc. All rights reserved.
  * Copyright (C) 2006 Graham Dennis (graham.dennis@gmail.com)
+ * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -45,7 +46,6 @@ class AnimationList;
 class AutosizeStatus;
 class BorderData;
 class BorderValue;
-class CSSCustomPropertyValue;
 struct CSSPropertiesBitSet;
 class Color;
 class ContentData;
@@ -73,7 +73,6 @@ class LayoutUnit;
 class LengthBox;
 class LineClampValue;
 class NinePieceImage;
-class OffsetRotation;
 class PathOperation;
 class PositionArea;
 class PseudoIdSet;
@@ -88,7 +87,6 @@ class ScaleTransformOperation;
 class ScrollTimeline;
 class ShapeValue;
 class StyleContentAlignmentData;
-class StyleCustomPropertyData;
 class StyleImage;
 class StyleInheritedData;
 class StyleNonInheritedData;
@@ -202,7 +200,6 @@ enum class Resize : uint8_t;
 enum class RubyPosition : uint8_t;
 enum class RubyAlign : uint8_t;
 enum class RubyOverhang : bool;
-enum class SVGPaintType : uint8_t;
 enum class ScrollAxis : uint8_t;
 enum class ScrollSnapStop : bool;
 enum class ScrollbarWidth : uint8_t;
@@ -286,6 +283,8 @@ using FontVariationSettings = FontTaggedSettings<float>;
 using IntOutsets = RectEdges<int>;
 
 namespace Style {
+class CustomProperty;
+class CustomPropertyData;
 class CustomPropertyRegistry;
 class ViewTransitionName;
 struct BoxShadow;
@@ -298,13 +297,22 @@ struct InsetEdge;
 struct MarginEdge;
 struct MaximumSize;
 struct MinimumSize;
+struct OffsetAnchor;
+struct OffsetDistance;
+struct OffsetPosition;
+struct OffsetRotate;
 struct PaddingEdge;
+struct Perspective;
 struct PositionTryFallback;
 struct PreferredSize;
+struct Rotate;
+struct SVGPaint;
+struct Scale;
 struct ScopedName;
 struct ScrollMarginEdge;
 struct ScrollPaddingEdge;
 struct TextShadow;
+struct Translate;
 
 enum class Change : uint8_t;
 enum class LineBoxContain : uint8_t;
@@ -397,13 +405,13 @@ public:
     bool hasCachedPseudoStyles() const { return m_cachedPseudoStyles && m_cachedPseudoStyles->styles.size(); }
     const PseudoStyleCache* cachedPseudoStyles() const { return m_cachedPseudoStyles.get(); }
 
-    inline const StyleCustomPropertyData& inheritedCustomProperties() const;
-    inline const StyleCustomPropertyData& nonInheritedCustomProperties() const;
-    const CSSCustomPropertyValue* customPropertyValue(const AtomString&) const;
+    inline const Style::CustomPropertyData& inheritedCustomProperties() const;
+    inline const Style::CustomPropertyData& nonInheritedCustomProperties() const;
+    const Style::CustomProperty* customPropertyValue(const AtomString&) const;
     bool customPropertyValueEqual(const RenderStyle&, const AtomString&) const;
 
     void deduplicateCustomProperties(const RenderStyle&);
-    void setCustomPropertyValue(Ref<const CSSCustomPropertyValue>&&, bool isInherited);
+    void setCustomPropertyValue(Ref<const Style::CustomProperty>&&, bool isInherited);
     bool customPropertiesEqual(const RenderStyle&) const;
 
     void setUsesViewportUnits() { m_nonInheritedFlags.usesViewportUnits = true; }
@@ -976,9 +984,12 @@ public:
 
     inline TransformBox transformBox() const;
 
-    inline RotateTransformOperation* rotate() const;
-    inline ScaleTransformOperation* scale() const;
-    inline TranslateTransformOperation* translate() const;
+    inline const Style::Rotate& rotate() const;
+    inline bool hasRotate() const;
+    inline const Style::Scale& scale() const;
+    inline bool hasScale() const;
+    inline const Style::Translate& translate() const;
+    inline bool hasTranslate() const;
 
     inline bool affectsTransform() const;
 
@@ -1094,7 +1105,7 @@ public:
     inline bool preserves3D() const;
 
     inline BackfaceVisibility backfaceVisibility() const;
-    inline float perspective() const;
+    inline const Style::Perspective& perspective() const;
     inline float usedPerspective() const;
     inline bool hasPerspective() const;
     inline const Length& perspectiveOriginX() const;
@@ -1606,9 +1617,9 @@ public:
     inline void setTransformOriginZ(float);
     inline void setTransformBox(TransformBox);
 
-    void setRotate(RefPtr<RotateTransformOperation>&&);
-    void setScale(RefPtr<ScaleTransformOperation>&&);
-    void setTranslate(RefPtr<TranslateTransformOperation>&&);
+    inline void setRotate(Style::Rotate&&);
+    inline void setScale(Style::Scale&&);
+    inline void setTranslate(Style::Translate&&);
 
     inline void setSpeakAs(OptionSet<SpeakAs>);
     inline void setTextCombine(TextCombine);
@@ -1665,7 +1676,7 @@ public:
     inline void setTransformStyle3D(TransformStyle3D);
     inline void setTransformStyleForcedToFlat(bool);
     inline void setBackfaceVisibility(BackfaceVisibility);
-    inline void setPerspective(float);
+    inline void setPerspective(Style::Perspective&&);
     inline void setPerspectiveOriginX(Length&&);
     inline void setPerspectiveOriginY(Length&&);
     inline void setPageSize(LengthSize);
@@ -1783,23 +1794,19 @@ public:
     const SVGRenderStyle& svgStyle() const { return m_svgStyle; }
     inline SVGRenderStyle& accessSVGStyle();
 
-    inline SVGPaintType fillPaintType() const;
-    inline SVGPaintType visitedFillPaintType() const;
-    inline const Style::Color& fillPaintColor() const;
-    inline const Style::Color& visitedFillPaintColor() const;
-    inline void setFillPaintColor(Style::Color&&);
-    inline void setVisitedFillPaintColor(Style::Color&&);
+    inline const Style::SVGPaint& fill() const;
+    inline const Style::SVGPaint& visitedLinkFill() const;
+    inline void setFill(Style::SVGPaint&&);
+    inline void setVisitedLinkFill(Style::SVGPaint&&);
     inline void setHasExplicitlySetColor(bool);
     inline bool hasExplicitlySetColor() const;
     inline float fillOpacity() const;
     inline void setFillOpacity(float);
 
-    inline SVGPaintType strokePaintType() const;
-    inline SVGPaintType visitedStrokePaintType() const;
-    inline const Style::Color& strokePaintColor() const;
-    inline const Style::Color& visitedStrokePaintColor() const;
-    inline void setStrokePaintColor(Style::Color&&);
-    inline void setVisitedStrokePaintColor(Style::Color&&);
+    inline const Style::SVGPaint& stroke() const;
+    inline const Style::SVGPaint& visitedLinkStroke() const;
+    inline void setStroke(Style::SVGPaint&&);
+    inline void setVisitedLinkStroke(Style::SVGPaint&&);
     inline float strokeOpacity() const;
     inline void setStrokeOpacity(float);
     inline const FixedVector<Length>& strokeDashArray() const;
@@ -2111,14 +2118,14 @@ public:
     static inline Length initialTransformOriginX();
     static inline Length initialTransformOriginY();
     static constexpr TransformBox initialTransformBox();
-    static RotateTransformOperation* initialRotate() { return nullptr; }
-    static ScaleTransformOperation* initialScale() { return nullptr; }
-    static TranslateTransformOperation* initialTranslate() { return nullptr; }
+    static inline Style::Rotate initialRotate();
+    static inline Style::Scale initialScale();
+    static inline Style::Translate initialTranslate();
     static constexpr PointerEvents initialPointerEvents();
     static float initialTransformOriginZ() { return 0; }
     static constexpr TransformStyle3D initialTransformStyle3D();
     static constexpr BackfaceVisibility initialBackfaceVisibility();
-    static float initialPerspective() { return -1; }
+    static inline Style::Perspective initialPerspective();
     static inline Length initialPerspectiveOriginX();
     static inline Length initialPerspectiveOriginY();
     static inline Style::Color initialBackgroundColor();
@@ -2323,21 +2330,21 @@ public:
     inline void setOffsetPath(RefPtr<PathOperation>&&);
     static PathOperation* initialOffsetPath() { return nullptr; }
 
-    inline const Length& offsetDistance() const;
-    inline void setOffsetDistance(Length&&);
-    static inline Length initialOffsetDistance();
+    inline const Style::OffsetDistance& offsetDistance() const;
+    inline void setOffsetDistance(Style::OffsetDistance&&);
+    static inline Style::OffsetDistance initialOffsetDistance();
 
-    inline const LengthPoint& offsetPosition() const;
-    inline void setOffsetPosition(LengthPoint);
-    static inline LengthPoint initialOffsetPosition();
+    inline const Style::OffsetPosition& offsetPosition() const;
+    inline void setOffsetPosition(Style::OffsetPosition&&);
+    static inline Style::OffsetPosition initialOffsetPosition();
 
-    inline const LengthPoint& offsetAnchor() const;
-    inline void setOffsetAnchor(LengthPoint);
-    static inline LengthPoint initialOffsetAnchor();
+    inline const Style::OffsetAnchor& offsetAnchor() const;
+    inline void setOffsetAnchor(Style::OffsetAnchor&&);
+    static inline Style::OffsetAnchor initialOffsetAnchor();
 
-    inline OffsetRotation offsetRotate() const;
-    inline void setOffsetRotate(OffsetRotation&&);
-    static constexpr OffsetRotation initialOffsetRotate();
+    inline const Style::OffsetRotate& offsetRotate() const;
+    inline void setOffsetRotate(Style::OffsetRotate&&);
+    static constexpr Style::OffsetRotate initialOffsetRotate();
 
     bool borderAndBackgroundEqual(const RenderStyle&) const;
     
@@ -2508,7 +2515,7 @@ private:
 
     bool changeAffectsVisualOverflow(const RenderStyle&) const;
     bool changeRequiresLayout(const RenderStyle&, OptionSet<StyleDifferenceContextSensitiveProperty>& changedContextSensitiveProperties) const;
-    bool changeRequiresPositionedLayoutOnly(const RenderStyle&, OptionSet<StyleDifferenceContextSensitiveProperty>& changedContextSensitiveProperties) const;
+    bool changeRequiresOutOfFlowMovementLayoutOnly(const RenderStyle&, OptionSet<StyleDifferenceContextSensitiveProperty>& changedContextSensitiveProperties) const;
     bool changeRequiresLayerRepaint(const RenderStyle&, OptionSet<StyleDifferenceContextSensitiveProperty>& changedContextSensitiveProperties) const;
     bool changeRequiresRepaint(const RenderStyle&, OptionSet<StyleDifferenceContextSensitiveProperty>& changedContextSensitiveProperties) const;
     bool changeRequiresRepaintIfText(const RenderStyle&, OptionSet<StyleDifferenceContextSensitiveProperty>& changedContextSensitiveProperties) const;

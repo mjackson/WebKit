@@ -85,7 +85,6 @@ bool hasCapacityToUseLargeGigacage();
     \
     v(Bool, useLLInt,  true, Normal, "allows the LLINT to be used if true"_s) \
     v(Bool, useJIT, jitEnabledByDefault(), Normal, "allows the executable pages to be allocated for JIT and thunks if true"_s) \
-    v(Bool, useWasmJIT, jitEnabledByDefault(), Normal, "allows wasm to use JIT and thunks if true"_s) \
     v(Bool, useBaselineJIT, true, Normal, "allows the baseline JIT to be used if true"_s) \
     v(Bool, useDFGJIT, true, Normal, "allows the DFG JIT to be used if true"_s) \
     v(Bool, useRegExpJIT, jitEnabledByDefault(), Normal, "allows the RegExp JIT to be used if true"_s) \
@@ -121,6 +120,7 @@ bool hasCapacityToUseLargeGigacage();
     v(Bool, forceDebuggerBytecodeGeneration, false, Normal, nullptr) \
     v(Bool, debuggerTriggersBreakpointException, false, Normal, "Using the debugger statement will trigger an breakpoint exception (Useful when lldbing)"_s) \
     v(Bool, dumpBytecodesBeforeGeneratorification, false, Normal, nullptr) \
+    v(Unsigned, switchJumpTableAmountThreshold, 15, Normal, nullptr) \
     \
     v(Bool, useFunctionDotArguments, true, Normal, nullptr) \
     v(Bool, useTailCalls, true, Normal, nullptr) \
@@ -312,7 +312,7 @@ bool hasCapacityToUseLargeGigacage();
     v(Unsigned, maximumFunctionForClosureCallInlineCandidateBytecodeCostForFTL, 100, Normal, nullptr) \
     v(Unsigned, maximumFunctionForConstructInlineCandidateBytecodeCostForFTL, 100, Normal, nullptr) \
     \
-    v(Unsigned, maximumFTLCandidateBytecodeCost, 20000, Normal, nullptr) \
+    v(Unsigned, maximumFTLCandidateBytecodeCost, 60000, Normal, nullptr) \
     \
     v(Double, ratioFTLNodesToBytecodeCost, 1.9, Normal, "Ratio converting FTL # of DFG nodes to approx bytecode cost") \
     \
@@ -346,7 +346,7 @@ bool hasCapacityToUseLargeGigacage();
     v(Int32, executionCounterIncrementForLoop, 1, Normal, nullptr) \
     v(Int32, executionCounterIncrementForEntry, 15, Normal, nullptr) \
     \
-    v(Int32, thresholdForFTLOptimizeAfterWarmUp, 60000, Normal, nullptr) \
+    v(Int32, thresholdForFTLOptimizeAfterWarmUp, 64000, Normal, nullptr) \
     v(Int32, thresholdForFTLOptimizeSoon, 1000, Normal, nullptr) \
     v(Int32, ftlTierUpCounterIncrementForLoop, 1, Normal, nullptr) \
     v(Int32, ftlTierUpCounterIncrementForReturn, 15, Normal, nullptr) \

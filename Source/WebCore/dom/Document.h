@@ -635,7 +635,7 @@ public:
     virtual bool isFrameSet() const { return false; }
 
 #if HAVE(SUPPORT_HDR_DISPLAY)
-    void setHasHDRContent() { m_hasHDRContent = true; }
+    void setHasHDRContent();
     bool hasHDRContent() const { return m_hasHDRContent; }
     bool drawsHDRContent() const;
 #endif
@@ -666,8 +666,6 @@ public:
 
     Style::Scope& styleScope() { return m_styleScope; }
     const Style::Scope& styleScope() const { return m_styleScope; }
-    CheckedRef<Style::Scope> checkedStyleScope();
-    CheckedRef<const Style::Scope> checkedStyleScope() const;
 
     ExtensionStyleSheets* extensionStyleSheetsIfExists() { return m_extensionStyleSheets.get(); }
     inline ExtensionStyleSheets& extensionStyleSheets(); // Defined in DocumentInlines.h.
@@ -1014,8 +1012,7 @@ public:
     void createDOMWindow();
     void takeDOMWindowFrom(Document&);
 
-    // FIXME: Consider renaming to window().
-    LocalDOMWindow* domWindow() const { return m_domWindow.get(); }
+    LocalDOMWindow* window() const { return m_domWindow.get(); }
     inline RefPtr<LocalDOMWindow> protectedWindow() const; // Defined in DocumentInlines.h.
 
     // In DOM Level 2, the Document's LocalDOMWindow is called the defaultView.
@@ -1308,6 +1305,7 @@ public:
     void serviceCaretAnimation();
 
     void windowScreenDidChange(PlatformDisplayID);
+    void screenPropertiesDidChange(PlatformDisplayID);
 
     void finishedParsing();
 
@@ -1411,6 +1409,9 @@ public:
     using DisplayChangedObserver = WTF::Observer<void(PlatformDisplayID)>;
     void addDisplayChangedObserver(const DisplayChangedObserver&);
 
+    using ScreenPropertiesChangedObserver = WTF::Observer<void(PlatformDisplayID)>;
+    void addScreenPropertiesChangedObserver(const ScreenPropertiesChangedObserver&);
+
 #if HAVE(SPATIAL_TRACKING_LABEL)
     const String& defaultSpatialTrackingLabel() const;
     void defaultSpatialTrackingLabelChanged(const String&);
@@ -1441,7 +1442,7 @@ public:
     void incrementLoadEventDelayCount() { ++m_loadEventDelayCount; }
     void decrementLoadEventDelayCount();
     bool isDelayingLoadEvent() const { return m_loadEventDelayCount; }
-    void checkCompleted();
+    WEBCORE_EXPORT void checkCompleted();
 
 #if ENABLE(IOS_TOUCH_EVENTS)
 #include <WebKitAdditions/DocumentIOS.h>
@@ -1925,8 +1926,6 @@ public:
     WEBCORE_EXPORT Ref<const Editor> protectedEditor() const;
     FrameSelection& selection() { return m_selection; }
     const FrameSelection& selection() const { return m_selection; }
-    CheckedRef<FrameSelection> checkedSelection();
-    CheckedRef<const FrameSelection> checkedSelection() const;
 
     void setFragmentDirective(const String& fragmentDirective) { m_fragmentDirective = fragmentDirective; }
     const String& fragmentDirective() const { return m_fragmentDirective; }
@@ -2239,7 +2238,7 @@ private:
     WeakHashSet<NodeIterator> m_nodeIterators;
     UncheckedKeyHashSet<SingleThreadWeakRef<Range>> m_ranges;
 
-    UniqueRef<Style::Scope> m_styleScope;
+    const UniqueRef<Style::Scope> m_styleScope;
     const std::unique_ptr<ExtensionStyleSheets> m_extensionStyleSheets;
     RefPtr<StyleSheetList> m_styleSheetList;
 
@@ -2343,6 +2342,7 @@ private:
 
     WeakHashSet<MediaCanStartListener> m_mediaCanStartListeners;
     WeakHashSet<DisplayChangedObserver> m_displayChangedObservers;
+    WeakHashSet<ScreenPropertiesChangedObserver> m_screenPropertiesChangedObservers;
 
 #if HAVE(SPATIAL_TRACKING_LABEL)
     WeakHashSet<DefaultSpatialTrackingLabelChangedObserver> m_defaultSpatialTrackingLabelChangedObservers;
@@ -2501,7 +2501,7 @@ private:
 
     const RefPtr<UndoManager> m_undoManager;
     const std::unique_ptr<Editor> m_editor;
-    UniqueRef<FrameSelection> m_selection;
+    const UniqueRef<FrameSelection> m_selection;
 
     String m_fragmentDirective;
 
@@ -2719,6 +2719,8 @@ private:
     bool m_visualUpdatesAllowedChangeCompletesPageTransition { false };
 
     bool m_requiresTrustedTypes { false };
+
+    bool m_intersectionObserverUpdateTaskQueued { false };
 
     static bool hasEverCreatedAnAXObjectCache;
 

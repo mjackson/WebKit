@@ -201,7 +201,6 @@ public:
     void removeMessageReceiver(IPC::ReceiverName, uint64_t destinationID);
 
     WebBackForwardCache& backForwardCache() { return m_backForwardCache.get(); }
-    Ref<WebBackForwardCache> protectedBackForwardCache();
     
     template<typename RawValue>
     void addMessageReceiver(IPC::ReceiverName messageReceiverName, const ObjectIdentifierGenericBase<RawValue>& destinationID, IPC::MessageReceiver& receiver)
@@ -239,7 +238,6 @@ public:
     void processDidFinishLaunching(WebProcessProxy&);
 
     WebProcessCache& webProcessCache() { return m_webProcessCache.get(); }
-    CheckedRef<WebProcessCache> checkedWebProcessCache();
 
     // Disconnect the process from the context.
     void disconnectProcess(WebProcessProxy&);
@@ -297,7 +295,9 @@ public:
     void registerURLSchemeAsBypassingContentSecurityPolicy(const String&);
     void setDomainRelaxationForbiddenForURLScheme(const String&);
     void registerURLSchemeAsLocal(const String&);
+#if ENABLE(ALL_LEGACY_REGISTERED_SPECIAL_URL_SCHEMES)
     void registerURLSchemeAsNoAccess(const String&);
+#endif
     void registerURLSchemeAsDisplayIsolated(const String&);
     void registerURLSchemeAsCORSEnabled(const String&);
     void registerURLSchemeAsCachePartitioned(const String&);
@@ -637,6 +637,10 @@ public:
     void registerAdditionalFonts(NSArray *fontNames);
 #endif
 
+#if PLATFORM(IOS_FAMILY)
+    void didRefreshDisplay();
+#endif
+
 private:
     enum class NeedsGlobalStaticInitialization : bool { No, Yes };
     void platformInitialize(NeedsGlobalStaticInitialization);
@@ -843,9 +847,18 @@ private:
     RetainPtr<NSObject> m_accessibilityDisplayOptionsNotificationObserver;
     RetainPtr<NSObject> m_scrollerStyleNotificationObserver;
     RetainPtr<NSObject> m_deactivationObserver;
+    RetainPtr<NSObject> m_didChangeScreenParametersNotificationObserver;
+#if HAVE(SUPPORT_HDR_DISPLAY_APIS)
+    RetainPtr<NSObject> m_didBeginSuppressingHighDynamicRange;
+    RetainPtr<NSObject> m_didEndSuppressingHighDynamicRange;
+#endif
     RetainPtr<WKWebInspectorPreferenceObserver> m_webInspectorPreferenceObserver;
 
-    UniqueRef<PerActivityStateCPUUsageSampler> m_perActivityStateCPUUsageSampler;
+    const UniqueRef<PerActivityStateCPUUsageSampler> m_perActivityStateCPUUsageSampler;
+#endif
+
+#if PLATFORM(IOS_FAMILY) && HAVE(SUPPORT_HDR_DISPLAY)
+    float m_currentEDRHeadroom { 1 };
 #endif
 
 #if PLATFORM(COCOA)
@@ -916,9 +929,9 @@ private:
     ForegroundWebProcessCounter m_foregroundWebProcessCounter;
     BackgroundWebProcessCounter m_backgroundWebProcessCounter;
 
-    UniqueRef<WebBackForwardCache> m_backForwardCache;
+    const UniqueRef<WebBackForwardCache> m_backForwardCache;
 
-    UniqueRef<WebProcessCache> m_webProcessCache;
+    const UniqueRef<WebProcessCache> m_webProcessCache;
     HashMap<WebCore::RegistrableDomain, RefPtr<WebProcessProxy>> m_swappedProcessesPerRegistrableDomain;
 
     HashMap<WebCore::RegistrableDomain, std::unique_ptr<WebCore::PrewarmInformation>> m_prewarmInformationPerRegistrableDomain;
@@ -1021,6 +1034,7 @@ private:
 #endif
 
     bool m_hasReceivedAXRequestInUIProcess { false };
+    bool m_suppressEDR { false };
 };
 
 template<typename T>

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2020-2025 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -145,10 +145,10 @@ AttributedStringStyle AXIsolatedObject::stylesForAttributedString() const
 
 RetainPtr<RemoteAXObjectRef> AXIsolatedObject::remoteParent() const
 {
-    auto* scrollView = Accessibility::findAncestor<AXCoreObject>(*this, true, [] (const AXCoreObject& object) {
+    RefPtr scrollView = Accessibility::findAncestor<AXCoreObject>(*this, true, [] (const AXCoreObject& object) {
         return object.isScrollView();
     });
-    auto* isolatedObject = dynamicDowncast<AXIsolatedObject>(scrollView);
+    RefPtr isolatedObject = dynamicDowncast<AXIsolatedObject>(scrollView);
     return isolatedObject ? isolatedObject->propertyValue<RetainPtr<id>>(AXProperty::RemoteParent) : nil;
 }
 
@@ -164,7 +164,7 @@ FloatRect AXIsolatedObject::convertRectToPlatformSpace(const FloatRect& rect, Ac
         return convertFrameToSpace(rect, space);
 
     return Accessibility::retrieveValueFromMainThread<FloatRect>([&rect, &space, this] () -> FloatRect {
-        if (auto* axObject = associatedAXObject())
+        if (RefPtr axObject = associatedAXObject())
             return axObject->convertRectToPlatformSpace(rect, space);
         return { };
     });
@@ -200,6 +200,89 @@ AXCoreObject::AccessibilityChildrenVector AXIsolatedObject::allSortedNonRootWebA
     if (!tree)
         return { };
     return tree->sortedNonRootWebAreas();
+}
+
+std::optional<NSRange> AXIsolatedObject::visibleCharacterRange() const
+{
+    ASSERT(!isMainThread());
+
+    RefPtr tree = this->tree();
+    if (!tree)
+        return { };
+
+    RefPtr root = tree->rootNode();
+    if (!root || root->relativeFrame().isEmpty()) {
+        // The viewport is an empty rect, so nothing is visible.
+        return { };
+    }
+
+    const auto& mostRecentlyPaintedText = tree->mostRecentlyPaintedText();
+    if (mostRecentlyPaintedText.isEmpty()) {
+        // If nothing has been painted, but the viewport is not empty (evidenced by us not early-returning above),
+        // assume a paint just hasn't happened yet and consider everything to be visible.
+        auto markerRange = textMarkerRange();
+        if (!markerRange)
+            return { };
+        return NSMakeRange(0, markerRange.toString().length());
+    }
+
+    RefPtr current = const_cast<AXIsolatedObject*>(this);
+    const auto* currentRuns = textRuns();
+    std::optional stopAtID = idOfNextSiblingIncludingIgnoredOrParent();
+    auto advanceCurrent = [&] () {
+        current = findObjectWithRuns(*current, AXDirection::Next, stopAtID);
+        currentRuns = current ? current->textRuns() : nullptr;
+    };
+
+    if (!currentRuns)
+        advanceCurrent();
+
+    // The high-level algorithm here is:
+    //   1. Find first self-or-descendant with text that is visible, and specifically the offset where it is
+    //      visible based on the cached LineRange data we have from |mostRecentlyPaintedText|.
+    //   2. Turn that into a text marker, then the |location| of the range is the length of the string between
+    //      the first marker of |this| to the first visible descendant (|markerPriorToPaintedText|).
+    //   3. Continue iterating descendants until we find the last visible one, and specifically the offset where
+    //      it is last visible.
+    //   4. The |length| of the range is then the string length between the first visible descendant and offset
+    //      (from step 2) and the last visible descendant and offset (|lastVisibleMarker|).
+    std::optional<AXTextMarker> markerPriorToPaintedText;
+    std::optional<AXTextMarker> lastVisibleMarker;
+
+    AXTextMarker thisFirstMarker = { *this, 0 };
+    NSRange finalRange = NSMakeRange(0, 0);
+
+    while (currentRuns) {
+        auto iterator = mostRecentlyPaintedText.find(current->objectID());
+        if (iterator != mostRecentlyPaintedText.end()) {
+            const LineRange& range = iterator->value;
+
+            if (!markerPriorToPaintedText) {
+                // This specifically only counts rendered characters (and collapsed whitespace), excluding "emitted"
+                // characters like those from TextEmissionBehavior. The visible character range API (at least based on
+                // the main-thread implementation) expects these emitted characters to be counted too, so we can lean
+                // on AXTextMarkerRange::toString(), which already knows how and when to emit un-rendered characters.
+                unsigned renderedCharactersPriorToStartLine = range.startLineIndex ? currentRuns->runLengthSumTo(range.startLineIndex - 1) : 0;
+
+                // Points to the last text position of the text belonging to this object that *was not* painted.
+                markerPriorToPaintedText = AXTextMarker { *current, renderedCharactersPriorToStartLine };
+                finalRange.location = AXTextMarkerRange { WTFMove(thisFirstMarker), *markerPriorToPaintedText }.toString().length();
+            }
+            unsigned visibleCharactersUpToEndLine = currentRuns->runLengthSumTo(range.endLineIndex);
+            lastVisibleMarker = AXTextMarker { *current, visibleCharactersUpToEndLine };
+        }
+
+        advanceCurrent();
+    }
+
+    if (!markerPriorToPaintedText || !lastVisibleMarker) {
+        // We weren't able to form a range of text, so return an empty visible range.
+        return NSMakeRange(0, 0);
+    }
+
+    AXTextMarkerRange visibleTextRange = AXTextMarkerRange { WTFMove(*markerPriorToPaintedText), WTFMove(*lastVisibleMarker) };
+    finalRange.length = visibleTextRange.toString().length();
+    return finalRange;
 }
 
 std::optional<String> AXIsolatedObject::textContent() const
@@ -256,7 +339,7 @@ AXTextMarkerRange AXIsolatedObject::textMarkerRange() const
 #endif // ENABLE(AX_THREAD_TEXT_APIS)
 
     return Accessibility::retrieveValueFromMainThread<AXTextMarkerRange>([this] () {
-        auto* axObject = associatedAXObject();
+        RefPtr axObject = associatedAXObject();
         return axObject ? axObject->textMarkerRange() : AXTextMarkerRange();
     });
 }
@@ -285,7 +368,7 @@ AXTextMarkerRange AXIsolatedObject::textMarkerRangeForNSRange(const NSRange& ran
 #endif // ENABLE(AX_THREAD_TEXT_APIS)
 
     return Accessibility::retrieveValueFromMainThread<AXTextMarkerRange>([&range, this] () -> AXTextMarkerRange {
-        auto* axObject = associatedAXObject();
+        RefPtr axObject = associatedAXObject();
         return axObject ? axObject->textMarkerRangeForNSRange(range) : AXTextMarkerRange();
     });
 }
@@ -417,7 +500,7 @@ IntPoint AXIsolatedObject::clickPoint()
     ASSERT(_AXGetClientForCurrentRequestUntrusted() != kAXClientTypeVoiceOver);
 
     return Accessibility::retrieveValueFromMainThread<IntPoint>([this] () -> IntPoint {
-        if (auto* object = associatedAXObject())
+        if (RefPtr object = associatedAXObject())
             return object->clickPoint();
         return { };
     });
@@ -428,7 +511,7 @@ bool AXIsolatedObject::pressedIsPresent() const
     ASSERT(_AXGetClientForCurrentRequestUntrusted() != kAXClientTypeVoiceOver);
 
     return Accessibility::retrieveValueFromMainThread<bool>([this] () -> bool {
-        if (auto* object = associatedAXObject())
+        if (RefPtr object = associatedAXObject())
             return object->pressedIsPresent();
         return false;
     });
@@ -439,7 +522,7 @@ Vector<String> AXIsolatedObject::determineDropEffects() const
     ASSERT(_AXGetClientForCurrentRequestUntrusted() != kAXClientTypeVoiceOver);
 
     return Accessibility::retrieveValueFromMainThread<Vector<String>>([this] () -> Vector<String> {
-        if (auto* object = associatedAXObject())
+        if (RefPtr object = associatedAXObject())
             return object->determineDropEffects();
         return { };
     });
@@ -450,7 +533,7 @@ int AXIsolatedObject::layoutCount() const
     ASSERT(_AXGetClientForCurrentRequestUntrusted() != kAXClientTypeVoiceOver);
 
     return Accessibility::retrieveValueFromMainThread<int>([this] () -> int {
-        if (auto* object = associatedAXObject())
+        if (RefPtr object = associatedAXObject())
             return object->layoutCount();
         return { };
     });
@@ -461,7 +544,7 @@ Vector<String> AXIsolatedObject::classList() const
     ASSERT(_AXGetClientForCurrentRequestUntrusted() != kAXClientTypeVoiceOver);
 
     return Accessibility::retrieveValueFromMainThread<Vector<String>>([this] () -> Vector<String> {
-        if (auto* object = associatedAXObject())
+        if (RefPtr object = associatedAXObject())
             return object->classList();
         return { };
     });
@@ -472,7 +555,7 @@ String AXIsolatedObject::computedRoleString() const
     ASSERT(_AXGetClientForCurrentRequestUntrusted() != kAXClientTypeVoiceOver);
 
     return Accessibility::retrieveValueFromMainThread<String>([this] () -> String {
-        if (auto* object = associatedAXObject())
+        if (RefPtr object = associatedAXObject())
             return object->computedRoleString().isolatedCopy();
         return { };
     });

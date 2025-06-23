@@ -250,6 +250,7 @@
     macro(read) \
     macro(region) \
     macro(replace) \
+    macro(variants) \
     macro(resizable) \
     macro(resize) \
     macro(resolve) \

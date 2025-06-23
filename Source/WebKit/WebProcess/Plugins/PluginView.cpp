@@ -702,7 +702,7 @@ void PluginView::handleEvent(Event& event)
     if (!m_isInitialized)
         return;
 
-    const WebEvent* currentEvent = WebPage::currentEvent();
+    const CheckedPtr currentEvent = WebPage::currentEvent();
     if (!currentEvent)
         return;
 
@@ -714,9 +714,9 @@ void PluginView::handleEvent(Event& event)
         RefPtr frame = this->frame();
         if (currentEvent->type() == WebEventType::MouseDown) {
             focusPluginElement();
-            frame->checkedEventHandler()->setCapturingMouseEventsElement(m_pluginElement.copyRef());
+            frame->eventHandler().setCapturingMouseEventsElement(m_pluginElement.copyRef());
         } else if (currentEvent->type() == WebEventType::MouseUp)
-            frame->checkedEventHandler()->setCapturingMouseEventsElement(nullptr);
+            frame->eventHandler().setCapturingMouseEventsElement(nullptr);
 
         didHandleEvent = m_plugin->handleMouseEvent(downcast<WebMouseEvent>(*currentEvent));
     } else if ((event.type() == eventNames().wheelEvent || event.type() == eventNames().mousewheelEvent) && currentEvent->type() == WebEventType::Wheel)
@@ -1226,6 +1226,14 @@ bool PluginView::pluginHandlesPageScaleFactor() const
         return false;
 
     return m_plugin->handlesPageScaleFactor();
+}
+
+bool PluginView::pluginDelegatesScrollingToMainFrame() const
+{
+    if (!m_isInitialized)
+        return false;
+
+    return m_plugin->delegatesScrollingToMainFrame();
 }
 
 } // namespace WebKit

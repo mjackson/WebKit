@@ -47,7 +47,6 @@
 #include "LocalFrameView.h"
 #include "Logging.h"
 #include "NodeList.h"
-#include "OffsetRotation.h"
 #include "Page.h"
 #include "PageOverlayController.h"
 #include "PathOperation.h"
@@ -73,6 +72,7 @@
 #include "ScaleTransformOperation.h"
 #include "ScrollingConstraints.h"
 #include "Settings.h"
+#include "StyleOffsetRotate.h"
 #include "TiledBacking.h"
 #include "TransformState.h"
 #include "TranslateTransformOperation.h"
@@ -682,8 +682,20 @@ void RenderLayerCompositor::cacheAcceleratedCompositingFlagsAfterLayout()
     if (isRootFrameCompositor())
         return;
 
-    RequiresCompositingData queryData;
-    bool forceCompositingMode = m_hasAcceleratedCompositing && m_renderView.settings().forceCompositingMode() && requiresCompositingForScrollableFrame(queryData);
+    auto frameContentRequiresCompositing = [&] {
+        RequiresCompositingData queryData;
+        if (requiresCompositingForScrollableFrame(queryData))
+            return true;
+
+#if HAVE(SUPPORT_HDR_DISPLAY)
+        if (m_renderView.document().hasHDRContent())
+            return true;
+#endif
+
+        return false;
+    };
+
+    bool forceCompositingMode = m_hasAcceleratedCompositing && m_renderView.settings().forceCompositingMode() && frameContentRequiresCompositing();
     if (forceCompositingMode != m_forceCompositingMode) {
         m_forceCompositingMode = forceCompositingMode;
         rootRenderLayer().setDescendantsNeedCompositingRequirementsTraversal();
@@ -1945,7 +1957,7 @@ void RenderLayerCompositor::adjustOverflowScrollbarContainerLayers(RenderLayer& 
     if (layersClippedByScrollers.isEmpty())
         return;
 
-    UncheckedKeyHashMap<CheckedPtr<RenderLayer>, CheckedPtr<RenderLayer>> overflowScrollToLastContainedLayerMap;
+    HashMap<CheckedPtr<RenderLayer>, CheckedPtr<RenderLayer>> overflowScrollToLastContainedLayerMap;
 
     for (auto* clippedLayer : layersClippedByScrollers) {
         auto* clippingStack = clippedLayer->backing()->ancestorClippingStack();
@@ -2184,7 +2196,7 @@ void RenderLayerCompositor::layerStyleChanged(StyleDifference diff, RenderLayer&
     const auto& newStyle = layer.renderer().style();
 
     if (hasContentCompositingLayers()) {
-        if (diff >= StyleDifference::LayoutPositionedMovementOnly) {
+        if (diff >= StyleDifference::LayoutOutOfFlowMovementOnly) {
             layer.setNeedsPostLayoutCompositingUpdate();
             layer.setNeedsCompositingGeometryUpdate();
         }
@@ -2768,7 +2780,7 @@ bool RenderLayerCompositor::canAccelerateVideoRendering(RenderVideo& video) cons
 }
 #endif
 
-void RenderLayerCompositor::frameViewDidChangeLocation(const IntPoint& contentsOffset)
+void RenderLayerCompositor::frameViewDidChangeLocation(FloatPoint contentsOffset)
 {
     if (m_overflowControlsHostLayer)
         m_overflowControlsHostLayer->setPosition(contentsOffset);
@@ -3807,17 +3819,17 @@ bool RenderLayerCompositor::requiresCompositingForAnimation(RenderLayerModelObje
 static bool styleHas3DTransformOperation(const RenderStyle& style)
 {
     return style.transform().has3DOperation()
-        || (style.translate() && style.translate()->is3DOperation())
-        || (style.scale() && style.scale()->is3DOperation())
-        || (style.rotate() && style.rotate()->is3DOperation());
+        || style.translate().is3DOperation()
+        || style.scale().is3DOperation()
+        || style.rotate().is3DOperation();
 }
 
 static bool styleTransformOperationsAreRepresentableIn2D(const RenderStyle& style)
 {
     return style.transform().isRepresentableIn2D()
-        && (!style.translate() || style.translate()->isRepresentableIn2D())
-        && (!style.scale() || style.scale()->isRepresentableIn2D())
-        && (!style.rotate() || style.rotate()->isRepresentableIn2D());
+        && style.translate().isRepresentableIn2D()
+        && style.scale().isRepresentableIn2D()
+        && style.rotate().isRepresentableIn2D();
 }
 
 bool RenderLayerCompositor::requiresCompositingForTransform(RenderLayerModelObject& renderer) const
@@ -5937,7 +5949,7 @@ void RenderLayerCompositor::updateSynchronousScrollingNodes()
     ASSERT(scrollingCoordinator);
 
     auto rootScrollingNodeID = m_renderView.protectedFrameView()->scrollingNodeID();
-    UncheckedKeyHashSet<ScrollingNodeID> nodesToClear;
+    HashSet<ScrollingNodeID> nodesToClear;
     nodesToClear.reserveInitialCapacity(m_scrollingNodeToLayerMap.size());
     for (auto key : m_scrollingNodeToLayerMap.keys())
         nodesToClear.add(key);

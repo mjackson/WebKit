@@ -1,13 +1,11 @@
 EventDispatcherMessages.h
 NetworkProcess/Classifier/ResourceLoadStatisticsStore.cpp
-NetworkProcess/CustomProtocols/LegacyCustomProtocolManager.cpp
 NetworkProcess/DatabaseUtilities.cpp
 NetworkProcess/NetworkConnectionToWebProcess.cpp
 NetworkProcess/NetworkLoad.cpp
 NetworkProcess/NetworkLoadChecker.cpp
 NetworkProcess/NetworkProcess.cpp
 NetworkProcess/NetworkResourceLoader.cpp
-NetworkProcess/NetworkSession.cpp
 NetworkProcess/NetworkSocketChannel.cpp
 NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementDatabase.cpp
 NetworkProcess/ServiceWorker/ServiceWorkerDownloadTask.cpp
@@ -35,7 +33,6 @@ Shared/RemoteLayerTree/RemoteLayerBackingStoreCollection.mm
 Shared/RemoteLayerTree/RemoteLayerTreeTransaction.mm
 Shared/RemoteLayerTree/RemoteScrollingCoordinatorTransaction.cpp
 Shared/WebWheelEventCoalescer.cpp
-UIProcess/API/Cocoa/WKProcessPool.mm
 UIProcess/API/Cocoa/WKWebView.mm
 UIProcess/API/Cocoa/WKWebViewTesting.mm
 UIProcess/API/Cocoa/_WKInspectorExtension.mm
@@ -54,12 +51,10 @@ UIProcess/RemoteLayerTree/mac/RemoteLayerTreeEventDispatcher.mm
 UIProcess/RemoteLayerTree/mac/RemoteScrollingCoordinatorProxyMac.mm
 UIProcess/WebFullScreenManagerProxy.cpp
 UIProcess/WebPageProxy.cpp
-UIProcess/WebProcessCache.cpp
-UIProcess/WebProcessPool.cpp
 UIProcess/mac/PageClientImplMac.mm
 UIProcess/mac/ViewGestureControllerMac.mm
 UIProcess/mac/WKRevealItemPresenter.mm
-UIProcess/mac/WKTextAnimationManager.mm
+UIProcess/mac/WKTextAnimationManagerMac.mm
 UIProcess/mac/WKViewLayoutStrategy.mm
 UIProcess/mac/WebViewImpl.mm
 WebPageMessages.h
@@ -93,9 +88,7 @@ WebProcess/Network/webrtc/LibWebRTCProvider.cpp
 WebProcess/Network/webrtc/LibWebRTCResolver.cpp
 WebProcess/Plugins/PDF/PDFPluginAnnotation.mm
 WebProcess/Plugins/PDF/PDFPluginBase.mm
-WebProcess/Plugins/PDF/PDFPluginChoiceAnnotation.mm
 WebProcess/Plugins/PDF/PDFPluginPasswordField.mm
-WebProcess/Plugins/PDF/PDFPluginPasswordForm.mm
 WebProcess/Plugins/PDF/PDFPluginTextAnnotation.mm
 WebProcess/Plugins/PDF/UnifiedPDF/PDFDiscretePresentationController.mm
 WebProcess/Plugins/PDF/UnifiedPDF/PDFScrollingPresentationController.mm
@@ -106,7 +99,6 @@ WebProcess/Storage/WebServiceWorkerFetchTaskClient.cpp
 WebProcess/Storage/WebServiceWorkerProvider.cpp
 WebProcess/WebCoreSupport/WebChromeClient.cpp
 WebProcess/WebCoreSupport/WebValidationMessageClient.cpp
-WebProcess/WebCoreSupport/mac/WebDragClientMac.mm
 WebProcess/WebCoreSupport/mac/WebPopupMenuMac.mm
 WebProcess/WebPage/Cocoa/TextAnimationController.mm
 WebProcess/WebPage/Cocoa/WebPageCocoa.mm

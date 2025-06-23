@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006-2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2006-2025 Apple Inc. All rights reserved.
  * Copyright (C) 2013 Google Inc. All rights reserved.
  * Copyright (C) 2006 Alexey Proskuryakov (ap@webkit.org)
  * Copyright (C) 2012 Digia Plc. and/or its subsidiary(-ies)
@@ -1459,7 +1459,7 @@ bool EventHandler::scrollRecursively(ScrollDirection direction, ScrollGranularit
     RefPtr localParent = dynamicDowncast<LocalFrame>(parent.get());
     if (!localParent)
         return false;
-    return localParent->checkedEventHandler()->scrollRecursively(direction, granularity, frame->protectedOwnerElement().get());
+    return localParent->eventHandler().scrollRecursively(direction, granularity, frame->protectedOwnerElement().get());
 }
 
 bool EventHandler::logicalScrollRecursively(ScrollLogicalDirection direction, ScrollGranularity granularity, Node* startingNode)
@@ -1493,7 +1493,7 @@ bool EventHandler::logicalScrollRecursively(ScrollLogicalDirection direction, Sc
     if (!localParent)
         return false;
 
-    return localParent->checkedEventHandler()->logicalScrollRecursively(direction, granularity, frame->protectedOwnerElement().get());
+    return localParent->eventHandler().logicalScrollRecursively(direction, granularity, frame->protectedOwnerElement().get());
 }
 
 IntPoint EventHandler::lastKnownMousePosition() const
@@ -1860,10 +1860,15 @@ void EventHandler::autoHideCursorTimerFired()
 
 static LayoutPoint documentPointForWindowPoint(LocalFrame& frame, const IntPoint& windowPoint)
 {
-    auto* view = frame.view();
-    // FIXME: Is it really OK to use the wrong coordinates here when view is 0?
-    // Historically the code would just crash; this is clearly no worse than that.
-    return view ? view->windowToContents(windowPoint) : windowPoint;
+    RefPtr view = frame.view();
+    if (!view) {
+        // FIXME: Is it really OK to use the wrong coordinates here when view is 0?
+        // Historically the code would just crash; this is clearly no worse than that.
+        return windowPoint;
+    }
+
+    auto result = view->windowToContents(FloatPoint { windowPoint });
+    return LayoutPoint { result };
 }
 
 std::optional<RemoteUserInputEventData> EventHandler::userInputEventDataForRemoteFrame(const RemoteFrame* remoteFrame, const IntPoint& pointInFrame)
@@ -1940,7 +1945,7 @@ HandleUserInputEventResult EventHandler::handleMousePressEvent(const PlatformMou
     UserGestureIndicator gestureIndicator(IsProcessingUserGesture::Yes, frame->protectedDocument().get(), userGestureTypeForPlatformEvent(platformMouseEvent), UserGestureIndicator::ProcessInteractionStyle::Immediate, platformMouseEvent.authorizationToken());
 
     // FIXME (bug 68185): this call should be made at another abstraction layer
-    frame->protectedLoader()->resetMultipleFormSubmissionProtection();
+    frame->loader().resetMultipleFormSubmissionProtection();
 
 #if !ENABLE(IOS_TOUCH_EVENTS)
     cancelFakeMouseMoveEvent();
@@ -2139,8 +2144,12 @@ ScrollableArea* EventHandler::enclosingScrollableArea(Node* node) const
         }
 
         if (RefPtr plugin = dynamicDowncast<RenderEmbeddedObject>(renderer)) {
-            if (auto* scrollableArea = plugin->scrollableArea())
-                return scrollableArea;
+            if (auto* scrollableArea = plugin->scrollableArea()) {
+                Ref frame = m_frame.get();
+                RefPtr page = frame->page();
+                if (!page || page->chrome().client().usePluginRendererScrollableArea(frame))
+                    return scrollableArea;
+            }
         }
 
         auto* layer = renderer->enclosingLayer();
@@ -2789,7 +2798,7 @@ bool EventHandler::performDragAndDrop(const PlatformMouseEvent& event, std::uniq
     bool preventedDefault = false;
     if (auto [isFrameOwner, targetFrame] = contentFrameForNode(m_dragTarget.copyRef().get()); isFrameOwner) {
         if (targetFrame)
-            preventedDefault = targetFrame->checkedEventHandler()->performDragAndDrop(event, WTFMove(pasteboard), sourceOperationMask, draggingFiles);
+            preventedDefault = targetFrame->eventHandler().performDragAndDrop(event, WTFMove(pasteboard), sourceOperationMask, draggingFiles);
     } else if (RefPtr dragTarget = m_dragTarget) {
         Ref dataTransfer = DataTransfer::createForDrop(dragTarget->protectedDocument(), WTFMove(pasteboard), sourceOperationMask, draggingFiles);
         preventedDefault = dispatchDragEvent(eventNames().dropEvent, *dragTarget, event, dataTransfer);
@@ -3977,7 +3986,7 @@ bool EventHandler::internalKeyEvent(const PlatformKeyboardEvent& initialKeyEvent
     UserTypingGestureIndicator typingGestureIndicator(frame);
 
     // FIXME (bug 68185): this call should be made at another abstraction layer
-    frame->protectedLoader()->resetMultipleFormSubmissionProtection();
+    frame->loader().resetMultipleFormSubmissionProtection();
 
     // In IE, access keys are special, they are handled after default keydown processing, but cannot be canceled - this is hard to match.
     // On macOS, we process them before dispatching keydown, as the default keydown handler implements Emacs key bindings, which may conflict
@@ -4228,7 +4237,7 @@ void EventHandler::defaultKeyboardEventHandler(KeyboardEvent& event)
 
         if (event.key() == "Escape"_s) {
             if (frame->settings().closeWatcherEnabled())
-                frame->document()->domWindow()->closeWatcherManager().escapeKeyHandler(event);
+                frame->document()->window()->closeWatcherManager().escapeKeyHandler(event);
             if (RefPtr activeModalDialog = frame->document()->activeModalDialog())
                 activeModalDialog->queueCancelTask();
             if (RefPtr topmostAutoPopover = frame->document()->topmostAutoPopover())
@@ -4924,7 +4933,7 @@ bool EventHandler::keyboardScrollRecursively(std::optional<ScrollDirection> dire
     if (!localParent)
         return false;
 
-    return localParent->checkedEventHandler()->keyboardScrollRecursively(direction, granularity, frame->protectedOwnerElement().get(), isKeyRepeat);
+    return localParent->eventHandler().keyboardScrollRecursively(direction, granularity, frame->protectedOwnerElement().get(), isKeyRepeat);
 }
 
 bool EventHandler::keyboardScroll(std::optional<ScrollDirection> direction, std::optional<ScrollGranularity> granularity, Node* startingNode, bool isKeyRepeat)
@@ -5103,11 +5112,11 @@ Expected<bool, RemoteFrameGeometryTransformer> EventHandler::handleTouchEvent(co
 
     // A different view on the 'touches' list above, filtered and grouped by event target. Used for the
     // 'targetTouches' list in the JS event.
-    typedef UncheckedKeyHashMap<EventTarget*, RefPtr<TouchList>> TargetTouchesMap;
+    typedef HashMap<EventTarget*, RefPtr<TouchList>> TargetTouchesMap;
     TargetTouchesMap touchesByTarget;
 
     // Array of touches per state, used to assemble the 'changedTouches' list in the JS event.
-    typedef UncheckedKeyHashSet<RefPtr<EventTarget>> EventTargetSet;
+    typedef HashSet<RefPtr<EventTarget>> EventTargetSet;
     struct Touches {
         // The touches corresponding to the particular change state this struct instance represents.
         RefPtr<TouchList> m_touches;

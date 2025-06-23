@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Apple Inc. All rights reserved.
+ * Copyright (C) 2022-2025 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -55,6 +55,10 @@
 #include "WebFullScreenManagerProxy.h"
 #endif
 
+#if ENABLE(VIDEO_PRESENTATION_MODE)
+#include "RemotePageVideoPresentationManagerProxy.h"
+#endif
+
 namespace WebKit {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(RemotePageProxy);
@@ -91,19 +95,23 @@ void RemotePageProxy::injectPageIntoNewProcess()
         return;
     }
 
-    CheckedPtr drawingArea = page->drawingArea();
-    RELEASE_ASSERT(drawingArea);
-
-    m_drawingArea = RemotePageDrawingAreaProxy::create(*drawingArea, m_process);
+    Ref drawingArea = *page->drawingArea();
+    m_drawingArea = RemotePageDrawingAreaProxy::create(drawingArea.get(), m_process);
 #if ENABLE(FULLSCREEN_API)
     m_fullscreenManager = RemotePageFullscreenManagerProxy::create(pageID(), page->protectedFullScreenManager().get(), m_process);
+#endif
+#if ENABLE(VIDEO_PRESENTATION_MODE)
+    m_videoPresentationManager = RemotePageVideoPresentationManagerProxy::create(pageID(), m_process, page->protectedVideoPresentationManager().get());
+#endif
+#if PLATFORM(IOS_FAMILY) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
+    m_playbackSessionManager = RemotePagePlaybackSessionManagerProxy::create(pageID(), page->protectedPlaybackSessionManager().get(), m_process);
 #endif
     m_visitedLinkStoreRegistration = makeUnique<RemotePageVisitedLinkStoreRegistration>(*page, m_process);
 
     m_process->send(
         Messages::WebProcess::CreateWebPage(
             m_webPageID,
-            page->creationParametersForRemotePage(m_process, *drawingArea, RemotePageParameters {
+            page->creationParametersForRemotePage(m_process, drawingArea.get(), RemotePageParameters {
                 URL(page->pageLoadState().url()),
                 page->protectedMainFrame()->frameTreeCreationParameters(),
                 page->mainFrameWebsitePoliciesData() ? std::make_optional(*page->mainFrameWebsitePoliciesData()) : std::nullopt
@@ -117,7 +125,7 @@ void RemotePageProxy::processDidTerminate(WebProcessProxy& process, ProcessTermi
     RefPtr page = m_page.get();
     if (!page)
         return;
-    if (CheckedPtr drawingArea = page->drawingArea())
+    if (RefPtr drawingArea = page->drawingArea())
         drawingArea->remotePageProcessDidTerminate(process.coreProcessIdentifier());
     if (RefPtr mainFrame = page->mainFrame())
         mainFrame->remoteProcessDidTerminate(process, WebFrameProxy::ClearFrameTreeSyncData::Yes);
@@ -149,11 +157,6 @@ bool RemotePageProxy::didReceiveSyncMessage(IPC::Connection& connection, IPC::De
     if (RefPtr page = m_page.get())
         return page->didReceiveSyncMessage(connection, decoder, encoder);
     return false;
-}
-
-Ref<WebProcessProxy> RemotePageProxy::protectedProcess() const
-{
-    return m_process;
 }
 
 RefPtr<WebPageProxy> RemotePageProxy::protectedPage() const
@@ -188,8 +191,36 @@ void RemotePageProxy::isPlayingMediaDidChange(WebCore::MediaProducerMediaStateFl
 
 #if ENABLE(MEDIA_STREAM)
     if (didStopAudioCapture || didStopVideoCapture)
-        UserMediaProcessManager::singleton().revokeSandboxExtensionsIfNeeded(protectedProcess().get());
+        UserMediaProcessManager::singleton().revokeSandboxExtensionsIfNeeded(m_process);
 #endif
+}
+
+void RemotePageProxy::setDrawingArea(DrawingAreaProxy* drawingArea)
+{
+    RefPtr page = m_page.get();
+    if (!page)
+        return;
+
+    RefPtr mainFrame = page->mainFrame();
+    if (!mainFrame)
+        return;
+
+    if (!drawingArea) {
+        m_drawingArea = nullptr;
+        return;
+    }
+
+    m_drawingArea = RemotePageDrawingAreaProxy::create(*drawingArea, m_process);
+    m_process->send(
+        Messages::WebProcess::CreateWebPage(
+            m_webPageID,
+            page->creationParametersForRemotePage(m_process, *drawingArea, RemotePageParameters {
+                URL(page->pageLoadState().url()),
+                mainFrame->frameTreeCreationParameters(),
+                page->mainFrameWebsitePoliciesData() ? std::make_optional(*page->mainFrameWebsitePoliciesData()) : std::nullopt
+            })
+        ), 0
+    );
 }
 
 }

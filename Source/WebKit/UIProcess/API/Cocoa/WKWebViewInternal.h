@@ -281,6 +281,10 @@ struct PerWebProcessState {
     _WKRenderingProgressEvents _observedRenderingProgressEvents;
     BOOL _usePlatformFindUI;
     BOOL _usesAutomaticContentInsetBackgroundFill;
+    BOOL _shouldSuppressTopColorExtensionView;
+#if PLATFORM(MAC)
+    RetainPtr<NSColor> _overrideTopScrollEdgeEffectColor;
+#endif
 
     CocoaEdgeInsets _minimumViewportInset;
     CocoaEdgeInsets _maximumViewportInset;
@@ -463,6 +467,7 @@ struct PerWebProcessState {
 #if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
     WebCore::RectEdges<RetainPtr<WKColorExtensionView>> _fixedColorExtensionViews;
     OptionSet<WebKit::HideScrollPocketReason> _reasonsToHideTopScrollPocket;
+    BOOL _needsTopScrollPocketDueToVisibleContentInset;
 #endif
 }
 
@@ -578,6 +583,10 @@ struct PerWebProcessState {
 
 #endif
 
+#if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
+- (void)_updateHiddenScrollPocketEdges;
+#endif
+
 @property (nonatomic, setter=_setHasActiveNowPlayingSession:) BOOL _hasActiveNowPlayingSession;
 
 @end
@@ -615,6 +624,8 @@ RetainPtr<NSError> nsErrorFromExceptionDetails(const std::optional<WebCore::Exce
 #endif
 
 @property (nonatomic, readonly) NSString *_nameForVisualIdentificationOverlay;
+
+- (void)_setNeedsScrollGeometryUpdates:(BOOL)needsScrollGeometryUpdates;
 
 - (void)_scrollToEdge:(_WKRectEdge)edge animated:(BOOL)animated;
 

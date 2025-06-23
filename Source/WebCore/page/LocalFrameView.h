@@ -392,7 +392,9 @@ public:
 #endif
 
     IntRect viewRectExpandedByContentInsets() const;
-    
+
+    IntSize scrollGeometryContentSize() const { return m_scrollGeometryContentSize; }
+
     bool fixedElementsLayoutRelativeToFrame() const;
 
     bool speculativeTilingEnabled() const { return m_speculativeTilingEnabled; }
@@ -663,7 +665,7 @@ public:
     void didAddWidgetToRenderTree(Widget&);
     void willRemoveWidgetFromRenderTree(Widget&);
 
-    const UncheckedKeyHashSet<SingleThreadWeakRef<Widget>>& widgetsInRenderTree() const { return m_widgetsInRenderTree; }
+    const HashSet<SingleThreadWeakRef<Widget>>& widgetsInRenderTree() const { return m_widgetsInRenderTree; }
 
     void notifyAllFramesThatContentAreaWillPaint() const;
 
@@ -833,6 +835,8 @@ private:
     void performFixedWidthAutoSize();
     void performSizeToContentAutoSize();
 
+    void updateScrollGeometryContentSize();
+
     void applyRecursivelyWithVisibleRect(NOESCAPE const Function<void(LocalFrameView& frameView, const IntRect& visibleRect)>&);
     void resumeVisibleImageAnimations(const IntRect& visibleRect);
 #if ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
@@ -968,11 +972,11 @@ private:
     const Ref<LocalFrame> m_frame;
     LocalFrameViewLayoutContext m_layoutContext;
 
-    UncheckedKeyHashSet<SingleThreadWeakRef<Widget>> m_widgetsInRenderTree;
+    HashSet<SingleThreadWeakRef<Widget>> m_widgetsInRenderTree;
     std::unique_ptr<ListHashSet<SingleThreadWeakRef<RenderEmbeddedObject>>> m_embeddedObjectsToUpdate;
     std::unique_ptr<SingleThreadWeakHashSet<RenderElement>> m_slowRepaintObjects;
 
-    UncheckedKeyHashMap<ScrollingNodeID, WeakPtr<ScrollableArea>> m_scrollingNodeIDToPluginScrollableAreaMap;
+    HashMap<ScrollingNodeID, WeakPtr<ScrollableArea>> m_scrollingNodeIDToPluginScrollableAreaMap;
 
     RefPtr<ContainerNode> m_maintainScrollPositionAnchor;
     RefPtr<ContainerNode> m_scheduledMaintainScrollPositionAnchor;
@@ -1038,6 +1042,8 @@ private:
     int m_autoSizeFixedMinimumHeight { 0 };
     // The intrinsic content size decided by autosizing.
     IntSize m_autoSizeContentSize;
+
+    IntSize m_scrollGeometryContentSize;
 
     std::unique_ptr<ScrollableAreaSet> m_scrollableAreas;
     std::unique_ptr<ScrollableAreaSet> m_scrollableAreasForAnimatedScroll;

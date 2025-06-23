@@ -1804,7 +1804,7 @@ static inline bool operator<(char32_t a, const UnicodeCodePointRange& b)
 
 RefPtr<CustomElementRegistry> Document::customElementRegistryForBindings()
 {
-    if (RefPtr window = document().domWindow())
+    if (RefPtr window = document().window())
         return &window->ensureCustomElementRegistry();
     return customElementRegistry();
 }
@@ -2010,7 +2010,7 @@ ExceptionOr<Ref<Element>> Document::createElementNS(const AtomString& namespaceU
 
 DocumentEventTiming* Document::documentEventTimingFromNavigationTiming()
 {
-    RefPtr window = domWindow();
+    RefPtr window = this->window();
     if (!window)
         return nullptr;
     RefPtr navigationTiming = window->performance().navigationTiming();
@@ -2082,7 +2082,7 @@ void Document::addVisualUpdatePreventedReason(VisualUpdatesPreventedReason reaso
 {
     if (m_visualUpdatesPreventedReasons.isEmpty()) {
         if (RefPtr frame = this->frame(); frame && frame->document() == this)
-            frame->protectedLoader()->setDocumentVisualUpdatesAllowed(false);
+            frame->loader().setDocumentVisualUpdatesAllowed(false);
     }
 
     m_visualUpdatesPreventedReasons.add(reason);
@@ -2110,7 +2110,7 @@ void Document::removeVisualUpdatePreventedReasons(OptionSet<VisualUpdatesPrevent
     m_visualUpdatesSuppressionTimer.stop();
 
     if (RefPtr frame = this->frame(); frame && frame->document() == this)
-        frame->protectedLoader()->setDocumentVisualUpdatesAllowed(true);
+        frame->loader().setDocumentVisualUpdatesAllowed(true);
 
     if (m_visualUpdatesAllowedChangeRequiresLayoutMilestones) {
         RefPtr frameView = view();
@@ -2118,7 +2118,7 @@ void Document::removeVisualUpdatePreventedReasons(OptionSet<VisualUpdatesPrevent
             if (frame()->isMainFrame()) {
                 frameView->addPaintPendingMilestones(LayoutMilestone::DidFirstPaintAfterSuppressedIncrementalRendering);
                 if (page->requestedLayoutMilestones() & LayoutMilestone::DidFirstLayoutAfterSuppressedIncrementalRendering)
-                    protectedFrame()->protectedLoader()->didReachLayoutMilestone(LayoutMilestone::DidFirstLayoutAfterSuppressedIncrementalRendering);
+                    protectedFrame()->loader().didReachLayoutMilestone(LayoutMilestone::DidFirstLayoutAfterSuppressedIncrementalRendering);
             }
         }
         m_visualUpdatesAllowedChangeRequiresLayoutMilestones = false;
@@ -2128,7 +2128,7 @@ void Document::removeVisualUpdatePreventedReasons(OptionSet<VisualUpdatesPrevent
         renderView->repaintViewAndCompositedLayers();
 
     if (RefPtr frame = this->frame(); frame && m_visualUpdatesAllowedChangeCompletesPageTransition)
-        frame->protectedLoader()->completePageTransitionIfNeeded();
+        frame->loader().completePageTransitionIfNeeded();
     m_visualUpdatesAllowedChangeCompletesPageTransition = false;
     scheduleRenderingUpdate({ });
 }
@@ -3187,7 +3187,7 @@ bool Document::updateLayoutIfDimensionsOutOfDate(Element& element, OptionSet<Dim
     bool requireFullLayout = is<HTMLInputElement>(element);
     {
         CheckedPtr renderer = element.renderer();
-        if (renderer->selfNeedsLayout() || renderer->normalChildNeedsLayout() || renderer->posChildNeedsLayout() || renderer->needsPositionedMovementLayout())
+        if (renderer->selfNeedsLayout() || renderer->normalChildNeedsLayout() || renderer->outOfFlowChildNeedsLayout() || renderer->needsOutOfFlowMovementLayout())
             requireFullLayout = true;
         if (renderer->needsSimplifiedNormalFlowLayout()) {
             if (!dimensionsCheck.contains(DimensionsCheck::IgnoreOverflow))
@@ -3215,7 +3215,7 @@ bool Document::updateLayoutIfDimensionsOutOfDate(Element& element, OptionSet<Dim
                 break;
             }
 
-            if (dimensionsCheck.containsAny({ DimensionsCheck::Left, DimensionsCheck::Top }) && currentRenderer->needsPositionedMovementLayout()) {
+            if (dimensionsCheck.containsAny({ DimensionsCheck::Left, DimensionsCheck::Top }) && currentRenderer->needsOutOfFlowMovementLayout()) {
                 requireFullLayout = true;
                 break;
             }
@@ -3434,7 +3434,7 @@ void Document::frameDestroyed()
     // detachFromFrame() must be called before destroying the Frame.
     RELEASE_ASSERT(!m_frame);
 
-    if (RefPtr window = domWindow())
+    if (RefPtr window = this->window())
         window->frameDestroyed();
 
     FrameDestructionObserver::frameDestroyed();
@@ -3446,7 +3446,7 @@ void Document::willDetachPage()
 #if ENABLE(CONTENT_CHANGE_OBSERVER)
     contentChangeObserver().willDetachPage();
 #endif
-    if (domWindow() && frame())
+    if (window() && frame())
         InspectorInstrumentation::frameWindowDiscarded(protectedFrame().releaseNonNull(), protectedWindow().get());
 }
 
@@ -3946,7 +3946,7 @@ ExceptionOr<void> Document::open(Document* entryDocument)
             frame->loader().policyChecker().stopCheck();
         // Null-checking m_frame again as `policyChecker().stopCheck()` may have cleared it.
         if (isNavigating && m_frame)
-            protectedFrame()->protectedLoader()->stopAllLoaders();
+            protectedFrame()->loader().stopAllLoaders();
     }
 
     removeAllEventListeners();
@@ -4081,7 +4081,7 @@ ExceptionOr<void> Document::setBodyOrFrameset(RefPtr<HTMLElement>&& newBody)
 
 Location* Document::location() const
 {
-    auto* window = domWindow();
+    auto* window = this->window();
     return window ? &window->location() : nullptr;
 }
 
@@ -4190,7 +4190,7 @@ void Document::implicitClose()
         m_whenWindowLoadEventOrDestroyed();
 
     if (frame)
-        frame->protectedLoader()->dispatchOnloadEvents();
+        frame->loader().dispatchOnloadEvents();
 
     // An event handler may have removed the frame
     frame = this->frame();
@@ -4199,7 +4199,7 @@ void Document::implicitClose()
         return;
     }
 
-    frame->protectedLoader()->checkCallImplicitClose();
+    frame->loader().checkCallImplicitClose();
 
     // We used to force a synchronous display and flush here. This really isn't
     // necessary and can in fact be actively harmful if pages are loading at a rate of > 60fps
@@ -4291,7 +4291,7 @@ void Document::enqueuePaintTimingEntryIfNeeded()
     if (!supportsPaintTiming())
         return;
 
-    if (!domWindow() || !view())
+    if (!window() || !view())
         return;
 
     // To make sure we don't report paint while the layer tree is still frozen.
@@ -4686,7 +4686,7 @@ void Document::processBaseElement()
 String Document::userAgent(const URL& url) const
 {
     RefPtr frame = this->frame();
-    return frame ? frame->protectedLoader()->userAgent(url) : String();
+    return frame ? frame->loader().userAgent(url) : String();
 }
 
 void Document::disableEval(const String& errorMessage)
@@ -5015,7 +5015,7 @@ void Document::processMetaHttpEquiv(const String& equiv, const AtomString& conte
 
     case HTTPHeaderName::Refresh:
         if (frame)
-            frame->protectedLoader()->scheduleRefreshIfNeeded(*this, content, IsMetaRefresh::Yes);
+            frame->loader().scheduleRefreshIfNeeded(*this, content, IsMetaRefresh::Yes);
         break;
 
     case HTTPHeaderName::SetCookie:
@@ -5540,7 +5540,7 @@ void Document::runResizeSteps()
     if (m_needsVisualViewportResizeEvent) {
         LOG_WITH_STREAM(Events, stream << "Document " << this << " sending resize events to visualViewport");
         m_needsVisualViewportResizeEvent = false;
-        if (RefPtr window = domWindow())
+        if (RefPtr window = this->window())
             window->visualViewport().dispatchEvent(Event::create(eventNames().resizeEvent, Event::CanBubble::No, Event::IsCancelable::No));
     }
 }
@@ -5626,7 +5626,7 @@ void Document::runScrollSteps()
     if (m_needsVisualViewportScrollEvent) {
         LOG_WITH_STREAM(Events, stream << "Document " << this << " sending scroll events to visualViewport");
         m_needsVisualViewportScrollEvent = false;
-        if (RefPtr window = domWindow())
+        if (RefPtr window = this->window())
             window->visualViewport().dispatchEvent(Event::create(eventNames().scrollEvent, Event::CanBubble::No, Event::IsCancelable::No));
     }
 }
@@ -5780,7 +5780,7 @@ void Document::processCaptureStateDidChange(Function<bool(const Page&)>&& isPage
     if (!page)
         return;
 
-    RefPtr window = domWindow();
+    RefPtr window = this->window();
     RefPtr mediaSession = window ? NavigatorMediaSession::mediaSessionIfExists(window->protectedNavigator()) : nullptr;
     if (!mediaSession)
         return;
@@ -5854,7 +5854,7 @@ void Document::voiceActivityDetected()
     if (!isFullyActive() || hidden() || !hasMutedAudioCaptureDevice())
         return;
 
-    RefPtr window = domWindow();
+    RefPtr window = this->window();
     RefPtr mediaSession = window ? NavigatorMediaSession::mediaSessionIfExists(window->protectedNavigator()) : nullptr;
     if (!mediaSession)
         return;
@@ -5976,7 +5976,7 @@ void Document::adjustFocusedNodeOnNodeRemoval(Node& node, NodeRemoval nodeRemova
         setFocusNavigationStartingNode(focusedElement.get());
 
         if (settings().navigationAPIEnabled())
-            domWindow()->navigation().setFocusChanged(FocusDidChange::No);
+            window()->navigation().setFocusChanged(FocusDidChange::No);
     }
 }
 
@@ -6319,7 +6319,7 @@ bool Document::setFocusedElement(Element* newFocusedElement, const FocusOptions&
     if (m_focusedElement) {
 
         if (settings().navigationAPIEnabled())
-            domWindow()->navigation().setFocusChanged(FocusDidChange::Yes);
+            window()->navigation().setFocusChanged(FocusDidChange::Yes);
 
 #if PLATFORM(GTK)
         // GTK relies on creating the AXObjectCache when a focus change happens.
@@ -7857,6 +7857,18 @@ bool Document::hasSVGRootNode() const
 }
 
 #if HAVE(SUPPORT_HDR_DISPLAY)
+
+void Document::setHasHDRContent()
+{
+    if (m_hasHDRContent)
+        return;
+
+    m_hasHDRContent = true;
+
+    if (RefPtr ownerElement = this->ownerElement())
+        ownerElement->scheduleInvalidateStyleAndLayerComposition();
+}
+
 bool Document::drawsHDRContent() const
 {
     if (!(settings().supportHDRDisplayEnabled() || settings().canvasPixelFormatEnabled()))
@@ -7987,7 +7999,7 @@ void Document::finishedParsing()
         // See https://bugs.webkit.org/show_bug.cgi?id=36864 starting around comment 35.
         updateStyleIfNeeded();
 
-        frame->protectedLoader()->finishedParsing();
+        frame->loader().finishedParsing();
         InspectorInstrumentation::domContentLoadedEventFired(*frame);
     }
 
@@ -8548,8 +8560,8 @@ void Document::resumeScriptedAnimationControllerCallbacks()
 void Document::serviceRequestAnimationFrameCallbacks()
 {
     RefPtr scriptedAnimationController = m_scriptedAnimationController;
-    if (scriptedAnimationController && domWindow())
-        scriptedAnimationController->serviceRequestAnimationFrameCallbacks(domWindow()->frozenNowTimestamp());
+    if (scriptedAnimationController && window())
+        scriptedAnimationController->serviceRequestAnimationFrameCallbacks(window()->frozenNowTimestamp());
 }
 
 void Document::serviceCaretAnimation()
@@ -8560,11 +8572,11 @@ void Document::serviceCaretAnimation()
 void Document::serviceRequestVideoFrameCallbacks()
 {
 #if ENABLE(VIDEO)
-    if (!domWindow())
+    if (!window())
         return;
 
     bool isServicingRequestVideoFrameCallbacks = false;
-    forEachMediaElement([now = domWindow()->frozenNowTimestamp(), &isServicingRequestVideoFrameCallbacks](auto& element) {
+    forEachMediaElement([now = window()->frozenNowTimestamp(), &isServicingRequestVideoFrameCallbacks](auto& element) {
         RefPtr videoElement = dynamicDowncast<HTMLVideoElement>(element);
         if (videoElement && videoElement->shouldServiceRequestVideoFrameCallbacks()) {
             isServicingRequestVideoFrameCallbacks = true;
@@ -8583,6 +8595,14 @@ void Document::serviceRequestVideoFrameCallbacks()
 void Document::windowScreenDidChange(PlatformDisplayID displayID)
 {
     for (auto& observer : copyToVector(m_displayChangedObservers)) {
+        if (observer)
+            (*observer)(displayID);
+    }
+}
+
+void Document::screenPropertiesDidChange(PlatformDisplayID displayID)
+{
+    for (auto& observer : copyToVector(m_screenPropertiesChangedObservers)) {
         if (observer)
             (*observer)(displayID);
     }
@@ -8741,6 +8761,12 @@ void Document::addDisplayChangedObserver(const DisplayChangedObserver& observer)
     m_displayChangedObservers.add(observer);
 }
 
+void Document::addScreenPropertiesChangedObserver(const ScreenPropertiesChangedObserver& observer)
+{
+    ASSERT(!m_screenPropertiesChangedObservers.contains(observer));
+    m_screenPropertiesChangedObservers.add(observer);
+}
+
 #if HAVE(SPATIAL_TRACKING_LABEL)
 const String& Document::defaultSpatialTrackingLabel() const
 {
@@ -8843,13 +8869,13 @@ void Document::loadEventDelayTimerFired()
     // visible to WebKit clients, but it's more like a race than a well-defined relationship.
     checkCompleted();
     if (RefPtr frame = this->frame())
-        frame->protectedLoader()->checkLoadComplete();
+        frame->loader().checkLoadComplete();
 }
 
 void Document::checkCompleted()
 {
     if (RefPtr frame = this->frame())
-        frame->protectedLoader()->checkCompleted();
+        frame->loader().checkCompleted();
 }
 
 double Document::monotonicTimestamp() const
@@ -8933,16 +8959,6 @@ void Document::processInternalResourceLinks(Element* element)
         if (RefPtr link = dynamicDowncast<HTMLLinkElement>(blockingElement.get()))
             link->processInternalResourceLink(element);
     }
-}
-
-CheckedRef<FrameSelection> Document::checkedSelection()
-{
-    return m_selection.get();
-}
-
-CheckedRef<const FrameSelection> Document::checkedSelection() const
-{
-    return m_selection.get();
 }
 
 int Document::requestIdleCallback(Ref<IdleRequestCallback>&& callback, Seconds timeout)
@@ -9258,7 +9274,7 @@ bool Document::hasRecentUserInteractionForNavigationFromJS() const
     if (UserGestureIndicator::processingUserGesture(this))
         return true;
 
-    RefPtr window = domWindow();
+    RefPtr window = this->window();
     if (!window || window->lastActivationTimestamp().isInfinity())
         return false;
 
@@ -9390,7 +9406,7 @@ void Document::decrementActiveParserCount()
     // FIXME: We should call DocumentLoader::checkLoadComplete as well here,
     // but it seems to cause http/tests/security/feed-urls-from-remote.html
     // to timeout on Mac WK1; see http://webkit.org/b/110554 and http://webkit.org/b/110401.
-    frame->protectedLoader()->checkLoadComplete();
+    frame->loader().checkLoadComplete();
 }
 
 DocumentParserYieldToken::DocumentParserYieldToken(Document& document)
@@ -10020,23 +10036,48 @@ void Document::updateIntersectionObservations(const Vector<WeakPtr<IntersectionO
         return;
     }
 
-    Vector<WeakPtr<IntersectionObserver>> intersectionObserversWithPendingNotifications;
+    Vector<WeakPtr<IntersectionObserver>> intersectionObserversToNotifyAsynchronously;
+    Vector<RefPtr<IntersectionObserver>> intersectionObserversToNotifySynchronously;
 
     for (auto& weakObserver : intersectionObservers) {
         RefPtr observer = weakObserver.get();
         if (!observer)
             continue;
 
-        auto needNotify = observer->updateObservations(*this);
-        if (needNotify == IntersectionObserver::NeedNotify::Yes)
-            intersectionObserversWithPendingNotifications.append(observer);
+        if (observer->updateObservations(*this)) {
+            switch (observer->notificationDelivery()) {
+            case IntersectionObserver::NotificationDelivery::Asynchronous:
+                intersectionObserversToNotifyAsynchronously.append(observer);
+                break;
+            case IntersectionObserver::NotificationDelivery::Synchronous:
+                intersectionObserversToNotifySynchronously.append(observer);
+                break;
+            }
+        }
     }
 
-    if (intersectionObserversWithPendingNotifications.size())
-        LOG_WITH_STREAM(IntersectionObserver, stream << "Document " << this << " updateIntersectionObservations - notifying observers");
+    if (!m_intersectionObserverUpdateTaskQueued && intersectionObserversToNotifyAsynchronously.size()) {
+        LOG_WITH_STREAM(IntersectionObserver, stream << "Document " << this << " updateIntersectionObservations - queueing task to notify JavaScript observers");
+        m_intersectionObserverUpdateTaskQueued = true;
 
-    for (auto& weakObserver : intersectionObserversWithPendingNotifications) {
-        if (RefPtr observer = weakObserver.get())
+        eventLoop().queueTask(TaskSource::IntersectionObserver, [weakThis = WeakPtr<Document, WeakPtrImplWithEventTargetData> { *this }, weakObservers = WTFMove(intersectionObserversToNotifyAsynchronously)]() mutable {
+            RefPtr protectedDocument = weakThis.get();
+
+            if (!protectedDocument)
+                return;
+
+            for (auto& weakObserver : weakObservers) {
+                if (RefPtr observer = weakObserver.get())
+                    observer->notify();
+            }
+            protectedDocument->m_intersectionObserverUpdateTaskQueued = false;
+        });
+    }
+
+    if (intersectionObserversToNotifySynchronously.size()) {
+        LOG_WITH_STREAM(IntersectionObserver, stream << "Document " << this << " updateIntersectionObservations - notifying internal observers.");
+
+        for (const auto& observer : intersectionObserversToNotifySynchronously)
             observer->notify();
     }
 }
@@ -10170,7 +10211,7 @@ const AtomString& Document::dir() const
 void Document::setDir(const AtomString& value)
 {
     if (RefPtr documentElement = dynamicDowncast<HTMLHtmlElement>(this->documentElement()))
-        documentElement->setDir(value);
+        documentElement->setAttributeWithoutSynchronization(dirAttr, value);
 }
 
 DOMSelection* Document::getSelection()
@@ -10487,12 +10528,12 @@ StyleOriginatedTimelinesController& Document::ensureStyleOriginatedTimelinesCont
 
 void Document::updateAnimationsAndSendEvents()
 {
-    RefPtr domWindow = this->domWindow();
-    if (!domWindow)
+    RefPtr window = this->window();
+    if (!window)
         return;
 
     if (CheckedPtr timelinesController = this->timelinesController())
-        timelinesController->updateAnimationsAndSendEvents(domWindow->frozenNowTimestamp());
+        timelinesController->updateAnimationsAndSendEvents(window->frozenNowTimestamp());
 }
 
 void Document::updateStaleScrollTimelines()
@@ -11564,16 +11605,6 @@ String Document::mediaKeysStorageDirectory()
 {
     RefPtr currentPage = page();
     return currentPage ? currentPage->ensureMediaKeysStorageDirectoryForOrigin(securityOrigin().data()) : emptyString();
-}
-
-CheckedRef<Style::Scope> Document::checkedStyleScope()
-{
-    return m_styleScope.get();
-}
-
-CheckedRef<const Style::Scope> Document::checkedStyleScope() const
-{
-    return m_styleScope.get();
 }
 
 CheckedPtr<RenderView> Document::checkedRenderView() const

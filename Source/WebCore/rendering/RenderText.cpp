@@ -148,15 +148,15 @@ void SecureTextTimer::fired()
     m_renderer.setText(m_renderer.text(), true /* forcing setting text as it may be masked later */);
 }
 
-static UncheckedKeyHashMap<SingleThreadWeakRef<const RenderText>, String>& originalTextMap()
+static HashMap<SingleThreadWeakRef<const RenderText>, String>& originalTextMap()
 {
-    static NeverDestroyed<UncheckedKeyHashMap<SingleThreadWeakRef<const RenderText>, String>> map;
+    static NeverDestroyed<HashMap<SingleThreadWeakRef<const RenderText>, String>> map;
     return map;
 }
 
-static UncheckedKeyHashMap<SingleThreadWeakRef<const RenderText>, SingleThreadWeakPtr<RenderInline>>& inlineWrapperForDisplayContentsMap()
+static HashMap<SingleThreadWeakRef<const RenderText>, SingleThreadWeakPtr<RenderInline>>& inlineWrapperForDisplayContentsMap()
 {
-    static NeverDestroyed<UncheckedKeyHashMap<SingleThreadWeakRef<const RenderText>, SingleThreadWeakPtr<RenderInline>>> map;
+    static NeverDestroyed<HashMap<SingleThreadWeakRef<const RenderText>, SingleThreadWeakPtr<RenderInline>>> map;
     return map;
 }
 
@@ -434,7 +434,7 @@ void RenderText::styleDidChange(StyleDifference diff, const RenderStyle* oldStyl
     // We do have to schedule layouts, though, since a style change can force us to
     // need to relayout.
     if (diff == StyleDifference::Layout) {
-        setNeedsLayoutAndPrefWidthsRecalc();
+        setNeedsLayoutAndPreferredWidthsUpdate();
         m_knownToHaveNoOverflowAndNoFallbackFonts = false;
     }
 
@@ -1826,7 +1826,7 @@ void RenderText::setTextInternal(const String& text, bool force)
 
     setRenderedText(text);
 
-    setNeedsLayoutAndPrefWidthsRecalc();
+    setNeedsLayoutAndPreferredWidthsUpdate();
     m_knownToHaveNoOverflowAndNoFallbackFonts = false;
 
     if (AXObjectCache* cache = document().existingAXObjectCache())

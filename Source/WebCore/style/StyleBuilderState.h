@@ -66,7 +66,6 @@ struct FilterProperty;
 
 namespace Style {
 
-class Builder;
 class BuilderState;
 struct Color;
 
@@ -80,28 +79,27 @@ struct BuilderPositionTryFallback {
 };
 
 struct BuilderContext {
-    const Ref<const Document> document;
-    const RenderStyle& parentStyle;
-    const RenderStyle* rootElementStyle = nullptr;
-    RefPtr<const Element> element = nullptr;
+    const RefPtr<const Document> document { };
+    const RenderStyle* parentStyle { };
+    const RenderStyle* rootElementStyle { };
+    RefPtr<const Element> element { };
     CheckedPtr<TreeResolutionState> treeResolutionState { };
     std::optional<BuilderPositionTryFallback> positionTryFallback { };
 };
 
 class BuilderState {
 public:
-    BuilderState(Builder&, RenderStyle&, BuilderContext&&);
-
-    Builder& builder() { return m_builder; }
+    BuilderState(RenderStyle&);
+    BuilderState(RenderStyle&, BuilderContext&&);
 
     RenderStyle& style() { return m_style; }
     const RenderStyle& style() const { return m_style; }
 
-    const RenderStyle& parentStyle() const { return m_context.parentStyle; }
+    const RenderStyle& parentStyle() const { return *m_context.parentStyle; }
     const RenderStyle* rootElementStyle() const { return m_context.rootElementStyle; }
 
-    const Document& document() const { return m_context.document.get(); }
-    Ref<const Document> protectedDocument() const { return m_context.document; }
+    const Document& document() const { return *m_context.document; }
+    Ref<const Document> protectedDocument() const { return *m_context.document; }
     const Element* element() const { return m_context.element.get(); }
 
     inline void setZoom(float);
@@ -127,7 +125,6 @@ public:
     FilterOperations createFilterOperations(const CSSValue&) const;
     FilterOperations createAppleColorFilterOperations(const CSS::AppleColorFilterProperty&) const;
     FilterOperations createAppleColorFilterOperations(const CSSValue&) const;
-    Color createStyleColor(const CSSValue&, ForVisitedLink = ForVisitedLink::No) const;
 
     const Vector<AtomString>& registeredContentAttributes() const { return m_registeredContentAttributes; }
     void registerContentAttribute(const AtomString& attributeLocalName);
@@ -220,8 +217,6 @@ private:
     void updateFontForZoomChange();
     void updateFontForGenericFamilyChange();
     void updateFontForOrientationChange();
-
-    Builder& m_builder;
 
     CSSToStyleMap m_styleMap;
 

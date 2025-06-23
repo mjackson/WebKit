@@ -159,6 +159,7 @@ public:
 
     LayoutUnit computeTrackBasedSize() const;
 
+    bool hasAllLengthRowSizes() const;
     bool hasAnyPercentSizedRowsIndefiniteHeight() const { return m_hasPercentSizedRowsIndefiniteHeight; }
     bool hasAnyFlexibleMaxTrackBreadth() const { return m_hasFlexibleMaxTrackBreadth; }
     bool hasAnyBaselineAlignmentItem() const { return !m_baselineAlignmentItemsForRows.isEmpty() || !m_baselineAlignmentItemsForColumns.isEmpty(); }
@@ -250,7 +251,7 @@ private:
     void computeGridContainerIntrinsicSizes();
 
     // Helper methods for step 4. Stretch flexible tracks.
-    typedef UncheckedKeyHashSet<unsigned, DefaultHash<unsigned>, WTF::UnsignedWithZeroKeyHashTraits<unsigned>> TrackIndexSet;
+    typedef HashSet<unsigned, DefaultHash<unsigned>, WTF::UnsignedWithZeroKeyHashTraits<unsigned>> TrackIndexSet;
     double computeFlexFactorUnitSize(const Vector<GridTrack>& tracks, double flexFactorSum, LayoutUnit& leftOverSpace, const Vector<unsigned, 8>& flexibleTracksIndexes, std::unique_ptr<TrackIndexSet> tracksToTreatAsInflexible = nullptr) const;
     void computeFlexSizedTracksGrowth(double flexFraction, Vector<LayoutUnit>& increments, LayoutUnit& totalGrowth) const;
     double findFrUnitSize(const GridSpan& tracksSpan, LayoutUnit leftOverSpace) const;
@@ -335,7 +336,7 @@ private:
     SizingState m_sizingState;
 
     GridBaselineAlignment m_baselineAlignment;
-    using BaselineItemsCache = UncheckedKeyHashMap<SingleThreadWeakRef<const RenderBox>, bool>;
+    using BaselineItemsCache = HashMap<SingleThreadWeakRef<const RenderBox>, bool>;
 
     // Rows/columns here indicate the alignment context.
     BaselineItemsCache m_baselineAlignmentItemsForRows;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Apple Inc. All rights reserved.
+ * Copyright (C) 2018-2025 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -102,7 +102,7 @@ public:
         return it->value.first && it->value.first->isRootFrame();
     }
 private:
-    UncheckedKeyHashMap<FrameIdentifier, std::pair<WeakPtr<LocalFrame>, WeakPtr<RemoteFrame>>> m_map;
+    HashMap<FrameIdentifier, std::pair<WeakPtr<LocalFrame>, WeakPtr<RemoteFrame>>> m_map;
 };
 #endif
 
@@ -310,7 +310,7 @@ void Frame::updateSandboxFlags(SandboxFlags flags, NotifyUIProcess notifyUIProce
 void Frame::stopForBackForwardCache()
 {
     if (RefPtr localFrame = dynamicDowncast<LocalFrame>(*this))
-        localFrame->protectedLoader()->stopForBackForwardCache();
+        localFrame->loader().stopForBackForwardCache();
     else {
         for (RefPtr child = tree().firstChild(); child; child = child->tree().nextSibling())
             child->stopForBackForwardCache();

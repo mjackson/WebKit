@@ -49,8 +49,8 @@ private:
 
     ExternalStringImpl(std::span<const LChar> characters, void* ctx, ExternalStringImplFreeFunction&&);
     ExternalStringImpl(std::span<const UChar> characters, void* ctx, ExternalStringImplFreeFunction&&);
-    ExternalStringImpl(std::span<const LChar> characters, ExternalStringImplFreeFunction&&);
-    ExternalStringImpl(std::span<const UChar> characters, ExternalStringImplFreeFunction&&);
+    ExternalStringImpl(std::span<const LChar> characters);
+    ExternalStringImpl(std::span<const UChar> characters);
 
     inline void freeExternalBuffer(void* buffer, unsigned bufferSize);
 

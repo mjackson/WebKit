@@ -1098,6 +1098,8 @@ WebPage::WebPage(PageIdentifier pageID, WebPageCreationParameters&& parameters)
 
     m_needsFontAttributes = parameters.needsFontAttributes;
 
+    setNeedsScrollGeometryUpdates(parameters.needsScrollGeometryUpdates);
+
 #if ENABLE(WEB_RTC)
     if (!parameters.iceCandidateFilteringEnabled)
         page->disableICECandidateFiltering();
@@ -2573,7 +2575,7 @@ void WebPage::didScalePage(double scale, const IntPoint& origin)
 #if PLATFORM(IOS_FAMILY)
     if (willChangeScaleFactor) {
         if (!m_inDynamicSizeUpdate)
-            m_dynamicSizeUpdateHistory.clear();
+            m_internals->dynamicSizeUpdateHistory.clear();
         m_scaleWasSetByUIProcess = false;
     }
 #endif
@@ -3255,7 +3257,7 @@ void WebPage::pageDidScroll()
 {
 #if PLATFORM(IOS_FAMILY)
     if (!m_inDynamicSizeUpdate)
-        m_dynamicSizeUpdateHistory.clear();
+        m_internals->dynamicSizeUpdateHistory.clear();
 #endif
     m_uiClient->pageDidScroll(this);
 
@@ -4965,13 +4967,16 @@ void WebPage::willCommitLayerTree(RemoteLayerTreeTransaction& layerTransaction, 
 #endif
 
     layerTransaction.setContentsSize(frameView->contentsSize());
+    layerTransaction.setScrollGeometryContentSize(frameView->scrollGeometryContentSize());
     layerTransaction.setScrollOrigin(frameView->scrollOrigin());
     layerTransaction.setPageScaleFactor(page->pageScaleFactor());
     layerTransaction.setRenderTreeSize(page->renderTreeSize());
     layerTransaction.setThemeColor(page->themeColor());
     layerTransaction.setPageExtendedBackgroundColor(page->pageExtendedBackgroundColor());
     layerTransaction.setSampledPageTopColor(page->sampledPageTopColor());
-    if (std::exchange(m_needsFixedContainerEdgesUpdate, false)) {
+
+    bool isMainFrameProcess = !!page->localMainFrame();
+    if (isMainFrameProcess && std::exchange(m_needsFixedContainerEdgesUpdate, false)) {
         page->updateFixedContainerEdges(sidesRequiringFixedContainerEdges());
         layerTransaction.setFixedContainerEdges(page->fixedContainerEdges());
     }
@@ -5922,37 +5927,27 @@ void WebPage::extendSandboxForFilesFromOpenPanel(Vector<SandboxExtension::Handle
 #if ENABLE(GEOLOCATION)
 void WebPage::didReceiveGeolocationPermissionDecision(GeolocationIdentifier geolocationID, const String& authorizationToken)
 {
-    protectedGeolocationPermissionRequestManager()->didReceiveGeolocationPermissionDecision(geolocationID, authorizationToken);
-}
-
-Ref<GeolocationPermissionRequestManager> WebPage::protectedGeolocationPermissionRequestManager()
-{
-    return m_geolocationPermissionRequestManager.get();
+    m_geolocationPermissionRequestManager->didReceiveGeolocationPermissionDecision(geolocationID, authorizationToken);
 }
 #endif
 
 #if ENABLE(MEDIA_STREAM)
 
-Ref<UserMediaPermissionRequestManager> WebPage::protectedUserMediaPermissionRequestManager()
-{
-    return m_userMediaPermissionRequestManager.get();
-}
-
 void WebPage::userMediaAccessWasGranted(UserMediaRequestIdentifier userMediaID, WebCore::CaptureDevice&& audioDevice, WebCore::CaptureDevice&& videoDevice, WebCore::MediaDeviceHashSalts&& mediaDeviceIdentifierHashSalts, Vector<SandboxExtension::Handle>&& handles, CompletionHandler<void()>&& completionHandler)
 {
     SandboxExtension::consumePermanently(handles);
 
-    protectedUserMediaPermissionRequestManager()->userMediaAccessWasGranted(userMediaID, WTFMove(audioDevice), WTFMove(videoDevice), WTFMove(mediaDeviceIdentifierHashSalts), WTFMove(completionHandler));
+    m_userMediaPermissionRequestManager->userMediaAccessWasGranted(userMediaID, WTFMove(audioDevice), WTFMove(videoDevice), WTFMove(mediaDeviceIdentifierHashSalts), WTFMove(completionHandler));
 }
 
 void WebPage::userMediaAccessWasDenied(UserMediaRequestIdentifier userMediaID, uint64_t reason, String&& message, WebCore::MediaConstraintType invalidConstraint)
 {
-    protectedUserMediaPermissionRequestManager()->userMediaAccessWasDenied(userMediaID, static_cast<MediaAccessDenialReason>(reason), WTFMove(message), invalidConstraint);
+    m_userMediaPermissionRequestManager->userMediaAccessWasDenied(userMediaID, static_cast<MediaAccessDenialReason>(reason), WTFMove(message), invalidConstraint);
 }
 
 void WebPage::captureDevicesChanged()
 {
-    protectedUserMediaPermissionRequestManager()->captureDevicesChanged();
+    m_userMediaPermissionRequestManager->captureDevicesChanged();
 }
 
 void WebPage::voiceActivityDetected()
@@ -5982,19 +5977,14 @@ void WebPage::triggerMockCaptureConfigurationChange(bool forCamera, bool forMicr
 #endif // ENABLE(MEDIA_STREAM)
 
 #if ENABLE(ENCRYPTED_MEDIA)
-Ref<MediaKeySystemPermissionRequestManager> WebPage::protectedMediaKeySystemPermissionRequestManager()
-{
-    return m_mediaKeySystemPermissionRequestManager.get();
-}
-
 void WebPage::mediaKeySystemWasGranted(MediaKeySystemRequestIdentifier mediaKeySystemID, String&& mediaKeysHashSalt)
 {
-    protectedMediaKeySystemPermissionRequestManager()->mediaKeySystemWasGranted(mediaKeySystemID, WTFMove(mediaKeysHashSalt));
+    m_mediaKeySystemPermissionRequestManager->mediaKeySystemWasGranted(mediaKeySystemID, WTFMove(mediaKeysHashSalt));
 }
 
 void WebPage::mediaKeySystemWasDenied(MediaKeySystemRequestIdentifier mediaKeySystemID, String&& message)
 {
-    protectedMediaKeySystemPermissionRequestManager()->mediaKeySystemWasDenied(mediaKeySystemID, WTFMove(message));
+    m_mediaKeySystemPermissionRequestManager->mediaKeySystemWasDenied(mediaKeySystemID, WTFMove(message));
 }
 #endif
 
@@ -6916,10 +6906,8 @@ void WebPage::wheelEventHandlersChanged(bool hasHandlers)
 
 static bool hasEnabledHorizontalScrollbar(ScrollableArea* scrollableArea)
 {
-    if (Scrollbar* scrollbar = scrollableArea->horizontalScrollbar())
-        return scrollbar->enabled();
-
-    return false;
+    RefPtr scrollbar = scrollableArea->horizontalScrollbar();
+    return scrollbar && scrollbar->enabled();
 }
 
 static bool pageContainsAnyHorizontalScrollbars(LocalFrame* mainFrame)
@@ -9527,7 +9515,7 @@ void WebPage::setAppHighlightsVisibility(WebCore::HighlightVisibility appHighlig
 void WebPage::createMediaSessionCoordinator(const String& identifier, CompletionHandler<void(bool)>&& completionHandler)
 {
     RefPtr document = m_mainFrame->coreLocalFrame()->document();
-    if (!document || !document->domWindow()) {
+    if (!document || !document->window()) {
         completionHandler(false);
         return;
     }
@@ -9884,8 +9872,8 @@ void WebPage::remotePostMessage(WebCore::FrameIdentifier source, const String& s
     RefPtr sourceFrame = WebProcess::singleton().webFrame(source);
     RefPtr sourceWindow = sourceFrame && sourceFrame->coreFrame() ? &sourceFrame->coreFrame()->windowProxy() : nullptr;
 
-    auto& script = targetCoreFrame->script();
-    auto globalObject = script.globalObject(WebCore::mainThreadNormalWorldSingleton());
+    CheckedRef script = targetCoreFrame->script();
+    auto globalObject = script->globalObject(WebCore::mainThreadNormalWorldSingleton());
     if (!globalObject)
         return;
 
@@ -9906,7 +9894,7 @@ void WebPage::renderTreeAsTextForTesting(WebCore::FrameIdentifier frameID, size_
         return completionHandler("Test Error - WebFrame missing LocalFrame in web process"_s);
     }
 
-    auto* renderer = coreLocalFrame->contentRenderer();
+    CheckedPtr renderer = coreLocalFrame->contentRenderer();
     if (!renderer) {
         ASSERT_NOT_REACHED();
         return completionHandler("Test Error - WebFrame missing RenderView in web process"_s);
@@ -9932,7 +9920,7 @@ void WebPage::layerTreeAsTextForTesting(WebCore::FrameIdentifier frameID, size_t
         return completionHandler("Test Error - WebFrame missing LocalFrame in web process"_s);
     }
 
-    auto* renderer = coreLocalFrame->contentRenderer();
+    CheckedPtr renderer = coreLocalFrame->contentRenderer();
     if (!renderer) {
         ASSERT_NOT_REACHED();
         return completionHandler("Test Error - WebFrame missing RenderView in web process"_s);

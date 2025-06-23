@@ -274,6 +274,7 @@ String RemoteLayerTreeTransaction::description() const
 
     ts.dumpProperty("transactionID"_s, m_transactionID);
     ts.dumpProperty("contentsSize"_s, m_contentsSize);
+    ts.dumpProperty("scrollGeometryContentSize"_s, m_scrollGeometryContentSize);
     if (m_scrollOrigin != WebCore::IntPoint::zero())
         ts.dumpProperty("scrollOrigin"_s, m_scrollOrigin);
 
@@ -422,6 +423,15 @@ uint32_t RemoteLayerTreeTransaction::LayerCreationProperties::hostingContextID()
         return customData->hostingContextID;
     return 0;
 }
+
+#if ENABLE(MACH_PORT_LAYER_HOSTING)
+std::optional<WTF::MachSendRightAnnotated> RemoteLayerTreeTransaction::LayerCreationProperties::sendRightAnnotated() const
+{
+    if (auto* customData = std::get_if<CustomData>(&additionalData))
+        return customData->sendRightAnnotated;
+    return std::nullopt;
+}
+#endif
 
 bool RemoteLayerTreeTransaction::LayerCreationProperties::preservesFlip() const
 {

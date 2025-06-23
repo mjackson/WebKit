@@ -79,22 +79,26 @@ private struct MaterialHostingView<P: MaterialHostingProvider>: View {
     private let colorScheme: WKHostedMaterialColorScheme
     private let cornerRadius: CGFloat
 
+    #if os(macOS)
+    @State
+    private var shouldIncreaseContrast = false
+
+    @State
+    private var shouldReduceTransparency = false
+    #endif
+
     static func resolvedMaterialEffect(for type: WKHostedMaterialEffectType) -> Material? {
         switch type {
         case .none:
             return nil
-        case .blur:
-            return Material._glass(.regular)
-        case .thinBlur:
-            return Material._glass(.regular.forceSubdued())
-        case .mediaControls:
-#if canImport(SwiftUI, _version: 7.0.60)
-            return Material._glass(.regular.adaptive(false))
-#else
-            return Material._glass(.regular)
-#endif
-        case .thinMediaControls:
-            return Material._glass(.avplayer.forceSubdued())
+        case .glass:
+            return ._glass(.regular)
+        case .subduedGlass:
+            return ._glass(.regular.forceSubdued())
+        case .mediaControlsGlass:
+            return ._glass(.regular.adaptive(false))
+        case .subduedMediaControlsGlass:
+            return ._glass(.avplayer.forceSubdued())
         @unknown default:
             return nil
         }
@@ -112,12 +116,32 @@ private struct MaterialHostingView<P: MaterialHostingProvider>: View {
         self.cornerRadius = cornerRadius
     }
 
+    #if os(macOS)
+    private func updateAccessibilityState() {
+        shouldIncreaseContrast =
+            NSWorkspace.shared
+            .accessibilityDisplayShouldIncreaseContrast
+        shouldReduceTransparency = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
+    }
+    #endif
+
     var body: some View {
         let view = P.view(for: content)
 
         if let effect = MaterialHostingView<P>.resolvedMaterialEffect(for: materialEffectType) {
             AnyView(view.materialEffect(effect, in: .rect(cornerRadius: cornerRadius)))
                 .environment(\.colorScheme, colorScheme == .light ? .light : .dark)
+                #if os(macOS)
+            .environment(\._accessibilityReduceTransparency, shouldReduceTransparency)
+            .environment(\._colorSchemeContrast, shouldIncreaseContrast ? .increased : .standard)
+            .onAppear {
+                updateAccessibilityState()
+            }
+            .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification)) {
+                _ in
+                updateAccessibilityState()
+            }
+                #endif
         } else {
             view
         }

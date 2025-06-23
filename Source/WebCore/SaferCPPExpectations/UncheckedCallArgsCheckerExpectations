@@ -141,7 +141,6 @@ css/SelectorChecker.cpp
 css/SelectorCheckerTestFunctions.h
 css/SelectorFilter.cpp
 css/StyleAttributeMutationScope.h
-css/calc/CSSCalcTree+ContainerProgressEvaluator.cpp
 css/parser/SizesAttributeParser.cpp
 css/query/MediaQueryFeatures.cpp
 css/typedom/ComputedStylePropertyMapReadOnly.cpp
@@ -171,7 +170,6 @@ dom/IdTargetObserver.cpp
 dom/IdleCallbackController.cpp
 dom/ImageOverlay.cpp
 dom/InlineStyleSheetOwner.cpp
-dom/KeyboardEvent.cpp
 dom/LiveNodeListInlines.h
 dom/MouseRelatedEvent.cpp
 dom/MutationObserver.cpp
@@ -185,13 +183,11 @@ dom/NodeWithIndex.h
 dom/PendingScript.cpp
 dom/Position.cpp
 dom/PositionIterator.cpp
-dom/ProcessingInstruction.cpp
 dom/Range.cpp
 dom/RangeBoundaryPoint.h
 dom/ScriptElement.cpp
 dom/ScriptExecutionContext.cpp
 dom/ScriptRunner.cpp
-dom/ScriptableDocumentParser.cpp
 dom/SecurityContext.cpp
 dom/SelectorQuery.cpp
 dom/ShadowRoot.cpp
@@ -227,12 +223,10 @@ editing/ModifySelectionListLevel.cpp
 editing/RemoveFormatCommand.cpp
 editing/RenderedPosition.cpp
 editing/ReplaceNodeWithSpanCommand.cpp
-editing/ReplaceRangeWithTextCommand.cpp
 editing/ReplaceSelectionCommand.cpp
 editing/ReplaceSelectionCommand.h
 editing/SimplifyMarkupCommand.cpp
 editing/SpellChecker.cpp
-editing/SpellingCorrectionCommand.cpp
 editing/SplitTextNodeCommand.cpp
 editing/SplitTextNodeContainingElementCommand.cpp
 editing/TextCheckingHelper.cpp
@@ -251,7 +245,6 @@ editing/cocoa/WebContentReaderCocoa.mm
 editing/mac/EditorMac.mm
 editing/mac/FrameSelectionMac.mm
 editing/markup.cpp
-fileapi/Blob.cpp
 fileapi/BlobLoader.h
 fileapi/FileReader.cpp
 history/BackForwardCache.cpp
@@ -446,7 +439,6 @@ loader/ImageLoader.cpp
 loader/MediaResourceLoader.cpp
 loader/MixedContentChecker.cpp
 loader/NavigationScheduler.cpp
-loader/PingLoader.cpp
 loader/PolicyChecker.cpp
 loader/ResourceLoader.cpp
 loader/ResourceMonitor.cpp
@@ -786,7 +778,6 @@ style/ChildChangeInvalidation.cpp
 style/ChildChangeInvalidation.h
 style/ClassChangeInvalidation.cpp
 style/ContainerQueryEvaluator.cpp
-style/CustomPropertyRegistry.cpp
 style/ElementRuleCollector.cpp
 style/IdChangeInvalidation.cpp
 style/InlineTextBoxStyle.cpp
@@ -800,6 +791,7 @@ style/StyleBuilderConverter.h
 style/StyleBuilderCustom.h
 style/StyleBuilderState.cpp
 style/StyleBuilderStateInlines.h
+style/StyleCustomPropertyRegistry.cpp
 style/StyleExtractor.cpp
 style/StyleExtractorConverter.h
 style/StyleExtractorCustom.h

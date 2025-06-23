@@ -263,11 +263,6 @@ URL HTMLAnchorElement::href() const
     return protectedDocument()->completeURL(attributeWithoutSynchronization(hrefAttr));
 }
 
-void HTMLAnchorElement::setHref(const AtomString& value)
-{
-    setAttributeWithoutSynchronization(hrefAttr, value);
-}
-
 bool HTMLAnchorElement::hasRel(Relation relation) const
 {
     return m_linkRelations.contains(relation);
@@ -593,7 +588,7 @@ void HTMLAnchorElement::handleClick(Event& event)
     // Thus, URLs should be empty for now.
     ASSERT(!privateClickMeasurement || (privateClickMeasurement->attributionReportClickSourceURL().isNull() && privateClickMeasurement->attributionReportClickDestinationURL().isNull()));
     
-    frame->protectedLoader()->changeLocation(completedURL, effectiveTarget, &event, referrerPolicy, document->shouldOpenExternalURLsPolicyToPropagate(), newFrameOpenerPolicy, downloadAttribute, WTFMove(privateClickMeasurement));
+    frame->loader().changeLocation(completedURL, effectiveTarget, &event, referrerPolicy, document->shouldOpenExternalURLsPolicyToPropagate(), newFrameOpenerPolicy, downloadAttribute, WTFMove(privateClickMeasurement));
 
     sendPings(completedURL);
 
@@ -696,11 +691,6 @@ void HTMLAnchorElement::setRootEditableElementForSelectionOnMouseDown(Element* e
     m_hasRootEditableElementForSelectionOnMouseDown = true;
 }
 
-void HTMLAnchorElement::setReferrerPolicyForBindings(const AtomString& value)
-{
-    setAttributeWithoutSynchronization(referrerpolicyAttr, value);
-}
-
 String HTMLAnchorElement::referrerPolicyForBindings() const
 {
     return referrerPolicyToString(referrerPolicy());
@@ -716,6 +706,11 @@ Node::InsertedIntoAncestorResult HTMLAnchorElement::insertedIntoAncestor(Inserti
     auto result = HTMLElement::insertedIntoAncestor(insertionType, parentOfInsertedTree);
     document().processInternalResourceLinks(this);
     return result;
+}
+
+void HTMLAnchorElement::setFullURL(const URL& fullURL)
+{
+    setAttributeWithoutSynchronization(hrefAttr, AtomString { fullURL.string() });
 }
 
 }

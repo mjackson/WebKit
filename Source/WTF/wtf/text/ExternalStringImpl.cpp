@@ -80,7 +80,6 @@ ExternalStringImpl::ExternalStringImpl(std::span<const LChar> characters, Extern
     m_refCount |= s_refCountFlagIsStaticString;
 }
 
-
 ExternalStringImpl::ExternalStringImpl(std::span<const UChar> characters, ExternalStringImplFreeFunction&& free)
     : StringImpl(characters, ConstructWithoutCopying)
     , m_free(WTFMove(free))

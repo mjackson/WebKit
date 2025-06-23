@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2023 Apple Inc. All rights reserved.
+ * Copyright (C) 2012-2025 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -122,12 +122,12 @@ private:
     HashMap<WebCore::PlatformLayerIdentifier, WeakPtr<PlatformCALayerRemote>> m_livePlatformLayers;
     HashMap<WebCore::PlatformLayerIdentifier, WeakPtr<PlatformCALayerRemote>> m_layersWithAnimations;
 #if HAVE(AVKIT)
-    HashMap<WebCore::PlatformLayerIdentifier, PlaybackSessionContextIdentifier> m_videoLayers;
+    HashMap<WebCore::PlatformLayerIdentifier, WebCore::MediaPlayerClientIdentifier> m_videoLayers;
 #endif
 
     HashSet<WeakRef<GraphicsLayerCARemote>> m_liveGraphicsLayers;
 
-    UniqueRef<RemoteLayerBackingStoreCollection> m_backingStoreCollection;
+    const UniqueRef<RemoteLayerBackingStoreCollection> m_backingStoreCollection;
 
     WebCore::LayerPool m_layerPool;
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 Apple Inc. All rights reserved.
+ * Copyright (C) 2019-2025 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -678,6 +678,26 @@ struct TextUnderElementMode {
     bool isHidden() { return considerHiddenState && inHiddenSubtree; }
 };
 
+struct LineRange {
+    unsigned startLineIndex;
+    // This index is inclusive.
+    unsigned endLineIndex;
+
+    LineRange()
+        : startLineIndex(0)
+        , endLineIndex(0)
+    { }
+    explicit LineRange(unsigned startIndex, unsigned endIndex)
+        : startLineIndex(startIndex)
+        , endLineIndex(endIndex)
+    { }
+
+    String debugDescription() const
+    {
+        return makeString("{start: "_s, startLineIndex, ", end: "_s, endLineIndex, '}');
+    }
+};
+
 enum class AccessibilityVisiblePositionForBounds {
     First,
     Last,
@@ -998,7 +1018,9 @@ public:
     // Returns all ranges of misspellings contained within the object.
     virtual Vector<AXTextMarkerRange> misspellingRanges() const = 0;
     virtual std::optional<SimpleRange> misspellingRange(const SimpleRange& start, AccessibilitySearchDirection) const = 0;
-    virtual std::optional<SimpleRange> visibleCharacterRange() const = 0;
+#if PLATFORM(COCOA)
+    virtual std::optional<NSRange> visibleCharacterRange() const = 0;
+#endif
     virtual bool hasPlainText() const = 0;
     virtual bool hasSameFont(AXCoreObject&) = 0;
     virtual bool hasSameFontColor(AXCoreObject&) = 0;
@@ -1331,7 +1353,7 @@ public:
     AXCoreObject* nextSiblingIncludingIgnoredOrParent() const;
     std::optional<AXID> idOfNextSiblingIncludingIgnoredOrParent() const
     {
-        auto* object = nextSiblingIncludingIgnoredOrParent();
+        RefPtr object = nextSiblingIncludingIgnoredOrParent();
         return object ? std::optional(object->objectID()) : std::nullopt;
     }
 
@@ -1779,14 +1801,14 @@ T* clickableSelfOrAncestor(const T& startObject, ClickHandlerFilter filter)
 template<typename T, typename F>
 T* clickableSelfOrAncestor(const T& startObject, const F& shouldStop)
 {
-    T* ancestor = findAncestor<T>(startObject, true, [] (const auto& ancestor) {
+    RefPtr<T> ancestor = findAncestor<T>(startObject, true, [](const auto& ancestor) {
         return ancestor.hasClickHandler();
     }, shouldStop);
 
     // Presentational objects should not be allowed to be clicked.
     if (ancestor && ancestor->role() == AccessibilityRole::Presentational)
         return nullptr;
-    return ancestor;
+    return ancestor.get();
 }
 
 template<typename T>
@@ -1800,11 +1822,11 @@ T* editableAncestor(const T& startObject)
 template<typename T>
 T* highestEditableAncestor(T& startObject)
 {
-    T* editableAncestor = startObject.editableAncestor();
-    T* previousEditableAncestor = nullptr;
+    RefPtr<T> editableAncestor = startObject.editableAncestor();
+    RefPtr<T> previousEditableAncestor;
     while (editableAncestor) {
         if (editableAncestor == previousEditableAncestor) {
-            if (T* parent = editableAncestor->parentObject()) {
+            if (RefPtr<T> parent = editableAncestor->parentObject()) {
                 editableAncestor = parent->editableAncestor();
                 continue;
             }
@@ -1813,7 +1835,7 @@ T* highestEditableAncestor(T& startObject)
         previousEditableAncestor = editableAncestor;
         editableAncestor = editableAncestor->editableAncestor();
     }
-    return previousEditableAncestor;
+    return previousEditableAncestor.get();
 }
 
 template<typename T>
@@ -1821,11 +1843,11 @@ T* findRelatedObjectInAncestry(const T& object, AXRelation relation, const T& de
 {
     auto relatedObjects = object.relatedObjects(relation);
     for (const auto& relatedObject : relatedObjects) {
-        auto* ancestor = findAncestor(descendant, false, [&relatedObject] (const auto& ancestor) {
+        RefPtr ancestor = findAncestor(descendant, false, [&relatedObject](const auto& ancestor) {
             return relatedObject.get() == &ancestor;
         });
         if (ancestor)
-            return ancestor;
+            return ancestor.get();
     }
     return nullptr;
 }
@@ -1853,8 +1875,8 @@ AXCoreObject* findUnignoredDescendant(T& object, bool includeSelf, const F& matc
         return &object;
 
     for (Ref child : object.childrenIncludingIgnored()) {
-        if (auto* descendant = findUnignoredDescendant(child.get(), /* includeSelf */ true, matches))
-            return descendant;
+        if (RefPtr descendant = findUnignoredDescendant(child.get(), /* includeSelf */ true, matches))
+            return descendant.get();
     }
     return nullptr;
 }
