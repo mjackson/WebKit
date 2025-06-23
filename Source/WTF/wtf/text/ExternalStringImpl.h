@@ -37,9 +37,9 @@ using ExternalStringImplFreeFunction = Function<void(void*, void*, unsigned)>;
 class ExternalStringImpl final : public StringImpl {
 public:
     WTF_EXPORT_PRIVATE static Ref<ExternalStringImpl> create(std::span<const LChar> characters, void* ctx, ExternalStringImplFreeFunction&&);
-    WTF_EXPORT_PRIVATE static Ref<ExternalStringImpl> create(std::span<const UChar> characters, void* ctx, ExternalStringImplFreeFunction&&);
+    WTF_EXPORT_PRIVATE static Ref<ExternalStringImpl> create(std::span<const char16_t> characters, void* ctx, ExternalStringImplFreeFunction&&);
     WTF_EXPORT_PRIVATE static Ref<ExternalStringImpl> createStatic(std::span<const LChar> characters);
-    WTF_EXPORT_PRIVATE static Ref<ExternalStringImpl> createStatic(std::span<const UChar> characters);
+    WTF_EXPORT_PRIVATE static Ref<ExternalStringImpl> createStatic(std::span<const char16_t> characters);
 
     void releaseBufferEarly();
     static const uintptr_t isAlreadyReleasedMarker = 0xDEADB33F;
@@ -48,9 +48,9 @@ private:
     friend class StringImpl;
 
     ExternalStringImpl(std::span<const LChar> characters, void* ctx, ExternalStringImplFreeFunction&&);
-    ExternalStringImpl(std::span<const UChar> characters, void* ctx, ExternalStringImplFreeFunction&&);
-    ExternalStringImpl(std::span<const LChar> characters);
-    ExternalStringImpl(std::span<const UChar> characters);
+    ExternalStringImpl(std::span<const char16_t> characters, void* ctx, ExternalStringImplFreeFunction&&);
+    ExternalStringImpl(std::span<const LChar> characters, ExternalStringImplFreeFunction&&);
+    ExternalStringImpl(std::span<const char16_t> characters, ExternalStringImplFreeFunction&&);
 
     inline void freeExternalBuffer(void* buffer, unsigned bufferSize);
 

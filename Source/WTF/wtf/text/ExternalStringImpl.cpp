@@ -33,7 +33,7 @@ WTF_EXPORT_PRIVATE Ref<ExternalStringImpl> ExternalStringImpl::create(std::span<
     return adoptRef(*new ExternalStringImpl(characters, context, WTFMove(free)));
 }
 
-WTF_EXPORT_PRIVATE Ref<ExternalStringImpl> ExternalStringImpl::create(std::span<const UChar> characters, void* context, ExternalStringImplFreeFunction&& free)
+WTF_EXPORT_PRIVATE Ref<ExternalStringImpl> ExternalStringImpl::create(std::span<const char16_t> characters, void* context, ExternalStringImplFreeFunction&& free)
 {
     return adoptRef(*new ExternalStringImpl(characters, context, WTFMove(free)));
 }
@@ -44,7 +44,7 @@ WTF_EXPORT_PRIVATE Ref<ExternalStringImpl> ExternalStringImpl::createStatic(std:
     return adoptRef(*new ExternalStringImpl(characters, nullptr, [](auto, auto, auto) -> void {}));
 }
 
-WTF_EXPORT_PRIVATE Ref<ExternalStringImpl> ExternalStringImpl::createStatic(std::span<const UChar> characters)
+WTF_EXPORT_PRIVATE Ref<ExternalStringImpl> ExternalStringImpl::createStatic(std::span<const char16_t> characters)
 {
     return adoptRef(*new ExternalStringImpl(characters, nullptr, [](auto, auto, auto) -> void {}));
 }
@@ -61,7 +61,7 @@ ExternalStringImpl::ExternalStringImpl(std::span<const LChar> characters, void* 
 }
 
 
-ExternalStringImpl::ExternalStringImpl(std::span<const UChar> characters, void* ctx, ExternalStringImplFreeFunction&& free)
+ExternalStringImpl::ExternalStringImpl(std::span<const char16_t> characters, void* ctx, ExternalStringImplFreeFunction&& free)
     : StringImpl(characters, ConstructWithoutCopying)
     , m_free(WTFMove(free))
 {
@@ -80,7 +80,7 @@ ExternalStringImpl::ExternalStringImpl(std::span<const LChar> characters, Extern
     m_refCount |= s_refCountFlagIsStaticString;
 }
 
-ExternalStringImpl::ExternalStringImpl(std::span<const UChar> characters, ExternalStringImplFreeFunction&& free)
+ExternalStringImpl::ExternalStringImpl(std::span<const char16_t> characters, ExternalStringImplFreeFunction&& free)
     : StringImpl(characters, ConstructWithoutCopying)
     , m_free(WTFMove(free))
 {
