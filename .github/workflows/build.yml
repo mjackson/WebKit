@@ -250,27 +250,26 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     steps:
-      - name: Install Scoop
+      - name: Setup Build Tools
         run: |
-          Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-          Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
-          Join-Path (Resolve-Path ~).Path "scoop\shims" >> $Env:GITHUB_PATH
-      - name: Install Ninja
-        run: |
-          scoop install ninja
-      - name: Install LLVM
-        run: |
-          if ("${{matrix.arch}}" -eq "arm64") {
-            # For ARM64, prioritize Visual Studio's ARM64 LLVM over the x64 one
-            Write-Host "Using Visual Studio bundled ARM64 LLVM..."
-            # Add VS ARM64 LLVM to the beginning of PATH to override any x64 LLVM
-            "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\ARM64\bin" >> $Env:GITHUB_PATH
-          } else {
-            # Use scoop for x64
-            scoop install llvm@19.1.7
-            Join-Path (Resolve-Path ~).Path "scoop\apps\llvm\current\bin" >> $Env:GITHUB_PATH
+          # Install Ninja
+          if (!(Get-Command ninja -ErrorAction SilentlyContinue)) {
+            Write-Host "Installing Ninja..."
+            $ninjaUrl = "https://github.com/ninja-build/ninja/releases/download/v1.11.1/ninja-win.zip"
+            $ninjaZip = "$env:TEMP\ninja.zip"
+            Invoke-WebRequest -Uri $ninjaUrl -OutFile $ninjaZip
+            Expand-Archive -Path $ninjaZip -DestinationPath "$env:TEMP\ninja"
+            "$env:TEMP\ninja" >> $Env:GITHUB_PATH
           }
-      - uses: cygwin/cygwin-install-action@006ad0b0946ca6d0a3ea2d4437677fa767392401
+          
+          # For ARM64, use Visual Studio's bundled LLVM
+          if ("${{matrix.arch}}" -eq "arm64") {
+            Write-Host "Using Visual Studio bundled ARM64 LLVM..."
+            "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\ARM64\bin" >> $Env:GITHUB_PATH
+          }
+          
+          # vcpkg should already be installed on GitHub runners
+          Write-Host "vcpkg location: $env:VCPKG_INSTALLATION_ROOT"
       - uses: actions/checkout@v4
         with:
           sparse-checkout-cone-mode: false
