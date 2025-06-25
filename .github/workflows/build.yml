@@ -261,10 +261,10 @@ jobs:
       - name: Install LLVM
         run: |
           if ("${{matrix.arch}}" -eq "arm64") {
-            # For ARM64, use the Visual Studio bundled clang-cl
-            # The GitHub Actions Windows ARM64 runners have Visual Studio 2022 with clang-cl included
-            Write-Host "Using Visual Studio bundled clang-cl for ARM64..."
-            # clang-cl will be available after VS environment is loaded in the build step
+            # For ARM64, prioritize Visual Studio's ARM64 LLVM over the x64 one
+            Write-Host "Using Visual Studio bundled ARM64 LLVM..."
+            # Add VS ARM64 LLVM to the beginning of PATH to override any x64 LLVM
+            "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\ARM64\bin" >> $Env:GITHUB_PATH
           } else {
             # Use scoop for x64
             scoop install llvm@19.1.7
