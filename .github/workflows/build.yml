@@ -255,20 +255,18 @@ jobs:
           Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
           Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
           Join-Path (Resolve-Path ~).Path "scoop\shims" >> $Env:GITHUB_PATH
-      - name: Install LLVM and Ninja
+      - name: Install Ninja
         run: |
           scoop install ninja
-          
+      - name: Install LLVM
+        run: |
           if ("${{matrix.arch}}" -eq "arm64") {
-            # ARM64 LLVM is a separate manifest in scoop
-            # Install 7zip with -k to skip error checking (ARM64 cleanup script has a known bug)
-            scoop install 7zip -k
-            
-            # Now install LLVM ARM64
-            scoop install llvm-arm64
-            Join-Path (Resolve-Path ~).Path "scoop\apps\llvm-arm64\current\bin" >> $Env:GITHUB_PATH
+            # For ARM64, use the Visual Studio bundled clang-cl
+            # The GitHub Actions Windows ARM64 runners have Visual Studio 2022 with clang-cl included
+            Write-Host "Using Visual Studio bundled clang-cl for ARM64..."
+            # clang-cl will be available after VS environment is loaded in the build step
           } else {
-            # Use regular llvm manifest for x64
+            # Use scoop for x64
             scoop install llvm@19.1.7
             Join-Path (Resolve-Path ~).Path "scoop\apps\llvm\current\bin" >> $Env:GITHUB_PATH
           }
