@@ -261,12 +261,8 @@ jobs:
           
           if ("${{matrix.arch}}" -eq "arm64") {
             # ARM64 LLVM is a separate manifest in scoop
-            # First try to install 7zip, ignore errors due to ARM64 cleanup script bug
-            try { 
-              scoop install 7zip 
-            } catch { 
-              Write-Host "7zip installation warning (expected on ARM64): $_" 
-            }
+            # Install 7zip with -k to skip error checking (ARM64 cleanup script has a known bug)
+            scoop install 7zip -k
             
             # Now install LLVM ARM64
             scoop install llvm-arm64
