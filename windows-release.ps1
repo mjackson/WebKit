@@ -130,27 +130,63 @@ if (!(Test-Path -Path $ICU_STATIC_ROOT)) {
             # clang-cl uses -target instead of /arch
             $env:CC = "clang-cl -target aarch64-pc-windows-msvc"
             $env:CXX = "clang-cl -target aarch64-pc-windows-msvc"
-            $env:LINK = "/MACHINE:ARM64"
+            $env:LINK = "link /MACHINE:ARM64"
+            $env:AR = "llvm-ar"
+            $env:RANLIB = "llvm-ranlib"
+            $env:LD = "lld-link /MACHINE:ARM64"
+            
+            # Force configure to recognize this as a cross-compile
+            $env:BUILD = "x86_64-pc-cygwin"
+            $env:HOST = "aarch64-pc-windows-msvc"
+            $env:TARGET = "aarch64-pc-windows-msvc"
         }
         
         if ($CMAKE_BUILD_TYPE -eq "Release") {
-            bash.exe ./runConfigureICU Cygwin/MSVC `
-                --enable-static `
-                --disable-shared `
-                --with-data-packaging=static `
-                --disable-samples `
-                --disable-tests `
-                --disable-debug `
-                --enable-release
+            if ($Arch -eq "arm64") {
+                # Cross-compile for ARM64
+                bash.exe ./runConfigureICU Cygwin/MSVC `
+                    --build=x86_64-pc-cygwin `
+                    --host=aarch64-pc-windows-msvc `
+                    --enable-static `
+                    --disable-shared `
+                    --with-data-packaging=static `
+                    --disable-samples `
+                    --disable-tests `
+                    --disable-debug `
+                    --enable-release
+            } else {
+                bash.exe ./runConfigureICU Cygwin/MSVC `
+                    --enable-static `
+                    --disable-shared `
+                    --with-data-packaging=static `
+                    --disable-samples `
+                    --disable-tests `
+                    --disable-debug `
+                    --enable-release
+            }
         } elseif ($CMAKE_BUILD_TYPE -eq "Debug") {
-            bash.exe ./runConfigureICU Cygwin/MSVC `
-                --enable-static `
-                --disable-shared `
-                --with-data-packaging=static `
-                --disable-samples `
-                --disable-tests `
-                --enable-debug `
-                --disable-release
+            if ($Arch -eq "arm64") {
+                # Cross-compile for ARM64
+                bash.exe ./runConfigureICU Cygwin/MSVC `
+                    --build=x86_64-pc-cygwin `
+                    --host=aarch64-pc-windows-msvc `
+                    --enable-static `
+                    --disable-shared `
+                    --with-data-packaging=static `
+                    --disable-samples `
+                    --disable-tests `
+                    --enable-debug `
+                    --disable-release
+            } else {
+                bash.exe ./runConfigureICU Cygwin/MSVC `
+                    --enable-static `
+                    --disable-shared `
+                    --with-data-packaging=static `
+                    --disable-samples `
+                    --disable-tests `
+                    --enable-debug `
+                    --disable-release
+            }
         }
 
         if ($LASTEXITCODE -ne 0) { 
