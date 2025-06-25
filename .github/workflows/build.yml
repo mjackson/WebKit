@@ -259,28 +259,12 @@ jobs:
         run: |
           scoop install ninja
           
-          # Download and install LLVM
           if ("${{matrix.arch}}" -eq "arm64") {
-            # Download LLVM for Windows ARM64 (woa64)
-            $llvmVersion = "19.1.7"
-            $llvmUrl = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$llvmVersion/LLVM-$llvmVersion-woa64.exe"
-            $llvmInstaller = "$env:TEMP\llvm-installer.exe"
-            
-            Write-Host "Downloading LLVM $llvmVersion for Windows ARM64..."
-            Invoke-WebRequest -Uri $llvmUrl -OutFile $llvmInstaller -UseBasicParsing
-            
-            Write-Host "Installing LLVM..."
-            Start-Process -FilePath $llvmInstaller -ArgumentList "/S" -Wait
-            
-            # Add LLVM to PATH (default installation path)
-            $llvmPath = "C:\Program Files\LLVM\bin"
-            if (Test-Path $llvmPath) {
-              $llvmPath >> $Env:GITHUB_PATH
-            } else {
-              Write-Error "LLVM installation path not found at $llvmPath"
-            }
+            # ARM64 LLVM is a separate manifest in scoop
+            scoop install llvm-arm64
+            Join-Path (Resolve-Path ~).Path "scoop\apps\llvm-arm64\current\bin" >> $Env:GITHUB_PATH
           } else {
-            # Use scoop for x64
+            # Use regular llvm manifest for x64
             scoop install llvm@19.1.7
             Join-Path (Resolve-Path ~).Path "scoop\apps\llvm\current\bin" >> $Env:GITHUB_PATH
           }
