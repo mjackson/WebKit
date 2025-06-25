@@ -294,19 +294,8 @@ jobs:
             !JSTests/
       - name: Build WebKit
         run: |
-          # Find Windows SDK dynamically
-          $sdkRoot = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows Kits\Installed Roots" -Name "KitsRoot10").KitsRoot10
-          $sdkVersion = (Get-ChildItem -Path "$sdkRoot\bin" -Directory | Sort-Object -Descending | Select-Object -First 1).Name
-          
-          # Add appropriate SDK tools to PATH based on architecture
-          if ("${{matrix.arch}}" -eq "arm64") {
-            $sdkBinPath = Join-Path $sdkRoot "bin\$sdkVersion\arm64"
-          } else {
-            $sdkBinPath = Join-Path $sdkRoot "bin\$sdkVersion\x64"
-          }
-          
-          Write-Host "Using Windows SDK at: $sdkBinPath"
-          $env:Path = "$sdkBinPath;" + $env:Path
+          # Visual Studio sets up the correct SDK paths, so we don't need to add them manually
+          # The VS Developer Shell will configure everything properly based on the target architecture
           
           $env:WEBKIT_OUTPUT_DIR = "bun-webkit"
           $env:BUN_WEBKIT_VERSION = "${{ github.sha }}"

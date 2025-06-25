@@ -124,8 +124,19 @@ if (!(Test-Path -Path $ICU_STATIC_ROOT)) {
     try {
         Write-Host ":: Configuring ICU Build"
 
+        # Set architecture for ICU build
+        if ($Arch -eq "arm64") {
+            $env:CYGWIN_ARCH = "aarch64"
+            $buildHost = "aarch64-pc-cygwin"
+        } else {
+            $env:CYGWIN_ARCH = "x86_64"
+            $buildHost = "x86_64-pc-cygwin"
+        }
+        
         if ($CMAKE_BUILD_TYPE -eq "Release") {
             bash.exe ./runConfigureICU Cygwin/MSVC `
+                --build=$buildHost `
+                --host=$buildHost `
                 --enable-static `
                 --disable-shared `
                 --with-data-packaging=static `
@@ -135,6 +146,8 @@ if (!(Test-Path -Path $ICU_STATIC_ROOT)) {
                 --enable-release
         } elseif ($CMAKE_BUILD_TYPE -eq "Debug") {
             bash.exe ./runConfigureICU Cygwin/MSVC `
+                --build=$buildHost `
+                --host=$buildHost `
                 --enable-static `
                 --disable-shared `
                 --with-data-packaging=static `
