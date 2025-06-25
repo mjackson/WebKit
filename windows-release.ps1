@@ -124,19 +124,15 @@ if (!(Test-Path -Path $ICU_STATIC_ROOT)) {
     try {
         Write-Host ":: Configuring ICU Build"
 
-        # Set architecture for ICU build
+        # When building for ARM64, we need to cross-compile since Cygwin runs as x64
         if ($Arch -eq "arm64") {
-            $env:CYGWIN_ARCH = "aarch64"
-            $buildHost = "aarch64-pc-cygwin"
-        } else {
-            $env:CYGWIN_ARCH = "x86_64"
-            $buildHost = "x86_64-pc-cygwin"
+            # Set environment variables for cross-compilation
+            $env:CL = "/arch:ARM64"
+            $env:LINK = "/MACHINE:ARM64"
         }
         
         if ($CMAKE_BUILD_TYPE -eq "Release") {
             bash.exe ./runConfigureICU Cygwin/MSVC `
-                --build=$buildHost `
-                --host=$buildHost `
                 --enable-static `
                 --disable-shared `
                 --with-data-packaging=static `
@@ -146,8 +142,6 @@ if (!(Test-Path -Path $ICU_STATIC_ROOT)) {
                 --enable-release
         } elseif ($CMAKE_BUILD_TYPE -eq "Debug") {
             bash.exe ./runConfigureICU Cygwin/MSVC `
-                --build=$buildHost `
-                --host=$buildHost `
                 --enable-static `
                 --disable-shared `
                 --with-data-packaging=static `
