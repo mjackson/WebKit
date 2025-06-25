@@ -3,7 +3,10 @@ param(
     # and i really really really really do not want to break anything
     #
     # you almost certainly need this to build locally
-    [switch][bool]$ExtraEffortPathManagement = $false
+    [switch][bool]$ExtraEffortPathManagement = $false,
+    
+    # Target architecture: amd64 or arm64
+    [string]$Arch = "amd64"
 )
 $ErrorActionPreference = "Stop"
 
@@ -16,7 +19,7 @@ if ($env:VSINSTALLDIR -eq $null) {
     } 
     Push-Location $vsDir
     try {
-        . (Join-Path -Path $vsDir.FullName -ChildPath "Common7\Tools\Launch-VsDevShell.ps1") -Arch amd64 -HostArch amd64
+        . (Join-Path -Path $vsDir.FullName -ChildPath "Common7\Tools\Launch-VsDevShell.ps1") -Arch $Arch -HostArch $Arch
     }
     finally { Pop-Location }
 }
@@ -24,6 +27,11 @@ if ($env:VSINSTALLDIR -eq $null) {
 if ($Env:VSCMD_ARG_TGT_ARCH -eq "x86") {
     # Please do not try to compile Bun for 32 bit. It will not work. I promise.
     throw "Visual Studio environment is targetting 32 bit. This configuration is definetly a mistake."
+}
+
+# Validate architecture
+if ($Arch -ne "amd64" -and $Arch -ne "arm64") {
+    throw "Invalid architecture: $Arch. Must be 'amd64' or 'arm64'"
 }
 
 # Fix up $PATH
@@ -290,11 +298,17 @@ if (Test-Path -Path $WebKitBuild/bmalloc) {
 Copy-Item -r $ICU_STATIC_INCLUDE_DIR/* $output/include/
 Copy-Item -r $ICU_STATIC_LIBRARY/* $output/lib/
 
+# Determine package architecture
+$packageArch = if ($Arch -eq "arm64") { "arm64" } else { "x64" }
+if ($env:PACKAGE_JSON_ARCH) {
+    $packageArch = $env:PACKAGE_JSON_ARCH
+}
+
 $packageJsonContent = @{
     name       = $env:PACKAGE_JSON_LABEL
     version    = "0.0.1-$env:GITHUB_SHA"
     os         = @("windows")
-    cpu        = @($env:PACKAGE_JSON_ARCH)
+    cpu        = @($packageArch)
     repository = "https://github.com/$($env:GITHUB_REPOSITORY)"
 } | ConvertTo-Json -Depth 2
 Out-File -FilePath $output/package.json -InputObject $packageJsonContent
