@@ -19,7 +19,12 @@ if ($env:VSINSTALLDIR -eq $null) {
     } 
     Push-Location $vsDir
     try {
-        . (Join-Path -Path $vsDir.FullName -ChildPath "Common7\Tools\Launch-VsDevShell.ps1") -Arch $Arch -HostArch $Arch
+        # Visual Studio doesn't support arm64 as HostArch parameter
+        if ($Arch -eq "arm64") {
+            . (Join-Path -Path $vsDir.FullName -ChildPath "Common7\Tools\Launch-VsDevShell.ps1") -Arch arm64
+        } else {
+            . (Join-Path -Path $vsDir.FullName -ChildPath "Common7\Tools\Launch-VsDevShell.ps1") -Arch $Arch -HostArch $Arch
+        }
     }
     finally { Pop-Location }
 }
