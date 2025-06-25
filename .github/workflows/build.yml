@@ -258,8 +258,32 @@ jobs:
       - name: Install LLVM and Ninja
         run: |
           scoop install ninja
-          scoop install llvm@19.1.7
-          Join-Path (Resolve-Path ~).Path "scoop\apps\llvm\current\bin" >> $Env:GITHUB_PATH
+          
+          # Download and install LLVM
+          if ("${{matrix.arch}}" -eq "arm64") {
+            # Download LLVM for Windows ARM64 (woa64)
+            $llvmVersion = "19.1.7"
+            $llvmUrl = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$llvmVersion/LLVM-$llvmVersion-woa64.exe"
+            $llvmInstaller = "$env:TEMP\llvm-installer.exe"
+            
+            Write-Host "Downloading LLVM $llvmVersion for Windows ARM64..."
+            Invoke-WebRequest -Uri $llvmUrl -OutFile $llvmInstaller -UseBasicParsing
+            
+            Write-Host "Installing LLVM..."
+            Start-Process -FilePath $llvmInstaller -ArgumentList "/S" -Wait
+            
+            # Add LLVM to PATH (default installation path)
+            $llvmPath = "C:\Program Files\LLVM\bin"
+            if (Test-Path $llvmPath) {
+              $llvmPath >> $Env:GITHUB_PATH
+            } else {
+              Write-Error "LLVM installation path not found at $llvmPath"
+            }
+          } else {
+            # Use scoop for x64
+            scoop install llvm@19.1.7
+            Join-Path (Resolve-Path ~).Path "scoop\apps\llvm\current\bin" >> $Env:GITHUB_PATH
+          }
       - uses: cygwin/cygwin-install-action@006ad0b0946ca6d0a3ea2d4437677fa767392401
       - uses: actions/checkout@v4
         with:
