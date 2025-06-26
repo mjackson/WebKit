@@ -660,7 +660,7 @@ JSC_DEFINE_HOST_FUNCTION(objectConstructorValues, (JSGlobalObject* globalObject,
     if (targetValue.isUndefinedOrNull())
         return throwVMTypeError(globalObject, scope, "Object.values requires that input parameter not be null or undefined"_s);
 
-    return JSValue::encode(objectValues(vm, globalObject, targetValue));
+    RELEASE_AND_RETURN(scope, JSValue::encode(objectValues(vm, globalObject, targetValue)));
 }
 
 // https://tc39.github.io/ecma262/#sec-topropertydescriptor
