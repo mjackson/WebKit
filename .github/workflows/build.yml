@@ -21,6 +21,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
+      fail-fast: false
       matrix:
         include:
           - runner: macos-13-large
@@ -125,6 +126,7 @@ jobs:
     name: Linux
     runs-on: ${{matrix.os}}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - lto_flag: ""
@@ -225,6 +227,7 @@ jobs:
 
   windows:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - runner: windows
@@ -299,6 +302,7 @@ jobs:
     name: Linux
     runs-on: ${{matrix.os}}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - lto_flag: ""
@@ -331,7 +335,6 @@ jobs:
             os: linux-x64-gh
             package_json_arch: "x64"
             CMAKE_BUILD_TYPE: "MinSizeRel"
-
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
