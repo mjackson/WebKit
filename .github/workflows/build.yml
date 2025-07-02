@@ -231,45 +231,24 @@ jobs:
             build-type: Release
             package_json_arch: "x64"
             label: bun-webkit-windows-amd64
-            arch: amd64
           - runner: windows
             build-type: Debug
             package_json_arch: "x64"
             label: bun-webkit-windows-amd64-debug
-            arch: amd64
-          - runner: windows-11-arm
-            build-type: Release
-            package_json_arch: "arm64"
-            label: bun-webkit-windows-arm64
-            arch: arm64
-          - runner: windows-11-arm
-            build-type: Debug
-            package_json_arch: "arm64"
-            label: bun-webkit-windows-arm64-debug
-            arch: arm64
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     steps:
-      - name: Setup Build Tools
+      - name: Install Scoop
         run: |
-          # Install Ninja
-          if (!(Get-Command ninja -ErrorAction SilentlyContinue)) {
-            Write-Host "Installing Ninja..."
-            $ninjaUrl = "https://github.com/ninja-build/ninja/releases/download/v1.11.1/ninja-win.zip"
-            $ninjaZip = "$env:TEMP\ninja.zip"
-            Invoke-WebRequest -Uri $ninjaUrl -OutFile $ninjaZip
-            Expand-Archive -Path $ninjaZip -DestinationPath "$env:TEMP\ninja"
-            "$env:TEMP\ninja" >> $Env:GITHUB_PATH
-          }
-          
-          # For ARM64, use Visual Studio's bundled LLVM
-          if ("${{matrix.arch}}" -eq "arm64") {
-            Write-Host "Using Visual Studio bundled ARM64 LLVM..."
-            "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\ARM64\bin" >> $Env:GITHUB_PATH
-          }
-          
-          # vcpkg should already be installed on GitHub runners
-          Write-Host "vcpkg location: $env:VCPKG_INSTALLATION_ROOT"
+          Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+          Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
+          Join-Path (Resolve-Path ~).Path "scoop\shims" >> $Env:GITHUB_PATH
+      - name: Install LLVM and Ninja
+        run: |
+          scoop install ninja
+          scoop install llvm@19.1.7
+          Join-Path (Resolve-Path ~).Path "scoop\apps\llvm\current\bin" >> $Env:GITHUB_PATH
+      - uses: cygwin/cygwin-install-action@006ad0b0946ca6d0a3ea2d4437677fa767392401
       - uses: actions/checkout@v4
         with:
           sparse-checkout-cone-mode: false
@@ -279,9 +258,7 @@ jobs:
             !JSTests/
       - name: Build WebKit
         run: |
-          # Visual Studio sets up the correct SDK paths, so we don't need to add them manually
-          # The VS Developer Shell will configure everything properly based on the target architecture
-          
+          $env:Path = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\;" + $env:Path
           $env:WEBKIT_OUTPUT_DIR = "bun-webkit"
           $env:BUN_WEBKIT_VERSION = "${{ github.sha }}"
           $env:CMAKE_BUILD_TYPE = "${{matrix.build-type}}"
@@ -289,7 +266,7 @@ jobs:
           $env:GITHUB_SHA = "${{ github.sha }}"
           $env:PACKAGE_JSON_ARCH = "${{matrix.package_json_arch}}"
           $env:GITHUB_REPOSITORY = "${{ github.repository }}"
-          ./windows-release.ps1 -Arch ${{matrix.arch}}
+          ./windows-release.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: ${{matrix.label}}
@@ -444,14 +421,6 @@ jobs:
           path: ${{runner.temp}}/bun-webkit-windows-amd64-debug
       - uses: actions/download-artifact@v4
         with:
-          name: bun-webkit-windows-arm64
-          path: ${{runner.temp}}/bun-webkit-windows-arm64
-      - uses: actions/download-artifact@v4
-        with:
-          name: bun-webkit-windows-arm64-debug
-          path: ${{runner.temp}}/bun-webkit-windows-arm64-debug
-      - uses: actions/download-artifact@v4
-        with:
           name: bun-webkit-linux-amd64-musl
           path: ${{runner.temp}}/bun-webkit-linux-amd64-musl
       - uses: actions/download-artifact@v4
@@ -500,8 +469,6 @@ jobs:
           mv ${{runner.temp}}/bun-webkit-linux-arm64-musl-lto/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-arm64-musl-lto.tar.gz
           mv ${{runner.temp}}/bun-webkit-windows-amd64/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-windows-amd64.tar.gz
           mv ${{runner.temp}}/bun-webkit-windows-amd64-debug/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-windows-amd64-debug.tar.gz
-          mv ${{runner.temp}}/bun-webkit-windows-arm64/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-windows-arm64.tar.gz
-          mv ${{runner.temp}}/bun-webkit-windows-arm64-debug/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-windows-arm64-debug.tar.gz
       - name: Release
         uses: softprops/action-gh-release@v1
         id: release
@@ -530,7 +497,5 @@ jobs:
             ${{runner.temp}}/bun-webkit-linux-arm64-musl-lto.tar.gz
             ${{runner.temp}}/bun-webkit-windows-amd64.tar.gz
             ${{runner.temp}}/bun-webkit-windows-amd64-debug.tar.gz
-            ${{runner.temp}}/bun-webkit-windows-arm64.tar.gz
-            ${{runner.temp}}/bun-webkit-windows-arm64-debug.tar.gz
             ${{runner.temp}}/bun-webkit-linux-amd64-asan.tar.gz
             ${{runner.temp}}/bun-webkit-linux-arm64-asan.tar.gz
