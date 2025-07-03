@@ -382,7 +382,7 @@ class ModelProcessConnection;
 class NotificationPermissionRequestManager;
 class PDFPluginBase;
 class PageBanner;
-#if ENABLE(WEBXR) && !USE(OPENXR)
+#if ENABLE(WEBXR)
 class PlatformXRSystemProxy;
 #endif
 class PluginView;
@@ -623,6 +623,7 @@ public:
     enum class LazyCreationPolicy { UseExistingOnly, CreateIfNeeded };
 
     WebInspector* inspector(LazyCreationPolicy = LazyCreationPolicy::CreateIfNeeded);
+    RefPtr<WebInspector> protectedInspector();
     WebInspectorUI* inspectorUI();
     RemoteWebInspectorUI* remoteInspectorUI();
     bool isInspectorPage() { return !!m_inspectorUI || !!m_remoteInspectorUI; }
@@ -1846,7 +1847,7 @@ public:
     double baseViewportLayoutSizeScaleFactor() const { return m_baseViewportLayoutSizeScaleFactor; }
 #endif
 
-#if ENABLE(WEBXR) && !USE(OPENXR)
+#if ENABLE(WEBXR)
     PlatformXRSystemProxy& xrSystemProxy();
 #endif
 
@@ -2690,7 +2691,7 @@ private:
     RefPtr<WebInspector> m_inspector;
     RefPtr<WebInspectorUI> m_inspectorUI;
     RefPtr<RemoteWebInspectorUI> m_remoteInspectorUI;
-    std::unique_ptr<WebPageInspectorTargetController> m_inspectorTargetController;
+    const UniqueRef<WebPageInspectorTargetController> m_inspectorTargetController;
 
 #if ENABLE(VIDEO_PRESENTATION_MODE)
     RefPtr<PlaybackSessionManager> m_playbackSessionManager;
@@ -3065,7 +3066,7 @@ private:
     Vector<std::pair<WeakPtr<WebCore::HTMLElement, WebCore::WeakPtrImplWithEventTargetData>, Vector<CompletionHandler<void(RefPtr<WebCore::Element>&&)>>>> m_elementsPendingTextRecognition;
 #endif
 
-#if ENABLE(WEBXR) && !USE(OPENXR)
+#if ENABLE(WEBXR)
     const std::unique_ptr<PlatformXRSystemProxy> m_xrSystemProxy;
 #endif
 

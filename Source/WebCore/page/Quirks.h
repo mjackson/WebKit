@@ -126,6 +126,8 @@ public:
 
     bool needsPrimeVideoUserSelectNoneQuirk() const;
 
+    bool needsFacebookRemoveNotSupportedQuirk() const;
+
     bool needsScrollbarWidthThinDisabledQuirk() const;
     bool needsBodyScrollbarWidthNoneDisabledQuirk() const;
 
@@ -264,6 +266,8 @@ public:
     bool shouldRewriteMediaRangeRequestForURL(const URL&) const;
 
     bool shouldPreventKeyframeEffectAcceleration(const KeyframeEffect&) const;
+
+    bool shouldEnterNativeFullscreenWhenCallingElementRequestFullscreenQuirk() const;
 
 private:
     bool needsQuirks() const;

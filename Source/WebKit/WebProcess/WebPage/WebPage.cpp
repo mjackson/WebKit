@@ -476,7 +476,7 @@
 #include "WebExtensionControllerProxy.h"
 #endif
 
-#if ENABLE(WEBXR) && !USE(OPENXR)
+#if ENABLE(WEBXR)
 #include "PlatformXRSystemProxy.h"
 #endif
 
@@ -629,7 +629,7 @@ WebPage::WebPage(PageIdentifier pageID, WebPageCreationParameters&& parameters)
     , m_uiClient(makeUnique<API::InjectedBundle::PageUIClient>())
     , m_findController(makeUniqueRef<FindController>(this))
     , m_foundTextRangeController(makeUniqueRef<WebFoundTextRangeController>(*this))
-    , m_inspectorTargetController(makeUnique<WebPageInspectorTargetController>(*this))
+    , m_inspectorTargetController(makeUniqueRef<WebPageInspectorTargetController>(*this))
     , m_userContentController(WebUserContentController::getOrCreate(parameters.userContentControllerParameters.identifier))
     , m_screenOrientationManager(makeUniqueRefWithoutRefCountedCheck<WebScreenOrientationManager>(*this))
 #if ENABLE(GEOLOCATION)
@@ -750,13 +750,11 @@ WebPage::WebPage(PageIdentifier pageID, WebPageCreationParameters&& parameters)
 #endif
         ProcessCapabilities::setHardwareAcceleratedDecodingDisabled(true);
         ProcessCapabilities::setCanUseAcceleratedBuffers(false);
-#if HAVE(CGIMAGESOURCE_DISABLE_HARDWARE_DECODING)
         static bool disabled { false };
         if (!std::exchange(disabled, true)) {
             OSStatus ok = CGImageSourceDisableHardwareDecoding();
             ASSERT_UNUSED(ok, ok == noErr);
         }
-#endif
     }
 #endif
 
@@ -5199,6 +5197,11 @@ WebInspector* WebPage::inspector(LazyCreationPolicy behavior)
     return m_inspector.get();
 }
 
+RefPtr<WebInspector> WebPage::protectedInspector()
+{
+    return inspector();
+}
+
 WebInspectorUI* WebPage::inspectorUI()
 {
     if (m_isClosed)
@@ -9096,7 +9099,7 @@ void WebPage::textAutosizingUsesIdempotentModeChanged()
 }
 #endif // ENABLE(TEXT_AUTOSIZING)
 
-#if ENABLE(WEBXR) && !USE(OPENXR)
+#if ENABLE(WEBXR)
 PlatformXRSystemProxy& WebPage::xrSystemProxy()
 {
     if (!m_xrSystemProxy)
@@ -9782,7 +9785,7 @@ bool WebPage::shouldSkipDecidePolicyForResponse(const WebCore::ResourceResponse&
     if (response.url().protocolIsFile())
         return false;
 
-    if (auto components = response.httpHeaderField(HTTPHeaderName::ContentDisposition).split(';'); !components.isEmpty() && equalIgnoringASCIICase(components[0].trim(isASCIIWhitespaceWithoutFF<UChar>), "attachment"_s))
+    if (auto components = response.httpHeaderField(HTTPHeaderName::ContentDisposition).split(';'); !components.isEmpty() && equalIgnoringASCIICase(components[0].trim(isASCIIWhitespaceWithoutFF<char16_t>), "attachment"_s))
         return false;
 
     return true;

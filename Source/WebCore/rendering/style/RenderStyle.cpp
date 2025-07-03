@@ -46,10 +46,10 @@
 #include "RenderStyleDifference.h"
 #include "RenderStyleSetters.h"
 #include "RenderTheme.h"
+#include "SVGRenderStyle.h"
 #include "ScaleTransformOperation.h"
 #include "ScrollAxis.h"
 #include "ScrollbarGutter.h"
-#include "StyleBuilderConverter.h"
 #include "StyleCustomPropertyRegistry.h"
 #include "StyleExtractor.h"
 #include "StyleImage.h"
@@ -848,7 +848,7 @@ static bool rareDataChangeRequiresLayout(const StyleRareNonInheritedData& first,
     if (first.scale != second.scale || first.rotate != second.rotate || first.translate != second.translate)
         changedContextSensitiveProperties.add(StyleDifferenceContextSensitiveProperty::Transform);
 
-    if (!arePointingToEqualData(first.offsetPath, second.offsetPath)
+    if (first.offsetPath != second.offsetPath
         || first.offsetPosition != second.offsetPosition
         || first.offsetDistance != second.offsetDistance
         || first.offsetAnchor != second.offsetAnchor
@@ -1284,6 +1284,7 @@ static bool rareInheritedDataChangeRequiresRepaint(const StyleRareInheritedData&
         || first.imageRendering != second.imageRendering
         || first.accentColor != second.accentColor
         || first.insideDefaultButton != second.insideDefaultButton
+        || first.insideDisabledSubmitButton != second.insideDisabledSubmitButton
 #if ENABLE(DARK_MODE_CSS)
         || first.colorScheme != second.colorScheme
 #endif
@@ -1921,7 +1922,7 @@ void RenderStyle::conservativelyCollectChangedAnimatableProperties(const RenderS
             changingProperties.m_properties.set(CSSPropertyShapeImageThreshold);
         if (first.perspective != second.perspective)
             changingProperties.m_properties.set(CSSPropertyPerspective);
-        if (!arePointingToEqualData(first.clipPath, second.clipPath))
+        if (first.clipPath != second.clipPath)
             changingProperties.m_properties.set(CSSPropertyClipPath);
         if (first.textDecorationColor != second.textDecorationColor)
             changingProperties.m_properties.set(CSSPropertyTextDecorationColor);
@@ -1931,12 +1932,12 @@ void RenderStyle::conservativelyCollectChangedAnimatableProperties(const RenderS
             changingProperties.m_properties.set(CSSPropertyScale);
         if (first.translate != second.translate)
             changingProperties.m_properties.set(CSSPropertyTranslate);
-        if (!arePointingToEqualData(first.offsetPath, second.offsetPath))
-            changingProperties.m_properties.set(CSSPropertyOffsetPath);
         if (first.columnGap != second.columnGap)
             changingProperties.m_properties.set(CSSPropertyColumnGap);
         if (first.rowGap != second.rowGap)
             changingProperties.m_properties.set(CSSPropertyRowGap);
+        if (first.offsetPath != second.offsetPath)
+            changingProperties.m_properties.set(CSSPropertyOffsetPath);
         if (first.offsetDistance != second.offsetDistance)
             changingProperties.m_properties.set(CSSPropertyOffsetDistance);
         if (first.offsetPosition != second.offsetPosition)
@@ -2213,6 +2214,7 @@ void RenderStyle::conservativelyCollectChangedAnimatableProperties(const RenderS
         // cursorData
         // textEmphasisCustomMark
         // insideDefaultButton
+        // insideDisabledSubmitButton
     };
 
     if (m_inheritedFlags != other.m_inheritedFlags)
@@ -2382,7 +2384,7 @@ bool RenderStyle::affectedByTransformOrigin() const
     if (transform().affectedByTransformOrigin())
         return true;
 
-    if (offsetPath())
+    if (hasOffsetPath())
         return true;
 
     return false;
@@ -3768,6 +3770,11 @@ float RenderStyle::outlineOffset() const
     if (hasAutoOutlineStyle())
         return (outline.offset() + RenderTheme::platformFocusRingOffset(outlineWidth()));
     return outline.offset();
+}
+
+CheckedRef<const FontCascade> RenderStyle::checkedFontCascade() const
+{
+    return fontCascade();
 }
 
 bool RenderStyle::shouldPlaceVerticalScrollbarOnLeft() const

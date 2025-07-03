@@ -435,6 +435,7 @@ class AboutSchemeHandler;
 class AudioSessionRoutingArbitratorProxy;
 class AuthenticationChallengeProxy;
 class BrowsingContextGroup;
+class BrowsingWarning;
 class CallbackID;
 class ContextMenuContextData;
 class DownloadProxy;
@@ -677,6 +678,7 @@ public:
     WebFrameProxy* focusedOrMainFrame() const { return m_focusedFrame ? m_focusedFrame.get() : m_mainFrame.get(); }
 
     DrawingAreaProxy* drawingArea() const { return m_drawingArea.get(); }
+    RefPtr<DrawingAreaProxy> protectedDrawingArea() const;
     DrawingAreaProxy* provisionalDrawingArea() const;
 
     WebNavigationState& navigationState() { return *m_navigationState; }
@@ -706,6 +708,7 @@ public:
         
 #if ENABLE(ASYNC_SCROLLING) && PLATFORM(COCOA)
     RemoteScrollingCoordinatorProxy* scrollingCoordinatorProxy() const { return m_scrollingCoordinatorProxy.get(); }
+    CheckedPtr<RemoteScrollingCoordinatorProxy> checkedScrollingCoordinatorProxy() const;
 #endif
 
     WebBackForwardList& backForwardList() { return m_backForwardList; }
@@ -740,7 +743,7 @@ public:
     bool isControlledByAutomation() const { return m_controlledByAutomation; }
     void setControlledByAutomation(bool);
 
-    WebPageInspectorController& inspectorController() { return *m_inspectorController; }
+    WebPageInspectorController& inspectorController() { return m_inspectorController.get(); }
 
 #if PLATFORM(IOS_FAMILY)
     void showInspectorIndication();
@@ -1060,6 +1063,8 @@ public:
 #endif
         
     void adjustLayersForLayoutViewport(const WebCore::FloatPoint& scrollPosition, const WebCore::FloatRect& layoutViewport, double scale);
+
+    void stickyScrollingTreeNodeBeganSticking();
 
 #if PLATFORM(COCOA)
     void scrollingNodeScrollViewDidScroll(WebCore::ScrollingNodeID);
@@ -2548,14 +2553,16 @@ public:
 #endif
     String scrollbarStateForScrollingNodeID(std::optional<WebCore::ScrollingNodeID>, bool isVertical);
 
-#if ENABLE(WEBXR) && !USE(OPENXR)
+#if ENABLE(WEBXR)
     PlatformXRSystem* xrSystem() const;
     void restartXRSessionActivityOnProcessResumeIfNeeded();
 #endif
 
     WebColorPickerClient& colorPickerClient();
+    CheckedRef<WebColorPickerClient> checkedColorPickerClient();
 
     WebPopupMenuProxyClient& popupMenuClient();
+    CheckedRef<WebPopupMenuProxyClient> checkedPopupMenuClient();
 
 #if ENABLE(ADVANCED_PRIVACY_PROTECTIONS)
     OptionSet<WebCore::AdvancedPrivacyProtections> advancedPrivacyProtectionsPolicies() const { return m_advancedPrivacyProtectionsPolicies; }
@@ -2839,6 +2846,7 @@ private:
     void decidePolicyForNewWindowAction(IPC::Connection&, NavigationActionData&&, const String& frameName, CompletionHandler<void(PolicyDecision&&)>&&);
     void decidePolicyForResponse(IPC::Connection&, FrameInfoData&&, std::optional<WebCore::NavigationIdentifier>, const WebCore::ResourceResponse&, const WebCore::ResourceRequest&, bool canShowMIMEType, String&& downloadAttribute, bool isShowingInitialAboutBlank, WebCore::CrossOriginOpenerPolicyValue activeDocumentCOOPValue, CompletionHandler<void(PolicyDecision&&)>&&);
     void beginSafeBrowsingCheck(const URL&, RefPtr<API::Navigation>, WebFrameProxy&);
+    void showBrowsingWarning(RefPtr<WebKit::BrowsingWarning>&&);
 
     WebContentMode effectiveContentModeAfterAdjustingPolicies(API::WebsitePolicies&, const WebCore::ResourceRequest&);
 
@@ -3788,7 +3796,7 @@ private:
     IdentifierToAttachmentMap m_attachmentIdentifierToAttachmentMap;
 #endif
 
-    const std::unique_ptr<WebPageInspectorController> m_inspectorController;
+    const UniqueRef<WebPageInspectorController> m_inspectorController;
 #if ENABLE(REMOTE_INSPECTOR)
     RefPtr<WebPageDebuggable> m_inspectorDebuggable;
 #endif

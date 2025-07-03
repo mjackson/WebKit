@@ -301,12 +301,11 @@ void RemoteDisplayListRecorderProxy::drawNativeImageInternal(NativeImage& image,
     if (headroom == Headroom::FromImage)
         headroom = image.headroom();
     if (m_maxEDRHeadroom) {
-        if (*m_maxEDRHeadroom < headroom) {
-            headroom = *m_maxEDRHeadroom;
-            m_hasPaintedClampedEDRHeadroom = true;
-        }
+        if (*m_maxEDRHeadroom < headroom)
+            headroom = Headroom(*m_maxEDRHeadroom);
     }
     m_maxPaintedEDRHeadroom = std::max(m_maxPaintedEDRHeadroom, headroom.headroom);
+    m_maxRequestedEDRHeadroom = std::max(m_maxRequestedEDRHeadroom, image.headroom().headroom);
     ImagePaintingOptions clampedOptions(options, headroom);
 #endif
     appendStateChangeItemIfNecessary();
@@ -724,7 +723,7 @@ bool RemoteDisplayListRecorderProxy::recordResourceUse(Filter& filter)
     return true;
 }
 
-RefPtr<ImageBuffer> RemoteDisplayListRecorderProxy::createImageBuffer(const FloatSize& size, float resolutionScale, const DestinationColorSpace& colorSpace, std::optional<RenderingMode> renderingMode, std::optional<RenderingMethod> renderingMethod) const
+RefPtr<ImageBuffer> RemoteDisplayListRecorderProxy::createImageBuffer(const FloatSize& size, float resolutionScale, const DestinationColorSpace& colorSpace, std::optional<RenderingMode> renderingMode, std::optional<RenderingMethod> renderingMethod, WebCore::ImageBufferPixelFormat pixelFormat) const
 {
     RefPtr renderingBackend = m_renderingBackend.get();
     if (!renderingBackend) [[unlikely]] {
@@ -737,7 +736,7 @@ RefPtr<ImageBuffer> RemoteDisplayListRecorderProxy::createImageBuffer(const Floa
 
     // FIXME: Ideally we'd plumb the purpose through for callers of GraphicsContext::createImageBuffer().
     RenderingPurpose purpose = RenderingPurpose::Unspecified;
-    return renderingBackend->createImageBuffer(size, renderingMode.value_or(this->renderingModeForCompatibleBuffer()), purpose, resolutionScale, colorSpace, ImageBufferPixelFormat::BGRA8);
+    return renderingBackend->createImageBuffer(size, renderingMode.value_or(this->renderingModeForCompatibleBuffer()), purpose, resolutionScale, colorSpace, pixelFormat);
 }
 
 RefPtr<ImageBuffer> RemoteDisplayListRecorderProxy::createAlignedImageBuffer(const FloatSize& size, const DestinationColorSpace& colorSpace, std::optional<RenderingMethod> renderingMethod) const

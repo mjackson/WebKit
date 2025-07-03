@@ -305,6 +305,9 @@ void RenderBox::styleWillChange(StyleDifference diff, const RenderStyle& newStyl
     else if (oldStyle && !oldStyle->positionTryFallbacks().isEmpty() && oldStyle->hasOutOfFlowPosition())
         view().unregisterPositionTryBox(*this);
 
+    if (oldStyle && Style::AnchorPositionEvaluator::isAnchorPositioned(newStyle) != Style::AnchorPositionEvaluator::isAnchorPositioned(*oldStyle))
+        view().frameView().clearCachedHasAnchorPositionedViewportConstrainedObjects();
+
     RenderBoxModelObject::styleWillChange(diff, newStyle);
 }
 
@@ -802,7 +805,7 @@ LayoutUnit RenderBox::constrainContentBoxLogicalHeightByMinMax(LayoutUnit logica
 }
 
 // FIXME: Despite the name, this returns rounded borders based on the padding box, which seems wrong.
-RoundedRect::Radii RenderBox::borderRadii() const
+LayoutRoundedRect::Radii RenderBox::borderRadii() const
 {
     auto borderShape = BorderShape::shapeForBorderRect(style(), paddingBoxRectIncludingScrollbar());
     return borderShape.deprecatedRoundedRect().radii();
@@ -1558,9 +1561,6 @@ bool RenderBox::hitTestVisualOverflow(const HitTestLocation& hitTestLocation, co
 
 bool RenderBox::hitTestClipPath(const HitTestLocation& hitTestLocation, const LayoutPoint& accumulatedOffset) const
 {
-    if (!style().clipPath())
-        return true;
-
     auto offsetFromHitTestRoot = toLayoutSize(accumulatedOffset + location());
     auto hitTestLocationInLocalCoordinates = hitTestLocation.point() - offsetFromHitTestRoot;
 
@@ -1571,33 +1571,23 @@ bool RenderBox::hitTestClipPath(const HitTestLocation& hitTestLocation, const La
         return clipper->hitTestClipContent( FloatRect { borderBoxRect() }, FloatPoint { hitTestLocationInLocalCoordinates });
     };
 
-    switch (style().clipPath()->type()) {
-    case PathOperation::Type::Shape: {
-        auto& clipPath = uncheckedDowncast<ShapePathOperation>(*style().clipPath());
-        auto referenceBoxRect = this->referenceBoxRect(clipPath.referenceBox());
-        if (!clipPath.pathForReferenceRect(referenceBoxRect).contains(hitTestLocationInLocalCoordinates, clipPath.windRule()))
-            return false;
-        break;
-    }
-    case PathOperation::Type::Reference: {
-        const auto& referencePathOperation = uncheckedDowncast<ReferencePathOperation>(*style().clipPath());
-        RefPtr element = document().getElementById(referencePathOperation.fragment());
-        if (!element || !element->renderer())
-            break;
-        if (!is<SVGClipPathElement>(*element))
-            break;
-        if (!hitsClipContent(*element))
-            return false;
-        break;
-    }
-    case PathOperation::Type::Box:
-        break;
-    case PathOperation::Type::Ray:
-        ASSERT_NOT_REACHED("clip-path does not support Ray shape");
-        break;
-    }
-
-    return true;
+    return WTF::switchOn(style().clipPath(),
+        [&](const Style::BasicShapePath& clipPath) {
+            auto& shape = clipPath.shape();
+            auto path = Style::path(shape, referenceBoxRect(clipPath.referenceBox()));
+            return path.contains(hitTestLocationInLocalCoordinates, Style::windRule(shape));
+        },
+        [&](const Style::ReferencePath& clipPath) {
+            RefPtr element = document().getElementById(clipPath.fragment());
+            return !is<SVGClipPathElement>(element) || !element->renderer() || hitsClipContent(*element);
+        },
+        [&](const Style::BoxPath&) {
+            return true;
+        },
+        [&](const CSS::Keyword::None&) {
+            return true;
+        }
+    );
 }
 
 bool RenderBox::hitTestBorderRadius(const HitTestLocation& hitTestLocation, const LayoutPoint& accumulatedOffset) const
@@ -1663,14 +1653,14 @@ BleedAvoidance RenderBox::determineBleedAvoidance(GraphicsContext& context) cons
     AffineTransform ctm = context.getCTM();
     FloatSize contextScaling(static_cast<float>(ctm.xScale()), static_cast<float>(ctm.yScale()));
 
-    // Because RoundedRect uses IntRect internally the inset applied by the 
+    // Because LayoutRoundedRect uses IntRect internally the inset applied by the
     // BleedAvoidance::ShrinkBackground strategy cannot be less than one integer
     // layout coordinate, even with subpixel layout enabled. To take that into
     // account, we clamp the contextScaling to 1.0 for the following test so
     // that borderObscuresBackgroundEdge can only return true if the border
     // widths are greater than 2 in both layout coordinates and screen
     // coordinates.
-    // This precaution will become obsolete if RoundedRect is ever promoted to
+    // This precaution will become obsolete if LayoutRoundedRect is ever promoted to
     // a sub-pixel representation.
     if (contextScaling.width() > 1) 
         contextScaling.setWidth(1);
@@ -1976,7 +1966,7 @@ void RenderBox::paintClippingMask(PaintInfo& paintInfo, const LayoutPoint& paint
 
     LayoutRect paintRect = LayoutRect(paintOffset, size());
 
-    if (document().settings().layerBasedSVGEngineEnabled() && style().clipPath() && style().clipPath()->type() == PathOperation::Type::Reference) {
+    if (document().settings().layerBasedSVGEngineEnabled() && WTF::holdsAlternative<Style::ReferencePath>(style().clipPath())) {
         paintSVGClippingMask(paintInfo, paintRect);
         return;
     }
@@ -2463,7 +2453,7 @@ LayoutSize RenderBox::offsetFromContainer(const RenderElement& container, const 
     if (isInFlowPositioned())
         offset += offsetForInFlowPosition();
 
-    if (!isInline() || isReplacedOrAtomicInline())
+    if (!isInline() || isBlockLevelReplacedOrAtomicInline())
         offset += topLeftLocationOffset();
 
     if (auto* boxContainer = dynamicDowncast<RenderBox>(container))
@@ -3032,7 +3022,7 @@ bool RenderBox::sizesPreferredLogicalWidthToFitContent() const
 {
     // Marquees in WinIE are like a mixture of blocks and inline-blocks.  They size as though they're blocks,
     // but they allow text to sit on the same line as the marquee.
-    if (isFloating() || (isNonReplacedAtomicInline() && !isHTMLMarquee()))
+    if (isFloating() || (isNonReplacedAtomicInlineLevelBox() && !isHTMLMarquee()))
         return true;
 
     if (isGridItem()) {
@@ -3294,7 +3284,7 @@ RenderBox::LogicalExtentComputedValues RenderBox::computeLogicalHeight(LayoutUni
     computedValues.m_position = logicalTop;
 
     // Cell height is managed by the table and inline non-replaced elements do not support a height property.
-    if (isRenderTableCell() || (isInline() && !isReplacedOrAtomicInline()))
+    if (isRenderTableCell() || (isInline() && !isBlockLevelReplacedOrAtomicInline()))
         return computedValues;
 
     if (isOutOfFlowPositioned()) {
@@ -3684,7 +3674,7 @@ static bool tableCellShouldHaveZeroInitialSize(const RenderTableCell& tableCell,
         return false;
     if (tableCell.style().logicalHeight().isAuto() && tableCell.table()->style().logicalHeight().isAuto())
         return false;
-    if (child.isReplacedOrAtomicInline())
+    if (child.isBlockLevelReplacedOrAtomicInline())
         return false;
     if (is<HTMLFormControlElement>(child.element()) && !is<HTMLFieldSetElement>(child.element()))
         return false;
@@ -4322,7 +4312,7 @@ LayoutUnit RenderBox::containingBlockLogicalHeightForPositioned(const RenderBoxM
 
 void RenderBox::computePositionedLogicalWidth(LogicalExtentComputedValues& computedValues) const
 {
-    if (isReplacedOrAtomicInline()) {
+    if (isBlockLevelReplacedOrAtomicInline()) {
         computePositionedLogicalWidthReplaced(computedValues);
         return;
     }
@@ -4496,7 +4486,7 @@ LayoutUnit RenderBox::computePositionedLogicalWidthUsing(const Style::MaximumSiz
 
 void RenderBox::computePositionedLogicalHeight(LogicalExtentComputedValues& computedValues) const
 {
-    if (isReplacedOrAtomicInline()) {
+    if (isBlockLevelReplacedOrAtomicInline()) {
         computePositionedLogicalHeightReplaced(computedValues);
         return;
     }
@@ -4788,7 +4778,7 @@ LayoutRect RenderBox::applyVisualEffectOverflow(const LayoutRect& borderBox) con
     
     // Compute box-shadow overflow first.
     if (style().hasBoxShadow()) {
-        auto shadowOutsets = style().boxShadowExtent();
+        auto shadowOutsets = Style::shadowOutsetExtent(style().boxShadow());
         // Box-shadow extent's left and top are negative when extends to left and top, respectively, so negate to convert to outsets.
         shadowOutsets.left() = -shadowOutsets.left();
         shadowOutsets.top() = -shadowOutsets.top();
@@ -4984,7 +4974,7 @@ bool RenderBox::hasUnsplittableScrollingOverflow() const
 
 bool RenderBox::isUnsplittableForPagination() const
 {
-    return isReplacedOrAtomicInline()
+    return isBlockLevelReplacedOrAtomicInline()
         || (is<HTMLFormControlElement>(element()) && !is<HTMLFieldSetElement>(element()))
         || hasUnsplittableScrollingOverflow()
         || (parent() && isWritingModeRoot())
@@ -4994,19 +4984,15 @@ bool RenderBox::isUnsplittableForPagination() const
 
 LayoutUnit RenderBox::lineHeight(bool /*firstLine*/, LineDirectionMode direction, LinePositionMode /*linePositionMode*/) const
 {
-    if (isReplacedOrAtomicInline())
+    if (isBlockLevelReplacedOrAtomicInline())
         return direction == HorizontalLine ? m_marginBox.top() + height() + m_marginBox.bottom() : m_marginBox.right() + width() + m_marginBox.left();
     return 0;
 }
 
-LayoutUnit RenderBox::baselinePosition(FontBaseline baselineType, bool /*firstLine*/, LineDirectionMode direction, LinePositionMode /*linePositionMode*/) const
+LayoutUnit RenderBox::baselinePosition(bool /*firstLine*/, LineDirectionMode direction, LinePositionMode /*linePositionMode*/) const
 {
-    if (isReplacedOrAtomicInline()) {
-        auto result = roundToInt(direction == HorizontalLine ? m_marginBox.top() + height() + m_marginBox.bottom() : m_marginBox.right() + width() + m_marginBox.left());
-        if (baselineType == AlphabeticBaseline)
-            return result;
-        return result - result / 2;
-    }
+    if (isBlockLevelReplacedOrAtomicInline())
+        return roundToInt(direction == HorizontalLine ? m_marginBox.top() + height() + m_marginBox.bottom() : m_marginBox.right() + width() + m_marginBox.left());
     return 0;
 }
 
@@ -5090,13 +5076,19 @@ LayoutRect RenderBox::layoutOverflowRectForPropagation(const WritingMode parentW
         // to it, and then convert it back.
         // It ensures that the overflow rect tracks the paint geometry and not the inflow layout position.
         flipForWritingMode(rect);
-        
-        if (isTransformed && hasLayer())
-            rect = layer()->currentTransform().mapRect(rect);
 
+        LayoutSize containerOffset;
         if (isInFlowPositioned())
+            containerOffset = offsetForInFlowPosition();
+
+        auto container = this->container();
+        if (shouldUseTransformFromContainer(container)) {
+            TransformationMatrix transform;
+            getTransformFromContainer(containerOffset, transform);
+            rect = transform.mapRect(rect);
+        } else
             rect.move(offsetForInFlowPosition());
-        
+
         // Now we need to flip back.
         flipForWritingMode(rect);
     }

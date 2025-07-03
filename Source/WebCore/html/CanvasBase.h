@@ -100,6 +100,7 @@ public:
     bool originClean() const { return m_originClean; }
 
     virtual SecurityOrigin* securityOrigin() const { return nullptr; }
+    RefPtr<SecurityOrigin> protectedSecurityOrigin() const;
     ScriptExecutionContext* scriptExecutionContext() const { return canvasBaseScriptExecutionContext();  }
 
     virtual CanvasRenderingContext* renderingContext() const = 0;
@@ -117,7 +118,7 @@ public:
     void notifyObserversCanvasDisplayBufferPrepared();
     bool hasDisplayBufferObservers() const { return !m_displayBufferObservers.isEmptyIgnoringNullReferences(); }
 
-    UncheckedKeyHashSet<Element*> cssCanvasClients() const;
+    HashSet<Element*> cssCanvasClients() const;
 
     // !rect means caller knows the full canvas is invalidated previously.
     void didDraw(const std::optional<FloatRect>& rect) { return didDraw(rect, ShouldApplyPostProcessingToDirtyRect::Yes); }

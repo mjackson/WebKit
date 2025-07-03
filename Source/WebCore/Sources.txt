@@ -2185,7 +2185,7 @@ page/ResourceUsageOverlay.cpp
 page/ResourceUsageThread.cpp
 page/Screen.cpp
 page/ScreenOrientation.cpp
-page/ScriptTelemetryCategory.cpp
+page/ScriptTrackingPrivacyCategory.cpp
 page/ScrollBehavior.cpp
 page/SecurityOrigin.cpp
 page/SecurityOriginData.cpp
@@ -2521,6 +2521,7 @@ platform/graphics/IntSize.cpp
 platform/graphics/TransparencyLayerContextSwitcher.cpp
 platform/graphics/LayoutPoint.cpp
 platform/graphics/LayoutRect.cpp
+platform/graphics/LayoutRoundedRect.cpp
 platform/graphics/LayoutSize.cpp
 platform/graphics/MIMESniffer.cpp
 platform/graphics/MIMETypeCache.cpp
@@ -2551,7 +2552,6 @@ platform/graphics/PlatformTimeRanges.cpp
 platform/graphics/Region.cpp
 platform/graphics/RenderingMode.cpp
 platform/graphics/RotationDirection.cpp
-platform/graphics/RoundedRect.cpp
 platform/graphics/ShadowBlur.cpp
 platform/graphics/ShareableBitmap.cpp
 platform/graphics/ShareableBitmapHandle.cpp
@@ -2933,7 +2933,6 @@ rendering/style/BorderValue.cpp
 rendering/style/ContentData.cpp
 rendering/style/DropShadowFilterOperationWithStyleColor.cpp
 rendering/style/FillLayer.cpp
-rendering/style/GapLength.cpp
 rendering/style/GridPosition.cpp
 rendering/style/GridPositionsResolver.cpp
 rendering/style/GridSpan.cpp
@@ -3137,8 +3136,6 @@ style/UserAgentStyle.cpp
 style/values/borders/StyleBorderRadius.cpp
 style/values/borders/StyleBoxShadow.cpp
 style/values/borders/StyleCornerShapeValue.cpp
-style/values/box/StyleMargin.cpp
-style/values/box/StylePadding.cpp
 style/values/color-adjust/StyleColorScheme.cpp
 style/values/color/StyleColor.cpp
 style/values/color/StyleColorLayers.cpp
@@ -3173,11 +3170,12 @@ style/values/filter-effects/StyleSaturateFunction.cpp
 style/values/filter-effects/StyleSepiaFunction.cpp
 style/values/flexbox/StyleFlexBasis.cpp
 style/values/images/StyleGradient.cpp
+style/values/masking/StyleClipPath.cpp
 style/values/motion/StyleOffsetAnchor.cpp
-style/values/motion/StyleOffsetDistance.cpp
+style/values/motion/StyleOffsetPath.cpp
 style/values/motion/StyleOffsetPosition.cpp
 style/values/motion/StyleOffsetRotate.cpp
-style/values/position/StyleInset.cpp
+style/values/motion/StyleRayFunction.cpp
 style/values/primitives/StyleLengthResolution.cpp
 style/values/primitives/StylePosition.cpp
 style/values/primitives/StylePrimitiveNumericTypes+Conversions.cpp
@@ -3190,15 +3188,15 @@ style/values/shapes/StyleCircleFunction.cpp
 style/values/shapes/StyleEllipseFunction.cpp
 style/values/shapes/StyleInsetFunction.cpp
 style/values/shapes/StylePathFunction.cpp
+style/values/shapes/StylePathOperationWrappers.cpp
 style/values/shapes/StylePolygonFunction.cpp
 style/values/shapes/StyleRectFunction.cpp
 style/values/shapes/StyleShapeFunction.cpp
 style/values/shapes/StyleXywhFunction.cpp
-style/values/sizing/StyleMaximumSize.cpp
-style/values/sizing/StyleMinimumSize.cpp
 style/values/sizing/StylePreferredSize.cpp
 style/values/svg/StyleSVGPaint.cpp
 style/values/text-decoration/StyleTextShadow.cpp
+style/values/text-decoration/StyleTextUnderlineOffset.cpp
 style/values/transforms/StyleRotate.cpp
 style/values/transforms/StylePerspective.cpp
 style/values/transforms/StyleScale.cpp

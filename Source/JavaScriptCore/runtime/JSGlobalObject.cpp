@@ -897,7 +897,9 @@ void JSGlobalObject::init(VM& vm)
 
     auto initFunctionStructures = [&] (FunctionStructures& structures) {
         structures.strictFunctionStructure.set(vm, this, JSStrictFunction::createStructure(vm, this, m_functionPrototype.get()));
+        structures.strictMethodStructure.set(vm, this, JSStrictFunction::createStructure(vm, this, m_functionPrototype.get()));
         structures.sloppyFunctionStructure.set(vm, this, JSSloppyFunction::createStructure(vm, this, m_functionPrototype.get()));
+        structures.sloppyMethodStructure.set(vm, this, JSSloppyFunction::createStructure(vm, this, m_functionPrototype.get()));
         structures.arrowFunctionStructure.set(vm, this, JSArrowFunction::createStructure(vm, this, m_functionPrototype.get()));
     };
     initFunctionStructures(m_builtinFunctions);
@@ -2710,7 +2712,9 @@ void JSGlobalObject::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     auto visitFunctionStructures = [&] (FunctionStructures& structures) {
         visitor.append(structures.arrowFunctionStructure);
         visitor.append(structures.sloppyFunctionStructure);
+        visitor.append(structures.sloppyMethodStructure);
         visitor.append(structures.strictFunctionStructure);
+        visitor.append(structures.strictMethodStructure);
     };
     visitFunctionStructures(thisObject->m_builtinFunctions);
     visitFunctionStructures(thisObject->m_ordinaryFunctions);
@@ -3437,7 +3441,7 @@ void JSGlobalObject::clearWeakTickets()
     vm().deferredWorkTimer->cancelPendingWorkSafe(this);
 }
 
-FunctionExecutable* JSGlobalObject::tryGetCachedFunctionExecutableForFunctionConstructor(const Identifier& name, const SourceCode& source, LexicallyScopedFeatures lexicallyScopedFeatures, FunctionConstructionMode functionConstructionMode)
+FunctionExecutable* JSGlobalObject::tryGetCachedFunctionExecutableForFunctionConstructor(const Identifier& name, StringView program, const SourceOrigin& sourceOrigin, SourceTaintedOrigin sourceTaintedOrigin, const String& sourceURL, const TextPosition& startPosition, LexicallyScopedFeatures lexicallyScopedFeatures, FunctionConstructionMode functionConstructionMode)
 {
     if (!defaultCodeGenerationMode().isEmpty())
         return nullptr;
@@ -3454,25 +3458,27 @@ FunctionExecutable* JSGlobalObject::tryGetCachedFunctionExecutableForFunctionCon
         return nullptr;
 
     auto storedSource = executable->source();
-    if (source.firstLine() != storedSource.firstLine())
+    if (OrdinalNumber { } != storedSource.firstLine())
         return nullptr;
 
     int offset = functionConstructorPrefix(functionConstructionMode).length() + name.length();
-    if ((source.startColumn().zeroBasedInt() + offset) != storedSource.startColumn().zeroBasedInt())
+    if (offset != storedSource.startColumn().zeroBasedInt())
         return nullptr;
 
-    if (source.view().substring(offset) != storedSource.view())
+    if (program.substring(offset) != storedSource.view())
         return nullptr;
 
     RefPtr storedProvider = executable->source().provider();
-    RefPtr provider = source.provider();
-    if (storedProvider->startPosition() != provider->startPosition())
+    if (storedProvider->startPosition() != startPosition)
         return nullptr;
 
-    if (storedProvider->sourceOrigin() != provider->sourceOrigin())
+    if (storedProvider->sourceOrigin() != sourceOrigin)
         return nullptr;
 
-    if (storedProvider->sourceURL() != provider->sourceURL())
+    if (storedProvider->sourceURL() != sourceURL)
+        return nullptr;
+
+    if (storedProvider->sourceTaintedOrigin() != sourceTaintedOrigin)
         return nullptr;
 
     return executable;

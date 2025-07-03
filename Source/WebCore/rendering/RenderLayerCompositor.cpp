@@ -600,7 +600,8 @@ RenderLayerCompositor::~RenderLayerCompositor()
 #if HAVE(RUBBER_BANDING)
     GraphicsLayer::unparentAndClear(m_layerForOverhangAreas);
     GraphicsLayer::unparentAndClear(m_contentShadowLayer);
-    GraphicsLayer::unparentAndClear(m_layerForTopOverhangArea);
+    GraphicsLayer::unparentAndClear(m_layerForTopOverhangColorExtension);
+    GraphicsLayer::unparentAndClear(m_layerForTopOverhangImage);
     GraphicsLayer::unparentAndClear(m_layerForBottomOverhangArea);
     GraphicsLayer::unparentAndClear(m_layerForHeader);
     GraphicsLayer::unparentAndClear(m_layerForFooter);
@@ -2128,7 +2129,7 @@ static bool clippingChanged(const RenderStyle& oldStyle, const RenderStyle& newS
 
 static bool styleAffectsLayerGeometry(const RenderStyle& style)
 {
-    return style.hasClip() || style.clipPath() || style.hasBorderRadius();
+    return style.hasClip() || style.hasClipPath() || style.hasBorderRadius();
 }
 
 static bool recompositeChangeRequiresGeometryUpdate(const RenderStyle& oldStyle, const RenderStyle& newStyle)
@@ -2146,12 +2147,12 @@ static bool recompositeChangeRequiresGeometryUpdate(const RenderStyle& oldStyle,
         || oldStyle.perspectiveOriginX() != newStyle.perspectiveOriginX()
         || oldStyle.perspectiveOriginY() != newStyle.perspectiveOriginY()
         || oldStyle.backfaceVisibility() != newStyle.backfaceVisibility()
-        || !arePointingToEqualData(oldStyle.offsetPath(), newStyle.offsetPath())
+        || oldStyle.offsetPath() != newStyle.offsetPath()
         || oldStyle.offsetAnchor() != newStyle.offsetAnchor()
         || oldStyle.offsetPosition() != newStyle.offsetPosition()
         || oldStyle.offsetDistance() != newStyle.offsetDistance()
         || oldStyle.offsetRotate() != newStyle.offsetRotate()
-        || !arePointingToEqualData(oldStyle.clipPath(), newStyle.clipPath())
+        || oldStyle.clipPath() != newStyle.clipPath()
         || oldStyle.overscrollBehaviorX() != newStyle.overscrollBehaviorX()
         || oldStyle.overscrollBehaviorY() != newStyle.overscrollBehaviorY();
 }
@@ -2686,7 +2687,7 @@ LayoutRect RenderLayerCompositor::computeClippedOverlapBounds(LayerOverlapMap& o
         // Compute a clip up to the composited scrolling ancestor, then convert it to absolute coordinates.
         auto& scrollingScope = extent.clippingScopes.last();
         auto& scopeLayer = scrollingScope.layer;
-        clipRect = layer.backgroundClipRect(RenderLayer::ClipRectsContext(&scopeLayer, TemporaryClipRects, { })).rect();
+        clipRect = layer.backgroundClipRect(RenderLayer::ClipRectsContext(&scopeLayer, PaintingClipRects, { RenderLayer::ClipRectsOption::Temporary })).rect();
         if (!clipRect.isInfinite())
             clipRect.setLocation(scopeLayer.convertToLayerCoords(&rootRenderLayer(), clipRect.location()));
     } else
@@ -3214,11 +3215,13 @@ void RenderLayerCompositor::updateRootLayerPosition()
         RefPtr { m_contentShadowLayer }->setSize(m_rootContentsLayer->size());
     }
 
-    updateLayerForTopOverhangArea(m_layerForTopOverhangArea != nullptr);
-    updateLayerForBottomOverhangArea(m_layerForBottomOverhangArea != nullptr);
-    updateLayerForHeader(m_layerForHeader != nullptr);
-    updateLayerForFooter(m_layerForFooter != nullptr);
-#endif
+    updateLayerForTopOverhangColorExtension(m_layerForTopOverhangColorExtension);
+    updateSizeAndPositionForTopOverhangColorExtensionLayer();
+    updateLayerForTopOverhangImage(m_layerForTopOverhangImage);
+    updateLayerForBottomOverhangArea(m_layerForBottomOverhangArea);
+    updateLayerForHeader(m_layerForHeader);
+    updateLayerForFooter(m_layerForFooter);
+#endif // HAVE(RUBBER_BANDING)
 }
 
 bool RenderLayerCompositor::has3DContent() const
@@ -3584,7 +3587,7 @@ bool RenderLayerCompositor::clippedByAncestor(RenderLayer& layer, const RenderLa
             return false;
     }
 
-    auto backgroundClipRect = layer.backgroundClipRect(RenderLayer::ClipRectsContext(computeClipRoot, TemporaryClipRects));
+    auto backgroundClipRect = layer.backgroundClipRect(RenderLayer::ClipRectsContext(computeClipRoot, PaintingClipRects, RenderLayer::clipRectTemporaryOptions));
     return !backgroundClipRect.isInfinite(); // FIXME: Incorrect for CSS regions.
 }
 
@@ -3613,11 +3616,11 @@ Vector<CompositedClipData> RenderLayerCompositor::computeAncestorClippingStack(c
     
     auto pushNonScrollableClip = [&](const RenderLayer& clippedLayer, const RenderLayer& clippingRoot, ShouldRespectOverflowClip respectClip = IgnoreOverflowClip) {
         // Use IgnoreOverflowClip to ignore overflow contributed by clippingRoot (which may be a scroller).
-        OptionSet<RenderLayer::ClipRectsOption> options;
+        OptionSet<RenderLayer::ClipRectsOption> options = RenderLayer::ClipRectsOption::Temporary;
         if (respectClip == RespectOverflowClip)
             options.add(RenderLayer::ClipRectsOption::RespectOverflowClip);
 
-        auto backgroundClip = clippedLayer.backgroundClipRect(RenderLayer::ClipRectsContext(&clippingRoot, TemporaryClipRects, options));
+        auto backgroundClip = clippedLayer.backgroundClipRect(RenderLayer::ClipRectsContext(&clippingRoot, PaintingClipRects, options));
         ASSERT(!backgroundClip.affectedByRadius());
         auto clipRect = backgroundClip.rect();
         if (clipRect.isInfinite())
@@ -3642,7 +3645,7 @@ Vector<CompositedClipData> RenderLayerCompositor::computeAncestorClippingStack(c
         auto offset = layer.convertToLayerCoords(&clippingRoot, { }, RenderLayer::AdjustForColumns);
         clipRect.moveBy(-offset);
 
-        CompositedClipData clipData { const_cast<RenderLayer*>(&clippedLayer), RoundedRect { clipRect }, false };
+        CompositedClipData clipData { const_cast<RenderLayer*>(&clippedLayer), LayoutRoundedRect { clipRect }, false };
         newStack.insert(0, WTFMove(clipData));
     };
 
@@ -4678,23 +4681,43 @@ bool RenderLayerCompositor::requiresContentShadowLayer() const
     return false;
 }
 
-GraphicsLayer* RenderLayerCompositor::updateLayerForTopOverhangArea(bool wantsLayer)
+GraphicsLayer* RenderLayerCompositor::updateLayerForTopOverhangImage(bool wantsLayer)
 {
     if (!isMainFrameCompositor())
         return nullptr;
 
     if (!wantsLayer) {
-        GraphicsLayer::unparentAndClear(m_layerForTopOverhangArea);
+        GraphicsLayer::unparentAndClear(m_layerForTopOverhangImage);
         return nullptr;
     }
 
-    if (!m_layerForTopOverhangArea) {
-        m_layerForTopOverhangArea = GraphicsLayer::create(graphicsLayerFactory(), *this);
-        m_layerForTopOverhangArea->setName(MAKE_STATIC_STRING_IMPL("top overhang"));
-        RefPtr { m_scrolledContentsLayer }->addChildBelow(*m_layerForTopOverhangArea, m_rootContentsLayer.get());
+    if (!m_layerForTopOverhangImage) {
+        m_layerForTopOverhangImage = GraphicsLayer::create(graphicsLayerFactory(), *this);
+        m_layerForTopOverhangImage->setName(MAKE_STATIC_STRING_IMPL("top overhang (image)"));
+        RefPtr { m_scrolledContentsLayer }->addChildBelow(*m_layerForTopOverhangImage, m_rootContentsLayer.get());
     }
 
-    return m_layerForTopOverhangArea.get();
+    return m_layerForTopOverhangImage.get();
+}
+
+GraphicsLayer* RenderLayerCompositor::updateLayerForTopOverhangColorExtension(bool wantsLayer)
+{
+    if (!isMainFrameCompositor())
+        return nullptr;
+
+    if (!wantsLayer) {
+        GraphicsLayer::unparentAndClear(m_layerForTopOverhangColorExtension);
+        return nullptr;
+    }
+
+    if (!m_layerForTopOverhangColorExtension) {
+        m_layerForTopOverhangColorExtension = GraphicsLayer::create(graphicsLayerFactory(), *this);
+        m_layerForTopOverhangColorExtension->setName(MAKE_STATIC_STRING_IMPL("top overhang (color extension)"));
+        m_layerForTopOverhangColorExtension->setDrawsContent(false);
+        RefPtr { m_scrolledContentsLayer }->addChildBelow(*m_layerForTopOverhangColorExtension, m_layerForTopOverhangImage.get() ?: m_rootContentsLayer.get());
+    }
+
+    return m_layerForTopOverhangColorExtension.get();
 }
 
 GraphicsLayer* RenderLayerCompositor::updateLayerForBottomOverhangArea(bool wantsLayer)
@@ -4926,7 +4949,8 @@ void RenderLayerCompositor::rootBackgroundColorOrTransparencyChanged()
 #if HAVE(RUBBER_BANDING)
 void RenderLayerCompositor::updateSizeAndPositionForOverhangAreaLayer()
 {
-    if (!m_layerForOverhangAreas)
+    RefPtr layer = m_layerForOverhangAreas;
+    if (!layer)
         return;
 
     Ref frameView = m_renderView.frameView();
@@ -4934,10 +4958,24 @@ void RenderLayerCompositor::updateSizeAndPositionForOverhangAreaLayer()
     IntSize overhangAreaSize = frameView->frameRect().size();
     overhangAreaSize.contract(obscuredContentInsets.left(), obscuredContentInsets.top());
     overhangAreaSize.clampNegativeToZero();
-    RefPtr { m_layerForOverhangAreas }->setSize(overhangAreaSize);
-    m_layerForOverhangAreas->setPosition({ obscuredContentInsets.left(), obscuredContentInsets.top() });
+    layer->setSize(overhangAreaSize);
+    layer->setPosition({ obscuredContentInsets.left(), obscuredContentInsets.top() });
 }
-#endif
+
+void RenderLayerCompositor::updateSizeAndPositionForTopOverhangColorExtensionLayer()
+{
+    RefPtr layer = m_layerForTopOverhangColorExtension;
+    if (!layer)
+        return;
+
+    Ref frameView = m_renderView.frameView();
+    IntSize layerSize { frameView->contentsSize().width(), frameView->visibleSize().height() };
+    layer->setSize(layerSize);
+
+    auto rootLayerPosition = frameView->positionForRootContentLayer();
+    layer->setPosition({ rootLayerPosition.x(), rootLayerPosition.y() - layerSize.height() });
+}
+#endif // HAVE(RUBBER_BANDING)
 
 void RenderLayerCompositor::updateOverflowControlsLayers()
 {
@@ -5315,6 +5353,12 @@ void RenderLayerCompositor::deviceOrPageScaleFactorChanged()
         rootLayer->noteDeviceOrPageScaleFactorChangedIncludingDescendants();
 }
 
+void RenderLayerCompositor::screenSupportedContentsFormatsChanged()
+{
+    if (RefPtr rootLayer = rootGraphicsLayer())
+        rootLayer->noteScreenSupportedContentsFormatsChangedIncludingDescendants();
+}
+
 void RenderLayerCompositor::removeFromScrollCoordinatedLayers(RenderLayer& layer)
 {
 #if PLATFORM(IOS_FAMILY)
@@ -5683,22 +5727,22 @@ std::optional<ScrollingNodeID> RenderLayerCompositor::updateScrollingNodeForView
     return newNodeID;
 }
 
-RoundedRect RenderLayerCompositor::parentRelativeScrollableRect(const RenderLayer& layer, const RenderLayer* ancestorLayer) const
+LayoutRoundedRect RenderLayerCompositor::parentRelativeScrollableRect(const RenderLayer& layer, const RenderLayer* ancestorLayer) const
 {
     // FIXME: ancestorLayer needs to be always non-null, so should become a reference.
     if (!ancestorLayer) {
         if (!layer.scrollableArea())
-            return RoundedRect { LayoutRect { } };
-        return RoundedRect { LayoutRect({ }, LayoutSize(CheckedPtr { layer.scrollableArea() }->visibleSize())) };
+            return LayoutRoundedRect { LayoutRect { } };
+        return LayoutRoundedRect { LayoutRect({ }, LayoutSize(CheckedPtr { layer.scrollableArea() }->visibleSize())) };
     }
 
-    RoundedRect scrollableRect(LayoutRect { });
+    LayoutRoundedRect scrollableRect(LayoutRect { });
     {
         CheckedPtr box = dynamicDowncast<RenderBox>(layer.renderer());
         if (!box)
-            return RoundedRect { LayoutRect { } };
+            return LayoutRoundedRect { LayoutRect { } };
 
-        scrollableRect = RoundedRect { box->paddingBoxRect() };
+        scrollableRect = LayoutRoundedRect { box->paddingBoxRect() };
         if (box->style().hasBorderRadius()) {
             auto borderShape = BorderShape::shapeForBorderRect(box->style(), box->borderBoxRect());
             scrollableRect = borderShape.deprecatedInnerRoundedRect();
@@ -5965,6 +6009,8 @@ void RenderLayerCompositor::updateSynchronousScrollingNodes()
     };
     
     auto setHasSlowRepaintObjectsSynchronousScrollingReasonOnRootNode = [&](bool hasSlowRepaintObjects) {
+        if (!rootScrollingNodeID)
+            return;
         // ScrollingCoordinator manages all bits other than HasSlowRepaintObjects, so maintain their current value.
         auto reasons = scrollingCoordinator->synchronousScrollingReasons(*rootScrollingNodeID);
         reasons.set({ SynchronousScrollingReason::HasSlowRepaintObjects }, hasSlowRepaintObjects);

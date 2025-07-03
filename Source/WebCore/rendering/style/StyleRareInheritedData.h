@@ -34,8 +34,8 @@
 #include "StyleDynamicRangeLimit.h"
 #include "StyleTextEdge.h"
 #include "StyleTextShadow.h"
+#include "StyleTextUnderlineOffset.h"
 #include "TabSize.h"
-#include "TextUnderlineOffset.h"
 #include "TouchAction.h"
 #include <wtf/DataRef.h>
 #include <wtf/FixedVector.h>
@@ -106,7 +106,7 @@ public:
     Length indent;
     float usedZoom;
 
-    TextUnderlineOffset textUnderlineOffset;
+    Style::TextUnderlineOffset textUnderlineOffset;
 
     TextEdge textBoxEdge;
     TextEdge lineFitEdge;
@@ -151,6 +151,7 @@ public:
     unsigned textAlignLast : 3; // TextAlignLast
     unsigned textJustify : 2; // TextJustify
     unsigned textDecorationSkipInk : 2; // TextDecorationSkipInk
+    unsigned mathStyle : 1; // MathStyle
     unsigned rubyPosition : 2; // RubyPosition
     unsigned rubyAlign : 2; // RubyAlign
     unsigned rubyOverhang : 1; // RubyOverhang
@@ -168,8 +169,6 @@ public:
     unsigned hasSetStrokeWidth : 1;
     unsigned hasSetStrokeColor : 1;
 
-    unsigned mathStyle : 1; // MathStyle
-
     unsigned hasAutoCaretColor : 1;
     unsigned hasVisitedLinkAutoCaretColor : 1;
 
@@ -183,7 +182,11 @@ public:
 
     unsigned usedContentVisibility : 2; // ContentVisibility
 
+    unsigned autoRevealsWhenFound : 1;
+
     unsigned insideDefaultButton : 1;
+
+    unsigned insideDisabledSubmitButton : 1;
 
 #if HAVE(CORE_MATERIAL)
     unsigned usedAppleVisualEffectForSubtree : 4; // AppleVisualEffect

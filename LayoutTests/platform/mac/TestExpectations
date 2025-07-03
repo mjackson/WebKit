@@ -69,6 +69,8 @@ http/tests/media/fairplay/fps-mse-attach-cdm-after-key-exchange.html [ Skip ] # 
 media/track/track-description-cue.html [ Pass ]
 media/track/track-extended-descriptions.html [ Pass ]
 media/media-source/remoteplayback-from-source-element.html [ Pass ]
+# Prior Tahoe, attempting to paint stereo MV-HEVC either errors or crashes.
+[ Sonoma Sequoia ] media/media-source/media-source-paint-stereo-to-canvas.html [ Skip ]
 
 # macOS 14 and above support word-break: auto-phrase.
 # Individually failing tests should be marked in separate expectations.
@@ -86,6 +88,9 @@ fast/images/heic-as-background-image.html [ Pass ]
 [ Sonoma+ ] fast/images/jpegxl-image-decoding.html [ Pass ]
 [ Sonoma+ ] fast/images/jpegxl-as-image.html [ Pass ]
 [ Sonoma+ ] fast/images/jpegxl-with-color-profile.html [ Pass ]
+
+# Video as an image source is only supported on macOS and iOS.
+fast/images/video-as-image.html [ Pass ]
 
 # Enabled in rdar://102830993
 fast/images/mac/play-all-pause-all-animations-context-menu-items.html [ Skip ]
@@ -128,6 +133,9 @@ fast/screen-orientation/orientation-in-resize-event.html [ Skip ]
 # Need to implement AccessibilityUIElement::clearSelectedChildren()
 accessibility/aria-listbox-clear-selection-crash.html
 accessibility/listbox-clear-selection.html
+
+# The dismiss action doesn't return a result on macOS
+accessibility/dismiss-action-returns-whether-keyevent-handled.html
 
 # These tests require touch support
 fast/events/touch [ Skip ]
@@ -2190,8 +2198,6 @@ imported/w3c/web-platform-tests/svg/painting/reftests/marker-path-023.svg [ Imag
 imported/w3c/web-platform-tests/svg/path/distance/pathlength-circle-mutating.svg [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/svg/painting/svg-percent-stroke-width-viewbox-update.html [ ImageOnlyFailure ]
 
-webkit.org/b/269852 imported/w3c/web-platform-tests/css/filter-effects/backdrop-filter-edge-behavior.html [ ImageOnlyFailure ]
-
 webkit.org/b/269873 imported/w3c/web-platform-tests/webrtc-extensions/transfer-datachannel-service-worker.https.html [ Pass Failure ]
 
 # webkit.org/b/267869 Multiple queues experiencing sporadic 0.01% ImageOnlyFailures.
@@ -2418,8 +2424,6 @@ webkit.org/b/291459 [ Release ] imported/w3c/web-platform-tests/css/css-shapes/s
 
 webkit.org/b/291785 [ Release ] security/decode-buffer-size.html [ Timeout ]
 
-webkit.org/b/292846 [ Debug ] inspector/model/source-map-spec.html [ Failure ]
-
 webkit.org/b/292957 imported/w3c/web-platform-tests/css/css-position/multicol/vlr-ltr-ltr-in-multicols.html [ Pass Failure ]
 
 webkit.org/b/292986 [ X86_64 Debug ] gamepad/gamepad-polling-access.html [ Slow ]
@@ -2435,8 +2439,6 @@ fast/canvas/webgl/gl-teximage.html [ Failure ]
 #rdar://145604998 (REGRESSION(iOS 18.4, macOS Sequoia 15.4 ): fast/text/international/hindi-spacing.html is a constant text failure)
 fast/text/international/hindi-spacing.html [ Failure ]
 
-webkit.org/b/293981 [ Sequoia ] imported/w3c/web-platform-tests/mimesniff/media/media-sniff.window.html [ Failure ]
-
 webkit.org/b/294043 [ Sequoia ] platform/mac/fast/text/line-break-locale.html [ Failure ]
 
 webkit.org/b/294152 [ Sequoia ] http/tests/misc/timer-vs-loading.html [ Timeout ]
@@ -2445,3 +2447,7 @@ webkit.org/b/294295 fullscreen/full-screen-request-removed-with-raf.html [ Pass 
 
 webkit.org/b/294316 [ Debug ] imported/w3c/web-platform-tests/pointerevents/coalesced_events_attributes.https.html?mouse [ Skip ]
 webkit.org/b/294316 [ Debug ] imported/w3c/web-platform-tests/pointerevents/coalesced_events_attributes.https.html?pen [ Skip ]
+
+webkit.org/b/295127  transitions/svg-text-shadow-transition.html [ Pass Failure ]
+
+webkit.org/b/295308 fullscreen/full-screen-enter-while-exiting-multiple-elements.html [ Pass Timeout ]

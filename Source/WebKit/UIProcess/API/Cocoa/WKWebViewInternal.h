@@ -193,12 +193,6 @@ struct OverriddenLayoutParameters {
     CGSize maximumUnobscuredSize { CGSizeZero };
 };
 
-struct OverriddenZoomScaleParameters {
-    CGFloat minimumZoomScale { 1 };
-    CGFloat maximumZoomScale { 1 };
-    BOOL allowUserScaling { YES };
-};
-
 // This holds state that should be reset when the web process exits.
 struct PerWebProcessState {
     CGFloat viewportMetaTagWidth { WebCore::ViewportArguments::ValueAuto };
@@ -283,6 +277,7 @@ struct PerWebProcessState {
     BOOL _usesAutomaticContentInsetBackgroundFill;
     BOOL _shouldSuppressTopColorExtensionView;
 #if PLATFORM(MAC)
+    BOOL _alwaysPrefersSolidColorHardPocket;
     RetainPtr<NSColor> _overrideTopScrollEdgeEffectColor;
 #endif
 
@@ -347,7 +342,9 @@ struct PerWebProcessState {
     PerWebProcessState _perProcessState;
 
     std::optional<OverriddenLayoutParameters> _overriddenLayoutParameters;
-    std::optional<OverriddenZoomScaleParameters> _overriddenZoomScaleParameters;
+#if PLATFORM(IOS_FAMILY)
+    BOOL _forcesInitialScaleFactor;
+#endif
     CGRect _inputViewBoundsInWindow;
 
     BOOL _fastClickingIsDisabled;
@@ -587,7 +584,13 @@ struct PerWebProcessState {
 - (void)_updateHiddenScrollPocketEdges;
 #endif
 
+#if PLATFORM(MAC) && ENABLE(CONTENT_INSET_BACKGROUND_FILL)
+@property (nonatomic, setter=_setAlwaysPrefersSolidColorHardPocket:) BOOL _alwaysPrefersSolidColorHardPocket;
+#endif
+
 @property (nonatomic, setter=_setHasActiveNowPlayingSession:) BOOL _hasActiveNowPlayingSession;
+
+@property (nonatomic, readonly) RetainPtr<WKWebView> _horizontallyAttachedInspectorWebView;
 
 @end
 

@@ -2698,9 +2698,9 @@
                     "name": "border-radius",
                     "resolver": "bottom-left"
                 },
-                "animation-wrapper": "LengthVariantWrapper<LengthSize>",
+                "animation-wrapper": "StyleTypeWrapper",
                 "style-builder-custom": "All",
-                "style-extractor-converter": "BorderRadiusCorner",
+                "style-extractor-converter": "StyleType<BorderRadiusValue>",
                 "disables-native-appearance": true,
                 "parser-grammar": "<length-percentage [0,inf]>{1,2}@(type=CSSValuePair default=previous)"
             },
@@ -2720,9 +2720,9 @@
                     "name": "border-radius",
                     "resolver": "bottom-right"
                 },
-                "animation-wrapper": "LengthVariantWrapper<LengthSize>",
+                "animation-wrapper": "StyleTypeWrapper",
                 "style-builder-custom": "All",
-                "style-extractor-converter": "BorderRadiusCorner",
+                "style-extractor-converter": "StyleType<BorderRadiusValue>",
                 "disables-native-appearance": true,
                 "parser-grammar": "<length-percentage [0,inf]>{1,2}@(type=CSSValuePair default=previous)"
             },
@@ -3552,9 +3552,9 @@
                     "name": "border-radius",
                     "resolver": "top-left"
                 },
-                "animation-wrapper": "LengthVariantWrapper<LengthSize>",
+                "animation-wrapper": "StyleTypeWrapper",
                 "style-builder-custom": "All",
-                "style-extractor-converter": "BorderRadiusCorner",
+                "style-extractor-converter": "StyleType<BorderRadiusValue>",
                 "disables-native-appearance": true,
                 "parser-grammar": "<length-percentage [0,inf]>{1,2}@(type=CSSValuePair default=previous)"
             },
@@ -3574,9 +3574,9 @@
                     "name": "border-radius",
                     "resolver": "top-right"
                 },
-                "animation-wrapper": "LengthVariantWrapper<LengthSize>",
+                "animation-wrapper": "StyleTypeWrapper",
                 "style-builder-custom": "All",
-                "style-extractor-converter": "BorderRadiusCorner",
+                "style-extractor-converter": "StyleType<BorderRadiusValue>",
                 "disables-native-appearance": true,
                 "parser-grammar": "<length-percentage [0,inf]>{1,2}@(type=CSSValuePair default=previous)"
             },
@@ -3917,8 +3917,8 @@
                 "aliases": [
                     "-webkit-clip-path"
                 ],
-                "animation-wrapper": "PathOperationWrapper",
-                "style-converter": "PathOperation",
+                "animation-wrapper": "StyleTypeWrapper",
+                "style-converter": "StyleType<ClipPath>",
                 "parser-function": "consumeClipPath",
                 "parser-grammar-unused": "<clip-source> | [ <basic-shape> || <geometry-box> ] | none",
                 "parser-grammar-unused-reason": "Needs support for transforming parsed input to minimal form and default values in '||' groups."
@@ -4500,7 +4500,6 @@
         },
         "float": {
             "animation-type": "discrete",
-            "inherited": true,
             "initial": "none",
             "values": [
                 "left",
@@ -6472,10 +6471,9 @@
                 "none"
             ],
             "codegen-properties": {
-                "animation-wrapper": "PathOperationWrapper",
+                "animation-wrapper": "StyleTypeWrapper",
                 "animation-wrapper-acceleration": "threaded-only",
-                "style-builder-converter": "PathOperation",
-                "style-extractor-converter": "PathOperationForceAbsolute",
+                "style-converter": "StyleType<OffsetPath>",
                 "parser-function": "consumeOffsetPath",
                 "parser-grammar-unused": "none | <ray()> | <path()> | <url> | [ <basic-shape> && <coord-box>? ] | <coord-box>",
                 "parser-grammar-unused-reason": "Needs support for transforming parsed input to minimal form and the strong value representation."
@@ -9183,8 +9181,8 @@
                     "grid-column-gap",
                     "-webkit-column-gap"
                 ],
-                "animation-wrapper": "LengthVariantWrapper<GapLength>",
-                "style-converter": "GapLength",
+                "animation-wrapper": "StyleTypeWrapper",
+                "style-converter": "StyleType<GapGutter>",
                 "parser-grammar": "<gap-gutter>",
                 "parser-exported": true
             },
@@ -9200,8 +9198,8 @@
                 "aliases": [
                     "grid-row-gap"
                 ],
-                "animation-wrapper": "LengthVariantWrapper<GapLength>",
-                "style-converter": "GapLength",
+                "animation-wrapper": "StyleTypeWrapper",
+                "style-converter": "StyleType<GapGutter>",
                 "parser-grammar": "<gap-gutter>",
                 "parser-exported": true
             },
@@ -10444,7 +10442,7 @@
             "initial": "6px",
             "codegen-properties": {
                 "accepts-quirky-length": true,
-                "style-builder-conditional-converter": "MarqueeIncrement",
+                "style-builder-converter": "Length",
                 "internal-only": true,
                 "parser-grammar": "<length-percentage>"
             },
@@ -10953,9 +10951,8 @@
             "inherited": true,
             "initial": "auto",
             "codegen-properties": {
-                "animation-wrapper": "TextUnderlineOffsetWrapper",
-                "animation-wrapper-requires-override-parameters": [],
-                "style-converter": "TextUnderlineOffset",
+                "animation-wrapper": "StyleTypeWrapper",
+                "style-converter": "StyleType<TextUnderlineOffset>",
                 "parser-grammar": "auto | <length-percentage>"
             },
             "specification": {
@@ -12051,9 +12048,7 @@
                 ],
                 "animation-wrapper": "LengthWrapper",
                 "animation-wrapper-requires-additional-parameters": ["{ LengthWrapper::Flags::IsLengthPercentage, LengthWrapper::Flags::NegativeLengthsAreInvalid }"],
-                "style-builder-converter": "Length",
-                "style-extractor-converter": "LengthWithoutApplyingZoom",
-                "style-extractor-converter-comment": "FIXME: Add explanation (or remove) for why extractor does not apply zoom",
+                "style-converter": "Length",
                 "parser-grammar": "<length-percentage [0,inf]>"
             },
             "specification": {
@@ -12190,20 +12185,13 @@
             "initial": "none",
             "values": [
                 "none",
-                {
-                    "value": "auto",
-                    "status": "non-standard"
-                },
-                {
-                    "value": "match-element",
-                    "status": "non-standard"
-                }
+                "auto",
+                "match-element"
             ],
             "codegen-properties": {
                 "settings-flag": "viewTransitionsEnabled",
                 "style-converter": "ViewTransitionName",
-                "parser-grammar": "none | auto | match-element | <custom-ident>",
-                "parser-grammar-comment": "Current spec grammar is 'none | <custom-ident>'"
+                "parser-grammar": "none | auto | match-element | <custom-ident>"
             },
             "specification": {
                 "category": "css-view-transitions",

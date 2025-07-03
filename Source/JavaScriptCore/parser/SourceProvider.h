@@ -33,6 +33,7 @@
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 #include "CachedBytecode.h"
+#include "CodeBlockHash.h"
 #include "CodeSpecializationKind.h"
 #include "SourceOrigin.h"
 #include "SourceTaintedOrigin.h"
@@ -113,6 +114,7 @@ public:
 
     JS_EXPORT_PRIVATE void lockUnderlyingBuffer();
     JS_EXPORT_PRIVATE void unlockUnderlyingBuffer();
+    JS_EXPORT_PRIVATE virtual CodeBlockHash codeBlockHashConcurrently(int startOffset, int endOffset, CodeSpecializationKind);
 
 private:
     JS_EXPORT_PRIVATE virtual void lockUnderlyingBufferImpl();
@@ -287,6 +289,8 @@ public:
         if (m_sourceProvider)
             m_sourceProvider->unlockUnderlyingBuffer();
     }
+
+    SourceProvider* provider() { return m_sourceProvider; }
 
 private:
     // This must not be RefPtr. It is possible that this is used by the concurrent compiler and

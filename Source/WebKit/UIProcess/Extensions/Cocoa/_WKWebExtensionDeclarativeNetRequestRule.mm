@@ -863,6 +863,12 @@ static BOOL isArrayOfRequestMethodsValid(NSArray<NSString *> *requestMethods)
 
     [convertedRules addObject:[self _webKitRuleWithWebKitActionType:webKitActionType chromeActionType:chromeActionType condition:condition]];
 
+    if ([condition[declarativeNetRequestRuleConditionResourceTypeKey] containsObject:@"main_frame"] && [condition[declarativeNetRequestRuleConditionResourceTypeKey] containsObject:@"sub_frame"]) {
+        NSMutableDictionary *modifiedCondition = [condition mutableCopy];
+        modifiedCondition[declarativeNetRequestRuleConditionResourceTypeKey] = @[ @"sub_frame" ];
+        [convertedRules addObject:[self _webKitRuleWithWebKitActionType:webKitActionType chromeActionType:chromeActionType condition:modifiedCondition]];
+    }
+
     if ([webKitActionType isEqualToString:@"make-https"])
         [convertedRules addObject:[self _webKitRuleWithWebKitActionType:@"ignore-following-rules" chromeActionType:chromeActionType condition:condition]];
 
@@ -881,14 +887,11 @@ static BOOL isArrayOfRequestMethodsValid(NSArray<NSString *> *requestMethods)
 
     if ([chromeActionType isEqualToString:declarativeNetRequestRuleActionTypeAllowAllRequests]) {
         triggerDictionary[@"url-filter"] = @".*";
-        triggerDictionary[@"if-frame-url"] = @[ [self _regexURLFilterForChromeURLFilter:condition[declarativeNetRequestRuleConditionURLFilterKey]] ?: condition[declarativeNetRequestRuleConditionRegexFilterKey] ?: @".*" ];
 
-        NSMutableArray *loadContexts = [NSMutableArray array];
         if ([condition[declarativeNetRequestRuleConditionResourceTypeKey] containsObject:@"main_frame"])
-            [loadContexts addObject:@"top-frame"];
-        if ([condition[declarativeNetRequestRuleConditionResourceTypeKey] containsObject:@"sub_frame"])
-            [loadContexts addObject:@"child-frame"];
-        triggerDictionary[@"load-context"] = loadContexts;
+            triggerDictionary[@"if-top-url"] = @[ [self _regexURLFilterForChromeURLFilter:condition[declarativeNetRequestRuleConditionURLFilterKey]] ?: condition[declarativeNetRequestRuleConditionRegexFilterKey] ?: @".*" ];
+        else
+            triggerDictionary[@"if-ancestor-subframe-url"] = @[ [self _regexURLFilterForChromeURLFilter:condition[declarativeNetRequestRuleConditionURLFilterKey]] ?: condition[declarativeNetRequestRuleConditionRegexFilterKey] ?: @".*" ];
 
         return [convertedRule copy];
     }

@@ -28,6 +28,7 @@
 
 #include "BoxExtents.h"
 #include "PseudoElementIdentifier.h"
+#include "StylePrimitiveNumeric+Forward.h"
 #include "WritingMode.h"
 #include <unicode/utypes.h>
 #include <wtf/CheckedRef.h>
@@ -61,13 +62,13 @@ class FontCascade;
 class FontCascadeDescription;
 class FontMetrics;
 class FontSelectionValue;
-class GapLength;
 class GridPosition;
 class GridTrackSize;
 class HitTestRequest;
 class IntPoint;
 class IntSize;
 class LayoutRect;
+class LayoutRoundedRect;
 class LayoutSize;
 class LayoutUnit;
 class LengthBox;
@@ -80,7 +81,6 @@ class QuotesData;
 class RenderElement;
 class RenderStyle;
 class RotateTransformOperation;
-class RoundedRect;
 class SVGLengthValue;
 class SVGRenderStyle;
 class ScaleTransformOperation;
@@ -97,7 +97,6 @@ class StyleScrollSnapArea;
 class StyleSelfAlignmentData;
 class TextDecorationThickness;
 class TextSizeAdjustment;
-class TextUnderlineOffset;
 class TransformOperations;
 class TransformationMatrix;
 class TranslateTransformOperation;
@@ -123,6 +122,7 @@ enum class BlockStepRound : uint8_t;
 enum class BorderCollapse : bool;
 enum class BorderStyle : uint8_t;
 enum class BoxAlignment : uint8_t;
+enum class BoxAxisFlag : uint8_t;
 enum class BoxDecorationBreak : bool;
 enum class BoxDirection : bool;
 enum class BoxLines : bool;
@@ -278,6 +278,7 @@ template<typename> class FontTaggedSettings;
 template<typename> class RectEdges;
 template<typename> class RectCorners;
 template<typename> struct MinimallySerializingSpaceSeparatedRectEdges;
+template<typename> struct MinimallySerializingSpaceSeparatedSize;
 
 using FontVariationSettings = FontTaggedSettings<float>;
 using IntOutsets = RectEdges<int>;
@@ -288,17 +289,21 @@ class CustomPropertyData;
 class CustomPropertyRegistry;
 class ViewTransitionName;
 struct BoxShadow;
+struct BorderRadius;
+struct ClipPath;
 struct Color;
 struct ColorScheme;
 struct CornerShapeValue;
 struct DynamicRangeLimit;
 struct FlexBasis;
+struct GapGutter;
 struct InsetEdge;
 struct MarginEdge;
 struct MaximumSize;
 struct MinimumSize;
 struct OffsetAnchor;
 struct OffsetDistance;
+struct OffsetPath;
 struct OffsetPosition;
 struct OffsetRotate;
 struct PaddingEdge;
@@ -312,12 +317,14 @@ struct ScopedName;
 struct ScrollMarginEdge;
 struct ScrollPaddingEdge;
 struct TextShadow;
+struct TextUnderlineOffset;
 struct Translate;
 
 enum class Change : uint8_t;
 enum class LineBoxContain : uint8_t;
 enum class PositionTryOrder : uint8_t;
 
+using BorderRadiusValue = MinimallySerializingSpaceSeparatedSize<LengthPercentage<CSS::Nonnegative>>;
 using InsetBox = MinimallySerializingSpaceSeparatedRectEdges<InsetEdge>;
 using MarginBox = MinimallySerializingSpaceSeparatedRectEdges<MarginEdge>;
 using PaddingBox = MinimallySerializingSpaceSeparatedRectEdges<PaddingEdge>;
@@ -422,6 +429,8 @@ public:
     bool useTreeCountingFunctions() const { return m_nonInheritedFlags.useTreeCountingFunctions; }
     void setUsesAnchorFunctions();
     bool usesAnchorFunctions() const;
+    void setAnchorFunctionScrollCompensatedAxes(OptionSet<BoxAxisFlag>);
+    OptionSet<BoxAxisFlag> anchorFunctionScrollCompensatedAxes() const;
 
     void setIsPopoverInvoker();
     bool isPopoverInvoker() const;
@@ -543,11 +552,11 @@ public:
     inline NinePieceImageRule borderImageHorizontalRule() const;
     inline NinePieceImageRule borderImageVerticalRule() const;
 
-    inline const LengthSize& borderTopLeftRadius() const;
-    inline const LengthSize& borderTopRightRadius() const;
-    inline const LengthSize& borderBottomLeftRadius() const;
-    inline const LengthSize& borderBottomRightRadius() const;
-    inline const RectCorners<LengthSize>& borderRadii() const;
+    inline const Style::BorderRadiusValue& borderTopLeftRadius() const;
+    inline const Style::BorderRadiusValue& borderTopRightRadius() const;
+    inline const Style::BorderRadiusValue& borderBottomLeftRadius() const;
+    inline const Style::BorderRadiusValue& borderBottomRightRadius() const;
+    inline const Style::BorderRadius& borderRadii() const;
     inline bool hasBorderRadius() const;
     inline bool hasExplicitlySetBorderBottomLeftRadius() const;
     inline bool hasExplicitlySetBorderBottomRightRadius() const;
@@ -622,6 +631,7 @@ public:
     inline FieldSizing fieldSizing() const;
 
     inline const FontCascade& fontCascade() const;
+    CheckedRef<const FontCascade> checkedFontCascade() const;
     WEBCORE_EXPORT const FontMetrics& metricsOfPrimaryFont() const;
     WEBCORE_EXPORT const FontCascadeDescription& fontDescription() const;
 
@@ -652,7 +662,7 @@ public:
     inline TextDecorationStyle textDecorationStyle() const;
     inline TextDecorationSkipInk textDecorationSkipInk() const;
     inline OptionSet<TextUnderlinePosition> textUnderlinePosition() const;
-    inline TextUnderlineOffset textUnderlineOffset() const;
+    inline const Style::TextUnderlineOffset& textUnderlineOffset() const;
     inline TextDecorationThickness textDecorationThickness() const;
 
     inline TextIndentLine textIndentLine() const;
@@ -916,20 +926,9 @@ public:
 
     inline const FixedVector<Style::TextShadow>& textShadow() const;
     inline bool hasTextShadow() const;
-    inline LayoutBoxExtent textShadowExtent() const;
-    inline void getTextShadowHorizontalExtent(LayoutUnit& left, LayoutUnit& right) const;
-    inline void getTextShadowVerticalExtent(LayoutUnit& top, LayoutUnit& bottom) const;
-    inline void getTextShadowInlineDirectionExtent(LayoutUnit& logicalLeft, LayoutUnit& logicalRight) const;
-    inline void getTextShadowBlockDirectionExtent(LayoutUnit& logicalTop, LayoutUnit& logicalBottom) const;
 
     inline const FixedVector<Style::BoxShadow>& boxShadow() const;
     inline bool hasBoxShadow() const;
-    inline LayoutBoxExtent boxShadowExtent() const;
-    inline LayoutBoxExtent boxShadowInsetExtent() const;
-    inline void getBoxShadowHorizontalExtent(LayoutUnit& left, LayoutUnit& right) const;
-    inline void getBoxShadowVerticalExtent(LayoutUnit& top, LayoutUnit& bottom) const;
-    inline void getBoxShadowInlineDirectionExtent(LayoutUnit& logicalLeft, LayoutUnit& logicalRight) const;
-    inline void getBoxShadowBlockDirectionExtent(LayoutUnit& logicalTop, LayoutUnit& logicalBottom) const;
 
     inline BoxDecorationBreak boxDecorationBreak() const;
 
@@ -967,8 +966,8 @@ public:
     inline bool hasAutoColumnCount() const;
     inline bool specifiesColumns() const;
     inline ColumnFill columnFill() const;
-    inline const GapLength& columnGap() const;
-    inline const GapLength& rowGap() const;
+    inline const Style::GapGutter& columnGap() const;
+    inline const Style::GapGutter& rowGap() const;
     inline BorderStyle columnRuleStyle() const;
     inline unsigned short columnRuleWidth() const;
     inline bool columnRuleIsTransparent() const;
@@ -1212,6 +1211,9 @@ public:
     inline Isolation isolation() const;
     inline bool hasIsolation() const;
 
+    inline void setAutoRevealsWhenFound();
+    inline bool autoRevealsWhenFound() const;
+
     bool shouldPlaceVerticalScrollbarOnLeft() const;
 
     inline bool usesStandardScrollbarStyle() const;
@@ -1296,13 +1298,11 @@ public:
     void setBorderImageHorizontalRule(NinePieceImageRule);
     void setBorderImageVerticalRule(NinePieceImageRule);
 
-    inline void setBorderTopLeftRadius(LengthSize&&);
-    inline void setBorderTopRightRadius(LengthSize&&);
-    inline void setBorderBottomLeftRadius(LengthSize&&);
-    inline void setBorderBottomRightRadius(LengthSize&&);
-
-    inline void setBorderRadius(LengthSize&&);
-    inline void setBorderRadius(const IntSize&);
+    inline void setBorderTopLeftRadius(Style::BorderRadiusValue&&);
+    inline void setBorderTopRightRadius(Style::BorderRadiusValue&&);
+    inline void setBorderBottomLeftRadius(Style::BorderRadiusValue&&);
+    inline void setBorderBottomRightRadius(Style::BorderRadiusValue&&);
+    inline void setBorderRadius(Style::BorderRadiusValue&&);
     inline void setHasExplicitlySetBorderBottomLeftRadius(bool);
     inline void setHasExplicitlySetBorderBottomRightRadius(bool);
     inline void setHasExplicitlySetBorderTopLeftRadius(bool);
@@ -1375,7 +1375,7 @@ public:
     inline void setTextDecorationStyle(TextDecorationStyle);
     inline void setTextDecorationSkipInk(TextDecorationSkipInk);
     inline void setTextUnderlinePosition(OptionSet<TextUnderlinePosition>);
-    inline void setTextUnderlineOffset(TextUnderlineOffset);
+    inline void setTextUnderlineOffset(Style::TextUnderlineOffset&&);
     inline void setTextDecorationThickness(TextDecorationThickness);
     void setLineHeight(Length&&);
     bool setZoom(float);
@@ -1602,8 +1602,8 @@ public:
     inline void setColumnCount(unsigned short);
     inline void setHasAutoColumnCount();
     inline void setColumnFill(ColumnFill);
-    inline void setColumnGap(GapLength&&);
-    inline void setRowGap(GapLength&&);
+    inline void setColumnGap(Style::GapGutter&&);
+    inline void setRowGap(Style::GapGutter&&);
     inline void setColumnRuleColor(Style::Color&&);
     inline void setColumnRuleStyle(BorderStyle);
     inline void setColumnRuleWidth(unsigned short);
@@ -1861,9 +1861,10 @@ public:
     void setShapeImageThreshold(float);
     static float initialShapeImageThreshold() { return 0; }
 
-    inline void setClipPath(RefPtr<PathOperation>&&);
-    inline PathOperation* clipPath() const;
-    static PathOperation* initialClipPath() { return nullptr; }
+    inline const Style::ClipPath& clipPath() const;
+    inline bool hasClipPath() const;
+    inline void setClipPath(Style::ClipPath&&);
+    static inline Style::ClipPath initialClipPath();
 
     inline bool hasUsedContentNone() const;
     inline bool hasContent() const;
@@ -1986,7 +1987,7 @@ public:
     static constexpr TableLayoutType initialTableLayout();
     static constexpr BorderCollapse initialBorderCollapse();
     static constexpr BorderStyle initialBorderStyle();
-    static inline LengthSize initialBorderRadius();
+    static inline Style::BorderRadiusValue initialBorderRadius();
     static constexpr Style::CornerShapeValue initialCornerShapeValue();
     static constexpr CaptionSide initialCaptionSide();
     static constexpr ColumnAxis initialColumnAxis();
@@ -2042,7 +2043,7 @@ public:
     static constexpr TextDecorationStyle initialTextDecorationStyle();
     static constexpr TextDecorationSkipInk initialTextDecorationSkipInk();
     static constexpr OptionSet<TextUnderlinePosition> initialTextUnderlinePosition();
-    static inline TextUnderlineOffset initialTextUnderlineOffset();
+    static inline Style::TextUnderlineOffset initialTextUnderlineOffset();
     static inline TextDecorationThickness initialTextDecorationThickness();
     static float initialZoom() { return 1.0f; }
     static constexpr TextZoom initialTextZoom();
@@ -2112,8 +2113,8 @@ public:
     static unsigned short initialColumnCount() { return 1; }
     static constexpr ColumnFill initialColumnFill();
     static constexpr ColumnSpan initialColumnSpan();
-    static inline GapLength initialColumnGap();
-    static inline GapLength initialRowGap();
+    static inline Style::GapGutter initialColumnGap();
+    static inline Style::GapGutter initialRowGap();
     static inline TransformOperations initialTransform();
     static inline Length initialTransformOriginX();
     static inline Length initialTransformOriginY();
@@ -2283,11 +2284,6 @@ public:
 
     void inheritUnicodeBidiFrom(const RenderStyle* parent) { m_nonInheritedFlags.unicodeBidi = parent->m_nonInheritedFlags.unicodeBidi; }
 
-    template<typename ShadowType> static void getShadowHorizontalExtent(const FixedVector<ShadowType>&, LayoutUnit& left, LayoutUnit& right);
-    template<typename ShadowType> static void getShadowVerticalExtent(const FixedVector<ShadowType>&, LayoutUnit& top, LayoutUnit& bottom);
-    template<typename ShadowType> void getShadowInlineDirectionExtent(const FixedVector<ShadowType>&, LayoutUnit& logicalLeft, LayoutUnit& logicalRight) const;
-    template<typename ShadowType> void getShadowBlockDirectionExtent(const FixedVector<ShadowType>&, LayoutUnit& logicalTop, LayoutUnit& logicalBottom) const;
-
     inline const Style::Color& borderLeftColor() const;
     inline const Style::Color& borderRightColor() const;
     inline const Style::Color& borderTopColor() const;
@@ -2326,9 +2322,10 @@ public:
     inline const Style::Color& accentColor() const;
     inline bool hasAutoAccentColor() const;
 
-    inline PathOperation* offsetPath() const;
-    inline void setOffsetPath(RefPtr<PathOperation>&&);
-    static PathOperation* initialOffsetPath() { return nullptr; }
+    inline const Style::OffsetPath& offsetPath() const;
+    inline bool hasOffsetPath() const;
+    inline void setOffsetPath(Style::OffsetPath&&);
+    static inline Style::OffsetPath initialOffsetPath();
 
     inline const Style::OffsetDistance& offsetDistance() const;
     inline void setOffsetDistance(Style::OffsetDistance&&);
@@ -2401,6 +2398,9 @@ public:
 
     inline bool insideDefaultButton() const;
     inline void setInsideDefaultButton(bool);
+
+    inline bool insideDisabledSubmitButton() const;
+    inline void setInsideDisabledSubmitButton(bool);
 
 private:
     struct NonInheritedFlags {

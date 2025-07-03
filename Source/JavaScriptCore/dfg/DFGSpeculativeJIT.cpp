@@ -1861,6 +1861,55 @@ void SpeculativeJIT::compileToLowerCase(Node* node)
     cellResult(lengthGPR, node);
 }
 
+void SpeculativeJIT::compileStringCodePointAt(Node* node)
+{
+    // And CheckArray also ensures that this String is not a rope.
+    SpeculateCellOperand string(this, node->child1());
+    SpeculateStrictInt32Operand index(this, node->child2());
+    GPRTemporary scratch1(this);
+    GPRTemporary scratch2(this);
+    GPRTemporary scratch3(this);
+    GPRTemporary scratch4(this);
+
+    GPRReg stringGPR = string.gpr();
+    GPRReg indexGPR = index.gpr();
+    GPRReg scratch1GPR = scratch1.gpr();
+    GPRReg scratch2GPR = scratch2.gpr();
+    GPRReg scratch3GPR = scratch3.gpr();
+    GPRReg scratch4GPR = scratch4.gpr();
+
+    loadPtr(Address(stringGPR, JSString::offsetOfValue()), scratch1GPR);
+    load32(Address(scratch1GPR, StringImpl::lengthMemoryOffset()), scratch2GPR);
+
+    // unsigned comparison so we can filter out negative indices and indices that are too large
+    speculationCheck(Uncountable, JSValueRegs(), nullptr, branch32(AboveOrEqual, indexGPR, scratch2GPR));
+
+    // Load the character into scratch1GPR
+    loadPtr(Address(scratch1GPR, StringImpl::dataOffset()), scratch4GPR);
+    auto is16Bit = branchTest32(Zero, Address(scratch1GPR, StringImpl::flagsOffset()), TrustedImm32(StringImpl::flagIs8Bit()));
+
+    JumpList done;
+
+    load8(BaseIndex(scratch4GPR, indexGPR, TimesOne, 0), scratch1GPR);
+    done.append(jump());
+
+    is16Bit.link(this);
+    load16(BaseIndex(scratch4GPR, indexGPR, TimesTwo, 0), scratch1GPR);
+    // This is ok. indexGPR must be positive int32_t here and adding 1 never causes overflow if we treat indexGPR as uint32_t.
+    add32(TrustedImm32(1), indexGPR, scratch3GPR);
+    done.append(branch32(AboveOrEqual, scratch3GPR, scratch2GPR));
+    and32(TrustedImm32(0xfffffc00), scratch1GPR, scratch2GPR);
+    done.append(branch32(NotEqual, scratch2GPR, TrustedImm32(0xd800)));
+    load16(BaseIndex(scratch4GPR, scratch3GPR, TimesTwo, 0), scratch3GPR);
+    and32(TrustedImm32(0xfffffc00), scratch3GPR, scratch2GPR);
+    done.append(branch32(NotEqual, scratch2GPR, TrustedImm32(0xdc00)));
+    lshift32(TrustedImm32(10), scratch1GPR);
+    getEffectiveAddress(BaseIndex(scratch1GPR, scratch3GPR, TimesOne, -U16_SURROGATE_OFFSET), scratch1GPR);
+    done.link(this);
+
+    strictInt32Result(scratch1GPR, m_currentNode);
+}
+
 void SpeculativeJIT::compilePeepHoleInt32Branch(Node* node, Node* branchNode, RelationalCondition condition)
 {
     BasicBlock* taken = branchNode->branchData()->taken.block;
@@ -2586,6 +2635,11 @@ void SpeculativeJIT::compileGetByValOnString(Node* node, const ScopedLambda<std:
 
     loadPtr(Address(scratchReg, StringImpl::dataOffset()), scratchReg);
     load8(BaseIndex(scratchReg, propertyTempReg, TimesOne, 0), scratchReg);
+#if USE(JSVALUE32_64)
+    if (node->op() == StringAt && node->arrayMode().isOutOfBounds())
+        move(TrustedImm32(JSValue::CellTag), resultRegs.tagGPR());
+#endif
+
     Jump cont8Bit = jump();
 
     if (node->op() == StringCharAt) {
@@ -2609,6 +2663,10 @@ void SpeculativeJIT::compileGetByValOnString(Node* node, const ScopedLambda<std:
 
     loadPtr(Address(scratchReg, StringImpl::dataOffset()), scratchReg);
     load16(BaseIndex(scratchReg, propertyTempReg, TimesTwo, 0), scratchReg);
+#if USE(JSVALUE32_64)
+    if (node->op() == StringAt && node->arrayMode().isOutOfBounds())
+        move(TrustedImm32(JSValue::CellTag), resultRegs.tagGPR());
+#endif
 
     Jump bigCharacter =
         branch32(Above, scratchReg, TrustedImm32(maxSingleCharacterString));
@@ -16886,7 +16944,7 @@ void SpeculativeJIT::compileStringLocaleCompare(Node* node)
 
 void SpeculativeJIT::compileStringIndexOf(Node* node)
 {
-    std::optional<UChar> character;
+    std::optional<char16_t> character;
     String searchString = node->child2()->tryGetString(m_graph);
     if (!!searchString) {
         if (searchString.length() == 1)

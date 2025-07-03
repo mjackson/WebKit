@@ -257,7 +257,7 @@ Tests/WebKitCocoa/SafeBrowsing.mm
 Tests/WebKitCocoa/SampledPageTopColor.mm
 Tests/WebKitCocoa/SchemeRegistry.mm
 Tests/WebKitCocoa/ScreenTime.mm
-Tests/WebKitCocoa/ScriptTelemetryTests.mm
+Tests/WebKitCocoa/ScriptTrackingPrivacyTests.mm
 Tests/WebKitCocoa/ServiceWorkerBasic.mm
 Tests/WebKitCocoa/SessionStorage.mm
 Tests/WebKitCocoa/ShouldGoToBackForwardListItem.mm
@@ -402,4 +402,5 @@ Tests/WebKitCocoa/_WKWebAuthenticationPanel.mm
 Tests/WebKitCocoa/iOSMouseSupport.mm
 Tests/WebKitCocoa/iOSStylusSupport.mm
 
+Tests/WebKitCocoa/UI/ElementFullscreen.mm
 Tests/WebKitCocoa/UI/VideoPresentationMode.mm

@@ -2731,7 +2731,9 @@ JSC_DEFINE_JIT_OPERATION(operationNewSloppyFunction, EncodedJSValue, (JSGlobalOb
     auto scope = DECLARE_THROW_SCOPE(vm);
     constexpr bool isInvalidated = false;
     constexpr bool isBuiltin = false;
-    OPERATION_RETURN(scope, newFunctionCommon<JSFunction, isInvalidated>(vm, globalObject, environment, functionExecutable, globalObject->sloppyFunctionStructure(isBuiltin)));
+    if (jsCast<FunctionExecutable*>(functionExecutable)->hasPrototypeProperty())
+        OPERATION_RETURN(scope, newFunctionCommon<JSFunction, isInvalidated>(vm, globalObject, environment, functionExecutable, globalObject->sloppyFunctionStructure(isBuiltin)));
+    OPERATION_RETURN(scope, newFunctionCommon<JSFunction, isInvalidated>(vm, globalObject, environment, functionExecutable, globalObject->sloppyMethodStructure(isBuiltin)));
 }
 
 JSC_DEFINE_JIT_OPERATION(operationNewSloppyFunctionWithInvalidatedReallocationWatchpoint, EncodedJSValue, (JSGlobalObject* globalObject, JSScope* environment, JSCell* functionExecutable))
@@ -2742,7 +2744,9 @@ JSC_DEFINE_JIT_OPERATION(operationNewSloppyFunctionWithInvalidatedReallocationWa
     auto scope = DECLARE_THROW_SCOPE(vm);
     constexpr bool isInvalidated = true;
     constexpr bool isBuiltin = false;
-    OPERATION_RETURN(scope, newFunctionCommon<JSFunction, isInvalidated>(vm, globalObject, environment, functionExecutable, globalObject->sloppyFunctionStructure(isBuiltin)));
+    if (jsCast<FunctionExecutable*>(functionExecutable)->hasPrototypeProperty())
+        OPERATION_RETURN(scope, newFunctionCommon<JSFunction, isInvalidated>(vm, globalObject, environment, functionExecutable, globalObject->sloppyFunctionStructure(isBuiltin)));
+    OPERATION_RETURN(scope, newFunctionCommon<JSFunction, isInvalidated>(vm, globalObject, environment, functionExecutable, globalObject->sloppyMethodStructure(isBuiltin)));
 }
 
 JSC_DEFINE_JIT_OPERATION(operationNewStrictFunction, EncodedJSValue, (JSGlobalObject* globalObject, JSScope* environment, JSCell* functionExecutable))
@@ -2753,7 +2757,9 @@ JSC_DEFINE_JIT_OPERATION(operationNewStrictFunction, EncodedJSValue, (JSGlobalOb
     auto scope = DECLARE_THROW_SCOPE(vm);
     constexpr bool isInvalidated = false;
     constexpr bool isBuiltin = false;
-    OPERATION_RETURN(scope, newFunctionCommon<JSFunction, isInvalidated>(vm, globalObject, environment, functionExecutable, globalObject->strictFunctionStructure(isBuiltin)));
+    if (jsCast<FunctionExecutable*>(functionExecutable)->hasPrototypeProperty())
+        OPERATION_RETURN(scope, newFunctionCommon<JSFunction, isInvalidated>(vm, globalObject, environment, functionExecutable, globalObject->strictFunctionStructure(isBuiltin)));
+    OPERATION_RETURN(scope, newFunctionCommon<JSFunction, isInvalidated>(vm, globalObject, environment, functionExecutable, globalObject->strictMethodStructure(isBuiltin)));
 }
 
 JSC_DEFINE_JIT_OPERATION(operationNewStrictFunctionWithInvalidatedReallocationWatchpoint, EncodedJSValue, (JSGlobalObject* globalObject, JSScope* environment, JSCell* functionExecutable))
@@ -2764,7 +2770,9 @@ JSC_DEFINE_JIT_OPERATION(operationNewStrictFunctionWithInvalidatedReallocationWa
     auto scope = DECLARE_THROW_SCOPE(vm);
     constexpr bool isInvalidated = true;
     constexpr bool isBuiltin = false;
-    OPERATION_RETURN(scope, newFunctionCommon<JSFunction, isInvalidated>(vm, globalObject, environment, functionExecutable, globalObject->strictFunctionStructure(isBuiltin)));
+    if (jsCast<FunctionExecutable*>(functionExecutable)->hasPrototypeProperty())
+        OPERATION_RETURN(scope, newFunctionCommon<JSFunction, isInvalidated>(vm, globalObject, environment, functionExecutable, globalObject->strictFunctionStructure(isBuiltin)));
+    OPERATION_RETURN(scope, newFunctionCommon<JSFunction, isInvalidated>(vm, globalObject, environment, functionExecutable, globalObject->strictMethodStructure(isBuiltin)));
 }
 
 JSC_DEFINE_JIT_OPERATION(operationNewArrowFunction, EncodedJSValue, (JSGlobalObject* globalObject, JSScope* environment, JSCell* functionExecutable))

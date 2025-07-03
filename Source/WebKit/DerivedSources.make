@@ -757,7 +757,7 @@ SERIALIZATION_DESCRIPTION_FILES = \
 	Shared/ResourceLoadStatisticsParameters.serialization.in \
 	Shared/SameDocumentNavigationType.serialization.in \
 	Shared/SandboxExtension.serialization.in \
-	Shared/ScriptTelemetry.serialization.in \
+	Shared/ScriptTrackingPrivacyFilter.serialization.in \
 	Shared/ScrollingAccelerationCurve.serialization.in \
 	Shared/SessionState.serialization.in \
 	Shared/SyntheticEditingCommandType.serialization.in \
@@ -1026,14 +1026,6 @@ WEBKIT_ADDITIONS_SWIFT_FILES = \
 	WebPageWebViewAdditions.swift \
 	WKSeparatedImageView.swift \
 	CredentialUpdaterShim.swift \
-	ISO18013MobileDocumentRequest+Extras.swift \
-	WKIdentityDocumentPresentmentController.swift \
-	WKIdentityDocumentPresentmentMobileDocumentRequest.swift \
-	WKIdentityDocumentPresentmentMobileDocumentRequest+Extras.swift \
-	WKIdentityDocumentPresentmentRawRequest.swift \
-	WKIdentityDocumentPresentmentRequest.swift \
-	WKIdentityDocumentPresentmentResponse.swift \
-	WKIdentityDocumentRawRequestValidator.swift \
 #
 
 $(WEBKIT_ADDITIONS_SWIFT_FILES): %.swift : %.swift.in

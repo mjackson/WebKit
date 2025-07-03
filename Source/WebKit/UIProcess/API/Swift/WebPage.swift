@@ -331,7 +331,28 @@ final public class WebPage {
     private var scopedNavigations: [ObjectIdentifier : AsyncThrowingStream<NavigationEvent, any Error>.Continuation] = [:]
 
     @ObservationIgnored
+    private var scopedStreams: [ObjectIdentifier : AsyncThrowingStream<NavigationEvent, any Error>] = [:]
+
+    @ObservationIgnored
     private var indefiniteNavigations: [UUID : AsyncThrowingStream<NavigationEvent, any Error>.Continuation] = [:]
+
+    /// Loads the web content that the specified URL references and navigates to that content.
+    ///
+    /// Use this method to load a page from a local or network-based URL. For example, you might use this method
+    /// to navigate to a network-based webpage.
+    ///
+    /// - Parameter url: The URL to load. If this is `nil`, an error will be immediately thrown from the returned sequence.
+    /// - Returns: An async sequence you use to track the loading progress of the navigation. If the `Task` enclosing the sequence is cancelled, the page will stop loading all resources.
+    @discardableResult
+    public func load(_ url: URL?) -> some AsyncSequence<NavigationEvent, any Error> {
+        guard let url else {
+            return AsyncThrowingStream { continuation in
+                continuation.finish(throwing: NavigationError.invalidURL)
+            }
+        }
+
+        return toNavigationSequence { $0.load(URLRequest(url: url)) }
+    }
 
     /// Loads the web content that the specified URL request object references and navigates to that content.
     ///
@@ -383,10 +404,10 @@ final public class WebPage {
     ///
     /// - Parameters:
     ///   - html: The string to use as the contents of the webpage.
-    ///   - baseURL: The base URL to use when the system resolves relative URLs within the HTML string.
+    ///   - baseURL: The base URL to use when the system resolves relative URLs within the HTML string. By default, this is `about:blank`.
     /// - Returns: An async sequence you use to track the loading progress of the navigation. If the `Task` enclosing the sequence is cancelled, the page will stop loading all resources.
     @discardableResult
-    public func load(html: String, baseURL: URL) -> some AsyncSequence<NavigationEvent, any Error> {
+    public func load(html: String, baseURL: URL = URL(string: "about:blank")!) -> some AsyncSequence<NavigationEvent, any Error> {
         toNavigationSequence {
             $0.loadHTMLString(html, baseURL: baseURL)
         }
@@ -564,11 +585,17 @@ final public class WebPage {
 
     // MARK: Helper functions
 
-    func addNavigationEvent(_ event: Result<NavigationEvent, any Error>, for cocoaNavigation: WKNavigation) {
-        scopedNavigations[ObjectIdentifier(cocoaNavigation)]?.yield(with: event)
+    func addNavigationEvent(_ event: Result<NavigationEvent, any Error>, for cocoaNavigation: WKNavigation?) {
+        if let cocoaNavigation {
+            scopedNavigations[ObjectIdentifier(cocoaNavigation)]?.yield(with: event)
 
-        if case .success(.finished) = event {
-            scopedNavigations[ObjectIdentifier(cocoaNavigation)]?.finish()
+            if case .success(.finished) = event {
+                scopedNavigations[ObjectIdentifier(cocoaNavigation)]?.finish()
+            }
+        } else {
+            for continuation in scopedNavigations.values {
+                continuation.yield(with: event)
+            }
         }
 
         for continuation in indefiniteNavigations.values {
@@ -595,7 +622,7 @@ final public class WebPage {
         return stream
     }
 
-    private func toNavigationSequence(_ load: (WKWebView) -> WKNavigation?) -> some AsyncSequence<NavigationEvent, any Error> {
+    private func toNavigationSequence(_ load: (WKWebView) -> WKNavigation?) -> AsyncThrowingStream<NavigationEvent, any Error> {
         guard let id = load(backingWebView) else {
             return AsyncThrowingStream { continuation in
                 continuation.finish(throwing: NavigationError.pageClosed)
@@ -612,10 +639,12 @@ final public class WebPage {
                     stopLoading()
                 }
                 scopedNavigations[ObjectIdentifier(id)] = nil
+                scopedStreams[ObjectIdentifier(id)] = nil
             }
         }
 
         scopedNavigations[ObjectIdentifier(id)] = continuation
+        scopedStreams[ObjectIdentifier(id)] = stream
         return stream
     }
 
@@ -686,6 +715,15 @@ extension WebPage {
                 observation.invalidate()
             }
         }
+    }
+}
+
+extension WebPage {
+    // SPI for testing.
+    // swift-format-ignore: AllPublicDeclarationsHaveDocumentation
+    @_spi(Testing)
+    public func terminateWebContentProcess() {
+        backingWebView._killWebContentProcess()
     }
 }
 

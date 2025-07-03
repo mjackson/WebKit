@@ -3430,10 +3430,10 @@ using WebCore::Style::LengthPercentageMinimallySerializingSpaceSeparatedSizeAll 
 
 header: <WebCore/StyleBorderRadius.h>
 [CustomHeader, Nested] struct WebCore::Style::BorderRadius {
-    WebCore::MinimallySerializingSpaceSeparatedSize<WebCore::Style::LengthPercentageNonnegative> topLeft;
-    WebCore::MinimallySerializingSpaceSeparatedSize<WebCore::Style::LengthPercentageNonnegative> topRight;
-    WebCore::MinimallySerializingSpaceSeparatedSize<WebCore::Style::LengthPercentageNonnegative> bottomRight;
-    WebCore::MinimallySerializingSpaceSeparatedSize<WebCore::Style::LengthPercentageNonnegative> bottomLeft;
+    WebCore::MinimallySerializingSpaceSeparatedSize<WebCore::Style::LengthPercentageNonnegative> topLeft();
+    WebCore::MinimallySerializingSpaceSeparatedSize<WebCore::Style::LengthPercentageNonnegative> topRight();
+    WebCore::MinimallySerializingSpaceSeparatedSize<WebCore::Style::LengthPercentageNonnegative> bottomRight();
+    WebCore::MinimallySerializingSpaceSeparatedSize<WebCore::Style::LengthPercentageNonnegative> bottomLeft();
 };
 
 header: <WebCore/StyleRayFunction.h>
@@ -4759,7 +4759,8 @@ header: <WebCore/MediaPlayer.h>
 [OptionSet] enum class WebCore::VideoMediaSampleRendererPreference : uint8_t {
     PrefersDecompressionSession,
     ProtectedFallbackDisabled,
-    UseDecompressionSessionForProtectedContent
+    UseDecompressionSessionForProtectedContent,
+    UseStereoDecoding
 };
 
 header: <WebCore/MediaPlayer.h>
@@ -6168,7 +6169,7 @@ enum class WebCore::AllowsContentJavaScript : bool
     FingerprintingProtections,
     EnhancedNetworkPrivacy,
     LinkDecorationFiltering,
-    ScriptTelemetry,
+    ScriptTrackingPrivacy,
     FailClosedForAllHosts,
 };
 
@@ -8916,7 +8917,7 @@ enum class WebCore::WillInternallyHandleFailure : bool
 enum class WebCore::ApplyTrackingPrevention : bool
 enum class WebCore::ShouldSample : bool
 enum class WebCore::FromDownloadAttribute : bool
-enum class WebCore::RequiresScriptTelemetry : bool
+enum class WebCore::RequiresScriptTrackingPrivacy : bool
 
 [Nested] struct WebCore::Allowlist::AllowAllOrigins {
 };

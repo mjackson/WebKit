@@ -68,6 +68,7 @@ enum class AnimationImpact : uint8_t {
 };
 
 enum class UseAcceleratedAction : bool { No, Yes };
+enum class UseCachedCurrentTime : bool { No, Yes };
 
 enum class WebAnimationType : uint8_t { CSSAnimation, CSSTransition, WebAnimation };
 
@@ -79,7 +80,7 @@ using AnimationEvents = Vector<Ref<AnimationEventBase>>;
 using CSSAnimationCollection = ListHashSet<Ref<CSSAnimation>>;
 
 using AnimatableCSSProperty = Variant<CSSPropertyID, AtomString>;
-using AnimatableCSSPropertyToTransitionMap = UncheckedKeyHashMap<AnimatableCSSProperty, Ref<CSSTransition>>;
+using AnimatableCSSPropertyToTransitionMap = HashMap<AnimatableCSSProperty, Ref<CSSTransition>>;
 
 enum class AcceleratedEffectProperty : uint16_t {
     Invalid = 1 << 0,

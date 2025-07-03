@@ -263,7 +263,7 @@ void RenderFlexibleBox::computeChildIntrinsicLogicalWidths(RenderBox& flexBoxChi
     RenderBlock::computeChildIntrinsicLogicalWidths(flexBoxChild, minPreferredLogicalWidth, maxPreferredLogicalWidth);
 }
 
-LayoutUnit RenderFlexibleBox::baselinePosition(FontBaseline, bool, LineDirectionMode direction, LinePositionMode) const
+LayoutUnit RenderFlexibleBox::baselinePosition(bool, LineDirectionMode direction, LinePositionMode) const
 {
     auto baseline = firstLineBaseline();
     if (!baseline)
@@ -2383,10 +2383,11 @@ void RenderFlexibleBox::layoutAndPlaceFlexItems(LayoutUnit& crossAxisOffset, Fle
             LayoutUnit descent = (crossAxisMarginExtentForFlexItem(flexItem) + crossAxisExtentForFlexItem(flexItem)) - ascent;
             maxDescent = std::max(maxDescent, descent);
 
-            if (baselineAlignmentState)
+            if (!baselineAlignmentState) {
+                auto alignmentContextAxis = style().isRowFlexDirection() ? LogicalBoxAxis::Inline : LogicalBoxAxis::Block;
+                baselineAlignmentState = { flexItem, alignment, ascent, alignmentContextAxis, style().writingMode() };
+            } else
                 baselineAlignmentState->updateSharedGroup(flexItem, alignment, ascent);
-            else
-                baselineAlignmentState = { flexItem, alignment, ascent };
 
             if (alignment == ItemPosition::Baseline) {
                 maxAscent =  std::max(maxAscent, ascent);
@@ -2579,27 +2580,8 @@ void RenderFlexibleBox::performBaselineAlignment(LineState& lineState)
         if (mainAxisIsFlexItemInlineAxis(flexItem))
             return flexItem.style().writingMode();
 
-        // css-align-3: 9.1. Determining the Baselines of a Box
-        // In general, the writing mode of the box, shape, or other object being aligned is used to determine
-        // the line-under and line-over edges for synthesis. However, when that writing mode’s block flow direction
-        // is parallel to the axis of the alignment context, an axis-compatible writing mode must be assumed:
-
-        // If the box establishing the alignment context has a block flow direction that is orthogonal to the
-        // axis of the alignment context, use its writing mode.
-        if (style().isRowFlexDirection())
-            return style().writingMode();
-
-        //   Otherwise:
-        //
-        // If the box’s own writing mode is vertical, assume horizontal-tb.
-        // If the box’s own writing mode is horizontal, assume vertical-lr if
-        // direction is ltr and vertical-rl if direction is rtl.
-        WritingMode hypotheticalWritingMode;
-        if (!flexItem.isHorizontalWritingMode())
-            return hypotheticalWritingMode;
-        else
-            hypotheticalWritingMode.setWritingMode(writingMode().isBidiLTR() ? StyleWritingMode::VerticalLr : StyleWritingMode::VerticalRl);
-        return hypotheticalWritingMode;
+        auto alignmentContextAxis = style().isRowFlexDirection() ? LogicalBoxAxis::Inline : LogicalBoxAxis::Block;
+        return BaselineAlignmentState::usedWritingModeForBaselineAlignment(alignmentContextAxis, writingMode(), flexItem.writingMode());
     };
 
     auto shouldAdjustItemTowardsCrossAxisEnd = [&](const FlowDirection& flexItemBlockFlowDirection, ItemPosition alignment) {
@@ -2767,12 +2749,12 @@ LayoutUnit RenderFlexibleBox::computeGap(RenderFlexibleBox::GapType gapType) con
 {
     // row-gap is used for gaps between flex items in column flows or for gaps between lines in row flows.
     bool usesRowGap = (gapType == GapType::BetweenItems) == isColumnFlow();
-    auto& gapLength = usesRowGap ? style().rowGap() : style().columnGap();
-    if (gapLength.isNormal()) [[likely]]
+    auto& gap = usesRowGap ? style().rowGap() : style().columnGap();
+    if (gap.isNormal()) [[likely]]
         return { };
 
     auto availableSize = usesRowGap ? availableLogicalHeightForPercentageComputation().value_or(0_lu) : contentBoxLogicalWidth();
-    return minimumValueForLength(gapLength.length(), availableSize);
+    return Style::evaluateMinimum(gap, availableSize);
 }
 
 bool RenderFlexibleBox::layoutUsingFlexFormattingContext()

@@ -45,7 +45,7 @@ struct GreaterThanOrSameSizeAsStyleRareInheritedData : public RefCounted<Greater
     void* refPtrs[3];
     Length lengths[2];
     float secondFloat;
-    TextUnderlineOffset offset;
+    Style::TextUnderlineOffset offset;
     TextEdge lineFitEdge;
     BlockEllipsis blockEllipsis;
     void* customPropertyDataRefs[1];
@@ -124,6 +124,7 @@ StyleRareInheritedData::StyleRareInheritedData()
     , textAlignLast(static_cast<unsigned>(RenderStyle::initialTextAlignLast()))
     , textJustify(static_cast<unsigned>(RenderStyle::initialTextJustify()))
     , textDecorationSkipInk(static_cast<unsigned>(RenderStyle::initialTextDecorationSkipInk()))
+    , mathStyle(static_cast<unsigned>(RenderStyle::initialMathStyle()))
     , rubyPosition(static_cast<unsigned>(RenderStyle::initialRubyPosition()))
     , rubyAlign(static_cast<unsigned>(RenderStyle::initialRubyAlign()))
     , rubyOverhang(static_cast<unsigned>(RenderStyle::initialRubyOverhang()))
@@ -137,7 +138,6 @@ StyleRareInheritedData::StyleRareInheritedData()
     , joinStyle(static_cast<unsigned>(RenderStyle::initialJoinStyle()))
     , hasSetStrokeWidth(false)
     , hasSetStrokeColor(false)
-    , mathStyle(static_cast<unsigned>(RenderStyle::initialMathStyle()))
     , hasAutoCaretColor(true)
     , hasVisitedLinkAutoCaretColor(true)
     , hasAutoAccentColor(true)
@@ -145,7 +145,9 @@ StyleRareInheritedData::StyleRareInheritedData()
     , isInSubtreeWithBlendMode(false)
     , isForceHidden(false)
     , usedContentVisibility(static_cast<unsigned>(ContentVisibility::Visible))
+    , autoRevealsWhenFound(false)
     , insideDefaultButton(false)
+    , insideDisabledSubmitButton(false)
 #if HAVE(CORE_MATERIAL)
     , usedAppleVisualEffectForSubtree(static_cast<unsigned>(AppleVisualEffect::None))
 #endif
@@ -225,6 +227,7 @@ inline StyleRareInheritedData::StyleRareInheritedData(const StyleRareInheritedDa
     , textAlignLast(o.textAlignLast)
     , textJustify(o.textJustify)
     , textDecorationSkipInk(o.textDecorationSkipInk)
+    , mathStyle(o.mathStyle)
     , rubyPosition(o.rubyPosition)
     , rubyAlign(o.rubyAlign)
     , rubyOverhang(o.rubyOverhang)
@@ -238,7 +241,6 @@ inline StyleRareInheritedData::StyleRareInheritedData(const StyleRareInheritedDa
     , joinStyle(o.joinStyle)
     , hasSetStrokeWidth(o.hasSetStrokeWidth)
     , hasSetStrokeColor(o.hasSetStrokeColor)
-    , mathStyle(o.mathStyle)
     , hasAutoCaretColor(o.hasAutoCaretColor)
     , hasVisitedLinkAutoCaretColor(o.hasVisitedLinkAutoCaretColor)
     , hasAutoAccentColor(o.hasAutoAccentColor)
@@ -246,7 +248,9 @@ inline StyleRareInheritedData::StyleRareInheritedData(const StyleRareInheritedDa
     , isInSubtreeWithBlendMode(o.isInSubtreeWithBlendMode)
     , isForceHidden(o.isForceHidden)
     , usedContentVisibility(o.usedContentVisibility)
+    , autoRevealsWhenFound(o.autoRevealsWhenFound)
     , insideDefaultButton(o.insideDefaultButton)
+    , insideDisabledSubmitButton(o.insideDisabledSubmitButton)
 #if HAVE(CORE_MATERIAL)
     , usedAppleVisualEffectForSubtree(o.usedAppleVisualEffectForSubtree)
 #endif
@@ -377,11 +381,13 @@ bool StyleRareInheritedData::operator==(const StyleRareInheritedData& o) const
         && hasAutoAccentColor == o.hasAutoAccentColor
         && isInSubtreeWithBlendMode == o.isInSubtreeWithBlendMode
         && isForceHidden == o.isForceHidden
+        && autoRevealsWhenFound == o.autoRevealsWhenFound
         && usedTouchActions == o.usedTouchActions
         && eventListenerRegionTypes == o.eventListenerRegionTypes
         && effectiveInert == o.effectiveInert
         && usedContentVisibility == o.usedContentVisibility
         && insideDefaultButton == o.insideDefaultButton
+        && insideDisabledSubmitButton == o.insideDisabledSubmitButton
 #if HAVE(CORE_MATERIAL)
         && usedAppleVisualEffectForSubtree == o.usedAppleVisualEffectForSubtree
 #endif
@@ -504,10 +510,12 @@ void StyleRareInheritedData::dumpDifferences(TextStream& ts, const StyleRareInhe
     LOG_IF_DIFFERENT_WITH_CAST(bool, effectiveInert);
     LOG_IF_DIFFERENT_WITH_CAST(bool, isInSubtreeWithBlendMode);
     LOG_IF_DIFFERENT_WITH_CAST(bool, isForceHidden);
+    LOG_IF_DIFFERENT_WITH_CAST(bool, autoRevealsWhenFound);
 
     LOG_IF_DIFFERENT_WITH_CAST(ContentVisibility, usedContentVisibility);
 
     LOG_IF_DIFFERENT_WITH_CAST(bool, insideDefaultButton);
+    LOG_IF_DIFFERENT_WITH_CAST(bool, insideDisabledSubmitButton);
 
 #if HAVE(CORE_MATERIAL)
     LOG_IF_DIFFERENT_WITH_CAST(AppleVisualEffect, usedAppleVisualEffectForSubtree);

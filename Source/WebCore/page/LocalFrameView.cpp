@@ -28,6 +28,7 @@
 #include "LocalFrameView.h"
 
 #include "AXObjectCache.h"
+#include "AnchorPositionEvaluator.h"
 #include "BackForwardCache.h"
 #include "BackForwardController.h"
 #include "BorderValue.h"
@@ -59,6 +60,7 @@
 #include "FrameTree.h"
 #include "GraphicsContext.h"
 #include "HTMLBodyElement.h"
+#include "HTMLDetailsElement.h"
 #include "HTMLEmbedElement.h"
 #include "HTMLFrameElement.h"
 #include "HTMLFrameSetElement.h"
@@ -552,6 +554,10 @@ void LocalFrameView::setContentsSize(const IntSize& size)
 
     if (m_frame->isMainFrame()) {
         page->pageOverlayController().didChangeDocumentSize();
+#if HAVE(RUBBER_BANDING)
+        if (CheckedPtr renderView = this->renderView())
+            renderView->compositor().updateSizeAndPositionForTopOverhangColorExtensionLayer();
+#endif
         BackForwardCache::singleton().markPagesForContentsSizeChanged(*page);
     }
     layoutContext().enableSetNeedsLayout();
@@ -669,12 +675,12 @@ void LocalFrameView::applyPaginationToViewport()
     Overflow overflowY = documentOrBodyRenderer->effectiveOverflowY();
     if (overflowY == Overflow::PagedX || overflowY == Overflow::PagedY) {
         pagination.mode = WebCore::paginationModeForRenderStyle(documentOrBodyRenderer->style());
-        GapLength columnGapLength = documentOrBodyRenderer->style().columnGap();
+        auto columnGap = documentOrBodyRenderer->style().columnGap();
         pagination.gap = 0;
-        if (!columnGapLength.isNormal()) {
+        if (!columnGap.isNormal()) {
             auto* renderBox = dynamicDowncast<RenderBox>(documentOrBodyRenderer);
             if (auto* containerForPaginationGap = renderBox ? renderBox : documentOrBodyRenderer->containingBlock())
-                pagination.gap = valueForLength(columnGapLength.length(), containerForPaginationGap->contentBoxLogicalWidth()).toUnsigned();
+                pagination.gap = Style::evaluate(columnGap, containerForPaginationGap->contentBoxLogicalWidth()).toUnsigned();
         }
     }
     setPagination(pagination);
@@ -841,13 +847,22 @@ GraphicsLayer* LocalFrameView::layerForOverhangAreas() const
     return renderView->compositor().layerForOverhangAreas();
 }
 
-GraphicsLayer* LocalFrameView::setWantsLayerForTopOverHangArea(bool wantsLayer) const
+GraphicsLayer* LocalFrameView::setWantsLayerForTopOverhangColorExtension(bool wantsLayer) const
 {
-    RenderView* renderView = this->renderView();
+    CheckedPtr renderView = this->renderView();
     if (!renderView)
         return nullptr;
 
-    return renderView->compositor().updateLayerForTopOverhangArea(wantsLayer);
+    return renderView->compositor().updateLayerForTopOverhangColorExtension(wantsLayer);
+}
+
+GraphicsLayer* LocalFrameView::setWantsLayerForTopOverhangImage(bool wantsLayer) const
+{
+    CheckedPtr renderView = this->renderView();
+    if (!renderView)
+        return nullptr;
+
+    return renderView->compositor().updateLayerForTopOverhangImage(wantsLayer);
 }
 
 GraphicsLayer* LocalFrameView::setWantsLayerForBottomOverHangArea(bool wantsLayer) const
@@ -1582,6 +1597,8 @@ void LocalFrameView::addViewportConstrainedObject(RenderLayerModelObject& object
 
         if (RefPtr page = m_frame->page())
             page->chrome().client().didAddOrRemoveViewportConstrainedObjects();
+
+        clearCachedHasAnchorPositionedViewportConstrainedObjects();
     }
 }
 
@@ -1597,7 +1614,32 @@ void LocalFrameView::removeViewportConstrainedObject(RenderLayerModelObject& obj
 
         if (RefPtr<Page> page = m_frame->page())
             page->chrome().client().didAddOrRemoveViewportConstrainedObjects();
+
+        clearCachedHasAnchorPositionedViewportConstrainedObjects();
     }
+}
+
+bool LocalFrameView::hasAnchorPositionedViewportConstrainedObjects() const
+{
+    auto compute = [&] {
+        if (!m_viewportConstrainedObjects)
+            return false;
+        for (auto& renderer : *m_viewportConstrainedObjects) {
+            if (Style::AnchorPositionEvaluator::isAnchorPositioned(renderer.style()))
+                return true;
+        }
+        return false;
+    };
+
+    if (!m_hasAnchorPositionedViewportConstrainedObjects)
+        m_hasAnchorPositionedViewportConstrainedObjects = compute();
+
+    return *m_hasAnchorPositionedViewportConstrainedObjects;
+}
+
+void LocalFrameView::clearCachedHasAnchorPositionedViewportConstrainedObjects()
+{
+    m_hasAnchorPositionedViewportConstrainedObjects = { };
 }
 
 LayoutSize LocalFrameView::expandedLayoutViewportSize(const LayoutSize& baseLayoutViewportSize, const LayoutSize& documentSize, double heightExpansionFactor)
@@ -2734,8 +2776,9 @@ bool LocalFrameView::scrollToFragmentInternal(StringView fragmentIdentifier)
         scrollPositionAnchor = m_frame->document();
     maintainScrollPositionAtAnchor(scrollPositionAnchor.get());
     
-    // If the anchor accepts keyboard focus, move focus there to aid users relying on keyboard navigation.
     if (anchorElement) {
+        revealClosedDetailsAncestors(*anchorElement);
+        // If the anchor accepts keyboard focus, move focus there to aid users relying on keyboard navigation.
         if (anchorElement->isFocusable())
             document.setFocusedElement(anchorElement.get(), { { }, { }, { }, { }, FocusVisibility::Visible });
         else {
@@ -3354,6 +3397,10 @@ bool LocalFrameView::shouldUpdateCompositingLayersAfterScrolling() const
         return true;
 
     if (currentScrollType() == ScrollType::Programmatic)
+        return true;
+
+    // FIXME: Implement anchor positioning in the scrolling tree.
+    if (hasAnchorPositionedViewportConstrainedObjects())
         return true;
 
     return false;
@@ -4290,6 +4337,11 @@ void LocalFrameView::updateScrollAnchoringPositionForScrollableAreas()
     auto scrollableAreasNeedingUpdate = std::exchange(m_scrollableAreasWithScrollAnchoringControllersNeedingUpdate, { });
     for (auto& scrollableArea : scrollableAreasNeedingUpdate)
         scrollableArea.updateScrollPositionForScrollAnchoringController();
+}
+
+void LocalFrameView::updateAnchorPositionedAfterScroll()
+{
+    Style::AnchorPositionEvaluator::updatePositionsAfterScroll(*m_frame->protectedDocument());
 }
 
 IntSize LocalFrameView::sizeForResizeEvent() const

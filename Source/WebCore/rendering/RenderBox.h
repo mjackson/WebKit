@@ -34,12 +34,12 @@
 
 namespace WebCore {
 
+class LayoutRoundedRectRadii;
 class RenderBlockFlow;
 class RenderBoxFragmentInfo;
 class RenderFragmentContainer;
-class RoundedRectRadii;
-struct PaintInfo;
 class PositionedLayoutConstraints;
+struct PaintInfo;
 
 enum class AvailableLogicalHeightType : bool { ExcludeMarginBorderPadding, IncludeMarginBorderPadding };
 
@@ -111,7 +111,7 @@ public:
     inline LayoutSize borderBoxLogicalSize() const;
 
     // Don't use this; it doesn't make sense in a future world with corner-shape. Use BorderShape instead.
-    WEBCORE_EXPORT RoundedRectRadii borderRadii() const;
+    WEBCORE_EXPORT LayoutRoundedRectRadii borderRadii() const;
 
     // The content area of the box (excludes padding - and intrinsic padding for table cells, etc... - and border).
     inline LayoutRect contentBoxRect() const;
@@ -530,7 +530,7 @@ public:
     virtual void markForPaginationRelayoutIfNeeded() { }
     
     LayoutUnit lineHeight(bool firstLine, LineDirectionMode, LinePositionMode = PositionOnContainingLine) const override;
-    LayoutUnit baselinePosition(FontBaseline, bool firstLine, LineDirectionMode, LinePositionMode = PositionOnContainingLine) const override;
+    LayoutUnit baselinePosition(bool firstLine, LineDirectionMode, LinePositionMode = PositionOnContainingLine) const override;
 
     LayoutUnit offsetLeft() const override;
     LayoutUnit offsetTop() const override;
@@ -643,7 +643,7 @@ public:
 
     inline bool backgroundIsKnownToBeObscured(const LayoutPoint& paintOffset);
 
-    virtual bool hasIntrinsicAspectRatio() const { return isReplacedOrAtomicInline() && (isImage() || isRenderVideo() || isRenderHTMLCanvas() || isRenderViewTransitionCapture()); }
+    virtual bool hasIntrinsicAspectRatio() const { return isBlockLevelReplacedOrAtomicInline() && (isImage() || isRenderVideo() || isRenderHTMLCanvas() || isRenderViewTransitionCapture()); }
 
 protected:
     RenderBox(Type, Element&, RenderStyle&&, OptionSet<TypeFlag> = { }, TypeSpecificFlags = { });

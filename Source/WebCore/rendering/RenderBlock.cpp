@@ -332,7 +332,7 @@ RenderBlock::~RenderBlock()
 void RenderBlock::styleWillChange(StyleDifference diff, const RenderStyle& newStyle)
 {
     const RenderStyle* oldStyle = hasInitializedStyle() ? &style() : nullptr;
-    setReplacedOrAtomicInline(newStyle.isDisplayInlineType());
+    setBlockLevelReplacedOrAtomicInline(newStyle.isDisplayInlineType());
     if (oldStyle) {
         removeOutOfFlowBoxesIfNeededOnStyleChange(*this, *oldStyle, newStyle);
         if (isLegend() && !oldStyle->isFloating() && newStyle.isFloating())
@@ -1068,7 +1068,7 @@ bool RenderBlock::paintChild(RenderBox& child, PaintInfo& paintInfo, const Layou
         return false;
     }
 
-    if (!child.isFloating() && child.isReplacedOrAtomicInline() && usePrintRect && child.height() <= view().printRect().height()) {
+    if (!child.isFloating() && child.isBlockLevelReplacedOrAtomicInline() && usePrintRect && child.height() <= view().printRect().height()) {
         // Paginate block-level replaced elements.
         if (absoluteChildY + child.height() > view().printRect().maxY()) {
             if (absoluteChildY < view().truncatedAt())
@@ -1386,7 +1386,7 @@ bool RenderBlock::createsNewFormattingContext() const
     auto& style = this->style();
     if (isBlockContainer() && !style.alignContent().isNormal())
         return true;
-    return isNonReplacedAtomicInline()
+    return isNonReplacedAtomicInlineLevelBox()
         || style.isDisplayFlexibleBoxIncludingDeprecatedOrGridBox()
         || isFlexItemIncludingDeprecated()
         || isRenderTable()
@@ -1447,7 +1447,7 @@ bool RenderBlock::isSelectionRoot() const
 
     if (isBody() || isDocumentElementRenderer() || hasNonVisibleOverflow()
         || isPositioned() || isFloating()
-        || isRenderTableCell() || isNonReplacedAtomicInline()
+        || isRenderTableCell() || isNonReplacedAtomicInlineLevelBox()
         || isTransformed() || hasReflection() || hasMask() || isWritingModeRoot()
         || isRenderFragmentedFlow() || style().columnSpan() == ColumnSpan::All
         || isFlexItemIncludingDeprecated() || isGridItem())
@@ -2208,7 +2208,7 @@ VisiblePosition RenderBlock::positionForPoint(const LayoutPoint& point, HitTestS
     if (isRenderTable())
         return RenderBox::positionForPoint(point, source, fragment);
 
-    if (isReplacedOrAtomicInline()) {
+    if (isBlockLevelReplacedOrAtomicInline()) {
         // FIXME: This seems wrong when the object's writing-mode doesn't match the line's writing-mode.
         LayoutUnit pointLogicalLeft = isHorizontalWritingMode() ? point.x() : point.y();
         LayoutUnit pointLogicalTop = isHorizontalWritingMode() ? point.y() : point.x();
@@ -2480,20 +2480,20 @@ LayoutUnit RenderBlock::lineHeight(bool firstLine, LineDirectionMode direction, 
     // the base class.  If we're being queried as though we're the root line
     // box, then the fact that we're an inline-block is irrelevant, and we behave
     // just like a block.
-    if (isReplacedOrAtomicInline() && linePositionMode == PositionOnContainingLine)
+    if (isBlockLevelReplacedOrAtomicInline() && linePositionMode == PositionOnContainingLine)
         return RenderBox::lineHeight(firstLine, direction, linePositionMode);
 
     auto& lineStyle = firstLine ? firstLineStyle() : style();
     return LayoutUnit::fromFloatCeil(lineStyle.computedLineHeight());
 }
 
-LayoutUnit RenderBlock::baselinePosition(FontBaseline baselineType, bool firstLine, LineDirectionMode direction, LinePositionMode linePositionMode) const
+LayoutUnit RenderBlock::baselinePosition(bool firstLine, LineDirectionMode direction, LinePositionMode linePositionMode) const
 {
     // Inline blocks are replaced elements. Otherwise, just pass off to
     // the base class.  If we're being queried as though we're the root line
     // box, then the fact that we're an inline-block is irrelevant, and we behave
     // just like a block.
-    if (isReplacedOrAtomicInline() && linePositionMode == PositionOnContainingLine) {
+    if (isBlockLevelReplacedOrAtomicInline() && linePositionMode == PositionOnContainingLine) {
         // For "leaf" theme objects, let the theme decide what the baseline position is.
         // FIXME: Might be better to have a custom CSS property instead, so that if the theme
         // is turned off, checkboxes/radios will still have decent baselines.
@@ -2537,24 +2537,12 @@ LayoutUnit RenderBlock::baselinePosition(FontBaseline baselineType, bool firstLi
         if (baselinePos)
             return direction == HorizontalLine ? marginTop() + baselinePos.value() : marginRight() + baselinePos.value();
 
-        return RenderBox::baselinePosition(baselineType, firstLine, direction, linePositionMode);
+        return RenderBox::baselinePosition(firstLine, direction, linePositionMode);
     }
 
     const RenderStyle& style = firstLine ? firstLineStyle() : this->style();
     const FontMetrics& fontMetrics = style.metricsOfPrimaryFont();
-    return LayoutUnit { fontMetrics.intAscent(baselineType) + (lineHeight(firstLine, direction, linePositionMode) - fontMetrics.intHeight()) / 2 }.toInt();
-}
-
-LayoutUnit RenderBlock::minLineHeightForReplacedRenderer(bool isFirstLine, LayoutUnit replacedHeight) const
-{
-    if (!document().inNoQuirksMode() && replacedHeight)
-        return replacedHeight;
-
-    const RenderStyle& style = isFirstLine ? firstLineStyle() : this->style();
-    if (!(style.lineBoxContain().contains(Style::LineBoxContain::Block)))
-        return 0;
-
-    return std::max<LayoutUnit>(replacedHeight, lineHeight(isFirstLine, isHorizontalWritingMode() ? HorizontalLine : VerticalLine, PositionOfInteriorLineBoxes));
+    return LayoutUnit { fontMetrics.intAscent() + (lineHeight(firstLine, direction, linePositionMode) - fontMetrics.intHeight()) / 2 }.toInt();
 }
 
 std::optional<LayoutUnit> RenderBlock::firstLineBaseline() const
@@ -2643,7 +2631,7 @@ static inline RenderBlock* findFirstLetterBlock(RenderBlock* start)
             return firstLetterBlock;
 
         RenderElement* parentBlock = firstLetterBlock->parent();
-        if (firstLetterBlock->isReplacedOrAtomicInline() || !parentBlock || parentBlock->firstChild() != firstLetterBlock
+        if (firstLetterBlock->isBlockLevelReplacedOrAtomicInline() || !parentBlock || parentBlock->firstChild() != firstLetterBlock
             || !isRenderBlockFlowOrRenderButton(*parentBlock))
             return nullptr;
         firstLetterBlock = downcast<RenderBlock>(parentBlock);
@@ -2684,10 +2672,10 @@ std::pair<RenderObject*, RenderElement*> RenderBlock::firstLetterAndContainer(Re
                 break;
             }
             firstLetter = current.nextSibling();
-        } else if (current.isReplacedOrAtomicInline() || is<RenderButton>(current) || is<RenderMenuList>(current))
+        } else if (current.isBlockLevelReplacedOrAtomicInline() || is<RenderButton>(current) || is<RenderMenuList>(current))
             break;
         else if (current.isFlexibleBoxIncludingDeprecated() || current.isRenderGrid())
-            firstLetter = current.nextSibling();
+            return { };
         else if (current.style().hasPseudoStyle(PseudoId::FirstLetter) && current.canHaveGeneratedChildren())  {
             // We found a lower-level node with first-letter, which supersedes the higher-level style
             firstLetterContainer = &current;

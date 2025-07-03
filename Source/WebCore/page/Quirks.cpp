@@ -562,6 +562,13 @@ bool Quirks::needsPrimeVideoUserSelectNoneQuirk() const
 #endif
 }
 
+// facebook.com https://webkit.org/b/295071
+// FIXME: https://webkit.org/b/295318
+bool Quirks::needsFacebookRemoveNotSupportedQuirk() const
+{
+    return needsQuirks() && m_quirksData.needsFacebookRemoveNotSupportedQuirk;
+}
+
 // youtube.com rdar://135886305
 // NOTE: Also remove `BuilderConverter::convertScrollbarWidth` and related code when removing this quirk.
 bool Quirks::needsScrollbarWidthThinDisabledQuirk() const
@@ -1905,6 +1912,11 @@ bool Quirks::shouldPreventKeyframeEffectAcceleration(const KeyframeEffect& effec
     return target && Ref { target->element }->localName() == "ea-network-nav"_s;
 }
 
+bool Quirks::shouldEnterNativeFullscreenWhenCallingElementRequestFullscreenQuirk() const
+{
+    return needsQuirks() && m_quirksData.shouldEnterNativeFullscreenWhenCallingElementRequestFullscreen;
+}
+
 URL Quirks::topDocumentURL() const
 {
     if (!m_topDocumentURLForTesting.isEmpty()) [[unlikely]]
@@ -2280,7 +2292,6 @@ static void handleSoylentQuirks(QuirksData& quirksData, const URL& quirksURL, co
 }
 #endif
 
-#if ENABLE(VIDEO_PRESENTATION_MODE)
 static void handleFacebookQuirks(QuirksData& quirksData, const URL& quirksURL, const String& quirksDomainString, const URL& documentURL)
 {
     if (quirksDomainString != "facebook.com"_s)
@@ -2289,10 +2300,15 @@ static void handleFacebookQuirks(QuirksData& quirksData, const URL& quirksURL, c
     UNUSED_PARAM(quirksURL);
     UNUSED_PARAM(documentURL);
     quirksData.isFacebook = true;
+    // facebook.com rdar://100871402
+    quirksData.needsFacebookRemoveNotSupportedQuirk = true;
+#if ENABLE(VIDEO_PRESENTATION_MODE)
     // facebook.com rdar://67273166
     quirksData.requiresUserGestureToPauseInPictureInPictureQuirk = true;
+#endif
 }
 
+#if ENABLE(VIDEO_PRESENTATION_MODE)
 static void handleForbesQuirks(QuirksData& quirksData, const URL& quirksURL, const String& quirksDomainString, const URL& documentURL)
 {
     if (quirksDomainString != "forbes.com"_s)
@@ -2560,6 +2576,19 @@ static void handleMenloSecurityQuirks(QuirksData& quirksData, const URL& quirksU
 
     // safe.menlosecurity.com rdar://135114489
     quirksData.shouldDisableWritingSuggestionsByDefaultQuirk = true;
+}
+
+static void handleNBAQuirks(QuirksData& quirksData, const URL&, const String& quirksDomainString, const URL&)
+{
+#if PLATFORM(IOS)
+    if (quirksDomainString != "nba.com"_s)
+        return;
+
+    quirksData.shouldEnterNativeFullscreenWhenCallingElementRequestFullscreen = PAL::currentUserInterfaceIdiomIsSmallScreen();
+#else
+    UNUSED_PARAM(quirksData);
+    UNUSED_PARAM(quirksDomainString);
+#endif
 }
 
 static void handleNHLQuirks(QuirksData& quirksData, const URL& quirksURL, const String& quirksDomainString, const URL& documentURL)
@@ -2900,8 +2929,8 @@ void Quirks::determineRelevantQuirks()
 #endif
         { "ea"_s, &handleEAQuirks },
         { "espn"_s, &handleESPNQuirks },
-#if ENABLE(VIDEO_PRESENTATION_MODE)
         { "facebook"_s, &handleFacebookQuirks },
+#if ENABLE(VIDEO_PRESENTATION_MODE)
         { "forbes"_s, &handleForbesQuirks },
 #endif
 #if PLATFORM(IOS_FAMILY)
@@ -2929,6 +2958,7 @@ void Quirks::determineRelevantQuirks()
         { "medium"_s, &handleMediumQuirks },
         { "menlosecurity"_s, &handleMenloSecurityQuirks },
         { "netflix"_s, &handleNetflixQuirks },
+        { "nba"_s, &handleNBAQuirks },
         { "nhl"_s, &handleNHLQuirks },
 #if PLATFORM(IOS) || PLATFORM(VISION)
         { "nytimes"_s, &handleNYTimesQuirks },

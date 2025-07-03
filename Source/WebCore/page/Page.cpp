@@ -1591,6 +1591,11 @@ DiagnosticLoggingClient& Page::diagnosticLoggingClient() const
     return *m_diagnosticLoggingClient;
 }
 
+CheckedRef<DiagnosticLoggingClient> Page::checkedDiagnosticLoggingClient() const
+{
+    return diagnosticLoggingClient();
+}
+
 void Page::logMediaDiagnosticMessage(const RefPtr<FormData>& formData) const
 {
     unsigned imageOrMediaFilesCount = formData ? formData->imageOrMediaFilesCount() : 0;
@@ -1729,11 +1734,25 @@ void Page::screenPropertiesDidChange()
     updateDisplayEDRSuppression();
 #endif
 
+    updateScreenSupportedContentsFormats();
+
     setNeedsRecalcStyleInAllFrames();
 
     forEachRenderableDocument([this] (Document& document) {
         document.screenPropertiesDidChange(m_displayID);
     });
+}
+
+void Page::updateScreenSupportedContentsFormats()
+{
+#if HAVE(SUPPORT_HDR_DISPLAY)
+    bool supportsHighDynamicRange = screenSupportsHighDynamicRange(m_displayID);
+    if (m_screenSupportsHDR == supportsHighDynamicRange)
+        return;
+    m_screenSupportsHDR = supportsHighDynamicRange;
+    for (auto& rootFrame : m_rootFrames)
+        rootFrame->screenSupportedContentsFormatsChanged();
+#endif
 }
 
 void Page::windowScreenDidChange(PlatformDisplayID displayID, std::optional<FramesPerSecond> nominalFramesPerSecond)
@@ -1747,6 +1766,8 @@ void Page::windowScreenDidChange(PlatformDisplayID displayID, std::optional<Fram
     forEachDocument([&] (Document& document) {
         document.windowScreenDidChange(displayID);
     });
+
+    updateScreenSupportedContentsFormats();
 
 #if ENABLE(VIDEO)
     auto mode = preferredDynamicRangeMode(protectedMainFrame()->protectedVirtualView().get());
@@ -1835,7 +1856,7 @@ void Page::didCommitLoad()
 
     m_elementTargetingController->reset();
 
-    m_reportedScriptsWithTelemetry.clear();
+    m_scriptTrackingPrivacyReports.clear();
 
     m_isWaitingForLoadToFinish = true;
 }
@@ -3429,8 +3450,8 @@ bool Page::shouldApplyScreenFingerprintingProtections(Document& document) const
     if (advancedPrivacyProtections().contains(AdvancedPrivacyProtections::FingerprintingProtections))
         return true;
 
-    if (advancedPrivacyProtections().contains(AdvancedPrivacyProtections::ScriptTelemetry))
-        return document.requiresScriptExecutionTelemetry(ScriptTelemetryCategory::ScreenOrViewport);
+    if (advancedPrivacyProtections().contains(AdvancedPrivacyProtections::ScriptTrackingPrivacy))
+        return document.requiresScriptTrackingPrivacyProtection(ScriptTrackingPrivacyCategory::ScreenOrViewport);
 
     return false;
 }
@@ -4605,6 +4626,11 @@ void Page::dispatchAfterPrintEvent()
 }
 
 #if ENABLE(APPLE_PAY)
+Ref<PaymentCoordinator> Page::protectedPaymentCoordinator() const
+{
+    return paymentCoordinator();
+}
+
 void Page::setPaymentCoordinator(Ref<PaymentCoordinator>&& paymentCoordinator)
 {
     m_paymentCoordinator = WTFMove(paymentCoordinator);
@@ -5327,6 +5353,15 @@ void Page::updateFixedContainerEdges(BoxSideSet sides)
     }
 
     m_fixedContainerEdgesAndElements = std::make_pair(makeUniqueRef<FixedContainerEdges>(WTFMove(edges)), WTFMove(elements));
+
+#if HAVE(RUBBER_BANDING)
+    auto topOverhangColor = fixedContainerEdges().predominantColor(BoxSide::Top);
+    if (RefPtr layer = frameView->setWantsLayerForTopOverhangColorExtension(topOverhangColor.isVisible())) {
+        layer->setBackgroundColor(WTFMove(topOverhangColor));
+        if (CheckedPtr renderView = frameView->renderView())
+            renderView->compositor().updateSizeAndPositionForTopOverhangColorExtensionLayer();
+    }
+#endif
 }
 
 Element* Page::lastFixedContainer(BoxSide side) const
@@ -5649,17 +5684,17 @@ void Page::flushDeferredScrollEvents()
     });
 }
 
-bool Page::reportScriptTelemetry(const URL& url, ScriptTelemetryCategory category)
+bool Page::reportScriptTrackingPrivacy(const URL& url, ScriptTrackingPrivacyCategory category)
 {
-    return !url.isEmpty() && m_reportedScriptsWithTelemetry.add({ url, category }).isNewEntry;
+    return !url.isEmpty() && m_scriptTrackingPrivacyReports.add({ url, category }).isNewEntry;
 }
 
-bool Page::requiresScriptTelemetryForURL(const URL& scriptURL) const
+bool Page::requiresScriptTrackingPrivacyProtections(const URL& scriptURL) const
 {
-    if (!advancedPrivacyProtections().contains(AdvancedPrivacyProtections::ScriptTelemetry))
+    if (!advancedPrivacyProtections().contains(AdvancedPrivacyProtections::ScriptTrackingPrivacy))
         return false;
 
-    return chrome().client().requiresScriptTelemetryForURL(scriptURL, mainFrameOrigin());
+    return chrome().client().requiresScriptTrackingPrivacyProtections(scriptURL, mainFrameOrigin());
 }
 
 void Page::applyWindowFeatures(const WindowFeatures& features)
@@ -5799,11 +5834,11 @@ bool Page::requiresUserGestureForVideoPlayback() const
 void Page::updateDisplayEDRHeadroom()
 {
     float headroom = currentEDRHeadroomForDisplay(m_displayID);
-    if (headroom == m_displayEDRHeadroom.headroom)
+    if (headroom == m_displayEDRHeadroom)
         return;
 
     LOG_WITH_STREAM(HDR, stream << "Page " << this << " updateDisplayEDRHeadroom " << m_displayEDRHeadroom.headroom << " to " << headroom);
-    m_displayEDRHeadroom = headroom;
+    m_displayEDRHeadroom = Headroom(headroom);
 
     forEachDocument([&] (Document& document) {
         if (!document.drawsHDRContent())

@@ -1,5 +1,4 @@
 Modules/airplay/WebMediaSessionManager.cpp
-Modules/applepay-ams-ui/ApplePayAMSUIPaymentHandler.cpp
 Modules/applicationmanifest/ApplicationManifestParser.cpp
 Modules/async-clipboard/ClipboardItemBindingsDataSource.cpp
 Modules/cookie-store/CookieStore.cpp
@@ -13,7 +12,6 @@ Modules/fetch/FetchResponse.cpp
 Modules/gamepad/GamepadManager.cpp
 Modules/geolocation/Geolocation.cpp
 Modules/geolocation/GeolocationController.cpp
-Modules/highlight/AppHighlightStorage.cpp
 Modules/indexeddb/IDBCursor.cpp
 Modules/indexeddb/IDBIndex.cpp
 Modules/indexeddb/IDBTransaction.cpp
@@ -125,7 +123,6 @@ bindings/js/JSWorkletGlobalScopeBase.cpp
 bindings/js/JSXMLHttpRequestCustom.cpp
 bindings/js/ScheduledAction.cpp
 bindings/js/ScriptModuleLoader.cpp
-bindings/js/WindowProxy.cpp
 bridge/objc/WebScriptObject.mm
 bridge/runtime_method.cpp
 contentextensions/ContentExtensionsBackend.cpp
@@ -186,7 +183,6 @@ dom/PositionIterator.cpp
 dom/Range.cpp
 dom/RangeBoundaryPoint.h
 dom/ScriptElement.cpp
-dom/ScriptExecutionContext.cpp
 dom/ScriptRunner.cpp
 dom/SecurityContext.cpp
 dom/SelectorQuery.cpp
@@ -308,7 +304,6 @@ html/ValidatedFormListedElement.cpp
 html/ValidationMessage.cpp
 html/canvas/CanvasRenderingContext2D.cpp
 html/canvas/CanvasRenderingContext2DBase.cpp
-html/canvas/EXTDisjointTimerQuery.cpp
 html/canvas/OffscreenCanvasRenderingContext2D.cpp
 html/parser/HTMLConstructionSite.cpp
 html/parser/HTMLConstructionSite.h
@@ -317,14 +312,9 @@ html/parser/HTMLParserOptions.cpp
 html/parser/HTMLParserScheduler.cpp
 html/parser/HTMLScriptRunner.cpp
 html/parser/HTMLTreeBuilder.cpp
-html/shadow/DateTimeEditElement.cpp
-html/shadow/DateTimeFieldElement.cpp
 html/shadow/DateTimeNumericFieldElement.cpp
 html/shadow/DateTimeSymbolicFieldElement.cpp
-html/shadow/MediaControlTextTrackContainerElement.cpp
 html/shadow/SliderThumbElement.cpp
-html/shadow/SpinButtonElement.cpp
-html/shadow/TextControlInnerElements.cpp
 html/track/InbandGenericTextTrack.cpp
 html/track/InbandWebVTTTextTrack.cpp
 html/track/LoadableTextTrack.cpp
@@ -658,7 +648,6 @@ rendering/RenderTextControlSingleLine.cpp
 rendering/RenderTextControlSingleLine.h
 rendering/RenderTextFragment.cpp
 rendering/RenderTextLineBoxes.cpp
-rendering/RenderTheme.cpp
 rendering/RenderTreeAsText.cpp
 rendering/RenderVTTCue.cpp
 rendering/RenderView.cpp
@@ -670,15 +659,11 @@ rendering/TextAutoSizing.h
 rendering/TextBoxPainter.cpp
 rendering/TextBoxTrimmer.cpp
 rendering/TextDecorationPainter.cpp
-rendering/TextPainter.cpp
-rendering/TextPainter.h
-rendering/cocoa/RenderThemeCocoa.mm
 rendering/line/BreakingContext.h
 rendering/line/LineInlineHeaders.h
 rendering/line/LineWidth.cpp
 rendering/line/TrailingObjects.cpp
 rendering/line/WordTrailingSpace.h
-rendering/mac/RenderThemeMac.mm
 rendering/mathml/MathOperator.cpp
 rendering/mathml/RenderMathMLBlock.cpp
 rendering/mathml/RenderMathMLFenced.cpp

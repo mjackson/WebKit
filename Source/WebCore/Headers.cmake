@@ -1369,6 +1369,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     html/HTMLCollectionInlines.h
     html/HTMLDListElement.h
     html/HTMLDataListElement.h
+    html/HTMLDetailsElement.h
     html/HTMLDirectoryElement.h
     html/HTMLDivElement.h
     html/HTMLDocument.h
@@ -1770,7 +1771,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     page/RenderingUpdateScheduler.h
     page/ScreenOrientationLockType.h
     page/ScreenOrientationType.h
-    page/ScriptTelemetryCategory.h
+    page/ScriptTrackingPrivacyCategory.h
     page/ScrollBehavior.h
     page/ScrollIntoViewOptions.h
     page/ScrollLogicalPosition.h
@@ -2225,6 +2226,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/graphics/LayoutPoint.h
     platform/graphics/LayoutRange.h
     platform/graphics/LayoutRect.h
+    platform/graphics/LayoutRoundedRect.h
     platform/graphics/LayoutSize.h
     platform/graphics/LegacyCDMSession.h
     platform/graphics/MIMESniffer.h
@@ -2282,7 +2284,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/graphics/RenderingResourceIdentifier.h
     platform/graphics/RenderingMode.h
     platform/graphics/RotationDirection.h
-    platform/graphics/RoundedRect.h
     platform/graphics/ScreenDataOverrides.h
     platform/graphics/ShareableBitmap.h
     platform/graphics/ShareableBitmapHandle.h
@@ -2620,6 +2621,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     rendering/RenderFrame.h
     rendering/RenderFrameBase.h
     rendering/RenderHighlight.h
+    rendering/RenderIFrame.h
     rendering/RenderImage.h
     rendering/RenderImageResource.h
     rendering/RenderInline.h
@@ -2662,7 +2664,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     rendering/style/BorderValue.h
     rendering/style/CounterDirectives.h
     rendering/style/FillLayer.h
-    rendering/style/GapLength.h
     rendering/style/GridArea.h
     rendering/style/GridLength.h
     rendering/style/GridPosition.h
@@ -2713,7 +2714,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     rendering/style/StyleVisitedLinkColorData.h
     rendering/style/TextDecorationThickness.h
     rendering/style/TextSizeAdjustment.h
-    rendering/style/TextUnderlineOffset.h
     rendering/style/ViewTransitionName.h
     rendering/style/WillChangeData.h
 
@@ -2749,6 +2749,8 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/StyleValidity.h
     style/Styleable.h
 
+    style/values/align/StyleGapGutter.h
+
     style/values/borders/StyleBorderRadius.h
     style/values/borders/StyleBoxShadow.h
     style/values/borders/StyleCornerShapeValue.h
@@ -2772,8 +2774,11 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     style/values/inline/StyleLineBoxContain.h
 
+    style/values/masking/StyleClipPath.h
+
     style/values/motion/StyleOffsetDistance.h
     style/values/motion/StyleOffsetAnchor.h
+    style/values/motion/StyleOffsetPath.h
     style/values/motion/StyleOffsetPosition.h
     style/values/motion/StyleOffsetRotate.h
     style/values/motion/StyleRayFunction.h
@@ -2782,6 +2787,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     style/values/primitives/StyleLengthWrapper.h
     style/values/primitives/StylePosition.h
+    style/values/primitives/StylePrimitiveNumeric+Forward.h
     style/values/primitives/StylePrimitiveNumeric.h
     style/values/primitives/StylePrimitiveNumericAdaptors.h
     style/values/primitives/StylePrimitiveNumericConcepts.h
@@ -2800,6 +2806,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/values/shapes/StyleInsetFunction.h
     style/values/shapes/StylePathComputation.h
     style/values/shapes/StylePathFunction.h
+    style/values/shapes/StylePathOperationWrappers.h
     style/values/shapes/StylePolygonFunction.h
     style/values/shapes/StyleRectFunction.h
     style/values/shapes/StyleShapeFunction.h
@@ -2813,6 +2820,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/values/svg/StyleSVGPaint.h
 
     style/values/text-decoration/StyleTextShadow.h
+    style/values/text-decoration/StyleTextUnderlineOffset.h
 
     style/values/transforms/StylePerspective.h
     style/values/transforms/StyleRotate.h

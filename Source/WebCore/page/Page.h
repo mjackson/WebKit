@@ -27,8 +27,8 @@
 #include "Color.h"
 #include "DocumentEnums.h"
 #include "FindOptions.h"
+#include "FrameIdentifier.h"
 #include "FrameLoaderTypes.h"
-#include "HistoryItem.h"
 #include "ImageTypes.h"
 #include "IntRectHash.h"
 #include "LoadSchedulingMode.h"
@@ -39,7 +39,7 @@
 #include "ProcessSwapDisposition.h"
 #include "RegistrableDomain.h"
 #include "ScriptExecutionContextIdentifier.h"
-#include "ScriptTelemetryCategory.h"
+#include "ScriptTrackingPrivacyCategory.h"
 #include "ScrollTypes.h"
 #include "Supplementable.h"
 #include "Timer.h"
@@ -113,6 +113,7 @@ class CompositeEditCommand;
 class ContextMenuController;
 class CookieJar;
 class CryptoClient;
+class Document;
 class DOMRectList;
 class DOMWrapperWorld;
 class DatabaseProvider;
@@ -716,6 +717,7 @@ public:
     WEBCORE_EXPORT unsigned pageCountAssumingLayoutIsUpToDate() const;
 
     WEBCORE_EXPORT DiagnosticLoggingClient& diagnosticLoggingClient() const;
+    WEBCORE_EXPORT CheckedRef<DiagnosticLoggingClient> checkedDiagnosticLoggingClient() const;
 
     WEBCORE_EXPORT void logMediaDiagnosticMessage(const RefPtr<FormData>&) const;
 
@@ -745,6 +747,7 @@ public:
 
 #if ENABLE(APPLE_PAY)
     PaymentCoordinator& paymentCoordinator() const { return *m_paymentCoordinator; }
+    WEBCORE_EXPORT Ref<PaymentCoordinator> protectedPaymentCoordinator() const;
     WEBCORE_EXPORT void setPaymentCoordinator(Ref<PaymentCoordinator>&&);
 #endif
 
@@ -1195,6 +1198,8 @@ public:
 
     ModelPlayerProvider& modelPlayerProvider();
 
+    void updateScreenSupportedContentsFormats();
+
 #if ENABLE(ATTACHMENT_ELEMENT)
     AttachmentElementClient* attachmentElementClient() { return m_attachmentElementClient.get(); }
 #endif
@@ -1319,8 +1324,8 @@ public:
     WEBCORE_EXPORT void startDeferringScrollEvents();
     WEBCORE_EXPORT void flushDeferredScrollEvents();
 
-    bool reportScriptTelemetry(const URL&, ScriptTelemetryCategory);
-    bool requiresScriptTelemetryForURL(const URL&) const;
+    bool reportScriptTrackingPrivacy(const URL&, ScriptTrackingPrivacyCategory);
+    bool requiresScriptTrackingPrivacyProtections(const URL&) const;
 
     WEBCORE_EXPORT bool isAlwaysOnLoggingAllowed() const;
 
@@ -1782,9 +1787,10 @@ private:
 #if HAVE(SUPPORT_HDR_DISPLAY)
     Headroom m_displayEDRHeadroom { Headroom::None };
     bool m_suppressEDR { false };
+    bool m_screenSupportsHDR { false };
 #endif
 
-    HashSet<std::pair<URL, ScriptTelemetryCategory>> m_reportedScriptsWithTelemetry;
+    HashSet<std::pair<URL, ScriptTrackingPrivacyCategory>> m_scriptTrackingPrivacyReports;
 
     bool m_hasActiveNowPlayingSession { false };
     Timer m_activeNowPlayingSessionUpdateTimer;

@@ -607,7 +607,7 @@ public:
     void setWebProcessStateUpdatesForPageClientEnabled(bool enabled) { m_webProcessStateUpdatesForPageClientEnabled = enabled; }
 
 #if ENABLE(ADVANCED_PRIVACY_PROTECTIONS)
-    void observeScriptTelemetryUpdatesIfNeeded();
+    void observeScriptTrackingPrivacyUpdatesIfNeeded();
 #endif
 
 #if ENABLE(WEB_PROCESS_SUSPENSION_DELAY)
@@ -640,6 +640,7 @@ public:
 #if PLATFORM(IOS_FAMILY)
     void didRefreshDisplay();
 #endif
+    void suppressEDR(bool);
 
 private:
     enum class NeedsGlobalStaticInitialization : bool { No, Yes };
@@ -1006,7 +1007,7 @@ private:
 #if ENABLE(ADVANCED_PRIVACY_PROTECTIONS)
     RefPtr<ListDataObserver> m_storageAccessUserAgentStringQuirksDataUpdateObserver;
     RefPtr<ListDataObserver> m_storageAccessPromptQuirksDataUpdateObserver;
-    RefPtr<ListDataObserver> m_scriptTelemetryDataUpdateObserver;
+    RefPtr<ListDataObserver> m_scriptTrackingPrivacyDataUpdateObserver;
 #endif
 
     bool m_webProcessStateUpdatesForPageClientEnabled { false };
@@ -1026,6 +1027,7 @@ private:
 #if PLATFORM(COCOA)
     std::optional<Vector<URL>> m_assetFontURLs;
     std::optional<HashMap<String, URL>> m_userInstalledFontURLs;
+    std::optional<HashMap<String, Vector<String>>> m_userInstalledFontFamilyMap;
     std::optional<Vector<URL>> m_sandboxExtensionURLs;
 #endif
 

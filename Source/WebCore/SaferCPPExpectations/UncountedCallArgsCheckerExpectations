@@ -2,19 +2,8 @@ EventNames.h
 Modules/ShapeDetection/BarcodeDetector.cpp
 Modules/ShapeDetection/FaceDetector.cpp
 Modules/ShapeDetection/TextDetector.cpp
-Modules/WebGPU/GPUBuffer.cpp
-Modules/WebGPU/GPUCommandBuffer.cpp
-Modules/WebGPU/GPUCommandEncoder.cpp
-Modules/WebGPU/GPUComputePassEncoder.cpp
-Modules/WebGPU/GPUDevice.cpp
-Modules/WebGPU/GPUPresentationContext.cpp
-Modules/WebGPU/GPUQuerySet.cpp
-Modules/WebGPU/GPURenderPassEncoder.cpp
 Modules/airplay/WebMediaSessionManager.cpp
-Modules/applepay-ams-ui/ApplePayAMSUIPaymentHandler.cpp
 Modules/applepay/ApplePaySession.cpp
-Modules/applepay/ApplePaySetup.cpp
-Modules/applepay/PaymentCoordinator.cpp
 Modules/applepay/paymentrequest/ApplePayPaymentHandler.cpp
 Modules/applicationmanifest/ApplicationManifestParser.cpp
 Modules/async-clipboard/Clipboard.cpp
@@ -44,9 +33,6 @@ Modules/filesystem/WorkerFileSystemStorageConnection.cpp
 Modules/gamepad/GamepadManager.cpp
 Modules/gamepad/NavigatorGamepad.cpp
 Modules/geolocation/Geolocation.cpp
-Modules/highlight/AppHighlightStorage.cpp
-Modules/highlight/Highlight.cpp
-Modules/highlight/HighlightRegistry.cpp
 Modules/identity/CredentialRequestCoordinator.cpp
 Modules/indexeddb/IDBActiveDOMObject.h
 Modules/indexeddb/IDBCursor.cpp
@@ -95,10 +81,6 @@ Modules/model-element/HTMLModelElement.cpp
 Modules/model-element/scenekit/SceneKitModelPlayer.mm
 Modules/notifications/Notification.cpp
 Modules/notifications/NotificationResourcesLoader.cpp
-Modules/paymentrequest/MerchantValidationEvent.cpp
-Modules/paymentrequest/PaymentRequest.cpp
-Modules/paymentrequest/PaymentRequestUpdateEvent.cpp
-Modules/paymentrequest/PaymentResponse.cpp
 Modules/permissions/MainThreadPermissionObserver.cpp
 Modules/permissions/Permissions.cpp
 Modules/pictureinpicture/HTMLVideoElementPictureInPicture.cpp
@@ -458,7 +440,6 @@ dom/QualifiedName.cpp
 dom/Range.cpp
 dom/RangeBoundaryPoint.h
 dom/RejectedPromiseTracker.cpp
-dom/ScriptExecutionContext.cpp
 dom/ScriptExecutionContextInlines.h
 dom/ScriptRunner.cpp
 dom/SelectorQuery.cpp
@@ -529,7 +510,6 @@ html/AttachmentAssociatedElement.cpp
 html/CachedHTMLCollection.h
 html/CachedHTMLCollectionInlines.h
 html/CollectionTraversalInlines.h
-html/CustomPaintCanvas.cpp
 html/DOMTokenList.cpp
 html/DirectoryFileListCreator.cpp
 html/FTPDirectoryDocument.cpp
@@ -587,12 +567,8 @@ html/RadioNodeList.cpp
 html/ValidatedFormListedElement.cpp
 html/ValidationMessage.cpp
 html/canvas/CanvasFilterContextSwitcher.cpp
-html/canvas/CanvasRenderingContext.cpp
 html/canvas/CanvasRenderingContext2D.cpp
 html/canvas/CanvasRenderingContext2DBase.cpp
-html/canvas/CanvasStyle.cpp
-html/canvas/EXTDisjointTimerQuery.cpp
-html/canvas/GPUCanvasContextCocoa.mm
 html/canvas/ImageBitmapRenderingContext.cpp
 html/canvas/OffscreenCanvasRenderingContext2D.cpp
 html/canvas/PlaceholderRenderingContext.cpp
@@ -601,10 +577,7 @@ html/parser/HTMLConstructionSite.h
 html/parser/HTMLParserScheduler.cpp
 html/parser/HTMLScriptRunner.cpp
 html/parser/HTMLTreeBuilder.cpp
-html/shadow/DateTimeEditElement.cpp
-html/shadow/DateTimeFieldElement.cpp
 html/shadow/MediaControlTextTrackContainerElement.cpp
-html/shadow/TextControlInnerElements.cpp
 html/track/AudioTrack.cpp
 html/track/DataCue.cpp
 html/track/InbandDataTextTrack.cpp
@@ -838,7 +811,6 @@ platform/graphics/ca/cocoa/PlatformCAAnimationCocoa.mm
 platform/graphics/ca/cocoa/PlatformCALayerCocoa.mm
 platform/graphics/cocoa/ImageAdapterCocoa.mm
 platform/graphics/cocoa/MediaPlayerCocoa.mm
-platform/graphics/cocoa/SourceBufferParser.cpp
 platform/graphics/controls/ApplePayButtonPart.cpp
 platform/graphics/controls/ButtonPart.h
 platform/graphics/controls/ColorWellPart.h
@@ -864,7 +836,6 @@ platform/graphics/mac/PDFDocumentImageMac.mm
 platform/graphics/opentype/OpenTypeMathData.cpp
 platform/graphics/transforms/TransformOperations.cpp
 platform/libwebrtc/LibWebRTCVPXVideoEncoder.cpp
-platform/mac/PasteboardMac.mm
 platform/mac/PasteboardWriter.mm
 platform/mac/ScrollbarsControllerMac.mm
 platform/mac/VideoPresentationInterfaceMac.mm
@@ -950,8 +921,6 @@ rendering/RenderTreeAsText.cpp
 rendering/RenderView.cpp
 rendering/RenderWidget.cpp
 rendering/TextBoxPainter.cpp
-rendering/cocoa/RenderThemeCocoa.mm
-rendering/mac/RenderThemeMac.mm
 rendering/mathml/MathOperator.cpp
 rendering/mathml/RenderMathMLFraction.cpp
 rendering/mathml/RenderMathMLMenclose.h
@@ -1169,7 +1138,6 @@ testing/LegacyMockCDM.cpp
 testing/MockMediaSessionCoordinator.cpp
 testing/MockPageOverlay.cpp
 testing/MockPageOverlayClient.cpp
-testing/MockPaymentCoordinator.cpp
 testing/ServiceWorkerInternals.cpp
 testing/js/WebCoreTestSupport.cpp
 workers/DedicatedWorkerGlobalScope.cpp

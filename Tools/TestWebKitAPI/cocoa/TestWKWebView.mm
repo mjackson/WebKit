@@ -82,6 +82,13 @@ static NSString *overrideBundleIdentifier(id, SEL)
 - (void)_lookup:(id)sender;
 @end
 
+#if PLATFORM(IOS_FAMILY)
+@interface WKWebView (UIScrollViewDelegate)
+- (UIView *)viewForZoomingInScrollView:(UIScrollView *)scrollView;
+- (void)scrollViewWillBeginZooming:(UIScrollView *)scrollView withView:(UIView *)view;
+@end
+#endif
+
 @implementation WKWebView (TestWebKitAPI)
 
 - (void)loadTestPageNamed:(NSString *)pageName
@@ -713,6 +720,19 @@ static WebEvent *unwrap(BEKeyEntry *event)
 {
     auto rect = [self elementRectFromSelector:selector];
     return CGPointMake(CGRectGetMidX(rect), CGRectGetMidY(rect));
+}
+
+static void forEachCALayer(CALayer *layer, void(^visitor)(CALayer *))
+{
+    visitor(layer);
+
+    for (CALayer *sublayer in layer.sublayers)
+        forEachCALayer(sublayer, visitor);
+}
+
+- (void)forEachCALayer:(void(^)(CALayer *))visitor
+{
+    forEachCALayer(self.layer, visitor);
 }
 
 - (CGImageRef)snapshotAfterScreenUpdates
@@ -1362,6 +1382,21 @@ static WKContentView *recursiveFindWKContentView(UIView *view)
 - (WKContentView *)wkContentView
 {
     return recursiveFindWKContentView(self);
+}
+
+- (void)setZoomScaleSimulatingUserTriggeredZoom:(CGFloat)zoomScale
+{
+    InstanceMethodSwizzler gestureSwizzler {
+        [UIPinchGestureRecognizer class],
+        @selector(state),
+        imp_implementationWithBlock(^UIGestureRecognizerState {
+            return UIGestureRecognizerStateBegan;
+        })
+    };
+
+    RetainPtr scrollView = [self scrollView];
+    [self scrollViewWillBeginZooming:scrollView.get() withView:[self viewForZoomingInScrollView:scrollView.get()]];
+    [scrollView setZoomScale:zoomScale];
 }
 
 @end

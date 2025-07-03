@@ -1280,9 +1280,7 @@ TextStream& operator<<(TextStream& stream, AXObjectCache& axObjectCache)
 #if ENABLE(AX_THREAD_TEXT_APIS)
 static void streamTextRuns(TextStream& stream, const AXTextRuns& runs)
 {
-    stream.dumpProperty("textRuns"_s, makeString(interleave(runs.runs, [](auto& builder, auto& run) {
-        builder.append(run.lineIndex, ":|"_s, run.text, "|(len: "_s, run.text.length(), ')');
-    }, ", "_s)));
+    stream.dumpProperty("textRuns"_s, runs.debugDescription());
 }
 #endif // ENABLE(AX_THREAD_TEXT_APIS)
 
@@ -1316,9 +1314,9 @@ void streamAXCoreObject(TextStream& stream, const AXCoreObject& object, const Op
         auto* objectWithInterestingHTML = role == AccessibilityRole::Button ? // Add here other roles of interest.
             &object : nullptr;
 
-        auto* parent = object.parentObjectUnignored();
+        RefPtr parent = object.parentObjectUnignored();
         if (role == AccessibilityRole::StaticText && parent)
-            objectWithInterestingHTML = parent;
+            objectWithInterestingHTML = parent.get();
 
         if (objectWithInterestingHTML)
             stream.dumpProperty("outerHTML"_s, objectWithInterestingHTML->outerHTML().left(150));
@@ -1353,7 +1351,7 @@ void streamSubtree(TextStream& stream, const Ref<AXCoreObject>& object, const Op
 
     TextStream::GroupScope groupScope(stream);
     streamAXCoreObject(stream, object, options);
-    for (auto& child : object->unignoredChildren(/* updateChildrenIfNeeded */ false))
+    for (auto& child : object->children())
         streamSubtree(stream, child, options);
 
     stream.decreaseIndent();

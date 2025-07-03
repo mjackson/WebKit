@@ -164,6 +164,7 @@
 #import <WebCore/LegacySchemeRegistry.h>
 #import <WebCore/MIMETypeRegistry.h>
 #import <WebCore/MarkupExclusionRule.h>
+#import <WebCore/PageColorSampler.h>
 #import <WebCore/Pagination.h>
 #import <WebCore/Permissions.h>
 #import <WebCore/PlatformScreen.h>
@@ -211,11 +212,7 @@
 #endif
 
 #if HAVE(DIGITAL_CREDENTIALS_UI)
-#if USE(APPLE_INTERNAL_SDK)  && __has_include(<WebKitAdditions/WKDigitalCredentialsPickerAdditions.h>)
-#import <WebKitAdditions/WKDigitalCredentialsPickerAdditions.h>
-#else
 #import <WebKit/WKDigitalCredentialsPicker.h>
-#endif
 #import <WebCore/DigitalCredentialsRequestData.h>
 #import <WebCore/DigitalCredentialsResponseData.h>
 #import <WebCore/ExceptionData.h>
@@ -265,9 +262,6 @@ static const BOOL defaultFastClickingEnabled = NO;
 
 #if ENABLE(SCREEN_TIME)
 static void *screenTimeWebpageControllerBlockedKVOContext = &screenTimeWebpageControllerBlockedKVOContext;
-@interface STWebpageController (Staging_138865295)
-@property (nonatomic, copy) NSString *profileIdentifier;
-@end
 #endif
 
 #if ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
@@ -429,8 +423,7 @@ static uint32_t convertSystemLayoutDirection(NSUserInterfaceLayoutDirection dire
     [_screenTimeWebpageController addObserver:self forKeyPath:@"URLIsBlocked" options:(NSKeyValueObservingOptionOld | NSKeyValueObservingOptionNew) context:&screenTimeWebpageControllerBlockedKVOContext];
     _isBlockedByScreenTime = NO;
 
-    if ([_screenTimeWebpageController respondsToSelector:@selector(setProfileIdentifier:)])
-        [_screenTimeWebpageController setProfileIdentifier:[_configuration websiteDataStore].identifier.UUIDString];
+    [_screenTimeWebpageController setProfileIdentifier:[_configuration websiteDataStore].identifier.UUIDString];
 
     [_screenTimeWebpageController setSuppressUsageRecording:![_configuration websiteDataStore].isPersistent];
 
@@ -3126,6 +3119,30 @@ static WebCore::CocoaColor *sampledFixedPositionContentColor(const WebCore::Fixe
 
 #endif // ENABLE(PDF_PAGE_NUMBER_INDICATOR)
 
+- (RetainPtr<WKWebView>)_horizontallyAttachedInspectorWebView
+{
+    RefPtr inspector = _page->inspector();
+    if (!inspector)
+        return nil;
+
+    if (!inspector->isAttached())
+        return nil;
+
+    switch (inspector->attachmentSide()) {
+    case WebKit::AttachmentSide::Bottom:
+        return nil;
+    case WebKit::AttachmentSide::Right:
+    case WebKit::AttachmentSide::Left:
+        break;
+    }
+
+    RefPtr inspectorPage = inspector->inspectorPage();
+    if (!inspectorPage)
+        return nil;
+
+    return inspectorPage->cocoaView();
+}
+
 #if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
 
 - (void)_updateTopScrollPocketCaptureColor
@@ -3153,8 +3170,25 @@ static WebCore::CocoaColor *sampledFixedPositionContentColor(const WebCore::Fixe
     return _impl->obscuredContentInsets();
 #else
     auto obscuredInsets = [self _obscuredInsets];
+    auto additionalTopInset = [&] -> CGFloat {
+        if (![_scrollView _wk_isScrolledBeyondTopExtent])
+            return 0;
+
+        auto topFixedColor = _fixedContainerEdges.predominantColor(WebCore::BoxSide::Top);
+        if (!topFixedColor.isVisible())
+            return 0;
+
+        if (!WebCore::PageColorSampler::colorsAreSimilar(_page->sampledPageTopColor(), topFixedColor))
+            return 0;
+
+        if (WebCore::PageColorSampler::colorsAreSimilar(_page->underPageBackgroundColor(), topFixedColor))
+            return 0;
+
+        return std::max<CGFloat>(-obscuredInsets.top - [_scrollView contentOffset].y, 0);
+    }();
+
     return WebCore::FloatBoxExtent {
-        static_cast<float>(obscuredInsets.top),
+        static_cast<float>(obscuredInsets.top + additionalTopInset),
         static_cast<float>(obscuredInsets.right),
         static_cast<float>(obscuredInsets.bottom),
         static_cast<float>(obscuredInsets.left)
@@ -3277,6 +3311,24 @@ static WebCore::CocoaColor *sampledFixedPositionContentColor(const WebCore::Fixe
 #endif
 }
 
+#if PLATFORM(MAC)
+
+- (BOOL)_alwaysPrefersSolidColorHardPocket
+{
+    return _alwaysPrefersSolidColorHardPocket;
+}
+
+- (void)_setAlwaysPrefersSolidColorHardPocket:(BOOL)value
+{
+    if (_alwaysPrefersSolidColorHardPocket == value)
+        return;
+
+    _alwaysPrefersSolidColorHardPocket = value;
+    _impl->updatePrefersSolidColorHardPocket();
+}
+
+#endif // PLATFORM(MAC)
+
 - (BOOL)_hasVisibleColorExtensionView:(WebCore::BoxSide)side
 {
     RetainPtr view = _fixedColorExtensionViews.at(side);
@@ -3307,6 +3359,11 @@ static WebCore::CocoaColor *sampledFixedPositionContentColor(const WebCore::Fixe
 
 - (void)colorExtensionViewWillDisappear:(WKColorExtensionView *)view
 {
+#if PLATFORM(MAC)
+    if (view == _fixedColorExtensionViews.at(WebCore::BoxSide::Top))
+        _impl->updatePrefersSolidColorHardPocket();
+#endif
+
 #if PLATFORM(IOS_FAMILY)
     [self _updateHiddenScrollPocketEdges];
 #endif
@@ -3314,6 +3371,11 @@ static WebCore::CocoaColor *sampledFixedPositionContentColor(const WebCore::Fixe
 
 - (void)colorExtensionViewDidAppear:(WKColorExtensionView *)view
 {
+#if PLATFORM(MAC)
+    if (view == _fixedColorExtensionViews.at(WebCore::BoxSide::Top))
+        _impl->updatePrefersSolidColorHardPocket();
+#endif
+
 #if PLATFORM(IOS_FAMILY)
     [self _updateHiddenScrollPocketEdges];
 #endif

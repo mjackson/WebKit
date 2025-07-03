@@ -663,7 +663,7 @@ bool VideoPresentationManagerProxy::isPlayingVideoInEnhancedFullscreen() const
 
 RefPtr<PlatformVideoPresentationInterface> VideoPresentationManagerProxy::controlsManagerInterface()
 {
-    if (auto contextId = protectedPlaybackSessionManagerProxy()->controlsManagerContextId())
+    if (auto contextId = m_playbackSessionManagerProxy->controlsManagerContextId())
         return ensureInterface(*contextId);
     return nullptr;
 }
@@ -788,7 +788,7 @@ void VideoPresentationManagerProxy::removeClientForContext(PlaybackSessionContex
 
     if (clientCount <= 0) {
         invalidateInterface(ensureInterface(contextId));
-        protectedPlaybackSessionManagerProxy()->removeClientForContext(contextId);
+        m_playbackSessionManagerProxy->removeClientForContext(contextId);
         m_clientCounts.remove(contextId);
         m_contextMap.remove(contextId);
 #if ENABLE(MACH_PORT_LAYER_HOSTING)
@@ -1595,7 +1595,7 @@ AVPlayerViewController *VideoPresentationManagerProxy::playerViewController(Play
 #endif // PLATFORM(IOS_FAMILY)
 
 #if ENABLE(LINEAR_MEDIA_PLAYER)
-LMPlayableViewController *VideoPresentationManagerProxy::playableViewController(PlaybackSessionContextIdentifier identifier) const
+WKSPlayableViewControllerHost *VideoPresentationManagerProxy::playableViewController(PlaybackSessionContextIdentifier identifier) const
 {
     if (RefPtr interface = findInterface(identifier))
         return interface->playableViewController();
@@ -1624,11 +1624,6 @@ WTFLogChannel& VideoPresentationManagerProxy::logChannel() const
     return WebKit2LogFullscreen;
 }
 #endif
-
-Ref<PlaybackSessionManagerProxy> VideoPresentationManagerProxy::protectedPlaybackSessionManagerProxy() const
-{
-    return m_playbackSessionManagerProxy;
-}
 
 RefPtr<PlatformVideoPresentationInterface> VideoPresentationManagerProxy::bestVideoForElementFullscreen()
 {

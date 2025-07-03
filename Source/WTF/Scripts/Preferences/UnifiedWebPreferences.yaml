@@ -1972,21 +1972,6 @@ ContentInsetBackgroundFillEnabled:
     WebCore:
       default: false
 
-ContextMenuImagesForInternalClientsEnabled:
-  type: bool
-  status: internal
-  humanReadableName: "Context Menu Images Allowed for Internal Clients"
-  humanReadableDescription: "Allow internal clients to enable images for context menu items"
-  condition: PLATFORM(MAC)
-  defaultValue:
-    WebKit:
-      "ENABLE(CONTEXT_MENU_IMAGES_FOR_INTERNAL_CLIENTS)" : true
-      default: false
-    WebKitLegacy:
-      default: false
-    WebCore:
-      default: false
-
 ContextMenuQRCodeDetectionEnabled:
   type: bool
   status: embedder
@@ -2393,6 +2378,20 @@ DetachableMediaSourceEnabled:
     WebCore:
       default: false
 
+DetailsAutoExpandEnabled:
+  type: bool
+  status: testable
+  category: html
+  humanReadableName: "HTML auto-expanding <details>"
+  humanReadableDescription: "Enable HTML auto-expanding <details>"
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
+
 DeveloperExtrasEnabled:
   type: bool
   status: embedder
@@ -2621,6 +2620,20 @@ EnableDebuggingFeaturesInSandbox:
   exposed: [ WebKit ]
   defaultValue:
     WebKit:
+      default: false
+
+EnableElementCurrentCSSZoom:
+  type: bool
+  status: preview
+  category: dom
+  humanReadableName: "Enable Element.currentCSSZoom"
+  humanReadableDescription: "Enable Element.currentCSSZoom"
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
       default: false
 
 EnableInheritURIQueryComponent:
@@ -4376,6 +4389,20 @@ LocalFileContentSniffingEnabled:
   humanReadableName: "Local File Content Sniffing"
   humanReadableDescription: "Enable Local File Content Sniffing"
   webKitLegacyPreferenceKey: WebKitLocalFileContentSniffingEnabledPreferenceKey
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
+      
+LocalNetworkAccessEnabled:
+  type: bool
+  status: unstable
+  humanReadableName: "Local Network Access"
+  humanReadableDescription: "Enable Local Network Access"
+  webKitLegacyPreferenceKey: WebKitLocalNetworkAccessEnabledPreferenceKey
   defaultValue:
     WebKitLegacy:
       default: false
@@ -6382,22 +6409,11 @@ ScreenWakeLockAPIEnabled:
     WebCore:
       default: false
 
-ScriptTelemetryEnabled:
+ScriptTrackingPrivacyLoggingEnabled:
   type: bool
   status: internal
-  humanReadableName: "Script Telemetry"
-  humanReadableDescription: "Script telemetry enabled"
-  exposed: [ WebKit ]
-  webcoreBinding: none
-  defaultValue:
-    WebKit:
-      default: true
-
-ScriptTelemetryLoggingEnabled:
-  type: bool
-  status: internal
-  humanReadableName: "Script Telemetry Logging"
-  humanReadableDescription: "Script telemetry logging enabled"
+  humanReadableName: "Script Tracking Privacy Logging"
+  humanReadableDescription: "Script tracking privacy logging enabled"
   exposed: [ WebKit ]
   defaultValue:
     WebKitLegacy:
@@ -6406,6 +6422,17 @@ ScriptTelemetryLoggingEnabled:
       default: false
     WebCore:
       default: false
+
+ScriptTrackingPrivacyProtectionsEnabled:
+  type: bool
+  status: internal
+  humanReadableName: "Script Tracking Privacy Protections"
+  humanReadableDescription: "Script tracking privacy protections enabled"
+  exposed: [ WebKit ]
+  webcoreBinding: none
+  defaultValue:
+    WebKit:
+      default: true
 
 ScrollAnimatorEnabled:
   type: bool

@@ -263,7 +263,7 @@
 #include "ScriptModuleLoader.h"
 #include "ScriptRunner.h"
 #include "ScriptSourceCode.h"
-#include "ScriptTelemetryCategory.h"
+#include "ScriptTrackingPrivacyCategory.h"
 #include "ScriptedAnimationController.h"
 #include "ScrollAnimator.h"
 #include "ScrollbarTheme.h"
@@ -1206,8 +1206,8 @@ Element* Document::elementForAccessKey(const String& key)
 
 void Document::buildAccessKeyCache()
 {
-    m_accessKeyCache = makeUnique<UncheckedKeyHashMap<String, WeakPtr<Element, WeakPtrImplWithEventTargetData>, ASCIICaseInsensitiveHash>>([this] {
-        UncheckedKeyHashMap<String, WeakPtr<Element, WeakPtrImplWithEventTargetData>, ASCIICaseInsensitiveHash> map;
+    m_accessKeyCache = makeUnique<HashMap<String, WeakPtr<Element, WeakPtrImplWithEventTargetData>, ASCIICaseInsensitiveHash>>([this] {
+        HashMap<String, WeakPtr<Element, WeakPtrImplWithEventTargetData>, ASCIICaseInsensitiveHash> map;
         for (auto& node : composedTreeDescendants(*this)) {
             auto element = dynamicDowncast<Element>(node);
             if (!element)
@@ -3794,7 +3794,7 @@ HighlightRegistry& Document::appHighlightRegistry()
 
 Ref<HighlightRegistry> Document::protectedAppHighlightRegistry()
 {
-    return highlightRegistry();
+    return appHighlightRegistry();
 }
 
 AppHighlightStorage& Document::appHighlightStorage()
@@ -4555,10 +4555,10 @@ const URL& Document::urlForBindings()
         };
 
         auto shouldApplyEnhancedProtections = [&] {
-            if (!navigationalProtections.contains(AdvancedPrivacyProtections::ScriptTelemetry))
+            if (!navigationalProtections.contains(AdvancedPrivacyProtections::ScriptTrackingPrivacy))
                 return false;
 
-            if (!requiresScriptExecutionTelemetry(ScriptTelemetryCategory::QueryParameters))
+            if (!requiresScriptTrackingPrivacyProtection(ScriptTrackingPrivacyCategory::QueryParameters))
                 return false;
 
             return true;
@@ -5593,7 +5593,7 @@ void Document::runScrollSteps()
     if (RefPtr frameView = view()) {
         MonotonicTime now = MonotonicTime::now();
         bool scrollAnimationsInProgress = serviceScrollAnimationForScrollableArea(frameView.get(), now);
-        UncheckedKeyHashSet<CheckedPtr<ScrollableArea>> scrollableAreasToUpdate;
+        HashSet<CheckedPtr<ScrollableArea>> scrollableAreasToUpdate;
         if (auto userScrollableAreas = frameView->scrollableAreas()) {
             for (auto& area : *userScrollableAreas)
                 scrollableAreasToUpdate.add(CheckedPtr<ScrollableArea>(area));
@@ -5765,7 +5765,7 @@ void Document::sceneIdentifierDidChange()
 #endif
 
 #if ENABLE(MEDIA_STREAM) && ENABLE(MEDIA_SESSION)
-static bool hasRealtimeMediaSource(const UncheckedKeyHashSet<Ref<RealtimeMediaSource>>& sources, NOESCAPE const Function<bool(const RealtimeMediaSource&)>& filterSource)
+static bool hasRealtimeMediaSource(const HashSet<Ref<RealtimeMediaSource>>& sources, NOESCAPE const Function<bool(const RealtimeMediaSource&)>& filterSource)
 {
     for (Ref source : sources) {
         if (!source->isEnded() && filterSource(source.get()))
@@ -7014,7 +7014,7 @@ String Document::referrerForBindings()
             return false;
 
         auto policies = policySourceLoader->navigationalAdvancedPrivacyProtections();
-        if (policies.contains(AdvancedPrivacyProtections::ScriptTelemetry) && requiresScriptExecutionTelemetry(ScriptTelemetryCategory::Referrer))
+        if (policies.contains(AdvancedPrivacyProtections::ScriptTrackingPrivacy) && requiresScriptTrackingPrivacyProtection(ScriptTrackingPrivacyCategory::Referrer))
             return true;
 
         if (policies.contains(AdvancedPrivacyProtections::BaselineProtections)) {
@@ -9445,7 +9445,7 @@ static Element* findNearestCommonComposedAncestor(Element* elementA, Element* el
     if (elementA == elementB)
         return elementA;
 
-    UncheckedKeyHashSet<Ref<Element>> ancestorChain;
+    HashSet<Ref<Element>> ancestorChain;
     for (auto* element = elementA; element; element = element->parentElementInComposedTree())
         ancestorChain.add(*element);
 
@@ -11403,7 +11403,7 @@ OptionSet<NoiseInjectionPolicy> Document::noiseInjectionPolicies() const
     OptionSet<NoiseInjectionPolicy> policies;
     if (advancedPrivacyProtections().contains(AdvancedPrivacyProtections::FingerprintingProtections))
         policies.add(NoiseInjectionPolicy::Minimal);
-    if (advancedPrivacyProtections().contains(AdvancedPrivacyProtections::ScriptTelemetry))
+    if (advancedPrivacyProtections().contains(AdvancedPrivacyProtections::ScriptTrackingPrivacy))
         policies.add(NoiseInjectionPolicy::Enhanced);
     return policies;
 }

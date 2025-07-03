@@ -167,11 +167,7 @@
 #import <wtf/text/MakeString.h>
 
 #if HAVE(DIGITAL_CREDENTIALS_UI)
-#if USE(APPLE_INTERNAL_SDK)  && __has_include(<WebKitAdditions/WKDigitalCredentialsPickerAdditions.h>)
-#import <WebKitAdditions/WKDigitalCredentialsPickerAdditions.h>
-#else
 #import <WebKit/WKDigitalCredentialsPicker.h>
-#endif
 #endif
 
 #if ENABLE(MEDIA_SESSION_COORDINATOR)
@@ -1278,7 +1274,7 @@ WebViewImpl::WebViewImpl(WKWebView *view, WebProcessPool& processPool, Ref<API::
     , m_undoTarget(adoptNS([[WKEditorUndoTarget alloc] init]))
     , m_windowVisibilityObserver(adoptNS([[WKWindowVisibilityObserver alloc] initWithView:view impl:*this]))
     , m_accessibilitySettingsObserver(adoptNS([[WKAccessibilitySettingsObserver alloc] initWithImpl:*this]))
-    , m_contentRelativeViewsHysteresis(makeUnique<PAL::HysteresisActivity>([this](auto state) { this->contentRelativeViewsHysteresisTimerFired(state); }, 500_ms))
+    , m_contentRelativeViewsHysteresis(makeUniqueRef<PAL::HysteresisActivity>([this](auto state) { this->contentRelativeViewsHysteresisTimerFired(state); }, 500_ms))
     , m_mouseTrackingObserver(adoptNS([[WKMouseTrackingObserver alloc] initWithViewImpl:*this]))
     , m_primaryTrackingArea(adoptNS([[NSTrackingArea alloc] initWithRect:view.frame options:trackingAreaOptions() owner:m_mouseTrackingObserver.get() userInfo:nil]))
     , m_flagsChangedEventMonitorTrackingArea(adoptNS([[NSTrackingArea alloc] initWithRect:view.frame options:flagsChangedEventMonitorTrackingAreaOptions() owner:m_mouseTrackingObserver.get() userInfo:nil]))
@@ -1818,10 +1814,11 @@ bool WebViewImpl::isUsingUISideCompositing() const
 
 void WebViewImpl::setDrawingAreaSize(CGSize size)
 {
-    if (!m_page->drawingArea())
+    RefPtr drawingArea = m_page->drawingArea();
+    if (!drawingArea)
         return;
 
-    m_page->drawingArea()->setSize(WebCore::IntSize(size), WebCore::IntSize(m_scrollOffsetAdjustment));
+    drawingArea->setSize(WebCore::IntSize(size), WebCore::IntSize(m_scrollOffsetAdjustment));
     m_scrollOffsetAdjustment = CGSizeZero;
 }
 
@@ -2364,6 +2361,7 @@ void WebViewImpl::pageDidScroll(const IntPoint& scrollPosition)
 
 #if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
     updateScrollPocketVisibilityWhenScrolledToTop();
+    updatePrefersSolidColorHardPocket();
 #endif
 
     [m_view didChangeValueForKey:@"hasScrolledContentsUnderTitlebar"];
@@ -2397,6 +2395,9 @@ void WebViewImpl::updateTopScrollPocketCaptureColor()
             captureColor = NSColor.controlBackgroundColor;
     }
     [m_topScrollPocket setCaptureColor:captureColor.get()];
+
+    if (RetainPtr attachedInspectorWebView = [view _horizontallyAttachedInspectorWebView])
+        [attachedInspectorWebView _setOverrideTopScrollEdgeEffectColor:captureColor.get()];
 }
 
 #endif // ENABLE(CONTENT_INSET_BACKGROUND_FILL)
@@ -6936,6 +6937,30 @@ void WebViewImpl::fulfillDeferredImageAnalysisOverlayViewHierarchyTask()
 
 #if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
 
+void WebViewImpl::updatePrefersSolidColorHardPocket()
+{
+    static bool canSetPrefersSolidColorHardPocket = [NSScrollPocket instancesRespondToSelector:@selector(setPrefersSolidColorHardPocket:)];
+    if (!canSetPrefersSolidColorHardPocket)
+        return;
+
+    RetainPtr view = m_view.get();
+    if (!view)
+        return;
+
+    [m_topScrollPocket setPrefersSolidColorHardPocket:^{
+        if ([view _hasVisibleColorExtensionView:BoxSide::Top])
+            return YES;
+
+        if (m_pageIsScrolledToTop)
+            return YES;
+
+        if ([view _alwaysPrefersSolidColorHardPocket])
+            return YES;
+
+        return NO;
+    }()];
+}
+
 void WebViewImpl::updateScrollPocket()
 {
     if (m_windowIsEnteringOrExitingFullScreen)
@@ -6948,8 +6973,12 @@ void WebViewImpl::updateScrollPocket()
         && !view->_reasonsToHideTopScrollPocket
         && topContentInset > 0;
 
+    RetainPtr topScrollPocketSelector = NSStringFromSelector(@selector(_topScrollPocket));
     if (!needsTopView) {
-        if (RetainPtr scrollPocket = std::exchange(m_topScrollPocket, nil)) {
+        if (m_topScrollPocket) {
+            [view willChangeValueForKey:topScrollPocketSelector.get()];
+            RetainPtr scrollPocket = std::exchange(m_topScrollPocket, { });
+            [view didChangeValueForKey:topScrollPocketSelector.get()];
             [[scrollPocket captureView] removeFromSuperview];
             [scrollPocket removeFromSuperview];
         }
@@ -6958,7 +6987,9 @@ void WebViewImpl::updateScrollPocket()
 
     RetainPtr<NSView> captureView;
     if (!m_topScrollPocket) {
+        [view willChangeValueForKey:topScrollPocketSelector.get()];
         m_topScrollPocket = adoptNS([NSScrollPocket new]);
+        [view didChangeValueForKey:topScrollPocketSelector.get()];
         updateTopScrollPocketStyle();
         [m_topScrollPocket setEdge:NSScrollPocketEdgeTop];
         [m_topScrollPocket layout];
@@ -6969,10 +7000,14 @@ void WebViewImpl::updateScrollPocket()
         for (NSView *pocketContainer in m_viewsAboveScrollPocket.get())
             [m_topScrollPocket addElementContainer:pocketContainer];
         updateScrollPocketVisibilityWhenScrolledToTop();
+        updatePrefersSolidColorHardPocket();
     } else
         captureView = [m_topScrollPocket captureView];
 
     auto bounds = [view bounds];
+    if (RetainPtr attachedInspectorView = [view _horizontallyAttachedInspectorWebView])
+        bounds = NSUnionRect(bounds, [attachedInspectorView convertRect:[attachedInspectorView bounds] toView:view.get()]);
+
     auto topInsetFrame = NSMakeRect(NSMinX(bounds), NSMinY(bounds), NSWidth(bounds), std::min<CGFloat>(topContentInset, NSHeight(bounds)));
 
     if ([m_view _usesAutomaticContentInsetBackgroundFill]) {

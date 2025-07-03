@@ -1128,9 +1128,9 @@ bool HTMLInputElement::sizeShouldIncludeDecoration(int& preferredSize) const
     return m_inputType->sizeShouldIncludeDecoration(defaultSize, preferredSize);
 }
 
-float HTMLInputElement::decorationWidth() const
+float HTMLInputElement::decorationWidth(float inputWidth) const
 {
-    return m_inputType->decorationWidth();
+    return m_inputType->decorationWidth(inputWidth);
 }
 
 void HTMLInputElement::copyNonAttributePropertiesFromElement(const Element& source)
@@ -1154,7 +1154,7 @@ void HTMLInputElement::copyNonAttributePropertiesFromElement(const Element& sour
 
 ValueOrReference<String> HTMLInputElement::value() const
 {
-    if (protectedDocument()->requiresScriptExecutionTelemetry(ScriptTelemetryCategory::FormControls))
+    if (protectedDocument()->requiresScriptTrackingPrivacyProtection(ScriptTrackingPrivacyCategory::FormControls))
         return m_inputType->defaultValue();
     if (auto* fileInput = dynamicDowncast<FileInputType>(*m_inputType))
         return fileInput->firstElementPathForInputValue();

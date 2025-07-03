@@ -36,6 +36,31 @@ class WebExtensionAPIBookmarks : public WebExtensionAPIObject, public JSWebExten
     WEB_EXTENSION_DECLARE_JS_WRAPPER_CLASS(WebExtensionAPIBookmarks, bookmarks, bookmarks);
 
 public:
+    enum class BookmarkTreeNodeType : uint8_t {
+        Bookmark,
+        Folder
+    };
+
+    struct CreateDetails {
+        std::optional<size_t> index;
+        String parentId;
+        String title;
+        std::optional<BookmarkTreeNodeType> type;
+        String url;
+    };
+
+    struct MockBookmarkNode {
+        String id;
+        String parentId;
+        String title;
+        String url;
+        size_t index;
+        WallTime dateAdded;
+        BookmarkTreeNodeType type;
+    };
+
+    Vector<MockBookmarkNode> m_mockBookmarks;
+
 #if PLATFORM(COCOA)
     void createBookmark(NSDictionary *bookmark, Ref<WebExtensionCallbackHandler>&&, NSString **outExceptionString);
 

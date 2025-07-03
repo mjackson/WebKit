@@ -36,6 +36,8 @@ namespace WebCore {
 
 class PlaceholderRenderingContext;
 
+enum class ContentsFormat : uint8_t;
+
 // Thread-safe interface to submit frames from worker to the placeholder rendering context.
 class PlaceholderRenderingContextSource : public ThreadSafeRefCounted<PlaceholderRenderingContextSource> {
     WTF_MAKE_TZONE_ALLOCATED(PlaceholderRenderingContextSource);
@@ -48,7 +50,7 @@ public:
     void setPlaceholderBuffer(ImageBuffer&);
 
     // Called by the placeholder context to attach to compositor layer.
-    void setContentsToLayer(GraphicsLayer&);
+    void setContentsToLayer(GraphicsLayer&, ContentsFormat, ImageBuffer*);
 
 private:
     explicit PlaceholderRenderingContextSource(PlaceholderRenderingContext&);
@@ -56,6 +58,9 @@ private:
     WeakPtr<PlaceholderRenderingContext> m_placeholder; // For main thread use.
     Lock m_lock;
     RefPtr<GraphicsLayerAsyncContentsDisplayDelegate> m_delegate WTF_GUARDED_BY_LOCK(m_lock);
+    unsigned m_bufferVersion { 0 }; // For OffscreenCanvas holder thread use (main or worker).
+    unsigned m_delegateBufferVersion WTF_GUARDED_BY_LOCK(m_lock) { 0 };
+    unsigned m_placeholderBufferVersion WTF_GUARDED_BY_CAPABILITY(mainThread) { 0 };
 };
 
 class PlaceholderRenderingContext final : public CanvasRenderingContext {
@@ -73,8 +78,10 @@ public:
 private:
     PlaceholderRenderingContext(HTMLCanvasElement&);
     void setContentsToLayer(GraphicsLayer&) final;
+    ImageBufferPixelFormat pixelFormat() const final;
 
     const Ref<PlaceholderRenderingContextSource> m_source;
+    ImageBufferPixelFormat m_pixelFormat { ImageBufferPixelFormat::BGRA8 };
 };
 
 }

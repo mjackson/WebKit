@@ -27,7 +27,6 @@
 
 #include "CSSPropertyNames.h"
 #include "CounterDirectives.h"
-#include "GapLength.h"
 #include "LengthPoint.h"
 #include "LineClampValue.h"
 #include "NameScope.h"
@@ -40,10 +39,13 @@
 #include "ScrollTypes.h"
 #include "ScrollbarGutter.h"
 #include "ShapeValue.h"
+#include "StyleClipPath.h"
 #include "StyleColor.h"
 #include "StyleContentAlignmentData.h"
+#include "StyleGapGutter.h"
 #include "StyleOffsetAnchor.h"
 #include "StyleOffsetDistance.h"
+#include "StyleOffsetPath.h"
 #include "StyleOffsetPosition.h"
 #include "StyleOffsetRotate.h"
 #include "StylePerspective.h"
@@ -188,7 +190,7 @@ public:
 
     Style::Perspective perspective;
 
-    RefPtr<PathOperation> clipPath;
+    Style::ClipPath clipPath;
 
     Style::Color textDecorationColor;
 
@@ -198,16 +200,16 @@ public:
     Style::Rotate rotate;
     Style::Scale scale;
     Style::Translate translate;
-    RefPtr<PathOperation> offsetPath;
 
     FixedVector<Style::ScopedName> containerNames;
 
     FixedVector<Style::ScopedName> viewTransitionClasses;
     Style::ViewTransitionName viewTransitionName;
 
-    GapLength columnGap;
-    GapLength rowGap;
+    Style::GapGutter columnGap;
+    Style::GapGutter rowGap;
 
+    Style::OffsetPath offsetPath;
     Style::OffsetDistance offsetDistance;
     Style::OffsetPosition offsetPosition;
     Style::OffsetAnchor offsetAnchor;
@@ -300,6 +302,8 @@ public:
     unsigned scrollbarWidth : 2; // ScrollbarWidth
 
     unsigned usesAnchorFunctions : 1;
+    unsigned anchorFunctionScrollCompensatedAxes : 2;
+
     unsigned usesTreeCountingFunctions : 1;
 
     unsigned isPopoverInvoker : 1;

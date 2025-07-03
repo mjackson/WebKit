@@ -37,6 +37,7 @@
 #include "AnimationMalloc.h"
 #include "StyleInterpolationFunctions.h"
 #include "StyleInterpolationWrapperBase.h"
+#include "StylePrimitiveNumericTypes+Blending.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
 #include <wtf/NeverDestroyed.h>
 #include <wtf/text/TextStream.h>
@@ -927,37 +928,6 @@ public:
     }
 };
 
-class PathOperationWrapper final : public RefCountedWrapper<PathOperation> {
-    WTF_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(Animation);
-public:
-    PathOperationWrapper(CSSPropertyID property, PathOperation* (RenderStyle::*getter)() const, void (RenderStyle::*setter)(RefPtr<PathOperation>&&))
-        : RefCountedWrapper(property, getter, setter)
-    {
-    }
-
-    bool equals(const RenderStyle& a, const RenderStyle& b) const final
-    {
-        // If the style pointers are the same, don't bother doing the test.
-        if (&a == &b)
-            return true;
-
-        auto* clipPathA = value(a);
-        auto* clipPathB = value(b);
-        if (clipPathA == clipPathB)
-            return true;
-        if (!clipPathA || !clipPathB)
-            return false;
-        return *clipPathA == *clipPathB;
-    }
-
-    bool canInterpolate(const RenderStyle& from, const RenderStyle& to, CompositeOperation) const override
-    {
-        auto* fromPath = value(from);
-        auto* toPath = value(to);
-        return fromPath && toPath && fromPath->canBlend(*toPath);
-    }
-};
-
 #if ENABLE(VARIATION_FONTS)
 
 class FontVariationSettingsWrapper final : public Wrapper<FontVariationSettings> {
@@ -1606,46 +1576,6 @@ public:
             return;
 
         destination.accessSVGStyle().setBaselineShiftValue(blendFunc(value(from), value(to), context, ValueRange::All));
-    }
-};
-
-class TextUnderlineOffsetWrapper final : public WrapperWithGetter<TextUnderlineOffset> {
-    WTF_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(Animation);
-public:
-    TextUnderlineOffsetWrapper()
-        : WrapperWithGetter(CSSPropertyTextUnderlineOffset, &RenderStyle::textUnderlineOffset)
-    {
-    }
-
-    bool canInterpolate(const RenderStyle& from, const RenderStyle& to, CompositeOperation) const final
-    {
-        auto fromTextUnderlineOffset = from.textUnderlineOffset();
-        auto toTextUnderlineOffset = to.textUnderlineOffset();
-        if (fromTextUnderlineOffset.isAuto() || toTextUnderlineOffset.isAuto())
-            return false;
-
-        auto fromValue = fromTextUnderlineOffset.resolve(from.computedFontSize());
-        auto toValue = toTextUnderlineOffset.resolve(to.computedFontSize());
-        return fromValue != toValue;
-    }
-
-    void interpolate(RenderStyle& destination, const RenderStyle& from, const RenderStyle& to, const Context& context) const final
-    {
-        auto blendedTextUnderlineOffset = [&]() -> TextUnderlineOffset {
-            if (context.isDiscrete)
-                return (!context.progress ? from : to).textUnderlineOffset();
-
-            auto fromTextUnderlineOffset = from.textUnderlineOffset();
-            auto toTextUnderlineOffset = to.textUnderlineOffset();
-
-            auto fromValue = fromTextUnderlineOffset.resolve(from.computedFontSize());
-            auto toValue = toTextUnderlineOffset.resolve(to.computedFontSize());
-
-            auto blendedValue = blendFunc(fromValue, toValue, context);
-            return TextUnderlineOffset::createWithLength(WebCore::Length(clampTo<float>(blendedValue, minValueForCssLength, maxValueForCssLength), LengthType::Fixed));
-        };
-
-        destination.setTextUnderlineOffset(blendedTextUnderlineOffset());
     }
 };
 

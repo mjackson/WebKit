@@ -34,6 +34,10 @@
 #import "Utilities.h"
 #import <wtf/RetainPtr.h>
 
+#if PLATFORM(MAC)
+#import <pal/spi/mac/NSScrollerImpSPI.h>
+#endif
+
 @interface WKWebView (ScrollGeometryTesting)
 - (void)_setNeedsScrollGeometryUpdates:(BOOL)needsScrollGeometryUpdates;
 @end
@@ -84,17 +88,16 @@ static void runContentSizeTest(NSString *html, CGSize expectedSize, BOOL needsSc
 
 TEST(WKScrollGeometry, ContentSizeTallerThanWebView)
 {
-#if PLATFORM(IOS_FAMILY)
-    CGFloat expectedWidth = 980;
-#elif (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED <= 150000)
-    CGFloat expectedWidth = 785;
-#else
-    CGFloat expectedWidth = 786;
+    CGFloat expectedWidth = 800;
+#if PLATFORM(MAC)
+    RetainPtr scroller = [NSScrollerImp scrollerImpWithStyle:NSScroller.preferredScrollerStyle controlSize:NSControlSizeRegular horizontal:NO replacingScrollerImp:nil];
+    expectedWidth -= [scroller trackBoxWidth];
 #endif
 
     runContentSizeTest(@""
         "<html>"
         "<head>"
+        "<meta name='viewport' content='width=device-width, initial-scale=1'/>"
         "<style>"
         "    div { background: red; height: 10000px; }"
         "</style>"
