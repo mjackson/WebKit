@@ -7,7 +7,7 @@
     {
       "id": "TestStatus",
       "type": "string",
-      "enum": ["pass", "fail", "timeout", "skip", "todo"]
+      "enum": ["pass", "fail", "timeout", "skip", "todo", "skipped_because_label"]
     }
   ],
   "commands": [
@@ -24,7 +24,11 @@
     {
       "name": "found",
       "parameters": [
-        { "name": "id", "type": "integer", "description": "Unique identifier of the test that was found." },
+        {
+          "name": "id",
+          "type": "integer",
+          "description": "Unique identifier of the test that was found."
+        },
         {
           "name": "scriptId",
           "$ref": "Debugger.ScriptId",
@@ -42,7 +46,25 @@
           "type": "integer",
           "description": "Line number in the script that started the test."
         },
-        { "name": "name", "type": "string", "description": "Name of the test that started.", "optional": true }
+        {
+          "name": "name",
+          "type": "string",
+          "description": "Name of the test that started.",
+          "optional": true
+        },
+        {
+          "name": "type",
+          "type": "string",
+          "enum": ["test", "describe"],
+          "description": "Type of the item found (test or describe block).",
+          "optional": true
+        },
+        {
+          "name": "parentId",
+          "type": "integer",
+          "description": "ID of the parent describe block, if any.",
+          "optional": true
+        }
       ]
     },
     {
