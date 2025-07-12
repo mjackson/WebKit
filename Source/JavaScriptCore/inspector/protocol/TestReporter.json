@@ -30,13 +30,6 @@
           "description": "Unique identifier of the test that was found."
         },
         {
-          "name": "type",
-          "type": "string",
-          "enum": ["test", "describe"],
-          "description": "Type of the item found (test or describe block).",
-          "optional": true
-        },
-        {
           "name": "scriptId",
           "$ref": "Debugger.ScriptId",
           "description": "Unique identifier of the script the test is in. Available when the debugger is attached.",
@@ -57,6 +50,13 @@
           "name": "name",
           "type": "string",
           "description": "Name of the test that started.",
+          "optional": true
+        },
+        {
+          "name": "type",
+          "type": "string",
+          "enum": ["test", "describe"],
+          "description": "Type of the item found (test or describe block).",
           "optional": true
         },
         {
