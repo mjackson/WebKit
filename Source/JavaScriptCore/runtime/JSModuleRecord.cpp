@@ -214,6 +214,7 @@ void JSModuleRecord::instantiateDeclarations(JSGlobalObject* globalObject, Modul
 #endif
                 if (!(importEntry.localName.isNull() || importEntry.localName.isPrivateName() || importEntry.localName.isSymbol())) {
                     Resolution otherResolution = importedModule->resolveExport(globalObject, vm.propertyNames->defaultKeyword);
+                    RETURN_IF_EXCEPTION(scope, void());
                     if (otherResolution.type == Resolution::Type::Resolved && otherResolution.localName == importEntry.localName) {
                         throwSyntaxError(globalObject, scope, makeString("Export named '"_s, importEntry.importName.string(), "' not found in module '"_s, importedModule->moduleKey().string(), "'. Did you mean to import default?"_s));
                         return;
@@ -230,6 +231,7 @@ void JSModuleRecord::instantiateDeclarations(JSGlobalObject* globalObject, Modul
             case Resolution::Type::Error: {
                 if (!(importEntry.localName.isNull() || importEntry.localName.isPrivateName() || importEntry.localName.isSymbol())) {
                     Resolution otherResolution = importedModule->resolveExport(globalObject, importEntry.localName);
+                    RETURN_IF_EXCEPTION(scope, void());
                     if (otherResolution.type == Resolution::Type::Resolved) {
                         throwSyntaxError(globalObject, scope, makeString("module '"_s, importedModule->moduleKey().string(), "' does not have an export named 'default'. Did you mean '"_s, String(importEntry.localName.impl()), "'?"_s));
                         return;
