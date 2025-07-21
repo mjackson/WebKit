@@ -98,7 +98,7 @@ JSObject* ProgramExecutable::initializeGlobalProperties(VM& vm, JSGlobalObject* 
         globalObject->debugger()->sourceParsed(globalObject, source().provider(), error.line(), error.message());
 
     if (error.isValid())
-        return error.toErrorObject(globalObject, source());
+        RELEASE_AND_RETURN(throwScope, error.toErrorObject(globalObject, source()));
 
     JSValue nextPrototype = globalObject->getPrototypeDirect();
     while (nextPrototype && nextPrototype.isObject()) {

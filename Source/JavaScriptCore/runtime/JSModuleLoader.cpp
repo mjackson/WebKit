@@ -402,8 +402,11 @@ JSC_DEFINE_HOST_FUNCTION(moduleLoaderParseModule, (JSGlobalObject* globalObject,
     std::unique_ptr<ModuleProgramNode> moduleProgramNode = parseRootNode<ModuleProgramNode>(
         vm, sourceCode, ImplementationVisibility::Public, JSParserBuiltinMode::NotBuiltin,
         StrictModeLexicallyScopedFeature, JSParserScriptMode::Module, SourceParseMode::ModuleAnalyzeMode, error);
-    if (error.isValid())
-        RELEASE_AND_RETURN(scope, JSValue::encode(rejectWithError(error.toErrorObject(globalObject, sourceCode))));
+    if (error.isValid()) {
+        auto errobj = error.toErrorObject(globalObject, sourceCode);
+        RETURN_IF_EXCEPTION(scope, {});
+        RELEASE_AND_RETURN(scope, JSValue::encode(rejectWithError(errobj)));
+    }
     ASSERT(moduleProgramNode);
 
     ModuleAnalyzer moduleAnalyzer(globalObject, moduleKey, sourceCode, moduleProgramNode->varDeclarations(), moduleProgramNode->lexicalVariables(), moduleProgramNode->features());

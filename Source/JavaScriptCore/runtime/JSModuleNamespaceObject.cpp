@@ -401,9 +401,11 @@ bool JSModuleNamespaceObject::overrideExportValue(JSGlobalObject* globalObject, 
     moduleNamespaceObject->m_isOverridingValue = true;
     if (JSModuleEnvironment* moduleEnvironment = record->moduleEnvironmentMayBeNull()) {
         symbolTablePutTouchWatchpointSet(moduleEnvironment, globalObject, resolution.localName, value, false, true, putResult);
+        RETURN_IF_EXCEPTION(scope, {});
     }
     JSC::PutPropertySlot putter = JSC::PutPropertySlot(moduleNamespaceObject, false);
     putResult = moduleNamespaceObject->put(moduleNamespaceObject, globalObject, name, value, putter);
+    RETURN_IF_EXCEPTION(scope, {});
     moduleNamespaceObject->m_isOverridingValue = false;
     return putResult;
 }
