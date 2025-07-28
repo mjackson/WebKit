@@ -733,7 +733,7 @@ elseif (APPLE)
         spi/cocoa/SecuritySPI.h
         spi/cocoa/objcSPI.h
 
-        # spi/darwin/ReasonSPI.h
+        spi/darwin/ReasonSPI.h
         spi/darwin/CodeSignSPI.h
         spi/darwin/DataVaultSPI.h
         spi/darwin/OSVariantSPI.h

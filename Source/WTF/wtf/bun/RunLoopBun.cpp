@@ -42,8 +42,9 @@ bool Bun__thisThreadHasVM()
     return false;
 }
 
-RunLoop::TimerBase::TimerBase(Ref<RunLoop>&& loop)
+RunLoop::TimerBase::TimerBase(Ref<RunLoop>&& loop, ASCIILiteral description)
     : m_runLoop(WTFMove(loop))
+    , m_description(description)
     // We need to init this here since there's no default constructor. We init with a nullptr
     // WTFTimer. The body of the constructor always initializes it with a proper value.
     , m_impl(NullWTFTimer)
