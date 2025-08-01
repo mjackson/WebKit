@@ -35,6 +35,11 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #if USE(SYSTEM_MALLOC)
 #define GIGACAGE_ENABLED 0
 
+#if OS(DARWIN)
+#include <mach/mach_init.h>
+#include <mach/vm_param.h>
+#endif
+
 namespace Gigacage {
 
 constexpr bool hasCapacityToUseLargeGigacage = OS_CONSTANT(EFFECTIVE_ADDRESS_WIDTH) > 36;
