@@ -39,8 +39,14 @@ namespace WTF {
 template<typename LockType, LockType isHeldBit, LockType hasParkedBit, typename Hooks>
 void LockAlgorithm<LockType, isHeldBit, hasParkedBit, Hooks>::lockSlow(Atomic<LockType>& lock)
 {
+
+#if OS(LINUX)
+    // Linux has fast futexes, so minimal spinning is better
+    static constexpr unsigned spinLimit = 1;
+#else
     // This magic number turns out to be optimal based on past JikesRVM experiments.
     static constexpr unsigned spinLimit = 40;
+#endif
     
     unsigned spinCount = 0;
     
