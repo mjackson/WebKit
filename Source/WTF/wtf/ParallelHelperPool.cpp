@@ -211,14 +211,9 @@ private:
 
 void ParallelHelperPool::didMakeWorkAvailable(const AbstractLocker& locker)
 {
-    bool spawned = false;
-    while (m_numThreads > m_threads.size()) {
+    while (m_numThreads > m_threads.size())
         m_threads.append(adoptRef(new Thread(locker, *this)));
-        spawned = true;
-    }
-
-    if (spawned || hasClientWithTask())
-        m_workAvailableCondition->notifyAll(locker);
+    m_workAvailableCondition->notifyAll(locker);
 }
 
 bool ParallelHelperPool::hasClientWithTask()
