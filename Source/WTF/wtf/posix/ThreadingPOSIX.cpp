@@ -713,10 +713,6 @@ void Thread::yield()
 #if OS(DARWIN)
     constexpr mach_msg_timeout_t timeoutInMS = 1;
     thread_switch(MACH_PORT_NULL, SWITCH_OPTION_DEPRESS, timeoutInMS);
-#elif OS(LINUX) && CPU(X86_64)
-    __asm__ volatile("pause" ::: "memory");
-#elif OS(LINUX) && CPU(ARM64)
-    __asm__ volatile("yield" ::: "memory");
 #else
     sched_yield();
 #endif

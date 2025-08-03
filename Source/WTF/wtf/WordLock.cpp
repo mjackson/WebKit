@@ -63,13 +63,9 @@ NEVER_INLINE void WordLock::lockSlow()
 {
     unsigned spinCount = 0;
 
-#if OS(LINUX)
-    const unsigned spinLimit = 1;
-#else
     // This magic number turns out to be optimal based on past JikesRVM experiments.
     const unsigned spinLimit = 40;
-#endif
-
+    
     for (;;) {
         uintptr_t currentWordValue = m_word.load();
         
