@@ -168,6 +168,7 @@
 #import <WebCore/ShadowRoot.h>
 #import <WebCore/SharedBuffer.h>
 #import <WebCore/SharedMemory.h>
+#import <WebCore/StylePrimitiveNumericTypes+Evaluation.h>
 #import <WebCore/StyleProperties.h>
 #import <WebCore/TextIndicator.h>
 #import <WebCore/TextIterator.h>
@@ -1256,7 +1257,7 @@ void WebPage::didFinishLoadingImageForElement(WebCore::HTMLImageElement& element
 
 void WebPage::computeAndSendEditDragSnapshot()
 {
-    std::optional<TextIndicatorData> textIndicatorData;
+    RefPtr<WebCore::TextIndicator> textIndicator;
     constexpr OptionSet<TextIndicatorOption> defaultTextIndicatorOptionsForEditDrag {
         TextIndicatorOption::IncludeSnapshotOfAllVisibleContentWithoutSelection,
         TextIndicatorOption::ExpandClipBeyondVisibleRect,
@@ -1267,11 +1268,10 @@ void WebPage::computeAndSendEditDragSnapshot()
         TextIndicatorOption::UseSelectionRectForSizing,
         TextIndicatorOption::IncludeSnapshotWithSelectionHighlight
     };
-    if (auto range = std::exchange(m_rangeForDropSnapshot, std::nullopt)) {
-        if (auto textIndicator = TextIndicator::createWithRange(*range, defaultTextIndicatorOptionsForEditDrag, TextIndicatorPresentationTransition::None, { }))
-            textIndicatorData = textIndicator->data();
-    }
-    send(Messages::WebPageProxy::DidReceiveEditDragSnapshot(WTFMove(textIndicatorData)));
+    if (auto range = std::exchange(m_rangeForDropSnapshot, std::nullopt))
+        textIndicator = TextIndicator::createWithRange(*range, defaultTextIndicatorOptionsForEditDrag, TextIndicatorPresentationTransition::None, { });
+
+    send(Messages::WebPageProxy::DidReceiveEditDragSnapshot(WTFMove(textIndicator)));
 }
 
 #endif
@@ -2066,9 +2066,9 @@ IntRect WebPage::absoluteInteractionBounds(const Node& node)
     auto& style = renderer->style();
     FloatRect boundingBox = renderer->absoluteBoundingBoxRect(true /* use transforms*/);
     // This is wrong. It's subtracting borders after converting to absolute coords on something that probably doesn't represent a rectangular element.
-    boundingBox.move(style.borderLeftWidth(), style.borderTopWidth());
-    boundingBox.setWidth(boundingBox.width() - style.borderLeftWidth() - style.borderRightWidth());
-    boundingBox.setHeight(boundingBox.height() - style.borderBottomWidth() - style.borderTopWidth());
+    boundingBox.move(WebCore::Style::evaluate(style.borderLeftWidth()), WebCore::Style::evaluate(style.borderTopWidth()));
+    boundingBox.setWidth(boundingBox.width() - WebCore::Style::evaluate(style.borderLeftWidth()) - WebCore::Style::evaluate(style.borderRightWidth()));
+    boundingBox.setHeight(boundingBox.height() - WebCore::Style::evaluate(style.borderBottomWidth()) - WebCore::Style::evaluate(style.borderTopWidth()));
     return enclosingIntRect(boundingBox);
 }
 

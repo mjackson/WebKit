@@ -360,6 +360,7 @@ bool hasCapacityToUseLargeGigacage();
     v(Int32, maximumExecutionCountsBetweenCheckpointsForBaseline, 1000, Normal, nullptr) \
     v(Int32, maximumExecutionCountsBetweenCheckpointsForUpperTiers, 30000, Normal, nullptr) \
     v(Int32, highCostBaselineProfilingFunctionBytecodeCost, 10000, Normal, nullptr) \
+    v(Int32, valueProfileFillingRateMonitoringBytecodeCost, 5000, Normal, nullptr) \
     \
     v(Unsigned, likelyToTakeSlowCaseMinimumCount, 20, Normal, nullptr) \
     v(Unsigned, couldTakeSlowCaseMinimumCount, 10, Normal, nullptr) \
@@ -645,7 +646,7 @@ bool hasCapacityToUseLargeGigacage();
     v(Bool, useIteratorChunking, false, Normal, "Expose the Iterator.prototype.chunks and Iterator.prototype.windows methods."_s) \
     v(Bool, useIteratorSequencing, false, Normal, "Expose the Iterator.concat method."_s) \
     v(Bool, useJSONSourceTextAccess, true, Normal, "Expose JSON source text access feature."_s) \
-    v(Bool, useMapGetOrInsert, false, Normal, "Expose the Map.prototype.getOrInsert family of methods."_s) \
+    v(Bool, useMapGetOrInsert, true, Normal, "Expose the Map.prototype.getOrInsert family of methods."_s) \
     v(Bool, useMathSumPreciseMethod, true, Normal, "Expose the Math.sumPrecise() method."_s) \
     v(Bool, useMoreCurrencyDisplayChoices, false, Normal, "Enable more currencyDisplay choices for Intl.NumberFormat"_s) \
     v(Bool, useSharedArrayBuffer, false, Normal, nullptr) \

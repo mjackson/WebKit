@@ -133,6 +133,8 @@ public:
 
     JSString* fastToString(JSGlobalObject*);
 
+    JSArray* fastFlat(JSGlobalObject*, uint64_t depth, uint64_t length);
+
     ALWAYS_INLINE bool definitelyNegativeOneMiss() const;
 
     enum ShiftCountMode {
@@ -249,10 +251,7 @@ inline JSArray* JSArray::tryCreate(VM& vm, Structure* structure, unsigned initia
         butterfly = Butterfly::fromBase(temp, 0, outOfLineStorage);
         butterfly->setVectorLength(vectorLength);
         butterfly->setPublicLength(initialLength);
-        if (hasDouble(indexingType))
-            clearArray(butterfly->contiguousDouble().data(), vectorLength);
-        else
-            clearArray(butterfly->contiguous().data(), vectorLength);
+        Butterfly::clearOptimalVectorLengthGap(indexingType, butterfly, vectorLength, 0);
     } else {
         ASSERT(
             indexingType == ArrayWithSlowPutArrayStorage

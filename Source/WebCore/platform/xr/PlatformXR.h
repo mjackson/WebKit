@@ -33,6 +33,9 @@
 #include <wtf/UniqueRef.h>
 #include <wtf/Vector.h>
 #include <wtf/WeakPtr.h>
+#if USE(UNIX_DOMAIN_SOCKETS)
+#include <wtf/unix/UnixFileDescriptor.h>
+#endif
 
 #if PLATFORM(COCOA)
 #include "IOSurface.h"
@@ -76,7 +79,8 @@ enum class ReferenceSpaceType : uint8_t {
     Local,
     LocalFloor,
     BoundedFloor,
-    Unbounded
+    Unbounded,
+    Webgpu
 };
 
 enum class Eye : uint8_t {
@@ -121,6 +125,7 @@ enum class SessionFeature : uint8_t {
 #if ENABLE(WEBXR_HANDS)
     HandTracking,
 #endif
+    WebGPU,
 };
 
 inline SessionFeature sessionFeatureFromReferenceSpaceType(ReferenceSpaceType referenceSpaceType)
@@ -136,6 +141,8 @@ inline SessionFeature sessionFeatureFromReferenceSpaceType(ReferenceSpaceType re
         return SessionFeature::ReferenceSpaceTypeBoundedFloor;
     case ReferenceSpaceType::Unbounded:
         return SessionFeature::ReferenceSpaceTypeUnbounded;
+    case ReferenceSpaceType::Webgpu:
+        return SessionFeature::WebGPU;
     }
 
     ASSERT_NOT_REACHED();
@@ -160,6 +167,8 @@ inline std::optional<SessionFeature> parseSessionFeatureDescriptor(StringView st
     if (feature == "hand-tracking"_s)
         return SessionFeature::HandTracking;
 #endif
+    if (feature == "webgpu"_s)
+        return SessionFeature::WebGPU;
 
     return std::nullopt;
 }
@@ -181,6 +190,8 @@ inline String sessionFeatureDescriptor(SessionFeature sessionFeature)
     case SessionFeature::HandTracking:
         return "hand-tracking"_s;
 #endif
+    case SessionFeature::WebGPU:
+        return "webgpu"_s;
     default:
         ASSERT_NOT_REACHED();
         return ""_s;
@@ -267,7 +278,6 @@ struct FrameData {
         Vector<WebCore::FloatPoint> bounds;
     };
 
-#if PLATFORM(COCOA)
     struct RateMapDescription {
         WebCore::IntSize screenSize = { 0, 0 };
         Vector<float> horizontalSamplesLeft;
@@ -281,12 +291,22 @@ struct FrameData {
         std::array<std::array<uint16_t, 2>, 2> physicalSize;
         std::array<WebCore::IntRect, 2> viewports;
         RateMapDescription foveationRateMapDesc;
+#if PLATFORM(COCOA)
         MachSendRight completionSyncEvent;
+#endif
     };
 
     struct ExternalTexture {
+#if PLATFORM(COCOA)
         MachSendRight handle;
         bool isSharedTexture { false };
+#else
+        Vector<WTF::UnixFileDescriptor> fds;
+        Vector<uint32_t> strides;
+        Vector<uint32_t> offsets;
+        uint32_t fourcc;
+        uint64_t modifier;
+#endif
     };
 
     struct ExternalTextureData {
@@ -294,20 +314,14 @@ struct FrameData {
         ExternalTexture colorTexture;
         ExternalTexture depthStencilBuffer;
     };
-#endif
 
     struct LayerData {
         WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(LayerData);
-#if PLATFORM(COCOA)
         std::optional<LayerSetupData> layerSetup = { std::nullopt };
         uint64_t renderingFrameIndex { 0 };
         std::optional<ExternalTextureData> textureData;
         // FIXME: <rdar://134998122> Remove when new CC lands.
         bool requestDepth { false };
-#else
-        WebCore::IntSize framebufferSize;
-        PlatformGLObject opaqueTexture { 0 };
-#endif
     };
 
     struct InputSourceButton {

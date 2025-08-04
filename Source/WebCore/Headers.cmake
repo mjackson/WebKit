@@ -2692,7 +2692,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     rendering/style/RenderStyleSetters.h
     rendering/style/SVGRenderStyle.h
     rendering/style/SVGRenderStyleDefs.h
-    rendering/style/ShapeValue.h
     rendering/style/StyleBackgroundData.h
     rendering/style/StyleBoxData.h
     rendering/style/StyleContentAlignmentData.h
@@ -2771,6 +2770,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/values/color/StyleCurrentColor.h
     style/values/color/StyleDynamicRangeLimit.h
     style/values/color/StyleDynamicRangeLimitMix.h
+    style/values/color/StyleOpacity.h
     style/values/color/StyleResolvedColor.h
 
     style/values/color-adjust/StyleColorScheme.h
@@ -2782,6 +2782,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     style/values/counter-styles/StyleCounterStyle.h
 
+    style/values/fill-stroke/StyleStrokeMiterlimit.h
     style/values/fill-stroke/StyleStrokeWidth.h
 
     style/values/flexbox/StyleFlexBasis.h
@@ -2800,6 +2801,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/values/grid/StyleGridTrackSizingDirection.h
 
     style/values/images/StyleGradient.h
+    style/values/images/StyleImageWrapper.h
     style/values/images/StyleObjectPosition.h
 
     style/values/inline/StyleLineBoxContain.h
@@ -2819,6 +2821,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/values/motion/StyleOffsetRotate.h
     style/values/motion/StyleRayFunction.h
 
+    style/values/non-standard/StyleWebKitBorderSpacing.h
     style/values/non-standard/StyleWebKitOverflowScrolling.h
     style/values/non-standard/StyleWebKitTextStrokeWidth.h
     style/values/non-standard/StyleWebKitTouchCallout.h
@@ -2837,6 +2840,8 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/values/primitives/StylePrimitiveNumericAdaptors.h
     style/values/primitives/StylePrimitiveNumericConcepts.h
     style/values/primitives/StylePrimitiveNumericOrKeyword.h
+    style/values/primitives/StylePrimitiveNumericTypes+Calculation.h
+    style/values/primitives/StylePrimitiveNumericTypes+Evaluation.h
     style/values/primitives/StylePrimitiveNumericTypes+Platform.h
     style/values/primitives/StylePrimitiveNumericTypes.h
     style/values/primitives/StyleRatio.h
@@ -2867,6 +2872,9 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/values/shapes/StylePolygonFunction.h
     style/values/shapes/StyleRectFunction.h
     style/values/shapes/StyleShapeFunction.h
+    style/values/shapes/StyleShapeImageThreshold.h
+    style/values/shapes/StyleShapeMargin.h
+    style/values/shapes/StyleShapeOutside.h
     style/values/shapes/StyleWindRuleComputation.h
     style/values/shapes/StyleXywhFunction.h
 

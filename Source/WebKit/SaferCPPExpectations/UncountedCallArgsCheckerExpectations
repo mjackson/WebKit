@@ -2,7 +2,6 @@ AutomationFrontendDispatchers.cpp
 AutomationProtocolObjects.h
 GeneratedSerializers.mm
 Platform/IPC/ArgumentCoders.h
-Shared/RemoteLayerTree/RemoteLayerWithRemoteRenderingBackingStore.mm
 UIProcess/API/C/mac/WKPagePrivateMac.mm
 UIProcess/API/Cocoa/WKContentWorld.mm
 UIProcess/API/Cocoa/WKDownload.mm
@@ -125,9 +124,6 @@ WebProcess/WebPage/mac/WKAccessibilityWebPageObjectBase.mm
 WebProcess/WebPage/mac/WKAccessibilityWebPageObjectMac.mm
 WebProcess/cocoa/PlaybackSessionManager.mm
 WebProcess/cocoa/RemoteCaptureSampleManager.cpp
-WebProcess/cocoa/RemoteRealtimeAudioSource.cpp
-WebProcess/cocoa/RemoteRealtimeMediaSource.cpp
-WebProcess/cocoa/RemoteRealtimeVideoSource.cpp
 WebProcess/cocoa/TextTrackRepresentationCocoa.mm
 WebProcess/cocoa/UserMediaCaptureManager.cpp
 WebProcess/cocoa/VideoPresentationManager.mm

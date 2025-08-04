@@ -94,6 +94,8 @@ static bool hasSameOriginAsAllAncestors(const Document& document)
 std::optional<bool> DocumentStorageAccess::hasStorageAccessQuickCheck()
 {
     Ref document = m_document.get();
+    if (!document->isSecureContext())
+        return false;
 
     RefPtr frame = document->frame();
     if (frame && hasFrameSpecificStorageAccess())
@@ -163,6 +165,8 @@ void DocumentStorageAccess::requestStorageAccess(Document& document, Ref<Deferre
 std::optional<StorageAccessQuickResult> DocumentStorageAccess::requestStorageAccessQuickCheck()
 {
     Ref document = m_document.get();
+    if (!document->isSecureContext())
+        return StorageAccessQuickResult::Reject;
 
     RefPtr frame = document->frame();
     if (frame && hasFrameSpecificStorageAccess())
@@ -200,7 +204,7 @@ void DocumentStorageAccess::requestStorageAccess(Ref<DeferredPromise>&& promise)
 
     auto quickCheckResult = requestStorageAccessQuickCheck();
     if (quickCheckResult) {
-        *quickCheckResult == StorageAccessQuickResult::Grant ? promise->resolve() : promise->reject();
+        *quickCheckResult == StorageAccessQuickResult::Grant ? promise->resolve() : promise->reject(ExceptionCode::NotAllowedError);
         return;
     }
 
@@ -259,7 +263,7 @@ void DocumentStorageAccess::requestStorageAccess(Ref<DeferredPromise>&& promise)
         case StorageAccessWasGranted::No:
             if (result.promptWasShown == StorageAccessPromptWasShown::Yes)
                 setWasExplicitlyDeniedFrameSpecificStorageAccess();
-            promise->reject();
+            promise->reject(ExceptionCode::NotAllowedError);
         }
 
         if (shouldPreserveUserGesture) {

@@ -102,8 +102,8 @@ namespace WebCore {
 
 using namespace HTMLNames;
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(RenderObject);
-WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderObject::RenderObjectRareData);
+WTF_MAKE_PREFERABLY_COMPACT_TZONE_OR_ISO_ALLOCATED_IMPL(RenderObject);
+WTF_MAKE_PREFERABLY_COMPACT_TZONE_ALLOCATED_IMPL(RenderObject::RenderObjectRareData);
 
 #if ASSERT_ENABLED
 
@@ -2920,7 +2920,7 @@ auto RenderObject::collectSelectionGeometries(const SimpleRange& range) -> Selec
                     || interiorUnionRect.x() == currentGeometry.rect().maxX()
                     || interiorUnionRect.y() == currentGeometry.rect().maxY())) {
                 // Only union the lines that are attached.
-                // For iBooks, the interior lines may cross multiple horizontal pages.
+                // For Apple Books, the interior lines may cross multiple horizontal pages.
                 interiorUnionRect.unite(currentGeometry.rect());
             } else {
                 coalescedGeometries.append(SelectionGeometry({ interiorUnionRect }, SelectionRenderingBehavior::CoalesceBoundingRects, currentGeometry.isHorizontal(), currentGeometry.pageNumber()));

@@ -37,7 +37,7 @@
 
 namespace WebCore {
     
-class AccessibilitySVGRoot;
+class AccessibilitySVGObject;
 class AXObjectCache;
 class Element;
 class HTMLAreaElement;
@@ -147,6 +147,7 @@ protected:
     bool shouldIgnoreAttributeRole() const override;
     AccessibilityRole determineAccessibilityRole() override;
     bool computeIsIgnored() const override;
+    std::optional<AccessibilityChildrenVector> imageOverlayElements() final;
 
 #if ENABLE(MATHML)
     virtual bool isIgnoredElementWithinMathTree() const;
@@ -163,7 +164,7 @@ private:
     Path elementPath() const final;
 
     AccessibilityObject* accessibilityImageMapHitTest(HTMLAreaElement&, const IntPoint&) const;
-    AccessibilityObject* associatedAXImage(HTMLMapElement&) const;
+    AccessibilityObject* associatedImageObject(HTMLMapElement&) const;
     AccessibilityObject* elementAccessibilityHitTest(const IntPoint&) const override;
 
     bool renderObjectIsObservable(RenderObject&) const;
@@ -173,7 +174,7 @@ private:
     bool isSVGImage() const;
     void detachRemoteSVGRoot();
     enum class CreateIfNecessary : bool { No, Yes };
-    AccessibilitySVGRoot* remoteSVGRootElement(CreateIfNecessary) const;
+    AccessibilitySVGObject* remoteSVGRootElement(CreateIfNecessary) const;
     AccessibilityObject* remoteSVGElementHitTest(const IntPoint&) const;
     void offsetBoundingBoxForRemoteSVGElement(LayoutRect&) const;
     bool supportsPath() const final;

@@ -2440,7 +2440,7 @@ std::pair<FixedContainerEdges, WeakElementEdges> LocalFrameView::fixedContainerE
         if (!border->isVisible())
             return samplingRect;
 
-        auto borderWidth = border->width();
+        auto borderWidth = Style::evaluate(border->width());
         if (borderWidth > thinBorderWidth)
             return samplingRect;
 
@@ -4942,7 +4942,7 @@ float LocalFrameView::adjustVerticalPageScrollStepForFixedContent(float step)
     float bottomObscuredArea = 0;
     for (const auto& viewPositionedOutOfFlowBox : *viewPositionedOutOfFlowBoxes) {
         const RenderStyle& style = viewPositionedOutOfFlowBox.style();
-        if (style.position() != PositionType::Fixed || style.usedVisibility() == Visibility::Hidden || !style.opacity())
+        if (style.position() != PositionType::Fixed || style.usedVisibility() == Visibility::Hidden || style.opacity().isTransparent())
             continue;
 
         FloatQuad contentQuad = viewPositionedOutOfFlowBox.absoluteContentQuad();

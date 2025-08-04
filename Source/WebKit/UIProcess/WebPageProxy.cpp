@@ -1929,13 +1929,13 @@ void WebPageProxy::maybeInitializeSandboxExtensionHandle(WebProcessProxy& proces
 #endif
 
     auto createSandboxExtension = [protectedProcess = Ref { process }] (const String& path) {
-#if HAVE(AUDIT_TOKEN)
-        auto token = protectedProcess->protectedConnection()->getAuditToken();
-        ASSERT(token);
-        if (token)
-            return SandboxExtension::createHandleForReadByAuditToken(path, *token);
-#endif
-        return SandboxExtension::createHandle(path, SandboxExtension::Type::ReadOnly);
+        Ref processPool = protectedProcess->processPool();
+        if (auto handle = processPool->sandboxExtensionForFile(path))
+            return handle;
+        auto handle = SandboxExtension::createHandle(path, SandboxExtension::Type::ReadOnly);
+        if (handle)
+            processPool->addSandboxExtensionForFile(path, *handle);
+        return handle;
     };
 
     if (!resourceDirectoryURL.isEmpty()) {
@@ -3834,13 +3834,15 @@ void WebPageProxy::didPerformDragControllerAction(std::optional<WebCore::DragOpe
         pageClient->didPerformDragControllerAction();
 }
 
-#if PLATFORM(GTK)
+#if PLATFORM(GTK) || PLATFORM(WPE)
 void WebPageProxy::startDrag(SelectionData&& selectionData, OptionSet<WebCore::DragOperation> dragOperationMask, std::optional<ShareableBitmap::Handle>&& dragImageHandle, IntPoint&& dragImageHotspot)
 {
+#if PLATFORM(GTK)
     if (RefPtr pageClient = this->pageClient()) {
         RefPtr dragImage = dragImageHandle ? ShareableBitmap::create(WTFMove(*dragImageHandle)) : nullptr;
         pageClient->startDrag(WTFMove(selectionData), dragOperationMask, WTFMove(dragImage), WTFMove(dragImageHotspot));
     }
+#endif
     didStartDrag();
 }
 #endif

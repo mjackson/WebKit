@@ -30,15 +30,11 @@
 
 #include "AXObjectCache.h"
 
-#include "AXImage.h"
 #include "AXIsolatedObject.h"
 #include "AXIsolatedTree.h"
 #include "AXLogger.h"
 #include "AXRemoteFrame.h"
 #include "AXTextMarker.h"
-#include "AccessibilityARIAGridCell.h"
-#include "AccessibilityARIAGridRow.h"
-#include "AccessibilityARIATable.h"
 #include "AccessibilityAttachment.h"
 #include "AccessibilityImageMapLink.h"
 #include "AccessibilityLabel.h"
@@ -53,7 +49,6 @@
 #include "AccessibilityProgressIndicator.h"
 #include "AccessibilityRenderObject.h"
 #include "AccessibilitySVGObject.h"
-#include "AccessibilitySVGRoot.h"
 #include "AccessibilityScrollView.h"
 #include "AccessibilityScrollbar.h"
 #include "AccessibilitySlider.h"
@@ -497,7 +492,7 @@ bool AXObjectCache::isNodeVisible(const Node* node) const
     // The resulting opacity of a RenderObject is computed as the multiplication
     // of its opacity times the opacities of its ancestors.
     for (auto* ancestor = renderer; ancestor; ancestor = ancestor->parent()) {
-        if (!ancestor->style().opacity())
+        if (ancestor->style().opacity().isTransparent())
             return false;
     }
 
@@ -652,7 +647,7 @@ bool hasAccNameAttribute(Element& element)
     return element.attributeWithoutSynchronization(titleAttr).length();
 }
 
-static RenderImage* toSimpleImage(RenderObject& renderer)
+RenderImage* toSimpleImage(RenderObject& renderer)
 {
     CheckedPtr renderImage = dynamicDowncast<RenderImage>(renderer);
     if (!renderImage)
@@ -795,11 +790,11 @@ Ref<AccessibilityRenderObject> AXObjectCache::createObjectFromRenderer(RenderObj
             return AccessibilityList::create(AXID::generate(), renderer, *this);
 
         if (isAccessibilityARIATable(*element))
-            return AccessibilityARIATable::create(AXID::generate(), renderer, *this);
+            return AccessibilityTable::create(AXID::generate(), renderer, *this, /* isARIATable */ true);
         if (isAccessibilityARIAGridRow(*element))
-            return AccessibilityARIAGridRow::create(AXID::generate(), renderer, *this);
+            return AccessibilityTableRow::create(AXID::generate(), renderer, *this, /* isARIAGridRow */ true);
         if (isAccessibilityARIAGridCell(*element))
-            return AccessibilityARIAGridCell::create(AXID::generate(), renderer, *this);
+            return AccessibilityTableCell::create(AXID::generate(), renderer, *this, /* isARIAGridCell */ true);
 
         if (isAccessibilityTree(*element))
             return AccessibilityTree::create(AXID::generate(), renderer, *this);
@@ -816,13 +811,13 @@ Ref<AccessibilityRenderObject> AXObjectCache::createObjectFromRenderer(RenderObj
     }
 
     if (renderer.isRenderOrLegacyRenderSVGRoot())
-        return AccessibilitySVGRoot::create(AXID::generate(), renderer, *this);
+        return AccessibilitySVGObject::create(AXID::generate(), renderer, *this, /* isSVGRoot */ true);
 
     if (is<SVGElement>(node) || is<RenderSVGInlineText>(renderer))
         return AccessibilitySVGObject::create(AXID::generate(), renderer, *this);
 
-    if (auto* renderImage = toSimpleImage(renderer))
-        return AXImage::create(AXID::generate(), *renderImage, *this);
+    if (CheckedPtr renderImage = toSimpleImage(renderer))
+        return AccessibilityRenderObject::create(AXID::generate(), *renderImage, *this);
 
 #if ENABLE(MATHML)
     // The mfenced element creates anonymous RenderMathMLOperators which should be treated
@@ -887,11 +882,11 @@ Ref<AccessibilityNodeObject> AXObjectCache::createFromNode(Node& node)
         if (isAccessibilityTreeItem(*element))
             return AccessibilityTreeItem::create(AXID::generate(), *element, *this);
         if (isAccessibilityARIATable(*element))
-            return AccessibilityARIATable::create(AXID::generate(), *element, *this);
+            return AccessibilityTable::create(AXID::generate(), *element, *this, /* isARIATable */ true);
         if (isAccessibilityARIAGridRow(*element))
-            return AccessibilityARIAGridRow::create(AXID::generate(), *element, *this);
+            return AccessibilityTableRow::create(AXID::generate(), *element, *this, /* isARIAGridRow */ true);
         if (isAccessibilityARIAGridCell(*element))
-            return AccessibilityARIAGridCell::create(AXID::generate(), *element, *this);
+            return AccessibilityTableCell::create(AXID::generate(), *element, *this, /* isARIAGridCell */ true);
         if (RefPtr areaElement = dynamicDowncast<HTMLAreaElement>(*element))
             return AccessibilityImageMapLink::create(AXID::generate(), *areaElement, *this);
     }

@@ -35,6 +35,7 @@
 #include "AccessibilityTableRow.h"
 #include "DocumentInlines.h"
 #include "FrameSelection.h"
+#include "HTMLNames.h"
 #include "LocalFrameView.h"
 #include "Page.h"
 #include <wtf/MonotonicTime.h>
@@ -44,6 +45,8 @@
 #include <wtf/text/MakeString.h>
 
 namespace WebCore {
+
+using namespace HTMLNames;
 
 DEFINE_ALLOCATOR_WITH_HEAP_IDENTIFIER(AXIsolatedTree);
 WTF_MAKE_TZONE_ALLOCATED_IMPL(AXIsolatedTree);
@@ -1999,7 +2002,7 @@ IsolatedObjectData createIsolatedObjectData(const Ref<AccessibilityObject>& axOb
             setProperty(AXProperty::IsARIATreeGridRow, true);
             setObjectVectorProperty(AXProperty::DisclosedRows, object.disclosedRows());
             setObjectProperty(AXProperty::DisclosedByRow, object.disclosedByRow());
-        } else if (object.isAccessibilityARIAGridRowInstance())
+        } else if (object.isARIAGridRow())
             setProperty(AXProperty::IsARIAGridRow, true);
 
         bool isTreeItem = object.isTreeItem();

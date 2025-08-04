@@ -605,7 +605,7 @@ LayoutRect RenderMultiColumnSet::fragmentedFlowPortionOverflowRect(const LayoutR
     // top/bottom unless it's the first/last column.
     LayoutRect overflowRect = overflowRectForFragmentedFlowPortion(portionRect, isFirstColumn && isFirstFragment(), isLastColumn && isLastFragment());
 
-    // For RenderViews only (i.e., iBooks), avoid overflowing into neighboring columns, by clipping in the middle of adjacent column gaps. Also make sure that we avoid rounding errors.
+    // For RenderViews only (i.e., Apple Books), avoid overflowing into neighboring columns, by clipping in the middle of adjacent column gaps. Also make sure that we avoid rounding errors.
     if (&view() == parent()) {
         if (isHorizontalWritingMode()) {
             if (!isLeftmostColumn)
@@ -632,7 +632,7 @@ void RenderMultiColumnSet::paintColumnRules(PaintInfo& paintInfo, const LayoutPo
     const Color& ruleColor = blockStyle.visitedDependentColorWithColorFilter(CSSPropertyColumnRuleColor);
     bool ruleTransparent = blockStyle.columnRuleIsTransparent();
     BorderStyle ruleStyle = collapsedBorderStyle(blockStyle.columnRuleStyle());
-    LayoutUnit ruleThickness { blockStyle.columnRuleWidth() };
+    LayoutUnit ruleThickness { Style::evaluate(blockStyle.columnRuleWidth()) };
     LayoutUnit colGap = columnGap();
     bool renderRule = ruleStyle > BorderStyle::Hidden && !ruleTransparent;
     if (!renderRule)

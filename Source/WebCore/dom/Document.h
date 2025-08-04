@@ -1923,6 +1923,8 @@ public:
     bool hasVisuallyNonEmptyCustomContent() const { return m_hasVisuallyNonEmptyCustomContent; }
     void enqueuePaintTimingEntryIfNeeded();
 
+    void enqueueEventTimingEntriesIfNeeded();
+
     WEBCORE_EXPORT Editor& editor();
     WEBCORE_EXPORT const Editor& editor() const;
     WEBCORE_EXPORT Ref<Editor> protectedEditor();
@@ -2450,9 +2452,9 @@ private:
     RefPtr<CustomElementRegistry> m_activeCustomElementRegistry;
 
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
-    using TargetIdToClientMap = HashMap<PlaybackTargetClientContextIdentifier, WebCore::MediaPlaybackTargetClient*>;
+    using TargetIdToClientMap = HashMap<PlaybackTargetClientContextIdentifier, WeakPtr<MediaPlaybackTargetClient>>;
     TargetIdToClientMap m_idToClientMap;
-    using TargetClientToIdMap = HashMap<WebCore::MediaPlaybackTargetClient*, PlaybackTargetClientContextIdentifier>;
+    using TargetClientToIdMap = WeakHashMap<MediaPlaybackTargetClient, PlaybackTargetClientContextIdentifier>;
     TargetClientToIdMap m_clientToIDMap;
 #endif
 

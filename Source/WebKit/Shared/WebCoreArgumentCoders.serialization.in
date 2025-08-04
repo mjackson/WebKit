@@ -863,6 +863,12 @@ enum class WebCore::ViewportFit : uint8_t {
     Cover,
 };
 
+enum class WebCore::InteractiveWidget : uint8_t {
+    ResizesVisual,
+    ResizesContent,
+    OverlaysContent
+};
+
 header: <WebCore/ShareData.h>
 [CustomHeader] struct WebCore::ShareDataWithParsedURL {
     WebCore::ShareData shareData;
@@ -2034,6 +2040,7 @@ struct WebCore::ViewportArguments {
     float shrinkToFit;
     WebCore::ViewportFit viewportFit;
     bool widthWasExplicit;
+    WebCore::InteractiveWidget interactiveWidget;
 };
 #endif // ENABLE(META_VIEWPORT)
 
@@ -2298,7 +2305,7 @@ header: <WebCore/VP9Utilities.h>
 }
 
 class WebCore::BlobPart {
-    Variant<Vector<uint8_t>, Ref<WebCore::SharedBuffer>, URL> m_dataOrURL;
+    Variant<Vector<uint8_t>, URL> m_dataOrURL;
 };
 
 [WebKitPlatform] enum class WebCore::ColorSpace : uint8_t {
@@ -4889,7 +4896,7 @@ enum class WebCore::CreateNewGroupForHighlight : bool
 enum class WebCore::HighlightRequestOriginatedInApp : bool
 
 struct WebCore::AppHighlight {
-    Ref<WebCore::FragmentedSharedBuffer> highlight;
+    Ref<WebCore::SharedBuffer> highlight;
     std::optional<String> text;
     WebCore::CreateNewGroupForHighlight isNewGroup;
     WebCore::HighlightRequestOriginatedInApp requestOriginatedInApp;
@@ -6186,6 +6193,7 @@ enum class WebCore::AllowsContentJavaScript : bool
     LinkDecorationFiltering,
     ScriptTrackingPrivacy,
     FailClosedForAllHosts,
+    StrictFailClosed,
 };
 
 enum class WebCore::ViolationReportType : uint8_t {
@@ -8182,6 +8190,7 @@ enum class WebCore::AppleVisualEffect : uint8_t {
     BlurChromeMaterial,
 #if HAVE(MATERIAL_HOSTING)
     GlassMaterial,
+    GlassClearMaterial,
     GlassSubduedMaterial,
     GlassMediaControlsMaterial,
     GlassSubduedMediaControlsMaterial,
@@ -8789,7 +8798,20 @@ using WebCore::GraphicsContextGL::ExternalImageSource = Variant<WebCore::Graphic
 using WebCore::GraphicsContextGL::ExternalSyncSource = std::tuple<MachSendRight, uint64_t>
 #endif
 #if !PLATFORM(COCOA) && ENABLE(WEBGL)
+#if (PLATFORM(GTK) || PLATFORM(WPE))
+header: <WebCore/GraphicsContextGL.h>
+[CustomHeader] struct WebCore::GraphicsContextGLExternalImageSource {
+    Vector<WTF::UnixFileDescriptor> fds;
+    Vector<uint32_t> strides;
+    Vector<uint32_t> offsets;
+    uint32_t fourcc;
+    uint64_t modifier;
+    WebCore::IntSize size;
+};
+using WebCore::GraphicsContextGL::ExternalImageSource = WebCore::GraphicsContextGLExternalImageSource;
+#else
 using WebCore::GraphicsContextGL::ExternalImageSource = int
+#endif
 using WebCore::GraphicsContextGL::ExternalSyncSource = int
 #endif
 
@@ -9229,57 +9251,3 @@ header: <WebCore/ScriptTrackingPrivacyCategory.h>
     Speech,
     FormControls,
 };
-
-[Nested] struct WebCore::SerializedNode::ContainerNode {
-    Vector<WebCore::SerializedNode> children;
-};
-[Nested] struct WebCore::SerializedNode::Attr {
-    String prefix;
-    String localName;
-    String namespaceURI;
-    String value;
-};
-[Nested] struct WebCore::SerializedNode::CharacterData {
-    String data;
-};
-[Nested] struct WebCore::SerializedNode::Document : WebCore::SerializedNode::ContainerNode {
-    WebCore::ClonedDocumentType type;
-    URL url;
-    URL baseURL;
-    URL baseURLOverride;
-    Variant<String, URL> documentURI;
-    String contentType;
-};
-[Nested] enum class WebCore::ClonedDocumentType : uint8_t {
-    XMLDocument,
-    XHTMLDocument,
-    HTMLDocument,
-    SVGDocument,
-    Document
-};
-[Nested] struct WebCore::SerializedNode::DocumentFragment : WebCore::SerializedNode::ContainerNode {
-};
-[Nested] struct WebCore::SerializedNode::DocumentType {
-    String name;
-    String publicId;
-    String systemId;
-};
-[Nested] struct WebCore::SerializedNode::Element : WebCore::SerializedNode::ContainerNode {
-};
-[Nested] struct WebCore::SerializedNode::Comment : WebCore::SerializedNode::CharacterData {
-};
-[Nested] struct WebCore::SerializedNode::Text : WebCore::SerializedNode::CharacterData {
-};
-[Nested] struct WebCore::SerializedNode::CDATASection : WebCore::SerializedNode::Text {
-};
-[Nested] struct WebCore::SerializedNode::ProcessingInstruction : WebCore::SerializedNode::CharacterData {
-    String target;
-};
-[Nested] struct WebCore::SerializedNode::ShadowRoot : WebCore::SerializedNode::DocumentFragment {
-};
-[Nested] struct WebCore::SerializedNode::HTMLTemplateElement : WebCore::SerializedNode::Element {
-};
-
-struct WebCore::SerializedNode {
-    Variant<WebCore::SerializedNode::Attr, WebCore::SerializedNode::CDATASection, WebCore::SerializedNode::Comment, WebCore::SerializedNode::Document, WebCore::SerializedNode::DocumentFragment, WebCore::SerializedNode::DocumentType, WebCore::SerializedNode::Element, WebCore::SerializedNode::ProcessingInstruction, WebCore::SerializedNode::ShadowRoot, WebCore::SerializedNode::Text, WebCore::SerializedNode::HTMLTemplateElement> data;
-}

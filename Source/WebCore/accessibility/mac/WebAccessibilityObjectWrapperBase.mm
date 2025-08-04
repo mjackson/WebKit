@@ -34,7 +34,6 @@
 #import "AXObjectCache.h"
 #import "AXRemoteFrame.h"
 #import "AXSearchManager.h"
-#import "AccessibilityARIAGridRow.h"
 #import "AccessibilityList.h"
 #import "AccessibilityListBox.h"
 #import "AccessibilityRenderObject.h"
@@ -372,6 +371,20 @@ NSArray *makeNSArray(const WebCore::AXCoreObject::AccessibilityChildrenVector& c
     return YES;
 }
 #endif
+
+- (NSString *)description
+{
+    if (RefPtr<AXCoreObject> backingObject = self.axBackingObject) {
+        NSString *backingDescription = backingObject->debugDescription().createNSString().autorelease();
+        return [NSString stringWithFormat:@"wrapper %p { object %@ }", self, backingDescription];
+    }
+    return [NSString stringWithFormat:@"%@ (null backing object)", [super description]];
+}
+
+- (NSString *)debugDescription
+{
+    return [self description];
+}
 
 - (id)attachmentView
 {

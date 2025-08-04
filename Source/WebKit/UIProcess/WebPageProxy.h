@@ -64,7 +64,6 @@ class PageConfiguration;
 class PageLoadTiming;
 class PolicyClient;
 class ResourceLoadClient;
-class SerializedScriptValue;
 class TargetedElementInfo;
 class TargetedElementRequest;
 class TextRun;
@@ -1213,7 +1212,7 @@ public:
     void requestAdditionalItemsForDragSession(std::optional<WebCore::FrameIdentifier>, const WebCore::IntPoint& clientPosition, const WebCore::IntPoint& globalPosition, OptionSet<WebCore::DragSourceAction> allowedActionsMask, CompletionHandler<void(bool)>&&);
     void insertDroppedImagePlaceholders(const Vector<WebCore::IntSize>&, CompletionHandler<void(const Vector<WebCore::IntRect>&, std::optional<WebCore::TextIndicatorData>)>&& reply);
     void willReceiveEditDragSnapshot();
-    void didReceiveEditDragSnapshot(std::optional<WebCore::TextIndicatorData>);
+    void didReceiveEditDragSnapshot(RefPtr<WebCore::TextIndicator>&&);
     void didConcludeDrop();
 #endif
 #endif // PLATFORM(IOS_FAMILY)
@@ -1660,7 +1659,7 @@ public:
     void setPromisedDataForImage(IPC::Connection&, const String& pasteboardName, WebCore::SharedMemoryHandle&& imageHandle, const String& filename, const String& extension,
         const String& title, const String& url, const String& visibleURL, WebCore::SharedMemoryHandle&& archiveHandle, const String& originIdentifier);
 #endif
-#if PLATFORM(GTK)
+#if PLATFORM(GTK) || PLATFORM(WPE)
     void startDrag(WebCore::SelectionData&&, OptionSet<WebCore::DragOperation>, std::optional<WebCore::ShareableBitmapHandle>&& dragImage, WebCore::IntPoint&& dragImageHotspot);
 #endif
 #if ENABLE(MODEL_PROCESS)
@@ -1706,9 +1705,9 @@ public:
     void modelProcessExited(ProcessTerminationReason);
 #endif
 
-    virtual void enterAcceleratedCompositingMode(const LayerTreeContext&);
-    virtual void exitAcceleratedCompositingMode();
-    virtual void updateAcceleratedCompositingMode(const LayerTreeContext&);
+    void enterAcceleratedCompositingMode(const LayerTreeContext&);
+    void exitAcceleratedCompositingMode();
+    void updateAcceleratedCompositingMode(const LayerTreeContext&);
     void didFirstLayerFlush(const LayerTreeContext&);
 
     void addEditCommand(WebEditCommandProxy&);

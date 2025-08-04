@@ -282,8 +282,8 @@ std::optional<LayoutUnit> RenderFlexibleBox::firstLineBaseline() const
     if (!baseline) {
         // FIXME: We should pass |direction| into firstLineBoxBaseline and stop bailing out if we're a writing mode root.
         // This would also fix some cases where the flexbox is orthogonal to its container.
-        LineDirectionMode direction = isHorizontalWritingMode() ? HorizontalLine : VerticalLine;
-        return synthesizedBaseline(*baselineFlexItem, style(), direction, BorderBox) + baselineFlexItem->logicalTop();
+        auto direction = isHorizontalWritingMode() ? LineDirection::Horizontal : LineDirection::Vertical;
+        return synthesizedBaseline(*baselineFlexItem, style(), direction, BaselineSynthesisEdge::BorderBox) + baselineFlexItem->logicalTop();
     }
 
     return LayoutUnit { (baseline.value() + baselineFlexItem->logicalTop()).toInt() };
@@ -307,8 +307,8 @@ std::optional <LayoutUnit> RenderFlexibleBox::lastLineBaseline() const
     if (!baseline) {
         // FIXME: We should pass |direction| into firstLineBoxBaseline and stop bailing out if we're a writing mode root.
         // This would also fix some cases where the flexbox is orthogonal to its container.
-        LineDirectionMode direction = isHorizontalWritingMode() ? HorizontalLine : VerticalLine;
-        return synthesizedBaseline(*baselineFlexItem, style(), direction, BorderBox) + baselineFlexItem->logicalTop();
+        auto direction = isHorizontalWritingMode() ? LineDirection::Horizontal : LineDirection::Vertical;
+        return synthesizedBaseline(*baselineFlexItem, style(), direction, BaselineSynthesisEdge::BorderBox) + baselineFlexItem->logicalTop();
     }
 
     return LayoutUnit { (baseline.value() + baselineFlexItem->logicalTop()).toInt() };
@@ -1599,13 +1599,13 @@ bool RenderFlexibleBox::updateAutoMarginsInCrossAxis(RenderBox& flexItem, Layout
 LayoutUnit RenderFlexibleBox::marginBoxAscentForFlexItem(const RenderBox& flexItem)
 {
     auto isHorizontalFlow = this->isHorizontalFlow();
-    auto direction = isHorizontalFlow ? HorizontalLine : VerticalLine;
+    auto direction = isHorizontalFlow ? LineDirection::Horizontal : LineDirection::Vertical;
 
     if (!mainAxisIsFlexItemInlineAxis(flexItem))
-        return synthesizedBaseline(flexItem, style(), direction, BorderBox) + flowAwareMarginBeforeForFlexItem(flexItem);
+        return synthesizedBaseline(flexItem, style(), direction, BaselineSynthesisEdge::BorderBox) + flowAwareMarginBeforeForFlexItem(flexItem);
     auto ascent = alignmentForFlexItem(flexItem) == ItemPosition::LastBaseline ? flexItem.lastLineBaseline() : flexItem.firstLineBaseline();
     if (!ascent)
-        return synthesizedBaseline(flexItem, style(), direction, BorderBox) + flowAwareMarginBeforeForFlexItem(flexItem);
+        return synthesizedBaseline(flexItem, style(), direction, BaselineSynthesisEdge::BorderBox) + flowAwareMarginBeforeForFlexItem(flexItem);
 
     if (!flexItem.writingMode().isBlockMatchingAny(writingMode())) {
         // Baseline from flex item with opposite block direction needs to be resolved as if flex item had the same block direction.

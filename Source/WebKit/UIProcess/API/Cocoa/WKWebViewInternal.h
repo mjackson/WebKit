@@ -30,6 +30,7 @@
 #import "PDFPluginIdentifier.h"
 #import <WebCore/CocoaView.h>
 #import <WebCore/CocoaWritingToolsTypes.h>
+#import <WebCore/ColorCocoa.h>
 #import <WebCore/FixedContainerEdges.h>
 #import <WebKit/WKShareSheet.h>
 #import <WebKit/WKWebViewConfiguration.h>
@@ -201,6 +202,8 @@ struct PerWebProcessState {
     BOOL hasCommittedLoadForMainFrame { NO };
 
     WebKit::DynamicViewportUpdateMode dynamicViewportUpdateMode { WebKit::DynamicViewportUpdateMode::NotResizing };
+
+    WebCore::InteractiveWidget viewportMetaTagInteractiveWidget { WebCore::InteractiveWidget::ResizesVisual };
 
     BOOL waitingForEndAnimatedResize { NO };
     BOOL waitingForCommitAfterAnimatedResize { NO };
@@ -544,6 +547,7 @@ struct PerWebProcessState {
 #if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
 - (void)_updateFixedColorExtensionViews;
 - (void)_updateFixedColorExtensionViewFrames;
+- (void)_updatePrefersSolidColorHardPocket;
 - (BOOL)_hasVisibleColorExtensionView:(WebCore::BoxSide)side;
 - (void)_addReasonToHideTopScrollPocket:(WebKit::HideScrollPocketReason)reason;
 - (void)_removeReasonToHideTopScrollPocket:(WebKit::HideScrollPocketReason)reason;
@@ -616,6 +620,8 @@ RetainPtr<NSError> nsErrorFromExceptionDetails(const std::optional<WebCore::Exce
 @property (nonatomic, readonly) id <_WKWebViewPrintProvider> _printProvider;
 @end
 #endif
+
+WebCore::CocoaColor *sampledFixedPositionContentColor(const WebCore::FixedContainerEdges&, WebCore::BoxSide);
 
 #endif // __cplusplus
 

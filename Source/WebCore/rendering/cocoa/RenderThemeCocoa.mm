@@ -504,7 +504,7 @@ void RenderThemeCocoa::inflateRectForControlRenderer(const RenderObject& rendere
     RenderTheme::inflateRectForControlRenderer(renderer, rect);
 }
 
-LengthBox RenderThemeCocoa::controlBorder(StyleAppearance appearance, const FontCascade& font, const LengthBox& zoomedBox, float zoomFactor, const Element* element) const
+Style::LineWidthBox RenderThemeCocoa::controlBorder(StyleAppearance appearance, const FontCascade& font, const Style::LineWidthBox& zoomedBox, float zoomFactor, const Element* element) const
 {
 #if ENABLE(FORM_CONTROL_REFRESH)
     if (formControlRefreshEnabled(element))
@@ -2379,14 +2379,15 @@ bool RenderThemeCocoa::adjustButtonStyleForVectorBasedControls(RenderStyle& styl
 
 bool RenderThemeCocoa::adjustMenuListButtonStyleForVectorBasedControls(RenderStyle& style, const Element* element) const
 {
-#if PLATFORM(MAC)
-    UNUSED_PARAM(style);
-    UNUSED_PARAM(element);
-    return false;
-#else
     if (!formControlRefreshEnabled(element))
         return false;
 
+    if (!style.hasExplicitlySetColor()) {
+        const auto styleColorOptions = element->document().styleColorOptions(&style);
+        style.setColor(buttonTextColor(styleColorOptions, !element->isDisabledFormControl()));
+    }
+
+#if PLATFORM(IOS_FAMILY)
     const int menuListMinHeight = 15;
     const float menuListBaseHeight = 20;
     const float menuListBaseFontSize = 11;
@@ -2396,14 +2397,6 @@ bool RenderThemeCocoa::adjustMenuListButtonStyleForVectorBasedControls(RenderSty
     else
         style.setLogicalMinHeight(Style::MinimumSize::Fixed { static_cast<float>(menuListMinHeight) });
 
-    if (!element)
-        return true;
-
-    if (!style.hasExplicitlySetColor()) {
-        const auto styleColorOptions = element->document().styleColorOptions(&style);
-        style.setColor(buttonTextColor(styleColorOptions, !element->isDisabledFormControl()));
-    }
-
     // Enforce some default styles in the case that this is a non-multiple <select> element,
     // or a date input. We don't force these if this is just an element with
     // "-webkit-appearance: menulist-button".
@@ -2411,9 +2404,9 @@ bool RenderThemeCocoa::adjustMenuListButtonStyleForVectorBasedControls(RenderSty
         adjustSelectListButtonStyleForVectorBasedControls(style, *element);
     else if (RefPtr input = dynamicDowncast<HTMLInputElement>(*element))
         adjustInputElementButtonStyleForVectorBasedControls(style, *input);
+#endif
 
     return true;
-#endif
 }
 
 bool RenderThemeCocoa::paintMenuListButtonDecorationsForVectorBasedControls(const RenderObject& box, const PaintInfo& paintInfo, const FloatRect& rect)
@@ -2503,9 +2496,9 @@ bool RenderThemeCocoa::paintMenuListButtonDecorationsForVectorBasedControls(cons
     }
 
     if (!style->writingMode().isInlineFlipped())
-        glyphOrigin.setX(logicalRect.maxX() - glyphSize.width() - box.style().borderEndWidth() - glyphPaddingEnd);
+        glyphOrigin.setX(logicalRect.maxX() - glyphSize.width() - Style::evaluate(box.style().borderEndWidth()) - glyphPaddingEnd);
     else
-        glyphOrigin.setX(logicalRect.x() + box.style().borderEndWidth() + glyphPaddingEnd);
+        glyphOrigin.setX(logicalRect.x() + Style::evaluate(box.style().borderEndWidth()) + glyphPaddingEnd);
 
     if (!isHorizontalWritingMode)
         glyphOrigin = glyphOrigin.transposedPoint();

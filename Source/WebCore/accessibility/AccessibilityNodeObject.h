@@ -143,6 +143,12 @@ protected:
     void detachRemoteParts(AccessibilityDetachmentType) override;
 
     AccessibilityRole m_ariaRole { AccessibilityRole::Unknown };
+
+    // FIXME: These `is_` member variables should be replaced with an enum or be computed on demand.
+    // Only used by AccessibilityTableCell, but placed here to use space that would otherwise be taken by padding.
+    bool m_isARIAGridCell { false };
+    // Only used by AccessibilitySVGObject, but placed here to use space that would otherwise be taken by padding.
+    bool m_isSVGRoot { false };
 #ifndef NDEBUG
     bool m_initialized { false };
 #endif

@@ -27,6 +27,7 @@
 # * Clipboard API
 # * Compositing
 # * CSS
+# * DOM
 # * Editing
 # * Events
 # * Fonts
@@ -40,12 +41,14 @@
 # * OffscreenCanvas
 # * PageOverlay
 # * Perf
+# * ResourceLoadStatistics
 # * ResourceTiming API
 # * Scrolling
 # * Security
 # * Skia
 # * SOUP
 # * Media
+# * Repaint
 # * Streams
 # * SVG
 # * Text
@@ -167,8 +170,10 @@ fast/images/image-size-unsigned-overflow.html [ Skip ]
 
 # Some Apple ports don't support RTL scrollbars.
 fast/scrolling/rtl-scrollbars-alternate-body-dir-attr-does-not-update-scrollbar-placement-2.html [ Pass ]
+fast/scrolling/rtl-scrollbars-alternate-body-dir-attr-does-not-update-scrollbar-placement.html [ Pass ]
 fast/scrolling/rtl-scrollbars-elementFromPoint-static.html [ Pass ]
 fast/scrolling/rtl-scrollbars-iframe-offset.html [ Pass ]
+fast/scrolling/rtl-scrollbars-iframe-scrolled.html [ Pass ]
 fast/scrolling/rtl-scrollbars-listbox-select-left.html [ Pass ]
 fast/scrolling/rtl-scrollbars-listbox-select-right.html [ Pass ]
 fast/scrolling/rtl-scrollbars-listbox-simple.html [ Pass ]
@@ -177,10 +182,15 @@ fast/scrolling/rtl-scrollbars-overflow-elementFromPoint.html [ Pass ]
 fast/scrolling/rtl-scrollbars-overflow-padding.html [ Pass ]
 fast/scrolling/rtl-scrollbars-overflow-position-absolute.html [ Pass ]
 fast/scrolling/rtl-scrollbars-overflow-simple.html [ Pass ]
+fast/scrolling/rtl-scrollbars-overflow-text-selection-scrolled.html  [ Pass ]
 fast/scrolling/rtl-scrollbars-overflow.html [ Pass ]
+fast/scrolling/rtl-scrollbars-position-absolute.html  [ Pass ]
+fast/scrolling/rtl-scrollbars-position-fixed.html [ Pass ]
 fast/scrolling/rtl-scrollbars-positioned-intersect-scrollbars.html [ Pass ]
 fast/scrolling/rtl-scrollbars-positioning.html [ Pass ]
 fast/scrolling/rtl-scrollbars-simple.html [ Pass ]
+fast/scrolling/rtl-scrollbars-text-selection-scrolled.html [ Pass ]
+fast/scrolling/rtl-scrollbars-text-selection.html [ Pass ]
 fast/scrolling/rtl-scrollbars.html [ Pass ]
 
 http/tests/storageAccess/ [ Pass ]
@@ -875,6 +885,9 @@ accessibility/datetime [ Skip ]
 # Requires AccessibilityUIElement::dismiss to return whether or not it was handled.
 accessibility/dismiss-action-returns-whether-keyevent-handled.html [ Skip ]
 
+# Different roles
+accessibility/contenteditable-values.html [ Skip ]
+
 # Added in r263823. Both tests are timing out.
 webkit.org/b/213874 accessibility/keyevents-for-increment-actions-with-node-removal.html [ Skip ]
 webkit.org/b/213874 accessibility/keyevents-posted-for-increment-actions.html [ Skip ]
@@ -1210,6 +1223,20 @@ imported/w3c/web-platform-tests/focus/activeelement-after-nested-loses-focus.htm
 #////////////////////////////////////////////////////////////////////////////////////////
 
 #////////////////////////////////////////////////////////////////////////////////////////
+# DOM-related bugs
+#////////////////////////////////////////////////////////////////////////////////////////
+
+webkit.org/b/219530 fast/dom/HTMLAnchorElement/anchor-download-user-triggered-synthetic-click.html [ Failure ]
+webkit.org/b/219530 fast/dom/HTMLAnchorElement/anchor-download.html [ Failure ]
+webkit.org/b/219530 fast/dom/HTMLAnchorElement/anchor-nodownload-set.html [ Failure ]
+
+webkit.org/b/185913 fast/dom/HTMLAnchorElement/anchor-file-blob-download-then-revoke.html [ Failure ]
+
+#////////////////////////////////////////////////////////////////////////////////////////
+# End of DOM-related bugs
+#////////////////////////////////////////////////////////////////////////////////////////
+
+#////////////////////////////////////////////////////////////////////////////////////////
 # Editing-related bugs
 #////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1240,6 +1267,14 @@ webkit.org/b/160120 editing/deleting/delete-emoji-9.html [ Skip ]
 webkit.org/b/178441 editing/deleting/delete-ligature-001.html [ Failure ]
 webkit.org/b/178441 editing/deleting/delete-ligature-002.html [ Failure ]
 webkit.org/b/178441 editing/deleting/delete-ligature-003.html [ Failure ]
+
+webkit.org/b/239345 editing/execCommand/insert-ordered-list-and-delete.html [ Failure Pass ]
+
+webkit.org/b/179605 editing/execCommand/underline-selection-containing-image.html [ Failure ]
+
+webkit.org/b/286128 editing/inserting/insert-list-user-select-none-crash.html [ Crash ]
+
+webkit.org/b/179261 editing/selection/drag-to-contenteditable-iframe.html [ Timeout ]
 
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of Editing-related bugs
@@ -1306,6 +1341,8 @@ webkit.org/b/201556 imported/w3c/web-platform-tests/dom/events/scrolling/scrolle
 webkit.org/b/201556 imported/w3c/web-platform-tests/dom/events/scrolling/scrollend-event-fired-for-scrollIntoView.html?include=subframe-inline-end-block-end-behavior-auto [ Skip ]
 webkit.org/b/201556 imported/w3c/web-platform-tests/dom/events/scrolling/scrollend-event-fired-for-scrollIntoView.html?include=subframe-inline-start-block-start-behavior-smooth [ Skip ]
 webkit.org/b/201556 imported/w3c/web-platform-tests/dom/events/scrolling/scrollend-event-for-user-scroll.html [ Skip ]
+
+webkit.org/b/219248 imported/w3c/web-platform-tests/uievents/mouse/mouseevent_move_button.html [ Failure ]
 
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of Events-related bugs
@@ -1614,6 +1651,16 @@ media/modern-media-controls/scrubber-support/scrubber-support-drag.html [ Pass T
 
 webkit.org/b/213293 fast/images/hidpi-image-position-on-device-pixels-with-border-radius.html [ ImageOnlyFailure ]
 
+# HighDPI support is not enabled
+webkit.org/b/131347 fast/hidpi/hidpi-3x-device-pixel-ratio.html [ Failure ]
+webkit.org/b/131347 fast/repaint/hidpi-absolute-positioned-element-wrong-cliprect-after-move.html [ Failure ]
+webkit.org/b/131347 fast/repaint/hidpi-box-with-subpixel-height-inflates.html [ Failure ]
+webkit.org/b/131347 fast/repaint/hidpi-content-inside-iframe-leaves-trails.html [ Failure ]
+webkit.org/b/131347 fast/repaint/hidpi-device-pixel-based-repaint-rect-tracking.html [ Failure ]
+webkit.org/b/131347 fast/repaint/hidpi-transform-on-subpixel-repaintrect.html [ Failure ]
+webkit.org/b/131347 fast/repaint/hidpi-wrong-repaint-rect-when-parent-has-noncompositing-transform.html [ Failure ]
+webkit.org/b/131347 svg/custom/hidpi-masking-clipping.svg [ ImageOnlyFailure ]
+
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of HiDPI-related bugs
 #////////////////////////////////////////////////////////////////////////////////////////
@@ -1768,6 +1815,33 @@ webkit.org/b/119040 perf/nested-combined-selectors.html [ Failure Pass ]
 
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of Perf-related bugs
+#////////////////////////////////////////////////////////////////////////////////////////
+
+
+#////////////////////////////////////////////////////////////////////////////////////////
+# ResourceLoadStatistics-related bugs
+#////////////////////////////////////////////////////////////////////////////////////////
+
+webkit.org/b/210487 http/tests/resourceLoadStatistics/switch-session-on-navigation-to-prevalent-with-interaction.py [ Failure ]
+
+webkit.org/b/210796 http/tests/resourceLoadStatistics/standalone-web-application-exempt-from-website-data-deletion.html [ Failure ]
+
+http/tests/resourceLoadStatistics/omit-document-referrer-nested-third-party-iframe-ephemeral.html [ Skip ]
+http/tests/resourceLoadStatistics/omit-document-referrer-third-party-iframe-ephemeral.html [ Skip ]
+http/tests/resourceLoadStatistics/omit-referrer-for-navigation-ephemeral.html [ Skip ]
+
+http/tests/resourceLoadStatistics/cname-cloaking-top-cname-sub-3p-cname.https.html [ Failure ]
+http/tests/resourceLoadStatistics/cname-cloaking-top-no-cname-sub-3p-cname.https.html [ Failure ]
+
+webkit.org/b/296786 http/tests/resourceLoadStatistics/do-not-switch-session-on-navigation-to-prevalent-without-interaction.py [ Timeout Crash Pass ]
+
+webkit.org/b/296787 http/tests/resourceLoadStatistics/website-data-removal-for-site-navigated-to-with-link-decoration-js-cookie-checking.html [ Failure ]
+webkit.org/b/296787 http/tests/resourceLoadStatistics/website-data-removal-for-site-without-user-interaction-js-cookie-checking.html [ Failure ]
+
+webkit.org/b/296789 http/tests/resourceLoadStatistics/log-cross-site-load-with-link-decoration.html [ Failure Pass ]
+
+#////////////////////////////////////////////////////////////////////////////////////////
+# End of ResourceLoadStatistics-related bugs
 #////////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -1947,6 +2021,8 @@ imported/w3c/web-platform-tests/html/semantics/embedded-content/the-img-element/
 
 fast/mediastream/camera-powerEfficient-track.html [ Failure ]
 
+webkit.org/b/208182 fast/repaint/backgroundSizeRepaint.html [ ImageOnlyFailure Pass ]
+
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of Skia-related bugs
 #////////////////////////////////////////////////////////////////////////////////////////
@@ -2055,10 +2131,6 @@ webkit.org/b/258547 imported/w3c/web-platform-tests/html/browsers/browsing-the-w
 
 webkit.org/b/263629 http/tests/multipart/win-boundary-crash.html [ Skip ] # Crash
 
-webkit.org/b/264804 http/tests/resourceLoadStatistics/blocking-in-web-worker-script-import.https.html [ Failure ]
-webkit.org/b/264804 http/tests/resourceLoadStatistics/no-third-party-cookie-blocking-when-itp-is-off.html [ Failure ]
-webkit.org/b/264804 http/tests/resourceLoadStatistics/ping-to-prevalent-resource.html [ Failure ]
-webkit.org/b/264804 http/tests/resourceLoadStatistics/third-party-cookie-blocking-on-sites-without-user-interaction.html [ Failure ]
 webkit.org/b/264804 http/tests/resourceLoadStatistics/operating-dates-all-but-cookies-not-removed-with-user-interaction-6-days-ago.html [ Pass Timeout ]
 
 webkit.org/b/264805 imported/w3c/web-platform-tests/websockets/basic-auth.any.html?wss [ Failure ]
@@ -2082,6 +2154,27 @@ webkit.org/b/292839 media/media-fullscreen-not-in-document.html [ Timeout ]
 # End of Media-related bugs
 #////////////////////////////////////////////////////////////////////////////////////////
 
+#////////////////////////////////////////////////////////////////////////////////////////
+# Repaint-related bugs
+#////////////////////////////////////////////////////////////////////////////////////////
+
+webkit.org/b/188218 fast/repaint/canvas-object-fit.html [ Failure ]
+
+webkit.org/b/170337 fast/repaint/obscured-background-no-repaint.html [ Pass Failure ]
+
+# Makes subsequent tests randomly fail
+webkit.org/b/296727 fast/repaint/fixed-in-page-scale.html [ Skip ]
+webkit.org/b/296727 fast/repaint/fixed-right-bottom-in-page-scale.html [ Skip ]
+webkit.org/b/296727 fast/repaint/fixed-right-in-page-scale.html [ Skip ]
+
+webkit.org/b/160119 fast/repaint/selection-gap-fixed-child.html [ Failure ]
+webkit.org/b/160119 fast/repaint/selection-gap-flipped-fixed-child.html [ Failure ]
+
+webkit.org/b/296730 fast/repaint/no-animation-outside-viewport-subframe.html [ Failure Pass ]
+
+#////////////////////////////////////////////////////////////////////////////////////////
+# End of Repaint-related bugs
+#////////////////////////////////////////////////////////////////////////////////////////
 
 #////////////////////////////////////////////////////////////////////////////////////////
 # Streams-related bugs
@@ -2655,9 +2748,13 @@ webkit.org/b/215912 http/tests/websocket/tests/hybi/handshake-fail-by-no-cr.html
 #////////////////////////////////////////////////////////////////////////////////////////
 
 webkit.org/b/208988 http/tests/webxr/webxr-third-party-iframe-requestsession-denied-by-insufficient-feature-policy.html [ Timeout ]
-webkit.org/b/208988 imported/w3c/web-platform-tests/webxr/webGLCanvasContext_create_xrcompatible.https.html [ Failure ]
 webkit.org/b/208988 imported/w3c/web-platform-tests/webxr/xrViewport_valid.https.html [ Failure ]
 webkit.org/b/208988 imported/w3c/web-platform-tests/webxr/xrWebGLLayer_viewports.https.html [ Failure ]
+
+# WebXROpaqueFramebuffer is not able to properly setup gfx resources
+webkit.org/b/296681 imported/w3c/web-platform-tests/webxr [ Skip ]
+
+webkit.org/b/208988 http/wpt/webxr [ Skip ]
 
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of WebXR-related bugs
@@ -2690,6 +2787,20 @@ webkit.org/b/203240 imported/w3c/web-platform-tests/css/css-shapes/shape-outside
 
 webkit.org/b/207623 imported/w3c/web-platform-tests/content-security-policy/reporting/report-same-origin-with-cookies.html [ Pass Failure ]
 
+# newly imported CSP tests failing on GTK and/or WPE.
+imported/w3c/web-platform-tests/content-security-policy/default-src/default-src-sri_hash.sub.html [ Failure ]
+imported/w3c/web-platform-tests/content-security-policy/form-action/form-action-src-blocked.sub.html [ Failure ]
+imported/w3c/web-platform-tests/content-security-policy/frame-ancestors/frame-ancestors-nested-cross-in-same-self-block.html [ Failure ]
+imported/w3c/web-platform-tests/content-security-policy/frame-src/frame-src-blocked-path-matching.sub.html [ Failure ]
+imported/w3c/web-platform-tests/content-security-policy/generic/image-document-ignores-csp.html [ Failure ]
+imported/w3c/web-platform-tests/content-security-policy/generic/src-trailing-dot.sub.any.html [ Failure ]
+imported/w3c/web-platform-tests/content-security-policy/generic/src-trailing-dot.sub.any.sharedworker.html [ Failure ]
+imported/w3c/web-platform-tests/content-security-policy/generic/src-trailing-dot.sub.any.worker.html [ Failure ]
+imported/w3c/web-platform-tests/content-security-policy/generic/wildcard-host-part.sub.window.html [ Failure ]
+imported/w3c/web-platform-tests/content-security-policy/reporting/report-original-url-on-mixed-content-frame.https.sub.html [ Failure ]
+imported/w3c/web-platform-tests/content-security-policy/worker-src/service-worker-src-child-fallback.https.sub.html [ Failure ]
+imported/w3c/web-platform-tests/content-security-policy/img-src/img-src-port-wildcard-allowed.sub.html [ Failure ]
+
 # Failing since deferred async loading enabled until document is loaded enabled.
 webkit.org/b/208104 imported/w3c/web-platform-tests/html/semantics/scripting-1/the-script-element/execution-timing/085.html [ Failure Pass ]
 
@@ -2704,8 +2815,6 @@ webkit.org/b/212806 imported/w3c/web-platform-tests/fetch/h1-parsing/resources-w
 webkit.org/b/212807 imported/w3c/web-platform-tests/fetch/api/basic/header-value-null-byte.any.html [ Failure ]
 webkit.org/b/212807 imported/w3c/web-platform-tests/fetch/api/basic/header-value-null-byte.any.worker.html [ Failure ]
 webkit.org/b/212807 imported/w3c/web-platform-tests/xhr/headers-normalize-response.htm [ Failure ]
-
-webkit.org/b/212741 imported/w3c/web-platform-tests/content-security-policy/navigation/javascript-url-navigation-inherits-csp.html [ Failure ]
 
 # As of r263626, the imported baseline based on Mojave fails for glib. Added custom baseline for it.
 webkit.org/b/213709 imported/w3c/web-platform-tests/cors/credentials-flag.htm [ Crash Pass ]
@@ -2804,6 +2913,7 @@ webkit.org/b/158923 media/modern-media-controls/placard-support/placard-support-
 webkit.org/b/206528 imported/w3c/web-platform-tests/remote-playback [ Skip ]
 media/media-source/media-managedmse-airplay.html [ Skip ]
 media/media-source/media-managedmse-airplay-withsrc.html [ Skip ]
+media/adopt-node-after-showing-picker-crash.html [ Skip ]
 
 # LEGACY_ENCRYPTED_MEDIA is deprecated
 fast/events/webkit-media-key-events-constructor.html [ Skip ]
@@ -2912,6 +3022,8 @@ imported/w3c/web-platform-tests/html/interaction/focus/sequential-focus-navigati
 webkit.org/b/264596 imported/w3c/web-platform-tests/xhr/ [ Skip ]
 # webkit.org/b/189343 imported/w3c/web-platform-tests/xhr/sync-no-timeout.any.html [ Failure ]
 
+webkit.org/b/189994 fast/files/xhr-response-blob.html [ Failure ]
+
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of XHR-related bugs
 #////////////////////////////////////////////////////////////////////////////////////////
@@ -3019,6 +3131,7 @@ fast/zooming/ios [ Skip ]
 
 # Needs site isolation drawing implementation
 http/tests/site-isolation [ Skip ]
+http/tests/contentextensions/cross-origin-content-rules.html [ Skip ]
 
 # Tests behavior specific to MediaSessionManagerCocoa
 media/audio-session-category.html [ Skip ]
@@ -3262,9 +3375,6 @@ webkit.org/b/279434 fast/text/glyph-display-lists/glyph-display-list-gpu-process
 
 # testRunner.webHistoryItemCount implementation is not implemented in WTR
 webkit.org/b/100238 fast/history/window-open.html [ Skip ]
-
-# WebXR is not fully supported yet
-webkit.org/b/208988 http/wpt/webxr [ Skip ]
 
 # Lockdown Mode does not apply
 dom/xsl/lockdown-mode [ Skip ]
@@ -4680,6 +4790,21 @@ imported/w3c/web-platform-tests/visual-viewport/scroll-event-order.html [ Skip ]
 fast/canvas/webgl/tex-image-and-sub-image-2d-with-video-rgb565.html [ Failure Pass ]
 
 webkit.org/b/131934 fast/dom/Window/mozilla-focus-blur.html [ Failure Pass ]
+
+# These WPT cookiestore/ tests need some investigation
+imported/w3c/web-platform-tests/cookiestore/cookieListItem_attributes.https.any.serviceworker.html [ Skip ]
+imported/w3c/web-platform-tests/cookiestore/cookieListItem_attributes.https.any.html [ Skip ]
+imported/w3c/web-platform-tests/cookiestore/cookieStore_delete_arguments.https.any.html [ Skip ]
+imported/w3c/web-platform-tests/cookiestore/cookieStore_delete_arguments.https.any.serviceworker.html [ Skip ]
+imported/w3c/web-platform-tests/cookiestore/change_eventhandler_for_no_name_multiple_values.https.window.html [ Skip ]
+imported/w3c/web-platform-tests/cookiestore/change_eventhandler_for_no_name_equals_in_value.https.window.html [ Skip ]
+imported/w3c/web-platform-tests/cookiestore/change_eventhandler_for_no_name_and_no_value.https.window.html [ Skip ]
+imported/w3c/web-platform-tests/cookiestore/change_eventhandler_for_no_change.https.window.html [ Skip ]
+imported/w3c/web-platform-tests/cookiestore/change_eventhandler_for_http_cookie_and_set_cookie_headers.https.window.html [ Skip ]
+imported/w3c/web-platform-tests/cookiestore/change_eventhandler_for_document_cookie.https.window.html [ Skip ]
+imported/w3c/web-platform-tests/cookiestore/encoding.https.any.html [ Skip ]
+imported/w3c/web-platform-tests/cookiestore/encoding.https.any.serviceworker.html [ Skip ]
+imported/w3c/web-platform-tests/cookiestore/httponly_cookies.https.window.html [ Skip ]
 
 # End: Common failures between GTK and WPE.
 

@@ -32,7 +32,6 @@
 #pragma once
 
 #include "CSSAppleColorFilterPropertyValue.h"
-#include "CSSBasicShapeValue.h"
 #include "CSSBorderImage.h"
 #include "CSSBorderImageSliceValue.h"
 #include "CSSCounterValue.h"
@@ -161,12 +160,10 @@ public:
 
     // MARK: Shared conversions
 
-    static Ref<CSSValue> convertOpacity(ExtractorState&, float);
     static Ref<CSSValue> convertImageOrNone(ExtractorState&, const StyleImage*);
     static Ref<CSSValue> convertGlyphOrientation(ExtractorState&, GlyphOrientation);
     static Ref<CSSValue> convertGlyphOrientationOrAuto(ExtractorState&, GlyphOrientation);
     static Ref<CSSValue> convertMarginTrim(ExtractorState&, OptionSet<MarginTrimType>);
-    static Ref<CSSValue> convertShapeValue(ExtractorState&, const ShapeValue*);
     static Ref<CSSValue> convertDPath(ExtractorState&, const StylePathData*);
     static Ref<CSSValue> convertStrokeDashArray(ExtractorState&, const FixedVector<WebCore::Length>&);
     static Ref<CSSValue> convertFilterOperations(ExtractorState&, const FilterOperations&);
@@ -512,11 +509,6 @@ inline Ref<CSSValue> ExtractorConverter::convertTransformOperation(const RenderS
 
 // MARK: - Shared conversions
 
-inline Ref<CSSValue> ExtractorConverter::convertOpacity(ExtractorState& state, float opacity)
-{
-    return convert(state, opacity);
-}
-
 inline Ref<CSSValue> ExtractorConverter::convertImageOrNone(ExtractorState& state, const StyleImage* image)
 {
     if (image)
@@ -586,22 +578,6 @@ inline Ref<CSSValue> ExtractorConverter::convertMarginTrim(ExtractorState&, Opti
     return CSSValueList::createSpaceSeparated(WTFMove(list));
 }
 
-inline Ref<CSSValue> ExtractorConverter::convertShapeValue(ExtractorState& state, const ShapeValue* shapeValue)
-{
-    if (!shapeValue)
-        return CSSPrimitiveValue::create(CSSValueNone);
-
-    if (shapeValue->type() == ShapeValue::Type::Box)
-        return convert(state, shapeValue->cssBox());
-
-    if (shapeValue->type() == ShapeValue::Type::Image)
-        return convertImageOrNone(state, shapeValue->image());
-
-    ASSERT(shapeValue->type() == ShapeValue::Type::Shape);
-    if (shapeValue->cssBox() == CSSBoxType::BoxMissing)
-        return CSSValueList::createSpaceSeparated(convertStyleType(state, *shapeValue->shape()));
-    return CSSValueList::createSpaceSeparated(convertStyleType(state, *shapeValue->shape()), convert(state, shapeValue->cssBox()));
-}
 
 inline Ref<CSSValue> ExtractorConverter::convertDPath(ExtractorState& state, const StylePathData* path)
 {

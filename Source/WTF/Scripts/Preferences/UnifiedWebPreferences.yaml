@@ -978,6 +978,7 @@ BroadcastChannelEnabled:
       default: true
     WebCore:
       default: true
+  sharedPreferenceForWebProcess: true
 
 BuiltInNotificationsEnabled:
   type: bool
@@ -1572,17 +1573,17 @@ CSSURLIntegrityModifierEnabled:
 
 CSSURLModifiersEnabled:
   type: bool
-  status: testable
+  status: stable
   category: css
   humanReadableName: "CSS URL Modifiers"
   humanReadableDescription: "Enable support for CSS Values and Units Module Level 5 URL modifiers"
   defaultValue:
     WebKitLegacy:
-      default: false
+      default: true
     WebKit:
-      default: false
+      default: true
     WebCore:
-      default: false
+      default: true
 
 CSSUnprefixedBackdropFilterEnabled:
   type: bool
@@ -2369,17 +2370,17 @@ DetachableMediaSourceEnabled:
 
 DetailsAutoExpandEnabled:
   type: bool
-  status: preview
+  status: stable
   category: html
   humanReadableName: "HTML auto-expanding <details>"
   humanReadableDescription: "Enable HTML auto-expanding <details>"
   defaultValue:
     WebKitLegacy:
-      default: false
+      default: true
     WebKit:
-      default: false
+      default: true
     WebCore:
-      default: false
+      default: true
 
 DeveloperExtrasEnabled:
   type: bool
@@ -3346,17 +3347,17 @@ HiddenPageDOMTimerThrottlingEnabled:
 
 HiddenUntilFoundEnabled:
    type: bool
-   status: preview
+   status: stable
    category: html
    humanReadableName: "hidden=until-found"
    humanReadableDescription: "Enable support for hidden=until-found"
    defaultValue:
      WebKitLegacy:
-       default: false
+       default: true
      WebKit:
-       default: false
+       default: true
      WebCore:
-       default: false
+       default: true
 
 HostedBlurMaterialInMediaControlsEnabled:
   type: bool
@@ -3416,6 +3417,20 @@ IFrameResourceMonitoringTestingSettingsEnabled:
     WebKitLegacy:
       default: false
     WebKit:
+      default: false
+    WebCore:
+      default: false
+
+IOSurfaceLosslessCompressionEnabled:
+  type: bool
+  status: internal
+  humanReadableName: "IOSurface Lossless Compression"
+  humanReadableDescription: "Use losslessly compressed IOSurfaces"
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      "HAVE(LOSSLESS_COMPRESSED_IOSURFACE_CG_SUPPORT)": defaultIOSurfaceLosslessCompressionEnabled()
       default: false
     WebCore:
       default: false
@@ -5064,6 +5079,20 @@ MediaVideoCodecIDsAllowedInLockdownMode:
   defaultValue:
     WebKit:
       default: '"avc1,zavc,qavc,cavc"_str'
+
+MetaViewportInteractiveWidgetEnabled:
+  type: bool
+  status: testable
+  category: css
+  humanReadableName: "Meta Viewport Interactive Widget"
+  humanReadableDescription: "Enable the interactive-widget attribute on the viewport meta element"
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
 
 MinimumFontSize:
   type: double
@@ -7838,7 +7867,7 @@ UndoManagerAPIEnabled:
 
 UnifiedPDFEnabled:
   type: bool
-  status: Unifiedpdf_feature_status
+  status: mature
   category: security
   humanReadableName: "Unified PDF Viewer"
   humanReadableDescription: "Enable Unified PDF Viewer"
@@ -7847,10 +7876,8 @@ UnifiedPDFEnabled:
     WebKitLegacy:
       default: false
     WebKit:
-      "ENABLE(UNIFIED_PDF_BY_DEFAULT)": true
-      default: false
+      default: WebKit::defaultUnifiedPDFEnabled()
     WebCore:
-      "ENABLE(UNIFIED_PDF_BY_DEFAULT)": true
       default: false
 
 UnifyDamagedRegions:

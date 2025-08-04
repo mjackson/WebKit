@@ -93,21 +93,15 @@ static LayoutUnit usedValueOrZero(const Style::PaddingEdge& paddingEdge, std::op
     return Style::evaluateMinimum(paddingEdge, *availableWidth);
 }
 
-static inline void adjustBorderForTableAndFieldset(const RenderBoxModelObject& renderer, LayoutUnit& borderLeft, LayoutUnit& borderRight, LayoutUnit& borderTop, LayoutUnit& borderBottom)
+static inline void adjustBorderForTableAndFieldset(const RenderBoxModelObject& renderer, RectEdges<LayoutUnit>& borderWidths)
 {
     if (auto* table = dynamicDowncast<RenderTable>(renderer); table && table->collapseBorders()) {
-        borderLeft = table->borderLeft();
-        borderRight = table->borderRight();
-        borderTop = table->borderTop();
-        borderBottom = table->borderBottom();
+        borderWidths = table->borderWidths();
         return;
     }
 
     if (auto* tableCell = dynamicDowncast<RenderTableCell>(renderer); tableCell && tableCell->table()->collapseBorders()) {
-        borderLeft = tableCell->borderLeft();
-        borderRight = tableCell->borderRight();
-        borderTop = tableCell->borderTop();
-        borderBottom = tableCell->borderBottom();
+        borderWidths = tableCell->borderWidths();
         return;
     }
 
@@ -117,16 +111,16 @@ static inline void adjustBorderForTableAndFieldset(const RenderBoxModelObject& r
         auto& style = renderer.style();
         switch (style.writingMode().blockDirection()) {
         case FlowDirection::TopToBottom:
-            borderTop += adjustment;
+            borderWidths.top() += adjustment;
             break;
         case FlowDirection::BottomToTop:
-            borderBottom += adjustment;
+            borderWidths.bottom() += adjustment;
             break;
         case FlowDirection::LeftToRight:
-            borderLeft += adjustment;
+            borderWidths.left() += adjustment;
             break;
         case FlowDirection::RightToLeft:
-            borderRight += adjustment;
+            borderWidths.right() += adjustment;
             break;
         default:
             ASSERT_NOT_REACHED();
@@ -246,24 +240,23 @@ Layout::BoxGeometry::Edges BoxGeometryUpdater::logicalBorder(const RenderBoxMode
 {
     auto& style = renderer.style();
 
-    auto borderLeft = LayoutUnit { style.borderLeftWidth() };
-    auto borderRight = LayoutUnit { style.borderRightWidth() };
-    auto borderTop = LayoutUnit { style.borderTopWidth() };
-    auto borderBottom = LayoutUnit { style.borderBottomWidth() };
+    auto borderWidths = RectEdges<LayoutUnit>::map(style.borderWidth(), [](auto width) {
+        return LayoutUnit { Style::evaluate(width) };
+    });
 
     if (!isIntrinsicWidthMode)
-        adjustBorderForTableAndFieldset(renderer, borderLeft, borderRight, borderTop, borderBottom);
+        adjustBorderForTableAndFieldset(renderer, borderWidths);
 
     if (writingMode.isHorizontal()) {
-        auto borderInlineStart = retainBorderStart ? writingMode.isInlineLeftToRight() ? borderLeft : borderRight : 0_lu;
-        auto borderInlineEnd = retainBorderEnd ? writingMode.isInlineLeftToRight() ? borderRight : borderLeft : 0_lu;
-        return { { borderInlineStart, borderInlineEnd }, { borderTop, borderBottom } };
+        auto borderInlineStart = retainBorderStart ? writingMode.isInlineLeftToRight() ? borderWidths.left() : borderWidths.right() : 0_lu;
+        auto borderInlineEnd = retainBorderEnd ? writingMode.isInlineLeftToRight() ? borderWidths.right() : borderWidths.left() : 0_lu;
+        return { { borderInlineStart, borderInlineEnd }, { borderWidths.top(), borderWidths.bottom() } };
     }
 
-    auto borderInlineStart = retainBorderStart ? writingMode.isInlineTopToBottom() ? borderTop : borderBottom : 0_lu;
-    auto borderInlineEnd = retainBorderEnd ? writingMode.isInlineTopToBottom() ? borderBottom : borderTop : 0_lu;
-    auto borderLineOver = writingMode.isLineOverRight() ? borderRight : borderLeft;
-    auto borderLineUnder = writingMode.isLineOverRight() ? borderLeft : borderRight;
+    auto borderInlineStart = retainBorderStart ? writingMode.isInlineTopToBottom() ? borderWidths.top() : borderWidths.bottom() : 0_lu;
+    auto borderInlineEnd = retainBorderEnd ? writingMode.isInlineTopToBottom() ? borderWidths.bottom() : borderWidths.top() : 0_lu;
+    auto borderLineOver = writingMode.isLineOverRight() ? borderWidths.right() : borderWidths.left();
+    auto borderLineUnder = writingMode.isLineOverRight() ? borderWidths.left() : borderWidths.right();
     return { { borderInlineStart, borderInlineEnd }, { borderLineOver, borderLineUnder } };
 }
 
@@ -399,7 +392,7 @@ static std::optional<LayoutUnit> baselineForBox(const RenderBox& renderBox)
     if (CheckedPtr rendererAttachment = dynamicDowncast<RenderAttachment>(renderBox)) {
         // Subtract margin top to preserve legacy behavior.
         auto marginBefore = renderBox.writingMode().isHorizontal() ? renderBox.marginTop() : renderBox.marginRight();
-        if (auto* baselineElement = rendererAttachment->attachmentElement().wideLayoutImageElement()) {
+        if (CheckedPtr baselineElement = CheckedRef { rendererAttachment->attachmentElement() }->wideLayoutImageElement()) {
             if (auto* baselineElementRenderBox = baselineElement->renderBox()) {
                 // This is the bottom of the image assuming it is vertically centered.
                 return (borderBoxBottom + baselineElementRenderBox->height()) / 2 - marginBefore;
@@ -504,7 +497,7 @@ static std::optional<LayoutUnit> baselineForBox(const RenderBox& renderBox)
         return { };
     }
 
-    if (renderBox.element() && renderBox.element()->shadowHost() && renderBox.element()->shadowHost()->isFormControlElement()) {
+    if (RefPtr element = renderBox.element(); element && element->shadowHost() && element->shadowHost()->isFormControlElement()) {
         // Inside RenderTextControl's shadow DOM (e.g. strong-password text)
         auto lastBaseline = std::optional<LayoutUnit> { };
         if (CheckedPtr blockFlow = dynamicDowncast<RenderBlockFlow>(renderBox)) {

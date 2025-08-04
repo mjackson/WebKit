@@ -140,26 +140,28 @@ std::optional<AXID> AccessibilityObject::treeID() const
     return cache ? std::optional { cache->treeID() } : std::nullopt;
 }
 
-String AccessibilityObject::dbgInternal(bool verbose, OptionSet<AXDebugStringOption> debugOptions) const
+String AccessibilityObject::debugDescriptionInternal(bool verbose, std::optional<OptionSet<AXDebugStringOption>> debugOptions) const
 {
     StringBuilder result;
     result.append("{"_s);
     result.append("role: "_s, accessibilityRoleToString(role()));
     result.append(", ID "_s, objectID().loggingString());
 
-    if (verbose || debugOptions & AXDebugStringOption::Ignored)
-        result.append(isIgnored() ? ", ignored"_s : emptyString());
+    if (debugOptions) {
+        if (verbose || *debugOptions & AXDebugStringOption::Ignored)
+            result.append(isIgnored() ? ", ignored"_s : emptyString());
 
-    if (verbose || debugOptions & AXDebugStringOption::RelativeFrame) {
-        FloatRect frame = relativeFrame();
-        result.append(", relativeFrame ((x: "_s, frame.x(), ", y: "_s, frame.y(), "), (w: "_s, frame.width(), ", h: "_s, frame.height(), "))"_s);
+        if (verbose || *debugOptions & AXDebugStringOption::RelativeFrame) {
+            FloatRect frame = relativeFrame();
+            result.append(", relativeFrame ((x: "_s, frame.x(), ", y: "_s, frame.y(), "), (w: "_s, frame.width(), ", h: "_s, frame.height(), "))"_s);
+        }
+
+        if (verbose || *debugOptions & AXDebugStringOption::RemoteFrameOffset)
+            result.append(", remoteFrameOffset ("_s, remoteFrameOffset().x(), ", "_s, remoteFrameOffset().y(), ")"_s);
+
+        if (verbose || *debugOptions & AXDebugStringOption::IsRemoteFrame)
+            result.append(isRemoteFrame() ? ", remote frame"_s : emptyString());
     }
-
-    if (verbose || debugOptions & AXDebugStringOption::RemoteFrameOffset)
-        result.append(", remoteFrameOffset ("_s, remoteFrameOffset().x(), ", "_s, remoteFrameOffset().y(), ")"_s);
-
-    if (verbose || debugOptions & AXDebugStringOption::IsRemoteFrame)
-        result.append(isRemoteFrame() ? ", remote frame"_s : emptyString());
 
     if (auto* renderer = this->renderer())
         result.append(", "_s, renderer->debugDescription());
@@ -2101,9 +2103,15 @@ bool AccessibilityObject::contentEditableAttributeIsEnabled(Element& element)
     const AtomString& contentEditableValue = element.attributeWithoutSynchronization(contenteditableAttr);
     if (contentEditableValue.isNull())
         return false;
-    
-    // Both "true" (case-insensitive) and the empty string count as true.
-    return contentEditableValue.isEmpty() || equalLettersIgnoringASCIICase(contentEditableValue, "true"_s);
+
+    if (auto* htmlElement = dynamicDowncast<HTMLElement>(&element)) {
+        if (htmlElement->isTextControlInnerTextElement())
+            return false;
+    }
+
+    // All of "true", "plaintext-only", (both case-insensitive) and the empty string count as true for accessibility.
+    // This needs to be consistent with contentEditableType(const AtomString&) from HTMLElement.cpp.
+    return contentEditableValue.isEmpty() || equalLettersIgnoringASCIICase(contentEditableValue, "true"_s) || equalLettersIgnoringASCIICase(contentEditableValue, "plaintext-only"_s);
 }
 
 int AccessibilityObject::lineForPosition(const VisiblePosition& visiblePos) const

@@ -68,6 +68,7 @@ public:
     bool overrideExportValue(JSGlobalObject*, PropertyName, JSValue);
     void overrideExports(JSGlobalObject* globalObject, const WTF::Function<bool(JSGlobalObject* globalObject, const Identifier& exportName, JSC::JSValue &result)>& iter);
 #endif
+    DECLARE_VISIT_CHILDREN;
 
     inline static Structure* createStructure(VM&, JSGlobalObject*, JSValue);
 
@@ -80,7 +81,6 @@ public:
 private:
     JS_EXPORT_PRIVATE JSModuleNamespaceObject(VM&, Structure*);
     JS_EXPORT_PRIVATE void finishCreation(JSGlobalObject*, AbstractModuleRecord*, Vector<std::pair<Identifier, AbstractModuleRecord::Resolution>>&&, bool shouldPreventExtensions);
-    DECLARE_VISIT_CHILDREN;
     bool getOwnPropertySlotCommon(JSGlobalObject*, PropertyName, PropertySlot&);
 
     struct ExportEntry {

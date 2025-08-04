@@ -160,6 +160,7 @@
 
 #if ENABLE(EXTENSION_CAPABILITIES)
 #include "ExtensionCapabilityGrant.h"
+#include "ExtensionCapabilityGranter.h"
 #include "MediaCapability.h"
 #endif
 
@@ -1104,7 +1105,7 @@ void WebProcessPool::initializeNewWebProcess(WebProcessProxy& process, WebsiteDa
 #endif
 
 #if PLATFORM(IOS) && ENABLE(REMOVE_XPC_AND_MACH_SANDBOX_EXTENSIONS_IN_WEBCONTENT)
-    if (WTF::CocoaApplication::isIBooks())
+    if (WTF::CocoaApplication::isAppleBooks())
         registerAssetFonts(process);
 #endif
 
@@ -1240,7 +1241,7 @@ void WebProcessPool::disconnectProcess(WebProcessProxy& process)
     removeProcessFromOriginCacheSet(process);
 
 #if ENABLE(EXTENSION_CAPABILITIES)
-    extensionCapabilityGranter().invalidateGrants(moveToVector(std::exchange(process.extensionCapabilityGrants(), { }).values()));
+    ExtensionCapabilityGranter::invalidateGrants(moveToVector(std::exchange(process.extensionCapabilityGrants(), { }).values()));
 #endif
 }
 
@@ -2873,5 +2874,15 @@ void WebProcessPool::initializeAccessibilityIfNecessary()
     m_hasReceivedAXRequestInUIProcess = true;
 }
 #endif
+
+std::optional<SandboxExtension::Handle> WebProcessPool::sandboxExtensionForFile(const String& fileName)
+{
+    return m_fileSandboxExtensions.getOptional(fileName);
+}
+
+void WebProcessPool::addSandboxExtensionForFile(const String& fileName, SandboxExtension::Handle handle)
+{
+    m_fileSandboxExtensions.add(fileName, handle);
+}
 
 } // namespace WebKit

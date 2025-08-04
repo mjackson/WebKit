@@ -301,6 +301,7 @@ struct OffsetDistance;
 struct OffsetPath;
 struct OffsetPosition;
 struct OffsetRotate;
+struct Opacity;
 struct PaddingEdge;
 struct Perspective;
 struct Position;
@@ -327,6 +328,9 @@ struct ScrollPaddingEdge;
 struct ScrollTimelines;
 struct ScrollbarColor;
 struct ScrollbarGutter;
+struct ShapeMargin;
+struct ShapeOutside;
+struct StrokeMiterlimit;
 struct StrokeWidth;
 struct TextDecorationThickness;
 struct TextEmphasisStyle;
@@ -357,6 +361,7 @@ template<typename> struct Shadows;
 using BorderRadiusValue = MinimallySerializingSpaceSeparatedSize<LengthPercentage<CSS::Nonnegative>>;
 using BoxShadows = Shadows<BoxShadow>;
 using InsetBox = MinimallySerializingSpaceSeparatedRectEdges<InsetEdge>;
+using LineWidthBox = MinimallySerializingSpaceSeparatedRectEdges<LineWidth>;
 using MarginBox = MinimallySerializingSpaceSeparatedRectEdges<MarginEdge>;
 using ObjectPosition = Position;
 using PaddingBox = MinimallySerializingSpaceSeparatedRectEdges<PaddingEdge>;
@@ -365,11 +370,13 @@ using PerspectiveOriginX = PositionX;
 using PerspectiveOriginY = PositionY;
 using ScrollMarginBox = MinimallySerializingSpaceSeparatedRectEdges<ScrollMarginEdge>;
 using ScrollPaddingBox = MinimallySerializingSpaceSeparatedRectEdges<ScrollPaddingEdge>;
+using ShapeImageThreshold = Number<CSS::ClosedUnitRangeClampBoth, float>;
 using TextShadows = Shadows<TextShadow>;
 using TransformOriginX = PositionX;
 using TransformOriginXY = Position;
 using TransformOriginY = PositionY;
 using TransformOriginZ = Length<>;
+using WebkitBorderSpacing = Length<CSS::Nonnegative>;
 }
 
 constexpr auto PublicPseudoIDBits = 17;
@@ -608,28 +615,28 @@ public:
     inline bool hasExplicitlySetBorderTopRightRadius() const;
     inline bool hasExplicitlySetBorderRadius() const;
 
-    inline float borderLeftWidth() const;
+    inline Style::LineWidth borderLeftWidth() const;
     inline BorderStyle borderLeftStyle() const;
     inline bool borderLeftIsTransparent() const;
-    inline float borderRightWidth() const;
+    inline Style::LineWidth borderRightWidth() const;
     inline BorderStyle borderRightStyle() const;
     inline bool borderRightIsTransparent() const;
-    inline float borderTopWidth() const;
+    inline Style::LineWidth borderTopWidth() const;
     inline BorderStyle borderTopStyle() const;
     inline bool borderTopIsTransparent() const;
-    inline float borderBottomWidth() const;
+    inline Style::LineWidth borderBottomWidth() const;
     inline BorderStyle borderBottomStyle() const;
     inline bool borderBottomIsTransparent() const;
-    inline FloatBoxExtent borderWidth() const;
+    inline Style::LineWidthBox borderWidth() const;
 
-    float borderBeforeWidth(const WritingMode) const;
-    float borderAfterWidth(const WritingMode) const;
-    float borderStartWidth(const WritingMode) const;
-    float borderEndWidth(const WritingMode) const;
-    float borderBeforeWidth() const { return borderBeforeWidth(writingMode()); }
-    float borderAfterWidth() const { return borderAfterWidth(writingMode()); }
-    float borderStartWidth() const { return borderStartWidth(writingMode()); }
-    float borderEndWidth() const { return borderEndWidth(writingMode()); }
+    Style::LineWidth borderBeforeWidth(const WritingMode) const;
+    Style::LineWidth borderAfterWidth(const WritingMode) const;
+    Style::LineWidth borderStartWidth(const WritingMode) const;
+    Style::LineWidth borderEndWidth(const WritingMode) const;
+    inline Style::LineWidth borderBeforeWidth() const;
+    inline Style::LineWidth borderAfterWidth() const;
+    inline Style::LineWidth borderStartWidth() const;
+    inline Style::LineWidth borderEndWidth() const;
 
     inline bool borderIsEquivalentForPainting(const RenderStyle&) const;
 
@@ -773,8 +780,8 @@ public:
     inline NinePieceImageRule maskBorderVerticalRule() const;
 
     BorderCollapse borderCollapse() const { return static_cast<BorderCollapse>(m_inheritedFlags.borderCollapse); }
-    float horizontalBorderSpacing() const;
-    float verticalBorderSpacing() const;
+    inline Style::WebkitBorderSpacing borderHorizontalSpacing() const;
+    inline Style::WebkitBorderSpacing borderVerticalSpacing() const;
     EmptyCell emptyCells() const { return static_cast<EmptyCell>(m_inheritedFlags.emptyCells); }
     CaptionSide captionSide() const { return static_cast<CaptionSide>(m_inheritedFlags.captionSide); }
 
@@ -839,9 +846,8 @@ public:
     OptionSet<HangingPunctuation> hangingPunctuation() const;
 
     inline Style::WebkitTextStrokeWidth textStrokeWidth() const;
-    inline float opacity() const;
+    inline Style::Opacity opacity() const;
     inline bool hasOpacity() const;
-    inline bool hasZeroOpacity() const;
     inline StyleAppearance appearance() const;
     inline StyleAppearance usedAppearance() const;
 
@@ -969,7 +975,7 @@ public:
     inline bool specifiesColumns() const;
     inline ColumnFill columnFill() const;
     inline BorderStyle columnRuleStyle() const;
-    inline unsigned short columnRuleWidth() const;
+    inline Style::LineWidth columnRuleWidth() const;
     inline bool columnRuleIsTransparent() const;
     inline ColumnSpan columnSpan() const;
     inline bool columnSpanEqual(const RenderStyle&) const;
@@ -1304,16 +1310,16 @@ public:
     inline void setHasExplicitlySetBorderTopLeftRadius(bool);
     inline void setHasExplicitlySetBorderTopRightRadius(bool);
 
-    inline void setBorderLeftWidth(float);
+    inline void setBorderLeftWidth(Style::LineWidth);
     inline void setBorderLeftStyle(BorderStyle);
     inline void setBorderLeftColor(Style::Color&&);
-    inline void setBorderRightWidth(float);
+    inline void setBorderRightWidth(Style::LineWidth);
     inline void setBorderRightStyle(BorderStyle);
     inline void setBorderRightColor(Style::Color&&);
-    inline void setBorderTopWidth(float);
+    inline void setBorderTopWidth(Style::LineWidth);
     inline void setBorderTopStyle(BorderStyle);
     inline void setBorderTopColor(Style::Color&&);
-    inline void setBorderBottomWidth(float);
+    inline void setBorderBottomWidth(Style::LineWidth);
     inline void setBorderBottomStyle(BorderStyle);
     inline void setBorderBottomColor(Style::Color&&);
 
@@ -1419,8 +1425,8 @@ public:
     inline void setMaskRepeat(FillRepeatXY);
 
     void setBorderCollapse(BorderCollapse collapse) { m_inheritedFlags.borderCollapse = static_cast<unsigned>(collapse); }
-    void setHorizontalBorderSpacing(float);
-    void setVerticalBorderSpacing(float);
+    inline void setBorderHorizontalSpacing(Style::WebkitBorderSpacing);
+    inline void setBorderVerticalSpacing(Style::WebkitBorderSpacing);
     void setEmptyCells(EmptyCell v) { m_inheritedFlags.emptyCells = static_cast<unsigned>(v); }
     void setCaptionSide(CaptionSide v) { m_inheritedFlags.captionSide = static_cast<unsigned>(v); }
 
@@ -1507,7 +1513,7 @@ public:
     inline void setHasAutoCaretColor();
     inline void setAccentColor(Style::Color&&);
     inline void setHasAutoAccentColor();
-    inline void setOpacity(float);
+    inline void setOpacity(Style::Opacity);
     inline void setAppearance(StyleAppearance);
     inline void setUsedAppearance(StyleAppearance);
     inline void setBoxAlign(BoxAlignment);
@@ -1582,7 +1588,7 @@ public:
     inline void setRowGap(Style::GapGutter&&);
     inline void setColumnRuleColor(Style::Color&&);
     inline void setColumnRuleStyle(BorderStyle);
-    inline void setColumnRuleWidth(unsigned short);
+    inline void setColumnRuleWidth(Style::LineWidth);
     inline void resetColumnRule();
     inline void setColumnSpan(ColumnSpan);
     inline void inheritColumnPropertiesFrom(const RenderStyle& parent);
@@ -1760,10 +1766,12 @@ public:
     Color computedStrokeColor() const;
     inline CSSPropertyID usedStrokeColorProperty() const;
 
-    inline float strokeMiterLimit() const;
-    inline void setStrokeMiterLimit(float);
-    static constexpr float initialStrokeMiterLimit();
+    inline Style::StrokeMiterlimit strokeMiterLimit() const;
+    inline void setStrokeMiterLimit(Style::StrokeMiterlimit);
+    static constexpr Style::StrokeMiterlimit initialStrokeMiterLimit();
 
+    static constexpr Style::Opacity initialFillOpacity();
+    static constexpr Style::Opacity initialStrokeOpacity();
     static inline Style::SVGStrokeDasharray initialStrokeDashArray();
     static inline Style::SVGStrokeDashoffset initialStrokeDashOffset();
 
@@ -1776,15 +1784,15 @@ public:
     inline void setVisitedLinkFill(Style::SVGPaint&&);
     inline void setHasExplicitlySetColor(bool);
     inline bool hasExplicitlySetColor() const;
-    inline float fillOpacity() const;
-    inline void setFillOpacity(float);
+    inline Style::Opacity fillOpacity() const;
+    inline void setFillOpacity(Style::Opacity);
 
     inline const Style::SVGPaint& stroke() const;
     inline const Style::SVGPaint& visitedLinkStroke() const;
     inline void setStroke(Style::SVGPaint&&);
     inline void setVisitedLinkStroke(Style::SVGPaint&&);
-    inline float strokeOpacity() const;
-    inline void setStrokeOpacity(float);
+    inline Style::Opacity strokeOpacity() const;
+    inline void setStrokeOpacity(Style::Opacity);
     inline const Style::SVGStrokeDasharray& strokeDashArray() const;
     inline void setStrokeDashArray(Style::SVGStrokeDasharray&&);
     inline const Style::SVGStrokeDashoffset& strokeDashOffset() const;
@@ -1809,11 +1817,13 @@ public:
     inline StylePathData* d() const;
     static StylePathData* initialD() { return nullptr; }
 
-    inline float floodOpacity() const;
-    inline void setFloodOpacity(float);
+    inline Style::Opacity floodOpacity() const;
+    inline void setFloodOpacity(Style::Opacity);
+    static constexpr Style::Opacity initialFloodOpacity();
 
-    inline float stopOpacity() const;
-    inline void setStopOpacity(float);
+    inline Style::Opacity stopOpacity() const;
+    inline void setStopOpacity(Style::Opacity);
+    static constexpr Style::Opacity initialStopOpacity();
 
     inline void setStopColor(Style::Color&&);
     inline void setFloodColor(Style::Color&&);
@@ -1822,18 +1832,17 @@ public:
     inline const Style::SVGBaselineShift& baselineShift() const;
     inline void setBaselineShift(Style::SVGBaselineShift&&);
 
-    inline void setShapeOutside(RefPtr<ShapeValue>&&);
-    inline ShapeValue* shapeOutside() const; // Defined in RenderStyleInlines.h.
-    inline RefPtr<ShapeValue> protectedShapeOutside() const; // Defined in RenderStyleInlines.h.
-    static ShapeValue* initialShapeOutside() { return nullptr; }
+    inline void setShapeOutside(Style::ShapeOutside&&);
+    inline const Style::ShapeOutside& shapeOutside() const;
+    static Style::ShapeOutside initialShapeOutside();
 
-    inline const Length& shapeMargin() const;
-    inline void setShapeMargin(Length&&);
-    static inline Length initialShapeMargin();
+    inline const Style::ShapeMargin& shapeMargin() const;
+    inline void setShapeMargin(Style::ShapeMargin&&);
+    static inline Style::ShapeMargin initialShapeMargin();
 
-    inline float shapeImageThreshold() const;
-    void setShapeImageThreshold(float);
-    static float initialShapeImageThreshold() { return 0; }
+    inline Style::ShapeImageThreshold shapeImageThreshold() const;
+    void setShapeImageThreshold(Style::ShapeImageThreshold);
+    static constexpr Style::ShapeImageThreshold initialShapeImageThreshold();
 
     inline const Style::ClipPath& clipPath() const;
     inline bool hasClipPath() const;
@@ -1976,15 +1985,15 @@ public:
     static inline Style::ViewTransitionName initialViewTransitionName();
     static constexpr Visibility initialVisibility();
     static constexpr WhiteSpaceCollapse initialWhiteSpaceCollapse();
-    static float initialHorizontalBorderSpacing() { return 0; }
-    static float initialVerticalBorderSpacing() { return 0; }
+    static constexpr Style::WebkitBorderSpacing initialBorderHorizontalSpacing();
+    static constexpr Style::WebkitBorderSpacing initialBorderVerticalSpacing();
     static inline Style::Cursor initialCursor();
     static inline Color initialColor();
     static inline Style::Color initialTextStrokeColor();
     static inline Style::Color initialTextDecorationColor();
     static StyleImage* initialListStyleImage() { return 0; }
-    static float initialBorderWidth() { return 3; }
-    static unsigned short initialColumnRuleWidth() { return 3; }
+    static constexpr Style::LineWidth initialBorderWidth();
+    static constexpr Style::LineWidth initialColumnRuleWidth();
     static constexpr Style::LineWidth initialOutlineWidth();
     static inline Length initialLetterSpacing();
     static inline Length initialWordSpacing();
@@ -2019,7 +2028,7 @@ public:
     static float initialZoom() { return 1.0f; }
     static constexpr TextZoom initialTextZoom();
     static constexpr Style::Length<> initialOutlineOffset();
-    static float initialOpacity() { return 1.0f; }
+    static constexpr Style::Opacity initialOpacity();
     static constexpr BoxAlignment initialBoxAlign();
     static constexpr BoxDecorationBreak initialBoxDecorationBreak();
     static constexpr BoxDirection initialBoxDirection();
