@@ -172,11 +172,11 @@ public:
     bool m_isTypeScript = false;
     DECLARE_VISIT_CHILDREN;
 
+    void setModuleEnvironment(JSGlobalObject*, JSModuleEnvironment*);
+
 protected:
     AbstractModuleRecord(VM&, Structure*, const Identifier&);
     void finishCreation(JSGlobalObject*, VM&);
-
-    void setModuleEnvironment(JSGlobalObject*, JSModuleEnvironment*);
 
 private:
     struct ResolveQuery;
