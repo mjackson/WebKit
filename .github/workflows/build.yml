@@ -454,61 +454,46 @@ jobs:
         with:
           name: bun-webkit-linux-arm64-musl-lto
           path: ${{runner.temp}}/bun-webkit-linux-arm64-musl-lto
-
       - name: Rename files
         run: |
-          mv ${{runner.temp}}/bun-webkit-linux-amd64/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-amd64.tar.gz
-          mv ${{runner.temp}}/bun-webkit-linux-arm64/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-arm64.tar.gz
-          mv ${{runner.temp}}/bun-webkit-linux-amd64-musl/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-amd64-musl.tar.gz
-          mv ${{runner.temp}}/bun-webkit-linux-arm64-musl/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-arm64-musl.tar.gz
-          mv ${{runner.temp}}/bun-webkit-macos-arm64/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-macos-arm64.tar.gz
-          mv ${{runner.temp}}/bun-webkit-macos-arm64-asan/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-macos-arm64-asan.tar.gz
-          mv ${{runner.temp}}/bun-webkit-macos-amd64/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-macos-amd64.tar.gz
-          mv ${{runner.temp}}/bun-webkit-linux-amd64-debug-asan/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-amd64-debug-asan.tar.gz
-          mv ${{runner.temp}}/bun-webkit-linux-arm64-debug-asan/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-arm64-debug-asan.tar.gz
-          mv ${{runner.temp}}/bun-webkit-linux-amd64-debug/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-amd64-debug.tar.gz
-          mv ${{runner.temp}}/bun-webkit-linux-arm64-debug/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-arm64-debug.tar.gz
-          mv ${{runner.temp}}/bun-webkit-linux-amd64-musl-debug/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-amd64-musl-debug.tar.gz
-          mv ${{runner.temp}}/bun-webkit-linux-arm64-musl-debug/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-arm64-musl-debug.tar.gz
-          mv ${{runner.temp}}/bun-webkit-linux-amd64-asan/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-amd64-asan.tar.gz
-          mv ${{runner.temp}}/bun-webkit-linux-arm64-asan/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-arm64-asan.tar.gz
-          mv ${{runner.temp}}/bun-webkit-macos-arm64-debug/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-macos-arm64-debug.tar.gz
-          mv ${{runner.temp}}/bun-webkit-macos-arm64-debug-asan/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-macos-arm64-debug-asan.tar.gz
-          mv ${{runner.temp}}/bun-webkit-macos-amd64-debug/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-macos-amd64-debug.tar.gz
-          mv ${{runner.temp}}/bun-webkit-linux-amd64-lto/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-amd64-lto.tar.gz
-          mv ${{runner.temp}}/bun-webkit-linux-arm64-lto/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-arm64-lto.tar.gz
-          mv ${{runner.temp}}/bun-webkit-linux-amd64-musl-lto/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-amd64-musl-lto.tar.gz
-          mv ${{runner.temp}}/bun-webkit-linux-arm64-musl-lto/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-arm64-musl-lto.tar.gz
-          mv ${{runner.temp}}/bun-webkit-windows-amd64/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-windows-amd64.tar.gz
-          mv ${{runner.temp}}/bun-webkit-windows-amd64-debug/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-windows-amd64-debug.tar.gz
+          mkdir -p out
+          mv ${{runner.temp}}/bun-webkit-linux-amd64/bun-webkit.tar.gz ./out/bun-webkit-linux-amd64.tar.gz
+          mv ${{runner.temp}}/bun-webkit-linux-arm64/bun-webkit.tar.gz ./out/bun-webkit-linux-arm64.tar.gz
+          mv ${{runner.temp}}/bun-webkit-linux-amd64-musl/bun-webkit.tar.gz ./out/bun-webkit-linux-amd64-musl.tar.gz
+          mv ${{runner.temp}}/bun-webkit-linux-arm64-musl/bun-webkit.tar.gz ./out/bun-webkit-linux-arm64-musl.tar.gz
+          mv ${{runner.temp}}/bun-webkit-macos-arm64/bun-webkit.tar.gz ./out/bun-webkit-macos-arm64.tar.gz
+          mv ${{runner.temp}}/bun-webkit-macos-arm64-asan/bun-webkit.tar.gz ./out/bun-webkit-macos-arm64-asan.tar.gz
+          mv ${{runner.temp}}/bun-webkit-macos-amd64/bun-webkit.tar.gz ./out/bun-webkit-macos-amd64.tar.gz
+          mv ${{runner.temp}}/bun-webkit-linux-amd64-debug-asan/bun-webkit.tar.gz ./out/bun-webkit-linux-amd64-debug-asan.tar.gz
+          mv ${{runner.temp}}/bun-webkit-linux-arm64-debug-asan/bun-webkit.tar.gz ./out/bun-webkit-linux-arm64-debug-asan.tar.gz
+          mv ${{runner.temp}}/bun-webkit-linux-amd64-debug/bun-webkit.tar.gz ./out/bun-webkit-linux-amd64-debug.tar.gz
+          mv ${{runner.temp}}/bun-webkit-linux-arm64-debug/bun-webkit.tar.gz ./out/bun-webkit-linux-arm64-debug.tar.gz
+          mv ${{runner.temp}}/bun-webkit-linux-amd64-musl-debug/bun-webkit.tar.gz ./out/bun-webkit-linux-amd64-musl-debug.tar.gz
+          mv ${{runner.temp}}/bun-webkit-linux-arm64-musl-debug/bun-webkit.tar.gz ./out/bun-webkit-linux-arm64-musl-debug.tar.gz
+          mv ${{runner.temp}}/bun-webkit-linux-amd64-asan/bun-webkit.tar.gz ./out/bun-webkit-linux-amd64-asan.tar.gz
+          mv ${{runner.temp}}/bun-webkit-linux-arm64-asan/bun-webkit.tar.gz ./out/bun-webkit-linux-arm64-asan.tar.gz
+          mv ${{runner.temp}}/bun-webkit-macos-arm64-debug/bun-webkit.tar.gz ./out/bun-webkit-macos-arm64-debug.tar.gz
+          mv ${{runner.temp}}/bun-webkit-macos-arm64-debug-asan/bun-webkit.tar.gz ./out/bun-webkit-macos-arm64-debug-asan.tar.gz
+          mv ${{runner.temp}}/bun-webkit-macos-amd64-debug/bun-webkit.tar.gz ./out/bun-webkit-macos-amd64-debug.tar.gz
+          mv ${{runner.temp}}/bun-webkit-linux-amd64-lto/bun-webkit.tar.gz ./out/bun-webkit-linux-amd64-lto.tar.gz
+          mv ${{runner.temp}}/bun-webkit-linux-arm64-lto/bun-webkit.tar.gz ./out/bun-webkit-linux-arm64-lto.tar.gz
+          mv ${{runner.temp}}/bun-webkit-linux-amd64-musl-lto/bun-webkit.tar.gz ./out/bun-webkit-linux-amd64-musl-lto.tar.gz
+          mv ${{runner.temp}}/bun-webkit-linux-arm64-musl-lto/bun-webkit.tar.gz ./out/bun-webkit-linux-arm64-musl-lto.tar.gz
+          mv ${{runner.temp}}/bun-webkit-windows-amd64/bun-webkit.tar.gz ./out/bun-webkit-windows-amd64.tar.gz
+          mv ${{runner.temp}}/bun-webkit-windows-amd64-debug/bun-webkit.tar.gz ./out/bun-webkit-windows-amd64-debug.tar.gz
       - name: Release
-        uses: softprops/action-gh-release@v1
-        id: release
-        with:
-          generate_release_notes: true
-          tag_name: "autobuild-${{github.sha}}"
-          files: |
-            ${{runner.temp}}/bun-webkit-linux-amd64-debug.tar.gz
-            ${{runner.temp}}/bun-webkit-linux-arm64-debug.tar.gz
-            ${{runner.temp}}/bun-webkit-linux-amd64-debug-asan.tar.gz
-            ${{runner.temp}}/bun-webkit-linux-arm64-debug-asan.tar.gz
-            ${{runner.temp}}/bun-webkit-linux-amd64-musl-debug.tar.gz
-            ${{runner.temp}}/bun-webkit-linux-arm64-musl-debug.tar.gz
-            ${{runner.temp}}/bun-webkit-macos-arm64-debug.tar.gz
-            ${{runner.temp}}/bun-webkit-macos-arm64-debug-asan.tar.gz
-            ${{runner.temp}}/bun-webkit-macos-amd64-debug.tar.gz
-            ${{runner.temp}}/bun-webkit-linux-amd64.tar.gz
-            ${{runner.temp}}/bun-webkit-linux-arm64.tar.gz
-            ${{runner.temp}}/bun-webkit-linux-amd64-musl.tar.gz
-            ${{runner.temp}}/bun-webkit-linux-arm64-musl.tar.gz
-            ${{runner.temp}}/bun-webkit-macos-arm64.tar.gz
-            ${{runner.temp}}/bun-webkit-macos-arm64-asan.tar.gz
-            ${{runner.temp}}/bun-webkit-macos-amd64.tar.gz
-            ${{runner.temp}}/bun-webkit-linux-amd64-lto.tar.gz
-            ${{runner.temp}}/bun-webkit-linux-arm64-lto.tar.gz
-            ${{runner.temp}}/bun-webkit-linux-amd64-musl-lto.tar.gz
-            ${{runner.temp}}/bun-webkit-linux-arm64-musl-lto.tar.gz
-            ${{runner.temp}}/bun-webkit-windows-amd64.tar.gz
-            ${{runner.temp}}/bun-webkit-windows-amd64-debug.tar.gz
-            ${{runner.temp}}/bun-webkit-linux-amd64-asan.tar.gz
-            ${{runner.temp}}/bun-webkit-linux-arm64-asan.tar.gz
+        run: |
+          PROJECT_USERNAME=$(echo $GITHUB_REPOSITORY | cut -d'/' -f1)
+          PROJECT_REPONAME=$(echo $GITHUB_REPOSITORY | cut -d'/' -f2)
+          previous_tag=$(curl https://api.github.com/repos/$GITHUB_REPOSITORY/releases | jq -r '.[0].name')
+          current_tag="autobuild-${{github.sha}}"
+          curl -s https://api.github.com/repos/nektro/ghr/releases | jq -r '.[0].assets[].browser_download_url' | grep $(uname -m) | grep linux | wget -i -
+          chmod +x ./ghr-linux-x86_64
+          ./ghr-linux-x86_64 \
+            -t ${GITHUB_TOKEN} \
+            -u ${PROJECT_USERNAME} \
+            -r ${PROJECT_REPONAME} \
+            -b "Full Changelog: [`${previous_tag}...${current_tag}`](https://github.com/$GITHUB_REPOSITORY/compare/${previous_tag}...${current_tag})" \
+            -n "$tag" \
+            "$tag" \
+            "./out/"
