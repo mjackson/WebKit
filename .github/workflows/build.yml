@@ -316,7 +316,6 @@ jobs:
             os: linux-x64-gh
             package_json_arch: "x64"
             CMAKE_BUILD_TYPE: "MinSizeRel"
-
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
@@ -389,6 +388,10 @@ jobs:
           path: ${{runner.temp}}/bun-webkit-macos-arm64
       - uses: actions/download-artifact@v4
         with:
+          name: bun-webkit-macos-arm64-asan
+          path: ${{runner.temp}}/bun-webkit-macos-arm64-asan
+      - uses: actions/download-artifact@v4
+        with:
           name: bun-webkit-macos-arm64-debug
           path: ${{runner.temp}}/bun-webkit-macos-arm64-debug
       - uses: actions/download-artifact@v4
@@ -459,6 +462,7 @@ jobs:
           mv ${{runner.temp}}/bun-webkit-linux-amd64-musl/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-amd64-musl.tar.gz
           mv ${{runner.temp}}/bun-webkit-linux-arm64-musl/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-arm64-musl.tar.gz
           mv ${{runner.temp}}/bun-webkit-macos-arm64/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-macos-arm64.tar.gz
+          mv ${{runner.temp}}/bun-webkit-macos-arm64-asan/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-macos-arm64-asan.tar.gz
           mv ${{runner.temp}}/bun-webkit-macos-amd64/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-macos-amd64.tar.gz
           mv ${{runner.temp}}/bun-webkit-linux-amd64-debug-asan/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-amd64-debug-asan.tar.gz
           mv ${{runner.temp}}/bun-webkit-linux-arm64-debug-asan/bun-webkit.tar.gz ${{runner.temp}}/bun-webkit-linux-arm64-debug-asan.tar.gz
@@ -498,6 +502,7 @@ jobs:
             ${{runner.temp}}/bun-webkit-linux-amd64-musl.tar.gz
             ${{runner.temp}}/bun-webkit-linux-arm64-musl.tar.gz
             ${{runner.temp}}/bun-webkit-macos-arm64.tar.gz
+            ${{runner.temp}}/bun-webkit-macos-arm64-asan.tar.gz
             ${{runner.temp}}/bun-webkit-macos-amd64.tar.gz
             ${{runner.temp}}/bun-webkit-linux-amd64-lto.tar.gz
             ${{runner.temp}}/bun-webkit-linux-arm64-lto.tar.gz
