@@ -493,7 +493,7 @@ jobs:
             -t ${GITHUB_TOKEN} \
             -u ${PROJECT_USERNAME} \
             -r ${PROJECT_REPONAME} \
-            -b "Full Changelog: [`${previous_tag}...${current_tag}`](https://github.com/$GITHUB_REPOSITORY/compare/${previous_tag}...${current_tag})" \
+            -b "Full Changelog: [\`${previous_tag}...${current_tag}\`](https://github.com/$GITHUB_REPOSITORY/compare/${previous_tag}...${current_tag})" \
             -n "$tag" \
             "$tag" \
             "./out/"
