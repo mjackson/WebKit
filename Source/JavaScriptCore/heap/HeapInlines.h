@@ -235,6 +235,12 @@ inline void Heap::deprecatedReportExtraMemory(size_t size)
         deprecatedReportExtraMemorySlowCase(size);
 }
 
+inline void Heap::deprecatedReportExtraMemoryFreed(size_t size)
+{
+    if (size > minExtraMemory)
+        deprecatedReportExtraMemoryFreedSlowCase(size);
+}
+
 inline void Heap::acquireAccess()
 {
     if constexpr (validateDFGDoesGC)
