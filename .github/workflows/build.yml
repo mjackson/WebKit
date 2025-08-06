@@ -501,42 +501,42 @@ jobs:
         with:
           tag_name: "autobuild-${{github.sha}}"
           files: |
-            ${{runner.temp}}/out/bun-webkit-linux-amd64.tar.gz
-            ${{runner.temp}}/out/bun-webkit-linux-arm64.tar.gz
-            ${{runner.temp}}/out/bun-webkit-linux-amd64-lto.tar.gz
-            ${{runner.temp}}/out/bun-webkit-linux-arm64-lto.tar.gz
-            ${{runner.temp}}/out/bun-webkit-linux-amd64-asan.tar.gz
-            ${{runner.temp}}/out/bun-webkit-linux-arm64-asan.tar.gz
-            ${{runner.temp}}/out/bun-webkit-linux-amd64-debug.tar.gz
-            ${{runner.temp}}/out/bun-webkit-linux-arm64-debug.tar.gz
-            ${{runner.temp}}/out/bun-webkit-linux-amd64-debug-asan.tar.gz
-            ${{runner.temp}}/out/bun-webkit-linux-arm64-debug-asan.tar.gz
+            ./out/bun-webkit-linux-amd64.tar.gz
+            ./out/bun-webkit-linux-arm64.tar.gz
+            ./out/bun-webkit-linux-amd64-lto.tar.gz
+            ./out/bun-webkit-linux-arm64-lto.tar.gz
+            ./out/bun-webkit-linux-amd64-asan.tar.gz
+            ./out/bun-webkit-linux-arm64-asan.tar.gz
+            ./out/bun-webkit-linux-amd64-debug.tar.gz
+            ./out/bun-webkit-linux-arm64-debug.tar.gz
+            ./out/bun-webkit-linux-amd64-debug-asan.tar.gz
+            ./out/bun-webkit-linux-arm64-debug-asan.tar.gz
 
       - uses: softprops/action-gh-release@v1
         with:
           tag_name: "autobuild-${{github.sha}}"
           files: |
-            ${{runner.temp}}/out/bun-webkit-linux-amd64-musl.tar.gz
-            ${{runner.temp}}/out/bun-webkit-linux-arm64-musl.tar.gz
-            ${{runner.temp}}/out/bun-webkit-linux-amd64-musl-lto.tar.gz
-            ${{runner.temp}}/out/bun-webkit-linux-arm64-musl-lto.tar.gz
-            ${{runner.temp}}/out/bun-webkit-linux-amd64-musl-debug.tar.gz
-            ${{runner.temp}}/out/bun-webkit-linux-arm64-musl-debug.tar.gz
+            ./out/bun-webkit-linux-amd64-musl.tar.gz
+            ./out/bun-webkit-linux-arm64-musl.tar.gz
+            ./out/bun-webkit-linux-amd64-musl-lto.tar.gz
+            ./out/bun-webkit-linux-arm64-musl-lto.tar.gz
+            ./out/bun-webkit-linux-amd64-musl-debug.tar.gz
+            ./out/bun-webkit-linux-arm64-musl-debug.tar.gz
 
       - uses: softprops/action-gh-release@v1
         with:
           tag_name: "autobuild-${{github.sha}}"
           files: |
-            ${{runner.temp}}/out/bun-webkit-macos-arm64.tar.gz
-            ${{runner.temp}}/out/bun-webkit-macos-arm64-asan.tar.gz
-            ${{runner.temp}}/out/bun-webkit-macos-arm64-debug.tar.gz
-            ${{runner.temp}}/out/bun-webkit-macos-arm64-debug-asan.tar.gz
-            ${{runner.temp}}/out/bun-webkit-macos-amd64.tar.gz
-            ${{runner.temp}}/out/bun-webkit-macos-amd64-debug.tar.gz
+            ./out/bun-webkit-macos-arm64.tar.gz
+            ./out/bun-webkit-macos-arm64-asan.tar.gz
+            ./out/bun-webkit-macos-arm64-debug.tar.gz
+            ./out/bun-webkit-macos-arm64-debug-asan.tar.gz
+            ./out/bun-webkit-macos-amd64.tar.gz
+            ./out/bun-webkit-macos-amd64-debug.tar.gz
 
       - uses: softprops/action-gh-release@v1
         with:
           tag_name: "autobuild-${{github.sha}}"
           files: |
-            ${{runner.temp}}/out/bun-webkit-windows-amd64.tar.gz
-            ${{runner.temp}}/out/bun-webkit-windows-amd64-debug.tar.gz
+            ./out/bun-webkit-windows-amd64.tar.gz
+            ./out/bun-webkit-windows-amd64-debug.tar.gz
