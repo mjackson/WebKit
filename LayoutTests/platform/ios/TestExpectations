@@ -2316,6 +2316,7 @@ accessibility/aria-readonly-updates-after-dynamic-change.html [ Pass ]
 accessibility/aria-required-updates-after-dynamic-change.html [ Pass ]
 accessibility/aria-roles-unignored.html [ Pass ]
 accessibility/aria-slider-value.html [ Pass ]
+accessibility/aria-table-indextext.html [ Pass ]
 accessibility/ax-object-destroyed-on-reload.html [ Pass ]
 accessibility/basic-focusability.html [ Pass ]
 accessibility/button-inside-label-ax-text.html [ Pass ]
@@ -8177,7 +8178,9 @@ webkit.org/b/296389 [ Release ] http/tests/dom/noreferrer-window-not-targetable.
 
 webkit.org/b/296566 [ Release ] imported/w3c/web-platform-tests/screen-orientation/lock-basic.html [ Pass Failure ]
 
-webkit.org/b/295803 [ Release ] http/tests/webcodecs/video-encoder-callbacks-do-not-leak.html [ Pass Failure ]
+# webkit.org/b/295803 2x http/tests/webcodecs/ (layout-tests) tests flakey text failures 
+[ Release ] http/tests/webcodecs/video-encoder-callbacks-do-not-leak.html [ Pass Failure ]
+[ Release ] http/tests/webcodecs/video-decoder-callbacks-do-not-leak.html [ Pass Failure ]
 
 webkit.org/b/296637 [ Release ] http/tests/dom/noopener-window-not-targetable.html [ Pass Failure ]
 
@@ -8194,3 +8197,11 @@ webkit.org/b/296816 [ Release ] imported/w3c/web-platform-tests/css/css-shapes/s
 webkit.org/b/296824 [ Release ] http/tests/webcodecs/audio-encoder-callbacks-do-not-leak.html [ Pass Failure ]
 
 webkit.org/b/296833 imported/w3c/web-platform-tests/css/css-contain/content-visibility/content-visibility-096.html [ Pass ImageOnlyFailure ]
+
+# https://bugs.webkit.org/show_bug.cgi?id=296820 REGRESSION(298121@main): [ iOS, macOS wk2 ] 4x imported/w3c/web-platform-tests/navigation-api/ (layout-tests) tests are constant text failures
+imported/w3c/web-platform-tests/navigation-api/navigate-event/navigation-traverseTo-in-iframe-same-document-preventDefault.html [ Failure ]
+imported/w3c/web-platform-tests/navigation-api/navigation-methods/back-forward-multiple-frames.html [ Failure ]
+imported/w3c/web-platform-tests/navigation-api/navigation-methods/traverseTo-navigates-multiple-iframes.html [ Failure ]
+imported/w3c/web-platform-tests/navigation-api/per-entry-events/dispose-for-navigation-in-child.html [ Failure ]
+
+webkit.org/b/296910 http/tests/app-privacy-report/app-attribution-beacon-isnotappinitiated.html [ Pass Failure ]

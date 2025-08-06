@@ -886,7 +886,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     contentextensions/MutableRange.h
     contentextensions/MutableRangeList.h
     contentextensions/NFA.h
-    contentextensions/NFANode.h
     contentextensions/NFAToDFA.h
     contentextensions/SerializedNFA.h
     contentextensions/Term.h
@@ -2834,6 +2833,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/values/position/StyleInset.h
 
     style/values/primitives/StyleLengthWrapper.h
+    style/values/primitives/StyleLengthWrapperData.h
     style/values/primitives/StylePosition.h
     style/values/primitives/StylePrimitiveNumeric+Forward.h
     style/values/primitives/StylePrimitiveNumeric.h

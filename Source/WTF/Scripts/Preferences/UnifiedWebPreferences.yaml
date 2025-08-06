@@ -9368,13 +9368,10 @@ WebXRLayersAPIEnabled:
   condition: ENABLE(WEBXR_LAYERS)
   defaultValue:
     WebKitLegacy:
-      "PLATFORM(VISION) && ENABLE(WEBXR_WEBGPU_BY_DEFAULT)": true
       default: false
     WebKit:
-      "PLATFORM(VISION) && ENABLE(WEBXR_WEBGPU_BY_DEFAULT)": true
       default: false
     WebCore:
-      "PLATFORM(VISION) && ENABLE(WEBXR_WEBGPU_BY_DEFAULT)": true
       default: false
 
 WebXRWebGPUBindingsEnabled:
@@ -9385,13 +9382,13 @@ WebXRWebGPUBindingsEnabled:
   humanReadableDescription: "Adds WebGPU support for WebXR"
   defaultValue:
     WebKitLegacy:
-      "PLATFORM(VISION) && ENABLE(WEBXR_WEBGPU_BY_DEFAULT)": true
+      "PLATFORM(VISION) && ENABLE(WEBXR_WEBGPU)": true
       default: false
     WebKit:
-      "PLATFORM(VISION) && ENABLE(WEBXR_WEBGPU_BY_DEFAULT)": true
+      "PLATFORM(VISION) && ENABLE(WEBXR_WEBGPU)": true
       default: false
     WebCore:
-      "PLATFORM(VISION) && ENABLE(WEBXR_WEBGPU_BY_DEFAULT)": true
+      "PLATFORM(VISION) && ENABLE(WEBXR_WEBGPU)": true
       default: false
   disableInLockdownMode: true
   sharedPreferenceForWebProcess: true

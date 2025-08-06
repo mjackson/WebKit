@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014, 2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2025 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -23,34 +23,21 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
+#import "config.h"
+#import "_WKTextExtractionInternal.h"
 
-#if ENABLE(CONTENT_EXTENSIONS)
+@implementation _WKTextExtractionConfiguration
 
-#include "ContentExtensionsDebugging.h"
-#include <wtf/HashMap.h>
-#include <wtf/HashSet.h>
-#include <wtf/Vector.h>
+@synthesize mergeParagraphs = _mergeParagraphs;
+@synthesize ignoreTransparency = _ignoreTransparency;
 
-namespace WebCore {
+- (instancetype)init
+{
+    if (!(self = [super init]))
+        return nil;
 
-namespace ContentExtensions {
+    _targetRect = CGRectNull;
+    return self;
+}
 
-// A NFANode abstract the transition table out of a NFA state.
-
-typedef Vector<uint64_t, 0, CrashOnOverflow, 1> ActionList;
-typedef HashSet<unsigned, DefaultHash<unsigned>, WTF::UnsignedWithZeroKeyHashTraits<unsigned>> NFANodeIndexSet;
-typedef HashMap<uint16_t, NFANodeIndexSet, DefaultHash<uint16_t>, WTF::UnsignedWithZeroKeyHashTraits<uint16_t>> NFANodeTransitions;
-
-class NFANode {
-public:
-    NFANodeTransitions transitions;
-    NFANodeIndexSet transitionsOnAnyCharacter;
-
-    ActionList finalRuleIds;
-};
-
-} // namespace ContentExtensions
-} // namespace WebCore
-
-#endif // ENABLE(CONTENT_EXTENSIONS)
+@end

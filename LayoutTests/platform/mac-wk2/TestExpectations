@@ -2298,15 +2298,6 @@ webkit.org/b/296326 imported/w3c/web-platform-tests/mixed-content/gen/sharedwork
 webkit.org/b/296326 imported/w3c/web-platform-tests/mixed-content/gen/sharedworker-module-data.meta/unset/websocket.https.html [ Failure ]
 webkit.org/b/296326 imported/w3c/web-platform-tests/mixed-content/gen/sharedworker-module-data.meta/unset/xhr.https.html [ Failure ]
 
-webkit.org/b/296330 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/script-src-self/sharedworker-import.http.html [ Failure ]
-webkit.org/b/296330 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/script-src-wildcard/sharedworker-import.http.html [ Failure ]
-webkit.org/b/296330 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-self/sharedworker-import.http.html [ Failure ]
-webkit.org/b/296330 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-wildcard/sharedworker-import.http.html [ Failure ]
-webkit.org/b/296330 imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/script-src-self/sharedworker-import.http.html [ Failure ]
-webkit.org/b/296330 imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/script-src-wildcard/sharedworker-import.http.html [ Failure ]
-webkit.org/b/296330 imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-self/sharedworker-import.http.html [ Failure ]
-webkit.org/b/296330 imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-wildcard/sharedworker-import.http.html [ Failure ]
-
 webkit.org/b/296344 imported/w3c/web-platform-tests/webrtc/RTCRtpSender-replaceTrack.https.html [ Pass Failure ]
 
 webkit.org/b/296348 [ Sequoia ] http/tests/cache/disk-cache/shattered-deduplication.html [ Pass Failure ] 
@@ -2371,7 +2362,7 @@ webkit.org/b/296816 [ Release ] imported/w3c/web-platform-tests/css/css-shapes/s
 
 webkit.org/b/296814 [ arm64 ] imported/w3c/web-platform-tests/css/css-view-transitions/rotated-cat-off-top-edge.html [ Pass ImageOnlyFailure ]
 
-# https://bugs.webkit.org/show_bug.cgi?id=296820 REGRESSION(298121@main): [ macOS wk2 ] 4x imported/w3c/web-platform-tests/navigation-api/ (layout-tests) tests are constant text failures
+# https://bugs.webkit.org/show_bug.cgi?id=296820 REGRESSION(298121@main): [ iOS, macOS wk2 ] 4x imported/w3c/web-platform-tests/navigation-api/ (layout-tests) tests are constant text failures
 imported/w3c/web-platform-tests/navigation-api/navigate-event/navigation-traverseTo-in-iframe-same-document-preventDefault.html [ Failure ]
 imported/w3c/web-platform-tests/navigation-api/navigation-methods/back-forward-multiple-frames.html [ Failure ]
 imported/w3c/web-platform-tests/navigation-api/navigation-methods/traverseTo-navigates-multiple-iframes.html [ Failure ]
@@ -2379,3 +2370,13 @@ imported/w3c/web-platform-tests/navigation-api/per-entry-events/dispose-for-navi
 
 webkit.org/b/293808 [ Sequoia Debug arm64 ] http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/atan2.html [ Failure ]
 webkit.org/b/293808 [ Sequoia Debug arm64 ] http/tests/webgpu/webgpu/shader/execution/expression/call/builtin/bitcast.html [ Timeout ]
+
+webkit.org/b/296885 [ Debug arm64 ] fast/scrolling/mac/scrollend-event-user-scroll-basic.html [ Pass Failure ]
+
+webkit.org/b/296890 [ Debug x86_64 ] fast/webgpu/nocrash/fuzz-282097.html [ Pass Failure ]
+
+webkit.org/b/296893 imported/w3c/web-platform-tests/css/css-view-transitions/column-span-during-transition-doesnt-skip.html [ Pass ImageOnlyFailure ]
+
+webkit.org/b/296898 [ Debug arm64 ] fast/block/transparent-outline-with-and-without-border-radius.html [ Pass ImageOnlyFailure ]
+
+webkit.org/b/296901 [ Sonoma x86_64 ] imported/w3c/web-platform-tests/css/filter-effects/filters-drop-shadow-002.html [ ImageOnlyFailure ]
