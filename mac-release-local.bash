@@ -32,5 +32,9 @@ export PACKAGE_JSON_LABEL="${matrix_label}"
 export ENABLE_MALLOC_HEAP_BREAKDOWN="${matrix_ENABLE_MALLOC_HEAP_BREAKDOWN}"
 export ENABLE_SANITIZERS="${matrix_ENABLE_SANITIZERS}"
 
+export RUNNER_TEMP=$(mktemp -d)
 export GITHUB_REPOSITORY="oven-sh/WebKit"
 bash mac-release.bash
+rm -r $RUNNER_TEMP/bun-webkit
+rm $RUNNER_TEMP/bun-webkit.tar.gz
+rm $RUNNER_TEMP/webkit-release/JavaScriptCore/DerivedSources/inspector/InspectorProtocolObjects.h
