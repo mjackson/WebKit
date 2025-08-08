@@ -815,7 +815,7 @@ struct InternalFunction {
 extern const CalleeBits NullWasmCallee;
 
 struct alignas(8) WasmCallableFunction {
-    WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(alignas);
+    WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(WasmCallableFunction);
     using LoadLocation = CodePtr<WasmEntryPtrTag>*;
     static constexpr ptrdiff_t offsetOfEntrypointLoadLocation() { return OBJECT_OFFSETOF(WasmCallableFunction, entrypointLoadLocation); }
     static constexpr ptrdiff_t offsetOfBoxedWasmCalleeLoadLocation() { return OBJECT_OFFSETOF(WasmCallableFunction, boxedWasmCalleeLoadLocation); }

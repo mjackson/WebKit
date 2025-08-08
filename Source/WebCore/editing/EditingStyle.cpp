@@ -557,31 +557,32 @@ static int textAlignResolvingStartAndEnd(T& style)
     return textAlignResolvingStartAndEnd(identifierForStyleProperty(style, CSSPropertyTextAlign), identifierForStyleProperty(style, CSSPropertyDirection));
 }
 
-void EditingStyle::init(Node* node, PropertiesToInclude propertiesToInclude)
+void EditingStyle::init(Node* initialNode, PropertiesToInclude propertiesToInclude)
 {
-    if (auto* tabSpan = parentTabSpanNode(node))
+    RefPtr node = initialNode;
+    if (RefPtr tabSpan = parentTabSpanNode(node.get()))
         node = tabSpan->parentNode();
-    else if (tabSpanNode(node))
+    else if (tabSpanNode(node.get()))
         node = node->parentNode();
 
-    Style::Extractor computedStyleAtPosition(node);
+    Style::Extractor computedStyleAtPosition(node.get());
     // FIXME: It's strange to not set background-color and text-decoration when propertiesToInclude is EditingPropertiesInEffect.
     // However editing/selection/contains-boundaries.html fails without this ternary.
     m_mutableStyle = copyPropertiesFromComputedStyle(computedStyleAtPosition,
         propertiesToInclude == PropertiesToInclude::EditingPropertiesInEffect ? PropertiesToInclude::OnlyEditingInheritableProperties : propertiesToInclude);
 
     if (propertiesToInclude == PropertiesToInclude::EditingPropertiesInEffect) {
-        if (RefPtr<CSSValue> value = backgroundColorInEffect(node))
+        if (RefPtr value = backgroundColorInEffect(node.get()))
             m_mutableStyle->setProperty(CSSPropertyBackgroundColor, value->cssText(CSS::defaultSerializationContext()));
-        if (RefPtr<CSSValue> value = computedStyleAtPosition.propertyValue(CSSPropertyWebkitTextDecorationsInEffect)) {
+        if (RefPtr value = computedStyleAtPosition.propertyValue(CSSPropertyWebkitTextDecorationsInEffect)) {
             m_mutableStyle->setProperty(CSSPropertyTextDecorationLine, value->cssText(CSS::defaultSerializationContext()));
             m_mutableStyle->removeProperty(CSSPropertyWebkitTextDecorationsInEffect);
         }
     }
 
     if (node && node->computedStyle()) {
-        auto* renderStyle = node->computedStyle();
-        removeTextFillAndStrokeColorsIfNeeded(renderStyle);
+        CheckedPtr renderStyle = node->computedStyle();
+        removeTextFillAndStrokeColorsIfNeeded(renderStyle.get());
         if (renderStyle->fontDescription().keywordSize()) {
             if (auto cssValue = computedStyleAtPosition.getFontSizeCSSValuePreferringKeyword())
                 m_mutableStyle->setProperty(CSSPropertyFontSize, cssValue->cssText(CSS::defaultSerializationContext()));
@@ -1465,17 +1466,16 @@ static void removePropertiesInStyle(MutableStyleProperties& styleToRemovePropert
     }).span());
 }
 
-void EditingStyle::removeStyleFromRulesAndContext(StyledElement& element, Node* context)
+Ref<MutableStyleProperties> EditingStyle::removeInlineStyleRedundantDueToMatchedRules(StyledElement& element)
 {
-    if (!m_mutableStyle)
-        return;
-
-    // 1. Remove style from matched rules because style remain without repeating it in inline style declaration
     auto styleFromMatchedRules = styleFromMatchedRulesForElement(element, Style::Resolver::AllButEmptyCSSRules);
     if (!styleFromMatchedRules->isEmpty())
         m_mutableStyle = getPropertiesNotIn(*m_mutableStyle.copyRef(), styleFromMatchedRules.get());
+    return styleFromMatchedRules;
+}
 
-    // 2. Remove style present in context and not overridden by matched rules.
+void EditingStyle::removeStyleInContextNotOverridenByMatchedRules(StyledElement& element, Node* context, MutableStyleProperties& styleFromMatchedRules)
+{
     auto computedStyle = EditingStyle::create(context, PropertiesToInclude::EditingPropertiesInEffect);
     if (RefPtr computedStyleMutableStyle = computedStyle->m_mutableStyle) {
         if (!computedStyleMutableStyle->getPropertyCSSValue(CSSPropertyBackgroundColor))
@@ -1496,11 +1496,9 @@ void EditingStyle::removeStyleFromRulesAndContext(StyledElement& element, Node* 
         }
 
         RefPtr<EditingStyle> computedStyleOfElement;
-        auto replaceSemanticColorWithComputedValue = [&](const CSSPropertyID id) {
-            auto color = mutableStyle->propertyAsColor(id);
-            if (!color || (color->isVisible() && !color->isSemantic()))
+        auto replaceSpecifiedValueWithComputedValue = [&](const CSSPropertyID id) {
+            if (m_mutableStyle->findPropertyIndex(id) == -1)
                 return;
-
             if (!computedStyleOfElement)
                 computedStyleOfElement = EditingStyle::create(&element, PropertiesToInclude::EditingPropertiesInEffect);
 
@@ -1512,6 +1510,13 @@ void EditingStyle::removeStyleFromRulesAndContext(StyledElement& element, Node* 
                 return;
 
             mutableStyle->setProperty(id, computedValue);
+
+        };
+        auto replaceSemanticColorWithComputedValue = [&](const CSSPropertyID id) {
+            auto color = mutableStyle->propertyAsColor(id);
+            if (!color || (color->isVisible() && !color->isSemantic()))
+                return;
+            replaceSpecifiedValueWithComputedValue(id);
         };
 
         // Replace semantic color identifiers like -apple-system-label with RGB values so that comparsions in getPropertiesNotIn below would work.
@@ -1519,19 +1524,35 @@ void EditingStyle::removeStyleFromRulesAndContext(StyledElement& element, Node* 
         replaceSemanticColorWithComputedValue(CSSPropertyCaretColor);
         replaceSemanticColorWithComputedValue(CSSPropertyBackgroundColor);
 
-        removePropertiesInStyle(*computedStyleMutableStyle, styleFromMatchedRules.get());
+        removePropertiesInStyle(*computedStyleMutableStyle, styleFromMatchedRules);
         m_mutableStyle = getPropertiesNotIn(mutableStyle, *computedStyleMutableStyle);
     }
+}
 
-    // 3. If this element is a span and has display: inline or float: none, remove them unless they are overridden by rules.
+void EditingStyle::removeDisplayPropertyFromSpanStyleIfRedundant(StyledElement& element, MutableStyleProperties& styleFromMatchedRules)
+{
+    // If this element is a span and has display: inline or float: none, remove them unless they are overridden by rules.
     // These rules are added by serialization code to wrap text nodes.
-    if (isStyleSpanOrSpanWithOnlyStyleAttribute(element)) {
-        Ref mutableStyle = *m_mutableStyle;
-        if (!styleFromMatchedRules->getPropertyCSSValue(CSSPropertyDisplay) && identifierForStyleProperty(mutableStyle, CSSPropertyDisplay) == CSSValueInline)
-            mutableStyle->removeProperty(CSSPropertyDisplay);
-        if (!styleFromMatchedRules->getPropertyCSSValue(CSSPropertyFloat) && identifierForStyleProperty(mutableStyle, CSSPropertyFloat) == CSSValueNone)
-            mutableStyle->removeProperty(CSSPropertyFloat);
-    }
+    if (!isStyleSpanOrSpanWithOnlyStyleAttribute(element))
+        return;
+
+    Ref mutableStyle = *m_mutableStyle;
+    if (!styleFromMatchedRules.getPropertyCSSValue(CSSPropertyDisplay) && identifierForStyleProperty(mutableStyle, CSSPropertyDisplay) == CSSValueInline)
+        mutableStyle->removeProperty(CSSPropertyDisplay);
+    if (!styleFromMatchedRules.getPropertyCSSValue(CSSPropertyFloat) && identifierForStyleProperty(mutableStyle, CSSPropertyFloat) == CSSValueNone)
+    mutableStyle->removeProperty(CSSPropertyFloat);
+}
+
+
+void EditingStyle::removeStyleFromRulesAndContext(StyledElement& element, Node* context)
+{
+    if (!m_mutableStyle)
+        return;
+
+    auto styleFromMatchedRules = removeInlineStyleRedundantDueToMatchedRules(element);
+    removeStyleInContextNotOverridenByMatchedRules(element, context, styleFromMatchedRules.get());
+    removeDisplayPropertyFromSpanStyleIfRedundant(element, styleFromMatchedRules.get());
+
 }
 
 void EditingStyle::removePropertiesInElementDefaultStyle(Element& element)
@@ -1556,7 +1577,7 @@ void EditingStyle::removeEquivalentProperties(T& style)
     m_mutableStyle->removeProperties(propertiesToRemove.span());
 }
 
-void EditingStyle::forceInline()
+void EditingStyle::forceDisplayInline()
 {
     if (!m_mutableStyle)
         m_mutableStyle = MutableStyleProperties::create();
@@ -1699,10 +1720,10 @@ WritingDirection EditingStyle::textDirectionForSelection(const VisibleSelection&
     Position end;
     if (selection.isRange()) {
         end = selection.end().upstream();
-        for (auto& intersectingNode : intersectingNodes(*makeSimpleRange(position, end))) {
-            if (!intersectingNode.isStyledElement())
+        for (Ref intersectingNode : intersectingNodes(*makeSimpleRange(position, end))) {
+            if (!intersectingNode->isStyledElement())
                 continue;
-            auto value = valueID(Style::Extractor(&intersectingNode).propertyValue(CSSPropertyUnicodeBidi).get());
+            auto value = valueID(Style::Extractor(intersectingNode.ptr()).propertyValue(CSSPropertyUnicodeBidi).get());
             if (value == CSSValueEmbed || value == CSSValueBidiOverride)
                 return WritingDirection::Natural;
         }

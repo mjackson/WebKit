@@ -20,8 +20,8 @@
 
 #pragma once
 
-#include "JSWrapperObject.h"
 #include "JSString.h"
+#include "JSWrapperObject.h"
 
 namespace JSC {
 

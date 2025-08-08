@@ -60,7 +60,10 @@ class RenderThemeCocoa : public RenderTheme {
 public:
     WEBCORE_EXPORT static RenderThemeCocoa& singleton();
 
+    Color controlTintColor(const RenderStyle&, OptionSet<StyleColorOptions>) const;
+
 #if ENABLE(FORM_CONTROL_REFRESH)
+    Color controlTintColorWithContrast(const RenderStyle&, OptionSet<StyleColorOptions>) const;
     static std::optional<RoundedShape> shapeForInteractionRegion(const RenderBox&, const FloatRect&, ShouldComputePath);
     static FloatSize inflateRectForInteractionRegion(const RenderObject&, FloatRect&);
     bool controlSupportsTints(const RenderObject&) const override;
@@ -90,8 +93,6 @@ protected:
     Color platformSpellingMarkerColor(OptionSet<StyleColorOptions>) const override;
     Color platformDictationAlternativesMarkerColor(OptionSet<StyleColorOptions>) const override;
     Color platformGrammarMarkerColor(OptionSet<StyleColorOptions>) const override;
-
-    Color controlTintColor(const RenderStyle&, OptionSet<StyleColorOptions>) const;
 
     void adjustCheckboxStyle(RenderStyle&, const Element*) const override;
     bool paintCheckbox(const RenderObject&, const PaintInfo&, const FloatRect&) override;
@@ -263,7 +264,8 @@ protected:
     bool adjustTextControlInnerTextStyleForVectorBasedControls(RenderStyle&, const RenderStyle&, const Element*) const;
 
     Color buttonTextColor(OptionSet<StyleColorOptions>, bool) const;
-    Color disabledSubmitButtonTextColor() const final;
+
+    Color submitButtonTextColor(const RenderObject&) const final;
 
     bool mayNeedBleedAvoidance(const RenderStyle&) const final;
 

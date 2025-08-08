@@ -25,9 +25,9 @@
 
 #pragma once
 
-#include "VM.h"
 #include "ObjectPrototype.h"
 #include "SlotVisitor.h"
+#include "VM.h"
 #include "WriteBarrier.h"
 
 namespace JSC {

@@ -28,8 +28,8 @@
 #include "DFGMinifiedID.h"
 #include "DataFormat.h"
 #if ENABLE(JIT)
-#include "GPRInfo.h"
 #include "FPRInfo.h"
+#include "GPRInfo.h"
 #include "Reg.h"
 #endif
 #include "JSCJSValue.h"

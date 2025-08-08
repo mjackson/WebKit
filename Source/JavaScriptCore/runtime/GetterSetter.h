@@ -22,9 +22,8 @@
 
 #pragma once
 
-#include "JSCast.h"
-
 #include "CallFrame.h"
+#include "JSCast.h"
 #include "JSGlobalObject.h"
 #include "NullGetterFunction.h"
 #include "NullSetterFunction.h"

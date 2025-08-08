@@ -1976,6 +1976,7 @@ webkit.org/b/267251 imported/w3c/web-platform-tests/css/selectors/invalidation/u
 # TEMPORARY SKIPS -- these areas still need to be addressed individually
 #//////////////////////////////////////////////////////////////////////////////////////////
 
+imported/w3c/web-platform-tests/event-timing/interaction-count-tap.html [ Crash ]
 imported/w3c/web-platform-tests/event-timing/interaction-count-click.html [ Skip ]
 imported/w3c/web-platform-tests/event-timing/interaction-count-press-key.html [ Skip ]
 
@@ -4525,6 +4526,9 @@ http/tests/iframe-memory-monitor/media-video-autoplay-in-frames.html [ Skip ]
 dom/xsl/lockdown-mode [ Skip ]
 http/tests/lockdown-mode [ Skip ]
 js/dom/lockdown-mode [ Skip ]
+
+imported/w3c/web-platform-tests/pointerevents/pointerevent_fractional_coordinates.html?mouse [ Pass ]
+imported/w3c/web-platform-tests/pointerevents/pointerevent_fractional_coordinates.html?pen [ Pass ]
 
 # New imported 'focus' timeout failures
 imported/w3c/web-platform-tests/focus/activeelement-after-focusing-different-site-iframe-contentwindow.html [ Failure ]

@@ -1129,7 +1129,22 @@ static void changeContentOffsetBoundedInValidRange(UIScrollView *scrollView, Web
 
         if (isFirstTransactionAfterObscuredInsetChange) {
             _perProcessState.firstTransactionIDAfterObscuredInsetChange = std::nullopt;
-            if (_overriddenLayoutParameters && !self._shouldDeferGeometryUpdates) {
+            bool needsOverrideLayoutSizeUpdate = [&] {
+                if (!_overriddenLayoutParameters)
+                    return false;
+
+                if (!self._shouldDeferGeometryUpdates)
+                    return true;
+
+                // rdar://157669095: SFSafariViewController may misplace content if geometry updates are deferred.
+                // Dispatch updates as long as the scene isn't being interactively resized.
+                if (WTF::IOSApplication::isSafariViewService() && !self.window.windowScene.effectiveGeometry.isInteractivelyResizing)
+                    return true;
+
+                return false;
+            }();
+
+            if (needsOverrideLayoutSizeUpdate) {
                 [self _dispatchSetViewLayoutSize:WebCore::FloatSize(_overriddenLayoutParameters->viewLayoutSize)];
                 _page->setMinimumUnobscuredSize(WebCore::FloatSize(_overriddenLayoutParameters->minimumUnobscuredSize));
                 _page->setDefaultUnobscuredSize(WebCore::FloatSize(_overriddenLayoutParameters->maximumUnobscuredSize));
@@ -1586,10 +1601,17 @@ static void configureScrollViewWithOverlayRegionsIDs(RetainPtr<WKBaseScrollView>
     if (!surface)
         return nullptr;
 
-    // FIXME: rdar://157581000
-    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
-    CARenderServerRenderLayerWithTransform(MACH_PORT_NULL, self.layer.context.contextId, reinterpret_cast<uint64_t>(self.layer), surface->surface(), 0, 0, &transform);
-    ALLOW_DEPRECATED_DECLARATIONS_END
+    CARenderServerSnapshot(MACH_PORT_NULL, @{
+        kCASnapshotMode: kCASnapshotModeLayer,
+        kCASnapshotDisplayName: kCARenderServerDefaultDisplay,
+        kCASnapshotContextId: @(self.layer.context.contextId),
+        kCASnapshotLayerId: @(reinterpret_cast<uint64_t>(self.layer)),
+        kCASnapshotDestination: (__bridge id)surface->surface(),
+        kCASnapshotOriginX: @(0),
+        kCASnapshotOriginY: @(0),
+        kCASnapshotTransform: @(transform),
+        kCASnapshotTimeOffset: @(0),
+    });
 
 #if HAVE(IOSURFACE_ACCELERATOR)
     WebCore::IOSurface::Format compressedFormat = WebCore::IOSurface::Format::YUV422;
@@ -4806,9 +4828,19 @@ static bool isLockdownModeWarningNeeded()
         CGFloat imageScaleInViewCoordinates = imageWidth / rectInViewCoordinates.size.width;
         CATransform3D transform = CATransform3DMakeScale(imageScaleInViewCoordinates, imageScaleInViewCoordinates, 1);
         transform = CATransform3DTranslate(transform, -rectInViewCoordinates.origin.x, -rectInViewCoordinates.origin.y, 0);
-        ALLOW_DEPRECATED_DECLARATIONS_BEGIN
-        CARenderServerRenderDisplayLayerWithTransformAndTimeOffset(MACH_PORT_NULL, (CFStringRef)displayName, self.layer.context.contextId, reinterpret_cast<uint64_t>(self.layer), surface->surface(), 0, 0, &transform, 0);
-        ALLOW_DEPRECATED_DECLARATIONS_END
+
+        CARenderServerSnapshot(MACH_PORT_NULL, @{
+            kCASnapshotMode: kCASnapshotModeLayer,
+            kCASnapshotDisplayName: displayName,
+            kCASnapshotContextId: @(self.layer.context.contextId),
+            kCASnapshotLayerId: @(reinterpret_cast<uint64_t>(self.layer)),
+            kCASnapshotDestination: (__bridge id)surface->surface(),
+            kCASnapshotOriginX: @(0),
+            kCASnapshotOriginY: @(0),
+            kCASnapshotTransform: @(transform),
+            kCASnapshotTimeOffset: @(0),
+        });
+
         completionHandler(WebCore::IOSurface::sinkIntoImage(WTFMove(surface)).get());
         return;
     }

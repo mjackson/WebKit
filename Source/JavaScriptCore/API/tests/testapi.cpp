@@ -28,7 +28,7 @@
 #include "APICast.h"
 #include "JSGlobalObjectInlines.h"
 #include "MarkedJSValueRefArray.h"
-#include <JavaScriptCore/JSContextRefPrivate.h>
+#include "JSContextRefPrivate.h"
 #include <JavaScriptCore/JSObjectRefPrivate.h>
 #include <JavaScriptCore/JavaScript.h>
 #include <thread>

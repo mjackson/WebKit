@@ -149,7 +149,7 @@ public:
     void mergeStyleFromRulesForSerialization(StyledElement&, StandardFontFamilySerializationMode);
     void removeStyleFromRulesAndContext(StyledElement&, Node* context);
     void removePropertiesInElementDefaultStyle(Element&);
-    void forceInline();
+    void forceDisplayInline();
     void addDisplayContents();
     bool convertPositionStyle();
     bool isFloating();
@@ -184,6 +184,9 @@ private:
     EditingStyle(CSSPropertyID, CSSValueID);
     void init(Node*, PropertiesToInclude);
     void removeTextFillAndStrokeColorsIfNeeded(const RenderStyle*);
+    Ref<MutableStyleProperties> removeInlineStyleRedundantDueToMatchedRules(StyledElement&);
+    void removeStyleInContextNotOverridenByMatchedRules(StyledElement&, Node*, MutableStyleProperties&);
+    void removeDisplayPropertyFromSpanStyleIfRedundant(StyledElement&, MutableStyleProperties&);
     void setProperty(CSSPropertyID, const String& value, IsImportant = IsImportant::No);
     void extractFontSizeDelta();
     template<typename T> TriState triStateOfStyle(T& styleToCompare, ShouldIgnoreTextOnlyProperties) const;

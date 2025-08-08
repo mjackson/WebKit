@@ -48,6 +48,7 @@ class PCToOriginMap;
 #endif
 
 #if ENABLE(WEBASSEMBLY_OMGJIT)
+
 namespace Wasm {
 class OMGOrigin {
     MAKE_VALIDATED_REINTERPRET_CAST
