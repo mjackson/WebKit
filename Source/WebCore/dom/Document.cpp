@@ -2996,6 +2996,22 @@ bool Document::updateStyleIfNeeded()
     return true;
 }
 
+bool Document::updateStyleIfNeededIgnoringPendingStylesheets()
+{
+    bool oldIgnore = m_ignorePendingStylesheets;
+    m_ignorePendingStylesheets = true;
+    // FIXME: This should just invalidate elements with missing styles.
+    if (m_hasNodesWithMissingStyle)
+        scheduleFullStyleRebuild();
+
+    updateRelevancyOfContentVisibilityElements();
+
+    bool result = updateStyleIfNeeded();
+
+    m_ignorePendingStylesheets = oldIgnore;
+    return result;
+}
+
 auto Document::updateLayoutIgnorePendingStylesheets(OptionSet<LayoutOptions> layoutOptions, const Element* context) -> UpdateLayoutResult
 {
     layoutOptions.add(LayoutOptions::IgnorePendingStylesheets);
@@ -3760,14 +3776,18 @@ void Document::clearAXObjectCache()
     // are made to access it during destruction.
     if (RefPtr page = this->page())
         page->clearAXObjectCache();
+    m_topAXObjectCache = nullptr;
 }
 
 AXObjectCache* Document::existingAXObjectCacheSlow() const
 {
     ASSERT(hasEverCreatedAnAXObjectCache);
+    if (m_topAXObjectCache)
+        return m_topAXObjectCache.get();
+
     if (RefPtr page = this->page())
-        return page->existingAXObjectCache();
-    return nullptr;
+        m_topAXObjectCache = page->existingAXObjectCache();
+    return m_topAXObjectCache.get();
 }
 
 AXObjectCache* Document::axObjectCache() const
@@ -3775,10 +3795,14 @@ AXObjectCache* Document::axObjectCache() const
     if (!AXObjectCache::accessibilityEnabled())
         return nullptr;
 
+    if (m_topAXObjectCache)
+        return m_topAXObjectCache.get();
+
     RefPtr page = this->page();
     if (!page)
         return nullptr;
-    return page->axObjectCache();
+    m_topAXObjectCache = page->axObjectCache();
+    return m_topAXObjectCache.get();
 }
 
 void Document::setVisuallyOrdered()

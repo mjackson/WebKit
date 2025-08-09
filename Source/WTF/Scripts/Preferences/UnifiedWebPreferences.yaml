@@ -777,6 +777,7 @@ BackgroundFetchAPIEnabled:
     WebKit:
       default: false
   sharedPreferenceForWebProcess: true
+  richJavaScript: true
 
 BackgroundWebContentRunningBoardThrottlingEnabled:
   type: bool
@@ -979,6 +980,7 @@ BroadcastChannelEnabled:
     WebCore:
       default: true
   sharedPreferenceForWebProcess: true
+  richJavaScript: true
 
 BuiltInNotificationsEnabled:
   type: bool
@@ -1630,6 +1632,7 @@ CacheAPIEnabled:
     WebCore:
       default: false
   disableInLockdownMode: true
+  richJavaScript: true
 
 CanvasColorSpaceEnabled:
   type: bool
@@ -1918,6 +1921,7 @@ ContactPickerAPIEnabled:
     WebCore:
       default: false
   sharedPreferenceForWebProcess: true
+  richJavaScript: true
 
 ContentChangeObserverEnabled:
   type: bool
@@ -1989,6 +1993,7 @@ CookieConsentAPIEnabled:
     WebKit:
       default: false
   sharedPreferenceForWebProcess: true
+  richJavaScript: true
 
 # FIXME: This is handled via WebView SPI rather than WebPreferences for WebKitLegacy. We should change the SPI to lookup the WebPreferences value instead.
 CookieEnabled:
@@ -2018,20 +2023,7 @@ CookieStoreAPIEnabled:
     WebCore:
       default: true
   sharedPreferenceForWebProcess: true
-
-CookieStoreAPIExtendedAttributesEnabled:
-  type: bool
-  category: dom
-  status: testable
-  humanReadableName: "Cookie Store API Extended Attributes"
-  humanReadableDescription: "Enable Extended Attributes of the Cookie Store API"
-  defaultValue:
-    WebKitLegacy:
-      default: false
-    WebKit:
-      default: false
-    WebCore:
-      default: false
+  richJavaScript: true
 
 CookieStoreManagerEnabled:
   type: bool
@@ -2047,6 +2039,7 @@ CookieStoreManagerEnabled:
     WebCore:
       default: false
   sharedPreferenceForWebProcess: true
+  richJavaScript: true
 
 CoreMathMLEnabled:
   type: bool
@@ -2435,6 +2428,7 @@ DeviceOrientationPermissionAPIEnabled:
     WebCore:
       default: false
   sharedPreferenceForWebProcess: true
+  richJavaScript: true
 
 DeviceWidth:
   type: uint32_t
@@ -3641,6 +3635,7 @@ IndexedDBAPIEnabled:
       default: true
   disableInLockdownMode: true
   sharedPreferenceForWebProcess: true
+  richJavaScript: true
 
 InlineMediaPlaybackRequiresPlaysInlineAttribute:
   type: bool
@@ -4613,6 +4608,7 @@ ManagedMediaSourceEnabled:
     WebCore:
       default: true
   sharedPreferenceForWebProcess: true
+  richJavaScript: true
   mediaPlaybackRelated: true
 
 ManagedMediaSourceHighThreshold:
@@ -4925,6 +4921,7 @@ MediaRecorderEnabled:
     WebCore:
       default: false
   sharedPreferenceForWebProcess: true
+  richJavaScript: true
   mediaPlaybackRelated: true
 
 MediaRecorderEnabledWebM:
@@ -4974,6 +4971,7 @@ MediaSessionCoordinatorEnabled:
     WebCore:
       default: true
   sharedPreferenceForWebProcess: true
+  richJavaScript: true
   mediaPlaybackRelated: true
 
 MediaSessionEnabled:
@@ -5447,6 +5445,7 @@ NotificationEventEnabled:
       "ENABLE(NOTIFICATION_EVENT) && !PLATFORM(IOS_FAMILY)": true
       default: false
   sharedPreferenceForWebProcess: true
+  richJavaScript: true
 
 NotificationsEnabled:
   type: bool
@@ -5795,6 +5794,7 @@ PermissionsAPIEnabled:
     WebCore:
       default: false
   sharedPreferenceForWebProcess: true
+  richJavaScript: true
 
 PhotoPickerPrefersOriginalImageFormat:
   type: bool
@@ -6074,6 +6074,7 @@ PushAPIEnabled:
       default: false
   disableInLockdownMode: true
   sharedPreferenceForWebProcess: true
+  richJavaScript: true
 
 ReadableByteStreamAPIEnabled:
   type: bool
@@ -6802,6 +6803,7 @@ ServiceWorkerNavigationPreloadEnabled:
     WebKit:
       default: true
   sharedPreferenceForWebProcess: true
+  richJavaScript: true
   disableInLockdownMode: true
 
 ServiceWorkersEnabled:
@@ -6819,6 +6821,7 @@ ServiceWorkersEnabled:
     WebCore:
       default: false
   sharedPreferenceForWebProcess: true
+  richJavaScript: true
   disableInLockdownMode: true
 
 ServiceWorkersUserGestureEnabled:
@@ -6911,6 +6914,7 @@ SharedWorkerEnabled:
     WebKit:
       default: true
   sharedPreferenceForWebProcess: true
+  richJavaScript: true
 
 ShouldAllowUserInstalledFonts:
   type: bool
@@ -8734,6 +8738,7 @@ WebAuthenticationEnabled:
     WebCore:
       default: true
   sharedPreferenceForWebProcess: true
+  richJavaScript: true
 
 WebCodecsAV1Enabled:
   type: bool
@@ -9323,6 +9328,7 @@ WebSocketEnabled:
       "PLATFORM(WATCHOS)": false
       default: true
   sharedPreferenceForWebProcess: true
+  richJavaScript: true
 
 
 WebTransportEnabled:
@@ -9339,6 +9345,7 @@ WebTransportEnabled:
     WebCore:
       default: false
   sharedPreferenceForWebProcess: true
+  richJavaScript: true
   disableInLockdownMode: true
 
 WebXRAugmentedRealityModuleEnabled:
@@ -9373,6 +9380,7 @@ WebXREnabled:
       default: true
   disableInLockdownMode: true
   sharedPreferenceForWebProcess: true
+  richJavaScript: true
 
 WebXRGamepadsModuleEnabled:
   type: bool

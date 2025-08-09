@@ -1251,7 +1251,6 @@ webkit.org/b/251113 inspector/timeline/timeline-event-screenshots.html [ Skip ]
 # The Cookie Store API is not supported on WK1.
 imported/w3c/web-platform-tests/cookiestore [ Skip ]
 imported/w3c/web-platform-tests/cookies/partitioned-cookies/partitioned-cookies.tentative.https.html [ Skip ]
-http/tests/cookies/cookie-store-get-secure.https.html [ Skip ]
 http/tests/cookies/cookie-store-set-secure.https.html [ Skip ]
 cookies/cookie-store-register-eventlistener-from-file-protocol.html [ Skip ]
 cookies/cookie-store-start-listening-for-change-with-null-url-crash.html [ Skip ]
@@ -3225,3 +3224,5 @@ media/video-setSinkId-default.html [ Skip ]
 dom/xsl/lockdown-mode [ Skip ]
 http/tests/lockdown-mode [ Skip ]
 js/dom/lockdown-mode [ Skip ]
+
+webkit.org/b/289382 fast/canvas/offscreen-no-script-context-crash.html [ Skip ]

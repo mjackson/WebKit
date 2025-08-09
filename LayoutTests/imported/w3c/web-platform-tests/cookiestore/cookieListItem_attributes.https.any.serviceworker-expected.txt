@@ -1,13 +1,12 @@
 
-FAIL CookieListItem - cookieStore.set defaults with positional name and value assert_equals: expected (object) null but got (string) "localhost"
-FAIL CookieListItem - cookieStore.set defaults with name and value in options assert_equals: expected (object) null but got (string) "localhost"
-FAIL CookieListItem - cookieStore.set with expires set to a timestamp 10 years in the future assert_equals: expected (object) null but got (string) "localhost"
-FAIL CookieListItem - cookieStore.set with expires set to a Date 10 years in the future assert_equals: expected (object) null but got (string) "localhost"
-FAIL CookieListItem - cookieStore.set with domain set to the current hostname assert_equals: expected (object) null but got (undefined) undefined
-FAIL CookieListItem - cookieStore.set with path set to the current directory assert_equals: expected (object) null but got (string) "localhost"
-FAIL CookieListItem - cookieStore.set does not add / to path if it does not end with / assert_equals: expected (object) null but got (string) "localhost"
-FAIL CookieListItem - cookieStore.set with sameSite set to strict assert_equals: expected (object) null but got (string) "localhost"
-FAIL CookieListItem - cookieStore.set with sameSite set to lax assert_equals: expected (object) null but got (string) "localhost"
-FAIL CookieListItem - cookieStore.set with sameSite set to none assert_equals: expected (object) null but got (string) "localhost"
-PASS CookieListItem - secure defaults to true
+PASS CookieListItem - cookieStore.set defaults with positional name and value
+PASS CookieListItem - cookieStore.set defaults with name and value in options
+PASS CookieListItem - cookieStore.set with expires set to a timestamp 10 years in the future
+PASS CookieListItem - cookieStore.set with expires set to a Date 10 years in the future
+PASS CookieListItem - cookieStore.set with domain set to the current hostname
+PASS CookieListItem - cookieStore.set with path set to the current directory
+PASS CookieListItem - cookieStore.set does not add / to path if it does not end with /
+PASS CookieListItem - cookieStore.set with sameSite set to strict
+PASS CookieListItem - cookieStore.set with sameSite set to lax
+PASS CookieListItem - cookieStore.set with sameSite set to none
 

@@ -497,6 +497,8 @@ struct InsertTextOptions;
 struct InteractionInformationAtPosition;
 struct InteractionInformationRequest;
 struct LoadParameters;
+struct NodeHitTestResult;
+struct NodeInfo;
 struct PDFPluginIdentifierType;
 struct PlatformFontInfo;
 struct PrintInfo;
@@ -2047,6 +2049,10 @@ public:
 
     std::unique_ptr<FrameInfoData> takeMainFrameNavigationInitiator();
 
+#if PLATFORM(MAC)
+    void setOverflowHeightForTopScrollEdgeEffect(double value) { m_overflowHeightForTopScrollEdgeEffect = value; }
+#endif
+
 private:
     WebPage(WebCore::PageIdentifier, WebPageCreationParameters&&);
 
@@ -2582,9 +2588,12 @@ private:
 #endif
 
     template<typename T> T contentsToRootView(WebCore::FrameIdentifier, T);
+    template<typename T> T rootViewToContents(WebCore::FrameIdentifier, T);
     void contentsToRootViewRect(WebCore::FrameIdentifier, WebCore::FloatRect, CompletionHandler<void(WebCore::FloatRect)>&&);
     void contentsToRootViewPoint(WebCore::FrameIdentifier, WebCore::FloatPoint, CompletionHandler<void(WebCore::FloatPoint)>&&);
     void remoteDictionaryPopupInfoToRootView(WebCore::FrameIdentifier, WebCore::DictionaryPopupInfo, CompletionHandler<void(WebCore::DictionaryPopupInfo)>&&);
+
+    void hitTestAtPoint(WebCore::FrameIdentifier, WebCore::FloatPoint, CompletionHandler<void(NodeHitTestResult)>&&);
 
     void resetVisibilityAdjustmentsForTargetedElements(const Vector<std::pair<WebCore::NodeIdentifier, WebCore::ScriptExecutionContextIdentifier>>&, CompletionHandler<void(bool)>&&);
     void adjustVisibilityForTargetedElements(Vector<WebCore::TargetedElementAdjustment>&&, CompletionHandler<void(bool)>&&);
@@ -2872,6 +2881,10 @@ private:
 
 #if HAVE(UIKIT_RESIZABLE_WINDOWS)
     bool m_isWindowResizingEnabled { false };
+#endif
+
+#if PLATFORM(MAC)
+    double m_overflowHeightForTopScrollEdgeEffect { 0 };
 #endif
 
     bool m_needsScrollGeometryUpdates { false };

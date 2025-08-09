@@ -562,6 +562,8 @@ struct LoadParameters;
 struct ModelIdentifier;
 struct NavigationActionData;
 struct NetworkResourceLoadIdentifierType;
+struct NodeAndFrameInfo;
+struct NodeInfo;
 struct PDFContextMenu;
 struct PDFPluginIdentifierType;
 struct PlatformPopupMenuData;
@@ -965,7 +967,10 @@ public:
     void setAutomaticallyAdjustsContentInsets(bool);
     bool automaticallyAdjustsContentInsets() const { return m_automaticallyAdjustsContentInsets; }
     void updateContentInsetsIfAutomatic();
-#endif
+
+    double overflowHeightForTopScrollEdgeEffect() const { return m_overflowHeightForTopScrollEdgeEffect; }
+    void setOverflowHeightForTopScrollEdgeEffect(double);
+#endif // PLATFORM(MAC)
 
     // Corresponds to the web content's `<meta name="theme-color">` or application manifest's `"theme_color"`.
     WebCore::Color themeColor() const;
@@ -2700,6 +2705,7 @@ public:
     void convertPointToMainFrameCoordinates(WebCore::FloatPoint, std::optional<WebCore::FrameIdentifier>, CompletionHandler<void(std::optional<WebCore::FloatPoint>)>&&);
     void convertRectToMainFrameCoordinates(WebCore::FloatRect, std::optional<WebCore::FrameIdentifier>, CompletionHandler<void(std::optional<WebCore::FloatRect>)>&&);
     Awaitable<std::optional<WebCore::FloatRect>> convertRectToMainFrameCoordinates(WebCore::FloatRect, std::optional<WebCore::FrameIdentifier>);
+    void hitTestAtPoint(WebCore::FrameIdentifier, WebCore::FloatPoint, CompletionHandler<void(std::optional<NodeAndFrameInfo>&&)>&&);
 
 #if HAVE(SPATIAL_TRACKING_LABEL)
     void setDefaultSpatialTrackingLabel(const String&);
@@ -3543,6 +3549,7 @@ private:
 
 #if PLATFORM(MAC)
     bool m_acceptsFirstMouse { false };
+    double m_overflowHeightForTopScrollEdgeEffect { 0 };
 #endif
 
 #if USE(SYSTEM_PREVIEW)

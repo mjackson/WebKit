@@ -8643,6 +8643,8 @@
 		FA39AE672B23972A008F93CD /* CoreIPCAuditToken.serialization.in */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = CoreIPCAuditToken.serialization.in; sourceTree = "<group>"; };
 		FA4066DF2D4472CE00A2E622 /* WKPageFullScreenClient.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WKPageFullScreenClient.h; sourceTree = "<group>"; };
 		FA4368C62B811BA3001B993D /* CoreIPCNSURLCredential.serialization.in */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = CoreIPCNSURLCredential.serialization.in; sourceTree = "<group>"; };
+		FA45FA392E4545E500057B45 /* NodeHitTestResult.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NodeHitTestResult.h; sourceTree = "<group>"; };
+		FA45FA3B2E45462200057B45 /* NodeHitTestResult.serialization.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = NodeHitTestResult.serialization.in; sourceTree = "<group>"; };
 		FA4899BD2C5C56E800B04660 /* APISerializedScriptValue.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = APISerializedScriptValue.cpp; sourceTree = "<group>"; };
 		FA4EFC4E2E024493005DADAF /* RemotePagePlaybackSessionManagerProxy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RemotePagePlaybackSessionManagerProxy.h; sourceTree = "<group>"; };
 		FA4EFC4F2E024493005DADAF /* RemotePagePlaybackSessionManagerProxy.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RemotePagePlaybackSessionManagerProxy.cpp; sourceTree = "<group>"; };
@@ -8707,6 +8709,8 @@
 		FA7036C32D72882A00083D04 /* RunJavaScriptParameters.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RunJavaScriptParameters.h; sourceTree = "<group>"; };
 		FA8262722B2193EA00BB8236 /* APINumber.serialization.in */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = APINumber.serialization.in; sourceTree = "<group>"; };
 		FA87D9B42D8BDC2B00B609D4 /* FrameInfoData.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = FrameInfoData.cpp; sourceTree = "<group>"; };
+		FA8B4F662E4674BC00E419CD /* APIScriptMessage.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = APIScriptMessage.h; sourceTree = "<group>"; };
+		FA8B4F672E4674BC00E419CD /* APIScriptMessage.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = APIScriptMessage.cpp; sourceTree = "<group>"; };
 		FA94F2A12D07800D006373E0 /* WebPageInternals.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WebPageInternals.h; sourceTree = "<group>"; };
 		FA96E4AC2AA90A1E0090C5A3 /* WebHistoryItemClient.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = WebHistoryItemClient.cpp; sourceTree = "<group>"; };
 		FA96E4AD2AA90A1E0090C5A3 /* WebHistoryItemClient.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WebHistoryItemClient.h; sourceTree = "<group>"; };
@@ -9780,6 +9784,8 @@
 				86D1970829AE4E930083B077 /* NetworkProcessConnectionParameters.h */,
 				86D1970729AE4E8A0083B077 /* NetworkProcessConnectionParameters.serialization.in */,
 				5CD748B523C8EB190092A9B5 /* NetworkResourceLoadIdentifier.h */,
+				FA45FA392E4545E500057B45 /* NodeHitTestResult.h */,
+				FA45FA3B2E45462200057B45 /* NodeHitTestResult.serialization.in */,
 				FA58F4562E1E030A0098E1C8 /* NodeInfo.h */,
 				8657EE3928EDB8C500FF9B40 /* Pasteboard.serialization.in */,
 				7AFBD36E21E546E3005DBACB /* PersistencyUtils.cpp */,
@@ -15140,6 +15146,8 @@
 				5CB7AFE423C67D6400E49CF3 /* APIResourceLoadInfo.h */,
 				49BCA19123A177660028A836 /* APIResourceLoadStatisticsFirstParty.h */,
 				49BCA19623A18F620028A836 /* APIResourceLoadStatisticsThirdParty.h */,
+				FA8B4F672E4674BC00E419CD /* APIScriptMessage.cpp */,
+				FA8B4F662E4674BC00E419CD /* APIScriptMessage.h */,
 				FAFFC35B2E2AB12400CCC89C /* APISerializedNode.cpp */,
 				FAFFC35A2E2AB12400CCC89C /* APISerializedNode.h */,
 				1AFDE65F1954E9B100C48FFA /* APISessionState.cpp */,

@@ -315,6 +315,8 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     Modules/WebGPU/InternalAPI/WebGPUXRSubImage.h
     Modules/WebGPU/InternalAPI/WebGPUXRView.h
 
+    Modules/webxr/XRCanvasConfiguration.h
+
     Modules/airplay/PlaybackTargetClientContextIdentifier.h
 
     Modules/applepay/ApplePayLogoSystemImage.h
@@ -2772,6 +2774,9 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     style/values/box/StyleMargin.h
     style/values/box/StylePadding.h
+
+    style/values/break/StyleOrphans.h
+    style/values/break/StyleWidows.h
 
     style/values/color/StyleColor.h
     style/values/color/StyleColorOptions.h

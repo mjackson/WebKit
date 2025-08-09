@@ -1360,14 +1360,13 @@ HitTestResult EventHandler::hitTestResultAtPoint(const LayoutPoint& point, Optio
 {
     Ref frame = m_frame.get();
 
-    // We always send hitTestResultAtPoint to the main frame if we have one,
+    // We always send hitTestResultAtPoint to the root frame if we have one,
     // otherwise we might hit areas that are obscured by higher frames.
-    if (!frame->isMainFrame()) {
-        if (RefPtr mainFrame = dynamicDowncast<LocalFrame>(frame->mainFrame())) {
-            if (RefPtr frameView = frame->view(), mainView = mainFrame->view(); frameView && mainView) {
-                IntPoint mainFramePoint = mainView->rootViewToContents(frameView->contentsToRootView(roundedIntPoint(point)));
-                return mainFrame->eventHandler().hitTestResultAtPoint(mainFramePoint, hitType);
-            }
+    if (!frame->isRootFrame() && !hitType.contains(HitTestRequest::Type::SkipTransformToRootFrameCoordinates)) {
+        Ref rootFrame = frame->rootFrame();
+        if (RefPtr frameView = frame->view(), rootView = rootFrame->view(); frameView && rootView) {
+            IntPoint rootFramePoint = rootView->rootViewToContents(frameView->contentsToRootView(roundedIntPoint(point)));
+            return rootFrame->eventHandler().hitTestResultAtPoint(rootFramePoint, hitType);
         }
     }
 
@@ -3503,6 +3502,11 @@ bool EventHandler::scrollableAreaCanHandleEvent(const PlatformWheelEvent& wheelE
     auto biasedDelta = wheelEvent.delta();
 #endif
 
+#if ENABLE(KINETIC_SCROLLING)
+    if (wheelEvent.phase() == PlatformWheelEventPhase::Ended || wheelEvent.momentumPhase() == PlatformWheelEventPhase::Ended)
+        return true;
+#endif
+
     auto verticalSide = ScrollableArea::targetSideForScrollDelta(-biasedDelta, ScrollEventAxis::Vertical);
     if (verticalSide && !scrollableArea.isPinnedOnSide(*verticalSide))
         return true;
@@ -3519,7 +3523,7 @@ bool EventHandler::scrollableAreaCanHandleEvent(const PlatformWheelEvent& wheelE
 bool EventHandler::handleWheelEventInScrollableArea(const PlatformWheelEvent& wheelEvent, ScrollableArea& scrollableArea, OptionSet<EventHandling> eventHandling)
 {
     auto gestureState = updateWheelGestureState(wheelEvent, eventHandling);
-    LOG_WITH_STREAM(Scrolling, stream << "EventHandler::handleWheelEventInScrollableArea() " << scrollableArea << " - eventHandling " << eventHandling << " -> gesture state " << gestureState);
+    LOG_WITH_STREAM(Scrolling, stream << "EventHandler::handleWheelEventInScrollableArea() " << scrollableArea << " - eventHandling " << eventHandling << " -> gesture state " << gestureState << " wheelEvent: " << wheelEvent);
     return scrollableArea.handleWheelEventForScrolling(wheelEvent, gestureState);
 }
 
