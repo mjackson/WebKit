@@ -43,7 +43,7 @@ function setStateToMax(entry, newState)
 }
 
 @linkTimeConstant
-function newRegistryEntry(key, type)
+function newRegistryEntry(key)
 {
     // https://whatwg.github.io/loader/#registry
     //
@@ -89,7 +89,6 @@ function newRegistryEntry(key, type)
 
     return {
         key: key,
-        type: type,
         state: @ModuleFetch,
         fetch: @undefined,
         instantiate: @undefined,
@@ -105,29 +104,18 @@ function newRegistryEntry(key, type)
     };
 }
 
-@visibility=PrivateRecursive
-function ensureRegistered(key, type)
+function ensureRegistered(key)
 {
     // https://whatwg.github.io/loader/#ensure-registered
 
     "use strict";
 
-    if (type === @undefined)
-        type = 'js-wasm';
+    var entry = this.registry.@get(key);
+    if (entry)
+        return entry;
 
-    var entryMap = this.registry.@get(key);
-    var entry;
-    if (entryMap) {
-        entry = entryMap.@get(type);
-        if (entry)
-            return entry;
-    } else {
-        entryMap = new @Map;
-        this.registry.@set(key, entryMap);
-    }
-
-    entry = @newRegistryEntry(key, type);
-    entryMap.@set(type, entry);
+    entry = @newRegistryEntry(key);
+    this.registry.@set(key, entry);
 
     return entry;
 }
@@ -281,10 +269,9 @@ function requestInstantiate(entry, parameters, fetcher)
         var requestedModules = this.requestedModules(moduleRecord);
         var dependencies = @newArrayWithSize(requestedModules.length);
         for (var i = 0, length = requestedModules.length; i < length; ++i) {
-            var item = requestedModules[i];
-            var depName = item.key;
+            var depName = requestedModules[i];
             var depKey = this.resolve(depName, key, fetcher);
-            var depEntry = this.ensureRegistered(depKey, item.type);
+            var depEntry = this.ensureRegistered(depKey);
             @putByValDirect(dependencies, i, depEntry);
             dependenciesMap.@set(depName, depEntry);
         }
@@ -594,11 +581,11 @@ async function asyncModuleEvaluation(entry, fetcher, dependencies)
 
 // APIs to control the module loader.
 
-function provideFetch(key, value, type)
+function provideFetch(key, value)
 {
     "use strict";
 
-    var entry = this.ensureRegistered(key, type);
+    var entry = this.ensureRegistered(key);
 
     if (entry.state > @ModuleFetch)
         @throwTypeError("Requested module is already fetched.");
@@ -609,16 +596,15 @@ async function loadModule(key, parameters, fetcher)
 {
     "use strict";
 
-    var entry = await this.requestSatisfy(this.ensureRegistered(key, this.typeFromParameters(parameters)), parameters, fetcher, new @Set);
+    var entry = await this.requestSatisfy(this.ensureRegistered(key), parameters, fetcher, new @Set);
     return entry.key;
 }
 
-@visibility=PrivateRecursive
-function linkAndEvaluateModule(key, fetcher, type)
+function linkAndEvaluateModule(key, fetcher)
 {
     "use strict";
 
-    var entry = this.ensureRegistered(key, type);
+    var entry = this.ensureRegistered(key);
     this.link(entry, fetcher);
     return this.moduleEvaluation(entry, fetcher);
 }
@@ -628,9 +614,8 @@ async function loadAndEvaluateModule(moduleName, parameters, fetcher)
     "use strict";
 
     var key = this.resolve(moduleName, @undefined, fetcher);
-    var type = this.typeFromParameters(parameters);
     key = await this.loadModule(key, parameters, fetcher);
-    return await this.linkAndEvaluateModule(key, fetcher, type);
+    return await this.linkAndEvaluateModule(key, fetcher);
 }
 
 async function requestImportModule(moduleName, referrer, parameters, fetcher)
@@ -638,8 +623,7 @@ async function requestImportModule(moduleName, referrer, parameters, fetcher)
     "use strict";
 
     var key = moduleName;
-    var type = this.typeFromParameters(parameters);
-    var entry = this.ensureRegistered(key, type);
+    var entry = this.ensureRegistered(key);
     var mod;
     if (entry.evaluated && (mod = entry.module)) {
         return this.getModuleNamespaceObject(mod);
@@ -648,7 +632,7 @@ async function requestImportModule(moduleName, referrer, parameters, fetcher)
     if (entry.evaluated && (mod = entry.module)) {
         return this.getModuleNamespaceObject(mod);
     }
-    await this.linkAndEvaluateModule(entry.key, fetcher, type);
+    await this.linkAndEvaluateModule(entry.key, fetcher);
     return this.getModuleNamespaceObject(entry.module);
 }
 
@@ -656,10 +640,7 @@ function dependencyKeysIfEvaluated(key)
 {
     "use strict";
 
-    var entryMap = this.registry.@get(key);
-    if (!entryMap)
-        return null;
-    var entry = entryMap.@get('js-wasm');
+    var entry = this.registry.@get(key);
     if (!entry || !entry.evaluated)
         return null;
 

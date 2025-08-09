@@ -57,7 +57,6 @@ static JSC_DECLARE_HOST_FUNCTION(moduleLoaderModuleDeclarationInstantiation);
 static JSC_DECLARE_HOST_FUNCTION(moduleLoaderResolve);
 static JSC_DECLARE_HOST_FUNCTION(moduleLoaderFetch);
 static JSC_DECLARE_HOST_FUNCTION(moduleLoaderGetModuleNamespaceObject);
-static JSC_DECLARE_HOST_FUNCTION(moduleLoaderTypeFromParameters);
 
 }
 
@@ -87,7 +86,6 @@ void JSModuleLoader::finishCreation(JSGlobalObject* globalObject, VM& vm)
     JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("fetch"_s, moduleLoaderFetch, static_cast<unsigned>(PropertyAttribute::DontEnum), 3, ImplementationVisibility::Private);
     JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("moduleDeclarationInstantiation"_s, moduleLoaderModuleDeclarationInstantiation, static_cast<unsigned>(PropertyAttribute::DontEnum), 2, ImplementationVisibility::Private);
     JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("evaluate"_s, moduleLoaderEvaluate, static_cast<unsigned>(PropertyAttribute::DontEnum), 3, ImplementationVisibility::Private);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("typeFromParameters"_s, moduleLoaderTypeFromParameters, static_cast<unsigned>(PropertyAttribute::DontEnum), 1, ImplementationVisibility::Private);
 
     JSC_BUILTIN_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().ensureRegisteredPublicName(), moduleLoaderEnsureRegisteredCodeGenerator, static_cast<unsigned>(PropertyAttribute::DontEnum));
     JSC_BUILTIN_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().requestFetchPublicName(), moduleLoaderRequestFetchCodeGenerator, static_cast<unsigned>(PropertyAttribute::DontEnum));
@@ -145,7 +143,7 @@ JSValue JSModuleLoader::provideFetch(JSGlobalObject* globalObject, JSValue key, 
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     JSObject* function = getAs<JSObject*>(globalObject, vm.propertyNames->builtinNames().provideFetchPublicName());
-    RETURN_IF_EXCEPTION(scope, { });
+    RETURN_IF_EXCEPTION(scope, {});
     auto callData = JSC::getCallData(function);
     ASSERT(callData.type != CallData::Type::None);
 
@@ -206,7 +204,7 @@ JSValue JSModuleLoader::linkAndEvaluateModule(JSGlobalObject* globalObject, JSVa
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     JSObject* function = getAs<JSObject*>(globalObject, vm.propertyNames->builtinNames().linkAndEvaluateModulePublicName());
-    RETURN_IF_EXCEPTION(scope, { });
+    RETURN_IF_EXCEPTION(scope, {});
     auto callData = JSC::getCallData(function);
     ASSERT(callData.type != CallData::Type::None);
 
@@ -311,9 +309,9 @@ JSValue JSModuleLoader::evaluateNonVirtual(JSGlobalObject* globalObject, JSValue
     return jsUndefined();
 }
 
-
 #if USE(BUN_JSC_ADDITIONS)
-extern "C" __attribute__((weak)) EncodedJSValue Bun__analyzeTranspiledModule(JSGlobalObject* globalObject, const Identifier& moduleKey, const SourceCode& sourceCode, JSInternalPromise* promise) {
+extern "C" __attribute__((weak)) EncodedJSValue Bun__analyzeTranspiledModule(JSGlobalObject* globalObject, const Identifier& moduleKey, const SourceCode& sourceCode, JSInternalPromise* promise)
+{
     (void)globalObject;
     (void)moduleKey;
     (void)sourceCode;
@@ -340,7 +338,7 @@ JSModuleNamespaceObject* JSModuleLoader::getModuleNamespaceObject(JSGlobalObject
 
 // ------------------------------ Functions --------------------------------
 
-JSC_DEFINE_HOST_FUNCTION(moduleLoaderParseModule, (JSGlobalObject* globalObject, CallFrame* callFrame))
+JSC_DEFINE_HOST_FUNCTION(moduleLoaderParseModule, (JSGlobalObject * globalObject, CallFrame* callFrame))
 {
     VM& vm = globalObject->vm();
 
@@ -365,39 +363,39 @@ JSC_DEFINE_HOST_FUNCTION(moduleLoaderParseModule, (JSGlobalObject* globalObject,
 
     switch (sourceType) {
 #if ENABLE(WEBASSEMBLY)
-        case SourceProviderSourceType::WebAssembly:
-            RELEASE_AND_RETURN(scope, JSValue::encode(JSWebAssembly::instantiate(globalObject, promise, sourceCode.provider(), moduleKey, jsSourceCode)));
+    case SourceProviderSourceType::WebAssembly:
+        RELEASE_AND_RETURN(scope, JSValue::encode(JSWebAssembly::instantiate(globalObject, promise, sourceCode.provider(), moduleKey, jsSourceCode)));
 #endif
-        case SourceProviderSourceType::JSON: {
-            // https://tc39.es/proposal-json-modules/#sec-parse-json-module
-            auto* moduleRecord = SyntheticModuleRecord::parseJSONModule(globalObject, moduleKey, WTFMove(sourceCode));
-            RETURN_IF_EXCEPTION(scope, JSValue::encode(promise->rejectWithCaughtException(globalObject, scope)));
-            scope.release();
-            promise->fulfillWithNonPromise(globalObject, moduleRecord);
-            return JSValue::encode(promise);
-        }
-        case SourceProviderSourceType::Synthetic: {
-            SyntheticSourceProvider* syntheticSourceProvider = reinterpret_cast<SyntheticSourceProvider*>(sourceCode.provider());
-            MarkedArgumentBuffer args;
-            Vector<Identifier, 4> exportNames;
-            syntheticSourceProvider->generate(globalObject, moduleKey, exportNames, args);
-            RETURN_IF_EXCEPTION(scope, JSValue::encode(promise->rejectWithCaughtException(globalObject, scope)));
-            
-            auto* moduleRecord = SyntheticModuleRecord::tryCreateWithExportNamesAndValues(globalObject, moduleKey, exportNames, args);
-            RETURN_IF_EXCEPTION(scope, JSValue::encode(promise->rejectWithCaughtException(globalObject, scope)));
+    case SourceProviderSourceType::JSON: {
+        // https://tc39.es/proposal-json-modules/#sec-parse-json-module
+        auto* moduleRecord = SyntheticModuleRecord::parseJSONModule(globalObject, moduleKey, WTFMove(sourceCode));
+        RETURN_IF_EXCEPTION(scope, JSValue::encode(promise->rejectWithCaughtException(globalObject, scope)));
+        scope.release();
+        promise->fulfillWithNonPromise(globalObject, moduleRecord);
+        return JSValue::encode(promise);
+    }
+    case SourceProviderSourceType::Synthetic: {
+        SyntheticSourceProvider* syntheticSourceProvider = reinterpret_cast<SyntheticSourceProvider*>(sourceCode.provider());
+        MarkedArgumentBuffer args;
+        Vector<Identifier, 4> exportNames;
+        syntheticSourceProvider->generate(globalObject, moduleKey, exportNames, args);
+        RETURN_IF_EXCEPTION(scope, JSValue::encode(promise->rejectWithCaughtException(globalObject, scope)));
 
-            scope.release();
-            promise->fulfillWithNonPromise(globalObject, moduleRecord);
-            return JSValue::encode(promise);
-        }
+        auto* moduleRecord = SyntheticModuleRecord::tryCreateWithExportNamesAndValues(globalObject, moduleKey, exportNames, args);
+        RETURN_IF_EXCEPTION(scope, JSValue::encode(promise->rejectWithCaughtException(globalObject, scope)));
+
+        scope.release();
+        promise->fulfillWithNonPromise(globalObject, moduleRecord);
+        return JSValue::encode(promise);
+    }
 #if USE(BUN_JSC_ADDITIONS)
-        case SourceProviderSourceType::BunTranspiledModule: {
-            RELEASE_AND_RETURN(scope, Bun__analyzeTranspiledModule(globalObject, moduleKey, sourceCode, promise));
-        }
+    case SourceProviderSourceType::BunTranspiledModule: {
+        RELEASE_AND_RETURN(scope, Bun__analyzeTranspiledModule(globalObject, moduleKey, sourceCode, promise));
+    }
 #endif
-        default: {
-            break;
-        }
+    default: {
+        break;
+    }
     }
 
     ParserError error;
@@ -416,7 +414,7 @@ JSC_DEFINE_HOST_FUNCTION(moduleLoaderParseModule, (JSGlobalObject* globalObject,
 
     auto result = moduleAnalyzer.analyze(*moduleProgramNode);
     if (!result) {
-        auto [ errorType, message ] = WTFMove(result.error());
+        auto [errorType, message] = WTFMove(result.error());
         RELEASE_AND_RETURN(scope, JSValue::encode(rejectWithError(createError(globalObject, errorType, message))));
     }
 
@@ -429,46 +427,25 @@ JSC_DEFINE_HOST_FUNCTION(moduleLoaderParseModule, (JSGlobalObject* globalObject,
     return JSValue::encode(promise);
 }
 
-static JSValue stringFromScriptFetchParametersType(VM& vm, ScriptFetchParameters& parameters)
-{
-    switch (parameters.type()) {
-    case ScriptFetchParameters::Type::None:
-        break;
-    case ScriptFetchParameters::Type::JavaScript:
-    case ScriptFetchParameters::Type::WebAssembly:
-        return identifierToJSValue(vm, Identifier::fromString(vm, "js-wasm"_s));
-    case ScriptFetchParameters::Type::JSON:
-        return identifierToJSValue(vm, Identifier::fromString(vm, "json"_s));
-    }
-    return jsUndefined();
-}
-
-JSC_DEFINE_HOST_FUNCTION(moduleLoaderRequestedModules, (JSGlobalObject* globalObject, CallFrame* callFrame))
+JSC_DEFINE_HOST_FUNCTION(moduleLoaderRequestedModules, (JSGlobalObject * globalObject, CallFrame* callFrame))
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
     auto* moduleRecord = jsDynamicCast<AbstractModuleRecord*>(callFrame->argument(0));
-    if (!moduleRecord) 
+    if (!moduleRecord)
         RELEASE_AND_RETURN(scope, JSValue::encode(constructEmptyArray(globalObject, nullptr)));
 
     JSArray* result = constructEmptyArray(globalObject, nullptr, moduleRecord->requestedModules().size());
     RETURN_IF_EXCEPTION(scope, encodedJSValue());
     size_t i = 0;
     for (auto& request : moduleRecord->requestedModules()) {
-        auto* object = constructEmptyObject(globalObject->vm(), globalObject->nullPrototypeObjectStructure());
-        object->putDirect(vm, Identifier::fromString(vm, "key"_s), jsString(vm, String { request.m_specifier.get() }));
-        if (RefPtr parameters = request.m_attributes) {
-            JSValue value = stringFromScriptFetchParametersType(vm, *parameters);
-            if (!value.isUndefined())
-                object->putDirect(vm, Identifier::fromString(vm, "type"_s), value);
-        }
-        result->putDirectIndex(globalObject, i++, object);
+        result->putDirectIndex(globalObject, i++, jsString(vm, String { request.m_specifier.get() }));
         RETURN_IF_EXCEPTION(scope, encodedJSValue());
     }
     return JSValue::encode(result);
 }
 
-JSC_DEFINE_HOST_FUNCTION(moduleLoaderRequestedModuleParameters, (JSGlobalObject* globalObject, CallFrame* callFrame))
+JSC_DEFINE_HOST_FUNCTION(moduleLoaderRequestedModuleParameters, (JSGlobalObject * globalObject, CallFrame* callFrame))
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -489,7 +466,7 @@ JSC_DEFINE_HOST_FUNCTION(moduleLoaderRequestedModuleParameters, (JSGlobalObject*
     return JSValue::encode(result);
 }
 
-JSC_DEFINE_HOST_FUNCTION(moduleLoaderModuleDeclarationInstantiation, (JSGlobalObject* globalObject, CallFrame* callFrame))
+JSC_DEFINE_HOST_FUNCTION(moduleLoaderModuleDeclarationInstantiation, (JSGlobalObject * globalObject, CallFrame* callFrame))
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -505,18 +482,9 @@ JSC_DEFINE_HOST_FUNCTION(moduleLoaderModuleDeclarationInstantiation, (JSGlobalOb
     return JSValue::encode(jsBoolean(sync == Synchronousness::Async));
 }
 
-JSC_DEFINE_HOST_FUNCTION(moduleLoaderTypeFromParameters, (JSGlobalObject* globalObject, CallFrame* callFrame))
-{
-    VM& vm = globalObject->vm();
-    auto* parameters = jsDynamicCast<JSScriptFetchParameters*>(callFrame->argument(0));
-    if (!parameters)
-        return JSValue::encode(jsUndefined());
-    return JSValue::encode(stringFromScriptFetchParametersType(vm, parameters->parameters()));
-}
-
 // ------------------------------ Hook Functions ---------------------------
 
-JSC_DEFINE_HOST_FUNCTION(moduleLoaderResolve, (JSGlobalObject* globalObject, CallFrame* callFrame))
+JSC_DEFINE_HOST_FUNCTION(moduleLoaderResolve, (JSGlobalObject * globalObject, CallFrame* callFrame))
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -529,7 +497,7 @@ JSC_DEFINE_HOST_FUNCTION(moduleLoaderResolve, (JSGlobalObject* globalObject, Cal
     return JSValue::encode(identifierToJSValue(vm, result));
 }
 
-JSC_DEFINE_HOST_FUNCTION(moduleLoaderFetch, (JSGlobalObject* globalObject, CallFrame* callFrame))
+JSC_DEFINE_HOST_FUNCTION(moduleLoaderFetch, (JSGlobalObject * globalObject, CallFrame* callFrame))
 {
     // Hook point, Loader.fetch
     // https://whatwg.github.io/loader/#browser-fetch
@@ -542,7 +510,7 @@ JSC_DEFINE_HOST_FUNCTION(moduleLoaderFetch, (JSGlobalObject* globalObject, CallF
     return JSValue::encode(loader->fetch(globalObject, callFrame->argument(0), callFrame->argument(1), callFrame->argument(2)));
 }
 
-JSC_DEFINE_HOST_FUNCTION(moduleLoaderGetModuleNamespaceObject, (JSGlobalObject* globalObject, CallFrame* callFrame))
+JSC_DEFINE_HOST_FUNCTION(moduleLoaderGetModuleNamespaceObject, (JSGlobalObject * globalObject, CallFrame* callFrame))
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -557,7 +525,7 @@ JSC_DEFINE_HOST_FUNCTION(moduleLoaderGetModuleNamespaceObject, (JSGlobalObject* 
 
 // ------------------- Additional Hook Functions ---------------------------
 
-JSC_DEFINE_HOST_FUNCTION(moduleLoaderEvaluate, (JSGlobalObject* globalObject, CallFrame* callFrame))
+JSC_DEFINE_HOST_FUNCTION(moduleLoaderEvaluate, (JSGlobalObject * globalObject, CallFrame* callFrame))
 {
     // To instrument and retrieve the errors raised from the module execution,
     // we inserted the hook point here.
