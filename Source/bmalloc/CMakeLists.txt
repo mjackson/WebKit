@@ -40,6 +40,7 @@ set(bmalloc_SOURCES
     bmalloc/TZoneHeapManager.cpp
     bmalloc/TZoneLog.cpp
     bmalloc/bmalloc.cpp
+    bmalloc/VMAllocate.cpp
 
     bmalloc/uv_get_constrained_memory.cpp
 
