@@ -173,12 +173,13 @@ JSString* stringConstructor(JSGlobalObject* globalObject, JSValue argument)
             throwOutOfMemoryError(globalObject, scope);
             return nullptr;
         }
-        return jsNontrivialString(vm, description.value());
+        RELEASE_AND_RETURN(scope, jsNontrivialString(vm, description.value()));
     }
-    return argument.toString(globalObject);
+
+    RELEASE_AND_RETURN(scope, argument.toString(globalObject));
 }
 
-JSC_DEFINE_HOST_FUNCTION(callStringConstructor, (JSGlobalObject* globalObject, CallFrame* callFrame))
+JSC_DEFINE_HOST_FUNCTION(callStringConstructor, (JSGlobalObject * globalObject, CallFrame* callFrame))
 {
     VM& vm = globalObject->vm();
     if (!callFrame->argumentCount())
