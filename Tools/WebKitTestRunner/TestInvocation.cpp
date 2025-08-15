@@ -276,13 +276,6 @@ void TestInvocation::forceRepaintDoneCallback(WKErrorRef error, void* context)
     TestController::singleton().notifyDone();
 }
 
-void TestInvocation::tooltipDidChange(WKStringRef toolTip)
-{
-    auto messageBody = adoptWK(WKMutableDictionaryCreate());
-    setValue(messageBody, "Tooltip", toolTip);
-    postPageMessage("CallTooltipDidChangeCallback", messageBody);
-}
-
 void TestInvocation::dumpResourceLoadStatisticsIfNecessary()
 {
     if (m_shouldDumpResourceLoadStatistics)
@@ -1476,6 +1469,11 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
 
     if (WKStringIsEqualToUTF8CString(messageName, "ShouldDumpAllFrameScrollPositions"))
         return adoptWK(WKBooleanCreate(m_shouldDumpAllFrameScrollPositions));
+
+    if (WKStringIsEqualToUTF8CString(messageName, "SetHasMouseDeviceForTesting")) {
+        TestController::singleton().setHasMouseDeviceForTesting((booleanValue(messageBody)));
+        return nullptr;
+    }
 
     ASSERT_NOT_REACHED();
     return nullptr;

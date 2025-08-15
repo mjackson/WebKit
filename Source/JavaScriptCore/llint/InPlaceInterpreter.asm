@@ -354,31 +354,9 @@ end
 macro ipintPrologueOSR(increment)
 if JIT and not ARMv7
     loadp UnboxedWasmCalleeStackSlot[cfr], ws0
-    baddis increment, Wasm::IPIntCallee::m_tierUpCounter + Wasm::LLIntTierUpCounter::m_counter[ws0], .continue
+    baddis increment, Wasm::IPIntCallee::m_tierUpCounter + Wasm::IPIntTierUpCounter::m_counter[ws0], .continue
 
-    subq (NumberOfWasmArgumentJSRs + NumberOfWasmArgumentFPRs) * 8, sp
-if ARM64 or ARM64E
-    forEachArgumentJSR(macro (offset, gpr1, gpr2)
-        storepairq gpr2, gpr1, offset[sp]
-    end)
-elsif JSVALUE64
-    forEachArgumentJSR(macro (offset, gpr)
-        storeq gpr, offset[sp]
-    end)
-else
-    forEachArgumentJSR(macro (offset, gprMsw, gpLsw)
-        store2ia gpLsw, gprMsw, offset[sp]
-    end)
-end
-if ARM64 or ARM64E
-    forEachArgumentFPR(macro (offset, fpr1, fpr2)
-        storepaird fpr2, fpr1, offset[sp]
-    end)
-else
-    forEachArgumentFPR(macro (offset, fpr)
-        stored fpr, offset[sp]
-    end)
-end
+    preserveWasmArgumentRegisters()
 
     ipintReloadMemory()
     push memoryBase, boundsCheckingSize
@@ -389,30 +367,7 @@ end
 
     pop boundsCheckingSize, memoryBase
 
-if ARM64 or ARM64E
-    forEachArgumentFPR(macro (offset, fpr1, fpr2)
-        loadpaird offset[sp], fpr2, fpr1
-    end)
-else
-    forEachArgumentFPR(macro (offset, fpr)
-        loadd offset[sp], fpr
-    end)
-end
-
-if ARM64 or ARM64E
-    forEachArgumentJSR(macro (offset, gpr1, gpr2)
-        loadpairq offset[sp], gpr2, gpr1
-    end)
-elsif JSVALUE64
-    forEachArgumentJSR(macro (offset, gpr)
-        loadq offset[sp], gpr
-    end)
-else
-    forEachArgumentJSR(macro (offset, gprMsw, gpLsw)
-        load2ia offset[sp], gpLsw, gpMsw
-    end)
-end
-    addq (NumberOfWasmArgumentJSRs + NumberOfWasmArgumentFPRs) * 8, sp
+    restoreWasmArgumentRegisters()
 
     btpz ws0, .recover
 
@@ -435,7 +390,7 @@ end
 macro ipintLoopOSR(increment)
 if JIT and not ARMv7
     loadp UnboxedWasmCalleeStackSlot[cfr], ws0
-    baddis increment, Wasm::IPIntCallee::m_tierUpCounter + Wasm::LLIntTierUpCounter::m_counter[ws0], .continue
+    baddis increment, Wasm::IPIntCallee::m_tierUpCounter + Wasm::IPIntTierUpCounter::m_counter[ws0], .continue
 
     move cfr, a1
     move PC, a2
@@ -465,7 +420,7 @@ end
 macro ipintEpilogueOSR(increment)
 if JIT and not ARMv7
     loadp UnboxedWasmCalleeStackSlot[cfr], ws0
-    baddis increment, Wasm::IPIntCallee::m_tierUpCounter + Wasm::LLIntTierUpCounter::m_counter[ws0], .continue
+    baddis increment, Wasm::IPIntCallee::m_tierUpCounter + Wasm::IPIntTierUpCounter::m_counter[ws0], .continue
 
     move cfr, a1
     operationCall(macro() cCall2(_ipint_extern_epilogue_osr) end)
@@ -718,6 +673,98 @@ op(ipint_trampoline, macro ()
     tagReturnAddress sp
     jmp _ipint_entry
 end)
+
+# Naming dependencies:
+#
+# In the following two macros, certain identifiers replicate naming conventions
+# defined by C macros in wasm/js/WebAssemblyBuiltin.cpp.
+# These dependencies are marked with "[!]".
+
+# wasmInstanceArgGPR is the GPR used to pass the Wasm instance pointer.
+# It must map onto the argument following the actual arguments of the builtin.
+# WARNING: t5 is used as a scratch register by this macro, which is a choice that
+# works both on ARM and X86. That limits builtins to at most 4 "real" arguments (a0-a3),
+# with wasmInstance passed as a4. Higher arity builtins would require revising the macro.
+macro wasmBuiltinCallTrampoline(setName, builtinName, wasmInstanceArgGPR)
+    functionPrologue()
+
+    # IPInt stores the callee and wasmInstance into the frame but JIT tiers don't, so we must do that here.
+    leap JSWebAssemblyInstance::m_builtinCalleeBits[wasmInstance], t5
+    loadp WasmBuiltinCalleeOffsets::%setName%__%builtinName%[t5], t5  # [!] BUILTIN_FULL_NAME(setName, builtinName)
+    storep t5, Callee[cfr]
+    storep wasmInstance, CodeBlock[cfr]
+    # Set VM topCallFrame to null to not build an unnecessary stack trace if the function throws an exception.
+    loadp JSWebAssemblyInstance::m_vm[wasmInstance], t5
+    storep 0, VM::topCallFrame[t5]
+
+    move wasmInstance, wasmInstanceArgGPR
+    call _wasm_builtin__%setName%__%builtinName%  # [!] BUILTIN_WASM_ENTRY(setName, builtinName)
+
+    loadp JSWebAssemblyInstance::m_vm[wasmInstance], t5
+    btpnz VM::m_exception[t5], .handleException
+
+    # On x86, a0 and r0 are distinct (a0=rdi, r0=rax). The host function returns the result in r0,
+    # but IPInt always expects it in a0.
+if X86_64
+    move r0, a0
+end
+
+    functionEpilogue()
+    ret
+
+.handleException:
+    jmp _wasm_unwind_from_slow_path_trampoline
+end
+
+macro defineWasmBuiltinTrampoline(setName, builtinName, wasmInstanceArgGPR)
+global _wasm_builtin_trampoline__%setName%__%builtinName%    # [!] BUILTIN_TRAMPOLINE(setName, builtinName)
+_wasm_builtin_trampoline__%setName%__%builtinName%:
+    wasmBuiltinCallTrampoline(setName, builtinName, wasmInstanceArgGPR)
+end
+
+
+#   js-string builtins, in order of appearance in the spec
+
+
+# (externref, wasmInstance) -> externref
+defineWasmBuiltinTrampoline(jsstring, cast, a1)
+
+# (externref, wasmInstance) -> i32
+defineWasmBuiltinTrampoline(jsstring, test, a1)
+
+# (arrayref, i32, i32, wasmInstance) -> externref
+defineWasmBuiltinTrampoline(jsstring, fromCharCodeArray, a3)
+
+# (externref, arrayref, i32, wasmInstance) -> externref
+defineWasmBuiltinTrampoline(jsstring, intoCharCodeArray, a3)
+
+# (i32, wasmInstance) -> externref
+defineWasmBuiltinTrampoline(jsstring, fromCharCode, a1)
+
+# (i32, wasmInstance) -> externref
+defineWasmBuiltinTrampoline(jsstring, fromCodePoint, a1)
+
+# (externref, i32, wasmInstance) -> i32
+defineWasmBuiltinTrampoline(jsstring, charCodeAt, a2)
+
+# (externref, i32, wasmInstance) -> i32
+defineWasmBuiltinTrampoline(jsstring, codePointAt, a2)
+
+# (externref, wasmInstance) -> i32
+defineWasmBuiltinTrampoline(jsstring, length, a1)
+
+# (externref, externref, wasmInstance) -> externref
+defineWasmBuiltinTrampoline(jsstring, concat, a2)
+
+# (externref, i32, i32, wasmInstance) -> externref
+defineWasmBuiltinTrampoline(jsstring, substring, a3)
+
+# (externref, externref, wasmInstance) -> i32
+defineWasmBuiltinTrampoline(jsstring, equals, a2)
+
+# (externref, externref, wasmInstance) -> i32
+defineWasmBuiltinTrampoline(jsstring, compare, a2)
+
 
 #################################
 # 5. Instruction implementation #

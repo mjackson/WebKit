@@ -32,8 +32,10 @@
 #include "AXLogger.h"
 #include "AXLoggerBase.h"
 #include "AXObjectCache.h"
+#include "AXUtilities.h"
 #include "AccessibilityImageMapLink.h"
 #include "AccessibilityListBox.h"
+#include "AccessibilityMediaHelpers.h"
 #include "AccessibilitySVGObject.h"
 #include "AccessibilitySpinButton.h"
 #include "AccessibilityTable.h"
@@ -615,7 +617,7 @@ Element* AccessibilityRenderObject::anchorElement() const
 
     RenderObject* currentRenderer;
 
-    // Search up the render tree for a RenderObject with a DOM node.  Defer to an earlier continuation, though.
+    // Search up the render tree for a RenderObject with a DOM node. Defer to an earlier continuation, though.
     for (currentRenderer = renderer(); currentRenderer && !currentRenderer->node(); currentRenderer = currentRenderer->parent()) {
         if (CheckedPtr blockRenderer = dynamicDowncast<RenderBlock>(*currentRenderer); blockRenderer && blockRenderer->isAnonymousBlock()) {
             if (auto* continuation = blockRenderer->continuation())
@@ -639,43 +641,6 @@ Element* AccessibilityRenderObject::anchorElement() const
     }
 
     return nullptr;
-}
-
-String AccessibilityRenderObject::helpText() const
-{
-    if (!m_renderer)
-        return AccessibilityNodeObject::helpText();
-
-    const auto& ariaHelp = getAttribute(aria_helpAttr);
-    if (!ariaHelp.isEmpty()) [[unlikely]]
-        return ariaHelp;
-
-    String describedBy = ariaDescribedByAttribute();
-    if (!describedBy.isEmpty())
-        return describedBy;
-
-    String description = this->description();
-    for (CheckedPtr ancestor = renderer(); ancestor; ancestor = ancestor->parent()) {
-        if (RefPtr element = dynamicDowncast<HTMLElement>(ancestor->node())) {
-            const auto& summary = element->getAttribute(summaryAttr);
-            if (!summary.isEmpty())
-                return summary;
-
-            // The title attribute should be used as help text unless it is already being used as descriptive text.
-            const auto& title = element->getAttribute(titleAttr);
-            if (!title.isEmpty() && description != title)
-                return title;
-        }
-
-        // Only take help text from an ancestor element if its a group or an unknown role. If help was
-        // added to those kinds of elements, it is likely it was meant for a child element.
-        if (RefPtr axAncestor = axObjectCache()->getOrCreate(*ancestor)) {
-            if (!axAncestor->isGroup() && axAncestor->role() != AccessibilityRole::Unknown)
-                break;
-        }
-    }
-
-    return { };
 }
 
 String AccessibilityRenderObject::textUnderElement(TextUnderElementMode mode) const
@@ -786,6 +751,11 @@ bool AccessibilityRenderObject::shouldGetTextFromNode(const TextUnderElementMode
 
 String AccessibilityRenderObject::stringValue() const
 {
+#if PLATFORM(IOS_FAMILY)
+    if (RefPtr element = mediaElement())
+        return localizedMediaTimeDescription(element->currentTime());
+#endif
+
     if (!m_renderer)
         return AccessibilityNodeObject::stringValue();
 
@@ -1798,6 +1768,18 @@ bool AccessibilityRenderObject::setValue(const String& string)
     return false;
 }
 
+bool AccessibilityRenderObject::press()
+{
+#if PLATFORM(IOS_FAMILY)
+    if (RefPtr mediaElement = this->mediaElement()) {
+        // We can safely call the internal togglePlayState method, which doesn't check restrictions,
+        // because this method is only called from user interaction.
+        return AccessibilityMediaHelpers::press(*mediaElement);
+    }
+#endif
+    return AccessibilityObject::press();
+}
+
 Document* AccessibilityRenderObject::document() const
 {
     if (!m_renderer)
@@ -2252,29 +2234,6 @@ AccessibilityObject* AccessibilityRenderObject::observableObject() const
     }
 
     return nullptr;
-}
-
-String AccessibilityRenderObject::expandedTextValue() const
-{
-    if (RefPtr parent = parentObject()) {
-        auto parentName = parent->elementName();
-        if (parentName == ElementName::HTML_abbr || parentName == ElementName::HTML_acronym)
-            return parent->getAttribute(titleAttr);
-    }
-
-    return String();
-}
-
-bool AccessibilityRenderObject::supportsExpandedTextValue() const
-{
-    if (role() == AccessibilityRole::StaticText) {
-        if (RefPtr parent = parentObject()) {
-            auto parentName = parent->elementName();
-            return parentName == ElementName::HTML_abbr || parentName == ElementName::HTML_acronym;
-        }
-    }
-
-    return false;
 }
 
 bool AccessibilityRenderObject::shouldIgnoreAttributeRole() const
@@ -2989,5 +2948,37 @@ bool AccessibilityRenderObject::isIgnoredElementWithinMathTree() const
     return m_renderer && m_renderer->isAnonymous() && m_renderer->parent() && is<RenderMathMLBlock>(m_renderer->parent());
 }
 #endif
+
+#if PLATFORM(IOS_FAMILY)
+String AccessibilityRenderObject::interactiveVideoDuration() const
+{
+    return AccessibilityMediaHelpers::interactiveVideoDuration(mediaElement());
+}
+
+void AccessibilityRenderObject::toggleMute()
+{
+    AccessibilityMediaHelpers::toggleMute(mediaElement());
+}
+
+bool AccessibilityRenderObject::isPlaying() const
+{
+    return AccessibilityMediaHelpers::isPlaying(mediaElement());
+}
+
+bool AccessibilityRenderObject::isMuted() const
+{
+    return AccessibilityMediaHelpers::isMuted(mediaElement());
+}
+
+bool AccessibilityRenderObject::isAutoplayEnabled() const
+{
+    return AccessibilityMediaHelpers::isAutoplayEnabled(mediaElement());
+}
+
+void AccessibilityRenderObject::enterFullscreen() const
+{
+    AccessibilityMediaHelpers::enterFullscreen(videoElement());
+}
+#endif // PLATFORM(IOS_FAMILY)
 
 } // namespace WebCore

@@ -725,16 +725,20 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     Scripts/generate-log-declarations.py
 
+    accessibility/AXAttributeCacheScope.h
     accessibility/AXCoreObject.h
     accessibility/AXGeometryManager.h
     accessibility/AXLogger.h
     accessibility/AXLoggerBase.h
     accessibility/AXObjectCache.h
+    accessibility/AXObjectCacheInlines.h
     accessibility/AXSearchManager.h
     accessibility/AXTextMarker.h
     accessibility/AXTextRun.h
     accessibility/AXTextStateChangeIntent.h
     accessibility/AXTreeStore.h
+    accessibility/AXTreeStoreInlines.h
+    accessibility/AXUtilities.h
     accessibility/AccessibilityListBox.h
     accessibility/AccessibilityMenuListPopup.h
     accessibility/AccessibilityMockObject.h
@@ -877,6 +881,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     contentextensions/ContentExtensionStyleSheet.h
     contentextensions/ContentExtensionsBackend.h
     contentextensions/ContentExtensionsDebugging.h
+    contentextensions/ContentRuleListMatchedRule.h
     contentextensions/ContentRuleListResults.h
     contentextensions/DFA.h
     contentextensions/DFABytecode.h
@@ -1761,6 +1766,8 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     page/PageOverlayController.h
     page/PagePasteboardContext.h
     page/PartitionedSecurityOrigin.h
+    page/PerformanceEntry.h
+    page/PerformanceEventTiming.h
     page/PerformanceLogging.h
     page/PerformanceLoggingClient.h
     page/PointerCaptureController.h
@@ -1823,8 +1830,8 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     page/ViewportConfiguration.h
     page/VisitedLinkStore.h
     page/WebCoreKeyboardUIMode.h
+    page/WebKitJSHandle.h
     page/WebKitNamespace.h
-    page/WebKitNodeInfo.h
     page/WebKitSerializedNode.h
     page/WheelEventDeltaFilter.h
     page/WheelEventTestMonitor.h
@@ -2795,10 +2802,16 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     style/values/counter-styles/StyleCounterStyle.h
 
+    style/values/css2/StyleZIndex.h
+
+    style/values/display/StyleOrder.h
+
     style/values/fill-stroke/StyleStrokeMiterlimit.h
     style/values/fill-stroke/StyleStrokeWidth.h
 
     style/values/flexbox/StyleFlexBasis.h
+    style/values/flexbox/StyleFlexGrow.h
+    style/values/flexbox/StyleFlexShrink.h
 
     style/values/grid/StyleGridNamedAreaMap.h
     style/values/grid/StyleGridNamedLinesMap.h
@@ -2839,6 +2852,9 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/values/motion/StyleOffsetPosition.h
     style/values/motion/StyleOffsetRotate.h
     style/values/motion/StyleRayFunction.h
+
+    style/values/multicol/StyleColumnCount.h
+    style/values/multicol/StyleColumnWidth.h
 
     style/values/non-standard/StyleWebKitBorderSpacing.h
     style/values/non-standard/StyleWebKitOverflowScrolling.h
@@ -3107,7 +3123,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     ${WebCore_DERIVED_SOURCES_DIR}/JSStyleSheet.h
     ${WebCore_DERIVED_SOURCES_DIR}/JSStyleSheetList.h
     ${WebCore_DERIVED_SOURCES_DIR}/JSTreeWalker.h
-    ${WebCore_DERIVED_SOURCES_DIR}/JSWebKitNodeInfo.h
+    ${WebCore_DERIVED_SOURCES_DIR}/JSWebKitJSHandle.h
     ${WebCore_DERIVED_SOURCES_DIR}/JSWebKitSerializedNode.h
     ${WebCore_DERIVED_SOURCES_DIR}/JSXPathExpression.h
     ${WebCore_DERIVED_SOURCES_DIR}/JSXPathResult.h

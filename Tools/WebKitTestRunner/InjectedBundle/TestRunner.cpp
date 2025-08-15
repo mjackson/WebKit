@@ -329,14 +329,6 @@ static std::optional<WKFindOptions> findOptionsFromArray(JSContextRef context, J
     return options;
 }
 
-void TestRunner::findString(JSContextRef context, JSStringRef target, JSValueRef optionsArrayAsValue, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "FindString", createWKDictionary({
-        { "String", toWK(target) },
-        { "FindOptions", adoptWK(WKUInt64Create(findOptionsFromArray(context, optionsArrayAsValue).value_or(WKFindOptions { }))) },
-    }), callback);
-}
-
 void TestRunner::findStringMatchesInPage(JSContextRef context, JSStringRef target, JSValueRef optionsArrayAsValue)
 {
     if (auto options = findOptionsFromArray(context, optionsArrayAsValue)) {
@@ -605,7 +597,6 @@ enum {
     TextDidChangeInTextFieldCallbackID,
     TextFieldDidBeginEditingCallbackID,
     TextFieldDidEndEditingCallbackID,
-    ToolTipDidChangeCallbackID,
     FirstUIScriptCallbackID = 100
 };
 
@@ -1163,16 +1154,6 @@ void TestRunner::callDidEndSwipeCallback()
 void TestRunner::callDidRemoveSwipeSnapshotCallback()
 {
     callTestRunnerCallback(DidRemoveSwipeSnapshotCallbackID);
-}
-
-void TestRunner::installTooltipDidChangeCallback(JSContextRef context, JSValueRef callback)
-{
-    cacheTestRunnerCallback(context, ToolTipDidChangeCallbackID, callback);
-}
-
-void TestRunner::callTooltipDidChangeCallback(JSStringRef tooltip)
-{
-    callTestRunnerCallback(ToolTipDidChangeCallbackID, tooltip);
 }
 
 void TestRunner::clearStatisticsDataForDomain(JSStringRef domain)
@@ -2198,6 +2179,11 @@ void TestRunner::dumpChildFrameScrollPositions()
 bool TestRunner::shouldDumpAllFrameScrollPositions() const
 {
     return postSynchronousPageMessageReturningBoolean("ShouldDumpAllFrameScrollPositions");
+}
+
+void TestRunner::setHasMouseDeviceForTesting(bool hasMouseDevice)
+{
+    postSynchronousPageMessage("SetHasMouseDeviceForTesting", hasMouseDevice);
 }
 
 ALLOW_DEPRECATED_DECLARATIONS_END

@@ -613,7 +613,7 @@ static bool canCreateStackingContext(const RenderLayer& layer)
         || renderer.hasReflection()
         || renderer.style().hasIsolation()
         || renderer.shouldApplyPaintContainment()
-        || !renderer.style().hasAutoUsedZIndex()
+        || !renderer.style().usedZIndex().isAuto()
         || (renderer.style().willChange() && renderer.style().willChange()->canCreateStackingContext())
         || layer.establishesTopLayer();
 }
@@ -634,7 +634,14 @@ bool RenderLayer::shouldBeNormalFlowOnly() const
 
 bool RenderLayer::shouldBeCSSStackingContext() const
 {
-    return !renderer().style().hasAutoUsedZIndex() || renderer().shouldApplyLayoutContainment() || renderer().shouldApplyPaintContainment() || renderer().requiresRenderingConsolidationForViewTransition() || renderer().isRenderViewTransitionCapture() ||  renderer().isViewTransitionRoot() || renderer().isViewTransitionContainingBlock() || isRenderViewLayer();
+    return !renderer().style().usedZIndex().isAuto()
+        || renderer().shouldApplyLayoutContainment()
+        || renderer().shouldApplyPaintContainment()
+        || renderer().requiresRenderingConsolidationForViewTransition()
+        || renderer().isRenderViewTransitionCapture()
+        || renderer().isViewTransitionRoot()
+        || renderer().isViewTransitionContainingBlock()
+        || isRenderViewLayer();
 }
 
 bool RenderLayer::computeCanBeBackdropRoot() const
@@ -1005,7 +1012,7 @@ RenderLayerCompositor& RenderLayer::compositor() const
     return renderer().view().compositor();
 }
 
-void RenderLayer::contentChanged(ContentChangeType changeType)
+void RenderLayer::contentChanged(ContentChangeType changeType, const std::optional<FloatRect>& dirtyRect)
 {
     if (changeType == ContentChangeType::Canvas || changeType == ContentChangeType::Video || changeType == ContentChangeType::FullScreen || changeType == ContentChangeType::Model || changeType == ContentChangeType::HDRImage) {
         setNeedsPostLayoutCompositingUpdate();
@@ -1013,7 +1020,7 @@ void RenderLayer::contentChanged(ContentChangeType changeType)
     }
 
     if (auto* backing = this->backing())
-        backing->contentChanged(changeType);
+        backing->contentChanged(changeType, dirtyRect);
 }
 
 bool RenderLayer::canRender3DTransforms() const
@@ -5987,8 +5994,8 @@ static bool rendererHasHDRContent(const RenderElement& renderer)
                 return true;
         }
 #if ENABLE(PIXEL_FORMAT_RGBA16F)
-    } else if (CheckedPtr canavsRenderer = dynamicDowncast<RenderHTMLCanvas>(renderer)) {
-        if (auto* renderingContext = canavsRenderer->canvasElement().renderingContext()) {
+    } else if (CheckedPtr canvasRenderer = dynamicDowncast<RenderHTMLCanvas>(renderer)) {
+        if (auto* renderingContext = canvasRenderer->canvasElement().renderingContext()) {
             if (renderingContext->isHDR())
                 return true;
         }

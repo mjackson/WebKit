@@ -2080,8 +2080,8 @@ void RenderLayerCompositor::logLayerInfo(const RenderLayer& layer, ASCIILiteral 
     StringBuilder logString;
     logString.append(pad(' ', 12 + depth * 2, hex(reinterpret_cast<uintptr_t>(&layer), Lowercase)), " id "_s, backing->graphicsLayer()->primaryLayerID() ? backing->graphicsLayer()->primaryLayerID()->object().toUInt64() : 0, " ("_s, absoluteBounds.x().toFloat(), ',', absoluteBounds.y().toFloat(), '-', absoluteBounds.maxX().toFloat(), ',', absoluteBounds.maxY().toFloat(), ") "_s, FormattedNumber::fixedWidth(backing->backingStoreMemoryEstimate() / 1024, 2), "KB"_s);
 
-    if (!layer.renderer().style().hasAutoUsedZIndex())
-        logString.append(" z-index: "_s, layer.renderer().style().usedZIndex());
+    if (auto value = layer.renderer().style().usedZIndex().tryValue())
+        logString.append(" z-index: "_s, value->value);
 
     logString.append(" ("_s, logOneReasonForCompositing(layer), ") "_s);
 
@@ -3928,11 +3928,16 @@ bool RenderLayerCompositor::requiresCompositingForCanvas(RenderLayerModelObject&
     if (!renderer.isRenderHTMLCanvas())
         return false;
 
-    bool isCanvasLargeEnoughToForceCompositing = true;
+    bool isCanvasLargeEnoughOrHDRToForceCompositing = true;
 #if !USE(COMPOSITING_FOR_SMALL_CANVASES)
     RefPtr canvas = downcast<HTMLCanvasElement>(renderer.element());
     auto canvasArea = canvas->size().area<RecordOverflow>();
-    isCanvasLargeEnoughToForceCompositing = !canvasArea.hasOverflowed() && canvasArea >= canvasAreaThresholdRequiringCompositing;
+    if (canvasArea.hasOverflowed() || canvasArea < canvasAreaThresholdRequiringCompositing) {
+#if ENABLE(PIXEL_FORMAT_RGBA16F)
+        if (RefPtr renderingContext = canvas->renderingContext(); !renderingContext || !renderingContext->isHDR())
+#endif
+            isCanvasLargeEnoughOrHDRToForceCompositing = false;
+    }
 #endif
 
     CanvasCompositingStrategy compositingStrategy = canvasCompositingStrategy(renderer);
@@ -3940,7 +3945,7 @@ bool RenderLayerCompositor::requiresCompositingForCanvas(RenderLayerModelObject&
         return true;
 
     if (m_compositingPolicy == CompositingPolicy::Normal)
-        return compositingStrategy == CanvasPaintedToLayer && isCanvasLargeEnoughToForceCompositing;
+        return compositingStrategy == CanvasPaintedToLayer && isCanvasLargeEnoughOrHDRToForceCompositing;
 
     return false;
 }

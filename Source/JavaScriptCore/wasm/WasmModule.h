@@ -44,10 +44,10 @@ namespace JSC {
 
 class VM;
 class JSWebAssemblyInstance;
+class WebAssemblyCompileOptions;
 
 namespace Wasm {
 
-class LLIntPlan;
 class IPIntPlan;
 struct ModuleInformation;
 enum class BindingFailure;
@@ -61,10 +61,6 @@ public:
     static ValidationResult validateSync(VM&, Vector<uint8_t>&& source);
     static void validateAsync(VM&, Vector<uint8_t>&& source, Module::AsyncValidationCallback&&);
 
-    static Ref<Module> create(LLIntPlan& plan)
-    {
-        return adoptRef(*new Module(plan));
-    }
     static Ref<Module> create(IPIntPlan& plan)
     {
         return adoptRef(*new Module(plan));
@@ -72,6 +68,8 @@ public:
 
     Wasm::TypeIndex typeIndexFromFunctionIndexSpace(FunctionSpaceIndex functionIndexSpace) const;
     const Wasm::ModuleInformation& moduleInformation() const { return m_moduleInformation.get(); }
+
+    void applyCompileOptions(const WebAssemblyCompileOptions&);
 
     Ref<CalleeGroup> compileSync(VM&, MemoryMode);
     void compileAsync(VM&, MemoryMode, CalleeGroup::AsyncCompilationCallback&&);
@@ -87,11 +85,9 @@ public:
 private:
     Ref<CalleeGroup> getOrCreateCalleeGroup(VM&, MemoryMode);
 
-    Module(LLIntPlan&);
     Module(IPIntPlan&);
     const Ref<ModuleInformation> m_moduleInformation;
     RefPtr<CalleeGroup> m_calleeGroups[numberOfMemoryModes];
-    const Ref<LLIntCallees> m_llintCallees;
     const Ref<IPIntCallees> m_ipintCallees;
     FixedVector<MacroAssemblerCodeRef<WasmEntryPtrTag>> m_wasmToJSExitStubs;
     Lock m_lock;

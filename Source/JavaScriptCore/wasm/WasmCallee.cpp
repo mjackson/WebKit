@@ -39,6 +39,7 @@
 #include "VMInspector.h"
 #include "WasmCallingConvention.h"
 #include "WasmModuleInformation.h"
+#include "WebAssemblyBuiltin.h"
 
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/MakeString.h>
@@ -57,7 +58,7 @@ WTF_MAKE_COMPACT_TZONE_ALLOCATED_IMPL(OMGCallee);
 WTF_MAKE_COMPACT_TZONE_ALLOCATED_IMPL(OMGOSREntryCallee);
 WTF_MAKE_COMPACT_TZONE_ALLOCATED_IMPL(BBQCallee);
 WTF_MAKE_COMPACT_TZONE_ALLOCATED_IMPL(IPIntCallee);
-WTF_MAKE_COMPACT_TZONE_ALLOCATED_IMPL(LLIntCallee);
+WTF_MAKE_COMPACT_TZONE_ALLOCATED_IMPL(WasmBuiltinCallee);
 
 Callee::Callee(Wasm::CompilationMode compilationMode)
     : NativeCallee(NativeCallee::Category::Wasm, ImplementationVisibility::Private)
@@ -91,9 +92,6 @@ inline void Callee::runWithDowncast(const Func& func)
     case CompilationMode::IPIntMode:
         func(static_cast<IPIntCallee*>(this));
         break;
-    case CompilationMode::LLIntMode:
-        func(static_cast<LLIntCallee*>(this));
-        break;
     case CompilationMode::JSToWasmEntrypointMode:
         func(static_cast<JSEntrypointCallee*>(this));
         break;
@@ -124,6 +122,9 @@ inline void Callee::runWithDowncast(const Func& func)
         break;
     case CompilationMode::WasmToJSMode:
         func(static_cast<WasmToJSCallee*>(this));
+        break;
+    case CompilationMode::WasmBuiltinMode:
+        func(static_cast<WasmBuiltinCallee*>(this));
         break;
     }
 }
@@ -314,98 +315,6 @@ RegisterAtOffsetList* IPIntCallee::calleeSaveRegistersImpl()
     return &calleeSaveRegisters.get();
 }
 
-LLIntCallee::LLIntCallee(FunctionCodeBlockGenerator& generator, FunctionSpaceIndex index, std::pair<const Name*, RefPtr<NameSection>>&& name)
-    : Callee(Wasm::CompilationMode::LLIntMode, index, WTFMove(name))
-    , m_functionIndex(generator.m_functionIndex)
-    , m_numVars(generator.m_numVars)
-    , m_numCalleeLocals(generator.m_numCalleeLocals)
-    , m_numArguments(generator.m_numArguments)
-    , m_constantTypes(WTFMove(generator.m_constantTypes))
-    , m_constants(WTFMove(generator.m_constants))
-    , m_instructions(WTFMove(generator.m_instructions))
-    , m_instructionsRawPointer(generator.m_instructionsRawPointer)
-    , m_jumpTargets(WTFMove(generator.m_jumpTargets))
-    , m_signatures(WTFMove(generator.m_signatures))
-    , m_outOfLineJumpTargets(WTFMove(generator.m_outOfLineJumpTargets))
-    , m_tierUpCounter(WTFMove(generator.m_tierUpCounter))
-    , m_jumpTables(WTFMove(generator.m_jumpTables))
-{
-    if (size_t count = generator.numberOfExceptionHandlers()) {
-        m_exceptionHandlers = FixedVector<HandlerInfo>(count);
-        for (size_t i = 0; i < count; i++) {
-            const UnlinkedHandlerInfo& unlinkedHandler = generator.exceptionHandler(i);
-            HandlerInfo& handler = m_exceptionHandlers[i];
-            auto& instruction = *m_instructions->at(unlinkedHandler.m_target).ptr();
-            CodeLocationLabel<ExceptionHandlerPtrTag> target;
-            switch (unlinkedHandler.m_type) {
-            case HandlerType::Catch:
-                target = CodeLocationLabel<ExceptionHandlerPtrTag>(LLInt::handleWasmCatch(instruction.width()).code());
-                break;
-            case HandlerType::CatchAll:
-            case HandlerType::Delegate:
-                target = CodeLocationLabel<ExceptionHandlerPtrTag>(LLInt::handleWasmCatchAll(instruction.width()).code());
-                break;
-            case HandlerType::TryTableCatch:
-                target = CodeLocationLabel<ExceptionHandlerPtrTag>(LLInt::handleWasmTryTable(wasm_try_table_catch, instruction.width()).code());
-                break;
-            case HandlerType::TryTableCatchRef:
-                target = CodeLocationLabel<ExceptionHandlerPtrTag>(LLInt::handleWasmTryTable(wasm_try_table_catchref, instruction.width()).code());
-                break;
-            case HandlerType::TryTableCatchAll:
-                target = CodeLocationLabel<ExceptionHandlerPtrTag>(LLInt::handleWasmTryTable(wasm_try_table_catchall, instruction.width()).code());
-                break;
-            case HandlerType::TryTableCatchAllRef:
-                target = CodeLocationLabel<ExceptionHandlerPtrTag>(LLInt::handleWasmTryTable(wasm_try_table_catchallref, instruction.width()).code());
-                break;
-            }
-
-            handler.initialize(unlinkedHandler, target);
-        }
-    }
-}
-
-void LLIntCallee::setEntrypoint(CodePtr<WasmEntryPtrTag> entrypoint)
-{
-    ASSERT(!m_entrypoint);
-    m_entrypoint = entrypoint;
-    NativeCalleeRegistry::singleton().registerCallee(this);
-}
-
-RegisterAtOffsetList* LLIntCallee::calleeSaveRegistersImpl()
-{
-    static LazyNeverDestroyed<RegisterAtOffsetList> calleeSaveRegisters;
-    static std::once_flag initializeFlag;
-    std::call_once(initializeFlag, [] {
-        RegisterSet registers;
-        registers.add(GPRInfo::regCS0, IgnoreVectors); // JSWebAssemblyInstance
-#if CPU(X86_64)
-        registers.add(GPRInfo::regCS2, IgnoreVectors); // PB
-#elif CPU(ARM64) || CPU(RISCV64)
-        registers.add(GPRInfo::regCS7, IgnoreVectors); // PB
-#elif CPU(ARM)
-        registers.add(GPRInfo::regCS1, IgnoreVectors); // PB
-#else
-#error Unsupported architecture.
-#endif
-        ASSERT(registers.numberOfSetRegisters() == numberOfLLIntCalleeSaveRegisters);
-        calleeSaveRegisters.construct(WTFMove(registers));
-    });
-    return &calleeSaveRegisters.get();
-}
-
-WasmInstructionStream::Offset LLIntCallee::outOfLineJumpOffset(WasmInstructionStream::Offset bytecodeOffset)
-{
-    ASSERT(m_outOfLineJumpTargets.contains(bytecodeOffset));
-    return m_outOfLineJumpTargets.get(bytecodeOffset);
-}
-
-const WasmInstruction* LLIntCallee::outOfLineJumpTarget(const WasmInstruction* pc)
-{
-    int offset = bytecodeOffset(pc);
-    int target = outOfLineJumpOffset(offset);
-    return m_instructions->at(offset + target).ptr();
-}
-
 #if ENABLE(WEBASSEMBLY_OMGJIT)
 void OptimizingJITCallee::addCodeOrigin(unsigned firstInlineCSI, unsigned lastInlineCSI, const Wasm::ModuleInformation& info, uint32_t functionIndex)
 {
@@ -588,6 +497,19 @@ BBQCallee::~BBQCallee()
 }
 
 #endif
+
+WasmBuiltinCallee::WasmBuiltinCallee(const WebAssemblyBuiltin* builtin, FunctionSpaceIndex index, std::pair<const Name*, RefPtr<NameSection>>&& name)
+    : Callee(Wasm::CompilationMode::WasmBuiltinMode, index, WTFMove(name))
+    , m_builtin(builtin, { })
+{
+    void* cFunctionPtr = std::bit_cast<void*>(m_builtin->implementation());
+    m_hostFunction = CodePtr<CFunctionPtrTag>::fromTaggedPtr(cFunctionPtr).retagged<WasmEntryPtrTag>();
+}
+
+CodePtr<WasmEntryPtrTag> WasmBuiltinCallee::entrypointImpl() const
+{
+    return CodePtr<CFunctionPtrTag>(m_builtin->implementation()).retagged<WasmEntryPtrTag>();
+}
 
 } // namespace JSC::Wasm
 

@@ -3751,8 +3751,9 @@ enum class WebCore::FetchOptionsDestination : uint8_t {
     Embed,
     Environmentmap,
     Font,
-    Image,
     Iframe,
+    Image,
+    Json,
     Manifest,
     Model,
     Object,
@@ -5497,7 +5498,7 @@ enum class WebCore::ThirdPartyCookieBlockingMode : uint8_t {
     All,
     AllExceptBetweenAppBoundDomains,
     AllExceptManagedDomains,
-#if HAVE(ALLOW_ONLY_PARTITIONED_COOKIES)
+#if ENABLE(OPT_IN_PARTITIONED_COOKIES)
     AllExceptPartitioned,
 #endif
     AllOnSitesWithoutUserInteraction,
@@ -6132,6 +6133,35 @@ header: <WebCore/RTCDataChannelHandler.h>
 struct WebCore::ContentRuleListResults {
     WebCore::ContentRuleListResults::Summary summary;
     Vector<std::pair<String, WebCore::ContentRuleListResults::Result>> results;
+};
+
+#endif
+
+#if ENABLE(DNR_ON_RULE_MATCHED_DEBUG)
+
+struct WebCore::ContentRuleListMatchedRule {
+    WebCore::ContentRuleListMatchedRule::Request request;
+    WebCore::ContentRuleListMatchedRule::MatchedRule rule;
+};
+
+[Nested] struct WebCore::ContentRuleListMatchedRule::Request {
+    std::optional<String> documentId;
+    std::optional<String> documentLifecycle;
+    std::optional<double> frameId;
+    std::optional<String> frameType;
+    std::optional<String> initiator;
+    std::optional<String> method;
+    std::optional<String> parentDocumentId;
+    std::optional<double> parentFrameId;
+    std::optional<String> requestId;
+    std::optional<String> type;
+    std::optional<String> url;
+};
+
+[Nested] struct WebCore::ContentRuleListMatchedRule::MatchedRule {
+    std::optional<String> extensionId;
+    std::optional<double> ruleId;
+    std::optional<String> rulesetId;
 };
 
 #endif
@@ -8626,7 +8656,7 @@ header: <WebCore/ShareableBitmap.h>
     [Validator='*bytesPerPixel >= 1 && *bytesPerPixel <= 8'] unsigned bytesPerPixel();
     [Validator='*bytesPerRow >= m_size->width() * *bytesPerPixel'] unsigned bytesPerRow();
 #if USE(CG)
-    [Validator='!(*m_bitmapInfo & ~(kCGBitmapAlphaInfoMask | static_cast<CGBitmapInfo>(kCGImageByteOrderMask) | kCGBitmapFloatComponents))'] CGBitmapInfo m_bitmapInfo;
+    CGBitmapInfo m_bitmapInfo;
 #endif
 }
 
@@ -9014,6 +9044,7 @@ struct WebCore::OwnerPermissionsPolicyData {
     XRSpatialTracking,
 #endif
     PrivateToken,
+    StorageAccess,
     Invalid
 };
 
@@ -9278,3 +9309,12 @@ header: <WebCore/ScriptTrackingPrivacyCategory.h>
     Speech,
     FormControls,
 };
+
+#if HAVE(WEBCONTENTRESTRICTIONS)
+struct WebCore::ParentalControlsURLFilterParameters {
+    URL urlToAllow;
+#if HAVE(WEBCONTENTRESTRICTIONS_PATH_SPI)
+    String configurationPath;
+#endif
+};
+#endif

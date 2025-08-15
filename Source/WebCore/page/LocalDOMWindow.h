@@ -31,6 +31,7 @@
 #include "DOMWindow.h"
 #include "EventNames.h"
 #include "EventTargetInterfaces.h"
+#include "PerformanceEventTiming.h"
 #include "PushSubscriptionOwner.h"
 #include "Supplementable.h"
 #include "WindowOrWorkerGlobalScope.h"
@@ -67,8 +68,6 @@ struct WindowPostMessageOptions;
 using ReducedResolutionSeconds = Seconds;
 
 template<typename> class ExceptionOr;
-
-enum class IncludeTargetOrigin : bool { No, Yes };
 
 class LocalDOMWindowObserver : public CanMakeWeakPtr<LocalDOMWindowObserver> {
 public:
@@ -225,10 +224,6 @@ public:
     RefPtr<WebKitPoint> webkitConvertPointFromPageToNode(Node*, const WebKitPoint*) const;
     RefPtr<WebKitPoint> webkitConvertPointFromNodeToPage(Node*, const WebKitPoint*) const;
 
-    void printErrorMessage(const String&) const;
-
-    String crossDomainAccessErrorMessage(const LocalDOMWindow& activeWindow, IncludeTargetOrigin);
-
     ExceptionOr<void> postMessage(JSC::JSGlobalObject&, LocalDOMWindow& incumbentWindow, JSC::JSValue message, WindowPostMessageOptions&&);
     WEBCORE_EXPORT void postMessageFromRemoteFrame(JSC::JSGlobalObject&, RefPtr<WindowProxy>&& source, const String& sourceOrigin, std::optional<WebCore::SecurityOriginData>&& targetOrigin, const WebCore::MessageWithMessagePorts&);
 
@@ -286,16 +281,8 @@ public:
     void finishedLoading();
 
     // EventTiming API
-    struct PerformanceEventTimingCandidate {
-        EventTypeInfo typeInfo;
-        bool cancelable { false };
-        DOMHighResTimeStamp startTime { 0 };
-        DOMHighResTimeStamp processingStart { 0 };
-        DOMHighResTimeStamp processingEnd { 0 };
-        RefPtr<EventTarget> target { nullptr };
-    };
-    PerformanceEventTimingCandidate initializeEventTimingEntry(const Event&, EventTypeInfo);
-    void finalizeEventTimingEntry(const PerformanceEventTimingCandidate&, const Event&);
+    PerformanceEventTiming::Candidate initializeEventTimingEntry(const Event&, EventTypeInfo);
+    void finalizeEventTimingEntry(const PerformanceEventTiming::Candidate&, const Event&);
     void dispatchPendingEventTimingEntries();
 
     // HTML 5 key/value storage
@@ -359,12 +346,6 @@ public:
     Navigation& navigation();
     Ref<Navigation> protectedNavigation();
 
-    // FIXME: When this LocalDOMWindow is no longer the active LocalDOMWindow (i.e.,
-    // when its document is no longer the document that is displayed in its
-    // frame), we would like to zero out m_frame to avoid being confused
-    // by the document that is currently active in m_frame.
-    bool isCurrentlyDisplayedInFrame() const;
-
     void willDetachDocumentFromFrame();
     void willDestroyCachedFrame();
 
@@ -408,7 +389,6 @@ private:
     bool allowedToChangeWindowGeometry() const;
 
     static ExceptionOr<RefPtr<Frame>> createWindow(const String& urlString, const AtomString& frameName, const WindowFeatures&, LocalDOMWindow& activeWindow, LocalFrame& firstFrame, LocalFrame& openerFrame, NOESCAPE const Function<void(LocalDOMWindow&)>& prepareDialogFunction = nullptr);
-    bool isInsecureScriptAccess(LocalDOMWindow& activeWindow, const String& urlString);
 
 #if ENABLE(DEVICE_ORIENTATION)
     bool isAllowedToUseDeviceMotionOrOrientation(String& message) const;
@@ -458,7 +438,7 @@ private:
     mutable RefPtr<CloseWatcherManager> m_closeWatcherManager;
 
     // Equivalent to the list of PerformanceEventTiming objects mentioned in https://www.w3.org/TR/event-timing/#sec-modifications-HTML :
-    Vector<PerformanceEventTimingCandidate, 6> m_performanceEventTimingCandidates;
+    Vector<PerformanceEventTiming::Candidate, 6> m_performanceEventTimingCandidates;
 
     String m_status;
 

@@ -254,6 +254,9 @@ struct CompositionHighlight;
 struct CompositionUnderline;
 struct ContactInfo;
 struct ContactsRequestData;
+#if ENABLE(DNR_ON_RULE_MATCHED_DEBUG)
+struct ContentRuleListMatchedRule;
+#endif
 struct ContentRuleListResults;
 struct CryptoKeyData;
 struct DataDetectorElementInfo;
@@ -563,7 +566,6 @@ struct ModelIdentifier;
 struct NavigationActionData;
 struct NetworkResourceLoadIdentifierType;
 struct NodeAndFrameInfo;
-struct NodeInfo;
 struct PDFContextMenu;
 struct PDFPluginIdentifierType;
 struct PlatformPopupMenuData;
@@ -2859,8 +2861,6 @@ private:
     void didReceiveTitleForFrame(IPC::Connection&, WebCore::FrameIdentifier, String&&, const UserData&);
     void didFirstLayoutForFrame(WebCore::FrameIdentifier, const UserData&);
     void didFirstVisuallyNonEmptyLayoutForFrame(IPC::Connection&, WebCore::FrameIdentifier, const UserData&, WallTime);
-    void didDisplayInsecureContentForFrame(IPC::Connection&, WebCore::FrameIdentifier, const UserData&);
-    void didRunInsecureContentForFrame(IPC::Connection&, WebCore::FrameIdentifier, const UserData&);
     void mainFramePluginHandlesPageScaleGestureDidChange(bool, double minScale, double maxScale);
     void didStartProgress();
     void didChangeProgress(double);
@@ -2894,6 +2894,10 @@ private:
 
 #if ENABLE(CONTENT_EXTENSIONS)
     void contentRuleListNotification(URL&&, WebCore::ContentRuleListResults&&);
+#endif
+
+#if ENABLE(DNR_ON_RULE_MATCHED_DEBUG)
+    void contentRuleListMatchedRule(WebCore::ContentRuleListMatchedRule&&);
 #endif
 
     // History client

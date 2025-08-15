@@ -145,6 +145,9 @@ struct AppHighlight;
 struct ApplePayAMSUIRequest;
 struct CharacterRange;
 struct ContactsRequestData;
+#if ENABLE(DNR_ON_RULE_MATCHED_DEBUG)
+struct ContentRuleListMatchedRule;
+#endif
 struct ContentRuleListResults;
 struct DataDetectorElementInfo;
 struct DateTimeChooserParameters;
@@ -258,6 +261,7 @@ public:
     virtual bool runJavaScriptPrompt(LocalFrame&, const String& message, const String& defaultValue, String& result) = 0;
     virtual KeyboardUIMode keyboardUIMode() = 0;
 
+    virtual bool hasAccessoryMousePointingDevice() const = 0;
     virtual bool hoverSupportedByPrimaryPointingDevice() const = 0;
     virtual bool hoverSupportedByAnyAvailablePointingDevice() const = 0;
     virtual std::optional<PointerCharacteristics> pointerCharacteristicsOfPrimaryPointingDevice() const = 0;
@@ -554,6 +558,10 @@ public:
     virtual void disableSuddenTermination() { }
 
     virtual void contentRuleListNotification(const URL&, const ContentRuleListResults&) { };
+
+#if ENABLE(DNR_ON_RULE_MATCHED_DEBUG)
+    virtual void contentRuleListMatchedRule(const ContentRuleListMatchedRule&) { };
+#endif
 
 #if PLATFORM(WIN)
     virtual void AXStartFrameLoad() = 0;

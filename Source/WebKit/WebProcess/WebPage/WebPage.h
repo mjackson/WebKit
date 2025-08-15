@@ -498,7 +498,6 @@ struct InteractionInformationAtPosition;
 struct InteractionInformationRequest;
 struct LoadParameters;
 struct NodeHitTestResult;
-struct NodeInfo;
 struct PDFPluginIdentifierType;
 struct PlatformFontInfo;
 struct PrintInfo;
@@ -715,6 +714,7 @@ public:
 
     void setMainFrameDocumentVisualUpdatesAllowed(bool);
 
+    bool hasAccessoryMousePointingDevice() const;
     bool hoverSupportedByPrimaryPointingDevice() const;
     bool hoverSupportedByAnyAvailablePointingDevice() const;
     std::optional<WebCore::PointerCharacteristics> pointerCharacteristicsOfPrimaryPointingDevice() const;

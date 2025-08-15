@@ -175,6 +175,10 @@
 #include <WebCore/Damage.h>
 #endif
 
+#if ENABLE(DNR_ON_RULE_MATCHED_DEBUG)
+#include <WebCore/ContentRuleListMatchedRule.h>
+#endif
+
 namespace WebKit {
 using namespace WebCore;
 using namespace HTMLNames;
@@ -703,6 +707,12 @@ KeyboardUIMode WebChromeClient::keyboardUIMode()
 {
     RefPtr page = m_page.get();
     return page ? page->keyboardUIMode() : KeyboardAccessDefault;
+}
+
+bool WebChromeClient::hasAccessoryMousePointingDevice() const
+{
+    RefPtr page = m_page.get();
+    return page && page->hasAccessoryMousePointingDevice();
 }
 
 bool WebChromeClient::hoverSupportedByPrimaryPointingDevice() const
@@ -1358,6 +1368,14 @@ void WebChromeClient::contentRuleListNotification(const URL& url, const ContentR
         page->send(Messages::WebPageProxy::ContentRuleListNotification(url, results));
 #endif
 }
+
+#if ENABLE(DNR_ON_RULE_MATCHED_DEBUG)
+void WebChromeClient::contentRuleListMatchedRule(const WebCore::ContentRuleListMatchedRule& matchedRule)
+{
+    if (RefPtr page = m_page.get())
+        page->send(Messages::WebPageProxy::ContentRuleListMatchedRule(matchedRule));
+}
+#endif
 
 bool WebChromeClient::layerTreeStateIsFrozen() const
 {

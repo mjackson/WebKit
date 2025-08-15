@@ -449,6 +449,10 @@
 #include "ModelPresentationManagerProxy.h"
 #endif
 
+#if ENABLE(DNR_ON_RULE_MATCHED_DEBUG)
+#include <WebCore/ContentRuleListMatchedRule.h>
+#endif
+
 #define MESSAGE_CHECK(process, assertion) MESSAGE_CHECK_BASE(assertion, process->connection())
 #define MESSAGE_CHECK_URL(process, url) MESSAGE_CHECK_BASE(checkURLReceivedFromCurrentOrPreviousWebProcess(process, url), process->connection())
 #define MESSAGE_CHECK_URL_COROUTINE(process, url) MESSAGE_CHECK_BASE_COROUTINE(checkURLReceivedFromCurrentOrPreviousWebProcess(process, url), process->connection())
@@ -1930,13 +1934,13 @@ void WebPageProxy::maybeInitializeSandboxExtensionHandle(WebProcessProxy& proces
 #endif
 
     auto createSandboxExtension = [protectedProcess = Ref { process }] (const String& path) {
-        Ref processPool = protectedProcess->processPool();
-        if (auto handle = processPool->sandboxExtensionForFile(path))
-            return handle;
-        auto handle = SandboxExtension::createHandle(path, SandboxExtension::Type::ReadOnly);
-        if (handle)
-            processPool->addSandboxExtensionForFile(path, *handle);
-        return handle;
+#if HAVE(AUDIT_TOKEN)
+        auto token = protectedProcess->protectedConnection()->getAuditToken();
+        ASSERT(token);
+        if (token)
+            return SandboxExtension::createHandleForReadByAuditToken(path, *token);
+#endif
+        return SandboxExtension::createHandle(path, SandboxExtension::Type::ReadOnly);
     };
 
     if (!resourceDirectoryURL.isEmpty()) {
@@ -2098,7 +2102,9 @@ void WebPageProxy::loadRequestWithNavigationShared(Ref<WebProcessProxy>&& proces
             RefPtr protectedThis = weakThis.get();
             if (!protectedThis)
                 return;
-            protectedThis->m_navigationClient->didFailProvisionalNavigationWithError(*protectedThis, legacyEmptyFrameInfo(WTFMove(request)), navigation.ptr(), request.url(), cannotShowURLError(request), nullptr);
+            auto requestURL = request.url();
+            auto error = cannotShowURLError(request);
+            protectedThis->m_navigationClient->didFailProvisionalNavigationWithError(*protectedThis, legacyEmptyFrameInfo(WTFMove(request)), navigation.ptr(), requestURL, error, nullptr);
         });
         return;
     }
@@ -3222,6 +3228,12 @@ void WebPageProxy::dispatchActivityStateChange()
         if (pageClient && pageClient->isViewWindowActive())
             webAuthnCredentialsMessenger->makeActiveConditionalAssertion();
     }
+#endif
+
+#if PLATFORM(MAC)
+    // FIXME: This could be cross-platform, but macOS-only for now to limit risk.
+    if (isNowInWindow)
+        protectedDrawingArea()->hideContentUntilAnyUpdate();
 #endif
 
     updateBackingStoreDiscardableState();
@@ -6833,6 +6845,15 @@ void WebPageProxy::didStartProvisionalLoadForFrameShared(Ref<WebProcessProxy>&& 
     frame->setUnreachableURL(unreachableURL);
     frame->didStartProvisionalLoad(WTFMove(url));
 
+#if ENABLE(WEBDRIVER_BIDI)
+    if (m_controlledByAutomation) {
+        if (RefPtr automationSession = process->processPool().automationSession()) {
+            automationSession->navigationStartedForFrame(*frame, url.string(),
+                navigationID, timestamp.secondsSinceEpoch().milliseconds());
+        }
+    }
+#endif
+
     pageLoadState->commitChanges();
     if (m_loaderClient)
         m_loaderClient->didStartProvisionalLoadForFrame(*this, *frame, navigation.get(), process->transformHandlesToObjects(userData.protectedObject().get()).get());
@@ -7203,8 +7224,7 @@ void WebPageProxy::didCommitLoadForFrame(IPC::Connection& connection, FrameIdent
         m_shouldSuppressNextAutomaticNavigationSnapshot = false;
         if (preferences->siteIsolationEnabled())
             m_framesWithSubresourceLoadingForPageLoadTiming.clear();
-    } else if (markPageInsecure)
-        protectedPageLoadState->didDisplayOrRunInsecureContent(transaction);
+    }
 
 #if USE(APPKIT)
     // FIXME (bug 59111): didCommitLoadForFrame comes too late when restoring a page from b/f cache, making us disable secure event mode in password fields.
@@ -7799,40 +7819,6 @@ void WebPageProxy::didReachLayoutMilestone(OptionSet<WebCore::LayoutMilestone> l
     if (m_loaderClient)
         m_loaderClient->didReachLayoutMilestone(*this, layoutMilestones);
     m_navigationClient->renderingProgressDidChange(*this, layoutMilestones);
-}
-
-void WebPageProxy::didDisplayInsecureContentForFrame(IPC::Connection& connection, FrameIdentifier frameID, const UserData& userData)
-{
-    RefPtr protectedPageClient { pageClient() };
-
-    RefPtr frame = WebFrameProxy::webFrame(frameID);
-    if (!frame)
-        return;
-
-    Ref protectedPageLoadState = pageLoadState();
-    auto transaction = protectedPageLoadState->transaction();
-    protectedPageLoadState->didDisplayOrRunInsecureContent(transaction);
-    protectedPageLoadState->commitChanges();
-
-    Ref process = WebProcessProxy::fromConnection(connection);
-    m_navigationClient->didDisplayInsecureContent(*this, process->transformHandlesToObjects(userData.protectedObject().get()).get());
-}
-
-void WebPageProxy::didRunInsecureContentForFrame(IPC::Connection& connection, FrameIdentifier frameID, const UserData& userData)
-{
-    RefPtr protectedPageClient { pageClient() };
-
-    RefPtr frame = WebFrameProxy::webFrame(frameID);
-    if (!frame)
-        return;
-
-    Ref protectedPageLoadState = pageLoadState();
-    auto transaction = protectedPageLoadState->transaction();
-    protectedPageLoadState->didDisplayOrRunInsecureContent(transaction);
-    protectedPageLoadState->commitChanges();
-
-    Ref process = WebProcessProxy::fromConnection(connection);
-    m_navigationClient->didRunInsecureContent(*this, process->transformHandlesToObjects(userData.protectedObject().get()).get());
 }
 
 void WebPageProxy::mainFramePluginHandlesPageScaleGestureDidChange(bool mainFramePluginHandlesPageScaleGesture, double minScale, double maxScale)
@@ -8523,6 +8509,13 @@ void WebPageProxy::willSubmitForm(IPC::Connection& connection, FrameInfoData&& f
 void WebPageProxy::contentRuleListNotification(URL&& url, ContentRuleListResults&& results)
 {
     m_navigationClient->contentRuleListNotification(*this, WTFMove(url), WTFMove(results));
+}
+#endif
+
+#if ENABLE(DNR_ON_RULE_MATCHED_DEBUG)
+void WebPageProxy::contentRuleListMatchedRule(WebCore::ContentRuleListMatchedRule&& matchedRule)
+{
+    m_navigationClient->contentRuleListMatchedRule(*this, WTFMove(matchedRule));
 }
 #endif
 
@@ -12054,6 +12047,7 @@ WebPageCreationParameters WebPageProxy::creationParameters(WebProcessProxy& proc
     parameters.canUseCredentialStorage = m_canUseCredentialStorage;
 
     parameters.httpsUpgradeEnabled = preferences->upgradeKnownHostsToHTTPSEnabled() ? m_configuration->httpsUpgradeEnabled() : false;
+    parameters.allowJSHandleInPageContentWorld = m_configuration->allowJSHandleInPageContentWorld();
     
 #if ENABLE(APP_HIGHLIGHTS)
     parameters.appHighlightsVisible = appHighlightsVisibility() ? HighlightVisibility::Visible : HighlightVisibility::Hidden;
@@ -15498,7 +15492,7 @@ void WebPageProxy::gpuProcessDidFinishLaunching()
         pageClient->gpuProcessDidFinishLaunching();
 #if ENABLE(EXTENSION_CAPABILITIES)
     if (RefPtr mediaCapability = this->mediaCapability()) {
-        WEBPAGEPROXY_RELEASE_LOG(ProcessCapabilities, "gpuProcessDidFinishLaunching[envID=%{public}s]: updating media capability", mediaCapability->environmentIdentifier().utf8().data());
+        WEBPAGEPROXY_RELEASE_LOG(ProcessCapabilities, "gpuProcessDidFinishLaunching[envID=%" PUBLIC_LOG_STRING "]: updating media capability", mediaCapability->environmentIdentifier().utf8().data());
         updateMediaCapability();
     }
 #endif

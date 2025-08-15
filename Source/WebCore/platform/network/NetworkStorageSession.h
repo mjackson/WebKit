@@ -102,7 +102,7 @@ enum class ThirdPartyCookieBlockingMode : uint8_t {
     All,
     AllExceptBetweenAppBoundDomains,
     AllExceptManagedDomains,
-#if HAVE(ALLOW_ONLY_PARTITIONED_COOKIES)
+#if ENABLE(OPT_IN_PARTITIONED_COOKIES)
     AllExceptPartitioned,
 #endif
     AllOnSitesWithoutUserInteraction,
@@ -111,7 +111,7 @@ enum class ThirdPartyCookieBlockingMode : uint8_t {
 enum class ThirdPartyCookieBlockingDecision : uint8_t {
     None,
     All,
-#if HAVE(ALLOW_ONLY_PARTITIONED_COOKIES)
+#if ENABLE(OPT_IN_PARTITIONED_COOKIES)
     AllExceptPartitioned
 #endif
 };
@@ -201,7 +201,7 @@ public:
 
     WEBCORE_EXPORT HTTPCookieAcceptPolicy cookieAcceptPolicy() const;
     WEBCORE_EXPORT void setCookie(const Cookie&);
-#if HAVE(ALLOW_ONLY_PARTITIONED_COOKIES)
+#if ENABLE(OPT_IN_PARTITIONED_COOKIES)
     WEBCORE_EXPORT void setCookie(const URL& firstParty, const Cookie&, ShouldPartitionCookie);
 #endif
     WEBCORE_EXPORT void setCookie(const Cookie&, const URL&, const URL& mainDocumentURL);
@@ -246,12 +246,13 @@ public:
     WEBCORE_EXPORT bool shouldBlockCookies(const URL& firstPartyForCookies, const URL& resource, std::optional<FrameIdentifier>, std::optional<PageIdentifier>, ShouldRelaxThirdPartyCookieBlocking) const;
     WEBCORE_EXPORT bool shouldBlockThirdPartyCookies(const RegistrableDomain&) const;
     WEBCORE_EXPORT bool shouldBlockThirdPartyCookiesButKeepFirstPartyCookiesFor(const RegistrableDomain&) const;
+    WEBCORE_EXPORT static bool shouldBlockCookies(ThirdPartyCookieBlockingDecision);
     WEBCORE_EXPORT void setAllCookiesToSameSiteStrict(const RegistrableDomain&, CompletionHandler<void()>&&);
     WEBCORE_EXPORT static String cookiePartitionIdentifier(const ResourceRequest&);
     static String cookiePartitionIdentifier(const URL&);
 #if PLATFORM(COCOA)
     WEBCORE_EXPORT static RetainPtr<NSHTTPCookie> capExpiryOfPersistentCookie(NSHTTPCookie *, Seconds cap);
-#if HAVE(ALLOW_ONLY_PARTITIONED_COOKIES)
+#if ENABLE(OPT_IN_PARTITIONED_COOKIES)
     WEBCORE_EXPORT static NSHTTPCookie *setCookiePartition(NSHTTPCookie *, NSString*);
 #endif
 #endif
@@ -276,7 +277,7 @@ public:
     WEBCORE_EXPORT void setThirdPartyCookieBlockingMode(ThirdPartyCookieBlockingMode);
     WEBCORE_EXPORT void setOptInCookiePartitioningEnabled(bool);
 
-#if HAVE(ALLOW_ONLY_PARTITIONED_COOKIES)
+#if ENABLE(OPT_IN_PARTITIONED_COOKIES)
     bool isOptInCookiePartitioningEnabled() const { return m_isOptInCookiePartitioningEnabled; }
 #endif
 
@@ -310,9 +311,9 @@ public:
 
 private:
 #if PLATFORM(COCOA)
-    enum IncludeHTTPOnlyOrNot { DoNotIncludeHTTPOnly, IncludeHTTPOnly };
-    std::pair<String, bool> cookiesForSession(const URL& firstParty, const SameSiteInfo&, const URL&, std::optional<FrameIdentifier>, std::optional<PageIdentifier>, IncludeHTTPOnlyOrNot, IncludeSecureCookies, ApplyTrackingPrevention, ShouldRelaxThirdPartyCookieBlocking) const;
-    std::optional<Vector<Cookie>> cookiesForSessionAsVector(const URL& firstParty, const SameSiteInfo&, const URL&, std::optional<FrameIdentifier>, std::optional<PageIdentifier>, IncludeHTTPOnlyOrNot, IncludeSecureCookies, ApplyTrackingPrevention, ShouldRelaxThirdPartyCookieBlocking, CookieStoreGetOptions&&) const;
+    enum class CookiesFor : bool { DOM, HTTP };
+    std::pair<String, bool> cookiesForSession(const URL& firstParty, const SameSiteInfo&, const URL&, std::optional<FrameIdentifier>, std::optional<PageIdentifier>, CookiesFor, IncludeSecureCookies, ApplyTrackingPrevention, ShouldRelaxThirdPartyCookieBlocking) const;
+    std::optional<Vector<Cookie>> cookiesForSessionAsVector(const URL& firstParty, const SameSiteInfo&, const URL&, std::optional<FrameIdentifier>, std::optional<PageIdentifier>, CookiesFor, IncludeSecureCookies, ApplyTrackingPrevention, ShouldRelaxThirdPartyCookieBlocking, CookieStoreGetOptions&&) const;
     RetainPtr<NSArray> httpCookies(CFHTTPCookieStorageRef) const;
     RetainPtr<NSArray> httpCookiesForURL(CFHTTPCookieStorageRef, NSURL *firstParty, const std::optional<SameSiteInfo>&, NSURL *, ThirdPartyCookieBlockingDecision) const;
     RetainPtr<NSArray> cookiesForURL(const URL& firstParty, const SameSiteInfo&, const URL&, std::optional<FrameIdentifier>, std::optional<PageIdentifier>, ApplyTrackingPrevention, ShouldRelaxThirdPartyCookieBlocking) const;
@@ -360,7 +361,7 @@ private:
     MemoryCompactRobinHoodHashMap<String, WeakHashSet<CookieChangeObserver>> m_cookieChangeObservers;
 #endif // HAVE(COOKIE_CHANGE_LISTENER_API)
     WeakHashSet<CookiesEnabledStateObserver> m_cookiesEnabledStateObservers;
-#if HAVE(ALLOW_ONLY_PARTITIONED_COOKIES)
+#if ENABLE(OPT_IN_PARTITIONED_COOKIES)
     bool m_isOptInCookiePartitioningEnabled { false };
 #endif
 

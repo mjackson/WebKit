@@ -50,6 +50,7 @@ OBJC_CLASS NSColor;
 OBJC_CLASS NSString;
 OBJC_CLASS UIKeyboardInputMode;
 OBJC_CLASS UIPasteboardConsistencyEnforcer;
+OBJC_CLASS WKMouseDeviceObserver;
 OBJC_CLASS WKWebViewConfiguration;
 
 namespace WTR {
@@ -464,6 +465,10 @@ public:
     void setUseWorkQueue(bool useWorkQueue) { m_useWorkQueue = useWorkQueue; }
     bool useWorkQueue() const { return m_useWorkQueue; }
 
+    void listenForTooltipChanges(WKFrameInfoRef, WKTypeRef);
+
+    void setHasMouseDeviceForTesting(bool);
+
 private:
     WKRetainPtr<WKPageConfigurationRef> generatePageConfiguration(const TestOptions&);
     WKRetainPtr<WKContextConfigurationRef> generateContextConfiguration(const TestOptions&) const;
@@ -484,7 +489,6 @@ private:
     void platformInitialize(const Options&);
     void platformInitializeDataStore(WKPageConfigurationRef, const TestOptions&);
     void platformDestroy();
-    WKContextRef platformAdjustContext(WKContextRef, WKContextConfigurationRef);
     void platformInitializeContext();
     void platformEnsureGPUProcessConfiguredForOptions(const TestOptions&);
     void platformCreateWebView(WKPageConfigurationRef, const TestOptions&);
@@ -503,9 +507,9 @@ private:
     void platformWillRunTest(const TestInvocation&);
     void platformRunUntil(bool& done, WTF::Seconds timeout);
     void platformDidCommitLoadForFrame(WKPageRef, WKFrameRef);
-    WKContextRef platformContext();
     void initializeInjectedBundlePath();
     void initializeTestPluginDirectory();
+    void installUserScript(const TestInvocation&);
 
     void ensureViewSupportsOptionsForTest(const TestInvocation&);
     TestOptions testOptionsForTest(const TestCommand&) const;
@@ -795,6 +799,12 @@ private:
     };
     HashMap<String, AbandonedDocumentInfo> m_abandonedDocumentInfo;
     CompletionHandler<void()> m_finishExitFullscreenHandler;
+
+    struct TooltipChangeCallbackInfo {
+        WKRetainPtr<WKFrameInfoRef> frame;
+        WKRetainPtr<WKTypeRef> callbackHandle;
+    };
+    Vector<TooltipChangeCallbackInfo> m_framesListeningForTooltipChange;
 
     uint64_t m_serverTrustEvaluationCallbackCallsCount { 0 };
     bool m_shouldDismissJavaScriptAlertsAsynchronously { false };

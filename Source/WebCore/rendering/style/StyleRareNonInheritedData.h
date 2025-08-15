@@ -157,7 +157,7 @@ public:
     OptionSet<MarginTrimType> marginTrim;
     OptionSet<Containment> contain;
 
-    IntSize initialLetter;
+    FloatSize initialLetter;
 
     DataRef<StyleMarqueeData> marquee; // Marquee properties
 
@@ -239,6 +239,7 @@ public:
     std::optional<Style::ScopedName> positionAnchor;
     std::optional<PositionArea> positionArea;
     FixedVector<Style::PositionTryFallback> positionTryFallbacks;
+    std::optional<size_t> lastSuccessfulPositionTryFallbackIndex;
 
     Style::BlockStepSize blockStepSize;
     PREFERRED_TYPE(BlockStepAlign) unsigned blockStepAlign : 2;

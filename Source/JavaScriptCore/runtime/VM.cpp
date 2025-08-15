@@ -1405,7 +1405,7 @@ size_t VM::committedStackByteCount()
 }
 
 #if ENABLE(C_LOOP)
-bool VM::ensureStackCapacityForCLoop(Register* newTopOfStack)
+bool VM::ensureJSStackCapacityForCLoop(Register* newTopOfStack)
 {
     return interpreter.cloopStack().ensureCapacityFor(newTopOfStack);
 }

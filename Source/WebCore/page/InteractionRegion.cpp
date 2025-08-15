@@ -26,6 +26,7 @@
 #include "config.h"
 #include "InteractionRegion.h"
 
+#include "AXObjectCache.h"
 #include "AccessibilityObject.h"
 #include "BorderShape.h"
 #include "Document.h"
@@ -241,7 +242,7 @@ static bool shouldGetOcclusion(const RenderElement& renderer)
             return false;
     }
 
-    if (renderer.style().specifiedZIndex() > 0)
+    if (auto specifiedZIndexValue = renderer.style().specifiedZIndex().tryValue(); specifiedZIndexValue && *specifiedZIndexValue > 0)
         return true;
 
     if (renderer.isFixedPositioned())

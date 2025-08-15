@@ -29,6 +29,7 @@
 #include "CacheModel.h"
 #include "EventDispatcher.h"
 #include "IdentifierTypes.h"
+#include "NetworkProcessConnection.h"
 #include "ScriptTrackingPrivacyFilter.h"
 #include "SharedPreferencesForWebProcess.h"
 #include "StorageAreaMapIdentifier.h"
@@ -124,6 +125,9 @@ struct PrewarmInformation;
 struct PlatformMediaSessionRemoteCommandArgument;
 struct ScreenProperties;
 struct ServiceWorkerContextData;
+struct JSHandleIdentifierType;
+
+using JSHandleIdentifier = ProcessQualified<ObjectIdentifier<JSHandleIdentifierType>>;
 }
 
 namespace WebKit {
@@ -137,7 +141,6 @@ class LibWebRTCCodecs;
 class LibWebRTCNetwork;
 class ModelProcessConnection;
 class ModelProcessModelPlayerManager;
-class NetworkProcessConnection;
 class RemoteCDMFactory;
 class RemoteImageDecoderAVFManager;
 class RemoteLegacyCDMFactory;
@@ -366,6 +369,8 @@ public:
     void prepareToSuspend(bool isSuspensionImminent, MonotonicTime estimatedSuspendTime, CompletionHandler<void()>&&);
     void processDidResume();
 
+    void jSHandleDestroyed(WebCore::JSHandleIdentifier);
+
     void sendPrewarmInformation(const URL&);
 
     void isJITEnabled(CompletionHandler<void(bool)>&&);
@@ -586,7 +591,7 @@ private:
     void seedResourceLoadStatisticsForTesting(const WebCore::RegistrableDomain& firstPartyDomain, const WebCore::RegistrableDomain& thirdPartyDomain, bool shouldScheduleNotification, CompletionHandler<void()>&&);
     void userPreferredLanguagesChanged(const Vector<String>&) const;
     void fullKeyboardAccessModeChanged(bool fullKeyboardAccessEnabled);
-#if HAVE(ALLOW_ONLY_PARTITIONED_COOKIES)
+#if ENABLE(OPT_IN_PARTITIONED_COOKIES)
     void setOptInCookiePartitioningEnabled(bool);
 #endif
 

@@ -115,7 +115,7 @@ static RetainPtr<NSArray<NSHTTPCookie *>> cookiesByCappingExpiry(NSArray<NSHTTPC
     return cappedCookies;
 }
 
-#if HAVE(ALLOW_ONLY_PARTITIONED_COOKIES)
+#if ENABLE(OPT_IN_PARTITIONED_COOKIES)
 static NSArray<NSHTTPCookie *> *cookiesBySettingPartition(NSArray<NSHTTPCookie *> *cookies, NSString* partition)
 {
     RetainPtr<NSMutableArray> partitionedCookies = [NSMutableArray arrayWithCapacity:cookies.count];
@@ -153,7 +153,7 @@ bool NetworkTaskCocoa::needsFirstPartyCookieBlockingLatchModeQuirk(const URL& fi
     return quirk->value == requestDomain;
 }
 
-#if HAVE(ALLOW_ONLY_PARTITIONED_COOKIES)
+#if ENABLE(OPT_IN_PARTITIONED_COOKIES)
 void NetworkTaskCocoa::setCookieTransformForThirdPartyRequest(const WebCore::ResourceRequest& request, IsRedirect isRedirect)
 {
     ASSERT(request.isThirdParty());
@@ -288,7 +288,7 @@ void NetworkTaskCocoa::setCookieTransformForFirstPartyRequest(const WebCore::Res
 void NetworkTaskCocoa::setCookieTransform(const WebCore::ResourceRequest& request, IsRedirect isRedirect)
 {
     if (request.isThirdParty()) {
-#if HAVE(ALLOW_ONLY_PARTITIONED_COOKIES)
+#if ENABLE(OPT_IN_PARTITIONED_COOKIES)
         setCookieTransformForThirdPartyRequest(request, isRedirect);
 #endif
         return;
@@ -320,27 +320,22 @@ void NetworkTaskCocoa::unblockCookies()
     }
 }
 
-bool NetworkTaskCocoa::shouldBlockCookies(WebCore::ThirdPartyCookieBlockingDecision thirdPartyCookieBlockingDecision)
-{
-    return thirdPartyCookieBlockingDecision == WebCore::ThirdPartyCookieBlockingDecision::All;
-}
-
 WebCore::ThirdPartyCookieBlockingDecision NetworkTaskCocoa::requestThirdPartyCookieBlockingDecision(const WebCore::ResourceRequest& request) const
 {
     auto thirdPartyCookieBlockingDecision = storedCredentialsPolicy() == WebCore::StoredCredentialsPolicy::EphemeralStateless ? WebCore::ThirdPartyCookieBlockingDecision::All : WebCore::ThirdPartyCookieBlockingDecision::None;
     if (CheckedPtr networkStorageSession = checkedNetworkSession()->networkStorageSession()) {
-        if (!shouldBlockCookies(thirdPartyCookieBlockingDecision))
+        if (!NetworkStorageSession::shouldBlockCookies(thirdPartyCookieBlockingDecision))
             thirdPartyCookieBlockingDecision = networkStorageSession->thirdPartyCookieBlockingDecisionForRequest(request, frameID(), pageID(), shouldRelaxThirdPartyCookieBlocking());
     }
 
-#if ENABLE(ADVANCED_PRIVACY_PROTECTIONS) && HAVE(ALLOW_ONLY_PARTITIONED_COOKIES)
+#if ENABLE(ADVANCED_PRIVACY_PROTECTIONS) && ENABLE(OPT_IN_PARTITIONED_COOKIES)
     if (thirdPartyCookieBlockingDecision == WebCore::ThirdPartyCookieBlockingDecision::AllExceptPartitioned && request.isThirdParty() && isKnownTrackerAddressOrDomain(request.url().host()))
         return WebCore::ThirdPartyCookieBlockingDecision::All;
 #endif
     return thirdPartyCookieBlockingDecision;
 }
 
-#if HAVE(ALLOW_ONLY_PARTITIONED_COOKIES)
+#if ENABLE(OPT_IN_PARTITIONED_COOKIES)
 bool NetworkTaskCocoa::isOptInCookiePartitioningEnabled() const
 {
     bool isOptInCookiePartitioningEnabled { false };
@@ -362,7 +357,7 @@ void NetworkTaskCocoa::updateTaskWithFirstPartyForSameSiteCookies(NSURLSessionTa
 #endif
 }
 
-#if HAVE(ALLOW_ONLY_PARTITIONED_COOKIES)
+#if ENABLE(OPT_IN_PARTITIONED_COOKIES)
 void NetworkTaskCocoa::updateTaskWithStoragePartitionIdentifier(const WebCore::ResourceRequest& request)
 {
     if (!isOptInCookiePartitioningEnabled())
@@ -387,9 +382,9 @@ void NetworkTaskCocoa::willPerformHTTPRedirection(WebCore::ResourceResponse&& re
     setCookieTransform(request, IsRedirect::Yes);
     if (!m_hasBeenSetToUseStatelessCookieStorage) {
         auto thirdPartyCookieBlockingDecision = requestThirdPartyCookieBlockingDecision(request);
-        if (shouldBlockCookies(thirdPartyCookieBlockingDecision))
+        if (NetworkStorageSession::shouldBlockCookies(thirdPartyCookieBlockingDecision))
             blockCookies();
-#if HAVE(ALLOW_ONLY_PARTITIONED_COOKIES)
+#if ENABLE(OPT_IN_PARTITIONED_COOKIES)
         else {
             RetainPtr<NSMutableURLRequest> mutableRequest = adoptNS([request.nsURLRequest(WebCore::HTTPBodyUpdatePolicy::UpdateHTTPBody) mutableCopy]);
             if (isOptInCookiePartitioningEnabled() && [mutableRequest respondsToSelector:@selector(_setAllowOnlyPartitionedCookies:)]) {
@@ -409,7 +404,7 @@ void NetworkTaskCocoa::willPerformHTTPRedirection(WebCore::ResourceResponse&& re
 #endif
 
     updateTaskWithFirstPartyForSameSiteCookies(protectedTask().get(), request);
-#if HAVE(ALLOW_ONLY_PARTITIONED_COOKIES)
+#if ENABLE(OPT_IN_PARTITIONED_COOKIES)
     updateTaskWithStoragePartitionIdentifier(request);
 #endif
     completionHandler(WTFMove(request));

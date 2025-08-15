@@ -552,6 +552,7 @@ Modules/webxr/XRSessionEvent.cpp
 Modules/webxr/XRSubImage.cpp
 Modules/webxr/XRWebGLBinding.cpp
 Modules/webxr/XRWebGLSubImage.cpp
+accessibility/AXAttributeCacheScope.cpp
 accessibility/AXCoreObject.cpp
 accessibility/AXGeometryManager.cpp
 accessibility/AXLogger.cpp
@@ -562,6 +563,7 @@ accessibility/AXSearchManager.cpp
 accessibility/AXTextMarker.cpp
 accessibility/AXTextRun.cpp
 accessibility/AXTreeStore.cpp
+accessibility/AXUtilities.cpp
 accessibility/AccessibilityAttachment.cpp
 accessibility/AccessibilityImageMapLink.cpp
 accessibility/AccessibilityLabel.cpp
@@ -2206,11 +2208,12 @@ page/UndoManager.cpp
 page/UserContentController.cpp
 page/UserContentProvider.cpp
 page/UserContentURLPattern.cpp
+page/UserAgentStringParser.cpp
 page/UserScript.cpp
 page/UserStyleSheet.cpp
 page/VisitedLinkStore.cpp
 page/VisualViewport.cpp
-page/WebKitNodeInfo.cpp
+page/WebKitJSHandle.cpp
 page/WebKitSerializedNode.cpp
 page/WheelEventDeltaFilter.cpp
 page/WheelEventTestMonitor.cpp
@@ -3167,6 +3170,7 @@ style/values/color/StyleResolvedColor.cpp
 style/values/content/StyleContent.cpp
 style/values/content/StyleQuotes.cpp
 style/values/counter-styles/StyleCounterStyle.cpp
+style/values/css2/StyleZIndex.cpp
 style/values/easing/StyleCubicBezierEasingFunction.cpp
 style/values/easing/StyleEasingFunction.cpp
 style/values/easing/StyleLinearEasingFunction.cpp
@@ -3213,6 +3217,8 @@ style/values/motion/StyleOffsetPath.cpp
 style/values/motion/StyleOffsetPosition.cpp
 style/values/motion/StyleOffsetRotate.cpp
 style/values/motion/StyleRayFunction.cpp
+style/values/multicol/StyleColumnCount.cpp
+style/values/multicol/StyleColumnWidth.cpp
 style/values/non-standard/StyleWebKitOverflowScrolling.cpp
 style/values/non-standard/StyleWebKitTextStrokeWidth.cpp
 style/values/non-standard/StyleWebKitTouchCallout.cpp
@@ -4968,13 +4974,13 @@ JSWebGLTransformFeedback.cpp
 JSWebGLUniformLocation.cpp
 JSWebGLVertexArrayObject.cpp
 JSWebGLVertexArrayObjectOES.cpp
+JSWebKitJSHandle.cpp
 JSWebKitMediaKeyError.cpp
 JSWebKitMediaKeyMessageEvent.cpp
 JSWebKitMediaKeyNeededEvent.cpp
 JSWebKitMediaKeySession.cpp
 JSWebKitMediaKeys.cpp
 JSWebKitNamespace.cpp
-JSWebKitNodeInfo.cpp
 JSWebKitPlaybackTargetAvailabilityEvent.cpp
 JSWebKitPoint.cpp
 JSWebKitSerializedNode.cpp

@@ -238,7 +238,6 @@ bool hasCapacityToUseLargeGigacage();
     v(Double, sizeClassProgression, 1.4, Normal, nullptr) \
     v(Unsigned, preciseAllocationCutoff, 100000, Normal, nullptr) \
     v(Bool, dumpSizeClasses, false, Normal, nullptr) \
-    v(Bool, useBumpAllocator, true, Normal, nullptr) \
     v(Bool, stealEmptyBlocksFromOtherAllocators, true, Normal, nullptr) \
     v(Bool, eagerlyUpdateTopCallFrame, false, Normal, nullptr) \
     v(Bool, dumpZappedCellCrashData, false, Normal, nullptr) \
@@ -446,7 +445,6 @@ bool hasCapacityToUseLargeGigacage();
     v(Bool, exitOnResourceExhaustion, false, Normal, nullptr) \
     v(Bool, useExceptionFuzz, false, Normal, nullptr) \
     v(Unsigned, fireExceptionFuzzAt, 0, Normal, nullptr) \
-    v(Bool, fuzzAtomicJITMemcpy, false, Normal, nullptr) \
     v(Bool, validateDFGExceptionHandling, ASSERT_ENABLED, Normal, "Causes the DFG to emit code validating exception handling for each node that can exit"_s) \
     v(Bool, dumpSimulatedThrows, false, Normal, "Dumps the call stack of the last simulated throw if exception scope verification fails"_s) \
     v(Bool, validateExceptionChecks, false, Normal, "Verifies that needed exception checks are performed."_s) \
@@ -559,12 +557,8 @@ bool hasCapacityToUseLargeGigacage();
     v(Bool, verboseBBQJITAllocation, false, Normal, "Logs extra information about register allocation during BBQ JIT"_s) \
     v(Bool, verboseBBQJITInstructions, false, Normal, "Logs instruction information during BBQ JIT"_s) \
     v(Bool, disableBBQConsts, false, Normal, "Wasm <type>.const instructions in BBQ JIT won't lower to a const BBQ::Value"_s) \
-    v(Bool, useWasmLLInt, true, Normal, nullptr) \
     v(Bool, useBBQJIT, true, Normal, "allows the BBQ JIT to be used if true"_s) \
     v(Bool, useOMGJIT, !isARM_THUMB2(), Normal, "allows the OMG JIT to be used if true"_s) \
-    v(Bool, useWasmLLIntPrologueOSR, true, Normal, "allows prologue OSR from wasm LLInt if true"_s) \
-    v(Bool, useWasmLLIntLoopOSR, true, Normal, "allows loop OSR from wasm LLInt if true"_s) \
-    v(Bool, useWasmLLIntEpilogueOSR, true, Normal, "allows epilogue OSR from wasm LLInt if true"_s) \
     v(OptionRange, wasmFunctionIndexRangeToCompile, nullptr, Normal, "wasm function index range to allow compilation on, e.g. 1:100"_s) \
     v(Bool, useEagerWasmModuleHashing, false, Normal, "Unnamed Wasm modules are identified in backtraces through their hash, if available."_s) \
     v(Bool, useArrayAllocationProfiling, true, Normal, "If true, we will use our normal array allocation profiling. If false, the allocation profile will always claim to be undecided."_s) \
@@ -574,7 +568,6 @@ bool hasCapacityToUseLargeGigacage();
     v(Bool, useCompilerSignpost, false, Normal, nullptr) \
     v(Bool, useGCSignpost, false, Normal, nullptr) \
     v(Bool, traceLLIntExecution, false, Configurable, nullptr) \
-    v(Bool, traceWasmLLIntExecution, false, Configurable, nullptr) \
     v(Bool, traceLLIntSlowPath, false, Configurable, nullptr) \
     v(Bool, traceBaselineJITExecution, false, Normal, nullptr) \
     v(Unsigned, thresholdForGlobalLexicalBindingEpoch, UINT_MAX, Normal, "Threshold for global lexical binding epoch. If the epoch reaches to this value, CodeBlock metadata for scope operations will be revised globally. It needs to be greater than 1."_s) \
@@ -654,6 +647,7 @@ bool hasCapacityToUseLargeGigacage();
     v(Bool, useShadowRealm, false, Normal, "Expose the ShadowRealm object."_s) \
     v(Bool, useTemporal, false, Normal, "Expose the Temporal object."_s) \
     v(Bool, useTrustedTypes, true, Normal, "Enable trusted types eval protection feature."_s) \
+    v(Bool, useWasmJSStringBuiltins, true, Normal, "Enable the implementation of the JS String Builtins proposal."_s) \
     v(Bool, useWasmSIMD, true, Normal, "Allow the new simd instructions and types from the wasm simd spec."_s) \
     v(Bool, useWasmRelaxedSIMD, false, Normal, "Allow the relaxed simd instructions and types from the wasm relaxed simd spec."_s) \
     v(Bool, useWasmTailCalls, true, Normal, "Allow the new instructions from the wasm tail calls spec."_s) \

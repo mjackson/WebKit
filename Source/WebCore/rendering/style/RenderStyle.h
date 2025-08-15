@@ -54,6 +54,7 @@ class Element;
 class FillLayer;
 class FilterOperations;
 class FloatPoint;
+class FloatSize;
 class FloatPoint3D;
 class FloatRect;
 class FontCascade;
@@ -280,6 +281,8 @@ struct Clip;
 struct ClipPath;
 struct Color;
 struct ColorScheme;
+struct ColumnCount;
+struct ColumnWidth;
 struct ContainIntrinsicSize;
 struct ContainerNames;
 struct Content;
@@ -361,6 +364,7 @@ struct ViewTransitionName;
 struct WebkitLineGrid;
 struct WebkitTextStrokeWidth;
 struct Widows;
+struct ZIndex;
 
 enum class Change : uint8_t;
 enum class GridTrackSizingDirection : bool;
@@ -374,10 +378,13 @@ template<typename> struct Shadows;
 
 using BorderRadiusValue = MinimallySerializingSpaceSeparatedSize<LengthPercentage<CSS::Nonnegative>>;
 using BoxShadows = Shadows<BoxShadow>;
+using FlexGrow = Number<CSS::Nonnegative, float>;
+using FlexShrink = Number<CSS::Nonnegative, float>;
 using InsetBox = MinimallySerializingSpaceSeparatedRectEdges<InsetEdge>;
 using LineWidthBox = MinimallySerializingSpaceSeparatedRectEdges<LineWidth>;
 using MarginBox = MinimallySerializingSpaceSeparatedRectEdges<MarginEdge>;
 using ObjectPosition = Position;
+using Order = Integer<>;
 using PaddingBox = MinimallySerializingSpaceSeparatedRectEdges<PaddingEdge>;
 using PerspectiveOrigin = Position;
 using PerspectiveOriginX = PositionX;
@@ -394,7 +401,7 @@ using WebkitBorderSpacing = Length<CSS::Nonnegative>;
 }
 
 constexpr auto PublicPseudoIDBits = 17;
-constexpr auto TextDecorationLineBits = 4;
+constexpr auto TextDecorationLineBits = 5;
 constexpr auto TextTransformBits = 5;
 constexpr auto PseudoElementTypeBits = 5;
 
@@ -913,9 +920,9 @@ public:
     inline BoxOrient boxOrient() const;
     inline BoxPack boxPack() const;
 
-    inline int order() const;
-    inline float flexGrow() const;
-    inline float flexShrink() const;
+    inline Style::Order order() const;
+    inline Style::FlexGrow flexGrow() const;
+    inline Style::FlexShrink flexShrink() const;
     inline const Style::FlexBasis& flexBasis() const;
     inline const StyleContentAlignmentData& alignContent() const;
     inline const StyleSelfAlignmentData& alignItems() const;
@@ -986,10 +993,8 @@ public:
     inline ColumnAxis columnAxis() const;
     inline bool hasInlineColumnAxis() const;
     inline ColumnProgression columnProgression() const;
-    inline float columnWidth() const;
-    inline bool hasAutoColumnWidth() const;
-    inline unsigned short columnCount() const;
-    inline bool hasAutoColumnCount() const;
+    inline Style::ColumnWidth columnWidth() const;
+    inline Style::ColumnCount columnCount() const;
     inline bool specifiesColumns() const;
     inline ColumnFill columnFill() const;
     inline BorderStyle columnRuleStyle() const;
@@ -1142,9 +1147,9 @@ public:
     inline const Style::BlockEllipsis& blockEllipsis() const;
     inline Style::MaximumLines maxLines() const;
     inline OverflowContinue overflowContinue() const;
-    inline const IntSize& initialLetter() const;
-    inline int initialLetterDrop() const;
-    inline int initialLetterHeight() const;
+    inline const FloatSize& initialLetter() const;
+    inline float initialLetterDrop() const;
+    inline float initialLetterHeight() const;
 
     inline OptionSet<TouchAction> touchActions() const;
     // 'touch-action' behavior depends on values in ancestors. We use an additional inherited property to implement that.
@@ -1501,15 +1506,11 @@ public:
     PrintColorAdjust printColorAdjust() const { return static_cast<PrintColorAdjust>(m_inheritedFlags.printColorAdjust); }
     void setPrintColorAdjust(PrintColorAdjust value) { m_inheritedFlags.printColorAdjust = static_cast<unsigned>(value); }
 
-    inline int specifiedZIndex() const;
-    inline bool hasAutoSpecifiedZIndex() const;
-    inline void setSpecifiedZIndex(int);
-    inline void setHasAutoSpecifiedZIndex();
+    inline Style::ZIndex specifiedZIndex() const;
+    inline void setSpecifiedZIndex(Style::ZIndex);
 
-    inline int usedZIndex() const;
-    inline bool hasAutoUsedZIndex() const;
-    inline void setUsedZIndex(int);
-    inline void setHasAutoUsedZIndex();
+    inline Style::ZIndex usedZIndex() const;
+    inline void setUsedZIndex(Style::ZIndex);
 
     inline void setWidows(Style::Widows);
     inline void setOrphans(Style::Orphans);
@@ -1537,10 +1538,10 @@ public:
     inline void setBoxShadow(Style::BoxShadows&&);
     inline void setBoxReflect(RefPtr<StyleReflection>&&);
     inline void setBoxSizing(BoxSizing);
-    inline void setFlexGrow(float);
-    inline void setFlexShrink(float);
+    inline void setFlexGrow(Style::FlexGrow);
+    inline void setFlexShrink(Style::FlexShrink);
     inline void setFlexBasis(Style::FlexBasis&&);
-    inline void setOrder(int);
+    inline void setOrder(Style::Order);
     inline void setAlignContent(const StyleContentAlignmentData&);
     inline void setAlignItems(const StyleSelfAlignmentData&);
     inline void setAlignItemsPosition(ItemPosition);
@@ -1589,10 +1590,8 @@ public:
     inline void setResize(Resize);
     inline void setColumnAxis(ColumnAxis);
     inline void setColumnProgression(ColumnProgression);
-    inline void setColumnWidth(float);
-    inline void setHasAutoColumnWidth();
-    inline void setColumnCount(unsigned short);
-    inline void setHasAutoColumnCount();
+    inline void setColumnWidth(Style::ColumnWidth);
+    inline void setColumnCount(Style::ColumnCount);
     inline void setColumnFill(ColumnFill);
     inline void setColumnGap(Style::GapGutter&&);
     inline void setRowGap(Style::GapGutter&&);
@@ -1682,7 +1681,7 @@ public:
     inline void setOverflowContinue(OverflowContinue);
     inline void setBlockEllipsis(Style::BlockEllipsis&&);
 
-    inline void setInitialLetter(const IntSize&);
+    inline void setInitialLetter(const FloatSize&);
     
     inline void setTouchActions(OptionSet<TouchAction>);
     inline void setUsedTouchActions(OptionSet<TouchAction>);
@@ -2035,6 +2034,8 @@ public:
     static constexpr OptionSet<TextUnderlinePosition> initialTextUnderlinePosition();
     static inline Style::TextUnderlineOffset initialTextUnderlineOffset();
     static inline Style::TextDecorationThickness initialTextDecorationThickness();
+    static constexpr Style::ZIndex initialSpecifiedZIndex();
+    static constexpr Style::ZIndex initialUsedZIndex();
     static float initialZoom() { return 1.0f; }
     static constexpr TextZoom initialTextZoom();
     static constexpr Style::Length<> initialOutlineOffset();
@@ -2051,10 +2052,10 @@ public:
     static inline Style::BoxShadows initialBoxShadow();
     static constexpr BoxSizing initialBoxSizing();
     static StyleReflection* initialBoxReflect() { return 0; }
-    static float initialFlexGrow() { return 0; }
-    static float initialFlexShrink() { return 1; }
+    static constexpr Style::FlexGrow initialFlexGrow();
+    static constexpr Style::FlexShrink initialFlexShrink();
     static inline Style::FlexBasis initialFlexBasis();
-    static int initialOrder() { return 0; }
+    static constexpr Style::Order initialOrder();
     static constexpr StyleSelfAlignmentData initialJustifyItems();
     static constexpr StyleSelfAlignmentData initialSelfAlignment();
     static constexpr StyleSelfAlignmentData initialDefaultAlignment();
@@ -2100,10 +2101,11 @@ public:
 
     static constexpr Order initialRTLOrdering();
     static constexpr Style::WebkitTextStrokeWidth initialTextStrokeWidth();
-    static unsigned short initialColumnCount() { return 1; }
+    static constexpr Style::ColumnCount initialColumnCount();
     static constexpr ColumnFill initialColumnFill();
     static constexpr ColumnSpan initialColumnSpan();
     static inline Style::GapGutter initialColumnGap();
+    static constexpr Style::ColumnWidth initialColumnWidth();
     static inline Style::GapGutter initialRowGap();
     static inline TransformOperations initialTransform();
     static inline Style::TransformOrigin initialTransformOrigin();
@@ -2206,7 +2208,7 @@ public:
     static constexpr LineSnap initialLineSnap();
     static constexpr LineAlign initialLineAlign();
 
-    static constexpr IntSize initialInitialLetter();
+    static constexpr FloatSize initialInitialLetter();
     static constexpr LineClampValue initialLineClamp();
     static inline Style::BlockEllipsis initialBlockEllipsis();
     static OverflowContinue initialOverflowContinue();
@@ -2363,6 +2365,9 @@ public:
     const FixedVector<Style::PositionTryFallback>& positionTryFallbacks() const;
     void setPositionTryFallbacks(FixedVector<Style::PositionTryFallback>&&);
 
+    std::optional<size_t> lastSuccessfulPositionTryFallbackIndex() const;
+    void setLastSuccessfulPositionTryFallbackIndex(std::optional<size_t>&&);
+
     static constexpr OptionSet<PositionVisibility> initialPositionVisibility();
     inline OptionSet<PositionVisibility> positionVisibility() const;
     inline void setPositionVisibility(OptionSet<PositionVisibility>);
@@ -2399,7 +2404,6 @@ private:
         PREFERRED_TYPE(bool) unsigned usesViewportUnits : 1;
         PREFERRED_TYPE(bool) unsigned usesContainerUnits : 1;
         PREFERRED_TYPE(bool) unsigned useTreeCountingFunctions : 1;
-        PREFERRED_TYPE(OptionSet<TextDecorationLine>) unsigned textDecorationLine : TextDecorationLineBits; // Text decorations defined *only* by this element.
         PREFERRED_TYPE(bool) unsigned hasExplicitlyInheritedProperties : 1; // Explicitly inherits a non-inherited property.
         PREFERRED_TYPE(bool) unsigned disallowsFastPathInheritance : 1;
 
@@ -2410,6 +2414,7 @@ private:
         PREFERRED_TYPE(bool) unsigned isLink : 1;
         PREFERRED_TYPE(PseudoId) unsigned pseudoElementType : PseudoElementTypeBits;
         unsigned pseudoBits : PublicPseudoIDBits;
+        PREFERRED_TYPE(OptionSet<TextDecorationLine>) unsigned textDecorationLine : TextDecorationLineBits; // Text decorations defined *only* by this element.
 
         // If you add more style bits here, you will also need to update RenderStyle::NonInheritedFlags::copyNonInheritedFrom().
     };

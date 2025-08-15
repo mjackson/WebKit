@@ -74,7 +74,7 @@ static inline void updateLogicalHeightForCell(RenderTableSection::RowStruct& row
     if (cell->rowSpan() != 1)
         return;
 
-    auto& logicalHeight = cell->style().logicalHeight();
+    auto& logicalHeight = !cell->isOrthogonal() ? cell->style().logicalHeight() : cell->style().logicalWidth();
     if (logicalHeight.isPositive()) {
         if (auto percentageLogicalHeight = logicalHeight.tryPercentage()) {
             if (auto percentageRowLogicalHeight = row.logicalHeight.tryPercentage(); !percentageRowLogicalHeight || percentageRowLogicalHeight->value < percentageLogicalHeight->value)
@@ -292,7 +292,7 @@ LayoutUnit RenderTableSection::calcRowLogicalHeight()
                 // For row spanning cells, |r| is the last row in the span.
                 unsigned cellStartRow = cell->rowIndex();
 
-                if (cell->overridingBorderBoxLogicalHeight()) {
+                if (cell->overridingBorderBoxLogicalHeight() && !cell->isOrthogonal()) {
                     cell->clearIntrinsicPadding();
                     cell->clearOverridingSize();
                     cell->setChildNeedsLayout(MarkOnlyThis);
@@ -334,6 +334,26 @@ LayoutUnit RenderTableSection::calcRowLogicalHeight()
     return m_rowPos[m_grid.size()];
 }
 
+LayoutUnit RenderTableSection::cellLogicalWidthInTableDirectionIncludingColumnSpan(const RenderTableCell& cell, size_t startColumn, size_t numberOfColumns) const
+{
+    ASSERT(startColumn < numberOfColumns);
+
+    auto endColumn = startColumn;
+    auto columnSpan = cell.colSpan();
+    auto& columns = table()->columns();
+    while (columnSpan && endColumn < numberOfColumns) {
+        ASSERT(endColumn < columns.size());
+        columnSpan -= columns[endColumn].span;
+        endColumn++;
+    }
+    auto& columnPositions = table()->columnPositions();
+    if (startColumn >= columnPositions.size() || endColumn >= columnPositions.size()) {
+        ASSERT_NOT_REACHED();
+        return { };
+    }
+    return columnPositions[endColumn] - columnPositions[startColumn] - table()->hBorderSpacing();
+}
+
 void RenderTableSection::layout()
 {
     StackStats::LayoutCheckPoint layoutCheckPoint;
@@ -348,32 +368,22 @@ void RenderTableSection::layout()
 
     LayoutStateMaintainer statePusher(*this, locationOffset(), isTransformed() || hasReflection() || writingMode().isBlockFlipped());
     bool paginated = view().frameView().layoutContext().layoutState()->isPaginated();
-    
-    const Vector<LayoutUnit>& columnPos = table()->columnPositions();
-    
-    for (unsigned r = 0; r < m_grid.size(); ++r) {
-        Row& row = m_grid[r].row;
-        unsigned cols = row.size();
+
+    for (size_t rowIndex = 0; rowIndex < m_grid.size(); ++rowIndex) {
+        auto& columnList = m_grid[rowIndex].row;
+        auto numberOfColumns = columnList.size();
         // First, propagate our table layout's information to the cells. This will mark the row as needing layout
         // if there was a column logical width change.
-        for (unsigned startColumn = 0; startColumn < cols; ++startColumn) {
-            CellStruct& current = row[startColumn];
-            RenderTableCell* cell = current.primaryCell();
-            if (!cell || current.inColSpan)
+        for (size_t startColumn = 0; startColumn < numberOfColumns; ++startColumn) {
+            auto& currentColumn = columnList[startColumn];
+            auto* cell = currentColumn.primaryCell();
+            if (!cell || currentColumn.inColSpan)
                 continue;
 
-            unsigned endCol = startColumn;
-            unsigned cspan = cell->colSpan();
-            while (cspan && endCol < cols) {
-                ASSERT(endCol < table()->columns().size());
-                cspan -= table()->columns()[endCol].span;
-                endCol++;
-            }
-            LayoutUnit tableLayoutLogicalWidth = columnPos[endCol] - columnPos[startColumn] - table()->hBorderSpacing();
-            cell->setCellLogicalWidth(tableLayoutLogicalWidth);
+            cell->setCellLogicalWidth(cellLogicalWidthInTableDirectionIncludingColumnSpan(*cell, startColumn, numberOfColumns));
         }
 
-        if (RenderTableRow* rowRenderer = m_grid[r].rowRenderer) {
+        if (auto* rowRenderer = m_grid[rowIndex].rowRenderer) {
             if (!rowRenderer->needsLayout() && paginated && view().frameView().layoutContext().layoutState()->pageLogicalHeightChanged())
                 rowRenderer->setChildNeedsLayout(MarkOnlyThis);
 
@@ -531,7 +541,7 @@ void RenderTableSection::relayoutCellIfFlexed(RenderTableCell& cell, int rowInde
         return;
 
     cell.setChildNeedsLayout(MarkOnlyThis);
-        // Alignment within a cell is based off the calculated
+    // Alignment within a cell is based off the calculated
     // height, which becomes irrelevant once the cell has
     // been resized based off its percentage.
     cell.setOverridingLogicalHeightFromRowHeight(rowHeight);
@@ -552,26 +562,26 @@ void RenderTableSection::layoutRows()
 
     ASSERT(!needsLayout());
 
-    unsigned totalRows = m_grid.size();
+    auto numberOfRows = m_grid.size();
 
     // Set the width of our section now.  The rows will also be this width.
     setLogicalWidth(table()->contentBoxLogicalWidth());
     m_forceSlowPaintPathWithOverflowingCell = false;
 
     LayoutUnit vspacing = table()->vBorderSpacing();
-    unsigned nEffCols = table()->numEffCols();
+    size_t numberOfEffectiveColumns = table()->numEffCols();
 
     LayoutStateMaintainer statePusher(*this, locationOffset(), isTransformed() || writingMode().isBlockFlipped());
 
-    for (unsigned r = 0; r < totalRows; r++) {
+    for (size_t rowIndex = 0; rowIndex < numberOfRows; rowIndex++) {
         // Set the row's x/y position and width/height.
-        if (RenderTableRow* rowRenderer = m_grid[r].rowRenderer) {
+        if (RenderTableRow* rowRenderer = m_grid[rowIndex].rowRenderer) {
             // FIXME: the x() position of the row should be table()->hBorderSpacing() so that it can 
             // report the correct offsetLeft. However, that will require a lot of rebaselining of test results.
             rowRenderer->setLogicalLeft(0_lu);
-            rowRenderer->setLogicalTop(m_rowPos[r]);
+            rowRenderer->setLogicalTop(m_rowPos[rowIndex]);
             rowRenderer->setLogicalWidth(logicalWidth());
-            rowRenderer->setLogicalHeight(m_rowPos[r + 1] - m_rowPos[r] - vspacing);
+            rowRenderer->setLogicalHeight(m_rowPos[rowIndex + 1] - m_rowPos[rowIndex] - vspacing);
             rowRenderer->updateLayerTransform();
             rowRenderer->clearOverflow();
             rowRenderer->addVisualEffectOverflow();
@@ -579,41 +589,46 @@ void RenderTableSection::layoutRows()
 
         LayoutUnit rowHeightIncreaseForPagination;
 
-        for (unsigned c = 0; c < nEffCols; c++) {
-            CellStruct& cs = cellAt(r, c);
+        for (size_t columnIndex = 0; columnIndex < numberOfEffectiveColumns; columnIndex++) {
+            CellStruct& cs = cellAt(rowIndex, columnIndex);
             RenderTableCell* cell = cs.primaryCell();
 
             if (!cell || cs.inColSpan)
                 continue;
 
             int rowIndex = cell->rowIndex();
-            LayoutUnit rHeight = m_rowPos[rowIndex + cell->rowSpan()] - m_rowPos[rowIndex] - vspacing;
+            auto rowHeight = m_rowPos[rowIndex + cell->rowSpan()] - m_rowPos[rowIndex] - vspacing;
 
-            relayoutCellIfFlexed(*cell, r, rHeight);
+            relayoutCellIfFlexed(*cell, rowIndex, rowHeight);
 
-            if (cell->computeIntrinsicPadding(rHeight)) {
+            auto logicalHeightForIntrinsicPadding = !cell->isOrthogonal() ? rowHeight : cellLogicalWidthInTableDirectionIncludingColumnSpan(*cell, columnIndex, numberOfEffectiveColumns);
+            if (cell->computeIntrinsicPadding(logicalHeightForIntrinsicPadding)) {
                 // FIXME: Changing an intrinsic padding shouldn't trigger a relayout as it only shifts the cell inside the row but doesn't change the logical height.
                 cell->setChildNeedsLayout(MarkOnlyThis);
             }
 
             LayoutRect oldCellRect = cell->frameRect();
 
-            setLogicalPositionForCell(cell, c);
+            setLogicalPositionForCell(cell, columnIndex);
 
             auto* layoutState = view().frameView().layoutContext().layoutState();
             if (!cell->needsLayout() && layoutState->pageLogicalHeight() && layoutState->pageLogicalOffset(cell, cell->logicalTop()) != cell->pageLogicalOffset())
                 cell->setChildNeedsLayout(MarkOnlyThis);
 
+            if (cell->isOrthogonal()) {
+                cell->setNeedsLayout(MarkOnlyThis);
+                cell->setOverridingBorderBoxLogicalWidth(rowHeight);
+            }
             cell->layoutIfNeeded();
 
             // FIXME: Make pagination work with vertical tables.
-            if (layoutState->pageLogicalHeight() && cell->logicalHeight() != rHeight) {
+            if (layoutState->pageLogicalHeight() && cell->logicalHeight() != rowHeight) {
                 // FIXME: Pagination might have made us change size. For now just shrink or grow the cell to fit without doing a relayout.
                 // We'll also do a basic increase of the row height to accommodate the cell if it's bigger, but this isn't quite right
                 // either. It's at least stable though and won't result in an infinite # of relayouts that may never stabilize.
-                if (cell->logicalHeight() > rHeight)
-                    rowHeightIncreaseForPagination = std::max(rowHeightIncreaseForPagination, cell->logicalHeight() - rHeight);
-                cell->setLogicalHeight(rHeight);
+                if (cell->logicalHeight() > rowHeight)
+                    rowHeightIncreaseForPagination = std::max(rowHeightIncreaseForPagination, cell->logicalHeight() - rowHeight);
+                cell->setLogicalHeight(rowHeight);
             }
 
             LayoutSize childOffset(cell->location() - oldCellRect.location());
@@ -628,23 +643,23 @@ void RenderTableSection::layoutRows()
             }
         }
         if (rowHeightIncreaseForPagination) {
-            for (unsigned rowIndex = r + 1; rowIndex <= totalRows; rowIndex++)
-                m_rowPos[rowIndex] += rowHeightIncreaseForPagination;
-            for (unsigned c = 0; c < nEffCols; ++c) {
-                Vector<RenderTableCell*, 1>& cells = cellAt(r, c).cells;
-                for (size_t i = 0; i < cells.size(); ++i)
-                    cells[i]->setLogicalHeight(cells[i]->logicalHeight() + rowHeightIncreaseForPagination);
+            for (size_t index = rowIndex + 1; index <= numberOfRows; ++index)
+                m_rowPos[index] += rowHeightIncreaseForPagination;
+            for (size_t index = 0; index < numberOfEffectiveColumns; ++index) {
+                Vector<RenderTableCell*, 1>& cells = cellAt(rowIndex, index).cells;
+                for (size_t cellIndex = 0; cellIndex < cells.size(); ++cellIndex)
+                    cells[cellIndex]->setLogicalHeight(cells[cellIndex]->logicalHeight() + rowHeightIncreaseForPagination);
             }
         }
     }
 
     ASSERT(!needsLayout());
 
-    setLogicalHeight(m_rowPos[totalRows]);
+    setLogicalHeight(m_rowPos[numberOfRows]);
 
     updateLayerTransform();
 
-    computeOverflowFromCells(totalRows, nEffCols);
+    computeOverflowFromCells(numberOfRows, numberOfEffectiveColumns);
 }
 
 void RenderTableSection::computeOverflowFromCells()
@@ -1613,6 +1628,8 @@ void RenderTableSection::setLogicalPositionForCell(RenderTableCell* cell, unsign
     else
         cellLocation.setX(table()->columnPositions()[effectiveColumn] + horizontalBorderSpacing);
 
+    if (cell->isOrthogonal())
+        cellLocation = cellLocation.transposedPoint();
     cell->setLogicalLocation(cellLocation);
     view().frameView().layoutContext().addLayoutDelta(oldCellLocation - cell->location());
 }

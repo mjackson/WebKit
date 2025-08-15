@@ -35,6 +35,7 @@
 #include "AXObjectCache.h"
 #include "AXSearchManager.h"
 #include "AXTextRun.h"
+#include "AXUtilities.h"
 #include "DocumentInlines.h"
 #include "LocalFrameView.h"
 #include "LogInitialization.h"
@@ -604,7 +605,8 @@ TextStream& operator<<(TextStream& stream, AXNotification notification)
     case AXNotification::name: \
         stream << #name; \
         break;
-    WEBCORE_AXNOTIFICATION_KEYS(WEBCORE_LOG_AXNOTIFICATION)
+
+        WEBCORE_AXNOTIFICATION_KEYS(WEBCORE_LOG_AXNOTIFICATION)
 #undef WEBCORE_LOG_AXNOTIFICATION
     }
 
@@ -649,6 +651,9 @@ TextStream& operator<<(WTF::TextStream& stream, AXProperty property)
         break;
     case AXProperty::AXRowIndexText:
         stream << "AXRowIndexText";
+        break;
+    case AXProperty::Abbreviation:
+        stream << "Abbreviation";
         break;
     case AXProperty::AccessKey:
         stream << "AccessKey";
@@ -753,9 +758,6 @@ TextStream& operator<<(WTF::TextStream& stream, AXProperty property)
         break;
     case AXProperty::EmbeddedImageDescription:
         stream << "EmbeddedImageDescription";
-        break;
-    case AXProperty::ExpandedTextValue:
-        stream << "ExpandedTextValue";
         break;
     case AXProperty::ExplicitAutoCompleteValue:
         stream << "ExplicitAutoCompleteValue";
@@ -1158,9 +1160,6 @@ TextStream& operator<<(WTF::TextStream& stream, AXProperty property)
     case AXProperty::SupportsExpanded:
         stream << "SupportsExpanded";
         break;
-    case AXProperty::SupportsExpandedTextValue:
-        stream << "SupportsExpandedTextValue";
-        break;
     case AXProperty::SupportsKeyShortcuts:
         stream << "SupportsKeyShortcuts";
         break;
@@ -1189,11 +1188,8 @@ TextStream& operator<<(WTF::TextStream& stream, AXProperty property)
         stream << "TextRuns";
         break;
 #endif
-    case AXProperty::Title:
-        stream << "Title";
-        break;
-    case AXProperty::TitleAttributeValue:
-        stream << "TitleAttributeValue";
+    case AXProperty::TitleAttribute:
+        stream << "TitleAttribute";
         break;
     case AXProperty::URL:
         stream << "URL";
@@ -1218,6 +1214,9 @@ TextStream& operator<<(WTF::TextStream& stream, AXProperty property)
         break;
     case AXProperty::VisibleRows:
         stream << "VisibleRows";
+        break;
+    case AXProperty::WebAreaTitle:
+        stream << "WebAreaTitle";
         break;
     }
     return stream;

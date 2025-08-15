@@ -28,7 +28,9 @@
 #include "config.h"
 #include "Document.h"
 
+#include "AXIsolatedTree.h"
 #include "AXObjectCache.h"
+#include "AXObjectCacheInlines.h"
 #include "AnimationTimelinesController.h"
 #include "ApplicationManifest.h"
 #include "AsyncNodeDeletionQueueInlines.h"
@@ -3171,14 +3173,18 @@ std::unique_ptr<RenderStyle> Document::styleForElementIgnoringPendingStylesheets
     SetForScope change(m_ignorePendingStylesheets, true);
     Ref resolver = element.styleResolver();
 
+    auto elementStyle = resolver->styleForElement(element, { parentStyle });
     if (pseudoElementIdentifier) {
+        auto pseudoId = pseudoElementIdentifier->pseudoId;
+        if ((pseudoId == PseudoId::FirstLetter || pseudoId == PseudoId::FirstLine) && elementStyle.style && !Style::supportsFirstLineAndLetterPseudoElement(*elementStyle.style))
+            return { };
+
         auto style = resolver->styleForPseudoElement(element, { *pseudoElementIdentifier }, { parentStyle });
         if (!style)
             return nullptr;
         return WTFMove(style->style);
     }
 
-    auto elementStyle = resolver->styleForElement(element, { parentStyle });
     if (elementStyle.relations) {
         Style::Update emptyUpdate(*this);
         Style::commitRelations(WTFMove(elementStyle.relations), emptyUpdate);
@@ -4292,13 +4298,10 @@ void Document::implicitClose()
         // This notification is now called AXNewDocumentLoadComplete because there are other handlers that will
         // catch new AND page history loads, and that uses AXLoadComplete
 
-        axObjectCache()->getOrCreate(renderView());
         if (isTopDocument())
-            axObjectCache()->postNotification(renderView(), AXNotification::NewDocumentLoadComplete);
+            axObjectCache()->onTopDocumentLoaded(*renderView());
         else {
-            // AXLoadComplete can only be posted on the top document, so if it's a document
-            // in an iframe that just finished loading, post AXLayoutComplete instead.
-            axObjectCache()->postNotification(renderView(), AXNotification::LayoutComplete);
+            axObjectCache()->onNonTopDocumentLoaded(*renderView());
         }
     }
 #endif
@@ -8293,8 +8296,6 @@ void Document::initSecurityContext()
         m_isSrcdocDocument = true;
         setBaseURLOverride(parentDocument->baseURL());
     }
-    if (parentDocument)
-        setStrictMixedContentMode(parentDocument->isStrictMixedContentMode());
 
     if (!SecurityPolicy::shouldInheritSecurityOriginFromOwner(m_url))
         return;

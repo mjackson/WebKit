@@ -423,7 +423,6 @@ public:
     ALWAYS_INLINE CompleteSubspace& immutableButterflyAuxiliarySpace() { return heap.immutableButterflyAuxiliarySpace; }
     ALWAYS_INLINE CompleteSubspace& gigacageAuxiliarySpace(Gigacage::Kind kind) { return heap.gigacageAuxiliarySpace(kind); }
     ALWAYS_INLINE CompleteSubspace& cellSpace() { return heap.cellSpace; }
-    ALWAYS_INLINE CompleteSubspace& variableSizedCellSpace() { return heap.variableSizedCellSpace; }
     ALWAYS_INLINE CompleteSubspace& destructibleObjectSpace() { return heap.destructibleObjectSpace; }
 #if ENABLE(WEBASSEMBLY)
     template<SubspaceAccess mode>
@@ -712,7 +711,7 @@ public:
     size_t updateSoftReservedZoneSize(size_t softReservedZoneSize);
     
     static size_t committedStackByteCount();
-    inline bool ensureStackCapacityFor(Register* newTopOfStack);
+    inline bool ensureJSStackCapacityFor(Register* newTopOfStack);
 
     void* stackLimit() { return m_stackLimit; }
     void* softStackLimit() { return m_softStackLimit; }
@@ -1044,7 +1043,7 @@ private:
     JS_EXPORT_PRIVATE void setException(Exception*);
 
 #if ENABLE(C_LOOP)
-    bool ensureStackCapacityForCLoop(Register* newTopOfStack);
+    bool ensureJSStackCapacityForCLoop(Register* newTopOfStack);
     bool isSafeToRecurseSoftCLoop() const;
 #endif // ENABLE(C_LOOP)
 

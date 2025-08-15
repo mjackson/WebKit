@@ -32,6 +32,7 @@ GPUProcess/ShapeDetection/ShapeDetectionObjectHeap.cpp
 GPUProcess/graphics/ImageBufferShareableAllocator.cpp
 GPUProcess/graphics/RemoteDisplayListRecorder.cpp
 GPUProcess/graphics/RemoteGraphicsContextGL.cpp
+GPUProcess/graphics/RemoteGraphicsContextGLFunctionsGenerated.cpp
 GPUProcess/graphics/RemoteImageBuffer.cpp
 GPUProcess/graphics/RemoteImageBufferSet.cpp
 GPUProcess/graphics/RemoteRenderingBackend.cpp
@@ -485,10 +486,10 @@ UIProcess/API/APIHTTPCookieStore.cpp
 UIProcess/API/APIHitTestResult.cpp
 UIProcess/API/APIInspectorConfiguration.cpp
 UIProcess/API/APIInspectorExtension.cpp
+UIProcess/API/APIJSHandle.cpp
 UIProcess/API/APINavigation.cpp
 UIProcess/API/APINavigationData.cpp
 UIProcess/API/APINavigationResponse.cpp
-UIProcess/API/APINodeInfo.cpp
 UIProcess/API/APIPageConfiguration.cpp
 UIProcess/API/APIProcessPoolConfiguration.cpp
 UIProcess/API/APIOpenPanelParameters.cpp
@@ -550,6 +551,7 @@ UIProcess/API/C/WKPageGroup.cpp
 UIProcess/API/C/WKPreferences.cpp
 UIProcess/API/C/WKProtectionSpace.cpp
 UIProcess/API/C/WKResourceCacheManager.cpp
+UIProcess/API/C/WKScriptMessageRef.cpp
 UIProcess/API/C/WKSessionStateRef.cpp
 UIProcess/API/C/WKSpeechRecognitionPermissionCallback.cpp
 UIProcess/API/C/WKTextChecker.cpp
@@ -557,6 +559,7 @@ UIProcess/API/C/WKUserContentControllerRef.cpp
 UIProcess/API/C/WKUserContentExtensionStoreRef.cpp
 UIProcess/API/C/WKUserMediaPermissionCheck.cpp
 UIProcess/API/C/WKUserMediaPermissionRequest.cpp
+UIProcess/API/C/WKUserScriptRef.cpp
 UIProcess/API/C/WKWebsiteDataStoreConfigurationRef.cpp
 UIProcess/API/C/WKWebsiteDataStoreRef.cpp
 UIProcess/API/C/WKWebsitePolicies.cpp

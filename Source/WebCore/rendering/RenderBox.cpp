@@ -1849,7 +1849,7 @@ static bool isCandidateForOpaquenessTest(const RenderBox& childBox)
         if (childLayer->isComposited())
             return false;
         // FIXME: Deal with z-index.
-        if (!childStyle.hasAutoUsedZIndex())
+        if (!childStyle.usedZIndex().isAuto())
             return false;
         if (childLayer->isTransformed() || childLayer->isTransparent() || childLayer->hasFilter())
             return false;
@@ -3286,9 +3286,18 @@ RenderBox::LogicalExtentComputedValues RenderBox::computeLogicalHeight(LayoutUni
     computedValues.m_extent = logicalHeight;
     computedValues.m_position = logicalTop;
 
-    // Cell height is managed by the table and inline non-replaced elements do not support a height property.
-    if (isRenderTableCell() || (isInline() && !isBlockLevelReplacedOrAtomicInline()))
+    // Inline non-replaced elements do not support a height property.
+    if (isInline() && !isBlockLevelReplacedOrAtomicInline())
         return computedValues;
+
+    // Let's allow the table cell to compute its preferred size.
+    if (CheckedPtr tableCell = dynamicDowncast<RenderTableCell>(*this); tableCell && !tableCell->isComputingPreferredSize()) {
+        // Use the value set by table layout for orthogonal cells which in this case the logical width of the cell from the table's point of view.
+        // see RenderTableCell::setCellLogicalWidth.
+        if (tableCell->isOrthogonal())
+            computedValues.m_extent = overridingBorderBoxLogicalHeight().value_or(computedValues.m_extent);
+        return computedValues;
+    }
 
     if (isOutOfFlowPositioned()) {
         computePositionedLogicalHeight(computedValues);
@@ -3990,6 +3999,9 @@ bool RenderBox::replacedMaxLogicalHeightComputesAsNone() const
 
 LayoutUnit RenderBox::computeReplacedLogicalHeightRespectingMinMaxHeight(LayoutUnit logicalHeight) const
 {
+    if (shouldIgnoreLogicalMinMaxHeightSizes())
+        return logicalHeight;
+
     LayoutUnit minLogicalHeight;
     if (!replacedMinLogicalHeightComputesAsNone())
         minLogicalHeight = computeReplacedLogicalHeightUsing(style().logicalMinHeight());
@@ -5455,8 +5467,12 @@ std::optional<LayoutUnit> RenderBox::explicitIntrinsicInnerHeight() const
 // position:static elements that are not flex-items get their z-index coerced to auto.
 bool RenderBox::requiresLayer() const
 {
-    return RenderBoxModelObject::requiresLayer() || hasNonVisibleOverflow() || style().specifiesColumns()
-        || style().containsLayout() || !style().hasAutoUsedZIndex() || hasRunningAcceleratedAnimations();
+    return RenderBoxModelObject::requiresLayer()
+        || hasNonVisibleOverflow()
+        || style().specifiesColumns()
+        || style().containsLayout()
+        || !style().usedZIndex().isAuto()
+        || hasRunningAcceleratedAnimations();
 }
 
 void RenderBox::updateFloatPainterAfterSelfPaintingLayerChange()

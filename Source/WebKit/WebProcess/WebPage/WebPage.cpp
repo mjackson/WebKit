@@ -181,6 +181,7 @@
 #include <JavaScriptCore/JSLock.h>
 #include <JavaScriptCore/ProfilerDatabase.h>
 #include <JavaScriptCore/SamplingProfiler.h>
+#include <WebCore/AXObjectCache.h>
 #include <WebCore/AnimationTimelinesController.h>
 #include <WebCore/AppHighlight.h>
 #include <WebCore/ArchiveResource.h>
@@ -247,6 +248,7 @@
 #include <WebCore/ImageOverlay.h>
 #include <WebCore/InspectorController.h>
 #include <WebCore/JSDOMExceptionHandling.h>
+#include <WebCore/JSNode.h>
 #include <WebCore/KeyboardEvent.h>
 #include <WebCore/LegacySchemeRegistry.h>
 #include <WebCore/LocalFrame.h>
@@ -325,6 +327,7 @@
 #include <WebCore/ViolationReportType.h>
 #include <WebCore/VisiblePosition.h>
 #include <WebCore/VisibleUnits.h>
+#include <WebCore/WebKitJSHandle.h>
 #include <WebCore/WritingDirection.h>
 #include <WebCore/markup.h>
 #include <algorithm>
@@ -1180,6 +1183,9 @@ WebPage::WebPage(PageIdentifier pageID, WebPageCreationParameters&& parameters)
         page->chrome().show();
         page->setOpenedByDOM();
     }
+
+    if (parameters.allowJSHandleInPageContentWorld)
+        InjectedBundleScriptWorld::normalWorldSingleton().setNodeInfoEnabled();
 }
 
 void WebPage::updateAfterDrawingAreaCreation(const WebPageCreationParameters& parameters)
@@ -10156,7 +10162,15 @@ void WebPage::hitTestAtPoint(WebCore::FrameIdentifier frameID, WebCore::FloatPoi
     if (!nodeWebFrame)
         return completionHandler({ });
 
-    completionHandler({ NodeAndFrameInfo { { node->nodeIdentifier(), std::nullopt }, { nodeWebFrame->info() } } });
+    Ref nodeHandle = [node] {
+        Ref document = node->document();
+        auto* lexicalGlobalObject = document->globalObject();
+        RELEASE_ASSERT(lexicalGlobalObject->template inherits<WebCore::JSDOMGlobalObject>());
+        auto* domGlobalObject = jsCast<WebCore::JSDOMGlobalObject*>(lexicalGlobalObject);
+        JSLockHolder locker(lexicalGlobalObject);
+        return WebCore::WebKitJSHandle::create(document, WebCore::toJS(lexicalGlobalObject, domGlobalObject, *node).toObject(lexicalGlobalObject));
+    }();
+    completionHandler({ NodeAndFrameInfo { { nodeHandle->identifier(), nodeHandle->windowFrameIdentifier() }, { nodeWebFrame->info() } } });
 }
 
 void WebPage::adjustVisibilityForTargetedElements(Vector<TargetedElementAdjustment>&& adjustments, CompletionHandler<void(bool)>&& completion)
@@ -10570,6 +10584,13 @@ std::unique_ptr<FrameInfoData> WebPage::takeMainFrameNavigationInitiator()
 {
     return std::exchange(m_mainFrameNavigationInitiator, nullptr);
 }
+
+#if !PLATFORM(IOS_FAMILY)
+bool WebPage::hasAccessoryMousePointingDevice() const
+{
+    return true;
+}
+#endif
 
 } // namespace WebKit
 

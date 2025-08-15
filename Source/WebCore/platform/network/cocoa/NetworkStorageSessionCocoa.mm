@@ -330,7 +330,7 @@ RetainPtr<NSArray> NetworkStorageSession::httpCookiesForURL(CFHTTPCookieStorageR
     // FIXME: Stop creating a new NSHTTPCookieStorage object each time we want to query the cookie jar.
     // NetworkStorageSession could instead keep a NSHTTPCookieStorage object for us.
     RetainPtr<NSHTTPCookieStorage> nsCookieStorage = adoptNS([[NSHTTPCookieStorage alloc] _initWithCFHTTPCookieStorage:cookieStorage]);
-#if HAVE(ALLOW_ONLY_PARTITIONED_COOKIES)
+#if ENABLE(OPT_IN_PARTITIONED_COOKIES)
     RetainPtr partitionKey = isOptInCookiePartitioningEnabled() ? cookiePartitionIdentifier(firstParty).createNSString() : nil;
 #else
     RetainPtr<NSString> partitionKey;
@@ -352,7 +352,7 @@ RetainPtr<NSHTTPCookie> NetworkStorageSession::capExpiryOfPersistentCookie(NSHTT
     return cookie;
 }
 
-#if HAVE(ALLOW_ONLY_PARTITIONED_COOKIES)
+#if ENABLE(OPT_IN_PARTITIONED_COOKIES)
 NSHTTPCookie *NetworkStorageSession::setCookiePartition(NSHTTPCookie *cookie, NSString* partitionKey)
 {
     if (!cookie)
@@ -380,7 +380,7 @@ RetainPtr<NSArray> NetworkStorageSession::cookiesForURL(const URL& firstParty, c
     return httpCookiesForURL(cookieStorage().get(), firstParty.createNSURL().get(), sameSiteInfo, url.createNSURL().get(), thirdPartyCookieBlockingDecision);
 }
 
-std::pair<String, bool> NetworkStorageSession::cookiesForSession(const URL& firstParty, const SameSiteInfo& sameSiteInfo, const URL& url, std::optional<FrameIdentifier> frameID, std::optional<PageIdentifier> pageID, IncludeHTTPOnlyOrNot includeHTTPOnly, IncludeSecureCookies includeSecureCookies, ApplyTrackingPrevention applyTrackingPrevention, ShouldRelaxThirdPartyCookieBlocking shouldRelaxThirdPartyCookieBlocking) const
+std::pair<String, bool> NetworkStorageSession::cookiesForSession(const URL& firstParty, const SameSiteInfo& sameSiteInfo, const URL& url, std::optional<FrameIdentifier> frameID, std::optional<PageIdentifier> pageID, CookiesFor cookiesFor, IncludeSecureCookies includeSecureCookies, ApplyTrackingPrevention applyTrackingPrevention, ShouldRelaxThirdPartyCookieBlocking shouldRelaxThirdPartyCookieBlocking) const
 {
     ASSERT(hasProcessPrivilege(ProcessPrivilege::CanAccessRawCookies) || m_isInMemoryCookieStore);
 
@@ -395,7 +395,7 @@ std::pair<String, bool> NetworkStorageSession::cookiesForSession(const URL& firs
     for (NSHTTPCookie *cookie in cookies.get()) {
         if (![[cookie name] length])
             continue;
-        if (!includeHTTPOnly && [cookie isHTTPOnly])
+        if (cookiesFor == CookiesFor::DOM && [cookie isHTTPOnly])
             continue;
         if ([cookie isSecure]) {
             didAccessSecureCookies = true;
@@ -410,7 +410,7 @@ std::pair<String, bool> NetworkStorageSession::cookiesForSession(const URL& firs
     return { String(), false };
 }
 
-std::optional<Vector<Cookie>> NetworkStorageSession::cookiesForSessionAsVector(const URL& firstParty, const SameSiteInfo& sameSiteInfo, const URL& url, std::optional<FrameIdentifier> frameID, std::optional<PageIdentifier> pageID, IncludeHTTPOnlyOrNot includeHTTPOnly, IncludeSecureCookies includeSecureCookies, ApplyTrackingPrevention applyTrackingPrevention, ShouldRelaxThirdPartyCookieBlocking shouldRelaxThirdPartyCookieBlocking, CookieStoreGetOptions&& options) const
+std::optional<Vector<Cookie>> NetworkStorageSession::cookiesForSessionAsVector(const URL& firstParty, const SameSiteInfo& sameSiteInfo, const URL& url, std::optional<FrameIdentifier> frameID, std::optional<PageIdentifier> pageID, CookiesFor cookiesFor, IncludeSecureCookies includeSecureCookies, ApplyTrackingPrevention applyTrackingPrevention, ShouldRelaxThirdPartyCookieBlocking shouldRelaxThirdPartyCookieBlocking, CookieStoreGetOptions&& options) const
 {
     ASSERT(hasProcessPrivilege(ProcessPrivilege::CanAccessRawCookies) || m_isInMemoryCookieStore);
 
@@ -425,7 +425,7 @@ std::optional<Vector<Cookie>> NetworkStorageSession::cookiesForSessionAsVector(c
     for (NSHTTPCookie *cookie in cookies.get()) {
         if (![[cookie name] length])
             continue;
-        if (!includeHTTPOnly && [cookie isHTTPOnly])
+        if (cookiesFor == CookiesFor::DOM && [cookie isHTTPOnly])
             continue;
         if ([cookie isSecure] && includeSecureCookies == IncludeSecureCookies::No)
             continue;
@@ -442,22 +442,22 @@ std::optional<Vector<Cookie>> NetworkStorageSession::cookiesForSessionAsVector(c
 
 std::pair<String, bool> NetworkStorageSession::cookiesForDOM(const URL& firstParty, const SameSiteInfo& sameSiteInfo, const URL& url, std::optional<FrameIdentifier> frameID, std::optional<PageIdentifier> pageID, IncludeSecureCookies includeSecureCookies, ApplyTrackingPrevention applyTrackingPrevention, ShouldRelaxThirdPartyCookieBlocking shouldRelaxThirdPartyCookieBlocking) const
 {
-    return cookiesForSession(firstParty, sameSiteInfo, url, frameID, pageID, DoNotIncludeHTTPOnly, includeSecureCookies, applyTrackingPrevention, shouldRelaxThirdPartyCookieBlocking);
+    return cookiesForSession(firstParty, sameSiteInfo, url, frameID, pageID, CookiesFor::DOM, includeSecureCookies, applyTrackingPrevention, shouldRelaxThirdPartyCookieBlocking);
 }
 
 std::optional<Vector<Cookie>> NetworkStorageSession::cookiesForDOMAsVector(const URL& firstParty, const SameSiteInfo& sameSiteInfo, const URL& url, std::optional<FrameIdentifier> frameID, std::optional<PageIdentifier> pageID, IncludeSecureCookies includeSecureCookies, ApplyTrackingPrevention applyTrackingPrevention, ShouldRelaxThirdPartyCookieBlocking shouldRelaxThirdPartyCookieBlocking, CookieStoreGetOptions&& options) const
 {
-    return cookiesForSessionAsVector(firstParty, sameSiteInfo, url, frameID, pageID, DoNotIncludeHTTPOnly, includeSecureCookies, applyTrackingPrevention, shouldRelaxThirdPartyCookieBlocking, WTFMove(options));
+    return cookiesForSessionAsVector(firstParty, sameSiteInfo, url, frameID, pageID, CookiesFor::DOM, includeSecureCookies, applyTrackingPrevention, shouldRelaxThirdPartyCookieBlocking, WTFMove(options));
 }
 
 std::pair<String, bool> NetworkStorageSession::cookieRequestHeaderFieldValue(const URL& firstParty, const SameSiteInfo& sameSiteInfo, const URL& url, std::optional<FrameIdentifier> frameID, std::optional<PageIdentifier> pageID, IncludeSecureCookies includeSecureCookies, ApplyTrackingPrevention applyTrackingPrevention, ShouldRelaxThirdPartyCookieBlocking shouldRelaxThirdPartyCookieBlocking) const
 {
-    return cookiesForSession(firstParty, sameSiteInfo, url, frameID, pageID, IncludeHTTPOnly, includeSecureCookies, applyTrackingPrevention, shouldRelaxThirdPartyCookieBlocking);
+    return cookiesForSession(firstParty, sameSiteInfo, url, frameID, pageID, CookiesFor::HTTP, includeSecureCookies, applyTrackingPrevention, shouldRelaxThirdPartyCookieBlocking);
 }
 
 std::pair<String, bool> NetworkStorageSession::cookieRequestHeaderFieldValue(const CookieRequestHeaderFieldProxy& headerFieldProxy) const
 {
-    return cookiesForSession(headerFieldProxy.firstParty, headerFieldProxy.sameSiteInfo, headerFieldProxy.url, headerFieldProxy.frameID, headerFieldProxy.pageID, IncludeHTTPOnly, headerFieldProxy.includeSecureCookies, ApplyTrackingPrevention::Yes, ShouldRelaxThirdPartyCookieBlocking::No);
+    return cookiesForSession(headerFieldProxy.firstParty, headerFieldProxy.sameSiteInfo, headerFieldProxy.url, headerFieldProxy.frameID, headerFieldProxy.pageID, CookiesFor::HTTP, headerFieldProxy.includeSecureCookies, ApplyTrackingPrevention::Yes, ShouldRelaxThirdPartyCookieBlocking::No);
 }
 
 static RetainPtr<NSHTTPCookie> adjustScriptWrittenCookie(NSHTTPCookie *initialCookie, std::optional<Seconds> cappedLifetime)
@@ -517,7 +517,7 @@ void NetworkStorageSession::setCookiesFromDOM(const URL& firstParty, const SameS
 
     auto cookieCap = clientSideCookieCap(RegistrableDomain { firstParty }, requiresScriptTrackingPrivacy, pageID);
 
-#if HAVE(ALLOW_ONLY_PARTITIONED_COOKIES)
+#if ENABLE(OPT_IN_PARTITIONED_COOKIES)
     String partitionKey = isOptInCookiePartitioningEnabled() ? cookiePartitionIdentifier(firstParty) : String { };
 #else
     String partitionKey;
@@ -737,7 +737,7 @@ Vector<Cookie> NetworkStorageSession::domCookiesForHost(const URL& firstParty)
     RetainPtr<NSArray> unpartitionedCookies = [nsCookieStorage() _getCookiesForDomain:host.get()];
     RetainPtr nsCookies = adoptNS([[NSMutableArray alloc] initWithArray:unpartitionedCookies.get()]);
 
-#if HAVE(ALLOW_ONLY_PARTITIONED_COOKIES)
+#if ENABLE(OPT_IN_PARTITIONED_COOKIES)
     if (isOptInCookiePartitioningEnabled()) {
         // Next, get all cookies in the partition for this site. However, we
         // only want the cookies for this host, so we filter all cookies that

@@ -29,6 +29,7 @@
 #include "config.h"
 #include "EventHandler.h"
 
+#include "AXObjectCache.h"
 #include "AutoscrollController.h"
 #include "BackForwardController.h"
 #include "CachedImage.h"
@@ -2605,15 +2606,15 @@ bool EventHandler::dispatchDragEvent(const AtomString& eventType, Element& dragT
     if (CheckedPtr cache = frame->document()->existingAXObjectCache()) {
         auto& eventNames = WebCore::eventNames();
         if (eventType == eventNames.dragstartEvent)
-            cache->postNotification(&dragTarget, AXNotification::DraggingStarted);
+            cache->onDraggingStarted(dragTarget);
         else if (eventType == eventNames.dragendEvent)
-            cache->postNotification(&dragTarget, AXNotification::DraggingEnded);
+            cache->onDraggingEnded(dragTarget);
         else if (eventType == eventNames.dragenterEvent)
-            cache->postNotification(&dragTarget, AXNotification::DraggingEnteredDropZone);
+            cache->onDraggingEnteredDropZone(dragTarget);
         else if (eventType == eventNames.dragleaveEvent)
-            cache->postNotification(&dragTarget, AXNotification::DraggingExitedDropZone);
+            cache->onDraggingExitedDropZone(dragTarget);
         else if (eventType == eventNames.dropEvent)
-            cache->postNotification(&dragTarget, AXNotification::DraggingDropped);
+            cache->onDraggingDropped(dragTarget);
     }
 
     return dragEvent->defaultPrevented();

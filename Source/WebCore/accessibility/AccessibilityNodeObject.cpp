@@ -32,10 +32,12 @@
 #include "AXLogger.h"
 #include "AXLoggerBase.h"
 #include "AXObjectCache.h"
+#include "AXUtilities.h"
 #include "AccessibilityImageMapLink.h"
 #include "AccessibilityLabel.h"
 #include "AccessibilityList.h"
 #include "AccessibilityListBox.h"
+#include "AccessibilityMediaHelpers.h"
 #include "AccessibilitySpinButton.h"
 #include "AccessibilityTable.h"
 #include "ComposedTreeIterator.h"
@@ -215,6 +217,18 @@ AccessibilityObject* AccessibilityNodeObject::parentObject() const
     return cache ? cache->getOrCreate(composedParentIgnoringDocumentFragments(*node)) : nullptr;
 #endif // USE(ATSPI)
 }
+
+#if PLATFORM(IOS_FAMILY)
+HTMLMediaElement* AccessibilityNodeObject::mediaElement() const
+{
+    return dynamicDowncast<HTMLMediaElement>(node());
+}
+
+HTMLVideoElement* AccessibilityNodeObject::videoElement() const
+{
+    return dynamicDowncast<HTMLVideoElement>(node());
+}
+#endif
 
 LayoutRect AccessibilityNodeObject::checkboxOrRadioRect() const
 {
@@ -1332,12 +1346,26 @@ void AccessibilityNodeObject::alterRangeValue(StepAction stepAction)
 void AccessibilityNodeObject::increment()
 {
     UserGestureIndicator gestureIndicator(IsProcessingUserGesture::Yes, document());
+#if PLATFORM(IOS_FAMILY)
+    if (RefPtr mediaElement = this->mediaElement()) {
+        AccessibilityMediaHelpers::increment(*mediaElement);
+        return;
+    }
+#endif
+
     alterRangeValue(StepAction::Increment);
 }
 
 void AccessibilityNodeObject::decrement()
 {
     UserGestureIndicator gestureIndicator(IsProcessingUserGesture::Yes, document());
+#if PLATFORM(IOS_FAMILY)
+    if (RefPtr mediaElement = this->mediaElement()) {
+        AccessibilityMediaHelpers::decrement(*mediaElement);
+        return;
+    }
+#endif
+
     alterRangeValue(StepAction::Decrement);
 }
 
@@ -2355,56 +2383,6 @@ String AccessibilityNodeObject::textUnderElement(TextUnderElementMode mode) cons
     return mode.trimWhitespace == TrimWhitespace::Yes
         ? result.trim(isASCIIWhitespace).simplifyWhiteSpace(isHTMLSpaceButNotLineBreak)
         : result;
-}
-
-String AccessibilityNodeObject::title() const
-{
-    RefPtr node = this->node();
-    if (!node)
-        return { };
-
-    if (RefPtr input = dynamicDowncast<HTMLInputElement>(*node); input && input->isTextButton())
-        return input->valueWithDefault();
-
-    if (isLabelable()) {
-        auto labels = Accessibility::labelsForElement(element());
-        // Use the label text as the title if there's no ARIA override.
-        if (!labels.isEmpty() && !ariaAccessibilityDescription().length())
-            return textForLabelElements(WTFMove(labels));
-    }
-
-    // For <select> elements, title should be empty if they are not rendered or have role PopUpButton.
-    if (WebCore::elementName(*node) == ElementName::HTML_select
-        && (!isAccessibilityRenderObject() || role() == AccessibilityRole::PopUpButton))
-        return { };
-
-    switch (role()) {
-    case AccessibilityRole::Button:
-    case AccessibilityRole::Checkbox:
-    case AccessibilityRole::ListBoxOption:
-    case AccessibilityRole::ListItem:
-    case AccessibilityRole::MenuItem:
-    case AccessibilityRole::MenuItemCheckbox:
-    case AccessibilityRole::MenuItemRadio:
-    case AccessibilityRole::PopUpButton:
-    case AccessibilityRole::RadioButton:
-    case AccessibilityRole::Switch:
-    case AccessibilityRole::Tab:
-    case AccessibilityRole::ToggleButton:
-        return textUnderElement();
-    // SVGRoots should not use the text under itself as a title. That could include the text of objects like <text>.
-    case AccessibilityRole::SVGRoot:
-        return String();
-    default:
-        break;
-    }
-
-    if (isLink())
-        return textUnderElement();
-    if (isHeading())
-        return textUnderElement({ TextUnderElementMode::Children::SkipIgnoredChildren, true });
-
-    return { };
 }
 
 String AccessibilityNodeObject::text() const

@@ -25,18 +25,14 @@
 
 #pragma once
 
-#include "AXGeometryManager.h"
-#include "AXIsolatedTree.h"
 #include "AXTextMarker.h"
 #include "AXTextStateChangeIntent.h"
 #include "AXTreeStore.h"
-#include "AccessibilityObject.h"
 #include "SimpleRange.h"
 #include "StyleChange.h"
 #include "Timer.h"
 #include "VisibleUnits.h"
 #include <limits.h>
-#include <wtf/Compiler.h>
 #include <wtf/Deque.h>
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
@@ -53,8 +49,11 @@ class TextStream;
 
 namespace WebCore {
 
+class AXGeometryManager;
+class AXIsolatedTree;
 class AXRemoteFrame;
 class AccessibilityNodeObject;
+class AccessibilityObject;
 class AccessibilityRenderObject;
 class AccessibilityTable;
 class AccessibilityTableCell;
@@ -75,7 +74,9 @@ class Scrollbar;
 class ScrollView;
 class VisiblePosition;
 class Widget;
+
 enum class AXStreamOptions : uint16_t;
+enum class AXProperty : uint16_t;
 
 struct CharacterOffset {
     RefPtr<Node> node;
@@ -171,6 +172,7 @@ protected:
 };
 
 #define WEBCORE_AXNOTIFICATION_KEYS_DEFAULT(macro) \
+    macro(AbbreviationChanged) \
     macro(AccessKeyChanged) \
     macro(ActiveDescendantChanged) \
     macro(AnnouncementRequested) \
@@ -419,13 +421,19 @@ public:
     void childrenChanged(AccessibilityObject*);
     void onDetailsSummarySlotChange(const HTMLDetailsElement&);
     void onDragElementChanged(Element* oldElement, Element* newElement);
+    void onDraggingStarted(Element&);
+    void onDraggingEnded(Element&);
+    void onDraggingEnteredDropZone(Element&);
+    void onDraggingExitedDropZone(Element&);
+    void onDraggingDropped(Element&);
     void onEventListenerAdded(Node&, const AtomString& eventType);
     void onEventListenerRemoved(Node&, const AtomString& eventType);
     void onFocusChange(Element* oldElement, Element* newElement);
     void onInertOrVisibilityChange(RenderElement&);
     void onPopoverToggle(const HTMLElement&);
     void onScrollbarFrameRectChange(const Scrollbar&);
-    void onSelectedChanged(Element&);
+    void onSelectedOptionChanged(Element&);
+    void onSelectedOptionChanged(RenderObject&, int);
     void onSelectedTextChanged(const VisiblePositionRange&, AccessibilityObject* = nullptr);
     void onSlottedContentChange(const HTMLSlotElement&);
     void onStyleChange(Element&, OptionSet<Style::Change>, const RenderStyle* oldStyle, const RenderStyle* newStyle);
@@ -448,7 +456,6 @@ public:
     void autofillTypeChanged(HTMLInputElement&);
     void handleRoleChanged(AccessibilityObject&, AccessibilityRole previousRole);
     void handleReferenceTargetChanged();
-    void handlePageEditibilityChanged(Document&);
 
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     void columnIndexChanged(AccessibilityObject&);
@@ -465,6 +472,14 @@ public:
     void updateLoadingProgress(double);
     void loadingFinished() { updateLoadingProgress(1); }
     double loadingProgress() const { return m_loadingProgress; }
+
+    void onTopDocumentLoaded(RenderObject&);
+    void onNonTopDocumentLoaded(RenderObject&);
+    void handlePageEditibilityChanged(Document&);
+    void onAutocorrectionOccured(Element&);
+    void onEditableTextValueChanged(Node&);
+    void onDocumentInitialFocus(Node&);
+    void onLayoutComplete(RenderObject&);
 
     struct AttributeChange {
         WeakPtr<Element, WeakPtrImplWithEventTargetData> element { nullptr };
@@ -641,22 +656,9 @@ public:
     constexpr const std::optional<PageIdentifier>& pageID() const { return m_pageID; }
 
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
-    void objectBecameIgnored(const AccessibilityObject& object)
-    {
-        if (RefPtr tree = AXIsolatedTree::treeForPageID(m_pageID))
-            tree->objectBecameIgnored(object);
-    }
-
-    void objectBecameUnignored(const AccessibilityObject& object)
-    {
-#if ENABLE(INCLUDE_IGNORED_IN_CORE_AX_TREE)
-        if (RefPtr tree = AXIsolatedTree::treeForPageID(m_pageID))
-            tree->objectBecameUnignored(object);
-#else
-        UNUSED_PARAM(object);
-#endif // ENABLE(INCLUDE_IGNORED_IN_CORE_AX_TREE)
-    }
-#endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+    inline void objectBecameIgnored(const AccessibilityObject&);
+    inline void objectBecameUnignored(const AccessibilityObject&);
+#endif
 
 #if PLATFORM(MAC)
     static void setShouldRepostNotificationsForTests(bool);
@@ -698,8 +700,8 @@ public:
 #endif
 
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
-    void scheduleObjectRegionsUpdate(bool scheduleImmediately = false) { m_geometryManager->scheduleObjectRegionsUpdate(scheduleImmediately); }
-    void willUpdateObjectRegions() { m_geometryManager->willUpdateObjectRegions(); }
+    inline void scheduleObjectRegionsUpdate(bool scheduleImmediately = false);
+    inline void willUpdateObjectRegions();
     WEBCORE_EXPORT static bool isIsolatedTreeEnabled();
     WEBCORE_EXPORT static void initializeAXThreadIfNeeded();
     WEBCORE_EXPORT static bool isAXThreadInitialized();
@@ -994,32 +996,6 @@ private:
 #endif
 };
 
-inline AXObjectCache* AccessibilityObject::axObjectCache() const
-{
-    return m_axObjectCache.get();
-}
-
-template<typename U>
-inline Vector<Ref<AXCoreObject>> AXObjectCache::objectsForIDs(const U& axIDs) const
-{
-    ASSERT(isMainThread());
-
-    return WTF::compactMap(axIDs, [&](auto& axID) -> std::optional<Ref<AXCoreObject>> {
-        if (auto* object = objectForID(axID))
-            return Ref { *object };
-        return std::nullopt;
-    });
-}
-
-inline Node* AXObjectCache::nodeForID(std::optional<AXID> axID) const
-{
-    if (!axID)
-        return nullptr;
-
-    RefPtr object = m_objects.get(*axID);
-    return object ? object->node() : nullptr;
-}
-
 inline bool AXObjectCache::accessibilityEnabled()
 {
     return gAccessibilityEnabled;
@@ -1044,48 +1020,5 @@ inline void AXObjectCache::setForceDeferredSpellChecking(bool shouldForce)
 {
     gForceDeferredSpellChecking = shouldForce;
 }
-
-class AXAttributeCacheEnabler final
-{
-public:
-    explicit AXAttributeCacheEnabler(AXObjectCache *cache);
-    ~AXAttributeCacheEnabler();
-
-private:
-    const WeakPtr<AXObjectCache> m_cache;
-    bool m_wasAlreadyCaching { false };
-};
-
-bool hasRole(Element&, StringView role);
-bool hasAnyRole(Element&, Vector<StringView>&& roles);
-bool hasAnyRole(Element*, Vector<StringView>&& roles);
-bool hasCellARIARole(Element&);
-bool hasPresentationRole(Element&);
-bool hasTableRole(Element&);
-bool isRowGroup(Element&);
-bool isRowGroup(Node*);
-ContainerNode* composedParentIgnoringDocumentFragments(const Node&);
-ContainerNode* composedParentIgnoringDocumentFragments(const Node*);
-
-ElementName elementName(Node*);
-ElementName elementName(Node&);
-
-RenderImage* toSimpleImage(RenderObject&);
-
-// Returns true if the element has an attribute that will result in an accname being computed.
-// https://www.w3.org/TR/accname-1.2/
-bool hasAccNameAttribute(Element&);
-
-bool isNodeFocused(Node&);
-
-bool isRenderHidden(const RenderStyle*);
-// Checks both CSS display properties, and CSS visibility properties.
-bool isRenderHidden(const RenderStyle&);
-// Only checks CSS visibility properties.
-bool isVisibilityHidden(const RenderStyle&);
-
-WTF::TextStream& operator<<(WTF::TextStream&, AXNotification);
-
-void dumpAccessibilityTreeToStderr(Document&);
 
 } // namespace WebCore
