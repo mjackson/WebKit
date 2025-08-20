@@ -444,7 +444,7 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
     ASSERT(needHandling(mask));
 
     if (m_trapsDeferred)
-        return false; // We'll service them on the next opportunity after deferring has stopped.
+        RELEASE_AND_RETURN(scope, false); // We'll service them on the next opportunity after deferring has stopped.
 
     if (isDeferringTermination())
         mask &= ~NeedTermination;
@@ -512,7 +512,7 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
             RELEASE_ASSERT_NOT_REACHED();
         }
     }
-    return didHandleTrap;
+    RELEASE_AND_RETURN(scope, didHandleTrap);
 }
 
 bool VMTraps::handleTrapsIfNeeded(VMTraps::BitField mask)
