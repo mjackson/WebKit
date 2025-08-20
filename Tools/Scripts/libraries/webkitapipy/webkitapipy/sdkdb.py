@@ -120,7 +120,7 @@ class SDKDB:
         while user_version != VERSION:
             self.con = sqlite3.connect(db_file, isolation_level='IMMEDIATE',
                                        detect_types=sqlite3.PARSE_DECLTYPES)
-            self.con.execute('PRAGMA busy_timeout = 30000')
+            self.con.execute('PRAGMA busy_timeout = 60000')
             self.con.execute('PRAGMA foreign_keys = ON')
             user_version, = self.con.execute('PRAGMA user_version').fetchone()
             if user_version == 0:
@@ -452,13 +452,13 @@ class SDKDB:
                 # FIXME: split(',') falls apart if an allowlist path contains a
                 # comma. We could improve this by using quote() in the query
                 # and unquoting here.
-                for path in allowlist_paths.split(','):
+                for path in sorted(set(allowlist_paths.split(','))):
                     yield UnusedAllowedName(name=allowed_name, file=Path(path),
                                             kind=allowed_kind)
             elif allow_found and export_found:
                 # Allowed but also exported => unnecessary allowlist entry to
                 # remove.
-                for path in allowlist_paths.split(','):
+                for path in sorted(set(allowlist_paths.split(','))):
                     yield UnnecessaryAllowedName(name=allowed_name,
                                                  file=Path(path),
                                                  kind=allowed_kind,

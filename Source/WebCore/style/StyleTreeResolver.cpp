@@ -1467,7 +1467,7 @@ auto TreeResolver::updateAnchorPositioningState(Element& element, const RenderSt
     auto update = [&](const RenderStyle* style) {
         if (!style)
             return;
-        AnchorPositionEvaluator::updateAnchorPositionedStateForDefaultAnchor(element, *style, m_treeResolutionState.anchorPositionedStates);
+        AnchorPositionEvaluator::updateAnchorPositionedStateForDefaultAnchorAndPositionVisibility(element, *style, m_treeResolutionState.anchorPositionedStates);
     };
 
     update(style);
@@ -1712,8 +1712,7 @@ void TreeResolver::updateForPositionVisibility(RenderStyle& style, const Styleab
     };
 
     // FIXME: Implement via "visibility: force-hidden".
-    if (shouldHideAnchorPositioned())
-        style.setIsForceHidden();
+    style.setIsForceHidden(shouldHideAnchorPositioned());
 }
 
 const RenderStyle* TreeResolver::beforeResolutionStyle(const Element& element, std::optional<PseudoElementIdentifier> pseudo)

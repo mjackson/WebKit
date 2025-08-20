@@ -249,6 +249,9 @@ http/tests/quicklook [ Skip ]
 # These tests are WebKit2-only
 http/tests/misc/will-send-request-with-client-provided-http-body.html [ Skip ]
 http/tests/loading/resourceLoadStatistics/ [ Skip ]
+http/tests/cookies/multiple-cookies.https.html [ Skip ]
+http/tests/cookies/multiple-cookies-iframes.https.html [ Skip ]
+http/tests/cookies/max-partitioned-cookies.https.html [ Skip ]
 http/tests/resourceLoadStatistics/ [ Skip ]
 http/tests/websocket/connection-refusal-in-frame-resource-load-statistics.html [ Skip ]
 http/tests/storageAccess/ [ Skip ]
@@ -2031,10 +2034,9 @@ webkit.org/b/260895 [ Debug ] imported/w3c/web-platform-tests/webmessaging/broad
 
 webkit.org/b/244022 imported/w3c/web-platform-tests/quirks/body-fills-html-quirk-vertical.html [ ImageOnlyFailure ]
 webkit.org/b/244022 imported/w3c/web-platform-tests/quirks/body-fills-html-quirk.html [ ImageOnlyFailure ]
-webkit.org/b/244022 imported/w3c/web-platform-tests/quirks/line-height-trailing-collapsable-whitespace.html [ ImageOnlyFailure ]
 webkit.org/b/244022 imported/w3c/web-platform-tests/quirks/percentage-height-quirk-excludes-flex-grid-001.html [ ImageOnlyFailure ]
 webkit.org/b/244022 imported/w3c/web-platform-tests/quirks/text-decoration-doesnt-propagate-into-tables/quirks.html [ ImageOnlyFailure ]
-webkit.org/b/244022 imported/w3c/web-platform-tests/quirks/text-decoration-doesnt-propagate-into-tables/standards.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/quirks/line-height-preserved-segment-break.html [ ImageOnlyFailure ]
 
 # WPT tests requiring DTR/WTR to allow other URLs than localhost to not be blocked and be reachable (www2.localhost)
 imported/w3c/web-platform-tests/xhr/send-redirect-bogus.htm [ Skip ]
@@ -2319,6 +2321,7 @@ fast/webgpu [ Pass ]
 
 fast/webgpu/regression/repro_275108.html [ Pass Failure Timeout ]
 [ Debug ] fast/webgpu/regression/repro_275624.html [ Skip ]
+fast/webgpu/regression/webkit.svg [ Skip ]
 
 # FIXME: https://bugs.webkit.org/show_bug.cgi?id=292024
 [ Debug ] fast/webgpu/regression/repro_281491.html [ Pass Crash ]
@@ -6091,10 +6094,10 @@ imported/w3c/web-platform-tests/css/motion/offset-path-url-011.html [ ImageOnlyF
 
 # IPC test failing in Debug mode due to assert.
 [ Debug ] ipc/send-invalid-message.html [ Skip ]
-webkit.org/b/272000 [ Debug ] ipc/send-filter.html [ Crash ]
-webkit.org/b/272000 [ Debug ] ipc/send-gradient.html [ Crash ]
-webkit.org/b/272000 [ Debug ] ipc/invalid-feConvolveMatrix-crash.html [ Crash ]
-webkit.org/b/272000 [ Debug ] ipc/restore-empty-stack-crash.html [ Crash ]
+
+webkit.org/b/297616 [ Debug ] ipc/invalid-feConvolveMatrix-crash.html [ Crash ]
+
+webkit.org/b/297618 [ Debug ] ipc/restore-empty-stack-crash.html [ Crash ]
 
 # mac-only IPC test
 ipc/webpageproxy-correctionpanel-no-crash.html [ Skip ]
@@ -6776,7 +6779,6 @@ webkit.org/b/285971 imported/w3c/web-platform-tests/css/css-tables/table-intrins
 webkit.org/b/285971 imported/w3c/web-platform-tests/css/css-tables/table-intrinsic-size-004.html [ ImageOnlyFailure ]
 webkit.org/b/285971 imported/w3c/web-platform-tests/css/css-tables/tentative/padding-percentage.html [ ImageOnlyFailure ]
 webkit.org/b/285971 imported/w3c/web-platform-tests/css/css-tables/visibility-collapse-border-spacing-001.html [ ImageOnlyFailure ]
-webkit.org/b/285971 imported/w3c/web-platform-tests/css/css-tables/visibility-collapse-border-spacing-002.html [ ImageOnlyFailure ]
 
 # New failures after re-importing css-overflow
 imported/w3c/web-platform-tests/css/css-overflow/margin-block-end-scroll-area-001.html [ Skip ]
@@ -7065,11 +7067,13 @@ imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-e
 imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-canceling.html [ Skip ]
 
 # -- Navigation API -- #
-# webkit.org/b/258384 Navigation API is not yet fully implemented.
 
-imported/w3c/web-platform-tests/navigation-api/ [ Timeout Pass ]
+imported/w3c/web-platform-tests/navigation-api/navigate-event/cross-origin-traversal-redirect.html [ Timeout ]
+webkit.org/b/297414 [ Debug ] imported/w3c/web-platform-tests/navigation-api/navigate-event/intercept-detach-multiple.html [ Crash ]
+webkit.org/b/291451 imported/w3c/web-platform-tests/navigation-api/navigation-methods/return-value/navigate-intercept-interrupted.html [ Pass Crash ]
+webkit.org/b/297477 imported/w3c/web-platform-tests/navigation-api/navigate-event/navigate-history-back-bfcache.html [ Timeout Pass Failure ]
 
-# These cross-window tests won't work on ports that don't run on the web-platform.test domains (not glib).
+# These cross-window needs --allowed-host=www1.localhost, so tested manually.
 imported/w3c/web-platform-tests/navigation-api/navigate-event/cross-window/click-crossdocument-crossorigin-sameorigindomain.sub.html [ Skip ]
 imported/w3c/web-platform-tests/navigation-api/navigate-event/cross-window/click-samedocument-crossorigin-sameorigindomain.sub.html [ Skip ]
 imported/w3c/web-platform-tests/navigation-api/navigate-event/cross-window/location-crossdocument-crossorigin-sameorigindomain.sub.html [ Skip ]
@@ -7081,6 +7085,7 @@ imported/w3c/web-platform-tests/navigation-api/navigate-event/cross-window/submi
 
 # General flakes, almost exclusively on mac-wk2-stress.
 imported/w3c/web-platform-tests/navigation-api/navigation-methods/return-value/back-204-205-download.html [ Failure Pass ]
+imported/w3c/web-platform-tests/navigation-api/navigation-methods/return-value/navigate-intercept-rejected.html [ Crash Pass ]
 imported/w3c/web-platform-tests/navigation-api/ordering-and-transition/navigate-204-205-download-then-same-document.html [ Failure Pass ]
 imported/w3c/web-platform-tests/navigation-api/scroll-behavior/ [ Failure Pass ]
 
@@ -7655,19 +7660,14 @@ webkit.org/b/289743 imported/w3c/web-platform-tests/css/css-anchor-position/anch
 webkit.org/b/289743 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-position-multicol-008.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-chained-003.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-chained-004.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-chained-fallback.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-position-try-012.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-to-sticky-003.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-to-sticky-004.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/position-try-switch-to-fixed-anchor.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-anchors-visible-with-position.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-anchors-visible-chained-001.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-anchors-visible-chained-002.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-anchors-visible-chained-003.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-anchors-visible-chained-004.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-no-overflow-scroll.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-position-multicol-colspan-003.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-no-overflow-without-anchor.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/transform-001.tentative.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/transform-002.tentative.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/transform-003.tentative.html [ ImageOnlyFailure ]
@@ -7922,8 +7922,6 @@ webkit.org/b/288957 imported/w3c/web-platform-tests/css/CSS2/tables/fixed-table-
 webkit.org/b/288957 imported/w3c/web-platform-tests/css/CSS2/tables/fixed-table-layout-029.xht [ ImageOnlyFailure ]
 webkit.org/b/288957 imported/w3c/web-platform-tests/css/CSS2/tables/fixed-table-layout-030.xht [ ImageOnlyFailure ]
 webkit.org/b/288957 imported/w3c/web-platform-tests/css/CSS2/tables/fixed-table-layout-031.xht [ ImageOnlyFailure ]
-webkit.org/b/288957 imported/w3c/web-platform-tests/css/CSS2/tables/row-visibility-001.xht [ ImageOnlyFailure ]
-webkit.org/b/288957 imported/w3c/web-platform-tests/css/CSS2/tables/row-visibility-002.xht [ ImageOnlyFailure ]
 webkit.org/b/288957 imported/w3c/web-platform-tests/css/CSS2/tables/table-anonymous-objects-079.xht [ ImageOnlyFailure ]
 webkit.org/b/288957 imported/w3c/web-platform-tests/css/CSS2/tables/table-anonymous-objects-080.xht [ ImageOnlyFailure ]
 webkit.org/b/288957 imported/w3c/web-platform-tests/css/CSS2/tables/table-anonymous-objects-085.xht [ ImageOnlyFailure ]
@@ -8014,3 +8012,7 @@ imported/w3c/web-platform-tests/mixed-content/gen/top.http-rp/opt-in/video-tag.h
 imported/w3c/web-platform-tests/mixed-content/gen/top.meta/opt-in/audio-tag.https.html
 imported/w3c/web-platform-tests/mixed-content/gen/top.meta/opt-in/beacon.https.html
 imported/w3c/web-platform-tests/mixed-content/gen/top.meta/opt-in/video-tag.https.html
+
+webkit.org/b/293973 [ Debug ] http/tests/ipc/gpu-load-error-empty-user-info-crssh.html [ Skip ]
+
+webkit.org/b/297505 ipc/LocalSampleBufferDisplayLayer-LogIdentifier-data-race-uaf.html [ Skip ]

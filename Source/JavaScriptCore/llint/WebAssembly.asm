@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2024 Apple Inc. All rights reserved.
+# Copyright (C) 2019-2025 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -21,6 +21,10 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 # THE POSSIBILITY OF SUCH DAMAGE.
 
+const MachineRegisterSize = constexpr (sizeof(CPURegister))
+const FPRRegisterSize = 8
+const VectorRegisterSize = 16
+
 # Calling conventions
 const CalleeSaveSpaceAsVirtualRegisters = constexpr Wasm::numberOfLLIntCalleeSaveRegisters + constexpr Wasm::numberOfLLIntInternalRegisters
 const CalleeSaveSpaceStackAligned = (CalleeSaveSpaceAsVirtualRegisters * SlotSize + StackAlignment - 1) & ~StackAlignmentMask
@@ -36,11 +40,14 @@ end
 # Must match GPRInfo.h
 if X86_64
     const NumberOfWasmArgumentGPRs = 6
+    const NumberOfVolatileGPRs = NumberOfWasmArgumentGPRs + 2 // +2 for ws0 and ws1
 elsif ARM64 or ARM64E or RISCV64
     const NumberOfWasmArgumentGPRs = 8
+    const NumberOfVolatileGPRs = NumberOfWasmArgumentGPRs
 elsif ARMv7
     # These 4 GPR holds only 2 JSValues in 2 pairs.
     const NumberOfWasmArgumentGPRs = 4
+    const NumberOfVolatileGPRs = NumberOfWasmArgumentGPRs
 else
     error
 end
@@ -102,7 +109,7 @@ macro forEachWasmArgumentFPR(fn)
     fn(6, wfa6, wfa7)
 end
 
-macro preserveWasmGPRArgumentRegisters()
+macro preserveWasmGPRArgumentRegistersImpl()
     forEachWasmArgumentGPR(macro (index, gpr1, gpr2)
         if ARM64 or ARM64E
             storepairq gpr1, gpr2, index * MachineRegisterSize[sp]
@@ -115,31 +122,7 @@ macro preserveWasmGPRArgumentRegisters()
     end)
 end
 
-macro preserveWasmArgumentRegisters()
-    subq (NumberOfWasmArgumentGPRs + NumberOfWasmArgumentFPRs) * 8, sp
-    preserveWasmGPRArgumentRegisters()
-    forEachWasmArgumentFPR(macro (index, fpr1, fpr2)
-        const base = NumberOfWasmArgumentGPRs * MachineRegisterSize
-        if ARM64 or ARM64E
-            storepaird fpr1, fpr2, base + index * 8[sp]
-        else
-            stored fpr1, base + (index + 0) * 8[sp]
-            stored fpr2, base + (index + 1) * 8[sp]
-        end
-    end)
-end
-
-macro preserveWasmArgumentRegistersWithSIMD()
-    subq (NumberOfWasmArgumentGPRs * 8 + NumberOfWasmArgumentFPRs * 16), sp
-    preserveWasmGPRArgumentRegisters()
-    forEachWasmArgumentFPR(macro (index, fpr1, fpr2)
-        const base = NumberOfWasmArgumentGPRs * MachineRegisterSize
-        storev fpr1, base + (index + 0) * 16[sp]
-        storev fpr2, base + (index + 1) * 16[sp]
-    end)
-end
-
-macro restoreWasmGPRArgumentRegisters()
+macro restoreWasmGPRArgumentRegistersImpl()
     forEachWasmArgumentGPR(macro (index, gpr1, gpr2)
         if ARM64 or ARM64E
             loadpairq index * MachineRegisterSize[sp], gpr1, gpr2
@@ -152,28 +135,103 @@ macro restoreWasmGPRArgumentRegisters()
     end)
 end
 
-macro restoreWasmArgumentRegisters()
-    restoreWasmGPRArgumentRegisters()
+macro preserveWasmFPRArgumentRegistersImpl(fprBaseOffset)
     forEachWasmArgumentFPR(macro (index, fpr1, fpr2)
-        const base = NumberOfWasmArgumentGPRs * MachineRegisterSize
         if ARM64 or ARM64E
-            loadpaird base + index * 8[sp], fpr1, fpr2
+            storepaird fpr1, fpr2, fprBaseOffset + index * FPRRegisterSize[sp]
         else
-            loadd base + (index + 0) * 8[sp], fpr1
-            loadd base + (index + 1) * 8[sp], fpr2
+            stored fpr1, fprBaseOffset + (index + 0) * FPRRegisterSize[sp]
+            stored fpr2, fprBaseOffset + (index + 1) * FPRRegisterSize[sp]
         end
     end)
-    addq (NumberOfWasmArgumentGPRs + NumberOfWasmArgumentFPRs) * 8, sp
 end
 
-macro restoreWasmArgumentRegistersWithSIMD()
-    restoreWasmGPRArgumentRegisters()
+macro restoreWasmFPRArgumentRegistersImpl(fprBaseOffset)
     forEachWasmArgumentFPR(macro (index, fpr1, fpr2)
-        const base = NumberOfWasmArgumentGPRs * MachineRegisterSize
-        loadv base + (index + 0) * 16[sp], fpr1
-        loadv base + (index + 1) * 16[sp], fpr2
+        if ARM64 or ARM64E
+            loadpaird fprBaseOffset + index * FPRRegisterSize[sp], fpr1, fpr2
+        else
+            loadd fprBaseOffset + (index + 0) * FPRRegisterSize[sp], fpr1
+            loadd fprBaseOffset + (index + 1) * FPRRegisterSize[sp], fpr2
+        end
     end)
-    addq (NumberOfWasmArgumentGPRs * 8 + NumberOfWasmArgumentFPRs * 16), sp
+end
+
+
+macro preserveWasmArgumentRegisters()
+    const gprStorageSize = NumberOfWasmArgumentGPRs * MachineRegisterSize
+    const fprStorageSize = NumberOfWasmArgumentFPRs * FPRRegisterSize
+
+    subp gprStorageSize + fprStorageSize, sp
+    preserveWasmGPRArgumentRegistersImpl()
+    preserveWasmFPRArgumentRegistersImpl(gprStorageSize)
+end
+
+macro preserveVolatileRegisters()
+    const gprStorageSize = NumberOfVolatileGPRs * MachineRegisterSize
+    const fprStorageSize = NumberOfWasmArgumentFPRs * FPRRegisterSize
+
+    subp gprStorageSize + fprStorageSize, sp
+    preserveWasmGPRArgumentRegistersImpl()
+if X86_64
+    storeq ws0, (NumberOfWasmArgumentGPRs + 0) * MachineRegisterSize[sp]
+    storeq ws1, (NumberOfWasmArgumentGPRs + 1) * MachineRegisterSize[sp]
+end
+    preserveWasmFPRArgumentRegistersImpl(gprStorageSize)
+end
+
+macro preserveVolatileRegistersForSIMD()
+    const gprStorageSize = NumberOfVolatileGPRs * MachineRegisterSize
+    const fprStorageSize = NumberOfWasmArgumentFPRs * VectorRegisterSize
+
+    subp gprStorageSize + fprStorageSize, sp
+    preserveWasmGPRArgumentRegistersImpl()
+if X86_64
+    storeq ws0, (NumberOfWasmArgumentGPRs + 0) * MachineRegisterSize[sp]
+    storeq ws1, (NumberOfWasmArgumentGPRs + 1) * MachineRegisterSize[sp]
+end
+    forEachWasmArgumentFPR(macro (index, fpr1, fpr2)
+        storev fpr1, gprStorageSize + (index + 0) * VectorRegisterSize[sp]
+        storev fpr2, gprStorageSize + (index + 1) * VectorRegisterSize[sp]
+    end)
+end
+
+macro restoreWasmArgumentRegisters()
+    const gprStorageSize = NumberOfWasmArgumentGPRs * MachineRegisterSize
+    const fprStorageSize = NumberOfWasmArgumentFPRs * FPRRegisterSize
+
+    restoreWasmGPRArgumentRegistersImpl()
+    restoreWasmFPRArgumentRegistersImpl(gprStorageSize)
+    addp gprStorageSize + fprStorageSize, sp
+end
+
+macro restoreVolatileRegisters()
+    const gprStorageSize = NumberOfVolatileGPRs * MachineRegisterSize
+    const fprStorageSize = NumberOfWasmArgumentFPRs * FPRRegisterSize
+
+    restoreWasmGPRArgumentRegistersImpl()
+if X86_64
+    loadq (NumberOfWasmArgumentGPRs + 0) * MachineRegisterSize[sp], ws0
+    loadq (NumberOfWasmArgumentGPRs + 1) * MachineRegisterSize[sp], ws1
+end
+    restoreWasmFPRArgumentRegistersImpl(gprStorageSize)
+    addp gprStorageSize + fprStorageSize, sp
+end
+
+macro restoreVolatileRegistersForSIMD()
+    const gprStorageSize = NumberOfVolatileGPRs * MachineRegisterSize
+    const fprStorageSize = NumberOfWasmArgumentFPRs * VectorRegisterSize
+
+    restoreWasmGPRArgumentRegistersImpl()
+if X86_64
+    loadq (NumberOfWasmArgumentGPRs + 0) * MachineRegisterSize[sp], ws0
+    loadq (NumberOfWasmArgumentGPRs + 1) * MachineRegisterSize[sp], ws1
+end
+    forEachWasmArgumentFPR(macro (index, fpr1, fpr2)
+        loadv gprStorageSize + (index + 0) * VectorRegisterSize[sp], fpr1
+        loadv gprStorageSize + (index + 1) * VectorRegisterSize[sp], fpr2
+    end)
+    addp gprStorageSize + fprStorageSize, sp
 end
 
 macro preserveCalleeSavesUsedByWasm()
@@ -304,10 +362,27 @@ end
 if not ADDRESS64
     bpa ws1, cfr, .stackOverflow
 end
-    bplteq JSWebAssemblyInstance::m_softStackLimit[wasmInstance], ws1, .stackHeightOK
+    bpbeq JSWebAssemblyInstance::m_stackMirror + StackManager::Mirror::m_trapAwareSoftStackLimit[wasmInstance], ws1, .stackHeightOK
 
+.checkStack:
+    preserveVolatileRegistersForSIMD()
+
+    storei PC, CallSiteIndex[cfr]
+    move wasmInstance, a0
+    move ws1, a1
+    cCall2(_ipint_extern_check_stack_and_vm_traps)
+    bpneq r1, (constexpr JSC::IPInt::SlowPathExceptionTag), .stackHeightOKAfterRestoringRegisters
+
+    addq (NumberOfWasmArgumentGPRs * MachineRegisterSize + NumberOfWasmArgumentFPRs * VectorRegisterSize), sp
 .stackOverflow:
+    # It's safe to request a StackOverflow error even if a TerminationException has
+    # been thrown. The exception throwing code downstream will handle it correctly
+    # and only throw the StackOverflow if a TerminationException is not already present.
+    # See slow_path_wasm_throw_exception() and Wasm::throwWasmToJSException().
     throwException(StackOverflow)
+
+.stackHeightOKAfterRestoringRegisters:
+    restoreVolatileRegistersForSIMD()
 
 .stackHeightOK:
     move ws1, sp
@@ -325,8 +400,8 @@ end
     end)
     forEachWasmArgumentFPR(macro (index, fpr1, fpr2)
         const base = -(NumberOfWasmArgumentGPRs + CalleeSaveSpaceAsVirtualRegisters + 2) * MachineRegisterSize
-        storev fpr2, base - (index + 1) * 16[cfr]
-        storev fpr1, base - (index + 0) * 16[cfr]
+        storev fpr2, base - (index + 1) * VectorRegisterSize[cfr]
+        storev fpr1, base - (index + 0) * VectorRegisterSize[cfr]
     end)
 
     slow_path()
@@ -345,8 +420,8 @@ end
     end)
     forEachWasmArgumentFPR(macro (index, fpr1, fpr2)
         const base = -(NumberOfWasmArgumentGPRs + CalleeSaveSpaceAsVirtualRegisters + 2) * MachineRegisterSize
-        loadv base - (index + 1) * 16[cfr], fpr2
-        loadv base - (index + 0) * 16[cfr], fpr1
+        loadv base - (index + 1) * VectorRegisterSize[cfr], fpr2
+        loadv base - (index + 0) * VectorRegisterSize[cfr], fpr1
     end)
 
     restoreCalleeSavesUsedByWasm()
@@ -503,6 +578,59 @@ end
     loadp Callee[cfr], ws0 # WebAssemblyFunction*
     loadp WebAssemblyFunction::m_instance[ws0], wasmInstance
 
+    # Allocate stack space
+    loadi WebAssemblyFunction::m_frameSize[ws0], wa0
+    subp sp, wa0, wa0
+
+if not ADDRESS64
+    bpa wa0, cfr, .stackOverflow
+end
+    # We don't need to check m_trapAwareSoftStackLimit here because we'll end up
+    # entering the Wasm function, and its prologue will handle the trap check.
+    bpbeq wa0, JSWebAssemblyInstance::m_stackMirror + StackManager::Mirror::m_softStackLimit[wasmInstance], .stackOverflow
+
+    move wa0, sp
+
+if ASSERT_ENABLED
+    repeat(wa0, macro (i)
+        storep wa0, -i * SlotSize + constexpr Wasm::JSEntrypointCallee::RegisterStackSpaceAligned[sp]
+    end)
+end
+
+    # a0 = current stack frame position
+    move sp, a0
+
+    # Save wasmInstance and put the correct Callee into the stack for building the frame
+    storep wasmInstance, CodeBlock[cfr]
+
+if JSVALUE64
+    loadp Callee[cfr], memoryBase
+    transferp WebAssemblyFunction::m_boxedJSToWasmCallee[ws0], Callee[cfr]
+else
+    # Store old Callee to the stack temporarily
+    loadp Callee[cfr], ws1
+    push ws1, ws1
+    loadp WebAssemblyFunction::m_boxedJSToWasmCallee[ws0], ws1
+    storep ws1, Callee[cfr]
+end
+
+    # Prepare frame
+    move ws0, a2
+    move cfr, a1
+    cCall3(_operationJSToWasmEntryWrapperBuildFrame)
+
+    # Restore Callee slot
+if JSVALUE64
+    storep memoryBase, Callee[cfr]
+else
+    loadp [sp], ws0
+    addp 2 * SlotSize, sp
+    storep ws0, Callee[cfr]
+end
+
+    btpnz r1, .buildEntryFrameThrew
+    move r0, ws0
+
     # Memory
     if ARM64 or ARM64E
         loadpairq JSWebAssemblyInstance::m_cachedMemory[wasmInstance], memoryBase, boundsCheckingSize
@@ -513,32 +641,6 @@ end
     if not ARMv7
         cagedPrimitiveMayBeNull(memoryBase, wa0)
     end
-
-    # Allocate stack space
-    loadi WebAssemblyFunction::m_frameSize[ws0], wa0
-    subp sp, wa0, wa0
-
-if not ADDRESS64
-    bpa wa0, cfr, .stackOverflow
-end
-    bplteq wa0, JSWebAssemblyInstance::m_softStackLimit[wasmInstance], .stackOverflow
-
-    move wa0, sp
-
-if ASSERT_ENABLED
-    repeat(wa0, macro (i)
-        storep wa0, -i * SlotSize + constexpr Wasm::JSEntrypointCallee::RegisterStackSpaceAligned[sp]
-    end)
-end
-
-    # Prepare frame
-    move ws0, a2
-    move cfr, a1
-    move sp, a0
-    cCall3(_operationJSToWasmEntryWrapperBuildFrame)
-
-    btpnz r1, .buildEntryFrameThrew
-    move r0, ws0
 
     # Arguments
 
@@ -555,10 +657,10 @@ end
     forEachWasmArgumentFPR(macro (index, fpr1, fpr2)
         const base = NumberOfWasmArgumentGPRs * MachineRegisterSize
         if ARM64 or ARM64E
-            loadpaird base + index * 8[sp], fpr1, fpr2
+            loadpaird base + index * FPRRegisterSize[sp], fpr1, fpr2
         else
-            loadd base + (index + 0) * 8[sp], fpr1
-            loadd base + (index + 1) * 8[sp], fpr2
+            loadd base + (index + 0) * FPRRegisterSize[sp], fpr1
+            loadd base + (index + 1) * FPRRegisterSize[sp], fpr2
         end
     end)
 
@@ -625,10 +727,10 @@ end
     forEachWasmArgumentFPR(macro (index, fpr1, fpr2)
         const base = NumberOfWasmArgumentGPRs * MachineRegisterSize
         if ARM64 or ARM64E
-            storepaird fpr1, fpr2, base + index * 8[sp]
+            storepaird fpr1, fpr2, base + index * FPRRegisterSize[sp]
         else
-            stored fpr1, base + (index + 0) * 8[sp]
-            stored fpr2, base + (index + 1) * 8[sp]
+            stored fpr1, base + (index + 0) * FPRRegisterSize[sp]
+            stored fpr2, base + (index + 1) * FPRRegisterSize[sp]
         end
     end)
 
@@ -743,10 +845,10 @@ op(wasm_to_js_wrapper_entry, macro()
     forEachWasmArgumentFPR(macro (index, fpr1, fpr2)
         const base = NumberOfWasmArgumentGPRs * MachineRegisterSize
         if ARM64 or ARM64E
-            storepaird fpr1, fpr2, base + index * 8[sp]
+            storepaird fpr1, fpr2, base + index * FPRRegisterSize[sp]
         else
-            stored fpr1, base + (index + 0) * 8[sp]
-            stored fpr2, base + (index + 1) * 8[sp]
+            stored fpr1, base + (index + 0) * FPRRegisterSize[sp]
+            stored fpr2, base + (index + 1) * FPRRegisterSize[sp]
         end
     end)
 
@@ -849,10 +951,10 @@ end
     forEachWasmArgumentFPR(macro (index, fpr1, fpr2)
         const base = NumberOfWasmArgumentGPRs * MachineRegisterSize
         if ARM64 or ARM64E
-            loadpaird base + index * 8[sp], fpr1, fpr2
+            loadpaird base + index * FPRRegisterSize[sp], fpr1, fpr2
         else
-            loadd base + (index + 0) * 8[sp], fpr1
-            loadd base + (index + 1) * 8[sp], fpr2
+            loadd base + (index + 0) * FPRRegisterSize[sp], fpr1
+            loadd base + (index + 1) * FPRRegisterSize[sp], fpr2
         end
     end)
 
@@ -914,6 +1016,7 @@ end)
 macro jumpToException()
     if ARM64E
         move r0, a0
+        validateOpcodeConfig(a1)
         leap _g_config, a1
         jmp JSCConfigGateMapOffset + (constexpr Gate::exceptionHandler) * PtrSize[a1], NativeToJITGatePtrTag # ExceptionHandlerPtrTag
     else
@@ -922,6 +1025,7 @@ macro jumpToException()
 end
 
 op(wasm_throw_from_slow_path_trampoline, macro ()
+    validateOpcodeConfig(t5)
     loadp JSWebAssemblyInstance::m_vm[wasmInstance], t5
     loadp VM::topEntryFrame[t5], t5
     copyCalleeSavesToEntryFrameCalleeSavesBuffer(t5)

@@ -1328,7 +1328,7 @@ CSSScrollAnchoringEnabled:
 
 CSSScrollbarColorEnabled:
   type: bool
-  status: testable
+  status: stable
   category: css
   humanReadableName: "CSS scrollbar-color property"
   humanReadableDescription: "Enable scrollbar-color CSS property"
@@ -1336,7 +1336,7 @@ CSSScrollbarColorEnabled:
     WebKitLegacy:
       default: false
     WebKit:
-      default: false
+      default: defaultScrollbarColorEnabled()
     WebCore:
       default: false
 
@@ -4008,6 +4008,20 @@ IsThirdPartyCookieBlockingDisabled:
     WebCore:
       default: false
 
+ItemPackCollapseDisplayGridEnabled:
+  type: bool
+  status: preview
+  category: css
+  humanReadableName: "CSS Item Pack Collapse (display: grid)"
+  humanReadableDescription: "Enable CSS Item Pack Collapse for CSS Grid"
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
+
 # FIXME: This is not relevent for WebKitLegacy, so should be excluded from WebKitLegacy entirely (though we should still set the default value to false when initializing settings).
 ItpDebugModeEnabled:
   type: bool
@@ -4621,20 +4635,6 @@ ManagedMediaSourceNeedsAirPlay:
       default: false
     WebKit:
       default: WebKit::defaultManagedMediaSourceNeedsAirPlay()
-    WebCore:
-      default: false
-
-MasonryEnabled:
-  type: bool
-  status: preview
-  category: css
-  humanReadableName: "CSS Masonry Layout"
-  humanReadableDescription: "Enable Masonry Layout for CSS Grid"
-  defaultValue:
-    WebKitLegacy:
-      default: false
-    WebKit:
-      default: false
     WebCore:
       default: false
 
@@ -5514,18 +5514,18 @@ OpportunisticSweepingAndGarbageCollectionEnabled:
 
 OptInPartitionedCookiesEnabled:
   type: bool
-  status: testable
+  status: stable
   category: dom
   humanReadableName: "Opt-in partitioned cookies (CHIPS)"
   humanReadableDescription: "Enable opt-in partitioned cookies"
   condition: ENABLE(OPT_IN_PARTITIONED_COOKIES)
   defaultValue:
     WebKitLegacy:
-      default: false
+      default: true
     WebKit:
-      default: false
+      default: true
     WebCore:
-      default: false
+      default: true
 
 OverlappingBackingStoreProvidersEnabled:
   type: bool
@@ -6623,7 +6623,7 @@ ScrollToTextFragmentMarkingEnabled:
       
 ScrollendEventEnabled:
   type: bool
-  status: preview
+  status: stable
   category: dom
   humanReadableName: "scrollend event"
   humanReadableDescription: "Enable scrollend event"
@@ -6631,9 +6631,9 @@ ScrollendEventEnabled:
     WebKitLegacy:
       default: false
     WebKit:
-      default: false
+      default: true
     WebCore:
-      default: false
+      default: true
 
 ScrollingPerformanceTestingEnabled:
   type: bool
@@ -8304,7 +8304,7 @@ VerticalFormControlsEnabled:
 
 VideoFullsceenPrefersMostVisibleHeuristic:
   type: bool
-  status: testable
+  status: stable
   category: media
   humanReadableName: "Prefers most visible video in element fullscreen."
   humanReadableDescription: "Prefers most visible video in element fullscreen."
@@ -8313,9 +8313,9 @@ VideoFullsceenPrefersMostVisibleHeuristic:
     WebKitLegacy:
       default: false
     WebKit:
-      default: false
+      default: true
     WebCore:
-      default: false
+      default: true
 
 VideoFullscreenRequiresElementFullscreen:
   type: bool

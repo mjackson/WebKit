@@ -125,7 +125,6 @@ end
 # -------------------------
 
 const PtrSize = constexpr (sizeof(void*))
-const MachineRegisterSize = constexpr (sizeof(CPURegister))
 const SlotSize = constexpr (sizeof(Register))
 
 # amount of memory a local takes up on the stack (16 bytes for a v128)
@@ -206,6 +205,7 @@ macro decodeLEBVarUInt32(offset, dst, scratch1, scratch2, scratch3, scratch4)
     move 7, scratch1
     # take off high bit
     subi 0x80, dst
+    validateOpcodeConfig(scratch2)
 .loop:
     addp 1, tempPC
     loadb [tempPC], scratch2
@@ -227,12 +227,17 @@ macro checkStackOverflow(callee, scratch)
     subp cfr, scratch, scratch
 
 if not ADDRESS64
-    bpa scratch, cfr, .stackOverflow
-end
-    bplteq JSWebAssemblyInstance::m_softStackLimit[wasmInstance], scratch, .stackHeightOK
-
-.stackOverflow:
+    bpbeq scratch, cfr, .checkTrapAwareSoftStackLimit
     ipintException(StackOverflow)
+.checkTrapAwareSoftStackLimit:
+end
+    bpbeq JSWebAssemblyInstance::m_stackMirror + StackManager::Mirror::m_trapAwareSoftStackLimit[wasmInstance], scratch, .stackHeightOK
+
+.checkStack:
+    operationCallMayThrowPreservingVolatileRegisters(macro()
+        move scratch, a1
+        cCall2(_ipint_extern_check_stack_and_vm_traps)
+    end)
 
 .stackHeightOK:
 end
@@ -260,6 +265,7 @@ end
 
 macro unimplementedInstruction(instrname)
     instructionLabel(instrname)
+    validateOpcodeConfig(a0)
     break
 end
 
@@ -299,6 +305,8 @@ end
 # Operation Calls
 
 macro operationCall(fn)
+    validateOpcodeConfig(a0)
+
     move wasmInstance, a0
     push PC, MC
     if ARM64 or ARM64E
@@ -318,8 +326,9 @@ macro operationCall(fn)
     pop MC, PC
 end
 
-macro operationCallMayThrow(fn)
+macro operationCallMayThrowImpl(fn, sizeOfExtraRegistersPreserved)
     saveCallSiteIndex()
+    validateOpcodeConfig(a0)
 
     move wasmInstance, a0
     push PC, MC
@@ -332,7 +341,9 @@ macro operationCallMayThrow(fn)
     end
     fn()
     bpneq r1, (constexpr JSC::IPInt::SlowPathExceptionTag), .continuation
+
     storei r0, ArgumentCountIncludingThis + PayloadOffset[cfr]
+    addp sizeOfExtraRegistersPreserved + (4 * MachineRegisterSize), sp
     jmp _wasm_throw_from_slow_path_trampoline
 .continuation:
     if ARM64 or ARM64E
@@ -344,6 +355,17 @@ macro operationCallMayThrow(fn)
     pop MC, PC
 end
 
+macro operationCallMayThrow(fn)
+    operationCallMayThrowImpl(fn, 0)
+end
+
+macro operationCallMayThrowPreservingVolatileRegisters(fn)
+    // FIXME: preserveVolatileRegisters() and restoreVolatileRegisters() are not safe for SIMD.
+    preserveVolatileRegisters()
+    operationCallMayThrowImpl(fn, (NumberOfVolatileGPRs * MachineRegisterSize) + (NumberOfWasmArgumentFPRs * FPRRegisterSize))
+    restoreVolatileRegisters()
+end
+
 # Exception handling
 macro ipintException(exception)
     storei constexpr Wasm::ExceptionType::%exception%, ArgumentCountIncludingThis + PayloadOffset[cfr]
@@ -352,20 +374,24 @@ end
 
 # OSR
 macro ipintPrologueOSR(increment)
-if JIT and not ARMv7
+if JIT
     loadp UnboxedWasmCalleeStackSlot[cfr], ws0
     baddis increment, Wasm::IPIntCallee::m_tierUpCounter + Wasm::IPIntTierUpCounter::m_counter[ws0], .continue
 
     preserveWasmArgumentRegisters()
 
+if not ARMv7
     ipintReloadMemory()
     push memoryBase, boundsCheckingSize
+end
 
     move cfr, a1
     operationCall(macro() cCall2(_ipint_extern_prologue_osr) end)
     move r0, ws0
 
+if not ARMv7
     pop boundsCheckingSize, memoryBase
+end
 
     restoreWasmArgumentRegisters()
 
@@ -384,11 +410,15 @@ if JIT and not ARMv7
 .recover:
     loadp UnboxedWasmCalleeStackSlot[cfr], ws0
 .continue:
-end
+    if ARMv7
+        break # FIXME: ipint support.
+    end # ARMv7
+end # JIT
 end
 
 macro ipintLoopOSR(increment)
 if JIT and not ARMv7
+    validateOpcodeConfig(ws0)
     loadp UnboxedWasmCalleeStackSlot[cfr], ws0
     baddis increment, Wasm::IPIntCallee::m_tierUpCounter + Wasm::IPIntTierUpCounter::m_counter[ws0], .continue
 
@@ -465,7 +495,7 @@ if WEBASSEMBLY and (ARM64 or ARM64E or X86_64 or ARMv7)
     if X86_64
         initPCRelative(ipint_entry, PL)
     end
-    ipintEntry()
+ipintEntry()
 else
     break
 end
@@ -474,15 +504,19 @@ end)
 if WEBASSEMBLY and (ARM64 or ARM64E or X86_64 or ARMv7)
 .ipint_entry_end_local:
     argumINTInitializeDefaultLocals()
-
     jmp .ipint_entry_end_local
+
 .ipint_entry_finish_zero:
     argumINTFinish()
 
     loadp CodeBlock[cfr], wasmInstance
     # OSR Check
+if ARMv7
+    ipintPrologueOSR(500000) # FIXME: support IPInt.
+    break
+else
     ipintPrologueOSR(5)
-
+end
     move sp, PL
 
     loadp Wasm::IPIntCallee::m_bytecode[ws0], PC
@@ -506,6 +540,7 @@ else
 end
 
 macro ipintCatchCommon()
+    validateOpcodeConfig(t0)
     getVMFromCallFrame(t3, t0)
     restoreCalleeSavesFromVMEntryFrameCalleeSavesBuffer(t3, t0)
 

@@ -29,13 +29,13 @@
 
 #pragma once
 
-#include "AXCoreObject.h"
-#include "AXTextRun.h"
-#include "CharacterRange.h"
-#include "FloatQuad.h"
-#include "LayoutRect.h"
-#include "Path.h"
-#include "TextIterator.h"
+#include <WebCore/AXCoreObject.h>
+#include <WebCore/AXTextRun.h>
+#include <WebCore/CharacterRange.h>
+#include <WebCore/FloatQuad.h>
+#include <WebCore/LayoutRect.h>
+#include <WebCore/Path.h>
+#include <WebCore/TextIterator.h>
 #include <iterator>
 #include <wtf/Forward.h>
 #include <wtf/Function.h>
@@ -113,12 +113,14 @@ public:
     virtual bool isAccessibilityListBoxOptionInstance() const { return false; }
     bool isAXIsolatedObjectInstance() const final { return false; }
 
-    virtual bool isAttachmentElement() const { return false; }
     bool isSecureField() const override { return false; }
     bool isContainedBySecureField() const;
     bool isNativeTextControl() const override { return false; }
     virtual bool isSearchField() const { return false; }
     bool isAttachment() const override { return false; }
+#if ENABLE(ATTACHMENT_ELEMENT)
+    virtual bool isAttachmentElement() const { return false; }
+#endif
     bool isMediaTimeline() const { return false; }
     virtual bool isSliderThumb() const { return false; }
     bool isLabel() const { return isAccessibilityLabelInstance() || labelForObjects().size(); }
@@ -127,7 +129,7 @@ public:
 
     std::optional<InputType::Type> inputType() const final;
 
-    virtual bool isListInstance() const { return false; }
+    virtual bool isAccessibilityList() const { return false; }
     virtual bool isUnorderedList() const { return false; }
     virtual bool isOrderedList() const { return false; }
     bool isDescriptionList() const override { return false; }

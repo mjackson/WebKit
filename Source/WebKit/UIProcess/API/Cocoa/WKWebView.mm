@@ -31,7 +31,6 @@
 #import "APIFrameTreeNode.h"
 #import "APIPageConfiguration.h"
 #import "APISecurityOrigin.h"
-#import "APISerializedScriptValue.h"
 #import "AboutSchemeHandler.h"
 #import "BrowsingWarning.h"
 #import "CocoaImage.h"
@@ -114,6 +113,7 @@
 #import "WebPageInspectorController.h"
 #import "WebPageProxy.h"
 #import "WebPageProxyTesting.h"
+#import "WebPopupMenuProxyMac.h"
 #import "WebPreferences.h"
 #import "WebProcessPool.h"
 #import "WebProcessProxy.h"
@@ -188,6 +188,7 @@
 #import <wtf/BlockPtr.h>
 #import <wtf/CallbackAggregator.h>
 #import <wtf/HashMap.h>
+#import <wtf/MainThread.h>
 #import <wtf/MathExtras.h>
 #import <wtf/NeverDestroyed.h>
 #import <wtf/RetainPtr.h>
@@ -1035,6 +1036,9 @@ static void addBrowsingContextControllerMethodStubsIfNeeded()
 
 - (WKNavigation *)loadRequest:(NSURLRequest *)request
 {
+    if (!isUIThread())
+        RELEASE_LOG_FAULT(Loading, "WKWebView APIs must be called from the main thread");
+
     THROW_IF_SUSPENDED;
     if (_page->isServiceWorkerPage())
         [NSException raise:NSInternalInconsistencyException format:@"The WKWebView was used to load a service worker"];
@@ -6341,7 +6345,137 @@ static Vector<Ref<API::TargetedElementInfo>> elementsFromWKElements(NSArray<_WKT
 {
     return _impl->accessibilityUIProcessLocalTokenHash();
 }
+
+- (NSArray<NSNumber *> *)registeredRemoteAccessibilityPids
+{
+    return _impl->registeredRemoteAccessibilityPids();
+}
+
+- (bool)hasRemoteAccessibilityChild
+{
+    return _impl->hasRemoteAccessibilityChild();
+}
+
 #endif // PLATFORM(MAC)
+
+#if PLATFORM(MAC)
+
+- (RetainPtr<NSPopUpButtonCell>)_activePopupButtonCell
+{
+    RefPtr popupMenu = dynamicDowncast<WebKit::WebPopupMenuProxyMac>(_page->activePopupMenu());
+    if (!popupMenu)
+        return nil;
+
+    if (!popupMenu->isVisible())
+        return nil;
+
+    return popupMenu->protectedPopup();
+}
+
+#endif // PLATFORM(MAC)
+
+- (RetainPtr<WKTextExtractionPopupMenu>)_popupMenuForTextExtractionResults
+{
+#if PLATFORM(MAC)
+    RetainPtr allItems = [[self _activePopupButtonCell] itemArray];
+    RetainPtr itemTitles = adoptNS([[NSMutableArray alloc] initWithCapacity:[allItems count]]);
+    for (NSMenuItem *item in allItems.get()) {
+        if (!item.enabled)
+            continue;
+
+        if (RetainPtr title = [item title]; [title length])
+            [itemTitles addObject:title.get()];
+    }
+
+    if (![itemTitles count])
+        return nil;
+
+    return adoptNS([[WKTextExtractionPopupMenu alloc] initWithItemTitles:itemTitles.get()]);
+#else
+    // FIXME: Bridge this into UIKit's context menu interaction.
+    return nil;
+#endif
+}
+
+- (void)_debugTextWithConfiguration:(_WKTextExtractionConfiguration *)configuration completionHandler:(void(^)(NSString *))completionHandler
+{
+    [self _requestTextExtraction:configuration completionHandler:makeBlockPtr([completionHandler = makeBlockPtr(completionHandler)](WKTextExtractionResult *result) {
+        completionHandler(result.textRepresentation);
+    }).get()];
+}
+
+static inline std::optional<WebCore::NodeIdentifier> toNodeIdentifier(const String& nodeIdentifier)
+{
+    auto rawValue = parseInteger<uint64_t>(nodeIdentifier);
+    if (!rawValue || !WebCore::NodeIdentifier::isValidIdentifier(*rawValue))
+        return std::nullopt;
+    return WebCore::NodeIdentifier { *rawValue };
+}
+
+- (void)_performInteraction:(_WKTextExtractionInteraction *)wkInteraction completionHandler:(void(^)(BOOL success))completionHandler
+{
+#if USE(APPLE_INTERNAL_SDK) || (!PLATFORM(WATCHOS) && !PLATFORM(APPLETV))
+    if (!self._isValid || !_page->protectedPreferences()->textExtractionEnabled())
+        return completionHandler(NO);
+
+    WebCore::TextExtraction::Interaction interaction;
+    interaction.action = [&] {
+        switch (wkInteraction.action) {
+        case _WKTextExtractionActionClick:
+            return WebCore::TextExtraction::Action::Click;
+        case _WKTextExtractionActionSelectText:
+            return WebCore::TextExtraction::Action::SelectText;
+        case _WKTextExtractionActionSelectMenuItem:
+            return WebCore::TextExtraction::Action::SelectMenuItem;
+        case _WKTextExtractionActionTextInput:
+            return WebCore::TextExtraction::Action::TextInput;
+        case _WKTextExtractionActionKeyPress:
+            return WebCore::TextExtraction::Action::KeyPress;
+        default:
+            ASSERT_NOT_REACHED();
+            return WebCore::TextExtraction::Action::Click;
+        }
+    }();
+
+    interaction.nodeIdentifier = toNodeIdentifier(wkInteraction.nodeIdentifier);
+    if (wkInteraction.hasSetLocation) {
+#if PLATFORM(IOS_FAMILY)
+        interaction.locationInRootView = [self convertPoint:wkInteraction.location toView:_contentView.get()];
+#else
+        interaction.locationInRootView = wkInteraction.location;
+#endif
+    }
+    interaction.text = wkInteraction.text;
+    interaction.replaceAll = wkInteraction.replaceAll;
+
+    RefPtr page = _page;
+#if PLATFORM(MAC)
+    RetainPtr nativePopup = [self _activePopupButtonCell];
+    if (nativePopup && interaction.action == WebCore::TextExtraction::Action::SelectMenuItem && !interaction.text.isEmpty()) {
+        [nativePopup selectItemWithTitle:interaction.text.createNSString().get()];
+        [[nativePopup menu] cancelTrackingWithoutAnimation];
+        page->callAfterNextPresentationUpdate([completionHandler = makeBlockPtr(WTFMove(completionHandler))] {
+            completionHandler(YES);
+        });
+        return;
+    }
+#endif // PLATFORM(MAC)
+
+    page->handleTextExtractionInteraction(WTFMove(interaction), [weakSelf = WeakObjCPtr<WKWebView>(self), weakPage = WeakPtr { *page }, completionHandler = makeBlockPtr(WTFMove(completionHandler))](bool success) {
+        RetainPtr strongSelf = weakSelf.get();
+        if (!strongSelf)
+            return completionHandler(success);
+
+        RefPtr strongPage = weakPage.get();
+        if (!strongPage)
+            return completionHandler(success);
+
+        strongPage->callAfterNextPresentationUpdate([completionHandler = WTFMove(completionHandler), success] {
+            completionHandler(success);
+        });
+    });
+#endif // USE(APPLE_INTERNAL_SDK) || (!PLATFORM(WATCHOS) && !PLATFORM(APPLETV))
+}
 
 @end
 
@@ -6377,6 +6511,9 @@ static Vector<Ref<API::TargetedElementInfo>> elementsFromWKElements(NSArray<_WKT
         return completionHandler(nil);
 
     auto rectInWebView = configuration.targetRect;
+    bool mergeParagraphs = configuration.mergeParagraphs;
+    bool canIncludeIdentifiers = configuration.canIncludeIdentifiers;
+    bool skipNearlyTransparentContent = configuration.skipNearlyTransparentContent;
     auto rectInRootView = [&]() -> std::optional<WebCore::FloatRect> {
         if (CGRectIsNull(rectInWebView))
             return std::nullopt;
@@ -6388,15 +6525,26 @@ static Vector<Ref<API::TargetedElementInfo>> elementsFromWKElements(NSArray<_WKT
 #endif
     }();
 
-    _page->requestTextExtraction(WTFMove(rectInRootView), [completionHandler = makeBlockPtr(completionHandler), weakSelf = WeakObjCPtr<WKWebView>(self)](auto&& item) {
-        RetainPtr rootItem = WebKit::createItem(item, [strongSelf = weakSelf.get()](auto& rectInRootView) -> WebCore::FloatRect {
+    WebCore::TextExtraction::Request request {
+        .collectionRectInRootView = WTFMove(rectInRootView),
+        .mergeParagraphs = mergeParagraphs,
+        .skipNearlyTransparentContent = skipNearlyTransparentContent,
+        .canIncludeIdentifiers = canIncludeIdentifiers,
+    };
+    _page->requestTextExtraction(WTFMove(request), [completionHandler = makeBlockPtr(completionHandler), weakSelf = WeakObjCPtr<WKWebView>(self)](auto&& item) {
+        RetainPtr strongSelf = weakSelf.get();
+        if (!strongSelf)
+            return completionHandler(nil);
+
+        RetainPtr rootItem = WebKit::createItem(std::forward<decltype(item)>(item), [strongSelf](auto& rectInRootView) -> WebCore::FloatRect {
 #if PLATFORM(IOS_FAMILY)
             if (RetainPtr contentView = strongSelf ? strongSelf->_contentView : nil)
                 return { [strongSelf convertRect:rectInRootView fromView:contentView.get()] };
 #endif
             return rectInRootView;
         });
-        RetainPtr result = adoptNS([[WKTextExtractionResult alloc] initWithRootItem:rootItem.get() popupMenu:nil]);
+        RetainPtr popupMenu = [strongSelf _popupMenuForTextExtractionResults];
+        RetainPtr result = adoptNS([[WKTextExtractionResult alloc] initWithRootItem:rootItem.get() popupMenu:popupMenu.get()]);
         completionHandler(result.get());
     });
 #endif // USE(APPLE_INTERNAL_SDK) || (!PLATFORM(WATCHOS) && !PLATFORM(APPLETV))

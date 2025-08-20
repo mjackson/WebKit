@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include "LocalFrameLoaderClient.h"
+#include <WebCore/LocalFrameLoaderClient.h>
 
 namespace WebCore {
 
@@ -193,6 +193,7 @@ private:
 #endif
 
     bool hasFrameSpecificStorageAccess() final;
+    void revokeFrameSpecificStorageAccess() final;
 
     void dispatchLoadEventToOwnerElementInAnotherProcess() final;
 

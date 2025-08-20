@@ -159,6 +159,25 @@ inline bool is8ByteAligned(void* p)
     return !((uintptr_t)(p) & (sizeof(double) - 1));
 }
 
+inline bool isAligned(void* ptr, int alignment = sizeof(void*))
+{
+    return reinterpret_cast<uintptr_t>(ptr) % alignment == 0;
+}
+
+template <typename T>
+inline bool isAligned(T* ptr, int alignment = sizeof(void*))
+{
+    ASSERT_UNDER_CONSTEXPR_CONTEXT(alignment >= alignof(T));
+    return reinterpret_cast<uintptr_t>(ptr) % alignment == 0;
+}
+
+template <typename T, int alignment = sizeof(void*)>
+inline bool isAligned(T* ptr)
+{
+    static_assert(alignment >= alignof(T));
+    return isAligned<T>(ptr, alignment);
+}
+
 inline std::byte* alignedBytes(std::byte* pointer, size_t alignment)
 {
     return reinterpret_cast<std::byte*>((reinterpret_cast<uintptr_t>(pointer) - 1u + alignment) & -alignment);
@@ -1474,6 +1493,7 @@ ALWAYS_INLINE std::optional<double> stringToDouble(std::span<const char> buffer,
 {
     RELEASE_ASSERT(buffer.back() == '\0');
     char* end;
+    errno = 0;
     auto result = std::strtod(buffer.data(), &end);
     if (errno == ERANGE) {
         parsedLength = 0;

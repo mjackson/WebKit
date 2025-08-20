@@ -68,7 +68,6 @@ JSWebAssemblyInstance::JSWebAssemblyInstance(VM& vm, Structure* structure, JSWeb
     , m_jsModule(module, WriteBarrierEarlyInit)
     , m_moduleRecord(moduleRecord, WriteBarrierEarlyInit)
     , m_tables(module->module().moduleInformation().tableCount())
-    , m_softStackLimit(vm.softStackLimit())
     , m_module(module->module())
     , m_sourceProvider(sourceProvider)
     , m_globalsToMark(m_module.get().moduleInformation().globalCount())
@@ -131,18 +130,21 @@ void JSWebAssemblyInstance::finishCreation(VM& vm)
     auto& moduleInformation = m_module->moduleInformation();
     JSGlobalObject* globalObject = this->globalObject();
     for (unsigned i = 0; i < moduleInformation.typeCount(); ++i) {
-        RefPtr rtt = moduleInformation.rtts[i];
+        Ref rtt = moduleInformation.rtts[i];
         if (rtt->kind() == RTTKind::Array)
-            gcObjectStructure(i).setWithoutWriteBarrier(JSWebAssemblyArray::createStructure(vm, globalObject, moduleInformation.typeSignatures[i]->expand(), rtt.releaseNonNull()));
+            gcObjectStructure(i).setWithoutWriteBarrier(JSWebAssemblyArray::createStructure(vm, globalObject, moduleInformation.typeSignatures[i]->expand(), WTFMove(rtt)));
         else if (rtt->kind() == RTTKind::Struct)
-            gcObjectStructure(i).setWithoutWriteBarrier(JSWebAssemblyStruct::createStructure(vm, globalObject, moduleInformation.typeSignatures[i]->expand(), rtt.releaseNonNull()));
+            gcObjectStructure(i).setWithoutWriteBarrier(JSWebAssemblyStruct::createStructure(vm, globalObject, moduleInformation.typeSignatures[i]->expand(), WTFMove(rtt)));
     }
     if (moduleInformation.typeCount())
         vm.writeBarrier(this);
+
+    m_vm->traps().registerMirror(m_stackMirror);
 }
 
 JSWebAssemblyInstance::~JSWebAssemblyInstance()
 {
+    m_vm->traps().unregisterMirror(m_stackMirror);
     clearJSCallICs(*m_vm);
     for (unsigned i = 0; i < m_numImportFunctions; ++i)
         importFunctionInfo(i)->~WasmOrJSImportableFunctionCallLinkInfo();

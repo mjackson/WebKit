@@ -26,10 +26,10 @@
 
 #pragma once
 
-#include "BoxExtents.h"
-#include "PseudoElementIdentifier.h"
-#include "StylePrimitiveNumeric+Forward.h"
-#include "WritingMode.h"
+#include <WebCore/BoxExtents.h>
+#include <WebCore/PseudoElementIdentifier.h>
+#include <WebCore/StylePrimitiveNumeric+Forward.h>
+#include <WebCore/WritingMode.h>
 #include <unicode/utypes.h>
 #include <wtf/CheckedRef.h>
 #include <wtf/DataRef.h>
@@ -167,6 +167,7 @@ enum class ListStylePosition : bool;
 enum class MarginTrimType : uint8_t;
 enum class MarqueeBehavior : uint8_t;
 enum class MarqueeDirection : uint8_t;
+enum class MathShift : bool;
 enum class MathStyle : bool;
 enum class NBSPMode : bool;
 enum class NinePieceImageRule : uint8_t;
@@ -1225,7 +1226,7 @@ public:
     inline void setBlendMode(BlendMode);
     inline bool isInSubtreeWithBlendMode() const;
 
-    inline void setIsForceHidden();
+    inline void setIsForceHidden(bool = true);
     inline bool isForceHidden() const;
 
     inline void setIsolation(Isolation);
@@ -1257,6 +1258,7 @@ public:
     inline AppleVisualEffect usedAppleVisualEffectForSubtree() const;
 #endif
 
+    inline MathShift mathShift() const;
     inline MathStyle mathStyle() const;
 
     inline const Style::ViewTransitionClasses& viewTransitionClasses() const;
@@ -1950,6 +1952,7 @@ public:
     bool disallowsFastPathInheritance() const { return m_nonInheritedFlags.disallowsFastPathInheritance; }
     void setDisallowsFastPathInheritance() { m_nonInheritedFlags.disallowsFastPathInheritance = true; }
 
+    inline void setMathShift(const MathShift&);
     inline void setMathStyle(const MathStyle&);
 
     void setTextSpacingTrim(TextSpacingTrim v);
@@ -2238,6 +2241,7 @@ public:
     static constexpr BlendMode initialBlendMode();
     static constexpr Isolation initialIsolation();
 
+    static constexpr MathShift initialMathShift();
     static constexpr MathStyle initialMathStyle();
 
     void setVisitedLinkColor(Color&&);

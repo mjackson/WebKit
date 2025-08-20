@@ -374,8 +374,7 @@ JSC_DEFINE_HOST_FUNCTION(webAssemblyInstantiateFunc, (JSGlobalObject* globalObje
         RETURN_IF_EXCEPTION(scope, { });
         compileAndInstantiate(vm, globalObject, promise, JSWebAssemblyInstance::createPrivateModuleKey(), firstArgument, importObject, WTFMove(provider), WTFMove(compileOptions), Resolve::WithModuleAndInstance, Wasm::CreationMode::FromJS);
     }
-
-    return JSValue::encode(promise);
+    RELEASE_AND_RETURN(scope, JSValue::encode(promise));
 }
 
 /**
@@ -440,8 +439,7 @@ JSC_DEFINE_HOST_FUNCTION(webAssemblyInstantiateStreamingInternal, (JSGlobalObjec
 JSC_DEFINE_HOST_FUNCTION(webAssemblyGetterJSTag, (JSGlobalObject* globalObject, CallFrame*))
 {
     // https://webassembly.github.io/exception-handling/js-api/#dom-webassembly-jstag
-    VM& vm = globalObject->vm();
-    return JSValue::encode(JSWebAssemblyTag::create(vm, globalObject, globalObject->webAssemblyTagStructure(), Wasm::Tag::jsExceptionTag()));
+    return JSValue::encode(globalObject->webAssemblyJSTag());
 }
 
 } // namespace JSC

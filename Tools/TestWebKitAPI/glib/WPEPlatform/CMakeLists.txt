@@ -1,8 +1,9 @@
 # WPE Mock Platform
 set(WPEPlatformMock_SOURCES
     ${TOOLS_DIR}/TestWebKitAPI/glib/WPEPlatform/mock/WPEDisplayMock.cpp
-    ${TOOLS_DIR}/TestWebKitAPI/glib/WPEPlatform/mock/WPEViewMock.cpp
     ${TOOLS_DIR}/TestWebKitAPI/glib/WPEPlatform/mock/WPEScreenMock.cpp
+    ${TOOLS_DIR}/TestWebKitAPI/glib/WPEPlatform/mock/WPEToplevelMock.cpp
+    ${TOOLS_DIR}/TestWebKitAPI/glib/WPEPlatform/mock/WPEViewMock.cpp
 )
 
 set(WPEPlatformMock_PRIVATE_INCLUDE_DIRECTORIES
@@ -110,6 +111,7 @@ endmacro()
 ADD_WPE_PLATFORM_TEST(TestDisplay ${TOOLS_DIR}/TestWebKitAPI/Tests/WPEPlatform/TestDisplay.cpp)
 ADD_WPE_PLATFORM_TEST(TestDisplayDefault ${TOOLS_DIR}/TestWebKitAPI/Tests/WPEPlatform/TestDisplayDefault.cpp)
 ADD_WPE_PLATFORM_TEST(TestSettings ${TOOLS_DIR}/TestWebKitAPI/Tests/WPEPlatform/TestSettings.cpp)
+ADD_WPE_PLATFORM_TEST(TestView ${TOOLS_DIR}/TestWebKitAPI/Tests/WPEPlatform/TestView.cpp)
 
 if (ENABLE_WPE_PLATFORM_WAYLAND)
     ADD_WPE_PLATFORM_TEST(TestDisplayWayland ${TOOLS_DIR}/TestWebKitAPI/Tests/WPEPlatform/TestDisplayWayland.cpp)

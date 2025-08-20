@@ -25,21 +25,21 @@
 
 #pragma once
 
-#include "AXTextRun.h"
-#include "CharacterRange.h"
-#include "Color.h"
-#include "ColorConversion.h"
-#include "HTMLTextFormControlElement.h"
-#include "InputType.h"
-#include "LayoutRect.h"
-#include "LocalFrameLoaderClient.h"
-#include "LocalizedStrings.h"
-#include "NodeName.h"
-#include "SimpleRange.h"
-#include "TextChecking.h"
-#include "TextIteratorBehavior.h"
-#include "VisibleSelection.h"
-#include "Widget.h"
+#include <WebCore/AXTextRun.h>
+#include <WebCore/CharacterRange.h>
+#include <WebCore/Color.h>
+#include <WebCore/ColorConversion.h>
+#include <WebCore/HTMLTextFormControlElement.h>
+#include <WebCore/InputType.h>
+#include <WebCore/LayoutRect.h>
+#include <WebCore/LocalFrameLoaderClient.h>
+#include <WebCore/LocalizedStrings.h>
+#include <WebCore/NodeName.h>
+#include <WebCore/SimpleRange.h>
+#include <WebCore/TextChecking.h>
+#include <WebCore/TextIteratorBehavior.h>
+#include <WebCore/VisibleSelection.h>
+#include <WebCore/Widget.h>
 #include <wtf/HashSet.h>
 #include <wtf/ObjectIdentifier.h>
 #include <wtf/ProcessID.h>
@@ -1063,6 +1063,9 @@ public:
     virtual float valueForRange() const = 0;
     virtual float maxValueForRange() const = 0;
     virtual float minValueForRange() const = 0;
+#if ENABLE(ATTACHMENT_ELEMENT)
+    virtual bool hasProgress() const { return false; }
+#endif
     AXCoreObject* selectedRadioButton();
     AXCoreObject* selectedTabItem();
     virtual int layoutCount() const = 0;

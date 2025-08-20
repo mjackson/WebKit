@@ -30,14 +30,20 @@
 
 #pragma once
 
-#include "EventListenerMap.h"
-#include "EventListenerOptions.h"
-#include "ScriptWrappable.h"
+#include <WebCore/EventListenerMap.h>
+#include <WebCore/EventListenerOptions.h>
+#include <WebCore/PlatformExportMacros.h>
+#include <WebCore/ScriptWrappable.h>
+#include <bmalloc/TZoneHeap.h>
 #include <memory>
+#include <wtf/CanMakeWeakPtr.h>
 #include <wtf/CheckedPtr.h>
+#include <wtf/EnumTraits.h>
 #include <wtf/Forward.h>
 #include <wtf/TZoneMalloc.h>
+#include <wtf/Variant.h>
 #include <wtf/WeakPtr.h>
+#include <wtf/WeakPtrFactory.h>
 #include <wtf/WeakPtrImpl.h>
 
 namespace JSC {

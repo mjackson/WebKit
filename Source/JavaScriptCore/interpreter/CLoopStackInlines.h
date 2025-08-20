@@ -30,13 +30,20 @@
 #include "CLoopStack.h"
 #include "CallFrame.h"
 #include "CodeBlock.h"
+#include "StackManagerInlines.h"
 #include "VM.h"
 
 namespace JSC {
 
 ALWAYS_INLINE VM& CLoopStack::vm() const
 {
-    return *std::bit_cast<VM*>(std::bit_cast<uintptr_t>(this) - OBJECT_OFFSETOF(Interpreter, m_cloopStack) - OBJECT_OFFSETOF(VM, interpreter));
+    return stackManager().vm();
+}
+
+inline void CLoopStack::setCLoopStackLimit(Register* newTopOfStack)
+{
+    m_end = newTopOfStack;
+    stackManager().setCLoopStackLimit(newTopOfStack);
 }
 
 inline bool CLoopStack::ensureCapacityFor(Register* newTopOfStack)
@@ -46,10 +53,9 @@ inline bool CLoopStack::ensureCapacityFor(Register* newTopOfStack)
     return grow(newTopOfStack);
 }
 
-inline void CLoopStack::setCLoopStackLimit(Register* newTopOfStack)
+ALWAYS_INLINE StackManager& CLoopStack::stackManager() const
 {
-    m_end = newTopOfStack;
-    vm().setCLoopStackLimit(newTopOfStack);
+    return *std::bit_cast<StackManager*>(std::bit_cast<uintptr_t>(this) - StackManager::offsetOfCLoopStack());
 }
 
 } // namespace JSC

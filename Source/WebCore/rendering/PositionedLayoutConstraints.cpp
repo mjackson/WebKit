@@ -191,7 +191,7 @@ void PositionedLayoutConstraints::captureAnchorGeometry()
         return;
 
     // Store the anchor geometry.
-    LayoutRect anchorRect = Style::AnchorPositionEvaluator::computeAnchorRectRelativeToContainingBlock(*m_defaultAnchorBox, *m_container);
+    LayoutRect anchorRect = Style::AnchorPositionEvaluator::computeAnchorRectRelativeToContainingBlock(*m_defaultAnchorBox, *m_container, m_renderer.get());
     m_anchorArea = extractRange(anchorRect);
 
     // Adjust containing block for position-area.
@@ -487,7 +487,10 @@ ItemPosition PositionedLayoutConstraints::resolveAlignmentValue() const
     }();
 
     if (m_style.positionArea() && ItemPosition::Normal == alignmentPosition)
-        return m_style.positionArea()->defaultAlignmentForAxis(m_physicalAxis, m_containingWritingMode, m_writingMode);
+        alignmentPosition = m_style.positionArea()->defaultAlignmentForAxis(m_physicalAxis, m_containingWritingMode, m_writingMode);
+
+    if (!m_defaultAnchorBox && alignmentPosition == ItemPosition::AnchorCenter)
+        return ItemPosition::Center;
     return alignmentPosition;
 }
 

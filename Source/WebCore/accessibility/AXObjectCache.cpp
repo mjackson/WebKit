@@ -30,20 +30,20 @@
 #include "AXObjectCache.h"
 
 #include "AXAttributeCacheScope.h"
+#include "AXComputedObjectAttributeCache.h"
 #include "AXIsolatedObject.h"
 #include "AXIsolatedTree.h"
+#include "AXListHelpers.h"
 #include "AXLogger.h"
 #include "AXLoggerBase.h"
+#include "AXNotifications.h"
 #include "AXObjectCacheInlines.h"
 #include "AXRemoteFrame.h"
 #include "AXTextMarker.h"
 #include "AXTreeStoreInlines.h"
 #include "AXUtilities.h"
-#include "AccessibilityAttachment.h"
 #include "AccessibilityImageMapLink.h"
 #include "AccessibilityLabel.h"
-#include "AccessibilityList.h"
-#include "AccessibilityListBox.h"
 #include "AccessibilityListBoxOption.h"
 #include "AccessibilityMathMLElement.h"
 #include "AccessibilityMenuList.h"
@@ -100,6 +100,7 @@
 #include "InlineIteratorLogicalOrderTraversal.h"
 #include "InlineRunAndOffset.h"
 #include "LocalFrame.h"
+#include "Logging.h"
 #include "MathMLElement.h"
 #include "Page.h"
 #include "ProgressTracker.h"
@@ -143,7 +144,6 @@
 
 namespace WebCore {
 
-DEFINE_ALLOCATOR_WITH_HEAP_IDENTIFIER(AXComputedObjectAttributeCache);
 DEFINE_ALLOCATOR_WITH_HEAP_IDENTIFIER(AXObjectCache);
 WTF_MAKE_TZONE_ALLOCATED_IMPL(AXObjectCache);
 
@@ -177,24 +177,6 @@ static bool nodeRendererIsValid(Node& node)
 static bool nodeAndRendererAreValid(Node* node)
 {
     return node ? nodeRendererIsValid(*node) : false;
-}
-
-AccessibilityObjectInclusion AXComputedObjectAttributeCache::getIgnored(AXID id) const
-{
-    auto it = m_idMapping.find(id);
-    return it != m_idMapping.end() ? it->value.ignored : AccessibilityObjectInclusion::DefaultBehavior;
-}
-
-void AXComputedObjectAttributeCache::setIgnored(AXID id, AccessibilityObjectInclusion inclusion)
-{
-    HashMap<AXID, CachedAXObjectAttributes>::iterator it = m_idMapping.find(id);
-    if (it != m_idMapping.end())
-        it->value.ignored = inclusion;
-    else {
-        CachedAXObjectAttributes attributes;
-        attributes.ignored = inclusion;
-        m_idMapping.set(id, attributes);
-    }
 }
 
 AccessibilityReplacedText::AccessibilityReplacedText(const VisibleSelection& selection)
@@ -597,16 +579,6 @@ void AXObjectCache::setIsolatedTreeFocusedObject(AccessibilityObject* focus)
 }
 #endif
 
-static bool isAccessibilityList(Element& element)
-{
-    if (hasAnyRole(element, { "list"_s, "directory"_s }))
-        return true;
-
-    // Call it a list if it has no ARIA role and a list tag.
-    auto name = element.elementName();
-    return hasRole(element, nullAtom()) && (name == ElementName::HTML_ul || name == ElementName::HTML_ol || name == ElementName::HTML_dl || name == ElementName::HTML_menu);
-}
-
 static bool isAccessibilityTree(Element& element)
 {
     return hasRole(element, "tree"_s);
@@ -656,9 +628,9 @@ Ref<AccessibilityRenderObject> AXObjectCache::createObjectFromRenderer(RenderObj
 {
     RefPtr node = renderer.node();
     if (RefPtr element = dynamicDowncast<Element>(node)) {
-        if (isAccessibilityList(*element))
-            return AccessibilityList::create(AXID::generate(), renderer, *this);
-
+        // Lists shouldn't fallthrough to table components, so explicitly create a render object.
+        if (AXListHelpers::isAccessibilityList(*element))
+            return AccessibilityRenderObject::create(AXID::generate(), renderer, *this);
         if (isAccessibilityARIATable(*element))
             return AccessibilityTable::create(AXID::generate(), renderer, *this, /* isARIATable */ true);
         if (isAccessibilityARIAGridRow(*element))
@@ -693,8 +665,6 @@ Ref<AccessibilityRenderObject> AXObjectCache::createObjectFromRenderer(RenderObj
         return AccessibilityMathMLElement::create(AXID::generate(), renderer, *this, isAnonymousOperator);
 #endif
 
-    if (is<RenderListBox>(renderer))
-        return AccessibilityListBox::create(AXID::generate(), renderer, *this);
     if (CheckedPtr renderMenuList = dynamicDowncast<RenderMenuList>(renderer))
         return AccessibilityMenuList::create(AXID::generate(), *renderMenuList, *this);
 
@@ -719,11 +689,6 @@ Ref<AccessibilityRenderObject> AXObjectCache::createObjectFromRenderer(RenderObj
         || is<HTMLProgressElement>(node) || is<HTMLMeterElement>(node))
         return AccessibilityProgressIndicator::create(AXID::generate(), renderer, *this);
 
-#if ENABLE(ATTACHMENT_ELEMENT)
-    if (auto* renderAttachment = dynamicDowncast<RenderAttachment>(renderer))
-        return AccessibilityAttachment::create(AXID::generate(), *renderAttachment, *this);
-#endif
-
     // input type=range
     if (is<RenderSlider>(renderer))
         return AccessibilitySlider::create(AXID::generate(), renderer, *this);
@@ -734,8 +699,9 @@ Ref<AccessibilityRenderObject> AXObjectCache::createObjectFromRenderer(RenderObj
 Ref<AccessibilityNodeObject> AXObjectCache::createFromNode(Node& node)
 {
     if (RefPtr element = dynamicDowncast<Element>(node)) {
-        if (isAccessibilityList(*element))
-            return AccessibilityList::create(AXID::generate(), *element, *this);
+        // Lists shouldn't fallthrough to table components, so explicitly create a render object.
+        if (AXListHelpers::isAccessibilityList(*element))
+            return AccessibilityRenderObject::create(AXID::generate(), *element, *this);
         if (isAccessibilityTable(element.get()))
             return AccessibilityTable::create(AXID::generate(), *element, *this);
         if (isAccessibilityTableRow(element.get()))
@@ -1441,7 +1407,7 @@ void AXObjectCache::handleChildrenChanged(AccessibilityObject& object)
     }
 
     // The role of list objects is dependent on their children, so we'll need to re-compute it here.
-    if (is<AccessibilityList>(object))
+    if (object.isAccessibilityList())
         object.updateRole();
 }
 

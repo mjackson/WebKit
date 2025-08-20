@@ -50,6 +50,10 @@ public:
     bool isBusy() const final;
     bool isDetached() const override { return !m_node; }
     bool isFieldset() const final;
+    bool isAccessibilityList() const final;
+    bool isUnorderedList() const final;
+    bool isOrderedList() const final;
+    bool isDescriptionList() const final;
     bool isMultiSelectable() const override;
     bool isNativeImage() const;
     bool isNativeTextControl() const final;
@@ -85,6 +89,10 @@ public:
     float maxValueForRange() const override;
     float minValueForRange() const override;
     float stepValueForRange() const override;
+
+#if ENABLE(ATTACHMENT_ELEMENT)
+    bool hasProgress() const final;
+#endif
 
     std::optional<AccessibilityOrientation> orientationFromARIA() const;
     std::optional<AccessibilityOrientation> explicitOrientation() const override { return orientationFromARIA(); }
@@ -152,6 +160,7 @@ protected:
 #endif
 
     AccessibilityRole determineAccessibilityRole() override;
+    AccessibilityRole determineListRoleWithCleanChildren();
     enum class TreatStyleFormatGroupAsInline : bool { No, Yes };
     AccessibilityRole determineAccessibilityRoleFromNode(TreatStyleFormatGroupAsInline = TreatStyleFormatGroupAsInline::No) const;
     AccessibilityRole roleFromInputElement(const HTMLInputElement&) const;
@@ -164,6 +173,7 @@ protected:
     void clearChildren() override;
     void updateChildrenIfNecessary() override;
     bool canHaveChildren() const override;
+    void setSelectedChildren(const AccessibilityChildrenVector&) final;
     AccessibilityChildrenVector visibleChildren() override;
     bool isDescendantOfBarrenParent() const final;
     void updateOwnedChildren();

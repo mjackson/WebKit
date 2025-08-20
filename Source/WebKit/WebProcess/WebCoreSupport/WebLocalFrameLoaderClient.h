@@ -58,6 +58,7 @@ public:
     std::optional<WebPageProxyIdentifier> webPageProxyID() const;
 
     bool hasFrameSpecificStorageAccess() final { return !!m_frameSpecificStorageAccessIdentifier; }
+    void revokeFrameSpecificStorageAccess() final { m_frameSpecificStorageAccessIdentifier = std::nullopt; }
     
     struct FrameSpecificStorageAccessIdentifier {
         WebCore::FrameIdentifier frameID;
@@ -284,6 +285,8 @@ private:
 #if ENABLE(CONTENT_EXTENSIONS)
     void didExceedNetworkUsageThreshold();
 #endif
+
+    void removeStorageAccess();
 
 #if ENABLE(PDF_PLUGIN)
     RefPtr<PluginView> m_pluginView;

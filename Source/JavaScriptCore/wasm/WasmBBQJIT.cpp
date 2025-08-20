@@ -837,7 +837,7 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::addTableSet(unsigned tableIndex, Value 
 
     LOG_INSTRUCTION("TableSet", tableIndex, index, value);
 
-    throwExceptionIf(ExceptionType::OutOfBoundsTableAccess, m_jit.branchTest32(ResultCondition::Zero, shouldThrowLocation.asGPR()));
+    recordJumpToThrowException(ExceptionType::OutOfBoundsTableAccess, m_jit.branchTest32(ResultCondition::Zero, shouldThrowLocation.asGPR()));
 
     consume(shouldThrow);
 
@@ -864,7 +864,7 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::addTableInit(unsigned elementIndex, uns
 
     LOG_INSTRUCTION("TableInit", tableIndex, dstOffset, srcOffset, length);
 
-    throwExceptionIf(ExceptionType::OutOfBoundsTableAccess, m_jit.branchTest32(ResultCondition::Zero, shouldThrowLocation.asGPR()));
+    recordJumpToThrowException(ExceptionType::OutOfBoundsTableAccess, m_jit.branchTest32(ResultCondition::Zero, shouldThrowLocation.asGPR()));
 
     consume(shouldThrow);
 
@@ -928,7 +928,7 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::addTableFill(unsigned tableIndex, Value
 
     LOG_INSTRUCTION("TableFill", tableIndex, fill, offset, count);
 
-    throwExceptionIf(ExceptionType::OutOfBoundsTableAccess, m_jit.branchTest32(ResultCondition::Zero, shouldThrowLocation.asGPR()));
+    recordJumpToThrowException(ExceptionType::OutOfBoundsTableAccess, m_jit.branchTest32(ResultCondition::Zero, shouldThrowLocation.asGPR()));
 
     consume(shouldThrow);
 
@@ -953,7 +953,7 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::addTableCopy(unsigned dstTableIndex, un
 
     LOG_INSTRUCTION("TableCopy", dstTableIndex, srcTableIndex, dstOffset, srcOffset, length);
 
-    throwExceptionIf(ExceptionType::OutOfBoundsTableAccess, m_jit.branchTest32(ResultCondition::Zero, shouldThrowLocation.asGPR()));
+    recordJumpToThrowException(ExceptionType::OutOfBoundsTableAccess, m_jit.branchTest32(ResultCondition::Zero, shouldThrowLocation.asGPR()));
 
     consume(shouldThrow);
 
@@ -1126,7 +1126,7 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::addMemoryFill(Value dstAddress, Value t
     emitCCall(&operationWasmMemoryFill, arguments, shouldThrow);
     Location shouldThrowLocation = loadIfNecessary(shouldThrow);
 
-    throwExceptionIf(ExceptionType::OutOfBoundsMemoryAccess, m_jit.branchTest32(ResultCondition::Zero, shouldThrowLocation.asGPR()));
+    recordJumpToThrowException(ExceptionType::OutOfBoundsMemoryAccess, m_jit.branchTest32(ResultCondition::Zero, shouldThrowLocation.asGPR()));
 
     LOG_INSTRUCTION("MemoryFill", dstAddress, targetValue, count);
 
@@ -1149,7 +1149,7 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::addMemoryCopy(Value dstAddress, Value s
     emitCCall(&operationWasmMemoryCopy, arguments, shouldThrow);
     Location shouldThrowLocation = loadIfNecessary(shouldThrow);
 
-    throwExceptionIf(ExceptionType::OutOfBoundsMemoryAccess, m_jit.branchTest32(ResultCondition::Zero, shouldThrowLocation.asGPR()));
+    recordJumpToThrowException(ExceptionType::OutOfBoundsMemoryAccess, m_jit.branchTest32(ResultCondition::Zero, shouldThrowLocation.asGPR()));
 
     LOG_INSTRUCTION("MemoryCopy", dstAddress, srcAddress, count);
 
@@ -1173,7 +1173,7 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::addMemoryInit(unsigned dataSegmentIndex
     emitCCall(&operationWasmMemoryInit, arguments, shouldThrow);
     Location shouldThrowLocation = loadIfNecessary(shouldThrow);
 
-    throwExceptionIf(ExceptionType::OutOfBoundsMemoryAccess, m_jit.branchTest32(ResultCondition::Zero, shouldThrowLocation.asGPR()));
+    recordJumpToThrowException(ExceptionType::OutOfBoundsMemoryAccess, m_jit.branchTest32(ResultCondition::Zero, shouldThrowLocation.asGPR()));
 
     LOG_INSTRUCTION("MemoryInit", dataSegmentIndex, dstAddress, srcAddress, length);
 
@@ -1280,7 +1280,7 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::atomicWait(ExtAtomicOpType op, Expressi
 
     LOG_INSTRUCTION(makeString(op), pointer, value, timeout, uoffset, RESULT(result));
 
-    throwExceptionIf(ExceptionType::OutOfBoundsMemoryAccess, m_jit.branch32(RelationalCondition::LessThan, resultLocation.asGPR(), TrustedImm32(0)));
+    recordJumpToThrowException(ExceptionType::OutOfBoundsMemoryAccess, m_jit.branch32(RelationalCondition::LessThan, resultLocation.asGPR(), TrustedImm32(0)));
     return { };
 }
 
@@ -1298,7 +1298,7 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::atomicNotify(ExtAtomicOpType op, Expres
 
     LOG_INSTRUCTION(makeString(op), pointer, count, uoffset, RESULT(result));
 
-    throwExceptionIf(ExceptionType::OutOfBoundsMemoryAccess, m_jit.branch32(RelationalCondition::LessThan, resultLocation.asGPR(), TrustedImm32(0)));
+    recordJumpToThrowException(ExceptionType::OutOfBoundsMemoryAccess, m_jit.branch32(RelationalCondition::LessThan, resultLocation.asGPR(), TrustedImm32(0)));
     return { };
 }
 
@@ -1455,8 +1455,10 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::addArrayNewElem(uint32_t typeIndex, uin
     return { };
 }
 
-PartialResult WARN_UNUSED_RETURN BBQJIT::addArrayCopy(uint32_t dstTypeIndex, ExpressionType dst, ExpressionType dstOffset, uint32_t srcTypeIndex, ExpressionType src, ExpressionType srcOffset, ExpressionType size)
+PartialResult WARN_UNUSED_RETURN BBQJIT::addArrayCopy(uint32_t dstTypeIndex, TypedExpression typedDst, ExpressionType dstOffset, uint32_t srcTypeIndex, TypedExpression typedSrc, ExpressionType srcOffset, ExpressionType size)
 {
+    auto dst = typedDst.value();
+    auto src = typedSrc.value();
     if (dst.isConst() || src.isConst()) {
         ASSERT_IMPLIES(dst.isConst(), dst.asI64() == JSValue::encode(jsNull()));
         ASSERT_IMPLIES(src.isConst(), src.asI64() == JSValue::encode(jsNull()));
@@ -1472,8 +1474,10 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::addArrayCopy(uint32_t dstTypeIndex, Exp
         return { };
     }
 
-    emitThrowOnNullReference(ExceptionType::NullArrayCopy, loadIfNecessary(dst));
-    emitThrowOnNullReference(ExceptionType::NullArrayCopy, loadIfNecessary(src));
+    if (typedDst.type().isNullable())
+        emitThrowOnNullReference(ExceptionType::NullArrayCopy, loadIfNecessary(dst));
+    if (typedSrc.type().isNullable())
+        emitThrowOnNullReference(ExceptionType::NullArrayCopy, loadIfNecessary(src));
 
     Vector<Value, 8> arguments = {
         instanceValue(),
@@ -1489,15 +1493,16 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::addArrayCopy(uint32_t dstTypeIndex, Exp
 
     LOG_INSTRUCTION("ArrayCopy", dstTypeIndex, dst, dstOffset, srcTypeIndex, src, srcOffset, size);
 
-    throwExceptionIf(ExceptionType::OutOfBoundsArrayCopy, m_jit.branchTest32(ResultCondition::Zero, shouldThrowLocation.asGPR()));
+    recordJumpToThrowException(ExceptionType::OutOfBoundsArrayCopy, m_jit.branchTest32(ResultCondition::Zero, shouldThrowLocation.asGPR()));
 
     consume(shouldThrow);
 
     return { };
 }
 
-PartialResult WARN_UNUSED_RETURN BBQJIT::addArrayInitElem(uint32_t dstTypeIndex, ExpressionType dst, ExpressionType dstOffset, uint32_t srcElementIndex, ExpressionType srcOffset, ExpressionType size)
+PartialResult WARN_UNUSED_RETURN BBQJIT::addArrayInitElem(uint32_t dstTypeIndex, TypedExpression typedDst, ExpressionType dstOffset, uint32_t srcElementIndex, ExpressionType srcOffset, ExpressionType size)
 {
+    auto dst = typedDst.value();
     if (dst.isConst()) {
         ASSERT(dst.asI64() == JSValue::encode(jsNull()));
 
@@ -1510,7 +1515,8 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::addArrayInitElem(uint32_t dstTypeIndex,
         return { };
     }
 
-    emitThrowOnNullReference(ExceptionType::NullArrayInitElem, loadIfNecessary(dst));
+    if (typedDst.type().isNullable())
+        emitThrowOnNullReference(ExceptionType::NullArrayInitElem, loadIfNecessary(dst));
 
     Vector<Value, 8> arguments = {
         instanceValue(),
@@ -1526,15 +1532,16 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::addArrayInitElem(uint32_t dstTypeIndex,
 
     LOG_INSTRUCTION("ArrayInitElem", dstTypeIndex, dst, dstOffset, srcElementIndex, srcOffset, size);
 
-    throwExceptionIf(ExceptionType::OutOfBoundsArrayInitElem, m_jit.branchTest32(ResultCondition::Zero, shouldThrowLocation.asGPR()));
+    recordJumpToThrowException(ExceptionType::OutOfBoundsArrayInitElem, m_jit.branchTest32(ResultCondition::Zero, shouldThrowLocation.asGPR()));
 
     consume(shouldThrow);
 
     return { };
 }
 
-PartialResult WARN_UNUSED_RETURN BBQJIT::addArrayInitData(uint32_t dstTypeIndex, ExpressionType dst, ExpressionType dstOffset, uint32_t srcDataIndex, ExpressionType srcOffset, ExpressionType size)
+PartialResult WARN_UNUSED_RETURN BBQJIT::addArrayInitData(uint32_t dstTypeIndex, TypedExpression typedDst, ExpressionType dstOffset, uint32_t srcDataIndex, ExpressionType srcOffset, ExpressionType size)
 {
+    auto dst = typedDst.value();
     if (dst.isConst()) {
         ASSERT(dst.asI64() == JSValue::encode(jsNull()));
 
@@ -1547,7 +1554,8 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::addArrayInitData(uint32_t dstTypeIndex,
         return { };
     }
 
-    emitThrowOnNullReference(ExceptionType::NullArrayInitData, loadIfNecessary(dst));
+    if (typedDst.type().isNullable())
+        emitThrowOnNullReference(ExceptionType::NullArrayInitData, loadIfNecessary(dst));
 
     Vector<Value, 8> arguments = {
         instanceValue(),
@@ -1563,26 +1571,9 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::addArrayInitData(uint32_t dstTypeIndex,
 
     LOG_INSTRUCTION("ArrayInitData", dstTypeIndex, dst, dstOffset, srcDataIndex, srcOffset, size);
 
-    throwExceptionIf(ExceptionType::OutOfBoundsArrayInitData, m_jit.branchTest32(ResultCondition::Zero, shouldThrowLocation.asGPR()));
+    recordJumpToThrowException(ExceptionType::OutOfBoundsArrayInitData, m_jit.branchTest32(ResultCondition::Zero, shouldThrowLocation.asGPR()));
 
     consume(shouldThrow);
-
-    return { };
-}
-
-PartialResult WARN_UNUSED_RETURN BBQJIT::addRefTest(ExpressionType reference, bool allowNull, int32_t heapType, bool shouldNegate, ExpressionType& result)
-{
-    Vector<Value, 8> arguments = {
-        instanceValue(),
-        reference,
-        Value::fromI32(allowNull),
-        Value::fromI32(heapType),
-        Value::fromI32(shouldNegate),
-    };
-    result = topValue(TypeKind::I32);
-    emitCCall(operationWasmRefTest, arguments, result);
-
-    LOG_INSTRUCTION("RefTest", reference, allowNull, heapType, shouldNegate, RESULT(result));
 
     return { };
 }
@@ -1863,9 +1854,14 @@ void BBQJIT::emitThrowException(ExceptionType type)
     m_jit.jumpThunk(CodeLocationLabel<JITThunkPtrTag>(Thunks::singleton().stub(throwExceptionFromWasmThunkGenerator).code()));
 }
 
-void BBQJIT::throwExceptionIf(ExceptionType type, Jump jump)
+void BBQJIT::recordJumpToThrowException(ExceptionType type, Jump jump)
 {
     m_exceptions[static_cast<unsigned>(type)].append(jump);
+}
+
+void BBQJIT::recordJumpToThrowException(ExceptionType type, const JumpList& jumps)
+{
+    m_exceptions[static_cast<unsigned>(type)].append(jumps);
 }
 
 template<typename IntType>
@@ -2652,7 +2648,7 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::addI32Popcnt(Value operand, Value& resu
                 // We avoid this by consuming the result before passing it to emitCCall, which also saves us the mov for spilling.
                 consume(result);
                 auto arg = Value::pinned(TypeKind::I32, operandLocation);
-                emitCCall(&operationPopcount32, ArgumentList { arg }, result);
+                emitCCall(&operationPopcount32, Vector<Value, 8> { arg }, result);
             }
         )
     )
@@ -2677,7 +2673,7 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::addI64Popcnt(Value operand, Value& resu
                 // We avoid this by consuming the result before passing it to emitCCall, which also saves us the mov for spilling.
                 consume(result);
                 auto arg = Value::pinned(TypeKind::I64, operandLocation);
-                emitCCall(&operationPopcount64, ArgumentList { arg }, result);
+                emitCCall(&operationPopcount64, Vector<Value, 8> { arg }, result);
             }
         )
     )
@@ -3629,7 +3625,7 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::addThrow(unsigned exceptionIndex, Argum
         Location stackLocation = Location::fromStackArgument(offset * sizeof(uint64_t));
         emitMove(arg, stackLocation);
         consume(arg);
-        offset += arg.type() == TypeKind::V128 ? 2 : 1;
+        offset += arg.value().type() == TypeKind::V128 ? 2 : 1;
     }
     Checked<int32_t> calleeStackSize = WTF::roundUpToMultipleOf<stackAlignmentBytes()>(offset * sizeof(uint64_t));
     m_maxCalleeStackSize = std::max<int>(calleeStackSize, m_maxCalleeStackSize);
@@ -4041,15 +4037,16 @@ void BBQJIT::slowPathRestoreBindings(const RegisterBindings& bindings)
     }
 }
 
-template<size_t N>
-void BBQJIT::saveValuesAcrossCallAndPassArguments(const Vector<Value, N>& arguments, const CallInformation& callInfo, const TypeDefinition& signature)
+template<typename Args>
+void BBQJIT::saveValuesAcrossCallAndPassArguments(const Args& arguments, const CallInformation& callInfo, const TypeDefinition& signature)
 {
     // First, we resolve all the locations of the passed arguments, before any spillage occurs. For constants,
     // we store their normal values; for all other values, we store pinned values with their current location.
     // We'll directly use these when passing parameters, since no other instructions we emit here should
     // overwrite registers currently occupied by values.
 
-    auto resolvedArguments = WTF::map<N>(arguments, [&](auto& argument) {
+    auto resolvedArguments = WTF::map<8>(arguments, [&](auto& input) {
+        auto argument = Value(input);
         auto value = argument.isConst() ? argument : Value::pinned(argument.type(), locationOf(argument));
         // Like other value uses, we count this as a use here, and end the lifetimes of any temps we passed.
         // This saves us the work of having to spill them to their canonical slots.
@@ -4089,7 +4086,7 @@ void BBQJIT::saveValuesAcrossCallAndPassArguments(const Vector<Value, N>& argume
     }
 
     // Finally, we parallel-move arguments to the parameter locations.
-    WTF::Vector<Location, N> parameterLocations;
+    WTF::Vector<Location, 8> parameterLocations;
     parameterLocations.reserveInitialCapacity(callInfo.params.size());
     for (unsigned i = 0; i < callInfo.params.size(); i++) {
         auto type = signature.as<FunctionSignature>()->argumentType(i);
@@ -4164,7 +4161,7 @@ void BBQJIT::emitTailCall(FunctionSpaceIndex functionIndex, const TypeDefinition
     ASSERT(callInfo.results.size() == wasmCallerInfo.results.size());
     ASSERT(arguments.size() == callInfo.params.size());
 
-    ArgumentList resolvedArguments;
+    Vector<Value, 8> resolvedArguments;
     resolvedArguments.reserveInitialCapacity(arguments.size() + isX86());
     Vector<Location, 8> parameterLocations;
     parameterLocations.reserveInitialCapacity(arguments.size() + isX86());
@@ -4190,10 +4187,10 @@ void BBQJIT::emitTailCall(FunctionSpaceIndex functionIndex, const TypeDefinition
     // We don't need to restore any callee saves because we don't use them with the current register allocator.
     // If we did we'd want to do that here because we could clobber their stack slots when shuffling the parameters into place below.
     for (unsigned i = 0; i < arguments.size(); i ++) {
-        if (arguments[i].isConst())
-            resolvedArguments.append(arguments[i]);
+        if (arguments[i].value().isConst())
+            resolvedArguments.append(arguments[i].value());
         else
-            resolvedArguments.append(Value::pinned(arguments[i].type(), locationOf(arguments[i])));
+            resolvedArguments.append(Value::pinned(arguments[i].value().type(), locationOf(arguments[i])));
 
         consume(arguments[i]);
     }
@@ -4383,7 +4380,7 @@ void BBQJIT::emitIndirectTailCall(const char* opcode, const Value& callee, GPRRe
     ASSERT(callInfo.results.size() == wasmCallerInfo.results.size());
     ASSERT(arguments.size() == callInfo.params.size());
 
-    ArgumentList resolvedArguments;
+    Vector<Value, 8> resolvedArguments;
     const unsigned calleeArgument = 1;
     resolvedArguments.reserveInitialCapacity(arguments.size() + calleeArgument + isX86() * 2);
     Vector<Location, 8> parameterLocations;
@@ -4416,10 +4413,10 @@ void BBQJIT::emitIndirectTailCall(const char* opcode, const Value& callee, GPRRe
 #endif
 
     for (unsigned i = 0; i < arguments.size(); i ++) {
-        if (arguments[i].isConst())
-            resolvedArguments.append(arguments[i]);
+        if (arguments[i].value().isConst())
+            resolvedArguments.append(arguments[i].value());
         else
-            resolvedArguments.append(Value::pinned(arguments[i].type(), locationOf(arguments[i])));
+            resolvedArguments.append(Value::pinned(arguments[i].value().type(), locationOf(arguments[i])));
 
         // This isn't really needed but it's nice to have good book keeping.
         consume(arguments[i]);
@@ -4477,38 +4474,6 @@ void BBQJIT::emitIndirectTailCall(const char* opcode, const Value& callee, GPRRe
         consume(value);
 }
 
-void BBQJIT::addRTTSlowPathJump(TypeIndex signature, GPRReg calleeRTT)
-{
-    auto jump = m_jit.jump();
-    auto returnLabel = m_jit.label();
-    m_latePaths.append([jump, returnLabel, signature, calleeRTT](BBQJIT& bbq, CCallHelpers& jit) {
-        jump.link(jit);
-        bbq.emitSlowPathRTTCheck(returnLabel, signature, calleeRTT);
-    });
-}
-
-void BBQJIT::emitSlowPathRTTCheck(MacroAssembler::Label returnLabel, TypeIndex typeIndex, GPRReg calleeRTT)
-{
-    auto signatureRTT = TypeInformation::getCanonicalRTT(typeIndex);
-    GPRReg rttSize = wasmScratchGPR;
-    m_jit.loadPtr(Address(calleeRTT, FuncRefTable::Function::offsetOfFunction() + WasmToWasmImportableFunction::offsetOfRTT()), calleeRTT);
-    m_jit.load32(Address(calleeRTT, RTT::offsetOfDisplaySize()), rttSize);
-
-    JIT_COMMENT(m_jit, "RTT::isStrictSubRTT()");
-    auto displaySmallerThanParent = m_jit.branch32(CCallHelpers::BelowOrEqual, rttSize, TrustedImm32(signatureRTT->displaySize()));
-
-    GPRReg index = rttSize;
-    auto scale = static_cast<CCallHelpers::Scale>(std::bit_width(sizeof(uintptr_t) - 1));
-    auto rttBaseIndex = CCallHelpers::BaseIndex(calleeRTT, index, scale, RTT::offsetOfPayload());
-    m_jit.sub32(TrustedImm32(1 + signatureRTT->displaySize()), index);
-    m_jit.loadPtr(rttBaseIndex, calleeRTT);
-    auto rttEqual = m_jit.branchPtr(CCallHelpers::Equal, calleeRTT, TrustedImmPtr(signatureRTT.get()));
-    rttEqual.linkTo(returnLabel, &m_jit);
-
-    displaySmallerThanParent.link(&m_jit);
-    emitThrowException(ExceptionType::BadSignature);
-}
-
 PartialResult WARN_UNUSED_RETURN BBQJIT::addCallIndirect(unsigned tableIndex, const TypeDefinition& originalSignature, ArgumentList& args, ResultList& results, CallType callType)
 {
     Value calleeIndex = args.takeLast();
@@ -4556,7 +4521,7 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::addCallIndirect(unsigned tableIndex, co
             ASSERT(calleeIndexLocation.isGPR());
 
             JIT_COMMENT(m_jit, "Check the index we are looking for is valid");
-            throwExceptionIf(ExceptionType::OutOfBoundsCallIndirect, m_jit.branch32(RelationalCondition::AboveOrEqual, calleeIndexLocation.asGPR(), callableFunctionBufferLength));
+            recordJumpToThrowException(ExceptionType::OutOfBoundsCallIndirect, m_jit.branch32(RelationalCondition::AboveOrEqual, calleeIndexLocation.asGPR(), callableFunctionBufferLength));
 
             // Neither callableFunctionBuffer nor callableFunctionBufferLength are used before any of these
             // are def'd below, so we can reuse the registers and save some pressure.
@@ -4605,7 +4570,7 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::addCallIndirect(unsigned tableIndex, co
             auto calleeSignatureIndexTmp = scratches.gpr(2);
             m_jit.loadPairPtr(calleeSignatureIndex, TrustedImm32(FuncRefTable::Function::offsetOfFunction() + WasmToWasmImportableFunction::offsetOfEntrypointLoadLocation()), calleeCode, calleeSignatureIndexTmp);
 
-            throwExceptionIf(ExceptionType::NullTableEntry, m_jit.branchTestPtr(ResultCondition::Zero, calleeSignatureIndexTmp, calleeSignatureIndexTmp));
+            recordJumpToThrowException(ExceptionType::NullTableEntry, m_jit.branchTestPtr(ResultCondition::Zero, calleeSignatureIndexTmp, calleeSignatureIndexTmp));
 
             {
                 auto calleeTmp = calleeInstance;
@@ -4618,9 +4583,13 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::addCallIndirect(unsigned tableIndex, co
 
             auto indexEqual = m_jit.branchPtr(CCallHelpers::Equal, calleeSignatureIndexTmp, TrustedImmPtr(TypeInformation::get(originalSignature)));
 
-            if (needsSubtypeCheck)
-                addRTTSlowPathJump(originalSignature.index(), calleeRTT);
-            else
+            if (needsSubtypeCheck) {
+                auto targetRTT = TypeInformation::getCanonicalRTT(originalSignature.index());
+                JIT_COMMENT(m_jit, "RTT::isStrictSubRTT()");
+                m_jit.loadPtr(Address(calleeRTT, FuncRefTable::Function::offsetOfFunction() + WasmToWasmImportableFunction::offsetOfRTT()), calleeRTT);
+                recordJumpToThrowException(ExceptionType::BadSignature, m_jit.branch32(CCallHelpers::BelowOrEqual, Address(calleeRTT, RTT::offsetOfDisplaySizeExcludingThis()), TrustedImm32(targetRTT->displaySizeExcludingThis())));
+                recordJumpToThrowException(ExceptionType::BadSignature, m_jit.branchPtr(CCallHelpers::NotEqual, CCallHelpers::Address(calleeRTT, RTT::offsetOfData() + targetRTT->displaySizeExcludingThis() * sizeof(const RTT*)), TrustedImmPtr(targetRTT.ptr())));
+            } else
                 emitThrowException(ExceptionType::BadSignature);
 
             indexEqual.link(&m_jit);

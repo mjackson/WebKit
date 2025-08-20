@@ -145,7 +145,7 @@ void Navigation::initializeForNewWindow(std::optional<NavigationNavigationType> 
             if (navigationType == NavigationNavigationType::Traverse) {
                 m_currentEntryIndex = getEntryIndexOfHistoryItem(m_entries, *currentItem);
                 if (m_currentEntryIndex) {
-                    updateForActivation(frame()->loader().history().protectedPreviousItem().get(), navigationType);
+                    setActivation(frame()->loader().history().protectedPreviousItem().get(), navigationType);
                     return;
                 }
                 // We are doing a cross document subframe traversal, we can't rely on previous window, so clear
@@ -200,11 +200,11 @@ void Navigation::initializeForNewWindow(std::optional<NavigationNavigationType> 
         m_entries.append(NavigationHistoryEntry::create(*this, WTFMove(item)));
 
     m_currentEntryIndex = getEntryIndexOfHistoryItem(m_entries, *currentItem, start);
-    updateForActivation(frame()->loader().history().protectedPreviousItem().get(), navigationType);
+    setActivation(frame()->loader().history().protectedPreviousItem().get(), navigationType);
 }
 
 // https://html.spec.whatwg.org/multipage/nav-history-apis.html#navigation-activation
-void Navigation::updateForActivation(HistoryItem* previousItem, std::optional<NavigationNavigationType> type)
+void Navigation::setActivation(HistoryItem* previousItem, std::optional<NavigationNavigationType> type)
 {
     ASSERT(!m_activation);
     if (hasEntriesAndEventsDisabled() || !type)
@@ -720,7 +720,7 @@ void Navigation::updateForNavigation(Ref<HistoryItem>&& item, NavigationNavigati
 }
 
 // https://html.spec.whatwg.org/multipage/nav-history-apis.html#update-the-navigation-api-entries-for-reactivation
-void Navigation::updateForReactivation(Vector<Ref<HistoryItem>>& newHistoryItems, HistoryItem& reactivatedItem)
+void Navigation::updateForReactivation(Vector<Ref<HistoryItem>>&& newHistoryItems, HistoryItem& reactivatedItem, HistoryItem* previousItem)
 {
     if (hasEntriesAndEventsDisabled())
         return;
@@ -751,6 +751,12 @@ void Navigation::updateForReactivation(Vector<Ref<HistoryItem>>& newHistoryItems
 
     for (auto& disposedEntry : oldEntries)
         disposedEntry->dispatchDisposeEvent();
+
+    // Clear any existing activation before setting a new one for BFCache restore.
+    m_activation = nullptr;
+
+    // Update activation for BFCache restore with traverse navigation type.
+    setActivation(previousItem, NavigationNavigationType::Traverse);
 }
 
 // https://html.spec.whatwg.org/multipage/nav-history-apis.html#can-have-its-url-rewritten
@@ -759,8 +765,12 @@ static bool documentCanHaveURLRewritten(const Document& document, const URL& tar
     const URL& documentURL = document.url();
     Ref documentOrigin = document.securityOrigin();
     auto targetOrigin = SecurityOrigin::create(targetURL);
+    bool isSameSite = documentOrigin->isSameSiteAs(targetOrigin);
+    bool isSameOrigin = documentOrigin->isSameOriginAs(targetOrigin);
 
-    if (!documentOrigin->isSameSiteAs(targetOrigin))
+    // For cross-window navigation with document.domain, we need to check same-origin rather than same-site
+    // to account for document.domain modifications that make cross-origin windows same-origin-domain
+    if (!isSameSite && !isSameOrigin)
         return false;
 
     if (targetURL.protocolIsInHTTPFamily())
@@ -1046,7 +1056,8 @@ Navigation::DispatchResult Navigation::innerDispatchNavigateEvent(NavigationNavi
             if (callbackResult.type() != CallbackResultType::UnableToExecute) {
                 auto promise = callbackResult.releaseReturnValue();
                 // Because rejection is reported as `navigateerror` event, we can mark this as handled.
-                promise->markAsHandled();
+                if (!promise->isSuspended())
+                    promise->markAsHandled();
                 promiseList.append(WTFMove(promise));
             }
         }

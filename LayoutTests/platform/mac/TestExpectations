@@ -952,8 +952,6 @@ webkit.org/b/187103 js/error-should-not-strong-reference-global-object.html [ Pa
 webkit.org/b/155505 http/tests/security/contentSecurityPolicy/userAgentShadowDOM/allow-audio.html [ Skip ]
 webkit.org/b/155505 http/tests/security/contentSecurityPolicy/userAgentShadowDOM/allow-video.html [ Skip ]
 
-webkit.org/b/154688 inspector/controller/runtime-controller.html [ Pass Timeout ]
-
 webkit.org/b/156351 storage/indexeddb/modern/autoincrement-abort-private.html [ Pass Timeout ]
 
 webkit.org/b/156983 media/video-fullscreen-restriction-removed.html [ Pass Failure ]
@@ -1281,6 +1279,8 @@ http/tests/cookies/same-site [ Pass ]
 
 # FIXME: Mark as Pass once <rdar://problem/47165939> is fixed.
 http/tests/cookies/only-accept-first-party-cookies.html [ Skip ]
+
+http/tests/resourceLoadStatistics/only-partitioned-cookies-after-redirect-fetch.https.html [ Skip ]
 
 # FIXME: Mark as Pass once the fix for <rdar://problem/42255251> is shipped.
 http/tests/cookies/same-site/set-first-party-cross-site-cookies.py [ Skip ]
@@ -2501,12 +2501,13 @@ webkit.org/b/297067 fast/forms/state-restore-form-associated-custom-elements.htm
 
 webkit.org/b/297131 imported/w3c/web-platform-tests/web-locks/storage-buckets.tentative.https.any.worker.html [ Pass Failure ]
 
-# webkit.org/b/296017 5x imported/w3c/web-platform-tests/css/css-shapes/shape-outside/shape-image/shape-image (layout-tests) are flakey image failures
+# webkit.org/b/296017 6x imported/w3c/web-platform-tests/css/css-shapes/shape-outside/shape-image/shape-image (layout-tests) are flakey image failures
 [ Release ] imported/w3c/web-platform-tests/css/css-shapes/shape-outside/shape-image/shape-image-006.html [ Pass ImageOnlyFailure ]
 [ Release ] imported/w3c/web-platform-tests/css/css-shapes/shape-outside/shape-image/shape-image-022.html [ Pass ImageOnlyFailure ]
 [ Release ] imported/w3c/web-platform-tests/css/css-shapes/shape-outside/shape-image/shape-image-021.html [ Pass ImageOnlyFailure ]
 [ Release ] imported/w3c/web-platform-tests/css/css-shapes/shape-outside/shape-image/shape-image-007.html [ Pass ImageOnlyFailure ]
 [ Release ] imported/w3c/web-platform-tests/css/css-shapes/shape-outside/shape-image/shape-image-026.html [ Pass ImageOnlyFailure ]
+[ Release ] imported/w3c/web-platform-tests/css/css-shapes/shape-outside/shape-image/shape-image-014.html [ Pass ImageOnlyFailure ]
 
 # webkit.org/b/297276 4x New Test(292044@main): [ macOS ] 4x imported/w3c/web-platform-tests/css/css-text-decor/ (layout-tests) tests are constant image failures
 imported/w3c/web-platform-tests/css/css-text-decor/text-emphasis-position-over-left-001.xht [ ImageOnlyFailure ]
@@ -2517,3 +2518,9 @@ imported/w3c/web-platform-tests/css/css-text-decor/text-emphasis-position-under-
 webkit.org/b/297346 workers/message-port-gc.html [ Pass Crash ]
 
 webkit.org/b/297434 imported/w3c/web-platform-tests/event-timing/retrievability.html [ Pass Failure ]
+
+webkit.org/b/294931 ipc/LocalSampleBufferDisplayLayer-LogIdentifier-data-race-uaf.html [ Skip ]
+
+webkit.org/b/297551 imported/w3c/web-platform-tests/event-timing/buffered-and-duration-threshold.html [ Pass Failure ] 
+
+webkit.org/b/297609 compositing/backing/backing-store-attachment-empty-keyframe.html [ Pass Failure ]

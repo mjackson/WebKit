@@ -8721,6 +8721,17 @@ void WebPage::clearPageLevelStorageAccess()
     m_internals->domainsWithPageLevelStorageAccess.clear();
 }
 
+void WebPage::revokeFrameSpecificStorageAccess()
+{
+    for (RefPtr frame = m_mainFrame->coreFrame(); frame; frame = frame->tree().traverseNext()) {
+        RefPtr localFrame = dynamicDowncast<LocalFrame>(frame);
+        if (!localFrame)
+            continue;
+        if (auto* client = dynamicDowncast<WebLocalFrameLoaderClient>(localFrame->loader().client()))
+            client->revokeFrameSpecificStorageAccess();
+    }
+}
+
 void WebPage::wasLoadedWithDataTransferFromPrevalentResource()
 {
     if (RefPtr localTopDocument = this->localTopDocument())
@@ -10050,9 +10061,14 @@ void WebPage::requestAllTargetableElements(float hitTestInterval, CompletionHand
     completion(page->checkedElementTargetingController()->findAllTargets(hitTestInterval));
 }
 
-void WebPage::requestTextExtraction(std::optional<FloatRect>&& collectionRectInRootView, CompletionHandler<void(TextExtraction::Item&&)>&& completion)
+void WebPage::requestTextExtraction(TextExtraction::Request&& request, CompletionHandler<void(TextExtraction::Item&&)>&& completion)
 {
-    completion(TextExtraction::extractItem(WTFMove(collectionRectInRootView), Ref { *corePage() }));
+    completion(TextExtraction::extractItem(WTFMove(request), Ref { *corePage() }));
+}
+
+void WebPage::handleTextExtractionInteraction(TextExtraction::Interaction&& interaction, CompletionHandler<void(bool)>&& completion)
+{
+    TextExtraction::handleInteraction(WTFMove(interaction), Ref { *corePage() }, WTFMove(completion));
 }
 
 template<typename T> T WebPage::contentsToRootView(WebCore::FrameIdentifier frameID, T geometry)

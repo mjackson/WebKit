@@ -29,14 +29,15 @@
 #include "config.h"
 #include "AccessibilityNodeObject.h"
 
+#include "AXAttachmentHelpers.h"
+#include "AXListHelpers.h"
 #include "AXLogger.h"
 #include "AXLoggerBase.h"
+#include "AXNotifications.h"
 #include "AXObjectCache.h"
 #include "AXUtilities.h"
 #include "AccessibilityImageMapLink.h"
 #include "AccessibilityLabel.h"
-#include "AccessibilityList.h"
-#include "AccessibilityListBox.h"
 #include "AccessibilityMediaHelpers.h"
 #include "AccessibilitySpinButton.h"
 #include "AccessibilityTable.h"
@@ -52,6 +53,7 @@
 #include "FloatRect.h"
 #include "FrameLoader.h"
 #include "FrameSelection.h"
+#include "HTMLAttachmentElement.h"
 #include "HTMLAudioElement.h"
 #include "HTMLButtonElement.h"
 #include "HTMLCanvasElement.h"
@@ -84,7 +86,11 @@
 #include "NodeList.h"
 #include "NodeTraversal.h"
 #include "ProgressTracker.h"
+#include "RenderElementInlines.h"
 #include "RenderImage.h"
+#include "RenderListBox.h"
+#include "RenderListItem.h"
+#include "RenderStyleInlines.h"
 #include "RenderTableCell.h"
 #include "RenderView.h"
 #include "SVGElement.h"
@@ -308,6 +314,81 @@ LocalFrameView* AccessibilityNodeObject::documentFrameView() const
         return node->document().view();
     return AccessibilityObject::documentFrameView();
 }
+
+AccessibilityRole AccessibilityNodeObject::determineListRoleWithCleanChildren()
+{
+    if (!isAccessibilityList())
+        return AccessibilityRole::Unknown;
+
+    ASSERT(!needsToUpdateChildren() && childrenInitialized());
+
+    m_ariaRole = determineAriaRoleAttribute();
+    // Directory is mapped to list for now, but does not adhere to the same heuristics.
+    if (ariaRoleAttribute() == AccessibilityRole::Directory)
+        return AccessibilityRole::List;
+
+    // Heuristic to determine if an ambiguous list is relevant to convey to the accessibility tree.
+    //   1. If it's an ordered list or has role="list" defined, then it's a list.
+    //      1a. Unless the list has no children, then it's not a list.
+    //   2. If it is contained in <nav> or <el role="navigation">, it's a list.
+    //   3. If it displays visible list markers, it's a list.
+    //   4. If it does not display list markers, it's not a list.
+    //   5. If it has one or zero listitem children, it's not a list.
+    //   6. Otherwise it's a list.
+
+    auto role = AccessibilityRole::List;
+
+    // Temporarily set role so that we can query children (otherwise canHaveChildren returns false).
+    SetForScope temporaryRole(m_role, role);
+
+    unsigned listItemCount = 0;
+    bool hasVisibleMarkers = false;
+
+    const auto& children = unignoredChildren();
+    // DescriptionLists are always semantically a description list, so do not apply heuristics.
+    if (isDescriptionList() && children.size())
+        return AccessibilityRole::DescriptionList;
+
+    for (const auto& child : children) {
+        RefPtr node = child->node();
+        RefPtr axChild = dynamicDowncast<AccessibilityObject>(child.get());
+        if (axChild && axChild->ariaRoleAttribute() == AccessibilityRole::ListItem)
+            listItemCount++;
+        else if (child->role() == AccessibilityRole::ListItem) {
+            // Rendered list items always count.
+            if (CheckedPtr renderListItem = dynamicDowncast<RenderListItem>(child->renderer())) {
+                if (!hasVisibleMarkers && (!renderListItem->style().listStyleType().isNone() || renderListItem->style().listStyleImage() || (renderListItem->element() && AXListHelpers::childHasPseudoVisibleListItemMarkers(*renderListItem->element()))))
+                    hasVisibleMarkers = true;
+                listItemCount++;
+            } else if (WebCore::elementName(node.get()) == ElementName::HTML_li) {
+                // Inline elements that are in a list with an explicit role should also count.
+                if (ariaRoleAttribute() == AccessibilityRole::List)
+                    listItemCount++;
+
+                if (node && AXListHelpers::childHasPseudoVisibleListItemMarkers(*node)) {
+                    hasVisibleMarkers = true;
+                    listItemCount++;
+                }
+            }
+        }
+    }
+
+    // Non <ul> lists and ARIA lists only need to have one child.
+    // <ul>, <ol> lists need to have visible markers.
+    if (ariaRoleAttribute() != AccessibilityRole::Unknown) {
+        if (!listItemCount)
+            role = AccessibilityRole::Group;
+    } else if (!hasVisibleMarkers) {
+        // http://webkit.org/b/193382 lists inside of navigation hierarchies should still be considered lists.
+        if (Accessibility::findAncestor<AccessibilityObject>(*this, false, [] (auto& object) { return object.role() == AccessibilityRole::LandmarkNavigation; }))
+            role = AccessibilityRole::List;
+        else
+            role = AccessibilityRole::Group;
+    }
+
+    return role;
+}
+
 
 AccessibilityRole AccessibilityNodeObject::determineAccessibilityRole()
 {
@@ -696,19 +777,34 @@ bool AccessibilityNodeObject::canHaveChildren() const
 AXCoreObject::AccessibilityChildrenVector AccessibilityNodeObject::visibleChildren()
 {
     // Only listboxes are asked for their visible children.
-    // Native list boxes would be AccessibilityListBoxes, so only check for aria list boxes.
-    if (ariaRoleAttribute() != AccessibilityRole::ListBox)
-        return { };
-
-    if (!childrenInitialized())
-        addChildren();
-
-    AccessibilityChildrenVector result;
-    for (const auto& child : unignoredChildren()) {
-        if (!child->isOffScreen())
-            result.append(child);
+    CheckedPtr renderListBox = dynamicDowncast<RenderListBox>(renderer());
+    if (!renderListBox && ariaRoleAttribute() == AccessibilityRole::ListBox) {
+        if (!childrenInitialized())
+            addChildren();
+        AccessibilityChildrenVector result;
+        for (const auto& child : unignoredChildren()) {
+            if (!child->isOffScreen())
+                result.append(child);
+        }
+        return result;
     }
-    return result;
+
+    // Handle native listboxes (RenderListBox).
+    if (renderListBox && role() == AccessibilityRole::ListBox) {
+        if (!childrenInitialized())
+            addChildren();
+
+        const auto& children = const_cast<AccessibilityNodeObject*>(this)->unignoredChildren();
+        AXCoreObject::AccessibilityChildrenVector result;
+        size_t size = children.size();
+        for (size_t i = 0; i < size; i++) {
+            if (renderListBox->listIndexIsVisible(i))
+                result.append(children[i]);
+        }
+        return result;
+    }
+
+    return { };
 }
 
 bool AccessibilityNodeObject::computeIsIgnored() const
@@ -1042,6 +1138,14 @@ float AccessibilityNodeObject::valueForRange() const
     if (RefPtr input = dynamicDowncast<HTMLInputElement>(node()); input && input->isRangeControl())
         return input->valueAsNumber();
 
+#if ENABLE(ATTACHMENT_ELEMENT)
+    if (RefPtr attachmentElement = dynamicDowncast<HTMLAttachmentElement>(node())) {
+        float progress = 0;
+        if (AXAttachmentHelpers::hasProgress(*attachmentElement, &progress))
+            return progress;
+    }
+#endif
+
     if (!isRangeControl())
         return 0.0f;
 
@@ -1053,6 +1157,15 @@ float AccessibilityNodeObject::valueForRange() const
 
     return isSpinButton() ? 0 : std::midpoint(minValueForRange(), maxValueForRange());
 }
+
+#if ENABLE(ATTACHMENT_ELEMENT)
+bool AccessibilityNodeObject::hasProgress() const
+{
+    if (RefPtr attachmentElement = dynamicDowncast<HTMLAttachmentElement>(node()))
+        return AXAttachmentHelpers::hasProgress(*attachmentElement);
+    return false;
+}
+#endif
 
 float AccessibilityNodeObject::maxValueForRange() const
 {
@@ -2000,6 +2113,13 @@ void AccessibilityNodeObject::helpText(Vector<AccessibilityText>& textOrder) con
 
 void AccessibilityNodeObject::accessibilityText(Vector<AccessibilityText>& textOrder) const
 {
+#if ENABLE(ATTACHMENT_ELEMENT)
+    if (RefPtr attachmentElement = dynamicDowncast<HTMLAttachmentElement>(node())) {
+        AXAttachmentHelpers::accessibilityText(*attachmentElement, textOrder);
+        return;
+    }
+#endif
+
     labelText(textOrder);
     alternativeText(textOrder);
     visibleText(textOrder);
@@ -2229,7 +2349,7 @@ static bool shouldUseAccessibilityObjectInnerText(AccessibilityObject& object, T
         return false;
 
     // Skip big container elements like lists, tables, etc.
-    if (is<AccessibilityList>(object))
+    if (object.isAccessibilityList())
         return false;
 
     if (auto* table = dynamicDowncast<AccessibilityTable>(object); table && table->isExposable())
@@ -2869,6 +2989,23 @@ AccessibilityRole AccessibilityNodeObject::remapAriaRoleDueToParent(Accessibilit
     return role;
 }
 
+void AccessibilityNodeObject::setSelectedChildren(const AccessibilityChildrenVector& children)
+{
+    if (role() != AccessibilityRole::ListBox || !canSetSelectedChildren())
+        return;
+
+    // Unselect any selected option.
+    for (const auto& child : unignoredChildren()) {
+        if (child->isSelected())
+            child->setSelected(false);
+    }
+
+    for (const auto& object : children) {
+        if (object->isListBoxOption())
+            object->setSelected(true);
+    }
+}
+
 bool AccessibilityNodeObject::canSetSelectedAttribute() const
 {
     if (isColumnHeader())
@@ -2894,6 +3031,31 @@ bool AccessibilityNodeObject::canSetSelectedAttribute() const
     default:
         return false;
     }
+}
+
+bool AccessibilityNodeObject::isAccessibilityList() const
+{
+    RefPtr element = this->element();
+    return element ? AXListHelpers::isAccessibilityList(*element) : false;
+}
+
+bool AccessibilityNodeObject::isUnorderedList() const
+{
+    if (ariaRoleAttribute() == AccessibilityRole::List)
+        return true;
+
+    auto elementName = this->elementName();
+    return elementName == ElementName::HTML_menu || elementName == ElementName::HTML_ul;
+}
+
+bool AccessibilityNodeObject::isOrderedList() const
+{
+    return ariaRoleAttribute() == AccessibilityRole::Directory || elementName() == ElementName::HTML_ol;
+}
+
+bool AccessibilityNodeObject::isDescriptionList() const
+{
+    return elementName() == ElementName::HTML_dl;
 }
 
 namespace Accessibility {
