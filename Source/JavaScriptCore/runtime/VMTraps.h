@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include <JavaScriptCore/StackManager.h>
+#include "StackManager.h"
 #include <wtf/AutomaticThread.h>
 #include <wtf/Box.h>
 #include <wtf/Expected.h>

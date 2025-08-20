@@ -158,21 +158,6 @@ const getBuildFlags = (config: BuildConfig) => {
 const getBuildEnv = () => {
   const env = { ...process.env };
 
-  const cflags = ["-ffat-lto-objects"];
-  const cxxflags = ["-ffat-lto-objects"];
-
-  if (IS_LINUX && buildConfig !== "lto") {
-    cflags.push("-Wl,--whole-archive");
-    cxxflags.push(
-      "-Wl,--whole-archive",
-      "-DUSE_BUN_JSC_ADDITIONS=ON",
-      "-DUSE_BUN_EVENT_LOOP=ON"
-    );
-  }
-
-  env.CFLAGS = (env.CFLAGS || "") + " " + cflags.join(" ");
-  env.CXXFLAGS = (env.CXXFLAGS || "") + " " + cxxflags.join(" ");
-
   if (IS_MAC) {
     env.ICU_INCLUDE_DIRS = `${HOMEBREW_PREFIX}opt/icu4c/include`;
   }
