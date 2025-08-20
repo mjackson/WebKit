@@ -216,6 +216,10 @@ private:
     static constexpr const unsigned s_flagMask = (1u << s_flagCount) - 1;
     static_assert(s_flagCount <= StringHasher::flagCount, "StringHasher reserves enough bits for StringImpl flags");
     static constexpr const unsigned s_flagStringKindCount = 4;
+#if USE(BUN_JSC_ADDITIONS)
+    // TODO: remove once atomic strings are process-wide.
+    static constexpr const unsigned s_hashFlagNeverAtomize = 1u << 6;
+#endif
 
     static constexpr const unsigned s_hashZeroValue = 0;
     static constexpr const unsigned s_hashFlagStringKindIsAtom = 1u << (s_flagStringKindCount);
@@ -341,6 +345,12 @@ public:
     Expected<std::invoke_result_t<Func, std::span<const char8_t>>, UTF8ConversionError> tryGetUTF8(NOESCAPE const Func&, ConversionMode = LenientConversion) const;
     WTF_EXPORT_PRIVATE Expected<CString, UTF8ConversionError> tryGetUTF8(ConversionMode = LenientConversion) const;
     WTF_EXPORT_PRIVATE CString utf8(ConversionMode = LenientConversion) const;
+
+#if USE(BUN_JSC_ADDITIONS)
+    // TODO: remove once atomic strings are process-wide.
+    bool canBecomeAtom() const { return !(m_hashAndFlags & s_hashFlagNeverAtomize); }
+    void setNeverAtomize() { ASSERT(!isAtom()); m_hashAndFlags |= s_hashFlagNeverAtomize; }
+#endif
 
 private:
     // The high bits of 'hash' are always empty, but we prefer to store our flags

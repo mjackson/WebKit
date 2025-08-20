@@ -125,6 +125,14 @@ ALWAYS_INLINE Ref<AtomStringImpl> AtomStringImpl::add(StringImpl& string)
         ASSERT_WITH_MESSAGE(!string.length() || isInAtomStringTable(&string), "The atom string comes from an other thread!");
         return *atom;
     }
+#if USE(BUN_JSC_ADDITIONS)
+    // TODO: remove once atomic strings are process-wide.
+    if (!string.canBecomeAtom()) [[unlikely]] {
+        if (string.is8Bit())
+            return *add(string.span8());
+        return *add(string.span16());
+    }
+#endif
     return addSlowCase(string);
 }
 
@@ -134,6 +142,14 @@ ALWAYS_INLINE Ref<AtomStringImpl> AtomStringImpl::add(Ref<StringImpl>&& string)
         ASSERT_WITH_MESSAGE(!string->length() || isInAtomStringTable(string.ptr()), "The atom string comes from an other thread!");
         return static_reference_cast<AtomStringImpl>(WTFMove(string));
     }
+#if USE(BUN_JSC_ADDITIONS)
+    // TODO: remove once atomic strings are process-wide.
+    if (!string->canBecomeAtom()) [[unlikely]] {
+        if (string->is8Bit())
+            return *add(string->span8());
+        return *add(string->span16());
+    }
+#endif
     return addSlowCase(WTFMove(string));
 }
 
@@ -143,6 +159,14 @@ ALWAYS_INLINE Ref<AtomStringImpl> AtomStringImpl::add(AtomStringTable& stringTab
         ASSERT_WITH_MESSAGE(!string.length() || isInAtomStringTable(&string), "The atom string comes from an other thread!");
         return *atom;
     }
+#if USE(BUN_JSC_ADDITIONS)
+    // TODO: remove once atomic strings are process-wide.
+    if (!string.canBecomeAtom()) [[unlikely]] {
+        if (string.is8Bit())
+            return *add(string.span8());
+        return *add(string.span16());
+    }
+#endif
     return addSlowCase(stringTable, string);
 }
 
