@@ -17,9 +17,9 @@ PASS Commits the intermediate value of an animation up to the middle of the stac
 PASS Commits styles for an animation that has been removed
 PASS Commit composites on top of the underlying value
 PASS Commits logical properties
-FAIL Commits logical properties as physical properties assert_equals: expected "20px" but got "10px"
+PASS Commits logical properties as physical properties
 PASS Commits em units as pixel values
-FAIL Commits custom variables assert_approx_equals: expected 0.8 +/- 0.0001 but got 0.5
+PASS Commits custom variables
 PASS Commits variable references as their computed values
 PASS Commits relative line-height
 PASS Commits transforms

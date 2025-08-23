@@ -8430,8 +8430,10 @@ VideoRendererUseDecompressionSessionForProtected:
     WebKitLegacy:
       default: false
     WebKit:
+      "PLATFORM(VISION)" : true
       default: false
     WebCore:
+      "PLATFORM(VISION)" : true
       default: false
   sharedPreferenceForWebProcess: true
 
