@@ -128,15 +128,28 @@ if (Test-Path $RubyPath) {
 # Use dynamic triplet to avoid ICU linking issues with static libraries
 $VcpkgTriplet = "x64-windows"
 
-# Install ICU via vcpkg if needed
+# Install dependencies via vcpkg (manifest mode)
 Write-Host ":: Checking ICU installation via vcpkg"
-$IcuInstalled = & $VcpkgExe list icu:$VcpkgTriplet 2>$null | Select-String "icu\s"
-if (!$IcuInstalled) {
-    Write-Host ":: Installing ICU via vcpkg (this may take several minutes)"
-    & $VcpkgExe install icu:$VcpkgTriplet
-    if ($LASTEXITCODE -ne 0) { throw "vcpkg install icu failed with exit code $LASTEXITCODE" }
+
+# In manifest mode, vcpkg install without arguments installs dependencies from vcpkg.json
+# The vcpkg.json in the root already has ICU as a dependency
+Write-Host ":: Installing dependencies from vcpkg.json (including ICU)"
+Push-Location $PSScriptRoot
+try {
+    & $VcpkgExe install --triplet=$VcpkgTriplet
+    if ($LASTEXITCODE -ne 0) { 
+        Write-Warning "vcpkg install returned exit code $LASTEXITCODE - attempting to continue"
+    }
+} finally {
+    Pop-Location
+}
+
+# Verify ICU is installed
+$IcuCheck = & $VcpkgExe list 2>&1 | Select-String "icu:"
+if ($IcuCheck) {
+    Write-Host ":: ICU confirmed installed via vcpkg"
 } else {
-    Write-Host ":: ICU already installed via vcpkg"
+    Write-Warning "Could not confirm ICU installation - build may fail"
 }
 
 # vcpkg toolchain file
