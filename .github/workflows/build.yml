@@ -574,7 +574,7 @@ jobs:
           mv ${{runner.temp}}/bun-webkit-linux-arm64-musl-lto/bun-webkit.tar.gz ./out/bun-webkit-linux-arm64-musl-lto.tar.gz
           mv ${{runner.temp}}/bun-webkit-windows-amd64/bun-webkit.tar.gz ./out/bun-webkit-windows-amd64.tar.gz
           mv ${{runner.temp}}/bun-webkit-windows-amd64-debug/bun-webkit.tar.gz ./out/bun-webkit-windows-amd64-debug.tar.gz
-          mv ${{runner.temp}}/bun-webkit-windows-amd64-asan/bun-webkit-asan.tar.gz ./out/bun-webkit-windows-amd64-asan.tar.gz
+          mv ${{runner.temp}}/bun-webkit-windows-amd64-asan/bun-webkit.tar.gz ./out/bun-webkit-windows-amd64-asan.tar.gz
       - name: Release
         uses: softprops/action-gh-release@v1
         with:

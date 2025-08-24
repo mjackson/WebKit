@@ -89,9 +89,9 @@ $BUN_WEBKIT_VERSION = if ($env:BUN_WEBKIT_VERSION) { $env:BUN_WEBKIT_VERSION } e
 # Handle ASAN builds
 $EnableSanitizers = $false
 if ($Configuration -eq "ASAN") {
-    $CMAKE_BUILD_TYPE = "Release"  # ASAN requires release runtime (/MD), not debug (/MDd)
     $EnableSanitizers = $true
-    Write-Host ":: Building with AddressSanitizer enabled"
+    $CMAKE_BUILD_TYPE = "Release"  # ASAN uses Release mode for better performance
+    Write-Host ":: Building with AddressSanitizer enabled (Release)"
 }
 
 $null = mkdir $WebKitBuild -ErrorAction SilentlyContinue
@@ -171,8 +171,8 @@ if ($CMAKE_BUILD_TYPE -eq "Debug") {
 $AsanFlags = ""
 if ($EnableSanitizers) {
     $AsanFlags = " -fsanitize=address"
-    # For ASAN, we need to use dynamic runtime but NOT the debug version
-    $CmakeMsvcRuntimeLibrary = "MultiThreadedDLL"  # /MD, not /MDd - ASAN doesn't support debug runtime
+    # ASAN requires dynamic runtime and works best with release runtime
+    $CmakeMsvcRuntimeLibrary = "MultiThreadedDLL"  # /MD
 }
 
 $NoWebassembly = if ($env:NO_WEBASSEMBLY) { $env:NO_WEBASSEMBLY } else { $false }
