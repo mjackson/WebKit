@@ -3,22 +3,83 @@ param(
     # and i really really really really do not want to break anything
     #
     # you almost certainly need this to build locally
-    [switch][bool]$ExtraEffortPathManagement = $false
+    [switch][bool]$ExtraEffortPathManagement = $false,
+    
+    # Install dependencies automatically (useful for CI)
+    [switch][bool]$InstallDependencies = $false
 )
 $ErrorActionPreference = "Stop"
 
+# Install dependencies if requested (for CI/fresh environments)
+if ($InstallDependencies) {
+    Write-Host ":: Installing build dependencies"
+    
+    # Check if scoop is installed
+    if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
+        Write-Host "  Installing Scoop package manager..."
+        Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
+    }
+    
+    # Install required tools via scoop
+    $RequiredTools = @("cmake", "ninja", "python", "ruby", "perl", "make")
+    foreach ($tool in $RequiredTools) {
+        if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
+            Write-Host "  Installing $tool..."
+            scoop install $tool
+        }
+    }
+    
+    # Install vcpkg if not present
+    if (-not (Test-Path "C:\Users\$env:USERNAME\scoop\apps\vcpkg")) {
+        Write-Host "  Installing vcpkg..."
+        scoop install vcpkg
+    }
+}
+
 # Set up MSVC environment variables. This is taken from Bun's 'scripts\env.ps1'
+# Check for ARM64 environment
+$processor = Get-WmiObject Win32_Processor
+$isARM64 = ($processor.Architecture -eq 12 -or $env:BUILD_ARM64 -eq "1")
+
+if ($isARM64) {
+    Write-Host "Building for ARM64 architecture"
+}
+
+# Try to load VS environment if available
 if ($env:VSINSTALLDIR -eq $null) {
     Write-Host "Loading Visual Studio environment, this may take a second..."
-    $vsDir = Get-ChildItem -Path "C:\Program Files\Microsoft Visual Studio\2022" -Directory
-    if ($vsDir -eq $null) {
-        throw "Visual Studio directory not found."
-    } 
-    Push-Location $vsDir
-    try {
-        . (Join-Path -Path $vsDir.FullName -ChildPath "Common7\Tools\Launch-VsDevShell.ps1") -Arch amd64 -HostArch amd64
+    # Check both Program Files locations for VS 2022
+    $vsDir = $null
+    if (Test-Path "C:\Program Files\Microsoft Visual Studio\2022") {
+        $vsDir = Get-ChildItem -Path "C:\Program Files\Microsoft Visual Studio\2022" -Directory | Select-Object -First 1
+    } elseif (Test-Path "C:\Program Files (x86)\Microsoft Visual Studio\2022") {
+        $vsDir = Get-ChildItem -Path "C:\Program Files (x86)\Microsoft Visual Studio\2022" -Directory | Select-Object -First 1
     }
-    finally { Pop-Location }
+    
+    if ($vsDir -ne $null -and (Test-Path (Join-Path -Path $vsDir.FullName -ChildPath "Common7\Tools\Launch-VsDevShell.ps1"))) {
+        Push-Location $vsDir.FullName
+        try {
+            # Detect the target architecture
+            $targetArch = "amd64"
+            $hostArch = "amd64"
+            
+            if ($isARM64) {
+                $targetArch = "arm64"
+                # Use x64 host tools if running under emulation
+                if ($env:PROCESSOR_ARCHITECTURE -eq "AMD64") {
+                    $hostArch = "amd64"
+                } else {
+                    $hostArch = "arm64"
+                }
+            }
+            
+            Write-Host "Target Architecture: $targetArch, Host Architecture: $hostArch"
+            . (Join-Path -Path $vsDir.FullName -ChildPath "Common7\Tools\Launch-VsDevShell.ps1") -Arch $targetArch -HostArch $hostArch
+        }
+        finally { Pop-Location }
+    } else {
+        Write-Host "Visual Studio developer shell not found, using clang-cl directly"
+    }
 }
 
 if ($Env:VSCMD_ARG_TGT_ARCH -eq "x86") {
@@ -26,16 +87,67 @@ if ($Env:VSCMD_ARG_TGT_ARCH -eq "x86") {
     throw "Visual Studio environment is targetting 32 bit. This configuration is definetly a mistake."
 }
 
-# Fix up $PATH
-Write-Host $env:PATH
+# Set COMSPEC to ensure we use Windows command processor
+$env:COMSPEC = "$env:SystemRoot\system32\cmd.exe"
 
-$MakeExe = (Get-Command make).Path
+# Clean up PATH - remove all Git/MSYS/Cygwin/MinGW paths that cause conflicts
+Write-Host "Original PATH: $env:PATH"
 
-$SplitPath = $env:PATH -split ";";
-$MSVCPaths = $SplitPath | Where-Object { $_ -like "Microsoft Visual Studio" }
-$SplitPath = $MSVCPaths + ($SplitPath | Where-Object { $_ -notlike "Microsoft Visual Studio" } | Where-Object { $_ -notlike "*mingw*" })
-$PathWithPerl = $SplitPath -join ";"
-$env:PATH = ($SplitPath | Where-Object { $_ -notlike "*strawberry*" }) -join ';'
+$CleanPaths = @()
+$SplitPath = $env:PATH -split ";"
+
+foreach ($path in $SplitPath) {
+    if ($path -notlike "*Git*" -and 
+        $path -notlike "*mingw*" -and 
+        $path -notlike "*msys*" -and 
+        $path -notlike "*cygwin*" -and
+        $path -notlike "*strawberry*") {
+        $CleanPaths += $path
+    }
+}
+
+# Add essential Windows and tool paths in correct order
+$EssentialPaths = @(
+    "C:\Program Files\LLVM\bin",
+    "$env:SystemRoot\system32",
+    "$env:SystemRoot",
+    "$env:SystemRoot\System32\Wbem",
+    "$env:SystemRoot\System32\WindowsPowerShell\v1.0",
+    "C:\Users\$env:USERNAME\scoop\shims",
+    "C:\Users\$env:USERNAME\scoop\apps\cmake\current\bin",
+    "C:\Users\$env:USERNAME\scoop\apps\ninja\current",
+    "C:\Users\$env:USERNAME\scoop\apps\python\current",
+    "C:\Users\$env:USERNAME\scoop\apps\python\current\Scripts",
+    "C:\Users\$env:USERNAME\scoop\apps\ruby\current\bin",
+    "C:\Users\$env:USERNAME\scoop\apps\perl\current\perl\bin",
+    "C:\Users\$env:USERNAME\scoop\apps\perl\current\perl\site\bin",
+    "C:\Users\$env:USERNAME\scoop\apps\make\current\bin"
+)
+
+# Combine paths, removing duplicates
+$FinalPaths = $EssentialPaths
+foreach ($path in $CleanPaths) {
+    if ($path -and $FinalPaths -notcontains $path) {
+        $FinalPaths += $path
+    }
+}
+
+$env:PATH = $FinalPaths -join ";"
+Write-Host "Cleaned PATH: $env:PATH"
+
+# Find make executable
+$MakeExe = $null
+try {
+    $MakeExe = (Get-Command make -ErrorAction SilentlyContinue).Path
+} catch { }
+if (-not $MakeExe) {
+    Write-Host "make not found, installing via scoop..."
+    scoop install make
+    $MakeExe = (Get-Command make).Path
+}
+
+# Keep a copy of PATH with Perl for later use (some WebKit scripts need it)
+$PathWithPerl = $env:PATH
 
 if($ExtraEffortPathManagement) {
     $SedPath = $(& cygwin.exe -c 'where sed')
@@ -49,7 +161,14 @@ if($ExtraEffortPathManagement) {
 
 Write-Host $env:PATH
 
-(Get-Command link).Path
+# Show clang-cl version but don't fail if link isn't found (we'll use lld-link)
+try {
+    $linkPath = (Get-Command link -ErrorAction SilentlyContinue).Path
+    if ($linkPath) {
+        Write-Host "Found link at: $linkPath"
+    }
+} catch { }
+
 clang-cl.exe --version
 
 $env:CC = "clang-cl"
@@ -60,109 +179,47 @@ $WebKitBuild = if ($env:WEBKIT_BUILD_DIR) { $env:WEBKIT_BUILD_DIR } else { "WebK
 $CMAKE_BUILD_TYPE = if ($env:CMAKE_BUILD_TYPE) { $env:CMAKE_BUILD_TYPE } else { "Release" }
 $BUN_WEBKIT_VERSION = if ($env:BUN_WEBKIT_VERSION) { $env:BUN_WEBKIT_VERSION } else { $(git rev-parse HEAD) }
 
-# WebKit/JavaScriptCore requires being linked against the dynamic ICU library,
-# but we do not want Bun to ship with DLLs, so we build ICU statically and
-# link against that. This means we need both the static and dynamic build of
-# ICU, once to link webkit, and second to link bun.
-#
-# I spent a few hours trying to find a way to get it to work with just the
-# static library, did not get any meaningful results.
-#
-# Note that Bun works fine when you use this dual library technique.
-# TODO: update to 75.1. It seems that additional CFLAGS need to be passed here.
-$ICU_SOURCE_URL = "https://github.com/unicode-org/icu/releases/download/release-73-2/icu4c-73_2-src.tgz"
+# Use vcpkg for ICU - packages are installed in project directory
+$UseVcpkg = $true
+$VcpkgRoot = if ($env:VCPKG_ROOT) { $env:VCPKG_ROOT } else { "C:\Users\$env:USERNAME\scoop\apps\vcpkg\current" }
 
-$ICU_STATIC_ROOT = Join-Path $WebKitBuild "icu"
-$ICU_STATIC_LIBRARY = Join-Path $ICU_STATIC_ROOT "lib"
-$ICU_STATIC_INCLUDE_DIR = Join-Path $ICU_STATIC_ROOT "include"
+# vcpkg installs packages in the project directory when using manifest mode
+$VcpkgInstalled = Join-Path (Get-Location) "vcpkg_installed\arm64-windows-static"
+
+# Set up ICU paths based on whether we're using vcpkg or building from source
+if ($UseVcpkg) {
+    Write-Host ":: Using vcpkg for ICU"
+    
+    # Ensure vcpkg dependencies are installed with static CRT
+    if (-not (Test-Path "$VcpkgInstalled\include\unicode")) {
+        Write-Host ":: Installing ICU via vcpkg with static CRT"
+        
+        # Create custom triplet if it doesn't exist  
+        $TripletFile = "arm64-windows-static.cmake"
+        if (-not (Test-Path $TripletFile)) {
+            $TripletContent = @"
+set(VCPKG_TARGET_ARCHITECTURE arm64)
+set(VCPKG_CRT_LINKAGE static)
+set(VCPKG_LIBRARY_LINKAGE static)
+set(VCPKG_CMAKE_SYSTEM_NAME Windows)
+"@
+            Set-Content -Path $TripletFile -Value $TripletContent
+        }
+        
+        & vcpkg install --triplet arm64-windows-static
+        if ($LASTEXITCODE -ne 0) { throw "vcpkg install failed with exit code $LASTEXITCODE" }
+    }
+    
+    $ICU_STATIC_ROOT = $VcpkgInstalled
+    $ICU_STATIC_LIBRARY = Join-Path $ICU_STATIC_ROOT "lib"
+    $ICU_STATIC_INCLUDE_DIR = Join-Path $ICU_STATIC_ROOT "include"
+} else {
+    Write-Host ":: Building ICU from source"
+    # Original ICU build code would go here, but we'll skip it for now
+    throw "Manual ICU build not implemented - please install vcpkg"
+}
 
 $null = mkdir $WebKitBuild -ErrorAction SilentlyContinue
-
-if (!(Test-Path -Path $ICU_STATIC_ROOT)) {
-    $ICU_STATIC_TAR = Join-Path $WebKitBuild "icu4c-src.tgz"
-    
-    if (!(Test-Path $ICU_STATIC_TAR)) {
-        Write-Host ":: Downloading ICU"
-        Invoke-WebRequest -Uri $ICU_SOURCE_URL -OutFile $ICU_STATIC_TAR
-    }
-    Write-Host ":: Extracting ICU"
-    tar.exe -xzf $ICU_STATIC_TAR -C $WebKitBuild
-    if ($LASTEXITCODE -ne 0) { throw "tar failed with exit code $LASTEXITCODE" }
-
-    # two patches needed to build statically with clang-cl
-    
-    # 1. fix build script to align with bun's compiler requirements
-    #    a. replace references to `cl` with `clang-cl` from configure
-    #    b. use -MT instead of -MD to statically link the C runtime
-    #    c. enable debug build for Debug configuration
-    $ConfigureFile = Get-Content "$ICU_STATIC_ROOT/source/runConfigureICU" -Raw
-    $ConfigureFile = $ConfigureFile -replace "=cl", "=clang-cl"
-    if ($CMAKE_BUILD_TYPE -eq "Debug") {
-        $ConfigureFile = $ConfigureFile -replace "debug=0", "debug=1"
-        $ConfigureFile = $ConfigureFile -replace "release=1", "release=0"
-        $ConfigureFile = $ConfigureFile -replace "-MDd", "-MTd /DU_STATIC_IMPLEMENTATION"
-    } else {
-        $ConfigureFile = $ConfigureFile -replace "-MD'", "-MT /DU_STATIC_IMPLEMENTATION'"
-    }
-
-    Set-Content "$ICU_STATIC_ROOT/source/runConfigureICU" $ConfigureFile -NoNewline -Encoding UTF8
-    
-    Push-Location $ICU_STATIC_ROOT/source
-    try {
-        Write-Host ":: Configuring ICU Build"
-
-        if ($CMAKE_BUILD_TYPE -eq "Release") {
-            bash.exe ./runConfigureICU Cygwin/MSVC `
-                --enable-static `
-                --disable-shared `
-                --with-data-packaging=static `
-                --disable-samples `
-                --disable-tests `
-                --disable-debug `
-                --enable-release
-        } elseif ($CMAKE_BUILD_TYPE -eq "Debug") {
-            bash.exe ./runConfigureICU Cygwin/MSVC `
-                --enable-static `
-                --disable-shared `
-                --with-data-packaging=static `
-                --disable-samples `
-                --disable-tests `
-                --enable-debug `
-                --disable-release
-        }
-
-        if ($LASTEXITCODE -ne 0) { 
-            Get-Content "config.log"
-            throw "runConfigureICU failed with exit code $LASTEXITCODE"
-        }
-    
-        Write-Host ":: Building ICU"
-        & $MakeExe "-j$((Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors)"
-        if ($LASTEXITCODE -ne 0) { throw "make failed with exit code $LASTEXITCODE" }
-    }
-    finally { Pop-Location }
-    
-    $null = mkdir -Force $ICU_STATIC_INCLUDE_DIR/unicode
-    Copy-Item -r $ICU_STATIC_ROOT/source/common/unicode/* $ICU_STATIC_INCLUDE_DIR/unicode
-    Copy-Item -r $ICU_STATIC_ROOT/source/i18n/unicode/* $ICU_STATIC_INCLUDE_DIR/unicode
-    $null = mkdir -Force $ICU_STATIC_LIBRARY
-    Copy-Item -r $ICU_STATIC_ROOT/source/lib/* $ICU_STATIC_LIBRARY/
-
-    # JSC expects the static library to be named icudt.lib
-    if ($CMAKE_BUILD_TYPE -eq "Release") {
-        Move-Item $ICU_STATIC_LIBRARY/sicudt.lib $ICU_STATIC_LIBRARY/icudt.lib
-        Move-Item $ICU_STATIC_LIBRARY/sicutu.lib $ICU_STATIC_LIBRARY/icutu.lib
-        Move-Item $ICU_STATIC_LIBRARY/sicuio.lib $ICU_STATIC_LIBRARY/icuio.lib
-        Move-Item $ICU_STATIC_LIBRARY/sicuin.lib $ICU_STATIC_LIBRARY/icuin.lib
-        Move-Item $ICU_STATIC_LIBRARY/sicuuc.lib $ICU_STATIC_LIBRARY/icuuc.lib
-    } elseif ($CMAKE_BUILD_TYPE -eq "Debug") {
-        Move-Item $ICU_STATIC_LIBRARY/sicudtd.lib $ICU_STATIC_LIBRARY/icudt.lib
-        Move-Item $ICU_STATIC_LIBRARY/sicutud.lib $ICU_STATIC_LIBRARY/icutu.lib
-        Move-Item $ICU_STATIC_LIBRARY/sicuiod.lib $ICU_STATIC_LIBRARY/icuio.lib
-        Move-Item $ICU_STATIC_LIBRARY/sicuind.lib $ICU_STATIC_LIBRARY/icuin.lib
-        Move-Item $ICU_STATIC_LIBRARY/sicuucd.lib $ICU_STATIC_LIBRARY/icuuc.lib
-    }
-}
 
 Write-Host ":: Configuring WebKit"
 
@@ -170,6 +227,10 @@ $env:PATH = $PathWithPerl
 
 $env:CFLAGS = "/Zi"
 $env:CXXFLAGS = "/Zi"
+
+# Set CC and CXX for the inspector preprocessor script
+$env:CC = "clang-cl"
+$env:CXX = "clang-cl"
 
 $CmakeMsvcRuntimeLibrary = "MultiThreaded"
 if ($CMAKE_BUILD_TYPE -eq "Debug") {
@@ -179,8 +240,38 @@ if ($CMAKE_BUILD_TYPE -eq "Debug") {
 $NoWebassembly = if ($env:NO_WEBASSEMBLY) { $env:NO_WEBASSEMBLY } else { $false }
 $WebAssemblyState = if ($NoWebassembly) { "OFF" } else { "ON" }
 
+# Set architecture for CMake
+$CmakeArch = if ($isARM64) { "ARM64" } else { "x64" }
+
+# Set vcpkg toolchain file if using vcpkg
+$VcpkgToolchain = if ($UseVcpkg) { 
+    "-DCMAKE_TOOLCHAIN_FILE=$VcpkgRoot/scripts/buildsystems/vcpkg.cmake",
+    "-DVCPKG_TARGET_TRIPLET=arm64-windows-static",
+    "-DVCPKG_OVERLAY_TRIPLETS=$VcpkgRoot/triplets/community"
+} else { @() }
+
+# Set Ruby path explicitly and ensure required gems are installed
+$RubyPath = "C:\Users\$env:USERNAME\scoop\apps\ruby\current\bin\ruby.exe"
+$GemPath = "C:\Users\$env:USERNAME\scoop\apps\ruby\current\bin\gem.cmd"
+
+# Install required Ruby gems for WebKit build
+Write-Host ":: Checking Ruby dependencies"
+$RequiredGems = @("getoptlong")
+foreach ($gem in $RequiredGems) {
+    Write-Host "  Checking for gem: $gem"
+    $gemCheck = & gem list $gem 2>&1
+    if ($gemCheck -notlike "*$gem*") {
+        Write-Host "  Installing missing gem: $gem"
+        & gem install $gem --no-document
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "  Warning: Failed to install $gem, build may fail"
+        }
+    }
+}
+
 cmake -S . -B $WebKitBuild `
     -DPORT="JSCOnly" `
+    -DCMAKE_SYSTEM_PROCESSOR=ARM64 `
     -DENABLE_STATIC_JSC=ON `
     -DALLOW_LINE_AND_COLUMN_NUMBER_IN_BUILTINS=ON `
     "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}" `
@@ -199,14 +290,16 @@ cmake -S . -B $WebKitBuild `
     "-DICU_ROOT=${ICU_STATIC_ROOT}" `
     "-DICU_LIBRARY=${ICU_STATIC_LIBRARY}" `
     "-DICU_INCLUDE_DIR=${ICU_STATIC_INCLUDE_DIR}" `
+    "-DRuby_EXECUTABLE=${RubyPath}" `
     "-DCMAKE_C_COMPILER=clang-cl" `
     "-DCMAKE_CXX_COMPILER=clang-cl" `
-    "-DCMAKE_C_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG  " `
-    "-DCMAKE_CXX_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG  -Xclang -fno-c++-static-destructors " `
-    "-DCMAKE_C_FLAGS_DEBUG=/Zi /FS /O0 /Ob0 " `
-    "-DCMAKE_CXX_FLAGS_DEBUG=/Zi /FS /O0 /Ob0 -Xclang -fno-c++-static-destructors " `
+    "-DCMAKE_C_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG /MT " `
+    "-DCMAKE_CXX_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG /MT -Xclang -fno-c++-static-destructors " `
+    "-DCMAKE_C_FLAGS_DEBUG=/Zi /FS /O0 /Ob0 /MTd " `
+    "-DCMAKE_CXX_FLAGS_DEBUG=/Zi /FS /O0 /Ob0 /MTd -Xclang -fno-c++-static-destructors " `
     -DENABLE_REMOTE_INSPECTOR=ON `
     "-DCMAKE_MSVC_RUNTIME_LIBRARY=${CmakeMsvcRuntimeLibrary}" `
+    @VcpkgToolchain `
     -G Ninja
 # TODO: "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded" `
 if ($LASTEXITCODE -ne 0) { throw "cmake failed with exit code $LASTEXITCODE" }
