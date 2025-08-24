@@ -269,9 +269,23 @@ foreach ($gem in $RequiredGems) {
     }
 }
 
+# Check for ccache
+$CcacheLauncher = @()
+$CcachePath = Get-Command ccache -ErrorAction SilentlyContinue
+if ($CcachePath) {
+    Write-Host ":: Found ccache at $($CcachePath.Source), enabling compiler cache"
+    $CcacheLauncher = @(
+        "-DCMAKE_C_COMPILER_LAUNCHER=ccache",
+        "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
+    )
+} else {
+    Write-Host ":: ccache not found, building without compiler cache"
+}
+
 cmake -S . -B $WebKitBuild `
     -DPORT="JSCOnly" `
     -DCMAKE_SYSTEM_PROCESSOR=ARM64 `
+    @CcacheLauncher `
     -DENABLE_STATIC_JSC=ON `
     -DALLOW_LINE_AND_COLUMN_NUMBER_IN_BUILTINS=ON `
     "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}" `
@@ -293,8 +307,8 @@ cmake -S . -B $WebKitBuild `
     "-DRuby_EXECUTABLE=${RubyPath}" `
     "-DCMAKE_C_COMPILER=clang-cl" `
     "-DCMAKE_CXX_COMPILER=clang-cl" `
-    "-DCMAKE_C_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG /MT " `
-    "-DCMAKE_CXX_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG /MT -Xclang -fno-c++-static-destructors " `
+    "-DCMAKE_C_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG /MT /clang:-fno-asynchronous-unwind-tables " `
+    "-DCMAKE_CXX_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG /MT -Xclang -fno-c++-static-destructors /clang:-fno-asynchronous-unwind-tables " `
     "-DCMAKE_C_FLAGS_DEBUG=/Zi /FS /O0 /Ob0 /MTd " `
     "-DCMAKE_CXX_FLAGS_DEBUG=/Zi /FS /O0 /Ob0 /MTd -Xclang -fno-c++-static-destructors " `
     -DENABLE_REMOTE_INSPECTOR=ON `
