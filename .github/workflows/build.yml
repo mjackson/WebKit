@@ -338,11 +338,19 @@ jobs:
             
             # Extract with 7zip (faster than installer)
             Write-Host "Extracting LLVM (this may take a few minutes)..."
-            & "C:\Program Files\7-Zip\7z.exe" x $llvmInstaller -o"$llvmPath" -y -bso0 -bsp0
+            $extractResult = & "C:\Program Files\7-Zip\7z.exe" x $llvmInstaller -o"$llvmPath" -y 2>&1
+            Write-Host "7zip extraction completed with result: $LASTEXITCODE"
             
-            # Add to PATH
-            echo "$llvmPath\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-            Write-Host "LLVM ARM64 installed"
+            # Verify extraction worked
+            if (Test-Path "$llvmPath\bin\clang.exe") {
+                Write-Host "LLVM extracted successfully"
+                # Add to PATH
+                echo "$llvmPath\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+                Write-Host "LLVM ARM64 installed and added to PATH"
+            } else {
+                Write-Host "ERROR: LLVM extraction failed - clang.exe not found"
+                exit 1
+            }
           } else {
             # Use x64 packages
             scoop install cmake
