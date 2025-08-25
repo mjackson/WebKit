@@ -63,53 +63,15 @@ if ($Env:VSCMD_ARG_TGT_ARCH -eq "x86") {
 # Set COMSPEC to ensure we use Windows command processor
 $env:COMSPEC = "$env:SystemRoot\system32\cmd.exe"
 
-# Clean up PATH - remove all Git/MSYS/Cygwin/MinGW paths that cause conflicts
-Write-Host "Original PATH: $env:PATH"
-
-$CleanPaths = @()
-$SplitPath = $env:PATH -split ";"
-
-foreach ($path in $SplitPath) {
-    if ($path -notlike "*Git*" -and 
-        $path -notlike "*mingw*" -and 
-        $path -notlike "*msys*" -and 
-        $path -notlike "*cygwin*" -and
-        $path -notlike "*strawberry*") {
-        $CleanPaths += $path
-    }
-}
-
-# Add essential Windows and tool paths in correct order
-$EssentialPaths = @(
-    "C:\Program Files\LLVM\bin",
-    "$env:SystemRoot\system32",
-    "$env:SystemRoot",
-    "$env:SystemRoot\System32\Wbem",
-    "$env:SystemRoot\System32\WindowsPowerShell\v1.0",
-    "C:\Users\$env:USERNAME\scoop\shims",
-    "C:\Users\$env:USERNAME\scoop\apps\cmake\current\bin",
-    "C:\Users\$env:USERNAME\scoop\apps\ninja\current",
-    "C:\Users\$env:USERNAME\scoop\apps\python\current",
-    "C:\Users\$env:USERNAME\scoop\apps\python\current\Scripts",
-    "C:\Users\$env:USERNAME\scoop\apps\ruby\current\bin",
-    "C:\Users\$env:USERNAME\scoop\apps\perl\current\perl\bin",
-    "C:\Users\$env:USERNAME\scoop\apps\perl\current\perl\site\bin",
-    "C:\Users\$env:USERNAME\scoop\apps\make\current\bin"
-)
-
-# Combine paths, removing duplicates
-$FinalPaths = $EssentialPaths
-foreach ($path in $CleanPaths) {
-    if ($path -and $FinalPaths -notcontains $path) {
-        $FinalPaths += $path
-    }
-}
-
-$env:PATH = $FinalPaths -join ";"
-Write-Host "Cleaned PATH: $env:PATH"
+Write-Host "Using original PATH without cleaning"
 
 # Get make executable (should be available from dependency installation)
-$MakeExe = (Get-Command make -ErrorAction Stop).Path
+$MakeExe = if (Get-Command make -ErrorAction SilentlyContinue) { 
+    (Get-Command make).Path 
+} else { 
+    Write-Host "Warning: make command not found in PATH"
+    $null 
+}
 
 # Keep a copy of PATH with Perl for later use (some WebKit scripts need it)
 $PathWithPerl = $env:PATH
@@ -123,8 +85,6 @@ if($ExtraEffortPathManagement) {
     # override coreutils link with the msvc one
     $env:PATH = "$LinkDir;$SedDir;$PathWithPerl"
 }
-
-Write-Host $env:PATH
 
 # Show clang-cl version but don't fail if link isn't found (we'll use lld-link)
 try {
