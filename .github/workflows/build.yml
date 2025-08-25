@@ -254,54 +254,43 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     steps:
-      - name: Install dependencies manually
+      - name: Check available package managers and install dependencies
         run: |
-          # Create tools directory
-          New-Item -ItemType Directory -Path C:\tools -Force
+          Write-Host "=== Checking available package managers ==="
           
-          # Download and install CMake ARM64
-          $cmakeUrl = "https://github.com/Kitware/CMake/releases/latest/download/cmake-3.30.5-windows-arm64.zip"
-          $cmakeZip = "$env:TEMP\cmake.zip"
-          Invoke-WebRequest -Uri $cmakeUrl -OutFile $cmakeZip
-          Expand-Archive -Path $cmakeZip -DestinationPath C:\tools\cmake -Force
-          $cmakePath = (Get-ChildItem -Path C:\tools\cmake -Directory | Select-Object -First 1).FullName
-          echo "$cmakePath\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          # Check what's already available
+          if (Get-Command winget -ErrorAction SilentlyContinue) {
+            Write-Host "WinGet is available"
+            winget --version
+          }
+          if (Get-Command choco -ErrorAction SilentlyContinue) {
+            Write-Host "Chocolatey is available" 
+            choco --version
+          }
+          if (Get-Command scoop -ErrorAction SilentlyContinue) {
+            Write-Host "Scoop is available"
+            scoop --version
+          }
           
-          # Download and install Ninja
-          $ninjaUrl = "https://github.com/ninja-build/ninja/releases/latest/download/ninja-win.zip"
-          $ninjaZip = "$env:TEMP\ninja.zip"
-          Invoke-WebRequest -Uri $ninjaUrl -OutFile $ninjaZip
-          New-Item -ItemType Directory -Path C:\tools\ninja -Force
-          Expand-Archive -Path $ninjaZip -DestinationPath C:\tools\ninja -Force
-          echo "C:\tools\ninja" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          Write-Host "=== Processor Architecture ==="
+          Get-WmiObject -Class Win32_Processor | Select-Object Name, Architecture
           
-          # Download and install Python ARM64
-          $pythonUrl = "https://www.python.org/ftp/python/3.13.1/python-3.13.1-arm64.exe"
-          $pythonExe = "$env:TEMP\python.exe"
-          Invoke-WebRequest -Uri $pythonUrl -OutFile $pythonExe
-          Start-Process -FilePath $pythonExe -ArgumentList "/quiet", "InstallAllUsers=1", "PrependPath=1", "Include_test=0" -Wait
+          Write-Host "=== Environment Variables ==="
+          Write-Host "PROCESSOR_ARCHITECTURE: $env:PROCESSOR_ARCHITECTURE"
+          Write-Host "PROCESSOR_ARCHITEW6432: $env:PROCESSOR_ARCHITEW6432"
           
-          # Download and install Ruby ARM64
-          $rubyUrl = "https://github.com/oneclick/rubyinstaller2/releases/download/RubyInstaller-3.3.6-1/rubyinstaller-3.3.6-1-arm64.exe"
-          $rubyExe = "$env:TEMP\ruby.exe"
-          Invoke-WebRequest -Uri $rubyUrl -OutFile $rubyExe
-          Start-Process -FilePath $rubyExe -ArgumentList "/VERYSILENT", "/NORESTART", "/DIR=C:\Ruby33-arm64" -Wait
-          echo "C:\Ruby33-arm64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          # Try to install Scoop if nothing else works
+          if (!(Get-Command scoop -ErrorAction SilentlyContinue)) {
+            Write-Host "Installing Scoop..."
+            Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+            Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
+            $env:PATH = "$env:USERPROFILE\scoop\shims;$env:PATH"
+            echo "$env:USERPROFILE\scoop\shims" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          }
           
-          # Download and install Strawberry Perl
-          $perlUrl = "https://strawberryperl.com/download/5.40.0.1/strawberry-perl-5.40.0.1-64bit.msi"
-          $perlMsi = "$env:TEMP\perl.msi"
-          Invoke-WebRequest -Uri $perlUrl -OutFile $perlMsi
-          Start-Process -FilePath "msiexec.exe" -ArgumentList "/i", $perlMsi, "/quiet", "/norestart" -Wait
-          echo "C:\strawberry\perl\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          echo "C:\strawberry\c\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          
-          # Download and install LLVM 19 ARM64
-          $llvmUrl = "https://github.com/llvm/llvm-project/releases/download/llvmorg-19.1.4/LLVM-19.1.4-woa64.exe"
-          $llvmExe = "$env:TEMP\llvm.exe"
-          Invoke-WebRequest -Uri $llvmUrl -OutFile $llvmExe
-          Start-Process -FilePath $llvmExe -ArgumentList "/S", "/D=C:\LLVM" -Wait
-          echo "C:\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          # Install dependencies via Scoop 
+          scoop bucket add main
+          scoop install cmake ninja python ruby perl llvm
           
           # Install vcpkg manually
           git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
