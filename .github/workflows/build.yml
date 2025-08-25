@@ -269,7 +269,7 @@ jobs:
           scoop install aria2
           
           # Install all required tools at once
-          scoop install cmake ninja python ruby perl make vcpkg
+          scoop install cmake ninja python ruby perl make vcpkg ccache
           
       - uses: actions/checkout@v4
         with:

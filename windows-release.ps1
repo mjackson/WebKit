@@ -36,6 +36,18 @@ if ($env:VSINSTALLDIR -eq $null) {
             
             Write-Host "Target Architecture: $targetArch"
             . (Join-Path -Path $vsDir.FullName -ChildPath "Common7\Tools\Launch-VsDevShell.ps1") -Arch $targetArch
+            
+            # Verify and force the environment for native ARM64
+            Write-Host "After VS setup:"
+            Write-Host "  VSCMD_ARG_TGT_ARCH: $env:VSCMD_ARG_TGT_ARCH"
+            Write-Host "  PROCESSOR_ARCHITECTURE: $env:PROCESSOR_ARCHITECTURE"
+            
+            if ($isARM64) {
+                # Force native ARM64 environment
+                $env:PROCESSOR_ARCHITECTURE = "ARM64"
+                $env:VSCMD_ARG_TGT_ARCH = "arm64"
+                Write-Host "Forced ARM64 environment variables"
+            }
         }
         finally { Pop-Location }
     } else {
