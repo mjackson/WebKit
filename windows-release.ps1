@@ -158,23 +158,45 @@ set(VCPKG_LIBRARY_LINKAGE static)
     # Find and configure ICU static libraries
     Write-Host "ICU library files found:"
     if (Test-Path $ICU_STATIC_LIBRARY) {
-        $icuLibs = Get-ChildItem "$ICU_STATIC_LIBRARY\*icu*" -Include "*.lib"
+        $icuLibs = Get-ChildItem "$ICU_STATIC_LIBRARY\*icu*.lib"
         $icuLibs | ForEach-Object { Write-Host "  $($_.Name)" }
         
         # Find specific ICU libraries needed for WebKit
-        $ICU_UC_LIB = Get-ChildItem "$ICU_STATIC_LIBRARY\*icuuc*" -Include "*.lib" | Select-Object -First 1
-        $ICU_I18N_LIB = Get-ChildItem "$ICU_STATIC_LIBRARY\*icui18n*" -Include "*.lib" | Select-Object -First 1
-        $ICU_DATA_LIB = Get-ChildItem "$ICU_STATIC_LIBRARY\*icudt*" -Include "*.lib" | Select-Object -First 1
-        $ICU_IO_LIB = Get-ChildItem "$ICU_STATIC_LIBRARY\*icuio*" -Include "*.lib" | Select-Object -First 1
+        # Look for both sicuXX.lib (static) and icuXX.lib patterns
+        $ICU_UC_LIB = Get-ChildItem "$ICU_STATIC_LIBRARY\*icuuc*.lib" | Where-Object { $_.Name -match "(s?icuuc|icu.*uc)" } | Select-Object -First 1
+        $ICU_I18N_LIB = Get-ChildItem "$ICU_STATIC_LIBRARY\*icu*i*n*.lib" | Where-Object { $_.Name -match "(s?icui.*n|icu.*i18n|s?icuin)" } | Select-Object -First 1
+        $ICU_DATA_LIB = Get-ChildItem "$ICU_STATIC_LIBRARY\*icud*.lib" | Where-Object { $_.Name -match "(s?icudt|s?icudata|icu.*dt)" } | Select-Object -First 1
+        $ICU_IO_LIB = Get-ChildItem "$ICU_STATIC_LIBRARY\*icuio*.lib" | Where-Object { $_.Name -match "(s?icuio|icu.*io)" } | Select-Object -First 1
         
         # Create library list for CMake
         $ICU_LIBRARY_LIST = @()
-        if ($ICU_UC_LIB) { $ICU_LIBRARY_LIST += $ICU_UC_LIB.FullName }
-        if ($ICU_I18N_LIB) { $ICU_LIBRARY_LIST += $ICU_I18N_LIB.FullName }
-        if ($ICU_DATA_LIB) { $ICU_LIBRARY_LIST += $ICU_DATA_LIB.FullName }
-        if ($ICU_IO_LIB) { $ICU_LIBRARY_LIST += $ICU_IO_LIB.FullName }
+        if ($ICU_UC_LIB) { 
+            $ICU_LIBRARY_LIST += $ICU_UC_LIB.FullName 
+            Write-Host "  Found UC lib: $($ICU_UC_LIB.Name)"
+        } else {
+            Write-Host "  WARNING: ICU UC library not found!"
+        }
         
-        Write-Host "ICU Libraries found:"
+        if ($ICU_I18N_LIB) { 
+            $ICU_LIBRARY_LIST += $ICU_I18N_LIB.FullName 
+            Write-Host "  Found I18N lib: $($ICU_I18N_LIB.Name)"
+        } else {
+            Write-Host "  WARNING: ICU I18N library not found!"
+        }
+        
+        if ($ICU_DATA_LIB) { 
+            $ICU_LIBRARY_LIST += $ICU_DATA_LIB.FullName 
+            Write-Host "  Found Data lib: $($ICU_DATA_LIB.Name)"
+        } else {
+            Write-Host "  WARNING: ICU Data library not found!"
+        }
+        
+        if ($ICU_IO_LIB) { 
+            $ICU_LIBRARY_LIST += $ICU_IO_LIB.FullName 
+            Write-Host "  Found IO lib: $($ICU_IO_LIB.Name)"
+        }
+        
+        Write-Host "ICU Libraries configured for linking:"
         $ICU_LIBRARY_LIST | ForEach-Object { Write-Host "  $($_ | Split-Path -Leaf)" }
         
         # Set ICU library paths for CMake
@@ -272,16 +294,29 @@ if ($CcachePath) {
 
 # Build CMake ICU configuration
 $ICUCmakeArgs = @()
-if ($UseVcpkg -and $ICU_LIBRARIES_FOR_CMAKE) {
+if ($UseVcpkg) {
     $ICUCmakeArgs += "-DICU_ROOT=${ICU_STATIC_ROOT}"
     $ICUCmakeArgs += "-DICU_INCLUDE_DIR=${ICU_STATIC_INCLUDE_DIR}"
     $ICUCmakeArgs += "-DICU_LIBRARY=${ICU_STATIC_LIBRARY}"
-    # Pass individual ICU libraries
-    if ($ICU_UC_LIB) { $ICUCmakeArgs += "-DICU_UC_LIBRARY=$($ICU_UC_LIB.FullName)" }
-    if ($ICU_I18N_LIB) { $ICUCmakeArgs += "-DICU_I18N_LIBRARY=$($ICU_I18N_LIB.FullName)" }
-    if ($ICU_DATA_LIB) { $ICUCmakeArgs += "-DICU_DATA_LIBRARY=$($ICU_DATA_LIB.FullName)" }
-    # Force static linking
-    $ICUCmakeArgs += "-DICU_STATIC_LIBRARIES=$ICU_LIBRARIES_FOR_CMAKE"
+    
+    # Pass individual ICU libraries if found
+    if ($ICU_UC_LIB) { 
+        $ICUCmakeArgs += "-DICU_UC_LIBRARY=$($ICU_UC_LIB.FullName)" 
+    }
+    if ($ICU_I18N_LIB) { 
+        $ICUCmakeArgs += "-DICU_I18N_LIBRARY=$($ICU_I18N_LIB.FullName)" 
+    }
+    if ($ICU_DATA_LIB) { 
+        $ICUCmakeArgs += "-DICU_DATA_LIBRARY=$($ICU_DATA_LIB.FullName)" 
+    }
+    
+    # Pass the library list if we found any
+    if ($ICU_LIBRARIES_FOR_CMAKE) {
+        $ICUCmakeArgs += "-DICU_STATIC_LIBRARIES=$ICU_LIBRARIES_FOR_CMAKE"
+    } else {
+        Write-Host "WARNING: No ICU libraries found! Build may fail."
+    }
+    
     $ICUCmakeArgs += "-DUSE_ICU=ON"
     Write-Host "CMake ICU configuration:"
     $ICUCmakeArgs | ForEach-Object { Write-Host "  $_" }
