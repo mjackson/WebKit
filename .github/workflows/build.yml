@@ -254,17 +254,29 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     steps:
-      - name: Install dependencies via Chocolatey
+      - name: Install WinGet and dependencies
         run: |
-          # Install Chocolatey if not present
-          if (!(Get-Command choco -ErrorAction SilentlyContinue)) {
-            Set-ExecutionPolicy Bypass -Scope Process -Force
-            [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-            iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-          }
+          # Download and install WinGet manually
+          $url = "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
+          $output = "$env:TEMP\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
+          Invoke-WebRequest -Uri $url -OutFile $output
+          Add-AppxPackage -Path $output
           
-          # Install all required tools via Chocolatey
-          choco install cmake ninja python ruby strawberryperl llvm -y --no-progress
+          # Add WinGet to PATH
+          $wingetPath = "${env:LOCALAPPDATA}\Microsoft\WindowsApps"
+          $env:PATH = "$wingetPath;$env:PATH"
+          echo "$wingetPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          
+          # Wait for WinGet to be ready
+          Start-Sleep -Seconds 10
+          
+          # Install dependencies with WinGet
+          winget install --id=Kitware.CMake -e --silent --accept-source-agreements --accept-package-agreements
+          winget install --id=Ninja-build.Ninja -e --silent --accept-source-agreements --accept-package-agreements
+          winget install --id=Python.Python.3.13 -e --silent --accept-source-agreements --accept-package-agreements
+          winget install --id=RubyInstaller.Ruby -e --silent --accept-source-agreements --accept-package-agreements
+          winget install --id=StrawberryPerl.StrawberryPerl -e --silent --accept-source-agreements --accept-package-agreements
+          winget install --id=LLVM.LLVM -e --silent --accept-source-agreements --accept-package-agreements
           
           # Install vcpkg manually
           git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
