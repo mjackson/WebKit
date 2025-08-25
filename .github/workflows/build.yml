@@ -315,13 +315,21 @@ jobs:
           # Install aria2 for parallel downloads
           scoop install aria2
           
-          # Install tools via Scoop
+          # Install tools via Scoop one by one for better error isolation
           if ($isARM64) {
             # Use ARM64-specific packages
-            scoop install cmake ninja python perl llvm-arm64
+            scoop install cmake
+            scoop install ninja
+            scoop install python
+            scoop install perl
+            scoop install llvm-arm64
           } else {
             # Use x64 packages
-            scoop install cmake ninja python perl llvm
+            scoop install cmake
+            scoop install ninja
+            scoop install python
+            scoop install perl
+            scoop install llvm
           }
           
           # Install Ruby manually on ARM64 (Scoop's Ruby fails on ARM64)
