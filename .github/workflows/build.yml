@@ -351,6 +351,8 @@ jobs:
                 Write-Host "ERROR: LLVM extraction failed - clang.exe not found"
                 exit 1
             }
+            
+            Write-Host "ARM64 dependency installation completed, continuing..."
           } else {
             # Use x64 packages
             scoop install cmake
@@ -360,6 +362,8 @@ jobs:
             scoop install llvm
             scoop install make
           }
+          
+          Write-Host "Starting Ruby installation phase..."
           
           # Install Ruby manually on ARM64 (Scoop's Ruby fails on ARM64)
           if ($isARM64) {
