@@ -163,9 +163,9 @@ if ($UseVcpkg) {
         # Create custom triplet if it doesn't exist  
         $TripletFile = if ($isARM64) { "arm64-windows-static.cmake" } else { "x64-windows-static.cmake" }
         if (-not (Test-Path $TripletFile)) {
-            $arch = if ($isARM64) { "arm64" } else { "x64" }
+            $vcpkgArch = if ($isARM64) { "arm64" } else { "x64" }
             $TripletContent = @"
-set(VCPKG_TARGET_ARCHITECTURE $arch)
+set(VCPKG_TARGET_ARCHITECTURE $vcpkgArch)
 set(VCPKG_CRT_LINKAGE static)
 set(VCPKG_LIBRARY_LINKAGE static)
 set(VCPKG_CMAKE_SYSTEM_NAME Windows)
