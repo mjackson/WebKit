@@ -60,21 +60,10 @@ if ($env:VSINSTALLDIR -eq $null) {
         Push-Location $vsDir.FullName
         try {
             # Detect the target architecture
-            $targetArch = "amd64"
-            $hostArch = "amd64"
+            $targetArch = if ($isARM64) { "arm64" } else { "amd64" }
             
-            if ($isARM64) {
-                $targetArch = "arm64"
-                # Use x64 host tools if running under emulation
-                if ($env:PROCESSOR_ARCHITECTURE -eq "AMD64") {
-                    $hostArch = "amd64"
-                } else {
-                    $hostArch = "arm64"
-                }
-            }
-            
-            Write-Host "Target Architecture: $targetArch, Host Architecture: $hostArch"
-            . (Join-Path -Path $vsDir.FullName -ChildPath "Common7\Tools\Launch-VsDevShell.ps1") -Arch $targetArch -HostArch $hostArch
+            Write-Host "Target Architecture: $targetArch"
+            . (Join-Path -Path $vsDir.FullName -ChildPath "Common7\Tools\Launch-VsDevShell.ps1") -Arch $targetArch
         }
         finally { Pop-Location }
     } else {
