@@ -160,8 +160,16 @@ if ($UseVcpkg) {
     if (-not (Test-Path "$VcpkgInstalled\include\unicode")) {
         Write-Host ":: Installing ICU via vcpkg with static CRT"
         
-        # Create custom triplet if it doesn't exist  
-        $TripletFile = if ($isARM64) { "arm64-windows-static.cmake" } else { "x64-windows-static.cmake" }
+        # Create custom triplet in vcpkg triplets directory
+        $TripletName = if ($isARM64) { "arm64-windows-static" } else { "x64-windows-static" }
+        $TripletFile = Join-Path $VcpkgRoot "triplets\community\$TripletName.cmake"
+        
+        # Create community triplets directory if it doesn't exist
+        $TripletsDir = Join-Path $VcpkgRoot "triplets\community"
+        if (-not (Test-Path $TripletsDir)) {
+            New-Item -ItemType Directory -Path $TripletsDir -Force | Out-Null
+        }
+        
         if (-not (Test-Path $TripletFile)) {
             $vcpkgArch = if ($isARM64) { "arm64" } else { "x64" }
             $TripletContent = @"
@@ -174,6 +182,7 @@ set(VCPKG_C_FLAGS "-clang:-fno-asynchronous-unwind-tables")
 set(VCPKG_CXX_FLAGS "-clang:-fno-asynchronous-unwind-tables")
 "@
             Set-Content -Path $TripletFile -Value $TripletContent
+            Write-Host "Created custom triplet: $TripletFile"
         }
         
         & vcpkg install --triplet $triplet
