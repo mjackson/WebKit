@@ -306,10 +306,10 @@ cmake -S . -B $WebKitBuild `
     "-DRuby_EXECUTABLE=${RubyPath}" `
     "-DCMAKE_C_COMPILER=clang-cl" `
     "-DCMAKE_CXX_COMPILER=clang-cl" `
-    "-DCMAKE_C_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG -clang:-fno-asynchronous-unwind-tables " `
-    "-DCMAKE_CXX_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG -Xclang -fno-c++-static-destructors -clang:-fno-asynchronous-unwind-tables " `
+    "-DCMAKE_C_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG /clang:-fno-asynchronous-unwind-tables " `
+    "-DCMAKE_CXX_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG /clang:-Xclang /clang:-fno-c++-static-destructors /clang:-fno-asynchronous-unwind-tables " `
     "-DCMAKE_C_FLAGS_DEBUG=/Zi /FS /O0 /Ob0 " `
-    "-DCMAKE_CXX_FLAGS_DEBUG=/Zi /FS /O0 /Ob0 -Xclang -fno-c++-static-destructors " `
+    "-DCMAKE_CXX_FLAGS_DEBUG=/Zi /FS /O0 /Ob0 /clang:-Xclang /clang:-fno-c++-static-destructors " `
     -DENABLE_REMOTE_INSPECTOR=ON `
     "-DCMAKE_MSVC_RUNTIME_LIBRARY=${CmakeMsvcRuntimeLibrary}" `
     @VcpkgToolchain `
