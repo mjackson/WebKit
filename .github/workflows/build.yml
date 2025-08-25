@@ -294,7 +294,12 @@ jobs:
             echo "$env:USERPROFILE\scoop\shims" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           }
           
-          # Install 7zip first to avoid bootstrap extraction issues
+          # Configure Scoop to use external 7zip for ARM64 to avoid extraction issues
+          if ($isARM64) {
+            scoop config use_external_7zip true
+          }
+          
+          # Install 7zip
           scoop install 7zip
           
           # Install aria2 for parallel downloads
