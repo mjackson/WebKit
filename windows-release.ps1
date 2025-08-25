@@ -208,7 +208,7 @@ $NoWebassembly = if ($env:NO_WEBASSEMBLY) { $env:NO_WEBASSEMBLY } else { $false 
 $WebAssemblyState = if ($NoWebassembly) { "OFF" } else { "ON" }
 
 # Set architecture for CMake
-$CmakeArch = if ($isARM64) { "ARM64" } else { "x64" }
+$CmakeArch = if ($isARM64) { "ARM64" } else { "X64" }
 
 # Set vcpkg toolchain file if using vcpkg
 $VcpkgToolchain = if ($UseVcpkg) { 
@@ -292,8 +292,8 @@ cmake -S . -B $WebKitBuild `
     "-DRuby_EXECUTABLE=${RubyPath}" `
     "-DCMAKE_C_COMPILER=clang-cl" `
     "-DCMAKE_CXX_COMPILER=clang-cl" `
-    "-DCMAKE_C_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG /MT /clang:-fno-asynchronous-unwind-tables " `
-    "-DCMAKE_CXX_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG /MT -Xclang -fno-c++-static-destructors /clang:-fno-asynchronous-unwind-tables " `
+    "-DCMAKE_C_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG /MT -clang:-fno-asynchronous-unwind-tables " `
+    "-DCMAKE_CXX_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG /MT -Xclang -fno-c++-static-destructors -clang:-fno-asynchronous-unwind-tables " `
     "-DCMAKE_C_FLAGS_DEBUG=/Zi /FS /O0 /Ob0 /MTd " `
     "-DCMAKE_CXX_FLAGS_DEBUG=/Zi /FS /O0 /Ob0 /MTd -Xclang -fno-c++-static-destructors " `
     -DENABLE_REMOTE_INSPECTOR=ON `
