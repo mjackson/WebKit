@@ -256,9 +256,8 @@ jobs:
     steps:
       - name: Install dependencies
         run: |
-          # Install using winget which has better ARM64 Windows support
-          winget install --id=LLVM.LLVM -e --silent
-          winget install --id=Ninja-build.Ninja -e --silent
+          # Install LLVM via Chocolatey which is pre-installed on GitHub runners
+          choco install llvm ninja -y
           # Add LLVM to PATH
           echo "C:\Program Files\LLVM\bin" >> $env:GITHUB_PATH
       - uses: cygwin/cygwin-install-action@006ad0b0946ca6d0a3ea2d4437677fa767392401
