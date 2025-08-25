@@ -194,6 +194,14 @@ set(VCPKG_LIBRARY_LINKAGE static)
     $ICU_STATIC_ROOT = $VcpkgInstalled
     $ICU_STATIC_LIBRARY = Join-Path $ICU_STATIC_ROOT "lib"
     $ICU_STATIC_INCLUDE_DIR = Join-Path $ICU_STATIC_ROOT "include"
+    
+    # Debug: List ICU library files
+    Write-Host "ICU library files found:"
+    if (Test-Path $ICU_STATIC_LIBRARY) {
+        Get-ChildItem "$ICU_STATIC_LIBRARY\*icu*" | ForEach-Object { Write-Host "  $($_.Name)" }
+    } else {
+        Write-Host "  ICU library directory not found: $ICU_STATIC_LIBRARY"
+    }
 } else {
     Write-Host ":: Building ICU from source"
     # Original ICU build code would go here, but we'll skip it for now
