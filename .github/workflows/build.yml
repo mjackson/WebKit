@@ -243,6 +243,14 @@ jobs:
             build-type: Debug
             package_json_arch: "x64"
             label: bun-webkit-windows-amd64-debug
+          - runner: windows-11-arm
+            build-type: Release
+            package_json_arch: "arm64"
+            label: bun-webkit-windows-arm64
+          - runner: windows-11-arm
+            build-type: Debug
+            package_json_arch: "arm64"
+            label: bun-webkit-windows-arm64-debug
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     steps:
@@ -442,6 +450,14 @@ jobs:
           path: ${{runner.temp}}/bun-webkit-windows-amd64-debug
       - uses: actions/download-artifact@v4
         with:
+          name: bun-webkit-windows-arm64
+          path: ${{runner.temp}}/bun-webkit-windows-arm64
+      - uses: actions/download-artifact@v4
+        with:
+          name: bun-webkit-windows-arm64-debug
+          path: ${{runner.temp}}/bun-webkit-windows-arm64-debug
+      - uses: actions/download-artifact@v4
+        with:
           name: bun-webkit-linux-amd64-musl
           path: ${{runner.temp}}/bun-webkit-linux-amd64-musl
       - uses: actions/download-artifact@v4
@@ -491,6 +507,8 @@ jobs:
           mv ${{runner.temp}}/bun-webkit-linux-arm64-musl-lto/bun-webkit.tar.gz ./out/bun-webkit-linux-arm64-musl-lto.tar.gz
           mv ${{runner.temp}}/bun-webkit-windows-amd64/bun-webkit.tar.gz ./out/bun-webkit-windows-amd64.tar.gz
           mv ${{runner.temp}}/bun-webkit-windows-amd64-debug/bun-webkit.tar.gz ./out/bun-webkit-windows-amd64-debug.tar.gz
+          mv ${{runner.temp}}/bun-webkit-windows-arm64/bun-webkit.tar.gz ./out/bun-webkit-windows-arm64.tar.gz
+          mv ${{runner.temp}}/bun-webkit-windows-arm64-debug/bun-webkit.tar.gz ./out/bun-webkit-windows-arm64-debug.tar.gz
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
@@ -540,3 +558,5 @@ jobs:
           files: |
             ./out/bun-webkit-windows-amd64.tar.gz
             ./out/bun-webkit-windows-amd64-debug.tar.gz
+            ./out/bun-webkit-windows-arm64.tar.gz
+            ./out/bun-webkit-windows-arm64-debug.tar.gz
