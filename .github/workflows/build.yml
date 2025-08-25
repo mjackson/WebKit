@@ -254,12 +254,6 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     steps:
-      - name: Install dependencies
-        run: |
-          # Install LLVM via Chocolatey which is pre-installed on GitHub runners
-          choco install llvm ninja -y
-          # Add LLVM to PATH
-          echo "C:\Program Files\LLVM\bin" >> $env:GITHUB_PATH
       - uses: cygwin/cygwin-install-action@006ad0b0946ca6d0a3ea2d4437677fa767392401
       - uses: actions/checkout@v4
         with:
