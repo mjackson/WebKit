@@ -256,7 +256,7 @@ jobs:
     steps:
       - name: Install dependencies for ARM64 Windows
         run: |
-          # Use Scoop for ARM64-compatible packages
+          # Install Scoop if not available
           if (!(Get-Command scoop -ErrorAction SilentlyContinue)) {
             Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
             Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
@@ -264,21 +264,15 @@ jobs:
             echo "$env:USERPROFILE\scoop\shims" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           }
           
-          # Install ARM64-compatible tools via Scoop
-          scoop install cmake ninja python
+          # Install all tools via Scoop except Ruby
+          scoop install cmake ninja python perl llvm
           
-          # Install Ruby manually for ARM64 (Scoop doesn't have ARM64 Ruby)
+          # Install Ruby manually since Scoop's Ruby fails on ARM64
           $rubyUrl = "https://github.com/oneclick/rubyinstaller2/releases/download/RubyInstaller-3.3.6-1/rubyinstaller-devkit-3.3.6-1-x64.exe"
           $rubyExe = "$env:TEMP\ruby.exe"
           Invoke-WebRequest -Uri $rubyUrl -OutFile $rubyExe
           Start-Process -FilePath $rubyExe -ArgumentList "/VERYSILENT", "/NORESTART", "/DIR=C:\Ruby33-x64" -Wait
           echo "C:\Ruby33-x64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          
-          # Install Strawberry Perl for x64 (works on ARM64 via emulation)
-          choco install strawberryperl -y --no-progress
-          
-          # Install LLVM via Chocolatey (has ARM64 support)
-          choco install llvm -y --no-progress --version=19.1.4
           
           # Install vcpkg
           git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
