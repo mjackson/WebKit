@@ -287,6 +287,9 @@ if ($UseVcpkg -and $ICU_LIBRARIES_FOR_CMAKE) {
     $ICUCmakeArgs | ForEach-Object { Write-Host "  $_" }
 }
 
+# ARM64 needs to disable asynchronous unwind tables to avoid SEH crashes
+$UnwindTablesFlag = if ($isARM64) { "/clang:-fno-asynchronous-unwind-tables " } else { "" }
+
 cmake -S . -B $WebKitBuild `
     -DPORT="JSCOnly" `
     "-DCMAKE_SYSTEM_PROCESSOR=${CmakeArch}" `
@@ -310,10 +313,10 @@ cmake -S . -B $WebKitBuild `
     "-DRuby_EXECUTABLE=${RubyPath}" `
     "-DCMAKE_C_COMPILER=clang-cl" `
     "-DCMAKE_CXX_COMPILER=clang-cl" `
-    "-DCMAKE_C_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG /clang:-fno-asynchronous-unwind-tables " `
-    "-DCMAKE_CXX_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG /clang:-fno-asynchronous-unwind-tables " `
-    "-DCMAKE_C_FLAGS_DEBUG=/Zi /FS /O0 /Ob0 " `
-    "-DCMAKE_CXX_FLAGS_DEBUG=/Zi /FS /O0 /Ob0 " `
+    "-DCMAKE_C_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG ${UnwindTablesFlag}" `
+    "-DCMAKE_CXX_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG ${UnwindTablesFlag}" `
+    "-DCMAKE_C_FLAGS_DEBUG=/Zi /FS /O0 /Ob0 ${UnwindTablesFlag}" `
+    "-DCMAKE_CXX_FLAGS_DEBUG=/Zi /FS /O0 /Ob0 ${UnwindTablesFlag}" `
     -DENABLE_REMOTE_INSPECTOR=ON `
     "-DCMAKE_MSVC_RUNTIME_LIBRARY=${CmakeMsvcRuntimeLibrary}" `
     @VcpkgToolchain `
