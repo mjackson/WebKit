@@ -254,22 +254,22 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     steps:
-      - name: Install Scoop and dependencies
+      - name: Install dependencies via WinGet
         run: |
-          # Set execution policy for PowerShell scripts
-          Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+          # Install all required tools via WinGet (has better ARM64 support)
+          winget install --id=Kitware.CMake -e --silent --accept-source-agreements --accept-package-agreements
+          winget install --id=Ninja-build.Ninja -e --silent --accept-source-agreements --accept-package-agreements  
+          winget install --id=Python.Python.3.13 -e --silent --accept-source-agreements --accept-package-agreements
+          winget install --id=RubyInstaller.Ruby -e --silent --accept-source-agreements --accept-package-agreements
+          winget install --id=StrawberryPerl.StrawberryPerl -e --silent --accept-source-agreements --accept-package-agreements
+          winget install --id=LLVM.LLVM -e --silent --accept-source-agreements --accept-package-agreements
           
-          # Install Scoop package manager
-          Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
-          
-          # Add Scoop to PATH for current session
-          $env:PATH = "$env:USERPROFILE\scoop\shims;" + $env:PATH
-          
-          # Install aria2 for faster downloads
-          scoop install aria2
-          
-          # Install all required tools at once
-          scoop install cmake ninja python ruby perl make vcpkg ccache
+          # Install vcpkg manually since it's not in WinGet main repo
+          git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
+          cd C:\vcpkg
+          .\bootstrap-vcpkg.bat
+          $env:VCPKG_ROOT = "C:\vcpkg"
+          echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
           
       - uses: actions/checkout@v4
         with:

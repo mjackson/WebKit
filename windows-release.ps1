@@ -144,9 +144,9 @@ $WebKitBuild = if ($env:WEBKIT_BUILD_DIR) { $env:WEBKIT_BUILD_DIR } else { "WebK
 $CMAKE_BUILD_TYPE = if ($env:CMAKE_BUILD_TYPE) { $env:CMAKE_BUILD_TYPE } else { "Release" }
 $BUN_WEBKIT_VERSION = if ($env:BUN_WEBKIT_VERSION) { $env:BUN_WEBKIT_VERSION } else { $(git rev-parse HEAD) }
 
-# Use vcpkg for ICU - packages are installed in project directory
+# Use vcpkg for ICU - packages are installed in project directory  
 $UseVcpkg = $true
-$VcpkgRoot = if ($env:VCPKG_ROOT) { $env:VCPKG_ROOT } else { "C:\Users\$env:USERNAME\scoop\apps\vcpkg\current" }
+$VcpkgRoot = if ($env:VCPKG_ROOT) { $env:VCPKG_ROOT } else { "C:\vcpkg" }
 
 # vcpkg installs packages in the project directory when using manifest mode
 $VcpkgInstalled = Join-Path (Get-Location) "vcpkg_installed\arm64-windows-static"
@@ -215,9 +215,27 @@ $VcpkgToolchain = if ($UseVcpkg) {
     "-DVCPKG_OVERLAY_TRIPLETS=$VcpkgRoot/triplets/community"
 } else { @() }
 
-# Set Ruby path explicitly and ensure required gems are installed
-$RubyPath = "C:\Users\$env:USERNAME\scoop\apps\ruby\current\bin\ruby.exe"
-$GemPath = "C:\Users\$env:USERNAME\scoop\apps\ruby\current\bin\gem.cmd"
+# Detect Ruby installation (WinGet or Scoop)
+$RubyPath = $null
+$GemPath = $null
+
+# Try WinGet installation first
+if (Test-Path "C:\Program Files\Ruby\bin\ruby.exe") {
+    $RubyPath = "C:\Program Files\Ruby\bin\ruby.exe"
+    $GemPath = "C:\Program Files\Ruby\bin\gem.cmd"
+} elseif (Test-Path "C:\Users\$env:USERNAME\scoop\apps\ruby\current\bin\ruby.exe") {
+    # Fall back to Scoop installation
+    $RubyPath = "C:\Users\$env:USERNAME\scoop\apps\ruby\current\bin\ruby.exe"
+    $GemPath = "C:\Users\$env:USERNAME\scoop\apps\ruby\current\bin\gem.cmd"
+} else {
+    # Try to find Ruby in PATH
+    $RubyCmd = Get-Command ruby -ErrorAction SilentlyContinue
+    if ($RubyCmd) {
+        $RubyPath = $RubyCmd.Source
+        $GemCmd = Get-Command gem -ErrorAction SilentlyContinue
+        $GemPath = if ($GemCmd) { $GemCmd.Source } else { $null }
+    }
+}
 
 # Install required Ruby gems for WebKit build
 Write-Host ":: Checking Ruby dependencies"
