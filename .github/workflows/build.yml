@@ -326,16 +326,14 @@ jobs:
             scoop install perl
             scoop install make
             
-            # LLVM ARM64: Download and extract manually instead of using installer
-            Write-Host "Downloading LLVM ARM64..."
-            $llvmUrl = "https://github.com/llvm/llvm-project/releases/download/llvmorg-19.1.4/LLVM-19.1.4-woa64.exe"
-            $llvmExe = "$env:TEMP\llvm.exe"
-            Invoke-WebRequest -Uri $llvmUrl -OutFile $llvmExe
+            # Install LLVM ARM64 - ignore pre_install script error
+            scoop install llvm-arm64 -ErrorAction Continue
             
-            # Extract using 7zip instead of running installer (which hangs)
-            Write-Host "Extracting LLVM ARM64..."
-            & "C:\Program Files\7-Zip\7z.exe" x $llvmExe -o"C:\LLVM" -y
-            echo "C:\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            # Add LLVM to PATH manually since pre_install might have failed
+            $llvmPath = "$env:USERPROFILE\scoop\apps\llvm-arm64\current\bin"
+            if (Test-Path $llvmPath) {
+                echo $llvmPath | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            }
           } else {
             # Use x64 packages
             scoop install cmake
