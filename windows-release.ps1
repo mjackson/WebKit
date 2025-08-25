@@ -149,7 +149,8 @@ $UseVcpkg = $true
 $VcpkgRoot = if ($env:VCPKG_ROOT) { $env:VCPKG_ROOT } else { "C:\vcpkg" }
 
 # vcpkg installs packages in the project directory when using manifest mode
-$VcpkgInstalled = Join-Path (Get-Location) "vcpkg_installed\arm64-windows-static"
+$triplet = if ($isARM64) { "arm64-windows-static" } else { "x64-windows-static" }
+$VcpkgInstalled = Join-Path (Get-Location) "vcpkg_installed\$triplet"
 
 # Set up ICU paths based on whether we're using vcpkg or building from source
 if ($UseVcpkg) {
@@ -160,10 +161,11 @@ if ($UseVcpkg) {
         Write-Host ":: Installing ICU via vcpkg with static CRT"
         
         # Create custom triplet if it doesn't exist  
-        $TripletFile = "arm64-windows-static.cmake"
+        $TripletFile = if ($isARM64) { "arm64-windows-static.cmake" } else { "x64-windows-static.cmake" }
         if (-not (Test-Path $TripletFile)) {
+            $arch = if ($isARM64) { "arm64" } else { "x64" }
             $TripletContent = @"
-set(VCPKG_TARGET_ARCHITECTURE arm64)
+set(VCPKG_TARGET_ARCHITECTURE $arch)
 set(VCPKG_CRT_LINKAGE static)
 set(VCPKG_LIBRARY_LINKAGE static)
 set(VCPKG_CMAKE_SYSTEM_NAME Windows)
@@ -171,7 +173,7 @@ set(VCPKG_CMAKE_SYSTEM_NAME Windows)
             Set-Content -Path $TripletFile -Value $TripletContent
         }
         
-        & vcpkg install --triplet arm64-windows-static
+        & vcpkg install --triplet $triplet
         if ($LASTEXITCODE -ne 0) { throw "vcpkg install failed with exit code $LASTEXITCODE" }
     }
     
@@ -211,7 +213,7 @@ $CmakeArch = if ($isARM64) { "ARM64" } else { "x64" }
 # Set vcpkg toolchain file if using vcpkg
 $VcpkgToolchain = if ($UseVcpkg) { 
     "-DCMAKE_TOOLCHAIN_FILE=$VcpkgRoot/scripts/buildsystems/vcpkg.cmake",
-    "-DVCPKG_TARGET_TRIPLET=arm64-windows-static",
+    "-DVCPKG_TARGET_TRIPLET=$triplet",
     "-DVCPKG_OVERLAY_TRIPLETS=$VcpkgRoot/triplets/community"
 } else { @() }
 
