@@ -256,6 +256,9 @@ jobs:
     steps:
       - name: Install dependencies via WinGet
         run: |
+          # Install WinGet first (not available by default on GitHub Actions)
+          Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe
+          
           # Install all required tools via WinGet (has better ARM64 support)
           winget install --id=Kitware.CMake -e --silent --accept-source-agreements --accept-package-agreements
           winget install --id=Ninja-build.Ninja -e --silent --accept-source-agreements --accept-package-agreements  
