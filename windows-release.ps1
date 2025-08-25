@@ -338,19 +338,9 @@ if (Test-Path -Path $WebKitBuild/lib64) {
 
 Copy-Item $WebKitBuild/cmakeconfig.h $output/include/cmakeconfig.h
 
-if ($CMAKE_BUILD_TYPE -eq "Release") {
-    Move-Item $ICU_STATIC_LIBRARY/icudt.lib $ICU_STATIC_LIBRARY/sicudt.lib
-    Move-Item $ICU_STATIC_LIBRARY/icutu.lib $ICU_STATIC_LIBRARY/sicutu.lib
-    Move-Item $ICU_STATIC_LIBRARY/icuio.lib $ICU_STATIC_LIBRARY/sicuio.lib
-    Move-Item $ICU_STATIC_LIBRARY/icuin.lib $ICU_STATIC_LIBRARY/sicuin.lib
-    Move-Item $ICU_STATIC_LIBRARY/icuuc.lib $ICU_STATIC_LIBRARY/sicuuc.lib
-} elseif ($CMAKE_BUILD_TYPE -eq "Debug") {
-    Move-Item $ICU_STATIC_LIBRARY/icudt.lib $ICU_STATIC_LIBRARY/sicudtd.lib
-    Move-Item $ICU_STATIC_LIBRARY/icutu.lib $ICU_STATIC_LIBRARY/sicutud.lib
-    Move-Item $ICU_STATIC_LIBRARY/icuio.lib $ICU_STATIC_LIBRARY/sicuiod.lib
-    Move-Item $ICU_STATIC_LIBRARY/icuin.lib $ICU_STATIC_LIBRARY/sicuind.lib
-    Move-Item $ICU_STATIC_LIBRARY/icuuc.lib $ICU_STATIC_LIBRARY/sicuucd.lib
-}
+# vcpkg static builds already produce files with 's' prefix, so no renaming needed
+# The static libraries are already named sicudt.lib, sicuin.lib, etc.
+Write-Host ":: ICU static libraries are already properly named"
 
 Add-Content -Path $output/include/cmakeconfig.h -Value "`#define BUN_WEBKIT_VERSION `"$BUN_WEBKIT_VERSION`""
 
