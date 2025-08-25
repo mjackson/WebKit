@@ -411,7 +411,21 @@ JS_EXPORT_PRIVATE bool isFromJSCode(void* returnAddress);
         ASSERT(JSC::isFromJSCode(removeCodePtrTag<void*>(__builtin_return_address(0)))); \
         std::bit_cast<JSC::CallFrame*>(*((uintptr_t**) _AddressOfReturnAddress() - 1)); \
     })
-#else // !OS(WINDOWS) || !CPU(X86_64)
+#elif OS(WINDOWS) && CPU(ARM64)
+// On Windows ARM64, __builtin_frame_address(1) also has issues similar to x86_64
+// Use _AddressOfReturnAddress() and clobber x29 (frame pointer) for ARM64
+#define DECLARE_CALL_FRAME(vm) \
+    ({ \
+        asm volatile( \
+            "" \
+            : /* no outputs */ \
+            : /* no inputs */ \
+            : "x29" /* clobber frame pointer */ \
+        ); \
+        ASSERT(JSC::isFromJSCode(removeCodePtrTag<void*>(__builtin_return_address(0)))); \
+        std::bit_cast<JSC::CallFrame*>(*((uintptr_t**) _AddressOfReturnAddress() - 1)); \
+    })
+#else // !OS(WINDOWS) || (!CPU(X86_64) && !CPU(ARM64))
 // FIXME (see rdar://72897291): Work around a Clang bug where __builtin_return_address()
 // sometimes gives us a signed pointer, and sometimes does not.
 #define DECLARE_CALL_FRAME(vm) \
@@ -419,7 +433,7 @@ JS_EXPORT_PRIVATE bool isFromJSCode(void* returnAddress);
         ASSERT(JSC::isFromJSCode(removeCodePtrTag<void*>(__builtin_return_address(0)))); \
         std::bit_cast<JSC::CallFrame*>(__builtin_frame_address(1)); \
     })
-#endif // !(OS(WINDOWS) && CPU(X86_64))
+#endif // !(OS(WINDOWS) && (CPU(X86_64) || CPU(ARM64)))
 #else
 #define DECLARE_CALL_FRAME(vm) ((vm).topCallFrame)
 #endif
