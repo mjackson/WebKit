@@ -181,7 +181,13 @@ set(VCPKG_LIBRARY_LINKAGE static)
             Write-Host "Created custom triplet: $TripletFile"
         }
         
+        # Ensure vcpkg can find the compiler
+        $env:CC = "cl"
+        $env:CXX = "cl"
         & vcpkg install --triplet $triplet
+        # Reset to clang-cl for WebKit build
+        $env:CC = "clang-cl"
+        $env:CXX = "clang-cl"
         if ($LASTEXITCODE -ne 0) { throw "vcpkg install failed with exit code $LASTEXITCODE" }
     }
     
