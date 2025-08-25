@@ -195,12 +195,33 @@ set(VCPKG_LIBRARY_LINKAGE static)
     $ICU_STATIC_LIBRARY = Join-Path $ICU_STATIC_ROOT "lib"
     $ICU_STATIC_INCLUDE_DIR = Join-Path $ICU_STATIC_ROOT "include"
     
-    # Debug: List ICU library files
+    # Find and configure ICU static libraries
     Write-Host "ICU library files found:"
     if (Test-Path $ICU_STATIC_LIBRARY) {
-        Get-ChildItem "$ICU_STATIC_LIBRARY\*icu*" | ForEach-Object { Write-Host "  $($_.Name)" }
+        $icuLibs = Get-ChildItem "$ICU_STATIC_LIBRARY\*icu*" -Include "*.lib"
+        $icuLibs | ForEach-Object { Write-Host "  $($_.Name)" }
+        
+        # Find specific ICU libraries needed for WebKit
+        $ICU_UC_LIB = Get-ChildItem "$ICU_STATIC_LIBRARY\*icuuc*" -Include "*.lib" | Select-Object -First 1
+        $ICU_I18N_LIB = Get-ChildItem "$ICU_STATIC_LIBRARY\*icui18n*" -Include "*.lib" | Select-Object -First 1
+        $ICU_DATA_LIB = Get-ChildItem "$ICU_STATIC_LIBRARY\*icudt*" -Include "*.lib" | Select-Object -First 1
+        $ICU_IO_LIB = Get-ChildItem "$ICU_STATIC_LIBRARY\*icuio*" -Include "*.lib" | Select-Object -First 1
+        
+        # Create library list for CMake
+        $ICU_LIBRARY_LIST = @()
+        if ($ICU_UC_LIB) { $ICU_LIBRARY_LIST += $ICU_UC_LIB.FullName }
+        if ($ICU_I18N_LIB) { $ICU_LIBRARY_LIST += $ICU_I18N_LIB.FullName }
+        if ($ICU_DATA_LIB) { $ICU_LIBRARY_LIST += $ICU_DATA_LIB.FullName }
+        if ($ICU_IO_LIB) { $ICU_LIBRARY_LIST += $ICU_IO_LIB.FullName }
+        
+        Write-Host "ICU Libraries found:"
+        $ICU_LIBRARY_LIST | ForEach-Object { Write-Host "  $($_ | Split-Path -Leaf)" }
+        
+        # Set ICU library paths for CMake
+        $ICU_LIBRARIES_FOR_CMAKE = $ICU_LIBRARY_LIST -join ";"
     } else {
         Write-Host "  ICU library directory not found: $ICU_STATIC_LIBRARY"
+        $ICU_LIBRARIES_FOR_CMAKE = ""
     }
 } else {
     Write-Host ":: Building ICU from source"
@@ -289,6 +310,23 @@ if ($CcachePath) {
     Write-Host ":: ccache not found, building without compiler cache"
 }
 
+# Build CMake ICU configuration
+$ICUCmakeArgs = @()
+if ($UseVcpkg -and $ICU_LIBRARIES_FOR_CMAKE) {
+    $ICUCmakeArgs += "-DICU_ROOT=${ICU_STATIC_ROOT}"
+    $ICUCmakeArgs += "-DICU_INCLUDE_DIR=${ICU_STATIC_INCLUDE_DIR}"
+    $ICUCmakeArgs += "-DICU_LIBRARY=${ICU_STATIC_LIBRARY}"
+    # Pass individual ICU libraries
+    if ($ICU_UC_LIB) { $ICUCmakeArgs += "-DICU_UC_LIBRARY=$($ICU_UC_LIB.FullName)" }
+    if ($ICU_I18N_LIB) { $ICUCmakeArgs += "-DICU_I18N_LIBRARY=$($ICU_I18N_LIB.FullName)" }
+    if ($ICU_DATA_LIB) { $ICUCmakeArgs += "-DICU_DATA_LIBRARY=$($ICU_DATA_LIB.FullName)" }
+    # Force static linking
+    $ICUCmakeArgs += "-DICU_STATIC_LIBRARIES=$ICU_LIBRARIES_FOR_CMAKE"
+    $ICUCmakeArgs += "-DUSE_ICU=ON"
+    Write-Host "CMake ICU configuration:"
+    $ICUCmakeArgs | ForEach-Object { Write-Host "  $_" }
+}
+
 cmake -S . -B $WebKitBuild `
     -DPORT="JSCOnly" `
     "-DCMAKE_SYSTEM_PROCESSOR=${CmakeArch}" `
@@ -308,9 +346,7 @@ cmake -S . -B $WebKitBuild `
     -DUSE_BUN_EVENT_LOOP=ON `
     -DENABLE_BUN_SKIP_FAILING_ASSERTIONS=ON `
     -DUSE_SYSTEM_MALLOC=ON `
-    "-DICU_ROOT=${ICU_STATIC_ROOT}" `
-    "-DICU_LIBRARY=${ICU_STATIC_LIBRARY}" `
-    "-DICU_INCLUDE_DIR=${ICU_STATIC_INCLUDE_DIR}" `
+    @ICUCmakeArgs `
     "-DRuby_EXECUTABLE=${RubyPath}" `
     "-DCMAKE_C_COMPILER=clang-cl" `
     "-DCMAKE_CXX_COMPILER=clang-cl" `
