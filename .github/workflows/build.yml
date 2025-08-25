@@ -312,8 +312,10 @@ jobs:
             scoop install 7zip
           }
           
-          # Install aria2 for parallel downloads
-          scoop install aria2
+          # Skip aria2 on ARM64 as it may cause issues
+          if (-not $isARM64) {
+            scoop install aria2
+          }
           
           # Install tools via Scoop one by one for better error isolation
           if ($isARM64) {
