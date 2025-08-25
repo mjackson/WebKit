@@ -169,6 +169,9 @@ set(VCPKG_TARGET_ARCHITECTURE $vcpkgArch)
 set(VCPKG_CRT_LINKAGE static)
 set(VCPKG_LIBRARY_LINKAGE static)
 set(VCPKG_CMAKE_SYSTEM_NAME Windows)
+set(VCPKG_PLATFORM_TOOLSET ClangCL)
+set(VCPKG_C_FLAGS "-clang:-fno-asynchronous-unwind-tables")
+set(VCPKG_CXX_FLAGS "-clang:-fno-asynchronous-unwind-tables")
 "@
             Set-Content -Path $TripletFile -Value $TripletContent
         }
@@ -290,8 +293,6 @@ cmake -S . -B $WebKitBuild `
     "-DICU_LIBRARY=${ICU_STATIC_LIBRARY}" `
     "-DICU_INCLUDE_DIR=${ICU_STATIC_INCLUDE_DIR}" `
     "-DRuby_EXECUTABLE=${RubyPath}" `
-    "-DCMAKE_C_COMPILER=clang-cl" `
-    "-DCMAKE_CXX_COMPILER=clang-cl" `
     "-DCMAKE_C_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG -clang:-fno-asynchronous-unwind-tables " `
     "-DCMAKE_CXX_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG -Xclang -fno-c++-static-destructors -clang:-fno-asynchronous-unwind-tables " `
     "-DCMAKE_C_FLAGS_DEBUG=/Zi /FS /O0 /Ob0 " `
