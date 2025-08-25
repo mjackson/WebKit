@@ -267,20 +267,16 @@ jobs:
             echo "$env:USERPROFILE\scoop\shims" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           }
           
-          # Install tools via Scoop
-          scoop install cmake ninja python perl
+          # Install aria2 first for parallel downloads
+          scoop install aria2
           
-          # Install LLVM - use correct architecture version
+          # Install tools via Scoop
           if ($isARM64) {
-            # Scoop installs x64 LLVM on ARM64, need to manually install ARM64 version
-            $llvmUrl = "https://github.com/llvm/llvm-project/releases/download/llvmorg-19.1.4/LLVM-19.1.4-woa64.exe"
-            $llvmExe = "$env:TEMP\llvm.exe"
-            Invoke-WebRequest -Uri $llvmUrl -OutFile $llvmExe
-            Start-Process -FilePath $llvmExe -ArgumentList "/S", "/D=C:\LLVM" -Wait
-            echo "C:\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            # Use ARM64-specific packages
+            scoop install cmake ninja python perl llvm-arm64
           } else {
-            # x64 can use Scoop's LLVM
-            scoop install llvm
+            # Use x64 packages
+            scoop install cmake ninja python perl llvm
           }
           
           # Install Ruby manually on ARM64 (Scoop's Ruby fails on ARM64)
