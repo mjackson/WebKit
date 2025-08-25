@@ -254,20 +254,19 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     steps:
-      - name: Install dependencies via WinGet
+      - name: Install dependencies via Chocolatey
         run: |
-          # Install WinGet first (not available by default on GitHub Actions)
-          Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe
+          # Install Chocolatey if not present
+          if (!(Get-Command choco -ErrorAction SilentlyContinue)) {
+            Set-ExecutionPolicy Bypass -Scope Process -Force
+            [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+            iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+          }
           
-          # Install all required tools via WinGet (has better ARM64 support)
-          winget install --id=Kitware.CMake -e --silent --accept-source-agreements --accept-package-agreements
-          winget install --id=Ninja-build.Ninja -e --silent --accept-source-agreements --accept-package-agreements  
-          winget install --id=Python.Python.3.13 -e --silent --accept-source-agreements --accept-package-agreements
-          winget install --id=RubyInstaller.Ruby -e --silent --accept-source-agreements --accept-package-agreements
-          winget install --id=StrawberryPerl.StrawberryPerl -e --silent --accept-source-agreements --accept-package-agreements
-          winget install --id=LLVM.LLVM -e --silent --accept-source-agreements --accept-package-agreements
+          # Install all required tools via Chocolatey
+          choco install cmake ninja python ruby strawberryperl llvm -y --no-progress
           
-          # Install vcpkg manually since it's not in WinGet main repo
+          # Install vcpkg manually
           git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
           cd C:\vcpkg
           .\bootstrap-vcpkg.bat
