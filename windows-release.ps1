@@ -269,7 +269,7 @@ if ($CcachePath) {
 
 cmake -S . -B $WebKitBuild `
     -DPORT="JSCOnly" `
-    -DCMAKE_SYSTEM_PROCESSOR=ARM64 `
+    "-DCMAKE_SYSTEM_PROCESSOR=${CmakeArch}" `
     @CcacheLauncher `
     -DENABLE_STATIC_JSC=ON `
     -DALLOW_LINE_AND_COLUMN_NUMBER_IN_BUILTINS=ON `
