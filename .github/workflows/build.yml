@@ -367,23 +367,8 @@ jobs:
           
           # Install Ruby manually on ARM64 (Scoop's Ruby fails on ARM64)
           if ($isARM64) {
-            Write-Host "Installing Ruby x64 on ARM64 (runs via emulation)..."
-            $rubyUrl = "https://github.com/oneclick/rubyinstaller2/releases/download/RubyInstaller-3.3.6-1/rubyinstaller-devkit-3.3.6-1-x64.exe"
-            $rubyExe = "$env:TEMP\ruby.exe"
-            
-            Write-Host "Downloading Ruby installer..."
-            Invoke-WebRequest -Uri $rubyUrl -OutFile $rubyExe
-            
-            Write-Host "Installing Ruby (with 5 minute timeout)..."
-            $rubyProcess = Start-Process -FilePath $rubyExe -ArgumentList "/VERYSILENT", "/NORESTART", "/DIR=C:\Ruby33-x64" -PassThru
-            if (!$rubyProcess.WaitForExit(300000)) { # 5 minutes
-                Write-Host "Ruby installation timed out, killing process"
-                $rubyProcess.Kill()
-                Write-Host "Continuing without Ruby - will try to find existing Ruby"
-            }
-            
-            Write-Host "Ruby installation completed"
-            echo "C:\Ruby33-x64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            Write-Host "Skipping Ruby installation on ARM64 - using pre-installed Ruby"
+            # GitHub Actions ARM64 runners come with Ruby pre-installed
           } else {
             # x64 can use Scoop's Ruby
             Write-Host "Installing Ruby via Scoop..."
