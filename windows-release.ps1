@@ -120,7 +120,7 @@ if ($UseVcpkg) {
     if (-not (Test-Path "$VcpkgInstalled\include\unicode")) {
         Write-Host ":: Installing ICU via vcpkg with static CRT"
         
-        # Create custom triplet in vcpkg triplets directory
+        # Create custom triplet for static linking
         $TripletName = if ($isARM64) { "arm64-windows-static" } else { "x64-windows-static" }
         $TripletFile = Join-Path $VcpkgRoot "triplets\community\$TripletName.cmake"
         
@@ -144,7 +144,7 @@ set(VCPKG_LIBRARY_LINKAGE static)
         # Ensure vcpkg can find the compiler
         $env:CC = "cl"
         $env:CXX = "cl"
-        & vcpkg install --triplet $triplet
+        & vcpkg install --triplet $TripletName
         # Reset to clang-cl for WebKit build
         $env:CC = "clang-cl"
         $env:CXX = "clang-cl"
@@ -294,29 +294,21 @@ if ($CcachePath) {
 # Build CMake ICU configuration
 $ICUCmakeArgs = @()
 if ($UseVcpkg) {
-    $ICUCmakeArgs += "-DICU_ROOT=${ICU_STATIC_ROOT}"
-    $ICUCmakeArgs += "-DICU_INCLUDE_DIR=${ICU_STATIC_INCLUDE_DIR}"
-    $ICUCmakeArgs += "-DICU_LIBRARY=${ICU_STATIC_LIBRARY}"
-    
-    # Pass the complete library list if we found any
+    # When using vcpkg toolchain, let it handle ICU discovery
+    # But we still need to ensure all ICU components are linked
     if ($ICU_LIBRARIES_FOR_CMAKE) {
-        # Pass all libraries as ICU_LIBRARIES for CMake FindICU
+        # Pass all ICU libraries explicitly to ensure they're all linked
         $ICUCmakeArgs += "-DICU_LIBRARIES=$ICU_LIBRARIES_FOR_CMAKE"
-        
-        # Also set individual library variables for compatibility
-        $libs = $ICU_LIBRARIES_FOR_CMAKE -split ";"
-        $ucLib = $libs | Where-Object { $_ -match "icuuc" } | Select-Object -First 1
-        $i18nLib = $libs | Where-Object { $_ -match "icui.*n|icuin" } | Select-Object -First 1
-        $dataLib = $libs | Where-Object { $_ -match "icudt|icudata" } | Select-Object -First 1
-        
-        if ($ucLib) { $ICUCmakeArgs += "-DICU_UC_LIBRARY=$ucLib" }
-        if ($i18nLib) { $ICUCmakeArgs += "-DICU_I18N_LIBRARY=$i18nLib" }
-        if ($dataLib) { $ICUCmakeArgs += "-DICU_DATA_LIBRARY=$dataLib" }
-    } else {
-        Write-Host "WARNING: No ICU libraries found! Build may fail."
+        Write-Host "Passing ICU libraries to CMake: $ICU_LIBRARIES_FOR_CMAKE"
     }
     
+    # Also pass the root paths for ICU
+    $ICUCmakeArgs += "-DICU_ROOT=${ICU_STATIC_ROOT}"
+    $ICUCmakeArgs += "-DICU_INCLUDE_DIR=${ICU_STATIC_INCLUDE_DIR}" 
+    
+    # Ensure ICU is enabled
     $ICUCmakeArgs += "-DUSE_ICU=ON"
+    
     Write-Host "CMake ICU configuration:"
     $ICUCmakeArgs | ForEach-Object { Write-Host "  $_" }
 }
