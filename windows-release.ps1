@@ -136,6 +136,11 @@ if ($UseVcpkg) {
 set(VCPKG_TARGET_ARCHITECTURE $vcpkgArch)
 set(VCPKG_CRT_LINKAGE static)
 set(VCPKG_LIBRARY_LINKAGE static)
+set(VCPKG_CMAKE_SYSTEM_NAME Windows)
+set(VCPKG_PLATFORM_TOOLSET v143)
+
+# Force ICU to build as static libraries with all components
+set(VCPKG_CMAKE_CONFIGURE_OPTIONS -DBUILD_SHARED_LIBS=OFF)
 "@
             Set-Content -Path $TripletFile -Value $TripletContent
             Write-Host "Created custom triplet: $TripletFile"
