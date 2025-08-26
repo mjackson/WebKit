@@ -2227,6 +2227,9 @@ imported/w3c/web-platform-tests/svg/animations/repeat-iteration-event-003.svg [ 
 imported/w3c/web-platform-tests/svg/animations/repeat-iteration-event-004.svg [ Skip ]
 imported/w3c/web-platform-tests/svg/animations/slider-switch.html [ Skip ]
 imported/w3c/web-platform-tests/svg/animations/cyclic-syncbase-2.html [ Skip ]
+imported/w3c/web-platform-tests/svg/animations/eventbase-non-svg-element.html [ Skip ]
+imported/w3c/web-platform-tests/svg/animations/first-interval-in-the-past-contribute.html [ Skip ]
+imported/w3c/web-platform-tests/svg/animations/first-interval-in-the-past-dont-contribute.html [ Skip ]
 imported/w3c/web-platform-tests/svg/animations/cyclic-syncbase-events.html [ Skip ]
 imported/w3c/web-platform-tests/svg/animations/onrepeat.svg [ Skip ]
 imported/w3c/web-platform-tests/svg/animations/repeat-event.svg [ Skip ]
@@ -2295,7 +2298,6 @@ webkit.org/b/201110 imported/w3c/web-platform-tests/svg/extensibility/foreignObj
 webkit.org/b/201110 imported/w3c/web-platform-tests/svg/extensibility/foreignObject/will-change-in-transformed-foreign-object.html [ Skip ]
 webkit.org/b/201946 imported/w3c/web-platform-tests/svg/extensibility/foreignObject/composited-inside-object.html [ Skip ]
 webkit.org/b/201946 imported/w3c/web-platform-tests/svg/extensibility/foreignObject/compositing-backface-visibility.html [ Skip ]
-webkit.org/b/201918 imported/w3c/web-platform-tests/svg/render/reftests/change-sync-for-nested-use.html [ Skip ]
 webkit.org/b/173154 imported/w3c/web-platform-tests/svg/linking/reftests/use-keyframes.html [ Skip ]
 webkit.org/b/201992 imported/w3c/web-platform-tests/svg/linking/reftests/href-filter-element.html [ Skip ]
 
@@ -5757,8 +5759,6 @@ webkit.org/b/279424 [ Debug ] imported/w3c/web-platform-tests/css/css-conditiona
 
 # CSS containment tests that fail
 imported/w3c/web-platform-tests/css/css-contain/contain-inline-size-bfc-floats-001.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-contain/contain-layout-button-001.tentative.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-contain/contain-layout-button-002.tentative.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-contain/contain-style-counters-002.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-contain/contain-style-counters-004.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-contain/contain-style-counters-005.html [ ImageOnlyFailure ]
@@ -6138,9 +6138,6 @@ imported/w3c/web-platform-tests/workers/modules/dedicated-worker-import-csp.html
 # Test is flaky because MessagePort messages may get received in a different order when several MessagePorts are involved,
 # due to how MessagePort::dispatchMessages() is implemented.
 imported/w3c/web-platform-tests/workers/shared-worker-name-via-options.html [ DumpJSConsoleLogInStdErr Failure Pass ]
-
-# Display list logging is only available in debug
-[ Release ] fast/text/glyph-display-lists [ Skip ]
 
 webkit.org/b/242983 imported/w3c/web-platform-tests/css/css-scroll-anchoring/fullscreen-crash.html [ Skip ]
 webkit.org/b/261849 imported/w3c/web-platform-tests/css/css-scroll-anchoring/heuristic-with-offset-update-from-scroll-event-listener.html [ Skip ]
