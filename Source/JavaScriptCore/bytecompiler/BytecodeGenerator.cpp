@@ -789,8 +789,19 @@ IGNORE_GCC_WARNINGS_END
 
         emitNewGenerator(m_generatorRegister);
         bool isInternalPromise = false;
+#if USE(BUN_JSC_ADDITIONS)
+        if (m_isBuiltinFunction) {
+            const auto isDefaultPromiseForBun = [&]() -> bool {
+                if (auto* provider = m_scopeNode->source().provider())
+                    return !provider->sourceURL().isEmpty();
+                return false;
+            };
+            isInternalPromise = !functionNode->ident().string().startsWith("defaultAsync"_s) && !isDefaultPromiseForBun();
+        }
+#else
         if (m_isBuiltinFunction)
             isInternalPromise = !functionNode->ident().string().startsWith("defaultAsync"_s);
+#endif
         emitNewPromise(promiseRegister(), isInternalPromise);
         emitPutInternalField(generatorRegister(), static_cast<unsigned>(JSGenerator::Field::Context), promiseRegister());
         break;
