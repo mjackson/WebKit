@@ -619,6 +619,9 @@ imported/w3c/web-platform-tests/x-frame-options/multiple.html [ DumpJSConsoleLog
 imported/w3c/web-platform-tests/x-frame-options/sameorigin.sub.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/cookiestore/cookieStore_event_basic.https.window.html [ DumpJSConsoleLogInStdErr ]
 
+# Asserts in Debug
+[ Debug ] imported/w3c/web-platform-tests/FileAPI/blob/Blob-stream-sync-xhr-crash.html [ Skip ]
+
 # We need to fix our WebVTT implementation to pass most of the WebVTT rendering WPT (https://bugs.webkit.org/show_bug.cgi?id=277975).
 imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video [ ImageOnlyFailure ]
 
@@ -902,6 +905,7 @@ imported/w3c/web-platform-tests/html/semantics/embedded-content/the-iframe-eleme
 imported/w3c/web-platform-tests/html/semantics/forms/historical-search-event.html [ Skip ]
 imported/w3c/web-platform-tests/service-workers/service-worker/same-site-cookies.https.html [ Skip ]
 imported/w3c/web-platform-tests/workers/interfaces/WorkerGlobalScope/onerror/message-module-Error.html [ Skip ]
+[ Debug ] imported/w3c/web-platform-tests/css/css-position/position-absolute-crash-chrome-006.html [ Skip ]
 [ Debug ] imported/w3c/web-platform-tests/css/css-position/position-absolute-crash-chrome-013.html [ Skip ]
 [ Debug ] imported/w3c/web-platform-tests/css/css-properties-values-api/registered-property-revert.html [ Skip ]
 [ Debug ] imported/w3c/web-platform-tests/css/css-scoping/slotted-matches.html [ Skip ]
@@ -1851,8 +1855,11 @@ imported/w3c/web-platform-tests/css/selectors/case-insensitive-parent.html [ Ima
 imported/w3c/web-platform-tests/css/selectors/selectors-4/lang-017.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/selectors/selectors-4/lang-018.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/selectors/selectors-4/lang-020.html [ ImageOnlyFailure ]
+
+# :open pseudo-class
 imported/w3c/web-platform-tests/css/selectors/selectors-4/details-open-pseudo-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/selectors/selectors-4/details-open-pseudo-002.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-open-pseudo-invalidation.html [ ImageOnlyFailure ]
 
 # This test is bit heavy for debug
 [ Debug ] imported/w3c/web-platform-tests/css/selectors/invalidation/has-complexity.html [ Skip ]
@@ -6795,6 +6802,7 @@ webkit.org/b/285971 imported/w3c/web-platform-tests/css/css-tables/table-intrins
 webkit.org/b/285971 imported/w3c/web-platform-tests/css/css-tables/table-intrinsic-size-004.html [ ImageOnlyFailure ]
 webkit.org/b/285971 imported/w3c/web-platform-tests/css/css-tables/tentative/padding-percentage.html [ ImageOnlyFailure ]
 webkit.org/b/285971 imported/w3c/web-platform-tests/css/css-tables/visibility-collapse-border-spacing-001.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-tables/html5-table-formatting-3.html [ Pass Failure ]
 
 # New failures after re-importing css-overflow
 imported/w3c/web-platform-tests/css/css-overflow/margin-block-end-scroll-area-001.html [ Skip ]
@@ -8035,3 +8043,49 @@ webkit.org/b/293973 [ Debug ] http/tests/ipc/gpu-load-error-empty-user-info-crss
 webkit.org/b/297505 ipc/LocalSampleBufferDisplayLayer-LogIdentifier-data-race-uaf.html [ Skip ]
 
 webkit.org/b/298003 imported/w3c/web-platform-tests/css/css-text/text-indent/below-float.html [ ImageOnlyFailure ]
+
+webkit.org/b/298003 imported/w3c/web-platform-tests/css/css-pseudo/first-line-below-float.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-pseudo/first-line-line-height-003.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-pseudo/highlight-styling-003.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-pseudo/relative-box-order-of-pseudo-elements.html [ ImageOnlyFailure ]
+
+imported/w3c/web-platform-tests/css/css-break/background-image-004.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/background-image-005.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/background-image-006.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/background-image-007.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/borders-008.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/box-decoration-break-clone-024.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/box-decoration-break-clone-025.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/box-decoration-break-clone-026.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/box-decoration-break-clone-027.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/box-decoration-break-clone-028.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/box-decoration-break-clone-029.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/box-decoration-break-clone-030.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/box-decoration-break-clone-031.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/box-decoration-break-clone-033.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/box-decoration-break-clone-034.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/box-shadow-005.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/flexbox/multi-line-column-flex-fragmentation-054.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/flexbox/multi-line-column-flex-fragmentation-055.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/flexbox/multi-line-column-flex-fragmentation-056.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/flexbox/multi-line-column-flex-fragmentation-057.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/flexbox/multi-line-column-flex-fragmentation-058.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/flexbox/multi-line-row-flex-fragmentation-065.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/flexbox/multi-line-row-flex-fragmentation-067.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/flexbox/multi-line-row-flex-fragmentation-068.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/flexbox/multi-line-row-flex-fragmentation-069.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/flexbox/multi-line-row-flex-fragmentation-070.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/flexbox/multi-line-row-flex-fragmentation-071.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/flexbox/multi-line-row-flex-fragmentation-084.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/flexbox/multi-line-row-flex-fragmentation-085.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/flexbox/multi-line-row-flex-fragmentation-086.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/flexbox/multi-line-row-flex-fragmentation-087.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/flexbox/multi-line-row-flex-fragmentation-088.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/flexbox/multi-line-row-flex-fragmentation-089.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/flexbox/multi-line-row-flex-fragmentation-090.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/flexbox/multi-line-row-flex-fragmentation-091.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/flexbox/multi-line-row-flex-fragmentation-092.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/inline-skipping-fragmentainer-001.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/table/repeated-section/text-in-nested-multicol.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/text-indent-and-wide-float.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-break/transform-025.html [ ImageOnlyFailure ]

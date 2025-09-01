@@ -56,10 +56,10 @@ public:
 
     inline static Structure* createStructure(VM&, JSGlobalObject*, JSValue);
 
-    static ErrorInstance* create(VM& vm, Structure* structure, const String& message, JSValue cause, SourceAppender appender = nullptr, RuntimeType type = TypeNothing, ErrorType errorType = ErrorType::Error, bool useCurrentFrame = true)
+    static ErrorInstance* create(VM& vm, Structure* structure, const String& message, JSValue cause, SourceAppender appender = nullptr, RuntimeType type = TypeNothing, ErrorType errorType = ErrorType::Error, bool useCurrentFrame = true, JSCell* subclassCaller = nullptr)
     {
         ErrorInstance* instance = new (NotNull, allocateCell<ErrorInstance>(vm)) ErrorInstance(vm, structure, errorType);
-        instance->finishCreation(vm, message, cause, appender, type, useCurrentFrame);
+        instance->finishCreation(vm, message, cause, appender, type, useCurrentFrame, subclassCaller);
         return instance;
     }
 
@@ -71,7 +71,7 @@ public:
     }
 
     JS_EXPORT_PRIVATE static ErrorInstance* create(JSGlobalObject*, String&& message, ErrorType, LineColumn, String&& sourceURL, String&& stackString, String&& cause = { });
-    static ErrorInstance* create(JSGlobalObject*, Structure*, JSValue message, JSValue options, SourceAppender = nullptr, RuntimeType = TypeNothing, ErrorType = ErrorType::Error, bool useCurrentFrame = true);
+    static ErrorInstance* create(JSGlobalObject*, Structure*, JSValue message, JSValue options, SourceAppender = nullptr, RuntimeType = TypeNothing, ErrorType = ErrorType::Error, bool useCurrentFrame = true, JSCell* subclassCaller = nullptr);
 
     JS_EXPORT_PRIVATE void captureStackTrace(VM &vm, JSC::JSGlobalObject* globalObject, size_t framesToSkip = 0, bool append = false);
 
@@ -139,7 +139,7 @@ public:
 protected:
     explicit ErrorInstance(VM&, Structure*, ErrorType);
 
-    void finishCreation(VM&, const String& message, JSValue cause, SourceAppender = nullptr, RuntimeType = TypeNothing, bool useCurrentFrame = true);
+    void finishCreation(VM&, const String& message, JSValue cause, SourceAppender = nullptr, RuntimeType = TypeNothing, bool useCurrentFrame = true, JSCell* subclassCaller = nullptr);
     void finishCreation(VM&, const String& message, JSValue cause, JSCell* owner, CallLinkInfo*);
     void finishCreation(VM&, String&& message, LineColumn, String&& sourceURL, String&& stackString, String&& cause);
 

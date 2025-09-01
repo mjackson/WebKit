@@ -172,11 +172,15 @@ webkit.org/b/212975 http/tests/ssl/applepay/PaymentRequest.https.html [ Pass Tim
 http/tests/paymentrequest/ApplePayModifier-disbursementRequest.https.html [ Skip ]
 http/tests/paymentrequest [ Pass ]
 imported/w3c/web-platform-tests/payment-request [ Pass ]
-imported/w3c/web-platform-tests/payment-request/payment-request-hasenrolledinstrument-method.tentative.https.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/payment-request/show-method-optional-promise-rejects.https.html [ DumpJSConsoleLogInStdErr ]
 
 # This test is failing due to lack of user activation.
 imported/w3c/web-platform-tests/payment-request/payment-is-showing.https.html [ Skip ]
+
+# Timeouts
+imported/w3c/web-platform-tests/payment-request/payment-request-canmakepayment-method.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/payment-request-hasenrolledinstrument-method.tentative.https.html [ Skip DumpJSConsoleLogInStdErr ]
+imported/w3c/web-platform-tests/digital-credentials/allow-attribute-with-create.https.html [ Skip ]
 
 # skip in favor of tests in http/tests/paymentrequest
 imported/w3c/web-platform-tests/payment-request/payment-request-abort-method.https.html [ WontFix ]
@@ -3825,6 +3829,7 @@ webkit.org/b/243690 imported/w3c/web-platform-tests/html/cross-origin-opener-pol
 imported/w3c/web-platform-tests/css/css-pseudo/highlight-cascade/highlight-paired-cascade-005.html [ Pass ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-pseudo/highlight-cascade/highlight-cascade-008.html [ Pass ]
 imported/w3c/web-platform-tests/css/css-pseudo/highlight-styling-001.html [ Pass ]
+imported/w3c/web-platform-tests/css/css-pseudo/highlight-styling-004.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-pseudo/highlight-custom-properties-dynamic-001.html [ Pass ]
 
 webkit.org/b/248100 imported/w3c/web-platform-tests/css/css-masking/clip-path-svg-content/clip-path-content-use-007.svg [ DumpJSConsoleLogInStdErr ]
@@ -6368,7 +6373,6 @@ imported/w3c/web-platform-tests/css/css-images/object-position-svg-002p.html [ I
 webkit.org/b/214468 imported/w3c/web-platform-tests/css/css-multicol/equal-gap-and-rule.html [ ImageOnlyFailure ]
 webkit.org/b/214468 imported/w3c/web-platform-tests/css/css-multicol/fixed-size-child-with-overflow.html [ ImageOnlyFailure ]
 webkit.org/b/214468 imported/w3c/web-platform-tests/css/css-pseudo/active-selection-041.html [ ImageOnlyFailure ]
-webkit.org/b/214468 imported/w3c/web-platform-tests/css/css-pseudo/highlight-styling-003.tentative.html [ ImageOnlyFailure ]
 webkit.org/b/214468 imported/w3c/web-platform-tests/css/css-pseudo/textpath-selection-011.html [ ImageOnlyFailure ]
 webkit.org/b/214468 imported/w3c/web-platform-tests/css/css-shapes/shape-outside/shape-image/shape-image-000.html [ ImageOnlyFailure ]
 webkit.org/b/214468 imported/w3c/web-platform-tests/css/css-shapes/shape-outside/shape-image/shape-image-004.html [ ImageOnlyFailure ]
@@ -8255,3 +8259,7 @@ webkit.org/b/297984 [ Release ] imported/w3c/web-platform-tests/html/cross-origi
 webkit.org/b/298042 [ Release ] http/tests/security/clipboard/copy-paste-html-cross-origin-iframe-across-origin.html [ Pass Failure ]
 
 webkit.org/b/298106 [ Debug ] http/wpt/mediasession/gpuProcessCrash-voiceDetection.html [ Crash ]
+
+webkit.org/b/298125 imported/w3c/web-platform-tests/mediacapture-streams/parallel-capture-requests.https.html [ Pass Failure ]
+
+imported/w3c/web-platform-tests/css/css-break/block-in-inline-012.html [ ImageOnlyFailure ]
