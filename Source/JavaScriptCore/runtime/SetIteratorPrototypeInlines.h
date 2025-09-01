@@ -25,9 +25,9 @@
 
 #pragma once
 
-#include <JavaScriptCore/JSGlobalObject.h>
-#include <JavaScriptCore/JSSetIterator.h>
-#include <JavaScriptCore/SetIteratorPrototype.h>
+#include "JSGlobalObject.h"
+#include "JSSetIterator.h"
+#include "SetIteratorPrototype.h"
 
 namespace JSC {
 
