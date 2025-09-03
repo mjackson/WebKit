@@ -33,7 +33,7 @@
 #include "AXLogger.h"
 #include "AXLoggerBase.h"
 #include "AXNotifications.h"
-#include "AXObjectCache.h"
+#include "AXObjectCacheInlines.h"
 #include "AXUtilities.h"
 #include "AccessibilityImageMapLink.h"
 #include "AccessibilityMediaHelpers.h"
@@ -452,7 +452,7 @@ AccessibilityObject* AccessibilityRenderObject::nextSibling() const
     if (nextSibling->node() && nextSibling->node() == m_renderer->node()) {
         if (RefPtr nextObject = cache->getOrCreate(*nextSibling)) {
             if (nextObject.get() == this) {
-                // WebKit accessibility objects use DOM nodes as the "primary key" (i.e. in m_nodeObjectMapping).
+                // WebKit accessibility objects use DOM nodes as the "primary key" (i.e. in m_nodeIdMapping).
                 // This can cause a bit of trouble for continuations, which result in multiple renderers being associated
                 // with the same node. That can cause us to get into this branch — if nextSibling or us is a continuation,
                 // we will be different renderers with the same node, and thus `nextObject` will be us.
@@ -565,7 +565,7 @@ AccessibilityObject* AccessibilityRenderObject::parentObject() const
     // Expose markers that are not direct children of a list item too.
     if (m_renderer->isRenderListMarker()) {
         for (auto& listItemAncestor : ancestorsOfType<RenderListItem>(*m_renderer)) {
-            RefPtr parent = dynamicDowncast<AccessibilityRenderObject>(axObjectCache()->getOrCreate(&listItemAncestor));
+            RefPtr parent = dynamicDowncast<AccessibilityRenderObject>(axObjectCache()->getOrCreate(listItemAncestor));
             if (parent && parent->markerRenderer() == m_renderer)
                 return parent.get();
         }
@@ -642,7 +642,7 @@ Element* AccessibilityRenderObject::anchorElement() const
         if (auto* anchor = dynamicDowncast<HTMLAnchorElement>(node.get()))
             return anchor;
 
-        RefPtr object = cache ? cache->getOrCreate(node->renderer()) : nullptr;
+        RefPtr object = cache ? cache->getOrCreate(*node) : nullptr;
         if (object && object->isLink())
             return dynamicDowncast<Element>(*node);
     }
@@ -1467,7 +1467,7 @@ AXTextRuns AccessibilityRenderObject::textRuns()
 
     if (isReplacedElement()) {
         auto* containingBlock = renderer ? renderer->containingBlock() : nullptr;
-        FloatRect rect = frameRect();
+        FloatRect rect = localRect();
         uint16_t width = static_cast<uint16_t>(rect.width());
         uint16_t height = static_cast<uint16_t>(rect.height());
         if (!containingBlock)
@@ -1838,8 +1838,8 @@ AXCoreObject::AccessibilityChildrenVector AccessibilityRenderObject::documentLin
         return { };
 
     for (unsigned i = 0; RefPtr current = links->item(i); ++i) {
-        if (CheckedPtr renderer = current->renderer()) {
-            RefPtr axObject = cache->getOrCreate(*renderer);
+        if (current->renderer()) {
+            RefPtr axObject = cache->getOrCreate(*current);
             ASSERT(axObject);
             if (!axObject->isIgnored() && axObject->isLink())
                 result.append(axObject.releaseNonNull());
@@ -1847,8 +1847,7 @@ AXCoreObject::AccessibilityChildrenVector AccessibilityRenderObject::documentLin
             RefPtr parent = current->parentNode();
             if (RefPtr parentMap = dynamicDowncast<HTMLMapElement>(parent); parentMap && is<HTMLAreaElement>(*current)) {
                 RefPtr parentImage = parentMap->imageElement();
-                CheckedPtr parentImageRenderer = parentImage ? parentImage->renderer() : nullptr;
-                if (RefPtr parentImageAxObject = cache->getOrCreate(parentImageRenderer.get())) {
+                if (RefPtr parentImageAxObject = cache->getOrCreate(parentImage.get())) {
                     for (const auto& child : parentImageAxObject->unignoredChildren()) {
                         if (is<AccessibilityImageMapLink>(child) && !result.contains(child))
                             result.append(child);
@@ -2226,9 +2225,8 @@ AccessibilityObject* AccessibilityRenderObject::accessibilityHitTest(const IntPo
     if (RefPtr option = dynamicDowncast<HTMLOptionElement>(*node))
         node = option->ownerSelectElement();
 
-    auto* renderer = node->renderer();
-    auto* cache = renderer ? renderer->document().axObjectCache() : nullptr;
-    RefPtr result = cache ? cache->getOrCreate(*renderer) : nullptr;
+    auto* cache = node ? node->document().axObjectCache() : nullptr;
+    RefPtr result = cache ? cache->getOrCreate(*node) : nullptr;
     if (!result)
         return nullptr;
 
@@ -3032,10 +3030,14 @@ void AccessibilityRenderObject::scrollTo(const IntPoint& point) const
     box->layer()->scrollableArea()->scrollToOffset(point);
 }
 
-FloatRect AccessibilityRenderObject::frameRect() const
+FloatRect AccessibilityRenderObject::localRect() const
 {
-    auto* box = dynamicDowncast<RenderBox>(renderer());
-    return box ? convertFrameToSpace(box->frameRect(), AccessibilityConversionSpace::Page) : FloatRect();
+    CheckedPtr renderer = this->renderer();
+    if (CheckedPtr box = dynamicDowncast<RenderBox>(renderer.get()))
+        return box ? convertFrameToSpace(box->frameRect(), AccessibilityConversionSpace::Page) : FloatRect();
+
+    CheckedPtr renderText = dynamicDowncast<RenderText>(renderer.get());
+    return renderText ? renderText->linesBoundingBox() : FloatRect();
 }
 
 #if ENABLE(MATHML)

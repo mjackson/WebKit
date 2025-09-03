@@ -29,7 +29,8 @@
 #include "config.h"
 #include "AccessibilityImageMapLink.h"
 
-#include "AXObjectCache.h"
+#include "AXObjectCacheInlines.h"
+#include "AccessibilityObjectInlines.h"
 #include "ContainerNodeInlines.h"
 #include "ElementAncestorIteratorInlines.h"
 #include "HTMLImageElement.h"

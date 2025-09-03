@@ -2821,6 +2821,7 @@ rendering/ImageQualityController.cpp
 rendering/InlineBoxPainter.cpp
 rendering/LayerAncestorClippingStack.cpp
 rendering/LayerOverlapMap.cpp
+rendering/LayoutScope.cpp
 rendering/LayoutDisallowedScope.cpp
 rendering/LayoutRepainter.cpp
 rendering/LegacyInlineBox.cpp
@@ -2956,7 +2957,6 @@ rendering/style/AutosizeStatus.cpp
 rendering/style/BorderData.cpp
 rendering/style/BorderValue.cpp
 rendering/style/DropShadowFilterOperationWithStyleColor.cpp
-rendering/style/FillLayer.cpp
 rendering/style/GridSpan.cpp
 rendering/style/OutlineValue.cpp
 rendering/style/PositionArea.cpp
@@ -3149,6 +3149,8 @@ style/StyleUpdate.cpp
 style/Styleable.cpp
 style/TransformOperationsBuilder.cpp
 style/UserAgentStyle.cpp
+style/values/backgrounds/StyleBackgroundLayer.cpp
+style/values/backgrounds/StyleBackgroundSize.cpp
 style/values/backgrounds/StyleBorderImageOutset.cpp
 style/values/backgrounds/StyleBorderImageRepeat.cpp
 style/values/backgrounds/StyleBorderImageSlice.cpp
@@ -3156,6 +3158,7 @@ style/values/backgrounds/StyleBorderImageSource.cpp
 style/values/backgrounds/StyleBorderImageWidth.cpp
 style/values/backgrounds/StyleBorderImage.cpp
 style/values/backgrounds/StyleLineWidth.cpp
+style/values/backgrounds/StyleRepeatStyle.cpp
 style/values/borders/StyleBorderRadius.cpp
 style/values/borders/StyleBoxShadow.cpp
 style/values/borders/StyleCornerShapeValue.cpp
@@ -3209,6 +3212,7 @@ style/values/grid/StyleGridTrackBreadth.cpp
 style/values/grid/StyleGridTrackSize.cpp
 style/values/grid/StyleGridTrackSizes.cpp
 style/values/images/StyleGradient.cpp
+style/values/images/StyleImageOrNone.cpp
 style/values/images/StyleImageWrapper.cpp
 style/values/inline/StyleVerticalAlign.cpp
 style/values/lists/StyleListStyleType.cpp
@@ -3220,6 +3224,7 @@ style/values/masking/StyleMaskBorderSlice.cpp
 style/values/masking/StyleMaskBorderSource.cpp
 style/values/masking/StyleMaskBorderWidth.cpp
 style/values/masking/StyleMaskBorder.cpp
+style/values/masking/StyleMaskLayer.cpp
 style/values/motion/StyleOffsetAnchor.cpp
 style/values/motion/StyleOffsetPath.cpp
 style/values/motion/StyleOffsetPosition.cpp
@@ -3227,6 +3232,7 @@ style/values/motion/StyleOffsetRotate.cpp
 style/values/motion/StyleRayFunction.cpp
 style/values/multicol/StyleColumnCount.cpp
 style/values/multicol/StyleColumnWidth.cpp
+style/values/non-standard/StyleWebKitLineClamp.cpp
 style/values/non-standard/StyleWebKitOverflowScrolling.cpp
 style/values/non-standard/StyleWebKitTextStrokeWidth.cpp
 style/values/non-standard/StyleWebKitTouchCallout.cpp

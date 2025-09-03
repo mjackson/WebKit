@@ -33,10 +33,12 @@
 #include "AXIsolatedObject.h"
 #include "AXLogger.h"
 #include "AXNotifications.h"
+#include "AXObjectCacheInlines.h"
 #include "AXTreeStore.h"
 #include "AXTreeStoreInlines.h"
 #include "AXUtilities.h"
 #include "AccessibilityImageMapLink.h"
+#include "AccessibilityObjectInlines.h"
 #include "AccessibilityTableCell.h"
 #include "AccessibilityTableRow.h"
 #include "DocumentInlines.h"
@@ -1243,8 +1245,8 @@ void AXIsolatedTree::updateFrame(AXID axID, IntRect&& newFrame)
 
     AXPropertyVector properties;
     properties.append({ AXProperty::RelativeFrame, WTFMove(newFrame) });
-    // We can clear the initially-cached rough frame, since the object's frame has been cached
-    properties.append({ AXProperty::InitialFrameRect, FloatRect() });
+    // We can clear the initially-cached rough frame, since the object's frame has been cached.
+    properties.append({ AXProperty::InitialLocalRect, FloatRect() });
     Locker locker { m_changeLogLock };
     m_pendingPropertyChanges.append({ axID, WTFMove(properties) });
 }
@@ -1623,8 +1625,23 @@ void AXIsolatedTree::processQueuedNodeUpdates()
 
     if (m_mostRecentlyPaintedTextIsDirty) {
         m_mostRecentlyPaintedTextIsDirty = false;
+        // Resolving `mostRecentlyPaintedText()` can result in this sequence:
+        //   1. AXObjectCache::getOrCreate, which calls AccessibilityObject::recomputeIsIgnored
+        //   2. If the ignored state changes, AXObjectCache::objectBecameUnignored may be called
+        //   3. AXIsolatedTree::treeForPageID() will be called to try to inform the isolated tree
+        //      of this change, which requires taking AXTreeStore::s_storeLock.
+        //
+        // If we (the main-thread) held the m_changeLogLock when the above sequence happened, we would deadlock
+        // if the accessibility thread was simultaneously running applyPendingChangesForAllIsolatedTrees(), which
+        // holds the s_storeLock for the length of the function. The main-thread would be waiting on the storeLock,
+        // and the accessibility thread would be waiting on the m_changeLogLock to run AXIsolatedTree::applyPendingChanges()
+        // while holding the s_storeLock. Thus, a deadlock.
+        //
+        // So it's crucial to resolve the mostRecentlyPaintedText structure before the m_changeLogLock critical section,
+        // and only perform a move or copy while in the critical section to avoid a deadlock.
+        auto mostRecentlyPaintedText = cache->mostRecentlyPaintedText();
         Locker lock { m_changeLogLock };
-        m_pendingMostRecentlyPaintedText = cache->mostRecentlyPaintedText();
+        m_pendingMostRecentlyPaintedText = WTFMove(mostRecentlyPaintedText);
     }
 
     queueRemovalsAndUnresolvedChanges();
@@ -1711,11 +1728,25 @@ std::optional<AXPropertyFlag> convertToPropertyFlag(AXProperty property)
 
 void setPropertyIn(AXProperty property, AXPropertyValueVariant&& value, AXPropertyVector& properties, OptionSet<AXPropertyFlag>& propertyFlags)
 {
-    if (const bool* boolValue = std::get_if<bool>(&value); boolValue && *boolValue) {
-        if (std::optional propertyFlag = convertToPropertyFlag(property)) {
-            propertyFlags.add(*propertyFlag);
+    if (const bool* boolValue = std::get_if<bool>(&value)) {
+        if (!*boolValue) {
+            // Because this function is only for building the initial set of properties,
+            // we don't need to handle a false value, as there never should be an attempt
+            // to un-set (with false) a bool property that has already been set.
+            // These asserts verify this.
+            ASSERT(!properties.containsIf([&property] (const auto& propertyPair) {
+                return propertyPair.first == property;
+            }));
+            ASSERT(!convertToPropertyFlag(property) || !propertyFlags.contains(*convertToPropertyFlag(property)));
             return;
         }
+
+        if (std::optional propertyFlag = convertToPropertyFlag(property))
+            propertyFlags.add(*propertyFlag);
+        else
+            properties.append(std::pair(property, WTFMove(value)));
+
+        return;
     }
 
     if (!isDefaultValue(property, value))
@@ -1952,7 +1983,7 @@ IsolatedObjectData createIsolatedObjectData(const Ref<AccessibilityObject>& axOb
             // AccessibilityMenuListPopup's elementRect is hardcoded to return an empty rect, so preserve that behavior.
             setProperty(AXProperty::RelativeFrame, IntRect());
         } else
-            setProperty(AXProperty::InitialFrameRect, object.frameRect());
+            setProperty(AXProperty::InitialLocalRect, object.localRect());
 
         if (isWebArea)
             setProperty(AXProperty::IsEditableWebArea, object.isEditableWebArea());

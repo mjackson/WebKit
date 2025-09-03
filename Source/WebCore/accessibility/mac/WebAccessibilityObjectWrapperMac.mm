@@ -30,7 +30,6 @@
 #import "WebAccessibilityObjectWrapperMac.h"
 
 #import "AXIsolatedTree.h"
-#import "AXObjectCache.h"
 #import "AXObjectCacheInlines.h"
 
 #if PLATFORM(MAC)
@@ -42,6 +41,7 @@
 #import "AXTextMarker.h"
 #import "AXTreeStore.h"
 #import "AXTreeStoreInlines.h"
+#import "AccessibilityObjectInlines.h"
 #import "AccessibilityProgressIndicator.h"
 #import "AccessibilityRenderObject.h"
 #import "AccessibilityScrollView.h"

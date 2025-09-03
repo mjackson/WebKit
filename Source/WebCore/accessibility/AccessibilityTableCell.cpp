@@ -29,8 +29,9 @@
 #include "config.h"
 #include "AccessibilityTableCell.h"
 
-#include "AXObjectCache.h"
+#include "AXObjectCacheInlines.h"
 #include "AXUtilities.h"
+#include "AccessibilityObjectInlines.h"
 #include "AccessibilityTableRow.h"
 #include "HTMLParserIdioms.h"
 #include "HTMLTableCellElement.h"

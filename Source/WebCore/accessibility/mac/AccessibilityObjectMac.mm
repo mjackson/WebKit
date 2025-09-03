@@ -24,9 +24,9 @@
  */
 
 #import "config.h"
-#import "AccessibilityObject.h"
+#import "AccessibilityObjectInlines.h"
 
-#import "AXObjectCache.h"
+#import "AXObjectCacheInlines.h"
 #import "AXRemoteFrame.h"
 #import "ColorCocoa.h"
 #import "CompositionHighlight.h"
@@ -496,7 +496,7 @@ RetainPtr<NSAttributedString> attributedStringCreate(Node& node, StringView text
         return nil;
 
     auto* cache = renderer->document().axObjectCache();
-    RefPtr object = cache ? cache->getOrCreate(*renderer) : nullptr;
+    RefPtr object = cache ? cache->getOrCreate(node) : nullptr;
     if (!object)
         return nil;
 

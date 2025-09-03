@@ -96,7 +96,7 @@ static inline bool shouldJIT(Wasm::IPIntCallee* callee)
     return true;
 }
 
-enum class OSRFor { Call, Loop };
+enum class OSRFor { Prologue, Epilogue, Loop };
 
 static inline RefPtr<Wasm::JITCallee> jitCompileAndSetHeuristics(Wasm::IPIntCallee& callee, JSWebAssemblyInstance* instance, OSRFor osrFor)
 {
@@ -110,11 +110,25 @@ static inline RefPtr<Wasm::JITCallee> jitCompileAndSetHeuristics(Wasm::IPIntCall
     Wasm::CalleeGroup& calleeGroup = *instance->calleeGroup();
     ASSERT(instance->memoryMode() == memoryMode);
     ASSERT(memoryMode == calleeGroup.mode());
+
     auto getReplacement = [&] () -> RefPtr<Wasm::JITCallee> {
-        Locker locker { calleeGroup.m_lock };
-        if (osrFor == OSRFor::Call)
+        switch (osrFor) {
+        case OSRFor::Prologue: {
+            if (Options::useWasmIPInt()) [[likely]]
+                return nullptr;
+            Locker locker { calleeGroup.m_lock };
             return calleeGroup.replacement(locker, callee.index());
-        return calleeGroup.tryGetBBQCalleeForLoopOSR(locker, instance->vm(), callee.functionIndex());
+        }
+        case OSRFor::Epilogue: {
+            return nullptr;
+        }
+        case OSRFor::Loop: {
+            Locker locker { calleeGroup.m_lock };
+            return calleeGroup.tryGetBBQCalleeForLoopOSR(locker, instance->vm(), callee.functionIndex());
+        }
+        }
+        RELEASE_ASSERT_NOT_REACHED();
+        return nullptr;
     };
 
     if (RefPtr replacement = getReplacement()) {
@@ -254,7 +268,7 @@ WASM_IPINT_EXTERN_CPP_DECL(prologue_osr, CallFrame* callFrame)
 
     dataLogLnIf(Options::verboseOSR(), *callee, ": Entered prologue_osr with tierUpCounter = ", callee->tierUpCounter());
 
-    if (RefPtr replacement = jitCompileAndSetHeuristics(*callee, instance, OSRFor::Call))
+    if (RefPtr replacement = jitCompileAndSetHeuristics(*callee, instance, OSRFor::Prologue))
         WASM_RETURN_TWO(replacement->entrypoint().taggedPtr(), nullptr);
     WASM_RETURN_TWO(nullptr, nullptr);
 }
@@ -328,7 +342,7 @@ WASM_IPINT_EXTERN_CPP_DECL(epilogue_osr, CallFrame* callFrame)
 
     dataLogLnIf(Options::verboseOSR(), *callee, ": Entered epilogue_osr with tierUpCounter = ", callee->tierUpCounter());
 
-    jitCompileAndSetHeuristics(*callee, instance, OSRFor::Call);
+    jitCompileAndSetHeuristics(*callee, instance, OSRFor::Epilogue);
     WASM_RETURN_TWO(nullptr, nullptr);
 }
 #endif
@@ -910,7 +924,7 @@ WASM_IPINT_EXTERN_CPP_DECL(prepare_call, CallFrame* callFrame, CallMetadata* cal
     if (functionIndex < importFunctionCount) {
         auto* functionInfo = instance->importFunctionInfo(functionIndex);
         codePtr = functionInfo->importFunctionStub;
-        calleeReturn = *std::bit_cast<uintptr_t*>(functionInfo->boxedWasmCalleeLoadLocation);
+        calleeReturn = functionInfo->boxedCallee.encodedBits();
         if (!functionInfo->targetInstance)
             // The imported function is a JS function
             wasmInstanceReturn = reinterpret_cast<uintptr_t>(functionInfo);
@@ -952,12 +966,7 @@ WASM_IPINT_EXTERN_CPP_DECL(prepare_call_indirect, CallFrame* callFrame, Wasm::Fu
         IPINT_THROW(Wasm::ExceptionType::BadSignature);
 
     Register* calleeReturn = std::bit_cast<Register*>(functionIndex);
-    if (function.m_function.boxedWasmCalleeLoadLocation)
-        *calleeReturn = function.m_function.boxedWasmCalleeLoadLocation->encodedBits();
-    else {
-        auto callee = function.m_instance->calleeGroup()->wasmCalleeFromFunctionIndexSpace(*functionIndex);
-        *calleeReturn = CalleeBits::encodeNativeCallee(callee.get());
-    }
+    *calleeReturn = function.m_function.boxedCallee.encodedBits();
 
     Register& functionInfoSlot = calleeReturn[1];
     if (!function.m_function.targetInstance)
@@ -988,13 +997,7 @@ WASM_IPINT_EXTERN_CPP_DECL(prepare_call_ref, CallFrame* callFrame, CallRefMetada
     auto* wasmFunction = jsCast<WebAssemblyFunctionBase*>(referenceAsObject);
     auto& function = wasmFunction->importableFunction();
     JSWebAssemblyInstance* calleeInstance = wasmFunction->instance();
-
-    ASSERT(function.boxedWasmCalleeLoadLocation);
-    if (function.boxedWasmCalleeLoadLocation)
-        sp->ref = function.boxedWasmCalleeLoadLocation->encodedBits();
-    else
-        sp->ref = CalleeBits::nullCallee().encodedBits();
-
+    sp->ref = function.boxedCallee.encodedBits();
     Register& functionInfoSlot = std::bit_cast<Register*>(sp)[1];
     if (!function.targetInstance)
         functionInfoSlot = reinterpret_cast<uintptr_t>(wasmFunction->callLinkInfo());

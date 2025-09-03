@@ -2685,6 +2685,7 @@ bool Heap::shouldDoFullCollection()
 
 void Heap::addLogicallyEmptyWeakBlock(WeakBlock* block)
 {
+    RELEASE_ASSERT(!block->next() && !block->prev());
     m_logicallyEmptyWeakBlocks.append(block);
 }
 
@@ -2703,6 +2704,7 @@ bool Heap::sweepNextLogicallyEmptyWeakBlock()
         return false;
 
     WeakBlock* block = m_logicallyEmptyWeakBlocks[m_indexOfNextLogicallyEmptyWeakBlockToSweep];
+    RELEASE_ASSERT(!block->next() && !block->prev());
 
     block->sweep();
     if (block->isEmpty()) {

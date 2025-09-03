@@ -315,6 +315,7 @@ function createResolvingFunctions(promise)
 // Both of the next two functions support async context swapping, but one unwraps it from the InternalFieldTuple
 // and the other one is passed it directly as the forth argument.
 @linkTimeConstant
+@neverInline
 function promiseReactionJobWithoutPromise(handler, argument, context, asyncContext)
 {
     "use strict";
@@ -471,6 +472,7 @@ function createResolvingFunctionsWithoutPromise(onFulfilled, onRejected, context
 }
 
 @linkTimeConstant
+@neverInline
 function promiseReactionJob(promiseOrCapability, handler, argument, contextOrState)
 {
     // Promise Reaction has four types.

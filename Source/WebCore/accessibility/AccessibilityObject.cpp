@@ -35,7 +35,6 @@
 #include "AXLogger.h"
 #include "AXLoggerBase.h"
 #include "AXNotifications.h"
-#include "AXObjectCache.h"
 #include "AXObjectCacheInlines.h"
 #include "AXObjectRareData.h"
 #include "AXRemoteFrame.h"
@@ -135,25 +134,6 @@ AccessibilityObject::~AccessibilityObject()
     ASSERT(isDetached());
 }
 
-void AccessibilityObject::init()
-{
-    m_role = determineAccessibilityRole();
-
-    if (needsRareData())
-        ensureRareData();
-}
-
-AXObjectCache* AccessibilityObject::axObjectCache() const
-{
-    return m_axObjectCache.get();
-}
-
-std::optional<AXID> AccessibilityObject::treeID() const
-{
-    auto* cache = axObjectCache();
-    return cache ? std::optional { cache->treeID() } : std::nullopt;
-}
-
 String AccessibilityObject::debugDescriptionInternal(bool verbose, std::optional<OptionSet<AXDebugStringOption>> debugOptions) const
 {
     StringBuilder result;
@@ -213,11 +193,6 @@ void AccessibilityObject::detachRemoteParts(AccessibilityDetachmentType detachme
     clearChildren();
 }
 
-bool AccessibilityObject::isDetached() const
-{
-    return !wrapper();
-}
-
 OptionSet<AXAncestorFlag> AccessibilityObject::computeAncestorFlags() const
 {
     OptionSet<AXAncestorFlag> computedFlags;
@@ -248,12 +223,6 @@ OptionSet<AXAncestorFlag> AccessibilityObject::computeAncestorFlagsWithTraversal
         computedFlags.add(ancestor.computeAncestorFlags());
     });
     return computedFlags;
-}
-
-void AccessibilityObject::initializeAncestorFlags(const OptionSet<AXAncestorFlag>& flags)
-{
-    m_ancestorFlags.set(AXAncestorFlag::FlagsInitialized, true);
-    m_ancestorFlags.add(flags);
 }
 
 bool AccessibilityObject::matchesAncestorFlag(AXAncestorFlag flag) const
@@ -385,21 +354,6 @@ bool AccessibilityObject::accessibleNameDerivesFromContent() const
     return true;
 }
 
-// https://github.com/w3c/aria/pull/1860
-// If accname cannot be derived from content or author, accname can be derived on permitted roles
-// from the first descendant element node with a heading role.
-bool AccessibilityObject::accessibleNameDerivesFromHeading() const
-{
-    switch (role()) {
-    case AccessibilityRole::ApplicationAlertDialog:
-    case AccessibilityRole::ApplicationDialog:
-    case AccessibilityRole::DocumentArticle:
-        return true;
-    default:
-        return false;
-    }
-}
-
 String AccessibilityObject::computedLabel()
 {
     // This method is being called by WebKit inspector, which may happen at any time, so we need to update our backing store now.
@@ -413,11 +367,6 @@ String AccessibilityObject::computedLabel()
     return { };
 }
 
-bool AccessibilityObject::isARIATextControl() const
-{
-    return ariaRoleAttribute() == AccessibilityRole::TextArea || ariaRoleAttribute() == AccessibilityRole::TextField || ariaRoleAttribute() == AccessibilityRole::SearchField;
-}
-
 bool AccessibilityObject::isEditableWebArea() const
 {
     if (!isWebArea())
@@ -429,11 +378,6 @@ bool AccessibilityObject::isEditableWebArea() const
 
     RefPtr document = this->document();
     return document && document->inDesignMode();
-}
-
-bool AccessibilityObject::isNonNativeTextControl() const
-{
-    return (isARIATextControl() || hasContentEditableAttributeSet()) && !isNativeTextControl();
 }
 
 Vector<AXTextMarkerRange> AccessibilityObject::misspellingRanges() const
@@ -633,7 +577,7 @@ AccessibilityObject* firstAccessibleObjectFromNode(const Node* node, NOESCAPE co
     if (!cache)
         return nullptr;
 
-    RefPtr accessibleObject = cache->getOrCreate(axNode->renderer());
+    RefPtr accessibleObject = cache->getOrCreate(const_cast<Node&>(*axNode));
     while (accessibleObject && !isAccessible(*accessibleObject)) {
         axNode = NodeTraversal::next(*axNode);
 
@@ -643,7 +587,7 @@ AccessibilityObject* firstAccessibleObjectFromNode(const Node* node, NOESCAPE co
         if (!axNode)
             return nullptr;
 
-        accessibleObject = cache->getOrCreate(axNode->renderer());
+        accessibleObject = cache->getOrCreate(const_cast<Node&>(*axNode));
     }
 
     return accessibleObject.get();
@@ -850,11 +794,6 @@ std::optional<SimpleRange> AccessibilityObject::simpleRange() const
     if (!node)
         return std::nullopt;
     return AXObjectCache::rangeForNodeContents(*node);
-}
-
-AXTextMarkerRange AccessibilityObject::textMarkerRange() const
-{
-    return simpleRange();
 }
 
 Vector<BoundaryPoint> AccessibilityObject::previousLineStartBoundaryPoints(const VisiblePosition& startingPosition, const SimpleRange& targetRange, unsigned positionsToRetrieve) const
@@ -1473,12 +1412,6 @@ bool AccessibilityObject::dispatchTouchEvent()
     return false;
 }
 
-LocalFrame* AccessibilityObject::frame() const
-{
-    Node* node = this->node();
-    return node ? node->document().frame() : nullptr;
-}
-
 RefPtr<LocalFrame> AccessibilityObject::localMainFrame() const
 {
     if (RefPtr page = this->page())
@@ -1998,12 +1931,6 @@ std::optional<VisiblePosition> AccessibilityObject::previousLineStartPositionInt
     return startPosition;
 }
 
-bool AccessibilityObject::hasRowGroupTag() const
-{
-    auto elementName = this->elementName();
-    return elementName == ElementName::HTML_thead || elementName == ElementName::HTML_tbody || elementName == ElementName::HTML_tfoot;
-}
-
 bool AccessibilityObject::isVisited() const
 {
     if (!isLink()) {
@@ -2090,21 +2017,6 @@ String AccessibilityObject::readOnlyValue() const
         return ariaRoleAttribute() != AccessibilityRole::Unknown && supportsReadOnly() ? "false"_s : String();
 
     return getAttribute(aria_readonlyAttr).string().convertToASCIILowercase();
-}
-
-bool AccessibilityObject::supportsCheckedState() const
-{
-    auto role = this->role();
-    return isCheckboxOrRadio()
-    || role == AccessibilityRole::MenuItemCheckbox
-    || role == AccessibilityRole::MenuItemRadio
-    || role == AccessibilityRole::Switch
-    || isToggleButton();
-}
-
-bool AccessibilityObject::supportsAutoComplete() const
-{
-    return (isComboBox() || isARIATextControl()) && hasAttribute(aria_autocompleteAttr);
 }
 
 String AccessibilityObject::explicitAutoCompleteValue() const
@@ -2254,11 +2166,6 @@ Document* AccessibilityObject::document() const
     return frameView->frame().document();
 }
 
-RefPtr<Document> AccessibilityObject::protectedDocument() const
-{
-    return document();
-}
-
 Page* AccessibilityObject::page() const
 {
     RefPtr document = this->document();
@@ -2287,14 +2194,6 @@ LocalFrameView* AccessibilityObject::documentFrameView() const
     return object ? object->documentFrameView() : nullptr;
 }
 
-const AccessibilityObject::AccessibilityChildrenVector& AccessibilityObject::children(bool updateChildrenIfNeeded)
-{
-    if (updateChildrenIfNeeded)
-        updateChildrenIfNecessary();
-
-    return m_children;
-}
-
 void AccessibilityObject::updateChildrenIfNecessary()
 {
     if (!childrenInitialized()) {
@@ -2321,9 +2220,9 @@ AccessibilityObject* AccessibilityObject::anchorElementForNode(Node& node)
         return nullptr;
 
     WeakPtr cache = renderer->document().axObjectCache();
-    RefPtr axObject = cache ? cache->getOrCreate(renderer.get()) : nullptr;
+    RefPtr axObject = cache ? cache->getOrCreate(node) : nullptr;
     RefPtr anchor = axObject ? axObject->anchorElement() : nullptr;
-    return anchor ? cache->getOrCreate(anchor->renderer()) : nullptr;
+    return anchor ? cache->getOrCreate(*anchor) : nullptr;
 }
 
 AccessibilityObject* AccessibilityObject::headingElementForNode(Node* node)
@@ -2335,7 +2234,7 @@ AccessibilityObject* AccessibilityObject::headingElementForNode(Node* node)
     if (!renderObject)
         return nullptr;
 
-    RefPtr axObject = renderObject->document().axObjectCache()->getOrCreate(*renderObject);
+    RefPtr axObject = renderObject->document().axObjectCache()->getOrCreate(*node);
 
     return Accessibility::findAncestor<AccessibilityObject>(*axObject, true, [] (const AccessibilityObject& object) {
         return object.role() == AccessibilityRole::Heading;
@@ -2429,11 +2328,6 @@ String AccessibilityObject::actionVerb() const
     return { };
 }
 
-bool AccessibilityObject::ariaIsMultiline() const
-{
-    return equalLettersIgnoringASCIICase(getAttribute(aria_multilineAttr), "true"_s);
-}
-
 String AccessibilityObject::explicitInvalidStatus() const
 {
     static NeverDestroyed<String> grammarValue = "grammar"_s;
@@ -2466,11 +2360,6 @@ String AccessibilityObject::explicitInvalidStatus() const
         return spellingValue;
     // Any other non empty string should be treated as "true".
     return trueValue;
-}
-
-bool AccessibilityObject::supportsCurrent() const
-{
-    return hasAttribute(aria_currentAttr);
 }
 
 AccessibilityCurrentState AccessibilityObject::currentState() const
@@ -2583,11 +2472,6 @@ bool AccessibilityObject::ignoredFromModalPresence() const
     return !isModalDescendant(*modalNode);
 }
 
-bool AccessibilityObject::hasElementName(ElementName name) const
-{
-    return elementName() == name;
-}
-
 bool AccessibilityObject::hasAttribute(const QualifiedName& attribute) const
 {
     RefPtr element = this->element();
@@ -2620,11 +2504,6 @@ String AccessibilityObject::getAttributeTrimmed(const QualifiedName& attribute) 
         return { };
     auto value = rawValue.string();
     return value.trim(isASCIIWhitespace).simplifyWhiteSpace(isASCIIWhitespace);
-}
-
-int AccessibilityObject::integralAttribute(const QualifiedName& attributeName) const
-{
-    return parseHTMLInteger(getAttribute(attributeName)).value_or(0);
 }
 
 bool AccessibilityObject::replaceTextInRange(const String& replacementString, const CharacterRange& range)
@@ -2946,11 +2825,6 @@ void AccessibilityObject::updateRole()
     }
 }
 
-SRGBA<uint8_t> AccessibilityObject::colorValue() const
-{
-    return Color::black;
-}
-
 #if !PLATFORM(MAC)
 String AccessibilityObject::subrolePlatformString() const
 {
@@ -2967,40 +2841,10 @@ String AccessibilityObject::embeddedImageDescription() const
     return renderImage->accessibilityDescription();
 }
 
-String AccessibilityObject::datetimeAttributeValue() const
-{
-    return getAttribute(datetimeAttr);
-}
-
-String AccessibilityObject::linkRelValue() const
-{
-    return getAttribute(relAttr);
-}
-
 bool AccessibilityObject::isLoaded() const
 {
     RefPtr document = this->document();
     return document && !document->parser();
-}
-
-bool AccessibilityObject::isInlineText() const
-{
-    return is<RenderInline>(renderer());
-}
-
-bool AccessibilityObject::supportsKeyShortcuts() const
-{
-    return hasAttribute(aria_keyshortcutsAttr);
-}
-
-String AccessibilityObject::keyShortcuts() const
-{
-    return getAttribute(aria_keyshortcutsAttr);
-}
-
-Element* AccessibilityObject::element() const
-{
-    return dynamicDowncast<Element>(node());
 }
 
 RenderObject* AccessibilityObject::rendererOrNearestAncestor() const
@@ -3086,7 +2930,7 @@ bool AccessibilityObject::isTabItemSelected() const
 
     auto elements = elementsFromAttribute(aria_controlsAttr);
     for (auto& element : elements) {
-        RefPtr tabPanel = cache->getOrCreate(element.ptr());
+        RefPtr tabPanel = cache->getOrCreate(element.get());
 
         // A tab item should only control tab panels.
         if (!tabPanel || tabPanel->role() != AccessibilityRole::TabPanel)
@@ -3192,11 +3036,6 @@ AccessibilityObject* AccessibilityObject::elementAccessibilityHitTest(const IntP
     }
 
     return const_cast<AccessibilityObject*>(this);
-}
-
-CommandType AccessibilityObject::commandType() const
-{
-    return CommandType::Invalid;
 }
 
 AccessibilityObject* AccessibilityObject::focusedUIElement() const
@@ -3321,12 +3160,6 @@ String AccessibilityObject::explicitPopupValue() const
     if (equalLettersIgnoringASCIICase(hasPopup, "true"_s))
         return "menu"_s;
     return { };
-}
-
-bool AccessibilityObject::hasDatalist() const
-{
-    RefPtr input = dynamicDowncast<HTMLInputElement>(element());
-    return input && input->hasDataList();
 }
 
 bool AccessibilityObject::supportsSetSize() const
@@ -3483,33 +3316,6 @@ bool AccessibilityObject::isExpanded() const
     }
 
     return false;
-}
-
-bool AccessibilityObject::supportsChecked() const
-{
-    switch (role()) {
-    case AccessibilityRole::Checkbox:
-    case AccessibilityRole::MenuItemCheckbox:
-    case AccessibilityRole::MenuItemRadio:
-    case AccessibilityRole::RadioButton:
-    case AccessibilityRole::Switch:
-        return true;
-    default:
-        return false;
-    }
-}
-
-bool AccessibilityObject::supportsRowCountChange() const
-{
-    switch (role()) {
-    case AccessibilityRole::Tree:
-    case AccessibilityRole::TreeGrid:
-    case AccessibilityRole::Grid:
-    case AccessibilityRole::Table:
-        return true;
-    default:
-        return false;
-    }
 }
 
 AccessibilityButtonState AccessibilityObject::checkboxOrRadioValue() const
@@ -3678,11 +3484,6 @@ bool AccessibilityObject::isOnScreen() const
             return false;
     }
     return true;
-}
-
-void AccessibilityObject::scrollToMakeVisible() const
-{
-    scrollToMakeVisible({ SelectionRevealMode::Reveal, ScrollAlignment::alignCenterIfNeeded, ScrollAlignment::alignCenterIfNeeded, ShouldAllowCrossOriginScrolling::Yes });
 }
 
 void AccessibilityObject::scrollToMakeVisible(const ScrollRectToVisibleOptions& options) const
@@ -3906,16 +3707,6 @@ bool AccessibilityObject::scrollByPage(ScrollByPageDirection direction) const
     return false;
 }
 
-void AccessibilityObject::setLastKnownIsIgnoredValue(bool isIgnored)
-{
-    m_lastKnownIsIgnoredValue = isIgnored ? AccessibilityObjectInclusion::IgnoreObject : AccessibilityObjectInclusion::IncludeObject;
-}
-
-bool AccessibilityObject::ignoredFromPresentationalRole() const
-{
-    return role() == AccessibilityRole::Presentational || inheritsPresentationalRole();
-}
-
 bool AccessibilityObject::includeIgnoredInCoreTree() const
 {
 #if ENABLE(INCLUDE_IGNORED_IN_CORE_AX_TREE)
@@ -3944,11 +3735,6 @@ TextIteratorBehaviors AccessibilityObject::textIteratorBehaviorForTextRange() co
     return behaviors;
 }
 
-TextIterator AccessibilityObject::textIteratorIgnoringFullSizeKana(const SimpleRange& range)
-{
-    return TextIterator(range, { TextIteratorBehavior::IgnoresFullSizeKana });
-}
-
 AccessibilityRole AccessibilityObject::buttonRoleType() const
 {
     // If aria-pressed is present, then it should be exposed as a toggle button.
@@ -3967,11 +3753,6 @@ std::optional<InputType::Type> AccessibilityObject::inputType() const
     RefPtr input = dynamicDowncast<HTMLInputElement>(node());
     RefPtr inputType = input ? input->inputType() : nullptr;
     return inputType ? std::optional(inputType->type()) : std::nullopt;
-}
-
-bool AccessibilityObject::isIgnoredByDefault() const
-{
-    return defaultObjectInclusion() == AccessibilityObjectInclusion::IgnoreObject;
 }
 
 bool AccessibilityObject::isARIAHidden() const
@@ -4005,11 +3786,6 @@ bool AccessibilityObject::isAXHidden() const
     return Accessibility::findAncestor<AccessibilityObject>(*this, true, [] (const auto& object) {
         return object.isARIAHidden();
     }) != nullptr;
-}
-
-bool AccessibilityObject::isRenderHidden() const
-{
-    return WebCore::isRenderHidden(style());
 }
 
 bool AccessibilityObject::isShowingValidationMessage() const
@@ -4186,12 +3962,6 @@ AccessibilityObject* AccessibilityObject::radioGroupAncestor() const
     });
 }
 
-ElementName AccessibilityObject::elementName() const
-{
-    RefPtr element = this->element();
-    return element ? element->elementName() : ElementName::Unknown;
-}
-
 bool AccessibilityObject::isStyleFormatGroup() const
 {
     if (isCode())
@@ -4205,20 +3975,10 @@ bool AccessibilityObject::isStyleFormatGroup() const
     || elementName == ElementName::HTML_sup || elementName == ElementName::HTML_sub;
 }
 
-bool AccessibilityObject::isFigureElement() const
-{
-    return elementName() == ElementName::HTML_figure;
-}
-
 bool AccessibilityObject::isKeyboardFocusable() const
 {
     RefPtr element = this->element();
     return element && element->isFocusable();
-}
-
-bool AccessibilityObject::isOutput() const
-{
-    return elementName() == ElementName::HTML_output;
 }
 
 bool AccessibilityObject::isContainedBySecureField() const
@@ -4344,13 +4104,6 @@ AccessibilityObject* AccessibilityObject::containingWebArea() const
     CheckedPtr cache = axObjectCache();
     RefPtr root = cache ? dynamicDowncast<AccessibilityScrollView>(cache->getOrCreate(frameView.get())) : nullptr;
     return root ? root->webAreaObject() : nullptr;
-}
-
-AXObjectRareData& AccessibilityObject::ensureRareData()
-{
-    if (!hasRareData())
-        m_rareDataWithBitfields.setPointer(makeUnique<AXObjectRareData>());
-    return *rareData();
 }
 
 } // namespace WebCore

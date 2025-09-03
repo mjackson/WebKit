@@ -78,6 +78,7 @@
 #include "JITSubGenerator.h"
 #include "JITThunks.h"
 #include "JSArrayIterator.h"
+#include "JSAsyncFromSyncIterator.h"
 #include "JSAsyncFunction.h"
 #include "JSAsyncGenerator.h"
 #include "JSAsyncGeneratorFunction.h"
@@ -9392,6 +9393,9 @@ IGNORE_CLANG_WARNINGS_END
         case JSWrapForValidIteratorType:
             compileNewInternalFieldObjectImpl<JSWrapForValidIterator>(operationNewWrapForValidIterator);
             break;
+        case JSAsyncFromSyncIteratorType:
+            compileNewInternalFieldObjectImpl<JSAsyncFromSyncIterator>(operationNewAsyncFromSyncIterator);
+            break;
         case JSPromiseType:
             if (m_node->structure()->classInfoForCells() == JSInternalPromise::info())
                 compileNewInternalFieldObjectImpl<JSInternalPromise>(operationNewInternalPromise);
@@ -13829,7 +13833,7 @@ IGNORE_CLANG_WARNINGS_END
                     }
                 }
 
-                jit.storeWasmCalleeToCalleeCallFrame(wasmFunction->boxedWasmCalleeLoadLocation());
+                jit.storeWasmCalleeToCalleeCallFrame(wasmFunction->boxedCallee());
 
                 // FIXME: Currently we just do an indirect jump. But we should teach the Module
                 // how to repatch us:

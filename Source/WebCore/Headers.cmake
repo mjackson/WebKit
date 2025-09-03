@@ -844,6 +844,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     accessibility/AXNotifications.h
     accessibility/AXObjectCache.h
     accessibility/AXObjectCacheInlines.h
+    accessibility/AXObjectRareData.h
     accessibility/AXSearchManager.h
     accessibility/AXTextMarker.h
     accessibility/AXTextRun.h
@@ -855,6 +856,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     accessibility/AccessibilityMockObject.h
     accessibility/AccessibilityNodeObject.h
     accessibility/AccessibilityObject.h
+    accessibility/AccessibilityObjectInlines.h
     accessibility/AccessibilityRenderObject.h
     accessibility/AccessibilityRole.h
     accessibility/AccessibilityScrollView.h
@@ -3101,10 +3103,8 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     rendering/style/BorderValue.h
     rendering/style/CollapsedBorderValue.h
     rendering/style/CounterDirectives.h
-    rendering/style/FillLayer.h
     rendering/style/GridArea.h
     rendering/style/GridSpan.h
-    rendering/style/LineClampValue.h
     rendering/style/NameScope.h
     rendering/style/OutlineValue.h
     rendering/style/PositionArea.h
@@ -3187,13 +3187,17 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     style/values/anchor-position/StyleAnchorName.h
 
+    style/values/backgrounds/StyleBackgroundLayer.h
+    style/values/backgrounds/StyleBackgroundSize.h
     style/values/backgrounds/StyleBorderImage.h
     style/values/backgrounds/StyleBorderImageOutset.h
     style/values/backgrounds/StyleBorderImageRepeat.h
     style/values/backgrounds/StyleBorderImageSlice.h
     style/values/backgrounds/StyleBorderImageSource.h
     style/values/backgrounds/StyleBorderImageWidth.h
+    style/values/backgrounds/StyleFillLayers.h
     style/values/backgrounds/StyleLineWidth.h
+    style/values/backgrounds/StyleRepeatStyle.h
 
     style/values/borders/StyleBorderRadius.h
     style/values/borders/StyleBoxShadow.h
@@ -3248,6 +3252,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/values/grid/StyleGridTrackSizingDirection.h
 
     style/values/images/StyleGradient.h
+    style/values/images/StyleImageOrNone.h
     style/values/images/StyleImageWrapper.h
     style/values/images/StyleObjectPosition.h
 
@@ -3266,6 +3271,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/values/masking/StyleMaskBorderSlice.h
     style/values/masking/StyleMaskBorderSource.h
     style/values/masking/StyleMaskBorderWidth.h
+    style/values/masking/StyleMaskLayer.h
 
     style/values/motion/StyleOffsetAnchor.h
     style/values/motion/StyleOffsetDistance.h
@@ -3278,6 +3284,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/values/multicol/StyleColumnWidth.h
 
     style/values/non-standard/StyleWebKitBorderSpacing.h
+    style/values/non-standard/StyleWebKitLineClamp.h
     style/values/non-standard/StyleWebKitOverflowScrolling.h
     style/values/non-standard/StyleWebKitTextStrokeWidth.h
     style/values/non-standard/StyleWebKitTouchCallout.h

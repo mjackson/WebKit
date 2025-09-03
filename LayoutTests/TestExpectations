@@ -1966,10 +1966,7 @@ imported/w3c/web-platform-tests/mathml/presentation-markup/operators/mo-boolean-
 imported/w3c/web-platform-tests/mathml/relations/css-styling/lengths-1.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/mathml/presentation-markup/operators/character-level-mirroring.html [ Skip ]
 
-imported/w3c/web-platform-tests/mathml/relations/css-styling/mathvariant-auto.html [ ImageOnlyFailure ]
 mathml/non-core/mathvariant/mathvariant-case-sensitivity.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/mathml/presentation-markup/fractions/frac-invalid-2.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/mathml/presentation-markup/fractions/frac-invalid-3.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/mathml/presentation-markup/mrow/legacy-mfenced-element-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/mathml/presentation-markup/radicals/dynamic-radical-paint-invalidation-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/mathml/presentation-markup/scripts/subsup-legacy-scriptshift-attributes-001.tentative.html [ ImageOnlyFailure ]
@@ -8044,7 +8041,6 @@ webkit.org/b/297505 ipc/LocalSampleBufferDisplayLayer-LogIdentifier-data-race-ua
 
 webkit.org/b/298003 imported/w3c/web-platform-tests/css/css-text/text-indent/below-float.html [ ImageOnlyFailure ]
 
-webkit.org/b/298003 imported/w3c/web-platform-tests/css/css-pseudo/first-line-below-float.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-pseudo/first-line-line-height-003.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-pseudo/highlight-styling-003.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-pseudo/relative-box-order-of-pseudo-elements.html [ ImageOnlyFailure ]
@@ -8089,3 +8085,9 @@ imported/w3c/web-platform-tests/css/css-break/inline-skipping-fragmentainer-001.
 imported/w3c/web-platform-tests/css/css-break/table/repeated-section/text-in-nested-multicol.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-break/text-indent-and-wide-float.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-break/transform-025.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/rendering/replaced-elements/the-select-element/customizable-select/min-size-empty-001.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/rendering/replaced-elements/the-select-element/customizable-select/min-size-empty-002.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/rendering/replaced-elements/the-select-element/select-1-line-height.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/rendering/replaced-elements/the-select-element/select-1-block-size.html [ ImageOnlyFailure Pass ]
+imported/w3c/web-platform-tests/html/rendering/replaced-elements/the-select-element/customizable-select/min-height-in-flex.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/rendering/replaced-elements/the-select-element/customizable-select/min-width-in-flex.html [ ImageOnlyFailure ]

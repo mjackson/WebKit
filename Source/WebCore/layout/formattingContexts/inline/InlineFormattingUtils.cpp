@@ -53,9 +53,9 @@ InlineLayoutUnit InlineFormattingUtils::logicalTopForNextLine(const LineLayoutRe
     if (didManageToPlaceInlineContentOrFloat) {
         // Normally the next line's logical top is the previous line's logical bottom, but when the line ends
         // with the clear property set, the next line needs to clear the existing floats.
-        if (lineLayoutResult.inlineContent.isEmpty())
+        if (!lineLayoutResult.hasInlineContent())
             return lineLogicalRect.bottom();
-        auto& lastRunLayoutBox = lineLayoutResult.inlineContent.last().layoutBox();
+        auto& lastRunLayoutBox = lineLayoutResult.inlineAndOpaqueContent.last().layoutBox();
         if (!lastRunLayoutBox.hasFloatClear() || lastRunLayoutBox.isOutOfFlowPositioned())
             return lineLogicalRect.bottom();
         auto blockAxisPositionWithClearance = floatingContext.blockAxisPositionWithClearance(lastRunLayoutBox, formattingContext().geometryForBox(lastRunLayoutBox));
@@ -67,7 +67,7 @@ InlineLayoutUnit InlineFormattingUtils::logicalTopForNextLine(const LineLayoutRe
     auto intrusiveFloatBottom = [&]() -> std::optional<InlineLayoutUnit> {
         // Floats must have prevented us placing any content on the line.
         // Move next line below the intrusive float(s).
-        ASSERT(lineLayoutResult.inlineContent.isEmpty() || lineLayoutResult.inlineContent[0].isLineSpanningInlineBoxStart());
+        ASSERT(!lineLayoutResult.hasInlineContent() || lineLayoutResult.inlineAndOpaqueContent[0].isLineSpanningInlineBoxStart());
         auto nextLineLogicalTop = [&]() -> LayoutUnit {
             if (auto nextLineLogicalTopCandidate = lineLayoutResult.hintForNextLineTopToAvoidIntrusiveFloat)
                 return LayoutUnit { *nextLineLogicalTopCandidate };
@@ -146,7 +146,7 @@ InlineRect InlineFormattingUtils::flipVisualRectToLogicalForWritingMode(const In
     return visualRect;
 }
 
-InlineLayoutUnit InlineFormattingUtils::computedTextIndent(IsIntrinsicWidthMode isIntrinsicWidthMode, PreviousLineState previousLineState, InlineLayoutUnit availableWidth) const
+InlineLayoutUnit InlineFormattingUtils::computedTextIndent(IsIntrinsicWidthMode isIntrinsicWidthMode, IsFirstFormattedLine isFirstFormattedLine, std::optional<LineEndsWithLineBreak> previousLineEndsWithLineBreak, InlineLayoutUnit availableWidth) const
 {
     auto& root = formattingContext().root();
 
@@ -156,23 +156,17 @@ InlineLayoutUnit InlineFormattingUtils::computedTextIndent(IsIntrinsicWidthMode 
     // is only affected if it is the first child of its parent element.
     // If 'each-line' is specified, indentation also applies to all lines where the previous line ends with a hard break.
     // [Integration] root()->parent() would normally produce a valid layout box.
-    bool shouldIndent = false;
-    switch (previousLineState) {
-    case PreviousLineState::NoPreviousLine:
-        shouldIndent = !root.isAnonymous();
+    auto shouldIndent = false;
+    if (root.style().textIndent().eachLine.has_value())
+        shouldIndent = isFirstFormattedLine == IsFirstFormattedLine::Yes || (previousLineEndsWithLineBreak && *previousLineEndsWithLineBreak == LineEndsWithLineBreak::Yes);
+    else {
+        shouldIndent = isFirstFormattedLine == IsFirstFormattedLine::Yes;
         if (root.isAnonymous()) {
             if (!root.isInlineIntegrationRoot())
                 shouldIndent = root.parent().firstInFlowChild() == &root;
             else
                 shouldIndent = root.isFirstChildForIntegration();
         }
-        break;
-    case PreviousLineState::EndsWithLineBreak:
-        shouldIndent = root.style().textIndent().eachLine.has_value();
-        break;
-    case PreviousLineState::DoesNotEndWithLineBreak:
-        shouldIndent = false;
-        break;
     }
 
     // Specifying 'hanging' inverts whether the line should be indented or not.
@@ -611,6 +605,21 @@ LineEndingTruncationPolicy InlineFormattingUtils::lineEndingTruncationPolicy(con
     if (rootStyle.overflowX() != Overflow::Visible && rootStyle.textOverflow() == TextOverflow::Ellipsis)
         return LineEndingTruncationPolicy::WhenContentOverflowsInInlineDirection;
     return LineEndingTruncationPolicy::NoTruncation;
+}
+
+std::optional<LineLayoutResult::InlineContentEnding> InlineFormattingUtils::inlineContentEnding(const Line::Result& lineContent)
+{
+    for (auto& run : makeReversedRange(lineContent.runs)) {
+        if (run.isOpaque())
+            continue;
+
+        if (run.isLineBreak())
+            return { LineLayoutResult::InlineContentEnding::LineBreak };
+        if (auto& textContent = run.textContent(); textContent && textContent->needsHyphen)
+            return { LineLayoutResult::InlineContentEnding::Hyphen };
+        return { LineLayoutResult::InlineContentEnding::Generic };
+    }
+    return { };
 }
 
 bool InlineFormattingUtils::shouldDiscardRemainingContentInBlockDirection(size_t numberOfLinesWithInlineContent) const
