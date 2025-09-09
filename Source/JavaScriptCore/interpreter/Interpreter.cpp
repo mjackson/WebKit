@@ -620,10 +620,6 @@ void Interpreter::getStackTrace(JSCell* owner, Vector<StackFrame>& results, size
 #else
         } else if (!!visitor->codeBlock() && !visitor->codeBlock()->unlinkedCodeBlock()->isBuiltinFunction())
 #endif
-#if USE(BUN_JSC_ADDITIONS)
-            // FIXME: Remove this BUN_JSC_ADDITIONS when https://github.com/WebKit/WebKit/pull/50288 has been merged
-            if (!isAsyncFunctionWrapperParseMode(visitor->codeBlock()->unlinkedCodeBlock()->parseMode()))
-#endif
             results.append(StackFrame(vm, owner, visitor->callee().asCell(), visitor->codeBlock(), visitor->bytecodeIndex()));
         else
             results.append(StackFrame(vm, owner, visitor->callee().asCell()));
