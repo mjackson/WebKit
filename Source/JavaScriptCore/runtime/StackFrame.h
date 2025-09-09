@@ -99,6 +99,7 @@ public:
     }
 
 #if USE(BUN_JSC_ADDITIONS)
+    // FIXME: Remove this BUN_JSC_ADDITIONS when added into upstream
     bool isAsyncFrame() const
     {
         if (auto* jsFrame = std::get_if<JSFrameData>(&m_frameData))
