@@ -98,11 +98,18 @@ public:
         return false;
     }
 
-    bool isAsyncFrameWithoutCodeBlock() const
+#if USE(BUN_JSC_ADDITIONS)
+    bool isAsyncFrame() const
     {
         if (auto* jsFrame = std::get_if<JSFrameData>(&m_frameData))
-            return jsFrame->m_isAsyncFrame && !codeBlock();
+            return jsFrame->m_isAsyncFrame;
         return false;
+    }
+#endif
+
+    bool isAsyncFrameWithoutCodeBlock() const
+    {
+        return isAsyncFrame() && !codeBlock();
     }
 
 #if USE(BUN_JSC_ADDITIONS)
