@@ -505,9 +505,9 @@ void Interpreter::getAsyncStackTrace(JSCell* owner, Vector<StackFrame>& results,
                 // If a CodeBlock doesn't already exist, the stack trace will only show the filename and won't show line column
                 if (CodeBlock* codeBlock = executable->codeBlockForCall()) {
                     BytecodeIndex bytecodeIndex = computeBytecodeIndex(codeBlock, currentGenerator);
-                    results.append(StackFrame(vm, owner, asyncFunction, codeBlock, bytecodeIndex));
+                    results.append(StackFrame(vm, owner, asyncFunction, codeBlock, bytecodeIndex, /* isAsyncFrame */ true));
                 } else
-                    results.append(StackFrame(vm, owner, asyncFunction, /* isAsyncFrameWithoutCodeBlock */ true));
+                    results.append(StackFrame(vm, owner, asyncFunction, /* isAsyncFrame */ true));
             }
         }
         currentGenerator = getParentGenerator(currentGenerator);
