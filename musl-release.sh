@@ -40,7 +40,15 @@ if [ "$WEBKIT_RELEASE_TYPE" == "relwithdebuginfo" ]; then
     CONTAINER_NAME=bun-webkit-linux-$BUILDKIT_ARCH-dbg
 fi
 
+# Set default CFLAGS based on build type - musl doesn't have the same assertion concerns as glibc
+# but we add NDEBUG for consistency and potential performance benefits
+if [ "$WEBKIT_RELEASE_TYPE" = "Release" -o "$WEBKIT_RELEASE_TYPE" = "MinSizeRel" -o "$WEBKIT_RELEASE_TYPE" = "RelWithDebInfo" ]; then
+    export DEFAULT_CFLAGS="${DEFAULT_CFLAGS:--DNDEBUG -mno-omit-leaf-frame-pointer -g -fno-omit-frame-pointer -ffunction-sections -fdata-sections -faddrsig -fno-unwind-tables -fno-asynchronous-unwind-tables -DU_STATIC_IMPLEMENTATION=1}"
+else
+    export DEFAULT_CFLAGS="${DEFAULT_CFLAGS:--mno-omit-leaf-frame-pointer -g -fno-omit-frame-pointer -ffunction-sections -fdata-sections -faddrsig -fno-unwind-tables -fno-asynchronous-unwind-tables -DU_STATIC_IMPLEMENTATION=1}"
+fi
+
 mkdir -p $temp
 rm -rf $temp/bun-webkit
 
-docker buildx build -f Dockerfile.musl -t $CONTAINER_NAME --build-arg LTO_FLAG="$LTO_FLAG" --build-arg WEBKIT_RELEASE_TYPE=$WEBKIT_RELEASE_TYPE --progress=plain --platform=linux/$BUILDKIT_ARCH --target=artifact --output type=local,dest=$temp/bun-webkit .
+docker buildx build -f Dockerfile.musl -t $CONTAINER_NAME --build-arg LTO_FLAG="$LTO_FLAG" --build-arg WEBKIT_RELEASE_TYPE=$WEBKIT_RELEASE_TYPE --build-arg DEFAULT_CFLAGS="$DEFAULT_CFLAGS" --progress=plain --platform=linux/$BUILDKIT_ARCH --target=artifact --output type=local,dest=$temp/bun-webkit .

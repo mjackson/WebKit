@@ -45,6 +45,15 @@ export DEBIAN_VERSION="bookworm"
 export temp=${temp:-"$(mktemp -d -t bun-webkit-linux-$BUILDKIT_ARCH-release-$(date +%s)-XXXX)"}
 export ENABLE_SANITIZERS=${ENABLE_SANITIZERS:-}
 
+# Set default CFLAGS based on build type and sanitizers
+if [ -z "$ENABLE_SANITIZERS" ] && [ "$WEBKIT_RELEASE_TYPE" = "Release" -o "$WEBKIT_RELEASE_TYPE" = "MinSizeRel" -o "$WEBKIT_RELEASE_TYPE" = "RelWithDebInfo" ]; then
+    # Disable glibc assertions for release builds without sanitizers
+    export DEFAULT_CFLAGS="${DEFAULT_CFLAGS:--DNDEBUG -mno-omit-leaf-frame-pointer -g -fno-omit-frame-pointer -ffunction-sections -fdata-sections -faddrsig -fno-unwind-tables -fno-asynchronous-unwind-tables -DU_STATIC_IMPLEMENTATION=1}"
+else
+    # Keep assertions enabled for debug builds and sanitizer builds
+    export DEFAULT_CFLAGS="${DEFAULT_CFLAGS:--mno-omit-leaf-frame-pointer -g -fno-omit-frame-pointer -ffunction-sections -fdata-sections -faddrsig -fno-unwind-tables -fno-asynchronous-unwind-tables -DU_STATIC_IMPLEMENTATION=1}"
+fi
+
 mkdir -p $temp
 rm -rf $temp/bun-webkit
 
@@ -58,6 +67,7 @@ docker buildx build \
   --build-arg RELEASE_FLAGS="$RELEASE_FLAGS" \
   --build-arg WEBKIT_RELEASE_TYPE=$WEBKIT_RELEASE_TYPE \
   --build-arg RELEASE_FLAGS="${RELEASE_FLAGS:-"-O2 -DNDEBUG=1"}" \
+  --build-arg DEFAULT_CFLAGS="$DEFAULT_CFLAGS" \
   --progress=plain \
   --platform=linux/$BUILDKIT_ARCH \
   --target=artifact \
