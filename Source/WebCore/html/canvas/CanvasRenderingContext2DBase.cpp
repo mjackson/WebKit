@@ -262,9 +262,14 @@ void CanvasRenderingContext2DBase::unwindStateStack()
     size_t stackSize = m_stateStack.size();
     if (stackSize <= 1)
         return;
+
     // We need to keep the last state because it is tracked by CanvasBase::m_contextStateSaver.
-    if (auto* context = existingDrawingContext())
-        context->unwindStateStack(stackSize - 1);
+    auto* context = existingDrawingContext();
+    while (m_stateStack.size() > 1) {
+        m_stateStack.removeLast();
+        if (context)
+            context->restore();
+    }
 }
 
 CanvasRenderingContext2DBase::~CanvasRenderingContext2DBase()
@@ -316,7 +321,7 @@ void CanvasRenderingContext2DBase::reset()
 {
     unwindStateStack();
 
-    m_stateStack.resize(1);
+    ASSERT(m_stateStack.size() == 1);
     m_stateStack.first() = State();
 
     m_path.clear();
@@ -350,6 +355,7 @@ CanvasRenderingContext2DBase::State::State()
     , textBaseline(AlphabeticTextBaseline)
     , direction(Direction::Inherit)
     , filterString("none"_s)
+    , filter { CSS::Keyword::None { } }
     , letterSpacing("0px"_s)
     , wordSpacing("0px"_s)
     , unparsedFont(DefaultFont)
@@ -546,7 +552,7 @@ void CanvasRenderingContext2DBase::beginLayer()
     realizeSaves();
 
     RefPtr<Filter> filter;
-    if (!state().filterOperations.isEmpty())
+    if (!state().filter.isNone())
         filter = createFilter(backingStoreBounds());
 
     modifiableState().targetSwitcher = CanvasLayerContextSwitcher::create(*this, backingStoreBounds(), WTFMove(filter));
@@ -827,8 +833,8 @@ void CanvasRenderingContext2DBase::setFilterString(const String& filterString)
     if (filterString == "null"_s || filterString == "undefined"_s)
         return;
 
-    auto filterOperations = setFilterStringWithoutUpdatingStyle(filterString);
-    if (!filterOperations)
+    auto filter = setFilterStringWithoutUpdatingStyle(filterString);
+    if (!filter)
         return;
 
     realizeSaves();
@@ -836,7 +842,7 @@ void CanvasRenderingContext2DBase::setFilterString(const String& filterString)
     // Spec: context.filter = "none" filters will be disabled for the context.
     // Spec: Only parseable inputs should change the current filter.
     modifiableState().filterString = filterString;
-    modifiableState().filterOperations = WTFMove(*filterOperations);
+    modifiableState().filter = WTFMove(*filter);
 }
 
 void CanvasRenderingContext2DBase::scale(double sx, double sy)
@@ -1138,7 +1144,7 @@ static inline IntRect computeImageDataRect(const ImageBuffer& buffer, IntSize so
 void CanvasRenderingContext2DBase::fillInternal(const Path& path, CanvasFillRule windingRule)
 {
     std::unique_ptr<CanvasFilterContextSwitcher> targetSwitcher;
-    if (!state().filterOperations.isEmpty())
+    if (!state().filter.isNone())
         targetSwitcher = CanvasFilterContextSwitcher::create(*this, path.fastBoundingRect());
 
     auto* c = effectiveDrawingContext();
@@ -1181,7 +1187,7 @@ void CanvasRenderingContext2DBase::fillInternal(const Path& path, CanvasFillRule
 void CanvasRenderingContext2DBase::strokeInternal(const Path& path)
 {
     std::unique_ptr<CanvasFilterContextSwitcher> targetSwitcher;
-    if (!state().filterOperations.isEmpty())
+    if (!state().filter.isNone())
         targetSwitcher = CanvasFilterContextSwitcher::create(*this, inflatedStrokeRect(path.fastBoundingRect()));
 
     auto* c = effectiveDrawingContext();
@@ -2227,11 +2233,11 @@ ExceptionOr<RefPtr<CanvasPattern>> CanvasRenderingContext2DBase::createPattern(H
         return Exception { ExceptionCode::InvalidStateError };
 
     // Image may have a zero-width or a zero-height.
-    Length intrinsicWidth;
-    Length intrinsicHeight;
+    float intrinsicWidth = 0;
+    float intrinsicHeight = 0;
     FloatSize intrinsicRatio;
     cachedImage->computeIntrinsicDimensions(intrinsicWidth, intrinsicHeight, intrinsicRatio);
-    if (intrinsicWidth.isZero() || intrinsicHeight.isZero())
+    if (intrinsicWidth == 0 || intrinsicHeight == 0)
         return nullptr;
 
     return createPattern(*cachedImage, imageElement.checkedRenderer().get(), repeatX, repeatY);
@@ -2253,11 +2259,11 @@ ExceptionOr<RefPtr<CanvasPattern>> CanvasRenderingContext2DBase::createPattern(S
         return nullptr;
 
     // Image may have a zero-width or a zero-height.
-    Length intrinsicWidth;
-    Length intrinsicHeight;
+    float intrinsicWidth = 0;
+    float intrinsicHeight = 0;
     FloatSize intrinsicRatio;
     cachedImage->computeIntrinsicDimensions(intrinsicWidth, intrinsicHeight, intrinsicRatio);
-    if (intrinsicWidth.isZero() || intrinsicHeight.isZero())
+    if (intrinsicWidth == 0 || intrinsicHeight == 0)
         return nullptr;
 
     return createPattern(*cachedImage, imageElement.checkedRenderer().get(), repeatX, repeatY);
@@ -2516,7 +2522,7 @@ RefPtr<ByteArrayPixelBuffer> CanvasRenderingContext2DBase::cacheImageDataIfPossi
     if (imageData.colorSpace() != m_settings.colorSpace)
         return nullptr;
 
-    if (imageData.storageFormat() != ImageDataStorageFormat::Uint8)
+    if (imageData.pixelFormat() != ImageDataPixelFormat::RgbaUnorm8)
         return nullptr;
 
     // Consider:
@@ -2607,8 +2613,8 @@ ExceptionOr<Ref<ImageData>> CanvasRenderingContext2DBase::getImageData(int sx, i
     }
 
     IntRect imageDataRect { sx, sy, sw, sh };
-    auto outputStorageFormat = settings ? settings->storageFormat : ImageDataStorageFormat::Uint8;
-    auto outputPixelFormat = toPixelFormat(outputStorageFormat);
+    auto outputImageDataPixelFormat = settings ? settings->pixelFormat : ImageDataPixelFormat::RgbaUnorm8;
+    auto outputPixelFormat = toPixelFormat(outputImageDataPixelFormat);
 
     if (scriptContext && scriptContext->requiresScriptTrackingPrivacyProtection(ScriptTrackingPrivacyCategory::Canvas)) {
         RefPtr buffer = canvasBase().createImageForNoiseInjection();
@@ -2620,12 +2626,12 @@ ExceptionOr<Ref<ImageData>> CanvasRenderingContext2DBase::getImageData(int sx, i
         if (!pixelBuffer)
             return Exception { ExceptionCode::InvalidStateError };
 
-        return { { ImageData::create(pixelBuffer.releaseNonNull(), outputStorageFormat) } };
+        return { { ImageData::create(pixelBuffer.releaseNonNull(), outputImageDataPixelFormat) } };
     }
 
     auto computedColorSpace = ImageData::computeColorSpace(settings, m_settings.colorSpace);
 
-    if (outputStorageFormat == ImageDataStorageFormat::Uint8) {
+    if (outputImageDataPixelFormat == ImageDataPixelFormat::RgbaUnorm8) {
         if (auto imageData = makeImageDataIfContentsCached(imageDataRect, computedColorSpace))
             return imageData.releaseNonNull();
     }
@@ -2644,7 +2650,7 @@ ExceptionOr<Ref<ImageData>> CanvasRenderingContext2DBase::getImageData(int sx, i
 
     ASSERT(pixelBuffer->format().colorSpace == toDestinationColorSpace(computedColorSpace));
 
-    if (RefPtr imageData = ImageData::create(pixelBuffer.releaseNonNull(), outputStorageFormat))
+    if (RefPtr imageData = ImageData::create(pixelBuffer.releaseNonNull(), outputImageDataPixelFormat))
         return { { imageData.releaseNonNull() } };
 
     return Exception { ExceptionCode::InvalidStateError };
@@ -3059,17 +3065,17 @@ FloatPoint CanvasRenderingContext2DBase::textOffset(float width, TextDirection d
     return offset;
 }
 
-ImageBufferPixelFormat CanvasRenderingContext2DBase::pixelFormat() const
+PixelFormat CanvasRenderingContext2DBase::pixelFormat() const
 {
     // FIXME: Take m_settings.alpha into account here and add PixelFormat::BGRX8.
-    switch (m_settings.pixelFormat) {
-    case CanvasRenderingContext2DSettings::PixelFormat::Uint8:
-        return ImageBufferPixelFormat::BGRA8;
-    case CanvasRenderingContext2DSettings::PixelFormat::Float16:
+    switch (m_settings.colorType) {
+    case CanvasRenderingContext2DSettings::ColorType::Unorm8:
+        return PixelFormat::BGRA8;
+    case CanvasRenderingContext2DSettings::ColorType::Float16:
 #if ENABLE(PIXEL_FORMAT_RGBA16F)
-        return ImageBufferPixelFormat::RGBA16F;
+        return PixelFormat::RGBA16F;
 #else
-        return ImageBufferPixelFormat::BGRA8;
+        return PixelFormat::BGRA8;
 #endif
     }
 }

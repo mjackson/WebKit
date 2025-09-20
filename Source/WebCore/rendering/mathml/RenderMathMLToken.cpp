@@ -38,6 +38,7 @@
 #include "RenderBoxModelObjectInlines.h"
 #include "RenderElement.h"
 #include "RenderIterator.h"
+#include "RenderObjectInlines.h"
 #include "RenderStyleInlines.h"
 #include <wtf/StdLibExtras.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -549,6 +550,12 @@ void RenderMathMLToken::updateMathVariantGlyph()
     }
 }
 
+void RenderMathMLToken::setMathVariantGlyphDirty()
+{
+    m_mathVariantGlyphDirty = true;
+    setNeedsLayoutAndPreferredWidthsUpdate();
+}
+
 void RenderMathMLToken::styleDidChange(StyleDifference diff, const RenderStyle* oldStyle)
 {
     RenderMathMLBlock::styleDidChange(diff, oldStyle);
@@ -600,8 +607,6 @@ void RenderMathMLToken::layoutBlock(RelayoutChildren relayoutChildren, LayoutUni
     adjustLayoutForBorderAndPadding();
 
     layoutOutOfFlowBoxes(relayoutChildren);
-
-    updateScrollInfoAfterLayout();
 }
 
 void RenderMathMLToken::paint(PaintInfo& info, const LayoutPoint& paintOffset)

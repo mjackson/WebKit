@@ -26,8 +26,8 @@
 #ifndef JSBasePrivate_h
 #define JSBasePrivate_h
 
-#include <JavaScriptCore/JSBase.h>
-#include <JavaScriptCore/WebKitAvailability.h>
+#include "JSBase.h"
+#include "WebKitAvailability.h"
 
 #ifdef __cplusplus
 extern "C" {

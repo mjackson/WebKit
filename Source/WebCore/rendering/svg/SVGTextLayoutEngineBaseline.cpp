@@ -22,9 +22,10 @@
 #include "config.h"
 #include "SVGTextLayoutEngineBaseline.h"
 
-#include "LengthFunctions.h"
+#include "NodeInlines.h"
 #include "RenderElementInlines.h"
 #include "RenderSVGInlineText.h"
+#include "RenderStyleInlines.h"
 #include "SVGLengthContext.h"
 #include "SVGRenderStyle.h"
 #include "SVGTextMetrics.h"

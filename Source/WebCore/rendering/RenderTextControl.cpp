@@ -103,8 +103,23 @@ RenderBox::LogicalExtentComputedValues RenderTextControl::computeLogicalHeight(L
     if (!innerText)
         return RenderBox::computeLogicalHeight(LayoutUnit(), LayoutUnit());
 
-    if (style().fieldSizing() == FieldSizing::Content)
-        return RenderBox::computeLogicalHeight(logicalHeight, logicalTop);
+    if (style().fieldSizing() == FieldSizing::Content) {
+        auto logicalHeightExtent = RenderBox::computeLogicalHeight(logicalHeight, logicalTop);
+        if (style().logicalHeight().isSpecified())
+            return logicalHeightExtent;
+
+        auto placeholderLogicalHeight = [&] -> LayoutUnit {
+            CheckedPtr placeholder = textFormControlElement().placeholderElement();
+            if (!placeholder)
+                return { };
+            CheckedPtr placeholderBox = placeholder->renderBox();
+            if (!placeholderBox)
+                return { };
+            return placeholderBox->computeLogicalHeight(placeholderBox->logicalHeight(), placeholderBox->logicalTop()).m_extent;
+        };
+        logicalHeightExtent.m_extent = std::max(logicalHeightExtent.m_extent, placeholderLogicalHeight());
+        return logicalHeightExtent;
+    }
 
     if (RenderBox* innerTextBox = innerText->renderBox()) {
         LayoutUnit nonContentHeight = innerTextBox->borderAndPaddingLogicalHeight() + innerTextBox->marginLogicalHeight();
@@ -164,8 +179,6 @@ float RenderTextControl::scaleEmToUnits(int x) const
 
 void RenderTextControl::computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const
 {
-    // FIXME: Fix field-sizing: content with size containment
-    // https://bugs.webkit.org/show_bug.cgi?id=269169
     if (style().fieldSizing() == FieldSizing::Content)
         return RenderBlockFlow::computeIntrinsicLogicalWidths(minLogicalWidth, maxLogicalWidth);
 
@@ -218,11 +231,22 @@ void RenderTextControl::layoutExcludedChildren(RelayoutChildren relayoutChildren
 {
     RenderBlockFlow::layoutExcludedChildren(relayoutChildren);
 
-    HTMLElement* placeholder = textFormControlElement().placeholderElement();
-    RenderElement* placeholderRenderer = placeholder ? placeholder->renderer() : 0;
+    auto* placeholder = textFormControlElement().placeholderElement();
+    if (!placeholder)
+        return;
+
+    CheckedPtr placeholderRenderer = placeholder->renderer();
     if (!placeholderRenderer)
         return;
+
     placeholderRenderer->setIsExcludedFromNormalLayout(true);
+
+    if (style().fieldSizing() == FieldSizing::Content) {
+        // In order to take placeholder height into account while computing the size of the input box, we need to
+        // layout the placeholder too (which is how excluded content normally works).
+        placeholderRenderer->setChildNeedsLayout(MarkOnlyThis);
+        placeholderRenderer->layoutIfNeeded();
+    }
 
     if (relayoutChildren == RelayoutChildren::Yes) {
         // The markParents arguments should be false because this function is

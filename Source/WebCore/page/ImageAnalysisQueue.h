@@ -29,6 +29,7 @@
 
 #include <WebCore/Timer.h>
 #include <wtf/PriorityQueue.h>
+#include <wtf/RefCountedAndCanMakeWeakPtr.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/URL.h>
 #include <wtf/URLHash.h>
@@ -41,19 +42,19 @@ class HysteresisActivity;
 
 namespace WebCore {
 
-class Document;
+class Frame;
 class HTMLImageElement;
 class Page;
 class Timer;
 class WeakPtrImplWithEventTargetData;
 
-class ImageAnalysisQueue final : public RefCounted<ImageAnalysisQueue> {
+class ImageAnalysisQueue final : public RefCountedAndCanMakeWeakPtr<ImageAnalysisQueue> {
     WTF_MAKE_TZONE_ALLOCATED_EXPORT(ImageAnalysisQueue, WEBCORE_EXPORT);
 public:
     static Ref<ImageAnalysisQueue> create(Page&);
     WEBCORE_EXPORT ~ImageAnalysisQueue();
 
-    WEBCORE_EXPORT void enqueueAllImagesIfNeeded(Document&, const String& sourceLanguageIdentifier, const String& targetLanguageIdentifier);
+    WEBCORE_EXPORT void enqueueAllImagesIfNeeded(Frame&, const String& sourceLanguageIdentifier, const String& targetLanguageIdentifier);
     void clear();
 
     void enqueueIfNeeded(HTMLImageElement&);
@@ -67,7 +68,7 @@ private:
     void resumeProcessingSoon();
     void resumeProcessing();
 
-    void enqueueAllImagesRecursive(Document&);
+    void enqueueAllImagesRecursive(Frame&);
 
     enum class Priority : bool { Low, High };
     struct Task {

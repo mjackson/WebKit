@@ -144,9 +144,9 @@ public:
         return Style::equalsForBlending(this->value(from), this->value(to), from, to);
     }
 
-    bool canInterpolate(const RenderStyle& from, const RenderStyle& to, CompositeOperation) const override
+    bool canInterpolate(const RenderStyle& from, const RenderStyle& to, CompositeOperation operation) const override
     {
-        return Style::canBlend(this->value(from), this->value(to), from, to);
+        return Style::canBlend(this->value(from), this->value(to), from, to, operation);
     }
 
     bool requiresInterpolationForAccumulativeIteration(const RenderStyle& from, const RenderStyle& to) const override
@@ -330,35 +330,6 @@ public:
 private:
     void (RenderStyle::*m_setter)(WebCore::Length&&);
     OptionSet<Flags> m_flags;
-};
-
-template<typename T>
-class LengthVariantWrapper final : public WrapperWithGetter<const T&> {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(LengthVariantWrapper, Animation);
-public:
-    LengthVariantWrapper(CSSPropertyID property, const T& (RenderStyle::*getter)() const, void (RenderStyle::*setter)(T&&))
-        : WrapperWithGetter<const T&>(property, getter)
-        , m_setter(setter)
-    {
-    }
-
-    bool canInterpolate(const RenderStyle& from, const RenderStyle& to, CompositeOperation) const final
-    {
-        return canInterpolateLengthVariants(this->value(from), this->value(to));
-    }
-
-    bool requiresInterpolationForAccumulativeIteration(const RenderStyle& from, const RenderStyle& to) const final
-    {
-        return lengthVariantRequiresInterpolationForAccumulativeIteration(this->value(from), this->value(to));
-    }
-
-    void interpolate(RenderStyle& destination, const RenderStyle& from, const RenderStyle& to, const Context& context) const final
-    {
-        (destination.*m_setter)(blendFunc(this->value(from), this->value(to), context));
-    }
-
-private:
-    void (RenderStyle::*m_setter)(T&&);
 };
 
 // MARK: - Discrete Wrappers
@@ -654,83 +625,6 @@ public:
 };
 
 #endif
-
-class StyleImageWrapper final : public RefCountedWrapper<StyleImage> {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(StyleImageWrapper, Animation);
-public:
-    StyleImageWrapper(CSSPropertyID property, StyleImage* (RenderStyle::*getter)() const, void (RenderStyle::*setter)(RefPtr<StyleImage>&&))
-        : RefCountedWrapper(property, getter, setter)
-    {
-    }
-
-    bool equals(const RenderStyle& a, const RenderStyle& b) const final
-    {
-        if (&a == &b)
-            return true;
-
-        auto* imageA = value(a);
-        auto* imageB = value(b);
-        return arePointingToEqualData(imageA, imageB);
-    }
-
-    bool canInterpolate(const RenderStyle& from, const RenderStyle& to, CompositeOperation) const final
-    {
-        return value(from) && value(to);
-    }
-};
-
-class TransformOperationsWrapper final : public WrapperWithGetter<const TransformOperations&> {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(TransformOperationsWrapper, Animation);
-public:
-    TransformOperationsWrapper()
-        : WrapperWithGetter<const TransformOperations&>(CSSPropertyTransform, &RenderStyle::transform)
-    {
-    }
-
-    bool canInterpolate(const RenderStyle& from, const RenderStyle& to, CompositeOperation compositeOperation) const override
-    {
-        if (compositeOperation == CompositeOperation::Replace)
-            return !this->value(to).shouldFallBackToDiscreteAnimation(this->value(from), { });
-        return true;
-    }
-
-    bool requiresInterpolationForAccumulativeIteration(const RenderStyle&, const RenderStyle&) const final
-    {
-        return true;
-    }
-
-    void interpolate(RenderStyle& destination, const RenderStyle& from, const RenderStyle& to, const Context& context) const override
-    {
-        destination.setTransform(blendFunc(this->value(from), this->value(to), context));
-    }
-};
-
-class FilterWrapper final : public WrapperWithGetter<const FilterOperations&> {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(FilterWrapper, Animation);
-public:
-    FilterWrapper(CSSPropertyID property, const FilterOperations& (RenderStyle::*getter)() const, void (RenderStyle::*setter)(FilterOperations&&))
-        : WrapperWithGetter<const FilterOperations&>(property, getter)
-        , m_setter(setter)
-    {
-    }
-
-    bool canInterpolate(const RenderStyle& from, const RenderStyle& to, CompositeOperation compositeOperation) const final
-    {
-        return value(from).canInterpolate(value(to), compositeOperation);
-    }
-
-    bool requiresInterpolationForAccumulativeIteration(const RenderStyle&, const RenderStyle&) const final
-    {
-        return true;
-    }
-
-    void interpolate(RenderStyle& destination, const RenderStyle& from, const RenderStyle& to, const Context& context) const final
-    {
-        (destination.*m_setter)(blendFunc(value(from), value(to), context));
-    }
-
-    void (RenderStyle::*m_setter)(FilterOperations&&);
-};
 
 inline const BoxShadow& shadowForInterpolation(const BoxShadow& shadowToMatch)
 {
@@ -1329,22 +1223,6 @@ DiscreteSVGWrapper(CSSPropertyID, T (SVGRenderStyle::*getter)() const, void (SVG
 // Deduction guide for getter/setters that return const references and take r-value references.
 template<typename T>
 DiscreteSVGWrapper(CSSPropertyID, const T& (SVGRenderStyle::*getter)() const, void (SVGRenderStyle::*setter)(T&&)) -> DiscreteSVGWrapper<T, const T&, T&&>;
-
-class DWrapper final : public RefCountedWrapper<StylePathData> {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(DWrapper, Animation);
-public:
-    DWrapper()
-        : RefCountedWrapper(CSSPropertyD, &RenderStyle::d, &RenderStyle::setD)
-    {
-    }
-
-    bool canInterpolate(const RenderStyle& from, const RenderStyle& to, CompositeOperation) const final
-    {
-        auto* fromValue = value(from);
-        auto* toValue = value(to);
-        return fromValue && toValue && fromValue->canBlend(*toValue);
-    }
-};
 
 // MARK: - FillLayer Wrappers
 

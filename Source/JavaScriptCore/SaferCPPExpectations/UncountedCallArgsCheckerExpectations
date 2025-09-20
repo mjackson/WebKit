@@ -74,7 +74,6 @@ heap/JITStubRoutineSet.cpp
 heap/MarkingConstraintSolver.cpp
 heap/ParallelSourceAdapter.h
 heap/SubspaceInlines.h
-heap/VerifierSlotVisitor.cpp
 inspector/ConsoleMessage.cpp
 inspector/InspectorFrontendDispatchers.cpp
 inspector/InspectorProtocolObjects.h
@@ -94,7 +93,6 @@ inspector/remote/cocoa/RemoteInspectorCocoa.mm
 jit/BaselineJITPlan.cpp
 jit/ExecutableAllocator.cpp
 jit/GCAwareJITStubRoutine.cpp
-jit/GdbJIT.cpp
 jit/ICStats.cpp
 jit/ICStats.h
 jit/JIT.cpp
@@ -167,7 +165,6 @@ wasm/WasmBBQJIT64.cpp
 wasm/WasmBBQPlan.cpp
 wasm/WasmCallee.cpp
 wasm/WasmCalleeGroup.cpp
-wasm/WasmConstExprGenerator.cpp
 wasm/WasmEntryPlan.cpp
 wasm/WasmFormat.h
 wasm/WasmFunctionParser.h

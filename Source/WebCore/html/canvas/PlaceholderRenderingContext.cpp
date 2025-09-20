@@ -70,7 +70,7 @@ void PlaceholderRenderingContextSource::setPlaceholderBuffer(ImageBuffer& imageB
         RefPtr placeholder = weakPlaceholder.get();
         if (!placeholder)
             return;
-        RefPtr imageBuffer = SerializedImageBuffer::sinkIntoImageBuffer(WTFMove(buffer), placeholder->protectedCanvas()->scriptExecutionContext()->graphicsClient());
+        RefPtr imageBuffer = SerializedImageBuffer::sinkIntoImageBuffer(WTFMove(buffer), placeholder->protectedCanvas()->protectedScriptExecutionContext()->graphicsClient());
         if (!imageBuffer)
             return;
         Ref source = placeholder->source();
@@ -140,7 +140,7 @@ void PlaceholderRenderingContext::setPlaceholderBuffer(Ref<ImageBuffer>&& buffer
     canvasBase().setImageBufferAndMarkDirty(WTFMove(buffer));
 }
 
-ImageBufferPixelFormat PlaceholderRenderingContext::pixelFormat() const
+PixelFormat PlaceholderRenderingContext::pixelFormat() const
 {
     if (Ref canvas = this->canvas(); canvas->buffer())
         return Ref { *canvas->buffer() }->pixelFormat();

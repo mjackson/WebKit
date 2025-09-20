@@ -26,6 +26,7 @@
 #include "config.h"
 #include "FontFaceSet.h"
 
+#include "ContextDestructionObserverInlines.h"
 #include "DOMPromiseProxy.h"
 #include "Document.h"
 #include "DocumentInlines.h"
@@ -96,7 +97,7 @@ RefPtr<FontFace> FontFaceSet::Iterator::next()
 {
     if (m_index >= m_target->size())
         return nullptr;
-    return m_target->backing()[m_index++].wrapper(m_target->scriptExecutionContext());
+    return m_target->backing()[m_index++].wrapper(m_target->protectedScriptExecutionContext().get());
 }
 
 FontFaceSet::PendingPromise::PendingPromise(LoadPromise&& promise)
@@ -202,7 +203,7 @@ void FontFaceSet::load(ScriptExecutionContext& context, const String& font, cons
     bool waiting = false;
 
     for (auto& face : matchingFaces) {
-        pendingPromise->faces.append(face.get().wrapper(scriptExecutionContext()));
+        pendingPromise->faces.append(face.get().wrapper(protectedScriptExecutionContext().get()));
         if (face.get().status() == CSSFontFace::Status::Success)
             continue;
         waiting = true;
@@ -281,5 +282,11 @@ FontFaceSet& FontFaceSet::readyPromiseResolve()
 {
     return *this;
 }
+
+ScriptExecutionContext* FontFaceSet::scriptExecutionContext() const
+{
+    return ActiveDOMObject::scriptExecutionContext();
+}
+
 
 }

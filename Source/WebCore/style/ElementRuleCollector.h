@@ -37,7 +37,7 @@ namespace WebCore::Style {
 class ScopeRuleSets;
 struct MatchRequest;
 struct SelectorMatchingState;
-enum class CascadeLevel : uint8_t;
+enum class DeclarationOrigin : uint8_t;
 
 struct MatchedRule {
     const RuleData* ruleData { nullptr };
@@ -84,29 +84,29 @@ private:
 
     void addElementInlineStyleProperties(bool includeSMILProperties);
 
-    void matchUserAgentPartRules(CascadeLevel);
-    void matchHostPseudoClassRules(CascadeLevel);
-    void matchSlottedPseudoElementRules(CascadeLevel);
-    void matchPartPseudoElementRules(CascadeLevel);
-    void matchPartPseudoElementRulesForScope(const Element& partMatchingElement, CascadeLevel);
+    void matchUserAgentPartRules(DeclarationOrigin);
+    void matchHostPseudoClassRules(DeclarationOrigin);
+    void matchSlottedPseudoElementRules(DeclarationOrigin);
+    void matchPartPseudoElementRules(DeclarationOrigin);
+    void matchPartPseudoElementRulesForScope(const Element& partMatchingElement, DeclarationOrigin);
 
     void collectMatchingUserAgentPartRules(const MatchRequest&);
 
-    void collectMatchingRules(CascadeLevel);
+    void collectMatchingRules(DeclarationOrigin);
     void collectMatchingRules(const MatchRequest&);
     void collectMatchingRulesForList(const RuleSet::RuleDataVector*, const MatchRequest&);
     bool isFirstMatchModeAndHasMatchedAnyRules() const;
-    bool ruleMatches(const RuleData&, unsigned& specificity, ScopeOrdinal, const ContainerNode* scopingRoot = nullptr);
-    bool containerQueriesMatch(const RuleData&, const MatchRequest&);
     struct ScopingRootWithDistance {
         RefPtr<const ContainerNode> scopingRoot;
         unsigned distance { std::numeric_limits<unsigned>::max() };
+        bool matchesVisited { false };
     };
+    bool ruleMatches(const RuleData&, unsigned& specificity, ScopeOrdinal, std::optional<ScopingRootWithDistance> scopingRoot = { });
+    bool containerQueriesMatch(const RuleData&, const MatchRequest&);
     std::pair<bool, std::optional<Vector<ScopingRootWithDistance>>> scopeRulesMatch(const RuleData&, const MatchRequest&);
 
     void sortMatchedRules();
 
-    enum class DeclarationOrigin { UserAgent, User, Author };
     Vector<MatchedProperties>& declarationsForOrigin(DeclarationOrigin);
     void sortAndTransferMatchedRules(DeclarationOrigin);
     void transferMatchedRules(DeclarationOrigin, std::optional<ScopeOrdinal> forScope = { });

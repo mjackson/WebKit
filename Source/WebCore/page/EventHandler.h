@@ -482,6 +482,7 @@ private:
 
     MouseEventWithHitTestResults prepareMouseEvent(const HitTestRequest&, const PlatformMouseEvent&);
 
+    bool dispatchAnyClickEvent(const AtomString& eventType, Node* target, int clickCount, const PlatformMouseEvent&);
     bool dispatchMouseEvent(const AtomString& eventType, Node* target, int clickCount, const PlatformMouseEvent&, FireMouseOverOut);
 
     enum class IgnoreAncestorNodesForClickEvent : bool { No, Yes };
@@ -676,6 +677,7 @@ private:
 
     RefPtr<Node> m_lastTouchedNode;
     RefPtr<Node> m_clickNode;
+    RefPtr<Element> m_clickCaptureElement;
     RefPtr<HTMLFrameSetElement> m_frameSetBeingResized;
 
     LayoutSize m_offsetFromResizeCorner; // In the coords of m_resizeLayer.
@@ -685,7 +687,7 @@ private:
     std::optional<DoublePoint> m_lastKnownMousePosition; // Same coordinates as PlatformMouseEvent::position().
     DoublePoint m_lastKnownMouseGlobalPosition;
     IntPoint m_mouseDownContentsPosition;
-    WallTime m_mouseDownTimestamp;
+    MonotonicTime m_mouseDownTimestamp;
     PlatformMouseEvent m_mouseDownEvent;
     PlatformMouseEvent m_lastPlatformMouseEvent;
 

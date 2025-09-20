@@ -625,7 +625,8 @@ RTT::RTT(RTTKind kind, const RTT& supertype)
     , m_displaySizeExcludingThis(size() - 1)
 {
     ASSERT(supertype.size() == (supertype.displaySizeExcludingThis() + 1));
-    memcpySpan(span(), supertype.span());
+    for (size_t i = 0; i < supertype.span().size(); ++i)
+        span()[i] = supertype.span()[i];
     at(supertype.size()) = this;
 }
 
@@ -649,6 +650,8 @@ RefPtr<RTT> RTT::tryCreate(RTTKind kind, const RTT& supertype)
 
 bool RTT::isSubRTT(const RTT& parent) const
 {
+    if (this == &parent)
+        return true;
     if (displaySizeExcludingThis() < parent.displaySizeExcludingThis())
         return false;
     return &parent == displayEntry(parent.displaySizeExcludingThis());
@@ -1038,21 +1041,23 @@ std::optional<TypeIndex> TypeInformation::tryGetCachedUnrolling(TypeIndex type)
 
 void TypeInformation::registerCanonicalRTTForType(TypeIndex type)
 {
-    TypeInformation& info = singleton();
+    Ref def = get(type);
+    if (def->m_rtt)
+        return;
 
-    auto registered = tryGetCanonicalRTT(type);
-    if (!registered) {
-        auto rtt = TypeInformation::createCanonicalRTTForType(type);
-        {
-            Locker locker { info.m_lock };
-            info.m_rttMap.add(type, WTFMove(rtt));
-        }
+    {
+        Locker locker { def->m_rttLock };
+        if (def->m_rtt)
+            return;
+        auto rtt = TypeInformation::createCanonicalRTTForType(locker, def);
+        WTF::storeStoreFence(); // Make double-checked locking work.
+        def->m_rtt = WTFMove(rtt);
     }
 }
 
-Ref<RTT> TypeInformation::createCanonicalRTTForType(TypeIndex type)
+Ref<RTT> TypeInformation::createCanonicalRTTForType(const AbstractLocker&, const TypeDefinition& def)
 {
-    const TypeDefinition& signature = TypeInformation::get(type).unroll();
+    const TypeDefinition& signature = def.unroll();
     RTTKind kind;
     if (signature.expand().is<FunctionSignature>())
         kind = RTTKind::Function;
@@ -1062,7 +1067,8 @@ Ref<RTT> TypeInformation::createCanonicalRTTForType(TypeIndex type)
         kind = RTTKind::Struct;
 
     if (signature.is<Subtype>() && signature.as<Subtype>()->supertypeCount() > 0) {
-        auto superRTT = TypeInformation::tryGetCanonicalRTT(signature.as<Subtype>()->firstSuperType());
+        Ref superTypeDef = TypeInformation::get(signature.as<Subtype>()->firstSuperType());
+        auto superRTT = superTypeDef->m_rtt;
         ASSERT(superRTT);
         auto protector = RTT::tryCreate(kind, *superRTT);
         RELEASE_ASSERT(protector);
@@ -1074,21 +1080,15 @@ Ref<RTT> TypeInformation::createCanonicalRTTForType(TypeIndex type)
     return protector.releaseNonNull();
 }
 
-RefPtr<const RTT> TypeInformation::tryGetCanonicalRTT(TypeIndex type)
-{
-    TypeInformation& info = singleton();
-    Locker locker { info.m_lock };
-    return info.m_rttMap.get(type);
-}
-
 Ref<const RTT> TypeInformation::getCanonicalRTT(TypeIndex type)
 {
-    auto result = TypeInformation::tryGetCanonicalRTT(type);
+    Ref def = get(type);
+    auto result = def->m_rtt;
     RELEASE_ASSERT(result);
     return result.releaseNonNull();
 }
 
-bool TypeInformation::castReference(JSValue refValue, bool allowNull, TypeIndex typeIndex)
+bool TypeInformation::isReferenceValueAssignable(JSValue refValue, bool allowNull, TypeIndex typeIndex, const RTT* rtt)
 {
     if (refValue.isNull())
         return allowNull;
@@ -1120,37 +1120,32 @@ bool TypeInformation::castReference(JSValue refValue, bool allowNull, TypeIndex 
         default:
             RELEASE_ASSERT_NOT_REACHED();
         }
-    } else {
-        const TypeDefinition& signature = TypeInformation::get(typeIndex).expand();
-        auto signatureRTT = TypeInformation::getCanonicalRTT(typeIndex);
-        if (signature.is<FunctionSignature>()) {
-            WebAssemblyFunctionBase* funcRef = jsDynamicCast<WebAssemblyFunctionBase*>(refValue);
-            if (!funcRef)
-                return false;
-            auto funcRTT = funcRef->rtt();
-            if (funcRTT == signatureRTT.ptr())
-                return true;
-            return funcRTT->isStrictSubRTT(signatureRTT.get());
-        }
-        if (signature.is<ArrayType>()) {
-            JSWebAssemblyArray* arrayRef = jsDynamicCast<JSWebAssemblyArray*>(refValue);
-            if (!arrayRef)
-                return false;
-            auto arrayRTT = arrayRef->rtt();
-            if (arrayRTT.ptr() == signatureRTT.ptr())
-                return true;
-            return arrayRTT->isStrictSubRTT(signatureRTT.get());
-        }
-        ASSERT(signature.is<StructType>());
-        JSWebAssemblyStruct* structRef = jsDynamicCast<JSWebAssemblyStruct*>(refValue);
-        if (!structRef)
-            return false;
-        auto structRTT = structRef->rtt();
-        if (structRTT.ptr() == signatureRTT.ptr())
-            return true;
-        return structRTT->isStrictSubRTT(signatureRTT.get());
+        return false;
     }
 
+    RefPtr<const RTT> signatureRTT;
+    if (!rtt) {
+        signatureRTT = TypeInformation::getCanonicalRTT(typeIndex);
+        rtt = signatureRTT.get();
+    }
+
+    switch (rtt->kind()) {
+    case RTTKind::Function: {
+        WebAssemblyFunctionBase* funcRef = jsDynamicCast<WebAssemblyFunctionBase*>(refValue);
+        if (!funcRef)
+            return false;
+        return funcRef->rtt()->isSubRTT(*rtt);
+    }
+    case RTTKind::Array:
+    case RTTKind::Struct: {
+        auto* object = jsDynamicCast<WebAssemblyGCObjectBase*>(refValue);
+        if (!object)
+            return false;
+        return object->rtt()->isSubRTT(*rtt);
+    }
+    }
+
+    RELEASE_ASSERT_NOT_REACHED();
     return false;
 }
 
@@ -1167,7 +1162,6 @@ void TypeInformation::tryCleanup()
             if (signature->refCount() == 1) {
                 TypeIndex index = signature->unownedIndex();
                 info.m_unrollingCache.remove(index);
-                info.m_rttMap.remove(index);
                 changed |= signature->cleanup();
                 return true;
             }

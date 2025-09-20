@@ -34,6 +34,7 @@
 #import "PDFPlugin.h"
 #import "PluginView.h"
 #import "PrintInfo.h"
+#import "SharedBufferReference.h"
 #import "TextAnimationController.h"
 #import "UserMediaCaptureManager.h"
 #import "WKAccessibilityWebPageObjectBase.h"
@@ -609,7 +610,7 @@ void WebPage::pdfSnapshotAtSize(LocalFrame& localMainFrame, GraphicsContext& con
         rect.setHeight(bitmapSize.height());
         rect.setY(nextRectY);
 
-        context.beginPage(bitmapSize);
+        context.beginPage(FloatRect { { }, bitmapSize });
         context.scale({ 1, -1 });
         context.translate(0, -bitmapSize.height());
 
@@ -1326,7 +1327,7 @@ static void drawPDFPage(PDFDocument *pdfDocument, CFIndex pageIndex, CGContextRe
     CGAffineTransform transform = CGContextGetCTM(context);
 
     for (PDFAnnotation *annotation in [pdfPage annotations]) {
-        if (![[annotation valueForAnnotationKey:get_PDFKit_PDFAnnotationKeySubtype()] isEqualToString:get_PDFKit_PDFAnnotationSubtypeLink()])
+        if (![[annotation valueForAnnotationKey:get_PDFKit_PDFAnnotationKeySubtypeSingleton()] isEqualToString:get_PDFKit_PDFAnnotationSubtypeLinkSingleton()])
             continue;
 
         NSURL *url = annotation.URL;
@@ -1358,18 +1359,16 @@ void WebPage::drawPDFDocument(CGContextRef context, PDFDocument *pdfDocument, co
     }
 }
 
-void WebPage::drawPagesToPDFFromPDFDocument(CGContextRef context, PDFDocument *pdfDocument, const PrintInfo& printInfo, uint32_t first, uint32_t count)
+void WebPage::drawPagesToPDFFromPDFDocument(GraphicsContext& context, PDFDocument *pdfDocument, const PrintInfo& printInfo, const WebCore::FloatRect& mediaBox, uint32_t first, uint32_t count)
 {
     NSUInteger pageCount = [pdfDocument pageCount];
     for (uint32_t page = first; page < first + count; ++page) {
         if (page >= pageCount)
             break;
 
-        RetainPtr pageInfo = adoptCF(CFDictionaryCreateMutable(0, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks));
-
-        CGPDFContextBeginPage(context, pageInfo.get());
-        drawPDFPage(pdfDocument, page, context, printInfo.pageSetupScaleFactor, CGSizeMake(printInfo.availablePaperWidth, printInfo.availablePaperHeight));
-        CGPDFContextEndPage(context);
+        context.beginPage(mediaBox);
+        drawPDFPage(pdfDocument, page, context.platformContext(), printInfo.pageSetupScaleFactor, CGSizeMake(printInfo.availablePaperWidth, printInfo.availablePaperHeight));
+        context.endPage();
     }
 }
 
@@ -1385,7 +1384,7 @@ void WebPage::computePagesForPrintingPDFDocument(WebCore::FrameIdentifier, const
     notImplemented();
 }
 
-void WebPage::drawPagesToPDFFromPDFDocument(CGContextRef, PDFDocument *, const PrintInfo&, uint32_t, uint32_t)
+void WebPage::drawPagesToPDFFromPDFDocument(GraphicsContext&, PDFDocument *, const PrintInfo&, const WebCore::FloatRect&, uint32_t, uint32_t)
 {
     notImplemented();
 }
@@ -1426,14 +1425,18 @@ BoxSideSet WebPage::sidesRequiringFixedContainerEdges() const
     return sides;
 }
 
-void WebPage::getWebArchives(CompletionHandler<void(HashMap<WebCore::FrameIdentifier, Ref<WebCore::LegacyWebArchive>>&&)>&& completionHandler)
+void WebPage::getWebArchivesForFrames(const Vector<WebCore::FrameIdentifier>& frameIdentifiers, CompletionHandler<void(HashMap<WebCore::FrameIdentifier, Ref<WebCore::LegacyWebArchive>>&&)>&& completionHandler)
 {
     if (!m_page)
         return completionHandler({ });
 
     HashMap<WebCore::FrameIdentifier, Ref<LegacyWebArchive>> result;
-    for (RefPtr<Frame> frame = m_mainFrame->coreFrame(); frame; frame = frame->tree().traverseNext()) {
-        RefPtr localFrame = dynamicDowncast<LocalFrame>(frame);
+    for (auto& frameIdentifier : frameIdentifiers) {
+        RefPtr frame = WebFrame::webFrame(frameIdentifier);
+        if (!frame)
+            continue;
+
+        RefPtr localFrame = frame->coreLocalFrame();
         if (!localFrame)
             continue;
 
@@ -1449,6 +1452,12 @@ void WebPage::getWebArchives(CompletionHandler<void(HashMap<WebCore::FrameIdenti
             result.add(localFrame->frameID(), archive.releaseNonNull());
     }
     completionHandler(WTFMove(result));
+}
+
+void WebPage::getWebArchiveData(CompletionHandler<void(const std::optional<IPC::SharedBufferReference>&)>&& completionHandler)
+{
+    RetainPtr<CFDataRef> data = m_mainFrame->webArchiveData(nullptr, nullptr);
+    completionHandler(IPC::SharedBufferReference(SharedBuffer::create(data.get())));
 }
 
 void WebPage::processSystemWillSleep() const

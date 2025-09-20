@@ -261,7 +261,6 @@ set(WTF_PUBLIC_HEADERS
     RefCounted.h
     RefCountedAndCanMakeWeakPtr.h
     RefCountedFixedVector.h
-    RefCountedLeakCounter.h
     RefCounter.h
     RefPtr.h
     RefTrackerMixin.h
@@ -595,7 +594,6 @@ set(WTF_SOURCES
     RandomDevice.cpp
     ReadWriteLock.cpp
     RefCounted.cpp
-    RefCountedLeakCounter.cpp
     RefTrackerMixin.cpp
     RunLoop.cpp
     RuntimeApplicationChecks.cpp
@@ -706,6 +704,7 @@ elseif (APPLE)
 
     list(APPEND WTF_PUBLIC_HEADERS
         cf/CFURLExtras.h
+        cf/NotificationCenterCF.h
         cf/TypeCastsCF.h
         cf/VectorCF.h
 

@@ -165,7 +165,8 @@ bool JSModuleNamespaceObject::getOwnPropertySlotCommon(JSGlobalObject* globalObj
         JSValue value = getValue(environment, exportEntry.localName, scopeOffset);
         // If the value is filled with TDZ value, throw a reference error.
         if (!value) {
-            throwVMError(globalObject, scope, createTDZError(globalObject, JSC::Identifier::fromUid(vm, propertyName.uid())));
+            RefPtr uid = propertyName.uid();
+            throwVMError(globalObject, scope, createTDZError(globalObject, *uid));
             return false;
         }
 

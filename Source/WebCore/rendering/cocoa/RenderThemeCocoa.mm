@@ -475,7 +475,7 @@ int RenderThemeCocoa::attachmentBaseline(const RenderAttachment& attachment) con
 
 void RenderThemeCocoa::paintAttachmentText(GraphicsContext& context, AttachmentLayout* layout)
 {
-    DrawGlyphsRecorder recorder(context, 1, DrawGlyphsRecorder::DeriveFontFromContext::Yes, DrawGlyphsRecorder::DrawDecomposedGlyphs::No);
+    DrawGlyphsRecorder recorder(context, 1, DrawGlyphsRecorder::DeriveFontFromContext::Yes);
 
     for (const auto& line : layout->lines)
         recorder.drawNativeText(line.font.get(), CTFontGetSize(line.font.get()), line.line.get(), line.rect);
@@ -557,6 +557,14 @@ LayoutRect RenderThemeCocoa::adjustedPaintRect(const RenderBox& box, const Layou
     UNUSED_PARAM(box);
 #endif
     return paintRect;
+}
+
+void RenderThemeCocoa::adjustRepaintRect(const RenderBox& renderer, FloatRect& rect)
+{
+    auto repaintRect = rect;
+    inflateRectForControlRenderer(renderer, repaintRect);
+    renderer.flipForWritingMode(repaintRect);
+    rect = repaintRect;
 }
 
 #if ENABLE(FORM_CONTROL_REFRESH)

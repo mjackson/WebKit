@@ -67,6 +67,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include "JSLexicalEnvironment.h"
 #include "JSMapIterator.h"
 #include "JSPropertyNameEnumerator.h"
+#include "JSRegExpStringIterator.h"
 #include "JSSetIterator.h"
 #include "JSWebAssemblyInstance.h"
 #include "JSWrapForValidIterator.h"
@@ -10688,7 +10689,7 @@ void SpeculativeJIT::compileCallDOM(Node* node)
 
     // FIXME: We should have a way to call functions with the vector of registers.
     // https://bugs.webkit.org/show_bug.cgi?id=163099
-    using OperandVariant = Variant<SpeculateCellOperand, SpeculateInt32Operand, SpeculateStrictInt52Operand, SpeculateBooleanOperand>;
+    using OperandVariant = Variant<SpeculateCellOperand, SpeculateInt32Operand, SpeculateBooleanOperand>;
     Vector<OperandVariant, JSC_DOMJIT_SIGNATURE_MAX_ARGUMENTS_INCLUDING_THIS> operands;
     Vector<GPRReg, JSC_DOMJIT_SIGNATURE_MAX_ARGUMENTS_INCLUDING_THIS> regs;
 
@@ -10712,81 +10713,11 @@ void SpeculativeJIT::compileCallDOM(Node* node)
         operands.append(OperandVariant(WTF::InPlaceType<SpeculateInt32Operand>, WTFMove(operand)));
     };
 
-    auto appendAnyIntAsDouble = [&](Edge& edge) {
-        SpeculateStrictInt52Operand operand(this, edge);
-        regs.append(operand.gpr());
-        operands.append(OperandVariant(std::in_place_type<SpeculateStrictInt52Operand>, WTFMove(operand)));
-    };
     auto appendBoolean = [&](Edge& edge) {
         SpeculateBooleanOperand operand(this, edge);
         regs.append(operand.gpr());
         operands.append(OperandVariant(WTF::InPlaceType<SpeculateBooleanOperand>, WTFMove(operand)));
     };
-
-    auto appendInt8Array = [&](Edge& edge) {
-        SpeculateCellOperand operand(this, edge);
-        GPRReg gpr = operand.gpr();
-        regs.append(gpr);
-        speculateCellTypeWithoutTypeFiltering(edge, gpr, JSType::Int8ArrayType);
-        operands.append(OperandVariant(std::in_place_type<SpeculateCellOperand>, WTFMove(operand)));
-    };
-    auto appendInt16Array = [&](Edge& edge) {
-        SpeculateCellOperand operand(this, edge);
-        GPRReg gpr = operand.gpr();
-        regs.append(gpr);
-        speculateCellTypeWithoutTypeFiltering(edge, gpr, JSType::Int16ArrayType);
-        operands.append(OperandVariant(std::in_place_type<SpeculateCellOperand>, WTFMove(operand)));
-    };
-    auto appendInt32Array = [&](Edge& edge) {
-        SpeculateCellOperand operand(this, edge);
-        GPRReg gpr = operand.gpr();
-        regs.append(gpr);
-        speculateCellTypeWithoutTypeFiltering(edge, gpr, JSType::Int32ArrayType);
-        operands.append(OperandVariant(std::in_place_type<SpeculateCellOperand>, WTFMove(operand)));
-    };
-    auto appendUint8Array = [&](Edge& edge) {
-        SpeculateCellOperand operand(this, edge);
-        GPRReg gpr = operand.gpr();
-        regs.append(gpr);
-        speculateCellTypeWithoutTypeFiltering(edge, gpr, JSType::Uint8ArrayType);
-        operands.append(OperandVariant(std::in_place_type<SpeculateCellOperand>, WTFMove(operand)));
-    };
-    auto appendUint8ClampedArray = [&](Edge& edge) {
-        SpeculateCellOperand operand(this, edge);
-        GPRReg gpr = operand.gpr();
-        regs.append(gpr);
-        speculateCellTypeWithoutTypeFiltering(edge, gpr, JSType::Uint8ClampedArrayType);
-        operands.append(OperandVariant(std::in_place_type<SpeculateCellOperand>, WTFMove(operand)));
-    };
-    auto appendUint16Array = [&](Edge& edge) {
-        SpeculateCellOperand operand(this, edge);
-        GPRReg gpr = operand.gpr();
-        regs.append(gpr);
-        speculateCellTypeWithoutTypeFiltering(edge, gpr, JSType::Uint16ArrayType);
-        operands.append(OperandVariant(std::in_place_type<SpeculateCellOperand>, WTFMove(operand)));
-    };
-    auto appendUint32Array = [&](Edge& edge) {
-        SpeculateCellOperand operand(this, edge);
-        GPRReg gpr = operand.gpr();
-        regs.append(gpr);
-        speculateCellTypeWithoutTypeFiltering(edge, gpr, JSType::Uint32ArrayType);
-        operands.append(OperandVariant(std::in_place_type<SpeculateCellOperand>, WTFMove(operand)));
-    };
-    auto appendFloat32Array = [&](Edge& edge) {
-        SpeculateCellOperand operand(this, edge);
-        GPRReg gpr = operand.gpr();
-        regs.append(gpr);
-        speculateCellTypeWithoutTypeFiltering(edge, gpr, JSType::Float32ArrayType);
-        operands.append(OperandVariant(std::in_place_type<SpeculateCellOperand>, WTFMove(operand)));
-    };
-    auto appendFloat64Array = [&](Edge& edge) {
-        SpeculateCellOperand operand(this, edge);
-        GPRReg gpr = operand.gpr();
-        regs.append(gpr);
-        speculateCellTypeWithoutTypeFiltering(edge, gpr, JSType::Float64ArrayType);
-        operands.append(OperandVariant(std::in_place_type<SpeculateCellOperand>, WTFMove(operand)));
-    };
-    
 
     unsigned index = 0;
     m_graph.doToChildren(node, [&](Edge edge) {
@@ -10802,39 +10733,6 @@ void SpeculativeJIT::compileCallDOM(Node* node)
                 break;
             case SpecBoolean:
                 appendBoolean(edge);
-                break;
-            case SpecInt8Array: 
-                appendInt8Array(edge);
-                break;
-            case SpecInt16Array: 
-                appendInt16Array(edge);
-                break;
-            case SpecInt32Array: 
-                appendInt32Array(edge);
-                break;
-            case SpecUint8Array: 
-                appendUint8Array(edge);
-                break;
-            case SpecUint8ClampedArray: 
-                appendUint8ClampedArray(edge);
-                break;
-            case SpecUint16Array: 
-                appendUint16Array(edge);
-                break;
-            case SpecUint32Array: 
-                appendUint32Array(edge);
-                break;
-            case SpecFloat32Array: 
-                appendFloat32Array(edge);
-                break;
-            case SpecFloat64Array: 
-                appendFloat64Array(edge);
-                break;
-            case SpecAnyIntAsDouble:
-            case SpecNonInt32AsInt52:
-            case SpecInt32AsInt52:
-            case SpecInt52Any:
-                appendAnyIntAsDouble(edge);
                 break;
             default:
                 RELEASE_ASSERT_NOT_REACHED();
@@ -11475,7 +11373,7 @@ void SpeculativeJIT::compileNewMap(Node* node)
     FrozenValue* structure = m_graph.freezeStrong(node->structure().get());
     auto butterfly = TrustedImmPtr(nullptr);
     emitAllocateJSObjectWithKnownSize<JSMap>(resultGPR, TrustedImmPtr(structure), butterfly, scratch1GPR, scratch2GPR, slowCases, sizeof(JSMap), SlowAllocationResult::UndefinedBehavior);
-    storePtr(TrustedImmPtr(nullptr), Address(resultGPR, JSMap::offsetOfButterfly()));
+    storePtr(TrustedImmPtr(nullptr), Address(resultGPR, JSMap::offsetOfStorage()));
     mutatorFence(vm());
 
     addSlowPathGenerator(slowPathCall(slowCases, this, operationNewMap, resultGPR, TrustedImmPtr(&vm()), TrustedImmPtr(structure)));
@@ -11498,7 +11396,7 @@ void SpeculativeJIT::compileNewSet(Node* node)
     FrozenValue* structure = m_graph.freezeStrong(node->structure().get());
     auto butterfly = TrustedImmPtr(nullptr);
     emitAllocateJSObjectWithKnownSize<JSSet>(resultGPR, TrustedImmPtr(structure), butterfly, scratch1GPR, scratch2GPR, slowCases, sizeof(JSSet), SlowAllocationResult::UndefinedBehavior);
-    storePtr(TrustedImmPtr(nullptr), Address(resultGPR, JSSet::offsetOfButterfly()));
+    storePtr(TrustedImmPtr(nullptr), Address(resultGPR, JSSet::offsetOfStorage()));
     mutatorFence(vm());
 
     addSlowPathGenerator(slowPathCall(slowCases, this, operationNewSet, resultGPR, TrustedImmPtr(&vm()), TrustedImmPtr(structure)));
@@ -13802,52 +13700,6 @@ void SpeculativeJIT::compileLazyJSConstant(Node* node)
     jsValueResult(resultRegs, node);
 }
 
-void SpeculativeJIT::compileMaterializeNewArrayWithConstantSize(Node* node)
-{
-    ObjectMaterializationData& data = node->objectMaterializationData();
-
-    GPRTemporary size(this);
-    GPRTemporary result(this);
-
-    GPRReg sizeGPR = size.gpr();
-    GPRReg storageGPR = result.gpr();
-    GPRReg resultGPR = result.gpr();
-
-    // Step 1: Speculate appropriately on all of the children.
-    for (unsigned i = 0; i < node->numChildren(); ++i)
-        speculate(node, m_graph.varArgChild(node, i));
-
-    // Step 1: Create a new array with constant size.
-    compileNewArrayWithConstantSizeImpl(node, sizeGPR, resultGPR);
-
-    // Step 2: Get the butterfly storage and fill the slots.
-    loadPtr(Address(resultGPR, JSObject::butterflyOffset()), storageGPR);
-    ASSERT(node->numChildren() == data.m_properties.size());
-    for (unsigned i = 0; i < node->numChildren(); ++i) {
-        Edge edge = m_graph.varArgChild(node, i);
-        unsigned index = data.m_properties[i].info();
-        switch (node->indexingType()) {
-        case ALL_DOUBLE_INDEXING_TYPES: {
-            SpeculateDoubleOperand value(this, edge);
-            storeDouble(value.fpr(), Address(storageGPR, sizeof(double) * index));
-            break;
-        }
-        case ALL_INT32_INDEXING_TYPES:
-        case ALL_CONTIGUOUS_INDEXING_TYPES: {
-            JSValueOperand value(this, edge, ManualOperandSpeculation); // We already speculated. So this does not require speculation.
-            JSValueRegs valueRegs = value.jsValueRegs();
-            storeValue(valueRegs, Address(storageGPR, sizeof(EncodedJSValue) * index));
-            break;
-        }
-        default:
-            DFG_CRASH(m_graph, node, "Bad indexing type");
-            break;
-        }
-    }
-
-    cellResult(resultGPR, node);
-}
-
 void SpeculativeJIT::compileMaterializeNewObject(Node* node)
 {
     RegisteredStructure structure = node->structureSet().at(0);
@@ -14990,27 +14842,78 @@ void SpeculativeJIT::compileNewArrayWithSize(Node* node)
     cellResult(resultGPR, node);
 }
 
-void SpeculativeJIT::compileNewArrayWithConstantSizeImpl(Node* node, GPRReg sizeGPR, GPRReg resultGPR)
+void SpeculativeJIT::compileNewButterflyWithSize(Node* node)
 {
-    ASSERT(m_graph.isWatchingHavingABadTimeWatchpoint(node));
-    ASSERT(!hasAnyArrayStorage(node->indexingType()));
+    GPRTemporary storage(this);
+    JSValueRegsTemporary scratch(this);
+    GPRTemporary scratch2(this);
 
-    move(TrustedImm32(node->newArraySize()), sizeGPR);
+    GPRReg storageGPR = storage.gpr();
+    JSValueRegs scratchRegs = scratch.regs();
+    GPRReg scratchGPR = scratchRegs.payloadGPR();
+    GPRReg scratch2GPR = scratch2.gpr();
 
-    constexpr bool shouldConvertLargeSizeToArrayStorage = false;
-    compileAllocateNewArrayWithSize(node, resultGPR, sizeGPR, node->indexingType(), shouldConvertLargeSizeToArrayStorage);
+    IndexingType indexingMode = node->indexingMode();
+    ASSERT(!hasAnyArrayStorage(indexingMode));
+    ASSERT(!isCopyOnWrite(indexingMode));
+    unsigned butterflyLength = node->child1()->asInt32();
+    ASSERT(butterflyLength < MIN_ARRAY_STORAGE_CONSTRUCTION_LENGTH);
+
+    constexpr bool hasIndexingHeader = true;
+    size_t allocationSize = Butterfly::totalSize(0, 0, hasIndexingHeader, butterflyLength * sizeof(JSValue));
+
+    JumpList slowCases;
+    emitAllocate(storageGPR, JITAllocator::constant(vm().auxiliarySpace().allocatorForNonInline(allocationSize, AllocatorForMode::EnsureAllocator)), scratchGPR, scratch2GPR, slowCases, SlowAllocationResult::UndefinedBehavior);
+
+    addSlowPathGenerator(slowPathCall(slowCases, this, operationAllocateUnitializedAuxiliaryBase, storageGPR, TrustedImmPtr(&vm()), TrustedImmPtr(allocationSize)));
+
+    GPRReg sizeGPR = scratch2GPR;
+
+    move(Imm32(butterflyLength), sizeGPR);
+
+    // FIXME: do post increment store pair.
+    addPtr(TrustedImm32(sizeof(IndexingHeader)), storageGPR);
+    static_assert(Butterfly::offsetOfPublicLength() + static_cast<ptrdiff_t>(sizeof(uint32_t)) == Butterfly::offsetOfVectorLength());
+    storePair32(sizeGPR, sizeGPR, storageGPR, TrustedImm32(Butterfly::offsetOfPublicLength()));
+
+    if (hasDouble(indexingMode))
+        moveTrustedValue(jsNaN(), scratchRegs);
+    else
+        moveTrustedValue(JSValue(), scratchRegs);
+
+    emitInitializeButterfly(storageGPR, sizeGPR, scratchRegs, sizeGPR);
+    storageResult(storageGPR, node);
 }
 
-void SpeculativeJIT::compileNewArrayWithConstantSize(Node* node)
+void SpeculativeJIT::compileNewArrayWithButterfly(Node* node)
 {
-    GPRTemporary size(this);
+    ASSERT(m_graph.isWatchingHavingABadTimeWatchpoint(node));
+
+    IndexingType indexingMode = node->indexingMode();
+    ASSERT(!hasAnyArrayStorage(node->indexingMode()));
+    ASSERT(!isCopyOnWrite(indexingMode));
+    JSGlobalObject* globalObject = m_graph.globalObjectFor(node->origin.semantic);
+    RegisteredStructure structure = m_graph.registerStructure(globalObject->arrayStructureForIndexingTypeDuringAllocation(node->indexingMode()));
+
+    ASSERT(node->child1()->isInt32Constant());
+    StorageOperand storage(this, node->child2());
     GPRTemporary result(this);
+    GPRTemporary scratch1(this);
+    GPRTemporary scratch2(this);
 
-    GPRReg sizeGPR = size.gpr();
+    GPRReg storageGPR = storage.gpr();
     GPRReg resultGPR = result.gpr();
+    GPRReg scratch1GPR = scratch1.gpr();
+    GPRReg scratch2GPR = scratch2.gpr();
 
-    compileNewArrayWithConstantSizeImpl(node, sizeGPR, resultGPR);
-    cellResult(result.gpr(), node);
+    JumpList slowCases;
+
+    emitAllocateJSObject<JSArray>(resultGPR, TrustedImmPtr(structure), storageGPR, scratch1GPR, scratch2GPR, slowCases, SlowAllocationResult::UndefinedBehavior);
+
+    addSlowPathGenerator(slowPathCall(slowCases, this, operationNewArrayWithSize, result.gpr(), LinkableConstant::globalObject(*this, node), structure, TrustedImm32(node->child1()->asInt32()), storageGPR));
+
+    DFG_ASSERT(m_graph, node, indexingMode & IsArray, indexingMode);
+    cellResult(resultGPR, node);
 }
 
 void SpeculativeJIT::compileNewArrayWithSpecies(Node* node)
@@ -15652,6 +15555,9 @@ void SpeculativeJIT::compileNewInternalFieldObject(Node* node)
         break;
     case JSAsyncFromSyncIteratorType:
         compileNewInternalFieldObjectImpl<JSAsyncFromSyncIterator>(node, operationNewAsyncFromSyncIterator);
+        break;
+    case JSRegExpStringIteratorType:
+        compileNewInternalFieldObjectImpl<JSRegExpStringIterator>(node, operationNewRegExpStringIterator);
         break;
     case JSPromiseType: {
         if (node->structure()->classInfoForCells() == JSInternalPromise::info())
@@ -16314,17 +16220,13 @@ void SpeculativeJIT::compileAllocateNewArrayWithSize(Node* node, GPRReg resultGP
 
 #if USE(JSVALUE64)
     JSValueRegs emptyValueRegs(scratchGPR);
-    if (hasDouble(structure->indexingType()))
-        move(TrustedImm64(std::bit_cast<int64_t>(PNaN)), emptyValueRegs.gpr());
-    else
-        move(TrustedImm64(JSValue::encode(JSValue())), emptyValueRegs.gpr());
 #else
     JSValueRegs emptyValueRegs(scratchGPR, scratch2GPR);
-    if (hasDouble(structure->indexingType()))
-        moveValue(JSValue(JSValue::EncodeAsDouble, PNaN), emptyValueRegs);
-    else
-        moveValue(JSValue(), emptyValueRegs);
 #endif
+    if (hasDouble(structure->indexingType()))
+        moveTrustedValue(jsNaN(), emptyValueRegs);
+    else
+        moveTrustedValue(JSValue(), emptyValueRegs);
     emitInitializeButterfly(storageGPR, sizeGPR, emptyValueRegs, resultGPR);
 
     emitAllocateJSObject<JSArray>(resultGPR, TrustedImmPtr(structure), storageGPR, scratchGPR, scratch2GPR, slowCases, SlowAllocationResult::UndefinedBehavior);

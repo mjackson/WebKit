@@ -494,6 +494,16 @@ static _WKWebsiteDeviceOrientationAndMotionAccessPolicy toWKWebsiteDeviceOrienta
     }
 }
 
+- (void)_setEnhancedSecurityEnabled:(BOOL)enhancedSecurityEnabled
+{
+    _websitePolicies->setEnhancedSecurityEnabled(enhancedSecurityEnabled ? true : false);
+}
+
+- (BOOL)_enhancedSecurityEnabled
+{
+    return _websitePolicies->enhancedSecurityEnabled();
+}
+
 - (void)_setCaptivePortalModeEnabled:(BOOL)enabled
 {
 #if PLATFORM(IOS_FAMILY)
@@ -800,6 +810,17 @@ static _WKWebsiteDeviceOrientationAndMotionAccessPolicy toWKWebsiteDeviceOrienta
 - (NSURLRequest *)_alternateRequest
 {
     return _websitePolicies->alternateRequest().nsURLRequest(WebCore::HTTPBodyUpdatePolicy::UpdateHTTPBody);
+}
+
+
+- (void)_setAllowsJSHandleCreationInPageWorld:(BOOL)allows
+{
+    _websitePolicies->setAllowsJSHandleCreationInPageWorld(allows);
+}
+
+- (BOOL)_allowsJSHandleCreationInPageWorld
+{
+    return _websitePolicies->allowsJSHandleCreationInPageWorld();
 }
 
 @end

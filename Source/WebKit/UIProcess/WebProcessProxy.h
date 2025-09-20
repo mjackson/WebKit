@@ -115,6 +115,7 @@ namespace WebKit {
 
 class AudioSessionRoutingArbitratorProxy;
 class FrameState;
+class JavaScriptEvaluationResult;
 class ModelProcessProxy;
 class PageClient;
 class ProvisionalPageProxy;
@@ -134,9 +135,12 @@ class WebPreferences;
 class WebProcessPool;
 class WebUserContentControllerProxy;
 class WebsiteDataStore;
+
 struct CoreIPCAuditToken;
 struct GPUProcessConnectionParameters;
 struct ModelProcessConnectionParameters;
+struct ScriptMessageHandlerIdentifierType;
+struct UserContentControllerIdentifierType;
 struct UserMessage;
 struct WebNavigationDataStore;
 struct WebPageCreationParameters;
@@ -152,6 +156,8 @@ enum class WebsiteDataType : uint32_t;
 class SpeechRecognitionRemoteRealtimeMediaSourceManager;
 #endif
 
+using ScriptMessageHandlerIdentifier = ObjectIdentifier<ScriptMessageHandlerIdentifierType>;
+using UserContentControllerIdentifier = ObjectIdentifier<UserContentControllerIdentifierType>;
 enum ForegroundWebProcessCounterType { };
 typedef RefCounter<ForegroundWebProcessCounterType> ForegroundWebProcessCounter;
 typedef ForegroundWebProcessCounter::Token ForegroundWebProcessToken;
@@ -178,9 +184,10 @@ public:
 
     enum class ShouldLaunchProcess : bool { No, Yes };
     enum class LockdownMode : bool { Disabled, Enabled };
+    enum class EnhancedSecurity : bool { Disabled, Enabled };
 
-    static Ref<WebProcessProxy> create(WebProcessPool&, WebsiteDataStore*, LockdownMode, IsPrewarmed, WebCore::CrossOriginMode = WebCore::CrossOriginMode::Shared, ShouldLaunchProcess = ShouldLaunchProcess::Yes);
-    static Ref<WebProcessProxy> createForRemoteWorkers(RemoteWorkerType, WebProcessPool&, WebCore::Site&&, WebsiteDataStore&, LockdownMode);
+    static Ref<WebProcessProxy> create(WebProcessPool&, WebsiteDataStore*, LockdownMode, EnhancedSecurity, IsPrewarmed, WebCore::CrossOriginMode = WebCore::CrossOriginMode::Shared, ShouldLaunchProcess = ShouldLaunchProcess::Yes);
+    static Ref<WebProcessProxy> createForRemoteWorkers(RemoteWorkerType, WebProcessPool&, WebCore::Site&&, WebsiteDataStore&, LockdownMode, EnhancedSecurity);
 
     ~WebProcessProxy();
 
@@ -216,7 +223,7 @@ public:
     void setIsInProcessCache(bool, WillShutDown = WillShutDown::No);
     bool isInProcessCache() const { return m_isInProcessCache; }
 
-    void enableRemoteWorkers(RemoteWorkerType, const UserContentControllerIdentifier&);
+    void enableRemoteWorkers(RemoteWorkerType, const WebUserContentControllerProxy&);
     void disableRemoteWorkers(OptionSet<RemoteWorkerType>);
 
     WebsiteDataStore* websiteDataStore() const { ASSERT(m_websiteDataStore); return m_websiteDataStore.get(); }
@@ -276,9 +283,6 @@ public:
     void addVisitedLinkStoreUser(VisitedLinkStore&, WebPageProxyIdentifier);
     void removeVisitedLinkStoreUser(VisitedLinkStore&, WebPageProxyIdentifier);
 
-    void addWebUserContentControllerProxy(WebUserContentControllerProxy&);
-    void didDestroyWebUserContentControllerProxy(WebUserContentControllerProxy&);
-
     void recordUserGestureAuthorizationToken(WebCore::PageIdentifier, WTF::UUID);
     RefPtr<API::UserInitiatedAction> userInitiatedActivity(std::optional<WebCore::UserGestureTokenIdentifier>);
     RefPtr<API::UserInitiatedAction> userInitiatedActivity(WebCore::PageIdentifier, std::optional<WTF::UUID>, std::optional<WebCore::UserGestureTokenIdentifier>);
@@ -320,6 +324,9 @@ public:
 #if ENABLE(OPT_IN_PARTITIONED_COOKIES)
     void setOptInCookiePartitioningEnabled(bool);
 #endif
+
+    void didPostMessage(WebPageProxyIdentifier, UserContentControllerIdentifier, FrameInfoData&&, ScriptMessageHandlerIdentifier, JavaScriptEvaluationResult&&, CompletionHandler<void(Expected<WebKit::JavaScriptEvaluationResult, String>&&)>&&);
+    void didPostLegacySynchronousMessage(WebPageProxyIdentifier, UserContentControllerIdentifier, FrameInfoData&&, ScriptMessageHandlerIdentifier, JavaScriptEvaluationResult&&, CompletionHandler<void(Expected<JavaScriptEvaluationResult, String>&&)>&&);
 
     void enableSuddenTermination();
     void disableSuddenTermination();
@@ -510,6 +517,7 @@ public:
 
     WebCore::CrossOriginMode crossOriginMode() const { return m_crossOriginMode; }
     LockdownMode lockdownMode() const { return m_lockdownMode; }
+    EnhancedSecurity enhancedSecurity() const { return m_enhancedSecurity; }
 
 #if PLATFORM(COCOA)
     std::optional<audit_token_t> auditToken() const;
@@ -564,7 +572,7 @@ public:
 private:
     Type type() const final { return Type::WebContent; }
 
-    WebProcessProxy(WebProcessPool&, WebsiteDataStore*, IsPrewarmed, WebCore::CrossOriginMode, LockdownMode);
+    WebProcessProxy(WebProcessPool&, WebsiteDataStore*, IsPrewarmed, WebCore::CrossOriginMode, LockdownMode, EnhancedSecurity);
 
     // AuxiliaryProcessProxy
     ASCIILiteral processName() const final { return "WebContent"_s; }
@@ -585,6 +593,7 @@ private:
     bool isJITEnabled() const final;
     bool shouldEnableSharedArrayBuffer() const final { return m_crossOriginMode == WebCore::CrossOriginMode::Isolated; }
     bool shouldEnableLockdownMode() const final { return m_lockdownMode == LockdownMode::Enabled; }
+    bool shouldEnableEnhancedSecurity() const { return m_enhancedSecurity == WebProcessProxy::EnhancedSecurity::Enabled; }
     bool shouldDisableJITCage() const final;
 
     void validateFreezerStatus();
@@ -743,7 +752,6 @@ private:
     HashMap<WebCore::PageIdentifier, UserInitiatedActionByAuthorizationTokenMap> m_userInitiatedActionByAuthorizationTokenMap;
 
     WeakHashMap<VisitedLinkStore, HashSet<WebPageProxyIdentifier>> m_visitedLinkStoresWithUsers;
-    WeakHashSet<WebUserContentControllerProxy> m_webUserContentControllerProxies;
 
     int m_numberOfTimesSuddenTerminationWasDisabled;
     ForegroundWebProcessToken m_foregroundToken;
@@ -775,6 +783,7 @@ private:
     bool m_hasCommittedAnyMeaningfulProvisionalLoads { false }; // True if the process has committed a provisional load to a URL that was not about:*.
     bool m_isPrewarmed;
     LockdownMode m_lockdownMode { LockdownMode::Disabled };
+    EnhancedSecurity m_enhancedSecurity { WebProcessProxy::EnhancedSecurity::Disabled };
     WebCore::CrossOriginMode m_crossOriginMode { WebCore::CrossOriginMode::Shared };
 #if PLATFORM(COCOA)
     bool m_hasNetworkExtensionSandboxAccess { false };

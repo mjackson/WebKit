@@ -33,6 +33,7 @@
 #include <WebCore/Color.h>
 #include <WebCore/Document.h>
 #include <WebCore/Element.h>
+#include <WebCore/FrameDestructionObserverInlines.h>
 #include <WebCore/HTMLParserIdioms.h>
 #include <WebCore/LocalFrame.h>
 #include <WebCore/RenderInline.h>
@@ -63,6 +64,18 @@ inline bool AccessibilityObject::isDetached() const
 inline bool AccessibilityObject::isNonNativeTextControl() const
 {
     return (isARIATextControl() || hasContentEditableAttributeSet()) && !isNativeTextControl();
+}
+
+inline bool AccessibilityObject::hasTreeItemRole() const
+{
+    RefPtr element = this->element();
+    return element && hasRole(*element, "treeitem"_s);
+}
+
+inline bool AccessibilityObject::hasTreeRole() const
+{
+    RefPtr element = this->element();
+    return element && hasRole(*element, "tree"_s);
 }
 
 inline AXTextMarkerRange AccessibilityObject::textMarkerRange() const
@@ -132,6 +145,11 @@ inline bool AccessibilityObject::isRenderHidden() const
 {
     CheckedPtr style = this->style();
     return WebCore::isRenderHidden(style.get());
+}
+
+inline bool AccessibilityObject::isHidden() const
+{
+    return isAXHidden() || isRenderHidden();
 }
 
 inline ElementName AccessibilityObject::elementName() const
@@ -242,16 +260,6 @@ inline const AccessibilityObject::AccessibilityChildrenVector& AccessibilityObje
     return m_children;
 }
 
-inline bool AccessibilityObject::supportsCheckedState() const
-{
-    auto role = this->role();
-    return isCheckboxOrRadio()
-    || role == AccessibilityRole::MenuItemCheckbox
-    || role == AccessibilityRole::MenuItemRadio
-    || role == AccessibilityRole::Switch
-    || isToggleButton();
-}
-
 inline bool AccessibilityObject::supportsAutoComplete() const
 {
     return (isComboBox() || isARIATextControl()) && hasAttribute(HTMLNames::aria_autocompleteAttr);
@@ -288,6 +296,12 @@ inline std::optional<AXID> AccessibilityObject::treeID() const
 {
     auto* cache = axObjectCache();
     return cache ? std::optional { cache->treeID() } : std::nullopt;
+}
+
+inline void AccessibilityObject::recomputeIsIgnored()
+{
+    // isIgnoredWithoutCache will update m_lastKnownIsIgnoredValue and perform any necessary actions if it has changed.
+    isIgnoredWithoutCache(axObjectCache());
 }
 
 } // namespace WebCore

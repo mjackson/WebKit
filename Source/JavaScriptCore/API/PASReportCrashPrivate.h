@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include <JavaScriptCore/JSBase.h>
+#include "JSBase.h"
 
 #ifdef __APPLE__
 #include <bmalloc/pas_report_crash_pgm_report.h>

@@ -37,9 +37,11 @@
 #include "CrossOriginMode.h"
 #include "Crypto.h"
 #include "CryptoKeyData.h"
+#include "DOMTimer.h"
 #include "DocumentInlines.h"
 #include "FontCustomPlatformData.h"
 #include "FontFaceSet.h"
+#include "FrameConsoleClient.h"
 #include "GarbageCollectionController.h"
 #include "IDBConnectionProxy.h"
 #include "ImageBitmapOptions.h"
@@ -47,11 +49,11 @@
 #include "JSDOMExceptionHandling.h"
 #include "Logging.h"
 #include "NotImplemented.h"
-#include "PageConsoleClient.h"
 #include "Performance.h"
 #include "RTCDataChannelRemoteHandlerConnection.h"
 #include "ReportingScope.h"
 #include "ScheduledAction.h"
+#include "ScriptExecutionContextInlines.h"
 #include "ScriptSourceCode.h"
 #include "SecurityOrigin.h"
 #include "SecurityOriginPolicy.h"
@@ -475,7 +477,7 @@ void WorkerGlobalScope::addConsoleMessage(std::unique_ptr<Inspector::ConsoleMess
 
     auto sessionID = this->sessionID();
     if (settingsValues().logsPageMessagesToSystemConsoleEnabled && sessionID && !sessionID->isEphemeral()) [[unlikely]]
-        PageConsoleClient::logMessageToSystemConsole(*message);
+        FrameConsoleClient::logMessageToSystemConsole(*message);
 
 #if ENABLE(WEBDRIVER_BIDI)
     AutomationInstrumentation::addMessageToConsole(message);

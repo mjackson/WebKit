@@ -27,7 +27,7 @@
 #define JSStringRefCF_h
 
 #include <CoreFoundation/CoreFoundation.h>
-#include <JavaScriptCore/JSBase.h>
+#include "JSBase.h"
 
 #ifdef __cplusplus
 extern "C" {

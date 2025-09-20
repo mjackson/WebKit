@@ -25,7 +25,7 @@
 #ifndef ObjCCallbackFunction_h
 #define ObjCCallbackFunction_h 
 
-#include <JavaScriptCore/JSBase.h>
+#include "JSBase.h"
 
 #if JSC_OBJC_API_ENABLED
 

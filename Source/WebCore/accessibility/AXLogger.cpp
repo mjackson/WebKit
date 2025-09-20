@@ -242,7 +242,6 @@ void AXLogger::log(const String& collectionName, const AXObjectCache::DeferredCo
         [&size] (const WeakHashSet<HTMLTableElement, WeakPtrImplWithEventTargetData>& typedCollection) { size = typedCollection.computeSize(); },
         [&size] (const WeakHashSet<AccessibilityObject>& typedCollection) { size = typedCollection.computeSize(); },
         [&size] (const WeakHashSet<AccessibilityNodeObject>& typedCollection) { size = typedCollection.computeSize(); },
-        [&size] (const WeakHashSet<AccessibilityTableCell>& typedCollection) { size = typedCollection.computeSize(); },
         [&size] (const WeakListHashSet<Node, WeakPtrImplWithEventTargetData>& typedCollection) { size = typedCollection.computeSize(); },
         [&size] (const WeakListHashSet<Element, WeakPtrImplWithEventTargetData>& typedCollection) { size = typedCollection.computeSize(); },
         [&size] (const WeakHashMap<Element, String, WeakPtrImplWithEventTargetData>& typedCollection) { size = typedCollection.computeSize(); },
@@ -432,6 +431,18 @@ TextStream& operator<<(TextStream& stream, const AccessibilitySearchCriteria& cr
     stream.dumpProperty("visibleOnly"_s, criteria.visibleOnly);
     stream.dumpProperty("immediateDescendantsOnly"_s, criteria.immediateDescendantsOnly);
 
+    return stream;
+}
+
+TextStream& operator<<(TextStream& stream, Vector<AccessibilityText>& texts)
+{
+    stream << "{"_s;
+    for (unsigned i = 0; i < texts.size(); i++) {
+        stream << texts[i];
+        if (i != texts.size() - 1)
+            stream << " ";
+    }
+    stream << "}"_s;
     return stream;
 }
 
@@ -801,6 +812,9 @@ TextStream& operator<<(WTF::TextStream& stream, AXProperty property)
     case AXProperty::HasClickHandler:
         stream << "HasClickHandler";
         break;
+    case AXProperty::HasCursorPointer:
+        stream << "HasCursorPointer";
+        break;
     case AXProperty::HasItalicFont:
         stream << "HasItalicFont";
         break;
@@ -815,6 +829,9 @@ TextStream& operator<<(WTF::TextStream& stream, AXProperty property)
         break;
     case AXProperty::IsEditableWebArea:
         stream << "IsEditableWebArea";
+        break;
+    case AXProperty::IsHiddenUntilFoundContainer:
+        stream << "IsHiddenUntilFoundContainer";
         break;
     case AXProperty::IsSubscript:
         stream << "IsSubscript";
@@ -966,8 +983,8 @@ TextStream& operator<<(WTF::TextStream& stream, AXProperty property)
     case AXProperty::IsTable:
         stream << "IsTable";
         break;
-    case AXProperty::IsTableRow:
-        stream << "IsTableRow";
+    case AXProperty::IsExposedTableRow:
+        stream << "IsExposedTableRow";
         break;
     case AXProperty::IsTextEmissionBehaviorDoubleNewline:
         stream << "IsTextEmissionBehaviorDoubleNewline";
@@ -1090,8 +1107,8 @@ TextStream& operator<<(WTF::TextStream& stream, AXProperty property)
     case AXProperty::PreventKeyboardDOMEventDispatch:
         stream << "PreventKeyboardDOMEventDispatch";
         break;
-    case AXProperty::RadioButtonGroup:
-        stream << "RadioButtonGroup";
+    case AXProperty::RadioButtonGroupMembers:
+        stream << "RadioButtonGroupMembers";
         break;
     case AXProperty::RelativeFrame:
         stream << "RelativeFrame";
@@ -1107,6 +1124,9 @@ TextStream& operator<<(WTF::TextStream& stream, AXProperty property)
         stream << "RemoteParent";
         break;
 #endif
+    case AXProperty::RevealableText:
+        stream << "RevealableText";
+        break;
     case AXProperty::RolePlatformString:
         stream << "RolePlatformString";
         break;

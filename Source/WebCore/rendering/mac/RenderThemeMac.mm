@@ -43,7 +43,7 @@
 #import "HTMLInputElement.h"
 #import "HTMLMeterElement.h"
 #import "HTMLNames.h"
-#import "HTMLPlugInImageElement.h"
+#import "HTMLPlugInElement.h"
 #import "Icon.h"
 #import "Image.h"
 #import "ImageControlsButtonMac.h"
@@ -69,6 +69,7 @@
 #import <Carbon/Carbon.h>
 #import <Cocoa/Cocoa.h>
 #import <CoreServices/CoreServices.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <math.h>
 #import <pal/spi/cg/CoreGraphicsSPI.h>
 #import <pal/spi/mac/CoreUISPI.h>
@@ -1030,26 +1031,17 @@ static const std::span<const IntSize, 4> switchSizes()
     return sizes;
 }
 
-static std::span<const int, 4> switchMargins(NSControlSize controlSize)
-{
-    static constexpr std::array margins {
-        // top right bottom left
-        std::array { 2, 2, 1, 2 },
-        std::array { 2, 2, 1, 2 },
-        std::array { 1, 1, 0, 1 },
-        std::array { 2, 2, 1, 2 },
-    };
-    return margins[controlSize];
-}
-
 static std::span<const int, 4> visualSwitchMargins(NSControlSize controlSize, bool isVertical)
 {
-    auto margins = switchMargins(controlSize);
-    if (isVertical) {
-        static const std::array verticalMargins { margins[3], margins[0], margins[1], margins[2] };
-        return verticalMargins;
-    }
-    return margins;
+    static constexpr std::array switchMarginsNonMini { 2, 2, 1, 2 };
+    static constexpr std::array switchMarginsMini { 1, 1, 0, 1 };
+    static constexpr std::array switchMarginsNonMiniVertical { switchMarginsNonMini[3], switchMarginsNonMini[0], switchMarginsNonMini[1], switchMarginsNonMini[2] };
+    static constexpr std::array switchMarginsMiniVertical { switchMarginsMini[3], switchMarginsMini[0], switchMarginsMini[1], switchMarginsMini[2] };
+
+    if (controlSize == NSControlSizeMini)
+        return isVertical ? switchMarginsMiniVertical : switchMarginsMini;
+
+    return isVertical ? switchMarginsNonMiniVertical : switchMarginsNonMini;
 }
 
 static Style::PreferredSizePair switchSize(const Style::PreferredSizePair& zoomedSize, float zoomFactor)
@@ -1154,14 +1146,6 @@ void RenderThemeMac::inflateRectForControlRenderer(const RenderObject& renderer,
     default:
         break;
     }
-}
-
-void RenderThemeMac::adjustRepaintRect(const RenderBox& renderer, FloatRect& rect)
-{
-    auto repaintRect = rect;
-    inflateRectForControlRenderer(renderer, repaintRect);
-    renderer.flipForWritingMode(repaintRect);
-    rect = repaintRect;
 }
 
 bool RenderThemeMac::controlSupportsTints(const RenderObject& o) const
@@ -1788,14 +1772,11 @@ static RefPtr<Icon> iconForAttachment(const String& fileName, const String& atta
 
     if (!attachmentType.isEmpty() && !equalLettersIgnoringASCIICase(attachmentType, "public.data"_s)) {
         if (equalLettersIgnoringASCIICase(attachmentType, "public.directory"_s) || equalLettersIgnoringASCIICase(attachmentType, "multipart/x-folder"_s) || equalLettersIgnoringASCIICase(attachmentType, "application/vnd.apple.folder"_s)) {
-ALLOW_DEPRECATED_DECLARATIONS_BEGIN
-            auto type = kUTTypeFolder;
-ALLOW_DEPRECATED_DECLARATIONS_END
-            if (auto icon = Icon::createIconForUTI(type)) {
-                LOG_ATTACHMENT("-> Got icon for kUTTypeFolder");
+            if (auto icon = Icon::createIconForUTI(UTTypeFolder.identifier)) {
+                LOG_ATTACHMENT("-> Got icon for UTTypeFolder");
                 return icon;
             }
-            LOG_ATTACHMENT("-> No icon for kUTTypeFolder! Will fallback to filename or title...");
+            LOG_ATTACHMENT("-> No icon for UTTypeFolder! Will fallback to filename or title...");
         } else {
             String type;
             if (isDeclaredUTI(attachmentType))

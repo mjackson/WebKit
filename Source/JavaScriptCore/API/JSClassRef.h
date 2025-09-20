@@ -26,7 +26,7 @@
 #ifndef JSClassRef_h
 #define JSClassRef_h
 
-#include <JavaScriptCore/JSObjectRef.h>
+#include "JSObjectRef.h"
 #include "OpaqueJSString.h"
 #include "Protect.h"
 #include "Weak.h"

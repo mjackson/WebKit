@@ -26,7 +26,7 @@
 #ifndef JSRemoteInspectorServer_h
 #define JSRemoteInspectorServer_h
 
-#include <JavaScriptCore/JSBase.h>
+#include "JSBase.h"
 #include <stdint.h>
 
 #ifdef __cplusplus

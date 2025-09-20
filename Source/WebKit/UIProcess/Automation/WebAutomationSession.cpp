@@ -51,6 +51,7 @@
 #include <WebCore/MIMETypeRegistry.h>
 #include <WebCore/PointerEventTypeNames.h>
 #include <algorithm>
+#include <wtf/CallbackAggregator.h>
 #include <wtf/FileSystem.h>
 #include <wtf/HashMap.h>
 #include <wtf/MainThread.h>
@@ -896,8 +897,23 @@ void WebAutomationSession::navigationOccurredForFrame(const WebFrameProxy& frame
     }
 }
 
-void WebAutomationSession::documentLoadedForFrame(const WebFrameProxy& frame)
+#if ENABLE(WEBDRIVER_BIDI)
+static String navigationIDToProtocolString(std::optional<WebCore::NavigationIdentifier> navigationID)
 {
+    if (!navigationID)
+        return nullString();
+
+    uint64_t id = navigationID->toUInt64();
+    return WTF::UUID(id, id).toString();
+}
+#endif
+
+void WebAutomationSession::documentLoadedForFrame(const WebFrameProxy& frame, std::optional<WebCore::NavigationIdentifier> navigationID, WallTime timestamp)
+{
+#if ENABLE(WEBDRIVER_BIDI)
+    m_bidiProcessor->browsingContextDomainNotifier().domContentLoaded(handleForWebFrameProxy(frame), navigationIDToProtocolString(navigationID), std::trunc(timestamp.secondsSinceEpoch().milliseconds()), frame.url().string());
+#endif
+
     if (frame.isMainFrame()) {
         if (auto callback = m_pendingEagerNavigationInBrowsingContextCallbacksPerPage.take(frame.page()->identifier())) {
             m_loadTimer.stop();
@@ -913,6 +929,13 @@ void WebAutomationSession::documentLoadedForFrame(const WebFrameProxy& frame)
             callback({ });
         }
     }
+}
+
+void WebAutomationSession::loadCompletedForFrame(const WebFrameProxy& frame, std::optional<WebCore::NavigationIdentifier> navigationID, WallTime timestamp)
+{
+#if ENABLE(WEBDRIVER_BIDI)
+    m_bidiProcessor->browsingContextDomainNotifier().load(handleForWebFrameProxy(frame), navigationIDToProtocolString(navigationID), std::trunc(timestamp.secondsSinceEpoch().milliseconds()), frame.url().string());
+#endif
 }
 
 void WebAutomationSession::inspectorFrontendLoaded(const WebPageProxy& page)
@@ -955,15 +978,6 @@ void WebAutomationSession::wheelEventsFlushedForPage(const WebPageProxy& page)
 void WebAutomationSession::didCreatePage(WebPageProxy& page)
 {
     m_bidiProcessor->browserAgent().didCreatePage(page);
-}
-
-static String navigationIDToProtocolString(std::optional<WebCore::NavigationIdentifier> navigationID)
-{
-    if (!navigationID)
-        return nullString();
-
-    uint64_t id = navigationID->toUInt64();
-    return WTF::UUID(id, id).toString();
 }
 
 void WebAutomationSession::navigationStartedForFrame(const WebFrameProxy& frame, std::optional<WebCore::NavigationIdentifier> navigationID)
@@ -1814,6 +1828,44 @@ CommandResult<void> WebAutomationSession::generateTestReport(const String& brows
     page->generateTestReport(message, group);
 
     return { };
+}
+
+void WebAutomationSession::setStorageAccessPermissionState(const Inspector::Protocol::Automation::BrowsingContextHandle& browsingContextHandle, const Inspector::Protocol::Automation::FrameHandle& frameHandle, Inspector::Protocol::Automation::PermissionState state, CommandCallback<void>&& callback)
+{
+    auto page = webPageProxyForHandle(browsingContextHandle);
+    ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!page, WindowNotFound);
+
+    bool frameNotFound = false;
+    auto frameID = webFrameIDForHandle(frameHandle, frameNotFound);
+    ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(frameNotFound, FrameNotFound);
+
+    RefPtr frame = frameID ? WebFrameProxy::webFrame(*frameID) : page->mainFrame();
+    ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!frame, FrameNotFound);
+
+    Ref callbackAggregator = CallbackAggregator::create([callback = WTFMove(callback)] {
+        callback({ });
+    });
+
+    Ref store = page->websiteDataStore();
+    bool granted = state == Inspector::Protocol::Automation::PermissionState::Granted;
+    if (!granted)
+        store->clearResourceLoadStatisticsInWebProcesses([callbackAggregator] { });
+    store->setStorageAccessPermissionForTesting(granted, page->identifier(), page->currentURL(), frame->url().string(), [callbackAggregator] { });
+}
+
+void WebAutomationSession::setStorageAccessPolicy(const String& browsingContextHandle, bool blocked, CommandCallback<void>&& callback)
+{
+    auto page = webPageProxyForHandle(browsingContextHandle);
+    ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!page, WindowNotFound);
+
+    Ref callbackAggregator = CallbackAggregator::create([callback = WTFMove(callback)] {
+        callback({ });
+    });
+
+    Ref store = page->websiteDataStore();
+    if (blocked)
+        store->clearStorageAccessForTesting([callbackAggregator] { });
+    store->setResourceLoadStatisticsShouldBlockThirdPartyCookiesForTesting(blocked, WebCore::ThirdPartyCookieBlockingMode::All, [callbackAggregator] { });
 }
 
 #if ENABLE(WEBDRIVER_BIDI)

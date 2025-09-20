@@ -101,7 +101,7 @@ public:
     bool hasRareData() const { return !!m_rareDataWithBitfields.pointer(); }
     AXObjectRareData* rareData() const { return m_rareDataWithBitfields.pointer(); }
     AXObjectRareData& ensureRareData();
-    bool needsRareData() const { return isTable(); }
+    bool needsRareData() const { return isTable() || isExposedTableRow(); }
 
     bool hasDirtySubtree() const { return m_subtreeDirty; }
 
@@ -112,7 +112,7 @@ public:
 
     bool isDetached() const override;
 
-    virtual bool isAccessibilityNodeObject() const { return false; }
+    bool isAccessibilityNodeObject() const override { return false; }
     bool isAccessibilityRenderObject() const override { return false; }
     virtual bool isAccessibilityScrollbar() const { return false; }
     bool isAXRemoteFrame() const override { return false; }
@@ -147,6 +147,9 @@ public:
     virtual bool isOrderedList() const { return false; }
     bool isDescriptionList() const override { return false; }
 
+    bool hasTreeRole() const;
+    bool hasTreeItemRole() const;
+
     // Table support.
     bool isTable() const override { return false; }
     virtual bool isAriaTable() const { return false; }
@@ -171,6 +174,7 @@ public:
     // Table cell support.
     bool isTableCell() const override { return false; }
     bool isExposedTableCell() const override { return false; }
+    AXCoreObject* parentTableIfTableCell() const override { return nullptr; }
     // Returns the start location and row span of the cell.
     std::pair<unsigned, unsigned> rowIndexRange() const override { return { 0, 1 }; }
     // Returns the start location and column span of the cell.
@@ -184,20 +188,22 @@ public:
     unsigned columnIndex() const override { return 0; }
 
     // Table row support.
+    AccessibilityObject* parentTable() const override { return nullptr; }
     bool isTableRow() const override { return false; }
+    AXCoreObject* parentTableIfExposedTableRow() const override { return nullptr; };
+    bool isExposedTableRow() const override { return false; }
     unsigned rowIndex() const override { return 0; }
     bool ignoredByRowAncestor() const;
 
     // ARIA tree/grid row support.
     bool isARIAGridRow() const override { return false; }
     bool isARIATreeGridRow() const override { return false; }
-    AccessibilityChildrenVector disclosedRows() override; // ARIATreeItem implementation. AccessibilityTableRow overrides this method for grid rows.
+    AccessibilityChildrenVector disclosedRows() override; // ARIATreeItem implementation. Table rows are handled in AccessibilityNodeObject();
     AccessibilityObject* disclosedByRow() const override { return nullptr; }
 
     void postMenuClosedNotificationIfNecessary() const;
 
     bool isFieldset() const override { return false; }
-    virtual bool isImageMapLink() const { return false; }
     virtual bool isMenuList() const { return false; }
     virtual bool isMenuListPopup() const { return false; }
     virtual bool isMenuListOption() const { return false; }
@@ -230,7 +236,7 @@ public:
     bool isVisited() const final;
     bool isRequired() const override { return false; }
     bool isExpanded() const final;
-    bool isVisible() const override { return !isHidden(); }
+    bool isVisible() const override;
     virtual bool isCollapsed() const { return false; }
     void setIsExpanded(bool) override { }
     FloatRect unobscuredContentRect() const;
@@ -274,9 +280,10 @@ public:
     // Use isIgnored as the word of law when determining if an object is ignored.
     virtual bool computeIsIgnored() const { return true; }
     bool isIgnored() const final;
-    void recomputeIsIgnored();
+    inline void recomputeIsIgnored();
+    void recomputeIsIgnoredForDescendants(bool includeSelf = false);
     AccessibilityObjectInclusion defaultObjectInclusion() const;
-    bool isIgnoredByDefault() const;
+    inline bool isIgnoredByDefault() const;
     bool includeIgnoredInCoreTree() const;
     bool isARIAHidden() const;
 
@@ -401,6 +408,8 @@ public:
     String textUnderElement(TextUnderElementMode = { }) const override { return { }; }
     String text() const override { return { }; }
     unsigned textLength() const final;
+    String revealableText() const override { return nullString(); }
+    bool isHiddenUntilFoundContainer() const override { return false; }
 #if ENABLE(AX_THREAD_TEXT_APIS)
     virtual AXTextRuns textRuns() { return { }; }
     bool hasTextRuns() final { return textRuns().size(); }
@@ -450,7 +459,7 @@ public:
 
     String ariaRoleDescription() const final { return getAttributeTrimmed(HTMLNames::aria_roledescriptionAttr); };
 
-    AXObjectCache* axObjectCache() const;
+    inline AXObjectCache* axObjectCache() const;
 
     static AccessibilityObject* anchorElementForNode(Node&);
     static AccessibilityObject* headingElementForNode(Node*);
@@ -502,7 +511,7 @@ public:
     Document* document() const override;
     RefPtr<Document> protectedDocument() const;
     LocalFrameView* documentFrameView() const override;
-    LocalFrame* frame() const;
+    inline LocalFrame* frame() const;
     RefPtr<LocalFrame> localMainFrame() const;
     Document* topDocument() const;
     RenderView* topRenderer() const;
@@ -535,6 +544,8 @@ public:
     void increment() override { }
     void decrement() override { }
     virtual bool toggleDetailsAncestor() { return false; }
+    // Reveals details elements and hidden="until-found" elements.
+    virtual void revealAncestors() { }
 
     void updateRole();
     bool childrenInitialized() const { return m_childrenInitialized; }
@@ -736,8 +747,8 @@ public:
 
     // Visibility.
     bool isAXHidden() const;
-    bool isRenderHidden() const;
-    bool isHidden() const { return isAXHidden() || isRenderHidden(); }
+    inline bool isRenderHidden() const;
+    inline bool isHidden() const;
     bool isOnScreen() const final;
 
 #if PLATFORM(MAC)
@@ -776,6 +787,7 @@ public:
 #endif // PLATFORM(MAC)
 
     bool hasClickHandler() const override { return false; }
+    bool hasCursorPointer() const override { return false; };
     AccessibilityObject* clickableSelfOrAncestor(ClickHandlerFilter filter = ClickHandlerFilter::ExcludeBody) const final { return Accessibility::clickableSelfOrAncestor(*this, filter); };
     AccessibilityObject* focusableAncestor() final { return Accessibility::focusableAncestor(*this); }
     AccessibilityObject* editableAncestor() const final { return Accessibility::editableAncestor(*this); };
@@ -972,12 +984,6 @@ inline bool AccessibilityObject::hasDisplayContents() const
 {
     RefPtr element = this->element();
     return element && element->hasDisplayContents();
-}
-
-inline void AccessibilityObject::recomputeIsIgnored()
-{
-    // isIgnoredWithoutCache will update m_lastKnownIsIgnoredValue and perform any necessary actions if it has changed.
-    isIgnoredWithoutCache(axObjectCache());
 }
 
 inline std::optional<BoundaryPoint> AccessibilityObject::lastBoundaryPointContainedInRect(const Vector<BoundaryPoint>& boundaryPoints, const BoundaryPoint& startBoundaryPoint, const FloatRect& targetRect, bool isFlippedWritingMode) const

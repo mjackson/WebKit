@@ -27,6 +27,7 @@
 #include "config.h"
 #include "MessagePort.h"
 
+#include "ContextDestructionObserverInlines.h"
 #include "Document.h"
 #include "EventNames.h"
 #include "EventTargetInlines.h"
@@ -131,7 +132,7 @@ MessagePort::~MessagePort()
     if (m_entangled)
         close();
 
-    if (auto* context = scriptExecutionContext())
+    if (RefPtr context = scriptExecutionContext())
         context->destroyedMessagePort(*this);
 }
 
@@ -265,7 +266,7 @@ void MessagePort::dispatchMessages()
         Ref vm = globalObject->vm();
         auto scope = DECLARE_CATCH_SCOPE(vm);
 
-        auto* workerGlobalScope = dynamicDowncast<WorkerGlobalScope>(*context);
+        RefPtr workerGlobalScope = dynamicDowncast<WorkerGlobalScope>(*context);
         for (auto& message : messages) {
             // close() in Worker onmessage handler should prevent next message from dispatching.
             if (workerGlobalScope && workerGlobalScope->isClosing())
@@ -379,6 +380,11 @@ bool MessagePort::removeEventListener(const AtomString& eventType, EventListener
         m_hasMessageEventListener = false;
 
     return result;
+}
+
+ScriptExecutionContext* MessagePort::scriptExecutionContext() const
+{
+    return ActiveDOMObject::scriptExecutionContext();
 }
 
 WebCoreOpaqueRoot root(MessagePort* port)

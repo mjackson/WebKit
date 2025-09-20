@@ -26,7 +26,7 @@
 #ifndef JSMarkingConstraintPrivate_h
 #define JSMarkingConstraintPrivate_h
 
-#include <JavaScriptCore/JSContextRef.h>
+#include "JSContextRef.h"
 #include <stdbool.h>
 
 #ifdef __cplusplus

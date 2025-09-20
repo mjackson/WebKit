@@ -42,6 +42,7 @@
 #include "AXTextMarker.h"
 #include "AXUtilities.h"
 #include "AccessibilityMockObject.h"
+#include "AccessibilityObjectInlines.h"
 #include "AccessibilityRenderObject.h"
 #include "AccessibilityScrollView.h"
 #include "Chrome.h"
@@ -603,7 +604,7 @@ bool AccessibilityObject::isDescendantOfRole(AccessibilityRole role) const
 
 static bool isTableComponent(AXCoreObject& axObject)
 {
-    return axObject.isTable() || axObject.isTableColumn() || axObject.isTableRow() || axObject.isTableCell();
+    return axObject.isTable() || axObject.isTableColumn() || axObject.isExposedTableRow() || axObject.isTableCell();
 }
 
 void AccessibilityObject::insertChild(AccessibilityObject& child, unsigned index, DescendIfIgnored descendIfIgnored)
@@ -1208,6 +1209,19 @@ bool AccessibilityObject::isARIAControl(AccessibilityRole ariaRole)
     default:
         return false;
     }
+}
+
+bool AccessibilityObject::supportsCheckedState() const
+{
+    if (hasTreeItemRole())
+        return hasAttribute(aria_checkedAttr);
+
+    auto role = this->role();
+    return isCheckboxOrRadio()
+    || role == AccessibilityRole::MenuItemCheckbox
+    || role == AccessibilityRole::MenuItemRadio
+    || role == AccessibilityRole::Switch
+    || isToggleButton();
 }
 
 bool AccessibilityObject::isRangeControl() const
@@ -2013,7 +2027,15 @@ bool AccessibilityObject::supportsReadOnly() const
 
 String AccessibilityObject::readOnlyValue() const
 {
-    if (!hasAttribute(aria_readonlyAttr))
+    bool hasReadOnlyAttribute = hasAttribute(aria_readonlyAttr);
+    if (!hasReadOnlyAttribute && isTableCell()) {
+        // ARIA 1.1 requires user agents to propagate the grid's aria-readonly value to all
+        // gridcell elements if the property is not present on the gridcell element itself.
+        if (RefPtr parent = parentTable())
+            return parent->readOnlyValue();
+    }
+
+    if (!hasReadOnlyAttribute)
         return ariaRoleAttribute() != AccessibilityRole::Unknown && supportsReadOnly() ? "false"_s : String();
 
     return getAttribute(aria_readonlyAttr).string().convertToASCIILowercase();
@@ -3808,11 +3830,16 @@ String AccessibilityObject::validationMessage() const
 
 AccessibilityObjectInclusion AccessibilityObject::defaultObjectInclusion() const
 {
+    bool isHiddenUntilFound = false;
     if (const auto* style = this->style()) {
         if (style->effectiveInert())
             return AccessibilityObjectInclusion::IgnoreObject;
-        if (isVisibilityHidden(*style))
-            return AccessibilityObjectInclusion::IgnoreObject;
+        if (isVisibilityHidden(*style)) {
+            isHiddenUntilFound = isHiddenUntilFoundContainer();
+            if (!isHiddenUntilFound)
+                return AccessibilityObjectInclusion::IgnoreObject;
+            // We handle the `isHiddenUntilFound == true` case below.
+        }
     }
 
     bool useParentData = !m_isIgnoredFromParentData.isNull();
@@ -3842,6 +3869,12 @@ AccessibilityObjectInclusion AccessibilityObject::defaultObjectInclusion() const
     if (role() == AccessibilityRole::ApplicationDialog)
         return AccessibilityObjectInclusion::IncludeObject;
 
+    if (isHiddenUntilFound) {
+        // We don't want to ignore hidden-until-found containers because we
+        // want AXSearchManager::findMatchingObjects to walk over them in order
+        // to search within them for revealable text matching the search query string.
+        return AccessibilityObjectInclusion::IncludeObject;
+    }
     return accessibilityPlatformIncludesObject();
 }
 
@@ -3922,6 +3955,13 @@ bool AccessibilityObject::isIgnoredWithoutCache(AXObjectCache* cache) const
         }
     }
     return ignored;
+}
+
+void AccessibilityObject::recomputeIsIgnoredForDescendants(bool includeSelf)
+{
+    Accessibility::enumerateDescendantsIncludingIgnored<AXCoreObject>(*this, includeSelf, [] (auto& descendant) {
+        downcast<AccessibilityObject>(descendant).recomputeIsIgnored();
+    });
 }
 
 Vector<Ref<Element>> AccessibilityObject::elementsFromAttribute(const QualifiedName& attribute) const
@@ -4089,13 +4129,20 @@ String AccessibilityObject::outerHTML() const
 
 bool AccessibilityObject::ignoredByRowAncestor() const
 {
-    RefPtr ancestor = Accessibility::findAncestor<AccessibilityObject>(*this, false, [] (const AccessibilityObject& ancestor) {
+    bool wasExposedRow = false;
+    RefPtr ancestor = Accessibility::findAncestor<AccessibilityObject>(*this, false, [&wasExposedRow] (const AccessibilityObject& ancestor) {
         // If an object has a table cell ancestor (before a table row), that is a cell's contents, so don't ignore it.
         // Similarly, if an object has a table ancestor (before a row), that could be a row, row group or other container, so don't ignore it.
-        return ancestor.isTableCell() || ancestor.isTableRow() || ancestor.isTable();
+        if (ancestor.isTableCell() || ancestor.isTable())
+            return true;
+
+        if (ancestor.isExposedTableRow())
+            wasExposedRow = true;
+
+        return wasExposedRow;
     });
 
-    return ancestor && ancestor->isTableRow();
+    return ancestor && wasExposedRow;
 }
 
 AccessibilityObject* AccessibilityObject::containingWebArea() const
@@ -4104,6 +4151,11 @@ AccessibilityObject* AccessibilityObject::containingWebArea() const
     CheckedPtr cache = axObjectCache();
     RefPtr root = cache ? dynamicDowncast<AccessibilityScrollView>(cache->getOrCreate(frameView.get())) : nullptr;
     return root ? root->webAreaObject() : nullptr;
+}
+
+bool AccessibilityObject::isVisible() const
+{
+    return !isHidden();
 }
 
 } // namespace WebCore

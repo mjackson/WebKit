@@ -117,6 +117,7 @@ Tests/WebKitCocoa/DuplicateCompletionHandlerCalls.mm
 Tests/WebKitCocoa/EditorStateTests.mm
 Tests/WebKitCocoa/ElementTargetingTests.mm
 Tests/WebKitCocoa/ElementTextPreview.mm
+Tests/WebKitCocoa/EnhancedSecurity.mm
 Tests/WebKitCocoa/EventAttribution.mm
 Tests/WebKitCocoa/ExitFullscreenOnEnterPiP.mm
 Tests/WebKitCocoa/ExitPiPOnSuspendVideoElement.mm
@@ -128,7 +129,6 @@ Tests/WebKitCocoa/FirstVisuallyNonEmptyMilestone.mm
 Tests/WebKitCocoa/FixedLayoutSize.mm
 Tests/WebKitCocoa/FontAttributes.mm
 Tests/WebKitCocoa/FormValidation.mm
-Tests/WebKitCocoa/FrameHandleSerialization.mm
 Tests/WebKitCocoa/FullscreenAlert.mm
 Tests/WebKitCocoa/FullscreenDelegate.mm
 Tests/WebKitCocoa/FullscreenLayoutConstraints.mm
@@ -175,6 +175,7 @@ Tests/WebKitCocoa/LoadDataWithNilMIMEType.mm
 Tests/WebKitCocoa/LoadFileThenReload.mm
 Tests/WebKitCocoa/LoadFileURL.mm
 Tests/WebKitCocoa/LoadInvalidURLRequest.mm
+Tests/WebKitCocoa/Loading.mm
 Tests/WebKitCocoa/LocalStorageClear.mm
 Tests/WebKitCocoa/LocalStorageDatabaseTracker.mm
 Tests/WebKitCocoa/LocalStorageNullEntries.mm
@@ -235,6 +236,7 @@ Tests/WebKitCocoa/PushAPI.mm
 Tests/WebKitCocoa/QuickLook.mm
 Tests/WebKitCocoa/ReloadWithDifferingInitialScale.mm
 Tests/WebKitCocoa/RemoteObjectRegistry.mm
+Tests/WebKitCocoa/RemoveFullscreenElementFromDOM.mm
 Tests/WebKitCocoa/RenderedImageWithOptions.mm
 Tests/WebKitCocoa/RenderingProgress.mm
 Tests/WebKitCocoa/ReparentWebViewTimeout.mm

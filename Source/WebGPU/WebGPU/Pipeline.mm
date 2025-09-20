@@ -175,7 +175,8 @@ std::optional<LibraryCreationResult> createLibrary(id<MTLDevice> device, const S
 
     auto library = ShaderModule::createLibrary(device, msl, label, error, WGSL::DeviceState {
         .appleGPUFamily = shaderModule.device().appleGPUFamily(),
-        .shaderValidationEnabled = shaderModule.device().isShaderValidationEnabled()
+        .shaderValidationEnabled = shaderModule.device().isShaderValidationEnabled(),
+        .usesInvariant = entryPointInformation.usesInvariant
     });
     if (error && *error)
         return { };
@@ -418,10 +419,10 @@ void dumpMetalReproCaseComputePSO(String&& shaderSource, String&& functionName)
         printToFileForPsoRepro();
 }
 
-void dumpMetalReproCaseRenderPSO(String&& vertexShaderSource, String&& vertexFunctionName, String&& fragmentShaderSource, String&& fragmentFunctionName, MTLRenderPipelineDescriptor* descriptor, ShaderModule::VertexStageIn& shaderLocations, const Device& device)
+bool dumpMetalReproCaseRenderPSO(String&& vertexShaderSource, String&& vertexFunctionName, String&& fragmentShaderSource, String&& fragmentFunctionName, MTLRenderPipelineDescriptor* descriptor, ShaderModule::VertexStageIn& shaderLocations, const Device& device)
 {
     if (!enablePsoLogging())
-        return;
+        return false;
 
     bool printToFile = !registerPsoExitHandlers();
 
@@ -560,6 +561,7 @@ void dumpMetalReproCaseRenderPSO(String&& vertexShaderSource, String&& vertexFun
     if (printToFile)
         printToFileForPsoRepro();
 
+    return true;
 }
 
 void clearMetalPSORepro()

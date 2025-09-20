@@ -88,13 +88,12 @@ static inline bool consumeTrailingLineBreakIfApplicable(const TextOnlyLineBreakR
         return false;
     auto& trailingLineBreak = inlineItemList[trailingInlineItemIndex];
     ASSERT(trailingLineBreak.isLineBreak());
-    line.append(trailingLineBreak, trailingLineBreak.style(), { });
+    line.appendLineBreak(trailingLineBreak, trailingLineBreak.style());
     return true;
 }
 
 TextOnlySimpleLineBuilder::TextOnlySimpleLineBuilder(InlineFormattingContext& inlineFormattingContext, const ElementBox& rootBox, HorizontalConstraints rootHorizontalConstraints, const InlineItemList& inlineItemList)
     : AbstractLineBuilder(inlineFormattingContext, rootBox, rootHorizontalConstraints, inlineItemList)
-    , m_isWrappingAllowed(TextUtil::isWrappingAllowed(rootStyle()))
 {
 }
 
@@ -107,11 +106,11 @@ LineLayoutResult TextOnlySimpleLineBuilder::layoutInlineContent(const LineInput&
 
     initialize(lineInput.needsLayoutRange, lineInput.initialLogicalRect, previousLine, isFirstFormattedLineCandidate);
     auto& rootStyle = this->rootStyle();
-    auto placedContentEnd = isWrappingAllowed() ? placeInlineTextContent(rootStyle, lineInput.needsLayoutRange) : placeNonWrappingInlineTextContent(rootStyle, lineInput.needsLayoutRange);
+    auto placedContentEnd = TextUtil::isWrappingAllowed(rootStyle) ? placeInlineTextContent(rootStyle, lineInput.needsLayoutRange) : placeNonWrappingInlineTextContent(rootStyle, lineInput.needsLayoutRange);
     auto result = m_line.close();
 
     auto isLastInlineContent = isLastLineWithInlineContent(placedContentEnd, lineInput.needsLayoutRange.endIndex());
-    auto inlineContentEnding = InlineFormattingUtils::inlineContentEnding(result);
+    auto inlineContentEnding = result.isContentful ? InlineFormattingUtils::inlineContentEnding(result) : std::nullopt;
     auto contentLogicalLeft = InlineFormattingUtils::horizontalAlignmentOffset(rootStyle, result.contentLogicalRight, m_lineLogicalRect.width(), result.hangingTrailingContentWidth, result.runs, isLastInlineContent);
 
     return { { lineInput.needsLayoutRange.start, placedContentEnd }
@@ -289,7 +288,7 @@ InlineItemPosition TextOnlySimpleLineBuilder::placeNonWrappingInlineTextContent(
     }
 
     if (trailingLineBreakIndex && candidateContent.startIndex == candidateContent.endIndex) {
-        m_line.append(m_inlineItemList[*trailingLineBreakIndex], m_inlineItemList[*trailingLineBreakIndex].style(), { });
+        m_line.appendLineBreak(m_inlineItemList[*trailingLineBreakIndex], m_inlineItemList[*trailingLineBreakIndex].style());
         return { *trailingLineBreakIndex + 1, { } };
     }
 

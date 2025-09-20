@@ -159,6 +159,8 @@ void RenderTable::styleDidChange(StyleDifference diff, const RenderStyle* oldSty
     // In the collapsed border model, there is no cell spacing.
     m_hSpacing = collapseBorders() ? 0 : Style::evaluate(style().borderHorizontalSpacing());
     m_vSpacing = collapseBorders() ? 0 : Style::evaluate(style().borderVerticalSpacing());
+    ASSERT(m_hSpacing >= 0);
+    ASSERT(m_vSpacing >= 0);
 
     if (!m_tableLayout || style().isFixedTableLayout() != oldFixedTableLayout) {
         // According to the CSS2 spec, you only use fixed table layout if an explicit width is specified on the table. Auto width implies auto table layout.
@@ -317,7 +319,6 @@ void RenderTable::updateLogicalWidth()
         }
 
         // Ensure we aren't bigger than our available width.
-        setLogicalWidth(std::min(availableContentLogicalWidth, maxPreferredLogicalWidth()));
         LayoutUnit maxWidth = maxPreferredLogicalWidth();
         // scaledWidthFromPercentColumns depends on m_layoutStruct in TableLayoutAlgorithmAuto, which
         // maxPreferredLogicalWidth fills in. So scaledWidthFromPercentColumns has to be called after

@@ -75,7 +75,6 @@ WebProcess/InjectedBundle/API/Cocoa/WKWebProcessPlugInHitTestResult.mm
 WebProcess/InjectedBundle/API/Cocoa/WKWebProcessPlugInNodeHandle.mm
 WebProcess/InjectedBundle/API/Cocoa/WKWebProcessPlugInRangeHandle.mm
 WebProcess/InjectedBundle/API/Cocoa/WKWebProcessPlugInScriptWorld.mm
-WebProcess/InjectedBundle/API/c/WKBundle.cpp
 WebProcess/InjectedBundle/API/c/WKBundleDOMWindowExtension.cpp
 WebProcess/InjectedBundle/API/c/WKBundleFrame.cpp
 WebProcess/InjectedBundle/API/c/WKBundleHitTestResult.cpp
@@ -98,7 +97,6 @@ WebProcess/InjectedBundle/InjectedBundleDOMWindowExtension.cpp
 WebProcess/InjectedBundle/InjectedBundleHitTestResult.cpp
 WebProcess/Inspector/WebInspectorUI.cpp
 WebProcess/Inspector/WebInspectorUIExtensionController.cpp
-WebProcess/Storage/WebSWClientConnection.cpp
 WebProcess/WebCoreSupport/ShareableBitmapUtilities.cpp
 WebProcess/WebCoreSupport/WebBroadcastChannelRegistry.cpp
 WebProcess/WebCoreSupport/WebCaptionPreferencesDelegate.cpp

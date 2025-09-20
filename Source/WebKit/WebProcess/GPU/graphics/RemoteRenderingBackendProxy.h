@@ -33,12 +33,13 @@
 #include "MarkSurfacesAsVolatileRequestIdentifier.h"
 #include "MessageReceiver.h"
 #include "MessageSender.h"
+#include "RemoteGradientIdentifier.h"
 #include "RemoteGraphicsContextMessages.h"
 #include "RemoteImageBufferProxy.h"
+#include "RemoteRenderingBackendIdentifier.h"
 #include "RemoteRenderingBackendMessages.h"
 #include "RemoteResourceCacheProxy.h"
 #include "RemoteSerializedImageBufferIdentifier.h"
-#include "RenderingBackendIdentifier.h"
 #include "RenderingUpdateID.h"
 #include "StreamClientConnection.h"
 #include "ThreadSafeObjectHeap.h"
@@ -113,12 +114,12 @@ public:
     void releaseFont(WebCore::RenderingResourceIdentifier);
     void cacheFontCustomPlatformData(Ref<const WebCore::FontCustomPlatformData>&&);
     void releaseFontCustomPlatformData(WebCore::RenderingResourceIdentifier);
-    void cacheDecomposedGlyphs(const WebCore::DecomposedGlyphs&);
-    void releaseDecomposedGlyphs(WebCore::RenderingResourceIdentifier);
-    void cacheGradient(Ref<WebCore::Gradient>&&, WebCore::RenderingResourceIdentifier);
-    void releaseGradient(WebCore::RenderingResourceIdentifier);
+    void cacheGradient(Ref<WebCore::Gradient>&&, RemoteGradientIdentifier);
+    void releaseGradient(RemoteGradientIdentifier);
     void cacheFilter(Ref<WebCore::Filter>&&);
     void releaseFilter(WebCore::RenderingResourceIdentifier);
+    void cacheDisplayList(RemoteDisplayListIdentifier, const WebCore::DisplayList::DisplayList&);
+    void releaseDisplayList(RemoteDisplayListIdentifier);
     void releaseMemory();
     void releaseNativeImages();
     void markSurfacesVolatile(Vector<std::pair<Ref<RemoteImageBufferSetProxy>, OptionSet<BufferInSetType>>>&&, CompletionHandler<void(bool madeAllVolatile)>&&, bool forcePurge);
@@ -129,8 +130,6 @@ public:
 #if USE(GRAPHICS_LAYER_WC)
     Function<bool()> flushImageBuffers();
 #endif
-
-    std::unique_ptr<RemoteGraphicsContextProxy> createDisplayListRecorder(WebCore::RenderingResourceIdentifier, const WebCore::FloatSize&, WebCore::RenderingMode, WebCore::RenderingPurpose, float resolutionScale, const WebCore::DestinationColorSpace&, WebCore::ContentsFormat, WebCore::ImageBufferPixelFormat);
 
     struct BufferSet {
         RefPtr<WebCore::ImageBuffer> front;
@@ -159,9 +158,9 @@ public:
     RenderingUpdateID renderingUpdateID() const { return m_renderingUpdateID; }
     unsigned delayedRenderingUpdateCount() const { return m_renderingUpdateID - m_didRenderingUpdateID; }
 
-    RenderingBackendIdentifier renderingBackendIdentifier() const;
+    RemoteRenderingBackendIdentifier renderingBackendIdentifier() const;
 
-    RenderingBackendIdentifier ensureBackendCreated();
+    RemoteRenderingBackendIdentifier ensureBackendCreated();
 
     bool isGPUProcessConnectionClosed() const { return !m_connection; }
 
@@ -219,7 +218,7 @@ private:
     WeakPtr<GPUProcessConnection> m_gpuProcessConnection; // Only for main thread operation.
     RefPtr<IPC::StreamClientConnection> m_connection;
     RefPtr<RemoteSharedResourceCacheProxy> m_sharedResourceCache;
-    RenderingBackendIdentifier m_identifier { RenderingBackendIdentifier::generate() };
+    RemoteRenderingBackendIdentifier m_identifier { RemoteRenderingBackendIdentifier::generate() };
     RemoteResourceCacheProxy m_remoteResourceCacheProxy { *this };
     RefPtr<WebCore::SharedMemory> m_getPixelBufferSharedMemory;
     WebCore::Timer m_destroyGetPixelBufferSharedMemoryTimer { *this, &RemoteRenderingBackendProxy::destroyGetPixelBufferSharedMemory };

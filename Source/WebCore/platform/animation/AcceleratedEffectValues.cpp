@@ -123,7 +123,7 @@ AcceleratedEffectValues::AcceleratedEffectValues(const RenderStyle& style, const
         transformOperationData = TransformOperationData(renderer->transformReferenceBoxRect(style), renderer);
 
     transformBox = style.transformBox();
-    transform = style.transform().selfOrCopyWithResolvedCalculatedValues(borderBoxSize);
+    transform = style.transform().resolvedCalculatedValues(borderBoxSize);
     translate = resolveCalculateValuesForTransformOperation(Style::toPlatform(style.translate()), borderBoxSize);
     scale = resolveCalculateValuesForTransformOperation(Style::toPlatform(style.scale()), borderBoxSize);
     rotate = resolveCalculateValuesForTransformOperation(Style::toPlatform(style.rotate()), borderBoxSize);
@@ -142,8 +142,8 @@ AcceleratedEffectValues::AcceleratedEffectValues(const RenderStyle& style, const
         offsetDistance = { path ? path->length() : 0.0f, LengthType:: Fixed };
     }
 
-    filter = style.filter();
-    backdropFilter = style.backdropFilter();
+    filter = Style::toPlatform(style.filter());
+    backdropFilter = Style::toPlatform(style.backdropFilter());
 }
 
 TransformationMatrix AcceleratedEffectValues::computedTransformationMatrix(const FloatRect& boundingBox) const

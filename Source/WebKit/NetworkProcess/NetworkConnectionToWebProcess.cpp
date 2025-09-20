@@ -84,6 +84,7 @@
 #include <WebCore/LogInitialization.h>
 #include <WebCore/LoginStatus.h>
 #include <WebCore/NetworkStorageSession.h>
+#include <WebCore/Quirks.h>
 #include <WebCore/ResourceError.h>
 #include <WebCore/ResourceLoadObserver.h>
 #include <WebCore/ResourceLoadStatistics.h>
@@ -1095,7 +1096,7 @@ bool NetworkConnectionToWebProcess::isFilePathAllowed(NetworkSession& session, S
 static bool shouldCheckBlobFileAccess()
 {
 #if PLATFORM(COCOA)
-    return WTF::linkedOnOrAfterSDKWithBehavior(SDKAlignedBehavior::BlobFileAccessEnforcement);
+    return WTF::linkedOnOrAfterSDKWithBehavior(SDKAlignedBehavior::BlobFileAccessEnforcement) && !Quirks::shouldDisableBlobFileAccessEnforcement();
 #else
     return true;
 #endif
@@ -1318,11 +1319,11 @@ void NetworkConnectionToWebProcess::requestStorageAccess(RegistrableDomain&& sub
     completionHandler({ WebCore::StorageAccessWasGranted::Yes, WebCore::StorageAccessPromptWasShown::No, scope, topFrameDomain, subFrameDomain });
 }
 
-void NetworkConnectionToWebProcess::queryStorageAccessPermission(RegistrableDomain&& subFrameDomain, RegistrableDomain&& topFrameDomain, CompletionHandler<void(WebCore::PermissionState)>&& completionHandler)
+void NetworkConnectionToWebProcess::queryStorageAccessPermission(RegistrableDomain&& subFrameDomain, RegistrableDomain&& topFrameDomain, std::optional<WebPageProxyIdentifier> webPageProxyID, CompletionHandler<void(WebCore::PermissionState)>&& completionHandler)
 {
     if (CheckedPtr networkSession = this->networkSession()) {
         if (RefPtr resourceLoadStatistics = networkSession->resourceLoadStatistics()) {
-            resourceLoadStatistics->queryStorageAccessPermission(WTFMove(subFrameDomain), WTFMove(topFrameDomain), WTFMove(completionHandler));
+            resourceLoadStatistics->queryStorageAccessPermission(WTFMove(subFrameDomain), WTFMove(topFrameDomain), webPageProxyID, WTFMove(completionHandler));
             return;
         }
     }
@@ -1785,26 +1786,23 @@ void NetworkConnectionToWebProcess::navigatorGetPushPermissionState(URL&& scopeU
 }
 #endif // ENABLE(DECLARATIVE_WEB_PUSH)
 
-void NetworkConnectionToWebProcess::initializeWebTransportSession(URL&& url, WebPageProxyIdentifier&& pageID, WebCore::ClientOrigin&& clientOrigin, CompletionHandler<void(std::optional<WebTransportSessionIdentifier>)>&& completionHandler)
+void NetworkConnectionToWebProcess::initializeWebTransportSession(WebTransportSessionIdentifier identifier, URL&& url, WebPageProxyIdentifier&& pageID, WebCore::ClientOrigin&& clientOrigin, CompletionHandler<void(bool)>&& completionHandler)
 {
-    if (!url.isValid() || !portAllowed(url) || isIPAddressDisallowed(url))
-        return completionHandler(std::nullopt);
+    if (!url.isValid()
+        || !portAllowed(url)
+        || isIPAddressDisallowed(url)
+        || m_networkTransportSessions.contains(identifier))
+        return completionHandler(false);
 
-    NetworkTransportSession::initialize(*this, WTFMove(url), WTFMove(pageID), WTFMove(clientOrigin), [weakThis = WeakPtr { *this }, completionHandler = WTFMove(completionHandler)] (RefPtr<NetworkTransportSession>&& session) mutable {
-        RefPtr protectedThis = weakThis.get();
-        if (!session || !protectedThis)
-            return completionHandler(std::nullopt);
-
-        auto identifier = session->identifier();
-        ASSERT(!protectedThis->m_networkTransportSessions.contains(identifier));
-        protectedThis->m_networkTransportSessions.set(identifier, session.releaseNonNull());
-        completionHandler(identifier);
-    });
+    RefPtr session = NetworkTransportSession::create(*this, identifier, WTFMove(url), WTFMove(pageID), WTFMove(clientOrigin));
+    if (!session)
+        return completionHandler(false);
+    session->initialize(WTFMove(completionHandler));
+    m_networkTransportSessions.set(identifier, session.releaseNonNull());
 }
 
 void NetworkConnectionToWebProcess::destroyWebTransportSession(WebTransportSessionIdentifier identifier)
 {
-    ASSERT(m_networkTransportSessions.contains(identifier));
     m_networkTransportSessions.remove(identifier);
 }
 

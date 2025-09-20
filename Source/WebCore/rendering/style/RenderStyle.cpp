@@ -830,7 +830,7 @@ static bool rareDataChangeRequiresLayout(const StyleRareNonInheritedData& first,
     if (first.columnGap != second.columnGap || first.rowGap != second.rowGap)
         return true;
 
-    if (!arePointingToEqualData(first.boxReflect, second.boxReflect))
+    if (first.boxReflect != second.boxReflect)
         return true;
 
     // If the counter directives change, trigger a relayout to re-calculate counter values and rebuild the counter node tree.
@@ -1227,7 +1227,7 @@ bool RenderStyle::changeRequiresLayerRepaint(const RenderStyle& other, OptionSet
 
     bool currentColorDiffers = m_inheritedData->color != other.m_inheritedData->color;
     if (currentColorDiffers) {
-        if (filter().requiresRepaintForCurrentColorChange() || backdropFilter().requiresRepaintForCurrentColorChange())
+        if (filter().hasFilterThatRequiresRepaintForCurrentColorChange() || backdropFilter().hasFilterThatRequiresRepaintForCurrentColorChange())
             return true;
     }
 
@@ -1336,7 +1336,7 @@ bool RenderStyle::changeRequiresRepaint(const RenderStyle& other, OptionSet<Styl
     if (!requiresPainting(*this) && !requiresPainting(other))
         return false;
 
-    if (m_inheritedFlags.visibility != other.m_inheritedFlags.visibility
+    if (usedVisibility() != other.usedVisibility()
         || m_inheritedFlags.printColorAdjust != other.m_inheritedFlags.printColorAdjust
         || m_inheritedFlags.insideLink != other.m_inheritedFlags.insideLink)
         return true;
@@ -1619,7 +1619,7 @@ void RenderStyle::conservativelyCollectChangedAnimatableProperties(const RenderS
             changingProperties.m_properties.set(CSSPropertyTransformOriginZ);
         if (first.transformBox != second.transformBox)
             changingProperties.m_properties.set(CSSPropertyTransformBox);
-        if (first.operations != second.operations)
+        if (first.transform != second.transform)
             changingProperties.m_properties.set(CSSPropertyTransform);
     };
 
@@ -2019,7 +2019,6 @@ void RenderStyle::conservativelyCollectChangedAnimatableProperties(const RenderS
         // marquee
         // boxReflect
         // pageSize
-        // pageSizeType
         // overscrollBehaviorX
         // overscrollBehaviorY
         // applePayButtonStyle
@@ -2162,7 +2161,7 @@ void RenderStyle::conservativelyCollectChangedAnimatableProperties(const RenderS
             changingProperties.m_properties.set(CSSPropertyStrokeLinejoin);
         if (first.hasSetStrokeWidth != second.hasSetStrokeWidth || first.strokeWidth != second.strokeWidth)
             changingProperties.m_properties.set(CSSPropertyStrokeWidth);
-        if (!arePointingToEqualData(first.listStyleImage, second.listStyleImage))
+        if (first.listStyleImage != second.listStyleImage)
             changingProperties.m_properties.set(CSSPropertyListStyleImage);
         if (first.scrollbarColor != second.scrollbarColor)
             changingProperties.m_properties.set(CSSPropertyScrollbarColor);
@@ -2370,20 +2369,9 @@ void RenderStyle::setPageScaleTransform(float scale)
     if (scale == 1)
         return;
 
-    setTransform(TransformOperations { ScaleTransformOperation::create(scale, scale, TransformOperation::Type::Scale) });
+    setTransform(Style::Transform { Style::TransformFunction { ScaleTransformOperation::create(scale, scale, TransformOperation::Type::Scale) } });
     setTransformOriginX(0_css_px);
     setTransformOriginY(0_css_px);
-}
-
-StyleImage* RenderStyle::listStyleImage() const
-{
-    return m_rareInheritedData->listStyleImage.get();
-}
-
-void RenderStyle::setListStyleImage(RefPtr<StyleImage>&& v)
-{
-    if (m_rareInheritedData->listStyleImage != v)
-        m_rareInheritedData.access().listStyleImage = WTFMove(v);
 }
 
 const Color& RenderStyle::color() const
@@ -2436,64 +2424,50 @@ const AtomString& RenderStyle::hyphenString() const
 
 void RenderStyle::adjustAnimations()
 {
-    auto* animationList = m_nonInheritedData->miscData->animations.get();
-    if (!animationList)
+    if (m_nonInheritedData->miscData->animations.isNone())
         return;
 
+    auto& animationList = ensureAnimations();
+
     // Get rid of empty animations and anything beyond them
-    for (size_t i = 0, size = animationList->size(); i < size; ++i) {
-        if (animationList->animation(i).isEmpty()) {
-            animationList->resize(i);
+    for (size_t i = 0, size = animationList.size(); i < size; ++i) {
+        if (animationList[i].isEmpty()) {
+            animationList.resize(i);
             break;
         }
     }
 
-    if (animationList->isEmpty()) {
+    if (animationList.isEmpty()) {
         clearAnimations();
         return;
     }
 
     // Repeat patterns into layers that don't have some properties set.
-    animationList->fillUnsetProperties();
+    animationList.fillUnsetProperties();
 }
 
 void RenderStyle::adjustTransitions()
 {
-    auto* transitionList = m_nonInheritedData->miscData->transitions.get();
-    if (!transitionList)
+    if (m_nonInheritedData->miscData->transitions.isNone())
         return;
 
+    auto& transitionList = ensureTransitions();
+
     // Get rid of empty transitions and anything beyond them
-    for (size_t i = 0, size = transitionList->size(); i < size; ++i) {
-        if (transitionList->animation(i).isEmpty()) {
-            transitionList->resize(i);
+    for (size_t i = 0, size = transitionList.size(); i < size; ++i) {
+        if (transitionList[i].isEmpty()) {
+            transitionList.resize(i);
             break;
         }
     }
 
-    if (transitionList->isEmpty()) {
+    if (transitionList.isEmpty()) {
         clearTransitions();
         return;
     }
 
     // Repeat patterns into layers that don't have some properties set.
-    transitionList->fillUnsetProperties();
-}
-
-AnimationList& RenderStyle::ensureAnimations()
-{
-    auto& animations = m_nonInheritedData.access().miscData.access().animations;
-    if (!animations)
-        animations = AnimationList::create();
-    return *animations;
-}
-
-AnimationList& RenderStyle::ensureTransitions()
-{
-    auto& transitions = m_nonInheritedData.access().miscData.access().transitions;
-    if (!transitions)
-        transitions = AnimationList::create();
-    return *transitions;
+    transitionList.fillUnsetProperties();
 }
 
 const FontMetrics& RenderStyle::metricsOfPrimaryFont() const
@@ -3528,14 +3502,6 @@ void RenderStyle::setLineFitEdge(TextEdge value)
 TextEdge RenderStyle::initialLineFitEdge()
 {
     return { TextEdgeType::Leading, TextEdgeType::Leading };
-}
-
-bool RenderStyle::hasReferenceFilterOnly() const
-{
-    if (!hasFilter())
-        return false;
-    auto& filterOperations = m_nonInheritedData->miscData->filter->operations;
-    return filterOperations.size() == 1 && filterOperations.at(0)->type() == FilterOperation::Type::Reference;
 }
 
 Style::LineWidth RenderStyle::outlineWidth() const

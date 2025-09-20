@@ -41,6 +41,7 @@
 #include "IntRect.h"
 #include "NoiseInjectionPolicy.h"
 #include "RenderElementInlines.h"
+#include "RenderStyleInlines.h"
 #include "ScriptTrackingPrivacyCategory.h"
 #include "StyleCanvasImage.h"
 #include "WebCoreOpaqueRoot.h"
@@ -324,7 +325,7 @@ RefPtr<ImageBuffer> CanvasBase::allocateImageBuffer() const
         renderingMode = !willReadFrequently && shouldAccelerate(area) ? RenderingMode::Accelerated : RenderingMode::Unaccelerated;
 
     auto colorSpace = context ? context->colorSpace() : DestinationColorSpace::SRGB();
-    auto pixelFormat = context ? context->pixelFormat() : ImageBufferPixelFormat::BGRA8;
+    auto pixelFormat = context ? context->pixelFormat() : PixelFormat::BGRA8;
 
     return ImageBuffer::create(size(), renderingMode, RenderingPurpose::Canvas, 1, colorSpace, pixelFormat, scriptExecutionContext->graphicsClient());
 }
@@ -380,7 +381,7 @@ RefPtr<ImageBuffer> CanvasBase::createImageForNoiseInjection() const
         return { };
 
     auto seed = static_cast<unsigned>(context->noiseInjectionHashSalt().value_or(0));
-    auto buffer = ImageBuffer::create(size(), RenderingMode::Unaccelerated, RenderingPurpose::Unspecified, 1, DestinationColorSpace::SRGB(), ImageBufferPixelFormat::BGRA8);
+    auto buffer = ImageBuffer::create(size(), RenderingMode::Unaccelerated, RenderingPurpose::Unspecified, 1, DestinationColorSpace::SRGB(), PixelFormat::BGRA8);
     if (!buffer)
         return { };
 
@@ -408,6 +409,16 @@ void CanvasBase::resetGraphicsContextState() const
 WebCoreOpaqueRoot root(CanvasBase* canvas)
 {
     return WebCoreOpaqueRoot { canvas };
+}
+
+RefPtr<ScriptExecutionContext> CanvasBase::protectedCanvasBaseScriptExecutionContext() const
+{
+    return canvasBaseScriptExecutionContext();
+}
+
+RefPtr<ScriptExecutionContext> CanvasBase::protectedScriptExecutionContext() const
+{
+    return scriptExecutionContext();
 }
 
 } // namespace WebCore

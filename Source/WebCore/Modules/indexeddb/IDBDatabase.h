@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <WebCore/EventNames.h>
 #include <WebCore/EventTarget.h>
 #include <WebCore/EventTargetInterfaces.h>
 #include <WebCore/IDBActiveDOMObject.h>
@@ -78,7 +79,7 @@ public:
 
     // EventTarget
     enum EventTargetInterfaceType eventTargetInterface() const final { return EventTargetInterfaceType::IDBDatabase; }
-    ScriptExecutionContext* scriptExecutionContext() const final { return ActiveDOMObject::scriptExecutionContext(); }
+    ScriptExecutionContext* scriptExecutionContext() const final;
     void refEventTarget() final { ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr::ref(); }
     void derefEventTarget() final { ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr::deref(); }
 
@@ -124,6 +125,8 @@ private:
     void stop() final;
 
     void maybeCloseInServer();
+
+    RefPtr<IDBTransaction> protectedVersionChangeTransaction() const;
 
     const Ref<IDBClient::IDBConnectionProxy> m_connectionProxy;
     IDBDatabaseInfo m_info;

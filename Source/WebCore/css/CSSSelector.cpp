@@ -31,6 +31,7 @@
 #include "CSSSelectorList.h"
 #include "CommonAtomStrings.h"
 #include "HTMLNames.h"
+#include "MutableCSSSelector.h"
 #include "SelectorPseudoTypeMap.h"
 #include <memory>
 #include <queue>
@@ -850,38 +851,6 @@ bool CSSSelector::visitSimpleSelectors(VisitFunctor&& functor, VisitFunctionalPs
     return false;
 }
 
-void CSSSelector::resolveNestingParentSelectors(const CSSSelectorList& parent)
-{
-    auto replaceParentSelector = [&parent] (CSSSelector& selector) {
-        if (selector.match() == CSSSelector::Match::NestingParent) {
-            // FIXME: Optimize cases where we can include the parent selector directly instead of wrapping it in a ":is" pseudo class.
-            selector.setMatch(Match::PseudoClass);
-            selector.setPseudoClass(PseudoClass::Is);
-            selector.setSelectorList(makeUnique<CSSSelectorList>(parent));
-        }
-        return false;
-    };
-
-    visitSimpleSelectors(WTFMove(replaceParentSelector), VisitFunctionalPseudoClasses::Yes);
-}
-
-void CSSSelector::replaceNestingParentByPseudoClassScope()
-{
-    auto replaceParentSelector = [] (CSSSelector& selector) {
-        if (selector.match() == Match::NestingParent) {
-            // Replace by :scope
-            selector.setMatch(Match::PseudoClass);
-            selector.setPseudoClass(PseudoClass::Scope);
-            // Top-level nesting parent selector acts like :scope with zero specificity.
-            // https://github.com/w3c/csswg-drafts/issues/10196#issuecomment-2161119978
-            selector.setImplicit();
-        }
-        return false;
-    };
-
-    visitSimpleSelectors(WTFMove(replaceParentSelector), VisitFunctionalPseudoClasses::Yes);
-}
-
 bool CSSSelector::hasExplicitNestingParent() const
 {
     return visitSimpleSelectors([](const CSSSelector& selector) {
@@ -898,9 +867,8 @@ bool CSSSelector::hasExplicitNestingParent() const
 bool CSSSelector::hasExplicitPseudoClassScope() const
 {
     return visitSimpleSelectors([] (const CSSSelector& selector) {
-        if (selector.match() == Match::PseudoClass && selector.pseudoClass() == PseudoClass::Scope)
+        if (selector.isScopePseudoClass())
             return true;
-
         return false;
     }, VisitFunctionalPseudoClasses::Yes);
 }
@@ -913,6 +881,15 @@ bool CSSSelector::isHostPseudoClass() const
 bool CSSSelector::isScopePseudoClass() const
 {
     return match() == Match::PseudoClass && pseudoClass() == PseudoClass::Scope;
+}
+
+bool CSSSelector::hasScope() const
+{
+    return visitSimpleSelectors([] (auto& selector) {
+        if (selector.isScopePseudoClass())
+            return true;
+        return false;
+    });
 }
 
 } // namespace WebCore

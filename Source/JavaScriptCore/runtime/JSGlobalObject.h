@@ -392,7 +392,7 @@ public:
     WriteBarrierStructureID m_regExpMatchesArrayStructure;
     WriteBarrierStructureID m_regExpMatchesArrayWithIndicesStructure;
     WriteBarrierStructureID m_regExpMatchesIndicesArrayStructure;
-    LazyProperty<JSGlobalObject, Structure> m_regExpStringIteratorStructure;
+    WriteBarrierStructureID m_regExpStringIteratorStructure;
     WriteBarrierStructureID m_trustedScriptStructure;
 
     LazyProperty<JSGlobalObject, Structure> m_customGetterFunctionStructure;
@@ -446,6 +446,7 @@ public:
     WriteBarrier<GetterSetter> m_typedArraySpeciesGetterSetter;
     WriteBarrier<GetterSetter> m_arrayBufferSpeciesGetterSetter;
     WriteBarrier<GetterSetter> m_sharedArrayBufferSpeciesGetterSetter;
+    WriteBarrier<JSObject> m_unhandledRejectionCallback;
 
     LazyProperty<JSGlobalObject, JSTypedArrayViewPrototype> m_typedArrayProto;
     LazyProperty<JSGlobalObject, JSTypedArrayViewConstructor> m_typedArraySuperConstructor;
@@ -461,8 +462,6 @@ public:
     StructureCache m_structureCache;
 
     String m_name;
-
-    Strong<JSObject> m_unhandledRejectionCallback;
 
 #if USE(BUN_JSC_ADDITIONS)
     bool m_isAsyncContextTrackingEnabled { false };
@@ -943,7 +942,7 @@ public:
     Structure* regExpMatchesArrayStructure() const { return m_regExpMatchesArrayStructure.get(); }
     Structure* regExpMatchesArrayWithIndicesStructure() const { return m_regExpMatchesArrayWithIndicesStructure.get(); }
     Structure* regExpMatchesIndicesArrayStructure() const { return m_regExpMatchesIndicesArrayStructure.get(); }
-    Structure* regExpStringIteratorStructure() const { return m_regExpStringIteratorStructure.get(this); }
+    Structure* regExpStringIteratorStructure() const { return m_regExpStringIteratorStructure.get(); }
     Structure* remoteFunctionStructure() const { return m_remoteFunctionStructure.get(this); }
     Structure* moduleRecordStructure() const { return m_moduleRecordStructure.get(this); }
     Structure* syntheticModuleRecordStructure() const { return m_syntheticModuleRecordStructure.get(this); }

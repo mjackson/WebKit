@@ -26,8 +26,8 @@
 #ifndef JSManagedValue_h
 #define JSManagedValue_h
 
-#include <JavaScriptCore/JSBase.h>
-#include <JavaScriptCore/WebKitAvailability.h>
+#include "JSBase.h"
+#include "WebKitAvailability.h"
 
 #if defined(__OBJC__) && JSC_OBJC_API_ENABLED
 

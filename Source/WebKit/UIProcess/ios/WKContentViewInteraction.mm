@@ -1524,6 +1524,8 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
     _selectionInteractionType = SelectionInteractionType::None;
 
+    _editingEndedByUser = YES;
+
     _hasSetUpInteractions = YES;
 }
 
@@ -2059,6 +2061,8 @@ typedef NS_ENUM(NSInteger, EndEditingReason) {
 
 - (void)endEditingAndUpdateFocusAppearanceWithReason:(EndEditingReason)reason
 {
+    _editingEndedByUser = YES;
+
     if (!self.webView._retainingActiveFocusedState) {
         // We need to complete the editing operation before we blur the element.
         [self _endEditing];
@@ -4802,7 +4806,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
             return NO;
 
 #if !PLATFORM(MACCATALYST)
-        if ([(MCProfileConnection *)[PAL::getMCProfileConnectionClass() sharedConnection] effectiveBoolValueForSetting:PAL::get_ManagedConfiguration_MCFeatureDefinitionLookupAllowed()] == MCRestrictedBoolExplicitNo)
+        if ([(MCProfileConnection *)[PAL::getMCProfileConnectionClassSingleton() sharedConnection] effectiveBoolValueForSetting:PAL::get_ManagedConfiguration_MCFeatureDefinitionLookupAllowedSingleton()] == MCRestrictedBoolExplicitNo)
             return NO;
 #endif
             
@@ -4814,7 +4818,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
             return NO;
 
 #if !PLATFORM(MACCATALYST)
-        if ([(MCProfileConnection *)[PAL::getMCProfileConnectionClass() sharedConnection] effectiveBoolValueForSetting:PAL::get_ManagedConfiguration_MCFeatureDefinitionLookupAllowed()] == MCRestrictedBoolExplicitNo)
+        if ([(MCProfileConnection *)[PAL::getMCProfileConnectionClassSingleton() sharedConnection] effectiveBoolValueForSetting:PAL::get_ManagedConfiguration_MCFeatureDefinitionLookupAllowedSingleton()] == MCRestrictedBoolExplicitNo)
             return NO;
 #endif
 
@@ -4859,7 +4863,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
 #if HAVE(TRANSLATION_UI_SERVICES)
     if (action == @selector(_translate:) || action == @selector(translate:)) {
-        if (!PAL::isTranslationUIServicesFrameworkAvailable() || ![PAL::getLTUITranslationViewControllerClass() isAvailable])
+        if (!PAL::isTranslationUIServicesFrameworkAvailable() || ![PAL::getLTUITranslationViewControllerClassSingleton() isAvailable])
             return NO;
         return !editorState.isInPasswordField && editorState.selectionIsRange;
     }
@@ -6154,6 +6158,9 @@ static void logTextInteraction(const char* methodName, UIGestureRecognizer *loup
 #endif
 
     [_textInteractionWrapper reset];
+
+    _keyboardDismissedInCurrentPresentationUpdate = NO;
+    _editingEndedByUser = YES;
 }
 
 - (void)_nextAccessoryTabForWebView:(id)sender
@@ -8168,6 +8175,12 @@ static UITextAutocapitalizationType toUITextAutocapitalize(WebCore::Autocapitali
 {
     SetForScope isHidingKeyboardScope { _isHidingKeyboard, YES };
 
+    _keyboardDismissedInCurrentPresentationUpdate = YES;
+    _page->callAfterNextPresentationUpdate([weakSelf = WeakObjCPtr<WKContentView>(self)] {
+        if (RetainPtr strongSelf = weakSelf.get())
+            strongSelf->_keyboardDismissedInCurrentPresentationUpdate = NO;
+    });
+
     self.inputDelegate = nil;
     [self setUpTextSelectionAssistant];
     
@@ -8365,6 +8378,9 @@ static RetainPtr<NSObject <WKFormPeripheral>> createInputPeripheralWithView(WebK
             if (userIsInteracting)
                 return YES;
 
+            if (_keyboardDismissedInCurrentPresentationUpdate && !_editingEndedByUser)
+                return YES;
+
             if (self.isFirstResponder || _becomingFirstResponder) {
                 // When the software keyboard is being used to enter an url, only the focus activity state is changing.
                 // In this case, auto focus on the page being navigated to should be disabled, unless a hardware
@@ -8404,6 +8420,9 @@ static RetainPtr<NSObject <WKFormPeripheral>> createInputPeripheralWithView(WebK
         [self startDeferringInputViewUpdates:WebKit::InputViewUpdateDeferralSource::ChangingFocusedElement];
         [self _elementDidBlur];
     }
+
+    if (shouldShowInputView)
+        _editingEndedByUser = NO;
 
     if (!shouldShowInputView || information.elementType == WebKit::InputType::None) {
         _page->setIsShowingInputViewForFocusedElement(false);
@@ -10077,9 +10096,9 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
 #if ENABLE(DATA_DETECTION)
     if (!positionInformation.textBefore.isEmpty())
-        context.get()[PAL::get_DataDetectorsUI_kDataDetectorsLeadingText()] = positionInformation.textBefore.createNSString().get();
+        context.get()[PAL::get_DataDetectorsUI_kDataDetectorsLeadingTextSingleton()] = positionInformation.textBefore.createNSString().get();
     if (!positionInformation.textAfter.isEmpty())
-        context.get()[PAL::get_DataDetectorsUI_kDataDetectorsTrailingText()] = positionInformation.textAfter.createNSString().get();
+        context.get()[PAL::get_DataDetectorsUI_kDataDetectorsTrailingTextSingleton()] = positionInformation.textAfter.createNSString().get();
 
     auto canShowPreview = ^{
         if (!positionInformation.url.createNSURL().get().iTunesStoreURL)
@@ -10094,7 +10113,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     }();
 
     if (!canShowPreview)
-        context.get()[PAL::get_DataDetectorsUI_kDDContextMenuWantsPreviewKey()] = @NO;
+        context.get()[PAL::get_DataDetectorsUI_kDDContextMenuWantsPreviewKeySingleton()] = @NO;
 
     CGRect sourceRect;
     if (positionInformation.isLink && positionInformation.textIndicator)
@@ -10105,7 +10124,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         sourceRect = positionInformation.bounds;
 
     CGRect frameInContainerViewCoordinates = [self convertRect:sourceRect toView:self.containerForContextMenuHintPreviews];
-    return [PAL::getDDContextMenuActionClass() updateContext:context.get() withSourceRect:frameInContainerViewCoordinates];
+    return [PAL::getDDContextMenuActionClassSingleton() updateContext:context.get() withSourceRect:frameInContainerViewCoordinates];
 #else
     return context.autorelease();
 #endif
@@ -14880,7 +14899,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         // Previously, UIPreviewItemController would detect the case where there was no previewViewController
         // and create one. We need to replicate this code for the new API.
         if (!previewViewController || [url.createNSURL() iTunesStoreURL]) {
-            auto ddContextMenuActionClass = PAL::getDDContextMenuActionClass();
+            auto ddContextMenuActionClass = PAL::getDDContextMenuActionClassSingleton();
             BEGIN_BLOCK_OBJC_EXCEPTIONS
             NSDictionary *context = [self dataDetectionContextForPositionInformation:_positionInformation];
             RetainPtr<UIContextMenuConfiguration> dataDetectorsResult = [ddContextMenuActionClass contextMenuConfigurationForURL:url.createNSURL().get() identifier:_positionInformation.dataDetectorIdentifier.createNSString().get() selectedText:self.selectedText results:_positionInformation.dataDetectorResults.get() inView:self context:context menuIdentifier:nil];
@@ -15208,7 +15227,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 - (void)continueContextMenuInteractionWithDataDetectors:(void(^)(UIContextMenuConfiguration *))continueWithContextMenuConfiguration
 {
     BEGIN_BLOCK_OBJC_EXCEPTIONS
-    auto ddContextMenuActionClass = PAL::getDDContextMenuActionClass();
+    auto ddContextMenuActionClass = PAL::getDDContextMenuActionClassSingleton();
     auto context = retainPtr([self dataDetectionContextForPositionInformation:_positionInformation]);
     RetainPtr<UIContextMenuConfiguration> configurationFromDataDetectors;
 
@@ -15347,7 +15366,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     }
 
 #if defined(DD_CONTEXT_MENU_SPI_VERSION) && DD_CONTEXT_MENU_SPI_VERSION >= 2
-    if ([configuration isKindOfClass:PAL::getDDContextMenuConfigurationClass()]) {
+    if ([configuration isKindOfClass:PAL::getDDContextMenuConfigurationClassSingleton()]) {
         DDContextMenuConfiguration *ddConfiguration = static_cast<DDContextMenuConfiguration *>(configuration);
 
         BOOL shouldExpandPreview = NO;
@@ -15518,7 +15537,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
             if ([uiDelegate respondsToSelector:@selector(_dataDetectionContextForWebView:)])
                 context = [uiDelegate _dataDetectionContextForWebView:self.webView];
 
-            DDDetectionController *controller = [PAL::getDDDetectionControllerClass() sharedController];
+            DDDetectionController *controller = [PAL::getDDDetectionControllerClassSingleton() sharedController];
             NSDictionary *newContext = nil;
             RetainPtr<NSMutableDictionary> extendedContext;
             DDResultRef ddResult = [controller resultForURL:dataForPreview.get()[UIPreviewDataLink] identifier:_positionInformation.dataDetectorIdentifier.createNSString().get() selectedText:[self selectedText] results:_positionInformation.dataDetectorResults.get() context:context extendedContext:&newContext];
@@ -15526,8 +15545,8 @@ ALLOW_DEPRECATED_DECLARATIONS_END
                 dataForPreview.get()[UIPreviewDataDDResult] = (__bridge id)ddResult;
             if (!_positionInformation.textBefore.isEmpty() || !_positionInformation.textAfter.isEmpty()) {
                 extendedContext = adoptNS([@{
-                    PAL::get_DataDetectorsUI_kDataDetectorsLeadingText() : _positionInformation.textBefore.createNSString().get(),
-                    PAL::get_DataDetectorsUI_kDataDetectorsTrailingText() : _positionInformation.textAfter.createNSString().get(),
+                    PAL::get_DataDetectorsUI_kDataDetectorsLeadingTextSingleton() : _positionInformation.textBefore.createNSString().get(),
+                    PAL::get_DataDetectorsUI_kDataDetectorsTrailingTextSingleton() : _positionInformation.textAfter.createNSString().get(),
                 } mutableCopy]);
                 
                 if (newContext)

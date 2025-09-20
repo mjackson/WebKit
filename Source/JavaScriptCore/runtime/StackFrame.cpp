@@ -30,6 +30,7 @@
 #include "DebuggerPrimitives.h"
 #include "FunctionExecutable.h"
 #include "JSCellInlines.h"
+#include "JSFunctionInlines.h"
 #include <wtf/text/MakeString.h>
 
 namespace JSC {
@@ -48,6 +49,16 @@ StackFrame::StackFrame(VM& vm, JSCell* owner, JSCell* callee, CodeBlock* codeBlo
         WriteBarrier<JSCell>(vm, owner, callee),
         WriteBarrier<CodeBlock>(vm, owner, codeBlock),
         bytecodeIndex
+    })
+{
+}
+
+StackFrame::StackFrame(VM& vm, JSCell* owner, JSCell* callee, CodeBlock* codeBlock, BytecodeIndex bytecodeIndex, bool isAsyncFrame)
+    : m_frameData(JSFrameData {
+        WriteBarrier<JSCell>(vm, owner, callee),
+        WriteBarrier<CodeBlock>(vm, owner, codeBlock),
+        bytecodeIndex,
+        isAsyncFrame
     })
 {
 }
@@ -71,12 +82,12 @@ StackFrame::StackFrame(Wasm::IndexOrName indexOrName, size_t functionIndex)
 {
 }
 
-StackFrame::StackFrame(VM& vm, JSCell* owner, JSCell* callee, bool isAsyncFrameWithoutCodeBlock)
+StackFrame::StackFrame(VM& vm, JSCell* owner, JSCell* callee, bool isAsyncFrame)
     : m_frameData(JSFrameData {
         WriteBarrier<JSCell>(vm, owner, callee),
         WriteBarrier<CodeBlock>(),
         BytecodeIndex(),
-        isAsyncFrameWithoutCodeBlock
+        isAsyncFrame
     })
 {
 }
@@ -147,7 +158,7 @@ String StackFrame::sourceURL(VM& vm) const
 {
     return WTF::switchOn(m_frameData,
         [&vm, this](const JSFrameData& jsFrame) -> String {
-            if (jsFrame.m_isAsyncFrameWithoutCodeBlock) {
+            if (isAsyncFrameWithoutCodeBlock()) {
                 ASSERT(jsFrame.callee);
                 ASSERT(!jsFrame.codeBlock);
                 JSFunction* calleeFn = jsDynamicCast<JSFunction*>(jsFrame.callee.get());
@@ -171,7 +182,7 @@ String StackFrame::sourceURLStripped(VM& vm) const
 {
     return WTF::switchOn(m_frameData,
         [&vm, this](const JSFrameData& jsFrame) -> String {
-            if (jsFrame.m_isAsyncFrameWithoutCodeBlock) {
+            if (isAsyncFrameWithoutCodeBlock()) {
                 ASSERT(jsFrame.callee);
                 ASSERT(!jsFrame.codeBlock);
                 JSFunction* calleeFn = jsDynamicCast<JSFunction*>(jsFrame.callee.get());
@@ -214,7 +225,14 @@ String StackFrame::functionName(VM& vm) const
                 if (auto* executable = jsDynamicCast<FunctionExecutable*>(jsFrame.codeBlock->ownerExecutable()))
                     name = executable->ecmaName().impl();
             }
-            return name.isNull() ? emptyString() : name;
+
+            if (name.isNull())
+                return emptyString();
+
+            if (jsFrame.m_isAsyncFrame)
+                return makeString("async "_s, name);
+
+            return name;
         },
         [](const WasmFrameData& wasmFrame) -> String {
             if (wasmFrame.functionIndexOrName.isEmpty() || !wasmFrame.functionIndexOrName.nameSection())

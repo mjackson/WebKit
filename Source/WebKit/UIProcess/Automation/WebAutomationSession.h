@@ -44,6 +44,7 @@
 #include <wtf/Forward.h>
 #include <wtf/RunLoop.h>
 #include <wtf/ThreadSafeRefCounted.h>
+#include <wtf/WallTime.h>
 #include <wtf/WeakPtr.h>
 
 #if ENABLE(REMOTE_INSPECTOR)
@@ -159,7 +160,8 @@ public:
     void setProcessPool(WebProcessPool*);
 
     void navigationOccurredForFrame(const WebFrameProxy&);
-    void documentLoadedForFrame(const WebFrameProxy&);
+    void documentLoadedForFrame(const WebFrameProxy&, std::optional<WebCore::NavigationIdentifier>, WallTime timestamp);
+    void loadCompletedForFrame(const WebFrameProxy&, std::optional<WebCore::NavigationIdentifier>, WallTime timestamp);
     void inspectorFrontendLoaded(const WebPageProxy&);
     void keyboardEventsFlushedForPage(const WebPageProxy&);
     void mouseEventsFlushedForPage(const WebPageProxy&);
@@ -270,6 +272,8 @@ public:
     void loadWebExtension(const Inspector::Protocol::Automation::WebExtensionResourceOptions, const String& resource, Inspector::CommandCallback<String>&&) override;
     void unloadWebExtension(const String& identifier, Inspector::CommandCallback<void>&&) override;
 #endif
+    void setStorageAccessPermissionState(const Inspector::Protocol::Automation::BrowsingContextHandle&, const Inspector::Protocol::Automation::FrameHandle&, Inspector::Protocol::Automation::PermissionState, Inspector::CommandCallback<void>&&) override;
+    void setStorageAccessPolicy(const Inspector::Protocol::Automation::BrowsingContextHandle&, bool blocked, Inspector::CommandCallback<void>&&) override;
 
 #if ENABLE(WEBDRIVER_BIDI)
     Inspector::CommandResult<void> processBidiMessage(const String&) override;

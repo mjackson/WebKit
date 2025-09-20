@@ -26,7 +26,7 @@
 #ifndef JSExport_h
 #define JSExport_h
 
-#include <JavaScriptCore/JavaScriptCore.h>
+#include "JavaScriptCore.h"
 
 #if defined(__OBJC__) && JSC_OBJC_API_ENABLED
 

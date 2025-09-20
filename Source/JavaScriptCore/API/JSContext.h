@@ -26,8 +26,8 @@
 #ifndef JSContext_h
 #define JSContext_h
 
-#include <JavaScriptCore/JavaScript.h>
-#include <JavaScriptCore/WebKitAvailability.h>
+#include "JavaScript.h"
+#include "WebKitAvailability.h"
 
 #if defined(__OBJC__) && JSC_OBJC_API_ENABLED
 

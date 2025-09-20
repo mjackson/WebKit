@@ -442,7 +442,7 @@ private:
 
     bool shouldReload(const URL& currentURL, const URL& destinationURL);
 
-    ResourceLoaderIdentifier requestFromDelegate(ResourceRequest&, IsMainResourceLoad, ResourceError&);
+    ResourceLoaderIdentifier requestFromDelegate(ResourceRequest&, ResourceError&);
 
     WEBCORE_EXPORT void detachChildren();
     void closeAndRemoveChild(LocalFrame&);

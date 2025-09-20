@@ -68,13 +68,12 @@ public:
 
     enum class VisitFunctionalPseudoClasses { No, Yes };
     enum class VisitOnlySubject { No, Yes };
-    using VisitFunctor = WTF::Function<bool(CSSSelector&)>;
+    using VisitFunctor = WTF::Function<bool(const CSSSelector&)>;
     bool visitSimpleSelectors(VisitFunctor&&, VisitFunctionalPseudoClasses = VisitFunctionalPseudoClasses::No, VisitOnlySubject = VisitOnlySubject::No) const;
 
     bool hasExplicitNestingParent() const;
     bool hasExplicitPseudoClassScope() const;
-    void resolveNestingParentSelectors(const CSSSelectorList& parent);
-    void replaceNestingParentByPseudoClassScope();
+    bool hasScope() const;
 
     using PseudoClass = CSSSelectorPseudoClass;
     using PseudoElement = CSSSelectorPseudoElement;
@@ -236,7 +235,7 @@ private:
     CSSSelector(CSSSelector&&) = delete;
 
     struct RareData : public RefCounted<RareData> {
-        WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(CSSSelectorRareData, RareData);
+        WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(CSSSelectorRareData, CSSSelectorRareData);
         static Ref<RareData> create(AtomString);
         WEBCORE_EXPORT ~RareData();
 

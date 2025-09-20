@@ -31,7 +31,6 @@
 #include "AddEventListenerOptionsInlines.h"
 #include "AnimationTimeline.h"
 #include "AnimationTimelinesController.h"
-#include "ApplicationCacheStorage.h"
 #include "AudioSession.h"
 #include "AudioTrackPrivateMediaStream.h"
 #include "Autofill.h"
@@ -60,6 +59,7 @@
 #include "ColorSerialization.h"
 #include "ComposedTreeIterator.h"
 #include "ContainerNodeInlines.h"
+#include "ContextDestructionObserverInlines.h"
 #include "CookieJar.h"
 #include "CrossOriginPreflightResultCache.h"
 #include "Cursor.h"
@@ -394,6 +394,10 @@
 #include <wtf/spi/darwin/SandboxSPI.h>
 #endif
 
+#if PLATFORM(WPE)
+#include <wtf/glib/GResources.h>
+#endif
+
 #if ENABLE(MEDIA_SESSION_COORDINATOR)
 #include "MediaSessionCoordinator.h"
 #include "MockMediaSessionCoordinator.h"
@@ -581,6 +585,7 @@ void Internals::resetToConsistentState(Page& page)
 
     page.setDefersLoading(false);
     page.setResourceCachingDisabledByWebInspector(false);
+    page.setConsoleMessageListenerForTesting(nullptr);
 
     RefPtr localMainFrame = page.localMainFrame();
     if (!localMainFrame)
@@ -614,24 +619,22 @@ void Internals::resetToConsistentState(Page& page)
     if (localMainFrame->editor().isOverwriteModeEnabled())
         localMainFrame->editor().toggleOverwriteModeEnabled();
     localMainFrame->loader().clearTestingOverrides();
-    if (auto* applicationCacheStorage = page.applicationCacheStorage())
-        applicationCacheStorage->setDefaultOriginQuota(ApplicationCacheStorage::noQuota());
 
-    auto& sessionManager = page.mediaSessionManager();
+    RefPtr sessionManager = page.mediaSessionManager();
 #if ENABLE(VIDEO)
     page.group().ensureCaptionPreferences().setCaptionDisplayMode(CaptionUserPreferences::CaptionDisplayMode::ForcedOnly);
     page.group().ensureCaptionPreferences().setCaptionsStyleSheetOverride(emptyString());
 
-    sessionManager.resetHaveEverRegisteredAsNowPlayingApplicationForTesting();
-    sessionManager.resetRestrictions();
-    sessionManager.resetSessionState();
-    sessionManager.setWillIgnoreSystemInterruptions(true);
-    sessionManager.applicationWillEnterForeground(false);
+    sessionManager->resetHaveEverRegisteredAsNowPlayingApplicationForTesting();
+    sessionManager->resetRestrictions();
+    sessionManager->resetSessionState();
+    sessionManager->setWillIgnoreSystemInterruptions(true);
+    sessionManager->applicationWillEnterForeground(false);
     if (page.mediaPlaybackIsSuspended())
         page.resumeAllMediaPlayback();
 #endif
 #if ENABLE(VIDEO) || ENABLE(WEB_AUDIO)
-    sessionManager.setIsPlayingToAutomotiveHeadUnit(false);
+    sessionManager->setIsPlayingToAutomotiveHeadUnit(false);
 #endif
     AXObjectCache::setEnhancedUserInterfaceAccessibility(false);
     AXObjectCache::disableAccessibility();
@@ -745,8 +748,6 @@ Internals::Internals(Document& document)
         setAutomaticLinkDetectionEnabled(false);
         setAutomaticTextReplacementEnabled(true);
     }
-
-    setConsoleMessageListener(nullptr);
 
 #if ENABLE(APPLE_PAY)
     auto* frame = document.frame();
@@ -946,7 +947,7 @@ static String responseSourceToString(const ResourceResponse& response)
         return "Memory cache"_s;
     case ResourceResponse::Source::MemoryCacheAfterValidation:
         return "Memory cache after validation"_s;
-    case ResourceResponse::Source::ApplicationCache:
+    case ResourceResponse::Source::LegacyApplicationCachePlaceholder:
         return "Application cache"_s;
     case ResourceResponse::Source::DOMCache:
         return "DOM cache"_s;
@@ -2123,7 +2124,7 @@ ExceptionOr<RefPtr<ImageData>> Internals::snapshotNode(Node& node)
 
     document->updateLayoutIgnorePendingStylesheets();
 
-    SnapshotOptions options { { SnapshotFlags::DraggableElement }, ImageBufferPixelFormat::BGRA8, DestinationColorSpace::SRGB() };
+    SnapshotOptions options { { SnapshotFlags::DraggableElement }, PixelFormat::BGRA8, DestinationColorSpace::SRGB() };
 
     RefPtr imageBuffer = WebCore::snapshotNode(*document->frame(), node, WTFMove(options));
     if (!imageBuffer)
@@ -3282,6 +3283,10 @@ RefPtr<WindowProxy> Internals::openDummyInspectorFrontend(const String& url)
     if (!window)
         return nullptr;
 
+#if PLATFORM(WPE)
+    WTF::registerInspectorResourceIfNeeded();
+#endif
+
     auto frontendWindowProxy = window->open(*window, *window, url, emptyAtom(), emptyString()).releaseReturnValue();
     m_inspectorFrontend = makeUnique<InspectorStubFrontend>(*inspectedPage, downcast<LocalDOMWindow>(frontendWindowProxy->window()));
     return frontendWindowProxy;
@@ -4078,15 +4083,6 @@ bool Internals::doesCanvasHavePendingCanvasNoiseInjection(HTMLCanvasElement& ele
     return element.havePendingCanvasNoiseInjection();
 }
 
-void Internals::setApplicationCacheOriginQuota(unsigned long long quota)
-{
-    Document* document = contextDocument();
-    if (!document || !document->page())
-        return;
-    if (auto* applicationCacheStorage = document->page()->applicationCacheStorage())
-        applicationCacheStorage->storeUpdatedQuotaForOrigin(&document->securityOrigin(), quota);
-}
-
 void Internals::registerURLSchemeAsBypassingContentSecurityPolicy(const String& scheme)
 {
     LegacySchemeRegistry::registerURLSchemeAsBypassingContentSecurityPolicy(scheme);
@@ -4866,7 +4862,7 @@ void Internals::initializeMockMediaSource()
     if (!document || (!document->settings().mediaSourceEnabled() && !document->settings().managedMediaSourceEnabled()))
         return;
 
-    platformStrategies()->mediaStrategy().enableMockMediaSource();
+    platformStrategies()->mediaStrategy()->enableMockMediaSource();
 }
 
 void Internals::setMaximumSourceBufferSize(SourceBuffer& buffer, uint64_t maximumSize, DOMPromiseDeferred<void>&& promise)
@@ -5905,7 +5901,7 @@ JSValue Internals::cloneArrayBuffer(JSC::JSGlobalObject& lexicalGlobalObject, JS
 
 String Internals::resourceLoadStatisticsForURL(const DOMURL& url)
 {
-    return ResourceLoadObserver::shared().statisticsForURL(url.href());
+    return ResourceLoadObserver::singleton().statisticsForURL(url.href());
 }
 
 void Internals::setTrackingPreventionEnabled(bool enable)
@@ -6564,6 +6560,17 @@ bool Internals::audioSessionActive() const
     return false;
 }
 
+bool Internals::enhancedSecurityEnabled() const
+{
+    auto* document = contextDocument();
+    if (!document)
+        return false;
+    auto* page = document->page();
+    if (!page)
+        return false;
+    return page->enhancedSecurityEnabled();
+}
+
 void Internals::storeRegistrationsOnDisk(DOMPromiseDeferred<void>&& promise)
 {
     if (!contextDocument())
@@ -6657,7 +6664,8 @@ void Internals::setConsoleMessageListener(RefPtr<StringCallback>&& listener)
     if (!contextDocument())
         return;
 
-    contextDocument()->setConsoleMessageListener(WTFMove(listener));
+    if (RefPtr page = contextDocument()->page())
+        page->setConsoleMessageListenerForTesting(WTFMove(listener));
 }
 
 void Internals::setResponseSizeWithPadding(FetchResponse& response, uint64_t size)
@@ -6925,7 +6933,7 @@ ExceptionOr<unsigned> Internals::pluginScrollPositionY(Element& element)
 
 void Internals::notifyResourceLoadObserver()
 {
-    ResourceLoadObserver::shared().updateCentralStatisticsStore([] { });
+    ResourceLoadObserver::singleton().updateCentralStatisticsStore([] { });
 }
 
 unsigned Internals::primaryScreenDisplayID()
@@ -7910,7 +7918,7 @@ std::optional<RenderingMode> Internals::getEffectiveRenderingModeOfNewlyCreatedA
     if (!document || !document->page())
         return std::nullopt;
 
-    if (RefPtr imageBuffer = ImageBuffer::create({ 100, 100 }, RenderingMode::Accelerated, RenderingPurpose::DOM, 1, DestinationColorSpace::SRGB(), ImageBufferPixelFormat::BGRA8,  &document->page()->chrome())) {
+    if (RefPtr imageBuffer = ImageBuffer::create({ 100, 100 }, RenderingMode::Accelerated, RenderingPurpose::DOM, 1, DestinationColorSpace::SRGB(), PixelFormat::BGRA8,  &document->page()->chrome())) {
         imageBuffer->ensureBackendCreated();
         if (imageBuffer->hasBackend())
             return imageBuffer->renderingMode();
@@ -8024,7 +8032,7 @@ RefPtr<MediaSessionManagerInterface> Internals::sessionManager() const
     if (!page)
         return nullptr;
 
-    return &page->mediaSessionManager();
+    return page->mediaSessionManager();
 }
 
 #if ENABLE(MODEL_ELEMENT)

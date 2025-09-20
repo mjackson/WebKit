@@ -316,8 +316,6 @@ set(WebKit_MESSAGES_IN_FILES
 
     UIProcess/Network/NetworkProcessProxy
 
-    UIProcess/UserContent/WebUserContentControllerProxy
-
     UIProcess/XR/PlatformXRSystem
 
     WebProcess/WebProcess
@@ -768,11 +766,7 @@ endif ()
 
 macro(ADD_WEBKIT_PREFIX_HEADER _target)
     if (WebKit_USE_PREFIX_HEADER)
-        get_target_property(OLD_COMPILE_FLAGS ${_target} COMPILE_FLAGS)
-        if (${OLD_COMPILE_FLAGS} STREQUAL "OLD_COMPILE_FLAGS-NOTFOUND")
-            set(OLD_COMPILE_FLAGS "")
-        endif ()
-        set_target_properties(${_target} PROPERTIES COMPILE_FLAGS "${OLD_COMPILE_FLAGS} -include ${WEBKIT_DIR}/WebKit2Prefix.h")
+        target_compile_options(${_target} PRIVATE "$<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:-include>" "$<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:${WEBKIT_DIR}/WebKit2Prefix.h>")
     else ()
         target_precompile_headers(${_target} PRIVATE WebKit2Prefix.h)
     endif ()
@@ -802,6 +796,10 @@ set(WebKit_GENERATED_SERIALIZERS_SUFFIX cpp)
 
 WEBKIT_FRAMEWORK_DECLARE(WebKit)
 WEBKIT_INCLUDE_CONFIG_FILES_IF_EXISTS()
+
+WEBKIT_SETUP_SWIFT_AND_GENERATE_SWIFT_CPP_INTEROP_HEADER(WebKit WebKit
+    "${WEBKIT_DIR}/Modules/Internal"
+    "${WebKit_DERIVED_SOURCES_DIR}/WebKit-Swift-CPP.h")
 
 if (PORT STREQUAL GTK OR PORT STREQUAL WPE)
     WEBKIT_ADD_TARGET_CXX_FLAGS(WebKit
@@ -962,6 +960,7 @@ set(WebKit_WEBDRIVER_BIDI_PROTOCOL_GENERATOR_INPUTS
     ${WEBKIT_DIR}/UIProcess/Automation/protocol/BidiBrowser.json
     ${WEBKIT_DIR}/UIProcess/Automation/protocol/BidiBrowsingContext.json
     ${WEBKIT_DIR}/UIProcess/Automation/protocol/BidiLog.json
+    ${WEBKIT_DIR}/UIProcess/Automation/protocol/BidiPermissions.json
     ${WEBKIT_DIR}/UIProcess/Automation/protocol/BidiScript.json
     ${WEBKIT_DIR}/UIProcess/Automation/protocol/BidiSession.json
     ${WEBKIT_DIR}/UIProcess/Automation/protocol/BidiStorage.json
@@ -1063,6 +1062,12 @@ list(APPEND WebKit_SOURCES
     ${WebKit_DERIVED_SOURCES_DIR}/WebPreferencesStoreDefaultsMap.cpp
 )
 
+if (ENABLE_SWIFT_DEMO_URI_SCHEME)
+    list(APPEND WebKit_SOURCES
+        ${WEBKIT_DIR}/UIProcess/SwiftDemoLogo.swift
+    )
+endif ()
+
 list(APPEND WebKit_SOURCES ${WebKit_DERIVED_SOURCES})
 
 WEBKIT_COMPUTE_SOURCES(WebKit)
@@ -1099,9 +1104,10 @@ endif ()
 if ("${PORT}" STREQUAL "Mac")
     WEBKIT_DEFINE_XPC_SERVICES()
 else ()
-    WEBKIT_POPULATE_LIBRARY_VERSION(WEBKIT)
-
-    set_target_properties(WebKit PROPERTIES VERSION ${WEBKIT_VERSION} SOVERSION ${WEBKIT_VERSION_MAJOR})
+    if (NOT ANDROID)
+        WEBKIT_POPULATE_LIBRARY_VERSION(WEBKIT)
+        set_target_properties(WebKit PROPERTIES VERSION ${WEBKIT_VERSION} SOVERSION ${WEBKIT_VERSION_MAJOR})
+    endif ()
 
     install(TARGETS WebKit WebProcess NetworkProcess
         LIBRARY DESTINATION "${LIB_INSTALL_DIR}"

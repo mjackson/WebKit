@@ -34,7 +34,7 @@
 #include "ImageBufferRemotePDFDocumentBackend.h"
 #include "ImageBufferShareableBitmapBackend.h"
 #include "Logging.h"
-#include "RemoteGraphicsContextProxy.h"
+#include "RemoteDisplayListRecorderProxy.h"
 #include "RemoteImageBufferMessages.h"
 #include "RemoteImageBufferProxy.h"
 #include "RemoteImageBufferProxyMessages.h"
@@ -48,7 +48,7 @@
 #include "WebProcess.h"
 #include <JavaScriptCore/TypedArrayInlines.h>
 #include <WebCore/FontCustomPlatformData.h>
-#include <WebCore/ImageBufferPixelFormat.h>
+#include <WebCore/PixelFormat.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/text/TextStream.h>
 
@@ -438,24 +438,12 @@ void RemoteRenderingBackendProxy::releaseFontCustomPlatformData(RenderingResourc
     send(Messages::RemoteRenderingBackend::ReleaseFontCustomPlatformData(identifier));
 }
 
-void RemoteRenderingBackendProxy::cacheDecomposedGlyphs(const DecomposedGlyphs& glyphs)
-{
-    send(Messages::RemoteRenderingBackend::CacheDecomposedGlyphs({ glyphs.glyphs().data(), Vector<FloatSize>(glyphs.advances()).span().data(), glyphs.glyphs().size() }, glyphs.localAnchor(), glyphs.fontSmoothingMode(), glyphs.renderingResourceIdentifier()));
-}
-
-void RemoteRenderingBackendProxy::releaseDecomposedGlyphs(RenderingResourceIdentifier identifier)
-{
-    if (!m_connection)
-        return;
-    send(Messages::RemoteRenderingBackend::ReleaseDecomposedGlyphs(identifier));
-}
-
-void RemoteRenderingBackendProxy::cacheGradient(Ref<Gradient>&& gradient, RenderingResourceIdentifier identifier)
+void RemoteRenderingBackendProxy::cacheGradient(Ref<Gradient>&& gradient, RemoteGradientIdentifier identifier)
 {
     send(Messages::RemoteRenderingBackend::CacheGradient(WTFMove(gradient), identifier));
 }
 
-void RemoteRenderingBackendProxy::releaseGradient(RenderingResourceIdentifier identifier)
+void RemoteRenderingBackendProxy::releaseGradient(RemoteGradientIdentifier identifier)
 {
     if (!m_connection)
         return;
@@ -472,6 +460,22 @@ void RemoteRenderingBackendProxy::releaseFilter(RenderingResourceIdentifier iden
     if (!m_connection)
         return;
     send(Messages::RemoteRenderingBackend::ReleaseFilter(identifier));
+}
+
+void RemoteRenderingBackendProxy::cacheDisplayList(RemoteDisplayListIdentifier identifier, const DisplayList::DisplayList& displayList)
+{
+    RemoteDisplayListRecorderProxy recorder(*this);
+    auto recorderIdentifier = recorder.identifier();
+    send(Messages::RemoteRenderingBackend::CreateDisplayListRecorder(recorderIdentifier));
+    recorder.appendDisplayList(displayList);
+    send(Messages::RemoteRenderingBackend::SinkDisplayListRecorderIntoDisplayList(recorderIdentifier, identifier));
+}
+
+void RemoteRenderingBackendProxy::releaseDisplayList(RemoteDisplayListIdentifier identifier)
+{
+    if (!m_connection)
+        return;
+    send(Messages::RemoteRenderingBackend::ReleaseDisplayList(identifier));
 }
 
 void RemoteRenderingBackendProxy::releaseMemory()
@@ -619,12 +623,12 @@ void RemoteRenderingBackendProxy::didFinalizeRenderingUpdate(RenderingUpdateID d
     m_didRenderingUpdateID = std::min(didRenderingUpdateID, m_renderingUpdateID);
 }
 
-RenderingBackendIdentifier RemoteRenderingBackendProxy::renderingBackendIdentifier() const
+RemoteRenderingBackendIdentifier RemoteRenderingBackendProxy::renderingBackendIdentifier() const
 {
     return m_identifier;
 }
 
-RenderingBackendIdentifier RemoteRenderingBackendProxy::ensureBackendCreated()
+RemoteRenderingBackendIdentifier RemoteRenderingBackendProxy::ensureBackendCreated()
 {
     ensureGPUProcessConnection();
     return m_identifier;

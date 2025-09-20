@@ -1154,7 +1154,7 @@ BytecodeGenerator::BytecodeGenerator(VM& vm, ModuleProgramNode* moduleProgramNod
             //        a();
             //    }
             //
-            // Module EntryPoint (executed last):
+            // Module Entrypoint (executed last):
             //    import "B";
             //    import "A";
             //

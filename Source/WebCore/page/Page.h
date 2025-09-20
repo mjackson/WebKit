@@ -41,6 +41,7 @@
 #include <WebCore/ScriptExecutionContextIdentifier.h>
 #include <WebCore/ScriptTrackingPrivacyCategory.h>
 #include <WebCore/ScrollTypes.h>
+#include <WebCore/SimpleRange.h>
 #include <WebCore/Supplementable.h>
 #include <WebCore/Timer.h>
 #include <WebCore/UserInterfaceLayoutDirection.h>
@@ -102,7 +103,6 @@ class ApplePayAMSUIPaymentHandler;
 class ActivityStateChangeObserver;
 class AlternativeTextClient;
 class AnimationTimelinesController;
-class ApplicationCacheStorage;
 class AttachmentElementClient;
 class AuthenticatorCoordinator;
 class BackForwardController;
@@ -153,7 +153,6 @@ class MediaSessionCoordinatorPrivate;
 class MediaSessionManagerInterface;
 class ModelPlayerProvider;
 class PageConfiguration;
-class PageConsoleClient;
 class PageDebuggable;
 class PageGroup;
 class PageOverlayController;
@@ -186,6 +185,7 @@ class StorageConnection;
 class StorageNamespace;
 class StorageNamespaceProvider;
 class StorageProvider;
+class StringCallback;
 class TextIndicator;
 class ThermalMitigationNotifier;
 class UserContentProvider;
@@ -230,7 +230,6 @@ struct ClientOrigin;
 struct FixedContainerEdges;
 struct NavigationAPIMethodTracker;
 struct ProcessSyncData;
-struct SimpleRange;
 struct SpatialBackdropSource;
 struct SystemPreviewInfo;
 struct TextRecognitionResult;
@@ -422,6 +421,7 @@ public:
     WEBCORE_EXPORT void setMainFrame(Ref<Frame>&&);
     WEBCORE_EXPORT const URL& mainFrameURL() const;
     SecurityOrigin& mainFrameOrigin() const;
+    Ref<SecurityOrigin> protectedMainFrameOrigin() const;
 
     WEBCORE_EXPORT void setMainFrameURLAndOrigin(const URL&, RefPtr<SecurityOrigin>&&);
 #if ENABLE(DOM_AUDIO_SESSION)
@@ -466,6 +466,7 @@ public:
 
     WEBCORE_EXPORT static void forEachPage(NOESCAPE const Function<void(Page&)>&);
     WEBCORE_EXPORT static unsigned nonUtilityPageCount();
+    static Page* fromPageIdentifier(PageIdentifier);
 
     unsigned subframeCount() const;
 
@@ -534,6 +535,9 @@ public:
     WEBCORE_EXPORT Ref<DOMRectList> touchEventRectsForEventForTesting(EventTrackingRegionsEventType);
     WEBCORE_EXPORT Ref<DOMRectList> passiveTouchEventListenerRectsForTesting();
 
+    WEBCORE_EXPORT void setConsoleMessageListenerForTesting(RefPtr<StringCallback>&&);
+    WEBCORE_EXPORT RefPtr<StringCallback> consoleMessageListenerForTesting() const;
+
     WEBCORE_EXPORT void settingsDidChange();
 
     Settings& settings() const { return *m_settings; }
@@ -555,7 +559,11 @@ public:
     void setTabKeyCyclesThroughElements(bool b) { m_tabKeyCyclesThroughElements = b; }
     bool tabKeyCyclesThroughElements() const { return m_tabKeyCyclesThroughElements; }
 
-    WEBCORE_EXPORT std::optional<FrameIdentifier> findString(const String&, FindOptions, DidWrap* = nullptr);
+    struct FindStringData {
+        std::optional<FrameIdentifier> frameIdentifier;
+        std::optional<SimpleRange> range;
+    };
+    WEBCORE_EXPORT FindStringData findString(const String&, FindOptions, DidWrap* = nullptr);
     WEBCORE_EXPORT uint32_t replaceRangesWithText(const Vector<SimpleRange>& rangesToReplace, const String& replacementText, bool selectionOnly);
     WEBCORE_EXPORT uint32_t replaceSelectionWithText(const String& replacementText);
 
@@ -965,9 +973,6 @@ public:
     void sawMediaEngine(const String& engineName);
     void resetSeenMediaEngines();
 
-    PageConsoleClient& console() { return m_consoleClient.get(); }
-    const PageConsoleClient& console() const { return m_consoleClient.get(); }
-
 #if ENABLE(REMOTE_INSPECTOR)
     PageDebuggable& inspectorDebuggable() { return m_inspectorDebuggable.get(); }
     const PageDebuggable& inspectorDebuggable() const { return m_inspectorDebuggable.get(); }
@@ -992,7 +997,6 @@ public:
     void setLastSpatialNavigationCandidateCount(unsigned count) { m_lastSpatialNavigationCandidatesCount = count; }
     unsigned lastSpatialNavigationCandidateCount() const { return m_lastSpatialNavigationCandidatesCount; }
 
-    ApplicationCacheStorage* applicationCacheStorage() { return m_applicationCacheStorage.get(); }
     DatabaseProvider& databaseProvider() { return m_databaseProvider; }
     CacheStorageProvider& cacheStorageProvider() { return m_cacheStorageProvider; }
     SocketProvider& socketProvider() { return m_socketProvider; }
@@ -1005,9 +1009,8 @@ public:
     PluginInfoProvider& pluginInfoProvider();
     Ref<PluginInfoProvider> protectedPluginInfoProvider() const;
 
-    WEBCORE_EXPORT UserContentProvider& userContentProvider();
-    WEBCORE_EXPORT Ref<UserContentProvider> protectedUserContentProvider();
-    WEBCORE_EXPORT void setUserContentProvider(Ref<UserContentProvider>&&);
+    WEBCORE_EXPORT Ref<UserContentProvider> protectedUserContentProviderForFrame();
+    WEBCORE_EXPORT void setUserContentProviderForWebKitLegacy(Ref<UserContentProvider>&&);
 
     ScreenOrientationManager* screenOrientationManager() const;
 
@@ -1353,9 +1356,9 @@ public:
 
     WEBCORE_EXPORT RefPtr<HTMLMediaElement> bestMediaElementForRemoteControls(PlatformMediaSessionPlaybackControlsPurpose, Document*);
 
-    WEBCORE_EXPORT MediaSessionManagerInterface& mediaSessionManager();
+    WEBCORE_EXPORT RefPtr<MediaSessionManagerInterface> mediaSessionManager();
     WEBCORE_EXPORT MediaSessionManagerInterface* mediaSessionManagerIfExists() const;
-    WEBCORE_EXPORT static MediaSessionManagerInterface* mediaSessionManagerForPageIdentifier(PageIdentifier);
+    WEBCORE_EXPORT static RefPtr<MediaSessionManagerInterface> mediaSessionManagerForPageIdentifier(PageIdentifier);
 
 #if ENABLE(MODEL_ELEMENT)
     bool shouldDisableModelLoadDelaysForTesting() const { return m_modelLoadDelaysDisabledForTesting; }
@@ -1372,6 +1375,9 @@ public:
     void updateDisplayEDRHeadroom();
     void updateDisplayEDRSuppression();
 #endif
+
+    void setEnhancedSecurityEnabled(bool enabled) { m_enhancedSecurityEnabled = enabled; };
+    bool enhancedSecurityEnabled() const { return m_enhancedSecurityEnabled; };
 
 private:
     explicit Page(PageConfiguration&&);
@@ -1424,6 +1430,7 @@ private:
     void prioritizeVisibleResources();
 
     RenderingUpdateScheduler& renderingUpdateScheduler();
+    CheckedRef<RenderingUpdateScheduler> checkedRenderingUpdateScheduler();
     RenderingUpdateScheduler* existingRenderingUpdateScheduler();
 
     WheelEventTestMonitor& ensureWheelEventTestMonitor();
@@ -1595,7 +1602,6 @@ private:
     std::unique_ptr<AlternativeTextClient> m_alternativeTextClient;
 
     bool m_scriptedAnimationsSuspended { false };
-    const UniqueRef<PageConsoleClient> m_consoleClient;
 
 #if ENABLE(REMOTE_INSPECTOR)
     const Ref<PageDebuggable> m_inspectorDebuggable;
@@ -1612,7 +1618,6 @@ private:
 
     const Ref<SocketProvider> m_socketProvider;
     const Ref<CookieJar> m_cookieJar;
-    RefPtr<ApplicationCacheStorage> m_applicationCacheStorage;
     const Ref<CacheStorageProvider> m_cacheStorageProvider;
     const Ref<DatabaseProvider> m_databaseProvider;
     const Ref<PluginInfoProvider> m_pluginInfoProvider;
@@ -1753,6 +1758,8 @@ private:
 
     std::optional<std::pair<uint16_t, uint16_t>> m_portsForUpgradingInsecureSchemeForTesting;
 
+    RefPtr<StringCallback> m_consoleMessageListenerForTesting;
+
     const UniqueRef<StorageProvider> m_storageProvider;
     const Ref<ModelPlayerProvider> m_modelPlayerProvider;
 
@@ -1833,13 +1840,15 @@ private:
     String m_presentingApplicationBundleIdentifier;
 #endif
 
-    using MediaSessionManagerFactory = Function<RefPtr<MediaSessionManagerInterface> (std::optional<PageIdentifier>)>;
+    using MediaSessionManagerFactory = Function<RefPtr<MediaSessionManagerInterface> (PageIdentifier)>;
     std::optional<MediaSessionManagerFactory> m_mediaSessionManagerFactory;
     RefPtr<MediaSessionManagerInterface> m_mediaSessionManager;
 
 #if ENABLE(MODEL_ELEMENT)
     bool m_modelLoadDelaysDisabledForTesting { false };
 #endif
+
+    bool m_enhancedSecurityEnabled { false };
 }; // class Page
 
 WTF::TextStream& operator<<(WTF::TextStream&, RenderingUpdateStep);

@@ -26,7 +26,7 @@
 #ifndef JSWeakPrivate_h
 #define JSWeakPrivate_h
 
-#include <JavaScriptCore/JSObjectRef.h>
+#include "JSObjectRef.h"
 
 #ifdef __cplusplus
 extern "C" {

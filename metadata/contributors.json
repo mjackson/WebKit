@@ -1943,7 +1943,8 @@
          "cole.carley@gmail.com"
       ],
       "github" : "colelao",
-      "name" : "Cole Carley"
+      "name" : "Cole Carley",
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -2217,7 +2218,6 @@
    },
    {
       "emails" : [
-         "d_degazio@apple.com",
          "david.degazio@gmail.com"
       ],
       "github" : "ddegazio",
@@ -2803,7 +2803,7 @@
       "nicks" : [
          "fantasai"
       ],
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -3142,6 +3142,13 @@
       "nicks" : [
          "tolmasky"
       ]
+   },
+   {
+      "emails" : [
+         "franco_vieira@apple.com"
+      ],
+      "github" : "francovs",
+      "name" : "Franco Vieira de Souza"
    },
    {
       "emails" : [

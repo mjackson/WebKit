@@ -126,6 +126,7 @@
 #include "RenderObjectInlines.h"
 #include "RenderSVGModelObject.h"
 #include "RenderStyleSetters.h"
+#include "RenderTextControlSingleLine.h"
 #include "RenderTheme.h"
 #include "RenderTreeUpdater.h"
 #include "RenderView.h"
@@ -636,6 +637,25 @@ Ref<Node> Element::cloneNodeInternal(Document& document, CloningOperation type, 
     return cloneElementWithChildren(document, fallbackRegistry);
 }
 
+template<typename ShadowRoot>
+std::optional<ShadowRoot> Element::serializeShadowRoot() const
+{
+    RefPtr oldShadowRoot = this->shadowRoot();
+    if (!oldShadowRoot || !oldShadowRoot->isClonable())
+        return std::nullopt;
+    return std::get<ShadowRoot>(oldShadowRoot->serializeNode(Node::CloningOperation::SelfWithTemplateContent).data);
+}
+template std::optional<SerializedNode::ShadowRoot> Element::serializeShadowRoot() const;
+
+template<typename Attribute>
+Vector<Attribute> Element::serializeAttributes() const
+{
+    return this->elementData() ? WTF::map(this->attributes(), [] (const auto& attribute) {
+        return Attribute { { attribute.name() }, attribute.value() };
+    }) : Vector<Attribute>();
+}
+template Vector<SerializedNode::Element::Attribute> Element::serializeAttributes() const;
+
 SerializedNode Element::serializeNode(CloningOperation type) const
 {
     Vector<SerializedNode> children;
@@ -648,13 +668,12 @@ SerializedNode Element::serializeNode(CloningOperation type) const
         break;
     }
 
-    // FIXME: Make an equivalent of cloneShadowTreeIfPossible.
-
-    auto attributes = this->elementData() ? WTF::map(this->attributes(), [] (const auto& attribute) {
-        return SerializedNode::Element::Attribute { { attribute.name() }, attribute.value() };
-    }) : Vector<SerializedNode::Element::Attribute>();
-
-    return { SerializedNode::Element { { WTFMove(children) }, { tagQName() }, WTFMove(attributes) } };
+    return { SerializedNode::Element {
+        { WTFMove(children) },
+        { tagQName() },
+        serializeAttributes<SerializedNode::Element::Attribute>(),
+        serializeShadowRoot<SerializedNode::ShadowRoot>()
+    } };
 }
 
 void Element::cloneShadowTreeIfPossible(Element& newHost) const
@@ -1333,7 +1352,15 @@ void Element::scrollTo(const ScrollToOptions& options, ScrollClamping clamping, 
     // If the element does not have any associated CSS layout box, the element has no associated scrolling box,
     // or the element has no overflow, terminate these steps.
     CheckedPtr renderer = renderBox();
-    if (!renderer || !renderer->hasNonVisibleOverflow())
+    if (!renderer)
+        return;
+
+    auto rendererCanScroll = [&] {
+        if (CheckedPtr renderTextControlSingleLine = dynamicDowncast<RenderTextControlSingleLine>(renderer.get()))
+            return renderTextControlSingleLine->innerTextElementHasNonVisibleOverflow();
+        return renderer->hasNonVisibleOverflow();
+    };
+    if (!rendererCanScroll())
         return;
 
     auto scrollToOptions = normalizeNonFiniteCoordinatesOrFallBackTo(options,
@@ -3358,22 +3385,22 @@ ExceptionOr<ShadowRoot&> Element::attachShadow(const ShadowRootInit& init, std::
     RefPtr registry = init.customElementRegistry;
     if (registry && !registry->isScoped() && registry != document().customElementRegistry())
         return Exception { ExceptionCode::NotSupportedError };
-    auto scopedRegistry = ShadowRoot::ScopedCustomElementRegistry::No;
+    auto scopedRegistry = ShadowRootScopedCustomElementRegistry::No;
     if (!registryKind)
         registryKind = !registry && usesNullCustomElementRegistry() ? CustomElementRegistryKind::Null : CustomElementRegistryKind::Window;
     if (registryKind == CustomElementRegistryKind::Null) {
         ASSERT(!registry);
-        scopedRegistry = ShadowRoot::ScopedCustomElementRegistry::Yes;
+        scopedRegistry = ShadowRootScopedCustomElementRegistry::Yes;
     } else if (registry) {
         ASSERT(registryKind == CustomElementRegistryKind::Window);
-        scopedRegistry = ShadowRoot::ScopedCustomElementRegistry::Yes;
+        scopedRegistry = ShadowRootScopedCustomElementRegistry::Yes;
     } else
         registry = CustomElementRegistry::registryForElement(*this);
     Ref shadow = ShadowRoot::create(document(), init.mode, init.slotAssignment,
-        init.delegatesFocus ? ShadowRoot::DelegatesFocus::Yes : ShadowRoot::DelegatesFocus::No,
+        init.delegatesFocus ? ShadowRootDelegatesFocus::Yes : ShadowRootDelegatesFocus::No,
         init.clonable ? ShadowRoot::Clonable::Yes : ShadowRoot::Clonable::No,
-        init.serializable ? ShadowRoot::Serializable::Yes : ShadowRoot::Serializable::No,
-        isPrecustomizedOrDefinedCustomElement() ? ShadowRoot::AvailableToElementInternals::Yes : ShadowRoot::AvailableToElementInternals::No,
+        init.serializable ? ShadowRootSerializable::Yes : ShadowRootSerializable::No,
+        isPrecustomizedOrDefinedCustomElement() ? ShadowRootAvailableToElementInternals::Yes : ShadowRootAvailableToElementInternals::No,
         WTFMove(registry), scopedRegistry);
     if (registryKind == CustomElementRegistryKind::Null)
         shadow->setUsesNullCustomElementRegistry(); // Set this flag for Element::insertedIntoAncestor.
@@ -4281,7 +4308,7 @@ bool Element::dispatchMouseForceWillBegin()
     if (!frame)
         return false;
 
-    PlatformMouseEvent platformMouseEvent { frame->eventHandler().lastKnownMousePosition(), frame->eventHandler().lastKnownMouseGlobalPosition(), MouseButton::None, PlatformEvent::Type::NoType, 1, { }, WallTime::now(), ForceAtClick, SyntheticClickType::NoTap };
+    PlatformMouseEvent platformMouseEvent { frame->eventHandler().lastKnownMousePosition(), frame->eventHandler().lastKnownMouseGlobalPosition(), MouseButton::None, PlatformEvent::Type::NoType, 1, { }, MonotonicTime::now(), ForceAtClick, SyntheticClickType::NoTap };
     auto mouseForceWillBeginEvent = MouseEvent::create(eventNames().webkitmouseforcewillbeginEvent, document().windowProxy(), platformMouseEvent, { }, { }, 0, nullptr);
     mouseForceWillBeginEvent->setTarget(Ref { *this });
     dispatchEvent(mouseForceWillBeginEvent);

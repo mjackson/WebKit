@@ -147,11 +147,11 @@ set(WebCore_PRIVATE_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/layout/formattingContexts/inline/text"
     "${WEBCORE_DIR}/layout/integration"
     "${WEBCORE_DIR}/layout/integration/flex"
+    "${WEBCORE_DIR}/layout/integration/grid"
     "${WEBCORE_DIR}/layout/integration/inline"
     "${WEBCORE_DIR}/layout/layouttree"
     "${WEBCORE_DIR}/layout/formattingContexts/table"
     "${WEBCORE_DIR}/loader"
-    "${WEBCORE_DIR}/loader/appcache"
     "${WEBCORE_DIR}/loader/archive"
     "${WEBCORE_DIR}/loader/archive/mhtml"
     "${WEBCORE_DIR}/loader/cache"
@@ -202,6 +202,7 @@ set(WebCore_PRIVATE_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/style/values"
     "${WEBCORE_DIR}/style/values/align"
     "${WEBCORE_DIR}/style/values/anchor-position"
+    "${WEBCORE_DIR}/style/values/animations"
     "${WEBCORE_DIR}/style/values/backgrounds"
     "${WEBCORE_DIR}/style/values/borders"
     "${WEBCORE_DIR}/style/values/box"
@@ -227,6 +228,7 @@ set(WebCore_PRIVATE_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/style/values/multicol"
     "${WEBCORE_DIR}/style/values/non-standard"
     "${WEBCORE_DIR}/style/values/overflow"
+    "${WEBCORE_DIR}/style/values/page"
     "${WEBCORE_DIR}/style/values/position"
     "${WEBCORE_DIR}/style/values/primitives"
     "${WEBCORE_DIR}/style/values/rhythm"
@@ -240,6 +242,7 @@ set(WebCore_PRIVATE_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/style/values/text"
     "${WEBCORE_DIR}/style/values/text-decoration"
     "${WEBCORE_DIR}/style/values/transforms"
+    "${WEBCORE_DIR}/style/values/transitions"
     "${WEBCORE_DIR}/style/values/ui"
     "${WEBCORE_DIR}/style/values/view-transitions"
     "${WEBCORE_DIR}/svg"
@@ -1011,6 +1014,9 @@ set(WebCore_NON_SVG_IDL_FILES
     css/CSSFontFaceRule.idl
     css/CSSFontFeatureValuesRule.idl
     css/CSSFontPaletteValuesRule.idl
+    css/CSSFunctionDeclarations.idl
+    css/CSSFunctionDescriptors.idl
+    css/CSSFunctionRule.idl
     css/CSSGroupingRule.idl
     css/CSSImportRule.idl
     css/CSSKeyframeRule.idl
@@ -1229,7 +1235,6 @@ set(WebCore_NON_SVG_IDL_FILES
     dom/Observable.idl
     dom/ObservableInspector.idl
     dom/ObservableInspectorAbortCallback.idl
-    dom/OverflowEvent.idl
     dom/PageRevealEvent.idl
     dom/PageSwapEvent.idl
     dom/PageTransitionEvent.idl
@@ -1392,8 +1397,8 @@ set(WebCore_NON_SVG_IDL_FILES
     html/ImageBitmap.idl
     html/ImageBitmapOptions.idl
     html/ImageData.idl
+    html/ImageDataPixelFormat.idl
     html/ImageDataSettings.idl
-    html/ImageDataStorageFormat.idl
     html/MediaController.idl
     html/MediaEncryptedEvent.idl
     html/MediaError.idl
@@ -1498,6 +1503,7 @@ set(WebCore_NON_SVG_IDL_FILES
     page/IntersectionObserver.idl
     page/IntersectionObserverCallback.idl
     page/IntersectionObserverEntry.idl
+    page/LargestContentfulPaint.idl
     page/Location.idl
     page/NavigateEvent.idl
     page/Navigation.idl
@@ -1521,6 +1527,7 @@ set(WebCore_NON_SVG_IDL_FILES
     page/NavigatorUA.idl
     page/NavigatorUABrandVersion.idl
     page/NavigatorUAData.idl
+    page/PaintTimingMixin.idl
     page/Performance+EventCounts.idl
     page/Performance+NavigationTiming.idl
     page/Performance+PerformanceTimeline.idl

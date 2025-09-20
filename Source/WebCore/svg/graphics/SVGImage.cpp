@@ -238,7 +238,7 @@ RefPtr<NativeImage> SVGImage::nativeImage(const FloatSize& size, const Destinati
     if (CheckedPtr contentRenderer = embeddedContentBox())
         hostWindow = contentRenderer->hostWindow();
 
-    RefPtr imageBuffer = ImageBuffer::create(size, renderingMode, RenderingPurpose::DOM, 1, colorSpace, ImageBufferPixelFormat::BGRA8, hostWindow);
+    RefPtr imageBuffer = ImageBuffer::create(size, renderingMode, RenderingPurpose::DOM, 1, colorSpace, PixelFormat::BGRA8, hostWindow);
     if (!imageBuffer)
         return nullptr;
 
@@ -367,21 +367,17 @@ RefPtr<LocalFrameView> SVGImage::protectedFrameView() const
 
 bool SVGImage::hasRelativeWidth() const
 {
-    RefPtr rootElement = this->rootElement();
-    if (!rootElement)
-        return false;
-    return rootElement->intrinsicWidth().isPercentOrCalculated();
+    // FIXME: This seems wrong.
+    return false;
 }
 
 bool SVGImage::hasRelativeHeight() const
 {
-    RefPtr rootElement = this->rootElement();
-    if (!rootElement)
-        return false;
-    return rootElement->intrinsicHeight().isPercentOrCalculated();
+    // FIXME: This seems wrong.
+    return false;
 }
 
-void SVGImage::computeIntrinsicDimensions(Length& intrinsicWidth, Length& intrinsicHeight, FloatSize& intrinsicRatio)
+void SVGImage::computeIntrinsicDimensions(float& intrinsicWidth, float& intrinsicHeight, FloatSize& intrinsicRatio)
 {
     RefPtr rootElement = this->rootElement();
     if (!rootElement)
@@ -389,12 +385,13 @@ void SVGImage::computeIntrinsicDimensions(Length& intrinsicWidth, Length& intrin
 
     intrinsicWidth = rootElement->intrinsicWidth();
     intrinsicHeight = rootElement->intrinsicHeight();
+
     if (rootElement->preserveAspectRatio().align() == SVGPreserveAspectRatioValue::SVG_PRESERVEASPECTRATIO_NONE)
         return;
 
     intrinsicRatio = rootElement->viewBox().size();
-    if (intrinsicRatio.isEmpty() && intrinsicWidth.isFixed() && intrinsicHeight.isFixed())
-        intrinsicRatio = FloatSize(floatValueForLength(intrinsicWidth, 0), floatValueForLength(intrinsicHeight, 0));
+    if (intrinsicRatio.isEmpty())
+        intrinsicRatio = FloatSize { intrinsicWidth, intrinsicHeight };
 }
 
 void SVGImage::startAnimationTimerFired()

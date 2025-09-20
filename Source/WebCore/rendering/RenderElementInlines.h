@@ -19,8 +19,13 @@
 
 #pragma once
 
-#include <WebCore/RenderElement.h>
-#include <WebCore/RenderObjectInlines.h>
+#include <WebCore/PseudoElement.h>
+#include <WebCore/RenderBox.h>
+#include <WebCore/RenderObjectDocument.h>
+#include <WebCore/RenderObjectNode.h>
+#include <WebCore/StyleOpacity.h>
+#include <WebCore/StyleShapeOutside.h>
+#include <WebCore/WillChangeData.h>
 
 namespace WebCore {
 
@@ -51,7 +56,18 @@ inline bool RenderElement::hasAppleVisualEffect() const { return style().hasAppl
 inline bool RenderElement::hasAppleVisualEffectRequiringBackdropFilter() const { return style().hasAppleVisualEffectRequiringBackdropFilter(); }
 #endif
 
-inline bool RenderElement::isBlockLevelBox() const { return style().isDisplayBlockLevel(); }
+inline bool RenderElement::isBlockLevelBox() const
+{
+    // block-level boxes are boxes that participate in a block formatting context.
+    auto* renderBox = dynamicDowncast<RenderBox>(*this);
+    if (!renderBox)
+        return false;
+
+    if (renderBox->isFlexItem() || renderBox->isGridItem() || renderBox->isRenderTableCell())
+        return false;
+    return style().isDisplayBlockLevel();
+}
+
 inline bool RenderElement::isAnonymousBlock() const
 {
     return isAnonymous()

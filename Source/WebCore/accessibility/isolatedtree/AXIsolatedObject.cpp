@@ -77,6 +77,26 @@ AXIsolatedObject::~AXIsolatedObject()
     AX_BROKEN_ASSERT(!wrapper());
 }
 
+void AXIsolatedObject::updateFromData(IsolatedObjectData&& data)
+{
+    ASSERT(!isMainThread());
+
+    if (data.axID != objectID() || data.tree->treeID() != treeID()) {
+        // Our data should only be updated from the same main-thread equivalent object.
+        ASSERT_NOT_REACHED();
+        return;
+    }
+
+    m_role = data.role;
+    m_parentID = data.parentID;
+    m_unresolvedChildrenIDs = WTFMove(data.childrenIDs);
+    m_childrenDirty = true;
+    m_getsGeometryFromChildren = data.getsGeometryFromChildren;
+
+    m_properties = WTFMove(data.properties);
+    m_propertyFlags = data.propertyFlags;
+}
+
 String AXIsolatedObject::debugDescriptionInternal(bool verbose, std::optional<OptionSet<AXDebugStringOption>> debugOptions) const
 {
     StringBuilder result;
@@ -1192,6 +1212,12 @@ void AXIsolatedObject::decrement()
     });
 }
 
+bool AXIsolatedObject::isAccessibilityNodeObject() const
+{
+    ASSERT_NOT_REACHED();
+    return false;
+}
+
 bool AXIsolatedObject::isAccessibilityRenderObject() const
 {
     ASSERT_NOT_REACHED();
@@ -1630,6 +1656,30 @@ bool AXIsolatedObject::isTableCell() const
 {
     ASSERT_NOT_REACHED();
     return false;
+}
+
+AXCoreObject* AXIsolatedObject::parentTableIfTableCell() const
+{
+    ASSERT_NOT_REACHED();
+    return nullptr;
+}
+
+AXCoreObject* AXIsolatedObject::parentTable() const
+{
+    ASSERT_NOT_REACHED();
+    return nullptr;
+}
+
+bool AXIsolatedObject::isTableRow() const
+{
+    ASSERT_NOT_REACHED();
+    return false;
+}
+
+AXCoreObject* AXIsolatedObject::parentTableIfExposedTableRow() const
+{
+    ASSERT_NOT_REACHED();
+    return nullptr;
 }
 
 bool AXIsolatedObject::isDescendantOfRole(AccessibilityRole) const

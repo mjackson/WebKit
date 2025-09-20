@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include <WebCore/ContextDestructionObserverInlines.h>
+#include <WebCore/ContextDestructionObserver.h>
 #include <WebCore/EventTarget.h>
 #include <WebCore/EventTargetInterfaces.h>
 #include <WebCore/JSValueInWrappedObject.h>
@@ -95,7 +95,8 @@ private:
 
     // EventTarget.
     enum EventTargetInterfaceType eventTargetInterface() const final { return EventTargetInterfaceType::AbortSignal; }
-    ScriptExecutionContext* scriptExecutionContext() const final { return ContextDestructionObserver::scriptExecutionContext(); }
+    ScriptExecutionContext* scriptExecutionContext() const final;
+    using ContextDestructionObserver::protectedScriptExecutionContext;
     void refEventTarget() final { ref(); }
     void derefEventTarget() final { deref(); }
     void eventListenersDidChange() final;

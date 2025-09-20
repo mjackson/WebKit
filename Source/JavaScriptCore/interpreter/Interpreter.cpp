@@ -80,6 +80,7 @@
 #include "VMTrapsInlines.h"
 #include "VirtualRegister.h"
 #include "WasmThunks.h"
+#include "parser/ParserModes.h"
 #include <stdio.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/Scope.h>
@@ -505,9 +506,9 @@ void Interpreter::getAsyncStackTrace(JSCell* owner, Vector<StackFrame>& results,
                 // If a CodeBlock doesn't already exist, the stack trace will only show the filename and won't show line column
                 if (CodeBlock* codeBlock = executable->codeBlockForCall()) {
                     BytecodeIndex bytecodeIndex = computeBytecodeIndex(codeBlock, currentGenerator);
-                    results.append(StackFrame(vm, owner, asyncFunction, codeBlock, bytecodeIndex));
+                    results.append(StackFrame(vm, owner, asyncFunction, codeBlock, bytecodeIndex, /* isAsyncFrame */ true));
                 } else
-                    results.append(StackFrame(vm, owner, asyncFunction, /* isAsyncFrameWithoutCodeBlock */ true));
+                    results.append(StackFrame(vm, owner, asyncFunction, /* isAsyncFrame */ true));
             }
         }
         currentGenerator = getParentGenerator(currentGenerator);
@@ -806,12 +807,13 @@ public:
                     auto* wasmCallee = static_cast<Wasm::Callee*>(nativeCallee);
                     if (wasmCallee->hasExceptionHandlers()) {
                         JSWebAssemblyInstance* instance = m_callFrame->wasmInstance();
-                        unsigned exceptionHandlerIndex = m_callFrame->callSiteIndex().bits();
+                        unsigned exceptionHandlerIndex = visitor->wasmCallSiteIndex().bits();
                         auto* wasmHandler = wasmCallee->handlerForIndex(*instance, exceptionHandlerIndex, m_wasmTag.get());
                         m_handler = { wasmHandler, wasmCallee };
                         if (m_handler.m_valid) {
                             if (m_wasmTag == &Wasm::Tag::jsExceptionTag())
                                 m_exception->wrapValueForJSTag(instance->globalObject());
+                            m_callFrame->setCallSiteIndex(visitor->wasmCallSiteIndex());
                             return IterationStatus::Done;
                         }
                     }
@@ -1176,7 +1178,7 @@ JSValue Interpreter::executeProgram(const SourceCode& source, JSGlobalObject*, J
                     PropertySlot slot(scope, PropertySlot::InternalMethodType::Get);
                     JSGlobalLexicalEnvironment::getOwnPropertySlot(scope, globalObject, ident, slot);
                     if (slot.getValue(globalObject, ident) == jsTDZValue())
-                        return throwException(globalObject, throwScope, createTDZError(globalObject, ident));
+                        return throwException(globalObject, throwScope, createTDZError(globalObject, ident.string()));
                     baseObject = scope;
                 }
             }
@@ -1350,7 +1352,7 @@ ALWAYS_INLINE JSValue Interpreter::executeCallImpl(VM& vm, JSObject* function, c
 
 #if ENABLE(WEBASSEMBLY)
     if (callData.native.isWasm)
-        return JSValue::decode(vmEntryToWasm(jsCast<WebAssemblyFunction*>(function)->jsEntrypoint(ArityCheckMode::MustCheckArity).taggedPtr(), &vm, &protoCallFrame));
+        return JSValue::decode(vmEntryToWasm(jsCast<WebAssemblyFunction*>(function)->jsToWasm(ArityCheckMode::MustCheckArity).taggedPtr(), &vm, &protoCallFrame));
 #endif
 
     return JSValue::decode(vmEntryToNative(nativeFunction.taggedPtr(), &vm, &protoCallFrame));

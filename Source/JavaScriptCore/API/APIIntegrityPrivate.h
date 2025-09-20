@@ -26,9 +26,9 @@
 #ifndef JSIntegrityPrivate_h
 #define JSIntegrityPrivate_h
 
-#include <JavaScriptCore/JSContextRef.h>
-#include <JavaScriptCore/JSObjectRef.h>
-#include <JavaScriptCore/JSValueRef.h>
+#include "JSContextRef.h"
+#include "JSObjectRef.h"
+#include "JSValueRef.h"
 
 #ifdef __cplusplus
 extern "C" {

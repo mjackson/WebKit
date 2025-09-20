@@ -914,8 +914,9 @@ std::unique_ptr<RenderStyle> TreeResolver::resolveAgainInDifferentContext(const 
     auto newStyle = RenderStyle::createPtr();
     newStyle->inheritFrom(parentStyle);
 
-    if (styleable.pseudoElementIdentifier)
-        newStyle->setPseudoElementType(styleable.pseudoElementIdentifier->pseudoId);
+    newStyle->setPseudoElementType(resolvedStyle.style->pseudoElementType());
+    newStyle->setPseudoElementNameArgument(resolvedStyle.style->pseudoElementNameArgument());
+    newStyle->copyPseudoElementBitsFrom(*resolvedStyle.style);
 
     auto builderContext = BuilderContext {
         m_document.get(),
@@ -930,7 +931,6 @@ std::unique_ptr<RenderStyle> TreeResolver::resolveAgainInDifferentContext(const 
         *newStyle,
         WTFMove(builderContext),
         *resolvedStyle.matchResult,
-        CascadeLevel::Author,
         { properties }
     };
 
@@ -968,7 +968,6 @@ HashSet<AnimatableCSSProperty> TreeResolver::applyCascadeAfterAnimation(RenderSt
         animatedStyle,
         WTFMove(builderContext),
         matchResult,
-        CascadeLevel::Author,
         { isTransition ? PropertyCascade::PropertyType::AfterTransition : PropertyCascade::PropertyType::AfterAnimation },
         &animatedProperties
     };
@@ -1824,9 +1823,9 @@ static Vector<Function<void ()>>& postResolutionCallbackQueue()
     return vector;
 }
 
-static Vector<RefPtr<LocalFrame>>& memoryCacheClientCallsResumeQueue()
+static Vector<RefPtr<Frame>>& memoryCacheClientCallsResumeQueue()
 {
-    static NeverDestroyed<Vector<RefPtr<LocalFrame>>> vector;
+    static NeverDestroyed<Vector<RefPtr<Frame>>> vector;
     return vector;
 }
 
@@ -1843,8 +1842,8 @@ static void suspendMemoryCacheClientCalls(Document& document)
 
     page->setMemoryCacheClientCallsEnabled(false);
 
-    if (RefPtr localMainFrame = page->localMainFrame())
-        memoryCacheClientCallsResumeQueue().append(localMainFrame);
+    if (RefPtr mainFrame = page->mainFrame())
+        memoryCacheClientCallsResumeQueue().append(mainFrame);
 }
 
 static unsigned resolutionNestingDepth;

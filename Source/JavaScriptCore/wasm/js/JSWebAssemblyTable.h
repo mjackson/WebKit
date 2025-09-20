@@ -30,8 +30,8 @@
 #include "JSObject.h"
 #include "WasmLimits.h"
 #include "WasmTable.h"
-#include "WebAssemblyWrapperFunction.h"
 #include "WebAssemblyFunction.h"
+#include "WebAssemblyWrapperFunction.h"
 #include <wtf/Ref.h>
 
 namespace JSC {

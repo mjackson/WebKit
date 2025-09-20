@@ -40,6 +40,7 @@
 #include "ContentExtensionActions.h"
 #include "ContentExtensionRule.h"
 #include "ContentRuleListResults.h"
+#include "ContextDestructionObserverInlines.h"
 #include "CookieStore.h"
 #include "CrossOriginMode.h"
 #include "CrossOriginOpenerPolicy.h"
@@ -68,6 +69,7 @@
 #include "EventTargetInlines.h"
 #include "FloatRect.h"
 #include "FocusController.h"
+#include "FrameConsoleClient.h"
 #include "FrameLoadRequest.h"
 #include "FrameLoader.h"
 #include "FrameTree.h"
@@ -82,6 +84,7 @@
 #include "JSDOMWindowBase.h"
 #include "JSExecState.h"
 #include "JSPushSubscription.h"
+#include "KeyboardEvent.h"
 #include "LocalFrame.h"
 #include "LocalFrameLoaderClient.h"
 #include "LocalFrameView.h"
@@ -91,12 +94,12 @@
 #include "MediaQueryMatcher.h"
 #include "MessageEvent.h"
 #include "MessageWithMessagePorts.h"
+#include "MouseEvent.h"
 #include "Navigation.h"
 #include "NavigationScheduler.h"
 #include "Navigator.h"
 #include "OriginAccessPatterns.h"
 #include "Page.h"
-#include "PageConsoleClient.h"
 #include "PageTransitionEvent.h"
 #include "Performance.h"
 #include "PerformanceEventTiming.h"
@@ -138,7 +141,6 @@
 #include "WindowFocusAllowedIndicator.h"
 #include "WindowPostMessageOptions.h"
 #include "WindowProxy.h"
-#include "page/EventTimingInteractionID.h"
 #include <JavaScriptCore/ScriptCallStack.h>
 #include <JavaScriptCore/ScriptCallStackFactory.h>
 #include <algorithm>
@@ -200,7 +202,7 @@ static std::optional<Seconds>& transientActivationDurationOverrideForTesting()
     return overrideForTesting;
 }
 
-static Seconds transientActivationDuration()
+Seconds LocalDOMWindow::transientActivationDuration()
 {
     if (auto override = transientActivationDurationOverrideForTesting())
         return *override;
@@ -434,6 +436,11 @@ LocalDOMWindow::LocalDOMWindow(Document& document)
 {
     ASSERT(frame());
     addLanguageChangeObserver(this, &languagesChangedCallback);
+}
+
+ScriptExecutionContext* LocalDOMWindow::scriptExecutionContext() const
+{
+    return ContextDestructionObserver::scriptExecutionContext();
 }
 
 void LocalDOMWindow::didSecureTransitionTo(Document& document)
@@ -831,21 +838,24 @@ VisualViewport& LocalDOMWindow::visualViewport()
 
 #if ENABLE(USER_MESSAGE_HANDLERS)
 
-bool LocalDOMWindow::shouldHaveWebKitNamespaceForWorld(DOMWrapperWorld& world)
+bool LocalDOMWindow::shouldHaveWebKitNamespaceForWorld(DOMWrapperWorld& world, JSC::JSGlobalObject* globalObject)
 {
-    if (world.allowJSHandleCreation() || world.allowNodeSerialization())
+    if (world.allowNodeSerialization())
         return true;
 
-    RefPtr frame = this->frame();
+    if (jsCast<JSDOMGlobalObject*>(globalObject)->allowsJSHandleCreation())
+        return true;
+
+    RefPtr frame = this->localFrame();
     if (!frame)
         return false;
 
-    RefPtr page = frame->page();
-    if (!page)
+    RefPtr userContentProvider = frame->userContentProvider();
+    if (!userContentProvider)
         return false;
 
     bool hasUserMessageHandler = false;
-    page->protectedUserContentProvider()->forEachUserMessageHandler([&](const UserMessageHandlerDescriptor& descriptor) {
+    userContentProvider->forEachUserMessageHandler([&](const UserMessageHandlerDescriptor& descriptor) {
         if (&descriptor.world() == &world) {
             hasUserMessageHandler = true;
             return;
@@ -859,11 +869,14 @@ WebKitNamespace* LocalDOMWindow::webkitNamespace()
 {
     if (!isCurrentlyDisplayedInFrame())
         return nullptr;
-    RefPtr page = frame()->page();
-    if (!page)
+    RefPtr frame = localFrame();
+    if (!frame)
+        return nullptr;
+    RefPtr userContentProvider = frame->userContentProvider();
+    if (!userContentProvider)
         return nullptr;
     if (!m_webkitNamespace)
-        m_webkitNamespace = WebKitNamespace::create(*this, page->protectedUserContentProvider());
+        m_webkitNamespace = WebKitNamespace::create(*this, *userContentProvider);
     return m_webkitNamespace.get();
 }
 
@@ -955,12 +968,12 @@ void LocalDOMWindow::processPostMessage(JSC::JSGlobalObject& lexicalGlobalObject
         if (targetOrigin) {
             // Check target origin now since the target document may have changed since the timer was scheduled.
             if (!targetOrigin->isSameSchemeHostPort(document->protectedSecurityOrigin())) {
-                if (CheckedPtr pageConsole = console()) {
+                if (CheckedPtr frameConsole = console()) {
                     auto message = makeString("Unable to post message to "_s, targetOrigin->toString(), ". Recipient has origin "_s, document->securityOrigin().toString(), ".\n"_s);
                     if (stackTrace)
-                        pageConsole->addMessage(MessageSource::Security, MessageLevel::Error, message, *stackTrace);
+                        frameConsole->addMessage(MessageSource::Security, MessageLevel::Error, message, *stackTrace);
                     else
-                        pageConsole->addMessage(MessageSource::Security, MessageLevel::Error, message);
+                        frameConsole->addMessage(MessageSource::Security, MessageLevel::Error, message);
                 }
 
                 InspectorInstrumentation::didFailPostMessage(frame, postMessageIdentifier);
@@ -1275,7 +1288,7 @@ bool LocalDOMWindow::find(const String& string, bool caseSensitive, bool backwar
         options.add(FindOption::CaseInsensitive);
     if (wrap)
         options.add(FindOption::WrapAround);
-    return localFrame()->editor().findString(string, options);
+    return localFrame()->editor().findString(string, options).has_value();
 }
 
 bool LocalDOMWindow::offscreenBuffering() const
@@ -1589,6 +1602,19 @@ bool LocalDOMWindow::consumeHistoryActionUserActivation()
     }
 
     return true;
+}
+
+void LocalDOMWindow::updateLastUserClickEvent(OptionSet<PlatformEventModifier> modifiers)
+{
+    m_lastUserClickEvent = ClickEventData {
+        MonotonicTime::now(),
+        modifiers
+    };
+}
+
+std::optional<LocalDOMWindow::ClickEventData> LocalDOMWindow::consumeLastUserClickEvent()
+{
+    return std::exchange(m_lastUserClickEvent, std::nullopt);
 }
 
 // https://html.spec.whatwg.org/multipage/interaction.html#activation-notification
@@ -2353,8 +2379,7 @@ void LocalDOMWindow::dispatchLoadEvent()
     if (shouldMarkLoadEventTimes) {
         auto now = MonotonicTime::now();
         protectedLoader->timing().setLoadEventEnd(now);
-        if (RefPtr navigationTiming = performance().navigationTiming())
-            navigationTiming->documentLoadTiming().setLoadEventEnd(now);
+        performance().navigationFinished(now);
         WTFEmitSignpost(document.get(), NavigationAndPaintTiming, "loadEventEnd");
         WTFEndSignpost(document.get(), NavigationAndPaintTiming);
     }
@@ -2461,7 +2486,7 @@ void LocalDOMWindow::finishedLoading()
     }
 }
 
-EventTimingInteractionID LocalDOMWindow::computeInteractionID(const Event& event, EventType type)
+EventTimingInteractionID LocalDOMWindow::computeInteractionID(Event& event, EventType type)
 {
     auto finalizePendingPointerDown = [this]() {
         auto interactionID = generateInteractionID();
@@ -2476,51 +2501,66 @@ EventTimingInteractionID LocalDOMWindow::computeInteractionID(const Event& event
     case EventType::keyup: {
         ASSERT(event.isKeyboardEvent());
         auto keyboardEvent = downcast<KeyboardEvent>(&event);
-        ASSERT(keyboardEvent);
         if (keyboardEvent->isComposing())
-            return EventTimingInteractionID();
+            return { };
 
         auto it = m_pendingKeyDowns.find(keyboardEvent->keyCode());
         if (it == m_pendingKeyDowns.end())
-            return EventTimingInteractionID();
+            return { };
 
-        auto interactionID = generateInteractionID();
-        it->value.interactionID = interactionID;
-        m_performanceEventTimingCandidates.append(it->value);
+        auto interactionID = it->value.keyDown.interactionID.isUnassigned() ? generateInteractionID() : it->value.keyDown.interactionID;
+        it->value.keyDown.interactionID = interactionID;
+        m_performanceEventTimingCandidates.append(it->value.keyDown);
+        if (it->value.keyPress) {
+            it->value.keyPress->interactionID = interactionID;
+            m_performanceEventTimingCandidates.append(*it->value.keyPress);
+        }
         m_pendingKeyDowns.remove(it);
+        keyboardEvent->setInteractionID(interactionID);
         return interactionID;
     }
     case EventType::compositionstart: {
-        for (auto& pendingEntry : m_pendingKeyDowns)
-            m_performanceEventTimingCandidates.append(pendingEntry.value);
-
+        for (auto& pendingEntry : m_pendingKeyDowns) {
+            m_performanceEventTimingCandidates.append(pendingEntry.value.keyDown);
+            if (pendingEntry.value.keyPress)
+                m_performanceEventTimingCandidates.append(*pendingEntry.value.keyPress);
+        }
         m_pendingKeyDowns.clear();
-        return EventTimingInteractionID();
+        return { };
     }
     case EventType::input: {
+        // Return early for events not related to text, such as checkbox toggling:
         if (!event.isInputEvent())
-            return EventTimingInteractionID();
+            return { };
 
-        ASSERT(event.isInputEvent());
         auto inputEvent = downcast<InputEvent>(&event);
-        ASSERT(inputEvent);
         if (!inputEvent->isInputMethodComposing())
-            return EventTimingInteractionID();
+            return { };
 
         return generateInteractionID();
     }
     case EventType::click: {
-        if (!m_pointerMap)
-            return EventTimingInteractionID();
+        auto clickEvent = downcast<MouseEvent>(&event);
+        bool isBeingSimulatedDuringDefaultDispatch = clickEvent->isSimulated() && clickEvent->underlyingEvent() && clickEvent->underlyingEvent()->isKeyboardEvent();
+        if (isBeingSimulatedDuringDefaultDispatch) {
+            auto keyboardEvent = downcast<KeyboardEvent>(clickEvent->underlyingEvent());
+            if (keyboardEvent->interactionID().isUnassigned())
+                keyboardEvent->setInteractionID(generateInteractionID());
 
-        auto interactionID = *m_pointerMap;
-        m_pointerMap.reset();
+            return keyboardEvent->interactionID();
+        }
+
+        if (m_pointerMap.isUnassigned())
+            return { };
+
+        auto interactionID = m_pointerMap;
+        m_pointerMap = { };
         return interactionID;
     }
     case EventType::pointerup: {
         if (!m_pendingPointerDown) {
             if (!m_contextMenuTriggered)
-                return EventTimingInteractionID();
+                return { };
 
             m_contextMenuTriggered = false;
             return currentInteractionID();
@@ -2533,7 +2573,7 @@ EventTimingInteractionID LocalDOMWindow::computeInteractionID(const Event& event
             m_performanceEventTimingCandidates.append(*m_pendingPointerDown);
             m_pendingPointerDown.reset();
         }
-        return EventTimingInteractionID();
+        return { };
     }
     case EventType::contextmenu: {
         if (!m_pendingPointerDown)
@@ -2543,7 +2583,7 @@ EventTimingInteractionID LocalDOMWindow::computeInteractionID(const Event& event
         return finalizePendingPointerDown();
     }
     default:
-        return EventTimingInteractionID();
+        return { };
     }
 }
 
@@ -2555,9 +2595,9 @@ EventTimingInteractionID LocalDOMWindow::currentInteractionID()
 EventTimingInteractionID& LocalDOMWindow::ensureUserInteractionValue()
 {
     // Should be initialized with a random number from 100 to 10000:
-    if (!m_userInteractionValue) [[unlikely]]
-        m_userInteractionValue = EventTimingInteractionID { .value = 100 + WTF::cryptographicallyRandomNumber<uint64_t>() % 9901 };
-    return *m_userInteractionValue;
+    if (m_userInteractionValue.isUnassigned()) [[unlikely]]
+        m_userInteractionValue.value = 100 + WTF::cryptographicallyRandomNumber<uint64_t>() % 9901;
+    return m_userInteractionValue;
 }
 
 EventTimingInteractionID LocalDOMWindow::generateInteractionID()
@@ -2574,7 +2614,7 @@ EventTimingInteractionID LocalDOMWindow::generateInteractionIDWithoutIncreasingI
     return ensureUserInteractionValue();
 }
 
-PerformanceEventTimingCandidate LocalDOMWindow::initializeEventTimingEntry(const Event& event, EventType type)
+PerformanceEventTimingCandidate LocalDOMWindow::initializeEventTimingEntry(Event& event, EventType type)
 {
     auto startTime = performance().relativeTimeFromTimeOriginInReducedResolutionSeconds(event.timeStamp());
     auto processingStart = performance().nowInReducedResolutionSeconds();
@@ -2594,12 +2634,14 @@ PerformanceEventTimingCandidate LocalDOMWindow::initializeEventTimingEntry(const
     };
 }
 
-void LocalDOMWindow::finalizeEventTimingEntry(PerformanceEventTimingCandidate& entry, const Event& event)
+void LocalDOMWindow::finalizeEventTimingEntry(PerformanceEventTimingCandidate& entry, const Event& event, EventType type)
 {
     auto processingEnd = performance().nowInReducedResolutionSeconds();
     entry.processingEnd = processingEnd;
     entry.target = event.target();
-    if (event.type() == eventNames().pointerdownEvent) [[unlikely]] {
+
+    switch (type) {
+    case EventType::pointerdown: {
         if (m_pendingPointerDown) {
             m_performanceEventTimingCandidates.append(*m_pendingPointerDown);
             LOG_WITH_STREAM(PerformanceTimeline, stream << "Repeated pointerdown entries at t=" << processingEnd);
@@ -2610,31 +2652,46 @@ void LocalDOMWindow::finalizeEventTimingEntry(PerformanceEventTimingCandidate& e
         m_contextMenuTriggered = false;
         return;
     }
-    if (event.type() == eventNames().keydownEvent) [[unlikely]] {
-        ASSERT(event.isKeyboardEvent());
+    case EventType::keydown: {
         auto keyboardEvent = downcast<KeyboardEvent>(&event);
-        ASSERT(keyboardEvent);
-        if (keyboardEvent->isComposing()) {
+        entry.interactionID = keyboardEvent->interactionID();
+        auto keyCode = keyboardEvent->keyCode();
+        // FIXME: checking for keyCode 229 (IME) is against the spec, but it's
+        // required because of https://bugs.webkit.org/show_bug.cgi?id=165004 ,
+        // which causes the last keypress of a composition to be issued after
+        // compositionend, making .isComposing() not be true:
+        if (keyCode == 229 || keyboardEvent->isComposing()) {
             m_performanceEventTimingCandidates.append(entry);
             return;
         }
-        auto code = keyboardEvent->keyCode();
-        auto it = m_pendingKeyDowns.find(code);
-        if (it == m_pendingKeyDowns.end()) {
-            m_pendingKeyDowns.set(code, entry);
+        auto it = m_pendingKeyDowns.find(keyCode);
+        if (it != m_pendingKeyDowns.end()) {
+            it->value.keyDown.interactionID = generateInteractionIDWithoutIncreasingInteractionCount();
+            m_performanceEventTimingCandidates.append(it->value.keyDown);
+            if (it->value.keyPress) {
+                it->value.keyPress->interactionID = it->value.keyDown.interactionID;
+                m_performanceEventTimingCandidates.append(*it->value.keyPress);
+            }
+            it->value = { .keyDown = entry };
             return;
         }
-        // Code 229 corresponds to IME keyboard events
-        // (https://www.w3.org/TR/event-timing/#sec-fin-event-timing)
-        if (code != 229)
-            it->value.interactionID = generateInteractionIDWithoutIncreasingInteractionCount();
-
-        m_performanceEventTimingCandidates.append(it->value);
-        it->value = entry;
+        m_pendingKeyDowns.set(keyCode, PendingKeyDownState { .keyDown = entry });
         return;
     }
-
-    m_performanceEventTimingCandidates.append(entry);
+    case EventType::keypress: {
+        auto keyboardEvent = downcast<KeyboardEvent>(&event);
+        auto keyCode = keyboardEvent->keyCodeForKeyDown();
+        auto it = m_pendingKeyDowns.find(keyCode);
+        if (it == m_pendingKeyDowns.end()) {
+            m_performanceEventTimingCandidates.append(entry);
+            return;
+        }
+        it->value.keyPress = entry;
+        return;
+    }
+    default:
+        m_performanceEventTimingCandidates.append(entry);
+    }
 }
 
 void LocalDOMWindow::dispatchPendingEventTimingEntries()
@@ -2788,15 +2845,12 @@ ExceptionOr<RefPtr<WindowProxy>> LocalDOMWindow::open(LocalDOMWindow& activeWind
 #if ENABLE(CONTENT_EXTENSIONS)
     RefPtr page = firstFrame->page();
     RefPtr firstFrameDocument = firstFrame->document();
-
-    RefPtr localFrame = dynamicDowncast<LocalFrame>(firstFrame->mainFrame());
-
-    if (firstFrameDocument && page) {
-        if (RefPtr firstFrameDocumentLoader = firstFrameDocument->loader()) {
-            auto results = page->protectedUserContentProvider()->processContentRuleListsForLoad(*page, firstFrameDocument->completeURL(urlString), ContentExtensions::ResourceType::Popup, *firstFrameDocumentLoader);
-            if (results.shouldBlock())
-                return RefPtr<WindowProxy> { nullptr };
-        }
+    RefPtr userContentProvider = firstFrame->userContentProvider();
+    RefPtr firstFrameDocumentLoader = firstFrameDocument ? firstFrameDocument->loader() : nullptr;
+    if (firstFrameDocument && page && userContentProvider && firstFrameDocumentLoader) {
+        auto results = userContentProvider->processContentRuleListsForLoad(*page, firstFrameDocument->completeURL(urlString), ContentExtensions::ResourceType::Popup, *firstFrameDocumentLoader);
+        if (results.shouldBlock())
+            return RefPtr<WindowProxy> { nullptr };
     }
 #endif
 

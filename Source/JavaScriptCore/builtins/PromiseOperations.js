@@ -507,12 +507,12 @@ function promiseReactionJob(promiseOrCapability, handler, argument, contextOrSta
         return;
     }
 
-    var prev;
+    var prev, hasAsyncContext = false;
     if (@isJSArray(contextOrState)) {
         prev = @getInternalField(@asyncContext, 0);
-        var hasAsyncContext = true
+        hasAsyncContext = true;
         @putInternalField(@asyncContext, 0, contextOrState[1]);
-        contextOrState = contextOrState[0]
+        contextOrState = contextOrState[0];
     }
 
     // Case (1), or (2).

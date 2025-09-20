@@ -26,8 +26,8 @@
 #ifndef JSCTestRunnerUtils_h
 #define JSCTestRunnerUtils_h
 
-#include <JavaScriptCore/JSContextRef.h>
-#include <JavaScriptCore/JSValueRef.h>
+#include "JSContextRef.h"
+#include "JSValueRef.h"
 
 namespace JSC {
 

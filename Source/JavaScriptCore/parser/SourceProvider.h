@@ -81,7 +81,7 @@ public:
     JS_EXPORT_PRIVATE virtual size_t memoryCost() const { return 0; }
 #endif
 
-    JS_EXPORT_PRIVATE StringView getRange(int start, int end) const
+    StringView getRange(int start, int end) const LIFETIME_BOUND
     {
         return source().substring(start, end - start);
     }

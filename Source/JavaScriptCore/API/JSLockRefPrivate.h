@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include <JavaScriptCore/JSBase.h>
+#include "JSBase.h"
 
 #ifdef __cplusplus
 extern "C" {

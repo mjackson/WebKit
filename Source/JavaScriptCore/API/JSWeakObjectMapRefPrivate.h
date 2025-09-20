@@ -26,8 +26,8 @@
 #ifndef JSWeakObjectMapRefPrivate_h
 #define JSWeakObjectMapRefPrivate_h
 
-#include <JavaScriptCore/JSContextRef.h>
-#include <JavaScriptCore/JSValueRef.h>
+#include "JSContextRef.h"
+#include "JSValueRef.h"
 
 #ifdef __cplusplus
 extern "C" {

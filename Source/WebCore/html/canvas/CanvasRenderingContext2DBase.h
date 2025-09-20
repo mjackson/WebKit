@@ -48,6 +48,7 @@
 #include "ImageSmoothingQuality.h"
 #include "Path.h"
 #include "PlatformLayer.h"
+#include "StyleFilter.h"
 #include "Timer.h"
 #include <wtf/Vector.h>
 #include <wtf/text/WTFString.h>
@@ -71,7 +72,6 @@ class TextMetrics;
 class WebCodecsVideoFrame;
 
 struct DOMMatrix2DInit;
-
 
 using CanvasImageSource = Variant<RefPtr<HTMLImageElement>
     , RefPtr<SVGImageElement>
@@ -312,7 +312,7 @@ public:
         Direction direction;
 
         String filterString;
-        FilterOperations filterOperations;
+        Style::Filter filter;
 
         String letterSpacing;
         String wordSpacing;
@@ -378,7 +378,7 @@ protected:
     void didDraw(bool entireCanvas, const FloatRect&, OptionSet<DidDrawOption> options = defaultDidDrawOptions());
     template<typename RectProvider> void didDraw(bool entireCanvas, NOESCAPE const RectProvider&, OptionSet<DidDrawOption> options = defaultDidDrawOptions());
 
-    virtual std::optional<FilterOperations> setFilterStringWithoutUpdatingStyle(const String&) { return std::nullopt; }
+    virtual std::optional<Style::Filter> setFilterStringWithoutUpdatingStyle(const String&) { return std::nullopt; }
 
     virtual RefPtr<Filter> createFilter(const FloatRect&) const { return nullptr; }
     virtual IntOutsets calculateFilterOutsets(const FloatRect&) const { return { }; }
@@ -418,7 +418,7 @@ private:
     bool isEntireBackingStoreDirty() const;
     FloatRect backingStoreBounds() const { return FloatRect { { }, FloatSize { canvasBase().size() } }; }
 
-    ImageBufferPixelFormat pixelFormat() const final;
+    PixelFormat pixelFormat() const final;
     DestinationColorSpace colorSpace() const final;
     bool willReadFrequently() const final;
 

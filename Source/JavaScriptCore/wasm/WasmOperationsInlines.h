@@ -62,11 +62,8 @@ JSWebAssemblyArray* tryFillArray(JSWebAssemblyInstance* instance, WebAssemblyGCS
     return array;
 }
 
-inline JSValue arrayNew(JSWebAssemblyInstance* instance, uint32_t typeIndex, uint32_t size, EncodedJSValue encValue)
+inline JSValue arrayNew(JSWebAssemblyInstance* instance, WebAssemblyGCStructure* structure, uint32_t size, EncodedJSValue encValue)
 {
-    ASSERT(typeIndex < instance->module().moduleInformation().typeCount());
-
-    WebAssemblyGCStructure* structure = instance->gcObjectStructure(typeIndex);
     const Wasm::TypeDefinition& arraySignature = structure->typeDefinition();
     ASSERT(arraySignature.is<ArrayType>());
     Wasm::FieldType fieldType = arraySignature.as<ArrayType>()->elementType();
@@ -99,13 +96,10 @@ inline JSValue arrayNew(JSWebAssemblyInstance* instance, uint32_t typeIndex, uin
     return array;
 }
 
-inline JSValue arrayNew(JSWebAssemblyInstance* instance, uint32_t typeIndex, uint32_t size, v128_t value)
+inline JSValue arrayNew(JSWebAssemblyInstance* instance, WebAssemblyGCStructure* structure, uint32_t size, v128_t value)
 {
     VM& vm = instance->vm();
 
-    ASSERT(typeIndex < instance->module().moduleInformation().typeCount());
-
-    WebAssemblyGCStructure* structure = instance->gcObjectStructure(typeIndex);
     const Wasm::TypeDefinition& arraySignature = structure->typeDefinition();
     ASSERT(arraySignature.is<ArrayType>());
     Wasm::FieldType fieldType = arraySignature.as<ArrayType>()->elementType();
@@ -143,15 +137,13 @@ JSWebAssemblyArray* tryCopyElementsInReverse(JSWebAssemblyInstance* instance, We
 }
 
 // Expects arguments in reverse order
-inline JSValue arrayNewFixed(JSWebAssemblyInstance* instance, uint32_t typeIndex, uint32_t size, uint64_t* arguments)
+inline JSValue arrayNewFixed(JSWebAssemblyInstance* instance, WebAssemblyGCStructure* structure, uint32_t size, uint64_t* arguments)
 {
     // Get the array element type and determine the element size
-    WebAssemblyGCStructure* structure = instance->gcObjectStructure(typeIndex);
     const Wasm::TypeDefinition& arraySignature = structure->typeDefinition();
     ASSERT(arraySignature.is<ArrayType>());
     Wasm::FieldType fieldType = arraySignature.as<ArrayType>()->elementType();
     size_t elementSize = fieldType.type.elementSize();
-    Ref arrayRTT = instance->module().moduleInformation().rtts[typeIndex];
 
     // Copy the elements into the result array in reverse order
     JSWebAssemblyArray* array = nullptr;
@@ -278,7 +270,15 @@ inline EncodedJSValue arrayNewElem(JSWebAssemblyInstance* instance, uint32_t typ
     auto* array = JSWebAssemblyArray::tryCreate(vm, structure, arraySize);
     if (!array) [[unlikely]]
         return JSValue::encode(jsNull());
+#if ASSERT_ENABLED
+    array->setIsUnpopulated(true);
+    WTF::storeLoadFence();
+#endif
     instance->copyElementSegment(array, instance->module().moduleInformation().elements[elemSegmentIndex], offset, arraySize, array->span<uint64_t>().data());
+#if ASSERT_ENABLED
+    WTF::storeStoreFence();
+    array->setIsUnpopulated(false);
+#endif
     ASSERT(Wasm::isRefType(element->elementType));
     vm.writeBarrier(array);
     return JSValue::encode(array);
@@ -456,12 +456,11 @@ inline bool arrayInitData(JSWebAssemblyInstance* instance, EncodedJSValue dst, u
 }
 
 // structNew() expects the `arguments` array (when used) to be in reverse order
-inline EncodedJSValue structNew(JSWebAssemblyInstance* instance, uint32_t typeIndex, bool useDefault, uint64_t* arguments)
+inline JSValue structNew(JSWebAssemblyInstance* instance, WebAssemblyGCStructure* structure, bool useDefault, uint64_t* arguments)
 {
     JSGlobalObject* globalObject = instance->globalObject();
     VM& vm = globalObject->vm();
 
-    WebAssemblyGCStructure* structure = instance->gcObjectStructure(typeIndex);
     ASSERT(structure->typeDefinition().is<StructType>());
     const StructType& structType = *structure->typeDefinition().as<StructType>();
     JSWebAssemblyStruct* structValue = JSWebAssemblyStruct::create(vm, structure);
@@ -485,7 +484,7 @@ inline EncodedJSValue structNew(JSWebAssemblyInstance* instance, uint32_t typeIn
             structValue->set(dstIndex, arguments[srcIndex]);
         }
     }
-    return JSValue::encode(structValue);
+    return structValue;
 }
 
 inline EncodedJSValue structGet(EncodedJSValue encodedStructReference, uint32_t fieldIndex)
@@ -509,9 +508,9 @@ inline void structSet(EncodedJSValue encodedStructReference, uint32_t fieldIndex
     return structPointer->set(fieldIndex, argument);
 }
 
-inline bool refCast(EncodedJSValue encodedReference, bool allowNull, TypeIndex typeIndex)
+inline bool refCast(EncodedJSValue encodedReference, bool allowNull, TypeIndex typeIndex, const RTT* rtt)
 {
-    return TypeInformation::castReference(JSValue::decode(encodedReference), allowNull, typeIndex);
+    return TypeInformation::isReferenceValueAssignable(JSValue::decode(encodedReference), allowNull, typeIndex, rtt);
 }
 
 inline EncodedJSValue externInternalize(EncodedJSValue reference)
@@ -670,12 +669,34 @@ inline bool memoryInit(JSWebAssemblyInstance* instance, unsigned dataSegmentInde
 
 inline bool memoryFill(JSWebAssemblyInstance* instance, uint32_t dstAddress, uint32_t targetValue, uint32_t count)
 {
-    return instance->memory()->memory().fill(dstAddress, static_cast<uint8_t>(targetValue), count);
+    auto* base = std::bit_cast<uint8_t*>(instance->cachedMemory());
+    uint64_t size = instance->cachedMemorySize();
+
+    uint64_t lastDstAddress = static_cast<uint64_t>(dstAddress) + count;
+    if (lastDstAddress > size)
+        return false;
+
+    memset(base + dstAddress, targetValue, count);
+    return true;
 }
 
 inline bool memoryCopy(JSWebAssemblyInstance* instance, uint32_t dstAddress, uint32_t srcAddress, uint32_t count)
 {
-    return instance->memory()->memory().copy(dstAddress, srcAddress, count);
+    auto* base = std::bit_cast<uint8_t*>(instance->cachedMemory());
+    uint64_t size = instance->cachedMemorySize();
+
+    uint64_t lastDstAddress = static_cast<uint64_t>(dstAddress) + count;
+    uint64_t lastSrcAddress = static_cast<uint64_t>(srcAddress) + count;
+
+    if (lastDstAddress > size || lastSrcAddress > size)
+        return false;
+
+    if (!count)
+        return true;
+
+    // Source and destination areas might overlap, so using memmove.
+    memmove(base + dstAddress, base + srcAddress, count);
+    return true;
 }
 
 inline void dataDrop(JSWebAssemblyInstance* instance, unsigned dataSegmentIndex)

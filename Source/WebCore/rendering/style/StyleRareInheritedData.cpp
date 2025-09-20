@@ -26,7 +26,7 @@
 #include "RenderStyleInlines.h"
 #include "RenderStyleConstants.h"
 #include "RenderStyleDifference.h"
-#include "StyleFilterData.h"
+#include "StyleAppleColorFilterData.h"
 #include "StyleImage.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
 #include <wtf/PointerComparison.h>
@@ -161,7 +161,7 @@ StyleRareInheritedData::StyleRareInheritedData()
     , colorScheme(RenderStyle::initialColorScheme())
 #endif
     , quotes(RenderStyle::initialQuotes())
-    , appleColorFilter(StyleFilterData::create())
+    , appleColorFilter(StyleAppleColorFilterData::create())
     , lineGrid(RenderStyle::initialLineGrid())
     , tabSize(RenderStyle::initialTabSize())
 #if ENABLE(TEXT_AUTOSIZING)
@@ -388,14 +388,14 @@ bool StyleRareInheritedData::operator==(const StyleRareInheritedData& o) const
         && strokeColor == o.strokeColor
         && visitedLinkStrokeColor == o.visitedLinkStrokeColor
         && customProperties == o.customProperties
-        && arePointingToEqualData(listStyleImage, o.listStyleImage)
+        && listStyleImage == o.listStyleImage
         && listStyleType == o.listStyleType
         && blockEllipsis == o.blockEllipsis;
 }
 
 bool StyleRareInheritedData::hasColorFilters() const
 {
-    return !appleColorFilter->operations.isEmpty();
+    return !appleColorFilter->appleColorFilter.isNone();
 }
 
 #if !LOG_DISABLED

@@ -349,6 +349,8 @@ enum class FillBox : uint8_t {
     NoClip
 };
 
+constexpr unsigned FillBoxBitWidth = 3;
+
 constexpr inline FillBox clipMax(FillBox clipA, FillBox clipB)
 {
     if (clipA == FillBox::BorderBox || clipB == FillBox::BorderBox)
@@ -618,7 +620,7 @@ enum class AnimationFillMode : uint8_t {
 };
 
 enum class AnimationPlayState : bool {
-    Playing,
+    Running,
     Paused
 };
 
@@ -1239,10 +1241,29 @@ enum class NinePieceImageRule : uint8_t {
     Repeat,
 };
 
+enum class AnimationDirection : uint8_t {
+    Normal,
+    Alternate,
+    Reverse,
+    AlternateReverse
+};
+
+enum class TransitionBehavior : bool {
+    Normal,
+    AllowDiscrete,
+};
+
+enum class Scroller : uint8_t {
+    Nearest,
+    Root,
+    Self
+};
+
 CSSBoxType transformBoxToCSSBoxType(TransformBox);
 
 constexpr float defaultMiterLimit = 4;
 
+WTF::TextStream& operator<<(WTF::TextStream&, AnimationDirection);
 WTF::TextStream& operator<<(WTF::TextStream&, AnimationFillMode);
 WTF::TextStream& operator<<(WTF::TextStream&, AnimationPlayState);
 WTF::TextStream& operator<<(WTF::TextStream&, AspectRatioType);
@@ -1332,6 +1353,7 @@ WTF::TextStream& operator<<(WTF::TextStream&, ScrollSnapAxis);
 WTF::TextStream& operator<<(WTF::TextStream&, ScrollSnapAxisAlignType);
 WTF::TextStream& operator<<(WTF::TextStream&, ScrollSnapStop);
 WTF::TextStream& operator<<(WTF::TextStream&, ScrollSnapStrictness);
+WTF::TextStream& operator<<(WTF::TextStream&, Scroller);
 WTF::TextStream& operator<<(WTF::TextStream&, SpeakAs);
 WTF::TextStream& operator<<(WTF::TextStream&, StyleDifference);
 WTF::TextStream& operator<<(WTF::TextStream&, StyleDifferenceContextSensitiveProperty);
@@ -1357,6 +1379,7 @@ WTF::TextStream& operator<<(WTF::TextStream&, TextEdgeType);
 WTF::TextStream& operator<<(WTF::TextStream&, TextZoom);
 WTF::TextStream& operator<<(WTF::TextStream&, TransformBox);
 WTF::TextStream& operator<<(WTF::TextStream&, TransformStyle3D);
+WTF::TextStream& operator<<(WTF::TextStream&, TransitionBehavior);
 WTF::TextStream& operator<<(WTF::TextStream&, UserDrag);
 WTF::TextStream& operator<<(WTF::TextStream&, UserModify);
 WTF::TextStream& operator<<(WTF::TextStream&, UserSelect);

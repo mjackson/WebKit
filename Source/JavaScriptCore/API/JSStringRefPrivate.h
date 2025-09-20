@@ -26,7 +26,7 @@
 #ifndef JSStringRefPrivate_h
 #define JSStringRefPrivate_h
 
-#include <JavaScriptCore/JSStringRef.h>
+#include "JSStringRef.h"
 
 #ifdef __cplusplus
 extern "C" {

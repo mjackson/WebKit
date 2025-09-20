@@ -629,7 +629,6 @@ webkit.org/b/137368 media/video-controls-no-scripting.html [ Pass Failure ]
 
 ## --- Start flaky media tests ---
 webkit.org/b/34331 http/tests/media/video-referer.html [ Pass Timeout ]
-webkit.org/b/82976 media/W3C/video/networkState/networkState_during_progress.html [ Pass Failure ]
 webkit.org/b/112659 media/video-playing-and-pause.html [ Failure Timeout ]
 webkit.org/b/114744 media/video-layer-crash.html [ Pass Timeout Failure ]
 webkit.org/b/115048 media/media-element-play-after-eos.html [ Pass Timeout ]
@@ -1352,7 +1351,6 @@ imported/w3c/web-platform-tests/pointerevents/pointerevent_iframe-touch-action-n
 imported/w3c/web-platform-tests/pointerevents/pointerevent_movementxy.html?touch [ Skip ]
 imported/w3c/web-platform-tests/pointerevents/pointerevent_pointerId_scope.html [ Skip ]
 imported/w3c/web-platform-tests/pointerevents/pointerevent_pointercancel_touch.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_pointercapture_in_frame.html [ Skip ]
 imported/w3c/web-platform-tests/pointerevents/pointerevent_pointercapture_in_frame.html?pen [ Skip ]
 imported/w3c/web-platform-tests/pointerevents/pointerevent_pointercapture_in_frame.html?touch [ Skip ]
 imported/w3c/web-platform-tests/pointerevents/pointerevent_pointerleave_after_pointercancel_touch.html [ Skip ]
@@ -1389,7 +1387,6 @@ imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-action-pan-y-cs
 imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-action-span-none-test_touch.html [ Skip ]
 imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-action-svg-none-test_touch.html [ Skip ]
 imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-action-table-none-test_touch.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-adjustment_click_target.html [ Skip ]
 imported/w3c/web-platform-tests/pointerevents/pointerup_after_pointerdown_target_removed.html?touch [ Skip ]
 imported/w3c/web-platform-tests/pointerevents/predicted_events_attributes.html?touch [ Skip ]
 imported/w3c/web-platform-tests/pointerevents/touch-action-with-swipe-dir-change.html?touch [ Skip ]
@@ -1461,7 +1458,7 @@ webkit.org/b/204820 fast/text/emoji-gender-6.html [ ImageOnlyFailure ]
 webkit.org/b/204820 fast/text/emoji-gender-8.html [ ImageOnlyFailure ]
 webkit.org/b/204820 fast/text/emoji-gender-9.html [ ImageOnlyFailure ]
 
-webkit.org/b/205216 imported/w3c/web-platform-tests/content-security-policy/reporting/report-same-origin-with-cookies.html [ Pass Failure DumpJSConsoleLogInStdErr ]
+webkit.org/b/205216 imported/w3c/web-platform-tests/content-security-policy/reporting/report-same-origin-with-cookies.html [ Pass Failure ]
 
 webkit.org/b/205361 [ Release ] crypto/workers/subtle/aes-indexeddb.html [ Pass Timeout ]
 
@@ -1839,8 +1836,6 @@ webkit.org/b/222385 imported/w3c/web-platform-tests/xhr/event-upload-progress-cr
 
 webkit.org/b/223804 imported/w3c/web-platform-tests/xhr/event-upload-progress-crossorigin.any.html [ Pass Failure ]
 
-webkit.org/b/227998 imported/w3c/web-platform-tests/html/semantics/embedded-content/the-embed-element/embed-network-error.sub.html [ Pass Failure ]
-
 webkit.org/b/228311 imported/w3c/web-platform-tests/css/css-scoping/css-scoping-shadow-dynamic-remove-style-detached.html [ Pass Failure Timeout ]
 
 webkit.org/b/229291 imported/w3c/web-platform-tests/html/rendering/replaced-elements/images/revoked-blob-print.html [ Pass ImageOnlyFailure ]
@@ -1972,11 +1967,11 @@ webkit.org/b/246356 imported/w3c/web-platform-tests/html/semantics/embedded-cont
 imported/w3c/web-platform-tests/html/semantics/embedded-content/media-elements/autoplay-allowed-by-feature-policy-attribute.https.sub.html [ Pass Failure ]
 
 # These tests are flaky due to "Blocked access to external URL" messages because we don't support WPT domains.
-imported/w3c/web-platform-tests/feature-policy/feature-policy-frame-policy-allowed-for-all.https.sub.html [ DumpJSConsoleLogInStdErr Failure Pass ]
-imported/w3c/web-platform-tests/feature-policy/feature-policy-frame-policy-allowed-for-self.https.sub.html [ DumpJSConsoleLogInStdErr Failure Pass ]
-imported/w3c/web-platform-tests/feature-policy/feature-policy-frame-policy-allowed-for-some-override.https.sub.html [ DumpJSConsoleLogInStdErr Failure Pass ]
-imported/w3c/web-platform-tests/feature-policy/feature-policy-frame-policy-allowed-for-some.https.sub.html [ DumpJSConsoleLogInStdErr Failure Pass ]
-imported/w3c/web-platform-tests/feature-policy/feature-policy-frame-policy-disallowed-for-all.https.sub.html [ DumpJSConsoleLogInStdErr Failure Pass ]
+imported/w3c/web-platform-tests/feature-policy/feature-policy-frame-policy-allowed-for-all.https.sub.html [ Failure Pass ]
+imported/w3c/web-platform-tests/feature-policy/feature-policy-frame-policy-allowed-for-self.https.sub.html [ Failure Pass ]
+imported/w3c/web-platform-tests/feature-policy/feature-policy-frame-policy-allowed-for-some-override.https.sub.html [ Failure Pass ]
+imported/w3c/web-platform-tests/feature-policy/feature-policy-frame-policy-allowed-for-some.https.sub.html [ Failure Pass ]
+imported/w3c/web-platform-tests/feature-policy/feature-policy-frame-policy-disallowed-for-all.https.sub.html [ Failure Pass ]
 
 webkit.org/b/245092 webaudio/offlineaudiocontext-gc.html [ Pass Failure ]
 
@@ -2493,13 +2488,9 @@ imported/w3c/web-platform-tests/css/css-tables/paint/table-border-paint-caption-
 
 [ x86_64 ] imported/w3c/web-platform-tests/svg/text/reftests/dominant-baseline-central-large-font-size.svg [ Skip ]
 
-webkit.org/b/296944 [ Release ] imported/w3c/web-platform-tests/html/dom/idlharness.worker.html [ Pass Failure ]
-
 webkit.org/b/296976 [ x86_64 ] imported/w3c/web-platform-tests/webaudio/the-audio-api/the-audioworklet-interface/audioworklet-denormals.https.window.html [ Failure ]
 
 webkit.org/b/297067 fast/forms/state-restore-form-associated-custom-elements.html [ Pass Timeout Failure ]
-
-webkit.org/b/297131 imported/w3c/web-platform-tests/web-locks/storage-buckets.tentative.https.any.worker.html [ Pass Failure ]
 
 # webkit.org/b/296017 7x imported/w3c/web-platform-tests/css/css-shapes/shape-outside/shape-image/shape-image (layout-tests) are flakey image failures
 [ Release ] imported/w3c/web-platform-tests/css/css-shapes/shape-outside/shape-image/shape-image-006.html [ Pass ImageOnlyFailure ]
@@ -2518,8 +2509,6 @@ imported/w3c/web-platform-tests/css/css-text-decor/text-emphasis-position-under-
 
 [ Debug ] imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/interface.html [ Skip ]
 
-webkit.org/b/297346 workers/message-port-gc.html [ Pass Crash ]
-
 webkit.org/b/297434 imported/w3c/web-platform-tests/event-timing/retrievability.html [ Pass Failure ]
 
 webkit.org/b/294931 ipc/LocalSampleBufferDisplayLayer-LogIdentifier-data-race-uaf.html [ Skip ]
@@ -2534,4 +2523,10 @@ webkit.org/b/297691 fast/canvas/webgl/tex-image-and-sub-image-2d-with-video.html
 
 webkit.org/b/298042 http/tests/security/clipboard/copy-paste-html-cross-origin-iframe-across-origin.html [ Pass Failure ]
 
-webkit.org/b/298255 http/tests/media/modern-media-controls/time-control/less-than-10-minutes.html [ Timeout ]
+webkit.org/b/298402 inspector/worker/dom-debugger-event-after-terminate-crash.html [ Pass Crash ]
+
+webkit.org/b/298476 gamepad/gamepad-visibility-1.html [ Crash ]
+
+webkit.org/b/280234 imported/w3c/web-platform-tests/html/dom/idlharness.https.html? [ Skip ]
+
+webkit.org/b/299131 [ Release ] inspector/unit-tests/target-manager.html [ Pass Crash ]

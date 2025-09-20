@@ -48,7 +48,6 @@ VPATH = \
     $(WebKit2)/Shared/mac \
     $(WebKit2)/Shared/Notifications \
     $(WebKit2)/WebProcess/ApplePay \
-    $(WebKit2)/WebProcess/ApplicationCache \
     $(WebKit2)/WebProcess/Automation \
     $(WebKit2)/WebProcess/Cache \
     $(WebKit2)/WebProcess/Databases/IndexedDB \
@@ -165,7 +164,6 @@ MESSAGE_RECEIVERS = \
 	UIProcess/GPU/GPUProcessProxy \
 	UIProcess/WebAuthentication/WebAuthenticatorCoordinatorProxy \
 	UIProcess/WebPasteboardProxy \
-	UIProcess/UserContent/WebUserContentControllerProxy \
 	UIProcess/Inspector/WebInspectorBackendProxy \
 	UIProcess/Inspector/WebInspectorUIProxy \
 	UIProcess/Inspector/RemoteWebInspectorUIProxy \
@@ -535,6 +533,7 @@ WEBDRIVER_BIDI_PROTOCOL_INPUT_FILES = \
     $(WebKit2)/UIProcess/Automation/protocol/BidiBrowser.json \
     $(WebKit2)/UIProcess/Automation/protocol/BidiBrowsingContext.json \
     $(WebKit2)/UIProcess/Automation/protocol/BidiLog.json \
+    $(WebKit2)/UIProcess/Automation/protocol/BidiPermissions.json \
     $(WebKit2)/UIProcess/Automation/protocol/BidiScript.json \
     $(WebKit2)/UIProcess/Automation/protocol/BidiSession.json \
     $(WebKit2)/UIProcess/Automation/protocol/BidiStorage.json \
@@ -1036,7 +1035,6 @@ all : JSWebExtensionAPIUnified.mm $(EXTENSION_INTERFACES:%=JS%.h) $(EXTENSION_IN
 
 ifeq ($(USE_INTERNAL_SDK),YES)
 WEBKIT_ADDITIONS_SWIFT_FILES = \
-	WebPageWebViewAdditions.swift \
 	WKSeparatedImageView.swift \
 	CredentialUpdaterShim.swift \
 #

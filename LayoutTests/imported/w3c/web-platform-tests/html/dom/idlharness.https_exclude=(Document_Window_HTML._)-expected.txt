@@ -1,13 +1,3 @@
-CONSOLE MESSAGE: Unhandled Promise Rejection: TypeError: Can only call Navigation.navigate on instances of Navigation
-CONSOLE MESSAGE: Unhandled Promise Rejection: TypeError: Can only call Navigation.reload on instances of Navigation
-CONSOLE MESSAGE: Unhandled Promise Rejection: TypeError: Can only call Navigation.traverseTo on instances of Navigation
-CONSOLE MESSAGE: Unhandled Promise Rejection: TypeError: Can only call Navigation.back on instances of Navigation
-CONSOLE MESSAGE: Unhandled Promise Rejection: TypeError: Can only call Navigation.forward on instances of Navigation
-CONSOLE MESSAGE: Unhandled Promise Rejection: TypeError: The PromiseRejectionEvent.promise getter can only be used on instances of PromiseRejectionEvent
-CONSOLE MESSAGE: [blocked] The page at https://localhost:9443/html/dom/idlharness.https.html?exclude=(Document|Window|HTML.*) requested insecure content from http://invalid/. This content was blocked and must be served over HTTPS.
-
-CONSOLE MESSAGE: Not allowed to request resource
-CONSOLE MESSAGE: EventSource cannot load http://invalid/ due to access control checks.
 HTML IDL tests
 
 
@@ -1256,14 +1246,14 @@ PASS ImageData interface: existence and properties of interface prototype object
 PASS ImageData interface: attribute width
 PASS ImageData interface: attribute height
 PASS ImageData interface: attribute data
-FAIL ImageData interface: attribute pixelFormat assert_true: The prototype object must have a property "pixelFormat" expected true got false
+PASS ImageData interface: attribute pixelFormat
 PASS ImageData interface: attribute colorSpace
 PASS ImageData must be primary interface of new ImageData(10, 10)
 PASS Stringification of new ImageData(10, 10)
 PASS ImageData interface: new ImageData(10, 10) must inherit property "width" with the proper type
 PASS ImageData interface: new ImageData(10, 10) must inherit property "height" with the proper type
 FAIL ImageData interface: new ImageData(10, 10) must inherit property "data" with the proper type assert_inherits: property "data" found on object expected in prototype chain
-FAIL ImageData interface: new ImageData(10, 10) must inherit property "pixelFormat" with the proper type assert_inherits: property "pixelFormat" not found in prototype chain
+PASS ImageData interface: new ImageData(10, 10) must inherit property "pixelFormat" with the proper type
 PASS ImageData interface: new ImageData(10, 10) must inherit property "colorSpace" with the proper type
 PASS ImageBitmap interface: existence and properties of interface object
 PASS ImageBitmap interface object length

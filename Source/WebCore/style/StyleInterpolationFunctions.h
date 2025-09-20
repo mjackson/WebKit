@@ -41,7 +41,7 @@
 #include "FontSelectionValueInlines.h"
 #include "FontTaggedSettings.h"
 #include "IdentityTransformOperation.h"
-#include "LengthPoint.h"
+#include "Length.h"
 #include "Logging.h"
 #include "Matrix3DTransformOperation.h"
 #include "MatrixTransformOperation.h"
@@ -103,64 +103,6 @@ inline TabSize blendFunc(const TabSize& from, const TabSize& to, const Context& 
 {
     auto blendedValue = WebCore::blend(from.value(), to.value(), context);
     return { blendedValue < 0 ? 0 : blendedValue, from.isSpaces() ? SpaceValueType : LengthValueType };
-}
-
-inline LengthSize blendFunc(const LengthSize& from, const LengthSize& to, const Context& context)
-{
-    return WebCore::blend(from, to, context, ValueRange::NonNegative);
-}
-
-inline bool canInterpolateLengthVariants(const LengthSize& from, const LengthSize& to)
-{
-    bool isLengthPercentage = true;
-    return canInterpolateLengths(from.width, to.width, isLengthPercentage)
-        && canInterpolateLengths(from.height, to.height, isLengthPercentage);
-}
-
-inline bool lengthVariantRequiresInterpolationForAccumulativeIteration(const LengthSize& from, const LengthSize& to)
-{
-    return lengthsRequireInterpolationForAccumulativeIteration(from.width, to.width)
-        || lengthsRequireInterpolationForAccumulativeIteration(from.height, to.height);
-}
-
-inline LengthPoint blendFunc(const LengthPoint& from, const LengthPoint& to, const Context& context)
-{
-    return WebCore::blend(from, to, context);
-}
-
-inline TransformOperations blendFunc(const TransformOperations& from, const TransformOperations& to, const Context& context)
-{
-    if (context.compositeOperation == CompositeOperation::Add) {
-        ASSERT(context.progress == 1.0);
-
-        Vector<Ref<TransformOperation>> operations;
-        operations.reserveInitialCapacity(from.size() + to.size());
-
-        operations.appendRange(from.begin(), from.end());
-        operations.appendRange(to.begin(), to.end());
-
-        return TransformOperations { WTFMove(operations) };
-    }
-
-    auto prefix = [&]() -> std::optional<unsigned> {
-        // We cannot use the pre-computed prefix when dealing with accumulation
-        // since the values used to accumulate may be different than those held
-        // in the initial keyframe list. We must do the same with any property
-        // other than "transform" since we only pre-compute the prefix for that
-        // property.
-        if (context.compositeOperation == CompositeOperation::Accumulate || std::holds_alternative<AtomString>(context.property) || std::get<CSSPropertyID>(context.property) != CSSPropertyTransform)
-            return std::nullopt;
-        return context.client.transformFunctionListPrefix();
-    };
-
-    auto* renderBox = dynamicDowncast<RenderBox>(context.client.renderer());
-    auto boxSize = renderBox ? renderBox->borderBoxRect().size() : LayoutSize();
-    return to.blend(from, context, boxSize, prefix());
-}
-
-inline Ref<TransformOperation> blendFunc(TransformOperation& from, TransformOperation& to, const Context& context)
-{
-    return to.blend(&from, context);
 }
 
 inline FilterOperations blendFunc(const FilterOperations& from, const FilterOperations& to, const Context& context)
@@ -280,15 +222,6 @@ inline std::optional<FontSelectionValue> blendFunc(std::optional<FontSelectionVa
     };
 
     return normalizedFontItalicValue(blendFunc(valueOrDefault(from), valueOrDefault(to), context));
-}
-
-inline RefPtr<StylePathData> blendFunc(StylePathData* from, StylePathData* to, const Context& context)
-{
-    if (context.isDiscrete)
-        return context.progress < 0.5 ? from : to;
-    ASSERT(from);
-    ASSERT(to);
-    return from->blend(*to, context);
 }
 
 } // namespace WebCore::Style::Interpolation

@@ -29,6 +29,7 @@
 #if ENABLE(WEBGL)
 
 #include "CachedImage.h"
+#include "ContextDestructionObserverInlines.h"
 #include "EXTClipControl.h"
 #include "EXTColorBufferFloat.h"
 #include "EXTColorBufferHalfFloat.h"
@@ -60,6 +61,7 @@
 #include "OffscreenCanvas.h"
 #include "RenderBox.h"
 #include "ScriptExecutionContextInlines.h"
+#include "Settings.h"
 #include "WebCodecsVideoFrame.h"
 #include "WebCoreOpaqueRootInlines.h"
 #include "WebGLActiveInfo.h"

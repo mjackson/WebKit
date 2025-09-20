@@ -549,10 +549,12 @@ static BOOL areEssentiallyEqual(double a, double b)
     preferences.siteSpecificQuirksModeEnabled = settings.siteSpecificQuirksModeEnabled;
     preferences._punchOutWhiteBackgroundsInDarkMode = settings.punchOutWhiteBackgroundsInDarkMode;
     preferences._mockCaptureDevicesEnabled = settings.useMockCaptureDevices;
+    preferences.tabFocusesLinks = settings.tabFocusesLinksEnabled;
 
     preferences._serviceControlsEnabled = settings.dataDetectorsEnabled;
     preferences._telephoneNumberDetectionIsEnabled = settings.dataDetectorsEnabled;
 
+    _webView.configuration.defaultWebpagePreferences._enhancedSecurityEnabled = settings.enhancedSecurityEnabled;
     _webView.configuration.websiteDataStore._resourceLoadStatisticsEnabled = settings.resourceLoadStatisticsEnabled;
 
     [self setWebViewFillsWindow:settings.webViewFillsWindow];

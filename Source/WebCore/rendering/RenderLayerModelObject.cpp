@@ -216,6 +216,11 @@ void RenderLayerModelObject::styleDidChange(StyleDifference diff, const RenderSt
     }
 }
 
+bool RenderLayerModelObject::applyCachedClipAndScrollPosition(RepaintRects&, const RenderLayerModelObject*, VisibleRectContext) const
+{
+    return false;
+}
+
 bool RenderLayerModelObject::shouldPlaceVerticalScrollbarOnLeft() const
 {
 // RTL Scrollbars require some system support, and this system support does not exist on certain versions of macOS. iOS uses a separate mechanism.
@@ -238,7 +243,7 @@ std::optional<LayoutRect> RenderLayerModelObject::cachedLayerClippedOverflowRect
     return hasLayer() ? layer()->cachedClippedOverflowRect() : std::nullopt;
 }
 
-bool RenderLayerModelObject::startAnimation(double timeOffset, const Animation& animation, const BlendingKeyframes& keyframes)
+bool RenderLayerModelObject::startAnimation(double timeOffset, const GraphicsLayerAnimation& animation, const BlendingKeyframes& keyframes)
 {
     if (!layer() || !layer()->backing())
         return false;
@@ -310,7 +315,7 @@ bool RenderLayerModelObject::shouldPaintSVGRenderer(const PaintInfo& paintInfo, 
     return true;
 }
 
-auto RenderLayerModelObject::computeVisibleRectsInSVGContainer(const RepaintRects& rects, const RenderLayerModelObject* container, RenderObject::VisibleRectContext context) const -> std::optional<RepaintRects>
+auto RenderLayerModelObject::computeVisibleRectsInSVGContainer(const RepaintRects& rects, const RenderLayerModelObject* container, VisibleRectContext context) const -> std::optional<RepaintRects>
 {
     ASSERT(is<RenderSVGModelObject>(this) || is<RenderSVGBlock>(this));
     ASSERT(!style().hasInFlowPosition());
@@ -345,7 +350,7 @@ auto RenderLayerModelObject::computeVisibleRectsInSVGContainer(const RepaintRect
     if (localContainer->hasNonVisibleOverflow()) {
         bool isEmpty = !downcast<RenderLayerModelObject>(*localContainer).applyCachedClipAndScrollPosition(adjustedRects, container, context);
         if (isEmpty) {
-            if (context.options.contains(VisibleRectContextOption::UseEdgeInclusiveIntersection))
+            if (context.options.contains(VisibleRectContext::Option::UseEdgeInclusiveIntersection))
                 return std::nullopt;
             return adjustedRects;
         }
@@ -479,11 +484,11 @@ RenderSVGResourceFilter* RenderLayerModelObject::svgFilterResourceFromStyle() co
     if (!document().settings().layerBasedSVGEngineEnabled())
         return nullptr;
 
-    const auto& operations = style().filter();
-    if (operations.size() != 1)
+    const auto& filter = style().filter();
+    if (filter.size() != 1)
         return nullptr;
 
-    RefPtr referenceFilterOperation = dynamicDowncast<Style::ReferenceFilterOperation>(operations.at(0));
+    RefPtr referenceFilterOperation = dynamicDowncast<Style::ReferenceFilterOperation>(filter[0].value);
     if (!referenceFilterOperation)
         return nullptr;
 

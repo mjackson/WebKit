@@ -483,7 +483,6 @@ void RenderBlockFlow::layoutBlockWithNoChildren()
 
     auto updateLayerProperties = [&] {
         updateLayerTransform();
-        updateScrollInfoAfterLayout();
     };
     if (hasLayer())
         updateLayerProperties();
@@ -642,10 +641,6 @@ void RenderBlockFlow::layoutBlock(RelayoutChildren relayoutChildren, LayoutUnit 
         setPageLogicalOffset(state->pageLogicalOffset(this, logicalTop()));
 
     updateLayerTransform();
-
-    // Update our scroll information if we're overflow:auto/scroll/hidden now that we know if
-    // we overflow or not.
-    updateScrollInfoAfterLayout();
 
     // FIXME: This repaint logic should be moved into a separate helper function!
     // Repaint with our new bounds if they are different from our old bounds.
@@ -2212,7 +2207,7 @@ LayoutUnit RenderBlockFlow::adjustForUnsplittableChild(RenderBox& child, LayoutU
         if (!hasUniformPageLogicalHeight && !pushToNextPageWithMinimumLogicalHeight(remainingLogicalHeight, logicalOffset, childLogicalHeight))
             return logicalOffset;
         auto result = logicalOffset + remainingLogicalHeight;
-        bool isInitialLetter = child.isFloating() && child.style().pseudoElementType() == PseudoId::FirstLetter && child.style().initialLetterDrop() > 0;
+        bool isInitialLetter = child.isFloating() && child.style().pseudoElementType() == PseudoId::FirstLetter && child.style().initialLetter().drop() > 0;
         if (isInitialLetter) {
             // Increase our logical height to ensure that lines all get pushed along with the letter.
             setLogicalHeight(logicalOffset + remainingLogicalHeight);
@@ -2672,8 +2667,8 @@ void RenderBlockFlow::computeLogicalLocationForFloat(FloatingObject& floatingObj
     LayoutUnit floatLogicalLeft;
 
     bool insideFragmentedFlow = enclosingFragmentedFlow();
-    bool isInitialLetter = childBox.style().pseudoElementType() == PseudoId::FirstLetter && childBox.style().initialLetterDrop() > 0;
-    
+    bool isInitialLetter = childBox.style().pseudoElementType() == PseudoId::FirstLetter && childBox.style().initialLetter().drop() > 0;
+
     if (isInitialLetter) {
         if (auto lowestInitialLetterLogicalBottom = this->lowestInitialLetterLogicalBottom()) {
             auto letterClearance =  *lowestInitialLetterLogicalBottom - logicalTopOffset;
@@ -2750,8 +2745,8 @@ void RenderBlockFlow::adjustInitialLetterPosition(RenderBox& childBox, LayoutUni
 
     // For sunken and raised caps, we have to make some adjustments. Test if we're sunken or raised (dropHeightDelta will be
     // positive for raised and negative for sunken).
-    int dropHeightDelta = childBox.style().initialLetterHeight() - childBox.style().initialLetterDrop();
-    
+    int dropHeightDelta = childBox.style().initialLetter().height() - childBox.style().initialLetter().drop();
+
     // If we're sunken, the float needs to shift down but lines still need to avoid it. In order to do that we increase the float's margin.
     if (dropHeightDelta < 0)
         marginBeforeOffset += -dropHeightDelta * heightOfLine;
@@ -2940,7 +2935,7 @@ std::optional<LayoutUnit> RenderBlockFlow::lowestInitialLetterLogicalBottom() co
         return { };
     auto lowestFloatBottom = std::optional<LayoutUnit> { };
     for (auto& floatingObject : m_floatingObjects->set()) {
-        if (floatingObject->isPlaced() && floatingObject->renderer().style().pseudoElementType() == PseudoId::FirstLetter && floatingObject->renderer().style().initialLetterDrop() > 0)
+        if (floatingObject->isPlaced() && floatingObject->renderer().style().pseudoElementType() == PseudoId::FirstLetter && floatingObject->renderer().style().initialLetter().drop() > 0)
             lowestFloatBottom = std::max(lowestFloatBottom.value_or(0_lu), logicalBottomForFloat(*floatingObject));
     }
     return lowestFloatBottom;
@@ -3796,6 +3791,9 @@ bool RenderBlockFlow::hasLines() const
 
 void RenderBlockFlow::invalidateLineLayout(InvalidationReason invalidationReason)
 {
+    if (lineLayoutPath() == UndeterminedPath)
+        return;
+
     auto issueNeedsLayoutIfApplicable = [&] {
         if (selfNeedsLayout() || normalChildNeedsLayout())
             return;

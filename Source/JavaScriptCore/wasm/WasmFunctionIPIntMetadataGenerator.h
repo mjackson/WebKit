@@ -91,7 +91,7 @@ public:
 
     UncheckedKeyHashMap<IPIntPC, IPIntTierUpCounter::OSREntryData>& tierUpCounter() { return m_tierUpCounter; }
 
-    unsigned addSignature(const TypeDefinition&);
+    const RTT* addSignature(const TypeDefinition&);
 
 private:
     struct MetadataBufferMalloc final : public FastMalloc {
@@ -132,10 +132,9 @@ private:
     unsigned m_numArguments { 0 };
     unsigned m_numArgumentsOnStack { 0 };
     unsigned m_nonArgLocalOffset { 0 };
-    unsigned m_numCallSlots { 0 };
+    unsigned m_numCallProfiles { 0 };
     Vector<uint8_t, 16> m_argumINTBytecode { };
 
-    Vector<const TypeDefinition*> m_signatures;
     UncheckedKeyHashMap<IPIntPC, IPIntTierUpCounter::OSREntryData> m_tierUpCounter;
     Vector<UnlinkedHandlerInfo> m_exceptionHandlers;
 };

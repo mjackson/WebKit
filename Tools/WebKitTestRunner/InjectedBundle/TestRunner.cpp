@@ -96,11 +96,6 @@ void TestRunner::display()
     WKBundlePageForceRepaint(page());
 }
 
-void TestRunner::displayAndTrackRepaints(JSContextRef context, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "DisplayAndTrackRepaints", callback);
-}
-
 static WKRetainPtr<WKDoubleRef> toWK(double value)
 {
     return adoptWK(WKDoubleCreate(value));
@@ -477,11 +472,6 @@ unsigned TestRunner::windowCount()
     return InjectedBundle::singleton().pageCount();
 }
 
-void TestRunner::clearBackForwardList(JSContextRef context, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "ClearBackForwardList", callback);
-}
-
 void TestRunner::makeWindowObject(JSContextRef context)
 {
     setGlobalObjectProperty(context, "testRunner", this);
@@ -644,41 +634,6 @@ void TestRunner::accummulateLogsForChannel(JSStringRef)
     // FIXME: Implement getting the call to all processes.
 }
 
-void TestRunner::addChromeInputField(JSContextRef context, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "AddChromeInputField", callback);
-}
-
-void TestRunner::removeChromeInputField(JSContextRef context, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "RemoveChromeInputField", callback);
-}
-
-void TestRunner::setTextInChromeInputField(JSContextRef context, JSStringRef text, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "SetTextInChromeInputField", toWK(text), callback);
-}
-
-void TestRunner::selectChromeInputField(JSContextRef context, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "SelectChromeInputField", callback);
-}
-
-void TestRunner::getSelectedTextInChromeInputField(JSContextRef context, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "GetSelectedTextInChromeInputField", callback);
-}
-
-void TestRunner::focusWebView(JSContextRef context, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "FocusWebView", callback);
-}
-
-void TestRunner::setBackingScaleFactor(JSContextRef context, double backingScaleFactor, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "SetBackingScaleFactor", adoptWK(WKDoubleCreate(backingScaleFactor)), callback);
-}
-
 void TestRunner::setWindowIsKey(bool isKey)
 {
     InjectedBundle::singleton().postSetWindowIsKey(isKey);
@@ -697,11 +652,6 @@ void TestRunner::setAlwaysAcceptCookies(bool accept)
 void TestRunner::setOnlyAcceptFirstPartyCookies(bool accept)
 {
     postSynchronousMessage("SetOnlyAcceptFirstPartyCookies", accept);
-}
-
-void TestRunner::removeAllCookies(JSContextRef context, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "RemoveAllCookies", callback);
 }
 
 double TestRunner::preciseTime()
@@ -912,16 +862,6 @@ void TestRunner::queueLoadHTMLString(JSStringRef content, JSStringRef baseURL, J
     InjectedBundle::singleton().queueLoadHTMLString(toWK(content).get(), baseURLWK.get(), unreachableURLWK.get());
 }
 
-void TestRunner::stopLoading()
-{
-    postPageMessage("StopLoading");
-}
-
-void TestRunner::dumpFullScreenCallbacks()
-{
-    postPageMessage("DumpFullScreenCallbacks");
-}
-
 void TestRunner::queueReload()
 {
     InjectedBundle::singleton().queueReload();
@@ -937,41 +877,6 @@ void TestRunner::queueNonLoadingScript(JSStringRef script)
     InjectedBundle::singleton().queueNonLoadingScript(toWK(script).get());
 }
 
-void TestRunner::setRejectsProtectionSpaceAndContinueForAuthenticationChallenges(bool value)
-{
-    postPageMessage("SetRejectsProtectionSpaceAndContinueForAuthenticationChallenges", value);
-}
-    
-void TestRunner::setHandlesAuthenticationChallenges(bool handlesAuthenticationChallenges)
-{
-    postPageMessage("SetHandlesAuthenticationChallenges", handlesAuthenticationChallenges);
-}
-
-void TestRunner::setShouldLogCanAuthenticateAgainstProtectionSpace(bool value)
-{
-    postPageMessage("SetShouldLogCanAuthenticateAgainstProtectionSpace", value);
-}
-
-void TestRunner::setShouldLogDownloadCallbacks(bool value)
-{
-    postPageMessage("SetShouldLogDownloadCallbacks", value);
-}
-
-void TestRunner::setShouldDownloadContentDispositionAttachments(bool value)
-{
-    postPageMessage("SetShouldDownloadContentDispositionAttachments", value);
-}
-
-void TestRunner::setShouldLogDownloadSize(bool value)
-{
-    postPageMessage("SetShouldLogDownloadSize", value);
-}
-
-void TestRunner::setShouldLogDownloadExpectedSize(bool value)
-{
-    postPageMessage("SetShouldLogDownloadExpectedSize", value);
-}
-
 void TestRunner::setAuthenticationUsername(JSStringRef username)
 {
     postPageMessage("SetAuthenticationUsername", toWK(username));
@@ -985,11 +890,6 @@ void TestRunner::setAuthenticationPassword(JSStringRef password)
 bool TestRunner::secureEventInputIsEnabled() const
 {
     return postSynchronousPageMessageReturningBoolean("SecureEventInputIsEnabled");
-}
-
-void TestRunner::setBlockAllPlugins(bool shouldBlock)
-{
-    postPageMessage("SetBlockAllPlugins", shouldBlock);
 }
 
 void TestRunner::setPluginSupportedMode(JSStringRef mode)
@@ -1010,43 +910,6 @@ JSValueRef TestRunner::numberOfDFGCompiles(JSContextRef context, JSValueRef func
 JSValueRef TestRunner::neverInlineFunction(JSContextRef context, JSValueRef function)
 {
     return JSC::setNeverInline(context, function);
-}
-
-void TestRunner::setShouldDecideNavigationPolicyAfterDelay(bool value)
-{
-    m_shouldDecideNavigationPolicyAfterDelay = value;
-    postPageMessage("SetShouldDecideNavigationPolicyAfterDelay", value);
-}
-
-void TestRunner::setShouldDecideResponsePolicyAfterDelay(bool value)
-{
-    m_shouldDecideResponsePolicyAfterDelay = value;
-    postPageMessage("SetShouldDecideResponsePolicyAfterDelay", value);
-}
-
-void TestRunner::setNavigationGesturesEnabled(bool value)
-{
-    postPageMessage("SetNavigationGesturesEnabled", value);
-}
-
-void TestRunner::setIgnoresViewportScaleLimits(bool value)
-{
-    postPageMessage("SetIgnoresViewportScaleLimits", value);
-}
-
-void TestRunner::setUseDarkAppearanceForTesting(bool useDarkAppearance)
-{
-    postPageMessage("SetUseDarkAppearanceForTesting", useDarkAppearance);
-}
-
-void TestRunner::setShouldDownloadUndisplayableMIMETypes(bool value)
-{
-    postPageMessage("SetShouldDownloadUndisplayableMIMETypes", value);
-}
-
-void TestRunner::setShouldAllowDeviceOrientationAndMotionAccess(bool value)
-{
-    postPageMessage("SetShouldAllowDeviceOrientationAndMotionAccess", value);
 }
 
 void TestRunner::terminateGPUProcess()
@@ -1103,67 +966,6 @@ bool TestRunner::isStatisticsEphemeral()
     return postSynchronousPageMessageReturningBoolean("IsStatisticsEphemeral");
 }
 
-void TestRunner::setStatisticsDebugMode(JSContextRef context, bool value, JSValueRef completionHandler)
-{
-    postMessageWithAsyncReply(context, "SetStatisticsDebugMode", adoptWK(WKBooleanCreate(value)), completionHandler);
-}
-
-void TestRunner::setStatisticsPrevalentResourceForDebugMode(JSContextRef context, JSStringRef hostName, JSValueRef completionHandler)
-{
-    postMessageWithAsyncReply(context, "SetStatisticsPrevalentResourceForDebugMode", toWK(hostName), completionHandler);
-}
-
-void TestRunner::setStatisticsLastSeen(JSContextRef context, JSStringRef hostName, double seconds, JSValueRef completionHandler)
-{
-    postMessageWithAsyncReply(context, "SetStatisticsLastSeen", createWKDictionary({
-        { "HostName", toWK(hostName) },
-        { "Value", toWK(seconds) },
-    }), completionHandler);
-}
-
-void TestRunner::setStatisticsMergeStatistic(JSContextRef context, JSStringRef hostName, JSStringRef topFrameDomain1, JSStringRef topFrameDomain2, double lastSeen, bool hadUserInteraction, double mostRecentUserInteraction, bool isGrandfathered, bool isPrevalent, bool isVeryPrevalent, unsigned dataRecordsRemoved, JSValueRef completionHandler)
-{
-    postMessageWithAsyncReply(context, "SetStatisticsMergeStatistic", createWKDictionary({
-        { "HostName", toWK(hostName) },
-        { "TopFrameDomain1", toWK(topFrameDomain1) },
-        { "TopFrameDomain2", toWK(topFrameDomain2) },
-        { "LastSeen", adoptWK(WKDoubleCreate(lastSeen)) },
-        { "HadUserInteraction", adoptWK(WKBooleanCreate(hadUserInteraction)) },
-        { "MostRecentUserInteraction", adoptWK(WKDoubleCreate(mostRecentUserInteraction)) },
-        { "IsGrandfathered", adoptWK(WKBooleanCreate(isGrandfathered)) },
-        { "IsPrevalent", adoptWK(WKBooleanCreate(isPrevalent)) },
-        { "IsVeryPrevalent", adoptWK(WKBooleanCreate(isVeryPrevalent)) },
-        { "DataRecordsRemoved", adoptWK(WKUInt64Create(dataRecordsRemoved)) },
-    }), completionHandler);
-}
-
-void TestRunner::setStatisticsExpiredStatistic(JSContextRef context, JSStringRef hostName, unsigned numberOfOperatingDaysPassed, bool hadUserInteraction, bool isScheduledForAllButCookieDataRemoval, bool isPrevalent, JSValueRef completionHandler)
-{
-    postMessageWithAsyncReply(context, "SetStatisticsExpiredStatistic", createWKDictionary({
-        { "HostName", toWK(hostName) },
-        { "NumberOfOperatingDaysPassed", adoptWK(WKUInt64Create(numberOfOperatingDaysPassed)) },
-        { "HadUserInteraction", adoptWK(WKBooleanCreate(hadUserInteraction)) },
-        { "IsScheduledForAllButCookieDataRemoval", adoptWK(WKBooleanCreate(isScheduledForAllButCookieDataRemoval)) },
-        { "IsPrevalent", adoptWK(WKBooleanCreate(isPrevalent)) }
-    }), completionHandler);
-}
-
-void TestRunner::setStatisticsPrevalentResource(JSContextRef context, JSStringRef hostName, bool value, JSValueRef completionHandler)
-{
-    postMessageWithAsyncReply(context, "SetStatisticsPrevalentResource", createWKDictionary({
-        { "HostName", toWK(hostName) },
-        { "Value", adoptWK(WKBooleanCreate(value)) },
-    }), completionHandler);
-}
-
-void TestRunner::setStatisticsVeryPrevalentResource(JSContextRef context, JSStringRef hostName, bool value, JSValueRef completionHandler)
-{
-    postMessageWithAsyncReply(context, "SetStatisticsVeryPrevalentResource", createWKDictionary({
-        { "HostName", toWK(hostName) },
-        { "Value", adoptWK(WKBooleanCreate(value)) },
-    }), completionHandler);
-}
-    
 void TestRunner::dumpResourceLoadStatistics()
 {
     InjectedBundle::singleton().clearResourceLoadStatistics();
@@ -1207,14 +1009,6 @@ bool TestRunner::isStatisticsRegisteredAsRedirectingTo(JSStringRef hostRedirecte
         { "HostRedirectedFrom", toWK(hostRedirectedFrom) },
         { "HostRedirectedTo", toWK(hostRedirectedTo) },
     }));
-}
-
-void TestRunner::setStatisticsHasHadUserInteraction(JSContextRef context, JSStringRef hostName, bool value, JSValueRef completionHandler)
-{
-    postMessageWithAsyncReply(context, "SetStatisticsHasHadUserInteraction", createWKDictionary({
-        { "HostName", toWK(hostName) },
-        { "Value", adoptWK(WKBooleanCreate(value)) },
-    }), completionHandler);
 }
 
 bool TestRunner::isStatisticsHasHadUserInteraction(JSStringRef hostName)
@@ -1317,16 +1111,6 @@ void TestRunner::statisticsNotifyObserver(JSContextRef context, JSValueRef callb
     });
 }
 
-void TestRunner::statisticsProcessStatisticsAndDataRecords(JSContextRef context, JSValueRef completionHandler)
-{
-    postMessageWithAsyncReply(context, "StatisticsProcessStatisticsAndDataRecords", completionHandler);
-}
-
-void TestRunner::statisticsUpdateCookieBlocking(JSContextRef context, JSValueRef completionHandler)
-{
-    postMessageWithAsyncReply(context, "StatisticsUpdateCookieBlocking", completionHandler);
-}
-
 void TestRunner::setStatisticsTimeAdvanceForTesting(double value)
 {
     postSynchronousMessage("StatisticsSetTimeAdvanceForTesting", value);
@@ -1362,29 +1146,6 @@ void TestRunner::setStatisticsPruneEntriesDownTo(unsigned entries)
     postSynchronousMessage("SetPruneEntriesDownTo", entries);
 }
 
-void TestRunner::statisticsClearInMemoryAndPersistentStoreModifiedSinceHours(JSContextRef context, unsigned hours, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "StatisticsClearInMemoryAndPersistentStore", adoptWK(WKUInt64Create(hours)), callback);
-}
-
-void TestRunner::statisticsClearInMemoryAndPersistentStore(JSContextRef context, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "StatisticsClearInMemoryAndPersistentStore", callback);
-}
-
-void TestRunner::statisticsClearThroughWebsiteDataRemoval(JSContextRef context, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "StatisticsClearThroughWebsiteDataRemoval", callback);
-}
-
-void TestRunner::statisticsDeleteCookiesForHost(JSContextRef context, JSStringRef hostName, bool includeHttpOnlyCookies, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "StatisticsDeleteCookiesForHost", createWKDictionary({
-        { "HostName", toWK(hostName) },
-        { "IncludeHttpOnlyCookies", adoptWK(WKBooleanCreate(includeHttpOnlyCookies)) },
-    }), callback);
-}
-
 bool TestRunner::isStatisticsHasLocalStorage(JSStringRef hostName)
 {
     return postSynchronousPageMessageReturningBoolean("IsStatisticsHasLocalStorage", hostName);
@@ -1398,49 +1159,6 @@ void TestRunner::setStatisticsCacheMaxAgeCap(double seconds)
 bool TestRunner::hasStatisticsIsolatedSession(JSStringRef hostName)
 {
     return postSynchronousPageMessageReturningBoolean("HasStatisticsIsolatedSession", hostName);
-}
-
-void TestRunner::setStatisticsShouldDowngradeReferrer(JSContextRef context, bool value, JSValueRef completionHandler)
-{
-    postMessageWithAsyncReply(context, "SetStatisticsShouldDowngradeReferrer", adoptWK(WKBooleanCreate(value)), completionHandler);
-}
-
-void TestRunner::setStatisticsShouldBlockThirdPartyCookies(JSContextRef context, bool value, JSValueRef completionHandler, bool onlyOnSitesWithoutUserInteraction, bool onlyUnpartitionedCookies)
-{
-    auto messageName = "SetStatisticsShouldBlockThirdPartyCookies";
-    if (onlyOnSitesWithoutUserInteraction)
-        messageName = "SetStatisticsShouldBlockThirdPartyCookiesOnSitesWithoutUserInteraction";
-    else if (onlyUnpartitionedCookies)
-        messageName = "SetStatisticsShouldBlockThirdPartyCookiesExceptPartitioned";
-    postMessageWithAsyncReply(context, messageName, adoptWK(WKBooleanCreate(value)), completionHandler);
-}
-
-void TestRunner::setStatisticsFirstPartyWebsiteDataRemovalMode(JSContextRef context, bool value, JSValueRef completionHandler)
-{
-    postMessageWithAsyncReply(context, "SetStatisticsFirstPartyWebsiteDataRemovalMode", adoptWK(WKBooleanCreate(value)), completionHandler);
-}
-
-void TestRunner::statisticsSetToSameSiteStrictCookies(JSContextRef context, JSStringRef hostName, JSValueRef completionHandler)
-{
-    postMessageWithAsyncReply(context, "StatisticsSetToSameSiteStrictCookies", toWK(hostName), completionHandler);
-}
-
-void TestRunner::statisticsSetFirstPartyHostCNAMEDomain(JSContextRef context, JSStringRef firstPartyURLString, JSStringRef cnameURLString, JSValueRef completionHandler)
-{
-    postMessageWithAsyncReply(context, "StatisticsSetFirstPartyHostCNAMEDomain", createWKDictionary({
-        { "FirstPartyURL", toWK(firstPartyURLString) },
-        { "CNAME", toWK(cnameURLString) },
-    }), completionHandler);
-}
-
-void TestRunner::statisticsSetThirdPartyCNAMEDomain(JSContextRef context, JSStringRef cnameURLString, JSValueRef completionHandler)
-{
-    postMessageWithAsyncReply(context, "StatisticsSetThirdPartyCNAMEDomain", toWK(cnameURLString), completionHandler);
-}
-
-void TestRunner::statisticsResetToConsistentState(JSContextRef context, JSValueRef completionHandler)
-{
-    postMessageWithAsyncReply(context, "StatisticsResetToConsistentState", completionHandler);
 }
 
 void TestRunner::installTextDidChangeInTextFieldCallback(JSContextRef context, JSValueRef callback)
@@ -1473,32 +1191,9 @@ void TestRunner::textFieldDidEndEditingCallback()
     callTestRunnerCallback(TextFieldDidEndEditingCallbackID);
 }
 
-void TestRunner::getAllStorageAccessEntries(JSContextRef context, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "GetAllStorageAccessEntries", callback);
-}
-
 void TestRunner::setRequestStorageAccessThrowsExceptionUntilReload(bool enabled)
 {
     postSynchronousPageMessage("SetRequestStorageAccessThrowsExceptionUntilReload", enabled);
-}
-
-void TestRunner::setStorageAccessPermission(JSContextRef context, bool granted, JSStringRef subFrameURL, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "SetStorageAccessPermission", createWKDictionary({
-        { "Value", adoptWK(WKBooleanCreate(granted)) },
-        { "SubFrameURL", toWK(subFrameURL) },
-    }), callback);
-}
-
-void TestRunner::setStorageAccess(JSContextRef context, bool blocked, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "SetStorageAccess", adoptWK(WKBooleanCreate(blocked)), callback);
-}
-
-void TestRunner::loadedSubresourceDomains(JSContextRef context, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "LoadedSubresourceDomains", callback);
 }
 
 void TestRunner::reloadFromOrigin()
@@ -1636,7 +1331,7 @@ void TestRunner::disconnectMockGamepad(unsigned index)
     postSynchronousMessage("DisconnectMockGamepad", index);
 }
 
-void TestRunner::setMockGamepadDetails(unsigned index, JSStringRef gamepadID, JSStringRef mapping, unsigned axisCount, unsigned buttonCount, bool supportsDualRumble)
+void TestRunner::setMockGamepadDetails(unsigned index, JSStringRef gamepadID, JSStringRef mapping, unsigned axisCount, unsigned buttonCount, bool supportsDualRumble, bool wasConnected)
 {
     postSynchronousMessage("SetMockGamepadDetails", createWKDictionary({
         { "GamepadID", toWK(gamepadID) },
@@ -1645,6 +1340,7 @@ void TestRunner::setMockGamepadDetails(unsigned index, JSStringRef gamepadID, JS
         { "AxisCount", adoptWK(WKUInt64Create(axisCount)) },
         { "ButtonCount", adoptWK(WKUInt64Create(buttonCount)) },
         { "SupportsDualRumble", adoptWK(WKBooleanCreate(supportsDualRumble)) },
+        { "WasConnected", adoptWK(WKBooleanCreate(wasConnected)) },
     }));
 }
 
@@ -1676,7 +1372,7 @@ void TestRunner::disconnectMockGamepad(unsigned)
 {
 }
 
-void TestRunner::setMockGamepadDetails(unsigned, JSStringRef, JSStringRef, unsigned, unsigned, bool)
+void TestRunner::setMockGamepadDetails(unsigned, JSStringRef, JSStringRef, unsigned, unsigned, bool, bool)
 {
 }
 
@@ -1743,11 +1439,6 @@ void TestRunner::setOpenPanelFilesMediaIcon(JSContextRef context, JSValueRef dat
     UNUSED_PARAM(context);
     UNUSED_PARAM(data);
 #endif
-}
-
-void TestRunner::removeAllSessionCredentials(JSContextRef context, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "RemoveAllSessionCredentials", callback);
 }
 
 void TestRunner::clearDOMCache(JSStringRef origin)
@@ -2008,39 +1699,10 @@ void TestRunner::setIsMediaKeySystemPermissionGranted(bool granted)
     postSynchronousPageMessage("SetIsMediaKeySystemPermissionGranted", granted);
 }
 
-void TestRunner::takeViewPortSnapshot(JSContextRef context, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "TakeViewPortSnapshot", callback);
-}
-
-void TestRunner::flushConsoleLogs(JSContextRef context, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "FlushConsoleLogs", callback);
-}
-
-void TestRunner::updatePresentation(JSContextRef context, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "UpdatePresentation", callback);
-}
-
-void TestRunner::setPageScaleFactor(JSContextRef context, double scaleFactor, long x, long y, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "SetPageScaleFactor", createWKDictionary({
-        { "scaleFactor", toWK(scaleFactor) },
-        { "x", toWK(static_cast<double>(x)) },
-        { "y", toWK(static_cast<double>(y)) },
-        }), callback);
-}
-
 void TestRunner::generateTestReport(JSContextRef context, JSStringRef message, JSStringRef group)
 {
     auto frame = WKBundleFrameForJavaScriptContext(context);
     _WKBundleFrameGenerateTestReport(frame, toWK(message).get(), toWK(group).get());
-}
-
-void TestRunner::getAndClearReportedWindowProxyAccessDomains(JSContextRef context, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "GetAndClearReportedWindowProxyAccessDomains", callback);
 }
 
 void TestRunner::dumpBackForwardList()
@@ -2051,21 +1713,6 @@ void TestRunner::dumpBackForwardList()
 bool TestRunner::shouldDumpBackForwardListsForAllWindows() const
 {
     return postSynchronousPageMessageReturningBoolean("ShouldDumpBackForwardListsForAllWindows");
-}
-
-void TestRunner::setObscuredContentInsets(JSContextRef context, double top, double right, double bottom, double left, JSValueRef callback)
-{
-    auto insetValues = adoptWK(WKMutableArrayCreate());
-    WKArrayAppendItem(insetValues.get(), adoptWK(WKDoubleCreate(top)).get());
-    WKArrayAppendItem(insetValues.get(), adoptWK(WKDoubleCreate(right)).get());
-    WKArrayAppendItem(insetValues.get(), adoptWK(WKDoubleCreate(bottom)).get());
-    WKArrayAppendItem(insetValues.get(), adoptWK(WKDoubleCreate(left)).get());
-    postMessageWithAsyncReply(context, "SetObscuredContentInsets", insetValues, callback);
-}
-
-void TestRunner::setResourceMonitorList(JSContextRef context, JSStringRef rulesText, JSValueRef callback)
-{
-    postMessageWithAsyncReply(context, "SetResourceMonitorList", toWK(rulesText), callback);
 }
 
 void TestRunner::dumpChildFrameScrollPositions()

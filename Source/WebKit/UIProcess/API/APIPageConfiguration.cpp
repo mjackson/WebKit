@@ -367,14 +367,11 @@ bool PageConfiguration::lockdownModeEnabled() const
     return lockdownModeEnabledBySystem();
 }
 
-void PageConfiguration::setAllowJSHandleInPageContentWorld(bool allow)
+bool PageConfiguration::enhancedSecurityEnabled() const
 {
-    m_data.allowJSHandleInPageContentWorld = allow;
-}
-
-bool PageConfiguration::allowJSHandleInPageContentWorld() const
-{
-    return m_data.allowJSHandleInPageContentWorld;
+    if (RefPtr policies = m_data.defaultWebsitePolicies.getIfExists())
+        return policies->enhancedSecurityEnabled();
+    return false;
 }
 
 void PageConfiguration::setAllowPostingLegacySynchronousMessages(bool allow)

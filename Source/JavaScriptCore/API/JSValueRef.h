@@ -28,8 +28,8 @@
 #ifndef __cplusplus
 #include <stddef.h>
 #endif
-#include <JavaScriptCore/JSBase.h>
-#include <JavaScriptCore/WebKitAvailability.h>
+#include "JSBase.h"
+#include "WebKitAvailability.h"
 
 #ifndef __cplusplus
 #include <stdbool.h>

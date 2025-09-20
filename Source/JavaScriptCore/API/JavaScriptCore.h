@@ -26,13 +26,13 @@
 #ifndef JavaScriptCore_h
 #define JavaScriptCore_h
 
-#include <JavaScriptCore/JavaScript.h>
-#include <JavaScriptCore/JSStringRefCF.h>
+#include "JavaScript.h"
+#include "JSStringRefCF.h"
 
-#include <JavaScriptCore/JSContext.h>
-#include <JavaScriptCore/JSValue.h>
-#include <JavaScriptCore/JSManagedValue.h>
-#include <JavaScriptCore/JSVirtualMachine.h>
-#include <JavaScriptCore/JSExport.h>
+#include "JSContext.h"
+#include "JSValue.h"
+#include "JSManagedValue.h"
+#include "JSVirtualMachine.h"
+#include "JSExport.h"
 
 #endif /* JavaScriptCore_h */

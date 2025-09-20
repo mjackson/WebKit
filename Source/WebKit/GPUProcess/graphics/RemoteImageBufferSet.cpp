@@ -29,6 +29,7 @@
 #include "ImageBufferBackendHandleSharing.h"
 #include "Logging.h"
 #include "RemoteGraphicsContext.h"
+#include "RemoteImageBufferGraphicsContext.h"
 #include "RemoteImageBufferSetMessages.h"
 #include "RemoteImageBufferSetProxyMessages.h"
 #include "RemoteRenderingBackend.h"
@@ -151,10 +152,10 @@ void RemoteImageBufferSet::ensureBufferForDisplay(ImageBufferSetPrepareBufferFor
     if (displayRequirement != SwapBuffersDisplayRequirement::NeedsNoDisplay) {
         RefPtr imageBuffer = m_frontBuffer;
         if (!imageBuffer) {
-            imageBuffer = WebCore::ImageBuffer::create<WebCore::NullImageBufferBackend>({ 0, 0 }, 1, WebCore::DestinationColorSpace::SRGB(), { WebCore::ImageBufferPixelFormat::BGRA8 }, WebCore::RenderingPurpose::Unspecified, { });
+            imageBuffer = WebCore::ImageBuffer::create<WebCore::NullImageBufferBackend>({ 0, 0 }, 1, WebCore::DestinationColorSpace::SRGB(), { WebCore::PixelFormat::BGRA8 }, WebCore::RenderingPurpose::Unspecified, { });
             RELEASE_ASSERT(imageBuffer);
         }
-        m_context = RemoteGraphicsContext::create(*imageBuffer, m_contextIdentifier, m_renderingBackend);
+        m_context = RemoteImageBufferGraphicsContext::create(*imageBuffer, m_contextIdentifier, m_renderingBackend);
     }
 }
 

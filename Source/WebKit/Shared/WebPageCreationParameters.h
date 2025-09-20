@@ -185,7 +185,6 @@ struct WebPageCreationParameters {
 
     bool useDarkAppearance { false };
     bool useElevatedUserInterfaceLevel { false };
-    bool allowJSHandleInPageContentWorld { false };
     bool allowPostingLegacySynchronousMessages { false };
 
 #if PLATFORM(MAC)
@@ -332,6 +331,9 @@ struct WebPageCreationParameters {
     std::optional<WebCore::FrameIdentifier> mainFrameOpenerIdentifier { };
     WebCore::SandboxFlags initialSandboxFlags;
     std::optional<WebCore::WindowFeatures> windowFeatures { };
+    bool statusBarIsVisible;
+    bool menuBarIsVisible;
+    bool toolbarsAreVisible;
 
 #if ENABLE(ADVANCED_PRIVACY_PROTECTIONS)
     Vector<WebCore::LinkDecorationFilteringData> linkDecorationFilteringData { };

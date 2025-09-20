@@ -26,9 +26,9 @@
 #ifndef JSScriptRefPrivate_h
 #define JSScriptRefPrivate_h
 
-#include <JavaScriptCore/JSContextRef.h>
-#include <JavaScriptCore/JSStringRef.h>
-#include <JavaScriptCore/JSValueRef.h>
+#include "JSContextRef.h"
+#include "JSStringRef.h"
+#include "JSValueRef.h"
 
 /*! @typedef JSScriptRef A JavaScript script reference. */
 typedef struct OpaqueJSScript* JSScriptRef;

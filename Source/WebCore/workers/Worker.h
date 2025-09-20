@@ -77,7 +77,8 @@ public:
     String identifier() const { return m_identifier; }
     const String& name() const { return m_options.name; }
 
-    ScriptExecutionContext* scriptExecutionContext() const final { return ActiveDOMObject::scriptExecutionContext(); }
+    ScriptExecutionContext* scriptExecutionContext() const final;
+    using ActiveDOMObject::protectedScriptExecutionContext;
 
     void dispatchEvent(Event&) final;
     void reportError(const String&);

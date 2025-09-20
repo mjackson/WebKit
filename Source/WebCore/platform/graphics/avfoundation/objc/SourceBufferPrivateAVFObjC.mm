@@ -67,6 +67,7 @@
 #import <wtf/WeakPtr.h>
 #import <wtf/WorkQueue.h>
 #import <wtf/cocoa/Entitlements.h>
+#import <wtf/darwin/DispatchExtras.h>
 #import <wtf/text/CString.h>
 
 #pragma mark - Soft Linking
@@ -254,7 +255,7 @@ bool SourceBufferPrivateAVFObjC::isMediaSampleAllowed(const MediaSample& sample)
 
         if (RefPtr textTrack = downcast<InbandTextTrackPrivateAVF>(result->second)) {
             PlatformSample platformSample = sample.platformSample();
-            textTrack->processVTTSample(platformSample.sample.cmSampleBuffer, sample.presentationTime());
+            textTrack->processVTTSample(platformSample.cmSampleBuffer(), sample.presentationTime());
         }
 
         return false;
@@ -364,14 +365,11 @@ void SourceBufferPrivateAVFObjC::didProvideContentKeyRequestInitializationDataFo
 
 bool SourceBufferPrivateAVFObjC::needsVideoLayer() const
 {
-    if (!m_protectedTrackID)
-        return false;
-
     // When video content is protected and keys are assigned through
     // the renderers, decoding content through decompression sessions
     // will fail. In this scenario, ask the player to create a layer
     // instead.
-    return !isEnabledVideoTrackID(*m_protectedTrackID);
+    return m_protectedTrackID && isEnabledVideoTrackID(*m_protectedTrackID);
 }
 
 Ref<MediaPromise> SourceBufferPrivateAVFObjC::appendInternal(Ref<SharedBuffer>&& data)
@@ -622,7 +620,7 @@ void SourceBufferPrivateAVFObjC::trackDidChangeEnabled(AudioTrackPrivate& track,
 #endif
 
             ThreadSafeWeakPtr weakThis { *this };
-            [renderer requestMediaDataWhenReadyOnQueue:dispatch_get_main_queue() usingBlock:^{
+            [renderer requestMediaDataWhenReadyOnQueue:mainDispatchQueueSingleton() usingBlock:^{
                 if (RefPtr protectedThis = weakThis.get())
                     protectedThis->didBecomeReadyForMoreSamples(trackID);
             }];
@@ -989,7 +987,7 @@ void SourceBufferPrivateAVFObjC::enqueueSample(Ref<MediaSampleAVFObjC>&& sample,
 
     PlatformSample platformSample = sample->platformSample();
 
-    CMFormatDescriptionRef formatDescription = PAL::CMSampleBufferGetFormatDescription(platformSample.sample.cmSampleBuffer);
+    CMFormatDescriptionRef formatDescription = PAL::CMSampleBufferGetFormatDescription(platformSample.cmSampleBuffer());
     ASSERT(formatDescription);
     if (!formatDescription) {
         ERROR_LOG(logSiteIdentifier, "Received sample with a null formatDescription. Bailing.");
@@ -1039,7 +1037,7 @@ void SourceBufferPrivateAVFObjC::enqueueSample(Ref<MediaSampleAVFObjC>&& sample,
         attachContentKeyToSampleIfNeeded(sample);
 
         if (auto renderer = audioRendererForTrackID(trackID)) {
-            [renderer enqueueSampleBuffer:platformSample.sample.cmSampleBuffer];
+            [renderer enqueueSampleBuffer:platformSample.cmSampleBuffer()];
             if (RefPtr player = this->player(); player && !sample->isNonDisplaying())
                 player->setHasAvailableAudioSample(renderer.get(), true);
         }
@@ -1049,7 +1047,6 @@ void SourceBufferPrivateAVFObjC::enqueueSample(Ref<MediaSampleAVFObjC>&& sample,
 void SourceBufferPrivateAVFObjC::enqueueSampleBuffer(MediaSampleAVFObjC& sample, const MediaTime& minimumUpcomingTime)
 {
     attachContentKeyToSampleIfNeeded(sample);
-    WebSampleBufferVideoRendering *renderer = nil;
     if (RefPtr videoRenderer = m_videoRenderer) {
         videoRenderer->enqueueSample(sample, minimumUpcomingTime);
 
@@ -1062,41 +1059,13 @@ void SourceBufferPrivateAVFObjC::enqueueSampleBuffer(MediaSampleAVFObjC& sample,
         if (videoRenderer->isUsingDecompressionSession())
             return;
 
-        renderer = videoRenderer->renderer();
-#if HAVE(AVSAMPLEBUFFERDISPLAYLAYER_READYFORDISPLAY)
         if (RetainPtr displayLayer = videoRenderer->as<AVSampleBufferDisplayLayer>()) {
             // FIXME (117934497): Remove staging code once -[AVSampleBufferDisplayLayer isReadyForDisplay] is available in SDKs used by WebKit builders
             if ([displayLayer.get() respondsToSelector:@selector(isReadyForDisplay)])
                 return;
         }
-#endif
     }
-    RefPtr player = this->player();
-    if (!player || player->hasAvailableVideoFrame() || sample.isNonDisplaying())
-        return;
 
-    DEBUG_LOG(LOGIDENTIFIER, "adding buffer attachment");
-
-    [renderer prerollDecodeWithCompletionHandler:[weakThis = ThreadSafeWeakPtr { *this }, logSiteIdentifier = LOGIDENTIFIER] (BOOL success) mutable {
-        callOnMainThread([weakThis = WTFMove(weakThis), logSiteIdentifier, success] () {
-            RefPtr protectedThis = weakThis.get();
-            if (!protectedThis)
-                return;
-
-            if (!success) {
-                ERROR_LOG_WITH_THIS(protectedThis, logSiteIdentifier, "prerollDecodeWithCompletionHandler failed");
-                return;
-            }
-
-            RefPtr videoRenderer = protectedThis->m_videoRenderer;
-            if (!videoRenderer) {
-                ERROR_LOG_WITH_THIS(protectedThis, logSiteIdentifier, "prerollDecodeWithCompletionHandler called after renderer destroyed");
-                return;
-            }
-
-            protectedThis->videoRendererReadyForDisplayChanged(videoRenderer->renderer(), true);
-        });
-    }];
 }
 
 void SourceBufferPrivateAVFObjC::attachContentKeyToSampleIfNeeded(const MediaSampleAVFObjC& sample)
@@ -1188,7 +1157,7 @@ void SourceBufferPrivateAVFObjC::notifyClientWhenReadyForMoreSamples(TrackID tra
         }
     } else if (auto renderer = audioRendererForTrackID(trackID)) {
         ThreadSafeWeakPtr weakThis { *this };
-        [renderer requestMediaDataWhenReadyOnQueue:dispatch_get_main_queue() usingBlock:^{
+        [renderer requestMediaDataWhenReadyOnQueue:mainDispatchQueueSingleton() usingBlock:^{
             if (RefPtr protectedThis = weakThis.get())
                 protectedThis->didBecomeReadyForMoreSamples(trackID);
         }];

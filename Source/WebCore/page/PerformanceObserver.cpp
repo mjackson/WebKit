@@ -26,6 +26,7 @@
 #include "config.h"
 #include "PerformanceObserver.h"
 
+#include "ContextDestructionObserverInlines.h"
 #include "Document.h"
 #include "InspectorInstrumentation.h"
 #include "LocalDOMWindow.h"
@@ -110,8 +111,9 @@ ExceptionOr<void> PerformanceObserver::observe(Init&& init)
         protectedPerformance()->registerPerformanceObserver(*this);
         m_registered = true;
     }
-    if (isBuffered)
-        deliver();
+
+    if (isBuffered && m_entriesToDeliver.size())
+        protectedPerformance()->scheduleTaskIfNeeded();
 
     return { };
 }
@@ -141,7 +143,7 @@ void PerformanceObserver::deliver()
     if (m_entriesToDeliver.isEmpty())
         return;
 
-    auto* context = m_callback->scriptExecutionContext();
+    RefPtr context = m_callback->scriptExecutionContext();
     if (!context)
         return;
 
@@ -162,6 +164,9 @@ Vector<String> PerformanceObserver::supportedEntryTypes(ScriptExecutionContext& 
         entryTypes.append("event"_s);
         entryTypes.append("first-input"_s);
     }
+
+    if (document && document->supportsLargestContentfulPaint())
+        entryTypes.append("largest-contentful-paint"_s);
 
     entryTypes.append("mark"_s);
     entryTypes.append("measure"_s);

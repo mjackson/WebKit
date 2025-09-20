@@ -35,6 +35,7 @@
 #include <WebCore/StyleHyphenateCharacter.h>
 #include <WebCore/StyleHyphenateLimitEdge.h>
 #include <WebCore/StyleHyphenateLimitLines.h>
+#include <WebCore/StyleImageOrNone.h>
 #include <WebCore/StyleLineBoxContain.h>
 #include <WebCore/StyleListStyleType.h>
 #include <WebCore/StyleOrphans.h>
@@ -78,7 +79,7 @@ class TextStream;
 
 namespace WebCore {
 
-class StyleFilterData;
+class StyleAppleColorFilterData;
 class StyleImage;
 
 // This struct is for rarely used inherited CSS3, CSS2, and WebKit-specific properties.
@@ -102,7 +103,7 @@ public:
 
     float usedZoom;
 
-    RefPtr<StyleImage> listStyleImage;
+    Style::ImageOrNone listStyleImage;
 
     Style::WebkitTextStrokeWidth textStrokeWidth;
     Style::Color textStrokeColor;
@@ -215,7 +216,7 @@ public:
 
     Style::Quotes quotes;
 
-    DataRef<StyleFilterData> appleColorFilter;
+    DataRef<StyleAppleColorFilterData> appleColorFilter;
 
     Style::WebkitLineGrid lineGrid;
     TabSize tabSize;

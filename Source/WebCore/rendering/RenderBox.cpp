@@ -98,7 +98,6 @@
 #include "Settings.h"
 #include "StyleBoxShadow.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
-#include "StyleReflection.h"
 #include "StyleScrollSnapPoints.h"
 #include "TransformOperationData.h"
 #include "TransformState.h"
@@ -544,7 +543,7 @@ void RenderBox::updateFromStyle()
         }
     }
     setHasTransformRelatedProperty(computeHasTransformRelatedProperty(styleToUse));
-    setHasReflection(styleToUse.boxReflect());
+    setHasReflection(!styleToUse.boxReflect().isNone());
 }
 
 bool RenderBox::computeHasTransformRelatedProperty(const RenderStyle& styleToUse) const
@@ -943,21 +942,23 @@ void RenderBox::addFocusRingRects(Vector<LayoutRect>& rects, const LayoutPoint& 
 
 int RenderBox::reflectionOffset() const
 {
-    if (!style().boxReflect())
+    auto reflection = style().boxReflect().tryReflection();
+    if (!reflection)
         return 0;
-    if (style().boxReflect()->direction() == ReflectionDirection::Left || style().boxReflect()->direction() == ReflectionDirection::Right)
-        return valueForLength(style().boxReflect()->offset(), borderBoxRect().width());
-    return valueForLength(style().boxReflect()->offset(), borderBoxRect().height());
+    if (reflection->direction == ReflectionDirection::Left || reflection->direction == ReflectionDirection::Right)
+        return Style::evaluate(reflection->offset, borderBoxRect().width());
+    return Style::evaluate(reflection->offset, borderBoxRect().height());
 }
 
 LayoutRect RenderBox::reflectedRect(const LayoutRect& r) const
 {
-    if (!style().boxReflect())
+    auto reflection = style().boxReflect().tryReflection();
+    if (!reflection)
         return LayoutRect();
 
     LayoutRect box = borderBoxRect();
     LayoutRect result = r;
-    switch (style().boxReflect()->direction()) {
+    switch (reflection->direction) {
     case ReflectionDirection::Below:
         result.setY(box.maxY() + reflectionOffset() + (box.maxY() - r.maxY()));
         break;
@@ -1254,6 +1255,19 @@ ScrollPosition RenderBox::scrollPosition() const
     return scrollableArea->scrollPosition();
 }
 
+ScrollPosition RenderBox::constrainedScrollPosition() const
+{
+    if (!hasPotentiallyScrollableOverflow())
+        return { 0, 0 };
+
+    ASSERT(hasLayer());
+    auto* scrollableArea = layer()->scrollableArea();
+    if (!scrollableArea)
+        return { 0, 0 };
+
+    return scrollableArea->constrainedScrollPosition(scrollableArea->scrollPosition());
+}
+
 LayoutSize RenderBox::cachedSizeForOverflowClip() const
 {
     ASSERT(hasNonVisibleOverflow());
@@ -1265,12 +1279,12 @@ bool RenderBox::applyCachedClipAndScrollPosition(RepaintRects& rects, const Rend
 {
     flipForWritingMode(rects);
 
-    if (context.options.contains(VisibleRectContextOption::ApplyCompositedContainerScrolls) || this != container || !usesCompositedScrolling())
+    if (context.options.contains(VisibleRectContext::Option::ApplyCompositedContainerScrolls) || this != container || !usesCompositedScrolling())
         rects.moveBy(-scrollPosition()); // For overflow:auto/scroll/hidden.
 
     // Do not clip scroll layer contents to reduce the number of repaints while scrolling.
-    if ((!context.options.contains(VisibleRectContextOption::ApplyCompositedClips) && usesCompositedScrolling())
-        || (!context.options.contains(VisibleRectContextOption::ApplyContainerClip) && this == container)) {
+    if ((!context.options.contains(VisibleRectContext::Option::ApplyCompositedClips) && usesCompositedScrolling())
+        || (!context.options.contains(VisibleRectContext::Option::ApplyContainerClip) && this == container)) {
         flipForWritingMode(rects);
         return true;
     }
@@ -1288,20 +1302,18 @@ bool RenderBox::applyCachedClipAndScrollPosition(RepaintRects& rects, const Rend
         auto borderWidths = this->borderWidths();
         clipRect.contract(borderWidths);
 
-        auto scrollMargin = context.scrollMargin.value();
-
         auto scrollMarginEdges = LayoutBoxExtent {
-            valueForLength(scrollMargin.top(), clipRect.height()),
-            valueForLength(scrollMargin.right(), clipRect.width()),
-            valueForLength(scrollMargin.bottom(), clipRect.height()),
-            valueForLength(scrollMargin.left(), clipRect.width())
+            Style::evaluate(context.scrollMargin->top(), clipRect.height()),
+            Style::evaluate(context.scrollMargin->right(), clipRect.width()),
+            Style::evaluate(context.scrollMargin->bottom(), clipRect.height()),
+            Style::evaluate(context.scrollMargin->left(), clipRect.width())
         };
 
         clipRect.expand(scrollMarginEdges);
     }
 
     bool intersects;
-    if (context.options.contains(VisibleRectContextOption::UseEdgeInclusiveIntersection))
+    if (context.options.contains(VisibleRectContext::Option::UseEdgeInclusiveIntersection))
         intersects = rects.edgeInclusiveIntersect(clipRect);
     else
         intersects = rects.intersect(clipRect);
@@ -2555,7 +2567,7 @@ auto RenderBox::computeVisibleRectsInContainer(const RepaintRects& rects, const 
     // physical coordinate space of the container.
     const RenderStyle& styleToUse = style();
     // Paint offset cache is only valid for root-relative, non-fixed position repainting
-    if (view().frameView().layoutContext().isPaintOffsetCacheEnabled() && !container && styleToUse.position() != PositionType::Fixed && !context.options.contains(VisibleRectContextOption::UseEdgeInclusiveIntersection))
+    if (view().frameView().layoutContext().isPaintOffsetCacheEnabled() && !container && styleToUse.position() != PositionType::Fixed && !context.options.contains(VisibleRectContext::Option::UseEdgeInclusiveIntersection))
         return computeVisibleRectsUsingPaintOffset(rects);
 
     auto adjustedRects = rects;
@@ -2632,7 +2644,7 @@ auto RenderBox::computeVisibleRectsInContainer(const RepaintRects& rects, const 
     if (localContainer->hasNonVisibleOverflow()) {
         bool isEmpty = !downcast<RenderLayerModelObject>(*localContainer).applyCachedClipAndScrollPosition(adjustedRects, container, context);
         if (isEmpty) {
-            if (context.options.contains(VisibleRectContextOption::UseEdgeInclusiveIntersection))
+            if (context.options.contains(VisibleRectContext::Option::UseEdgeInclusiveIntersection))
                 return std::nullopt;
             return adjustedRects;
         }
@@ -4082,7 +4094,8 @@ template<typename SizeType> LayoutUnit RenderBox::computeReplacedLogicalHeightUs
             && !(container->style().top().isAuto() || container->style().bottom().isAuto())) {
             auto& block = downcast<RenderBlock>(*container);
             auto computedValues = block.computeLogicalHeight(block.logicalHeight(), 0);
-            LayoutUnit newContentHeight = computedValues.m_extent - block.borderAndPaddingLogicalHeight() - block.scrollbarLogicalHeight();
+            LayoutUnit borderPaddingAdjustment = isOutOfFlowPositioned() ? block.borderLogicalHeight() : block.borderAndPaddingLogicalHeight();
+            LayoutUnit newContentHeight = computedValues.m_extent - block.scrollbarLogicalHeight() - borderPaddingAdjustment;
             return adjustContentBoxLogicalHeightForBoxSizing(Style::evaluate(logicalHeight, newContentHeight));
         }
         
@@ -5062,7 +5075,7 @@ bool RenderBox::isUnsplittableForPagination() const
         || (is<HTMLFormControlElement>(element()) && !is<HTMLFieldSetElement>(element()))
         || hasUnsplittableScrollingOverflow()
         || (parent() && isWritingModeRoot())
-        || (isFloating() && style().pseudoElementType() == PseudoId::FirstLetter && style().initialLetterDrop() > 0)
+        || (isFloating() && style().pseudoElementType() == PseudoId::FirstLetter && style().initialLetter().drop() > 0)
         || shouldApplySizeContainment();
 }
 

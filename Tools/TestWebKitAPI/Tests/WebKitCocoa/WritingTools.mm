@@ -158,7 +158,7 @@ using PlatformTextPlaceholder = NSTextPlaceholder;
 
 #if PLATFORM(MAC)
 #define FORCE_WRITING_TOOLS_AVAILABLE() \
-ClassMethodSwizzler availabilitySwizzler(PAL::getWTWritingToolsViewControllerClass(), @selector(isAvailable), imp_implementationWithBlock(^{ \
+ClassMethodSwizzler availabilitySwizzler(PAL::getWTWritingToolsViewControllerClassSingleton(), @selector(isAvailable), imp_implementationWithBlock(^{ \
     return YES; \
 }));
 #else
@@ -1707,7 +1707,9 @@ TEST(WritingTools, CompositionWithList)
         TestWebKitAPI::Util::runFor(0.1_s);
 
         [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 27) inContext:contexts.firstObject finished:YES];
-        [webView waitForNextPresentationUpdate];
+
+        // FIXME: Remove this, and all other delays, once there is testing infrastructure in place to be able to wait for animations to finish.
+        TestWebKitAPI::Util::runFor(2.0_s);
 
         EXPECT_EQ([webView stringByEvaluatingJavaScript:@"document.getElementsByTagName('li').length"].intValue, 3);
         EXPECT_EQ([webView stringByEvaluatingJavaScript:@"document.getElementsByTagName('ul').length"].intValue, 1);
@@ -1737,15 +1739,6 @@ TEST(WritingTools, CompositionWithTextAttachment)
     auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p>Sunset in Cupertino</p></body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
-    auto waitForValue = [webView]() {
-        do {
-            if ([webView stringByEvaluatingJavaScript:@"document.querySelector('img').complete"].boolValue)
-                break;
-
-            TestWebKitAPI::Util::runFor(0.1_s);
-        } while (true);
-    };
-
     __block bool finished = false;
     [[webView writingToolsDelegate] willBeginWritingToolsSession:session.get() requestContexts:^(NSArray<WTContext *> *contexts) {
         [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionCompositionRestart];
@@ -1756,10 +1749,11 @@ TEST(WritingTools, CompositionWithTextAttachment)
         RetainPtr attributedText = [NSAttributedString attributedStringWithAttachment:attachment.get()];
 
         [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 19) inContext:contexts.firstObject finished:NO];
+        TestWebKitAPI::Util::runFor(0.1_s);
 
         [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 19) inContext:contexts.firstObject finished:YES];
-        TestWebKitAPI::Util::runFor(0.1_s); // this is needed to let the information load at least a bit or we can fail on a javascript issue.
-        waitForValue();
+        // FIXME: Remove this, and all other delays, once there is testing infrastructure in place to be able to wait for animations to finish.
+        TestWebKitAPI::Util::runFor(2.0_s);
 
         EXPECT_TRUE([webView stringByEvaluatingJavaScript:@"document.querySelector('img').complete"].boolValue);
         EXPECT_WK_STREQ([webView stringByEvaluatingJavaScript:@"document.querySelector('img').width"], "200");
@@ -2654,7 +2648,7 @@ TEST(WritingTools, APIWithBehaviorNone)
     // If `CocoaWritingToolsBehaviorNone`, there should be no affordance, no context menu item, and no inline editing support.
 
 #if PLATFORM(MAC)
-    InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClass(), @selector(scheduleShowAffordanceForSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, NSRect rect, NSView *view, id delegate) {
+    InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClassSingleton(), @selector(scheduleShowAffordanceForSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, NSRect rect, NSView *view, id delegate) {
         didCallScheduleShowAffordanceForSelectionRect = true;
     }));
 #endif
@@ -2704,7 +2698,7 @@ TEST(WritingTools, APIWithBehaviorDefault)
     FORCE_WRITING_TOOLS_AVAILABLE()
 
 #if PLATFORM(MAC)
-    InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClass(), @selector(scheduleShowAffordanceForSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, NSRect rect, NSView *view, id delegate) {
+    InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClassSingleton(), @selector(scheduleShowAffordanceForSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, NSRect rect, NSView *view, id delegate) {
         didCallScheduleShowAffordanceForSelectionRect = true;
     }));
 #endif
@@ -2754,7 +2748,7 @@ TEST(WritingTools, APIWithBehaviorComplete)
     FORCE_WRITING_TOOLS_AVAILABLE()
 
 #if PLATFORM(MAC)
-    InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClass(), @selector(scheduleShowAffordanceForSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, NSRect rect, NSView *view, id delegate) {
+    InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClassSingleton(), @selector(scheduleShowAffordanceForSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, NSRect rect, NSView *view, id delegate) {
         didCallScheduleShowAffordanceForSelectionRect = true;
     }));
 #endif
@@ -2933,7 +2927,7 @@ TEST(WritingTools, ShowAffordance)
 {
     FORCE_WRITING_TOOLS_AVAILABLE()
 
-    InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClass(), @selector(scheduleShowAffordanceForSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, NSRect rect, NSView *view, id delegate) {
+    InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClassSingleton(), @selector(scheduleShowAffordanceForSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, NSRect rect, NSView *view, id delegate) {
         didCallScheduleShowAffordanceForSelectionRect = true;
     }));
 
@@ -2973,7 +2967,7 @@ TEST(WritingTools, DISABLED_ShowAffordanceForMultipleLines)
 
     __block int count = 0;
 
-    InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClass(), @selector(scheduleShowAffordanceForSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, NSRect rect, NSView *view, id delegate) {
+    InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClassSingleton(), @selector(scheduleShowAffordanceForSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, NSRect rect, NSView *view, id delegate) {
 
         auto actualRect = WebCore::IntRect { rect };
         auto expectedRect = expectedRects[count];
@@ -2998,7 +2992,7 @@ TEST(WritingTools, ShowPanelWithNoSelection)
     __block WTRequestedTool requestedTool = WTRequestedToolIndex;
     __block NSRect selectionRect = NSZeroRect;
 
-    InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClass(), @selector(showTool:forSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, WTRequestedTool tool, NSRect rect, NSView *view, id delegate) {
+    InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClassSingleton(), @selector(showTool:forSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, WTRequestedTool tool, NSRect rect, NSView *view, id delegate) {
         requestedTool = tool;
         selectionRect = rect;
         done = true;
@@ -3023,7 +3017,7 @@ TEST(WritingTools, ShowPanelWithCaretSelection)
     __block WTRequestedTool requestedTool = WTRequestedToolIndex;
     __block NSRect selectionRect = NSZeroRect;
 
-    InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClass(), @selector(showTool:forSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, WTRequestedTool tool, NSRect rect, NSView *view, id delegate) {
+    InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClassSingleton(), @selector(showTool:forSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, WTRequestedTool tool, NSRect rect, NSView *view, id delegate) {
         requestedTool = tool;
         selectionRect = rect;
         done = true;
@@ -3064,7 +3058,7 @@ TEST(WritingTools, ShowPanelWithRangedSelection)
     __block WTRequestedTool requestedTool = WTRequestedToolIndex;
     __block NSRect selectionRect = NSZeroRect;
 
-    InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClass(), @selector(showTool:forSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, WTRequestedTool tool, NSRect rect, NSView *view, id delegate) {
+    InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClassSingleton(), @selector(showTool:forSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, WTRequestedTool tool, NSRect rect, NSView *view, id delegate) {
         requestedTool = tool;
         selectionRect = rect;
         done = true;
@@ -3091,7 +3085,7 @@ TEST(WritingTools, ShowToolWithRangedSelection)
     __block WTRequestedTool requestedTool = WTRequestedToolIndex;
     __block NSRect selectionRect = NSZeroRect;
 
-    InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClass(), @selector(showTool:forSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, WTRequestedTool tool, NSRect rect, NSView *view, id delegate) {
+    InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClassSingleton(), @selector(showTool:forSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, WTRequestedTool tool, NSRect rect, NSView *view, id delegate) {
         requestedTool = tool;
         selectionRect = rect;
         done = true;
@@ -3120,7 +3114,7 @@ TEST(WritingTools, ShowInvalidToolWithRangedSelection)
     __block WTRequestedTool requestedTool = WTRequestedToolIndex;
     __block NSRect selectionRect = NSZeroRect;
 
-    InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClass(), @selector(showTool:forSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, WTRequestedTool tool, NSRect rect, NSView *view, id delegate) {
+    InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClassSingleton(), @selector(showTool:forSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, WTRequestedTool tool, NSRect rect, NSView *view, id delegate) {
         requestedTool = tool;
         selectionRect = rect;
         done = true;
@@ -4373,17 +4367,17 @@ TEST(WritingToolsContextGeneration, ContextWithNestedLists)
     DecomposedAttributedText expected { {
         DecomposedAttributedText::OrderedList { {
             DecomposedAttributedText::UnorderedList { DecomposedAttributedText::ListMarker::Circle, {
-                "T"_s,
+                "T\n"_s,
                 DecomposedAttributedText::OrderedList { {
-                    "I\nJ\nK"_s
+                    "I\nJ\nK\n"_s
                 } },
-                "U"_s,
+                "U\n"_s,
             } },
-            "B"_s,
+            "B\n"_s,
             DecomposedAttributedText::OrderedList { {
-                "V\nW"_s,
+                "V\nW\n"_s,
             } },
-            "C"_s,
+            "C\n"_s,
         } },
         "Z"_s,
     } };
@@ -4407,11 +4401,11 @@ TEST(WritingToolsContextGeneration, ContextWithDiscontiguousLists)
     )"""_s;
 
     DecomposedAttributedText expected { {
-        "Hello"_s,
+        "Hello\n"_s,
         DecomposedAttributedText::OrderedList { {
-            "A\nB\nC"_s,
+            "A\nB\nC\n"_s,
         } },
-        "World"_s,
+        "World\n"_s,
         DecomposedAttributedText::UnorderedList { {
             "X\nY\nZ"_s,
         } },
@@ -4457,15 +4451,15 @@ TEST(WritingToolsContextGeneration, ContextWithStyledContentChildrenInList)
 
     DecomposedAttributedText expected { {
         DecomposedAttributedText::UnorderedList { {
-            "The"_s,
+            "The "_s,
             DecomposedAttributedText::Italic { {
                 "quick"_s,
             } },
-            "brown fox\njumped"_s,
+            "\nbrown fox\njumped "_s,
             DecomposedAttributedText::Bold { {
                 "over"_s,
             } },
-            "the dog"_s,
+            " the dog"_s,
         } },
     } };
 

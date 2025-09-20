@@ -3199,31 +3199,47 @@ void Session::takeScreenshot(std::optional<String> elementID, std::optional<bool
 void Session::dispatchBidiMessage(RefPtr<JSON::Object>&& message)
 {
     // Validate bidi message
+    if (!message) {
+        RELEASE_LOG(WebDriverBiDi, "Session::dispatchBidiMessage: Invalid message parameter. Ignoring.");
+        return;
+    }
+
     auto params = message->getObject("params"_s);
+    RefPtr<WebSocketServer> server = m_bidiServer.get();
+    if (!server) {
+        RELEASE_LOG(WebDriverBiDi, "Session::dispatchBidiMessage: No BiDi server associated with the session.");
+        return;
+    }
     if (!params) {
         RELEASE_LOG(WebDriverBiDi, "Session::dispatchBidiMessage: Missing 'params' field in payload");
-        m_bidiServer->sendErrorResponse(this->id(), std::nullopt, CommandResult::ErrorCode::UnknownError, "Received malformed bidi message from browser: Missing 'params' field."_s);
+        server->sendErrorResponse(this->id(), std::nullopt, CommandResult::ErrorCode::UnknownError, "Received malformed bidi message from browser: Missing 'params' field."_s);
         return;
     }
 
     auto bidiMessageString = params->getString("message"_s);
     if (!bidiMessageString) {
         RELEASE_LOG(WebDriverBiDi, "Session::dispatchBidiMessage: Missing actual bidi message in payload");
-        m_bidiServer->sendErrorResponse(this->id(), std::nullopt, CommandResult::ErrorCode::UnknownError, "Received malformed bidi message from browser: Missing 'message' field."_s);
+        server->sendErrorResponse(this->id(), std::nullopt, CommandResult::ErrorCode::UnknownError, "Received malformed bidi message from browser: Missing 'message' field."_s);
         return;
     }
 
     auto bidiMessageValue = JSON::Value::parseJSON(bidiMessageString);
     if (!bidiMessageValue) {
         RELEASE_LOG(WebDriverBiDi, "Session::dispatchBidiMessage: Bidi message with invalid JSON.");
-        m_bidiServer->sendErrorResponse(this->id(), std::nullopt, CommandResult::ErrorCode::UnknownError, "Received malformed bidi message from browser: Invalid JSON message."_s);
+        server->sendErrorResponse(this->id(), std::nullopt, CommandResult::ErrorCode::UnknownError, "Received malformed bidi message from browser: Invalid JSON message."_s);
         return;
     }
 
-    auto bidiMessage = bidiMessageValue->asObject();
     LOG(WebDriverBiDi, "Session::dispatchBidiMessage: received bidi message %s", bidiMessageValue->toJSONString().utf8().data());
+    auto bidiMessage = bidiMessageValue->asObject();
+    if (!bidiMessage) {
+        RELEASE_LOG(WebDriverBiDi, "Session::dispatchBidiMessage: Bidi message is not an object.");
+        server->sendErrorResponse(this->id(), std::nullopt, CommandResult::ErrorCode::UnknownError, "Received malformed bidi message from browser: Not an object."_s);
+        return;
+    }
 
-    // FIXME: Move event subscription into the browser
+    // FIXME: Move event subscription into the browser, so we can just forward the events to the client
+    // https://bugs.webkit.org/show_bug.cgi?id=295497
     if (bidiMessage->getString("type"_s) == "event"_s) {
         if (bidiMessage->size() < 3 || (bidiMessage->find("method"_s) == bidiMessage->end()) || (bidiMessage->find("params"_s) == bidiMessage->end())) {
             RELEASE_LOG(WebDriverBiDi, "Session::dispatchBidiMessage: Malformed bidi event: %s", bidiMessageValue->toJSONString().utf8().data());
@@ -3231,25 +3247,28 @@ void Session::dispatchBidiMessage(RefPtr<JSON::Object>&& message)
         }
 
         auto bidiMethod = bidiMessage->getString("method"_s);
-        if (!eventIsEnabled(bidiMethod, { uncheckedTopLevelBrowsingContext() })) {
+        if (!eventIsEnabled(bidiMethod, { })) {
             RELEASE_LOG(WebDriverBiDi, "Message %s is an unknown event or not enabled, ignoring.", bidiMethod.utf8().data());
             return;
         }
         if (bidiMethod == "log.entryAdded"_s)
-            doLogEntryAdded(WTFMove(bidiMessage));
+            bidiMessage = processLogEntryAdded(WTFMove(bidiMessage));
+
+        if (bidiMessage)
+            server->sendMessage(this->id(), bidiMessage->toJSONString());
         return;
     }
 
-    m_bidiServer->sendMessage(this->id(), bidiMessage->toJSONString());
+    server->sendMessage(this->id(), bidiMessage->toJSONString());
 }
 
-void Session::doLogEntryAdded(RefPtr<JSON::Object>&& message)
+RefPtr<JSON::Object> Session::processLogEntryAdded(RefPtr<JSON::Object>&& message)
 {
     // https://w3c.github.io/webdriver-bidi/#event-log-entryAdded
     auto params = message->getObject("params"_s);
     if (!params) {
         RELEASE_LOG(WebDriverBiDi, "Log event without parameter information, ignoring.");
-        return;
+        return nullptr;
     }
 
     auto method = params->getString("method"_s);
@@ -3306,19 +3325,14 @@ void Session::doLogEntryAdded(RefPtr<JSON::Object>&& message)
 
     auto body = JSON::Object::create();
     body->setObject("params"_s, WTFMove(entry));
+    body->setString("type"_s, "event"_s);
+    body->setString("method"_s, "log.entryAdded"_s);
 
-    emitEvent("log.entryAdded"_s, WTFMove(body));
 
     // TODO Implement event buffering, to save the log entries for later emission when the user subscribes to it
     // https://bugs.webkit.org/show_bug.cgi?id=282980
-}
 
-void Session::emitEvent(const String& eventName, RefPtr<JSON::Object>&& body)
-{
-    // https://w3c.github.io/webdriver-bidi/#emit-an-event
-    body->setString("type"_s, "event"_s);
-    body->setString("method"_s, eventName);
-    m_bidiServer->sendMessage(this->id(), body->toJSONString());
+    return body;
 }
 
 bool Session::eventIsEnabled(const String& eventName, const Vector<String>&)

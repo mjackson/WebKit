@@ -30,7 +30,6 @@
 #include "ScaleTransformOperation.h"
 #include "StyleImage.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
-#include "StyleReflection.h"
 #include "StyleResolver.h"
 #include "StyleTextEdge.h"
 #include <wtf/PointerComparison.h>
@@ -61,9 +60,9 @@ StyleRareNonInheritedData::StyleRareNonInheritedData()
     // scrollPadding
     // counterDirectives
     , willChange(RenderStyle::initialWillChange())
-    // boxReflect
+    , boxReflect(RenderStyle::initialBoxReflect())
     , maskBorder(RenderStyle::initialMaskBorder())
-    // pageSize
+    , pageSize(RenderStyle::initialPageSize())
     , shapeOutside(RenderStyle::initialShapeOutside())
     , shapeMargin(RenderStyle::initialShapeMargin())
     , shapeImageThreshold(RenderStyle::initialShapeImageThreshold())
@@ -112,7 +111,6 @@ StyleRareNonInheritedData::StyleRareNonInheritedData()
     , blockStepRound(static_cast<unsigned>(RenderStyle::initialBlockStepRound()))
     , overscrollBehaviorX(static_cast<unsigned>(RenderStyle::initialOverscrollBehaviorX()))
     , overscrollBehaviorY(static_cast<unsigned>(RenderStyle::initialOverscrollBehaviorY()))
-    , pageSizeType(static_cast<unsigned>(PageSizeType::Auto))
     , transformStyle3D(static_cast<unsigned>(RenderStyle::initialTransformStyle3D()))
     , transformStyleForcedToFlat(false)
     , backfaceVisibility(static_cast<unsigned>(RenderStyle::initialBackfaceVisibility()))
@@ -219,7 +217,6 @@ inline StyleRareNonInheritedData::StyleRareNonInheritedData(const StyleRareNonIn
     , blockStepRound(o.blockStepRound)
     , overscrollBehaviorX(o.overscrollBehaviorX)
     , overscrollBehaviorY(o.overscrollBehaviorY)
-    , pageSizeType(o.pageSizeType)
     , transformStyle3D(o.transformStyle3D)
     , transformStyleForcedToFlat(o.transformStyleForcedToFlat)
     , backfaceVisibility(o.backfaceVisibility)
@@ -282,7 +279,7 @@ bool StyleRareNonInheritedData::operator==(const StyleRareNonInheritedData& o) c
         && scrollPadding == o.scrollPadding
         && counterDirectives == o.counterDirectives
         && arePointingToEqualData(willChange, o.willChange)
-        && arePointingToEqualData(boxReflect, o.boxReflect)
+        && boxReflect == o.boxReflect
         && maskBorder == o.maskBorder
         && pageSize == o.pageSize
         && shapeOutside == o.shapeOutside
@@ -331,7 +328,6 @@ bool StyleRareNonInheritedData::operator==(const StyleRareNonInheritedData& o) c
         && blockStepRound == o.blockStepRound
         && overscrollBehaviorX == o.overscrollBehaviorX
         && overscrollBehaviorY == o.overscrollBehaviorY
-        && pageSizeType == o.pageSizeType
         && transformStyle3D == o.transformStyle3D
         && transformStyleForcedToFlat == o.transformStyleForcedToFlat
         && backfaceVisibility == o.backfaceVisibility
@@ -387,7 +383,7 @@ OptionSet<Containment> StyleRareNonInheritedData::usedContain() const
 
 bool StyleRareNonInheritedData::hasBackdropFilters() const
 {
-    return !backdropFilter->operations.isEmpty();
+    return !backdropFilter->filter.isNone();
 }
 
 #if !LOG_DISABLED
@@ -495,8 +491,6 @@ void StyleRareNonInheritedData::dumpDifferences(TextStream& ts, const StyleRareN
 
     LOG_IF_DIFFERENT_WITH_CAST(OverscrollBehavior, overscrollBehaviorX);
     LOG_IF_DIFFERENT_WITH_CAST(OverscrollBehavior, overscrollBehaviorY);
-
-    LOG_IF_DIFFERENT_WITH_CAST(PageSizeType, pageSizeType);
 
     LOG_IF_DIFFERENT_WITH_CAST(TransformStyle3D, transformStyle3D);
     LOG_IF_DIFFERENT_WITH_CAST(bool, transformStyleForcedToFlat);

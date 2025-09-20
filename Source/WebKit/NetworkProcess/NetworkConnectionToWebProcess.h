@@ -124,7 +124,7 @@ struct NetworkResourceLoadParameters;
 struct WebTransportSessionIdentifierType;
 struct MessageBatchIdentifierType;
 
-using WebTransportSessionIdentifier = ObjectIdentifier<WebTransportSessionIdentifierType>;
+using WebTransportSessionIdentifier = AtomicObjectIdentifier<WebTransportSessionIdentifierType>;
 using MessageBatchIdentifier = ObjectIdentifier<MessageBatchIdentifierType>;
 
 enum class PrivateRelayed : bool;
@@ -148,16 +148,12 @@ class NetworkConnectionToWebProcess final
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(NetworkConnectionToWebProcess);
 public:
     USING_CAN_MAKE_WEAKPTR(MessageReceiver);
+    USING_CAN_MAKE_CHECKEDPTR(IPC::Connection::Client);
 
     using RegistrableDomain = WebCore::RegistrableDomain;
 
     static Ref<NetworkConnectionToWebProcess> create(NetworkProcess&, WebCore::ProcessIdentifier, PAL::SessionID, NetworkProcessConnectionParameters&&, IPC::Connection::Identifier&&);
     virtual ~NetworkConnectionToWebProcess();
-
-    using IPC::Connection::Client::checkedPtrCount;
-    using IPC::Connection::Client::checkedPtrCountWithoutThreadCheck;
-    using IPC::Connection::Client::incrementCheckedPtrCount;
-    using IPC::Connection::Client::decrementCheckedPtrCount;
 
     void ref() const final { RefCounted::ref(); }
     void deref() const final { RefCounted::deref(); }
@@ -396,7 +392,7 @@ private:
     void resourceLoadStatisticsUpdated(Vector<WebCore::ResourceLoadStatistics>&&, CompletionHandler<void()>&&);
     void hasStorageAccess(RegistrableDomain&& subFrameDomain, RegistrableDomain&& topFrameDomain, WebCore::FrameIdentifier, WebCore::PageIdentifier, CompletionHandler<void(bool)>&&);
     void requestStorageAccess(RegistrableDomain&& subFrameDomain, RegistrableDomain&& topFrameDomain, WebCore::FrameIdentifier, WebCore::PageIdentifier, WebPageProxyIdentifier, WebCore::StorageAccessScope, WebCore::HasOrShouldIgnoreUserGesture, CompletionHandler<void(WebCore::RequestStorageAccessResult)>&&);
-    void queryStorageAccessPermission(RegistrableDomain&& subFrameDomain, RegistrableDomain&& topFrameDomain, CompletionHandler<void(WebCore::PermissionState)>&&);
+    void queryStorageAccessPermission(RegistrableDomain&& subFrameDomain, RegistrableDomain&& topFrameDomain, std::optional<WebPageProxyIdentifier>, CompletionHandler<void(WebCore::PermissionState)>&&);
     void storageAccessQuirkForTopFrameDomain(URL&& topFrameURL, CompletionHandler<void(Vector<RegistrableDomain>)>&&);
     void requestStorageAccessUnderOpener(WebCore::RegistrableDomain&& domainInNeedOfStorageAccess, WebCore::PageIdentifier openerPageID, WebCore::RegistrableDomain&& openerDomain);
 
@@ -435,7 +431,7 @@ private:
     void navigatorGetPushPermissionState(URL&& scopeURL, CompletionHandler<void(Expected<uint8_t, WebCore::ExceptionData>&&)>&&);
 #endif
 
-    void initializeWebTransportSession(URL&&, WebPageProxyIdentifier&&, WebCore::ClientOrigin&&, CompletionHandler<void(std::optional<WebTransportSessionIdentifier>)>&&);
+    void initializeWebTransportSession(WebTransportSessionIdentifier, URL&&, WebPageProxyIdentifier&&, WebCore::ClientOrigin&&, CompletionHandler<void(bool)>&&);
     void destroyWebTransportSession(WebTransportSessionIdentifier);
 
     struct ResourceNetworkActivityTracker {

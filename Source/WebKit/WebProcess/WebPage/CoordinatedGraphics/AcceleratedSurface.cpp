@@ -466,6 +466,13 @@ AcceleratedSurface::RenderTargetWPEBackend::RenderTargetWPEBackend(uint64_t surf
 
 AcceleratedSurface::RenderTargetWPEBackend::~RenderTargetWPEBackend()
 {
+#if WPE_CHECK_VERSION(1, 9, 1)
+    // libwpe 1.9.1 introduced an additional ::deinitialize function, which
+    // may be called some time before destruction. As there is no better place
+    // to invoke it at the moment, do it right before destroying the object.
+    wpe_renderer_backend_egl_target_deinitialize(m_backend);
+#endif
+
     wpe_renderer_backend_egl_target_destroy(m_backend);
 }
 
@@ -529,7 +536,7 @@ AcceleratedSurface::SwapChain::SwapChain(uint64_t surfaceID)
 #if USE(GBM) && (PLATFORM(GTK) || ENABLE(WPE_PLATFORM))
 void AcceleratedSurface::SwapChain::setupBufferFormat(const Vector<RendererBufferFormat>& preferredFormats, bool isOpaque)
 {
-    auto isOpaqueFormat = [](uint32_t fourcc) -> bool {
+    auto isOpaqueFormat = [](FourCC fourcc) -> bool {
         return fourcc != DRM_FORMAT_ARGB8888
             && fourcc != DRM_FORMAT_RGBA8888
             && fourcc != DRM_FORMAT_ABGR8888
@@ -543,7 +550,7 @@ void AcceleratedSurface::SwapChain::setupBufferFormat(const Vector<RendererBuffe
     // The preferred formats vector is sorted by usage, but all formats for the same usage has the same priority.
     Locker locker { m_bufferFormatLock };
     BufferFormat newBufferFormat;
-    const auto& supportedFormats = PlatformDisplay::sharedDisplay().dmabufFormats();
+    const auto& supportedFormats = PlatformDisplay::sharedDisplay().bufferFormats();
     for (const auto& bufferFormat : preferredFormats) {
 
         auto matchesOpacity = false;

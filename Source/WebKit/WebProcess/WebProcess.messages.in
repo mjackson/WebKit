@@ -145,6 +145,7 @@ messages -> WebProcess : AuxiliaryProcess WantsAsyncDispatchMessage {
 #endif
 
     IsJITEnabled() -> (bool enabled)
+    IsEnhancedSecurityEnabled() -> (bool enabled)
 
 #if PLATFORM(COCOA)
     SetMediaMIMETypes(Vector<String> types)
@@ -252,4 +253,6 @@ messages -> WebProcess : AuxiliaryProcess WantsAsyncDispatchMessage {
 #if ENABLE(INITIALIZE_ACCESSIBILITY_ON_DEMAND)
     InitializeAccessibility(Vector<WebKit::SandboxExtensionHandle> handles);
 #endif
+
+    ContentWorldDestroyed(WebKit::ContentWorldIdentifier identifier)
 }
