@@ -43,6 +43,7 @@
 #include <wtf/Threading.h>
 #include <wtf/ThreadingPrimitives.h>
 #include <wtf/TypeTraits.h>
+#include <wtf/Variant.h>
 #include <wtf/WeakHashSet.h>
 #include <wtf/text/WTFString.h>
 
@@ -230,7 +231,7 @@ public:
         // VirtualMachine.is_bundler_thread_for_bytecode_cache is true. In that case we use a
         // special tag.
         enum NullWTFTimerTag { NullWTFTimer };
-        std::variant<Ref<ScheduledTask>, std::reference_wrapper<Bun__WTFTimer>, NullWTFTimerTag> m_impl;
+        Variant<Ref<ScheduledTask>, std::reference_wrapper<Bun__WTFTimer>, NullWTFTimerTag> m_impl;
 #endif
     };
 
