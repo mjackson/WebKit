@@ -1631,11 +1631,18 @@ WEBKIT_COPY_FILES(JavaScriptCore_CopyPrivateHeaders
 )
 add_dependencies(JavaScriptCore_CopyPrivateHeaders Bytecodes JSCBuiltins)
 
+# For static JSC builds, ensure headers are always copied as part of the default build
+if (ENABLE_STATIC_JSC)
+    add_dependencies(JavaScriptCore JavaScriptCore_CopyHeaders JavaScriptCore_CopyPrivateHeaders)
+endif ()
+
 # JavaScriptCore_CopyPrivateHeaders needs to have a direct or indirect
 # dependency of JavaScriptCore for CMake Visual Studio generator to
 # eliminate duplicated custom commands. Otherwise,
 # CombinedDomains.json will be generated in both projects.
-if(NOT INTERNAL_BUILD)
+# However, for static JSC builds, we cannot have this dependency as it creates
+# a cycle - instead, we ensure headers are copied by adding them to the default target.
+if(NOT INTERNAL_BUILD AND NOT ENABLE_STATIC_JSC)
     add_dependencies(JavaScriptCore_CopyPrivateHeaders JavaScriptCore)
 endif()
 
