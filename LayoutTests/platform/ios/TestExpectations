@@ -87,6 +87,8 @@ media/track/track-description-cue.html [ Pass ]
 media/track/track-extended-descriptions.html [ Pass ]
 media/wireless-route-monitoring.html [ Pass ]
 
+security/cocoa [ Pass ]
+
 # mac-only IPC test
 ipc/webpageproxy-correctionpanel-no-crash.html [ Skip ]
 
@@ -4537,6 +4539,7 @@ webkit.org/b/214677 imported/w3c/web-platform-tests/event-timing/programmatic-cl
 webkit.org/b/214677 imported/w3c/web-platform-tests/event-timing/retrievability.html [ Skip ]
 webkit.org/b/214677 imported/w3c/web-platform-tests/event-timing/retrieve-firstInput.html [ Skip ]
 webkit.org/b/214677 imported/w3c/web-platform-tests/event-timing/shadow-dom-null-target.html [ Skip ]
+webkit.org/b/214677 imported/w3c/web-platform-tests/event-timing/timingconditions.html [ Skip ]
 webkit.org/b/214677 imported/w3c/web-platform-tests/event-timing/toJSON.html [ Skip ]
 
 # rdar://105509003
@@ -8263,3 +8266,5 @@ webkit.org/b/298974 fast/forms/ios/keyboard-restoration-after-element-replacemen
 webkit.org/b/280234 imported/w3c/web-platform-tests/html/dom/idlharness.https.html [ Skip ]
 
 webkit.org/b/299110 webrtc/calling-peerconnection-once-closed.html? [ Pass Failure ]
+
+webkit.org/b/299501 http/tests/site-isolation/focus-tab-navigation-activeElement.html [ Pass Failure ]

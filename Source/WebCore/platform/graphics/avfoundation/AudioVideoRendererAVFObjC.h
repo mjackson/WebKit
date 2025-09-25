@@ -47,6 +47,7 @@ typedef struct CF_BRIDGED_TYPE(id) __CVBuffer *CVPixelBufferRef;
 
 namespace WebCore {
 
+class CDMInstanceFairPlayStreamingAVFObjC;
 class EffectiveRateChangedListener;
 class MediaSample;
 class PixelBufferConformerCV;
@@ -133,6 +134,7 @@ public:
     RefPtr<VideoFrame> currentVideoFrame() const final;
     std::optional<VideoPlaybackQualityMetrics> videoPlaybackQualityMetrics() final;
     PlatformLayerContainer platformVideoLayer() const final;
+    void setVideoLayerSizeFenced(const FloatSize&, WTF::MachSendRightAnnotated&&) final;
 
     // VideoFullscreenInterface
     void setVideoFullscreenLayer(PlatformLayer*, Function<void()>&&) final;
@@ -191,6 +193,10 @@ private:
 #if HAVE(SPATIAL_TRACKING_LABEL)
     void setSpatialTrackingInfo(bool prefersSpatialAudioExperience, SoundStageSize, const String& sceneIdentifier, const String& defaultLabel, const String& label) final;
     void updateSpatialTrackingLabel();
+#endif
+
+#if ENABLE(ENCRYPTED_MEDIA) && HAVE(AVCONTENTKEYSESSION)
+    void setCDMInstance(CDMInstance*) final;
 #endif
 
     void setSynchronizerRate(float, std::optional<MonotonicTime>);
@@ -324,6 +330,9 @@ private:
     bool m_needsDestroyVideoLayer { false };
 #if ENABLE(LINEAR_MEDIA_PLAYER)
     RetainPtr<FigVideoTargetRef> m_videoTarget;
+#endif
+#if ENABLE(ENCRYPTED_MEDIA) && HAVE(AVCONTENTKEYSESSION)
+    RefPtr<CDMInstanceFairPlayStreamingAVFObjC> m_cdmInstance;
 #endif
 };
 

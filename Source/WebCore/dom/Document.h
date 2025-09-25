@@ -877,6 +877,7 @@ public:
     IDBClient::IDBConnectionProxy* idbConnectionProxy() final;
     StorageConnection* storageConnection();
     SocketProvider* socketProvider() final;
+    RefPtr<SocketProvider> protectedSocketProvider();
     RefPtr<RTCDataChannelRemoteHandlerConnection> createRTCDataChannelRemoteHandlerConnection() final;
 
 #if ENABLE(WEB_RTC)
@@ -2749,8 +2750,10 @@ private:
     mutable std::unique_ptr<CSSParserContext> m_cachedCSSParserContext;
     mutable std::unique_ptr<PermissionsPolicy> m_permissionsPolicy;
 
-    // FIXME: This will need to be re-evaluated for site isolation.
+    mutable std::unique_ptr<AXObjectCache> m_axObjectCache;
+#if !ENABLE_ACCESSIBILITY_LOCAL_FRAME
     mutable WeakPtr<AXObjectCache> m_topAXObjectCache;
+#endif
     RefPtr<FrameMemoryMonitor> m_frameMemoryMonitor;
 
 #if ENABLE(CONTENT_EXTENSIONS)

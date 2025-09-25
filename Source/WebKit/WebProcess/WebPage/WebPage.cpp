@@ -71,7 +71,6 @@
 #include "PolicyDecision.h"
 #include "PrintInfo.h"
 #include "ProvisionalFrameCreationParameters.h"
-#include "RemoteNativeImageBackendProxy.h"
 #include "RemoteRenderingBackendProxy.h"
 #include "RemoteScrollingCoordinator.h"
 #include "RemoteSnapshotRecorderProxy.h"
@@ -958,6 +957,18 @@ WebPage::WebPage(PageIdentifier pageID, WebPageCreationParameters&& parameters)
     // in modern WebKit.
     page->settings().setBackForwardCacheExpirationInterval(Seconds::infinity());
 
+    if (WebProcess::singleton().isLockdownModeEnabled())
+        page->setWebContentProcessVariant(WebContentProcessVariant::Lockdown);
+    else {
+        WebProcess::singleton().isEnhancedSecurityEnabled([weakPage = WeakPtr { page }](bool enabled) {
+            if (!enabled)
+                return;
+
+            if (RefPtr page = weakPage.get())
+                page->setWebContentProcessVariant(WebContentProcessVariant::Security);
+        });
+    }
+
     m_mainFrame->initWithCoreMainFrame(*this, page->protectedMainFrame());
 
     if (auto& remotePageParameters = parameters.remotePageParameters) {
@@ -1630,9 +1641,6 @@ EditorState WebPage::editorState(ShouldPerformLayout shouldPerformLayout) const
 
         if (!result.visualData)
             result.visualData = std::optional<EditorState::VisualData> { EditorState::VisualData { } };
-
-        if (m_needsFontAttributes)
-            result.postLayoutData->fontAttributes = editor->fontAttributesAtSelectionStart();
     }
 
     getPlatformEditorState(*frame, result);
@@ -10286,7 +10294,7 @@ void WebPage::hitTestAtPoint(WebCore::FrameIdentifier frameID, WebCore::FloatPoi
         JSLockHolder locker(lexicalGlobalObject);
         return WebCore::WebKitJSHandle::getOrCreate(*lexicalGlobalObject, WebCore::toJS(lexicalGlobalObject, domGlobalObject, *node).toObject(lexicalGlobalObject));
     }();
-    completionHandler({ JSHandleInfo { nodeHandle->identifier(), nodeWebFrame->info(), nodeHandle->windowFrameIdentifier() } });
+    completionHandler({ JSHandleInfo { nodeHandle->identifier(), pageContentWorldIdentifier(), nodeWebFrame->info(), nodeHandle->windowFrameIdentifier() } });
 }
 
 void WebPage::adjustVisibilityForTargetedElements(Vector<TargetedElementAdjustment>&& adjustments, CompletionHandler<void(bool)>&& completion)

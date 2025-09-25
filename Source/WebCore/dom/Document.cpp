@@ -3363,7 +3363,10 @@ void Document::pageSizeAndMarginsInPixels(int pageIndex, IntSize& pageSize, int&
             return pageSize;
         },
         [&](const Style::PageSize::Lengths& lengths) -> IntSize {
-            return { static_cast<int>(lengths.width().value), static_cast<int>(lengths.height().value) };
+            return {
+                static_cast<int>(lengths.width().evaluate(1.0f /* FIXME FIND ZOOM */)),
+                static_cast<int>(lengths.height().evaluate(1.0f /* FIXME FIND ZOOM */)),
+            };
         }
     );
 
@@ -3769,23 +3772,41 @@ void Document::stopActiveDOMObjects()
 
 void Document::clearAXObjectCache()
 {
-    ASSERT(isTopDocument());
     // Clear the cache member variable before calling delete because attempts
     // are made to access it during destruction.
-    if (RefPtr page = this->page())
-        page->clearAXObjectCache();
+    m_axObjectCache = nullptr;
+
+#if !ENABLE_ACCESSIBILITY_LOCAL_FRAME
+    if (m_topAXObjectCache || !isTopDocument()) {
+        if (RefPtr mainFrameDocument = this->mainFrameDocument()) {
+            if (mainFrameDocument.get() != this)
+                mainFrameDocument->clearAXObjectCache();
+        }
+    }
+
     m_topAXObjectCache = nullptr;
+#endif
 }
 
 AXObjectCache* Document::existingAXObjectCacheSlow() const
 {
     ASSERT(hasEverCreatedAnAXObjectCache);
-    if (m_topAXObjectCache)
-        return m_topAXObjectCache.get();
 
-    if (RefPtr page = this->page())
-        m_topAXObjectCache = page->existingAXObjectCache();
+#if ENABLE_ACCESSIBILITY_LOCAL_FRAME
+    return m_axObjectCache.get();
+#else
+    if (m_axObjectCache)
+        return m_axObjectCache.get();
+
+    if (!isTopDocument() && !m_topAXObjectCache) {
+        if (RefPtr mainFrameDocument = this->mainFrameDocument()) {
+            if (mainFrameDocument.get() != this)
+                m_topAXObjectCache = mainFrameDocument->existingAXObjectCacheSlow();
+        }
+    }
+
     return m_topAXObjectCache.get();
+#endif // !ENABLE_ACCESSIBILITY_LOCAL_FRAME
 }
 
 AXObjectCache* Document::axObjectCache() const
@@ -3793,14 +3814,27 @@ AXObjectCache* Document::axObjectCache() const
     if (!AXObjectCache::accessibilityEnabled())
         return nullptr;
 
+    if (m_axObjectCache)
+        return m_axObjectCache.get();
+
+    if (!m_frame)
+        return nullptr;
+
+#if !ENABLE_ACCESSIBILITY_LOCAL_FRAME
+    if (!isTopDocument()) {
+        if (RefPtr mainFrameDocument = this->mainFrameDocument()) {
+            if (mainFrameDocument.get() != this)
+                m_topAXObjectCache = mainFrameDocument->axObjectCache();
+        }
+    }
+
     if (m_topAXObjectCache)
         return m_topAXObjectCache.get();
+#endif // !ENABLE_ACCESSIBILITY_LOCAL_FRAME
 
-    RefPtr page = this->page();
-    if (!page)
-        return nullptr;
-    m_topAXObjectCache = page->axObjectCache();
-    return m_topAXObjectCache.get();
+    m_axObjectCache = makeUnique<AXObjectCache>(*m_frame, const_cast<Document*>(this));
+    Document::hasEverCreatedAnAXObjectCache = true;
+    return m_axObjectCache.get();
 }
 
 void Document::setVisuallyOrdered()
@@ -4809,6 +4843,11 @@ StorageConnection* Document::storageConnection()
 SocketProvider* Document::socketProvider()
 {
     return m_socketProvider.get();
+}
+
+RefPtr<SocketProvider> Document::protectedSocketProvider()
+{
+    return socketProvider();
 }
 
 RefPtr<RTCDataChannelRemoteHandlerConnection> Document::createRTCDataChannelRemoteHandlerConnection()

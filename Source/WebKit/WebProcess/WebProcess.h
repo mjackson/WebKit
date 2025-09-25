@@ -175,7 +175,7 @@ struct WebsiteDataStoreParameters;
 enum class RemoteWorkerType : uint8_t;
 enum class WebsiteDataType : uint32_t;
 
-using ContentWorldIdentifier = ObjectIdentifier<ContentWorldIdentifierType>;
+using ContentWorldIdentifier = WebCore::ProcessQualified<ObjectIdentifier<ContentWorldIdentifierType>>;
 using WebTransportSessionIdentifier = AtomicObjectIdentifier<WebTransportSessionIdentifierType>;
 
 #if PLATFORM(IOS_FAMILY)
@@ -375,6 +375,7 @@ public:
     void sendPrewarmInformation(const URL&);
 
     void isJITEnabled(CompletionHandler<void(bool)>&&);
+    void isEnhancedSecurityEnabled(CompletionHandler<void(bool)>&&);
 
     RefPtr<API::Object> transformHandlesToObjects(API::Object*);
     static RefPtr<API::Object> transformObjectsToHandles(API::Object*);
@@ -886,6 +887,7 @@ private:
     bool m_hasSuspendedPageProxy { false };
     bool m_allowExitOnMemoryPressure { true };
     std::optional<bool> m_isLockdownModeEnabled;
+    std::optional<bool> m_isEnhancedSecurityEnabled;
 
 #if ENABLE(MEDIA_STREAM) && ENABLE(SANDBOX_EXTENSIONS)
     HashMap<String, RefPtr<SandboxExtension>> m_mediaCaptureSandboxExtensions;

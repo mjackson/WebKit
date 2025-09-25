@@ -285,6 +285,12 @@ enum class FinalizeRenderingUpdateFlags : uint8_t {
     InvalidateImagesWithAsyncDecodes    = 1 << 1,
 };
 
+enum class WebContentProcessVariant : uint8_t {
+    Standard,
+    Lockdown,
+    Security
+};
+
 enum class RenderingUpdateStep : uint32_t {
     Reveal                          = 1 << 0,
     Resize                          = 1 << 1,
@@ -717,7 +723,7 @@ public:
     WEBCORE_EXPORT void appearanceDidChange();
 
     void clearAXObjectCache();
-    AXObjectCache* existingAXObjectCache() { return m_axObjectCache.get(); }
+    AXObjectCache* existingAXObjectCache();
     WEBCORE_EXPORT AXObjectCache* axObjectCache();
 
     // Page and FrameView both store a Pagination value. Page::pagination() is set only by API,
@@ -1380,6 +1386,9 @@ public:
     void setHardwareKeyboardAttached(bool attached) { m_hardwareKeyboardAttached = attached; }
     bool hardwareKeyboardAttached() const { return m_hardwareKeyboardAttached; }
 
+    void setWebContentProcessVariant(WebContentProcessVariant variant) { m_webContentProcessVariant = variant; };
+    WebContentProcessVariant webContentProcessVariant() const { return m_webContentProcessVariant; };
+
 private:
     explicit Page(PageConfiguration&&);
 
@@ -1576,7 +1585,6 @@ private:
 #if ENABLE(ACCESSIBILITY_NON_BLINKING_CURSOR)
     bool m_prefersNonBlinkingCursor { false };
 #endif
-    std::unique_ptr<AXObjectCache> m_axObjectCache;
 
     TimerThrottlingState m_timerThrottlingState { TimerThrottlingState::Disabled };
     MonotonicTime m_timerThrottlingStateLastChangedTime;
@@ -1855,6 +1863,7 @@ private:
 #else
     bool m_hardwareKeyboardAttached { true };
 #endif
+    WebContentProcessVariant m_webContentProcessVariant { WebContentProcessVariant::Standard };
 }; // class Page
 
 WTF::TextStream& operator<<(WTF::TextStream&, RenderingUpdateStep);

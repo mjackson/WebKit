@@ -3168,11 +3168,11 @@ header: <WebCore/StylePrimitiveNumericTypes.h>
 };
 
 [CustomHeader, Nested] struct WebCore::Style::LengthNonnegative {
-    float value;
+    float unevaluatedValue();
 };
 using WebCore::Style::LengthAll = WebCore::Style::Length<WebCore::CSS::All>;
 [CustomHeader, Nested] struct WebCore::Style::Length<WebCore::CSS::All> {
-    float value;
+    float unevaluatedValue();
 };
 
 [CustomHeader, Nested] struct WebCore::Style::Percentage<WebCore::CSS::Nonnegative> {
@@ -8935,11 +8935,15 @@ using WebCore::GraphicsContextGL::ExternalSyncSource = std::tuple<MachSendRight,
 #if (PLATFORM(GTK) || PLATFORM(WPE))
 header: <WebCore/GraphicsContextGL.h>
 [CustomHeader] struct WebCore::GraphicsContextGLExternalImageSource {
+#if OS(ANDROID)
+    RefPtr<AHardwareBuffer> hardwareBuffer;
+#else
     Vector<WTF::UnixFileDescriptor> fds;
     Vector<uint32_t> strides;
     Vector<uint32_t> offsets;
     uint32_t fourcc;
     uint64_t modifier;
+#endif
     WebCore::IntSize size;
 };
 using WebCore::GraphicsContextGL::ExternalImageSource = WebCore::GraphicsContextGLExternalImageSource;
@@ -9298,6 +9302,7 @@ header: <WebCore/TrackInfo.h>
     WebCore::FloatSize displaySize;
     uint8_t bitDepth;
     WebCore::PlatformVideoColorSpace colorSpace;
+    String boxType;
     RefPtr<WebCore::SharedBuffer> atomData;
 };
 
