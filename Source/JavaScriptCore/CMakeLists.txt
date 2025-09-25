@@ -956,9 +956,6 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     inspector/remote/RemoteInspectionTarget.h
     inspector/remote/RemoteInspector.h
     inspector/remote/RemoteInspectorConstants.h
-    inspector/remote/cocoa/RemoteInspectorXPCConnection.h
-    inspector/remote/glib/RemoteInspectorServer.h
-    inspector/remote/glib/RemoteInspectorUtils.h
     inspector/remote/socket/RemoteInspectorConnectionClient.h
     inspector/remote/socket/RemoteInspectorMessageParser.h
     inspector/remote/socket/RemoteInspectorServer.h
