@@ -1028,8 +1028,13 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     llint/LLIntOpcode.h
     llint/LLIntThunks.h
 
+    parser/ASTBuilder.h
     parser/Lexer.h
+    parser/ModuleAnalyzer.h
+    parser/ModuleScopeData.h
+    parser/NodeConstructors.h
     parser/Nodes.h
+    parser/Parser.h
     parser/ParserArena.h
     parser/ParserError.h
     parser/ParserFunctionInfo.h
@@ -1042,6 +1047,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     parser/SourceProviderCache.h
     parser/SourceProviderCacheItem.h
     parser/SourceTaintedOrigin.h
+    parser/SyntaxChecker.h
     parser/UnlinkedSourceCode.h
     parser/VariableEnvironment.h
 
