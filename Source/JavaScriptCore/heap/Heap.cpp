@@ -52,7 +52,6 @@
 #include "JITWorklistInlines.h"
 #include "JSFinalizationRegistry.h"
 #include "JSIterator.h"
-#include "JSPromiseAllContext.h"
 #include "JSRawJSONObject.h"
 #include "JSRemoteFunction.h"
 #include "JSVirtualMachineInternal.h"

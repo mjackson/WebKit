@@ -91,7 +91,6 @@
 #include "JSIteratorHelper.h"
 #include "JSLexicalEnvironment.h"
 #include "JSMapIterator.h"
-#include "JSPromiseAllContext.h"
 #include "JSRegExpStringIterator.h"
 #include "JSSetIterator.h"
 #include "JSWeakMap.h"
@@ -9406,9 +9405,6 @@ IGNORE_CLANG_WARNINGS_END
             break;
         case JSAsyncFromSyncIteratorType:
             compileNewInternalFieldObjectImpl<JSAsyncFromSyncIterator>(operationNewAsyncFromSyncIterator);
-            break;
-        case JSPromiseAllContextType:
-            compileNewInternalFieldObjectImpl<JSPromiseAllContext>(operationNewPromiseAllContext);
             break;
         case JSRegExpStringIteratorType:
             compileNewInternalFieldObjectImpl<JSRegExpStringIterator>(operationNewRegExpStringIterator);

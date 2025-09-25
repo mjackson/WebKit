@@ -121,7 +121,7 @@ public:
     bool isMarked(VM&) const;
 
 private:
-    FrameData m_frameData { JSFrameData { } };
+    FrameData m_frameData { JSFrameData {} };
 };
 
 } // namespace JSC

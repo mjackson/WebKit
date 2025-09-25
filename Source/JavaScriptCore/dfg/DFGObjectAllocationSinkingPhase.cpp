@@ -45,7 +45,6 @@
 #include "JSInternalPromise.h"
 #include "JSIteratorHelper.h"
 #include "JSMapIterator.h"
-#include "JSPromiseAllContext.h"
 #include "JSRegExpStringIterator.h"
 #include "JSSetIterator.h"
 #include "JSWrapForValidIterator.h"
@@ -1114,9 +1113,6 @@ private:
                 break;
             case JSAsyncFromSyncIteratorType:
                 target = handleInternalFieldClass<JSAsyncFromSyncIterator>(node, writes);
-                break;
-            case JSPromiseAllContextType:
-                target = handleInternalFieldClass<JSPromiseAllContext>(node, writes);
                 break;
             case JSRegExpStringIteratorType:
                 target = handleInternalFieldClass<JSRegExpStringIterator>(node, writes);
