@@ -105,6 +105,15 @@ public:
         return false;
     }
 
+#if USE(BUN_JSC_ADDITIONS)
+    bool isAsyncFrame() const
+    {
+        if (auto* jsFrame = std::get_if<JSFrameData>(&m_frameData))
+            return jsFrame->m_isAsyncFrame;
+        return false;
+    }
+#endif
+
     LineColumn computeLineAndColumn() const;
     String functionName(VM&) const;
     SourceID sourceID() const;
