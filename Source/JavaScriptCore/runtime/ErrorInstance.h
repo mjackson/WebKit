@@ -82,7 +82,10 @@ public:
     void setRuntimeTypeForCause(RuntimeType type) { m_runtimeTypeForCause = type; }
     RuntimeType runtimeTypeForCause() const { return m_runtimeTypeForCause; }
     void clearRuntimeTypeForCause() { m_runtimeTypeForCause = TypeNothing; }
-
+#if USE(BUN_JSC_ADDITIONS)
+    void* bunErrorData() const { return m_bunErrorData; }
+    void setBunErrorData(void* bunErrorData) { m_bunErrorData = bunErrorData; }
+#endif
     ErrorType errorType() const { return m_errorType; }
     void setStackOverflowError()
     {
@@ -150,6 +153,10 @@ protected:
     static bool deleteProperty(JSCell*, JSGlobalObject*, PropertyName, DeletePropertySlot&);
 
     void computeErrorInfo(VM&, bool allocationAllowed);
+
+#if USE(BUN_JSC_ADDITIONS)
+    void* m_bunErrorData { nullptr };
+#endif
 
     SourceAppender m_sourceAppender { nullptr };
     std::unique_ptr<Vector<StackFrame>> m_stackTrace;

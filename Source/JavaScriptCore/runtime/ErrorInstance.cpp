@@ -223,7 +223,7 @@ void ErrorInstance::finishCreation(VM& vm, String&& message, LineColumn lineColu
 
     m_lineColumn = lineColumn;
     m_sourceURL = WTFMove(sourceURL);
-    
+
     {
         Locker locker { cellLock() };
         m_stackString = WTFMove(stackString);
@@ -318,8 +318,35 @@ String ErrorInstance::tryGetMessageForDebugging()
     return emptyString();
 }
 
+#if USE(BUN_JSC_ADDITIONS)
+extern "C" __attribute__((weak)) void Bun__errorInstance__finalize(void* bunNativePtr);
+
+class BunErrorInstanceFinalizer {
+public:
+    BunErrorInstanceFinalizer(JSC::ErrorInstance* errorInstance)
+        : m_errorInstance(errorInstance)
+    {
+    }
+
+    ~BunErrorInstanceFinalizer()
+    {
+        if (Bun__errorInstance__finalize && m_errorInstance->bunErrorData()) {
+            Bun__errorInstance__finalize(m_errorInstance->bunErrorData());
+        }
+    }
+
+private:
+    JSC::ErrorInstance* m_errorInstance;
+};
+#endif
+
 void ErrorInstance::finalizeUnconditionally(VM& vm, CollectionScope)
 {
+#if USE(BUN_JSC_ADDITIONS)
+    // Run this after we've computed the stack trace so that it can potentially be used there.
+    BunErrorInstanceFinalizer finalizer(this);
+#endif
+
     if (!m_stackTrace)
         return;
 
@@ -346,7 +373,7 @@ void ErrorInstance::computeErrorInfo(VM& vm, bool allocationAllowed)
         auto& fn = vm.onComputeErrorInfo();
         WTF::String stackString;
         if (fn) {
-            stackString = fn(vm, *m_stackTrace.get(), m_lineColumn.line, m_lineColumn.column, m_sourceURL);
+            stackString = fn(vm, *m_stackTrace.get(), m_lineColumn.line, m_lineColumn.column, m_sourceURL, this->bunErrorData());
         } else {
             getLineColumnAndSource(vm, m_stackTrace.get(), m_lineColumn, m_sourceURL);
             stackString = Interpreter::stackTraceAsString(vm, *m_stackTrace.get());
@@ -373,7 +400,7 @@ bool ErrorInstance::materializeErrorInfoIfNeeded(VM& vm)
         m_errorInfoMaterialized = true;
         DeferGCForAWhile deferGC(vm);
 
-        JSValue stack = fn(vm, *m_stackTrace.get(), m_lineColumn.line, m_lineColumn.column, m_sourceURL, this);
+        JSValue stack = fn(vm, *m_stackTrace.get(), m_lineColumn.line, m_lineColumn.column, m_sourceURL, this, this->bunErrorData());
 
         {
             Locker locker { cellLock() };
