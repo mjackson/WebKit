@@ -98,16 +98,6 @@ public:
         return false;
     }
 
-#if USE(BUN_JSC_ADDITIONS)
-    // FIXME: Remove this BUN_JSC_ADDITIONS when added into upstream
-    bool isAsyncFrame() const
-    {
-        if (auto* jsFrame = std::get_if<JSFrameData>(&m_frameData))
-            return jsFrame->m_isAsyncFrame;
-        return false;
-    }
-#endif
-
     bool isAsyncFrameWithoutCodeBlock() const
     {
         return isAsyncFrame() && !codeBlock();
