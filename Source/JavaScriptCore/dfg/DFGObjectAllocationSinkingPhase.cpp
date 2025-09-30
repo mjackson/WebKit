@@ -45,13 +45,8 @@
 #include "JSInternalPromise.h"
 #include "JSIteratorHelper.h"
 #include "JSMapIterator.h"
-<<<<<<< HEAD
-||||||| 9bea292f6168
-#include "JSPromiseAllContext.h"
-=======
 #include "JSPromiseAllContext.h"
 #include "JSPromiseReaction.h"
->>>>>>> upstream
 #include "JSRegExpStringIterator.h"
 #include "JSSetIterator.h"
 #include "JSWrapForValidIterator.h"
