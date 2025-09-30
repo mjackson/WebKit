@@ -17754,19 +17754,12 @@ IGNORE_CLANG_WARNINGS_END
         case JSRegExpStringIteratorType:
             compileMaterializeNewInternalFieldObjectImpl<JSRegExpStringIterator>(operationNewRegExpStringIterator);
             break;
-<<<<<<< HEAD
-||||||| 9bea292f6168
-        case JSPromiseAllContextType:
-            compileMaterializeNewInternalFieldObjectImpl<JSPromiseAllContext>(operationNewPromiseAllContext);
-            break;
-=======
         case JSPromiseAllContextType:
             compileMaterializeNewInternalFieldObjectImpl<JSPromiseAllContext>(operationNewPromiseAllContext);
             break;
         case JSPromiseReactionType:
             compileMaterializeNewInternalFieldObjectImpl<JSPromiseReaction>(operationNewPromiseReaction);
             break;
->>>>>>> upstream
         case JSPromiseType:
             if (m_node->structure()->classInfoForCells() == JSInternalPromise::info())
                 compileMaterializeNewInternalFieldObjectImpl<JSInternalPromise>(operationNewInternalPromise);

@@ -59,13 +59,8 @@
 #include "JSModuleRecord.h"
 #include "JSObject.h"
 #include "JSPromise.h"
-<<<<<<< HEAD
-||||||| 9bea292f6168
-#include "JSPromiseAllContext.h"
-=======
 #include "JSPromiseAllContext.h"
 #include "JSPromiseReaction.h"
->>>>>>> upstream
 #include "JSRemoteFunction.h"
 #include "JSString.h"
 #include "JSWebAssemblyException.h"

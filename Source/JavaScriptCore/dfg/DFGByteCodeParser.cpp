@@ -75,6 +75,7 @@
 #include "JSModuleEnvironment.h"
 #include "JSModuleNamespaceObject.h"
 #include "JSPromiseConstructor.h"
+#include "JSPromiseAllContext.h"
 #include "JSPromiseReaction.h"
 #include "JSSetIterator.h"
 #include "JSWrapForValidIterator.h"
