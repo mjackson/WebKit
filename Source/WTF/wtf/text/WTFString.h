@@ -228,7 +228,7 @@ public:
         return impl;
     }
 
-    static String tryCreateUninitialized(size_t length, std::span<LChar>& data) {
+    static String tryCreateUninitialized(size_t length, std::span<Latin1Character>& data) {
         RefPtr<StringImpl> impl = StringImpl::tryCreateUninitialized(length, data);
         if (!impl) [[unlikely]]
             return nullString();

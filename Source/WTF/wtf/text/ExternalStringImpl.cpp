@@ -39,7 +39,7 @@ WTF_EXPORT_PRIVATE Ref<ExternalStringImpl> ExternalStringImpl::create(std::span<
 }
 
 
-WTF_EXPORT_PRIVATE Ref<ExternalStringImpl> ExternalStringImpl::createStatic(std::span<const LChar> characters)
+WTF_EXPORT_PRIVATE Ref<ExternalStringImpl> ExternalStringImpl::createStatic(std::span<const Latin1Character> characters)
 {
     return adoptRef(*new ExternalStringImpl(characters, nullptr, [](auto, auto, auto) -> void {}));
 }
@@ -94,7 +94,7 @@ void ExternalStringImpl::releaseBufferEarly()
 {
     void* free_ctx = std::exchange(m_freeCtx, reinterpret_cast<void*>(isAlreadyReleasedMarker));
     if (reinterpret_cast<uintptr_t>(free_ctx) != isAlreadyReleasedMarker)
-        m_free(free_ctx, const_cast<LChar*>(m_data8), m_length);
+        m_free(free_ctx, const_cast<Latin1Character*>(m_data8), m_length);
 }
 
 } // namespace WTF

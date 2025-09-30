@@ -264,7 +264,7 @@ static String decodeEscapeSequencesFromParsedURLForWindowsPath(const std::span<c
         return builder.toString();
     }
 
-    Vector<LChar, 256> percentDecodedUTF8;
+    Vector<Latin1Character, 256> percentDecodedUTF8;
     percentDecodedUTF8.reserveInitialCapacity(length);
     WTF::StringView inputView = input;
     for (size_t i = input[0] == '/' ? 1 : 0; i < length; ) {

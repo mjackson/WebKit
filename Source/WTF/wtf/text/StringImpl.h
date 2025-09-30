@@ -1206,9 +1206,9 @@ inline void StringImpl::deref()
 template<typename SourceCharacterType>
 inline void StringImpl::iterCharacters(jsstring_iterator* iter, unsigned start, const SourceCharacterType* source, unsigned numCharacters)
 {
-    static_assert(std::is_same_v<SourceCharacterType, LChar> || std::is_same_v<SourceCharacterType, char16_t>);
+    static_assert(std::is_same_v<SourceCharacterType, Latin1Character> || std::is_same_v<SourceCharacterType, char16_t>);
 
-    if constexpr (std::is_same_v<SourceCharacterType, LChar>) {
+    if constexpr (std::is_same_v<SourceCharacterType, Latin1Character>) {
        iter->write8(iter, (const void*) source, numCharacters, start);
     } else {
        iter->write16(iter, (const void*) source, numCharacters, start);
