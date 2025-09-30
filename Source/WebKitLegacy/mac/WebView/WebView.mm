@@ -241,6 +241,7 @@
 #import <WebCore/ValidationBubble.h>
 #import <WebCore/VisibilityState.h>
 #import <WebCore/WebCoreJITOperations.h>
+#import <WebCore/WebCoreMainThread.h>
 #import <WebCore/WebCoreObjCExtras.h>
 #import <WebCore/WebCoreView.h>
 #import <WebCore/WebRTCProvider.h>
@@ -1464,7 +1465,8 @@ static void WebKitInitializeGamepadProviderIfNecessary()
             CompletionHandler<UniqueRef<WebCore::LocalFrameLoaderClient>(WebCore::LocalFrame&, WebCore::FrameLoader&)> { [] (auto&, auto& frameLoader) {
                 return makeUniqueRefWithoutRefCountedCheck<WebFrameLoaderClient>(frameLoader);
             } },
-            WebCore::SandboxFlags { } // Set by updateSandboxFlags after instantiation.
+            WebCore::SandboxFlags { }, // Set by updateSandboxFlags after instantiation.
+            WebCore::ReferrerPolicy::EmptyString
         },
         WebCore::generateFrameIdentifier(),
         nullptr, // Opener may be set by setOpenerForWebKitLegacy after instantiation.
@@ -1666,6 +1668,8 @@ static void WebKitInitializeGamepadProviderIfNecessary()
 #if PLATFORM(IOS_FAMILY)
 + (void)enableWebThread
 {
+    if (!WebCore::shouldUseWebThread())
+        return;
     static BOOL isWebThreadEnabled = NO;
     if (!isWebThreadEnabled) {
         WebCoreObjCDeallocOnWebThread([DOMObject class]);
@@ -1723,7 +1727,8 @@ static void WebKitInitializeGamepadProviderIfNecessary()
             CompletionHandler<UniqueRef<WebCore::LocalFrameLoaderClient>(WebCore::LocalFrame&, WebCore::FrameLoader&)> { [] (auto&, auto& frameLoader) {
                 return makeUniqueRefWithoutRefCountedCheck<WebFrameLoaderClient>(frameLoader);
             } },
-            WebCore::SandboxFlags { } // Set by updateSandboxFlags after instantiation.
+            WebCore::SandboxFlags { }, // Set by updateSandboxFlags after instantiation.
+            WebCore::ReferrerPolicy::EmptyString
         },
         WebCore::generateFrameIdentifier(),
         nullptr, // Opener may be set by setOpenerForWebKitLegacy after instantiation.
@@ -4973,11 +4978,7 @@ IGNORE_WARNINGS_END
     if (WTF::CocoaApplication::shouldOSFaultLogForAppleApplicationUsingWebKit1())
         os_fault_with_payload(OS_REASON_WEBKIT, 0, nullptr, 0, "WebView initialized", 0);
 
-#if !PLATFORM(IOS_FAMILY)
-    JSC::initialize();
-    WTF::initializeMainThread();
-    WebCore::populateJITOperations();
-#endif
+    WebCore::initializeMainThreadIfNeeded();
 
     WTF::RefCountedBase::enableThreadingChecksGlobally();
 
@@ -7032,10 +7033,12 @@ static WebFrameView *containingFrameView(NSView *view)
 #if PLATFORM(IOS_FAMILY)
 - (void)stopLoadingAndClear
 {
+#if !ENABLE(WEB_THREAD_DISABLEMENT)
     if (WebThreadNotCurrent() && !WebThreadIsLocked()) {
         _private->isStopping = true;
         WebThreadSetShouldYield();
     }
+#endif
     WebThreadRun(^{
         _private->isStopping = false;
 

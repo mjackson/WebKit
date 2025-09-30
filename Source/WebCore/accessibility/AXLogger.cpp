@@ -833,6 +833,9 @@ TextStream& operator<<(WTF::TextStream& stream, AXProperty property)
     case AXProperty::HasPlainText:
         stream << "HasPlainText";
         break;
+    case AXProperty::HasPointerEventsNone:
+        stream << "HasPointerEventsNone";
+        break;
     case AXProperty::HasRemoteFrameChild:
         stream << "HasRemoteFrameChild";
         break;
@@ -1159,6 +1162,9 @@ TextStream& operator<<(WTF::TextStream& stream, AXProperty property)
         break;
     case AXProperty::SetSize:
         stream << "SetSize";
+        break;
+    case AXProperty::ShowsCursorOnHover:
+        stream << "ShowsCursorOnHover";
         break;
     case AXProperty::SortDirection:
         stream << "SortDirection";

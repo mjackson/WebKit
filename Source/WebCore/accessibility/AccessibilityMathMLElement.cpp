@@ -37,6 +37,7 @@
 #include "MathMLNames.h"
 #include "NodeInlines.h"
 #include "RenderStyleInlines.h"
+#include "Settings.h"
 
 namespace WebCore {
 
@@ -71,7 +72,7 @@ AccessibilityRole AccessibilityMathMLElement::determineAccessibilityRole()
 
 void AccessibilityMathMLElement::addChildren()
 {
-    if (!hasElementName(ElementName::MathML_mfenced)) {
+    if ((document() && document()->settings().coreMathMLEnabled()) || !hasElementName(ElementName::MathML_mfenced)) {
         AccessibilityRenderObject::addChildren();
         return;
     }

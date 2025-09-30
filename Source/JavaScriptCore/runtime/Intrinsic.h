@@ -198,6 +198,8 @@ namespace JSC {
     macro(IteratorHelperCreateIntrinsic) \
     macro(WrapForValidIteratorCreateIntrinsic) \
     macro(AsyncFromSyncIteratorCreateIntrinsic) \
+    macro(PromiseAllContextCreateIntrinsic) \
+    macro(PromiseReactionCreateIntrinsic) \
     macro(RegExpStringIteratorCreateIntrinsic) \
     \
     /* Getter intrinsics. */ \
@@ -264,5 +266,3 @@ class PrintStream;
 void printInternal(PrintStream&, JSC::Intrinsic);
 
 } // namespace WTF
-
-

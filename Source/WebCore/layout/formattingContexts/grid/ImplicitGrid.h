@@ -25,17 +25,12 @@
 
 #pragma once
 
+#include "GridTypeAliases.h"
 #include <wtf/Forward.h>
 #include <wtf/Vector.h>
 
 namespace WebCore {
 namespace Layout {
-
-class PlacedGridItem;
-class UnplacedGridItem;
-
-using PlacedGridItems = Vector<PlacedGridItem>;
-using GridCell = Vector<UnplacedGridItem, 1>;
 
 // https://drafts.csswg.org/css-grid-1/#implicit-grids
 class ImplicitGrid {
@@ -47,10 +42,9 @@ public:
 
     void insertUnplacedGridItem(const UnplacedGridItem&);
 
-    PlacedGridItems placedGridItems() const;
+    GridAreas gridAreas() const;
 
 private:
-    using GridMatrix = Vector<Vector<GridCell>>;
     GridMatrix m_gridMatrix;
 };
 

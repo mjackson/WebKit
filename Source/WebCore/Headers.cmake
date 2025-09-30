@@ -1,4 +1,17 @@
 set(WebCore_PRIVATE_FRAMEWORK_HEADERS
+    Modules/Model/Implementation/DDMeshImpl.h
+
+    Modules/Model/InternalAPI/DDFloat3.h
+    Modules/Model/InternalAPI/DDFloat4x4.h
+    Modules/Model/InternalAPI/DDMesh.h
+    Modules/Model/InternalAPI/DDMeshDescriptor.h
+    Modules/Model/InternalAPI/DDMeshPart.h
+    Modules/Model/InternalAPI/DDReplaceVertices.h
+    Modules/Model/InternalAPI/DDUpdateMeshDescriptor.h
+    Modules/Model/InternalAPI/DDVertexAttributeFormat.h
+    Modules/Model/InternalAPI/DDVertexLayout.h
+    Modules/Model/InternalAPI/ModelObjectDescriptorBase.h
+
     Modules/ShapeDetection/Interfaces/BarcodeDetectorInterface.h
     Modules/ShapeDetection/Interfaces/BarcodeDetectorOptionsInterface.h
     Modules/ShapeDetection/Interfaces/BarcodeFormatInterface.h
@@ -3003,7 +3016,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     plugins/PluginViewBase.h
 
     rendering/AccessibilityRegionContext.h
-    rendering/BreakLines.h
+    rendering/BreakablePositions.h
     rendering/CSSFilterRenderer.h
     rendering/CSSValueKey.h
     rendering/CaretRectComputation.h
@@ -3262,6 +3275,9 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/values/flexbox/StyleWebKitBoxFlexGroup.h
     style/values/flexbox/StyleWebKitBoxOrdinalGroup.h
 
+    style/values/fonts/StyleFontPalette.h
+    style/values/fonts/StyleFontWidth.h
+
     style/values/grid/StyleGridNamedAreaMap.h
     style/values/grid/StyleGridNamedLinesMap.h
     style/values/grid/StyleGridOrderedNamedLinesMap.h
@@ -3408,7 +3424,10 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/values/text/StyleHyphenateCharacter.h
     style/values/text/StyleHyphenateLimitEdge.h
     style/values/text/StyleHyphenateLimitLines.h
+    style/values/text/StyleLetterSpacing.h
+    style/values/text/StyleTabSize.h
     style/values/text/StyleTextIndent.h
+    style/values/text/StyleWordSpacing.h
 
     style/values/text-decoration/StyleTextDecorationLine.h
     style/values/text-decoration/StyleTextDecorationThickness.h

@@ -26,17 +26,25 @@
 #include "config.h"
 #include "GridLayout.h"
 
+#include "GridAreaLines.h"
 #include "ImplicitGrid.h"
-#include "PlacedGridItem.h"
 #include "RenderStyleInlines.h"
 #include "LayoutElementBox.h"
 #include "NotImplemented.h"
+#include "PlacedGridItem.h"
 #include "TrackSizingAlgorithm.h"
+#include "TrackSizingFunctions.h"
 #include "UnplacedGridItem.h"
 #include <wtf/Vector.h>
 
 namespace WebCore {
 namespace Layout {
+
+struct UsedTrackSizes {
+    TrackSizes columnSizes;
+    TrackSizes rowSizes;
+};
+
 GridLayout::GridLayout(const GridFormattingContext& gridFormattingContext)
     : m_gridFormattingContext(gridFormattingContext)
 {
@@ -48,7 +56,7 @@ auto GridLayout::placeGridItems(const UnplacedGridItems& unplacedGridItems, cons
     const Vector<Style::GridTrackSize>& gridTemplateRowsTrackSizes)
 {
     struct Result {
-        PlacedGridItems placedGridItems;
+        GridAreas gridAreas;
         size_t implicitGridColumnsCount;
         size_t implicitGridRowsCount;
     };
@@ -63,7 +71,7 @@ auto GridLayout::placeGridItems(const UnplacedGridItems& unplacedGridItems, cons
     ASSERT(implicitGrid.columnsCount() == gridTemplateColumnsTrackSizes.size() && implicitGrid.rowsCount() == gridTemplateRowsTrackSizes.size(),
         "Since we currently only support placing items which are explicitly placed and fit within the explicit grid, the size of the implicit grid should match the passed in sizes.");
 
-    return Result { implicitGrid.placedGridItems(), implicitGrid.columnsCount(), implicitGrid.rowsCount() };
+    return Result { implicitGrid.gridAreas(), implicitGrid.columnsCount(), implicitGrid.rowsCount() };
 }
 
 // https://drafts.csswg.org/css-grid-1/#layout-algorithm
@@ -74,7 +82,8 @@ void GridLayout::layout(GridFormattingContext::GridLayoutConstraints, const Unpl
     auto& gridTemplateRowsTrackSizes = gridContainerStyle->gridTemplateRows().sizes;
 
     // 1. Run the Grid Item Placement Algorithm to resolve the placement of all grid items in the grid.
-    auto [ placedGridItems, implicitGridColumnsCount, implicitGridRowsCount ] = placeGridItems(unplacedGridItems, gridTemplateColumnsTrackSizes, gridTemplateRowsTrackSizes);
+    auto [ gridAreas, implicitGridColumnsCount, implicitGridRowsCount ] = placeGridItems(unplacedGridItems, gridTemplateColumnsTrackSizes, gridTemplateRowsTrackSizes);
+    auto placedGridItems = formattingContext().constructPlacedGridItems(gridAreas);
 
     auto columnTrackSizingFunctionsList = trackSizingFunctions(implicitGridColumnsCount, gridTemplateColumnsTrackSizes);
     auto rowTrackSizingFunctionsList = trackSizingFunctions(implicitGridRowsCount, gridTemplateRowsTrackSizes);
@@ -86,7 +95,7 @@ void GridLayout::layout(GridFormattingContext::GridLayoutConstraints, const Unpl
     UNUSED_VARIABLE(usedRowSizes);
 }
 
-GridLayout::TrackSizingFunctionsList GridLayout::trackSizingFunctions(size_t implicitGridTracksCount, const Vector<Style::GridTrackSize> gridTemplateTrackSizes)
+TrackSizingFunctionsList GridLayout::trackSizingFunctions(size_t implicitGridTracksCount, const Vector<Style::GridTrackSize> gridTemplateTrackSizes)
 {
     ASSERT(implicitGridTracksCount == gridTemplateTrackSizes.size(), "Currently only support mapping track sizes from explicit grid from grid-template-{columns, rows}");
     UNUSED_VARIABLE(implicitGridTracksCount);
@@ -129,7 +138,7 @@ GridLayout::TrackSizingFunctionsList GridLayout::trackSizingFunctions(size_t imp
 }
 
 // https://www.w3.org/TR/css-grid-1/#algo-grid-sizing
-GridLayout::UsedTrackSizes GridLayout::performGridSizingAlgorithm(const PlacedGridItems& placedGridItems,
+UsedTrackSizes GridLayout::performGridSizingAlgorithm(const PlacedGridItems& placedGridItems,
     const TrackSizingFunctionsList& columnTrackSizingFunctionsList, const TrackSizingFunctionsList& rowTrackSizingFunctionsList)
 {
     // 1. First, the track sizing algorithm is used to resolve the sizes of the grid columns.

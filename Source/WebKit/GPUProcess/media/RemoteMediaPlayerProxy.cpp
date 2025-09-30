@@ -57,9 +57,9 @@
 #include <WebCore/NotImplemented.h>
 #include <WebCore/ResourceError.h>
 #include <WebCore/SecurityOrigin.h>
-#include <wtf/TZoneMallocInlines.h>
 #include <wtf/MemoryFootprint.h>
-
+#include <wtf/TZoneMallocInlines.h>
+#include <wtf/UniqueRef.h>
 #if ENABLE(ENCRYPTED_MEDIA)
 #include "RemoteCDMFactoryProxy.h"
 #endif
@@ -69,8 +69,13 @@
 #endif
 
 #if PLATFORM(COCOA)
+#include "LayerHostingContextManager.h"
 #include <WebCore/AudioSourceProviderAVFObjC.h>
 #include <WebCore/VideoFrameCV.h>
+#endif
+
+#if ENABLE(LINEAR_MEDIA_PLAYER)
+#include "VideoReceiverEndpointManager.h"
 #endif
 
 #include <wtf/NativePromise.h>
@@ -99,6 +104,9 @@ RemoteMediaPlayerProxy::RemoteMediaPlayerProxy(RemoteMediaPlayerManagerProxy& ma
 #if !RELEASE_LOG_DISABLED
     , m_logger(manager.logger())
 #endif
+#if PLATFORM(COCOA)
+    , m_layerHostingContextManager(makeUniqueRef<LayerHostingContextManager>())
+#endif
 {
     m_typesRequiringHardwareSupport = m_configuration.mediaContentTypesRequiringHardwareSupport;
     m_renderingCanBeAccelerated = m_configuration.renderingCanBeAccelerated;
@@ -118,9 +126,6 @@ RemoteMediaPlayerProxy::~RemoteMediaPlayerProxy()
     if (m_performTaskAtTimeCompletionHandler)
         m_performTaskAtTimeCompletionHandler(std::nullopt);
     setShouldEnableAudioSourceProvider(false);
-
-    for (auto& request : std::exchange(m_layerHostingContextRequests, { }))
-        request({ });
 }
 
 void RemoteMediaPlayerProxy::invalidate()
@@ -959,8 +964,10 @@ bool RemoteMediaPlayerProxy::mediaPlayerShouldCheckHardwareSupport() const
 WebCore::PlatformVideoTarget RemoteMediaPlayerProxy::mediaPlayerVideoTarget() const
 {
 #if ENABLE(LINEAR_MEDIA_PLAYER)
-    if (m_manager)
-        return m_manager->takeVideoTargetForMediaElementIdentifier(m_clientIdentifier, m_id);
+    if (m_manager) {
+        if (RefPtr gpuConnectionToWebProcess = m_manager->gpuConnectionToWebProcess())
+            return gpuConnectionToWebProcess->videoReceiverEndpointManager().takeVideoTargetForMediaElementIdentifier(m_clientIdentifier, m_id);
+    }
 #endif
     return nullptr;
 }
