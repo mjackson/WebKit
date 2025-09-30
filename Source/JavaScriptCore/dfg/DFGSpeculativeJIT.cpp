@@ -66,6 +66,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include "JSIteratorHelper.h"
 #include "JSLexicalEnvironment.h"
 #include "JSMapIterator.h"
+#include "JSPromiseAllContext.h"
 #include "JSPropertyNameEnumerator.h"
 #include "JSRegExpStringIterator.h"
 #include "JSSetIterator.h"
@@ -12666,7 +12667,7 @@ struct CharacterCase {
         return character < other.character;
     }
     
-    LChar character;
+    Latin1Character character;
     unsigned begin;
     unsigned end;
 };
@@ -15555,6 +15556,9 @@ void SpeculativeJIT::compileNewInternalFieldObject(Node* node)
         break;
     case JSAsyncFromSyncIteratorType:
         compileNewInternalFieldObjectImpl<JSAsyncFromSyncIterator>(node, operationNewAsyncFromSyncIterator);
+        break;
+    case JSPromiseAllContextType:
+        compileNewInternalFieldObjectImpl<JSPromiseAllContext>(node, operationNewPromiseAllContext);
         break;
     case JSRegExpStringIteratorType:
         compileNewInternalFieldObjectImpl<JSRegExpStringIterator>(node, operationNewRegExpStringIterator);

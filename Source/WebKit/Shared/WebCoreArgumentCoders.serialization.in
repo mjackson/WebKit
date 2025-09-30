@@ -6183,7 +6183,8 @@ enum class WebCore::FrameLoadType : uint8_t {
     RedirectWithLockedBackForwardList,
     MultipartReplace,
     ReloadFromOrigin,
-    ReloadExpiredOnly
+    ReloadExpiredOnly,
+    NavigationAPIReplace
 };
 
 enum class WebCore::NavigationType : uint8_t {
@@ -7058,6 +7059,12 @@ header: <WebCore/TextExtractionTypes.h>
 [CustomHeader] struct WebCore::TextExtraction::InteractionDescription {
     String description;
     Vector<String> stringsToValidate;
+};
+
+header: <WebCore/TextExtractionTypes.h>
+[CustomHeader] struct WebCore::TextExtraction::ExtractedText {
+    String text;
+    std::optional<WebCore::NodeIdentifier> nodeIdentifier;
 };
 
 header: <WebCore/TextExtractionTypes.h>

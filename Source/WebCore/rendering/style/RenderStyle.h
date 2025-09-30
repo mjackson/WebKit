@@ -83,6 +83,7 @@ class WillChangeData;
 enum CSSPropertyID : uint16_t;
 enum GridAutoFlow : uint8_t;
 
+enum class AlignmentBaseline : uint8_t;
 enum class ApplePayButtonStyle : uint8_t;
 enum class ApplePayButtonType : uint8_t;
 enum class AppleVisualEffect : uint8_t;
@@ -104,6 +105,7 @@ enum class BoxPack : uint8_t;
 enum class BoxSizing : bool;
 enum class BreakBetween : uint8_t;
 enum class BreakInside : uint8_t;
+enum class BufferedRendering : uint8_t;
 enum class CaptionSide : uint8_t;
 enum class Clear : uint8_t;
 enum class ColumnAxis : uint8_t;
@@ -119,6 +121,7 @@ enum class ContentVisibility : uint8_t;
 enum class CursorType : uint8_t;
 enum class CursorVisibility : bool;
 enum class DisplayType : uint8_t;
+enum class DominantBaseline : uint8_t;
 enum class EmptyCell : bool;
 enum class EventListenerRegionType : uint32_t;
 enum class FieldSizing : bool;
@@ -147,6 +150,7 @@ enum class ListStylePosition : bool;
 enum class MarginTrimType : uint8_t;
 enum class MarqueeBehavior : uint8_t;
 enum class MarqueeDirection : uint8_t;
+enum class MaskType : uint8_t;
 enum class MathShift : bool;
 enum class MathStyle : bool;
 enum class NBSPMode : bool;
@@ -207,20 +211,20 @@ enum class UsedFloat : uint8_t;
 enum class UserDrag : uint8_t;
 enum class UserModify : uint8_t;
 enum class UserSelect : uint8_t;
+enum class VectorEffect : uint8_t;
 enum class Visibility : uint8_t;
 enum class WhiteSpace : uint8_t;
 enum class WhiteSpaceCollapse : uint8_t;
+enum class WindRule : bool;
 enum class WordBreak : uint8_t;
 
 struct CSSPropertiesBitSet;
 struct CounterDirectiveMap;
-struct FontPalette;
 struct FontSizeAdjust;
 struct GridTrackList;
 struct ImageOrientation;
 struct Length;
 struct NameScope;
-struct TabSize;
 struct TransformOperationData;
 
 template<typename> class FontTaggedSettings;
@@ -267,6 +271,8 @@ struct Cursor;
 struct DynamicRangeLimit;
 struct Filter;
 struct FlexBasis;
+struct FontPalette;
+struct FontWidth;
 struct GapGutter;
 struct GridPosition;
 struct GridTemplateAreas;
@@ -277,6 +283,7 @@ struct HyphenateLimitEdge;
 struct HyphenateLimitLines;
 struct ImageOrNone;
 struct InsetEdge;
+struct LetterSpacing;
 struct LineWidth;
 struct LineFitEdge;
 struct ListStyleType;
@@ -314,6 +321,7 @@ struct Rotate;
 struct SVGBaselineShift;
 struct SVGCenterCoordinateComponent;
 struct SVGCoordinateComponent;
+struct SVGMarkerResource;
 struct SVGPaint;
 struct SVGPathData;
 struct SVGRadius;
@@ -333,6 +341,7 @@ struct ShapeMargin;
 struct ShapeOutside;
 struct StrokeMiterlimit;
 struct StrokeWidth;
+struct TabSize;
 struct TextBoxEdge;
 struct TextDecorationThickness;
 struct TextEmphasisStyle;
@@ -358,6 +367,7 @@ struct WebkitMarqueeRepetition;
 struct WebkitMarqueeSpeed;
 struct WebkitTextStrokeWidth;
 struct Widows;
+struct WordSpacing;
 struct ZIndex;
 
 enum class Change : uint8_t;
@@ -453,11 +463,16 @@ public:
 
     void inheritFrom(const RenderStyle&);
     void inheritIgnoringCustomPropertiesFrom(const RenderStyle&);
+    void inheritUnicodeBidiFrom(const RenderStyle* parent) { m_nonInheritedFlags.unicodeBidi = parent->m_nonInheritedFlags.unicodeBidi; }
+    inline void inheritColumnPropertiesFrom(const RenderStyle& parent);
     void fastPathInheritFrom(const RenderStyle&);
     void copyNonInheritedFrom(const RenderStyle&);
     void copyContentFrom(const RenderStyle&);
     void copyPseudoElementsFrom(const RenderStyle&);
     void copyPseudoElementBitsFrom(const RenderStyle&);
+
+    bool scrollAnchoringSuppressionStyleDidChange(const RenderStyle*) const;
+    bool outOfFlowPositionStyleDidChange(const RenderStyle*) const;
 
     ContentPosition resolvedJustifyContentPosition(const StyleContentAlignmentData& normalValueBehavior) const;
     ContentDistribution resolvedJustifyContentDistribution(const StyleContentAlignmentData& normalValueBehavior) const;
@@ -714,10 +729,10 @@ public:
     inline FontOpticalSizing fontOpticalSizing() const;
     inline FontVariationSettings fontVariationSettings() const;
     inline FontSelectionValue fontWeight() const;
-    inline FontSelectionValue fontWidth() const;
     inline std::optional<FontSelectionValue> fontItalic() const;
-    inline const FontPalette& fontPalette() const;
+    inline Style::FontPalette fontPalette() const;
     inline FontSizeAdjust fontSizeAdjust() const;
+    inline Style::FontWidth fontWidth() const;
 
     inline const Style::TextIndent& textIndent() const;
     inline TextAlignMode textAlign() const { return static_cast<TextAlignMode>(m_inheritedFlags.textAlign); }
@@ -740,10 +755,11 @@ public:
 
     inline OptionSet<MarginTrimType> marginTrim() const;
 
-    const Length& computedLetterSpacing() const;
-    const Length& computedWordSpacing() const;
-    inline float letterSpacing() const;
-    inline float wordSpacing() const;
+    inline const Style::LetterSpacing& computedLetterSpacing() const;
+    inline const Style::WordSpacing& computedWordSpacing() const;
+    inline float usedLetterSpacing() const;
+    inline float usedWordSpacing() const;
+
     TextSpacingTrim textSpacingTrim() const;
     TextAutospace textAutospace() const;
 
@@ -1071,7 +1087,7 @@ public:
     inline TextCombine textCombine() const;
     inline bool hasTextCombine() const;
 
-    inline const TabSize& tabSize() const;
+    inline const Style::TabSize& tabSize() const;
 
     inline const Style::WebkitLineGrid& lineGrid() const;
     inline LineSnap lineSnap() const;
@@ -1351,9 +1367,9 @@ public:
     void setFontOpticalSizing(FontOpticalSizing);
     void setFontVariationSettings(FontVariationSettings);
     void setFontWeight(FontSelectionValue);
-    void setFontWidth(FontSelectionValue);
     void setFontItalic(std::optional<FontSelectionValue>);
-    void setFontPalette(const FontPalette&);
+    void setFontPalette(Style::FontPalette&&);
+    void setFontWidth(Style::FontWidth);
 
     void setColor(Color&&);
 
@@ -1395,9 +1411,8 @@ public:
     void setTextWrapMode(TextWrapMode v) { m_inheritedFlags.textWrapMode = static_cast<unsigned>(v); }
     void setTextWrapStyle(TextWrapStyle v) { m_inheritedFlags.textWrapStyle = static_cast<unsigned>(v); }
 
-    // If letter-spacing is nonzero, we disable ligatures, which means this property affects font preparation.
-    void setLetterSpacing(Length&&);
-    void setWordSpacing(Length&&);
+    inline void setLetterSpacing(Style::LetterSpacing&&);
+    inline void setWordSpacing(Style::WordSpacing&&);
 
     inline void setMaskLayers(Style::MaskLayers&&);
 
@@ -1566,7 +1581,6 @@ public:
     inline void setColumnRuleWidth(Style::LineWidth);
     inline void resetColumnRule();
     inline void setColumnSpan(ColumnSpan);
-    inline void inheritColumnPropertiesFrom(const RenderStyle& parent);
 
     inline void setTransform(Style::Transform&&);
     inline void setTransformOrigin(Style::TransformOrigin&&);
@@ -1605,7 +1619,7 @@ public:
     inline void setBackdropFilter(Style::Filter&&);
     inline void setAppleColorFilter(Style::AppleColorFilter&&);
 
-    inline void setTabSize(const TabSize&);
+    inline void setTabSize(Style::TabSize&&);
 
     inline void setBreakBefore(BreakBetween);
     inline void setBreakAfter(BreakBetween);
@@ -1745,33 +1759,35 @@ public:
     inline void setStrokeMiterLimit(Style::StrokeMiterlimit);
     static constexpr Style::StrokeMiterlimit initialStrokeMiterLimit();
 
-    static constexpr Style::Opacity initialFillOpacity();
-    static constexpr Style::Opacity initialStrokeOpacity();
-    static inline Style::SVGStrokeDasharray initialStrokeDashArray();
-    static inline Style::SVGStrokeDashoffset initialStrokeDashOffset();
-
-    const SVGRenderStyle& svgStyle() const { return m_svgStyle; }
-    inline SVGRenderStyle& accessSVGStyle();
-
     inline const Style::SVGPaint& fill() const;
     inline const Style::SVGPaint& visitedLinkFill() const;
+    inline bool hasFill() const;
     inline void setFill(Style::SVGPaint&&);
     inline void setVisitedLinkFill(Style::SVGPaint&&);
-    inline void setHasExplicitlySetColor(bool);
-    inline bool hasExplicitlySetColor() const;
+    static inline Style::SVGPaint initialFill();
+
     inline Style::Opacity fillOpacity() const;
     inline void setFillOpacity(Style::Opacity);
+    static constexpr Style::Opacity initialFillOpacity();
 
     inline const Style::SVGPaint& stroke() const;
     inline const Style::SVGPaint& visitedLinkStroke() const;
+    inline bool hasStroke() const;
     inline void setStroke(Style::SVGPaint&&);
     inline void setVisitedLinkStroke(Style::SVGPaint&&);
+    static inline Style::SVGPaint initialStroke();
+
     inline Style::Opacity strokeOpacity() const;
     inline void setStrokeOpacity(Style::Opacity);
+    static constexpr Style::Opacity initialStrokeOpacity();
+
     inline const Style::SVGStrokeDasharray& strokeDashArray() const;
     inline void setStrokeDashArray(Style::SVGStrokeDasharray&&);
+    static inline Style::SVGStrokeDasharray initialStrokeDashArray();
+
     inline const Style::SVGStrokeDashoffset& strokeDashOffset() const;
     inline void setStrokeDashOffset(Style::SVGStrokeDashoffset&&);
+    static inline Style::SVGStrokeDashoffset initialStrokeDashOffset();
 
     inline const Style::SVGCenterCoordinateComponent& cx() const;
     inline void setCx(Style::SVGCenterCoordinateComponent&&);
@@ -1800,12 +1816,21 @@ public:
     inline void setStopOpacity(Style::Opacity);
     static constexpr Style::Opacity initialStopOpacity();
 
+    inline const Style::Color& stopColor() const;
     inline void setStopColor(Style::Color&&);
+    static inline Style::Color initialStopColor();
+
+    inline const Style::Color& floodColor() const;
     inline void setFloodColor(Style::Color&&);
+    static inline Style::Color initialFloodColor();
+
+    inline const Style::Color& lightingColor() const;
     inline void setLightingColor(Style::Color&&);
+    static inline Style::Color initialLightingColor();
 
     inline const Style::SVGBaselineShift& baselineShift() const;
     inline void setBaselineShift(Style::SVGBaselineShift&&);
+    static inline Style::SVGBaselineShift initialBaselineShift();
 
     inline void setShapeOutside(Style::ShapeOutside&&);
     inline const Style::ShapeOutside& shapeOutside() const;
@@ -1853,8 +1878,8 @@ public:
     bool nonInheritedEqual(const RenderStyle&) const;
     bool fastPathInheritedEqual(const RenderStyle&) const;
     bool nonFastPathInheritedEqual(const RenderStyle&) const;
-
     bool descendantAffectingNonInheritedPropertiesEqual(const RenderStyle&) const;
+    bool borderAndBackgroundEqual(const RenderStyle&) const;
 
 #if ENABLE(TEXT_AUTOSIZING)
     uint32_t hashForTextAutosizing() const;
@@ -1936,6 +1961,8 @@ public:
     static constexpr PositionType initialPosition();
     static inline Style::VerticalAlign initialVerticalAlign();
     static constexpr Float initialFloating();
+    static inline Style::FontPalette initialFontPalette();
+    static inline Style::FontWidth initialFontWidth();
     static constexpr BreakBetween initialBreakBetween();
     static constexpr BreakInside initialBreakInside();
     static constexpr OptionSet<HangingPunctuation> initialHangingPunctuation();
@@ -1971,8 +1998,8 @@ public:
     static constexpr Style::LineWidth initialBorderWidth();
     static constexpr Style::LineWidth initialColumnRuleWidth();
     static constexpr Style::LineWidth initialOutlineWidth();
-    static inline Length initialLetterSpacing();
-    static inline Length initialWordSpacing();
+    static inline Style::LetterSpacing initialLetterSpacing();
+    static inline Style::WordSpacing initialWordSpacing();
     static inline Style::PreferredSize initialSize();
     static inline Style::MinimumSize initialMinSize();
     static inline Style::MaximumSize initialMaxSize();
@@ -1988,7 +2015,6 @@ public:
     static constexpr TextBoxTrim initialTextBoxTrim();
     static constexpr Style::TextBoxEdge initialTextBoxEdge();
     static constexpr Style::LineFitEdge initialLineFitEdge();
-    static constexpr LengthType zeroLength();
     static constexpr Style::Widows initialWidows();
     static constexpr Style::Orphans initialOrphans();
     // Returning -100% percent here means the line-height is not set.
@@ -2109,6 +2135,9 @@ public:
     static inline Style::SVGCoordinateComponent initialX();
     static inline Style::SVGCoordinateComponent initialY();
 
+
+
+
 #if ENABLE(DARK_MODE_CSS)
     static inline Style::ColorScheme initialColorScheme();
 #endif
@@ -2171,7 +2200,7 @@ public:
     static inline Style::GridPosition initialGridItemRowStart();
     static inline Style::GridPosition initialGridItemRowEnd();
 
-    static constexpr TabSize initialTabSize();
+    static constexpr Style::TabSize initialTabSize();
 
     static inline Style::WebkitLineGrid initialLineGrid();
     static constexpr LineSnap initialLineSnap();
@@ -2224,14 +2253,16 @@ public:
     inline void setVisitedLinkCaretColor(Style::Color&&);
     inline void setHasVisitedLinkAutoCaretColor();
 
-    void inheritUnicodeBidiFrom(const RenderStyle* parent) { m_nonInheritedFlags.unicodeBidi = parent->m_nonInheritedFlags.unicodeBidi; }
+
+    WEBCORE_EXPORT const Color& color() const;
+    inline void setHasExplicitlySetColor(bool);
+    inline bool hasExplicitlySetColor() const;
 
     inline const Style::Color& borderLeftColor() const;
     inline const Style::Color& borderRightColor() const;
     inline const Style::Color& borderTopColor() const;
     inline const Style::Color& borderBottomColor() const;
     inline const Style::Color& backgroundColor() const;
-    WEBCORE_EXPORT const Color& color() const;
     inline const Style::Color& columnRuleColor() const;
     inline const Style::Color& outlineColor() const;
     inline const Style::Color& textEmphasisColor() const;
@@ -2255,10 +2286,6 @@ public:
     inline const Style::Color& visitedLinkTextStrokeColor() const;
     inline const Style::Color& visitedLinkCaretColor() const;
     inline bool hasVisitedLinkAutoCaretColor() const;
-
-    inline const Style::Color& stopColor() const;
-    inline const Style::Color& floodColor() const;
-    inline const Style::Color& lightingColor() const;
 
     Color usedAccentColor(OptionSet<StyleColorOptions>) const;
     inline const Style::Color& accentColor() const;
@@ -2285,8 +2312,6 @@ public:
     inline void setOffsetRotate(Style::OffsetRotate&&);
     static constexpr Style::OffsetRotate initialOffsetRotate();
 
-    bool borderAndBackgroundEqual(const RenderStyle&) const;
-    
     inline OverflowAnchor overflowAnchor() const;
     inline void setOverflowAnchor(OverflowAnchor);
     static constexpr OverflowAnchor initialOverflowAnchor();
@@ -2306,9 +2331,6 @@ public:
     static constexpr BlockStepRound initialBlockStepRound();
     inline BlockStepRound blockStepRound() const;
     inline void setBlockStepRound(BlockStepRound);
-
-    bool scrollAnchoringSuppressionStyleDidChange(const RenderStyle*) const;
-    bool outOfFlowPositionStyleDidChange(const RenderStyle*) const;
 
     static Style::AnchorNames initialAnchorNames();
     inline const Style::AnchorNames& anchorNames() const;
@@ -2340,6 +2362,69 @@ public:
     static constexpr OptionSet<PositionVisibility> initialPositionVisibility();
     inline OptionSet<PositionVisibility> positionVisibility() const;
     inline void setPositionVisibility(OptionSet<PositionVisibility>);
+
+    inline AlignmentBaseline alignmentBaseline() const;
+    inline void setAlignmentBaseline(AlignmentBaseline);
+    static constexpr AlignmentBaseline initialAlignmentBaseline();
+
+    inline DominantBaseline dominantBaseline() const;
+    inline void setDominantBaseline(DominantBaseline);
+    static constexpr DominantBaseline initialDominantBaseline();
+
+    inline VectorEffect vectorEffect() const;
+    inline void setVectorEffect(VectorEffect);
+    static constexpr VectorEffect initialVectorEffect();
+
+    inline BufferedRendering bufferedRendering() const;
+    inline void setBufferedRendering(BufferedRendering);
+    static constexpr BufferedRendering initialBufferedRendering();
+
+    inline WindRule clipRule() const;
+    inline void setClipRule(WindRule);
+    static constexpr WindRule initialClipRule();
+
+    inline ColorInterpolation colorInterpolation() const;
+    inline void setColorInterpolation(ColorInterpolation);
+    static constexpr ColorInterpolation initialColorInterpolation();
+
+    inline ColorInterpolation colorInterpolationFilters() const;
+    inline void setColorInterpolationFilters(ColorInterpolation);
+    static constexpr ColorInterpolation initialColorInterpolationFilters();
+
+    inline WindRule fillRule() const;
+    inline void setFillRule(WindRule);
+    static constexpr WindRule initialFillRule();
+
+    inline ShapeRendering shapeRendering() const;
+    inline void setShapeRendering(ShapeRendering);
+    static constexpr ShapeRendering initialShapeRendering();
+
+    inline TextAnchor textAnchor() const;
+    inline void setTextAnchor(TextAnchor);
+    static constexpr TextAnchor initialTextAnchor();
+
+    inline GlyphOrientation glyphOrientationHorizontal() const;
+    inline void setGlyphOrientationHorizontal(GlyphOrientation);
+    static constexpr GlyphOrientation initialGlyphOrientationHorizontal();
+
+    inline GlyphOrientation glyphOrientationVertical() const;
+    inline void setGlyphOrientationVertical(GlyphOrientation);
+    static constexpr GlyphOrientation initialGlyphOrientationVertical();
+
+    inline MaskType maskType() const;
+    inline void setMaskType(MaskType);
+    static constexpr MaskType initialMaskType();
+
+    inline const Style::SVGMarkerResource& markerStart() const;
+    inline const Style::SVGMarkerResource& markerMid() const;
+    inline const Style::SVGMarkerResource& markerEnd() const;
+    void setMarkerStart(Style::SVGMarkerResource&&);
+    void setMarkerMid(Style::SVGMarkerResource&&);
+    void setMarkerEnd(Style::SVGMarkerResource&&);
+    static inline Style::SVGMarkerResource initialMarkerStart();
+    static inline Style::SVGMarkerResource initialMarkerMid();
+    static inline Style::SVGMarkerResource initialMarkerEnd();
+    inline bool hasMarkers() const;
 
     inline bool insideDefaultButton() const;
     inline void setInsideDefaultButton(bool);

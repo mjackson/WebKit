@@ -670,7 +670,6 @@ platform/graphics/ImageFrame.h
 platform/graphics/ImageFrameWorkQueue.cpp
 platform/graphics/Path.cpp
 platform/graphics/TransparencyLayerContextSwitcher.cpp
-platform/graphics/avfoundation/AudioSourceProviderAVFObjC.mm
 platform/graphics/avfoundation/InbandMetadataTextTrackPrivateAVF.cpp
 platform/graphics/avfoundation/objc/CDMInstanceFairPlayStreamingAVFObjC.mm
 platform/graphics/avfoundation/objc/CDMSessionAVContentKeySession.mm
@@ -807,7 +806,6 @@ rendering/shapes/ShapeOutsideInfo.h
 rendering/style/RenderStyle.cpp
 rendering/style/RenderStyleInlines.h
 rendering/style/SVGRenderStyle.cpp
-rendering/style/SVGRenderStyle.h
 rendering/style/StyleCachedImage.cpp
 rendering/style/StyleCanvasImage.cpp
 rendering/style/StyleCrossfadeImage.cpp

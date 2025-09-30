@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "GridTypeAliases.h"
 #include "LayoutState.h"
 #include "LayoutUnit.h"
 #include <wtf/CheckedRef.h>
@@ -33,8 +34,11 @@ namespace WebCore {
 namespace Layout {
 
 class ElementBox;
+class PlacedGridItem;
 
 class UnplacedGridItem;
+
+struct GridAreaLines;
 struct UnplacedGridItems;
 
 class GridFormattingContext : public CanMakeCheckedPtr<GridFormattingContext> {
@@ -50,6 +54,8 @@ public:
     GridFormattingContext(const ElementBox& gridBox, LayoutState&);
 
     void layout(GridLayoutConstraints);
+
+    PlacedGridItems constructPlacedGridItems(const GridAreas&) const;
 
     const ElementBox& root() const { return m_gridBox; }
 

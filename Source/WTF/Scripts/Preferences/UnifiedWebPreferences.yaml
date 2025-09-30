@@ -4227,7 +4227,8 @@ LargeImageAsyncDecodingEnabled:
 
 LargestContentfulPaintEnabled:
   type: bool
-  status: unstable
+  status: testable
+  category: dom
   humanReadableName: "Largest Contentful Paint"
   humanReadableDescription: "Enable Largest Contentful Paint performance entries"
   defaultValue:
@@ -6189,8 +6190,9 @@ ReadableByteStreamAPIEnabled:
   category: dom
   humanReadableName: "ReadableByteStream"
   humanReadableDescription: "Enable Readable Byte Streams"
-  webcoreBinding: DeprecatedGlobalSettings
   defaultValue:
+    WebCore:
+      default: false
     WebKitLegacy:
       default: false
     WebKit:
@@ -7843,7 +7845,7 @@ TextRecognitionInVideosEnabled:
 
 TextShapingAcrossInlineBoxes:
   type: bool
-  status: unstable
+  status: preview
   category: css
   humanReadableName: "Text Shaping Across Inline Boxes"
   humanReadableDescription: "Enable Text Shaping Across Inline Boxes"

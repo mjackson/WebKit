@@ -345,7 +345,7 @@ GCC_MAYBE_NO_INLINE static Ref<Frame> createMainFrame(Page& page, PageConfigurat
 {
     page.relaxAdoptionRequirement();
     return switchOn(WTFMove(clientCreator), [&] (PageConfiguration::LocalMainFrameCreationParameters&& creationParameters) -> Ref<Frame> {
-        return LocalFrame::createMainFrame(page, WTFMove(creationParameters.clientCreator), identifier, creationParameters.effectiveSandboxFlags, mainFrameOpener.get(), WTFMove(frameTreeSyncData));
+        return LocalFrame::createMainFrame(page, WTFMove(creationParameters.clientCreator), identifier, creationParameters.effectiveSandboxFlags, creationParameters.effectiveReferrerPolicy, mainFrameOpener.get(), WTFMove(frameTreeSyncData));
     }, [&] (CompletionHandler<UniqueRef<RemoteFrameClient>(RemoteFrame&)>&& remoteFrameClientCreator) -> Ref<Frame> {
         return RemoteFrame::createMainFrame(page, WTFMove(remoteFrameClientCreator), identifier, mainFrameOpener.get(), WTFMove(frameTreeSyncData));
     });
@@ -3934,6 +3934,9 @@ void Page::logNavigation(const Navigation& navigation)
         break;
     case FrameLoadType::ReloadExpiredOnly:
         navigationDescription = "reloadRevalidatingExpired"_s;
+        break;
+    case FrameLoadType::NavigationAPIReplace:
+        navigationDescription = "navigationAPIReplace"_s;
         break;
     case FrameLoadType::MultipartReplace:
     case FrameLoadType::RedirectWithLockedBackForwardList:

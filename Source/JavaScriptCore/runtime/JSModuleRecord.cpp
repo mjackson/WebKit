@@ -70,7 +70,7 @@ size_t JSModuleRecord::estimatedSize(JSCell* cell, VM& vm)
     size_t size = Base::estimatedSize(cell, vm);
     const SourceCode& sourceCode = thisObject->sourceCode();
     StringView view = sourceCode.provider() ? sourceCode.provider()->source() : StringView();
-    size += view.length() * (view.is8Bit() ? sizeof(LChar) : sizeof(UChar));
+    size += view.length() * (view.is8Bit() ? sizeof(Latin1Character) : sizeof(UChar));
     size += sourceCode.memoryCost();
     return size;
 }

@@ -219,6 +219,7 @@ set(WebCore_PRIVATE_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/style/values/fill-stroke"
     "${WEBCORE_DIR}/style/values/filter-effects"
     "${WEBCORE_DIR}/style/values/flexbox"
+    "${WEBCORE_DIR}/style/values/fonts"
     "${WEBCORE_DIR}/style/values/grid"
     "${WEBCORE_DIR}/style/values/images"
     "${WEBCORE_DIR}/style/values/inline"
@@ -717,6 +718,9 @@ set(WebCore_NON_SVG_IDL_FILES
     Modules/streams/GenericTransformStream.idl
     Modules/streams/QueuingStrategy.idl
     Modules/streams/QueuingStrategySize.idl
+    Modules/streams/ReadableByteStreamController.idl
+    Modules/streams/ReadableStreamBYOBReader.idl
+    Modules/streams/ReadableStreamBYOBRequest.idl
     Modules/streams/ReadableStream.idl
     Modules/streams/ReadableStreamDefaultController.idl
     Modules/streams/ReadableStreamDefaultReader.idl
@@ -3014,6 +3018,8 @@ target_precompile_headers(WebCore PRIVATE WebCorePrefix.h)
 
 list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
     ${WebCore_DERIVED_SOURCES_DIR}/ProcessSyncData.serialization.in
+
+    Modules/Model/InternalAPI/DDModel.serialization.in
 
     Modules/WebGPU/InternalAPI/WebGPU.serialization.in
     Modules/indexeddb/IndexedDB.serialization.in

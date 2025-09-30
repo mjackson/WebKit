@@ -642,28 +642,6 @@ public:
     }
 };
 
-class TabSizeWrapper final : public Wrapper<const TabSize&> {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(TabSizeWrapper, Animation);
-public:
-    TabSizeWrapper()
-        : Wrapper(CSSPropertyTabSize, &RenderStyle::tabSize, &RenderStyle::setTabSize)
-    {
-    }
-
-    bool canInterpolate(const RenderStyle& from, const RenderStyle& to, CompositeOperation) const final
-    {
-        return value(from).isSpaces() == value(to).isSpaces();
-    }
-
-    void interpolate(RenderStyle& destination, const RenderStyle& from, const RenderStyle& to, const Context& context) const final
-    {
-        if (context.isDiscrete)
-            (destination.*m_setter)(context.progress ? value(to) : value(from));
-        else
-            Wrapper::interpolate(destination, from, to, context);
-    }
-};
-
 // MARK: - Color Property Wrappers
 
 class ColorWrapper final : public WrapperWithGetter<const WebCore::Color&> {
@@ -901,57 +879,6 @@ public:
         return value(from) == Visibility::Visible || value(to) == Visibility::Visible;
     }
 };
-
-template<typename T, typename GetterType = T, typename SetterType = T>
-class DiscreteSVGWrapper final : public WrapperBase {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(DiscreteSVGWrapper, Animation);
-public:
-    DiscreteSVGWrapper(CSSPropertyID property, GetterType (SVGRenderStyle::*getter)() const, void (SVGRenderStyle::*setter)(SetterType))
-        : WrapperBase(property)
-        , m_getter(getter)
-        , m_setter(setter)
-    {
-    }
-
-    bool equals(const RenderStyle& a, const RenderStyle& b) const final
-    {
-        return this->value(a) == this->value(b);
-    }
-
-    bool canInterpolate(const RenderStyle&, const RenderStyle&, CompositeOperation) const final
-    {
-        return false;
-    }
-
-    void interpolate(RenderStyle& destination, const RenderStyle& from, const RenderStyle& to, const Context& context) const final
-    {
-        ASSERT(!context.progress || context.progress == 1.0);
-        (destination.accessSVGStyle().*this->m_setter)(T { this->value(context.progress ? to : from) });
-    }
-
-#if !LOG_DISABLED
-    void log(const RenderStyle&, const RenderStyle&, const RenderStyle&, double) const final
-    {
-    }
-#endif
-
-private:
-    T value(const RenderStyle& style) const
-    {
-        return (style.svgStyle().*this->m_getter)();
-    }
-
-    GetterType (SVGRenderStyle::*m_getter)() const;
-    void (SVGRenderStyle::*m_setter)(SetterType);
-};
-
-// Deduction guide for getter/setters that return and take values.
-template<typename T>
-DiscreteSVGWrapper(CSSPropertyID, T (SVGRenderStyle::*getter)() const, void (SVGRenderStyle::*setter)(T)) -> DiscreteSVGWrapper<T, T, T>;
-
-// Deduction guide for getter/setters that return const references and take r-value references.
-template<typename T>
-DiscreteSVGWrapper(CSSPropertyID, const T& (SVGRenderStyle::*getter)() const, void (SVGRenderStyle::*setter)(T&&)) -> DiscreteSVGWrapper<T, const T&, T&&>;
 
 // MARK: - FillLayer Wrappers
 

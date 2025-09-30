@@ -253,6 +253,7 @@
 #include <WebCore/PublicSuffixStore.h>
 #include <WebCore/Quirks.h>
 #include <WebCore/RealtimeMediaSourceCenter.h>
+#include <WebCore/ReferrerPolicy.h>
 #include <WebCore/RemoteUserInputEventData.h>
 #include <WebCore/RenderEmbeddedObject.h>
 #include <WebCore/ResourceLoadStatistics.h>
@@ -1152,10 +1153,7 @@ bool WebPageProxy::hasRunningProcess() const
 
 void WebPageProxy::notifyProcessPoolToPrewarm()
 {
-    Ref processPool = m_configuration->processPool();
-    if (processPool->hasPrewarmedProcess())
-        return;
-    processPool->didReachGoodTimeToPrewarm();
+    m_configuration->protectedProcessPool()->didReachGoodTimeToPrewarm();
 }
 
 void WebPageProxy::setPreferences(WebPreferences& preferences)
@@ -1573,7 +1571,7 @@ void WebPageProxy::finishAttachingToWebProcess(const Site& site, ProcessLaunchRe
 
     // In the process-swap case, the ProvisionalPageProxy already took care of initializing the WebPage in the WebProcess.
     if (reason != ProcessLaunchReason::ProcessSwap)
-        initializeWebPage(site, m_mainFrame ? m_mainFrame->effectiveSandboxFlags() : configuration().initialSandboxFlags());
+        initializeWebPage(site, m_mainFrame ? m_mainFrame->effectiveSandboxFlags() : configuration().initialSandboxFlags(), m_mainFrame ? m_mainFrame->effectiveReferrerPolicy() : configuration().initialReferrerPolicy());
 
     if (RefPtr inspector = this->inspector())
         inspector->updateForNewPageProcess(*this);
@@ -1721,7 +1719,7 @@ void WebPageProxy::setDrawingArea(RefPtr<DrawingAreaProxy>&& newDrawingArea)
 #endif
 }
 
-void WebPageProxy::initializeWebPage(const Site& site, WebCore::SandboxFlags effectiveSandboxFlags)
+void WebPageProxy::initializeWebPage(const Site& site, WebCore::SandboxFlags effectiveSandboxFlags, WebCore::ReferrerPolicy effectiveReferrerPolicy)
 {
     if (!hasRunningProcess())
         return;
@@ -1755,7 +1753,7 @@ void WebPageProxy::initializeWebPage(const Site& site, WebCore::SandboxFlags eff
     Ref browsingContextGroup = m_browsingContextGroup;
     Ref preferences = m_preferences;
 
-    m_mainFrame = WebFrameProxy::create(*this, browsingContextGroup->ensureProcessForSite(site, process, preferences), generateFrameIdentifier(), effectiveSandboxFlags, ScrollbarMode::Auto, WebFrameProxy::protectedWebFrame(m_openerFrameIdentifier).get(), IsMainFrame::Yes);
+    m_mainFrame = WebFrameProxy::create(*this, browsingContextGroup->ensureProcessForSite(site, process, preferences), generateFrameIdentifier(), effectiveSandboxFlags, effectiveReferrerPolicy, ScrollbarMode::Auto, WebFrameProxy::protectedWebFrame(m_openerFrameIdentifier).get(), IsMainFrame::Yes);
     if (preferences->siteIsolationEnabled())
         browsingContextGroup->addPage(*this);
     process->send(Messages::WebProcess::CreateWebPage(m_webPageID, creationParameters(process, *protectedDrawingArea(), m_mainFrame->frameID(), std::nullopt)), 0);
@@ -5084,6 +5082,7 @@ void WebPageProxy::receivedNavigationActionPolicyDecision(WebProcessProxy& proce
             // FIXME: Add more parameters as appropriate. <rdar://116200985>
             LoadParameters loadParameters;
             loadParameters.effectiveSandboxFlags = frame->effectiveSandboxFlags();
+            loadParameters.effectiveReferrerPolicy = frame->effectiveReferrerPolicy();
             loadParameters.request = navigation->currentRequest();
             loadParameters.shouldTreatAsContinuingLoad = navigation->currentRequestIsRedirect() ? ShouldTreatAsContinuingLoad::YesAfterProvisionalLoadStarted : ShouldTreatAsContinuingLoad::YesAfterNavigationPolicyDecision;
             loadParameters.frameIdentifier = frame->frameID();
@@ -5283,7 +5282,7 @@ void WebPageProxy::commitProvisionalPage(IPC::Connection& connection, FrameIdent
         m_mainFrameWebsitePolicies = mainFrameWebsitePolicies->copy();
 
     // There is no way we'll be able to return to the page in the previous page so close it.
-    if (!didSuspendPreviousPage && shouldClosePreviousPage())
+    if (!didSuspendPreviousPage && shouldClosePreviousPage(*provisionalPage))
         send(Messages::WebPage::Close());
 
     const auto oldWebPageID = m_webPageID;
@@ -5296,9 +5295,14 @@ void WebPageProxy::commitProvisionalPage(IPC::Connection& connection, FrameIdent
         m_inspectorController->didCommitProvisionalPage(oldWebPageID, m_webPageID);
 }
 
-bool WebPageProxy::shouldClosePreviousPage()
+bool WebPageProxy::shouldClosePreviousPage(const ProvisionalPageProxy& provisionalPage)
 {
-    return !protectedPreferences()->siteIsolationEnabled();
+    if (!protectedPreferences()->siteIsolationEnabled())
+        return true;
+    RefPtr mainFrame = provisionalPage.mainFrame();
+    if (!mainFrame)
+        return true;
+    return !mainFrame->opener();
 }
 
 void WebPageProxy::destroyProvisionalPage()
@@ -5339,6 +5343,7 @@ void WebPageProxy::continueNavigationInNewProcess(API::Navigation& navigation, W
         loadParameters.isRequestFromClientOrUserInput = navigation.isRequestFromClientOrUserInput();
         loadParameters.navigationID = navigation.navigationID();
         loadParameters.effectiveSandboxFlags = frame.effectiveSandboxFlags();
+        loadParameters.effectiveReferrerPolicy = frame.effectiveReferrerPolicy();
         loadParameters.lockBackForwardList = !!navigation.backForwardFrameLoadType() ? LockBackForwardList::Yes : LockBackForwardList::No;
         loadParameters.ownerPermissionsPolicy = navigation.ownerPermissionsPolicy();
         loadParameters.isPerformingHTTPFallback = isPerformingHTTPFallback == IsPerformingHTTPFallback::Yes;
@@ -6601,12 +6606,12 @@ void WebPageProxy::preferencesDidChange()
     protectedWebsiteDataStore()->propagateSettingUpdates();
 }
 
-void WebPageProxy::didCreateSubframe(FrameIdentifier parentID, FrameIdentifier newFrameID, String&& frameName, SandboxFlags sandboxFlags, ScrollbarMode scrollingMode)
+void WebPageProxy::didCreateSubframe(FrameIdentifier parentID, FrameIdentifier newFrameID, String&& frameName, SandboxFlags sandboxFlags, ReferrerPolicy referrerPolicy, ScrollbarMode scrollingMode)
 {
     RefPtr parent = WebFrameProxy::webFrame(parentID);
     if (!parent)
         return;
-    parent->didCreateSubframe(newFrameID, WTFMove(frameName), sandboxFlags, scrollingMode);
+    parent->didCreateSubframe(newFrameID, WTFMove(frameName), sandboxFlags, referrerPolicy, scrollingMode);
 }
 
 void WebPageProxy::didDestroyFrame(IPC::Connection& connection, FrameIdentifier frameID)
@@ -6765,6 +6770,16 @@ void WebPageProxy::setFramePrinting(IPC::Connection& connection, WebCore::FrameI
 void WebPageProxy::resolveAccessibilityHitTestForTesting(WebCore::FrameIdentifier frameID, WebCore::IntPoint point, CompletionHandler<void(String)>&& callback)
 {
     sendWithAsyncReplyToProcessContainingFrame(frameID, Messages::WebPage::ResolveAccessibilityHitTestForTesting(frameID, point), WTFMove(callback));
+}
+
+void WebPageProxy::updateReferrerPolicy(IPC::Connection& connection, WebCore::FrameIdentifier frameID, WebCore::ReferrerPolicy referrerPolicy)
+{
+    if (RefPtr frame = WebFrameProxy::webFrame(frameID)) {
+        Ref process = WebProcessProxy::fromConnection(connection);
+        RefPtr parentFrame = frame->parentFrame();
+        MESSAGE_CHECK(process, parentFrame && &parentFrame->process() == process.ptr());
+        frame->updateReferrerPolicy(referrerPolicy);
+    }
 }
 
 void WebPageProxy::updateSandboxFlags(IPC::Connection& connection, WebCore::FrameIdentifier frameID, WebCore::SandboxFlags sandboxFlags)
@@ -7562,9 +7577,6 @@ void WebPageProxy::didFinishLoadForFrame(IPC::Connection& connection, FrameIdent
 
         resetRecentCrashCountSoon();
 
-        if (!shouldPrewarmWebProcessOnProvisionalLoad())
-            notifyProcessPoolToPrewarm();
-
         callLoadCompletionHandlersIfNecessary(true);
 
         if (m_pageLoadTiming && !frame->url().isAboutBlank()) {
@@ -7572,6 +7584,9 @@ void WebPageProxy::didFinishLoadForFrame(IPC::Connection& connection, FrameIdent
             generatePageLoadingTimingSoon();
         }
     }
+
+    if (isMainFrame || protectedPreferences()->siteIsolationEnabled())
+        notifyProcessPoolToPrewarm();
 
     m_isLoadingAlternateHTMLStringForFailingProvisionalLoad = false;
 }
@@ -8849,6 +8864,8 @@ void WebPageProxy::createNewPage(IPC::Connection& connection, WindowFeatures&& w
 
     Ref configuration = this->configuration().copy();
     configuration->setInitialSandboxFlags(effectiveSandboxFlags);
+    auto effectiveReferrerPolicy = navigationActionData.effectiveReferrerPolicy;
+    configuration->setInitialReferrerPolicy(effectiveReferrerPolicy);
     configuration->setWindowFeatures(WTFMove(windowFeatures));
     configuration->setOpenedMainFrameName(openedMainFrameName);
     if (!protectedPreferences()->siteIsolationEnabled())
@@ -11950,6 +11967,7 @@ WebPageCreationParameters WebPageProxy::creationParameters(WebProcessProxy& proc
         .mainFrameIdentifier = mainFrameIdentifier,
         .openedMainFrameName = m_openedMainFrameName,
         .initialSandboxFlags = m_mainFrame ? m_mainFrame->effectiveSandboxFlags() : SandboxFlags { },
+        .initialReferrerPolicy = m_mainFrame ? m_mainFrame->effectiveReferrerPolicy() : ReferrerPolicy::EmptyString,
         .statusBarIsVisible = m_statusBarIsVisible,
         .menuBarIsVisible = m_menuBarIsVisible,
         .toolbarsAreVisible = m_toolbarsAreVisible,
@@ -13379,17 +13397,65 @@ std::optional<IPC::Connection::AsyncReplyID> WebPageProxy::computePagesForPrinti
 std::optional<IPC::Connection::AsyncReplyID> WebPageProxy::drawRectToImage(WebFrameProxy& frame, const PrintInfo& printInfo, const IntRect& rect, const WebCore::IntSize& imageSize, CompletionHandler<void(std::optional<WebCore::ShareableBitmap::Handle>&&)>&& callback)
 {
     auto frameID = frame.frameID();
+
+    Ref preferences = this->preferences();
+    if (!(preferences->remoteSnapshottingEnabled() && preferences->useGPUProcessForDOMRenderingEnabled())) {
+        if (m_isPerformingDOMPrintOperation)
+            return sendWithAsyncReplyToProcessContainingFrame(frameID, Messages::WebPage::DrawRectToImageDuringDOMPrintOperation(frameID, printInfo, rect, imageSize), WTFMove(callback), IPC::SendOption::DispatchMessageEvenWhenWaitingForUnboundedSyncReply);
+        return sendWithAsyncReplyToProcessContainingFrame(frameID, Messages::WebPage::DrawRectToImage(frameID, printInfo, rect, imageSize), WTFMove(callback));
+    }
+
+    auto snapshotIdentifier = RemoteSnapshotIdentifier::generate();
+    Ref gpuProcess = GPUProcessProxy::getOrCreate();
+    auto snapshotCallback = [weakGPUProcess = WeakPtr { gpuProcess }, snapshotIdentifier, callback = WTFMove(callback), rootFrameIdentifier = frameID, imageSize](bool success) mutable {
+        RefPtr gpuProcess = weakGPUProcess.get();
+        if (!gpuProcess || !gpuProcess->hasConnection()) {
+            callback({ });
+            return;
+        }
+        if (!success) {
+            gpuProcess->releaseSnapshot(snapshotIdentifier);
+            callback({ });
+            return;
+        }
+        gpuProcess->sinkCompletedSnapshotToBitmap(snapshotIdentifier, imageSize, rootFrameIdentifier, WTFMove(callback));
+    };
+
     if (m_isPerformingDOMPrintOperation)
-        return sendWithAsyncReplyToProcessContainingFrame(frameID, Messages::WebPage::DrawRectToImageDuringDOMPrintOperation(frameID, printInfo, rect, imageSize), WTFMove(callback), IPC::SendOption::DispatchMessageEvenWhenWaitingForUnboundedSyncReply);
-    return sendWithAsyncReplyToProcessContainingFrame(frameID, Messages::WebPage::DrawRectToImage(frameID, printInfo, rect, imageSize), WTFMove(callback));
+        return sendWithAsyncReplyToProcessContainingFrame(frameID, Messages::WebPage::DrawPrintingRectToSnapshotDuringDOMPrintOperation(snapshotIdentifier, frameID, printInfo, rect, imageSize), WTFMove(snapshotCallback), IPC::SendOption::DispatchMessageEvenWhenWaitingForUnboundedSyncReply);
+    return sendWithAsyncReplyToProcessContainingFrame(frameID, Messages::WebPage::DrawPrintingRectToSnapshot(snapshotIdentifier, frameID, printInfo, rect, imageSize), WTFMove(snapshotCallback));
 }
 
 std::optional<IPC::Connection::AsyncReplyID> WebPageProxy::drawPagesToPDF(WebFrameProxy& frame, const PrintInfo& printInfo, uint32_t first, uint32_t count, CompletionHandler<void(API::Data*)>&& callback)
 {
     auto frameID = frame.frameID();
+
+    Ref preferences = this->preferences();
+    if (!(preferences->remoteSnapshottingEnabled() && preferences->useGPUProcessForDOMRenderingEnabled())) {
+        if (m_isPerformingDOMPrintOperation)
+            return sendWithAsyncReplyToProcessContainingFrame(frameID, Messages::WebPage::DrawPagesToPDFDuringDOMPrintOperation(frameID, printInfo, first, count), toAPIDataSharedBufferCallback(WTFMove(callback)), IPC::SendOption::DispatchMessageEvenWhenWaitingForUnboundedSyncReply);
+        return sendWithAsyncReplyToProcessContainingFrame(frameID, Messages::WebPage::DrawPagesToPDF(frameID, printInfo, first, count),  toAPIDataSharedBufferCallback(WTFMove(callback)));
+    }
+
+    auto snapshotIdentifier = RemoteSnapshotIdentifier::generate();
+    Ref gpuProcess = GPUProcessProxy::getOrCreate();
+    auto snapshotCallback = [weakGPUProcess = WeakPtr { gpuProcess }, snapshotIdentifier, callback = WTFMove(callback), rootFrameIdentifier = frameID](std::optional<FloatSize> result) mutable {
+        RefPtr gpuProcess = weakGPUProcess.get();
+        if (!gpuProcess || !gpuProcess->hasConnection()) {
+            callback(nullptr);
+            return;
+        }
+        if (!result) {
+            gpuProcess->releaseSnapshot(snapshotIdentifier);
+            callback(nullptr);
+            return;
+        }
+        gpuProcess->sinkCompletedSnapshotToPDF(snapshotIdentifier, *result, rootFrameIdentifier, toAPIDataSharedBufferCallback(WTFMove(callback)));
+    };
+
     if (m_isPerformingDOMPrintOperation)
-        return sendWithAsyncReplyToProcessContainingFrame(frameID, Messages::WebPage::DrawPagesToPDFDuringDOMPrintOperation(frameID, printInfo, first, count), toAPIDataSharedBufferCallback(WTFMove(callback)), IPC::SendOption::DispatchMessageEvenWhenWaitingForUnboundedSyncReply);
-    return sendWithAsyncReplyToProcessContainingFrame(frameID, Messages::WebPage::DrawPagesToPDF(frameID, printInfo, first, count),  toAPIDataSharedBufferCallback(WTFMove(callback)));
+        return sendWithAsyncReplyToProcessContainingFrame(frameID, Messages::WebPage::DrawPrintingPagesToSnapshotDuringDOMPrintOperation(snapshotIdentifier, frameID, printInfo, first, count), WTFMove(snapshotCallback), IPC::SendOption::DispatchMessageEvenWhenWaitingForUnboundedSyncReply);
+    return sendWithAsyncReplyToProcessContainingFrame(frameID, Messages::WebPage::DrawPrintingPagesToSnapshot(snapshotIdentifier, frameID, printInfo, first, count), WTFMove(snapshotCallback));
 }
 #elif PLATFORM(GTK)
 void WebPageProxy::drawPagesForPrinting(WebFrameProxy& frame, const PrintInfo& printInfo, CompletionHandler<void(std::optional<SharedMemory::Handle>&&, ResourceError&&)>&& callback)
@@ -16522,6 +16588,8 @@ INSTANTIATE_SEND_WITH_ASYNC_REPLY_TO_PROCESS_CONTAINING_FRAME(WebPage::CommitPot
 INSTANTIATE_SEND_WITH_ASYNC_REPLY_TO_PROCESS_CONTAINING_FRAME(WebPage::PotentialTapAtPosition);
 INSTANTIATE_SEND_WITH_ASYNC_REPLY_TO_PROCESS_CONTAINING_FRAME(WebPage::DrawToImage);
 INSTANTIATE_SEND_WITH_ASYNC_REPLY_TO_PROCESS_CONTAINING_FRAME(WebPage::DrawToPDFiOS);
+INSTANTIATE_SEND_WITH_ASYNC_REPLY_TO_PROCESS_CONTAINING_FRAME(WebPage::DrawPrintingPagesToSnapshotiOS);
+INSTANTIATE_SEND_WITH_ASYNC_REPLY_TO_PROCESS_CONTAINING_FRAME(WebPage::DrawPrintingToSnapshotiOS);
 #if ENABLE(DRAG_SUPPORT)
 INSTANTIATE_SEND_WITH_ASYNC_REPLY_TO_PROCESS_CONTAINING_FRAME(WebPage::RequestDragStart);
 INSTANTIATE_SEND_WITH_ASYNC_REPLY_TO_PROCESS_CONTAINING_FRAME(WebPage::RequestAdditionalItemsForDragSession);
@@ -16669,6 +16737,14 @@ void WebPageProxy::handleTextExtractionInteraction(TextExtraction::Interaction&&
     }
 
     sendWithAsyncReply(Messages::WebPage::HandleTextExtractionInteraction(WTFMove(interaction)), WTFMove(completion));
+}
+
+void WebPageProxy::takeSnapshotOfExtractedText(TextExtraction::ExtractedText&& extractedText, CompletionHandler<void(RefPtr<TextIndicator>&&)>&& completion)
+{
+    if (!hasRunningProcess())
+        return completion({ });
+
+    sendWithAsyncReply(Messages::WebPage::TakeSnapshotOfExtractedText(WTFMove(extractedText)), WTFMove(completion));
 }
 
 void WebPageProxy::describeTextExtractionInteraction(TextExtraction::Interaction&& interaction, CompletionHandler<void(TextExtraction::InteractionDescription&&)>&& completion)

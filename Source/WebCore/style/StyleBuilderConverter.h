@@ -50,7 +50,6 @@
 #include "CSSURLValue.h"
 #include "CSSValuePair.h"
 #include "CalculationValue.h"
-#include "FontPalette.h"
 #include "FontSelectionValueInlines.h"
 #include "FontSizeAdjust.h"
 #include "FrameDestructionObserverInlines.h"
@@ -60,7 +59,6 @@
 #include "RotateTransformOperation.h"
 #include "SVGElementTypeHelpers.h"
 #include "SVGPathElement.h"
-#include "SVGRenderStyle.h"
 #include "ScaleTransformOperation.h"
 #include "ScopedName.h"
 #include "ScrollAxis.h"
@@ -101,7 +99,6 @@
 #include "StyleTranslate.h"
 #include "StyleURL.h"
 #include "StyleValueTypes+CSSValueConversion.h"
-#include "TabSize.h"
 #include "TextSpacing.h"
 #include "TouchAction.h"
 #include "ViewTimeline.h"
@@ -121,7 +118,6 @@ public:
 
     static WebCore::Length convertLength(BuilderState&, const CSSValue&);
     static WebCore::Length convertTextLengthOrNormal(BuilderState&, const CSSValue&); // Converts length by text zoom factor, normal to zero
-    static TabSize convertTabSize(BuilderState&, const CSSValue&);
     static OptionSet<TextTransform> convertTextTransform(BuilderState&, const CSSValue&);
     static ImageOrientation convertImageOrientation(BuilderState&, const CSSValue&);
     template<CSSValueID> static AtomString convertCustomIdentAtomOrKeyword(BuilderState&, const CSSValue&);
@@ -140,7 +136,6 @@ public:
     static FontSizeAdjust convertFontSizeAdjust(BuilderState&, const CSSValue&);
     static std::optional<FontSelectionValue> convertFontStyleFromValue(BuilderState&, const CSSValue&);
     static FontSelectionValue convertFontWeight(BuilderState&, const CSSValue&);
-    static FontSelectionValue convertFontWidth(BuilderState&, const CSSValue&);
     static FontFeatureSettings convertFontFeatureSettings(BuilderState&, const CSSValue&);
     static FontVariationSettings convertFontVariationSettings(BuilderState&, const CSSValue&);
     static PaintOrder convertPaintOrder(BuilderState&, const CSSValue&);
@@ -149,7 +144,6 @@ public:
     static GlyphOrientation convertGlyphOrientation(BuilderState&, const CSSValue&);
     static GlyphOrientation convertGlyphOrientationOrAuto(BuilderState&, const CSSValue&);
     static WebCore::Length convertLineHeight(BuilderState&, const CSSValue&, float multiplier = 1.f);
-    static FontPalette convertFontPalette(BuilderState&, const CSSValue&);
 
     static OptionSet<HangingPunctuation> convertHangingPunctuation(BuilderState&, const CSSValue&);
 
@@ -173,11 +167,6 @@ public:
     static FixedVector<PositionTryFallback> convertPositionTryFallbacks(BuilderState&, const CSSValue&);
 
     static MaskMode convertFillLayerMaskMode(BuilderState&, const CSSValue&);
-
-private:
-    friend class BuilderCustom;
-
-    static CSSToLengthConversionData cssToLengthConversionDataWithTextZoomFactor(BuilderState&);
 };
 
 template<typename T, typename... Rest> inline T BuilderConverter::convertStyleType(BuilderState& builderState, const CSSValue& value, Rest&&... rest)
@@ -209,16 +198,6 @@ inline WebCore::Length BuilderConverter::convertLength(BuilderState& builderStat
 
     ASSERT_NOT_REACHED();
     return WebCore::Length(0, LengthType::Fixed);
-}
-
-inline TabSize BuilderConverter::convertTabSize(BuilderState& builderState, const CSSValue& value)
-{
-    auto* primitiveValue = requiredDowncast<CSSPrimitiveValue>(builderState, value);
-    if (!primitiveValue)
-        return { };
-    if (primitiveValue->isNumber())
-        return TabSize(primitiveValue->resolveAsNumber<float>(builderState.cssToLengthConversionData()), SpaceValueType);
-    return TabSize(primitiveValue->resolveAsLength<float>(builderState.cssToLengthConversionData()), LengthValueType);
 }
 
 inline OptionSet<TextTransform> BuilderConverter::convertTextTransform(BuilderState&, const CSSValue& value)
@@ -515,38 +494,6 @@ inline float zoomWithTextZoomFactor(BuilderState& builderState)
     return builderState.cssToLengthConversionData().zoom();
 }
 
-inline CSSToLengthConversionData BuilderConverter::cssToLengthConversionDataWithTextZoomFactor(BuilderState& builderState)
-{
-    float zoom = zoomWithTextZoomFactor(builderState);
-    if (zoom == builderState.cssToLengthConversionData().zoom())
-        return builderState.cssToLengthConversionData();
-
-    return builderState.cssToLengthConversionData().copyWithAdjustedZoom(zoom);
-}
-
-inline WebCore::Length BuilderConverter::convertTextLengthOrNormal(BuilderState& builderState, const CSSValue& value)
-{
-    auto* primitiveValue = requiredDowncast<CSSPrimitiveValue>(builderState, value);
-    if (!primitiveValue)
-        return { };
-    auto conversionData = (builderState.useSVGZoomRulesForLength())
-        ? builderState.cssToLengthConversionData().copyWithAdjustedZoom(1.0f)
-        : cssToLengthConversionDataWithTextZoomFactor(builderState);
-
-    if (primitiveValue->valueID() == CSSValueNormal)
-        return RenderStyle::zeroLength();
-    if (primitiveValue->isLength())
-        return primitiveValue->resolveAsLength<WebCore::Length>(conversionData);
-    if (primitiveValue->isPercentage())
-        return WebCore::Length(clampTo<float>(primitiveValue->resolveAsPercentage(conversionData), minValueForCssLength, maxValueForCssLength), LengthType::Percent);
-    if (primitiveValue->isCalculatedPercentageWithLength())
-        return WebCore::Length(primitiveValue->cssCalcValue()->createCalculationValue(conversionData, CSSCalcSymbolTable { }));
-    if (primitiveValue->isNumber())
-        return WebCore::Length(primitiveValue->resolveAsNumber(conversionData), LengthType::Fixed);
-    ASSERT_NOT_REACHED();
-    return RenderStyle::zeroLength();
-}
-
 // The input value needs to parsed and valid, this function returns std::nullopt if the input was "normal".
 inline std::optional<FontSelectionValue> BuilderConverter::convertFontStyleFromValue(BuilderState& builderState, const CSSValue& value)
 {
@@ -556,11 +503,6 @@ inline std::optional<FontSelectionValue> BuilderConverter::convertFontStyleFromV
 inline FontSelectionValue BuilderConverter::convertFontWeight(BuilderState& builderState, const CSSValue& value)
 {
     return fontWeightFromCSSValue(builderState, value);
-}
-
-inline FontSelectionValue BuilderConverter::convertFontWidth(BuilderState& builderState, const CSSValue& value)
-{
-    return fontStretchFromCSSValue(builderState, value);
 }
 
 inline FontFeatureSettings BuilderConverter::convertFontFeatureSettings(BuilderState& builderState, const CSSValue& value)
@@ -804,26 +746,6 @@ inline WebCore::Length BuilderConverter::convertLineHeight(BuilderState& builder
     return WebCore::Length(primitiveValue->resolveAsNumber(conversionData) * 100.0, LengthType::Percent);
 }
 
-inline FontPalette BuilderConverter::convertFontPalette(BuilderState& builderState, const CSSValue& value)
-{
-    auto* primitiveValue = requiredDowncast<CSSPrimitiveValue>(builderState, value);
-    if (!primitiveValue)
-        return { };
-
-    switch (primitiveValue->valueID()) {
-    case CSSValueLight:
-        return { FontPalette::Type::Light, nullAtom() };
-    case CSSValueDark:
-        return { FontPalette::Type::Dark, nullAtom() };
-    case CSSValueInvalid:
-        ASSERT(primitiveValue->isCustomIdent());
-        return { FontPalette::Type::Custom, AtomString { primitiveValue->stringValue() } };
-    default:
-        ASSERT(primitiveValue->valueID() == CSSValueNormal || CSSPropertyParserHelpers::isSystemFontShorthand(primitiveValue->valueID()));
-        return { FontPalette::Type::Normal, nullAtom() };
-    }
-}
-    
 inline OptionSet<SpeakAs> BuilderConverter::convertSpeakAs(BuilderState&, const CSSValue& value)
 {
     auto result = RenderStyle::initialSpeakAs();

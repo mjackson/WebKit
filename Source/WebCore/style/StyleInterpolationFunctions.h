@@ -48,7 +48,6 @@
 #include "PathOperation.h"
 #include "RenderBox.h"
 #include "RenderStyleSetters.h"
-#include "SVGRenderStyle.h"
 #include "ScopedName.h"
 #include "Settings.h"
 #include "StyleDynamicRangeLimit.h"
@@ -95,12 +94,6 @@ inline WebCore::Color blendFunc(const WebCore::Color& from, const WebCore::Color
 inline WebCore::Length blendFunc(const WebCore::Length& from, const WebCore::Length& to, const Context& context, ValueRange valueRange = ValueRange::All)
 {
     return WebCore::blend(from, to, context, valueRange);
-}
-
-inline TabSize blendFunc(const TabSize& from, const TabSize& to, const Context& context)
-{
-    auto blendedValue = WebCore::blend(from.value(), to.value(), context);
-    return { blendedValue < 0 ? 0 : blendedValue, from.isSpaces() ? SpaceValueType : LengthValueType };
 }
 
 inline ContentVisibility blendFunc(ContentVisibility from, ContentVisibility to, const Context& context)

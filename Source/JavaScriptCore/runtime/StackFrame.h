@@ -100,9 +100,7 @@ public:
 
     bool isAsyncFrameWithoutCodeBlock() const
     {
-        if (auto* jsFrame = std::get_if<JSFrameData>(&m_frameData))
-            return jsFrame->m_isAsyncFrame && !codeBlock();
-        return false;
+        return isAsyncFrame() && !codeBlock();
     }
 
 #if USE(BUN_JSC_ADDITIONS)

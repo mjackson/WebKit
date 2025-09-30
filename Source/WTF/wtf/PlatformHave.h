@@ -243,7 +243,7 @@
 #define HAVE_ISDEBUGGERPRESENT 1
 #endif
 
-#if __has_include(<System/pthread_machdep.h>)
+#if __has_include(<pthread/tsd_private.h>)
 #define HAVE_FAST_TLS 1
 
 #if PLATFORM(MAC) \
@@ -749,11 +749,6 @@
         || (PLATFORM(WATCHOS) && __WATCH_OS_VERSION_MIN_REQUIRED >= 100000)                         \
         || (PLATFORM(APPLETV) && __TV_OS_VERSION_MIN_REQUIRED >= 170000))
 #define HAVE_NETWORK_RESOLUTION_FAILURE_REPORT 1
-#endif
-
-#if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 140000) \
-    || PLATFORM(IOS_FAMILY)
-#define HAVE_FIX_FOR_RADAR_93560567 1
 #endif
 
 #if PLATFORM(MACCATALYST)

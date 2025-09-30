@@ -49,7 +49,6 @@ class StyleResolver;
 class TextAutospace;
 class TextSpacingTrim;
 
-struct FontPalette;
 struct FontSizeAdjust;
 
 namespace CSSCalc {
@@ -65,8 +64,10 @@ namespace Style {
 
 class BuilderState;
 struct Color;
+struct FontPalette;
+struct FontWidth;
 
-void maybeUpdateFontForLetterSpacing(BuilderState&, CSSValue&);
+void maybeUpdateFontForLetterSpacingOrWordSpacing(BuilderState&, CSSValue&);
 
 enum class ApplyValueType : uint8_t { Value, Initial, Inherit };
 
@@ -160,7 +161,7 @@ public:
     void setFontDescriptionFamilies(Vector<AtomString>&);
     void setFontDescriptionIsSpecifiedFont(bool);
     void setFontDescriptionFeatureSettings(FontFeatureSettings&&);
-    void setFontDescriptionFontPalette(const FontPalette&);
+    void setFontDescriptionFontPalette(Style::FontPalette&&);
     void setFontDescriptionFontSizeAdjust(FontSizeAdjust);
     void setFontDescriptionFontSmoothing(FontSmoothingMode);
     void setFontDescriptionFontSynthesisSmallCaps(FontSynthesisLonghandValue);
@@ -177,7 +178,7 @@ public:
     void setFontDescriptionVariantPosition(FontVariantPosition);
     void setFontDescriptionVariationSettings(FontVariationSettings&&);
     void setFontDescriptionWeight(FontSelectionValue);
-    void setFontDescriptionWidth(FontSelectionValue);
+    void setFontDescriptionWidth(FontWidth);
     void setFontDescriptionVariantAlternates(const FontVariantAlternates&);
     void setFontDescriptionVariantEastAsianVariant(FontVariantEastAsianVariant);
     void setFontDescriptionVariantEastAsianWidth(FontVariantEastAsianWidth);
@@ -196,8 +197,8 @@ public:
     void disableNativeAppearanceIfNeeded(CSSPropertyID, PropertyCascade::Origin);
 
 private:
-    // See the comment in maybeUpdateFontForLetterSpacing() about why this needs to be a friend.
-    friend void maybeUpdateFontForLetterSpacing(BuilderState&, CSSValue&);
+    // See the comment in maybeUpdateFontForLetterSpacingOrWordSpacing() about why this needs to be a friend.
+    friend void maybeUpdateFontForLetterSpacingOrWordSpacing(BuilderState&, CSSValue&);
     friend class Builder;
 
     void adjustStyleForInterCharacterRuby();
@@ -209,6 +210,7 @@ private:
     void updateFontForZoomChange();
     void updateFontForGenericFamilyChange();
     void updateFontForOrientationChange();
+    void updateFontForSizeChange();
 
     RenderStyle& m_style;
     BuilderContext m_context;
