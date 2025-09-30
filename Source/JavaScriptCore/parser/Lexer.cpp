@@ -988,7 +988,7 @@ template <bool shouldCreateIdentifier> ALWAYS_INLINE JSTokenType Lexer<Latin1Cha
     const Identifier* ident = nullptr;
     
     if (shouldCreateIdentifier || m_parsingBuiltinFunction) {
-        const std::span<const LChar> identifierSpan { identifierStart, static_cast<size_t>(currentSourcePtr() - identifierStart) };
+        const std::span<const Latin1Character> identifierSpan { identifierStart, static_cast<size_t>(currentSourcePtr() - identifierStart) };
         if (m_parsingBuiltinFunction && isBuiltinName) {
             if (isWellKnownSymbol)
                 ident = &m_arena->makeIdentifier(m_vm, m_vm.propertyNames->builtinNames().lookUpWellKnownSymbol(identifierSpan));
