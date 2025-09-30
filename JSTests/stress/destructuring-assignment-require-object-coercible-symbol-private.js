@@ -22,7 +22,7 @@ function shouldThrow(testFunction, expectedError) {
 
 {
     const destructToPrivateName = $vm.createBuiltin(
-        "(function (value) { var { @Number } = value; })",
+        "(function (value) { var { @context } = value; })",
     );
     shouldThrow(() => {
         destructToPrivateName(null);
