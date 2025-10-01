@@ -586,9 +586,12 @@ function promiseResolveThenableJobWithoutPromiseFast(thenable, onFulfilled, onRe
     var flags = @getPromiseInternalField(thenable, @promiseFieldFlags);
     var state = flags & @promiseStateMask;
     var reactionsOrResult = @getPromiseInternalField(thenable, @promiseFieldReactionsOrResult);
-    if (state === @promiseStatePending)
+    if (state === @promiseStatePending) {
+        var asyncContext = @getInternalField(@asyncContext, 0);
+        if (asyncContext)
+            context = [context, asyncContext];
         @putPromiseInternalField(thenable, @promiseFieldReactionsOrResult, @promiseReactionCreate(@undefined, onFulfilled, onRejected, context, reactionsOrResult));
-    else {
+    } else {
         if (state === @promiseStateRejected) {
             if (!(flags & @promiseFlagsIsHandled))
                 @hostPromiseRejectionTracker(thenable, @promiseRejectionHandle);
@@ -691,9 +694,12 @@ function performPromiseThen(promise, onFulfilled, onRejected, promiseOrCapabilit
     var reactionsOrResult = @getPromiseInternalField(promise, @promiseFieldReactionsOrResult);
     var flags = @getPromiseInternalField(promise, @promiseFieldFlags);
     var state = flags & @promiseStateMask;
-    if (state === @promiseStatePending)
+    if (state === @promiseStatePending) {
+        var asyncContext = @getInternalField(@asyncContext, 0);
+        if (asyncContext)
+            context = [context, asyncContext];
         @putPromiseInternalField(promise, @promiseFieldReactionsOrResult, @promiseReactionCreate(promiseOrCapability, onFulfilled, onRejected, context, reactionsOrResult));
-    else {
+    } else {
         var handler;
 
         if (state === @promiseStateRejected) {
