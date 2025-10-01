@@ -30,13 +30,13 @@
 function pushNewPromiseReaction(thenable, existingReactions, promiseOrCapability, onFulfilled, onRejected, context)
 {
     "use strict";
-
+    var asyncContext = @getInternalField(@asyncContext, 0);
     if (!existingReactions) {
         existingReactions = {
             @promiseOrCapability: promiseOrCapability,
             @onFulfilled: onFulfilled,
             @onRejected: onRejected,
-            @context: context,
+            @context: asyncContext ? [context, asyncContext] : context,
             // This is 4x the number of out of line reactions (promise, fulfill callback, reject callback, context).
             @outOfLineReactionCounts: 0,
         };
@@ -46,7 +46,7 @@ function pushNewPromiseReaction(thenable, existingReactions, promiseOrCapability
         @putByValDirect(existingReactions, outOfLineReactionCounts++, promiseOrCapability);
         @putByValDirect(existingReactions, outOfLineReactionCounts++, onFulfilled);
         @putByValDirect(existingReactions, outOfLineReactionCounts++, onRejected);
-        @putByValDirect(existingReactions, outOfLineReactionCounts++, context);
+        @putByValDirect(existingReactions, outOfLineReactionCounts++, asyncContext ? [context, asyncContext] : context);
         existingReactions.@outOfLineReactionCounts = outOfLineReactionCounts;
     }
 }
