@@ -129,6 +129,7 @@ void printInternal(PrintStream& out, JSC::JSType type)
     CASE(DisposableStackType)
     CASE(AsyncDisposableStackType)
     CASE(JSPromiseAllContextType)
+    CASE(JSPromiseReactionType)
     }
 }
 
