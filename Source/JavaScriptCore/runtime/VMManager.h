@@ -25,8 +25,8 @@
 
 #pragma once
 
-#include <JavaScriptCore/StopTheWorldCallback.h>
-#include <JavaScriptCore/VMThreadContext.h>
+#include "StopTheWorldCallback.h"
+#include "VMThreadContext.h"
 #include <wtf/Atomics.h>
 #include <wtf/Condition.h>
 #include <wtf/DoublyLinkedList.h>

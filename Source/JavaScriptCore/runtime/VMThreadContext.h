@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include <JavaScriptCore/VMTraps.h>
+#include "VMTraps.h"
 #include <wtf/DoublyLinkedList.h>
 
 namespace JSC {

@@ -426,12 +426,11 @@ String BunV8HeapSnapshotBuilder::getDetailedNodeType(JSCell* cell, bool recurse)
     }
 
     if (JSPromise* promise = jsDynamicCast<JSPromise*>(cell)) {
-        auto& vm = promise->globalObject()->vm();
-        switch (promise->status(vm)) {
+        switch (promise->status()) {
         case JSPromise::Status::Pending:
             return "Promise (pending)"_s;
         case JSPromise::Status::Fulfilled: {
-            JSValue result = promise->result(vm);
+            JSValue result = promise->result();
             if (result.isCell() && recurse) {
                 // set recurse to false to make sure we don't infinitely expand promises
                 return makeString("Promise (fulfilled: "_s, getDetailedNodeType(result.asCell(), false), ")"_s);

@@ -201,16 +201,6 @@ void JSPromise::resolve(JSGlobalObject* globalObject, JSValue value)
     }
 }
 
-void JSPromise::fulfill(JSGlobalObject* lexicalGlobalObject, JSValue value)
-{
-    ASSERT(!value.inherits<Exception>());
-
-    if (!value.isCell() || !(value.asCell()->type() == JSPromiseType))
-        fulfillWithNonPromise(lexicalGlobalObject, value);
-    else
-        resolve(lexicalGlobalObject, value);
-}
-
 void JSPromise::fulfillWithNonPromise(JSGlobalObject* lexicalGlobalObject, JSValue value)
 {
     VM& vm = lexicalGlobalObject->vm();
