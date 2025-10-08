@@ -32,6 +32,7 @@
 #include "InspectorLayerTreeAgent.h"
 
 #include "EventTargetInlines.h"
+#include "GraphicsLayer.h"
 #include "InspectorDOMAgent.h"
 #include "InstrumentingAgents.h"
 #include "IntRect.h"

@@ -474,8 +474,8 @@ std::optional<Style::Filter> parseFilterValueListOrNoneRaw(const String& string,
     if (!range.atEnd())
         return { };
 
-    auto builderState = Style::BuilderState { style, Style::BuilderContext { document } };
-    return Style::toStyle(*filter, builderState);
+    auto builderState = Style::BuilderState::create(style, Style::BuilderContext { document });
+    return Style::toStyle(*filter, *CheckedPtr { builderState.ptr() });
 }
 
 } // namespace CSSPropertyParserHelpers

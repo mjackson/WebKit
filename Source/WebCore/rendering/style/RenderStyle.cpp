@@ -35,6 +35,7 @@
 #include "FontSelector.h"
 #include "InlineIteratorTextBox.h"
 #include "InlineTextBoxStyle.h"
+#include "LengthFunctions.h"
 #include "Logging.h"
 #include "MotionPath.h"
 #include "Pagination.h"
@@ -54,6 +55,7 @@
 #include "StyleLengthWrapper+Platform.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
 #include "StyleResolver.h"
+#include "StyleScaleTransformFunction.h"
 #include "StyleSelfAlignmentData.h"
 #include "StyleTreeResolver.h"
 #include "TransformOperationData.h"
@@ -418,6 +420,16 @@ void RenderStyle::copyContentFrom(const RenderStyle& other)
     m_nonInheritedData.access().miscData.access().content = other.m_nonInheritedData->miscData->content;
 }
 
+void RenderStyle::setEnableEvaluationTimeZoom(bool value)
+{
+    SET_VAR(m_rareInheritedData, enableEvaluationTimeZoom, value);
+}
+
+void RenderStyle::setUseSVGZoomRulesForLength(bool value)
+{
+    SET_NESTED_VAR(m_nonInheritedData, rareData, useSVGZoomRulesForLength, value);
+}
+
 void RenderStyle::copyPseudoElementsFrom(const RenderStyle& other)
 {
     if (!other.m_cachedPseudoStyles)
@@ -554,11 +566,11 @@ unsigned RenderStyle::hashForTextAutosizing() const
 {
     // FIXME: Not a very smart hash. Could be improved upon. See <https://bugs.webkit.org/show_bug.cgi?id=121131>.
     unsigned hash = m_nonInheritedData->miscData->usedAppearance;
-    hash ^= m_nonInheritedData->rareData->lineClamp.valueForTextAutosizingHash();
+    hash ^= m_nonInheritedData->rareData->lineClamp.valueForHash();
     hash ^= m_rareInheritedData->overflowWrap;
     hash ^= m_rareInheritedData->nbspMode;
     hash ^= m_rareInheritedData->lineBreak;
-    hash ^= WTF::FloatHash<float>::hash(m_inheritedData->specifiedLineHeight.value());
+    hash ^= m_inheritedData->specifiedLineHeight.valueForHash();
     hash ^= computeFontHash(m_inheritedData->fontData->fontCascade);
     hash ^= WTF::FloatHash<float>::hash(m_inheritedData->borderHorizontalSpacing.unresolvedValue());
     hash ^= WTF::FloatHash<float>::hash(m_inheritedData->borderVerticalSpacing.unresolvedValue());
@@ -613,18 +625,21 @@ bool RenderStyle::isIdempotentTextAutosizingCandidate(AutosizeStatus status) con
                 if (width().isFixed())
                     return false;
                 if (auto fixedHeight = height().tryFixed(); fixedHeight && specifiedLineHeight().isFixed()) {
-                    float specifiedSize = specifiedFontSize();
-                    if (fixedHeight->resolveZoom(Style::ZoomNeeded { }) == specifiedSize && specifiedLineHeight().value() == specifiedSize)
-                        return false;
+                    if (auto fixedSpecifiedLineHeight = specifiedLineHeight().tryFixed()) {
+                        float specifiedSize = specifiedFontSize();
+                        if (fixedHeight->resolveZoom(Style::ZoomNeeded { }) == specifiedSize && fixedSpecifiedLineHeight->resolveZoom(Style::ZoomNeeded { }) == specifiedSize)
+                            return false;
+                    }
                 }
                 return true;
             }
             if (fields.contains(AutosizeStatus::Fields::Floating)) {
                 if (auto fixedHeight = height().tryFixed(); specifiedLineHeight().isFixed() && fixedHeight) {
-                    float specifiedSize = specifiedFontSize();
-                    if (specifiedLineHeight().value() - specifiedSize > smallMinimumDifferenceThresholdBetweenLineHeightAndSpecifiedFontSizeForBoostingText
-                        && fixedHeight->resolveZoom(Style::ZoomNeeded { }) - specifiedSize > smallMinimumDifferenceThresholdBetweenLineHeightAndSpecifiedFontSizeForBoostingText) {
-                        return true;
+                    if (auto fixedSpecifiedLineHeight = specifiedLineHeight().tryFixed()) {
+                        float specifiedSize = specifiedFontSize();
+                        if (fixedSpecifiedLineHeight->resolveZoom(Style::ZoomNeeded { }) - specifiedSize > smallMinimumDifferenceThresholdBetweenLineHeightAndSpecifiedFontSizeForBoostingText
+                                && fixedHeight->resolveZoom(Style::ZoomNeeded { }) - specifiedSize > smallMinimumDifferenceThresholdBetweenLineHeightAndSpecifiedFontSizeForBoostingText)
+                            return true;
                     }
                 }
                 return false;
@@ -652,7 +667,7 @@ bool RenderStyle::isIdempotentTextAutosizingCandidate(AutosizeStatus status) con
             return true;
         if (fields.contains(AutosizeStatus::Fields::FixedWidth))
             return true;
-        if (specifiedLineHeight().isFixed() && specifiedLineHeight().value() - specifiedFontSize() > largeMinimumDifferenceThresholdBetweenLineHeightAndSpecifiedFontSizeForBoostingText)
+        if (auto fixedSpecifiedLineHeight = specifiedLineHeight().tryFixed(); fixedSpecifiedLineHeight && fixedSpecifiedLineHeight->resolveZoom(Style::ZoomNeeded { }) - specifiedFontSize() > largeMinimumDifferenceThresholdBetweenLineHeightAndSpecifiedFontSizeForBoostingText)
             return true;
         return false;
     }
@@ -2085,7 +2100,7 @@ void RenderStyle::conservativelyCollectChangedAnimatableProperties(const RenderS
             changingProperties.m_properties.set(CSSPropertyTextEmphasisColor);
         if (first.caretColor != second.caretColor || first.visitedLinkCaretColor != second.visitedLinkCaretColor || first.hasAutoCaretColor != second.hasAutoCaretColor || first.hasVisitedLinkAutoCaretColor != second.hasVisitedLinkAutoCaretColor)
             changingProperties.m_properties.set(CSSPropertyCaretColor);
-        if (first.accentColor != second.accentColor || first.hasAutoAccentColor != second.hasAutoAccentColor)
+        if (first.accentColor != second.accentColor)
             changingProperties.m_properties.set(CSSPropertyAccentColor);
         if (first.textShadow != second.textShadow)
             changingProperties.m_properties.set(CSSPropertyTextShadow);
@@ -2351,7 +2366,7 @@ void RenderStyle::applyCSSTransform(TransformationMatrix& transform, const Trans
 
     // 6. Translate and rotate by the transform specified by offset.
     if (options.contains(RenderStyle::TransformOperationOption::Offset))
-        MotionPath::applyMotionPathTransform(*this, operationData, transform);
+        MotionPath::applyMotionPathTransform(transform, operationData, *this);
 
     // 7. Multiply by each of the transform functions in transform from left to right.
     this->transform().apply(transform, boundingBox.size());
@@ -2365,7 +2380,7 @@ void RenderStyle::setPageScaleTransform(float scale)
     if (scale == 1)
         return;
 
-    setTransform(Style::Transform { Style::TransformFunction { ScaleTransformOperation::create(scale, scale, TransformOperation::Type::Scale) } });
+    setTransform(Style::Transform { Style::TransformFunction { Style::ScaleTransformFunction::create(scale, scale, Style::TransformFunctionType::Scale) } });
     setTransformOriginX(0_css_px);
     setTransformOriginY(0_css_px);
 }
@@ -2538,7 +2553,7 @@ bool RenderStyle::setFontDescriptionWithoutUpdate(FontCascadeDescription&& descr
     return true;
 }
 
-const Length& RenderStyle::specifiedLineHeight() const
+const Style::LineHeight& RenderStyle::specifiedLineHeight() const
 {
 #if ENABLE(TEXT_AUTOSIZING)
     return m_inheritedData->specifiedLineHeight;
@@ -2549,21 +2564,21 @@ const Length& RenderStyle::specifiedLineHeight() const
 
 #if ENABLE(TEXT_AUTOSIZING)
 
-void RenderStyle::setSpecifiedLineHeight(Length&& height)
+void RenderStyle::setSpecifiedLineHeight(Style::LineHeight&& lineHeight)
 {
-    SET_VAR(m_inheritedData, specifiedLineHeight, WTFMove(height));
+    SET_VAR(m_inheritedData, specifiedLineHeight, WTFMove(lineHeight));
 }
 
 #endif
 
-const Length& RenderStyle::lineHeight() const
+const Style::LineHeight& RenderStyle::lineHeight() const
 {
     return m_inheritedData->lineHeight;
 }
 
-void RenderStyle::setLineHeight(Length&& height)
+void RenderStyle::setLineHeight(Style::LineHeight&& lineHeight)
 {
-    SET_VAR(m_inheritedData, lineHeight, WTFMove(height));
+    SET_VAR(m_inheritedData, lineHeight, WTFMove(lineHeight));
 }
 
 float RenderStyle::computedLineHeight() const
@@ -2571,15 +2586,22 @@ float RenderStyle::computedLineHeight() const
     return computeLineHeight(lineHeight());
 }
 
-float RenderStyle::computeLineHeight(const Length& lineHeightLength) const
+float RenderStyle::computeLineHeight(const Style::LineHeight& lineHeight) const
 {
-    if (lineHeightLength.isNormal())
-        return metricsOfPrimaryFont().lineSpacing();
-
-    if (lineHeightLength.isPercentOrCalculated())
-        return minimumValueForLength(lineHeightLength, computedFontSize(), 1.0f /* FIXME FIND ZOOM */).toFloat();
-
-    return lineHeightLength.value();
+    return WTF::switchOn(lineHeight,
+        [&](const CSS::Keyword::Normal&) -> float {
+            return metricsOfPrimaryFont().lineSpacing();
+        },
+        [&](const Style::LineHeight::Fixed& fixed) -> float {
+            return Style::evaluate<LayoutUnit>(fixed, Style::ZoomNeeded { }).toFloat();
+        },
+        [&](const Style::LineHeight::Percentage& percentage) -> float {
+            return Style::evaluate<LayoutUnit>(percentage, LayoutUnit { computedFontSize() }).toFloat();
+        },
+        [&](const Style::LineHeight::Calc& calc) -> float {
+            return Style::evaluate<LayoutUnit>(calc, LayoutUnit { computedFontSize() }).toFloat();
+        }
+    );
 }
 
 void RenderStyle::setTextSpacingTrim(TextSpacingTrim value)
@@ -2613,10 +2635,10 @@ void RenderStyle::setFontSize(float size)
     setFontDescription(WTFMove(description));
 }
 
-void RenderStyle::setFontSizeAdjust(FontSizeAdjust sizeAdjust)
+void RenderStyle::setFontSizeAdjust(Style::FontSizeAdjust sizeAdjust)
 {
     auto description = fontDescription();
-    description.setFontSizeAdjust(sizeAdjust);
+    description.setFontSizeAdjust(sizeAdjust.platform());
     setFontDescription(WTFMove(description));
 }
 
@@ -2627,17 +2649,24 @@ void RenderStyle::setFontOpticalSizing(FontOpticalSizing opticalSizing)
     setFontDescription(WTFMove(description));
 }
 
-void RenderStyle::setFontVariationSettings(FontVariationSettings settings)
+void RenderStyle::setFontFeatureSettings(Style::FontFeatureSettings&& settings)
 {
     auto description = fontDescription();
-    description.setVariationSettings(WTFMove(settings));
+    description.setFeatureSettings(settings.takePlatform());
     setFontDescription(WTFMove(description));
 }
 
-void RenderStyle::setFontWeight(FontSelectionValue value)
+void RenderStyle::setFontVariationSettings(Style::FontVariationSettings&& settings)
 {
     auto description = fontDescription();
-    description.setWeight(value);
+    description.setVariationSettings(settings.takePlatform());
+    setFontDescription(WTFMove(description));
+}
+
+void RenderStyle::setFontWeight(Style::FontWeight value)
+{
+    auto description = fontDescription();
+    description.setWeight(value.platform());
     setFontDescription(WTFMove(description));
 }
 
@@ -2648,10 +2677,11 @@ void RenderStyle::setFontWidth(Style::FontWidth value)
     setFontDescription(WTFMove(description));
 }
 
-void RenderStyle::setFontItalic(std::optional<FontSelectionValue> value)
+void RenderStyle::setFontStyle(Style::FontStyle style)
 {
     auto description = fontDescription();
-    description.setItalic(value);
+    description.setFontStyleSlope(style.platformSlope());
+    description.setFontStyleAxis(style.platformAxis());
     setFontDescription(WTFMove(description));
 }
 
@@ -2666,7 +2696,7 @@ const Style::Color& RenderStyle::unresolvedColorForProperty(CSSPropertyID colorP
 {
     switch (colorProperty) {
     case CSSPropertyAccentColor:
-        return accentColor();
+        return accentColor().colorOrCurrentColor();
     case CSSPropertyBackgroundColor:
         return visitedLink ? visitedLinkBackgroundColor() : backgroundColor();
     case CSSPropertyBorderBottomColor:
@@ -2794,20 +2824,24 @@ Color RenderStyle::colorWithColorFilter(const Style::Color& color) const
 
 Color RenderStyle::usedAccentColor(OptionSet<StyleColorOptions> styleColorOptions) const
 {
-    if (hasAutoAccentColor())
-        return { };
+    return WTF::switchOn(accentColor(),
+        [](const CSS::Keyword::Auto&) -> Color {
+            return { };
+        },
+        [&](const Style::Color& color) -> Color {
+            auto resolvedAccentColor = colorResolvingCurrentColor(color);
 
-    auto resolvedAccentColor = colorResolvingCurrentColor(accentColor());
+            if (!resolvedAccentColor.isOpaque()) {
+                auto computedCanvasColor = RenderTheme::singleton().systemColor(CSSValueCanvas, styleColorOptions);
+                resolvedAccentColor = blendSourceOver(computedCanvasColor, resolvedAccentColor);
+            }
 
-    if (!resolvedAccentColor.isOpaque()) {
-        auto computedCanvasColor = RenderTheme::singleton().systemColor(CSSValueCanvas, styleColorOptions);
-        resolvedAccentColor = blendSourceOver(computedCanvasColor, resolvedAccentColor);
-    }
+            if (hasAppleColorFilter())
+                return colorByApplyingColorFilter(resolvedAccentColor);
 
-    if (hasAppleColorFilter())
-        return colorByApplyingColorFilter(resolvedAccentColor);
-
-    return resolvedAccentColor;
+            return resolvedAccentColor;
+        }
+    );
 }
 
 Color RenderStyle::usedScrollbarThumbColor() const
@@ -3470,7 +3504,7 @@ bool RenderStyle::hasPositiveStrokeWidth() const
 {
     if (!hasExplicitlySetStrokeWidth())
         return textStrokeWidth().isPositive();
-    return strokeWidth().isPositive();
+    return strokeWidth().isPossiblyPositive();
 }
 
 Color RenderStyle::computedStrokeColor() const
@@ -3542,14 +3576,14 @@ void RenderStyle::setPositionTryFallbacks(FixedVector<Style::PositionTryFallback
     SET_NESTED_VAR(m_nonInheritedData, rareData, positionTryFallbacks, WTFMove(fallbacks));
 }
 
-std::optional<size_t> RenderStyle::lastSuccessfulPositionTryFallbackIndex() const
+std::optional<size_t> RenderStyle::usedPositionOptionIndex() const
 {
-    return m_nonInheritedData->rareData->lastSuccessfulPositionTryFallbackIndex;
+    return m_nonInheritedData->rareData->usedPositionOptionIndex;
 }
 
-void RenderStyle::setLastSuccessfulPositionTryFallbackIndex(std::optional<size_t> index)
+void RenderStyle::setUsedPositionOptionIndex(std::optional<size_t> index)
 {
-    SET_NESTED_VAR(m_nonInheritedData, rareData, lastSuccessfulPositionTryFallbackIndex, WTFMove(index));
+    SET_NESTED_VAR(m_nonInheritedData, rareData, usedPositionOptionIndex, WTFMove(index));
 }
 
 std::optional<Style::PseudoElementIdentifier> RenderStyle::pseudoElementIdentifier() const

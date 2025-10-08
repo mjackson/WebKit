@@ -2888,6 +2888,33 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::addF64PromoteF32(Value operand, Value& 
     )
 }
 
+PartialResult WARN_UNUSED_RETURN BBQJIT::addF64Copysign(Value lhs, Value rhs, Value& result)
+{
+    EMIT_BINARY(
+        "F64Copysign", TypeKind::F64,
+        BLOCK(Value::fromF64(doubleCopySign(lhs.asF64(), rhs.asF64()))),
+        BLOCK(
+            m_jit.move64ToDouble(TrustedImm64(std::numeric_limits<int64_t>::min()), wasmScratchFPR);
+            m_jit.andDouble(rhsLocation.asFPR(), wasmScratchFPR, wasmScratchFPR);
+            m_jit.absDouble(lhsLocation.asFPR(), resultLocation.asFPR());
+            m_jit.orDouble(wasmScratchFPR, resultLocation.asFPR(), resultLocation.asFPR());
+        ),
+        BLOCK(
+            if (lhs.isConst()) {
+                m_jit.move64ToDouble(TrustedImm64(std::numeric_limits<int64_t>::min()), wasmScratchFPR);
+                m_jit.andDouble(rhsLocation.asFPR(), wasmScratchFPR, wasmScratchFPR);
+                emitMoveConst(Value::fromF64(std::abs(lhs.asF64())), resultLocation);
+                m_jit.orDouble(resultLocation.asFPR(), wasmScratchFPR, resultLocation.asFPR());
+            } else {
+                bool signBit = std::bit_cast<uint64_t>(rhs.asF64()) & 0x8000000000000000ull;
+                m_jit.absDouble(lhsLocation.asFPR(), resultLocation.asFPR());
+                if (signBit)
+                    m_jit.negateDouble(resultLocation.asFPR(), resultLocation.asFPR());
+            }
+        )
+    )
+}
+
 PartialResult WARN_UNUSED_RETURN BBQJIT::addF32ConvertSI32(Value operand, Value& result)
 {
     EMIT_UNARY(
@@ -3454,7 +3481,8 @@ StackMap BBQJIT::makeStackMap(const ControlData& data, Stack& enclosingStack)
         stackMap[stackMapIndex ++] = OSREntryValue(toB3Rep(data.argumentLocations()[i]), toB3Type(data.argumentType(i).kind));
 
     RELEASE_ASSERT(stackMapIndex == numElements);
-    m_osrEntryScratchBufferSize = std::max(m_osrEntryScratchBufferSize, numElements + BBQCallee::extraOSRValuesForLoopIndex);
+    unsigned bufferSize = Context::scratchBufferSlotsPerValue(m_callee.savedFPWidth()) * (BBQCallee::extraOSRValuesForLoopIndex + numElements);
+    m_osrEntryScratchBufferSize = std::max(m_osrEntryScratchBufferSize, bufferSize);
     return stackMap;
 }
 

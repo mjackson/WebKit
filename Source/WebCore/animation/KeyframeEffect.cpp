@@ -43,7 +43,8 @@
 #include "CSSValue.h"
 #include "CSSValueKeywords.h"
 #include "CSSValuePool.h"
-#include "DocumentInlines.h"
+#include "DocumentQuirks.h"
+#include "DocumentView.h"
 #include "Element.h"
 #include "EventTargetInlines.h"
 #include "FontCascade.h"
@@ -59,12 +60,10 @@
 #include "Logging.h"
 #include "MutableStyleProperties.h"
 #include "PropertyAllowlist.h"
-#include "Quirks.h"
 #include "RenderBox.h"
 #include "RenderBoxModelObject.h"
 #include "RenderElement.h"
 #include "RenderObjectInlines.h"
-#include "RenderStyleInlines.h"
 #include "Settings.h"
 #include "StyleAdjuster.h"
 #include "StyleEasingFunction.h"
@@ -1357,7 +1356,7 @@ void KeyframeEffect::checkForMatchingTransformFunctionLists()
         return;
     }
 
-    TransformOperationsSharedPrimitivesPrefix prefix;
+    TransformOperationsSharedPrimitivesPrefix<Style::TransformFunctionType> prefix;
     for (const auto& keyframe : m_blendingKeyframes)
         prefix.update(keyframe.style()->transform());
 
@@ -2534,7 +2533,7 @@ bool KeyframeEffect::computeTransformedExtentViaTransformList(const FloatRect& r
     FloatRect floatBounds = bounds;
     FloatPoint transformOrigin;
 
-    bool applyTransformOrigin = style.transform().hasTransformOfType<TransformOperation::Type::Rotate>() || style.transform().affectedByTransformOrigin();
+    bool applyTransformOrigin = style.transform().hasTransformOfType<Style::TransformFunctionType::Rotate>() || style.transform().affectedByTransformOrigin();
     if (applyTransformOrigin) {
         transformOrigin = style.computeTransformOrigin(rendererBox).xy();
         // Ignore transformOriginZ because we'll bail if we encounter any 3D transforms.
@@ -2542,7 +2541,7 @@ bool KeyframeEffect::computeTransformedExtentViaTransformList(const FloatRect& r
     }
 
     for (const auto& operation : style.transform()) {
-        if (operation->type() == TransformOperation::Type::Rotate) {
+        if (operation->type() == Style::TransformFunctionType::Rotate) {
             // For now, just treat this as a full rotation. This could take angle into account to reduce inflation.
             floatBounds = boundsOfRotatingRect(floatBounds);
         } else {
@@ -2551,7 +2550,7 @@ bool KeyframeEffect::computeTransformedExtentViaTransformList(const FloatRect& r
             if (!transform.isAffine())
                 return false;
 
-            if (operation->type() == TransformOperation::Type::Matrix || operation->type() == TransformOperation::Type::Matrix3D) {
+            if (operation->type() == Style::TransformFunctionType::Matrix || operation->type() == Style::TransformFunctionType::Matrix3D) {
                 TransformationMatrix::Decomposed2Type toDecomp;
                 // Any rotation prevents us from using a simple start/end rect union.
                 if (!transform.decompose2(toDecomp) || toDecomp.angle)

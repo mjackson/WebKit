@@ -29,7 +29,6 @@
 
 #include "AXObjectCache.h"
 #include "BitmapImage.h"
-#include "DocumentInlines.h"
 #include "GeometryUtilities.h"
 #include "GraphicsContext.h"
 #include "HitTestResult.h"
@@ -37,7 +36,7 @@
 #include "ImageQualityController.h"
 #include "LayoutRepainter.h"
 #include "PointerEventsHitRules.h"
-#include "RenderElementInlines.h"
+#include "RenderElementStyleInlines.h"
 #include "RenderImageResource.h"
 #include "RenderLayer.h"
 #include "RenderObjectInlines.h"

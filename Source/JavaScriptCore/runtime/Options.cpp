@@ -1367,6 +1367,10 @@ void Options::assertOptionsAreCoherent()
         coherent = false;
         dataLog("INCOHERENT OPTIONS: at least one of useWasmIPInt, or useBBQJIT must be true\n");
     }
+    if (useWasmIPIntSIMD() && useWasmRelaxedSIMD()) {
+        coherent = false;
+        dataLog("INCOHERENT OPTIONS: useWasmIPIntSIMD and useWasmRelaxedSIMD cannot both be enabled (relaxed SIMD opcodes 0x100-0x10c are not yet supported in IPInt)\n");
+    }
     if (useProfiler() && useConcurrentJIT()) {
         coherent = false;
         dataLogLn("Bytecode profiler is not concurrent JIT safe.");

@@ -27,6 +27,11 @@
 
 #include "GridAreaLines.h"
 #include "LayoutElementBox.h"
+#include "StyleMargin.h"
+#include "StyleMaximumSize.h"
+#include "StyleMinimumSize.h"
+#include "StylePreferredSize.h"
+#include "StyleSelfAlignmentData.h"
 #include <wtf/HashTraits.h>
 
 namespace WebCore {
@@ -36,16 +41,40 @@ class UnplacedGridItem;
 
 class PlacedGridItem {
 public:
+    struct ComputedSizes {
+        Style::PreferredSize preferredSize;
+        Style::MinimumSize minimumSize;
+        Style::MaximumSize maximumSize;
 
-    PlacedGridItem(const UnplacedGridItem&, GridAreaLines);
+        Style::MarginEdge marginStart;
+        Style::MarginEdge marginEnd;
+    };
+
+    PlacedGridItem(const UnplacedGridItem&, GridAreaLines, const ComputedSizes& inlineAxisSizes, const ComputedSizes& blockAxisSizes,
+    const StyleSelfAlignmentData& inlineAxisAlignment, const StyleSelfAlignmentData& blockAxisAlignment);
+
+    const ComputedSizes& inlineAxisSizes() const { return m_inlineAxisSizes; }
+    const ComputedSizes& blockAxisSizes() const { return m_blockAxisSizes; }
 
     size_t columnStartLine() const { return m_gridAreaLines.columnStartLine; }
     size_t columnEndLine() const { return m_gridAreaLines.columnEndLine; }
     size_t rowStartLine() const { return m_gridAreaLines.rowStartLine; }
     size_t rowEndLine() const { return m_gridAreaLines.rowEndLine; }
 
+    const ElementBox& layoutBox() const { return m_layoutBox; }
+    const StyleSelfAlignmentData& inlineAxisAlignment() const { return m_inlineAxisAlignment; }
+    const StyleSelfAlignmentData& blockAxisAlignment() const { return m_blockAxisAlignment; }
+
+    const GridAreaLines& gridAreaLines() const { return m_gridAreaLines; }
+
 private:
     const CheckedRef<const ElementBox> m_layoutBox;
+
+    const ComputedSizes m_inlineAxisSizes;
+    const ComputedSizes m_blockAxisSizes;
+
+    const StyleSelfAlignmentData m_inlineAxisAlignment;
+    const StyleSelfAlignmentData m_blockAxisAlignment;
 
     GridAreaLines m_gridAreaLines;
 };

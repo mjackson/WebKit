@@ -44,8 +44,8 @@
 #include "CSSImageValue.h"
 #include "CSSNamedImageValue.h"
 #include "CSSPaintImageValue.h"
-#include "Document.h"
 #include "DocumentInlines.h"
+#include "DocumentView.h"
 #include "ElementInlines.h"
 #include "ElementTraversal.h"
 #include "FontCache.h"
@@ -72,6 +72,8 @@
 
 namespace WebCore {
 namespace Style {
+
+WTF_MAKE_TZONE_ALLOCATED_IMPL(BuilderState);
 
 BuilderState::BuilderState(RenderStyle& style)
     : m_style(style)

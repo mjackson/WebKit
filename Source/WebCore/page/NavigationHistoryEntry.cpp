@@ -27,7 +27,9 @@
 #include "NavigationHistoryEntry.h"
 
 #include "ContextDestructionObserverInlines.h"
-#include "DocumentInlines.h"
+#include "DocumentEventLoop.h"
+#include "DocumentView.h"
+#include "DocumentWindow.h"
 #include "EventNames.h"
 #include "EventTargetInlines.h"
 #include "EventTargetInterfaces.h"

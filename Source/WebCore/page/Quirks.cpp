@@ -29,12 +29,12 @@
 #include "AccessibilityObject.h"
 #include "Attr.h"
 #include "ContainerNodeInlines.h"
-#include "DeprecatedGlobalSettings.h"
 #include "DatasetDOMStringMap.h"
-#include "Document.h"
-#include "DocumentInlines.h"
+#include "DeprecatedGlobalSettings.h"
 #include "DocumentLoader.h"
+#include "DocumentQuirks.h"
 #include "DocumentStorageAccess.h"
+#include "DocumentView.h"
 #include "ElementAncestorIteratorInlines.h"
 #include "ElementInlines.h"
 #include "ElementTargetingTypes.h"
@@ -63,6 +63,7 @@
 #include "PlatformMouseEvent.h"
 #include "QuirksData.h"
 #include "RegistrableDomain.h"
+#include "RenderStyleInlines.h"
 #include "ResourceLoadObserver.h"
 #include "ResourceRequest.h"
 #include "SVGElementTypeHelpers.h"
@@ -938,9 +939,12 @@ static Vector<Ref<Element>> copyElements(const NodeList& nodeList)
     return elements;
 }
 
-Ref<NodeList> Quirks::applyFacebookFlagQuirk(Document& document, const NodeList& nodeList)
+Ref<NodeList> Quirks::applyFacebookFlagQuirk(Document& document, NodeList& nodeList)
 {
     m_quirksData.shouldEnableFacebookFlagQuirk = false;
+
+    if (!document.settings().facebookLiveRecordingQuirkEnabled())
+        return nodeList;
 
     auto elements = copyElements(nodeList);
     // Live Streaming flag activation
@@ -982,7 +986,7 @@ bool Quirks::shouldEnableEnumerateDeviceQuirk() const
 #if ENABLE(WEB_RTC)
 bool Quirks::shouldEnableRTCEncodedStreamsQuirk() const
 {
-    return needsQuirks() && m_quirksData.shouldEnableRTCEncodedStreamsQuirk;
+    return needsQuirks() && m_quirksData.shouldEnableRTCEncodedStreamsQuirk && protectedDocument() && protectedDocument()->settings().rtcEncodedStreamsQuirkEnabled();
 }
 #endif
 

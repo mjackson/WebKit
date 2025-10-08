@@ -20,11 +20,13 @@
 #pragma once
 
 #include "RenderElementInlines.h"
+#include "RenderElementStyleInlines.h"
 #include "RenderLayer.h"
 #include "RenderObjectInlines.h"
 #include "RenderSVGResourceClipper.h"
 #include "RenderView.h"
 #include "SVGGraphicsElement.h"
+#include "Settings.h"
 #include <wtf/CheckedPtr.h>
 
 namespace WebCore {

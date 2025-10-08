@@ -68,7 +68,7 @@ public:
     StringView(const StringImpl* string LIFETIME_BOUND);
     StringView(std::span<const Latin1Character> span LIFETIME_BOUND);
     StringView(std::span<const char16_t> span LIFETIME_BOUND);
-    StringView(std::span<const char> span LIFETIME_BOUND); // FIXME: Consider dropping this overload. Callers should pass LChars/UChars instead.
+    StringView(std::span<const char> span LIFETIME_BOUND); // FIXME: Consider dropping this overload. Callers should pass Latin1Character/char16_t instead.
     StringView(const void* string LIFETIME_BOUND, unsigned length, bool is8bit);
     StringView(ASCIILiteral);
 

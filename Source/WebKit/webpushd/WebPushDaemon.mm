@@ -1237,9 +1237,9 @@ void WebPushDaemon::setAppBadge(PushClientConnection& connection, WebCore::Secur
     if (!center)
         return;
 
-    UNMutableNotificationContent *content = [UNMutableNotificationContent new];
-    content.badge = appBadge ? [NSNumber numberWithLongLong:*appBadge] : nil;
-    RetainPtr request = [UNNotificationRequest requestWithIdentifier:NSUUID.UUID.UUIDString content:content trigger:nil];
+    RetainPtr content = adoptNS([UNMutableNotificationContent new]);
+    content.get().badge = appBadge ? [NSNumber numberWithLongLong:*appBadge] : nil;
+    RetainPtr request = [UNNotificationRequest requestWithIdentifier:NSUUID.UUID.UUIDString content:content.get() trigger:nil];
     RetainPtr debugDescription = identifier.debugDescription().createNSString().get();
     [center addNotificationRequest:request.get() withCompletionHandler:^(NSError *error) {
         if (error) {

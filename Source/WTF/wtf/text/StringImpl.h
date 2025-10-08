@@ -74,10 +74,10 @@ class SymbolRegistry;
 struct ASCIICaseInsensitiveStringViewHashTranslator;
 struct HashedUTF8CharactersTranslator;
 struct HashTranslatorASCIILiteral;
-struct LCharBufferTranslator;
+struct Latin1BufferTranslator;
 struct StringViewHashTranslator;
 struct SubstringTranslator;
-struct UCharBufferTranslator;
+struct UTF16BufferTranslator;
 
 template<typename> class RetainPtr;
 
@@ -194,10 +194,10 @@ class StringImpl : private StringImplShape, public NoVirtualDestructorBase {
     friend struct WTF::ASCIICaseInsensitiveStringViewHashTranslator;
     friend struct WTF::HashedUTF8CharactersTranslator;
     friend struct WTF::HashTranslatorASCIILiteral;
-    friend struct WTF::LCharBufferTranslator;
+    friend struct WTF::Latin1BufferTranslator;
     friend struct WTF::StringViewHashTranslator;
     friend struct WTF::SubstringTranslator;
-    friend struct WTF::UCharBufferTranslator;
+    friend struct WTF::UTF16BufferTranslator;
 
     template<typename> friend struct WTF::BufferFromStaticDataTranslator;
     template<typename> friend struct WTF::HashAndCharactersTranslator;

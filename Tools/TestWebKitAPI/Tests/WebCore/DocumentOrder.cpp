@@ -31,6 +31,7 @@
 #include <WebCore/HTMLDivElement.h>
 #include <WebCore/HTMLHtmlElement.h>
 #include <WebCore/HTMLTextAreaElement.h>
+#include <WebCore/NodeInlines.h>
 #include <WebCore/Position.h>
 #include <WebCore/ProcessWarming.h>
 #include <WebCore/Settings.h>

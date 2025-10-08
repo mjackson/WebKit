@@ -31,6 +31,7 @@
 #include "FrameDestructionObserverInlines.h"
 #include "HTMLFrameOwnerElement.h"
 #include "FrameInlines.h"
+#include "NodeDocument.h"
 #include "NodeInlines.h"
 #include "RemoteDOMWindow.h"
 #include "RemoteFrameClient.h"
@@ -177,9 +178,19 @@ void RemoteFrame::updateScrollingMode()
         m_client->updateScrollingMode(ownerElement->scrollingMode());
 }
 
+void RemoteFrame::reportMixedContentViolation(bool blocked, const URL& target) const
+{
+    m_client->reportMixedContentViolation(blocked, target);
+}
+
 RefPtr<SecurityOrigin> RemoteFrame::frameDocumentSecurityOrigin() const
 {
     return frameTreeSyncData().frameDocumentSecurityOrigin;
+}
+
+String RemoteFrame::frameURLProtocol() const
+{
+    return frameTreeSyncData().frameURLProtocol;
 }
 
 const SecurityOrigin& RemoteFrame::frameDocumentSecurityOriginOrOpaque() const

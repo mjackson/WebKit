@@ -53,6 +53,12 @@ public:
     int explicitRowStart() const;
     int explicitRowEnd() const;
 
+    bool hasDefiniteRowPosition() const;
+    bool hasDefiniteColumnPosition() const;
+    bool hasAutoColumnPosition() const;
+    size_t columnSpanSize() const;
+    std::pair<int, int> definiteRowStartEnd() const;
+
 private:
     CheckedRef<const ElementBox> m_layoutBox;
 
@@ -60,6 +66,7 @@ private:
     std::pair<Style::GridPosition, Style::GridPosition> m_columnPosition;
     std::pair<Style::GridPosition, Style::GridPosition> m_rowPosition;
 
+    friend class GridFormattingContext;
     friend class PlacedGridItem;
     friend void add(Hasher&, const WebCore::Layout::UnplacedGridItem&);
 };
@@ -96,4 +103,3 @@ template<> struct DefaultHash<WebCore::Layout::UnplacedGridItem> {
 };
 
 }
-

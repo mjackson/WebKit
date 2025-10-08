@@ -28,8 +28,12 @@
 #include "DOMWrapperWorld.h"
 #include "DocumentInlines.h"
 #include "DocumentLoader.h"
+#include "DocumentPage.h"
+#include "DocumentQuirks.h"
+#include "DocumentSecurityOrigin.h"
 #include "Event.h"
 #include "FrameConsoleClient.h"
+#include "FrameDestructionObserverInlines.h"
 #include "FrameLoader.h"
 #include "HTMLPlugInElement.h"
 #include "HistoryController.h"
@@ -40,7 +44,7 @@
 #include "JSDocument.h"
 #include "JSExecState.h"
 #include "LoadableModuleScript.h"
-#include "LocalFrame.h"
+#include "LocalFrameInlines.h"
 #include "LocalFrameLoaderClient.h"
 #include "Logging.h"
 #include "ModuleFetchFailureKind.h"
@@ -49,12 +53,12 @@
 #include "Page.h"
 #include "PageGroup.h"
 #include "PaymentCoordinator.h"
-#include "Quirks.h"
 #include "RunJavaScriptParameters.h"
 #include "ScriptDisallowedScope.h"
 #include "ScriptSourceCode.h"
 #include "ScriptableDocumentParser.h"
 #include "Settings.h"
+#include "SpeculationRules.h"
 #include "TrustedType.h"
 #include "UserGestureIndicator.h"
 #include "WebCoreJITOperations.h"
@@ -971,6 +975,15 @@ void ScriptController::registerImportMap(const ScriptSourceCode& sourceCode, con
 
     if (newImportMap)
         globalObject->importMap().mergeExistingAndNewImportMaps(WTFMove(newImportMap.value()), reporter);
+}
+
+bool ScriptController::registerSpeculationRules(const ScriptSourceCode& sourceCode, const URL& baseURL)
+{
+    RefPtr document = m_frame->document();
+    if (!document || !document->settings().speculationRulesPrefetchEnabled())
+        return false;
+
+    return document->speculationRules()->parseSpeculationRules(sourceCode.source(), baseURL, document->url());
 }
 
 } // namespace WebCore

@@ -1343,7 +1343,7 @@ inline WGPURenderPassColorAttachment const * __counted_by(count) wgpuGetRenderPa
     return descriptor->colorAttachments;
 }
 
-inline WGPURenderPassDepthStencilAttachment const * _Nullable __counted_by(1) wgpuGetRenderPassDescriptorDepthSencilAttachment(const WGPURenderPassDescriptor * __counted_by(1) descriptor LIFETIME_BOUND) {
+inline WGPURenderPassDepthStencilAttachment const * _Nullable __counted_by(1) wgpuGetRenderPassDescriptorDepthStencilAttachment(const WGPURenderPassDescriptor * __counted_by(1) descriptor LIFETIME_BOUND) {
     return descriptor->depthStencilAttachment;
 }
 

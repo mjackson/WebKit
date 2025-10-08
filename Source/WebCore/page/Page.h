@@ -164,7 +164,7 @@ class PluginData;
 class PluginInfoProvider;
 class PointerCaptureController;
 class PointerLockController;
-class ProcessSyncClient;
+class DocumentSyncClient;
 class ProgressTracker;
 class RTCController;
 class RenderObject;
@@ -227,9 +227,9 @@ struct ApplePayAMSUIRequest;
 struct AttributedString;
 struct CharacterRange;
 struct ClientOrigin;
+struct DocumentSyncSerializationData;
 struct FixedContainerEdges;
 struct NavigationAPIMethodTracker;
-struct ProcessSyncData;
 struct SpatialBackdropSource;
 struct SystemPreviewInfo;
 struct TextRecognitionResult;
@@ -283,12 +283,6 @@ enum class CompositingPolicy : bool {
 enum class FinalizeRenderingUpdateFlags : uint8_t {
     ApplyScrollingTreeLayerPositions    = 1 << 0,
     InvalidateImagesWithAsyncDecodes    = 1 << 1,
-};
-
-enum class WebContentProcessVariant : uint8_t {
-    Standard,
-    Lockdown,
-    Security
 };
 
 enum class RenderingUpdateStep : uint32_t {
@@ -447,7 +441,7 @@ public:
     bool hasInjectedUserScript();
     WEBCORE_EXPORT void setHasInjectedUserScript();
 
-    WEBCORE_EXPORT void updateProcessSyncData(const ProcessSyncData&);
+    WEBCORE_EXPORT void updateTopDocumentSyncData(const DocumentSyncSerializationData&);
     WEBCORE_EXPORT void updateTopDocumentSyncData(Ref<DocumentSyncData>&&);
 
     WEBCORE_EXPORT void setMainFrameURLFragment(String&&);
@@ -499,8 +493,8 @@ public:
     const Chrome& chrome() const { return m_chrome.get(); }
     CryptoClient& cryptoClient() { return m_cryptoClient.get(); }
     const CryptoClient& cryptoClient() const { return m_cryptoClient.get(); }
-    ProcessSyncClient& processSyncClient() { return m_processSyncClient.get(); }
-    const ProcessSyncClient& processSyncClient() const { return m_processSyncClient.get(); }
+    DocumentSyncClient& documentSyncClient() { return m_documentSyncClient.get(); }
+    const DocumentSyncClient& documentSyncClient() const { return m_documentSyncClient.get(); }
     DragCaretController& dragCaretController() { return m_dragCaretController.get(); }
     const DragCaretController& dragCaretController() const { return m_dragCaretController.get(); }
 #if ENABLE(DRAG_SUPPORT)
@@ -1390,9 +1384,9 @@ public:
     void setHardwareKeyboardAttached(bool attached) { m_hardwareKeyboardAttached = attached; }
     bool hardwareKeyboardAttached() const { return m_hardwareKeyboardAttached; }
 
-    void setWebContentProcessVariant(WebContentProcessVariant variant) { m_webContentProcessVariant = variant; };
-    WebContentProcessVariant webContentProcessVariant() const { return m_webContentProcessVariant; };
-
+#if PLATFORM(IOS_FAMILY)
+    WEBCORE_EXPORT void clearIsShowingInputView();
+#endif
 private:
     explicit Page(PageConfiguration&&);
 
@@ -1495,7 +1489,7 @@ private:
     const RefPtr<Settings> m_settings;
     const UniqueRef<CryptoClient> m_cryptoClient;
     const UniqueRef<ProgressTracker> m_progress;
-    const UniqueRef<ProcessSyncClient> m_processSyncClient;
+    const UniqueRef<DocumentSyncClient> m_documentSyncClient;
 
     const UniqueRef<BackForwardController> m_backForwardController;
     HashSet<WeakRef<LocalFrame>> m_rootFrames;
@@ -1867,7 +1861,6 @@ private:
 #else
     bool m_hardwareKeyboardAttached { true };
 #endif
-    WebContentProcessVariant m_webContentProcessVariant { WebContentProcessVariant::Standard };
 }; // class Page
 
 WTF::TextStream& operator<<(WTF::TextStream&, RenderingUpdateStep);

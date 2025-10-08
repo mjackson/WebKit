@@ -50,7 +50,7 @@
 #include "ContainerNodeInlines.h"
 #include "CustomElementDefaultARIA.h"
 #include "DOMTokenList.h"
-#include "DocumentInlines.h"
+#include "DocumentPage.h"
 #include "EditingInlines.h"
 #include "Editor.h"
 #include "ElementInlines.h"

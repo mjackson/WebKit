@@ -60,7 +60,7 @@
 #include "InspectorPageAgent.h"
 #include "InstrumentingAgents.h"
 #include "LocalDOMWindow.h"
-#include "LocalFrame.h"
+#include "LocalFrameInlines.h"
 #include "Node.h"
 #include "NodeList.h"
 #include "PseudoElement.h"

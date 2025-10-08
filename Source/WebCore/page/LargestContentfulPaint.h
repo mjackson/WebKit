@@ -27,11 +27,12 @@
 
 #include "DOMHighResTimeStamp.h"
 #include "PerformanceEntry.h"
-#include <wtf/RefPtr.h>
+#include <wtf/WeakPtr.h>
 
 namespace WebCore {
 
 class Element;
+class WeakPtrImplWithEventTargetData;
 
 class LargestContentfulPaint final : public PerformanceEntry {
 public:
@@ -75,7 +76,7 @@ protected:
 private:
     Type performanceEntryType() const final { return Type::LargestContentfulPaint; }
 
-    RefPtr<Element> m_element;
+    WeakPtr<Element, WeakPtrImplWithEventTargetData> m_element;
     DOMHighResTimeStamp m_loadTime { 0 };
     DOMHighResTimeStamp m_renderTime { 0 };
     String m_urlString;
@@ -84,3 +85,5 @@ private:
 };
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_PERFORMANCE_ENTRY(LargestContentfulPaint, LargestContentfulPaint);

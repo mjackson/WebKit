@@ -269,13 +269,25 @@ public:
     uint8_t day() const { return m_day; }
 
 private:
-    int32_t m_year : 21; // ECMAScript max / min date's year can be represented <= 20 bits.
+    // ECMAScript max / min date's year can be represented <= 20 bits.
+    // However, PlainDate must be able to represent out-of-range years,
+    // since the validity checking is separate from date parsing.
+    // For example, see the test262 test
+    // Temporal/PlainDate/prototype/until/throws-if-rounded-date-outside-valid-iso-range.js
+    double m_year;
     int32_t m_month : 5; // Starts with 1.
     int32_t m_day : 6; // Starts with 1.
 };
-static_assert(sizeof(PlainDate) == sizeof(int32_t));
 
 using TimeZone = Variant<TimeZoneID, int64_t>;
+
+class PlainYearMonth final {
+public:
+    double year;
+    double month;
+    PlainYearMonth(double y, double m)
+        : year(y), month(m) { }
+};
 
 // https://tc39.es/proposal-temporal/#sec-temporal-parsetemporaltimezonestring
 // Record { [[Z]], [[OffsetString]], [[Name]] }
@@ -321,6 +333,8 @@ String monthCode(uint32_t);
 uint8_t monthFromCode(StringView);
 
 bool isValidDuration(const Duration&);
+bool isValidISODate(double, double, double);
+PlainDate createISODateRecord(double, double, double);
 
 std::optional<ExactTime> parseInstant(StringView);
 
@@ -334,12 +348,5 @@ Int128 roundTimeDuration(JSGlobalObject*, Int128, unsigned, TemporalUnit, Roundi
 using CheckedInt128 = Checked<Int128, RecordOverflow>;
 
 CheckedInt128 checkedCastDoubleToInt128(double n);
-
-static constexpr Int128 absInt128(const Int128& value)
-{
-    if (value < 0)
-        return -value;
-    return value;
-}
 
 } // namespace JSC

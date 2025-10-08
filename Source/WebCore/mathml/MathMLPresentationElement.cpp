@@ -43,6 +43,7 @@
 #include "RenderTableCell.h"
 #include "SVGElementTypeHelpers.h"
 #include "SVGSVGElement.h"
+#include "Settings.h"
 #include <wtf/SortedArrayMap.h>
 #include <wtf/TZoneMallocInlines.h>
 

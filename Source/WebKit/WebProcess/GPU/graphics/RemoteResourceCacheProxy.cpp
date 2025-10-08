@@ -31,9 +31,11 @@
 #include "ArgumentCoders.h"
 #include "Logging.h"
 #include "RemoteImageBufferProxy.h"
+#include "RemoteNativeImageProxy.h"
 #include "RemoteRenderingBackendProxy.h"
 #include "WebProcess.h"
 #include <WebCore/FontCustomPlatformData.h>
+#include <wtf/TZoneMallocInlines.h>
 
 namespace WebKit {
 using namespace WebCore;
@@ -74,7 +76,12 @@ static std::optional<CreateShareableBitmapResult> createShareableBitmapForNative
     return CreateShareableBitmapResult { bitmap.releaseNonNull(), WTFMove(platformImage) };
 }
 
+WTF_MAKE_TZONE_ALLOCATED_IMPL(RemoteResourceCacheProxy);
 
+UniqueRef<RemoteResourceCacheProxy> RemoteResourceCacheProxy::create(RemoteRenderingBackendProxy& remoteRenderingBackendProxy)
+{
+    return UniqueRef<RemoteResourceCacheProxy> { *new RemoteResourceCacheProxy(remoteRenderingBackendProxy) };
+}
 
 RemoteResourceCacheProxy::RemoteResourceCacheProxy(RemoteRenderingBackendProxy& remoteRenderingBackendProxy)
     : m_remoteRenderingBackendProxy(remoteRenderingBackendProxy)
@@ -83,6 +90,14 @@ RemoteResourceCacheProxy::RemoteResourceCacheProxy(RemoteRenderingBackendProxy& 
 
 RemoteResourceCacheProxy::~RemoteResourceCacheProxy()
 {
+}
+
+Ref<RemoteNativeImageProxy> RemoteResourceCacheProxy::createNativeImage(const IntSize& size, PlatformColorSpace&& colorSpace, bool hasAlpha)
+{
+    WeakRef weakThis = m_remoteNativeImageProxyWeakFactory.createWeakPtr(*this).releaseNonNull();
+    Ref nativeImage = RemoteNativeImageProxy::create(size, WTFMove(colorSpace), hasAlpha, WTFMove(weakThis));
+    m_nativeImages.add(nativeImage.ptr(), NativeImageEntry { nullptr, true });
+    return nativeImage;
 }
 
 RemoteGradientIdentifier RemoteResourceCacheProxy::recordGradientUse(Gradient& gradient)
@@ -208,6 +223,27 @@ void RemoteResourceCacheProxy::willDestroyNativeImage(const NativeImage& image)
     if (!entry->existsInRemote)
         return;
     m_remoteRenderingBackendProxy->releaseNativeImage(image.renderingResourceIdentifier());
+}
+
+void RemoteResourceCacheProxy::willDestroyRemoteNativeImageProxy(const RemoteNativeImageProxy& image)
+{
+    willDestroyNativeImage(image);
+}
+
+PlatformImagePtr RemoteResourceCacheProxy::platformImage(const RemoteNativeImageProxy& image)
+{
+    auto it = m_nativeImages.find(&image);
+    RELEASE_ASSERT(it != m_nativeImages.end());
+    auto& entry = it->value;
+    if (!entry.existsInRemote)
+        return nullptr;
+    if (!entry.bitmap) {
+        auto bitmap = m_remoteRenderingBackendProxy->nativeImageBitmap(image);
+        if (!bitmap)
+            return nullptr;
+        entry.bitmap = WTFMove(bitmap);
+    }
+    return RefPtr { entry.bitmap }->createPlatformImage();
 }
 
 void RemoteResourceCacheProxy::willDestroyGradient(const Gradient& gradient)

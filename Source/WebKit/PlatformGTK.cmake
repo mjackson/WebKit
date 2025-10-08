@@ -218,6 +218,15 @@ if (ENABLE_2022_GLIB_API)
     )
 endif ()
 
+if (ENABLE_2022_GLIB_API)
+    list(APPEND WebKitGTK_HEADER_TEMPLATES
+        ${WEBKIT_DIR}/UIProcess/API/glib/WebKitWebExtension.h.in
+    )
+    list(APPEND WebKit_SOURCES
+        ${WEBKIT_DIR}/UIProcess/API/glib/WebKitWebExtension.cpp
+    )
+endif ()
+
 set(WebKitGTK_INSTALLED_HEADERS
     ${WebKitGTK_DERIVED_SOURCES_DIR}/webkit/WebKitEnumTypes.h
     ${WebKitGTK_DERIVED_SOURCES_DIR}/webkit/WebKitVersion.h
@@ -596,7 +605,7 @@ GI_INTROSPECT(WebKit${WEBKITGTK_API_INFIX} ${WEBKITGTK_API_VERSION} webkit${WEBK
     DEPENDENCIES
         JavaScriptCore
         Gtk-${GTK_API_VERSION}.0:${GTK_PKGCONFIG_PACKAGE}
-        Soup-${SOUP_API_VERSION}:libsoup-${SOUP_API_VERSION}
+        Soup-3.0:libsoup-3.0
     SOURCES
         ${WebKitGTK_INSTALLED_HEADERS}
         ${WEBKITGTK_SOURCES_FOR_INTROSPECTION}
@@ -632,7 +641,7 @@ GI_INTROSPECT(${WEBKITGTK_WEB_PROCESS_EXTENSION_API_NAME} ${WEBKITGTK_API_VERSIO
     DEPENDENCIES
         JavaScriptCore
         Gtk-${GTK_API_VERSION}.0:${GTK_PKGCONFIG_PACKAGE}
-        Soup-${SOUP_API_VERSION}:libsoup-${SOUP_API_VERSION}
+        Soup-3.0:libsoup-3.0
     SOURCES
         ${WebKitDOM_SOURCES_FOR_INTROSPECTION}
         ${WebKitWebProcessExtension_INSTALLED_HEADERS}

@@ -37,7 +37,6 @@
 #include "CalculationExecutor.h"
 #include "CalculationTree.h"
 #include "CalculationValue.h"
-#include "RenderStyle.h"
 #include "RenderStyleInlines.h"
 #include "StyleBuilderState.h"
 #include "StyleLengthResolution.h"
@@ -227,7 +226,7 @@ auto toCalculationValue(const Random::Sharing& randomSharing, const ToConversion
                 ASSERT(options.evaluation.conversionData->styleBuilderState()->element());
             }
 
-            auto baseValue = options.evaluation.conversionData->styleBuilderState()->lookupCSSRandomBaseValue(
+            auto baseValue = options.evaluation.conversionData->protectedStyleBuilderState()->lookupCSSRandomBaseValue(
                 sharingOptions.identifier,
                 sharingOptions.elementShared
             );
@@ -240,7 +239,7 @@ auto toCalculationValue(const Random::Sharing& randomSharing, const ToConversion
                     return Calculation::Random::Fixed { raw.value };
                 },
                 [&](const CSS::Number<CSS::ClosedUnitRange>::Calc& calc) -> Calculation::Random::Fixed {
-                    return Calculation::Random::Fixed { calc.evaluate(Calculation::Category::Number, *options.evaluation.conversionData->styleBuilderState()) };
+                    return Calculation::Random::Fixed { calc.evaluate(Calculation::Category::Number, *options.evaluation.conversionData->protectedStyleBuilderState()) };
                 }
             );
         }

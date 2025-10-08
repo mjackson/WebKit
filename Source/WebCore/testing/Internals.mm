@@ -29,7 +29,7 @@
 #import "DOMURL.h"
 #import "DeprecatedGlobalSettings.h"
 #import "DictionaryLookup.h"
-#import "Document.h"
+#import "DocumentView.h"
 #import "EventHandler.h"
 #import "FrameDestructionObserverInlines.h"
 #import "HTMLMediaElement.h"

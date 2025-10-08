@@ -27,6 +27,8 @@
 #include <WebCore/PopupMenuStyle.h>
 #include <WebCore/ScrollTypes.h>
 #include <WebCore/StyleColor.h>
+#include <WebCore/StyleMinimumSize.h>
+#include <WebCore/StylePreferredSize.h>
 #include <WebCore/SwitchTrigger.h>
 #include <WebCore/ThemeTypes.h>
 #include <wtf/HashMap.h>
@@ -194,7 +196,6 @@ public:
     virtual void adjustSliderThumbSize(RenderStyle&, const Element*) const { }
 
     virtual Style::PaddingBox popupInternalPaddingBox(const RenderStyle&) const;
-    virtual bool popupOptionSupportsTextIndent() const { return false; }
     virtual PopupMenuStyle::Size popupMenuSize(const RenderStyle&, IntRect&) const { return PopupMenuStyle::Size::Normal; }
 
     virtual ScrollbarWidth scrollbarWidthStyleForPart(StyleAppearance) { return ScrollbarWidth::Auto; }

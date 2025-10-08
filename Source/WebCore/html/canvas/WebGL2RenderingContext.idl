@@ -62,7 +62,6 @@ typedef (ImageBitmap or ImageData or HTMLImageElement or HTMLCanvasElement
     EnabledBySetting=WebGLEnabled,
     GenerateIsReachable=ImplCanvasBase,
     JSCustomMarkFunction,
-    JSGenerateToJSObject,
     DoNotCheckConstants,
     Exposed=(Window,Worker),
     CallTracer=InspectorCanvasCallTracer,

@@ -49,4 +49,10 @@ struct SystemFree<T[]> {
     }
 };
 
+template<typename T, typename U>
+inline std::unique_ptr<T, WTF::SystemFree<T>> adoptSystem(U value)
+{
+    return std::unique_ptr<T, WTF::SystemFree<T>>(value);
+}
+
 } // namespace WTF

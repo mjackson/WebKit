@@ -22,6 +22,7 @@
 #include "config.h"
 #include "TemporalObject.h"
 
+#include "FractionToDouble.h"
 #include "FunctionPrototype.h"
 #include "IntlObjectInlines.h"
 #include "JSCJSValueInlines.h"
@@ -587,7 +588,9 @@ double temporalRoundingIncrement(JSGlobalObject* globalObject, JSObject* options
 
 // RoundNumberToIncrement ( x, increment, roundingMode )
 // https://tc39.es/proposal-temporal/#sec-temporal-roundnumbertoincrement
-double roundNumberToIncrement(double x, double increment, RoundingMode mode)
+// See comment on roundNumberToIncrementInt128() for why there are two
+// roundNumberToIncrement functions.
+double roundNumberToIncrementDouble(double x, double increment, RoundingMode mode)
 {
     auto quotient = x / increment;
     auto truncatedQuotient = std::trunc(quotient);
@@ -663,7 +666,7 @@ Int128 roundNumberToIncrementAsIfPositive(Int128 x, Int128 increment, RoundingMo
 
 // There are two different versions of this method due to the lack
 // of float128. The names are different (roundNumberToIncrementInt128() and
-// roundNumberToIncrement()) to avoid confusion in the presence of
+// roundNumberToIncrementDouble()) to avoid confusion in the presence of
 // implicit casts.
 // https://tc39.es/proposal-temporal/#sec-temporal-roundnumbertoincrement
 Int128 roundNumberToIncrementInt128(Int128 x, Int128 increment, RoundingMode mode)

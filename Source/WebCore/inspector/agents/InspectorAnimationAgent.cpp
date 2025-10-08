@@ -36,7 +36,7 @@
 #include "CSSValue.h"
 #include "CSSValuePool.h"
 #include "ContextDestructionObserverInlines.h"
-#include "DocumentInlines.h"
+#include "DocumentPage.h"
 #include "Element.h"
 #include "Event.h"
 #include "FillMode.h"
@@ -312,7 +312,7 @@ Inspector::Protocol::ErrorStringOr<RefPtr<Inspector::Protocol::Animation::Effect
 {
     Inspector::Protocol::ErrorString errorString;
 
-    auto* animation = assertAnimation(errorString, animationId);
+    RefPtr animation = assertAnimation(errorString, animationId);
     if (!animation)
         return makeUnexpected(errorString);
 
@@ -329,7 +329,7 @@ Inspector::Protocol::ErrorStringOr<Ref<Inspector::Protocol::DOM::Styleable>> Ins
 {
     Inspector::Protocol::ErrorString errorString;
 
-    auto* animation = assertAnimation(errorString, animationId);
+    RefPtr animation = assertAnimation(errorString, animationId);
     if (!animation)
         return makeUnexpected(errorString);
 
@@ -354,7 +354,7 @@ Inspector::Protocol::ErrorStringOr<Ref<Inspector::Protocol::Runtime::RemoteObjec
 {
     Inspector::Protocol::ErrorString errorString;
 
-    auto* animation = assertAnimation(errorString, animationId);
+    RefPtr animation = assertAnimation(errorString, animationId);
     if (!animation)
         return makeUnexpected(errorString);
 
@@ -367,7 +367,7 @@ Inspector::Protocol::ErrorStringOr<Ref<Inspector::Protocol::Runtime::RemoteObjec
         JSC::JSLockHolder lock(state);
 
         auto* globalObject = deprecatedGlobalObjectForPrototype(state);
-        value = toJS(state, globalObject, animation);
+        value = toJS(state, globalObject, animation.get());
     }
 
     if (!value) {

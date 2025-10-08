@@ -51,6 +51,7 @@
 #include <WebCore/KeyboardEvent.h>
 #include <WebCore/LocalFrame.h>
 #include <WebCore/LocalFrameView.h>
+#include <WebCore/NodeDocument.h>
 #include <WebCore/NotImplemented.h>
 #include <WebCore/Page.h>
 #include <WebCore/Range.h>
@@ -435,7 +436,7 @@ void WebEditorClient::textFieldDidEndEditing(Element& element)
     if (!inputElement)
         return;
 
-    auto webFrame = WebFrame::fromCoreFrame(*element.document().protectedFrame());
+    auto webFrame = WebFrame::fromCoreFrame(*element.protectedDocument()->protectedFrame());
     ASSERT(webFrame);
 
     if (RefPtr page = m_page.get())
@@ -450,7 +451,7 @@ void WebEditorClient::textDidChangeInTextField(Element& element)
 
     bool initiatedByUserTyping = UserTypingGestureIndicator::processingUserTypingGesture() && UserTypingGestureIndicator::focusedElementAtGestureStart() == inputElement;
 
-    auto webFrame = WebFrame::fromCoreFrame(*element.document().protectedFrame());
+    auto webFrame = WebFrame::fromCoreFrame(*element.protectedDocument()->protectedFrame());
     ASSERT(webFrame);
 
     if (RefPtr page = m_page.get())
@@ -463,7 +464,7 @@ void WebEditorClient::textDidChangeInTextArea(Element& element)
     if (!textAreaElement)
         return;
 
-    auto webFrame = WebFrame::fromCoreFrame(*element.document().protectedFrame());
+    auto webFrame = WebFrame::fromCoreFrame(*element.protectedDocument()->protectedFrame());
     ASSERT(webFrame);
 
     if (RefPtr page = m_page.get())
@@ -537,7 +538,7 @@ bool WebEditorClient::doTextFieldCommandFromEvent(Element& element, KeyboardEven
     if (!getActionTypeForKeyEvent(event, actionType))
         return false;
 
-    auto webFrame = WebFrame::fromCoreFrame(*element.document().protectedFrame());
+    auto webFrame = WebFrame::fromCoreFrame(*element.protectedDocument()->protectedFrame());
     ASSERT(webFrame);
 
     RefPtr page = m_page.get();
@@ -550,7 +551,7 @@ void WebEditorClient::textWillBeDeletedInTextField(Element& element)
     if (!inputElement)
         return;
 
-    auto webFrame = WebFrame::fromCoreFrame(*element.document().protectedFrame());
+    auto webFrame = WebFrame::fromCoreFrame(*element.protectedDocument()->protectedFrame());
     ASSERT(webFrame);
 
     if (RefPtr page = m_page.get())

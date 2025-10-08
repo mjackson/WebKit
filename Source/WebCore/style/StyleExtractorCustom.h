@@ -35,10 +35,13 @@
 #include "CSSGridIntegerRepeatValue.h"
 #include "CSSGridLineNamesValue.h"
 #include "CSSPropertyNames.h"
+#include "LengthFunctions.h"
+#include "RenderElementStyleInlines.h"
 #include "StyleExtractorConverter.h"
 #include "StyleExtractorSerializer.h"
 #include "StyleInterpolation.h"
 #include "StyleOrderedNamedLinesCollector.h"
+#include "StylePrimitiveNumericTypes+Evaluation.h"
 #include "StylePropertyShorthand.h"
 #include "StylePropertyShorthandFunctions.h"
 
@@ -57,7 +60,6 @@ public:
     static Ref<CSSValue> extractLineHeight(ExtractorState&);
     static Ref<CSSValue> extractFontFamily(ExtractorState&);
     static Ref<CSSValue> extractFontSize(ExtractorState&);
-    static Ref<CSSValue> extractFontStyle(ExtractorState&);
     static Ref<CSSValue> extractFontVariantLigatures(ExtractorState&);
     static Ref<CSSValue> extractFontVariantNumeric(ExtractorState&);
     static Ref<CSSValue> extractFontVariantAlternates(ExtractorState&);
@@ -152,7 +154,6 @@ public:
     static void extractLineHeightSerialization(ExtractorState&, StringBuilder&, const CSS::SerializationContext&);
     static void extractFontFamilySerialization(ExtractorState&, StringBuilder&, const CSS::SerializationContext&);
     static void extractFontSizeSerialization(ExtractorState&, StringBuilder&, const CSS::SerializationContext&);
-    static void extractFontStyleSerialization(ExtractorState&, StringBuilder&, const CSS::SerializationContext&);
     static void extractFontVariantLigaturesSerialization(ExtractorState&, StringBuilder&, const CSS::SerializationContext&);
     static void extractFontVariantNumericSerialization(ExtractorState&, StringBuilder&, const CSS::SerializationContext&);
     static void extractFontVariantAlternatesSerialization(ExtractorState&, StringBuilder&, const CSS::SerializationContext&);
@@ -254,7 +255,7 @@ template<> struct PropertyExtractorAdaptor<CSSPropertyLetterSpacing> {
         // https://www.w3.org/TR/css-text-4/#letter-spacing-property
 
         auto& spacing = state.style.computedLetterSpacing();
-        if (spacing.isFixed() && spacing.isZero())
+        if (auto fixedSpacing = spacing.tryFixed(); fixedSpacing && fixedSpacing->isZero())
             return functor(CSS::Keyword::Normal { });
         return functor(spacing);
     }
@@ -264,6 +265,36 @@ template<> struct PropertyExtractorAdaptor<CSSPropertyWordSpacing> {
     template<typename F> decltype(auto) computedValue(ExtractorState& state, F&& functor) const
     {
         return functor(state.style.computedWordSpacing());
+    }
+};
+
+template<> struct PropertyExtractorAdaptor<CSSPropertyLineHeight> {
+    template<typename F> decltype(auto) computedValue(ExtractorState& state, F&& functor) const
+    {
+        return WTF::switchOn(state.style.lineHeight(),
+            [&](const CSS::Keyword::Normal& keyword) {
+                return functor(keyword);
+            },
+            [&](const LineHeight::Fixed& fixed) {
+                return functor(fixed);
+            },
+            [&](const LineHeight::Percentage& percentage) {
+                // CSSValueConversion<LineHeight> will convert a percentage value to a fixed value,
+                // and a number value to a percentage value. To be able to roundtrip a number value, we thus
+                // look for a percent value and convert it back to a number.
+                if (state.valueType == ExtractorState::PropertyValueType::Computed)
+                    return functor(Number<CSS::Nonnegative> { percentage.value / 100 });
+
+                // This is imperfect, because it doesn't include the zoom factor and the real computation
+                // for how high to be in pixels does include things like minimum font size and the zoom factor.
+                // On the other hand, since font-size doesn't include the zoom factor, we really can't do
+                // that here either.
+                return functor(Length<CSS::Nonnegative> { percentage.value * state.style.fontDescription().computedSize() / 100 });
+            },
+            [&](const LineHeight::Calc& calc) {
+                return functor(Length<CSS::Nonnegative> { evaluate<float>(calc, 0.0f) });
+            }
+        );
     }
 };
 
@@ -1316,50 +1347,12 @@ inline void ExtractorCustom::extractWordSpacingSerialization(ExtractorState& sta
 
 inline Ref<CSSValue> ExtractorCustom::extractLineHeight(ExtractorState& state)
 {
-    auto& length = state.style.lineHeight();
-    if (length.isNormal())
-        return CSSPrimitiveValue::create(CSSValueNormal);
-    if (length.isPercent()) {
-        // BuilderConverter::convertLineHeight() will convert a percentage value to a fixed value,
-        // and a number value to a percentage value. To be able to roundtrip a number value, we thus
-        // look for a percent value and convert it back to a number.
-        if (state.valueType == ExtractorState::PropertyValueType::Computed)
-            return CSSPrimitiveValue::create(length.value() / 100);
-
-        // This is imperfect, because it doesn't include the zoom factor and the real computation
-        // for how high to be in pixels does include things like minimum font size and the zoom factor.
-        // On the other hand, since font-size doesn't include the zoom factor, we really can't do
-        // that here either.
-        return ExtractorConverter::convertNumberAsPixels(state, static_cast<double>(length.percent() * state.style.fontDescription().computedSize()) / 100);
-    }
-    return ExtractorConverter::convertNumberAsPixels(state, floatValueForLength(length, 0, 1.0f /* FIXME FIND ZOOM */));
+    return extractCSSValue<CSSPropertyLineHeight>(state);
 }
 
 inline void ExtractorCustom::extractLineHeightSerialization(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context)
 {
-    auto& length = state.style.lineHeight();
-    if (length.isNormal()) {
-        CSS::serializationForCSS(builder, context, CSS::Keyword::Normal { });
-        return;
-    }
-    if (length.isPercent()) {
-        // BuilderConverter::convertLineHeight() will convert a percentage value to a fixed value,
-        // and a number value to a percentage value. To be able to roundtrip a number value, we thus
-        // look for a percent value and convert it back to a number.
-        if (state.valueType == ExtractorState::PropertyValueType::Computed) {
-            ExtractorSerializer::serializeNumber(state, builder, context, length.value() / 100);
-            return;
-        }
-
-        // This is imperfect, because it doesn't include the zoom factor and the real computation
-        // for how high to be in pixels does include things like minimum font size and the zoom factor.
-        // On the other hand, since font-size doesn't include the zoom factor, we really can't do
-        // that here either.
-        ExtractorSerializer::serializeNumberAsPixels(state, builder, context, static_cast<double>(length.percent() * state.style.fontDescription().computedSize()) / 100);
-        return;
-    }
-
-    ExtractorSerializer::serializeNumberAsPixels(state, builder, context, floatValueForLength(length, 0, 1.0f /* FIXME FIND ZOOM */));
+    extractSerialization<CSSPropertyLineHeight>(state, builder, context);
 }
 
 inline Ref<CSSValue> ExtractorCustom::extractFontFamily(ExtractorState& state)
@@ -1388,33 +1381,6 @@ inline Ref<CSSValue> ExtractorCustom::extractFontSize(ExtractorState& state)
 inline void ExtractorCustom::extractFontSizeSerialization(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context)
 {
     ExtractorSerializer::serializeNumberAsPixels(state, builder, context, state.style.fontDescription().computedSize());
-}
-
-inline Ref<CSSValue> ExtractorCustom::extractFontStyle(ExtractorState& state)
-{
-    auto italic = state.style.fontDescription().italic();
-    if (auto keyword = fontStyleKeyword(italic, state.style.fontDescription().fontStyleAxis()))
-        return CSSPrimitiveValue::create(*keyword);
-    return CSSFontStyleWithAngleValue::create({ CSS::AngleUnit::Deg, static_cast<float>(*italic) });
-}
-
-inline void ExtractorCustom::extractFontStyleSerialization(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context)
-{
-    auto italic = state.style.fontDescription().italic();
-    if (auto keyword = fontStyleKeyword(italic, state.style.fontDescription().fontStyleAxis())) {
-        builder.append(nameLiteralForSerialization(*keyword));
-        return;
-    }
-
-    float angle = *italic;
-    if (!angle) {
-        CSS::serializationForCSS(builder, context, CSS::Keyword::Normal { });
-        return;
-    }
-
-    CSS::serializationForCSS(builder, context, CSS::Keyword::Oblique { });
-    builder.append(' ');
-    CSS::serializationForCSS(builder, context, CSS::AngleRaw<> { CSS::AngleUnit::Deg, angle });
 }
 
 inline Ref<CSSValue> ExtractorCustom::extractFontVariantLigatures(ExtractorState& state)
@@ -2557,7 +2523,7 @@ inline RefPtr<CSSValue> ExtractorCustom::extractFontShorthand(ExtractorState& st
 {
     auto& description = state.style.fontDescription();
     auto fontWidth = fontWidthKeyword(description.width());
-    auto fontStyle = fontStyleKeyword(description.italic(), description.fontStyleAxis());
+    auto fontStyle = fontStyleKeyword(description.fontStyleSlope(), description.fontStyleAxis());
 
     auto propertiesResetByShorthandAreExpressible = [&] {
         // The font shorthand can express "font-variant-caps: small-caps". Overwrite with "normal" so we can use isAllNormal to check that all the other settings are normal.

@@ -220,20 +220,17 @@ enum class WordBreak : uint8_t;
 
 struct CSSPropertiesBitSet;
 struct CounterDirectiveMap;
-struct FontSizeAdjust;
 struct GridTrackList;
 struct ImageOrientation;
 struct Length;
 struct NameScope;
 struct TransformOperationData;
 
-template<typename> class FontTaggedSettings;
 template<typename> class RectEdges;
 template<typename> class RectCorners;
 template<typename> struct MinimallySerializingSpaceSeparatedRectEdges;
 template<typename> struct MinimallySerializingSpaceSeparatedSize;
 
-using FontVariationSettings = FontTaggedSettings<float>;
 using IntOutsets = RectEdges<int>;
 
 namespace Style {
@@ -241,6 +238,7 @@ class CustomProperty;
 class CustomPropertyData;
 class CustomPropertyRegistry;
 
+struct AccentColor;
 struct Animation;
 struct AnchorNames;
 struct AppleColorFilter;
@@ -271,7 +269,12 @@ struct Cursor;
 struct DynamicRangeLimit;
 struct Filter;
 struct FlexBasis;
+struct FontFeatureSettings;
 struct FontPalette;
+struct FontSizeAdjust;
+struct FontStyle;
+struct FontVariationSettings;
+struct FontWeight;
 struct FontWidth;
 struct GapGutter;
 struct GridPosition;
@@ -284,6 +287,7 @@ struct HyphenateLimitLines;
 struct ImageOrNone;
 struct InsetEdge;
 struct LetterSpacing;
+struct LineHeight;
 struct LineWidth;
 struct LineFitEdge;
 struct ListStyleType;
@@ -369,11 +373,14 @@ struct WebkitTextStrokeWidth;
 struct Widows;
 struct WordSpacing;
 struct ZIndex;
+struct ZoomFactor;
 
 enum class Change : uint8_t;
 enum class GridTrackSizingDirection : bool;
 enum class LineBoxContain : uint8_t;
 enum class PositionTryOrder : uint8_t;
+enum class SVGGlyphOrientationHorizontal : uint8_t;
+enum class SVGGlyphOrientationVertical : uint8_t;
 enum class ScrollBehavior : bool;
 enum class WebkitOverflowScrolling : bool;
 enum class WebkitTouchCallout : bool;
@@ -528,13 +535,10 @@ public:
     void setColumnStylesFromPaginationMode(PaginationMode);
 
     inline bool isFloating() const;
-    inline bool hasMargin() const;
     inline bool hasBorder() const;
     inline bool hasBorderImage() const;
     inline bool hasVisibleBorderDecoration() const;
     inline bool hasVisibleBorder() const;
-    inline bool hasPadding() const;
-    inline bool hasInset() const;
 
     inline bool hasBackgroundImage() const;
 
@@ -727,11 +731,12 @@ public:
     std::pair<FontOrientation, NonCJKGlyphOrientation> fontAndGlyphOrientation();
 
     inline FontOpticalSizing fontOpticalSizing() const;
-    inline FontVariationSettings fontVariationSettings() const;
-    inline FontSelectionValue fontWeight() const;
-    inline std::optional<FontSelectionValue> fontItalic() const;
+    inline Style::FontFeatureSettings fontFeatureSettings() const;
+    inline Style::FontVariationSettings fontVariationSettings() const;
     inline Style::FontPalette fontPalette() const;
-    inline FontSizeAdjust fontSizeAdjust() const;
+    inline Style::FontSizeAdjust fontSizeAdjust() const;
+    inline Style::FontStyle fontStyle() const;
+    inline Style::FontWeight fontWeight() const;
     inline Style::FontWidth fontWidth() const;
 
     inline const Style::TextIndent& textIndent() const;
@@ -765,13 +770,14 @@ public:
 
     inline float zoom() const;
     inline float usedZoom() const;
-    
+    inline Style::ZoomFactor usedZoomForLength() const;
+
     inline TextZoom textZoom() const;
 
-    const Length& specifiedLineHeight() const;
-    WEBCORE_EXPORT const Length& lineHeight() const;
+    const Style::LineHeight& specifiedLineHeight() const;
+    WEBCORE_EXPORT const Style::LineHeight& lineHeight() const;
     WEBCORE_EXPORT float computedLineHeight() const;
-    float computeLineHeight(const Length&) const;
+    float computeLineHeight(const Style::LineHeight&) const;
 
     inline bool autoWrap() const;
     static constexpr bool preserveNewline(WhiteSpaceCollapse);
@@ -1362,13 +1368,13 @@ public:
 
     // Only used for blending font sizes when animating, for MathML anonymous blocks, and for text autosizing.
     void setFontSize(float);
-    void setFontSizeAdjust(FontSizeAdjust);
-
     void setFontOpticalSizing(FontOpticalSizing);
-    void setFontVariationSettings(FontVariationSettings);
-    void setFontWeight(FontSelectionValue);
-    void setFontItalic(std::optional<FontSelectionValue>);
+    void setFontFeatureSettings(Style::FontFeatureSettings&&);
+    void setFontVariationSettings(Style::FontVariationSettings&&);
     void setFontPalette(Style::FontPalette&&);
+    void setFontSizeAdjust(Style::FontSizeAdjust);
+    void setFontStyle(Style::FontStyle);
+    void setFontWeight(Style::FontWeight);
     void setFontWidth(Style::FontWidth);
 
     void setColor(Color&&);
@@ -1386,7 +1392,6 @@ public:
     inline void setTextUnderlinePosition(OptionSet<TextUnderlinePosition>);
     inline void setTextUnderlineOffset(Style::TextUnderlineOffset&&);
     inline void setTextTransform(OptionSet<TextTransform>);
-    void setLineHeight(Length&&);
     bool setZoom(float);
     inline bool setUsedZoom(float);
     inline void setTextZoom(TextZoom);
@@ -1399,8 +1404,9 @@ public:
 
     inline void setMarginTrim(OptionSet<MarginTrimType>);
 
+    void setLineHeight(Style::LineHeight&&);
 #if ENABLE(TEXT_AUTOSIZING)
-    void setSpecifiedLineHeight(Length&&);
+    void setSpecifiedLineHeight(Style::LineHeight&&);
 #endif
 
     inline void setImageOrientation(ImageOrientation);
@@ -1503,8 +1509,7 @@ public:
     inline void setTextFillColor(Style::Color&&);
     inline void setCaretColor(Style::Color&&);
     inline void setHasAutoCaretColor();
-    inline void setAccentColor(Style::Color&&);
-    inline void setHasAutoAccentColor();
+    inline void setAccentColor(Style::AccentColor&&);
     inline void setOpacity(Style::Opacity);
     inline void setAppearance(StyleAppearance);
     inline void setUsedAppearance(StyleAppearance);
@@ -1737,7 +1742,6 @@ public:
     
     inline const Style::StrokeWidth& strokeWidth() const;
     inline void setStrokeWidth(Style::StrokeWidth&&);
-    inline bool hasVisibleStroke() const;
     static inline Style::StrokeWidth initialStrokeWidth();
 
     float computedStrokeWidth(const IntSize& viewportSize) const;
@@ -1765,6 +1769,12 @@ public:
     inline void setFill(Style::SVGPaint&&);
     inline void setVisitedLinkFill(Style::SVGPaint&&);
     static inline Style::SVGPaint initialFill();
+
+    inline bool enableEvaluationTimeZoom() const;
+    void setEnableEvaluationTimeZoom(bool);
+
+    inline bool useSVGZoomRulesForLength() const;
+    void setUseSVGZoomRulesForLength(bool);
 
     inline Style::Opacity fillOpacity() const;
     inline void setFillOpacity(Style::Opacity);
@@ -1961,7 +1971,12 @@ public:
     static constexpr PositionType initialPosition();
     static inline Style::VerticalAlign initialVerticalAlign();
     static constexpr Float initialFloating();
+    static inline Style::FontFeatureSettings initialFontFeatureSettings();
+    static inline Style::FontVariationSettings initialFontVariationSettings();
     static inline Style::FontPalette initialFontPalette();
+    static inline Style::FontSizeAdjust initialFontSizeAdjust();
+    static inline Style::FontStyle initialFontStyle();
+    static inline Style::FontWeight initialFontWeight();
     static inline Style::FontWidth initialFontWidth();
     static constexpr BreakBetween initialBreakBetween();
     static constexpr BreakInside initialBreakInside();
@@ -1992,8 +2007,16 @@ public:
     static constexpr Style::WebkitBorderSpacing initialBorderVerticalSpacing();
     static inline Style::Cursor initialCursor();
     static inline Color initialColor();
-    static inline Style::Color initialTextStrokeColor();
+    static inline Style::Color initialBorderBottomColor();
+    static inline Style::Color initialBorderLeftColor();
+    static inline Style::Color initialBorderRightColor();
+    static inline Style::Color initialBorderTopColor();
+    static inline Style::Color initialColumnRuleColor();
+    static inline Style::Color initialOutlineColor();
     static inline Style::Color initialTextDecorationColor();
+    static inline Style::Color initialTextFillColor();
+    static inline Style::Color initialTextStrokeColor();
+    static inline Style::AccentColor initialAccentColor();
     static inline Style::ImageOrNone initialListStyleImage();
     static constexpr Style::LineWidth initialBorderWidth();
     static constexpr Style::LineWidth initialColumnRuleWidth();
@@ -2017,8 +2040,7 @@ public:
     static constexpr Style::LineFitEdge initialLineFitEdge();
     static constexpr Style::Widows initialWidows();
     static constexpr Style::Orphans initialOrphans();
-    // Returning -100% percent here means the line-height is not set.
-    static inline Length initialLineHeight();
+    static inline Style::LineHeight initialLineHeight();
     static constexpr TextAlignMode initialTextAlign();
     static constexpr TextAlignLast initialTextAlignLast();
     static constexpr TextGroupAlign initialTextGroupAlign();
@@ -2151,7 +2173,7 @@ public:
 #endif
 
 #if ENABLE(TEXT_AUTOSIZING)
-    static inline Length initialSpecifiedLineHeight();
+    static inline Style::LineHeight initialSpecifiedLineHeight();
     static constexpr Style::TextSizeAdjust initialTextSizeAdjust();
 #endif
 
@@ -2267,7 +2289,6 @@ public:
     inline const Style::Color& outlineColor() const;
     inline const Style::Color& textEmphasisColor() const;
     inline const Style::Color& textFillColor() const;
-    static inline Style::Color initialTextFillColor();
     inline const Style::Color& textStrokeColor() const;
     inline const Style::Color& caretColor() const;
     inline bool hasAutoCaretColor() const;
@@ -2288,8 +2309,7 @@ public:
     inline bool hasVisitedLinkAutoCaretColor() const;
 
     Color usedAccentColor(OptionSet<StyleColorOptions>) const;
-    inline const Style::Color& accentColor() const;
-    inline bool hasAutoAccentColor() const;
+    inline const Style::AccentColor& accentColor() const;
 
     inline const Style::OffsetPath& offsetPath() const;
     inline bool hasOffsetPath() const;
@@ -2356,8 +2376,8 @@ public:
     const FixedVector<Style::PositionTryFallback>& positionTryFallbacks() const;
     void setPositionTryFallbacks(FixedVector<Style::PositionTryFallback>&&);
 
-    std::optional<size_t> lastSuccessfulPositionTryFallbackIndex() const;
-    void setLastSuccessfulPositionTryFallbackIndex(std::optional<size_t>);
+    std::optional<size_t> usedPositionOptionIndex() const;
+    void setUsedPositionOptionIndex(std::optional<size_t>);
 
     static constexpr OptionSet<PositionVisibility> initialPositionVisibility();
     inline OptionSet<PositionVisibility> positionVisibility() const;
@@ -2403,13 +2423,13 @@ public:
     inline void setTextAnchor(TextAnchor);
     static constexpr TextAnchor initialTextAnchor();
 
-    inline GlyphOrientation glyphOrientationHorizontal() const;
-    inline void setGlyphOrientationHorizontal(GlyphOrientation);
-    static constexpr GlyphOrientation initialGlyphOrientationHorizontal();
+    inline Style::SVGGlyphOrientationHorizontal glyphOrientationHorizontal() const;
+    inline void setGlyphOrientationHorizontal(Style::SVGGlyphOrientationHorizontal);
+    static constexpr Style::SVGGlyphOrientationHorizontal initialGlyphOrientationHorizontal();
 
-    inline GlyphOrientation glyphOrientationVertical() const;
-    inline void setGlyphOrientationVertical(GlyphOrientation);
-    static constexpr GlyphOrientation initialGlyphOrientationVertical();
+    inline Style::SVGGlyphOrientationVertical glyphOrientationVertical() const;
+    inline void setGlyphOrientationVertical(Style::SVGGlyphOrientationVertical);
+    static constexpr Style::SVGGlyphOrientationVertical initialGlyphOrientationVertical();
 
     inline MaskType maskType() const;
     inline void setMaskType(MaskType);

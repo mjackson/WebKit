@@ -30,7 +30,10 @@ class MacOSInlineMediaControls extends InlineMediaControls
 
     constructor(options = {})
     {
-        options.layoutTraits = new MacOSLayoutTraits(LayoutTraits.Mode.Inline);
+        if (options.mode === undefined)
+            options.layoutTraits = new MacOSLayoutTraits(LayoutTraits.Mode.Inline);
+        else
+            options.layoutTraits = new MacOSLayoutTraits(options.mode);
 
         super(options);
 
@@ -54,6 +57,12 @@ class MacOSInlineMediaControls extends InlineMediaControls
         this.muteButton.element.addEventListener("mouseenter", this);
         this.muteButton.element.addEventListener("mouseleave", this);
         this._volumeSliderContainer.element.addEventListener("mouseleave", this);
+        
+        if (this.layoutTraits.mode == LayoutTraits.Mode.NarrowViewer) {
+            this.element.classList.add("narrowviewer");
+            this.fullscreenButton.isFullscreen = true;
+        }
+        
     }
 
     // Protected

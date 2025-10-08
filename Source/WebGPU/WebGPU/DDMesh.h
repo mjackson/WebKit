@@ -62,7 +62,6 @@ private:
     DDMesh(Instance&);
 
     const Ref<Instance> m_instance;
-    bool m_destroyed { false };
     WGPUDDMeshDescriptor m_descriptor;
 };
 

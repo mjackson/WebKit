@@ -85,7 +85,7 @@
 
 namespace JSC {
 
-JSObject* WebAssemblyBuiltin::jsWrapper(JSGlobalObject* globalObject) const
+JSFunction* WebAssemblyBuiltin::jsWrapper(JSGlobalObject* globalObject) const
 {
     return JSFunction::create(globalObject->vm(), globalObject, 0, m_name, m_jsHostFunction, ImplementationVisibility::Public, JSC::NoIntrinsic);
 }
@@ -520,7 +520,7 @@ DEFINE_BUILTIN_IMPLEMENTATION(jsstring, fromCharCodeArray, JSGlobalObject* globa
     if (start > end || end > array->size()) [[unlikely]]
         THROW_ILLEGAL_ARGUMENT_EXCEPTION;
 
-    auto chars = array->span<UChar>();
+    auto chars = array->span<char16_t>();
     auto slice = chars.subspan(start, end - start);
     JSString* result = jsString(vm, String(slice));
     RELEASE_AND_RETURN(scope, JSValue::encode(result));
@@ -560,7 +560,7 @@ DEFINE_BUILTIN_IMPLEMENTATION_I32(jsstring, intoCharCodeArray, JSGlobalObject* g
     if (start + stringLength > arrayLength) [[unlikely]]
         THROW_ILLEGAL_ARGUMENT_EXCEPTION;
 
-    auto data = array->span<UChar>();
+    auto data = array->span<char16_t>();
     auto dest = data.subspan(start, stringLength);
     auto stringValue = string->value(globalObject);
 
@@ -568,7 +568,7 @@ DEFINE_BUILTIN_IMPLEMENTATION_I32(jsstring, intoCharCodeArray, JSGlobalObject* g
         for (size_t i = 0; i < stringLength; ++i)
             dest[i] = stringValue.data[i];
     } else {
-        auto source = stringValue.data.span<UChar>();
+        auto source = stringValue.data.span<char16_t>();
         memcpySpan(dest, source);
     }
 
@@ -587,8 +587,7 @@ DECLARE_BUILTIN_TRAMPOLINE(jsstring, intoCharCodeArray);
 
 DEFINE_BUILTIN_IMPLEMENTATION(jsstring, fromCharCode, JSGlobalObject* globalObject, int32_t arg)
 {
-    UChar code = static_cast<UChar>(arg);
-    return JSValue::encode(jsSingleCharacterString(globalObject->vm(), code));
+    return JSValue::encode(jsSingleCharacterString(globalObject->vm(), static_cast<char16_t>(arg)));
 }
 
 DEFINE_BUILTIN_ENTRY_R_I(jsstring, fromCharCode)
@@ -604,17 +603,10 @@ DECLARE_BUILTIN_TRAMPOLINE(jsstring, fromCharCode);
 DEFINE_BUILTIN_IMPLEMENTATION(jsstring, fromCodePoint, JSGlobalObject* globalObject, int32_t arg)
 {
     auto scope = DECLARE_THROW_SCOPE(globalObject->vm());
-    uint32_t codePoint = static_cast<uint32_t>(arg);
+    auto codePoint = static_cast<char32_t>(arg);
     if (codePoint > 0x10ffff) [[unlikely]]
         THROW_ILLEGAL_ARGUMENT_EXCEPTION;
-    StringBuilder builder;
-    if (U_IS_BMP(codePoint))
-        builder.append(static_cast<UChar>(codePoint));
-    else {
-        builder.append(U16_LEAD(codePoint));
-        builder.append(U16_TRAIL(codePoint));
-    }
-    JSValue result = JSValue(jsString(globalObject->vm(), builder.toString()));
+    JSValue result = JSValue(jsString(globalObject->vm(), makeString(codePoint)));
     RELEASE_AND_RETURN(scope, JSValue::encode(result));
 }
 
@@ -646,7 +638,7 @@ DEFINE_BUILTIN_IMPLEMENTATION_I32(jsstring, charCodeAt, JSGlobalObject* globalOb
     RETURN_IF_EXCEPTION(scope, { });
     if (index < 0 || view->length() <= static_cast<unsigned>(index)) [[unlikely]]
         THROW_ILLEGAL_ARGUMENT_EXCEPTION;
-    UChar result = view[index];
+    char16_t result = view[index];
     RELEASE_AND_RETURN(scope, toUCPUStrictInt32(result));
 }
 

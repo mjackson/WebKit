@@ -37,6 +37,7 @@
 #include "AnimationMalloc.h"
 #include "StyleInterpolationFunctions.h"
 #include "StyleInterpolationWrapperBase.h"
+#include "StylePrimitiveKeyword+Logging.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
 #include <wtf/NeverDestroyed.h>
 #include <wtf/text/TextStream.h>
@@ -380,26 +381,6 @@ private:
     void (FontCascadeDescription::*m_setter)(T);
 };
 
-class FontFeatureSettingsWrapper final : public DiscreteFontDescriptionWrapper {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(FontFeatureSettingsWrapper, Animation);
-public:
-    FontFeatureSettingsWrapper()
-        : DiscreteFontDescriptionWrapper(CSSPropertyFontFeatureSettings)
-    {
-    }
-
-private:
-    bool propertiesInFontDescriptionAreEqual(const FontCascadeDescription& a, const FontCascadeDescription& b) const override
-    {
-        return a.featureSettings() == b.featureSettings();
-    }
-
-    void setPropertiesInFontDescription(const FontCascadeDescription& source, FontCascadeDescription& destination) const override
-    {
-        destination.setFeatureSettings(FontFeatureSettings(source.featureSettings()));
-    }
-};
-
 class FontVariantEastAsianWrapper final : public DiscreteFontDescriptionWrapper {
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(FontVariantEastAsianWrapper, Animation);
 public:
@@ -498,150 +479,6 @@ private:
     }
 };
 
-#if ENABLE(VARIATION_FONTS)
-
-class FontVariationSettingsWrapper final : public Wrapper<FontVariationSettings> {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(FontVariationSettingsWrapper, Animation);
-public:
-    FontVariationSettingsWrapper()
-        : Wrapper(CSSPropertyFontVariationSettings, &RenderStyle::fontVariationSettings, &RenderStyle::setFontVariationSettings)
-    {
-    }
-
-    bool equals(const RenderStyle& a, const RenderStyle& b) const final
-    {
-        // If the style pointers are the same, don't bother doing the test.
-        if (&a == &b)
-            return true;
-        return value(a) == value(b);
-    }
-
-    bool canInterpolate(const RenderStyle& from, const RenderStyle& to, CompositeOperation) const final
-    {
-        auto fromVariationSettings = value(from);
-        auto toVariationSettings = value(to);
-
-        if (fromVariationSettings.size() != toVariationSettings.size())
-            return false;
-
-        auto size = fromVariationSettings.size();
-        for (unsigned i = 0; i < size; ++i) {
-            if (fromVariationSettings.at(i).tag() != toVariationSettings.at(i).tag())
-                return false;
-        }
-
-        return true;
-    }
-};
-
-#endif
-
-class FontWeightWrapper final : public Wrapper<FontSelectionValue> {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(FontWeightWrapper, Animation);
-public:
-    FontWeightWrapper()
-        : Wrapper(CSSPropertyFontWeight, &RenderStyle::fontWeight, &RenderStyle::setFontWeight)
-    {
-    }
-
-    void interpolate(RenderStyle& destination, const RenderStyle& from, const RenderStyle& to, const Context& context) const final
-    {
-        (destination.*m_setter)(FontSelectionValue(std::clamp(blendFunc(static_cast<float>(this->value(from)), static_cast<float>(this->value(to)), context), 1.0f, 1000.0f)));
-    }
-};
-
-class FontStyleWrapper final : public Wrapper<std::optional<FontSelectionValue>> {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(FontStyleWrapper, Animation);
-public:
-    FontStyleWrapper()
-        : Wrapper(CSSPropertyFontStyle, &RenderStyle::fontItalic, &RenderStyle::setFontItalic)
-    {
-    }
-
-    bool canInterpolate(const RenderStyle& from, const RenderStyle& to, CompositeOperation) const final
-    {
-        return from.fontDescription().fontStyleAxis() == FontStyleAxis::slnt && to.fontDescription().fontStyleAxis() == FontStyleAxis::slnt;
-    }
-
-    void interpolate(RenderStyle& destination, const RenderStyle& from, const RenderStyle& to, const Context& context) const final
-    {
-        auto blendedStyleAxis = FontStyleAxis::slnt;
-        if (context.isDiscrete)
-            blendedStyleAxis = (context.progress < 0.5 ? from : to).fontDescription().fontStyleAxis();
-
-        auto fromFontItalic = from.fontItalic();
-        auto toFontItalic = to.fontItalic();
-        auto blendedFontItalic = context.progress < 0.5 ? fromFontItalic : toFontItalic;
-        if (!context.isDiscrete)
-            blendedFontItalic = blendFunc(fromFontItalic, toFontItalic, context);
-
-        auto description = destination.fontDescription();
-        description.setItalic(blendedFontItalic);
-        description.setFontStyleAxis(blendedStyleAxis);
-        destination.setFontDescription(WTFMove(description));
-    }
-};
-
-class FontSizeAdjustWrapper final : public WrapperWithGetter<FontSizeAdjust> {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(FontSizeAdjustWrapper, Animation);
-public:
-    FontSizeAdjustWrapper()
-        : WrapperWithGetter(CSSPropertyFontSizeAdjust, &RenderStyle::fontSizeAdjust)
-    {
-    }
-
-    bool canInterpolate(const RenderStyle& from, const RenderStyle& to, CompositeOperation) const final
-    {
-        auto fromFontSizeAdjust = from.fontSizeAdjust();
-        auto toFontSizeAdjust = to.fontSizeAdjust();
-        return fromFontSizeAdjust.metric == toFontSizeAdjust.metric
-            && fromFontSizeAdjust.value && toFontSizeAdjust.value;
-    }
-
-    void interpolate(RenderStyle& destination, const RenderStyle& from, const RenderStyle& to, const Context& context) const final
-    {
-        auto blendedFontSizeAdjust = [&]() -> FontSizeAdjust {
-            if (context.isDiscrete)
-                return (!context.progress ? from : to).fontSizeAdjust();
-
-            ASSERT(from.fontSizeAdjust().value && to.fontSizeAdjust().value);
-            auto blendedAdjust = blendFunc(*from.fontSizeAdjust().value, *to.fontSizeAdjust().value, context);
-
-            ASSERT(from.fontSizeAdjust().metric == to.fontSizeAdjust().metric);
-            return { to.fontSizeAdjust().metric, FontSizeAdjust::ValueType::Number, std::max(blendedAdjust, 0.0f) };
-        };
-
-        destination.setFontSizeAdjust(blendedFontSizeAdjust());
-    }
-};
-
-class LineHeightWrapper final : public LengthWrapper {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(LineHeightWrapper, Animation);
-public:
-    LineHeightWrapper()
-        : LengthWrapper(CSSPropertyLineHeight, &RenderStyle::specifiedLineHeight, &RenderStyle::setLineHeight)
-    {
-    }
-
-    bool canInterpolate(const RenderStyle& from, const RenderStyle& to, CompositeOperation compositeOperation) const final
-    {
-        // We must account for how BuilderConverter::convertLineHeight() deals with line-height values:
-        // - "normal" is converted to LengthType::Percent with a -100 value
-        // - <number> values are converted to LengthType::Percent
-        // - <length-percentage> values are converted to LengthType::Fixed
-        // This means that animating between "normal" and a "<number>" would work with LengthWrapper::canInterpolate()
-        // since it would see two LengthType::Percent values. So if either value is "normal" we cannot interpolate since those
-        // values are either equal or of incompatible types.
-        auto normalLineHeight = RenderStyle::initialLineHeight();
-        if (value(from) == normalLineHeight || value(to) == normalLineHeight)
-            return false;
-
-        // The default logic will now apply since <number> and <length-percentage> values
-        // are converted to different LengthType values.
-        return LengthWrapper::canInterpolate(from, to, compositeOperation);
-    }
-};
-
 // MARK: - Color Property Wrappers
 
 class ColorWrapper final : public WrapperWithGetter<const WebCore::Color&> {
@@ -698,41 +535,6 @@ public:
 
     ColorWrapper m_wrapper;
     ColorWrapper m_visitedWrapper;
-};
-
-class AccentColorWrapper final : public StyleTypeWrapper<Color, const Color&, Color&&> {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(AccentColorWrapper, Animation);
-public:
-    AccentColorWrapper()
-        : StyleTypeWrapper(CSSPropertyAccentColor, &RenderStyle::accentColor, &RenderStyle::setAccentColor)
-    {
-    }
-
-    bool equals(const RenderStyle& a, const RenderStyle& b) const final
-    {
-        return a.hasAutoAccentColor() == b.hasAutoAccentColor()
-            && StyleTypeWrapper::equals(a, b);
-    }
-
-    bool canInterpolate(const RenderStyle& from, const RenderStyle& to, CompositeOperation) const final
-    {
-        return !from.hasAutoAccentColor() && !to.hasAutoAccentColor();
-    }
-
-    void interpolate(RenderStyle& destination, const RenderStyle& from, const RenderStyle& to, const Context& context) const final
-    {
-        if (canInterpolate(from, to, context.compositeOperation)) {
-            StyleTypeWrapper::interpolate(destination, from, to, context);
-            return;
-        }
-
-        ASSERT(!context.progress || context.progress == 1.0);
-        auto& blendingRenderStyle = context.progress ? to : from;
-        if (blendingRenderStyle.hasAutoAccentColor())
-            destination.setHasAutoAccentColor();
-        else
-            destination.setAccentColor(Color { blendingRenderStyle.accentColor() });
-    }
 };
 
 class CaretColorWrapper final : public VisitedAffectedStyleTypeWrapper<Color> {

@@ -29,10 +29,11 @@
 #include "AnchorPositionEvaluator.h"
 #include "BorderPainter.h"
 #include "BorderShape.h"
-#include "CachedResourceLoader.h"
 #include "ContainerNodeInlines.h"
 #include "ContentVisibilityDocumentState.h"
-#include "DocumentInlines.h"
+#include "DocumentPage.h"
+#include "DocumentResourceLoader.h"
+#include "DocumentView.h"
 #include "ElementChildIteratorInlines.h"
 #include "EventHandler.h"
 #include "FocusController.h"
@@ -1354,7 +1355,7 @@ template<typename FillLayers> static bool mustRepaintFillLayers(const RenderElem
     if (!image || !image->canRender(&renderer, renderer.style().usedZoom()))
         return false;
 
-    if (!layer.xPosition().isZero() || !layer.yPosition().isZero())
+    if (!layer.xPosition().isKnownZero() || !layer.yPosition().isKnownZero())
         return true;
 
     return WTF::switchOn(layer.size(),

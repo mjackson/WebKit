@@ -26,6 +26,7 @@
 #pragma once
 
 #include "GridTypeAliases.h"
+#include "LayoutIntegrationUtils.h"
 #include "LayoutState.h"
 #include "LayoutUnit.h"
 #include <wtf/CheckedRef.h>
@@ -59,11 +60,20 @@ public:
 
     const ElementBox& root() const { return m_gridBox; }
 
+    const IntegrationUtils& integrationUtils() const { return m_integrationUtils; }
+
+    const BoxGeometry& geometryForGridItem(const ElementBox&) const;
+
 private:
     UnplacedGridItems constructUnplacedGridItems() const;
 
+    const LayoutState& layoutState() const { return m_globalLayoutState; }
+    BoxGeometry& geometryForGridItem(const ElementBox&);
+    void setGridItemGeometries(const GridItemRects&);
+
     const CheckedRef<const ElementBox> m_gridBox;
     const CheckedRef<LayoutState> m_globalLayoutState;
+    const IntegrationUtils m_integrationUtils;
 };
 
 } // namespace Layout

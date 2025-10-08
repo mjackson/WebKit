@@ -23,13 +23,13 @@
 #include "AddEventListenerOptionsInlines.h"
 #include "ContextDestructionObserverInlines.h"
 #include "Document.h"
-#include "DocumentInlines.h"
 #include "EventNames.h"
 #include "EventTargetInlines.h"
 #include "HTMLFrameOwnerElement.h"
 #include "MediaQueryEvaluator.h"
 #include "MediaQueryListEvent.h"
 #include "MediaQueryParser.h"
+#include "NodeDocument.h"
 #include "Quirks.h"
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/StringBuilder.h>

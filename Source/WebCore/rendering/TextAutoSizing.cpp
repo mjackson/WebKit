@@ -30,8 +30,8 @@
 
 #include "CSSFontSelector.h"
 #include "Document.h"
-#include "DocumentInlines.h"
 #include "FontCascade.h"
+#include "LengthFunctions.h"
 #include "Logging.h"
 #include "RenderBlock.h"
 #include "RenderListMarker.h"
@@ -40,6 +40,7 @@
 #include "RenderTextFragment.h"
 #include "RenderTreeBuilder.h"
 #include "Settings.h"
+#include "StylePrimitiveNumericTypes+Evaluation.h"
 #include "StyleResolver.h"
 #include "StyleTextSizeAdjust.h"
 #include <wtf/TZoneMallocInlines.h>
@@ -151,20 +152,29 @@ auto TextAutoSizingValue::adjustTextNodeSizes() -> StillHasNodes
         auto& parentStyle = parentRenderer->style();
         auto& lineHeightLength = parentStyle.specifiedLineHeight();
 
-        int specifiedLineHeight;
-        if (lineHeightLength.isPercent())
-            specifiedLineHeight = minimumValueForLength(lineHeightLength, fontDescription.specifiedSize(), 1.0f /* FIXME FIND ZOOM */);
-        else
-            specifiedLineHeight = lineHeightLength.value();
+        int specifiedLineHeight = WTF::switchOn(lineHeightLength,
+            [&](const CSS::Keyword::Normal&) {
+                return 0;
+            },
+            [&](const Style::LineHeight::Fixed& fixed) {
+                return Style::evaluate<LayoutUnit>(fixed, Style::ZoomNeeded { }).toInt();
+            },
+            [&](const Style::LineHeight::Percentage& percentage) {
+                return Style::evaluate<LayoutUnit>(percentage, LayoutUnit { fontDescription.specifiedSize() }).toInt();
+            },
+            [&](const Style::LineHeight::Calc&) {
+                return 0;
+            }
+        );
 
         // This calculation matches the line-height computed size calculation in StyleBuilderCustom::applyValueLineHeight().
         int lineHeight = specifiedLineHeight * scaleChange;
-        if (lineHeightLength.isFixed() && lineHeightLength.value() == lineHeight)
+        if (auto fixedLineHeight = lineHeightLength.tryFixed(); fixedLineHeight && fixedLineHeight->resolveZoom(Style::ZoomNeeded { }) == lineHeight)
             continue;
 
         auto newParentStyle = cloneRenderStyleWithState(parentStyle);
-        newParentStyle.setLineHeight(lineHeightLength.isNormal() ? Length(lineHeightLength) : Length(lineHeight, LengthType::Fixed));
-        newParentStyle.setSpecifiedLineHeight(Length { lineHeightLength });
+        newParentStyle.setLineHeight(lineHeightLength.isNormal() ? Style::LineHeight { lineHeightLength } : Style::LineHeight { Style::LineHeight::Fixed { static_cast<float>(lineHeight) } });
+        newParentStyle.setSpecifiedLineHeight(Style::LineHeight { lineHeightLength });
         newParentStyle.setFontDescription(WTFMove(fontDescription));
         parentRenderer->setStyle(WTFMove(newParentStyle));
 
@@ -232,7 +242,7 @@ void TextAutoSizingValue::reset()
             continue;
 
         auto newParentStyle = cloneRenderStyleWithState(parentStyle);
-        newParentStyle.setLineHeight(Length { originalLineHeight });
+        newParentStyle.setLineHeight(Style::LineHeight { originalLineHeight });
         newParentStyle.setFontDescription(WTFMove(fontDescription));
         parentRenderer->setStyle(WTFMove(newParentStyle));
     }

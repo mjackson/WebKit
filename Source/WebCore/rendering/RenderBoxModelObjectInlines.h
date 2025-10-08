@@ -73,8 +73,6 @@ inline LayoutUnit RenderBoxModelObject::paddingLogicalWidth() const { return pad
 inline LayoutUnit RenderBoxModelObject::paddingRight() const { return computedCSSPaddingRight(); }
 inline LayoutUnit RenderBoxModelObject::paddingStart() const { return computedCSSPaddingStart(); }
 inline LayoutUnit RenderBoxModelObject::paddingTop() const { return computedCSSPaddingTop(); }
-inline LayoutSize RenderBoxModelObject::relativePositionLogicalOffset() const { return writingMode().isHorizontal() ? relativePositionOffset() : relativePositionOffset().transposedSize(); }
-inline LayoutSize RenderBoxModelObject::stickyPositionLogicalOffset() const { return writingMode().isHorizontal() ? stickyPositionOffset() : stickyPositionOffset().transposedSize(); }
 inline LayoutUnit RenderBoxModelObject::verticalBorderAndPaddingExtent() const { return borderTop() + borderBottom() + paddingTop() + paddingBottom(); }
 inline LayoutUnit RenderBoxModelObject::verticalBorderExtent() const { return borderTop() + borderBottom(); }
 

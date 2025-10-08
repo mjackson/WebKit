@@ -810,7 +810,7 @@ Ref<StringImpl> StringImpl::trim(CodeUnitMatchFunction predicate)
     return trimMatchedCharacters<char16_t>(predicate);
 }
 
-template<typename CharacterType, class UCharPredicate> inline Ref<StringImpl> StringImpl::simplifyMatchedCharactersToSpace(UCharPredicate predicate)
+template<typename CharacterType, class CodeUnitPredicate> inline Ref<StringImpl> StringImpl::simplifyMatchedCharactersToSpace(CodeUnitPredicate predicate)
 {
     StringBuffer<CharacterType> data(m_length);
 

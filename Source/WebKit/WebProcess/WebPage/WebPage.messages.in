@@ -205,8 +205,8 @@ messages -> WebPage WantsAsyncDispatchMessage {
     FrameWasRemovedInAnotherProcess(WebCore::FrameIdentifier frameID)
     UpdateFrameTreeSyncData(WebCore::FrameIdentifier frameID, Ref<WebCore::FrameTreeSyncData> frameTreeSyncData)
 
-    ProcessSyncDataChangedInAnotherProcess(struct WebCore::ProcessSyncData processSyncData)
-    TopDocumentSyncDataChangedInAnotherProcess(Ref<WebCore::DocumentSyncData> documentSyncData)
+    TopDocumentSyncDataChangedInAnotherProcess(struct WebCore::DocumentSyncSerializationData documentSyncData)
+    AllTopDocumentSyncDataChangedInAnotherProcess(Ref<WebCore::DocumentSyncData> documentSyncData)
 
     NavigateToPDFLinkWithSimulatedClick(String url, WebCore::IntPoint documentPoint, WebCore::IntPoint screenPoint)
     GetPDFFirstPageSize(WebCore::FrameIdentifier frameID) -> (WebCore::FloatSize size)
@@ -810,7 +810,8 @@ messages -> WebPage WantsAsyncDispatchMessage {
 
     DispatchLoadEventToFrameOwnerElement(WebCore::FrameIdentifier frameID)
 
-    FrameWasFocusedInAnotherProcess(WebCore::FrameIdentifier frameID)
+    ElementWasFocusedInAnotherProcess(WebCore::FrameIdentifier frameID, struct WebCore::FocusOptions options)
+    FrameWasFocusedInAnotherProcess(std::optional<WebCore::FrameIdentifier> frameID)
 
     RemotePostMessage(WebCore::FrameIdentifier source, String sourceOrigin, WebCore::FrameIdentifier target, std::optional<WebCore::SecurityOriginData> targetOrigin, struct WebCore::MessageWithMessagePorts message)
     RenderTreeAsTextForTesting(WebCore::FrameIdentifier frameID, uint64_t baseIndent, OptionSet<WebCore::RenderAsTextFlag> behavior) -> (String renderTreeDump) Synchronous

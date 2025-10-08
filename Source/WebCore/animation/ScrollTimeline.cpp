@@ -28,13 +28,13 @@
 
 #include "AnimationTimelinesController.h"
 #include "ContainerNodeInlines.h"
-#include "DocumentInlines.h"
 #include "Element.h"
 #include "KeyframeEffect.h"
 #include "RenderElementInlines.h"
 #include "RenderLayerScrollableArea.h"
 #include "RenderObjectInlines.h"
 #include "RenderView.h"
+#include "StylableInlines.h"
 #include "StyleSingleAnimationRange.h"
 #include "WebAnimation.h"
 

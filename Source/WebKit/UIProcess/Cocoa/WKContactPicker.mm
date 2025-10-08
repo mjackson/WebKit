@@ -231,8 +231,9 @@ SOFT_LINK_CLASS(ContactsUI, CNContactPickerViewController)
 {
     _completionHandler(WTFMove(info));
 
-    if ([_delegate respondsToSelector:@selector(contactPickerDidDismiss:)])
-        [_delegate contactPickerDidDismiss:self];
+    RetainPtr delegate = _delegate.get();
+    if ([delegate respondsToSelector:@selector(contactPickerDidDismiss:)])
+        [delegate contactPickerDidDismiss:self];
 }
 
 - (WebCore::ContactInfo)_contactInfoFromCNContact:(CNContact *)contact

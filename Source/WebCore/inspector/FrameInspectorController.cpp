@@ -31,7 +31,7 @@
 #include "FrameInspectorController.h"
 
 #include "CommonVM.h"
-#include "FrameInlines.h"
+#include "DocumentPage.h"
 #include "InspectorInstrumentation.h"
 #include "InstrumentingAgents.h"
 #include "JSDOMBindingSecurity.h"

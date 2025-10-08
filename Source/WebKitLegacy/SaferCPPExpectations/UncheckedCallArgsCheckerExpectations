@@ -1,7 +1,5 @@
 Storage/InProcessIDBServer.cpp
-Storage/StorageAreaSync.cpp
 Storage/StorageSyncManager.cpp
-Storage/StorageTracker.cpp
 Storage/WebDatabaseProvider.cpp
 WebCoreSupport/SocketStreamHandleImpl.cpp
 WebCoreSupport/WebSocketChannel.cpp

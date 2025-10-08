@@ -52,6 +52,7 @@
 #import <wtf/spi/cocoa/NSObjCRuntimeSPI.h>
 
 #if ENABLE(SCREEN_TIME)
+#import <ScreenTime/STScreenTimeConfiguration.h>
 #import <ScreenTime/STWebpageController.h>
 #endif
 
@@ -109,6 +110,7 @@ class Attachment;
 
 namespace WebCore {
 struct AppHighlight;
+struct ExceptionData;
 struct ExceptionDetails;
 struct TextAnimationData;
 enum class BoxSide : uint8_t;
@@ -120,9 +122,13 @@ enum class TextSuggestionState : uint8_t;
 
 #if HAVE(DIGITAL_CREDENTIALS_UI)
 struct DigitalCredentialsRequestData;
+struct DigitalCredentialsResponseData;
 struct MobileDocumentRequest;
 struct OpenID4VPRequest;
 #endif
+
+struct NodeIdentifierType;
+using NodeIdentifier = ObjectIdentifier<NodeIdentifierType>;
 } // namespace WebCore
 
 namespace WebKit {
@@ -311,6 +317,7 @@ struct PerWebProcessState {
 
 #if ENABLE(SCREEN_TIME)
     RetainPtr<STWebpageController> _screenTimeWebpageController;
+    RetainPtr<STScreenTimeConfigurationObserver> _screenTimeConfigurationObserver;
 #if PLATFORM(MAC)
     RetainPtr<NSVisualEffectView> _screenTimeBlurredSnapshot;
 #else
@@ -638,7 +645,6 @@ WebCore::CocoaColor *sampledFixedPositionContentColor(const WebCore::FixedContai
 #if ENABLE(TEXT_EXTRACTION_FILTER)
 
 @interface WKWebView (TextExtractionFilter)
-- (void)_validateText:(NSString *)text inNode:(NSString *)nodeIdentifier completionHandler:(void(^)(NSString *))completionHandler;
 - (void)_clearTextExtractionFilterCache;
 @end
 

@@ -118,7 +118,12 @@ macro dispatchAfterRegularCallIgnoreResult(size, opcodeStruct, valueProfileName,
 end
 
 macro cCall2(function)
-    checkStackPointerAlignment(t4, 0xbad0c002)
+    if ARM64 or ARM64E
+        const scratch = t9
+    else
+        const scratch = t5
+    end
+    checkStackPointerAlignment(scratch, 0xbad0c002)
     if C_LOOP
         cloopCallSlowPath function, a0, a1
     elsif X86_64 or ARM64 or ARM64E or RISCV64
@@ -137,7 +142,12 @@ macro cCall2Void(function)
 end
 
 macro cCall3(function)
-    checkStackPointerAlignment(t4, 0xbad0c004)
+    if ARM64 or ARM64E
+        const scratch = t9
+    else
+        const scratch = t5
+    end
+    checkStackPointerAlignment(scratch, 0xbad0c004)
     if C_LOOP
         cloopCallSlowPath3 function, a0, a1, a2
     elsif X86_64 or ARM64 or ARM64E or RISCV64
@@ -149,7 +159,12 @@ end
 
 # This barely works. arg3 and arg4 should probably be immediates.
 macro cCall4(function)
-    checkStackPointerAlignment(t4, 0xbad0c004)
+    if ARM64 or ARM64E
+        const scratch = t9
+    else
+        const scratch = t5
+    end
+    checkStackPointerAlignment(scratch, 0xbad0c004)
     if C_LOOP
         cloopCallSlowPath4 function, a0, a1, a2, a3
     elsif X86_64 or ARM64 or ARM64E or RISCV64
@@ -171,11 +186,15 @@ macro doVMEntry(makeCall)
 
     checkStackPointerAlignment(t4, 0xbad0dc01)
 
-    storep vm, VMEntryRecord::m_vm[sp]
     if (ARM64 or ARM64E) and ADDRESS64
+        loadp ProtoCallFrame::context[protoCallFrame], t3
+        storepairq vm, t3, VMEntryRecord::m_vm[sp]
         loadpairq VM::topCallFrame[vm], t4, t3
         storepairq t4, t3, VMEntryRecord::m_prevTopCallFrame[sp]
     else
+        loadp ProtoCallFrame::context[protoCallFrame], t4
+        storep vm, VMEntryRecord::m_vm[sp]
+        storep t4, VMEntryRecord::m_context[sp]
         loadp VM::topCallFrame[vm], t4
         storep t4, VMEntryRecord::m_prevTopCallFrame[sp]
         loadp VM::topEntryFrame[vm], t4
@@ -3267,6 +3286,15 @@ llintOpWithMetadata(op_instanceof, OpInstanceof, macro (size, get, dispatch, met
         store(result, m_hasInstanceOrPrototype)
         jmp .getPrototype
     end)
+    jmp .getPrototype
+
+.getHasInstanceInlinedGetterOSRReturnPoint:
+    # This can only be reached if we're exiting to the LLInt and we're exiting 
+    # from an inlined getter for Symbol.hasInstance. Other exits e.g. for a "prototype" 
+    # getter will exit directly to op_checkpoint_osr_exit_from_inlined_call_trampoline.
+    getterSetterOSRExitReturnPoint(op_instanceof, size)
+    valueProfile(size, OpInstanceof, m_hasInstanceValueProfile, r0, t2)
+    store(r0, m_hasInstanceOrPrototype)
 
 .getPrototype:
     overridesHasInstance(m_hasInstanceOrPrototype, m_constructor, .instanceofCustom)

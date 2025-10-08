@@ -33,7 +33,6 @@
 #include "BackForwardController.h"
 #include "BorderValue.h"
 #include "CachedImage.h"
-#include "CachedResourceLoader.h"
 #include "Chrome.h"
 #include "ChromeClient.h"
 #include "ColorBlending.h"
@@ -44,7 +43,10 @@
 #include "DocumentInlines.h"
 #include "DocumentLoader.h"
 #include "DocumentMarkerController.h"
+#include "DocumentQuirks.h"
+#include "DocumentResourceLoader.h"
 #include "DocumentSVG.h"
+#include "DocumentView.h"
 #include "Editor.h"
 #include "EventHandler.h"
 #include "EventLoop.h"
@@ -57,6 +59,7 @@
 #include "FragmentDirectiveParser.h"
 #include "FragmentDirectiveRangeFinder.h"
 #include "FragmentDirectiveUtilities.h"
+#include "FrameInlines.h"
 #include "FrameLoader.h"
 #include "FrameSelection.h"
 #include "FrameTree.h"
@@ -89,10 +92,9 @@
 #include "PageOverlayController.h"
 #include "PerformanceLoggingClient.h"
 #include "ProgressTracker.h"
-#include "Quirks.h"
 #include "RenderAncestorIterator.h"
 #include "RenderBoxInlines.h"
-#include "RenderElementInlines.h"
+#include "RenderElementStyleInlines.h"
 #include "RenderEmbeddedObject.h"
 #include "RenderFlexibleBox.h"
 #include "RenderIFrame.h"
@@ -199,6 +201,7 @@ LocalFrameView::LocalFrameView(LocalFrame& frame)
     , m_delayedScrollToFocusedElementTimer(*this, &LocalFrameView::scrollToFocusedElementTimerFired)
     , m_speculativeTilingEnableTimer(*this, &LocalFrameView::speculativeTilingEnableTimerFired)
     , m_delayedTextFragmentIndicatorTimer(*this, &LocalFrameView::textFragmentIndicatorTimerFired)
+    , m_scrollToTextFragmentRetryTimer(*this, &LocalFrameView::scrollToTextFragmentRetryTimerFired)
     , m_mediaType(screenAtom())
 {
     init();
@@ -267,6 +270,8 @@ void LocalFrameView::reset()
     m_shouldScrollToFocusedElement = false;
     m_delayedScrollToFocusedElementTimer.stop();
     m_delayedTextFragmentIndicatorTimer.stop();
+    m_scrollToTextFragmentRetryTimer.stop();
+    m_scrollToTextFragmentInitialAttemptTime = std::nullopt;
     m_pendingTextFragmentIndicatorRange.reset();
     m_pendingTextFragmentIndicatorText = String();
     m_haveCreatedTextIndicator = false;
@@ -2907,60 +2912,99 @@ bool LocalFrameView::scrollToFragment(const URL& url)
     ASSERT(m_frame->document());
     Ref document = *m_frame->document();
 
-    document->fragmentHighlightRegistry().clear();
-
-    auto fragmentIdentifier = url.fragmentIdentifier();
-    auto fragmentDirective = document->fragmentDirective();
-    
-    if (m_frame->isMainFrame() && document->settings().scrollToTextFragmentEnabled() && !fragmentDirective.isEmpty()) {
-        FragmentDirectiveParser fragmentDirectiveParser(fragmentDirective);
-        
-        if (fragmentDirectiveParser.isValid()) {
-            auto parsedTextDirectives = fragmentDirectiveParser.parsedTextDirectives();
-            
-            auto highlightRanges = FragmentDirectiveRangeFinder::findRangesFromTextDirectives(parsedTextDirectives, document);
-            if (m_frame->settings().scrollToTextFragmentMarkingEnabled()) {
-                for (auto range : highlightRanges)
-                    document->fragmentHighlightRegistry().addAnnotationHighlightWithRange(StaticRange::create(range));
-            }
-
-            if (highlightRanges.size()) {
-                auto range = highlightRanges.first();
-                RefPtr commonAncestor = commonInclusiveAncestor<ComposedTree>(range);
-                if (commonAncestor && !is<Element>(commonAncestor))
-                    commonAncestor = commonAncestor->parentElement();
-                if (commonAncestor) {
-                    document->setCSSTarget(downcast<Element>(commonAncestor.get()));
-                    revealClosedDetailsAndHiddenUntilFoundAncestors(*commonAncestor);
-                }
-                // FIXME: <http://webkit.org/b/245262> (Scroll To Text Fragment should use DelegateMainFrameScroll)
-                TemporarySelectionChange selectionChange(document, { range }, { TemporarySelectionOption::RevealSelection, TemporarySelectionOption::RevealSelectionBounds, TemporarySelectionOption::UserTriggered, TemporarySelectionOption::ForceCenterScroll });
-                if (m_frame->settings().scrollToTextFragmentIndicatorEnabled() && !m_frame->page()->isControlledByAutomation())
-                    m_delayedTextFragmentIndicatorTimer.startOneShot(100_ms);
-
-                maintainScrollPositionAtScrollToTextFragmentRange(range);
-                return true;
-            }
-        }
-    }
-    
-    if (scrollToFragmentInternal(fragmentIdentifier))
+    if (scrollToTextFragment())
         return true;
 
-    if (scrollToFragmentInternal(PAL::decodeURLEscapeSequences(fragmentIdentifier)))
+    auto fragmentIdentifier = url.fragmentIdentifier();
+    if (scrollToAnchorFragment(fragmentIdentifier))
+        return true;
+
+    if (scrollToAnchorFragment(PAL::decodeURLEscapeSequences(fragmentIdentifier)))
         return true;
 
     resetScrollAnchor();
     return false;
 }
 
-bool LocalFrameView::scrollToFragmentInternal(StringView fragmentIdentifier)
+bool LocalFrameView::scrollToTextFragment(IsRetry isRetry)
+{
+    static constexpr auto scrollToTextFragmentRetryInterval = 500_ms;
+    static constexpr auto scrollToTextFragmentRetryTimeout = 3_s;
+
+    ASSERT(m_frame->document());
+    Ref document = *m_frame->document();
+
+    if (!document->settings().scrollToTextFragmentEnabled())
+        return false;
+
+    if (!m_frame->isMainFrame())
+        return false;
+
+    document->fragmentHighlightRegistry().clear();
+    
+    auto fragmentDirective = document->fragmentDirective();
+    if (fragmentDirective.isEmpty())
+        return false;
+
+    FragmentDirectiveParser fragmentDirectiveParser(fragmentDirective);
+    if (!fragmentDirectiveParser.isValid())
+        return false;
+
+    auto parsedTextDirectives = fragmentDirectiveParser.parsedTextDirectives();
+    auto highlightRanges = FragmentDirectiveRangeFinder::findRangesFromTextDirectives(parsedTextDirectives, document);
+    if (m_frame->settings().scrollToTextFragmentMarkingEnabled()) {
+        for (auto range : highlightRanges)
+            document->fragmentHighlightRegistry().addAnnotationHighlightWithRange(StaticRange::create(range));
+    }
+
+    // If we didn't find the expected range, retry every 500ms, until the first of:
+    //   - we successfully find the range
+    //   - the user scrolls the view
+    //   - the 3s timeout expires
+    if (highlightRanges.isEmpty()) {
+        if (isRetry == IsRetry::No) {
+            m_scrollToTextFragmentRetryTimer.startRepeating(scrollToTextFragmentRetryInterval);
+            m_scrollToTextFragmentInitialAttemptTime = MonotonicTime::now();
+        } else if (!m_scrollToTextFragmentInitialAttemptTime || (MonotonicTime::now() - *m_scrollToTextFragmentInitialAttemptTime >= scrollToTextFragmentRetryTimeout) || m_wasEverScrolledExplicitlyByUser) {
+            m_scrollToTextFragmentRetryTimer.stop();
+        }
+
+        return false;
+    }
+
+    m_scrollToTextFragmentRetryTimer.stop();
+
+    auto range = highlightRanges.first();
+    RefPtr commonAncestor = commonInclusiveAncestor<ComposedTree>(range);
+    if (commonAncestor && !is<Element>(commonAncestor))
+        commonAncestor = commonAncestor->parentElement();
+    if (commonAncestor) {
+        document->setCSSTarget(downcast<Element>(commonAncestor.get()));
+        revealClosedDetailsAndHiddenUntilFoundAncestors(*commonAncestor);
+    }
+
+    // FIXME: <http://webkit.org/b/245262> (Scroll To Text Fragment should use DelegateMainFrameScroll)
+    TemporarySelectionChange selectionChange(document, { range }, { TemporarySelectionOption::RevealSelection, TemporarySelectionOption::RevealSelectionBounds, TemporarySelectionOption::UserTriggered, TemporarySelectionOption::ForceCenterScroll });
+    if (m_frame->settings().scrollToTextFragmentIndicatorEnabled() && !m_frame->page()->isControlledByAutomation())
+        m_delayedTextFragmentIndicatorTimer.startOneShot(100_ms);
+
+    maintainScrollPositionAtScrollToTextFragmentRange(range);
+
+    return true;
+}
+
+void LocalFrameView::scrollToTextFragmentRetryTimerFired()
+{
+    scrollToTextFragment(IsRetry::Yes);
+}
+
+bool LocalFrameView::scrollToAnchorFragment(StringView fragmentIdentifier)
 {
     // If our URL has no ref, then we have no place we need to jump to.
     if (fragmentIdentifier.isNull())
         return false;
 
-    LOG_WITH_STREAM(Scrolling, stream << *this << " scrollToFragmentInternal " << fragmentIdentifier);
+    LOG_WITH_STREAM(Scrolling, stream << *this << " scrollToAnchorFragment " << fragmentIdentifier);
 
     ASSERT(m_frame->document());
     auto& document = *m_frame->document();
@@ -3037,13 +3081,12 @@ void LocalFrameView::maintainScrollPositionAtAnchor(ContainerNode* anchorNode)
 
 void LocalFrameView::maintainScrollPositionAtScrollToTextFragmentRange(SimpleRange& range)
 {
-
     m_pendingTextFragmentIndicatorRange = range;
     m_pendingTextFragmentIndicatorText = plainText(range);
     if (!m_pendingTextFragmentIndicatorRange)
         return;
 
-    scrollToTextFragmentRange();
+    scrollToPendingTextFragmentRange();
 }
 
 void LocalFrameView::scrollElementToRect(const Element& element, const IntRect& rect)
@@ -3220,7 +3263,7 @@ void LocalFrameView::scrollToFocusedElementInternal()
     auto absoluteBounds = renderer->absoluteAnchorRectWithScrollMargin(&insideFixed);
     auto anchorRectWithScrollMargin = absoluteBounds.marginRect;
     auto anchorRect = absoluteBounds.anchorRect;
-    LocalFrameView::scrollRectToVisible(anchorRectWithScrollMargin, *renderer, insideFixed, { m_selectionRevealModeForFocusedElement, ScrollAlignment::alignCenterIfNeeded, ScrollAlignment::alignCenterIfNeeded, ShouldAllowCrossOriginScrolling::No, ScrollBehavior::Auto, OnlyAllowForwardScrolling::No, anchorRect });
+    LocalFrameView::scrollRectToVisible(anchorRectWithScrollMargin, *renderer, insideFixed, { m_selectionRevealModeForFocusedElement, ScrollAlignment::alignCenterIfNeeded, ScrollAlignment::alignCenterIfNeeded, ShouldAllowCrossOriginScrolling::No, ScrollBehavior::Auto, OnlyAllowForwardScrolling::No, AllowScrollingOverflowHidden::Yes, anchorRect });
 }
 
 void LocalFrameView::textFragmentIndicatorTimerFired()
@@ -3254,6 +3297,16 @@ void LocalFrameView::cancelScheduledTextFragmentIndicatorTimer()
     m_delayedTextFragmentIndicatorTimer.stop();
 }
 
+static void adjustScrollRectToVisibleOptionsForHiddenOverflow(ScrollRectToVisibleOptions& options, const RenderStyle& style)
+{
+    if (options.allowScrollingOverflowHidden == AllowScrollingOverflowHidden::Yes)
+        return;
+    if (style.overflowX() == Overflow::Hidden)
+        options.alignX = ScrollAlignment::noScroll;
+    if (style.overflowY() == Overflow::Hidden)
+        options.alignY = ScrollAlignment::noScroll;
+}
+
 bool LocalFrameView::scrollRectToVisible(const LayoutRect& absoluteRect, const RenderObject& renderer, bool insideFixed, const ScrollRectToVisibleOptions& options)
 {
     if (options.revealMode == SelectionRevealMode::DoNotReveal)
@@ -3271,7 +3324,8 @@ bool LocalFrameView::scrollRectToVisible(const LayoutRect& absoluteRect, const R
     ScrollRectToVisibleOptions adjustedOptions = options;
 
     for (; layer; layer = layer->enclosingContainingBlockLayer(CrossFrameBoundaries::No)) {
-        if (layer->shouldTryToScrollForScrollIntoView()) {
+        if (layer->shouldTryToScrollForScrollIntoView(adjustedOptions)) {
+            adjustScrollRectToVisibleOptionsForHiddenOverflow(adjustedOptions, layer->renderer().style());
             adjustedRect = layer->ensureLayerScrollableArea()->scrollRectToVisible(adjustedRect, adjustedOptions);
             if (adjustedOptions.visibilityCheckRect)
                 adjustedOptions.visibilityCheckRect->setLocation(adjustedRect.location());
@@ -4299,7 +4353,7 @@ void LocalFrameView::scrollToAnchorAndTextFragmentNowIfNeeded()
 
     m_scheduledToScrollToAnchor = false;
     scrollToAnchor();
-    scrollToTextFragmentRange();
+    scrollToPendingTextFragmentRange();
 }
 
 void LocalFrameView::scrollToAnchor()
@@ -4340,8 +4394,11 @@ void LocalFrameView::scrollToAnchor()
     cancelScheduledScrolls();
 }
 
-void LocalFrameView::scrollToTextFragmentRange()
+void LocalFrameView::scrollToPendingTextFragmentRange()
 {
+    if (m_wasEverScrolledExplicitlyByUser)
+        return;
+
     if (!m_pendingTextFragmentIndicatorRange)
         return;
 
@@ -4353,7 +4410,7 @@ void LocalFrameView::scrollToTextFragmentRange()
     if (m_pendingTextFragmentIndicatorText != plainText(range))
         return;
 
-    LOG_WITH_STREAM(Scrolling, stream << *this << " scrollToTextFragmentRange() " << range);
+    LOG_WITH_STREAM(Scrolling, stream << *this << " scrollToPendingTextFragmentRange() " << range);
 
     if (!range.startContainer().renderer() || !range.endContainer().renderer())
         return;

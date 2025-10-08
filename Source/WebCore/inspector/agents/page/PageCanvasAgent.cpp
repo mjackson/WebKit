@@ -31,8 +31,7 @@
 #include "CanvasGradient.h"
 #include "CanvasPattern.h"
 #include "CanvasRenderingContext.h"
-#include "Document.h"
-#include "DocumentInlines.h"
+#include "DocumentPage.h"
 #include "Element.h"
 #include "FrameDestructionObserverInlines.h"
 #include "HTMLCanvasElement.h"
@@ -44,8 +43,8 @@
 #include "InspectorDOMAgent.h"
 #include "InstrumentingAgents.h"
 #include "LocalFrame.h"
+#include "NodeDocument.h"
 #include "NodeInlines.h"
-#include "Page.h"
 #include <wtf/TZoneMallocInlines.h>
 
 #if ENABLE(OFFSCREEN_CANVAS)

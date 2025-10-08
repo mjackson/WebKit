@@ -98,6 +98,4 @@ private:
 
 STATIC_ASSERT_IS_TRIVIALLY_DESTRUCTIBLE(JSPromiseReaction);
 
-JSC_DECLARE_HOST_FUNCTION(promiseReactionPrivateFuncCreate);
-
 } // namespace JSC

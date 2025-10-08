@@ -28,7 +28,6 @@
 #include "CSSPositionValue.h"
 #include "CalculationCategory.h"
 #include "CalculationTree.h"
-#include "LengthPoint.h"
 #include "RenderStyle.h"
 #include "StyleBuilderChecking.h"
 #include "StyleLengthWrapper+Platform.h"
@@ -40,12 +39,6 @@ namespace WebCore {
 namespace Style {
 
 using namespace CSS::Literals;
-
-Position::Position(const WebCore::LengthPoint& point)
-    : x { point.x }
-    , y { point.y }
-{
-}
 
 // MARK: Core Keyword Resolution
 
@@ -316,13 +309,6 @@ auto Evaluation<Position, FloatPoint>::operator()(const Position& position, Floa
         evaluate<float>(position.x, referenceBox.width(), token),
         evaluate<float>(position.y, referenceBox.height(), token)
     };
-}
-
-// MARK: - Platform
-
-auto ToPlatform<Position>::operator()(const Position& position) -> WebCore::LengthPoint
-{
-    return { toPlatform(position.x), toPlatform(position.y) };
 }
 
 } // namespace Style

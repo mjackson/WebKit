@@ -39,13 +39,16 @@
 #include "CSSPropertyNames.h"
 #include "CSSValuePool.h"
 #include "CachedCSSStyleSheet.h"
-#include "CachedResourceLoader.h"
 #include "Chrome.h"
 #include "ChromeClient.h"
 #include "DiagnosticLoggingClient.h"
 #include "DiagnosticLoggingKeys.h"
 #include "DocumentLoader.h"
+#include "DocumentQuirks.h"
+#include "DocumentResourceLoader.h"
+#include "DocumentSyncClient.h"
 #include "DocumentType.h"
+#include "DocumentView.h"
 #include "Editing.h"
 #include "Editor.h"
 #include "EditorClient.h"
@@ -87,10 +90,10 @@
 #include "NodeTraversal.h"
 #include "Page.h"
 #include "PaymentSession.h"
-#include "ProcessSyncClient.h"
 #include "ProcessWarming.h"
 #include "RemoteFrame.h"
 #include "RenderLayerCompositor.h"
+#include "RenderStyleInlines.h"
 #include "RenderTableCell.h"
 #include "RenderText.h"
 #include "RenderTextControl.h"
@@ -104,6 +107,7 @@
 #include "ScriptController.h"
 #include "ScriptSourceCode.h"
 #include "ScrollingCoordinator.h"
+#include "SecurityOrigin.h"
 #include "ServiceWorkerGlobalScope.h"
 #include "Settings.h"
 #include "StyleProperties.h"
@@ -831,7 +835,7 @@ void LocalFrame::injectUserScriptImmediately(DOMWrapperWorld& world, const UserS
     page->setHasInjectedUserScript();
     loader->client().willInjectUserScript(world);
 
-    WTFBeginSignpost(this, UserScript, "Loading user script: %u bytes, top frame only %d, doc start %d, %" PRIVATE_LOG_STRING, script.source().length(), script.injectedFrames() == UserContentInjectedFrames::InjectInTopFrameOnly, script.injectionTime() == UserScriptInjectionTime::DocumentStart, script.url().string().utf8().data());
+    WTFBeginSignpost(this, UserScript, "injectUserScript: %" PRIVATE_LOG_STRING " (%u bytes, top frame only %d, doc start %d)", script.debugDescription().ascii().data(), script.source().length(), script.injectedFrames() == UserContentInjectedFrames::InjectInTopFrameOnly, script.injectionTime() == UserScriptInjectionTime::DocumentStart);
     checkedScript()->evaluateInWorldIgnoringException(ScriptSourceCode(script.source(), JSC::SourceTaintedOrigin::Untainted, URL(script.url())), world);
     WTFEndSignpost(this, UserScript);
 }
@@ -1465,6 +1469,26 @@ void LocalFrame::setScrollingMode(ScrollbarMode scrollingMode)
         view->setCanHaveScrollbars(m_scrollingMode != ScrollbarMode::AlwaysOff);
 }
 
+void LocalFrame::reportMixedContentViolation(bool blocked, const URL& target) const
+{
+    RefPtr document = this->document();
+    if (!document)
+        return;
+
+    auto isUpgradingLocalhostDisabled = !document->settings().iPAddressAndLocalhostMixedContentUpgradeTestingEnabled() && shouldTreatAsPotentiallyTrustworthy(target);
+    ASCIILiteral errorString = [&] {
+        if (blocked)
+            return "blocked and must"_s;
+        if (isUpgradingLocalhostDisabled)
+            return "not upgraded to HTTPS and must be served from the local host."_s;
+        return "automatically upgraded and should"_s;
+    }();
+
+    auto message = makeString((!blocked ? ""_s : "[blocked] "_s), "The page at "_s, document->url().stringCenterEllipsizedToLength(), " requested insecure content from "_s, target.stringCenterEllipsizedToLength(), ". This content was "_s, errorString, !isUpgradingLocalhostDisabled ? " be served over HTTPS.\n"_s : "\n"_s);
+
+    document->addConsoleMessage(MessageSource::Security, MessageLevel::Warning, message);
+}
+
 #if ENABLE(CONTENT_EXTENSIONS)
 
 static String generateResourceMonitorErrorHTML(OptionSet<ColorScheme> colorScheme)
@@ -1645,6 +1669,14 @@ RefPtr<SecurityOrigin> LocalFrame::frameDocumentSecurityOrigin() const
 Ref<FrameInspectorController> LocalFrame::protectedInspectorController()
 {
     return m_inspectorController.get();
+}
+
+String LocalFrame::frameURLProtocol() const
+{
+    if (RefPtr document = this->document())
+        return document->url().protocol().toString();
+
+    return ""_s;
 }
 
 } // namespace WebCore

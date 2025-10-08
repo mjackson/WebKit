@@ -1085,7 +1085,8 @@
       "name" : "Arno Renevier",
       "nicks" : [
          "arno"
-      ]
+      ],
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -2979,7 +2980,7 @@
       ],
       "github" : "etiennesegonzac",
       "name" : "Etienne Segonzac",
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [

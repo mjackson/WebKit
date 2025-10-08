@@ -380,6 +380,11 @@ void WebProcessProxy::platformDestroy()
 }
 #endif
 
+void WebProcessProxy::addSharedProcessDomain(const RegistrableDomain& domain)
+{
+    m_sharedProcessDomains.add(domain);
+}
+
 void WebProcessProxy::setIsInProcessCache(bool value, WillShutDown willShutDown)
 {
     WEBPROCESSPROXY_RELEASE_LOG(Process, "setIsInProcessCache(%d)", value);
@@ -2227,11 +2232,12 @@ void WebProcessProxy::didStartProvisionalLoadForMainFrame(const URL& url)
     }
 }
 
-void WebProcessProxy::didStartUsingProcessForSiteIsolation(const std::optional<WebCore::Site>& site)
+void WebProcessProxy::didStartUsingProcessForSiteIsolation(const std::optional<WebCore::Site>& site, const WebCore::Site& mainFrameSite)
 {
     if (!site) {
         ASSERT(m_site.error() == SiteState::NotYetSpecified || m_site.error() == SiteState::SharedProcess);
         m_site = makeUnexpected(SiteState::SharedProcess);
+        m_sharedProcessMainFrameSite = mainFrameSite;
         return;
     }
     ASSERT(m_site ? (m_site.value().isEmpty() || m_site.value() == *site) : m_site.error() == SiteState::NotYetSpecified);

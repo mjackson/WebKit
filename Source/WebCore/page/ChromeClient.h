@@ -30,15 +30,18 @@
 #include <WebCore/ExceptionData.h>
 #include <WebCore/ExceptionOr.h>
 #include <WebCore/FocusDirection.h>
+#include <WebCore/FrameIdentifier.h>
 #include <WebCore/HTMLMediaElementEnums.h>
 #include <WebCore/HighlightVisibility.h>
 #include <WebCore/ImageBuffer.h>
 #include <WebCore/ImageBufferResourceLimits.h>
 #include <WebCore/InputMode.h>
 #include <WebCore/MediaControlsContextMenuItem.h>
+#include <WebCore/PlaybackTargetClientContextIdentifier.h>
 #include <WebCore/PointerCharacteristics.h>
 #include <WebCore/SyntheticClickResult.h>
 #include <WebCore/WebCoreKeyboardUIMode.h>
+#include <WebCore/Widget.h>
 #include <wtf/Assertions.h>
 #include <wtf/CompletionHandler.h>
 #include <wtf/Forward.h>
@@ -87,6 +90,11 @@ class HTMLModelElement;
 
 OBJC_CLASS NSResponder;
 
+namespace JSC {
+enum class MessageSource : uint8_t;
+enum class MessageLevel : uint8_t;
+}
+
 namespace WebCore {
 
 class AccessibilityObject;
@@ -102,10 +110,13 @@ class Element;
 class FileChooser;
 class FileIconLoader;
 class FloatRect;
+class Frame;
 class FrameDamageHistory;
+class FrameSelection;
 class Geolocation;
 class GraphicsLayer;
 class GraphicsLayerFactory;
+class HTMLAttachmentElement;
 class HTMLImageElement;
 class HTMLInputElement;
 class HTMLMediaElement;
@@ -116,6 +127,7 @@ class HitTestResult;
 class Icon;
 class IntRect;
 class LocalFrame;
+class LocalFrameView;
 class NavigationAction;
 class Node;
 class Page;
@@ -123,9 +135,10 @@ class PopupMenu;
 class PopupMenuClient;
 class Region;
 class RegistrableDomain;
-class SearchPopupMenu;
 class SVGImageElement;
+class ScrollableArea;
 class ScrollingCoordinator;
+class SearchPopupMenu;
 class SecurityOrigin;
 class SecurityOriginData;
 class ViewportConstraints;
@@ -154,6 +167,8 @@ struct FocusOptions;
 struct GraphicsDeviceAdapter;
 struct MockWebAuthenticationConfiguration;
 struct ShareDataWithParsedURL;
+struct SimpleRange;
+struct StringWithDirection;
 struct SystemPreviewInfo;
 struct TextIndicatorData;
 struct TextRecognitionOptions;
@@ -164,6 +179,7 @@ enum class ActivityStateForCPUSampling : uint8_t;
 enum class AXLoadingEvent : uint8_t;
 enum class AXNotification : uint8_t;
 enum class AXTextChange : uint8_t;
+enum class BroadcastFocusedElement : bool;
 enum class CookieConsentDecisionResult : uint8_t;
 enum class DidFilterLinkDecoration : bool { No, Yes };
 enum class IsLoggedIn : uint8_t;
@@ -175,10 +191,14 @@ enum class PluginUnavailabilityReason : uint8_t;
 enum class PointerLockRequestResult : uint8_t;
 enum class RouteSharingPolicy : uint8_t;
 enum class ScriptTrackingPrivacyCategory : uint8_t;
+enum class ScrollbarOverlayStyle : uint8_t;
+enum class ScrollbarStyle : uint8_t;
 enum class TextAnimationRunMode : uint8_t;
 
 enum class MediaProducerMediaState : uint32_t;
 using MediaProducerMediaStateFlags = OptionSet<MediaProducerMediaState>;
+
+typedef int32_t IntDegrees;
 
 namespace ShapeDetection {
 class BarcodeDetector;
@@ -216,7 +236,7 @@ public:
     virtual bool canTakeFocus(FocusDirection) const = 0;
     virtual void takeFocus(FocusDirection) = 0;
 
-    virtual void focusedElementChanged(Element*) = 0;
+    virtual void focusedElementChanged(Element*, LocalFrame*, FocusOptions, BroadcastFocusedElement) = 0;
     virtual void focusedFrameChanged(Frame*) = 0;
 
     // The Frame pointer provides the ChromeClient with context about which
@@ -237,7 +257,7 @@ public:
 
     virtual void setResizable(bool) = 0;
 
-    virtual void addMessageToConsole(MessageSource, MessageLevel, const String& message, unsigned lineNumber, unsigned columnNumber, const String& sourceID) = 0;
+    virtual void addMessageToConsole(JSC::MessageSource, JSC::MessageLevel, const String& message, unsigned lineNumber, unsigned columnNumber, const String& sourceID) = 0;
 
     virtual bool canRunBeforeUnloadConfirmPanel() = 0;
     virtual bool runBeforeUnloadConfirmPanel(String&& message, LocalFrame&) = 0;
@@ -668,11 +688,7 @@ public:
 #endif
 
 #if ENABLE(IMAGE_ANALYSIS)
-    virtual void requestTextRecognition(Element&, TextRecognitionOptions&&, CompletionHandler<void(RefPtr<Element>&&)>&& completion = { })
-    {
-        if (completion)
-            completion({ });
-    }
+    WEBCORE_EXPORT virtual void requestTextRecognition(Element&, TextRecognitionOptions&&, CompletionHandler<void(RefPtr<Element>&&)>&& completion = { });
 #endif
     virtual bool needsImageOverlayControllerForSelectionPainting() const { return false; }
 

@@ -1312,12 +1312,21 @@ CSSSelectorList CSSSelectorParser::resolveNestingParent(const CSSSelectorList& n
     MutableCSSSelectorList result;
 
     auto canInline = [](const CSSSelector& nestingSelector, const CSSSelectorList& list) {
+        auto hasTagInCompound = [](const CSSSelector& simpleSelector) {
+            // A compound is organized so that any tag selector is always last.
+            return simpleSelector.lastInCompound()->match() == CSSSelector::Match::Tag;
+        };
+
         if (list.listSize() != 1) {
             // .foo, .bar { & .baz {...} } -> :is(.foo, .bar) .baz {...}
             return false;
         }
         if (complexSelectorCanMatchPseudoElement(*list.first())) {
             // .foo::before { & {...} } -> :is(.foo::before) {...} (which matches nothing)
+            return false;
+        }
+        if (hasTagInCompound(*list.first()) && hasTagInCompound(nestingSelector)) {
+            // foo { bar& {...} } -> bar:is(foo) {...}
             return false;
         }
         if (!nestingSelector.precedingInComplexSelector()) {

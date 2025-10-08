@@ -71,11 +71,17 @@ public:
 private:
     XRProjectionLayer(ScriptExecutionContext&, Ref<WebCore::WebGPU::XRProjectionLayer>&&);
 
+    bool isXRProjectionLayer() const final { return true; }
+
     const Ref<WebCore::WebGPU::XRProjectionLayer> m_backing;
     std::optional<PlatformXR::FrameData::LayerData> m_layerData;
     RefPtr<WebXRRigidTransform> m_transform;
 };
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::XRProjectionLayer)
+    static bool isType(const WebCore::WebXRLayer& layer) { return layer.isXRProjectionLayer(); }
+SPECIALIZE_TYPE_TRAITS_END()
 
 #endif

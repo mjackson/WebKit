@@ -27,6 +27,7 @@
 
 #include "AXObjectCache.h"
 #include "BlockStepSizing.h"
+#include "DocumentView.h"
 #include "Editor.h"
 #include "ElementInlines.h"
 #include "FloatingObjects.h"
@@ -55,7 +56,7 @@
 #include "RenderCombineText.h"
 #include "RenderCounter.h"
 #include "RenderDeprecatedFlexibleBox.h"
-#include "RenderElementInlines.h"
+#include "RenderElementStyleInlines.h"
 #include "RenderFlexibleBox.h"
 #include "RenderInline.h"
 #include "RenderIterator.h"
@@ -420,16 +421,12 @@ bool RenderBlockFlow::willCreateColumns(std::optional<unsigned> desiredColumnCou
     if (!style().hasInlineColumnAxis())
         return true;
 
-    // Non-auto column-width always initiates MultiColumnFlow.
-    if (!style().columnWidth().isAuto())
+    // Non-auto column-width or column-count always initiates MultiColumnFlow.
+    if (!style().columnWidth().isAuto() || !style().columnCount().isAuto())
         return true;
 
     if (desiredColumnCount)
         return desiredColumnCount.value() > 1;
-
-    // column-count > 1 always initiates MultiColumnFlow.
-    if (auto columnCount = style().columnCount().tryValue())
-        return columnCount->value > 1;
 
     ASSERT_NOT_REACHED();
     return false;
@@ -3840,7 +3837,7 @@ static bool hasSimpleStaticPositionForInlineLevelOutOfFlowChildrenByStyle(const 
 {
     if (rootStyle.textAlign() != TextAlignMode::Start)
         return false;
-    if (!rootStyle.textIndent().length.isZero())
+    if (!rootStyle.textIndent().length.isKnownZero())
         return false;
     return true;
 }

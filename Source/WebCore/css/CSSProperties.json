@@ -56,11 +56,6 @@
         "to the expected type), then you can indicate that a converter helper",
         "function in css/StyleBuilderConverter.h should be used.",
         "",
-        "* style-builder-conditional-converter:",
-        "Similar to property converter, but the converter function returns a",
-        "std::optional<> to indicate if the property setter should be called",
-        "or not.",
-        "",
         "* style-builder-custom:",
         "A string that is \"All\", \"Initial\", \"Inherit\", or \"Value\" or some combination",
         "of the latter three separated by '|' (e.g. \"Inherit|Value\"). These options",
@@ -79,10 +74,6 @@
         "",
         "The custom code for the property should be located in css/StyleBuilderCustom.h",
         "and named applyValue[CSSPropertyName]().",
-        "",
-        "* auto-functions:",
-        "Indicates that this CSS property requires handling of \"auto\" and has",
-        "corresponding hasAutoXXX() / setHasAutoXXX() methods on RenderStyle.",
         "",
         "* visited-link-color-support:",
         "Indicates that this CSS property is a color property with a",
@@ -265,11 +256,10 @@
                 "auto"
             ],
             "codegen-properties": {
-                "animation-wrapper": "AccentColorWrapper",
-                "animation-wrapper-requires-override-parameters": [],
-                "auto-functions": true,
-                "color-property": true,
                 "settings-flag": "accentColorEnabled",
+                "animation-wrapper": "StyleTypeWrapper",
+                "style-converter": "StyleType<AccentColor>",
+                "color-property": true,
                 "parser-grammar": "auto | <color>"
             },
             "specification": {
@@ -670,10 +660,10 @@
                 "from-font"
             ],
             "codegen-properties": {
-                "animation-wrapper": "FontSizeAdjustWrapper",
-                "animation-wrapper-requires-override-parameters": [],
-                "style-converter": "FontSizeAdjust",
-                "style-builder-custom": "Value",
+                "animation-wrapper": "StyleTypeWrapper",
+                "animation-wrapper-requires-render-style": true,
+                "style-converter": "StyleType<FontSizeAdjust>",
+                "font-property-uses-render-style-for-access": true,
                 "font-property": true,
                 "high-priority": true,
                 "separator": " ",
@@ -698,10 +688,10 @@
                 "oblique"
             ],
             "codegen-properties": {
-                "animation-wrapper": "FontStyleWrapper",
-                "animation-wrapper-requires-override-parameters": [],
-                "style-builder-custom": "All",
-                "style-extractor-custom": true,
+                "animation-wrapper": "StyleTypeWrapper",
+                "animation-wrapper-requires-render-style": true,
+                "style-converter": "StyleType<FontStyle>",
+                "font-property-uses-render-style-for-access": true,
                 "font-property": true,
                 "high-priority": true,
                 "parser-function": "consumeFontStyle",
@@ -724,12 +714,13 @@
                 "lighter"
             ],
             "codegen-properties": {
-                "animation-wrapper": "FontWeightWrapper",
-                "animation-wrapper-requires-override-parameters": [],
+                "animation-wrapper": "StyleTypeWrapper",
+                "animation-wrapper-requires-render-style": true,
                 "font-description-name-for-methods": "Weight",
+                "font-property-uses-render-style-for-access": true,
                 "font-property": true,
                 "high-priority": true,
-                "style-converter": "FontWeight",
+                "style-converter": "StyleType<FontWeight>",
                 "parser-grammar": "<font-weight-absolute> | bolder | lighter",
                 "parser-exported": true
             },
@@ -878,10 +869,12 @@
                 "normal"
             ],
             "codegen-properties": {
-                "animation-wrapper": "FontFeatureSettingsWrapper",
-                "animation-wrapper-requires-override-parameters": [],
-                "style-converter": "FontFeatureSettings",
+                "animation-wrapper": "DiscreteWrapper",
+                "animation-wrapper-comment": "By default, font properties use DiscreteFontDescriptionTypedWrapper, so an explicit wrapper is needed here to override that.",
+                "animation-wrapper-requires-render-style": true,
+                "style-converter": "StyleType<FontFeatureSettings>",
                 "font-description-name-for-methods": "FeatureSettings",
+                "font-property-uses-render-style-for-access": true,
                 "font-property": true,
                 "high-priority": true,
                 "parser-grammar": "normal | <feature-tag-value>#@(no-single-item-opt)",
@@ -900,10 +893,11 @@
                 "normal"
             ],
             "codegen-properties": {
-                "animation-wrapper": "FontVariationSettingsWrapper",
-                "animation-wrapper-requires-override-parameters": [],
-                "style-converter": "FontVariationSettings",
+                "animation-wrapper": "StyleTypeWrapper",
+                "animation-wrapper-requires-render-style": true,
+                "style-converter": "StyleType<FontVariationSettings>",
                 "font-description-name-for-methods": "VariationSettings",
+                "font-property-uses-render-style-for-access": true,
                 "font-property": true,
                 "high-priority": true,
                 "enable-if": "ENABLE_VARIATION_FONTS",
@@ -2687,7 +2681,6 @@
                 },
                 "accepts-quirky-color": true,
                 "animation-wrapper": "VisitedAffectedStyleTypeWrapper",
-                "render-style-initial": "currentColor",
                 "visited-link-color-support": true,
                 "color-property": true,
                 "disables-native-appearance": true,
@@ -3263,7 +3256,6 @@
                 },
                 "accepts-quirky-color": true,
                 "animation-wrapper": "VisitedAffectedStyleTypeWrapper",
-                "render-style-initial": "currentColor",
                 "visited-link-color-support": true,
                 "color-property": true,
                 "disables-native-appearance": true,
@@ -3371,7 +3363,6 @@
                 },
                 "accepts-quirky-color": true,
                 "animation-wrapper": "VisitedAffectedStyleTypeWrapper",
-                "render-style-initial": "currentColor",
                 "visited-link-color-support": true,
                 "color-property": true,
                 "disables-native-appearance": true,
@@ -3534,7 +3525,6 @@
                 },
                 "accepts-quirky-color": true,
                 "animation-wrapper": "VisitedAffectedStyleTypeWrapper",
-                "render-style-initial": "currentColor",
                 "visited-link-color-support": true,
                 "color-property": true,
                 "disables-native-appearance": true,
@@ -4539,7 +4529,7 @@
             "initial": "0deg",
             "codegen-properties": {
                 "accepts-quirky-angle": true,
-                "style-converter": "GlyphOrientation",
+                "style-converter": "StyleType<SVGGlyphOrientationHorizontal>",
                 "parser-grammar": "<angle unitless-zero=allowed>"
             },
             "specification": {
@@ -4556,7 +4546,7 @@
             ],
             "codegen-properties": {
                 "accepts-quirky-angle": true,
-                "style-converter": "GlyphOrientationOrAuto",
+                "style-converter": "StyleType<SVGGlyphOrientationVertical>",
                 "parser-grammar": "auto | <angle unitless-zero=allowed>"
             },
             "specification": {
@@ -4651,7 +4641,6 @@
                 "none"
             ],
             "codegen-properties": {
-                "render-style-initial": "initialImageOrientation",
                 "style-converter": "ImageOrientation",
                 "parser-grammar": "<<values>>",
                 "parser-grammar-comment": "Current spec grammar is 'from-image | none | [ <angle> || flip ]'"
@@ -4916,7 +4905,7 @@
             "codegen-properties": {
                 "accepts-quirky-length": true,
                 "animation-wrapper": "StyleTypeWrapper",
-                "animation-wrapper-requires-computed-getter": true,
+                "animation-wrapper-requires-getter": "computedLetterSpacing",
                 "animation-wrapper-requires-render-style": true,
                 "style-builder-custom": "All",
                 "style-builder-converter": "StyleType<LetterSpacing>",
@@ -4979,8 +4968,8 @@
             ],
             "codegen-properties": [
                 {
-                    "animation-wrapper": "LineHeightWrapper",
-                    "animation-wrapper-requires-override-parameters": [],
+                    "animation-wrapper": "StyleTypeWrapper",
+                    "animation-wrapper-requires-getter": "specifiedLineHeight",
                     "style-builder-custom": "All",
                     "style-extractor-custom": true,
                     "enable-if": "ENABLE_TEXT_AUTOSIZING",
@@ -4988,10 +4977,9 @@
                     "parser-exported": true
                 },
                 {
-                    "animation-wrapper": "LineHeightWrapper",
-                    "animation-wrapper-requires-override-parameters": [],
+                    "animation-wrapper": "StyleTypeWrapper",
                     "render-style-getter": "specifiedLineHeight",
-                    "style-builder-converter": "LineHeight",
+                    "style-builder-converter": "StyleType<LineHeight>",
                     "style-extractor-custom": true,
                     "enable-if": "!ENABLE_TEXT_AUTOSIZING",
                     "parser-grammar": "normal | <number [0,inf]> | <length-percentage [0,inf]>",
@@ -6613,7 +6601,6 @@
             "initial-comment": "Current spec initial value is 'auto'",
             "codegen-properties": {
                 "animation-wrapper": "VisitedAffectedStyleTypeWrapper",
-                "render-style-initial": "currentColor",
                 "visited-link-color-support": true,
                 "color-property": true,
                 "parser-grammar": "-webkit-focus-ring-color | <color>",
@@ -8424,7 +8411,7 @@
             "codegen-properties": {
                 "accepts-quirky-length": true,
                 "animation-wrapper": "StyleTypeWrapper",
-                "animation-wrapper-requires-computed-getter": true,
+                "animation-wrapper-requires-getter": "computedWordSpacing",
                 "animation-wrapper-requires-render-style": true,
                 "style-builder-custom": "All",
                 "style-builder-converter": "StyleType<WordSpacing>",
@@ -9210,7 +9197,6 @@
                     "-webkit-column-rule-color"
                 ],
                 "animation-wrapper": "VisitedAffectedStyleTypeWrapper",
-                "render-style-initial": "currentColor",
                 "visited-link-color-support": true,
                 "color-property": true,
                 "parser-grammar": "<color>"
@@ -9520,7 +9506,8 @@
                 "start",
                 "end",
                 "self-start",
-                "self-end"
+                "self-end",
+                "dialog"
             ],
             "codegen-properties": {
                 "aliases": [
@@ -10813,7 +10800,6 @@
                     "-webkit-text-decoration-color"
                 ],
                 "animation-wrapper": "VisitedAffectedStyleTypeWrapper",
-                "render-style-initial": "currentColor",
                 "visited-link-color-support": true,
                 "color-property": true,
                 "parser-grammar": "<color>"
@@ -10965,7 +10951,6 @@
                     "-webkit-text-emphasis-color"
                 ],
                 "animation-wrapper": "VisitedAffectedStyleTypeWrapper",
-                "render-style-initial": "currentColor",
                 "visited-link-color-support": true,
                 "color-property": true,
                 "parser-grammar": "<color>"
@@ -11014,7 +10999,6 @@
             "initial": "currentColor",
             "codegen-properties": {
                 "animation-wrapper": "VisitedAffectedStyleTypeWrapper",
-                "render-style-initial": "currentColor",
                 "visited-link-color-support": true,
                 "color-property": true,
                 "parser-grammar": "<color>"
@@ -11060,7 +11044,6 @@
             "initial": "currentColor",
             "codegen-properties": {
                 "animation-wrapper": "VisitedAffectedStyleTypeWrapper",
-                "render-style-initial": "currentColor",
                 "visited-link-color-support": true,
                 "color-property": true,
                 "parser-grammar": "<color>"
@@ -11118,7 +11101,6 @@
                 "view-box"
             ],
             "codegen-properties": {
-                "render-style-initial": "initialTransformBox",
                 "parser-grammar": "<<values>>"
             },
             "specification": {
@@ -13758,7 +13740,7 @@
             }
         },
         "<self-position>": {
-            "grammar": "center | start | end | self-start | self-end | flex-start | flex-end | anchor-center",
+            "grammar": "center | start | end | self-start | self-end | flex-start | flex-end | anchor-center | dialog",
             "specification": {
                 "category": "css-align",
                 "url": "https://www.w3.org/TR/css-align-3/#typedef-self-position"

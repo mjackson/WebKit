@@ -2600,44 +2600,6 @@ PartialResult WARN_UNUSED_RETURN BBQJIT::addF64ConvertUI64(Value operand, Value&
     )
 }
 
-PartialResult WARN_UNUSED_RETURN BBQJIT::addF64Copysign(Value lhs, Value rhs, Value& result)
-{
-    if constexpr (isX86())
-        clobber(shiftRCX);
-
-    EMIT_BINARY(
-        "F64Copysign", TypeKind::F64,
-        BLOCK(Value::fromF64(doubleCopySign(lhs.asF64(), rhs.asF64()))),
-        BLOCK(
-            F64CopysignHelper(lhsLocation, rhsLocation, resultLocation);
-        ),
-        BLOCK(
-            ImmHelpers::immLocation(lhsLocation, rhsLocation) = Location::fromFPR(wasmScratchFPR);
-            emitMoveConst(ImmHelpers::imm(lhs, rhs), Location::fromFPR(wasmScratchFPR));
-            F64CopysignHelper(lhsLocation, rhsLocation, resultLocation);
-        )
-    )
-}
-
-void BBQJIT::F64CopysignHelper(Location lhsLocation, Location rhsLocation, Location resultLocation)
-{
-    ScratchScope<2, 0> scratches(*this);
-    auto hi = scratches.gpr(1);
-    auto lo = scratches.gpr(0);
-    auto sign = wasmScratchGPR2;
-
-    m_jit.moveDoubleHiTo32(rhsLocation.asFPR(), sign);
-    m_jit.move(TrustedImm32(0x80000000), wasmScratchGPR);
-    m_jit.and32(wasmScratchGPR, sign);
-
-    m_jit.moveDoubleTo64(lhsLocation.asFPR(), hi, lo);
-    m_jit.move(TrustedImm32(0x7fffffff), wasmScratchGPR);
-    m_jit.and32(wasmScratchGPR, hi);
-
-    m_jit.or32(sign, hi);
-    m_jit.move64ToDouble(hi, lo, resultLocation.asFPR());
-}
-
 PartialResult WARN_UNUSED_RETURN BBQJIT::addF32Floor(Value operand, Value& result)
 {
     EMIT_UNARY(

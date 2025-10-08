@@ -30,7 +30,7 @@
 #include "CSSFontSelector.h"
 #include "Chrome.h"
 #include "ColorBlending.h"
-#include "DocumentInlines.h"
+#include "DocumentPage.h"
 #include "ElementInlines.h"
 #include "HTMLNames.h"
 #include "HTMLOptionElement.h"
@@ -45,6 +45,7 @@
 #include "RenderBoxInlines.h"
 #include "RenderBoxModelObjectInlines.h"
 #include "RenderChildIterator.h"
+#include "RenderElementStyleInlines.h"
 #include "RenderElementInlines.h"
 #include "RenderObjectInlines.h"
 #include "RenderScrollbar.h"
@@ -226,18 +227,7 @@ void RenderMenuList::updateOptionsWidth()
 
         String text = option->textIndentedToRespectGroupLabel();
         text = applyTextTransform(style(), text);
-        if (theme().popupOptionSupportsTextIndent()) {
-            // Add in the option's text indent.  We can't calculate percentage values for now.
-            float optionWidth = 0;
-            if (auto* optionStyle = option->computedStyleForEditability())
-                optionWidth += Style::evaluate<float>(optionStyle->textIndent().length, 0, Style::ZoomNeeded { });
-            if (!text.isEmpty()) {
-                const FontCascade& font = style().fontCascade();
-                TextRun run = RenderBlock::constructTextRun(text, style());
-                optionWidth += font.width(run);
-            }
-            maxOptionWidth = std::max(maxOptionWidth, optionWidth);
-        } else if (!text.isEmpty()) {
+        if (!text.isEmpty()) {
             const FontCascade& font = style().fontCascade();
             TextRun run = RenderBlock::constructTextRun(text, style());
             maxOptionWidth = std::max(maxOptionWidth, font.width(run));
@@ -548,7 +538,6 @@ PopupMenuStyle RenderMenuList::itemStyle(unsigned listIndex) const
         style->visibility() == Visibility::Visible,
         style->display() == DisplayType::None,
         true,
-        Style::toPlatform(style->textIndent().length),
         style->writingMode().bidiDirection(),
         isOverride(style->unicodeBidi()),
         itemHasCustomBackgroundColor ? PopupMenuStyle::CustomBackgroundColor : PopupMenuStyle::DefaultBackgroundColor
@@ -599,7 +588,6 @@ PopupMenuStyle RenderMenuList::menuStyle() const
         styleToUse.usedVisibility() == Visibility::Visible,
         styleToUse.display() == DisplayType::None,
         style().hasUsedAppearance() && style().usedAppearance() == StyleAppearance::Menulist,
-        Style::toPlatform(styleToUse.textIndent().length),
         style().writingMode().bidiDirection(),
         isOverride(style().unicodeBidi()),
         PopupMenuStyle::DefaultBackgroundColor,

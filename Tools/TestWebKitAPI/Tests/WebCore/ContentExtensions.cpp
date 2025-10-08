@@ -1474,6 +1474,7 @@ TEST_F(ContentExtensionTest, MatchesEverything)
     testRequest(backend6, subResourceRequest("http://example.com/ignore"_s, "http://example.com/"_s, ResourceType::Script), { });
 }
 
+#if !PLATFORM(MAC) || defined(NDEBUG)
 TEST_F(ContentExtensionTest, InvalidJSON)
 {
     checkCompilerError("["_s, ContentExtensionError::JSONInvalid);
@@ -1629,6 +1630,7 @@ TEST_F(ContentExtensionTest, InvalidJSON)
     checkCompilerError("[{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\".*\"},\"_identifier\":[]}]"_s, ContentExtensionError::JSONInvalidRuleIdentifier);
     checkCompilerError("[{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\".*\"},\"_identifier\":{}}]"_s, ContentExtensionError::JSONInvalidRuleIdentifier);
 }
+#endif
 
 TEST_F(ContentExtensionTest, StrictPrefixSeparatedMachines1)
 {

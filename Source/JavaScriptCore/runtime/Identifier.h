@@ -125,7 +125,7 @@ public:
     static Identifier fromUid(const PrivateName&);
     static Identifier fromUid(SymbolImpl&);
 
-    static Identifier createLCharFromUChar(VM& vm, std::span<const char16_t> string) { return Identifier(vm, add8(vm, string)); }
+    static Identifier createLatin1(VM& vm, std::span<const char16_t> string) { return Identifier(vm, add8(vm, string)); }
 
     JS_EXPORT_PRIVATE static Identifier from(VM&, unsigned y);
     JS_EXPORT_PRIVATE static Identifier from(VM&, int y);

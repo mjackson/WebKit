@@ -47,6 +47,7 @@
 #include "RenderLayer.h"
 #include "RenderLayerBacking.h"
 #include "RenderObjectInlines.h"
+#include "Settings.h"
 #include "StyleOriginatedAnimation.h"
 #include "WebAnimationTypes.h"
 

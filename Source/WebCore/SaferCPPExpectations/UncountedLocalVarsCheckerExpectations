@@ -203,7 +203,6 @@ history/CachedFrame.cpp
 history/CachedPage.cpp
 html/Autofill.cpp
 html/CachedHTMLCollectionInlines.h
-html/CanvasBase.cpp
 html/CollectionTraversalInlines.h
 html/FormAssociatedCustomElement.cpp
 html/FormListedElement.cpp

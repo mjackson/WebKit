@@ -27,7 +27,6 @@
 
 #include "CaretRectComputation.h"
 #include "CompositionHighlight.h"
-#include "DocumentInlines.h"
 #include "DocumentMarkerController.h"
 #include "Editor.h"
 #include "EventRegion.h"
@@ -42,6 +41,7 @@
 #include "RenderBlock.h"
 #include "RenderBoxModelObjectInlines.h"
 #include "RenderCombineText.h"
+#include "RenderElementStyleInlines.h"
 #include "RenderElementInlines.h"
 #include "RenderObjectInlines.h"
 #include "RenderText.h"
@@ -270,6 +270,7 @@ void TextBoxPainter::paint()
             paintCompositionUnderlines();
 
         m_renderer.page().addRelevantRepaintedObject(m_renderer, enclosingLayoutRect(m_paintRect));
+        m_document.didPaintText(textBox().formattingContextRoot(), textBox().visualRectIgnoringBlockDirection());
     }
 
     if (glyphRotation) {
@@ -662,9 +663,20 @@ bool TextBoxPainter::paintForegroundForShapeRange(TextPainter& textPainter)
 
     auto& context = m_paintInfo.context();
 
+    auto clipRect = [&] {
+        // We could also just use ink overflow here but since non-range painting
+        // sets up no clipping, we should not do that either here.
+        auto rect = FloatRect::infiniteRect();
+        rect.setX(m_paintRect.x());
+        // Note that this is RTL direction.
+        auto& textContent = m_textBox.box().text();
+        if (!textContent.isAtShapingBoundaryStart())
+            rect.setWidth(m_paintRect.width());
+        // FIXME: Setup a semi-inifite rect for the (visually) first box where x is -inifite with fixed maxX.
+        return rect;
+    };
     context.save();
-    context.clip(m_paintRect);
-
+    context.clip(clipRect());
     auto shapedContent = ShapedContent { };
     buildTextForShaping(shapedContent, m_textBox);
 
@@ -677,6 +689,7 @@ bool TextBoxPainter::paintForegroundForShapeRange(TextPainter& textPainter)
     auto characterScanForCodePath = true;
     auto expansion = m_textBox.box().expansion();
     auto run = TextRun { shapedContent.text, paintRect.x(), expansion.horizontalExpansion, expansion.behavior, m_textBox.direction(), m_style.rtlOrdering() == Order::Visual, characterScanForCodePath };
+    run.disableSpacing();
 
     textPainter.paintRange(run, paintRect, textOriginFromPaintRect(paintRect), 0, shapedContent.text.length());
     context.restore();

@@ -39,13 +39,15 @@
 #include <WebCore/Color.h>
 #include <WebCore/ContainerNodeInlines.h>
 #include <WebCore/DocumentFullscreen.h>
+#include <WebCore/DocumentQuirks.h>
+#include <WebCore/DocumentView.h>
 #include <WebCore/EventNames.h>
+#include <WebCore/FrameInlines.h>
 #include <WebCore/HTMLVideoElement.h>
 #include <WebCore/JSDOMPromiseDeferred.h>
 #include <WebCore/LocalFrame.h>
 #include <WebCore/LocalFrameView.h>
 #include <WebCore/MIMETypeRegistry.h>
-#include <WebCore/Quirks.h>
 #include <WebCore/RenderImage.h>
 #include <WebCore/RenderLayerBacking.h>
 #include <WebCore/RenderObjectInlines.h>
@@ -69,7 +71,7 @@ using namespace WebCore;
 
 using WebCore::FloatSize;
 
-static WebCore::IntRect screenRectOfContents(WebCore::Element& element)
+static WebCore::IntRect rootViewRectOfContents(WebCore::Element& element)
 {
     CheckedPtr renderer = element.renderer();
     if (!renderer)
@@ -93,7 +95,14 @@ static WebCore::IntRect screenRectOfContents(WebCore::Element& element)
     auto viewportRect = snappedIntRect(frameView->layoutViewportRect());
     contentsRect.intersect(viewportRect);
 
-    return frameView->contentsToScreen(contentsRect);
+    return frameView->contentsToRootView(contentsRect);
+}
+
+static void getRootFrameCoordinatesAndIdentifier(Element& element, WebCore::FrameIdentifier& frameID, WebCore::IntRect& coordinates)
+{
+    coordinates = rootViewRectOfContents(element);
+    if (CheckedPtr renderer = element.renderer())
+        frameID = renderer->protectedFrame()->rootFrame().frameID();
 }
 
 Ref<WebFullScreenManager> WebFullScreenManager::create(WebPage& page)
@@ -303,8 +312,6 @@ void WebFullScreenManager::enterFullScreenForElement(Element& element, HTMLMedia
     }
 #endif
 
-    m_initialFrame = screenRectOfContents(element);
-
 #if ENABLE(VIDEO)
     updateMainVideoElement();
 
@@ -339,14 +346,18 @@ void WebFullScreenManager::enterFullScreenForElement(Element& element, HTMLMedia
         m_inWindowFullScreenMode = true;
     } else {
         ASSERT(m_elementFrameIdentifier);
-        m_page->sendWithAsyncReply(Messages::WebFullScreenManagerProxy::EnterFullScreen(*m_elementFrameIdentifier, m_element->document().quirks().blocksReturnToFullscreenFromPictureInPictureQuirk(), WTFMove(mediaDetails)), [
+        auto rootFrameID = *m_elementFrameIdentifier;
+        getRootFrameCoordinatesAndIdentifier(element, rootFrameID, m_initialFrame);
+
+        m_page->sendWithAsyncReply(Messages::WebFullScreenManagerProxy::EnterFullScreen(*m_elementFrameIdentifier, m_element->document().quirks().blocksReturnToFullscreenFromPictureInPictureQuirk(), WTFMove(mediaDetails), rootFrameID, m_initialFrame), [
             this,
             protectedThis = Ref { *this },
             element = Ref { element },
             willEnterFullScreenCallback = WTFMove(willEnterFullScreenCallback),
             didEnterFullScreenCallback = WTFMove(didEnterFullScreenCallback)
-        ] (bool success) mutable {
-            if (success) {
+        ] (std::optional<WebCore::IntRect> initialFrameInScreenCoordinates) mutable {
+            if (initialFrameInScreenCoordinates) {
+                m_initialFrame = *initialFrameInScreenCoordinates;
                 willEnterFullScreen(element, WTFMove(willEnterFullScreenCallback), WTFMove(didEnterFullScreenCallback));
                 return;
             }
@@ -411,7 +422,7 @@ void WebFullScreenManager::willEnterFullScreen(Element& element, CompletionHandl
     m_page->hidePageBanners();
 #endif
     element.protectedDocument()->updateLayout();
-    m_finalFrame = screenRectOfContents(element);
+    m_finalFrame = rootViewRectOfContents(element);
 
     m_page->sendWithAsyncReply(Messages::WebFullScreenManagerProxy::BeganEnterFullScreen(m_initialFrame, m_finalFrame), [this, protectedThis = Ref { *this }, mode, completionHandler = WTFMove(didEnterFullscreenCallback)] (bool success) mutable {
         if (!success && mode != WebCore::HTMLMediaElementEnums::VideoFullscreenModeInWindow) {
@@ -489,8 +500,6 @@ void WebFullScreenManager::willExitFullScreen(CompletionHandler<void()>&& comple
 #if ENABLE(VIDEO)
     setPIPStandbyElement(nullptr);
 #endif
-
-    m_finalFrame = screenRectOfContents(*m_element);
     if (!m_element->document().fullscreen().willExitFullscreen()) {
         close();
         return completionHandler();
@@ -544,7 +553,7 @@ void WebFullScreenManager::didExitFullScreen(CompletionHandler<void()>&& complet
     // Ensure the element (and all its parent fullscreen elements) that just exited fullscreen are still in view:
     while (!fullscreenElements.isEmpty()) {
         auto element = fullscreenElements.takeLast();
-        element->scrollIntoViewIfNotVisible(true);
+        element->scrollIntoViewIfNotVisible(true, AllowScrollingOverflowHidden::No);
     }
 
     clearElement();

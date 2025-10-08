@@ -50,6 +50,7 @@ namespace WebCore {
 class CDMInstanceFairPlayStreamingAVFObjC;
 class EffectiveRateChangedListener;
 class MediaSample;
+class NativeImage;
 class PixelBufferConformerCV;
 class VideoLayerManagerObjC;
 class VideoMediaSampleRenderer;
@@ -59,14 +60,14 @@ class AudioVideoRendererAVFObjC
     , public WebAVSampleBufferListenerClient
     , public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<AudioVideoRendererAVFObjC>
     , private LoggerHelper {
-    WTF_MAKE_TZONE_ALLOCATED(AudioVideoRendererAVFObjC);
+    WTF_MAKE_TZONE_ALLOCATED_EXPORT(AudioVideoRendererAVFObjC, WEBCORE_EXPORT);
 public:
     static Ref<AudioVideoRendererAVFObjC> create(const Logger& logger, uint64_t logIdentifier) { return adoptRef(*new AudioVideoRendererAVFObjC(logger, logIdentifier)); }
 
     ~AudioVideoRendererAVFObjC();
     WTF_ABSTRACT_THREAD_SAFE_REF_COUNTED_AND_CAN_MAKE_WEAK_PTR_IMPL;
 
-    void setPreferences(VideoMediaSampleRendererPreferences) final;
+    void setPreferences(VideoRendererPreferences) final;
     void setHasProtectedVideoContent(bool) final;
 
     // TracksRendererInterface
@@ -132,8 +133,10 @@ public:
     void setPlatformDynamicRangeLimit(const PlatformDynamicRangeLimit&) final;
     void setResourceOwner(const ProcessIdentity& resourceOwner) final { m_resourceOwner = resourceOwner; }
     RefPtr<VideoFrame> currentVideoFrame() const final;
+    void paintCurrentVideoFrameInContext(GraphicsContext&, const FloatRect&) final;
+    RefPtr<NativeImage> currentNativeImage() const final;
     std::optional<VideoPlaybackQualityMetrics> videoPlaybackQualityMetrics() final;
-    PlatformLayerContainer platformVideoLayer() const final;
+    PlatformLayer* platformVideoLayer() const final;
     void setVideoLayerSizeFenced(const FloatSize&, WTF::MachSendRightAnnotated&&) final;
 
     // VideoFullscreenInterface
@@ -145,7 +148,7 @@ public:
     void isInFullscreenOrPictureInPictureChanged(bool) final;
 
 private:
-    AudioVideoRendererAVFObjC(const Logger&, uint64_t);
+    WEBCORE_EXPORT AudioVideoRendererAVFObjC(const Logger&, uint64_t);
 
     MediaTime clampTimeToLastSeekTime(const MediaTime&) const;
     void maybeCompleteSeek();
@@ -302,11 +305,12 @@ private:
     bool m_shouldDisableHDR { false };
     PlatformDynamicRangeLimit m_dynamicRangeLimit { PlatformDynamicRangeLimit::initialValueForVideos() };
     ProcessIdentity m_resourceOwner;
-    VideoMediaSampleRendererPreferences m_preferences;
+    VideoRendererPreferences m_preferences;
     bool m_hasProtectedVideoContent { false };
     struct RendererConfiguration {
-        bool canUseDecompressionSession = { false };
-        bool isProtected = { false };
+        bool canUseDecompressionSession { false };
+        bool isProtected { false };
+        bool hasVideoTrack { false };
         bool operator==(const RendererConfiguration&) const = default;
     };
     RendererConfiguration m_previousRendererConfiguration;
@@ -317,7 +321,7 @@ private:
 
     RefPtr<EffectiveRateChangedListener> m_effectiveRateChangedListener;
 
-    std::unique_ptr<PixelBufferConformerCV> m_rgbConformer;
+    mutable std::unique_ptr<PixelBufferConformerCV> m_rgbConformer;
 
 #if HAVE(SPATIAL_TRACKING_LABEL)
     bool m_prefersSpatialAudioExperience { false };

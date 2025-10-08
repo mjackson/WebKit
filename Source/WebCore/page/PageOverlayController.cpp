@@ -447,6 +447,11 @@ void PageOverlayController::didChangeOverlayBackgroundColor(PageOverlay& overlay
         layer->setBackgroundColor(overlay.backgroundColor());
 }
 
+int PageOverlayController::overlayCount() const
+{
+    return m_overlayGraphicsLayers.computeSize();
+}
+
 bool PageOverlayController::shouldSkipLayerInDump(const GraphicsLayer*, OptionSet<LayerTreeAsTextOptions> options) const
 {
     return !options.contains(LayerTreeAsTextOptions::IncludePageOverlayLayers);

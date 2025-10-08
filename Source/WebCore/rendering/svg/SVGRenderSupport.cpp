@@ -59,6 +59,7 @@
 #include "SVGGeometryElement.h"
 #include "SVGResources.h"
 #include "SVGResourcesCache.h"
+#include "Settings.h"
 #include "TransformOperationData.h"
 #include "TransformState.h"
 #include "VisibleRectContext.h"
@@ -111,6 +112,9 @@ const RenderElement& SVGRenderSupport::localToParentTransform(const RenderElemen
 
 void SVGRenderSupport::mapLocalToContainer(const RenderElement& renderer, const RenderLayerModelObject* ancestorContainer, TransformState& transformState, bool* wasFixed)
 {
+    if (ancestorContainer == &renderer)
+        return;
+
     AffineTransform transform;
     auto& parent = localToParentTransform(renderer, transform);
 

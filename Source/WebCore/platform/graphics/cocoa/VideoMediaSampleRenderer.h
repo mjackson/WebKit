@@ -65,7 +65,7 @@ public:
     static Ref<VideoMediaSampleRenderer> create(WebSampleBufferVideoRendering *renderer) { return adoptRef(*new VideoMediaSampleRenderer(renderer)); }
     ~VideoMediaSampleRenderer();
 
-    using Preferences = VideoMediaSampleRendererPreferences;
+    using Preferences = VideoRendererPreferences;
     bool prefersDecompressionSession() const;
     void setPreferences(Preferences);
     bool isUsingDecompressionSession() const { return m_isUsingDecompressionSession; }
@@ -226,6 +226,7 @@ private:
     unsigned m_droppedVideoFramesOffset WTF_GUARDED_BY_CAPABILITY(mainThread) { 0 };
     std::atomic<unsigned> m_corruptedVideoFrames { 0 };
     std::atomic<unsigned> m_presentedVideoFrames { 0 };
+    mutable unsigned m_sampleCount WTF_GUARDED_BY_CAPABILITY(mainThread) { 0 };
     MediaTime m_totalFrameDelay { MediaTime::zeroTime() };
 
     // Protected samples

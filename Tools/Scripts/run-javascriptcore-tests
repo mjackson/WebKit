@@ -676,7 +676,8 @@ sub runTest {
 
     chdirWebKit();
     chdir($productDir) or die "Failed to switch directory to '$productDir'\n";
-    my @command = (testPath($productDir, $testName));
+    my $testExecutable = testPath($productDir, $testName);
+    my @command = ($testExecutable);
     if (defined($artifact_exec_wrapper)) {
         # This needs to go first, as one use case is to override the
         # ELF interpreter.
@@ -705,7 +706,6 @@ sub runTest {
     my $missingExecutable = 0;
 
     # Check if the test executable exists before trying to run it
-    my $testExecutable = $command[0];
     if (!-e $testExecutable) {
         print "FAIL: $testName executable not found at $testExecutable\n";
         $testResult = 1;

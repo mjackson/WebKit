@@ -85,18 +85,6 @@ function createInternalReadableStreamFromUnderlyingSource(underlyingSource, stra
     return stream;
 }
 
-function readableStreamCancelForBindings(stream, reason)
-{
-    "use strict";
-
-    @assert(@isReadableStream(stream));
-
-    if (@isReadableStreamLocked(stream))
-        return @Promise.@reject(@makeTypeError("ReadableStream is locked"));
-
-    return @readableStreamCancel(stream, reason);
-}
-
 function readableStreamPipeThroughForBindings(thisStream, streams, options)
 {
     "use strict";

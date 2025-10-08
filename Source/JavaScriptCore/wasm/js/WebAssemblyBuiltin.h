@@ -144,8 +144,8 @@ public:
 
     CodePtr<CFunctionPtrTag> wasmEntrypoint() const { return m_wasmEntrypoint; }
     CodePtr<WasmEntryPtrTag> wasmTrampoline() const { return m_wasmTrampoline; }
-    // Return a JSFunction wrapping m_jsHostFunction.
-    JSObject* jsWrapper(JSGlobalObject*) const;
+    // A function acting as a JS entrypoint into the builtin implementation.
+    JSFunction* jsWrapper(JSGlobalObject*) const;
 
     Wasm::WasmBuiltinCallee* callee() const { return m_callee.get(); }
     const Wasm::Name* wasmName() const { return m_wasmName; }

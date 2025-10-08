@@ -1287,7 +1287,7 @@ void PlatformCALayer::drawLayerContents(GraphicsContext& graphicsContext, WebCor
         std::optional<FontAntialiasingStateSaver> fontAntialiasingState;
 #endif
         // We never use CompositingCoordinatesOrientation::BottomUp on Mac.
-        ASSERT(layerContents->platformCALayerContentsOrientation() == GraphicsLayer::CompositingCoordinatesOrientation::TopDown);
+        ASSERT(layerContents->platformCALayerContentsOrientation() == GraphicsLayerCompositingCoordinatesOrientation::TopDown);
 
         if (graphicsContext.hasPlatformContext()) {
             platformContextSaver.emplace(graphicsContext);

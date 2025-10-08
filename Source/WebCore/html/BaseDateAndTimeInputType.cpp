@@ -39,6 +39,8 @@
 #include "DateComponents.h"
 #include "DateTimeChooserParameters.h"
 #include "Decimal.h"
+#include "DocumentPage.h"
+#include "DocumentView.h"
 #include "FocusController.h"
 #include "HTMLDataListElement.h"
 #include "HTMLDivElement.h"
@@ -48,7 +50,6 @@
 #include "KeyboardEvent.h"
 #include "LocalFrameView.h"
 #include "NodeName.h"
-#include "Page.h"
 #include "PlatformLocale.h"
 #include "RenderElement.h"
 #include "ScriptDisallowedScope.h"
@@ -341,12 +342,19 @@ void BaseDateAndTimeInputType::showPicker()
     if (!element()->renderer())
         return;
 
-    if (!element()->document().page())
+    Ref document = element()->document();
+    if (!document->page())
         return;
 
     DateTimeChooserParameters parameters;
     if (!setupDateTimeChooserParameters(parameters))
         return;
+
+
+#if PLATFORM(IOS_FAMILY)
+    if (CheckedPtr cache = document->existingAXObjectCache())
+        cache->setWillPresentDatePopover(true);
+#endif
 
     if (auto* chrome = this->chrome()) {
         m_dateTimeChooser = chrome->createDateTimeChooser(*this);

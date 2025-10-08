@@ -71,6 +71,7 @@
 #include "SVGRectElement.h"
 #include "SVGRootInlineBox.h"
 #include "SVGStopElement.h"
+#include "Settings.h"
 #include "StyleCachedImage.h"
 #include <math.h>
 

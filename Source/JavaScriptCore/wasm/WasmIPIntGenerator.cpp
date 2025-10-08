@@ -2462,7 +2462,7 @@ PartialResult WARN_UNUSED_RETURN IPIntGenerator::addCatchToUnreachable(unsigned 
     m_metadata->m_exceptionHandlers.append({
         HandlerType::Catch,
         static_cast<uint32_t>(block.m_pc),
-        static_cast<uint32_t>(block.m_pcEnd),
+        static_cast<uint32_t>(block.m_pcEnd + 1), // + 1 since m_pcEnd is the PC of the catch bytecode, which should be included in the range
         static_cast<uint32_t>(m_parser->offset() - m_metadata->m_bytecodeOffset),
         static_cast<uint32_t>(m_metadata->m_metadata.size()),
         m_tryDepth,
@@ -2501,7 +2501,7 @@ PartialResult WARN_UNUSED_RETURN IPIntGenerator::addCatchAllToUnreachable(Contro
     m_metadata->m_exceptionHandlers.append({
         HandlerType::CatchAll,
         static_cast<uint32_t>(block.m_pc),
-        static_cast<uint32_t>(block.m_pcEnd),
+        static_cast<uint32_t>(block.m_pcEnd + 1), // + 1 since m_pcEnd is the PC of the catch bytecode, which should be included in the range
         static_cast<uint32_t>(m_parser->offset() - m_metadata->m_bytecodeOffset),
         static_cast<uint32_t>(m_metadata->m_metadata.size()),
         m_tryDepth,
@@ -2539,7 +2539,7 @@ PartialResult WARN_UNUSED_RETURN IPIntGenerator::addDelegateToUnreachable(Contro
     m_metadata->m_exceptionHandlers.append({
         HandlerType::Delegate,
         static_cast<uint32_t>(data.m_pc),
-        static_cast<uint32_t>(data.m_pcEnd),
+        static_cast<uint32_t>(data.m_pcEnd + 1), // + 1 since m_pcEnd is the PC of the delegate bytecode, which should be included in the range
         static_cast<uint32_t>(curPC()),
         static_cast<uint32_t>(curMC()),
         m_tryDepth,
@@ -2722,7 +2722,7 @@ void IPIntGenerator::endTryTable(ControlType& data)
         m_metadata->m_exceptionHandlers.append({
             targetType,
             data.m_pc,
-            curPC(),
+            curPC() + 1, // + 1 since the end bytecode should be included
 
             // index into the array of try_table targets
             data.m_pc, // PC will be fixed up relative to the try_table's PC

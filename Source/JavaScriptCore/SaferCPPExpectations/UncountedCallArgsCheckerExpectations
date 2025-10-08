@@ -36,7 +36,6 @@ bytecode/SetPrivateBrandStatus.cpp
 bytecode/SharedJITStubSet.h
 bytecode/StructureStubInfo.cpp
 bytecode/UnlinkedFunctionExecutable.cpp
-bytecode/Watchpoint.h
 bytecompiler/BytecodeGenerator.cpp
 bytecompiler/BytecodeGenerator.h
 bytecompiler/NodesCodegen.cpp
@@ -74,7 +73,6 @@ heap/MarkingConstraintSolver.cpp
 heap/ParallelSourceAdapter.h
 heap/SubspaceInlines.h
 inspector/ConsoleMessage.cpp
-inspector/InspectorFrontendDispatchers.cpp
 inspector/InspectorProtocolObjects.h
 inspector/JSGlobalObjectInspectorController.cpp
 inspector/JSInjectedScriptHost.cpp
@@ -86,9 +84,7 @@ inspector/agents/InspectorConsoleAgent.cpp
 inspector/agents/InspectorDebuggerAgent.cpp
 inspector/agents/InspectorHeapAgent.cpp
 inspector/agents/InspectorScriptProfilerAgent.cpp
-inspector/agents/InspectorTargetAgent.cpp
 inspector/agents/JSGlobalObjectRuntimeAgent.cpp
-inspector/remote/cocoa/RemoteInspectorCocoa.mm
 jit/BaselineJITPlan.cpp
 jit/ExecutableAllocator.cpp
 jit/GCAwareJITStubRoutine.cpp
@@ -111,8 +107,6 @@ parser/UnlinkedSourceCode.cpp
 parser/UnlinkedSourceCode.h
 profiler/ProfilerDatabase.cpp
 profiler/ProfilerEvent.cpp
-runtime/ArrayBuffer.cpp
-runtime/ArrayBuffer.h
 runtime/ArrayBufferView.cpp
 runtime/ArrayBufferView.h
 runtime/AtomicsObject.cpp

@@ -205,6 +205,8 @@ macro doVMEntry(makeCall)
     end
 
     storep vm, VMEntryRecord::m_vm[sp]
+    loadp ProtoCallFrame::context[protoCallFrame], t4
+    storep t4, VMEntryRecord::m_context[sp]
     loadp VM::topCallFrame[vm], t4
     storep t4, VMEntryRecord::m_prevTopCallFrame[sp]
     loadp VM::topEntryFrame[vm], t4
@@ -3427,10 +3429,17 @@ llintOpWithReturn(op_enumerator_put_by_val, OpEnumeratorPutByVal, macro (size, g
     dispatch()
 end)
 
+llintOpWithReturn(op_instanceof, OpInstanceof, macro (size, get, dispatch, return)
+    callSlowPath(_llint_slow_path_instanceof)
+    dispatch()
+.osrReturnPoint:
+    getterSetterOSRExitReturnPoint(op_instanceof, size)
+    dispatch()
+end)
+
 slowPathOp(get_property_enumerator)
 slowPathOp(enumerator_next)
 slowPathOp(enumerator_has_own_property)
 slowPathOp(mod)
 
 llintSlowPathOp(has_structure_with_flags)
-llintSlowPathOp(instanceof)

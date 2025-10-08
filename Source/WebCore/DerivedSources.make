@@ -645,6 +645,7 @@ JS_BINDING_IDLS := \
     $(WebCore)/Modules/streams/ReadableStreamSink.idl \
     $(WebCore)/Modules/streams/ReadableStreamSource.idl \
     $(WebCore)/Modules/streams/ReadableStreamType.idl \
+    $(WebCore)/Modules/streams/StreamPipeOptions.idl \
     $(WebCore)/Modules/streams/TransformStream.idl \
     $(WebCore)/Modules/streams/TransformStreamDefaultController.idl \
     $(WebCore)/Modules/streams/UnderlyingSource.idl \
@@ -837,6 +838,7 @@ JS_BINDING_IDLS := \
     $(WebCore)/Modules/webtransport/WebTransportBidirectionalStream.idl \
     $(WebCore)/Modules/webtransport/WebTransportCloseInfo.idl \
     $(WebCore)/Modules/webtransport/WebTransportCongestionControl.idl \
+    $(WebCore)/Modules/webtransport/WebTransportConnectionStats.idl \
     $(WebCore)/Modules/webtransport/WebTransportDatagramDuplexStream.idl \
     $(WebCore)/Modules/webtransport/WebTransportDatagramStats.idl \
     $(WebCore)/Modules/webtransport/WebTransportError.idl \
@@ -850,7 +852,6 @@ JS_BINDING_IDLS := \
     $(WebCore)/Modules/webtransport/WebTransportSendStream.idl \
     $(WebCore)/Modules/webtransport/WebTransportSendStreamOptions.idl \
     $(WebCore)/Modules/webtransport/WebTransportSendStreamStats.idl \
-    $(WebCore)/Modules/webtransport/WebTransportStats.idl \
     $(WebCore)/Modules/webxr/Navigator+WebXR.idl \
     $(WebCore)/Modules/webxr/WebXRBoundedReferenceSpace.idl \
     $(WebCore)/Modules/webxr/WebXRFrame+HandInput.idl \
@@ -1921,11 +1922,13 @@ all : \
     CSSValueKeywords.cpp \
     CSSValueKeywords.h \
     ColorData.cpp \
+    DocumentSyncClient.cpp \
     DOMJITAbstractHeapRepository.h \
     EventInterfaces.h \
     EventNames.cpp \
     EventNames.h \
     EventTargetInterfaces.h \
+    FrameTreeSyncClient.cpp \
     HTMLElementFactory.cpp \
     HTMLElementFactory.h \
     HTMLElementTypeHelpers.h \
@@ -1943,7 +1946,6 @@ all : \
     Namespace.h \
     NodeName.cpp \
     NodeName.h \
-    ProcessSyncClient.cpp \
     SVGElementFactory.cpp \
     SVGElementFactory.h \
     SVGElementTypeHelpers.h \
@@ -2167,6 +2169,7 @@ USER_AGENT_STYLE_SHEETS = \
     $(WebCore)/css/html.css \
     $(WebCore)/css/htmlSwitchControl.css \
     $(WebCore)/css/mathml.css \
+    $(WebCore)/css/mathmlCoreExtras.css \
     $(WebCore)/css/popover.css \
     $(WebCore)/css/quirks.css \
     $(WebCore)/css/svg.css \
@@ -2723,25 +2726,42 @@ all : $(notdir $(WebCore_BUILTINS_SOURCES:%.js=%Builtins.h)) $(WebCore_BUILTINS_
 
 #
 
-PROCESS_SYNC_DATA_INPUT_FILES = \
-    $(WebCore)/page/ProcessSyncData.in \
+DOCUMENT_SYNC_DATA_INPUT_FILES = \
+    $(WebCore)/page/DocumentSyncData.in \
 
-GENERATED_PROCESS_SYNC_CLIENT_OUTPUT_FILES = \
+GENERATED_DOCUMENT_SYNC_CLIENT_OUTPUT_FILES = \
 	DocumentSyncData.cpp \
 	DocumentSyncData.h \
+	DocumentSyncClient.cpp \
+	DocumentSyncClient.h \
+	DocumentSyncData.serialization.in \
+
+GENERATED_DOCUMENT_SYNC_CLIENT_OUTPUT_PATTERNS = $(subst .cpp,%cpp, $(subst .h,%h, $(subst .in,%in, $(GENERATED_DOCUMENT_SYNC_CLIENT_OUTPUT_FILES))))
+
+all : $(GENERATED_DOCUMENT_SYNC_CLIENT_OUTPUT_FILES)
+
+$(GENERATED_DOCUMENT_SYNC_CLIENT_OUTPUT_PATTERNS) : $(WebCore)/Scripts/generate-process-sync-data.py $(DOCUMENT_SYNC_DATA_INPUT_FILES)
+	@echo Generating Document sync data $@
+	$(PYTHON) $(WebCore)/Scripts/generate-process-sync-data.py "Document" $(DOCUMENT_SYNC_DATA_INPUT_FILES)
+
+FRAMETREE_SYNC_DATA_INPUT_FILES = \
+    $(WebCore)/page/FrameTreeSyncData.in \
+
+GENERATED_FRAMETREE_SYNC_CLIENT_OUTPUT_FILES = \
 	FrameTreeSyncData.cpp \
 	FrameTreeSyncData.h \
-	ProcessSyncClient.cpp \
-	ProcessSyncClient.h \
-	ProcessSyncData.h \
-	ProcessSyncData.serialization.in \
+	FrameTreeSyncClient.cpp \
+	FrameTreeSyncClient.h \
+	FrameTreeSyncData.serialization.in \
 
-GENERATED_PROCESS_SYNC_CLIENT_OUTPUT_PATTERNS = $(subst .cpp,%cpp, $(subst .h,%h, $(subst .in,%in, $(GENERATED_PROCESS_SYNC_CLIENT_OUTPUT_FILES))))
+GENERATED_FRAMETREE_SYNC_CLIENT_OUTPUT_PATTERNS = $(subst .cpp,%cpp, $(subst .h,%h, $(subst .in,%in, $(GENERATED_FRAMETREE_SYNC_CLIENT_OUTPUT_FILES))))
 
-all : $(GENERATED_PROCESS_SYNC_CLIENT_OUTPUT_FILES)
+all : $(GENERATED_FRAMETREE_SYNC_CLIENT_OUTPUT_FILES)
 
-$(GENERATED_PROCESS_SYNC_CLIENT_OUTPUT_PATTERNS) : $(WebCore)/Scripts/generate-process-sync-data.py $(PROCESS_SYNC_DATA_INPUT_FILES)
-	$(PYTHON) $(WebCore)/Scripts/generate-process-sync-data.py $(PROCESS_SYNC_DATA_INPUT_FILES)
+$(GENERATED_FRAMETREE_SYNC_CLIENT_OUTPUT_PATTERNS) : $(WebCore)/Scripts/generate-process-sync-data.py $(FRAMETREE_SYNC_DATA_INPUT_FILES)
+	@echo Generating Document sync data $@
+	$(PYTHON) $(WebCore)/Scripts/generate-process-sync-data.py "FrameTree" $(FRAMETREE_SYNC_DATA_INPUT_FILES)
+
 
 # ------------------------
 

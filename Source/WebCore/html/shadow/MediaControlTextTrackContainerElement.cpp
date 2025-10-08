@@ -34,7 +34,9 @@
 
 #include "ContainerNodeInlines.h"
 #include "DOMTokenList.h"
+#include "DocumentEventLoop.h"
 #include "DocumentFullscreen.h"
+#include "DocumentView.h"
 #include "ElementChildIteratorInlines.h"
 #include "EventHandler.h"
 #include "EventLoop.h"

@@ -39,6 +39,7 @@
 #include "FrameSnapshotting.h"
 #include "GeometryUtilities.h"
 #include "GraphicsContext.h"
+#include "GraphicsLayer.h"
 #include "ImageBuffer.h"
 #include "IntRect.h"
 #include "LocalFrame.h"

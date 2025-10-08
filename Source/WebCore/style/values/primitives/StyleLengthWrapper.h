@@ -94,9 +94,19 @@ template<typename Numeric, CSS::PrimitiveKeyword... Ks> struct LengthWrapperBase
     ALWAYS_INLINE bool isPercentOrCalculated() const { return isPercent() || isCalculated(); }
     ALWAYS_INLINE bool isSpecified() const { return isFixed() || isPercent() || isCalculated(); }
 
-    ALWAYS_INLINE bool isZero() const { return m_value.isZero(); }
-    ALWAYS_INLINE bool isPositive() const { return m_value.isPositive(); }
-    ALWAYS_INLINE bool isNegative() const { return m_value.isNegative(); }
+    // `isKnownZero` returns whether the value can be guaranteed to be `0`. Keywords and calc() return `false`.
+    ALWAYS_INLINE bool isKnownZero() const requires (Fixed::range.min <= 0 && Fixed::range.max >= 0) { return m_value.isKnownZero(evaluationKind()); }
+    // `isKnownPositive` returns whether the value can be guaranteed to be more than `0`. Keywords and calc() return `false`.
+    ALWAYS_INLINE bool isKnownPositive() const requires (Fixed::range.max > 0) { return m_value.isKnownPositive(evaluationKind()); }
+    // `isKnownNegative` returns whether the value can be guaranteed to be less than `0`. Keywords and calc() return `false`.
+    ALWAYS_INLINE bool isKnownNegative() const requires (Fixed::range.min < 0) { return m_value.isKnownNegative(evaluationKind()); }
+
+    // `isPossiblyZero` returns whether the value can possibly be `0`. Keywords and calc() return `true`.
+    ALWAYS_INLINE bool isPossiblyZero() const requires (Fixed::range.min <= 0 && Fixed::range.max >= 0) { return m_value.isPossiblyZero(evaluationKind()); }
+    // `isPossiblyPositive` returns whether the value can possibly be more than `0`. Keywords and calc() return `true.
+    ALWAYS_INLINE bool isPossiblyPositive() const requires (Fixed::range.max > 0) { return m_value.isPossiblyPositive(evaluationKind()); }
+    // `isPossiblyNegative` returns whether the value can possibly be less than `0`. Keywords and calc() return `true.
+    ALWAYS_INLINE bool isPossiblyNegative() const requires (Fixed::range.min < 0) { return m_value.isPossiblyNegative(evaluationKind()); }
 
     std::optional<Fixed> tryFixed() const { return isFixed() ? std::make_optional(Fixed { m_value.value() }) : std::nullopt; }
     std::optional<Percentage> tryPercentage() const { return isPercent() ? std::make_optional(Percentage { m_value.value() }) : std::nullopt; }
@@ -150,6 +160,7 @@ private:
     template<typename, typename> friend struct Evaluation;
     template<typename, typename> friend struct MinimumEvaluation;
     template<typename> friend struct Blending;
+    template<typename> friend struct LengthWrapperBlendingSupport;
 
     static LengthWrapperData toData(const Specified& specified)
     {
@@ -293,12 +304,12 @@ template<LengthWrapperBaseDerived T, typename Result> struct Evaluation<T, Resul
         return value.m_value.template valueForLengthWrapperDataWithLazyMaximum<Result, Result>(value.evaluationKind(), [&] ALWAYS_INLINE_LAMBDA { return maximumValue; }, token);
     }
 
-    auto operator()(const T& value, NOESCAPE const Invocable<Result()> auto& lazyMaximumValueFunctor, float zoom) -> Result
+    auto operator()(const T& value, NOESCAPE const Invocable<Result()> auto& lazyMaximumValueFunctor, ZoomFactor zoom) -> Result
         requires (T::Fixed::range.zoomOptions == CSS::RangeZoomOptions::Unzoomed)
     {
         return value.m_value.template valueForLengthWrapperDataWithLazyMaximum<Result, Result>(value.evaluationKind(), lazyMaximumValueFunctor, zoom);
     }
-    auto operator()(const T& value, Result maximumValue, float zoom) -> Result
+    auto operator()(const T& value, Result maximumValue, ZoomFactor zoom) -> Result
         requires (T::Fixed::range.zoomOptions == CSS::RangeZoomOptions::Unzoomed)
     {
         return value.m_value.template valueForLengthWrapperDataWithLazyMaximum<Result, Result>(value.evaluationKind(), [&] ALWAYS_INLINE_LAMBDA { return maximumValue; }, zoom);
@@ -325,12 +336,12 @@ template<LengthWrapperBaseDerived T, typename Result> struct MinimumEvaluation<T
         return value.m_value.template minimumValueForLengthWrapperDataWithLazyMaximum<LayoutUnit, LayoutUnit>(value.evaluationKind(), [&] ALWAYS_INLINE_LAMBDA { return LayoutUnit(maximumValue); }, token);
     }
 
-    auto operator()(const T& value, NOESCAPE const Invocable<Result()> auto& lazyMaximumValueFunctor, float zoom) -> Result
+    auto operator()(const T& value, NOESCAPE const Invocable<Result()> auto& lazyMaximumValueFunctor, ZoomFactor zoom) -> Result
         requires (T::Fixed::range.zoomOptions == CSS::RangeZoomOptions::Unzoomed)
     {
         return value.m_value.template minimumValueForLengthWrapperDataWithLazyMaximum<LayoutUnit, LayoutUnit>(value.evaluationKind(), lazyMaximumValueFunctor, zoom);
     }
-    auto operator()(const T& value, Result maximumValue, float zoom) -> Result
+    auto operator()(const T& value, Result maximumValue, ZoomFactor zoom) -> Result
         requires (T::Fixed::range.zoomOptions == CSS::RangeZoomOptions::Unzoomed)
     {
         return value.m_value.template minimumValueForLengthWrapperDataWithLazyMaximum<LayoutUnit, LayoutUnit>(value.evaluationKind(), [&] ALWAYS_INLINE_LAMBDA { return LayoutUnit(maximumValue); }, zoom);

@@ -37,6 +37,11 @@
 namespace WebCore {
 namespace Style {
 
+// Out of line to avoid inclusion of RenderStyleInlines.h
+float adjustForZoom(float, const RenderStyle&);
+bool shouldUseEvaluationTimeZoom(const RenderStyle&);
+bool shouldUseEvaluationTimeZoom(const BuilderState&);
+
 // MARK: Conversion Data specialization
 
 template<typename T> struct ConversionDataSpecializer {
@@ -54,7 +59,12 @@ template<auto R, typename V> struct ConversionDataSpecializer<CSS::LengthRaw<R, 
                 ? state.cssToLengthConversionData().copyWithAdjustedZoom(1.0f)
                 : state.cssToLengthConversionData();
         } else if constexpr (R.zoomOptions == CSS::RangeZoomOptions::Unzoomed) {
-            return state.cssToLengthConversionData().copyWithAdjustedZoom(1.0f);
+            if (shouldUseEvaluationTimeZoom(state))
+                return state.cssToLengthConversionData().copyWithAdjustedZoom(1.0f);
+
+            return state.useSVGZoomRulesForLength()
+                ? state.cssToLengthConversionData().copyWithAdjustedZoom(1.0f)
+                : state.cssToLengthConversionData();
         }
     }
 };
@@ -236,9 +246,6 @@ template<auto R, typename V, typename... Rest> LengthPercentage<R, V> canonicali
 
 // MARK: - Conversion from "Style to "CSS"
 
-// Out of line to avoid inclusion of RenderStyleInlines.h
-float adjustForZoom(float, const RenderStyle&);
-
 // Length requires a specialized implementation due to zoom adjustment.
 template<auto R, typename V> struct ToCSS<Length<R, V>> {
     auto operator()(const Length<R, V>& value, const RenderStyle& style) -> CSS::Length<R, V>
@@ -246,7 +253,10 @@ template<auto R, typename V> struct ToCSS<Length<R, V>> {
         if constexpr (R.zoomOptions == CSS::RangeZoomOptions::Default) {
             return CSS::LengthRaw<R, V> { value.unit, adjustForZoom(value.unresolvedValue(), style) };
         } else if constexpr (R.zoomOptions == CSS::RangeZoomOptions::Unzoomed) {
-            return CSS::LengthRaw<R, V> { value.unit, value.unresolvedValue() };
+            if (shouldUseEvaluationTimeZoom(style))
+                return CSS::LengthRaw<R, V> { value.unit, value.unresolvedValue() };
+
+            return CSS::LengthRaw<R, V> { value.unit, adjustForZoom(value.unresolvedValue(), style) };
         }
     }
 };
@@ -438,11 +448,8 @@ template<auto nR, auto pR, typename V> struct ToStyle<CSS::NumberOrPercentageRes
     template<typename... Rest> auto operator()(const From& value, Rest&&... rest) -> To
     {
         return WTF::switchOn(value,
-            [&](const typename From::Number& number) -> To {
-                return { toStyle(number, std::forward<Rest>(rest)...) };
-            },
-            [&](const typename From::Percentage& percentage) -> To {
-                return { toStyle(percentage, std::forward<Rest>(rest)...).value / 100.0 };
+            [&](const auto& numberOrPercentage) -> To {
+                return { toStyle(numberOrPercentage, std::forward<Rest>(rest)...) };
             }
         );
     }

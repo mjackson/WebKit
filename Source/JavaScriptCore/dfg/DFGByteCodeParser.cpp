@@ -4539,27 +4539,6 @@ auto ByteCodeParser::handleIntrinsicCall(Node* callee, Operand resultOperand, Ca
             return CallOptimizationResult::Inlined;
         }
 
-        case PromiseReactionCreateIntrinsic: {
-            if (argumentCountIncludingThis < 6)
-                return CallOptimizationResult::DidNothing;
-
-            insertChecks();
-            JSGlobalObject* globalObject = m_graph.globalObjectFor(currentNodeOrigin().semantic);
-            Node* promise = get(virtualRegisterForArgumentIncludingThis(1, registerOffset));
-            Node* onFulfilled = get(virtualRegisterForArgumentIncludingThis(2, registerOffset));
-            Node* onRejected = get(virtualRegisterForArgumentIncludingThis(3, registerOffset));
-            Node* context = get(virtualRegisterForArgumentIncludingThis(4, registerOffset));
-            Node* next = get(virtualRegisterForArgumentIncludingThis(5, registerOffset));
-            Node* promiseReaction = addToGraph(NewInternalFieldObject, OpInfo(m_graph.registerStructure(globalObject->promiseReactionStructure())));
-            addToGraph(PutInternalField, OpInfo(static_cast<uint32_t>(JSPromiseReaction::Field::Promise)), promiseReaction, promise);
-            addToGraph(PutInternalField, OpInfo(static_cast<uint32_t>(JSPromiseReaction::Field::OnFulfilled)), promiseReaction, onFulfilled);
-            addToGraph(PutInternalField, OpInfo(static_cast<uint32_t>(JSPromiseReaction::Field::OnRejected)), promiseReaction, onRejected);
-            addToGraph(PutInternalField, OpInfo(static_cast<uint32_t>(JSPromiseReaction::Field::Context)), promiseReaction, context);
-            addToGraph(PutInternalField, OpInfo(static_cast<uint32_t>(JSPromiseReaction::Field::Next)), promiseReaction, next);
-            setResult(promiseReaction);
-            return CallOptimizationResult::Inlined;
-        }
-
         default:
             return CallOptimizationResult::DidNothing;
         }

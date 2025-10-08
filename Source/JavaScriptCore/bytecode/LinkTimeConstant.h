@@ -55,7 +55,19 @@ class JSGlobalObject;
     v(setPrototypeDirectOrThrow, nullptr) \
     v(copyDataProperties, nullptr) \
     v(cloneObject, nullptr) \
-    v(enqueueJob, nullptr) \
+    v(resolvePromise, nullptr) \
+    v(rejectPromise, nullptr) \
+    v(fulfillPromise, nullptr) \
+    v(resolveWithoutPromise, nullptr) \
+    v(rejectWithoutPromise, nullptr) \
+    v(fulfillWithoutPromise, nullptr) \
+    v(resolvePromiseWithFirstResolvingFunctionCallCheck, nullptr) \
+    v(rejectPromiseWithFirstResolvingFunctionCallCheck, nullptr) \
+    v(fulfillPromiseWithFirstResolvingFunctionCallCheck, nullptr) \
+    v(resolveWithoutPromiseForAsyncAwait, nullptr) \
+    v(awaitValue, nullptr) \
+    v(newHandledRejectedPromise, nullptr) \
+    v(performPromiseThen, nullptr) \
     v(makeTypeError, nullptr) \
     v(AggregateError, nullptr) \
     v(typedArrayLength, nullptr) \
@@ -82,7 +94,6 @@ class JSGlobalObject;
     v(isArray, nullptr) \
     v(isArraySlow, nullptr) \
     v(appendMemcpy, nullptr) \
-    v(hostPromiseRejectionTracker, nullptr) \
     v(Set, nullptr) \
     v(Map, nullptr) \
     v(importInRealm, nullptr) \
@@ -148,7 +159,6 @@ class JSGlobalObject;
     v(wrapForValidIteratorCreate, nullptr) \
     v(asyncFromSyncIteratorCreate, nullptr) \
     v(promiseAllContextCreate, nullptr) \
-    v(promiseReactionCreate, nullptr) \
     v(regExpStringIteratorCreate, nullptr) \
     v(iteratorHelperCreate, nullptr) \
     v(ReferenceError, nullptr) \

@@ -65,6 +65,27 @@
     });
 }
 
+- (BOOL)isEqual:(id)object
+{
+    if (self == object)
+        return YES;
+
+    if (![object isKindOfClass:self.class])
+        return NO;
+
+    return _ref->info() == ((_WKJSHandle *)object)->_ref->info();
+}
+
+- (NSUInteger)hash
+{
+    return _ref->info().identifier.object().toUInt64();
+}
+
+- (id)copyWithZone:(NSZone *)zone
+{
+    return [self retain];
+}
+
 - (API::Object&)_apiObject
 {
     return *_ref;

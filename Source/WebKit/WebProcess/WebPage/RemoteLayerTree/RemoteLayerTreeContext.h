@@ -40,6 +40,8 @@
 #include <wtf/Vector.h>
 
 namespace WebCore {
+class HTMLVideoElement;
+enum class GraphicsLayerType : uint8_t;
 enum class UseLosslessCompression : bool;
 }
 
@@ -117,7 +119,7 @@ private:
     explicit RemoteLayerTreeContext(WebPage&);
 
     // WebCore::GraphicsLayerFactory
-    Ref<WebCore::GraphicsLayer> createGraphicsLayer(WebCore::GraphicsLayer::Type, WebCore::GraphicsLayerClient&) override;
+    Ref<WebCore::GraphicsLayer> createGraphicsLayer(WebCore::GraphicsLayerType, WebCore::GraphicsLayerClient&) override;
 
     WeakRef<WebPage> m_webPage;
 

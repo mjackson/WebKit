@@ -25,9 +25,4 @@ UIProcess/API/Cocoa/_WKTextManipulationToken.h
 UIProcess/API/Cocoa/_WKWebPushAction.mm
 UIProcess/API/Cocoa/_WKWebPushDaemonConnection.h
 UIProcess/API/Cocoa/_WKWebPushMessage.h
-UIProcess/mac/WKImmediateActionController.h
-UIProcess/mac/WKPrintingView.h
-UIProcess/mac/WKTextFinderClient.mm
-UIProcess/mac/WebDataListSuggestionsDropdownMac.mm
-UIProcess/mac/WebPageProxyMac.mm
 UIProcess/mac/WebViewImpl.mm

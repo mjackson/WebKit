@@ -26,12 +26,16 @@
 #include "config.h"
 #include "GridFormattingContext.h"
 
+#include "GridItemRect.h"
 #include "GridLayout.h"
+#include "GridLayoutUtils.h"
+#include "LayoutBoxGeometry.h"
 #include "LayoutChildIterator.h"
 #include "PlacedGridItem.h"
 #include "RenderStyleInlines.h"
 #include "StylePrimitiveNumeric.h"
 #include "UnplacedGridItem.h"
+#include "UsedTrackSizes.h"
 
 #include <wtf/Vector.h>
 
@@ -41,6 +45,7 @@ namespace Layout {
 GridFormattingContext::GridFormattingContext(const ElementBox& gridBox, LayoutState& layoutState)
     : m_gridBox(gridBox)
     , m_globalLayoutState(layoutState)
+    , m_integrationUtils(layoutState)
 {
 }
 
@@ -70,38 +75,30 @@ UnplacedGridItems GridFormattingContext::constructUnplacedGridItems() const
         auto gridItemRowStart = gridItemStyle->gridItemRowStart();
         auto gridItemRowEnd = gridItemStyle->gridItemRowEnd();
 
+        UnplacedGridItem unplacedGridItem {
+            gridItem.layoutBox,
+            gridItemColumnStart,
+            gridItemColumnEnd,
+            gridItemRowStart,
+            gridItemRowEnd
+        };
+
         // Check if this item is fully explicitly positioned
         bool fullyExplicitlyPositionedItem = gridItemColumnStart.isExplicit()
             && gridItemColumnEnd.isExplicit()
             && gridItemRowStart.isExplicit()
             && gridItemRowEnd.isExplicit();
 
-        bool definiteRowPositioned = gridItemRowStart.isExplicit() || gridItemRowEnd.isExplicit();
-
+        // FIXME: support definite row/column positioning
+        // We should place items with definite row or column positions
+        // but currently we only support fully explicitly positioned items.
+        // See: https://www.w3.org/TR/css-grid-1/#auto-placement-algo
         if (fullyExplicitlyPositionedItem) {
-            unplacedGridItems.nonAutoPositionedItems.constructAndAppend(
-                gridItem.layoutBox,
-                gridItemColumnStart,
-                gridItemColumnEnd,
-                gridItemRowStart,
-                gridItemRowEnd
-            );
-        } else if (definiteRowPositioned) {
-            unplacedGridItems.definiteRowPositionedItems.constructAndAppend(
-                gridItem.layoutBox,
-                gridItemColumnStart,
-                gridItemColumnEnd,
-                gridItemRowStart,
-                gridItemRowEnd
-            );
+            unplacedGridItems.nonAutoPositionedItems.append(unplacedGridItem);
+        } else if (unplacedGridItem.hasDefiniteRowPosition()) {
+            unplacedGridItems.definiteRowPositionedItems.append(unplacedGridItem);
         } else {
-            unplacedGridItems.autoPositionedItems.constructAndAppend(
-                gridItem.layoutBox,
-                gridItemColumnStart,
-                gridItemColumnEnd,
-                gridItemRowStart,
-                gridItemRowEnd
-            );
+            unplacedGridItems.autoPositionedItems.append(unplacedGridItem);
         }
     }
     return unplacedGridItems;
@@ -110,17 +107,94 @@ UnplacedGridItems GridFormattingContext::constructUnplacedGridItems() const
 void GridFormattingContext::layout(GridLayoutConstraints layoutConstraints)
 {
     auto unplacedGridItems = constructUnplacedGridItems();
-    GridLayout { *this }.layout(layoutConstraints, unplacedGridItems);
+    auto [ usedTrackSizes, gridItemRects ] = GridLayout { *this }.layout(layoutConstraints, unplacedGridItems);
+
+    // Grid layout positions each item within its containing block which is the grid area.
+    // Here we translate it to the coordinate space of the grid.
+    auto mapGridItemLocationsToGrid = [&] {
+        for (auto& gridItemRect : gridItemRects) {
+            auto& lineNumbersForGridArea = gridItemRect.lineNumbersForGridArea;
+            auto columnLocation = GridLayoutUtils::computeTrackSizesBefore(lineNumbersForGridArea.columnStartLine, usedTrackSizes.columnSizes);
+            auto rowLocation = GridLayoutUtils::computeTrackSizesBefore(lineNumbersForGridArea.rowStartLine, usedTrackSizes.rowSizes);
+
+            gridItemRect.borderBoxRect.moveBy({ columnLocation, rowLocation });
+        }
+    };
+    mapGridItemLocationsToGrid();
+    setGridItemGeometries(gridItemRects);
 }
 
 PlacedGridItems GridFormattingContext::constructPlacedGridItems(const GridAreas& gridAreas) const
 {
     PlacedGridItems placedGridItems;
     placedGridItems.reserveInitialCapacity(gridAreas.size());
-    for (auto [ unplacedGridItem, gridAreaLines ] : gridAreas)
-        placedGridItems.constructAndAppend(unplacedGridItem, gridAreaLines);
+    for (auto [ unplacedGridItem, gridAreaLines ] : gridAreas) {
 
+        CheckedRef gridItemStyle = unplacedGridItem.m_layoutBox->style();
+
+        auto usedJustifySelf = [&] {
+            if (auto gridItemJustifySelf = gridItemStyle->justifySelf(); gridItemJustifySelf.position() != ItemPosition::Auto)
+                return gridItemJustifySelf;
+            auto& formattingContextRootStyle = root().style();
+            return formattingContextRootStyle.justifyItems();
+        };
+
+        auto usedAlignSelf = [&] {
+            if (auto gridItemAlignSelf = gridItemStyle->alignSelf(); gridItemAlignSelf.position() != ItemPosition::Auto)
+                return gridItemAlignSelf;
+            auto& formattingContextRootStyle = root().style();
+            return formattingContextRootStyle.alignItems();
+        };
+
+        PlacedGridItem::ComputedSizes inlineAxisSizes {
+            gridItemStyle->width(),
+            gridItemStyle->minWidth(),
+            gridItemStyle->maxWidth(),
+            gridItemStyle->marginLeft(),
+            gridItemStyle->marginRight()
+        };
+
+        PlacedGridItem::ComputedSizes blockAxisSizes {
+            gridItemStyle->height(),
+            gridItemStyle->minHeight(),
+            gridItemStyle->maxHeight(),
+            gridItemStyle->marginTop(),
+            gridItemStyle->marginBottom()
+        };
+
+        placedGridItems.constructAndAppend(unplacedGridItem, gridAreaLines, inlineAxisSizes, blockAxisSizes, usedJustifySelf(), usedAlignSelf());
+    }
     return placedGridItems;
+}
+
+const BoxGeometry& GridFormattingContext::geometryForGridItem(const ElementBox& layoutBox) const
+{
+    ASSERT(layoutBox.isGridItem());
+    return layoutState().geometryForBox(layoutBox);
+}
+
+BoxGeometry& GridFormattingContext::geometryForGridItem(const ElementBox& layoutBox)
+{
+    ASSERT(layoutBox.isGridItem());
+    return m_globalLayoutState->ensureGeometryForBox(layoutBox);
+}
+
+void GridFormattingContext::setGridItemGeometries(const GridItemRects& gridItemRects)
+{
+    for (auto& gridItemRect : gridItemRects) {
+        auto& boxGeometry = geometryForGridItem(gridItemRect.layoutBox);
+        auto& gridItemBorderBox = gridItemRect.borderBoxRect;
+
+        auto& margins = gridItemRect.margins;
+        boxGeometry.setHorizontalMargin({ margins.left(), margins.right() });
+        boxGeometry.setVerticalMargin({ margins.top(), margins.bottom() });
+
+        boxGeometry.setTopLeft(gridItemBorderBox.location());
+        auto contentBoxInlineSize = gridItemBorderBox.width() - boxGeometry.horizontalBorderAndPadding();
+        auto contentBoxBlockSize = gridItemBorderBox.height() - boxGeometry.verticalBorderAndPadding();
+
+        boxGeometry.setContentBoxSize({ contentBoxInlineSize, contentBoxBlockSize });
+    }
 }
 
 } // namespace Layout

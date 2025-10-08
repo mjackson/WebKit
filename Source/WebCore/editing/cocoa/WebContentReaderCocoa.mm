@@ -29,12 +29,14 @@
 #import "ArchiveResource.h"
 #import "Blob.h"
 #import "BlobURL.h"
-#import "CachedResourceLoader.h"
 #import "DOMURL.h"
 #import "DeprecatedGlobalSettings.h"
-#import "Document.h"
 #import "DocumentFragment.h"
 #import "DocumentLoader.h"
+#import "DocumentPage.h"
+#import "DocumentQuirks.h"
+#import "DocumentResourceLoader.h"
+#import "DocumentView.h"
 #import "Editor.h"
 #import "EditorClient.h"
 #import "ElementInlines.h"
@@ -51,10 +53,9 @@
 #import "HTMLPictureElement.h"
 #import "HTMLSourceElement.h"
 #import "LegacyWebArchive.h"
-#import "LocalFrame.h"
+#import "LocalFrameInlines.h"
 #import "LocalFrameLoaderClient.h"
 #import "MIMETypeRegistry.h"
-#import "Page.h"
 #import "PublicURLManager.h"
 #import "Quirks.h"
 #import "Range.h"
@@ -386,7 +387,7 @@ static void replaceRichContentWithAttachments(LocalFrame& frame, DocumentFragmen
         // See `HTMLConverter.mm` for more details.
         if (info.fileName.startsWith(WebContentReader::placeholderAttachmentFilenamePrefix)) {
             RefPtr document = frame.document();
-            if (RefPtr existingAttachment = document->attachmentForIdentifier({ info.data->span() })) {
+            if (RefPtr existingAttachment = document->attachmentForIdentifier({ byteCast<Latin1Character>(info.data->span()) })) {
                 parent->replaceChild(*existingAttachment.get(), WTFMove(originalElement));
                 continue;
             }

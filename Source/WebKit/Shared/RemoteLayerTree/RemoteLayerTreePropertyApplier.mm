@@ -34,6 +34,7 @@
 #import "WKVideoView.h"
 #import <QuartzCore/QuartzCore.h>
 #import <WebCore/ContentsFormatCocoa.h>
+#import <WebCore/GraphicsLayerEnums.h>
 #import <WebCore/MediaPlayerEnumsCocoa.h>
 #import <WebCore/PlatformCAFilters.h>
 #import <WebCore/ScrollbarThemeMac.h>
@@ -367,14 +368,14 @@ static void updateAppleVisualEffect(CALayer *layer, RemoteLayerTreeNode* layerTr
 
 #endif
 
-static void updateCustomAppearance(CALayer *layer, GraphicsLayer::CustomAppearance customAppearance)
+static void updateCustomAppearance(CALayer *layer, GraphicsLayerCustomAppearance customAppearance)
 {
 #if HAVE(RUBBER_BANDING)
     switch (customAppearance) {
-    case GraphicsLayer::CustomAppearance::None:
+    case GraphicsLayerCustomAppearance::None:
         ScrollbarThemeMac::removeOverhangAreaShadow(layer);
         break;
-    case GraphicsLayer::CustomAppearance::ScrollingShadow:
+    case GraphicsLayerCustomAppearance::ScrollingShadow:
         ScrollbarThemeMac::setUpOverhangAreaShadow(layer);
         break;
     }

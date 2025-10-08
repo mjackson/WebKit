@@ -185,7 +185,7 @@ Buffer::Buffer(id<MTLBuffer> buffer, uint64_t initialSize, WGPUBufferUsageFlags 
     , m_state(initialState)
     , m_mappingRange(initialMappingRange)
     , m_device(device)
-#if CPU(X86_64)
+#if CPU(X86_64) && (PLATFORM(MAC) || PLATFORM(MACCATALYST))
     , m_mappedAtCreation(m_state == State::MappedAtCreation)
 #endif
 {

@@ -28,7 +28,6 @@
     Conditional=WEBXR_LAYERS,
     EnabledBySetting=WebXRWebGPUBindingsEnabled,
     Exposed=Window,
-    JSGenerateToJSObject,
     JSGenerateToNativeObject,
 ] interface XRGPUSubImage : XRSubImage {
     [SameObject] readonly attribute GPUTexture colorTexture;

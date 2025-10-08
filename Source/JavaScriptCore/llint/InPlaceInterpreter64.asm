@@ -122,7 +122,7 @@ macro pushInt32(reg)
     pushQuad(reg)
 end
 
-macro popInt32(reg, scratch)
+macro popInt32(reg)
     popQuad(reg)
 end
 
@@ -138,7 +138,7 @@ macro pushInt64(reg)
     pushQuad(reg)
 end
 
-macro popInt64(reg, scratch)
+macro popInt64(reg)
     popQuad(reg)
 end
 
@@ -218,7 +218,13 @@ macro argumINTInitializeDefaultLocals()
     addp 1, MC
     sxb2p argumINTTmp, argumINTTmp
     andp ValueNull, argumINTTmp
+if ARM64 or ARM64E
+    # offlineasm doesn't have xzr so emit it
+    emit "stp x19, xzr, [x9]"
+elsif X86_64
     storep argumINTTmp, [argumINTDst]
+    storep 0, 8[argumINTDst]
+end
     addp LocalSize, argumINTDst
 end
 
@@ -288,7 +294,7 @@ end)
 ipintOp(_if, macro()
     # if
     validateOpcodeConfig(t1)
-    popInt32(t0, t1)
+    popInt32(t0)
     bineq 0, t0, .ipint_if_taken
 if ARM64 or ARM64E
     loadpairi IPInt::IfMetadata::elseDeltaPC[MC], t0, t1
@@ -490,7 +496,7 @@ end)
 ipintOp(_br_if, macro()
     # pop i32
     validateOpcodeConfig(t2)
-    popInt32(t0, t2)
+    popInt32(t0)
     bineq t0, 0, _ipint_br
     loadb IPInt::BranchMetadata::instructionLength[MC], t0
     advanceMC(constexpr (sizeof(IPInt::BranchMetadata)))
@@ -501,7 +507,7 @@ end)
 ipintOp(_br_table, macro()
     # br_table
     validateOpcodeConfig(t2)
-    popInt32(t0, t2)
+    popInt32(t0)
     loadi IPInt::SwitchMetadata::size[MC], t1
     advanceMC(constexpr (sizeof(IPInt::SwitchMetadata)))
     bib t0, t1, .ipint_br_table_clamped
@@ -714,7 +720,7 @@ ipintOp(_drop, macro()
 end)
 
 ipintOp(_select, macro()
-    popInt32(t0, t2)
+    popInt32(t0)
     bieq t0, 0, .ipint_select_val2
     addq StackValueSize, sp
     advancePC(1)
@@ -730,7 +736,7 @@ ipintOp(_select, macro()
 end)
 
 ipintOp(_select_t, macro()
-    popInt32(t0, t2)
+    popInt32(t0)
     bieq t0, 0, .ipint_select_t_val2
     addq StackValueSize, sp
     loadb IPInt::InstructionLengthMetadata::length[MC], t0
@@ -890,7 +896,7 @@ end)
 ipintOp(_table_get, macro()
     # Load pre-computed index from metadata
     loadi IPInt::Const32Metadata::value[MC], a1
-    popInt32(a2, t3)
+    popInt32(a2)
 
     operationCallMayThrow(macro() cCall3(_ipint_extern_table_get) end)
 
@@ -907,7 +913,7 @@ ipintOp(_table_set, macro()
     # Load pre-computed index from metadata
     loadi IPInt::Const32Metadata::value[MC], a1
     popQuad(a3)
-    popInt32(a2, t0)
+    popInt32(a2)
     operationCallMayThrow(macro() cCall4(_ipint_extern_table_set) end)
 
     loadb IPInt::Const32Metadata::instructionLength[MC], t0
@@ -920,7 +926,7 @@ end)
 reservedOpcode(0x27)
 
 macro popMemoryIndex(reg, tmp)
-    popInt32(reg, tmp)
+    popInt32(reg)
     ori 0, reg
 end
 
@@ -1178,7 +1184,7 @@ end)
 ipintOp(_i32_store_mem, macro()
     # i32.store
     # pop data
-    popInt32(t1, t2)
+    popInt32(t1)
     # pop index
     popMemoryIndex(t0, t2)
     loadi IPInt::Const32Metadata::value[MC], t2
@@ -1196,7 +1202,7 @@ end)
 ipintOp(_i64_store_mem, macro()
     # i64.store
     # pop data
-    popInt64(t1, t2)
+    popInt64(t1)
     # pop index
     popMemoryIndex(t0, t2)
     loadi IPInt::Const32Metadata::value[MC], t2
@@ -1250,7 +1256,7 @@ end)
 ipintOp(_i32_store8_mem, macro()
     # i32.store8
     # pop data
-    popInt32(t1, t2)
+    popInt32(t1)
     # pop index
     popMemoryIndex(t0, t2)
     loadi IPInt::Const32Metadata::value[MC], t2
@@ -1268,7 +1274,7 @@ end)
 ipintOp(_i32_store16_mem, macro()
     # i32.store16
     # pop data
-    popInt32(t1, t2)
+    popInt32(t1)
     # pop index
     popMemoryIndex(t0, t2)
     loadi IPInt::Const32Metadata::value[MC], t2
@@ -1286,7 +1292,7 @@ end)
 ipintOp(_i64_store8_mem, macro()
     # i64.store8
     # pop data
-    popInt64(t1, t2)
+    popInt64(t1)
     # pop index
     popMemoryIndex(t0, t2)
     loadi IPInt::Const32Metadata::value[MC], t2
@@ -1304,7 +1310,7 @@ end)
 ipintOp(_i64_store16_mem, macro()
     # i64.store16
     # pop data
-    popInt64(t1, t2)
+    popInt64(t1)
     # pop index
     popMemoryIndex(t0, t2)
     loadi IPInt::Const32Metadata::value[MC], t2
@@ -1322,7 +1328,7 @@ end)
 ipintOp(_i64_store32_mem, macro()
     # i64.store32
     # pop data
-    popInt64(t1, t2)
+    popInt64(t1)
     # pop index
     popMemoryIndex(t0, t2)
     loadi IPInt::Const32Metadata::value[MC], t2
@@ -1347,7 +1353,7 @@ ipintOp(_memory_size, macro()
 end)
 
 ipintOp(_memory_grow, macro()
-    popInt32(a1, t2)
+    popInt32(a1)
     operationCall(macro() cCall2(_ipint_extern_memory_grow) end)
     pushInt32(r0)
     ipintReloadMemory()
@@ -1421,7 +1427,7 @@ end)
 
 ipintOp(_i32_eqz, macro()
     # i32.eqz
-    popInt32(t0, t2)
+    popInt32(t0)
     cieq t0, 0, t0
     pushInt32(t0)
     advancePC(1)
@@ -1430,8 +1436,8 @@ end)
 
 ipintOp(_i32_eq, macro()
     # i32.eq
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     cieq t0, t1, t0
     pushInt32(t0)
     advancePC(1)
@@ -1440,8 +1446,8 @@ end)
 
 ipintOp(_i32_ne, macro()
     # i32.ne
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     cineq t0, t1, t0
     pushInt32(t0)
     advancePC(1)
@@ -1450,8 +1456,8 @@ end)
 
 ipintOp(_i32_lt_s, macro()
     # i32.lt_s
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     cilt t0, t1, t0
     pushInt32(t0)
     advancePC(1)
@@ -1460,8 +1466,8 @@ end)
 
 ipintOp(_i32_lt_u, macro()
     # i32.lt_u
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     cib t0, t1, t0
     pushInt32(t0)
     advancePC(1)
@@ -1470,8 +1476,8 @@ end)
 
 ipintOp(_i32_gt_s, macro()
     # i32.gt_s
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     cigt t0, t1, t0
     pushInt32(t0)
     advancePC(1)
@@ -1480,8 +1486,8 @@ end)
 
 ipintOp(_i32_gt_u, macro()
     # i32.gt_u
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     cia t0, t1, t0
     pushInt32(t0)
     advancePC(1)
@@ -1490,8 +1496,8 @@ end)
 
 ipintOp(_i32_le_s, macro()
     # i32.le_s
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     cilteq t0, t1, t0
     pushInt32(t0)
     advancePC(1)
@@ -1500,8 +1506,8 @@ end)
 
 ipintOp(_i32_le_u, macro()
     # i32.le_u
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     cibeq t0, t1, t0
     pushInt32(t0)
     advancePC(1)
@@ -1510,8 +1516,8 @@ end)
 
 ipintOp(_i32_ge_s, macro()
     # i32.ge_s
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     cigteq t0, t1, t0
     pushInt32(t0)
     advancePC(1)
@@ -1520,8 +1526,8 @@ end)
 
 ipintOp(_i32_ge_u, macro()
     # i32.ge_u
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     ciaeq t0, t1, t0
     pushInt32(t0)
     advancePC(1)
@@ -1534,7 +1540,7 @@ end)
 
 ipintOp(_i64_eqz, macro()
     # i64.eqz
-    popInt64(t0, t2)
+    popInt64(t0)
     cqeq t0, 0, t0
     pushInt32(t0)
     advancePC(1)
@@ -1543,8 +1549,8 @@ end)
 
 ipintOp(_i64_eq, macro()
     # i64.eq
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     cqeq t0, t1, t0
     pushInt32(t0)
     advancePC(1)
@@ -1553,8 +1559,8 @@ end)
 
 ipintOp(_i64_ne, macro()
     # i64.ne
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     cqneq t0, t1, t0
     pushInt32(t0)
     advancePC(1)
@@ -1563,8 +1569,8 @@ end)
 
 ipintOp(_i64_lt_s, macro()
     # i64.lt_s
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     cqlt t0, t1, t0
     pushInt32(t0)
     advancePC(1)
@@ -1573,8 +1579,8 @@ end)
 
 ipintOp(_i64_lt_u, macro()
     # i64.lt_u
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     cqb t0, t1, t0
     pushInt32(t0)
     advancePC(1)
@@ -1583,8 +1589,8 @@ end)
 
 ipintOp(_i64_gt_s, macro()
     # i64.gt_s
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     cqgt t0, t1, t0
     pushInt32(t0)
     advancePC(1)
@@ -1593,8 +1599,8 @@ end)
 
 ipintOp(_i64_gt_u, macro()
     # i64.gt_u
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     cqa t0, t1, t0
     pushInt32(t0)
     advancePC(1)
@@ -1603,8 +1609,8 @@ end)
 
 ipintOp(_i64_le_s, macro()
     # i64.le_s
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     cqlteq t0, t1, t0
     pushInt32(t0)
     advancePC(1)
@@ -1613,8 +1619,8 @@ end)
 
 ipintOp(_i64_le_u, macro()
     # i64.le_u
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     cqbeq t0, t1, t0
     pushInt32(t0)
     advancePC(1)
@@ -1623,8 +1629,8 @@ end)
 
 ipintOp(_i64_ge_s, macro()
     # i64.ge_s
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     cqgteq t0, t1, t0
     pushInt32(t0)
     advancePC(1)
@@ -1633,8 +1639,8 @@ end)
 
 ipintOp(_i64_ge_u, macro()
     # i64.ge_u
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     cqaeq t0, t1, t0
     pushInt32(t0)
     advancePC(1)
@@ -1775,7 +1781,7 @@ end)
 
 ipintOp(_i32_clz, macro()
     # i32.clz
-    popInt32(t0, t2)
+    popInt32(t0)
     lzcnti t0, t1
     pushInt32(t1)
 
@@ -1785,7 +1791,7 @@ end)
 
 ipintOp(_i32_ctz, macro()
     # i32.ctz
-    popInt32(t0, t2)
+    popInt32(t0)
     tzcnti t0, t1
     pushInt32(t1)
 
@@ -1795,7 +1801,7 @@ end)
 
 ipintOp(_i32_popcnt, macro()
     # i32.popcnt
-    popInt32(t1, t2)
+    popInt32(t1)
     operationCall(macro() cCall2(_slow_path_wasm_popcount) end)
     pushInt32(r1)
 
@@ -1805,8 +1811,8 @@ end)
 
 ipintOp(_i32_add, macro()
     # i32.add
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     addi t1, t0
     pushInt32(t0)
 
@@ -1816,8 +1822,8 @@ end)
 
 ipintOp(_i32_sub, macro()
     # i32.sub
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     subi t1, t0
     pushInt32(t0)
 
@@ -1827,8 +1833,8 @@ end)
 
 ipintOp(_i32_mul, macro()
     # i32.mul
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     muli t1, t0
     pushInt32(t0)
 
@@ -1838,8 +1844,8 @@ end)
 
 ipintOp(_i32_div_s, macro()
     # i32.div_s
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     btiz t1, .ipint_i32_div_s_throwDivisionByZero
 
     bineq t1, -1, .ipint_i32_div_s_safe
@@ -1869,8 +1875,8 @@ end)
 
 ipintOp(_i32_div_u, macro()
     # i32.div_u
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     btiz t1, .ipint_i32_div_u_throwDivisionByZero
 
     if X86_64
@@ -1891,8 +1897,8 @@ end)
 
 ipintOp(_i32_rem_s, macro()
     # i32.rem_s
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
 
     btiz t1, .ipint_i32_rem_s_throwDivisionByZero
 
@@ -1929,8 +1935,8 @@ end)
 
 ipintOp(_i32_rem_u, macro()
     # i32.rem_u
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     btiz t1, .ipint_i32_rem_u_throwDivisionByZero
 
     if X86_64
@@ -1955,8 +1961,8 @@ end)
 
 ipintOp(_i32_and, macro()
     # i32.and
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     andi t1, t0
     pushInt32(t0)
 
@@ -1966,8 +1972,8 @@ end)
 
 ipintOp(_i32_or, macro()
     # i32.or
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     ori t1, t0
     pushInt32(t0)
 
@@ -1977,8 +1983,8 @@ end)
 
 ipintOp(_i32_xor, macro()
     # i32.xor
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     xori t1, t0
     pushInt32(t0)
 
@@ -1988,8 +1994,8 @@ end)
 
 ipintOp(_i32_shl, macro()
     # i32.shl
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     lshifti t1, t0
     pushInt32(t0)
 
@@ -1999,8 +2005,8 @@ end)
 
 ipintOp(_i32_shr_s, macro()
     # i32.shr_s
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     rshifti t1, t0
     pushInt32(t0)
 
@@ -2010,8 +2016,8 @@ end)
 
 ipintOp(_i32_shr_u, macro()
     # i32.shr_u
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     urshifti t1, t0
     pushInt32(t0)
 
@@ -2021,8 +2027,8 @@ end)
 
 ipintOp(_i32_rotl, macro()
     # i32.rotl
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     lrotatei t1, t0
     pushInt32(t0)
 
@@ -2032,8 +2038,8 @@ end)
 
 ipintOp(_i32_rotr, macro()
     # i32.rotr
-    popInt32(t1, t2)
-    popInt32(t0, t2)
+    popInt32(t1)
+    popInt32(t0)
     rrotatei t1, t0
     pushInt32(t0)
 
@@ -2047,7 +2053,7 @@ end)
 
 ipintOp(_i64_clz, macro()
     # i64.clz
-    popInt64(t0, t2)
+    popInt64(t0)
     lzcntq t0, t1
     pushInt64(t1)
 
@@ -2057,7 +2063,7 @@ end)
 
 ipintOp(_i64_ctz, macro()
     # i64.ctz
-    popInt64(t0, t2)
+    popInt64(t0)
     tzcntq t0, t1
     pushInt64(t1)
 
@@ -2067,7 +2073,7 @@ end)
 
 ipintOp(_i64_popcnt, macro()
     # i64.popcnt
-    popInt64(t1, t2)
+    popInt64(t1)
     operationCall(macro() cCall2(_slow_path_wasm_popcountll) end)
     pushInt64(r1)
 
@@ -2077,8 +2083,8 @@ end)
 
 ipintOp(_i64_add, macro()
     # i64.add
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     addq t1, t0
     pushInt64(t0)
 
@@ -2088,8 +2094,8 @@ end)
 
 ipintOp(_i64_sub, macro()
     # i64.sub
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     subq t1, t0
     pushInt64(t0)
 
@@ -2099,8 +2105,8 @@ end)
 
 ipintOp(_i64_mul, macro()
     # i64.mul
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     mulq t1, t0
     pushInt64(t0)
 
@@ -2110,8 +2116,8 @@ end)
 
 ipintOp(_i64_div_s, macro()
     # i64.div_s
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     btqz t1, .ipint_i64_div_s_throwDivisionByZero
 
     bqneq t1, -1, .ipint_i64_div_s_safe
@@ -2141,8 +2147,8 @@ end)
 
 ipintOp(_i64_div_u, macro()
     # i64.div_u
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     btqz t1, .ipint_i64_div_u_throwDivisionByZero
 
     if X86_64
@@ -2163,8 +2169,8 @@ end)
 
 ipintOp(_i64_rem_s, macro()
     # i64.rem_s
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
 
     btqz t1, .ipint_i64_rem_s_throwDivisionByZero
 
@@ -2201,8 +2207,8 @@ end)
 
 ipintOp(_i64_rem_u, macro()
     # i64.rem_u
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     btqz t1, .ipint_i64_rem_u_throwDivisionByZero
 
     if X86_64
@@ -2227,8 +2233,8 @@ end)
 
 ipintOp(_i64_and, macro()
     # i64.and
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     andq t1, t0
     pushInt64(t0)
 
@@ -2238,8 +2244,8 @@ end)
 
 ipintOp(_i64_or, macro()
     # i64.or
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     orq t1, t0
     pushInt64(t0)
 
@@ -2249,8 +2255,8 @@ end)
 
 ipintOp(_i64_xor, macro()
     # i64.xor
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     xorq t1, t0
     pushInt64(t0)
 
@@ -2260,8 +2266,8 @@ end)
 
 ipintOp(_i64_shl, macro()
     # i64.shl
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     lshiftq t1, t0
     pushInt64(t0)
 
@@ -2271,8 +2277,8 @@ end)
 
 ipintOp(_i64_shr_s, macro()
     # i64.shr_s
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     rshiftq t1, t0
     pushInt64(t0)
 
@@ -2282,8 +2288,8 @@ end)
 
 ipintOp(_i64_shr_u, macro()
     # i64.shr_u
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     urshiftq t1, t0
     pushInt64(t0)
 
@@ -2293,8 +2299,8 @@ end)
 
 ipintOp(_i64_rotl, macro()
     # i64.rotl
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     lrotateq t1, t0
     pushInt64(t0)
 
@@ -2304,8 +2310,8 @@ end)
 
 ipintOp(_i64_rotr, macro()
     # i64.rotr
-    popInt64(t1, t2)
-    popInt64(t0, t2)
+    popInt64(t1)
+    popInt64(t0)
     rrotateq t1, t0
     pushInt64(t0)
 
@@ -2811,7 +2817,7 @@ ipintOp(_i32_trunc_f64_u, macro()
 end)
 
 ipintOp(_i64_extend_i32_s, macro()
-    popInt32(t0, t1)
+    popInt32(t0)
     sxi2q t0, t0
     pushInt64(t0)
     advancePC(1)
@@ -2819,7 +2825,7 @@ ipintOp(_i64_extend_i32_s, macro()
 end)
 
 ipintOp(_i64_extend_i32_u, macro()
-    popInt32(t0, t1)
+    popInt32(t0)
     move 0, t1
     noti t1
     andq t1, t0
@@ -2905,7 +2911,7 @@ ipintOp(_i64_trunc_f64_u, macro()
 end)
 
 ipintOp(_f32_convert_i32_s, macro()
-    popInt32(t0, t1)
+    popInt32(t0)
     andq 0xffffffff, t0
     ci2fs t0, ft0
     pushFloat32(ft0)
@@ -2914,7 +2920,7 @@ ipintOp(_f32_convert_i32_s, macro()
 end)
 
 ipintOp(_f32_convert_i32_u, macro()
-    popInt32(t0, t1)
+    popInt32(t0)
     andq 0xffffffff, t0
     ci2f t0, ft0
     pushFloat32(ft0)
@@ -2923,7 +2929,7 @@ ipintOp(_f32_convert_i32_u, macro()
 end)
 
 ipintOp(_f32_convert_i64_s, macro()
-    popInt64(t0, t1)
+    popInt64(t0)
     cq2fs t0, ft0
     pushFloat32(ft0)
     advancePC(1)
@@ -2931,7 +2937,7 @@ ipintOp(_f32_convert_i64_s, macro()
 end)
 
 ipintOp(_f32_convert_i64_u, macro()
-    popInt64(t0, t1)
+    popInt64(t0)
     if X86_64
         cq2f t0, t1, ft0
     else
@@ -2951,7 +2957,7 @@ ipintOp(_f32_demote_f64, macro()
 end)
 
 ipintOp(_f64_convert_i32_s, macro()
-    popInt32(t0, t1)
+    popInt32(t0)
     andq 0xffffffff, t0
     ci2ds t0, ft0
     pushFloat64(ft0)
@@ -2960,7 +2966,7 @@ ipintOp(_f64_convert_i32_s, macro()
 end)
 
 ipintOp(_f64_convert_i32_u, macro()
-    popInt32(t0, t1)
+    popInt32(t0)
     andq 0xffffffff, t0
     ci2d t0, ft0
     pushFloat64(ft0)
@@ -2969,7 +2975,7 @@ ipintOp(_f64_convert_i32_u, macro()
 end)
 
 ipintOp(_f64_convert_i64_s, macro()
-    popInt64(t0, t1)
+    popInt64(t0)
     cq2ds t0, ft0
     pushFloat64(ft0)
     advancePC(1)
@@ -2977,7 +2983,7 @@ ipintOp(_f64_convert_i64_s, macro()
 end)
 
 ipintOp(_f64_convert_i64_u, macro()
-    popInt64(t0, t1)
+    popInt64(t0)
     if X86_64
         cq2d t0, t1, ft0
     else
@@ -3026,7 +3032,7 @@ end)
 
 ipintOp(_i32_extend8_s, macro()
     # i32.extend8_s
-    popInt32(t0, t1)
+    popInt32(t0)
     sxb2i t0, t0
     pushInt32(t0)
     advancePC(1)
@@ -3035,7 +3041,7 @@ end)
 
 ipintOp(_i32_extend16_s, macro()
     # i32.extend8_s
-    popInt32(t0, t1)
+    popInt32(t0)
     sxh2i t0, t0
     pushInt32(t0)
     advancePC(1)
@@ -3044,7 +3050,7 @@ end)
 
 ipintOp(_i64_extend8_s, macro()
     # i64.extend8_s
-    popInt64(t0, t1)
+    popInt64(t0)
     sxb2q t0, t0
     pushInt64(t0)
     advancePC(1)
@@ -3053,7 +3059,7 @@ end)
 
 ipintOp(_i64_extend16_s, macro()
     # i64.extend8_s
-    popInt64(t0, t1)
+    popInt64(t0)
     sxh2q t0, t0
     pushInt64(t0)
     advancePC(1)
@@ -3062,7 +3068,7 @@ end)
 
 ipintOp(_i64_extend32_s, macro()
     # i64.extend8_s
-    popInt64(t0, t1)
+    popInt64(t0)
     sxi2q t0, t0
     pushInt64(t0)
     advancePC(1)
@@ -3306,8 +3312,9 @@ end)
 ipintOp(_struct_get, macro()
     popQuad(a1)  # object
     loadi IPInt::StructGetSetMetadata::fieldIndex[MC], a2  # field index
-    operationCallMayThrow(macro() cCall3(_ipint_extern_struct_get) end)
-    pushQuad(r0)
+    subp StackValueSize, sp  # allocate space for result
+    move sp, a3  # result location
+    operationCallMayThrow(macro() cCall4(_ipint_extern_struct_get) end)
 
     loadb IPInt::StructGetSetMetadata::length[MC], t0
     advancePCByReg(t0)
@@ -3318,8 +3325,9 @@ end)
 ipintOp(_struct_get_s, macro()
     popQuad(a1)  # object
     loadi IPInt::StructGetSetMetadata::fieldIndex[MC], a2  # field index
-    operationCallMayThrow(macro() cCall3(_ipint_extern_struct_get_s) end)
-    pushQuad(r0)
+    subp StackValueSize, sp  # allocate space for result
+    move sp, a3  # result location
+    operationCallMayThrow(macro() cCall4(_ipint_extern_struct_get_s) end)
 
     loadb IPInt::StructGetSetMetadata::length[MC], t0
     advancePCByReg(t0)
@@ -3330,8 +3338,9 @@ end)
 ipintOp(_struct_get_u, macro()
     popQuad(a1)  # object
     loadi IPInt::StructGetSetMetadata::fieldIndex[MC], a2  # field index
-    operationCallMayThrow(macro() cCall3(_ipint_extern_struct_get) end)
-    pushQuad(r0)
+    subp StackValueSize, sp  # allocate space for result
+    move sp, a3  # result location
+    operationCallMayThrow(macro() cCall4(_ipint_extern_struct_get) end)
 
     loadb IPInt::StructGetSetMetadata::length[MC], t0
     advancePCByReg(t0)
@@ -3354,9 +3363,10 @@ end)
 
 ipintOp(_array_new, macro()
     loadi IPInt::ArrayNewMetadata::type[MC], a1  # type
-    popInt32(a3, t0)  # length
-    popQuad(a2)  # default value
+    popInt32(a2)  # length
+    move sp, a3  # pointer to default value
     operationCallMayThrow(macro() cCall4(_ipint_extern_array_new) end)
+    addp StackValueSize, sp # pop default value
 
     pushQuad(r0)
 
@@ -3368,7 +3378,7 @@ end)
 
 ipintOp(_array_new_default, macro()
     loadi IPInt::ArrayNewMetadata::type[MC], a1  # type
-    popInt32(a2, t0)  # length
+    popInt32(a2)  # length
     operationCallMayThrow(macro() cCall3(_ipint_extern_array_new_default) end)
 
     pushQuad(r0)
@@ -3400,8 +3410,8 @@ end)
 
 ipintOp(_array_new_data, macro()
     move MC, a1  # metadata
-    popInt32(a3, t0)  # size
-    popInt32(a2, t0)  # offset
+    popInt32(a3)  # size
+    popInt32(a2)  # offset
     operationCallMayThrow(macro() cCall4(_ipint_extern_array_new_data) end)
 
     pushQuad(r0)
@@ -3414,8 +3424,8 @@ end)
 
 ipintOp(_array_new_elem, macro()
     move MC, a1  # metadata
-    popInt32(a3, t0)  # size
-    popInt32(a2, t0)  # offset
+    popInt32(a3)  # size
+    popInt32(a2)  # offset
     operationCallMayThrow(macro() cCall4(_ipint_extern_array_new_elem) end)
 
     pushQuad(r0)
@@ -3428,11 +3438,10 @@ end)
 
 ipintOp(_array_get, macro()
     loadi IPInt::ArrayGetSetMetadata::type[MC], a1  # type
-    popInt32(a3, a0)  # index
-    popQuad(a2)  # array
-    operationCallMayThrow(macro() cCall4(_ipint_extern_array_get) end)
+    move sp, a2 # all args on stack, result will be returned on stack
+    operationCallMayThrow(macro() cCall3(_ipint_extern_array_get) end)
 
-    pushQuad(r0)
+    addp StackValueSize, sp # 2 args - 1 result
 
     loadb IPInt::ArrayGetSetMetadata::length[MC], t0
     advancePCByReg(t0)
@@ -3442,11 +3451,10 @@ end)
 
 ipintOp(_array_get_s, macro()
     loadi IPInt::ArrayGetSetMetadata::type[MC], a1  # type
-    popInt32(a3, a0)  # index
-    popQuad(a2)  # array
-    operationCallMayThrow(macro() cCall4(_ipint_extern_array_get_s) end)
+    move sp, a2 # all args on stack, result will be returned on stack
+    operationCallMayThrow(macro() cCall3(_ipint_extern_array_get_s) end)
 
-    pushQuad(r0)
+    addp StackValueSize, sp # 2 args - 1 result
 
     loadb IPInt::ArrayGetSetMetadata::length[MC], t0
     advancePCByReg(t0)
@@ -3456,11 +3464,10 @@ end)
 
 ipintOp(_array_get_u, macro()
     loadi IPInt::ArrayGetSetMetadata::type[MC], a1  # type
-    popInt32(a3, a0)  # index
-    popQuad(a2)  # array
-    operationCallMayThrow(macro() cCall4(_ipint_extern_array_get) end)
+    move sp, a2 # all args on stack, result will be returned on stack
+    operationCallMayThrow(macro() cCall3(_ipint_extern_array_get) end)
 
-    pushQuad(r0)
+    addp StackValueSize, sp # 2 args - 1 result
 
     loadb IPInt::ArrayGetSetMetadata::length[MC], t0
     advancePCByReg(t0)
@@ -3650,7 +3657,7 @@ ipintOp(_extern_convert_any, macro()
 end)
 
 ipintOp(_ref_i31, macro()
-    popInt32(t0, t1)
+    popInt32(t0)
     lshifti 0x1, t0
     rshifti 0x1, t0
     orq TagNumber, t0
@@ -4375,7 +4382,7 @@ end)
 
 ipintOp(_simd_i8x16_splat, macro()
     # i8x16.splat - splat i32 value to all 16 8-bit lanes
-    popInt32(t0, t1)
+    popInt32(t0)
 
     if ARM64 or ARM64E
         emit "dup v16.16b, w0"
@@ -4393,7 +4400,7 @@ end)
 
 ipintOp(_simd_i16x8_splat, macro()
     # i16x8.splat - splat i32 value to all 8 16-bit lanes
-    popInt32(t0, t1)
+    popInt32(t0)
 
     if ARM64 or ARM64E
         emit "dup v16.8h, w0"
@@ -4411,7 +4418,7 @@ end)
 
 ipintOp(_simd_i32x4_splat, macro()
     # i32x4.splat - splat i32 value to all 4 32-bit lanes
-    popInt32(t0, t1)
+    popInt32(t0)
 
     if ARM64 or ARM64E
         emit "dup v16.4s, w0"
@@ -4429,7 +4436,7 @@ end)
 
 ipintOp(_simd_i64x2_splat, macro()
     # i64x2.splat - splat i64 value to all 2 64-bit lanes
-    popInt64(t0, t1)
+    popInt64(t0)
 
     if ARM64 or ARM64E
         emit "dup v16.2d, x0"
@@ -4508,7 +4515,7 @@ ipintOp(_simd_i8x16_replace_lane, macro()
     # i8x16.replace_lane (lane)
     loadb ImmLaneIdxOffset[PC], t0
     andi ImmLaneIdx16Mask, t0
-    popInt32(t1, t2)  # value to replace with
+    popInt32(t1)  # value to replace with
     storeb t1, [sp, t0]  # replace the byte at lane index
     advancePC(3)
     nextIPIntInstruction()
@@ -4540,7 +4547,7 @@ ipintOp(_simd_i16x8_replace_lane, macro()
     # i16x8.replace_lane (lane)
     loadb ImmLaneIdxOffset[PC], t0
     andi ImmLaneIdx8Mask, t0
-    popInt32(t1, t2)  # value to replace with
+    popInt32(t1)  # value to replace with
     storeh t1, [sp, t0, 2]  # replace the 16-bit value at lane index
     advancePC(3)
     nextIPIntInstruction()
@@ -4561,7 +4568,7 @@ ipintOp(_simd_i32x4_replace_lane, macro()
     # i32x4.replace_lane (lane)
     loadb ImmLaneIdxOffset[PC], t0
     andi ImmLaneIdx4Mask, t0
-    popInt32(t1, t2)  # value to replace with
+    popInt32(t1)  # value to replace with
     storei t1, [sp, t0, 4]  # replace the 32-bit value at lane index
     advancePC(3)
     nextIPIntInstruction()
@@ -4582,7 +4589,7 @@ ipintOp(_simd_i64x2_replace_lane, macro()
     # i64x2.replace_lane (lane)
     loadb ImmLaneIdxOffset[PC], t0
     andi ImmLaneIdx2Mask, t0
-    popInt64(t1, t2)  # value to replace with
+    popInt64(t1)  # value to replace with
     storeq t1, [sp, t0, 8]  # replace the 64-bit value at lane index
     advancePC(3)
     nextIPIntInstruction()
@@ -6020,7 +6027,7 @@ end)
 
 ipintOp(_simd_i8x16_shl, macro()
     # i8x16.shl - left shift 16 8-bit integers
-    popInt32(t0, t1)  # shift count
+    popInt32(t0)  # shift count
     popVec(v0)        # vector
     if ARM64 or ARM64E
         # Mask shift count to 0-7 range for 8-bit elements
@@ -6066,7 +6073,7 @@ end)
 
 ipintOp(_simd_i8x16_shr_s, macro()
     # i8x16.shr_s - arithmetic right shift 16 8-bit signed integers
-    popInt32(t0, t1)  # shift count
+    popInt32(t0)  # shift count
     popVec(v0)        # vector
     if ARM64 or ARM64E
         # Mask shift count to 0-7 range for 8-bit elements
@@ -6108,7 +6115,7 @@ end)
 
 ipintOp(_simd_i8x16_shr_u, macro()
     # i8x16.shr_u - logical right shift 16 8-bit unsigned integers
-    popInt32(t0, t1)  # shift count
+    popInt32(t0)  # shift count
     popVec(v0)        # vector
     if ARM64 or ARM64E
         # Mask shift count to 0-7 range for 8-bit elements
@@ -6664,7 +6671,7 @@ end)
 
 ipintOp(_simd_i16x8_shl, macro()
     # i16x8.shl - left shift 8 16-bit integers
-    popInt32(t0, t1)  # shift count
+    popInt32(t0)  # shift count
     popVec(v0)        # vector
     if ARM64 or ARM64E
         # Mask shift count to 0-15 range for 16-bit elements
@@ -6689,7 +6696,7 @@ end)
 
 ipintOp(_simd_i16x8_shr_s, macro()
     # i16x8.shr_s - arithmetic right shift 8 16-bit signed integers
-    popInt32(t0, t1)  # shift count
+    popInt32(t0)  # shift count
     popVec(v0)        # vector
     if ARM64 or ARM64E
         # Mask shift count to 0-15 range for 16-bit elements
@@ -6716,7 +6723,7 @@ end)
 
 ipintOp(_simd_i16x8_shr_u, macro()
     # i16x8.shr_u - logical right shift 8 16-bit unsigned integers
-    popInt32(t0, t1)  # shift count
+    popInt32(t0)  # shift count
     popVec(v0)        # vector
     if ARM64 or ARM64E
         # Mask shift count to 0-15 range for 16-bit elements
@@ -7190,7 +7197,7 @@ end)
 
 ipintOp(_simd_i32x4_shl, macro()
     # i32x4.shl - left shift 4 32-bit integers
-    popInt32(t0, t1)  # shift count
+    popInt32(t0)  # shift count
     popVec(v0)        # vector
     if ARM64 or ARM64E
         # Mask shift count to 0-31 range for 32-bit elements
@@ -7213,7 +7220,7 @@ end)
 
 ipintOp(_simd_i32x4_shr_s, macro()
     # i32x4.shr_s - arithmetic right shift 4 32-bit signed integers
-    popInt32(t0, t1)  # shift count
+    popInt32(t0)  # shift count
     popVec(v0)        # vector
     if ARM64 or ARM64E
         # Mask shift count to 0-31 range for 32-bit elements
@@ -7238,7 +7245,7 @@ end)
 
 ipintOp(_simd_i32x4_shr_u, macro()
     # i32x4.shr_u - logical right shift 4 32-bit unsigned integers
-    popInt32(t0, t1)  # shift count
+    popInt32(t0)  # shift count
     popVec(v0)        # vector
     if ARM64 or ARM64E
         # Mask shift count to 0-31 range for 32-bit elements
@@ -7645,7 +7652,7 @@ end)
 
 ipintOp(_simd_i64x2_shl, macro()
     # i64x2.shl - left shift 2 64-bit integers
-    popInt32(t0, t1)  # shift count
+    popInt32(t0)  # shift count
     popVec(v0)        # vector
     if ARM64 or ARM64E
         # Mask shift count to 0-63 range for 64-bit elements
@@ -7668,7 +7675,7 @@ end)
 
 ipintOp(_simd_i64x2_shr_s, macro()
     # i64x2.shr_s - arithmetic right shift 2 64-bit signed integers
-    popInt32(t0, t1)  # shift count
+    popInt32(t0)  # shift count
     # Mask shift count to 0-63 range for 64-bit elements
     andi 63, t0
 
@@ -7686,7 +7693,7 @@ end)
 
 ipintOp(_simd_i64x2_shr_u, macro()
     # i64x2.shr_u - logical right shift 2 64-bit unsigned integers
-    popInt32(t0, t1)  # shift count
+    popInt32(t0)  # shift count
     popVec(v0)        # vector
     if ARM64 or ARM64E
         # Mask shift count to 0-63 range for 64-bit elements
@@ -8603,9 +8610,9 @@ end
 
 ipintOp(_memory_atomic_notify, macro()
     # pop count
-    popInt32(a3, t0)
+    popInt32(a3)
     # pop pointer
-    popInt32(a1, t0)
+    popInt32(a1)
     # load offset
     loadi IPInt::Const32Metadata::value[MC], a2
 
@@ -8624,11 +8631,11 @@ end)
 
 ipintOp(_memory_atomic_wait32, macro()
     # pop timeout
-    popInt32(a3, t0)
+    popInt32(a3)
     # pop value
-    popInt32(a2, t0)
+    popInt32(a2)
     # pop pointer
-    popInt32(a1, t0)
+    popInt32(a1)
     # load offset
     loadi IPInt::Const32Metadata::value[MC], t0
     # merge them since the slow path takes the combined pointer + offset.
@@ -8649,11 +8656,11 @@ end)
 
 ipintOp(_memory_atomic_wait64, macro()
     # pop timeout
-    popInt32(a3, t0)
+    popInt32(a3)
     # pop value
-    popInt64(a2, t0)
+    popInt64(a2)
     # pop pointer
-    popInt32(a1, t0)
+    popInt32(a1)
     # load offset
     loadi IPInt::Const32Metadata::value[MC], t0
     # merge them since the slow path takes the combined pointer + offset.
@@ -8696,7 +8703,7 @@ reservedOpcode(atomic_0xf)
 
 macro atomicLoadOp(boundsAndAlignmentCheck, loadAndPush)
     # pop index
-    popInt32(t0, t2)
+    popInt32(t0)
     ori 0, t0
     # load offset
     loadi IPInt::Const32Metadata::value[MC], t2
@@ -8858,9 +8865,9 @@ end
 
 macro atomicStoreOp(boundsAndAlignmentCheck, popAndStore)
     # pop value
-    popInt64(t1, t0)
+    popInt64(t1)
     # pop index
-    popInt32(t2, t0)
+    popInt32(t2)
     ori 0, t2
     # load offset
     loadi IPInt::Const32Metadata::value[MC], t0
@@ -8989,9 +8996,9 @@ end)
 
 macro atomicRMWOp(boundsAndAlignmentCheck, rmw)
     # pop value
-    popInt64(t1, t0)
+    popInt64(t1)
     # pop index
-    popInt32(t2, t0)
+    popInt32(t2)
     ori 0, t2
     # load offset
     loadi IPInt::Const32Metadata::value[MC], t0
@@ -9823,11 +9830,11 @@ end)
 
 macro atomicCmpxchgOp(boundsAndAlignmentCheck, cmpxchg)
     # pop value
-    popInt64(t1, t2)
+    popInt64(t1)
     # pop expected
-    popInt64(t0, t2)
+    popInt64(t0)
     # pop index
-    popInt32(t3, t2)
+    popInt32(t3)
     ori 0, t3
     # load offset
     loadi IPInt::Const32Metadata::value[MC], t2
@@ -10680,11 +10687,12 @@ mintAlign(_result_stack)
 
 # CallResultBytecode::ResultStackVector (0x11)
 mintAlign(_result_stack_vector)
-    # safe to use wfa0 since frN bytecodes always come before vector stack result
-    loadv [mintRetSrc], wfa0
-    addp 2 * SlotSize, mintRetSrc
     subp StackValueSize, mintRetDst
-    storev wfa0, [mintRetDst]
+    loadq [mintRetSrc], sc0
+    storeq sc0, [mintRetDst]
+    loadq 8[mintRetSrc], sc0
+    storeq sc0, 8[mintRetDst]
+    addp 2 * SlotSize, mintRetSrc
     mintRetDispatch()
 
 mintAlign(_end)
@@ -10952,22 +10960,17 @@ uintAlign(_fr7)
 # destination on stack is sc0
 
 uintAlign(_stack)
-    popInt64(sc1, sc2)
+    popInt64(sc1)
     subp SlotSize, sc0
     storeq sc1, [sc0]
     uintDispatch()
 
 uintAlign(_stack_vector)
     subp 2 * SlotSize, sc0
-    if ARM64 or ARM64E
-        loadpairq [sp], sc1, sc2
-        storepairq sc1, sc2, [sc0]
-    else
-        loadq [sp], sc1
-        loadq 8[sp], sc2
-        storeq sc1, [sc0]
-        storeq sc2, 8[sc0]
-    end
+    loadq [sp], sc1
+    storeq sc1, [sc0]
+    loadq 8[sp], sc1
+    storeq sc1, 8[sc0]
     addq StackValueSize, sp
     uintDispatch()
 
@@ -11098,9 +11101,11 @@ argumINTAlign(_stack)
     argumINTDispatch()
 
 argumINTAlign(_stack_vector)
-    loadv [argumINTSrc], ft0
+    loadq [argumINTSrc], csr0
+    storeq csr0, [argumINTDst]
+    loadq 8[argumINTSrc], csr0
+    storeq csr0, 8[argumINTDst]
     addp 2 * SlotSize, argumINTSrc
-    storev ft0, [argumINTDst]
     addp LocalSize, argumINTDst
     argumINTDispatch()
 

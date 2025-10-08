@@ -27,7 +27,6 @@
 #include "MarkedText.h"
 
 #include "Document.h"
-#include "DocumentInlines.h"
 #include "DocumentMarkerController.h"
 #include "Editor.h"
 #include "ElementRuleCollector.h"

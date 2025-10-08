@@ -198,12 +198,12 @@ bool SQLiteIDBCursor::createSQLiteStatement(StringView sql)
     ASSERT(m_transaction->sqliteDatabase());
 
     CheckedPtr database = m_transaction->sqliteDatabase();
-    auto statement = database->prepareHeapStatementSlow(sql);
+    auto statement = database->prepareStatementSlow(sql);
     if (!statement) {
         LOG_ERROR("Could not create cursor statement (prepare/id) - '%s'", database->lastErrorMsg());
         return false;
     }
-    m_statement = statement.value().moveToUniquePtr();
+    m_statement = WTFMove(statement);
 
     return bindArguments();
 }
@@ -305,12 +305,11 @@ bool SQLiteIDBCursor::resetAndRebindPreIndexStatementIfNecessary()
 
     CheckedPtr database = m_transaction->sqliteDatabase();
     if (!m_preIndexStatement) {
-        auto preIndexStatement = database->prepareHeapStatementSlow(buildPreIndexStatement(isDirectionNext()));
-        if (!preIndexStatement) {
+        m_preIndexStatement = database->prepareStatementSlow(buildPreIndexStatement(isDirectionNext()));
+        if (!m_preIndexStatement) {
             LOG_ERROR("Could not prepare pre statement - '%s'", database->lastErrorMsg());
             return false;
         }
-        m_preIndexStatement = preIndexStatement.value().moveToUniquePtr();
     }
 
     CheckedRef preIndexStatement = *m_preIndexStatement;
@@ -551,8 +550,8 @@ SQLiteIDBCursor::FetchResult SQLiteIDBCursor::internalFetchNextRecord(SQLiteCurs
         }
 
         if (!m_cachedObjectStoreStatement || CheckedRef { *m_cachedObjectStoreStatement }->reset() != SQLITE_OK) {
-            if (auto cachedObjectStoreStatement = database->prepareHeapStatement("SELECT rowid, value FROM Records WHERE key = CAST(? AS TEXT) and objectStoreID = ?;"_s))
-                m_cachedObjectStoreStatement = cachedObjectStoreStatement.value().moveToUniquePtr();
+            if (auto cachedObjectStoreStatement = database->prepareStatement("SELECT rowid, value FROM Records WHERE key = CAST(? AS TEXT) and objectStoreID = ?;"_s))
+                m_cachedObjectStoreStatement = WTFMove(cachedObjectStoreStatement);
         }
 
         CheckedPtr cachedObjectStoreStatement = m_cachedObjectStoreStatement.get();

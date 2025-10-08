@@ -89,7 +89,7 @@ using namespace WebCore;
 
 #if ENABLE(TELEPHONE_NUMBER_DETECTION)
 
-NSString *menuItemTitleForTelephoneNumberGroup()
+RetainPtr<NSString> menuItemTitleForTelephoneNumberGroup()
 {
     return [getTUCallClassSingleton() supplementalDialTelephonyCallString];
 }

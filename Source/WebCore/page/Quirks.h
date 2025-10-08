@@ -149,7 +149,7 @@ public:
 
 #if ENABLE(MEDIA_STREAM)
     bool shouldEnableFacebookFlagQuirk() const;
-    Ref<NodeList> applyFacebookFlagQuirk(Document&, const NodeList&);
+    Ref<NodeList> applyFacebookFlagQuirk(Document&, NodeList&);
     bool shouldEnableLegacyGetUserMediaQuirk() const;
     bool shouldDisableImageCaptureQuirk() const;
     bool shouldEnableSpeakerSelectionPermissionsPolicyQuirk() const;

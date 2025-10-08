@@ -132,6 +132,11 @@ enum class DifferenceOperation : bool {
     Until
 };
 
+enum class AddOrSubtract : bool {
+    Add,
+    Subtract
+};
+
 double nonNegativeModulo(double x, double y);
 WTF::String ellipsizeAt(unsigned maxLength, const WTF::String&);
 PropertyName temporalUnitPluralPropertyName(VM&, TemporalUnit);
@@ -149,9 +154,8 @@ void formatSecondsStringPart(StringBuilder&, unsigned second, unsigned fraction,
 std::optional<double> maximumRoundingIncrement(TemporalUnit);
 double temporalRoundingIncrement(JSGlobalObject*, JSObject* options, std::optional<double> dividend, bool inclusive);
 double roundNumberToIncrement(double, double increment, RoundingMode);
-Int128 roundNumberToIncrement(Int128, Int128 increment, RoundingMode);
+double roundNumberToIncrementDouble(double, double increment, RoundingMode);
 Int128 roundNumberToIncrementInt128(Int128, Int128, RoundingMode);
-Int128 roundNumberToIncrementInt128(Int128, Int128 increment, RoundingMode);
 Int128 roundNumberToIncrementAsIfPositive(Int128, Int128, RoundingMode);
 double applyUnsignedRoundingMode(double, double, double, UnsignedRoundingMode);
 void rejectObjectWithCalendarOrTimeZone(JSGlobalObject*, JSObject*);
@@ -173,7 +177,7 @@ constexpr Int128 lengthInNanoseconds(TemporalUnit unit)
     case TemporalUnit::Hour:
         return 60 * lengthInNanoseconds(TemporalUnit::Minute);
     case TemporalUnit::Day:
-        return 24 * lengthInNanoseconds(TemporalUnit::Day);
+        return 24 * lengthInNanoseconds(TemporalUnit::Hour);
     default:
         break;
     }
@@ -211,5 +215,12 @@ enum class TemporalOverflow : bool {
 };
 
 TemporalOverflow toTemporalOverflow(JSGlobalObject*, JSObject*);
+
+enum class TemporalDisambiguation : uint8_t {
+    Compatible,
+    Earlier,
+    Later,
+    Reject,
+};
 
 } // namespace JSC

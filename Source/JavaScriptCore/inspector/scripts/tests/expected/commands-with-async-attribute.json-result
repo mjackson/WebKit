@@ -522,7 +522,10 @@ void DatabaseBackendDispatcher::executeSQLAsync(long protocol_requestId, RefPtr<
 #pragma once
 
 #include "TestProtocolObjects.h"
+#include <wtf/CheckedRef.h>
 #include <wtf/JSONValues.h>
+#include <wtf/Noncopyable.h>
+#include <wtf/Nonmovable.h>
 #include <wtf/text/WTFString.h>
 
 namespace Inspector {

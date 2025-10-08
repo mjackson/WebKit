@@ -60,6 +60,7 @@ static NSString * const nameKey = @"name";
 static NSString * const reasonKey = @"reason";
 static NSString * const previousVersionKey = @"previousVersion";
 static NSString * const documentIdKey = @"documentId";
+static NSString * const versionKey = @"version";
 
 namespace WebKit {
 
@@ -179,6 +180,11 @@ NSDictionary *WebExtensionAPIRuntime::getManifest()
     // Documentation: https://developer.mozilla.org/docs/Mozilla/Add-ons/WebExtensions/API/runtime/getManifest
 
     return extensionContext().manifest();
+}
+
+NSString *WebExtensionAPIRuntime::getVersion()
+{
+    return objectForKey<NSString>(extensionContext().manifest(), versionKey);
 }
 
 NSString *WebExtensionAPIRuntime::runtimeIdentifier()

@@ -71,8 +71,6 @@ public:
 
     // MARK: Shared serializations
 
-    static void serializeGlyphOrientation(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, GlyphOrientation);
-    static void serializeGlyphOrientationOrAuto(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, GlyphOrientation);
     static void serializeMarginTrim(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, OptionSet<MarginTrimType>);
     static void serializeWebkitTextCombine(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, TextCombine);
     static void serializeImageOrientation(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, ImageOrientation);
@@ -85,7 +83,6 @@ public:
     static void serializeTabSize(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const TabSize&);
     static void serializeLineBoxContain(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, OptionSet<Style::LineBoxContain>);
     static void serializeWebkitRubyPosition(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, RubyPosition);
-    static void serializePosition(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const LengthPoint&);
     static void serializeTouchAction(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, OptionSet<TouchAction>);
     static void serializeTextTransform(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, OptionSet<TextTransform>);
     static void serializeTextUnderlinePosition(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, OptionSet<TextUnderlinePosition>);
@@ -114,11 +111,6 @@ public:
     // MARK: Font serializations
 
     static void serializeFontFamily(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const AtomString&);
-    static void serializeFontSizeAdjust(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const FontSizeAdjust&);
-    static void serializeFontPalette(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const FontPalette&);
-    static void serializeFontWeight(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, FontSelectionValue);
-    static void serializeFontFeatureSettings(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const FontFeatureSettings&);
-    static void serializeFontVariationSettings(ExtractorState&, StringBuilder&, const CSS::SerializationContext&, const FontVariationSettings&);
 
     // MARK: Grid serializations
 
@@ -280,53 +272,6 @@ inline void ExtractorSerializer::serializeTransformationMatrix(const RenderStyle
 
 // MARK: - Shared serializations
 
-inline void ExtractorSerializer::serializeGlyphOrientation(ExtractorState&, StringBuilder& builder, const CSS::SerializationContext& context, GlyphOrientation orientation)
-{
-    switch (orientation) {
-    case GlyphOrientation::Degrees0:
-        CSS::serializationForCSS(builder, context, CSS::AngleRaw<> { 0_css_deg });
-        return;
-    case GlyphOrientation::Degrees90:
-        CSS::serializationForCSS(builder, context, CSS::AngleRaw<> { 90_css_deg });
-        return;
-    case GlyphOrientation::Degrees180:
-        CSS::serializationForCSS(builder, context, CSS::AngleRaw<> { 180_css_deg });
-        return;
-    case GlyphOrientation::Degrees270:
-        CSS::serializationForCSS(builder, context, CSS::AngleRaw<> { 270_css_deg });
-        return;
-    case GlyphOrientation::Auto:
-        ASSERT_NOT_REACHED();
-        CSS::serializationForCSS(builder, context, CSS::AngleRaw<> { 0_css_deg });
-        return;
-    }
-
-    RELEASE_ASSERT_NOT_REACHED();
-}
-
-inline void ExtractorSerializer::serializeGlyphOrientationOrAuto(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, GlyphOrientation orientation)
-{
-    switch (orientation) {
-    case GlyphOrientation::Degrees0:
-        CSS::serializationForCSS(builder, context, CSS::AngleRaw<> { 0_css_deg });
-        return;
-    case GlyphOrientation::Degrees90:
-        CSS::serializationForCSS(builder, context, CSS::AngleRaw<> { 90_css_deg });
-        return;
-    case GlyphOrientation::Degrees180:
-        CSS::serializationForCSS(builder, context, CSS::AngleRaw<> { 180_css_deg });
-        return;
-    case GlyphOrientation::Degrees270:
-        CSS::serializationForCSS(builder, context, CSS::AngleRaw<> { 270_css_deg });
-        return;
-    case GlyphOrientation::Auto:
-        serializationForCSS(builder, context, state.style, CSS::Keyword::Auto { });
-        return;
-    }
-
-    RELEASE_ASSERT_NOT_REACHED();
-}
-
 inline void ExtractorSerializer::serializeMarginTrim(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, OptionSet<MarginTrimType> marginTrim)
 {
     if (marginTrim.isEmpty()) {
@@ -472,8 +417,8 @@ inline void ExtractorSerializer::serializePositionTryFallbacks(ExtractorState& s
 
     CSSValueListBuilder list;
     for (auto& fallback : fallbacks) {
-        if (fallback.positionAreaProperties) {
-            auto areaValue = fallback.positionAreaProperties->getPropertyCSSValue(CSSPropertyPositionArea);
+        if (RefPtr positionAreaProperties = fallback.positionAreaProperties) {
+            auto areaValue = positionAreaProperties->getPropertyCSSValue(CSSPropertyPositionArea);
             if (areaValue)
                 list.append(*areaValue);
             continue;
@@ -559,13 +504,6 @@ inline void ExtractorSerializer::serializeWebkitRubyPosition(ExtractorState& sta
     }
 
     RELEASE_ASSERT_NOT_REACHED();
-}
-
-inline void ExtractorSerializer::serializePosition(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, const LengthPoint& position)
-{
-    serializeLength(state, builder, context, position.x);
-    builder.append(' ');
-    serializeLength(state, builder, context, position.y);
 }
 
 inline void ExtractorSerializer::serializeTouchAction(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, OptionSet<TouchAction> touchActions)
@@ -995,66 +933,6 @@ inline void ExtractorSerializer::serializeFontFamily(ExtractorState&, StringBuil
         builder.append(nameLiteralForSerialization(familyIdentifier));
     else
         builder.append(WebCore::serializeFontFamily(family));
-}
-
-inline void ExtractorSerializer::serializeFontSizeAdjust(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, const FontSizeAdjust& fontSizeAdjust)
-{
-    if (fontSizeAdjust.isNone()) {
-        serializationForCSS(builder, context, state.style, CSS::Keyword::None { });
-        return;
-    }
-
-    auto metric = fontSizeAdjust.metric;
-    auto value = fontSizeAdjust.shouldResolveFromFont() ? fontSizeAdjust.resolve(state.style.computedFontSize(), state.style.metricsOfPrimaryFont()) : fontSizeAdjust.value.asOptional();
-
-    if (!value) {
-        serializationForCSS(builder, context, state.style, CSS::Keyword::None { });
-        return;
-    }
-
-    if (metric == FontSizeAdjust::Metric::ExHeight) {
-        CSS::serializationForCSS(builder, context, CSS::NumberRaw<> { *value });
-        return;
-    }
-
-    serialize(state, builder, context, metric);
-    builder.append(' ');
-    CSS::serializationForCSS(builder, context, CSS::NumberRaw<> { *value });
-}
-
-inline void ExtractorSerializer::serializeFontWeight(ExtractorState&, StringBuilder& builder, const CSS::SerializationContext& context, FontSelectionValue fontWeight)
-{
-    CSS::serializationForCSS(builder, context, CSS::NumberRaw<> { static_cast<float>(fontWeight) });
-}
-
-inline void ExtractorSerializer::serializeFontFeatureSettings(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, const FontFeatureSettings& fontFeatureSettings)
-{
-    if (!fontFeatureSettings.size()) {
-        serializationForCSS(builder, context, state.style, CSS::Keyword::Normal { });
-        return;
-    }
-
-    // FIXME: Do this more efficiently without creating and destroying a CSSValue object.
-
-    CSSValueListBuilder list;
-    for (auto& feature : fontFeatureSettings)
-        list.append(CSSFontFeatureValue::create(FontTag(feature.tag()), ExtractorConverter::convert(state, feature.value())));
-    builder.append(CSSValueList::createCommaSeparated(WTFMove(list))->cssText(context));
-}
-
-inline void ExtractorSerializer::serializeFontVariationSettings(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, const FontVariationSettings& fontVariationSettings)
-{
-    if (fontVariationSettings.isEmpty()) {
-        serializationForCSS(builder, context, state.style, CSS::Keyword::Normal { });
-        return;
-    }
-
-    // FIXME: Do this more efficiently without creating and destroying a CSSValue object.
-
-    CSSValueListBuilder list;
-    for (auto& feature : fontVariationSettings)
-        list.append(CSSFontVariationValue::create(feature.tag(), ExtractorConverter::convert(state, feature.value())));
-    builder.append(CSSValueList::createCommaSeparated(WTFMove(list))->cssText(context));
 }
 
 // MARK: - Grid serializations

@@ -33,6 +33,7 @@
 #include "GPUProcessConnectionInfo.h"
 #include "GPUProcessConnectionMessages.h"
 #include "GPUProcessConnectionParameters.h"
+#include "GPUProcessMediaCodecCapabilities.h"
 #include "GPUProcessMessages.h"
 #include "GPUProcessProxyMessages.h"
 #include "LayerHostingContext.h"
@@ -75,6 +76,10 @@
 #include <WebCore/AVVideoCaptureSource.h>
 #include <WebCore/MediaSessionManagerCocoa.h>
 #include <WebCore/MediaSessionManagerIOS.h>
+#endif
+#if ENABLE(VIDEO)
+#include "RemoteAudioVideoRendererProxyManager.h"
+#include "RemoteAudioVideoRendererProxyManagerMessages.h"
 #endif
 
 #if ENABLE(WEBGL)
@@ -144,6 +149,9 @@
 
 #if ENABLE(VP9) && PLATFORM(COCOA)
 #include <WebCore/VP9UtilitiesCocoa.h>
+#endif
+#if (ENABLE(OPUS) || ENABLE(VORBIS)) && PLATFORM(COCOA)
+#include <WebCore/WebMAudioUtilitiesCocoa.h>
 #endif
 
 #if ENABLE(ROUTING_ARBITRATION) && HAVE(AVAUDIO_ROUTING_ARBITER)
@@ -353,35 +361,31 @@ GPUConnectionToWebProcess::GPUConnectionToWebProcess(GPUProcess& gpuProcess, Web
     connection->setOnlySendMessagesAsDispatchWhenWaitingForSyncReplyWhenProcessingSuchAMessage(true);
     connection->open(*this);
 
+    auto capabilities = parameters.mediaCodecCapabilities.value_or(GPUProcessMediaCodecCapabilities {
 #if ENABLE(VP9)
-    bool hasVP9HardwareDecoder;
-    if (parameters.hasVP9HardwareDecoder)
-        hasVP9HardwareDecoder = *parameters.hasVP9HardwareDecoder;
-    else {
-        hasVP9HardwareDecoder = WebCore::vp9HardwareDecoderAvailableInProcess();
-        gpuProcess.send(Messages::GPUProcessProxy::SetHasVP9HardwareDecoder(hasVP9HardwareDecoder));
-    }
+        .hasVP9HardwareDecoder = WebCore::vp9HardwareDecoderAvailableInProcess(),
 #endif
 #if ENABLE(AV1)
-    bool hasAV1HardwareDecoder;
-    if (parameters.hasAV1HardwareDecoder)
-        hasAV1HardwareDecoder = *parameters.hasAV1HardwareDecoder;
-    else {
-        hasAV1HardwareDecoder = WebCore::av1HardwareDecoderAvailable();
-        gpuProcess.send(Messages::GPUProcessProxy::SetHasAV1HardwareDecoder(hasAV1HardwareDecoder));
-    }
+        .hasAV1HardwareDecoder = WebCore::av1HardwareDecoderAvailable(),
 #endif
+#if PLATFORM(COCOA)
+#if ENABLE(OPUS)
+        .hasOpusDecoder = WebCore::isOpusDecoderAvailable(),
+#endif
+#if ENABLE(VORBIS)
+        .hasVorbisDecoder = WebCore::isVorbisDecoderAvailable()
+#endif
+#endif
+    });
 
-    WebKit::GPUProcessConnectionInfo info {
+    if (!parameters.mediaCodecCapabilities)
+        gpuProcess.send(Messages::GPUProcessProxy::SetMediaCodecCapabilities(capabilities));
+
+    GPUProcessConnectionInfo info {
 #if HAVE(AUDIT_TOKEN)
-        gpuProcess.protectedParentProcessConnection()->getAuditToken(),
+        .auditToken = gpuProcess.protectedParentProcessConnection()->getAuditToken(),
 #endif
-#if ENABLE(VP9)
-        hasVP9HardwareDecoder,
-#endif
-#if ENABLE(AV1)
-        hasAV1HardwareDecoder
-#endif
+        .mediaCodecCapabilities = capabilities
     };
     m_connection->send(Messages::GPUProcessConnection::DidInitialize(info), 0);
     ++gObjectCountForTesting;
@@ -658,6 +662,21 @@ RemoteAudioMediaStreamTrackRendererInternalUnitManager& GPUConnectionToWebProces
 Ref<RemoteAudioMediaStreamTrackRendererInternalUnitManager> GPUConnectionToWebProcess::protectedAudioMediaStreamTrackRendererInternalUnitManager()
 {
     return audioMediaStreamTrackRendererInternalUnitManager();
+}
+#endif
+
+#if ENABLE(VIDEO)
+RemoteAudioVideoRendererProxyManager& GPUConnectionToWebProcess::remoteAudioVideoRendererProxyManager()
+{
+    if (!m_remoteAudioVideoRendererProxyManager)
+        lazyInitialize(m_remoteAudioVideoRendererProxyManager, makeUniqueWithoutRefCountedCheck<RemoteAudioVideoRendererProxyManager>(*this));
+
+    return *m_remoteAudioVideoRendererProxyManager;
+}
+
+Ref<RemoteAudioVideoRendererProxyManager> GPUConnectionToWebProcess::protectedRemoteAudioVideoRendererProxyManager()
+{
+    return remoteAudioVideoRendererProxyManager();
 }
 #endif
 
@@ -1042,6 +1061,12 @@ bool GPUConnectionToWebProcess::dispatchMessage(IPC::Connection& connection, IPC
         return true;
     }
 #endif
+#if ENABLE(VIDEO)
+    if (decoder.messageReceiverName() == Messages::RemoteAudioVideoRendererProxyManager::messageReceiverName()) {
+        protectedRemoteAudioVideoRendererProxyManager()->didReceiveMessage(connection, decoder);
+        return true;
+    }
+#endif
 #if PLATFORM(IOS_FAMILY)
     if (decoder.messageReceiverName() == Messages::RemoteMediaSessionHelperProxy::messageReceiverName()) {
         mediaSessionHelperProxy().didReceiveMessageFromWebProcess(connection, decoder);
@@ -1141,6 +1166,12 @@ bool GPUConnectionToWebProcess::dispatchSyncMessage(IPC::Connection& connection,
 #if USE(AUDIO_SESSION)
     if (decoder.messageReceiverName() == Messages::RemoteAudioSessionProxy::messageReceiverName()) {
         protectedAudioSessionProxy()->didReceiveSyncMessage(connection, decoder, replyEncoder);
+        return true;
+    }
+#endif
+#if ENABLE(VIDEO)
+    if (decoder.messageReceiverName() == Messages::RemoteAudioVideoRendererProxyManager::messageReceiverName()) {
+        protectedRemoteAudioVideoRendererProxyManager()->didReceiveSyncMessage(connection, decoder, replyEncoder);
         return true;
     }
 #endif

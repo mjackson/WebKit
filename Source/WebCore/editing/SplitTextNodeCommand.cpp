@@ -28,8 +28,8 @@
 
 #include "CompositeEditCommand.h"
 #include "Document.h"
-#include "DocumentInlines.h"
 #include "DocumentMarkerController.h"
+#include "NodeDocument.h"
 #include "Text.h"
 #include <wtf/Assertions.h>
 

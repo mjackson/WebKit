@@ -296,7 +296,7 @@ static bool parsePropertyAttributes(objc_property_t objcProperty, Property& prop
 {
     bool readonly = false;
     unsigned attributeCount;
-    auto attributes = adoptSystem<objc_property_attribute_t[]>(property_copyAttributeList(objcProperty, &attributeCount));
+    auto attributes = WTF::adoptSystem<objc_property_attribute_t[]>(property_copyAttributeList(objcProperty, &attributeCount));
     if (attributeCount) {
         for (unsigned i = 0; i < attributeCount; ++i) {
             switch (*(attributes[i].name)) {

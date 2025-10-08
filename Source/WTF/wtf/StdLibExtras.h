@@ -45,7 +45,6 @@
 #include <wtf/GetPtr.h>
 #include <wtf/IterationStatus.h>
 #include <wtf/NotFound.h>
-#include <wtf/StringExtras.h>
 #include <wtf/TypeCasts.h>
 #include <wtf/TypeTraits.h>
 #include <wtf/Variant.h>
@@ -563,7 +562,7 @@ template<class V, class... F> requires (!HasSwitchOn<V>) ALWAYS_INLINE auto swit
 
 #else
 
-template<class V, class... F> requires (!HasSwitchOn<V>) ALWAYS_INLINE auto switchOn(V&& v, F&&... f) -> decltype(WTF::visit(makeVisitor(std::forward<F>(f)...), asVariant(std::forward<V>(v))))
+template<class V, class... F> requires (!HasSwitchOn<V>) ALWAYS_INLINE constexpr auto switchOn(V&& v, F&&... f) -> decltype(WTF::visit(makeVisitor(std::forward<F>(f)...), asVariant(std::forward<V>(v))))
 {
     return WTF::visit(makeVisitor(std::forward<F>(f)...), asVariant(std::forward<V>(v)));
 }
@@ -1017,6 +1016,32 @@ bool equalSpans(std::span<T, TExtent> a, std::span<U, UExtent> b)
         return false;
     return !memcmp(a.data(), b.data(), a.size_bytes()); // NOLINT
 }
+
+#if !HAVE(MEMMEM)
+
+inline const void* memmem(const void* haystack, size_t haystackLength, const void* needle, size_t needleLength)
+{
+    if (!needleLength)
+        return haystack;
+
+    if (haystackLength < needleLength)
+        return nullptr;
+
+    auto haystackSpan = unsafeMakeSpan(static_cast<const uint8_t*>(haystack), haystackLength);
+    auto needleSpan = unsafeMakeSpan(static_cast<const uint8_t*>(needle), needleLength);
+
+    size_t lastPossiblePosition = haystackLength - needleLength;
+
+    for (size_t i = 0; i <= lastPossiblePosition; ++i) {
+        auto candidateSpan = haystackSpan.subspan(i, needleLength);
+        if (equalSpans(candidateSpan, needleSpan))
+            return candidateSpan.data();
+    }
+
+    return nullptr;
+}
+
+#endif
 
 template<typename T, std::size_t TExtent, typename U, std::size_t UExtent>
 bool spanHasPrefix(std::span<T, TExtent> span, std::span<U, UExtent> prefix)
@@ -1560,6 +1585,9 @@ using WTF::makeUnique;
 using WTF::makeUniqueWithoutFastMallocCheck;
 using WTF::makeUniqueWithoutRefCountedCheck;
 using WTF::memcpySpan;
+#if !HAVE(MEMMEM)
+using WTF::memmem;
+#endif
 using WTF::memmoveSpan;
 using WTF::memsetSpan;
 using WTF::mergeDeduplicatedSorted;

@@ -58,6 +58,8 @@ public:
 private:
     XRGPUSubImage(Ref<WebGPU::XRSubImage>&&, WebGPU::XREye, std::array<uint16_t, 2>&&, WebCore::IntRect&&, GPUDevice&);
 
+    bool isXRGPUSubImage() const final { return true; }
+
     const Ref<WebGPU::XRSubImage> m_backing;
     const Ref<GPUDevice> m_device;
     const GPUTextureViewDescriptor m_descriptor;
@@ -67,5 +69,9 @@ private:
 };
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::XRGPUSubImage)
+    static bool isType(const WebCore::XRSubImage& image) { return image.isXRGPUSubImage(); }
+SPECIALIZE_TYPE_TRAITS_END()
 
 #endif // ENABLE(WEBXR_LAYERS)

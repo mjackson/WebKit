@@ -88,7 +88,6 @@ Modules/websockets/WebSocket.cpp
 Modules/websockets/WebSocketChannelInspector.cpp
 Modules/websockets/WorkerThreadableWebSocketChannel.cpp
 Modules/webtransport/WebTransport.cpp
-StyleBuilderGenerated.cpp
 StyleExtractorGenerated.cpp
 accessibility/AXLogger.cpp
 accessibility/AXObjectCache.cpp
@@ -433,7 +432,6 @@ html/HTMLFormControlElement.cpp
 html/HTMLFormControlsCollection.cpp
 html/HTMLFormElement.cpp
 html/HTMLFrameElementBase.cpp
-html/HTMLIFrameElement.cpp
 html/HTMLImageElement.cpp
 html/HTMLInputElement.cpp
 html/HTMLLinkElement.cpp
@@ -517,7 +515,6 @@ inspector/NetworkResourcesData.cpp
 inspector/PageDebugger.cpp
 inspector/WebInjectedScriptManager.cpp
 inspector/WorkerDebugger.cpp
-inspector/WorkerToPageFrontendChannel.h
 inspector/agents/InspectorAnimationAgent.cpp
 inspector/agents/InspectorCPUProfilerAgent.cpp
 inspector/agents/InspectorCSSAgent.cpp
@@ -539,7 +536,6 @@ inspector/agents/page/PageDebuggerAgent.cpp
 inspector/agents/page/PageNetworkAgent.cpp
 inspector/agents/page/PageRuntimeAgent.cpp
 inspector/agents/worker/ServiceWorkerAgent.cpp
-inspector/agents/worker/WorkerNetworkAgent.cpp
 inspector/agents/worker/WorkerRuntimeAgent.cpp
 layout/integration/inline/LayoutIntegrationInlineContentBuilder.cpp
 layout/integration/inline/LayoutIntegrationLineLayout.cpp
@@ -549,12 +545,10 @@ loader/DocumentThreadableLoader.cpp
 loader/DocumentWriter.cpp
 loader/FrameLoadRequest.cpp
 loader/MediaResourceLoader.cpp
-loader/MixedContentChecker.cpp
 loader/NavigationScheduler.cpp
 loader/PolicyChecker.cpp
 loader/ResourceLoadNotifier.cpp
 loader/ResourceLoader.cpp
-loader/WorkerThreadableLoader.cpp
 loader/archive/cf/LegacyWebArchive.cpp
 loader/cache/CachedImage.cpp
 loader/cache/CachedImage.h
@@ -755,7 +749,7 @@ rendering/RenderBoxModelObject.cpp
 rendering/RenderButton.cpp
 rendering/RenderCounter.cpp
 rendering/RenderElement.cpp
-rendering/RenderElementInlines.h
+rendering/RenderElementStyleInlines.h
 rendering/RenderEmbeddedObject.cpp
 rendering/RenderFileUploadControl.cpp
 rendering/RenderFrameSet.cpp
@@ -874,7 +868,6 @@ style/StyleInterpolation.cpp
 style/StyleInvalidator.cpp
 style/StylePendingResources.cpp
 style/StyleResolveForDocument.cpp
-style/StyleResolveForFont.cpp
 style/StyleResolver.cpp
 style/StyleScope.cpp
 style/StyleScopeRuleSets.cpp
@@ -1009,7 +1002,6 @@ workers/DedicatedWorkerGlobalScope.cpp
 workers/Worker.cpp
 workers/WorkerAnimationController.cpp
 workers/WorkerGlobalScope.cpp
-workers/WorkerInspectorProxy.cpp
 workers/WorkerMessagingProxy.cpp
 workers/shared/SharedWorker.cpp
 worklets/PaintWorkletGlobalScope.cpp

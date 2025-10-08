@@ -53,7 +53,7 @@
 #include <JavaScriptCore/JSLock.h>
 #include <WebCore/CommonVM.h>
 #include <WebCore/DeprecatedGlobalSettings.h>
-#include <WebCore/Document.h>
+#include <WebCore/DocumentView.h>
 #include <WebCore/FrameLoader.h>
 #include <WebCore/GarbageCollectionController.h>
 #include <WebCore/GeolocationClient.h>

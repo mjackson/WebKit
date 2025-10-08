@@ -30,7 +30,11 @@
 #include <wtf/Vector.h>
 
 namespace WebCore {
+
 namespace Layout {
+
+enum class GridLayoutAlgorithm : uint8_t;
+struct GridAutoFlowOptions;
 
 // https://drafts.csswg.org/css-grid-1/#implicit-grids
 class ImplicitGrid {
@@ -41,12 +45,18 @@ public:
     size_t columnsCount() const { return rowsCount() ? m_gridMatrix[0].size() : 0; }
 
     void insertUnplacedGridItem(const UnplacedGridItem&);
+    void insertDefiniteRowItem(const UnplacedGridItem&, GridAutoFlowOptions, HashMap<unsigned, unsigned, DefaultHash<unsigned>, WTF::UnsignedWithZeroKeyHashTraits<unsigned>>*);
 
     GridAreas gridAreas() const;
 
 private:
+    std::optional<size_t> findFirstAvailableColumnPosition(int rowStart, int rowEnd, size_t columnSpan, size_t startSearchColumn) const;
+    bool isCellRangeEmpty(size_t columnStart, size_t columnEnd, int rowStart, int rowEnd) const;
+    void insertItemInArea(const UnplacedGridItem&, size_t columnStart, size_t columnEnd, int rowStart, int rowEnd);
+
     GridMatrix m_gridMatrix;
 };
 
 } // namespace Layout
+
 } // namespace WebCore

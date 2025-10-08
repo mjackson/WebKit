@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2019-2023 Apple Inc. All rights reserved.
+ * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -49,22 +50,20 @@ class StyleResolver;
 class TextAutospace;
 class TextSpacingTrim;
 
-struct FontSizeAdjust;
-
 namespace CSSCalc {
 struct RandomCachingKey;
-}
-
-namespace CSS {
-struct AppleColorFilter;
-struct Filter;
 }
 
 namespace Style {
 
 class BuilderState;
 struct Color;
+struct FontFeatureSettings;
 struct FontPalette;
+struct FontSizeAdjust;
+struct FontStyle;
+struct FontVariationSettings;
+struct FontWeight;
 struct FontWidth;
 
 void maybeUpdateFontForLetterSpacingOrWordSpacing(BuilderState&, CSSValue&);
@@ -85,10 +84,22 @@ struct BuilderContext {
     std::optional<BuilderPositionTryFallback> positionTryFallback { };
 };
 
-class BuilderState {
+class BuilderState : public CanMakeCheckedPtr<BuilderState> {
+    WTF_MAKE_TZONE_ALLOCATED(BuilderState);
+    WTF_MAKE_NONCOPYABLE(BuilderState);
+    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(BuilderState);
 public:
-    BuilderState(RenderStyle&);
-    BuilderState(RenderStyle&, BuilderContext&&);
+    template<typename T, class... Args> friend WTF::UniqueRef<T> WTF::makeUniqueRefWithoutFastMallocCheck(Args&&...);
+
+    static UniqueRef<BuilderState> create(RenderStyle& renderStyle)
+    {
+        return makeUniqueRefWithoutRefCountedCheck<BuilderState>(renderStyle);
+    }
+
+    static UniqueRef<BuilderState> create(RenderStyle& renderStyle, BuilderContext&& builderContext)
+    {
+        return makeUniqueRefWithoutRefCountedCheck<BuilderState>(renderStyle, WTFMove(builderContext));
+    }
 
     RenderStyle& style() { return m_style; }
     const RenderStyle& style() const { return m_style; }
@@ -161,9 +172,10 @@ public:
     void setFontDescriptionFamilies(Vector<AtomString>&);
     void setFontDescriptionIsSpecifiedFont(bool);
     void setFontDescriptionFeatureSettings(FontFeatureSettings&&);
-    void setFontDescriptionFontPalette(Style::FontPalette&&);
+    void setFontDescriptionFontPalette(FontPalette&&);
     void setFontDescriptionFontSizeAdjust(FontSizeAdjust);
     void setFontDescriptionFontSmoothing(FontSmoothingMode);
+    void setFontDescriptionFontStyle(FontStyle);
     void setFontDescriptionFontSynthesisSmallCaps(FontSynthesisLonghandValue);
     void setFontDescriptionFontSynthesisStyle(FontSynthesisLonghandValue);
     void setFontDescriptionFontSynthesisWeight(FontSynthesisLonghandValue);
@@ -177,7 +189,7 @@ public:
     void setFontDescriptionVariantEmoji(FontVariantEmoji);
     void setFontDescriptionVariantPosition(FontVariantPosition);
     void setFontDescriptionVariationSettings(FontVariationSettings&&);
-    void setFontDescriptionWeight(FontSelectionValue);
+    void setFontDescriptionWeight(FontWeight);
     void setFontDescriptionWidth(FontWidth);
     void setFontDescriptionVariantAlternates(const FontVariantAlternates&);
     void setFontDescriptionVariantEastAsianVariant(FontVariantEastAsianVariant);
@@ -200,6 +212,9 @@ private:
     // See the comment in maybeUpdateFontForLetterSpacingOrWordSpacing() about why this needs to be a friend.
     friend void maybeUpdateFontForLetterSpacingOrWordSpacing(BuilderState&, CSSValue&);
     friend class Builder;
+
+    BuilderState(RenderStyle&);
+    BuilderState(RenderStyle&, BuilderContext&&);
 
     void adjustStyleForInterCharacterRuby();
 

@@ -1444,6 +1444,21 @@ void UIScriptControllerIOS::setKeyboardInputModeIdentifier(JSStringRef identifie
     TestController::singleton().setKeyboardInputModeIdentifier(toWTFString(identifier));
 }
 
+void UIScriptControllerIOS::setFocusStartsInputSessionPolicy(JSStringRef policyJS)
+{
+    RetainPtr webView = this->webView();
+    auto policyString = toWTFString(policyJS);
+
+    if (policyString == "allow"_s)
+        webView.get().focusStartsInputSessionPolicy = _WKFocusStartsInputSessionPolicyAllow;
+    else if (policyString == "disallow"_s)
+        webView.get().focusStartsInputSessionPolicy = _WKFocusStartsInputSessionPolicyDisallow;
+    else if (policyString == "auto"_s)
+        webView.get().focusStartsInputSessionPolicy = _WKFocusStartsInputSessionPolicyAuto;
+    else
+        NSLog(@"setFocusStartsInputSessionPolicy received an invalid policy `%s`.", policyString.utf8().data());
+}
+
 // FIXME: Write this in terms of HIDEventGenerator once we know how to reset caps lock state
 // on test completion to avoid it effecting subsequent tests.
 void UIScriptControllerIOS::toggleCapsLock(JSValueRef callback)

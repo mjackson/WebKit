@@ -539,7 +539,7 @@ std::optional<Child> simplify(SiblingCount&, const SimplificationOptions& option
     if (!options.conversionData->styleBuilderState()->element())
         return { };
 
-    return makeChild(Number { .value = static_cast<double>(options.conversionData->styleBuilderState()->siblingCount()) });
+    return makeChild(Number { .value = static_cast<double>(options.conversionData->protectedStyleBuilderState()->siblingCount()) });
 }
 
 std::optional<Child> simplify(SiblingIndex&, const SimplificationOptions& options)
@@ -549,7 +549,7 @@ std::optional<Child> simplify(SiblingIndex&, const SimplificationOptions& option
     if (!options.conversionData->styleBuilderState()->element())
         return { };
 
-    return makeChild(Number { .value = static_cast<double>(options.conversionData->styleBuilderState()->siblingIndex()) });
+    return makeChild(Number { .value = static_cast<double>(options.conversionData->protectedStyleBuilderState()->siblingIndex()) });
 }
 
 std::optional<Child> simplify(Sum& root, const SimplificationOptions& options)
@@ -1339,7 +1339,7 @@ std::optional<Child> simplify(Random& root, const SimplificationOptions& options
                 [&](const Random::SharingOptions& sharingOptions) -> std::optional<double> {
                     if (sharingOptions.elementShared.has_value() && !options.conversionData->styleBuilderState()->element())
                         return { };
-                    return options.conversionData->styleBuilderState()->lookupCSSRandomBaseValue(
+                    return options.conversionData->protectedStyleBuilderState()->lookupCSSRandomBaseValue(
                         sharingOptions.identifier,
                         sharingOptions.elementShared
                     );
@@ -1408,7 +1408,7 @@ std::optional<Child> simplify(Anchor& anchor, const SimplificationOptions& optio
         // If no fallback value is specified, it makes the declaration referencing it invalid at computed-value time."
 
         if (!anchor.fallback)
-            options.conversionData->styleBuilderState()->setCurrentPropertyInvalidAtComputedValueTime();
+            options.conversionData->protectedStyleBuilderState()->setCurrentPropertyInvalidAtComputedValueTime();
 
         // Replace the anchor node with the fallback node.
         return std::exchange(anchor.fallback, { });
@@ -1421,21 +1421,21 @@ std::optional<Child> simplify(AnchorSize& anchorSize, const SimplificationOption
     if (!options.conversionData || !options.conversionData->styleBuilderState())
         return { };
 
-    auto& builderState = *options.conversionData->styleBuilderState();
+    CheckedPtr builderState = options.conversionData->styleBuilderState();
 
     std::optional<Style::ScopedName> anchorSizeScopedName;
     if (!anchorSize.elementName.isNull()) {
         anchorSizeScopedName = Style::ScopedName {
             .name = anchorSize.elementName,
-            .scopeOrdinal = builderState.styleScopeOrdinal()
+            .scopeOrdinal = builderState->styleScopeOrdinal()
         };
     }
 
-    auto result = Style::AnchorPositionEvaluator::evaluateSize(builderState, anchorSizeScopedName, anchorSize.dimension);
+    auto result = Style::AnchorPositionEvaluator::evaluateSize(*builderState, anchorSizeScopedName, anchorSize.dimension);
 
     if (!result) {
         if (!anchorSize.fallback)
-            options.conversionData->styleBuilderState()->setCurrentPropertyInvalidAtComputedValueTime();
+            options.conversionData->protectedStyleBuilderState()->setCurrentPropertyInvalidAtComputedValueTime();
 
         return std::exchange(anchorSize.fallback, { });
     }

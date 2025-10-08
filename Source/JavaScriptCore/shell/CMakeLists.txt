@@ -20,6 +20,10 @@ if (WIN32)
     list(APPEND jsc_LIBRARIES Winmm)
 endif ()
 
+if (ENABLE_FUZZILLI)
+  list(APPEND jsc_SOURCES ../fuzzilli/Fuzzilli.cpp)
+endif ()
+
 WEBKIT_EXECUTABLE_DECLARE(jsc)
 
 if (DEVELOPER_MODE)
@@ -34,6 +38,7 @@ if (DEVELOPER_MODE)
         ../API/tests/MultithreadedMultiVMExecutionTest.cpp
         ../API/tests/PingPongStackOverflowTest.cpp
         ../API/tests/TypedArrayCTest.cpp
+        ../API/tests/VMManagerStopTheWorldTest.cpp
         ../API/tests/testapi.cpp
     )
     set(testapi_C_SOURCES

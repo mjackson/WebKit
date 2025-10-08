@@ -116,7 +116,7 @@ RefPtr<API::Object> JavaScriptEvaluationResult::APIInserter::toAPI(Value&& root)
         m_dictionaries.append({ WTFMove(map), dictionary });
         return { WTFMove(dictionary) };
     }, [] (UniqueRef<JSHandleInfo>&& info) -> RefPtr<API::Object> {
-        return API::JSHandle::getOrCreate(WTFMove(info.get()));
+        return API::JSHandle::create(WTFMove(info.get()));
     }, [] (UniqueRef<WebCore::SerializedNode>&& node) -> RefPtr<API::Object> {
         return API::SerializedNode::create(WTFMove(node.get()));
     });

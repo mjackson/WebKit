@@ -28,6 +28,7 @@
 #include "config.h"
 #include "PageTimelineAgent.h"
 
+#include "DocumentView.h"
 #include "FrameSnapshotting.h"
 #include "ImageBuffer.h"
 #include "InspectorBackendClient.h"

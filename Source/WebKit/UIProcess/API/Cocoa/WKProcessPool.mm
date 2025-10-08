@@ -401,6 +401,11 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
     _processPool->webProcessCache().clear();
 }
 
+- (void)_setCachedProcessLifetimeForTesting:(NSTimeInterval)lifetime
+{
+    _processPool->webProcessCache().setCachedProcessLifetimeForTesting(Seconds { lifetime });
+}
+
 - (size_t)_webProcessCount
 {
     return _processPool->processes().size();

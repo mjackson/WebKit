@@ -242,11 +242,11 @@ template<typename CharacterType, std::size_t Extent> constexpr bool skipCharacte
 
 // Adapt a char16_t-predicate to an Latin1Character-predicate.
 template<bool characterPredicate(char16_t)>
-static inline bool LCharPredicateAdapter(Latin1Character c) { return characterPredicate(c); }
+static inline bool Latin1CharacterPredicateAdapter(Latin1Character c) { return characterPredicate(c); }
 
 } // namespace WTF
 
-using WTF::LCharPredicateAdapter;
+using WTF::Latin1CharacterPredicateAdapter;
 using WTF::isNotASCIISpace;
 using WTF::skipCharactersExactly;
 using WTF::skipExactly;

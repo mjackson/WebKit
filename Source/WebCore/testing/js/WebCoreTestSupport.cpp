@@ -29,9 +29,8 @@
 
 #include "DeprecatedGlobalSettings.h"
 #include "DocumentFragment.h"
-#include "DocumentInlines.h"
+#include "DocumentPage.h"
 #include "FrameDestructionObserverInlines.h"
-#include "FrameInlines.h"
 #include "InternalSettings.h"
 #include "Internals.h"
 #include "JSDocument.h"
@@ -42,7 +41,6 @@
 #include "LogInitialization.h"
 #include "Logging.h"
 #include "MockGamepadProvider.h"
-#include "Page.h"
 #include "ProcessWarming.h"
 #include "SWContextManager.h"
 #include "ServiceWorkerGlobalScope.h"

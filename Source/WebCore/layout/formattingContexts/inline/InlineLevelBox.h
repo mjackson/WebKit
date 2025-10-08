@@ -30,8 +30,9 @@
 #include <WebCore/InlineRect.h>
 #include <WebCore/LayoutBox.h>
 #include <WebCore/LayoutUnits.h>
-#include <WebCore/LengthFunctions.h>
 #include <WebCore/StyleLineFitEdge.h>
+#include <WebCore/StyleLineHeight.h>
+#include <WebCore/StylePrimitiveNumericTypes+Evaluation.h>
 #include <WebCore/StyleTextBoxEdge.h>
 #include <wtf/OptionSet.h>
 
@@ -164,7 +165,7 @@ private:
 
     struct Style {
         const FontMetrics& primaryFontMetrics;
-        const Length& lineHeight;
+        const WebCore::Style::LineHeight& lineHeight;
         TextBoxTrim textBoxTrim;
         WebCore::Style::TextBoxEdge textBoxEdge;
         WebCore::Style::LineFitEdge lineFitEdge;
@@ -192,9 +193,20 @@ inline InlineLayoutUnit InlineLevelBox::preferredLineHeight() const
     if (isPreferredLineHeightFontMetricsBased())
         return primarymetricsOfPrimaryFont().lineSpacing();
 
-    if (m_style.lineHeight.isPercentOrCalculated())
-        return minimumValueForLength(m_style.lineHeight, fontSize(), 1.0f /* FIXME FIND ZOOM */);
-    return m_style.lineHeight.value();
+    return WTF::switchOn(m_style.lineHeight,
+        [&](const CSS::Keyword::Normal&) -> InlineLayoutUnit {
+            return 0;
+        },
+        [&](const WebCore::Style::LineHeight::Fixed& fixed) -> InlineLayoutUnit {
+            return WebCore::Style::evaluate<InlineLayoutUnit>(fixed, WebCore::Style::ZoomNeeded { });
+        },
+        [&](const WebCore::Style::LineHeight::Percentage& percentage) -> InlineLayoutUnit {
+            return WebCore::Style::evaluate<LayoutUnit>(percentage, LayoutUnit { fontSize() });
+        },
+        [&](const WebCore::Style::LineHeight::Calc& calc) -> InlineLayoutUnit {
+            return WebCore::Style::evaluate<LayoutUnit>(calc, LayoutUnit { fontSize() });
+        }
+    );
 }
 
 inline bool InlineLevelBox::hasLineBoxRelativeAlignment() const

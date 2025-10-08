@@ -28,8 +28,8 @@
 
 #include "ContextDestructionObserverInlines.h"
 #include "DOMPromiseProxy.h"
-#include "Document.h"
-#include "DocumentInlines.h"
+#include "DocumentQuirks.h"
+#include "DocumentView.h"
 #include "EventLoop.h"
 #include "FontFace.h"
 #include "FrameDestructionObserverInlines.h"
@@ -38,7 +38,6 @@
 #include "JSDOMPromiseDeferred.h"
 #include "JSFontFace.h"
 #include "JSFontFaceSet.h"
-#include "Quirks.h"
 #include "ScriptExecutionContext.h"
 #include <wtf/TZoneMallocInlines.h>
 

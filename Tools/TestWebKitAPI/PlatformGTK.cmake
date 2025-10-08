@@ -31,6 +31,15 @@ list(APPEND TestWTF_LIBRARIES
     GTK::GTK
 )
 
+# TestJavaScriptCore
+list(APPEND TestJavaScriptCore_SOURCES
+    ${test_main_SOURCES}
+)
+
+list(APPEND TestJavaScriptCore_LIBRARIES
+    GTK::GTK
+)
+
 # TestWebCore
 list(APPEND TestWebCore_SOURCES
     ${test_main_SOURCES}

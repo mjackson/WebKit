@@ -69,8 +69,9 @@
     let speculation_rule_set_url = `ruleset.py?url=${executor_url}&uuid=${uuid}&page=${page}&status=${options.status}&valid_mime=${options.useValidMimeTypeForSpeculationRulesSet}&valid_json=${options.useValidJsonForSpeculationRulesSet}&empty_json=${options.useEmptySpeculationRulesSet}&fail_cors=${options.failCors}&valid_encoding=${options.useUtf8EncodingForSpeculationRulesSet}&redirect=${options.redirect}`;
     if (!options.useRelativeUrlForSpeculationRulesSet) {
       let base_url = new URL(SR_PREFETCH_UTILS_URL);
-      base_url.hostname = get_host_info().NOTSAMESITE_HOST;
-      speculation_rule_set_url = new URL(speculation_rule_set_url, base_url).toString();
+      const cross_origin_url = new URL(get_host_info().HTTPS_NOTSAMESITE_ORIGIN);
+      cross_origin_url.pathname = base_url.pathname;
+      speculation_rule_set_url = new URL(speculation_rule_set_url, cross_origin_url).toString();
     }
     if (!options.useValidUrlForSpeculationRulesSet) {
       speculation_rule_set_url = "http://:80/";

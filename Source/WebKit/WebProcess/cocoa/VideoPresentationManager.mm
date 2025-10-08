@@ -42,7 +42,6 @@
 #import <WebCore/Chrome.h>
 #import <WebCore/Color.h>
 #import <WebCore/DocumentFullscreen.h>
-#import <WebCore/DocumentInlines.h>
 #import <WebCore/Event.h>
 #import <WebCore/EventNames.h>
 #import <WebCore/HTMLVideoElement.h>

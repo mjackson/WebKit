@@ -23,11 +23,11 @@
 
 #if ENABLE(XSLT)
 
-#include "CachedResourceLoader.h"
-#include "DocumentInlines.h"
+#include "DocumentResourceLoader.h"
 #include "FrameConsoleClient.h"
 #include "FrameDestructionObserverInlines.h"
 #include "LocalFrame.h"
+#include "NodeDocument.h"
 #include "Page.h"
 #include "TransformSource.h"
 #include "XMLDocumentParser.h"

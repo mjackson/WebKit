@@ -63,17 +63,4 @@ Structure* JSPromiseReaction::createStructure(VM& vm, JSGlobalObject* globalObje
 
 DEFINE_VISIT_CHILDREN(JSPromiseReaction);
 
-JSC_DEFINE_HOST_FUNCTION(promiseReactionPrivateFuncCreate, (JSGlobalObject* globalObject, CallFrame* callFrame))
-{
-    VM& vm = globalObject->vm();
-
-    JSValue promise = callFrame->uncheckedArgument(0);
-    JSValue onFulfilled = callFrame->uncheckedArgument(1);
-    JSValue onRejected = callFrame->uncheckedArgument(2);
-    JSValue context = callFrame->uncheckedArgument(3);
-    JSValue next = callFrame->uncheckedArgument(4);
-
-    return JSValue::encode(JSPromiseReaction::create(vm, globalObject->promiseReactionStructure(), promise, onFulfilled, onRejected, context, next));
-}
-
 } // namespace JSC

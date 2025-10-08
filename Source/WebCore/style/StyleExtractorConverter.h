@@ -36,7 +36,6 @@
 #include "CSSCounterValue.h"
 #include "CSSEasingFunctionValue.h"
 #include "CSSFontFeatureValue.h"
-#include "CSSFontStyleWithAngleValue.h"
 #include "CSSFontValue.h"
 #include "CSSFontVariationValue.h"
 #include "CSSFunctionValue.h"
@@ -139,8 +138,6 @@ public:
 
     // MARK: Shared conversions
 
-    static Ref<CSSValue> convertGlyphOrientation(ExtractorState&, GlyphOrientation);
-    static Ref<CSSValue> convertGlyphOrientationOrAuto(ExtractorState&, GlyphOrientation);
     static Ref<CSSValue> convertMarginTrim(ExtractorState&, OptionSet<MarginTrimType>);
     static Ref<CSSValue> convertWebkitTextCombine(ExtractorState&, TextCombine);
     static Ref<CSSValue> convertImageOrientation(ExtractorState&, ImageOrientation);
@@ -151,7 +148,6 @@ public:
     static Ref<CSSValue> convertWillChange(ExtractorState&, const WillChangeData*);
     static Ref<CSSValue> convertLineBoxContain(ExtractorState&, OptionSet<Style::LineBoxContain>);
     static Ref<CSSValue> convertWebkitRubyPosition(ExtractorState&, RubyPosition);
-    static Ref<CSSValue> convertPosition(ExtractorState&, const LengthPoint&);
     static Ref<CSSValue> convertTouchAction(ExtractorState&, OptionSet<TouchAction>);
     static Ref<CSSValue> convertTextTransform(ExtractorState&, OptionSet<TextTransform>);
     static Ref<CSSValue> convertTextUnderlinePosition(ExtractorState&, OptionSet<TextUnderlinePosition>);
@@ -181,10 +177,6 @@ public:
     // MARK: Font conversions
 
     static Ref<CSSValue> convertFontFamily(ExtractorState&, const AtomString&);
-    static Ref<CSSValue> convertFontSizeAdjust(ExtractorState&, const FontSizeAdjust&);
-    static Ref<CSSValue> convertFontWeight(ExtractorState&, FontSelectionValue);
-    static Ref<CSSValue> convertFontFeatureSettings(ExtractorState&, const FontFeatureSettings&);
-    static Ref<CSSValue> convertFontVariationSettings(ExtractorState&, const FontVariationSettings&);
 
     // MARK: Grid conversions
 
@@ -299,43 +291,6 @@ inline Ref<CSSValue> ExtractorConverter::convertTransformationMatrix(const Rende
 
 // MARK: - Shared conversions
 
-inline Ref<CSSValue> ExtractorConverter::convertGlyphOrientation(ExtractorState&, GlyphOrientation orientation)
-{
-    switch (orientation) {
-    case GlyphOrientation::Degrees0:
-        return CSSPrimitiveValue::create(0.0f, CSSUnitType::CSS_DEG);
-    case GlyphOrientation::Degrees90:
-        return CSSPrimitiveValue::create(90.0f, CSSUnitType::CSS_DEG);
-    case GlyphOrientation::Degrees180:
-        return CSSPrimitiveValue::create(180.0f, CSSUnitType::CSS_DEG);
-    case GlyphOrientation::Degrees270:
-        return CSSPrimitiveValue::create(270.0f, CSSUnitType::CSS_DEG);
-    case GlyphOrientation::Auto:
-        ASSERT_NOT_REACHED();
-        return CSSPrimitiveValue::create(0.0f, CSSUnitType::CSS_DEG);
-    }
-
-    RELEASE_ASSERT_NOT_REACHED();
-}
-
-inline Ref<CSSValue> ExtractorConverter::convertGlyphOrientationOrAuto(ExtractorState&, GlyphOrientation orientation)
-{
-    switch (orientation) {
-    case GlyphOrientation::Degrees0:
-        return CSSPrimitiveValue::create(0.0f, CSSUnitType::CSS_DEG);
-    case GlyphOrientation::Degrees90:
-        return CSSPrimitiveValue::create(90.0f, CSSUnitType::CSS_DEG);
-    case GlyphOrientation::Degrees180:
-        return CSSPrimitiveValue::create(180.0f, CSSUnitType::CSS_DEG);
-    case GlyphOrientation::Degrees270:
-        return CSSPrimitiveValue::create(270.0f, CSSUnitType::CSS_DEG);
-    case GlyphOrientation::Auto:
-        return CSSPrimitiveValue::create(CSSValueAuto);
-    }
-
-    RELEASE_ASSERT_NOT_REACHED();
-}
-
 inline Ref<CSSValue> ExtractorConverter::convertMarginTrim(ExtractorState&, OptionSet<MarginTrimType> marginTrim)
 {
     if (marginTrim.isEmpty())
@@ -439,8 +394,8 @@ inline Ref<CSSValue> ExtractorConverter::convertPositionTryFallbacks(ExtractorSt
 
     CSSValueListBuilder list;
     for (auto& fallback : fallbacks) {
-        if (fallback.positionAreaProperties) {
-            auto areaValue = fallback.positionAreaProperties->getPropertyCSSValue(CSSPropertyPositionArea);
+        if (RefPtr positionAreaProperties = fallback.positionAreaProperties) {
+            auto areaValue = positionAreaProperties->getPropertyCSSValue(CSSPropertyPositionArea);
             if (areaValue)
                 list.append(*areaValue);
             continue;
@@ -520,14 +475,6 @@ inline Ref<CSSValue> ExtractorConverter::convertWebkitRubyPosition(ExtractorStat
         }
         return CSSValueBefore;
     }());
-}
-
-inline Ref<CSSValue> ExtractorConverter::convertPosition(ExtractorState& state, const LengthPoint& position)
-{
-    return CSSValueList::createSpaceSeparated(
-        convertLength(state, position.x),
-        convertLength(state, position.y)
-    );
 }
 
 inline Ref<CSSValue> ExtractorConverter::convertTouchAction(ExtractorState&, OptionSet<TouchAction> touchActions)
@@ -1020,47 +967,6 @@ inline Ref<CSSValue> ExtractorConverter::convertFontFamily(ExtractorState& state
     if (auto familyIdentifier = identifierForFamily(family))
         return CSSPrimitiveValue::create(familyIdentifier);
     return state.pool.createFontFamilyValue(family);
-}
-
-inline Ref<CSSValue> ExtractorConverter::convertFontSizeAdjust(ExtractorState& state, const FontSizeAdjust& fontSizeAdjust)
-{
-    if (fontSizeAdjust.isNone())
-        return CSSPrimitiveValue::create(CSSValueNone);
-
-    auto metric = fontSizeAdjust.metric;
-    auto value = fontSizeAdjust.shouldResolveFromFont() ? fontSizeAdjust.resolve(state.style.computedFontSize(), state.style.metricsOfPrimaryFont()) : fontSizeAdjust.value.asOptional();
-    if (!value)
-        return CSSPrimitiveValue::create(CSSValueNone);
-
-    if (metric == FontSizeAdjust::Metric::ExHeight)
-        return CSSPrimitiveValue::create(*value);
-
-    return CSSValuePair::create(convert(state, metric), CSSPrimitiveValue::create(*value));
-}
-
-inline Ref<CSSValue> ExtractorConverter::convertFontWeight(ExtractorState&, FontSelectionValue fontWeight)
-{
-    return CSSPrimitiveValue::create(static_cast<float>(fontWeight));
-}
-
-inline Ref<CSSValue> ExtractorConverter::convertFontFeatureSettings(ExtractorState& state, const FontFeatureSettings& fontFeatureSettings)
-{
-    if (!fontFeatureSettings.size())
-        return CSSPrimitiveValue::create(CSSValueNormal);
-    CSSValueListBuilder list;
-    for (auto& feature : fontFeatureSettings)
-        list.append(CSSFontFeatureValue::create(FontTag(feature.tag()), convert(state, feature.value())));
-    return CSSValueList::createCommaSeparated(WTFMove(list));
-}
-
-inline Ref<CSSValue> ExtractorConverter::convertFontVariationSettings(ExtractorState& state, const FontVariationSettings& fontVariationSettings)
-{
-    if (fontVariationSettings.isEmpty())
-        return CSSPrimitiveValue::create(CSSValueNormal);
-    CSSValueListBuilder list;
-    for (auto& feature : fontVariationSettings)
-        list.append(CSSFontVariationValue::create(feature.tag(), convert(state, feature.value())));
-    return CSSValueList::createCommaSeparated(WTFMove(list));
 }
 
 // MARK: - Grid conversions

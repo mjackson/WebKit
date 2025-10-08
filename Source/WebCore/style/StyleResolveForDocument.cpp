@@ -31,7 +31,6 @@
 
 #include "CSSFontSelector.h"
 #include "Document.h"
-#include "DocumentInlines.h"
 #include "FontCascade.h"
 #include "HTMLIFrameElement.h"
 #include "LocalFrame.h"
@@ -107,6 +106,8 @@ RenderStyle resolveForDocument(const Document& document)
     RefPtr fontSelector = document.protectedFontSelector();
     fontCascade.update(WTFMove(fontSelector));
     documentStyle.setFontCascade(WTFMove(fontCascade));
+
+    documentStyle.setEnableEvaluationTimeZoom(document.settings().evaluationTimeZoomEnabled());
 
     return documentStyle;
 }

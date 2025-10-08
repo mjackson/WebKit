@@ -49,6 +49,8 @@ http/tests/webcodecs [ Skip ]
 http/wpt/webcodecs [ Skip ]
 imported/w3c/web-platform-tests/webcodecs [ Skip ]
 
+imported/w3c/web-platform-tests/speculation-rules [ Skip ]
+
 #//////////////////////////////////////////////////////////////////////////////////////////
 # End platform-specific directories.
 #//////////////////////////////////////////////////////////////////////////////////////////
@@ -695,6 +697,10 @@ imported/w3c/web-platform-tests/html/webappapis/microtask-queuing/queue-microtas
 imported/w3c/web-platform-tests/html/webappapis/scripting/processing-model-2/integration-with-the-javascript-agent-formalism/requires-success.any.sharedworker.html [ Skip ]
 imported/w3c/web-platform-tests/html/webappapis/scripting/processing-model-2/unhandled-promise-rejections/promise-rejection-events.sharedworker.html [ Skip ]
 imported/w3c/web-platform-tests/notifications/idlharness.https.any.sharedworker.html [ Skip ]
+imported/w3c/web-platform-tests/secure-contexts/basic-shared-worker.html [ Skip ]
+imported/w3c/web-platform-tests/secure-contexts/basic-shared-worker.https.html [ Skip ]
+imported/w3c/web-platform-tests/secure-contexts/shared-worker-insecure-first.https.html [ Skip ]
+imported/w3c/web-platform-tests/secure-contexts/shared-worker-secure-first.https.html [ Skip ]
 imported/w3c/web-platform-tests/service-workers/service-worker/claim-shared-worker-fetch.https.html [ Skip ]
 imported/w3c/web-platform-tests/streams/idlharness.any.sharedworker.html [ Skip ]
 imported/w3c/web-platform-tests/streams/piping/abort.any.sharedworker.html [ Skip ]
@@ -789,8 +795,6 @@ imported/w3c/web-platform-tests/streams/writable-streams/start.any.serviceworker
 imported/w3c/web-platform-tests/streams/writable-streams/start.any.sharedworker.html [ Skip ]
 imported/w3c/web-platform-tests/streams/writable-streams/write.any.serviceworker.html [ Skip ]
 imported/w3c/web-platform-tests/streams/writable-streams/write.any.sharedworker.html [ Skip ]
-
-
 imported/w3c/web-platform-tests/urlpattern/urlpattern-compare.tentative.any.serviceworker.html [ Skip ]
 imported/w3c/web-platform-tests/urlpattern/urlpattern-compare.tentative.any.sharedworker.html [ Skip ]
 imported/w3c/web-platform-tests/urlpattern/urlpattern-compare.tentative.https.any.serviceworker.html [ Skip ]
@@ -1264,6 +1268,7 @@ media/media-vp8-webm-seek-to-start.html [ Skip ]
 media/media-vp8-webm-with-blob.html [ Skip ]
 media/media-vp8-webm-with-poster.html [ Skip ]
 media/media-vp8-webm-with-preload.html [ Skip ]
+media/media-vp8-webm-initialcurrentTime.html [ Skip ]
 media/media-vp9-dar-webm.html [ Skip ]
 media/media-vp9-reschange-webm.html [ Skip ]
 media/media-vp9-sar-webm.html [ Skip ]
@@ -1282,6 +1287,7 @@ media/media-rvfc-paused-offscreen-webm.html [ Skip ]
 media/media-rvfc-paused-webm.html [ Skip ]
 media/media-rvfc-playing-webm.html [ Skip ]
 media/video-webm-seek-singlekeyframe.html [ Skip ]
+media/video-webm-canvas-drawing.html [ Skip ]
 media/media-source/media-source-webm-seek-singlekeyframe.html [ Skip ]
 
 # Managed MediaSource isn't enabled on WK1
@@ -3288,3 +3294,5 @@ webkit.org/b/299137 imported/w3c/web-platform-tests/css/css-font-loading [ Skip 
 webkit.org/b/299495 fast/scrolling/anchor-overscroll-fixed.html [ Skip ]
 
 webkit.org/b/299636 imported/w3c/web-platform-tests/event-timing/only-observe-firstInput.html [ Pass Failure ]
+
+webkit.org/b/300050 imported/w3c/web-platform-tests/infrastructure/server/wpt-server-http.sub.html [ Skip ]

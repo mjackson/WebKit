@@ -27,8 +27,8 @@
 #include "StylePendingResources.h"
 
 #include "CSSCursorImageValue.h"
-#include "CachedResourceLoader.h"
-#include "DocumentInlines.h"
+#include "DocumentResourceLoader.h"
+#include "DocumentView.h"
 #include "RenderStyleInlines.h"
 #include "SVGURIReference.h"
 #include "Settings.h"

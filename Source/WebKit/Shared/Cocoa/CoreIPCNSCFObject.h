@@ -61,7 +61,6 @@ class CoreIPCDate;
 class CoreIPCDateComponents;
 class CoreIPCDictionary;
 class CoreIPCError;
-class CoreIPCFont;
 class CoreIPCLocale;
 class CoreIPCNSShadow;
 class CoreIPCNSValue;
@@ -82,7 +81,6 @@ using ObjectValue = Variant<
     CoreIPCDate,
     CoreIPCDictionary,
     CoreIPCError,
-    CoreIPCFont,
     CoreIPCLocale,
     CoreIPCNSShadow,
     CoreIPCNSValue,

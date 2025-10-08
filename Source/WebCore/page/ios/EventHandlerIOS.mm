@@ -34,7 +34,7 @@
 #import "ChromeClient.h"
 #import "ContainerNodeInlines.h"
 #import "DataTransfer.h"
-#import "DocumentInlines.h"
+#import "DocumentView.h"
 #import "DragState.h"
 #import "EventNames.h"
 #import "FocusController.h"

@@ -34,8 +34,7 @@
 
 #if ENABLE(WEB_RTC)
 
-#include "Document.h"
-#include "DocumentInlines.h"
+#include "DocumentPage.h"
 #include "EventNames.h"
 #include "JSDOMPromiseDeferred.h"
 #include "JSRTCCertificate.h"
@@ -218,7 +217,7 @@ void PeerConnectionBackend::handleLogMessage(const WTFLogChannel& channel, WTFLo
         return;
 
     if (!m_logIdentifierString)
-        m_logIdentifierString = makeString(hex(m_logIdentifier));
+        m_logIdentifierString = makeString(m_logIdentifier);
 
     auto identifier = callSite.substring(leftParenthesisIndex + 1, rightParenthesisIndex - leftParenthesisIndex - 1);
     if (identifier != m_logIdentifierString)
@@ -228,7 +227,7 @@ void PeerConnectionBackend::handleLogMessage(const WTFLogChannel& channel, WTFLo
 
     // Check if the third message is a multi-lines string, concatenating such message would look ugly in log events.
     if (values.size() >= 3 && values[2].value.find("\r\n"_s) != notFound)
-        event = generateJSONLogEvent(MessageLogEvent { values[1].value, { values[2].value.span8() } }, false);
+        event = generateJSONLogEvent(MessageLogEvent { values[1].value, { byteCast<uint8_t>(values[2].value.span8()) } }, false);
     else {
         StringBuilder builder;
         for (auto& value : values.subvector(1))
@@ -253,7 +252,7 @@ void PeerConnectionBackend::createOfferSucceeded(String&& sdp)
     ASSERT(isMainThread());
 
 #if !RELEASE_LOG_DISABLED
-    logger().toObservers(LogWebRTC, WTFLogLevel::Always, LOGIDENTIFIER, "to:\n", sdp);
+    logger().toObservers(LogWebRTC, WTFLogLevel::Always, LOGIDENTIFIER, "SDP offer created:\n", sdp);
     RELEASE_LOG_FORWARDABLE(WebRTC, PEERCONNECTIONBACKEND_CREATEOFFERSUCCEEDED, logIdentifier(), sdp.utf8());
 #endif
 
@@ -289,7 +288,7 @@ void PeerConnectionBackend::createAnswerSucceeded(String&& sdp)
     ASSERT(isMainThread());
 
 #if !RELEASE_LOG_DISABLED
-    logger().toObservers(LogWebRTC, WTFLogLevel::Always, LOGIDENTIFIER, "to:\n", sdp);
+    logger().toObservers(LogWebRTC, WTFLogLevel::Always, LOGIDENTIFIER, "SDP answer created:\n", sdp);
     RELEASE_LOG_FORWARDABLE(WebRTC, PEERCONNECTIONBACKEND_CREATEANSWERSUCCEEDED, logIdentifier(), sdp.utf8());
 #endif
 

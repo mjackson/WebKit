@@ -29,7 +29,7 @@
 #include "ClientOrigin.h"
 #include "ContextDestructionObserverInlines.h"
 #include "Document.h"
-#include "DocumentInlines.h"
+#include "Event.h"
 #include "EventNames.h"
 #include "EventTargetInlines.h"
 #include "MainThreadPermissionObserver.h"

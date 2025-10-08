@@ -32,8 +32,7 @@
 #include "CookieStoreGetOptions.h"
 #include "DOMPromiseProxy.h"
 #include "DedicatedWorkerGlobalScope.h"
-#include "Document.h"
-#include "DocumentInlines.h"
+#include "DocumentPage.h"
 #include "Event.h"
 #include "EventLoop.h"
 #include "EventNames.h"
@@ -51,7 +50,6 @@
 #include "LocalFrameLoaderClient.h"
 #include "Logging.h"
 #include "NavigatorBase.h"
-#include "Page.h"
 #include "PushSubscriptionOptions.h"
 #include "ResourceError.h"
 #include "ScriptExecutionContext.h"
@@ -742,7 +740,7 @@ ServiceWorkerOrClientIdentifier ServiceWorkerContainer::contextIdentifier()
     ASSERT(m_creationThread.ptr() == &Thread::currentSingleton());
     ASSERT(scriptExecutionContext());
     if (RefPtr serviceWorkerGlobal = dynamicDowncast<ServiceWorkerGlobalScope>(*scriptExecutionContext()))
-        return serviceWorkerGlobal->thread().identifier();
+        return serviceWorkerGlobal->thread()->identifier();
     return scriptExecutionContext()->identifier();
 }
 

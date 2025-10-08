@@ -29,8 +29,8 @@ Modules/webdatabase/DatabaseThread.h
 accessibility/AXTextMarker.cpp
 accessibility/AccessibilityObject.cpp
 bindings/js/GarbageCollectionController.cpp
-bindings/js/JSDOMAsyncIterator.h
 bindings/js/JSDOMConvertBase.h
+bindings/js/JSDOMWindowBase.h
 bindings/js/JSLocationCustom.cpp
 bindings/js/JSPaintRenderingContext2DCustom.cpp
 bindings/js/WebCoreOpaqueRootInlines.h
@@ -74,7 +74,6 @@ layout/formattingContexts/inline/InlineLine.h
 layout/formattingContexts/inline/text/TextUtil.cpp
 layout/integration/inline/LayoutIntegrationLineLayout.h
 layout/layouttree/LayoutElementBox.h
-loader/cache/CachedImageClient.h
 page/DOMWindow.cpp
 page/EventHandler.h
 page/Page.h
@@ -82,6 +81,7 @@ page/PageOverlayController.cpp
 page/WheelEventTestMonitor.h
 page/mac/ImageOverlayControllerMac.mm
 page/mac/ServicesOverlayController.mm
+page/scrolling/ScrollingCoordinator.h
 page/scrolling/ScrollingStateNode.h
 page/scrolling/ScrollingStateScrollingNode.cpp
 platform/PODRedBlackTree.h
@@ -92,7 +92,6 @@ platform/graphics/StringTruncator.cpp
 platform/graphics/ca/PlatformCALayer.h
 platform/graphics/ca/TileController.cpp
 platform/mediastream/libwebrtc/LibWebRTCDav1dDecoder.cpp
-rendering/AccessibilityRegionContext.h
 rendering/BreakablePositions.h
 rendering/RenderLayerBacking.cpp
 rendering/RenderLayerCompositor.cpp
@@ -106,11 +105,5 @@ rendering/svg/SVGRenderingContext.h
 style/StyleExtractorState.h
 style/StyleScope.h
 testing/Internals.cpp
-workers/DedicatedWorkerThread.cpp
-workers/Worker.h
-workers/WorkerOrWorkletGlobalScope.h
-workers/WorkerThread.h
-workers/shared/SharedWorkerGlobalScope.h
-workers/shared/context/SharedWorkerThread.h
 xml/XSLStyleSheetLibxslt.cpp
 xml/parser/XMLDocumentParserLibxml2.cpp

@@ -199,8 +199,8 @@ SQLiteStatementAutoResetScope SWRegistrationDatabase::cachedStatement(StatementT
 
     auto index = enumToUnderlyingType(type);
     if (!m_cachedStatements[index]) {
-        if (auto result = CheckedRef { *m_database }->prepareHeapStatement(statementString(type)))
-            m_cachedStatements[index] = result.value().moveToUniquePtr();
+        if (auto statement = CheckedRef { *m_database }->prepareStatement(statementString(type)))
+            m_cachedStatements[index] = WTFMove(statement);
     }
 
     return SQLiteStatementAutoResetScope { m_cachedStatements[index].get() };

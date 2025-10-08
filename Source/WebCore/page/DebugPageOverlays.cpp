@@ -28,10 +28,12 @@
 
 #include "ColorHash.h"
 #include "Cursor.h"
+#include "DocumentView.h"
 #include "ElementIterator.h"
 #include "FloatRoundedRect.h"
 #include "Gradient.h"
 #include "GraphicsContext.h"
+#include "GraphicsLayer.h"
 #include "HitTestResult.h"
 #include "InteractionRegion.h"
 #include "LocalFrameView.h"

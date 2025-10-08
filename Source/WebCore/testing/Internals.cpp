@@ -49,7 +49,6 @@
 #include "CacheStorageConnection.h"
 #include "CacheStorageProvider.h"
 #include "CachedImage.h"
-#include "CachedResourceLoader.h"
 #include "CanvasBase.h"
 #include "CertificateInfo.h"
 #include "Chrome.h"
@@ -72,12 +71,16 @@
 #include "DiagnosticLoggingClient.h"
 #include "DisabledAdaptations.h"
 #include "DisplayList.h"
-#include "Document.h"
 #include "DocumentFullscreen.h"
 #include "DocumentInlines.h"
 #include "DocumentLoader.h"
 #include "DocumentMarkerController.h"
+#include "DocumentMarkers.h"
+#include "DocumentPage.h"
+#include "DocumentQuirks.h"
+#include "DocumentResourceLoader.h"
 #include "DocumentTimeline.h"
+#include "DocumentView.h"
 #include "Editor.h"
 #include "Element.h"
 #include "ElementRareData.h"
@@ -100,6 +103,7 @@
 #include "FrameMemoryMonitor.h"
 #include "FrameSnapshotting.h"
 #include "GCObservation.h"
+#include "GraphicsLayer.h"
 #include "HEVCUtilities.h"
 #include "HTMLAnchorElement.h"
 #include "HTMLAttachmentElement.h"
@@ -186,7 +190,6 @@
 #include "PseudoElement.h"
 #include "PushSubscription.h"
 #include "PushSubscriptionData.h"
-#include "Quirks.h"
 #include "RTCController.h"
 #include "RTCNetworkManager.h"
 #include "RTCRtpSFrameTransform.h"
@@ -6048,6 +6051,12 @@ double Internals::elementEffectivePlaybackRate(const HTMLMediaElement& media)
 {
     return media.effectivePlaybackRate();
 }
+
+double Internals::privatePlayerCurrentTime(HTMLMediaElement& media)
+{
+    return media.mediaPlayerCurrentTime();
+}
+
 #endif
 
 ExceptionOr<void> Internals::setIsPlayingToBluetoothOverride(std::optional<bool> isPlaying)
@@ -6558,25 +6567,6 @@ bool Internals::audioSessionActive() const
     return AudioSession::singleton().isActive();
 #endif
     return false;
-}
-
-String Internals::webContentProcessVariant() const
-{
-    auto* document = contextDocument();
-    if (!document)
-        return { };
-    auto* page = document->page();
-    if (!page)
-        return { };
-
-    switch (page->webContentProcessVariant()) {
-    case WebContentProcessVariant::Security:
-        return "security"_s;
-    case WebContentProcessVariant::Lockdown:
-        return "lockdown"_s;
-    default:
-        return "standard"_s;
-    }
 }
 
 void Internals::storeRegistrationsOnDisk(DOMPromiseDeferred<void>&& promise)

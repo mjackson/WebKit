@@ -31,6 +31,7 @@
 #import "PlatformCALayerRemote.h"
 #import <QuartzCore/QuartzCore.h>
 #import <WebCore/EventRegion.h>
+#import <WebCore/GraphicsLayer.h>
 #import <WebCore/Model.h>
 #import <WebCore/TimingFunction.h>
 #import <ranges>

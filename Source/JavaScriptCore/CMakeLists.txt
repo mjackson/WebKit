@@ -752,6 +752,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     debugger/DebuggerCallFrame.h
     debugger/DebuggerParseData.h
     debugger/DebuggerPrimitives.h
+    debugger/ScriptProfilingScope.h
 
     dfg/DFGCodeOriginPool.h
     dfg/DFGCommon.h
@@ -1631,6 +1632,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/StrictEvalActivationInlines.h
     runtime/StringConstructor.h
     runtime/StringConstructorInlines.h
+    runtime/StopTheWorldCallback.h
     runtime/StringIteratorPrototype.h
     runtime/StringIteratorPrototypeInlines.h
     runtime/StringObject.h
@@ -1720,6 +1722,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/VMEntryScopeInlines.h
     runtime/VMInlines.h
     runtime/VMManager.h
+    runtime/VMThreadContext.h
     runtime/VMTraps.h
     runtime/VMTrapsInlines.h
     runtime/VarOffset.h
