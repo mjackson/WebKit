@@ -232,6 +232,7 @@ namespace JSC {
     macro(SuppressedError) \
     macro(DisposableStack) \
     macro(AsyncDisposableStack) \
+    macro(enqueueJob) \
 
 
 namespace Symbols {

@@ -780,6 +780,10 @@ public:
     JSFunction* iteratorProtocolFunction() const;
     JSFunction* promiseResolveFunction() const { return m_promiseResolveFunction.get(this); }
     JSFunction* promiseProtoThenFunction() const;
+#if USE(BUN_JSC_ADDITIONS)
+    JSFunction* performPromiseThenFunction() const;
+    JSFunction* rejectPromiseFunction() const;
+#endif
     JSFunction* objectProtoValueOfFunction() const { return m_objectProtoValueOfFunction.get(); }
     JSFunction* numberProtoToStringFunction() const { return m_numberProtoToStringFunction.getInitializedOnMainThread(this); }
     JSFunction* functionProtoHasInstanceSymbolFunction() const { return m_functionProtoHasInstanceSymbolFunction.get(); }
