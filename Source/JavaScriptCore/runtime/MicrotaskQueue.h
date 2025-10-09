@@ -61,7 +61,19 @@ public:
         , m_globalObject(nullptr)
     {
     }
-
+#if USE(BUN_JSC_ADDITIONS)
+    // https://github.com/WebKit/WebKit/pull/52054
+    template<typename... Args>
+    requires (sizeof...(Args) <= maxArguments) && (std::is_convertible_v<Args, JSValue> && ...)
+    QueuedTask(RefPtr<MicrotaskDispatcher>&& dispatcher, InternalMicrotask job, JSGlobalObject* globalObject, Args&&...args)
+        : m_dispatcher(WTFMove(dispatcher))
+        , m_identifier(MicrotaskIdentifier::generate())
+        , m_job(job)
+        , m_globalObject(globalObject)
+        , m_arguments { std::forward<Args>(args)... }
+    {
+    }
+#else
     QueuedTask(RefPtr<MicrotaskDispatcher>&& dispatcher, InternalMicrotask job, JSGlobalObject* globalObject, JSValue argument0, JSValue argument1, JSValue argument2, JSValue argument3)
         : m_dispatcher(WTFMove(dispatcher))
         , m_identifier(MicrotaskIdentifier::generate())
@@ -70,6 +82,7 @@ public:
         , m_arguments { argument0, argument1, argument2, argument3 }
     {
     }
+#endif
 
     void setDispatcher(RefPtr<MicrotaskDispatcher>&& dispatcher)
     {

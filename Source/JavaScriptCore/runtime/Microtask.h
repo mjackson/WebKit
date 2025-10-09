@@ -43,6 +43,10 @@ enum class InternalMicrotask : int32_t {
     Opaque, // Dispatch must handle everything.
 };
 
+#if USE(BUN_JSC_ADDITIONS)
+constexpr unsigned maxMicrotaskArguments = 5;
+#else
 constexpr unsigned maxMicrotaskArguments = 4;
+#endif
 
 } // namespace JSC
