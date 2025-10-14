@@ -317,6 +317,34 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
         return;
     }
 
+#if USE(BUN_JSC_ADDITIONS)
+    case InternalMicrotask::BunPerformMicrotaskJob: {
+        // Bun's performMicrotask function:
+        // arguments[0]: performMicrotask function
+        // arguments[1]: job function
+        // arguments[2]: async context
+        // arguments[3]: first argument to job
+        // arguments[4]: second argument to job
+        JSValue performMicrotaskFunction = arguments[0];
+        scope.release();
+        callMicrotask(globalObject, performMicrotaskFunction, jsUndefined(), nullptr, ArgList { std::bit_cast<EncodedJSValue*>(arguments.data() + 1), maxMicrotaskArguments - 1 }, "performMicrotask is not a function"_s);
+        return;
+    }
+
+    case InternalMicrotask::BunInvokeJobWithArguments: {
+        // Simple job invocation with arguments:
+        // arguments[0]: job function
+        // arguments[1]: first argument
+        // arguments[2]: second argument
+        // arguments[3]: third argument
+        // arguments[4]: fourth argument
+        JSValue job = arguments[0];
+        scope.release();
+        callMicrotask(globalObject, job, jsUndefined(), nullptr, ArgList { std::bit_cast<EncodedJSValue*>(arguments.data() + 1), maxMicrotaskArguments - 1 }, "job is not a function"_s);
+        return;
+    }
+#endif
+
     case InternalMicrotask::Opaque: {
         RELEASE_ASSERT_NOT_REACHED();
         return;

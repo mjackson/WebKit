@@ -41,6 +41,10 @@ enum class InternalMicrotask : int32_t {
     PromiseReactionJobWithoutPromise,
     InvokeFunctionJob,
     Opaque, // Dispatch must handle everything.
+#if USE(BUN_JSC_ADDITIONS)
+    BunPerformMicrotaskJob, // Bun's performMicrotask function with async context
+    BunInvokeJobWithArguments, // Invoke job function with up to 4 arguments
+#endif
 };
 
 #if USE(BUN_JSC_ADDITIONS)

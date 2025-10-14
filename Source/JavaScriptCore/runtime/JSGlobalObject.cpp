@@ -733,11 +733,13 @@ JSC_DEFINE_HOST_FUNCTION(enqueueJob, (JSGlobalObject* globalObject, CallFrame* c
 {
     auto* job = jsCast<JSFunction*>(callFrame->argument(0));
     ASSERT(job->globalObject() == globalObject);
+    // For $enqueueJob, we invoke the job function with up to 4 arguments directly
     JSValue argument0 = callFrame->argument(1);
     JSValue argument1 = callFrame->argument(2);
     JSValue argument2 = callFrame->argument(3);
     JSValue argument3 = callFrame->argument(4);
-    JSC::QueuedTask task { nullptr, JSC::InternalMicrotask::InvokeFunctionJob, globalObject, job, argument0, argument1, argument2, argument3 };
+    // BunInvokeJobWithArguments expects: job, arg0, arg1, arg2, arg3
+    JSC::QueuedTask task { nullptr, JSC::InternalMicrotask::BunInvokeJobWithArguments, globalObject, job, argument0, argument1, argument2, argument3 };
     globalObject->vm().queueMicrotask(WTFMove(task));
     return encodedJSUndefined();
 }
