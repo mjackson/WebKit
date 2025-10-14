@@ -323,24 +323,35 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
         // arguments[0]: performMicrotask function
         // arguments[1]: job function
         // arguments[2]: async context
-        // arguments[3]: first argument to job
-        // arguments[4]: second argument to job
+        // arguments[3]: first argument to job (optional)
+        // arguments[4]: second argument to job (optional)
         JSValue performMicrotaskFunction = arguments[0];
+        MarkedArgumentBuffer args;
+        // Add non-empty arguments only
+        for (size_t i = 1; i < maxMicrotaskArguments; ++i) {
+            if (!arguments[i].isEmpty())
+                args.append(arguments[i]);
+        }
+        ASSERT(!args.hasOverflowed());
         scope.release();
-        callMicrotask(globalObject, performMicrotaskFunction, jsUndefined(), nullptr, ArgList { std::bit_cast<EncodedJSValue*>(arguments.data() + 1), maxMicrotaskArguments - 1 }, "performMicrotask is not a function"_s);
+        callMicrotask(globalObject, performMicrotaskFunction, jsUndefined(), nullptr, args, "performMicrotask is not a function"_s);
         return;
     }
 
     case InternalMicrotask::BunInvokeJobWithArguments: {
         // Simple job invocation with arguments:
         // arguments[0]: job function
-        // arguments[1]: first argument
-        // arguments[2]: second argument
-        // arguments[3]: third argument
-        // arguments[4]: fourth argument
+        // arguments[1-4]: arguments (optional)
         JSValue job = arguments[0];
+        MarkedArgumentBuffer args;
+        // Add non-empty arguments only
+        for (size_t i = 1; i < maxMicrotaskArguments; ++i) {
+            if (!arguments[i].isEmpty())
+                args.append(arguments[i]);
+        }
+        ASSERT(!args.hasOverflowed());
         scope.release();
-        callMicrotask(globalObject, job, jsUndefined(), nullptr, ArgList { std::bit_cast<EncodedJSValue*>(arguments.data() + 1), maxMicrotaskArguments - 1 }, "job is not a function"_s);
+        callMicrotask(globalObject, job, jsUndefined(), nullptr, args, "job is not a function"_s);
         return;
     }
 #endif
