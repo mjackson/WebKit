@@ -318,7 +318,6 @@ void JSPromise::performPromiseThen(JSGlobalObject* globalObject, JSValue onFulfi
         //       context = [context, asyncContext];
         if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
             JSValue asyncContext = asyncContextData->getInternalField(0);
-            dataLog("performPromiseThen (Pending): current asyncContext = ", asyncContext, ", context = ", context, "\n");
             if (!asyncContext.isUndefined()) {
                 // Create array [context, asyncContext]
                 ObjectInitializationScope initializationScope(vm);
@@ -328,7 +327,6 @@ void JSPromise::performPromiseThen(JSGlobalObject* globalObject, JSValue onFulfi
                     contextArray->initializeIndex(initializationScope, 0, context);
                     contextArray->initializeIndex(initializationScope, 1, asyncContext);
                     context = contextArray;
-                    dataLog("performPromiseThen (Pending): wrapped context = ", context, "\n");
                 }
             }
         }
@@ -775,12 +773,48 @@ void JSPromise::resolveWithoutPromise(JSGlobalObject* globalObject, JSValue reso
 void JSPromise::rejectWithoutPromise(JSGlobalObject* globalObject, JSValue argument, JSValue onFulfilled, JSValue onRejected, JSValue context)
 {
     UNUSED_PARAM(onFulfilled);
+#if USE(BUN_JSC_ADDITIONS)
+    // AsyncLocalStorage support: wrap context with async context if present
+    if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
+        JSValue asyncContext = asyncContextData->getInternalField(0);
+        if (!asyncContext.isUndefined()) {
+            VM& vm = globalObject->vm();
+            // Create array [context, asyncContext]
+            ObjectInitializationScope initializationScope(vm);
+            JSArray* contextArray = JSArray::tryCreateUninitializedRestricted(initializationScope,
+                globalObject->arrayStructureForIndexingTypeDuringAllocation(ArrayWithContiguous), 2);
+            if (contextArray) {
+                contextArray->initializeIndex(initializationScope, 0, context);
+                contextArray->initializeIndex(initializationScope, 1, asyncContext);
+                context = contextArray;
+            }
+        }
+    }
+#endif
     globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJobWithoutPromise, onRejected, argument, context, jsUndefined());
 }
 
 void JSPromise::fulfillWithoutPromise(JSGlobalObject* globalObject, JSValue argument, JSValue onFulfilled, JSValue onRejected, JSValue context)
 {
     UNUSED_PARAM(onRejected);
+#if USE(BUN_JSC_ADDITIONS)
+    // AsyncLocalStorage support: wrap context with async context if present
+    if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
+        JSValue asyncContext = asyncContextData->getInternalField(0);
+        if (!asyncContext.isUndefined()) {
+            VM& vm = globalObject->vm();
+            // Create array [context, asyncContext]
+            ObjectInitializationScope initializationScope(vm);
+            JSArray* contextArray = JSArray::tryCreateUninitializedRestricted(initializationScope,
+                globalObject->arrayStructureForIndexingTypeDuringAllocation(ArrayWithContiguous), 2);
+            if (contextArray) {
+                contextArray->initializeIndex(initializationScope, 0, context);
+                contextArray->initializeIndex(initializationScope, 1, asyncContext);
+                context = contextArray;
+            }
+        }
+    }
+#endif
     globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJobWithoutPromise, onFulfilled, argument, context, jsUndefined());
 }
 

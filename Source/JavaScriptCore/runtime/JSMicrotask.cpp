@@ -358,28 +358,12 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
         //   }
         JSValue previousAsyncContext;
         bool hasAsyncContext = false;
-        dataLog("PromiseReactionJob: handler = ", handler, ", context = ", context, ", isArray = ", context.isCell() && context.asCell()->inherits<JSArray>(), "\n");
         if (auto* contextArray = jsDynamicCast<JSArray*>(context)) {
-            dataLog("PromiseReactionJob: contextArray length = ", contextArray->length(), "\n");
             if (contextArray->length() == 2) {
                 if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
                     previousAsyncContext = asyncContextData->getInternalField(0);
                     JSValue asyncContext = contextArray->getIndexQuickly(1);
-                    dataLog("PromiseReactionJob: Setting async context from ", previousAsyncContext, " to ", asyncContext, ", about to call handler\n");
                     asyncContextData->putInternalField(vm, 0, asyncContext);
-                    // Verify it was set
-                    JSValue verifyContext = asyncContextData->getInternalField(0);
-                    dataLog("PromiseReactionJob: Verified async context is now ", verifyContext, "\n");
-                    // Check if it's an array and print its contents
-                    if (auto* verifyArray = jsDynamicCast<JSArray*>(verifyContext)) {
-                        dataLog("PromiseReactionJob: Async context is an array with length ", verifyArray->length(), "\n");
-                        if (verifyArray->length() > 0) {
-                            dataLog("PromiseReactionJob: Array[0] = ", verifyArray->getIndexQuickly(0), "\n");
-                        }
-                        if (verifyArray->length() > 1) {
-                            dataLog("PromiseReactionJob: Array[1] = ", verifyArray->getIndexQuickly(1), "\n");
-                        }
-                    }
                     context = contextArray->getIndexQuickly(0);
                     hasAsyncContext = true;
                 }
@@ -392,13 +376,6 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
         {
             auto catchScope = DECLARE_CATCH_SCOPE(vm);
             // Use MarkedArgumentBuffer with updated context
-#if USE(BUN_JSC_ADDITIONS)
-            dataLog("PromiseReactionJob: About to call handler, async context should be set\n");
-            if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
-                JSValue currentContext = asyncContextData->getInternalField(0);
-                dataLog("PromiseReactionJob: Current async context before calling handler: ", currentContext, "\n");
-            }
-#endif
             if (context.isUndefinedOrNull()) {
                 MarkedArgumentBuffer args;
                 args.append(argument);
@@ -427,9 +404,6 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
                 }
             }
         }
-#if USE(BUN_JSC_ADDITIONS)
-        dataLog("PromiseReactionJob: handler completed, result = ", result, ", error = ", error, "\n");
-#endif
 
         if (error) {
             if (auto* promise = jsDynamicCast<JSPromise*>(promiseOrCapability)) {
