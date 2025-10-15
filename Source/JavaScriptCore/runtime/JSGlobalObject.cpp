@@ -3527,6 +3527,18 @@ void JSGlobalObject::queueMicrotask(InternalMicrotask job, JSValue argument0, JS
     vm().queueMicrotask(WTFMove(task));
 }
 
+#if USE(BUN_JSC_ADDITIONS)
+void JSGlobalObject::queueMicrotask(InternalMicrotask job, JSValue argument0, JSValue argument1, JSValue argument2, JSValue argument3, JSValue argument4)
+{
+    QueuedTask task { nullptr, job, this, argument0, argument1, argument2, argument3, argument4 };
+    if (globalObjectMethodTable()->queueMicrotaskToEventLoop) {
+        globalObjectMethodTable()->queueMicrotaskToEventLoop(*this, WTFMove(task));
+        return;
+    }
+    vm().queueMicrotask(WTFMove(task));
+}
+#endif
+
 void JSGlobalObject::reportUncaughtExceptionAtEventLoop(JSGlobalObject*, Exception* exception)
 {
     dataLogLn("Uncaught Exception at run loop: ", exception->value());
