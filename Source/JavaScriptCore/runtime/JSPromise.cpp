@@ -424,6 +424,7 @@ void JSPromise::rejectPromise(JSGlobalObject* globalObject, JSValue argument)
 void JSPromise::fulfillPromise(JSGlobalObject* globalObject, JSValue argument)
 {
     VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
 
     ASSERT(status() == Status::Pending);
     uint32_t flags = this->flags();
@@ -432,7 +433,7 @@ void JSPromise::fulfillPromise(JSGlobalObject* globalObject, JSValue argument)
     internalField(Field::ReactionsOrResult).set(vm, this, argument);
     if (!reactions)
         return;
-    triggerPromiseReactions(globalObject, Status::Fulfilled, reactions, argument);
+    RELEASE_AND_RETURN(scope, triggerPromiseReactions(globalObject, Status::Fulfilled, reactions, argument));
 }
 
 void JSPromise::resolvePromise(JSGlobalObject* globalObject, JSValue resolution)

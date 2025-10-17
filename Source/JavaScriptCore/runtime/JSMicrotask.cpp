@@ -409,12 +409,13 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
             if (auto* promise = jsDynamicCast<JSPromise*>(promiseOrCapability)) {
                 promise->rejectPromise(globalObject, error);
 #if USE(BUN_JSC_ADDITIONS)
-                // Restore async context after promise operation
+                // Restore async context before exception check (must restore even if exception occurs)
                 if (hasAsyncContext) {
                     if (auto* asyncContextData = globalObject->m_asyncContextData.get())
                         asyncContextData->putInternalField(vm, 0, previousAsyncContext);
                 }
 #endif
+                RETURN_IF_EXCEPTION(scope, void());
                 return;
             }
 
@@ -439,12 +440,13 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
         if (auto* promise = jsDynamicCast<JSPromise*>(promiseOrCapability)) {
             promise->resolvePromise(globalObject, result);
 #if USE(BUN_JSC_ADDITIONS)
-            // Restore async context after promise operation
+            // Restore async context before exception check (must restore even if exception occurs)
             if (hasAsyncContext) {
                 if (auto* asyncContextData = globalObject->m_asyncContextData.get())
                     asyncContextData->putInternalField(vm, 0, previousAsyncContext);
             }
 #endif
+            RETURN_IF_EXCEPTION(scope, void());
             return;
         }
 
