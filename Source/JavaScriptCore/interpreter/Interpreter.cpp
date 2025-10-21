@@ -664,6 +664,21 @@ void Interpreter::getStackTrace(JSCell* owner, Vector<StackFrame>& results, size
 #endif
 
     if (Options::useAsyncStackTrace()) {
+#if USE(BUN_JSC_ADDITIONS)
+        // After the loop, check the last EntryFrame if we haven't found a generator yet.
+        // This is necessary for environments like Bun where the microtask execution
+        // (e.g., drainMicrotasks) doesn't appear as a frame on the stack, so we never
+        // cross an EntryFrame boundary during the loop.
+        if (!asyncStackTraceOriginGenerator && previousEntryFrame) {
+            auto* record = vmEntryRecord(previousEntryFrame);
+            if (record->m_context) {
+                if (auto* generator = jsDynamicCast<JSGenerator*>(record->m_context)) {
+                    asyncStackTraceOriginGenerator = generator;
+                    asyncStackTraceInsertPos = previousEntryFrameStackTraceInsertPos;
+                }
+            }
+        }
+#endif
         if (asyncStackTraceOriginGenerator) {
             Vector<StackFrame> asyncFrames;
             getAsyncStackTrace(owner, asyncFrames, asyncStackTraceOriginGenerator, maxStackSize);
