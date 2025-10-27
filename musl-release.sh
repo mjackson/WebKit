@@ -45,4 +45,4 @@ export ENABLE_SANITIZERS=${ENABLE_SANITIZERS:-}
 mkdir -p $temp
 rm -rf $temp/bun-webkit
 
-docker buildx build -f Dockerfile.musl -t $CONTAINER_NAME --build-arg ENABLE_SANITIZERS=$ENABLE_SANITIZERS --build-arg LTO_FLAG="$LTO_FLAG" --build-arg WEBKIT_RELEASE_TYPE=$WEBKIT_RELEASE_TYPE --progress=plain --platform=linux/$BUILDKIT_ARCH --target=artifact --output type=local,dest=$temp/bun-webkit .
+docker buildx build -f Dockerfile.musl -t $CONTAINER_NAME --build-arg ENABLE_SANITIZERS="$ENABLE_SANITIZERS" --build-arg LTO_FLAG="$LTO_FLAG" --build-arg WEBKIT_RELEASE_TYPE="$WEBKIT_RELEASE_TYPE" --progress=plain --platform=linux/$BUILDKIT_ARCH --target=artifact --output type=local,dest=$temp/bun-webkit .
