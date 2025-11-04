@@ -200,13 +200,16 @@ DeferredWorkTimer::Ticket DeferredWorkTimer::addPendingWork(WorkType type, VM& v
     Ticket ticket = ticketData.ptr();
 
     dataLogLnIf(DeferredWorkTimerInternal::verbose, "Adding new pending ticket: ", RawPointer(ticket));
+
+    // Always add to m_pendingTickets so GC can see and cleanup invalid tickets
+    auto result = m_pendingTickets.add(ticketData);
+    RELEASE_ASSERT(result.isNewEntry);
+
+    // If custom event loop hook is set, also pass a reference to it
     if (onAddPendingWork) {
-        onAddPendingWork(WTFMove(ticketData), type);
-    } else {
-        auto result = m_pendingTickets.add(WTFMove(ticketData));
-        RELEASE_ASSERT(result.isNewEntry);
+        Ref<TicketData> ticketForCustomEventLoop = *ticket;
+        onAddPendingWork(WTFMove(ticketForCustomEventLoop), type);
     }
-    
 
     return ticket;
 }
@@ -303,22 +306,24 @@ void DeferredWorkTimer::cancelPendingWork(VM& vm)
     };
 
     bool needToFire = false;
-    for (auto& ticket : m_pendingTickets) {
+
+    // Use removeIf to safely remove invalid tickets during iteration
+    m_pendingTickets.removeIf([&](auto& ticket) {
         if (ticket->isCancelled() || !isValid(ticket)) {
             // At this point, no one can visit or need the dependencies.
             // So, they are safe to clear here for better debugging and testing.
             ticket->cancelAndClear();
             needToFire = true;
 
+            // Notify custom event loop to remove from its storage too
             if (onCancelPendingWork) {
                 onCancelPendingWork(&ticket.get());
             }
-        }
-    }
 
-    if (onCancelPendingWork) {
-        return;
-    }
+            return true; // Remove from m_pendingTickets
+        }
+        return false; // Keep in m_pendingTickets
+    });
 
     // GC can be triggered before an invalid and scheduled ticket is fired. In that case,
     // we also need to remove the corresponding pending task. Since doWork handles all cases
