@@ -71,6 +71,9 @@ public:
     ALWAYS_INLINE void clearIsVar() { m_bits &= ~IsVar; }
 
     uint16_t bits() const { return m_bits; }
+#if USE(BUN_JSC_ADDITIONS)
+    ALWAYS_INLINE void setFromBits(uint16_t bits) { m_bits = bits; }
+#endif
 
     friend bool operator==(const VariableEnvironmentEntry&, const VariableEnvironmentEntry&) = default;
 
