@@ -219,10 +219,7 @@ endif ()
 
 find_package(ICU 70.1 REQUIRED COMPONENTS data i18n uc)
 
-# On Apple platforms, set U_DISABLE_RENAMING=1 only when using system ICU (libicucore),
-# which doesn't use symbol renaming. When ICU_ROOT is set (e.g., Homebrew ICU),
-# the library uses symbol renaming (e.g., _u_charDirection_77), so we skip this flag.
-if (APPLE AND NOT DEFINED ENV{ICU_ROOT})
+if (APPLE)
     add_definitions(-DU_DISABLE_RENAMING=1)
 endif ()
 
