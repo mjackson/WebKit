@@ -35,21 +35,21 @@ jobs:
     strategy:
       matrix:
         include:
-          - runner: macos-13-large
+          - runner: macos-14-large
             cpp_flags: "-D_LIBCXX_ENABLE_ASSERTIONS=1"
             cpu: haswell
             label: bun-webkit-macos-amd64-debug
             brew_prefix: /usr/local/opt
             package_json_arch: "x64"
             CMAKE_BUILD_TYPE: Debug
-          - runner: macos-13-xlarge
+          - runner: macos-14-xlarge
             cpp_flags: "-D_LIBCXX_ENABLE_ASSERTIONS=1"
             cpu: native
             label: bun-webkit-macos-arm64-debug
             brew_prefix: /opt/homebrew/opt
             package_json_arch: "arm64"
             CMAKE_BUILD_TYPE: Debug
-          - runner: macos-13-xlarge
+          - runner: macos-14-xlarge
             cpp_flags: "-D_LIBCXX_ENABLE_ASSERTIONS=1"
             cpu: native
             label: bun-webkit-macos-arm64-debug-asan
@@ -58,21 +58,21 @@ jobs:
             CMAKE_BUILD_TYPE: Debug
             ENABLE_MALLOC_HEAP_BREAKDOWN: "OFF"
             ENABLE_SANITIZERS: "address,undefined"
-          - runner: macos-13-large
+          - runner: macos-14-large
             cpp_flags: ""
             cpu: haswell
             label: bun-webkit-macos-amd64
             brew_prefix: /usr/local/opt
             package_json_arch: "x64"
             CMAKE_BUILD_TYPE: Release
-          - runner: macos-13-xlarge
+          - runner: macos-14-xlarge
             cpp_flags: "-D_LIBCXX_ENABLE_ASSERTIONS=0"
             cpu: native
             label: bun-webkit-macos-arm64
             brew_prefix: /opt/homebrew/opt
             package_json_arch: "arm64"
             CMAKE_BUILD_TYPE: Release
-          - runner: macos-13-xlarge
+          - runner: macos-14-xlarge
             cpp_flags: "-D_LIBCXX_ENABLE_ASSERTIONS=1"
             cpu: native
             label: bun-webkit-macos-arm64-asan
@@ -104,6 +104,7 @@ jobs:
       - name: Run
         env:
           ICU_INCLUDE_DIRS: ${{matrix.brew_prefix}}/icu4c/include
+          ICU_ROOT: ${{matrix.brew_prefix}}/icu4c
           LDFLAGS: "${{env.LDFLAGS}} "
           CC: "${{matrix.brew_prefix}}/llvm@${{env.LLVM_VERSION}}/bin/clang"
           CXX: "${{matrix.brew_prefix}}/llvm@${{env.LLVM_VERSION}}/bin/clang++"
