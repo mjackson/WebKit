@@ -104,6 +104,7 @@ jobs:
       - name: Run
         env:
           ICU_INCLUDE_DIRS: ${{matrix.brew_prefix}}/icu4c/include
+          ICU_ROOT: ${{matrix.brew_prefix}}/icu4c
           LDFLAGS: "${{env.LDFLAGS}} "
           CC: "${{matrix.brew_prefix}}/llvm@${{env.LLVM_VERSION}}/bin/clang"
           CXX: "${{matrix.brew_prefix}}/llvm@${{env.LLVM_VERSION}}/bin/clang++"
