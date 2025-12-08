@@ -79,7 +79,7 @@ static inline SharedWorkerObjectConnection* mainThreadConnection()
 
 ExceptionOr<Ref<SharedWorker>> SharedWorker::create(Document& document, Variant<RefPtr<TrustedScriptURL>, String>&& scriptURLString, std::optional<Variant<String, WorkerOptions>>&& maybeOptions)
 {
-    auto compliantScriptURLString = trustedTypeCompliantString(document, WTFMove(scriptURLString), "SharedWorker constructor"_s);
+    auto compliantScriptURLString = trustedTypeCompliantString(document.protectedContextDocument(), WTFMove(scriptURLString), "SharedWorker constructor"_s);
     if (compliantScriptURLString.hasException())
         return compliantScriptURLString.releaseException();
 
@@ -204,9 +204,9 @@ void SharedWorker::reportNetworkUsage(size_t bytesTransferredOverNetwork)
     ASSERT(!delta.hasOverflowed());
 
     if (delta) {
-        if (RefPtr resourceMonitor = m_resourceMonitor) {
+        if (m_resourceMonitor) {
             RELEASE_LOG(ResourceMonitoring, "[identifier=%" PUBLIC_LOG_STRING "] SharedWorker::reportNetworkUsage to ResourceMonitor: %zu bytes", identifier().toString().utf8().data(), delta.value());
-            resourceMonitor->addNetworkUsage(delta);
+            m_resourceMonitor->addNetworkUsage(delta);
         }
     }
 #endif

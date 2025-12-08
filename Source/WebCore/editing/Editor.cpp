@@ -362,6 +362,11 @@ EditorClient* Editor::client() const
     return m_client.get();
 }
 
+CheckedPtr<EditorClient> Editor::checkedClient() const
+{
+    return client();
+}
+
 TextCheckerClient* Editor::textChecker() const
 {
     if (EditorClient* owner = client())
@@ -833,9 +838,10 @@ bool Editor::shouldInsertText(const String& text, const std::optional<SimpleRang
 void Editor::respondToChangedContents(const VisibleSelection& endingSelection)
 {
     if (AXObjectCache::accessibilityEnabled()) {
-        RefPtr node = endingSelection.start().deprecatedNode();
-        if (AXObjectCache* cache = document().existingAXObjectCache())
-            cache->onEditableTextValueChanged(*node.get());
+        if (RefPtr node = endingSelection.start().deprecatedNode()) {
+            if (AXObjectCache* cache = document().existingAXObjectCache())
+                cache->onEditableTextValueChanged(*node.get());
+        }
     }
 
     updateMarkersForWordsAffectedByEditing(true);
@@ -2257,8 +2263,8 @@ Node* Editor::nodeBeforeWritingSuggestions() const
     if (!container)
         return nullptr;
 
-    if (RefPtr text = dynamicDowncast<Text>(container))
-        return text.get();
+    if (auto* text = dynamicDowncast<Text>(container.get()))
+        return text;
 
     return position.computeNodeBeforePosition();
 }
@@ -2583,8 +2589,8 @@ void Editor::setComposition(const String& text, const Vector<CompositionUnderlin
         RefPtr extentNode = extent.deprecatedNode();
         unsigned extentOffset = extent.deprecatedEditingOffset();
 
-        if (is<Text>(baseNode) && baseNode == extentNode && baseOffset + text.length() == extentOffset) {
-            m_compositionNode = static_pointer_cast<Text>(baseNode);
+        if (RefPtr baseTextNode = dynamicDowncast<Text>(baseNode); baseTextNode && baseNode == extentNode && baseOffset + text.length() == extentOffset) {
+            m_compositionNode = baseTextNode;
             m_compositionStart = baseOffset;
             m_compositionEnd = extentOffset;
             m_customCompositionUnderlines = underlines;
@@ -2604,12 +2610,12 @@ void Editor::setComposition(const String& text, const Vector<CompositionUnderlin
                     range.location += baseOffset;
             }
 
-            if (auto renderer = baseNode->renderer())
+            if (auto renderer = baseTextNode->renderer())
                 renderer->repaint();
 
             unsigned start = std::min(baseOffset + selectionStart, extentOffset);
             unsigned end = std::min(std::max(start, baseOffset + selectionEnd), extentOffset);
-            auto range = SimpleRange { { *baseNode, start }, { *baseNode, end } };
+            auto range = SimpleRange { { *baseTextNode, start }, { *baseTextNode, end } };
             document->selection().setSelectedRange(range, Affinity::Downstream, FrameSelection::ShouldCloseTyping::No);
         }
     }
@@ -3202,6 +3208,16 @@ void Editor::markAllMisspellingsAndBadGrammarInRanges(OptionSet<TextCheckingType
     Vector<TextCheckingResult> results;
     checkTextOfParagraph(*textChecker(), paragraphToCheck.text(), resolvedOptions, results, document().selection().selection());
     markAndReplaceFor(request.releaseNonNull(), results);
+
+#if PLATFORM(COCOA)
+    bool extendedProofreadingEnabled = document().settings().extendedProofreadingEnabled();
+
+    if (shouldMarkGrammar && extendedProofreadingEnabled) {
+        RefPtr extendedRequest = SpellCheckRequest::create(resolvedOptions, TextCheckingProcessType::TextCheckingProcessIncremental, checkingRange, textReplacementRange, paragraphRange);
+        if (extendedRequest)
+            m_spellChecker->requestExtendedCheckingFor(extendedRequest.releaseNonNull(), results);
+    }
+#endif
 }
 
 static bool isAutomaticTextReplacementType(TextCheckingType type)
@@ -4387,8 +4403,8 @@ bool Editor::selectionStartHasMarkerFor(DocumentMarkerType markerType, int from,
 
     unsigned startOffset = static_cast<unsigned>(from);
     unsigned endOffset = static_cast<unsigned>(from + length);
-    for (auto& marker : markers->markersFor(*node)) {
-        if (marker->startOffset() <= startOffset && endOffset <= marker->endOffset() && marker->type() == markerType)
+    for (auto& marker : markers->markersFor(*node, markerType)) {
+        if (marker->startOffset() <= startOffset && endOffset <= marker->endOffset())
             return true;
     }
 
@@ -4604,10 +4620,11 @@ FontAttributes Editor::fontAttributesAtSelectionStart()
             return FontShadow { };
         },
         [&](const auto& shadows) {
+            const auto& zoomFactor = style->usedZoomForLength();
             return FontShadow {
                 style->colorWithColorFilter(shadows[0].color),
-                { shadows[0].location.x().resolveZoom(Style::ZoomNeeded { }), shadows[0].location.y().resolveZoom(Style::ZoomNeeded { }) },
-                shadows[0].blur.resolveZoom(Style::ZoomNeeded { })
+                { shadows[0].location.x().resolveZoom(zoomFactor), shadows[0].location.y().resolveZoom(zoomFactor) },
+                shadows[0].blur.resolveZoom(zoomFactor)
             };
         }
     );
@@ -4628,28 +4645,28 @@ FontAttributes Editor::fontAttributesAtSelectionStart()
     attributes.textLists = editableTextListsAtPositionInDescendingOrder(document().selection().selection().start());
 
     switch (style->textAlign()) {
-    case TextAlignMode::Right:
-    case TextAlignMode::WebKitRight:
+    case Style::TextAlign::Right:
+    case Style::TextAlign::WebKitRight:
         attributes.horizontalAlignment = FontAttributes::HorizontalAlignment::Right;
         break;
-    case TextAlignMode::Left:
-    case TextAlignMode::WebKitLeft:
+    case Style::TextAlign::Left:
+    case Style::TextAlign::WebKitLeft:
         attributes.horizontalAlignment = FontAttributes::HorizontalAlignment::Left;
         break;
-    case TextAlignMode::Center:
-    case TextAlignMode::WebKitCenter:
+    case Style::TextAlign::Center:
+    case Style::TextAlign::WebKitCenter:
         attributes.horizontalAlignment = FontAttributes::HorizontalAlignment::Center;
         break;
-    case TextAlignMode::Justify:
+    case Style::TextAlign::Justify:
         attributes.horizontalAlignment = FontAttributes::HorizontalAlignment::Justify;
         break;
-    case TextAlignMode::Start:
+    case Style::TextAlign::Start:
         if (style->hasExplicitlySetDirection())
             attributes.horizontalAlignment = style->isLeftToRightDirection() ? FontAttributes::HorizontalAlignment::Left : FontAttributes::HorizontalAlignment::Right;
         else
             attributes.horizontalAlignment = FontAttributes::HorizontalAlignment::Natural;
         break;
-    case TextAlignMode::End:
+    case Style::TextAlign::End:
         attributes.horizontalAlignment = style->isLeftToRightDirection() ? FontAttributes::HorizontalAlignment::Right : FontAttributes::HorizontalAlignment::Left;
         break;
     }

@@ -25,7 +25,7 @@
 
 #pragma once
 
-#if ENABLE(WEBXR_LAYERS)
+#if ENABLE(WEBXR_LAYERS) && ENABLE(WEBGPU)
 
 #include "GPUTexture.h"
 #include "GPUTextureViewDescriptor.h"
@@ -34,6 +34,8 @@
 #include "XRSubImage.h"
 
 #include <wtf/TZoneMalloc.h>
+
+
 
 namespace WebCore {
 
@@ -74,4 +76,4 @@ SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::XRGPUSubImage)
     static bool isType(const WebCore::XRSubImage& image) { return image.isXRGPUSubImage(); }
 SPECIALIZE_TYPE_TRAITS_END()
 
-#endif // ENABLE(WEBXR_LAYERS)
+#endif // ENABLE(WEBXR_LAYERS) && ENABLE(WEBGPU)

@@ -31,6 +31,7 @@
 
 namespace JSC {
 
+template<bool useCallOnEachMicrotask>
 inline void MicrotaskQueue::performMicrotaskCheckpoint(VM& vm, NOESCAPE const Invocable<QueuedTask::Result(QueuedTask&)> auto& functor)
 {
     auto catchScope = DECLARE_CATCH_SCOPE(vm);
@@ -45,10 +46,12 @@ inline void MicrotaskQueue::performMicrotaskCheckpoint(VM& vm, NOESCAPE const In
                 break;
             }
 
-            vm.callOnEachMicrotaskTick();
-            if (!catchScope.clearExceptionExceptTermination()) [[unlikely]] {
-                clear();
-                break;
+            if constexpr (useCallOnEachMicrotask) {
+                vm.callOnEachMicrotaskTick();
+                if (!catchScope.clearExceptionExceptTermination()) [[unlikely]] {
+                    clear();
+                    break;
+                }
             }
 
             switch (result) {

@@ -255,8 +255,8 @@ void setAdditionalSupportedImageTypesForTesting(const String& imageTypes)
 
 #if ENABLE(JIT_OPERATION_VALIDATION) || ENABLE(JIT_OPERATION_DISASSEMBLY)
 
-extern const JSC::JITOperationAnnotation startOfJITOperationsInWebCoreTestSupport __asm("section$start$__DATA_CONST$__jsc_ops");
-extern const JSC::JITOperationAnnotation endOfJITOperationsInWebCoreTestSupport __asm("section$end$__DATA_CONST$__jsc_ops");
+extern const JSC::JITOperationAnnotation startOfJITOperationsInWebCoreTestSupport __asm__("section$start$__DATA_CONST$__jsc_ops");
+extern const JSC::JITOperationAnnotation endOfJITOperationsInWebCoreTestSupport __asm__("section$end$__DATA_CONST$__jsc_ops");
 
 #if ENABLE(JIT_OPERATION_VALIDATION)
 

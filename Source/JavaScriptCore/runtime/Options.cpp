@@ -661,7 +661,7 @@ static inline void disableAllWasmJITOptions()
     Options::useBBQJIT() = false;
     Options::useOMGJIT() = false;
 
-    Options::useWasmSIMD() = false;
+    Options::useWasmSIMD() = Options::useWasmSIMD() && Options::useWasmIPIntSIMD();
 
     Options::dumpWasmDisassembly() = false;
     Options::dumpBBQDisassembly() = false;
@@ -674,13 +674,14 @@ static inline void disableAllWasmOptions()
 
     Options::useWasm() = false;
     Options::useWasmIPInt() = false;
+    Options::useWasmIPIntSIMD() = false;
     Options::failToCompileWasmCode() = true;
 
     Options::useWasmFastMemory() = false;
     Options::useWasmFaultSignalHandler() = false;
     Options::numberOfWasmCompilerThreads() = 0;
 
-    // SIMD is already disabled by JITOptions
+    Options::useWasmSIMD() = false;
     Options::useWasmRelaxedSIMD() = false;
     Options::useWasmTailCalls() = false;
 }
@@ -702,7 +703,6 @@ static inline void disableAllJITOptions()
     Options::usePollingTraps() = true;
 
     Options::dumpDisassembly() = false;
-    Options::asyncDisassembly() = false;
     Options::dumpBaselineDisassembly() = false;
     Options::dumpDFGDisassembly() = false;
     Options::dumpFTLDisassembly() = false;
@@ -825,6 +825,13 @@ void Options::notifyOptionsChanged()
         Options::useWasm() = false;
 #endif
 
+#if ENABLE(WEBASSEMBLY)
+    if (Options::enableWasmDebugger()) [[unlikely]] {
+        Options::useBBQJIT() = false;
+        Options::useOMGJIT() = false;
+    }
+#endif
+
     // At initialization time, we may decide that useJIT should be false for any
     // number of reasons (including failing to allocate JIT memory), and therefore,
     // will / should not be able to enable any JIT related services.
@@ -845,7 +852,6 @@ void Options::notifyOptionsChanged()
         }
 
         if (Options::dumpDisassembly()
-            || Options::asyncDisassembly()
             || Options::dumpBaselineDisassembly()
             || Options::dumpDFGDisassembly()
             || Options::dumpFTLDisassembly()
@@ -1446,7 +1452,7 @@ void Option::dump(StringBuilder& builder) const
         builder.append(unsafeSpan(m_optionRange.rangeString()));
         break;
     case Options::Type::OptionString:
-        builder.append('"', m_optionString ? unsafeSpan8(m_optionString) : ""_span8, '"');
+        builder.append('"', m_optionString ? unsafeSpan(m_optionString) : ""_span, '"');
         break;
     case Options::Type::GCLogLevel:
         builder.append(m_gcLogLevel);
@@ -1508,6 +1514,8 @@ bool canUseHandlerIC()
 
 bool canUseWasm()
 {
+    if constexpr (useCompressedHeap)
+        return false;
 #if ENABLE(WEBASSEMBLY) && !PLATFORM(WATCHOS)
     return true;
 #else

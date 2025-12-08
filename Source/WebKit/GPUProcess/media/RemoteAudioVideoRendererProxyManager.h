@@ -34,6 +34,8 @@
 #include "MessageReceiver.h"
 #include "RemoteAudioVideoRendererIdentifier.h"
 #include "RemoteAudioVideoRendererState.h"
+#include "RemoteCDMInstanceIdentifier.h"
+#include "RemoteLegacyCDMSessionIdentifier.h"
 #include "RemoteVideoFrameProxy.h"
 #include <WebCore/AudioVideoRenderer.h>
 #include <WebCore/HTMLMediaElementIdentifier.h>
@@ -92,9 +94,8 @@ private:
     void addTrack(RemoteAudioVideoRendererIdentifier, WebCore::TrackInfo::TrackType, CompletionHandler<void(Expected<TrackIdentifier, WebCore::PlatformMediaError>)>&&);
     void removeTrack(RemoteAudioVideoRendererIdentifier, TrackIdentifier);
 
-    void enqueueSample(RemoteAudioVideoRendererIdentifier, TrackIdentifier, WebCore::MediaSamplesBlock&&, std::optional<MediaTime>);
+    void enqueueSample(RemoteAudioVideoRendererIdentifier, TrackIdentifier, WebCore::MediaSamplesBlock&&, std::optional<MediaTime>, CompletionHandler<void(bool)>&&);
     void requestMediaDataWhenReady(RemoteAudioVideoRendererIdentifier, TrackIdentifier);
-    void stopRequestingMediaData(RemoteAudioVideoRendererIdentifier, TrackIdentifier);
 
     void notifyTimeReachedAndStall(RemoteAudioVideoRendererIdentifier, const MediaTime&);
     void cancelTimeReachedAction(RemoteAudioVideoRendererIdentifier);
@@ -128,7 +129,7 @@ private:
     void setIsVisible(RemoteAudioVideoRendererIdentifier, bool);
     void setPresentationSize(RemoteAudioVideoRendererIdentifier, const WebCore::IntSize&);
     void setShouldMaintainAspectRatio(RemoteAudioVideoRendererIdentifier, bool);
-    void acceleratedRenderingStateChanged(RemoteAudioVideoRendererIdentifier, bool);
+    void renderingCanBeAcceleratedChanged(RemoteAudioVideoRendererIdentifier, bool);
     void contentBoxRectChanged(RemoteAudioVideoRendererIdentifier, const WebCore::LayoutRect&);
     void notifyWhenHasAvailableVideoFrame(RemoteAudioVideoRendererIdentifier, bool);
     void expectMinimumUpcomingPresentationTime(RemoteAudioVideoRendererIdentifier, const MediaTime&);
@@ -145,6 +146,15 @@ private:
 #endif
     void setTextTrackRepresentation(RemoteAudioVideoRendererIdentifier, WebCore::TextTrackRepresentation*);
     void syncTextTrackBounds(RemoteAudioVideoRendererIdentifier);
+
+#if ENABLE(LEGACY_ENCRYPTED_MEDIA)
+    void setLegacyCDMSession(RemoteAudioVideoRendererIdentifier, std::optional<RemoteLegacyCDMSessionIdentifier>);
+#endif
+#if ENABLE(ENCRYPTED_MEDIA)
+    void setCDMInstance(RemoteAudioVideoRendererIdentifier, std::optional<RemoteCDMInstanceIdentifier>);
+    void setInitData(RemoteAudioVideoRendererIdentifier, Ref<WebCore::SharedBuffer>, CompletionHandler<void(Expected<void, WebCore::PlatformMediaError>)>&&);
+    void attemptToDecrypt(RemoteAudioVideoRendererIdentifier);
+#endif
 
     struct RendererContext {
         RefPtr<WebCore::AudioVideoRenderer> renderer;

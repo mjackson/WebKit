@@ -63,7 +63,9 @@ class HideEditMenuScope {
 public:
     HideEditMenuScope(WKTextInteractionWrapper *wrapper, DeactivateSelection deactivateSelection)
         : m_wrapper { wrapper }
+#if HAVE(UI_TEXT_SELECTION_DISPLAY_INTERACTION)
         , m_reactivateSelection { deactivateSelection == DeactivateSelection::Yes }
+#endif
     {
         [wrapper.textInteractionAssistant willStartScrollingOverflow];
 #if USE(BROWSERENGINEKIT)
@@ -95,7 +97,9 @@ public:
 
 private:
     __weak WKTextInteractionWrapper *m_wrapper { nil };
+#if HAVE(UI_TEXT_SELECTION_DISPLAY_INTERACTION)
     bool m_reactivateSelection { false };
+#endif
 };
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(HideEditMenuScope);
@@ -168,8 +172,8 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(HideEditMenuScope);
 #endif
 
     for (id<UIInteraction> interaction in _view.interactions) {
-        if (RetainPtr selectionInteraction = dynamic_objc_cast<UITextSelectionDisplayInteraction>(interaction))
-            return selectionInteraction.get();
+        if (auto* selectionInteraction = dynamic_objc_cast<UITextSelectionDisplayInteraction>(interaction))
+            return selectionInteraction;
     }
 
     return nil;
@@ -226,7 +230,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(HideEditMenuScope);
     if (newContainer == _view)
         return;
 
-    auto findParentViewBelowNewContainer = [&](UIView *view) -> UIView * {
+    auto findParentViewBelowNewContainer = [&](UIView *view) -> RetainPtr<UIView> {
         if (view == newContainer)
             return nil;
 
@@ -235,7 +239,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(HideEditMenuScope);
                 return nil;
 
             if ([foundView superview] == newContainer)
-                return foundView.get();
+                return foundView;
         }
 
         return nil;

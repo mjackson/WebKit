@@ -26,17 +26,19 @@
 #include "config.h"
 #include "RemoteDDMesh.h"
 
-#if ENABLE(GPU_PROCESS)
+#if ENABLE(GPU_PROCESS_MODEL)
 
-#include "DDMeshDescriptor.h"
 #include "GPUConnectionToWebProcess.h"
 #include "Logging.h"
 #include "ModelObjectHeap.h"
 #include "RemoteDDMeshMessages.h"
 #include "StreamServerConnection.h"
+#include <WebCore/DDMaterialDescriptor.h>
 #include <WebCore/DDMesh.h>
 #include <WebCore/DDMeshDescriptor.h>
+#include <WebCore/DDUpdateMaterialDescriptor.h>
 #include <WebCore/DDUpdateMeshDescriptor.h>
+#include <WebCore/DDUpdateTextureDescriptor.h>
 #include <wtf/TZoneMallocInlines.h>
 
 #define MESSAGE_CHECK(assertion) MESSAGE_CHECK_OPTIONAL_CONNECTION_BASE(assertion, connection())
@@ -78,26 +80,46 @@ void RemoteDDMesh::destruct()
 
 void RemoteDDMesh::setLabel(String&& label)
 {
-    protectedBacking()->setLabel(WTFMove(label));
+    m_backing->setLabel(WTFMove(label));
 }
 
-Ref<WebCore::DDModel::DDMesh> RemoteDDMesh::protectedBacking()
+void RemoteDDMesh::update(const WebCore::DDModel::DDUpdateMeshDescriptor& descriptor)
 {
-    return m_backing;
+    m_backing->update(descriptor);
 }
 
-void RemoteDDMesh::update(const DDModel::DDUpdateMeshDescriptor& descriptor)
+void RemoteDDMesh::render()
 {
-#if PLATFORM(COCOA)
-    auto convertedDescriptor = m_objectHeap->convertFromBacking(descriptor);
-    protectedBacking()->update(*convertedDescriptor);
-#else
-    UNUSED_PARAM(descriptor);
-#endif
+    m_backing->render();
+}
+
+void RemoteDDMesh::updateTexture(const WebCore::DDModel::DDUpdateTextureDescriptor& descriptor)
+{
+    m_backing->updateTexture(descriptor);
+}
+
+void RemoteDDMesh::updateMaterial(const WebCore::DDModel::DDUpdateMaterialDescriptor& descriptor)
+{
+    m_backing->updateMaterial(descriptor);
+}
+
+void RemoteDDMesh::updateTransform(const WebCore::DDModel::DDFloat4x4& transform)
+{
+    m_backing->setEntityTransform(transform);
+}
+
+void RemoteDDMesh::setCameraDistance(float distance)
+{
+    m_backing->setCameraDistance(distance);
+}
+
+void RemoteDDMesh::play(bool playing)
+{
+    m_backing->play(playing);
 }
 
 } // namespace WebKit
 
 #undef MESSAGE_CHECK
 
-#endif // ENABLE(GPU_PROCESS)
+#endif

@@ -34,6 +34,7 @@
 #include "DocumentLoader.h"
 #include "Frame.h"
 #include "FrameLoader.h"
+#include "MemoryCache.h"
 #include "ReferrerPolicy.h"
 #include "ResourceRequest.h"
 #include "SecurityOrigin.h"
@@ -67,15 +68,12 @@ static bool isPassingSecurityChecks(const URL& url, Document& document)
     return true;
 }
 
-static ResourceRequest makePrefetchRequest(URL&& url, const Vector<String>& tags, const String& referrerPolicyString, const URL& referrerURL, const Document& document)
+static ResourceRequest makePrefetchRequest(URL&& url, const Vector<String>& tags, std::optional<ReferrerPolicy> referrerPolicy, const URL& referrerURL, const Document& document)
 {
-    ReferrerPolicy policy = ReferrerPolicy::Default;
-    if (!referrerPolicyString.isEmpty())
-        policy = parseReferrerPolicy(referrerPolicyString, ReferrerPolicySource::SpeculationRules).value_or(ReferrerPolicy::Default);
-    else
-        policy = document.referrerPolicy();
+    if (!referrerPolicy)
+        referrerPolicy = document.referrerPolicy();
 
-    String referrer = SecurityPolicy::generateReferrerHeader(policy, url, referrerURL, OriginAccessPatternsForWebProcess::singleton());
+    String referrer = SecurityPolicy::generateReferrerHeader(*referrerPolicy, url, referrerURL, OriginAccessPatternsForWebProcess::singleton());
 
     ResourceRequest request { WTFMove(url) };
     request.setPriority(ResourceLoadPriority::VeryLow);
@@ -86,7 +84,10 @@ static ResourceRequest makePrefetchRequest(URL&& url, const Vector<String>& tags
         for (size_t i = 0; i < tags.size(); ++i) {
             if (i > 0)
                 builder.append(", "_s);
-            builder.append(tags[i]);
+            if (tags[i] == nullAtom())
+                builder.append("null"_s);
+            else
+                builder.append(tags[i]);
         }
         request.setHTTPHeaderField(HTTPHeaderName::SecSpeculationTags, builder.toString());
     }
@@ -98,7 +99,7 @@ static ResourceRequest makePrefetchRequest(URL&& url, const Vector<String>& tags
     return request;
 }
 
-void DocumentPrefetcher::prefetch(const URL& url, const Vector<String>& tags, const String& referrerPolicyString, bool lowPriority)
+void DocumentPrefetcher::prefetch(const URL& url, const Vector<String>& tags, std::optional<ReferrerPolicy> referrerPolicy, bool lowPriority)
 {
     WeakRef<FrameLoader> frameLoader = m_frameLoader;
     if (!frameLoader.ptr())
@@ -120,7 +121,7 @@ void DocumentPrefetcher::prefetch(const URL& url, const Vector<String>& tags, co
     if (url.hasFragmentIdentifier() && equalIgnoringFragmentIdentifier(url, document->url()))
         return;
 
-    ResourceRequest request = makePrefetchRequest(URL { url }, tags, referrerPolicyString, frameLoader->outgoingReferrerURL(), *document);
+    ResourceRequest request = makePrefetchRequest(URL { url }, tags, referrerPolicy, frameLoader->outgoingReferrerURL(), *document);
 
     ResourceLoaderOptions prefetchOptions(
         SendCallbackPolicy::SendCallbacks,
@@ -134,7 +135,7 @@ void DocumentPrefetcher::prefetch(const URL& url, const Vector<String>& tags, co
         CertificateInfoPolicy::IncludeCertificateInfo,
         ContentSecurityPolicyImposition::DoPolicyCheck,
         DefersLoadingPolicy::AllowDefersLoading,
-        CachingPolicy::AllowCachingPrefetch
+        CachingPolicy::AllowCachingMainResourcePrefetch
     );
     prefetchOptions.destination = FetchOptions::Destination::Document;
     CachedResourceRequest prefetchRequest(WTFMove(request), prefetchOptions);
@@ -165,8 +166,18 @@ void DocumentPrefetcher::notifyFinished(CachedResource& resource, const NetworkL
     if (it != m_prefetchedData.end())
         it->value.metrics = Box<NetworkLoadMetrics>::create(metrics);
 
+    if (!resource.response().isSuccessful()) {
+        m_prefetchedData.remove(resourceURL);
+        MemoryCache::singleton().remove(resource);
+    }
+
     if (resource.hasClient(*this))
         resource.removeClient(*this);
+}
+
+bool DocumentPrefetcher::wasPrefetched(const URL& url) const
+{
+    return m_prefetchedData.contains(url);
 }
 
 Box<NetworkLoadMetrics> DocumentPrefetcher::takePrefetchedNetworkLoadMetrics(const URL& url)
@@ -174,7 +185,7 @@ Box<NetworkLoadMetrics> DocumentPrefetcher::takePrefetchedNetworkLoadMetrics(con
     auto it = m_prefetchedData.find(url);
     if (it != m_prefetchedData.end() && it->value.metrics) {
         auto metrics = WTFMove(it->value.metrics);
-        it->value.metrics = { };
+        m_prefetchedData.remove(it);
         return metrics;
     }
     return { };

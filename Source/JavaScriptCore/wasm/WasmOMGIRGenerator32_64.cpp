@@ -168,6 +168,7 @@ public:
         }
 
         static bool isIf(const ControlData& control) { return control.blockType() == BlockType::If; }
+        static bool isElse(const ControlData& control) { return control.blockType() == BlockType::Else; }
         static bool isTry(const ControlData& control) { return control.blockType() == BlockType::Try; }
         static bool isTryTable(const ControlData& control) { return control.blockType() == BlockType::TryTable; }
         static bool isAnyCatch(const ControlData& control) { return control.blockType() == BlockType::Catch; }
@@ -186,6 +187,9 @@ public:
             switch (blockType()) {
             case BlockType::If:
                 out.print("If:       ");
+                break;
+            case BlockType::Else:
+                out.print("Else:     ");
                 break;
             case BlockType::Block:
                 out.print("Block:    ");
@@ -1001,7 +1005,6 @@ private:
     const CompilationMode m_compilationMode;
     const FunctionCodeIndex m_functionIndex;
     const unsigned m_loopIndexForOSREntry { UINT_MAX };
-    std::unique_ptr<MergedProfile> m_profile;
 
     struct RootBlock {
         BasicBlock* block;
@@ -1151,7 +1154,6 @@ OMGIRGenerator::OMGIRGenerator(AbstractHeapRepository& heaps, CompilationContext
     , m_compilationMode(CompilationMode::OMGMode)
     , m_functionIndex(functionIndex)
     , m_loopIndexForOSREntry(-1)
-    , m_profile(module.createMergedProfile(profiledCallee))
     , m_proc(rootCaller.m_proc)
     , m_returnContinuation(returnContinuation)
     , m_inlineRoot(&rootCaller)
@@ -1189,7 +1191,6 @@ OMGIRGenerator::OMGIRGenerator(AbstractHeapRepository& heaps, CompilationContext
     , m_compilationMode(compilationMode)
     , m_functionIndex(functionIndex)
     , m_loopIndexForOSREntry(loopIndexForOSREntry)
-    , m_profile(module.createMergedProfile(profiledCallee))
     , m_proc(procedure)
     , m_inlineRoot(this)
     , m_inlinedBytes(m_info.functionWasmSize(m_functionIndex))
@@ -1924,7 +1925,6 @@ auto OMGIRGenerator::emitIndirectCall(Value* calleeInstance, Value* calleeCode, 
         }
         patchArgsIndex += m_proc.resultCount(patchpoint->type());
         patchpoint->setGenerator([prepareForCall = prepareForCall, patchArgsIndex](CCallHelpers& jit, const B3::StackmapGenerationParams& params) {
-            AllowMacroScratchRegisterUsage allowScratch(jit);
             prepareForCall->run(jit, params);
             GPRReg callTarget;
             GPRReg callee;
@@ -1936,6 +1936,9 @@ auto OMGIRGenerator::emitIndirectCall(Value* calleeInstance, Value* calleeCode, 
                 callee = params[patchArgsIndex + 1].gpr();
 
             jit.storeWasmCalleeToCalleeCallFrame(callee, sizeof(CallerFrameAndPC) - prologueStackPointerDelta());
+
+            // Allow scratch after the callee is stored, which could be in the scratch register.
+            AllowMacroScratchRegisterUsage allowScratch(jit);
 
             if (is32Bit() && params[patchArgsIndex].isStack()) {
                 callTarget = MacroAssembler::addressTempRegister;
@@ -4235,7 +4238,7 @@ void OMGIRGenerator::emitRefTestOrCast(CastKind castKind, TypedExpression refere
                 structure = decodeNonNullStructure(structureID);
                 if (targetRTT->displaySizeExcludingThis() < WebAssemblyGCStructure::inlinedTypeDisplaySize) {
                     auto* targetRTTPointer = constant(pointerType(), std::bit_cast<uintptr_t>(targetRTT.ptr()));
-                    auto* pointer = m_currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, pointerType(), origin(), structure, safeCast<uint32_t>(WebAssemblyGCStructure::offsetOfInlinedTypeDisplay() + targetRTT->displaySizeExcludingThis() * sizeof(RefPtr<const RTT>)));
+                    auto* pointer = m_currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, pointerType(), origin(), structure, safeCast<int32_t>(WebAssemblyGCStructure::offsetOfInlinedTypeDisplay() + targetRTT->displaySizeExcludingThis() * sizeof(RefPtr<const RTT>)));
                     m_heaps.decorateMemory(&m_heaps.WebAssemblyGCStructure_inlinedTypeDisplays[targetRTT->displaySizeExcludingThis()], pointer);
                     pointer->setReadsMutability(B3::Mutability::Immutable);
                     pointer->setControlDependent(false);
@@ -4271,7 +4274,7 @@ void OMGIRGenerator::emitRefTestOrCast(CastKind castKind, TypedExpression refere
 
                 emitCheckOrBranchForCast(castKind, m_currentBlock->appendNew<Value>(m_proc, BelowEqual, origin(), displaySizeExcludingThis, constant(Int32, targetRTT->displaySizeExcludingThis())), castFailure, falseBlock);
 
-                auto* pointer = m_currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, pointerType(), origin(), rtt, safeCast<uint32_t>(RTT::offsetOfData() + targetRTT->displaySizeExcludingThis() * sizeof(RefPtr<const RTT>)));
+                auto* pointer = m_currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, pointerType(), origin(), rtt, safeCast<int32_t>(RTT::offsetOfData() + targetRTT->displaySizeExcludingThis() * sizeof(RefPtr<const RTT>)));
                 m_heaps.decorateMemory(&m_heaps.WasmRTT_data[targetRTT->displaySizeExcludingThis()], pointer);
                 pointer->setReadsMutability(B3::Mutability::Immutable);
                 pointer->setControlDependent(false);
@@ -4867,10 +4870,10 @@ Value* OMGIRGenerator::loadFromScratchBuffer(OSRBufferMode mode, unsigned& index
 {
     unsigned valueSize = m_proc.usesSIMD() ? 2 : 1;
     ASSERT(!m_proc.usesSIMD());
-    size_t offset = valueSize * sizeof(uint64_t) * (indexInBuffer++);
+    int32_t offset = valueSize * sizeof(uint64_t) * (indexInBuffer++);
     RELEASE_ASSERT(type.isNumeric());
     if (mode == SplitI64 && type.kind() == B3::TypeKind::Int64) {
-        size_t offsetHi = valueSize * sizeof(uint64_t) * (indexInBuffer++);
+        int32_t offsetHi = valueSize * sizeof(uint64_t) * (indexInBuffer++);
         auto* lo = m_currentBlock->appendNew<MemoryValue>(m_proc, Load, Int32, origin(), pointer, offset);
         auto* hi = m_currentBlock->appendNew<MemoryValue>(m_proc, Load, Int32, origin(), pointer, offsetHi);
         return m_currentBlock->appendNew<Value>(m_proc, Stitch, type, origin(), lo, hi);
@@ -5115,7 +5118,7 @@ auto OMGIRGenerator::addCatchToUnreachable(unsigned exceptionIndex, const TypeDe
     unsigned offset = 0;
     for (unsigned i = 0; i < signature.as<FunctionSignature>()->argumentCount(); ++i) {
         Type type = signature.as<FunctionSignature>()->argumentType(i);
-        Value* value = m_currentBlock->appendNew<MemoryValue>(m_proc, Load, toB3Type(type), origin(), payload, offset * sizeof(uint64_t));
+        Value* value = m_currentBlock->appendNew<MemoryValue>(m_proc, Load, toB3Type(type), origin(), payload, safeCast<int32_t>(offset * sizeof(uint64_t)));
         results.append(push(value));
         offset += type.kind == TypeKind::V128 ? 2 : 1;
     }
@@ -5252,7 +5255,7 @@ auto OMGIRGenerator::emitCatchTableImpl(ControlData& data, const ControlData::Tr
         for (unsigned i = 0; i < signature->template as<FunctionSignature>()->argumentCount(); ++i) {
             Type type = signature->as<FunctionSignature>()->argumentType(i);
             Variable* var = m_proc.addVariable(toB3Type(type));
-            Value* value = m_currentBlock->appendNew<MemoryValue>(m_proc, Load, toB3Type(type), origin(), buffer, offset * sizeof(uint64_t));
+            Value* value = m_currentBlock->appendNew<MemoryValue>(m_proc, Load, toB3Type(type), origin(), buffer, safeCast<int32_t>(offset * sizeof(uint64_t)));
             set(var, value);
             resultStack.constructAndAppend(type, var);
             offset += type.kind == TypeKind::V128 ? 2 : 1;
@@ -5305,7 +5308,7 @@ auto OMGIRGenerator::addThrow(unsigned exceptionIndex, ArgumentList& args, Stack
     patch->append(instanceValue(), ValueRep::reg(GPRInfo::argumentGPR0));
     unsigned offset = 0;
     for (auto arg : args) {
-        patch->append(get(arg), ValueRep::stackArgument(offset * sizeof(EncodedJSValue)));
+        patch->append(get(arg), ValueRep::stackArgument(safeCast<intptr_t>(offset * sizeof(EncodedJSValue))));
         offset += arg->type().isVector() ? 2 : 1;
     }
     m_maxNumJSCallArguments = std::max(m_maxNumJSCallArguments, offset);
@@ -5609,11 +5612,11 @@ Vector<ConstrainedValue> OMGIRGenerator::createCallConstrainedArgs(BasicBlock* b
 
             if (dstLocation.location.isStack()) {
                 constrainedPatchArgs.append(B3::ConstrainedValue(lo, ValueRep::stack(dstLocation.location.offsetFromFP())));
-                constrainedPatchArgs.append(B3::ConstrainedValue(hi, ValueRep::stack(dstLocation.location.offsetFromFP() + sizeof(int))));
+                constrainedPatchArgs.append(B3::ConstrainedValue(hi, ValueRep::stack(dstLocation.location.offsetFromFP() + static_cast<intptr_t>(sizeof(int)))));
             } else {
                 ASSERT(dstLocation.location.isStackArgument());
                 constrainedPatchArgs.append(B3::ConstrainedValue(lo, ValueRep::stackArgument(dstLocation.location.offsetFromSP())));
-                constrainedPatchArgs.append(B3::ConstrainedValue(hi, ValueRep::stackArgument(dstLocation.location.offsetFromSP() + sizeof(int))));
+                constrainedPatchArgs.append(B3::ConstrainedValue(hi, ValueRep::stackArgument(dstLocation.location.offsetFromSP() + static_cast<intptr_t>(sizeof(int)))));
             }
             continue;
         }
@@ -5660,10 +5663,10 @@ auto OMGIRGenerator::createCallPatchpoint(BasicBlock* block, const TypeDefinitio
                 if (valueLocation.location.isGPR())
                     resultConstraintsHigh.append(B3::ValueRep(valueLocation.location.jsr().tagGPR()));
                 else if (valueLocation.location.isStack())
-                    resultConstraintsHigh.append(B3::ValueRep::stack(checkedSum<intptr_t>(valueLocation.location.offsetFromFP(), static_cast<intptr_t>(bytesForWidth(Width32)))));
+                    resultConstraintsHigh.append(B3::ValueRep::stack(checkedSum<intptr_t>(valueLocation.location.offsetFromFP(), static_cast<intptr_t>(bytesForWidth(Width32))).value()));
                 else {
                     ASSERT(valueLocation.location.isStackArgument());
-                    resultConstraintsHigh.append(B3::ValueRep::stackArgument(checkedSum<intptr_t>(valueLocation.location.offsetFromSP(), static_cast<intptr_t>(bytesForWidth(Width32)))));
+                    resultConstraintsHigh.append(B3::ValueRep::stackArgument(checkedSum<intptr_t>(valueLocation.location.offsetFromSP(), static_cast<intptr_t>(bytesForWidth(Width32))).value()));
                 }
             }
         }
@@ -5692,58 +5695,95 @@ static inline void prepareForTailCallImpl(unsigned functionIndex, CCallHelpers& 
     auto& functionSignature = *signature.as<FunctionSignature>();
     const Checked<int32_t> offsetOfFirstSlotFromFP = WTF::roundUpToMultipleOf<stackAlignmentBytes()>(wasmCallerInfoAsCallee.headerAndArgumentStackSizeInBytes);
     JIT_COMMENT(jit, "Set up tail call, new FP offset from FP: ", newFPOffsetFromFP);
-    AllowMacroScratchRegisterUsage allowScratch(jit);
+
+    const unsigned frameSize = params.code().frameSize();
+    ASSERT(WTF::roundUpToMultipleOf<stackAlignmentBytes()>(frameSize + sizeof(CallerFrameAndPC)) == frameSize + sizeof(CallerFrameAndPC));
+
+    auto fpOffsetToSPOffset = [frameSize](int32_t offset) {
+        return checkedSum<int>(safeCast<int>(frameSize), offset).value();
+    };
+
+    auto newReturnPCOffset = fpOffsetToSPOffset(checkedSum<intptr_t>(CallFrame::returnPCOffset(), newFPOffsetFromFP).value());
+
+    // We requested some extra stack space below via requestCallArgAreaSize
+    // ... FP [initial safe area][caller stack space ] [callArgSpace                    ] SP ...
+    // becomes
+    // ... FP [safe area growing ->    ] [danger           ] [ scratch                  ] SP ...
+    // This scratch space sits at the very bottom of the stack, near sp.
+    // AirLowerStackArgs takes care of adding callArgSpace to our total caller frame size.
+    // BUT, even though we have this extra space, the new frame might be bigger, so we can't
+    // use the new frame as scratch. The new return pc represents the lowest offset from SP we can use.
+    int spillPointer = 0;
+    const int scratchAreaUpperBound = std::min(
+        safeCast<int>(WTF::roundUpToMultipleOf<stackAlignmentBytes()>(static_cast<int>(wasmCalleeInfoAsCallee.headerAndArgumentStackSizeInBytes))),
+        newReturnPCOffset);
+    auto allocateSpill = [&] (Width width) -> int {
+        int offset = spillPointer;
+        spillPointer += bytesForWidth(width);
+        ASSERT(spillPointer <= scratchAreaUpperBound);
+        ASSERT(offset < scratchAreaUpperBound);
+        return offset;
+    };
+
+    RegisterAtOffsetList calleeSaves = params.code().calleeSaveRegisterAtOffsetList();
 
     // Be careful not to clobber this below.
     // We also need to make sure that we preserve this if it is used by the patchpoint body.
-    bool clobbersTmp = false;
+    AllowMacroScratchRegisterUsage allowScratch(jit);
     auto tmp = jit.scratchRegister();
-    int tmpSpill = 0;
+    bool tmpNeedsSaving = false;
+    int tmpSpillOffsetRelativeToOriginalSP = 0;
 
     // If we pass a stack location to the patchpoint in arugmentCountIncludingThis, preserve it here.
     bool stackPatchArg[tailCallPatchpointScratchCount] = { false, false };
     int stackPatchArgSpill[tailCallPatchpointScratchCount] = { 0, 0 };
 
-    // Set up a valid frame so that we can clobber this one.
-    RegisterAtOffsetList calleeSaves = params.code().calleeSaveRegisterAtOffsetList();
-    jit.emitRestore(calleeSaves);
+    // Nothing before saving tmp can use the scratch register since it might clobber an input.
+    {
+        DisallowMacroScratchRegisterUsage disallowScratch(jit);
 
-    for (unsigned i = 0; i < params.size(); ++i) {
-        auto arg = params[i];
-        if (arg.isGPR()) {
-            ASSERT(!calleeSaves.find(arg.gpr()));
-            if (arg.gpr() == tmp)
-                clobbersTmp = true;
-            continue;
-        }
-        if (arg.isFPR()) {
-            ASSERT(!calleeSaves.find(arg.fpr()));
-            continue;
-        }
-    }
+        // Set up a valid frame so that we can clobber this one.
+        jit.emitRestore(calleeSaves);
 
-    for (unsigned i = lastPatchArg; i < params.size(); ++i) {
-        auto arg = params[i];
-        if (arg.isStack()) {
-            int scratch = -1;
-            for (unsigned i = 0; i < tailCallPatchpointScratchCount; ++i) {
-                if (!stackPatchArg[i]) {
-                    scratch = i;
-                    break;
+        for (unsigned i = 0; i < params.size(); ++i) {
+            auto arg = params[i];
+            if (arg.isGPR()) {
+                ASSERT(!calleeSaves.find(arg.gpr()));
+                if (arg.gpr() == tmp)
+                    tmpNeedsSaving = true;
+                continue;
+            }
+            if (arg.isFPR()) {
+                ASSERT(!calleeSaves.find(arg.fpr()));
+                continue;
+            }
+        }
+
+        for (unsigned i = lastPatchArg; i < params.size(); ++i) {
+            auto arg = params[i];
+            if (arg.isStack()) {
+                unsigned scratch = -1;
+                for (unsigned i = 0; i < tailCallPatchpointScratchCount; ++i) {
+                    if (!stackPatchArg[i]) {
+                        scratch = i;
+                        break;
+                    }
                 }
-            }
-            ASSERT(scratch >= 0 && !stackPatchArg[scratch]);
-            stackPatchArg[scratch] = true;
-            if (WasmOMGIRGeneratorInternal::verboseTailCalls) {
-                jit.probeDebug([arg] (Probe::Context& context) {
-                    dataLogLn("patch arg spill: ", RawHex(context.gpr<uintptr_t*>(MacroAssembler::framePointerRegister)[arg.offsetFromFP() / sizeof(uintptr_t)]));
-                });
-            }
-            // A convinent and save place to stash it.
-            jit.transferPtr(CCallHelpers::Address(MacroAssembler::framePointerRegister, arg.offsetFromFP()),
-                CCallHelpers::Address(MacroAssembler::framePointerRegister, tailCallPatchpointScratchOffsets[scratch]));
-        } else
-            ASSERT(arg.isGPR() || arg.isFPR());
+                ASSERT(scratch >= 0 && !stackPatchArg[scratch]);
+                stackPatchArg[scratch] = true;
+                if (WasmOMGIRGeneratorInternal::verboseTailCalls) {
+                    jit.probeDebug([arg] (Probe::Context& context) {
+                        dataLogLn("patch arg spill: ", RawHex(context.gpr<uintptr_t*>(MacroAssembler::framePointerRegister)[arg.offsetFromFP() / sizeof(uintptr_t)]));
+                    });
+                }
+                // A convinent and save place to stash it.
+                jit.transferPtr(CCallHelpers::Address(MacroAssembler::framePointerRegister, arg.offsetFromFP()),
+                    CCallHelpers::Address(MacroAssembler::framePointerRegister, tailCallPatchpointScratchOffsets[scratch]));
+            } else
+                ASSERT(arg.isGPR() || arg.isFPR());
+        }
+
+        ASSERT(!calleeSaves.find(tmp) || !tmpNeedsSaving);
     }
 
 #if ASSERT_ENABLED
@@ -5755,15 +5795,6 @@ static inline void prepareForTailCallImpl(unsigned functionIndex, CCallHelpers& 
         }
     }
 #endif
-
-    ASSERT(!calleeSaves.find(tmp) || !clobbersTmp);
-
-    const unsigned frameSize = params.code().frameSize();
-    ASSERT(WTF::roundUpToMultipleOf<stackAlignmentBytes()>(frameSize + sizeof(CallerFrameAndPC)) == frameSize + sizeof(CallerFrameAndPC));
-
-    auto fpOffsetToSPOffset = [frameSize](int32_t offset) {
-        return checkedSum<int>(safeCast<int>(frameSize), offset).value();
-    };
 
     JIT_COMMENT(jit, "Let's use the caller's frame, so that we always have a valid frame.");
     if (WasmOMGIRGeneratorInternal::verboseTailCalls) {
@@ -5827,30 +5858,8 @@ static inline void prepareForTailCallImpl(unsigned functionIndex, CCallHelpers& 
         });
     }
 
-    auto newReturnPCOffset = fpOffsetToSPOffset(checkedSum<intptr_t>(CallFrame::returnPCOffset(), newFPOffsetFromFP).value());
-
     JIT_COMMENT(jit, "Copy over args if needed into their final position, clobbering everything.");
     // This code has a bunch of overlap with CallFrameShuffler and Shuffle in Air/BBQ
-
-    // We requested some extra stack space below via requestCallArgAreaSize
-    // ... FP [initial safe area][caller stack space ] [callArgSpace                    ] SP ...
-    // becomes
-    // ... FP [safe area growing ->    ] [danger           ] [ scratch                  ] SP ...
-    // This scratch space sits at the very bottom of the stack, near sp.
-    // AirLowerStackArgs takes care of adding callArgSpace to our total caller frame size.
-    // BUT, even though we have this extra space, the new frame might be bigger, so we can't
-    // use the new frame as scratch. The new return pc represents the lowest offset from SP we can use.
-    int spillPointer = 0;
-    const int scratchAreaUpperBound = std::min(
-        safeCast<int>(WTF::roundUpToMultipleOf<stackAlignmentBytes()>(static_cast<int>(wasmCalleeInfoAsCallee.headerAndArgumentStackSizeInBytes))),
-        newReturnPCOffset);
-    auto allocateSpill = [&] (Width width) -> int {
-        int offset = spillPointer;
-        spillPointer += bytesForWidth(width);
-        ASSERT(spillPointer <= scratchAreaUpperBound);
-        ASSERT(offset < scratchAreaUpperBound);
-        return offset;
-    };
 
     auto doMove = [&jit, tmp] (int srcOffset, int dstOffset, Width width) {
         JIT_COMMENT(jit, "Do move ", srcOffset, " -> ", dstOffset);
@@ -5882,9 +5891,9 @@ static inline void prepareForTailCallImpl(unsigned functionIndex, CCallHelpers& 
 
     JIT_COMMENT(jit, "SP[", safeAreaLowerBound, "] to SP[", stackUpperBound, "] form the safe portion of the stack to clobber; Scratches go from SP[0] to SP[", scratchAreaUpperBound, "].");
 
-    if (clobbersTmp) {
-        tmpSpill = allocateSpill(WidthPtr);
-        jit.storePtr(tmp, CCallHelpers::Address(MacroAssembler::stackPointerRegister, tmpSpill));
+    if (tmpNeedsSaving) {
+        tmpSpillOffsetRelativeToOriginalSP = allocateSpill(WidthPtr);
+        jit.storePtr(tmp, CCallHelpers::Address(MacroAssembler::stackPointerRegister, tmpSpillOffsetRelativeToOriginalSP));
     }
 
     for (unsigned i = 0; i < tailCallPatchpointScratchCount; ++i) {
@@ -5926,11 +5935,11 @@ static inline void prepareForTailCallImpl(unsigned functionIndex, CCallHelpers& 
             continue;
         }
 
-        auto saveSrc = [tmp, clobbersTmp, tmpSpill, dstType, &allocateSpill, &jit, &fpOffsetToSPOffset](ValueRep src) -> std::tuple<int, Width> {
+        auto saveSrc = [tmp, tmpNeedsSaving, tmpSpillOffsetRelativeToOriginalSP, dstType, &allocateSpill, &jit, &fpOffsetToSPOffset](ValueRep src) -> std::tuple<int, Width> {
             int srcOffset = 0;
-            if (clobbersTmp && src.isGPR() && src.gpr() == tmp) {
-                // Before tmp may have been clobbered, it was spilled to tmpSpill.
-                srcOffset = tmpSpill;
+            if (tmpNeedsSaving && src.isGPR() && src.gpr() == tmp) {
+                // Before tmp may have been clobbered, it was spilled to tmpSpillOffsetRelativeToOriginalSP.
+                srcOffset = tmpSpillOffsetRelativeToOriginalSP;
             } else if (src.isGPR()) {
                 srcOffset = allocateSpill(WidthPtr);
                 jit.storePtr(src.gpr(), CCallHelpers::Address(MacroAssembler::stackPointerRegister, srcOffset));
@@ -5998,11 +6007,9 @@ static inline void prepareForTailCallImpl(unsigned functionIndex, CCallHelpers& 
             argsToMove.append({ stackPatchArgSpill[i], fpOffsetToSPOffset(tailCallPatchpointScratchOffsets[i] + newFPOffsetFromFP), WidthPtr });
     }
 
-    std::sort(
-        argsToMove.begin(), argsToMove.end(),
-        [] (const auto& left, const auto& right) {
-            return std::get<0>(left) > std::get<0>(right);
-        });
+    std::ranges::sort(argsToMove, [](const auto& left, const auto& right) {
+        return std::get<0>(left) > std::get<0>(right);
+    });
 
     for (unsigned i = 0; i < argsToMove.size(); ++i) {
         auto [srcOffset, dstOffset, width] = argsToMove[i];
@@ -6077,53 +6084,66 @@ static inline void prepareForTailCallImpl(unsigned functionIndex, CCallHelpers& 
 #endif
 #endif
 
-    jit.addPtr(MacroAssembler::TrustedImm32(newSPAtPrologueOffsetFromSP), MacroAssembler::stackPointerRegister);
+    if (tmpNeedsSaving)
+        jit.loadPtr(CCallHelpers::Address(MacroAssembler::stackPointerRegister, tmpSpillOffsetRelativeToOriginalSP), tmp);
+
+    // Nothing after restoring tmp can use the scratch register since it might clobber an input.
+    {
+        DisallowMacroScratchRegisterUsage disallowScratch(jit);
+
+        jit.addPtr(MacroAssembler::TrustedImm32(newSPAtPrologueOffsetFromSP), MacroAssembler::stackPointerRegister);
 
 #if CPU(X86_64)
-    if (WasmOMGIRGeneratorInternal::verboseTailCalls) {
-        jit.probeDebugSIMD([] (Probe::Context& context) {
-            dataLogLn("return pc on the top of the stack: ", RawHex(*context.gpr<uintptr_t*>(MacroAssembler::stackPointerRegister)), " at ", RawHex(context.gpr<uintptr_t>(MacroAssembler::stackPointerRegister)));
-        });
-    }
+        if (WasmOMGIRGeneratorInternal::verboseTailCalls) {
+            jit.probeDebugSIMD([] (Probe::Context& context) {
+                dataLogLn("return pc on the top of the stack: ", RawHex(*context.gpr<uintptr_t*>(MacroAssembler::stackPointerRegister)), " at ", RawHex(context.gpr<uintptr_t>(MacroAssembler::stackPointerRegister)));
+            });
+        }
 #endif
+
+        JIT_COMMENT(jit, "OK, now we can jump.");
+        if (WasmOMGIRGeneratorInternal::verboseTailCalls) {
+            jit.probeDebugSIMD([wasmCalleeInfoAsCallee] (Probe::Context& context) {
+                dataLogLn("Can now jump: FP: ", RawHex(context.gpr<uintptr_t>(GPRInfo::callFrameRegister)), " SP: ", RawHex(context.gpr<uintptr_t>(MacroAssembler::stackPointerRegister)));
+                auto* newFP = context.gpr<uintptr_t*>(MacroAssembler::stackPointerRegister) - prologueStackPointerDelta() / sizeof(uintptr_t);
+                dataLogLn("New (callee) FP at prologue will be at ", RawPointer(newFP));
+                auto fpl = std::bit_cast<uint64_t*>(newFP);
+                auto fpi = std::bit_cast<uint32_t*>(newFP);
+
+                for (unsigned i = 0; i < wasmCalleeInfoAsCallee.params.size(); ++i) {
+                    auto arg = wasmCalleeInfoAsCallee.params[i];
+                    auto src = arg.location;
+                    dataLog("Arg ", i, " located at ", arg.location, " = ");
+                    if (arg.location.isGPR()) {
+                        dataLog(context.gpr(arg.location.jsr().payloadGPR()), " / ", (int) context.gpr(arg.location.jsr().payloadGPR()));
+                        if (src.jsr().tagGPR())
+                            dataLog(" Upper bits: ", context.gpr(src.jsr().tagGPR()), " / ", (int) context.gpr(src.jsr().tagGPR()));
+                    } else if (arg.location.isFPR() && arg.width <= Width::Width64)
+                        dataLog(context.fpr(arg.location.fpr(), SavedFPWidth::DontSaveVectors));
+                    else if (arg.location.isFPR())
+                        RELEASE_ASSERT_NOT_REACHED();
+                    else
+                        dataLog(fpl[src.offsetFromFP() / sizeof(*fpl)], " / ", fpi[src.offsetFromFP() / sizeof(*fpi)],  " / ", RawHex(fpi[src.offsetFromFP() / sizeof(*fpi)]), " / ", std::bit_cast<double>(fpl[src.offsetFromFP() / sizeof(*fpl)]), " at ", RawPointer(&fpi[src.offsetFromFP() / sizeof(*fpi)]));
+                    dataLogLn();
+                }
+            });
+        }
 
 #if ASSERT_ENABLED
-    for (unsigned i = 2; i < 50; ++i) {
-        // Everthing after sp might be overwritten anyway.
-        jit.storePtr(MacroAssembler::TrustedImm32(0xBFFF), CCallHelpers::Address(MacroAssembler::stackPointerRegister, -i * sizeof(uintptr_t)));
-    }
+        // Everything in the old stack might be overwritten anyway. Clobber for easier debugging.
+        if (tmpNeedsSaving)
+            jit.pushPair(tmp, tmp);
+        jit.move(MacroAssembler::TrustedImm32(0xBFFF), tmp);
+        constexpr int stackSlotsToClobber = 3 * stackAlignmentBytes();
+        constexpr int stackBytesToClobber = stackSlotsToClobber * registerSize();
+        static_assert(!(stackBytesToClobber & (stackAlignmentBytes() - 1)), "Size in bytes to clobber on stack is aligned");
+        for (int i = 0; i < stackSlotsToClobber / 2; ++i)
+            jit.pushPair(tmp, tmp);
+        jit.addPtr(MacroAssembler::TrustedImm32(stackBytesToClobber), MacroAssembler::stackPointerRegister);
+        if (tmpNeedsSaving)
+            jit.popPair(tmp, tmp);
 #endif
-
-    JIT_COMMENT(jit, "OK, now we can jump.");
-    if (WasmOMGIRGeneratorInternal::verboseTailCalls) {
-        jit.probeDebugSIMD([wasmCalleeInfoAsCallee] (Probe::Context& context) {
-            dataLogLn("Can now jump: FP: ", RawHex(context.gpr<uintptr_t>(GPRInfo::callFrameRegister)), " SP: ", RawHex(context.gpr<uintptr_t>(MacroAssembler::stackPointerRegister)));
-            auto* newFP = context.gpr<uintptr_t*>(MacroAssembler::stackPointerRegister) - prologueStackPointerDelta() / sizeof(uintptr_t);
-            dataLogLn("New (callee) FP at prologue will be at ", RawPointer(newFP));
-            auto fpl = std::bit_cast<uint64_t*>(newFP);
-            auto fpi = std::bit_cast<uint32_t*>(newFP);
-
-            for (unsigned i = 0; i < wasmCalleeInfoAsCallee.params.size(); ++i) {
-                auto arg = wasmCalleeInfoAsCallee.params[i];
-                auto src = arg.location;
-                dataLog("Arg ", i, " located at ", arg.location, " = ");
-                if (arg.location.isGPR()) {
-                    dataLog(context.gpr(arg.location.jsr().payloadGPR()), " / ", (int) context.gpr(arg.location.jsr().payloadGPR()));
-                    if (src.jsr().tagGPR())
-                        dataLog(" Upper bits: ", context.gpr(src.jsr().tagGPR()), " / ", (int) context.gpr(src.jsr().tagGPR()));
-                } else if (arg.location.isFPR() && arg.width <= Width::Width64)
-                    dataLog(context.fpr(arg.location.fpr(), SavedFPWidth::DontSaveVectors));
-                else if (arg.location.isFPR())
-                    RELEASE_ASSERT_NOT_REACHED();
-                else
-                    dataLog(fpl[src.offsetFromFP() / sizeof(*fpl)], " / ", fpi[src.offsetFromFP() / sizeof(*fpi)],  " / ", RawHex(fpi[src.offsetFromFP() / sizeof(*fpi)]), " / ", std::bit_cast<double>(fpl[src.offsetFromFP() / sizeof(*fpl)]), " at ", RawPointer(&fpi[src.offsetFromFP() / sizeof(*fpi)]));
-                dataLogLn();
-            }
-        });
     }
-
-    if (clobbersTmp)
-        jit.loadPtr(CCallHelpers::Address(MacroAssembler::stackPointerRegister, tmpSpill), tmp);
 }
 
 // See also: https://leaningtech.com/fantastic-tail-calls-and-how-to-implement-them/, a blog post about contributing this feature.
@@ -6241,49 +6261,10 @@ auto OMGIRGenerator::createTailCallPatchpoint(BasicBlock* block, const TypeDefin
     return { patchpoint, nullptr, WTFMove(prepareForCall) };
 }
 
-bool OMGIRGenerator::canInline(FunctionSpaceIndex functionIndexSpace, unsigned callProfileIndex) const
+bool OMGIRGenerator::canInline(FunctionSpaceIndex, unsigned) const
 {
     ASSERT(!m_inlinedBytes || !m_inlineParent);
-    if (!Options::useOMGInlining() || is32Bit())
-        return false;
-
-    size_t wasmSize = m_info.functionWasmSizeImportSpace(functionIndexSpace);
-    if (wasmSize >= Options::maximumWasmCalleeSizeForInlining())
-        return false;
-
-    {
-        unsigned selfRecursionCount = 0;
-        for (auto* cursor = this; cursor; cursor = cursor->m_inlineParent) {
-            if (&cursor->m_info == &m_info && cursor->m_info.toSpaceIndex(cursor->m_functionIndex) == functionIndexSpace) {
-                ++selfRecursionCount;
-                if (selfRecursionCount >= Options::maximumWasmSelfRecursionDepthForInlining())
-                    return false;
-            }
-        }
-    }
-
-    // If this callsite is never used by IPInt and BBQ, we should skip inlining. Likely a dead code.
-    // FIXME: This is still very naive. We can forcefully inline if wasm byte size is
-    // too small (then call sequence can be larger than the inlined content).
-    // Also, we could eventually consider emitting OSR exit, and stop generating
-    // the rest of the code for this and subsequent basic blocks.
-    if (!m_profile->isCalled(callProfileIndex))
-        return false;
-
-    if (m_inlineDepth >= Options::maximumWasmDepthForInlining())
-        return false;
-
-    if (m_inlineRoot->m_inlinedBytes.value() >= Options::maximumWasmCallerSizeForInlining())
-        return false;
-
-    if (m_inlineDepth > 1 && !StackCheck(Thread::currentSingleton().stack(), StackBounds::DefaultReservedZone * 2).isSafeToRecurse())
-        return false;
-
-    // FIXME: There's no fundamental reason we can't inline these including imports.
-    if (m_info.callCanClobberInstance(functionIndexSpace))
-        return false;
-
-    return true;
+    return false;
 }
 
 auto OMGIRGenerator::emitInlineDirectCall(FunctionCodeIndex calleeFunctionIndex, const TypeDefinition& calleeSignature, ArgumentList& args, ValueResults& results) -> PartialResult
@@ -6621,37 +6602,6 @@ auto OMGIRGenerator::addCallIndirect(unsigned callProfileIndex, unsigned tableIn
     m_heaps.decorateMemory(&m_heaps.WasmFuncRefTableFunction_targetInstance, calleeInstance);
 
     ValueResults fastValues;
-    if (m_profile->isCalled(callProfileIndex)) {
-        if (auto* callee = m_profile->callee(callProfileIndex)) {
-            if (callee->compilationMode() == Wasm::CompilationMode::IPIntMode) {
-                BasicBlock* slowCase = m_proc.addBlock();
-                BasicBlock* directCall = m_proc.addBlock();
-
-                Value* isSameContextInstance = m_currentBlock->appendNew<Value>(m_proc, Equal, origin(), calleeInstance, instanceValue());
-                Value* isSameCallee = m_currentBlock->appendNew<Value>(m_proc, Equal, origin(), calleeCallee, constant(pointerType(), std::bit_cast<uintptr_t>(CalleeBits::boxNativeCallee(callee))));
-                m_currentBlock->appendNewControlValue(m_proc, Branch, origin(), m_currentBlock->appendNew<Value>(m_proc, BitAnd, origin(), isSameContextInstance, isSameCallee), FrequentedBlock(directCall), FrequentedBlock(slowCase, FrequencyClass::Rare));
-                directCall->addPredecessor(m_currentBlock);
-                slowCase->addPredecessor(m_currentBlock);
-
-                m_currentBlock = directCall;
-                auto result = emitDirectCall(callProfileIndex, callee->index(), signature, args, fastValues, callType);
-                if (!result.has_value()) [[unlikely]]
-                    return result;
-
-                if (!isTailCallRootCaller) {
-                    for (Value*& value : fastValues) {
-                        auto* input = value;
-                        value = m_currentBlock->appendNew<UpsilonValue>(m_proc, origin(), input);
-                    }
-                    m_currentBlock->appendNewControlValue(m_proc, Jump, origin(), continuation);
-                    continuation->addPredecessor(m_currentBlock);
-                }
-
-                m_currentBlock = slowCase;
-            }
-        }
-    }
-
     Value* calleeCodeLocation = m_currentBlock->appendNew<MemoryValue>(m_proc, Load, pointerType(), origin(), callableFunction, safeCast<int32_t>(FuncRefTable::Function::offsetOfFunction() + WasmToWasmImportableFunction::offsetOfEntrypointLoadLocation()));
     m_heaps.decorateMemory(&m_heaps.WasmFuncRefTableFunction_entrypointLoadLocation, calleeCodeLocation);
 
@@ -6682,7 +6632,7 @@ auto OMGIRGenerator::addCallIndirect(unsigned callProfileIndex, unsigned tableIn
             this->emitExceptionCheck(jit, origin, ExceptionType::BadSignature);
         });
 
-        auto* rttSize = m_currentBlock->appendNew<MemoryValue>(m_proc, Load, Int32, origin(), calleeRTT, safeCast<uint32_t>(RTT::offsetOfDisplaySizeExcludingThis()));
+        auto* rttSize = m_currentBlock->appendNew<MemoryValue>(m_proc, Load, Int32, origin(), calleeRTT, safeCast<int32_t>(RTT::offsetOfDisplaySizeExcludingThis()));
         m_heaps.decorateMemory(&m_heaps.WasmRTT_displaySizeExcludingThis, rttSize);
 
         CheckValue* checkRTTSize = m_currentBlock->appendNew<CheckValue>(m_proc, Check, origin(), m_currentBlock->appendNew<Value>(m_proc, BelowEqual, origin(), rttSize, constant(Int32, signatureRTT->displaySizeExcludingThis())));
@@ -6690,7 +6640,7 @@ auto OMGIRGenerator::addCallIndirect(unsigned callProfileIndex, unsigned tableIn
             this->emitExceptionCheck(jit, origin, ExceptionType::BadSignature);
         });
 
-        auto* displayEntry = m_currentBlock->appendNew<MemoryValue>(m_proc, Load, pointerType(), origin(), calleeRTT, safeCast<uint32_t>(RTT::offsetOfData() + signatureRTT->displaySizeExcludingThis() * sizeof(RefPtr<const RTT>)));
+        auto* displayEntry = m_currentBlock->appendNew<MemoryValue>(m_proc, Load, pointerType(), origin(), calleeRTT, safeCast<int32_t>(RTT::offsetOfData() + signatureRTT->displaySizeExcludingThis() * sizeof(RefPtr<const RTT>)));
         m_heaps.decorateMemory(&m_heaps.WasmRTT_data[signatureRTT->displaySizeExcludingThis()], displayEntry);
         displayEntry->setReadsMutability(B3::Mutability::Immutable);
         displayEntry->setControlDependent(false);
@@ -6781,37 +6731,6 @@ auto OMGIRGenerator::addCallRef(unsigned callProfileIndex, const TypeDefinition&
     BasicBlock* continuation = m_proc.addBlock();
 
     ValueResults fastValues;
-    if (m_profile->isCalled(callProfileIndex)) {
-        if (auto* callee = m_profile->callee(callProfileIndex)) {
-            if (callee->compilationMode() == Wasm::CompilationMode::IPIntMode) {
-                BasicBlock* slowCase = m_proc.addBlock();
-                BasicBlock* directCall = m_proc.addBlock();
-
-                Value* isSameContextInstance = m_currentBlock->appendNew<Value>(m_proc, Equal, origin(), calleeInstance, instanceValue());
-                Value* isSameCallee = m_currentBlock->appendNew<Value>(m_proc, Equal, origin(), calleeCallee, constant(pointerType(), std::bit_cast<uintptr_t>(CalleeBits::boxNativeCallee(callee))));
-                m_currentBlock->appendNewControlValue(m_proc, B3::Branch, origin(), m_currentBlock->appendNew<Value>(m_proc, B3::BitAnd, origin(), isSameContextInstance, isSameCallee), FrequentedBlock(directCall), FrequentedBlock(slowCase));
-                directCall->addPredecessor(m_currentBlock);
-                slowCase->addPredecessor(m_currentBlock);
-
-                m_currentBlock = directCall;
-                auto result = emitDirectCall(callProfileIndex, callee->index(), signature, args, fastValues, callType);
-                if (!result.has_value()) [[unlikely]]
-                    return result;
-
-                if (!isTailCallRootCaller) {
-                    for (Value*& value : fastValues) {
-                        auto* input = value;
-                        value = m_currentBlock->appendNew<UpsilonValue>(m_proc, origin(), input);
-                    }
-                    m_currentBlock->appendNewControlValue(m_proc, Jump, origin(), continuation);
-                    continuation->addPredecessor(m_currentBlock);
-                }
-
-                m_currentBlock = slowCase;
-            }
-        }
-    }
-
     Value* calleeCodeLocation = m_currentBlock->appendNew<MemoryValue>(m_proc, Load, pointerType(), origin(), pointerOfWasmRef(callee), safeCast<int32_t>(WebAssemblyFunctionBase::offsetOfEntrypointLoadLocation()));
     m_heaps.decorateMemory(&m_heaps.WebAssemblyFunctionBase_entrypointLoadLocation, calleeCodeLocation);
 

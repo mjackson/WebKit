@@ -26,7 +26,7 @@
 #include "config.h"
 #include "WebInspectorUI.h"
 
-#include "WebInspectorMessages.h"
+#include "WebInspectorBackendMessages.h"
 #include "WebInspectorUIProxyMessages.h"
 #include "WebPage.h"
 #include "WebProcess.h"
@@ -35,10 +35,10 @@
 #include <WebCore/DOMWrapperWorld.h>
 #include <WebCore/ExceptionDetails.h>
 #include <WebCore/FloatRect.h>
-#include <WebCore/InspectorController.h>
 #include <WebCore/InspectorFrontendHost.h>
 #include <WebCore/NotImplemented.h>
 #include <WebCore/Page.h>
+#include <WebCore/PageInspectorController.h>
 #include <WebCore/Settings.h>
 
 #if ENABLE(INSPECTOR_EXTENSIONS)
@@ -55,7 +55,7 @@ Ref<WebInspectorUI> WebInspectorUI::create(WebPage& page)
 
 WebInspectorUI::WebInspectorUI(WebPage& page)
     : m_page(page)
-    , m_frontendAPIDispatcher(InspectorFrontendAPIDispatcher::create(*page.corePage()))
+    , m_frontendAPIDispatcher(InspectorFrontendAPIDispatcher::create(*page.protectedCorePage()))
     , m_debuggableInfo(DebuggableInfoData::empty())
 {
 }
@@ -107,7 +107,7 @@ void WebInspectorUI::windowObjectCleared()
     if (frontendHost)
         frontendHost->disconnectClient();
 
-    frontendHost = InspectorFrontendHost::create(this, m_page->protectedCorePage().get());
+    frontendHost = InspectorFrontendHost::create(this, RefPtr { m_page.get() }->protectedCorePage().get());
     m_frontendHost = frontendHost.copyRef();
     frontendHost->addSelfToGlobalObjectInWorld(mainThreadNormalWorldSingleton());
 }
@@ -159,7 +159,7 @@ void WebInspectorUI::closeWindow()
 
     m_inspectedPageIdentifier = std::nullopt;
     m_underTest = false;
-    
+
 #if ENABLE(INSPECTOR_EXTENSIONS)
     m_extensionController = nullptr;
 #endif
@@ -323,15 +323,27 @@ void WebInspectorUI::setInspectorPageDeveloperExtrasEnabled(bool enabled)
     sendToParentProcess(Messages::WebInspectorUIProxy::SetInspectorPageDeveloperExtrasEnabled(enabled));
 }
 
+void WebInspectorUI::setPageAndTextZoomFactors(double pageZoomFactor, double textZoomFactor)
+{
+    m_pageZoomFactor = pageZoomFactor;
+    sendToParentProcess(Messages::WebInspectorUIProxy::SetPageAndTextZoomFactors(pageZoomFactor, textZoomFactor));
+}
+
+double WebInspectorUI::pageZoomFactor() const
+{
+    return m_pageZoomFactor;
+}
+
 #if ENABLE(INSPECTOR_TELEMETRY)
 bool WebInspectorUI::supportsDiagnosticLogging()
 {
-    return m_page->corePage()->settings().diagnosticLoggingEnabled();
+    RefPtr page = m_page.get();
+    return page && page->corePage()->settings().diagnosticLoggingEnabled();
 }
 
 void WebInspectorUI::logDiagnosticEvent(const String& eventName, const DiagnosticLoggingClient::ValueDictionary& dictionary)
 {
-    m_page->protectedCorePage()->checkedDiagnosticLoggingClient()->logDiagnosticMessageWithValueDictionary(eventName, "Web Inspector Frontend Diagnostics"_s, dictionary, ShouldSample::No);
+    RefPtr { m_page.get() }->protectedCorePage()->checkedDiagnosticLoggingClient()->logDiagnosticMessageWithValueDictionary(eventName, "Web Inspector Frontend Diagnostics"_s, dictionary, ShouldSample::No);
 }
 
 void WebInspectorUI::setDiagnosticLoggingAvailable(bool available)

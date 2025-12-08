@@ -341,9 +341,9 @@ JSC::JSValue toJSNewlyCreated(JSC::JSGlobalObject* lexicalGlobalObject, JSDOMGlo
 {
     UNUSED_PARAM(lexicalGlobalObject);
     if (is<TestDefaultToJSONIndirectInheritance>(impl))
-        return toJSNewlyCreated(lexicalGlobalObject, globalObject, downcast<TestDefaultToJSONIndirectInheritance>(WTFMove(impl)));
+        return toJSNewlyCreated(lexicalGlobalObject, globalObject, uncheckedDowncast<TestDefaultToJSONIndirectInheritance>(WTFMove(impl)));
     if (is<TestDefaultToJSONInheritFinal>(impl))
-        return toJSNewlyCreated(lexicalGlobalObject, globalObject, downcast<TestDefaultToJSONInheritFinal>(WTFMove(impl)));
+        return toJSNewlyCreated(lexicalGlobalObject, globalObject, uncheckedDowncast<TestDefaultToJSONInheritFinal>(WTFMove(impl)));
     return createWrapper<TestDefaultToJSONInherit>(globalObject, WTFMove(impl));
 }
 

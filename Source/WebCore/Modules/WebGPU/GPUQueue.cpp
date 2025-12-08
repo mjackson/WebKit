@@ -46,6 +46,7 @@
 #include "VideoFrame.h"
 #include "WebCodecsVideoFrame.h"
 #include "WebGPUDevice.h"
+#include <wtf/CheckedArithmetic.h>
 #include <wtf/MallocSpan.h>
 
 #if PLATFORM(COCOA)
@@ -408,12 +409,12 @@ static void clampDimension(WebGPU::Extent3D& extent3D, size_t dimension, WebGPU:
     });
 }
 
-static void getImageBytesFromVideoFrame(WebGPU::Queue& backing, const RefPtr<VideoFrame>& videoFrame, WebGPU::Extent3D& backingCopySize, NOESCAPE const ImageDataCallback& callback)
+static void getImageBytesFromVideoFrame(const RefPtr<VideoFrame>& videoFrame, WebGPU::Extent3D& backingCopySize, NOESCAPE const ImageDataCallback& callback)
 {
     if (!videoFrame.get())
         return callback({ }, 0, 0);
 
-    RefPtr<NativeImage> nativeImage = backing.getNativeImage(*videoFrame.get());
+    RefPtr nativeImage = videoFrame->copyNativeImage();
     if (!nativeImage)
         return callback({ }, 0, 0);
 
@@ -626,14 +627,14 @@ static void imageBytesForSource(WebGPU::Queue& backing, const GPUImageCopyExtern
     }, [&](const RefPtr<HTMLVideoElement> videoElement) -> ResultType {
 #if PLATFORM(COCOA)
         if (RefPtr player = videoElement ? videoElement->player() : nullptr; player && player->isVideoPlayer())
-            return getImageBytesFromVideoFrame(backing, player->videoFrameForCurrentTime(), backingCopySize, callback);
+            return getImageBytesFromVideoFrame(player->videoFrameForCurrentTime(), backingCopySize, callback);
 #else
         UNUSED_PARAM(videoElement);
 #endif
         return callback({ }, 0, 0);
     }, [&](const RefPtr<WebCodecsVideoFrame> webCodecsFrame) -> ResultType {
 #if PLATFORM(COCOA)
-        return getImageBytesFromVideoFrame(backing, webCodecsFrame->internalFrame(), backingCopySize, callback);
+        return getImageBytesFromVideoFrame(webCodecsFrame->internalFrame(), backingCopySize, callback);
 #else
         UNUSED_PARAM(webCodecsFrame);
         return callback({ }, 0, 0);
@@ -721,13 +722,16 @@ static GPUIntegerCoordinate dimension(const GPUOrigin2D& origin, size_t dimensio
 static bool isStateValid(const auto& source, const std::optional<GPUOrigin2D>& origin, const GPUExtent3D& copySize, ExceptionCode& errorCode)
 {
     using ResultType = bool;
-    auto horizontalDimension = (origin ? dimension(*origin, 0) : 0) + dimension(copySize, 0);
-    auto verticalDimension = (origin ? dimension(*origin, 1) : 0) + dimension(copySize, 1);
+    auto checkedHorizontalDimension = checkedSum<uint32_t>((origin ? dimension(*origin, 0) : 0), dimension(copySize, 0));
+    auto checkedVerticalDimension = checkedSum<uint32_t>((origin ? dimension(*origin, 1) : 0), dimension(copySize, 1));
     auto depthDimension = dimension(copySize, 2);
-    if (depthDimension > 1) {
+    if (depthDimension > 1 || checkedHorizontalDimension.hasOverflowed() || checkedVerticalDimension.hasOverflowed()) {
         errorCode = ExceptionCode::OperationError;
         return false;
     }
+
+    uint32_t horizontalDimension = checkedHorizontalDimension.value();
+    uint32_t verticalDimension = checkedVerticalDimension.value();
 
     return WTF::switchOn(source, [&](const RefPtr<ImageBitmap>& imageBitmap) -> ResultType {
         if (!imageBitmap->buffer()) {

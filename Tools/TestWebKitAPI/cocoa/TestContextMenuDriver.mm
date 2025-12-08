@@ -35,7 +35,7 @@
 
 - (id<_UIClickInteractionDriverDelegate>)delegate
 {
-    return _delegate.get().get();
+    return _delegate.getAutoreleased();
 }
 
 - (void)setDelegate:(id<_UIClickInteractionDriverDelegate>)delegate
@@ -45,7 +45,7 @@
 
 - (UIView *)view
 {
-    return _view.get().get();
+    return _view.get().unsafeGet();
 }
 
 - (void)setView:(UIView *)view

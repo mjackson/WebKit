@@ -72,6 +72,12 @@ static PAS_ALWAYS_INLINE kern_return_t PAS_WARN_UNUSED_RETURN pas_update_report_
     return KERN_SUCCESS;
 }
 
+static PAS_ALWAYS_INLINE kern_return_t PAS_WARN_UNUSED_RETURN pas_enumerator_destroy_and_fail(pas_enumerator* enumerator)
+{
+    pas_enumerator_destroy(enumerator);
+    return KERN_FAILURE;
+}
+
 static PAS_ALWAYS_INLINE kern_return_t PAS_WARN_UNUSED_RETURN pas_update_report_crash_fields_and_cleanup(pas_enumerator* enumerator, pas_report_crash_pgm_report* report, const char* error_type, const char* confidence, vm_address_t fault_address, size_t allocation_size, pas_backtrace_metadata* alloc_backtrace, pas_backtrace_metadata* dealloc_backtrace)
 {
     kern_return_t result = pas_update_report_crash_fields(report, error_type, confidence, fault_address, allocation_size, alloc_backtrace, dealloc_backtrace);
@@ -106,72 +112,50 @@ kern_return_t pas_report_crash_extract_pgm_failure(vm_address_t fault_address, m
     size_t table_size = 0;
 
     unsigned dead_root_crash_report_version = enumerator->root->pas_crash_report_version;
-    if (version != dead_root_crash_report_version) {
-        pas_enumerator_destroy(enumerator);
-        return KERN_FAILURE;
-    }
+    if (version != dead_root_crash_report_version)
+        return pas_enumerator_destroy_and_fail(enumerator);
 
-    if (!enumerator->root->probabilistic_guard_malloc_has_been_used) {
-        pas_enumerator_destroy(enumerator);
-        return KERN_FAILURE;
-    }
+    if (!enumerator->root->probabilistic_guard_malloc_has_been_used)
+        return pas_enumerator_destroy_and_fail(enumerator);
 
-    if (!pas_enumerator_copy_remote(enumerator, &pgm_has_been_used, enumerator->root->probabilistic_guard_malloc_has_been_used, sizeof(bool))) {
-        pas_enumerator_destroy(enumerator);
-        return KERN_FAILURE;
-    }
+    if (!pas_enumerator_copy_remote(enumerator, &pgm_has_been_used, enumerator->root->probabilistic_guard_malloc_has_been_used, sizeof(bool)))
+        return pas_enumerator_destroy_and_fail(enumerator);
     report->pgm_has_been_used = pgm_has_been_used;
 
-    if (!pas_enumerator_copy_remote(enumerator, &hash_map, enumerator->root->pas_pgm_hash_map_instance, sizeof(pas_ptr_hash_map))) {
-        pas_enumerator_destroy(enumerator);
-        return KERN_FAILURE;
-    }
+    if (!pas_enumerator_copy_remote(enumerator, &hash_map, enumerator->root->pas_pgm_hash_map_instance, sizeof(pas_ptr_hash_map)))
+        return pas_enumerator_destroy_and_fail(enumerator);
 
     table_size = hash_map.table_size;
 
     /* Check if hash_map has a valid table before iterating */
-    if (!hash_map.table) {
-        pas_enumerator_destroy(enumerator);
-        return KERN_FAILURE;
-    }
+    if (!hash_map.table)
+        return pas_enumerator_destroy_and_fail(enumerator);
 
     for (size_t i = 0; i < table_size; i++) {
-        if (!pas_enumerator_copy_remote(enumerator, &hash_map_entry, hash_map.table + i, sizeof(pas_ptr_hash_map_entry))) {
-            pas_enumerator_destroy(enumerator);
-            return KERN_FAILURE;
-        }
+        if (!pas_enumerator_copy_remote(enumerator, &hash_map_entry, hash_map.table + i, sizeof(pas_ptr_hash_map_entry)))
+            return pas_enumerator_destroy_and_fail(enumerator);
 
         /* Skip entry if not there */
         if (hash_map_entry.key == (void*)UINTPTR_MAX)
             continue;
 
-        if (!pas_enumerator_copy_remote(enumerator, &pgm_metadata, hash_map_entry.value, sizeof(pas_pgm_storage))) {
-            pas_enumerator_destroy(enumerator);
-            return KERN_FAILURE;
-        }
+        if (!pas_enumerator_copy_remote(enumerator, &pgm_metadata, hash_map_entry.value, sizeof(pas_pgm_storage)))
+            return pas_enumerator_destroy_and_fail(enumerator);
 
         pas_backtrace_metadata alloc_backtrace_data;
         if (pgm_metadata.alloc_backtrace) {
-            if (!pas_enumerator_copy_remote(enumerator, &alloc_backtrace_data, pgm_metadata.alloc_backtrace, sizeof(pas_backtrace_metadata))) {
-                pas_enumerator_destroy(enumerator);
-                return KERN_FAILURE;
-            }
-            if (alloc_backtrace_data.frame_size < 0 || alloc_backtrace_data.frame_size > PGM_BACKTRACE_MAX_FRAMES) {
-                pas_enumerator_destroy(enumerator);
-                return KERN_FAILURE;
-            }
+            if (!pas_enumerator_copy_remote(enumerator, &alloc_backtrace_data, pgm_metadata.alloc_backtrace, sizeof(pas_backtrace_metadata)))
+                return pas_enumerator_destroy_and_fail(enumerator);
+            if (alloc_backtrace_data.frame_size < 0 || alloc_backtrace_data.frame_size > PAS_PGM_BACKTRACE_MAX_FRAMES)
+                return pas_enumerator_destroy_and_fail(enumerator);
         }
 
         pas_backtrace_metadata dealloc_backtrace_data;
         if (pgm_metadata.dealloc_backtrace) {
-            if (!pas_enumerator_copy_remote(enumerator, &dealloc_backtrace_data, pgm_metadata.dealloc_backtrace, sizeof(pas_backtrace_metadata))) {
-                pas_enumerator_destroy(enumerator);
-                return KERN_FAILURE;
-            }
-            if (dealloc_backtrace_data.frame_size < 0 || dealloc_backtrace_data.frame_size > PGM_BACKTRACE_MAX_FRAMES) {
-                pas_enumerator_destroy(enumerator);
-                return KERN_FAILURE;
-            }
+            if (!pas_enumerator_copy_remote(enumerator, &dealloc_backtrace_data, pgm_metadata.dealloc_backtrace, sizeof(pas_backtrace_metadata)))
+                return pas_enumerator_destroy_and_fail(enumerator);
+            if (dealloc_backtrace_data.frame_size < 0 || dealloc_backtrace_data.frame_size > PAS_PGM_BACKTRACE_MAX_FRAMES)
+                return pas_enumerator_destroy_and_fail(enumerator);
         }
 
         addr64_t key = (addr64_t)hash_map_entry.key;

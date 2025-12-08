@@ -148,7 +148,7 @@ Ref<Wasm::InstanceAnchor> Module::registerAnchor(JSWebAssemblyInstance* instance
     return anchor;
 }
 
-std::unique_ptr<MergedProfile> Module::createMergedProfile(IPIntCallee& callee)
+std::unique_ptr<MergedProfile> Module::createMergedProfile(const IPIntCallee& callee)
 {
     auto result = makeUnique<MergedProfile>(callee);
     for (Ref anchor : m_anchors) {
@@ -160,11 +160,7 @@ std::unique_ptr<MergedProfile> Module::createMergedProfile(IPIntCallee& callee)
         }
         if (!data)
             continue;
-
-        auto span = result->mutableSpan();
-        RELEASE_ASSERT(data->size() == result->mutableSpan().size());
-        for (unsigned i = 0; i < data->size(); ++i)
-            span[i].merge(data->at(i));
+        result->merge(*this, callee, *data);
     }
     return result;
 }

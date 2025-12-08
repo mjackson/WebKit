@@ -1879,7 +1879,7 @@ static void WebKitInitializeGamepadProviderIfNecessary()
 - (void)_startDrag:(const WebCore::DragItem&)dragItem
 {
     auto& dragImage = dragItem.image;
-    auto image = dragImage.get().get();
+    auto image = dragImage.get().unsafeGet();
     RefPtr<WebCore::TextIndicator> textIndicator = dragImage.textIndicator();
 
     if (textIndicator)
@@ -4978,7 +4978,7 @@ IGNORE_WARNINGS_END
     initialized = YES;
 
     if (WTF::CocoaApplication::shouldOSFaultLogForAppleApplicationUsingWebKit1())
-        os_fault_with_payload(OS_REASON_WEBKIT, 0, nullptr, 0, "WebView initialized", 0);
+        RELEASE_LOG_FAULT_WITH_PAYLOAD(Threading, "WebView initialized");
 
     WebCore::initializeMainThreadIfNeeded();
 
@@ -6110,7 +6110,7 @@ static bool needsWebViewInitThreadWorkaround()
         dataSource = [[self mainFrame] _dataSource];
     if (dataSource == nil)
         return nil;
-    return nsStringNilIfEmpty([dataSource _documentLoader]->overrideEncoding());
+    return nsStringNilIfEmpty([dataSource _documentLoader]->overrideEncoding()).autorelease();
 }
 
 - (NSString *)customTextEncodingName
@@ -8634,7 +8634,7 @@ FORWARD(toggleUnderline)
 
 - (id)_objectForIdentifier:(unsigned long)identifier
 {
-    return _private->identifierMap.get(identifier).get();
+    return _private->identifierMap.get(identifier);
 }
 
 - (void)_removeObjectForIdentifier:(unsigned long)identifier
@@ -9155,7 +9155,7 @@ FORWARD(toggleUnderline)
     [self _devicePicker]->setMockMediaPlaybackTargetPickerEnabled(enabled);
 }
 
-- (void)_setMockMediaPlaybackTargetPickerName:(NSString *)name state:(WebCore::MediaPlaybackTargetContext::MockState)state
+- (void)_setMockMediaPlaybackTargetPickerName:(NSString *)name state:(WebCore::MediaPlaybackTargetMockState)state
 {
     [self _devicePicker]->setMockMediaPlaybackTargetPickerState(name, state);
 }
@@ -9290,25 +9290,25 @@ static NSTextAlignment nsTextAlignmentFromRenderStyle(const WebCore::RenderStyle
 {
     NSTextAlignment textAlignment;
     switch (style->textAlign()) {
-    case WebCore::TextAlignMode::Right:
-    case WebCore::TextAlignMode::WebKitRight:
+    case WebCore::Style::TextAlign::Right:
+    case WebCore::Style::TextAlign::WebKitRight:
         textAlignment = NSTextAlignmentRight;
         break;
-    case WebCore::TextAlignMode::Left:
-    case WebCore::TextAlignMode::WebKitLeft:
+    case WebCore::Style::TextAlign::Left:
+    case WebCore::Style::TextAlign::WebKitLeft:
         textAlignment = NSTextAlignmentLeft;
         break;
-    case WebCore::TextAlignMode::Center:
-    case WebCore::TextAlignMode::WebKitCenter:
+    case WebCore::Style::TextAlign::Center:
+    case WebCore::Style::TextAlign::WebKitCenter:
         textAlignment = NSTextAlignmentCenter;
         break;
-    case WebCore::TextAlignMode::Justify:
+    case WebCore::Style::TextAlign::Justify:
         textAlignment = NSTextAlignmentJustified;
         break;
-    case WebCore::TextAlignMode::Start:
+    case WebCore::Style::TextAlign::Start:
         textAlignment = style->isLeftToRightDirection() ? NSTextAlignmentLeft : NSTextAlignmentRight;
         break;
-    case WebCore::TextAlignMode::End:
+    case WebCore::Style::TextAlign::End:
         textAlignment = style->isLeftToRightDirection() ? NSTextAlignmentRight : NSTextAlignmentLeft;
         break;
     default:

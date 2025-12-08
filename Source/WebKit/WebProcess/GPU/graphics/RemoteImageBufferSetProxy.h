@@ -33,6 +33,7 @@
 #include "RemoteImageBufferSetConfiguration.h"
 #include "RenderingUpdateID.h"
 #include "WorkQueueMessageReceiver.h"
+#include <wtf/AbstractCanMakeCheckedPtr.h>
 #include <wtf/CheckedRef.h>
 #include <wtf/Identified.h>
 #include <wtf/Lock.h>
@@ -69,15 +70,9 @@ public:
     virtual bool flushAndCollectHandles(HashMap<ImageBufferSetIdentifier, std::unique_ptr<BufferSetBackendHandle>>&) = 0;
 };
 
-class ImageBufferSetClient {
+class ImageBufferSetClient : public AbstractCanMakeCheckedPtr {
 public:
     virtual ~ImageBufferSetClient() = default;
-
-    // CheckedPtr interface
-    virtual uint32_t checkedPtrCount() const = 0;
-    virtual uint32_t checkedPtrCountWithoutThreadCheck() const = 0;
-    virtual void incrementCheckedPtrCount() const = 0;
-    virtual void decrementCheckedPtrCount() const = 0;
 
     virtual void setNeedsDisplay() = 0;
 };
@@ -108,7 +103,6 @@ public:
 
 #if PLATFORM(COCOA)
     void prepareToDisplay(const WebCore::Region& dirtyRegion, bool supportsPartialRepaint, bool hasEmptyDirtyRegion, bool drawingRequiresClearedPixels);
-    void didPrepareForDisplay(ImageBufferSetPrepareBufferForDisplayOutputData, RenderingUpdateID);
 #endif
 
     WebCore::GraphicsContext& context();
@@ -127,15 +121,13 @@ public:
 #endif
 
     unsigned generation() const { return m_generation; }
-
-    void didReceiveMessage(IPC::Connection&, IPC::Decoder&);
-
     void close();
 
 private:
     RemoteImageBufferSetProxy(RemoteRenderingBackendProxy&, ImageBufferSetClient&);
     template<typename T> auto send(T&& message);
     template<typename T> auto sendSync(T&& message);
+    template<typename T, typename C> auto sendWithAsyncReply(T&& message, C&& handler);
     RefPtr<IPC::StreamClientConnection> connection() const;
     void didBecomeUnresponsive() const;
 
@@ -154,8 +146,6 @@ private:
     bool m_remoteNeedsConfigurationUpdate { false };
 
     Lock m_lock;
-    RefPtr<RemoteImageBufferSetProxyFlushFence> m_pendingFlush WTF_GUARDED_BY_LOCK(m_lock);
-    RefPtr<IPC::StreamClientConnection> m_streamConnection  WTF_GUARDED_BY_LOCK(m_lock);
     bool m_prepareForDisplayIsPending WTF_GUARDED_BY_LOCK(m_lock) { false };
     bool m_closed WTF_GUARDED_BY_LOCK(m_lock) { false };
 };

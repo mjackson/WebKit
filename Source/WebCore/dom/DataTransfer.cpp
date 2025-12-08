@@ -63,20 +63,25 @@ namespace WebCore {
 
 #if ENABLE(DRAG_SUPPORT)
 
-class DragImageLoader final : public CachedImageClient {
+class DragImageLoader final : public CachedImageClient, public RefCounted<DragImageLoader> {
     WTF_MAKE_TZONE_ALLOCATED(DragImageLoader);
-    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(DragImageLoader);
     WTF_MAKE_NONCOPYABLE(DragImageLoader);
 public:
-    explicit DragImageLoader(DataTransfer&, const Document&);
+    static Ref<DragImageLoader> create(DataTransfer&, const Document&);
     void startLoading(CachedResourceHandle<CachedImage>&);
     void stopLoading(CachedResourceHandle<CachedImage>&);
     void moveToDataTransfer(DataTransfer&);
 
+    // CachedResourceClient.
+    void ref() const final { RefCounted::ref(); }
+    void deref() const final { RefCounted::deref(); }
+
 private:
+    DragImageLoader(DataTransfer&, const Document&);
+
     void imageChanged(CachedImage*, const IntRect*) override;
 
-    WeakRef<DataTransfer> m_dataTransfer;
+    WeakPtr<DataTransfer> m_dataTransfer;
     WeakPtr<Document, WeakPtrImplWithEventTargetData> m_document;
 };
 
@@ -115,8 +120,8 @@ Ref<DataTransfer> DataTransfer::create()
 DataTransfer::~DataTransfer()
 {
 #if ENABLE(DRAG_SUPPORT)
-    if (m_dragImageLoader && m_dragImage)
-        m_dragImageLoader->stopLoading(m_dragImage);
+    if (RefPtr dragImageLoader = m_dragImageLoader; dragImageLoader && m_dragImage)
+        dragImageLoader->stopLoading(m_dragImage);
 #endif
 }
 
@@ -283,7 +288,7 @@ void DataTransfer::setDataFromItemList(Document& document, const String& type, c
 
     String sanitizedData;
     if (type == "text/html"_s)
-        sanitizedData = sanitizeMarkup(data);
+        sanitizedData = sanitizeMarkup(data, &document);
     else if (type == "text/uri-list"_s) {
         auto url = URL({ }, data);
         if (url.isValid())
@@ -561,13 +566,13 @@ void DataTransfer::setDragImage(Ref<Element>&& element, int x, int y)
     m_dragLocation = IntPoint(x, y);
 
     Ref document = element->document();
-    if (m_dragImageLoader && m_dragImage)
-        m_dragImageLoader->stopLoading(m_dragImage);
+    if (RefPtr dragImageLoader = m_dragImageLoader; dragImageLoader && m_dragImage)
+        dragImageLoader->stopLoading(m_dragImage);
     m_dragImage = image;
     if (m_dragImage) {
         if (!m_dragImageLoader)
-            m_dragImageLoader = makeUnique<DragImageLoader>(*this, document);
-        m_dragImageLoader->startLoading(m_dragImage);
+            m_dragImageLoader = DragImageLoader::create(*this, document);
+        Ref { *m_dragImageLoader }->startLoading(m_dragImage);
     }
 
     if (image)
@@ -621,6 +626,11 @@ DragImageRef DataTransfer::createDragImage(const Document* document, IntPoint& l
 
 #endif
 
+Ref<DragImageLoader> DragImageLoader::create(DataTransfer& dataTransfer, const Document& document)
+{
+    return adoptRef(*new DragImageLoader(dataTransfer, document));
+}
+
 DragImageLoader::DragImageLoader(DataTransfer& dataTransfer, const Document& document)
     : m_dataTransfer(dataTransfer)
     , m_document { document }
@@ -646,7 +656,8 @@ void DragImageLoader::stopLoading(CachedResourceHandle<WebCore::CachedImage>& im
 void DragImageLoader::imageChanged(CachedImage*, const IntRect*)
 {
     RefPtr document = m_document.get();
-    m_dataTransfer->updateDragImage(document.get());
+    if (RefPtr dataTransfer = m_dataTransfer.get())
+        dataTransfer->updateDragImage(document.get());
 }
 
 static OptionSet<DragOperation> dragOpFromIEOp(const String& operation)
@@ -771,8 +782,8 @@ void DataTransfer::moveDragState(Ref<DataTransfer>&& other)
     m_dragImage = other->m_dragImage;
     m_dragImageElement = WTFMove(other->m_dragImageElement);
     m_dragImageLoader = WTFMove(other->m_dragImageLoader);
-    if (m_dragImageLoader)
-        m_dragImageLoader->moveToDataTransfer(*this);
+    if (RefPtr dragImageLoader = m_dragImageLoader)
+        dragImageLoader->moveToDataTransfer(*this);
     m_fileList = WTFMove(other->m_fileList);
 }
 

@@ -175,7 +175,7 @@ void WorkletGlobalScope::fetchAndInvokeScript(const URL& moduleURL, FetchRequest
 MessagePortChannelProvider& WorkletGlobalScope::messagePortChannelProvider()
 {
     if (!m_messagePortChannelProvider)
-        m_messagePortChannelProvider = makeUnique<WorkerMessagePortChannelProvider>(*this);
+        lazyInitialize(m_messagePortChannelProvider, WorkerMessagePortChannelProvider::create(*this));
     return *m_messagePortChannelProvider;
 }
 

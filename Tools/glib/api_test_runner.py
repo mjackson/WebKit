@@ -41,22 +41,25 @@ import subprocess
 UNKNOWN_CRASH_STR = "CRASH_OR_PROBLEM_IN_TEST_EXECUTABLE"
 
 
+def port_options(options):
+    port_options = optparse.Values()
+    if options.debug:
+        setattr(port_options, 'configuration', 'Debug')
+    elif options.release:
+        setattr(port_options, 'configuration', 'Release')
+    return port_options
+
 class TestRunner(object):
     TEST_TARGETS = []
 
     def __init__(self, port, options, tests=[]):
         self._options = options
-        self._port = Host().port_factory.get(port)
+        self._port = Host().port_factory.get(port, port_options(options))
         self._driver = self._create_driver()
         self._weston = None
         self._monado = None
 
-        if self._options.debug:
-            self._build_type = "Debug"
-        elif self._options.release:
-            self._build_type = "Release"
-        else:
-            self._build_type = self._port.default_configuration()
+        self._build_type = self._port.get_option('configuration')
         common.set_build_types((self._build_type,))
 
         self._programs_path = common.binary_build_path(self._port)
@@ -191,8 +194,6 @@ class TestRunner(object):
         wpe_legacy_api = self._use_wpe_legacy_api()
         if self.is_webxr_test(test_program):
             env = self._monado_env | self._test_env
-            # WebXR tests use a null compositor
-            env.pop('LIBGL_ALWAYS_SOFTWARE', None)
         else:
             env = self._weston_env if self.is_wpe_platform_wayland_test(test_program) else self._test_env
             if self.is_wpe_platform_test(test_program):
@@ -514,15 +515,9 @@ def get_runner_args(argv):
         if (arg == "-d"):
             runner_args.append("--debug")
             continue
-        # FIXME: This parameter -r is ambiguous for some or the
-        # scripts using flatpak, we consume it, users must use the
-        # long name format for the flatpak option --regenerate-toolchains.
         if (arg == "-r"):
             runner_args.append("--release")
             continue
-        # FIXME: This parameter -t is ambiguous for some or the
-        # scripts using flatpak, we consume it, users must use the
-        # long name format for the flatpak option --sccache-token.
         if (arg == "-t"):
             runner_args.append("--timeout")
             continue

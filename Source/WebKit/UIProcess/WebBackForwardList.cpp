@@ -71,12 +71,8 @@ WebBackForwardListItem* WebBackForwardList::itemForID(BackForwardItemIdentifier 
     if (!m_page)
         return nullptr;
 
-    RefPtr item = WebBackForwardListItem::itemForID(identifier);
-    if (!item)
-        return nullptr;
-
-    ASSERT(item->pageID() == m_page->identifier());
-    return item.get();
+    ASSERT(!WebBackForwardListItem::itemForID(identifier) || WebBackForwardListItem::itemForID(identifier)->pageID() == m_page->identifier());
+    return WebBackForwardListItem::itemForID(identifier);
 }
 
 void WebBackForwardList::pageClosed()
@@ -684,6 +680,7 @@ void WebBackForwardList::backForwardAddItemShared(IPC::Connection& connection, R
         Ref item = WebBackForwardListItem::create(completeFrameStateForNavigation(WTFMove(navigatedFrameState)), webPageProxy->identifier(), navigatedFrameID, webPageProxy->protectedBrowsingContextGroup().ptr());
         item->setResourceDirectoryURL(webPageProxy->currentResourceDirectoryURL());
         item->setIsRemoteFrameNavigation(isRemoteFrameNavigation);
+        item->setEnhancedSecurity(process->enhancedSecurity());
         if (loadedWebArchive == LoadedWebArchive::Yes)
             item->setDataStoreForWebArchive(process->websiteDataStore());
         addItem(WTFMove(item));
@@ -796,8 +793,6 @@ void WebBackForwardList::backForwardListCounts(CompletionHandler<void(WebBackFor
     completionHandler(counts());
 }
 
-#if !LOG_DISABLED
-
 String WebBackForwardList::loggingString()
 {
     StringBuilder builder;
@@ -805,13 +800,13 @@ String WebBackForwardList::loggingString()
     builder.append("\nWebBackForwardList 0x"_s, hex(reinterpret_cast<uintptr_t>(this)), " - "_s, m_entries.size(), " entries, has current index "_s, m_currentIndex ? "YES"_s : "NO"_s, " ("_s, m_currentIndex ? *m_currentIndex : 0, ")\n"_s);
 
     for (size_t i = 0; i < m_entries.size(); ++i) {
+        Ref entry = m_entries[i];
         ASCIILiteral prefix = (m_currentIndex && *m_currentIndex == i) ? " * "_s : " - "_s;
-        builder.append(prefix, m_entries[i]->loggingString());
+        auto entryString = entry->loggingString();
+        builder.append(prefix, entryString);
     }
 
     return builder.toString();
 }
-
-#endif // !LOG_DISABLED
 
 } // namespace WebKit

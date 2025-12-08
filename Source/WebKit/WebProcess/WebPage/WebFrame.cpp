@@ -864,7 +864,7 @@ String WebFrame::layerTreeAsText() const
     if (!localFrame)
         return emptyString();
 
-    return localFrame->contentRenderer()->compositor().layerTreeAsText();
+    return localFrame->checkedContentRenderer()->checkedCompositor()->layerTreeAsText();
 }
 
 unsigned WebFrame::pendingUnloadCount() const
@@ -891,7 +891,7 @@ JSGlobalContextRef WebFrame::jsContext()
     if (!localFrame)
         return nullptr;
 
-    return toGlobalRef(localFrame->script().globalObject(mainThreadNormalWorldSingleton()));
+    return toGlobalRef(localFrame->checkedScript()->globalObject(mainThreadNormalWorldSingleton()));
 }
 
 JSGlobalContextRef WebFrame::jsContextForWorld(DOMWrapperWorld& world)
@@ -900,7 +900,7 @@ JSGlobalContextRef WebFrame::jsContextForWorld(DOMWrapperWorld& world)
     if (!localFrame)
         return nullptr;
 
-    return toGlobalRef(localFrame->script().globalObject(world));
+    return toGlobalRef(localFrame->checkedScript()->globalObject(world));
 }
 
 JSGlobalContextRef WebFrame::jsContextForWorld(InjectedBundleScriptWorld* world)
@@ -933,8 +933,8 @@ void WebFrame::setAccessibleName(const AtomString& accessibleName)
     RefPtr document = localFrame->document();
     if (!document)
         return;
-    
-    RefPtr rootObject = document->axObjectCache()->rootObjectForFrame(*localFrame);
+
+    RefPtr rootObject = document->checkedAXObjectCache()->rootObjectForFrame(*localFrame);
     if (!rootObject)
         return;
 
@@ -1106,7 +1106,7 @@ JSValueRef WebFrame::jsWrapperForWorld(InjectedBundleCSSStyleDeclarationHandle* 
     if (!localFrame)
         return nullptr;
 
-    auto* globalObject = localFrame->script().globalObject(world->protectedCoreWorld());
+    auto* globalObject = localFrame->checkedScript()->globalObject(world->protectedCoreWorld());
 
     JSLockHolder lock(globalObject);
     return toRef(globalObject, toJS(globalObject, globalObject, cssStyleDeclarationHandle->coreCSSStyleDeclaration()));
@@ -1118,7 +1118,7 @@ JSValueRef WebFrame::jsWrapperForWorld(InjectedBundleNodeHandle* nodeHandle, Inj
     if (!localFrame)
         return nullptr;
 
-    auto* globalObject = localFrame->script().globalObject(world->protectedCoreWorld());
+    auto* globalObject = localFrame->checkedScript()->globalObject(world->protectedCoreWorld());
 
     JSLockHolder lock(globalObject);
     return toRef(globalObject, toJS(globalObject, globalObject, RefPtr { nodeHandle->coreNode() }.get()));
@@ -1130,7 +1130,7 @@ JSValueRef WebFrame::jsWrapperForWorld(InjectedBundleRangeHandle* rangeHandle, I
     if (!localFrame)
         return nullptr;
 
-    auto* globalObject = localFrame->script().globalObject(world->protectedCoreWorld());
+    auto* globalObject = localFrame->checkedScript()->globalObject(world->protectedCoreWorld());
 
     JSLockHolder lock(globalObject);
     return toRef(globalObject, toJS(globalObject, globalObject, Ref { rangeHandle->coreRange() }.get()));
@@ -1335,14 +1335,14 @@ inline DocumentLoader* WebFrame::policySourceDocumentLoader() const
         return nullptr;
     }
 
-    RefPtr policySourceDocumentLoader = mainFrameDocument->loader();
-    if (!policySourceDocumentLoader)
+    WeakPtr mainFrameDocumentLoader = mainFrameDocument->loader();
+    if (!mainFrameDocumentLoader)
         return nullptr;
 
-    if (!policySourceDocumentLoader->request().url().hasSpecialScheme() && document->url().protocolIsInHTTPFamily())
-        policySourceDocumentLoader = document->loader();
+    if (Ref { *mainFrameDocumentLoader }->request().url().hasSpecialScheme() && document->url().protocolIsInHTTPFamily())
+        return document->loader();
 
-    return policySourceDocumentLoader.get();
+    return mainFrameDocumentLoader.get();
 }
 
 OptionSet<WebCore::AdvancedPrivacyProtections> WebFrame::advancedPrivacyProtections() const
@@ -1571,8 +1571,8 @@ void WebFrame::takeSnapshotOfNode(JSHandleIdentifier identifier, CompletionHandl
     if (!page)
         return completion({ });
 
-    auto [globalObject, object] = WebKitJSHandle::objectForIdentifier(identifier);
-    if (!globalObject || !object)
+    auto* object = WebKitJSHandle::objectForIdentifier(identifier);
+    if (!object)
         return completion({ });
 
     auto* jsNode = jsDynamicCast<JSNode*>(object);

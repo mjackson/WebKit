@@ -68,14 +68,25 @@ void WorkerWebTransportSession::receiveDatagram(std::span<const uint8_t> span, b
     });
 }
 
-void WorkerWebTransportSession::didFail()
+void WorkerWebTransportSession::didFail(std::optional<uint32_t>&& code, String&& message)
+{
+    ASSERT(RunLoop::isMain());
+    ScriptExecutionContext::postTaskTo(m_contextID, [weakClient = m_client, code = WTFMove(code), message = WTFMove(message)] (auto&) mutable {
+        RefPtr client = weakClient.get();
+        if (!client)
+            return;
+        client->didFail(WTFMove(code), WTFMove(message));
+    });
+}
+
+void WorkerWebTransportSession::didDrain()
 {
     ASSERT(RunLoop::isMain());
     ScriptExecutionContext::postTaskTo(m_contextID, [weakClient = m_client] (auto&) mutable {
         RefPtr client = weakClient.get();
         if (!client)
             return;
-        client->didFail();
+        client->didDrain();
     });
 }
 
@@ -112,11 +123,33 @@ void WorkerWebTransportSession::streamReceiveBytes(WebTransportStreamIdentifier 
     });
 }
 
-Ref<WebTransportSendPromise> WorkerWebTransportSession::sendDatagram(std::span<const uint8_t> datagram)
+void WorkerWebTransportSession::streamReceiveError(WebTransportStreamIdentifier identifier, uint64_t errorCode)
+{
+    ASSERT(RunLoop::isMain());
+    ScriptExecutionContext::postTaskTo(m_contextID, [identifier, errorCode, weakClient = m_client] (auto&) mutable {
+        RefPtr client = weakClient.get();
+        if (!client)
+            return;
+        client->streamReceiveError(identifier, errorCode);
+    });
+}
+
+void WorkerWebTransportSession::streamSendError(WebTransportStreamIdentifier identifier, uint64_t errorCode)
+{
+    ASSERT(RunLoop::isMain());
+    ScriptExecutionContext::postTaskTo(m_contextID, [identifier, errorCode, weakClient = m_client] (auto&) mutable {
+        RefPtr client = weakClient.get();
+        if (!client)
+            return;
+        client->streamSendError(identifier, errorCode);
+    });
+}
+
+Ref<WebTransportSendPromise> WorkerWebTransportSession::sendDatagram(std::optional<WebTransportSendGroupIdentifier> identifier, std::span<const uint8_t> datagram)
 {
     ASSERT(!RunLoop::isMain());
     if (RefPtr session = m_session)
-        return session->sendDatagram(datagram);
+        return session->sendDatagram(identifier, datagram);
     return WebTransportSendPromise::createAndReject();
 }
 
@@ -174,6 +207,15 @@ Ref<WebTransportReceiveStreamStatsPromise> WorkerWebTransportSession::getReceive
     return WebTransportReceiveStreamStatsPromise::createAndReject();
 }
 
+Ref<WebTransportSendStreamStatsPromise> WorkerWebTransportSession::getSendGroupStats(WebTransportSendGroupIdentifier identifier)
+{
+    ASSERT(!RunLoop::isMain());
+    if (RefPtr session = m_session)
+        return session->getSendGroupStats(identifier);
+    ASSERT_NOT_REACHED_WITH_MESSAGE("Session should be set up before use then never removed.");
+    return WebTransportSendStreamStatsPromise::createAndReject();
+}
+
 void WorkerWebTransportSession::terminate(WebTransportSessionErrorCode code, CString&& reason)
 {
     ASSERT(!RunLoop::isMain());
@@ -206,6 +248,42 @@ void WorkerWebTransportSession::destroyStream(WebTransportStreamIdentifier ident
     ASSERT(!RunLoop::isMain());
     if (RefPtr session = m_session)
         session->destroyStream(identifier, errorCode);
+    else
+        ASSERT_NOT_REACHED_WITH_MESSAGE("Session should be set up before use then never removed.");
+}
+
+void WorkerWebTransportSession::datagramIncomingMaxAgeUpdated(std::optional<double> maxAge)
+{
+    ASSERT(!RunLoop::isMain());
+    if (RefPtr session = m_session)
+        session->datagramIncomingMaxAgeUpdated(maxAge);
+    else
+        ASSERT_NOT_REACHED_WITH_MESSAGE("Session should be set up before use then never removed.");
+}
+
+void WorkerWebTransportSession::datagramOutgoingMaxAgeUpdated(std::optional<double> maxAge)
+{
+    ASSERT(!RunLoop::isMain());
+    if (RefPtr session = m_session)
+        session->datagramOutgoingMaxAgeUpdated(maxAge);
+    else
+        ASSERT_NOT_REACHED_WITH_MESSAGE("Session should be set up before use then never removed.");
+}
+
+void WorkerWebTransportSession::datagramIncomingHighWaterMarkUpdated(double watermark)
+{
+    ASSERT(!RunLoop::isMain());
+    if (RefPtr session = m_session)
+        session->datagramIncomingHighWaterMarkUpdated(watermark);
+    else
+        ASSERT_NOT_REACHED_WITH_MESSAGE("Session should be set up before use then never removed.");
+}
+
+void WorkerWebTransportSession::datagramOutgoingHighWaterMarkUpdated(double watermark)
+{
+    ASSERT(!RunLoop::isMain());
+    if (RefPtr session = m_session)
+        session->datagramOutgoingHighWaterMarkUpdated(watermark);
     else
         ASSERT_NOT_REACHED_WITH_MESSAGE("Session should be set up before use then never removed.");
 }

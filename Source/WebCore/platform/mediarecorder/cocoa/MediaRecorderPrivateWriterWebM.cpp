@@ -31,6 +31,7 @@
 #import "CMUtilities.h"
 #import "Logging.h"
 #import "MediaSampleAVFObjC.h"
+#import "MediaSamplesBlock.h"
 #import "MediaUtilities.h"
 #import "WebMAudioUtilitiesCocoa.h"
 #import <webm/mkvmuxer/mkvmuxer.h>
@@ -126,8 +127,10 @@ public:
         auto* videoTrack = downcast<mkvmuxer::VideoTrack>(m_segment.GetTrackByNumber(trackIndex));
         ASSERT(videoTrack);
         videoTrack->set_codec_id(mkvCodeIcForMediaVideoCodecId(info.codecName));
-        if (RefPtr atomData = info.atomData; atomData && atomData->span().size())
+        if (info.extensionAtoms.size()) {
+            Ref atomData = info.extensionAtoms[0].second;
             videoTrack->SetCodecPrivate(atomData->span().data(), atomData->span().size());
+        }
         return trackIndex;
     }
 

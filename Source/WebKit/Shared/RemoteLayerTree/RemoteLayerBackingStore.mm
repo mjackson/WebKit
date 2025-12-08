@@ -33,6 +33,7 @@
 #import "ImageBufferSet.h"
 #import "Logging.h"
 #import "PlatformCALayerRemote.h"
+#import "PrepareBackingStoreBuffersData.h"
 #import "RemoteImageBufferSetProxy.h"
 #import "RemoteLayerBackingStoreCollection.h"
 #import "RemoteLayerTreeContext.h"
@@ -42,7 +43,6 @@
 #import "RemoteLayerTreeNode.h"
 #import "RemoteLayerWithInProcessRenderingBackingStore.h"
 #import "RemoteLayerWithRemoteRenderingBackingStore.h"
-#import "SwapBuffersDisplayRequirement.h"
 #import "WebPageProxy.h"
 #import "WebProcess.h"
 #import "WebProcessPool.h"
@@ -523,6 +523,8 @@ RemoteLayerBackingStoreProperties::LayerContentsBufferInfo RemoteLayerBackingSto
 #endif
                 }
 #endif
+                if (surface->isVolatile())
+                    RELEASE_LOG_ERROR(RemoteLayerTree, "Received volatile IOSurface");
                 contents = surface->asCAIOSurfaceLayerContents();
             }
         }
@@ -668,6 +670,8 @@ RemoteLayerBackingStoreProperties::LayerContentsBufferInfo RemoteLayerBackingSto
             if (surface->pixelFormat() == WebCore::IOSurface::Format::RGBA16F)
                 result.hasExtendedDynamicRange = true;
 #endif
+            if (surface->isVolatile())
+                RELEASE_LOG_ERROR(RemoteLayerTree, "Received volatile IOSurface");
             cachedBuffers.append({ *m_frontBufferInfo, result.buffer, WTFMove(surface) });
         }
     }

@@ -33,6 +33,7 @@
 #include <JavaScriptCore/InspectorAgentRegistry.h>
 #include <JavaScriptCore/InspectorEnvironment.h>
 #include <WebCore/InspectorOverlay.h>
+#include <wtf/CheckedRef.h>
 #include <wtf/Forward.h>
 #include <wtf/Noncopyable.h>
 #include <wtf/TZoneMalloc.h>
@@ -53,13 +54,22 @@ class InspectorInstrumentation;
 class InstrumentingAgents;
 class LocalFrame;
 class WebInjectedScriptManager;
+struct FrameAgentContext;
 
-class FrameInspectorController final : public Inspector::InspectorEnvironment, public CanMakeWeakPtr<FrameInspectorController> {
+class FrameInspectorController final : public Inspector::InspectorEnvironment, public CanMakeCheckedPtr<FrameInspectorController> {
     WTF_MAKE_NONCOPYABLE(FrameInspectorController);
     WTF_MAKE_TZONE_ALLOCATED(FrameInspectorController);
+    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(FrameInspectorController);
 public:
     FrameInspectorController(LocalFrame&);
     ~FrameInspectorController() override;
+
+    // AbstractCanMakeCheckedPtr overrides
+    uint32_t checkedPtrCount() const final { return CanMakeCheckedPtr::checkedPtrCount(); }
+    uint32_t checkedPtrCountWithoutThreadCheck() const final { return CanMakeCheckedPtr::checkedPtrCountWithoutThreadCheck(); }
+    void incrementCheckedPtrCount() const final { CanMakeCheckedPtr::incrementCheckedPtrCount(); }
+    void decrementCheckedPtrCount() const final { CanMakeCheckedPtr::decrementCheckedPtrCount(); }
+    void setDidBeginCheckedPtrDeletion() final { CanMakeCheckedPtr::setDidBeginCheckedPtrDeletion(); }
 
     WEBCORE_EXPORT void ref() const;
     WEBCORE_EXPORT void deref() const;
@@ -67,6 +77,8 @@ public:
     WEBCORE_EXPORT void connectFrontend(Inspector::FrontendChannel&, bool isAutomaticInspection = false, bool immediatelyPause = false);
     WEBCORE_EXPORT void disconnectFrontend(Inspector::FrontendChannel&);
     WEBCORE_EXPORT void dispatchMessageFromFrontend(const String& message);
+
+    void inspectedFrameDestroyed();
 
     // InspectorEnvironment
     bool developerExtrasEnabled() const override;
@@ -81,6 +93,7 @@ public:
 private:
     friend class InspectorInstrumentation;
 
+    FrameAgentContext frameAgentContext();
     void createLazyAgents();
 
     WeakRef<LocalFrame> m_frame;

@@ -31,7 +31,6 @@
 #include "RemoteGraphicsContext.h"
 #include "RemoteImageBufferGraphicsContext.h"
 #include "RemoteImageBufferSetMessages.h"
-#include "RemoteImageBufferSetProxyMessages.h"
 #include "RemoteRenderingBackend.h"
 #include "RemoteRenderingBackendProxyMessages.h"
 #include <WebCore/GraphicsContext.h>
@@ -69,8 +68,7 @@ RemoteImageBufferSet::~RemoteImageBufferSet()
     // Unwind the context's state stack before destruction, since calls to restore may not have
     // been flushed yet, or the web process may have terminated.
     auto& context = frontBuffer->context();
-    while (context.stackSize())
-        context.restore();
+    context.unwindStateStack();
 }
 
 void RemoteImageBufferSet::startListeningForIPC()
@@ -94,7 +92,7 @@ void RemoteImageBufferSet::updateConfiguration(const RemoteImageBufferSetConfigu
     clearBuffers();
 }
 
-void RemoteImageBufferSet::endPrepareForDisplay(RenderingUpdateID renderingUpdateID)
+void RemoteImageBufferSet::endPrepareForDisplay(RenderingUpdateID renderingUpdateID, CompletionHandler<void(ImageBufferSetPrepareBufferForDisplayOutputData, RenderingUpdateID)>&& completionHandler)
 {
     m_context.reset();
 
@@ -102,7 +100,6 @@ void RemoteImageBufferSet::endPrepareForDisplay(RenderingUpdateID renderingUpdat
     if (frontBuffer)
         frontBuffer->flushDrawingContext();
 
-#if PLATFORM(COCOA)
     auto bufferIdentifier = [](RefPtr<WebCore::ImageBuffer> buffer) -> std::optional<WebCore::RenderingResourceIdentifier> {
         if (!buffer)
             return std::nullopt;
@@ -116,8 +113,7 @@ void RemoteImageBufferSet::endPrepareForDisplay(RenderingUpdateID renderingUpdat
     }
 
     outputData.bufferCacheIdentifiers = BufferIdentifierSet { bufferIdentifier(frontBuffer), bufferIdentifier(m_backBuffer), bufferIdentifier(m_secondaryBackBuffer) };
-    m_renderingBackend->streamConnection().send(Messages::RemoteImageBufferSetProxy::DidPrepareForDisplay(WTFMove(outputData), renderingUpdateID), m_identifier);
-#endif
+    completionHandler(WTFMove(outputData), renderingUpdateID);
 }
 
 // This is the GPU Process version of RemoteLayerBackingStore::prepareBuffers().

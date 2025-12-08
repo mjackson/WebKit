@@ -275,6 +275,7 @@ Shared/WebPreferencesDefaultValues.cpp
 Shared/WebPreferencesStore.cpp
 Shared/WebPushMessage.cpp
 Shared/WebTouchEvent.cpp
+Shared/WebUserContentControllerDataTypes.cpp
 Shared/WebWheelEventCoalescer.cpp
 Shared/WebWheelEvent.cpp
 Shared/WebsiteAutoplayPolicy.cpp
@@ -321,13 +322,12 @@ Shared/Extensions/WebExtensionSQLiteStore.cpp
 Shared/Extensions/WebExtensionLocalization.cpp
 Shared/Extensions/WebExtensionPermission.cpp
 Shared/Extensions/WebExtensionUtilities.cpp
+Shared/Extensions/WebExtensionRegisteredScriptsSQLiteStore.cpp
 
 Shared/Gamepad/GamepadData.cpp
 
 Shared/graphics/ImageBufferSet.cpp
 
-Shared/Model/DDMeshDescriptor.cpp
-Shared/Model/DDUpdateMeshDescriptor.cpp
 Shared/Model/ModelObjectDescriptorBase.cpp
 
 Shared/WebGPU/WebGPUBindGroupDescriptor.cpp
@@ -409,7 +409,9 @@ UIProcess/DeviceIdHashSaltStorage.cpp
 UIProcess/DisplayLink.cpp
 UIProcess/DisplayLinkProcessProxyClient.cpp
 UIProcess/DrawingAreaProxy.cpp
+UIProcess/EnhancedSecurityTracking.cpp
 UIProcess/FindStringCallbackAggregator.cpp
+UIProcess/FindTextMatchesCallbackAggregator.cpp
 UIProcess/FrameLoadState.cpp
 UIProcess/FrameProcess.cpp
 UIProcess/GeolocationPermissionRequestManagerProxy.cpp
@@ -429,6 +431,7 @@ UIProcess/RemotePageDrawingAreaProxy.cpp
 UIProcess/RemotePageFullscreenManagerProxy.cpp
 UIProcess/RemotePagePlaybackSessionManagerProxy.cpp
 UIProcess/RemotePageProxy.cpp
+UIProcess/RemotePageScreenOrientationManagerProxy.cpp
 UIProcess/RemotePageVideoPresentationManagerProxy.cpp
 UIProcess/ResponsivenessTimer.cpp
 UIProcess/SpeechRecognitionRemoteRealtimeMediaSource.cpp
@@ -498,6 +501,7 @@ UIProcess/API/APIHTTPCookieStore.cpp
 UIProcess/API/APIHitTestResult.cpp
 UIProcess/API/APIInspectorConfiguration.cpp
 UIProcess/API/APIInspectorExtension.cpp
+UIProcess/API/APIJSBuffer.cpp
 UIProcess/API/APIJSHandle.cpp
 UIProcess/API/APINavigation.cpp
 UIProcess/API/APINavigationData.cpp
@@ -628,6 +632,7 @@ UIProcess/Inspector/WebInspectorBackendProxy.cpp
 UIProcess/Inspector/WebInspectorUIExtensionControllerProxy.cpp
 UIProcess/Inspector/WebInspectorUIProxy.cpp
 UIProcess/Inspector/WebInspectorUtilities.cpp
+UIProcess/Inspector/WasmDebuggerDebuggable.cpp
 UIProcess/Inspector/WebPageDebuggable.cpp
 UIProcess/Inspector/WebPageInspectorController.cpp
 UIProcess/Inspector/WebPageInspectorTargetProxy.cpp
@@ -636,7 +641,10 @@ UIProcess/Inspector/Agents/InspectorBrowserAgent.cpp
 
 UIProcess/Media/AudioSessionRoutingArbitratorProxy.cpp
 UIProcess/Media/MediaUsageManager.cpp
+UIProcess/Media/RemoteMediaSessionClientProxy.cpp
 UIProcess/Media/RemoteMediaSessionCoordinatorProxy.cpp
+UIProcess/Media/RemoteMediaSessionManagerProxy.cpp
+UIProcess/Media/RemoteMediaSessionProxy.cpp
 
 UIProcess/Notifications/ServiceWorkerNotificationHandler.cpp
 UIProcess/Notifications/WebNotification.cpp
@@ -661,6 +669,8 @@ UIProcess/WebAuthentication/Authenticator.cpp
 UIProcess/WebAuthentication/WebAuthenticatorCoordinatorProxy.cpp
 UIProcess/WebAuthentication/WebAuthenticationRequestData.cpp
 
+UIProcess/WebsiteData/EnhancedSecuritySitesHolder.cpp
+UIProcess/WebsiteData/EnhancedSecuritySitesPersistence.cpp
 UIProcess/WebsiteData/WebDeviceOrientationAndMotionAccessController.cpp
 UIProcess/WebsiteData/WebsiteDataRecord.cpp
 UIProcess/WebsiteData/WebsiteDataStore.cpp
@@ -732,14 +742,17 @@ WebProcess/InjectedBundle/DOM/InjectedBundleRangeHandle.cpp @no-unify
 WebProcess/Inspector/RemoteWebInspectorUI.cpp
 WebProcess/Inspector/WebFrameInspectorTarget.cpp
 WebProcess/Inspector/WebFrameInspectorTargetFrontendChannel.cpp
+WebProcess/Inspector/WebInspectorBackend.cpp
 WebProcess/Inspector/WebInspectorBackendClient.cpp
-WebProcess/Inspector/WebInspectorInternal.cpp
 WebProcess/Inspector/WebInspectorInterruptDispatcher.cpp
 WebProcess/Inspector/WebInspectorUI.cpp
+
+WebProcess/Inspector/WasmDebuggerDispatcher.cpp
 WebProcess/Inspector/WebInspectorUIExtensionController.cpp
 WebProcess/Inspector/WebPageInspectorTarget.cpp
-WebProcess/Inspector/WebPageInspectorTargetController.cpp
 WebProcess/Inspector/WebPageInspectorTargetFrontendChannel.cpp
+
+WebProcess/Media/RemoteMediaSessionManager.cpp
 
 WebProcess/MediaSession/RemoteMediaSessionCoordinator.cpp
 
@@ -872,6 +885,7 @@ WebProcess/Storage/WebSharedWorkerContextManagerConnection.cpp
 WebProcess/Storage/WebSharedWorkerObjectConnection.cpp
 WebProcess/Storage/WebSharedWorkerProvider.cpp
 
+WebProcess/UserContent/SharedMemoryJSBuffer.cpp
 WebProcess/UserContent/WebUserContentController.cpp
 
 WebProcess/WebAuthentication/WebAuthenticatorCoordinator.cpp

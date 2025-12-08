@@ -40,7 +40,6 @@ class WebXRJointPose : public WebXRPose {
     WTF_MAKE_TZONE_OR_ISO_ALLOCATED(WebXRJointPose);
 public:
     static Ref<WebXRJointPose> create(Ref<WebXRRigidTransform>&&, bool emulatedPosition, float radius);
-    ~WebXRJointPose() = default;
 
     float radius() const { return m_radius; }
 

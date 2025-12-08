@@ -27,6 +27,7 @@
 #include "JSArrayInlines.h"
 #include "JSCInlines.h"
 #include "PropertyNameArray.h"
+#include "ResourceExhaustion.h"
 #include "TypeError.h"
 #include <wtf/Assertions.h>
 
@@ -287,7 +288,7 @@ static int compareKeysForQSort(const void* a, const void* b)
     return (da > db) - (da < db);
 }
 
-void JSArray::getOwnSpecialPropertyNames(JSObject*, JSGlobalObject* globalObject, PropertyNameArray& propertyNames, DontEnumPropertiesMode mode)
+void JSArray::getOwnSpecialPropertyNames(JSObject*, JSGlobalObject* globalObject, PropertyNameArrayBuilder& propertyNames, DontEnumPropertiesMode mode)
 {
     VM& vm = globalObject->vm();
     if (mode == DontEnumPropertiesMode::Include)
@@ -2020,7 +2021,7 @@ inline JSArray* constructArray(ObjectInitializationScope& scope, Structure* arra
     // function will correctly handle an exception being thrown from here.
     // https://bugs.webkit.org/show_bug.cgi?id=169786
     if constexpr (failureMode == AllocationFailureMode::Assert)
-        RELEASE_ASSERT(array);
+        RELEASE_ASSERT_RESOURCE_AVAILABLE(array, MemoryExhaustion, "Crash intentionally because memory is exhausted.");
     else if (!array)
         return nullptr;
 
@@ -2070,6 +2071,29 @@ JSArray* constructArrayNegativeIndexed(JSGlobalObject* globalObject, Structure* 
 
     for (int i = 0; i < static_cast<int>(length); ++i)
         array->initializeIndex(scope, i, values[-i]);
+    return array;
+}
+
+JSArray* constructArrayPair(JSGlobalObject* globalObject, JSValue first, JSValue second)
+{
+    VM& vm = globalObject->vm();
+    auto throwScope = DECLARE_THROW_SCOPE(vm);
+    ObjectInitializationScope initializationScope(vm);
+
+    IndexingType indexingType = ArrayWithUndecided;
+    indexingType = leastUpperBoundOfIndexingTypeAndValue(indexingType, first);
+    indexingType = leastUpperBoundOfIndexingTypeAndValue(indexingType, second);
+
+    Structure* structure = globalObject->arrayStructureForIndexingTypeDuringAllocation(indexingType);
+
+    JSArray* array = JSArray::tryCreateUninitializedRestricted(initializationScope, structure, 2);
+    if (!array) [[unlikely]] {
+        throwOutOfMemoryError(globalObject, throwScope);
+        return nullptr;
+    }
+    array->initializeIndex(initializationScope, 0, first);
+    array->initializeIndex(initializationScope, 1, second);
+
     return array;
 }
 

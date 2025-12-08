@@ -71,6 +71,10 @@
 #include <wtf/WeakRef.h>
 #include <wtf/text/WTFString.h>
 
+#if ENABLE(WEBDRIVER_BIDI)
+#include "WebAutomationSession.h"
+#endif
+
 #if ENABLE(APPLE_PAY)
 #include <WebCore/PaymentSession.h>
 #endif
@@ -358,7 +362,7 @@ void WebFrameProxy::didChangeTitle(String&& title)
     m_title = WTFMove(title);
 }
 
-WebFramePolicyListenerProxy& WebFrameProxy::setUpPolicyListenerProxy(CompletionHandler<void(PolicyAction, API::WebsitePolicies*, ProcessSwapRequestedByClient, std::optional<NavigatingToAppBoundDomain>, WasNavigationIntercepted)>&& completionHandler, ShouldExpectSafeBrowsingResult expectSafeBrowsingResult, ShouldExpectAppBoundDomainResult expectAppBoundDomainResult, ShouldWaitForInitialLinkDecorationFilteringData shouldWaitForInitialLinkDecorationFilteringData)
+WebFramePolicyListenerProxy& WebFrameProxy::setUpPolicyListenerProxy(CompletionHandler<void(PolicyAction, API::WebsitePolicies*, ProcessSwapRequestedByClient, std::optional<NavigatingToAppBoundDomain>, WasNavigationIntercepted)>&& completionHandler, ShouldExpectSafeBrowsingResult expectSafeBrowsingResult, ShouldExpectAppBoundDomainResult expectAppBoundDomainResult, ShouldWaitForInitialLinkDecorationFilteringData shouldWaitForInitialLinkDecorationFilteringData, ShouldWaitForSiteHasStorageCheck shouldWaitForSiteHasStorageCheck)
 {
     if (RefPtr previousListener = m_activeListener)
         previousListener->ignore();
@@ -368,7 +372,7 @@ WebFramePolicyListenerProxy& WebFrameProxy::setUpPolicyListenerProxy(CompletionH
 
         completionHandler(action, policies, processSwapRequestedByClient, isNavigatingToAppBoundDomain, wasNavigationIntercepted);
         m_activeListener = nullptr;
-    }, expectSafeBrowsingResult, expectAppBoundDomainResult, shouldWaitForInitialLinkDecorationFilteringData);
+    }, expectSafeBrowsingResult, expectAppBoundDomainResult, shouldWaitForInitialLinkDecorationFilteringData, shouldWaitForSiteHasStorageCheck);
     return *m_activeListener;
 }
 
@@ -466,8 +470,23 @@ void WebFrameProxy::collapseSelection()
 
 void WebFrameProxy::disconnect()
 {
-    if (RefPtr parentFrame = m_parentFrame.get())
+    if (RefPtr parentFrame = m_parentFrame.get()) {
+#if ENABLE(WEBDRIVER_BIDI)
+        if (RefPtr page = m_page.get()) {
+            if (RefPtr session = page->activeAutomationSession())
+                session->willDestroyFrame(*this);
+        }
+#endif
         parentFrame->m_childFrames.remove(*this);
+    }
+    m_parentFrame = nullptr;
+}
+
+bool WebFrameProxy::isConnected() const
+{
+    if (RefPtr parentFrame = m_parentFrame.get())
+        return parentFrame->m_childFrames.contains(*this);
+    return false;
 }
 
 void WebFrameProxy::didCreateSubframe(WebCore::FrameIdentifier frameID, String&& frameName, SandboxFlags effectiveSandboxFlags, ReferrerPolicy effectiveReferrerPolicy, WebCore::ScrollbarMode scrollingMode)
@@ -491,7 +510,12 @@ void WebFrameProxy::didCreateSubframe(WebCore::FrameIdentifier frameID, String&&
     child->m_parentFrame = *this;
     child->m_frameName = WTFMove(frameName);
     page->observeAndCreateRemoteSubframesInOtherProcesses(child, child->m_frameName);
-    m_childFrames.add(WTFMove(child));
+    m_childFrames.add(child.copyRef());
+
+#if ENABLE(WEBDRIVER_BIDI)
+    if (RefPtr session = page->activeAutomationSession())
+        session->didCreateFrame(child);
+#endif
 }
 
 void WebFrameProxy::prepareForProvisionalLoadInProcess(WebProcessProxy& process, API::Navigation& navigation, BrowsingContextGroup& group, CompletionHandler<void(WebCore::PageIdentifier)>&& completionHandler)
@@ -652,7 +676,7 @@ void WebFrameProxy::broadcastFrameTreeSyncData(Ref<FrameTreeSyncData>&& data)
     RELEASE_ASSERT(webPage->protectedPreferences()->siteIsolationEnabled());
 
     webPage->forEachWebContentProcess([&](auto& webProcess, auto pageID) {
-        webProcess.send(Messages::WebPage::UpdateFrameTreeSyncData(m_frameID, data), pageID);
+        webProcess.send(Messages::WebPage::AllFrameTreeSyncDataChangedInAnotherProcess(m_frameID, data), pageID);
     });
 }
 
@@ -717,21 +741,21 @@ auto WebFrameProxy::traverseNext(CanWrap canWrap) const -> TraversalResult
 auto WebFrameProxy::traversePrevious(CanWrap canWrap) -> TraversalResult
 {
     if (RefPtr previousSibling = this->previousSibling())
-        return { RefPtr { previousSibling->deepLastChild() }, DidWrap::No };
+        return { previousSibling->deepLastChild(), DidWrap::No };
     if (RefPtr parent = parentFrame())
         return { WTFMove(parent), DidWrap::No };
 
     if (canWrap == CanWrap::Yes)
-        return { RefPtr { deepLastChild() }, DidWrap::Yes };
+        return { deepLastChild(), DidWrap::Yes };
     return { };
 }
 
-WebFrameProxy* WebFrameProxy::deepLastChild()
+RefPtr<WebFrameProxy> WebFrameProxy::deepLastChild()
 {
     RefPtr result = this;
     for (RefPtr last = lastChild(); last; last = last->lastChild())
         result = last;
-    return result.get();
+    return result;
 }
 
 WebFrameProxy* WebFrameProxy::firstChild() const
@@ -780,12 +804,20 @@ WebFrameProxy* WebFrameProxy::previousSibling() const
     return (--it)->ptr();
 }
 
+RefPtr<WebFrameProxy> WebFrameProxy::childFrame(size_t index) const
+{
+    RefPtr child = firstChild();
+    for (size_t i = 0; i < index && child; i++)
+        child = child->nextSibling();
+    return child;
+}
+
 void WebFrameProxy::updateOpener(WebCore::FrameIdentifier newOpener)
 {
     m_opener = WebFrameProxy::webFrame(newOpener);
 }
 
-WebFrameProxy& WebFrameProxy::rootFrame()
+Ref<WebFrameProxy> WebFrameProxy::rootFrame()
 {
     Ref rootFrame = *this;
     while (rootFrame->m_parentFrame && rootFrame->m_parentFrame->process().coreProcessIdentifier() == process().coreProcessIdentifier())

@@ -160,6 +160,7 @@ private:
     void destroyGetPixelBufferSharedMemory();
     void nativeImageBitmap(WebCore::RenderingResourceIdentifier imageIdentifier, CompletionHandler<void(std::optional<WebCore::ShareableBitmap::Handle>)>&&);
     void cacheNativeImage(WebCore::ShareableBitmap::Handle&&, WebCore::RenderingResourceIdentifier);
+    void cacheNativeImageFromSharedNativeImage(WebCore::RenderingResourceIdentifier);
     void releaseNativeImage(WebCore::RenderingResourceIdentifier);
     void cacheGradient(Ref<WebCore::Gradient>&&, RemoteGradientIdentifier);
     void releaseGradient(RemoteGradientIdentifier);
@@ -170,7 +171,6 @@ private:
     void cacheFontCustomPlatformData(WebCore::FontCustomPlatformSerializedData&&);
     void releaseFontCustomPlatformData(WebCore::RenderingResourceIdentifier);
     void releaseMemory();
-    void releaseNativeImages();
     void finalizeRenderingUpdate(RenderingUpdateID);
     void markSurfacesVolatile(MarkSurfacesAsVolatileRequestIdentifier, const Vector<std::pair<ImageBufferSetIdentifier, OptionSet<BufferInSetType>>>&, bool forcePurge);
     void createImageBufferSet(WebKit::ImageBufferSetIdentifier, RemoteGraphicsContextIdentifier);
@@ -188,13 +188,13 @@ private:
     void createSnapshotRecorder(RemoteSnapshotRecorderIdentifier, RemoteSnapshotIdentifier);
     void sinkSnapshotRecorderIntoSnapshotFrame(RemoteSnapshotRecorderIdentifier, WebCore::FrameIdentifier, CompletionHandler<void(bool)>&&);
 
-    void createRemoteBarcodeDetector(ShapeDetectionIdentifier, const WebCore::ShapeDetection::BarcodeDetectorOptions&);
-    void releaseRemoteBarcodeDetector(ShapeDetectionIdentifier);
-    void getRemoteBarcodeDetectorSupportedFormats(CompletionHandler<void(Vector<WebCore::ShapeDetection::BarcodeFormat>&&)>&&);
-    void createRemoteFaceDetector(ShapeDetectionIdentifier, const WebCore::ShapeDetection::FaceDetectorOptions&);
-    void releaseRemoteFaceDetector(ShapeDetectionIdentifier);
-    void createRemoteTextDetector(ShapeDetectionIdentifier);
-    void releaseRemoteTextDetector(ShapeDetectionIdentifier);
+    void createBarcodeDetector(ShapeDetectionIdentifier, const WebCore::ShapeDetection::BarcodeDetectorOptions&);
+    void releaseBarcodeDetector(ShapeDetectionIdentifier);
+    void supportedBarcodeDetectorBarcodeFormats(CompletionHandler<void(Vector<WebCore::ShapeDetection::BarcodeFormat>&&)>&&);
+    void createFaceDetector(ShapeDetectionIdentifier, const WebCore::ShapeDetection::FaceDetectorOptions&);
+    void releaseFaceDetector(ShapeDetectionIdentifier);
+    void createTextDetector(ShapeDetectionIdentifier);
+    void releaseTextDetector(ShapeDetectionIdentifier);
 
     bool shouldUseLockdownFontParser() const;
 

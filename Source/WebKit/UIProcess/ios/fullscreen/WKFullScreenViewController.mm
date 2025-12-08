@@ -112,6 +112,7 @@ private:
     uint32_t checkedPtrCountWithoutThreadCheck() const final { return CanMakeCheckedPtr::checkedPtrCountWithoutThreadCheck(); }
     void incrementCheckedPtrCount() const final { CanMakeCheckedPtr::incrementCheckedPtrCount(); }
     void decrementCheckedPtrCount() const final { CanMakeCheckedPtr::decrementCheckedPtrCount(); }
+    void setDidBeginCheckedPtrDeletion() final { CanMakeCheckedPtr::setDidBeginCheckedPtrDeletion(); }
 
     WeakObjCPtr<WKFullScreenViewController> m_parent;
     RefPtr<WebCore::PlaybackSessionInterfaceIOS> m_interface;
@@ -252,6 +253,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     [[NSNotificationCenter defaultCenter] removeObserver:self];
     _playbackClient.setParent(nullptr);
     _playbackClient.setInterface(nullptr);
+    [self.delegate fullScreenViewControllerDidInvalidate:self];
 }
 
 - (void)dealloc
@@ -262,7 +264,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
 - (id<WKFullScreenViewControllerDelegate>)delegate
 {
-    return _delegate.get().get();
+    return _delegate.getAutoreleased();
 }
 
 - (void)setDelegate:(id<WKFullScreenViewControllerDelegate>)delegate
@@ -439,7 +441,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 #endif
 }
 
-- (RefPtr<WebCore::PlatformVideoPresentationInterface>) _bestVideoPresentationInterface
+- (RefPtr<WebCore::PlatformVideoPresentationInterface>)_bestVideoPresentationInterface
 {
     ASSERT(_valid);
     RefPtr page = [self._webView _page].get();
@@ -487,6 +489,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     if (!page || !page->preferences().linearMediaPlayerEnabled() || page->fullscreenClient().preventDocking(page.get())) {
         [self _removeEnvironmentPickerButtonView];
         [self _removeEnvironmentFullscreenVideoButtonView];
+        [self.delegate fullScreenViewController:self bestVideoPresentationInterfaceDidChange:nullptr];
         return;
     }
 
@@ -496,8 +499,11 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     if (!playbackSessionModel || !playbackSessionModel->supportsLinearMediaPlayer()) {
         [self _removeEnvironmentPickerButtonView];
         [self _removeEnvironmentFullscreenVideoButtonView];
+        [self.delegate fullScreenViewController:self bestVideoPresentationInterfaceDidChange:nullptr];
         return;
     }
+
+    [self.delegate fullScreenViewController:self bestVideoPresentationInterfaceDidChange:videoPresentationInterface.get()];
 
     if (RetainPtr mediaPlayer = playbackSessionInterface->linearMediaPlayer(); [mediaPlayer spatialVideoMetadata] || [mediaPlayer isImmersiveVideo]) {
         [self _setTopButtonLabel:[mediaPlayer isImmersiveVideo] ? WebCore::fullscreenControllerViewImmersive() : WebCore::fullscreenControllerViewSpatial()];
@@ -725,7 +731,8 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     _location = location;
 
 #if ENABLE(FULLSCREEN_DISMISSAL_GESTURES)
-    [_bannerLabel setText:adoptNS([[NSString alloc] initWithFormat:WEB_UI_NSSTRING(@"”%@” is in full screen.\nSwipe down to exit.", "Full Screen Warning Banner Content Text"), self.location]).get()];
+    SUPPRESS_UNRETAINED_ARG RetainPtr text = adoptNS([[NSString alloc] initWithFormat:WEB_UI_NSSTRING(@"”%@” is in full screen.\nSwipe down to exit.", "Full Screen Warning Banner Content Text"), self.location]);
+    [_bannerLabel setText:text.get()];
     [_bannerLabel sizeToFit];
 #endif
 }
@@ -828,7 +835,8 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     [_bannerLabel setNumberOfLines:0];
     [_bannerLabel setLineBreakMode:NSLineBreakByWordWrapping];
     [_bannerLabel setTextAlignment:NSTextAlignmentCenter];
-    [_bannerLabel setText:adoptNS([[NSString alloc] initWithFormat:WEB_UI_NSSTRING(@"”%@” is in full screen.\nSwipe down to exit.", "Full Screen Warning Banner Content Text"), self.location]).get()];
+    SUPPRESS_UNRETAINED_ARG RetainPtr bannerText = adoptNS([[NSString alloc] initWithFormat:WEB_UI_NSSTRING(@"”%@” is in full screen.\nSwipe down to exit.", "Full Screen Warning Banner Content Text"), self.location]);
+    [_bannerLabel setText:bannerText.get()];
 
     auto banner = adoptNS([[WKFullscreenStackView alloc] init]);
     [banner addArrangedSubview:_bannerLabel.get() applyingMaterialStyle:AVBackgroundViewMaterialStyleSecondary tintEffectStyle:AVBackgroundViewTintEffectStyleSecondary];
@@ -1008,7 +1016,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     return insets;
 }
 
-- (RefPtr<WebCore::PlatformPlaybackSessionInterface>) _playbackSessionInterface
+- (RefPtr<WebCore::PlatformPlaybackSessionInterface>)_playbackSessionInterface
 {
     auto page = [self._webView _page];
     if (!page)
@@ -1063,11 +1071,14 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         playbackSessionModel->togglePictureInPicture();
 }
 
+#if PLATFORM(VISION)
 - (void)_enterVideoFullscreenAction:(id)sender
 {
     RefPtr presentationInterface = [self _bestVideoPresentationInterface];
     if (!presentationInterface)
         return;
+
+    [self.delegate fullScreenViewController:self bestVideoPresentationInterfaceDidChange:presentationInterface.get()];
 
     [self hideUI];
 
@@ -1077,6 +1088,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
     playbackSessionModel->enterFullscreen();
 }
+#endif
 
 - (void)_touchDetected:(id)sender
 {
@@ -1122,7 +1134,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     }
 
     RetainPtr alertTitle = WEB_UI_STRING("It looks like you are typing while in full screen", "Full Screen Deceptive Website Warning Sheet Title").createNSString();
-    RetainPtr alertMessage = adoptNS([[NSString alloc] initWithFormat:WEB_UI_NSSTRING(@"Typing is not allowed in full screen websites. “%@” may be showing a fake keyboard to trick you into disclosing personal or financial information.", "Full Screen Deceptive Website Warning Sheet Content Text"), self.location]);
+    SUPPRESS_UNRETAINED_ARG RetainPtr alertMessage = adoptNS([[NSString alloc] initWithFormat:WEB_UI_NSSTRING(@"Typing is not allowed in full screen websites. “%@” may be showing a fake keyboard to trick you into disclosing personal or financial information.", "Full Screen Deceptive Website Warning Sheet Content Text"), self.location]);
     RetainPtr alert = WebKit::createUIAlertController(alertTitle.get(), alertMessage.get());
 
     if (page) {

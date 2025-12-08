@@ -115,6 +115,7 @@ void Navigation::setCurrentRequest(ResourceRequest&& request, std::optional<Proc
 {
     m_currentRequest = WTFMove(request);
     m_currentRequestProcessIdentifier = processIdentifier;
+    m_hasStorageForCurrentSite = false;
 }
 
 void Navigation::appendRedirectionURL(const WTF::URL& url)
@@ -147,6 +148,13 @@ void Navigation::markRequestAsFromClientInput()
     m_requestIsFromClientInput = true;
     if (m_lastNavigationAction)
         m_lastNavigationAction->isRequestFromClientOrUserInput = true;
+}
+
+WebCore::SecurityOriginData Navigation::requesterOrigin() const
+{
+    if (m_lastNavigationAction && m_lastNavigationAction->requester)
+        return m_lastNavigationAction->requester->securityOrigin->data();
+    return { };
 }
 
 void Navigation::setSafeBrowsingCheckOngoing(size_t index, bool ongoing)
@@ -200,5 +208,12 @@ WTF::String Navigation::loggingString() const
 }
 
 #endif
+
+
+void Navigation::setHasStorageForCurrentSite(const WTF::URL& url, bool hasStorageForCurrentSite)
+{
+    ASSERT_UNUSED(url, url == m_currentRequest.url());
+    m_hasStorageForCurrentSite = hasStorageForCurrentSite;
+}
 
 } // namespace API

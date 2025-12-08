@@ -148,6 +148,16 @@ void Chrome::relayAccessibilityNotification(String&& notificationName, RetainPtr
 {
     return m_client->relayAccessibilityNotification(WTFMove(notificationName), WTFMove(notificationData));
 }
+
+void Chrome::relayAriaNotifyNotification(AriaNotifyData&& notificationData) const
+{
+    return m_client->relayAriaNotifyNotification(WTFMove(notificationData));
+}
+
+void Chrome::relayLiveRegionNotification(LiveRegionAnnouncementData&& notificationData) const
+{
+    return m_client->relayLiveRegionNotification(WTFMove(notificationData));
+}
 #endif
 
 PlatformPageClient Chrome::platformPageClient() const
@@ -641,8 +651,10 @@ void Chrome::unregisterPopupOpeningObserver(PopupOpeningObserver& observer)
 void Chrome::notifyPopupOpeningObservers() const
 {
     auto observers = m_popupOpeningObservers;
-    for (auto& observer : observers)
-        observer->willOpenPopup();
+    for (auto& weakObserver : observers) {
+        if (RefPtr observer = weakObserver.get())
+            observer->willOpenPopup();
+    }
 }
 
 } // namespace WebCore

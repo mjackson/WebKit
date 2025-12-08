@@ -127,6 +127,7 @@ public:
 
     WebCore::MediaPlayerIdentifier identifier() const { return m_id; }
     void invalidate();
+    void connectionToWebProcessClosed();
 
     // Ensure that all previously queued messages to the content process have completed.
     Ref<WebCore::MediaPromise> commitAllTransactions();
@@ -212,9 +213,6 @@ public:
 #if ENABLE(LEGACY_ENCRYPTED_MEDIA) && ENABLE(ENCRYPTED_MEDIA)
     void setShouldContinueAfterKeyNeeded(bool);
 #endif
-
-    void beginSimulatedHDCPError();
-    void endSimulatedHDCPError();
 
     void notifyActiveSourceBuffersChanged();
 

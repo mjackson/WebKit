@@ -85,94 +85,6 @@ function createInternalReadableStreamFromUnderlyingSource(underlyingSource, stra
     return stream;
 }
 
-function readableStreamPipeThroughForBindings(thisStream, streams, options)
-{
-    "use strict";
-
-    @assert(@isReadableStream(thisStream));
-
-    const transforms = streams;
-
-    const readable = transforms["readable"];
-    const internalReadable = @getInternalReadableStream(readable);
-    if (!@isReadableStream(internalReadable))
-        throw @makeTypeError("readable should be ReadableStream");
-
-    const writable = transforms["writable"];
-    const internalWritable = @getInternalWritableStream(writable);
-    if (!@isWritableStream(internalWritable))
-        throw @makeTypeError("writable should be WritableStream");
-
-    let preventClose = false;
-    let preventAbort = false;
-    let preventCancel = false;
-    let signal;
-    if (!@isUndefinedOrNull(options)) {
-        if (!@isObject(options))
-            throw @makeTypeError("options must be an object");
-
-        preventAbort = !!options["preventAbort"];
-        preventCancel = !!options["preventCancel"];
-        preventClose = !!options["preventClose"];
-
-        signal = options["signal"];
-        if (signal !== @undefined && !@isAbortSignal(signal))
-            throw @makeTypeError("options.signal must be AbortSignal");
-    }
-
-    if (@isReadableStreamLocked(thisStream))
-        throw @makeTypeError("ReadableStream is locked");
-
-    if (@isWritableStreamLocked(internalWritable))
-        throw @makeTypeError("WritableStream is locked");
-
-    const promise = @readableStreamPipeToWritableStream(thisStream, internalWritable, preventClose, preventAbort, preventCancel, signal);
-    @markPromiseAsHandled(promise);
-
-    return readable;
-}
-
-function readableStreamPipeToForBindings(stream, destination, options)
-{
-    "use strict";
-
-    @assert(@isReadableStream(stream));
-
-    let preventClose = false;
-    let preventAbort = false;
-    let preventCancel = false;
-    let signal;
-    if (!@isUndefinedOrNull(options)) {
-        if (!@isObject(options))
-            return @Promise.@reject(@makeTypeError("options must be an object"));
-
-        try {
-            preventAbort = !!options["preventAbort"];
-            preventCancel = !!options["preventCancel"];
-            preventClose = !!options["preventClose"];
-
-            signal = options["signal"];
-        } catch(e) {
-            return @Promise.@reject(e);
-        }
-
-        if (signal !== @undefined && !@isAbortSignal(signal))
-            return @Promise.@reject(@makeTypeError("options.signal must be AbortSignal"));
-    }
-
-    const internalDestination = @getInternalWritableStream(destination);
-    if (!@isWritableStream(internalDestination))
-        return @Promise.@reject(@makeTypeError("ReadableStream pipeTo requires a WritableStream"));
-
-    if (@isReadableStreamLocked(stream))
-        return @Promise.@reject(@makeTypeError("ReadableStream is locked"));
-
-    if (@isWritableStreamLocked(internalDestination))
-        return @Promise.@reject(@makeTypeError("WritableStream is locked"));
-
-    return @readableStreamPipeToWritableStream(stream, internalDestination, preventClose, preventAbort, preventCancel, signal);
-}
-
 function createInternalReadableStreamDefaultReader(internalStream)
 {
     "use strict";
@@ -198,7 +110,7 @@ function readableStreamDefaultReaderClosedForBindings(reader)
     "use strict";
 
     if (!@isReadableStreamDefaultReader(reader))
-        return @Promise.@reject(@makeGetterTypeError("ReadableStreamDefaultReader", "closed"));
+        return @promiseReject(@Promise, @makeGetterTypeError("ReadableStreamDefaultReader", "closed"));
 
     return @getByIdDirectPrivate(reader, "closedPromiseCapability").promise;
 }
@@ -208,9 +120,9 @@ function readableStreamDefaultReaderReadForBindings(reader)
     "use strict";
 
     if (!@isReadableStreamDefaultReader(reader))
-        return @Promise.@reject(@makeThisTypeError("ReadableStreamDefaultReader", "read"));
+        return @promiseReject(@Promise, @makeThisTypeError("ReadableStreamDefaultReader", "read"));
     if (!@getByIdDirectPrivate(reader, "ownerReadableStream"))
-        return @Promise.@reject(@makeTypeError("read() called on a reader owned by no readable stream"));
+        return @promiseReject(@Promise, @makeTypeError("read() called on a reader owned by no readable stream"));
 
     return @readableStreamDefaultReaderRead(reader);
 }
@@ -233,10 +145,10 @@ function readableStreamDefaultReaderCancelForBindings(reader, reason)
     "use strict";
 
     if (!@isReadableStreamDefaultReader(reader))
-        return @Promise.@reject(@makeThisTypeError("ReadableStreamDefaultReader", "cancel"));
+        return @promiseReject(@Promise, @makeThisTypeError("ReadableStreamDefaultReader", "cancel"));
 
     if (!@getByIdDirectPrivate(reader, "ownerReadableStream"))
-        return @Promise.@reject(@makeTypeError("cancel() called on a reader owned by no readable stream"));
+        return @promiseReject(@Promise, @makeTypeError("cancel() called on a reader owned by no readable stream"));
 
     return @readableStreamReaderGenericCancel(reader, reason);
 }
@@ -256,7 +168,7 @@ function readableStreamReaderGenericInitialize(reader, stream)
     if (@getByIdDirectPrivate(stream, "state") === @streamReadable)
         @putByIdDirectPrivate(reader, "closedPromiseCapability", @newPromiseCapability(@Promise));
     else if (@getByIdDirectPrivate(stream, "state") === @streamClosed)
-        @putByIdDirectPrivate(reader, "closedPromiseCapability", { promise: @Promise.@resolve() });
+        @putByIdDirectPrivate(reader, "closedPromiseCapability", { promise: @promiseResolve(@Promise, @undefined) });
     else {
         @assert(@getByIdDirectPrivate(stream, "state") === @streamErrored);
         @putByIdDirectPrivate(reader, "closedPromiseCapability", { promise: @newHandledRejectedPromise(@getByIdDirectPrivate(stream, "storedError")) });
@@ -323,284 +235,9 @@ function readableStreamDefaultControllerError(controller, error)
     @readableStreamError(stream, error);
 }
 
-function readableStreamPipeTo(stream, sink)
-{
-    "use strict";
-    @assert(@isReadableStream(stream));
-
-    const reader = @acquireReadableStreamDefaultReader(stream);
-
-    @getByIdDirectPrivate(reader, "closedPromiseCapability").promise.@then(() => { }, (e) => { sink.error(e); });
-
-    function doPipe() {
-        @readableStreamDefaultReaderRead(reader).@then(function(result) {
-            if (result.done) {
-                sink.close();
-                return;
-            }
-            try {
-                sink.enqueue(result.value);
-            } catch (e) {
-                sink.error("ReadableStream chunk enqueueing in the sink failed");
-                return;
-            }
-            doPipe();
-        }, function(e) {
-            sink.error(e);
-        });
-    }
-    doPipe();
-}
-
 function acquireReadableStreamDefaultReader(stream)
 {
     return @createInternalReadableStreamDefaultReader(stream);
-}
-
-// FIXME: Replace readableStreamPipeTo by below function.
-// This method implements the latest https://streams.spec.whatwg.org/#readable-stream-pipe-to.
-function readableStreamPipeToWritableStream(source, destination, preventClose, preventAbort, preventCancel, signal)
-{
-    @assert(@isReadableStream(source));
-    @assert(@isWritableStream(destination));
-    @assert(!@isReadableStreamLocked(source));
-    @assert(!@isWritableStreamLocked(destination));
-    @assert(signal === @undefined || @isAbortSignal(signal));
-
-    if (@getByIdDirectPrivate(source, "underlyingByteSource") !== @undefined)
-        return @Promise.@reject("Piping of readable by strean is not supported");
-
-    let pipeState = { source : source, destination : destination, preventAbort : preventAbort, preventCancel : preventCancel, preventClose : preventClose, signal : signal };
-
-    pipeState.reader = @acquireReadableStreamDefaultReader(source);
-    pipeState.writer = @acquireWritableStreamDefaultWriter(destination);
-
-    @putByIdDirectPrivate(source, "disturbed", true);
-
-    pipeState.shuttingDown = false;
-    pipeState.promiseCapability = @newPromiseCapability(@Promise);
-    pipeState.pendingReadPromiseCapability = @newPromiseCapability(@Promise);
-    pipeState.pendingReadPromiseCapability.resolve.@call();
-    pipeState.pendingWritePromise = @Promise.@resolve();
-
-    if (signal !== @undefined) {
-        const algorithm = (reason) => {
-            @pipeToShutdownWithAction(pipeState, () => {
-                const shouldAbortDestination = !pipeState.preventAbort && @getByIdDirectPrivate(pipeState.destination, "state") === "writable";
-                const promiseDestination = shouldAbortDestination ? @writableStreamAbort(pipeState.destination, reason) : @Promise.@resolve();
-
-                const shouldAbortSource = !pipeState.preventCancel && @getByIdDirectPrivate(pipeState.source, "state") === @streamReadable;
-                const promiseSource = shouldAbortSource ? @readableStreamCancel(pipeState.source, reason) : @Promise.@resolve();
-
-                let promiseCapability = @newPromiseCapability(@Promise);
-                let shouldWait = true;
-                let handleResolvedPromise = () => {
-                    if (shouldWait) {
-                        shouldWait = false;
-                        return;
-                    }
-                    promiseCapability.resolve.@call();
-                }
-                let handleRejectedPromise = (e) => {
-                    promiseCapability.reject.@call(@undefined, e);
-                }
-                promiseDestination.@then(handleResolvedPromise, handleRejectedPromise);
-                promiseSource.@then(handleResolvedPromise, handleRejectedPromise);
-                return promiseCapability.promise;
-            }, reason);
-        };
-        pipeState.abortAlgorithmIdentifier = @addAbortAlgorithmToSignal(signal, algorithm)
-        if (!pipeState.abortAlgorithmIdentifier)
-            return pipeState.promiseCapability.promise;
-        pipeState.signal = signal;
-    }
-
-    @pipeToErrorsMustBePropagatedForward(pipeState);
-    @pipeToErrorsMustBePropagatedBackward(pipeState);
-    @pipeToClosingMustBePropagatedForward(pipeState);
-    @pipeToClosingMustBePropagatedBackward(pipeState);
-
-    @pipeToLoop(pipeState);
-
-    return pipeState.promiseCapability.promise;
-}
-
-function pipeToLoop(pipeState)
-{
-    if (pipeState.shuttingDown)
-        return;
-
-    @pipeToDoReadWrite(pipeState).@then((result) => {
-        if (result)
-            @pipeToLoop(pipeState);
-    });
-}
-
-function pipeToDoReadWrite(pipeState)
-{
-    @assert(!pipeState.shuttingDown);
-
-    pipeState.pendingReadPromiseCapability = @newPromiseCapability(@Promise);
-    @getByIdDirectPrivate(pipeState.writer, "readyPromise").promise.@then(() => {
-        if (pipeState.shuttingDown) {
-            pipeState.pendingReadPromiseCapability.resolve.@call(@undefined, false);
-            return;
-        }
-
-        @readableStreamDefaultReaderRead(pipeState.reader).@then((result) => {
-            const canWrite = !result.done && @getByIdDirectPrivate(pipeState.writer, "stream") !== @undefined;
-            pipeState.pendingReadPromiseCapability.resolve.@call(@undefined, canWrite);
-            if (!canWrite)
-                return;
-
-            pipeState.pendingWritePromise = @writableStreamDefaultWriterWrite(pipeState.writer, result.value).@then(@undefined, () => { });
-        }, (e) => {
-            pipeState.pendingReadPromiseCapability.resolve.@call(@undefined, false);
-        });
-    }, (e) => {
-        pipeState.pendingReadPromiseCapability.resolve.@call(@undefined, false);
-    });
-    return pipeState.pendingReadPromiseCapability.promise;
-}
-
-function pipeToErrorsMustBePropagatedForward(pipeState)
-{
-    const action = () => {
-        pipeState.pendingReadPromiseCapability.resolve.@call(@undefined, false);
-        const error = @getByIdDirectPrivate(pipeState.source, "storedError");
-        if (!pipeState.preventAbort) {
-            @pipeToShutdownWithAction(pipeState, () => @writableStreamAbort(pipeState.destination, error), error);
-            return;
-        }
-        @pipeToShutdown(pipeState, error);
-    };
-
-    if (@getByIdDirectPrivate(pipeState.source, "state") === @streamErrored) {
-        action();
-        return;
-    }
-
-    @getByIdDirectPrivate(pipeState.reader, "closedPromiseCapability").promise.@then(@undefined, action);
-}
-
-function pipeToErrorsMustBePropagatedBackward(pipeState)
-{
-    const action = () => {
-        const error = @getByIdDirectPrivate(pipeState.destination, "storedError");
-        if (!pipeState.preventCancel) {
-            @pipeToShutdownWithAction(pipeState, () => @readableStreamCancel(pipeState.source, error), error);
-            return;
-        }
-        @pipeToShutdown(pipeState, error);
-    };
-    if (@getByIdDirectPrivate(pipeState.destination, "state") === "errored") {
-        action();
-        return;
-    }
-    @getByIdDirectPrivate(pipeState.writer, "closedPromise").promise.@then(@undefined, action);
-}
-
-function pipeToClosingMustBePropagatedForward(pipeState)
-{
-    const action = () => {
-        pipeState.pendingReadPromiseCapability.resolve.@call(@undefined, false);
-        const error = @getByIdDirectPrivate(pipeState.source, "storedError");
-        if (!pipeState.preventClose) {
-            @pipeToShutdownWithAction(pipeState, () => @writableStreamDefaultWriterCloseWithErrorPropagation(pipeState.writer));
-            return;
-        }
-        @pipeToShutdown(pipeState);
-    };
-    if (@getByIdDirectPrivate(pipeState.source, "state") === @streamClosed) {
-        action();
-        return;
-    }
-    @getByIdDirectPrivate(pipeState.reader, "closedPromiseCapability").promise.@then(action, () => { });
-}
-
-function pipeToClosingMustBePropagatedBackward(pipeState)
-{
-    if (!@writableStreamCloseQueuedOrInFlight(pipeState.destination) && @getByIdDirectPrivate(pipeState.destination, "state") !== "closed")
-        return;
-
-    // @assert no chunks have been read/written
-
-    const error = @makeTypeError("closing is propagated backward");
-    if (!pipeState.preventCancel) {
-        @pipeToShutdownWithAction(pipeState, () => @readableStreamCancel(pipeState.source, error), error);
-        return;
-    }
-    @pipeToShutdown(pipeState, error);
-}
-
-function pipeToShutdownWithAction(pipeState, action)
-{
-    if (pipeState.shuttingDown)
-        return;
-
-    pipeState.shuttingDown = true;
-
-    const hasError = arguments.length > 2;
-    const error = arguments[2];
-    const finalize = () => {
-        const promise = action();
-        promise.@then(() => {
-            if (hasError)
-                @pipeToFinalize(pipeState, error);
-            else
-                @pipeToFinalize(pipeState);
-        }, (e)  => {
-            @pipeToFinalize(pipeState, e);
-        });
-    };
-
-    if (@getByIdDirectPrivate(pipeState.destination, "state") === "writable" && !@writableStreamCloseQueuedOrInFlight(pipeState.destination)) {
-        pipeState.pendingReadPromiseCapability.promise.@then(() => {
-            pipeState.pendingWritePromise.@then(finalize, finalize);
-        }, (e) => @pipeToFinalize(pipeState, e));
-        return;
-    }
-
-    finalize();
-}
-
-function pipeToShutdown(pipeState)
-{
-    if (pipeState.shuttingDown)
-        return;
-
-    pipeState.shuttingDown = true;
-
-    const hasError = arguments.length > 1;
-    const error = arguments[1];
-    const finalize = () => {
-        if (hasError)
-            @pipeToFinalize(pipeState, error);
-        else
-            @pipeToFinalize(pipeState);
-    };
-
-    if (@getByIdDirectPrivate(pipeState.destination, "state") === "writable" && !@writableStreamCloseQueuedOrInFlight(pipeState.destination)) {
-        pipeState.pendingReadPromiseCapability.promise.@then(() => {
-            pipeState.pendingWritePromise.@then(finalize, finalize);
-        }, (e) => @pipeToFinalize(pipeState, e));
-        return;
-    }
-    finalize();
-}
-
-function pipeToFinalize(pipeState)
-{
-    @writableStreamDefaultWriterRelease(pipeState.writer);
-    @readableStreamReaderGenericRelease(pipeState.reader);
-
-    if (pipeState.signal)
-        @removeAbortAlgorithmFromSignal(pipeState.signal, pipeState.abortAlgorithmIdentifier)
-
-    if (arguments.length > 1)
-        pipeState.promiseCapability.reject.@call(@undefined, arguments[1]);
-    else
-        pipeState.promiseCapability.resolve.@call();
 }
 
 function readableStreamTee(stream, shouldClone)
@@ -658,7 +295,7 @@ function readableStreamTeePullFunction(teeState, reader, shouldClone)
     const pullAlgorithm = function() {
         if (teeState.reading) {
             teeState.readAgain = true;
-            return @Promise.@resolve();
+            return @promiseResolve(@Promise, @undefined);
         }
         teeState.reading = true;
         @Promise.prototype.@then.@call(@readableStreamDefaultReaderRead(reader), function(result) {
@@ -695,7 +332,7 @@ function readableStreamTeePullFunction(teeState, reader, shouldClone)
                 @readableStreamDefaultControllerEnqueue(teeState.branch2.@readableStreamController, chunk2);
             teeState.reading = false
 
-            @Promise.@resolve().@then(() => {
+            @promiseResolve(@Promise, @undefined).@then(() => {
                 if (teeState.readAgain)
                     pullAlgorithm();
             });
@@ -703,7 +340,7 @@ function readableStreamTeePullFunction(teeState, reader, shouldClone)
             // error steps.
             teeState.reading = false
         });
-        return @Promise.@resolve();
+        return @promiseResolve(@Promise, @undefined);
     }
     return pullAlgorithm;
 }
@@ -881,9 +518,9 @@ function readableStreamCancel(stream, reason)
     @putByIdDirectPrivate(stream, "disturbed", true);
     const state = @getByIdDirectPrivate(stream, "state");
     if (state === @streamClosed)
-        return @Promise.@resolve();
+        return @promiseResolve(@Promise, @undefined);
     if (state === @streamErrored)
-        return @Promise.@reject(@getByIdDirectPrivate(stream, "storedError"));
+        return @promiseReject(@Promise, @getByIdDirectPrivate(stream, "storedError"));
     @readableStreamClose(stream);
     return @getByIdDirectPrivate(stream, "readableStreamController").@cancel(@getByIdDirectPrivate(stream, "readableStreamController"), reason).@then(function() {  });
 }
@@ -940,7 +577,7 @@ function readableStreamClose(stream)
         const requests = @getByIdDirectPrivate(reader, "readRequests");
         @putByIdDirectPrivate(reader, "readRequests", []);
         for (let index = 0, length = requests.length; index < length; ++index)
-            @fulfillPromise(requests[index], { value: @undefined, done: true });
+            @fulfillPromiseWithFirstResolvingFunctionCallCheck(requests[index], { value: @undefined, done: true });
     }
 
     @getByIdDirectPrivate(reader, "closedPromiseCapability").resolve.@call();
@@ -950,7 +587,7 @@ function readableStreamFulfillReadRequest(stream, chunk, done)
 {
     "use strict";
     const readRequest = @getByIdDirectPrivate(@getByIdDirectPrivate(stream, "reader"), "readRequests").@shift();
-    @fulfillPromise(readRequest, { value: chunk, done: done });
+    @fulfillPromiseWithFirstResolvingFunctionCallCheck(readRequest, { value: chunk, done: done });
 }
 
 function readableStreamDefaultControllerEnqueue(controller, chunk)
@@ -991,7 +628,7 @@ function readableStreamDefaultReaderRead(reader)
     if (state === @streamClosed)
         return @createFulfilledPromise({ value: @undefined, done: true });
     if (state === @streamErrored)
-        return @Promise.@reject(@getByIdDirectPrivate(stream, "storedError"));
+        return @promiseReject(@Promise, @getByIdDirectPrivate(stream, "storedError"));
     @assert(state === @streamReadable);
 
     return @getByIdDirectPrivate(stream, "readableStreamController").@pull(@getByIdDirectPrivate(stream, "readableStreamController"));
@@ -1047,7 +684,7 @@ function readableStreamDefaultReaderErrorReadRequests(reader, error)
     const requests = @getByIdDirectPrivate(reader, "readRequests");
     @putByIdDirectPrivate(reader, "readRequests", []);
     for (let index = 0, length = requests.length; index < length; ++index)
-        @rejectPromise(requests[index], error);
+        @rejectPromiseWithFirstResolvingFunctionCallCheck(requests[index], error);
 }
 
 function readableStreamDefaultControllerCanCloseOrEnqueue(controller)

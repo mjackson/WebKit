@@ -51,8 +51,6 @@ public:
 
     bool frameHasCustomContentProvider() const { return m_frameHasCustomContentProvider; }
 
-    void setUseIconLoadingClient(bool useIconLoadingClient) { m_useIconLoadingClient = useIconLoadingClient; }
-
     void applyWebsitePolicies(WebsitePoliciesData&&) final;
 
     std::optional<WebPageProxyIdentifier> webPageProxyID() const;
@@ -149,7 +147,7 @@ private:
     void dispatchUnableToImplementPolicy(const WebCore::ResourceError&) final;
     
     void dispatchWillSendSubmitEvent(Ref<WebCore::FormState>&&) final;
-    void dispatchWillSubmitForm(WebCore::FormState&, CompletionHandler<void()>&&) final;
+    void dispatchWillSubmitForm(WebCore::FormState&, URL&& requestURL, String&& method, CompletionHandler<void()>&&) final;
     
     void revertToProvisionalState(WebCore::DocumentLoader*) final;
     void setMainDocumentError(WebCore::DocumentLoader*, const WebCore::ResourceError&) final;
@@ -281,6 +279,9 @@ private:
 
     bool siteIsolationEnabled() const;
 
+    void broadcastAllFrameTreeSyncDataToOtherProcesses(WebCore::FrameTreeSyncData&) final;
+    void broadcastFrameTreeSyncDataToOtherProcesses(const WebCore::FrameTreeSyncSerializationData&) final;
+
     Ref<WebCore::LocalFrame> protectedLocalFrame() const;
 
 #if ENABLE(CONTENT_EXTENSIONS)
@@ -297,7 +298,6 @@ private:
     bool m_didCompletePageTransition { false };
     bool m_frameHasCustomContentProvider { false };
     bool m_frameCameFromBackForwardCache { false };
-    bool m_useIconLoadingClient { false };
     std::optional<FrameSpecificStorageAccessIdentifier> m_frameSpecificStorageAccessIdentifier;
     WeakRef<WebCore::LocalFrame> m_localFrame;
 

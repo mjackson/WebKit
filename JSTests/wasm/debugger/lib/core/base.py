@@ -252,7 +252,7 @@ class BaseTestCase:
         if not jsc_path:
             raise Exception("JSC executable not found")
 
-        cmd = [jsc_path, f"--wasm-debug={self.current_port}"]
+        cmd = [jsc_path, f"--wasm-debugger={self.current_port}"]
 
         cmd.append(test_file)
 
@@ -271,7 +271,7 @@ class BaseTestCase:
                 working_dir = os.path.join(test_dir, test_subdir)
                 # Update the command to use just the filename
                 test_filename = os.path.basename(test_file)
-                cmd = [jsc_path, f"--wasm-debug={self.current_port}"]
+                cmd = [jsc_path, f"--wasm-debugger={self.current_port}"]
 
                 cmd.append(test_filename)
             else:
@@ -430,8 +430,7 @@ class BaseTestCase:
         if not self.start_debugger(test_file):
             return False
 
-        # Start LLDB
-        if not self.start_lldb():
+        if not self.start_lldb(connection_timeout=20.0):
             return False
 
         self.logger.success(f"Debugging session ready for {self.name}")

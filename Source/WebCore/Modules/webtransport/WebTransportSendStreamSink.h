@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include "WritableStreamSink.h"
+#include <WebCore/WritableStreamSink.h>
 
 namespace WebCore {
 
@@ -46,7 +46,7 @@ private:
 
     void write(ScriptExecutionContext&, JSC::JSValue, DOMPromiseDeferred<void>&&) final;
     void close() final;
-    void error(String&&) final;
+    void abort(JSC::JSValue) final;
 
     const ThreadSafeWeakPtr<WebTransportSession> m_session;
     const WebTransportStreamIdentifier m_identifier;

@@ -568,11 +568,8 @@ public:
     void setBehavesAsFixed(bool);
     bool behavesAsFixed() const { return m_behavesAsFixed; }
 
-    bool behavesAsSticky() const { return m_hasStickyAncestor || renderer().isStickilyPositioned(); }
-
     struct PaintedContentRequest {
         PaintedContentRequest() = default;
-        PaintedContentRequest(const RenderLayer& owningLayer);
 
         void setHasPaintedContent() { hasPaintedContent = RequestState::True; }
         void makePaintedContentUndetermined() { hasPaintedContent = RequestState::Undetermined; }
@@ -582,7 +579,8 @@ public:
 #if HAVE(SUPPORT_HDR_DISPLAY)
         void setHasHDRContent() { hasHDRContent = RequestState::True; }
         void makeHDRContentFalse() { hasHDRContent = RequestState::False; }
-        void makeHDRContentUnknown() { hasHDRContent = RequestState::Unknown; }
+
+        void setHDRRequestState(RequestState state) { hasHDRContent = state; }
         bool isHDRContentSatisfied() const { return hasHDRContent != RequestState::Unknown; }
 #endif
 
@@ -602,6 +600,7 @@ public:
     };
 
     bool isVisibilityHiddenOrOpacityZero() const;
+    bool isSubtreeVisibilityHiddenOrOpacityZero() const;
 
     // Returns true if this layer has visible content (ignoring any child layers).
     bool isVisuallyNonEmpty(PaintedContentRequest* = nullptr) const;
@@ -612,7 +611,7 @@ public:
     bool rendererHasHDRContent() const;
 #endif
 
-    bool isViewportConstrained() const { return renderer().isFixedPositioned() || renderer().isStickilyPositioned(); }
+    inline bool isViewportConstrained() const;
 
     // FIXME: We should ASSERT(!m_hasSelfPaintingLayerDescendantDirty); here but we hit the same bugs as visible content above.
     // Part of the issue is with subtree relayout: we don't check if our ancestors have some descendant flags dirty, missing some updates.
@@ -1466,7 +1465,7 @@ private:
 
     IntRect m_blockSelectionGapsBounds;
 
-    std::unique_ptr<RenderLayerFilters> m_filters;
+    RefPtr<RenderLayerFilters> m_filters;
     std::unique_ptr<RenderLayerBacking> m_backing;
     std::unique_ptr<RenderLayerScrollableArea> m_scrollableArea;
 

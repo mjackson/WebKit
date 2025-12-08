@@ -26,19 +26,16 @@
 
 #pragma once
 
+#include "CSSToLengthConversionData.h"
+#include "Document.h"
+#include "FontTaggedSettings.h"
 #include "PropertyCascade.h"
 #include "RuleSet.h"
 #include "SelectorChecker.h"
+#include "StyleForVisitedLink.h"
+#include "TextFlags.h"
 #include "TreeResolutionState.h"
-#include <WebCore/CSSToLengthConversionData.h>
-#include <WebCore/Document.h>
-#include <WebCore/FontTaggedSettings.h>
-#include <WebCore/PositionArea.h>
-#include <WebCore/PositionTryFallback.h>
-#include <WebCore/StyleForVisitedLink.h>
-#include <WebCore/TextFlags.h>
 #include <wtf/BitSet.h>
-#include <wtf/RefCountedFixedVector.h>
 
 namespace WebCore {
 
@@ -47,8 +44,6 @@ class FontSelectionValue;
 class RenderStyle;
 class StyleImage;
 class StyleResolver;
-class TextAutospace;
-class TextSpacingTrim;
 
 namespace CSSCalc {
 struct RandomCachingKey;
@@ -58,13 +53,24 @@ namespace Style {
 
 class BuilderState;
 struct Color;
+struct FontFamilies;
 struct FontFeatureSettings;
 struct FontPalette;
 struct FontSizeAdjust;
 struct FontStyle;
+struct FontVariantAlternates;
+struct FontVariantEastAsian;
+struct FontVariantLigatures;
+struct FontVariantNumeric;
 struct FontVariationSettings;
 struct FontWeight;
 struct FontWidth;
+struct TextAutospace;
+struct TextSpacingTrim;
+struct WebkitLocale;
+struct Zoom;
+
+enum class PositionTryFallbackTactic : uint8_t;
 
 void maybeUpdateFontForLetterSpacingOrWordSpacing(BuilderState&, CSSValue&);
 
@@ -72,7 +78,7 @@ enum class ApplyValueType : uint8_t { Value, Initial, Inherit };
 
 struct BuilderPositionTryFallback {
     RefPtr<const StyleProperties> properties;
-    Vector<PositionTryFallback::Tactic> tactics;
+    Vector<PositionTryFallbackTactic> tactics;
 };
 
 struct BuilderContext {
@@ -111,7 +117,7 @@ public:
     Ref<const Document> protectedDocument() const { return *m_context.document; }
     const Element* element() const { return m_context.element.get(); }
 
-    inline void setZoom(float);
+    inline void setZoom(Zoom);
     inline void setUsedZoom(float);
     inline void setWritingMode(StyleWritingMode);
     inline void setTextOrientation(TextOrientation);
@@ -125,8 +131,11 @@ public:
     bool applyPropertyToRegularStyle() const { return m_linkMatch != SelectorChecker::MatchVisited; }
     bool applyPropertyToVisitedLinkStyle() const { return m_linkMatch != SelectorChecker::MatchLink; }
 
+    float zoomWithTextZoomFactor();
+
     bool useSVGZoomRules() const;
     bool useSVGZoomRulesForLength() const;
+
     ScopeOrdinal styleScopeOrdinal() const { return m_currentProperty->styleScopeOrdinal; }
 
     RefPtr<StyleImage> createStyleImage(const CSSValue&) const;
@@ -168,9 +177,7 @@ public:
     void setFontDescriptionKeywordSizeFromIdentifier(CSSValueID);
     void setFontDescriptionIsAbsoluteSize(bool);
     void setFontDescriptionFontSize(float);
-    void setFontDescriptionFamilies(RefCountedFixedVector<AtomString>&);
-    void setFontDescriptionFamilies(Vector<AtomString>&);
-    void setFontDescriptionIsSpecifiedFont(bool);
+    void setFontDescriptionFamilies(FontFamilies&&);
     void setFontDescriptionFeatureSettings(FontFeatureSettings&&);
     void setFontDescriptionFontPalette(FontPalette&&);
     void setFontDescriptionFontSizeAdjust(FontSizeAdjust);
@@ -181,7 +188,7 @@ public:
     void setFontDescriptionFontSynthesisWeight(FontSynthesisLonghandValue);
     void setFontDescriptionKerning(Kerning);
     void setFontDescriptionOpticalSizing(FontOpticalSizing);
-    void setFontDescriptionSpecifiedLocale(const AtomString&);
+    void setFontDescriptionSpecifiedLocale(WebkitLocale&&);
     void setFontDescriptionTextAutospace(TextAutospace);
     void setFontDescriptionTextRenderingMode(TextRenderingMode);
     void setFontDescriptionTextSpacingTrim(TextSpacingTrim);
@@ -191,15 +198,18 @@ public:
     void setFontDescriptionVariationSettings(FontVariationSettings&&);
     void setFontDescriptionWeight(FontWeight);
     void setFontDescriptionWidth(FontWidth);
-    void setFontDescriptionVariantAlternates(const FontVariantAlternates&);
+    void setFontDescriptionVariantAlternates(FontVariantAlternates&&);
+    void setFontDescriptionVariantEastAsian(FontVariantEastAsian);
     void setFontDescriptionVariantEastAsianVariant(FontVariantEastAsianVariant);
     void setFontDescriptionVariantEastAsianWidth(FontVariantEastAsianWidth);
     void setFontDescriptionVariantEastAsianRuby(FontVariantEastAsianRuby);
     void setFontDescriptionKeywordSize(unsigned);
-    void setFontDescriptionVariantCommonLigatures(FontVariantLigatures);
-    void setFontDescriptionVariantDiscretionaryLigatures(FontVariantLigatures);
-    void setFontDescriptionVariantHistoricalLigatures(FontVariantLigatures);
-    void setFontDescriptionVariantContextualAlternates(FontVariantLigatures);
+    void setFontDescriptionVariantLigatures(FontVariantLigatures);
+    void setFontDescriptionVariantCommonLigatures(WebCore::FontVariantLigatures);
+    void setFontDescriptionVariantDiscretionaryLigatures(WebCore::FontVariantLigatures);
+    void setFontDescriptionVariantHistoricalLigatures(WebCore::FontVariantLigatures);
+    void setFontDescriptionVariantContextualAlternates(WebCore::FontVariantLigatures);
+    void setFontDescriptionVariantNumeric(FontVariantNumeric);
     void setFontDescriptionVariantNumericFigure(FontVariantNumericFigure);
     void setFontDescriptionVariantNumericSpacing(FontVariantNumericSpacing);
     void setFontDescriptionVariantNumericFraction(FontVariantNumericFraction);

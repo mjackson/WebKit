@@ -538,7 +538,7 @@ void LocalDOMWindow::willDestroyCachedFrame()
     // It is necessary to copy m_observers to a separate vector because the LocalDOMWindowObserver may
     // unregister themselves from the LocalDOMWindow as a result of the call to willDestroyGlobalObjectInCachedFrame.
     m_observers.forEach([](auto& observer) {
-        observer.willDestroyGlobalObjectInCachedFrame();
+        Ref { observer }->willDestroyGlobalObjectInCachedFrame();
     });
 }
 
@@ -547,7 +547,7 @@ void LocalDOMWindow::willDestroyDocumentInFrame()
     // It is necessary to copy m_observers to a separate vector because the LocalDOMWindowObserver may
     // unregister themselves from the LocalDOMWindow as a result of the call to willDestroyGlobalObjectInFrame.
     m_observers.forEach([](auto& observer) {
-        observer.willDestroyGlobalObjectInFrame();
+        Ref { observer }->willDestroyGlobalObjectInFrame();
     });
 }
 
@@ -561,7 +561,7 @@ void LocalDOMWindow::willDetachDocumentFromFrame()
     // It is necessary to copy m_observers to a separate vector because the LocalDOMWindowObserver may
     // unregister themselves from the LocalDOMWindow as a result of the call to willDetachGlobalObjectFromFrame.
     m_observers.forEach([](auto& observer) {
-        observer.willDetachGlobalObjectFromFrame();
+        Ref { observer }->willDetachGlobalObjectFromFrame();
     });
 
     if (RefPtr performance = m_performance)
@@ -614,7 +614,7 @@ void LocalDOMWindow::suspendForBackForwardCache()
     RELEASE_ASSERT(frame());
 
     m_observers.forEach([](auto& observer) {
-        observer.suspendForBackForwardCache();
+        Ref { observer }->suspendForBackForwardCache();
     });
     RELEASE_ASSERT(frame());
 
@@ -624,7 +624,7 @@ void LocalDOMWindow::suspendForBackForwardCache()
 void LocalDOMWindow::resumeFromBackForwardCache()
 {
     m_observers.forEach([](auto& observer) {
-        observer.resumeFromBackForwardCache();
+        Ref { observer }->resumeFromBackForwardCache();
     });
 
     m_suspendedForDocumentSuspension = false;
@@ -868,7 +868,10 @@ bool LocalDOMWindow::shouldHaveWebKitNamespaceForWorld(DOMWrapperWorld& world, J
         }
     });
 
-    return hasUserMessageHandler;
+    if (hasUserMessageHandler)
+        return true;
+
+    return userContentProvider->hasBuffersForWorld(world);
 }
 
 WebKitNamespace* LocalDOMWindow::webkitNamespace()
@@ -1677,7 +1680,6 @@ Ref<CSSStyleDeclaration> LocalDOMWindow::getComputedStyle(Element& element, cons
     auto [pseudoElementIsParsable, pseudoElementIdentifier] = CSSSelectorParser::parsePseudoElement(pseudoElt, CSSSelectorParserContext { element.protectedDocument() });
     if (!pseudoElementIsParsable)
         return CSSComputedStyleDeclaration::createEmpty(element);
-    // FIXME: CSSSelectorParser::parsePseudoElement should never return PseudoId::None.
     return CSSComputedStyleDeclaration::create(element, pseudoElementIdentifier);
 }
 
@@ -1760,7 +1762,20 @@ double LocalDOMWindow::devicePixelRatio() const
     if (!page)
         return 0.0;
 
-    return page->deviceScaleFactor();
+    auto frameScaleRatio = [&] {
+        float frameScale = 1.0f;
+        if (auto* localFrame = dynamicDowncast<LocalFrame>(frame.get())) {
+            frameScale = localFrame->frameScaleFactor();
+            // Page zoom applies to all frames synchronously, so include it in devicePixelRatio
+            // for both main frame and iframes. frameScaleFactor() doesn't include page zoom
+            // since page zoom is applied globally for rendering.
+            float pageZoom = localFrame->pageZoomFactor();
+            frameScale *= pageZoom;
+        }
+        return frameScale;
+    };
+
+    return page->deviceScaleFactor() * frameScaleRatio();
 }
 
 void LocalDOMWindow::scrollBy(double x, double y) const
@@ -2631,6 +2646,14 @@ PerformanceEventTimingCandidate LocalDOMWindow::initializeEventTimingEntry(Event
     if (startTime > processingStart)
         startTime = processingStart;
 
+    // Workaround for https://webkit.org/b/301443 firing keyup events with very old timestamps:
+    if (type == EventType::input) {
+        m_lastInputEventStartTime = std::max(startTime, m_lastInputEventStartTime);
+    } else if (type == EventType::keyup && startTime < m_lastInputEventStartTime) {
+        LOG_WITH_STREAM(PerformanceTimeline, stream << "Late keyup event received; refreshing timestamp: " << startTime << " -> " << m_lastInputEventStartTime);
+        startTime = m_lastInputEventStartTime;
+    }
+
     return PerformanceEventTimingCandidate {
         .type = type,
         .cancelable = event.cancelable(),
@@ -2716,7 +2739,15 @@ void LocalDOMWindow::dispatchPendingEventTimingEntries()
 {
     auto renderingTime = performance().nowInReducedResolutionSeconds();
     if (m_pendingPointerDown && !m_pendingPointerDown->duration)
-        m_pendingPointerDown->duration = renderingTime - m_pendingPointerDown->startTime;
+        m_pendingPointerDown->duration = std::max(renderingTime - m_pendingPointerDown->startTime, Seconds::fromMilliseconds(1));
+
+    for (auto& keydownEntry : m_pendingKeyDowns) {
+        if (!keydownEntry.value.keyDown.duration)
+            keydownEntry.value.keyDown.duration = std::max(renderingTime - keydownEntry.value.keyDown.startTime, Seconds::fromMilliseconds(1));
+
+        if (keydownEntry.value.keyPress && !keydownEntry.value.keyPress->duration)
+            keydownEntry.value.keyPress->duration = std::max(renderingTime - keydownEntry.value.keyPress->startTime, Seconds::fromMilliseconds(1));
+    }
 
     if (m_performanceEventTimingCandidates.isEmpty())
         return;
@@ -2724,7 +2755,8 @@ void LocalDOMWindow::dispatchPendingEventTimingEntries()
     LOG_WITH_STREAM(PerformanceTimeline, stream << "Dispatching " << m_performanceEventTimingCandidates.size() << " event timing entries at t=" << renderingTime);
     for (auto& candidateEntry : m_performanceEventTimingCandidates) {
         performance().countEvent(candidateEntry.type);
-        candidateEntry.duration = renderingTime - candidateEntry.startTime;
+        if (!candidateEntry.duration)
+            candidateEntry.duration = renderingTime - candidateEntry.startTime;
         performance().processEventEntry(candidateEntry);
     }
     m_performanceEventTimingCandidates.clear();
@@ -2843,6 +2875,17 @@ ExceptionOr<RefPtr<Frame>> LocalDOMWindow::createWindow(const String& urlString,
     return noopener ? RefPtr<Frame> { nullptr } : newFrame;
 }
 
+#if PLATFORM(IOS_FAMILY)
+static bool shouldBypassPopupBlockerForQuirk(const Document* document, const String& urlString)
+{
+    if (RefPtr firstFrameDocument = document) {
+        if (firstFrameDocument->quirks().shouldAllowPopupFromMicrosoftOfficeToOneDrive())
+            return firstFrameDocument->quirks().needsPopupFromMicrosoftOfficeToOneDrive(firstFrameDocument->completeURL(urlString));
+    }
+    return false;
+}
+#endif
+
 ExceptionOr<RefPtr<WindowProxy>> LocalDOMWindow::open(LocalDOMWindow& activeWindow, LocalDOMWindow& firstWindow, const String& urlStringToOpen, const AtomString& frameName, const String& windowFeaturesString)
 {
     if (!isCurrentlyDisplayedInFrame())
@@ -2876,7 +2919,12 @@ ExceptionOr<RefPtr<WindowProxy>> LocalDOMWindow::open(LocalDOMWindow& activeWind
     if (!frame)
         return RefPtr<WindowProxy> { nullptr };
 
-    if (!firstWindow.allowPopUp()) {
+    auto popupAllowed = firstWindow.allowPopUp();
+#if PLATFORM(IOS_FAMILY)
+    popupAllowed |= shouldBypassPopupBlockerForQuirk(firstFrame->document(), urlString);
+#endif
+
+    if (!popupAllowed) {
         // Because FrameTree::findFrameForNavigation() returns true for empty strings, we must check for empty frame names.
         // Otherwise, illegitimate window.open() calls with no name will pass right through the popup blocker.
         if (frameName.isEmpty() || !frame->loader().findFrameForNavigation(frameName, activeDocument.get()))

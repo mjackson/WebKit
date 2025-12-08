@@ -29,6 +29,7 @@
 #if PLATFORM(MAC)
 
 #import "AXIsolatedObject.h"
+#import "AXLiveRegionManager.h"
 #import "AXNotifications.h"
 #import "AXObjectCacheInlines.h"
 #import "AXSearchManager.h"
@@ -207,20 +208,13 @@ void AXObjectCache::attachWrapper(AccessibilityObject& object)
     object.setWrapper(wrapper.get());
 }
 
-static BOOL axShouldRepostNotificationsForTests = false;
-
-void AXObjectCache::setShouldRepostNotificationsForTests(bool value)
-{
-    axShouldRepostNotificationsForTests = value;
-}
-
 static void AXPostNotificationWithUserInfo(AccessibilityObjectWrapper *object, NSString *notification, id userInfo, bool skipSystemNotification = false)
 {
     if (id associatedPluginParent = [object _associatedPluginParent])
         object = associatedPluginParent;
 
     // To simplify monitoring for notifications in tests, repost as a simple NSNotification instead of forcing test infrastucture to setup an IPC client and do all the translation between WebCore types and platform specific IPC types and back
-    if (axShouldRepostNotificationsForTests) [[unlikely]]
+    if (AXObjectCache::shouldRepostNotificationsForTests()) [[unlikely]]
         [object accessibilityPostedNotification:notification userInfo:userInfo];
     else if (skipSystemNotification)
         return;
@@ -394,9 +388,43 @@ void AXObjectCache::postPlatformAnnouncementNotification(const String& message)
     NSAccessibilityPostNotificationWithUserInfo(NSApp, NSAccessibilityAnnouncementRequestedNotification, userInfo);
 
     // To simplify monitoring of notifications in tests, repost as a simple NSNotification instead of forcing test infrastucture to setup an IPC client and do all the translation between WebCore types and platform specific IPC types and back.
-    if (axShouldRepostNotificationsForTests) [[unlikely]] {
+    if (gShouldRepostNotificationsForTests) [[unlikely]] {
         if (RefPtr root = getOrCreate(m_document->view()))
             [root->wrapper() accessibilityPostedNotification:NSAccessibilityAnnouncementRequestedNotification userInfo:userInfo];
+    }
+}
+
+void AXObjectCache::postPlatformARIANotifyNotification(const String& announcement, NotifyPriority priority, InterruptBehavior interruptBehavior, const String& language)
+{
+    ASSERT(isMainThread());
+
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+    processQueuedIsolatedNodeUpdates();
+#endif
+
+    NSDictionary *userInfo = @{
+        NSAccessibilityARIAAnnouncementPriority: notifyPriorityToAXValueString(priority).get(),
+        NSAccessibilityARIAAnnouncementInterrupt: interruptBehaviorToAXValueString(interruptBehavior).get(),
+        NSAccessibilityAnnouncementKey: announcement.createNSString().get(),
+        NSAccessibilityAnnouncementLanguageKey: language.createNSString().get()
+    };
+    NSAccessibilityPostNotificationWithUserInfo(NSApp, NSAccessibilityAnnouncementRequestedNotification, userInfo);
+
+    if (gShouldRepostNotificationsForTests) [[unlikely]] {
+        if (RefPtr root = getOrCreate(m_document->view()))
+            [root->wrapper() accessibilityPostedNotification:NSAccessibilityAnnouncementRequestedNotification userInfo:userInfo];
+    }
+}
+
+void AXObjectCache::postPlatformLiveRegionNotification(AccessibilityObject& object, LiveRegionStatus status, const AttributedString& announcement)
+{
+    RetainPtr userInfo = adoptNS([[NSMutableDictionary alloc] initWithObjectsAndKeys:announcement.nsAttributedString().get(), NSAccessibilityAnnouncementKey, @(status == LiveRegionStatus::Assertive ? NSAccessibilityPriorityHigh : NSAccessibilityPriorityLow), NSAccessibilityPriorityKey, @(YES), NSAccessibilityAnnouncementIsLiveRegionKey, nil]);
+
+    NSAccessibilityPostNotificationWithUserInfo(object.wrapper(), NSAccessibilityAnnouncementRequestedNotification, userInfo.get());
+
+    if (gShouldRepostNotificationsForTests) [[unlikely]] {
+        if (RefPtr root = getOrCreate(m_document->view()))
+            [root->wrapper() accessibilityPostedNotification:NSAccessibilityAnnouncementRequestedNotification userInfo:userInfo.get()];
     }
 }
 
@@ -410,6 +438,11 @@ void AXObjectCache::onDocumentRenderTreeCreation(const Document& document)
 
 void AXObjectCache::deferSortForNewLiveRegion(Ref<AccessibilityObject>&& object)
 {
+#if PLATFORM(COCOA)
+    if (m_liveRegionManager)
+        return;
+#endif
+
     queueUnsortedObject(WTFMove(object), PreSortedObjectType::LiveRegion);
 }
 
@@ -663,16 +696,20 @@ void AXObjectCache::postTextReplacementPlatformNotificationForTextControl(Access
         postUserInfoForChanges(*root, *axObject, changes.get());
 }
 
-void AXObjectCache::frameLoadingEventPlatformNotification(AccessibilityObject* axFrameObject, AXLoadingEvent loadingEvent)
+void AXObjectCache::frameLoadingEventPlatformNotification(RenderView* renderView, AXLoadingEvent loadingEvent)
 {
-    if (!axFrameObject)
+    if (!renderView)
         return;
 
     if (loadingEvent == AXLoadingEvent::Finished) {
-        if (axFrameObject->document() == axFrameObject->topDocument())
-            postNotification(axFrameObject, axFrameObject->document(), AXNotification::LoadComplete);
+        // It's not always safe to call getOrCreate (e.g. if layout is dirty), so
+        // only do so if necessary based on the loading event type.
+        RefPtr axWebArea = getOrCreate(*renderView);
+        RefPtr document = axWebArea ? axWebArea->document() : nullptr;
+        if (document.get() == axWebArea->topDocument())
+            postNotification(axWebArea.get(), document.get(), AXNotification::LoadComplete);
         else
-            postNotification(axFrameObject, axFrameObject->document(), AXNotification::FrameLoadComplete);
+            postNotification(axWebArea.get(), document.get(), AXNotification::FrameLoadComplete);
     }
 }
 
@@ -680,7 +717,7 @@ void AXObjectCache::platformHandleFocusedUIElementChanged(Element*, Element*)
 {
     NSAccessibilityHandleFocusChanged();
     // AXFocusChanged is a test specific notification name and not something a real AT will be listening for
-    if (!axShouldRepostNotificationsForTests) [[unlikely]]
+    if (!gShouldRepostNotificationsForTests) [[unlikely]]
         return;
 
     RefPtr rootWebArea = this->rootWebArea();
@@ -793,6 +830,11 @@ bool AXObjectCache::shouldSpellCheck()
 
 AXCoreObject::AccessibilityChildrenVector AXObjectCache::sortedLiveRegions()
 {
+#if PLATFORM(COCOA)
+    if (m_liveRegionManager)
+        return { };
+#endif
+
     if (!m_sortedIDListsInitialized)
         initializeSortedIDLists();
     return objectsForIDs(m_sortedLiveRegionIDs);
@@ -895,9 +937,15 @@ void AXObjectCache::initializeSortedIDLists()
         return;
     m_sortedIDListsInitialized = true;
 
+#if PLATFORM(COCOA)
+    bool includeLiveRegions = !m_liveRegionManager;
+#else
+    bool includeLiveRegions = true;
+#endif
+
     RefPtr current = rootWebArea();
     while ((current = current ? downcast<AccessibilityObject>(current->nextInPreOrder()) : nullptr)) {
-        if (current->supportsLiveRegion()) {
+        if (includeLiveRegions && current->supportsLiveRegion()) {
             // There's no reason to ever add the same object twice, as that means we walked over it twice
             // in our pre-order tree traversal.
             ASSERT(!m_sortedLiveRegionIDs.contains(current->objectID()));

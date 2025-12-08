@@ -97,14 +97,17 @@ public:
     JS_EXPORT_PRIVATE static JSPromise* rejectedPromise(JSGlobalObject*, JSValue);
     JS_EXPORT_PRIVATE static JSPromise* rejectedPromiseWithCaughtException(JSGlobalObject*, ThrowScope&);
 
+#if USE(BUN_JSC_ADDITIONS)
+    void fulfillWithNonPromise(JSGlobalObject*, JSValue);
+#endif
+
     JS_EXPORT_PRIVATE void resolve(JSGlobalObject*, JSValue);
-    JS_EXPORT_PRIVATE void fulfill(JSGlobalObject*, JSValue value);
-    JS_EXPORT_PRIVATE void fulfillWithNonPromise(JSGlobalObject*, JSValue value);
-    JS_EXPORT_PRIVATE void reject(JSGlobalObject*, JSValue);
-    JS_EXPORT_PRIVATE void rejectAsHandled(JSGlobalObject*, JSValue);
-    JS_EXPORT_PRIVATE void reject(JSGlobalObject*, Exception*);
-    JS_EXPORT_PRIVATE void rejectAsHandled(JSGlobalObject*, Exception*);
-    JS_EXPORT_PRIVATE void performPromiseThenExported(JSGlobalObject*, JSValue onFulfilled, JSValue onRejected, JSValue, JSValue = jsUndefined());
+    JS_EXPORT_PRIVATE void reject(VM&, JSGlobalObject*, JSValue);
+    void fulfill(VM&, JSGlobalObject*, JSValue);
+    JS_EXPORT_PRIVATE void rejectAsHandled(VM&, JSGlobalObject*, JSValue);
+    JS_EXPORT_PRIVATE void reject(VM&, JSGlobalObject*, Exception*);
+    JS_EXPORT_PRIVATE void rejectAsHandled(VM&, JSGlobalObject*, Exception*);
+    JS_EXPORT_PRIVATE void performPromiseThenExported(VM&, JSGlobalObject*, JSValue onFulfilled, JSValue onRejected, JSValue, JSValue = jsUndefined());
 
     JS_EXPORT_PRIVATE JSPromise* rejectWithCaughtException(JSGlobalObject*, ThrowScope&);
 
@@ -131,9 +134,9 @@ public:
     DECLARE_VISIT_CHILDREN;
 
     // This is abstract operations defined in the spec.
-    void performPromiseThen(JSGlobalObject*, JSValue onFulfilled, JSValue onRejected, JSValue, JSValue = jsUndefined());
-    void rejectPromise(JSGlobalObject*, JSValue);
-    void fulfillPromise(JSGlobalObject*, JSValue);
+    void performPromiseThen(VM&, JSGlobalObject*, JSValue onFulfilled, JSValue onRejected, JSValue, JSValue = jsUndefined());
+    void rejectPromise(VM&, JSGlobalObject*, JSValue);
+    void fulfillPromise(VM&, JSGlobalObject*, JSValue);
     void resolvePromise(JSGlobalObject*, JSValue);
 
     static void resolveWithoutPromiseForAsyncAwait(JSGlobalObject*, JSValue resolution, JSValue onFulfilled, JSValue onRejected, JSValue context);
@@ -141,21 +144,30 @@ public:
     static void rejectWithoutPromise(JSGlobalObject*, JSValue argument, JSValue onFulfilled, JSValue onRejected, JSValue context);
     static void fulfillWithoutPromise(JSGlobalObject*, JSValue argument, JSValue onFulfilled, JSValue onRejected, JSValue context);
 
+    static void resolveWithInternalMicrotaskForAsyncAwait(JSGlobalObject*, JSValue resolution, InternalMicrotask, JSValue context);
+    static void resolveWithInternalMicrotask(JSGlobalObject*, JSValue resolution, InternalMicrotask, JSValue context);
+    static void rejectWithInternalMicrotask(JSGlobalObject*, JSValue argument, InternalMicrotask, JSValue context);
+    static void fulfillWithInternalMicrotask(JSGlobalObject*, JSValue argument, InternalMicrotask, JSValue context);
+
+    void performPromiseThenWithInternalMicrotask(VM&, JSGlobalObject*, InternalMicrotask, JSValue promise, JSValue context);
+
     bool isThenFastAndNonObservable();
 
     std::tuple<JSFunction*, JSFunction*> createResolvingFunctions(VM&, JSGlobalObject*);
     std::tuple<JSFunction*, JSFunction*> createFirstResolvingFunctions(VM&, JSGlobalObject*);
     static std::tuple<JSFunction*, JSFunction*> createResolvingFunctionsWithoutPromise(VM&, JSGlobalObject*, JSValue onFulfilled, JSValue onRejected, JSValue context);
+    static std::tuple<JSFunction*, JSFunction*> createResolvingFunctionsWithInternalMicrotask(VM&, JSGlobalObject*, InternalMicrotask, JSValue context);
     static std::tuple<JSObject*, JSObject*, JSObject*> newPromiseCapability(JSGlobalObject*, JSValue constructor);
     static JSValue createPromiseCapability(VM&, JSGlobalObject*, JSObject* promise, JSObject* resolve, JSObject* reject);
+    static JSObject* promiseResolve(JSGlobalObject*, JSObject* constructor, JSValue);
+    static JSObject* promiseReject(JSGlobalObject*, JSObject* constructor, JSValue);
 
-    JSValue then(JSGlobalObject*, JSValue onFulfilled, JSValue onRejected);
-
+    JSObject* then(JSGlobalObject*, JSValue onFulfilled, JSValue onRejected);
 protected:
     JSPromise(VM&, Structure*);
     void finishCreation(VM&);
 
-    static void triggerPromiseReactions(JSGlobalObject*, JSPromise::Status, JSPromiseReaction* head, JSValue argument);
+    static void triggerPromiseReactions(VM&, JSGlobalObject*, JSPromise::Status, JSPromiseReaction* head, JSValue argument);
 
     inline uint32_t flags() const
     {

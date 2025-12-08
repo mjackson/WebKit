@@ -106,9 +106,7 @@ InjectedBundle::InjectedBundle(const WebProcessCreationParameters& parameters)
 {
 }
 
-InjectedBundle::~InjectedBundle()
-{
-}
+InjectedBundle::~InjectedBundle() = default;
 
 void InjectedBundle::setClient(std::unique_ptr<API::InjectedBundle::Client>&& client)
 {

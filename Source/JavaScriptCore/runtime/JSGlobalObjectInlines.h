@@ -37,6 +37,7 @@
 #include "JSGlobalObject.h"
 #include "JSWeakObjectMapRefInternal.h"
 #include "LinkTimeConstant.h"
+#include "ObjectInitializationScope.h"
 #include "ObjectPrototype.h"
 #include "ParserModes.h"
 #include "StrongInlines.h"
@@ -386,16 +387,6 @@ ALWAYS_INLINE JSArray* createPatternFilledArray(JSGlobalObject* globalObject, JS
         RETURN_IF_EXCEPTION(scope, { });
     }
     return array;
-}
-
-template<typename... Args>
-inline JSArray* createTuple(JSGlobalObject* globalObject, Args&&... args)
-{
-    MarkedArgumentBuffer buffer;
-    (buffer.append(std::forward<Args>(args)), ...);
-
-    ASSERT(!buffer.hasOverflowed());
-    return constructArray(globalObject, static_cast<ArrayAllocationProfile*>(nullptr), buffer);
 }
 
 inline OptionSet<CodeGenerationMode> JSGlobalObject::defaultCodeGenerationMode() const

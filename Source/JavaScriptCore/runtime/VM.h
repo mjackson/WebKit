@@ -60,10 +60,11 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include "StringSplitCache.h"
 #include "Strong.h"
 #include "SubspaceAccess.h"
-#include "VMThreadContext.h"
 #include "ThunkGenerator.h"
+#include "VMThreadContext.h"
 #include "VMTraps.h"
 #include "WasmContext.h"
+#include "WasmDebugServerUtilities.h"
 #include "WeakGCMap.h"
 #include "WriteBarrier.h"
 #include <wtf/BumpPointerAllocator.h>
@@ -420,6 +421,7 @@ private:
 
 public:
     bool didEnterVM { false };
+    bool m_isInService { false };
 private:
     VMIdentifier m_identifier;
     const Ref<JSLock> m_apiLock;
@@ -526,6 +528,9 @@ public:
     WriteBarrier<Structure> webAssemblyCalleeGroupStructure;
 #endif
     WriteBarrier<Structure> moduleProgramExecutableStructure;
+    WriteBarrier<Structure> promiseReactionStructure;
+    WriteBarrier<Structure> promiseAllContextStructure;
+    WriteBarrier<Structure> promiseAllGlobalContextStructure;
     WriteBarrier<Structure> regExpStructure;
     WriteBarrier<Structure> symbolStructure;
     WriteBarrier<Structure> symbolTableStructure;
@@ -561,6 +566,8 @@ public:
     WriteBarrier<NativeExecutable> m_promiseResolvingFunctionResolveWithoutPromiseExecutable;
     WriteBarrier<NativeExecutable> m_promiseResolvingFunctionRejectWithoutPromiseExecutable;
     WriteBarrier<NativeExecutable> m_promiseCapabilityExecutorExecutable;
+    WriteBarrier<NativeExecutable> m_promiseAllFulfillFunctionExecutable;
+    WriteBarrier<NativeExecutable> m_promiseAllSlowFulfillFunctionExecutable;
 
     WriteBarrier<JSCell> m_orderedHashTableDeletedValue;
     WriteBarrier<JSCell> m_orderedHashTableSentinel;
@@ -577,8 +584,8 @@ public:
     const ClassInfo* currentlyDestructingCallbackObjectClassInfo { nullptr };
 
     AtomStringTable* m_atomStringTable;
-    WTF::SymbolRegistry m_symbolRegistry;
-    WTF::SymbolRegistry m_privateSymbolRegistry { WTF::SymbolRegistry::Type::PrivateSymbol };
+    UniqueRef<SymbolRegistry> m_symbolRegistry;
+    UniqueRef<SymbolRegistry> m_privateSymbolRegistry;
     CommonIdentifiers* propertyNames { nullptr };
     const ArgList* emptyList;
     SmallStrings smallStrings;
@@ -598,23 +605,21 @@ public:
     void setMightBeExecutingTaintedCode(bool value = true) { m_mightBeExecutingTaintedCode = value; }
 
     AtomStringTable* atomStringTable() const { return m_atomStringTable; }
-    WTF::SymbolRegistry& symbolRegistry() { return m_symbolRegistry; }
-    WTF::SymbolRegistry& privateSymbolRegistry() { return m_privateSymbolRegistry; }
+    SymbolRegistry& symbolRegistry() { return m_symbolRegistry.get(); }
+    CheckedRef<SymbolRegistry> checkedSymbolRegistry() { return m_symbolRegistry.get(); }
+    SymbolRegistry& privateSymbolRegistry() { return m_privateSymbolRegistry.get(); }
+    CheckedRef<SymbolRegistry> checkedPrivateSymbolRegistry() { return m_privateSymbolRegistry.get(); }
 
     WriteBarrier<JSBigInt> heapBigIntConstantOne;
 
     JSCell* orderedHashTableDeletedValue()
     {
-        if (m_orderedHashTableDeletedValue) [[likely]]
-            return m_orderedHashTableDeletedValue.get();
-        return orderedHashTableDeletedValueSlow();
+        return m_orderedHashTableDeletedValue.get();
     }
 
     JSCell* orderedHashTableSentinel()
     {
-        if (m_orderedHashTableSentinel) [[likely]]
-            return m_orderedHashTableSentinel.get();
-        return orderedHashTableSentinelSlow();
+        return m_orderedHashTableSentinel.get();
     }
 
     JSPropertyNameEnumerator* emptyPropertyNameEnumerator()
@@ -671,6 +676,20 @@ public:
         if (m_promiseCapabilityExecutorExecutable) [[likely]]
             return m_promiseCapabilityExecutorExecutable.get();
         return promiseCapabilityExecutorExecutableSlow();
+    }
+
+    NativeExecutable* promiseAllFulfillFunctionExecutable()
+    {
+        if (m_promiseAllFulfillFunctionExecutable) [[likely]]
+            return m_promiseAllFulfillFunctionExecutable.get();
+        return promiseAllFulfillFunctionExecutableSlow();
+    }
+
+    NativeExecutable* promiseAllSlowFulfillFunctionExecutable()
+    {
+        if (m_promiseAllSlowFulfillFunctionExecutable) [[likely]]
+            return m_promiseAllSlowFulfillFunctionExecutable.get();
+        return promiseAllSlowFulfillFunctionExecutableSlow();
     }
 
     WeakGCMap<SymbolImpl*, Symbol, PtrHash<SymbolImpl*>> symbolImplToSymbolMap;
@@ -906,16 +925,6 @@ public:
     BumpPointerAllocator m_regExpAllocator;
     ConcurrentJSLock m_regExpAllocatorLock;
 
-#if ENABLE(YARR_JIT_ALL_PARENS_EXPRESSIONS)
-    static constexpr size_t patternContextBufferSize = 8192; // Space allocated to save nested parenthesis context
-    Lock m_regExpPatternContextLock;
-    UniqueArray<char> m_regExpPatternContexBuffer;
-    char* acquireRegExpPatternContexBuffer() WTF_ACQUIRES_LOCK(m_regExpPatternContextLock);
-    void releaseRegExpPatternContexBuffer() WTF_RELEASES_LOCK(m_regExpPatternContextLock);
-#else
-    static constexpr size_t patternContextBufferSize = 0; // Space allocated to save nested parenthesis context
-#endif
-
     const Ref<CompactTDZEnvironmentMap> m_compactVariableMap;
 
     LazyUniqueRef<VM, HasOwnPropertyCache> m_hasOwnPropertyCache;
@@ -1140,13 +1149,18 @@ public:
     bool isWasmStopWorldActive() { return m_isWasmStopWorldActive; }
     void setIsWasmStopWorldActive(bool isWasmStopWorldActive) { m_isWasmStopWorldActive = isWasmStopWorldActive; }
 
+#if ENABLE(WEBASSEMBLY)
+    bool takeStepIntoWasmCall() { return m_stepIntoEvent.take(Wasm::StepIntoEvent::StepIntoCall); }
+    void setStepIntoWasmCall() { m_stepIntoEvent.set(Wasm::StepIntoEvent::StepIntoCall); }
+    bool takeStepIntoWasmThrow() { return m_stepIntoEvent.take(Wasm::StepIntoEvent::StepIntoThrow); }
+    void setStepIntoWasmThrow() { m_stepIntoEvent.set(Wasm::StepIntoEvent::StepIntoThrow); }
+#endif
+
 private:
     VM(VMType, HeapType, WTF::RunLoop* = nullptr, bool* success = nullptr);
     static VM*& sharedInstanceInternal();
     void createNativeThunk();
 
-    JS_EXPORT_PRIVATE JSCell* orderedHashTableDeletedValueSlow();
-    JS_EXPORT_PRIVATE JSCell* orderedHashTableSentinelSlow();
     JSPropertyNameEnumerator* emptyPropertyNameEnumeratorSlow();
     NativeExecutable* promiseResolvingFunctionResolveExecutableSlow();
     NativeExecutable* promiseResolvingFunctionRejectExecutableSlow();
@@ -1155,6 +1169,8 @@ private:
     NativeExecutable* promiseResolvingFunctionResolveWithoutPromiseExecutableSlow();
     NativeExecutable* promiseResolvingFunctionRejectWithoutPromiseExecutableSlow();
     NativeExecutable* promiseCapabilityExecutorExecutableSlow();
+    NativeExecutable* promiseAllFulfillFunctionExecutableSlow();
+    NativeExecutable* promiseAllSlowFulfillFunctionExecutableSlow();
 
     void updateStackLimits();
 
@@ -1233,7 +1249,6 @@ private:
     std::unique_ptr<TypeProfiler> m_typeProfiler;
     std::unique_ptr<TypeProfilerLog> m_typeProfilerLog;
     unsigned m_typeProfilerEnabledCount { 0 };
-    bool m_isInService { false };
     Lock m_scratchBufferLock;
     Vector<ScratchBuffer*> m_scratchBuffers;
     size_t m_sizeOfLastScratchBuffer { 0 };
@@ -1272,6 +1287,10 @@ private:
     bool m_executionForbiddenOnTermination { false };
     bool m_isDebuggerHookInjected { false };
     bool m_isWasmStopWorldActive { false };
+
+#if ENABLE(WEBASSEMBLY)
+    Wasm::StepIntoEvent m_stepIntoEvent;
+#endif
 
     Lock m_loopHintExecutionCountLock;
     UncheckedKeyHashMap<const JSInstruction*, std::pair<unsigned, std::unique_ptr<uintptr_t>>> m_loopHintExecutionCounts;

@@ -70,6 +70,7 @@
 #include "tools/trace/EventTracingPriv.h"
 #include "tools/viewer/AnimatedImageSlide.h"
 #include "tools/viewer/BisectSlide.h"
+#include "tools/viewer/CaptureSlide.h"
 #include "tools/viewer/GMSlide.h"
 #include "tools/viewer/ImageSlide.h"
 #include "tools/viewer/MSKPSlide.h"
@@ -115,6 +116,7 @@
 #include "src/gpu/graphite/ContextPriv.h"
 #include "src/gpu/graphite/GlobalCache.h"
 #include "src/gpu/graphite/GraphicsPipeline.h"
+#include "src/gpu/graphite/RendererProvider.h"
 #include "tools/window/GraphiteDisplayParams.h"
 #endif
 
@@ -270,6 +272,7 @@ static DEFINE_string(jxls   , PATH_PREFIX "jxls"   , "Directory to read jxls fro
 static DEFINE_string(skps   , PATH_PREFIX "skps"   , "Directory to read skps from.");
 static DEFINE_string(mskps  , PATH_PREFIX "mskps"  , "Directory to read mskps from.");
 static DEFINE_string(lotties, PATH_PREFIX "lotties", "Directory to read (Bodymovin) jsons from.");
+static DEFINE_string(captures, PATH_PREFIX "captures", "Directory to read SkCaptures from.");
 #undef PATH_PREFIX
 
 static DEFINE_string(svgs, "", "Directory to read SVGs from, or a single SVG file.");
@@ -288,7 +291,11 @@ static bool is_graphite_backend_type(sk_app::Window::BackendType type) {
 #if defined(SK_GRAPHITE)
     switch (type) {
 #ifdef SK_DAWN
-        case sk_app::Window::kGraphiteDawn_BackendType:
+        case sk_app::Window::kGraphiteDawnD3D11_BackendType:
+        case sk_app::Window::kGraphiteDawnD3D12_BackendType:
+        case sk_app::Window::kGraphiteDawnMetal_BackendType:
+        case sk_app::Window::kGraphiteDawnOpenGLES_BackendType:
+        case sk_app::Window::kGraphiteDawnVulkan_BackendType:
 #endif
 #ifdef SK_METAL
         case sk_app::Window::kGraphiteMetal_BackendType:
@@ -305,12 +312,14 @@ static bool is_graphite_backend_type(sk_app::Window::BackendType type) {
 }
 
 #if defined(SK_GRAPHITE)
-static const char*
-        get_path_renderer_strategy_string(skgpu::graphite::PathRendererStrategy strategy) {
+static const char* get_path_renderer_strategy_string(
+        std::optional<skgpu::graphite::PathRendererStrategy> strategy) {
     using Strategy = skgpu::graphite::PathRendererStrategy;
-    switch (strategy) {
-        case Strategy::kDefault:
-            return "Default";
+    if (!strategy.has_value()) {
+        return "Default";
+    }
+
+    switch (*strategy) {
         case Strategy::kComputeAnalyticAA:
             return "GPU Compute AA (Analytic)";
         case Strategy::kComputeMSAA16:
@@ -318,17 +327,19 @@ static const char*
         case Strategy::kComputeMSAA8:
             return "GPU Compute AA (8xMSAA)";
         case Strategy::kRasterAA:
-            return "CPU Raster AA";
+            return "CPU Raster Atlas";
         case Strategy::kTessellation:
             return "Tessellation";
     }
-    return "unknown";
+
+    SkUNREACHABLE;
 }
 
-static skgpu::graphite::PathRendererStrategy get_path_renderer_strategy_type(const char* str) {
+static std::optional<skgpu::graphite::PathRendererStrategy> get_path_renderer_strategy_type(
+        const char* str) {
     using Strategy = skgpu::graphite::PathRendererStrategy;
     if (0 == strcmp(str, "default")) {
-        return Strategy::kDefault;
+        return {};
     } else if (0 == strcmp(str, "raster")) {
         return Strategy::kRasterAA;
 #ifdef SK_ENABLE_VELLO_SHADERS
@@ -343,7 +354,7 @@ static skgpu::graphite::PathRendererStrategy get_path_renderer_strategy_type(con
         return Strategy::kTessellation;
     } else {
         SkDebugf("Unknown path renderer strategy type, %s, defaulting to default.", str);
-        return Strategy::kDefault;
+        return {};
     }
 }
 #endif
@@ -352,7 +363,11 @@ const char* get_backend_string(sk_app::Window::BackendType type) {
     switch (type) {
         case sk_app::Window::kNativeGL_BackendType: return "OpenGL";
         case sk_app::Window::kANGLE_BackendType: return "ANGLE";
-        case sk_app::Window::kGraphiteDawn_BackendType: return "Dawn (Graphite)";
+        case sk_app::Window::kGraphiteDawnD3D11_BackendType: return "Dawn D3D11 (Graphite)";
+        case sk_app::Window::kGraphiteDawnD3D12_BackendType: return "Dawn D3D12 (Graphite)";
+        case sk_app::Window::kGraphiteDawnMetal_BackendType: return "Dawn Metal (Graphite)";
+        case sk_app::Window::kGraphiteDawnOpenGLES_BackendType: return "Dawn OpenGLES (Graphite)";
+        case sk_app::Window::kGraphiteDawnVulkan_BackendType: return "Dawn Vulkan (Graphite)";
         case sk_app::Window::kVulkan_BackendType: return "Vulkan";
         case sk_app::Window::kGraphiteVulkan_BackendType: return "Vulkan (Graphite)";
         case sk_app::Window::kMetal_BackendType: return "Metal";
@@ -367,8 +382,16 @@ const char* get_backend_string(sk_app::Window::BackendType type) {
 
 static sk_app::Window::BackendType get_backend_type(const char* str) {
 #if defined(SK_DAWN) && defined(SK_GRAPHITE)
-    if (0 == strcmp(str, "grdawn")) {
-        return sk_app::Window::kGraphiteDawn_BackendType;
+    if (0 == strcmp(str, "grdawn_d3d11")) {
+        return sk_app::Window::kGraphiteDawnD3D11_BackendType;
+    } else if (0 == strcmp(str, "grdawn_d3d12")) {
+        return sk_app::Window::kGraphiteDawnD3D12_BackendType;
+    } else if (0 == strcmp(str, "grdawn_metal")) {
+        return sk_app::Window::kGraphiteDawnMetal_BackendType;
+    } else if (0 == strcmp(str, "grdawn_gles")) {
+        return sk_app::Window::kGraphiteDawnOpenGLES_BackendType;
+    } else if (0 == strcmp(str, "grdawn_vk")) {
+        return sk_app::Window::kGraphiteDawnVulkan_BackendType;
     } else
 #endif
 
@@ -496,7 +519,17 @@ static const Window::BackendType kSupportedBackends[] = {
 #endif
 
 #if defined(SK_DAWN) && defined(SK_GRAPHITE)
-        sk_app::Window::kGraphiteDawn_BackendType,
+#if defined(SK_BUILD_FOR_WIN)
+        sk_app::Window::kGraphiteDawnD3D11_BackendType,
+        sk_app::Window::kGraphiteDawnD3D12_BackendType,
+#endif
+#if defined(SK_BUILD_FOR_MAC) || defined(SK_BUILD_FOR_IOS)
+        sk_app::Window::kGraphiteDawnMetal_BackendType,
+#endif
+#if defined(SK_BUILD_FOR_UNIX) || defined(SK_BUILD_FOR_ANDROID)
+        sk_app::Window::kGraphiteDawnOpenGLES_BackendType,
+        sk_app::Window::kGraphiteDawnVulkan_BackendType,
+#endif
 #endif
 
 #if defined(SK_VULKAN)
@@ -643,8 +676,8 @@ Viewer::Viewer(int argc, char** argv, void* platformData)
     }
     paramsBuilder.graphiteTestOptions(gto);
 #endif
-    fWindow->setRequestedDisplayParams(paramsBuilder.build());
-    fDisplay = paramsBuilder.build();
+    fDisplay = paramsBuilder.detach();
+    fWindow->setRequestedDisplayParams(fDisplay->clone());
     fRefresh = FLAGS_redraw;
 
     fImGuiLayer.setScaleFactor(fWindow->scaleFactor());
@@ -695,7 +728,7 @@ Viewer::Viewer(int argc, char** argv, void* platformData)
         auto params = fWindow->getRequestedDisplayParams();
         auto paramsBuilder = make_display_params_builder(params);
         paramsBuilder.disableVsync(!params->disableVsync());
-        fWindow->setRequestedDisplayParams(paramsBuilder.build());
+        fWindow->setRequestedDisplayParams(paramsBuilder.detach());
         this->updateTitle();
         fWindow->inval();
     });
@@ -703,7 +736,7 @@ Viewer::Viewer(int argc, char** argv, void* platformData)
         auto params = fWindow->getRequestedDisplayParams();
         auto paramsBuilder = make_display_params_builder(params);
         paramsBuilder.delayDrawableAcquisition(!params->delayDrawableAcquisition());
-        fWindow->setRequestedDisplayParams(paramsBuilder.build());
+        fWindow->setRequestedDisplayParams(paramsBuilder.detach());
         this->updateTitle();
         fWindow->inval();
     });
@@ -747,7 +780,7 @@ Viewer::Viewer(int argc, char** argv, void* platformData)
         GrContextOptions grOpts = params->grContextOptions();
         grOpts.fWireframeMode = !grOpts.fWireframeMode;
         paramsBuilder.grContextOptions(grOpts);
-        fWindow->setRequestedDisplayParams(paramsBuilder.build());
+        fWindow->setRequestedDisplayParams(paramsBuilder.detach());
         fWindow->inval();
     });
     fCommands.addCommand('w', "Modes", "Toggle reduced shaders", [this]() {
@@ -756,7 +789,7 @@ Viewer::Viewer(int argc, char** argv, void* platformData)
         GrContextOptions grOpts = params->grContextOptions();
         grOpts.fReducedShaderVariations = !grOpts.fReducedShaderVariations;
         paramsBuilder.grContextOptions(grOpts);
-        fWindow->setRequestedDisplayParams(paramsBuilder.build());
+        fWindow->setRequestedDisplayParams(paramsBuilder.detach());
         fWindow->inval();
     });
 #endif
@@ -802,6 +835,8 @@ Viewer::Viewer(int argc, char** argv, void* platformData)
 
         uint32_t flags = params->surfaceProps().flags();
         SkPixelGeometry defaultPixelGeometry = fDisplay->surfaceProps().pixelGeometry();
+        SkSurfaceProps defaultSurfaceProps = SkSurfaceProps(flags, defaultPixelGeometry);
+        fSlides[fCurrentSlide]->setSurfaceProps(&defaultSurfaceProps);
         if (!fDisplayOverrides.fSurfaceProps.fPixelGeometry) {
             fDisplayOverrides.fSurfaceProps.fPixelGeometry = true;
             newProps = SkSurfaceProps(flags, kUnknown_SkPixelGeometry);
@@ -820,13 +855,13 @@ Viewer::Viewer(int argc, char** argv, void* platformData)
                     newProps = SkSurfaceProps(flags, kBGR_V_SkPixelGeometry);
                     break;
                 case kBGR_V_SkPixelGeometry:
-                    newProps = SkSurfaceProps(flags, defaultPixelGeometry);
+                    newProps = defaultSurfaceProps;
                     fDisplayOverrides.fSurfaceProps.fPixelGeometry = false;
                     break;
             }
         }
         paramsBuilder.surfaceProps(newProps);
-        fWindow->setRequestedDisplayParams(paramsBuilder.build());
+        fWindow->setRequestedDisplayParams(paramsBuilder.detach());
         this->updateTitle();
         fWindow->inval();
     });
@@ -862,7 +897,7 @@ Viewer::Viewer(int argc, char** argv, void* platformData)
         SkSurfaceProps newProps = SkSurfaceProps(flags, params->surfaceProps().pixelGeometry());
 
         paramsBuilder.surfaceProps(newProps);
-        fWindow->setRequestedDisplayParams(paramsBuilder.build());
+        fWindow->setRequestedDisplayParams(paramsBuilder.detach());
         this->updateTitle();
         fWindow->inval();
     });
@@ -1076,6 +1111,12 @@ void Viewer::initSlides() {
              return sk_make_sp<SvgSlide>(name, path);
          }},
 #endif
+         {".capt",
+         "capture-dir",
+         FLAGS_captures,
+         [](const SkString& name, const SkString& path) -> sk_sp<Slide> {
+             return sk_make_sp<CaptureSlide>(name, path);
+         }},
     };
 
     TArray<sk_sp<Slide>> dirSlides;
@@ -1396,9 +1437,8 @@ void Viewer::updateTitle() {
 #if defined(SK_GRAPHITE)
         auto graphiteOptions = fWindow->getRequestedDisplayParams()->graphiteTestOptions();
         SkASSERT(graphiteOptions);
-        skgpu::graphite::PathRendererStrategy strategy =
-                graphiteOptions->fPriv.fPathRendererStrategy;
-        if (skgpu::graphite::PathRendererStrategy::kDefault != strategy) {
+        auto strategy = graphiteOptions->fPriv.fPathRendererStrategy;
+        if (strategy.has_value()) {
             title.appendf(" [Path renderer strategy: %s]",
                           get_path_renderer_strategy_string(strategy));
         }
@@ -1493,6 +1533,25 @@ void Viewer::setupCurrentSlide() {
 
         // Prevent the user from dragging content so far outside the window they can't find it again
         fGesture.setTransLimit(slideBounds, windowRect, this->computePreTouchMatrix());
+
+        if (!fDisplayOverrides.fSurfaceProps.fPixelGeometry) {
+            const skwindow::DisplayParams* params = fWindow->getRequestedDisplayParams();
+            uint32_t flags = params->surfaceProps().flags();
+            SkPixelGeometry defaultPixelGeometry = fDisplay->surfaceProps().pixelGeometry();
+            SkSurfaceProps defaultSurfaceProps = SkSurfaceProps(flags, defaultPixelGeometry);
+            fSlides[fCurrentSlide]->setSurfaceProps(&defaultSurfaceProps);
+            if (defaultSurfaceProps != params->surfaceProps()) {
+                auto paramsBuilder = make_display_params_builder(params);
+                paramsBuilder.surfaceProps(defaultSurfaceProps);
+                const skwindow::DisplayParams* newParams = paramsBuilder.detach().release();
+                // Defer to avoid asserts when the GPU flushes the current draw.
+                fDeferredActions.emplace_back([newParams, this]() {
+                    fWindow->setRequestedDisplayParams(
+                                std::unique_ptr<const skwindow::DisplayParams>(newParams));
+                    fWindow->inval();
+                });
+            }
+        }
 
         this->updateTitle();
         this->updateUIState();
@@ -2287,9 +2346,24 @@ void Viewer::drawImGui() {
 #endif
 
 #if defined(SK_DAWN) && defined(SK_GRAPHITE)
+#if defined(SK_BUILD_FOR_WIN)
                 ImGui::SameLine();
-                ImGui::RadioButton("Dawn (Graphite)", &newBackend,
-                                   sk_app::Window::kGraphiteDawn_BackendType);
+                ImGui::RadioButton("Dawn D3D12 (Graphite)", &newBackend,
+                                   sk_app::Window::kGraphiteDawnD3D12_BackendType);
+#endif
+#if defined(SK_BUILD_FOR_MAC) || defined(SK_BUILD_FOR_IOS)
+                ImGui::SameLine();
+                ImGui::RadioButton("Dawn Metal (Graphite)", &newBackend,
+                                   sk_app::Window::kGraphiteDawnMetal_BackendType);
+#endif
+#if defined(SK_BUILD_FOR_UNIX) || defined(SK_BUILD_FOR_ANDROID)
+                ImGui::SameLine();
+                ImGui::RadioButton("Dawn OpenGLES (Graphite)", &newBackend,
+                                   sk_app::Window::kGraphiteDawnOpenGLES_BackendType);
+                ImGui::SameLine();
+                ImGui::RadioButton("Dawn Vulkan (Graphite)", &newBackend,
+                                   sk_app::Window::kGraphiteDawnVulkan_BackendType);
+#endif
 #endif
 
 
@@ -2411,18 +2485,19 @@ void Viewer::drawImGui() {
                         SkASSERT(params->graphiteTestOptions());
                         skwindow::GraphiteTestOptions opts = *params->graphiteTestOptions();
                         auto prevPrs = opts.fPriv.fPathRendererStrategy;
-                        auto prsButton = [&](skgpu::graphite::PathRendererStrategy s) {
-                            if (ImGui::RadioButton(get_path_renderer_strategy_string(s),
-                                                   prevPrs == s)) {
-                                if (s != opts.fPriv.fPathRendererStrategy) {
-                                    opts.fPriv.fPathRendererStrategy = s;
-                                    newParamsBuilder.graphiteTestOptions(opts);
-                                    displayParamsChanged = true;
-                                }
-                            }
-                        };
+                        auto prsButton =
+                                [&](std::optional<skgpu::graphite::PathRendererStrategy> s) {
+                                    if (ImGui::RadioButton(get_path_renderer_strategy_string(s),
+                                                           prevPrs == s)) {
+                                        if (s != opts.fPriv.fPathRendererStrategy) {
+                                            opts.fPriv.fPathRendererStrategy = s;
+                                            newParamsBuilder.graphiteTestOptions(opts);
+                                            displayParamsChanged = true;
+                                        }
+                                    }
+                                };
 
-                        prsButton(PathRendererStrategy::kDefault);
+                        prsButton({}); // "Default"
 
                         PathRendererStrategy strategies[] = {
                                 PathRendererStrategy::kComputeAnalyticAA,
@@ -2436,10 +2511,10 @@ void Viewer::drawImGui() {
                                 prsButton(strategies[i]);
                             }
                         }
-                    }
+                    } else
 #endif
 #if defined(SK_GANESH)
-                    if (ctx) {
+                    if (fBackendType != Window::kRaster_BackendType && ctx) {
                         GrContextOptions grOpts = params->grContextOptions();
                         auto prButton = [&](GpuPathRenderers x) {
                             if (ImGui::RadioButton(gGaneshPathRendererNames[x].c_str(),
@@ -2467,9 +2542,9 @@ void Viewer::drawImGui() {
                         }
                         prButton(GpuPathRenderers::kTriangulating);
                         prButton(GpuPathRenderers::kNone);
-                    }
+                    } else
 #endif
-                    else {
+                    {
                         ImGui::RadioButton("Software", true);
                     }
                     ImGui::TreePop();
@@ -2931,7 +3006,7 @@ void Viewer::drawImGui() {
                             CachedShader& entry(fCachedShaders.push_back());
                             entry.fKey = nullptr;
                             entry.fKeyString = SkStringPrintf("#%-3d %s",
-                                                              index++, pipelineInfo.fLabel.c_str());
+                                                              index++, pipeline->getLabel());
 
                             if (sksl) {
                                 entry.fShader[CachedShader::kVertexIndex].fText =
@@ -3147,7 +3222,7 @@ void Viewer::drawImGui() {
         if (displayParamsChanged || uiParamsChanged) {
             // The unique_ptr cannot be captured, so release it and capture the raw pointer value in
             // the lambda. The lambda is responsible for deleting it, which will only be called once
-            skwindow::DisplayParams* newParams = newParamsBuilder.build().release();
+            skwindow::DisplayParams* newParams = newParamsBuilder.detach().release();
             fDeferredActions.emplace_back([displayParamsChanged, newParams, this]() {
                 if (displayParamsChanged) {
                     fWindow->setRequestedDisplayParams(
@@ -3511,7 +3586,7 @@ void Viewer::onUIStateChanged(const SkString& stateName, const SkString& stateVa
         if (sampleCount != params->msaaSampleCount()) {
             auto newParamsBuilder = make_display_params_builder(params);
             newParamsBuilder.msaaSampleCount(sampleCount);
-            fWindow->setRequestedDisplayParams(newParamsBuilder.build());
+            fWindow->setRequestedDisplayParams(newParamsBuilder.detach());
             fWindow->inval();
             this->updateTitle();
             this->updateUIState();
@@ -3526,7 +3601,7 @@ void Viewer::onUIStateChanged(const SkString& stateName, const SkString& stateVa
                     auto newOpts = params->grContextOptions();
                     newOpts.fGpuPathRenderers = pair.first;
                     newParamsBuilder.grContextOptions(newOpts);
-                    fWindow->setRequestedDisplayParams(newParamsBuilder.build());
+                    fWindow->setRequestedDisplayParams(newParamsBuilder.detach());
                     fWindow->inval();
                     this->updateTitle();
                     this->updateUIState();

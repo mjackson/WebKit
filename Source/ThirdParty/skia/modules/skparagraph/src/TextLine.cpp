@@ -177,7 +177,7 @@ TextLine::TextLine(ParagraphImpl* owner,
 
     // TODO: This is the fix for flutter. Must be removed...
     for (auto cluster = &start; cluster <= &end; ++cluster) {
-        if (!cluster->run().isPlaceholder()) {
+        if (!cluster->run().isPlaceholder() && !cluster->run().isCursiveScript()) {
             fShift += cluster->getHalfLetterSpacing();
             break;
         }
@@ -1392,6 +1392,12 @@ PositionWithAffinity TextLine::getGlyphPositionAtCoordinate(SkScalar dx) {
     this->iterateThroughVisualRuns(true,
         [this, dx, &result]
         (const Run* run, SkScalar runOffsetInLine, TextRange textRange, SkScalar* runWidthInLine) {
+            if (run->isEllipsis()) {
+                auto utf16Index = fOwner->getUTF16Index(this->fText.end);
+                result = { SkToS32(utf16Index) , kDownstream };
+                return false;
+            }
+
             bool keepLooking = true;
             *runWidthInLine = this->iterateThroughSingleRunByStyles(
             TextAdjustment::GraphemeGluster, run, runOffsetInLine, textRange, StyleType::kNone,

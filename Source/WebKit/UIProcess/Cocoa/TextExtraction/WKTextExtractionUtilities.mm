@@ -62,6 +62,10 @@ inline static WKTextExtractionContainer containerType(TextExtraction::ContainerT
         return WKTextExtractionContainerButton;
     case TextExtraction::ContainerType::Canvas:
         return WKTextExtractionContainerCanvas;
+    case TextExtraction::ContainerType::Subscript:
+        return WKTextExtractionContainerSubscript;
+    case TextExtraction::ContainerType::Superscript:
+        return WKTextExtractionContainerSuperscript;
     case TextExtraction::ContainerType::Generic:
         return WKTextExtractionContainerGeneric;
     }
@@ -160,8 +164,9 @@ inline static RetainPtr<WKTextExtractionItem> createItemWithChildren(const TextE
                 accessibilityRole:accessibilityRole.get()
                 nodeIdentifier:nodeIdentifier.get()]);
         }, [&](const TextExtraction::ImageItemData& data) -> RetainPtr<WKTextExtractionItem> {
+            RetainPtr name = [data.completedSource.createNSURL() lastPathComponent] ?: @"";
             return adoptNS([[WKTextExtractionImageItem alloc]
-                initWithName:data.name.createNSString().get()
+                initWithName:name.get()
                 altText:data.altText.createNSString().get()
                 rectInWebView:rectInWebView
                 children:children

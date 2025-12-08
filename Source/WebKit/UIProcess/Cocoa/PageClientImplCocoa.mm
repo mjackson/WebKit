@@ -27,6 +27,7 @@
 #import "PageClientImplCocoa.h"
 
 #import "APIUIClient.h"
+#import "RemoteLayerTreeCommitBundle.h"
 #import "RemoteLayerTreeTransaction.h"
 #import "WKWebViewInternal.h"
 #import "WebFullScreenManagerProxy.h"
@@ -108,6 +109,23 @@ void PageClientImplCocoa::spatialBackdropSourceDidChange()
     RetainPtr webView = m_webView.get();
     [webView _spatialBackdropSourceDidChange];
     [webView didChangeValueForKey:@"_spatialBackdropSource"];
+}
+#endif
+
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+void PageClientImplCocoa::allowImmersiveElementFromURL(const URL& url, CompletionHandler<void(bool)>&& completion) const
+{
+    [webView() _allowImmersiveElementFromURL:url completion:WTFMove(completion)];
+}
+
+void PageClientImplCocoa::presentImmersiveElement(const WebCore::LayerHostingContextIdentifier contextID, CompletionHandler<void(bool)>&& completion) const
+{
+    [webView() _presentImmersiveElement:contextID completion:WTFMove(completion)];
+}
+
+void PageClientImplCocoa::dismissImmersiveElement(CompletionHandler<void()>&& completion) const
+{
+    [webView() _dismissImmersiveElement:WTFMove(completion)];
 }
 #endif
 
@@ -221,7 +239,7 @@ void PageClientImplCocoa::removeDictationAlternatives(WebCore::DictationContext 
 
 Vector<String> PageClientImplCocoa::dictationAlternatives(WebCore::DictationContext dictationContext)
 {
-    return makeVector<String>(RetainPtr { platformDictationAlternatives(dictationContext) }.get().alternativeStrings);
+    return makeVector<String>(retainPtr(RetainPtr { platformDictationAlternatives(dictationContext) }.get().alternativeStrings).get());
 }
 
 PlatformTextAlternatives *PageClientImplCocoa::platformDictationAlternatives(WebCore::DictationContext dictationContext)
@@ -450,11 +468,15 @@ void PageClientImplCocoa::setFullScreenClientForTesting(std::unique_ptr<WebFullS
 }
 #endif
 
-void PageClientImplCocoa::didCommitLayerTree(const RemoteLayerTreeTransaction& transaction)
+void PageClientImplCocoa::didCommitLayerTree(const RemoteLayerTreeTransaction& transaction, const std::optional<MainFrameData>&, const PageData&, const TransactionID&)
 {
-    if (auto& edges = transaction.fixedContainerEdges())
-        [webView() _updateFixedContainerEdges:*edges];
     [webView() _updateScrollGeometryWithContentOffset:transaction.scrollPosition() contentSize:transaction.scrollGeometryContentSize()];
+}
+
+void PageClientImplCocoa::didCommitMainFrameData(const MainFrameData& mainFrameData)
+{
+    if (mainFrameData.fixedContainerEdges)
+        [webView() _updateFixedContainerEdges:*mainFrameData.fixedContainerEdges];
 }
 
 } // namespace WebKit

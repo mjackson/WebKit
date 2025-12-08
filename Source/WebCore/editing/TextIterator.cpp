@@ -357,8 +357,10 @@ static Node* firstNode(const BoundaryPoint& point)
 {
     if (point.container->isCharacterDataNode())
         return point.container.ptr();
-    if (RefPtr child = point.container->traverseToChildAt(point.offset))
-        return child.get();
+    // FIXME: This is a safer cpp false positive. We should not need to ref the variable here
+    // as we merely return it right away (rdar://165602290).
+    SUPPRESS_UNCOUNTED_LOCAL if (auto* child = point.container->traverseToChildAt(point.offset))
+        return child;
     if (!point.offset)
         return point.container.ptr();
     return NodeTraversal::nextSkippingChildren(point.container);
@@ -1200,7 +1202,7 @@ void TextIterator::emitText(Text& textNode, RenderText& renderer, int textStartO
     ASSERT(textEndOffset >= 0);
     ASSERT(textStartOffset <= textEndOffset);
 
-    bool shouldIgnoreFullSizeKana = m_behaviors.contains(TextIteratorBehavior::IgnoresFullSizeKana) && renderer.style().textTransform().contains(TextTransform::FullSizeKana);
+    bool shouldIgnoreFullSizeKana = m_behaviors.contains(TextIteratorBehavior::IgnoresFullSizeKana) && renderer.style().textTransform().contains(Style::TextTransformValue::FullSizeKana);
 
     // FIXME: This probably yields the wrong offsets when text-transform: lowercase turns a single character into two characters.
     String string = m_behaviors.contains(TextIteratorBehavior::EmitsOriginalText) || shouldIgnoreFullSizeKana ? renderer.originalText()
@@ -1240,7 +1242,7 @@ Node* TextIterator::node() const
 {
     auto start = this->range().start;
     if (start.container->isCharacterDataNode())
-        return start.container.ptr();
+        return start.container.unsafePtr();
     return start.container->traverseToChildAt(start.offset);
 }
 
@@ -1440,7 +1442,7 @@ RenderText* SimplifiedBackwardsTextIterator::handleFirstLetter(int& startOffset,
     m_offset = firstLetterRenderer->caretMaxOffset();
     m_offset += collapsedSpaceLength(*firstLetterRenderer, m_offset);
 
-    return firstLetterRenderer.get();
+    return firstLetterRenderer.unsafeGet();
 }
 
 bool SimplifiedBackwardsTextIterator::handleReplacedElement()
@@ -2557,10 +2559,10 @@ SimpleRange resolveCharacterRange(const SimpleRange& scope, CharacterRange range
         }
 
         auto boundary = [&] (uint64_t targetLocation) -> BoundaryPoint {
-            if (is<Text>(textRunRange.start.container)) {
-                ASSERT(targetLocation - location <= downcast<Text>(textRunRange.start.container.get()).length());
+            if (RefPtr textNode = dynamicDowncast<Text>(textRunRange.start.container)) {
+                ASSERT(targetLocation - location <= textNode->length());
                 unsigned offset = textRunRange.start.offset + targetLocation - location;
-                return { textRunRange.start.container.copyRef(), offset };
+                return { textNode.releaseNonNull(), offset };
             }
             return targetLocation == location ? textRunRange.start : textRunRange.end;
         };

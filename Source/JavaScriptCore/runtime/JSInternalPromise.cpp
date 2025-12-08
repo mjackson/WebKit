@@ -57,6 +57,8 @@ JSInternalPromise::JSInternalPromise(VM& vm, Structure* structure)
 
 JSInternalPromise* JSInternalPromise::then(JSGlobalObject* globalObject, JSFunction* onFulfilled, JSFunction* onRejected)
 {
+    ASSERT(onFulfilled);
+    ASSERT(onRejected);
     return jsDynamicCast<JSInternalPromise*>(JSPromise::then(globalObject, onFulfilled, onRejected));
 }
 

@@ -368,8 +368,9 @@ bool Connection::sendOutputMessage(UnixMessage&& outputMessage)
 
     outputVector[outputVectorLength++] = { reinterpret_cast<void*>(&messageInfo), sizeof(messageInfo) };
     GRefPtr<GSocketControlMessage> controlMessage;
+    Vector<AttachmentInfo> attachmentInfo;
     if (!attachments.isEmpty()) {
-        Vector<AttachmentInfo> attachmentInfo(attachments.size());
+        attachmentInfo.resize(attachments.size());
         Vector<int> fds;
         fds.reserveInitialCapacity(attachments.size());
         for (size_t i = 0; i < attachments.size(); ++i) {
@@ -476,7 +477,7 @@ void Connection::sendCredentials() const
         if (g_error_matches(error.get(), G_IO_ERROR, G_IO_ERROR_CONNECTION_CLOSED) || g_error_matches(error.get(), G_IO_ERROR, G_IO_ERROR_CANCELLED))
             return;
 
-        g_error("Connection: Failed to send crendentials: %s", error->message);
+        g_error("Connection: Failed to send credentials: %s", error->message);
     }
     g_socket_set_blocking(m_socket.get(), FALSE);
 }

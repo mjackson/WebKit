@@ -240,17 +240,25 @@ void ReadableByteStreamController::didStart(JSDOMGlobalObject& globalObject)
     callPullIfNeeded(globalObject);
 }
 
+// Part of https://streams.spec.whatwg.org/#readablestream-close
+void ReadableByteStreamController::closeAndRespondToPendingPullIntos(JSDOMGlobalObject& globalObject)
+{
+    close(globalObject);
+    while (!m_pendingPullIntos.isEmpty())
+        respond(globalObject, 0);
+}
+
 // https://streams.spec.whatwg.org/#readable-byte-stream-controller-close
-void ReadableByteStreamController::close(JSDOMGlobalObject& globalObject)
+bool ReadableByteStreamController::close(JSDOMGlobalObject& globalObject, ShouldThrowOnError shouldThrowOnError)
 {
     Ref stream = m_stream.get();
 
     if (m_closeRequested || stream->state() != ReadableStream::State::Readable)
-        return;
+        return true;
 
     if (m_queueTotalSize) {
         m_closeRequested = true;
-        return;
+        return true;
     }
 
     if (!m_pendingPullIntos.isEmpty()) {
@@ -263,13 +271,16 @@ void ReadableByteStreamController::close(JSDOMGlobalObject& globalObject)
             scope.assertNoExceptionExceptTermination();
 
             this->error(globalObject, error);
-            throwException(&globalObject, scope, error);
-            return;
+
+            if (shouldThrowOnError == ShouldThrowOnError::Yes)
+                throwException(&globalObject, scope, error);
+            return false;
         }
     }
 
     clearAlgorithms();
     stream->close();
+    return true;
 }
 
 // https://streams.spec.whatwg.org/#transfer-array-buffer
@@ -288,6 +299,27 @@ static ExceptionOr<Ref<JSC::ArrayBuffer>> transferArrayBuffer(JSC::VM& vm, JSC::
     return ArrayBuffer::create(WTFMove(contents));
 }
 
+// https://streams.spec.whatwg.org/#readablestream-pull-from-bytes
+size_t ReadableByteStreamController::pullFromBytes(JSDOMGlobalObject& globalObject, JSC::ArrayBuffer& buffer, size_t offset)
+{
+    ASSERT(offset < buffer.byteLength());
+    auto available = buffer.byteLength() - offset;
+    RefPtr request = getByobRequest();
+    RefPtr currentView = request ? request->view() : nullptr;
+    auto desiredSize = currentView ? currentView->byteLength() : available;
+
+    auto pullSize = std::min(available, desiredSize);
+
+    if (currentView) {
+        memcpySpan(currentView->mutableSpan().subspan(0, pullSize), buffer.span().subspan(offset, pullSize));
+        request->respond(globalObject, pullSize);
+        return offset + pullSize;
+    }
+
+    enqueue(globalObject, buffer, offset, pullSize);
+    return offset + pullSize;
+}
+
 // https://streams.spec.whatwg.org/#readable-byte-stream-controller-enqueue
 ExceptionOr<void> ReadableByteStreamController::enqueue(JSDOMGlobalObject& globalObject, JSC::ArrayBufferView& view)
 {
@@ -298,12 +330,28 @@ ExceptionOr<void> ReadableByteStreamController::enqueue(JSDOMGlobalObject& globa
     if (!buffer || buffer->isDetached())
         return Exception { ExceptionCode::TypeError, "view is detached"_s };
 
-    auto byteOffset = view.byteOffset();
-    auto byteLength = view.byteLength();
+    return enqueue(globalObject, *buffer, view.byteOffset(), view.byteLength());
+}
+
+ExceptionOr<void> ReadableByteStreamController::enqueue(JSDOMGlobalObject& globalObject, JSC::ArrayBuffer& buffer)
+{
+    if (m_closeRequested || protectedStream()->state() != ReadableStream::State::Readable)
+        return { };
+
+    if (buffer.isDetached())
+        return Exception { ExceptionCode::TypeError, "view is detached"_s };
+
+    return enqueue(globalObject, buffer, 0, buffer.byteLength());
+}
+
+ExceptionOr<void> ReadableByteStreamController::enqueue(JSDOMGlobalObject& globalObject, JSC::ArrayBuffer& buffer, size_t byteOffset, size_t byteLength)
+{
+    ASSERT(!m_closeRequested && protectedStream()->state() == ReadableStream::State::Readable);
+    ASSERT(!buffer.isDetached());
 
     Ref vm = globalObject.vm();
 
-    auto transferredBufferOrException = transferArrayBuffer(vm, *buffer);
+    auto transferredBufferOrException = transferArrayBuffer(vm, buffer);
     if (transferredBufferOrException.hasException())
         return transferredBufferOrException.releaseException();
 
@@ -492,7 +540,9 @@ bool ReadableByteStreamController::shouldCallPull()
     if (byobReader && byobReader->readIntoRequestsSize() > 0)
         return true;
 
-    return getDesiredSize() > 0;
+    auto size = getDesiredSize();
+    ASSERT(size);
+    return *size > 0;
 }
 
 static void copyDataBlockBytes(JSC::ArrayBuffer& destination, size_t destinationStart, JSC::ArrayBuffer& source, size_t sourceOffset, size_t bytesToCopy)
@@ -682,7 +732,6 @@ void ReadableByteStreamController::pullInto(JSDOMGlobalObject& globalObject, JSC
             readIntoRequest->runErrorSteps(e);
             return;
         }
-
     }
 
     m_pendingPullIntos.append(WTFMove(pullIntoDescriptor));
@@ -937,7 +986,7 @@ void ReadableByteStreamController::handleSourcePromise(DOMPromise& algorithmProm
 {
     algorithmPromise.whenSettled([promise = Ref { algorithmPromise }, callback = WTFMove(callback)]() mutable {
         auto* globalObject = promise->globalObject();
-        if (!globalObject)
+        if (!globalObject || promise->isSuspended())
             return;
 
         switch (promise->status()) {

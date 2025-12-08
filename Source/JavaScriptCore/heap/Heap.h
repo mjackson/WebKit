@@ -303,6 +303,7 @@ class Heap;
     v(withScopeSpace, cellHeapCellType, JSWithScope) \
     v(wrapForValidIteratorSpace, cellHeapCellType, JSWrapForValidIterator) \
     v(promiseAllContextSpace, cellHeapCellType, JSPromiseAllContext) \
+    v(promiseAllGlobalContextSpace, cellHeapCellType, JSPromiseAllGlobalContext) \
     v(promiseReactionSpace, cellHeapCellType, JSPromiseReaction) \
     v(asyncFromSyncIteratorSpace, cellHeapCellType, JSAsyncFromSyncIterator) \
     v(regExpStringIteratorSpace, cellHeapCellType, JSRegExpStringIterator) \
@@ -812,7 +813,7 @@ private:
     void dumpHeapStatisticsAtVMDestruction();
 
     static bool useGenerationalGC();
-    static bool shouldSweepSynchronously();
+    bool shouldSweepSynchronously();
 
     void verifyGC();
     void verifierMark();
@@ -982,7 +983,7 @@ private:
     uint64_t m_gcVersion { 0 };
     Box<Lock> m_threadLock;
     const Ref<AutomaticThreadCondition> m_threadCondition; // The mutator must not wait on this. It would cause a deadlock.
-    RefPtr<AutomaticThread> m_thread;
+    const RefPtr<AutomaticThread> m_thread;
 
     RefPtr<Thread> m_collectContinuouslyThread { nullptr };
     

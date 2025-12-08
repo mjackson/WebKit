@@ -85,10 +85,11 @@ SVGElement::SVGElement(const QualifiedName& tagName, Document& document, UniqueR
     , m_propertyRegistry(WTFMove(propertyRegistry))
     , m_className(SVGAnimatedString::create(this))
 {
-    static std::once_flag onceFlag;
-    std::call_once(onceFlag, [] {
+    static bool didRegistration = false;
+    if (!didRegistration) [[unlikely]] {
+        didRegistration = true;
         PropertyRegistry::registerProperty<HTMLNames::classAttr, &SVGElement::m_className>();
-    });
+    }
 }
 
 SVGElement::~SVGElement()
@@ -319,7 +320,7 @@ SVGElement* SVGElement::correspondingElement() const
     return m_svgRareData ? m_svgRareData->correspondingElement() : nullptr;
 }
 
-RefPtr<SVGUseElement> SVGElement::correspondingUseElement() const
+SVGUseElement* SVGElement::correspondingUseElement() const
 {
     SUPPRESS_UNCOUNTED_LOCAL auto* root = containingShadowRoot();
     if (!root)

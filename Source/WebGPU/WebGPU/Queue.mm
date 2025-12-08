@@ -36,7 +36,8 @@
 #import "Texture.h"
 #import "TextureView.h"
 #if ENABLE(WEBGPU_SWIFT)
-#import "WebGPUSwiftInternal.h"
+#import "CxxBridging.h"
+#import "WebGPUSwift-Generated.h"
 #endif
 #import <simd/simd.h>
 #import <wtf/CheckedArithmetic.h>
@@ -696,7 +697,7 @@ const Device& Queue::device() const
 {
     auto device = m_device.get();
     RELEASE_ASSERT(device);
-    return *device;
+    return *device.unsafeGet();
 }
 
 void Queue::clearTextureIfNeeded(const WGPUImageCopyTexture& destination, NSUInteger slice)

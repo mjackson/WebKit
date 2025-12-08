@@ -109,6 +109,7 @@ set(WebKit_PRIVATE_INCLUDE_DIRECTORIES
     "${WEBKIT_DIR}/WebProcess/InjectedBundle/DOM"
     "${WEBKIT_DIR}/WebProcess/Inspector"
     "${WEBKIT_DIR}/WebProcess/Launching"
+    "${WEBKIT_DIR}/WebProcess/Media"
     "${WEBKIT_DIR}/WebProcess/MediaCache"
     "${WEBKIT_DIR}/WebProcess/MediaStream"
     "${WEBKIT_DIR}/WebProcess/Model"
@@ -278,6 +279,8 @@ set(WebKit_MESSAGES_IN_FILES
     NetworkProcess/webrtc/NetworkRTCProvider
     NetworkProcess/webrtc/RTCDataChannelRemoteManagerProxy
 
+    NetworkProcess/webrtc/rice/RiceBackend
+
     NetworkProcess/webtransport/NetworkTransportSession
 
     Shared/AuxiliaryProcess
@@ -295,6 +298,7 @@ set(WebKit_MESSAGES_IN_FILES
     UIProcess/Extensions/WebExtensionController
 
     UIProcess/Media/RemoteMediaSessionCoordinatorProxy
+    UIProcess/Media/RemoteMediaSessionManagerProxy
 
     UIProcess/SpeechRecognitionRemoteRealtimeMediaSourceManager
     UIProcess/SpeechRecognitionServer
@@ -344,7 +348,6 @@ set(WebKit_MESSAGES_IN_FILES
 
     WebProcess/GPU/graphics/RemoteGraphicsContextGLProxy
     WebProcess/GPU/graphics/RemoteImageBufferProxy
-    WebProcess/GPU/graphics/RemoteImageBufferSetProxy
     WebProcess/GPU/graphics/RemoteRenderingBackendProxy
 
     WebProcess/GPU/graphics/WebGPU/RemoteGPUProxy
@@ -368,10 +371,12 @@ set(WebKit_MESSAGES_IN_FILES
     WebProcess/Geolocation/WebGeolocationManager
 
     WebProcess/Inspector/RemoteWebInspectorUI
-    WebProcess/Inspector/WebInspector
+    WebProcess/Inspector/WebInspectorBackend
+    WebProcess/Inspector/WasmDebuggerDispatcher
     WebProcess/Inspector/WebInspectorInterruptDispatcher
     WebProcess/Inspector/WebInspectorUI
 
+    WebProcess/Media/RemoteMediaSessionManager
     WebProcess/MediaSession/RemoteMediaSessionCoordinator
 
     WebProcess/Model/ModelProcessConnection
@@ -381,6 +386,8 @@ set(WebKit_MESSAGES_IN_FILES
     WebProcess/Network/webrtc/RTCDataChannelRemoteManager
     WebProcess/Network/webrtc/WebRTCMonitor
     WebProcess/Network/webrtc/WebRTCResolver
+
+    WebProcess/Network/webrtc/rice/RiceBackendProxy
 
     WebProcess/Network/NetworkProcessConnection
     WebProcess/Network/WebResourceLoader
@@ -445,7 +452,6 @@ set(WebKit_SERIALIZATION_IN_FILES
 
     NetworkProcess/Classifier/ITPThirdPartyData.serialization.in
     NetworkProcess/Classifier/ITPThirdPartyDataForSpecificFirstParty.serialization.in
-    NetworkProcess/Classifier/StorageAccessStatus.serialization.in
 
     NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementManagerInterface.serialization.in
 
@@ -462,6 +468,7 @@ set(WebKit_SERIALIZATION_IN_FILES
     Platform/IPC/SharedBufferReference.serialization.in
     Platform/IPC/SharedFileHandle.serialization.in
     Platform/IPC/StreamServerConnection.serialization.in
+    Platform/IPC/TransferString.serialization.in
 
     Shared/AccessibilityPreferences.serialization.in
     Shared/AuxiliaryProcessCreationParameters.serialization.in
@@ -501,7 +508,6 @@ set(WebKit_SERIALIZATION_IN_FILES
     Shared/NetworkProcessConnectionParameters.serialization.in
     Shared/NodeHitTestResult.serialization.in
     Shared/Pasteboard.serialization.in
-    Shared/PlatformFontInfo.serialization.in
     Shared/PlatformPopupMenuData.serialization.in
     Shared/PolicyDecision.serialization.in
     Shared/PrintInfo.serialization.in
@@ -514,6 +520,7 @@ set(WebKit_SERIALIZATION_IN_FILES
     Shared/RemoteWorkerType.serialization.in
     Shared/ResourceLoadInfo.serialization.in
     Shared/ResourceLoadStatisticsParameters.serialization.in
+    Shared/RunJavaScriptParameters.serialization.in
     Shared/SameDocumentNavigationType.serialization.in
     Shared/SandboxExtension.serialization.in
     Shared/ScriptTrackingPrivacyFilter.serialization.in
@@ -522,6 +529,7 @@ set(WebKit_SERIALIZATION_IN_FILES
     Shared/SessionState.serialization.in
     Shared/SyntheticEditingCommandType.serialization.in
     Shared/TextFlags.serialization.in
+    Shared/TextManipulationParameters.serialization.in
     Shared/TextRecognitionResult.serialization.in
     Shared/TextRecognitionUpdateResult.serialization.in
     Shared/URLSchemeTaskParameters.serialization.in
@@ -540,6 +548,7 @@ set(WebKit_SERIALIZATION_IN_FILES
     Shared/WebFindOptions.serialization.in
     Shared/WebFoundTextRange.serialization.in
     Shared/WebFrameMetrics.serialization.in
+    Shared/WebGL.serialization.in
     Shared/WebHitTestResultData.serialization.in
     Shared/WebImage.serialization.in
     Shared/WebNavigationDataStore.serialization.in
@@ -602,12 +611,6 @@ set(WebKit_SERIALIZATION_IN_FILES
 
     Shared/Gamepad/GamepadData.serialization.in
 
-    Shared/Model/DDMeshDescriptor.serialization.in
-    Shared/Model/DDMeshPart.serialization.in
-    Shared/Model/DDReplaceVertices.serialization.in
-    Shared/Model/DDUpdateMeshDescriptor.serialization.in
-    Shared/Model/DDVertexAttributeFormat.serialization.in
-    Shared/Model/DDVertexLayout.serialization.in
     Shared/Model/ModelObjectDescriptorBase.serialization.in
 
     Shared/WebGPU/WebGPUBindGroupDescriptor.serialization.in
@@ -706,6 +709,8 @@ set(WebKit_SERIALIZATION_IN_FILES
 
     WebProcess/GPU/webrtc/SharedVideoFrame.serialization.in
 
+    WebProcess/Media/RemoteMediaSessionState.serialization.in
+
     WebProcess/MediaStream/MediaDeviceSandboxExtensions.serialization.in
 
     WebProcess/Model/ModelProcessConnectionInfo.serialization.in
@@ -781,6 +786,11 @@ if (USE_LIBWEBRTC)
         "${THIRDPARTY_DIR}/libwebrtc/Source/webrtc"
         "${THIRDPARTY_DIR}/libwebrtc/Source/third_party/abseil-cpp")
     list(APPEND WebKit_LIBRARIES webrtc)
+endif ()
+
+if (USE_GSTREAMER_WEBRTC AND USE_LIBRICE)
+    list(APPEND WebKit_LIBRARIES Rice::Io)
+    list(APPEND WebKit_PRIVATE_INCLUDE_DIRECTORIES "${WEBKIT_DIR}/NetworkProcess/webrtc/rice")
 endif ()
 
 if (ATOMICS_REQUIRE_LIBATOMIC)

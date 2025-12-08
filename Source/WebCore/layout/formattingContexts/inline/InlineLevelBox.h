@@ -34,6 +34,7 @@
 #include <WebCore/StyleLineHeight.h>
 #include <WebCore/StylePrimitiveNumericTypes+Evaluation.h>
 #include <WebCore/StyleTextBoxEdge.h>
+#include <WebCore/StyleWebKitLineBoxContain.h>
 #include <wtf/OptionSet.h>
 
 namespace WebCore {
@@ -58,9 +59,6 @@ public:
 
         InlineLayoutUnit height() const { return ascent + descent; }
         friend bool operator==(const AscentAndDescent&, const AscentAndDescent&) = default;
-        // FIXME: Remove this.
-        // We need floor/ceil to match legacy layout integral positioning.
-        void round();
     };
     InlineLayoutUnit ascent() const { return m_ascentAndDescent.ascent; }
     InlineLayoutUnit descent() const { return m_ascentAndDescent.descent; }
@@ -169,7 +167,8 @@ private:
         TextBoxTrim textBoxTrim;
         WebCore::Style::TextBoxEdge textBoxEdge;
         WebCore::Style::LineFitEdge lineFitEdge;
-        OptionSet<WebCore::Style::LineBoxContain> lineBoxContain;
+        WebCore::Style::ZoomFactor zoomFactor { 1.0f, 1.0f };
+        WebCore::Style::WebkitLineBoxContain lineBoxContain;
         InlineLayoutUnit primaryFontSize { 0 };
         VerticalAlignment verticalAlignment { };
     };
@@ -198,13 +197,13 @@ inline InlineLayoutUnit InlineLevelBox::preferredLineHeight() const
             return 0;
         },
         [&](const WebCore::Style::LineHeight::Fixed& fixed) -> InlineLayoutUnit {
-            return WebCore::Style::evaluate<InlineLayoutUnit>(fixed, WebCore::Style::ZoomNeeded { });
+            return WebCore::Style::evaluate<InlineLayoutUnit>(fixed, m_style.zoomFactor);
         },
         [&](const WebCore::Style::LineHeight::Percentage& percentage) -> InlineLayoutUnit {
             return WebCore::Style::evaluate<LayoutUnit>(percentage, LayoutUnit { fontSize() });
         },
         [&](const WebCore::Style::LineHeight::Calc& calc) -> InlineLayoutUnit {
-            return WebCore::Style::evaluate<LayoutUnit>(calc, LayoutUnit { fontSize() });
+            return WebCore::Style::evaluate<LayoutUnit>(calc, LayoutUnit { fontSize() }, m_style.zoomFactor);
         }
     );
 }
@@ -213,12 +212,6 @@ inline bool InlineLevelBox::hasLineBoxRelativeAlignment() const
 {
     return WTF::holdsAlternative<CSS::Keyword::Top>(m_style.verticalAlignment)
         || WTF::holdsAlternative<CSS::Keyword::Bottom>(m_style.verticalAlignment);
-}
-
-inline void InlineLevelBox::AscentAndDescent::round()
-{
-    ascent = floorf(ascent);
-    descent = ceilf(descent);
 }
 
 }

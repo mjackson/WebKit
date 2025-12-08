@@ -72,7 +72,10 @@ public:
     void onClosedPromiseRejection(ClosedRejectionCallback&&);
     void onClosedPromiseResolution(Function<void()>&&);
 
+    bool isReachableFromOpaqueRoots() const;
     template<typename Visitor> void visitAdditionalChildren(Visitor&);
+
+    ReadableStream* stream() { return m_stream.get(); }
 
 private:
     ReadableStreamDefaultReader(Ref<ReadableStream>&&, RefPtr<InternalReadableStreamDefaultReader>&&, Ref<DOMPromise>&&, Ref<DeferredPromise>&&);

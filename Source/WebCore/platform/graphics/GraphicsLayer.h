@@ -52,10 +52,11 @@
 #include <wtf/CheckedRef.h>
 #include <wtf/Function.h>
 #include <wtf/Platform.h>
+#include <wtf/RefCountedAndCanMakeWeakPtr.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/TypeCasts.h>
 
-#if ENABLE(THREADED_ANIMATION_RESOLUTION)
+#if ENABLE(THREADED_ANIMATIONS)
 #include <WebCore/AcceleratedEffectStack.h>
 #endif
 
@@ -85,11 +86,11 @@ class TransformationMatrix;
 
 typedef unsigned TileCoverage;
 
-#if ENABLE(MODEL_PROCESS)
+#if ENABLE(MODEL_CONTEXT)
 class ModelContext;
 #endif
 
-#if ENABLE(THREADED_ANIMATION_RESOLUTION)
+#if ENABLE(THREADED_ANIMATIONS)
 struct AcceleratedEffectValues;
 String acceleratedEffectPropertyIDAsString(AcceleratedEffectProperty);
 #endif
@@ -277,7 +278,7 @@ protected:
 // GraphicsLayer is an abstraction for a rendering surface with backing store,
 // which may have associated transformation and animations.
 
-class GraphicsLayer : public RefCounted<GraphicsLayer> {
+class GraphicsLayer : public RefCountedAndCanMakeWeakPtr<GraphicsLayer> {
     WTF_MAKE_TZONE_ALLOCATED_EXPORT(GraphicsLayer, WEBCORE_EXPORT);
 public:
     // Enums from GraphicsLayerEnums.h:
@@ -383,7 +384,7 @@ public:
     virtual void setApproximatePosition(const FloatPoint& p) { m_approximatePosition = p; }
 
     // For platforms that move underlying platform layers on a different thread for scrolling; just update the GraphicsLayer state.
-    virtual void syncPosition(const FloatPoint& p) { m_position = p; }
+    virtual void syncPosition(const FloatPoint& p) { m_approximatePosition = std::nullopt; m_position = p; }
 
     // Anchor point: (0, 0) is top left, (1, 1) is bottom right. The anchor point
     // affects the origin of the transforms.
@@ -544,7 +545,12 @@ public:
     WEBCORE_EXPORT virtual void suspendAnimations(MonotonicTime);
     WEBCORE_EXPORT virtual void resumeAnimations();
 
-    virtual Vector<std::pair<String, double>> acceleratedAnimationsForTesting(const Settings&) const { return { }; }
+    struct AcceleratedAnimationForTesting {
+        String property;
+        double speed;
+        bool isThreaded;
+    };
+    virtual Vector<AcceleratedAnimationForTesting> acceleratedAnimationsForTesting() const { return { }; }
 
     // Layer contents
     virtual void setContentsToImage(Image*) { }
@@ -562,8 +568,11 @@ public:
     virtual void setContentsToSolidColor(const Color&) { }
     virtual void setContentsToPlatformLayer(PlatformLayer*, ContentsLayerPurpose) { }
     virtual void setContentsToPlatformLayerHost(LayerHostingContextIdentifier) { }
-#if ENABLE(MODEL_PROCESS)
+#if ENABLE(MODEL_CONTEXT)
     virtual void setContentsToModelContext(Ref<ModelContext>, ContentsLayerPurpose) { }
+#endif
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+    virtual void removeModelContents() { }
 #endif
     virtual void setContentsToVideoElement(HTMLVideoElement&, ContentsLayerPurpose) { }
     virtual void setContentsDisplayDelegate(RefPtr<GraphicsLayerContentsDisplayDelegate>&&, ContentsLayerPurpose);
@@ -581,7 +590,7 @@ public:
     // For hosting this GraphicsLayer in a native layer hierarchy.
     virtual PlatformLayer* platformLayer() const { return nullptr; }
 #if PLATFORM(COCOA)
-    RetainPtr<CALayer> protectedPlatformLayer() const;
+    WEBCORE_EXPORT RetainPtr<CALayer> protectedPlatformLayer() const;
 #endif
 
     // Flippedness of the contents of this layer. Does not affect sublayer geometry.
@@ -704,7 +713,7 @@ public:
 
     virtual void markFrontBufferVolatileForTesting() { }
 
-#if ENABLE(THREADED_ANIMATION_RESOLUTION)
+#if ENABLE(THREADED_ANIMATIONS)
     AcceleratedEffectStack* acceleratedEffectStack() const { return m_effectStack.get(); }
     WEBCORE_EXPORT virtual void setAcceleratedEffectsAndBaseValues(AcceleratedEffects&&, AcceleratedEffectValues&&);
 #endif
@@ -750,7 +759,7 @@ protected:
 
     WEBCORE_EXPORT virtual void getDebugBorderInfo(Color&, float& width) const;
 
-#if ENABLE(THREADED_ANIMATION_RESOLUTION)
+#if ENABLE(THREADED_ANIMATIONS)
     RefPtr<AcceleratedEffectStack> m_effectStack;
 #endif
 

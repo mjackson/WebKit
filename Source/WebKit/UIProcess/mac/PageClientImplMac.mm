@@ -147,17 +147,21 @@ IntSize PageClientImpl::viewSize()
 
 NSView *PageClientImpl::activeView() const
 {
-    CheckedPtr impl = m_impl.get();
-    return (impl && impl->thumbnailView()) ? (NSView *)impl->thumbnailView() : m_view.getAutoreleased();
+    if (CheckedPtr impl = m_impl.get()) {
+        if (RetainPtr thumbnailView = impl->thumbnailView())
+            return thumbnailView.autorelease();
+    }
+    return m_view.getAutoreleased();
 }
 
 NSWindow *PageClientImpl::activeWindow() const
 {
-    CheckedPtr impl = m_impl.get();
-    if (impl && impl->thumbnailView())
-        return [impl->thumbnailView() window];
-    if (impl && impl->targetWindowForMovePreparation())
-        return impl->targetWindowForMovePreparation();
+    if (CheckedPtr impl = m_impl.get()) {
+        if (RetainPtr thumbnailView = impl->thumbnailView())
+            return [thumbnailView window];
+        if (impl->targetWindowForMovePreparation())
+            return impl->targetWindowForMovePreparation();
+    }
     return [m_view.get() window];
 }
 
@@ -180,7 +184,7 @@ bool PageClientImpl::isViewFocused()
 
 void PageClientImpl::assistiveTechnologyMakeFirstResponder()
 {
-    [[m_view.get() window] makeFirstResponder:m_view.get().get()];
+    [retainPtr([m_view.get() window]) makeFirstResponder:m_view.get().get()];
 }
     
 void PageClientImpl::makeFirstResponder()
@@ -188,7 +192,7 @@ void PageClientImpl::makeFirstResponder()
     if (m_shouldSuppressFirstResponderChanges)
         return;
 
-    [[m_view.get() window] makeFirstResponder:m_view.get().get()];
+    [retainPtr([m_view.get() window]) makeFirstResponder:m_view.get().get()];
 }
     
 bool PageClientImpl::isViewVisible(NSView *view, NSWindow *viewWindow)
@@ -369,7 +373,7 @@ void PageClientImpl::registerEditCommand(Ref<WebEditCommandProxy>&& command, Und
 
 void PageClientImpl::registerInsertionUndoGrouping()
 {
-    registerInsertionUndoGroupingWithUndoManager([m_view.get() undoManager]);
+    registerInsertionUndoGroupingWithUndoManager(retainPtr([m_view.get() undoManager]).get());
 }
 
 void PageClientImpl::createPDFHUD(PDFPluginIdentifier identifier, WebCore::FrameIdentifier frameID, const WebCore::IntRect& rect)
@@ -399,12 +403,14 @@ void PageClientImpl::clearAllEditCommands()
 
 bool PageClientImpl::canUndoRedo(UndoOrRedo undoOrRedo)
 {
-    return (undoOrRedo == UndoOrRedo::Undo) ? [[m_view.get() undoManager] canUndo] : [[m_view.get() undoManager] canRedo];
+    RetainPtr undoManager = [m_view.get() undoManager];
+    return undoOrRedo == UndoOrRedo::Undo ? [undoManager canUndo] : [undoManager canRedo];
 }
 
 void PageClientImpl::executeUndoRedo(UndoOrRedo undoOrRedo)
 {
-    return (undoOrRedo == UndoOrRedo::Undo) ? [[m_view.get() undoManager] undo] : [[m_view.get() undoManager] redo];
+    RetainPtr undoManager = [m_view.get() undoManager];
+    return undoOrRedo == UndoOrRedo::Undo ? [undoManager undo] : [undoManager redo];
 }
 
 void PageClientImpl::startDrag(const WebCore::DragItem& item, ShareableBitmap::Handle&& image, const std::optional<WebCore::NodeIdentifier>& nodeID)
@@ -437,12 +443,12 @@ void PageClientImpl::notifyInputContextAboutDiscardedComposition()
 
 FloatRect PageClientImpl::convertToDeviceSpace(const FloatRect& rect)
 {
-    return toDeviceSpace(rect, [m_view.get() window]);
+    return toDeviceSpace(rect, retainPtr([m_view.get() window]).get());
 }
 
 FloatRect PageClientImpl::convertToUserSpace(const FloatRect& rect)
 {
-    return toUserSpace(rect, [m_view.get() window]);
+    return toUserSpace(rect, retainPtr([m_view.get() window]).get());
 }
 
 void PageClientImpl::pinnedStateWillChange()
@@ -463,14 +469,14 @@ void PageClientImpl::drawPageBorderForPrinting(WebCore::FloatSize&& size)
 IntPoint PageClientImpl::screenToRootView(const IntPoint& point)
 {
     RetainPtr view = m_view.get();
-    NSPoint windowCoord = [[view window] convertPointFromScreen:point];
+    NSPoint windowCoord = [retainPtr([view window]) convertPointFromScreen:point];
     return IntPoint([view convertPoint:windowCoord fromView:nil]);
 }
 
 IntPoint PageClientImpl::rootViewToScreen(const IntPoint& point)
 {
     RetainPtr view = m_view.get();
-    return IntPoint([[view window] convertPointToScreen:[view convertPoint:point toView:nil]]);
+    return IntPoint([retainPtr([view window]) convertPointToScreen:[view convertPoint:point toView:nil]]);
 }
 
 IntRect PageClientImpl::rootViewToScreen(const IntRect& rect)
@@ -478,7 +484,7 @@ IntRect PageClientImpl::rootViewToScreen(const IntRect& rect)
     NSRect tempRect = rect;
     RetainPtr view = m_view.get();
     tempRect = [view convertRect:tempRect toView:nil];
-    tempRect.origin = [[view window] convertPointToScreen:tempRect.origin];
+    tempRect.origin = [retainPtr([view window]) convertPointToScreen:tempRect.origin];
     return enclosingIntRect(tempRect);
 }
 
@@ -922,7 +928,7 @@ void PageClientImpl::didFinishNavigation(API::Navigation* navigation)
     if (RefPtr gestureController = m_impl->gestureController())
         gestureController->didFinishNavigation(navigation);
 
-    NSAccessibilityPostNotification(NSAccessibilityUnignoredAncestor(m_view.get().get()), @"AXLoadComplete");
+    NSAccessibilityPostNotification(RetainPtr { NSAccessibilityUnignoredAncestor(m_view.get().get()) }.get(), @"AXLoadComplete");
 }
 
 void PageClientImpl::didFailNavigation(API::Navigation* navigation)
@@ -930,7 +936,7 @@ void PageClientImpl::didFailNavigation(API::Navigation* navigation)
     if (RefPtr gestureController = m_impl->gestureController())
         gestureController->didFailNavigation(navigation);
 
-    NSAccessibilityPostNotification(NSAccessibilityUnignoredAncestor(m_view.get().get()), @"AXLoadComplete");
+    NSAccessibilityPostNotification(RetainPtr { NSAccessibilityUnignoredAncestor(m_view.get().get()) }.get(), @"AXLoadComplete");
 }
 
 void PageClientImpl::didSameDocumentNavigationForMainFrame(SameDocumentNavigationType type)
@@ -1106,18 +1112,18 @@ WebCore::Color PageClientImpl::accentColor()
 
 bool PageClientImpl::appUsesCustomAccentColor()
 {
-    static dispatch_once_t once;
-    static BOOL usesCustomAppAccentColor = NO;
-    dispatch_once(&once, ^{
+    static BOOL usesCustomAppAccentColor = [] {
         RetainPtr bundleForAccentColor = [NSBundle mainBundle];
         RetainPtr info = [bundleForAccentColor infoDictionary];
         RetainPtr<NSString> accentColorName = info.get()[@"NSAccentColorName"];
+        BOOL usesCustomAppAccentColor = NO;
         if ([accentColorName length])
             usesCustomAppAccentColor = !![NSColor colorNamed:accentColorName.get() bundle:bundleForAccentColor.get()];
 
         if (!usesCustomAppAccentColor && [(accentColorName = info.get()[@"NSAppAccentColorName"]) length])
             usesCustomAppAccentColor = !![NSColor colorNamed:accentColorName.get() bundle:bundleForAccentColor.get()];
-    });
+        return usesCustomAppAccentColor;
+    }();
 
     return usesCustomAppAccentColor;
 }
@@ -1178,6 +1184,11 @@ void PageClientImpl::didChangeLocalInspectorAttachment()
 #if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
     m_impl->updateScrollPocket();
 #endif
+}
+
+void PageClientImpl::showCaptionDisplaySettings(WebCore::HTMLMediaElementIdentifier identifier, const WebCore::ResolvedCaptionDisplaySettingsOptions& options, CompletionHandler<void(Expected<void, WebCore::ExceptionData>&&)>&& completionHandler)
+{
+    checkedImpl()->showCaptionDisplaySettings(identifier, options, WTFMove(completionHandler));
 }
 
 RetainPtr<NSView> PageClient::protectedViewForPresentingRevealPopover() const

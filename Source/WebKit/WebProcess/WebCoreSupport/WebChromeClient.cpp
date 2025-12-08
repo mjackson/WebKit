@@ -75,8 +75,8 @@
 #include "WebProcessProxyMessages.h"
 #include "WebSearchPopupMenu.h"
 #include "WebWorkerClient.h"
-#include <WebCore/AppHighlight.h>
 #include <WebCore/AXObjectCache.h>
+#include <WebCore/AppHighlight.h>
 #include <WebCore/BarcodeDetectorInterface.h>
 #include <WebCore/ColorChooser.h>
 #include <WebCore/ColorChooserClient.h>
@@ -101,6 +101,7 @@
 #include <WebCore/FrameDestructionObserverInlines.h>
 #include <WebCore/FrameLoader.h>
 #include <WebCore/HTMLInputElement.h>
+#include <WebCore/HTMLMediaElement.h>
 #include <WebCore/HTMLNames.h>
 #include <WebCore/HTMLParserIdioms.h>
 #include <WebCore/HTMLPlugInElement.h>
@@ -182,6 +183,10 @@
 
 #if ENABLE(DAMAGE_TRACKING)
 #include <WebCore/Damage.h>
+#endif
+
+#if ENABLE(VIDEO)
+#include <WebCore/HTMLMediaElement.h>
 #endif
 
 namespace WebKit {
@@ -328,7 +333,7 @@ void WebChromeClient::focusedElementChanged(Element* element, LocalFrame* frame,
     RefPtr webFrame = coreFrame ? WebFrame::fromCoreFrame(*coreFrame) : nullptr;
     RefPtr page = m_page.get();
     if (page && broadcast == BroadcastFocusedElement::Yes)
-        WebProcess::singleton().parentProcessConnection()->send(Messages::WebPageProxy::FocusedElementChanged(webFrame ? std::make_optional(webFrame->frameID()) : std::nullopt, options), page->identifier());
+        WebProcess::singleton().protectedParentProcessConnection()->send(Messages::WebPageProxy::FocusedElementChanged(webFrame ? std::make_optional(webFrame->frameID()) : std::nullopt, options), page->identifier());
 
     RefPtr inputElement = dynamicDowncast<HTMLInputElement>(element);
     if (!inputElement || !inputElement->isText())
@@ -387,8 +392,6 @@ RefPtr<Page> WebChromeClient::createWindow(LocalFrame& frame, const String& open
         navigationAction.isInitialFrameSrcLoad(),
         navigationAction.isContentRuleListRedirect(),
         openedMainFrameName,
-        { }, /* requesterOrigin */
-        { }, /* requesterTopOrigin */
         std::nullopt, /* targetBackForwardItemIdentifier */
         std::nullopt, /* sourceBackForwardItemIdentifier */
         WebCore::LockHistory::No,
@@ -410,6 +413,7 @@ RefPtr<Page> WebChromeClient::createWindow(LocalFrame& frame, const String& open
         originalRequest, /* originalRequest */
         originalRequest, /* request */
         originalRequest.url().isValid() ? String() : originalRequest.url().string(), /* invalidURLString */
+        navigationAction.requester(), /* requester */
     };
 
     auto sendResult = webProcess.protectedParentProcessConnection()->sendSync(Messages::WebPageProxy::CreateNewPage(windowFeatures, navigationActionData), page->identifier(), IPC::Timeout::infinity(), { IPC::SendSyncOption::MaintainOrderingWithAsyncMessages });
@@ -808,11 +812,25 @@ IntRect WebChromeClient::rootViewToAccessibilityScreen(const IntRect& rect) cons
     return page ? page->rootViewToAccessibilityScreen(rect) : IntRect();
 }
 
+void WebChromeClient::mainFrameDidChange()
+{
+    if (RefPtr page = m_page.get())
+        page->platformReinitializeAccessibilityToken();
+}
+
 void WebChromeClient::didFinishLoadingImageForElement(HTMLImageElement& element)
 {
     if (RefPtr page = m_page.get())
         page->didFinishLoadingImageForElement(element);
 }
+
+#if ENABLE(MODEL_PROCESS)
+void WebChromeClient::setHasModelElement(bool hasModelElement)
+{
+    if (RefPtr page = m_page.get())
+        page->setHasModelElement(hasModelElement);
+}
+#endif
 
 PlatformPageClient WebChromeClient::platformPageClient() const
 {
@@ -1157,13 +1175,8 @@ RefPtr<WebCore::ShapeDetection::BarcodeDetector> WebChromeClient::createBarcodeD
     RefPtr page = m_page.get();
     if (!page)
         return nullptr;
-
-    Ref remoteRenderingBackendProxy = page->ensureRemoteRenderingBackendProxy();
-    // FIXME(https://bugs.webkit.org/show_bug.cgi?id=275245): Does not work when GPUP crashes.
-    RefPtr connection = remoteRenderingBackendProxy->connection();
-    if (!connection)
-        return nullptr;
-    return ShapeDetection::RemoteBarcodeDetectorProxy::create(connection.releaseNonNull(), remoteRenderingBackendProxy->renderingBackendIdentifier(), ShapeDetectionIdentifier::generate(), barcodeDetectorOptions);
+    Ref renderingBackend = page->ensureRemoteRenderingBackendProxy();
+    return renderingBackend->createBarcodeDetector(barcodeDetectorOptions);
 #elif HAVE(SHAPE_DETECTION_API_IMPLEMENTATION)
     return WebCore::ShapeDetection::BarcodeDetectorImpl::create(barcodeDetectorOptions);
 #else
@@ -1179,14 +1192,8 @@ void WebChromeClient::getBarcodeDetectorSupportedFormats(CompletionHandler<void(
         completionHandler({ });
         return;
     }
-    Ref remoteRenderingBackendProxy = page->ensureRemoteRenderingBackendProxy();
-    // FIXME(https://bugs.webkit.org/show_bug.cgi?id=275245): Does not work when GPUP crashes.
-    RefPtr connection = remoteRenderingBackendProxy->connection();
-    if (!connection) {
-        completionHandler({ });
-        return;
-    }
-    ShapeDetection::RemoteBarcodeDetectorProxy::getSupportedFormats(connection.releaseNonNull(), remoteRenderingBackendProxy->renderingBackendIdentifier(), WTFMove(completionHandler));
+    Ref renderingBackend = page->ensureRemoteRenderingBackendProxy();
+    renderingBackend->supportedBarcodeDetectorBarcodeFormats(WTFMove(completionHandler));
 #elif HAVE(SHAPE_DETECTION_API_IMPLEMENTATION)
     WebCore::ShapeDetection::BarcodeDetectorImpl::getSupportedFormats(WTFMove(completionHandler));
 #else
@@ -1200,13 +1207,8 @@ RefPtr<WebCore::ShapeDetection::FaceDetector> WebChromeClient::createFaceDetecto
     RefPtr page = m_page.get();
     if (!page)
         return nullptr;
-
-    Ref remoteRenderingBackendProxy = page->ensureRemoteRenderingBackendProxy();
-    // FIXME(https://bugs.webkit.org/show_bug.cgi?id=275245): Does not work when GPUP crashes.
-    RefPtr connection = remoteRenderingBackendProxy->connection();
-    if (!connection)
-        return nullptr;
-    return ShapeDetection::RemoteFaceDetectorProxy::create(connection.releaseNonNull(), remoteRenderingBackendProxy->renderingBackendIdentifier(), ShapeDetectionIdentifier::generate(), faceDetectorOptions);
+    Ref renderingBackend = page->ensureRemoteRenderingBackendProxy();
+    return renderingBackend->createFaceDetector(faceDetectorOptions);
 #elif HAVE(SHAPE_DETECTION_API_IMPLEMENTATION)
     return WebCore::ShapeDetection::FaceDetectorImpl::create(faceDetectorOptions);
 #else
@@ -1220,13 +1222,8 @@ RefPtr<WebCore::ShapeDetection::TextDetector> WebChromeClient::createTextDetecto
     RefPtr page = m_page.get();
     if (!page)
         return nullptr;
-
-    Ref remoteRenderingBackendProxy = page->ensureRemoteRenderingBackendProxy();
-    // FIXME(https://bugs.webkit.org/show_bug.cgi?id=275245): Does not work when GPUP crashes.
-    RefPtr connection = remoteRenderingBackendProxy->connection();
-    if (!connection)
-        return nullptr;
-    return ShapeDetection::RemoteTextDetectorProxy::create(connection.releaseNonNull(), remoteRenderingBackendProxy->renderingBackendIdentifier(), ShapeDetectionIdentifier::generate());
+    Ref renderingBackend = page->ensureRemoteRenderingBackendProxy();
+    return renderingBackend->createTextDetector();
 #elif HAVE(SHAPE_DETECTION_API_IMPLEMENTATION)
     return WebCore::ShapeDetection::TextDetectorImpl::create();
 #else
@@ -1666,6 +1663,32 @@ void WebChromeClient::spatialBackdropSourceChanged() const
 }
 #endif
 
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+void WebChromeClient::allowImmersiveElement(const Element& element, CompletionHandler<void(bool)>&& completion) const
+{
+    if (RefPtr page = m_page.get())
+        page->allowImmersiveElement(element, WTFMove(completion));
+    else
+        completion(false);
+}
+
+void WebChromeClient::presentImmersiveElement(const Element& element, const LayerHostingContextIdentifier contextID, CompletionHandler<void(bool)>&& completion) const
+{
+    if (RefPtr page = m_page.get())
+        page->presentImmersiveElement(element, contextID, WTFMove(completion));
+    else
+        completion(false);
+}
+
+void WebChromeClient::dismissImmersiveElement(const Element& element, CompletionHandler<void()>&& completion) const
+{
+    if (RefPtr page = m_page.get())
+        page->dismissImmersiveElement(element, WTFMove(completion));
+    else
+        completion();
+}
+#endif
+
 #if ENABLE(APP_HIGHLIGHTS)
 WebCore::HighlightVisibility WebChromeClient::appHighlightsVisiblility() const
 {
@@ -1765,16 +1788,16 @@ void WebChromeClient::handleAutoplayEvent(AutoplayEvent event, OptionSet<Autopla
         page->send(Messages::WebPageProxy::HandleAutoplayEvent(event, flags));
 }
 
-void WebChromeClient::setTextIndicator(const WebCore::TextIndicatorData& indicatorData) const
+void WebChromeClient::setTextIndicator(RefPtr<WebCore::TextIndicator>&& textIndicator) const
 {
     if (RefPtr page = m_page.get())
-        page->setTextIndicator(indicatorData);
+        page->setTextIndicator(WTFMove(textIndicator));
 }
 
-void WebChromeClient::updateTextIndicator(const WebCore::TextIndicatorData& indicatorData) const
+void WebChromeClient::updateTextIndicator(RefPtr<WebCore::TextIndicator>&& textIndicator) const
 {
     if (RefPtr page = m_page.get())
-        page->updateTextIndicator(indicatorData);
+        page->updateTextIndicator(WTFMove(textIndicator));
 }
 
 #if ENABLE(TELEPHONE_NUMBER_DETECTION) && PLATFORM(MAC)
@@ -1845,14 +1868,16 @@ RefPtr<API::Object> userDataFromJSONData(JSON::Value& value)
         return API::String::create(value.asString());
     case JSON::Value::Type::Object: {
         auto result = API::Dictionary::create();
-        for (auto [key, value] : *value.asObject())
+        RefPtr jsonObject = value.asObject();
+        for (auto [key, value] : *jsonObject)
             result->add(key, userDataFromJSONData(value));
         return result;
     }
     case JSON::Value::Type::Array: {
         auto array = value.asArray();
         Vector<RefPtr<API::Object>> result;
-        for (auto& item : *value.asArray())
+        RefPtr jsonArray = value.asArray();
+        for (auto& item : *jsonArray)
             result.append(userDataFromJSONData(item));
         return API::Array::create(WTFMove(result));
     }
@@ -1939,7 +1964,7 @@ void WebChromeClient::setMockMediaPlaybackTargetPickerEnabled(bool enabled)
         page->send(Messages::WebPageProxy::SetMockMediaPlaybackTargetPickerEnabled(enabled));
 }
 
-void WebChromeClient::setMockMediaPlaybackTargetPickerState(const String& name, MediaPlaybackTargetContext::MockState state)
+void WebChromeClient::setMockMediaPlaybackTargetPickerState(const String& name, MediaPlaybackTargetMockState state)
 {
     if (RefPtr page = m_page.get())
         page->send(Messages::WebPageProxy::SetMockMediaPlaybackTargetPickerState(name, state));
@@ -2145,10 +2170,10 @@ double WebChromeClient::baseViewportLayoutSizeScaleFactor() const
 
 #if ENABLE(MEDIA_CONTROLS_CONTEXT_MENUS) && USE(UICONTEXTMENU)
 
-void WebChromeClient::showMediaControlsContextMenu(FloatRect&& targetFrame, Vector<MediaControlsContextMenuItem>&& items, CompletionHandler<void(MediaControlsContextMenuItem::ID)>&& completionHandler)
+void WebChromeClient::showMediaControlsContextMenu(FloatRect&& targetFrame, Vector<MediaControlsContextMenuItem>&& items, HTMLMediaElement& element, CompletionHandler<void(MediaControlsContextMenuItem::ID)>&& completionHandler)
 {
     if (RefPtr page = m_page.get())
-        page->showMediaControlsContextMenu(WTFMove(targetFrame), WTFMove(items), WTFMove(completionHandler));
+        page->showMediaControlsContextMenu(WTFMove(targetFrame), WTFMove(items), element.identifier(), WTFMove(completionHandler));
     else
         completionHandler({ });
 }
@@ -2156,7 +2181,7 @@ void WebChromeClient::showMediaControlsContextMenu(FloatRect&& targetFrame, Vect
 #endif // ENABLE(MEDIA_CONTROLS_CONTEXT_MENUS) && USE(UICONTEXTMENU)
 
 #if ENABLE(WEBXR)
-void WebChromeClient::enumerateImmersiveXRDevices(CompletionHandler<void(const PlatformXR::Instance::DeviceList&)>&& completionHandler)
+void WebChromeClient::enumerateImmersiveXRDevices(CompletionHandler<void(const PlatformXR::DeviceList&)>&& completionHandler)
 {
     if (RefPtr page = m_page.get())
         page->xrSystemProxy().enumerateImmersiveXRDevices(WTFMove(completionHandler));
@@ -2195,7 +2220,7 @@ void WebChromeClient::abortApplePayAMSUISession()
 void WebChromeClient::beginSystemPreview(const URL& url, const SecurityOriginData& topOrigin, const SystemPreviewInfo& systemPreviewInfo, CompletionHandler<void()>&& completionHandler)
 {
     if (RefPtr page = m_page.get())
-        page->sendWithAsyncReply(Messages::WebPageProxy::BeginSystemPreview(WTFMove(url), topOrigin, WTFMove(systemPreviewInfo)), WTFMove(completionHandler));
+        page->sendWithAsyncReply(Messages::WebPageProxy::BeginSystemPreview(url, topOrigin, systemPreviewInfo), WTFMove(completionHandler));
     else
         completionHandler();
 }
@@ -2389,5 +2414,23 @@ bool WebChromeClient::usePluginRendererScrollableArea(LocalFrame& frame) const
 #endif
     return true;
 }
+
+#if ENABLE(VIDEO)
+void WebChromeClient::showCaptionDisplaySettings(HTMLMediaElement& element, const ResolvedCaptionDisplaySettingsOptions& options, CompletionHandler<void(ExceptionOr<void>)>&& completionHandler)
+{
+    RefPtr page = m_page.get();
+    if (!page) {
+        completionHandler(Exception { ExceptionCode::NotSupportedError, "Caption Display Settings are not supported."_s });
+        return;
+    }
+
+    page->sendWithAsyncReply(Messages::WebPageProxy::ShowCaptionDisplaySettings(element.identifier(), options), [completionHandler = WTFMove(completionHandler)] (auto&& expected) mutable {
+        if (expected)
+            completionHandler({ });
+        else
+            completionHandler(expected.error().toException());
+    });
+}
+#endif
 
 } // namespace WebKit

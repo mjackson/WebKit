@@ -29,6 +29,8 @@
 
 #import "InstanceMethodSwizzler.h"
 #import "PlatformUtilities.h"
+#import "TestCocoa.h"
+#import "TestNavigationDelegate.h"
 #import "TestWKWebView.h"
 #import "UIKitSPIForTesting.h"
 #import "UserInterfaceSwizzler.h"
@@ -824,12 +826,75 @@ TEST(WKScrollViewTests, TopScrollPocketCaptureColorAfterSettingHardStyle)
     [scrollView topEdgeEffect].style = UIScrollEdgeEffectStyle.hardStyle;
     [webView waitForNextPresentationUpdate];
 
-    auto topPocketColor = WebCore::colorFromCocoaColor([scrollView _pocketColorForEdge:UIRectEdgeTop]);
-    EXPECT_WK_STREQ("rgb(255, 99, 71)", WebCore::serializationForCSS(topPocketColor));
+    auto topHardPocketColor = WebCore::colorFromCocoaColor([scrollView _pocketColorForEdge:UIRectEdgeTop]);
+    EXPECT_WK_STREQ("rgb(255, 99, 71)", WebCore::serializationForCSS(topHardPocketColor));
     EXPECT_TRUE([scrollView _prefersSolidColorHardPocketForEdge:UIRectEdgeTop]);
+
+    [scrollView topEdgeEffect].style = UIScrollEdgeEffectStyle.softStyle;
+
+    // Removing the top fixed element should also remove the top color extension.
+    [webView objectByEvaluatingJavaScript:@"document.querySelector('header').remove()"];
+    [webView waitForNextPresentationUpdate];
+
+    EXPECT_NULL([scrollView _pocketColorForEdge:UIRectEdgeTop]);
 }
 
 #endif // HAVE(LIQUID_GLASS)
+
+TEST(WKScrollViewTests, SafeAreaEnvironmentVariablesAccountForObscuredContentInsets)
+{
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 800)]);
+    [webView setOverrideSafeAreaInset:UIEdgeInsetsMake(66, 10, 34, 10)];
+
+    RetainPtr scrollView = [webView scrollView];
+
+    auto insets = UIEdgeInsetsMake(100, 0, 20, 0);
+    [webView setObscuredContentInsets:insets];
+
+    [scrollView setContentInsetAdjustmentBehavior:UIScrollViewContentInsetAdjustmentNever];
+    [scrollView setContentInset:insets];
+
+    [webView synchronouslyLoadTestPageNamed:@"safe-area-env"];
+    [webView waitForNextPresentationUpdate];
+
+    auto computedBodyPadding = [&](NSString *side) {
+        return [webView stringByEvaluatingJavaScript:[NSString stringWithFormat:@"getComputedStyle(document.body).padding%@", side]];
+    };
+    EXPECT_WK_STREQ("0px", computedBodyPadding(@"Top"));
+    EXPECT_WK_STREQ("10px", computedBodyPadding(@"Left"));
+    EXPECT_WK_STREQ("14px", computedBodyPadding(@"Bottom"));
+    EXPECT_WK_STREQ("10px", computedBodyPadding(@"Right"));
+}
+
+TEST(WKScrollViewTests, ContentInsetAdjustmentBehaviorChangeAfterViewportFitChange)
+{
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 800)]);
+    RetainPtr scrollView = [webView scrollView];
+
+    UIEdgeInsets insets = UIEdgeInsetsMake(0, 60, 0, 60);
+    [webView setOverrideSafeAreaInset:insets];
+
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    [webView setNavigationDelegate:navigationDelegate.get()];
+
+    [webView loadSimulatedRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://domain1.com"]] responseHTMLString:@"<html><head><meta name='viewport' content='width=device-width, initial-scale=1, viewport-fit=cover'></head></html>"];
+    [navigationDelegate waitForDidFinishNavigation];
+    [webView waitForNextPresentationUpdate];
+
+    EXPECT_EQ([scrollView contentInsetAdjustmentBehavior], UIScrollViewContentInsetAdjustmentNever);
+    EXPECT_EQ([scrollView adjustedContentInset], UIEdgeInsetsZero);
+
+    EXPECT_WK_STREQ([webView stringByEvaluatingJavaScript:@"document.body.clientWidth"], "400");
+
+    [webView loadSimulatedRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://domain2.com"]] responseHTMLString:@"<html><head><meta name='viewport' content='width=device-width, initial-scale=1'></head></html>"];
+    [navigationDelegate waitForDidFinishNavigation];
+    [webView waitForNextPresentationUpdate];
+
+    EXPECT_EQ([scrollView contentInsetAdjustmentBehavior], UIScrollViewContentInsetAdjustmentAlways);
+    EXPECT_EQ([scrollView adjustedContentInset], insets);
+
+    EXPECT_WK_STREQ([webView stringByEvaluatingJavaScript:@"document.body.clientWidth"], "280");
+}
 
 } // namespace TestWebKitAPI
 

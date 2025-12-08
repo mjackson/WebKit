@@ -27,12 +27,14 @@
 
 #include "ContextMenuContextData.h"
 #include "EditorState.h"
+#include "EnhancedSecurityTracking.h"
 #include "GeolocationPermissionRequestManagerProxy.h"
 #include "HiddenPageThrottlingAutoIncreasesCounter.h"
 #include "LayerTreeContext.h"
 #include "PageLoadState.h"
 #include "ProcessThrottler.h"
 #include "ScrollingAccelerationCurve.h"
+#include "TextManipulationParameters.h"
 #include "VisibleWebPageCounter.h"
 #include "WebColorPicker.h"
 #include "WebDataListSuggestionsDropdown.h"
@@ -237,6 +239,14 @@ public:
     uint32_t checkedPtrCountWithoutThreadCheck() const { return WebPopupMenuProxy::Client::checkedPtrCountWithoutThreadCheck(); }
     void incrementCheckedPtrCount() const { WebPopupMenuProxy::Client::incrementCheckedPtrCount(); }
     void decrementCheckedPtrCount() const { WebPopupMenuProxy::Client::decrementCheckedPtrCount(); }
+    void setDidBeginCheckedPtrDeletion()
+    {
+        WebPopupMenuProxy::Client::setDidBeginCheckedPtrDeletion();
+#if ENABLE(APPLE_PAY)
+        WebPaymentCoordinatorProxy::Client::setDidBeginCheckedPtrDeletion();
+#endif
+        WebColorPickerClient::setDidBeginCheckedPtrDeletion();
+    }
 
 #if PLATFORM(MACCATALYST)
     // EndowmentStateTrackerClient
@@ -348,6 +358,7 @@ public:
 
 #if ENABLE(MAC_GESTURE_EVENTS)
     Deque<NativeWebGestureEvent> gestureEventQueue;
+    unsigned droppedGestureEventCount { 0 };
 #endif
 
 #if ENABLE(META_VIEWPORT)
@@ -428,8 +439,12 @@ public:
     bool allowsLayoutViewportHeightExpansion { true };
 
 #if ENABLE(IMAGE_ANALYSIS)
-    std::optional<WebCore::ImageTranslationLanguageIdentifiers> imageTranslationLanguageIdentifiers { std::nullopt };
+    std::optional<WebCore::ImageTranslationLanguageIdentifiers> imageTranslationLanguageIdentifiers;
 #endif
+
+    std::optional<TextManipulationParameters> textManipulationParameters;
+
+    EnhancedSecurityTracking enhancedSecurityTracker;
 
     explicit Internals(WebPageProxy&);
 
@@ -465,6 +480,7 @@ public:
 #endif
 #if ENABLE(APPLE_PAY) && PLATFORM(IOS_FAMILY) && ENABLE(APPLE_PAY_REMOTE_UI_USES_SCENE)
     void getWindowSceneAndBundleIdentifierForPaymentPresentation(WebPageProxyIdentifier, CompletionHandler<void(const String&, const String&)>&&) final;
+    void notifyWillPresentPaymentUI(WebPageProxyIdentifier) final;
 #endif
 #if ENABLE(APPLE_PAY)
     CocoaWindow *paymentCoordinatorPresentingWindow(const WebPaymentCoordinatorProxy&) const final;

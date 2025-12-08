@@ -205,6 +205,11 @@ bool RadioButtonGroup::contains(HTMLInputElement& button) const
 RadioButtonGroups::RadioButtonGroups() = default;
 RadioButtonGroups::~RadioButtonGroups() = default;
 
+void RadioButtonGroups::clear()
+{
+    m_nameToGroupMap.clear();
+}
+
 void RadioButtonGroups::addButton(HTMLInputElement& element)
 {
     ASSERT(element.isRadioButton());

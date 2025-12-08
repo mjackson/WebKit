@@ -31,11 +31,11 @@
 #include "CSSFontSelector.h"
 #include "Document.h"
 #include "FontCascade.h"
-#include "LengthFunctions.h"
 #include "Logging.h"
 #include "RenderBlock.h"
 #include "RenderListMarker.h"
 #include "RenderObjectInlines.h"
+#include "RenderStyleSetters.h"
 #include "RenderText.h"
 #include "RenderTextFragment.h"
 #include "RenderTreeBuilder.h"
@@ -55,7 +55,7 @@ static RenderStyle cloneRenderStyleWithState(const RenderStyle& currentStyle)
     auto newStyle = RenderStyle::clone(currentStyle);
 
     // FIXME: This should probably handle at least ::first-line too.
-    if (auto* firstLetterStyle = currentStyle.getCachedPseudoStyle({ PseudoId::FirstLetter }))
+    if (auto* firstLetterStyle = currentStyle.getCachedPseudoStyle({ PseudoElementType::FirstLetter }))
         newStyle.addCachedPseudoStyle(makeUnique<RenderStyle>(RenderStyle::clone(*firstLetterStyle)));
 
     if (currentStyle.lastChildState())
@@ -157,7 +157,7 @@ auto TextAutoSizingValue::adjustTextNodeSizes() -> StillHasNodes
                 return 0;
             },
             [&](const Style::LineHeight::Fixed& fixed) {
-                return Style::evaluate<LayoutUnit>(fixed, Style::ZoomNeeded { }).toInt();
+                return Style::evaluate<LayoutUnit>(fixed, Style::ZoomFactor { 1.0f, parentStyle.deviceScaleFactor() }).toInt();
             },
             [&](const Style::LineHeight::Percentage& percentage) {
                 return Style::evaluate<LayoutUnit>(percentage, LayoutUnit { fontDescription.specifiedSize() }).toInt();
@@ -169,7 +169,7 @@ auto TextAutoSizingValue::adjustTextNodeSizes() -> StillHasNodes
 
         // This calculation matches the line-height computed size calculation in StyleBuilderCustom::applyValueLineHeight().
         int lineHeight = specifiedLineHeight * scaleChange;
-        if (auto fixedLineHeight = lineHeightLength.tryFixed(); fixedLineHeight && fixedLineHeight->resolveZoom(Style::ZoomNeeded { }) == lineHeight)
+        if (auto fixedLineHeight = lineHeightLength.tryFixed(); fixedLineHeight && fixedLineHeight->resolveZoom(Style::ZoomFactor { 1.0f, parentStyle.deviceScaleFactor() }) == lineHeight)
             continue;
 
         auto newParentStyle = cloneRenderStyleWithState(parentStyle);
@@ -192,7 +192,7 @@ auto TextAutoSizingValue::adjustTextNodeSizes() -> StillHasNodes
         auto [firstLetter, firstLetterContainer] = block->firstLetterAndContainer();
         if (firstLetter && firstLetter->parent() && firstLetter->parent()->parent()) {
             auto& parentStyle = firstLetter->parent()->parent()->style();
-            auto* firstLetterStyle = parentStyle.getCachedPseudoStyle({ PseudoId::FirstLetter });
+            auto* firstLetterStyle = parentStyle.getCachedPseudoStyle({ PseudoElementType::FirstLetter });
             if (!firstLetterStyle)
                 continue;
             auto fontDescription = firstLetterStyle->fontDescription();

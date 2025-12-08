@@ -47,11 +47,15 @@
 #include <wtf/glib/GUniquePtr.h>
 
 #if USE(LIBSECRET)
-#include "GRefPtrGtk.h"
 #include <glib/gi18n-lib.h>
 #define SECRET_WITH_UNSTABLE 1
 #define SECRET_API_SUBJECT_TO_CHANGE 1
 #include <libsecret/secret.h>
+#include <wtf/glib/GRefPtr.h>
+
+namespace WTF {
+WTF_DEFINE_GREF_TRAITS_INLINE(SecretValue, secret_value_ref, secret_value_unref)
+}
 #endif
 
 namespace WebCore {

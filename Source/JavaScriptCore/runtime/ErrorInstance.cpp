@@ -89,7 +89,7 @@ String appendSourceToErrorMessage(CodeBlock* codeBlock, BytecodeIndex bytecodeIn
         return message;
 
     if (expressionStart < expressionStop)
-        return appender(message, codeBlock->source().provider()->getRange(expressionStart, expressionStop), type, ErrorInstance::FoundExactSource);
+        return appender(message, codeBlock->source().provider()->getRange(expressionStart, expressionStop), type, ErrorInstance::SourceTextWhereErrorOccurred::FoundExactSource);
 
     // No range information, so give a few characters of context.
     int dataLength = sourceString.length();
@@ -105,7 +105,7 @@ String appendSourceToErrorMessage(CodeBlock* codeBlock, BytecodeIndex bytecodeIn
         stop++;
     while (stop > expressionStart && isStrWhiteSpace(sourceString[stop - 1]))
         stop--;
-    return appender(message, codeBlock->source().provider()->getRange(start, stop), type, ErrorInstance::FoundApproximateSource);
+    return appender(message, codeBlock->source().provider()->getRange(start, stop), type, ErrorInstance::SourceTextWhereErrorOccurred::FoundApproximateSource);
 }
 
 void ErrorInstance::setStackFrames(VM& vm, WTF::Vector<StackFrame>&& stackFrames)
@@ -461,7 +461,7 @@ bool ErrorInstance::getOwnPropertySlot(JSObject* object, JSGlobalObject* globalO
     return Base::getOwnPropertySlot(thisObject, globalObject, propertyName, slot);
 }
 
-void ErrorInstance::getOwnSpecialPropertyNames(JSObject* object, JSGlobalObject* globalObject, PropertyNameArray&, DontEnumPropertiesMode mode)
+void ErrorInstance::getOwnSpecialPropertyNames(JSObject* object, JSGlobalObject* globalObject, PropertyNameArrayBuilder&, DontEnumPropertiesMode mode)
 {
     VM& vm = globalObject->vm();
     ErrorInstance* thisObject = jsCast<ErrorInstance*>(object);

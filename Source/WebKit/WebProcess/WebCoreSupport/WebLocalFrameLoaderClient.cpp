@@ -77,6 +77,7 @@
 #include <WebCore/FormState.h>
 #include <WebCore/FrameDestructionObserverInlines.h>
 #include <WebCore/FrameLoader.h>
+#include <WebCore/HTMLFormControlElement.h>
 #include <WebCore/HTMLFormElement.h>
 #include <WebCore/HistoryController.h>
 #include <WebCore/HistoryItem.h>
@@ -500,8 +501,6 @@ void WebLocalFrameLoaderClient::didSameDocumentNavigationForFrameViaJS(SameDocum
         false, /* isInitialFrameSrcLoad */
         false, /* isContentRuleListRedirect */
         { }, /* openedMainFrameName */
-        { }, /* requesterOrigin */
-        { }, /* requesterTopOrigin */
         std::nullopt, /* targetBackForwardItemIdentifier */
         std::nullopt, /* sourceBackForwardItemIdentifier */
         WebCore::LockHistory::No,
@@ -523,6 +522,7 @@ void WebLocalFrameLoaderClient::didSameDocumentNavigationForFrameViaJS(SameDocum
         { }, /* originalRequest */
         { }, /* request */
         { }, /* invalidURLString */
+        std::nullopt, /* requester */
     };
 
     // Notify the UIProcess.
@@ -927,7 +927,7 @@ LocalFrame* WebLocalFrameLoaderClient::dispatchCreatePage(const NavigationAction
     if (!newPage)
         return nullptr;
     
-    return newPage->localMainFrame().get();
+    return newPage->localMainFrame();
 }
 
 void WebLocalFrameLoaderClient::dispatchShow()
@@ -1009,8 +1009,6 @@ void WebLocalFrameLoaderClient::dispatchDecidePolicyForNewWindowAction(const Nav
         navigationAction.isInitialFrameSrcLoad(),
         navigationAction.isContentRuleListRedirect(),
         { }, /* openedMainFrameName */
-        { }, /* requesterOrigin */
-        { }, /* requesterTopOrigin */
         std::nullopt, /* targetBackForwardItemIdentifier */
         std::nullopt, /* sourceBackForwardItemIdentifier */
         WebCore::LockHistory::No,
@@ -1032,6 +1030,7 @@ void WebLocalFrameLoaderClient::dispatchDecidePolicyForNewWindowAction(const Nav
         { }, /* originalRequest */
         request,
         request.url().isValid() ? String() : request.url().string(), /* invalidURLString */
+        std::nullopt, /* requester */
     };
 
     webPage->sendWithAsyncReply(Messages::WebPageProxy::DecidePolicyForNewWindowAction(navigationActionData, frameName), [frame = m_frame, listenerID] (PolicyDecision&& policyDecision) {
@@ -1080,6 +1079,16 @@ void WebLocalFrameLoaderClient::setPrinting(bool printing, FloatSize pageSize, F
     WebFrameLoaderClient::setPrinting(printing, pageSize, originalPageSize, maximumShrinkRatio, adjustViewSize);
 }
 
+void WebLocalFrameLoaderClient::broadcastAllFrameTreeSyncDataToOtherProcesses(FrameTreeSyncData& data)
+{
+    WebFrameLoaderClient::broadcastAllFrameTreeSyncDataToOtherProcesses(data);
+}
+
+void WebLocalFrameLoaderClient::broadcastFrameTreeSyncDataToOtherProcesses(const FrameTreeSyncSerializationData& data)
+{
+    WebFrameLoaderClient::broadcastFrameTreeSyncDataToOtherProcesses(data);
+}
+
 void WebLocalFrameLoaderClient::cancelPolicyCheck()
 {
     m_frame->invalidatePolicyListeners();
@@ -1104,7 +1113,7 @@ void WebLocalFrameLoaderClient::dispatchWillSendSubmitEvent(Ref<FormState>&& for
     webPage->injectedBundleFormClient().willSendSubmitEvent(webPage.get(), form.ptr(), m_frame.ptr(), sourceFrame.get(), formState->textFieldValues());
 }
 
-void WebLocalFrameLoaderClient::dispatchWillSubmitForm(FormState& formState, CompletionHandler<void()>&& completionHandler)
+void WebLocalFrameLoaderClient::dispatchWillSubmitForm(FormState& formState, URL&& requestURL, String&& method, CompletionHandler<void()>&& completionHandler)
 {
     RefPtr webPage = m_frame->page();
     if (!webPage) {
@@ -1134,7 +1143,7 @@ void WebLocalFrameLoaderClient::dispatchWillSubmitForm(FormState& formState, Com
         }
     }
 
-    webPage->sendWithAsyncReply(Messages::WebPageProxy::WillSubmitForm(m_frame->info(), sourceFrame->info(), values, UserData(WebProcess::singleton().transformObjectsToHandles(userData.get()).get())), WTFMove(completionHandler));
+    webPage->sendWithAsyncReply(Messages::WebPageProxy::WillSubmitForm { m_frame->info(), sourceFrame->info(), values, UserData { WebProcess::singleton().transformObjectsToHandles(userData.get()).get() }, requestURL, method }, WTFMove(completionHandler));
 }
 
 void WebLocalFrameLoaderClient::revertToProvisionalState(DocumentLoader*)
@@ -1819,52 +1828,6 @@ void WebLocalFrameLoaderClient::dispatchWillDestroyGlobalObjectForDOMWindowExten
         
     webPage->injectedBundleLoaderClient().willDestroyGlobalObjectForDOMWindowExtension(*webPage, extension);
 }
-
-#if PLATFORM(COCOA)
-    
-WebCore::IntPoint WebLocalFrameLoaderClient::accessibilityRemoteFrameOffset()
-{
-    RefPtr webPage = m_frame->page();
-    return webPage ? webPage->accessibilityRemoteFrameOffset() : IntPoint();
-}
-
-RemoteAXObjectRef WebLocalFrameLoaderClient::accessibilityRemoteObject()
-{
-    RefPtr webPage = m_frame->page();
-    if (!webPage)
-        return 0;
-    
-    return webPage->accessibilityRemoteObject();
-}
-
-#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
-void WebLocalFrameLoaderClient::setIsolatedTree(Ref<WebCore::AXIsolatedTree>&& tree)
-{
-    ASSERT(isMainRunLoop());
-    if (RefPtr webPage = m_frame->page())
-        webPage->setIsolatedTree(WTFMove(tree));
-}
-#endif
-
-void WebLocalFrameLoaderClient::willCacheResponse(DocumentLoader*, ResourceLoaderIdentifier identifier, NSCachedURLResponse* response, CompletionHandler<void(NSCachedURLResponse *)>&& completionHandler) const
-{
-    RefPtr webPage = m_frame->page();
-    if (!webPage)
-        return completionHandler(response);
-
-    return completionHandler(webPage->injectedBundleResourceLoadClient().shouldCacheResponse(*webPage, m_frame, identifier) ? response : nil);
-}
-
-std::optional<double> WebLocalFrameLoaderClient::dataDetectionReferenceDate()
-{
-    RefPtr webPage = m_frame->page();
-    if (!webPage)
-        return std::nullopt;
-
-    return webPage->dataDetectionReferenceDate();
-}
-
-#endif // PLATFORM(COCOA)
 
 void WebLocalFrameLoaderClient::didChangeScrollOffset()
 {

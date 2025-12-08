@@ -25,15 +25,13 @@
 
 #pragma once
 
-#include <WebCore/ModelObjectDescriptorBase.h>
-
 namespace WebCore::DDModel {
 
-struct DDVertexAttributeFormat : public ObjectDescriptorBase {
-    int32_t semantic;
-    int32_t format;
-    int32_t layoutIndex;
-    int32_t offset;
+struct DDVertexAttributeFormat {
+    long semantic;
+    unsigned long format;
+    long layoutIndex;
+    long offset;
 };
 
 }

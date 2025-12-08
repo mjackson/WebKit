@@ -44,6 +44,7 @@
 #include "FrameLoader.h"
 #include "HTMLFrameOwnerElement.h"
 #include "InspectorInstrumentation.h"
+#include "LegacySchemeRegistry.h"
 #include "LoaderStrategy.h"
 #include "LocalFrame.h"
 #include "LocalFrameLoaderClient.h"
@@ -69,10 +70,6 @@
 #if USE(QUICK_LOOK)
 #include "LegacyPreviewLoader.h"
 #include "PreviewConverter.h"
-#endif
-
-#if PLATFORM(COCOA)
-#include "BundleResourceLoader.h"
 #endif
 
 #undef RESOURCELOADER_RELEASE_LOG
@@ -164,7 +161,7 @@ void ResourceLoader::init(ResourceRequest&& clientRequest, CompletionHandler<voi
         return completionHandler(false);
     }
 
-    if (!portAllowed(clientRequest.url())) {
+    if (!isPortAllowed(clientRequest.url())) {
         RESOURCELOADER_RELEASE_LOG("init: Cancelling load to a blocked port.");
         FrameLoader::reportBlockedLoadFailed(*frame, clientRequest.url());
         releaseResources();
@@ -255,13 +252,6 @@ void ResourceLoader::start()
         loadDataURL();
         return;
     }
-
-#if PLATFORM(COCOA)
-    if (isPDFJSResourceLoad()) {
-        BundleResourceLoader::loadResourceFromBundle(*this, "pdfjs/"_s);
-        return;
-    }
-#endif
 
 #if USE(SOUP)
     if (m_request.url().protocolIs("resource"_s) || isPDFJSResourceLoad()) {
@@ -385,7 +375,7 @@ void ResourceLoader::addBuffer(const FragmentedSharedBuffer& buffer, DataPayload
 
 const FragmentedSharedBuffer* ResourceLoader::resourceData() const
 {
-    return m_resourceData.get().get();
+    return m_resourceData.buffer();
 }
 
 RefPtr<const FragmentedSharedBuffer> ResourceLoader::protectedResourceData() const
@@ -788,6 +778,11 @@ ResourceError ResourceLoader::cannotShowURLError()
 ResourceError ResourceLoader::httpsUpgradeRedirectLoopError()
 {
     return platformStrategies()->loaderStrategy()->httpsUpgradeRedirectLoopError(m_request);
+}
+
+bool ResourceLoader::isPortAllowed(const URL& url)
+{
+    return portAllowed(url) || (url.port() && !url.port().value() && LegacySchemeRegistry::schemeIsHandledBySchemeHandler(url.protocol()));
 }
 
 void ResourceLoader::willSendRequestAsync(ResourceHandle* handle, ResourceRequest&& request, ResourceResponse&& redirectResponse, CompletionHandler<void(ResourceRequest&&)>&& completionHandler)

@@ -202,9 +202,7 @@ WebEditorClient::WebEditorClient(WebView *webView)
 {
 }
 
-WebEditorClient::~WebEditorClient()
-{
-}
+WebEditorClient::~WebEditorClient() = default;
 
 bool WebEditorClient::isContinuousSpellCheckingEnabled()
 {
@@ -1269,6 +1267,10 @@ void WebEditorClient::requestCheckingOfString(TextCheckingRequest& request, cons
         }];
     }];
 #endif
+}
+
+void WebEditorClient::requestExtendedCheckingOfString(TextCheckingRequest& request, const VisibleSelection& currentSelection)
+{
 }
 
 #if PLATFORM(IOS_FAMILY)

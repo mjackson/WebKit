@@ -110,25 +110,43 @@ bool DebugServer::start(VM* vm)
         return false;
 
     RELEASE_ASSERT(isSocketValid(m_serverSocket));
-    auto ownerThread = vm->ownerThread();
-    if (!ownerThread || !*ownerThread) {
-        dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] VM has no valid owner thread");
-        closeSocket(m_serverSocket);
-        return false;
-    }
 
     m_vm = vm;
-    m_mutatorThreadId = (*ownerThread)->uid();
-
-    m_instanceManager = makeUnique<ModuleManager>(*vm);
+    m_moduleManager = makeUnique<ModuleManager>(*vm);
     m_breakpointManager = makeUnique<BreakpointManager>();
-    m_executionHandler = makeUnique<ExecutionHandler>(*this, *m_instanceManager, *m_breakpointManager);
+    m_executionHandler = makeUnique<ExecutionHandler>(*this, *m_moduleManager, *m_breakpointManager);
 
     startAcceptThread();
 
     setState(State::Running);
     return true;
 }
+
+#if ENABLE(REMOTE_INSPECTOR)
+bool DebugServer::startRWI(VM* vm, Function<bool(const String&)>&& rwiResponseHandler)
+{
+    if (isState(State::Running) || isState(State::Starting)) {
+        dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Server already running or is starting");
+        return true;
+    }
+
+    setState(State::Starting);
+
+    m_vm = vm;
+    m_moduleManager = makeUnique<ModuleManager>(*vm);
+    m_breakpointManager = makeUnique<BreakpointManager>();
+    m_executionHandler = makeUnique<ExecutionHandler>(*this, *m_moduleManager, *m_breakpointManager);
+    m_rwiResponseHandler = WTFMove(rwiResponseHandler);
+
+    // RWI mode: No thread creation needed!
+    // IPC messages are received by WasmDebuggerDispatcher on its WorkQueue thread
+    // and directly call handleRawPacket() on that thread
+
+    setState(State::Running);
+    dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Wasm Debug Server started in RWI mode (WorkQueue-based)");
+    return true;
+}
+#endif
 
 void DebugServer::stop()
 {
@@ -158,16 +176,16 @@ void DebugServer::setState(State state)
 {
     switch (state) {
     case State::Stopped:
-        dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] LLDB Server is stopped");
+        dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Debug Server is stopped");
         break;
     case State::Starting:
-        dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Starting LLDB Server...");
+        dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Starting Debug Server...");
         break;
     case State::Running:
-        dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] WASM Debug Server listening. Connect with: lldb -o 'gdb-remote localhost:", m_port);
+        dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Wasm Debug Server listening. Connect with: lldb -o 'gdb-remote localhost:", m_port);
         break;
     case State::Stopping:
-        dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Stopping LLDB Server...");
+        dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Stopping Debug Server...");
         break;
     }
     m_state.store(state);
@@ -176,29 +194,38 @@ void DebugServer::setState(State state)
 bool DebugServer::isState(State state) const
 {
     bool result = m_state.load() == state;
-    if (result && state == State::Running)
+    if (result && state == State::Running) {
+#if ENABLE(REMOTE_INSPECTOR)
+        if (isRWIMode())
+            return result;
+#endif
         RELEASE_ASSERT(isSocketValid(m_serverSocket));
-    return m_state.load() == state;
+    }
+    return result;
 }
 
 void DebugServer::resetAll()
 {
+    m_state.store(State::Stopped);
     m_port = defaultPort;
     closeSocket(m_serverSocket);
     closeSocket(m_clientSocket);
-    m_noAckMode = false;
+    m_acceptThread = nullptr;
 
     m_vm = nullptr;
-    m_mutatorThreadId = 0;
-    m_debugServerThreadId = 0;
+    m_debugServerThreadId = std::nullopt;
 
+    m_noAckMode = false;
     m_queryHandler = nullptr;
     m_memoryHandler = nullptr;
     m_executionHandler = nullptr;
 
-    m_instanceManager = nullptr;
+    m_moduleManager = nullptr;
     m_breakpointManager = nullptr;
-    m_acceptThread = nullptr;
+
+#if ENABLE(REMOTE_INSPECTOR)
+    m_rwiResponseHandler = nullptr;
+#endif
 }
 
 bool DebugServer::needToHandleBreakpoints() const
@@ -296,13 +323,22 @@ void DebugServer::closeSocket(SocketType& socket)
     }
 }
 
+void DebugServer::reset()
+{
+    // Reset to the init state without stopping the debug server.
+    m_executionHandler->reset();
+    m_breakpointManager->clearAllBreakpoints();
+    closeSocket(m_clientSocket);
+    m_noAckMode = false;
+}
+
 void DebugServer::handleClient()
 {
     RELEASE_ASSERT(isSocketValid(m_clientSocket));
 
-    dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] LLDB connected, starting client handler - process continues running normally");
+    dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Client connected (TCP socket mode), starting handler - process continues running normally");
 
-    // Send initial acknowledgment - LLDB expects this immediately
+    // Send initial acknowledgment - client expects this immediately.
     sendAck();
 
     constexpr size_t INITIAL_RECV_BUFFER_SIZE = 4096;
@@ -315,36 +351,50 @@ void DebugServer::handleClient()
             break;
         }
 
-        StringView data(receiveBuffer.get(), bytesRead, true);
-        dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Received raw: ", data, " (", bytesRead, " bytes)");
-
-        if (bytesRead == 1) {
-            // Handle interrupt character (Reference [1] in wasm/debugger/README.md)
-            if (data[0] == 0x03) {
-                dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Received Ctrl+C interrupt - triggering stack overflow");
-                m_executionHandler->interrupt();
-                continue;
-            }
-
-            // Handle ACK/NACK characters (Reference [2] in wasm/debugger/README.md)
-            if (data[0] == '+' || data[0] == '-')
-                continue;
-        }
-
-        // Handle packet format: $<data>#<checksum>
-        Vector<StringView> parts = splitWithDelimiters(data, "$#"_s);
-        if (parts.size() != 3)
-            continue;
-        handlePacket(parts[1]);
+        StringView rawPacket(receiveBuffer.get(), bytesRead, true);
+        handleRawPacket(rawPacket);
     }
 
     // FIXME: Currently client disconnect, kill, and quit commands just stop the client session only for easy debugging purposes.
     // Eventually we need to introduce various stop states, e.g., termination.
-    m_executionHandler->reset();
-    m_breakpointManager->clearAllBreakpoints();
-    closeSocket(m_clientSocket);
-    m_noAckMode = false;
-    dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] LLDB disconnected");
+    reset();
+    dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Client disconnected (TCP socket mode)");
+}
+
+void DebugServer::handleRawPacket(StringView rawPacket)
+{
+    dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Processing raw data: ", rawPacket, " (", rawPacket.length(), " bytes)");
+
+#if ENABLE(REMOTE_INSPECTOR)
+    if (isRWIMode())
+        m_debugServerThreadId = Thread::currentSingleton().uid();
+#endif
+
+    // Handle single-byte control characters
+    if (rawPacket.length() == 1) {
+        // Handle interrupt character (Reference [1] in wasm/debugger/README.md)
+        if (rawPacket[0] == 0x03) {
+            dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Received Ctrl+C interrupt - triggering stack overflow");
+            m_executionHandler->interrupt();
+            return;
+        }
+
+        // Handle ACK/NACK characters (Reference [2] in wasm/debugger/README.md)
+        if (rawPacket[0] == '+' || rawPacket[0] == '-') {
+            dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Received ACK/NACK character, ignoring");
+            return;
+        }
+    }
+
+    // Handle packet format: $<data>#<checksum>
+    Vector<StringView> parts = splitWithDelimiters(rawPacket, "$#"_s);
+    if (parts.size() != 3) {
+        dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Malformed packet, ignoring");
+        return;
+    }
+
+    // parts[0] = before $, parts[1] = command, parts[2] = after #
+    handlePacket(parts[1]);
 }
 
 void DebugServer::handlePacket(StringView packet)
@@ -401,8 +451,14 @@ void DebugServer::handlePacket(StringView packet)
         m_executionHandler->interrupt();
         break;
     case 'k':
+    case 'D':
         dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Kill/detach request");
-        closeSocket(m_clientSocket);
+#if ENABLE(REMOTE_INSPECTOR)
+        if (isRWIMode())
+            reset();
+        else
+#endif
+            closeSocket(m_clientSocket);
         break;
     default:
         sendReplyNotSupported(packet);
@@ -485,10 +541,10 @@ void DebugServer::handleThreadManagement(StringView packet)
 
 void DebugServer::trackInstance(JSWebAssemblyInstance* instance)
 {
-    if (!m_instanceManager)
+    if (!m_moduleManager)
         return;
     dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Tracking WebAssembly instance: ", RawPointer(instance));
-    uint32_t instanceId = m_instanceManager->registerInstance(instance);
+    uint32_t instanceId = m_moduleManager->registerInstance(instance);
     if (isConnected()) {
         UNUSED_VARIABLE(instanceId);
         // FIXME: Should notify LLDB with new module library.
@@ -497,10 +553,10 @@ void DebugServer::trackInstance(JSWebAssemblyInstance* instance)
 
 void DebugServer::trackModule(Module& module)
 {
-    if (!m_instanceManager)
+    if (!m_moduleManager)
         return;
     dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Tracking WebAssembly module: ", RawPointer(&module));
-    uint32_t moduleId = m_instanceManager->registerModule(module);
+    uint32_t moduleId = m_moduleManager->registerModule(module);
     if (isConnected()) {
         UNUSED_VARIABLE(moduleId);
         // FIXME: Should notify LLDB with new module library.
@@ -509,17 +565,72 @@ void DebugServer::trackModule(Module& module)
 
 void DebugServer::untrackModule(Module& module)
 {
-    if (!m_instanceManager)
+    if (!m_moduleManager)
         return;
     dataLogLnIf(Options::verboseWasmDebugger(), "[Debugger] Untracking WebAssembly module: ", RawPointer(&module));
-    m_instanceManager->unregisterModule(module);
+    m_moduleManager->unregisterModule(module);
 }
-
-bool DebugServer::interruptRequested() const { return m_vm && m_vm->isWasmStopWorldActive(); }
 
 bool DebugServer::stopCode(CallFrame* callFrame, JSWebAssemblyInstance* instance, IPIntCallee* callee, uint8_t* pc, uint8_t* mc, IPInt::IPIntLocal* locals, IPInt::IPIntStackEntry* stack) { return m_executionHandler->stopCode(callFrame, instance, callee, pc, mc, locals, stack); }
 
-void DebugServer::setInterruptBreakpoint(JSWebAssemblyInstance* instance, IPIntCallee* callee) { return m_executionHandler->setInterruptBreakpoint(instance, callee); }
+void DebugServer::setInterruptBreakpoint(JSWebAssemblyInstance* instance, IPIntCallee* callee) { return m_executionHandler->setBreakpointAtEntry(instance, callee, Breakpoint::Type::Interrupt); }
+
+void DebugServer::setStepIntoBreakpointForCall(VM& vm, CalleeBits boxedCallee, JSWebAssemblyInstance* instance)
+{
+    if (!vm.takeStepIntoWasmCall())
+        return;
+
+    if (!instance)
+        return;
+    if (!boxedCallee.isNativeCallee())
+        return;
+    RefPtr wasmCallee = uncheckedDowncast<Wasm::Callee>(boxedCallee.asNativeCallee());
+    if (wasmCallee->compilationMode() != Wasm::CompilationMode::IPIntMode)
+        return;
+
+    m_executionHandler->setBreakpointAtEntry(instance, uncheckedDowncast<IPIntCallee>(wasmCallee.get()), Breakpoint::Type::Step);
+}
+
+void DebugServer::setStepIntoBreakpointForThrow(VM& vm, JSWebAssemblyInstance* instance)
+{
+    RELEASE_ASSERT(instance);
+
+    if (!vm.takeStepIntoWasmThrow())
+        return;
+
+    if (!vm.callFrameForCatch)
+        return;
+    if (!vm.callFrameForCatch->callee().isNativeCallee())
+        return;
+    RefPtr wasmCallee = uncheckedDowncast<Wasm::Callee>(vm.callFrameForCatch->callee().asNativeCallee());
+    if (wasmCallee->compilationMode() != Wasm::CompilationMode::IPIntMode)
+        return;
+
+    RefPtr catchCallee = uncheckedDowncast<IPIntCallee>(wasmCallee.get());
+    ASSERT(std::holds_alternative<uintptr_t>(vm.targetInterpreterPCForThrow));
+    uintptr_t handlerOffset = std::get<uintptr_t>(vm.targetInterpreterPCForThrow);
+    const uint8_t* handlerPC = catchCallee->bytecode() + handlerOffset;
+
+    if (*handlerPC == static_cast<uint8_t>(Wasm::OpType::TryTable) && vm.targetInterpreterMetadataPCForThrow) {
+        const uint8_t* metadataPtr = catchCallee->metadata() + vm.targetInterpreterMetadataPCForThrow;
+        metadataPtr += sizeof(IPInt::CatchMetadata);
+        const IPInt::BlockMetadata* blockMetadata = reinterpret_cast<const IPInt::BlockMetadata*>(metadataPtr);
+        handlerPC = handlerPC + blockMetadata->deltaPC;
+    }
+
+    m_executionHandler->setBreakpointAtPC(instance, catchCallee->functionIndex(), Breakpoint::Type::Step, handlerPC);
+}
+
+bool DebugServer::isConnected() const
+{
+    if (!isState(State::Running))
+        return false;
+#if ENABLE(REMOTE_INSPECTOR)
+    if (isRWIMode())
+        return true;
+#endif
+    return isSocketValid(m_clientSocket);
+}
 
 }
 } // namespace JSC::Wasm

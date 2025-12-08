@@ -170,7 +170,7 @@ RefPtr<BBQCallee> CalleeGroup::tryGetBBQCalleeForLoopOSRConcurrently(VM& vm, Fun
     if (m_optimizedCallees.isEmpty())
         return nullptr;
 
-    // Do not use optimizedCalleesTuple. optimizedCalleesTuple handles currently-installing Callee. But we do not want to handle it actually.
+    // Do not use optimizedCalleesTuple. optimizedCalleesTuple adjusts the result with currently-installing Callee. But we do not want to handle it actually.
     // We would like to peek the callee when it is stored into m_optimizedCallees without taking a lock.
     auto* tuple = &m_optimizedCallees[functionIndex];
     RefPtr<BBQCallee> bbqCallee;

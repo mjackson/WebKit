@@ -188,7 +188,7 @@ sub AddAsyncIterableOperationIfNeeded
 
     return unless $interface->asyncIterable;
     $interface->asyncIterable->extendedAttributes->{FromIterable} = 1;
-    addGenericIterableOperations($interface, $interface->asyncIterable, "[Symbol.asyncIterator]");
+    addGenericIterableOperations($interface, $interface->asyncIterable, "[Symbol.asyncIterator]", 0);
 }
 
 sub AddIterableOperationIfNeeded
@@ -198,7 +198,7 @@ sub AddIterableOperationIfNeeded
     return unless $interface->iterable;
 
     $interface->iterable->extendedAttributes->{FromIterable} = 1;
-    addGenericIterableOperations($interface, $interface->iterable, "[Symbol.Iterator]");
+    addGenericIterableOperations($interface, $interface->iterable, "[Symbol.Iterator]", 1);
 
     my $forEachOperation = IDLOperation->new();
     $forEachOperation->name("forEach");
@@ -216,6 +216,7 @@ sub addGenericIterableOperations
     my $interface = shift;
     my $iterable = shift;
     my $iteratorName = shift;
+    my $isSync = shift;
 
     my $symbolIteratorOperation = IDLOperation->new();
     $symbolIteratorOperation->name($iteratorName);
@@ -224,17 +225,20 @@ sub addGenericIterableOperations
     push(@{$iterable->operations}, $symbolIteratorOperation);
     push(@{$interface->operations}, $symbolIteratorOperation) if IsKeyValueIterableInterface($interface);
 
-    my $entriesOperation = IDLOperation->new();
-    $entriesOperation->name("entries");
-    IDLParser::copyExtendedAttributes($entriesOperation->extendedAttributes, $iterable->extendedAttributes);
-    push(@{$iterable->operations}, $entriesOperation);
-    push(@{$interface->operations}, $entriesOperation) if IsKeyValueIterableInterface($interface);
+    # FIXME: We should enable this code path for iterable as well once FontFaceSet is migrated to setlike.
+    if ($iterable->isKeyValue || $isSync) {
+        my $entriesOperation = IDLOperation->new();
+        $entriesOperation->name("entries");
+        IDLParser::copyExtendedAttributes($entriesOperation->extendedAttributes, $iterable->extendedAttributes);
+        push(@{$iterable->operations}, $entriesOperation);
+        push(@{$interface->operations}, $entriesOperation) if IsKeyValueIterableInterface($interface);
 
-    my $keysOperation = IDLOperation->new();
-    $keysOperation->name("keys");
-    IDLParser::copyExtendedAttributes($keysOperation->extendedAttributes, $iterable->extendedAttributes);
-    push(@{$iterable->operations}, $keysOperation);
-    push(@{$interface->operations}, $keysOperation) if IsKeyValueIterableInterface($interface);
+        my $keysOperation = IDLOperation->new();
+        $keysOperation->name("keys");
+        IDLParser::copyExtendedAttributes($keysOperation->extendedAttributes, $iterable->extendedAttributes);
+        push(@{$iterable->operations}, $keysOperation);
+        push(@{$interface->operations}, $keysOperation) if IsKeyValueIterableInterface($interface);
+    }
 
     my $valuesOperation = IDLOperation->new();
     $valuesOperation->name("values");
@@ -1119,7 +1123,7 @@ sub GenerateGetOwnPropertyNames
     my $namedGetterOperation = GetNamedGetterOperation($interface);
     my $indexedGetterOperation = GetIndexedGetterOperation($interface);
     
-    push(@$outputArray, "void ${className}::getOwnPropertyNames(JSObject* object, JSGlobalObject* lexicalGlobalObject, PropertyNameArray& propertyNames, DontEnumPropertiesMode mode)\n");
+    push(@$outputArray, "void ${className}::getOwnPropertyNames(JSObject* object, JSGlobalObject* lexicalGlobalObject, PropertyNameArrayBuilder& propertyNames, DontEnumPropertiesMode mode)\n");
     push(@$outputArray, "{\n");
     if ($indexedGetterOperation || $namedGetterOperation) {
         push(@$outputArray, "    SUPPRESS_UNCOUNTED_LOCAL auto& vm = JSC::getVM(lexicalGlobalObject);\n");
@@ -3242,7 +3246,7 @@ sub GenerateHeader
     }
     
     if (InstanceOverridesGetOwnPropertyNames($interface)) {
-        push(@headerContent, "    static void getOwnPropertyNames(JSC::JSObject*, JSC::JSGlobalObject*, JSC::PropertyNameArray&, JSC::DontEnumPropertiesMode);\n");
+        push(@headerContent, "    static void getOwnPropertyNames(JSC::JSObject*, JSC::JSGlobalObject*, JSC::PropertyNameArrayBuilder&, JSC::DontEnumPropertiesMode);\n");
         $structureFlags{"JSC::OverridesGetOwnPropertyNames"} = 1;
     }
     
@@ -4170,25 +4174,7 @@ sub GetGnuMangledNameForInterface
 sub GetGnuVTableOffsetForType
 {
     my $typename = shift;
-    if ($typename eq "ApplePaySession"
-        || $typename eq "SVGAElement"
-        || $typename eq "SVGCircleElement"
-        || $typename eq "SVGClipPathElement"
-        || $typename eq "SVGDefsElement"
-        || $typename eq "SVGEllipseElement"
-        || $typename eq "SVGForeignObjectElement"
-        || $typename eq "SVGGElement"
-        || $typename eq "SVGImageElement"
-        || $typename eq "SVGLineElement"
-        || $typename eq "SVGPathElement"
-        || $typename eq "SVGPolyElement"
-        || $typename eq "SVGPolygonElement"
-        || $typename eq "SVGPolylineElement"
-        || $typename eq "SVGGeometryElement"
-        || $typename eq "SVGGraphicsElement"
-        || $typename eq "SVGSwitchElement"
-        || $typename eq "SVGTextElement"
-        || $typename eq "SVGUseElement") {
+    if ($typename eq "ApplePaySession") {
         return "3";
     }
     return "2";
@@ -4989,7 +4975,12 @@ sub GenerateImplementation
         }
         if (InterfaceNeedsAsyncIterator($interface)) {
             AddToImplIncludes("<JavaScriptCore/BuiltinNames.h>");
-            if (IsKeyValueIterableInterface($interface)) {
+            # FIXME: We should parse EnabledBySetting as done for other methods.
+            my $enabledBySettings = $interface->asyncIterable->extendedAttributes->{EnabledBySetting};
+            if ($enabledBySettings) {
+                push(@implContent, "    if (jsCast<JSDOMGlobalObject*>(globalObject())->scriptExecutionContext()->settingsValues()." . ToMethodName($enabledBySettings) . ")\n    ");
+            }
+            if ($interface->asyncIterable->isKeyValue) {
                 push(@implContent, "    putDirect(vm, vm.propertyNames->asyncIteratorSymbol, getDirect(vm, vm.propertyNames->builtinNames().entriesPublicName()), static_cast<unsigned>(JSC::PropertyAttribute::DontEnum));\n");
             } else {
                 push(@implContent, "    putDirect(vm, vm.propertyNames->asyncIteratorSymbol, getDirect(vm, vm.propertyNames->builtinNames().valuesPublicName()), static_cast<unsigned>(JSC::PropertyAttribute::DontEnum));\n");
@@ -5555,7 +5546,12 @@ END
 
         push(@implContent, "JSC::JSValue toJSNewlyCreated(JSC::JSGlobalObject* lexicalGlobalObject, JSDOMGlobalObject* globalObject, Ref<$implType>&& impl)\n");
         push(@implContent, "{\n");
-        push (@implContent, "    UNUSED_PARAM(lexicalGlobalObject);\n");
+        if ($implType =~ /Document$/) {
+            AddToImplIncludes("JSDocumentCustom.h");
+            push(@implContent, "    reportMemoryForDocumentIfFrameless(*lexicalGlobalObject, impl.get());\n");
+        } else {
+            push(@implContent, "    UNUSED_PARAM(lexicalGlobalObject);\n");
+        }
         my $hasChildInterfaces = 0;
         unless ($interface->extendedAttributes->{IgnoreSubclassesWhenGeneratingToJSObject}) {
             $codeGenerator->ForEachChildInterface($interface, sub {
@@ -5579,7 +5575,7 @@ END
                     }
                 }
                 push(@implContent, "    if (is<${childImplType}>(impl))\n");
-                push(@implContent, "        return toJSNewlyCreated(lexicalGlobalObject, globalObject, downcast<${childImplType}>(WTFMove(impl)));\n");
+                push(@implContent, "        return toJSNewlyCreated(lexicalGlobalObject, globalObject, uncheckedDowncast<${childImplType}>(WTFMove(impl)));\n");
                 push(@implContent, "#endif\n") if $conditional;
             });
         }
@@ -5593,6 +5589,11 @@ END
 
         push(@implContent, "JSC::JSValue toJS(JSC::JSGlobalObject* lexicalGlobalObject, JSDOMGlobalObject* globalObject, ${implType}& impl)\n");
         push(@implContent, "{\n");
+        if ($implType =~ /Document$/) {
+            AddToImplIncludes("JSDocumentCustom.h");
+            push(@implContent, "    if (auto* wrapper = cachedDocumentWrapper(*lexicalGlobalObject, *globalObject, impl))\n");
+            push(@implContent, "        return wrapper;\n");
+        }
         push(@implContent, "    return wrap(lexicalGlobalObject, globalObject, impl);\n");
         push(@implContent, "}\n\n");
     }
@@ -7124,7 +7125,7 @@ sub GenerateCallbackImplementationOperationBody
     push(@$contentRef, "    if (returnedException) {\n");
     if ($codeGenerator->IsPromiseType($operation->type)) {
         push(@$contentRef, "        auto* jsPromise = JSC::JSPromise::create(vm, globalObject.promiseStructure());\n");
-        push(@$contentRef, "        jsPromise->rejectAsHandled(&globalObject, returnedException->value());\n");
+        push(@$contentRef, "        jsPromise->rejectAsHandled(vm, &globalObject, returnedException->value());\n");
         push(@$contentRef, "        return { DOMPromise::create(globalObject, *jsPromise) };\n");
     } elsif ($isForRethrowingHandler) {
         push(@$contentRef, "        auto throwScope = DECLARE_THROW_SCOPE(vm);\n");
@@ -7442,9 +7443,9 @@ public:
         return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info());
     }
 
-    static ${iteratorName}* create(JSC::VM& vm, JSC::Structure* structure, ${className}& iteratedObject, IterationKind kind)
+    static ${iteratorName}* create(JSC::VM& vm, JSC::Structure* structure, ${className}& iteratedObject, IterationKind kind, InternalIterator&& iterator)
     {
-        auto* instance = new (NotNull, JSC::allocateCell<${iteratorName}>(vm)) ${iteratorName}(structure, iteratedObject, kind);
+        auto* instance = new (NotNull, JSC::allocateCell<${iteratorName}>(vm)) ${iteratorName}(structure, iteratedObject, kind, WTFMove(iterator));
         instance->finishCreation(vm);
         return instance;
     }
@@ -7461,8 +7462,8 @@ END
 
     push(@implContent,  <<END);
 private:
-    ${iteratorName}(JSC::Structure* structure, ${className}& iteratedObject, IterationKind kind)
-        : Base(structure, iteratedObject, kind)
+    ${iteratorName}(JSC::Structure* structure, ${className}& iteratedObject, IterationKind kind, InternalIterator&& iterator)
+        : Base(structure, iteratedObject, kind, WTFMove(iterator))
     {
     }
 };
@@ -7500,9 +7501,46 @@ END
             $iterationKind = "Values" if $propertyName eq "entries" and not $iterable->isKeyValue;
 
             push(@implContent,  <<END);
-static inline EncodedJSValue ${functionName}Caller(JSGlobalObject*, CallFrame*, JS$interfaceName* thisObject)
+static inline EncodedJSValue ${functionName}Caller(JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame, JS$interfaceName* thisObject)
 {
-    return JSValue::encode(iteratorCreate<${iteratorName}>(*thisObject, IterationKind::${iterationKind}));
+    UNUSED_PARAM(callFrame);
+    SUPPRESS_UNCOUNTED_LOCAL auto& vm = JSC::getVM(lexicalGlobalObject);
+    auto throwScope = DECLARE_THROW_SCOPE(vm);
+END
+
+            my @creationArgumentList = ($iterationKind);
+            if ($interface->asyncIterable) {
+                my $argumentIndex = 0;
+                my $quotedFunctionName = "\"$functionName\"_s";
+                my $conditional = $codeGenerator->GenerateConditionalString($operation);
+                foreach my $argument (@{$interface->asyncIterable->arguments}) {
+                    my $name = $argument->name;
+                    my $type = $argument->type;
+                    AddToImplIncludesForIDLType($type, $conditional);
+
+                    my $globalObjectReference = "*castedThis->globalObject()";
+                    my $argumentExceptionThrowerFunctor = GetArgumentExceptionThrowerFunctor($interface, $argument, $argumentIndex, $quotedFunctionName);
+                    my $argumentDefaultValueFunctor = GetArgumentDefaultValueFunctor($interface, $argument);
+                    my $optional = 1;
+                    my $argumentLookupForConversion = "argument${argumentIndex}.value()";
+                    my $nativeValue = JSValueToNative($interface, $argument, $argumentLookupForConversion, $conditional, "lexicalGlobalObject", "*lexicalGlobalObject", "*castedThis", $globalObjectReference, $argumentExceptionThrowerFunctor, $functionName, $optional, $argumentDefaultValueFunctor);
+
+                    push(@implContent, <<END);
+    EnsureStillAliveScope argument${argumentIndex} = callFrame->argument($argumentIndex);
+    auto ${name}ConversionResult = ${nativeValue};
+    if (${name}ConversionResult.hasException(throwScope)) [[unlikely]]
+       return encodedJSValue();
+END
+                    push(@creationArgumentList, ", ");
+                    push(@creationArgumentList, PassArgumentExpression("${name}ConversionResult.releaseReturnValue()", $argument));
+
+                    $argumentIndex++;
+                }
+            }
+            my $iteratorCreateParameters = join("", @creationArgumentList);
+
+            push(@implContent,  <<END);
+    RELEASE_AND_RETURN(throwScope, JSValue::encode(iteratorCreate<${iteratorName}>(*thisObject, *lexicalGlobalObject, throwScope, IterationKind::${iteratorCreateParameters})));
 }
 
 END

@@ -42,7 +42,7 @@
 namespace WebCore {
 
 class PipeToDefaultReadRequest;
-class StreamPipeToState : public RefCountedAndCanMakeWeakPtr<StreamPipeToState>, public ContextDestructionObserver {
+class StreamPipeToState : public RefCounted<StreamPipeToState>, public ContextDestructionObserver {
 public:
     static Ref<StreamPipeToState> create(JSDOMGlobalObject& globalObject, Ref<ReadableStream>&& source, Ref<WritableStream>&& destination, Ref<ReadableStreamDefaultReader>&& reader, Ref<InternalWritableStreamWriter>&& writer, StreamPipeOptions&& options, RefPtr<DeferredPromise>&& promise)
     {
@@ -59,6 +59,10 @@ public:
         return state;
     }
     ~StreamPipeToState();
+
+    // ContextDestructionObserver.
+    void ref() const final { RefCounted::ref(); }
+    void deref() const final { RefCounted::deref(); }
 
     void doWrite(JSC::JSValue);
     JSDOMGlobalObject* globalObject();
@@ -99,7 +103,6 @@ private:
 class PipeToDefaultReadRequest : public ReadableStreamReadRequest {
 public:
     static Ref<PipeToDefaultReadRequest> create(Ref<StreamPipeToState>&& state) { return adoptRef(*new PipeToDefaultReadRequest(WTFMove(state))); }
-    ~PipeToDefaultReadRequest() = default;
 
     void whenSettled(Function<void()>&& callback)
     {
@@ -177,6 +180,9 @@ static RefPtr<DOMPromise> cancelReadableStream(JSDOMGlobalObject& globalObject, 
         return stream.cancel(globalObject, reason);
 
     auto value = internalReadableStream->cancel(globalObject, reason);
+    if (!value)
+        return nullptr;
+
     auto* promise = jsCast<JSC::JSPromise*>(value);
     if (!promise)
         return nullptr;
@@ -323,6 +329,9 @@ void StreamPipeToState::doWrite(JSC::JSValue value)
 
     m_pendingReadRequest = nullptr;
     m_pendingWritePromise = writableStreamDefaultWriterWrite(m_writer, value);
+    if (!m_pendingWritePromise)
+        return;
+
     RefPtr { m_pendingWritePromise }->markAsHandled();
 
     loop();
@@ -473,6 +482,8 @@ void StreamPipeToState::closingMustBePropagatedBackward()
             // FIXME: Check whether ok to take a strong.
             JSC::Strong<JSC::Unknown> error { vm, getError(*globalObject) };
             auto value = internalReadableStream->cancel(*globalObject, error.get());
+            if (!value)
+                return nullptr;
 
             auto getError2 = [error = WTFMove(error)](auto&) {
                 return error.get();

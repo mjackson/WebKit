@@ -822,7 +822,7 @@ JSC_DEFINE_HOST_FUNCTION(globalFuncImportModule, (JSGlobalObject* globalObject, 
 
     if (internalPromise->status() == JSPromise::Status::Fulfilled) {
         auto result = internalPromise->result();
-        promise->fulfill(globalObject, result);
+        promise->fulfill(vm, globalObject, result);
     } else {
         promise->resolve(globalObject, internalPromise);
     }
@@ -944,7 +944,7 @@ JSC_DEFINE_HOST_FUNCTION(globalFuncCopyDataProperties, (JSGlobalObject* globalOb
         return JSValue::encode(target);
     }
 
-    PropertyNameArray propertyNames(vm, PropertyNameMode::StringsAndSymbols, PrivateSymbolMode::Exclude);
+    PropertyNameArrayBuilder propertyNames(vm, PropertyNameMode::StringsAndSymbols, PrivateSymbolMode::Exclude);
     source->methodTable()->getOwnPropertyNames(source, globalObject, propertyNames, DontEnumPropertiesMode::Include);
     RETURN_IF_EXCEPTION(scope, { });
 
@@ -1031,7 +1031,7 @@ JSC_DEFINE_HOST_FUNCTION(globalFuncCloneObject, (JSGlobalObject* globalObject, C
         return JSValue::encode(target);
     }
 
-    PropertyNameArray propertyNames(vm, PropertyNameMode::StringsAndSymbols, PrivateSymbolMode::Exclude);
+    PropertyNameArrayBuilder propertyNames(vm, PropertyNameMode::StringsAndSymbols, PrivateSymbolMode::Exclude);
     source->methodTable()->getOwnPropertyNames(source, globalObject, propertyNames, DontEnumPropertiesMode::Include);
     RETURN_IF_EXCEPTION(scope, { });
 

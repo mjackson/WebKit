@@ -1646,9 +1646,7 @@ WGPU_EXPORT void wgpuBufferSetLabel(WGPUBuffer buffer, char const * label) WGPU_
 WGPU_EXPORT void wgpuBufferUnmap(WGPUBuffer buffer) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuBufferReference(WGPUBuffer buffer) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuBufferRelease(WGPUBuffer buffer) WGPU_FUNCTION_ATTRIBUTE;
-#if ENABLE(WEBGPU_SWIFT)
 WGPU_EXPORT void wgpuBufferCopy(WGPUBuffer buffer, std::span<const uint8_t> data, size_t offset) WGPU_FUNCTION_ATTRIBUTE;
-#endif
 
 // Methods of CommandBuffer
 WGPU_EXPORT void wgpuCommandBufferSetLabel(WGPUCommandBuffer commandBuffer, char const * label) WGPU_FUNCTION_ATTRIBUTE;

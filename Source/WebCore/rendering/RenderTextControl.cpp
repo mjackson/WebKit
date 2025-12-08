@@ -95,7 +95,7 @@ void RenderTextControl::styleDidChange(StyleDifference diff, const RenderStyle* 
 int RenderTextControl::scrollbarThickness() const
 {
     // FIXME: We should get the size of the scrollbar from the RenderTheme instead.
-    return ScrollbarTheme::theme().scrollbarThickness(this->style().scrollbarWidth(), ScrollbarExpansionState::Expanded, OverlayScrollbarSizeRelevancy::IgnoreOverlayScrollbarSize);
+    return ScrollbarTheme::theme().scrollbarThickness(Style::toPlatform(this->style().scrollbarWidth()), OverlayScrollbarSizeRelevancy::IgnoreOverlayScrollbarSize);
 }
 
 RenderBox::LogicalExtentComputedValues RenderTextControl::computeLogicalHeight(LayoutUnit logicalHeight, LayoutUnit logicalTop) const
@@ -196,7 +196,7 @@ void RenderTextControl::computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidt
 
     auto& logicalWidth = style().logicalWidth();
     if (logicalWidth.isCalculated())
-        minLogicalWidth = std::max(0_lu, Style::evaluate<LayoutUnit>(logicalWidth, 0_lu, Style::ZoomNeeded { }));
+        minLogicalWidth = std::max(0_lu, Style::evaluate<LayoutUnit>(logicalWidth, 0_lu, style().usedZoomForLength()));
     else if (!logicalWidth.isPercent())
         minLogicalWidth = maxLogicalWidth;
 }
@@ -220,12 +220,6 @@ void RenderTextControl::computePreferredLogicalWidths()
     RenderBox::computePreferredLogicalWidths(style().logicalMinWidth(), style().logicalMaxWidth(), borderAndPaddingLogicalWidth());
 
     clearNeedsPreferredWidthsUpdate();
-}
-
-void RenderTextControl::addFocusRingRects(Vector<LayoutRect>& rects, const LayoutPoint& additionalOffset, const RenderLayerModelObject*) const
-{
-    if (!size().isEmpty())
-        rects.append(LayoutRect(additionalOffset, size()));
 }
 
 void RenderTextControl::layoutExcludedChildren(RelayoutChildren relayoutChildren)

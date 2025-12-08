@@ -68,6 +68,7 @@
 #include "HTMLInputElement.h"
 #include "HTMLLabelElement.h"
 #include "HTMLMapElement.h"
+#include "HTMLMediaElement.h"
 #include "HTMLMeterElement.h"
 #include "HTMLNames.h"
 #include "HTMLOptionElement.h"
@@ -76,7 +77,6 @@
 #include "HTMLSummaryElement.h"
 #include "HTMLTableElement.h"
 #include "HTMLTextAreaElement.h"
-#include "HTMLVideoElement.h"
 #include "HitTestRequest.h"
 #include "HitTestResult.h"
 #include "Image.h"
@@ -471,7 +471,7 @@ AccessibilityObject* AccessibilityRenderObject::nextSibling() const
     RefPtr nextRenderParent = nextAXRenderObject ? cache->getOrCreate(nextAXRenderObject->renderParentObject()) : nullptr;
 
     // Make sure the next sibling has the same render parent.
-    return !nextRenderParent || nextRenderParent == cache->getOrCreate(renderParentObject()) ? nextObject.get() : nullptr;
+    return !nextRenderParent || nextRenderParent == cache->getOrCreate(renderParentObject()) ? nextObject.unsafeGet() : nullptr;
 }
 
 static RenderBoxModelObject* nextContinuation(RenderObject& renderer)
@@ -530,8 +530,10 @@ RenderObject* AccessibilityRenderObject::renderParentObject() const
 
 AccessibilityObject* AccessibilityRenderObject::parentObject() const
 {
-    if (RefPtr ownerParent = ownerParentObject()) [[unlikely]]
-        return ownerParent.get();
+    // FIXME: This is a safer cpp false positive. We should not need to ref the variable here
+    // as we merely return it right away (rdar://165602290).
+    SUPPRESS_UNCOUNTED_LOCAL if (auto* ownerParent = ownerParentObject()) [[unlikely]]
+        return ownerParent;
 
 #if USE(ATSPI)
     // FIXME: Consider removing this ATSPI-only branch with https://bugs.webkit.org/show_bug.cgi?id=282117.
@@ -551,7 +553,7 @@ AccessibilityObject* AccessibilityRenderObject::parentObject() const
     RefPtr node = this->node();
     if (RefPtr parentNode = composedParentIgnoringDocumentFragments(node.get())) {
         if (RefPtr parent = cache->getOrCreate(*parentNode))
-            return parent.get();
+            return parent.unsafeGet();
     }
 
     if (CheckedPtr renderElement = dynamicDowncast<RenderElement>(m_renderer.get()); renderElement && renderElement->isBeforeOrAfterContent()) {
@@ -560,7 +562,7 @@ AccessibilityObject* AccessibilityRenderObject::parentObject() const
         // generating element as their parent rather than their "natural" render tree parent. This avoids
         // a parent-child mismatch which can cause issues for ATs.
         if (RefPtr parent = cache->getOrCreate(renderElement->generatingElement()))
-            return parent.get();
+            return parent.unsafeGet();
     }
 #endif // !USE(ATSPI)
 
@@ -569,7 +571,7 @@ AccessibilityObject* AccessibilityRenderObject::parentObject() const
         for (auto& listItemAncestor : ancestorsOfType<RenderListItem>(*m_renderer)) {
             RefPtr parent = dynamicDowncast<AccessibilityRenderObject>(axObjectCache()->getOrCreate(listItemAncestor));
             if (parent && parent->markerRenderer() == m_renderer)
-                return parent.get();
+                return parent.unsafeGet();
         }
     }
 
@@ -785,15 +787,21 @@ String AccessibilityRenderObject::stringValue() const
     if (!m_renderer)
         return AccessibilityNodeObject::stringValue();
 
-    if (isStaticText() || isTextControl() || isSecureField()) {
+    bool isStaticText = this->isStaticText();
+    if (isStaticText && node()) {
+        // FIXME: Implement text stitching for node-less static text, like CSS generated content.
+        // This is relevant here because only AccessibilityNodeObject::stringValue() knows how to
+        // stitch text. Ideally, we would shrink this implementation into AccessibilityNodeObject,
+        // since that is intended to become the "node and or renderer having" accessibility object class.
+        return AccessibilityNodeObject::stringValue();
+    }
+
+    if (isStaticText || isTextControl() || isSecureField()) {
         // A combobox is considered a text control, and its value is handled in AXNodeObject.
         if (isComboBox())
             return AccessibilityNodeObject::stringValue();
         return text();
     }
-
-    if (is<RenderText>(m_renderer.get()))
-        return textUnderElement();
 
     if (auto* renderMenuList = dynamicDowncast<RenderMenuList>(m_renderer.get())) {
         // RenderMenuList will go straight to the text() of its selected item.
@@ -873,7 +881,8 @@ LayoutRect AccessibilityRenderObject::boundingBoxRect() const
     if (!renderer)
         return AccessibilityNodeObject::boundingBoxRect();
 
-    if (RefPtr node = renderer->node()) // If we are a continuation, we want to make sure to use the primary renderer.
+    RefPtr node = renderer->node();
+    if (node) // If we are a continuation, we want to make sure to use the primary renderer.
         renderer = node->renderer();
 
     // absoluteFocusRingQuads will query the hierarchy below this element, which for large webpages can be very slow.
@@ -885,8 +894,36 @@ LayoutRect AccessibilityRenderObject::boundingBoxRect() const
     if (renderer->isRenderOrLegacyRenderSVGRoot())
         isSVGRoot = true;
 
-    if (auto* renderText = dynamicDowncast<RenderText>(*renderer))
-        quads = renderText->absoluteQuadsClippedToEllipsis();
+    if (auto* renderText = dynamicDowncast<RenderText>(*renderer)) {
+        std::optional stitchGroup  = this->stitchGroup();
+        if (!stitchGroup || stitchGroup->representativeID() != objectID() || stitchGroup->isEmpty())
+            quads = renderText->absoluteQuadsClippedToEllipsis();
+        else {
+            // |this| is a stitching of multiple objects, so we need to combine all of their bounding boxes.
+
+            CheckedPtr cache = axObjectCache();
+            RefPtr endNode = cache ? lastNode(stitchGroup->members(), *cache) : nullptr;
+            if (endNode) {
+                if (std::optional range = makeSimpleRange(positionBeforeNode(node.get()), positionAfterNode(endNode.get()))) {
+                    quads = RenderObject::absoluteTextQuads(*range);
+
+                    if (CheckedPtr cache = axObjectCache()) {
+                        for (AXID axID : stitchGroup->members()) {
+                            if (axID == stitchGroup->representativeID())
+                                break;
+                            if (RefPtr object = cache->objectForID(axID)) {
+                                if (CheckedPtr renderListMarker = dynamicDowncast<RenderListMarker>(object->renderer()))
+                                    renderListMarker->absoluteFocusRingQuads(quads);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (quads.isEmpty())
+                quads = renderText->absoluteQuadsClippedToEllipsis();
+        }
+    }
     else if (isWebArea() || isSVGRoot)
         renderer->absoluteQuads(quads);
     else
@@ -1390,7 +1427,7 @@ bool AccessibilityRenderObject::computeIsIgnored() const
     // https://github.com/WebKit/WebKit/commit/ddeb923489b58fd890527bf0e432ebe6a477d2ef
     // Results in a lot of useless generics being exposed, which is wasteful. We should remove this.
     WeakPtr blockFlow = dynamicDowncast<RenderBlockFlow>(*m_renderer);
-    if (blockFlow && m_renderer->childrenInline() && !canSetFocusAttribute())
+    if (blockFlow && m_renderer->childrenInline() && !canSetFocusAttribute() && !blockFlow->hasBlocksInInlineLayout())
         return !blockFlow->hasLines() && !clickableSelfOrAncestor();
 
     if (isCanvas()) {
@@ -1569,7 +1606,7 @@ AXTextRuns AccessibilityRenderObject::textRuns()
     if (!renderText)
         return { };
 
-    // FIXME: Need to handle PseudoId::FirstLetter. Right now, it will be chopped off from the other
+    // FIXME: Need to handle PseudoElementType::FirstLetter. Right now, it will be chopped off from the other
     // other text in the line, and AccessibilityRenderObject::computeIsIgnored ignores the
     // first-letter RenderText, meaning we can't recover it later by combining text across AX objects.
 
@@ -1591,7 +1628,7 @@ AXTextRuns AccessibilityRenderObject::textRuns()
         if (text.isEmpty())
             return;
 
-        if (textBox->style().textTransform().contains(TextTransform::FullSizeKana)) {
+        if (textBox->style().textTransform().contains(Style::TextTransformValue::FullSizeKana)) {
             // We don't want to serve transformed kana text to AT since it is a visual affordance.
             // Using the original text from the renderer provides the untransformed string.
             text = textBox->renderer().originalText().substring(textBox->start(), textBox->length());
@@ -1607,7 +1644,7 @@ AXTextRuns AccessibilityRenderObject::textRuns()
         lineHeight = LineSelection::logicalRect(*lineBox).height();
 
         CheckedPtr renderStyle = style();
-        if (renderStyle && renderStyle->textAlign() != TextAlignMode::Left) {
+        if (renderStyle && renderStyle->textAlign() != Style::TextAlign::Left) {
             // To serve the appropriate bounds for text, we need to offset them by a text run's position within its associated RenderText.
             // Computing this requires the following:
             //     1. Get the run's logical offset within the containing block (see note below).
@@ -2272,7 +2309,7 @@ AccessibilityObject* AccessibilityRenderObject::elementAccessibilityHitTest(cons
             }
 
             if (listBoxOption && !listBoxOption->isIgnored())
-                return listBoxOption.get();
+                return listBoxOption.unsafeGet();
 
             CheckedPtr cache = axObjectCache();
             return cache ? cache->getOrCreate(*renderListBox) : nullptr;
@@ -2323,11 +2360,11 @@ AccessibilityObject* AccessibilityRenderObject::accessibilityHitTest(const IntPo
         // If this element is the label of a control, a hit test should return the control.
         RefPtr controlObject = result->controlForLabelElement();
         if (controlObject && !controlObject->titleUIElement())
-            return controlObject.get();
+            return controlObject.unsafeGet();
 
         result = result->parentObjectUnignored();
     }
-    return result.get();
+    return result.unsafeGet();
 }
 
 bool AccessibilityRenderObject::renderObjectIsObservable(RenderObject& renderer) const
@@ -2682,7 +2719,7 @@ AccessibilitySVGObject* AccessibilityRenderObject::remoteSVGRootElement(CreateIf
 
     RefPtr rootSVGObject = createIfNecessary == CreateIfNecessary::Yes ? cache->getOrCreate(*rendererRoot) : cache->get(rendererRoot);
     ASSERT(createIfNecessary == CreateIfNecessary::No || rootSVGObject);
-    return dynamicDowncast<AccessibilitySVGObject>(rootSVGObject).get();
+    return dynamicDowncast<AccessibilitySVGObject>(rootSVGObject).unsafeGet();
 }
 
 void AccessibilityRenderObject::addRemoteSVGChildren()
@@ -3188,6 +3225,11 @@ bool AccessibilityRenderObject::isPlaying() const
 bool AccessibilityRenderObject::isMuted() const
 {
     return AccessibilityMediaHelpers::isMuted(mediaElement());
+}
+
+bool AccessibilityRenderObject::isMediaObject() const
+{
+    return is<HTMLMediaElement>(node());
 }
 
 bool AccessibilityRenderObject::isAutoplayEnabled() const

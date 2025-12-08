@@ -38,16 +38,12 @@ function getAsyncDisposableMethod(value)
         return @undefined;
 
     return () => {
-        var promise = @newPromise();
-        var result;
         try {
-            result = method.@call(value);
+            method.@call(value);
         } catch (e) {
-            @rejectPromiseWithFirstResolvingFunctionCallCheck(promise, e);
-            return promise;
+            return @promiseReject(@Promise, e);
         }
-        @resolvePromiseWithFirstResolvingFunctionCallCheck(promise, @undefined);
-        return promise;
+        return @promiseResolve(@Promise, @undefined);
     };
 }
 

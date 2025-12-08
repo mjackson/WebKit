@@ -70,7 +70,7 @@ WEBKIT_DEFINE_FINAL_TYPE_WITH_CODE(
     WebKitWebExtension, webkit_web_extension, G_TYPE_OBJECT, GObject,
     G_IMPLEMENT_INTERFACE(G_TYPE_INITABLE, gInitableInterfaceInit))
 
-static void webkitWebExtensionSetPath(WebKitWebExtension*, GFile*);
+static void webkitWebExtensionSetPath(WebKitWebExtension*, const char*);
 
 enum {
     PROP_0,
@@ -103,7 +103,7 @@ static void webkitWebExtensionGetProperty(GObject* object, guint propId, GValue*
 
     switch (propId) {
     case PROP_PATH:
-        g_value_set_object(value, webkit_web_extension_get_path(extension));
+        g_value_set_string(value, webkit_web_extension_get_path(extension));
         break;
     case PROP_MANIFEST_VERSION:
         g_value_set_double(value, webkit_web_extension_get_manifest_version(extension));
@@ -167,7 +167,7 @@ static void webkitWebExtensionSetProperty(GObject* object, guint propId, const G
 
     switch (propId) {
     case PROP_PATH:
-        webkitWebExtensionSetPath(extension, G_FILE(g_value_get_object(value)));
+        webkitWebExtensionSetPath(extension, g_value_get_string(value));
         break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, propId, paramSpec);
@@ -183,16 +183,16 @@ static void webkit_web_extension_class_init(WebKitWebExtensionClass* klass)
     /**
      * WebKitWebExtension:path:
      * 
-     * A #GFile pointing to the folder containing the extension manifest and resources.
+     * A string pointing to the folder containing the extension manifest and resources.
      * See webkit_web_extension_get_path() for more details.
      *
      * Since: 2.52
      */
     properties[PROP_PATH] =
-        g_param_spec_object(
+        g_param_spec_string(
             "path",
             nullptr, nullptr,
-            G_TYPE_FILE,
+            nullptr,
             static_cast<GParamFlags>(WEBKIT_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY));
 
     /**
@@ -506,7 +506,7 @@ WebKitWebExtension* webkitWebExtensionCreate(HashMap<String, GRefPtr<GBytes>>&& 
 
 /**
  * webkit_web_extension_new:
- * @extension_path: A #GFile pointing to the folder containing the extension manifest and resources
+ * @extension_path: (transfer none): A string pointing to the folder containing the extension manifest and resources
  * @error: return location for error or %NULL to ignore
  * 
  * Creates a new WebKitWebExtension from a folder containing the extension contents. The folder must
@@ -516,36 +516,34 @@ WebKitWebExtension* webkitWebExtensionCreate(HashMap<String, GRefPtr<GBytes>>&& 
  * 
  * Since: 2.52
  */
-WebKitWebExtension* webkit_web_extension_new(GFile *extensionPath, GError **error)
+WebKitWebExtension* webkit_web_extension_new(const char *extensionPath, GError **error)
 {
-    g_return_val_if_fail(G_IS_FILE(extensionPath), nullptr);
-    g_return_val_if_fail(g_file_query_file_type(extensionPath, G_FILE_QUERY_INFO_NONE, nullptr) == G_FILE_TYPE_DIRECTORY, nullptr);
-
     return WEBKIT_WEB_EXTENSION(g_initable_new (WEBKIT_TYPE_WEB_EXTENSION, nullptr, error, "path", extensionPath, nullptr));
 }
 
-void webkitWebExtensionSetPath(WebKitWebExtension* extension, GFile* file)
+void webkitWebExtensionSetPath(WebKitWebExtension* extension, const char* file)
 {
     g_return_if_fail(WEBKIT_IS_WEB_EXTENSION(extension));
 
-    extension->priv->path = file;
+    if (file)
+        extension->priv->path = adoptGRef(g_file_new_for_path(file));
 }
 
 /**
  * webkit_web_extension_get_path:
  * @extension: a #WebKitWebExtension
  *
- * Get the #GFile pointing to the folder containing the extension manifest and resources
+ * Get the path pointing to the folder containing the extension manifest and resources
  * 
- * Returns: (transfer none): a #GFile pointing to the folder
+ * Returns: (transfer none): the path of the extension folder
  * 
  * Since: 2.52
  */
-GFile* webkit_web_extension_get_path(WebKitWebExtension* extension)
+const char* webkit_web_extension_get_path(WebKitWebExtension* extension)
 {
     g_return_val_if_fail(WEBKIT_IS_WEB_EXTENSION(extension), 0);
 
-    return extension->priv->path.get();
+    return g_file_peek_path(extension->priv->path.get());
 }
 
 /**
@@ -555,7 +553,7 @@ GFile* webkit_web_extension_get_path(WebKitWebExtension* extension)
  * Get the parsed manifest version, or `0` if there is no
  * version specified in the manifest.
  *
- * An ``WKWebExtensionErrorUnsupportedManifestVersion`` error will be
+ * A [error@WebKit.WebExtensionError.UNSUPPORTED_MANIFEST_VERSION] error will be
  * reported if the manifest version isn't specified.
  * 
  * Returns: the parsed manifest version.
@@ -1153,17 +1151,17 @@ gboolean webkit_web_extension_get_has_content_modification_rules(WebKitWebExtens
 
 #else // ENABLE(WK_WEB_EXTENSIONS)
 
-WebKitWebExtension* webkit_web_extension_new(GFile *extension, GError **error)
+WebKitWebExtension* webkit_web_extension_new(const char *extensionPath, GError **error)
 {
     return nullptr;
 }
 
-void webkitWebExtensionSetPath(WebKitWebExtension* extension, GFile* file)
+void webkitWebExtensionSetPath(WebKitWebExtension* extension, const char* file)
 {
     return;
 }
 
-GFile* webkit_web_extension_get_path(WebKitWebExtension* extension)
+const char* webkit_web_extension_get_path(WebKitWebExtension* extension)
 {
     return nullptr;
 }

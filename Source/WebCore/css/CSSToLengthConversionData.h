@@ -30,6 +30,7 @@
 
 #pragma once
 
+#include <WebCore/CSSPrimitiveNumericRange.h>
 #include <WebCore/CSSPropertyNames.h>
 #include <WebCore/Element.h>
 #include <optional>
@@ -64,9 +65,11 @@ public:
     const RenderStyle* rootStyle() const { return m_rootStyle; }
     const RenderStyle* parentStyle() const { return m_parentStyle; }
     float zoom() const;
+    CSS::RangeZoomOptions rangeZoomOption() const { return m_rangeZoomOption; }
     bool computingFontSize() const { return m_propertyToCompute == CSSPropertyFontSize; }
     bool computingLineHeight() const { return m_propertyToCompute == CSSPropertyLineHeight; }
     CSSPropertyID propertyToCompute() const { return m_propertyToCompute.value_or(CSSPropertyInvalid); }
+    bool evaluationTimeZoomEnabled() const;
     const RenderView* renderView() const { return m_renderView; }
     const Element* elementForContainerUnitResolution() const { return m_elementForContainerUnitResolution.get(); }
 
@@ -86,10 +89,11 @@ public:
         return copy;
     };
 
-    CSSToLengthConversionData copyWithAdjustedZoom(float zoom) const
+    CSSToLengthConversionData copyWithAdjustedZoom(float zoom, CSS::RangeZoomOptions rangeZoomOption = CSS::RangeZoomOptions::Default) const
     {
         CSSToLengthConversionData copy(*this);
         copy.m_zoom = zoom;
+        copy.m_rangeZoomOption = rangeZoomOption;
         return copy;
     }
 
@@ -98,6 +102,7 @@ public:
         CSSToLengthConversionData copy(*this);
         copy.m_zoom = zoom;
         copy.m_propertyToCompute = CSSPropertyLineHeight;
+        copy.m_rangeZoomOption = CSS::RangeZoomOptions::Unzoomed;
         return copy;
     }
 
@@ -115,6 +120,7 @@ private:
     std::optional<float> m_zoom;
     std::optional<CSSPropertyID> m_propertyToCompute;
     CheckedPtr<Style::BuilderState> m_styleBuilderState;
+    CSS::RangeZoomOptions m_rangeZoomOption { CSS::RangeZoomOptions::Default };
 };
 
 } // namespace WebCore

@@ -47,7 +47,6 @@ class FireDetail {
     void* operator new(size_t) = delete;
     
 public:
-    FireDetail() = default;
     virtual ~FireDetail() = default;
     // This can't be pure virtual as it breaks our Dumpable concept.
     // FIXME: Make this virtual after we stop suppporting the Montery Clang.

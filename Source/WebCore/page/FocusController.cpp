@@ -31,6 +31,7 @@
 #include "Chrome.h"
 #include "ChromeClient.h"
 #include "ContainerNodeInlines.h"
+#include "DocumentPage.h"
 #include "DocumentView.h"
 #include "Editing.h"
 #include "Editor.h"
@@ -42,6 +43,7 @@
 #include "EventHandler.h"
 #include "EventNames.h"
 #include "FocusOptions.h"
+#include "FrameDestructionObserverInlines.h"
 #include "FrameInlines.h"
 #include "FrameSelection.h"
 #include "FrameTree.h"
@@ -87,14 +89,14 @@ static HTMLElement* invokerForOpenPopover(const Node* candidatePopover)
     return nullptr;
 }
 
-static Element* openPopoverForInvoker(const Node* candidateInvoker)
+static RefPtr<Element> openPopoverForInvoker(const Node* candidateInvoker)
 {
     RefPtr invoker = dynamicDowncast<HTMLElement>(candidateInvoker);
     if (!invoker)
         return nullptr;
     RefPtr popover = invoker->invokedPopover();
     if (popover && popover->isPopoverShowing() && popover->popoverData()->invoker() == invoker)
-        return popover.get();
+        return popover;
     return nullptr;
 }
 
@@ -411,8 +413,18 @@ static inline void dispatchEventsOnWindowAndFocusedElement(Document* document, b
             return;
     }
 
-    if (!focused && document->focusedElement())
+    if (!focused && document->focusedElement()) {
+        if (document->focusedElement()->transferredFocusToPicker()) {
+            // The webpage lost focus because the focused element transferred focus to
+            // a non-web-content picker when it was activated. We don't want to post any
+            // web-exposed events (e.g. blur) in these cases, so return.
+            document->focusedElement()->didSuppressBlurDueToPickerFocusTransfer();
+            return;
+        }
+
         document->focusedElement()->dispatchBlurEvent(nullptr);
+    }
+
     document->dispatchWindowEvent(Event::create(focused ? eventNames().focusEvent : eventNames().blurEvent, Event::CanBubble::No, Event::IsCancelable::No));
     if (focused && document->focusedElement())
         document->focusedElement()->dispatchFocusEvent(nullptr, { });
@@ -504,8 +516,8 @@ LocalFrame* FocusController::focusedOrMainFrame() const
 {
     if (auto* frame = focusedLocalFrame())
         return frame;
-    if (RefPtr localMainFrame = m_page->localMainFrame())
-        return localMainFrame.get();
+    if (auto* localMainFrame = m_page->localMainFrame())
+        return localMainFrame;
     ASSERT(m_page->settings().siteIsolationEnabled());
     return nullptr;
 }
@@ -739,7 +751,7 @@ FocusableElementSearchResult FocusController::findFocusableElementAcrossFocusSco
             auto candidateInInnerScope = findFocusableElementWithinScope(direction, FocusNavigationScope::scopeOwnedByScopeOwner(*currentElement), nullptr, focusEventData);
             if (candidateInInnerScope.element)
                 return candidateInInnerScope;
-        } else if (auto* popover = openPopoverForInvoker(currentNode)) {
+        } else if (RefPtr popover = openPopoverForInvoker(currentNode)) {
             auto candidateInInnerScope = findFocusableElementWithinScope(direction, FocusNavigationScope::scopeOwnedByScopeOwner(*popover), nullptr, focusEventData);
             if (candidateInInnerScope.element)
                 return candidateInInnerScope;

@@ -42,7 +42,7 @@
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(MicrotaskQueue);
-WTF_MAKE_TZONE_ALLOCATED_IMPL(WebCoreMicrotaskDispatcher);
+WTF_MAKE_COMPACT_TZONE_ALLOCATED_IMPL(WebCoreMicrotaskDispatcher);
 
 
 JSC::QueuedTask::Result WebCoreMicrotaskDispatcher::currentRunnability() const
@@ -69,30 +69,39 @@ void MicrotaskQueue::append(JSC::QueuedTask&& task)
     m_microtaskQueue.enqueue(WTFMove(task));
 }
 
-void MicrotaskQueue::runJSMicrotask(JSC::JSGlobalObject* globalObject, JSC::VM& vm, JSC::QueuedTask& task)
+void MicrotaskQueue::runJSMicrotaskWithDebugger(JSC::JSGlobalObject* globalObject, JSC::VM& vm, JSC::QueuedTask& task)
 {
     auto scope = DECLARE_CATCH_SCOPE(vm);
 
-    if (auto* debugger = globalObject->debugger()) [[unlikely]] {
+    auto identifier = task.identifier();
+    if (auto* debugger = globalObject->debugger(); debugger && identifier) [[unlikely]] {
         JSC::DeferTerminationForAWhile deferTerminationForAWhile(vm);
-        debugger->willRunMicrotask(globalObject, task.identifier());
+        debugger->willRunMicrotask(globalObject, identifier.value());
         if (!scope.clearExceptionExceptTermination()) [[unlikely]]
             return;
     }
 
+    runJSMicrotask(globalObject, vm, task);
+    if (!scope.clearExceptionExceptTermination()) [[unlikely]]
+        return;
+
+    if (auto* debugger = globalObject->debugger(); debugger && identifier) [[unlikely]] {
+        JSC::DeferTerminationForAWhile deferTerminationForAWhile(vm);
+        debugger->didRunMicrotask(globalObject, identifier.value());
+        if (!scope.clearExceptionExceptTermination()) [[unlikely]]
+            return;
+    }
+}
+
+void MicrotaskQueue::runJSMicrotask(JSC::JSGlobalObject* globalObject, JSC::VM& vm, JSC::QueuedTask& task)
+{
+    auto scope = DECLARE_CATCH_SCOPE(vm);
     JSC::runInternalMicrotask(globalObject, task.job(), task.arguments());
     if (scope.exception()) [[unlikely]] {
         auto* exception = scope.exception();
         if (!scope.clearExceptionExceptTermination()) [[unlikely]]
             return;
         reportException(globalObject, exception);
-        if (!scope.clearExceptionExceptTermination()) [[unlikely]]
-            return;
-    }
-
-    if (auto* debugger = globalObject->debugger()) [[unlikely]] {
-        JSC::DeferTerminationForAWhile deferTerminationForAWhile(vm);
-        debugger->didRunMicrotask(globalObject, task.identifier());
         if (!scope.clearExceptionExceptTermination()) [[unlikely]]
             return;
     }
@@ -111,9 +120,8 @@ void MicrotaskQueue::performMicrotaskCheckpoint()
         SUPPRESS_UNCOUNTED_ARG auto& data = threadGlobalDataSingleton();
         auto* previousState = data.currentState();
         std::optional<JSC::VMEntryScope> entryScope;
-        std::optional<JSC::ScriptProfilingScope> profilingScope;
         JSC::JSGlobalObject* currentGlobalObject = nullptr;
-        m_microtaskQueue.performMicrotaskCheckpoint(vm,
+        m_microtaskQueue.performMicrotaskCheckpoint</* useCallOnEachMicrotask */ false>(vm,
             [&](JSC::QueuedTask& task) ALWAYS_INLINE_LAMBDA {
                 RefPtr dispatcher = downcast<WebCoreMicrotaskDispatcher>(task.dispatcher());
                 if (!dispatcher) [[unlikely]]
@@ -122,7 +130,7 @@ void MicrotaskQueue::performMicrotaskCheckpoint()
                 auto result = dispatcher->currentRunnability();
                 if (result == JSC::QueuedTask::Result::Executed) {
                     switch (dispatcher->type()) {
-                    case WebCoreMicrotaskDispatcher::Type::JavaScript: {
+                    case WebCoreMicrotaskDispatcher::Type::WebCoreJS: {
                         auto* globalObject = task.globalObject();
                         data.setCurrentState(globalObject);
                         if (currentGlobalObject != globalObject) {
@@ -130,17 +138,17 @@ void MicrotaskQueue::performMicrotaskCheckpoint()
                                 entryScope.emplace(vm, globalObject);
                             else
                                 entryScope->setGlobalObject(globalObject);
-                            profilingScope.emplace(globalObject, JSC::ProfilingReason::Microtask);
                             currentGlobalObject = globalObject;
                         }
                         runJSMicrotask(globalObject, vm, task);
                         break;
                     }
                     case WebCoreMicrotaskDispatcher::Type::None:
-                    case WebCoreMicrotaskDispatcher::Type::UserGestureIndicator:
-                    case WebCoreMicrotaskDispatcher::Type::Function:
+                    case WebCoreMicrotaskDispatcher::Type::JSCDebuggable:
+                    case WebCoreMicrotaskDispatcher::Type::WebCoreJSDebuggable:
+                    case WebCoreMicrotaskDispatcher::Type::WebCoreUserGestureIndicator:
+                    case WebCoreMicrotaskDispatcher::Type::WebCoreFunction:
                         entryScope = std::nullopt;
-                        profilingScope = std::nullopt;
                         currentGlobalObject = nullptr;
                         data.setCurrentState(previousState);
                         dispatcher->run(task);

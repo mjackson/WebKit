@@ -183,7 +183,7 @@ public:
     WEBCORE_EXPORT virtual void restore(GraphicsContextState::Purpose = GraphicsContextState::Purpose::SaveRestore);
 
     void unwindStateStack(unsigned count);
-    void unwindStateStack() { unwindStateStack(stackSize()); }
+    WEBCORE_EXPORT void unwindStateStack();
 
     unsigned stackSize() const { return m_stack.size(); }
 
@@ -195,6 +195,8 @@ public:
     // FIXME: Can we make this a why instead of a what, and then have it exist cross-platform?
     virtual bool isCALayerContext() const = 0;
 #endif
+
+    virtual bool knownToHaveFloatBasedBacking() const { return false; }
 
     virtual RenderingMode renderingMode() const { return RenderingMode::Unaccelerated; }
     WEBCORE_EXPORT RenderingMode renderingModeForCompatibleBuffer() const;
@@ -287,7 +289,7 @@ public:
     WEBCORE_EXPORT virtual void drawControlPart(ControlPart&, const FloatRoundedRect& borderRect, float deviceScaleFactor, const ControlStyle&);
 
 #if ENABLE(VIDEO)
-    WEBCORE_EXPORT virtual void drawVideoFrame(VideoFrame&, const FloatRect& destination, ImageOrientation, bool shouldDiscardAlpha);
+    WEBCORE_EXPORT virtual void drawVideoFrame(const VideoFrame&, const FloatRect& destination, ImageOrientation, bool shouldDiscardAlpha);
 #endif
 
     // Clipping

@@ -179,14 +179,12 @@ enum TracePointCode {
 #if PLATFORM(GTK) || PLATFORM(WPE)
     GTKWPEPortRange = 20000,
 
-    FlushPendingLayerChangesStart,
-    FlushPendingLayerChangesEnd,
+    UpdateRenderingStart,
+    UpdateRenderingEnd,
     WaitForCompositionCompletionStart,
     WaitForCompositionCompletionEnd,
     RenderLayerTreeStart,
     RenderLayerTreeEnd,
-    LayerFlushStart,
-    LayerFlushEnd,
     UpdateLayerContentBuffersStart,
     UpdateLayerContentBuffersEnd,
 #endif
@@ -265,6 +263,7 @@ WTF_EXPORT_PRIVATE uint64_t WTFCurrentContinuousTime(Seconds deltaFromNow);
 WTF_EXTERN_C_END
 
 #define FOR_EACH_WTF_SIGNPOST_NAME(M) \
+    M(AccessibilityIsolatedTreeApplyPendingChanges) \
     M(InitialAccessibilityIsolatedTreeBuild) \
     M(DataTask) \
     M(NavigationAndPaintTiming) \
@@ -286,6 +285,8 @@ WTF_EXTERN_C_END
     M(JSScriptRef) \
     M(NetworkCacheHit) \
     M(NetworkCacheMiss) \
+    M(PLTSubresourceLoading) \
+    M(EvaluateJavaScript) \
 
 #define DECLARE_WTF_SIGNPOST_NAME_ENUM(name) WTFOSSignpostName ## name,
 

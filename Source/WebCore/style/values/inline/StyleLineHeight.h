@@ -33,7 +33,7 @@ namespace Style {
 // <'line-height'> = normal | <number [0,∞]> | <length-percentage [0,∞]>
 // NOTE: <number [0,∞]> gets converted to <length-percentage [0,∞]>.
 // https://drafts.csswg.org/css-inline/#propdef-line-height
-struct LineHeight : LengthWrapperBase<LengthPercentage<CSS::Nonnegative>, CSS::Keyword::Normal> {
+struct LineHeight : LengthWrapperBase<LengthPercentage<CSS::NonnegativeUnzoomed>, CSS::Keyword::Normal> {
     using Base::Base;
 
     bool isNormal() const { return holdsAlternative<CSS::Keyword::Normal>(); }

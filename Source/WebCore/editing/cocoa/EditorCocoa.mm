@@ -177,6 +177,12 @@ void Editor::writeSelectionToPasteboard(Pasteboard& pasteboard)
     if (!pasteboard.isStatic()) {
         if (!document->isTextDocument()) {
             content.dataInWebArchiveFormat = selectionInWebArchiveFormat();
+            LegacyWebArchive::ArchiveOptions options {
+                LegacyWebArchive::ShouldSaveScriptsFromMemoryCache::Yes,
+                LegacyWebArchive::ShouldArchiveSubframes::No
+            };
+            if (document->settings().siteIsolationEnabled())
+                content.webArchive = LegacyWebArchive::createFromSelection(document->frame(), WTFMove(options));
             populateRichTextDataIfNeeded(content, document);
         }
         client()->getClientPasteboardData(selectedRange(), content.clientTypesAndData);
@@ -264,7 +270,7 @@ RefPtr<SharedBuffer> Editor::dataInRTFDFormat(NSAttributedString *string)
         return nullptr;
 
     BEGIN_BLOCK_OBJC_EXCEPTIONS
-    return SharedBuffer::create([string RTFDFromRange:NSMakeRange(0, length) documentAttributes:@{ }]);
+    return SharedBuffer::create(retainPtr([string RTFDFromRange:NSMakeRange(0, length) documentAttributes:@{ }]).get());
     END_BLOCK_OBJC_EXCEPTIONS
 
     return nullptr;
@@ -277,7 +283,7 @@ RefPtr<SharedBuffer> Editor::dataInRTFFormat(NSAttributedString *string)
         return nullptr;
 
     BEGIN_BLOCK_OBJC_EXCEPTIONS
-    return SharedBuffer::create([string RTFFromRange:NSMakeRange(0, length) documentAttributes:@{ }]);
+    return SharedBuffer::create(retainPtr([string RTFFromRange:NSMakeRange(0, length) documentAttributes:@{ }]).get());
     END_BLOCK_OBJC_EXCEPTIONS
 
     return nullptr;

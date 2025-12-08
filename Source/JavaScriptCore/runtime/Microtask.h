@@ -30,15 +30,25 @@
 namespace JSC {
 
 enum class MicrotaskIdentifierType { };
-using MicrotaskIdentifier = AtomicObjectIdentifier<MicrotaskIdentifierType>;
+using MicrotaskIdentifier = ObjectIdentifier<MicrotaskIdentifierType>;
 
-enum class InternalMicrotask : int32_t {
+enum class InternalMicrotask : uint16_t {
     PromiseResolveThenableJobFast = 0,
     PromiseResolveThenableJobWithoutPromiseFast,
+    PromiseResolveThenableJobWithInternalMicrotaskFast,
+
     PromiseResolveThenableJob,
+
+    PromiseFirstResolveWithoutHandlerJob,
     PromiseResolveWithoutHandlerJob,
+
+    PromiseAllResolveJob,
+
     PromiseReactionJob,
     PromiseReactionJobWithoutPromise,
+
+    AsyncFunctionResume,
+
     InvokeFunctionJob,
     Opaque, // Dispatch must handle everything.
 #if USE(BUN_JSC_ADDITIONS)

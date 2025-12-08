@@ -26,6 +26,7 @@
 
 #pragma once
 
+#include "InspectorEnvironment.h"
 #include "InspectorFrontendRouter.h"
 #include <wtf/CheckedRef.h>
 #include <wtf/TZoneMalloc.h>
@@ -39,10 +40,9 @@ namespace Inspector {
 
 class BackendDispatcher;
 class InjectedScriptManager;
-class InspectorEnvironment;
 
 struct AgentContext {
-    InspectorEnvironment& environment;
+    CheckedRef<InspectorEnvironment> environment;
     InjectedScriptManager& injectedScriptManager;
     CheckedRef<FrontendRouter> frontendRouter;
     BackendDispatcher& backendDispatcher;

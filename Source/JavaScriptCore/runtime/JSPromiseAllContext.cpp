@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2025 Codeblog CORP.
+ * Copyright (C) 2025 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,34 +28,18 @@
 #include "JSPromiseAllContext.h"
 
 #include "JSCInlines.h"
-#include "JSInternalFieldObjectImplInlines.h"
+#include "JSPromiseAllGlobalContext.h"
 
 namespace JSC {
 
-const ClassInfo JSPromiseAllContext::s_info = { "PromiseAllContext"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSPromiseAllContext) };
+const ClassInfo JSPromiseAllContext::s_info = { "PromiseAllContext"_s, nullptr, nullptr, nullptr, CREATE_METHOD_TABLE(JSPromiseAllContext) };
 
-JSPromiseAllContext* JSPromiseAllContext::createWithInitialValues(VM& vm, Structure* structure)
+JSPromiseAllContext* JSPromiseAllContext::create(VM& vm, JSPromiseAllGlobalContext* globalContext, uint64_t index)
 {
-    auto values = initialValues();
-    JSPromiseAllContext* context = new (NotNull, allocateCell<JSPromiseAllContext>(vm)) JSPromiseAllContext(vm, structure);
-    context->finishCreation(vm, values[0], values[1], values[2], values[3]);
-    return context;
-}
-
-JSPromiseAllContext* JSPromiseAllContext::create(VM& vm, Structure* structure, JSValue promise, JSValue values, JSValue remainingElementsCount, JSValue index)
-{
-    JSPromiseAllContext* result = new (NotNull, allocateCell<JSPromiseAllContext>(vm)) JSPromiseAllContext(vm, structure);
-    result->finishCreation(vm, promise, values, remainingElementsCount, index);
+    auto* structure = vm.promiseAllContextStructure.get();
+    JSPromiseAllContext* result = new (NotNull, allocateCell<JSPromiseAllContext>(vm)) JSPromiseAllContext(vm, structure, globalContext, index);
+    result->finishCreation(vm);
     return result;
-}
-
-void JSPromiseAllContext::finishCreation(VM& vm, JSValue promise, JSValue values, JSValue remainingElementsCount, JSValue index)
-{
-    Base::finishCreation(vm);
-    this->setPromise(vm, promise);
-    this->setValues(vm, values);
-    this->setRemainingElementsCount(vm, remainingElementsCount);
-    this->setIndex(vm, index);
 }
 
 template<typename Visitor>
@@ -63,13 +48,9 @@ void JSPromiseAllContext::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     auto* thisObject = jsCast<JSPromiseAllContext*>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
     Base::visitChildren(thisObject, visitor);
+    visitor.append(thisObject->m_globalContext);
 }
 
 DEFINE_VISIT_CHILDREN(JSPromiseAllContext);
-
-JSC_DEFINE_HOST_FUNCTION(promiseAllContextPrivateFuncCreate, (JSGlobalObject* globalObject, CallFrame* callFrame))
-{
-    return JSValue::encode(JSPromiseAllContext::create(globalObject->vm(), globalObject->promiseAllContextStructure(), callFrame->uncheckedArgument(0), callFrame->uncheckedArgument(1), callFrame->uncheckedArgument(2), callFrame->uncheckedArgument(3)));
-}
 
 } // namespace JSC

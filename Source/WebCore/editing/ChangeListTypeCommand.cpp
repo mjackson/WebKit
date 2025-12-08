@@ -87,10 +87,10 @@ void ChangeListTypeCommand::doApply()
     if (!typeAndElement || typeAndElement->first != m_type)
         return;
 
-    auto listToReplace = WTFMove(typeAndElement->second);
-    auto newList = createNewList(listToReplace);
+    Ref listToReplace = WTFMove(typeAndElement->second);
+    Ref newList = createNewList(listToReplace);
     insertNodeBefore(newList.copyRef(), listToReplace);
-    moveRemainingSiblingsToNewParent(listToReplace->firstChild(), nullptr, newList);
+    moveRemainingSiblingsToNewParent(listToReplace->protectedFirstChild().get(), nullptr, newList);
     removeNode(listToReplace);
     setEndingSelection({ Position { newList.ptr(), Position::PositionIsAfterChildren }});
 }

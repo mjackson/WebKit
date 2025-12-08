@@ -27,6 +27,7 @@
 
 #include <wtf/CompletionHandler.h>
 #include <wtf/NativePromise.h>
+#include <wtf/OptionSet.h>
 #include <wtf/RefCounted.h>
 #include <wtf/text/WTFString.h>
 
@@ -45,8 +46,58 @@ using NodeIdentifier = ObjectIdentifier<NodeIdentifierType>;
 
 namespace WebKit {
 
+using TextExtractionVersion = unsigned;
+
+enum class TextExtractionOptionFlag : uint8_t {
+    IncludeURLs     = 1 << 0,
+    IncludeRects    = 1 << 1,
+    OnlyIncludeText = 1 << 2,
+};
+
+enum class TextExtractionOutputFormat : uint8_t {
+    TextTree,
+    HTMLMarkup,
+    Markdown
+};
+
+using TextExtractionOptionFlags = OptionSet<TextExtractionOptionFlag>;
 using TextExtractionFilterPromise = NativePromise<String, void>;
 using TextExtractionFilterCallback = Function<Ref<TextExtractionFilterPromise>(const String&, std::optional<WebCore::NodeIdentifier>&&)>;
-void convertToText(WebCore::TextExtraction::Item&&, CompletionHandler<void(String&&)>&&, TextExtractionFilterCallback&& = { }, Vector<String>&& nativeMenuItems = { });
+
+struct TextExtractionOptions {
+    TextExtractionOptions(TextExtractionOptions&& other)
+        : filterCallbacks(WTFMove(other.filterCallbacks))
+        , nativeMenuItems(WTFMove(other.nativeMenuItems))
+        , replacementStrings(WTFMove(other.replacementStrings))
+        , version(other.version)
+        , flags(other.flags)
+        , outputFormat(other.outputFormat)
+    {
+    }
+
+    TextExtractionOptions(Vector<TextExtractionFilterCallback>&& filters, Vector<String>&& items, HashMap<String, String>&& replacementStrings, std::optional<TextExtractionVersion> version, TextExtractionOptionFlags flags, TextExtractionOutputFormat outputFormat)
+        : filterCallbacks(WTFMove(filters))
+        , nativeMenuItems(WTFMove(items))
+        , replacementStrings(WTFMove(replacementStrings))
+        , version(version)
+        , flags(flags)
+        , outputFormat(outputFormat)
+    {
+    }
+
+    Vector<TextExtractionFilterCallback> filterCallbacks;
+    Vector<String> nativeMenuItems;
+    HashMap<String, String> replacementStrings;
+    std::optional<TextExtractionVersion> version;
+    TextExtractionOptionFlags flags;
+    TextExtractionOutputFormat outputFormat { TextExtractionOutputFormat::TextTree };
+};
+
+struct TextExtractionResult {
+    String textContent;
+    bool filteredOutAnyText { false };
+};
+
+void convertToText(WebCore::TextExtraction::Item&&, TextExtractionOptions&&, CompletionHandler<void(TextExtractionResult&&)>&&);
 
 } // namespace WebKit

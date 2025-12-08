@@ -97,10 +97,10 @@ static String defaultApproximateSourceError(const String& originalMessage, Strin
 
 String defaultSourceAppender(const String& originalMessage, StringView sourceText, RuntimeType, ErrorInstance::SourceTextWhereErrorOccurred occurrence)
 {
-    if (occurrence == ErrorInstance::FoundApproximateSource)
+    if (occurrence == ErrorInstance::SourceTextWhereErrorOccurred::FoundApproximateSource)
         return defaultApproximateSourceError(originalMessage, sourceText);
 
-    ASSERT(occurrence == ErrorInstance::FoundExactSource);
+    ASSERT(occurrence == ErrorInstance::SourceTextWhereErrorOccurred::FoundExactSource);
     return makeString(clampErrorMessage(originalMessage), " (evaluating '"_s, sourceText, "')"_s);
 }
 
@@ -166,10 +166,10 @@ String notAFunctionSourceAppender(const String& originalMessage, StringView sour
 {
     ASSERT(type != TypeFunction);
 
-    if (occurrence == ErrorInstance::FoundApproximateSource)
+    if (occurrence == ErrorInstance::SourceTextWhereErrorOccurred::FoundApproximateSource)
         return defaultApproximateSourceError(originalMessage, sourceText);
 
-    ASSERT(occurrence == ErrorInstance::FoundExactSource);
+    ASSERT(occurrence == ErrorInstance::SourceTextWhereErrorOccurred::FoundExactSource);
     auto notAFunctionIndex = originalMessage.reverseFind("is not a function"_s);
     RELEASE_ASSERT(notAFunctionIndex != notFound);
     auto displayValue = StringView { originalMessage }.left(notAFunctionIndex - 1);
@@ -198,10 +198,10 @@ static String invalidParameterInSourceAppender(const String& originalMessage, St
 {
     ASSERT_UNUSED(type, type != TypeObject);
 
-    if (occurrence == ErrorInstance::FoundApproximateSource)
+    if (occurrence == ErrorInstance::SourceTextWhereErrorOccurred::FoundApproximateSource)
         return defaultApproximateSourceError(originalMessage, sourceText);
 
-    ASSERT(occurrence == ErrorInstance::FoundExactSource);
+    ASSERT(occurrence == ErrorInstance::SourceTextWhereErrorOccurred::FoundExactSource);
     auto inIndex = sourceText.reverseFind("in"_s);
     if (inIndex == notFound) {
         // This should basically never happen, since JS code must use the literal
@@ -219,10 +219,10 @@ static String invalidParameterInSourceAppender(const String& originalMessage, St
 
 inline String invalidParameterInstanceofSourceAppender(const String& content, const String& originalMessage, StringView sourceText, RuntimeType, ErrorInstance::SourceTextWhereErrorOccurred occurrence)
 {
-    if (occurrence == ErrorInstance::FoundApproximateSource)
+    if (occurrence == ErrorInstance::SourceTextWhereErrorOccurred::FoundApproximateSource)
         return defaultApproximateSourceError(originalMessage, sourceText);
 
-    ASSERT(occurrence == ErrorInstance::FoundExactSource);
+    ASSERT(occurrence == ErrorInstance::SourceTextWhereErrorOccurred::FoundExactSource);
     auto instanceofIndex = sourceText.reverseFind("instanceof"_s);
     // This can happen when Symbol.hasInstance function is directly called.
     if (instanceofIndex == notFound)
@@ -248,7 +248,7 @@ static String invalidParameterInstanceofhasInstanceValueNotFunctionSourceAppende
 
 static String invalidPrototypeSourceAppender(const String& originalMessage, StringView sourceText, RuntimeType, ErrorInstance::SourceTextWhereErrorOccurred occurrence)
 {
-    if (occurrence == ErrorInstance::FoundApproximateSource)
+    if (occurrence == ErrorInstance::SourceTextWhereErrorOccurred::FoundApproximateSource)
         return defaultApproximateSourceError(originalMessage, sourceText);
 
     auto extendsIndex = sourceText.reverseFind("extends"_s);

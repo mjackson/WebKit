@@ -58,6 +58,7 @@
 #include <QuartzCore/CATransform3D.h>
 #include <limits.h>
 #include <pal/spi/cf/CFUtilitiesSPI.h>
+#include <ranges>
 #include <wtf/CheckedArithmetic.h>
 #include <wtf/HexNumber.h>
 #include <wtf/MathExtras.h>
@@ -75,12 +76,12 @@
 #include "WebCoreThread.h"
 #endif
 
-#if ENABLE(THREADED_ANIMATION_RESOLUTION)
+#if ENABLE(THREADED_ANIMATIONS)
 #include "AcceleratedEffect.h"
 #include "AcceleratedEffectStack.h"
 #endif
 
-#if ENABLE(MODEL_PROCESS)
+#if ENABLE(MODEL_CONTEXT)
 #include "ModelContext.h"
 #endif
 
@@ -351,7 +352,7 @@ Ref<PlatformCALayer> GraphicsLayerCA::createPlatformCALayer(PlatformLayer* platf
     return PlatformCALayerCocoa::create(platformLayer, owner);
 }
 
-#if ENABLE(MODEL_PROCESS)
+#if ENABLE(MODEL_CONTEXT) && !ENABLE(GPU_PROCESS_MODEL)
 Ref<PlatformCALayer> GraphicsLayerCA::createPlatformCALayer(Ref<ModelContext>, PlatformCALayerClient* owner)
 {
     ASSERT_NOT_REACHED_WITH_MESSAGE("GraphicsLayerCARemote::createPlatformCALayer should always be called instead of this, but this symbol is needed to compile WebKitLegacy.");
@@ -605,7 +606,7 @@ void GraphicsLayerCA::setPosition(const FloatPoint& point)
 
 void GraphicsLayerCA::syncPosition(const FloatPoint& point)
 {
-    if (point == m_position)
+    if (point == m_position && !m_approximatePosition)
         return;
 
     GraphicsLayer::syncPosition(point);
@@ -700,6 +701,20 @@ void GraphicsLayerCA::moveOrCopyLayerAnimation(MoveOrCopy operation, const Strin
 
 void GraphicsLayerCA::moveOrCopyAnimations(MoveOrCopy operation, PlatformCALayer *fromLayer, PlatformCALayer *toLayer)
 {
+#if ENABLE(THREADED_ANIMATIONS)
+    if (RefPtr effectsStack = acceleratedEffectStack()) {
+        auto isBackdropLayer = [&] {
+            SUPPRESS_UNRETAINED_LOCAL if (auto* platformLayer = fromLayer->platformLayer())
+                SUPPRESS_UNRETAINED_ARG return PlatformCALayerCocoa::layerTypeForPlatformLayer(platformLayer) == PlatformCALayerLayerType::LayerTypeBackdropLayer;
+            return false;
+        };
+        auto& effects = isBackdropLayer() ? effectsStack->backdropLayerEffects() : effectsStack->primaryLayerEffects();
+        if (operation == Move)
+            fromLayer->clearAcceleratedEffectsAndBaseValues();
+        toLayer->setAcceleratedEffectsAndBaseValues(effects, effectsStack->baseValues());
+        return;
+    }
+#endif
     for (auto& animationGroup : m_animationGroups) {
         if ((animatedPropertyIsTransformOrRelated(animationGroup.m_property)
             || animationGroup.m_property == AnimatedProperty::Opacity
@@ -1423,7 +1438,7 @@ void GraphicsLayerCA::setContentsToPlatformLayerHost(LayerHostingContextIdentifi
     noteLayerPropertyChanged(ContentsPlatformLayerChanged);
 }
 
-#if ENABLE(MODEL_PROCESS)
+#if ENABLE(MODEL_CONTEXT) && !ENABLE(GPU_PROCESS_MODEL)
 void GraphicsLayerCA::setContentsToModelContext(Ref<ModelContext> modelContext, ContentsLayerPurpose purpose)
 {
     if (m_contentsLayer && m_contentsLayer->hostingContextIdentifier() == modelContext->modelContentsLayerHostingContextIdentifier())
@@ -1432,6 +1447,18 @@ void GraphicsLayerCA::setContentsToModelContext(Ref<ModelContext> modelContext, 
     m_contentsLayer = createPlatformCALayer(modelContext, this);
     m_contentsLayerPurpose = purpose;
     m_contentsDisplayDelegate = nullptr;
+    noteSublayersChanged();
+    noteLayerPropertyChanged(ContentsPlatformLayerChanged);
+}
+#endif
+
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+void GraphicsLayerCA::removeModelContents()
+{
+    if (!m_contentsLayer)
+        return;
+
+    m_contentsLayer = nullptr;
     noteSublayersChanged();
     noteLayerPropertyChanged(ContentsPlatformLayerChanged);
 }
@@ -2115,7 +2142,7 @@ void GraphicsLayerCA::platformCALayerLayerDisplay(PlatformCALayer* layer)
 
 bool GraphicsLayerCA::platformCALayerNeedsPlatformContext(const PlatformCALayer*) const
 {
-    return client().layerNeedsPlatformContext(this);
+    return client().layerNeedsPlatformContext(*this);
 }
 
 void GraphicsLayerCA::commitLayerTypeChangesBeforeSublayers(CommitState&, float pageScaleFactor, bool& layerTypeChanged)
@@ -3582,7 +3609,7 @@ void GraphicsLayerCA::updateAnimations()
 
             LayerPropertyAnimation* earliestAnimation = nullptr;
             Vector<RefPtr<PlatformCAAnimation>> caAnimations;
-            for (auto* animation : makeReversedRange(animations)) {
+            for (auto* animation : animations | std::views::reverse) {
                 if (!animation->m_beginTime)
                     animation->m_beginTime = currentTime - animationGroupBeginTime;
                 if (auto beginTime = animation->computedBeginTime()) {
@@ -3621,7 +3648,7 @@ void GraphicsLayerCA::updateAnimations()
 
 bool GraphicsLayerCA::isRunningTransformAnimation() const
 {
-#if ENABLE(THREADED_ANIMATION_RESOLUTION)
+#if ENABLE(THREADED_ANIMATIONS)
     if (RefPtr effectStack = acceleratedEffectStack()) {
         return effectStack->primaryLayerEffects().findIf([](auto& effect) {
             return effect->animatesTransformRelatedProperty();
@@ -4007,12 +4034,12 @@ const TimingFunction& GraphicsLayerCA::timingFunctionForAnimationValue(const Ani
         // its mode set to SingleProperty. In this case, we chose not to set set the
         // animation-wide timing function, so we set it on the single keyframe interval
         // to work around a Core Animation limitation.
-        return *anim.timingFunction();
+        return *anim.timingFunction().unsafeGet();
     }
     if (animValue.timingFunction())
         return *animValue.timingFunction();
     if (anim.defaultTimingFunctionForKeyframes())
-        return *anim.defaultTimingFunctionForKeyframes();
+        return *anim.defaultTimingFunctionForKeyframes().unsafeGet();
     return LinearTimingFunction::identity();
 }
 
@@ -4380,7 +4407,7 @@ void GraphicsLayerCA::updateContentsScale(float pageScaleFactor)
         tiledBacking()->setZoomedOutContentsScale(zoomedOutScale);
     }
 
-    if (auto customScale = client().customContentsScale(this))
+    if (auto customScale = client().customContentsScale(*this))
         contentsScale = *customScale;
 
     RefPtr layer = m_layer;
@@ -5266,37 +5293,31 @@ double GraphicsLayerCA::backingStoreMemoryEstimate() const
     return layer->backingStoreBytesPerPixel() * size().width() * layer->contentsScale() * size().height() * layer->contentsScale();
 }
 
-Vector<std::pair<String, double>> GraphicsLayerCA::acceleratedAnimationsForTesting(const Settings& settings) const
+Vector<GraphicsLayer::AcceleratedAnimationForTesting> GraphicsLayerCA::acceleratedAnimationsForTesting() const
 {
-    Vector<std::pair<String, double>> animations;
+    Vector<GraphicsLayer::AcceleratedAnimationForTesting> animations;
 
-#if ENABLE(THREADED_ANIMATION_RESOLUTION)
+#if ENABLE(THREADED_ANIMATIONS)
     auto addAcceleratedEffect = [&](const AcceleratedEffect& effect) {
         for (auto property : effect.animatedProperties())
-            animations.append({ acceleratedEffectPropertyIDAsString(property), effect.playbackRate() });
+            animations.append({ acceleratedEffectPropertyIDAsString(property), effect.playbackRate(), true });
     };
 
-    if (settings.threadedAnimationResolutionEnabled()) {
-        if (RefPtr effectsStack = acceleratedEffectStack()) {
-            for (auto& effect : effectsStack->primaryLayerEffects())
-                addAcceleratedEffect(effect.get());
-            for (auto& effect : effectsStack->backdropLayerEffects())
-                addAcceleratedEffect(effect.get());
-        }
-
-        return animations;
+    if (RefPtr effectsStack = acceleratedEffectStack()) {
+        for (auto& effect : effectsStack->primaryLayerEffects())
+            addAcceleratedEffect(effect.get());
+        for (auto& effect : effectsStack->backdropLayerEffects())
+            addAcceleratedEffect(effect.get());
     }
-#else
-    UNUSED_PARAM(settings);
 #endif
 
     for (auto& animation : m_animations) {
         if (animation.m_pendingRemoval)
             continue;
         if (auto caAnimation = protectedAnimatedLayer(animation.m_property)->animationForKey(animation.animationIdentifier()))
-            animations.append({ animatedPropertyIDAsString(animation.m_property), caAnimation->speed() });
+            animations.append({ animatedPropertyIDAsString(animation.m_property), caAnimation->speed(), false });
         else
-            animations.append({ animatedPropertyIDAsString(animation.m_property), (animation.m_playState == PlayState::Playing || animation.m_playState == PlayState::PlayPending) ? 1 : 0 });
+            animations.append({ animatedPropertyIDAsString(animation.m_property), (animation.m_playState == PlayState::Playing || animation.m_playState == PlayState::PlayPending) ? 1.0 : 0.0, false });
     }
 
     return animations;
@@ -5311,7 +5332,7 @@ RefPtr<GraphicsLayerAsyncContentsDisplayDelegate> GraphicsLayerCA::createAsyncCo
     return adoptRef(new GraphicsLayerAsyncContentsDisplayDelegateCocoa(*this));
 }
 
-#if ENABLE(THREADED_ANIMATION_RESOLUTION)
+#if ENABLE(THREADED_ANIMATIONS)
 void GraphicsLayerCA::setAcceleratedEffectsAndBaseValues(AcceleratedEffects&& effects, AcceleratedEffectValues&& baseValues)
 {
     auto hadEffectStack = !!acceleratedEffectStack();
@@ -5331,12 +5352,12 @@ void GraphicsLayerCA::setAcceleratedEffectsAndBaseValues(AcceleratedEffects&& ef
     if (RefPtr effectsStack = acceleratedEffectStack()) {
         auto& primaryLayerEffects = effectsStack->primaryLayerEffects();
         hasEffectsTargetingPrimaryLayer = !primaryLayerEffects.isEmpty();
-        layer->setAcceleratedEffectsAndBaseValues(primaryLayerEffects, baseValues);
+        layer->setAcceleratedEffectsAndBaseValues(primaryLayerEffects, effectsStack->baseValues());
 
         auto& backdropLayerEffects = effectsStack->backdropLayerEffects();
         hasEffectsTargetingBackdropLayer = !backdropLayerEffects.isEmpty();
         if (RefPtr backdropLayer = m_backdropLayer)
-            backdropLayer->setAcceleratedEffectsAndBaseValues(backdropLayerEffects, baseValues);
+            backdropLayer->setAcceleratedEffectsAndBaseValues(backdropLayerEffects, effectsStack->baseValues());
     }
 
     if (!hasEffectsTargetingPrimaryLayer)

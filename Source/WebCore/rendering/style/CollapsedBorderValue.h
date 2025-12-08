@@ -38,7 +38,7 @@ public:
     {
     }
 
-    CollapsedBorderValue(const BorderValue& border, const Color& color, BorderPrecedence precedence)
+    CollapsedBorderValue(const BorderValue& border, const Color& color, BorderPrecedence precedence, const Style::ZoomFactor)
         : m_width(border.nonZero() ? Style::evaluate<LayoutUnit>(border.width(), Style::ZoomNeeded { }) : 0_lu)
         , m_color(color)
         , m_style(static_cast<unsigned>(border.style()))

@@ -25,10 +25,10 @@
 
 #pragma once
 
-#include "GridTypeAliases.h"
-#include "LayoutIntegrationUtils.h"
-#include "LayoutState.h"
-#include "LayoutUnit.h"
+#include <WebCore/GridTypeAliases.h>
+#include <WebCore/LayoutIntegrationUtils.h>
+#include <WebCore/LayoutState.h>
+#include <WebCore/LayoutUnit.h>
 #include <wtf/CheckedRef.h>
 
 namespace WebCore {
@@ -42,9 +42,8 @@ class UnplacedGridItem;
 struct GridAreaLines;
 struct UnplacedGridItems;
 
-class GridFormattingContext : public CanMakeCheckedPtr<GridFormattingContext> {
+class GridFormattingContext {
     WTF_MAKE_TZONE_OR_ISO_ALLOCATED(GridFormattingContext);
-    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(GridFormattingContext);
 public:
 
     struct GridLayoutConstraints {

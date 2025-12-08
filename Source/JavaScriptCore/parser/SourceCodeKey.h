@@ -123,12 +123,6 @@ public:
 #endif
     }
 
-    struct Hash {
-        static unsigned hash(const SourceCodeKey& key) { return key.hash(); }
-        static bool equal(const SourceCodeKey& a, const SourceCodeKey& b) { return a == b; }
-        static constexpr bool safeToCompareToEmptyOrDeleted = false;
-    };
-
     struct HashTraits : SimpleClassHashTraits<SourceCodeKey> {
         static constexpr bool hasIsEmptyValueFunction = true;
         static bool isEmptyValue(const SourceCodeKey& key) { return key.isNull(); }

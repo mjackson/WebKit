@@ -151,10 +151,10 @@ CDMPrivateThunder::CDMPrivateThunder(const String& keySystem)
 {
 };
 
-Vector<AtomString> CDMPrivateThunder::supportedInitDataTypes() const
+Vector<String> CDMPrivateThunder::supportedInitDataTypes() const
 {
     static std::once_flag onceFlag;
-    static Vector<AtomString> supportedInitDataTypes;
+    static Vector<String> supportedInitDataTypes;
     std::call_once(onceFlag, [] {
         supportedInitDataTypes.appendList({ "keyids"_s, "cenc"_s, "webm"_s, "cbcs"_s });
     });
@@ -174,9 +174,9 @@ bool CDMPrivateThunder::supportsConfiguration(const CDMKeySystemConfiguration& c
     return true;
 }
 
-Vector<AtomString> CDMPrivateThunder::supportedRobustnesses() const
+Vector<String> CDMPrivateThunder::supportedRobustnesses() const
 {
-    return { emptyAtom(), "SW_SECURE_DECODE"_s, "SW_SECURE_CRYPTO"_s };
+    return { emptyString(), "SW_SECURE_DECODE"_s, "SW_SECURE_CRYPTO"_s };
 }
 
 CDMRequirement CDMPrivateThunder::distinctiveIdentifiersRequirement(const CDMKeySystemConfiguration&, const CDMRestrictions&) const
@@ -217,7 +217,7 @@ bool CDMPrivateThunder::supportsSessions() const
     return true;
 }
 
-bool CDMPrivateThunder::supportsInitData(const AtomString& initDataType, const SharedBuffer& initData) const
+bool CDMPrivateThunder::supportsInitData(const String& initDataType, const SharedBuffer& initData) const
 {
     // Validate the initData buffer as an JSON object in keyids case.
     if (equalLettersIgnoringASCIICase(initDataType, "keyids"_s) && CDMUtilities::parseJSONObject(initData))
@@ -494,7 +494,7 @@ void CDMInstanceSessionThunder::errorCallback(RefPtr<SharedBuffer>&& message)
     m_sessionChangedCallbacks.clear();
 }
 
-void CDMInstanceSessionThunder::requestLicense(LicenseType licenseType, KeyGroupingStrategy, const AtomString& initDataType, Ref<SharedBuffer>&& initDataSharedBuffer,
+void CDMInstanceSessionThunder::requestLicense(LicenseType licenseType, KeyGroupingStrategy, const String& initDataType, Ref<SharedBuffer>&& initDataSharedBuffer,
     LicenseCallback&& callback)
 {
     ASSERT(isMainThread());
@@ -513,7 +513,7 @@ void CDMInstanceSessionThunder::requestLicense(LicenseType licenseType, KeyGroup
     GST_MEMDUMP("init data", payloadData.span().data(), payloadData.size());
 
     OpenCDMSession* session = nullptr;
-    opencdm_construct_session(&instance->thunderSystem(), thunderLicenseType(licenseType), initDataType.string().utf8().data(),
+    opencdm_construct_session(&instance->thunderSystem(), thunderLicenseType(licenseType), initDataType.utf8().data(),
         payloadData.span().data(), payloadData.size(), nullptr, 0, &m_thunderSessionCallbacks, this, &session);
     if (!session) {
         GST_ERROR("Could not create session");
@@ -549,10 +549,10 @@ void CDMInstanceSessionThunder::requestLicense(LicenseType licenseType, KeyGroup
         m_challengeCallbacks.append(WTFMove(generateChallenge));
 }
 
-void CDMInstanceSessionThunder::sessionFailure()
+void CDMInstanceSessionThunder::sessionChanged(SessionChangedResult result)
 {
     for (auto& sessionChangedCallback : m_sessionChangedCallbacks)
-        sessionChangedCallback(false, nullptr);
+        sessionChangedCallback(result == SessionChangedResult::Success, nullptr);
     m_sessionChangedCallbacks.clear();
 }
 
@@ -594,7 +594,7 @@ void CDMInstanceSessionThunder::updateLicense(const String& sessionID, LicenseTy
     });
     auto responseData = response->extractData();
     if (!m_session || m_sessionID.isEmpty() || opencdm_session_update(m_session->get(), responseData.span().data(), responseData.size()))
-        sessionFailure();
+        sessionChanged(SessionChangedResult::Failure);
 }
 
 void CDMInstanceSessionThunder::loadSession(LicenseType, const String& sessionID, const String&, LoadSessionCallback&& callback)
@@ -639,7 +639,7 @@ void CDMInstanceSessionThunder::loadSession(LicenseType, const String& sessionID
     });
     if (!m_session || m_sessionID.isEmpty() || opencdm_session_load(m_session->get())) {
         GST_DEBUG("loading failed");
-        sessionFailure();
+        sessionChanged(SessionChangedResult::Failure);
     }
 }
 
@@ -687,7 +687,14 @@ void CDMInstanceSessionThunder::removeSessionData(const String& sessionID, Licen
         }
     });
     if (!m_session || m_sessionID.isEmpty() || opencdm_session_remove(m_session->get()))
-        sessionFailure();
+        sessionChanged(SessionChangedResult::Failure);
+    else
+        sessionChanged(SessionChangedResult::Success);
+    m_session = BoxPtr<OpenCDMSession>();
+    auto instance = cdmInstanceThunder();
+    if (instance)
+        instance->unrefAllKeysFrom(m_keyStore);
+    m_keyStore.clear();
 }
 
 void CDMInstanceSessionThunder::storeRecordOfKeyUsage(const String&)

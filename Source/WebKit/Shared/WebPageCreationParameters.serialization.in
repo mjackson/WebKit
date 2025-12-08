@@ -100,7 +100,6 @@ enum class WebCore::UserInterfaceLayoutDirection : bool;
     bool hasResourceLoadClient;
 
     Vector<String> mimeTypesWithCustomContentProviders;
-    String overrideReferrerForAllRequests;
 
     bool controlledByAutomation;
     bool isProcessSwap;
@@ -289,6 +288,8 @@ enum class WebCore::UserInterfaceLayoutDirection : bool;
 #if ENABLE(IMAGE_ANALYSIS)
     std::optional<WebCore::ImageTranslationLanguageIdentifiers> imageTranslationLanguageIdentifiers;
 #endif
+
+    std::optional<WebKit::TextManipulationParameters> textManipulationParameters;
 }
 
 [Nested] struct WebKit::RemotePageParameters {

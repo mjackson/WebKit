@@ -935,7 +935,7 @@ ALWAYS_INLINE TokenType LiteralParser<CharType, reviverMode>::Lexer::lexString(L
             while (m_ptr < m_end && isSafeStringCharacterForIdentifier<SafeStringCharacterSet::Strict>(*m_ptr, terminator))
                 ++m_ptr;
         } else {
-            using UnsignedType = SIMD::SameSizeUnsignedInteger<CharType>;
+            using UnsignedType = SameSizeUnsignedInteger<CharType>;
             constexpr auto quoteMask = SIMD::splat<UnsignedType>('"');
             constexpr auto escapeMask = SIMD::splat<UnsignedType>('\\');
             constexpr auto controlMask = SIMD::splat<UnsignedType>(' ');
@@ -958,7 +958,7 @@ ALWAYS_INLINE TokenType LiteralParser<CharType, reviverMode>::Lexer::lexString(L
             while (m_ptr < m_end && isSafeStringCharacterForIdentifier<SafeStringCharacterSet::Sloppy>(*m_ptr, terminator))
                 ++m_ptr;
         } else {
-            using UnsignedType = SIMD::SameSizeUnsignedInteger<CharType>;
+            using UnsignedType = SameSizeUnsignedInteger<CharType>;
             auto quoteMask = SIMD::splat<UnsignedType>(terminator);
             constexpr auto escapeMask = SIMD::splat<UnsignedType>('\\');
             constexpr auto controlMask = SIMD::splat<UnsignedType>(' ');

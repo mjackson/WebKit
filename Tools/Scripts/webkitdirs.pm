@@ -166,7 +166,6 @@ BEGIN {
        &runIOSWebKitApp
        &runInCrossTargetEnvironment
        &runInFlatpak
-       &runInFlatpakIfAvailable
        &runMacWebKitApp
        &runMiniBrowser
        &runSwiftBrowser
@@ -538,6 +537,7 @@ sub determineNativeArchitecture($)
         $output = "arm64";
     }
 
+    $output = "arm64" if $output =~ m/^aarch64$/;
     $output = "arm" if $output =~ m/^armv[78]l$/;
     $nativeArchitectureMap{@{$remotes}} = $output;
 }
@@ -2557,29 +2557,6 @@ sub runInFlatpak(@)
     exec @command, argumentsForConfiguration(), @flatpakArgs, "--command", @_, argumentsForConfiguration(), @filteredArgv or die;
 }
 
-sub runInFlatpakIfAvailable(@)
-{
-    my $prefix = wrapperPrefixIfNeeded();
-    if (defined($prefix)) {
-        return 0;
-    }
-
-    if (inFlatpakSandbox()) {
-        return 0;
-    }
-
-    my @command = (File::Spec->catfile(sourceDir(), "Tools", "Scripts", "webkit-flatpak"));
-    if (system(@command, "--available") != 0) {
-        return 0;
-    }
-
-    if (! -e getUserFlatpakPath()) {
-      return 0;
-    }
-
-    runInFlatpak(@_)
-}
-
 sub jhbuildWrapperPrefix()
 {
     my @prefix = (File::Spec->catfile(sourceDir(), "Tools", "jhbuild", "jhbuild-wrapper"));
@@ -3353,7 +3330,15 @@ sub simulatorRuntime($)
 
     my $output = `xcrun --sdk $xcodeSDK simctl list runtimes $platformName --json` or die "Failed to run find simulator runtime";
     for my $runtime (@{decode_json($output)->{runtimes}}) {
-        return $runtime->{identifier} if $runtime->{version} eq $xcodeSDKVersion;
+        if ($runtime->{version} eq $xcodeSDKVersion) {
+            return $runtime->{identifier};
+        }
+        if ($runtime->{version} =~ /^$xcodeSDKVersion/) {
+            my $runtime_version = $runtime->{version};
+            my $runtime_id = $runtime->{identifier};
+            warn "WARNING: Fuzzy-matched $platformName SDK version $xcodeSDKVersion to runtime $runtime_id with version $runtime_version.";
+            return $runtime_id;
+        }
     }
 }
 

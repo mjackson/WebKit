@@ -27,6 +27,7 @@
 
 #include "Butterfly.h"
 #include "IndexingHeader.h"
+#include "JSArray.h"
 #include "JSCJSValueInlines.h"
 #include "JSCell.h"
 #include "ResourceExhaustion.h"

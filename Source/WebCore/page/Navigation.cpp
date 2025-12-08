@@ -84,7 +84,7 @@ bool Navigation::canGoBack() const
     if (hasEntriesAndEventsDisabled())
         return false;
     ASSERT(m_currentEntryIndex);
-    if (!*m_currentEntryIndex)
+    if (!m_currentEntryIndex || !*m_currentEntryIndex)
         return false;
     return true;
 }
@@ -95,7 +95,7 @@ bool Navigation::canGoForward() const
     if (hasEntriesAndEventsDisabled())
         return false;
     ASSERT(m_currentEntryIndex);
-    if (*m_currentEntryIndex == m_entries.size() - 1)
+    if (!m_currentEntryIndex || *m_currentEntryIndex == m_entries.size() - 1)
         return false;
     return true;
 }
@@ -131,13 +131,20 @@ void Navigation::initializeForNewWindow(std::optional<NavigationNavigationType> 
 
     if (previousWindow) {
         Ref previousNavigation = previousWindow->navigation();
+
         bool shouldProcessPreviousNavigationEntries = [&]() {
+            if (!previousNavigation->m_currentEntryIndex)
+                return false;
+
             if (!previousNavigation->m_entries.size())
                 return false;
+
             if (!frame()->protectedDocument()->protectedSecurityOrigin()->isSameOriginAs(previousWindow->protectedDocument()->protectedSecurityOrigin()))
                 return false;
+
             return true;
         }();
+
         if (shouldProcessPreviousNavigationEntries) {
             for (auto& entry : previousNavigation->m_entries)
                 m_entries.append(NavigationHistoryEntry::create(*this, entry.get()));
@@ -162,11 +169,10 @@ void Navigation::initializeForNewWindow(std::optional<NavigationNavigationType> 
                     m_entries[*previousNavigation->m_currentEntryIndex] = NavigationHistoryEntry::create(*this, *currentItem);
 
                 m_currentEntryIndex = getEntryIndexOfHistoryItem(m_entries, *currentItem);
-
-                ASSERT(navigationType);
-                m_activation = NavigationActivation::create(*navigationType, *currentEntry(), WTFMove(previousEntry));
-
-                return;
+                if (m_currentEntryIndex) {
+                    m_activation = NavigationActivation::create(*navigationType, *currentEntry(), WTFMove(previousEntry));
+                    return;
+                }
             }
         }
     }
@@ -577,8 +583,10 @@ void Navigation::rejectFinishedPromise(NavigationAPIMethodTracker* apiMethodTrac
 {
     RELEASE_LOG(Navigation, "rejectFinishedPromise: rejecting promises for tracker=%p with exception='%s'", apiMethodTracker, exception.message().utf8().data());
 
-    // Reject committed first, then finished (matching Navigation API spec order)
-    Ref { apiMethodTracker->committedPromise }->reject(exception, RejectAsHandled::No, exceptionObject);
+    // Only reject committed promise if it hasn't been fulfilled yet (committedToEntry is null). If the navigation was "committed" (state updated)
+    // before being aborted, the committed promise should remain fulfilled while only the finished promise gets rejected.
+    if (!apiMethodTracker->committedToEntry)
+        Ref { apiMethodTracker->committedPromise }->reject(exception, RejectAsHandled::No, exceptionObject);
     Ref { apiMethodTracker->finishedPromise }->reject(exception, RejectAsHandled::Yes, exceptionObject);
     cleanupAPIMethodTracker(apiMethodTracker);
 }
@@ -690,7 +698,7 @@ void Navigation::recursivelyDisposeOfForwardEntriesInParents(BackForwardItemIden
 }
 
 // https://html.spec.whatwg.org/multipage/nav-history-apis.html#update-the-navigation-api-entries-for-a-same-document-navigation
-void Navigation::updateForNavigation(Ref<HistoryItem>&& item, NavigationNavigationType navigationType, ShouldCopyStateObjectFromCurrentEntry shouldCopyStateObjectFromCurrentEntry)
+void Navigation::updateForNavigation(Ref<HistoryItem>&& item, NavigationNavigationType navigationType, ShouldCopyStateObjectFromCurrentEntry shouldCopyStateObjectFromCurrentEntry, ShouldNotifyCommitted shouldNotifyCommitted)
 {
     if (hasEntriesAndEventsDisabled())
         return;
@@ -727,7 +735,7 @@ void Navigation::updateForNavigation(Ref<HistoryItem>&& item, NavigationNavigati
             Ref { m_entries[*m_currentEntryIndex] }->setState(oldCurrentEntry->state());
     }
 
-    if (m_ongoingAPIMethodTracker)
+    if (m_ongoingAPIMethodTracker && shouldNotifyCommitted == ShouldNotifyCommitted::Yes)
         notifyCommittedToEntry(m_ongoingAPIMethodTracker.get(), protectedCurrentEntry().get(), navigationType);
 
     auto currentEntryChangeEvent = NavigationCurrentEntryChangeEvent::create(eventNames().currententrychangeEvent, {
@@ -971,6 +979,26 @@ Navigation::DispatchResult Navigation::innerDispatchNavigateEvent(NavigationNavi
 
     promoteUpcomingAPIMethodTracker(destination->key());
 
+    // Enforce rate limiting to prevent excessive navigation requests.
+    // Only check for script-initiated navigations (those with an API method tracker).
+    if (m_ongoingAPIMethodTracker && !m_rateLimiter.navigationAllowed()) {
+        // Log a warning once per window when the limit is reached.
+        if (!m_rateLimiter.wasReported()) {
+            m_rateLimiter.markReported();
+            if (RefPtr document = protectedWindow()->document())
+                document->addConsoleMessage(MessageSource::JS, MessageLevel::Warning, "Excessive navigation attempts blocked."_s);
+        }
+
+        // Reject the promises and clean up.
+        RefPtr tracker = *m_ongoingAPIMethodTracker;
+        auto exception = Exception { ExceptionCode::QuotaExceededError, "Navigation rate limit exceeded"_s };
+        Ref { tracker->committedPromise }->reject(exception);
+        Ref { tracker->finishedPromise }->reject(exception);
+        cleanupAPIMethodTracker(tracker.get());
+
+        return DispatchResult::Aborted;
+    }
+
     RefPtr document = protectedWindow()->document();
 
     RefPtr apiMethodTracker = m_ongoingAPIMethodTracker;
@@ -986,19 +1014,19 @@ Navigation::DispatchResult Navigation::innerDispatchNavigateEvent(NavigationNavi
 
     RefPtr scriptExecutionContext = this->scriptExecutionContext();
     RefPtr<DOMFormData> formData = nullptr;
-    if (formState) {
-        if (formState->form().isMethodPost() && (navigationType == NavigationNavigationType::Push || navigationType == NavigationNavigationType::Replace)) {
-            if (auto domFormData = DOMFormData::create(*scriptExecutionContext, Ref { formState->form() }.ptr(), RefPtr { formState->submitter() }.get()); !domFormData.hasException())
+    RefPtr updatedSourceElement = sourceElement;
+    if (RefPtr state = formState) {
+        RefPtr submitter = state->submitter();
+        Ref form = state->form();
+
+        if (form->isMethodPost() && (navigationType == NavigationNavigationType::Push || navigationType == NavigationNavigationType::Replace)) {
+            if (auto domFormData = DOMFormData::create(*scriptExecutionContext, form.ptr(), submitter.get()); !domFormData.hasException())
                 formData = domFormData.releaseReturnValue();
         }
 
-        if (!formState->form().target().isEmpty())
-            sourceElement = nullptr;
-        else {
-            sourceElement = formState->submitter();
-            if (!sourceElement)
-                sourceElement = &formState->form();
-        }
+        updatedSourceElement = submitter.get();
+        if (!updatedSourceElement)
+            updatedSourceElement = form.ptr();
     }
 
     RefPtr abortController = AbortController::create(*scriptExecutionContext);
@@ -1011,7 +1039,7 @@ Navigation::DispatchResult Navigation::innerDispatchNavigateEvent(NavigationNavi
         formData,
         downloadRequestFilename,
         info,
-        sourceElement,
+        updatedSourceElement.get(),
         canIntercept,
         UserGestureIndicator::processingUserGesture(document.get()),
         hashChange,
@@ -1061,9 +1089,21 @@ Navigation::DispatchResult Navigation::innerDispatchNavigateEvent(NavigationNavi
 
         if (navigationType == NavigationNavigationType::Traverse) {
             m_suppressNormalScrollRestorationDuringOngoingNavigation = true;
-            // For intercepted traverse navigations, we need to update the URL before handlers run.
-            if (destination->sameDocument() && hasEntryWithKey(destination->key()))
-                document->updateURLForPushOrReplaceState(destination->url());
+            // For intercepted traverse navigations, update the Navigation API state and fire currententrychange.
+            // This must happen AFTER the navigate event but BEFORE intercept handlers run.
+            // For committed promise timing:
+            // - If there are NO handlers (just intercept() called), fulfill committed now (before currententrychange)
+            // - If there ARE handlers (intercept({ handler() {...} })), fulfill committed after handlers are invoked
+            if (destination->sameDocument()) {
+                RefPtr entry = findEntryByKey(destination->key());
+                if (entry) {
+                    document->updateURLForPushOrReplaceState(destination->url());
+
+                    // Only notify committed now if there are no handlers to wait for
+                    auto shouldNotifyCommited = event->handlers().isEmpty() ? ShouldNotifyCommitted::Yes : ShouldNotifyCommitted::No;
+                    updateForNavigation(entry->associatedHistoryItem(), navigationType, ShouldCopyStateObjectFromCurrentEntry::No, shouldNotifyCommited);
+                }
+            }
         } else if (navigationType == NavigationNavigationType::Reload) {
             // Not in specification but matches chromium implementation and tests.
             updateForNavigation(currentEntry()->associatedHistoryItem(), navigationType);
@@ -1086,6 +1126,11 @@ Navigation::DispatchResult Navigation::innerDispatchNavigateEvent(NavigationNavi
                 promiseList.append(WTFMove(promise));
             }
         }
+
+        // For intercepted traverse navigations, notify committed after handlers have been invoked but before
+        // they complete. This ensures the correct event ordering.
+        if (navigationType == NavigationNavigationType::Traverse && event->wasIntercepted() && apiMethodTracker && !apiMethodTracker->committedToEntry)
+            notifyCommittedToEntry(apiMethodTracker.get(), protectedCurrentEntry().get(), navigationType);
 
         // FIXME: this emulates the behavior of a Promise wrapped around waitForAll, but we may want the real
         // thing if the ordering-and-transition tests show timing related issues related to this.
@@ -1116,6 +1161,10 @@ Navigation::DispatchResult Navigation::innerDispatchNavigateEvent(NavigationNavi
 
                 auto focusChanged = std::exchange(protectedThis->m_focusChangedDuringOngoingNavigation, FocusDidChange::No);
                 protectedThis->protectedOngoingNavigateEvent()->finish(*document, InterceptionHandlersDidFulfill::No, focusChanged);
+
+                if (abortController)
+                    abortController->signal().signalAbort(result);
+
                 protectedThis->m_ongoingNavigateEvent = nullptr;
 
                 ErrorInformation errorInformation;
@@ -1202,6 +1251,59 @@ void Navigation::abortOngoingNavigationIfNeeded()
 {
     if (RefPtr ongoingNavigateEvent = m_ongoingNavigateEvent)
         abortOngoingNavigation(*ongoingNavigateEvent);
+}
+
+// https://html.spec.whatwg.org/multipage/browsing-the-web.html#getting-session-history-entries-for-the-navigation-api
+Vector<Ref<HistoryItem>> Navigation::filterHistoryItemsForNavigationAPI(Vector<Ref<HistoryItem>>&& allItems, HistoryItem& currentItem)
+{
+    auto startingIndex = allItems.findIf([currentItemID = currentItem.itemID()](const Ref<HistoryItem> entry) {
+        return entry->itemID() == currentItemID;
+    });
+
+    if (startingIndex == notFound)
+        return { currentItem };
+
+    Vector<Ref<HistoryItem>> filteredItems;
+    Ref startingOrigin = SecurityOrigin::create(currentItem.url());
+
+    for (int i = static_cast<int>(startingIndex) - 1; i >= 0; --i) {
+        Ref item = allItems[i];
+        if (!SecurityOrigin::create(item->url())->isSameOriginAs(startingOrigin))
+            break;
+        filteredItems.append(WTFMove(item));
+    }
+
+    filteredItems.reverse();
+    filteredItems.append(currentItem);
+
+    for (size_t i = startingIndex + 1; i < allItems.size(); ++i) {
+        Ref item = allItems[i];
+        if (!SecurityOrigin::create(item->url())->isSameOriginAs(startingOrigin))
+            break;
+        filteredItems.append(WTFMove(item));
+    }
+
+    return filteredItems;
+}
+
+bool Navigation::RateLimiter::navigationAllowed()
+{
+    auto currentTime = MonotonicTime::now();
+
+    // Check if we've exceeded the time window and need to reset.
+    if (currentTime - m_windowStartTime > m_windowDuration) {
+        m_windowStartTime = currentTime;
+        m_navigationCount = 0;
+        m_limitMessageSent = false;
+    }
+
+    // Allow navigation if we're still under the limit.
+    if (m_navigationCount < m_maxNavigationsPerWindow) {
+        ++m_navigationCount;
+        return true;
+    }
+
+    return false;
 }
 
 } // namespace WebCore

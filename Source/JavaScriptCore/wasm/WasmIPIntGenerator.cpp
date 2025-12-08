@@ -135,6 +135,7 @@ struct IPIntControlType {
     { }
 
     static bool isIf(const IPIntControlType& control) { return control.blockType() == BlockType::If; }
+    static bool isElse(const IPIntControlType& control) { return control.blockType() == BlockType::Else; }
     static bool isTry(const IPIntControlType& control) { return control.blockType() == BlockType::Try; }
     static bool isTryTable(const IPIntControlType& control) { return control.blockType() == BlockType::TryTable; }
     static bool isAnyCatch(const IPIntControlType& control) { return control.blockType() == BlockType::Catch; }
@@ -175,8 +176,6 @@ private:
     BlockSignature m_signature;
     BlockType m_blockType;
     CatchKind m_catchKind;
-
-    bool isElse { false };
 
     int32_t m_pendingOffset { -1 };
 
@@ -528,14 +527,6 @@ public:
     PartialResult WARN_UNUSED_RETURN addUnreachable();
     PartialResult WARN_UNUSED_RETURN addCrash();
 
-    inline void assertAboutStackSize(bool condition)
-    {
-        // There's a few cases that we only want to assert our stack contents if SIMD isn't enabled.
-        // When !useWasmIPIntSIMD, we don't update the stack size correctly, but this is
-        // not an issue because the code never gets run.
-        ASSERT_UNUSED(condition, (m_usesSIMD && !Options::useWasmIPIntSIMD()) || condition);
-    }
-
     void setParser(FunctionParser<IPIntGenerator>* parser) { m_parser = parser; };
     size_t getCurrentInstructionLength()
     {
@@ -553,14 +544,14 @@ public:
     void didParseOpcode()
     {
         if (!m_parser->unreachableBlocks()) {
-            assertAboutStackSize(m_parser->getStackHeightInValues() == m_stackSize.value());
+            ASSERT(m_parser->getStackHeightInValues() == m_stackSize.value());
             if (Options::enableWasmDebugger()) [[unlikely]] {
                 if (m_debugInfo) {
                     OpType currentOpcode = m_parser->currentOpcode();
                     bool isControlFlowInstruction = Wasm::isControlFlowInstructionWithExtGC(currentOpcode, [this]() {
                         return m_parser->currentExtendedOpcode();
                     });
-                    if (!isControlFlowInstruction)
+                    if (!isControlFlowInstruction || currentOpcode == AnnotatedSelect)
                         RECORD_NEXT_INSTRUCTION(curPC(), nextPC());
                 }
             }
@@ -621,7 +612,7 @@ public:
         return m_cachedCallInformation;
     }
 
-    static bool tierSupportsSIMD() { return Options::useWasmIPIntSIMD(); }
+    static constexpr bool tierSupportsSIMD() { return true; }
     static constexpr bool validateFunctionBodySize = true;
 
 private:
@@ -666,9 +657,6 @@ private:
     inline uint32_t curPC() { return m_parser->currentOpcodeStartingOffset() - m_metadata->m_bytecodeOffset; }
     inline uint32_t nextPC() { return m_parser->offset() - m_metadata->m_bytecodeOffset; }
     inline uint32_t curMC() { return m_metadata->m_metadata.size(); }
-
-    // FIXME: If rethrow is not used in practice we should consider just reparsing the function to update the SP offsets.
-    Vector<uint32_t> m_catchSPMetadataOffsets;
 
     CallInformation m_cachedCallInformation { };
     const FunctionSignature* m_cachedSignature { nullptr };
@@ -822,7 +810,12 @@ PartialResult WARN_UNUSED_RETURN IPIntGenerator::addSIMDV_VV(SIMDLaneOperation, 
     changeStackSize(-1); // Pop two v128 values, push one v128 value
     return { };
 }
-PartialResult WARN_UNUSED_RETURN IPIntGenerator::addSIMDRelaxedFMA(SIMDLaneOperation, SIMDInfo, ExpressionType, ExpressionType, ExpressionType, ExpressionType&) IPINT_UNIMPLEMENTED
+
+PartialResult WARN_UNUSED_RETURN IPIntGenerator::addSIMDRelaxedFMA(SIMDLaneOperation, SIMDInfo, ExpressionType, ExpressionType, ExpressionType, ExpressionType&)
+{
+    changeStackSize(-2); // Pop three v128 values, push one v128 value
+    return { };
+}
 
 // References
 
@@ -932,7 +925,7 @@ PartialResult WARN_UNUSED_RETURN IPIntGenerator::addArguments(const TypeDefiniti
 
     ASSERT(callCC.headerAndArgumentStackSizeInBytes >= callCC.headerIncludingThisSizeInBytes);
     m_argumentAndResultsStackSize = WTF::roundUpToMultipleOf<stackAlignmentBytes()>(callCC.headerAndArgumentStackSizeInBytes) - callCC.headerIncludingThisSizeInBytes;
-    ASSERT(!(m_argumentAndResultsStackSize % 16)); // mINT requires this
+    ASSERT(!Options::useWasmIPInt() || !(m_argumentAndResultsStackSize % 16)); // mINT requires this
 
     auto numArgs = sig->argumentCount();
     m_metadata->m_numLocals += numArgs;
@@ -2157,7 +2150,7 @@ void IPIntGenerator::resolveEntryTarget(unsigned index, IPIntLocation loc)
         // write delta PC and delta MC
         IPInt::BlockMetadata md = { static_cast<int32_t>(loc.pc - src.pc), static_cast<int32_t>(loc.mc - src.mc) };
         WRITE_TO_METADATA(m_metadata->m_metadata.mutableSpan().data() + src.mc, md, IPInt::BlockMetadata);
-        RECORD_NEXT_INSTRUCTION(src.pc, loc.pc);
+        RECORD_NEXT_INSTRUCTION(src.pc, loc.pc); // FIXME: coalescing sequential blocks - should update instead of adding
     }
     if (control.isLoop) {
         for (auto& src : control.m_awaitingBranchTarget) {
@@ -2256,7 +2249,7 @@ PartialResult WARN_UNUSED_RETURN IPIntGenerator::addLoop(BlockSignature signatur
     m_metadata->appendMetadata(md);
 
     // Loop OSR
-    assertAboutStackSize(m_parser->getStackHeightInValues() + newStack.size() == m_stackSize.value());
+    ASSERT(m_parser->getStackHeightInValues() + newStack.size() == m_stackSize.value());
     unsigned numOSREntryDataValues = m_stackSize.value();
 
     // Note the +1: we do this to avoid having 0 as a key in the map, since the current map can't handle 0 as a key
@@ -2315,21 +2308,19 @@ PartialResult WARN_UNUSED_RETURN IPIntGenerator::addElseToUnreachable(ControlTyp
     if (m_parser->currentOpcode() == OpType::End) {
         // Edge case: if ... end with no else
         mdIf->elseDeltaMC = curMC() - block.m_mc;
-        block = ControlType(block.signature(), block.stackSize(), BlockType::Block);
+        block = ControlType(block.signature(), block.stackSize(), BlockType::Else);
         block.m_index = ifIndex;
         block.m_pendingOffset = -1;
-        block.isElse = true;
         return { };
     }
 
     // New MC, normal case
     mdIf->elseDeltaMC = safeCast<uint32_t>(curMC() + sizeof(IPInt::BlockMetadata)) - block.m_mc;
-    block = ControlType(block.signature(), block.stackSize(), BlockType::Block);
+    block = ControlType(block.signature(), block.stackSize(), BlockType::Else);
     block.m_index = ifIndex;
     block.m_pc = curPC();
     block.m_mc = curMC();
     block.m_pendingOffset = curMC();
-    block.isElse = true;
 
     m_metadata->addBlankSpace<IPInt::BlockMetadata>();
     return { };
@@ -2451,7 +2442,7 @@ PartialResult WARN_UNUSED_RETURN IPIntGenerator::addCatchToUnreachable(unsigned 
     for (unsigned i = 0; i < signature.argumentCount(); i++)
         results.append(Value { });
 
-    assertAboutStackSize(block.stackSize() == m_parser->getControlEntryStackHeightInValues());
+    ASSERT(block.stackSize() == m_parser->getControlEntryStackHeightInValues());
     m_stackSize = block.stackSize();
     changeStackSize(signature.argumentCount());
 
@@ -2491,7 +2482,7 @@ PartialResult WARN_UNUSED_RETURN IPIntGenerator::addCatchAllToUnreachable(Contro
     else
         block.m_catchKind = CatchKind::CatchAll;
 
-    assertAboutStackSize(block.stackSize() == m_parser->getControlEntryStackHeightInValues());
+    ASSERT(block.stackSize() == m_parser->getControlEntryStackHeightInValues());
     m_stackSize = block.stackSize();
 
     // FIXME: If this is actually unreachable we shouldn't need metadata.
@@ -2766,18 +2757,15 @@ PartialResult WARN_UNUSED_RETURN IPIntGenerator::addEndToUnreachable(ControlEntr
 
     if (ControlType::isIf(block)) {
         m_exitHandlersAwaitingCoalescing.append({ block.m_pc, block.m_mc });
+    } else if (ControlType::isElse(block)) {
+        // if it's not an if ... end, coalesce
+        if (block.m_pendingOffset != -1)
+            m_exitHandlersAwaitingCoalescing.append({ block.m_pc, block.m_mc });
+        m_coalesceQueue.append({ static_cast<unsigned>(block.m_index), false });
+        --m_coalesceDebt;
     } else if (ControlType::isBlock(block)) {
-        if (block.isElse) {
-            // if it's not an if ... end, coalesce
-            if (block.m_pendingOffset != -1)
-                m_exitHandlersAwaitingCoalescing.append({ block.m_pc, block.m_mc });
-            m_coalesceQueue.append({ static_cast<unsigned>(block.m_index), false });
-            --m_coalesceDebt;
-        } else {
-            // block
-            m_coalesceQueue.append({ static_cast<unsigned>(block.m_index), false });
-            --m_coalesceDebt;
-        }
+        m_coalesceQueue.append({ static_cast<unsigned>(block.m_index), false });
+        --m_coalesceDebt;
     } else if (ControlType::isLoop(block)) {
         m_coalesceQueue.append({ static_cast<unsigned>(block.m_index), false });
         --m_coalesceDebt;
@@ -3013,6 +3001,7 @@ PartialResult WARN_UNUSED_RETURN IPIntGenerator::addCall(unsigned callProfileInd
 {
     const FunctionSignature& signature = *type.as<FunctionSignature>();
     const CallInformation& callConvention = cachedCallInformationFor(signature);
+    m_metadata->addCallTarget(callProfileIndex, index);
 
     if (callType == CallType::TailCall) {
         // on a tail call, we need to:
@@ -3058,6 +3047,7 @@ PartialResult WARN_UNUSED_RETURN IPIntGenerator::addCallIndirect(unsigned callPr
 {
     const FunctionSignature& signature = *originalSignature.expand().as<FunctionSignature>();
     const CallInformation& callConvention = cachedCallInformationFor(signature);
+    m_metadata->addCallTarget(callProfileIndex, { });
 
     if (callType == CallType::TailCall) {
         const unsigned callIndex = 1;
@@ -3108,6 +3098,7 @@ PartialResult WARN_UNUSED_RETURN IPIntGenerator::addCallRef(unsigned callProfile
 {
     const FunctionSignature& signature = *originalSignature.expand().as<FunctionSignature>();
     const CallInformation& callConvention = cachedCallInformationFor(signature);
+    m_metadata->addCallTarget(callProfileIndex, { });
 
     if (callType == CallType::TailCall) {
         const unsigned callIndex = 1;
@@ -3166,11 +3157,8 @@ PartialResult WARN_UNUSED_RETURN IPIntGenerator::addCrash()
 
 std::unique_ptr<FunctionIPIntMetadataGenerator> IPIntGenerator::finalize()
 {
-    if (m_usesRethrow) {
+    if (m_usesRethrow)
         m_metadata->m_numAlignedRethrowSlots = roundUpToMultipleOf<2>(m_maxTryDepth);
-        for (uint32_t catchSPOffset : m_catchSPMetadataOffsets)
-            *reinterpret_cast_ptr<uint32_t*>(m_metadata->m_metadata.mutableSpan().data() + catchSPOffset) += m_metadata->m_numAlignedRethrowSlots;
-    }
 
     // Pad the metadata to an even number since we will allocate the rounded up size
     if (m_metadata->m_numLocals % 2)
@@ -3179,7 +3167,8 @@ std::unique_ptr<FunctionIPIntMetadataGenerator> IPIntGenerator::finalize()
     m_metadata->m_maxFrameSizeInV128 = roundUpToMultipleOf<2>(m_metadata->m_numLocals) / 2;
     m_metadata->m_maxFrameSizeInV128 += m_metadata->m_numAlignedRethrowSlots / 2;
     m_metadata->m_maxFrameSizeInV128 += m_maxStackSize;
-    m_metadata->m_numCallProfiles = m_parser->numCallProfiles();
+    if (m_metadata->m_callTargets.size() < m_parser->numCallProfiles())
+        m_metadata->m_callTargets.insertFill(m_metadata->m_callTargets.size(), FunctionSpaceIndex { }, m_parser->numCallProfiles() - m_metadata->m_callTargets.size());
 
     return WTFMove(m_metadata);
 }

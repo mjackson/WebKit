@@ -25,16 +25,16 @@
 
 #pragma once
 
-#include <WebCore/AnchorPositionEvaluator.h>
-#include <WebCore/PositionTryFallback.h>
+#include "AnchorPositionEvaluator.h"
 #include "PropertyCascade.h"
+#include "RenderStyle.h"
 #include "ResolvedStyle.h"
 #include "SelectorChecker.h"
 #include "SelectorMatchingState.h"
-#include <WebCore/RenderStyle.h>
-#include <WebCore/StyleChange.h>
-#include <WebCore/StyleUpdate.h>
-#include <WebCore/Styleable.h>
+#include "StyleChange.h"
+#include "StylePositionTryFallback.h"
+#include "StyleUpdate.h"
+#include "Styleable.h"
 #include "TreeResolutionState.h"
 #include <wtf/Function.h>
 #include <wtf/Ref.h>
@@ -106,6 +106,8 @@ private:
     std::optional<ElementUpdate> resolveAncestorPseudoElement(Element&, const PseudoElementIdentifier&, const ElementUpdate&);
     std::optional<ResolvedStyle> resolveAncestorFirstLinePseudoElement(Element&, const ElementUpdate&);
     std::optional<ResolvedStyle> resolveAncestorFirstLetterPseudoElement(Element&, const ElementUpdate&, ResolutionContext&);
+
+    void resetStyleForNonRenderedDescendants(Element&);
 
     struct Scope : RefCounted<Scope> {
         WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(TreeResolverScope, TreeResolverScope);

@@ -1,7 +1,6 @@
 set(WebKitGLibAPITests_SOURCES
     ${TOOLS_DIR}/TestWebKitAPI/glib/WebKitGLib/LoadTrackingTest.cpp
     ${TOOLS_DIR}/TestWebKitAPI/glib/WebKitGLib/TestMain.cpp
-    ${TOOLS_DIR}/TestWebKitAPI/glib/WebKitGLib/WebExtensionUtilities.cpp
     ${TOOLS_DIR}/TestWebKitAPI/glib/WebKitGLib/WebKitTestServer.cpp
     ${TOOLS_DIR}/TestWebKitAPI/glib/WebKitGLib/WebViewTest.cpp
 )
@@ -34,7 +33,6 @@ endif ()
 set(WebKitGLibAPITests_SYSTEM_INCLUDE_DIRECTORIES
     ${GSTREAMER_AUDIO_INCLUDE_DIRS}
     ${GSTREAMER_INCLUDE_DIRS}
-    ${LIBSOUP_INCLUDE_DIRS}
 )
 
 set(WebKitAPITest_LIBRARIES
@@ -46,8 +44,8 @@ set(WebKitGLibAPITestsCore_LIBRARIES
 )
 
 set(WebKitGLibAPITest_LIBRARIES
-    ${LIBSOUP_LIBRARIES}
     ${WebKitAPITest_LIBRARIES}
+    Soup3::Soup3
     WebKitGLibAPITestsCore
 )
 
@@ -169,13 +167,17 @@ if (ENABLE_WEBXR AND USE_OPENXR)
     ADD_WK2_TEST(TestWebKitWebXR ${TOOLS_DIR}/TestWebKitAPI/Tests/WebKitGLib/TestWebKitWebXR.cpp)
 endif ()
 
+if (ENABLE_2022_GLIB_API)
+    ADD_WK2_TEST(TestWebKitImage ${TOOLS_DIR}/TestWebKitAPI/Tests/WebKitGLib/TestWebKitImage.cpp)
+    ADD_WK2_TEST(TestWebKitNetworkSession ${TOOLS_DIR}/TestWebKitAPI/Tests/WebKitGLib/TestWebKitNetworkSession.cpp)
+
 if (ENABLE_WK_WEB_EXTENSIONS)
+if (ENABLE_2022_GLIB_API)
     ADD_WK2_TEST(TestWebKitWebExtension ${TOOLS_DIR}/TestWebKitAPI/Tests/WebKitGLib/TestWebKitWebExtension.cpp)
+endif ()
     ADD_WK2_TEST(TestWebKitWebExtensionMatchPattern ${TOOLS_DIR}/TestWebKitAPI/Tests/WebKitGLib/TestWebKitWebExtensionMatchPattern.cpp)
 endif ()
 
-if (ENABLE_2022_GLIB_API)
-    ADD_WK2_TEST(TestWebKitNetworkSession ${TOOLS_DIR}/TestWebKitAPI/Tests/WebKitGLib/TestWebKitNetworkSession.cpp)
 endif ()
 
 macro(ADD_WPE_QT_TEST test_name)
@@ -201,7 +203,6 @@ if (PORT STREQUAL "WPE" AND ENABLE_WPE_QT_API)
         ${CMAKE_BINARY_DIR}
         ${JavaScriptCoreGLib_DERIVED_SOURCES_DIR}
         ${JavaScriptCoreGLib_FRAMEWORK_HEADERS_DIR}
-        ${LIBSOUP_INCLUDE_DIRS}
         ${TOOLS_DIR}/TestWebKitAPI
         ${WEBKIT_DIR}/WPEPlatform
         ${WPEPlatform_DERIVED_SOURCES_DIR}

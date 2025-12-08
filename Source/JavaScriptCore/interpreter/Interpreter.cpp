@@ -60,6 +60,7 @@
 #include "JSObject.h"
 #include "JSPromise.h"
 #include "JSPromiseAllContext.h"
+#include "JSPromiseAllGlobalContext.h"
 #include "JSPromiseReaction.h"
 #include "JSRemoteFunction.h"
 #include "JSString.h"
@@ -487,17 +488,19 @@ void Interpreter::getAsyncStackTrace(JSCell* owner, Vector<StackFrame>& results,
 
         // handle `Promise.all`
         if (auto* promiseAllContext = jsDynamicCast<JSPromiseAllContext*>(promiseContext)) {
-            JSValue promiseValue = promiseAllContext->promise();
-            ASSERT(promiseValue);
-            if (auto* promise = jsDynamicCast<JSPromise*>(promiseValue)) {
-                if (JSValue promiseContext = getContextValueFromPromise(promise)) {
-                    if (auto* generator = jsDynamicCast<JSGenerator*>(promiseContext))
-                        return generator;
+            if (auto* globalContext = jsDynamicCast<JSPromiseAllGlobalContext*>(promiseAllContext->globalContext())) {
+                JSValue promiseValue = globalContext->promise();
+                ASSERT(promiseValue);
+                if (auto* promise = jsDynamicCast<JSPromise*>(promiseValue)) {
+                    if (JSValue promiseContext = getContextValueFromPromise(promise)) {
+                        if (auto* generator = jsDynamicCast<JSGenerator*>(promiseContext))
+                            return generator;
+                    }
                 }
             }
         }
 
-        // handle `Promise.any` and `Promise.race`
+        // handle `Promise.any`, `Promise.race` and `Promise.allSettled`
         if (auto* contextPromise = jsDynamicCast<JSPromise*>(promiseContext)) {
             if (JSValue parentContext = getContextValueFromPromise(contextPromise)) {
                 if (auto* generator = jsDynamicCast<JSGenerator*>(parentContext))
@@ -596,6 +599,17 @@ void Interpreter::getStackTrace(JSCell* owner, Vector<StackFrame>& results, size
     size_t asyncStackTraceInsertPos = 0;
     EntryFrame* previousEntryFrame = nullptr;
     size_t previousEntryFrameStackTraceInsertPos = 0;
+    auto updateAsyncStackTraceOriginGenerator = [&]() -> void {
+        ASSERT(Options::useAsyncStackTrace());
+        auto* record = vmEntryRecord(previousEntryFrame);
+        if (record->m_context) {
+            if (auto* generator = jsDynamicCast<JSGenerator*>(record->m_context)) {
+                asyncStackTraceOriginGenerator = generator;
+                asyncStackTraceInsertPos = previousEntryFrameStackTraceInsertPos;
+            }
+        }
+    };
+
     StackVisitor::visit(callFrame, vm, [&] (StackVisitor& visitor) ALWAYS_INLINE_LAMBDA {
         if (results.size() >= maxStackSize)
             return IterationStatus::Done;
@@ -612,45 +626,32 @@ void Interpreter::getStackTrace(JSCell* owner, Vector<StackFrame>& results, size
             return IterationStatus::Continue;
         }
 
+        auto* currentEntryFrame = visitor->entryFrame();
         if (Options::useAsyncStackTrace()) {
-            auto* currentEntryFrame = visitor->entryFrame();
-            if (currentEntryFrame != previousEntryFrame) {
-                if (previousEntryFrame) {
-                    auto* record = vmEntryRecord(previousEntryFrame);
-                    if (record->m_context) {
-                        if (auto* generator = jsDynamicCast<JSGenerator*>(record->m_context)) {
-                            asyncStackTraceOriginGenerator = generator;
-                            asyncStackTraceInsertPos = previousEntryFrameStackTraceInsertPos;
-                        }
-                    }
+            if (currentEntryFrame != previousEntryFrame && previousEntryFrame)
+                updateAsyncStackTraceOriginGenerator();
+        }
+
+        if (!visitor->isImplementationVisibilityPrivate()) {
+            if (visitor->isNativeCalleeFrame()) {
+                auto* nativeCallee = visitor->callee().asNativeCallee();
+                switch (nativeCallee->category()) {
+                case NativeCallee::Category::Wasm: {
+                    results.append(StackFrame(visitor->wasmFunctionIndexOrName(), visitor->wasmFunctionIndex()));
+                    break;
                 }
-            }
+                case NativeCallee::Category::InlineCache: {
+                    break;
+                }
+                }
+            } else if (!!visitor->codeBlock() && !visitor->codeBlock()->unlinkedCodeBlock()->isBuiltinFunction())
+                results.append(StackFrame(vm, owner, visitor->callee().asCell(), visitor->codeBlock(), visitor->bytecodeIndex()));
+            else
+                results.append(StackFrame(vm, owner, visitor->callee().asCell()));
+
             previousEntryFrame = currentEntryFrame;
             previousEntryFrameStackTraceInsertPos = results.size();
         }
-
-        if (visitor->isImplementationVisibilityPrivate())
-            return IterationStatus::Continue;
-
-        if (visitor->isNativeCalleeFrame()) {
-            auto* nativeCallee = visitor->callee().asNativeCallee();
-            switch (nativeCallee->category()) {
-            case NativeCallee::Category::Wasm: {
-                results.append(StackFrame(visitor->wasmFunctionIndexOrName(), visitor->wasmFunctionIndex()));
-                break;
-            }
-            case NativeCallee::Category::InlineCache: {
-                break;
-            }
-            }
-#if USE(ALLOW_LINE_AND_COLUMN_NUMBER_IN_BUILTINS)
-        } else if (!!visitor->codeBlock())
-#else
-        } else if (!!visitor->codeBlock() && !visitor->codeBlock()->unlinkedCodeBlock()->isBuiltinFunction())
-#endif
-            results.append(StackFrame(vm, owner, visitor->callee().asCell(), visitor->codeBlock(), visitor->bytecodeIndex()));
-        else
-            results.append(StackFrame(vm, owner, visitor->callee().asCell()));
         return IterationStatus::Continue;
     });
 
@@ -664,21 +665,10 @@ void Interpreter::getStackTrace(JSCell* owner, Vector<StackFrame>& results, size
 #endif
 
     if (Options::useAsyncStackTrace()) {
-#if USE(BUN_JSC_ADDITIONS)
-        // After the loop, check the last EntryFrame if we haven't found a generator yet.
-        // This is necessary for environments like Bun where the microtask execution
-        // (e.g., drainMicrotasks) doesn't appear as a frame on the stack, so we never
-        // cross an EntryFrame boundary during the loop.
-        if (!asyncStackTraceOriginGenerator && previousEntryFrame) {
-            auto* record = vmEntryRecord(previousEntryFrame);
-            if (record->m_context) {
-                if (auto* generator = jsDynamicCast<JSGenerator*>(record->m_context)) {
-                    asyncStackTraceOriginGenerator = generator;
-                    asyncStackTraceInsertPos = previousEntryFrameStackTraceInsertPos;
-                }
-            }
-        }
-#endif
+        // Check if the last entry frame had a generator context
+        // that wasn't captured during stack traversal (e.g. TLA)
+        if (!asyncStackTraceOriginGenerator && previousEntryFrame)
+            updateAsyncStackTraceOriginGenerator();
         if (asyncStackTraceOriginGenerator) {
             Vector<StackFrame> asyncFrames;
             getAsyncStackTrace(owner, asyncFrames, asyncStackTraceOriginGenerator, maxStackSize);
@@ -792,10 +782,10 @@ CatchInfo::CatchInfo(const Wasm::HandlerInfo* handler, const Wasm::Callee* calle
 }
 #endif
 
-class UnwindFunctor {
+class UnwindFunctor : UnwindFunctorBase {
 public:
     UnwindFunctor(VM& vm, CallFrame*& callFrame, Exception* exception, JSValue thrownValue, CodeBlock*& codeBlock, CatchInfo& handler, JSRemoteFunction*& seenRemoteFunction)
-        : m_vm(vm)
+        : UnwindFunctorBase(vm)
         , m_callFrame(callFrame)
         , m_isTermination(vm.isTerminationException(exception))
         , m_codeBlock(codeBlock)
@@ -879,7 +869,7 @@ public:
         }
 
         JSGlobalObject* globalObject = m_callFrame->lexicalGlobalObject(m_vm);
-        notifyDebuggerOfUnwinding(globalObject, m_vm, m_callFrame);
+        notifyDebuggerOfUnwinding(globalObject, m_callFrame);
 
         copyCalleeSavesToEntryFrameCalleeSavesBuffer(visitor);
 
@@ -891,75 +881,6 @@ public:
     }
 
 private:
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
-
-    void copyCalleeSavesToEntryFrameCalleeSavesBuffer(StackVisitor& visitor) const
-    {
-#if ENABLE(ASSEMBLER)
-        std::optional<RegisterAtOffsetList> currentCalleeSaves = visitor->calleeSaveRegistersForUnwinding();
-
-        if (!currentCalleeSaves)
-            return;
-
-        RegisterAtOffsetList* allCalleeSaves = RegisterSetBuilder::vmCalleeSaveRegisterOffsets();
-        auto dontCopyRegisters = RegisterSetBuilder::stackRegisters();
-        CPURegister* frame = reinterpret_cast<CPURegister*>(m_callFrame->registers());
-
-        unsigned registerCount = currentCalleeSaves->registerCount();
-        VMEntryRecord* record = vmEntryRecord(m_vm.topEntryFrame);
-        for (unsigned i = 0; i < registerCount; i++) {
-            RegisterAtOffset currentEntry = currentCalleeSaves->at(i);
-            if (dontCopyRegisters.contains(currentEntry.reg(), IgnoreVectors))
-                continue;
-            RegisterAtOffset* calleeSavesEntry = allCalleeSaves->find(currentEntry.reg());
-
-            if (!calleeSavesEntry) {
-                if constexpr (!isARM_THUMB2())
-                    RELEASE_ASSERT_NOT_REACHED();
-                // This can happen on ARMv7, because there are more callee save
-                // registers in the system convention than in the VM convention,
-                // so frames generated by Air callees might restore any system
-                // callee-save registers and we don't know the correct offset to
-                // restore them to in the destination record if the register is
-                // not callee-save in the VM convention.
-
-                // Luckily, it is correct for us to drop these--since the
-                // Air-generated callee is only expected to preserve the VM
-                // callee registers (when called from the VM), it doesn't need
-                // to appear to preserve the non-VM-callee-saves if we unwind
-                // its frame.
-                continue;
-            }
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
-            record->calleeSaveRegistersBuffer[calleeSavesEntry->offsetAsIndex()] = *(frame + currentEntry.offsetAsIndex());
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
-        }
-#else
-        UNUSED_PARAM(visitor);
-#endif
-    }
-
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
-
-    ALWAYS_INLINE static void notifyDebuggerOfUnwinding(JSGlobalObject* globalObject, VM& vm, CallFrame* callFrame)
-    {
-        Debugger* debugger = globalObject->debugger();
-        if (!debugger) [[likely]]
-            return;
-
-        DeferTermination deferScope(vm);
-        auto catchScope = DECLARE_CATCH_SCOPE(vm);
-
-        SuspendExceptionScope scope(vm);
-        if (callFrame->isNativeCalleeFrame()
-            || (callFrame->callee().isCell() && callFrame->callee().asCell()->inherits<JSFunction>()))
-            debugger->unwindEvent(callFrame);
-        else
-            debugger->didExecuteProgram(callFrame);
-        catchScope.assertNoException();
-    }
-
-    VM& m_vm;
     CallFrame*& m_callFrame;
     bool m_isTermination;
     CodeBlock*& m_codeBlock;
@@ -1240,7 +1161,7 @@ JSValue Interpreter::executeProgram(const SourceCode& source, JSGlobalObject*, J
             case JSONPPathEntryTypeCall: {
                 JSValue function = baseObject.get(globalObject, ident);
                 RETURN_IF_EXCEPTION(throwScope, JSValue());
-                auto callData = JSC::getCallData(function);
+                auto callData = JSC::getCallDataInline(function);
                 if (callData.type == CallData::Type::None)
                     return throwException(globalObject, throwScope, createNotAFunctionError(globalObject, function));
                 MarkedArgumentBuffer jsonArg;
@@ -1330,7 +1251,7 @@ JSValue Interpreter::executeBoundCall(VM& vm, JSBoundFunction* function, JSCell*
 
     JSObject* targetFunction = function->targetFunction();
     JSValue boundThis = function->boundThis();
-    auto callData = JSC::getCallData(targetFunction);
+    auto callData = JSC::getCallDataInline(targetFunction);
     ASSERT(callData.type != CallData::Type::None);
 
     RELEASE_AND_RETURN(scope, executeCallImpl(vm, targetFunction, callData, boundThis, context, combinedArgs));
@@ -1425,7 +1346,7 @@ JSValue Interpreter::executeCall(JSObject* function, const CallData& callData, J
         // Let's just replace and get unwrapped functions again.
         JSObject* targetFunction = boundFunction->targetFunction();
         JSValue boundThis = boundFunction->boundThis();
-        auto targetFunctionCallData = JSC::getCallData(targetFunction);
+        auto targetFunctionCallData = JSC::getCallDataInline(targetFunction);
         ASSERT(targetFunctionCallData.type != CallData::Type::None);
         return executeCallImpl(vm, targetFunction, targetFunctionCallData, boundThis, context, args);
     }

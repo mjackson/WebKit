@@ -210,6 +210,14 @@ GPUProcessProxy::GPUProcessProxy()
 #if PLATFORM(COCOA)
     m_isMetalDebugDeviceEnabledForTesting = s_enableMetalDebugDeviceInNewGPUProcessesForTesting;
     m_isMetalShaderValidationEnabledForTesting = s_enableMetalShaderValidationInNewGPUProcessesForTesting;
+    if (s_gpuProcessMediaCodecCapabilities) {
+#if ENABLE(VP9)
+        parameters.hasVP9HardwareDecoder = s_gpuProcessMediaCodecCapabilities->hasVP9HardwareDecoder;
+#endif
+#if ENABLE(AV1)
+        parameters.hasAV1HardwareDecoder = s_gpuProcessMediaCodecCapabilities->hasAV1HardwareDecoder;
+#endif
+    }
 #endif
 
     platformInitializeGPUProcessParameters(parameters);
@@ -851,13 +859,13 @@ void GPUProcessProxy::voiceActivityDetected()
 
 void GPUProcessProxy::startMonitoringCaptureDeviceRotation(PageIdentifier pageID, const String& persistentId)
 {
-    if (auto page = WebProcessProxy::webPage(pageID))
+    if (RefPtr page = WebProcessProxy::webPage(pageID))
         page->startMonitoringCaptureDeviceRotation(persistentId);
 }
 
 void GPUProcessProxy::stopMonitoringCaptureDeviceRotation(PageIdentifier pageID, const String& persistentId)
 {
-    if (auto page = WebProcessProxy::webPage(pageID))
+    if (RefPtr page = WebProcessProxy::webPage(pageID))
         page->stopMonitoringCaptureDeviceRotation(persistentId);
 }
 
@@ -879,7 +887,7 @@ void GPUProcessProxy::microphoneMuteStatusChanged(bool isMuting)
 #if PLATFORM(IOS_FAMILY)
 void GPUProcessProxy::statusBarWasTapped(CompletionHandler<void()>&& completionHandler)
 {
-    if (auto page = WebProcessProxy::audioCapturingWebPage())
+    if (RefPtr page = WebProcessProxy::audioCapturingWebPage())
         page->statusBarWasTapped();
     // Find the web page capturing audio and put focus on it.
     completionHandler();

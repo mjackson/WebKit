@@ -242,6 +242,8 @@ LocalFrame::~LocalFrame()
 {
     setView(nullptr);
 
+    m_inspectorController->inspectedFrameDestroyed();
+
     Ref loader = this->loader();
     if (!loader->isComplete())
         loader->closeURL();
@@ -253,7 +255,7 @@ LocalFrame::~LocalFrame()
 
     disconnectOwnerElement();
 
-    while (auto* destructionObserver = m_destructionObservers.takeAny())
+    while (RefPtr destructionObserver = m_destructionObservers.takeAny())
         destructionObserver->frameDestroyed();
 
     RefPtr localMainFrame = this->localMainFrame();
@@ -745,22 +747,24 @@ FloatSize LocalFrame::resizePageRectsKeepingRatio(const FloatSize& originalSize,
 const UserContentProvider* LocalFrame::userContentProvider() const
 {
     RefPtr document = this->document();
-    RefPtr documentLoader = document ? document->loader() : nullptr;
-    if (RefPtr userContentProvider = documentLoader ? documentLoader->preferences().userContentProvider : nullptr)
-        return userContentProvider.get();
+    if (RefPtr documentLoader = document ? document->loader() : nullptr) {
+        if (auto* userContentProvider = documentLoader->preferences().userContentProvider.get())
+            return userContentProvider;
+    }
     if (RefPtr page = this->page())
-        return page->protectedUserContentProviderForFrame().ptr();
+        return &page->userContentProviderForFrame();
     return nullptr;
 }
 
 UserContentProvider* LocalFrame::userContentProvider()
 {
     RefPtr document = this->document();
-    RefPtr documentLoader = document ? document->loader() : nullptr;
-    if (RefPtr userContentProvider = documentLoader ? documentLoader->preferences().userContentProvider : nullptr)
-        return userContentProvider.get();
+    if (RefPtr documentLoader = document ? document->loader() : nullptr) {
+        if (auto* userContentProvider = documentLoader->preferences().userContentProvider.get())
+            return userContentProvider;
+    }
     if (RefPtr page = this->page())
-        return page->protectedUserContentProviderForFrame().ptr();
+        return &page->userContentProviderForFrame();
     return nullptr;
 }
 
@@ -845,6 +849,11 @@ RenderView* LocalFrame::contentRenderer() const
     return document() ? document()->renderView() : nullptr;
 }
 
+CheckedPtr<RenderView> LocalFrame::checkedContentRenderer() const
+{
+    return contentRenderer();
+}
+
 LocalFrame* LocalFrame::frameForWidget(const Widget& widget)
 {
     SUPPRESS_UNCOUNTED_LOCAL auto* renderer = RenderWidget::find(widget);
@@ -886,8 +895,8 @@ void LocalFrame::willDetachPage()
     if (RefPtr parent = dynamicDowncast<LocalFrame>(tree().parent()))
         parent->loader().checkLoadComplete();
 
-    for (auto& observer : m_destructionObservers)
-        observer.willDetachPage();
+    for (Ref observer : m_destructionObservers)
+        observer->willDetachPage();
 
     // FIXME: It's unclear as to why this is called more than once, but it is,
     // so page() could be NULL.
@@ -1117,10 +1126,21 @@ float LocalFrame::frameScaleFactor() const
 {
     RefPtr page = this->page();
 
-    // Main frame is scaled with respect to he container but inner frames are not scaled with respect to the main frame.
-    if (!page || !isMainFrame())
+    if (!page)
         return 1;
 
+    // https://github.com/w3c/csswg-drafts/issues/9644
+    // Check if this frame's owner element (iframe) has CSS zoom applied.
+    if (!isMainFrame()) {
+        auto rootZoom = rootFrame().pageZoomFactor();
+        if (RefPtr ownerElement = this->ownerElement()) {
+            if (auto* ownerRenderer = ownerElement->renderer())
+                return ownerRenderer->style().usedZoom() / rootZoom;
+        }
+        return rootZoom;
+    }
+
+    // Main frame is scaled with respect to the container.
     if (page->delegatesScaling())
         return 1;
 
@@ -1658,7 +1678,7 @@ bool LocalFrame::frameCanCreatePaymentSession() const
 #endif
 }
 
-RefPtr<SecurityOrigin> LocalFrame::frameDocumentSecurityOrigin() const
+SecurityOrigin* LocalFrame::frameDocumentSecurityOrigin() const
 {
     if (RefPtr document = this->document())
         return &document->securityOrigin();
@@ -1666,7 +1686,7 @@ RefPtr<SecurityOrigin> LocalFrame::frameDocumentSecurityOrigin() const
     return nullptr;
 }
 
-Ref<FrameInspectorController> LocalFrame::protectedInspectorController()
+Ref<FrameInspectorController> LocalFrame::protectedInspectorController() const
 {
     return m_inspectorController.get();
 }

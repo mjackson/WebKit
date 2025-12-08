@@ -110,6 +110,7 @@ template<typename ObjectClass> inline RetainPtr<typename WrapperTraits<ObjectCla
 
 namespace API {
 
+using WebKit::protectedWrapper;
 using WebKit::wrapper;
 
 }

@@ -31,19 +31,11 @@
 
 namespace JSC {
 
-const ClassInfo JSPromiseReaction::s_info = { "PromiseReaction"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSPromiseReaction) };
+const ClassInfo JSPromiseReaction::s_info = { "PromiseReaction"_s, nullptr, nullptr, nullptr, CREATE_METHOD_TABLE(JSPromiseReaction) };
 
-JSPromiseReaction* JSPromiseReaction::createWithInitialValues(VM& vm, Structure* structure)
+JSPromiseReaction* JSPromiseReaction::create(VM& vm, JSValue promise, JSValue onFulfilled, JSValue onRejected, JSValue context, JSPromiseReaction* next)
 {
-    auto values = initialValues();
-    JSPromiseReaction* result = new (NotNull, allocateCell<JSPromiseReaction>(vm)) JSPromiseReaction(vm, structure, values[0], values[1], values[2], values[3], values[4]);
-    result->finishCreation(vm);
-    return result;
-}
-
-JSPromiseReaction* JSPromiseReaction::create(VM& vm, Structure* structure, JSValue promise, JSValue onFulfilled, JSValue onRejected, JSValue context, JSValue next)
-{
-    JSPromiseReaction* result = new (NotNull, allocateCell<JSPromiseReaction>(vm)) JSPromiseReaction(vm, structure, promise, onFulfilled, onRejected, context, next);
+    JSPromiseReaction* result = new (NotNull, allocateCell<JSPromiseReaction>(vm)) JSPromiseReaction(vm, vm.promiseReactionStructure.get(), promise, onFulfilled, onRejected, context, next);
     result->finishCreation(vm);
     return result;
 }
@@ -54,6 +46,11 @@ void JSPromiseReaction::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     auto* thisObject = jsCast<JSPromiseReaction*>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
     Base::visitChildren(thisObject, visitor);
+    visitor.append(thisObject->m_promise);
+    visitor.append(thisObject->m_onFulfilled);
+    visitor.append(thisObject->m_onRejected);
+    visitor.append(thisObject->m_context);
+    visitor.append(thisObject->m_next);
 }
 
 Structure* JSPromiseReaction::createStructure(VM& vm, JSGlobalObject* globalObject, JSValue prototype)

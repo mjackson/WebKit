@@ -32,6 +32,7 @@
 #include "JSArrayBufferViewInlines.h"
 #include "JSCellInlines.h"
 #include "JSGenericTypedArrayView.h"
+#include "ToNativeFromValue.h"
 #include "TypeError.h"
 #include "TypedArrays.h"
 #include <wtf/CheckedArithmetic.h>
@@ -692,7 +693,7 @@ bool JSGenericTypedArrayView<Adaptor>::deletePropertyByIndex(
 
 template<typename Adaptor>
 void JSGenericTypedArrayView<Adaptor>::getOwnPropertyNames(
-    JSObject* object, JSGlobalObject* globalObject, PropertyNameArray& array, DontEnumPropertiesMode mode)
+    JSObject* object, JSGlobalObject* globalObject, PropertyNameArrayBuilder& array, DontEnumPropertiesMode mode)
 {
     VM& vm = globalObject->vm();
     JSGenericTypedArrayView* thisObject = jsCast<JSGenericTypedArrayView*>(object);

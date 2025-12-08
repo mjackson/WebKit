@@ -793,25 +793,25 @@ AccessibilityObjectAtspi::TextAttributes AccessibilityObjectAtspi::textAttribute
         addAttributeIfNeeded("invisible"_s, style.visibility() == Visibility::Hidden ? "true"_s : "false"_s);
         addAttributeIfNeeded("editable"_s, m_coreObject->canSetValueAttribute() ? "true"_s : "false"_s);
         addAttributeIfNeeded("direction"_s, style.writingMode().isBidiLTR() ? "ltr"_s : "rtl"_s);
-        addAttributeIfNeeded("indent"_s, makeString(Style::evaluate<float>(style.textIndent().length, m_coreObject->size().width(), Style::ZoomNeeded { })));
+        addAttributeIfNeeded("indent"_s, makeString(Style::evaluate<float>(style.textIndent().length, m_coreObject->size().width(), style.usedZoomForLength())));
 
         switch (style.textAlign()) {
-        case TextAlignMode::Start:
-        case TextAlignMode::End:
+        case Style::TextAlign::Start:
+        case Style::TextAlign::End:
             break;
-        case TextAlignMode::Left:
-        case TextAlignMode::WebKitLeft:
+        case Style::TextAlign::Left:
+        case Style::TextAlign::WebKitLeft:
             addAttributeIfNeeded("justification"_s, "left"_s);
             break;
-        case TextAlignMode::Right:
-        case TextAlignMode::WebKitRight:
+        case Style::TextAlign::Right:
+        case Style::TextAlign::WebKitRight:
             addAttributeIfNeeded("justification"_s, "right"_s);
             break;
-        case TextAlignMode::Center:
-        case TextAlignMode::WebKitCenter:
+        case Style::TextAlign::Center:
+        case Style::TextAlign::WebKitCenter:
             addAttributeIfNeeded("justification"_s, "center"_s);
             break;
-        case TextAlignMode::Justify:
+        case Style::TextAlign::Justify:
             addAttributeIfNeeded("justification"_s, "fill"_s);
             break;
         }

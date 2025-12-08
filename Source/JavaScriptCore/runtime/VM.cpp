@@ -76,6 +76,10 @@
 #include "JSMap.h"
 #include "JSMicrotask.h"
 #include "JSPromise.h"
+#include "JSPromiseAllContextInlines.h"
+#include "JSPromiseAllGlobalContext.h"
+#include "JSPromiseConstructor.h"
+#include "JSPromiseReaction.h"
 #include "JSPropertyNameEnumeratorInlines.h"
 #include "JSScriptFetchParametersInlines.h"
 #include "JSScriptFetcherInlines.h"
@@ -246,6 +250,8 @@ VM::VM(VMType vmType, HeapType heapType, WTF::RunLoop* runLoop, bool* success)
     , vmType(vmType)
     , deferredWorkTimer(DeferredWorkTimer::create(*this))
     , m_atomStringTable(vmType == VMType::Default ? Thread::currentSingleton().atomStringTable() : new AtomStringTable)
+    , m_symbolRegistry(makeUniqueRef<SymbolRegistry>())
+    , m_privateSymbolRegistry(makeUniqueRef<SymbolRegistry>(SymbolRegistry::Type::PrivateSymbol))
     , emptyList(new ArgList)
     , machineCodeBytesPerBytecodeWordForBaselineJIT(makeUnique<SimpleStats>())
     , symbolImplToSymbolMap(*this)
@@ -318,6 +324,9 @@ VM::VM(VMType vmType, HeapType heapType, WTF::RunLoop* runLoop, bool* success)
     programExecutableStructure.setWithoutWriteBarrier(ProgramExecutable::createStructure(*this, nullptr, jsNull()));
     functionExecutableStructure.setWithoutWriteBarrier(FunctionExecutable::createStructure(*this, nullptr, jsNull()));
     moduleProgramExecutableStructure.setWithoutWriteBarrier(ModuleProgramExecutable::createStructure(*this, nullptr, jsNull()));
+    promiseReactionStructure.setWithoutWriteBarrier(JSPromiseReaction::createStructure(*this, nullptr, jsNull()));
+    promiseAllContextStructure.setWithoutWriteBarrier(JSPromiseAllContext::createStructure(*this, nullptr, jsNull()));
+    promiseAllGlobalContextStructure.setWithoutWriteBarrier(JSPromiseAllGlobalContext::createStructure(*this, nullptr, jsNull()));
     regExpStructure.setWithoutWriteBarrier(RegExp::createStructure(*this, nullptr, jsNull()));
     symbolStructure.setWithoutWriteBarrier(Symbol::createStructure(*this, nullptr, jsNull()));
     symbolTableStructure.setWithoutWriteBarrier(SymbolTable::createStructure(*this, nullptr, jsNull()));
@@ -351,11 +360,11 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
     evalCodeBlockStructure.setWithoutWriteBarrier(EvalCodeBlock::createStructure(*this, nullptr, jsNull()));
     functionCodeBlockStructure.setWithoutWriteBarrier(FunctionCodeBlock::createStructure(*this, nullptr, jsNull()));
     bigIntStructure.setWithoutWriteBarrier(JSBigInt::createStructure(*this, nullptr, jsNull()));
+    m_orderedHashTableDeletedValue.setWithoutWriteBarrier(OrderedHashMap::createDeletedValue(*this));
+    m_orderedHashTableSentinel.setWithoutWriteBarrier(OrderedHashMap::createSentinel(*this));
 
     // Eagerly initialize constant cells since the concurrent compiler can access them.
     if (Options::useJIT()) {
-        orderedHashTableDeletedValue();
-        orderedHashTableSentinel();
         emptyPropertyNameEnumerator();
         ensureMegamorphicCache();
     }
@@ -508,8 +517,6 @@ VM::~VM()
         worklist->cancelAllPlansForVM(*this);
 #endif // ENABLE(JIT)
     
-    waitForAsynchronousDisassembly();
-    
     // Clear this first to ensure that nobody tries to remove themselves from it.
     m_perBytecodeProfiler = nullptr;
 
@@ -640,7 +647,7 @@ Exception* VM::ensureTerminationException()
 {
     if (!m_terminationException) {
         JSString* terminationError = jsNontrivialString(*this, terminationErrorString);
-        m_terminationException = Exception::create(*this, terminationError, Exception::DoNotCaptureStack);
+        m_terminationException = Exception::create(*this, terminationError, Exception::StackCaptureAction::DoNotCaptureStack);
     }
     return m_terminationException;
 }
@@ -1168,26 +1175,6 @@ static void logSanitizeStack(VM& vm)
     }
 }
 
-#if ENABLE(YARR_JIT_ALL_PARENS_EXPRESSIONS)
-
-char* VM::acquireRegExpPatternContexBuffer()
-{
-    m_regExpPatternContextLock.lock();
-    ASSERT(m_regExpPatternContextLock.isLocked());
-    if (!m_regExpPatternContexBuffer)
-        m_regExpPatternContexBuffer = makeUniqueArray<char>(VM::patternContextBufferSize);
-    return m_regExpPatternContexBuffer.get();
-}
-
-void VM::releaseRegExpPatternContexBuffer()
-{
-    ASSERT(m_regExpPatternContextLock.isLocked());
-
-    m_regExpPatternContextLock.unlock();
-}
-
-#endif
-
 #if ENABLE(REGEXP_TRACING)
 
 void VM::addRegExpToTrace(RegExp* regExp)
@@ -1319,7 +1306,7 @@ void VM::callPromiseRejectionCallback(Strong<JSPromise>& promise)
 
     auto scope = DECLARE_CATCH_SCOPE(*this);
 
-    auto callData = JSC::getCallData(callback);
+    auto callData = JSC::getCallDataInline(callback);
     ASSERT(callData.type != CallData::Type::None);
 
     MarkedArgumentBuffer args;
@@ -1361,35 +1348,17 @@ void VM::drainMicrotasks()
         std::optional<VMEntryScope> entryScope;
         if (!m_defaultMicrotaskQueue.isEmpty())
             entryScope.emplace(*this, nullptr);
-        do {
-            m_defaultMicrotaskQueue.performMicrotaskCheckpoint(*this,
+        while (true) {
+            m_defaultMicrotaskQueue.performMicrotaskCheckpoint</* useCallOnEachMicrotask */ true>(*this,
                 [&](QueuedTask& task) ALWAYS_INLINE_LAMBDA {
                     auto* globalObject = task.globalObject();
                     entryScope->setGlobalObject(globalObject);
                     if (RefPtr dispatcher = task.dispatcher())
                         return dispatcher->run(task);
 
-                    auto identifier = task.identifier();
-                    {
-                        auto catchScope = DECLARE_CATCH_SCOPE(*this);
-                        if (auto* debugger = globalObject->debugger()) [[unlikely]] {
-                            DeferTerminationForAWhile deferTerminationForAWhile(*this);
-                            debugger->willRunMicrotask(globalObject, identifier);
-                            if (!catchScope.clearExceptionExceptTermination()) [[unlikely]]
-                                return QueuedTask::Result::Executed;
-                        }
-
-                        runInternalMicrotask(globalObject, task.job(), task.arguments());
-                        if (!catchScope.clearExceptionExceptTermination()) [[unlikely]]
-                            return QueuedTask::Result::Executed;
-
-                        if (auto* debugger = globalObject->debugger()) [[unlikely]] {
-                            DeferTerminationForAWhile deferTerminationForAWhile(*this);
-                            debugger->didRunMicrotask(globalObject, identifier);
-                            if (!catchScope.clearExceptionExceptTermination()) [[unlikely]]
-                                return QueuedTask::Result::Executed;
-                        }
-                    }
+                    auto catchScope = DECLARE_CATCH_SCOPE(*this);
+                    runInternalMicrotask(globalObject, task.job(), task.arguments());
+                    catchScope.clearExceptionExceptTermination();
                     return QueuedTask::Result::Executed;
                 });
             if (hasPendingTerminationException()) [[unlikely]]
@@ -1397,7 +1366,11 @@ void VM::drainMicrotasks()
             didExhaustMicrotaskQueue();
             if (hasPendingTerminationException()) [[unlikely]]
                 return;
-        } while (!m_defaultMicrotaskQueue.isEmpty());
+            if (m_defaultMicrotaskQueue.isEmpty())
+                break;
+            if (!entryScope)
+                entryScope.emplace(*this, nullptr);
+        }
     }
     finalizeSynchronousJSExecution();
 }
@@ -1513,26 +1486,10 @@ Ref<Waiter> VM::syncWaiter()
     return m_syncWaiter;
 }
 
-JSCell* VM::orderedHashTableDeletedValueSlow()
-{
-    ASSERT(!m_orderedHashTableDeletedValue);
-    Symbol* deleted = OrderedHashMap::createDeletedValue(*this);
-    m_orderedHashTableDeletedValue.setWithoutWriteBarrier(deleted);
-    return deleted;
-}
-
-JSCell* VM::orderedHashTableSentinelSlow()
-{
-    ASSERT(!m_orderedHashTableSentinel);
-    JSCell* sentinel = OrderedHashMap::createSentinel(*this);
-    m_orderedHashTableSentinel.setWithoutWriteBarrier(sentinel);
-    return sentinel;
-}
-
 JSPropertyNameEnumerator* VM::emptyPropertyNameEnumeratorSlow()
 {
     ASSERT(!m_emptyPropertyNameEnumerator);
-    PropertyNameArray propertyNames(*this, PropertyNameMode::Strings, PrivateSymbolMode::Exclude);
+    PropertyNameArrayBuilder propertyNames(*this, PropertyNameMode::Strings, PrivateSymbolMode::Exclude);
     auto* enumerator = JSPropertyNameEnumerator::create(*this, nullptr, 0, 0, WTFMove(propertyNames));
     m_emptyPropertyNameEnumerator.setWithoutWriteBarrier(enumerator);
     return enumerator;
@@ -1591,6 +1548,22 @@ NativeExecutable* VM::promiseCapabilityExecutorExecutableSlow()
     ASSERT(!m_promiseCapabilityExecutorExecutable);
     auto* executable = getHostFunction(promiseCapabilityExecutor, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
     m_promiseCapabilityExecutorExecutable.setWithoutWriteBarrier(executable);
+    return executable;
+}
+
+NativeExecutable* VM::promiseAllFulfillFunctionExecutableSlow()
+{
+    ASSERT(!m_promiseAllFulfillFunctionExecutable);
+    auto* executable = getHostFunction(promiseAllFulfillFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    m_promiseAllFulfillFunctionExecutable.setWithoutWriteBarrier(executable);
+    return executable;
+}
+
+NativeExecutable* VM::promiseAllSlowFulfillFunctionExecutableSlow()
+{
+    ASSERT(!m_promiseAllSlowFulfillFunctionExecutable);
+    auto* executable = getHostFunction(promiseAllSlowFulfillFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    m_promiseAllSlowFulfillFunctionExecutable.setWithoutWriteBarrier(executable);
     return executable;
 }
 
@@ -1737,6 +1710,9 @@ void VM::visitAggregateImpl(Visitor& visitor)
     visitor.append(webAssemblyCalleeGroupStructure);
 #endif
     visitor.append(moduleProgramExecutableStructure);
+    visitor.append(promiseReactionStructure);
+    visitor.append(promiseAllContextStructure);
+    visitor.append(promiseAllGlobalContextStructure);
     visitor.append(regExpStructure);
     visitor.append(symbolStructure);
     visitor.append(symbolTableStructure);
@@ -1780,6 +1756,8 @@ void VM::visitAggregateImpl(Visitor& visitor)
     visitor.append(m_promiseResolvingFunctionResolveWithoutPromiseExecutable);
     visitor.append(m_promiseResolvingFunctionRejectWithoutPromiseExecutable);
     visitor.append(m_promiseCapabilityExecutorExecutable);
+    visitor.append(m_promiseAllFulfillFunctionExecutable);
+    visitor.append(m_promiseAllSlowFulfillFunctionExecutable);
 }
 DEFINE_VISIT_AGGREGATE(VM);
 

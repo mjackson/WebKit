@@ -36,14 +36,12 @@ Vector<double> availableScreenScales()
 {
     Vector<double> screenScales;
 
-    auto* display = gdk_display_get_default();
-
 #if USE(GTK4)
+    auto* display = gdk_display_get_default();
     auto* monitors = gdk_display_get_monitors(display);
     unsigned currentMonitor = 0;
     while (auto* item = g_list_model_get_item(monitors, currentMonitor++)) {
         auto* monitor = GDK_MONITOR(item);
-        ASSERT(GDK_IS_MONITOR(monitor));
         screenScales.append(gdk_monitor_get_scale_factor(monitor));
     }
 #endif

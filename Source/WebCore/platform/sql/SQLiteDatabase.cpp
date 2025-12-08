@@ -69,7 +69,25 @@ static void initializeSQLiteIfNecessary()
         // completely threadsafe. But in the past it was not safe, and the SQLite developers still
         // aren't confident that it really is, and we still support ancient versions of SQLite. So
         // std::call_once is used to stay on the safe side. See bug #143245.
+
+#if OS(DARWIN)
+        int ret;
+        callOnMainThreadAndWait([&] {
+            // In the Network process, this function can be called on a background thread when
+            // creating WebKit::ResourceLoadStatisticsStore, which then races with
+            // WebKit::NetworkProcess::initializeNetworkProcess(). Since both of those calls query
+            // the Darwin user temp directory via confstr(), this should only be called from the
+            // main thread.
+            ret = sqlite3_initialize();
+        });
+#else
+        // On non-Darwin systems confstr() is MT-safe and it does not try to fiddle with environment
+        // variables, and it is better initialize directly. This is true at least on Linux with the
+        // supported C libraries (glibc, Musl, uClibc), the "big" BSDs (FreeBSD, NetBSD, OpenBSD),
+        // and the Android C library (Bionic) does not even provide confstr().
         int ret = sqlite3_initialize();
+#endif
+
         if (ret != SQLITE_OK) {
 #if SQLITE_VERSION_NUMBER >= 3007015
             WTFLogAlways("Failed to initialize SQLite: %s", sqlite3_errstr(ret));
@@ -80,9 +98,6 @@ static void initializeSQLiteIfNecessary()
         }
     });
 }
-
-static Lock isDatabaseOpeningForbiddenLock;
-static bool isDatabaseOpeningForbidden WTF_GUARDED_BY_LOCK(isDatabaseOpeningForbiddenLock) { false };
 
 void SQLiteDatabase::useFastMalloc()
 {
@@ -104,12 +119,6 @@ void SQLiteDatabase::useFastMalloc()
     returnCode = sqlite3_config(SQLITE_CONFIG_MALLOC, &fastMallocMethods);
     RELEASE_LOG_ERROR_IF(returnCode != SQLITE_OK, SQLDatabase, "Unable to replace SQLite malloc: %d", returnCode);
 #endif
-}
-
-void SQLiteDatabase::setIsDatabaseOpeningForbidden(bool isForbidden)
-{
-    Locker locker { isDatabaseOpeningForbiddenLock };
-    isDatabaseOpeningForbidden = isForbidden;
 }
 
 SQLiteDatabase::SQLiteDatabase() = default;
@@ -135,12 +144,6 @@ bool SQLiteDatabase::open(const String& filename, OpenMode openMode, OptionSet<O
     });
 
     {
-        Locker locker { isDatabaseOpeningForbiddenLock };
-        if (isDatabaseOpeningForbidden) {
-            m_openErrorMessage = "opening database is forbidden";
-            return false;
-        }
-
         int flags = SQLITE_OPEN_AUTOPROXY;
         switch (openMode) {
         case OpenMode::ReadOnly:

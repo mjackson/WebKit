@@ -30,6 +30,7 @@
 #include "CSSFontSelector.h"
 #include "Chrome.h"
 #include "ColorBlending.h"
+#include "DocumentInlines.h"
 #include "DocumentPage.h"
 #include "ElementInlines.h"
 #include "HTMLNames.h"
@@ -54,7 +55,6 @@
 #include "RenderTheme.h"
 #include "RenderTreeBuilder.h"
 #include "RenderView.h"
-#include "StyleLengthWrapper+Platform.h"
 #include "StyleResolver.h"
 #include "TextRun.h"
 #include <math.h>
@@ -129,11 +129,10 @@ void RenderMenuList::adjustInnerStyle()
     // Use margin:auto instead of align-items:center to get safe centering, i.e.
     // when the content overflows, treat it the same as align-items: flex-start.
     // But we only do that for the cases where html.css would otherwise use center.
-    if (style().alignItems().position() == ItemPosition::Center) {
+    if (style().alignItems().isCenter()) {
         innerStyle.setMarginBefore(CSS::Keyword::Auto { });
         innerStyle.setMarginAfter(CSS::Keyword::Auto { });
-
-        innerStyle.setAlignSelfPosition(ItemPosition::FlexStart);
+        innerStyle.setAlignSelf(CSS::Keyword::FlexStart { });
     }
 
     auto paddingBox = theme().popupInternalPaddingBox(style());
@@ -145,12 +144,12 @@ void RenderMenuList::adjustInnerStyle()
     if (document().page()->chrome().selectItemWritingDirectionIsNatural()) {
         // Items in the popup will not respect the CSS text-align and direction properties,
         // so we must adjust our own style to match.
-        innerStyle.setTextAlign(TextAlignMode::Left);
+        innerStyle.setTextAlign(Style::TextAlign::Left);
         TextDirection direction = (m_buttonText && m_buttonText->text().defaultWritingDirection() == U_RIGHT_TO_LEFT) ? TextDirection::RTL : TextDirection::LTR;
         innerStyle.setDirection(direction);
 #if PLATFORM(IOS_FAMILY)
     } else if (document().page()->chrome().selectItemAlignmentFollowsMenuWritingDirection()) {
-        innerStyle.setTextAlign(writingMode().isBidiLTR() ? TextAlignMode::Left : TextAlignMode::Right);
+        innerStyle.setTextAlign(writingMode().isBidiLTR() ? Style::TextAlign::Left : Style::TextAlign::Right);
         TextDirection direction;
         UnicodeBidi unicodeBidi;
         if (multiple() && selectedOptionCount(*this) != 1) {
@@ -172,7 +171,7 @@ void RenderMenuList::adjustInnerStyle()
         if ((m_optionStyle->writingMode().bidiDirection() != innerStyle.writingMode().bidiDirection()
             || m_optionStyle->unicodeBidi() != innerStyle.unicodeBidi()))
             m_innerBlock->setNeedsLayoutAndPreferredWidthsUpdate();
-        innerStyle.setTextAlign(writingMode().isBidiLTR() ? TextAlignMode::Left : TextAlignMode::Right);
+        innerStyle.setTextAlign(writingMode().isBidiLTR() ? Style::TextAlign::Left : Style::TextAlign::Right);
         innerStyle.setDirection(m_optionStyle->writingMode().bidiDirection());
         innerStyle.setUnicodeBidi(m_optionStyle->unicodeBidi());
     }
@@ -340,7 +339,7 @@ void RenderMenuList::computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, 
     }
     auto& logicalWidth = style().logicalWidth();
     if (logicalWidth.isCalculated())
-        minLogicalWidth = std::max(0_lu, Style::evaluate<LayoutUnit>(logicalWidth, 0_lu, Style::ZoomNeeded { }));
+        minLogicalWidth = std::max(0_lu, Style::evaluate<LayoutUnit>(logicalWidth, 0_lu, style().usedZoomForLength()));
     else if (!logicalWidth.isPercent())
         minLogicalWidth = maxLogicalWidth;
 }

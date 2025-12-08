@@ -72,6 +72,9 @@ public:
     WTF_EXPORT_PRIVATE String(std::span<const char> characters);
     ALWAYS_INLINE static String fromLatin1(const char* characters) { return String { characters }; }
 
+    // Construct a string with UTF-8 data, null string if it contains invalid UTF-8 sequences.
+    WTF_EXPORT_PRIVATE String(std::span<const char8_t>);
+
     // Construct a string referencing an existing StringImpl.
     String(StringImpl&);
     String(StringImpl*);
@@ -161,7 +164,8 @@ public:
     size_t findIgnoringASCIICase(StringView) const;
     size_t findIgnoringASCIICase(StringView, unsigned start) const;
 
-    template<typename CodeUnitMatchFunction, std::enable_if_t<std::is_invocable_r_v<bool, CodeUnitMatchFunction, char16_t>>* = nullptr>
+    template<typename CodeUnitMatchFunction>
+        requires (std::is_invocable_r_v<bool, CodeUnitMatchFunction, char16_t>)
     size_t find(CodeUnitMatchFunction matchFunction, unsigned start = 0) const { return m_impl ? m_impl->find(matchFunction, start) : notFound; }
     size_t find(ASCIILiteral literal, unsigned start = 0) const { return m_impl ? m_impl->find(literal, start) : notFound; }
 
@@ -178,7 +182,8 @@ public:
     bool contains(char16_t character) const { return find(character) != notFound; }
     bool contains(ASCIILiteral literal) const { return find(literal) != notFound; }
     bool contains(StringView) const;
-    template<typename CodeUnitMatchFunction, std::enable_if_t<std::is_invocable_r_v<bool, CodeUnitMatchFunction, char16_t>>* = nullptr>
+    template<typename CodeUnitMatchFunction>
+        requires (std::is_invocable_r_v<bool, CodeUnitMatchFunction, char16_t>)
     bool contains(CodeUnitMatchFunction matchFunction) const { return find(matchFunction, 0) != notFound; }
     bool containsIgnoringASCIICase(StringView) const;
     bool containsIgnoringASCIICase(StringView, unsigned start) const;
@@ -289,14 +294,18 @@ public:
     WTF_EXPORT_PRIVATE void convertTo16Bit();
 
     // String::fromUTF8 will return a null string if the input data contains invalid UTF-8 sequences.
+    // FIXME: Deprecated: Use constructor that takes span<const char8_t>.
     WTF_EXPORT_PRIVATE static String fromUTF8(std::span<const char8_t>);
-    static String fromUTF8(std::span<const Latin1Character> characters) { return fromUTF8(byteCast<char8_t>(characters)); }
-    static String fromUTF8(std::span<const char> characters) { return fromUTF8(byteCast<char8_t>(characters)); }
-    static String fromUTF8(const char* string) { return fromUTF8(unsafeSpan8(string)); }
+    static String fromUTF8(std::span<const Latin1Character> characters) { return byteCast<char8_t>(characters); }
+    static String fromUTF8(std::span<const char> characters) { return byteCast<char8_t>(characters); }
+    static String fromUTF8(const char* string) { return byteCast<char8_t>(unsafeSpan(string)); }
+
+    // Convert each invalid UTF-8 sequence into a replacement character.
     static String fromUTF8ReplacingInvalidSequences(std::span<const char8_t>);
     static String fromUTF8ReplacingInvalidSequences(std::span<const Latin1Character> characters) { return fromUTF8ReplacingInvalidSequences(byteCast<char8_t>(characters)); }
 
     // Tries to convert the passed in string to UTF-8, but will fall back to Latin-1 if the string is not valid UTF-8.
+    // FIXME: Deprecated: Use fromUTF8ReplacingInvalidSequences.
     WTF_EXPORT_PRIVATE static String fromUTF8WithLatin1Fallback(std::span<const char8_t>);
     static String fromUTF8WithLatin1Fallback(std::span<const Latin1Character> characters) { return fromUTF8WithLatin1Fallback(byteCast<char8_t>(characters)); }
     static String fromUTF8WithLatin1Fallback(std::span<const char> characters) { return fromUTF8WithLatin1Fallback(byteCast<char8_t>(characters)); }
@@ -360,10 +369,10 @@ inline void swap(String& a, String& b) { a.swap(b); }
 #ifdef __OBJC__
 
 // Used in a small number of places where the long standing behavior has been "nil if empty".
-NSString * nsStringNilIfEmpty(const String&);
+RetainPtr<NSString> nsStringNilIfEmpty(const String&);
 
 // Used in a small number of places where null strings should be converted to nil but empty strings should be maintained.
-NSString * nsStringNilIfNull(const String&);
+RetainPtr<NSString> nsStringNilIfNull(const String&);
 
 #endif
 
@@ -558,18 +567,18 @@ inline RetainPtr<NSString> String::createNSString() const
     return @"";
 }
 
-inline NSString * nsStringNilIfEmpty(const String& string)
+inline RetainPtr<NSString> nsStringNilIfEmpty(const String& string)
 {
     if (string.isEmpty())
         return nil;
-    return *string.impl();
+    return string.impl()->createNSString();
 }
 
-inline NSString * nsStringNilIfNull(const String& string)
+inline RetainPtr<NSString> nsStringNilIfNull(const String& string)
 {
     if (string.isNull())
         return nil;
-    return *string.impl();
+    return string.impl()->createNSString();
 }
 
 #endif

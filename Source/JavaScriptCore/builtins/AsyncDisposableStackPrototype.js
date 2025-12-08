@@ -103,7 +103,7 @@ function disposeAsync()
         if (i) {
             var resource = stack[--i];
             try {
-                @Promise.@resolve(resource.method.@call(resource.value)).@then(loop, handleError);
+                @promiseResolve(@Promise, resource.method.@call(resource.value)).@then(loop, handleError);
             } catch (error) {
                 handleError(error);
             }

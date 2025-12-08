@@ -236,7 +236,7 @@ inline const AtomString& Element::getAttribute(const QualifiedName& name, const 
 
 inline bool isInTopLayerOrBackdrop(const RenderStyle& style, const Element* element)
 {
-    return (element && element->isInTopLayer()) || style.pseudoElementType() == PseudoId::Backdrop;
+    return (element && element->isInTopLayer()) || style.pseudoElementType() == PseudoElementType::Backdrop;
 }
 
 inline void Element::hideNonce()

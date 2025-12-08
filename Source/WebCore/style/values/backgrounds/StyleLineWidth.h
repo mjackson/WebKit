@@ -25,11 +25,11 @@
 
 #pragma once
 
+#include <WebCore/LayoutUnit.h>
 #include <WebCore/StylePrimitiveNumeric.h>
+#include <cmath>
 
 namespace WebCore {
-
-class LayoutUnit;
 
 using FloatBoxExtent = RectEdges<float>;
 using LayoutBoxExtent = RectEdges<LayoutUnit>;
@@ -45,10 +45,6 @@ struct LineWidth {
 
     constexpr LineWidth(Length length) : value { length } { }
     constexpr LineWidth(CSS::ValueLiteral<CSS::LengthUnit::Px> literal) : value { literal } { }
-
-    constexpr LineWidth(CSS::Keyword::Thin) : value { 1 } { }
-    constexpr LineWidth(CSS::Keyword::Medium) : value { 3 } { }
-    constexpr LineWidth(CSS::Keyword::Thick) : value { 5 } { }
 
     constexpr bool isZero() const { return value.isZero(); }
     constexpr bool isPositive() const { return value.isPositive(); }
@@ -69,9 +65,9 @@ template<> struct CSSValueConversion<LineWidth> { auto operator()(BuilderState&,
 // MARK: - Evaluate
 
 template<typename Result> struct Evaluation<LineWidth, Result> {
-    constexpr auto operator()(const LineWidth& value, ZoomNeeded token) -> Result
+    constexpr auto operator()(const LineWidth& value, ZoomNeeded zoom) -> Result
     {
-        return Result(value.value.resolveZoom(token));
+        return Result(value.value.resolveZoom(zoom));
     }
 };
 

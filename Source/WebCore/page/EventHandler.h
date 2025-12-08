@@ -109,7 +109,7 @@ class VisibleSelection;
 class WheelEvent;
 class Widget;
 
-#if ENABLE(MODEL_PROCESS)
+#if ENABLE(MODEL_ELEMENT_STAGE_MODE_INTERACTION)
 class HTMLModelElement;
 #endif
 
@@ -365,7 +365,7 @@ public:
 
     static Widget* widgetForEventTarget(Element* eventTarget);
 
-#if ENABLE(MODEL_PROCESS)
+#if ENABLE(MODEL_ELEMENT_STAGE_MODE_INTERACTION)
     WEBCORE_EXPORT std::optional<NodeIdentifier> requestInteractiveModelElementAtPoint(const IntPoint& clientPosition);
     WEBCORE_EXPORT void stageModeSessionDidUpdate(std::optional<NodeIdentifier>, const TransformationMatrix&);
     WEBCORE_EXPORT void stageModeSessionDidEnd(std::optional<NodeIdentifier>);
@@ -405,10 +405,12 @@ public:
     bool keyboardScrollRecursively(std::optional<ScrollDirection>, std::optional<ScrollGranularity>, Node*, bool isKeyRepeat);
     WEBCORE_EXPORT bool shouldUseSmoothKeyboardScrollingForFocusedScrollableArea();
 
-    std::optional<RemoteUserInputEventData> userInputEventDataForRemoteFrame(const RemoteFrame*, const IntPoint&);
+    std::optional<RemoteUserInputEventData> userInputEventDataForRemoteFrame(const RemoteFrame*, const DoublePoint&);
 
     WEBCORE_EXPORT void updateMouseEventTargetAfterLayoutIfNeeded();
     WEBCORE_EXPORT void scheduleMouseEventTargetUpdateAfterLayout();
+
+    ScrollableArea* enclosingScrollableArea(Node*) const;
 
 private:
 #if ENABLE(DRAG_SUPPORT)
@@ -480,7 +482,6 @@ private:
     enum class FireMouseOverOut : bool { No, Yes };
     void updateMouseEventTargetNode(const AtomString& eventType, Node*, const PlatformMouseEvent&, FireMouseOverOut);
 
-    ScrollableArea* enclosingScrollableArea(Node*) const;
     void notifyScrollableAreasOfMouseEvents(const AtomString& eventType, Element* lastElementUnderMouse, Element* elementUnderMouse);
 
     MouseEventWithHitTestResults prepareMouseEvent(const HitTestRequest&, const PlatformMouseEvent&);

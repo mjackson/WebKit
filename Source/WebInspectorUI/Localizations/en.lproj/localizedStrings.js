@@ -794,6 +794,7 @@ localizedStrings["Filter Full URL"] = "Filter Full URL";
 localizedStrings["Filter:"] = "Filter:";
 localizedStrings["Find Next (%s)"] = "Find Next (%s)";
 localizedStrings["Find Previous (%s)"] = "Find Previous (%s)";
+localizedStrings["First Contentful Paint"] = "First Contentful Paint";
 /* Flexbox layout section name */
 localizedStrings["Flexbox @ Elements details sidebar"] = "Flexbox";
 localizedStrings["Flows"] = "Flows";
@@ -989,6 +990,7 @@ localizedStrings["Key Path"] = "Key Path";
 /* Label indicating that network activity is being simulated with LTE connectivity */
 localizedStrings["LTE"] = "LTE";
 localizedStrings["Label"] = "Label";
+localizedStrings["Largest Contentful Paint"] = "Largest Contentful Paint";
 localizedStrings["Latency"] = "Latency";
 localizedStrings["Layer Count: %d"] = "Layer Count: %d";
 localizedStrings["Layer Info"] = "Layer Info";
@@ -1336,6 +1338,8 @@ localizedStrings["Property"] = "Property";
 localizedStrings["Proportional Numerals @ Font Details Sidebar Property Value"] = "Proportional Numerals";
 /* Property value for `font-variant-alternates: proportional-width`. */
 localizedStrings["Proportional-Width Variants @ Font Details Sidebar Property Value"] = "Proportional-Width Variants";
+/* Title for Protected row in Media Sidebar */
+localizedStrings["Protected @ Media Sidebar"] = "Protected";
 localizedStrings["Protocol"] = "Protocol";
 /* Label for button that shows controls for toggling CSS pseudo-classes on the selected element. */
 localizedStrings["Pseudo @ Styles details sidebar panel"] = "Pseudo";
@@ -1791,7 +1795,9 @@ localizedStrings["This is what the result of a warning test with no data looks l
 localizedStrings["This is what the result of an unsupported test with no data looks like."] = "This is what the result of an unsupported test with no data looks like.";
 localizedStrings["This means all of the Console Command Line API is available <https://webkit.org/web-inspector/console-command-line-api/>."] = "This means all of the Console Command Line API is available <https://webkit.org/web-inspector/console-command-line-api/>.";
 localizedStrings["This object is a root"] = "This object is a root";
+localizedStrings["This object is dominated by the object above"] = "This object is dominated by the object above";
 localizedStrings["This object is referenced by internal objects"] = "This object is referenced by internal objects";
+localizedStrings["This object is the highest dominator"] = "This object is the highest dominator";
 localizedStrings["This resource came from a local override"] = "This resource came from a local override";
 localizedStrings["This resource was blocked by a local override"] = "This resource was blocked by a local override";
 localizedStrings["This resource was loaded from a local override"] = "This resource was loaded from a local override";

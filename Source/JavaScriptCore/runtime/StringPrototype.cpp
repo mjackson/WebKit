@@ -934,30 +934,19 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncSubstring, (JSGlobalObject* globalObject
     int len = jsString->length();
     RELEASE_ASSERT(len >= 0);
 
-    double start = a0.toNumber(globalObject);
+    double startDouble = a0.toIntegerOrInfinity(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
-    double end;
-    if (!(start >= 0)) // check for negative values or NaN
-        start = 0;
-    else if (start > len)
-        start = len;
+    unsigned start = std::clamp<double>(startDouble, 0.0, len);
+    unsigned end;
     if (a1.isUndefined())
         end = len;
     else {
-        end = a1.toNumber(globalObject);
+        double endDouble = a1.toIntegerOrInfinity(globalObject);
         RETURN_IF_EXCEPTION(scope, { });
-        if (!(end >= 0)) // check for negative values or NaN
-            end = 0;
-        else if (end > len)
-            end = len;
+        end = std::clamp<double>(endDouble, 0.0, len);
     }
-    if (start > end) {
-        double temp = end;
-        end = start;
-        start = temp;
-    }
-    unsigned substringStart = static_cast<unsigned>(start);
-    unsigned substringLength = static_cast<unsigned>(end) - substringStart;
+    auto [substringStart, substringEnd] = std::minmax(start, end);
+    unsigned substringLength = substringEnd - substringStart;
     RELEASE_AND_RETURN(scope, JSValue::encode(jsSubstring(globalObject, jsString, substringStart, substringLength)));
 }
 
@@ -1153,7 +1142,8 @@ static EncodedJSValue toLocaleCase(JSGlobalObject* globalObject, CallFrame* call
 
     // Most strings lower/upper case will be the same size as original, so try that first.
     Vector<char16_t> buffer;
-    buffer.reserveInitialCapacity(s->length());
+    if (!StringImpl::isValidLength<char16_t>(s->length()) || !buffer.tryReserveInitialCapacity(s->length())) [[unlikely]]
+        return JSValue::encode(throwOutOfMemoryError(globalObject, scope));
     auto convertCase = mode == CaseConversionMode::Lower ? u_strToLower : u_strToUpper;
     auto status = callBufferProducingFunction(convertCase, buffer, StringView { s }.upconvertedCharacters().get(), s->length(), locale.utf8().data());
     if (U_FAILURE(status))
@@ -1449,6 +1439,12 @@ static JSValue normalize(JSGlobalObject* globalObject, JSString* string, Normali
     if (view->is8Bit() && (form == NormalizationForm::NFC || view->containsOnlyASCII()))
         RELEASE_AND_RETURN(scope, string);
 
+    // rdar://160634825
+    // ICU isn't able to handle large strings due to buffer length calculations potentially overflowing.
+    // We'll add a length check here to catch those cases ahead of time.
+    if (view->length() >= (1 << 30))
+        return throwOutOfMemoryError(globalObject, scope);
+
     const UNormalizer2* normalizer = JSC::normalizer(form);
 
     // Since ICU does not offer functions that can perform normalization or check for
@@ -1462,6 +1458,8 @@ static JSValue normalize(JSGlobalObject* globalObject, JSString* string, Normali
         RELEASE_AND_RETURN(scope, string);
 
     int32_t normalizedStringLength = unorm2_normalize(normalizer, characters, view->length(), nullptr, 0, &status);
+    if (isICUMemoryAllocationError(status))
+        return throwOutOfMemoryError(globalObject, scope);
     ASSERT(needsToGrowToProduceBuffer(status));
 
     std::span<char16_t> buffer;

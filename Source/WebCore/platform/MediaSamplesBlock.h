@@ -32,7 +32,7 @@
 #include <wtf/MediaTime.h>
 
 namespace IPC {
-template<typename T, typename> struct ArgumentCoder;
+template<typename> struct ArgumentCoder;
 }
 
 namespace WebCore {
@@ -51,6 +51,11 @@ public:
         std::optional<HdrMetadataType> hdrMetadataType { std::nullopt };
         uint32_t flags { };
         bool isSync() const { return flags & MediaSample::IsSync; }
+#if ENABLE(ENCRYPTED_MEDIA)
+        int32_t bytesOfClearDataCount { 0 };
+        RefPtr<SharedBuffer> cryptorIV { };
+        RefPtr<SharedBuffer> cryptorSubsampleAuxiliaryData { };
+#endif
     };
 
     using MediaSampleDataType = MediaSampleItem::MediaSampleDataType;
@@ -103,7 +108,7 @@ public:
 
 private:
     // Used by IPC generator
-    friend struct IPC::ArgumentCoder<MediaSamplesBlock, void>;
+    friend struct IPC::ArgumentCoder<MediaSamplesBlock>;
     MediaSamplesBlock(RefPtr<const TrackInfo>&& info, SamplesVector&& items, std::optional<bool> discontinuity)
         : m_info(WTFMove(info))
         , m_samples(WTFMove(items))

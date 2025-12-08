@@ -142,7 +142,8 @@ static bool shouldEnableEnhancedSecurity(const std::string& pathOrURL)
 
 static bool shouldUseBackForwardCache(const std::string& pathOrURL)
 {
-    return pathContains(pathOrURL, "navigation-api/");
+    return pathContains(pathOrURL, "navigation-api/")
+        || pathContains(pathOrURL, "websockets/back-forward-cache");
 }
 
 TestFeatures hardcodedFeaturesBasedOnPathForTest(const TestCommand& command)

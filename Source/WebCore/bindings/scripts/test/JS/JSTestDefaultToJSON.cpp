@@ -893,7 +893,7 @@ JSC::JSValue toJSNewlyCreated(JSC::JSGlobalObject* lexicalGlobalObject, JSDOMGlo
 {
     UNUSED_PARAM(lexicalGlobalObject);
     if (is<TestDefaultToJSONInherit>(impl))
-        return toJSNewlyCreated(lexicalGlobalObject, globalObject, downcast<TestDefaultToJSONInherit>(WTFMove(impl)));
+        return toJSNewlyCreated(lexicalGlobalObject, globalObject, uncheckedDowncast<TestDefaultToJSONInherit>(WTFMove(impl)));
     return createWrapper<TestDefaultToJSON>(globalObject, WTFMove(impl));
 }
 

@@ -39,7 +39,7 @@ namespace WebKit {
 
 static RetainPtr<NSPasteboard> findPasteboard()
 {
-    return [NSPasteboard pasteboardWithName:RetainPtr { NSPasteboardNameFind }.get()];
+    return [NSPasteboard pasteboardWithName:NSPasteboardNameFind];
 }
 
 #else

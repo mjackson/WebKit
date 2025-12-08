@@ -35,6 +35,8 @@
 
 namespace WebCore {
 
+enum class ReferrerPolicy : uint8_t;
+
 // https://wicg.github.io/nav-speculation/speculation-rules.html
 class SpeculationRules : public RefCounted<SpeculationRules> {
 public:
@@ -89,7 +91,7 @@ public:
         Vector<URL> urls;
         std::optional<DocumentPredicate> predicate;
         Eagerness eagerness;
-        String referrerPolicy;
+        std::optional<ReferrerPolicy> referrerPolicy;
         Vector<String> tags;
         Vector<String> requirements;
         String noVarySearchHint;

@@ -33,10 +33,11 @@
 #include "WebPage.h"
 #include "WebProcessCreationParameters.h"
 #include "WebProcessExtensionManager.h"
-
+#include "WebSystemSoundDelegate.h"
 #include <WebCore/PlatformScreen.h>
 #include <WebCore/RenderTheme.h>
 #include <WebCore/ScreenProperties.h>
+#include <WebCore/SystemSoundManager.h>
 
 #if ENABLE(REMOTE_INSPECTOR)
 #include <JavaScriptCore/RemoteInspector.h>
@@ -64,7 +65,11 @@
 #include <WebCore/PlatformDisplaySurfaceless.h>
 #endif
 
-#if PLATFORM(GTK)
+#if OS(ANDROID)
+#include <WebCore/PlatformDisplayAndroid.h>
+#endif
+
+#if PLATFORM(GTK) || OS(ANDROID)
 #include <WebCore/PlatformDisplayDefault.h>
 #endif
 
@@ -159,12 +164,19 @@ void WebProcess::initializePlatformDisplayIfNeeded() const
     }
 #endif
 
+#if OS(ANDROID)
+    if (auto display = PlatformDisplayAndroid::create()) {
+        PlatformDisplay::setSharedDisplay(WTFMove(display));
+        return;
+    }
+#endif
+
     if (auto display = PlatformDisplaySurfaceless::create()) {
         PlatformDisplay::setSharedDisplay(WTFMove(display));
         return;
     }
 
-#if PLATFORM(GTK)
+#if PLATFORM(GTK) || OS(ANDROID)
     if (auto display = PlatformDisplayDefault::create()) {
         PlatformDisplay::setSharedDisplay(WTFMove(display));
         return;
@@ -239,6 +251,8 @@ void WebProcess::platformInitializeWebProcess(WebProcessCreationParameters& para
 
 #if PLATFORM(GTK)
     WebCore::setScreenProperties(parameters.screenProperties);
+
+    WebCore::SystemSoundManager::singleton().setSystemSoundDelegate(makeUnique<WebSystemSoundDelegate>());
 #endif
 
 #if PLATFORM(WPE) && ENABLE(WPE_PLATFORM)

@@ -37,10 +37,10 @@ G_BEGIN_DECLS
 WEBKIT_DECLARE_FINAL_TYPE (WebKitWebExtension, webkit_web_extension, WEBKIT, WEB_EXTENSION, GObject)
 
 WEBKIT_API WebKitWebExtension *
-webkit_web_extension_new                                     (GFile   *extension_path,
-                                                              GError **error);
+webkit_web_extension_new                                     (const char  *extension_path,
+                                                              GError     **error);
 
-WEBKIT_API GFile *
+WEBKIT_API const char *
 webkit_web_extension_get_path                                (WebKitWebExtension* extension);
 
 WEBKIT_API gdouble

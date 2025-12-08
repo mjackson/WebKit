@@ -88,9 +88,7 @@ RemoteResourceCacheProxy::RemoteResourceCacheProxy(RemoteRenderingBackendProxy& 
 {
 }
 
-RemoteResourceCacheProxy::~RemoteResourceCacheProxy()
-{
-}
+RemoteResourceCacheProxy::~RemoteResourceCacheProxy() = default;
 
 Ref<RemoteNativeImageProxy> RemoteResourceCacheProxy::createNativeImage(const IntSize& size, PlatformColorSpace&& colorSpace, bool hasAlpha)
 {
@@ -121,7 +119,7 @@ void RemoteResourceCacheProxy::recordFilterUse(Filter& filter)
     }
 }
 
-void RemoteResourceCacheProxy::recordNativeImageUse(NativeImage& image, const DestinationColorSpace& fallbackColorSpace)
+bool RemoteResourceCacheProxy::recordNativeImageUse(NativeImage& image, const DestinationColorSpace& fallbackColorSpace)
 {
     if (isMainRunLoop())
         WebProcess::singleton().deferNonVisibleProcessEarlyMemoryCleanupTimer();
@@ -129,7 +127,9 @@ void RemoteResourceCacheProxy::recordNativeImageUse(NativeImage& image, const De
     auto entry = m_nativeImages.find(&image);
     if (entry != m_nativeImages.end()) {
         if (entry->value.existsInRemote)
-            return;
+            return true;
+        if (!entry->value.bitmap)
+            return false;
         handle = RefPtr { entry->value.bitmap }->createHandle();
         if (handle)
             entry->value.existsInRemote = true;
@@ -151,15 +151,15 @@ void RemoteResourceCacheProxy::recordNativeImageUse(NativeImage& image, const De
         }
     }
     if (!handle) {
-        // FIXME: Failing to send the image to GPUP will crash it when referencing this image.
         LOG_WITH_STREAM(Images, stream
             << "RemoteResourceCacheProxy::recordNativeImageUse() " << this
             << " image.size(): " << image.size()
             << " image.colorSpace(): " << image.colorSpace()
             << " ShareableBitmap could not be created; bailing.");
-        return;
+        return false;
     }
     m_remoteRenderingBackendProxy->cacheNativeImage(WTFMove(*handle), image.renderingResourceIdentifier());
+    return true;
 }
 
 void RemoteResourceCacheProxy::recordFontUse(Font& font)
@@ -267,12 +267,6 @@ void RemoteResourceCacheProxy::willDestroyDisplayList(const DisplayList::Display
     m_remoteRenderingBackendProxy->releaseDisplayList(*identifier);
 }
 
-void RemoteResourceCacheProxy::releaseNativeImages()
-{
-    m_nativeImageResourceObserverWeakFactory.revokeAll();
-    m_nativeImages.clear();
-}
-
 void RemoteResourceCacheProxy::prepareForNextRenderingUpdate()
 {
     m_numberOfFontsUsedInCurrentRenderingUpdate = 0;
@@ -339,11 +333,12 @@ void RemoteResourceCacheProxy::didPaintLayers()
 
 void RemoteResourceCacheProxy::releaseMemory()
 {
+    // Release all resources that consume memory in GPUP.
+    // Other resources should be released by releasing the resource object references.
     m_resourceObserverWeakFactory.revokeAll();
     m_filters.clear();
     m_gradients.clear();
     m_displayLists.clear();
-    releaseNativeImages();
     releaseFonts();
     releaseFontCustomPlatformDatas();
 }

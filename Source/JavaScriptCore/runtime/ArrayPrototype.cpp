@@ -27,7 +27,7 @@
 #include "ArrayConstructor.h"
 #include "ArrayPrototypeInlines.h"
 #include "BuiltinNames.h"
-#include "CachedCall.h"
+#include "CachedCallInlines.h"
 #include "IntegrityInlines.h"
 #include "InterpreterInlines.h"
 #include "JSArrayInlines.h"
@@ -267,7 +267,7 @@ JSC_DEFINE_HOST_FUNCTION(arrayProtoFuncToString, (JSGlobalObject* globalObject, 
         RETURN_IF_EXCEPTION(scope, { });
 
         // 3. If IsCallable(func) is false, then let func be the standard built-in method Object.prototype.toString (15.2.4.2).
-        auto callData = JSC::getCallData(function);
+        auto callData = JSC::getCallDataInline(function);
         if (callData.type == CallData::Type::None) [[unlikely]]
             RELEASE_AND_RETURN(scope, JSValue::encode(objectPrototypeToString(globalObject, thisObject)));
 
@@ -288,7 +288,7 @@ static JSString* toLocaleString(JSGlobalObject* globalObject, JSValue value, JSV
     JSValue toLocaleStringMethod = value.get(globalObject, vm.propertyNames->toLocaleString);
     RETURN_IF_EXCEPTION(scope, { });
 
-    auto callData = JSC::getCallData(toLocaleStringMethod);
+    auto callData = JSC::getCallDataInline(toLocaleStringMethod);
     if (callData.type == CallData::Type::None) {
         throwTypeError(globalObject, scope, "toLocaleString is not callable"_s);
         return { };
@@ -872,10 +872,9 @@ static ALWAYS_INLINE std::tuple<uint64_t, IndexingType, std::span<EncodedJSValue
 static unsigned sortBucketSort(std::span<EncodedJSValue> sorted, unsigned dst, SortEntryVector& bucket, unsigned depth)
 {
     if (bucket.size() < 32 || depth > 32) {
-        std::sort(bucket.begin(), bucket.end(),
-            [](const auto& lhs, const auto& rhs) {
-                return codePointCompareLessThan(std::get<1>(lhs), std::get<1>(rhs));
-            });
+        std::ranges::sort(bucket, WTF::codePointCompareLessThan, [](const auto& element) {
+            return std::get<1>(element);
+        });
         for (auto& entry : bucket)
             sorted[dst++] = JSValue::encode(std::get<0>(entry));
         return dst;
@@ -903,7 +902,7 @@ static ALWAYS_INLINE std::span<EncodedJSValue> sortStableSort(JSGlobalObject* gl
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    auto callData = JSC::getCallData(comparator);
+    auto callData = JSC::getCallDataInline(comparator);
     ASSERT(callData.type != CallData::Type::None);
 
     if (callData.type == CallData::Type::JS) [[likely]] {
@@ -1575,69 +1574,6 @@ static JSArray* concatAppendArray(JSGlobalObject* globalObject, VM& vm, JSArray*
 
     Butterfly::clearRange(type, butterfly, resultSize, vectorLength);
     return JSArray::createWithButterfly(vm, nullptr, resultStructure, butterfly);
-}
-
-JSC_DEFINE_HOST_FUNCTION(arrayProtoPrivateFuncAppendMemcpy, (JSGlobalObject* globalObject, CallFrame* callFrame))
-{
-    ASSERT(callFrame->argumentCount() == 3);
-
-    VM& vm = globalObject->vm();
-    auto scope = DECLARE_THROW_SCOPE(vm);
-    JSArray* resultArray = jsCast<JSArray*>(callFrame->uncheckedArgument(0));
-    JSArray* otherArray = jsCast<JSArray*>(callFrame->uncheckedArgument(1));
-    JSValue startValue = callFrame->uncheckedArgument(2);
-    ASSERT(startValue.isUInt32AsAnyInt());
-    unsigned startIndex = startValue.asUInt32AsAnyInt();
-    bool success = resultArray->appendMemcpy(globalObject, vm, startIndex, otherArray);
-    EXCEPTION_ASSERT(!scope.exception() || !success);
-    if (success)
-        return JSValue::encode(jsUndefined());
-    RETURN_IF_EXCEPTION(scope, encodedJSValue());
-    scope.release();
-    moveArrayElements<ArrayFillMode::Empty>(globalObject, vm, resultArray, startIndex, otherArray, otherArray->length());
-    return JSValue::encode(jsUndefined());
-}
-
-JSC_DEFINE_HOST_FUNCTION(arrayProtoPrivateFuncFromFastFillWithUndefined, (JSGlobalObject* globalObject, CallFrame* callFrame))
-{
-    VM& vm = globalObject->vm();
-    auto scope = DECLARE_THROW_SCOPE(vm);
-
-    JSValue constructor = callFrame->uncheckedArgument(0);
-    if (constructor != globalObject->arrayConstructor() && constructor.isObject()) [[unlikely]]
-        return JSValue::encode(jsUndefined());
-
-    JSValue arrayValue = callFrame->uncheckedArgument(1);
-    if (!isJSArray(arrayValue)) [[unlikely]]
-        return JSValue::encode(jsUndefined());
-
-    JSArray* array = tryCloneArrayFromFast<ArrayFillMode::Undefined>(globalObject, arrayValue);
-    RETURN_IF_EXCEPTION(scope, { });
-    if (array)
-        return JSValue::encode(array);
-
-    return JSValue::encode(jsUndefined());
-}
-
-JSC_DEFINE_HOST_FUNCTION(arrayProtoPrivateFuncFromFastFillWithEmpty, (JSGlobalObject* globalObject, CallFrame* callFrame))
-{
-    VM& vm = globalObject->vm();
-    auto scope = DECLARE_THROW_SCOPE(vm);
-
-    JSValue constructor = callFrame->uncheckedArgument(0);
-    if (constructor != globalObject->arrayConstructor() && constructor.isObject()) [[unlikely]]
-        return JSValue::encode(jsUndefined());
-
-    JSValue arrayValue = callFrame->uncheckedArgument(1);
-    if (!isJSArray(arrayValue)) [[unlikely]]
-        return JSValue::encode(jsUndefined());
-
-    JSArray* array = tryCloneArrayFromFast<ArrayFillMode::Empty>(globalObject, arrayValue);
-    RETURN_IF_EXCEPTION(scope, { });
-    if (array)
-        return JSValue::encode(array);
-
-    return JSValue::encode(jsUndefined());
 }
 
 JSC_DEFINE_HOST_FUNCTION(arrayProtoFuncConcat, (JSGlobalObject* globalObject, CallFrame* callFrame))

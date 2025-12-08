@@ -67,7 +67,7 @@ static RefPtr<TestedGraphicsContextGLTextureMapper> createTestedGraphicsContextG
 class MockGraphicsContextGLClient final : public GraphicsContextGL::Client {
 public:
     void forceContextLost() final { ++m_contextLostCalls; }
-    void addDebugMessage(GCGLenum, GCGLenum, GCGLenum, const String&) final { }
+    void addDebugMessage(GCGLenum, GCGLenum, GCGLenum, const CString&) final { }
     int contextLostCalls() { return m_contextLostCalls; }
 private:
     int m_contextLostCalls { 0 };
@@ -92,8 +92,10 @@ protected:
     bool antialias() const { return std::get<0>(GetParam()); }
     bool preserveDrawingBuffer() const { return std::get<1>(GetParam()); }
     bool isWebGL2() const { return std::get<2>(GetParam()); }
+#if ENABLE(WEBXR)
     GraphicsContextGLAttributes attributes();
     RefPtr<TestedGraphicsContextGLTextureMapper> createTestContext(IntSize contextSize);
+#endif
 
     void SetUp() override // NOLINT
     {
@@ -108,6 +110,7 @@ private:
     std::optional<ScopedSetAuxiliaryProcessTypeForTesting> m_scopedProcessType;
 };
 
+#if ENABLE(WEBXR)
 GraphicsContextGLAttributes AnyContextAttributeTest::attributes()
 {
     GraphicsContextGLAttributes attributes;
@@ -128,6 +131,7 @@ RefPtr<TestedGraphicsContextGLTextureMapper> AnyContextAttributeTest::createTest
     context->reshape(contextSize.width(), contextSize.height());
     return context;
 }
+#endif
 
 } // namespace
 
@@ -270,12 +274,12 @@ TEST_F(GraphicsContextGLTextureMapperTest, TwoLinks)
     gl = nullptr;
 }
 
-TEST_F(GraphicsContextGLTextureMapperTest, BufferAsImageNoDrawingBufferReturnsNullptr)
+TEST_F(GraphicsContextGLTextureMapperTest, CopyNativeImageNoDrawingBufferReturnsNullptr)
 {
     using GL = GraphicsContextGL;
     auto gl = createTestedGraphicsContextGL({ });
-    RefPtr drawingImage = gl->bufferAsNativeImage(GL::SurfaceBuffer::DrawingBuffer);
-    RefPtr displayImage = gl->bufferAsNativeImage(GL::SurfaceBuffer::DisplayBuffer);
+    RefPtr drawingImage = gl->copyNativeImageYFlipped(GL::SurfaceBuffer::DrawingBuffer);
+    RefPtr displayImage = gl->copyNativeImageYFlipped(GL::SurfaceBuffer::DisplayBuffer);
     EXPECT_EQ(drawingImage, nullptr);
     EXPECT_EQ(displayImage, nullptr);
 }
@@ -287,12 +291,12 @@ TEST_F(GraphicsContextGLTextureMapperTest, CopyImageAndMutateDrawingBuffer)
     using GL = GraphicsContextGL;
     auto gl = createTestedGraphicsContextGL({ });
     gl->reshape(10, 10);
-    RefPtr drawingImage0 = gl->bufferAsNativeImage(GL::SurfaceBuffer::DrawingBuffer);
+    RefPtr drawingImage0 = gl->copyNativeImageYFlipped(GL::SurfaceBuffer::DrawingBuffer);
     ASSERT_NE(drawingImage0, nullptr);
     EXPECT_TRUE(imagePixelIs(Color::transparentBlack, *drawingImage0, FloatPoint(5, 5)));
     gl->clearColor(0.f, 1.f, 0.f, 1.f);
     gl->clear(GL::COLOR_BUFFER_BIT);
-    RefPtr drawingImage1 = gl->bufferAsNativeImage(GL::SurfaceBuffer::DrawingBuffer);
+    RefPtr drawingImage1 = gl->copyNativeImageYFlipped(GL::SurfaceBuffer::DrawingBuffer);
     ASSERT_NE(drawingImage1, nullptr);
     EXPECT_TRUE(imagePixelIs(Color::transparentBlack, *drawingImage0, FloatPoint(5, 5)));
     EXPECT_TRUE(imagePixelIs(Color::green, *drawingImage1, FloatPoint(5, 5)));
@@ -301,13 +305,13 @@ TEST_F(GraphicsContextGLTextureMapperTest, CopyImageAndMutateDrawingBuffer)
     gl->clear(GL::COLOR_BUFFER_BIT);
     EXPECT_TRUE(imagePixelIs(Color::transparentBlack, *drawingImage0, FloatPoint(5, 5)));
     EXPECT_TRUE(imagePixelIs(Color::green, *drawingImage1, FloatPoint(5, 5)));
-    RefPtr drawingImage2 = gl->bufferAsNativeImage(GL::SurfaceBuffer::DrawingBuffer);
+    RefPtr drawingImage2 = gl->copyNativeImageYFlipped(GL::SurfaceBuffer::DrawingBuffer);
     ASSERT_NE(drawingImage2, nullptr);
     EXPECT_TRUE(imagePixelIs(Color::transparentBlack, *drawingImage0, FloatPoint(5, 5)));
     EXPECT_TRUE(imagePixelIs(Color::green, *drawingImage1, FloatPoint(5, 5)));
     EXPECT_TRUE(imagePixelIs(Color::blue, *drawingImage2, FloatPoint(5, 5)));
     gl->prepareForDisplay();
-    RefPtr displayImage = gl->bufferAsNativeImage(GL::SurfaceBuffer::DisplayBuffer);
+    RefPtr displayImage = gl->copyNativeImageYFlipped(GL::SurfaceBuffer::DisplayBuffer);
     ASSERT_NE(displayImage, nullptr);
     EXPECT_TRUE(imagePixelIs(Color::transparentBlack, *drawingImage0, FloatPoint(5, 5)));
     EXPECT_TRUE(imagePixelIs(Color::green, *drawingImage1, FloatPoint(5, 5)));
@@ -393,7 +397,7 @@ TEST_P(AnyContextAttributeTest, WebXRBlitTest)
         PlatformGLObject color = gl->createRenderbuffer();
         ASSERT_NE(color, 0u);
         gl->bindRenderbuffer(GL::RENDERBUFFER, color);
-        gl->renderbufferStorageMultisampleANGLE(GL::RENDERBUFFER, 0, GL::BGRA_EXT, 2, 2);
+        gl->renderbufferStorageMultisampleANGLE(GL::RENDERBUFFER, 0, GL::RGBA8, 2, 2);
         gl->framebufferRenderbuffer(GL::DRAW_FRAMEBUFFER, GL::COLOR_ATTACHMENT0, GL::RENDERBUFFER, color);
     }
     {

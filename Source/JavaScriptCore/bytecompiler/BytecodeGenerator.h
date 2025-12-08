@@ -698,7 +698,8 @@ namespace JSC {
         RegisterID* emitLoad(RegisterID* dst, JSValue, SourceCodeRepresentation = SourceCodeRepresentation::Other);
         RegisterID* emitLoad(RegisterID* dst, IdentifierSet&& excludedList);
 
-        template<typename UnaryOp, typename = std::enable_if_t<UnaryOp::opcodeID != op_negate>>
+        template<typename UnaryOp>
+            requires (UnaryOp::opcodeID != op_negate)
         RegisterID* emitUnaryOp(RegisterID* dst, RegisterID* src)
         {
             UnaryOp::emit(this, dst, src);
@@ -929,8 +930,6 @@ namespace JSC {
         RegisterID* emitIsAsyncGenerator(RegisterID* dst, RegisterID* src) { return emitIsCellWithType(dst, src, JSAsyncGeneratorType); }
         RegisterID* emitIsJSArray(RegisterID* dst, RegisterID* src) { return emitIsCellWithType(dst, src, ArrayType); }
         RegisterID* emitIsPromise(RegisterID* dst, RegisterID* src) { return emitIsCellWithType(dst, src, JSPromiseType); }
-        RegisterID* emitIsPromiseAllContext(RegisterID* dst, RegisterID* src) { return emitIsCellWithType(dst, src, JSPromiseAllContextType); }
-        RegisterID* emitIsPromiseReaction(RegisterID* dst, RegisterID* src) { return emitIsCellWithType(dst, src, JSPromiseReactionType); }
         RegisterID* emitIsProxyObject(RegisterID* dst, RegisterID* src) { return emitIsCellWithType(dst, src, ProxyObjectType); }
         RegisterID* emitIsRegExpObject(RegisterID* dst, RegisterID* src) { return emitIsCellWithType(dst, src, RegExpObjectType); }
         RegisterID* emitIsMap(RegisterID* dst, RegisterID* src) { return emitIsCellWithType(dst, src, JSMapType); }

@@ -161,7 +161,7 @@ void WebDragClient::startDrag(DragItem dragItem, DataTransfer& dataTransfer, Fra
     [topHTMLView _stopAutoscrollTimer];
     NSPasteboard *pasteboard = [NSPasteboard pasteboardWithName:dataTransfer.pasteboard().name().createNSString().get()];
 
-    NSImage *dragNSImage = dragImage.get().get();
+    NSImage *dragNSImage = dragImage.get().unsafeGet();
     WebHTMLView *sourceHTMLView = htmlView.get();
 
     IntSize size([dragNSImage size]);

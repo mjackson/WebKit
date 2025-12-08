@@ -40,8 +40,9 @@
 #import <pal/spi/cocoa/QuartzCoreSPI.h>
 #endif
 
-#if ENABLE(THREADED_ANIMATION_RESOLUTION)
-#import <WebCore/AcceleratedEffectStack.h>
+#if ENABLE(THREADED_ANIMATIONS)
+#import "RemoteAnimation.h"
+#import "RemoteAnimationStack.h"
 #endif
 
 namespace WebKit {
@@ -87,9 +88,9 @@ RemoteLayerTreeNode::RemoteLayerTreeNode(WebCore::PlatformLayerIdentifier layerI
 RemoteLayerTreeNode::~RemoteLayerTreeNode()
 {
     RetainPtr layer = this->layer();
-#if ENABLE(THREADED_ANIMATION_RESOLUTION)
-    if (RefPtr effectStack = m_effectStack)
-        effectStack->clear(layer.get());
+#if ENABLE(THREADED_ANIMATIONS)
+    if (RefPtr animationStack = m_animationStack)
+        animationStack->clear(layer.get());
 #endif
     [layer setValue:nil forKey:WKRemoteLayerTreeNodePropertyKey];
 #if ENABLE(GAZE_GLOW_FOR_INTERACTION_REGIONS)
@@ -279,7 +280,8 @@ RemoteLayerTreeNode* RemoteLayerTreeNode::forCALayer(CALayer *layer)
 NSString *RemoteLayerTreeNode::appendLayerDescription(NSString *description, CALayer *layer)
 {
     auto layerID = WebKit::RemoteLayerTreeNode::layerID(layer);
-    RetainPtr layerDescription = adoptNS([[NSString alloc] initWithFormat:@" layerID = %llu \"%@\"", layerID ? layerID->object().toUInt64() : 0, layer.name ? layer.name : @""]);
+    RetainPtr<NSString> name = layer.name ? layer.name : @"";
+    RetainPtr layerDescription = adoptNS([[NSString alloc] initWithFormat:@" layerID = %llu \"%@\"", layerID ? layerID->object().toUInt64() : 0, name.get()]);
     return [description stringByAppendingString:layerDescription.get()];
 }
 
@@ -301,32 +303,31 @@ void RemoteLayerTreeNode::removeFromHostingNode()
 #endif
 }
 
-#if ENABLE(THREADED_ANIMATION_RESOLUTION)
+#if ENABLE(THREADED_ANIMATIONS)
 void RemoteLayerTreeNode::setAcceleratedEffectsAndBaseValues(const WebCore::AcceleratedEffects& effects, const WebCore::AcceleratedEffectValues& baseValues, RemoteLayerTreeHost& host)
 {
     ASSERT(isUIThread());
 
     RetainPtr layer = this->layer();
-    if (RefPtr effectStack = m_effectStack)
-        effectStack->clear(layer.get());
+    if (RefPtr animationStack = m_animationStack)
+        animationStack->clear(layer.get());
     host.animationsWereRemovedFromNode(*this);
 
     if (effects.isEmpty())
         return;
 
-    Ref effectStack = RemoteAcceleratedEffectStack::create(layer.get().bounds, host.acceleratedTimelineTimeOrigin(m_layerID.processIdentifier()));
-    m_effectStack = effectStack.copyRef();
-
-    auto clonedEffects = effects;
-    auto clonedBaseValues = baseValues.clone();
-
-    effectStack->setEffects(WTFMove(clonedEffects));
-    effectStack->setBaseValues(WTFMove(clonedBaseValues));
+    Ref animationStack = RemoteAnimationStack::create(effects.map([&](const Ref<WebCore::AcceleratedEffect>& effect) {
+        TimelineID timelineID { effect->timelineIdentifier(), m_layerID.processIdentifier() };
+        RefPtr timeline = host.timeline(timelineID);
+        ASSERT(timeline);
+        return RemoteAnimation::create(Ref { effect }.get(), *timeline);
+    }), baseValues.clone(), layer.get().bounds);
+    m_animationStack = animationStack.copyRef();
 
 #if PLATFORM(IOS_FAMILY)
-    effectStack->applyEffectsFromMainThread(layer.get(), host.animationCurrentTime(m_layerID.processIdentifier()), backdropRootIsOpaque());
+    animationStack->applyEffectsFromMainThread(layer.get(), backdropRootIsOpaque());
 #else
-    effectStack->initEffectsFromMainThread(layer.get(), host.animationCurrentTime(m_layerID.processIdentifier()));
+    animationStack->initEffectsFromMainThread(layer.get());
 #endif
 
     host.animationsWereAddedToNode(*this);

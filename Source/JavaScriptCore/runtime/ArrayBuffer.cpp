@@ -61,15 +61,15 @@ static bool tryAllocate(VM* vm, const Func& allocate)
     bool success = false;
     for (unsigned i = 0; i < numTries && !success; ++i) {
         switch (allocate()) {
-        case BufferMemoryResult::Success:
+        case BufferMemoryResult::Kind::Success:
             success = true;
             break;
-        case BufferMemoryResult::SuccessAndNotifyMemoryPressure:
+        case BufferMemoryResult::Kind::SuccessAndNotifyMemoryPressure:
             if (vm)
                 vm->heap.collectAsync(CollectionScope::Full);
             success = true;
             break;
-        case BufferMemoryResult::SyncTryToReclaimMemory:
+        case BufferMemoryResult::Kind::SyncTryToReclaimMemory:
             if (i + 1 == numTries)
                 break;
             if (vm)
@@ -170,6 +170,7 @@ void ArrayBufferContents::copyTo(ArrayBufferContents& other)
     memcpy(other.data(), data(), m_sizeInBytes);
     other.m_sizeInBytes = m_sizeInBytes;
     RELEASE_ASSERT(other.m_sizeInBytes <= MAX_ARRAY_BUFFER_SIZE);
+    ASSERT(other.m_maxByteLength <= MAX_ARRAY_BUFFER_SIZE);
 }
 
 void ArrayBufferContents::shareWith(ArrayBufferContents& other)
@@ -184,6 +185,7 @@ void ArrayBufferContents::shareWith(ArrayBufferContents& other)
     other.m_maxByteLength = m_maxByteLength;
     other.m_hasMaxByteLength = m_hasMaxByteLength;
     RELEASE_ASSERT(other.m_sizeInBytes <= MAX_ARRAY_BUFFER_SIZE);
+    ASSERT(other.m_maxByteLength <= MAX_ARRAY_BUFFER_SIZE);
 }
 
 Ref<ArrayBuffer> ArrayBuffer::create(size_t numElements, unsigned elementByteSize)
@@ -573,7 +575,7 @@ RefPtr<ArrayBuffer> ArrayBuffer::tryCreateShared(VM& vm, size_t numElements, uns
 {
     CheckedSize sizeInBytes = numElements;
     sizeInBytes *= elementByteSize;
-    if (sizeInBytes.hasOverflowed() || sizeInBytes.value() > MAX_ARRAY_BUFFER_SIZE || (sizeInBytes.value() > maxByteLength))
+    if (sizeInBytes.hasOverflowed() || sizeInBytes.value() > maxByteLength || maxByteLength > MAX_ARRAY_BUFFER_SIZE)
         return nullptr;
 
     auto handle = tryAllocateResizableMemory(&vm, sizeInBytes.value(), maxByteLength);

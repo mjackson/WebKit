@@ -113,6 +113,7 @@
 #include "RenderLayerCompositor.h"
 #include "RenderLayerFilters.h"
 #include "RenderLayerInlines.h"
+#include "RenderLayerModelObjectInlines.h"
 #include "RenderLayerScrollableArea.h"
 #include "RenderMarquee.h"
 #include "RenderMultiColumnFlow.h"
@@ -147,7 +148,6 @@
 #include "ShadowRoot.h"
 #include "SourceGraphic.h"
 #include "StyleAttributeMutationScope.h"
-#include "StyleLengthWrapper+Platform.h"
 #include "StyleProperties.h"
 #include "StyleResolver.h"
 #include "StyleScaleTransformFunction.h"
@@ -414,18 +414,6 @@ RenderLayer::~RenderLayer()
     RELEASE_ASSERT_WITH_SECURITY_IMPLICATION(renderer().renderTreeBeingDestroyed() || !firstChild());
 }
 
-RenderLayer::PaintedContentRequest::PaintedContentRequest(const RenderLayer& owningLayer)
-{
-#if HAVE(SUPPORT_HDR_DISPLAY)
-    if (owningLayer.renderer().document().drawsHDRContent())
-        makeHDRContentUnknown();
-    else
-        makeHDRContentFalse();
-#else
-    UNUSED_PARAM(owningLayer);
-#endif
-}
-
 void RenderLayer::removeClipperClientIfNeeded() const
 {
     WTF::switchOn(renderer().style().clipPath(),
@@ -616,7 +604,7 @@ static bool canCreateStackingContext(const RenderLayer& layer)
         || renderer.style().hasIsolation()
         || renderer.shouldApplyPaintContainment()
         || !renderer.style().usedZIndex().isAuto()
-        || (renderer.style().willChange() && renderer.style().willChange()->canCreateStackingContext())
+        || renderer.style().willChange().canCreateStackingContext()
         || layer.establishesTopLayer();
 }
 
@@ -666,7 +654,7 @@ bool RenderLayer::computeCanBeBackdropRoot() const
         || renderer().hasBlendMode()
         || renderer().hasMask()
         || (renderer().requiresRenderingConsolidationForViewTransition() && !renderer().isDocumentElementRenderer())
-        || (renderer().style().willChange() && renderer().style().willChange()->canBeBackdropRoot());
+        || renderer().style().willChange().canBeBackdropRoot();
 }
 
 bool RenderLayer::setIsNormalFlowOnly(bool isNormalFlowOnly)
@@ -1307,8 +1295,8 @@ void RenderLayer::recursiveUpdateLayerPositions(OptionSet<UpdateLayerPositionsFl
     auto repaintIfNecessary = [&](bool checkForRepaint) {
         if (mode == Verify) {
             WeakPtr repaintContainer = renderer().containerForRepaint().renderer.get();
-            LAYER_POSITIONS_ASSERT(repaintRects() || (isVisibilityHiddenOrOpacityZero() || !isSelfPaintingLayer()));
-            if (isVisibilityHiddenOrOpacityZero())
+            LAYER_POSITIONS_ASSERT(repaintRects() || (isSubtreeVisibilityHiddenOrOpacityZero() || !isSelfPaintingLayer()));
+            if (isSubtreeVisibilityHiddenOrOpacityZero())
                 LAYER_POSITIONS_ASSERT(!m_repaintContainer);
             else
                 LAYER_POSITIONS_ASSERT(m_repaintContainer == repaintContainer);
@@ -1500,12 +1488,12 @@ void RenderLayer::computeRepaintRects(const RenderLayerModelObject* repaintConta
 {
     ASSERT(!m_visibleContentStatusDirty);
 
-    if (isVisibilityHiddenOrOpacityZero() || !isSelfPaintingLayer())
+    if (isSubtreeVisibilityHiddenOrOpacityZero() || !isSelfPaintingLayer())
         clearRepaintRects();
     else
         setRepaintRects(renderer().rectsForRepaintingAfterLayout(repaintContainer, RepaintOutlineBounds::Yes));
 
-    if (isVisibilityHiddenOrOpacityZero())
+    if (isSubtreeVisibilityHiddenOrOpacityZero())
         m_repaintContainer = nullptr;
     else
         m_repaintContainer = repaintContainer;
@@ -1779,7 +1767,7 @@ TransformationMatrix RenderLayer::currentTransform(OptionSet<RenderStyle::Transf
 
     // Query the animatedStyle() to obtain the current transformation, when accelerated transform animations are running.
     auto styleable = Styleable::fromRenderer(renderer());
-    if ((styleable && styleable->isRunningAcceleratedAnimationOfProperty(CSSPropertyTransform)) || !options.contains(RenderStyle::TransformOperationOption::TransformOrigin)) {
+    if ((styleable && styleable->isRunningAcceleratedTransformRelatedAnimation()) || !options.contains(RenderStyle::TransformOperationOption::TransformOrigin)) {
         std::unique_ptr<RenderStyle> animatedStyle = renderer().animatedStyle();
 
         TransformationMatrix transform;
@@ -2975,15 +2963,15 @@ bool RenderLayer::canResize() const
     // We need a special case for <iframe> because they never have
     // hasNonVisibleOverflow(). However, they do "implicitly" clip their contents, so
     // we want to allow resizing them also.
-    return (renderer().hasNonVisibleOverflow() || renderer().isRenderIFrame()) && renderer().style().resize() != Resize::None;
+    return (renderer().hasNonVisibleOverflow() || renderer().isRenderIFrame()) && renderer().style().resize() != Style::Resize::None;
 }
 
 LayoutSize RenderLayer::minimumSizeForResizing(float zoomFactor) const
 {
     // Use the resizer size as the strict minimum size
     auto resizerRect = overflowControlsRects().resizer;
-    auto minWidth = Style::evaluateMinimum<LayoutUnit>(renderer().style().minWidth(), renderer().containingBlock()->width(), Style::ZoomNeeded { });
-    auto minHeight = Style::evaluateMinimum<LayoutUnit>(renderer().style().minHeight(), renderer().containingBlock()->height(), Style::ZoomNeeded { });
+    auto minWidth = Style::evaluateMinimum<LayoutUnit>(renderer().style().minWidth(), renderer().containingBlock()->width(), renderer().style().usedZoomForLength());
+    auto minHeight = Style::evaluateMinimum<LayoutUnit>(renderer().style().minHeight(), renderer().containingBlock()->height(), renderer().style().usedZoomForLength());
     minWidth = std::max(LayoutUnit(minWidth / zoomFactor), LayoutUnit(resizerRect.width()));
     minHeight = std::max(LayoutUnit(minHeight / zoomFactor), LayoutUnit(resizerRect.height()));
     return LayoutSize(minWidth, minHeight);
@@ -3030,9 +3018,9 @@ void RenderLayer::resize(const PlatformMouseEvent& evt, const LayoutSize& oldOff
     StyleAttributeMutationScope mutationScope { styledElement.get() };
     bool isBoxSizingBorder = renderer->style().boxSizing() == BoxSizing::BorderBox;
 
-    Resize resize = renderer->style().resize();
-    bool canResizeWidth = resize == Resize::Horizontal || resize == Resize::Both
-        || (renderer->isHorizontalWritingMode() ? resize == Resize::Inline : resize == Resize::Block);
+    auto resize = renderer->style().resize();
+    bool canResizeWidth = resize == Style::Resize::Horizontal || resize == Style::Resize::Both
+        || (renderer->isHorizontalWritingMode() ? resize == Style::Resize::Inline : resize == Style::Resize::Block);
     if (canResizeWidth && difference.width()) {
         if (is<HTMLFormControlElement>(*styledElement)) {
             // Make implicit margins from the theme explicit (see <http://bugs.webkit.org/show_bug.cgi?id=9547>).
@@ -3046,8 +3034,8 @@ void RenderLayer::resize(const PlatformMouseEvent& evt, const LayoutSize& oldOff
         mutationScope.enqueueMutationRecord();
     }
 
-    bool canResizeHeight = resize == Resize::Vertical || resize == Resize::Both
-        || (renderer->isHorizontalWritingMode() ? resize == Resize::Block : resize == Resize::Inline);
+    bool canResizeHeight = resize == Style::Resize::Vertical || resize == Style::Resize::Both
+        || (renderer->isHorizontalWritingMode() ? resize == Style::Resize::Block : resize == Style::Resize::Inline);
     if (canResizeHeight && difference.height()) {
         if (is<HTMLFormControlElement>(*styledElement)) {
             // Make implicit margins from the theme explicit (see <http://bugs.webkit.org/show_bug.cgi?id=9547>).
@@ -3085,7 +3073,7 @@ RenderLayer::OverflowControlRects RenderLayer::overflowControlsRects() const
     auto overflowControlsPositioningRect = snappedIntRect(renderBox.paddingBoxRectIncludingScrollbar());
 
     bool placeVerticalScrollbarOnTheLeft = renderBox.shouldPlaceVerticalScrollbarOnLeft();
-    bool haveResizer = renderer().style().resize() != Resize::None && renderer().style().pseudoElementType() == PseudoId::None;
+    bool haveResizer = renderer().style().resize() != Style::Resize::None && !renderer().style().pseudoElementType();
 
     OverflowControlRects result;
     auto cornerRect = [&](IntSize cornerSize) {
@@ -3378,11 +3366,15 @@ void RenderLayer::paintLayerWithEffects(GraphicsContext& context, const LayerPai
         return;
 
     // If this layer is totally invisible then there is nothing to paint.
-    if (!renderer().opacity() && !is<AccessibilityRegionContext>(paintingInfo.regionContext)) {
+    if (!renderer().opacity()
+        && !is<AccessibilityRegionContext>(paintingInfo.regionContext)
+        && !paintFlags.contains(PaintLayerFlag::CollectingEventRegion)) {
         // However, we do want to continue painting for accessibility paints, as we still need accurate
         // geometry for opacity:0 things. It's very common to make form controls "screenreader-only" via
         // CSS, often involving opacity:0, while positioning some other visual-only / mouse-only control in
-        // its place. Having the correct geometry is vital for ensuring VoiceOver can still press these controls.
+        // its place. Having the correct geometry is vital for ensuring VoiceOver can still press these
+        // controls. We need to paint if we are collecting event regions as well to ensure that elements
+        // with opacity:0 are included.
         return;
     }
 
@@ -3779,7 +3771,7 @@ void RenderLayer::paintLayerContents(GraphicsContext& context, const LayerPainti
             CheckedPtr subtreeRootLayer = paintingInfo.subtreePaintRoot->enclosingLayer();
             bool isLayerInSubtree = (this == subtreeRootLayer) || isDescendantOf(*subtreeRootLayer);
 
-            if (isLayerInSubtree && (paintingInfo.subtreePaintRoot != &renderer() && shouldExcludeBasedOnContainingBlock()))
+            if (!isLayerInSubtree || (paintingInfo.subtreePaintRoot != &renderer() && shouldExcludeBasedOnContainingBlock()))
                 shouldPaintContent = false;
         } else if (renderer().isAbsolutelyPositioned() && paintingInfo.subtreePaintRoot != &renderer() && shouldExcludeBasedOnContainingBlock()) {
             shouldPaintContent = false;
@@ -4667,9 +4659,11 @@ bool RenderLayer::ancestorLayerIsDOMParent(const RenderLayer* ancestor) const
     auto parent = flattenedParent(renderer().element());
     if (parent && ancestor->renderer().element() == parent)
         return true;
-
-    std::optional<PseudoId> parentPseudoId = parentPseudoElement(renderer().style().pseudoElementType());
-    return parentPseudoId && *parentPseudoId == ancestor->renderer().style().pseudoElementType();
+    if (renderer().style().pseudoElementType()) {
+        auto parentPseudoId = parentPseudoElement(*renderer().style().pseudoElementType());
+        return parentPseudoId && *parentPseudoId == ancestor->renderer().style().pseudoElementType();
+    }
+    return false;
 }
 
 bool RenderLayer::participatesInPreserve3D() const
@@ -6028,7 +6022,7 @@ static bool rendererHasHDRContent(const RenderElement& renderer)
 
     auto styleHasHDRContent = [](const auto& style) {
         if (style.hasBackgroundImage()) {
-            if (style.backgroundLayers().hasHDRContent())
+            if (Style::hasHDRContent(style.backgroundLayers()))
                 return true;
         }
 
@@ -6080,20 +6074,20 @@ static void determineNonLayerDescendantsPaintedContent(const RenderElement& rend
                 return;
         }
         
-        CheckedPtr childElement = dynamicDowncast<RenderElement>(child);
-        if (!childElement)
+        CheckedPtr childRenderElement = dynamicDowncast<RenderElement>(child);
+        if (!childRenderElement)
             continue;
 
-        if (auto* modelObject = dynamicDowncast<RenderLayerModelObject>(*childElement); modelObject && modelObject->hasSelfPaintingLayer())
+        if (auto* modelObject = dynamicDowncast<RenderLayerModelObject>(*childRenderElement); modelObject && modelObject->hasSelfPaintingLayer())
             continue;
 
-        if (hasVisibleBoxDecorationsOrBackground(*childElement)) {
+        if (hasVisibleBoxDecorationsOrBackground(*childRenderElement)) {
             request.setHasPaintedContent();
             if (request.isSatisfied())
                 return;
         }
         
-        if (is<RenderReplaced>(*childElement)) {
+        if (is<RenderReplaced>(*childRenderElement)) {
             request.setHasPaintedContent();
 
             if (request.isSatisfied())
@@ -6101,7 +6095,7 @@ static void determineNonLayerDescendantsPaintedContent(const RenderElement& rend
         }
 
 #if HAVE(SUPPORT_HDR_DISPLAY)
-        if (!request.isHDRContentSatisfied() && rendererHasHDRContent(*childElement)) {
+        if (!request.isHDRContentSatisfied() && rendererHasHDRContent(*childRenderElement)) {
             request.setHasHDRContent();
 
             if (request.isSatisfied())
@@ -6109,7 +6103,7 @@ static void determineNonLayerDescendantsPaintedContent(const RenderElement& rend
         }
 #endif
 
-        determineNonLayerDescendantsPaintedContent(*childElement, renderersTraversed, request);
+        determineNonLayerDescendantsPaintedContent(*childRenderElement, renderersTraversed, request);
         if (request.isSatisfied())
             return;
     }
@@ -6148,6 +6142,11 @@ bool RenderLayer::isVisibilityHiddenOrOpacityZero() const
     return !hasVisibleContent() || renderer().style().opacity().isTransparent();
 }
 
+bool RenderLayer::isSubtreeVisibilityHiddenOrOpacityZero() const
+{
+    return (!hasVisibleContent() && !hasVisibleDescendant()) || renderer().style().opacity().isTransparent();
+}
+
 bool RenderLayer::isVisuallyNonEmpty(PaintedContentRequest* request) const
 {
     ASSERT(!m_visibleContentStatusDirty);
@@ -6163,6 +6162,15 @@ bool RenderLayer::isVisuallyNonEmpty(PaintedContentRequest* request) const
         if (request->isSatisfied())
             return true;
     }
+
+#if HAVE(SUPPORT_HDR_DISPLAY)
+    if (request && !request->isHDRContentSatisfied() && WebCore::rendererHasHDRContent(renderer())) {
+        request->setHasHDRContent();
+
+        if (request->isSatisfied())
+            return true;
+    }
+#endif
 
     if (hasVisibleBoxDecorationsOrBackground()) {
         if (!request)
@@ -6364,15 +6372,15 @@ RenderLayerFilters& RenderLayer::ensureLayerFilters()
     if (m_filters)
         return *m_filters;
     
-    m_filters = makeUnique<RenderLayerFilters>(*this);
-    m_filters->setPreferredFilterRenderingModes(renderer().page().preferredFilterRenderingModes());
+    m_filters = RenderLayerFilters::create(*this);
     m_filters->setFilterScale({ page().deviceScaleFactor(), page().deviceScaleFactor() });
     return *m_filters;
 }
 
 void RenderLayer::clearLayerFilters()
 {
-    m_filters = nullptr;
+    if (RefPtr filters = std::exchange(m_filters, nullptr))
+        filters->detachFromLayer();
 }
 
 RenderLayerScrollableArea* RenderLayer::ensureLayerScrollableArea()

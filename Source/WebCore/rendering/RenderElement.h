@@ -40,6 +40,7 @@ class RenderBlock;
 class RenderStyle;
 class RenderTreeBuilder;
 class StyleImage;
+struct ImageOrientation;
 
 struct MarginRect {
     LayoutRect marginRect;
@@ -307,7 +308,6 @@ public:
     bool isFlexItemIncludingDeprecated() const { return !isInline() && !isFloatingOrOutOfFlowPositioned() && parent() && parent()->isFlexibleBoxIncludingDeprecated(); }
 
     virtual LayoutRect paintRectToClipOutFromBorder(const LayoutRect&) { return { }; }
-    void paintFocusRing(const PaintInfo&, const RenderStyle&, const Vector<LayoutRect>& focusRingRects) const;
 
     static void markRendererDirtyAfterTopLayerChange(RenderElement* renderer, RenderBlock* containingBlockBeforeStyleResolution);
 
@@ -329,10 +329,10 @@ public:
     // Returns the renderer which was mapped to (container or ancestorToStopAt).
     virtual const RenderElement* pushMappingToContainer(const RenderLayerModelObject* ancestorToStopAt, RenderGeometryMap&) const;
 
-    bool isFixedPositioned() const { return isOutOfFlowPositioned() && style().position() == PositionType::Fixed; }
-    bool isAbsolutelyPositioned() const { return isOutOfFlowPositioned() && style().position() == PositionType::Absolute; }
+    inline bool isFixedPositioned() const;
+    inline bool isAbsolutelyPositioned() const;
 
-    bool isViewTransitionContainer() const { return style().pseudoElementType() == PseudoId::ViewTransition || style().pseudoElementType() == PseudoId::ViewTransitionGroup || style().pseudoElementType() == PseudoId::ViewTransitionImagePair; }
+    bool isViewTransitionContainer() const { return style().pseudoElementType() == PseudoElementType::ViewTransition || style().pseudoElementType() == PseudoElementType::ViewTransitionGroup || style().pseudoElementType() == PseudoElementType::ViewTransitionImagePair; }
     bool isViewTransitionPseudo() const { return isRenderViewTransitionCapture() || isViewTransitionContainer(); }
 
     inline bool hasPotentiallyScrollableOverflow() const;
@@ -423,6 +423,7 @@ private:
     StyleDifference adjustStyleDifference(StyleDifference, OptionSet<StyleDifferenceContextSensitiveProperty>) const;
 
     bool canDestroyDecodedData() const final { return !isVisibleInViewport(); }
+    bool useSystemDarkAppearance() const final;
     VisibleInViewportState imageFrameAvailable(CachedImage&, ImageAnimatingState, const IntRect* changeRect) final;
     VisibleInViewportState imageVisibleInViewport(const Document&) const final;
     void didRemoveCachedImageClient(CachedImage&) final;
@@ -440,7 +441,7 @@ private:
     void updateReferencedSVGResources();
     void clearReferencedSVGResources();
 
-    const RenderStyle* textSegmentPseudoStyle(PseudoId) const;
+    const RenderStyle* textSegmentPseudoStyle(PseudoElementType) const;
 
     SingleThreadPackedWeakPtr<RenderObject> m_firstChild;
     unsigned m_hasInitializedStyle : 1;

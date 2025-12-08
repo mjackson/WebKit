@@ -25,15 +25,32 @@
 
 #pragma once
 
+#include <WebCore/DDFloat4x4.h>
 #include <wtf/Ref.h>
 #include <wtf/RefCounted.h>
 #include <wtf/RefCountedAndCanMakeWeakPtr.h>
 #include <wtf/WeakPtr.h>
 #include <wtf/text/WTFString.h>
 
+#if PLATFORM(COCOA)
+#include <simd/simd.h>
+#include <wtf/MachSendRight.h>
+#endif
+
+namespace WebCore {
+class TransformationMatrix;
+enum class StageModeOperation : bool;
+}
+
 namespace WebCore::DDModel {
 
+struct DDFloat4x4;
+struct DDMaterialDescriptor;
+struct DDMeshDescriptor;
+struct DDTextureDescriptor;
+struct DDUpdateMaterialDescriptor;
 struct DDUpdateMeshDescriptor;
+struct DDUpdateTextureDescriptor;
 
 class DDMesh : public RefCountedAndCanMakeWeakPtr<DDMesh> {
 public:
@@ -48,6 +65,23 @@ public:
     }
 
     virtual void update(const DDUpdateMeshDescriptor&) = 0;
+    virtual void updateTexture(const DDUpdateTextureDescriptor&) = 0;
+    virtual void updateMaterial(const DDUpdateMaterialDescriptor&) = 0;
+    virtual bool isRemoteDDMeshProxy() const { return false; }
+    virtual void setEntityTransform(const DDFloat4x4&) = 0;
+    virtual std::optional<DDFloat4x4> entityTransform() const = 0;
+    virtual bool supportsTransform(const WebCore::TransformationMatrix&) const { return false; }
+    virtual void setScale(float) { }
+    virtual void setCameraDistance(float) = 0;
+    virtual void setStageMode(WebCore::StageModeOperation) { }
+    virtual void setRotation(float, float = 0.f, float = 0.f) { }
+    virtual void play(bool) = 0;
+
+    virtual void render() = 0;
+#if PLATFORM(COCOA)
+    virtual Vector<MachSendRight> ioSurfaceHandles() { return { }; }
+    virtual std::pair<simd_float4, simd_float4> getCenterAndExtents() const { return std::make_pair(simd_make_float4(0.f), simd_make_float4(0.f)); }
+#endif
 
 protected:
     DDMesh() = default;

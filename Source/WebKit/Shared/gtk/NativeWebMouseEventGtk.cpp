@@ -26,9 +26,8 @@
 #include "config.h"
 #include "NativeWebMouseEvent.h"
 
+#include "GtkVersioning.h"
 #include "WebEventFactory.h"
-#include <WebCore/GtkVersioning.h>
-#include <gdk/gdk.h>
 
 namespace WebKit {
 

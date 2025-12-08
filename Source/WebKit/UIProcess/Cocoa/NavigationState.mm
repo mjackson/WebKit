@@ -139,7 +139,7 @@ NavigationState::~NavigationState()
 {
     if (auto webView = this->webView()) {
         RefPtr page = webView->_page;
-        ASSERT(navigationStates().get(*page).get() == this);
+        ASSERT(navigationStates().get(*page) == this);
 
         navigationStates().remove(*page);
         page->protectedPageLoadState()->removeObserver(*this);
@@ -160,7 +160,7 @@ NavigationState* NavigationState::fromWebPage(WebPageProxy& webPageProxy)
 {
     ASSERT(navigationStates().contains(webPageProxy));
 
-    return navigationStates().get(webPageProxy).get();
+    return navigationStates().get(webPageProxy);
 }
 
 UniqueRef<API::NavigationClient> NavigationState::createNavigationClient()
@@ -463,8 +463,9 @@ static void interceptMarketplaceKitNavigation(Ref<API::NavigationAction>&& actio
         weakPage->addConsoleMessage(*sourceFrameID, MessageSource::Network, MessageLevel::Error, makeString("Can't handle MarketplaceKit link "_s, url.string(), " due to error: "_s, error));
     };
 
-    if (!action->shouldOpenExternalSchemes() || !action->isProcessingUserGesture() || action->isRedirect() || action->data().requesterTopOrigin.isNull()) {
-        RELEASE_LOG_ERROR(Loading, "NavigationState: can't handle MarketplaceKit navigation with shouldOpenExternalSchemes: %d, isProcessingUserGesture: %d, isRedirect: %d, requesterTopOriginIsNull: %d", action->shouldOpenExternalSchemes(), action->isProcessingUserGesture(), action->isRedirect(), action->data().requesterTopOrigin.isNull());
+    auto requester = action->data().requester;
+    if (!action->shouldOpenExternalSchemes() || !action->isProcessingUserGesture() || action->isRedirect() || !requester || requester->topOrigin->data().isNull()) {
+        RELEASE_LOG_ERROR(Loading, "NavigationState: can't handle MarketplaceKit navigation with shouldOpenExternalSchemes: %d, isProcessingUserGesture: %d, isRedirect: %d, requesterTopOriginIsNull: %d", action->shouldOpenExternalSchemes(), action->isProcessingUserGesture(), action->isRedirect(), !requester || requester->topOrigin->data().isNull());
 
         if (!action->isProcessingUserGesture())
             addConsoleError("must be activated via a user gesture"_s);
@@ -474,7 +475,7 @@ static void interceptMarketplaceKitNavigation(Ref<API::NavigationAction>&& actio
         return;
     }
 
-    RetainPtr requesterTopOriginURL = action->data().requesterTopOrigin.toURL().createNSURL();
+    RetainPtr requesterTopOriginURL = requester->topOrigin->toURL().createNSURL();
     RetainPtr url = action->request().url().createNSURL();
 
     if (!requesterTopOriginURL || !url) {
@@ -606,7 +607,7 @@ void NavigationState::NavigationClient::decidePolicyForNavigationAction(WebPageP
             // A file URL shouldn't fall through to here, but if it did,
             // it would be a security risk to open it.
             if (![[nsURLRequest URL] isFileURL])
-                [[NSWorkspace sharedWorkspace] openURL:[nsURLRequest URL]];
+                [[NSWorkspace sharedWorkspace] openURL:retainPtr([nsURLRequest URL]).get()];
 #endif
 
             listener->ignore();
@@ -777,7 +778,7 @@ void NavigationState::NavigationClient::decidePolicyForNavigationResponse(WebPag
         RetainPtr<NSURL> url = navigationResponse->response().protectedNSURLResponse().get().URL;
         if ([url isFileURL]) {
             BOOL isDirectory = NO;
-            BOOL exists = [[NSFileManager defaultManager] fileExistsAtPath:url.get().path isDirectory:&isDirectory];
+            BOOL exists = [[NSFileManager defaultManager] fileExistsAtPath:retainPtr(url.get().path).get() isDirectory:&isDirectory];
 
             if (exists && !isDirectory && navigationResponse->canShowMIMEType())
                 listener->use();
@@ -930,7 +931,7 @@ static RetainPtr<NSError> createErrorWithRecoveryAttempter(WKWebView *webView, c
     if (RetainPtr<NSDictionary> originalUserInfo = originalError.userInfo)
         [userInfo addEntriesFromDictionary:originalUserInfo.get()];
 
-    return adoptNS([[NSError alloc] initWithDomain:originalError.domain code:originalError.code userInfo:userInfo.get()]);
+    return adoptNS([[NSError alloc] initWithDomain:retainPtr(originalError.domain).get() code:originalError.code userInfo:userInfo.get()]);
 }
 
 void NavigationState::NavigationClient::didFailProvisionalNavigationWithError(WebPageProxy& page, FrameInfoData&& frameInfo, API::Navigation* navigation, const URL& url, const WebCore::ResourceError& error, API::Object*)
@@ -1577,9 +1578,6 @@ void NavigationState::willChangeIsLoading()
 #if USE(RUNNINGBOARD)
 void NavigationState::releaseNetworkActivity(NetworkActivityReleaseReason reason)
 {
-    if (!m_networkActivity)
-        return;
-
     switch (reason) {
     case NetworkActivityReleaseReason::LoadCompleted:
         RELEASE_LOG(ProcessSuspension, "%p NavigationState is releasing background process assertion because a page load completed", this);
@@ -1588,7 +1586,11 @@ void NavigationState::releaseNetworkActivity(NetworkActivityReleaseReason reason
         RELEASE_LOG(ProcessSuspension, "%p NavigationState is releasing background process assertion because the screen was locked", this);
         break;
     }
-    m_networkActivity = nullptr;
+
+    auto webView = this->webView();
+    if (webView)
+        webView->_page->dropNetworkActivity();
+
     m_releaseNetworkActivityTimer.stop();
 }
 #endif
@@ -1596,9 +1598,11 @@ void NavigationState::releaseNetworkActivity(NetworkActivityReleaseReason reason
 void NavigationState::didChangeIsLoading()
 {
     auto webView = this->webView();
+    if (!webView)
+        return;
 
 #if USE(RUNNINGBOARD)
-    if (webView && webView->_page->pageLoadState().isLoading()) {
+    if (webView->_page->pageLoadState().isLoading()) {
 #if PLATFORM(IOS_FAMILY)
         // We do not start a network activity if a load starts after the screen has been locked.
         if (UIApplication.sharedApplication.isSuspendedUnderLock)
@@ -1609,11 +1613,11 @@ void NavigationState::didChangeIsLoading()
             RELEASE_LOG(ProcessSuspension, "%p - NavigationState keeps its process network assertion because a new page load started", this);
             m_releaseNetworkActivityTimer.stop();
         }
-        if (!m_networkActivity) {
+        if (!webView->_page->hasValidNetworkActivity()) {
             RELEASE_LOG(ProcessSuspension, "%p - NavigationState is taking a process network assertion because a page load started", this);
-            m_networkActivity = webView->_page->legacyMainFrameProcess().protectedThrottler()->backgroundActivity("Page Load"_s);
+            webView->_page->takeNetworkActivity();
         }
-    } else if (m_networkActivity) {
+    } else if (webView->_page->hasValidNetworkActivity()) {
         // The application is visible so we delay releasing the background activity for 3 seconds to give it a chance to start another navigation
         // before suspending the WebContent process <rdar://problem/27910964>.
         RELEASE_LOG(ProcessSuspension, "%p - NavigationState will release its process network assertion soon because the page load completed", this);
@@ -1743,8 +1747,8 @@ void NavigationState::didSwapWebProcesses()
 #if USE(RUNNINGBOARD)
     // Transfer our background assertion from the old process to the new one.
     auto webView = this->webView();
-    if (m_networkActivity && webView)
-        m_networkActivity = webView->_page->legacyMainFrameProcess().protectedThrottler()->backgroundActivity("Page Load"_s);
+    if (webView && webView->_page->hasValidNetworkActivity())
+        webView->_page->takeNetworkActivity();
 #endif
 }
 

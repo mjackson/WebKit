@@ -628,20 +628,6 @@ void TestController::beganEnterFullScreen(WKPageRef page, WKRect initialFrame, W
             "}\n"_s
         ));
     }
-
-    if (m_dumpFullScreenOrigin) {
-        protectedCurrentInvocation()->outputText(makeString(
-            "beganEnterFullScreen() - initialRect.origin: {"_s,
-            (initialFrame.origin.x - finalFrame.origin.x),
-            ", "_s,
-            (initialFrame.origin.y - finalFrame.origin.y),
-            "}, finalRect.origin: {"_s,
-            (finalFrame.origin.x - initialFrame.origin.x),
-            ", "_s,
-            (finalFrame.origin.y - initialFrame.origin.y),
-            "}\n"_s
-        ));
-    }
 }
 
 void TestController::exitFullScreen(WKPageRef page, const void* clientInfo)
@@ -672,20 +658,6 @@ void TestController::beganExitFullScreen(WKPageRef, WKRect initialFrame, WKRect 
         finalFrame.size.width,
         ", "_s,
         finalFrame.size.height,
-        "}\n"_s
-        ));
-    }
-
-    if (m_dumpFullScreenOrigin) {
-        protectedCurrentInvocation()->outputText(makeString(
-        "beganExitFullScreen() - initialRect.origin: {"_s,
-        (initialFrame.origin.x - finalFrame.origin.x),
-        ", "_s,
-        (initialFrame.origin.y - finalFrame.origin.y),
-        "}, finalRect.origin: {"_s,
-        (finalFrame.origin.x - initialFrame.origin.x),
-        ", "_s,
-        (finalFrame.origin.y - initialFrame.origin.y),
         "}\n"_s
         ));
     }
@@ -1402,6 +1374,7 @@ void TestController::resetPreferencesToConsistentValues(const TestOptions& optio
             WKPreferencesSetExperimentalFeatureForKey(preferences, false, toWK("SiteIsolationEnabled").get());
             WKPreferencesSetExperimentalFeatureForKey(preferences, false, toWK("VerifyWindowOpenUserGestureFromUIProcess").get());
             WKPreferencesSetExperimentalFeatureForKey(preferences, true, toWK("WebGPUEnabled").get());
+            WKPreferencesSetExperimentalFeatureForKey(preferences, true, toWK("ModelElementEnabled").get());
             WKPreferencesSetExperimentalFeatureForKey(preferences, false, toWK("HTTPSByDefaultEnabled").get());
             WKPreferencesSetExperimentalFeatureForKey(preferences, false, toWK("WebRTCL4SEnabled").get()); // FIXME: Remove this once L4S SDP negotation is supported.
         }
@@ -1629,7 +1602,6 @@ bool TestController::resetStateToConsistentValues(const TestOptions& options, Re
     m_shouldDownloadContentDispositionAttachments = true;
     m_dumpPolicyDelegateCallbacks = false;
     m_dumpFullScreenCallbacks = false;
-    m_dumpFullScreenOrigin = false;
     m_waitBeforeFinishingFullscreenExit = false;
     m_scrollDuringEnterFullscreen = false;
     if (m_finishExitFullscreenHandler)
@@ -2000,7 +1972,6 @@ if (window.testRunner) {
     testRunner.setBlockAllPlugins = value => post(['SetBlockAllPlugins', value]);
     testRunner.stopLoading = () => post(['StopLoading']);
     testRunner.dumpFullScreenCallbacks = () => post(['DumpFullScreenCallbacks']);
-    testRunner.dumpFullScreenOrigin = () => post(['DumpFullScreenOrigin']);
     testRunner.displayAndTrackRepaints = () => post(['DisplayAndTrackRepaints']);
     testRunner.clearBackForwardList = () => post(['ClearBackForwardList']);
     testRunner.addChromeInputField = async (callback) => { await post(['AddChromeInputField']); callback?.(); }; // NOLINT
@@ -2095,7 +2066,7 @@ if (window.testRunner) {
     };
     testRunner.setStatisticsShouldBlockThirdPartyCookies = async (value, callback, onlyOnSitesWithoutUserInteraction, onlyUnpartitionedCookies) => { // NOLINT
         let message = 'SetStatisticsShouldBlockThirdPartyCookies';
-        if (onlyOnSitesWithoutUserInteraction || onlyUnpartitionedCookies)
+        if (onlyOnSitesWithoutUserInteraction)
             message = 'SetStatisticsShouldBlockThirdPartyCookiesOnSitesWithoutUserInteraction';
         else if (onlyUnpartitionedCookies)
             message = 'SetStatisticsShouldBlockThirdPartyCookiesExceptPartitioned';
@@ -2570,11 +2541,6 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
 
     if (WKStringIsEqualToUTF8CString(command, "DumpFullScreenCallbacks")) {
         dumpFullScreenCallbacks();
-        return completionHandler(nullptr);
-    }
-
-    if (WKStringIsEqualToUTF8CString(command, "DumpFullScreenOrigin")) {
-        dumpFullScreenOrigin();
         return completionHandler(nullptr);
     }
 

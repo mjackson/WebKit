@@ -28,6 +28,7 @@
 
 #include "Chrome.h"
 #include "ChromeClient.h"
+#include "DocumentView.h"
 #include "GraphicsContext.h"
 #include "GraphicsLayer.h"
 #include "LocalFrameInlines.h"
@@ -409,10 +410,10 @@ Vector<String> PageOverlayController::copyAccessibilityAttributesNames(bool para
     return { };
 }
 
-void PageOverlayController::paintContents(const GraphicsLayer* graphicsLayer, GraphicsContext& graphicsContext, const FloatRect& clipRect, OptionSet<GraphicsLayerPaintBehavior>)
+void PageOverlayController::paintContents(const GraphicsLayer& graphicsLayer, GraphicsContext& graphicsContext, const FloatRect& clipRect, OptionSet<GraphicsLayerPaintBehavior>)
 {
     for (auto overlayAndGraphicsLayer : m_overlayGraphicsLayers) {
-        if (overlayAndGraphicsLayer.value.ptr() != graphicsLayer)
+        if (overlayAndGraphicsLayer.value.ptr() != &graphicsLayer)
             continue;
 
         GraphicsContextStateSaver stateSaver(graphicsContext);

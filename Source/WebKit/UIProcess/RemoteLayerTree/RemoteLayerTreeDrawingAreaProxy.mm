@@ -32,12 +32,17 @@
 #import "Logging.h"
 #import "MessageSenderInlines.h"
 #import "ProcessThrottler.h"
+#import "RemoteLayerTreeCommitBundle.h"
 #import "RemoteLayerTreeDrawingAreaProxyMessages.h"
 #import "RemotePageDrawingAreaProxy.h"
 #import "RemotePageProxy.h"
 #import "RemoteScrollingCoordinatorProxy.h"
 #import "RemoteScrollingCoordinatorTransaction.h"
 #import "RemoteScrollingTreeCocoa.h"
+#if PLATFORM(IOS_FAMILY) && ENABLE(OVERLAY_REGIONS_IN_EVENT_REGION)
+#import "RemoteScrollingCoordinatorProxyIOS.h"
+#endif
+#import "WebFrameProxy.h"
 #import "WebPageMessages.h"
 #import "WebPageProxy.h"
 #import "WebProcessProxy.h"
@@ -52,6 +57,7 @@
 #import <pal/spi/cocoa/QuartzCoreSPI.h>
 #import <wtf/CallbackAggregator.h>
 #import <wtf/MachSendRight.h>
+#import <wtf/StdLibExtras.h>
 #import <wtf/SystemTracing.h>
 #import <wtf/TZoneMallocInlines.h>
 
@@ -92,10 +98,6 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(RemoteLayerTreeDrawingAreaProxy);
 RemoteLayerTreeDrawingAreaProxy::RemoteLayerTreeDrawingAreaProxy(WebPageProxy& pageProxy, WebProcessProxy& webProcessProxy)
     : DrawingAreaProxy(pageProxy, webProcessProxy)
     , m_remoteLayerTreeHost(makeUnique<RemoteLayerTreeHost>(*this))
-#if ASSERT_ENABLED
-    , m_lastVisibleTransactionID(TransactionIdentifier(), webProcessProxy.coreProcessIdentifier())
-#endif
-    , m_transactionIDForPendingCACommit(TransactionIdentifier(), webProcessProxy.coreProcessIdentifier())
 {
     // We don't want to pool surfaces in the UI process.
     // FIXME: We should do this somewhere else.
@@ -144,6 +146,16 @@ void RemoteLayerTreeDrawingAreaProxy::sizeDidChange()
     if (m_isWaitingForDidUpdateGeometry)
         return;
     sendUpdateGeometry();
+}
+
+TransactionID RemoteLayerTreeDrawingAreaProxy::nextMainFrameLayerTreeTransactionID() const
+{
+    return m_webPageProxyProcessState.pendingLayerTreeTransactionID.value_or(TransactionID(TransactionIdentifier(), webProcessProxy().coreProcessIdentifier())).next();
+}
+
+TransactionID RemoteLayerTreeDrawingAreaProxy::lastCommittedMainFrameLayerTreeTransactionID() const
+{
+    return m_webPageProxyProcessState.committedLayerTreeTransactionID.value_or(TransactionID(TransactionIdentifier(), webProcessProxy().coreProcessIdentifier()));
 }
 
 void RemoteLayerTreeDrawingAreaProxy::remotePageProcessDidTerminate(WebCore::ProcessIdentifier processIdentifier)
@@ -258,40 +270,68 @@ IPC::Connection* RemoteLayerTreeDrawingAreaProxy::connectionForIdentifier(WebCor
     return nullptr;
 }
 
-void RemoteLayerTreeDrawingAreaProxy::commitLayerTreeNotTriggered(IPC::Connection& connection, TransactionID nextCommitTransactionID)
+void RemoteLayerTreeDrawingAreaProxy::notifyPendingCommitLayerTree(IPC::Connection& connection, std::optional<TransactionID> transactionID)
 {
     ProcessState& state = processStateForConnection(connection);
-    if (state.lastLayerTreeTransactionID && nextCommitTransactionID.lessThanOrEqualSameProcess(*state.lastLayerTreeTransactionID)) {
-        LOG_WITH_STREAM(RemoteLayerTree, stream << "RemoteLayerTreeDrawingAreaProxy::commitLayerTreeNotTriggered nextCommitTransactionID=" << nextCommitTransactionID << ") already obsoleted by m_lastLayerTreeTransactionID=" << state.lastLayerTreeTransactionID);
-        return;
-    }
+    LOG_WITH_STREAM(RemoteLayerTree, stream << "RemoteLayerTreeDrawingAreaProxy::notifyPendingCommitLayerTree " << transactionID << " old state: " << state.commitLayerTreeMessageState);
+    if (transactionID) {
+        MESSAGE_CHECK_BASE(std::holds_alternative<CommitLayerTreePending>(state.commitLayerTreeMessageState) || std::holds_alternative<Idle>(state.commitLayerTreeMessageState), connection);
+        MESSAGE_CHECK_BASE(!state.pendingLayerTreeTransactionID || *transactionID == state.pendingLayerTreeTransactionID->next(), connection);
+        state.pendingLayerTreeTransactionID = *transactionID;
+        if (auto* commitLayerTreePending = std::get_if<CommitLayerTreePending>(&state.commitLayerTreeMessageState)) {
+            MESSAGE_CHECK_BASE(commitLayerTreePending->requestedNotifyPendingCommitLayerTree, connection);
+            commitLayerTreePending->requestedNotifyPendingCommitLayerTree--;
 
-    state.commitLayerTreeMessageState = Idle;
-    state.transactionStartTime = std::nullopt;
+            if (state.canSendDisplayDidRefresh(*this) && commitLayerTreePending->missedDisplayDidRefresh) {
+                LOG_WITH_STREAM(RemoteLayerTree, stream << "RemoteLayerTreeDrawingAreaProxy::notifyPendingCommitLayerTree - sending missed didRefreshDisplay");
+                commitLayerTreePending->missedDisplayDidRefresh = false;
+                didRefreshDisplay(&connection);
+            }
+        } else
+            state.commitLayerTreeMessageState = CommitLayerTreePending { 0, 1, false };
+    } else {
+        MESSAGE_CHECK_BASE(std::holds_alternative<CommitLayerTreePending>(state.commitLayerTreeMessageState), connection);
+        auto& commitLayerTreePending = std::get<CommitLayerTreePending>(state.commitLayerTreeMessageState);
+        MESSAGE_CHECK_BASE(commitLayerTreePending.requestedNotifyPendingCommitLayerTree, connection);
 
-    maybePauseDisplayRefreshCallbacks();
+        commitLayerTreePending.requestedNotifyPendingCommitLayerTree--;
+        if (!--commitLayerTreePending.requestedCommitLayerTree) {
+            LOG_WITH_STREAM(RemoteLayerTree, stream << "RemoteLayerTreeDrawingAreaProxy::notifyPendingCommitLayerTre all pending commits received, becoming idle");
+            state.commitLayerTreeMessageState = Idle { };
+        }
+
+        maybePauseDisplayRefreshCallbacks();
 
 #if ENABLE(ASYNC_SCROLLING)
-    if (RefPtr page = this->page())
-        page->checkedScrollingCoordinatorProxy()->applyScrollingTreeLayerPositionsAfterCommit();
+        if (RefPtr page = this->page())
+            page->checkedScrollingCoordinatorProxy()->applyScrollingTreeLayerPositionsAfterCommit();
 #endif
+    }
 }
 
-void RemoteLayerTreeDrawingAreaProxy::willCommitLayerTree(IPC::Connection& connection, TransactionID transactionID)
+void RemoteLayerTreeDrawingAreaProxy::commitLayerTree(IPC::Connection& connection, const RemoteLayerTreeCommitBundle& bundle, HashMap<ImageBufferSetIdentifier, std::unique_ptr<BufferSetBackendHandle>>&& handlesMap)
 {
-    ProcessState& state = processStateForConnection(connection);
-    if (state.lastLayerTreeTransactionID && transactionID.lessThanOrEqualSameProcess(*state.lastLayerTreeTransactionID))
-        return;
+    {
+        ProcessState& state = processStateForConnection(connection);
+        LOG_WITH_STREAM(RemoteLayerTree, stream << "RemoteLayerTreeDrawingAreaProxy::commitLayerTree old state: " << state.commitLayerTreeMessageState);
+        LOG_WITH_STREAM(RemoteLayerTree, stream << "RemoteLayerTreeDrawingAreaProxy::commitLayerTree page data: " << bundle.pageData.description());
+        if (bundle.mainFrameData)
+            LOG_WITH_STREAM(RemoteLayerTree, stream << "RemoteLayerTreeDrawingAreaProxy::commitLayerTree main frame data: " << bundle.mainFrameData->description());
+        LOG_WITH_STREAM(RemoteLayerTree, stream << "RemoteLayerTreeDrawingAreaProxy::commitLayerTree bundle data: " << bundle.description());
+        MESSAGE_CHECK_BASE(std::holds_alternative<CommitLayerTreePending>(state.commitLayerTreeMessageState), connection);
+        MESSAGE_CHECK_BASE(std::get<CommitLayerTreePending>(state.commitLayerTreeMessageState).requestedCommitLayerTree, connection);
+        MESSAGE_CHECK_BASE(state.pendingLayerTreeTransactionID, connection);
+        MESSAGE_CHECK_BASE(bundle.transactionID.lessThanOrEqualSameProcess(*state.pendingLayerTreeTransactionID), connection);
+        MESSAGE_CHECK_BASE(!state.committedLayerTreeTransactionID || bundle.transactionID == state.committedLayerTreeTransactionID->next(), connection);
+    }
 
-    state.pendingLayerTreeTransactionID = transactionID;
-}
+    if (bundle.mainFrameData)
+        MESSAGE_CHECK_BASE(webProcessProxy().hasConnection(connection), connection);
 
-void RemoteLayerTreeDrawingAreaProxy::commitLayerTree(IPC::Connection& connection, const Vector<std::pair<RemoteLayerTreeTransaction, RemoteScrollingCoordinatorTransaction>>& transactions, HashMap<ImageBufferSetIdentifier, std::unique_ptr<BufferSetBackendHandle>>&& handlesMap)
-{
     // The `sendRights` vector must have __block scope to be captured by
     // the commit handler block below without the need to copy it.
     __block Vector<MachSendRight, 16> sendRights;
-    for (auto& transaction : transactions) {
+    for (auto& transaction : bundle.transactions) {
         // commitLayerTreeTransaction consumes the incoming buffers, so we need to grab them first.
         for (auto& [layerID, properties] : CheckedRef { transaction.first }->changedLayerProperties()) {
             auto* backingStoreProperties = properties->backingStoreOrProperties.properties.get();
@@ -309,12 +349,50 @@ void RemoteLayerTreeDrawingAreaProxy::commitLayerTree(IPC::Connection& connectio
         }
     }
 
+    RefPtr page = this->page();
+    if (!page)
+        return;
+
+    if (bundle.mainFrameData) {
+        m_activityStateChangeID = bundle.mainFrameData->activityStateChangeID;
+
+        // FIXME(site-isolation): Editor state should be updated for subframes.
+        if (bundle.mainFrameData->editorState && page->updateEditorState(EditorState { *bundle.mainFrameData->editorState }, WebPageProxy::ShouldMergeVisualEditorState::Yes))
+            page->dispatchDidUpdateEditorState();
+
+        // Process any callbacks for unhiding content early, so that we
+        // set the root node during the same CA transaction.
+        for (auto& callbackID : bundle.pageData.callbackIDs) {
+            if (callbackID == m_replyForUnhidingContent) {
+                RELEASE_LOG(RemoteLayerTree, "RemoteLayerTreeDrawingAreaProxy(%" PRIu64 ")::hideContentUntilPendingUpdate completed", identifier().toUInt64());
+                m_replyForUnhidingContent = std::nullopt;
+                break;
+            }
+        }
+
+        page->didCommitMainFrameData(*bundle.mainFrameData, bundle.transactionID);
+
+        if (auto milestones = bundle.mainFrameData->newlyReachedPaintingMilestones)
+            page->didReachLayoutMilestone(milestones, WallTime::now());
+    }
+
+    {
+        ProcessState& state = processStateForConnection(connection);
+        state.committedLayerTreeTransactionID = bundle.transactionID;
+    }
+
     WeakPtr weakThis { *this };
 
-    for (auto& transaction : transactions) {
-        commitLayerTreeTransaction(connection, CheckedRef { transaction.first }.get(), transaction.second);
+    for (auto& transaction : bundle.transactions) {
+        commitLayerTreeTransaction(connection, CheckedRef { transaction.first }.get(), transaction.second, bundle.mainFrameData, bundle.pageData, bundle.transactionID);
         if (!weakThis)
             return;
+    }
+
+    for (auto& callbackID : bundle.pageData.callbackIDs) {
+        removeOutstandingPresentationUpdateCallback(connection, callbackID);
+        if (auto callback = connection.takeAsyncReplyHandler(callbackID))
+            callback(nullptr, nullptr);
     }
 
     // Keep IOSurface send rights alive until the transaction is commited, otherwise we will
@@ -322,18 +400,26 @@ void RemoteLayerTreeDrawingAreaProxy::commitLayerTree(IPC::Connection& connectio
     if (!sendRights.isEmpty())
         [CATransaction addCommitHandler:^{ sendRights.clear(); } forPhase:kCATransactionPhasePostCommit];
 
-    ProcessState& state = processStateForConnection(connection);
+    auto duration = MonotonicTime::now() - bundle.startTime;
+    if (duration.value() > (1.0 / displayNominalFramesPerSecond().value_or(FullSpeedFramesPerSecond)))
+        WTFEmitSignpost(this, WebKitPerformance, "slowFrame");
+    m_frameDurations.append(duration);
 
-    if (state.transactionStartTime)
-        m_frameDurations.append(MonotonicTime::now() - *state.transactionStartTime);
-    else
-        m_frameDurations.append(0);
     if (m_frameDurations.size() > kSlowFrameIndicatorWidth)
         m_frameDurations.removeFirst();
 
-    if (std::exchange(state.commitLayerTreeMessageState, NeedsDisplayDidRefresh) == MissedCommit) {
-        WTFEmitSignpost(this, WebKitPerformance, "slowFrame");
-        didRefreshDisplay(&connection);
+    {
+        ProcessState& state = processStateForConnection(connection);
+        auto& commitLayerTreePending = std::get<CommitLayerTreePending>(state.commitLayerTreeMessageState);
+        ASSERT(commitLayerTreePending.requestedCommitLayerTree);
+        commitLayerTreePending.requestedCommitLayerTree--;
+        if (state.canSendDisplayDidRefresh(*this) && commitLayerTreePending.missedDisplayDidRefresh) {
+            LOG_WITH_STREAM(RemoteLayerTree, stream << "RemoteLayerTreeDrawingAreaProxy::commitLayerTree - sending missed didRefreshDisplay");
+            didRefreshDisplay(&connection);
+        } else if (!commitLayerTreePending.requestedCommitLayerTree) {
+            LOG_WITH_STREAM(RemoteLayerTree, stream << "RemoteLayerTreeDrawingAreaProxy::commitLayerTree all pending commits received, waiting for display did refresh");
+            state.commitLayerTreeMessageState = NeedsDisplayDidRefresh { };
+        }
     }
 
     updateSlowFrameIndicator();
@@ -350,10 +436,9 @@ WebCore::TrackingType RemoteLayerTreeDrawingAreaProxy::eventTrackingTypeForPoint
 }
 #endif
 
-void RemoteLayerTreeDrawingAreaProxy::commitLayerTreeTransaction(IPC::Connection& connection, const RemoteLayerTreeTransaction& layerTreeTransaction, const RemoteScrollingCoordinatorTransaction& scrollingTreeTransaction)
+void RemoteLayerTreeDrawingAreaProxy::commitLayerTreeTransaction(IPC::Connection& connection, const RemoteLayerTreeTransaction& layerTreeTransaction, const RemoteScrollingCoordinatorTransaction& scrollingTreeTransaction, const std::optional<MainFrameData>& mainFrameData, const PageData& pageData, const TransactionID& transactionID)
 {
     TraceScope tracingScope(CommitLayerTreeStart, CommitLayerTreeEnd);
-    ProcessState& state = processStateForConnection(connection);
 
     LOG_WITH_STREAM(RemoteLayerTree, stream << "RemoteLayerTreeDrawingAreaProxy::commitLayerTree transaction:" << layerTreeTransaction.description());
     LOG_WITH_STREAM(RemoteLayerTree, stream << "RemoteLayerTreeDrawingAreaProxy::commitLayerTree scrolling tree:" << scrollingTreeTransaction.description());
@@ -362,120 +447,76 @@ void RemoteLayerTreeDrawingAreaProxy::commitLayerTreeTransaction(IPC::Connection
     if (!page)
         return;
 
-    state.lastLayerTreeTransactionID = layerTreeTransaction.transactionID();
-    if (!state.pendingLayerTreeTransactionID || state.pendingLayerTreeTransactionID->lessThanSameProcess(layerTreeTransaction.transactionID()))
-        state.pendingLayerTreeTransactionID = state.lastLayerTreeTransactionID;
-
-    bool didUpdateEditorState { false };
-    if (layerTreeTransaction.isMainFrameProcessTransaction()) {
-        ASSERT(layerTreeTransaction.transactionID() == m_lastVisibleTransactionID.next());
-        m_transactionIDForPendingCACommit = layerTreeTransaction.transactionID();
-        m_activityStateChangeID = layerTreeTransaction.activityStateChangeID();
-
-        if (m_activityStateChangeID == m_activityStateChangeForUnhidingContent) {
-            RELEASE_LOG(RemoteLayerTree, "RemoteLayerTreeDrawingAreaProxy(%" PRIu64 ")::hideContentUntilDidUpdateActivityState completed", identifier().toUInt64());
-            m_activityStateChangeForUnhidingContent = std::nullopt;
-        }
-
-        // FIXME(site-isolation): Editor state should be updated for subframes.
-        didUpdateEditorState = layerTreeTransaction.hasEditorState() && page->updateEditorState(EditorState { layerTreeTransaction.editorState() }, WebPageProxy::ShouldMergeVisualEditorState::Yes);
-    }
-
 #if ENABLE(ASYNC_SCROLLING)
     std::optional<RequestedScrollData> requestedScroll;
 #endif
 
-    // Process any callbacks for unhiding content early, so that we
-    // set the root node during the same CA transaction.
-    if (layerTreeTransaction.isMainFrameProcessTransaction()) {
-        for (auto& callbackID : layerTreeTransaction.callbackIDs()) {
-            if (callbackID == m_replyForUnhidingContent) {
-                RELEASE_LOG(RemoteLayerTree, "RemoteLayerTreeDrawingAreaProxy(%" PRIu64 ")::hideContentUntilPendingUpdate completed", identifier().toUInt64());
-                m_replyForUnhidingContent = std::nullopt;
-                break;
+    {
+        CheckedRef scrollingCoordinatorProxy = *page->scrollingCoordinatorProxy();
+        auto commitLayerAndScrollingTrees = [&] {
+            if (layerTreeTransaction.hasAnyLayerChanges())
+                ++m_countOfTransactionsWithNonEmptyLayerChanges;
+            if (m_remoteLayerTreeHost->updateLayerTree(connection, layerTreeTransaction, mainFrameData)) {
+                if (!m_replyForUnhidingContent) {
+                    if (m_hasDetachedRootLayer)
+                        RELEASE_LOG(RemoteLayerTree, "RemoteLayerTreeDrawingAreaProxy(%" PRIu64 ") Unhiding layer tree", identifier().toUInt64());
+                    page->setRemoteLayerTreeRootNode(m_remoteLayerTreeHost->protectedRootNode().get());
+                    m_hasDetachedRootLayer = false;
+                } else
+                    m_remoteLayerTreeHost->detachRootLayer();
             }
-        }
-    }
-
-    CheckedRef scrollingCoordinatorProxy = *page->scrollingCoordinatorProxy();
-    auto commitLayerAndScrollingTrees = [&] {
-        if (layerTreeTransaction.hasAnyLayerChanges())
-            ++m_countOfTransactionsWithNonEmptyLayerChanges;
-
-        if (m_remoteLayerTreeHost->updateLayerTree(connection, layerTreeTransaction)) {
-            if (!m_replyForUnhidingContent && !m_activityStateChangeForUnhidingContent) {
-                if (m_hasDetachedRootLayer)
-                    RELEASE_LOG(RemoteLayerTree, "RemoteLayerTreeDrawingAreaProxy(%" PRIu64 ") Unhiding layer tree", identifier().toUInt64());
-                page->setRemoteLayerTreeRootNode(m_remoteLayerTreeHost->protectedRootNode().get());
-                m_hasDetachedRootLayer = false;
-            } else
-                m_remoteLayerTreeHost->detachRootLayer();
-        }
 #if ENABLE(ASYNC_SCROLLING)
-        requestedScroll = scrollingCoordinatorProxy->commitScrollingTreeState(connection, scrollingTreeTransaction, layerTreeTransaction.remoteContextHostedIdentifier());
+            requestedScroll = scrollingCoordinatorProxy->commitScrollingTreeState(connection, scrollingTreeTransaction, layerTreeTransaction.remoteContextHostedIdentifier());
 #endif
-    };
+        };
 
-#if ENABLE(THREADED_ANIMATION_RESOLUTION)
-    state.acceleratedTimelineTimeOrigin = layerTreeTransaction.acceleratedTimelineTimeOrigin();
-    state.animationCurrentTime = MonotonicTime::now();
-#endif
+        scrollingCoordinatorProxy->willCommitLayerAndScrollingTrees();
+        commitLayerAndScrollingTrees();
+        scrollingCoordinatorProxy->didCommitLayerAndScrollingTrees();
 
-    scrollingCoordinatorProxy->willCommitLayerAndScrollingTrees();
-    commitLayerAndScrollingTrees();
-    scrollingCoordinatorProxy->didCommitLayerAndScrollingTrees();
-
-    page->didCommitLayerTree(layerTreeTransaction);
-    didCommitLayerTree(connection, layerTreeTransaction, scrollingTreeTransaction);
+        page->didCommitLayerTree(layerTreeTransaction, mainFrameData, pageData, transactionID);
+        didCommitLayerTree(connection, layerTreeTransaction, scrollingTreeTransaction, mainFrameData, transactionID);
 
 #if ENABLE(ASYNC_SCROLLING)
-    scrollingCoordinatorProxy->applyScrollingTreeLayerPositionsAfterCommit();
+        scrollingCoordinatorProxy->applyScrollingTreeLayerPositionsAfterCommit();
 #if PLATFORM(IOS_FAMILY)
-    page->adjustLayersForLayoutViewport(page->unobscuredContentRect().location(), page->unconstrainedLayoutViewportRect(), page->displayedContentScale());
+        page->adjustLayersForLayoutViewport(page->unobscuredContentRect().location(), page->unconstrainedLayoutViewportRect(), page->displayedContentScale());
 #endif
 
-    // Handle requested scroll position updates from the scrolling tree transaction after didCommitLayerTree()
-    // has updated the view size based on the content size.
-    if (requestedScroll) {
-        auto currentScrollPosition = scrollingCoordinatorProxy->currentMainFrameScrollPosition();
-        if (auto previousData = std::exchange(requestedScroll->requestedDataBeforeAnimatedScroll, std::nullopt)) {
-            auto& [requestType, positionOrDeltaBeforeAnimatedScroll, scrollType, clamping] = *previousData;
-            if (requestType != ScrollRequestType::CancelAnimatedScroll)
-                currentScrollPosition = RequestedScrollData::computeDestinationPosition(currentScrollPosition, requestType, positionOrDeltaBeforeAnimatedScroll);
-        }
+        // Handle requested scroll position updates from the scrolling tree transaction after didCommitLayerTree()
+        // has updated the view size based on the content size.
+        if (requestedScroll) {
+            auto currentScrollPosition = scrollingCoordinatorProxy->currentMainFrameScrollPosition();
+            if (auto previousData = std::exchange(requestedScroll->requestedDataBeforeAnimatedScroll, std::nullopt)) {
+                auto& [requestType, positionOrDeltaBeforeAnimatedScroll, scrollType, clamping] = *previousData;
+                if (requestType != ScrollRequestType::CancelAnimatedScroll)
+                    currentScrollPosition = RequestedScrollData::computeDestinationPosition(currentScrollPosition, requestType, positionOrDeltaBeforeAnimatedScroll);
+            }
 
-        page->requestScroll(requestedScroll->destinationPosition(currentScrollPosition), layerTreeTransaction.scrollOrigin(), requestedScroll->animated);
-    }
+            page->requestScroll(requestedScroll->destinationPosition(currentScrollPosition), layerTreeTransaction.scrollOrigin(), requestedScroll->animated);
+        }
 #endif // ENABLE(ASYNC_SCROLLING)
 
-    if (m_debugIndicatorLayerTreeHost && layerTreeTransaction.isMainFrameProcessTransaction()) {
-        float scale = indicatorScale(layerTreeTransaction.contentsSize());
-        scrollingCoordinatorProxy->willCommitLayerAndScrollingTrees();
-        bool rootLayerChanged = m_debugIndicatorLayerTreeHost->updateLayerTree(connection, layerTreeTransaction, scale);
-        scrollingCoordinatorProxy->didCommitLayerAndScrollingTrees();
-        IntPoint scrollPosition;
-#if PLATFORM(MAC)
-        scrollPosition = layerTreeTransaction.scrollPosition();
+#if ENABLE(OVERLAY_REGIONS_IN_EVENT_REGION)
+        if (layerTreeTransaction.changedLayerProperties().size() || layerTreeTransaction.destroyedLayers().size())
+            scrollingCoordinatorProxy->updateOverlayRegions(layerTreeTransaction.destroyedLayers());
 #endif
-        updateDebugIndicator(layerTreeTransaction.contentsSize(), rootLayerChanged, scale, scrollPosition);
-        m_debugIndicatorLayerTreeHost->protectedRootLayer().get().name = @"Indicator host root";
+
+        if (m_debugIndicatorLayerTreeHost && mainFrameData) {
+            float scale = indicatorScale(layerTreeTransaction.contentsSize());
+            scrollingCoordinatorProxy->willCommitLayerAndScrollingTrees();
+            bool rootLayerChanged = m_debugIndicatorLayerTreeHost->updateLayerTree(connection, layerTreeTransaction, mainFrameData, scale);
+            scrollingCoordinatorProxy->didCommitLayerAndScrollingTrees();
+            IntPoint scrollPosition;
+#if PLATFORM(MAC)
+            scrollPosition = layerTreeTransaction.scrollPosition();
+#endif
+            updateDebugIndicator(layerTreeTransaction.contentsSize(), rootLayerChanged, scale, scrollPosition);
+            m_debugIndicatorLayerTreeHost->protectedRootLayer().get().name = @"Indicator host root";
+        }
     }
 
     page->layerTreeCommitComplete();
-
-    if (didUpdateEditorState)
-        page->dispatchDidUpdateEditorState();
-
-    if (layerTreeTransaction.isMainFrameProcessTransaction()) {
-        if (auto milestones = layerTreeTransaction.newlyReachedPaintingMilestones())
-            page->didReachLayoutMilestone(milestones, WallTime::now());
-    }
-
-    for (auto& callbackID : layerTreeTransaction.callbackIDs()) {
-        removeOutstandingPresentationUpdateCallback(connection, callbackID);
-        if (auto callback = connection.takeAsyncReplyHandler(callbackID))
-            callback(nullptr, nullptr);
-    }
 }
 
 void RemoteLayerTreeDrawingAreaProxy::asyncSetLayerContents(WebCore::PlatformLayerIdentifier layerID, RemoteLayerBackingStoreProperties&& properties)
@@ -674,11 +715,11 @@ void RemoteLayerTreeDrawingAreaProxy::drawSlowFrameIndicator(WebCore::GraphicsCo
 
 bool RemoteLayerTreeDrawingAreaProxy::maybePauseDisplayRefreshCallbacks()
 {
-    if (m_webPageProxyProcessState.commitLayerTreeMessageState == NeedsDisplayDidRefresh || m_webPageProxyProcessState.commitLayerTreeMessageState == CommitLayerTreePending)
+    if (!std::holds_alternative<Idle>(m_webPageProxyProcessState.commitLayerTreeMessageState))
         return false;
 
     for (auto& pair : m_remotePageProcessState) {
-        if (pair.value.commitLayerTreeMessageState == NeedsDisplayDidRefresh || pair.value.commitLayerTreeMessageState == CommitLayerTreePending)
+        if (std::holds_alternative<Idle>(pair.value.commitLayerTreeMessageState))
             return false;
     }
 
@@ -691,16 +732,61 @@ void RemoteLayerTreeDrawingAreaProxy::didRefreshDisplay()
     didRefreshDisplay(nullptr);
 }
 
-void RemoteLayerTreeDrawingAreaProxy::didRefreshDisplay(ProcessState& state, IPC::Connection& connection)
+TextStream& operator<<(TextStream& ts, const RemoteLayerTreeDrawingAreaProxy::Idle&)
 {
-    if (state.commitLayerTreeMessageState != NeedsDisplayDidRefresh) {
-        if (state.commitLayerTreeMessageState == CommitLayerTreePending)
-            state.commitLayerTreeMessageState = MissedCommit;
-        return;
+    return ts << "Idle";
+}
+
+TextStream& operator<<(TextStream& ts, const RemoteLayerTreeDrawingAreaProxy::NeedsDisplayDidRefresh&)
+{
+    return ts << "NeedsDisplayDidRefresh";
+}
+
+TextStream& operator<<(TextStream& ts, const RemoteLayerTreeDrawingAreaProxy::CommitLayerTreePending& commitLayerTreePending)
+{
+    return ts << "CommitLayerTreePending(" << commitLayerTreePending.requestedNotifyPendingCommitLayerTree << ", " << commitLayerTreePending.requestedCommitLayerTree << ", " << commitLayerTreePending.missedDisplayDidRefresh << ")";
+}
+
+bool RemoteLayerTreeDrawingAreaProxy::allowMultipleCommitLayerTreePending()
+{
+    if (RefPtr page = this->page())
+        return page->protectedPreferences()->allowMultipleCommitLayerTreePending();
+    return false;
+}
+
+bool RemoteLayerTreeDrawingAreaProxy::ProcessState::canSendDisplayDidRefresh(RemoteLayerTreeDrawingAreaProxy& drawingArea)
+{
+    return WTF::switchOn(commitLayerTreeMessageState,
+        [&](const CommitLayerTreePending& commitLayerTreePending) {
+            if (commitLayerTreePending.requestedNotifyPendingCommitLayerTree)
+                return false;
+            if (drawingArea.allowMultipleCommitLayerTreePending())
+                return commitLayerTreePending.requestedCommitLayerTree <= 1;
+            return !commitLayerTreePending.requestedCommitLayerTree;
+        },
+        [](const NeedsDisplayDidRefresh&) { return true; },
+        [](const Idle&) { return false; }
+    );
+}
+
+IPC::Error RemoteLayerTreeDrawingAreaProxy::didRefreshDisplay(ProcessState& state, IPC::Connection& connection)
+{
+    if (!state.canSendDisplayDidRefresh(*this)) {
+        if (auto* commitLayerTreePending = std::get_if<CommitLayerTreePending>(&state.commitLayerTreeMessageState)) {
+            LOG_WITH_STREAM(RemoteLayerTree, stream << "RemoteLayerTreeDrawingAreaProxy::didRefreshDisplay stil waiting on commit, marked as missed");
+            commitLayerTreePending->missedDisplayDidRefresh = true;
+        }
+        return IPC::Error::NoError;
     }
 
-    state.commitLayerTreeMessageState = CommitLayerTreePending;
-    state.transactionStartTime = MonotonicTime::now();
+    if (auto* commitLayerTreePending = std::get_if<CommitLayerTreePending>(&state.commitLayerTreeMessageState)) {
+        commitLayerTreePending->requestedNotifyPendingCommitLayerTree++;
+        commitLayerTreePending->requestedCommitLayerTree++;
+        commitLayerTreePending->missedDisplayDidRefresh = false;
+    } else
+        state.commitLayerTreeMessageState = CommitLayerTreePending { };
+
+    LOG_WITH_STREAM(RemoteLayerTree, stream << "RemoteLayerTreeDrawingAreaProxy::didRefreshDisplay new state " << state.commitLayerTreeMessageState);
 
     if (&state == &m_webPageProxyProcessState) {
         if (RefPtr page = this->page())
@@ -710,12 +796,7 @@ void RemoteLayerTreeDrawingAreaProxy::didRefreshDisplay(ProcessState& state, IPC
     // Waiting for CA to commit is insufficient, because the render server can still be
     // using our backing store. We can improve this by waiting for the render server to commit
     // if we find API to do so, but for now we will make extra buffers if need be.
-    connection.send(Messages::DrawingArea::DisplayDidRefresh(), identifier());
-
-#if ASSERT_ENABLED
-    if (&state == &m_webPageProxyProcessState)
-        m_lastVisibleTransactionID = m_transactionIDForPendingCACommit;
-#endif
+    return connection.send(Messages::DrawingArea::DisplayDidRefresh(MonotonicTime::now()), identifier());
 }
 
 void RemoteLayerTreeDrawingAreaProxy::didRefreshDisplay(IPC::Connection* connection)
@@ -750,11 +831,6 @@ void RemoteLayerTreeDrawingAreaProxy::waitForDidUpdateActivityState(ActivityStat
 
     Ref connection = webProcessProxy().connection();
 
-    // We must send the didUpdate message before blocking on the next commit, otherwise
-    // we can be guaranteed that the next commit won't come until after the waitForAndDispatchImmediately times out.
-    if (m_webPageProxyProcessState.commitLayerTreeMessageState == NeedsDisplayDidRefresh)
-        didRefreshDisplay(connection.ptr());
-
     static Seconds activityStateUpdateTimeout = [] {
         if (RetainPtr<id> value = [[NSUserDefaults standardUserDefaults] objectForKey:@"WebKitOverrideActivityStateUpdateTimeout"])
             return Seconds([value doubleValue]);
@@ -763,31 +839,31 @@ void RemoteLayerTreeDrawingAreaProxy::waitForDidUpdateActivityState(ActivityStat
 
     WeakPtr weakThis { *this };
     auto startTime = MonotonicTime::now();
-    while (connection->waitForAndDispatchImmediately<Messages::RemoteLayerTreeDrawingAreaProxy::CommitLayerTree>(identifier(), activityStateUpdateTimeout - (MonotonicTime::now() - startTime), IPC::WaitForOption::InterruptWaitingIfSyncMessageArrives) == IPC::Error::NoError) {
+
+    do {
+        IPC::Error error = WTF::switchOn(m_webPageProxyProcessState.commitLayerTreeMessageState,
+            [&](const CommitLayerTreePending& commitLayerTreePending) {
+                if (commitLayerTreePending.requestedNotifyPendingCommitLayerTree)
+                    return connection->waitForAndDispatchImmediately<Messages::RemoteLayerTreeDrawingAreaProxy::NotifyPendingCommitLayerTree>(identifier(), activityStateUpdateTimeout - (MonotonicTime::now() - startTime), IPC::WaitForOption::InterruptWaitingIfSyncMessageArrives);
+                return connection->waitForAndDispatchImmediately<Messages::RemoteLayerTreeDrawingAreaProxy::CommitLayerTree>(identifier(), activityStateUpdateTimeout - (MonotonicTime::now() - startTime), IPC::WaitForOption::InterruptWaitingIfSyncMessageArrives);
+            }, [&](const NeedsDisplayDidRefresh&) {
+                return didRefreshDisplay(m_webPageProxyProcessState, connection.get());
+            }, [&](const Idle&) {
+                return connection->waitForAndDispatchImmediately<Messages::RemoteLayerTreeDrawingAreaProxy::NotifyPendingCommitLayerTree>(identifier(), activityStateUpdateTimeout - (MonotonicTime::now() - startTime), IPC::WaitForOption::InterruptWaitingIfSyncMessageArrives);
+            }
+        );
+
+        if (error != IPC::Error::NoError)
+            return;
         if (!weakThis || activityStateChangeID <= m_activityStateChangeID)
             return;
-
-        if (m_webPageProxyProcessState.commitLayerTreeMessageState == NeedsDisplayDidRefresh)
-            didRefreshDisplay(connection.ptr());
-    }
+    } while (true);
 }
 
 void RemoteLayerTreeDrawingAreaProxy::hideContentUntilPendingUpdate()
 {
     RELEASE_LOG(RemoteLayerTree, "RemoteLayerTreeDrawingAreaProxy(%" PRIu64 ")::hideContentUntilPendingUpdate", identifier().toUInt64());
     m_replyForUnhidingContent = webProcessProxy().sendWithAsyncReply(Messages::DrawingArea::DispatchAfterEnsuringDrawing(), [] () { }, messageSenderDestinationID(), { }, WebProcessProxy::ShouldStartProcessThrottlerActivity::No);
-    m_remoteLayerTreeHost->detachRootLayer();
-    m_hasDetachedRootLayer = true;
-}
-
-void RemoteLayerTreeDrawingAreaProxy::hideContentUntilDidUpdateActivityState(ActivityStateChangeID activityStateChangeID)
-{
-    if (activityStateChangeID == ActivityStateChangeAsynchronous) {
-        hideContentUntilAnyUpdate();
-        return;
-    }
-    RELEASE_LOG(RemoteLayerTree, "RemoteLayerTreeDrawingAreaProxy(%" PRIu64 ")::hideContentUntilDidUpdateActivityState", identifier().toUInt64());
-    m_activityStateChangeForUnhidingContent = activityStateChangeID;
     m_remoteLayerTreeHost->detachRootLayer();
     m_hasDetachedRootLayer = true;
 }
@@ -833,7 +909,7 @@ void RemoteLayerTreeDrawingAreaProxy::sizeToContentAutoSizeMaximumSizeDidChange(
     sendUpdateGeometry();
 }
 
-#if ENABLE(THREADED_ANIMATION_RESOLUTION)
+#if ENABLE(THREADED_ANIMATIONS)
 void RemoteLayerTreeDrawingAreaProxy::animationsWereAddedToNode(RemoteLayerTreeNode& node)
 {
     if (RefPtr page = this->page())
@@ -846,18 +922,23 @@ void RemoteLayerTreeDrawingAreaProxy::animationsWereRemovedFromNode(RemoteLayerT
         page->checkedScrollingCoordinatorProxy()->animationsWereRemovedFromNode(node);
 }
 
-Seconds RemoteLayerTreeDrawingAreaProxy::acceleratedTimelineTimeOrigin(WebCore::ProcessIdentifier processIdentifier) const
+void RemoteLayerTreeDrawingAreaProxy::updateTimelinesRegistration(WebCore::ProcessIdentifier processIdentifier, const WebCore::AcceleratedTimelinesUpdate& timelinesUpdate, MonotonicTime now)
 {
-    const auto& state = processStateForIdentifier(processIdentifier);
-    return state.acceleratedTimelineTimeOrigin;
+    if (RefPtr page = this->page())
+        page->checkedScrollingCoordinatorProxy()->updateTimelinesRegistration(processIdentifier, timelinesUpdate, now);
 }
 
-MonotonicTime RemoteLayerTreeDrawingAreaProxy::animationCurrentTime(WebCore::ProcessIdentifier processIdentifier) const
+RefPtr<const RemoteAnimationTimeline> RemoteLayerTreeDrawingAreaProxy::timeline(const TimelineID& timelineID) const
 {
-    const auto& state = processStateForIdentifier(processIdentifier);
-    return state.animationCurrentTime;
+    if (RefPtr page = this->page())
+        return page->checkedScrollingCoordinatorProxy()->timeline(timelineID);
+    return nullptr;
 }
 
-#endif // ENABLE(THREADED_ANIMATION_RESOLUTION)
+RefPtr<const RemoteAnimationStack> RemoteLayerTreeDrawingAreaProxy::animationStackForNodeWithIDForTesting(WebCore::PlatformLayerIdentifier layerID) const
+{
+    return m_remoteLayerTreeHost->animationStackForNodeWithIDForTesting(layerID);
+}
+#endif // ENABLE(THREADED_ANIMATIONS)
 
 } // namespace WebKit

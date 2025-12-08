@@ -27,9 +27,11 @@
 
 #pragma once
 
+#include <WebCore/ImageTypes.h>
 #include <WebCore/PlatformExportMacros.h>
 #include <WebCore/PlatformImage.h>
 #include <WebCore/RenderingResource.h>
+#include <wtf/CheckedRef.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/UniqueRef.h>
 
@@ -41,11 +43,11 @@ class FloatRect;
 class GraphicsContext;
 class IntSize;
 class NativeImageBackend;
-struct Headroom;
 struct ImagePaintingOptions;
 
-class NativeImage : public ThreadSafeRefCounted<NativeImage> {
+class NativeImage : public ThreadSafeRefCounted<NativeImage>, public CanMakeThreadSafeCheckedPtr<NativeImage> {
     WTF_MAKE_TZONE_ALLOCATED(NativeImage);
+    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(NativeImage);
 public:
     static WEBCORE_EXPORT RefPtr<NativeImage> create(PlatformImagePtr&&);
     // Creates a NativeImage that is intended to be drawn once or only few times. Signals the platform to avoid generating any caches for the image.
@@ -82,7 +84,10 @@ public:
 protected:
     WEBCORE_EXPORT NativeImage(PlatformImagePtr&&);
 
+    void computeHeadroom();
+
     mutable PlatformImagePtr m_platformImage;
+    mutable Headroom m_headroom { Headroom::None };
     mutable WeakHashSet<RenderingResourceObserver> m_observers;
     RenderingResourceIdentifier m_renderingResourceIdentifier { RenderingResourceIdentifier::generate() };
 };

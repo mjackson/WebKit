@@ -25,7 +25,7 @@
 
 #pragma once
 
-#if ENABLE(GPU_PROCESS)
+#if ENABLE(GPU_PROCESS_MODEL)
 
 #include "DDModelIdentifier.h"
 #include "RemoteGPU.h"
@@ -37,6 +37,12 @@
 
 namespace WebCore::DDModel {
 class DDMesh;
+struct DDMaterialDescriptor;
+struct DDMeshDescriptor;
+struct DDTextureDescriptor;
+struct DDUpdateMaterialDescriptor;
+struct DDUpdateMeshDescriptor;
+struct DDUpdateTextureDescriptor;
 }
 
 namespace IPC {
@@ -50,8 +56,6 @@ class GPUConnectionToWebProcess;
 
 namespace DDModel {
 class ObjectHeap;
-struct DDMeshDescriptor;
-struct DDUpdateMeshDescriptor;
 }
 
 class RemoteDDMesh final : public IPC::StreamMessageReceiver {
@@ -79,7 +83,6 @@ private:
     RemoteDDMesh& operator=(RemoteDDMesh&&) = delete;
 
     WebCore::DDModel::DDMesh& backing() { return m_backing; }
-    Ref<WebCore::DDModel::DDMesh> protectedBacking();
 
     RefPtr<IPC::Connection> connection() const;
 
@@ -88,9 +91,16 @@ private:
     void destruct();
 
     void setLabel(String&&);
-    void update(const DDModel::DDUpdateMeshDescriptor&);
+    void update(const WebCore::DDModel::DDUpdateMeshDescriptor&);
+    void updateTexture(const WebCore::DDModel::DDUpdateTextureDescriptor&);
+    void updateMaterial(const WebCore::DDModel::DDUpdateMaterialDescriptor&);
+    void updateTransform(const WebCore::DDModel::DDFloat4x4& transform);
+    void setCameraDistance(float);
+    void play(bool);
 
-    Ref<WebCore::DDModel::DDMesh> m_backing;
+    void render();
+
+    const Ref<WebCore::DDModel::DDMesh> m_backing;
     WeakRef<DDModel::ObjectHeap> m_objectHeap;
     const Ref<IPC::StreamServerConnection> m_streamConnection;
     DDModelIdentifier m_identifier;
@@ -100,4 +110,4 @@ private:
 
 } // namespace WebKit
 
-#endif // ENABLE(GPU_PROCESS)
+#endif

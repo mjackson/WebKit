@@ -76,8 +76,9 @@ const OptionSet<WebsiteDataType>& WebResourceLoadStatisticsStore::monitoredDataT
         WebsiteDataType::ServiceWorkerRegistrations,
         WebsiteDataType::FileSystem,
 #if ENABLE(SCREEN_TIME)
-        WebsiteDataType::ScreenTime
+        WebsiteDataType::ScreenTime,
 #endif
+        WebsiteDataType::EnhancedSecurityRecord
     }));
 
     ASSERT(RunLoop::isMain());
@@ -282,9 +283,15 @@ void WebResourceLoadStatisticsStore::scheduleStatisticsAndDataRecordsProcessing(
     ASSERT(RunLoop::isMain());
     
     postTask([completionHandler = WTFMove(completionHandler)](auto& store) mutable {
-        if (RefPtr statisticsStore = store.m_statisticsStore)
-            statisticsStore->processStatisticsAndDataRecords();
-        postTaskReply(WTFMove(completionHandler));
+        if (RefPtr statisticsStore = store.m_statisticsStore) {
+            statisticsStore->processStatisticsAndDataRecords([weakStore = ThreadSafeWeakPtr { store }, completionHandler = WTFMove(completionHandler)] () mutable {
+                if (RefPtr store = weakStore.get())
+                    store->postTaskReply(WTFMove(completionHandler));
+                else
+                    completionHandler();
+            });
+        } else
+            postTaskReply(WTFMove(completionHandler));
     });
 }
 
@@ -331,7 +338,7 @@ void WebResourceLoadStatisticsStore::resourceLoadStatisticsUpdated(Vector<Resour
                 protectedThis->logTestingEvent("Statistics Updated"_s);
             });
         });
-        statisticsStore->processStatisticsAndDataRecords();
+        statisticsStore->processStatisticsAndDataRecords([] { });
     });
 }
 

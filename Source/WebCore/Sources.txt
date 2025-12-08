@@ -21,7 +21,6 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 // THE POSSIBILITY OF SUCH DAMAGE.
 
-Modules/Model/Implementation/DDMeshImpl.cpp
 Modules/Model/Implementation/ModelDowncastConvertToBackingContext.cpp
 Modules/ShapeDetection/BarcodeDetector.cpp
 Modules/ShapeDetection/FaceDetector.cpp
@@ -119,6 +118,7 @@ Modules/cookie-store/CookieStore.cpp
 Modules/cookie-store/CookieStoreManager.cpp
 Modules/cookie-store/ExtendableCookieChangeEvent.cpp
 Modules/credentialmanagement/BasicCredential.cpp
+Modules/credentialmanagement/CredentialRequestOptions.cpp
 Modules/credentialmanagement/CredentialsContainer.cpp
 Modules/credentialmanagement/NavigatorCredentials.cpp
 Modules/entriesapi/DOMFileSystem.cpp
@@ -328,6 +328,7 @@ Modules/permissions/PermissionController.cpp
 Modules/permissions/PermissionStatus.cpp
 Modules/permissions/Permissions.cpp
 Modules/permissions/WorkerNavigatorPermissions.cpp
+Modules/pictureinpicture/DocumentOrShadowRootPictureInPicture.cpp
 Modules/pictureinpicture/DocumentPictureInPicture.cpp
 Modules/pictureinpicture/HTMLVideoElementPictureInPicture.cpp
 Modules/pictureinpicture/PictureInPictureEvent.cpp
@@ -382,7 +383,7 @@ Modules/streams/ReadableStreamBYOBReader.cpp
 Modules/streams/ReadableStreamBYOBRequest.cpp
 Modules/streams/ReadableStreamDefaultReader.cpp
 Modules/streams/ReadableStreamReadRequest.cpp
-Modules/streams/ReadableStreamSink.cpp
+Modules/streams/ReadableStreamToSharedBufferSink.cpp
 Modules/streams/ReadableStreamSource.cpp
 Modules/streams/StreamPipeToUtilities.cpp @no-unify
 Modules/streams/StreamTeeUtilities.cpp
@@ -458,7 +459,10 @@ Modules/webauthn/AuthenticatorAssertionResponse.cpp
 Modules/webauthn/AuthenticatorAttestationResponse.cpp
 Modules/webauthn/AuthenticatorCoordinator.cpp
 Modules/webauthn/AuthenticatorResponse.cpp
+Modules/webauthn/AuthenticatorSelectionCriteria.cpp
 Modules/webauthn/PublicKeyCredential.cpp
+Modules/webauthn/PublicKeyCredentialCreationOptions.cpp
+Modules/webauthn/PublicKeyCredentialRequestOptions.cpp
 Modules/webauthn/WebAuthenticationUtils.cpp
 Modules/webauthn/apdu/ApduCommand.cpp
 Modules/webauthn/apdu/ApduResponse.cpp
@@ -520,13 +524,16 @@ Modules/websockets/WebSocketHandshake.cpp
 Modules/websockets/WorkerThreadableWebSocketChannel.cpp
 Modules/webtransport/DatagramSink.cpp
 Modules/webtransport/DatagramSource.cpp
+Modules/webtransport/DatagramByteSource.cpp
 Modules/webtransport/WebTransport.cpp
 Modules/webtransport/WebTransportBidirectionalStream.cpp
 Modules/webtransport/WebTransportBidirectionalStreamSource.cpp
 Modules/webtransport/WebTransportDatagramDuplexStream.cpp
+Modules/webtransport/WebTransportDatagramsWritable.cpp
 Modules/webtransport/WebTransportError.cpp
 Modules/webtransport/WebTransportReceiveStream.cpp
 Modules/webtransport/WebTransportReceiveStreamSource.cpp
+Modules/webtransport/WebTransportSendGroup.cpp
 Modules/webtransport/WebTransportSendStream.cpp
 Modules/webtransport/WebTransportSendStreamSink.cpp
 Modules/webtransport/WebTransportSession.cpp
@@ -560,20 +567,26 @@ Modules/webxr/XRGPUSubImage.cpp
 Modules/webxr/XRCubeLayer.cpp
 Modules/webxr/XRCylinderLayer.cpp
 Modules/webxr/XREquirectLayer.cpp
+Modules/webxr/WebXRHitTestResult.cpp
+Modules/webxr/WebXRHitTestSource.cpp
 Modules/webxr/XRInputSourceEvent.cpp
 Modules/webxr/XRInputSourcesChangeEvent.cpp
 Modules/webxr/XRLayerEvent.cpp
 Modules/webxr/XRProjectionLayer.cpp
 Modules/webxr/XRQuadLayer.cpp
+Modules/webxr/WebXRRay.cpp
 Modules/webxr/XRReferenceSpaceEvent.cpp
 Modules/webxr/XRSessionEvent.cpp
 Modules/webxr/XRSubImage.cpp
+Modules/webxr/WebXRTransientInputHitTestResult.cpp
+Modules/webxr/WebXRTransientInputHitTestSource.cpp
 Modules/webxr/XRWebGLBinding.cpp
 Modules/webxr/XRWebGLSubImage.cpp
 accessibility/AXAttributeCacheScope.cpp
 accessibility/AXComputedObjectAttributeCache.cpp
 accessibility/AXCoreObject.cpp
 accessibility/AXGeometryManager.cpp
+accessibility/AXLiveRegionManager.cpp
 accessibility/AXLocalFrame.cpp
 accessibility/AXLogger.cpp
 accessibility/AXLoggerBase.cpp
@@ -581,6 +594,7 @@ accessibility/AXObjectCache.cpp
 accessibility/AXObjectRareData.cpp
 accessibility/AXRemoteFrame.cpp
 accessibility/AXSearchManager.cpp
+accessibility/AXStitchUtilities.cpp
 accessibility/AXTableHelpers.cpp
 accessibility/AXTextMarker.cpp
 accessibility/AXTextRun.cpp
@@ -663,7 +677,6 @@ bindings/js/JSAudioWorkletProcessorCustom.cpp
 bindings/js/JSCSSRuleCustom.cpp
 bindings/js/JSCSSRuleListCustom.cpp
 bindings/js/JSCSSStyleDeclarationCustom.cpp
-bindings/js/JSCSSTransformComponentCustom.cpp
 bindings/js/JSCallbackData.cpp
 bindings/js/JSCanvasRenderingContext2DCustom.cpp
 bindings/js/JSCustomElementInterface.cpp
@@ -705,8 +718,6 @@ bindings/js/JSExtendableMessageEventCustom.cpp
 bindings/js/JSFetchEventCustom.cpp
 bindings/js/JSHTMLAllCollectionCustom.cpp
 bindings/js/JSHTMLCanvasElementCustom.cpp
-bindings/js/JSHTMLCollectionCustom.cpp
-bindings/js/JSHTMLDocumentCustom.cpp
 bindings/js/JSHTMLElementCustom.cpp
 bindings/js/JSHTMLTemplateElementCustom.cpp
 bindings/js/JSHistoryCustom.cpp
@@ -730,6 +741,7 @@ bindings/js/JSMessagePortCustom.cpp
 bindings/js/JSMutationObserverCustom.cpp
 bindings/js/JSMutationRecordCustom.cpp
 bindings/js/JSNavigateEventCustom.cpp
+bindings/js/JSNavigationCustom.cpp
 bindings/js/JSNavigatorCustom.cpp
 bindings/js/JSNodeCustom.cpp
 bindings/js/JSNodeIteratorCustom.cpp
@@ -780,7 +792,6 @@ bindings/js/JSWorkerGlobalScopeBase.cpp
 bindings/js/JSWorkerGlobalScopeCustom.cpp
 bindings/js/JSWorkerNavigatorCustom.cpp
 bindings/js/JSWorkletGlobalScopeBase.cpp
-bindings/js/JSXMLDocumentCustom.cpp
 bindings/js/JSXMLHttpRequestCustom.cpp
 bindings/js/JSXPathResultCustom.cpp
 bindings/js/ReadableStreamDefaultController.cpp
@@ -870,7 +881,6 @@ css/CSSColorValue.cpp
 css/CSSComputedStyleDeclaration.cpp
 css/CSSConditionRule.cpp
 css/CSSContainerRule.cpp
-css/CSSContentDistributionValue.cpp
 css/CSSCounterStyle.cpp
 css/CSSCounterStyleDescriptors.cpp
 css/CSSCounterStyleRegistry.cpp
@@ -985,7 +995,6 @@ css/DeprecatedCSSOMValue.cpp
 css/DeprecatedCSSOMValueList.cpp
 css/FontFace.cpp
 css/FontFaceSet.cpp
-css/FontVariantBuilder.cpp
 css/ImmutableStyleProperties.cpp
 css/MediaList.cpp
 css/MediaQueryList.cpp
@@ -1007,9 +1016,9 @@ css/StyleRuleImport.cpp
 css/StyleSheet.cpp
 css/StyleSheetContents.cpp
 css/StyleSheetList.cpp
+css/calc/CSSCalcOperator.cpp
 css/calc/CSSCalcSymbolTable.cpp
 css/calc/CSSCalcSymbolsAllowed.cpp
-css/calc/CSSCalcTree+CalculationValue.cpp
 css/calc/CSSCalcTree+ComputedStyleDependencies.cpp
 css/calc/CSSCalcTree+Copy.cpp
 css/calc/CSSCalcTree+Evaluation.cpp
@@ -1158,6 +1167,7 @@ css/values/grid/CSSGridNamedAreaMap.cpp
 css/values/images/CSSGradient.cpp
 css/values/motion/CSSRayFunction.cpp
 css/values/primitives/CSSPosition.cpp
+css/values/primitives/CSSPrimitiveNumericCategory.cpp
 css/values/primitives/CSSPrimitiveNumericTypes+Canonicalization.cpp
 css/values/primitives/CSSPrimitiveNumericTypes+ComputedStyleDependencies.cpp
 css/values/primitives/CSSPrimitiveNumericTypes+Serialization.cpp
@@ -1235,6 +1245,7 @@ dom/Document.cpp
 dom/DocumentFontLoader.cpp
 dom/DocumentFragment.cpp
 dom/DocumentFullscreen.cpp
+dom/DocumentImmersive.cpp
 dom/DocumentMarkerController.cpp
 dom/DocumentMediaElement.cpp
 dom/DocumentOrShadowRootFullscreen.cpp
@@ -1591,6 +1602,7 @@ html/HTMLProgressElement.cpp
 html/HTMLQuoteElement.cpp
 html/HTMLScriptElement.cpp
 html/HTMLSelectElement.cpp
+html/HTMLSelectedContentElement.cpp
 html/HTMLSlotElement.cpp
 html/HTMLSourceElement.cpp
 html/HTMLSpanElement.cpp
@@ -1613,6 +1625,7 @@ html/HTMLTrackElement.cpp
 html/HTMLUListElement.cpp
 html/HTMLUnknownElement.cpp
 html/HTMLVideoElement.cpp
+html/HTMLVideoElementCaptionDisplaySettings.cpp
 html/HTMLWBRElement.cpp
 html/HiddenInputType.cpp
 html/ImageBitmap.cpp
@@ -1834,7 +1847,6 @@ inspector/InspectorAuditResourcesObject.cpp
 inspector/InspectorCanvas.cpp
 inspector/InspectorCanvasArguments.cpp
 inspector/InspectorCanvasCallTracer.cpp
-inspector/InspectorController.cpp
 inspector/InspectorFrontendAPIDispatcher.cpp
 inspector/InspectorFrontendClientLocal.cpp
 inspector/InspectorFrontendHost.cpp
@@ -1842,14 +1854,18 @@ inspector/InspectorHistory.cpp
 inspector/InspectorInstrumentation.cpp
 inspector/InspectorInstrumentationPublic.cpp
 inspector/InspectorInstrumentationWebKit.cpp
+inspector/InspectorNetworkIntercept.cpp
 inspector/InspectorNodeFinder.cpp
 inspector/InspectorOverlay.cpp
 inspector/InspectorOverlayLabel.cpp
+inspector/InspectorResourceUtilities.cpp
 inspector/InspectorShaderProgram.cpp
 inspector/InspectorStyleSheet.cpp
+inspector/InspectorThreadableLoaderClient.cpp
 inspector/InstrumentingAgents.cpp
 inspector/NetworkResourcesData.cpp
 inspector/PageDebugger.cpp
+inspector/PageInspectorController.cpp
 inspector/TimelineRecordFactory.cpp
 inspector/UserGestureEmulationScope.cpp
 inspector/WebInjectedScriptHost.cpp
@@ -2117,6 +2133,7 @@ page/DeviceController.cpp
 page/DiagnosticLoggingKeys.cpp
 page/DisabledAdaptations.cpp
 page/DragController.cpp
+page/EditorClient.cpp
 page/ElementTargetingController.cpp
 page/EventCounts.cpp
 page/EventHandler.cpp
@@ -2224,6 +2241,8 @@ page/VisitedLinkStore.cpp
 page/VisualViewport.cpp
 page/WebKitJSHandle.cpp
 page/WebKitSerializedNode.cpp
+page/WebKitBuffer.cpp
+page/WebKitBufferNamespace.cpp
 page/WheelEventDeltaFilter.cpp
 page/WheelEventTestMonitor.cpp
 page/WindowFeatures.cpp
@@ -2305,8 +2324,6 @@ platform/KeyboardScrollingAnimator.cpp
 platform/LLVMProfiling.cpp
 platform/LayoutUnit.cpp
 platform/LegacySchemeRegistry.cpp
-platform/Length.cpp
-platform/LengthFunctions.cpp
 platform/LocalizedStrings.cpp
 platform/LogInitialization.cpp
 platform/Logging.cpp
@@ -2384,7 +2401,9 @@ platform/WebCoreMainThread.cpp
 platform/WebCorePersistentCoders.cpp
 platform/Widget.cpp
 platform/animation/AcceleratedEffect.cpp
+platform/animation/AcceleratedEffectStack.cpp @no-unify
 platform/animation/AcceleratedEffectValues.cpp
+platform/animation/AcceleratedTimeline.cpp
 platform/animation/TimingFunction.cpp
 platform/animation/values/AcceleratedEffectOffsetAnchor.cpp
 platform/animation/values/AcceleratedEffectOffsetDistance.cpp
@@ -2436,13 +2455,6 @@ platform/audio/StereoPanner.cpp
 platform/audio/UpSampler.cpp
 platform/audio/VectorMath.cpp
 platform/audio/ZeroPole.cpp
-platform/calc/CalculationCategory.cpp
-platform/calc/CalculationOperator.cpp
-platform/calc/CalculationTree+Copy.cpp
-platform/calc/CalculationTree+Evaluation.cpp
-platform/calc/CalculationTree.cpp
-platform/calc/CalculationValue.cpp
-platform/calc/CalculationValueMap.cpp
 platform/encryptedmedia/CDMFactory.cpp
 platform/encryptedmedia/CDMLogging.cpp
 platform/encryptedmedia/CDMPrivate.cpp
@@ -2554,8 +2566,10 @@ platform/graphics/LayoutRoundedRect.cpp
 platform/graphics/LayoutSize.cpp
 platform/graphics/MIMESniffer.cpp
 platform/graphics/MIMETypeCache.cpp
+platform/graphics/MediaPlaybackTargetWirelessPlayback.cpp
 platform/graphics/MediaPlayer.cpp
 platform/graphics/MediaPlayerPrivate.cpp
+platform/graphics/MediaPlayerPrivateWirelessPlayback.cpp
 platform/graphics/MediaResourceSniffer.cpp
 platform/graphics/MediaSourcePrivate.cpp
 platform/graphics/Model.cpp
@@ -2737,6 +2751,7 @@ platform/network/BlobDataFileReference.cpp
 platform/network/BlobRegistry.cpp
 platform/network/BlobRegistryImpl.cpp
 platform/network/BlobResourceHandle.cpp
+platform/network/BlobResourceHandleBase.cpp
 platform/network/CacheValidation.cpp
 platform/network/Cookie.cpp
 platform/network/CredentialBase.cpp
@@ -2840,6 +2855,7 @@ rendering/MarkedText.cpp
 rendering/MotionPath.cpp
 rendering/NinePieceImagePainter.cpp
 rendering/OrderIterator.cpp
+rendering/OutlinePainter.cpp
 rendering/PathOperation.cpp
 rendering/PointerEventsHitRules.cpp
 rendering/PositionedLayoutConstraints.cpp
@@ -2953,6 +2969,7 @@ rendering/mathml/RenderMathMLScripts.cpp
 rendering/mathml/RenderMathMLSpace.cpp
 rendering/mathml/RenderMathMLToken.cpp
 rendering/mathml/RenderMathMLUnderOver.cpp
+rendering/mathml/MathVariant.cpp
 rendering/shapes/BoxLayoutShape.cpp
 rendering/shapes/LayoutShape.cpp
 rendering/shapes/PolygonLayoutShape.cpp
@@ -2965,15 +2982,16 @@ rendering/style/BorderValue.cpp
 rendering/style/DropShadowFilterOperationWithStyleColor.cpp
 rendering/style/GridSpan.cpp
 rendering/style/OutlineValue.cpp
-rendering/style/PositionArea.cpp
-rendering/style/PositionTryFallback.cpp
 rendering/style/PositionTryOrder.cpp
 rendering/style/ReferenceFilterOperation.cpp
 rendering/style/RenderStyle.cpp
+rendering/style/RenderStyleBase.cpp
 rendering/style/RenderStyleConstants.cpp
+rendering/style/RenderStylePropertiesGettersCustom.cpp
 rendering/style/SVGRenderStyle.cpp
 rendering/style/SVGRenderStyleDefs.cpp
 rendering/style/StyleAppleColorFilterData.cpp
+rendering/style/StyleBackdropFilterData.cpp
 rendering/style/StyleBackgroundData.cpp
 rendering/style/StyleBoxData.cpp
 rendering/style/StyleCachedImage.cpp
@@ -3007,7 +3025,6 @@ rendering/style/StyleSelfAlignmentData.cpp
 rendering/style/StyleSurroundData.cpp
 rendering/style/StyleTransformData.cpp
 rendering/style/StyleVisitedLinkColorData.cpp
-rendering/style/WillChangeData.cpp
 rendering/svg/RenderSVGBlock.cpp
 rendering/svg/RenderSVGContainer.cpp
 rendering/svg/RenderSVGEllipse.cpp
@@ -3140,6 +3157,7 @@ style/StyleExtractor.cpp
 style/StyleFontSizeFunctions.cpp
 style/StyleInterpolation.cpp
 style/StyleInvalidator.cpp
+style/StyleNameScope.cpp
 style/StylePendingResources.cpp
 style/StyleRelations.cpp
 style/StyleResolveForDocument.cpp
@@ -3152,6 +3170,24 @@ style/StyleTreeResolver.cpp
 style/StyleUpdate.cpp
 style/Styleable.cpp
 style/UserAgentStyle.cpp
+style/calc/StyleCalculationTree+Conversion.cpp
+style/calc/StyleCalculationTree+Copy.cpp
+style/calc/StyleCalculationTree+Evaluation.cpp
+style/calc/StyleCalculationTree.cpp
+style/calc/StyleCalculationValue.cpp
+style/calc/StyleCalculationValueMap.cpp
+style/values/align/StyleAlignContent.cpp
+style/values/align/StyleAlignItems.cpp
+style/values/align/StyleAlignSelf.cpp
+style/values/align/StyleJustifyContent.cpp
+style/values/align/StyleJustifyItems.cpp
+style/values/align/StyleJustifySelf.cpp
+style/values/anchor-position/StylePositionAreaAxis.cpp
+style/values/anchor-position/StylePositionAreaSelf.cpp
+style/values/anchor-position/StylePositionAreaSpan.cpp
+style/values/anchor-position/StylePositionAreaTrack.cpp
+style/values/anchor-position/StylePositionArea.cpp
+style/values/anchor-position/StylePositionTryFallback.cpp
 style/values/animations/StyleAnimation.cpp
 style/values/animations/StyleSingleAnimationName.cpp
 style/values/animations/StyleSingleAnimationRangeName.cpp
@@ -3170,6 +3206,8 @@ style/values/backgrounds/StyleRepeatStyle.cpp
 style/values/borders/StyleBorderRadius.cpp
 style/values/borders/StyleBoxShadow.cpp
 style/values/borders/StyleCornerShapeValue.cpp
+style/values/box/StyleMargin.cpp
+style/values/box/StyleMarginTrim.cpp
 style/values/break/StyleOrphans.cpp
 style/values/break/StyleWidows.cpp
 style/values/color-adjust/StyleColorScheme.cpp
@@ -3186,6 +3224,7 @@ style/values/color/StyleKeywordColor.cpp
 style/values/color/StyleLightDarkColor.cpp
 style/values/color/StyleOpacity.cpp
 style/values/color/StyleResolvedColor.cpp
+style/values/contain/StyleContain.cpp
 style/values/content/StyleContent.cpp
 style/values/content/StyleQuotes.cpp
 style/values/counter-styles/StyleCounterStyle.cpp
@@ -3211,13 +3250,20 @@ style/values/filter-effects/StyleOpacityFunction.cpp
 style/values/filter-effects/StyleSaturateFunction.cpp
 style/values/filter-effects/StyleSepiaFunction.cpp
 style/values/flexbox/StyleFlexBasis.cpp
+style/values/fonts/StyleFontFamily.cpp
+style/values/fonts/StyleFontFamilyName.cpp
 style/values/fonts/StyleFontFeatureSettings.cpp
 style/values/fonts/StyleFontPalette.cpp
 style/values/fonts/StyleFontSizeAdjust.cpp
 style/values/fonts/StyleFontStyle.cpp
+style/values/fonts/StyleFontVariantAlternates.cpp
+style/values/fonts/StyleFontVariantEastAsian.cpp
+style/values/fonts/StyleFontVariantLigatures.cpp
+style/values/fonts/StyleFontVariantNumeric.cpp
 style/values/fonts/StyleFontVariationSettings.cpp
 style/values/fonts/StyleFontWeight.cpp
 style/values/fonts/StyleFontWidth.cpp
+style/values/grid/StyleGridAutoFlow.cpp
 style/values/grid/StyleGridNamedLinesMap.cpp
 style/values/grid/StyleGridPosition.cpp
 style/values/grid/StyleGridPositionsResolver.cpp
@@ -3226,8 +3272,10 @@ style/values/grid/StyleGridTemplateList.cpp
 style/values/grid/StyleGridTrackBreadth.cpp
 style/values/grid/StyleGridTrackSize.cpp
 style/values/grid/StyleGridTrackSizes.cpp
+style/values/grid/StyleItemTolerance.cpp
 style/values/images/StyleGradient.cpp
 style/values/images/StyleImageOrNone.cpp
+style/values/images/StyleImageOrientation.cpp
 style/values/images/StyleImageWrapper.cpp
 style/values/inline/StyleLineHeight.cpp
 style/values/inline/StyleVerticalAlign.cpp
@@ -3242,6 +3290,8 @@ style/values/masking/StyleMaskBorderSource.cpp
 style/values/masking/StyleMaskBorderWidth.cpp
 style/values/masking/StyleMaskBorder.cpp
 style/values/masking/StyleMaskLayer.cpp
+style/values/masking/StyleMaskMode.cpp
+style/values/math/StyleMathDepth.cpp
 style/values/motion/StyleOffsetAnchor.cpp
 style/values/motion/StyleOffsetPath.cpp
 style/values/motion/StyleOffsetPosition.cpp
@@ -3251,13 +3301,14 @@ style/values/multicol/StyleColumnCount.cpp
 style/values/multicol/StyleColumnWidth.cpp
 style/values/non-standard/StyleWebKitBoxReflect.cpp
 style/values/non-standard/StyleWebKitLineClamp.cpp
+style/values/non-standard/StyleWebKitLocale.cpp
 style/values/non-standard/StyleWebKitOverflowScrolling.cpp
 style/values/non-standard/StyleWebKitTextStrokeWidth.cpp
 style/values/non-standard/StyleWebKitTouchCallout.cpp
 style/values/overflow/StyleBlockEllipsis.cpp
-style/values/overflow/StyleScrollBehavior.cpp
 style/values/overflow/StyleScrollbarGutter.cpp
 style/values/page/StylePageSize.cpp
+style/values/pointerevents/StyleTouchAction.cpp
 style/values/primitives/StyleLengthResolution.cpp
 style/values/primitives/StyleLengthWrapper+DeprecatedCSSValueConversion.cpp
 style/values/primitives/StyleLengthWrapperData.cpp
@@ -3276,6 +3327,7 @@ style/values/scroll-snap/StyleScrollPadding.cpp
 style/values/scroll-snap/StyleScrollSnapAlign.cpp
 style/values/scroll-snap/StyleScrollSnapType.cpp
 style/values/scrollbars/StyleScrollbarColor.cpp
+style/values/scrollbars/StyleScrollbarWidth.cpp
 style/values/shapes/StyleBasicShape.cpp
 style/values/shapes/StyleCircleFunction.cpp
 style/values/shapes/StyleEllipseFunction.cpp
@@ -3291,21 +3343,30 @@ style/values/size-adjust/StyleTextSizeAdjust.cpp
 style/values/sizing/StyleAspectRatio.cpp
 style/values/sizing/StyleContainIntrinsicSize.cpp
 style/values/sizing/StylePreferredSize.cpp
+style/values/speech/StyleSpeakAs.cpp
 style/values/svg/StyleSVGBaselineShift.cpp
 style/values/svg/StyleSVGGlyphOrientationHorizontal.cpp
 style/values/svg/StyleSVGGlyphOrientationVertical.cpp
 style/values/svg/StyleSVGPaint.cpp
+style/values/svg/StyleSVGPaintOrder.cpp
 style/values/svg/StyleSVGPathData.cpp
 style/values/svg/StyleSVGStrokeDasharray.cpp
 style/values/svg/StyleSVGStrokeDashoffset.cpp
 style/values/text-decoration/StyleTextDecorationLine.cpp
 style/values/text-decoration/StyleTextDecorationThickness.cpp
+style/values/text-decoration/StyleTextEmphasisPosition.cpp
 style/values/text-decoration/StyleTextEmphasisStyle.cpp
 style/values/text-decoration/StyleTextShadow.cpp
 style/values/text-decoration/StyleTextUnderlineOffset.cpp
+style/values/text-decoration/StyleTextUnderlinePosition.cpp
+style/values/text/StyleHangingPunctuation.cpp
 style/values/text/StyleLetterSpacing.cpp
 style/values/text/StyleTabSize.cpp
+style/values/text/StyleTextAlign.cpp
+style/values/text/StyleTextAlignLast.cpp
+style/values/text/StyleTextAutospace.cpp
 style/values/text/StyleTextIndent.cpp
+style/values/text/StyleTextTransform.cpp
 style/values/text/StyleWordSpacing.cpp
 style/values/transforms/functions/StyleMatrix3DTransformFunction.cpp
 style/values/transforms/functions/StyleMatrixTransformFunction.cpp
@@ -3326,7 +3387,9 @@ style/values/transitions/StyleSingleTransitionProperty.cpp
 style/values/transitions/StyleTransition.cpp
 style/values/ui/StyleAccentColor.cpp
 style/values/ui/StyleCursor.cpp
+style/values/ui/StyleResize.cpp
 style/values/view-transitions/StyleViewTransitionName.cpp
+style/values/will-change/StyleWillChange.cpp
 svg/DocumentSVG.cpp
 svg/SVGAElement.cpp
 svg/SVGAltGlyphDefElement.cpp
@@ -3633,6 +3696,7 @@ JSAnimationFrameRatePreset.cpp
 JSAnimationPlaybackEvent.cpp
 JSAnimationPlaybackEventInit.cpp
 JSAnimationTimeline.cpp
+JSAriaNotifyOptions.cpp
 JSAttestationConveyancePreference.cpp
 JSAttr.cpp
 JSAudioBuffer.cpp
@@ -3818,6 +3882,7 @@ JSCanvasTextBaseline.cpp
 JSCanvasTextDrawingStyles.cpp
 JSCanvasTransform.cpp
 JSCanvasUserInterface.cpp
+JSCaptionDisplaySettingsOptions.cpp
 JSCaretPosition.cpp
 JSCaretPositionFromPointOptions.cpp
 JSChannelCountMode.cpp
@@ -3927,6 +3992,7 @@ JSDataCue.cpp
 JSDataTransfer.cpp
 JSDataTransferItem.cpp
 JSDataTransferItemList.cpp
+JSDatagramsReadableMode.cpp
 JSDatabase.cpp
 JSDatabaseCallback.cpp
 JSDecompressionStream.cpp
@@ -4267,6 +4333,7 @@ JSHTMLProgressElement.cpp
 JSHTMLQuoteElement.cpp
 JSHTMLScriptElement.cpp
 JSHTMLSelectElement.cpp
+JSHTMLSelectedContentElement.cpp
 JSHTMLSlotElement.cpp
 JSHTMLSourceElement.cpp
 JSHTMLSpanElement.cpp
@@ -4661,7 +4728,6 @@ JSReadableStream.cpp
 JSReadableStreamDefaultController.cpp
 JSReadableStreamDefaultReader.cpp
 JSReadableStreamReadResult.cpp
-JSReadableStreamSink.cpp
 JSReadableStreamSource.cpp
 JSReadableStreamType.cpp
 JSRedEyeReduction.cpp
@@ -4878,6 +4944,8 @@ JSStorage.cpp
 JSStorageEvent.cpp
 JSStorageManager.cpp
 JSStreamPipeOptions.cpp
+JSWebKitBuffer.cpp
+JSWebKitBufferNamespace.cpp
 JSStringCallback.cpp
 JSStructuredSerializeOptions.cpp
 JSStyleMedia.cpp
@@ -5071,6 +5139,7 @@ JSWebTransportCongestionControl.cpp
 JSWebTransportConnectionStats.cpp
 JSWebTransportDatagramDuplexStream.cpp
 JSWebTransportDatagramStats.cpp
+JSWebTransportDatagramsWritable.cpp
 JSWebTransportError.cpp
 JSWebTransportErrorOptions.cpp
 JSWebTransportErrorSource.cpp
@@ -5079,6 +5148,8 @@ JSWebTransportOptions.cpp
 JSWebTransportReceiveStream.cpp
 JSWebTransportReceiveStreamStats.cpp
 JSWebTransportReliabilityMode.cpp
+JSWebTransportSendGroup.cpp
+JSWebTransportSendOptions.cpp
 JSWebTransportSendStream.cpp
 JSWebTransportSendStreamOptions.cpp
 JSWebTransportSendStreamStats.cpp

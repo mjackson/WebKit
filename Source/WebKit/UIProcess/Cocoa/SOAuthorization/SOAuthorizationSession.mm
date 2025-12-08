@@ -234,14 +234,15 @@ void SOAuthorizationSession::continueStartAfterDecidePolicy(const SOAuthorizatio
     }
 
     auto initiatorOrigin = emptyString();
-    if (m_navigationAction->sourceFrame())
-        initiatorOrigin = m_navigationAction->sourceFrame()->securityOrigin().securityOrigin()->toString();
+    if (RefPtr sourceOrigin = m_navigationAction->sourceFrame() ? m_navigationAction->sourceFrame()->securityOrigin().securityOrigin().ptr() : nullptr; sourceOrigin && !sourceOrigin->isOpaque())
+        initiatorOrigin = sourceOrigin->toString();
     if (m_action == InitiatingAction::SubFrame && m_page->mainFrame())
         initiatorOrigin = WebCore::SecurityOrigin::create(m_page->mainFrame()->url())->toString();
     RetainPtr<NSDictionary> authorizationOptions = @{
         SOAuthorizationOptionUserActionInitiated: @(m_navigationAction->isProcessingUserGesture()),
         SOAuthorizationOptionInitiatorOrigin: initiatorOrigin.createNSString().get(),
-        SOAuthorizationOptionInitiatingAction: @(static_cast<NSInteger>(m_action))
+        SOAuthorizationOptionInitiatingAction: @(static_cast<NSInteger>(m_action)),
+        kSOAuthorizationOptionInitiatingPath: m_page->mainFrame()->url().path().createNSString().get()
     };
 #if PLATFORM(IOS_FAMILY)
     RetainPtr<WKWebView> webView = m_page->cocoaView();
@@ -265,7 +266,7 @@ void SOAuthorizationSession::continueStartAfterDecidePolicy(const SOAuthorizatio
 
     RetainPtr nsRequest = m_navigationAction->request().nsURLRequest(WebCore::HTTPBodyUpdatePolicy::UpdateHTTPBody);
     AUTHORIZATIONSESSION_RELEASE_LOG("continueStartAfterGetAuthorizationHints: Beginning authorization with AppSSO.");
-    [m_soAuthorization beginAuthorizationWithURL:nsRequest.get().URL httpHeaders:nsRequest.get().allHTTPHeaderFields httpBody:nsRequest.get().HTTPBody];
+    [m_soAuthorization beginAuthorizationWithURL:retainPtr(nsRequest.get().URL).get() httpHeaders:retainPtr(nsRequest.get().allHTTPHeaderFields).get() httpBody:retainPtr(nsRequest.get().HTTPBody).get()];
 }
 
 void SOAuthorizationSession::fallBackToWebPath()
@@ -330,7 +331,7 @@ void SOAuthorizationSession::complete(NSHTTPURLResponse *httpResponse, NSData *d
     }
 
     // Set cookies.
-    auto cookies = toCookieVector([NSHTTPCookie cookiesWithResponseHeaderFields:httpResponse.allHeaderFields forURL:response.url().createNSURL().get()]);
+    auto cookies = toCookieVector([NSHTTPCookie cookiesWithResponseHeaderFields:retainPtr(httpResponse.allHeaderFields).get() forURL:response.url().createNSURL().get()]);
 
     AUTHORIZATIONSESSION_RELEASE_LOG("complete: (httpStatusCode=%d, hasCookies=%d, hasData=%d)", response.httpStatusCode(), !cookies.isEmpty(), !!data.length);
 
@@ -390,7 +391,7 @@ void SOAuthorizationSession::presentViewController(SOAuthorizationViewController
 
     m_sheetWindow = [NSWindow windowWithContentViewController:m_viewController.get()];
 
-    m_sheetWindowWillCloseObserver = [[NSNotificationCenter defaultCenter] addObserverForName:RetainPtr { NSWindowWillCloseNotification }.get() object:m_sheetWindow.get() queue:nil usingBlock:[weakThis = ThreadSafeWeakPtr { *this }] (NSNotification *) {
+    m_sheetWindowWillCloseObserver = [[NSNotificationCenter defaultCenter] addObserverForName:NSWindowWillCloseNotification object:m_sheetWindow.get() queue:nil usingBlock:[weakThis = ThreadSafeWeakPtr { *this }] (NSNotification *) {
         auto protectedThis = weakThis.get();
         if (!protectedThis)
             return;
@@ -474,7 +475,7 @@ void SOAuthorizationSession::dismissViewController()
                     AUTHORIZATIONSESSION_RELEASE_LOG("dismissViewController: [Miniaturized] Already has a deminiaturized observer (%p). Hidden observer is %p", m_presentingWindowDidDeminiaturizeObserver.get(), m_applicationDidUnhideObserver.get());
                     return;
                 }
-                m_presentingWindowDidDeminiaturizeObserver = [[NSNotificationCenter defaultCenter] addObserverForName:RetainPtr { NSWindowDidDeminiaturizeNotification }.get() object:presentingWindow.get() queue:nil usingBlock:[protectedThis = Ref { *this }, this] (NSNotification *) {
+                m_presentingWindowDidDeminiaturizeObserver = [[NSNotificationCenter defaultCenter] addObserverForName:NSWindowDidDeminiaturizeNotification object:presentingWindow.get() queue:nil usingBlock:[protectedThis = Ref { *this }, this] (NSNotification *) {
                     AUTHORIZATIONSESSION_RELEASE_LOG("dismissViewController: Window has deminiaturized. Completing the dismissal.");
                     dismissViewController();
                     [[NSNotificationCenter defaultCenter] removeObserver:m_presentingWindowDidDeminiaturizeObserver.get()];
@@ -493,7 +494,7 @@ void SOAuthorizationSession::dismissViewController()
             return;
         }
         // FIXME: We should not need to protect NSApp here (rdar://problem/161068288).
-        m_applicationDidUnhideObserver = [[NSNotificationCenter defaultCenter] addObserverForName:RetainPtr { NSApplicationDidUnhideNotification }.get() object:RetainPtr { NSApp }.get() queue:nil usingBlock:[protectedThis = Ref { *this }, this] (NSNotification *) {
+        m_applicationDidUnhideObserver = [[NSNotificationCenter defaultCenter] addObserverForName:NSApplicationDidUnhideNotification object:NSApp queue:nil usingBlock:[protectedThis = Ref { *this }, this] (NSNotification *) {
             AUTHORIZATIONSESSION_RELEASE_LOG("dismissViewController: Application is no longer hidden. Completing the dismissal.");
             dismissViewController();
             [[NSNotificationCenter defaultCenter] removeObserver:m_applicationDidUnhideObserver.get()];

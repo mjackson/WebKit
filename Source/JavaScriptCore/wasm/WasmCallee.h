@@ -436,17 +436,20 @@ public:
     FunctionCodeIndex functionIndex() const { return m_functionIndex; }
     void setEntrypoint(CodePtr<WasmEntryPtrTag>);
     const uint8_t* bytecode() const { return m_bytecode; }
+    const uint8_t* bytecodeEnd() const { return m_bytecodeEnd; }
     const uint8_t* metadata() const { return m_metadata.span().data(); }
 
     unsigned numLocals() const { return m_numLocals; }
     unsigned localSizeToAlloc() const { return m_localSizeToAlloc; }
     unsigned rethrowSlots() const { return m_numRethrowSlotsToAlloc; }
 
-    unsigned numCallProfiles() const { return m_numCallProfiles; }
-
-    bool needsProfiling() const;
+    const Vector<FunctionSpaceIndex>& callTargets() const { return m_callTargets; }
+    unsigned numCallProfiles() const { return m_callTargets.size(); }
 
     IPIntTierUpCounter& tierUpCounter() { return m_tierUpCounter; }
+    const IPIntTierUpCounter& tierUpCounter() const { return m_tierUpCounter; }
+
+    FunctionSpaceIndex callTarget(unsigned callProfileIndex) const { return m_callTargets[callProfileIndex]; }
 
     using OutOfLineJumpTargets = UncheckedKeyHashMap<unsigned, int>;
 
@@ -465,6 +468,7 @@ private:
     Vector<uint8_t> m_metadata;
     Vector<uint8_t> m_argumINTBytecode;
     Vector<uint8_t> m_uINTBytecode;
+    Vector<FunctionSpaceIndex> m_callTargets;
 
     unsigned m_topOfReturnStackFPOffset;
 
@@ -473,7 +477,6 @@ private:
     unsigned m_numLocals;
     unsigned m_numArgumentsOnStack;
     unsigned m_maxFrameSizeInV128;
-    unsigned m_numCallProfiles;
 
     IPIntTierUpCounter m_tierUpCounter;
 };

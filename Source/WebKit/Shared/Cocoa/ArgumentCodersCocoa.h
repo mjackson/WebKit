@@ -65,6 +65,10 @@ OBJC_CLASS PKPaymentToken;
 OBJC_CLASS PKShippingMethod;
 #endif
 
+#if !HAVE(WEBCONTENTRESTRICTIONS) && HAVE(PARENTAL_CONTROLS_WITH_UNBLOCK_HANDLER)
+OBJC_CLASS WebFilterEvaluator;
+#endif
+
 OBJC_CLASS PlatformColor;
 OBJC_CLASS NSShadow;
 
@@ -88,12 +92,6 @@ enum class NSType : uint8_t {
     CNContact,
     CNPhoneNumber,
     CNPostalAddress,
-#endif
-#if ENABLE(DATA_DETECTION) && HAVE(WK_SECURE_CODING_DATA_DETECTORS)
-    DDScannerResult,
-#if PLATFORM(MAC)
-    WKDDActionContext,
-#endif
 #endif
     NSDateComponents,
     Data,
@@ -158,6 +156,9 @@ template<> Class getClass<PKShippingMethod>();
 template<> Class getClass<PKDateComponentsRange>();
 template<> Class getClass<PKPaymentMethod>();
 template<> Class getClass<PKSecureElementPass>();
+#endif
+#if !HAVE(WEBCONTENTRESTRICTIONS) && HAVE(PARENTAL_CONTROLS_WITH_UNBLOCK_HANDLER)
+template<> Class getClass<WebFilterEvaluator>();
 #endif
 
 template<> Class getClass<PlatformColor>();
@@ -245,12 +246,23 @@ template<typename T> struct ArgumentCoder<RetainPtr<T>> {
     template<typename U = T, typename = IsObjCObject<U>>
     static void encode(Encoder& encoder, const RetainPtr<U>& object)
     {
+        if (!object) {
+            encoder << false;
+            return;
+        }
+
+        encoder << true;
         ArgumentCoder<U *>::encode(encoder, object.get());
     }
 
     template<typename U = T, typename = IsObjCObject<U>>
     static std::optional<RetainPtr<U>> decode(Decoder& decoder)
     {
+        auto isEngaged = decoder.template decode<bool>();
+        if (!isEngaged)
+            return std::nullopt;
+        if (!*isEngaged)
+            return { nullptr };
         return decoder.decodeWithAllowedClasses<U>();
     }
 };

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2017 Igalia S.L.
- * Copyright (C) 2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2024-2025 Apple Inc. All rights reserved.
  * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -862,15 +862,15 @@ std::optional<LayoutUnit> GridTrackSizingAlgorithm::gridAreaBreadthForGridItem(c
     // height, which may depend on the row track's size. It's possible that the row tracks sizing
     // logic has not been performed yet, so we will need to do an estimation.
     if (direction == Style::GridTrackSizingDirection::Rows && (m_sizingState == SizingState::ColumnSizingFirstIteration || m_sizingState == SizingState::ColumnSizingSecondIteration) && !m_renderGrid->areMasonryColumns()) {
-        ASSERT(GridLayoutFunctions::isOrthogonalGridItem(*m_renderGrid, gridItem));
         if (m_sizingState == SizingState::ColumnSizingFirstIteration) {
             auto spannedRowsSize = estimatedGridAreaBreadthForGridItem(gridItem, Style::GridTrackSizingDirection::Rows);
-
-            if (auto availableLogicalHeight = m_renderGrid->availableLogicalHeightForContentBox(); availableLogicalHeight && hasAllLengthRowSizes())  {
-                auto contentDistributionForRows = m_renderGrid->computeContentPositionAndDistributionOffset(Style::GridTrackSizingDirection::Rows,
-                    *availableLogicalHeight - *spannedRowsSize, m_renderGrid->numTracks(Style::GridTrackSizingDirection::Rows));
-                auto rowSpanForGridItem = m_renderGrid->gridSpanForGridItem(gridItem, Style::GridTrackSizingDirection::Rows);
-                return *spannedRowsSize + contentDistributionForRows.distributionOffset * (rowSpanForGridItem.integerSpan() - 1);
+            if (spannedRowsSize) {
+                if (auto availableLogicalHeight = m_renderGrid->availableLogicalHeightForContentBox(); availableLogicalHeight && hasAllLengthRowSizes())  {
+                    auto contentDistributionForRows = m_renderGrid->computeContentPositionAndDistributionOffset(Style::GridTrackSizingDirection::Rows,
+                        *availableLogicalHeight - *spannedRowsSize, m_renderGrid->numTracks(Style::GridTrackSizingDirection::Rows));
+                    auto rowSpanForGridItem = m_renderGrid->gridSpanForGridItem(gridItem, Style::GridTrackSizingDirection::Rows);
+                    return *spannedRowsSize + contentDistributionForRows.distributionOffset * (rowSpanForGridItem.integerSpan() - 1);
+                }
             }
             return spannedRowsSize;
         }
@@ -1108,7 +1108,7 @@ LayoutUnit GridTrackSizingAlgorithmStrategy::minContentContributionForGridItem(R
             auto gridItemLogicalMinWidth = gridItem.style().logicalMinWidth();
 
             if (auto fixedFridItemLogicalMinWidth = gridItemLogicalMinWidth.tryFixed())
-                return LayoutUnit { fixedFridItemLogicalMinWidth->resolveZoom(Style::ZoomNeeded { }) };
+                return LayoutUnit { fixedFridItemLogicalMinWidth->resolveZoom(gridItem.style().usedZoomForLength()) };
             if (gridItemLogicalMinWidth.isMaxContent())
                 return gridItem.maxPreferredLogicalWidth();
 
@@ -2039,9 +2039,10 @@ void GridTrackSizingAlgorithm::setup(Style::GridTrackSizingDirection direction, 
     auto resolveAndSetNonAutoRowStartMarginsOnRowSubgrids = [&] {
         for (auto& subgrid : m_rowSubgridsWithBaselineAlignedItems) {
             const auto subgridSpan = m_renderGrid->gridSpanForGridItem(subgrid, Style::GridTrackSizingDirection::Columns);
-            auto& subgridRowStartMargin = subgrid.style().marginBefore(m_renderGrid->writingMode());
+            const auto& subgridStyle = subgrid.style();
+            auto& subgridRowStartMargin = subgridStyle.marginBefore(m_renderGrid->writingMode());
             if (!subgridRowStartMargin.isAuto())
-                m_renderGrid->setMarginBeforeForChild(subgrid, Style::evaluateMinimum<LayoutUnit>(subgridRowStartMargin, computeGridSpanSize(tracks(Style::GridTrackSizingDirection::Columns), subgridSpan, std::make_optional(m_renderGrid->gridItemOffset(direction)), m_renderGrid->guttersSize(Style::GridTrackSizingDirection::Columns, subgridSpan.startLine(), subgridSpan.integerSpan(), this->availableSpace(Style::GridTrackSizingDirection::Columns))), Style::ZoomNeeded { }));
+                m_renderGrid->setMarginBeforeForChild(subgrid, Style::evaluateMinimum<LayoutUnit>(subgridRowStartMargin, computeGridSpanSize(tracks(Style::GridTrackSizingDirection::Columns), subgridSpan, std::make_optional(m_renderGrid->gridItemOffset(direction)), m_renderGrid->guttersSize(Style::GridTrackSizingDirection::Columns, subgridSpan.startLine(), subgridSpan.integerSpan(), this->availableSpace(Style::GridTrackSizingDirection::Columns))), subgridStyle.usedZoomForLength()));
         }
     };
     if (m_direction == Style::GridTrackSizingDirection::Rows && (m_sizingState == SizingState::RowSizingFirstIteration || m_sizingState == SizingState::RowSizingSecondIteration))

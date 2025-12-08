@@ -959,8 +959,10 @@ LayoutPoint RenderMultiColumnSet::columnTranslationForOffset(const LayoutUnit& o
     return translationOffset;
 }
 
-void RenderMultiColumnSet::addOverflowFromChildren()
+void RenderMultiColumnSet::addOverflowFromInFlowChildren(OptionSet<ComputeOverflowOptions> options)
 {
+    UNUSED_PARAM(options);
+
     // FIXME: Need to do much better here.
     unsigned colCount = columnCount();
     if (!colCount)

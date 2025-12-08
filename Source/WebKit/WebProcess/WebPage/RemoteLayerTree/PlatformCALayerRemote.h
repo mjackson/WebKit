@@ -37,7 +37,7 @@
 
 namespace WebCore {
 class LayerPool;
-#if ENABLE(THREADED_ANIMATION_RESOLUTION)
+#if ENABLE(THREADED_ANIMATIONS)
 class AcceleratedEffect;
 struct AcceleratedEffectValues;
 #endif
@@ -102,7 +102,7 @@ public:
     void animationStarted(const String& key, MonotonicTime beginTime) override;
     void animationEnded(const String& key) override;
 
-#if ENABLE(THREADED_ANIMATION_RESOLUTION)
+#if ENABLE(THREADED_ANIMATIONS)
     void clearAcceleratedEffectsAndBaseValues() override;
     void setAcceleratedEffectsAndBaseValues(const WebCore::AcceleratedEffects&, const WebCore::AcceleratedEffectValues&) override;
 #endif
@@ -269,7 +269,8 @@ public:
 
     void moveToContext(RemoteLayerTreeContext&);
     RemoteLayerTreeContext* context() const { return m_context.get(); }
-    
+    RefPtr<RemoteLayerTreeContext> protectedContext() const { return m_context.get(); }
+
     void markFrontBufferVolatileForTesting() override;
     virtual void populateCreationProperties(RemoteLayerTreeTransaction::LayerCreationProperties&, const RemoteLayerTreeContext&, WebCore::PlatformCALayer::LayerType);
 

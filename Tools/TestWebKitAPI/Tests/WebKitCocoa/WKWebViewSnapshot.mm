@@ -252,7 +252,7 @@ TEST(WKWebView, SnapshotImageEmptyWithOutOfScopeCompletionHandler)
 
     EXPECT_NULL([snapshotWrapper error]);
 
-    auto image = [snapshotWrapper image].get();
+    auto image = [snapshotWrapper image].unsafeGet();
     EXPECT_EQ(0UL, CGImageGetWidth(image));
     EXPECT_EQ(0UL, CGImageGetHeight(image));
 
@@ -762,8 +762,7 @@ TEST(WKWebView, SnapshotNodeByJSHandle)
 
     RetainPtr world = [WKContentWorld _worldWithConfiguration:worldConfiguration.get()];
     auto querySelector = [&](ASCIILiteral selector) -> RetainPtr<_WKJSHandle> {
-        RetainPtr script = [NSString stringWithFormat:@"webkit.createJSHandle(document.querySelector('%s'))", selector.characters()];
-        return dynamic_objc_cast<_WKJSHandle>([webView objectByEvaluatingJavaScript:script.get() inFrame:nil inContentWorld:world.get()]);
+        return [webView querySelector:@(selector.characters()) frame:nil world:world.get()];
     };
 
     {

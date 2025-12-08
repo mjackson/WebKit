@@ -85,9 +85,16 @@ namespace JSC {
     macro(rejectPromiseWithFirstResolvingFunctionCallCheck) \
     macro(fulfillPromiseWithFirstResolvingFunctionCallCheck) \
     macro(resolveWithoutPromiseForAsyncAwait) \
+    macro(driveAsyncFunction) \
     macro(awaitValue) \
     macro(newHandledRejectedPromise) \
+    macro(promiseEmptyOnFulfilled) \
+    macro(promiseEmptyOnRejected) \
+    macro(promiseResolve) \
+    macro(promiseReject) \
     macro(performPromiseThen) \
+    macro(resolve) \
+    macro(reject) \
     macro(push) \
     macro(repeatCharacter) \
     macro(starDefault) \
@@ -141,7 +148,6 @@ namespace JSC {
     macro(instanceOf) \
     macro(isArraySlow) \
     macro(sameValue) \
-    macro(appendMemcpy) \
     macro(regExpCreate) \
     macro(isRegExp) \
     macro(isFinite) \
@@ -207,8 +213,7 @@ namespace JSC {
     macro(sentinelString) \
     macro(createRemoteFunction) \
     macro(isRemoteFunction) \
-    macro(arrayFromFastFillWithUndefined) \
-    macro(arrayFromFastFillWithEmpty) \
+    macro(arrayFromFastWithoutMapFn) \
     macro(jsonParse) \
     macro(jsonStringify) \
     macro(String) \
@@ -223,7 +228,6 @@ namespace JSC {
     macro(asyncContext) \
     macro(wrapForValidIteratorCreate) \
     macro(asyncFromSyncIteratorCreate) \
-    macro(promiseAllContextCreate) \
     macro(regExpStringIteratorCreate) \
     macro(iteratorHelperCreate) \
     macro(syncIterator) \

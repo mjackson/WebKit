@@ -42,6 +42,7 @@
 #include "CSSPrimitiveValue.h"
 #include "CSSPropertyParserConsumer+AngleDefinitions.h"
 #include "CSSPropertyParserConsumer+CSSPrimitiveValueResolver.h"
+#include "CSSPropertyParserConsumer+Color.h"
 #include "CSSPropertyParserConsumer+Ident.h"
 #include "CSSPropertyParserConsumer+Image.h"
 #include "CSSPropertyParserConsumer+IntegerDefinitions.h"
@@ -50,6 +51,7 @@
 #include "CSSPropertyParserConsumer+List.h"
 #include "CSSPropertyParserConsumer+NumberDefinitions.h"
 #include "CSSPropertyParserConsumer+PercentageDefinitions.h"
+#include "CSSPropertyParserConsumer+Primitives.h"
 #include "CSSPropertyParserConsumer+ResolutionDefinitions.h"
 #include "CSSPropertyParserConsumer+String.h"
 #include "CSSPropertyParserConsumer+TimeDefinitions.h"
@@ -59,12 +61,12 @@
 #include "CSSPropertyParsing.h"
 #include "CSSTokenizer.h"
 #include "CSSTransformListValue.h"
+#include "CSSURLValue.h"
 #include "CSSVariableParser.h"
 #include "CSSVariableReferenceValue.h"
 #include "CSSWideKeyword.h"
 #include "ComputedStyleDependencies.h"
 #include "StyleBuilder.h"
-#include "StyleBuilderConverter.h"
 #include "StyleCustomProperty.h"
 #include "StylePrimitiveNumericTypes+CSSValueConversion.h"
 #include "StylePropertyShorthand.h"
@@ -224,6 +226,59 @@ static std::optional<CSSWideKeyword> consumeCSSWideKeyword(CSSParserTokenRange& 
 
     range = rangeCopy;
     return keyword;
+}
+
+// MARK: - function value consumer
+
+static bool consumeFunctionArgument(CSSParserTokenRange& range, unsigned index, CSSPropertyID property, CSS::PropertyParserState& state, CSS::PropertyParserResult& result)
+{
+    auto argument = CSSPropertyParserHelpers::consumeArgument(range, index);
+    if (!argument)
+        return false;
+
+    const auto& context = state.context;
+    auto important = state.important;
+    auto ruleType = state.currentRule;
+
+    return consumeStyleProperty(*argument, context, property, important, ruleType, result);
+}
+
+static bool consumeInternalAutoBaseFunction(CSSParserTokenRange& range, CSSPropertyID property, CSS::PropertyParserState& state, CSS::PropertyParserResult& result)
+{
+    // -internal-auto-base() = -internal-auto-base( <auto value>, <base value> )
+
+    if (!state.context.cssInternalAutoBaseParsingEnabled)
+        return false;
+
+    if (range.peek().functionId() != CSSValueInternalAutoBase)
+        return false;
+
+    auto args = CSSPropertyParserHelpers::consumeFunction(range);
+
+    Vector<CSSProperty, 256> autoProperties;
+    CSS::PropertyParserResult autoResult { autoProperties };
+
+    if (!consumeFunctionArgument(args, 0, property, state, autoResult))
+        return false;
+
+    Vector<CSSProperty, 256> baseProperties;
+    CSS::PropertyParserResult baseResult { baseProperties };
+
+    if (!consumeFunctionArgument(args, 1, property, state, baseResult))
+        return false;
+
+    if (autoProperties.size() != baseProperties.size())
+        return false;
+
+    for (unsigned index = 0; index < autoProperties.size(); ++index) {
+        const auto& autoProperty = autoProperties[index];
+        const auto& baseProperty = baseProperties[index];
+
+        Ref value = CSSFunctionValue::create(CSSValueInternalAutoBase, autoProperty.protectedValue(), baseProperty.protectedValue());
+        result.addProperty(CSSProperty(autoProperty.metadata(), WTFMove(value)));
+    }
+
+    return true;
 }
 
 // MARK: - Parser entry points
@@ -612,6 +667,9 @@ bool consumeStyleProperty(CSSParserTokenRange& range, const CSSParserContext& co
         .currentProperty = property,
         .important = important,
     };
+
+    if (consumeInternalAutoBaseFunction(range, property, state, result))
+        return true;
 
     if (WebCore::isShorthand(property)) {
         auto rangeCopy = range;

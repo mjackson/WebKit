@@ -55,6 +55,8 @@ public:
     void sendResponse(const String& message) const;
 
 private:
+    FrontendRouter() = default;
+
     Vector<FrontendChannel*, 2> m_connections;
 };
 

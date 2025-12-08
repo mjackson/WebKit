@@ -26,7 +26,6 @@
 #include <WebCore/RenderStyleInlines.h>
 #include <WebCore/StyleOpacity.h>
 #include <WebCore/StyleShapeOutside.h>
-#include <WebCore/WillChangeData.h>
 
 namespace WebCore {
 
@@ -36,6 +35,16 @@ inline Element* RenderElement::element() const { return downcast<Element>(Render
 inline RefPtr<Element> RenderElement::protectedElement() const { return element(); }
 inline Element* RenderElement::nonPseudoElement() const { return downcast<Element>(RenderObject::nonPseudoNode()); }
 inline RefPtr<Element> RenderElement::protectedNonPseudoElement() const { return nonPseudoElement(); }
+
+inline bool RenderElement::isFixedPositioned() const
+{
+    return isOutOfFlowPositioned() && style().position() == PositionType::Fixed;
+}
+
+inline bool RenderElement::isAbsolutelyPositioned() const
+{
+    return isOutOfFlowPositioned() && style().position() == PositionType::Absolute;
+}
 
 inline bool RenderElement::isBlockLevelBox() const
 {
@@ -53,7 +62,7 @@ inline bool RenderElement::isAnonymousBlock() const
 {
     return isAnonymous()
         && (style().display() == DisplayType::Block || style().display() == DisplayType::Box)
-        && style().pseudoElementType() == PseudoId::None
+        && !style().pseudoElementType()
         && isRenderBlock()
 #if ENABLE(MATHML)
         && !isRenderMathMLBlock()
@@ -94,7 +103,7 @@ inline bool RenderElement::isBeforeContent() const
     // Text nodes don't have their own styles, so ignore the style on a text node.
     // if (isRenderText())
     //     return false;
-    if (style().pseudoElementType() != PseudoId::Before)
+    if (style().pseudoElementType() != PseudoElementType::Before)
         return false;
     return true;
 }
@@ -104,7 +113,7 @@ inline bool RenderElement::isAfterContent() const
     // Text nodes don't have their own styles, so ignore the style on a text node.
     // if (isRenderText())
     //     return false;
-    if (style().pseudoElementType() != PseudoId::After)
+    if (style().pseudoElementType() != PseudoElementType::After)
         return false;
     return true;
 }

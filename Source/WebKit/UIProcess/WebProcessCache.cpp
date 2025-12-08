@@ -27,6 +27,7 @@
 #include "WebProcessCache.h"
 
 #include "APIPageConfiguration.h"
+#include "EnhancedSecurity.h"
 #include "LegacyGlobalSettings.h"
 #include "Logging.h"
 #include "ProcessThrottler.h"
@@ -50,6 +51,8 @@ Seconds WebProcessCache::clearingDelayAfterApplicationResignsActive { 5_min };
 Seconds WebProcessCache::cachedProcessLifetime { 5_min };
 Seconds WebProcessCache::clearingDelayAfterApplicationResignsActive = cachedProcessLifetime;
 #endif
+
+int WebProcessCache::capacityOverride { -1 };
 static Seconds cachedProcessSuspensionDelay { 30_s };
 
 void WebProcessCache::setCachedProcessSuspensionDelayForTesting(Seconds delay)
@@ -216,7 +219,7 @@ void WebProcessCache::evictAtRandomIfNeeded()
     }
 }
 
-RefPtr<WebProcessProxy> WebProcessCache::takeProcess(const WebCore::Site& site, WebsiteDataStore& dataStore, WebProcessProxy::LockdownMode lockdownMode, WebProcessProxy::EnhancedSecurity enhancedSecurity, const API::PageConfiguration& pageConfiguration)
+RefPtr<WebProcessProxy> WebProcessCache::takeProcess(const WebCore::Site& site, WebsiteDataStore& dataStore, WebProcessProxy::LockdownMode lockdownMode, EnhancedSecurity enhancedSecurity, const API::PageConfiguration& pageConfiguration)
 {
     auto it = m_processesPerSite.find(site);
     if (it == m_processesPerSite.end()) {
@@ -259,7 +262,7 @@ RefPtr<WebProcessProxy> WebProcessCache::takeProcess(const WebCore::Site& site, 
     return process;
 }
 
-RefPtr<WebProcessProxy> WebProcessCache::takeSharedProcess(const WebCore::Site& mainFrameSite, WebsiteDataStore& dataStore, WebProcessProxy::LockdownMode lockdownMode, WebProcessProxy::EnhancedSecurity enhancedSecurity, const API::PageConfiguration& pageConfiguration)
+RefPtr<WebProcessProxy> WebProcessCache::takeSharedProcess(const WebCore::Site& mainFrameSite, WebsiteDataStore& dataStore, WebProcessProxy::LockdownMode lockdownMode, EnhancedSecurity enhancedSecurity, const API::PageConfiguration& pageConfiguration)
 {
     auto it = m_sharedProcessesPerSite.find(mainFrameSite);
     if (it == m_sharedProcessesPerSite.end()) {
@@ -315,6 +318,8 @@ void WebProcessCache::updateCapacity(WebProcessPool& processPool)
         else
             WEBPROCESSCACHE_RELEASE_LOG("updateCapacity: Cache is disabled because cache model is not PrimaryWebBrowser", 0);
         m_capacity = 0;
+    } else if (capacityOverride >= 0) {
+        m_capacity = capacityOverride;
     } else {
 #if PLATFORM(IOS_FAMILY)
         constexpr unsigned maxProcesses = 10;

@@ -84,6 +84,7 @@
 #import "_WKInspectorConfigurationInternal.h"
 #import "_WKInspectorDebuggableInfoInternal.h"
 #import "_WKInspectorInternal.h"
+#import "_WKJSBufferInternal.h"
 #import "_WKJSHandleInternal.h"
 #import "_WKProcessPoolConfigurationInternal.h"
 #import "_WKResourceLoadInfoInternal.h"
@@ -121,9 +122,7 @@
 #import "_WKWebExtensionSidebarInternal.h"
 #endif
 
-ALLOW_DEPRECATED_DECLARATIONS_BEGIN
-static const size_t minimumObjectAlignment = alignof(std::aligned_storage<std::numeric_limits<size_t>::max()>::type);
-ALLOW_DEPRECATED_DECLARATIONS_END
+static const size_t minimumObjectAlignment = alignof(std::max_align_t);
 static_assert(minimumObjectAlignment >= alignof(void*), "Objects should always be at least pointer-aligned.");
 static const size_t maximumExtraSpaceForAlignment = minimumObjectAlignment - alignof(void*);
 
@@ -534,6 +533,10 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
     case Type::JSHandle:
         SUPPRESS_RETAINPTR_CTOR_ADOPT wrapper = [_WKJSHandle alloc];
+        break;
+
+    case Type::JSBuffer:
+        SUPPRESS_RETAINPTR_CTOR_ADOPT wrapper = [_WKJSBuffer alloc];
         break;
 
     default:

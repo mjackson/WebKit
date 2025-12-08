@@ -66,69 +66,16 @@ function newPromiseCapability(constructor)
     if (constructor === @Promise) {
         var promise = @newPromise();
         var capturedPromise = promise;
-        function @resolve(resolution) {
-            return @resolvePromiseWithFirstResolvingFunctionCallCheck(capturedPromise, resolution);
-        }
-        function @reject(reason) {
-            return @rejectPromiseWithFirstResolvingFunctionCallCheck(capturedPromise, reason);
-        }
-        return { resolve: @resolve, reject: @reject, promise };
+        return {
+            resolve: (0, (value) => {
+                return @resolvePromiseWithFirstResolvingFunctionCallCheck(capturedPromise, value);
+            }),
+            reject: (0, (value) => {
+                return @rejectPromiseWithFirstResolvingFunctionCallCheck(capturedPromise, value);
+            }),
+            promise
+        };
     }
 
     return @newPromiseCapabilitySlow(constructor);
-}
-
-@linkTimeConstant
-function promiseResolve(constructor, value)
-{
-    "use strict";
-
-    if (@isPromise(value) && value.constructor === constructor)
-        return value;
-
-    if (constructor === @Promise) {
-        var promise = @newPromise();
-        @resolvePromiseWithFirstResolvingFunctionCallCheck(promise, value);
-        return promise;
-    }
-
-    return @promiseResolveSlow(constructor, value);
-}
-
-@linkTimeConstant
-function promiseResolveSlow(constructor, value)
-{
-    "use strict";
-
-    @assert(constructor !== @Promise);
-    var promiseCapability = @newPromiseCapabilitySlow(constructor);
-    promiseCapability.resolve.@call(@undefined, value);
-    return promiseCapability.promise;
-}
-
-@linkTimeConstant
-function promiseRejectSlow(constructor, reason)
-{
-    "use strict";
-
-    @assert(constructor !== @Promise);
-    var promiseCapability = @newPromiseCapabilitySlow(constructor);
-    promiseCapability.reject.@call(@undefined, reason);
-    return promiseCapability.promise;
-}
-
-@linkTimeConstant
-function promiseEmptyOnFulfilled(argument)
-{
-    "use strict";
-
-    return argument;
-}
-
-@linkTimeConstant
-function promiseEmptyOnRejected(argument)
-{
-    "use strict";
-
-    throw argument;
 }

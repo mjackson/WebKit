@@ -2407,8 +2407,8 @@ llintOpWithJump(op_switch_imm, OpSwitchImm, macro (size, get, jump, dispatch)
 
     bqb t1, numberTag, .opSwitchImmNotInt
 
+    btinz UnlinkedSimpleJumpTable::m_isList[t2], .opSwitchImmSlow
     loadi UnlinkedSimpleJumpTable::m_min[t2], t3
-    bieq t3, (constexpr INT32_MAX), .opSwitchImmSlow
 
     subi t3, t1
     loadp UnlinkedSimpleJumpTable::m_branchOffsets + Int32FixedVector::m_storage[t2], t3
@@ -2919,12 +2919,11 @@ llintOpWithMetadata(op_resolve_scope, OpResolveScope, macro (size, get, dispatch
 end)
 
 
-macro loadWithStructureCheck(opcodeStruct, get, slowPath)
-    get(m_scope, t0)
-    loadq [cfr, t0, 8], t0
-    loadStructureWithScratch(t0, t2, t1)
-    loadp %opcodeStruct%::Metadata::m_structure[t5], t1
-    bpneq t2, t1, slowPath
+macro loadScopeWithStructureCheck(opcodeStruct, get, metadata, scope, scratch, slowPath)
+    get(m_scope, scope)
+    loadq [cfr, scope, 8], scope
+    loadi JSCell::m_structureID[scope], scratch
+    bineq scratch, %opcodeStruct%::Metadata::m_structureID[metadata], slowPath
 end
 
 llintOpWithMetadata(op_get_from_scope, OpGetFromScope, macro (size, get, dispatch, metadata, return)
@@ -2957,7 +2956,7 @@ llintOpWithMetadata(op_get_from_scope, OpGetFromScope, macro (size, get, dispatc
 
 #gGlobalProperty:
     bineq t0, GlobalProperty, .gGlobalVar
-    loadWithStructureCheck(OpGetFromScope, get, .gDynamic) # This structure check includes lexical binding epoch check since when the epoch is changed, scope will be changed too.
+    loadScopeWithStructureCheck(OpGetFromScope, get, t5, t0, t1, .gDynamic) # This structure check includes lexical binding epoch check since when the epoch is changed, scope will be changed too.
     getProperty()
 
 .gGlobalVar:
@@ -2978,7 +2977,7 @@ llintOpWithMetadata(op_get_from_scope, OpGetFromScope, macro (size, get, dispatc
 
 .gGlobalPropertyWithVarInjectionChecks:
     bineq t0, GlobalPropertyWithVarInjectionChecks, .gGlobalVarWithVarInjectionChecks
-    loadWithStructureCheck(OpGetFromScope, get, .gDynamic) # This structure check includes lexical binding epoch check since when the epoch is changed, scope will be changed too.
+    loadScopeWithStructureCheck(OpGetFromScope, get, t5, t0, t1, .gDynamic) # This structure check includes lexical binding epoch check since when the epoch is changed, scope will be changed too.
     getProperty()
 
 .gGlobalVarWithVarInjectionChecks:
@@ -3067,7 +3066,7 @@ llintOpWithMetadata(op_put_to_scope, OpPutToScope, macro (size, get, dispatch, m
 
 .pGlobalProperty:
     bineq t0, GlobalProperty, .pGlobalVar
-    loadWithStructureCheck(OpPutToScope, get, .pDynamic) # This structure check includes lexical binding epoch check since when the epoch is changed, scope will be changed too.
+    loadScopeWithStructureCheck(OpPutToScope, get, t5, t0, t1, .pDynamic) # This structure check includes lexical binding epoch check since when the epoch is changed, scope will be changed too.
     putProperty()
     writeBarrierOnOperands(size, get, m_scope, m_value)
     dispatch()
@@ -3095,7 +3094,7 @@ llintOpWithMetadata(op_put_to_scope, OpPutToScope, macro (size, get, dispatch, m
 
 .pGlobalPropertyWithVarInjectionChecks:
     bineq t0, GlobalPropertyWithVarInjectionChecks, .pGlobalVarWithVarInjectionChecks
-    loadWithStructureCheck(OpPutToScope, get, .pDynamic) # This structure check includes lexical binding epoch check since when the epoch is changed, scope will be changed too.
+    loadScopeWithStructureCheck(OpPutToScope, get, t5, t0, t1, .pDynamic) # This structure check includes lexical binding epoch check since when the epoch is changed, scope will be changed too.
     putProperty()
     writeBarrierOnOperands(size, get, m_scope, m_value)
     dispatch()

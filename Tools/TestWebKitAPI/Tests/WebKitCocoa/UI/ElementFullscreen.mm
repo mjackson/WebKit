@@ -26,60 +26,16 @@
 #import "config.h"
 
 #import "PlatformUtilities.h"
+#import "TestElementFullscreenDelegate.h"
 #import "TestWKWebView.h"
 #import <WebKit/WKWebViewPrivate.h>
 #import <WebKit/WebKit.h>
-#import <WebKit/_WKFullscreenDelegate.h>
 
 #if PLATFORM(IOS_FAMILY)
 @interface UIScrollView ()
 @property (nonatomic, getter=isZoomEnabled) BOOL zoomEnabled;
 @end
 #endif
-
-@interface TestElementFullscreenDelegate : NSObject <_WKFullscreenDelegate>
-- (void)waitForDidEnterElementFullscreen;
-- (void)waitForWillEnterElementFullscreen;
-@end
-
-@implementation TestElementFullscreenDelegate {
-    bool _didEnterElementFullscreen;
-    bool _willEnterElementFullscreen;
-}
-
-- (void)waitForDidEnterElementFullscreen
-{
-    _didEnterElementFullscreen = false;
-    TestWebKitAPI::Util::run(&_didEnterElementFullscreen);
-}
-
-- (void)waitForWillEnterElementFullscreen
-{
-    _willEnterElementFullscreen = false;
-    TestWebKitAPI::Util::run(&_willEnterElementFullscreen);
-}
-
-#pragma mark WKUIDelegate
-
-#if PLATFORM(IOS)
-- (void)_webViewWillEnterElementFullscreen:(WKWebView *)webView
-#else
-- (void)_webViewWillEnterFullscreen:(NSView *)webView
-#endif
-{
-    _willEnterElementFullscreen = true;
-}
-
-#if PLATFORM(IOS_FAMILY)
-- (void)_webViewDidEnterElementFullscreen:(WKWebView *)webView
-#else
-- (void)_webViewDidEnterFullscreen:(NSView *)webView
-#endif
-{
-    _didEnterElementFullscreen = true;
-}
-
-@end
 
 #if PLATFORM(IOS_FAMILY)
 TEST(ElementFullscreen, ScrollViewSetToInitialScale)
@@ -103,10 +59,7 @@ TEST(ElementFullscreen, ScrollViewSetToInitialScale)
     [fullscreenDelegate waitForDidEnterElementFullscreen];
     [webView waitForNextPresentationUpdate];
 
-ALLOW_DEPRECATED_DECLARATIONS_BEGIN
-    // FIXME: <rdar://155548417> ([ Build-Failure ] [ iOS26+ ] error: 'mainScreen' is deprecated: first deprecated in iOS 26.0)
-    CGFloat expectedScale = std::min<CGFloat>(UIScreen.mainScreen.bounds.size.width / 1000, 1);
-ALLOW_DEPRECATED_DECLARATIONS_END
+    CGFloat expectedScale = std::min<CGFloat>([webView window].screen.bounds.size.width / 1000, 1);
 
     EXPECT_EQ([webView scrollView].zoomScale, expectedScale);
     EXPECT_EQ([webView scrollView].minimumZoomScale, expectedScale);

@@ -183,9 +183,9 @@ void RemoteFrame::reportMixedContentViolation(bool blocked, const URL& target) c
     m_client->reportMixedContentViolation(blocked, target);
 }
 
-RefPtr<SecurityOrigin> RemoteFrame::frameDocumentSecurityOrigin() const
+SecurityOrigin* RemoteFrame::frameDocumentSecurityOrigin() const
 {
-    return frameTreeSyncData().frameDocumentSecurityOrigin;
+    return frameTreeSyncData().frameDocumentSecurityOrigin.get();
 }
 
 String RemoteFrame::frameURLProtocol() const
@@ -195,8 +195,7 @@ String RemoteFrame::frameURLProtocol() const
 
 const SecurityOrigin& RemoteFrame::frameDocumentSecurityOriginOrOpaque() const
 {
-    RefPtr securityOrigin = frameDocumentSecurityOrigin();
-    if (securityOrigin)
+    if (auto* securityOrigin = frameDocumentSecurityOrigin())
         return *securityOrigin;
     return SecurityOrigin::opaqueOrigin();
 }

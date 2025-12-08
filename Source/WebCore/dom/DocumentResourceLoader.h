@@ -25,8 +25,8 @@
 
 #pragma once
 
-#include "CachedResourceLoader.h"
-#include "Document.h"
+#include <WebCore/CachedResourceLoader.h>
+#include <WebCore/Document.h>
 
 namespace WebCore {
 

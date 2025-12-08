@@ -12,10 +12,9 @@ StylePropertyShorthand allShorthand()
     static const CSSPropertyID allProperties[] = {
         CSSPropertyID::CSSPropertyTestTopPriority,
         CSSPropertyID::CSSPropertyTestHighPriority,
-        CSSPropertyID::CSSPropertyBackgroundFillLayerTestPrimary,
         CSSPropertyID::CSSPropertyTestMediumPriority,
-        CSSPropertyID::CSSPropertyBackgroundFillLayerTestSecondary,
-        CSSPropertyID::CSSPropertyBackgroundFillLayerTestSecondaryWithConverter,
+        CSSPropertyID::CSSPropertyBackgroundCoordinatedValueListPropertyTestDiscrete,
+        CSSPropertyID::CSSPropertyBackgroundCoordinatedValueListPropertyTestTwo,
         CSSPropertyID::CSSPropertyTestAnimationWrapper,
         CSSPropertyID::CSSPropertyTestAnimationWrapperAccelerationAlways,
         CSSPropertyID::CSSPropertyTestAnimationWrapperAccelerationThreadedOnly,
@@ -36,7 +35,6 @@ StylePropertyShorthand allShorthand()
         CSSPropertyID::CSSPropertyTestColorPropertyWithNoVisitedLinkSupport,
         CSSPropertyID::CSSPropertyTestColorPropertyWithVisitedLinkSupport,
         CSSPropertyID::CSSPropertyTestCustomExtractor,
-        CSSPropertyID::CSSPropertyTestExtractorConverter,
         CSSPropertyID::CSSPropertyTestFunctionBoundedParameters,
         CSSPropertyID::CSSPropertyTestFunctionFixedParameters,
         CSSPropertyID::CSSPropertyTestFunctionNoParameters,
@@ -95,8 +93,15 @@ StylePropertyShorthand allShorthand()
         CSSPropertyID::CSSPropertyTestMatchOneWithSettingsFlag,
         CSSPropertyID::CSSPropertyTestNumericValueRange,
         CSSPropertyID::CSSPropertyTestProperty,
+        CSSPropertyID::CSSPropertyTestRenderStyleStorageOneLevelEnum,
+        CSSPropertyID::CSSPropertyTestRenderStyleStorageOneLevelRaw,
+        CSSPropertyID::CSSPropertyTestRenderStyleStorageOneLevelReference,
+        CSSPropertyID::CSSPropertyTestRenderStyleStorageOneLevelValue,
+        CSSPropertyID::CSSPropertyTestRenderStyleStorageTwoLevelEnum,
+        CSSPropertyID::CSSPropertyTestRenderStyleStorageTwoLevelRaw,
+        CSSPropertyID::CSSPropertyTestRenderStyleStorageTwoLevelReference,
+        CSSPropertyID::CSSPropertyTestRenderStyleStorageTwoLevelValue,
         CSSPropertyID::CSSPropertyTestSettingsOne,
-        CSSPropertyID::CSSPropertyTestSharedBuilderExtractorConverter,
         CSSPropertyID::CSSPropertyTestUnboundedRepetitionWithCommasWithMin,
         CSSPropertyID::CSSPropertyTestUnboundedRepetitionWithCommasWithMinNoSingleItemOpt,
         CSSPropertyID::CSSPropertyTestUnboundedRepetitionWithCommasWithMinSingleItemOpt,
@@ -174,9 +179,8 @@ StylePropertyShorthandVector matchingShorthandsForLonghand(CSSPropertyID id)
     case CSSPropertyID::CSSPropertyTestLogicalPropertyGroupLogicalBlock:
     case CSSPropertyID::CSSPropertyTestLogicalPropertyGroupLogicalInline:
         return StylePropertyShorthandVector{allShorthand(), testShorthandTwoShorthand()};
-    case CSSPropertyID::CSSPropertyBackgroundFillLayerTestPrimary:
-    case CSSPropertyID::CSSPropertyBackgroundFillLayerTestSecondary:
-    case CSSPropertyID::CSSPropertyBackgroundFillLayerTestSecondaryWithConverter:
+    case CSSPropertyID::CSSPropertyBackgroundCoordinatedValueListPropertyTestDiscrete:
+    case CSSPropertyID::CSSPropertyBackgroundCoordinatedValueListPropertyTestTwo:
     case CSSPropertyID::CSSPropertyTestAnimationWrapper:
     case CSSPropertyID::CSSPropertyTestAnimationWrapperAccelerationAlways:
     case CSSPropertyID::CSSPropertyTestAnimationWrapperAccelerationThreadedOnly:
@@ -197,7 +201,6 @@ StylePropertyShorthandVector matchingShorthandsForLonghand(CSSPropertyID id)
     case CSSPropertyID::CSSPropertyTestColorPropertyWithNoVisitedLinkSupport:
     case CSSPropertyID::CSSPropertyTestColorPropertyWithVisitedLinkSupport:
     case CSSPropertyID::CSSPropertyTestCustomExtractor:
-    case CSSPropertyID::CSSPropertyTestExtractorConverter:
     case CSSPropertyID::CSSPropertyTestFunctionBoundedParameters:
     case CSSPropertyID::CSSPropertyTestFunctionFixedParameters:
     case CSSPropertyID::CSSPropertyTestFunctionNoParameters:
@@ -257,8 +260,15 @@ StylePropertyShorthandVector matchingShorthandsForLonghand(CSSPropertyID id)
     case CSSPropertyID::CSSPropertyTestMediumPriority:
     case CSSPropertyID::CSSPropertyTestNumericValueRange:
     case CSSPropertyID::CSSPropertyTestProperty:
+    case CSSPropertyID::CSSPropertyTestRenderStyleStorageOneLevelEnum:
+    case CSSPropertyID::CSSPropertyTestRenderStyleStorageOneLevelRaw:
+    case CSSPropertyID::CSSPropertyTestRenderStyleStorageOneLevelReference:
+    case CSSPropertyID::CSSPropertyTestRenderStyleStorageOneLevelValue:
+    case CSSPropertyID::CSSPropertyTestRenderStyleStorageTwoLevelEnum:
+    case CSSPropertyID::CSSPropertyTestRenderStyleStorageTwoLevelRaw:
+    case CSSPropertyID::CSSPropertyTestRenderStyleStorageTwoLevelReference:
+    case CSSPropertyID::CSSPropertyTestRenderStyleStorageTwoLevelValue:
     case CSSPropertyID::CSSPropertyTestSettingsOne:
-    case CSSPropertyID::CSSPropertyTestSharedBuilderExtractorConverter:
     case CSSPropertyID::CSSPropertyTestTopPriority:
     case CSSPropertyID::CSSPropertyTestUnboundedRepetitionWithCommasWithMin:
     case CSSPropertyID::CSSPropertyTestUnboundedRepetitionWithCommasWithMinNoSingleItemOpt:

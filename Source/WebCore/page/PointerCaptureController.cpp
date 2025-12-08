@@ -41,6 +41,7 @@
 #include "PointerEvent.h"
 #include "Quirks.h"
 #include <algorithm>
+#include <ranges>
 #include <wtf/CheckedArithmetic.h>
 #include <wtf/TZoneMallocInlines.h>
 
@@ -60,10 +61,9 @@ PointerCaptureController::PointerCaptureController(Page& page)
 
 Element* PointerCaptureController::pointerCaptureElement(Document* document, PointerID pointerId) const
 {
-    if (auto capturingData = m_activePointerIdsToCapturingData.get(pointerId)) {
-        auto pointerCaptureElement = capturingData->targetOverride;
-        if (pointerCaptureElement && &pointerCaptureElement->document() == document)
-            return pointerCaptureElement.get();
+    if (auto* capturingData = m_activePointerIdsToCapturingData.get(pointerId)) {
+        if (capturingData->targetOverride && &capturingData->targetOverride->document() == document)
+            return capturingData->targetOverride.get();
     }
     return nullptr;
 }
@@ -209,7 +209,7 @@ bool PointerCaptureController::preventsCompatibilityMouseEventsForIdentifier(Poi
     return capturingData && capturingData->preventsCompatibilityMouseEvents;
 }
 
-#if ENABLE(TOUCH_EVENTS) && (PLATFORM(IOS_FAMILY) || PLATFORM(WPE))
+#if ENABLE(TOUCH_EVENTS) && (PLATFORM(IOS_FAMILY) || PLATFORM(WPE) || PLATFORM(GTK))
 static bool hierarchyHasCapturingEventListeners(Element* target, const AtomString& eventName)
 {
     for (RefPtr<ContainerNode> currentNode = target; currentNode; currentNode = currentNode->parentInComposedTree()) {
@@ -241,7 +241,7 @@ void PointerCaptureController::dispatchEnterOrLeaveEvent(const AtomString& type,
     }
 
     if (type == eventNames().pointerenterEvent) {
-        for (auto& element : makeReversedRange(targetChain))
+        for (auto& element : targetChain | std::views::reverse)
             dispatchEvent(PointerEvent::create(type, event, { }, { }, index, isPrimary, view, touchDelta), element.ptr());
     } else {
         for (auto& element : targetChain)
@@ -316,7 +316,7 @@ void PointerCaptureController::dispatchEventForTouchAtIndex(EventTarget& target,
         if (currentTarget)
             dispatchOverOrOutEvent(eventNames().pointeroverEvent, currentTarget.get(), platformTouchEvent, index, isPrimary, view, touchDelta);
 
-        for (auto& chain : makeReversedRange(enteredElementsChain)) {
+        for (auto& chain : enteredElementsChain | std::views::reverse) {
             if (hasCapturingPointerEnterListener || chain->hasEventListeners(eventNames().pointerenterEvent))
                 dispatchEvent(PointerEvent::create(eventNames().pointerenterEvent, platformTouchEvent, coalescedEvents, predictedEvents, index, isPrimary, view, touchDelta), chain.ptr());
         }
@@ -379,7 +379,7 @@ void PointerCaptureController::dispatchEventForTouchAtIndex(EventTarget& target,
     capturingData->state = CapturingData::State::Finished;
     capturingData->previousTarget = nullptr;
 }
-#endif // ENABLE(TOUCH_EVENTS) && (PLATFORM(IOS_FAMILY) || PLATFORM(WPE))
+#endif // ENABLE(TOUCH_EVENTS) && (PLATFORM(IOS_FAMILY) || PLATFORM(WPE) || PLATFORM(GTK))
 
 void PointerCaptureController::clearUnmatchedMouseDown(PointerID pointerID)
 {
@@ -565,7 +565,7 @@ void PointerCaptureController::cancelPointer(PointerID pointerId, const IntPoint
     capturingData->pendingTargetOverride = nullptr;
     capturingData->state = CapturingData::State::Cancelled;
 
-#if ENABLE(TOUCH_EVENTS) && (PLATFORM(IOS_FAMILY) || PLATFORM(WPE))
+#if ENABLE(TOUCH_EVENTS) && (PLATFORM(IOS_FAMILY) || PLATFORM(WPE) || PLATFORM(GTK))
     capturingData->previousTarget = nullptr;
 #endif
 

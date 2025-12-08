@@ -50,6 +50,9 @@ public:
 
         ResolvingWithoutPromiseContext = 0,
         ResolvingWithoutPromiseOther = 1,
+
+        PromiseAllContext = 0,
+        PromiseAllResolve = 1,
     };
 
     DECLARE_INFO;

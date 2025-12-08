@@ -25,7 +25,6 @@
 #pragma once
 
 #include <WebCore/FontCascade.h>
-#include <WebCore/Length.h>
 #include <WebCore/StyleColor.h>
 #include <WebCore/StyleFontData.h>
 #include <WebCore/StyleLineHeight.h>

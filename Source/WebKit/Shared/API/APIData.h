@@ -34,7 +34,7 @@
 #include <wtf/RetainPtr.h>
 #endif
 
-#if PLATFORM(GTK)
+#if USE(GLIB)
 #include <wtf/glib/GRefPtr.h>
 #include <wtf/glib/GSpanExtras.h>
 #include <wtf/glib/WTFGType.h>
@@ -82,10 +82,11 @@ public:
     static Ref<Data> createWithoutCopying(NSData *);
 #endif
 
-#if PLATFORM(GTK)
+#if USE(GLIB)
     static Ref<Data> createWithoutCopying(GRefPtr<GBytes>&& bytes)
     {
         auto span = WTF::span(bytes);
+        // The destroy function receives ownership of the GRefPtr, therefore destroying it
         return createWithoutCopying(span, [bytes = WTFMove(bytes)] () { });
     }
 #endif

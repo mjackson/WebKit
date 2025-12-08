@@ -44,9 +44,9 @@ bool AutosizeStatus::probablyContainsASmallFixedNumberOfLines(const RenderStyle&
     auto& maxHeight = style.maxHeight();
     std::optional<float> heightOrMaxHeightAsLength;
     if (auto fixedMaxHeight = maxHeight.tryFixed())
-        heightOrMaxHeightAsLength = fixedMaxHeight->resolveZoom(Style::ZoomNeeded { });
+        heightOrMaxHeightAsLength = fixedMaxHeight->resolveZoom(style.usedZoomForLength());
     else if (auto fixedHeight = style.height().tryFixed(); fixedHeight && (!maxHeight.isSpecified() || maxHeight.isNone()))
-        heightOrMaxHeightAsLength = fixedHeight->resolveZoom(Style::ZoomNeeded { });
+        heightOrMaxHeightAsLength = fixedHeight->resolveZoom(style.usedZoomForLength());
 
     if (!heightOrMaxHeightAsLength)
         return false;
@@ -55,7 +55,7 @@ bool AutosizeStatus::probablyContainsASmallFixedNumberOfLines(const RenderStyle&
     if (heightOrMaxHeight <= 0)
         return false;
 
-    float approximateLineHeight = lineHeightAsPercentage ? lineHeightAsPercentage->value * style.specifiedFontSize() / 100 : lineHeightAsFixed->resolveZoom(Style::ZoomNeeded { });
+    float approximateLineHeight = lineHeightAsPercentage ? lineHeightAsPercentage->value * style.specifiedFontSize() / 100 : lineHeightAsFixed->resolveZoom(style.usedZoomForLength());
     if (approximateLineHeight <= 0)
         return false;
 
@@ -79,7 +79,7 @@ auto AutosizeStatus::computeStatus(const RenderStyle& style) -> AutosizeStatus
 
         const float maximumDifferenceBetweenFixedLineHeightAndFontSize = 5;
         auto& lineHeight = style.specifiedLineHeight();
-        if (auto fixedLineHeight = lineHeight.tryFixed(); fixedLineHeight && fixedLineHeight->resolveZoom(Style::ZoomNeeded { }) - style.specifiedFontSize() > maximumDifferenceBetweenFixedLineHeightAndFontSize)
+        if (auto fixedLineHeight = lineHeight.tryFixed(); fixedLineHeight && fixedLineHeight->resolveZoom(style.usedZoomForLength()) - style.specifiedFontSize() > maximumDifferenceBetweenFixedLineHeightAndFontSize)
             return false;
 
         if (style.whiteSpaceCollapse() == WhiteSpaceCollapse::Collapse && style.textWrapMode() == TextWrapMode::NoWrap)

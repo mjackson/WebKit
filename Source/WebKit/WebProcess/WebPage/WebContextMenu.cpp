@@ -49,9 +49,7 @@ WebContextMenu::WebContextMenu(WebPage& page)
 {
 }
 
-WebContextMenu::~WebContextMenu()
-{
-}
+WebContextMenu::~WebContextMenu() = default;
 
 bool WebContextMenu::show()
 {

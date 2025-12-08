@@ -159,7 +159,7 @@
 #endif
 
 #if PLATFORM(MAC) && ENABLE(MEDIA_STREAM)
-#include <WebCore/CoreAudioSharedUnit.h>
+#include <WebCore/CoreAudioCaptureUnit.h>
 #endif
 
 #if ENABLE(MEDIA_STREAM)
@@ -441,7 +441,7 @@ void GPUConnectionToWebProcess::didClose(IPC::Connection& connection)
 #endif
 #if ENABLE(VIDEO)
     protectedVideoFrameObjectHeap()->close();
-    protectedRemoteMediaPlayerManagerProxy()->clear();
+    protectedRemoteMediaPlayerManagerProxy()->connectionToWebProcessClosed();
 #endif
     // RemoteRenderingBackend objects ref their GPUConnectionToWebProcess so we need to make sure
     // to break the reference cycle by destroying them.
@@ -723,7 +723,7 @@ void GPUConnectionToWebProcess::providePresentingApplicationPID(WebCore::PageIde
 
     ProcessID processID = presentingApplicationPID(pageIdentifier);
     ASSERT(processID);
-    MediaSessionHelper::sharedHelper().providePresentingApplicationPID(processID);
+    MediaSessionHelper::protectedSharedHelper()->providePresentingApplicationPID(processID);
 }
 #endif
 
@@ -1018,10 +1018,6 @@ bool GPUConnectionToWebProcess::dispatchMessage(IPC::Connection& connection, IPC
         protectedRemoteMediaPlayerManagerProxy()->didReceivePlayerMessage(connection, decoder);
         return true;
     }
-    if (decoder.messageReceiverName() == Messages::RemoteMediaResourceManager::messageReceiverName()) {
-        protectedRemoteMediaResourceManager()->didReceiveMessage(connection, decoder);
-        return true;
-    }
 #endif
 
 #if PLATFORM(COCOA) && ENABLE(MEDIA_STREAM)
@@ -1266,7 +1262,7 @@ void GPUConnectionToWebProcess::updateCaptureAccess(bool allowAudioCapture, bool
 {
 #if PLATFORM(MAC) && ENABLE(MEDIA_STREAM)
     if (allowAudioCapture)
-        CoreAudioSharedUnit::singleton().prewarmAudioUnitCreation([] { });
+        CoreAudioCaptureUnit::defaultSingleton().prewarmAudioUnitCreation([] { });
 #endif
 
     m_allowsAudioCapture |= allowAudioCapture;
@@ -1385,6 +1381,15 @@ void GPUConnectionToWebProcess::setPresentingApplicationAuditToken(WebCore::Page
         m_presentingApplicationAuditTokens.set(pageIdentifier, *auditToken);
     else
         m_presentingApplicationAuditTokens.remove(pageIdentifier);
+}
+#endif
+
+#if ENABLE(IPC_TESTING_API)
+void GPUConnectionToWebProcess::takeInvalidMessageStringForTesting(CompletionHandler<void(String&&)>&& callback)
+{
+    ASCIILiteral error = connection().takeErrorString();
+    String errorString = !error.isNull() ? String::fromUTF8(error) : emptyString();
+    callback(WTFMove(errorString));
 }
 #endif
 

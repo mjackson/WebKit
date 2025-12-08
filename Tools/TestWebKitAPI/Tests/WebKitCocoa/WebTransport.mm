@@ -36,18 +36,25 @@
 #import "Utilities.h"
 #import "WebTransportServer.h"
 #import <CommonCrypto/CommonDigest.h>
-#import <Security/SecCertificateRequest.h>
 #import <WebKit/WKPreferencesPrivate.h>
 #import <WebKit/WKWebsiteDataStorePrivate.h>
 #import <WebKit/_WKInternalDebugFeature.h>
+#import <pal/spi/cocoa/NetworkSPI.h>
 #import <wtf/SoftLinking.h>
 #import <wtf/spi/cocoa/SecuritySPI.h>
 #import <wtf/text/MakeString.h>
 #import <wtf/text/StringBuilder.h>
 
-// FIXME: Replace this soft linking with a HAVE macro once rdar://158191390 is available on all tested OS builds.
 SOFT_LINK_FRAMEWORK(Network)
+
+// FIXME: Replace this soft linking with a HAVE macro once rdar://158191390 is available on all tested OS builds.
 SOFT_LINK_MAY_FAIL(Network, nw_webtransport_options_set_allow_joining_before_ready, void, (nw_protocol_options_t options, bool allow), (options, allow))
+
+// FIXME: Replace this soft linking with a HAVE macro once rdar://164265337 is available on all tested OS builds.
+SOFT_LINK_MAY_FAIL(Network, nw_webtransport_metadata_set_local_draining, void, (nw_protocol_metadata_t metadata), (metadata))
+
+// FIXME: Replace this soft linking with a HAVE macro once rdar://164514830 is available on all tested OS builds.
+SOFT_LINK_MAY_FAIL(Network, nw_webtransport_metadata_get_session_closed, bool, (nw_protocol_metadata_t metadata), (metadata))
 
 namespace TestWebKitAPI {
 
@@ -169,21 +176,23 @@ TEST(WebTransport, Datagram)
         "  "
         "  try {"
         "    let t = new WebTransport('https://127.0.0.1:%d/');"
+        "    let g = t.createSendGroup();"
         "    await t.ready;"
-        "    let w = t.datagrams.writable.getWriter();"
+        "    let w = t.datagrams.createWritable({ sendGroup : g }).getWriter();"
         "    await w.write(new TextEncoder().encode(s));"
-        "    await w.close();"
         "    let r = t.datagrams.readable.getReader();"
         "    const { value, done } = await r.read();"
         "    await r.cancel();"
+        "    const groupStats = await g.getStats();"
         "    t.close();"
-        "    alert('successfully read ' + new TextDecoder().decode(value));"
+        "    await w.closed;"
+        "    alert('successfully read ' + new TextDecoder().decode(value) + ', group sent ' + groupStats.bytesWritten + ' bytes, maxDatagramSize ' + t.datagrams.maxDatagramSize);"
         "  } catch (e) { alert('caught ' + e); }"
         "}; test();"
         "</script>",
         port];
     [webView loadHTMLString:html baseURL:[NSURL URLWithString:@"https://webkit.org/"]];
-    EXPECT_WK_STREQ([webView _test_waitForAlert], "successfully read abc");
+    EXPECT_WK_STREQ([webView _test_waitForAlert], "successfully read abc, group sent 3 bytes, maxDatagramSize 65535");
     EXPECT_TRUE(challenged);
 }
 
@@ -264,8 +273,6 @@ TEST(WebTransport, ServerBidirectional)
         "    let c = await t.createBidirectionalStream();"
         "    let w = c.writable.getWriter();"
         "    await w.write(new TextEncoder().encode('abc'));"
-        "    await w.close();"
-        "    await c.readable.getReader().cancel();"
         "    let sr = t.incomingBidirectionalStreams.getReader();"
         "    let {value: s, d} = await sr.read();"
         "    let r = s.readable.getReader();"
@@ -380,7 +387,7 @@ TEST(WebTransport, NetworkProcessCrash)
         "  return;"
         "};"
         "async function writeDatagram() {"
-        "  let writer = session.datagrams.writable.getWriter();"
+        "  let writer = session.datagrams.createWritable().getWriter();"
         "  await writer.write(data);"
         "  writer.releaseLock();"
         "  return;"
@@ -409,27 +416,33 @@ TEST(WebTransport, NetworkProcessCrash)
 
     obj = [webView objectByCallingAsyncFunction:@"return await getIncomingBidiStream()" withArguments:@{ } error:&error];
     EXPECT_EQ(obj, nil);
-    EXPECT_NULL(error);
+    EXPECT_NOT_NULL(error);
+    error = nil;
 
     obj = [webView objectByCallingAsyncFunction:@"return await getIncomingUniStream()" withArguments:@{ } error:&error];
     EXPECT_EQ(obj, nil);
-    EXPECT_NULL(error);
+    EXPECT_NOT_NULL(error);
+    error = nil;
 
     obj = [webView objectByCallingAsyncFunction:@"return await readFromBidiStream()" withArguments:@{ } error:&error];
     EXPECT_EQ(obj, nil);
-    EXPECT_NULL(error);
+    EXPECT_NOT_NULL(error);
+    error = nil;
 
     obj = [webView objectByCallingAsyncFunction:@"return await readFromIncomingBidiStream()" withArguments:@{ } error:&error];
     EXPECT_EQ(obj, nil);
-    EXPECT_NULL(error);
+    EXPECT_NOT_NULL(error);
+    error = nil;
 
     obj = [webView objectByCallingAsyncFunction:@"return await readFromIncomingUniStream()" withArguments:@{ } error:&error];
     EXPECT_EQ(obj, nil);
-    EXPECT_NULL(error);
+    EXPECT_NOT_NULL(error);
+    error = nil;
 
     obj = [webView objectByCallingAsyncFunction:@"return await readDatagram()" withArguments:@{ } error:&error];
     EXPECT_EQ(obj, nil);
-    EXPECT_NULL(error);
+    EXPECT_NOT_NULL(error);
+    error = nil;
 
     obj = [webView objectByCallingAsyncFunction:@"return await writeOnBidiStream()" withArguments:@{ } error:&error];
     EXPECT_EQ(obj, nil);
@@ -533,7 +546,8 @@ TEST(WebTransport, WorkerAfterNetworkProcessCrash)
         "    self.postMessage('successfully read ' + new TextDecoder().decode(value));"
         "  } catch (e) { self.postMessage('caught ' + e); }"
         "};"
-        "addEventListener('message', test);", transportServer.port()];
+        "addEventListener('message', test);"
+        "self.postMessage('started worker');", transportServer.port()];
 
     HTTPServer loadingServer({
         { "/"_s, { mainHTML } },
@@ -548,7 +562,11 @@ TEST(WebTransport, WorkerAfterNetworkProcessCrash)
     [webView setNavigationDelegate:delegate.get()];
     [webView loadRequest:loadingServer.request()];
     [delegate waitForDidFinishNavigation];
+    EXPECT_WK_STREQ([webView _test_waitForAlert], "message from worker: started worker");
     kill([configuration.get().websiteDataStore _networkProcessIdentifier], SIGKILL);
+    while ([[configuration websiteDataStore] _networkProcessExists])
+        TestWebKitAPI::Util::spinRunLoop();
+    [webView objectByEvaluatingJavaScript:@"'wait for web process to be informed of network process termination'"];
     [webView evaluateJavaScript:@"worker.postMessage('start')" completionHandler:nil];
     EXPECT_WK_STREQ([webView _test_waitForAlert], "message from worker: successfully read abc");
 }
@@ -581,7 +599,7 @@ TEST(WebTransport, CreateStreamsBeforeReady)
     "async function test() {"
     "  try {"
     "    const w = new WebTransport('https://127.0.0.1:%d/');"
-    "    const writer = w.datagrams.writable.getWriter();"
+    "    const writer = w.datagrams.createWritable().getWriter();"
     "    const reader = w.datagrams.readable.getReader();"
     "    await writer.write(new TextEncoder().encode('abc'));"
     "    const { value, done } = await reader.read();"
@@ -754,13 +772,93 @@ TEST(WebTransport, ServerConnectionTermination)
         "    let c = await t.createUnidirectionalStream();"
         "    let w = c.getWriter();"
         "    await w.write(new TextEncoder().encode('abc'));"
-        "    await t.closed;"
-        "    alert('closed should have thrown');"
+        "    let closeInfo = await t.closed;"
+        "    alert('successfully read closeInfo (' + closeInfo.closeCode + ', ' + closeInfo.reason + ')');"
         "  } catch (e) { alert('caught ' + e); }"
         "}; test();"
         "</script>", echoServer.port()];
     [webView loadHTMLString:html baseURL:[NSURL URLWithString:@"https://webkit.org/"]];
-    EXPECT_WK_STREQ([webView _test_waitForAlert], "caught AbortError: The operation was aborted.");
+    EXPECT_WK_STREQ([webView _test_waitForAlert], canLoadnw_webtransport_metadata_get_session_closed() ? "successfully read closeInfo (0, )" : "caught WebTransportError");
+}
+
+TEST(WebTransport, BackForwardCache)
+{
+    bool serverConnectionTerminatedByClient { false };
+    WebTransportServer echoServer([&](ConnectionGroup group) -> ConnectionTask {
+        auto datagramConnection = group.createWebTransportConnection(ConnectionGroup::ConnectionType::Datagram);
+        auto request = co_await datagramConnection.awaitableReceiveBytes();
+        co_await datagramConnection.awaitableSend(WTFMove(request));
+        co_await group.awaitableFailure();
+        serverConnectionTerminatedByClient = true;
+    });
+
+    NSString *mainHTML = [NSString stringWithFormat:@""
+        "<script>async function test() {"
+        "  try {"
+        "    let t = new WebTransport('https://127.0.0.1:%d/');"
+        "    await t.ready;"
+        "    let w = t.datagrams.createWritable().getWriter();"
+        "    await w.write(new TextEncoder().encode('abc'));"
+        "    let r = t.datagrams.readable.getReader();"
+        "    const { value, done } = await r.read();"
+        "    alert('successfully read ' + new TextDecoder().decode(value));"
+        "  } catch (e) { alert('caught ' + e); }"
+        "}; test();"
+        "</script>", echoServer.port()];
+
+    HTTPServer loadingServer({
+        { "/"_s, { mainHTML } },
+        { "/other"_s, { @"<script>alert('loaded')</script>" } }
+    });
+
+    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    enableWebTransport(configuration.get());
+    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    auto delegate = adoptNS([TestNavigationDelegate new]);
+    [delegate allowAnyTLSCertificate];
+    [webView setNavigationDelegate:delegate.get()];
+
+    [webView loadRequest:loadingServer.request()];
+    EXPECT_WK_STREQ([webView _test_waitForAlert], "successfully read abc");
+    [webView loadRequest:loadingServer.request("/other"_s)];
+    EXPECT_WK_STREQ([webView _test_waitForAlert], "loaded");
+    Util::run(&serverConnectionTerminatedByClient);
+}
+
+TEST(WebTransport, ServerDrain)
+{
+    if (!canLoadnw_webtransport_metadata_set_local_draining())
+        return;
+
+    WebTransportServer echoServer([](ConnectionGroup group) -> ConnectionTask {
+        auto connection = co_await group.receiveIncomingConnection();
+        auto request = co_await connection.awaitableReceiveBytes();
+        EXPECT_EQ(request.size(), 3u);
+        group.drainWebTransportSession();
+    });
+
+    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    enableWebTransport(configuration.get());
+    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    auto delegate = adoptNS([TestNavigationDelegate new]);
+    [delegate allowAnyTLSCertificate];
+    [webView setNavigationDelegate:delegate.get()];
+
+    NSString *html = [NSString stringWithFormat:@""
+        "<script>async function test() {"
+        "  try {"
+        "    let t = new WebTransport('https://127.0.0.1:%d/');"
+        "    await t.ready;"
+        "    let c = await t.createUnidirectionalStream();"
+        "    let w = c.getWriter();"
+        "    await w.write(new TextEncoder().encode('abc'));"
+        "    await t.draining;"
+        "    alert('successfully receieved draining');"
+        "  } catch (e) { alert('caught ' + e); }"
+        "}; test();"
+        "</script>", echoServer.port()];
+    [webView loadHTMLString:html baseURL:[NSURL URLWithString:@"https://webkit.org/"]];
+    EXPECT_WK_STREQ([webView _test_waitForAlert], "successfully receieved draining");
 }
 
 } // namespace TestWebKitAPI

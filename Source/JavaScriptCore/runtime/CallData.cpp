@@ -47,7 +47,7 @@ JSValue call(JSGlobalObject* globalObject, JSValue functionObject, JSValue thisV
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    auto callData = JSC::getCallData(functionObject);
+    auto callData = JSC::getCallDataInline(functionObject);
     if (callData.type == CallData::Type::None)
         return throwTypeError(globalObject, scope, errorMessage);
 
@@ -88,7 +88,7 @@ JSValue callMicrotask(JSGlobalObject* globalObject, JSValue functionObject, JSVa
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    auto callData = JSC::getCallData(functionObject);
+    auto callData = JSC::getCallDataInline(functionObject);
     if (callData.type == CallData::Type::None)
         return throwTypeError(globalObject, scope, errorMessage);
 

@@ -210,8 +210,8 @@ void PlatformCALayer::moveToLayerPool()
 
 LayerPool* PlatformCALayer::layerPool()
 {
-    static LayerPool* sharedPool = new LayerPool;
-    return sharedPool;
+    static NeverDestroyed<UniqueRef<LayerPool>> sharedPool = makeUniqueRef<LayerPool>();
+    return sharedPool->ptr();
 }
 
 void PlatformCALayer::clearContents()
@@ -249,7 +249,7 @@ bool PlatformCALayer::needsPlatformContext() const
     return m_owner && m_owner->platformCALayerNeedsPlatformContext(this);
 }
 
-#if ENABLE(THREADED_ANIMATION_RESOLUTION)
+#if ENABLE(THREADED_ANIMATIONS)
 void PlatformCALayer::clearAcceleratedEffectsAndBaseValues()
 {
 }

@@ -50,7 +50,7 @@ template<typename T, typename GetterType = T>
 class WrapperWithGetter : public WrapperBase {
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(WrapperWithGetter, Animation);
 public:
-    WrapperWithGetter(CSSPropertyID property, GetterType (RenderStyle::*getter)() const)
+    WrapperWithGetter(CSSPropertyID property, GetterType (RenderStyleProperties::*getter)() const)
         : WrapperBase(property)
         , m_getter(getter)
     {
@@ -76,14 +76,14 @@ public:
 #endif
 
 private:
-    GetterType (RenderStyle::*m_getter)() const;
+    GetterType (RenderStyleProperties::*m_getter)() const;
 };
 
 template<typename T, typename GetterType = T, typename SetterType = T>
 class Wrapper : public WrapperWithGetter<T, GetterType> {
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(Wrapper, Animation);
 public:
-    Wrapper(CSSPropertyID property, GetterType (RenderStyle::*getter)() const, void (RenderStyle::*setter)(SetterType))
+    Wrapper(CSSPropertyID property, GetterType (RenderStyleProperties::*getter)() const, void (RenderStyleProperties::*setter)(SetterType))
         : WrapperWithGetter<T, GetterType>(property, getter)
         , m_setter(setter)
     {
@@ -95,16 +95,16 @@ public:
     }
 
 protected:
-    void (RenderStyle::*m_setter)(SetterType);
+    void (RenderStyleProperties::*m_setter)(SetterType);
 };
 
 // Deduction guide for getter/setters that return and take values.
-template<typename T>
-Wrapper(CSSPropertyID, T (RenderStyle::*getter)() const, void (RenderStyle::*setter)(T)) -> Wrapper<T, T, T>;
+template<typename T, typename GetterRenderStyle, typename SetterRenderStyle>
+Wrapper(CSSPropertyID, T (GetterRenderStyle::*getter)() const, void (SetterRenderStyle::*setter)(T)) -> Wrapper<T, T, T>;
 
 // Deduction guide for getter/setters that return const references and take r-value references.
-template<typename T>
-Wrapper(CSSPropertyID, const T& (RenderStyle::*getter)() const, void (RenderStyle::*setter)(T&&)) -> Wrapper<T, const T&, T&&>;
+template<typename T, typename GetterRenderStyle, typename SetterRenderStyle>
+Wrapper(CSSPropertyID, const T& (GetterRenderStyle::*getter)() const, void (SetterRenderStyle::*setter)(T&&)) -> Wrapper<T, const T&, T&&>;
 
 // MARK: - Typed Wrappers
 
@@ -112,7 +112,7 @@ template<typename T, typename GetterType = T, typename SetterType = T>
 class StyleTypeWrapper : public WrapperBase {
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(StyleTypeWrapper, Animation);
 public:
-    StyleTypeWrapper(CSSPropertyID property, GetterType (RenderStyle::*getter)() const, void (RenderStyle::*setter)(SetterType))
+    StyleTypeWrapper(CSSPropertyID property, GetterType (RenderStyleProperties::*getter)() const, void (RenderStyleProperties::*setter)(SetterType))
         : WrapperBase(property)
         , m_getter(getter)
         , m_setter(setter)
@@ -154,26 +154,26 @@ private:
         return (style.*m_getter)();
     }
 
-    GetterType (RenderStyle::*m_getter)() const;
-    void (RenderStyle::*m_setter)(SetterType);
+    GetterType (RenderStyleProperties::*m_getter)() const;
+    void (RenderStyleProperties::*m_setter)(SetterType);
 };
 
 // Deduction guide for getter/setters that return and take values.
-template<typename T>
-StyleTypeWrapper(CSSPropertyID, T (RenderStyle::*getter)() const, void (RenderStyle::*setter)(T)) -> StyleTypeWrapper<T, T, T>;
+template<typename T, typename GetterRenderStyle, typename SetterRenderStyle>
+StyleTypeWrapper(CSSPropertyID, T (GetterRenderStyle::*getter)() const, void (SetterRenderStyle::*setter)(T)) -> StyleTypeWrapper<T, T, T>;
 
 // Deduction guide for getter/setters that return const references and take r-value references.
-template<typename T>
-StyleTypeWrapper(CSSPropertyID, const T& (RenderStyle::*getter)() const, void (RenderStyle::*setter)(T&&)) -> StyleTypeWrapper<T, const T&, T&&>;
+template<typename T, typename GetterRenderStyle, typename SetterRenderStyle>
+StyleTypeWrapper(CSSPropertyID, const T& (GetterRenderStyle::*getter)() const, void (SetterRenderStyle::*setter)(T&&)) -> StyleTypeWrapper<T, const T&, T&&>;
 
 // Deduction guide for getter/setters that return values and take r-value references.
-template<typename T>
-StyleTypeWrapper(CSSPropertyID, T (RenderStyle::*getter)() const, void (RenderStyle::*setter)(T&&)) -> StyleTypeWrapper<T, T, T&&>;
+template<typename T, typename GetterRenderStyle, typename SetterRenderStyle>
+StyleTypeWrapper(CSSPropertyID, T (GetterRenderStyle::*getter)() const, void (SetterRenderStyle::*setter)(T&&)) -> StyleTypeWrapper<T, T, T&&>;
 
 template<typename T> class VisitedAffectedStyleTypeWrapper : public WrapperBase {
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(VisitedAffectedStyleTypeWrapper, Animation);
 public:
-    VisitedAffectedStyleTypeWrapper(CSSPropertyID property, const T& (RenderStyle::*getter)() const, void (RenderStyle::*setter)(T&&), const T& (RenderStyle::*visitedGetter)() const, void (RenderStyle::*visitedSetter)(T&&))
+    VisitedAffectedStyleTypeWrapper(CSSPropertyID property, const T& (RenderStyleProperties::*getter)() const, void (RenderStyleProperties::*setter)(T&&), const T& (RenderStyleProperties::*visitedGetter)() const, void (RenderStyleProperties::*visitedSetter)(T&&))
         : WrapperBase(property)
         , m_wrapper(StyleTypeWrapper<T, const T&, T&&>(property, getter, setter))
         , m_visitedWrapper(StyleTypeWrapper<T, const T&, T&&>(property, visitedGetter, visitedSetter))
@@ -208,47 +208,12 @@ public:
     StyleTypeWrapper<T, const T&, T&&> m_visitedWrapper;
 };
 
-class LengthWrapper : public WrapperWithGetter<const WebCore::Length&> {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(LengthWrapper, Animation);
-public:
-    enum class Flags {
-        IsLengthPercentage          = 1 << 0,
-        NegativeLengthsAreInvalid   = 1 << 1,
-    };
-    LengthWrapper(CSSPropertyID property, const WebCore::Length& (RenderStyle::*getter)() const, void (RenderStyle::*setter)(WebCore::Length&&), OptionSet<Flags> flags = { })
-        : WrapperWithGetter(property, getter)
-        , m_setter(setter)
-        , m_flags(flags)
-    {
-    }
-
-    bool canInterpolate(const RenderStyle& from, const RenderStyle& to, CompositeOperation) const override
-    {
-        return canInterpolateLengths(value(from), value(to), m_flags.contains(Flags::IsLengthPercentage));
-    }
-
-    bool requiresInterpolationForAccumulativeIteration(const RenderStyle& from, const RenderStyle& to) const final
-    {
-        return lengthsRequireInterpolationForAccumulativeIteration(value(from), value(to));
-    }
-
-    void interpolate(RenderStyle& destination, const RenderStyle& from, const RenderStyle& to, const Context& context) const override
-    {
-        auto valueRange = m_flags.contains(Flags::NegativeLengthsAreInvalid) ? ValueRange::NonNegative : ValueRange::All;
-        (destination.*m_setter)(blendFunc(value(from), value(to), context, valueRange));
-    }
-
-private:
-    void (RenderStyle::*m_setter)(WebCore::Length&&);
-    OptionSet<Flags> m_flags;
-};
-
 // MARK: - Discrete Wrappers
 
 template<typename T, typename GetterType = T, typename SetterType = T> class DiscreteWrapper : public WrapperWithGetter<T, GetterType> {
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(DiscreteWrapper, Animation);
 public:
-    DiscreteWrapper(CSSPropertyID property, GetterType (RenderStyle::*getter)() const, void (RenderStyle::*setter)(SetterType))
+    DiscreteWrapper(CSSPropertyID property, GetterType (RenderStyleProperties::*getter)() const, void (RenderStyleProperties::*setter)(SetterType))
         : WrapperWithGetter<T, GetterType>(property, getter)
         , m_setter(setter)
     {
@@ -266,26 +231,26 @@ public:
     }
 
 private:
-    void (RenderStyle::*m_setter)(SetterType);
+    void (RenderStyleProperties::*m_setter)(SetterType);
 };
 
 // Deduction guide for getter/setters that return and take values.
-template<typename T>
-DiscreteWrapper(CSSPropertyID, T (RenderStyle::*getter)() const, void (RenderStyle::*setter)(T)) -> DiscreteWrapper<T, T, T>;
+template<typename T, typename GetterRenderStyle, typename SetterRenderStyle>
+DiscreteWrapper(CSSPropertyID, T (GetterRenderStyle::*getter)() const, void (SetterRenderStyle::*setter)(T)) -> DiscreteWrapper<T, T, T>;
 
 // Deduction guide for getter/setters that return const references and take r-value references.
-template<typename T>
-DiscreteWrapper(CSSPropertyID, const T& (RenderStyle::*getter)() const, void (RenderStyle::*setter)(T&&)) -> DiscreteWrapper<T, const T&, T&&>;
+template<typename T, typename GetterRenderStyle, typename SetterRenderStyle>
+DiscreteWrapper(CSSPropertyID, const T& (GetterRenderStyle::*getter)() const, void (SetterRenderStyle::*setter)(T&&)) -> DiscreteWrapper<T, const T&, T&&>;
 
 // Deduction guide for getter/setters that return values and take r-value references.
-template<typename T>
-DiscreteWrapper(CSSPropertyID, T (RenderStyle::*getter)() const, void (RenderStyle::*setter)(T&&)) -> DiscreteWrapper<T, T, T&&>;
+template<typename T, typename GetterRenderStyle, typename SetterRenderStyle>
+DiscreteWrapper(CSSPropertyID, T (GetterRenderStyle::*getter)() const, void (SetterRenderStyle::*setter)(T&&)) -> DiscreteWrapper<T, T, T&&>;
 
 template<typename T>
 class NonNormalizedDiscreteWrapper final : public Wrapper<T> {
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(NonNormalizedDiscreteWrapper, Animation);
 public:
-    NonNormalizedDiscreteWrapper(CSSPropertyID property, T (RenderStyle::*getter)() const, void (RenderStyle::*setter)(T))
+    NonNormalizedDiscreteWrapper(CSSPropertyID property, T (RenderStyleProperties::*getter)() const, void (RenderStyleProperties::*setter)(T))
         : Wrapper<T>(property, getter, setter)
     {
     }
@@ -302,7 +267,7 @@ class FontSizeWrapper final : public Wrapper<float> {
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(FontSizeWrapper, Animation);
 public:
     FontSizeWrapper()
-        : Wrapper<float>(CSSPropertyID::CSSPropertyFontSize, &RenderStyle::computedFontSize, &RenderStyle::setFontSize)
+        : Wrapper<float>(CSSPropertyID::CSSPropertyFontSize, &RenderStyleProperties::computedFontSize, &RenderStyleProperties::setFontSize)
     {
     }
 
@@ -312,179 +277,12 @@ public:
     }
 };
 
-class DiscreteFontDescriptionWrapper : public WrapperBase {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(DiscreteFontDescriptionWrapper, Animation);
-public:
-    DiscreteFontDescriptionWrapper(CSSPropertyID property)
-        : WrapperBase(property)
-    {
-    }
-
-    bool equals(const RenderStyle& a, const RenderStyle& b) const override
-    {
-        return propertiesInFontDescriptionAreEqual(a.fontDescription(), b.fontDescription());
-    }
-
-    bool canInterpolate(const RenderStyle&, const RenderStyle&, CompositeOperation) const override
-    {
-        return false;
-    }
-
-    void interpolate(RenderStyle& destination, const RenderStyle& from, const RenderStyle& to, const Context& context) const override
-    {
-        ASSERT(!context.progress || context.progress == 1.0);
-        auto destinationDescription = destination.fontDescription();
-        auto& sourceDescription = (context.progress ? to : from).fontDescription();
-        setPropertiesInFontDescription(sourceDescription, destinationDescription);
-        destination.setFontDescription(WTFMove(destinationDescription));
-    }
-
-#if !LOG_DISABLED
-    void log(const RenderStyle&, const RenderStyle&, const RenderStyle&, double) const override
-    {
-    }
-#endif
-
-protected:
-    virtual bool propertiesInFontDescriptionAreEqual(const FontCascadeDescription&, const FontCascadeDescription&) const { return false; }
-    virtual void setPropertiesInFontDescription(const FontCascadeDescription&, FontCascadeDescription&) const { }
-};
-
-template<typename T>
-class DiscreteFontDescriptionTypedWrapper final : public DiscreteFontDescriptionWrapper {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(DiscreteFontDescriptionTypedWrapper, Animation);
-public:
-    DiscreteFontDescriptionTypedWrapper(CSSPropertyID property, T (FontCascadeDescription::*getter)() const, void (FontCascadeDescription::*setter)(T))
-        : DiscreteFontDescriptionWrapper(property)
-        , m_getter(getter)
-        , m_setter(setter)
-    {
-    }
-
-private:
-    bool propertiesInFontDescriptionAreEqual(const FontCascadeDescription& a, const FontCascadeDescription& b) const override
-    {
-        return this->value(a) == this->value(b);
-    }
-
-    void setPropertiesInFontDescription(const FontCascadeDescription& source, FontCascadeDescription& destination) const override
-    {
-        (destination.*this->m_setter)(this->value(source));
-    }
-
-    T value(const FontCascadeDescription& description) const
-    {
-        return (description.*this->m_getter)();
-    }
-
-    T (FontCascadeDescription::*m_getter)() const;
-    void (FontCascadeDescription::*m_setter)(T);
-};
-
-class FontVariantEastAsianWrapper final : public DiscreteFontDescriptionWrapper {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(FontVariantEastAsianWrapper, Animation);
-public:
-    FontVariantEastAsianWrapper()
-        : DiscreteFontDescriptionWrapper(CSSPropertyFontVariantEastAsian)
-    {
-    }
-
-private:
-    bool propertiesInFontDescriptionAreEqual(const FontCascadeDescription& a, const FontCascadeDescription& b) const override
-    {
-        return a.variantEastAsianVariant() == b.variantEastAsianVariant()
-            && a.variantEastAsianWidth() == b.variantEastAsianWidth()
-            && a.variantEastAsianRuby() == b.variantEastAsianRuby();
-    }
-
-    void setPropertiesInFontDescription(const FontCascadeDescription& source, FontCascadeDescription& destination) const override
-    {
-        destination.setVariantEastAsianVariant(source.variantEastAsianVariant());
-        destination.setVariantEastAsianWidth(source.variantEastAsianWidth());
-        destination.setVariantEastAsianRuby(source.variantEastAsianRuby());
-    }
-};
-
-class FontVariantLigaturesWrapper final : public DiscreteFontDescriptionWrapper {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(FontVariantLigaturesWrapper, Animation);
-public:
-    FontVariantLigaturesWrapper()
-        : DiscreteFontDescriptionWrapper(CSSPropertyFontVariantLigatures)
-    {
-    }
-
-private:
-    bool propertiesInFontDescriptionAreEqual(const FontCascadeDescription& a, const FontCascadeDescription& b) const override
-    {
-        return a.variantCommonLigatures() == b.variantCommonLigatures()
-            && a.variantDiscretionaryLigatures() == b.variantDiscretionaryLigatures()
-            && a.variantHistoricalLigatures() == b.variantHistoricalLigatures()
-            && a.variantContextualAlternates() == b.variantContextualAlternates();
-    }
-
-    void setPropertiesInFontDescription(const FontCascadeDescription& source, FontCascadeDescription& destination) const override
-    {
-        destination.setVariantCommonLigatures(source.variantCommonLigatures());
-        destination.setVariantDiscretionaryLigatures(source.variantDiscretionaryLigatures());
-        destination.setVariantHistoricalLigatures(source.variantHistoricalLigatures());
-        destination.setVariantContextualAlternates(source.variantContextualAlternates());
-    }
-};
-
-class FontFamilyWrapper final : public DiscreteFontDescriptionWrapper {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(FontFamilyWrapper, Animation);
-public:
-    FontFamilyWrapper()
-        : DiscreteFontDescriptionWrapper(CSSPropertyFontFamily)
-    {
-    }
-
-private:
-    bool propertiesInFontDescriptionAreEqual(const FontCascadeDescription& a, const FontCascadeDescription& b) const override
-    {
-        return a.families() == b.families();
-    }
-
-    void setPropertiesInFontDescription(const FontCascadeDescription& source, FontCascadeDescription& destination) const override
-    {
-        destination.setFamilies(source.families());
-    }
-};
-
-class FontVariantNumericWrapper final : public DiscreteFontDescriptionWrapper {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(FontVariantNumericWrapper, Animation);
-public:
-    FontVariantNumericWrapper()
-        : DiscreteFontDescriptionWrapper(CSSPropertyFontVariantNumeric)
-    {
-    }
-
-private:
-    bool propertiesInFontDescriptionAreEqual(const FontCascadeDescription& a, const FontCascadeDescription& b) const override
-    {
-        return a.variantNumericFigure() == b.variantNumericFigure()
-            && a.variantNumericSpacing() == b.variantNumericSpacing()
-            && a.variantNumericFraction() == b.variantNumericFraction()
-            && a.variantNumericOrdinal() == b.variantNumericOrdinal()
-            && a.variantNumericSlashedZero() == b.variantNumericSlashedZero();
-    }
-
-    void setPropertiesInFontDescription(const FontCascadeDescription& source, FontCascadeDescription& destination) const override
-    {
-        destination.setVariantNumericFigure(source.variantNumericFigure());
-        destination.setVariantNumericSpacing(source.variantNumericSpacing());
-        destination.setVariantNumericFraction(source.variantNumericFraction());
-        destination.setVariantNumericOrdinal(source.variantNumericOrdinal());
-        destination.setVariantNumericSlashedZero(source.variantNumericSlashedZero());
-    }
-};
-
 // MARK: - Color Property Wrappers
 
 class ColorWrapper final : public WrapperWithGetter<const WebCore::Color&> {
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(ColorWrapper, Animation);
 public:
-    ColorWrapper(CSSPropertyID property, const WebCore::Color& (RenderStyle::*getter)() const, void (RenderStyle::*setter)(WebCore::Color&&))
+    ColorWrapper(CSSPropertyID property, const WebCore::Color& (RenderStyleProperties::*getter)() const, void (RenderStyleProperties::*setter)(WebCore::Color&&))
         : WrapperWithGetter<const WebCore::Color&>(property, getter)
         , m_setter(setter)
     {
@@ -496,13 +294,13 @@ public:
     }
 
 private:
-    void (RenderStyle::*m_setter)(WebCore::Color&&);
+    void (RenderStyleProperties::*m_setter)(WebCore::Color&&);
 };
 
 class VisitedAffectedColorWrapper final : public WrapperBase {
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(VisitedAffectedColorWrapper, Animation);
 public:
-    VisitedAffectedColorWrapper(CSSPropertyID property, const WebCore::Color& (RenderStyle::*getter)() const, void (RenderStyle::*setter)(WebCore::Color&&), const WebCore::Color& (RenderStyle::*visitedGetter)() const, void (RenderStyle::*visitedSetter)(WebCore::Color&&))
+    VisitedAffectedColorWrapper(CSSPropertyID property, const WebCore::Color& (RenderStyleProperties::*getter)() const, void (RenderStyleProperties::*setter)(WebCore::Color&&), const WebCore::Color& (RenderStyleProperties::*visitedGetter)() const, void (RenderStyleProperties::*visitedSetter)(WebCore::Color&&))
         : WrapperBase(property)
         , m_wrapper(ColorWrapper(property, getter, setter))
         , m_visitedWrapper(ColorWrapper(property, visitedGetter, visitedSetter))
@@ -541,7 +339,7 @@ class CaretColorWrapper final : public VisitedAffectedStyleTypeWrapper<Color> {
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(CaretColorWrapper, Animation);
 public:
     CaretColorWrapper()
-        : VisitedAffectedStyleTypeWrapper<Color>(CSSPropertyCaretColor, &RenderStyle::caretColor, &RenderStyle::setCaretColor, &RenderStyle::visitedLinkCaretColor, &RenderStyle::setVisitedLinkCaretColor)
+        : VisitedAffectedStyleTypeWrapper<Color>(CSSPropertyCaretColor, &RenderStyleProperties::caretColor, &RenderStyleProperties::setCaretColor, &RenderStyleProperties::visitedLinkCaretColor, &RenderStyleProperties::setVisitedLinkCaretColor)
     {
     }
 
@@ -670,7 +468,7 @@ class VisibilityWrapper final : public Wrapper<Visibility> {
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(VisibilityWrapper, Animation);
 public:
     VisibilityWrapper()
-        : Wrapper(CSSPropertyVisibility, &RenderStyle::visibility, &RenderStyle::setVisibility)
+        : Wrapper(CSSPropertyVisibility, &RenderStyleProperties::visibility, &RenderStyleProperties::setVisibility)
     {
     }
 
@@ -682,149 +480,149 @@ public:
     }
 };
 
-// MARK: - FillLayer Wrappers
+// MARK: - CoordinatedValueList Wrappers
 
-// Wrapper base class for an animatable property in a FillLayer
-template<typename FillLayerType>
-class FillLayerWrapperBase {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(FillLayerWrapperBase, Animation);
+// Wrapper base class for an animatable property in a CoordinatedValueList
+template<typename CoordinatedValueListValueType>
+class CoordinatedValueListPropertyWrapperBase {
+    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(CoordinatedValueListPropertyWrapperBase, Animation);
 public:
-    FillLayerWrapperBase(CSSPropertyID property)
+    CoordinatedValueListPropertyWrapperBase(CSSPropertyID property)
         : m_property(property)
     {
     }
-    virtual ~FillLayerWrapperBase() = default;
+    virtual ~CoordinatedValueListPropertyWrapperBase() = default;
 
     CSSPropertyID property() const { return m_property; }
 
-    virtual bool equals(const FillLayerType&, const FillLayerType&) const = 0;
-    virtual void interpolate(FillLayerType&, const FillLayerType&, const FillLayerType&, const Context&) const = 0;
-    virtual bool canInterpolate(const FillLayerType&, const FillLayerType&) const { return true; }
+    virtual bool equals(const CoordinatedValueListValueType&, const CoordinatedValueListValueType&) const = 0;
+    virtual void interpolate(CoordinatedValueListValueType&, const CoordinatedValueListValueType&, const CoordinatedValueListValueType&, const Context&) const = 0;
+    virtual bool canInterpolate(const CoordinatedValueListValueType&, const CoordinatedValueListValueType&) const { return true; }
 #if !LOG_DISABLED
-    virtual void log(const FillLayerType& destination, const FillLayerType&, const FillLayerType&, double) const = 0;
+    virtual void log(const CoordinatedValueListValueType& destination, const CoordinatedValueListValueType&, const CoordinatedValueListValueType&, double) const = 0;
 #endif
 
 private:
     CSSPropertyID m_property;
 };
 
-template<typename StyleType, typename FillLayerType>
-class FillLayerStyleTypeWrapper final : public FillLayerWrapperBase<FillLayerType> {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(FillLayerStyleTypeWrapper, Animation);
+template<typename StyleType, typename CoordinatedValueListValueType>
+class CoordinatedValueListPropertyStyleTypeWrapper final : public CoordinatedValueListPropertyWrapperBase<CoordinatedValueListValueType> {
+    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(CoordinatedValueListPropertyStyleTypeWrapper, Animation);
 public:
-    FillLayerStyleTypeWrapper(CSSPropertyID property, const StyleType& (FillLayerType::*getter)() const, void (FillLayerType::*setter)(StyleType&&))
-        : FillLayerWrapperBase<FillLayerType>(property)
+    CoordinatedValueListPropertyStyleTypeWrapper(CSSPropertyID property, const StyleType& (CoordinatedValueListValueType::*getter)() const, void (CoordinatedValueListValueType::*setter)(StyleType&&))
+        : CoordinatedValueListPropertyWrapperBase<CoordinatedValueListValueType>(property)
         , m_getter(getter)
         , m_setter(setter)
     {
     }
 
-    bool equals(const FillLayerType& from, const FillLayerType& to) const override
+    bool equals(const CoordinatedValueListValueType& from, const CoordinatedValueListValueType& to) const override
     {
         if (&from == &to)
             return true;
         return Style::equalsForBlending(value(from), value(to));
     }
 
-    bool canInterpolate(const FillLayerType& from, const FillLayerType& to) const override final
+    bool canInterpolate(const CoordinatedValueListValueType& from, const CoordinatedValueListValueType& to) const override final
     {
         return Style::canBlend(value(from), value(to));
     }
 
-    void interpolate(FillLayerType& destination, const FillLayerType& from, const FillLayerType& to, const Context& context) const override final
+    void interpolate(CoordinatedValueListValueType& destination, const CoordinatedValueListValueType& from, const CoordinatedValueListValueType& to, const Context& context) const override final
     {
         (destination.*m_setter)(Style::blend(value(from), value(to), context));
     }
 
 #if !LOG_DISABLED
-    void log(const FillLayerType& destination, const FillLayerType& from, const FillLayerType& to, double progress) const override final
+    void log(const CoordinatedValueListValueType& destination, const CoordinatedValueListValueType& from, const CoordinatedValueListValueType& to, double progress) const override final
     {
         LOG_WITH_STREAM(Animations, stream << "  blending " << this->property() << " from " << value(from) << " to " << value(to) << " at " << TextStream::FormatNumberRespectingIntegers(progress) << " -> " << value(destination));
     }
 #endif
 
 private:
-    const StyleType& value(const FillLayerType& layer) const
+    const StyleType& value(const CoordinatedValueListValueType& value) const
     {
-        return (layer.*m_getter)();
+        return (value.*m_getter)();
     }
 
-    const StyleType& (FillLayerType::*m_getter)() const;
-    void (FillLayerType::*m_setter)(StyleType&&);
+    const StyleType& (CoordinatedValueListValueType::*m_getter)() const;
+    void (CoordinatedValueListValueType::*m_setter)(StyleType&&);
 };
 
-template<typename T, typename FillLayerType, typename GetterType = T, typename SetterType = T>
-class DiscreteFillLayerWrapper final : public FillLayerWrapperBase<FillLayerType> {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(DiscreteFillLayerWrapper, Animation);
+template<typename T, typename CoordinatedValueListValueType, typename GetterType = T, typename SetterType = T>
+class DiscreteCoordinatedValueListPropertyWrapper final : public CoordinatedValueListPropertyWrapperBase<CoordinatedValueListValueType> {
+    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(DiscreteCoordinatedValueListPropertyWrapper, Animation);
 public:
-    DiscreteFillLayerWrapper(CSSPropertyID property, GetterType (FillLayerType::*getter)() const, void (FillLayerType::*setter)(SetterType))
-        : FillLayerWrapperBase<FillLayerType>(property)
+    DiscreteCoordinatedValueListPropertyWrapper(CSSPropertyID property, GetterType (CoordinatedValueListValueType::*getter)() const, void (CoordinatedValueListValueType::*setter)(SetterType))
+        : CoordinatedValueListPropertyWrapperBase<CoordinatedValueListValueType>(property)
         , m_getter(getter)
         , m_setter(setter)
     {
     }
 
-    bool equals(const FillLayerType& a, const FillLayerType& b) const final
+    bool equals(const CoordinatedValueListValueType& a, const CoordinatedValueListValueType& b) const final
     {
         return value(a) == value(b);
     }
 
-    bool canInterpolate(const FillLayerType&, const FillLayerType&) const final
+    bool canInterpolate(const CoordinatedValueListValueType&, const CoordinatedValueListValueType&) const final
     {
         return false;
     }
 
-    void interpolate(FillLayerType& destination, const FillLayerType& from, const FillLayerType& to, const Context& context) const final
+    void interpolate(CoordinatedValueListValueType& destination, const CoordinatedValueListValueType& from, const CoordinatedValueListValueType& to, const Context& context) const final
     {
         ASSERT(!context.progress || context.progress == 1.0);
         (destination.*m_setter)(T { context.progress ? value(to) : value(from) });
     }
 
 #if !LOG_DISABLED
-    void log(const FillLayerType& destination, const FillLayerType& from, const FillLayerType& to, double progress) const final
+    void log(const CoordinatedValueListValueType& destination, const CoordinatedValueListValueType& from, const CoordinatedValueListValueType& to, double progress) const final
     {
         LOG_WITH_STREAM(Animations, stream << "  blending " << this->property() << " from " << value(from) << " to " << value(to) << " at " << TextStream::FormatNumberRespectingIntegers(progress) << " -> " << value(destination));
     }
 #endif
 
 private:
-    GetterType value(const FillLayerType& fillLayer) const
+    GetterType value(const CoordinatedValueListValueType& list) const
     {
-        return (fillLayer.*m_getter)();
+        return (list.*m_getter)();
     }
 
-    GetterType (FillLayerType::*m_getter)() const;
-    void (FillLayerType::*m_setter)(SetterType);
+    GetterType (CoordinatedValueListValueType::*m_getter)() const;
+    void (CoordinatedValueListValueType::*m_setter)(SetterType);
 };
 
 // Deduction guide for getter/setters that return and take values.
-template<typename T, typename FillLayerType>
-DiscreteFillLayerWrapper(CSSPropertyID, T (FillLayerType::*getter)() const, void (FillLayerType::*setter)(T)) -> DiscreteFillLayerWrapper<T, FillLayerType, T, T>;
+template<typename T, typename CoordinatedValueListValueType>
+DiscreteCoordinatedValueListPropertyWrapper(CSSPropertyID, T (CoordinatedValueListValueType::*getter)() const, void (CoordinatedValueListValueType::*setter)(T)) -> DiscreteCoordinatedValueListPropertyWrapper<T, CoordinatedValueListValueType, T, T>;
 
 // Deduction guide for getter/setters that return const references and take r-value references.
-template<typename T, typename FillLayerType>
-DiscreteFillLayerWrapper(CSSPropertyID, const T& (FillLayerType::*getter)() const, void (FillLayerType::*setter)(T&&)) -> DiscreteFillLayerWrapper<T, FillLayerType, const T&, T&&>;
+template<typename T, typename CoordinatedValueListValueType>
+DiscreteCoordinatedValueListPropertyWrapper(CSSPropertyID, const T& (CoordinatedValueListValueType::*getter)() const, void (CoordinatedValueListValueType::*setter)(T&&)) -> DiscreteCoordinatedValueListPropertyWrapper<T, CoordinatedValueListValueType, const T&, T&&>;
 
 // Deduction guide for getter/setters that return values and take r-value references.
-template<typename T, typename FillLayerType>
-DiscreteFillLayerWrapper(CSSPropertyID, T (FillLayerType::*getter)() const, void (FillLayerType::*setter)(T&&)) -> DiscreteFillLayerWrapper<T, FillLayerType, T, T&&>;
+template<typename T, typename CoordinatedValueListValueType>
+DiscreteCoordinatedValueListPropertyWrapper(CSSPropertyID, T (CoordinatedValueListValueType::*getter)() const, void (CoordinatedValueListValueType::*setter)(T&&)) -> DiscreteCoordinatedValueListPropertyWrapper<T, CoordinatedValueListValueType, T, T&&>;
 
 template<typename T, typename RepeatedValueWrapper>
-class FillLayersWrapper final : public WrapperBase {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(FillLayersWrapper, Animation);
+class CoordinatedValueListPropertyWrapper final : public WrapperBase {
+    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(CoordinatedValueListPropertyWrapper, Animation);
 public:
-    using Layers = T;
-    using Layer = typename Layers::Layer;
+    using List = T;
+    using CoordinatedValueListValueType = typename List::value_type;
 
-    using LayersGetter = const Layers& (RenderStyle::*)() const;
-    using LayersAccessor = Layers& (RenderStyle::*)();
-    using LayersSetter = void (RenderStyle::*)(Layers&&);
+    using ListGetter = const List& (RenderStyleBase::*)() const;
+    using ListAccessor = List& (RenderStyleBase::*)();
+    using ListSetter = void (RenderStyleBase::*)(List&&);
 
-    FillLayersWrapper(CSSPropertyID property, LayersGetter getter, LayersAccessor accessor, LayersSetter setter, RepeatedValueWrapper repeatedValueWrapper)
+    CoordinatedValueListPropertyWrapper(CSSPropertyID property, ListGetter getter, ListAccessor accessor, ListSetter setter, RepeatedValueWrapper repeatedValueWrapper)
         : WrapperBase(property)
-        , m_layersGetter(getter)
-        , m_layersAccessor(accessor)
-        , m_layersSetter(setter)
+        , m_listGetter(getter)
+        , m_listAccessor(accessor)
+        , m_listSetter(setter)
         , m_repeatedValueWrapper(repeatedValueWrapper)
     {
     }
@@ -834,18 +632,18 @@ public:
         if (&from == &to)
             return true;
 
-        auto& fromLayers = (from.*m_layersGetter)();
-        auto& toLayers = (to.*m_layersGetter)();
+        auto& fromList = (from.*m_listGetter)();
+        auto& toList = (to.*m_listGetter)();
 
-        auto numberOfFromLayers = fromLayers.size();
-        auto numberOfToLayers = toLayers.size();
-        auto numberOfLayers = std::min(numberOfFromLayers, numberOfToLayers);
+        auto numberOfFromValues = fromList.computedLength();
+        auto numberOfToValues = toList.computedLength();
+        auto numberOfValues = std::min(numberOfFromValues, numberOfToValues);
 
-        for (size_t i = 0; i < numberOfLayers; ++i) {
-            auto& fromLayer = fromLayers[i];
-            auto& toLayer = toLayers[i];
+        for (size_t i = 0; i < numberOfValues; ++i) {
+            auto& fromValue = fromList[i];
+            auto& toValue = toList[i];
 
-            if (!m_repeatedValueWrapper.equals(fromLayer, toLayer))
+            if (!m_repeatedValueWrapper.equals(fromValue, toValue))
                 return false;
         }
 
@@ -854,21 +652,23 @@ public:
 
     bool canInterpolate(const RenderStyle& from, const RenderStyle& to, CompositeOperation) const final
     {
-        auto& fromLayers = (from.*m_layersGetter)();
-        auto& toLayers = (to.*m_layersGetter)();
+        auto& fromList = (from.*m_listGetter)();
+        auto& toList = (to.*m_listGetter)();
 
-        auto numberOfFromLayers = fromLayers.size();
-        auto numberOfToLayers = toLayers.size();
-        auto numberOfLayers = std::min(numberOfFromLayers, numberOfToLayers);
+        auto numberOfFromValues = fromList.computedLength();
+        auto numberOfToValues = toList.computedLength();
+        auto numberOfValues = std::min(numberOfFromValues, numberOfToValues);
 
-        for (size_t i = 0; i < numberOfLayers; ++i) {
-            auto& fromLayer = fromLayers[i];
-            auto& toLayer = toLayers[i];
+        for (size_t i = 0; i < numberOfValues; ++i) {
+            auto& fromValue = fromList[i];
+            auto& toValue = toList[i];
 
-            if (!fromLayer.size().hasSameType(toLayer.size()))
+            // First check if the owner values allow interpolation.
+            if (!Style::canBlend(fromValue, toValue))
                 return false;
 
-            if (!m_repeatedValueWrapper.canInterpolate(fromLayer, toLayer))
+            // Then check if the individual property values allow interpolation.
+            if (!m_repeatedValueWrapper.canInterpolate(fromValue, toValue))
                 return false;
         }
 
@@ -877,59 +677,53 @@ public:
 
     void interpolate(RenderStyle& destination, const RenderStyle& from, const RenderStyle& to, const Context& context) const final
     {
-        auto* fromLayers = &(from.*m_layersGetter)();
-        auto* toLayers = &(to.*m_layersGetter)();
-        auto& destinationLayers = (destination.*m_layersAccessor)();
+        auto* fromList = &(from.*m_listGetter)();
+        auto* toList = &(to.*m_listGetter)();
+        auto& destinationList = (destination.*m_listAccessor)();
 
         if (context.isDiscrete) {
             ASSERT(!context.progress || context.progress == 1.0);
-            auto* layers = context.progress ? toLayers : fromLayers;
-            fromLayers = layers;
-            toLayers = layers;
+            auto* list = context.progress ? toList : fromList;
+            fromList = list;
+            toList = list;
         }
 
-        auto numberOfFromLayers = fromLayers->size();
-        auto numberOfToLayers = toLayers->size();
-        auto numberOfDestinationLayers = destinationLayers.size();
-        auto numberOfLayers = std::min(numberOfFromLayers, numberOfToLayers);
+        auto numberOfFromValues = fromList->computedLength();
+        auto numberOfToValues = toList->computedLength();
+        auto numberOfDestinationValues = destinationList.computedLength();
+        auto numberOfValues = std::min(numberOfFromValues, numberOfToValues);
 
-        if (numberOfLayers > numberOfDestinationLayers) {
-            (destination.*m_layersSetter)(
-                Layers {
-                    Layers::Container::createWithSizeFromGenerator(numberOfLayers, [&](const auto& i) {
-                        auto destinationLayer = destinationLayers[i % numberOfDestinationLayers];
-                        m_repeatedValueWrapper.interpolate(destinationLayer, (*fromLayers)[i], (*toLayers)[i], context);
-                        return destinationLayer;
-                    })
-                }
-            );
-        } else {
-            for (size_t i = 0; i < numberOfLayers; ++i)
-                m_repeatedValueWrapper.interpolate(destinationLayers[i], (*fromLayers)[i], (*toLayers)[i], context);
+        for (size_t i = 0; i < numberOfValues; ++i) {
+            if (i >= numberOfDestinationValues)
+                destinationList.append(typename List::value_type { });
+
+            m_repeatedValueWrapper.interpolate(destinationList[i], (*fromList)[i], (*toList)[i], context);
         }
+
+        destinationList.prepareForUse();
     }
 
 #if !LOG_DISABLED
     void log(const RenderStyle& from, const RenderStyle& to, const RenderStyle& destination, double progress) const final
     {
-        auto& fromLayers = (from.*m_layersGetter)();
-        auto& toLayers = (to.*m_layersGetter)();
-        auto& destinationLayers = (destination.*m_layersGetter)();
+        auto& fromList = (from.*m_listGetter)();
+        auto& toList = (to.*m_listGetter)();
+        auto& destinationList = (destination.*m_listGetter)();
 
-        auto numberOfFromLayers = fromLayers.size();
-        auto numberOfToLayers = toLayers.size();
-        auto numberOfDestinationLayers = destinationLayers.size();
-        auto numberOfLayers = std::min({numberOfFromLayers, numberOfToLayers, numberOfDestinationLayers});
+        auto numberOfFromValues = fromList.computedLength();
+        auto numberOfToValues = toList.computedLength();
+        auto numberOfDestinationValues = destinationList.computedLength();
+        auto numberOfValues = std::min({numberOfFromValues, numberOfToValues, numberOfDestinationValues});
 
-        for (size_t i = 0; i < numberOfLayers; ++i)
-            m_repeatedValueWrapper.log(destinationLayers[i], fromLayers[i], toLayers[i], progress);
+        for (size_t i = 0; i < numberOfValues; ++i)
+            m_repeatedValueWrapper.log(destinationList[i], fromList[i], toList[i], progress);
     }
 #endif
 
 private:
-    LayersGetter m_layersGetter;
-    LayersAccessor m_layersAccessor;
-    LayersSetter m_layersSetter;
+    ListGetter m_listGetter;
+    ListAccessor m_listAccessor;
+    ListSetter m_listSetter;
     RepeatedValueWrapper m_repeatedValueWrapper;
 };
 

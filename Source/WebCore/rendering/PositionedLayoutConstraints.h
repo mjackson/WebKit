@@ -75,10 +75,11 @@ public:
     Style::MarginEdge marginAfter() const { return m_marginAfter; }
     Style::InsetEdge insetBefore() const { return m_insetBefore; }
     Style::InsetEdge insetAfter() const { return m_insetAfter; }
-    LayoutUnit marginBeforeValue() const { return Style::evaluateMinimum<LayoutUnit>(m_marginBefore, m_containingInlineSize, Style::ZoomNeeded { }); }
-    LayoutUnit marginAfterValue() const { return Style::evaluateMinimum<LayoutUnit>(m_marginAfter, m_containingInlineSize, Style::ZoomNeeded { }); }
-    LayoutUnit insetBeforeValue() const { return Style::evaluateMinimum<LayoutUnit>(m_insetBefore, containingSize(), Style::ZoomNeeded { }); }
-    LayoutUnit insetAfterValue() const { return Style::evaluateMinimum<LayoutUnit>(m_insetAfter, containingSize(), Style::ZoomNeeded { }); }
+    LayoutUnit marginBeforeValue() const { return Style::evaluateMinimum<LayoutUnit>(m_marginBefore, m_containingInlineSize, m_style.usedZoomForLength()); }
+    LayoutUnit marginAfterValue() const { return Style::evaluateMinimum<LayoutUnit>(m_marginAfter, m_containingInlineSize, m_style.usedZoomForLength()); }
+    LayoutUnit insetBeforeValue() const { return Style::evaluateMinimum<LayoutUnit>(m_insetBefore, containingSize(), m_style.usedZoomForLength()); }
+    LayoutUnit insetAfterValue() const { return Style::evaluateMinimum<LayoutUnit>(m_insetAfter, containingSize(), m_style.usedZoomForLength()); }
+    bool insetFitsContent() const; // One or both insets are auto for sizing purposes.
 
     LayoutUnit insetModifiedContainingSize() const { return m_insetModifiedContainingRange.size(); }
     LayoutRange insetModifiedContainingRange() const { return m_insetModifiedContainingRange; }
@@ -94,13 +95,14 @@ private:
     bool containingCoordsAreFlipped() const;
 
     void captureInsets();
-    void captureScrollableArea();
     void captureGridArea();
     void captureAnchorGeometry();
+    void expandToScrollableArea(LayoutRange&, const std::optional<ScrollPosition> fromScrollPosition = { }) const;
     LayoutRange adjustForPositionArea(const LayoutRange rangeToAdjust, const LayoutRange anchorArea, const BoxAxis containerAxis);
+    std::pair<bool, bool> containerAllowsInfiniteOverflow() const;
 
     bool needsGridAreaAdjustmentBeforeStaticPositioning() const;
-    bool isEligibleForStaticRangeAlignment(LayoutUnit spaceInStaticRange, LayoutUnit itemSize) const;
+    std::optional<LayoutUnit> remainingSpaceForStaticAlignment(LayoutUnit itemSize) const;
     void computeStaticPosition();
     void computeInlineStaticDistance();
     void computeBlockStaticDistance();

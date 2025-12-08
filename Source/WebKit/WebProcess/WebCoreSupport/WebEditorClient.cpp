@@ -456,6 +456,9 @@ void WebEditorClient::textDidChangeInTextField(Element& element)
 
     if (RefPtr page = m_page.get())
         page->injectedBundleFormClient().textDidChangeInTextField(page.get(), *inputElement, webFrame.get(), initiatedByUserTyping);
+
+    if (initiatedByUserTyping)
+        inputElement->dispatchUserTextInputEvent();
 }
 
 void WebEditorClient::textDidChangeInTextArea(Element& element)
@@ -469,6 +472,9 @@ void WebEditorClient::textDidChangeInTextArea(Element& element)
 
     if (RefPtr page = m_page.get())
         page->injectedBundleFormClient().textDidChangeInTextArea(page.get(), *textAreaElement, webFrame.get());
+
+    if (UserTypingGestureIndicator::processingUserTypingGesture())
+        textAreaElement->dispatchUserTextInputEvent();
 }
 
 #if !PLATFORM(IOS_FAMILY)
@@ -673,6 +679,17 @@ void WebEditorClient::requestCheckingOfString(TextCheckingRequest& request, cons
     page->addTextCheckingRequest(requestID, request);
 
     page->send(Messages::WebPageProxy::RequestCheckingOfString(requestID, request.data(), insertionPointFromCurrentSelection(currentSelection)));
+}
+
+void WebEditorClient::requestExtendedCheckingOfString(TextCheckingRequest& request, const WebCore::VisibleSelection& currentSelection)
+{
+    auto requestID = TextCheckerRequestID::generate();
+    RefPtr page = m_page.get();
+    if (!page)
+        return;
+    page->addTextCheckingRequest(requestID, request);
+
+    page->send(Messages::WebPageProxy::RequestExtendedCheckingOfString(requestID, request.data(), insertionPointFromCurrentSelection(currentSelection)));
 }
 
 void WebEditorClient::willChangeSelectionForAccessibility()

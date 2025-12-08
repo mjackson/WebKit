@@ -23,13 +23,16 @@
 
 #pragma once
 
+#include <WebCore/CSSPrimitiveNumeric.h>
 #include <WebCore/FontBaseline.h>
+#include <WebCore/LayoutRange.h>
 #include <WebCore/LocalFrameView.h>
 #include <WebCore/RenderBoxModelObject.h>
 #include <WebCore/RenderOverflow.h>
 #include <WebCore/ScrollSnapOffsetsInfo.h>
 #include <WebCore/ScrollTypes.h>
 #include <WebCore/ShapeOutsideInfo.h>
+#include <WebCore/StyleUnevaluatedCalculation.h>
 #include <wtf/TypeCasts.h>
 
 namespace WebCore {
@@ -131,7 +134,6 @@ public:
 
     // Bounds of the outline box in absolute coords. Respects transforms
     LayoutRect outlineBoundsForRepaint(const RenderLayerModelObject* /*repaintContainer*/, const RenderGeometryMap* = nullptr) const final;
-    void addFocusRingRects(Vector<LayoutRect>&, const LayoutPoint& additionalOffset, const RenderLayerModelObject* paintContainer = nullptr) const override;
     
     FloatRect repaintRectInLocalCoordinates(RepaintRectCalculation = RepaintRectCalculation::Fast) const override { return borderBoxRect(); }
     FloatRect objectBoundingBox() const override { return borderBoxRect(); }
@@ -165,11 +167,18 @@ public:
     void addLayoutOverflow(const LayoutRect&);
     void addVisualOverflow(const LayoutRect&);
     void clearOverflow();
+    RenderOverflow& ensureOverflow();
 
     void addVisualEffectOverflow();
     LayoutRect applyVisualEffectOverflow(const LayoutRect&) const;
 
-    void addOverflowFromInFlowChildOrAbsolutePositionedDescendant(const RenderBox&);
+
+    enum class ComputeOverflowOptions {
+        None,
+        RecomputeFloats = 1 << 0,
+    };
+    virtual void addOverflowFromInFlowChildren(OptionSet<ComputeOverflowOptions> = { });
+    void addOverflowFromContainedBox(const RenderBox& child, OptionSet<ComputeOverflowOptions> = { });
     void addOverflowFromFloatBox(const FloatingObject&);
 
     void applyTransform(TransformationMatrix&, const RenderStyle&, const FloatRect& boundingBox, OptionSet<RenderStyle::TransformOperationOption>) const override;
@@ -256,7 +265,7 @@ public:
     virtual LayoutUnit collapsedMarginBefore() const { return marginBefore(); }
     virtual LayoutUnit collapsedMarginAfter() const { return marginAfter(); }
 
-    LayoutUnit constrainBlockMarginInAvailableSpaceOrTrim(const RenderBox& containingBlock, LayoutUnit availableSpace, MarginTrimType marginSide) const;
+    LayoutUnit constrainBlockMarginInAvailableSpaceOrTrim(const RenderBox& containingBlock, LayoutUnit availableSpace, Style::MarginTrimSide marginSide) const;
 
     void boundingRects(Vector<LayoutRect>&, const LayoutPoint& accumulatedOffset) const override;
     void absoluteQuads(Vector<FloatQuad>&, bool* wasFixed) const override;
@@ -304,15 +313,17 @@ public:
     void clearOverridingLogicalHeightForFlexBasisComputation();
     void clearOverridingLogicalWidthForFlexBasisComputation();
 
-    void markMarginAsTrimmed(MarginTrimType);
+    void markMarginAsTrimmed(Style::MarginTrimSide);
     void clearTrimmedMarginsMarkings();
-    bool hasTrimmedMargin(std::optional<MarginTrimType>) const;
+    bool hasTrimmedMargin(std::optional<Style::MarginTrimSide>) const;
 
     LayoutSize offsetFromContainer(const RenderElement&, const LayoutPoint&, bool* offsetDependsOnPoint = nullptr) const override;
     
     LayoutUnit adjustBorderBoxLogicalWidthForBoxSizing(const Style::Length<CSS::Nonnegative, float>& logicalWidth) const;
+    LayoutUnit adjustBorderBoxLogicalWidthForBoxSizing(const Style::Length<CSS::NonnegativeUnzoomed, float>& logicalWidth) const;
     LayoutUnit adjustBorderBoxLogicalWidthForBoxSizing(LayoutUnit computedLogicalWidth) const;
     LayoutUnit adjustContentBoxLogicalWidthForBoxSizing(const Style::Length<CSS::Nonnegative, float>& logicalWidth) const;
+    LayoutUnit adjustContentBoxLogicalWidthForBoxSizing(const Style::Length<CSS::NonnegativeUnzoomed, float>& logicalWidth) const;
     LayoutUnit adjustContentBoxLogicalWidthForBoxSizing(LayoutUnit computedLogicalWidth) const;
 
     // Overridden by fieldsets to subtract out the intrinsic border.
@@ -350,8 +361,7 @@ public:
 
     LayoutUnit containingBlockLogicalWidthForContent() const override;
     LayoutUnit containingBlockLogicalHeightForContent(AvailableLogicalHeightType) const;
-    LayoutUnit containingBlockLogicalWidthForPositioned(const RenderBoxModelObject& containingBlock, bool checkForPerpendicularWritingMode = true) const;
-    LayoutUnit containingBlockLogicalHeightForPositioned(const RenderBoxModelObject& containingBlock, bool checkForPerpendicularWritingMode = true) const;
+    LayoutRange containingBlockRangeForPositioned(const RenderBoxModelObject& containingBlock, BoxAxis physicalAxis) const;
     LayoutUnit containingBlockAvailableLineWidth() const;
     LayoutUnit perpendicularContainingBlockLogicalHeight() const;
 
@@ -412,7 +422,7 @@ public:
     std::optional<LayoutUnit> computePercentageLogicalHeight(const Style::MaximumSize& logicalHeight, UpdatePercentageHeightDescendants = UpdatePercentageHeightDescendants::Yes) const;
     std::optional<LayoutUnit> computePercentageLogicalHeight(const Style::FlexBasis& logicalHeight, UpdatePercentageHeightDescendants = UpdatePercentageHeightDescendants::Yes) const;
     std::optional<LayoutUnit> computePercentageLogicalHeight(const Style::Percentage<CSS::Nonnegative, float>& logicalHeight, UpdatePercentageHeightDescendants = UpdatePercentageHeightDescendants::Yes) const;
-    std::optional<LayoutUnit> computePercentageLogicalHeight(const Style::UnevaluatedCalculation<CSS::LengthPercentage<CSS::Nonnegative, float>>& logicalHeight, UpdatePercentageHeightDescendants = UpdatePercentageHeightDescendants::Yes) const;
+    std::optional<LayoutUnit> computePercentageLogicalHeight(const Style::UnevaluatedCalculation<CSS::LengthPercentage<CSS::NonnegativeUnzoomed, float>>& logicalHeight, UpdatePercentageHeightDescendants = UpdatePercentageHeightDescendants::Yes) const;
     bool hasAutoHeightOrContainingBlockWithAutoHeight(UpdatePercentageHeightDescendants = UpdatePercentageHeightDescendants::Yes) const;
 
     virtual LayoutUnit availableLogicalHeight(AvailableLogicalHeightType) const;
@@ -438,17 +448,17 @@ public:
     bool hasAutoScrollbar(ScrollbarOrientation) const;
     bool hasAlwaysPresentScrollbar(ScrollbarOrientation) const;
 
-    bool scrollsOverflow() const { return scrollsOverflowX() || scrollsOverflowY(); }
-    bool scrollsOverflowX() const { return hasNonVisibleOverflow() && (style().overflowX() == Overflow::Scroll || style().overflowX() == Overflow::Auto); }
-    bool scrollsOverflowY() const { return hasNonVisibleOverflow() && (style().overflowY() == Overflow::Scroll || style().overflowY() == Overflow::Auto); }
+    inline bool scrollsOverflow() const;
+    inline bool scrollsOverflowX() const;
+    inline bool scrollsOverflowY() const;
 
     inline bool hasHorizontalOverflow() const;
     inline bool hasVerticalOverflow() const;
     inline bool hasScrollableOverflowX() const;
     inline bool hasScrollableOverflowY() const;
 
-    bool isScrollContainerX() const { return style().overflowX() == Overflow::Scroll || style().overflowX() == Overflow::Hidden || style().overflowX() == Overflow::Auto;  }
-    bool isScrollContainerY() const { return style().overflowY() == Overflow::Scroll || style().overflowY() == Overflow::Hidden || style().overflowY() == Overflow::Auto; }
+    inline bool isScrollContainerX() const;
+    inline bool isScrollContainerY() const;
 
     LayoutBoxExtent scrollPaddingForViewportRect(const LayoutRect& viewportRect);
 
@@ -634,8 +644,8 @@ protected:
 
     void willBeDestroyed() override;
 
-    inline bool shouldTrimChildMargin(MarginTrimType, const RenderBox&) const;
-    virtual bool isChildEligibleForMarginTrim(MarginTrimType, const RenderBox&) const { return false; }
+    inline bool shouldTrimChildMargin(Style::MarginTrimSide, const RenderBox&) const;
+    virtual bool isChildEligibleForMarginTrim(Style::MarginTrimSide, const RenderBox&) const { return false; }
 
     virtual bool shouldResetLogicalHeightBeforeLayout() const;
     void resetLogicalHeightBeforeLayoutIfNeeded();
@@ -693,7 +703,7 @@ protected:
     bool overflowChangesMayAffectLayout() const final;
 
 private:
-    void addOverflowWithRendererOffset(const RenderBox&, LayoutSize);
+    void addOverflowWithRendererOffset(const RenderBox&, LayoutSize, OptionSet<ComputeOverflowOptions> = { });
 
     void updateShapeOutsideInfoAfterStyleChange(const RenderStyle&, const RenderStyle* oldStyle);
 
@@ -703,7 +713,7 @@ private:
 
     bool fixedElementLaysOutRelativeToFrame(const LocalFrameView&) const;
 
-    template<typename Function> LayoutUnit computeOrTrimInlineMargin(const RenderBlock& containingBlock, MarginTrimType marginSide, NOESCAPE const Function& computeInlineMargin) const;
+    template<typename Function> LayoutUnit computeOrTrimInlineMargin(const RenderBlock& containingBlock, Style::MarginTrimSide marginSide, NOESCAPE const Function& computeInlineMargin) const;
 
     bool isScrollableOrRubberbandableBox() const override;
 
@@ -748,8 +758,6 @@ private:
     
     LayoutPoint topLeftLocationWithFlipping() const;
 
-    void addLayoutOverflow(const LayoutRect&, const LayoutRect& flippedClientRect);
-
     ShapeOutsideInfo& ensureShapeOutsideInfo();
     void removeShapeOutsideInfo();
 
@@ -788,7 +796,7 @@ inline RenderBox* RenderBox::parentBox() const
 inline RenderBox* RenderBox::firstChildBox() const
 {
     if (CheckedPtr box = dynamicDowncast<RenderBox>(firstChild()))
-        return box.get();
+        return box.unsafeGet();
 
     ASSERT(!firstChild());
     return nullptr;
@@ -802,7 +810,7 @@ inline RenderBox* RenderBox::firstInFlowChildBox() const
 inline RenderBox* RenderBox::lastChildBox() const
 {
     if (CheckedPtr box = dynamicDowncast<RenderBox>(lastChild()))
-        return box.get();
+        return box.unsafeGet();
 
     ASSERT(!lastChild());
     return nullptr;
@@ -816,7 +824,7 @@ inline RenderBox* RenderBox::lastInFlowChildBox() const
 inline RenderBox* RenderBox::previousSiblingBox() const
 {
     if (CheckedPtr box = dynamicDowncast<RenderBox>(previousSibling()))
-        return box.get();
+        return box.unsafeGet();
 
     ASSERT(!previousSibling());
     return nullptr;
@@ -826,7 +834,7 @@ inline RenderBox* RenderBox::previousInFlowSiblingBox() const
 {
     for (CheckedPtr curr = previousSiblingBox(); curr; curr = curr->previousSiblingBox()) {
         if (!curr->isFloatingOrOutOfFlowPositioned())
-            return curr.get();
+            return curr.unsafeGet();
     }
     return nullptr;
 }
@@ -834,7 +842,7 @@ inline RenderBox* RenderBox::previousInFlowSiblingBox() const
 inline RenderBox* RenderBox::nextSiblingBox() const
 {
     if (CheckedPtr box = dynamicDowncast<RenderBox>(nextSibling()))
-        return box.get();
+        return box.unsafeGet();
 
     ASSERT(!nextSibling());
     return nullptr;
@@ -844,7 +852,7 @@ inline RenderBox* RenderBox::nextInFlowSiblingBox() const
 {
     for (CheckedPtr curr = nextSiblingBox(); curr; curr = curr->nextSiblingBox()) {
         if (!curr->isFloatingOrOutOfFlowPositioned())
-            return curr.get();
+            return curr.unsafeGet();
     }
     return nullptr;
 }

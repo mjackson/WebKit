@@ -1951,6 +1951,17 @@
    },
    {
       "emails" : [
+         "cobrien22@apple.com",
+         "connor.p.obrien@gmail.com"
+      ],
+      "github" : "connorpobrien",
+      "name" : "Connor O'Brien",
+      "nicks" : [
+         "connorpobrien"
+      ]
+   },
+   {
+      "emails" : [
          "conrad_shultz@apple.com"
       ],
       "github" : "shultzc",
@@ -1977,6 +1988,16 @@
       "name" : "Cris Neckar",
       "nicks" : [
          "cneckar"
+      ]
+   },
+   {
+      "emails" : [
+         "cmurillo@igalia.com"
+      ],
+      "github" : "crmurillo",
+      "name" : "Cristina Murillo",
+      "nicks" : [
+         "cmurillo"
       ]
    },
    {
@@ -3136,7 +3157,8 @@
          "franco_vieira@apple.com"
       ],
       "github" : "francovs",
-      "name" : "Franco Vieira de Souza"
+      "name" : "Franco Vieira de Souza",
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -3232,7 +3254,8 @@
          "garrett_davidson@apple.com"
       ],
       "github" : "g-davidson",
-      "name" : "Garrett Davidson"
+      "name" : "Garrett Davidson",
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -4005,6 +4028,14 @@
       "nicks" : [
          "simonjam"
       ]
+   },
+   {
+      "emails" : [
+         "jmurphy@igalia.com",
+         "hello@itsjamie.dev"
+      ],
+      "github" : "ItsJamie9494",
+      "name" : "Jamie Murphy"
    },
    {
       "emails" : [
@@ -5164,6 +5195,13 @@
    },
    {
       "emails" : [
+         "k_bolisetty@apple.com"
+      ],
+      "github" : "kbolisetty",
+      "name" : "Kishore Sri Venkata Ganesh Bolisetty"
+   },
+   {
+      "emails" : [
          "kocsen_chung@apple.com"
       ],
       "github" : "kocsenc",
@@ -5635,7 +5673,7 @@
       "nicks" : [
          "marcus"
       ],
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -6094,6 +6132,14 @@
    },
    {
       "emails" : [
+         "michaeldo@chromium.org",
+         "michaeldo@google.com"
+      ],
+      "github" : "michaeldo1",
+      "name" : "Mike Dougherty"
+   },
+   {
+      "emails" : [
          "mifenton@blackberry.com",
          "mifenton@rim.com",
          "mike.fenton@torchmobile.com"
@@ -6417,12 +6463,15 @@
    },
    {
       "emails" : [
-         "nipun_shukla@apple.com"
+         "nipun_shukla@apple.com",
+         "nipunshukla002@gmail.com"
       ],
+      "github" : "nipunshukla21",
       "name" : "Nipun Shukla",
       "nicks" : [
          "nipunshukla21"
-      ]
+      ],
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -6741,7 +6790,8 @@
       "nicks" : [
          "pchimento",
          "ptomato"
-      ]
+      ],
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -7588,7 +7638,8 @@
       "name" : "Shu-yu Guo",
       "nicks" : [
          "syg"
-      ]
+      ],
+      "status" : "committer"
    },
    {
       "emails" : [

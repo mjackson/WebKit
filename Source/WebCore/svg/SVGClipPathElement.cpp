@@ -51,10 +51,12 @@ inline SVGClipPathElement::SVGClipPathElement(const QualifiedName& tagName, Docu
 {
     ASSERT(hasTagName(SVGNames::clipPathTag));
 
-    static std::once_flag onceFlag;
-    std::call_once(onceFlag, [] {
+    static bool didRegistration = false;
+    if (!didRegistration) [[unlikely]] {
+        didRegistration = true;
         PropertyRegistry::registerProperty<SVGNames::clipPathUnitsAttr, SVGUnitTypes::SVGUnitType, &SVGClipPathElement::m_clipPathUnits>();
-    });}
+    }
+}
 
 Ref<SVGClipPathElement> SVGClipPathElement::create(const QualifiedName& tagName, Document& document)
 {
@@ -64,7 +66,7 @@ Ref<SVGClipPathElement> SVGClipPathElement::create(const QualifiedName& tagName,
 void SVGClipPathElement::attributeChanged(const QualifiedName& name, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason attributeModificationReason)
 {
     if (name == SVGNames::clipPathUnitsAttr) {
-        auto propertyValue = SVGPropertyTraits<SVGUnitTypes::SVGUnitType>::fromString(newValue);
+        auto propertyValue = SVGPropertyTraits<SVGUnitTypes::SVGUnitType>::fromString(*this, newValue);
         if (propertyValue > 0)
             m_clipPathUnits->setBaseValInternal<SVGUnitTypes::SVGUnitType>(propertyValue);
     }

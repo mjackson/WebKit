@@ -368,6 +368,7 @@ shouldBe(Temporal.PlainDate.prototype.subtract.length, 1);
     shouldBe(Temporal.PlainDate.from('2020-01-30').add({ months: 1 }).toString(), '2020-02-29');
     shouldThrow(() => { Temporal.PlainDate.from('2020-01-30').add({ months: 1 }, { overflow: 'reject' }); }, RangeError);
     shouldThrow(() => { date.add({ years: 300000 }); }, RangeError);
+    shouldThrow(() => { Temporal.PlainDate.from('+275760-01-01').add(Temporal.Duration.from('P5432M5432W')) }, RangeError);
 
     shouldBe(date.subtract(new Temporal.Duration()).toString(), '2020-02-28');
     shouldBe(date.subtract({ years: 1, months: 1 }).toString(), '2019-01-28');
@@ -422,4 +423,8 @@ shouldBe(Temporal.PlainDate.prototype.until.length, 1);
     shouldThrow(() => { date.until('2019-02-28', { smallestUnit: 'hour' }); }, RangeError);
     shouldThrow(() => { date.until('2019-02-28', { largestUnit: 'hour' }); }, RangeError);
     shouldThrow(() => { date.until('2019-02-28', { largestUnit: 'day', smallestUnit: 'month' }); }, RangeError);
+}
+
+{
+    shouldBe(new Temporal.PlainDate(2000, 5, 2, "iso8601").calendarId, "iso8601");
 }

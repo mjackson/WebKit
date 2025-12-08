@@ -141,7 +141,7 @@ public:
     bool hasOpenedFrames() const { return m_lastNavigationAction && m_lastNavigationAction->hasOpenedFrames; }
     bool openedByDOMWithOpener() const { return m_lastNavigationAction && m_lastNavigationAction->openedByDOMWithOpener; }
     bool isInitialFrameSrcLoad() const { return m_lastNavigationAction && m_lastNavigationAction->isInitialFrameSrcLoad; }
-    WebCore::SecurityOriginData requesterOrigin() const { return m_lastNavigationAction ? m_lastNavigationAction->requesterOrigin : WebCore::SecurityOriginData { }; }
+    WebCore::SecurityOriginData requesterOrigin() const;
     WebCore::ShouldOpenExternalURLsPolicy shouldOpenExternalURLsPolicy() const { return m_lastNavigationAction ? m_lastNavigationAction->shouldOpenExternalURLsPolicy : WebCore::ShouldOpenExternalURLsPolicy::ShouldNotAllow; }
 
     void setUserContentExtensionsEnabled(bool enabled) { m_userContentExtensionsEnabled = enabled; }
@@ -199,6 +199,9 @@ public:
 
     void setPendingSharedProcess(WebKit::FrameProcess&);
 
+    void setHasStorageForCurrentSite(const WTF::URL&, bool);
+    bool hasStorageForCurrentSite() const { return m_hasStorageForCurrentSite; }
+
 private:
     Navigation(WebCore::ProcessIdentifier);
     Navigation(WebCore::ProcessIdentifier, RefPtr<WebKit::WebBackForwardListItem>&&);
@@ -229,6 +232,7 @@ private:
     bool m_requestIsFromClientInput : 1 { false };
     bool m_isFromLoadData : 1 { false };
     bool m_safeBrowsingCheckTimedOut : 1 { false };
+    bool m_hasStorageForCurrentSite : 1 { false };
     RefPtr<API::WebsitePolicies> m_websitePolicies;
     std::optional<OptionSet<WebCore::AdvancedPrivacyProtections>> m_originatorAdvancedPrivacyProtections;
     MonotonicTime m_requestStart { MonotonicTime::now() };

@@ -44,7 +44,7 @@ String CSSFontFeatureValue::customCSSText(const CSS::SerializationContext& conte
     StringBuilder builder;
     builder.append('"', m_tag[0], m_tag[1], m_tag[2], m_tag[3], '"');
     // Omit the value if it's `1` as `1` is implied by default.
-    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(m_value); !primitiveValue || primitiveValue->resolveAsIntegerIfNotCalculated() != 1)
+    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(m_value); !(primitiveValue && primitiveValue->resolveAsIntegerIfNotCalculated() == 1))
         builder.append(' ', m_value->cssText(context));
     return builder.toString();
 }

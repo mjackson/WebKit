@@ -25,7 +25,7 @@
 #include "config.h"
 #include "MediaQueryFeatures.h"
 
-#include "CalculationCategory.h"
+#include "CSSPrimitiveNumericCategory.h"
 #include "Chrome.h"
 #include "ComputedStyleDependencies.h"
 #include "DocumentLoader.h"

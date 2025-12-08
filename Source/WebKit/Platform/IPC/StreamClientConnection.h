@@ -86,6 +86,8 @@ public:
     using AsyncReplyID = Connection::AsyncReplyID;
     template<typename T, typename C, typename U, typename V, typename W>
     std::optional<AsyncReplyID> sendWithAsyncReply(T&& message, C&& completionHandler, ObjectIdentifierGeneric<U, V, W> destinationID);
+    template<typename T, typename C, typename U, typename V, typename W>
+    std::optional<AsyncReplyID> sendWithAsyncReplyOnDispatcher(T&& message, GuaranteedSerialFunctionDispatcher&, C&& completionHandler, ObjectIdentifierGeneric<U, V, W> destinationID);
 
     template<typename T>
     using SendSyncResult = Connection::SendSyncResult<T>;
@@ -137,7 +139,9 @@ private:
 
     const Ref<Connection> m_connection;
     class DedicatedConnectionClient final : public Connection::Client {
+        WTF_MAKE_TZONE_ALLOCATED(DedicatedConnectionClient);
         WTF_MAKE_NONCOPYABLE(DedicatedConnectionClient);
+        WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(DedicatedConnectionClient);
     public:
         DedicatedConnectionClient(StreamClientConnection&, Connection::Client&);
 
@@ -153,7 +157,7 @@ private:
         const CheckedRef<StreamClientConnection> m_owner;
         WeakPtr<Connection::Client> m_receiver;
     };
-    std::optional<DedicatedConnectionClient> m_dedicatedConnectionClient;
+    const std::unique_ptr<DedicatedConnectionClient> m_dedicatedConnectionClient;
     uint64_t m_currentDestinationID { 0 };
     StreamClientConnectionBuffer m_buffer;
     unsigned m_maxBatchSize { 100 }; // Number of messages marked as StreamBatched to accumulate before notifying the server.
@@ -245,6 +249,63 @@ std::optional<StreamClientConnection::AsyncReplyID> StreamClientConnection::send
     return std::nullopt;
 }
 
+template<typename T, typename C, typename U, typename V, typename W>
+std::optional<StreamClientConnection::AsyncReplyID> StreamClientConnection::sendWithAsyncReplyOnDispatcher(T&& message, GuaranteedSerialFunctionDispatcher& dispatcher, C&& completionHandler, ObjectIdentifierGeneric<U, V, W> destinationID)
+{
+#if ENABLE(CORE_IPC_SIGNPOSTS)
+    uintptr_t signpostIdentifier = 0;
+    if (signpostsEnabled()) [[unlikely]] {
+        signpostIdentifier = generateSignpostIdentifier();
+        WTFBeginSignpost(signpostIdentifier, StreamClientConnection, "sendWithAsyncReply: %" PUBLIC_LOG_STRING, description(message.name()).characters());
+    }
+#endif
+
+    static_assert(!T::isSync, "Message is sync!");
+    Timeout timeout = defaultTimeout();
+    auto error = trySendDestinationIDIfNeeded(destinationID.toUInt64(), timeout);
+    if (error != Error::NoError)
+        return { }; // FIXME: Propagate errors.
+
+    auto span = m_buffer.tryAcquire(timeout);
+    if (!span)
+        return { }; // FIXME: Propagate errors.
+
+    Ref connection = m_connection;
+    auto handler = Connection::makeAsyncReplyHandlerWithDispatcher<T>(std::forward<C>(completionHandler), dispatcher);
+    if (!handler.replyID)
+        return { };
+    auto replyID = *handler.replyID;
+#if ENABLE(CORE_IPC_SIGNPOSTS)
+    if (signpostIdentifier) [[unlikely]] {
+        handler.completionHandler = CompletionHandler<void(Connection*, std::unique_ptr<Decoder>&&)>([signpostIdentifier, handler = WTFMove(handler.completionHandler)](Connection* connection, std::unique_ptr<Decoder>&& decoder) mutable {
+            WTFEndSignpost(signpostIdentifier, StreamClientConnection);
+            handler(connection, WTFMove(decoder));
+        });
+    }
+#endif
+    connection->addAsyncReplyHandlerWithDispatcher(WTFMove(handler));
+
+    if constexpr(T::isStreamEncodable) {
+        if (trySendStream(*span, message, replyID))
+            return replyID;
+    }
+
+    sendProcessOutOfStreamMessage(WTFMove(*span));
+    auto encoder = makeUniqueRef<Encoder>(T::name(), destinationID.toUInt64());
+    message.encode(encoder.get());
+    encoder.get() << replyID;
+    if (connection->sendMessage(WTFMove(encoder), IPC::SendOption::DispatchMessageEvenWhenWaitingForSyncReply, { }) == Error::NoError)
+        return replyID;
+
+    // replyHandlerToCancel might be already cancelled if invalidate() happened in-between.
+    if (auto replyHandlerToCancel = connection->takeAsyncReplyHandlerWithDispatcher(replyID)) {
+        dispatcher.dispatch([completionHandler = WTFMove(replyHandlerToCancel)]() mutable {
+            completionHandler(nullptr, nullptr);
+        });
+    }
+    return { };
+}
+
 template<typename T, typename... AdditionalData>
 bool StreamClientConnection::trySendStream(std::span<uint8_t> span, T& message, AdditionalData&&... args)
 {
@@ -309,6 +370,7 @@ Error StreamClientConnection::waitForAsyncReplyAndDispatchImmediately(AsyncReply
     return m_connection->waitForAsyncReplyAndDispatchImmediately<T>(replyID, timeout);
 }
 
+#ifndef __swift__ // rdar://152496447
 template<typename T>
 std::optional<StreamClientConnection::SendSyncResult<T>> StreamClientConnection::trySendSyncStream(T& message, Timeout timeout, std::span<uint8_t> span)
 {
@@ -318,7 +380,8 @@ std::optional<StreamClientConnection::SendSyncResult<T>> StreamClientConnection:
     if (!m_connection->pushPendingSyncRequestID(syncRequestID))
         return { { Error::CantWaitForSyncReplies } };
 
-    auto decoderResult = [&] -> std::optional<Connection::DecoderOrError> {
+    // FIXME (rdar://162215050): Ideally SaferCPP would notice that a self-calling lambda expression doesn't escape.
+    SUPPRESS_UNCOUNTED_LAMBDA_CAPTURE auto decoderResult = [&] -> std::optional<Connection::DecoderOrError> {
         StreamConnectionEncoder messageEncoder { T::name(), span };
         messageEncoder << syncRequestID;
         message.encode(messageEncoder);
@@ -358,6 +421,7 @@ std::optional<StreamClientConnection::SendSyncResult<T>> StreamClientConnection:
         return { Error::FailedToDecodeReplyArguments };
     return { { WTFMove(decoder), WTFMove(*replyArguments) } };
 }
+#endif
 
 inline Error StreamClientConnection::trySendDestinationIDIfNeeded(uint64_t destinationID, Timeout timeout)
 {

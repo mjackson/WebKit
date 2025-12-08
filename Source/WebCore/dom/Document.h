@@ -34,6 +34,7 @@
 #include <WebCore/DocumentClasses.h>
 #include <WebCore/DocumentEnums.h>
 #include <WebCore/DocumentEventTiming.h>
+#include <WebCore/Element.h>
 #include <WebCore/FocusControllerTypes.h>
 #include <WebCore/FontSelectorClient.h>
 #include <WebCore/FrameDestructionObserver.h>
@@ -288,7 +289,12 @@ class ContentChangeObserver;
 class DOMTimerHoldingTank;
 #endif
 
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+class DocumentImmersive;
+#endif
+
 struct ApplicationManifest;
+struct AriaNotifyOptions;
 struct BoundaryPoint;
 struct CSSParserContext;
 struct CaretPositionFromPointOptions;
@@ -380,7 +386,14 @@ class Update;
 enum class PageshowEventPersistence : bool { NotPersisted, Persisted };
 
 enum class EventHandlerRemoval : bool { One, All };
+enum class EventHandlerRemovalReason : bool { RendererDetached, Other };
 using EventTargetSet = WeakHashCountedSet<Node, WeakPtrImplWithEventTargetData>;
+
+struct CachedSetInnerHTML {
+    String source;
+    WeakPtr<ContainerNode, WeakPtrImplWithEventTargetData> cachedContainer;
+    ElementName contextElementName;
+};
 
 enum class DimensionsCheck : uint8_t {
     Left = 1 << 0,
@@ -444,12 +457,22 @@ public:
     USING_CAN_MAKE_WEAKPTR(EventTarget);
     USING_CAN_MAKE_CHECKEDPTR(ScriptExecutionContext);
 
+    void setDidBeginCheckedPtrDeletion()
+    {
+        ContainerNode::setDidBeginCheckedPtrDeletion();
+        ScriptExecutionContext::setDidBeginCheckedPtrDeletion();
+    }
+
     inline static Ref<Document> create(const Settings&, const URL&);
     static Ref<Document> createNonRenderedPlaceholder(LocalFrame&, const URL&);
     static Ref<Document> create(Document&);
     static Ref<Document> createCloned(ClonedDocumentType, const Settings&, const URL&, const URL& baseURL, const URL& baseURLOverride, const Variant<String, URL>& documentURI, DocumentCompatibilityMode, Document& contextDocument, SecurityOriginPolicy*, const String& contentType, TextResourceDecoder*);
 
     virtual ~Document();
+
+    // FrameDestructionObserver.
+    void ref() const final { ContainerNode::ref(); }
+    void deref() const final { ContainerNode::deref(); }
 
     // Nodes belonging to this document increase referencingNodeCount -
     // these are enough to keep the document from being destroyed, but
@@ -554,8 +577,8 @@ public:
     std::optional<BoundaryPoint> caretPositionFromPoint(const LayoutPoint& clientPoint, HitTestSource);
     RefPtr<CaretPosition> caretPositionFromPoint(double x, double y, CaretPositionFromPointOptions);
 
-    WEBCORE_EXPORT Element* scrollingElementForAPI();
-    WEBCORE_EXPORT Element* scrollingElement();
+    WEBCORE_EXPORT RefPtr<Element> scrollingElementForAPI();
+    WEBCORE_EXPORT RefPtr<Element> scrollingElement();
 
     enum class ReadyState : uint8_t { Loading, Interactive, Complete };
     ReadyState readyState() const { return m_readyState; }
@@ -623,7 +646,7 @@ public:
     WEBCORE_EXPORT Ref<HTMLCollection> forms();
     WEBCORE_EXPORT Ref<HTMLCollection> anchors();
     WEBCORE_EXPORT Ref<HTMLCollection> scripts();
-    Ref<HTMLCollection> all();
+    Ref<HTMLAllCollection> all();
     Ref<HTMLCollection> allFilteredByName(const AtomString&);
 
     Ref<HTMLCollection> windowNamedItems(const AtomString&);
@@ -802,6 +825,7 @@ public:
 
     inline AXObjectCache* existingAXObjectCache() const;
     WEBCORE_EXPORT AXObjectCache* axObjectCache() const;
+    WEBCORE_EXPORT CheckedPtr<AXObjectCache> checkedAXObjectCache() const;
     void clearAXObjectCache();
 
     WEBCORE_EXPORT std::optional<PageIdentifier> pageID() const;
@@ -862,6 +886,7 @@ public:
 
     // https://wicg.github.io/nav-speculation/speculation-rules.html#consider-speculation
     void considerSpeculationRules();
+    void processSpeculationRules();
     Ref<const SpeculationRules> speculationRules() const;
     Ref<SpeculationRules> speculationRules();
 
@@ -957,7 +982,7 @@ public:
     VisitedLinkState* visitedLinkStateIfExists() const { return m_visitedLinkState.get(); }
     inline VisitedLinkState& visitedLinkState() const;
 
-    MouseEventWithHitTestResults prepareMouseEvent(const HitTestRequest&, const LayoutPoint&, const PlatformMouseEvent&);
+    MouseEventWithHitTestResults prepareMouseEvent(const HitTestRequest&, const DoublePoint&, const PlatformMouseEvent&);
     // Returns whether focus was blocked. A true value does not necessarily mean the element was focused.
     // The element could have already been focused or may not be focusable (e.g. <input disabled>).
     WEBCORE_EXPORT bool setFocusedElement(Element*, BroadcastFocusedElement = BroadcastFocusedElement::Yes);
@@ -1234,6 +1259,7 @@ public:
     // This is the "body element" as defined by HTML5, the first body or frameset child of the
     // document element. See https://html.spec.whatwg.org/multipage/dom.html#the-body-element-2.
     WEBCORE_EXPORT HTMLElement* bodyOrFrameset() const;
+    WEBCORE_EXPORT RefPtr<HTMLElement> protectedBodyOrFrameset() const;
     WEBCORE_EXPORT ExceptionOr<void> setBodyOrFrameset(RefPtr<HTMLElement>&&);
 
     Location* location() const;
@@ -1440,7 +1466,7 @@ public:
     void addScreenPropertiesChangedObserver(const ScreenPropertiesChangedObserver&);
 
 #if HAVE(SPATIAL_TRACKING_LABEL)
-    const String& defaultSpatialTrackingLabel() const;
+    String defaultSpatialTrackingLabel() const;
     void defaultSpatialTrackingLabelChanged(const String&);
 
     using DefaultSpatialTrackingLabelChangedObserver = WTF::Observer<void(const String&)>;
@@ -1454,6 +1480,15 @@ public:
     WEBCORE_EXPORT const DocumentFullscreen& fullscreen() const;
     WEBCORE_EXPORT Ref<DocumentFullscreen> protectedFullscreen();
     WEBCORE_EXPORT Ref<const DocumentFullscreen> protectedFullscreen() const;
+#endif
+
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+    DocumentImmersive* immersiveIfExists() { return m_immersive.get(); }
+    const DocumentImmersive* immersiveIfExists() const { return m_immersive.get(); }
+    WEBCORE_EXPORT DocumentImmersive& immersive();
+    WEBCORE_EXPORT const DocumentImmersive& immersive() const;
+    WEBCORE_EXPORT Ref<DocumentImmersive> protectedImmersive();
+    WEBCORE_EXPORT Ref<const DocumentImmersive> protectedImmersive() const;
 #endif
 
 #if ENABLE(POINTER_LOCK)
@@ -1477,12 +1512,15 @@ public:
 
 #if ENABLE(DEVICE_ORIENTATION) && PLATFORM(IOS_FAMILY)
     DeviceMotionController& deviceMotionController() const;
+    WEBCORE_EXPORT void simulateDeviceMotionChange(double xAcceleration, double yAcceleration, double zAcceleration, double xAccelerationIncludingGravity, double yAccelerationIncludingGravity, double zAccelerationIncludingGravity, double xRotationRate, double yRotationRate, double zRotationRate);
+
     DeviceOrientationController& deviceOrientationController() const;
     WEBCORE_EXPORT void simulateDeviceOrientationChange(double alpha, double beta, double gamma);
 #endif
 
 #if ENABLE(DEVICE_ORIENTATION)
     DeviceOrientationAndMotionAccessController& deviceOrientationAndMotionAccessController();
+    CheckedRef<DeviceOrientationAndMotionAccessController> checkedDeviceOrientationAndMotionAccessController();
 #endif
 
     WEBCORE_EXPORT double monotonicTimestamp() const;
@@ -1491,7 +1529,7 @@ public:
     LargestContentfulPaintData& largestContentfulPaintData() const;
     void didLoadImage(Element&, CachedImage*) const;
     void didPaintImage(Element&, CachedImage*, FloatRect localRect) const;
-    void didPaintText(const RenderBlockFlow&, FloatRect localRect) const;
+    void didPaintText(const RenderBlockFlow&, FloatRect localRect, bool isOnlyTextBoxForElement) const;
 
     int requestAnimationFrame(Ref<RequestAnimationFrameCallback>&&);
     void cancelAnimationFrame(int id);
@@ -1564,6 +1602,7 @@ public:
     void suspendScheduledTasks(ReasonForSuspension);
     void resumeScheduledTasks(ReasonForSuspension);
 
+    std::optional<float> zoomForClient(const RenderStyle&) const;
     void convertAbsoluteToClientQuads(Vector<FloatQuad>&, const RenderStyle&);
     void convertAbsoluteToClientRects(Vector<FloatRect>&, const RenderStyle&);
     void convertAbsoluteToClientRect(FloatRect&, const RenderStyle&);
@@ -1600,6 +1639,7 @@ public:
 
     const Document* templateDocument() const;
     Document& ensureTemplateDocument();
+    Ref<Document> ensureProtectedTemplateDocument();
     void setTemplateDocumentHost(Document* templateDocumentHost) { m_templateDocumentHost = templateDocumentHost; }
     Document* templateDocumentHost() { return m_templateDocumentHost.get(); }
     bool isTemplateDocument() const { return !!m_templateDocumentHost; }
@@ -1662,6 +1702,7 @@ public:
     void setNeedsVisualViewportScrollEvent();
     void runScrollSteps();
     void flushDeferredScrollEvents();
+    void flushDeferredIntersectionObservations();
 
     void invalidateScrollbars();
 
@@ -1821,13 +1862,14 @@ public:
     WEBCORE_EXPORT static const Logger& sharedLogger();
 
     void updateAnimationsAndSendEvents();
-    void updateStaleScrollTimelines();
+    void runPostRenderingUpdateAnimationTasks();
     WEBCORE_EXPORT DocumentTimeline& timeline();
     DocumentTimeline* existingTimeline() const { return m_timeline.get(); }
     Vector<RefPtr<WebAnimation>> getAnimations();
     Vector<RefPtr<WebAnimation>> matchingAnimations(NOESCAPE const Function<bool(Element&)>&);
     AnimationTimelinesController* timelinesController() const { return m_timelinesController.get(); }
     WEBCORE_EXPORT AnimationTimelinesController& ensureTimelinesController();
+    WEBCORE_EXPORT CheckedRef<AnimationTimelinesController> ensureCheckedTimelinesController();
     StyleOriginatedTimelinesController* styleOriginatedTimelinesController() { return m_styleOriginatedTimelinesController.get(); }
     StyleOriginatedTimelinesController& ensureStyleOriginatedTimelinesController();
     void keyframesRuleDidChange(const String& name);
@@ -1908,15 +1950,19 @@ public:
 #endif
 
     WEBCORE_EXPORT TextManipulationController& textManipulationController();
+    WEBCORE_EXPORT CheckedRef<TextManipulationController> checkedTextManipulationController();
     TextManipulationController* textManipulationControllerIfExists() { return m_textManipulationController.get(); }
 
     bool hasHighlight() const;
-    HighlightRegistry* highlightRegistryIfExists() { return m_highlightRegistry.get(); }
+    HighlightRegistry* highlightRegistryIfExists() const { return m_highlightRegistry.get(); }
     HighlightRegistry& highlightRegistry();
     void updateHighlightPositions();
 
-    HighlightRegistry* fragmentHighlightRegistryIfExists() { return m_fragmentHighlightRegistry.get(); }
+    HighlightRegistry* fragmentHighlightRegistryIfExists() const { return m_fragmentHighlightRegistry.get(); }
     HighlightRegistry& fragmentHighlightRegistry();
+
+    HighlightRegistry* textExtractionHighlightRegistryIfExists() const { return m_textExtractionHighlightRegistry.get(); }
+    HighlightRegistry& textExtractionHighlightRegistry();
         
 #if ENABLE(APP_HIGHLIGHTS)
     HighlightRegistry* appHighlightRegistryIfExists() { return m_appHighlightRegistry.get(); }
@@ -1934,6 +1980,12 @@ public:
     LazyLoadImageObserver& lazyLoadImageObserver();
 #if ENABLE(MODEL_ELEMENT)
     LazyLoadModelObserver& lazyLoadModelObserver();
+#endif
+
+#if ENABLE(MODEL_PROCESS)
+    void incrementModelElementCount();
+    void decrementModelElementCount();
+    bool hasModelElement() const { return m_modelElementCount > 0; }
 #endif
 
     ContentVisibilityDocumentState& contentVisibilityDocumentState();
@@ -2028,9 +2080,15 @@ public:
     void attributeAddedToElement(const QualifiedName& attribute);
     void elementDisconnectedFromDocument(const Element&);
 
-    WEBCORE_EXPORT void prefetch(const URL&, const Vector<String>&, const String&, bool lowPriority = false);
+    WEBCORE_EXPORT void prefetch(const URL&, const Vector<String>&, std::optional<ReferrerPolicy>, bool lowPriority = false);
 
     void processSpeculationRulesHeader(const String& headerValue, const URL& baseURL);
+    CachedSetInnerHTML& cachedSetInnerHTML() { return m_cachedSetInnerHTML; }
+    void updateCachedSetInnerHTML(const String& sourceString, ContainerNode&, Element& contextElement);
+    void invalidateCachedSetInnerHTML();
+
+    WEBCORE_EXPORT void ariaNotify(const String&);
+    WEBCORE_EXPORT void ariaNotify(const String&, const AriaNotifyOptions&);
 
 protected:
     enum class ConstructionFlag : uint8_t {
@@ -2067,6 +2125,9 @@ private:
     ScriptRunner& ensureScriptRunner();
     ScriptModuleLoader& ensureModuleLoader();
     WEBCORE_EXPORT DocumentFullscreen& ensureFullscreen();
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+    WEBCORE_EXPORT DocumentImmersive& ensureImmersive();
+#endif
     inline DocumentFontLoader& fontLoader();
     Ref<DocumentFontLoader> protectedFontLoader();
     DocumentFontLoader& ensureFontLoader();
@@ -2085,7 +2146,7 @@ private:
 
     // ScriptExecutionContext
     CSSFontSelector* cssFontSelector() final;
-    std::unique_ptr<FontLoadRequest> fontLoadRequest(const String&, bool, bool, LoadedFromOpaqueSource) final;
+    RefPtr<FontLoadRequest> fontLoadRequest(const String&, bool, bool, LoadedFromOpaqueSource) final;
     void beginLoadingFontSoon(FontLoadRequest&) final;
 
     // FontSelectorClient
@@ -2216,6 +2277,7 @@ private:
     const std::unique_ptr<Quirks> m_quirks;
 
     const Ref<SpeculationRules> m_speculationRules;
+    bool m_speculationRulesConsiderationScheduled { false };
 
     RefPtr<LocalDOMWindow> m_domWindow;
     WeakPtr<Document, WeakPtrImplWithEventTargetData> m_contextDocument;
@@ -2308,6 +2370,10 @@ private:
     std::unique_ptr<LazyLoadModelObserver> m_lazyLoadModelObserver;
 #endif
 
+#if ENABLE(MODEL_PROCESS)
+    unsigned m_modelElementCount { 0 };
+#endif
+
     std::unique_ptr<ContentVisibilityDocumentState> m_contentVisibilityDocumentState;
 
 #if !LOG_DISABLED
@@ -2387,6 +2453,10 @@ private:
     const std::unique_ptr<DocumentFullscreen> m_fullscreen;
 #endif
 
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+    const std::unique_ptr<DocumentImmersive> m_immersive;
+#endif
+
     WeakHashSet<HTMLImageElement, WeakPtrImplWithEventTargetData> m_dynamicMediaQueryDependentImages;
 
     Vector<WeakPtr<IntersectionObserver>> m_intersectionObservers;
@@ -2447,6 +2517,7 @@ private:
         
     RefPtr<HighlightRegistry> m_highlightRegistry;
     RefPtr<HighlightRegistry> m_fragmentHighlightRegistry;
+    RefPtr<HighlightRegistry> m_textExtractionHighlightRegistry;
 #if ENABLE(APP_HIGHLIGHTS)
     RefPtr<HighlightRegistry> m_appHighlightRegistry;
     std::unique_ptr<AppHighlightStorage> m_appHighlightStorage;
@@ -2781,6 +2852,8 @@ private:
     const Ref<DocumentSyncData> m_syncData;
 
     Vector<Ref<LoadableSpeculationRules>> m_loadableSpeculationRules;
+
+    CachedSetInnerHTML m_cachedSetInnerHTML;
 }; // class Document
 
 inline AXObjectCache* Document::existingAXObjectCache() const

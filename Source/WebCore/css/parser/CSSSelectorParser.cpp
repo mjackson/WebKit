@@ -974,7 +974,7 @@ std::unique_ptr<MutableCSSSelector> CSSSelectorParser::consumePseudo(CSSParserTo
             Vector<AtomString> nameAndClasses;
 
             // Check for implicit universal selector.
-            if (m_context.viewTransitionClassesEnabled && block.peek().type() == DelimiterToken && block.peek().delimiter() == '.')
+            if (block.peek().type() == DelimiterToken && block.peek().delimiter() == '.')
                 nameAndClasses.append(starAtom());
 
             // Parse name or explicit universal selector.
@@ -989,15 +989,13 @@ std::unique_ptr<MutableCSSSelector> CSSSelectorParser::consumePseudo(CSSParserTo
             }
 
             // Parse classes.
-            if (m_context.viewTransitionClassesEnabled) {
-                while (!block.atEnd() && !CSSTokenizer::isWhitespace(block.peek().type())) {
-                    if (block.peek().type() != DelimiterToken || block.consume().delimiter() != '.')
-                        return nullptr;
+            while (!block.atEnd() && !CSSTokenizer::isWhitespace(block.peek().type())) {
+                if (block.peek().type() != DelimiterToken || block.consume().delimiter() != '.')
+                    return nullptr;
 
-                    if (block.peek().type() != IdentToken)
-                        return nullptr;
-                    nameAndClasses.append({ block.consume().value().toAtomString() });
-                }
+                if (block.peek().type() != IdentToken)
+                    return nullptr;
+                nameAndClasses.append({ block.consume().value().toAtomString() });
             }
 
             block.consumeWhitespace();
@@ -1407,12 +1405,12 @@ CSSSelectorList CSSSelectorParser::resolveNestingParent(const CSSSelectorList& n
     return CSSSelectorList { WTFMove(result) };
 }
 
-static std::optional<Style::PseudoElementIdentifier> pseudoElementIdentifierFor(CSSSelectorPseudoElement type)
+static std::optional<Style::PseudoElementIdentifier> pseudoElementIdentifierFor(CSSSelectorPseudoElement selectorPseudoElement)
 {
-    auto pseudoId = CSSSelector::pseudoId(type);
-    if (pseudoId == PseudoId::None)
+    auto type = CSSSelector::stylePseudoElementTypeFor(selectorPseudoElement);
+    if (!type)
         return { };
-    return Style::PseudoElementIdentifier { pseudoId };
+    return Style::PseudoElementIdentifier { *type };
 }
 
 // FIXME: It's probably worth investigating if more logic can be shared with
@@ -1458,7 +1456,7 @@ std::pair<bool, std::optional<Style::PseudoElementIdentifier>> CSSSelectorParser
         auto& ident = block.consumeIncludingWhitespace();
         if (ident.type() != IdentToken || !block.atEnd())
             return { };
-        return { true, Style::PseudoElementIdentifier { PseudoId::Highlight, ident.value().toAtomString() } };
+        return { true, Style::PseudoElementIdentifier { PseudoElementType::Highlight, ident.value().toAtomString() } };
     }
     case CSSSelector::PseudoElement::ViewTransitionGroup:
     case CSSSelector::PseudoElement::ViewTransitionImagePair:
@@ -1467,7 +1465,7 @@ std::pair<bool, std::optional<Style::PseudoElementIdentifier>> CSSSelectorParser
         auto& ident = block.consumeIncludingWhitespace();
         if (ident.type() != IdentToken || !isValidCustomIdentifier(ident.id()) || !block.atEnd())
             return { };
-        return { true, Style::PseudoElementIdentifier { CSSSelector::pseudoId(*pseudoElement), ident.value().toAtomString() } };
+        return { true, Style::PseudoElementIdentifier { *CSSSelector::stylePseudoElementTypeFor(*pseudoElement), ident.value().toAtomString() } };
     }
     default:
         return { };

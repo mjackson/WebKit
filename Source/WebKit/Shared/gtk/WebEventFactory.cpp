@@ -28,10 +28,9 @@
 #include "config.h"
 #include "WebEventFactory.h"
 
+#include "GtkUtilities.h"
+#include "GtkVersioning.h"
 #include "WebEventConversion.h"
-#include <WebCore/GtkUtilities.h>
-#include <WebCore/GtkVersioning.h>
-#include <WebCore/PlatformKeyboardEvent.h>
 #include <WebCore/Scrollbar.h>
 #include <WebCore/WindowsKeyboardCodes.h>
 #include <gdk/gdk.h>
@@ -272,11 +271,11 @@ WebKeyboardEvent WebEventFactory::createWebKeyboardEvent(const GdkEvent* event, 
 
     return WebKeyboardEvent(
         { type == GDK_KEY_RELEASE ? WebEventType::KeyUp : WebEventType::KeyDown, modifiersForEvent(event), monotonicTimeForEvent(event) },
-        text.isNull() ? PlatformKeyboardEvent::singleCharacterString(keyval) : text,
-        PlatformKeyboardEvent::keyValueForGdkKeyCode(keyval),
-        PlatformKeyboardEvent::keyCodeForHardwareKeyCode(keycode),
-        PlatformKeyboardEvent::keyIdentifierForGdkKeyCode(keyval),
-        PlatformKeyboardEvent::windowsKeyCodeForGdkKeyCode(keyval),
+        text.isNull() ? WebKeyboardEvent::singleCharacterStringForGdkKeyval(keyval) : text,
+        WebKeyboardEvent::keyValueStringForGdkKeyval(keyval),
+        WebKeyboardEvent::keyCodeStringForGdkKeycode(keycode),
+        WebKeyboardEvent::keyIdentifierForGdkKeyval(keyval),
+        WebKeyboardEvent::windowsKeyCodeForGdkKeyval(keyval),
         static_cast<int>(keyval),
         handledByInputMethod,
         WTFMove(preeditUnderlines),
@@ -315,7 +314,7 @@ WebTouchEvent WebEventFactory::createWebTouchEvent(const GdkEvent* event, Vector
 
 WebWheelEvent WebEventFactory::createWebWheelEvent(const GdkEvent* event, const WebCore::IntPoint& position, const WebCore::IntPoint& globalPosition, const WebCore::FloatSize& delta, const WebCore::FloatSize& wheelTicks, WebWheelEvent::Phase phase, WebWheelEvent::Phase momentumPhase, bool hasPreciseDeltas)
 {
-    return WebWheelEvent({ WebEventType::Wheel, modifiersForEvent(event), monotonicTimeForEvent(event) }, position, globalPosition, delta, wheelTicks, WebWheelEvent::ScrollByPixelWheelEvent, phase, momentumPhase, hasPreciseDeltas);
+    return WebWheelEvent({ WebEventType::Wheel, modifiersForEvent(event), monotonicTimeForEvent(event) }, position, globalPosition, delta, wheelTicks, WebWheelEvent::Granularity::ScrollByPixelWheelEvent, phase, momentumPhase, hasPreciseDeltas);
 }
 
 } // namespace WebKit

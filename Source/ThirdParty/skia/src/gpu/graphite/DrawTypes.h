@@ -188,7 +188,7 @@ enum class DstUsage : uint8_t {
 };
 SK_MAKE_BITMASK_OPS(DstUsage)
 
-enum class RenderStateFlags : unsigned {
+enum class RenderStateFlags : uint8_t {
     kNone                   = 0b0000,
     kFixed                  = 0b0001,   // Uses explicit DrawWriter::draw functions
     kAppendVertices         = 0b0010,   // Appends vertices
@@ -266,6 +266,6 @@ struct DepthStencilSettings {
     bool fDepthWriteEnabled = false;
 };
 
-};  // namespace skgpu::graphite
+}  // namespace skgpu::graphite
 
 #endif // skgpu_graphite_DrawTypes_DEFINED

@@ -127,6 +127,7 @@ enum class CodeGenerationMode : uint8_t;
 enum class ErrorType : uint8_t;
 enum class LinkTimeConstant : int32_t;
 enum class FunctionConstructionMode : uint8_t;
+enum class JSPromiseRejectionOperation : unsigned;
 
 struct GlobalObjectMethodTable;
 
@@ -234,7 +235,7 @@ public:
     WriteBarrier<JSGlobalLexicalEnvironment> m_globalLexicalEnvironment;
     WriteBarrier<JSScope> m_globalScopeExtension;
     WriteBarrier<JSCallee> m_globalCallee;
-    WriteBarrier<JSCallee> m_partiallyInitializedFrameCallee;
+    WriteBarrier<JSCallee> m_zombieFrameCallee;
     WriteBarrier<JSCallee> m_evalCallee;
 
     JS_GLOBAL_OBJECT_ADDITIONS_1;
@@ -278,7 +279,9 @@ public:
     LazyProperty<JSGlobalObject, Structure> m_instantStructure;
     LazyProperty<JSGlobalObject, Structure> m_plainDateStructure;
     LazyProperty<JSGlobalObject, Structure> m_plainDateTimeStructure;
+    LazyProperty<JSGlobalObject, Structure> m_plainMonthDayStructure;
     LazyProperty<JSGlobalObject, Structure> m_plainTimeStructure;
+    LazyProperty<JSGlobalObject, Structure> m_plainYearMonthStructure;
     LazyProperty<JSGlobalObject, Structure> m_timeZoneStructure;
 
     WriteBarrier<NullGetterFunction> m_nullGetterFunction;
@@ -291,7 +294,6 @@ public:
     LazyProperty<JSGlobalObject, JSFunction> m_objectProtoToStringFunction;
     LazyProperty<JSGlobalObject, JSFunction> m_arrayProtoToStringFunction;
     LazyProperty<JSGlobalObject, JSFunction> m_arrayProtoValuesFunction;
-    LazyProperty<JSGlobalObject, JSFunction> m_promiseResolveFunction;
     LazyProperty<JSGlobalObject, JSFunction> m_numberProtoToStringFunction;
     WriteBarrier<JSFunction> m_objectProtoValueOfFunction;
     WriteBarrier<JSFunction> m_functionProtoHasInstanceSymbolFunction;
@@ -389,8 +391,6 @@ public:
     WriteBarrierStructureID m_mapIteratorStructure;
     WriteBarrierStructureID m_setIteratorStructure;
     WriteBarrierStructureID m_wrapForValidIteratorStructure;
-    WriteBarrierStructureID m_promiseAllContextStructure;
-    WriteBarrierStructureID m_promiseReactionStructure;
     WriteBarrierStructureID m_regExpMatchesArrayStructure;
     WriteBarrierStructureID m_regExpMatchesArrayWithIndicesStructure;
     WriteBarrierStructureID m_regExpMatchesIndicesArrayStructure;
@@ -506,6 +506,7 @@ public:
     InlineWatchpointSet m_mapSetWatchpointSet { IsWatched };
     InlineWatchpointSet m_setAddWatchpointSet { IsWatched };
     InlineWatchpointSet m_promiseThenWatchpointSet { IsWatched };
+    InlineWatchpointSet m_promiseResolveWatchpointSet { IsWatched };
     InlineWatchpointSet m_promiseSpeciesWatchpointSet { ClearWatchpoint };
     InlineWatchpointSet m_setPrimordialPropertiesWatchpointSet { IsWatched };
     InlineWatchpointSet m_arraySpeciesWatchpointSet { ClearWatchpoint };
@@ -563,7 +564,7 @@ public:
     std::unique_ptr<ThreadSafeWeakHashSet<DeferredWorkTimer::TicketData>> m_weakTickets;
 
 public:
-    JSCallee* partiallyInitializedFrameCallee() const { return m_partiallyInitializedFrameCallee.get(); }
+    JSCallee* zombieFrameCallee() const { return m_zombieFrameCallee.get(); }
 
     InlineWatchpointSet& arrayIteratorProtocolWatchpointSet() { return m_arrayIteratorProtocolWatchpointSet; }
     InlineWatchpointSet& mapIteratorProtocolWatchpointSet() { return m_mapIteratorProtocolWatchpointSet; }
@@ -579,6 +580,7 @@ public:
     InlineWatchpointSet& setAddWatchpointSet() { return m_setAddWatchpointSet; }
     InlineWatchpointSet& setPrimordialPropertiesWatchpointSet() { return m_setPrimordialPropertiesWatchpointSet; }
     InlineWatchpointSet& promiseThenWatchpointSet() { return m_promiseThenWatchpointSet; }
+    InlineWatchpointSet& promiseResolveWatchpointSet() { return m_promiseResolveWatchpointSet; }
     InlineWatchpointSet& arraySpeciesWatchpointSet() { return m_arraySpeciesWatchpointSet; }
     InlineWatchpointSet& promiseSpeciesWatchpointSet() { return m_promiseSpeciesWatchpointSet; }
     InlineWatchpointSet& arrayPrototypeChainIsSaneWatchpointSet() { return m_arrayPrototypeChainIsSaneWatchpointSet; }
@@ -778,7 +780,6 @@ public:
     JSFunction* arrayProtoValuesFunction() const { return m_arrayProtoValuesFunction.get(this); }
     JSFunction* arrayProtoValuesFunctionConcurrently() const { return m_arrayProtoValuesFunction.getConcurrently(); }
     JSFunction* iteratorProtocolFunction() const;
-    JSFunction* promiseResolveFunction() const { return m_promiseResolveFunction.get(this); }
     JSFunction* promiseProtoThenFunction() const;
 #if USE(BUN_JSC_ADDITIONS)
     JSFunction* performPromiseThenFunction() const;
@@ -950,8 +951,6 @@ public:
     Structure* mapIteratorStructure() const { return m_mapIteratorStructure.get(); }
     Structure* setIteratorStructure() const { return m_setIteratorStructure.get(); }
     Structure* wrapForValidIteratorStructure() const { return m_wrapForValidIteratorStructure.get(); }
-    Structure* promiseAllContextStructure() const { return m_promiseAllContextStructure.get(); }
-    Structure* promiseReactionStructure() const { return m_promiseReactionStructure.get(); }
     Structure* stringObjectStructure() const { return m_stringObjectStructure.get(); }
     Structure* symbolObjectStructure() const { return m_symbolObjectStructure.get(); }
     Structure* iteratorResultObjectStructure() const { return m_iteratorResultObjectStructure.get(this); }
@@ -1003,7 +1002,9 @@ public:
     Structure* instantStructure() { return m_instantStructure.get(this); }
     Structure* plainDateStructure() { return m_plainDateStructure.get(this); }
     Structure* plainDateTimeStructure() { return m_plainDateTimeStructure.get(this); }
+    Structure* plainMonthDayStructure() { return m_plainMonthDayStructure.get(this); }
     Structure* plainTimeStructure() { return m_plainTimeStructure.get(this); }
+    Structure* plainYearMonthStructure() { return m_plainYearMonthStructure.get(this); }
     Structure* timeZoneStructure() { return m_timeZoneStructure.get(this); }
 
 #if USE(BUN_JSC_ADDITIONS)
@@ -1040,7 +1041,8 @@ public:
 
 #if ENABLE(REMOTE_INSPECTOR)
     // FIXME: <http://webkit.org/b/246237> Local inspection should be controlled by `inspectable` API.
-    Inspector::JSGlobalObjectInspectorController& inspectorController() const { return *m_inspectorController.get(); }
+    Inspector::JSGlobalObjectInspectorController& inspectorController() const;
+    CheckedRef<Inspector::JSGlobalObjectInspectorController> checkedInspectorController() const;
     JSGlobalObjectDebuggable& inspectorDebuggable() { return *m_inspectorDebuggable; }
     Ref<JSGlobalObjectDebuggable> protectedInspectorDebuggable();
 #endif
@@ -1166,6 +1168,8 @@ public:
     JS_EXPORT_PRIVATE void queueMicrotask(InternalMicrotask, JSValue, JSValue, JSValue, JSValue, JSValue);
 #endif
 
+    JS_EXPORT_PRIVATE static void queueMicrotaskToEventLoop(JSGlobalObject&, QueuedTask&&);
+    JS_EXPORT_PRIVATE static void promiseRejectionTracker(JSGlobalObject*, JSPromise*, JSPromiseRejectionOperation);
     static void reportViolationForUnsafeEval(const JSGlobalObject*, const String&) { }
 
     bool evalEnabled() const { return m_evalEnabled; }

@@ -104,11 +104,11 @@ template<auto R, typename V> struct CSSValueConversion<Length<R, V>> {
                 ? builderState.cssToLengthConversionData().copyWithAdjustedZoom(1.0f)
                 : builderState.cssToLengthConversionData();
         } else if constexpr (R.zoomOptions == CSS::RangeZoomOptions::Unzoomed) {
-            if (shouldUseEvaluationTimeZoom(builderState))
-                return builderState.cssToLengthConversionData().copyWithAdjustedZoom(1.0f);
+            if (evaluationTimeZoomEnabled(builderState))
+                return builderState.cssToLengthConversionData().copyWithAdjustedZoom(1.0f, R.zoomOptions);
 
             return builderState.useSVGZoomRulesForLength()
-                ? builderState.cssToLengthConversionData().copyWithAdjustedZoom(1.0f)
+                ? builderState.cssToLengthConversionData().copyWithAdjustedZoom(1.0f, R.zoomOptions)
                 : builderState.cssToLengthConversionData();
         }
     }
@@ -189,7 +189,7 @@ template<auto R, typename V> struct CSSValueConversion<LengthPercentage<R, V>> {
                 ? builderState.cssToLengthConversionData().copyWithAdjustedZoom(1.0f)
                 : builderState.cssToLengthConversionData();
         } else if constexpr (LengthPercentage<R, V>::Dimension::range.zoomOptions == CSS::RangeZoomOptions::Unzoomed) {
-            if (shouldUseEvaluationTimeZoom(builderState))
+            if (evaluationTimeZoomEnabled(builderState))
                 return builderState.cssToLengthConversionData().copyWithAdjustedZoom(1.0f);
 
             return builderState.useSVGZoomRulesForLength()

@@ -35,22 +35,13 @@
 #include <WebCore/PushSubscriptionOwner.h>
 #include <WebCore/Supplementable.h>
 #include <WebCore/WindowOrWorkerGlobalScope.h>
+#include <wtf/AbstractRefCountedAndCanMakeWeakPtr.h>
 #include <wtf/FixedVector.h>
 #include <wtf/Function.h>
 #include <wtf/HashSet.h>
 #include <wtf/MonotonicTime.h>
 #include <wtf/Platform.h>
 #include <wtf/WeakHashSet.h>
-#include <wtf/WeakPtr.h>
-
-namespace WebCore {
-class LocalDOMWindowObserver;
-}
-
-namespace WTF {
-template<typename T> struct IsDeprecatedWeakRefSmartPointerException;
-template<> struct IsDeprecatedWeakRefSmartPointerException<WebCore::LocalDOMWindowObserver> : std::true_type { };
-}
 
 namespace JSC {
 class CallFrame;
@@ -72,7 +63,7 @@ using ReducedResolutionSeconds = Seconds;
 
 template<typename> class ExceptionOr;
 
-class LocalDOMWindowObserver : public CanMakeWeakPtr<LocalDOMWindowObserver> {
+class LocalDOMWindowObserver : public AbstractRefCountedAndCanMakeWeakPtr<LocalDOMWindowObserver> {
 public:
     virtual ~LocalDOMWindowObserver() { }
 
@@ -97,6 +88,11 @@ public:
 
     static Ref<LocalDOMWindow> create(Document& document) { return adoptRef(*new LocalDOMWindow(document)); }
     WEBCORE_EXPORT virtual ~LocalDOMWindow();
+
+    // ContextDestructionObserver.
+    void ref() const final { DOMWindow::ref(); }
+    void deref() const final { DOMWindow::deref(); }
+    USING_CAN_MAKE_WEAKPTR(DOMWindow);
 
     // In some rare cases, we'll reuse a LocalDOMWindow for a new Document. For example,
     // when a script calls window.open("..."), the browser gives JavaScript a window
@@ -358,7 +354,7 @@ public:
 #endif
 
     // Navigation API
-    Navigation& navigation();
+    WEBCORE_EXPORT Navigation& navigation();
     Ref<Navigation> protectedNavigation();
 
     void willDetachDocumentFromFrame();
@@ -387,9 +383,6 @@ public:
 
 #if ENABLE(DECLARATIVE_WEB_PUSH)
     PushManager& pushManager();
-
-    void ref() const final { DOMWindow::ref(); }
-    void deref() const final { DOMWindow::deref(); }
 #endif
 
 private:
@@ -469,6 +462,9 @@ private:
 
     bool m_contextMenuTriggered { false };
 
+    // Workaround for https://webkit.org/b/301443 causing very old timestamps to be produced:
+    Seconds m_lastInputEventStartTime;
+
     struct PendingKeyDownState {
         PerformanceEventTimingCandidate keyDown;
         std::optional<PerformanceEventTimingCandidate> keyPress { std::nullopt };
@@ -534,5 +530,5 @@ inline String LocalDOMWindow::status() const
 
 SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::LocalDOMWindow)
     static bool isType(const WebCore::DOMWindow& window) { return window.isLocalDOMWindow(); }
-    static bool isType(const WebCore::EventTarget& target) { return target.eventTargetInterface() == WebCore::EventTargetInterfaceType::DOMWindow; }
+    static bool isType(const WebCore::EventTarget& target) { return is<WebCore::DOMWindow>(target) && is<WebCore::LocalDOMWindow>(downcast<WebCore::DOMWindow>(target)); }
 SPECIALIZE_TYPE_TRAITS_END()

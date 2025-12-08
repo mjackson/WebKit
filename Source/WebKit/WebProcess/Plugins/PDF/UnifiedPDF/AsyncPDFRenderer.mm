@@ -112,7 +112,7 @@ void AsyncPDFRenderer::releaseMemory()
     for (Ref layer : m_layerIDtoLayerMap.values()) {
         // Ideally we'd be able to make the ImageBuffer memory volatile which would eliminate the need for this callback: webkit.org/b/274878
         if (CheckedPtr tiledBacking = layer->tiledBacking())
-            removePagePreviewsOutsideCoverageRect(tiledBacking->coverageRect(), presentationController->rowForLayer(layer.ptr()));
+            removePagePreviewsOutsideCoverageRect(tiledBacking->coverageRect(), presentationController->rowForLayer(layer.get()));
     }
 
     LOG_WITH_STREAM(PDFAsyncRendering, stream << "AsyncPDFRenderer::releaseMemory - reduced page preview count from " << oldPagePreviewCount << " to " << m_pagePreviews.size());
@@ -343,7 +343,7 @@ void AsyncPDFRenderer::coverageRectDidChange(TiledBacking& tiledBacking, const F
     std::optional<PDFLayoutRow> layoutRow;
     RefPtr layer = layerForTileGrid(tiledBacking.primaryGridIdentifier());
     if (layer)
-        layoutRow = presentationController->rowForLayer(layer.get());
+        layoutRow = presentationController->rowForLayer(*layer);
 
     m_currentPageCoverage = presentationController->pageCoverageForContentsRect(coverageRect, layoutRow);
     ensurePreviewsForCurrentPageCoverage();
@@ -551,11 +551,11 @@ TileRenderInfo AsyncPDFRenderer::renderInfoForTile(const TiledBacking& tiledBack
 
     std::optional<PDFLayoutRow> layoutRow;
     if (RefPtr layer = layerForTileGrid(tileInfo.gridIdentifier))
-        layoutRow = presentationController->rowForLayer(layer.get());
+        layoutRow = presentationController->rowForLayer(*layer);
 
     auto pageCoverage = presentationController->pageCoverageAndScalesForContentsRect(paintingClipRect, layoutRow, tilingScaleFactor);
 
-    return TileRenderInfo { tileRect, renderRect, WTFMove(background), pageCoverage, m_showDebugBorders };
+    return TileRenderInfo { tileRect, encloseRectToDevicePixels(renderRect, pageCoverage.deviceScaleFactor), WTFMove(background), pageCoverage, m_showDebugBorders };
 }
 
 static void renderPDFTile(PDFDocument *pdfDocument, const TileRenderInfo& renderInfo, GraphicsContext& context)
@@ -563,9 +563,6 @@ static void renderPDFTile(PDFDocument *pdfDocument, const TileRenderInfo& render
     context.translate(-renderInfo.tileRect.location());
     if (renderInfo.tileRect != renderInfo.renderRect)
         context.clip(renderInfo.renderRect);
-    context.fillRect(renderInfo.renderRect, Color::white);
-    if (renderInfo.showDebugIndicators)
-        context.fillRect(renderInfo.renderRect, Color::green.colorWithAlphaByte(32));
 
     context.scale(renderInfo.pageCoverage.tilingScaleFactor);
     context.translate(-renderInfo.pageCoverage.contentsOffset);
@@ -578,6 +575,9 @@ static void renderPDFTile(PDFDocument *pdfDocument, const TileRenderInfo& render
         auto destinationRect = pageInfo.pageBounds;
         auto pageStateSaver = GraphicsContextStateSaver(context);
         context.clip(destinationRect);
+        context.fillRect(destinationRect, Color::white);
+        if (renderInfo.showDebugIndicators)
+            context.fillRect(destinationRect, Color::green.colorWithAlphaByte(32));
 
         // Translate the context to the bottom of pageBounds and flip, so that PDFKit operates
         // from this page's drawing origin.

@@ -6,7 +6,7 @@
  * Copyright (C) 2012 University of Szeged
  * Copyright (C) 2012 Renata Hodovan <reni@webkit.org>
  * Copyright (C) 2015-2025 Apple Inc. All rights reserved.
- * Copyright (C) 2019 Google Inc. All rights reserved.
+ * Copyright (C) 2015-2019 Google Inc. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -65,13 +65,14 @@ inline SVGUseElement::SVGUseElement(const QualifiedName& tagName, Document& docu
     ASSERT(hasCustomStyleResolveCallbacks());
     ASSERT(hasTagName(SVGNames::useTag));
 
-    static std::once_flag onceFlag;
-    std::call_once(onceFlag, [] {
+    static bool didRegistration = false;
+    if (!didRegistration) [[unlikely]] {
+        didRegistration = true;
         PropertyRegistry::registerProperty<SVGNames::xAttr, &SVGUseElement::m_x>();
         PropertyRegistry::registerProperty<SVGNames::yAttr, &SVGUseElement::m_y>();
         PropertyRegistry::registerProperty<SVGNames::widthAttr, &SVGUseElement::m_width>();
         PropertyRegistry::registerProperty<SVGNames::heightAttr, &SVGUseElement::m_height>();
-    });
+    }
 }
 
 Ref<SVGUseElement> SVGUseElement::create(const QualifiedName& tagName, Document& document)
@@ -150,6 +151,18 @@ void SVGUseElement::removedFromAncestor(RemovalType removalType, ContainerNode& 
 inline Document* SVGUseElement::externalDocument() const
 {
     return m_externalDocument ? m_externalDocument->document() : nullptr;
+}
+
+FloatRect SVGUseElement::getBBox(StyleUpdateStrategy styleUpdateStrategy)
+{
+    auto bbox = SVGGraphicsElement::getBBox(styleUpdateStrategy);
+    if (bbox.isEmpty())
+        return { };
+
+    auto* transformableContainer = dynamicDowncast<LegacyRenderSVGTransformableContainer>(renderer());
+    ASSERT(transformableContainer && transformableContainer->isObjectBoundingBoxValid());
+    bbox.move(transformableContainer->additionalTranslation());
+    return bbox;
 }
 
 void SVGUseElement::transferSizeAttributesToTargetClone(SVGElement& shadowElement) const

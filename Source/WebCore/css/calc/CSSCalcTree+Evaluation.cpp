@@ -26,21 +26,21 @@
 #include "CSSCalcTree+Evaluation.h"
 
 #include "AnchorPositionEvaluator.h"
+#include "CSSCalcExecutor.h"
 #include "CSSCalcRandomCachingKey.h"
 #include "CSSCalcSymbolTable.h"
 #include "CSSCalcTree+Mappings.h"
 #include "CSSCalcTree+Simplification.h"
 #include "CSSCalcTree.h"
 #include "CSSUnevaluatedCalc.h"
-#include "CalculationExecutor.h"
 #include "RenderStyle.h"
 #include "StyleBuilderState.h"
 
 namespace WebCore {
 namespace CSSCalc {
 
-static auto evaluate(const CSS::Keyword::None&, const EvaluationOptions&) -> std::optional<Calculation::None>;
-static auto evaluate(const ChildOrNone&, const EvaluationOptions&) -> std::optional<Variant<double, Calculation::None>>;
+static auto evaluate(const CSS::Keyword::None&, const EvaluationOptions&) -> std::optional<CSS::Keyword::None>;
+static auto evaluate(const ChildOrNone&, const EvaluationOptions&) -> std::optional<Variant<double, CSS::Keyword::None>>;
 static auto evaluate(const std::optional<Child>&, const EvaluationOptions&) -> std::optional<std::optional<double>>;
 static auto evaluate(const Child&, const EvaluationOptions&) -> std::optional<double>;
 static auto evaluate(const Number&, const EvaluationOptions&) -> std::optional<double>;
@@ -68,13 +68,13 @@ template<typename Op, typename... Args> static std::optional<double> executeMath
     if ((!args.has_value() || ...))
         return std::nullopt;
 
-    return Calculation::executeOperation<ToCalculationTreeOp<Op>>(args.value()...);
+    return executeOperation<ToCalculationTreeOp<Op>::op>(args.value()...);
 }
 
 template<typename Op> static std::optional<double> executeVariadicMathOperationAfterUnwrapping(const IndirectNode<Op>& op, const EvaluationOptions& options)
 {
     bool failure = false;
-    auto result = Calculation::executeOperation<ToCalculationTreeOp<Op>>(op->children.value, [&](const auto& child) -> double {
+    auto result = executeOperation<ToCalculationTreeOp<Op>::op>(op->children.value, [&](const auto& child) -> double {
         if (auto value = evaluate(child, options))
             return *value;
         failure = true;
@@ -87,17 +87,17 @@ template<typename Op> static std::optional<double> executeVariadicMathOperationA
     return result;
 }
 
-std::optional<Calculation::None> evaluate(const CSS::Keyword::None&, const EvaluationOptions&)
+std::optional<CSS::Keyword::None> evaluate(const CSS::Keyword::None& none, const EvaluationOptions&)
 {
-    return Calculation::None { };
+    return none;
 }
 
-std::optional<Variant<double, Calculation::None>> evaluate(const ChildOrNone& root, const EvaluationOptions& options)
+std::optional<Variant<double, CSS::Keyword::None>> evaluate(const ChildOrNone& root, const EvaluationOptions& options)
 {
     return WTF::switchOn(root,
-        [&](const auto& root) -> std::optional<Variant<double, Calculation::None>> {
+        [&](const auto& root) -> std::optional<Variant<double, CSS::Keyword::None>> {
             if (auto value = evaluate(root, options))
-                return Variant<double, Calculation::None> { *value };
+                return Variant<double, CSS::Keyword::None> { *value };
             return std::nullopt;
         }
     );
@@ -225,7 +225,7 @@ std::optional<double> evaluate(const IndirectNode<Random>& root, const Evaluatio
                     return raw.value;
                 },
                 [&](const CSS::Number<CSS::ClosedUnitRange>::Calc& calc) -> std::optional<double> {
-                    return calc.evaluate(Calculation::Category::Number, *options.conversionData->protectedStyleBuilderState());
+                    return calc.evaluate(CSS::Category::Number, *options.conversionData->protectedStyleBuilderState());
                 }
             );
         }
@@ -233,7 +233,7 @@ std::optional<double> evaluate(const IndirectNode<Random>& root, const Evaluatio
     if (!randomBaseValue)
         return { };
 
-    return Calculation::executeOperation<ToCalculationTreeOp<Random>>(*randomBaseValue, *min, *max, *step);
+    return executeOperation<ToCalculationTreeOp<Random>::op>(*randomBaseValue, *min, *max, *step);
 }
 
 std::optional<double> evaluate(const IndirectNode<Anchor>& anchor, const EvaluationOptions& options)
@@ -298,7 +298,8 @@ std::optional<double> evaluateWithoutFallback(const Anchor& anchor, const Evalua
     auto side = WTF::switchOn(anchor.side,
         [&](const Child& percentage) -> Style::AnchorPositionEvaluator::Side {
             return evaluate(percentage, options).value_or(0) / 100;
-        }, [&](CSSValueID sideID) -> Style::AnchorPositionEvaluator::Side {
+        },
+        [&](CSSValueID sideID) -> Style::AnchorPositionEvaluator::Side {
             return sideID;
         }
     );

@@ -459,18 +459,4 @@ extension WKTextExtractionImageItem {
     #endif
 }
 
-@_objcImplementation
-extension WKTextExtractionResult {
-    let rootItem: WKTextExtractionItem
-
-    init(rootItem: WKTextExtractionItem) {
-        self.rootItem = rootItem
-    }
-
-    #if compiler(<6.0)
-    @objc
-    deinit {}
-    #endif
-}
-
 #endif // USE_APPLE_INTERNAL_SDK || (!os(tvOS) && !os(watchOS))

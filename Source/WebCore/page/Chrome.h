@@ -84,9 +84,11 @@ class SearchPopupMenu;
 class WorkerClient;
 
 struct AppHighlight;
+struct AriaNotifyData;
 struct ContactInfo;
 struct ContactsRequestData;
 struct FocusOptions;
+struct LiveRegionAnnouncementData;
 struct ShareDataWithParsedURL;
 struct ViewportArguments;
 struct WindowFeatures;
@@ -123,6 +125,8 @@ public:
     PlatformPageClient platformPageClient() const override;
 #if PLATFORM(IOS_FAMILY)
     void relayAccessibilityNotification(String&&, RetainPtr<NSData>&&) const override;
+    void relayAriaNotifyNotification(AriaNotifyData&&) const;
+    void relayLiveRegionNotification(LiveRegionAnnouncementData&&) const;
 #endif
     void setCursor(const Cursor&) override;
     void setCursorHiddenUntilMouseMoves(bool) override;

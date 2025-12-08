@@ -34,50 +34,21 @@
 #import <wtf/MathExtras.h>
 #import <wtf/TZoneMallocInlines.h>
 #import <wtf/spi/cocoa/IOSurfaceSPI.h>
+#import <wtf/threads/BinarySemaphore.h>
 
-#if ENABLE(WEBGPU_SWIFT)
+#if ENABLE(GPU_PROCESS_MODEL)
 #import "WebGPUSwiftInternal.h"
+
+#if __has_include(</System/Library/SubFrameworks/RealityCoreRenderer.framework/RealityCoreRenderer>)
+asm(".linker_option \"-framework\", \"/System/Library/SubFrameworks/RealityCoreRenderer.framework/RealityCoreRenderer\"");
+#endif
 #endif
 
 namespace WebGPU {
 
-#if ENABLE(WEBGPU_SWIFT)
-static NSArray<DDBridgeVertexAttributeFormat*>* convertAttributes(const Vector<WGPUDDVertexAttributeFormat>& vertexAttributes)
+Ref<DDMesh> Instance::createModelBacking(const WGPUDDCreateMeshDescriptor& descriptor)
 {
-    NSMutableArray<DDBridgeVertexAttributeFormat*>* result = [NSMutableArray array];
-    for (auto& a : vertexAttributes)
-        [result addObject:[[DDBridgeVertexAttributeFormat alloc] initWithSemantic:a.semantic format:a.format layoutIndex:a.layoutIndex offset:a.offset]];
-
-    return result;
-}
-static NSArray<DDBridgeVertexLayout*>* convertLayouts(const Vector<WGPUDDVertexLayout>& layouts)
-{
-    NSMutableArray<DDBridgeVertexLayout*>* result = [NSMutableArray array];
-    for (auto& a : layouts)
-        [result addObject:[[DDBridgeVertexLayout alloc] initWithBufferIndex:a.bufferIndex bufferOffset:a.bufferOffset bufferStride:a.bufferStride]];
-
-    return result;
-}
-
-static DDBridgeAddMeshRequest* convertDescriptor(const WGPUDDMeshDescriptor& descriptor)
-{
-    DDBridgeAddMeshRequest* result = [[DDBridgeAddMeshRequest alloc] initWithIndexCapacity:descriptor.indexCapacity
-        indexType:descriptor.indexType
-        vertexBufferCount:descriptor.vertexBufferCount
-        vertexCapacity:descriptor.vertexCapacity
-        vertexAttributes:convertAttributes(descriptor.vertexAttributes)
-        vertexLayouts:convertLayouts(descriptor.vertexLayouts)
-    ];
-
-    return result;
-}
-#endif
-
-Ref<DDMesh> Instance::createMesh(const WGPUDDMeshDescriptor& descriptor)
-{
-#if ENABLE(WEBGPU_SWIFT)
-    if (![m_ddReceiver addMesh:convertDescriptor(descriptor) identifier:m_ddMeshIdentifier])
-        return DDMesh::createInvalid(*this);
+#if ENABLE(GPU_PROCESS_MODEL)
     return DDMesh::create(descriptor, *this);
 #else
     UNUSED_PARAM(descriptor);
@@ -87,10 +58,24 @@ Ref<DDMesh> Instance::createMesh(const WGPUDDMeshDescriptor& descriptor)
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(DDMesh);
 
-DDMesh::DDMesh(const WGPUDDMeshDescriptor& descriptor, Instance& instance)
+DDMesh::DDMesh(const WGPUDDCreateMeshDescriptor& descriptor, Instance& instance)
     : m_instance(instance)
     , m_descriptor(descriptor)
 {
+    id<MTLDevice> device = instance.device();
+    MTLTextureDescriptor *textureDescriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:descriptor.width height:descriptor.height mipmapped:NO];
+    m_textures = [NSMutableArray array];
+    for (RetainPtr ioSurface : descriptor.ioSurfaces)
+        [m_textures addObject:[device newTextureWithDescriptor:textureDescriptor iosurface:ioSurface.get() plane:0]];
+
+#if ENABLE(GPU_PROCESS_MODEL)
+    DDBridgeReceiver* ddReceiver = [[DDBridgeReceiver alloc] initWithDevice:instance.device()];
+    Ref protectedThis = Ref { *this };
+    [ddReceiver initRenderer:m_textures[0] completionHandler:[protectedThis, ddReceiver] mutable {
+        protectedThis->m_ddReceiver = ddReceiver;
+    }];
+#endif
+    m_ddMeshIdentifier = [[NSUUID alloc] init];
 }
 
 DDMesh::DDMesh(Instance& instance)
@@ -103,13 +88,94 @@ bool DDMesh::isValid() const
     return true;
 }
 
+id<MTLTexture> DDMesh::texture() const
+{
+    ++m_currentTexture;
+    if (m_currentTexture >= m_textures.count)
+        m_currentTexture = 0;
+
+    return m_textures.count ? m_textures[m_currentTexture] : nil;
+}
+
 DDMesh::~DDMesh() = default;
 
-
-void DDMesh::update(WGPUDDUpdateMeshDescriptor* desc)
+void DDMesh::render() const
 {
-    if (desc)
-        m_instance->updateMesh(*this, *desc);
+#if ENABLE(GPU_PROCESS_MODEL)
+    if (id<MTLTexture> modelBacking = texture())
+        [m_ddReceiver renderWithTexture:modelBacking];
+#endif
+}
+
+void DDMesh::update(DDBridgeUpdateMesh* descriptor)
+{
+    if (!descriptor)
+        return;
+
+#if ENABLE(GPU_PROCESS_MODEL)
+    BinarySemaphore completion;
+    [m_ddReceiver updateMesh:descriptor completionHandler:[&] mutable {
+        completion.signal();
+    }];
+    completion.wait();
+#endif
+}
+
+void DDMesh::updateTexture(DDBridgeUpdateTexture* descriptor)
+{
+    if (!descriptor)
+        return;
+
+#if ENABLE(GPU_PROCESS_MODEL)
+    BinarySemaphore completion;
+    [m_ddReceiver updateTexture:descriptor completionHandler:[&] mutable {
+        completion.signal();
+    }];
+    completion.wait();
+#endif
+}
+
+void DDMesh::updateMaterial(DDBridgeUpdateMaterial* descriptor)
+{
+    if (!descriptor)
+        return;
+
+#if ENABLE(GPU_PROCESS_MODEL)
+    BinarySemaphore completion;
+    [m_ddReceiver updateMaterial:descriptor completionHandler:[&] mutable {
+        completion.signal();
+    }];
+    completion.wait();
+#endif
+}
+
+void DDMesh::setTransform(const simd_float4x4& transform)
+{
+#if ENABLE(GPU_PROCESS_MODEL)
+    m_transform = transform;
+    [m_ddReceiver setTransform:transform];
+#else
+    UNUSED_PARAM(transform);
+#endif
+}
+
+void DDMesh::setCameraDistance(float distance)
+{
+#if ENABLE(GPU_PROCESS_MODEL)
+    [m_ddReceiver setCameraDistance:distance];
+    render();
+#else
+    UNUSED_PARAM(distance);
+#endif
+}
+
+void DDMesh::play(bool play)
+{
+#if ENABLE(GPU_PROCESS_MODEL)
+    [m_ddReceiver setPlaying:play];
+#else
+    UNUSED_PARAM(play);
+#endif
 }
 
 }
@@ -126,7 +192,37 @@ void wgpuDDMeshRelease(WGPUDDMesh mesh)
     WebGPU::fromAPI(mesh).deref();
 }
 
-WGPU_EXPORT void wgpuDDMeshUpdate(WGPUDDMesh mesh, WGPUDDUpdateMeshDescriptor* desc)
+WGPU_EXPORT void wgpuDDMeshUpdate(WGPUDDMesh mesh, id desc)
 {
     WebGPU::protectedFromAPI(mesh)->update(desc);
+}
+
+WGPU_EXPORT void wgpuDDMeshRender(WGPUDDMesh mesh)
+{
+    WebGPU::protectedFromAPI(mesh)->render();
+}
+
+WGPU_EXPORT void wgpuDDMeshSetTransform(WGPUDDMesh mesh, const simd_float4x4& transform)
+{
+    WebGPU::protectedFromAPI(mesh)->setTransform(transform);
+}
+
+WGPU_EXPORT void wgpuDDMeshTextureUpdate(WGPUDDMesh mesh, id desc)
+{
+    WebGPU::protectedFromAPI(mesh)->updateTexture(desc);
+}
+
+WGPU_EXPORT void wgpuDDMeshMaterialUpdate(WGPUDDMesh mesh, id desc)
+{
+    WebGPU::protectedFromAPI(mesh)->updateMaterial(desc);
+}
+
+WGPU_EXPORT void wgpuDDMeshSetCameraDistance(WGPUDDMesh mesh, float distance)
+{
+    WebGPU::protectedFromAPI(mesh)->setCameraDistance(distance);
+}
+
+WGPU_EXPORT void wgpuDDMeshPlay(WGPUDDMesh mesh, bool play)
+{
+    WebGPU::protectedFromAPI(mesh)->play(play);
 }

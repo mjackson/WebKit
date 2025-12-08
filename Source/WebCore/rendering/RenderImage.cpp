@@ -516,7 +516,7 @@ void RenderImage::paintReplaced(PaintInfo& paintInfo, const LayoutPoint& paintOf
 
     GraphicsContext& context = paintInfo.context();
     if (context.invalidatingImagesWithAsyncDecodes()) {
-        if (cachedImage() && cachedImage()->isClientWaitingForAsyncDecoding(*this))
+        if (cachedImage() && cachedImage()->isClientWaitingForAsyncDecoding(cachedImageClient()))
             cachedImage()->removeAllClientsWaitingForAsyncDecoding();
         return;
     }
@@ -749,13 +749,13 @@ ImageDrawResult RenderImage::paintIntoRect(PaintInfo& paintInfo, const FloatRect
         return ImageDrawResult::DidNothing;
 
     // FIXME: Document when image != img.get().
-    auto* image = imageResource().image().get();
+    RefPtr image = imageResource().image();
 
     ImagePaintingOptions options = {
         CompositeOperator::SourceOver,
         decodingModeForImageDraw(*image, paintInfo),
         imageOrientation(),
-        image ? chooseInterpolationQuality(paintInfo.context(), *image, image, LayoutSize(rect.size())) : InterpolationQuality::Default,
+        image ? chooseInterpolationQuality(paintInfo.context(), *image, image.get(), LayoutSize(rect.size())) : InterpolationQuality::Default,
         settings().imageSubsamplingEnabled() ? AllowImageSubsampling::Yes : AllowImageSubsampling::No,
         settings().showDebugBorders() ? ShowDebugBackground::Yes : ShowDebugBackground::No,
 #if USE(SKIA)
@@ -775,7 +775,7 @@ ImageDrawResult RenderImage::paintIntoRect(PaintInfo& paintInfo, const FloatRect
         drawResult = paintInfo.context().drawImage(*img, rect, options);
 
     if (drawResult == ImageDrawResult::DidRequestDecoding)
-        imageResource().cachedImage()->addClientWaitingForAsyncDecoding(*this);
+        imageResource().cachedImage()->addClientWaitingForAsyncDecoding(cachedImageClient());
 
 #if USE(SYSTEM_PREVIEW)
     auto* imageElement = dynamicDowncast<HTMLImageElement>(element());
@@ -798,7 +798,7 @@ bool RenderImage::foregroundIsKnownToBeOpaqueInRect(const LayoutRect& localRect,
         return false;
     if (!contentBoxRect().contains(localRect))
         return false;
-    auto backgroundClip = style().backgroundLayers().first().clip();
+    auto backgroundClip = style().backgroundLayers().usedFirst().clip();
     // Background paints under borders.
     if (backgroundClip == FillBox::BorderBox && style().hasBorder() && !borderObscuresBackground())
         return false;

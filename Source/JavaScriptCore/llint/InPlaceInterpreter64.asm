@@ -67,9 +67,9 @@ if ARM64 or ARM64E
     # x0 = opcode
     pcrtoaddr ipint_dispatch_base, t7
     addlshiftp t7, t0, (constexpr (WTF::fastLog2(JSC::IPInt::alignIPInt))), t0
-    emit "br x0"
+    jmp t0
 elsif X86_64
-    leap _g_opcodeConfigStorage, t1
+    leap _os_script_config_storage, t1
     loadp JSC::LLInt::OpcodeConfig::ipint_dispatch_base[t1], t1
     lshiftq (constexpr (WTF::fastLog2(JSC::IPInt::alignIPInt))), t0
     addq t1, t0
@@ -201,7 +201,7 @@ macro argumINTDispatch()
 if ARM64 or ARM64E
     pcrtoaddr _argumINT_begin, argumINTDsp
     addp argumINTTmp, argumINTDsp
-    emit "br x23"
+    jmp argumINTDsp
 elsif X86_64
     leap (_argumINT_begin - _ipint_entry_relativePCBase)[PL], argumINTDsp
     addp argumINTTmp, argumINTDsp
@@ -409,8 +409,7 @@ if ARM64 or ARM64E
     lshiftq (constexpr (WTF::fastLog2(JSC::IPInt::alignUInt))), sc2
     pcrtoaddr _uint_begin, sc3
     addq sc2, ws3
-    # ws3 = x12
-    emit "br x12"
+    jmp ws3
 elsif X86_64
     loadb [MC], sc1
     addq 1, MC
@@ -727,9 +726,9 @@ ipintOp(_select, macro()
     advanceMC(constexpr (sizeof(IPInt::InstructionLengthMetadata)))
     nextIPIntInstruction()
 .ipint_select_val2:
-    popQuad(t1)
-    popQuad(t0)
-    pushQuad(t1)
+    popVec(v1)
+    popVec(v0)
+    pushVec(v1)
     advancePC(1)
     advanceMC(constexpr (sizeof(IPInt::InstructionLengthMetadata)))
     nextIPIntInstruction()
@@ -744,9 +743,9 @@ ipintOp(_select_t, macro()
     advanceMC(constexpr (sizeof(IPInt::InstructionLengthMetadata)))
     nextIPIntInstruction()
 .ipint_select_t_val2:
-    popQuad(t1)
-    popQuad(t0)
-    pushQuad(t1)
+    popVec(v1)
+    popVec(v0)
+    pushVec(v1)
     loadb IPInt::InstructionLengthMetadata::length[MC], t0
     advancePCByReg(t0)
     advanceMC(constexpr (sizeof(IPInt::InstructionLengthMetadata)))
@@ -3206,11 +3205,11 @@ ipintOp(_gc_prefix, macro()
     decodeLEBVarUInt32(1, t0, t1, t2, t3, t4)
     # Security guarantee: always less than 30 (0x00 -> 0x1e)
     biaeq t0, 0x1f, .ipint_gc_nonexistent
-    leap _g_opcodeConfigStorage, t1
+    leap _os_script_config_storage, t1
     loadp JSC::LLInt::OpcodeConfig::ipint_gc_dispatch_base[t1], t1
     if ARM64 or ARM64E
-        emit "add x0, x1, x0, lsl 8"
-        emit "br x0"
+        addlshiftp t1, t0, 8, t0
+        jmp t0
     elsif X86_64
         lshiftq 8, t0
         addq t1, t0
@@ -3225,11 +3224,11 @@ ipintOp(_conversion_prefix, macro()
     decodeLEBVarUInt32(1, t0, t1, t2, t3, t4)
     # Security guarantee: always less than 18 (0x00 -> 0x11)
     biaeq t0, 0x12, .ipint_conversion_nonexistent
-    leap _g_opcodeConfigStorage, t1
+    leap _os_script_config_storage, t1
     loadp JSC::LLInt::OpcodeConfig::ipint_conversion_dispatch_base[t1], t1
     if ARM64 or ARM64E
-        emit "add x0, x1, x0, lsl 8"
-        emit "br x0"
+        addlshiftp t1, t0, 8, t0
+        jmp t0
     elsif X86_64
         lshiftq 8, t0
         addq t1, t0
@@ -3244,11 +3243,11 @@ ipintOp(_simd_prefix, macro()
     decodeLEBVarUInt32(1, t0, t1, t2, t3, t4)
     # Security guarantee: always less than 256 (0x00 -> 0xff)
     biaeq t0, 0x100, .ipint_simd_nonexistent
-    leap _g_opcodeConfigStorage, t1
+    leap _os_script_config_storage, t1
     loadp JSC::LLInt::OpcodeConfig::ipint_simd_dispatch_base[t1], t1
     if ARM64 or ARM64E
-        emit "add x0, x1, x0, lsl 8"
-        emit "br x0"
+        addlshiftp t1, t0, 8, t0
+        jmp t0
     elsif X86_64
         lshiftq 8, t0
         addq t1, t0
@@ -3263,11 +3262,11 @@ ipintOp(_atomic_prefix, macro()
     decodeLEBVarUInt32(1, t0, t1, t2, t3, t4)
     # Security guarantee: always less than 78 (0x00 -> 0x4e)
     biaeq t0, 0x4f, .ipint_atomic_nonexistent
-    leap _g_opcodeConfigStorage, t1
+    leap _os_script_config_storage, t1
     loadp JSC::LLInt::OpcodeConfig::ipint_atomic_dispatch_base[t1], t1
     if ARM64 or ARM64E
-        emit "add x0, x1, x0, lsl 8"
-        emit "br x0"
+        addlshiftp t1, t0, 8, t0
+        jmp t0
     elsif X86_64
         lshiftq 8, t0
         addq t1, t0
@@ -4234,7 +4233,9 @@ ipintOp(_simd_v128_load8_splat_mem, macro()
             emit "dup v16.16b, w1"
         elsif X86_64
             # memoryBase is r14, t0 is eax
-            emit "vpbroadcastb (%r14,%rax), %xmm0"
+            emit "vpinsrb $0, (%r14,%rax), %xmm0, %xmm0"
+            emit "vpxor %xmm1, %xmm1, %xmm1"
+            emit "vpshufb %xmm1, %xmm0, %xmm0"
         else
             break # Not implemented
         end
@@ -4250,7 +4251,9 @@ ipintOp(_simd_v128_load16_splat_mem, macro()
             emit "dup v16.8h, w1"
         elsif X86_64
             # memoryBase is r14, t0 is eax
-            emit "vpbroadcastw (%r14,%rax), %xmm0"
+            emit "vpinsrw $0, (%r14,%rax), %xmm0, %xmm0"
+            emit "vpshuflw $0, %xmm0, %xmm0"
+            emit "vpunpcklqdq %xmm0, %xmm0, %xmm0"
         else
             break # Not implemented
         end
@@ -4267,7 +4270,7 @@ ipintOp(_simd_v128_load32_splat_mem, macro()
         elsif X86_64
             # Load and broadcast 32-bit value directly from memory to all 4 dwords
             # memoryBase is r14, t0 is eax
-            emit "vpbroadcastd (%r14,%rax), %xmm0"
+            emit "vbroadcastss (%r14,%rax), %xmm0"
         else
             break # Not implemented
         end
@@ -4284,7 +4287,7 @@ ipintOp(_simd_v128_load64_splat_mem, macro()
         elsif X86_64
             # Load and broadcast 64-bit value directly from memory to both qwords
             # memoryBase is r14, t0 is eax
-            emit "vpbroadcastq (%r14,%rax), %xmm0"
+            emit "vmovddup (%r14,%rax), %xmm0"
         else
             break # Not implemented
         end
@@ -4370,7 +4373,16 @@ ipintOp(_simd_i8x16_swizzle, macro()
     if ARM64 or ARM64E
         emit "tbl v16.16b, {v16.16b}, v17.16b"
     elsif X86_64
-        emit "vpshufb %xmm1, %xmm0, %xmm0"
+        # vpshufb only checks bit 7 for out-of-bounds (returns 0 if bit 7 is set)
+        # WebAssembly requires returning 0 for any index >= 16
+        # Add 0x70 with unsigned saturation, so any index > 15 sets bit 7
+        # (15 + 0x70 = 0x7F, anything > 15 saturates to 0xFF)
+        # See BBQJIT::fixupOutOfBoundsIndicesForSwizzle
+        emit "movabsq $0x7070707070707070, %rax"
+        emit "vmovq %rax, %xmm2"
+        emit "vpunpcklqdq %xmm2, %xmm2, %xmm2"   # xmm2 = [0x70, 0x70, ..., 0x70] (16 bytes)
+        emit "vpaddusb %xmm2, %xmm1, %xmm1"      # Saturating add to set bit 7 for indices > 15
+        emit "vpshufb %xmm1, %xmm0, %xmm0"       # Now vpshufb will return 0 for out-of-bounds
     else
         break # Not implemented
     end
@@ -4388,7 +4400,10 @@ ipintOp(_simd_i8x16_splat, macro()
         emit "dup v16.16b, w0"
     elsif X86_64
         # t0 is eax on X86_64, move to xmm0 and broadcast to all 16 bytes
-        emit "vpbroadcastb %eax, %xmm0"
+        emit "vmovd %eax, %xmm0"
+        emit "vpinsrb $1, %eax, %xmm0, %xmm0"
+        emit "vpshuflw $0, %xmm0, %xmm0"
+        emit "vpunpcklqdq %xmm0, %xmm0, %xmm0"
     else
         break # Not implemented
     end
@@ -4405,8 +4420,10 @@ ipintOp(_simd_i16x8_splat, macro()
     if ARM64 or ARM64E
         emit "dup v16.8h, w0"
     elsif X86_64
-        # t0 is eax on X86_64
-        emit "vpbroadcastw %eax, %xmm0"
+        # t0 is eax on X86_64, move to xmm0 and broadcast to all 8 words
+        emit "vmovd %eax, %xmm0"
+        emit "vpshuflw $0, %xmm0, %xmm0"
+        emit "vpunpcklqdq %xmm0, %xmm0, %xmm0"
     else
         break # Not implemented
     end
@@ -4423,8 +4440,9 @@ ipintOp(_simd_i32x4_splat, macro()
     if ARM64 or ARM64E
         emit "dup v16.4s, w0"
     elsif X86_64
-        # t0 is eax on X86_64
-        emit "vpbroadcastd %eax, %xmm0"
+        # t0 is eax on X86_64, move to xmm0 and broadcast to all 4 dwords
+        emit "vmovd %eax, %xmm0"
+        emit "vshufps $0, %xmm0, %xmm0, %xmm0"
     else
         break # Not implemented
     end
@@ -4441,8 +4459,9 @@ ipintOp(_simd_i64x2_splat, macro()
     if ARM64 or ARM64E
         emit "dup v16.2d, x0"
     elsif X86_64
-        # t0 is rax on X86_64, move to xmm0 and broadcast to both qwords
-        emit "vpbroadcastq %rax, %xmm0"
+        # t0 is rax on X86_64
+        emit "vmovq %rax, %xmm0"
+        emit "vmovddup %xmm0, %xmm0"
     else
         break # Not implemented
     end
@@ -8089,11 +8108,20 @@ ipintOp(_simd_f32x4_min, macro()
     if ARM64 or ARM64E
         emit "fmin v16.4s, v16.4s, v17.4s"
     elsif X86_64
-        # IEEE 754-2008 semantics: if either operand is NaN, result is NaN
-        # vminps doesn't handle NaN propagation correctly, so we need to check for NaN
-        emit "vcmpunordps %xmm1, %xmm0, %xmm2"  # Check for NaN in either operand
-        emit "vminps %xmm1, %xmm0, %xmm0"       # Compute min (may not handle NaN correctly)
-        emit "vorps %xmm2, %xmm0, %xmm0"        # OR with NaN mask to propagate NaN
+        # Wasm differs from X86_64 in terms of signed zero values and propagating NaNs
+        # so some special handling of those cases are needed.
+        # Compute result in both directions to handle NaN asymmetry
+        emit "vminps %xmm1, %xmm0, %xmm2"       # xmm2 = min(xmm0, xmm1)
+        emit "vminps %xmm0, %xmm1, %xmm0"       # xmm0 = min(xmm1, xmm0)
+
+        # OR results to propagate sign bits and NaN bits
+        emit "vorps %xmm0, %xmm2, %xmm2"        # xmm2 = xmm0 | xmm2
+
+        # Canonicalize NaNs by checking for unordered values and clearing mantissa
+        emit "vcmpunordps %xmm2, %xmm0, %xmm0" # xmm0 = NaN mask (all 1's where NaN)
+        emit "vorps %xmm0, %xmm2, %xmm2"        # xmm2 |= NaN mask
+        emit "vpsrld $10, %xmm0, %xmm0"         # Shift mask to clear mantissa bits (f32 uses 10)
+        emit "vpandn %xmm2, %xmm0, %xmm0"       # Clear mantissa to canonicalize NaN
     else
         break # Not implemented
     end
@@ -8109,11 +8137,25 @@ ipintOp(_simd_f32x4_max, macro()
     if ARM64 or ARM64E
         emit "fmax v16.4s, v16.4s, v17.4s"
     elsif X86_64
-        # IEEE 754-2008 semantics: if either operand is NaN, result is NaN
-        # vmaxps doesn't handle NaN propagation correctly, so we need to check for NaN
-        emit "vcmpunordps %xmm1, %xmm0, %xmm2"  # Check for NaN in either operand
-        emit "vmaxps %xmm1, %xmm0, %xmm0"       # Compute max (may not handle NaN correctly)
-        emit "vorps %xmm2, %xmm0, %xmm0"        # OR with NaN mask to propagate NaN
+        # Wasm differs from X86_64 in terms of signed zero values and propagating NaNs
+        # so some special handling of those cases are needed.
+        # Compute result in both directions to handle NaN asymmetry
+        emit "vmaxps %xmm1, %xmm0, %xmm2"       # xmm2 = max(xmm0, xmm1)
+        emit "vmaxps %xmm0, %xmm1, %xmm0"       # xmm0 = max(xmm1, xmm0)
+
+        # Check for discrepancies by XORing the results
+        emit "vxorps %xmm0, %xmm2, %xmm0"       # xmm0 = xmm0 ^ xmm2
+
+        # OR results to propagate sign bits and NaN bits
+        emit "vorps %xmm0, %xmm2, %xmm2"        # xmm2 = xmm0 | xmm2
+
+        # Propagate discrepancies in sign bit
+        emit "vsubps %xmm0, %xmm2, %xmm2"       # xmm2 = xmm2 - xmm0
+
+        # Canonicalize NaNs by checking for unordered values and clearing mantissa
+        emit "vcmpunordps %xmm2, %xmm0, %xmm0" # xmm0 = NaN mask (all 1's where NaN)
+        emit "vpsrld $10, %xmm0, %xmm0"         # Shift mask to clear mantissa bits (f32 uses 10)
+        emit "vpandn %xmm2, %xmm0, %xmm0"       # Clear mantissa to canonicalize NaN
     else
         break # Not implemented
     end
@@ -8290,11 +8332,20 @@ ipintOp(_simd_f64x2_min, macro()
     if ARM64 or ARM64E
         emit "fmin v16.2d, v16.2d, v17.2d"
     elsif X86_64
-        # IEEE 754-2008 semantics: if either operand is NaN, result is NaN
-        # vminpd doesn't handle NaN propagation correctly, so we need to check for NaN
-        emit "vcmpunordpd %xmm1, %xmm0, %xmm2"  # Check for NaN in either operand
-        emit "vminpd %xmm1, %xmm0, %xmm0"       # Compute min (may not handle NaN correctly)
-        emit "vorpd %xmm2, %xmm0, %xmm0"        # OR with NaN mask to propagate NaN
+        # Wasm differs from X86_64 in terms of signed zero values and propagating NaNs
+        # so some special handling of those cases are needed.
+        # Compute result in both directions to handle NaN asymmetry
+        emit "vminpd %xmm1, %xmm0, %xmm2"       # xmm2 = min(xmm0, xmm1)
+        emit "vminpd %xmm0, %xmm1, %xmm0"       # xmm0 = min(xmm1, xmm0)
+
+        # OR results to propagate sign bits and NaN bits
+        emit "vorpd %xmm0, %xmm2, %xmm2"        # xmm2 = xmm0 | xmm2
+
+        # Canonicalize NaNs by checking for unordered values and clearing mantissa
+        emit "vcmpunordpd %xmm2, %xmm0, %xmm0" # xmm0 = NaN mask (all 1's where NaN)
+        emit "vorpd %xmm0, %xmm2, %xmm2"        # xmm2 |= NaN mask
+        emit "vpsrlq $13, %xmm0, %xmm0"         # Shift mask to clear mantissa bits
+        emit "vpandn %xmm2, %xmm0, %xmm0"       # Clear mantissa to canonicalize NaN
     else
         break # Not implemented
     end
@@ -8310,11 +8361,25 @@ ipintOp(_simd_f64x2_max, macro()
     if ARM64 or ARM64E
         emit "fmax v16.2d, v16.2d, v17.2d"
     elsif X86_64
-        # IEEE 754-2008 semantics: if either operand is NaN, result is NaN
-        # vmaxpd doesn't handle NaN propagation correctly, so we need to check for NaN
-        emit "vcmpunordpd %xmm1, %xmm0, %xmm2"  # Check for NaN in either operand
-        emit "vmaxpd %xmm1, %xmm0, %xmm0"       # Compute max (may not handle NaN correctly)
-        emit "vorpd %xmm2, %xmm0, %xmm0"        # OR with NaN mask to propagate NaN
+        # Wasm differs from X86_64 in terms of signed zero values and propagating NaNs
+        # so some special handling of those cases are needed.
+        # Compute result in both directions to handle NaN asymmetry
+        emit "vmaxpd %xmm1, %xmm0, %xmm2"       # xmm2 = max(xmm0, xmm1)
+        emit "vmaxpd %xmm0, %xmm1, %xmm0"       # xmm0 = max(xmm1, xmm0)
+
+        # Check for discrepancies by XORing the results
+        emit "vxorpd %xmm0, %xmm2, %xmm0"       # xmm0 = xmm0 ^ xmm2
+
+        # OR results to propagate sign bits and NaN bits
+        emit "vorpd %xmm0, %xmm2, %xmm2"        # xmm2 = xmm0 | xmm2
+
+        # Propagate discrepancies in sign bit
+        emit "vsubpd %xmm0, %xmm2, %xmm2"       # xmm2 = xmm2 - xmm0
+
+        # Canonicalize NaNs by checking for unordered values and clearing mantissa
+        emit "vcmpunordpd %xmm2, %xmm0, %xmm0" # xmm0 = NaN mask (all 1's where NaN)
+        emit "vpsrlq $13, %xmm0, %xmm0"         # Shift mask to clear mantissa bits
+        emit "vpandn %xmm2, %xmm0, %xmm0"       # Clear mantissa to canonicalize NaN
     else
         break # Not implemented
     end
@@ -8377,9 +8442,9 @@ ipintOp(_simd_i32x4_trunc_sat_f32x4_s, macro()
         emit "vandnps %xmm0, %xmm1, %xmm1"                   # xmm1 = src with NaN lanes cleared
         
         # Load 0x1.0p+31f (2147483648.0f) constant
-        emit "movabsq $0x4f0000004f000000, %rax"             # 0x1.0p+31f in both lanes
-        emit "vmovq %rax, %xmm2"
-        emit "vpunpcklqdq %xmm2, %xmm2, %xmm2"               # Broadcast to all 4 lanes
+        emit "movl $0x4f000000, %eax"                        # 0x1.0p+31f
+        emit "vmovd %eax, %xmm2"
+        emit "vshufps $0, %xmm2, %xmm2, %xmm2"               # Broadcast to all 4 lanes
         
         emit "vcmpnltps %xmm2, %xmm1, %xmm3"                 # xmm3 = positive overflow mask (src >= 0x80000000)
         emit "vcvttps2dq %xmm1, %xmm1"                       # Convert with overflow saturated to 0x80000000
@@ -8402,10 +8467,10 @@ ipintOp(_simd_i32x4_trunc_sat_f32x4_u, macro()
         emit "vxorps %xmm1, %xmm1, %xmm1"                    # xmm1 = 0
         emit "vmaxps %xmm1, %xmm0, %xmm0"                    # Clear NaN and negatives
         
-        # Load 2147483647.0f constant
-        emit "movabsq $0x4effffff4effffff, %rax"             # 2147483647.0f in both lanes
-        emit "vmovq %rax, %xmm2"
-        emit "vpunpcklqdq %xmm2, %xmm2, %xmm2"               # Broadcast to all 4 lanes
+        # Load 2147483647.0f constant (rounds to 2147483648.0f in float32)
+        emit "movl $0x4f000000, %eax"                        # 2147483647.0f
+        emit "vmovd %eax, %xmm2"
+        emit "vshufps $0, %xmm2, %xmm2, %xmm2"               # Broadcast to all 4 lanes
         
         emit "vmovaps %xmm0, %xmm3"                          # xmm3 = src copy
         emit "vsubps %xmm2, %xmm3, %xmm3"                    # xmm3 = src - 2147483647.0f
@@ -8556,16 +8621,17 @@ ipintOp(_simd_f64x2_convert_low_i32x4_u, macro()
         # See MacroAssembler::vectorConvertLowUnsignedInt32
         # Load 0x43300000 (high32Bits) and splat to all lanes
         emit "movl $0x43300000, %eax"
-        emit "vpbroadcastd %eax, %xmm1"                   # xmm1 = [0x43300000, 0x43300000, 0x43300000, 0x43300000]
-        
+        emit "vmovd %eax, %xmm1"
+        emit "vpshufd $0, %xmm1, %xmm1"
+
         # Unpack lower 2 i32 with high32Bits
         emit "vunpcklps %xmm1, %xmm0, %xmm0"              # Interleave: [i32_0, 0x43300000, i32_1, 0x43300000]
-        
+
         # Load 0x1.0p+52 mask
         emit "movabsq $0x4330000000000000, %rax"          # 0x1.0p+52 as double
         emit "vmovq %rax, %xmm1"
         emit "vpunpcklqdq %xmm1, %xmm1, %xmm1"            # xmm1 = [0x1.0p+52, 0x1.0p+52]
-        
+
         # Subtract to get the correct unsigned values
         emit "vsubpd %xmm1, %xmm0, %xmm0"
     else
@@ -10081,8 +10147,7 @@ macro mintArgDispatch()
 if ARM64 or ARM64E
     pcrtoaddr _mint_begin, csr4
     addq sc0, csr4
-    # csr4 = x23
-    emit "br x23"
+    jmp csr4
 elsif X86_64
     leap (_mint_begin - _mint_arg_relativePCBase)[PC, sc0], sc0
     jmp sc0
@@ -10097,8 +10162,7 @@ macro mintRetDispatch()
 if ARM64 or ARM64E
     pcrtoaddr _mint_begin_return, csr4
     addq sc0, csr4
-    # csr4 = x23
-    emit "br x23"
+    jmp csr4
 elsif X86_64
     leap (_mint_begin_return - _mint_ret_relativePCBase)[PC, sc0], sc0
     jmp sc0
@@ -10164,6 +10228,9 @@ end
     # reserved
     # reserved        <- sp
 
+    # save t3 as a frame-relative value so stack data can be moved easily for JSPI
+    # t3 is not used after this
+    subp cfr, t3
     push t3, PC
     push PL, wasmInstance
 
@@ -10171,14 +10238,14 @@ end
     move sp, t2
     subp stackFrameSize, sp
 
-    # <first non-arg> <- t3
+    # <first non-arg> <- first_non_arg_addr
     # arg
     # ...
     # arg
     # arg             <- t4 = initial SP (wasm stack)
     # reserved
     # reserved
-    # t3, PC
+    # (first_non_arg_addr - cfr), PC
     # PL, wasmInstance <- t2 = native argument stack (pushed by mINT)
     # call frame
     # call frame
@@ -10251,7 +10318,7 @@ end
     # determine the location to begin copying stack arguments, starting from the last
     move cfr, sc2
     addp FirstArgumentOffset, sc2
-    addp t3, sc2
+    addp t3, sc2 # t3 = callerStackArgSize from the metadata
 
     #  <caller frame>              <- sc2
     #  return val
@@ -10500,8 +10567,10 @@ mintAlign(_call)
     pop wasmInstance, ws0
     # pop targetInstance, targetEntrypoint
 
-    # Save stack pointer, if we tail call someone who changes the frame above's stack argument size
+    # Save stack pointer, if we tail call someone who changes the frame above's stack argument size.
+    # Store its value relative to cfp so stack frames can be easily relocated for JSPI.
     move sp, sc1
+    subp cfr, sc1
     storep sc1, ThisArgumentOffset[cfr]
 
     # Swap instances
@@ -10530,16 +10599,17 @@ _wasm_ipint_call_return_location_wide16:
 _wasm_ipint_call_return_location_wide32:
     # Restore the stack pointer
     loadp ThisArgumentOffset[cfr], sc0
+    addp cfr, sc0
     move sc0, sp
 
-    # <first non-arg>   <- t3
+    # <first non-arg>   <- first_non_arg_addr
     # arg
     # ...
     # arg
     # arg
     # reserved
     # reserved
-    # t3, PC
+    # (first_non_arg_addr - cfr), PC
     # PL, wasmInstance  <- sc3
     # call frame return
     # call frame return
@@ -10558,12 +10628,13 @@ _wasm_ipint_call_return_location_wide32:
     advanceMC(IPInt::CallReturnMetadata::resultBytecode)
     leap [sp, mintRetSrc], mintRetSrc
 
-    # load "saved t3" from the stack
+    # load (first_non_arg_addr - cfr) from the stack and make it absolute
 if ARM64 or ARM64E
     loadp (2 * SlotSize)[sc3], mintRetDst
 elsif X86_64
     loadp (3 * SlotSize)[sc3], mintRetDst
 end
+    addp cfr, mintRetDst
 
     # on x86, we'll use PC again for our PC base
     initPCRelative(mint_ret, PC)
@@ -10697,14 +10768,14 @@ mintAlign(_result_stack_vector)
 
 mintAlign(_end)
 
-    # <first non-arg>   <- t3
+    # <first non-arg>   <- first_non_arg_addr
     # return result
     # ...
     # return result
     # return result
     # return result
     # return result     <- mintRetDst => new SP
-    # t3, PC
+    # (first_non_arg_addr - cfr), PC
     # PL, wasmInstance  <- sc3
     # call frame return <- mintRetSrc
     # call frame return
