@@ -685,7 +685,7 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
 
     case InternalMicrotask::AsyncFunctionResume: {
         JSValue resolution = arguments[1];
-        auto* generator = jsCast<JSGenerator*>(arguments[3]);
+        JSValue context = arguments[3];
         JSGenerator::ResumeMode resumeMode = JSGenerator::ResumeMode::NormalMode;
         switch (static_cast<JSPromise::Status>(arguments[2].asInt32())) {
         case JSPromise::Status::Pending: {
@@ -702,6 +702,30 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
         }
         }
 
+#if USE(BUN_JSC_ADDITIONS)
+        // AsyncLocalStorage support: extract and set async context if present in context array
+        // Matches behavior from PromiseOperations.js promiseReactionJobWithoutPromiseUnwrapAsyncContext:
+        //   if (@isJSArray(context)) {
+        //       prev = @getInternalField(@asyncContext, 0);
+        //       @putInternalField(@asyncContext, 0, context[1]);
+        //       context = context[0];
+        //   }
+        JSValue previousAsyncContext;
+        bool hasAsyncContext = false;
+        if (auto* contextArray = jsDynamicCast<JSArray*>(context)) {
+            if (contextArray->length() == 2) {
+                if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
+                    previousAsyncContext = asyncContextData->getInternalField(0);
+                    JSValue asyncContext = contextArray->getIndexQuickly(1);
+                    asyncContextData->putInternalField(vm, 0, asyncContext);
+                    context = contextArray->getIndexQuickly(0);
+                    hasAsyncContext = true;
+                }
+            }
+        }
+#endif
+
+        auto* generator = jsCast<JSGenerator*>(context);
         int32_t state = generator->state();
         generator->setState(static_cast<int32_t>(JSGenerator::State::Executing));
         JSValue next = generator->next();
@@ -723,6 +747,13 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
             if (catchScope.exception()) {
                 error = catchScope.exception()->value();
                 if (!catchScope.clearExceptionExceptTermination()) [[unlikely]] {
+#if USE(BUN_JSC_ADDITIONS)
+                    // Restore async context before returning
+                    if (hasAsyncContext) {
+                        if (auto* asyncContextData = globalObject->m_asyncContextData.get())
+                            asyncContextData->putInternalField(vm, 0, previousAsyncContext);
+                    }
+#endif
                     scope.release();
                     return;
                 }
@@ -731,6 +762,13 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
 
         if (error) {
             auto* promise = jsCast<JSPromise*>(generator->context());
+#if USE(BUN_JSC_ADDITIONS)
+            // Restore async context before returning
+            if (hasAsyncContext) {
+                if (auto* asyncContextData = globalObject->m_asyncContextData.get())
+                    asyncContextData->putInternalField(vm, 0, previousAsyncContext);
+            }
+#endif
             scope.release();
             promise->reject(vm, globalObject, error);
             return;
@@ -738,11 +776,25 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
 
         if (generator->state() == static_cast<int32_t>(JSGenerator::State::Executing)) {
             auto* promise = jsCast<JSPromise*>(generator->context());
+#if USE(BUN_JSC_ADDITIONS)
+            // Restore async context before returning
+            if (hasAsyncContext) {
+                if (auto* asyncContextData = globalObject->m_asyncContextData.get())
+                    asyncContextData->putInternalField(vm, 0, previousAsyncContext);
+            }
+#endif
             scope.release();
             promise->resolve(globalObject, value);
             return;
         }
 
+#if USE(BUN_JSC_ADDITIONS)
+        // Restore async context before continuing
+        if (hasAsyncContext) {
+            if (auto* asyncContextData = globalObject->m_asyncContextData.get())
+                asyncContextData->putInternalField(vm, 0, previousAsyncContext);
+        }
+#endif
         scope.release();
         JSPromise::resolveWithInternalMicrotaskForAsyncAwait(globalObject, value, InternalMicrotask::AsyncFunctionResume, generator);
         return;

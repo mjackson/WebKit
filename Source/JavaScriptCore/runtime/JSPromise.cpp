@@ -378,6 +378,23 @@ void JSPromise::performPromiseThen(VM& vm, JSGlobalObject* globalObject, JSValue
 
 void JSPromise::performPromiseThenWithInternalMicrotask(VM& vm, JSGlobalObject* globalObject, InternalMicrotask task, JSValue promise, JSValue context)
 {
+#if USE(BUN_JSC_ADDITIONS)
+    // AsyncLocalStorage support: wrap context with async context if present
+    if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
+        JSValue asyncContext = asyncContextData->getInternalField(0);
+        if (!asyncContext.isUndefined()) {
+            // Create array [context, asyncContext]
+            ObjectInitializationScope initializationScope(vm);
+            JSArray* contextArray = JSArray::tryCreateUninitializedRestricted(initializationScope,
+                globalObject->arrayStructureForIndexingTypeDuringAllocation(ArrayWithContiguous), 2);
+            if (contextArray) {
+                contextArray->initializeIndex(initializationScope, 0, context);
+                contextArray->initializeIndex(initializationScope, 1, asyncContext);
+                context = contextArray;
+            }
+        }
+    }
+#endif
     JSValue reactionsOrResult = this->reactionsOrResult();
     switch (status()) {
     case JSPromise::Status::Pending: {
@@ -907,11 +924,47 @@ void JSPromise::resolveWithInternalMicrotask(JSGlobalObject* globalObject, JSVal
 
 void JSPromise::rejectWithInternalMicrotask(JSGlobalObject* globalObject, JSValue argument, InternalMicrotask task, JSValue context)
 {
+#if USE(BUN_JSC_ADDITIONS)
+    // AsyncLocalStorage support: wrap context with async context if present
+    VM& vm = globalObject->vm();
+    if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
+        JSValue asyncContext = asyncContextData->getInternalField(0);
+        if (!asyncContext.isUndefined()) {
+            // Create array [context, asyncContext]
+            ObjectInitializationScope initializationScope(vm);
+            JSArray* contextArray = JSArray::tryCreateUninitializedRestricted(initializationScope,
+                globalObject->arrayStructureForIndexingTypeDuringAllocation(ArrayWithContiguous), 2);
+            if (contextArray) {
+                contextArray->initializeIndex(initializationScope, 0, context);
+                contextArray->initializeIndex(initializationScope, 1, asyncContext);
+                context = contextArray;
+            }
+        }
+    }
+#endif
     globalObject->queueMicrotask(task, jsUndefined(), argument, jsNumber(static_cast<int32_t>(JSPromise::Status::Rejected)), context);
 }
 
 void JSPromise::fulfillWithInternalMicrotask(JSGlobalObject* globalObject, JSValue argument, InternalMicrotask task, JSValue context)
 {
+#if USE(BUN_JSC_ADDITIONS)
+    // AsyncLocalStorage support: wrap context with async context if present
+    VM& vm = globalObject->vm();
+    if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
+        JSValue asyncContext = asyncContextData->getInternalField(0);
+        if (!asyncContext.isUndefined()) {
+            // Create array [context, asyncContext]
+            ObjectInitializationScope initializationScope(vm);
+            JSArray* contextArray = JSArray::tryCreateUninitializedRestricted(initializationScope,
+                globalObject->arrayStructureForIndexingTypeDuringAllocation(ArrayWithContiguous), 2);
+            if (contextArray) {
+                contextArray->initializeIndex(initializationScope, 0, context);
+                contextArray->initializeIndex(initializationScope, 1, asyncContext);
+                context = contextArray;
+            }
+        }
+    }
+#endif
     globalObject->queueMicrotask(task, jsUndefined(), argument, jsNumber(static_cast<int32_t>(JSPromise::Status::Fulfilled)), context);
 }
 
