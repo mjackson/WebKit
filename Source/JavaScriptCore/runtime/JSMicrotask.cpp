@@ -799,15 +799,17 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
             return;
         }
 
+        scope.release();
+        JSPromise::resolveWithInternalMicrotaskForAsyncAwait(globalObject, value, InternalMicrotask::AsyncFunctionResume, generator);
 #if USE(BUN_JSC_ADDITIONS)
-        // Restore async context before continuing
+        // Restore async context after resolveWithInternalMicrotaskForAsyncAwait
+        // This must happen AFTER the call because resolveWithInternalMicrotaskForAsyncAwait calls
+        // performPromiseThenWithInternalMicrotask which needs to capture the current async context
         if (hasAsyncContext) {
             if (auto* asyncContextData = globalObject->m_asyncContextData.get())
                 asyncContextData->putInternalField(vm, 0, previousAsyncContext);
         }
 #endif
-        scope.release();
-        JSPromise::resolveWithInternalMicrotaskForAsyncAwait(globalObject, value, InternalMicrotask::AsyncFunctionResume, generator);
         return;
     }
 
