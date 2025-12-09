@@ -919,7 +919,15 @@ void JSPromise::resolveWithInternalMicrotask(JSGlobalObject* globalObject, JSVal
         return fulfillWithInternalMicrotask(globalObject, resolution, task, context);
 
     auto [ resolve, reject ] = createResolvingFunctionsWithInternalMicrotask(vm, globalObject, task, context);
+#if USE(BUN_JSC_ADDITIONS)
+    // AsyncLocalStorage support: capture async context when queuing thenable resolution
+    JSValue asyncContext = jsUndefined();
+    if (auto* asyncContextData = globalObject->m_asyncContextData.get())
+        asyncContext = asyncContextData->getInternalField(0);
+    return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJob, resolutionObject, then, resolve, reject, asyncContext);
+#else
     return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJob, resolutionObject, then, resolve, reject);
+#endif
 }
 
 void JSPromise::rejectWithInternalMicrotask(JSGlobalObject* globalObject, JSValue argument, InternalMicrotask task, JSValue context)
