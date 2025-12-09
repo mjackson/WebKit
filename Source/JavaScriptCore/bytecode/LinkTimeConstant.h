@@ -72,6 +72,7 @@ class JSGlobalObject;
     v(promiseEmptyOnRejected, nullptr) \
     v(promiseResolve, nullptr) \
     v(promiseReject, nullptr) \
+    v(promiseResolveWithThen, nullptr) \
     v(performPromiseThen, nullptr) \
     v(makeTypeError, nullptr) \
     v(AggregateError, nullptr) \

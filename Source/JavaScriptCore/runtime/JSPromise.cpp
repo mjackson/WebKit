@@ -825,8 +825,6 @@ void JSPromise::resolveWithoutPromise(JSGlobalObject* globalObject, JSValue reso
 void JSPromise::rejectWithoutPromise(JSGlobalObject* globalObject, JSValue argument, JSValue onFulfilled, JSValue onRejected, JSValue context)
 {
     VM& vm = globalObject->vm();
-    auto scope = DECLARE_THROW_SCOPE(vm);
-
     UNUSED_PARAM(onFulfilled);
 #if USE(BUN_JSC_ADDITIONS)
     // AsyncLocalStorage support: wrap context with async context if present
@@ -845,15 +843,12 @@ void JSPromise::rejectWithoutPromise(JSGlobalObject* globalObject, JSValue argum
         }
     }
 #endif
-    scope.release();
     globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJobWithoutPromise, onRejected, argument, context, jsUndefined());
 }
 
 void JSPromise::fulfillWithoutPromise(JSGlobalObject* globalObject, JSValue argument, JSValue onFulfilled, JSValue onRejected, JSValue context)
 {
     VM& vm = globalObject->vm();
-    auto scope = DECLARE_THROW_SCOPE(vm);
-
     UNUSED_PARAM(onRejected);
 #if USE(BUN_JSC_ADDITIONS)
     // AsyncLocalStorage support: wrap context with async context if present
@@ -872,7 +867,6 @@ void JSPromise::fulfillWithoutPromise(JSGlobalObject* globalObject, JSValue argu
         }
     }
 #endif
-    scope.release();
     globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJobWithoutPromise, onFulfilled, argument, context, jsUndefined());
 }
 

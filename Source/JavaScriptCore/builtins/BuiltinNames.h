@@ -92,6 +92,7 @@ namespace JSC {
     macro(promiseEmptyOnRejected) \
     macro(promiseResolve) \
     macro(promiseReject) \
+    macro(promiseResolveWithThen) \
     macro(performPromiseThen) \
     macro(resolve) \
     macro(reject) \
