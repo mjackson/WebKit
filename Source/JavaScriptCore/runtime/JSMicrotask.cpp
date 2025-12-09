@@ -421,7 +421,18 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
     case InternalMicrotask::PromiseAllResolveJob: {
         auto* promise = jsCast<JSPromise*>(arguments[0]);
         JSValue resolution = arguments[1];
-        auto* context = jsCast<JSPromiseAllContext*>(arguments[3]);
+        JSValue contextValue = arguments[3];
+
+#if USE(BUN_JSC_ADDITIONS)
+        // AsyncLocalStorage support: extract context from array if present
+        // performPromiseThenWithInternalMicrotask wraps context as [context, asyncContext]
+        if (auto* contextArray = jsDynamicCast<JSArray*>(contextValue)) {
+            if (contextArray->length() == 2)
+                contextValue = contextArray->getIndexQuickly(0);
+        }
+#endif
+
+        auto* context = jsCast<JSPromiseAllContext*>(contextValue);
         auto* globalContext = jsCast<JSPromiseAllGlobalContext*>(context->globalContext());
 
         switch (static_cast<JSPromise::Status>(arguments[2].asInt32())) {
