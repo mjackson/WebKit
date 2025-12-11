@@ -894,12 +894,27 @@ JSC_DEFINE_HOST_FUNCTION(promiseReject, (JSGlobalObject* globalObject, CallFrame
 // Same as promiseResolve, but sets the @then property on the returned promise.
 // This is needed because Bun's builtins use promise.@then() pattern which requires
 // the @then property to be set directly on the promise object, not just on the prototype.
+// Additionally, this function "shields" InternalPromise by wrapping it in a regular Promise,
+// ensuring that internal promises are not exposed to user code.
 JSC_DEFINE_HOST_FUNCTION(promiseResolveWithThen, (JSGlobalObject* globalObject, CallFrame* callFrame))
 {
     VM& vm = globalObject->vm();
     ASSERT(callFrame->argumentCount() == 2);
     JSObject* constructor = jsCast<JSObject*>(callFrame->uncheckedArgument(0));
     JSValue argument = callFrame->uncheckedArgument(1);
+
+    // If constructor is Promise and argument is InternalPromise,
+    // create a new regular Promise instead of returning InternalPromise directly.
+    // This "shields" the internal promise from user code.
+    if (constructor == globalObject->promiseConstructor() && argument.inherits<JSInternalPromise>()) {
+        JSPromise* promise = JSPromise::create(vm, globalObject->promiseStructure());
+        promise->resolve(globalObject, argument);
+        // Set @then property
+        auto thenPrivateName = vm.propertyNames->builtinNames().thenPrivateName();
+        promise->putDirect(vm, thenPrivateName, globalObject->promiseProtoThenFunction(), PropertyAttribute::DontEnum | PropertyAttribute::DontDelete | PropertyAttribute::ReadOnly);
+        return JSValue::encode(promise);
+    }
+
     JSObject* promise = JSPromise::promiseResolve(globalObject, constructor, argument);
     if (promise) [[likely]] {
         // Set @then property on the promise if it doesn't already have one
