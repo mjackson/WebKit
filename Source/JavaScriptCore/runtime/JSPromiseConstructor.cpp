@@ -76,6 +76,9 @@ JSPromiseConstructor* JSPromiseConstructor::create(VM& vm, Structure* structure,
     FunctionExecutable* executable = promiseConstructorPromiseConstructorCodeGenerator(vm);
     JSPromiseConstructor* constructor = new (NotNull, allocateCell<JSPromiseConstructor>(vm)) JSPromiseConstructor(vm, executable, globalObject, structure);
     constructor->finishCreation(vm, promisePrototype);
+#if USE(BUN_JSC_ADDITIONS)
+    constructor->addOwnInternalSlots(vm, globalObject);
+#endif
     return constructor;
 }
 
@@ -100,6 +103,20 @@ void JSPromiseConstructor::finishCreation(VM& vm, JSPromisePrototype* promisePro
     putDirectNonIndexAccessorWithoutTransition(vm, vm.propertyNames->speciesSymbol, globalObject->promiseSpeciesGetterSetter(), PropertyAttribute::Accessor | PropertyAttribute::ReadOnly | PropertyAttribute::DontEnum);
     JSC_BUILTIN_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->tryKeyword, promiseConstructorTryCodeGenerator, static_cast<unsigned>(PropertyAttribute::DontEnum));
 }
+
+#if USE(BUN_JSC_ADDITIONS)
+// Restore @resolve and @reject private properties on the Promise constructor.
+// These were removed in the WebKit Promise C++ migration (7598b7e88cc0) but are needed
+// for Bun's builtins which use Promise.$resolve() and Promise.$reject() patterns.
+void JSPromiseConstructor::addOwnInternalSlots(VM& vm, JSGlobalObject* globalObject)
+{
+    // Use the standard promiseConstructorFuncResolve for @resolve.
+    // InternalPromisePrototype now has @then (via addOwnInternalSlots), so Promise.$resolve().$then()
+    // works correctly even when Promise.resolve() returns an InternalPromise.
+    JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().resolvePrivateName(), promiseConstructorFuncResolve, static_cast<unsigned>(PropertyAttribute::DontEnum), 1, ImplementationVisibility::Private, PromiseConstructorResolveIntrinsic);
+    JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().rejectPrivateName(), promiseConstructorFuncReject, static_cast<unsigned>(PropertyAttribute::DontEnum), 1, ImplementationVisibility::Private, PromiseConstructorRejectIntrinsic);
+}
+#endif
 
 JSC_DEFINE_HOST_FUNCTION(promiseConstructorFuncResolve, (JSGlobalObject* globalObject, CallFrame* callFrame))
 {

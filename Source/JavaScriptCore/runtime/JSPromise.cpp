@@ -1085,8 +1085,18 @@ JSObject* JSPromise::promiseResolve(JSGlobalObject* globalObject, JSObject* cons
 
     if (argument.inherits<JSPromise>()) {
         auto* promise = jsCast<JSPromise*>(argument);
+#if USE(BUN_JSC_ADDITIONS)
+        // Match the old JavaScript builtin semantics: only return the same promise if
+        // value.constructor === constructor. InternalPromise's constructor is not Promise,
+        // so we should NOT return InternalPromise directly when constructor is Promise.
+        // This ensures InternalPromise gets wrapped in a regular Promise, which is the
+        // expected behavior for Bun's builtins that use Promise.$resolve().$then() pattern.
+        if (promiseSpeciesWatchpointIsValid(vm, promise) && !argument.inherits<JSInternalPromise>()) [[likely]]
+            return promise;
+#else
         if (promiseSpeciesWatchpointIsValid(vm, promise)) [[likely]]
             return promise;
+#endif
 
         auto property = promise->get(globalObject, vm.propertyNames->constructor);
         RETURN_IF_EXCEPTION(scope, { });
