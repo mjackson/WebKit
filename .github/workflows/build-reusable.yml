@@ -295,7 +295,7 @@ jobs:
             os: linux-arm64-gh
             package_json_arch: "arm64"
             CMAKE_BUILD_TYPE: "Debug"
-          - lto_flag: "-flto=thin -fwhole-program-vtables -fforce-emit-vtables"
+          - lto_flag: "-flto=full -fwhole-program-vtables -fforce-emit-vtables"
             label: bun-webkit-linux-arm64-musl-lto
             os: linux-arm64-gh
             package_json_arch: "arm64"
@@ -305,7 +305,7 @@ jobs:
             os: linux-arm64-gh
             package_json_arch: "arm64"
             CMAKE_BUILD_TYPE: "MinSizeRel"
-          - lto_flag: "-flto=thin -fwhole-program-vtables -fforce-emit-vtables"
+          - lto_flag: "-flto=full -fwhole-program-vtables -fforce-emit-vtables"
             label: bun-webkit-linux-amd64-musl-lto
             os: linux-x64-gh
             package_json_arch: "x64"
