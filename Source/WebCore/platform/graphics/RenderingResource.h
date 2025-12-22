@@ -26,32 +26,27 @@
 #pragma once
 
 #include <WebCore/RenderingResourceIdentifier.h>
+#include <wtf/AbstractCanMakeCheckedPtr.h>
 #include <wtf/ThreadSafeWeakPtr.h>
 #include <wtf/WeakHashSet.h>
 
 namespace WebCore {
-class RenderingResourceObserver;
 namespace DisplayList {
 class DisplayList;
 }
 class Gradient;
-}
-
-namespace WTF {
-template<typename T> struct IsDeprecatedWeakRefSmartPointerException;
-template<> struct IsDeprecatedWeakRefSmartPointerException<WebCore::RenderingResourceObserver> : std::true_type { };
-}
-
-namespace WebCore {
 class NativeImage;
 
-class RenderingResourceObserver : public CanMakeWeakPtr<RenderingResourceObserver> {
+class RenderingResourceObserver : public AbstractCanMakeCheckedPtr {
 public:
+    using WeakValueType = RenderingResourceObserver;
     virtual ~RenderingResourceObserver() = default;
+
     virtual void willDestroyNativeImage(const NativeImage&) = 0;
     virtual void willDestroyGradient(const Gradient&) = 0;
     virtual void willDestroyFilter(RenderingResourceIdentifier) = 0;
     virtual void willDestroyDisplayList(const DisplayList::DisplayList&) = 0;
+
 protected:
     RenderingResourceObserver() = default;
 };

@@ -157,7 +157,7 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         case InByValMegamorphic:
         case PutByValDirect:
         case PutByVal:
-        case PutByValAlias:
+        case PutByValDirectResolved:
         case PutByValMegamorphic:
         case GetByVal:
         case GetByValMegamorphic:
@@ -1231,7 +1231,7 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
 
     case PutByValDirect:
     case PutByVal:
-    case PutByValAlias:
+    case PutByValDirectResolved:
     case PutByValMegamorphic: {
         ArrayMode mode = node->arrayMode();
         Node* base = graph.varArgChild(node, 0).node();
@@ -2369,7 +2369,9 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
 
     case MapIteratorNext: {
         Edge& mapIteratorEdge = node->child1();
+        AbstractHeapKind ownerHeap = (mapIteratorEdge.useKind() == MapIteratorObjectUse) ? JSMapFields : JSSetFields;
         AbstractHeapKind heap = (mapIteratorEdge.useKind() == MapIteratorObjectUse) ? JSMapIteratorFields : JSSetIteratorFields;
+        read(ownerHeap);
         read(heap);
         write(heap);
         def(HeapLocation(MapIteratorNextLoc, heap, mapIteratorEdge), LazyNode(node));
@@ -2390,7 +2392,14 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         return;
     }
 
-    case MapStorage:
+    case MapStorage: {
+        Edge& mapEdge = node->child1();
+        AbstractHeapKind heap = (mapEdge.useKind() == MapObjectUse) ? JSMapFields : JSSetFields;
+        read(heap);
+        def(HeapLocation(MapStorageLoc, heap, mapEdge, std::bit_cast<void*>(static_cast<intptr_t>(1))), LazyNode(node));
+        return;
+    }
+
     case MapStorageOrSentinel: {
         Edge& mapEdge = node->child1();
         AbstractHeapKind heap = (mapEdge.useKind() == MapObjectUse) ? JSMapFields : JSSetFields;
@@ -2537,6 +2546,18 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         write(TypedArrayProperties);
         return;
     }
+
+    case ResolvePromiseFirstResolving:
+    case RejectPromiseFirstResolving:
+    case FulfillPromiseFirstResolving:
+        clobberTop();
+        return;
+
+    case PromiseResolve:
+    case PromiseReject:
+    case PromiseThen:
+        clobberTop();
+        return;
 
     case LastNodeType:
         RELEASE_ASSERT_NOT_REACHED();

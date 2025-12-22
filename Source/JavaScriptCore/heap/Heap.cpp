@@ -51,8 +51,10 @@
 #include "JITStubRoutineSet.h"
 #include "JITWorklistInlines.h"
 #include "JSFinalizationRegistry.h"
+#include "JSFunctionWithFields.h"
 #include "JSIterator.h"
 #include "JSPromiseAllContext.h"
+#include "JSPromiseAllGlobalContext.h"
 #include "JSPromiseReaction.h"
 #include "JSRawJSONObject.h"
 #include "JSRemoteFunction.h"
@@ -93,6 +95,7 @@
 #include <wtf/Scope.h>
 #include <wtf/SimpleStats.h>
 #include <wtf/SystemTracing.h>
+#include <wtf/TZoneMallocInlines.h>
 #include <wtf/Threading.h>
 #include "InternalFieldTuple.h"
 
@@ -114,6 +117,18 @@
 #endif
 
 namespace JSC {
+
+// NEVER_INLINE to prevent LTO from inlining this function, which can break
+// compiler barriers in MarkedBlock::isMarked on x86_64.
+NEVER_INLINE bool Heap::isMarked(const void* rawCell)
+{
+    ASSERT(!m_isMarkingForGCVerifier);
+    HeapCell* cell = std::bit_cast<HeapCell*>(rawCell);
+    if (cell->isPreciseAllocation())
+        return cell->preciseAllocation().isMarked();
+    MarkedBlock& block = cell->markedBlock();
+    return block.isMarked(m_objectSpace.markingVersion(), cell);
+}
 
 namespace HeapInternal {
 static constexpr bool verbose = false;
@@ -260,6 +275,8 @@ private:
 } // anonymous namespace
 
 class Heap::HeapThread final : public AutomaticThread {
+    WTF_MAKE_TZONE_ALLOCATED_INLINE(HeapThread);
+    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(HeapThread);
 public:
     HeapThread(const AbstractLocker& locker, JSC::Heap& heap)
         : AutomaticThread(locker, heap.m_threadLock, heap.m_threadCondition.copyRef())
@@ -447,7 +464,7 @@ Heap::Heap(VM& vm, HeapType heapType)
     m_maxEdenSizeWhenCritical = memoryAboveCriticalThreshold / 4;
 
     Locker locker { *m_threadLock };
-    m_thread = adoptRef(new HeapThread(locker, *this));
+    lazyInitialize(m_thread, adoptRef(*new HeapThread(locker, *this)));
 }
 
 #undef INIT_SERVER_ISO_SUBSPACE
@@ -1209,6 +1226,8 @@ void Heap::addToRememberedSet(const JSCell* constCell)
 
 void Heap::sweepSynchronously()
 {
+    RELEASE_ASSERT(vm().currentThreadIsHoldingAPILock());
+
     if (!Options::useGC()) [[unlikely]]
         return;
 
@@ -2475,6 +2494,9 @@ void Heap::updateAllocationLimits()
 
     dataLogLnIf(verbose, "extraMemorySize() = ", computedExtraMemorySize, ", currentHeapSize = ", currentHeapSize);
 
+    // Get critical memory threshold for next cycle.
+    bool isCritical = overCriticalMemoryThreshold(MemoryThresholdCallType::Direct);
+
     if (m_collectionScope && m_collectionScope.value() == CollectionScope::Full) {
         // To avoid pathological GC churn in very small and very large heaps, we set
         // the new allocation limit based on the current size of the heap, with a
@@ -2482,7 +2504,7 @@ void Heap::updateAllocationLimits()
         size_t lastMaxHeapSize = m_maxHeapSize;
         m_maxHeapSize = std::max(minHeapSize(m_heapType, m_ramSize), proportionalHeapSize(currentHeapSize, m_ramSize));
         m_maxEdenSize = m_maxHeapSize - currentHeapSize;
-        if (m_isInOpportunisticTask) {
+        if (m_isInOpportunisticTask && !isCritical) {
             // After an Opportunistic Full GC, we allow eden to occupy all the space we recovered.
             // In this case, m_maxHeapSize may be larger than currentHeapSize + m_maxEdenSize.
             // Note that m_maxEdenSize is still used when we increase m_maxHeapSize after an
@@ -2515,11 +2537,6 @@ void Heap::updateAllocationLimits()
             m_fullActivityCallback->didAllocate(*this, currentHeapSize - m_sizeAfterLastFullCollect);
         }
     }
-
-#if USE(BMALLOC_MEMORY_FOOTPRINT_API)
-    // Get critical memory threshold for next cycle.
-    overCriticalMemoryThreshold(MemoryThresholdCallType::Direct);
-#endif
 
     m_sizeAfterLastCollect = currentHeapSize;
     dataLogLnIf(verbose, "sizeAfterLastCollect = ", m_sizeAfterLastCollect);
@@ -2672,7 +2689,8 @@ bool Heap::useGenerationalGC()
 
 bool Heap::shouldSweepSynchronously()
 {
-    return Options::sweepSynchronously() || VM::isInMiniMode();
+    // updateAllocationLimits() updates info that overCriticalMemoryThreshold() needs.
+    return overCriticalMemoryThreshold() || Options::sweepSynchronously() || VM::isInMiniMode();
 }
 
 bool Heap::shouldDoFullCollection()
@@ -2853,12 +2871,9 @@ void Heap::collectIfNecessaryOrDefer(GCDeferralContext* deferralContext)
         ASSERT(m_maxHeapSize > m_sizeAfterLastCollect);
         size_t bytesAllowedThisCycle = m_maxHeapSize - m_sizeAfterLastCollect;
 
-        bool isCritical = false;
-#if USE(BMALLOC_MEMORY_FOOTPRINT_API)
-        isCritical = overCriticalMemoryThreshold();
+        bool isCritical = overCriticalMemoryThreshold();
         if (isCritical)
             bytesAllowedThisCycle = std::min(m_maxEdenSizeWhenCritical, bytesAllowedThisCycle);
-#endif
 
         size_t bytesAllocatedThisCycle = totalBytesAllocatedThisCycle();
 

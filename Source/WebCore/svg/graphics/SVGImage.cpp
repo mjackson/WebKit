@@ -33,8 +33,10 @@
 #include "CommonVM.h"
 #include "ContainerNodeInlines.h"
 #include "DOMParser.h"
+#include "DocumentInlines.h"
 #include "DocumentLoader.h"
 #include "DocumentSVG.h"
+#include "DocumentView.h"
 #include "EditorClient.h"
 #include "FrameLoader.h"
 #include "ImageBuffer.h"
@@ -43,13 +45,13 @@
 #include "JSDOMWindowBase.h"
 #include "LegacyRenderSVGRoot.h"
 #include "LocalDOMWindow.h"
-#include "LocalFrame.h"
+#include "LocalFrameInlines.h"
 #include "LocalFrameView.h"
 #include "NativeImage.h"
 #include "Page.h"
 #include "PageConfiguration.h"
 #include "RenderSVGRoot.h"
-#include "RenderStyle.h"
+#include "RenderStyleInlines.h"
 #include "RenderView.h"
 #include "SVGElementTypeHelpers.h"
 #include "SVGFEImageElement.h"
@@ -494,6 +496,7 @@ EncodedDataStatus SVGImage::dataChanged(bool allDataReceived)
                 m_page->settings().fontGenericFamilies() = parentSettings->fontGenericFamilies();
                 m_page->settings().setCSSDPropertyEnabled(parentSettings->cssDPropertyEnabled());
             }
+            m_page->setUseColorAppearance(observer->useSystemDarkAppearance(), false);
         }
 
         RefPtr localMainFrame = m_page->localMainFrame();

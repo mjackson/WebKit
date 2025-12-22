@@ -36,18 +36,10 @@ namespace Style {
 auto CSSValueConversion<WordSpacing>::operator()(BuilderState& state, const CSSValue& value) -> WordSpacing
 {
     auto cssToLengthConversionDataWithTextZoomFactor = [](BuilderState& state) -> CSSToLengthConversionData {
-        auto zoomWithTextZoomFactor = [](BuilderState& state) -> float {
-            if (RefPtr frame = state.document().frame()) {
-                float textZoomFactor = state.style().textZoom() != TextZoom::Reset ? frame->textZoomFactor() : 1.0f;
-                return state.style().usedZoom() * textZoomFactor;
-            }
-            return state.cssToLengthConversionData().zoom();
-        };
-
-        auto zoom = zoomWithTextZoomFactor(state);
+        auto zoom = state.zoomWithTextZoomFactor();
         if (zoom == state.cssToLengthConversionData().zoom())
             return state.cssToLengthConversionData();
-        return state.cssToLengthConversionData().copyWithAdjustedZoom(zoom);
+        return state.cssToLengthConversionData().copyWithAdjustedZoom(zoom, WordSpacing::Fixed::range.zoomOptions);
     };
 
     RefPtr primitiveValue = requiredDowncast<CSSPrimitiveValue>(state, value);

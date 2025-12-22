@@ -132,8 +132,7 @@ StringImpl::~StringImpl()
             AtomStringImpl::remove(static_cast<AtomStringImpl*>(this));
     } else if (isSymbol()) {
         auto& symbol = static_cast<SymbolImpl&>(*this);
-        auto* symbolRegistry = symbol.symbolRegistry();
-        if (symbolRegistry)
+        if (CheckedPtr symbolRegistry = symbol.symbolRegistry())
             SUPPRESS_UNCOUNTED_ARG symbolRegistry->remove(*symbol.asRegisteredSymbolImpl());
     }
 
@@ -193,8 +192,9 @@ template<typename CharacterType> inline Ref<StringImpl> StringImpl::createUninit
     // Allocate a single buffer large enough to contain the StringImpl
     // struct as well as the data which it contains. This removes one
     // heap allocation from this call.
-    if (length > maxInternalLength<CharacterType>())
+    if (!isValidLength<CharacterType>(length))
         CRASH();
+
     SUPPRESS_UNCOUNTED_LOCAL StringImpl* string = static_cast<StringImpl*>(StringImplMalloc::malloc(allocationSize<CharacterType>(length)));
     data = unsafeMakeSpan(string->tailPointer<CharacterType>(), length);
     return constructInternal<CharacterType>(*string, length);
@@ -224,7 +224,7 @@ template<typename CharacterType> inline Expected<Ref<StringImpl>, UTF8Conversion
     }
 
     // Same as createUninitialized() except here we use fastRealloc.
-    if (length > maxInternalLength<CharacterType>())
+    if (!isValidLength<CharacterType>(length))
         return makeUnexpected(UTF8ConversionError::OutOfMemory);
 
     originalString->~StringImpl();
@@ -282,6 +282,28 @@ Ref<StringImpl> StringImpl::create(std::span<const Latin1Character> characters)
     return createInternal(characters);
 }
 
+RefPtr<StringImpl> StringImpl::create(std::span<const char8_t> codeUnits)
+{
+    RELEASE_ASSERT(isValidLength<char8_t>(codeUnits.size()));
+
+    if (!codeUnits.data())
+        return nullptr;
+    if (codeUnits.empty())
+        return empty();
+
+    if (charactersAreAllASCII(codeUnits))
+        return create(byteCast<Latin1Character>(codeUnits));
+
+    Vector<char16_t, 1024> buffer(codeUnits.size());
+
+    auto result = Unicode::convert(codeUnits, buffer.mutableSpan());
+    if (result.code != Unicode::ConversionResultCode::Success)
+        return nullptr;
+
+    RELEASE_ASSERT_WITH_SECURITY_IMPLICATION(result.buffer.size() <= codeUnits.size());
+    return create(result.buffer);
+}
+
 Ref<StringImpl> StringImpl::createStaticStringImpl(std::span<const Latin1Character> characters)
 {
     if (characters.empty())
@@ -317,6 +339,17 @@ Ref<StringImpl> StringImpl::create8BitIfPossible(std::span<const char16_t> chara
         data[i++] = static_cast<Latin1Character>(character);
     }
 
+    return string;
+}
+
+Ref<StringImpl> StringImpl::create8BitUnconditionally(std::span<const char16_t> characters)
+{
+    if (characters.empty())
+        return *empty();
+
+    std::span<Latin1Character> data;
+    auto string = createUninitializedInternalNonEmpty(characters.size(), data);
+    copyElements(data, characters);
     return string;
 }
 
@@ -388,8 +421,6 @@ Ref<StringImpl> StringImpl::convertToLowercaseWithoutLocale()
         return newImpl;
     }
 
-    if (m_length > MaxLength)
-        CRASH();
     int32_t length = m_length;
 
     // Do a slower implementation for cases that include non-ASCII characters.
@@ -810,7 +841,7 @@ Ref<StringImpl> StringImpl::trim(CodeUnitMatchFunction predicate)
     return trimMatchedCharacters<char16_t>(predicate);
 }
 
-template<typename CharacterType, class UCharPredicate> inline Ref<StringImpl> StringImpl::simplifyMatchedCharactersToSpace(UCharPredicate predicate)
+template<typename CharacterType, class CodeUnitPredicate> inline Ref<StringImpl> StringImpl::simplifyMatchedCharactersToSpace(CodeUnitPredicate predicate)
 {
     StringBuffer<CharacterType> data(m_length);
 
@@ -868,7 +899,7 @@ float StringImpl::toFloat(bool* ok)
 size_t StringImpl::find(std::span<const Latin1Character> matchString, size_t start)
 {
     ASSERT(!matchString.empty());
-    ASSERT(matchString.size() <= static_cast<size_t>(MaxLength));
+    ASSERT(isValidLength<Latin1Character>(matchString.size()));
 
     // Check start & matchLength are in range.
     if (start > length())

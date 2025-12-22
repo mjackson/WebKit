@@ -68,6 +68,9 @@
 #import <WebCore/FileChooser.h>
 #import <WebCore/FileIconLoader.h>
 #import <WebCore/FloatRect.h>
+#import <WebCore/FocusControllerTypes.h>
+#import <WebCore/FocusOptions.h>
+#import <WebCore/Frame.h>
 #import <WebCore/FrameDestructionObserverInlines.h>
 #import <WebCore/GraphicsLayer.h>
 #import <WebCore/HTMLInputElement.h>
@@ -83,7 +86,7 @@
 #import <WebCore/LocalFrameView.h>
 #import <WebCore/ModalContainerTypes.h>
 #import <WebCore/NavigationAction.h>
-#import <WebCore/NodeInlines.h>
+#import <WebCore/NodeDocument.h>
 #import <WebCore/NotImplemented.h>
 #import <WebCore/Page.h>
 #import <WebCore/PlatformScreen.h>
@@ -241,7 +244,7 @@ void WebChromeClient::takeFocus(FocusDirection direction)
 #endif
 }
 
-void WebChromeClient::focusedElementChanged(Element* element)
+void WebChromeClient::focusedElementChanged(Element* element, LocalFrame*, FocusOptions, BroadcastFocusedElement)
 {
     if (!is<HTMLInputElement>(element))
         return;
@@ -735,11 +738,11 @@ RefPtr<DateTimeChooser> WebChromeClient::createDateTimeChooser(DateTimeChooserCl
     return nullptr;
 }
 
-void WebChromeClient::setTextIndicator(const WebCore::TextIndicatorData& indicatorData) const
+void WebChromeClient::setTextIndicator(RefPtr<TextIndicator>&& textIndicator) const
 {
 }
 
-void WebChromeClient::updateTextIndicator(const WebCore::TextIndicatorData& indicatorData) const
+void WebChromeClient::updateTextIndicator(RefPtr<TextIndicator>&& textIndicator) const
 {
 }
 
@@ -1144,7 +1147,7 @@ void WebChromeClient::setMockMediaPlaybackTargetPickerEnabled(bool enabled)
     [m_webView _setMockMediaPlaybackTargetPickerEnabled:enabled];
 }
 
-void WebChromeClient::setMockMediaPlaybackTargetPickerState(const String& name, MediaPlaybackTargetContext::MockState state)
+void WebChromeClient::setMockMediaPlaybackTargetPickerState(const String& name, MediaPlaybackTargetMockState state)
 {
     [m_webView _setMockMediaPlaybackTargetPickerName:name.createNSString().get() state:state];
 }

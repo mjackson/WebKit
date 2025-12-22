@@ -381,6 +381,12 @@ WI.DebuggerManager = class DebuggerManager extends WI.Object
 
     dataForTarget(target)
     {
+        console.assert(target.hasDomain("Debugger"), `Target of type "${target.type}" does not have "Debugger" domain.`);
+
+        // FIXME <https://webkit.org/b/298909> Add Debugger support for frame targets.
+        if (!target.hasDomain("Debugger"))
+            return null;
+
         let targetData = this._targetDebuggerDataMap.get(target);
         if (targetData)
             return targetData;
@@ -1619,7 +1625,7 @@ WI.DebuggerManager = class DebuggerManager extends WI.Object
 
     _handleTimelineCapturingStateChanged(event)
     {
-        switch (WI.timelineManager.capturingState) {
+        switch (event.data.capturingState) {
         case WI.TimelineManager.CapturingState.Starting:
             this._startDisablingBreakpointsTemporarily();
             if (this.paused)

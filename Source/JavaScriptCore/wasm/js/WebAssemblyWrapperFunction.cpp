@@ -28,6 +28,7 @@
 
 #if ENABLE(WEBASSEMBLY)
 
+#include "JSFunctionInlines.h"
 #include "JSObjectInlines.h"
 #include "JSWebAssemblyInstance.h"
 #include "WasmTypeDefinitionInlines.h"
@@ -101,7 +102,7 @@ JSC_DEFINE_HOST_FUNCTION(callWebAssemblyWrapperFunction, (JSGlobalObject* global
     auto scope = DECLARE_THROW_SCOPE(vm);
     WebAssemblyWrapperFunction* wasmFunction = jsCast<WebAssemblyWrapperFunction*>(callFrame->jsCallee());
     JSObject* function = wasmFunction->function();
-    auto callData = JSC::getCallData(function);
+    auto callData = JSC::getCallDataInline(function);
     RELEASE_ASSERT(callData.type != CallData::Type::None);
     RELEASE_AND_RETURN(scope, JSValue::encode(call(globalObject, function, callData, jsUndefined(), ArgList(callFrame))));
 }

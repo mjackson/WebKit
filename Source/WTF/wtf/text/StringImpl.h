@@ -25,6 +25,7 @@
 #include <wtf/Compiler.h>
 
 #include <limits.h>
+#include <unicode/uchar.h>
 #include <unicode/ustring.h>
 #include <wtf/ASCIICType.h>
 #include <wtf/CheckedArithmetic.h>
@@ -74,10 +75,10 @@ class SymbolRegistry;
 struct ASCIICaseInsensitiveStringViewHashTranslator;
 struct HashedUTF8CharactersTranslator;
 struct HashTranslatorASCIILiteral;
-struct LCharBufferTranslator;
+struct Latin1BufferTranslator;
 struct StringViewHashTranslator;
 struct SubstringTranslator;
-struct UCharBufferTranslator;
+struct UTF16BufferTranslator;
 
 template<typename> class RetainPtr;
 
@@ -194,10 +195,10 @@ class StringImpl : private StringImplShape, public NoVirtualDestructorBase {
     friend struct WTF::ASCIICaseInsensitiveStringViewHashTranslator;
     friend struct WTF::HashedUTF8CharactersTranslator;
     friend struct WTF::HashTranslatorASCIILiteral;
-    friend struct WTF::LCharBufferTranslator;
+    friend struct WTF::Latin1BufferTranslator;
     friend struct WTF::StringViewHashTranslator;
     friend struct WTF::SubstringTranslator;
-    friend struct WTF::UCharBufferTranslator;
+    friend struct WTF::UTF16BufferTranslator;
 
     template<typename> friend struct WTF::BufferFromStaticDataTranslator;
     template<typename> friend struct WTF::HashAndCharactersTranslator;
@@ -206,6 +207,9 @@ class StringImpl : private StringImplShape, public NoVirtualDestructorBase {
 
 public:
     enum BufferOwnership { BufferInternal, BufferOwned, BufferSubstring, BufferExternal };
+
+    // Prefer using isValidLength over MaxLength when the character type is known.
+    template<typename> static constexpr bool isValidLength(size_t);
 
     static constexpr unsigned MaxLength = StringImplShape::MaxLength;
 
@@ -260,9 +264,10 @@ public:
     WTF_EXPORT_PRIVATE static Ref<StringImpl> create(std::span<const Latin1Character>);
     ALWAYS_INLINE static Ref<StringImpl> create(std::span<const char> characters) { return create(byteCast<Latin1Character>(characters)); }
     WTF_EXPORT_PRIVATE static Ref<StringImpl> create8BitIfPossible(std::span<const char16_t>);
+    WTF_EXPORT_PRIVATE static Ref<StringImpl> create8BitUnconditionally(std::span<const char16_t>);
 
-    // Not using create() naming to encourage developers to call create(ASCIILiteral) when they have a string literal.
-    ALWAYS_INLINE static Ref<StringImpl> createFromCString(const char* characters) { return create(unsafeSpan8(characters)); }
+    // Construct a string with UTF-8 data, null if it contains invalid UTF-8 sequences.
+    WTF_EXPORT_PRIVATE static RefPtr<StringImpl> create(std::span<const char8_t>);
 
     static Ref<StringImpl> createSubstringSharingImpl(StringImpl&, unsigned offset, unsigned length);
 
@@ -413,6 +418,7 @@ public:
         template<unsigned characterCount> explicit constexpr StaticStringImpl(const char (&characters)[characterCount], StringKind = StringNormal);
         template<unsigned characterCount> explicit constexpr StaticStringImpl(const char16_t (&characters)[characterCount], StringKind = StringNormal);
         operator StringImpl&();
+        operator const StringImpl&() const;
     };
 
     WTF_EXPORT_PRIVATE static StaticStringImpl s_emptyAtomString;
@@ -483,7 +489,8 @@ public:
     size_t find(Latin1Character, size_t start = 0);
     size_t find(char, size_t start = 0);
     size_t find(char16_t, size_t start = 0);
-    template<typename CodeUnitMatchFunction, std::enable_if_t<std::is_invocable_r_v<bool, CodeUnitMatchFunction, char16_t>>* = nullptr>
+    template<typename CodeUnitMatchFunction>
+        requires (std::is_invocable_r_v<bool, CodeUnitMatchFunction, char16_t>)
     size_t find(CodeUnitMatchFunction, size_t start = 0);
     ALWAYS_INLINE size_t find(ASCIILiteral literal, size_t start = 0) { return find(literal.span8(), start); }
     WTF_EXPORT_PRIVATE size_t find(StringView);
@@ -547,7 +554,6 @@ protected:
 
 private:
     template<typename> static size_t allocationSize(Checked<size_t> tailElementCount);
-    template<typename> static size_t maxInternalLength();
     template<typename> static constexpr size_t tailOffset();
 
     WTF_EXPORT_PRIVATE size_t find(std::span<const Latin1Character>, size_t start);
@@ -625,11 +631,11 @@ template<> struct ValueCheck<StringImpl*> {
 
 WTF_EXPORT_PRIVATE bool equal(const StringImpl*, const StringImpl*);
 WTF_EXPORT_PRIVATE bool equal(const StringImpl*, std::span<const Latin1Character>);
-inline bool equal(const StringImpl* a, const char* b) { return equal(a, unsafeSpan8(b)); }
+inline bool equal(const StringImpl* a, const char* b) { return equal(a, byteCast<Latin1Character>(unsafeSpan(b))); }
 WTF_EXPORT_PRIVATE bool equal(const StringImpl*, std::span<const char16_t>);
 ALWAYS_INLINE bool equal(const StringImpl* a, ASCIILiteral b) { return equal(a, b.span8()); }
 inline bool equal(const StringImpl* a, std::span<const char> b) { return equal(a, byteCast<Latin1Character>(b)); }
-inline bool equal(const char* a, StringImpl* b) { return equal(b, unsafeSpan8(a)); }
+inline bool equal(const char* a, StringImpl* b) { return equal(b, byteCast<Latin1Character>(unsafeSpan(a))); }
 WTF_EXPORT_PRIVATE bool equal(const StringImpl& a, const StringImpl& b);
 
 WTF_EXPORT_PRIVATE bool equalIgnoringNullity(StringImpl*, StringImpl*);
@@ -645,7 +651,8 @@ WTF_EXPORT_PRIVATE bool equalIgnoringASCIICaseNonNull(const StringImpl*, const S
 bool equalLettersIgnoringASCIICase(const StringImpl&, ASCIILiteral);
 bool equalLettersIgnoringASCIICase(const StringImpl*, ASCIILiteral);
 
-template<typename CodeUnit, typename CodeUnitMatchFunction, std::enable_if_t<std::is_invocable_r_v<bool, CodeUnitMatchFunction, CodeUnit>>* = nullptr>
+template<typename CodeUnit, typename CodeUnitMatchFunction>
+    requires (std::is_invocable_r_v<bool, CodeUnitMatchFunction, CodeUnit>)
 size_t find(std::span<const CodeUnit>, CodeUnitMatchFunction&&, size_t start = 0);
 
 template<typename CharacterType> size_t reverseFindLineTerminator(std::span<const CharacterType>, size_t start = StringImpl::MaxLength);
@@ -700,7 +707,8 @@ template<> ALWAYS_INLINE std::span<const char16_t> StringImpl::span<char16_t>() 
     return span16();
 }
 
-template<typename CodeUnit, typename CodeUnitMatchFunction, std::enable_if_t<std::is_invocable_r_v<bool, CodeUnitMatchFunction, CodeUnit>>*>
+template<typename CodeUnit, typename CodeUnitMatchFunction>
+    requires (std::is_invocable_r_v<bool, CodeUnitMatchFunction, CodeUnit>)
 inline size_t find(std::span<const CodeUnit> characters, CodeUnitMatchFunction&& matchFunction, size_t start)
 {
     while (start < characters.size()) {
@@ -770,7 +778,8 @@ inline size_t StringImpl::find(char16_t character, size_t start)
     return WTF::find(span16(), character, start);
 }
 
-template<typename CodeUnitMatchFunction, std::enable_if_t<std::is_invocable_r_v<bool, CodeUnitMatchFunction, char16_t>>*>
+template<typename CodeUnitMatchFunction>
+    requires (std::is_invocable_r_v<bool, CodeUnitMatchFunction, char16_t>)
 size_t StringImpl::find(CodeUnitMatchFunction matchFunction, size_t start)
 {
     if (is8Bit())
@@ -807,7 +816,7 @@ template<typename CharacterType1, typename CharacterType2> inline std::strong_or
                 if constexpr (sizeof(CharacterType1) == 2) {
                     auto rev16 = [](uint64_t value) ALWAYS_INLINE_LAMBDA {
                         uint64_t result;
-                        asm ("rev16 %x0, %x1" : "=r"(result) : "r"(value));
+                        __asm__("rev16 %x0, %x1" : "=r"(result) : "r"(value));
                         return result;
                     };
                     return (rev16(flipBytes(lhs)) > rev16(flipBytes(rhs))) ? std::strong_ordering::greater : std::strong_ordering::less;
@@ -1067,8 +1076,12 @@ ALWAYS_INLINE Ref<StringImpl> StringImpl::createSubstringSharingImpl(StringImpl&
         if (substringSize >= allocationSize<Latin1Character>(length))
             return create(rep.span8().subspan(offset, length));
     } else {
+        auto span = rep.span16().subspan(offset, length);
+        if (substringSize >= allocationSize<Latin1Character>(length) && charactersAreAllLatin1(span))
+            return create8BitUnconditionally(span);
+
         if (substringSize >= allocationSize<char16_t>(length))
-            return create(rep.span16().subspan(offset, length));
+            return create(span);
     }
 
     SUPPRESS_UNCOUNTED_LOCAL auto* ownerRep = ((rep.bufferOwnership() == BufferSubstring) ? rep.substringBuffer() : &rep);
@@ -1087,7 +1100,7 @@ template<typename CharacterType> ALWAYS_INLINE RefPtr<StringImpl> StringImpl::tr
         return empty();
     }
 
-    if (length > maxInternalLength<CharacterType>()) {
+    if (!isValidLength<CharacterType>(length)) {
         output = { };
         return nullptr;
     }
@@ -1250,10 +1263,11 @@ template<typename T> inline size_t StringImpl::allocationSize(Checked<size_t> ta
 }
 
 template<typename CharacterType>
-inline size_t StringImpl::maxInternalLength()
+inline constexpr bool StringImpl::isValidLength(size_t length)
 {
     // In order to not overflow the unsigned length, the check for (std::numeric_limits<unsigned>::max() - sizeof(StringImpl)) is needed when sizeof(CharacterType) == 2.
-    return std::min(static_cast<size_t>(MaxLength), (std::numeric_limits<unsigned>::max() - sizeof(StringImpl)) / sizeof(CharacterType));
+    constexpr size_t max = std::min(static_cast<size_t>(MaxLength), (std::numeric_limits<unsigned>::max() - sizeof(StringImpl)) / sizeof(CharacterType));
+    return length <= max;
 }
 
 template<typename T> constexpr size_t StringImpl::tailOffset()
@@ -1317,6 +1331,11 @@ template<unsigned characterCount> constexpr StringImpl::StaticStringImpl::Static
 inline StringImpl::StaticStringImpl::operator StringImpl&()
 {
     SUPPRESS_MEMORY_UNSAFE_CAST return *reinterpret_cast<StringImpl*>(this);
+}
+
+inline StringImpl::StaticStringImpl::operator const StringImpl&() const
+{
+    SUPPRESS_MEMORY_UNSAFE_CAST return *reinterpret_cast<const StringImpl*>(this);
 }
 
 inline bool equalIgnoringASCIICase(const StringImpl& a, const StringImpl& b)

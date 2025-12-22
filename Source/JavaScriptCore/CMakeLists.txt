@@ -123,8 +123,12 @@ set(JavaScriptCore_OBJECT_LUT_SOURCES
     runtime/TemporalPlainDatePrototype.cpp
     runtime/TemporalPlainDateTimeConstructor.cpp
     runtime/TemporalPlainDateTimePrototype.cpp
+    runtime/TemporalPlainMonthDayConstructor.cpp
+    runtime/TemporalPlainMonthDayPrototype.cpp
     runtime/TemporalPlainTimeConstructor.cpp
     runtime/TemporalPlainTimePrototype.cpp
+    runtime/TemporalPlainYearMonthConstructor.cpp
+    runtime/TemporalPlainYearMonthPrototype.cpp
     runtime/TemporalTimeZoneConstructor.cpp
     runtime/TemporalTimeZonePrototype.cpp
 
@@ -336,7 +340,6 @@ set(JavaScriptCore_BUILTINS_SOURCES
     ${JAVASCRIPTCORE_DIR}/builtins/ArrayIteratorPrototype.js
     ${JAVASCRIPTCORE_DIR}/builtins/ArrayPrototype.js
     ${JAVASCRIPTCORE_DIR}/builtins/AsyncDisposableStackPrototype.js
-    ${JAVASCRIPTCORE_DIR}/builtins/AsyncFunctionPrototype.js
     ${JAVASCRIPTCORE_DIR}/builtins/AsyncGeneratorPrototype.js
     ${JAVASCRIPTCORE_DIR}/builtins/AsyncIteratorPrototype.js
     ${JAVASCRIPTCORE_DIR}/builtins/DisposableStackPrototype.js
@@ -752,6 +755,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     debugger/DebuggerCallFrame.h
     debugger/DebuggerParseData.h
     debugger/DebuggerPrimitives.h
+    debugger/ScriptProfilingScope.h
 
     dfg/DFGCodeOriginPool.h
     dfg/DFGCommon.h
@@ -964,6 +968,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     inspector/remote/socket/RemoteInspectorSocketEndpoint.h
 
     interpreter/CachedCall.h
+    interpreter/CachedCallInlines.h
     interpreter/CalleeBits.h
     interpreter/CLoopStack.h
     interpreter/CallFrame.h
@@ -1341,6 +1346,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/JSAsyncGeneratorFunction.h
     runtime/JSAsyncGeneratorFunctionInlines.h
     runtime/JSBigInt.h
+    runtime/JSBigIntInlines.h
     runtime/JSBoundFunction.h
     runtime/JSBoundFunctionInlines.h
     runtime/JSCBytecodeCacheVersion.h
@@ -1356,6 +1362,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/JSCellButterfly.h
     runtime/JSCellButterflyInlines.h
     runtime/JSCellInlines.h
+    runtime/JSCJSValueCellInlines.h
     runtime/JSCustomGetterFunction.h
     runtime/JSCustomGetterFunctionInlines.h
     runtime/JSCustomSetterFunction.h
@@ -1393,6 +1400,8 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/JSGlobalObjectInlines.h
     runtime/JSGlobalProxy.h
     runtime/JSGlobalProxyInlines.h
+    runtime/JSHeapDouble.h
+    runtime/JSHeapInt32.h
     runtime/JSInt16Array.h
     runtime/JSInt32Array.h
     runtime/JSInt8Array.h
@@ -1631,6 +1640,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/StrictEvalActivationInlines.h
     runtime/StringConstructor.h
     runtime/StringConstructorInlines.h
+    runtime/StopTheWorldCallback.h
     runtime/StringIteratorPrototype.h
     runtime/StringIteratorPrototypeInlines.h
     runtime/StringObject.h
@@ -1720,6 +1730,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/VMEntryScopeInlines.h
     runtime/VMInlines.h
     runtime/VMManager.h
+    runtime/VMThreadContext.h
     runtime/VMTraps.h
     runtime/VMTrapsInlines.h
     runtime/VarOffset.h

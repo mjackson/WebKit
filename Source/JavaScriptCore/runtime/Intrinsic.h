@@ -61,6 +61,7 @@ namespace JSC {
     macro(ArrayValuesIntrinsic) \
     macro(ArrayKeysIntrinsic) \
     macro(ArrayEntriesIntrinsic) \
+    macro(ArrayConstructorOfIntrinsic) \
     macro(AsyncIteratorIntrinsic) \
     macro(BooleanConstructorIntrinsic) \
     macro(CharCodeAtIntrinsic) \
@@ -198,9 +199,16 @@ namespace JSC {
     macro(IteratorHelperCreateIntrinsic) \
     macro(WrapForValidIteratorCreateIntrinsic) \
     macro(AsyncFromSyncIteratorCreateIntrinsic) \
-    macro(PromiseAllContextCreateIntrinsic) \
-    macro(PromiseReactionCreateIntrinsic) \
     macro(RegExpStringIteratorCreateIntrinsic) \
+    macro(ResolvePromiseWithFirstResolvingFunctionCallCheckIntrinsic) \
+    macro(RejectPromiseWithFirstResolvingFunctionCallCheckIntrinsic) \
+    macro(FulfillPromiseWithFirstResolvingFunctionCallCheckIntrinsic) \
+    macro(PromiseConstructorResolveIntrinsic) \
+    macro(PromiseResolveIntrinsic) \
+    macro(PromiseConstructorRejectIntrinsic) \
+    macro(PromiseRejectIntrinsic) \
+    macro(PromisePrototypeThenIntrinsic) \
+    macro(PromisePrototypeCatchIntrinsic) \
     \
     /* Getter intrinsics. */ \
     macro(TypedArrayLengthIntrinsic) \

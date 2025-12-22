@@ -70,6 +70,11 @@ Color::Color()
 {
 }
 
+Color::Color(CSS::Keyword::Currentcolor)
+    : value { CurrentColor { } }
+{
+}
+
 Color::Color(WebCore::Color color)
     : value { ResolvedColor { WTFMove(color) } }
 {
@@ -203,9 +208,10 @@ Color::~Color() = default;
 
 bool Color::operator==(const Color& other) const = default;
 
-Color Color::currentColor()
+const Color& Color::currentColor()
 {
-    return Color { CurrentColor { } };
+    static NeverDestroyed<Style::Color> color { CurrentColor { } };
+    return color.get();
 }
 
 Color::ColorKind Color::copy(const Color::ColorKind& other)
@@ -372,7 +378,17 @@ auto CSSValueConversion<Color>::operator()(BuilderState& builderState, const CSS
 
     if (RefPtr color = dynamicDowncast<CSSColorValue>(value))
         return toStyle(color->color(), builderState, forVisitedLink);
-    return toStyle(CSS::Color { CSS::KeywordColor { value.valueID() } }, builderState, forVisitedLink);
+
+    if (CSS::isColorKeyword(value.valueID()))
+        return toStyle(CSS::Color { CSS::KeywordColor { value.valueID() } }, builderState, forVisitedLink);
+
+    builderState.setCurrentPropertyInvalidAtComputedValueTime();
+    return Color { WebCore::Color { } };
+}
+
+auto CSSValueConversion<Color>::operator()(BuilderState& builderState, const CSSValue& value) -> Color
+{
+    return this->operator()(builderState, value, ForVisitedLink::No);
 }
 
 Ref<CSSValue> CSSValueCreation<Color>::operator()(CSSValuePool& pool, const RenderStyle& style, const Color& value)

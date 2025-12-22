@@ -26,6 +26,7 @@
 #include "Document.h"
 #include "LegacyRenderSVGResource.h"
 #include "RenderSVGGradientStop.h"
+#include "RenderStyleInlines.h"
 #include "SVGGradientElement.h"
 #include "SVGNames.h"
 #include <wtf/TZoneMallocInlines.h>
@@ -40,10 +41,11 @@ inline SVGStopElement::SVGStopElement(const QualifiedName& tagName, Document& do
 {
     ASSERT(hasTagName(SVGNames::stopTag));
 
-    static std::once_flag onceFlag;
-    std::call_once(onceFlag, [] {
+    static bool didRegistration = false;
+    if (!didRegistration) [[unlikely]] {
+        didRegistration = true;
         PropertyRegistry::registerProperty<SVGNames::offsetAttr, &SVGStopElement::m_offset>();
-    });
+    }
 }
 
 Ref<SVGStopElement> SVGStopElement::create(const QualifiedName& tagName, Document& document)

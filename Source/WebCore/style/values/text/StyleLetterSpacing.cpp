@@ -36,15 +36,7 @@ namespace Style {
 auto CSSValueConversion<LetterSpacing>::operator()(BuilderState& state, const CSSValue& value) -> LetterSpacing
 {
     auto cssToLengthConversionDataWithTextZoomFactor = [](BuilderState& state) -> CSSToLengthConversionData {
-        auto zoomWithTextZoomFactor = [](BuilderState& state) -> float {
-            if (RefPtr frame = state.document().frame()) {
-                float textZoomFactor = state.style().textZoom() != TextZoom::Reset ? frame->textZoomFactor() : 1.0f;
-                return state.style().usedZoom() * textZoomFactor;
-            }
-            return state.cssToLengthConversionData().zoom();
-        };
-
-        auto zoom = zoomWithTextZoomFactor(state);
+        auto zoom = state.zoomWithTextZoomFactor();
         if (zoom == state.cssToLengthConversionData().zoom())
             return state.cssToLengthConversionData();
         return state.cssToLengthConversionData().copyWithAdjustedZoom(zoom);

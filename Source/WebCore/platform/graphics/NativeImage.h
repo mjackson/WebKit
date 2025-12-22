@@ -27,9 +27,11 @@
 
 #pragma once
 
+#include <WebCore/ImageTypes.h>
 #include <WebCore/PlatformExportMacros.h>
 #include <WebCore/PlatformImage.h>
 #include <WebCore/RenderingResource.h>
+#include <wtf/CheckedRef.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/UniqueRef.h>
 
@@ -41,24 +43,23 @@ class FloatRect;
 class GraphicsContext;
 class IntSize;
 class NativeImageBackend;
-struct Headroom;
 struct ImagePaintingOptions;
 
-class NativeImage final : public ThreadSafeRefCounted<NativeImage> {
+class NativeImage : public ThreadSafeRefCounted<NativeImage>, public CanMakeThreadSafeCheckedPtr<NativeImage> {
     WTF_MAKE_TZONE_ALLOCATED(NativeImage);
+    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(NativeImage);
 public:
-    static WEBCORE_EXPORT RefPtr<NativeImage> create(PlatformImagePtr&&, RenderingResourceIdentifier = RenderingResourceIdentifier::generate());
+    static WEBCORE_EXPORT RefPtr<NativeImage> create(PlatformImagePtr&&);
     // Creates a NativeImage that is intended to be drawn once or only few times. Signals the platform to avoid generating any caches for the image.
-    static WEBCORE_EXPORT RefPtr<NativeImage> createTransient(PlatformImagePtr&&, RenderingResourceIdentifier = RenderingResourceIdentifier::generate());
+    static WEBCORE_EXPORT RefPtr<NativeImage> createTransient(PlatformImagePtr&&);
 
-    WEBCORE_EXPORT ~NativeImage();
+    WEBCORE_EXPORT virtual ~NativeImage();
 
-    WEBCORE_EXPORT const PlatformImagePtr& platformImage() const;
-
-    WEBCORE_EXPORT IntSize size() const;
-    bool hasAlpha() const;
+    WEBCORE_EXPORT virtual const PlatformImagePtr& platformImage() const;
+    WEBCORE_EXPORT virtual IntSize size() const;
+    WEBCORE_EXPORT virtual bool hasAlpha() const;
     std::optional<Color> singlePixelSolidColor() const;
-    WEBCORE_EXPORT DestinationColorSpace colorSpace() const;
+    WEBCORE_EXPORT virtual DestinationColorSpace colorSpace() const;
     WEBCORE_EXPORT bool hasHDRContent() const;
     WEBCORE_EXPORT Headroom headroom() const;
 
@@ -81,11 +82,14 @@ public:
     }
 
 protected:
-    NativeImage(PlatformImagePtr&&, RenderingResourceIdentifier);
+    WEBCORE_EXPORT NativeImage(PlatformImagePtr&&);
 
-    PlatformImagePtr m_platformImage;
+    void computeHeadroom();
+
+    mutable PlatformImagePtr m_platformImage;
+    mutable Headroom m_headroom { Headroom::None };
     mutable WeakHashSet<RenderingResourceObserver> m_observers;
-    RenderingResourceIdentifier m_renderingResourceIdentifier;
+    RenderingResourceIdentifier m_renderingResourceIdentifier { RenderingResourceIdentifier::generate() };
 };
 
 } // namespace WebCore

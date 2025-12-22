@@ -35,11 +35,13 @@
 #include "BackForwardController.h"
 #include "CommonAtomStrings.h"
 #include "CommonVM.h"
-#include "DocumentInlines.h"
 #include "DocumentLoader.h"
+#include "DocumentPage.h"
+#include "DocumentSecurityOrigin.h"
 #include "Event.h"
 #include "FormState.h"
 #include "FormSubmission.h"
+#include "FrameInlines.h"
 #include "FrameLoadRequest.h"
 #include "FrameLoader.h"
 #include "FrameLoaderStateMachine.h"
@@ -48,13 +50,13 @@
 #include "HistoryController.h"
 #include "HistoryItem.h"
 #include "LocalDOMWindow.h"
-#include "LocalFrame.h"
+#include "LocalFrameInlines.h"
 #include "Logging.h"
 #include "Navigation.h"
 #include "NavigationDisabler.h"
-#include "Page.h"
 #include "PolicyChecker.h"
 #include "ScriptController.h"
+#include "Settings.h"
 #include "URLKeepingBlobAlive.h"
 #include "UserGestureIndicator.h"
 #include <wtf/Ref.h>
@@ -474,7 +476,7 @@ public:
             navigationHistoryBehavior = NavigationHistoryBehavior::Push;
         frameLoadRequest.setNavigationHistoryBehavior(navigationHistoryBehavior);
         if (localFrame)
-            localFrame->loader().loadFrameRequest(WTFMove(frameLoadRequest), m_submission->event(), m_submission->takeState());
+            localFrame->loader().loadFrameRequest(WTFMove(frameLoadRequest), m_submission->event(), m_submission.copyRef());
         else
             frame.changeLocation(WTFMove(frameLoadRequest));
     }

@@ -28,6 +28,7 @@
 #if USE(LIBWEBRTC)
 
 #include "RTCNetwork.h"
+#include <WebCore/Timer.h>
 #include <wtf/Forward.h>
 #include <wtf/RetainPtr.h>
 
@@ -36,6 +37,7 @@
 #endif
 
 namespace WebKit {
+class NetworkRTCMonitor;
 
 class NetworkRTCSharedMonitor {
 public:

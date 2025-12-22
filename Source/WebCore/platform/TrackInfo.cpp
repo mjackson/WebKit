@@ -26,6 +26,9 @@
 #include "config.h"
 #include "TrackInfo.h"
 
+#if PLATFORM(COCOA)
+#include <CoreMedia/CMFormatDescription.h>
+#endif
 #include <wtf/NeverDestroyed.h>
 
 namespace WebCore {

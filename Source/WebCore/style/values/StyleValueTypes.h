@@ -48,6 +48,25 @@ struct Context;
 
 class BuilderState;
 
+// MARK: - ValueRepresentation
+
+// All leaf types that want to conform to ValueRepresentation must implement
+// the following:
+//
+//    template<> struct WebCore::Style::ValueRepresentation<StyleType> {
+//        template<typename... F> bool operator()(const StyleType&, F&&... f);
+//    };
+
+template<typename> struct ValueRepresentation;
+
+struct ValueRepresentationInvoker {
+    template<typename StyleType, typename... F> decltype(auto) operator()(const StyleType& value, F&&... f) const
+    {
+        return ValueRepresentation<StyleType>{}(value, std::forward<F>(f)...);
+    }
+};
+inline constexpr ValueRepresentationInvoker valueRepresentation{};
+
 // Types can specialize this and set the value to true to be treated as "non-converting"
 // for css to style / style to css conversion algorithms. This means the type is identical
 // for both CSS and Style systems (e.g. a constant value or an enum).
@@ -89,6 +108,9 @@ template<CSSValueID C> inline constexpr bool TreatAsNonConverting<Constant<C>> =
 
 // Specialize `TreatAsNonConverting` for `CustomIdentifier`, to indicate that its type does not change from the CSS representation.
 template<> inline constexpr bool TreatAsNonConverting<CustomIdentifier> = true;
+
+// Specialize `TreatAsNonConverting` for `PropertyIdentifier`, to indicate that its type does not change from the CSS representation.
+template<> inline constexpr bool TreatAsNonConverting<PropertyIdentifier> = true;
 
 // Specialize `TreatAsNonConverting` for `WTF::AtomString`, to indicate that its type does not change from the CSS representation.
 template<> inline constexpr bool TreatAsNonConverting<WTF::AtomString> = true;
@@ -384,12 +406,7 @@ template<TupleLike StyleType> struct CSSValueCreation<StyleType> {
             CSSValueListBuilder list;
 
             auto caller = WTF::makeVisitor(
-                [&]<typename T>(const std::optional<T>& element) {
-                    if (!element)
-                        return;
-                    list.append(createCSSValue(pool, style, *element, rest...));
-                },
-                [&]<typename T>(const Markable<T>& element) {
+                [&]<OptionalLike T>(const T& element) {
                     if (!element)
                         return;
                     list.append(createCSSValue(pool, style, *element, rest...));
@@ -555,13 +572,7 @@ template<typename StyleType, typename... Rest> void serializationForCSSOnTupleLi
 {
     auto swappedSeparator = ""_s;
     auto caller = WTF::makeVisitor(
-        [&]<typename T>(const std::optional<T>& element) {
-            if (!element)
-                return;
-            builder.append(std::exchange(swappedSeparator, separator));
-            serializationForCSS(builder, context, style, *element, rest...);
-        },
-        [&]<typename T>(const Markable<T>& element) {
+        [&]<OptionalLike T>(const T& element) {
             if (!element)
                 return;
             builder.append(std::exchange(swappedSeparator, separator));
@@ -703,12 +714,16 @@ template<typename Result> struct EvaluationInvoker {
     {
         if constexpr (HasTwoParameterEvaluate<StyleType, Result, T1>)
             return Evaluation<StyleType, Result> { }(value, std::forward<T1>(t1));
+        else
+            return operator()(value);
     }
 
     template<typename StyleType, typename T1, typename T2> Result operator()(const StyleType& value, T1&& t1, T2&& t2) const
     {
         if constexpr (HasThreeParameterEvaluate<StyleType, Result, T1, T2>)
             return Evaluation<StyleType, Result> { }(value, std::forward<T1>(t1), std::forward<T2>(t2));
+        else
+            return operator()(value, std::forward<T1>(t1));
     }
 };
 template<typename Result> inline constexpr EvaluationInvoker<Result> evaluate{};
@@ -1390,6 +1405,49 @@ template<VariantLike T> struct IsZero<T> {
     }
 };
 
+// MARK: - IsKnownZero
+
+// All leaf types that want to conform to IsKnownZero must implement
+// the following:
+//
+//    template<> struct WebCore::Style::IsKnownZero<StyleType> {
+//        bool operator()(const StyleType&);
+//    };
+//
+// or have a member function such that the type matches the
+// `HasIsKnownZero` concept.
+
+template<typename> struct IsKnownZero;
+
+struct IsKnownZeroInvoker {
+    template<typename T> bool operator()(const T& value) const
+    {
+        if constexpr (HasIsKnownZero<T>)
+            return value.isKnownZero();
+        else if constexpr (HasIsZero<T>)
+            return !value.isZero();
+        else
+            return IsKnownZero<T>{}(value);
+    }
+};
+inline constexpr IsKnownZeroInvoker isKnownZero{};
+
+// Constrained for `TreatAsTupleLike`.
+template<TupleLike T> struct IsKnownZero<T> {
+    bool operator()(const T& value)
+    {
+        return WTF::apply([&](const auto& ...x) { return (isKnownZero(x) && ...); }, value);
+    }
+};
+
+// Constrained for `TreatAsVariantLike`.
+template<VariantLike T> struct IsKnownZero<T> {
+    bool operator()(const T& value)
+    {
+        return WTF::switchOn(value, [&](const auto& alternative) { return isKnownZero(alternative); });
+    }
+};
+
 // MARK: - IsEmpty
 
 // All leaf types that want to conform to IsEmpty must implement
@@ -1436,6 +1494,57 @@ template<typename T> struct IsEmpty<MinimallySerializingSpaceSeparatedSize<T>> {
     bool operator()(const auto& value)
     {
         return isZero(value.width()) || isZero(value.height());
+    }
+};
+
+// MARK: - IsKnownEmpty
+
+// All leaf types that want to conform to IsKnownEmpty must implement
+// the following:
+//
+//    template<> struct WebCore::Style::IsKnownEmpty<StyleType> {
+//        bool operator()(const StyleType&);
+//    };
+//
+// or have a member function such that the type matches the
+// `HasIsKnownEmpty` concept.
+
+template<typename> struct IsKnownEmpty;
+
+struct IsKnownEmptyInvoker {
+    template<typename T> bool operator()(const T& value) const
+    {
+        if constexpr (HasIsKnownEmpty<T>)
+            return value.isKnownEmpty();
+        else if constexpr (HasIsEmpty<T>)
+            return value.isEmpty();
+        else
+            return IsKnownEmpty<T>{}(value);
+    }
+};
+inline constexpr IsKnownEmptyInvoker isKnownEmpty{};
+
+// Specialization for `SpaceSeparatedSize`.
+template<typename T> struct IsKnownEmpty<SpaceSeparatedSize<T>> {
+    bool operator()(const auto& value)
+    {
+        return isKnownZero(value.width()) || isKnownZero(value.height());
+    }
+};
+
+// Specialization for `MinimallySerializingSpaceSeparatedPoint`.
+template<typename T> struct IsKnownEmpty<MinimallySerializingSpaceSeparatedPoint<T>> {
+    bool operator()(const auto& value)
+    {
+        return isKnownZero(value.x()) || isKnownZero(value.y());
+    }
+};
+
+// Specialization for `MinimallySerializingSpaceSeparatedSize`.
+template<typename T> struct IsKnownEmpty<MinimallySerializingSpaceSeparatedSize<T>> {
+    bool operator()(const auto& value)
+    {
+        return isKnownZero(value.width()) || isKnownZero(value.height());
     }
 };
 

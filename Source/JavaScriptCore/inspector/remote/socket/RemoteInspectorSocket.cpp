@@ -137,6 +137,8 @@ TargetListing RemoteInspector::listingForInspectionTarget(const RemoteInspection
         targetListing->setString("type"_s, "javascript"_s);
     else if (target.type() == RemoteInspectionTarget::Type::ServiceWorker)
         targetListing->setString("type"_s, "service-worker"_s);
+    else if (target.type() == RemoteInspectionTarget::Type::WasmDebugger)
+        targetListing->setString("type"_s, "wasm-debugger"_s);
 
     return targetListing;
 }
@@ -262,7 +264,7 @@ String RemoteInspector::backendCommands() const
 
     auto contents = FileSystem::readEntireFile(m_backendCommandsPath);
 
-    return contents ? String::adopt(WTFMove(*contents)) : emptyString();
+    return contents ? String { byteCast<Latin1Character>(contents->span()) } : emptyString();
 }
 
 // RemoteInspectorConnectionClient handlers

@@ -36,6 +36,7 @@
 #include "FontPlatformData.h"
 #include "Logging.h"
 #include "MemoryCache.h"
+#include "Settings.h"
 #include "SharedBuffer.h"
 #include "SubresourceLoader.h"
 #include "TextResourceDecoder.h"
@@ -221,7 +222,7 @@ void CachedFont::checkNotify(const NetworkLoadMetrics&, LoadWillContinueInAnothe
         return;
 
     CachedResourceClientWalker<CachedFontClient> walker(*this);
-    while (CachedFontClient* client = walker.next())
+    while (RefPtr client = walker.next())
         client->fontLoaded(*this);
 }
 

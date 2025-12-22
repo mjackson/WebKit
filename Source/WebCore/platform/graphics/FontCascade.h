@@ -28,7 +28,6 @@
 #include <WebCore/Font.h>
 #include <WebCore/FontCascadeDescription.h>
 #include <WebCore/FontCascadeFonts.h>
-#include <WebCore/Length.h>
 #include <WebCore/Path.h>
 #include <WebCore/TextSpacing.h>
 #include <optional>
@@ -119,7 +118,7 @@ public:
     void operator()(TextLayout*) const;
 };
 
-class FontCascade final : public CanMakeWeakPtr<FontCascade>, public CanMakeCheckedPtr<FontCascade> {
+class FontCascade final : public CanMakeWeakPtr<FontCascade>, public CanMakeCheckedPtr<FontCascade, WTF::DefaultedOperatorEqual::No, WTF::CheckedPtrDeleteCheckException::Yes> {
     WTF_MAKE_TZONE_ALLOCATED(FontCascade);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(FontCascade);
 public:
@@ -188,7 +187,7 @@ public:
     const AtomString& familyAt(unsigned i) const { return m_fontDescription.familyAt(i); }
 
     // A std::nullopt return value indicates "font-style: normal".
-    std::optional<FontSelectionValue> italic() const { return m_fontDescription.italic(); }
+    std::optional<FontSelectionValue> fontStyleSlope() const { return m_fontDescription.fontStyleSlope(); }
     FontSelectionValue weight() const { return m_fontDescription.weight(); }
     FontWidthVariant widthVariant() const { return m_fontDescription.widthVariant(); }
 

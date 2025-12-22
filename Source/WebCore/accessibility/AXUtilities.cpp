@@ -30,7 +30,7 @@
 #include "CSSPrimitiveValueMappings.h"
 #include "CSSProperty.h"
 #include "CSSValueList.h"
-#include "Document.h"
+#include "DocumentView.h"
 #include "ElementInlines.h"
 #include "HTMLImageElement.h"
 #include "HTMLMapElement.h"
@@ -48,15 +48,15 @@ namespace WebCore {
 
 using namespace HTMLNames;
 
-ContainerNode* composedParentIgnoringDocumentFragments(const Node& node)
+RefPtr<ContainerNode> composedParentIgnoringDocumentFragments(const Node& node)
 {
     RefPtr ancestor = node.parentInComposedTree();
     while (is<DocumentFragment>(ancestor.get()))
         ancestor = ancestor->parentInComposedTree();
-    return ancestor.get();
+    return ancestor;
 }
 
-ContainerNode* composedParentIgnoringDocumentFragments(const Node* node)
+RefPtr<ContainerNode> composedParentIgnoringDocumentFragments(const Node* node)
 {
     return node ? composedParentIgnoringDocumentFragments(*node) : nullptr;
 }
@@ -124,7 +124,7 @@ RenderImage* toSimpleImage(RenderObject& renderer)
         return nullptr;
 #endif // ENABLE(VIDEO)
 
-    return renderImage.get();
+    return renderImage.unsafeGet();
 }
 
 // FIXME: This probably belongs on Element.
@@ -495,6 +495,19 @@ std::optional<CursorType> cursorTypeFrom(const StyleProperties& properties)
         }
     }
     return std::nullopt;
+}
+
+RefPtr<Node> lastNode(const FixedVector<AXID>& axIDs, AXObjectCache& cache)
+{
+    ASSERT(isMainThread());
+
+    for (auto axID = axIDs.rbegin(); axID != axIDs.rend(); ++axID) {
+        if (RefPtr object = cache.objectForID(*axID)) {
+            if (RefPtr node = object->node())
+                return node;
+        }
+    }
+    return nullptr;
 }
 
 } // namespace WebCore

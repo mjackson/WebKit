@@ -69,7 +69,6 @@ static constexpr uintptr_t SlowPathExceptionTag = JSValue::InvalidTag;
     WASM_IPINT_EXTERN_CPP_DECL_1P(name) REFERENCED_FROM_ASM WTF_INTERNAL
 
 #if ENABLE(WEBASSEMBLY_BBQJIT)
-WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(simd_go_straight_to_bbq, CallFrame* cfr);
 WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(prologue_osr, CallFrame* callFrame);
 WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(loop_osr, CallFrame* callFrame, uint8_t* pc, IPIntLocal* pl);
 WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(epilogue_osr, CallFrame* callFrame);
@@ -100,17 +99,17 @@ WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(table_size, int32_t);
 // Wasm-GC
 WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(struct_new, uint32_t, IPIntStackEntry* sp);
 WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(struct_new_default, uint32_t);
-WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(struct_get, EncodedJSValue, uint32_t);
-WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(struct_get_s, EncodedJSValue, uint32_t);
+WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(struct_get, EncodedJSValue, uint32_t, IPIntStackEntry*);
+WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(struct_get_s, EncodedJSValue, uint32_t, IPIntStackEntry*);
 WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(struct_set, EncodedJSValue, uint32_t, IPIntStackEntry*);
 
-WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(array_new, uint32_t, EncodedJSValue, uint32_t);
+WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(array_new, uint32_t, uint32_t, IPIntStackEntry*);
 WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(array_new_default, uint32_t, uint32_t);
 WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(array_new_fixed, uint32_t, uint32_t, IPIntStackEntry*);
 WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(array_new_data, IPInt::ArrayNewDataMetadata*, uint32_t, uint32_t);
 WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(array_new_elem, IPInt::ArrayNewElemMetadata*, uint32_t, uint32_t);
-WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(array_get, uint32_t, EncodedJSValue, uint32_t);
-WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(array_get_s, uint32_t, EncodedJSValue, uint32_t);
+WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(array_get, uint32_t, IPIntStackEntry*);
+WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(array_get_s, uint32_t, IPIntStackEntry*);
 WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(array_set, uint32_t, IPIntStackEntry*);
 WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(array_fill, IPIntStackEntry* sp);
 WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(array_copy, IPIntStackEntry* sp);
@@ -125,6 +124,7 @@ WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(ref_cast, int32_t, bool, EncodedJSValue);
 WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(call_indirect, CallFrame* callFrame, Wasm::FunctionSpaceIndex* functionIndex, CallIndirectMetadata* call);
 
 // We can't use FunctionSpaceIndex here since ARMv7 ABI always passes structs on th stack...
+WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(prepare_function_body, CallFrame*);
 WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(prepare_call, CallFrame*, CallMetadata*, Register* callee);
 WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(prepare_call_indirect, CallFrame* callFrame, Wasm::FunctionSpaceIndex* functionIndex, CallIndirectMetadata* call);
 WASM_IPINT_EXTERN_CPP_HIDDEN_DECL(prepare_call_ref, CallFrame*, CallRefMetadata*, IPIntStackEntry*);

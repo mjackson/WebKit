@@ -360,6 +360,9 @@ function concat(arg /* ... */)
 
     if (@argumentCount() === 1)
         return @toString(this) + @toString(arg);
+    if (@argumentCount() === 2)
+        return @toString(this) + @toString(arg) + @toString(arguments[1]);
+
     return @tailCallForwardArguments(@stringConcatSlowPath, this);
 }
 

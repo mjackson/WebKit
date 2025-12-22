@@ -27,6 +27,7 @@
 #include "CSSPrimitiveNumericUnits.h"
 #include "CSSPrimitiveValue.h"
 #include "StyleBuilderChecking.h"
+#include "StylePrimitiveNumericTypes+Conversions.h"
 #include "StylePrimitiveNumericTypes.h"
 #include "StyleValueTypes.h"
 
@@ -103,7 +104,12 @@ template<auto R, typename V> struct CSSValueConversion<Length<R, V>> {
                 ? builderState.cssToLengthConversionData().copyWithAdjustedZoom(1.0f)
                 : builderState.cssToLengthConversionData();
         } else if constexpr (R.zoomOptions == CSS::RangeZoomOptions::Unzoomed) {
-            return builderState.cssToLengthConversionData().copyWithAdjustedZoom(1.0f);
+            if (evaluationTimeZoomEnabled(builderState))
+                return builderState.cssToLengthConversionData().copyWithAdjustedZoom(1.0f, R.zoomOptions);
+
+            return builderState.useSVGZoomRulesForLength()
+                ? builderState.cssToLengthConversionData().copyWithAdjustedZoom(1.0f, R.zoomOptions)
+                : builderState.cssToLengthConversionData();
         }
     }
     auto operator()(BuilderState& builderState, const CSSPrimitiveValue& value) -> Length<R, V>
@@ -174,37 +180,94 @@ template<auto R, typename V> struct CSSValueConversion<Flex<R, V>> {
 };
 
 template<auto R, typename V> struct CSSValueConversion<LengthPercentage<R, V>> {
+    using StyleType = LengthPercentage<R, V>;
+
     static auto selectConversionData(BuilderState& builderState) -> CSSToLengthConversionData
     {
-        if constexpr (LengthPercentage<R, V>::Dimension::range.zoomOptions == CSS::RangeZoomOptions::Default) {
+        if constexpr (StyleType::Dimension::range.zoomOptions == CSS::RangeZoomOptions::Default) {
             return builderState.useSVGZoomRulesForLength()
                 ? builderState.cssToLengthConversionData().copyWithAdjustedZoom(1.0f)
                 : builderState.cssToLengthConversionData();
         } else if constexpr (LengthPercentage<R, V>::Dimension::range.zoomOptions == CSS::RangeZoomOptions::Unzoomed) {
-            return builderState.cssToLengthConversionData().copyWithAdjustedZoom(1.0f);
+            if (evaluationTimeZoomEnabled(builderState))
+                return builderState.cssToLengthConversionData().copyWithAdjustedZoom(1.0f);
+
+            return builderState.useSVGZoomRulesForLength()
+                ? builderState.cssToLengthConversionData().copyWithAdjustedZoom(1.0f)
+                : builderState.cssToLengthConversionData();
         }
     }
-    auto operator()(BuilderState& builderState, const CSSPrimitiveValue& value) -> LengthPercentage<R, V>
+    auto operator()(BuilderState& builderState, const CSSPrimitiveValue& value) -> StyleType
     {
         Ref protectedValue = value;
         auto conversionData = selectConversionData(builderState);
         if (protectedValue->isPercentage())
-            return typename LengthPercentage<R, V>::Percentage { CSS::clampToRange<R, V>(protectedValue->resolveAsPercentage<V>(conversionData)) };
+            return typename StyleType::Percentage { CSS::clampToRange<R, V>(protectedValue->resolveAsPercentage<V>(conversionData)) };
         if (protectedValue->isCalculatedPercentageWithLength())
-            return typename LengthPercentage<R, V>::Calc { protectedValue->protectedCssCalcValue()->createCalculationValue(conversionData, CSSCalcSymbolTable { }) };
-        return typename LengthPercentage<R, V>::Dimension { CSS::clampToRange<R, V>(protectedValue->resolveAsLength<V>(conversionData)) };
+            return typename StyleType::Calc { protectedValue->protectedCssCalcValue()->createCalculationValue(conversionData, CSSCalcSymbolTable { }) };
+        return typename StyleType::Dimension { CSS::clampToRange<R, V>(protectedValue->resolveAsLength<V>(conversionData)) };
     }
-    auto operator()(BuilderState& builderState, const CSSValue& value) -> LengthPercentage<R, V>
+    auto operator()(BuilderState& builderState, const CSSValue& value) -> StyleType
     {
         RefPtr protectedValue = requiredDowncast<CSSPrimitiveValue>(builderState, value);
         if (!protectedValue)
             return 0_css_px;
         auto conversionData = selectConversionData(builderState);
         if (protectedValue->isPercentage())
-            return typename LengthPercentage<R, V>::Percentage { CSS::clampToRange<R, V>(protectedValue->resolveAsPercentage<V>(conversionData)) };
+            return typename StyleType::Percentage { CSS::clampToRange<R, V>(protectedValue->resolveAsPercentage<V>(conversionData)) };
         if (protectedValue->isCalculatedPercentageWithLength())
-            return typename LengthPercentage<R, V>::Calc { protectedValue->protectedCssCalcValue()->createCalculationValue(conversionData, CSSCalcSymbolTable { }) };
-        return typename LengthPercentage<R, V>::Dimension { CSS::clampToRange<R, V>(protectedValue->resolveAsLength<V>(conversionData)) };
+            return typename StyleType::Calc { protectedValue->protectedCssCalcValue()->createCalculationValue(conversionData, CSSCalcSymbolTable { }) };
+        return typename StyleType::Dimension { CSS::clampToRange<R, V>(protectedValue->resolveAsLength<V>(conversionData)) };
+    }
+};
+
+template<auto nR, auto pR, typename V> struct CSSValueConversion<NumberOrPercentage<nR, pR, V>> {
+    using StyleType = NumberOrPercentage<nR, pR, V>;
+
+    auto operator()(BuilderState& builderState, const CSSPrimitiveValue& value) -> StyleType
+    {
+        Ref protectedValue = value;
+
+        auto& conversionData = builderState.cssToLengthConversionData();
+        if (protectedValue->isPercentage())
+            return typename StyleType::Percentage { CSS::clampToRange<pR, V>(protectedValue->resolveAsPercentage<V>(conversionData)) };
+        return typename StyleType::Number { CSS::clampToRange<nR, V>(protectedValue->resolveAsNumber<V>(conversionData)) };
+    }
+    auto operator()(BuilderState& builderState, const CSSValue& value) -> StyleType
+    {
+        RefPtr protectedValue = requiredDowncast<CSSPrimitiveValue>(builderState, value);
+        if (!protectedValue)
+            return 0_css_number;
+
+        auto& conversionData = builderState.cssToLengthConversionData();
+        if (protectedValue->isPercentage())
+            return typename StyleType::Percentage { CSS::clampToRange<pR, V>(protectedValue->resolveAsPercentage<V>(conversionData)) };
+        return typename StyleType::Number { CSS::clampToRange<nR, V>(protectedValue->resolveAsNumber<V>(conversionData)) };
+    }
+};
+
+template<auto nR, auto pR, typename V> struct CSSValueConversion<NumberOrPercentageResolvedToNumber<nR, pR, V>> {
+    using StyleType = NumberOrPercentageResolvedToNumber<nR, pR, V>;
+
+    auto operator()(BuilderState& builderState, const CSSPrimitiveValue& value) -> StyleType
+    {
+        Ref protectedValue = value;
+
+        auto& conversionData = builderState.cssToLengthConversionData();
+        if (protectedValue->isPercentage())
+            return typename StyleType::Percentage { CSS::clampToRange<pR, V>(protectedValue->resolveAsPercentage<V>(conversionData)) };
+        return typename StyleType::Number { CSS::clampToRange<nR, V>(protectedValue->resolveAsNumber<V>(conversionData)) };
+    }
+    auto operator()(BuilderState& builderState, const CSSValue& value) -> StyleType
+    {
+        RefPtr protectedValue = requiredDowncast<CSSPrimitiveValue>(builderState, value);
+        if (!protectedValue)
+            return 0_css_number;
+
+        auto& conversionData = builderState.cssToLengthConversionData();
+        if (protectedValue->isPercentage())
+            return typename StyleType::Percentage { CSS::clampToRange<pR, V>(protectedValue->resolveAsPercentage<V>(conversionData)) };
+        return typename StyleType::Number { CSS::clampToRange<nR, V>(protectedValue->resolveAsNumber<V>(conversionData)) };
     }
 };
 

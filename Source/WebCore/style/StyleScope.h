@@ -33,6 +33,7 @@
 #include <WebCore/LayoutSize.h>
 #include <WebCore/StyleScopeIdentifier.h>
 #include <WebCore/StyleScopeOrdinal.h>
+#include <WebCore/Styleable.h>
 #include <WebCore/Timer.h>
 #include <memory>
 #include <wtf/CheckedPtr.h>
@@ -121,6 +122,9 @@ public:
     // The change is assumed to potentially affect all author and user stylesheets including shadow roots.
     WEBCORE_EXPORT void didChangeStyleSheetEnvironment();
 
+    // This is called when extension stylesheets change.
+    void didChangeExtensionStyleSheets();
+
     void didChangeViewportSize();
 
     void invalidateMatchedDeclarationsCache();
@@ -173,6 +177,10 @@ public:
     const AnchorPositionedToAnchorMap& anchorPositionedToAnchorMap() const { return m_anchorPositionedToAnchorMap; }
     void updateAnchorPositioningStateAfterStyleResolution();
 
+    std::optional<size_t> lastSuccessfulPositionOptionIndexFor(const Styleable&);
+    void setLastSuccessfulPositionOptionIndexMap(HashMap<AnchorPositionedKey, size_t>&&);
+    void forgetLastSuccessfulPositionOptionIndex(const Styleable&);
+
     bool invalidateForAnchorDependencies(LayoutDependencyUpdateContext&);
 
 private:
@@ -181,7 +189,7 @@ private:
 
     void didRemovePendingStylesheet();
 
-    enum class UpdateType : uint8_t { ActiveSet, ContentsOrInterpretation };
+    enum class UpdateType : uint8_t { ActiveSet, FullForExtensionStyleSheets, ContentsOrInterpretation };
     void updateActiveStyleSheets(UpdateType);
     void scheduleUpdate(UpdateType);
 
@@ -273,6 +281,9 @@ private:
         bool operator==(const AnchorPosition&) const = default;
     };
     SingleThreadWeakHashMap<const RenderBoxModelObject, AnchorPosition> m_anchorPositionsOnLastUpdate;
+    // Stores the last successful position option for each anchor-positioned element.
+    // This is recorded when ResizeObserver events are delivered, at Document::updateResizeObservations
+    HashMap<AnchorPositionedKey, size_t> m_lastSuccessfulPositionOptionIndexes;
 
     std::unique_ptr<MatchResultCache> m_matchResultCache;
 

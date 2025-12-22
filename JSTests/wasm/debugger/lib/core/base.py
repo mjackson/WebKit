@@ -252,7 +252,7 @@ class BaseTestCase:
         if not jsc_path:
             raise Exception("JSC executable not found")
 
-        cmd = [jsc_path, f"--wasm-debug={self.current_port}"]
+        cmd = [jsc_path, f"--wasm-debugger={self.current_port}"]
 
         cmd.append(test_file)
 
@@ -265,13 +265,13 @@ class BaseTestCase:
                 os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             )  # Go up to test directory (from lib/core/base.py to debugger/)
 
-            # If test_file contains a directory (like "resources/add/main.js"), set working directory to that subdirectory
+            # If test_file contains a directory (like "resources/c-wasm/add/main.js"), set working directory to that subdirectory
             if "/" in test_file:
                 test_subdir = os.path.dirname(test_file)
                 working_dir = os.path.join(test_dir, test_subdir)
                 # Update the command to use just the filename
                 test_filename = os.path.basename(test_file)
-                cmd = [jsc_path, f"--wasm-debug={self.current_port}"]
+                cmd = [jsc_path, f"--wasm-debugger={self.current_port}"]
 
                 cmd.append(test_filename)
             else:
@@ -351,7 +351,16 @@ class BaseTestCase:
 
             # Start LLDB process with the connection command
             self.lldb_process = subprocess.Popen(
-                [lldb_path, "-o", connect_cmd],
+                [
+                    lldb_path,
+                    # FIXME: Should remove these two once Swift LLDB step over issue is fixed
+                    "-o",
+                    "settings set stop-line-count-before 0",  # FIXME: Disable showing lines before
+                    "-o",
+                    "settings set stop-line-count-after 0",  # FIXME: Disable showing lines after
+                    "-o",
+                    connect_cmd,
+                ],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -421,8 +430,7 @@ class BaseTestCase:
         if not self.start_debugger(test_file):
             return False
 
-        # Start LLDB
-        if not self.start_lldb():
+        if not self.start_lldb(connection_timeout=20.0):
             return False
 
         self.logger.success(f"Debugging session ready for {self.name}")

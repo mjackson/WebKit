@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2022-2025 Apple Inc. All rights reserved.
  * Copyright (C) 2025 Igalia, S.L. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -271,7 +271,6 @@ void WebExtensionContext::setGrantedPermissions(PermissionsMap&& grantedPermissi
         }
 
         addedPermissions.add(entry.key);
-        addedPermissions.add(entry.key);
     }
 
     if (addedPermissions.isEmpty() && removedPermissions.isEmpty())
@@ -328,7 +327,7 @@ void WebExtensionContext::setGrantedPermissionMatchPatterns(PermissionMatchPatte
         removedMatchPatterns.add(entry.key);
 
     m_nextGrantedPermissionMatchPatternsExpirationDate = WallTime::nan();
-    m_grantedPermissionMatchPatterns = removeExpired(grantedPermissionMatchPatterns, m_nextGrantedPermissionsExpirationDate);
+    m_grantedPermissionMatchPatterns = removeExpired(grantedPermissionMatchPatterns, m_nextGrantedPermissionMatchPatternsExpirationDate);
 
     MatchPatternSet addedMatchPatterns;
     for (auto& entry : m_grantedPermissionMatchPatterns) {
@@ -881,7 +880,7 @@ WebExtensionContext::PermissionState WebExtensionContext::permissionState(const 
         m_cachedPermissionURLs.appendOrMoveToLast(url);
         m_cachedPermissionStates.set(url, result);
 
-        ASSERT(m_cachedPermissionURLs.size() == m_cachedPermissionURLs.size());
+        ASSERT(m_cachedPermissionURLs.size() == m_cachedPermissionStates.size());
 
         if (m_cachedPermissionURLs.size() <= maximumCachedPermissionResults)
             return result;
@@ -889,7 +888,7 @@ WebExtensionContext::PermissionState WebExtensionContext::permissionState(const 
         URL firstCachedURL = m_cachedPermissionURLs.takeFirst();
         m_cachedPermissionStates.remove(firstCachedURL);
 
-        ASSERT(m_cachedPermissionURLs.size() == m_cachedPermissionURLs.size());
+        ASSERT(m_cachedPermissionURLs.size() == m_cachedPermissionStates.size());
 
         return result;
     };
@@ -1290,8 +1289,8 @@ void WebExtensionContext::addInjectedContent(const InjectedContentVector& inject
         if (!pattern.matchesPattern(deniedMatchPattern, { WebExtensionMatchPattern::Options::IgnorePaths, WebExtensionMatchPattern::Options::MatchBidirectionally }))
             continue;
 
-        for (const auto& deniedMatchPattern : deniedMatchPattern->expandedStrings())
-            baseExcludeMatchPatternsSet.add(deniedMatchPattern);
+        for (const auto& deniedMatchPatternString : deniedMatchPattern->expandedStrings())
+            baseExcludeMatchPatternsSet.add(deniedMatchPatternString);
     }
 
     auto& userContentControllers = this->userContentControllers();
@@ -1337,18 +1336,13 @@ void WebExtensionContext::addInjectedContent(const InjectedContentVector& inject
         if (includeMatchPatternsSet.isEmpty())
             continue;
 
-        // FIXME: <rdar://problem/57613243> Support injecting into about:blank, honoring self.contentMatchesAboutBlank. Appending @"about:blank" to the includeMatchPatterns does not work currently.
-        Vector<String> includeMatchPatterns;
-        for (const auto& includeMatchPattern : includeMatchPatternsSet)
-            includeMatchPatterns.append(includeMatchPattern);
+        auto includeMatchPatterns = copyToVector(includeMatchPatternsSet);
 
         HashSet<String> excludeMatchPatternsSet;
         excludeMatchPatternsSet.addAll(injectedContentData.expandedExcludeMatchPatternStrings());
         excludeMatchPatternsSet.unionWith(baseExcludeMatchPatternsSet);
 
-        Vector<String> excludeMatchPatterns;
-        for (const auto& excludeMatchPattern : excludeMatchPatterns)
-            excludeMatchPatterns.append(excludeMatchPattern);
+        auto excludeMatchPatterns = copyToVector(excludeMatchPatternsSet);
 
         auto injectedFrames = injectedContentData.injectsIntoAllFrames ? WebCore::UserContentInjectedFrames::InjectInAllFrames : WebCore::UserContentInjectedFrames::InjectInTopFrameOnly;
         auto injectionTime = toImpl(injectedContentData.injectionTime);
@@ -1370,7 +1364,7 @@ void WebExtensionContext::addInjectedContent(const InjectedContentVector& inject
 
             auto scriptString = scriptStringResult.value();
 
-            Ref userScript = API::UserScript::create(WebCore::UserScript { WTFMove(scriptString), URL { m_baseURL, scriptPath }, WTFMove(includeMatchPatterns), WTFMove(excludeMatchPatterns), injectionTime, injectedFrames, matchParentFrame }, executionWorld);
+            Ref userScript = API::UserScript::create(WebCore::UserScript { WTFMove(scriptString), URL { m_baseURL, scriptPath }, Vector { includeMatchPatterns }, Vector { excludeMatchPatterns }, injectionTime, injectedFrames, matchParentFrame }, executionWorld);
             originInjectedScripts.append(userScript);
 
             for (Ref userContentController : userContentControllers)
@@ -1393,11 +1387,9 @@ void WebExtensionContext::addInjectedContent(const InjectedContentVector& inject
                 continue;
             }
 
-            auto styleSheetString = styleSheetStringResult.value();
+            auto styleSheetString = localizedResourceString(styleSheetStringResult.value(), "text/css"_s);
 
-            styleSheetString = localizedResourceString(styleSheetString, "text/css"_s);
-
-            Ref userStyleSheet = API::UserStyleSheet::create(WebCore::UserStyleSheet { WTFMove(styleSheetString), URL { m_baseURL, styleSheetPath }, WTFMove(includeMatchPatterns), WTFMove(excludeMatchPatterns), injectedFrames, matchParentFrame, styleLevel, std::nullopt }, executionWorld);
+            Ref userStyleSheet = API::UserStyleSheet::create(WebCore::UserStyleSheet { WTFMove(styleSheetString), URL { m_baseURL, styleSheetPath }, Vector { includeMatchPatterns }, Vector { excludeMatchPatterns }, injectedFrames, matchParentFrame, styleLevel, std::nullopt }, executionWorld);
             originInjectedStyleSheets.append(userStyleSheet);
 
             for (Ref userContentController : userContentControllers)
@@ -1564,7 +1556,22 @@ bool WebExtensionContext::purgeMatchedRulesFromBefore(const WallTime& startTime)
     }
 
     m_matchedRules = WTFMove(filteredMatchedRules);
+
     return !m_matchedRules.isEmpty();
+}
+
+void WebExtensionContext::addDeclarativeNetRequestRules(WebUserContentControllerProxy& controllerProxy)
+{
+    API::ContentRuleListStore::defaultStoreSingleton().lookupContentRuleListFile(declarativeNetRequestContentRuleListFilePath(), uniqueIdentifier().isolatedCopy(), [this, protectedThis = Ref { *this }, controllerProxy = Ref { controllerProxy }](RefPtr<API::ContentRuleList> ruleList, std::error_code) {
+        if (!ruleList)
+            return;
+
+        // The extension could have been unloaded before this was called.
+        if (!isLoaded())
+            return;
+
+        controllerProxy->addContentRuleList(*ruleList, m_baseURL);
+    });
 }
 
 void WebExtensionContext::addDeclarativeNetRequestRulesToPrivateUserContentControllers()
@@ -1715,6 +1722,145 @@ Vector<String> WebExtensionContext::corsDisablingPatterns()
     return patterns;
 }
 
+URL WebExtensionContext::backgroundContentURL()
+{
+    RefPtr extension = m_extension;
+    if (!extension->hasBackgroundContent())
+        return { };
+    return { m_baseURL, extension->backgroundContentPath() };
+}
+
+void WebExtensionContext::loadBackgroundContent(CompletionHandler<void(RefPtr<API::Error>)>&& completionHandler)
+{
+    if (!protectedExtension()->hasBackgroundContent()) {
+        if (completionHandler)
+            completionHandler(createError(Error::NoBackgroundContent));
+        return;
+    }
+
+    wakeUpBackgroundContentIfNecessary([this, protectedThis = Ref { *this }, completionHandler = WTFMove(completionHandler)]() mutable {
+        if (completionHandler)
+            completionHandler(backgroundContentLoadError());
+    });
+}
+
+void WebExtensionContext::loadBackgroundWebViewDuringLoad()
+{
+    ASSERT(isLoaded());
+
+    RefPtr extension = m_extension;
+    if (!extension->hasBackgroundContent())
+        return;
+
+    m_safeToLoadBackgroundContent = true;
+
+    if (!extension->backgroundContentIsPersistent()) {
+        loadBackgroundPageListenersFromStorage();
+
+        bool hasEventsToFire = m_shouldFireStartupEvent || m_installReason != InstallReason::None;
+        if (m_backgroundContentEventListeners.isEmpty() || hasEventsToFire)
+            loadBackgroundWebView();
+    } else
+        loadBackgroundWebView();
+}
+
+bool WebExtensionContext::isBackgroundPage(WebCore::FrameIdentifier frameIdentifier) const
+{
+    RefPtr frame = WebFrameProxy::webFrame(frameIdentifier);
+    if (!frame)
+        return false;
+
+    RefPtr page = frame->page();
+    if (!page)
+        return false;
+
+    return isBackgroundPage(page->identifier());
+}
+
+const String& WebExtensionContext::backgroundWebViewInspectionName()
+{
+    if (!m_backgroundWebViewInspectionName.isEmpty())
+        return m_backgroundWebViewInspectionName;
+
+    if (protectedExtension()->backgroundContentIsServiceWorker())
+        m_backgroundWebViewInspectionName = WEB_UI_FORMAT_STRING("%s — Extension Service Worker", "Label for an inspectable Web Extension service worker", protectedExtension()->displayShortName().utf8().data());
+    else
+        m_backgroundWebViewInspectionName = WEB_UI_FORMAT_STRING("%s — Extension Background Page", "Label for an inspectable Web Extension background page", protectedExtension()->displayShortName().utf8().data());
+
+    return m_backgroundWebViewInspectionName;
+}
+
+void WebExtensionContext::wakeUpBackgroundContentIfNecessary(Function<void()>&& completionHandler)
+{
+    if (!protectedExtension()->hasBackgroundContent()) {
+        completionHandler();
+        return;
+    }
+
+    scheduleBackgroundContentToUnload();
+
+    if (backgroundContentIsLoaded()) {
+        completionHandler();
+        return;
+    }
+
+    RELEASE_LOG_DEBUG(Extensions, "Scheduled task for after background content loads");
+
+    m_actionsToPerformAfterBackgroundContentLoads.append(WTFMove(completionHandler));
+
+    loadBackgroundWebViewIfNeeded();
+}
+
+void WebExtensionContext::wakeUpBackgroundContentIfNecessaryToFireEvents(EventListenerTypeSet&& types, Function<void()>&& completionHandler)
+{
+    RefPtr extension = m_extension;
+    if (!extension->hasBackgroundContent()) {
+        completionHandler();
+        return;
+    }
+
+    if (!extension->backgroundContentIsPersistent()) {
+        bool backgroundContentListensToAtLeastOneEvent = false;
+        for (auto& type : types) {
+            if (m_backgroundContentEventListeners.contains(type)) {
+                backgroundContentListensToAtLeastOneEvent = true;
+                break;
+            }
+        }
+
+        // Don't load the background page if it isn't expecting these events.
+        if (!backgroundContentListensToAtLeastOneEvent) {
+            completionHandler();
+            return;
+        }
+    }
+
+    wakeUpBackgroundContentIfNecessary(WTFMove(completionHandler));
+}
+
+#if ENABLE(INSPECTOR_EXTENSIONS)
+URL WebExtensionContext::inspectorBackgroundPageURL() const
+{
+    RefPtr extension = m_extension;
+    if (!extension->hasInspectorBackgroundPage())
+        return { };
+    return { m_baseURL, extension->inspectorBackgroundPagePath() };
+}
+
+RefPtr<WebInspectorUIProxy> WebExtensionContext::inspector(const API::InspectorExtension& inspectorExtension) const
+{
+    ASSERT(isLoaded());
+    ASSERT(protectedExtension()->hasInspectorBackgroundPage());
+
+    for (auto entry : m_inspectorContextMap) {
+        if (entry.value.extension == &inspectorExtension)
+            return &entry.key;
+    }
+
+    return nullptr;
+}
+#endif // ENABLE(INSPECTOR_EXTENSIONS)
+
 size_t WebExtensionContext::quotaForStorageType(WebExtensionDataType storageType)
 {
     switch (storageType) {
@@ -1763,6 +1909,13 @@ Ref<WebExtensionStorageSQLiteStore> WebExtensionContext::storageForType(WebExten
     }
 
     return sessionStorageStore();
+}
+
+Ref<WebExtensionRegisteredScriptsSQLiteStore> WebExtensionContext::registeredContentScriptsStore()
+{
+    if (!m_registeredContentScriptsStorage)
+        m_registeredContentScriptsStorage = WebExtensionRegisteredScriptsSQLiteStore::create(m_uniqueIdentifier, storageDirectory(), !storageIsPersistent());
+    return *m_registeredContentScriptsStorage;
 }
 
 } // namespace WebKit

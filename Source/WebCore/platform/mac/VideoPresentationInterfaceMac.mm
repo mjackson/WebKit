@@ -325,19 +325,19 @@ enum class PIPState {
     [_videoViewContainer setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable)];
 
     _playerLayer = adoptNS([[WebAVPlayerLayer alloc] init]);
-    [[_videoViewContainer layer] addSublayer:_playerLayer.get()];
+    [retainPtr([_videoViewContainer layer]) addSublayer:_playerLayer.get()];
     [_playerLayer setFrame:[_videoViewContainer layer].bounds];
     [_playerLayer setPresentationModel:model.get()];
     [_playerLayer setVideoSublayer:videoView.layer];
     [_playerLayer setVideoDimensions:_videoDimensions];
     [_playerLayer setAutoresizingMask:(kCALayerWidthSizable | kCALayerHeightSizable)];
 
-    [videoView.layer removeFromSuperlayer];
-    [_playerLayer addSublayer:videoView.layer];
+    [retainPtr(videoView.layer) removeFromSuperlayer];
+    [_playerLayer addSublayer:retainPtr(videoView.layer).get()];
 
     _videoViewContainerController = adoptNS([[NSViewController alloc] init]);
     [_videoViewContainerController setView:_videoViewContainer.get()];
-    [window.contentView addSubview:_videoViewContainer.get() positioned:NSWindowAbove relativeTo:nil];
+    [retainPtr(window.contentView) addSubview:_videoViewContainer.get() positioned:NSWindowAbove relativeTo:nil];
 
 #if HAVE(PIP_SKIP_PREROLL)
     [self updatePrerollAttributes];
@@ -427,7 +427,7 @@ enum class PIPState {
 
     ASSERT(videoViewContainer == _videoViewContainer);
 
-    if (![videoViewContainer isDescendantOf:[_pipViewController view]])
+    if (![videoViewContainer isDescendantOf:retainPtr([_pipViewController view]).get()])
         return;
 
     // Once the view is moved into the pip view, make sure it resizes with the pip view.
@@ -487,7 +487,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_BEGIN
             [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
                 context.allowsImplicitAnimation = NO;
                 [_videoViewContainer setFrame:_returningRect];
-                [[_returningWindow contentView] addSubview:_videoViewContainer.get() positioned:NSWindowAbove relativeTo:nil];
+                [retainPtr([_returningWindow contentView]) addSubview:_videoViewContainer.get() positioned:NSWindowAbove relativeTo:nil];
             } completionHandler:nil];
         }
 
@@ -500,7 +500,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_BEGIN
         model->setRequiresTextTrackRepresentation(false);
     }
 
-    videoPresentationInterfaceMac->clearMode(HTMLMediaElementEnums::VideoFullscreenModePictureInPicture);
+    videoPresentationInterfaceMac->clearMode(HTMLMediaElementEnums::VideoFullscreenModePictureInPicture, VideoPresentationModel::ShouldNotifyMediaElement::Yes);
 }
 
 - (void)pipActionPlay:(PIPViewController *)pip
@@ -584,7 +584,7 @@ void VideoPresentationInterfaceMac::setVideoPresentationModel(VideoPresentationM
         model->addClient(*this);
 }
 
-void VideoPresentationInterfaceMac::setMode(HTMLMediaElementEnums::VideoFullscreenMode mode, bool)
+void VideoPresentationInterfaceMac::setMode(HTMLMediaElementEnums::VideoFullscreenMode mode, VideoPresentationModel::ShouldNotifyMediaElement)
 {
     HTMLMediaElementEnums::VideoFullscreenMode newMode = m_mode | mode;
     if (m_mode == newMode)
@@ -600,7 +600,7 @@ void VideoPresentationInterfaceMac::setMode(HTMLMediaElementEnums::VideoFullscre
         return;
 
     if (model)
-        model->fullscreenModeChanged(m_mode);
+        model->fullscreenModeChanged(m_mode, VideoPresentationModel::ShouldNotifyMediaElement::Yes);
 }
 #if HAVE(PIP_SKIP_PREROLL)
 void VideoPresentationInterfaceMac::skipAd()
@@ -608,7 +608,7 @@ void VideoPresentationInterfaceMac::skipAd()
     m_playbackSessionInterface->skipAd();
 }
 #endif
-void VideoPresentationInterfaceMac::clearMode(HTMLMediaElementEnums::VideoFullscreenMode mode)
+void VideoPresentationInterfaceMac::clearMode(HTMLMediaElementEnums::VideoFullscreenMode mode, VideoPresentationModel::ShouldNotifyMediaElement)
 {
     HTMLMediaElementEnums::VideoFullscreenMode newMode = m_mode & ~mode;
     if (m_mode == newMode)
@@ -624,7 +624,7 @@ void VideoPresentationInterfaceMac::clearMode(HTMLMediaElementEnums::VideoFullsc
         return;
 
     if (model)
-        model->fullscreenModeChanged(m_mode);
+        model->fullscreenModeChanged(m_mode, VideoPresentationModel::ShouldNotifyMediaElement::Yes);
 }
 
 void VideoPresentationInterfaceMac::durationChanged(double duration)

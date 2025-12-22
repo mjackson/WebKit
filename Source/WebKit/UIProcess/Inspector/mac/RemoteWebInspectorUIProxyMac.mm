@@ -118,16 +118,16 @@ WebPageProxy* RemoteWebInspectorUIProxy::platformCreateFrontendPageAndWindow()
     m_objCAdapter = adoptNS([[WKRemoteWebInspectorUIProxyObjCAdapter alloc] initWithRemoteWebInspectorUIProxy:this]);
 
     Ref<API::InspectorConfiguration> configuration = checkedClient()->configurationForRemoteInspector(*this);
-    m_inspectorView = adoptNS([[WKInspectorViewController alloc] initWithConfiguration: WebKit::protectedWrapper(configuration.get()).get() inspectedPage:nullptr]);
+    m_inspectorView = adoptNS([[WKInspectorViewController alloc] initWithConfiguration:protectedWrapper(configuration.get()).get() inspectedPage:nullptr]);
     [m_inspectorView.get() setDelegate:m_objCAdapter.get()];
 
     m_window = WebInspectorUIProxy::createFrontendWindow(NSZeroRect, WebInspectorUIProxy::InspectionTargetType::Remote);
     [m_window setDelegate:m_objCAdapter.get()];
     [m_window setFrameAutosaveName:@"WKRemoteWebInspectorWindowFrame"];
 
-    NSView *contentView = m_window.get().contentView;
+    RetainPtr<NSView> contentView = m_window.get().contentView;
     RetainPtr webView = this->webView();
-    [webView setFrame:contentView.bounds];
+    [webView setFrame:contentView.get().bounds];
     [contentView addSubview:webView.get()];
 
     return webView->_page.get();
@@ -152,7 +152,7 @@ void RemoteWebInspectorUIProxy::platformCloseFrontendPageAndWindow()
 
 void RemoteWebInspectorUIProxy::platformResetState()
 {
-    [NSWindow removeFrameUsingName:[m_window frameAutosaveName]];
+    [NSWindow removeFrameUsingName:retainPtr([m_window frameAutosaveName]).get()];
 }
 
 void RemoteWebInspectorUIProxy::platformBringToFront()
@@ -188,7 +188,7 @@ void RemoteWebInspectorUIProxy::platformSave(Vector<InspectorFrontendClient::Sav
 void RemoteWebInspectorUIProxy::platformLoad(const String& path, CompletionHandler<void(const String&)>&& completionHandler)
 {
     if (auto contents = FileSystem::readEntireFile(path))
-        completionHandler(String::adopt(WTFMove(*contents)));
+        completionHandler(String { byteCast<Latin1Character>(contents->span()) });
     else
         completionHandler(nullString());
 }
@@ -260,7 +260,7 @@ void RemoteWebInspectorUIProxy::platformShowCertificate(const CertificateInfo& c
     [certificatePanel beginSheetForWindow:m_window.get() modalDelegate:nil didEndSelector:NULL contextInfo:nullptr trust:certificateInfo.trust().get() showGroup:YES];
 
     // This must be called after the trust panel has been displayed, because the certificateView doesn't exist beforehand.
-    SFCertificateView *certificateView = [certificatePanel certificateView];
+    RetainPtr certificateView = [certificatePanel certificateView];
     [certificateView setDisplayTrust:YES];
     [certificateView setEditableTrust:NO];
     [certificateView setDisplayDetails:YES];

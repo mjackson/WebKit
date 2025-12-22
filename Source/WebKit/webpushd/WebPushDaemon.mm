@@ -294,7 +294,7 @@ void WebPushDaemon::incomingPushTransactionTimerFired()
 
 static void tryCloseRequestConnection(xpc_object_t request)
 {
-    if (RetainPtr connection = xpc_dictionary_get_remote_connection(request))
+    if (XPCObjectPtr<xpc_connection_t> connection = xpc_dictionary_get_remote_connection(request))
         xpc_connection_cancel(connection.get());
 }
 
@@ -324,7 +324,7 @@ void WebPushDaemon::connectionEventHandler(xpc_object_t request)
         return;
     }
 
-    auto xpcConnection = OSObjectPtr { xpc_dictionary_get_remote_connection(request) };
+    XPCObjectPtr<xpc_connection_t> xpcConnection = xpc_dictionary_get_remote_connection(request);
     if (!xpcConnection)
         return;
 
@@ -360,7 +360,8 @@ void WebPushDaemon::connectionEventHandler(xpc_object_t request)
     }
 #endif
 
-    auto reply = adoptOSObject(xpc_dictionary_create_reply(request));
+    // FIXME: This is a false positive. <rdar://164843889>
+    SUPPRESS_RETAINPTR_CTOR_ADOPT auto reply = adoptXPCObject(xpc_dictionary_create_reply(request));
     auto replyHandler = [xpcConnection = WTFMove(xpcConnection), reply = WTFMove(reply)] (UniqueRef<IPC::Encoder>&& encoder) {
         RELEASE_ASSERT(RunLoop::isMain());
         auto xpcData = WebKit::encoderToXPCData(WTFMove(encoder));
@@ -415,8 +416,8 @@ void WebPushDaemon::updateSubscriptionSetState()
             auto bundleIdentifier = pushClientConnection->hostAppCodeSigningIdentifier();
             auto pushPartition = pushClientConnection->pushPartitionIfExists();
             if (bundleIdentifier != allowedBundleIdentifier || (!pushPartition.isEmpty() && !visibleWebClipIdentifiers.contains(pushPartition))) {
-                RELEASE_LOG(Push, "WebPushDaemon::updateSubscriptionSetState: killing obsolete connection %p associated with bundleIdentifier = %{public}s and pushPartition = %{public}s", xpcConnection, bundleIdentifier.ascii().data(), pushPartition.ascii().data());
-                xpc_connection_cancel(xpcConnection);
+                RELEASE_LOG(Push, "WebPushDaemon::updateSubscriptionSetState: killing obsolete connection %p associated with bundleIdentifier = %{public}s and pushPartition = %{public}s", xpcConnection.get(), bundleIdentifier.ascii().data(), pushPartition.ascii().data());
+                xpc_connection_cancel(xpcConnection.get());
             }
         }
     });
@@ -506,7 +507,7 @@ void WebPushDaemon::injectEncryptedPushMessageForTesting(PushClientConnection& c
         if (!obj || ![obj isKindOfClass:[NSDictionary class]])
             return replySender(false);
 
-        daemon.m_pushService->didReceivePushMessage(obj[@"topic"], obj[@"userInfo"], [replySender = WTFMove(replySender)]() mutable {
+        daemon.m_pushService->didReceivePushMessage(retainPtr(obj[@"topic"]).get(), retainPtr(obj[@"userInfo"]).get(), [replySender = WTFMove(replySender)]() mutable {
             replySender(true);
         });
     });
@@ -644,9 +645,9 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     }
 
     NSDictionary *settingsInfo = @{
-        pushActionVersionKey(): currentPushActionVersion(),
-        pushActionPartitionKey(): subscriptionSetIdentifier.pushPartition.createNSString().get(),
-        pushActionTypeKey(): _WKWebPushActionTypePushEvent
+        pushActionVersionKeySingleton(): currentPushActionVersionSingleton(),
+        pushActionPartitionKeySingleton(): subscriptionSetIdentifier.pushPartition.createNSString().get(),
+        pushActionTypeKeySingleton(): _WKWebPushActionTypePushEvent
     };
     RetainPtr<BSMutableSettings> bsSettings = adoptNS([[BSMutableSettings alloc] init]);
     [bsSettings setObject:settingsInfo forSetting:WebKit::WebPushD::pushActionSetting];
@@ -1076,7 +1077,7 @@ void WebPushDaemon::getNotifications(PushClientConnection& connection, const URL
         ensureOnMainRunLoop([identifier = crossThreadCopy(identifier), notifications = RetainPtr { notifications }, registrationURL = crossThreadCopy(WTFMove(registrationURL)), tag = crossThreadCopy(WTFMove(tag)), completionHandler = WTFMove(completionHandler)] mutable {
             Vector<WebCore::NotificationData> notificationDatas;
             for (UNNotification *notification in notifications.get()) {
-                auto notificationData = WebCore::NotificationData::fromDictionary(notification.request.content.userInfo);
+                auto notificationData = WebCore::NotificationData::fromDictionary(retainPtr(notification.request.content.userInfo).get());
                 if (!notificationData) {
                     RELEASE_LOG_ERROR(Push, "WebPushDaemon::getNotifications error: skipping notification with invalid Notification userInfo for subscription %{public}s", identifier.debugDescription().utf8().data());
                     continue;
@@ -1237,9 +1238,9 @@ void WebPushDaemon::setAppBadge(PushClientConnection& connection, WebCore::Secur
     if (!center)
         return;
 
-    UNMutableNotificationContent *content = [UNMutableNotificationContent new];
-    content.badge = appBadge ? [NSNumber numberWithLongLong:*appBadge] : nil;
-    RetainPtr request = [UNNotificationRequest requestWithIdentifier:NSUUID.UUID.UUIDString content:content trigger:nil];
+    RetainPtr content = adoptNS([UNMutableNotificationContent new]);
+    content.get().badge = appBadge ? [NSNumber numberWithLongLong:*appBadge] : nil;
+    RetainPtr request = [UNNotificationRequest requestWithIdentifier:retainPtr(NSUUID.UUID.UUIDString).get() content:content.get() trigger:nil];
     RetainPtr debugDescription = identifier.debugDescription().createNSString().get();
     [center addNotificationRequest:request.get() withCompletionHandler:^(NSError *error) {
         if (error) {
@@ -1262,7 +1263,7 @@ void WebPushDaemon::getAppBadgeForTesting(PushClientConnection& connection, Comp
 
     String bundleIdentifier = connection.pushPartitionIfExists().isEmpty() ? connection.hostAppCodeSigningIdentifier() : connection.pushPartitionIfExists();
     RetainPtr center = adoptNS([[_WKMockUserNotificationCenter alloc] initWithBundleIdentifier:bundleIdentifier.createNSString().get()]);
-    NSNumber *centerBadge = [center getAppBadgeForTesting];
+    RetainPtr<NSNumber> centerBadge = [center getAppBadgeForTesting];
 
     if (centerBadge)
         completionHandler([centerBadge unsignedLongLongValue]);

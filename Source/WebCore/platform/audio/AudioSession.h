@@ -28,6 +28,7 @@
 #if USE(AUDIO_SESSION)
 
 #include <memory>
+#include <wtf/AbstractRefCountedAndCanMakeWeakPtr.h>
 #include <wtf/CompletionHandler.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/Noncopyable.h>
@@ -40,16 +41,12 @@
 #include <wtf/text/WTFString.h>
 
 namespace WebCore {
-class AudioSessionInterruptionObserver;
 class AudioSessionRoutingArbitrationClient;
-class AudioSessionConfigurationChangeObserver;
 }
 
 namespace WTF {
 template<typename T> struct IsDeprecatedWeakRefSmartPointerException;
-template<> struct IsDeprecatedWeakRefSmartPointerException<WebCore::AudioSessionInterruptionObserver> : std::true_type { };
 template<> struct IsDeprecatedWeakRefSmartPointerException<WebCore::AudioSessionRoutingArbitrationClient> : std::true_type { };
-template<> struct IsDeprecatedWeakRefSmartPointerException<WebCore::AudioSessionConfigurationChangeObserver> : std::true_type { };
 }
 
 namespace WTF {
@@ -95,13 +92,14 @@ class AudioSession;
 class AudioSessionRoutingArbitrationClient;
 class AudioSessionInterruptionObserver;
 
-class AudioSessionConfigurationChangeObserver : public CanMakeWeakPtr<AudioSessionConfigurationChangeObserver> {
+class AudioSessionConfigurationChangeObserver : public AbstractRefCountedAndCanMakeWeakPtr<AudioSessionConfigurationChangeObserver> {
 public:
     virtual ~AudioSessionConfigurationChangeObserver() = default;
 
-    virtual void hardwareMutedStateDidChange(const AudioSession&) = 0;
+    virtual void hardwareMutedStateDidChange(const AudioSession&) { }
     virtual void bufferSizeDidChange(const AudioSession&) { }
     virtual void sampleRateDidChange(const AudioSession&) { }
+    virtual void routingContextUIDDidChange(const AudioSession&) { }
 };
 
 class WEBCORE_EXPORT AudioSession : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<AudioSession> {
@@ -202,7 +200,7 @@ protected:
     bool m_isInterrupted { false };
 };
 
-class AudioSessionInterruptionObserver : public CanMakeWeakPtr<AudioSessionInterruptionObserver> {
+class AudioSessionInterruptionObserver : public AbstractRefCountedAndCanMakeWeakPtr<AudioSessionInterruptionObserver> {
 public:
     virtual ~AudioSessionInterruptionObserver() = default;
 

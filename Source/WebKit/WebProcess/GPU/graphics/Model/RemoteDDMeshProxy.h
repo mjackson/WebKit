@@ -29,9 +29,14 @@
 
 #include "DDModelIdentifier.h"
 #include "RemoteDeviceProxy.h"
+#include <WebCore/DDFloat4x4.h>
 #include <WebCore/DDMesh.h>
 #include <WebCore/DDMeshDescriptor.h>
 #include <wtf/TZoneMalloc.h>
+
+#if PLATFORM(COCOA)
+#include <simd/simd.h>
+#endif
 
 namespace WebKit::DDModel {
 
@@ -59,6 +64,8 @@ private:
     RemoteDDMeshProxy& operator=(const RemoteDDMeshProxy&) = delete;
     RemoteDDMeshProxy& operator=(RemoteDDMeshProxy&&) = delete;
 
+    bool isRemoteDDMeshProxy() const final { return true; }
+
     DDModelIdentifier backing() const { return m_backing; }
 
     template<typename T>
@@ -68,13 +75,43 @@ private:
     }
 
     void update(const WebCore::DDModel::DDUpdateMeshDescriptor&) final;
-    void setLabelInternal(const String&) final;
+    void updateTexture(const WebCore::DDModel::DDUpdateTextureDescriptor&) final;
+    void updateMaterial(const WebCore::DDModel::DDUpdateMaterialDescriptor&) final;
+#if PLATFORM(COCOA)
+    std::pair<simd_float4, simd_float4> getCenterAndExtents() const final;
+#endif
+    void play(bool) final;
 
-    DDModelIdentifier m_backing;
+    void render() final;
+    void setLabelInternal(const String&) final;
+    void setEntityTransform(const WebCore::DDModel::DDFloat4x4&) final;
+    std::optional<WebCore::DDModel::DDFloat4x4> entityTransform() const final;
+    bool supportsTransform(const WebCore::TransformationMatrix&) const final;
+    void setScale(float) final;
+    void setCameraDistance(float) final;
+    void setStageMode(WebCore::StageModeOperation) final;
+#if ENABLE(GPU_PROCESS_MODEL)
+    void setRotation(float yaw, float pitch, float roll) final;
+#endif
+
+    const DDModelIdentifier m_backing;
     const Ref<ConvertToBackingContext> m_convertToBackingContext;
     const Ref<RemoteGPUProxy> m_root;
+#if PLATFORM(COCOA)
+    simd_float4 m_minCorner;
+    simd_float4 m_maxCorner;
+#endif
+    std::optional<WebCore::DDModel::DDFloat4x4> m_transform;
+#if ENABLE(GPU_PROCESS_MODEL)
+    float m_cameraDistance { 1.f };
+    WebCore::StageModeOperation m_stageMode;
+#endif
 };
 
 }
+
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebKit::DDModel::RemoteDDMeshProxy)
+    static bool isType(const WebCore::DDModel::DDMesh& mesh) { return mesh.isRemoteDDMeshProxy(); }
+SPECIALIZE_TYPE_TRAITS_END()
 
 #endif // ENABLE(GPU_PROCESS)

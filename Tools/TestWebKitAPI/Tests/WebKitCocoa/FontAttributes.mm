@@ -46,6 +46,10 @@
 #import "UIKitSPIForTesting.h"
 #endif
 
+#if PLATFORM(MAC)
+#import "InstanceMethodSwizzler.h"
+#endif
+
 @interface FontTextStyleUIDelegate : NSObject <WKUIDelegatePrivate> {
 @public
     bool _willSetFont;
@@ -90,6 +94,12 @@
 }
 
 @end
+
+#if PLATFORM(MAC)
+@interface NSMenu ()
+- (id)_menuImpl;
+@end
+#endif
 
 @interface TestWKWebView (FontAttributesTesting)
 - (void)selectElementWithIdentifier:(NSString *)identifier;
@@ -227,14 +237,14 @@ TEST(FontAttributes, FontAttributesAfterChangingSelection)
 
     auto expectFontManagerState = [] (FontExpectation expectedFont, ColorExpectation expectedColor, std::optional<ShadowExpectation> expectedShadow, BOOL underline, BOOL strikeThrough, BOOL expectMultipleFonts) {
 #if PLATFORM(MAC)
-        NSFontManager *fontManager = NSFontManager.sharedFontManager;
         NSFontPanel *fontPanel = NSFontPanel.sharedFontPanel;
+        NSFontManager *fontManager = NSFontManager.sharedFontManager;
+        RetainPtr shadow = [fontPanel lastTextShadow];
+        EXPECT_EQ(!!shadow, !!expectedShadow);
         if (expectedShadow) {
-            EXPECT_TRUE(fontPanel.hasShadow);
-            EXPECT_LT(std::abs(expectedShadow->opacity - fontPanel.shadowOpacity), 0.0001);
-            EXPECT_EQ(expectedShadow->blurRadius, fontPanel.shadowBlur);
-        } else
-            EXPECT_FALSE(fontPanel.hasShadow);
+            EXPECT_LT(std::abs(expectedShadow->opacity - [shadow shadowColor].alphaComponent), 0.0001);
+            EXPECT_EQ(expectedShadow->blurRadius, [shadow shadowBlurRadius]);
+        }
         EXPECT_EQ(underline, fontPanel.hasUnderline);
         EXPECT_EQ(strikeThrough, fontPanel.hasStrikeThrough);
         checkColor([fontPanel.foregroundColor colorUsingColorSpace:NSColorSpace.sRGBColorSpace], { WTFMove(expectedColor) });
@@ -477,6 +487,36 @@ TEST(FontAttributes, FontTextStyle)
 
     TestWebKitAPI::Util::run(&uiDelegate->_done);
 }
+
+#if PLATFORM(MAC)
+TEST(FontAttributes, SelectTextStyle)
+{
+    __block bool done = false;
+    auto menu = adoptNS([NSMenu new]);
+    InstanceMethodSwizzler swizzler { [[menu _menuImpl] class],
+        NSSelectorFromString(@"popUpMenu:atLocation:width:forView:withSelectedItem:withFont:withFlags:withOptions:"),
+        imp_implementationWithBlock(^(id, NSMenu *menu, NSPoint, CGFloat, NSView *, NSInteger, NSFont* font, NSUInteger, NSDictionary *) {
+            EXPECT_WK_STREQ("Helvetica", font.fontName);
+            EXPECT_EQ(32.0, font.pointSize);
+            done = true;
+    }) };
+
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
+    auto uiDelegate = adoptNS([[FontTextStyleUIDelegate alloc] init]);
+    [webView setUIDelegate:uiDelegate.get()];
+    [webView synchronouslyLoadHTMLString:@"<body>"
+        "<select style='font-family: Helvetica; font-size: 32px; background-color: white;'>"
+            "<option value='item'>styled item</option>"
+        "</select>"
+        "</body>"];
+
+    done = false;
+    [webView sendClickAtPoint:NSMakePoint(8, 375)];
+    [webView waitForNextPresentationUpdate];
+
+    TestWebKitAPI::Util::run(&done);
+}
+#endif
 
 } // namespace TestWebKitAPI
 

@@ -253,7 +253,7 @@ JSInternalPromise* JSModuleLoader::importModule(JSGlobalObject* globalObject, JS
     RETURN_IF_EXCEPTION(scope, promise->rejectWithCaughtException(globalObject, scope));
 
     scope.release();
-    promise->reject(globalObject, createError(globalObject, makeString("Could not import the module '"_s, moduleNameString.data, "'."_s)));
+    promise->reject(vm, globalObject, createError(globalObject, makeString("Could not import the module '"_s, moduleNameString.data, "'."_s)));
     return promise;
 }
 
@@ -281,7 +281,7 @@ JSInternalPromise* JSModuleLoader::fetch(JSGlobalObject* globalObject, JSValue k
     RETURN_IF_EXCEPTION(scope, promise->rejectWithCaughtException(globalObject, scope));
 
     scope.release();
-    promise->reject(globalObject, createError(globalObject, makeString("Could not open the module '"_s, moduleKey, "'."_s)));
+    promise->reject(vm, globalObject, createError(globalObject, makeString("Could not open the module '"_s, moduleKey, "'."_s)));
     return promise;
 }
 
@@ -312,12 +312,11 @@ JSValue JSModuleLoader::evaluateNonVirtual(JSGlobalObject* globalObject, JSValue
 #if USE(BUN_JSC_ADDITIONS)
 extern "C" __attribute__((weak)) EncodedJSValue Bun__analyzeTranspiledModule(JSGlobalObject* globalObject, const Identifier& moduleKey, const SourceCode& sourceCode, JSInternalPromise* promise)
 {
-    (void)globalObject;
     (void)moduleKey;
     (void)sourceCode;
-    (void)promise;
 
-    promise->reject(globalObject, createError(globalObject, makeString("Bun__analyzeTranspiledModule is not implemented"_s)));
+    VM& vm = globalObject->vm();
+    promise->reject(vm, globalObject, createError(globalObject, makeString("Bun__analyzeTranspiledModule is not implemented"_s)));
     return JSValue::encode(promise);
 }
 #endif
@@ -347,7 +346,7 @@ JSC_DEFINE_HOST_FUNCTION(moduleLoaderParseModule, (JSGlobalObject * globalObject
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     auto rejectWithError = [&](JSValue error) {
-        promise->reject(globalObject, error);
+        promise->reject(vm, globalObject, error);
         return promise;
     };
 
@@ -371,7 +370,7 @@ JSC_DEFINE_HOST_FUNCTION(moduleLoaderParseModule, (JSGlobalObject * globalObject
         auto* moduleRecord = SyntheticModuleRecord::parseJSONModule(globalObject, moduleKey, WTFMove(sourceCode));
         RETURN_IF_EXCEPTION(scope, JSValue::encode(promise->rejectWithCaughtException(globalObject, scope)));
         scope.release();
-        promise->fulfillWithNonPromise(globalObject, moduleRecord);
+        promise->fulfill(vm, globalObject, moduleRecord);
         return JSValue::encode(promise);
     }
     case SourceProviderSourceType::Synthetic: {
@@ -385,7 +384,7 @@ JSC_DEFINE_HOST_FUNCTION(moduleLoaderParseModule, (JSGlobalObject * globalObject
         RETURN_IF_EXCEPTION(scope, JSValue::encode(promise->rejectWithCaughtException(globalObject, scope)));
 
         scope.release();
-        promise->fulfillWithNonPromise(globalObject, moduleRecord);
+        promise->fulfill(vm, globalObject, moduleRecord);
         return JSValue::encode(promise);
     }
 #if USE(BUN_JSC_ADDITIONS)
@@ -423,7 +422,7 @@ JSC_DEFINE_HOST_FUNCTION(moduleLoaderParseModule, (JSGlobalObject * globalObject
     size_t memoryCost = result.value()->sourceCode().memoryCost();
     vm.heap.reportExtraMemoryAllocated(result.value(), memoryCost);
 #endif
-    promise->fulfillWithNonPromise(globalObject, result.value());
+    promise->fulfill(vm, globalObject, result.value());
     return JSValue::encode(promise);
 }
 

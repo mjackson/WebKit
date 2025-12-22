@@ -24,8 +24,20 @@
 #include "Shared/Sandbox/macOS/common.sb"
 #include "Shared/Sandbox/preferences.sb"
 
+
+(define (enhanced-security)
+    (require-any
+        (require-all
+            (require-not (require-entitlement "com.apple.security.cs.allow-jit"))
+            (require-not (require-entitlement "com.apple.private.verified-jit"))
+            (require-not (require-entitlement "com.apple.security.cs.single-jit"))))
+        (require-entitlement "com.apple.private.webkit.enhanced-security")
+    )
+
 (define (lockdown-mode)
-    (require-not (require-entitlement "com.apple.security.cs.allow-jit")))
+    (require-all
+        (require-not (require-entitlement "com.apple.security.cs.allow-jit"))
+        (require-not (enhanced-security))))
 
 #define FALSE #f
 
@@ -40,6 +52,8 @@
 #if USE(SANDBOX_VERSION_3)
 (allow dynamic-code-generation)
 (with-filter (lockdown-mode)
+    (deny dynamic-code-generation))
+(with-filter (enhanced-security)
     (deny dynamic-code-generation))
 
 (with-filter (mac-policy-name "Sandbox")
@@ -1691,6 +1705,8 @@
 
 (define (kernel-mig-routines-in-use) (kernel-mig-routine
     _mach_make_memory_entry
+    ;; rdar://131735906 - we should see if we can modify the dependent library to remove the clock_get_time call
+    clock_get_time
     host_get_io_master
     host_info
     io_iterator_is_valid

@@ -82,7 +82,8 @@ void Callee::reportToVMsForDestruction()
 {
     // We don't know which VMs a Module has ever run on so we just report to all of them.
     VMManager::forEachVM([&] (VM& vm) {
-        vm.heap.reportWasmCalleePendingDestruction(Ref(*this));
+        if (vm.isInService())
+            vm.heap.reportWasmCalleePendingDestruction(Ref(*this));
         return IterationStatus::Continue;
     });
 }
@@ -232,13 +233,13 @@ IPIntCallee::IPIntCallee(FunctionIPIntMetadataGenerator& generator, FunctionSpac
     , m_metadata(WTFMove(generator.m_metadata))
     , m_argumINTBytecode(WTFMove(generator.m_argumINTBytecode))
     , m_uINTBytecode(WTFMove(generator.m_uINTBytecode))
+    , m_callTargets(WTFMove(generator.m_callTargets))
     , m_topOfReturnStackFPOffset(generator.m_topOfReturnStackFPOffset)
     , m_localSizeToAlloc(roundUpToMultipleOf<2>(generator.m_numLocals))
     , m_numRethrowSlotsToAlloc(generator.m_numAlignedRethrowSlots)
     , m_numLocals(generator.m_numLocals)
     , m_numArgumentsOnStack(generator.m_numArgumentsOnStack)
     , m_maxFrameSizeInV128(generator.m_maxFrameSizeInV128)
-    , m_numCallProfiles(generator.m_numCallProfiles)
     , m_tierUpCounter(WTFMove(generator.m_tierUpCounter))
 {
     if (size_t count = generator.m_exceptionHandlers.size()) {
@@ -285,11 +286,6 @@ const RegisterAtOffsetList* IPIntCallee::calleeSaveRegistersImpl()
 {
     ASSERT(RegisterAtOffsetList::ipintCalleeSaveRegisters().registerCount() == numberOfIPIntCalleeSaveRegisters);
     return &RegisterAtOffsetList::ipintCalleeSaveRegisters();
-}
-
-bool IPIntCallee::needsProfiling() const
-{
-    return m_numCallProfiles;
 }
 
 #if ENABLE(WEBASSEMBLY_OMGJIT)

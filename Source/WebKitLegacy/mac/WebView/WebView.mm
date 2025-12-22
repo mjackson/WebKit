@@ -151,6 +151,8 @@
 #import <WebCore/Document.h>
 #import <WebCore/DocumentFullscreen.h>
 #import <WebCore/DocumentLoader.h>
+#import <WebCore/DocumentSyncClient.h>
+#import <WebCore/DocumentView.h>
 #import <WebCore/DragController.h>
 #import <WebCore/DragData.h>
 #import <WebCore/DragItem.h>
@@ -199,6 +201,7 @@
 #import <WebCore/MutableStyleProperties.h>
 #import <WebCore/NativeImage.h>
 #import <WebCore/NetworkStorageSession.h>
+#import <WebCore/NodeDocument.h>
 #import <WebCore/NodeList.h>
 #import <WebCore/Notification.h>
 #import <WebCore/NotificationController.h>
@@ -209,7 +212,6 @@
 #import <WebCore/PlatformEventFactoryMac.h>
 #import <WebCore/PlatformScreen.h>
 #import <WebCore/PlatformTextAlternatives.h>
-#import <WebCore/ProcessSyncClient.h>
 #import <WebCore/ProgressTracker.h>
 #import <WebCore/Range.h>
 #import <WebCore/RemoteFrameClient.h>
@@ -1488,7 +1490,7 @@ static void WebKitInitializeGamepadProviderIfNecessary()
         makeUniqueRef<WebChromeClientIOS>(self),
 #endif
         makeUniqueRef<WebCryptoClient>(self),
-        makeUniqueRef<WebCore::ProcessSyncClient>()
+        makeUniqueRef<WebCore::DocumentSyncClient>()
 #if HAVE(DIGITAL_CREDENTIALS_UI)
         , WebCore::DummyCredentialRequestCoordinatorClient::create()
 #endif
@@ -1743,7 +1745,7 @@ static void WebKitInitializeGamepadProviderIfNecessary()
 #endif
         makeUniqueRef<WebChromeClientIOS>(self),
         makeUniqueRef<WebCryptoClient>(self),
-        makeUniqueRef<WebCore::ProcessSyncClient>()
+        makeUniqueRef<WebCore::DocumentSyncClient>()
 #if HAVE(DIGITAL_CREDENTIALS_UI)
         , WebCore::DummyCredentialRequestCoordinatorClient::create()
 #endif
@@ -1877,7 +1879,7 @@ static void WebKitInitializeGamepadProviderIfNecessary()
 - (void)_startDrag:(const WebCore::DragItem&)dragItem
 {
     auto& dragImage = dragItem.image;
-    auto image = dragImage.get().get();
+    auto image = dragImage.get().unsafeGet();
     RefPtr<WebCore::TextIndicator> textIndicator = dragImage.textIndicator();
 
     if (textIndicator)
@@ -4976,7 +4978,7 @@ IGNORE_WARNINGS_END
     initialized = YES;
 
     if (WTF::CocoaApplication::shouldOSFaultLogForAppleApplicationUsingWebKit1())
-        os_fault_with_payload(OS_REASON_WEBKIT, 0, nullptr, 0, "WebView initialized", 0);
+        RELEASE_LOG_FAULT_WITH_PAYLOAD(Threading, "WebView initialized");
 
     WebCore::initializeMainThreadIfNeeded();
 
@@ -6108,7 +6110,7 @@ static bool needsWebViewInitThreadWorkaround()
         dataSource = [[self mainFrame] _dataSource];
     if (dataSource == nil)
         return nil;
-    return nsStringNilIfEmpty([dataSource _documentLoader]->overrideEncoding());
+    return nsStringNilIfEmpty([dataSource _documentLoader]->overrideEncoding()).autorelease();
 }
 
 - (NSString *)customTextEncodingName
@@ -8632,7 +8634,7 @@ FORWARD(toggleUnderline)
 
 - (id)_objectForIdentifier:(unsigned long)identifier
 {
-    return _private->identifierMap.get(identifier).get();
+    return _private->identifierMap.get(identifier);
 }
 
 - (void)_removeObjectForIdentifier:(unsigned long)identifier
@@ -9153,7 +9155,7 @@ FORWARD(toggleUnderline)
     [self _devicePicker]->setMockMediaPlaybackTargetPickerEnabled(enabled);
 }
 
-- (void)_setMockMediaPlaybackTargetPickerName:(NSString *)name state:(WebCore::MediaPlaybackTargetContext::MockState)state
+- (void)_setMockMediaPlaybackTargetPickerName:(NSString *)name state:(WebCore::MediaPlaybackTargetMockState)state
 {
     [self _devicePicker]->setMockMediaPlaybackTargetPickerState(name, state);
 }
@@ -9288,25 +9290,25 @@ static NSTextAlignment nsTextAlignmentFromRenderStyle(const WebCore::RenderStyle
 {
     NSTextAlignment textAlignment;
     switch (style->textAlign()) {
-    case WebCore::TextAlignMode::Right:
-    case WebCore::TextAlignMode::WebKitRight:
+    case WebCore::Style::TextAlign::Right:
+    case WebCore::Style::TextAlign::WebKitRight:
         textAlignment = NSTextAlignmentRight;
         break;
-    case WebCore::TextAlignMode::Left:
-    case WebCore::TextAlignMode::WebKitLeft:
+    case WebCore::Style::TextAlign::Left:
+    case WebCore::Style::TextAlign::WebKitLeft:
         textAlignment = NSTextAlignmentLeft;
         break;
-    case WebCore::TextAlignMode::Center:
-    case WebCore::TextAlignMode::WebKitCenter:
+    case WebCore::Style::TextAlign::Center:
+    case WebCore::Style::TextAlign::WebKitCenter:
         textAlignment = NSTextAlignmentCenter;
         break;
-    case WebCore::TextAlignMode::Justify:
+    case WebCore::Style::TextAlign::Justify:
         textAlignment = NSTextAlignmentJustified;
         break;
-    case WebCore::TextAlignMode::Start:
+    case WebCore::Style::TextAlign::Start:
         textAlignment = style->isLeftToRightDirection() ? NSTextAlignmentLeft : NSTextAlignmentRight;
         break;
-    case WebCore::TextAlignMode::End:
+    case WebCore::Style::TextAlign::End:
         textAlignment = style->isLeftToRightDirection() ? NSTextAlignmentRight : NSTextAlignmentLeft;
         break;
     default:
@@ -9400,8 +9402,8 @@ static NSTextAlignment nsTextAlignmentFromRenderStyle(const WebCore::RenderStyle
         if (!selection.isNone()) {
             RefPtr<Node> nodeToRemove;
             if (auto* style = coreFrame->editor().styleForSelectionStart(nodeToRemove)) {
-                [_private->_textTouchBarItemController setTextIsBold:isFontWeightBold(style->fontCascade().weight())];
-                [_private->_textTouchBarItemController setTextIsItalic:isItalic(style->fontCascade().italic())];
+                [_private->_textTouchBarItemController setTextIsBold:style->fontWeight().isConsideredBold()];
+                [_private->_textTouchBarItemController setTextIsItalic:style->fontStyle().isConsideredItalic()];
 
                 RefPtr<EditingStyle> typingStyle = coreFrame->selection().typingStyle();
                 if (typingStyle && typingStyle->style()) {

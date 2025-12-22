@@ -42,6 +42,10 @@
 #include "DocumentFullscreen.h"
 #include "DocumentInlines.h"
 #include "DocumentMarkerController.h"
+#include "DocumentMarkers.h"
+#include "DocumentPage.h"
+#include "DocumentQuirks.h"
+#include "DocumentView.h"
 #include "DragController.h"
 #include "DragEvent.h"
 #include "DragState.h"
@@ -56,6 +60,7 @@
 #include "FloatRect.h"
 #include "FocusController.h"
 #include "FocusOptions.h"
+#include "FrameInlines.h"
 #include "FrameLoader.h"
 #include "FrameSelection.h"
 #include "FrameTree.h"
@@ -79,7 +84,7 @@
 #include "InspectorInstrumentation.h"
 #include "KeyboardEvent.h"
 #include "KeyboardScrollingAnimator.h"
-#include "LocalFrame.h"
+#include "LocalFrameInlines.h"
 #include "LocalFrameView.h"
 #include "Logging.h"
 #include "MouseEvent.h"
@@ -97,7 +102,6 @@
 #include "PointerCaptureController.h"
 #include "PointerEventTypeNames.h"
 #include "PseudoClassChangeInvalidation.h"
-#include "Quirks.h"
 #include "Range.h"
 #include "RemoteFrame.h"
 #include "RemoteFrameGeometryTransformer.h"
@@ -126,6 +130,7 @@
 #include "ShadowRoot.h"
 #include "StaticPasteboard.h"
 #include "StyleCachedImage.h"
+#include "StyleCursor.h"
 #include "Styleable.h"
 #include "TextEvent.h"
 #include "TextIterator.h"
@@ -138,6 +143,7 @@
 #include "WheelEventDeltaFilter.h"
 #include "WheelEventTestMonitor.h"
 #include "WindowsKeyboardCodes.h"
+#include <ranges>
 #include <wtf/Assertions.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/RuntimeApplicationChecks.h>
@@ -551,13 +557,13 @@ static inline bool dispatchSelectStart(Node* node)
     return !event->defaultPrevented();
 }
 
-static Node* nodeToSelectOnMouseDownForNode(Node& targetNode)
+static RefPtr<Node> nodeToSelectOnMouseDownForNode(Node& targetNode)
 {
     if (ImageOverlay::isInsideOverlay(targetNode))
         return nullptr;
 
     if (RefPtr rootUserSelectAll = Position::rootUserSelectAllForNode(&targetNode))
-        return rootUserSelectAll.get();
+        return rootUserSelectAll;
 
     if (targetNode.shouldSelectOnMouseDown())
         return &targetNode;
@@ -1907,21 +1913,19 @@ void EventHandler::holdEscKeyEventTimerFired()
 }
 #endif
 
-// FIXME: Should this method return a FloatPoint instead of a LayoutPoint?
-static LayoutPoint documentPointForWindowPoint(LocalFrame& frame, const DoublePoint& windowPoint)
+static DoublePoint documentPointForWindowPoint(LocalFrame& frame, const DoublePoint& windowPoint)
 {
     RefPtr view = frame.view();
     if (!view) {
         // FIXME: Is it really OK to use the wrong coordinates here when view is 0?
         // Historically the code would just crash; this is clearly no worse than that.
-        return LayoutPoint(windowPoint);
+        return windowPoint;
     }
 
-    auto result = view->windowToContents(FloatPoint { windowPoint });
-    return LayoutPoint { result };
+    return view->windowToContents(windowPoint);
 }
 
-std::optional<RemoteUserInputEventData> EventHandler::userInputEventDataForRemoteFrame(const RemoteFrame* remoteFrame, const IntPoint& pointInFrame)
+std::optional<RemoteUserInputEventData> EventHandler::userInputEventDataForRemoteFrame(const RemoteFrame* remoteFrame, const DoublePoint& pointInFrame)
 {
     if (!remoteFrame)
         return std::nullopt;
@@ -2027,7 +2031,7 @@ HandleUserInputEventResult EventHandler::handleMousePressEvent(const PlatformMou
     constexpr OptionSet<HitTestRequest::Type> hitType { HitTestRequest::Type::Active, HitTestRequest::Type::DisallowUserAgentShadowContent };
     // Save the document point we generate in case the window coordinate is invalidated by what happens
     // when we dispatch the event.
-    LayoutPoint documentPoint = documentPointForWindowPoint(frame, flooredIntPoint(platformMouseEvent.position()));
+    DoublePoint documentPoint = documentPointForWindowPoint(frame, platformMouseEvent.position());
     MouseEventWithHitTestResults mouseEvent = frame->protectedDocument()->prepareMouseEvent(hitType, documentPoint, platformMouseEvent);
 
     if (!mouseEvent.targetNode()) {
@@ -2044,7 +2048,7 @@ HandleUserInputEventResult EventHandler::handleMousePressEvent(const PlatformMou
 
     if (!passedToScrollbar) {
         auto subframe = subframeForHitTestResult(mouseEvent);
-        if (auto remoteMouseEventData = userInputEventDataForRemoteFrame(dynamicDowncast<RemoteFrame>(subframe).get(), mouseEvent.hitTestResult().roundedPointInInnerNodeFrame()))
+        if (auto remoteMouseEventData = userInputEventDataForRemoteFrame(dynamicDowncast<RemoteFrame>(subframe).get(), mouseEvent.hitTestResult().doublePointInInnerNodeFrame()))
             return *remoteMouseEventData;
 
         if (RefPtr localSubframe = dynamicDowncast<LocalFrame>(subframe)) {
@@ -2365,8 +2369,10 @@ HandleUserInputEventResult EventHandler::handleMouseMoveEvent(const PlatformMous
 
     bool swallowEvent = false;
     auto subframe = isCapturingMouseEventsElement() ? subframeForTargetNode(m_capturingMouseEventsElement.get()) : subframeForHitTestResult(mouseEvent);
-    if (auto remoteMouseEventData = userInputEventDataForRemoteFrame(dynamicDowncast<RemoteFrame>(subframe).get(), mouseEvent.hitTestResult().roundedPointInInnerNodeFrame()))
+    if (auto remoteMouseEventData = userInputEventDataForRemoteFrame(dynamicDowncast<RemoteFrame>(subframe).get(), mouseEvent.hitTestResult().doublePointInInnerNodeFrame())) {
+        updateMouseEventTargetNode(eventNames().mousemoveEvent, mouseEvent.protectedTargetNode().get(), platformMouseEvent, FireMouseOverOut::Yes);
         return *remoteMouseEventData;
+    }
 
     RefPtr localSubframe = dynamicDowncast<LocalFrame>(subframe.get());
  
@@ -2479,14 +2485,20 @@ bool EventHandler::swallowAnyClickEvent(const PlatformMouseEvent& platformMouseE
     auto& eventName = isPrimaryPointerButton ? eventNames().clickEvent : eventNames().auxclickEvent;
 
     bool swallowed = false;
-    if (RefPtr clickCaptureElement = std::exchange(m_clickCaptureElement, nullptr)) {
+    RefPtr clickCaptureElement = std::exchange(m_clickCaptureElement, nullptr);
+    if (clickCaptureElement) {
         updateMouseEventTargetNode(eventName, nodeToClick.get(), platformMouseEvent, FireMouseOverOut::Yes);
         swallowed = !dispatchAnyClickEvent(eventName, clickCaptureElement.get(), m_clickCount, platformMouseEvent);
-    } else
+    } else if (nodeToClick)
         swallowed = !dispatchMouseEvent(eventName, nodeToClick.get(), m_clickCount, platformMouseEvent, FireMouseOverOut::No);
 
-    if (RefPtr page = m_frame->page())
-        page->chrome().client().didDispatchClickEvent(platformMouseEvent, *nodeToClick);
+    // Prefer nodeToClick for didDispatchClickEvent since it represents the actual click location.
+    RefPtr dispatchNode = nodeToClick;
+    if (!dispatchNode)
+        dispatchNode = clickCaptureElement;
+
+    if (RefPtr page = m_frame->page(); page && dispatchNode)
+        page->chrome().client().didDispatchClickEvent(platformMouseEvent, *dispatchNode);
 
     return swallowed;
 }
@@ -2559,7 +2571,7 @@ HandleUserInputEventResult EventHandler::handleMouseReleaseEvent(const PlatformM
     if (m_eventHandlerWillResetCapturingMouseEventsElement)
         resetCapturingMouseEventsElement();
 
-    if (auto remoteMouseEventData = userInputEventDataForRemoteFrame(dynamicDowncast<RemoteFrame>(subframe).get(), mouseEvent.hitTestResult().roundedPointInInnerNodeFrame()))
+    if (auto remoteMouseEventData = userInputEventDataForRemoteFrame(dynamicDowncast<RemoteFrame>(subframe).get(), mouseEvent.hitTestResult().doublePointInInnerNodeFrame()))
         return *remoteMouseEventData;
 
     if (RefPtr localSubframe = dynamicDowncast<LocalFrame>(subframe)) {
@@ -2785,10 +2797,10 @@ EventHandler::DragTargetResponse EventHandler::updateDragAndDrop(const PlatformM
     RefPtr<Element> newTarget;
     if (RefPtr targetNode = mouseEvent.targetNode()) {
         // Drag events should never go to non-element nodes (following IE, and proper mouseover/out dispatch)
-        if (!is<Element>(*targetNode))
-            newTarget = targetNode->parentOrShadowHostElement();
+        if (is<Element>(*targetNode))
+            newTarget = uncheckedDowncast<Element>(WTFMove(targetNode));
         else
-            newTarget = static_pointer_cast<Element>(WTFMove(targetNode));
+            newTarget = targetNode->parentOrShadowHostElement();
     }
 
     m_autoscrollController->updateDragAndDrop(newTarget.get(), flooredIntPoint(event.position()), event.timestamp());
@@ -2919,7 +2931,7 @@ MouseEventWithHitTestResults EventHandler::prepareMouseEvent(const HitTestReques
     m_lastPlatformMouseEvent = mouseEvent;
     Ref frame = m_frame.get();
     ASSERT(frame->document());
-    return frame->protectedDocument()->prepareMouseEvent(request, documentPointForWindowPoint(frame, flooredIntPoint(mouseEvent.position())), mouseEvent);
+    return frame->protectedDocument()->prepareMouseEvent(request, documentPointForWindowPoint(frame, mouseEvent.position()), mouseEvent);
 }
 
 static bool hierarchyHasCapturingEventListeners(Element* element, const AtomString& pointerEventName, const AtomString& compatibilityMouseEventName)
@@ -3056,7 +3068,7 @@ void EventHandler::updateMouseEventTargetNode(const AtomString& eventType, Node*
             if (auto elementUnderMouse = m_elementUnderMouse)
                 elementUnderMouse->dispatchMouseEvent(platformMouseEvent, eventNames.mouseoverEvent, 0, m_lastElementUnderMouse.get());
 
-            for (auto& chain : makeReversedRange(enteredElementsChain)) {
+            for (auto& chain : enteredElementsChain | std::views::reverse) {
                 if (!chain)
                     continue;
 
@@ -3333,7 +3345,7 @@ bool EventHandler::dispatchMouseEvent(const AtomString& eventType, Node* targetN
 
     // If focus shift is blocked, we eat the event.
     RefPtr page = frame->page();
-    if (page && !page->focusController().setFocusedElement(element.get(), protectedFrame(), { { }, { }, { }, FocusTrigger::Click, { } }))
+    if (page && !page->focusController().setFocusedElement(element.get(), protectedFrame().ptr(), { { }, { }, { }, FocusTrigger::Click, { } }))
         return false;
 
     if (element && m_mouseDownDelegatedFocus)
@@ -3536,7 +3548,7 @@ HandleUserInputEventResult EventHandler::handleWheelEventInternal(const Platform
     if (element) {
         if (isOverWidget) {
             if (RefPtr remoteSubframe = dynamicDowncast<RemoteFrame>(subframeForTargetNode(result.protectedTargetNode().get()))) {
-                if (auto wheelEventDataForRemoteFrame = userInputEventDataForRemoteFrame(remoteSubframe.get(), result.roundedPointInInnerNodeFrame()))
+                if (auto wheelEventDataForRemoteFrame = userInputEventDataForRemoteFrame(remoteSubframe.get(), result.doublePointInInnerNodeFrame()))
                     return *wheelEventDataForRemoteFrame;
             } else if (RefPtr widget = widgetForElement(*element)) {
                 if (passWheelEventToWidget(event, *widget, processingSteps))
@@ -4580,7 +4592,7 @@ std::optional<RemoteUserInputEventData> EventHandler::dragSourceEndedAt(const Pl
     // Send a hit test request so that RenderLayer gets a chance to update the :hover and :active pseudoclasses.
     auto mouseEvent = prepareMouseEvent(OptionSet<HitTestRequest::Type> { HitTestRequest::Type::Release, HitTestRequest::Type::DisallowUserAgentShadowContent }, event);
     if (RefPtr remoteSubframe = dynamicDowncast<RemoteFrame>(subframeForHitTestResult(mouseEvent))) {
-        auto pointInFrame = mouseEvent.hitTestResult().roundedPointInInnerNodeFrame();
+        auto pointInFrame = mouseEvent.hitTestResult().doublePointInInnerNodeFrame();
         return userInputEventDataForRemoteFrame(remoteSubframe.get(), pointInFrame);
     }
 
@@ -4770,7 +4782,7 @@ bool EventHandler::handleDrag(const MouseEventWithHitTestResults& event, CheckDr
     
     if (m_mouseDownMayStartDrag) {
         RefPtr page = frame->page();
-        m_didStartDrag = page && page->dragController().startDrag(frame, dragState(), sourceOperationMask, event.event(), m_mouseDownContentsPosition, hasNonDefaultPasteboardData);
+        m_didStartDrag = page && page->dragController().startDrag(frame, dragState(), sourceOperationMask, event.event(), m_mouseDownContentsPosition, hasNonDefaultPasteboardData, frame->rootFrame().frameID());
         // In WebKit2 we could re-enter this code and start another drag.
         // On macOS this causes problems with the ownership of the pasteboard and the promised types.
         if (m_didStartDrag) {
@@ -5454,8 +5466,10 @@ Expected<bool, RemoteFrameGeometryTransformer> EventHandler::handleTouchEvent(co
             // No hittest is performed on move or stationary, since the target is not allowed to change anyway.
             touchTarget = m_originatingTouchPointTargets.get(touchPointTargetKey);
 
+#if PLATFORM(WPE)
             HitTestResult result = hitTestResultAtPoint(pagePoint, hitType | HitTestRequest::Type::AllowChildFrameContent);
             pointerTarget = result.targetElement();
+#endif
         }
 
         RefPtr touchTargetNode = dynamicDowncast<Node>(touchTarget);
@@ -5480,11 +5494,13 @@ Expected<bool, RemoteFrameGeometryTransformer> EventHandler::handleTouchEvent(co
             document->protectedPage()->pointerCaptureController().dispatchEventForTouchAtIndex(
                 *touchTarget, cancelEvent, index, !index, *document->windowProxy(), { 0, 0 });
         }
+#endif
 
+#if PLATFORM(WPE) || PLATFORM(GTK)
         // FIXME: Pass the touch delta for pointermove events by remembering the position per pointerID similar to
         // Apple's m_touchLastGlobalPositionAndDeltaMap
         document->protectedPage()->pointerCaptureController().dispatchEventForTouchAtIndex(
-            *pointerTarget, event, index, !index, *document->windowProxy(), { 0, 0 });
+            pointerTarget ? *pointerTarget : *touchTarget, event, index, !index, *document->windowProxy(), { 0, 0 });
 #endif
 
         // pagePoint should always be relative to the target elements containing frame.

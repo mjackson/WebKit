@@ -37,7 +37,7 @@
 #include "AXSearchManager.h"
 #include "AXTextRun.h"
 #include "AXUtilities.h"
-#include "DocumentInlines.h"
+#include "DocumentView.h"
 #include "LocalFrameView.h"
 #include "LogInitialization.h"
 #include "Logging.h"
@@ -839,6 +839,9 @@ TextStream& operator<<(WTF::TextStream& stream, AXProperty property)
     case AXProperty::HasRemoteFrameChild:
         stream << "HasRemoteFrameChild";
         break;
+    case AXProperty::IsBlockFlow:
+        stream << "IsBlockFlow";
+        break;
     case AXProperty::IsEditableWebArea:
         stream << "IsEditableWebArea";
         break;
@@ -1174,6 +1177,9 @@ TextStream& operator<<(WTF::TextStream& stream, AXProperty property)
         break;
     case AXProperty::StringValue:
         stream << "StringValue";
+        break;
+    case AXProperty::StitchGroups:
+        stream << "StitchGroups";
         break;
     case AXProperty::SubrolePlatformString:
         stream << "SubrolePlatformString";

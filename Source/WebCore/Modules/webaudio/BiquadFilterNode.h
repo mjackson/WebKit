@@ -34,6 +34,7 @@ class AudioParam;
 
 class BiquadFilterNode final : public AudioBasicProcessorNode {
     WTF_MAKE_TZONE_OR_ISO_ALLOCATED(BiquadFilterNode);
+    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(BiquadFilterNode);
 public:
     static ExceptionOr<Ref<BiquadFilterNode>> create(BaseAudioContext& context, const BiquadFilterOptions& = { });
 
@@ -56,3 +57,5 @@ private:
 };
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_AUDIONODE(BiquadFilterNode, NodeTypeBiquadFilter);

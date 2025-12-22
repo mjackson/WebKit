@@ -20,11 +20,13 @@
 #pragma once
 
 #include "RenderElementInlines.h"
+#include "RenderElementStyleInlines.h"
 #include "RenderLayer.h"
 #include "RenderObjectInlines.h"
 #include "RenderSVGResourceClipper.h"
 #include "RenderView.h"
 #include "SVGGraphicsElement.h"
+#include "Settings.h"
 #include <wtf/CheckedPtr.h>
 
 namespace WebCore {
@@ -44,6 +46,11 @@ inline Ref<Page> RenderLayer::protectedPage() const { return renderer().page(); 
 inline bool RenderLayer::hasAppleVisualEffect() const { return renderer().hasAppleVisualEffect(); }
 inline bool RenderLayer::hasAppleVisualEffectRequiringBackdropFilter() const { return renderer().hasAppleVisualEffectRequiringBackdropFilter(); }
 #endif
+
+inline bool RenderLayer::isViewportConstrained() const
+{
+    return renderer().isFixedPositioned() || renderer().isStickilyPositioned();
+}
 
 inline bool RenderLayer::isTransformed() const
 {

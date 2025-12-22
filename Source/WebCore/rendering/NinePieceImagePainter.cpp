@@ -75,7 +75,7 @@ static bool isVerticalPiece(ImagePiece piece)
 }
 
 template<typename WidthValue>
-static LayoutUnit computeSlice(const WidthValue& length, LayoutUnit width, LayoutUnit slice, LayoutUnit extent)
+static LayoutUnit computeSlice(const WidthValue& length, LayoutUnit width, LayoutUnit slice, LayoutUnit extent, const Style::ZoomFactor&)
 {
     return WTF::switchOn(length,
         [&](const typename WidthValue::LengthPercentage& value) {
@@ -91,13 +91,13 @@ static LayoutUnit computeSlice(const WidthValue& length, LayoutUnit width, Layou
 }
 
 template<typename WidthValues>
-static LayoutBoxExtent computeSlices(const LayoutSize& size, const WidthValues& widths, const FloatBoxExtent& borderWidths, const LayoutBoxExtent& slices)
+static LayoutBoxExtent computeSlices(const LayoutSize& size, const WidthValues& widths, const FloatBoxExtent& borderWidths, const LayoutBoxExtent& slices, const Style::ZoomFactor& zoom)
 {
     return {
-        computeSlice(widths.values.top(),    LayoutUnit(borderWidths.top()),    slices.top(),    size.height()),
-        computeSlice(widths.values.right(),  LayoutUnit(borderWidths.right()),  slices.right(),  size.width()),
-        computeSlice(widths.values.bottom(), LayoutUnit(borderWidths.bottom()), slices.bottom(), size.height()),
-        computeSlice(widths.values.left(),   LayoutUnit(borderWidths.left()),   slices.left(),   size.width()),
+        computeSlice(widths.values.top(),    LayoutUnit(borderWidths.top()),    slices.top(),    size.height(), zoom),
+        computeSlice(widths.values.right(),  LayoutUnit(borderWidths.right()),  slices.right(),  size.width(), zoom),
+        computeSlice(widths.values.bottom(), LayoutUnit(borderWidths.bottom()), slices.bottom(), size.height(), zoom),
+        computeSlice(widths.values.left(),   LayoutUnit(borderWidths.left()),   slices.left(),   size.width(), zoom),
     };
 }
 
@@ -230,7 +230,7 @@ static void paintNinePieceImage(const T& ninePieceImage, GraphicsContext& graphi
     ASSERT(styleImage->isLoaded(renderer));
 
     auto sourceSlices      = computeSlices(source, ninePieceImage.slice(), styleImage->imageScaleFactor());
-    auto destinationSlices = computeSlices(destination.size(), ninePieceImage.width(), Style::evaluate<LayoutBoxExtent>(style.borderWidth(), Style::ZoomNeeded { }), sourceSlices);
+    auto destinationSlices = computeSlices(destination.size(), ninePieceImage.width(), Style::evaluate<LayoutBoxExtent>(style.borderWidth(), Style::ZoomNeeded { }), sourceSlices, style.usedZoomForLength());
 
     scaleSlicesIfNeeded(destination.size(), destinationSlices, deviceScaleFactor);
 

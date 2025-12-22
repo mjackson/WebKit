@@ -25,7 +25,7 @@
  *
  * Parts of the implementation below:
  *
- * Copyright 2017 the V8 project authors. All rights reserved.
+ * Copyright 2017-2021 the V8 project authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  *
@@ -733,26 +733,129 @@ JSValue JSBigInt::exponentiate(JSGlobalObject* globalObject, int32_t base, int32
 }
 #endif
 
+template <typename BigIntImpl>
+void JSBigInt::multiplySingle(BigIntImpl multiplicand, Digit multiplier, JSBigInt* result)
+{
+    Digit carry = 0;
+    Digit high = 0;
+    for (unsigned i = 0; i < multiplicand.length(); ++i) {
+        auto [low, newHigh] = digitMul(multiplicand.digit(i), multiplier);
+        Digit newCarry = 0;
+        result->setDigit(i, digitAdd3(low, high, carry, newCarry));
+        high = newHigh;
+        carry = newCarry;
+    }
+    result->setDigit(multiplicand.length(), carry + high);
+}
+
+// Z := X * Y.
+// O(n²) "schoolbook" multiplication algorithm. Optimized to minimize
+// bounds and overflow checks: rather than looping over X for every digit
+// of Y (or vice versa), we loop over Z. The {BODY} macro above is what
+// computes one of Z's digits as a sum of the products of relevant digits
+// of X and Y. This yields a nearly 2x improvement compared to more obvious
+// implementations.
+// This method is *highly* performance sensitive even for the advanced
+// algorithms, which use this as the base case of their recursive calls.
+template <typename BigIntImpl1, typename BigIntImpl2>
+void JSBigInt::multiplyTextbook(BigIntImpl1 x, BigIntImpl2 y, JSBigInt* result)
+{
+#define BODY(min, max) \
+    do { \
+        for (uint32_t j = min; j <= max; j++) { \
+            auto [low, high] = digitMul(x.digit(j), y.digit(i - j)); \
+            zi = digitAdd(zi, low, carry); \
+            next = digitAdd(next, high, nextCarry); \
+        } \
+        result->setDigit(i, zi); \
+    } while (0)
+
+    ASSERT(x.length() >= y.length());
+    ASSERT(result->length() >= x.length() + y.length());
+    ASSERT(x.length());
+    ASSERT(y.length());
+
+    Digit next = 0, nextCarry = 0, carry = 0;
+    // Unrolled first iteration: it's trivial.
+    {
+        auto [low, high] = digitMul(x.digit(0), y.digit(0));
+        result->setDigit(0, low);
+        next = high;
+    }
+    uint32_t i = 1;
+    // Unrolled second iteration: a little less setup.
+    if (i < y.length()) {
+        Digit zi = next;
+        next = 0;
+        BODY(0, 1);
+        i++;
+    }
+
+    // Main part: since x.length() >= y.length() > i, no bounds checks are needed.
+    for (; i < y.length(); i++) {
+        Digit temp = 0;
+        Digit zi = digitAdd(next, carry, temp);
+        next = nextCarry + temp;
+        carry = 0;
+        nextCarry = 0;
+        BODY(0, i);
+    }
+
+    // Last part: i exceeds y now, we have to be careful about bounds.
+    uint32_t loopEnd = x.length() + y.length() - 2;
+    for (; i <= loopEnd; i++) {
+        uint32_t maxXIndex = std::min(i, x.length() - 1);
+        uint32_t maxYIndex = y.length() - 1;
+        uint32_t minXIndex = i - maxYIndex;
+        Digit temp = 0;
+        Digit zi = digitAdd(next, carry, temp);
+        next = nextCarry + temp;
+        carry = 0;
+        nextCarry = 0;
+        BODY(minXIndex, maxXIndex);
+    }
+
+    // Write the last digit.
+    Digit temp = 0;
+    result->setDigit(i++, digitAdd(next, carry, temp));
+    ASSERT(!temp);
+}
+
 template <typename BigIntImpl1, typename BigIntImpl2>
 JSBigInt::ImplResult JSBigInt::multiplyImpl(JSGlobalObject* globalObject, BigIntImpl1 x, BigIntImpl2 y)
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    if (x.isZero())
-        return { x };
+    if (x.length() < y.length())
+        RELEASE_AND_RETURN(scope, multiplyImpl(globalObject, y, x));
+
+    ASSERT(x.length() >= y.length());
+
     if (y.isZero())
         return { y };
 
     unsigned resultLength = x.length() + y.length();
+    bool resultSign = x.sign() != y.sign();
+
+    if (y.length() == 1) {
+        if (y.digit(0) == 1) {
+            if (resultSign == x.sign())
+                return { x };
+            RELEASE_AND_RETURN(scope, JSBigInt::unaryMinusImpl(globalObject, x));
+        }
+    }
+
     JSBigInt* result = JSBigInt::createWithLength(globalObject, resultLength);
     RETURN_IF_EXCEPTION(scope, nullptr);
     result->initialize(InitializationType::WithZero);
 
-    for (unsigned i = 0; i < x.length(); i++)
-        multiplyAccumulate(y, x.digit(i), result, i);
+    if (y.length() == 1)
+        multiplySingle(x, y.digit(0), result);
+    else
+        multiplyTextbook(x, y, result);
 
-    result->setSign(x.sign() != y.sign());
+    result->setSign(resultSign);
     RELEASE_AND_RETURN(scope, result->rightTrim(globalObject));
 }
 
@@ -1279,26 +1382,44 @@ using TwoDigit = UInt128;
 // by one or left alone.
 inline JSBigInt::Digit JSBigInt::digitAdd(Digit a, Digit b, Digit& carry)
 {
-    Digit result = a + b;
-    carry += static_cast<bool>(result < a);
-    return result;
+    auto result = static_cast<TwoDigit>(a) + b;
+    carry += static_cast<Digit>(result >> static_cast<int>(digitBits));
+    return static_cast<Digit>(result);
+}
+
+// This compiles to slightly better machine code than repeated invocations
+// of {digitAdd2}.
+inline JSBigInt::Digit JSBigInt::digitAdd3(Digit a, Digit b, Digit c, Digit& carry)
+{
+    auto result = static_cast<TwoDigit>(a) + b + c;
+    carry += static_cast<Digit>(result >> static_cast<int>(digitBits));
+    return static_cast<Digit>(result);
 }
 
 // {borrow} must point to an initialized Digit and will either be incremented
 // by one or left alone.
 inline JSBigInt::Digit JSBigInt::digitSub(Digit a, Digit b, Digit& borrow)
 {
-    Digit result = a - b;
-    borrow += static_cast<bool>(result > a);
-    return result;
+    auto result = static_cast<TwoDigit>(a) - b;
+    borrow += static_cast<Digit>(result >> static_cast<int>(digitBits)) & 1;
+    return static_cast<Digit>(result);
 }
 
-// Returns the low half of the result. High half is in {high}.
-inline JSBigInt::Digit JSBigInt::digitMul(Digit a, Digit b, Digit& high)
+// {borrow_out} will be set to 0 or 1.
+inline JSBigInt::Digit JSBigInt::digitSub2(Digit a, Digit b, Digit borrowIn, Digit& borrowOut)
+{
+    auto subtrahend = static_cast<TwoDigit>(b) + borrowIn;
+    auto result = static_cast<TwoDigit>(a) - subtrahend;
+    borrowOut += static_cast<Digit>(result >> static_cast<int>(digitBits)) & 1;
+    return static_cast<Digit>(result);
+}
+
+ALWAYS_INLINE std::tuple<JSBigInt::Digit, JSBigInt::Digit> JSBigInt::digitMul(Digit a, Digit b)
 {
     TwoDigit result = static_cast<TwoDigit>(a) * static_cast<TwoDigit>(b);
-    high = static_cast<Digit>(result >> digitBits);
-    return static_cast<Digit>(result);
+    Digit high = static_cast<Digit>(result >> static_cast<int>(digitBits));
+    Digit low = static_cast<Digit>(result);
+    return { low, high };
 }
 
 // Raises {base} to the power of {exponent}. Does not check for overflow.
@@ -1344,7 +1465,16 @@ inline JSBigInt::Digit JSBigInt::digitDiv(Digit high, Digit low, Digit divisor, 
     remainder = rem;
     return quotient;
 #else
+    // Fast path: if |high| is zero, the computation can be done within Digit range.
+    // We do not need to have complicated path.
+    if (!high) {
+        ASSERT(divisor);
+        remainder = low % divisor;
+        return low / divisor;
+    }
+
     static constexpr Digit halfDigitBase = 1ull << halfDigitBits;
+
     // Adapted from Warren, Hacker's Delight, p. 152.
     unsigned s = clz(divisor);
     // If {s} is digitBits here, it causes an undefined behavior.
@@ -1407,14 +1537,11 @@ void JSBigInt::internalMultiplyAdd(BigIntImpl source, Digit factor, Digit summan
     Digit carry = summand;
     Digit high = 0;
     for (unsigned i = 0; i < n; i++) {
-        Digit current = source.digit(i);
-        Digit newCarry = 0;
-
         // Compute this round's multiplication.
-        Digit newHigh = 0;
-        current = digitMul(current, factor, newHigh);
+        auto [current, newHigh] = digitMul(source.digit(i), factor);
 
         // Add last round's carryovers.
+        Digit newCarry = 0;
         current = digitAdd(current, high, newCarry);
         current = digitAdd(current, carry, newCarry);
 
@@ -1432,50 +1559,6 @@ void JSBigInt::internalMultiplyAdd(BigIntImpl source, Digit factor, Digit summan
             result->setDigit(n++, 0);
     } else
         ASSERT(!(carry + high));
-}
-
-// Multiplies {multiplicand} with {multiplier} and adds the result to
-// {accumulator}, starting at {accumulatorIndex} for the least-significant
-// digit.
-// Callers must ensure that {accumulator} is big enough to hold the result.
-template <typename BigIntImpl>
-void JSBigInt::multiplyAccumulate(BigIntImpl multiplicand, Digit multiplier, JSBigInt* accumulator, unsigned accumulatorIndex)
-{
-    ASSERT(accumulator->length() > multiplicand.length() + accumulatorIndex);
-    if (!multiplier)
-        return;
-    
-    Digit carry = 0;
-    Digit high = 0;
-    for (unsigned i = 0; i < multiplicand.length(); i++, accumulatorIndex++) {
-        Digit acc = accumulator->digit(accumulatorIndex);
-        Digit newCarry = 0;
-        
-        // Add last round's carryovers.
-        acc = digitAdd(acc, high, newCarry);
-        acc = digitAdd(acc, carry, newCarry);
-        
-        // Compute this round's multiplication.
-        Digit multiplicandDigit = multiplicand.digit(i);
-        Digit low = digitMul(multiplier, multiplicandDigit, high);
-        acc = digitAdd(acc, low, newCarry);
-        
-        // Store result and prepare for next round.
-        accumulator->setDigit(accumulatorIndex, acc);
-        carry = newCarry;
-    }
-    
-    while (carry || high) {
-        ASSERT(accumulatorIndex < accumulator->length());
-        Digit acc = accumulator->digit(accumulatorIndex);
-        Digit newCarry = 0;
-        acc = digitAdd(acc, high, newCarry);
-        high = 0;
-        acc = digitAdd(acc, carry, newCarry);
-        accumulator->setDigit(accumulatorIndex, acc);
-        carry = newCarry;
-        accumulatorIndex++;
-    }
 }
 
 bool JSBigInt::equals(JSBigInt* x, JSBigInt* y)
@@ -1853,8 +1936,7 @@ void JSBigInt::absoluteDivWithBigIntDivisor(JSGlobalObject* globalObject, BigInt
 // Returns whether (factor1 * factor2) > (high << digitBits) + low.
 inline bool JSBigInt::productGreaterThan(Digit factor1, Digit factor2, Digit high, Digit low)
 {
-    Digit resultHigh;
-    Digit resultLow = digitMul(factor1, factor2, resultHigh);
+    auto [resultLow, resultHigh] = digitMul(factor1, factor2);
     return resultHigh > high || (resultHigh == high && resultLow > low);
 }
 
@@ -2445,7 +2527,7 @@ String JSBigInt::toStringGeneric(VM& vm, JSGlobalObject* nullOrGlobalObjectForOO
     if (sign)
         resultString.append('-');
 
-    std::reverse(resultString.begin(), resultString.end());
+    std::ranges::reverse(resultString);
 
     return StringImpl::adopt(WTFMove(resultString));
 }

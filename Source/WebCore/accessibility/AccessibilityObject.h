@@ -273,7 +273,7 @@ public:
     Element* element() const final;
     Node* node() const override { return nullptr; }
     RenderObject* renderer() const override { return nullptr; }
-    RenderObject* rendererOrNearestAncestor() const;
+    CheckedPtr<RenderObject> rendererOrNearestAncestor() const;
     // Resolves the computed style if necessary (and safe to do so).
     const RenderStyle* style() const;
 
@@ -408,6 +408,7 @@ public:
 
     // Methods for determining accessibility text.
     bool isARIAStaticText() const { return ariaRoleAttribute() == AccessibilityRole::StaticText; }
+    virtual Vector<AXStitchGroup> stitchGroups() const { return { }; }
     // Whether this object should cache a string value when an isolated object is created for it.
     bool shouldCacheStringValue() const;
     String stringValue() const override { return { }; }
@@ -781,7 +782,7 @@ public:
 #if PLATFORM(COCOA)
     bool preventKeyboardDOMEventDispatch() const final;
     void setPreventKeyboardDOMEventDispatch(bool) final;
-    OptionSet<SpeakAs> speakAs() const final;
+    Style::SpeakAs speakAs() const final;
     bool hasApplePDFAnnotationAttribute() const final { return hasAttribute(HTMLNames::x_apple_pdf_annotationAttr); }
 #endif
 
@@ -818,8 +819,8 @@ public:
     String innerHTML() const final;
     String outerHTML() const final;
 
-#if PLATFORM(COCOA) && ENABLE(MODEL_ELEMENT)
-    Vector<RetainPtr<id>> modelElementChildren() final;
+#if ENABLE(MODEL_ELEMENT_ACCESSIBILITY)
+    ModelPlayerAccessibilityChildren modelElementChildren() final;
 #endif
 
 #if PLATFORM(IOS_FAMILY)

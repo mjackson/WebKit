@@ -25,6 +25,8 @@
 #include "ContentType.h"
 #include "GStreamerCodecUtilities.h"
 #include "GStreamerCommon.h"
+#include "PlatformScreen.h"
+#include "ScreenProperties.h"
 #include <fnmatch.h>
 #include <gst/pbutils/codec-utils.h>
 #include <wtf/NeverDestroyed.h>
@@ -349,7 +351,7 @@ GStreamerRegistryScanner::GStreamerRegistryScanner(bool isMediaSource)
     else {
         // This is still needed, mostly because of the webkit_web_view_can_show_mime_type() public API (so
         // running from UIProcess).
-        gst_init(nullptr, nullptr);
+        ensureGStreamerInitializedNonWebProcess();
     }
 
     GST_DEBUG_CATEGORY_INIT(webkit_media_gst_registry_scanner_debug, "webkitregistryscanner", 0, "WebKit GStreamer registry scanner");
@@ -455,7 +457,7 @@ void GStreamerRegistryScanner::initializeDecoders(const GStreamerRegistryScanner
 
     bool matroskaSupported = factories.hasElementForMediaType(ElementFactories::Type::Demuxer, "video/x-matroska"_s);
     if (matroskaSupported) {
-        auto vp8DecoderAvailable = factories.hasElementForMediaType(ElementFactories::Type::VideoDecoder, "video/x-vp8"_s, ElementFactories::CheckHardwareClassifier::Yes, { { "vp8alphadecodebin"_s } });
+        auto vp8DecoderAvailable = factories.hasElementForMediaType(ElementFactories::Type::VideoDecoder, "video/x-vp8"_s, ElementFactories::CheckHardwareClassifier::Yes, { { "vp8alphadecodebin"_s, "vavp8alphadecodebin"_s } });
         auto vp9DecoderAvailable = factories.hasElementForMediaType(ElementFactories::Type::VideoDecoder, "video/x-vp9"_s, ElementFactories::CheckHardwareClassifier::Yes, { { "vp9alphadecodebin"_s, "vavp9alphadecodebin"_s } });
 
         if (vp8DecoderAvailable || vp9DecoderAvailable)
@@ -1012,7 +1014,6 @@ ASCIILiteral GStreamerRegistryScanner::configurationNameForLogging(Configuration
 
 GStreamerRegistryScanner::RegistryLookupResult GStreamerRegistryScanner::isConfigurationSupported(Configuration configuration, const MediaConfiguration& mediaConfiguration) const
 {
-    bool isSupported = false;
     bool isUsingHardware = false;
 #ifndef GST_DISABLE_GST_DEBUG
     ASCIILiteral configLogString = configurationNameForLogging(configuration);
@@ -1027,11 +1028,32 @@ GStreamerRegistryScanner::RegistryLookupResult GStreamerRegistryScanner::isConfi
             videoConfiguration.bitrate, videoConfiguration.framerate);
 #endif
 
+#if ENABLE(WPE_PLATFORM)
+        auto* scrData = screenData(primaryScreenDisplayID());
+        if (!scrData || !scrData->screenSupportsHighDynamicRange) {
+            // Check HDR metadata field
+            if (videoConfiguration.hdrMetadataType.has_value())
+                return { false, false, nullptr };
+            // Transfer function (EOTF)
+            if (videoConfiguration.transferFunction.has_value()) {
+                auto tf = videoConfiguration.transferFunction.value();
+                // compare to your enum values for PQ/HLG; adjust names if different
+                if (tf == TransferFunction::PQ || tf == TransferFunction::HLG)
+                    return { false, false, nullptr };
+            }
+        }
+#endif
+
         auto contentType = ContentType(videoConfiguration.contentType);
-        isSupported = isContainerTypeSupported(configuration, contentType.containerType());
+        if (!isContainerTypeSupported(configuration, contentType.containerType()))
+            return { false, false, nullptr };
+
         auto codecs = contentType.codecs();
-        if (!codecs.isEmpty())
+        if (!codecs.isEmpty()) {
+            if (!areAllCodecsSupported(configuration, codecs, false))
+                return { false, false, nullptr };
             isUsingHardware = areAllCodecsSupported(configuration, codecs, true);
+        }
     }
 
     if (mediaConfiguration.audio) {
@@ -1042,10 +1064,11 @@ GStreamerRegistryScanner::RegistryLookupResult GStreamerRegistryScanner::isConfi
             audioConfiguration.bitrate.value_or(0), audioConfiguration.samplerate.value_or(0));
 #endif
         auto contentType = ContentType(audioConfiguration.contentType);
-        isSupported = isContainerTypeSupported(configuration, contentType.containerType());
+        if (!isContainerTypeSupported(configuration, contentType.containerType()))
+            return { false, false, nullptr };
     }
 
-    return { isSupported, isUsingHardware, nullptr };
+    return { true, isUsingHardware, nullptr };
 }
 
 #if USE(GSTREAMER_WEBRTC)
@@ -1143,20 +1166,19 @@ void GStreamerRegistryScanner::fillVideoRtpCapabilities(Configuration configurat
             element = gst_element_factory_make("webkitvideoencoder", nullptr);
 
         if (element) {
-            Vector<ASCIILiteral> profiles = {
-                "42e01f"_s,
-                "640c1f"_s,
-                "42001f"_s,
-                "4d001f"_s,
-            };
+            static constexpr std::array<std::pair<ASCIILiteral, unsigned>, 4> profiles = { {
+                { "42e01f"_s, 0x42e01f },
+                { "640c1f"_s, 0x640c1f },
+                { "42001f"_s, 0x42001f },
+                { "4d001f"_s, 0x4d001f },
+            } };
 
-            for (auto& profileLevelId : profiles) {
+            for (auto& [profileLevelId, spsAsInteger] : profiles) {
                 if (WEBKIT_IS_VIDEO_ENCODER(element.get())) {
                     auto codec = makeString("avc1."_s, profileLevelId);
                     if (!videoEncoderSupportsCodec(WEBKIT_VIDEO_ENCODER(element.get()), codec))
                         continue;
                 } else {
-                    auto spsAsInteger = parseInteger<uint64_t>(profileLevelId, 16).value_or(0);
                     std::array<uint8_t, 3> sps;
                     sps[0] = spsAsInteger >> 16;
                     sps[1] = (spsAsInteger >> 8) & 0xff;

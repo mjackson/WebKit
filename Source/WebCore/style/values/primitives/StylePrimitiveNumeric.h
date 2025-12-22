@@ -29,7 +29,7 @@
 #include <WebCore/StylePrimitiveNumericConcepts.h>
 #include <WebCore/StyleUnevaluatedCalculation.h>
 #include <WebCore/StyleValueTypes.h>
-#include <WebCore/StyleZoomNeededToken.h>
+#include <WebCore/StyleZoomPrimitives.h>
 #include <algorithm>
 #include <wtf/CompactVariant.h>
 #include <wtf/Forward.h>
@@ -69,11 +69,14 @@ template<CSS::Numeric CSSType> struct PrimitiveNumeric {
     {
     }
 
-    constexpr bool isZero() const { return !value; }
-    constexpr bool isPositive() const { return value > 0; }
-    constexpr bool isPositiveOrZero() const { return value >= 0; }
-    constexpr bool isNegative() const { return value < 0; }
-    constexpr bool isNegativeOrZero() const { return value <= 0; }
+    constexpr bool isZero() const requires (range.min <= 0 && range.max >= 0) { return !value; }
+    constexpr bool isKnownZero() const requires (range.min <= 0 && range.max >= 0) { return isZero(); }
+    constexpr bool isPositive() const requires (range.max > 0) { return value > 0; }
+    constexpr bool isKnownPositive() const requires (range.max > 0) { return isPositive(); }
+    constexpr bool isPositiveOrZero() const requires (range.max >= 0) { return value >= 0; }
+    constexpr bool isNegative() const requires (range.min < 0) { return value < 0; }
+    constexpr bool isKnownNegative() const requires (range.min < 0) { return isNegative(); }
+    constexpr bool isNegativeOrZero() const requires (range.min <= 0) { return value <= 0; }
 
     constexpr bool operator==(const PrimitiveNumeric&) const = default;
     constexpr bool operator==(ResolvedValueType other) const { return value == other; }
@@ -139,19 +142,22 @@ template<CSS::Range R, typename V> struct PrimitiveNumeric<CSS::Length<R, V>> {
         return value;
     }
 
-    constexpr auto resolveZoom(float zoom) const
+    constexpr auto resolveZoom(ZoomFactor zoom) const
         requires (range.zoomOptions == WebCore::CSS::RangeZoomOptions::Unzoomed)
     {
-        return value * zoom;
+        return value * zoom.value;
     }
 
     constexpr auto unresolvedValue() const { return value; }
 
-    constexpr bool isZero() const { return !value; }
-    constexpr bool isPositive() const { return value > 0; }
-    constexpr bool isPositiveOrZero() const { return value >= 0; }
-    constexpr bool isNegative() const { return value < 0; }
-    constexpr bool isNegativeOrZero() const { return value <= 0; }
+    constexpr bool isZero() const requires (range.min <= 0 && range.max >= 0) { return !value; }
+    constexpr bool isKnownZero() const requires (range.min <= 0 && range.max >= 0) { return isZero(); }
+    constexpr bool isPositive() const requires (range.max > 0) { return value > 0; }
+    constexpr bool isKnownPositive() const requires (range.max > 0) { return isPositive(); }
+    constexpr bool isPositiveOrZero() const requires (range.max >= 0) { return value >= 0; }
+    constexpr bool isNegative() const requires (range.min < 0) { return value < 0; }
+    constexpr bool isKnownNegative() const requires (range.min < 0) { return isNegative(); }
+    constexpr bool isNegativeOrZero() const requires (range.min <= 0) { return value <= 0; }
 
     constexpr bool operator==(const PrimitiveNumeric&) const = default;
 
@@ -267,7 +273,7 @@ template<CSS::DimensionPercentageNumeric CSSType> struct PrimitiveNumeric<CSSTyp
         return WTF::switchOn(m_value, std::forward<F>(functors)...);
     }
 
-    constexpr bool isZero() const
+    constexpr bool isKnownZero() const requires (range.min <= 0 && range.max >= 0)
     {
         return WTF::switchOn(m_value,
             []<HasIsZero T>(const T& alternative) { return alternative.isZero(); },
@@ -376,9 +382,10 @@ template<Numeric T> struct ToCSSMapping<T> {
 
 // MARK: Utility Concepts
 
-template<typename T> concept IsPercentageOrCalc =
-       std::same_as<T, Percentage<T::range, typename T::ResolvedValueType>>
-    || std::same_as<T, UnevaluatedCalculation<typename T::CSS>>;
+template<typename T> concept IsPercentage = std::same_as<T, Percentage<T::range, typename T::ResolvedValueType>>;
+template<typename T> concept IsCalc = std::same_as<T, UnevaluatedCalculation<typename T::CSS>>;
+
+template<typename T> concept IsPercentageOrCalc = IsPercentage<T> || IsCalc<T>;
 
 } // namespace Style
 } // namespace WebCore

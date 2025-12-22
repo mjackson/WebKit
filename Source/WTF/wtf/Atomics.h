@@ -27,9 +27,8 @@
 
 #include <atomic>
 #include <wtf/FastMalloc.h>
+#include <wtf/StdIntExtras.h>
 #include <wtf/StdLibExtras.h>
-
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 namespace WTF {
 
@@ -292,10 +291,12 @@ inline void x86_cpuid()
         : "memory");
 }
 
-inline void loadLoadFence() { compilerFence(); }
-inline void loadStoreFence() { compilerFence(); }
+// Use std::atomic_thread_fence instead of compilerFence to prevent LTO from
+// optimizing away the barrier on x86_64.
+inline void loadLoadFence() { std::atomic_thread_fence(std::memory_order_acquire); }
+inline void loadStoreFence() { std::atomic_thread_fence(std::memory_order_acquire); }
 inline void storeLoadFence() { x86_ortop(); }
-inline void storeStoreFence() { compilerFence(); }
+inline void storeStoreFence() { std::atomic_thread_fence(std::memory_order_release); }
 inline void crossModifyingCodeFence() { x86_cpuid(); }
 
 #else
@@ -315,14 +316,36 @@ inline void dependentLoadLoadFence() { compilerFence(); }
 inline void dependentLoadLoadFence() { loadLoadFence(); }
 #endif
 
+// We use this primitive to hide an atomic variable from the optimizer.
 template<typename T>
-T opaque(T pointer)
+inline T opaque(T value)
 {
-    asm volatile("" : "+r"(pointer) ::);
-    return pointer;
+    asm ("" : "+r"(value) ::);
+    return value;
 }
 
-typedef unsigned InternalDependencyType;
+// We use this primitive on ARM to express memory ordering efficiently.
+template<typename T>
+inline T* addOpaqueZero(T* pointer, unsigned opaqueZero)
+{
+    ASSERT(!opaque(opaqueZero));
+
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // @safe
+    // Safety: This is bounds-safe because we're not actually adjusting the pointer, only pretending to.
+    return std::bit_cast<T*>(std::bit_cast<char*>(pointer) + opaqueZero);
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
+}
+
+using InternalDependencyType = UCPURegister;
+
+template<typename T>
+inline InternalDependencyType toInternalDependencyType(T value)
+{
+    if constexpr (std::is_pointer_v<T>)
+        return static_cast<InternalDependencyType>(reinterpret_cast<uintptr_t>(value));
+    else
+        return static_cast<InternalDependencyType>(value);
+}
 
 inline InternalDependencyType opaqueMixture()
 {
@@ -332,13 +355,7 @@ inline InternalDependencyType opaqueMixture()
 template<typename... Arguments, typename T>
 inline InternalDependencyType opaqueMixture(T value, Arguments... arguments)
 {
-    union {
-        InternalDependencyType copy;
-        T value;
-    } u;
-    u.copy = 0;
-    u.value = value;
-    return opaqueMixture(arguments...) + u.copy;
+    return opaqueMixture(arguments...) + toInternalDependencyType(opaque(value));
 }
 
 class Dependency {
@@ -354,7 +371,7 @@ public:
     // produces zero, but it's concealed from the compiler. The CPU understands this dummy op to be a
     // phantom dependency.
     template<typename... Arguments>
-    static Dependency fence(Arguments... arguments)
+    NEVER_INLINE static Dependency fence(Arguments... arguments)
     {
         InternalDependencyType input = opaqueMixture(arguments...);
         InternalDependencyType output;
@@ -368,11 +385,11 @@ public:
         // ordering. This forces weak memory order CPUs to observe `location` and
         // dependent loads in their store order without the reader using a barrier
         // or an acquire load.
-        asm("eor %w[out], %w[in], %w[in]"
+        __asm__("eor %w[out], %w[in], %w[in]"
             : [out] "=r"(output)
             : [in] "r"(input));
 #elif CPU(ARM)
-        asm("eor %[out], %[in], %[in]"
+        __asm__("eor %[out], %[in], %[in]"
             : [out] "=r"(output)
             : [in] "r"(input));
 #else
@@ -420,7 +437,7 @@ public:
     // value, similar to above. The fix here is to obscure the pointer we're loading from from
     // the compiler.
     template<typename T>
-    static Dependency loadAndFence(const T* pointer, T& output)
+    NEVER_INLINE static Dependency loadAndFence(const T* pointer, T& output)
     {
 #if CPU(ARM64) || CPU(ARM)
         T value = *opaque(pointer);
@@ -441,7 +458,7 @@ public:
     T* consume(T* pointer)
     {
 #if CPU(ARM64) || CPU(ARM)
-        return std::bit_cast<T*>(std::bit_cast<char*>(pointer) + m_value);
+        return addOpaqueZero(pointer, m_value);
 #else
         UNUSED_PARAM(m_value);
         return pointer;
@@ -499,5 +516,3 @@ using WTF::InputAndValue;
 using WTF::inputAndValue;
 using WTF::ensurePointer;
 using WTF::opaqueMixture;
-
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_END

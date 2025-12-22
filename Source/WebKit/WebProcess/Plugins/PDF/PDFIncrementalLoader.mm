@@ -157,8 +157,6 @@ public:
     {
     }
 
-    ~PDFPluginStreamLoaderClient() = default;
-
     void willSendRequest(NetscapePlugInStreamLoader*, ResourceRequest&&, const ResourceResponse& redirectResponse, CompletionHandler<void(ResourceRequest&&)>&&) final;
     void didReceiveResponse(NetscapePlugInStreamLoader*, const ResourceResponse&) final;
     void didReceiveData(NetscapePlugInStreamLoader*, const SharedBuffer&) final;
@@ -806,7 +804,7 @@ void PDFIncrementalLoader::threadEntry(Ref<PDFIncrementalLoader>&& protectedLoad
     BinarySemaphore firstPageSemaphore;
     auto firstPageQueue = WorkQueue::create("PDF first page work queue"_s);
 
-    [m_backgroundThreadDocument preloadDataOfPagesInRange:NSMakeRange(0, 1) onQueue:firstPageQueue->dispatchQueue() completion:[&firstPageSemaphore, protectedThis = Ref { *this }] (NSIndexSet *) mutable {
+    [m_backgroundThreadDocument preloadDataOfPagesInRange:NSMakeRange(0, 1) onQueue:firstPageQueue->protectedDispatchQueue().get() completion:[&firstPageSemaphore, protectedThis = Ref { *this }] (NSIndexSet *) mutable {
         callOnMainRunLoop([protectedThis] {
             protectedThis->transitionToMainThreadDocument();
         });

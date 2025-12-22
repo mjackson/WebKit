@@ -30,7 +30,6 @@
 #include "ElementChildIteratorInlines.h"
 #include "FloatQuad.h"
 #include "LayoutRect.h"
-#include "Length.h"
 #include "Logging.h"
 #include "RenderBox.h"
 #include "RenderStyleInlines.h"
@@ -278,6 +277,19 @@ static LayoutUnit computeScrollSnapAlignOffset(LayoutUnit minLocation, LayoutUni
         ASSERT_NOT_REACHED();
         return 0;
     }
+}
+
+bool hasScrollSnappedBoxes(const RenderBox& scrollingElementBox)
+{
+    auto scrollSnapTypeContainer = scrollingElementBox.style().scrollSnapType().tryContainer();
+    if (!scrollSnapTypeContainer)
+        return false;
+
+    auto& boxesWithScrollSnapPositions = scrollingElementBox.view().boxesWithScrollSnapPositions();
+    if (boxesWithScrollSnapPositions.isEmptyIgnoringNullReferences())
+        return false;
+
+    return true;
 }
 
 void updateSnapOffsetsForScrollableArea(ScrollableArea& scrollableArea, const RenderBox& scrollingElementBox, const RenderStyle& scrollingElementStyle, LayoutRect viewportRectInBorderBoxCoordinates, WritingMode writingMode, Element* focusedElement)

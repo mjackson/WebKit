@@ -80,10 +80,12 @@ public:
     DOMWindow* window() const { return virtualWindow(); }
     RefPtr<DOMWindow> protectedWindow() const;
     FrameTree& tree() const { return m_treeNode; }
+    WEBCORE_EXPORT std::optional<size_t> indexInFrameTreeSiblings() const;
+    WEBCORE_EXPORT Vector<size_t> pathToFrame() const;
     FrameIdentifier frameID() const { return m_frameID; }
-    inline Page* page() const; // Defined in FrameInlines.h.
-    inline RefPtr<Page> protectedPage() const; // Defined in FrameInlines.h.
-    inline std::optional<PageIdentifier> pageID() const; // Defined in FrameInlines.h.
+    inline Page* page() const; // Defined in DocumentPage.h.
+    inline RefPtr<Page> protectedPage() const; // Defined in DocumentPage.h.
+    inline std::optional<PageIdentifier> pageID() const; // Defined in DocumentPage.h.
     Settings& settings() const { return m_settings.get(); }
     Frame& mainFrame() { return *m_mainFrame; }
     const Frame& mainFrame() const { return *m_mainFrame; }
@@ -141,13 +143,18 @@ public:
 
     virtual void updateScrollingMode() = 0;
 
+    virtual void reportMixedContentViolation(bool blocked, const URL& target) const = 0;
+
     void stopForBackForwardCache();
 
     WEBCORE_EXPORT void updateFrameTreeSyncData(Ref<FrameTreeSyncData>&&);
+    WEBCORE_EXPORT void updateFrameTreeSyncData(const FrameTreeSyncSerializationData&);
 
     virtual bool frameCanCreatePaymentSession() const;
     FrameTreeSyncData& frameTreeSyncData() const { return m_frameTreeSyncData.get(); }
-    WEBCORE_EXPORT virtual RefPtr<SecurityOrigin> frameDocumentSecurityOrigin() const = 0;
+    Ref<FrameTreeSyncData> protectedFrameTreeSyncData() const { return m_frameTreeSyncData.get(); }
+    WEBCORE_EXPORT virtual SecurityOrigin* frameDocumentSecurityOrigin() const = 0;
+    WEBCORE_EXPORT virtual String frameURLProtocol() const = 0;
 
     WEBCORE_EXPORT virtual void setPrinting(bool printing, FloatSize pageSize, FloatSize originalPageSize, float maximumShrinkRatio, AdjustViewSize, NotifyUIProcess = NotifyUIProcess::Yes);
     WEBCORE_EXPORT bool isPrinting() const;

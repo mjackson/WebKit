@@ -52,11 +52,14 @@ public:
 
     void closeIfPossible();
     void errorIfPossible(Exception&&);
+    void errorIfPossible(JSC::JSGlobalObject&, JSC::JSValue);
 
     InternalWritableStream& internalWritableStream();
-    enum class Type : bool {
+    enum class Type : uint8_t {
         Default,
-        FileSystem
+        FileSystem,
+        WebTransport,
+        WebTransportDatagrams,
     };
     virtual Type type() const { return Type::Default; }
 

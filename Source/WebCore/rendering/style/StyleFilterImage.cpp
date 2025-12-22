@@ -80,7 +80,7 @@ Ref<CSSValue> StyleFilterImage::computedStyleValue(const RenderStyle& style) con
 {
     RefPtr image = m_image;
     return CSSFilterImageValue::create(
-        image ? image->computedStyleValue(style) : static_reference_cast<CSSValue>(CSSPrimitiveValue::create(CSSValueNone)),
+        image ? image->computedStyleValue(style) : upcast<CSSValue>(CSSPrimitiveValue::create(CSSValueNone)),
         Style::toCSS(m_filter, style)
     );
 }
@@ -133,10 +133,14 @@ RefPtr<Image> StyleFilterImage::image(const RenderElement* renderer, const Float
     if (!image || image->isNull())
         return &Image::nullImage();
 
-    auto preferredFilterRenderingModes = renderer->protectedPage()->preferredFilterRenderingModes();
+    auto preferredFilterRenderingModes = renderer->protectedPage()->preferredFilterRenderingModes(destinationContext);
     auto sourceImageRect = FloatRect { { }, size };
 
-    auto cssFilter = CSSFilterRenderer::create(const_cast<RenderElement&>(*renderer), m_filter, preferredFilterRenderingModes, FloatSize { 1, 1 }, sourceImageRect, NullGraphicsContext());
+    auto cssFilter = CSSFilterRenderer::create(const_cast<RenderElement&>(*renderer), m_filter, {
+            .referenceBox = sourceImageRect,
+            .filterRegion = sourceImageRect,
+            .scale = { 1, 1 },
+        }, preferredFilterRenderingModes, NullGraphicsContext());
     if (!cssFilter)
         return &Image::nullImage();
 

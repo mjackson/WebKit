@@ -188,6 +188,11 @@ public:
     void alternativeText(Vector<AccessibilityText>&) const;
     void helpText(Vector<AccessibilityText>&) const;
     String stringValue() const override;
+
+    bool isBlockFlow() const final;
+    std::optional<AXStitchGroup> stitchGroup(IncludeGroupMembers = IncludeGroupMembers::Yes) const final;
+    Vector<AXStitchGroup> stitchGroups() const final;
+
     WallTime dateTimeValue() const final;
     SRGBA<uint8_t> colorValue() const final;
     String ariaLabeledByAttribute() const final;

@@ -199,6 +199,14 @@ void RecorderImpl::drawGlyphs(const Font& font, std::span<const GlyphBufferGlyph
 {
     if (decomposeDrawGlyphsIfNeeded(font, glyphs, advances, localAnchor, smoothingMode))
         return;
+
+#if USE(SKIA)
+    if (drawGlyphsMode() == Recorder::DrawGlyphsMode::TextBlob) {
+        m_items.append(DrawTextBlob(Ref { font }, Vector(glyphs), Vector(advances), localAnchor, smoothingMode));
+        return;
+    }
+#endif
+
     drawGlyphsImmediate(font, glyphs, advances, localAnchor, smoothingMode);
 }
 
@@ -365,7 +373,7 @@ void RecorderImpl::fillEllipse(const FloatRect& rect)
 }
 
 #if ENABLE(VIDEO)
-void RecorderImpl::drawVideoFrame(VideoFrame&, const FloatRect&, ImageOrientation, bool)
+void RecorderImpl::drawVideoFrame(const VideoFrame&, const FloatRect&, ImageOrientation, bool)
 {
     appendStateChangeItemIfNecessary();
     // FIXME: TODO

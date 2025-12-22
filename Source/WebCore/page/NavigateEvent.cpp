@@ -28,6 +28,7 @@
 
 #include "AbortController.h"
 #include "CommonVM.h"
+#include "DocumentView.h"
 #include "Element.h"
 #include "FrameDestructionObserverInlines.h"
 #include "ExceptionCode.h"
@@ -187,6 +188,11 @@ void NavigateEvent::finish(Document& document, InterceptionHandlersDidFulfill di
         potentiallyProcessScrollBehavior(document);
 
     m_interceptionState = InterceptionState::Finished;
+}
+
+WebCoreOpaqueRoot root(NavigateEvent* event)
+{
+    return WebCoreOpaqueRoot { event };
 }
 
 } // namespace WebCore

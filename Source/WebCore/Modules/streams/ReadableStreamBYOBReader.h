@@ -28,8 +28,11 @@
 #include "ExceptionOr.h"
 #include "IDLTypes.h"
 #include "JSValueInWrappedObject.h"
+#include "ScriptWrappable.h"
+#include "WebCoreOpaqueRoot.h"
 #include <wtf/Deque.h>
 #include <wtf/RefCountedAndCanMakeWeakPtr.h>
+#include <wtf/TZoneMalloc.h>
 #include <wtf/UniqueRef.h>
 
 namespace WebCore {
@@ -37,10 +40,12 @@ namespace WebCore {
 class DOMPromise;
 class DeferredPromise;
 class ReadableStream;
+class ReadableStreamReadIntoRequest;
 
 template<typename IDLType> class DOMPromiseProxy;
 
-class ReadableStreamBYOBReader : public RefCountedAndCanMakeWeakPtr<ReadableStreamBYOBReader> {
+class ReadableStreamBYOBReader : public ScriptWrappable, public RefCountedAndCanMakeWeakPtr<ReadableStreamBYOBReader> {
+    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(ReadableStreamBYOBReader);
 public:
     static ExceptionOr<Ref<ReadableStreamBYOBReader>> create(JSDOMGlobalObject&, ReadableStream&);
     ~ReadableStreamBYOBReader();
@@ -49,16 +54,16 @@ public:
         size_t min { 1 };
     };
 
-    void read(JSDOMGlobalObject&, JSC::ArrayBufferView&, ReadOptions, Ref<DeferredPromise>&&);
+    void readForBindings(JSDOMGlobalObject&, JSC::ArrayBufferView&, ReadOptions, Ref<DeferredPromise>&&);
     void releaseLock(JSDOMGlobalObject&);
 
     DOMPromise& closedPromise();
 
-    void cancel(JSDOMGlobalObject& globalObject, JSC::JSValue, Ref<DeferredPromise>&&);
+    Ref<DOMPromise> cancel(JSDOMGlobalObject&, JSC::JSValue);
 
-    Ref<DeferredPromise> takeFirstReadIntoRequest();
+    Ref<ReadableStreamReadIntoRequest> takeFirstReadIntoRequest();
     size_t readIntoRequestsSize() const { return m_readIntoRequests.size(); }
-    void addReadIntoRequest(Ref<DeferredPromise>&&);
+    void addReadIntoRequest(Ref<ReadableStreamReadIntoRequest>&&);
 
     void resolveClosedPromise();
     void rejectClosedPromise(JSC::JSValue);
@@ -67,7 +72,10 @@ public:
     using ClosedCallback = Function<void(JSDOMGlobalObject&, JSC::JSValue)>;
     void onClosedPromiseRejection(ClosedCallback&&);
 
-    void read(JSDOMGlobalObject&, JSC::ArrayBufferView&, size_t, Ref<DeferredPromise>&&);
+    void read(JSDOMGlobalObject&, JSC::ArrayBufferView&, size_t, Ref<ReadableStreamReadIntoRequest>&&);
+
+    bool isReachableFromOpaqueRoots() const;
+    template<typename Visitor> void visitAdditionalChildren(Visitor&);
 
 private:
     explicit ReadableStreamBYOBReader(Ref<DOMPromise>&&, Ref<DeferredPromise>&&);
@@ -77,14 +85,16 @@ private:
     void genericRelease(JSDOMGlobalObject&);
     void errorReadIntoRequests(Exception&&);
 
-    void genericCancel(JSDOMGlobalObject&, JSC::JSValue, Ref<DeferredPromise>&&);
+    Ref<DOMPromise> genericCancel(JSDOMGlobalObject&, JSC::JSValue);
 
     Ref<DOMPromise> m_closedPromise;
     Ref<DeferredPromise> m_closedDeferred;
     RefPtr<ReadableStream> m_stream;
-    Deque<Ref<DeferredPromise>> m_readIntoRequests;
+    Deque<Ref<ReadableStreamReadIntoRequest>> m_readIntoRequests;
 
     ClosedCallback m_closedCallback;
 };
+
+WebCoreOpaqueRoot root(ReadableStreamBYOBReader*);
 
 } // namespace WebCore

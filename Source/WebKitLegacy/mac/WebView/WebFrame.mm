@@ -74,6 +74,8 @@
 #import <WebCore/DocumentInlines.h>
 #import <WebCore/DocumentLoader.h>
 #import <WebCore/DocumentMarkerController.h>
+#import <WebCore/DocumentMarkers.h>
+#import <WebCore/DocumentView.h>
 #import <WebCore/Editing.h>
 #import <WebCore/Editor.h>
 #import <WebCore/EventHandler.h>
@@ -91,7 +93,7 @@
 #import <WebCore/JSDOMWindow.h>
 #import <WebCore/JSNode.h>
 #import <WebCore/LegacyWebArchive.h>
-#import <WebCore/LocalFrame.h>
+#import <WebCore/LocalFrameInlines.h>
 #import <WebCore/LocalFrameView.h>
 #import <WebCore/MIMETypeRegistry.h>
 #import <WebCore/MouseEventTypes.h>
@@ -2262,9 +2264,9 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     float printWidth = root->writingMode().isHorizontal() ? static_cast<float>(documentRect.width()) / printScaleFactor : pageSize.width;
     float printHeight = root->writingMode().isHorizontal() ? pageSize.height : static_cast<float>(documentRect.height()) / printScaleFactor;
 
-    WebCore::PrintContext printContext(_private->coreFrame);
-    printContext.computePageRectsWithPageSize(WebCore::FloatSize(printWidth, printHeight), true);
-    return createNSArray(printContext.pageRects()).autorelease();
+    Ref printContext = WebCore::PrintContext::create(_private->coreFrame);
+    printContext->computePageRectsWithPageSize(WebCore::FloatSize(printWidth, printHeight), true);
+    return createNSArray(printContext->pageRects()).autorelease();
 }
 
 #if PLATFORM(IOS_FAMILY)
@@ -2565,7 +2567,7 @@ static NSURL *createUniqueWebDataURL()
     auto coreFrame = _private->coreFrame;
     if (!coreFrame)
         return nil;
-    return kit(dynamicDowncast<WebCore::LocalFrame>(coreFrame->tree().findByUniqueName(name, *coreFrame)));
+    return kit(dynamicDowncast<WebCore::LocalFrame>(coreFrame->tree().findByUniqueName(name, *coreFrame).get()));
 }
 
 - (WebFrame *)parentFrame

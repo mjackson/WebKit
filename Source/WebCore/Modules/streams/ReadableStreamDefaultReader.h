@@ -26,8 +26,12 @@
 #pragma once
 
 #include "InternalReadableStreamDefaultReader.h"
+#include "ReadableStreamReadRequest.h"
+#include "ScriptWrappable.h"
+#include "WebCoreOpaqueRoot.h"
 #include <JavaScriptCore/Strong.h>
 #include <wtf/RefCountedAndCanMakeWeakPtr.h>
+#include <wtf/TZoneMalloc.h>
 #include <wtf/WeakPtr.h>
 
 namespace WebCore {
@@ -37,25 +41,28 @@ class DeferredPromise;
 class InternalReadableStreamDefaultReader;
 class JSDOMGlobalObject;
 class ReadableStream;
+class ReadableStreamReadRequest;
 
-class ReadableStreamDefaultReader : public RefCountedAndCanMakeWeakPtr<ReadableStreamDefaultReader> {
+class ReadableStreamDefaultReader : public ScriptWrappable, public RefCountedAndCanMakeWeakPtr<ReadableStreamDefaultReader> {
+    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(ReadableStreamDefaultReader);
 public:
     static ExceptionOr<Ref<ReadableStreamDefaultReader>> create(JSDOMGlobalObject&, ReadableStream&);
-    static ExceptionOr<Ref<ReadableStreamDefaultReader>> create(JSDOMGlobalObject&, InternalReadableStream&);
-    static Ref<ReadableStreamDefaultReader> create(Ref<InternalReadableStreamDefaultReader>&&, Ref<DOMPromise>&&, Ref<DeferredPromise>&&);
 
     ~ReadableStreamDefaultReader();
 
     DOMPromise& closedPromise() const;
-    void read(JSDOMGlobalObject&, Ref<DeferredPromise>&&);
+    void readForBindings(JSDOMGlobalObject&, Ref<DeferredPromise>&&);
+    void read(JSDOMGlobalObject&, Ref<ReadableStreamReadRequest>&&);
+
     ExceptionOr<void> releaseLock(JSDOMGlobalObject&);
 
     InternalReadableStreamDefaultReader* internalDefaultReader() { return m_internalDefaultReader.get(); }
     size_t getNumReadRequests() const { return m_readRequests.size(); }
-    void addReadRequest(Ref<DeferredPromise>&&);
-    Ref<DeferredPromise> takeFirstReadRequest();
+    void addReadRequest(Ref<ReadableStreamReadRequest>&&);
+    Ref<ReadableStreamReadRequest> takeFirstReadRequest();
 
-    void genericCancel(JSDOMGlobalObject&, JSC::JSValue, Ref<DeferredPromise>&&);
+    Ref<DOMPromise> cancel(JSDOMGlobalObject&, JSC::JSValue);
+    Ref<DOMPromise> genericCancel(JSDOMGlobalObject&, JSC::JSValue);
 
     void resolveClosedPromise();
     void rejectClosedPromise(JSC::JSValue);
@@ -65,21 +72,28 @@ public:
     void onClosedPromiseRejection(ClosedRejectionCallback&&);
     void onClosedPromiseResolution(Function<void()>&&);
 
-private:
-    ReadableStreamDefaultReader(Ref<InternalReadableStreamDefaultReader>&&, Ref<DOMPromise>&&, Ref<DeferredPromise>&&);
+    bool isReachableFromOpaqueRoots() const;
+    template<typename Visitor> void visitAdditionalChildren(Visitor&);
 
-    void setup(JSDOMGlobalObject&);
+    ReadableStream* stream() { return m_stream.get(); }
+
+private:
+    ReadableStreamDefaultReader(Ref<ReadableStream>&&, RefPtr<InternalReadableStreamDefaultReader>&&, Ref<DOMPromise>&&, Ref<DeferredPromise>&&);
+
+    ExceptionOr<void> setup(JSDOMGlobalObject&);
     void genericRelease(JSDOMGlobalObject&);
-    void errorReadRequests(JSDOMGlobalObject&, const Exception&);
+    void errorReadRequests(const Exception&);
 
     Ref<DOMPromise> m_closedPromise;
     Ref<DeferredPromise> m_closedDeferred;
     RefPtr<ReadableStream> m_stream;
-    Deque<Ref<DeferredPromise>> m_readRequests;
+    Deque<Ref<ReadableStreamReadRequest>> m_readRequests;
 
     const RefPtr<InternalReadableStreamDefaultReader> m_internalDefaultReader;
     ClosedRejectionCallback m_closedRejectionCallback;
     Function<void()> m_closedResolutionCallback;
 };
+
+WebCoreOpaqueRoot root(ReadableStreamDefaultReader*);
 
 } // namespace WebCore

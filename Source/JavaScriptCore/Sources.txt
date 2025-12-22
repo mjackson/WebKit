@@ -817,6 +817,7 @@ runtime/FileBasedFuzzerAgent.cpp
 runtime/FileBasedFuzzerAgentBase.cpp
 runtime/FinalizationRegistryConstructor.cpp
 runtime/FinalizationRegistryPrototype.cpp
+runtime/FractionToDouble.cpp
 runtime/FunctionConstructor.cpp
 runtime/FunctionExecutable.cpp
 runtime/FunctionExecutableDump.cpp
@@ -893,6 +894,7 @@ runtime/JSBigInt.cpp
 runtime/JSBoundFunction.cpp
 runtime/JSCBytecodeCacheVersion.cpp
 runtime/JSCConfig.cpp
+runtime/JSHeapDouble.cpp
 runtime/JSCJSValue.cpp
 runtime/JSCPtrTag.cpp
 runtime/JSCallee.cpp
@@ -907,6 +909,7 @@ runtime/JSDestructibleObjectHeapCellType.cpp
 runtime/JSDisposableStack.cpp
 runtime/JSFinalizationRegistry.cpp
 runtime/JSFunction.cpp
+runtime/JSFunctionWithFields.cpp
 runtime/JSGenerator.cpp
 runtime/JSGeneratorFunction.cpp
 runtime/JSGenericTypedArrayViewConstructor.cpp
@@ -917,6 +920,7 @@ runtime/JSGlobalObjectDebuggable.cpp
 runtime/JSGlobalObjectFunctions.cpp
 runtime/JSGlobalProxy.cpp
 runtime/JSCellButterfly.cpp
+runtime/JSHeapInt32.cpp
 runtime/JSInternalPromise.cpp
 runtime/JSInternalPromiseConstructor.cpp
 runtime/JSInternalPromisePrototype.cpp
@@ -939,6 +943,7 @@ runtime/JSONObject.cpp
 runtime/JSObject.cpp
 runtime/JSPromise.cpp
 runtime/JSPromiseAllContext.cpp
+runtime/JSPromiseAllGlobalContext.cpp
 runtime/JSPromiseConstructor.cpp
 runtime/JSPromisePrototype.cpp
 runtime/JSPromiseReaction.cpp
@@ -1086,9 +1091,15 @@ runtime/TemporalPlainDatePrototype.cpp
 runtime/TemporalPlainDateTime.cpp
 runtime/TemporalPlainDateTimeConstructor.cpp
 runtime/TemporalPlainDateTimePrototype.cpp
+runtime/TemporalPlainMonthDay.cpp
+runtime/TemporalPlainMonthDayConstructor.cpp
+runtime/TemporalPlainMonthDayPrototype.cpp
 runtime/TemporalPlainTime.cpp
 runtime/TemporalPlainTimeConstructor.cpp
 runtime/TemporalPlainTimePrototype.cpp
+runtime/TemporalPlainYearMonth.cpp
+runtime/TemporalPlainYearMonthConstructor.cpp
+runtime/TemporalPlainYearMonthPrototype.cpp
 runtime/TemporalTimeZone.cpp
 runtime/TemporalTimeZoneConstructor.cpp
 runtime/TemporalTimeZonePrototype.cpp
@@ -1139,6 +1150,7 @@ wasm/WasmBBQJIT64.cpp @no-unify
 wasm/WasmBBQPlan.cpp
 wasm/WasmBinding.cpp
 wasm/WasmBranchHintsSectionParser.cpp
+wasm/WasmCallProfile.cpp
 wasm/WasmCallee.cpp
 wasm/WasmCalleeGroup.cpp
 wasm/WasmCallingConvention.cpp
@@ -1152,6 +1164,7 @@ wasm/WasmFunctionIPIntMetadataGenerator.cpp
 wasm/WasmGlobal.cpp
 wasm/WasmHandlerInfo.cpp
 wasm/WasmIndexOrName.cpp
+wasm/WasmInliningDecision.cpp
 wasm/WasmInstanceAnchor.cpp
 wasm/WasmIPIntGenerator.cpp
 wasm/WasmIPIntPlan.cpp

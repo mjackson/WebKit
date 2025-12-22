@@ -31,9 +31,8 @@
 #include "ContainerNodeInlines.h"
 #include "DebugPageOverlays.h"
 #include "DeprecatedGlobalSettings.h"
-#include "Document.h"
+#include "DocumentView.h"
 #include "EditorClient.h"
-#include "FrameInlines.h"
 #include "GraphicsLayer.h"
 #include "LocalFrameInlines.h"
 #include "LocalFrameView.h"
@@ -146,6 +145,11 @@ ScrollingStateTree& AsyncScrollingCoordinator::ensureScrollingStateTreeForRootFr
     return m_scrollingStateTrees.ensure(rootFrameID, [&] {
         return makeUniqueRef<ScrollingStateTree>(this);
     });
+}
+
+CheckedRef<ScrollingStateTree> AsyncScrollingCoordinator::ensureCheckedScrollingStateTreeForRootFrameID(FrameIdentifier rootFrameID)
+{
+    return ensureScrollingStateTreeForRootFrameID(rootFrameID);
 }
 
 const ScrollingStateTree* AsyncScrollingCoordinator::existingScrollingStateTreeForRootFrameID(std::optional<FrameIdentifier> rootFrameID) const
@@ -618,8 +622,8 @@ LocalFrameView* AsyncScrollingCoordinator::frameViewForScrollingNode(std::option
     if (!page())
         return nullptr;
     for (const auto& rootFrame : page()->rootFrames()) {
-        if (RefPtr frameView = frameViewForScrollingNode(rootFrame.get(), scrollingNodeID))
-            return frameView.get();
+        if (auto* frameView = frameViewForScrollingNode(rootFrame.get(), scrollingNodeID))
+            return frameView;
     }
     return nullptr;
 }
@@ -835,10 +839,11 @@ void AsyncScrollingCoordinator::reconcileScrollingState(LocalFrameView& frameVie
     LayoutPoint scrollPositionForFixed = frameView.scrollPositionForFixedPosition();
     auto obscuredContentInsets = frameView.obscuredContentInsets();
 
-    FloatPoint positionForInsetClipLayer;
+    FloatRect insetClipLayerRect;
     if (insetClipLayer) {
-        positionForInsetClipLayer = LocalFrameView::positionForInsetClipLayer(scrollPosition, obscuredContentInsets);
-        positionForInsetClipLayer.move(frameView.insetForLeftScrollbarSpace(), 0);
+        insetClipLayerRect = LocalFrameView::insetClipLayerRect(scrollPosition, obscuredContentInsets, frameView.sizeForVisibleContent());
+        insetClipLayerRect.move(frameView.insetForLeftScrollbarSpace(), 0);
+        insetClipLayer->setSize(insetClipLayerRect.size());
     }
     FloatPoint positionForContentsLayer = frameView.positionForRootContentLayer();
     
@@ -852,7 +857,7 @@ void AsyncScrollingCoordinator::reconcileScrollingState(LocalFrameView& frameVie
         if (counterScrollingLayer)
             counterScrollingLayer->setPosition(scrollPositionForFixed);
         if (insetClipLayer)
-            insetClipLayer->setPosition(positionForInsetClipLayer);
+            insetClipLayer->setPosition(insetClipLayerRect.location());
         if (contentShadowLayer)
             contentShadowLayer->setPosition(positionForContentsLayer);
         if (rootContentsLayer)
@@ -867,7 +872,7 @@ void AsyncScrollingCoordinator::reconcileScrollingState(LocalFrameView& frameVie
         if (counterScrollingLayer)
             counterScrollingLayer->syncPosition(scrollPositionForFixed);
         if (insetClipLayer)
-            insetClipLayer->syncPosition(positionForInsetClipLayer);
+            insetClipLayer->syncPosition(insetClipLayerRect.location());
         if (contentShadowLayer)
             contentShadowLayer->syncPosition(positionForContentsLayer);
         if (rootContentsLayer)
@@ -1057,6 +1062,7 @@ void AsyncScrollingCoordinator::setFrameScrollingNodeState(ScrollingNodeID nodeI
     frameScrollingNode->setScrollbarColor(frameView.scrollbarColorStyle());
     frameScrollingNode->setWheelEventGesturesBecomeNonBlocking(settings.wheelEventGesturesBecomeNonBlocking());
 
+    frameScrollingNode->setSizeForVisibleContent(frameView.sizeForVisibleContent());
     frameScrollingNode->setMinLayoutViewportOrigin(frameView.minStableLayoutViewportOrigin());
     frameScrollingNode->setMaxLayoutViewportOrigin(frameView.maxStableLayoutViewportOrigin());
 

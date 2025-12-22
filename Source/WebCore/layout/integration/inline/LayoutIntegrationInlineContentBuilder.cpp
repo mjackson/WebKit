@@ -27,7 +27,7 @@
 #include "LayoutIntegrationInlineContentBuilder.h"
 
 #include "InlineDamage.h"
-#include "InlineDisplayBox.h"
+#include "InlineDisplayBoxInlines.h"
 #include "LayoutBoxGeometry.h"
 #include "LayoutIntegrationInlineContent.h"
 #include "LayoutState.h"
@@ -187,7 +187,10 @@ void InlineContentBuilder::adjustDisplayLines(InlineContent& inlineContent, size
                 continue;
             }
 
-            if (box.isAtomicInlineBox()) {
+            if (box.isAtomicInlineBox() || box.isBlockLevelBox()) {
+                if (box.isBlockLevelBox())
+                    inlineContent.setHasBlockLevelBoxes();
+
                 auto& renderer = downcast<RenderBox>(*box.layoutBox().rendererForIntegration());
                 if (!renderer.hasSelfPaintingLayer()) {
                     auto childInkOverflow = renderer.logicalVisualOverflowRectForPropagation(renderer.parent()->writingMode());
@@ -206,6 +209,7 @@ void InlineContentBuilder::adjustDisplayLines(InlineContent& inlineContent, size
             if (box.isInlineBox()) {
                 if (!downcast<RenderElement>(*box.layoutBox().rendererForIntegration()).hasSelfPaintingLayer())
                     lineInkOverflowRect.unite(box.inkOverflow());
+                continue;
             }
         }
 

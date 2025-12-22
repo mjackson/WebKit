@@ -78,16 +78,14 @@ void GStreamerDtlsTransportBackendObserver::stateChanged()
 
         // Access to DTLS certificates is not memory-safe in GStreamer versions older than 1.22.3.
         // See also: https://gitlab.freedesktop.org/gstreamer/gstreamer/-/commit/d9c853f165288071b63af9a56b6d76e358fbdcc2
-        if (webkitGstCheckVersion(1, 22, 3)) {
+        if (gst_check_version(1, 22, 3)) {
             GUniqueOutPtr<char> remoteCertificate;
             GUniqueOutPtr<char> certificate;
             g_object_get(m_backend.get(), "remote-certificate", &remoteCertificate.outPtr(), "certificate", &certificate.outPtr(), nullptr);
-
             if (remoteCertificate)
-                certificates.append(JSC::ArrayBuffer::create(unsafeSpan8(remoteCertificate.get())));
-
+                certificates.append(JSC::ArrayBuffer::create(byteCast<uint8_t>(unsafeSpan(remoteCertificate.get()))));
             if (certificate)
-                certificates.append(JSC::ArrayBuffer::create(unsafeSpan8(certificate.get())));
+                certificates.append(JSC::ArrayBuffer::create(byteCast<uint8_t>(unsafeSpan(certificate.get()))));
         }
         m_client->onStateChanged(toRTCDtlsTransportState(state), WTFMove(certificates));
     });

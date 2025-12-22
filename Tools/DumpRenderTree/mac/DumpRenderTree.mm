@@ -1833,6 +1833,8 @@ static void resetWebViewToConsistentState(const WTR::TestOptions& options, Reset
 
     WebCoreTestSupport::clearAllLogChannelsToAccumulate();
     WebCoreTestSupport::initializeLogChannelsIfNecessary();
+
+    gTestRunner->clearBackForwardList();
 }
 
 #if PLATFORM(IOS_FAMILY)

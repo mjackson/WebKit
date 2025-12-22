@@ -36,14 +36,19 @@ typedef struct CF_BRIDGED_TYPE(id) __CVBuffer* CVPixelBufferRef;
 struct WGPUDDMeshImpl {
 };
 
+@class DDBridgeReceiver;
+@class DDBridgeUpdateMaterial;
+@class DDBridgeUpdateMesh;
+@class DDBridgeUpdateTexture;
+
 namespace WebGPU {
 
 class Instance;
 
-class DDMesh : public RefCountedAndCanMakeWeakPtr<DDMesh>, public WGPUDDMeshImpl {
+class DDMesh : public ThreadSafeRefCounted<DDMesh>, public WGPUDDMeshImpl {
     WTF_MAKE_TZONE_ALLOCATED(DDMesh);
 public:
-    static Ref<DDMesh> create(const WGPUDDMeshDescriptor& descriptor, Instance& instance)
+    static Ref<DDMesh> create(const WGPUDDCreateMeshDescriptor& descriptor, Instance& instance)
     {
         return adoptRef(*new DDMesh(descriptor, instance));
     }
@@ -55,15 +60,30 @@ public:
     ~DDMesh();
 
     bool isValid() const;
-    void update(WGPUDDUpdateMeshDescriptor*);
+    void update(DDBridgeUpdateMesh*);
+    void updateTexture(DDBridgeUpdateTexture*);
+    void updateMaterial(DDBridgeUpdateMaterial*);
+    void play(bool);
+
+    id<MTLTexture> texture() const;
+    void render() const;
+    void setTransform(const simd_float4x4&);
+    void setCameraDistance(float);
 
 private:
-    DDMesh(const WGPUDDMeshDescriptor&, Instance&);
+    DDMesh(const WGPUDDCreateMeshDescriptor&, Instance&);
     DDMesh(Instance&);
 
     const Ref<Instance> m_instance;
-    bool m_destroyed { false };
-    WGPUDDMeshDescriptor m_descriptor;
+    WGPUDDCreateMeshDescriptor m_descriptor;
+    NSMutableArray<id<MTLTexture>>* m_textures { nil };
+
+#if ENABLE(GPU_PROCESS_MODEL)
+    DDBridgeReceiver* m_ddReceiver;
+    simd_float4x4 m_transform { matrix_identity_float4x4 };
+#endif
+    NSUUID* m_ddMeshIdentifier;
+    mutable uint32_t m_currentTexture { 0 };
 };
 
 } // namespace WebGPU

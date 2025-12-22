@@ -69,7 +69,25 @@ static void initializeSQLiteIfNecessary()
         // completely threadsafe. But in the past it was not safe, and the SQLite developers still
         // aren't confident that it really is, and we still support ancient versions of SQLite. So
         // std::call_once is used to stay on the safe side. See bug #143245.
+
+#if OS(DARWIN)
+        int ret;
+        callOnMainThreadAndWait([&] {
+            // In the Network process, this function can be called on a background thread when
+            // creating WebKit::ResourceLoadStatisticsStore, which then races with
+            // WebKit::NetworkProcess::initializeNetworkProcess(). Since both of those calls query
+            // the Darwin user temp directory via confstr(), this should only be called from the
+            // main thread.
+            ret = sqlite3_initialize();
+        });
+#else
+        // On non-Darwin systems confstr() is MT-safe and it does not try to fiddle with environment
+        // variables, and it is better initialize directly. This is true at least on Linux with the
+        // supported C libraries (glibc, Musl, uClibc), the "big" BSDs (FreeBSD, NetBSD, OpenBSD),
+        // and the Android C library (Bionic) does not even provide confstr().
         int ret = sqlite3_initialize();
+#endif
+
         if (ret != SQLITE_OK) {
 #if SQLITE_VERSION_NUMBER >= 3007015
             WTFLogAlways("Failed to initialize SQLite: %s", sqlite3_errstr(ret));
@@ -80,9 +98,6 @@ static void initializeSQLiteIfNecessary()
         }
     });
 }
-
-static Lock isDatabaseOpeningForbiddenLock;
-static bool isDatabaseOpeningForbidden WTF_GUARDED_BY_LOCK(isDatabaseOpeningForbiddenLock) { false };
 
 void SQLiteDatabase::useFastMalloc()
 {
@@ -104,12 +119,6 @@ void SQLiteDatabase::useFastMalloc()
     returnCode = sqlite3_config(SQLITE_CONFIG_MALLOC, &fastMallocMethods);
     RELEASE_LOG_ERROR_IF(returnCode != SQLITE_OK, SQLDatabase, "Unable to replace SQLite malloc: %d", returnCode);
 #endif
-}
-
-void SQLiteDatabase::setIsDatabaseOpeningForbidden(bool isForbidden)
-{
-    Locker locker { isDatabaseOpeningForbiddenLock };
-    isDatabaseOpeningForbidden = isForbidden;
 }
 
 SQLiteDatabase::SQLiteDatabase() = default;
@@ -135,12 +144,6 @@ bool SQLiteDatabase::open(const String& filename, OpenMode openMode, OptionSet<O
     });
 
     {
-        Locker locker { isDatabaseOpeningForbiddenLock };
-        if (isDatabaseOpeningForbidden) {
-            m_openErrorMessage = "opening database is forbidden";
-            return false;
-        }
-
         int flags = SQLITE_OPEN_AUTOPROXY;
         switch (openMode) {
         case OpenMode::ReadOnly:
@@ -267,11 +270,10 @@ bool SQLiteDatabase::useWALJournalMode()
     m_useWAL = true;
     {
         SQLiteTransactionInProgressAutoCounter transactionCounter;
-        auto sqlStatement = prepareStatement("PRAGMA journal_mode=WAL;"_s);
-        if (!sqlStatement)
+        auto statement = prepareStatement("PRAGMA journal_mode=WAL;"_s);
+        if (!statement)
             return false;
 
-        CheckedRef statement = sqlStatement.value();
         int stepResult = statement->step();
         if (stepResult != SQLITE_ROW)
             return false;
@@ -348,11 +350,9 @@ int64_t SQLiteDatabase::maximumSize()
     {
         Locker locker { m_authorizerLock };
         enableAuthorizer(false);
-        auto sqlStatement = prepareStatement("PRAGMA max_page_count"_s);
-        if (sqlStatement) {
-            CheckedRef statement = sqlStatement.value();
+        if (auto statement = prepareStatement("PRAGMA max_page_count"_s))
             maxPageCount = statement->columnInt64(0);
-        } else
+        else
             maxPageCount = 0;
         enableAuthorizer(true);
     }
@@ -373,9 +373,7 @@ void SQLiteDatabase::setMaximumSize(int64_t size)
     Locker locker { m_authorizerLock };
     enableAuthorizer(false);
 
-    auto sqlStatement = prepareStatementSlow(makeString("PRAGMA max_page_count = "_s, newMaxPageCount));
-    if (sqlStatement) {
-        CheckedRef statement = sqlStatement.value();
+    if (auto statement = prepareStatementSlow(makeString("PRAGMA max_page_count = "_s, newMaxPageCount))) {
         if (statement->step() != SQLITE_ROW)
             LOG_ERROR("Failed to set maximum size of database to %lli bytes", static_cast<long long>(size));
     } else
@@ -391,12 +389,10 @@ int SQLiteDatabase::pageSize()
     if (m_pageSize == -1) {
         Locker locker { m_authorizerLock };
         enableAuthorizer(false);
-        
-        auto sqlStatement = prepareStatement("PRAGMA page_size"_s);
-        if (sqlStatement) {
-            CheckedRef statement = sqlStatement.value();
+
+        if (auto statement = prepareStatement("PRAGMA page_size"_s))
             m_pageSize = statement->columnInt(0);
-        } else
+        else
             m_pageSize = 0;
         
         enableAuthorizer(true);
@@ -413,11 +409,9 @@ int64_t SQLiteDatabase::freeSpaceSize()
         Locker locker { m_authorizerLock };
         enableAuthorizer(false);
         // Note: freelist_count was added in SQLite 3.4.1.
-        auto sqlStatement = prepareStatement("PRAGMA freelist_count"_s);
-        if (sqlStatement) {
-            CheckedRef statement = sqlStatement.value();
+        if (auto statement = prepareStatement("PRAGMA freelist_count"_s))
             freelistCount = statement->columnInt64(0);
-        } else
+        else
             freelistCount = 0;
 
         enableAuthorizer(true);
@@ -433,11 +427,9 @@ int64_t SQLiteDatabase::totalSize()
     {
         Locker locker { m_authorizerLock };
         enableAuthorizer(false);
-        auto sqlStatement = prepareStatement("PRAGMA page_count"_s);
-        if (sqlStatement) {
-            CheckedRef statement = sqlStatement.value();
+        if (auto statement = prepareStatement("PRAGMA page_count"_s))
             pageCount = statement->columnInt64(0);
-        } else
+        else
             pageCount = 0;
         enableAuthorizer(true);
     }
@@ -468,21 +460,17 @@ void SQLiteDatabase::setBusyHandler(int(*handler)(void*, int))
 
 int SQLiteDatabase::executeSlow(StringView query)
 {
-    auto sqlStatement = prepareStatementSlow(query);
-    if (!sqlStatement)
-        return sqlStatement.error();
-
-    CheckedRef statement = sqlStatement.value();
+    auto statement = prepareStatementSlow(query);
+    if (!statement)
+        return lastError();
     return statement->step();
 }
 
 int SQLiteDatabase::execute(ASCIILiteral query)
 {
-    auto sqlStatement = prepareStatement(query);
-    if (!sqlStatement)
-        return sqlStatement.error();
-
-    CheckedRef statement = sqlStatement.value();
+    auto statement = prepareStatement(query);
+    if (!statement)
+        return lastError();
     return statement->step();
 }
 
@@ -511,10 +499,9 @@ String SQLiteDatabase::tableSQL(StringView tableName)
     if (!isOpen())
         return { };
 
-    auto sqlStatement = prepareStatement("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?;"_s);
-    if (!sqlStatement)
+    auto statement = prepareStatement("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?;"_s);
+    if (!statement)
         return { };
-    CheckedRef statement = sqlStatement.value();
     if (statement->bindText(1, tableName) != SQLITE_OK || statement->step() != SQLITE_ROW)
         return { };
 
@@ -526,10 +513,9 @@ String SQLiteDatabase::indexSQL(StringView indexName)
     if (!isOpen())
         return { };
 
-    auto sqlStatement = prepareStatement("SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?;"_s);
-    if (!sqlStatement)
+    auto statement = prepareStatement("SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?;"_s);
+    if (!statement)
         return { };
-    CheckedRef statement = sqlStatement.value();
     if (statement->bindText(1, indexName) != SQLITE_OK || statement->step() != SQLITE_ROW)
         return { };
 
@@ -538,12 +524,11 @@ String SQLiteDatabase::indexSQL(StringView indexName)
 
 void SQLiteDatabase::clearAllTables()
 {
-    auto sqlStatement = prepareStatement("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';"_s);
-    if (!sqlStatement) {
+    auto statement = prepareStatement("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';"_s);
+    if (!statement) {
         LOG(SQLDatabase, "Failed to prepare statement to retrieve list of tables from database");
         return;
     }
-    CheckedRef statement = sqlStatement.value();
     Vector<String> tables;
     while (statement->step() == SQLITE_ROW)
         tables.append(statement->columnText(0));
@@ -565,8 +550,7 @@ int SQLiteDatabase::runIncrementalVacuumCommand()
     Locker locker { m_authorizerLock };
     enableAuthorizer(false);
 
-    if (auto sqlStatement = prepareStatement("PRAGMA incremental_vacuum"_s)) {
-        CheckedRef statement = sqlStatement.value();
+    if (auto statement = prepareStatement("PRAGMA incremental_vacuum"_s)) {
         auto ret = statement->step();
         while (ret == SQLITE_ROW)
             ret = statement->step();
@@ -729,10 +713,9 @@ bool SQLiteDatabase::turnOnIncrementalAutoVacuum()
 {
     int autoVacuumMode = AutoVacuumNone;
     {
-        auto sqlStatement = prepareStatement("PRAGMA auto_vacuum"_s);
-        if (!sqlStatement)
+        auto statement = prepareStatement("PRAGMA auto_vacuum"_s);
+        if (!statement)
             return false;
-        CheckedRef statement = sqlStatement.value();
         autoVacuumMode = statement->columnInt(0);
 
         // Check if we got an error while trying to get the value of the auto_vacuum flag.
@@ -819,46 +802,25 @@ static Expected<sqlite3_stmt*, int> constructAndPrepareStatement(SQLiteDatabase&
     return statement;
 }
 
-Expected<SQLiteStatement, int> SQLiteDatabase::prepareStatementSlow(StringView queryString)
+std::unique_ptr<SQLiteStatement> SQLiteDatabase::prepareStatementSlow(StringView queryString)
 {
     auto query = queryString.trim(isUnicodeCompatibleASCIIWhitespace<char16_t>).utf8();
     auto sqlStatement = constructAndPrepareStatement(*this, query.spanIncludingNullTerminator());
     if (!sqlStatement) {
         RELEASE_LOG_ERROR(SQLDatabase, "SQLiteDatabase::prepareStatement: Failed to prepare statement %" PUBLIC_LOG_STRING, query.data());
-        return makeUnexpected(sqlStatement.error());
+        return nullptr;
     }
-    return SQLiteStatement { *this, sqlStatement.value() };
+    return std::unique_ptr<SQLiteStatement>(new SQLiteStatement(*this, sqlStatement.value()));
 }
 
-Expected<SQLiteStatement, int> SQLiteDatabase::prepareStatement(ASCIILiteral query)
+std::unique_ptr<SQLiteStatement> SQLiteDatabase::prepareStatement(ASCIILiteral query)
 {
     auto sqlStatement = constructAndPrepareStatement(*this, query.spanIncludingNullTerminator());
     if (!sqlStatement) {
         RELEASE_LOG_ERROR(SQLDatabase, "SQLiteDatabase::prepareStatement: Failed to prepare statement %" PUBLIC_LOG_STRING, query.characters());
-        return makeUnexpected(sqlStatement.error());
+        return nullptr;
     }
-    return SQLiteStatement { *this, sqlStatement.value() };
-}
-
-Expected<UniqueRef<SQLiteStatement>, int> SQLiteDatabase::prepareHeapStatementSlow(StringView queryString)
-{
-    auto query = queryString.trim(isUnicodeCompatibleASCIIWhitespace<char16_t>).utf8();
-    auto sqlStatement = constructAndPrepareStatement(*this, query.spanIncludingNullTerminator());
-    if (!sqlStatement) {
-        RELEASE_LOG_ERROR(SQLDatabase, "SQLiteDatabase::prepareHeapStatement: Failed to prepare statement %" PUBLIC_LOG_STRING, query.data());
-        return makeUnexpected(sqlStatement.error());
-    }
-    return UniqueRef<SQLiteStatement>(*new SQLiteStatement(*this, sqlStatement.value()));
-}
-
-Expected<UniqueRef<SQLiteStatement>, int> SQLiteDatabase::prepareHeapStatement(ASCIILiteral query)
-{
-    auto sqlStatement = constructAndPrepareStatement(*this, query.spanIncludingNullTerminator());
-    if (!sqlStatement) {
-        RELEASE_LOG_ERROR(SQLDatabase, "SQLiteDatabase::prepareHeapStatement: Failed to prepare statement %" PUBLIC_LOG_STRING, query.characters());
-        return makeUnexpected(sqlStatement.error());
-    }
-    return UniqueRef<SQLiteStatement>(*new SQLiteStatement(*this, sqlStatement.value()));
+    return std::unique_ptr<SQLiteStatement>(new SQLiteStatement(*this, sqlStatement.value()));
 }
 
 } // namespace WebCore

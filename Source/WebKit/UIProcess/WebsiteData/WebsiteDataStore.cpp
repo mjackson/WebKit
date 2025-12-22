@@ -219,7 +219,7 @@ WebsiteDataStore::~WebsiteDataStore()
 }
 
 // FIXME: Remove this when rdar://95786441 is resolved.
-static RefPtr<WebsiteDataStore>& protectedDefaultDataStore()
+static RefPtr<WebsiteDataStore>& protectedGlobalDefaultDataStore()
 {
     static NeverDestroyed<RefPtr<WebsiteDataStore>> globalDefaultDataStore;
     return globalDefaultDataStore.get();
@@ -245,24 +245,27 @@ static IsPersistent defaultDataStoreIsPersistent()
 #endif
 }
 
-Ref<WebsiteDataStore> WebsiteDataStore::defaultDataStore()
+WebsiteDataStore& WebsiteDataStore::defaultDataStore()
 {
     InitializeWebKit2();
     auto& globalDatasStore = globalDefaultDataStore();
     if (globalDatasStore)
-        return Ref { *globalDatasStore };
+        return *globalDatasStore;
 
     auto isPersistent = defaultDataStoreIsPersistent();
-    Ref newDataStore = WebsiteDataStore::create(WebsiteDataStoreConfiguration::create(isPersistent), isPersistent == IsPersistent::Yes ? PAL::SessionID::defaultSessionID() : PAL::SessionID::generateEphemeralSessionID());
-    globalDatasStore = newDataStore.ptr();
-    protectedDefaultDataStore() = newDataStore.ptr();
+    protectedGlobalDefaultDataStore() = WebsiteDataStore::create(WebsiteDataStoreConfiguration::create(isPersistent), isPersistent == IsPersistent::Yes ? PAL::SessionID::defaultSessionID() : PAL::SessionID::generateEphemeralSessionID());
+    globalDatasStore = protectedGlobalDefaultDataStore().get();
+    return *protectedGlobalDefaultDataStore();
+}
 
-    return newDataStore;
+Ref<WebsiteDataStore> WebsiteDataStore::protectedDefaultDataStore()
+{
+    return defaultDataStore();
 }
 
 void WebsiteDataStore::deleteDefaultDataStoreForTesting()
 {
-    protectedDefaultDataStore() = nullptr;
+    protectedGlobalDefaultDataStore() = nullptr;
 }
 
 bool WebsiteDataStore::defaultDataStoreExists()
@@ -480,6 +483,9 @@ static void resolveDirectories(WebsiteDataStoreConfiguration::Directories& direc
     if (!directories.resourceMonitorThrottlerDirectory.isEmpty())
         directories.resourceMonitorThrottlerDirectory = resolveAndCreateReadWriteDirectoryForSandboxExtension(directories.resourceMonitorThrottlerDirectory);
 #endif
+
+    if (!directories.enhancedSecurityDirectory.isEmpty())
+        directories.enhancedSecurityDirectory = resolveAndCreateReadWriteDirectoryForSandboxExtension(directories.enhancedSecurityDirectory);
 }
 
 const WebsiteDataStoreConfiguration::Directories& WebsiteDataStore::resolvedDirectories() const
@@ -568,6 +574,7 @@ void WebsiteDataStore::fetchDomainsWithUserInteraction(CompletionHandler<void(co
         return;
 
     protectedNetworkProcess()->sendWithAsyncReply(Messages::NetworkProcess::FetchWebsitesWithUserInteractions(sessionID()), [this, protectedThis = RefPtr { *this }](HashSet<WebCore::RegistrableDomain>&& domains) {
+        domains.addAll(platformAdditionalDomainsWithUserInteraction());
         m_domainsWithUserInteractions = WTFMove(domains);
 
         for (auto& domain : std::exchange(m_pendingDomainsWithUserInteractions, { }))
@@ -577,6 +584,13 @@ void WebsiteDataStore::fetchDomainsWithUserInteraction(CompletionHandler<void(co
             completionHandler(*m_domainsWithUserInteractions);
     });
 }
+
+#if !PLATFORM(COCOA)
+HashSet<WebCore::RegistrableDomain> WebsiteDataStore::platformAdditionalDomainsWithUserInteraction() const
+{
+    return { };
+}
+#endif
 
 static WebsiteDataStore::ProcessAccessType computeNetworkProcessAccessTypeForDataFetch(OptionSet<WebsiteDataType> dataTypes, bool isNonPersistentStore)
 {
@@ -813,6 +827,16 @@ private:
         });
     }
 #endif
+
+    if (dataTypes.contains(WebsiteDataType::EnhancedSecurityRecord)) {
+        fetchAllEnhancedSecuritySites([callbackAggregator] (HashSet<WebCore::RegistrableDomain>&& enhancedSecuritySites) {
+            WebsiteData websiteData;
+            websiteData.entries = WTF::map(enhancedSecuritySites, [](auto& entry) {
+                return WebsiteData::Entry { WebCore::SecurityOriginData { "https"_s, entry.string(), std::nullopt }, WebsiteDataType::EnhancedSecurityRecord, 0 };
+            });
+            callbackAggregator->addWebsiteData(WTFMove(websiteData));
+        });
+    }
 }
 
 void WebsiteDataStore::fetchDataForRegistrableDomains(OptionSet<WebsiteDataType> dataTypes, OptionSet<WebsiteDataFetchOption> fetchOptions, Vector<WebCore::RegistrableDomain>&& domains, CompletionHandler<void(Vector<WebsiteDataRecord>&&, HashSet<WebCore::RegistrableDomain>&&)>&& completionHandler)
@@ -968,6 +992,9 @@ void WebsiteDataStore::removeData(OptionSet<WebsiteDataType> dataTypes, WallTime
     if (dataTypes.contains(WebsiteDataType::ScreenTime) && isPersistent())
         ScreenTimeWebsiteDataSupport::removeScreenTimeDataWithInterval(modifiedSince, configuration());
 #endif
+
+    if (dataTypes.contains(WebsiteDataType::EnhancedSecurityRecord) && isPersistent())
+        removeAllEnhancedSecuritySites([callbackAggregator] { });
 }
 
 void WebsiteDataStore::removeData(OptionSet<WebsiteDataType> dataTypes, const Vector<WebsiteDataRecord>& dataRecords, Function<void()>&& completionHandler)
@@ -1073,6 +1100,8 @@ void WebsiteDataStore::removeData(OptionSet<WebsiteDataType> dataTypes, const Ve
         ScreenTimeWebsiteDataSupport::removeScreenTimeData(websitesToRemove, configuration());
     }
 #endif
+    if (dataTypes.contains(WebsiteDataType::EnhancedSecurityRecord) && isPersistent())
+        removeEnhancedSecuritySites(origins, [callbackAggregator] { });
 }
 
 DeviceIdHashSaltStorage& WebsiteDataStore::ensureDeviceIdHashSaltStorage()
@@ -1612,6 +1641,11 @@ void WebsiteDataStore::deleteCookiesForTesting(const URL& url, bool includeHttpO
     protectedNetworkProcess()->deleteCookiesForTesting(m_sessionID, WebCore::RegistrableDomain { url }, includeHttpOnlyCookies, WTFMove(completionHandler));
 }
 
+void WebsiteDataStore::hasLocalStorageOrCookies(const URL& url, CompletionHandler<void(bool)>&& completionHandler) const
+{
+    protectedNetworkProcess()->hasLocalStorageOrCookies(m_sessionID, WebCore::RegistrableDomain { url }, WTFMove(completionHandler));
+}
+
 void WebsiteDataStore::hasLocalStorageForTesting(const URL& url, CompletionHandler<void(bool)>&& completionHandler) const
 {
     protectedNetworkProcess()->hasLocalStorage(m_sessionID, WebCore::RegistrableDomain { url }, WTFMove(completionHandler));
@@ -1967,6 +2001,11 @@ void WebsiteDataStore::setPrivateClickMeasurementDebugMode(bool enabled)
 void WebsiteDataStore::storePrivateClickMeasurement(const WebCore::PrivateClickMeasurement& privateClickMeasurement)
 {
     protectedNetworkProcess()->send(Messages::NetworkProcess::StorePrivateClickMeasurement(sessionID(), privateClickMeasurement), 0);
+}
+
+void WebsiteDataStore::simulatePrivateClickMeasurementConversion(int priority, int triggerData, const URL& sourceURL, const URL& destinationURL)
+{
+    protectedNetworkProcess()->send(Messages::NetworkProcess::SimulatePrivateClickMeasurementConversion(sessionID(), priority, triggerData, sourceURL, destinationURL), 0);
 }
 
 void WebsiteDataStore::setStorageSiteValidationEnabled(bool enabled)
@@ -2547,7 +2586,7 @@ void WebsiteDataStore::forwardAppBoundDomainsToITPIfInitialized(CompletionHandle
         store->setAppBoundDomainsForITP(domains, [callbackAggregator] { });
     };
 
-    propagateAppBoundDomains(globalDefaultDataStore().get(), *appBoundDomains);
+    propagateAppBoundDomains(protectedGlobalDefaultDataStore().get(), *appBoundDomains);
 
     for (auto& store : allDataStores().values())
         propagateAppBoundDomains(Ref { store.get() }.ptr(), *appBoundDomains);
@@ -2576,7 +2615,7 @@ void WebsiteDataStore::forwardManagedDomainsToITPIfInitialized(CompletionHandler
         store->setManagedDomainsForITP(domains, [callbackAggregator] { });
     };
 
-    propagateManagedDomains(protectedDefaultDataStore().get(), *managedDomains);
+    propagateManagedDomains(protectedGlobalDefaultDataStore().get(), *managedDomains);
 
     for (auto& store : allDataStores().values())
         propagateManagedDomains(Ref { store.get() }.ptr(), *managedDomains);
@@ -2935,5 +2974,38 @@ void WebsiteDataStore::clearStorageAccessForTesting(CompletionHandler<void()>&& 
 {
     protectedNetworkProcess()->sendWithAsyncReply(Messages::NetworkProcess::ClearStorageAccessForTesting(m_sessionID), WTFMove(completionHandler));
 }
+
+void WebsiteDataStore::isStorageSuspendedForTesting(CompletionHandler<void(bool)>&& completionHandler) const
+{
+    protectedNetworkProcess()->isStorageSuspendedForTesting(m_sessionID, WTFMove(completionHandler));
+}
+
+#if !PLATFORM(COCOA)
+
+void WebsiteDataStore::removeEnhancedSecuritySites(const Vector<WebCore::SecurityOriginData>&, CompletionHandler<void()>&& completionHandler)
+{
+    completionHandler();
+}
+
+void WebsiteDataStore::removeAllEnhancedSecuritySites(CompletionHandler<void()>&& completionHandler)
+{
+    completionHandler();
+}
+
+void WebsiteDataStore::fetchEnhancedSecurityOnlyDomains(CompletionHandler<void(HashSet<WebCore::RegistrableDomain>&&)>&& completionHandler)
+{
+    completionHandler({ });
+}
+
+void WebsiteDataStore::fetchAllEnhancedSecuritySites(CompletionHandler<void(HashSet<WebCore::RegistrableDomain>&&)>&& completionHandler)
+{
+    completionHandler({ });
+}
+
+void WebsiteDataStore::trackEnhancedSecurityForDomain(WebCore::RegistrableDomain&& domain, EnhancedSecurity reason)
+{
+}
+
+#endif
 
 } // namespace WebKit

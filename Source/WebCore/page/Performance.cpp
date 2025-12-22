@@ -41,6 +41,7 @@
 #include "EventLoop.h"
 #include "EventNames.h"
 #include "ExceptionOr.h"
+#include "InspectorInstrumentation.h"
 #include "LargestContentfulPaint.h"
 #include "LocalFrame.h"
 #include "Logging.h"
@@ -72,15 +73,13 @@ static Seconds timePrecision { 1_ms };
 
 static bool isSignpostEnabled()
 {
-    static bool flag = false;
-    static std::once_flag onceKey;
-    std::call_once(onceKey, [&] {
-        const char* value = getenv("WebKitPerformanceSignpostEnabled");
-        if (value) {
+    static bool flag = [] {
+        if (const char* value = getenv("WebKitPerformanceSignpostEnabled")) {
             if (auto result = parseInteger<int>(StringView::fromLatin1(value)); result && result.value())
-                flag = true;
+                return true;
         }
-    });
+        return false;
+    }();
     return flag;
 }
 
@@ -375,13 +374,19 @@ void Performance::setResourceTimingBufferSize(unsigned size)
 
 void Performance::reportFirstContentfulPaint(DOMHighResTimeStamp timestamp)
 {
+    if (RefPtr context = scriptExecutionContext())
+        InspectorInstrumentation::didEnqueueFirstContentfulPaint(*context);
+
     ASSERT(!m_firstContentfulPaint);
     m_firstContentfulPaint = PerformancePaintTiming::createFirstContentfulPaint(timestamp);
     queueEntry(*m_firstContentfulPaint);
 }
 
-void Performance::reportLargestContentfulPaint(Ref<LargestContentfulPaint>&& paintEntry)
+void Performance::enqueueLargestContentfulPaint(Ref<LargestContentfulPaint>&& paintEntry)
 {
+    if (RefPtr context = scriptExecutionContext())
+        InspectorInstrumentation::didEnqueueLargestContentfulPaint(*context, paintEntry.get());
+
     m_largestContentfulPaint = RefPtr { WTFMove(paintEntry) };
     queueEntry(*m_largestContentfulPaint);
 }

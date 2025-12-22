@@ -29,7 +29,7 @@
 #include "Structure.h"
 #include "Symbol.h"
 #include "Watchpoint.h"
-#include "WriteBarrierInlines.h"
+#include "WriteBarrier.h"
 
 namespace WTF {
 

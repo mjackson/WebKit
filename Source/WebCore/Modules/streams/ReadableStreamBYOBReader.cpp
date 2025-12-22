@@ -28,12 +28,18 @@
 
 #include "JSDOMPromise.h"
 #include "JSDOMPromiseDeferred.h"
+#include "JSReadableStreamBYOBReader.h"
 #include "ReadableByteStreamController.h"
 #include "ReadableStream.h"
+#include "ReadableStreamReadRequest.h"
+#include "WebCoreOpaqueRootInlines.h"
+#include <wtf/TZoneMallocInlines.h>
 #include <JavaScriptCore/ArrayBuffer.h>
 #include <JavaScriptCore/ArrayBufferView.h>
 
 namespace WebCore {
+
+WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(ReadableStreamBYOBReader);
 
 ExceptionOr<Ref<ReadableStreamBYOBReader>> ReadableStreamBYOBReader::create(JSDOMGlobalObject& globalObject, ReadableStream& stream)
 {
@@ -46,7 +52,7 @@ ExceptionOr<Ref<ReadableStreamBYOBReader>> ReadableStreamBYOBReader::create(JSDO
 }
 
 ReadableStreamBYOBReader::ReadableStreamBYOBReader(Ref<DOMPromise>&& promise, Ref<DeferredPromise>&& deferred)
-     : m_closedPromise(WTFMove(promise))
+    : m_closedPromise(WTFMove(promise))
     , m_closedDeferred(WTFMove(deferred))
 {
 }
@@ -59,9 +65,9 @@ DOMPromise& ReadableStreamBYOBReader::closedPromise()
 }
 
 // https://streams.spec.whatwg.org/#byob-reader-read
-void ReadableStreamBYOBReader::read(JSDOMGlobalObject& globalObject, JSC::ArrayBufferView& view, ReadOptions options, Ref<DeferredPromise>&& promise)
+void ReadableStreamBYOBReader::readForBindings(JSDOMGlobalObject& globalObject, JSC::ArrayBufferView& view, ReadOptions options, Ref<DeferredPromise>&& promise)
 {
-    if (view.byteLength() == 0)
+    if (!view.byteLength())
         return promise->reject(Exception { ExceptionCode::TypeError, "view byteLength is 0"_s });
 
     RefPtr buffer = view.possiblySharedBuffer();
@@ -74,13 +80,19 @@ void ReadableStreamBYOBReader::read(JSDOMGlobalObject& globalObject, JSC::ArrayB
     if (!options.min)
         return promise->reject(Exception { ExceptionCode::TypeError, "options min is 0"_s });
 
-    if (options.min > view.byteLength())
-        return promise->reject(Exception { ExceptionCode::RangeError, "view's buffer is not long enough"_s });
+    auto viewType = view.getType();
+    if (viewType != JSC::TypedArrayType::TypeDataView) {
+        if (options.min > view.byteLength() / JSC::elementSize(viewType))
+            return promise->reject(Exception { ExceptionCode::RangeError, "view's buffer is not large enough"_s });
+    } else {
+        if (options.min > view.byteLength())
+            return promise->reject(Exception { ExceptionCode::RangeError, "view's buffer is not large enough"_s });
+    }
 
     if (!m_stream)
         return promise->reject(Exception { ExceptionCode::TypeError, "reader has no stream"_s });
 
-    read(globalObject, view, options.min, WTFMove(promise));
+    read(globalObject, view, options.min, ReadableStreamReadIntoRequest::create(WTFMove(promise)));
 }
 
 // https://streams.spec.whatwg.org/#byob-reader-release-lock
@@ -94,13 +106,16 @@ void ReadableStreamBYOBReader::releaseLock(JSDOMGlobalObject& globalObject)
     errorReadIntoRequests(Exception { ExceptionCode::TypeError, "releasing stream"_s });
 }
 
-void ReadableStreamBYOBReader::cancel(JSDOMGlobalObject& globalObject, JSC::JSValue value, Ref<DeferredPromise>&& promise)
+// https://streams.spec.whatwg.org/#generic-reader-cancel
+Ref<DOMPromise> ReadableStreamBYOBReader::cancel(JSDOMGlobalObject& globalObject, JSC::JSValue value)
 {
     if (!m_stream) {
-        promise->reject(Exception { ExceptionCode::TypeError, "no stream"_s });
-        return;
+        auto [promise, deferred] = createPromiseAndWrapper(globalObject);
+        deferred->reject(Exception { ExceptionCode::TypeError, "no stream"_s });
+        return promise;
     }
-    genericCancel(globalObject, value, WTFMove(promise));
+
+    return genericCancel(globalObject, value);
 }
 
 // https://streams.spec.whatwg.org/#set-up-readable-stream-byob-reader
@@ -136,19 +151,19 @@ void ReadableStreamBYOBReader::initialize(JSDOMGlobalObject& globalObject, Reada
 }
 
 // https://streams.spec.whatwg.org/#readable-stream-byob-reader-read
-void ReadableStreamBYOBReader::read(JSDOMGlobalObject& globalObject, JSC::ArrayBufferView& view, size_t optionMin, Ref<DeferredPromise>&& promise)
+void ReadableStreamBYOBReader::read(JSDOMGlobalObject& globalObject, JSC::ArrayBufferView& view, size_t optionMin, Ref<ReadableStreamReadIntoRequest>&& readRequest)
 {
     ASSERT(m_stream);
     Ref stream = *m_stream;
 
     stream->markAsDisturbed();
     if (stream->state() == ReadableStream::State::Errored) {
-        promise->reject<IDLAny>(stream->storedError(globalObject));
+        readRequest->runErrorSteps(stream->storedError(globalObject));
         return;
     }
 
     RefPtr controller = stream->controller();
-    controller->pullInto(globalObject, view, optionMin, WTFMove(promise));
+    controller->pullInto(globalObject, view, optionMin, WTFMove(readRequest));
 }
 
 // https://streams.spec.whatwg.org/#readable-stream-reader-generic-release
@@ -180,14 +195,14 @@ void ReadableStreamBYOBReader::errorReadIntoRequests(Exception&& exception)
 {
     auto requests = std::exchange(m_readIntoRequests, { });
     for (auto& request : requests)
-        request->reject(exception);
+        request->runErrorSteps(Exception { exception });
 }
 
 void ReadableStreamBYOBReader::errorReadIntoRequests(JSC::JSValue reason)
 {
     auto requests = std::exchange(m_readIntoRequests, { });
     for (auto& request : requests)
-        request->rejectWithCallback([&] (auto&) { return reason; });
+        request->runErrorSteps(reason);
 }
 
 void ReadableStreamBYOBReader::resolveClosedPromise()
@@ -201,21 +216,24 @@ void ReadableStreamBYOBReader::rejectClosedPromise(JSC::JSValue reason)
 }
 
 // https://streams.spec.whatwg.org/#readable-stream-reader-generic-cancel
-void ReadableStreamBYOBReader::genericCancel(JSDOMGlobalObject& globalObject, JSC::JSValue value, Ref<DeferredPromise>&& promise)
+Ref<DOMPromise> ReadableStreamBYOBReader::genericCancel(JSDOMGlobalObject& globalObject, JSC::JSValue value)
 {
-    ASSERT(m_stream);
-    Ref stream = *m_stream;
-    stream->cancel(globalObject, value, WTFMove(promise));
+    RefPtr stream = m_stream;
+
+    ASSERT(stream);
+    ASSERT(stream->byobReader() == this);
+
+    return stream->cancel(globalObject, value);
 }
 
-Ref<DeferredPromise> ReadableStreamBYOBReader::takeFirstReadIntoRequest()
+Ref<ReadableStreamReadIntoRequest> ReadableStreamBYOBReader::takeFirstReadIntoRequest()
 {
     return m_readIntoRequests.takeFirst();
 }
 
-void ReadableStreamBYOBReader::addReadIntoRequest(Ref<DeferredPromise>&& promise)
+void ReadableStreamBYOBReader::addReadIntoRequest(Ref<ReadableStreamReadIntoRequest>&& readIntoRequest)
 {
-    m_readIntoRequests.append(WTFMove(promise));
+    m_readIntoRequests.append(WTFMove(readIntoRequest));
 }
 
 void ReadableStreamBYOBReader::onClosedPromiseRejection(ClosedCallback&& callback)
@@ -241,5 +259,44 @@ void ReadableStreamBYOBReader::onClosedPromiseRejection(ClosedCallback&& callbac
         protectedThis->m_closedCallback(*closedPromise->globalObject(), closedPromise->result());
     });
 }
+
+bool ReadableStreamBYOBReader::isReachableFromOpaqueRoots() const
+{
+    return readIntoRequestsSize() && m_stream && m_stream->isReachableFromOpaqueRoots();
+}
+
+WebCoreOpaqueRoot root(ReadableStreamBYOBReader* reader)
+{
+    return WebCoreOpaqueRoot { reader };
+}
+
+bool JSReadableStreamBYOBReaderOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, AbstractSlotVisitor& visitor, ASCIILiteral* reason)
+{
+    auto* jsReader = jsCast<JSReadableStreamBYOBReader*>(handle.slot()->asCell());
+    SUPPRESS_UNCOUNTED_LOCAL auto& reader = jsReader->wrapped();
+    SUPPRESS_UNCOUNTED_LOCAL if (reader.isReachableFromOpaqueRoots()) {
+        if (reason) [[unlikely]]
+            *reason = "ReadableStreamBYOBReader is reachable from opaque root"_s;
+        return true;
+    }
+
+    return containsWebCoreOpaqueRoot(visitor, reader);
+}
+
+template<typename Visitor>
+void ReadableStreamBYOBReader::visitAdditionalChildren(Visitor& visitor)
+{
+    if (m_stream)
+        SUPPRESS_UNCOUNTED_ARG m_stream->visitAdditionalChildren(visitor);
+}
+
+template<typename Visitor>
+void JSReadableStreamBYOBReader::visitAdditionalChildren(Visitor& visitor)
+{
+    // Do not ref `wrapped()` here since this function may get called on the GC thread.
+    SUPPRESS_UNCOUNTED_ARG wrapped().visitAdditionalChildren(visitor);
+}
+
+DEFINE_VISIT_ADDITIONAL_CHILDREN(JSReadableStreamBYOBReader);
 
 } // namespace WebCore

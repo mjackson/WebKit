@@ -30,14 +30,12 @@ heap/SlotVisitor.h
 heap/WeakSet.h
 inspector/InspectorAgentBase.h
 inspector/InspectorBackendDispatchers.h
-inspector/InspectorFrontendDispatchers.h
 inspector/JSGlobalObjectConsoleClient.h
 inspector/JSGlobalObjectInspectorController.h
 inspector/agents/InspectorDebuggerAgent.h
 interpreter/StackVisitor.h
 jit/JIT.h
 jit/JITCode.h
-jit/JITPlan.h
 jit/JITWorklistThread.h
 jit/OperationResult.h
 jsc.cpp

@@ -52,6 +52,7 @@
 #include <wtf/RuntimeApplicationChecks.h>
 #include <wtf/Scope.h>
 #include <wtf/TZoneMallocInlines.h>
+#include <wtf/URL.h>
 #include <wtf/UUID.h>
 #include <wtf/glib/GSpanExtras.h>
 #include <wtf/glib/GThreadSafeWeakPtr.h>
@@ -247,6 +248,66 @@ bool getSampleVideoInfo(GstSample* sample, GstVideoInfo& videoInfo)
 
     return true;
 }
+
+std::optional<WebCore::IntSize> getDisplaySize(WebCore::IntSize originalSize, int pixelAspectRatioNumerator, int pixelAspectRatioDenominator)
+{
+    WebCore::IntSize computedSize { 0, 0 };
+    unsigned width = 0, height = 0;
+
+    // Calculate DAR based on PAR and video size.
+    // Assume regular display (1:1).
+    if (!gst_video_calculate_display_ratio(&width, &height, originalSize.width(), originalSize.height(), pixelAspectRatioNumerator, pixelAspectRatioDenominator, 1, 1))
+        return std::nullopt;
+
+    // Apply DAR to original video size. This is the same behavior as in xvimagesink's setcaps function.
+    if (!(originalSize.height() % height)) {
+        GST_DEBUG("Keeping video original height");
+        width = gst_util_uint64_scale_int(originalSize.height(), width, height);
+        height = originalSize.height();
+    } else if (!(originalSize.width() % width)) {
+        GST_DEBUG("Keeping video original width");
+        height = gst_util_uint64_scale_int(originalSize.width(), height, width);
+        width = originalSize.width();
+    } else {
+        GST_DEBUG("Approximating while keeping original video height");
+        width = gst_util_uint64_scale_int(originalSize.height(), width, height);
+        height = originalSize.height();
+    }
+
+    computedSize.setWidth(width);
+    computedSize.setHeight(height);
+
+    return computedSize;
+}
+
+bool isProtocolAllowed(const WTF::URL& url)
+{
+    HashSet<String> allowedProtocols = { "blob"_s, "data"_s, "file"_s, "http"_s, "https"_s };
+#if ENABLE(MEDIA_SOURCE)
+    allowedProtocols.add("mediasourceblob"_s);
+#endif
+#if ENABLE(MEDIA_STREAM)
+    allowedProtocols.add("mediastream"_s);
+#endif
+
+    // Parse and add protocols from environment variable
+    auto additionalProtocols = String::fromLatin1(std::getenv("WEBKIT_GST_ALLOWED_URI_PROTOCOLS"));
+    if (!additionalProtocols.isEmpty()) {
+        for (auto protocols : additionalProtocols.split(',')) {
+            auto trimmedProtocol = protocols.trim(deprecatedIsSpaceOrNewline).convertToLowercaseWithoutLocale();
+            if (!trimmedProtocol.isEmpty())
+                allowedProtocols.add(trimmedProtocol);
+        }
+    }
+
+    auto protocol = url.protocol().toString().convertToLowercaseWithoutLocale();
+    bool isAllowed = allowedProtocols.contains(protocol);
+
+    GST_DEBUG("URL: %s", url.string().utf8().data());
+    GST_DEBUG("Requested protocol: %s (allowed: %s)", protocol.utf8().data(), isAllowed ? "yes" : "no");
+
+    return isAllowed;
+}
 #endif
 
 std::optional<TrackID> getStreamIdFromPad(const GRefPtr<GstPad>& pad)
@@ -320,7 +381,7 @@ bool doCapsHaveType(const GstCaps* caps, ASCIILiteral type)
         GST_WARNING("Failed to get MediaType");
         return false;
     }
-    return mediaType.toString().startsWith(type);
+    return startsWith(mediaType.span(), type);
 }
 
 bool areEncryptedCaps(const GstCaps* caps)
@@ -361,6 +422,22 @@ Vector<String> extractGStreamerOptionsFromCommandLine()
     return options;
 }
 
+bool ensureGStreamerInitializedNonWebProcess()
+{
+    RELEASE_ASSERT(!isInWebProcess());
+
+    static std::once_flag onceFlag;
+    static bool isGStreamerInitialized;
+    std::call_once(onceFlag, [] {
+        GUniqueOutPtr<GError> error;
+        isGStreamerInitialized = gst_init_check(nullptr, nullptr, &error.outPtr());
+        ASSERT_WITH_MESSAGE(isGStreamerInitialized, "GStreamer initialization failed: %s", error ? error->message : "unknown error occurred");
+        GST_DEBUG_CATEGORY_INIT(webkit_gst_common_debug, "webkitcommon", 0, "WebKit Common utilities");
+    });
+
+    return isGStreamerInitialized;
+}
+
 bool ensureGStreamerInitialized()
 {
     // WARNING: Please note this function can be called from any thread, for instance when creating
@@ -377,7 +454,7 @@ bool ensureGStreamerInitialized()
         // playbin3.
         // The USE_PLAYBIN3 environment variable is no longer supported.
         // https://gitlab.freedesktop.org/gstreamer/gstreamer/-/merge_requests/6255
-        if (!webkitGstCheckVersion(1, 24, 0) && g_getenv("USE_PLAYBIN3"))
+        if (!gst_check_version(1, 24, 0) && g_getenv("USE_PLAYBIN3"))
             WTFLogAlways("The USE_PLAYBIN3 variable was detected in the environment. Expect playback issues or please unset it.");
 
 #if ENABLE(VIDEO) || ENABLE(WEB_AUDIO)
@@ -497,7 +574,7 @@ void registerWebKitGStreamerElements()
         // The new demuxers based on adaptivedemux2 cannot be used in WebKit yet because this new
         // base class does not abstract away network access. They can't work in a sandboxed
         // media process, so demote their rank in order to prevent decodebin3 from auto-plugging them.
-        if (webkitGstCheckVersion(1, 22, 0)) {
+        if (gst_check_version(1, 22, 0)) {
             std::array<ASCIILiteral, 3> elementNames = { "dashdemux2"_s, "hlsdemux2"_s, "mssdemux2"_s };
             for (auto& elementName : elementNames) {
                 if (auto factory = adoptGRef(gst_element_factory_find(elementName)))
@@ -509,17 +586,15 @@ void registerWebKitGStreamerElements()
         if (auto factory = adoptGRef(gst_element_factory_find("isofmp4mux")))
             gst_plugin_feature_set_rank(GST_PLUGIN_FEATURE_CAST(factory.get()), GST_RANK_PRIMARY + 1);
 
-        WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // GLib port
         // The VAAPI plugin is not much maintained anymore and prone to rendering issues. In the
         // mid-term we will leverage the new stateless VA decoders. Disable the legacy plugin,
         // unless the WEBKIT_GST_ENABLE_LEGACY_VAAPI environment variable is set to 1.
-        const char* enableLegacyVAAPIPlugin = getenv("WEBKIT_GST_ENABLE_LEGACY_VAAPI");
-        if (!enableLegacyVAAPIPlugin || !strcmp(enableLegacyVAAPIPlugin, "0")) {
+        auto enableLegacyVAAPIPlugin = CStringView::unsafeFromUTF8(g_getenv("WEBKIT_GST_ENABLE_LEGACY_VAAPI"));
+        if (enableLegacyVAAPIPlugin.isEmpty() || enableLegacyVAAPIPlugin == "0"_s) {
             auto* registry = gst_registry_get();
             if (auto vaapiPlugin = adoptGRef(gst_registry_find_plugin(registry, "vaapi")))
                 gst_registry_remove_plugin(registry, vaapiPlugin.get());
         }
-        WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
         // Make sure the quirks are created as early as possible.
         [[maybe_unused]] auto& quirksManager = GStreamerQuirksManager::singleton();
@@ -732,6 +807,12 @@ Ref<SharedBuffer> GstMappedOwnedBuffer::createSharedBuffer()
     return SharedBuffer::create(*this);
 }
 
+GstMappedFrame::GstMappedFrame(GstMappedFrame&& other)
+{
+    std::swap(m_frame, other.m_frame);
+    other.m_frame.buffer = nullptr;
+}
+
 GstMappedFrame::GstMappedFrame(GstBuffer* buffer, const GstVideoInfo* info, GstMapFlags flags)
 {
     // This cast can be removed once the GStreamer minimum version is raised to 1.20
@@ -760,14 +841,16 @@ GstVideoFrame* GstMappedFrame::get()
     return &m_frame;
 }
 
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // GLib port
-
-uint8_t* GstMappedFrame::componentData(int comp) const
+std::span<uint8_t> GstMappedFrame::componentData(int comp) const
 {
     RELEASE_ASSERT(isValid());
-    return GST_VIDEO_FRAME_COMP_DATA(&m_frame, comp);
+    WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN; // GLib port
+    auto data = byteCast<uint8_t>(GST_VIDEO_FRAME_COMP_DATA(&m_frame, comp));
+    WTF_ALLOW_UNSAFE_BUFFER_USAGE_END;
+    return unsafeMakeSpan(data, componentStride(comp));
 }
 
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN; // GLib port
 int GstMappedFrame::componentStride(int stride) const
 {
     RELEASE_ASSERT(isValid());
@@ -779,6 +862,7 @@ int GstMappedFrame::componentWidth(int index) const
     RELEASE_ASSERT(isValid());
     return GST_VIDEO_FRAME_COMP_WIDTH(&m_frame, index);
 }
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END;
 
 GstVideoInfo* GstMappedFrame::info()
 {
@@ -804,19 +888,43 @@ int GstMappedFrame::format() const
     return GST_VIDEO_FRAME_FORMAT(&m_frame);
 }
 
-void* GstMappedFrame::planeData(uint32_t planeIndex) const
+std::span<uint8_t> GstMappedFrame::planeData(uint32_t planeIndex) const
 {
     RELEASE_ASSERT(isValid());
-    return GST_VIDEO_FRAME_PLANE_DATA(&m_frame, planeIndex);
+    WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN; // GLib port
+    auto data = reinterpret_cast<uint8_t*>(GST_VIDEO_FRAME_PLANE_DATA(&m_frame, planeIndex));
+    WTF_ALLOW_UNSAFE_BUFFER_USAGE_END;
+    return unsafeMakeSpan(data, height() * planeStride(planeIndex));
 }
 
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN; // GLib port
 int GstMappedFrame::planeStride(uint32_t planeIndex) const
 {
     RELEASE_ASSERT(isValid());
     return GST_VIDEO_FRAME_PLANE_STRIDE(&m_frame, planeIndex);
 }
 
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
+#if USE(GSTREAMER_GL)
+GLuint GstMappedFrame::textureID(int planeIndex) const
+{
+    RELEASE_ASSERT(isValid());
+    RELEASE_ASSERT(m_frame.map->flags & GST_MAP_GL);
+    return *reinterpret_cast<GLuint*>(m_frame.data[planeIndex]);
+}
+#endif
+
+unsigned GstMappedFrame::componentPlane(int planeIndex) const
+{
+    RELEASE_ASSERT(isValid());
+    return GST_VIDEO_INFO_COMP_PLANE(&m_frame.info, planeIndex);
+}
+
+unsigned GstMappedFrame::componentPlaneOffset(int planeIndex) const
+{
+    RELEASE_ASSERT(isValid());
+    return GST_VIDEO_INFO_COMP_POFFSET(&m_frame.info, planeIndex);
+}
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END;
 
 GstMappedAudioBuffer::GstMappedAudioBuffer(GstBuffer* buffer, GstAudioInfo info, GstMapFlags flags)
 {
@@ -921,10 +1029,31 @@ void disconnectSimpleBusMessageCallback(GstElement* pipeline)
 struct MessageBusData {
     GThreadSafeWeakPtr<GstElement> pipeline;
     Function<void(GstMessage*)> handler;
+    AsynchronousPipelineDumping asynchronousPipelineDumping;
 };
 WEBKIT_DEFINE_ASYNC_DATA_STRUCT(MessageBusData)
 
-void connectSimpleBusMessageCallback(GstElement* pipeline, Function<void(GstMessage*)>&& customHandler)
+struct AsyncPipelineDumpData {
+    String dotFileName;
+};
+WEBKIT_DEFINE_ASYNC_DATA_STRUCT(AsyncPipelineDumpData)
+
+static void dumpPipeline(const GRefPtr<GstElement>& pipeline, String&& dotFileName, AsynchronousPipelineDumping asynchronousPipelineDumping)
+{
+    if (asynchronousPipelineDumping == AsynchronousPipelineDumping::No) {
+        GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(GST_BIN_CAST(pipeline.get()), GST_DEBUG_GRAPH_SHOW_ALL, dotFileName.utf8().data());
+        return;
+    }
+
+    auto data = createAsyncPipelineDumpData();
+    data->dotFileName = WTFMove(dotFileName);
+    gst_element_call_async(pipeline.get(), reinterpret_cast<GstElementCallAsyncFunc>(+[](GstElement* pipeline, gpointer userData) {
+        auto data = reinterpret_cast<AsyncPipelineDumpData*>(userData);
+        GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(GST_BIN_CAST(pipeline), GST_DEBUG_GRAPH_SHOW_ALL, data->dotFileName.utf8().data());
+    }), data, reinterpret_cast<GDestroyNotify>(destroyAsyncPipelineDumpData));
+}
+
+void connectSimpleBusMessageCallback(GstElement* pipeline, Function<void(GstMessage*)>&& customHandler, AsynchronousPipelineDumping asynchronousPipelineDumping)
 {
     auto bus = adoptGRef(gst_pipeline_get_bus(GST_PIPELINE(pipeline)));
     gst_bus_add_signal_watch_full(bus.get(), RunLoopSourcePriority::RunLoopDispatcher);
@@ -932,6 +1061,7 @@ void connectSimpleBusMessageCallback(GstElement* pipeline, Function<void(GstMess
     auto data = createMessageBusData();
     data->pipeline.reset(pipeline);
     data->handler = WTFMove(customHandler);
+    data->asynchronousPipelineDumping = asynchronousPipelineDumping;
     auto handler = g_signal_connect_data(bus.get(), "message", G_CALLBACK(+[](GstBus*, GstMessage* message, gpointer userData) {
         auto data = reinterpret_cast<MessageBusData*>(userData);
         auto pipeline = data->pipeline.get();
@@ -942,7 +1072,7 @@ void connectSimpleBusMessageCallback(GstElement* pipeline, Function<void(GstMess
         case GST_MESSAGE_ERROR: {
             GST_ERROR_OBJECT(pipeline.get(), "Got message: %" GST_PTR_FORMAT, message);
             auto dotFileName = makeString(unsafeSpan(GST_OBJECT_NAME(pipeline.get())), "_error"_s);
-            GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(GST_BIN_CAST(pipeline.get()), GST_DEBUG_GRAPH_SHOW_ALL, dotFileName.utf8().data());
+            dumpPipeline(pipeline, WTFMove(dotFileName), data->asynchronousPipelineDumping);
             break;
         }
         case GST_MESSAGE_STATE_CHANGED: {
@@ -958,7 +1088,7 @@ void connectSimpleBusMessageCallback(GstElement* pipeline, Function<void(GstMess
                 gst_element_state_get_name(newState), gst_element_state_get_name(pending));
 
             auto dotFileName = makeString(unsafeSpan(GST_OBJECT_NAME(pipeline.get())), '_', unsafeSpan(gst_element_state_get_name(oldState)), '_', unsafeSpan(gst_element_state_get_name(newState)));
-            GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(GST_BIN_CAST(pipeline.get()), GST_DEBUG_GRAPH_SHOW_ALL, dotFileName.utf8().data());
+            dumpPipeline(pipeline, WTFMove(dotFileName), data->asynchronousPipelineDumping);
             break;
         }
         case GST_MESSAGE_LATENCY:
@@ -2025,6 +2155,43 @@ GstStateChangeReturn gstElementLockAndSetState(GstElement* element, GstState sta
     return result;
 }
 
+GRefPtr<GstElement> createVideoConvertScaleElement(const String& name)
+{
+    // Keep videoconvertscale disabled for now due to some performance issues.
+    // https://gitlab.freedesktop.org/gstreamer/gstreamer/-/issues/3815
+    auto useVideoConvertScale = StringView::fromLatin1(std::getenv("WEBKIT_GST_USE_VIDEOCONVERT_SCALE"));
+    if (useVideoConvertScale == "1"_s && gst_check_version(1, 22, 0)) {
+        GRefPtr videoConvertScale = makeGStreamerElement("videoconvertscale"_s, name);
+        if (!videoConvertScale)
+            return nullptr;
+
+        // Enable multi-threading in the converter.
+        g_object_set(videoConvertScale.get(), "n-threads", 0U, nullptr);
+        return videoConvertScale;
+    }
+
+    auto videoScale = makeGStreamerElement("videoscale"_s);
+    if (!videoScale)
+        return nullptr;
+
+    auto videoConvert = makeGStreamerElement("videoconvert"_s);
+    if (!videoConvert)
+        return nullptr;
+
+    // Enable multi-threading in the converter.
+    g_object_set(videoConvert, "n-threads", 0U, nullptr);
+
+    GRefPtr bin = gst_bin_new(name.utf8().data());
+    gst_bin_add_many(GST_BIN_CAST(bin.get()), videoScale, videoConvert, nullptr);
+    gst_element_link(videoScale, videoConvert);
+
+    auto pad = adoptGRef(gst_element_get_static_pad(videoScale, "sink"));
+    gst_element_add_pad(bin.get(), gst_ghost_pad_new("sink", pad.get()));
+    pad = adoptGRef(gst_element_get_static_pad(videoConvert, "src"));
+    gst_element_add_pad(bin.get(), gst_ghost_pad_new("src", pad.get()));
+    return bin;
+}
+
 #undef GST_CAT_DEFAULT
 
 } // namespace WebCore
@@ -2045,13 +2212,21 @@ GstBuffer* gst_buffer_new_memdup(gconstpointer data, gsize size)
 }
 #endif
 
-#if !GST_CHECK_VERSION(1, 27, 0)
+#if !GST_CHECK_VERSION_FULL(1, 27, 2, 1) && !GST_CHECK_VERSION(1, 27, 3) && !GST_CHECK_VERSION(1, 28, 0)
 void gst_pad_probe_info_set_buffer(GstPadProbeInfo* info, GstBuffer* buffer)
 {
     g_return_if_fail(info->type & GST_PAD_PROBE_TYPE_BUFFER);
 
     gst_clear_mini_object(&info->data);
     info->data = buffer;
+}
+
+void gst_pad_probe_info_set_event(GstPadProbeInfo* info, GstEvent* event)
+{
+    g_return_if_fail(info->type & (GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM | GST_PAD_PROBE_TYPE_EVENT_UPSTREAM));
+
+    gst_clear_mini_object(&info->data);
+    info->data = event;
 }
 #endif
 

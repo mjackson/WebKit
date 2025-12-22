@@ -42,7 +42,7 @@ namespace WebCore {
 
 BorderShape BorderShape::shapeForBorderRect(const RenderStyle& style, const LayoutRect& borderRect, RectEdges<bool> closedEdges)
 {
-    auto borderWidths = RectEdges<LayoutUnit>::map(style.borderWidth(), [](auto width) {
+    auto borderWidths = RectEdges<LayoutUnit>::map(style.borderWidth(), [&](auto width) {
         return Style::evaluate<LayoutUnit>(width, Style::ZoomNeeded { });
     });
     return shapeForBorderRect(style, borderRect, borderWidths, closedEdges);

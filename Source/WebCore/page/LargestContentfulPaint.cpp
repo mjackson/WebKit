@@ -106,7 +106,7 @@ void LargestContentfulPaint::setURLString(const String& urlString)
 
 Element* LargestContentfulPaint::element() const
 {
-    RefPtr element = m_element;
+    RefPtr element = m_element.get();
     if (!element)
         return nullptr;
 
@@ -115,7 +115,8 @@ Element* LargestContentfulPaint::element() const
     if (!LargestContentfulPaintData::isExposedForPaintTiming(*element))
         return nullptr;
 
-    return element.get();
+    ASSERT(m_element == element.get());
+    return m_element.get();
 }
 
 void LargestContentfulPaint::setElement(Element* element)

@@ -36,7 +36,6 @@
 #include "Document.h"
 #include "ElementChildIteratorInlines.h"
 #include "Frame.h"
-#include "FrameInlines.h"
 #include "FrameSnapshotting.h"
 #include "HTMLCanvasElement.h"
 #include "HTMLImageElement.h"
@@ -48,7 +47,6 @@
 #include "ImageBuffer.h"
 #include "ImageData.h"
 #include "InspectorCanvas.h"
-#include "InspectorController.h"
 #include "InspectorInstrumentation.h"
 #include "IntRect.h"
 #include "JSCanvasRenderingContext2D.h"
@@ -61,6 +59,7 @@
 #include "JSNode.h"
 #include "LocalFrame.h"
 #include "Node.h"
+#include "PageInspectorController.h"
 #include "ScriptableDocumentParser.h"
 #include "Settings.h"
 #include "StringCallback.h"
@@ -131,8 +130,8 @@ void FrameConsoleClient::unmute()
 void FrameConsoleClient::logMessageToSystemConsole(const Inspector::ConsoleMessage& consoleMessage)
 {
     if (consoleMessage.type() == MessageType::Image) {
-        ASSERT(consoleMessage.arguments());
-        ConsoleClient::printConsoleMessageWithArguments(consoleMessage.source(), consoleMessage.type(), consoleMessage.level(), consoleMessage.arguments()->globalObject(), *consoleMessage.arguments());
+        RefPtr arguments = consoleMessage.arguments();
+        ConsoleClient::printConsoleMessageWithArguments(consoleMessage.source(), consoleMessage.type(), consoleMessage.level(), arguments->globalObject(), *arguments);
         return;
     }
     ConsoleClient::printConsoleMessage(consoleMessage.source(), consoleMessage.type(), consoleMessage.level(), consoleMessage.toString(), consoleMessage.url(), consoleMessage.line(), consoleMessage.column());
@@ -150,8 +149,7 @@ void FrameConsoleClient::addMessage(std::unique_ptr<Inspector::ConsoleMessage>&&
         std::span<const String> additionalArguments;
         Vector<String> messageArgumentsVector;
         if (consoleMessage->type() == MessageType::Image) {
-            ASSERT(consoleMessage->arguments());
-            messageArgumentsVector = consoleMessage->arguments()->getArgumentsAsStrings();
+            messageArgumentsVector = RefPtr { consoleMessage->arguments() }->getArgumentsAsStrings();
             if (!messageArgumentsVector.isEmpty()) {
                 message = messageArgumentsVector.first();
                 additionalArguments = messageArgumentsVector.subspan(1);
@@ -305,24 +303,24 @@ static JSC::JSObject* objectArgumentAt(ScriptArguments& arguments, unsigned inde
     return arguments.argumentCount() > index ? arguments.argumentAt(index).getObject() : nullptr;
 }
 
-static CanvasRenderingContext* canvasRenderingContext(JSC::VM& vm, JSC::JSValue target)
+static RefPtr<CanvasRenderingContext> canvasRenderingContext(JSC::VM& vm, JSC::JSValue target)
 {
-    if (auto* canvas = JSHTMLCanvasElement::toWrapped(vm, target))
+    if (RefPtr canvas = JSHTMLCanvasElement::toWrapped(vm, target))
         return canvas->renderingContext();
 #if ENABLE(OFFSCREEN_CANVAS)
-    if (auto* canvas = JSOffscreenCanvas::toWrapped(vm, target))
+    if (RefPtr canvas = JSOffscreenCanvas::toWrapped(vm, target))
         return canvas->renderingContext();
-    if (auto* context = JSOffscreenCanvasRenderingContext2D::toWrapped(vm, target))
+    if (RefPtr context = JSOffscreenCanvasRenderingContext2D::toWrapped(vm, target))
         return context;
 #endif
-    if (auto* context = JSCanvasRenderingContext2D::toWrapped(vm, target))
+    if (RefPtr context = JSCanvasRenderingContext2D::toWrapped(vm, target))
         return context;
-    if (auto* context = JSImageBitmapRenderingContext::toWrapped(vm, target))
+    if (RefPtr context = JSImageBitmapRenderingContext::toWrapped(vm, target))
         return context;
 #if ENABLE(WEBGL)
-    if (auto* context = JSWebGLRenderingContext::toWrapped(vm, target))
+    if (RefPtr context = JSWebGLRenderingContext::toWrapped(vm, target))
         return context;
-    if (auto* context = JSWebGL2RenderingContext::toWrapped(vm, target))
+    if (RefPtr context = JSWebGL2RenderingContext::toWrapped(vm, target))
         return context;
 #endif
     return nullptr;
@@ -334,7 +332,7 @@ void FrameConsoleClient::record(JSC::JSGlobalObject* lexicalGlobalObject, Ref<Sc
         return;
 
     if (auto* target = objectArgumentAt(arguments, 0)) {
-        if (auto* context = canvasRenderingContext(lexicalGlobalObject->vm(), target))
+        if (RefPtr context = canvasRenderingContext(lexicalGlobalObject->vm(), target))
             InspectorInstrumentation::consoleStartRecordingCanvas(*context, *lexicalGlobalObject, objectArgumentAt(arguments, 1));
     }
 }
@@ -345,7 +343,7 @@ void FrameConsoleClient::recordEnd(JSC::JSGlobalObject* lexicalGlobalObject, Ref
         return;
 
     if (auto* target = objectArgumentAt(arguments, 0)) {
-        if (auto* context = canvasRenderingContext(lexicalGlobalObject->vm(), target))
+        if (RefPtr context = canvasRenderingContext(lexicalGlobalObject->vm(), target))
             InspectorInstrumentation::consoleStopRecordingCanvas(*context);
     }
 }
@@ -361,18 +359,17 @@ void FrameConsoleClient::screenshot(JSC::JSGlobalObject* lexicalGlobalObject, Re
     if (arguments->argumentCount()) {
         auto possibleTarget = arguments->argumentAt(0);
 
-        if (auto* node = JSNode::toWrapped(vm, possibleTarget)) {
+        if (RefPtr node = JSNode::toWrapped(vm, possibleTarget)) {
             target = possibleTarget;
             if (InspectorInstrumentation::hasFrontends()) [[unlikely]] {
                 RefPtr<ImageBuffer> snapshot;
 
                 // Only try to do something special for subclasses of Node if they're detached from the DOM tree.
-                if (!node->document().contains(node)) {
+                if (!node->document().contains(*node)) {
                     auto snapshotImageElement = [&snapshot] (HTMLImageElement& imageElement) {
                         if (auto* cachedImage = imageElement.cachedImage()) {
-                            auto* image = cachedImage->image();
-                            if (image && image != &Image::nullImage()) {
-                                snapshot = ImageBuffer::create(image->size(), RenderingMode::Unaccelerated, RenderingPurpose::Unspecified, 1, DestinationColorSpace::SRGB(), PixelFormat::BGRA8);
+                            if (RefPtr image = cachedImage->image(); image && image != &Image::nullImage()) {
+                                snapshot = ImageBuffer::create(image->size(), RenderingMode::Unaccelerated, RenderingPurpose::Unspecified, /* scale */ 1, DestinationColorSpace::SRGB(), PixelFormat::BGRA8);
                                 snapshot->context().drawImage(*image, FloatPoint(0, 0));
                             }
                         }
@@ -388,12 +385,12 @@ void FrameConsoleClient::screenshot(JSC::JSGlobalObject* lexicalGlobalObject, Re
                     else if (RefPtr videoElement = dynamicDowncast<HTMLVideoElement>(node)) {
                         unsigned videoWidth = videoElement->videoWidth();
                         unsigned videoHeight = videoElement->videoHeight();
-                        snapshot = ImageBuffer::create(FloatSize(videoWidth, videoHeight), RenderingMode::Unaccelerated, RenderingPurpose::Unspecified, 1, DestinationColorSpace::SRGB(), PixelFormat::BGRA8);
+                        snapshot = ImageBuffer::create(FloatSize(videoWidth, videoHeight), RenderingMode::Unaccelerated, RenderingPurpose::Unspecified, /* scale */ 1, DestinationColorSpace::SRGB(), PixelFormat::BGRA8);
                         videoElement->paintCurrentFrameInContext(snapshot->context(), FloatRect(0, 0, videoWidth, videoHeight));
                     }
 #endif
                     else if (RefPtr canvasElement = dynamicDowncast<HTMLCanvasElement>(node)) {
-                        if (auto* canvasRenderingContext = canvasElement->renderingContext()) {
+                        if (RefPtr canvasRenderingContext = canvasElement->renderingContext()) {
                             if (auto result = InspectorCanvas::getContentAsDataURL(*canvasRenderingContext))
                                 dataURL = result.value();
                         }
@@ -408,43 +405,41 @@ void FrameConsoleClient::screenshot(JSC::JSGlobalObject* lexicalGlobalObject, Re
                     }
 
                     if (snapshot)
-                        dataURL = snapshot->toDataURL("image/png"_s, std::nullopt, PreserveResolution::Yes);
+                        dataURL = snapshot->toDataURL("image/png"_s, /* quality */ std::nullopt, PreserveResolution::Yes);
                 }
             }
-        } else if (auto* imageData = JSImageData::toWrapped(vm, possibleTarget)) {
+        } else if (RefPtr imageData = JSImageData::toWrapped(vm, possibleTarget)) {
             target = possibleTarget;
             if (InspectorInstrumentation::hasFrontends()) [[unlikely]] {
-                auto sourceSize = imageData->size();
-                if (auto imageBuffer = ImageBuffer::create(sourceSize, RenderingMode::Unaccelerated, RenderingPurpose::Unspecified, 1, DestinationColorSpace::SRGB(), PixelFormat::BGRA8)) {
-                    IntRect sourceRect(IntPoint(), sourceSize);
-                    imageBuffer->putPixelBuffer(imageData->byteArrayPixelBuffer().get(), sourceRect);
-                    dataURL = imageBuffer->toDataURL("image/png"_s, std::nullopt, PreserveResolution::Yes);
+                if (RefPtr imageBuffer = ImageBuffer::create(imageData->size(), RenderingMode::Unaccelerated, RenderingPurpose::Unspecified, /* scale */ 1, DestinationColorSpace::SRGB(), PixelFormat::BGRA8)) {
+                    imageBuffer->putPixelBuffer(imageData->byteArrayPixelBuffer().get(), IntRect(IntPoint(), imageData->size()));
+                    dataURL = imageBuffer->toDataURL("image/png"_s, /* quality */ std::nullopt, PreserveResolution::Yes);
                 }
             }
-        } else if (auto* imageBitmap = JSImageBitmap::toWrapped(vm, possibleTarget)) {
+        } else if (RefPtr imageBitmap = JSImageBitmap::toWrapped(vm, possibleTarget)) {
             target = possibleTarget;
             if (InspectorInstrumentation::hasFrontends()) [[unlikely]] {
-                if (auto* imageBuffer = imageBitmap->buffer())
-                    dataURL = imageBuffer->toDataURL("image/png"_s, std::nullopt, PreserveResolution::Yes);
+                if (RefPtr imageBuffer = imageBitmap->buffer())
+                    dataURL = imageBuffer->toDataURL("image/png"_s, /* quality */ std::nullopt, PreserveResolution::Yes);
             }
-        } else if (auto* context = canvasRenderingContext(vm, possibleTarget)) {
+        } else if (RefPtr context = canvasRenderingContext(vm, possibleTarget)) {
             target = possibleTarget;
             if (InspectorInstrumentation::hasFrontends()) [[unlikely]] {
                 if (auto result = InspectorCanvas::getContentAsDataURL(*context))
                     dataURL = result.value();
             }
-        } else if (auto* rect = JSDOMRectReadOnly::toWrapped(vm, possibleTarget)) {
+        } else if (RefPtr rect = JSDOMRectReadOnly::toWrapped(vm, possibleTarget)) {
             target = possibleTarget;
             if (InspectorInstrumentation::hasFrontends()) [[unlikely]] {
                 Ref frame = m_frame.get();
                 if (RefPtr localMainFrame = frame->localMainFrame()) {
-                    if (auto snapshot = WebCore::snapshotFrameRect(*localMainFrame, enclosingIntRect(rect->toFloatRect()), { { }, PixelFormat::BGRA8, DestinationColorSpace::SRGB() }))
-                        dataURL = snapshot->toDataURL("image/png"_s, std::nullopt, PreserveResolution::Yes);
+                    if (RefPtr snapshot = WebCore::snapshotFrameRect(*localMainFrame, enclosingIntRect(rect->toFloatRect()), { { }, PixelFormat::BGRA8, DestinationColorSpace::SRGB() }))
+                        dataURL = snapshot->toDataURL("image/png"_s, /* quality */ std::nullopt, PreserveResolution::Yes);
                 }
             }
         } else {
             String base64;
-            if (possibleTarget.getString(lexicalGlobalObject, base64) && startsWithLettersIgnoringASCIICase(base64, "data:"_s) && base64.length() > 5) {
+            if (possibleTarget.getString(lexicalGlobalObject, base64) && base64.length() > 5 && startsWithLettersIgnoringASCIICase(base64, "data:"_s)) {
                 target = possibleTarget;
                 dataURL = base64;
             }
@@ -456,9 +451,9 @@ void FrameConsoleClient::screenshot(JSC::JSGlobalObject* lexicalGlobalObject, Re
             Ref frame = m_frame.get();
             if (RefPtr localMainFrame = frame->localMainFrame()) {
                 // If no target is provided, capture an image of the viewport.
-                auto viewportRect = localMainFrame->view()->unobscuredContentRect();
-                if (auto snapshot = WebCore::snapshotFrameRect(*localMainFrame, viewportRect, { { }, PixelFormat::BGRA8, DestinationColorSpace::SRGB() }))
-                    dataURL = snapshot->toDataURL("image/png"_s, std::nullopt, PreserveResolution::Yes);
+                auto viewportRect = localMainFrame->protectedView()->unobscuredContentRect();
+                if (RefPtr snapshot = WebCore::snapshotFrameRect(*localMainFrame, viewportRect, { { }, PixelFormat::BGRA8, DestinationColorSpace::SRGB() }))
+                    dataURL = snapshot->toDataURL("image/png"_s, /* quality */ std::nullopt, PreserveResolution::Yes);
             }
         }
 
@@ -469,11 +464,11 @@ void FrameConsoleClient::screenshot(JSC::JSGlobalObject* lexicalGlobalObject, Re
     }
 
     Vector<JSC::Strong<JSC::Unknown>> adjustedArguments;
+    adjustedArguments.reserveInitialCapacity(arguments->argumentCount() + !target);
     adjustedArguments.append({ vm, target ? target : JSC::jsNontrivialString(vm, "Viewport"_s) });
     for (size_t i = (!target ? 0 : 1); i < arguments->argumentCount(); ++i)
         adjustedArguments.append({ vm, arguments->argumentAt(i) });
-    arguments = ScriptArguments::create(lexicalGlobalObject, WTFMove(adjustedArguments));
-    addMessage(makeUnique<Inspector::ConsoleMessage>(MessageSource::ConsoleAPI, MessageType::Image, MessageLevel::Log, dataURL, WTFMove(arguments), lexicalGlobalObject, 0, timestamp));
+    addMessage(makeUnique<Inspector::ConsoleMessage>(MessageSource::ConsoleAPI, MessageType::Image, MessageLevel::Log, dataURL, ScriptArguments::create(lexicalGlobalObject, WTFMove(adjustedArguments)), lexicalGlobalObject, /* requestIdentifier */ 0, timestamp));
 }
 
 } // namespace WebCore

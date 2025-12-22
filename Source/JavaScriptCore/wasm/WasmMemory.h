@@ -94,7 +94,12 @@ public:
 
     void registerInstance(JSWebAssemblyInstance&);
 
+// FIXME: Remove this check when CHECK_REF_COUNTED_LIFECYCLE is enabled for Bun
+#if USE(BUN_JSC_ADDITIONS)
+    void checkLifetime() { }
+#else
     void checkLifetime() { ASSERT(!deletionHasBegun()); }
+#endif
 
     static constexpr ptrdiff_t offsetOfHandle() { return OBJECT_OFFSETOF(Memory, m_handle); }
 

@@ -81,6 +81,7 @@
 #include "WKPagePolicyClientInternal.h"
 #include "WKPageRenderingProgressEventsInternal.h"
 #include "WKPluginInformation.h"
+#include "WebBackForwardCache.h"
 #include "WebBackForwardList.h"
 #include "WebFormClient.h"
 #include "WebFrameProxy.h"
@@ -279,8 +280,8 @@ static String encodingOf(const String& string)
 static std::span<const uint8_t> dataFrom(const String& string)
 {
     if (string.isNull() || !string.is8Bit())
-        return asBytes(string.span16());
-    return string.span8();
+        return asBytes(string.span<char16_t>());
+    return asBytes(string.span<Latin1Character>());
 }
 
 static Ref<WebCore::DataSegment> dataReferenceFrom(const String& string)
@@ -2702,10 +2703,16 @@ void WKPageEvaluateJavaScriptInMainFrame(WKPageRef pageRef, WKStringRef scriptRe
 void WKPageEvaluateJavaScriptInFrame(WKPageRef pageRef, WKFrameInfoRef frame, WKStringRef scriptRef, void* context, WKPageEvaluateJavaScriptFunction callback)
 {
     CRASH_IF_SUSPENDED;
+    auto scriptString = IPC::TransferString::create(toProtectedImpl(scriptRef)->stringView());
+    if (!scriptString) {
+        if (callback)
+            callback(nullptr, nullptr, context);
+        return;
+    };
 
     auto frameID = frame ? std::optional(toImpl(frame)->frameInfoData().frameID) : std::nullopt;
     toProtectedImpl(pageRef)->runJavaScriptInFrameInScriptWorld(WebKit::RunJavaScriptParameters {
-        toProtectedImpl(scriptRef)->string(),
+        WTFMove(*scriptString),
         JSC::SourceTaintedOrigin::Untainted,
         URL { },
         WebCore::RunAsAsyncFunction::No,
@@ -2735,10 +2742,16 @@ static void callAsyncJavaScript(bool withUserGesture, WKPageRef page, WKStringRe
         }
         return { WTFMove(result) };
     };
+    auto scriptString = IPC::TransferString::create(toProtectedImpl(script)->stringView());
+    if (!scriptString) {
+        if (callback)
+            callback(nullptr, nullptr, context);
+        return;
+    }
 
     auto frameID = frame ? std::optional(toImpl(frame)->frameInfoData().frameID) : std::nullopt;
     toProtectedImpl(page)->runJavaScriptInFrameInScriptWorld(WebKit::RunJavaScriptParameters {
-        toProtectedImpl(script)->string(),
+        WTFMove(*scriptString),
         JSC::SourceTaintedOrigin::Untainted,
         URL { },
         WebCore::RunAsAsyncFunction::Yes,
@@ -3509,4 +3522,10 @@ void WKPageFindStringForTesting(WKPageRef pageRef, void* context, WKStringRef st
     toProtectedImpl(pageRef)->findString(toWTFString(string), toFindOptions(options), maxMatchCount, [context, completionHandler] (bool found) {
         completionHandler(found, context);
     });
+}
+
+void WKPageClearBackForwardCache(WKPageRef page)
+{
+    RefPtr protectedPage = toProtectedImpl(page);
+    protectedPage->protectedBackForwardCache()->removeEntriesForPage(*protectedPage);
 }

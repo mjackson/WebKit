@@ -31,7 +31,6 @@
 #include "CachedFontLoadRequest.h"
 #include "CachedSVGFont.h"
 #include "Document.h"
-#include "DocumentInlines.h"
 #include "Font.h"
 #include "FontCache.h"
 #include "FontCascadeDescription.h"
@@ -75,10 +74,10 @@ CSSFontFaceSource::CSSFontFaceSource(CSSFontFace& owner, AtomString fontFaceName
 {
 }
 
-CSSFontFaceSource::CSSFontFaceSource(CSSFontFace& owner, CSSFontSelector& fontSelector, UniqueRef<FontLoadRequest> request)
+CSSFontFaceSource::CSSFontFaceSource(CSSFontFace& owner, CSSFontSelector& fontSelector, Ref<FontLoadRequest>&& request)
     : m_owningCSSFontFace(owner)
     , m_fontSelector(fontSelector)
-    , m_fontRequest(request.moveToUniquePtr())
+    , m_fontRequest(WTFMove(request))
 {
     // This may synchronously call fontLoaded().
     m_fontRequest->setClient(this);

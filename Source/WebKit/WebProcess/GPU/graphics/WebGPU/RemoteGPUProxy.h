@@ -90,6 +90,8 @@ private:
     RemoteGPUProxy& operator=(const RemoteGPUProxy&) = delete;
     RemoteGPUProxy& operator=(RemoteGPUProxy&&) = delete;
 
+    bool isRemoteGPUProxy() const final { return true; }
+
     // IPC::Connection::Client
     void didReceiveMessage(IPC::Connection&, IPC::Decoder&) final;
     void didClose(IPC::Connection&) final;
@@ -110,9 +112,14 @@ private:
     {
         return root().protectedStreamClientConnection()->sendSync(std::forward<T>(message), backing());
     }
+    template<typename T, typename C>
+    WARN_UNUSED_RETURN std::optional<IPC::StreamClientConnection::AsyncReplyID> sendWithAsyncReply(T&& message, C&& completionHandler)
+    {
+        return root().protectedStreamClientConnection()->sendWithAsyncReply(WTFMove(message), completionHandler, backing());
+    }
 
     void requestAdapter(const WebCore::WebGPU::RequestAdapterOptions&, CompletionHandler<void(RefPtr<WebCore::WebGPU::Adapter>&&)>&&) final;
-    RefPtr<WebCore::DDModel::DDMesh> addMeshRequest(const WebCore::DDModel::DDMeshDescriptor&) final;
+    RefPtr<WebCore::DDModel::DDMesh> createModelBacking(unsigned width, unsigned height, CompletionHandler<void(Vector<MachSendRight>&&)>&&) final;
 
     RefPtr<WebCore::WebGPU::PresentationContext> createPresentationContext(const WebCore::WebGPU::PresentationContextDescriptor&) final;
 
@@ -165,5 +172,9 @@ private:
 };
 
 } // namespace WebKit
+
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebKit::RemoteGPUProxy)
+    static bool isType(const WebCore::WebGPU::GPU& gpu) { return gpu.isRemoteGPUProxy(); }
+SPECIALIZE_TYPE_TRAITS_END()
 
 #endif // ENABLE(GPU_PROCESS)

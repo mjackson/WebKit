@@ -33,31 +33,36 @@
 #include <WebCore/FilterFunction.h>
 #include <WebCore/Gradient.h>
 #include <WebCore/NativeImage.h>
-#include <wtf/CheckedRef.h>
+#include <WebCore/ShareableBitmap.h>
+#include <wtf/CheckedPtr.h>
 #include <wtf/HashMap.h>
+#include <wtf/TZoneMalloc.h>
+#include <wtf/UniqueRef.h>
 
 namespace WebCore {
 class Filter;
 class Font;
-class ImageBuffer;
 struct FontCustomPlatformData;
-namespace DisplayList {
-class DisplayList;
-}
 }
 
 namespace WebKit {
 
 class RemoteImageBufferProxy;
+class RemoteNativeImageProxy;
 class RemoteRenderingBackendProxy;
 
-class RemoteResourceCacheProxy final : public WebCore::RenderingResourceObserver {
+class RemoteResourceCacheProxy final : private WebCore::RenderingResourceObserver,  public CanMakeCheckedPtr<RemoteResourceCacheProxy> {
+    WTF_MAKE_TZONE_ALLOCATED(RemoteResourceCacheProxy);
+    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RemoteResourceCacheProxy);
+
 public:
-    using WeakValueType = WebCore::RenderingResourceObserver;
-    RemoteResourceCacheProxy(RemoteRenderingBackendProxy&);
+    using WeakValueType = RemoteResourceCacheProxy;
+    static UniqueRef<RemoteResourceCacheProxy> create(RemoteRenderingBackendProxy&);
     ~RemoteResourceCacheProxy();
 
-    void recordNativeImageUse(WebCore::NativeImage&, const WebCore::DestinationColorSpace&);
+    Ref<RemoteNativeImageProxy> createNativeImage(const WebCore::IntSize&, WebCore::PlatformColorSpace&&, bool hasAlpha);
+
+    [[nodiscard]] bool recordNativeImageUse(WebCore::NativeImage&, const WebCore::DestinationColorSpace&);
     void recordFontUse(WebCore::Font&);
     RemoteGradientIdentifier recordGradientUse(WebCore::Gradient&);
     void recordFilterUse(WebCore::Filter&);
@@ -67,12 +72,23 @@ public:
 
     void disconnect();
     void releaseMemory();
-    void releaseNativeImages();
-    
+
+    void willDestroyRemoteNativeImageProxy(const RemoteNativeImageProxy&);
+    WebCore::PlatformImagePtr platformImage(const RemoteNativeImageProxy&);
+
+    // CheckedPtr interface.
+    uint32_t checkedPtrCount() const final { return CanMakeCheckedPtr::checkedPtrCount(); }
+    uint32_t checkedPtrCountWithoutThreadCheck() const final { return CanMakeCheckedPtr::checkedPtrCountWithoutThreadCheck(); }
+    void incrementCheckedPtrCount() const final { CanMakeCheckedPtr::incrementCheckedPtrCount(); }
+    void decrementCheckedPtrCount() const final { CanMakeCheckedPtr::decrementCheckedPtrCount(); }
+    void setDidBeginCheckedPtrDeletion() final { CanMakeCheckedPtr::setDidBeginCheckedPtrDeletion(); }
+
     unsigned nativeImageCountForTesting() const { return m_nativeImages.size(); }
 
 private:
-    // WebCore::RenderingResourceObserver.
+    RemoteResourceCacheProxy(RemoteRenderingBackendProxy&);
+
+    // WebCore::RenderingResourceObserver overrides.
     void willDestroyNativeImage(const WebCore::NativeImage&) override;
     void willDestroyGradient(const WebCore::Gradient&) override;
     void willDestroyFilter(WebCore::RenderingResourceIdentifier) override;
@@ -87,12 +103,13 @@ private:
         RefPtr<WebCore::ShareableBitmap> bitmap; // Reused across GPUP crashes, held through the associated NativeImage lifetime.
         bool existsInRemote = true;
     };
-    HashMap<const WebCore::NativeImage*, NativeImageEntry> m_nativeImages;
-    HashMap<const WebCore::Gradient*, RemoteGradientIdentifier> m_gradients;
+    HashMap<CheckedPtr<const WebCore::NativeImage>, NativeImageEntry> m_nativeImages;
+    HashMap<CheckedPtr<const WebCore::Gradient>, RemoteGradientIdentifier> m_gradients;
     HashSet<WebCore::RenderingResourceIdentifier> m_filters;
-    HashMap<const WebCore::DisplayList::DisplayList*, RemoteDisplayListIdentifier> m_displayLists;
+    HashMap<CheckedPtr<const WebCore::DisplayList::DisplayList>, RemoteDisplayListIdentifier> m_displayLists;
     WeakPtrFactory<WebCore::RenderingResourceObserver> m_resourceObserverWeakFactory;
     WeakPtrFactory<WebCore::RenderingResourceObserver> m_nativeImageResourceObserverWeakFactory;
+    WeakPtrFactory<RemoteResourceCacheProxy> m_remoteNativeImageProxyWeakFactory;
 
     using FontHashMap = HashMap<WebCore::RenderingResourceIdentifier, uint64_t>;
     FontHashMap m_fonts;

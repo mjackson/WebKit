@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include "RemoteAcceleratedEffectStack.h"
+#include "RemoteAnimationStack.h"
 #include "RemoteLayerBackingStore.h"
 #include <WebCore/EventRegion.h>
 #include <WebCore/IOSurface.h>
@@ -138,10 +138,10 @@ public:
         m_asyncContentsIdentifier = identifier;
     }
 
-#if ENABLE(THREADED_ANIMATION_RESOLUTION)
+#if ENABLE(THREADED_ANIMATIONS)
     void setAcceleratedEffectsAndBaseValues(const WebCore::AcceleratedEffects&, const WebCore::AcceleratedEffectValues&, RemoteLayerTreeHost&);
-    const RemoteAcceleratedEffectStack* effectStack() const { return m_effectStack.get(); }
-    RefPtr<RemoteAcceleratedEffectStack> takeEffectStack() { return std::exchange(m_effectStack, nullptr); }
+    const RemoteAnimationStack* animationStack() const { return m_animationStack.get(); }
+    RefPtr<RemoteAnimationStack> takeAnimationStack() { return std::exchange(m_animationStack, nullptr); }
 #endif
 
     bool backdropRootIsOpaque() const { return m_backdropRootIsOpaque; }
@@ -198,8 +198,8 @@ private:
     Vector<CachedContentsBuffer> m_cachedContentsBuffers;
     std::optional<WebCore::RenderingResourceIdentifier> m_asyncContentsIdentifier;
 
-#if ENABLE(THREADED_ANIMATION_RESOLUTION)
-    RefPtr<RemoteAcceleratedEffectStack> m_effectStack;
+#if ENABLE(THREADED_ANIMATIONS)
+    RefPtr<RemoteAnimationStack> m_animationStack;
 #endif
     bool m_backdropRootIsOpaque { false };
 };

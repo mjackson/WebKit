@@ -47,9 +47,14 @@ protected:
     JSPromiseConstructor(VM&, FunctionExecutable*, JSGlobalObject*, Structure*);
     void finishCreation(VM&, JSPromisePrototype*);
 
+#if USE(BUN_JSC_ADDITIONS)
 private:
     void addOwnInternalSlots(VM&, JSGlobalObject*);
+#endif
 };
 static_assert(sizeof(JSPromiseConstructor) == sizeof(JSFunction), "Allocate JSPromiseConstructor in JSFunction IsoSubspace");
+
+JSC_DECLARE_HOST_FUNCTION(promiseAllFulfillFunction);
+JSC_DECLARE_HOST_FUNCTION(promiseAllSlowFulfillFunction);
 
 } // namespace JSC

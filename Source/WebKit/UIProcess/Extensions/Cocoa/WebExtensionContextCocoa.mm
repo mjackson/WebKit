@@ -80,7 +80,6 @@
 #import "WebUserContentControllerProxy.h"
 #import "_WKWebExtensionDeclarativeNetRequestRule.h"
 #import "_WKWebExtensionDeclarativeNetRequestTranslator.h"
-#import "_WKWebExtensionRegisteredScriptsSQLiteStore.h"
 #import <UniformTypeIdentifiers/UTType.h>
 #import <WebCore/LocalizedStrings.h>
 #import <WebCore/TextResourceDecoder.h>
@@ -2377,11 +2376,11 @@ WebsiteDataStore* WebExtensionContext::websiteDataStore(std::optional<PAL::Sessi
     if (!extensionController)
         return nullptr;
 
-    RefPtr result = extensionController->websiteDataStore(sessionID);
-    if (result && !result->isPersistent() && !hasAccessToPrivateData())
+    WeakPtr weakDataStore = extensionController->websiteDataStore(sessionID);
+    if (weakDataStore && !weakDataStore->isPersistent() && !hasAccessToPrivateData())
         return nullptr;
 
-    return result.get();
+    return weakDataStore.get();
 }
 
 void WebExtensionContext::cookiesDidChange(API::HTTPCookieStore&)
@@ -2389,61 +2388,6 @@ void WebExtensionContext::cookiesDidChange(API::HTTPCookieStore&)
     // FIXME: <https://webkit.org/b/267514> Add support for changeInfo.
 
     fireCookiesChangedEventIfNeeded();
-}
-
-URL WebExtensionContext::backgroundContentURL()
-{
-    RefPtr extension = m_extension;
-    if (!extension->hasBackgroundContent())
-        return { };
-    return { m_baseURL, extension->backgroundContentPath() };
-}
-
-void WebExtensionContext::loadBackgroundContent(CompletionHandler<void(RefPtr<API::Error>)>&& completionHandler)
-{
-    if (!protectedExtension()->hasBackgroundContent()) {
-        if (completionHandler)
-            completionHandler(createError(Error::NoBackgroundContent));
-        return;
-    }
-
-    wakeUpBackgroundContentIfNecessary([this, protectedThis = Ref { *this }, completionHandler = WTFMove(completionHandler)]() mutable {
-        if (completionHandler)
-            completionHandler(backgroundContentLoadError());
-    });
-}
-
-void WebExtensionContext::loadBackgroundWebViewDuringLoad()
-{
-    ASSERT(isLoaded());
-
-    RefPtr extension = m_extension;
-    if (!extension->hasBackgroundContent())
-        return;
-
-    m_safeToLoadBackgroundContent = true;
-
-    if (!extension->backgroundContentIsPersistent()) {
-        loadBackgroundPageListenersFromStorage();
-
-        bool hasEventsToFire = m_shouldFireStartupEvent || m_installReason != InstallReason::None;
-        if (m_backgroundContentEventListeners.isEmpty() || hasEventsToFire)
-            loadBackgroundWebView();
-    } else
-        loadBackgroundWebView();
-}
-
-bool WebExtensionContext::isBackgroundPage(WebCore::FrameIdentifier frameIdentifier) const
-{
-    RefPtr frame = WebFrameProxy::webFrame(frameIdentifier);
-    if (!frame)
-        return false;
-
-    RefPtr page = frame->page();
-    if (!page)
-        return false;
-
-    return isBackgroundPage(page->identifier());
 }
 
 bool WebExtensionContext::isBackgroundPage(WebPageProxyIdentifier pageProxyIdentifier) const
@@ -2494,7 +2438,7 @@ void WebExtensionContext::loadBackgroundWebView()
     if ([delegate respondsToSelector:@selector(_webExtensionController:didCreateBackgroundWebView:forExtensionContext:)])
         [delegate _webExtensionController:extensionController->wrapper() didCreateBackgroundWebView:m_backgroundWebView.get() forExtensionContext:wrapper()];
 
-    m_backgroundWebView.get()._remoteInspectionNameOverride = backgroundWebViewInspectionName();
+    m_backgroundWebView.get()._remoteInspectionNameOverride = backgroundWebViewInspectionName().createNSString().get();
     clearError(Error::BackgroundContentFailedToLoad);
     m_backgroundContentLoadError = nullptr;
 
@@ -2533,19 +2477,6 @@ void WebExtensionContext::unloadBackgroundWebView()
 
     [m_backgroundWebView _close];
     m_backgroundWebView = nil;
-}
-
-NSString *WebExtensionContext::backgroundWebViewInspectionName()
-{
-    if (!m_backgroundWebViewInspectionName.isEmpty())
-        return m_backgroundWebViewInspectionName.createNSString().autorelease();
-
-    if (protectedExtension()->backgroundContentIsServiceWorker())
-        m_backgroundWebViewInspectionName = WEB_UI_FORMAT_CFSTRING("%@ — Extension Service Worker", "Label for an inspectable Web Extension service worker", protectedExtension()->displayShortName().createCFString().get());
-    else
-        m_backgroundWebViewInspectionName = WEB_UI_FORMAT_CFSTRING("%@ — Extension Background Page", "Label for an inspectable Web Extension background page", protectedExtension()->displayShortName().createCFString().get());
-
-    return m_backgroundWebViewInspectionName.createNSString().autorelease();
 }
 
 void WebExtensionContext::setBackgroundWebViewInspectionName(const String& name)
@@ -2735,54 +2666,6 @@ void WebExtensionContext::performTasksAfterBackgroundContentLoads()
     scheduleBackgroundContentToUnload();
 }
 
-void WebExtensionContext::wakeUpBackgroundContentIfNecessary(Function<void()>&& completionHandler)
-{
-    if (!protectedExtension()->hasBackgroundContent()) {
-        completionHandler();
-        return;
-    }
-
-    scheduleBackgroundContentToUnload();
-
-    if (backgroundContentIsLoaded()) {
-        completionHandler();
-        return;
-    }
-
-    RELEASE_LOG_DEBUG(Extensions, "Scheduled task for after background content loads");
-
-    m_actionsToPerformAfterBackgroundContentLoads.append(WTFMove(completionHandler));
-
-    loadBackgroundWebViewIfNeeded();
-}
-
-void WebExtensionContext::wakeUpBackgroundContentIfNecessaryToFireEvents(EventListenerTypeSet&& types, Function<void()>&& completionHandler)
-{
-    RefPtr extension = m_extension;
-    if (!extension->hasBackgroundContent()) {
-        completionHandler();
-        return;
-    }
-
-    if (!extension->backgroundContentIsPersistent()) {
-        bool backgroundContentListensToAtLeastOneEvent = false;
-        for (auto& type : types) {
-            if (m_backgroundContentEventListeners.contains(type)) {
-                backgroundContentListensToAtLeastOneEvent = true;
-                break;
-            }
-        }
-
-        // Don't load the background page if it isn't expecting these events.
-        if (!backgroundContentListensToAtLeastOneEvent) {
-            completionHandler();
-            return;
-        }
-    }
-
-    wakeUpBackgroundContentIfNecessary(WTFMove(completionHandler));
-}
-
 #ifndef NDEBUG
 // This is only defined in debug builds since it has a performance impact with little benefit to release builds.
 void WebExtensionContext::reportWebViewConfigurationErrorIfNeeded(const WebExtensionTab& tab) const
@@ -2875,14 +2758,6 @@ void WebExtensionContext::runOpenPanel(WKWebView *, WKOpenPanelParameters *param
 #endif // PLATFORM(MAC)
 
 #if ENABLE(INSPECTOR_EXTENSIONS)
-URL WebExtensionContext::inspectorBackgroundPageURL() const
-{
-    RefPtr extension = m_extension;
-    if (!extension->hasInspectorBackgroundPage())
-        return { };
-    return { m_baseURL, extension->inspectorBackgroundPagePath() };
-}
-
 WebExtensionContext::InspectorTabVector WebExtensionContext::openInspectors(Function<bool(WebExtensionTab&, WebInspectorUIProxy&)>&& predicate) const
 {
     ASSERT(isLoaded());
@@ -2941,19 +2816,6 @@ RefPtr<API::InspectorExtension> WebExtensionContext::inspectorExtension(WebPageP
             const auto& inspectorContext = m_inspectorContextMap.get(inspector);
             return inspectorContext.extension;
         }
-    }
-
-    return nullptr;
-}
-
-RefPtr<WebInspectorUIProxy> WebExtensionContext::inspector(const API::InspectorExtension& inspectorExtension) const
-{
-    ASSERT(isLoaded());
-    ASSERT(protectedExtension()->hasInspectorBackgroundPage());
-
-    for (auto entry : m_inspectorContextMap) {
-        if (entry.value.extension == &inspectorExtension)
-            return &entry.key;
     }
 
     return nullptr;
@@ -3429,13 +3291,6 @@ void WebExtensionContext::loadDeclarativeNetRequestRules(CompletionHandler<void(
 
         addDynamicAndStaticRules();
     });
-}
-
-_WKWebExtensionRegisteredScriptsSQLiteStore *WebExtensionContext::registeredContentScriptsStore()
-{
-    if (!m_registeredContentScriptsStorage)
-        m_registeredContentScriptsStorage = [[_WKWebExtensionRegisteredScriptsSQLiteStore alloc] initWithUniqueIdentifier:m_uniqueIdentifier.createNSString().get() directory:storageDirectory().createNSString().get() usesInMemoryDatabase:!storageIsPersistent()];
-    return m_registeredContentScriptsStorage.get();
 }
 
 void WebExtensionContext::setSessionStorageAllowedInContentScripts(bool allowed)

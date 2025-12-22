@@ -96,9 +96,10 @@ void WebExtensionDeclarativeNetRequestSQLiteStore::addRules(Ref<JSON::Array> rul
         Vector<double> rulesIDs;
         for (Ref ruleValue : rules.get()) {
             RefPtr rule = ruleValue->asObject();
-
-            if (!rule || !rule->size())
-                return;
+            if (!rule || !rule->size()) {
+                ASSERT_NOT_REACHED();
+                continue;
+            }
 
             auto ruleID = rule->getInteger("id"_s);
             ASSERT(ruleID);
@@ -131,9 +132,10 @@ void WebExtensionDeclarativeNetRequestSQLiteStore::addRules(Ref<JSON::Array> rul
 
         for (Ref ruleValue : rules.get()) {
             RefPtr rule = ruleValue->asObject();
-
-            if (!rule || !rule->size())
-                return;
+            if (!rule || !rule->size()) {
+                ASSERT_NOT_REACHED();
+                continue;
+            }
 
             errorMessage = protectedThis->insertRule(*rule, *(protectedThis->database()));
             if (!errorMessage.isEmpty())
@@ -247,8 +249,7 @@ Ref<JSON::Array> WebExtensionDeclarativeNetRequestSQLiteStore::getKeysAndValuesF
         if (!rule)
             continue;
 
-        auto ruleObject = JSON::Value::optionalParseJSON(StringView(rule->span()));
-
+        auto ruleObject = JSON::Value::optionalParseJSON(byteCast<Latin1Character>(rule->span()));
         if (ruleObject)
             results->pushValue(ruleObject->get());
 

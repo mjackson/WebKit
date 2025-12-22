@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2022 Apple Inc. All rights reserved.
+ * Copyright (C) 2008-2025 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -1278,12 +1278,14 @@ public:
 
     void absDouble(FPRegisterID src, FPRegisterID dst)
     {
-        ASSERT(src != dst);
-        move64ToDouble(TrustedImm64(std::bit_cast<int64_t>(-0.0)), dst);
-        if (supportsAVX())
-            m_assembler.vandnpd_rrr(src, dst, dst);
-        else
-            m_assembler.andnpd_rr(src, dst);
+        if (supportsAVX()) {
+            m_assembler.vpsllq_i8rr(1, src, dst);
+            m_assembler.vpsrlq_i8rr(1, dst, dst);
+        } else {
+            moveDouble(src, dst);
+            m_assembler.psllq_i8r(1, dst);
+            m_assembler.psrlq_i8r(1, dst);
+        }
     }
 
     void absFloat(FPRegisterID src, FPRegisterID dst)
@@ -1511,6 +1513,16 @@ public:
         m_assembler.movsbl_mr(address.offset, address.base, dest);
     }
 
+    void load8SignedExtendTo64(BaseIndex address, RegisterID dest)
+    {
+        m_assembler.movsbq_mr(address.offset, address.base, address.index, address.scale, dest);
+    }
+
+    void load8SignedExtendTo64(Address address, RegisterID dest)
+    {
+        m_assembler.movsbq_mr(address.offset, address.base, dest);
+    }
+
     void zeroExtend8To32(RegisterID src, RegisterID dest)
     {
         m_assembler.movzbl_rr(src, dest);
@@ -1539,6 +1551,26 @@ public:
     void load16SignedExtendTo32(Address address, RegisterID dest)
     {
         m_assembler.movswl_mr(address.offset, address.base, dest);
+    }
+
+    void load16SignedExtendTo64(BaseIndex address, RegisterID dest)
+    {
+        m_assembler.movswq_mr(address.offset, address.base, address.index, address.scale, dest);
+    }
+
+    void load16SignedExtendTo64(Address address, RegisterID dest)
+    {
+        m_assembler.movswq_mr(address.offset, address.base, dest);
+    }
+
+    void load32SignedExtendTo64(BaseIndex address, RegisterID dest)
+    {
+        m_assembler.movsxdq_mr(address.offset, address.base, address.index, address.scale, dest);
+    }
+
+    void load32SignedExtendTo64(Address address, RegisterID dest)
+    {
+        m_assembler.movsxdq_mr(address.offset, address.base, dest);
     }
 
     void loadPair32(RegisterID src, RegisterID dest1, RegisterID dest2)
@@ -2785,7 +2817,7 @@ public:
 
     void signExtend32To64(RegisterID src, RegisterID dest)
     {
-        m_assembler.movsxd_rr(src, dest);
+        m_assembler.movsxdq_rr(src, dest);
     }
 
     void signExtend32ToPtr(RegisterID src, RegisterID dest)
@@ -2912,7 +2944,7 @@ public:
     template<typename LeftType, typename RightType>
     void moveDoubleConditionally32(RelationalCondition cond, LeftType left, RightType right, FPRegisterID thenCase, FPRegisterID elseCase, FPRegisterID dest)
     {
-        static_assert(!std::is_same<LeftType, FPRegisterID>::value && !std::is_same<RightType, FPRegisterID>::value, "One of the tested argument could be aliased on dest. Use moveDoubleConditionallyDouble().");
+        static_assert(!std::same_as<LeftType, FPRegisterID> && !std::same_as<RightType, FPRegisterID>, "One of the tested argument could be aliased on dest. Use moveDoubleConditionallyDouble().");
 
         if (thenCase != dest && elseCase != dest) {
             moveDouble(elseCase, dest);
@@ -2933,7 +2965,7 @@ public:
     template<typename TestType, typename MaskType>
     void moveDoubleConditionallyTest32(ResultCondition cond, TestType test, MaskType mask, FPRegisterID thenCase, FPRegisterID elseCase, FPRegisterID dest)
     {
-        static_assert(!std::is_same<TestType, FPRegisterID>::value && !std::is_same<MaskType, FPRegisterID>::value, "One of the tested argument could be aliased on dest. Use moveDoubleConditionallyDouble().");
+        static_assert(!std::same_as<TestType, FPRegisterID> && !std::same_as<MaskType, FPRegisterID>, "One of the tested argument could be aliased on dest. Use moveDoubleConditionallyDouble().");
 
         if (elseCase == dest && isInvertible(cond)) {
             Jump falseCase = branchTest32(invert(cond), test, mask);
@@ -6597,7 +6629,7 @@ public:
     template<typename LeftType, typename RightType>
     void moveDoubleConditionally64(RelationalCondition cond, LeftType left, RightType right, FPRegisterID thenCase, FPRegisterID elseCase, FPRegisterID dest)
     {
-        static_assert(!std::is_same<LeftType, FPRegisterID>::value && !std::is_same<RightType, FPRegisterID>::value, "One of the tested argument could be aliased on dest. Use moveDoubleConditionallyDouble().");
+        static_assert(!std::same_as<LeftType, FPRegisterID> && !std::same_as<RightType, FPRegisterID>, "One of the tested argument could be aliased on dest. Use moveDoubleConditionallyDouble().");
 
         if (thenCase != dest && elseCase != dest) {
             moveDouble(elseCase, dest);
@@ -6618,7 +6650,7 @@ public:
     template<typename TestType, typename MaskType>
     void moveDoubleConditionallyTest64(ResultCondition cond, TestType test, MaskType mask, FPRegisterID thenCase, FPRegisterID elseCase, FPRegisterID dest)
     {
-        static_assert(!std::is_same<TestType, FPRegisterID>::value && !std::is_same<MaskType, FPRegisterID>::value, "One of the tested argument could be aliased on dest. Use moveDoubleConditionallyDouble().");
+        static_assert(!std::same_as<TestType, FPRegisterID> && !std::same_as<MaskType, FPRegisterID>, "One of the tested argument could be aliased on dest. Use moveDoubleConditionallyDouble().");
 
         if (elseCase == dest && isInvertible(cond)) {
             Jump falseCase = branchTest64(invert(cond), test, mask);

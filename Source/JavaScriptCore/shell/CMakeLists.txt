@@ -20,6 +20,10 @@ if (WIN32)
     list(APPEND jsc_LIBRARIES Winmm)
 endif ()
 
+if (ENABLE_FUZZILLI)
+  list(APPEND jsc_SOURCES ../fuzzilli/Fuzzilli.cpp)
+endif ()
+
 WEBKIT_EXECUTABLE_DECLARE(jsc)
 
 if (DEVELOPER_MODE)
@@ -34,6 +38,7 @@ if (DEVELOPER_MODE)
         ../API/tests/MultithreadedMultiVMExecutionTest.cpp
         ../API/tests/PingPongStackOverflowTest.cpp
         ../API/tests/TypedArrayCTest.cpp
+        ../API/tests/VMManagerStopTheWorldTest.cpp
         ../API/tests/testapi.cpp
     )
     set(testapi_C_SOURCES
@@ -78,9 +83,22 @@ if (DEVELOPER_MODE)
     set(testdfg_PRIVATE_INCLUDE_DIRECTORIES ${jsc_PRIVATE_INCLUDE_DIRECTORIES})
     set(testdfg_FRAMEWORKS ${jsc_FRAMEWORKS})
 
-    set(testwasmdebugger_SOURCES ../wasm/debugger/testwasmdebugger.cpp)
+    set(testwasmdebugger_SOURCES
+        ../wasm/debugger/testwasmdebugger.cpp
+
+        ../wasm/debugger/tests/BinaryTests.cpp
+        ../wasm/debugger/tests/ControlFlowTests.cpp
+        ../wasm/debugger/tests/ExtGCTests.cpp
+        ../wasm/debugger/tests/MemoryTests.cpp
+        ../wasm/debugger/tests/SpecialTests.cpp
+        ../wasm/debugger/tests/TestUtilities.cpp
+        ../wasm/debugger/tests/UnaryTests.cpp
+    )
     set(testwasmdebugger_DEFINITIONS ${jsc_PRIVATE_DEFINITIONS})
-    set(testwasmdebugger_PRIVATE_INCLUDE_DIRECTORIES ${jsc_PRIVATE_INCLUDE_DIRECTORIES})
+    set(testwasmdebugger_PRIVATE_INCLUDE_DIRECTORIES
+        ${jsc_PRIVATE_INCLUDE_DIRECTORIES}
+        ${JAVASCRIPTCORE_DIR}/wasm/debugger/tests
+    )
     set(testwasmdebugger_FRAMEWORKS ${jsc_FRAMEWORKS})
 
     WEBKIT_EXECUTABLE_DECLARE(testapi)

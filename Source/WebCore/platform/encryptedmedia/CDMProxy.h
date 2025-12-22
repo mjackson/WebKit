@@ -38,7 +38,7 @@
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
 #include <wtf/Lock.h>
-#include <wtf/VectorHash.h>
+#include <wtf/WeakPtr.h>
 
 #if ENABLE(THUNDER)
 #include "CDMOpenCDMTypes.h"

@@ -76,7 +76,6 @@
 #import <WebCore/CSSStyleProperties.h>
 #import <WebCore/CachedImage.h>
 #import <WebCore/CachedResourceClient.h>
-#import <WebCore/CachedResourceLoader.h>
 #import <WebCore/Chrome.h>
 #import <WebCore/ColorMac.h>
 #import <WebCore/CompositionHighlight.h>
@@ -88,8 +87,10 @@
 #import <WebCore/DictionaryLookup.h>
 #import <WebCore/Document.h>
 #import <WebCore/DocumentFragment.h>
-#import <WebCore/DocumentInlines.h>
 #import <WebCore/DocumentMarkerController.h>
+#import <WebCore/DocumentMarkers.h>
+#import <WebCore/DocumentResourceLoader.h>
+#import <WebCore/DocumentView.h>
 #import <WebCore/DragController.h>
 #import <WebCore/DragImage.h>
 #import <WebCore/EditingHTMLConverter.h>
@@ -103,6 +104,7 @@
 #import <WebCore/FontAttributeChanges.h>
 #import <WebCore/FontAttributes.h>
 #import <WebCore/FontCache.h>
+#import <WebCore/FrameDestructionObserverInlines.h>
 #import <WebCore/FrameLoader.h>
 #import <WebCore/FrameSelection.h>
 #import <WebCore/HTMLNames.h>
@@ -112,7 +114,7 @@
 #import <WebCore/KeyboardEvent.h>
 #import <WebCore/LegacyNSPasteboardTypes.h>
 #import <WebCore/LegacyWebArchive.h>
-#import <WebCore/LocalFrame.h>
+#import <WebCore/LocalFrameInlines.h>
 #import <WebCore/LocalFrameView.h>
 #import <WebCore/LocalizedStrings.h>
 #import <WebCore/MIMETypeRegistry.h>
@@ -158,6 +160,7 @@
 #import <wtf/RunLoop.h>
 #import <wtf/RuntimeApplicationChecks.h>
 #import <wtf/SystemTracing.h>
+#import <wtf/TZoneMallocInlines.h>
 #import <wtf/WeakObjCPtr.h>
 #import <wtf/cocoa/TypeCastsCocoa.h>
 #import <wtf/cocoa/VectorCocoa.h>
@@ -827,10 +830,23 @@ const float _WebHTMLViewPrintingMaximumShrinkFactor = WebCore::PrintContext::max
 @implementation WebCoreScrollView
 @end
 
+class EmptyCachedImageClient : public WebCore::CachedImageClient, public RefCounted<EmptyCachedImageClient> {
+    WTF_MAKE_TZONE_ALLOCATED_INLINE(EmptyCachedImageClient);
+public:
+    static Ref<EmptyCachedImageClient> create() { return adoptRef(*new EmptyCachedImageClient); }
+
+    // CachedResourceClient.
+    void ref() const final { RefCounted::ref(); }
+    void deref() const final { RefCounted::deref(); }
+
+private:
+    EmptyCachedImageClient() = default;
+};
+
 // We need this to be able to safely reference the CachedImage for the promised drag data
 static WebCore::CachedImageClient& promisedDataClient()
 {
-    static NeverDestroyed<WebCore::CachedImageClient> staticCachedResourceClient;
+    static NeverDestroyed<Ref<EmptyCachedImageClient>> staticCachedResourceClient = EmptyCachedImageClient::create();
     return staticCachedResourceClient.get();
 }
 
@@ -1806,11 +1822,7 @@ static BOOL isQuickLookEvent(NSEvent *event)
         return owner;
 
     for (NSTrackingArea *trackingArea in self.trackingAreas) {
-        static Class managerClass;
-        static std::once_flag onceFlag;
-        std::call_once(onceFlag, [] {
-            managerClass = NSClassFromString(@"NSToolTipManager");
-        });
+        static Class managerClass = NSClassFromString(@"NSToolTipManager");
 
         id owner = trackingArea.owner;
         if ([owner class] == managerClass)
@@ -4348,7 +4360,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
 
     if (auto tiffResource = _private->promisedDragTIFFDataSource) {
         if (auto* buffer = tiffResource->resourceBuffer()) {
-            NSURLResponse *response = tiffResource->response().nsURLResponse();
+            RetainPtr response = tiffResource->response().nsURLResponse();
             draggingElementURL = [response URL];
             wrapper = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:buffer->makeContiguous()->createNSData().get()]);
             NSString* filename = [response suggestedFilename];
@@ -6264,7 +6276,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     if (!frame || !frame->document() || !frame->document()->documentElement() || !frame->document()->documentElement()->renderer())
         return WebCore::ScrollbarWidth::Auto;
 
-    return frame->document()->documentElement()->renderer()->style().scrollbarWidth();
+    return WebCore::Style::toPlatform(frame->document()->documentElement()->renderer()->style().scrollbarWidth());
 }
 
 @end

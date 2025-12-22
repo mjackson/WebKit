@@ -37,6 +37,7 @@
 #include "JSGlobalObject.h"
 #include "JSWeakObjectMapRefInternal.h"
 #include "LinkTimeConstant.h"
+#include "ObjectInitializationScope.h"
 #include "ObjectPrototype.h"
 #include "ParserModes.h"
 #include "StrongInlines.h"
@@ -215,11 +216,14 @@ ALWAYS_INLINE Structure* JSGlobalObject::arrayStructureForIndexingTypeDuringAllo
 inline JSFunction* JSGlobalObject::evalFunction() const { return jsCast<JSFunction*>(linkTimeConstant(LinkTimeConstant::evalFunction)); }
 inline JSFunction* JSGlobalObject::throwTypeErrorFunction() const { return jsCast<JSFunction*>(linkTimeConstant(LinkTimeConstant::throwTypeErrorFunction)); }
 inline JSFunction* JSGlobalObject::iteratorProtocolFunction() const { return jsCast<JSFunction*>(linkTimeConstant(LinkTimeConstant::performIteration)); }
-inline JSFunction* JSGlobalObject::newPromiseCapabilityFunction() const { return jsCast<JSFunction*>(linkTimeConstant(LinkTimeConstant::newPromiseCapability)); }
-inline JSFunction* JSGlobalObject::resolvePromiseFunction() const { return jsCast<JSFunction*>(linkTimeConstant(LinkTimeConstant::resolvePromise)); }
-inline JSFunction* JSGlobalObject::rejectPromiseFunction() const { return jsCast<JSFunction*>(linkTimeConstant(LinkTimeConstant::rejectPromise)); }
+inline JSFunction* JSGlobalObject::asyncGeneratorYieldOnRejectedFunction() const { return jsCast<JSFunction*>(linkTimeConstant(LinkTimeConstant::asyncGeneratorYieldOnRejected)); }
 inline JSFunction* JSGlobalObject::promiseProtoThenFunction() const { return jsCast<JSFunction*>(linkTimeConstant(LinkTimeConstant::defaultPromiseThen)); }
+#if USE(BUN_JSC_ADDITIONS)
 inline JSFunction* JSGlobalObject::performPromiseThenFunction() const { return jsCast<JSFunction*>(linkTimeConstant(LinkTimeConstant::performPromiseThen)); }
+inline JSFunction* JSGlobalObject::rejectPromiseFunction() const { return jsCast<JSFunction*>(linkTimeConstant(LinkTimeConstant::rejectPromiseWithFirstResolvingFunctionCallCheck)); };
+#endif
+inline JSFunction* JSGlobalObject::promiseEmptyOnFulfilledFunction() const { return jsCast<JSFunction*>(linkTimeConstant(LinkTimeConstant::promiseEmptyOnFulfilled)); }
+inline JSFunction* JSGlobalObject::promiseEmptyOnRejectedFunction() const { return jsCast<JSFunction*>(linkTimeConstant(LinkTimeConstant::promiseEmptyOnRejected)); }
 inline JSFunction* JSGlobalObject::regExpProtoExecFunction() const { return jsCast<JSFunction*>(linkTimeConstant(LinkTimeConstant::regExpBuiltinExec)); }
 inline JSFunction* JSGlobalObject::stringProtoSubstringFunction() const { return jsCast<JSFunction*>(linkTimeConstant(LinkTimeConstant::stringSubstring)); }
 inline JSFunction* JSGlobalObject::performProxyObjectHasFunction() const { return m_performProxyObjectHasFunction.get(); }
@@ -333,6 +337,9 @@ ALWAYS_INLINE JSArray* tryCreateContiguousArrayWithPattern(JSGlobalObject* globa
     if (initialLength >= MIN_ARRAY_STORAGE_CONSTRUCTION_LENGTH)
         return nullptr;
 
+    if (globalObject->isHavingABadTime()) [[unlikely]]
+        return nullptr;
+
     VM& vm = globalObject->vm();
     Structure* structure = globalObject->originalArrayStructureForIndexingType(ArrayWithContiguous);
     if (!hasContiguous(structure->indexingType())) [[unlikely]]
@@ -380,16 +387,6 @@ ALWAYS_INLINE JSArray* createPatternFilledArray(JSGlobalObject* globalObject, JS
         RETURN_IF_EXCEPTION(scope, { });
     }
     return array;
-}
-
-template<typename... Args>
-inline JSArray* createTuple(JSGlobalObject* globalObject, Args&&... args)
-{
-    MarkedArgumentBuffer buffer;
-    (buffer.append(std::forward<Args>(args)), ...);
-
-    ASSERT(!buffer.hasOverflowed());
-    return constructArray(globalObject, static_cast<ArrayAllocationProfile*>(nullptr), buffer);
 }
 
 inline OptionSet<CodeGenerationMode> JSGlobalObject::defaultCodeGenerationMode() const

@@ -44,6 +44,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 namespace JSC {
 
+class CalleeBits;
 class VM;
 class CallFrame;
 class JSWebAssemblyInstance;
@@ -91,28 +92,54 @@ public:
     DebugServer();
     ~DebugServer() = default;
     VM* vm() const { return m_vm; }
-    uint64_t mutatorThreadId() const { return m_mutatorThreadId; }
-    uint64_t debugServerThreadId() const { return m_debugServerThreadId; }
+
+    uint64_t mutatorThreadId() const
+    {
+        // Dynamically get the owner thread from the VM instead of caching it
+        // since the VM's owner can change over time.
+        RELEASE_ASSERT(m_vm);
+        auto ownerThread = m_vm->ownerThread();
+        RELEASE_ASSERT(ownerThread && *ownerThread);
+        return (*ownerThread)->uid();
+    }
+    uint64_t debugServerThreadId() const
+    {
+        RELEASE_ASSERT(m_debugServerThreadId.has_value());
+        return *m_debugServerThreadId;
+    }
 
     JS_EXPORT_PRIVATE bool start(VM*);
     JS_EXPORT_PRIVATE void stop();
+
+#if ENABLE(REMOTE_INSPECTOR)
+    // DebugServer supports two modes:
+    // 1. Direct TCP socket mode (JSC shell debugging)
+    // 2. Remote Web Inspector integration mode (WebKit debugging)
+    bool isRWIMode() const { return !!m_rwiResponseHandler; }
+    JS_EXPORT_PRIVATE bool startRWI(VM*, Function<bool(const String&)>&& rwiResponseHandler);
+#endif
 
     void trackInstance(JSWebAssemblyInstance*);
     void trackModule(Module&);
     void untrackModule(Module&);
 
-    bool interruptRequested() const;
     void setInterruptBreakpoint(JSWebAssemblyInstance*, IPIntCallee*);
+    void setStepIntoBreakpointForCall(VM&, CalleeBits, JSWebAssemblyInstance*);
+    void setStepIntoBreakpointForThrow(VM&, JSWebAssemblyInstance*);
     bool stopCode(CallFrame*, JSWebAssemblyInstance*, IPIntCallee*, uint8_t* pc, uint8_t* mc, IPInt::IPIntLocal*, IPInt::IPIntStackEntry*);
 
     void setPort(uint64_t port) { m_port = port; }
     bool needToHandleBreakpoints() const;
 
-    bool isConnected() const { return isState(State::Running) && isSocketValid(m_clientSocket); }
+    JS_EXPORT_PRIVATE bool isConnected() const;
+
+    JS_EXPORT_PRIVATE void handleRawPacket(StringView rawPacket);
 
 private:
+    void reset();
+
     void setState(State);
-    bool isState(State) const;
+    JS_EXPORT_PRIVATE bool isState(State) const;
 
     bool createAndBindServerSocket();
     void startAcceptThread();
@@ -122,6 +149,7 @@ private:
 
     void handleClient();
     void handlePacket(StringView packet);
+    void handleThreadManagement(StringView packet);
 
     void sendAck();
     void sendReplyOK();
@@ -150,16 +178,19 @@ private:
     RefPtr<Thread> m_acceptThread;
 
     VM* m_vm { nullptr };
-    uint64_t m_mutatorThreadId { 0 };
-    uint64_t m_debugServerThreadId { 0 };
+    std::optional<uint64_t> m_debugServerThreadId;
 
     bool m_noAckMode { false };
     std::unique_ptr<QueryHandler> m_queryHandler;
     std::unique_ptr<MemoryHandler> m_memoryHandler;
     std::unique_ptr<ExecutionHandler> m_executionHandler;
 
-    std::unique_ptr<ModuleManager> m_instanceManager;
+    std::unique_ptr<ModuleManager> m_moduleManager;
     std::unique_ptr<BreakpointManager> m_breakpointManager;
+
+#if ENABLE(REMOTE_INSPECTOR)
+    Function<bool(const String&)> m_rwiResponseHandler;
+#endif
 };
 } // namespace JSC
 } // namespace Wasm

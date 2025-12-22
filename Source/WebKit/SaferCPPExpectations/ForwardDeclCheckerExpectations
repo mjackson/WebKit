@@ -1,5 +1,4 @@
-Platform/IPC/ArgumentCoders.h
-UIProcess/WebProcessPool.h
-WebProcess/Extensions/Bindings/JSWebExtensionWrapper.h
-WebProcess/WebCoreSupport/WebLocalFrameLoaderClient.cpp
-WebProcess/WebPage/WebPage.cpp
+[ iOS ] UIProcess/API/ios/WKWebViewIOS.mm
+[ iOS ] UIProcess/ViewGestureController.h
+[ iOS ] UIProcess/ios/PageClientImplIOS.mm
+[ iOS ] UIProcess/ios/SmartMagnificationController.h

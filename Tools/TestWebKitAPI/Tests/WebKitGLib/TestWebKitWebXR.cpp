@@ -39,9 +39,29 @@ static const char indexHTML[] =
 "});"
 "</script></body></html>";
 
+static WebKitFeature* findFeature(WebKitFeatureList *featureList, const char *identifier)
+{
+    for (gsize i = 0; i < webkit_feature_list_get_length(featureList); i++) {
+        WebKitFeature* feature = webkit_feature_list_get(featureList, i);
+        if (!g_ascii_strcasecmp(identifier, webkit_feature_get_identifier(feature)))
+            return feature;
+    }
+    return nullptr;
+}
+
+static void relaxDMABufRequirement(WebKitSettings* settings)
+{
+    g_autoptr(WebKitFeatureList) featureList = webkit_settings_get_development_features();
+    WebKitFeature* feature = findFeature(featureList, "OpenXRDMABufRelaxedForTesting");
+    g_assert_nonnull(feature);
+    webkit_settings_set_feature_enabled(settings, feature, true);
+}
+
 class WebXRTest : public WebViewTest {
 public:
     MAKE_GLIB_TEST_FIXTURE(WebXRTest);
+    WebXRTest();
+    virtual ~WebXRTest() = default;
 
     static void isImmersiveModeEnabledChanged(GObject*, GParamSpec*, WebXRTest* test)
     {
@@ -91,11 +111,13 @@ public:
     bool m_isExpectingPermissionRequest { false };
 };
 
-#if USE(SOUP2)
-static void serverCallback(SoupServer*, SoupMessage* message, const char* path, GHashTable*, SoupClientContext*, gpointer)
-#else
+WebXRTest::WebXRTest()
+{
+    WebKitSettings* defaultSettings = webkit_web_view_get_settings(m_webView.get());
+    relaxDMABufRequirement(defaultSettings);
+}
+
 static void serverCallback(SoupServer*, SoupServerMessage* message, const char* path, GHashTable*, gpointer)
-#endif
 {
     g_assert(soup_server_message_get_method(message) == SOUP_METHOD_GET);
 
@@ -111,11 +133,6 @@ static void serverCallback(SoupServer*, SoupServerMessage* message, const char* 
 
 static void testWebKitWebXRLeaveImmersiveModeAndWaitUntilImmersiveModeChanged(WebXRTest* test, gconstpointer)
 {
-    if (!g_getenv("WITH_OPENXR_RUNTIME")) {
-        g_test_skip("Unable to run without an OpenXR runtime");
-        return;
-    }
-
     WebViewTest::NetworkPolicyGuard guard(test, WEBKIT_TLS_ERRORS_POLICY_IGNORE);
 
     g_assert_false(webkit_web_view_is_immersive_mode_enabled(test->m_webView.get()));
@@ -133,11 +150,6 @@ static void testWebKitWebXRLeaveImmersiveModeAndWaitUntilImmersiveModeChanged(We
 
 static void testWebKitXRPermissionRequest(WebXRTest* test, gconstpointer)
 {
-    if (!g_getenv("WITH_OPENXR_RUNTIME")) {
-        g_test_skip("Unable to run without an OpenXR runtime");
-        return;
-    }
-
     enum class Answer {
         Deny,
         Allow,
@@ -186,8 +198,6 @@ static void testWebKitXRPermissionRequest(WebXRTest* test, gconstpointer)
         return TRUE;
     };
 
-    test->loadHtml("", "https://foo.com/bar");
-    test->waitUntilLoadFinished();
     test->showInWindow();
 
     auto testPermissionRequest = [&](StringView mode, StringView options, Answer answer) {
@@ -204,10 +214,11 @@ static void testWebKitXRPermissionRequest(WebXRTest* test, gconstpointer)
             "start()"_s);
         data.answer = answer;
         data.resetResult();
+        test->loadHtml("", "https://foo.com/bar");
+        test->waitUntilLoadFinished();
         test->runJavaScriptAndWaitUntilFinished(script.utf8().data(), nullptr);
         test->waitUntilTitleChanged();
         data.result.title = String::fromUTF8(webkit_web_view_get_title(test->webView()));
-        test->runJavaScriptAndWaitUntilFinished("document.title = ''", nullptr);
     };
 
     // requestSession is rejected by default without a permission-request callback

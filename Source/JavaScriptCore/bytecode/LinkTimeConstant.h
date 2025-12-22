@@ -55,7 +55,25 @@ class JSGlobalObject;
     v(setPrototypeDirectOrThrow, nullptr) \
     v(copyDataProperties, nullptr) \
     v(cloneObject, nullptr) \
-    v(enqueueJob, nullptr) \
+    v(resolvePromise, nullptr) \
+    v(rejectPromise, nullptr) \
+    v(fulfillPromise, nullptr) \
+    v(resolveWithoutPromise, nullptr) \
+    v(rejectWithoutPromise, nullptr) \
+    v(fulfillWithoutPromise, nullptr) \
+    v(resolvePromiseWithFirstResolvingFunctionCallCheck, nullptr) \
+    v(rejectPromiseWithFirstResolvingFunctionCallCheck, nullptr) \
+    v(fulfillPromiseWithFirstResolvingFunctionCallCheck, nullptr) \
+    v(resolveWithoutPromiseForAsyncAwait, nullptr) \
+    v(driveAsyncFunction, nullptr) \
+    v(awaitValue, nullptr) \
+    v(newHandledRejectedPromise, nullptr) \
+    v(promiseEmptyOnFulfilled, nullptr) \
+    v(promiseEmptyOnRejected, nullptr) \
+    v(promiseResolve, nullptr) \
+    v(promiseReject, nullptr) \
+    v(promiseResolveWithThen, nullptr) \
+    v(performPromiseThen, nullptr) \
     v(makeTypeError, nullptr) \
     v(AggregateError, nullptr) \
     v(typedArrayLength, nullptr) \
@@ -81,8 +99,6 @@ class JSGlobalObject;
     v(repeatCharacter, nullptr) \
     v(isArray, nullptr) \
     v(isArraySlow, nullptr) \
-    v(appendMemcpy, nullptr) \
-    v(hostPromiseRejectionTracker, nullptr) \
     v(Set, nullptr) \
     v(Map, nullptr) \
     v(importInRealm, nullptr) \
@@ -128,8 +144,7 @@ class JSGlobalObject;
     v(sentinelString, nullptr) \
     v(createRemoteFunction, nullptr) \
     v(isRemoteFunction, nullptr) \
-    v(arrayFromFastFillWithUndefined, nullptr) \
-    v(arrayFromFastFillWithEmpty, nullptr) \
+    v(arrayFromFastWithoutMapFn, nullptr) \
     v(jsonParse, nullptr) \
     v(jsonStringify, nullptr) \
     v(String, nullptr) \
@@ -147,15 +162,13 @@ class JSGlobalObject;
     v(BigUint64Array, nullptr) \
     v(wrapForValidIteratorCreate, nullptr) \
     v(asyncFromSyncIteratorCreate, nullptr) \
-    v(promiseAllContextCreate, nullptr) \
-    v(promiseReactionCreate, nullptr) \
     v(regExpStringIteratorCreate, nullptr) \
     v(iteratorHelperCreate, nullptr) \
     v(ReferenceError, nullptr) \
     v(SuppressedError, nullptr) \
     v(DisposableStack, nullptr) \
     v(AsyncDisposableStack, nullptr) \
-
+    v(enqueueJob, nullptr) \
 
 #define DECLARE_LINK_TIME_CONSTANT(name, code) name,
 enum class LinkTimeConstant : int32_t {

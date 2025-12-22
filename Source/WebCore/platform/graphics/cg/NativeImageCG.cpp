@@ -38,16 +38,16 @@
 namespace WebCore {
 
 
-RefPtr<NativeImage> NativeImage::create(PlatformImagePtr&& image, RenderingResourceIdentifier renderingResourceIdentifier)
+RefPtr<NativeImage> NativeImage::create(PlatformImagePtr&& image)
 {
     if (!image)
         return nullptr;
     if (CGImageGetWidth(image.get()) > std::numeric_limits<int>::max() || CGImageGetHeight(image.get()) > std::numeric_limits<int>::max())
         return nullptr;
-    return adoptRef(*new NativeImage(WTFMove(image), renderingResourceIdentifier));
+    return adoptRef(*new NativeImage(WTFMove(image)));
 }
 
-RefPtr<NativeImage> NativeImage::createTransient(PlatformImagePtr&& image, RenderingResourceIdentifier identifier)
+RefPtr<NativeImage> NativeImage::createTransient(PlatformImagePtr&& image)
 {
     if (!image)
         return nullptr;
@@ -59,7 +59,7 @@ RefPtr<NativeImage> NativeImage::createTransient(PlatformImagePtr&& image, Rende
         return nullptr;
     image = nullptr;
     CGImageSetCachingFlags(transientImage.get(), kCGImageCachingTransient);
-    return create(WTFMove(transientImage), identifier);
+    return create(WTFMove(transientImage));
 }
 
 IntSize NativeImage::size() const
@@ -78,14 +78,17 @@ DestinationColorSpace NativeImage::colorSpace() const
     return DestinationColorSpace(CGImageGetColorSpace(m_platformImage.get()));
 }
 
-Headroom NativeImage::headroom() const
+void NativeImage::computeHeadroom()
 {
 #if HAVE(SUPPORT_HDR_DISPLAY)
     float headroom = CGImageGetContentHeadroom(m_platformImage.get());
-    return Headroom(std::max<float>(headroom, Headroom::None));
-#else
-    return Headroom::None;
+    m_headroom = Headroom(std::max<float>(headroom, Headroom::None));
 #endif
+}
+
+Headroom NativeImage::headroom() const
+{
+    return m_headroom;
 }
 
 std::optional<Color> NativeImage::singlePixelSolidColor() const

@@ -155,8 +155,8 @@ public:
 
     inline Document* document() const; // Defined in LocalFrameInlines.h
     inline RefPtr<Document> protectedDocument() const; // Defined in LocalFrameInlines.h
-    inline LocalFrameView* view() const; // Defined in LocalFrameInlines.h
-    inline RefPtr<LocalFrameView> protectedView() const; // Defined in LocalFrameView.h.
+    inline LocalFrameView* view() const; // Defined in DocumentView.h
+    inline RefPtr<LocalFrameView> protectedView() const; // Defined in DocumentView.h.
     WEBCORE_EXPORT RefPtr<const LocalFrame> localMainFrame() const;
     WEBCORE_EXPORT RefPtr<LocalFrame> localMainFrame();
 
@@ -176,8 +176,8 @@ public:
     CheckedRef<FrameSelection> checkedSelection() const; // Defined in LocalFrameInlines.h
     ScriptController& script() { return m_script; }
     const ScriptController& script() const { return m_script; }
-    CheckedRef<ScriptController> checkedScript();
-    CheckedRef<const ScriptController> checkedScript() const;
+    WEBCORE_EXPORT CheckedRef<ScriptController> checkedScript();
+    WEBCORE_EXPORT CheckedRef<const ScriptController> checkedScript() const;
     void resetScript();
 
     bool isRootFrame() const final { return m_rootFrame.get() == this; }
@@ -185,6 +185,7 @@ public:
     LocalFrame& rootFrame() { return *m_rootFrame; }
 
     WEBCORE_EXPORT RenderView* contentRenderer() const; // Root of the render tree for the document contained in this frame.
+    WEBCORE_EXPORT CheckedPtr<RenderView> checkedContentRenderer() const;
 
     bool documentIsBeingReplaced() const { return m_documentIsBeingReplaced; }
 
@@ -342,6 +343,7 @@ public:
 
     ScrollbarMode scrollingMode() const { return m_scrollingMode; }
     WEBCORE_EXPORT void updateScrollingMode() final;
+    WEBCORE_EXPORT void reportMixedContentViolation(bool blocked, const URL& target) const final;
     WEBCORE_EXPORT void setScrollingMode(ScrollbarMode);
     WEBCORE_EXPORT void showMemoryMonitorError();
 
@@ -353,7 +355,8 @@ public:
     bool frameCanCreatePaymentSession() const final;
 
     FrameInspectorController& inspectorController() { return m_inspectorController.get(); }
-    WEBCORE_EXPORT Ref<FrameInspectorController> protectedInspectorController();
+    const FrameInspectorController& inspectorController() const { return m_inspectorController.get(); }
+    WEBCORE_EXPORT Ref<FrameInspectorController> protectedInspectorController() const;
     FrameConsoleClient& console() { return m_consoleClient.get(); }
     const FrameConsoleClient& console() const { return m_consoleClient.get(); }
 
@@ -372,7 +375,8 @@ private:
     void changeLocation(FrameLoadRequest&&) final;
     void loadFrameRequest(FrameLoadRequest&&, Event*) final;
     void didFinishLoadInAnotherProcess() final;
-    RefPtr<SecurityOrigin> frameDocumentSecurityOrigin() const final;
+    SecurityOrigin* frameDocumentSecurityOrigin() const final;
+    String frameURLProtocol() const final;
 
     FrameView* virtualView() const final;
     void disconnectView() final;

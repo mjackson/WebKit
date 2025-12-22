@@ -113,7 +113,7 @@ void WebPaymentCoordinatorProxy::platformShowPaymentUI(WebPageProxyIdentifier we
 #if HAVE(LIQUID_GLASS)
             [paymentCoordinatorProxy->m_sheetWindow setStyleMask:NSWindowStyleMaskAlertWindow | NSWindowStyleMaskTitled];
 #endif
-            paymentCoordinatorProxy->m_sheetWindowWillCloseObserver = [[NSNotificationCenter defaultCenter] addObserverForName:RetainPtr { NSWindowWillCloseNotification }.get() object:paymentCoordinatorProxy->m_sheetWindow.get() queue:nil usingBlock:[paymentCoordinatorProxy](NSNotification *) {
+            paymentCoordinatorProxy->m_sheetWindowWillCloseObserver = [[NSNotificationCenter defaultCenter] addObserverForName:NSWindowWillCloseNotification object:paymentCoordinatorProxy->m_sheetWindow.get() queue:nil usingBlock:[paymentCoordinatorProxy](NSNotification *) {
                 paymentCoordinatorProxy->didReachFinalState();
             }];
 
@@ -140,7 +140,7 @@ void WebPaymentCoordinatorProxy::platformHidePaymentUI()
     [[NSNotificationCenter defaultCenter] removeObserver:m_sheetWindowWillCloseObserver.get()];
     m_sheetWindowWillCloseObserver = nullptr;
 
-    [[m_sheetWindow sheetParent] endSheet:m_sheetWindow.get()];
+    [retainPtr([m_sheetWindow sheetParent]) endSheet:m_sheetWindow.get()];
 
     if (RefPtr authorizationPresenter = m_authorizationPresenter)
         authorizationPresenter->dismiss();

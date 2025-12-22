@@ -28,6 +28,7 @@
 
 #include "FormattingContextBoxIterator.h"
 #include "GridFormattingContext.h"
+#include "LayoutIntegrationBoxGeometryUpdater.h"
 #include "LayoutIntegrationBoxTreeUpdater.h"
 #include "RenderGrid.h"
 #include "RenderView.h"
@@ -43,6 +44,15 @@ GridLayout::GridLayout(RenderGrid& renderGrid)
     : m_gridBox(BoxTreeUpdater { renderGrid }.build())
     , m_layoutState(renderGrid.view().layoutState())
 {
+}
+
+void GridLayout::updateFormattingContextGeometries()
+{
+    auto boxGeometryUpdater = BoxGeometryUpdater { layoutState(), gridBox() };
+    CheckedPtr gridBoxContainingBlock = CheckedRef { gridBoxRenderer() }->containingBlock();
+
+    boxGeometryUpdater.setFormattingContextRootGeometry(gridBoxContainingBlock->contentBoxLogicalWidth());
+    boxGeometryUpdater.setFormattingContextContentGeometry(CheckedRef { layoutState() }->geometryForBox(gridBox()).contentBoxWidth(), { });
 }
 
 static inline Layout::GridFormattingContext::GridLayoutConstraints constraintsForGridContent(const Layout::ElementBox& gridContainer)
@@ -62,9 +72,40 @@ static inline Layout::GridFormattingContext::GridLayoutConstraints constraintsFo
     };
 }
 
+void GridLayout::updateGridItemRenderers()
+{
+    for (CheckedRef layoutBox : formattingContextBoxes(gridBox())) {
+        CheckedRef renderer = downcast<RenderBox>(*layoutBox->rendererForIntegration());
+        auto& gridItemGeometry = CheckedRef { layoutState() }->geometryForBox(layoutBox);
+        auto borderBoxRect = Layout::BoxGeometry::borderBoxRect(gridItemGeometry);
+
+        renderer->setLocation(borderBoxRect.topLeft());
+        renderer->setWidth(borderBoxRect.width());
+        renderer->setHeight(borderBoxRect.height());
+
+        renderer->setMarginBefore(gridItemGeometry.marginBefore());
+        renderer->setMarginAfter(gridItemGeometry.marginAfter());
+        renderer->setMarginStart(gridItemGeometry.marginStart());
+        renderer->setMarginEnd(gridItemGeometry.marginEnd());
+    }
+}
+
+void GridLayout::updateFormattingContextRootRenderer()
+{
+    CheckedRef renderGrid = gridBoxRenderer();
+    auto& currentGrid = renderGrid->currentGrid();
+    currentGrid.setNeedsItemsPlacement(false);
+    OrderIteratorPopulator orderIteratorPopulator(currentGrid.orderIterator());
+
+    for (CheckedRef layoutBox : formattingContextBoxes(gridBox()))
+        orderIteratorPopulator.collectChild(CheckedRef { downcast<RenderBox>(*layoutBox->rendererForIntegration()) });
+}
+
 void GridLayout::layout()
 {
     Layout::GridFormattingContext { gridBox(), layoutState() }.layout(constraintsForGridContent(gridBox()));
+    updateGridItemRenderers();
+    updateFormattingContextRootRenderer();
 }
 
 TextStream& operator<<(TextStream& stream, const GridLayout& layout)

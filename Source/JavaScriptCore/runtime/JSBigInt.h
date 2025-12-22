@@ -446,16 +446,7 @@ public:
 #endif
 
     static JSValue toNumberHeap(JSBigInt*);
-    static JSValue toNumber(JSValue bigInt)
-    {
-        ASSERT(bigInt.isBigInt());
-#if USE(BIGINT32)
-        if (bigInt.isBigInt32())
-            return jsNumber(bigInt.bigInt32AsInt32());
-#endif
-        return toNumberHeap(jsCast<JSBigInt*>(bigInt));
-    }
-
+    inline static JSValue toNumber(JSValue); // Defined in JSBigIntInlines.h
 
     static JSValue asIntN(JSGlobalObject*, uint64_t numberOfBits, JSBigInt*);
     static JSValue asUintN(JSGlobalObject*, uint64_t numberOfBits, JSBigInt*);
@@ -464,25 +455,8 @@ public:
     static JSValue asUintN(JSGlobalObject*, uint64_t numberOfBits, int32_t bigIntAsInt32);
 #endif
 
-    static uint64_t toBigUInt64(JSValue bigInt)
-    {
-        ASSERT(bigInt.isBigInt());
-#if USE(BIGINT32)
-        if (bigInt.isBigInt32())
-            return static_cast<uint64_t>(static_cast<int64_t>(bigInt.bigInt32AsInt32()));
-#endif
-        return toBigUInt64Heap(bigInt.asHeapBigInt());
-    }
-
-    static int64_t toBigInt64(JSValue bigInt)
-    {
-        ASSERT(bigInt.isBigInt());
-#if USE(BIGINT32)
-        if (bigInt.isBigInt32())
-            return static_cast<int64_t>(bigInt.bigInt32AsInt32());
-#endif
-        return static_cast<int64_t>(toBigUInt64Heap(bigInt.asHeapBigInt()));
-    }
+    inline static uint64_t toBigUInt64(JSValue); // Defined in JSBigIntInlines.h
+    inline static int64_t toBigInt64(JSValue); // Defined in JSBigIntInlines.h
 
     Digit digit(unsigned);
     void setDigit(unsigned, Digit); // Use only when initializing.
@@ -497,7 +471,7 @@ public:
         return hashSlow();
     }
 
-    static std::optional<double> tryExtractDouble(JSValue);
+    inline static std::optional<double> tryExtractDouble(JSValue); // Defined in JSBigIntInlines.h
 
     inline bool isZero() const
     {
@@ -542,7 +516,9 @@ private:
     template <typename BigIntImpl>
     static void internalMultiplyAdd(BigIntImpl source, Digit factor, Digit summand, unsigned, JSBigInt* result);
     template <typename BigIntImpl>
-    static void multiplyAccumulate(BigIntImpl multiplicand, Digit multiplier, JSBigInt* accumulator, unsigned accumulatorIndex);
+    static void multiplySingle(BigIntImpl multiplicand, Digit multiplier, JSBigInt* result);
+    template <typename BigIntImpl1, typename BigIntImpl2>
+    static void multiplyTextbook(BigIntImpl1 x, BigIntImpl2 y, JSBigInt* result);
     template <typename BigIntImpl1>
     static void absoluteDivWithBigIntDivisor(JSGlobalObject*, BigIntImpl1 dividend, JSBigInt* divisor, JSBigInt** quotient, JSBigInt** remainder);
     
@@ -596,8 +572,10 @@ private:
 
     // Digit arithmetic helpers.
     static Digit digitAdd(Digit a, Digit b, Digit& carry);
+    static Digit digitAdd3(Digit a, Digit b, Digit c, Digit& carry);
     static Digit digitSub(Digit a, Digit b, Digit& borrow);
-    static Digit digitMul(Digit a, Digit b, Digit& high);
+    static Digit digitSub2(Digit a, Digit b, Digit borrowIn, Digit& borrowOut);
+    static std::tuple<Digit, Digit> digitMul(Digit a, Digit b);
     static Digit digitDiv(Digit high, Digit low, Digit divisor, Digit& remainder);
     static Digit digitPow(Digit base, Digit exponent);
 
@@ -704,44 +682,6 @@ ALWAYS_INLINE JSValue tryConvertToBigInt32(JSBigInt* bigInt)
 #endif
 
     return bigInt;
-}
-
-ALWAYS_INLINE std::optional<double> JSBigInt::tryExtractDouble(JSValue value)
-{
-    if (value.isNumber())
-        return value.asNumber();
-
-    if (!value.isBigInt())
-        return std::nullopt;
-
-#if USE(BIGINT32)
-    if (value.isBigInt32())
-        return value.bigInt32AsInt32();
-#endif
-
-    ASSERT(value.isHeapBigInt());
-    JSBigInt* bigInt = value.asHeapBigInt();
-    if (!bigInt->length())
-        return 0;
-
-    uint64_t integer = 0;
-    if constexpr (sizeof(Digit) == 8) {
-        if (bigInt->length() != 1)
-            return std::nullopt;
-        integer = bigInt->digit(0);
-    } else {
-        ASSERT(sizeof(Digit) == 4);
-        if (bigInt->length() > 2)
-            return std::nullopt;
-        integer = bigInt->digit(0);
-        if (bigInt->length() == 2)
-            integer |= (static_cast<uint64_t>(bigInt->digit(1)) << 32);
-    }
-
-    if (integer <= maxSafeIntegerAsUInt64())
-        return (bigInt->sign()) ? -static_cast<double>(integer) : static_cast<double>(integer);
-
-    return std::nullopt;
 }
 
 } // namespace JSC

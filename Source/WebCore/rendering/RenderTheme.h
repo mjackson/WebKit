@@ -25,8 +25,11 @@
 #include <WebCore/GraphicsContext.h>
 #include <WebCore/PaintInfo.h>
 #include <WebCore/PopupMenuStyle.h>
+#include <WebCore/RenderStyleInlines.h>
 #include <WebCore/ScrollTypes.h>
 #include <WebCore/StyleColor.h>
+#include <WebCore/StyleMinimumSize.h>
+#include <WebCore/StylePreferredSize.h>
 #include <WebCore/SwitchTrigger.h>
 #include <WebCore/ThemeTypes.h>
 #include <wtf/HashMap.h>
@@ -166,7 +169,8 @@ public:
     Color textSearchHighlightColor(OptionSet<StyleColorOptions>) const;
 
     // Default highlighting color for app highlights.
-    Color annotationHighlightColor(OptionSet<StyleColorOptions>) const;
+    Color annotationHighlightBackgroundColor(OptionSet<StyleColorOptions>) const;
+    Color annotationHighlightForegroundColor(OptionSet<StyleColorOptions>) const;
 
     Color defaultButtonTextColor(OptionSet<StyleColorOptions>) const;
 
@@ -194,7 +198,6 @@ public:
     virtual void adjustSliderThumbSize(RenderStyle&, const Element*) const { }
 
     virtual Style::PaddingBox popupInternalPaddingBox(const RenderStyle&) const;
-    virtual bool popupOptionSupportsTextIndent() const { return false; }
     virtual PopupMenuStyle::Size popupMenuSize(const RenderStyle&, IntRect&) const { return PopupMenuStyle::Size::Normal; }
 
     virtual ScrollbarWidth scrollbarWidthStyleForPart(StyleAppearance) { return ScrollbarWidth::Auto; }
@@ -286,7 +289,7 @@ protected:
     virtual Color platformInactiveListBoxSelectionForegroundColor(OptionSet<StyleColorOptions>) const;
 
     virtual Color platformTextSearchHighlightColor(OptionSet<StyleColorOptions>) const;
-    virtual Color platformAnnotationHighlightColor(OptionSet<StyleColorOptions>) const;
+    virtual Color platformAnnotationHighlightBackgroundColor(OptionSet<StyleColorOptions>) const;
 
     virtual Color platformDefaultButtonTextColor(OptionSet<StyleColorOptions>) const;
 
@@ -405,6 +408,12 @@ protected:
     // Whether or not whitespace: pre should be forced on always.
     virtual bool controlRequiresPreWhiteSpace(StyleAppearance) const { return false; }
 
+    // Used when we want to set computed style on a form control. Before Evaluation Time Zoom, we were
+    // setting the zoomed size on the computed style. In order to make sure this behavior remains if
+    // the flag is off, we return the used zoom value, which was being used before, when the flag
+    // is disabled and 1.0f when it is enabled so that we do not modify the value.
+    float usedZoomForComputedStyle(const RenderStyle& renderStyle) const { return renderStyle.evaluationTimeZoomEnabled() ? 1.0f : renderStyle.usedZoom(); }
+
 private:
     OptionSet<ControlStyle::State> extractControlStyleStatesForRendererInternal(const RenderElement&) const;
 
@@ -447,7 +456,8 @@ protected:
         Color inactiveListBoxSelectionForegroundColor;
 
         Color textSearchHighlightColor;
-        Color annotationHighlightColor;
+        Color annotationHighlightBackgroundColor;
+        Color annotationHighlightForegroundColor;
 
         Color defaultButtonTextColor;
         Color defaultSubmitButtonTextColor;

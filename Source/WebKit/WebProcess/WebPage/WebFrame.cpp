@@ -66,13 +66,22 @@
 #include <WebCore/CertificateInfo.h>
 #include <WebCore/Chrome.h>
 #include <WebCore/ContextMenuController.h>
+#include <WebCore/DocumentInlines.h>
 #include <WebCore/DocumentLoader.h>
+#include <WebCore/DocumentPage.h>
+#include <WebCore/DocumentQuirks.h>
+#include <WebCore/DocumentSecurityOrigin.h>
+#include <WebCore/DocumentView.h>
+#include <WebCore/DocumentWindow.h>
 #include <WebCore/Editor.h>
 #include <WebCore/ElementChildIteratorInlines.h>
 #include <WebCore/EventHandler.h>
 #include <WebCore/File.h>
 #include <WebCore/FocusController.h>
+#include <WebCore/FocusControllerTypes.h>
 #include <WebCore/FocusEventData.h>
+#include <WebCore/FrameDestructionObserverInlines.h>
+#include <WebCore/FrameInlines.h>
 #include <WebCore/FrameLoader.h>
 #include <WebCore/FrameSnapshotting.h>
 #include <WebCore/HTMLFormElement.h>
@@ -88,11 +97,10 @@
 #include <WebCore/JSFile.h>
 #include <WebCore/JSNode.h>
 #include <WebCore/JSRange.h>
-#include <WebCore/LocalFrame.h>
+#include <WebCore/LocalFrameInlines.h>
 #include <WebCore/LocalFrameView.h>
 #include <WebCore/MouseEventTypes.h>
 #include <WebCore/OriginAccessPatterns.h>
-#include <WebCore/Page.h>
 #include <WebCore/PluginDocument.h>
 #include <WebCore/PointerCaptureController.h>
 #include <WebCore/ReferrerPolicy.h>
@@ -427,7 +435,7 @@ void WebFrame::loadDidCommitInAnotherProcess(std::optional<WebCore::LayerHosting
     m_coreFrame = newFrame.get();
 
     if (corePage->focusController().focusedFrame() == localFrame.get())
-        corePage->focusController().setFocusedFrame(newFrame.ptr(), FocusController::BroadcastFocusedFrame::No);
+        corePage->focusController().setFocusedFrame(newFrame.ptr(), WebCore::BroadcastFocusedFrame::No);
 
     localFrame->loader().detachFromParent();
 
@@ -524,7 +532,7 @@ void WebFrame::commitProvisionalFrame()
         document->didBecomeCurrentDocumentInFrame();
 
     if (corePage->focusController().focusedFrame() == remoteFrame.get())
-        corePage->focusController().setFocusedFrame(localFrame.get(), FocusController::BroadcastFocusedFrame::No);
+        corePage->focusController().setFocusedFrame(localFrame.get(), WebCore::BroadcastFocusedFrame::No);
 
     if (ownerElement)
         ownerElement->scheduleInvalidateStyleAndLayerComposition();
@@ -856,7 +864,7 @@ String WebFrame::layerTreeAsText() const
     if (!localFrame)
         return emptyString();
 
-    return localFrame->contentRenderer()->compositor().layerTreeAsText();
+    return localFrame->checkedContentRenderer()->checkedCompositor()->layerTreeAsText();
 }
 
 unsigned WebFrame::pendingUnloadCount() const
@@ -883,7 +891,7 @@ JSGlobalContextRef WebFrame::jsContext()
     if (!localFrame)
         return nullptr;
 
-    return toGlobalRef(localFrame->script().globalObject(mainThreadNormalWorldSingleton()));
+    return toGlobalRef(localFrame->checkedScript()->globalObject(mainThreadNormalWorldSingleton()));
 }
 
 JSGlobalContextRef WebFrame::jsContextForWorld(DOMWrapperWorld& world)
@@ -892,7 +900,7 @@ JSGlobalContextRef WebFrame::jsContextForWorld(DOMWrapperWorld& world)
     if (!localFrame)
         return nullptr;
 
-    return toGlobalRef(localFrame->script().globalObject(world));
+    return toGlobalRef(localFrame->checkedScript()->globalObject(world));
 }
 
 JSGlobalContextRef WebFrame::jsContextForWorld(InjectedBundleScriptWorld* world)
@@ -925,8 +933,8 @@ void WebFrame::setAccessibleName(const AtomString& accessibleName)
     RefPtr document = localFrame->document();
     if (!document)
         return;
-    
-    RefPtr rootObject = document->axObjectCache()->rootObjectForFrame(*localFrame);
+
+    RefPtr rootObject = document->checkedAXObjectCache()->rootObjectForFrame(*localFrame);
     if (!rootObject)
         return;
 
@@ -1098,7 +1106,7 @@ JSValueRef WebFrame::jsWrapperForWorld(InjectedBundleCSSStyleDeclarationHandle* 
     if (!localFrame)
         return nullptr;
 
-    auto* globalObject = localFrame->script().globalObject(world->protectedCoreWorld());
+    auto* globalObject = localFrame->checkedScript()->globalObject(world->protectedCoreWorld());
 
     JSLockHolder lock(globalObject);
     return toRef(globalObject, toJS(globalObject, globalObject, cssStyleDeclarationHandle->coreCSSStyleDeclaration()));
@@ -1110,7 +1118,7 @@ JSValueRef WebFrame::jsWrapperForWorld(InjectedBundleNodeHandle* nodeHandle, Inj
     if (!localFrame)
         return nullptr;
 
-    auto* globalObject = localFrame->script().globalObject(world->protectedCoreWorld());
+    auto* globalObject = localFrame->checkedScript()->globalObject(world->protectedCoreWorld());
 
     JSLockHolder lock(globalObject);
     return toRef(globalObject, toJS(globalObject, globalObject, RefPtr { nodeHandle->coreNode() }.get()));
@@ -1122,7 +1130,7 @@ JSValueRef WebFrame::jsWrapperForWorld(InjectedBundleRangeHandle* rangeHandle, I
     if (!localFrame)
         return nullptr;
 
-    auto* globalObject = localFrame->script().globalObject(world->protectedCoreWorld());
+    auto* globalObject = localFrame->checkedScript()->globalObject(world->protectedCoreWorld());
 
     JSLockHolder lock(globalObject);
     return toRef(globalObject, toJS(globalObject, globalObject, Ref { rangeHandle->coreRange() }.get()));
@@ -1327,14 +1335,14 @@ inline DocumentLoader* WebFrame::policySourceDocumentLoader() const
         return nullptr;
     }
 
-    RefPtr policySourceDocumentLoader = mainFrameDocument->loader();
-    if (!policySourceDocumentLoader)
+    WeakPtr mainFrameDocumentLoader = mainFrameDocument->loader();
+    if (!mainFrameDocumentLoader)
         return nullptr;
 
-    if (!policySourceDocumentLoader->request().url().hasSpecialScheme() && document->url().protocolIsInHTTPFamily())
-        policySourceDocumentLoader = document->loader();
+    if (Ref { *mainFrameDocumentLoader }->request().url().hasSpecialScheme() && document->url().protocolIsInHTTPFamily())
+        return document->loader();
 
-    return policySourceDocumentLoader.get();
+    return mainFrameDocumentLoader.get();
 }
 
 OptionSet<WebCore::AdvancedPrivacyProtections> WebFrame::advancedPrivacyProtections() const
@@ -1563,8 +1571,8 @@ void WebFrame::takeSnapshotOfNode(JSHandleIdentifier identifier, CompletionHandl
     if (!page)
         return completion({ });
 
-    auto [globalObject, object] = WebKitJSHandle::objectForIdentifier(identifier);
-    if (!globalObject || !object)
+    auto* object = WebKitJSHandle::objectForIdentifier(identifier);
+    if (!object)
         return completion({ });
 
     auto* jsNode = jsDynamicCast<JSNode*>(object);

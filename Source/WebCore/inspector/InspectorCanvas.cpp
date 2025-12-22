@@ -68,6 +68,7 @@
 #include "SVGPathUtilities.h"
 #include "StringAdaptors.h"
 #include <JavaScriptCore/IdentifiersFactory.h>
+#include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/ScriptCallStackFactory.h>
 #include <wtf/Function.h>
 #include <wtf/RefPtr.h>
@@ -258,7 +259,7 @@ void InspectorCanvas::finalizeFrame()
     appendActionSnapshotIfNeeded();
 
     if (m_frames && m_frames->length() && !m_currentFrameStartTime.isNaN()) {
-        auto currentFrame = static_reference_cast<Inspector::Protocol::Recording::Frame>(m_frames->get(m_frames->length() - 1));
+        auto currentFrame = unsafeRefDowncast<Inspector::Protocol::Recording::Frame>(m_frames->get(m_frames->length() - 1));
         currentFrame->setDuration((MonotonicTime::now() - m_currentFrameStartTime).milliseconds());
 
         m_currentFrameStartTime = MonotonicTime::nan();
@@ -272,7 +273,7 @@ void InspectorCanvas::markCurrentFrameIncomplete()
     if (!m_currentActions || !m_frames || !m_frames->length())
         return;
 
-    auto currentFrame = static_reference_cast<Inspector::Protocol::Recording::Frame>(m_frames->get(m_frames->length() - 1));
+    auto currentFrame = unsafeRefDowncast<Inspector::Protocol::Recording::Frame>(m_frames->get(m_frames->length() - 1));
     currentFrame->setIncomplete(true);
 }
 

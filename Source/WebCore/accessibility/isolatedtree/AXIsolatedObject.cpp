@@ -44,6 +44,10 @@
 #include "RenderObject.h"
 #include <wtf/text/MakeString.h>
 
+#if ENABLE(MODEL_ELEMENT_ACCESSIBILITY)
+#include "ModelPlayerAccessibilityChildren.h"
+#endif
+
 #if PLATFORM(MAC)
 #import <pal/spi/mac/HIServicesSPI.h>
 #endif
@@ -148,7 +152,7 @@ bool isDefaultValue(AXProperty property, AXPropertyValueVariant& value)
                 return false;
             return typedValue.toColorTypeLossy<SRGBA<uint8_t>>() == Accessibility::defaultColor();
         },
-        [](std::shared_ptr<URL>& typedValue) { return !typedValue || *typedValue == URL(); },
+        [](std::unique_ptr<URL>& typedValue) { return !typedValue || *typedValue == URL(); },
         [](LayoutRect& typedValue) { return typedValue == LayoutRect(); },
         [](IntPoint& typedValue) { return typedValue == IntPoint(); },
         [](IntRect& typedValue) { return typedValue == IntRect(); },
@@ -162,7 +166,7 @@ bool isDefaultValue(AXProperty property, AXPropertyValueVariant& value)
         [](Vector<AXID>& typedValue) { return typedValue.isEmpty(); },
         [](Vector<std::pair<Markable<AXID>, Markable<AXID>>>& typedValue) { return typedValue.isEmpty(); },
         [](Vector<String>& typedValue) { return typedValue.isEmpty(); },
-        [](std::shared_ptr<Path>& typedValue) { return !typedValue || typedValue->isEmpty(); },
+        [](std::unique_ptr<Path>& typedValue) { return !typedValue || typedValue->isEmpty(); },
         [](OptionSet<AXAncestorFlag>& typedValue) { return typedValue.isEmpty(); },
 #if PLATFORM(COCOA)
         [](RetainPtr<NSAttributedString>& typedValue) { return !typedValue; },
@@ -171,21 +175,22 @@ bool isDefaultValue(AXProperty property, AXPropertyValueVariant& value)
 #endif
         [](InputType::Type&) { return false; },
         [](Vector<Vector<Markable<AXID>>>& typedValue) { return typedValue.isEmpty(); },
+        [](Vector<AXStitchGroup>& typedValue) { return typedValue.isEmpty(); },
         [](CharacterRange& typedValue) { return !typedValue.location && !typedValue.length; },
-        [](std::shared_ptr<AXIDAndCharacterRange>& typedValue) {
+        [](std::unique_ptr<AXIDAndCharacterRange>& typedValue) {
             return !typedValue || (!typedValue->first && !typedValue->second.location && !typedValue->second.length);
         },
 #if ENABLE(AX_THREAD_TEXT_APIS)
-        [](std::shared_ptr<AXTextRuns> typedValue) { return !typedValue || !typedValue->size(); },
+        [](std::unique_ptr<AXTextRuns>& typedValue) { return !typedValue || !typedValue->size(); },
         [](RetainPtr<CTFontRef>& typedValue) { return !typedValue; },
         [](FontOrientation typedValue) { return typedValue == FontOrientation::Horizontal; },
         [](AXTextRunLineID typedValue) { return !typedValue; },
 #endif // ENABLE(AX_THREAD_TEXT_APIS)
-        [] (WallTime& time) { return !time; },
-        [] (ElementName& name) { return name == ElementName::Unknown; },
-        [] (DateComponentsType& typedValue) { return typedValue == DateComponentsType::Invalid; },
-        [] (AccessibilityOrientation) { return false; },
-        [] (OptionSet<SpeakAs>& typedValue) { return typedValue.isEmpty(); },
+        [](WallTime& time) { return !time; },
+        [](ElementName& name) { return name == ElementName::Unknown; },
+        [](DateComponentsType& typedValue) { return typedValue == DateComponentsType::Invalid; },
+        [](AccessibilityOrientation) { return false; },
+        [](Style::SpeakAs& typedValue) { return typedValue.isNormal(); },
         [](auto&) {
             ASSERT_NOT_REACHED();
             return false;
@@ -361,6 +366,30 @@ AXIsolatedObject* AXIsolatedObject::cellForColumnAndRow(unsigned columnIndex, un
 void AXIsolatedObject::accessibilityText(Vector<AccessibilityText>& texts) const
 {
     texts = vectorAttributeValue<AccessibilityText>(AXProperty::AccessibilityText);
+}
+
+const Vector<AXStitchGroup>* AXIsolatedObject::stitchGroupsView() const
+{
+    size_t index = indexOfProperty(AXProperty::StitchGroups);
+    if (index == notFound)
+        return nullptr;
+
+    return WTF::switchOn(m_properties[index].second,
+        [] (const Vector<AXStitchGroup>& typedValue) -> const Vector<AXStitchGroup>* { return &typedValue; },
+        [] (auto&) -> const Vector<AXStitchGroup>* { return nullptr; }
+    );
+}
+
+std::optional<AXStitchGroup> AXIsolatedObject::stitchGroup(IncludeGroupMembers includeGroupMembers) const
+{
+    if (!AXObjectCache::isAXTextStitchingEnabled())
+        return { };
+
+    RefPtr blockFlowAncestor = downcast<AXIsolatedObject>(blockFlowAncestorForStitchable());
+    if (!blockFlowAncestor)
+        return { };
+
+    return stitchGroupFromGroups(blockFlowAncestor->stitchGroupsView(), includeGroupMembers);
 }
 
 void AXIsolatedObject::insertMathPairs(Vector<std::pair<Markable<AXID>, Markable<AXID>>>& isolatedPairs, AccessibilityMathMultiscriptPairs& pairs)
@@ -639,16 +668,15 @@ Vector<T> AXIsolatedObject::vectorAttributeValue(AXProperty property) const
     );
 }
 
-template<typename T>
-OptionSet<T> AXIsolatedObject::optionSetAttributeValue(AXProperty property) const
+Style::SpeakAs AXIsolatedObject::speakAsAttributeValue(AXProperty property) const
 {
     size_t index = indexOfProperty(property);
     if (index == notFound)
-        return OptionSet<T>();
+        return CSS::Keyword::Normal { };
 
     return WTF::switchOn(m_properties[index].second,
-        [] (const OptionSet<T>& typedValue) -> OptionSet<T> { return typedValue; },
-        [] (auto&) { return OptionSet<T>(); }
+        [](const Style::SpeakAs& typedValue) -> Style::SpeakAs { return typedValue; },
+        [](auto&) -> Style::SpeakAs { return CSS::Keyword::Normal { }; }
     );
 }
 
@@ -699,7 +727,7 @@ URL AXIsolatedObject::urlAttributeValue(AXProperty property) const
         return URL();
 
     return WTF::switchOn(m_properties[index].second,
-        [] (const std::shared_ptr<URL>& typedValue) -> URL {
+        [] (const std::unique_ptr<URL>& typedValue) -> URL {
             ASSERT(typedValue.get());
             return *typedValue.get();
         },
@@ -714,7 +742,7 @@ Path AXIsolatedObject::pathAttributeValue(AXProperty property) const
         return Path();
 
     return WTF::switchOn(m_properties[index].second,
-        [] (const std::shared_ptr<Path>& typedValue) -> Path {
+        [] (const std::unique_ptr<Path>& typedValue) -> Path {
             ASSERT(typedValue.get());
             return *typedValue.get();
         },
@@ -886,7 +914,7 @@ const AXTextRuns* AXIsolatedObject::textRuns() const
         return nullptr;
 
     return WTF::switchOn(m_properties[index].second,
-        [] (const std::shared_ptr<AXTextRuns>& typedValue) -> const AXTextRuns* { return typedValue.get(); },
+        [] (const std::unique_ptr<AXTextRuns>& typedValue) -> const AXTextRuns* { return typedValue.get(); },
         [] (auto&) -> const AXTextRuns* { return nullptr; }
     );
 }
@@ -1069,6 +1097,25 @@ FloatRect AXIsolatedObject::relativeFrame() const
         // We should not have cached a relative frame for elements that get their geometry from their children.
         ASSERT(!m_getsGeometryFromChildren);
         relativeFrame = *cachedRelativeFrame;
+
+        if (isStaticText()) {
+            if (std::optional stitchGroup = this->stitchGroup()) {
+                if (stitchGroup->representativeID() == objectID() && !stitchGroup->isEmpty()) {
+                    // |this| is a stitching of multiple objects, so we need to combine all of their frames.
+
+                    RefPtr tree = this->tree();
+                    for (AXID axID : stitchGroup->members()) {
+                        if (axID == objectID())
+                            continue;
+
+                        if (RefPtr object = tree->objectForID(axID)) {
+                            if (std::optional otherCachedFrame = object->cachedRelativeFrame())
+                                relativeFrame = unionRect(relativeFrame, *otherCachedFrame);
+                        }
+                    }
+                }
+            }
+        }
     } else if (m_getsGeometryFromChildren) {
         auto frame = enclosingIntRect(relativeFrameFromChildren());
         if (!frame.isEmpty())
@@ -1369,15 +1416,17 @@ void AXIsolatedObject::setSelectedVisiblePositionRange(const VisiblePositionRang
         object->setSelectedVisiblePositionRange(visiblePositionRange);
 }
 
-#if PLATFORM(COCOA) && ENABLE(MODEL_ELEMENT)
-Vector<RetainPtr<id>> AXIsolatedObject::modelElementChildren()
+#if ENABLE(MODEL_ELEMENT_ACCESSIBILITY)
+
+ModelPlayerAccessibilityChildren AXIsolatedObject::modelElementChildren()
 {
-    return Accessibility::retrieveValueFromMainThread<Vector<RetainPtr<id>>>([this] () -> Vector<RetainPtr<id>> {
+    return Accessibility::retrieveValueFromMainThread<ModelPlayerAccessibilityChildren>([this] -> ModelPlayerAccessibilityChildren {
         if (RefPtr object = associatedAXObject())
             return object->modelElementChildren();
         return { };
     });
 }
+
 #endif
 
 std::optional<SimpleRange> AXIsolatedObject::simpleRange() const
@@ -1591,7 +1640,7 @@ AXTextMarkerRange AXIsolatedObject::textInputMarkedTextMarkerRange() const
         return nullptr;
 
     return WTF::switchOn(m_properties[index].second,
-        [&] (const std::shared_ptr<AXIDAndCharacterRange>& typedValue) -> AXTextMarkerRange {
+        [&] (const std::unique_ptr<AXIDAndCharacterRange>& typedValue) -> AXTextMarkerRange {
             auto start = static_cast<unsigned>(typedValue->second.location);
             auto end = start + static_cast<unsigned>(typedValue->second.length);
             return { tree()->treeID(), typedValue->first, start, end };
@@ -1755,10 +1804,42 @@ String AXIsolatedObject::stringValue() const
 #if ENABLE(AX_THREAD_TEXT_APIS)
     size_t index = indexOfProperty(AXProperty::StringValue);
     if (index == notFound) {
-        if (isStaticText()) {
-            // We can compute the stringValue of rendered text on-demand using AXProperty::TextRuns.
+        if (hasStitchableRole()) {
+            std::optional stitchGroup = this->stitchGroup();
+            if (!stitchGroup)
+                return textMarkerRange().toString(IncludeListMarkerText::No);
+
+            AXID thisID = objectID();
+            if (stitchGroup->representativeID() != thisID) {
+                // |this| is stitched into another object, so don't return any string value.
+                return emptyString();
+            }
+
+            // |this| is the sum of several stitched text-like objects. Our string value should
+            // include all of them.
+            //
+            // We can compute the stringValue of rendered text using AXProperty::TextRuns.
             // See AccessibilityObject::shouldCacheStringValue.
-            return textMarkerRange().toString(IncludeListMarkerText::No);
+            auto startMarker = AXTextMarker { *this, 0 };
+            AXTextMarker endMarker;
+
+            RefPtr tree = std::get<RefPtr<AXIsolatedTree>>(axTreeForID(treeID()));
+            if (!tree || stitchGroup->isEmpty())
+                return textMarkerRange().toString(IncludeListMarkerText::No);
+
+            for (auto axID = stitchGroup->members().rbegin(); axID != stitchGroup->members().rend(); ++axID) {
+                if (RefPtr object = tree->objectForID(*axID)) {
+                    if (const auto* runs = object->textRuns()) {
+                        endMarker = AXTextMarker { *object, runs->totalLength() };
+                        break;
+                    }
+                }
+            }
+
+            if (!endMarker.isValid())
+                return textMarkerRange().toString(IncludeListMarkerText::No);
+
+            return AXTextMarkerRange { WTFMove(startMarker), WTFMove(endMarker) }.toString(IncludeListMarkerText::Yes);
         }
         return emptyString();
     }
@@ -1811,7 +1892,7 @@ Widget* AXIsolatedObject::widget() const
 PlatformWidget AXIsolatedObject::platformWidget() const
 {
 #if PLATFORM(COCOA)
-    return propertyValue<RetainPtr<NSView>>(AXProperty::PlatformWidget).get();
+    return propertyValue<RetainPtr<NSView>>(AXProperty::PlatformWidget).unsafeGet();
 #else
     return m_platformWidget;
 #endif

@@ -39,7 +39,7 @@
 {
     if (WebCoreObjCScheduleDeallocateOnMainRunLoop(_WKJSHandle.class, self))
         return;
-    _ref->API::JSHandle::~JSHandle();
+    SUPPRESS_UNRETAINED_ARG _ref->API::JSHandle::~JSHandle();
     [super dealloc];
 }
 
@@ -63,6 +63,27 @@
             return completionHandler(nil);
         completionHandler(wrapper(API::FrameInfo::create(WTFMove(*data))).get());
     });
+}
+
+- (BOOL)isEqual:(id)object
+{
+    if (self == object)
+        return YES;
+
+    if (![object isKindOfClass:self.class])
+        return NO;
+
+    return _ref->info() == ((_WKJSHandle *)object)->_ref->info();
+}
+
+- (NSUInteger)hash
+{
+    return _ref->info().identifier.object().toUInt64();
+}
+
+- (id)copyWithZone:(NSZone *)zone
+{
+    return [self retain];
 }
 
 - (API::Object&)_apiObject

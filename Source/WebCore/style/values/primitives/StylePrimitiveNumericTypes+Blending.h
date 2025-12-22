@@ -48,7 +48,7 @@ template<Numeric StyleType> struct Blending<StyleType> {
         // primitive, we clamp the value back down to the allowed range. The spec states that
         // in some cases, an accumulated intermediate value should be allowed to be out of the
         // allowed range until after interpolation has completed, but we currently don't have
-        // that concept, and the `WebCore::Length` code path did clamping in the same fashion.
+        // that concept.
         // https://drafts.csswg.org/css-values/#combining-range
 
         return StyleType { CSS::clampToRange<StyleType::range, typename StyleType::ResolvedValueType>(WebCore::blend(from.value, to.value, context)) };
@@ -70,7 +70,7 @@ template<auto R, typename V> struct Blending<Length<R, V>> {
         // primitive, we clamp the value back down to the allowed range. The spec states that
         // in some cases, an accumulated intermediate value should be allowed to be out of the
         // allowed range until after interpolation has completed, but we currently don't have
-        // that concept, and the `WebCore::Length` code path did clamping in the same fashion.
+        // that concept.
         // https://drafts.csswg.org/css-values/#combining-range
 
         return StyleType { CSS::clampToRange<StyleType::range, typename StyleType::ResolvedValueType>(WebCore::blend(from.unresolvedValue(), to.unresolvedValue(), context)) };
@@ -105,8 +105,8 @@ template<auto R, typename V> struct Blending<LengthPercentage<R, V>> {
             if (context.compositeOperation != CompositeOperation::Replace)
                 return Calc { Calculation::add(copyCalculation(from), copyCalculation(to)) };
 
-            bool fromIsZero = from.isZero();
-            bool toIsZero = to.isZero();
+            bool fromIsZero = from.isKnownZero();
+            bool toIsZero = to.isKnownZero();
 
             // 0% to 0px -> calc(0px + 0%) to calc(0px + 0%) -> 0px
             // 0px to 0% -> calc(0px + 0%) to calc(0px + 0%) -> 0px

@@ -32,7 +32,7 @@
 #include "AccessibilityObjectInlines.h"
 #include "AccessibilityScrollbar.h"
 #include "ContainerNodeInlines.h"
-#include "DocumentInlines.h"
+#include "DocumentView.h"
 #include "FrameInlines.h"
 #include "HTMLFrameOwnerElement.h"
 #include "LocalFrameInlines.h"
@@ -255,7 +255,7 @@ AccessibilityScrollbar* AccessibilityScrollView::addChildScrollbar(Scrollbar* sc
     Ref scrollBarObject = uncheckedDowncast<AccessibilityScrollbar>(*cache->getOrCreate(*scrollbar));
     scrollBarObject->setParent(this);
     addChild(scrollBarObject.get());
-    return scrollBarObject.ptr();
+    return scrollBarObject.unsafePtr();
 }
 
 void AccessibilityScrollView::clearChildren()
@@ -325,7 +325,9 @@ void AccessibilityScrollView::addLocalFrameChild()
         if (!frameAXObjectCache)
             return;
 
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
         frameAXObjectCache->buildIsolatedTreeIfNeeded();
+#endif
 
         RefPtr frameRoot = frameAXObjectCache->rootObjectForFrame(*localFrame);
         if (!frameRoot)
@@ -360,7 +362,7 @@ void AccessibilityScrollView::addRemoteFrameChild()
         // Generate a new token and pass it back to the other remote frame so it can bind these objects together.
         Ref remoteFrame = remoteFrameView->frame();
         m_remoteFrame->setFrameID(remoteFrame->frameID());
-        remoteFrame->bindRemoteAccessibilityFrames(getpid(), { m_remoteFrame->generateRemoteToken() }, [this, &remoteFrame, protectedAccessbilityRemoteFrame = RefPtr { m_remoteFrame }] (Vector<uint8_t> token, int processIdentifier) mutable {
+        remoteFrame->bindRemoteAccessibilityFrames(getpid(), { m_remoteFrame->generateRemoteToken() }, [this, protectedThis = Ref { *this }, &remoteFrame, protectedAccessbilityRemoteFrame = RefPtr { m_remoteFrame }] (Vector<uint8_t> token, int processIdentifier) mutable {
             protectedAccessbilityRemoteFrame->initializePlatformElementWithRemoteToken(token.span(), processIdentifier);
 
             // Update the remote side with the offset of this object so it can calculate frames correctly.
@@ -446,8 +448,8 @@ Document* AccessibilityScrollView::document() const
 
 LocalFrameView* AccessibilityScrollView::documentFrameView() const
 {
-    if (RefPtr localFrameView = dynamicDowncast<LocalFrameView>(m_scrollView.get()))
-        return localFrameView.get();
+    if (auto* localFrameView = dynamicDowncast<LocalFrameView>(m_scrollView.get()))
+        return localFrameView;
 
     if (m_frameOwnerElement && m_frameOwnerElement->contentDocument())
         return m_frameOwnerElement->contentDocument()->view();
@@ -481,7 +483,7 @@ AccessibilityObject* AccessibilityScrollView::parentObject() const
             break;
         ancestorElement = ancestorElement->parentElementInComposedTree();
     }
-    return ancestorAccessibilityObject.get();
+    return ancestorAccessibilityObject.unsafeGet();
 }
 
 #if ENABLE_ACCESSIBILITY_LOCAL_FRAME
@@ -523,9 +525,11 @@ AccessibilityObject* AccessibilityScrollView::crossFrameParentObject() const
         ancestorElement = ancestorElement->parentElementInComposedTree();
     }
 
-    if (ancestorAccessibilityObject->isIgnored())
+    if (ancestorAccessibilityObject && ancestorAccessibilityObject->isIgnored())
         return ancestorAccessibilityObject->parentObjectUnignored();
-    return ancestorAccessibilityObject.get();
+
+    // TODO: this should return a RefPtr
+    return ancestorAccessibilityObject.unsafeGet();  // NOLINT
 }
 
 AccessibilityObject* AccessibilityScrollView::crossFrameChildObject() const

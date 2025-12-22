@@ -64,6 +64,7 @@
 #include "RenderObjectStyle.h"
 #include "RenderVideo.h"
 #include "SVGSVGElement.h"
+#include "Settings.h"
 #include "SimpleRange.h"
 #include "SliderThumbElement.h"
 #include "StyleResolver.h"
@@ -505,7 +506,7 @@ std::optional<InteractionRegion> interactionRegionForRenderedRegion(const Render
             }();
         } else if (regionRenderer.style().hasBackgroundImage()) {
             isPhoto = [&]() -> bool {
-                RefPtr backgroundImage = regionRenderer.style().backgroundLayers().first().image().tryStyleImage();
+                RefPtr backgroundImage = regionRenderer.style().backgroundLayers().usedFirst().image().tryStyleImage();
                 if (!backgroundImage || !backgroundImage->cachedImage())
                     return false;
 

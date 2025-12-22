@@ -120,6 +120,9 @@ def is_wpt_server_running(port_obj):
     return http_server_base.HttpServerBase._is_running_on_port(config["ports"]["http"][0])
 
 
+def suppress_dns_resolver_logs(log_string):
+    return
+
 class WebPlatformTestServer(http_server_base.HttpServerBase):
     def __init__(self, port_obj, name, pidfile=None):
         http_server_base.HttpServerBase.__init__(self, port_obj)
@@ -132,8 +135,25 @@ class WebPlatformTestServer(http_server_base.HttpServerBase):
         self._wsout = None
         self._process = None
         self._dns_server = None
-        if port_obj.supports_localhost_aliases and port_obj.get_option('local_dns_resolver') and not port_obj.get_option('disable_wpt_hostname_aliases'):
-            logger = DNSLogger(logf=_log.debug)
+
+        port_has_local_dns_resolver = port_obj.port_name is not None and (port_obj.port_name == "mac" or "simulator" in port_obj.port_name)
+        use_local_dns_resolver = port_obj.supports_localhost_aliases and port_has_local_dns_resolver and not port_obj.get_option('disable_wpt_hostname_aliases')
+
+        if port_obj.supports_localhost_aliases:
+            print("Port supports localhost aliases")
+        else:
+            print("Port does not support localhost aliases")
+        if port_obj.get_option('disable_wpt_hostname_aliases'):
+            print("Port has disabled hostname aliases")
+        else:
+            print("Port has enabled hostname aliases")
+        if use_local_dns_resolver:
+            print("Using local DNS resolver for", port_obj.port_name)
+        else:
+            print("Not Using local DNS resolver for", port_obj.port_name)
+
+        if use_local_dns_resolver:
+            logger = DNSLogger(logf=suppress_dns_resolver_logs)
             self._dns_server = DNSServer(Resolver(
                 allowed_hosts=port_obj.localhost_aliases()), port=8053, address="127.0.0.1", logger=logger)
 

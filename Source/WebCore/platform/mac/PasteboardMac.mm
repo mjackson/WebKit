@@ -95,11 +95,12 @@ Pasteboard::Pasteboard(std::unique_ptr<PasteboardContext>&& context)
 {
 }
 
-Pasteboard::Pasteboard(std::unique_ptr<PasteboardContext>&& context, const String& pasteboardName, const Vector<String>& promisedFilePaths)
+Pasteboard::Pasteboard(std::unique_ptr<PasteboardContext>&& context, const String& pasteboardName, const Vector<String>& promisedFilePaths, const Vector<String>& promisedFileMIMETypes)
     : m_context(WTFMove(context))
     , m_pasteboardName(pasteboardName)
     , m_changeCount(platformStrategies()->pasteboardStrategy()->changeCount(m_pasteboardName, m_context.get()))
     , m_promisedFilePaths(promisedFilePaths)
+    , m_promisedFileMIMETypes(promisedFileMIMETypes)
 {
     ASSERT(pasteboardName);
 }
@@ -122,7 +123,7 @@ std::unique_ptr<Pasteboard> Pasteboard::createForDragAndDrop(std::unique_ptr<Pas
 
 std::unique_ptr<Pasteboard> Pasteboard::create(const DragData& dragData)
 {
-    return makeUnique<Pasteboard>(dragData.createPasteboardContext(), dragData.pasteboardName(), dragData.fileNames());
+    return makeUnique<Pasteboard>(dragData.createPasteboardContext(), dragData.pasteboardName(), dragData.fileNames(), dragData.promisedFileMIMETypes());
 }
 #endif
 
@@ -168,11 +169,18 @@ void Pasteboard::write(const PasteboardWebContent& content)
         m_changeCount = platformStrategies()->pasteboardStrategy()->setBufferForType(clientData[i].get(), clientTypes[i], m_pasteboardName, context());
     if (content.canSmartCopyOrDelete)
         m_changeCount = platformStrategies()->pasteboardStrategy()->setBufferForType(nullptr, WebSmartPastePboardType, m_pasteboardName, context());
-    if (content.dataInWebArchiveFormat) {
+
+    bool didWriteWebArchive = false;
+    if (RefPtr webArchive = content.webArchive) {
+        m_changeCount = platformStrategies()->pasteboardStrategy()->writeWebArchive(*webArchive, m_pasteboardName);
+        didWriteWebArchive = !!m_changeCount;
+    }
+    if (!didWriteWebArchive && content.dataInWebArchiveFormat) {
         m_changeCount = platformStrategies()->pasteboardStrategy()->setBufferForType(content.dataInWebArchiveFormat.get(), WebArchivePboardType, m_pasteboardName, context());
 
         m_changeCount = platformStrategies()->pasteboardStrategy()->setBufferForType(content.dataInWebArchiveFormat.get(), UTTypeWebArchive.identifier, m_pasteboardName, context());
     }
+
     if (content.dataInRTFDFormat)
         m_changeCount = platformStrategies()->pasteboardStrategy()->setBufferForType(content.dataInRTFDFormat.get(), legacyRTFDPasteboardTypeSingleton(), m_pasteboardName, context());
     if (content.dataInRTFFormat)
@@ -212,7 +220,9 @@ static long writeURLForTypes(const Vector<String>& types, const String& pasteboa
     RetainPtr title = pasteboardURL.title.createNSString();
     if (![title length]) {
         title = [[nsURL path] lastPathComponent];
-        if (![title length])
+        // Very short titles are not useful, and we commonly get a "/" as the last path component.
+        // Fall back to the full URL in this case.
+        if ([title length] <= 1)
             title = userVisibleString;
     }
 
@@ -261,11 +271,11 @@ static void writeFileWrapperAsRTFDAttachment(NSFileWrapper *wrapper, const Strin
 {
     RetainPtr string = [NSAttributedString attributedStringWithAttachment:adoptNS([[NSTextAttachment alloc] initWithFileWrapper:wrapper]).get()];
 
-    NSData *RTFDData = [string RTFDFromRange:NSMakeRange(0, [string length]) documentAttributes:@{ }];
+    RetainPtr<NSData> RTFDData = [string RTFDFromRange:NSMakeRange(0, [string length]) documentAttributes:@{ }];
     if (!RTFDData)
         return;
 
-    newChangeCount = platformStrategies()->pasteboardStrategy()->setBufferForType(SharedBuffer::create(RTFDData).ptr(), legacyRTFDPasteboardTypeSingleton(), pasteboardName, context);
+    newChangeCount = platformStrategies()->pasteboardStrategy()->setBufferForType(SharedBuffer::create(RTFDData.get()).ptr(), legacyRTFDPasteboardTypeSingleton(), pasteboardName, context);
 }
 
 void Pasteboard::write(const PasteboardImage& pasteboardImage)
@@ -747,9 +757,9 @@ static void setDragImageImpl(NSImage *image, NSPoint offset)
     NSSize imageSize = image.size;
     CGRect imageRect = CGRectMake(0, 0, imageSize.width, imageSize.height);
     NSRect convertedRect = NSRectFromCGRect(imageRect);
-    NSImageRep *imageRep = [image bestRepresentationForRect:convertedRect context:nil hints:nil];
+    RetainPtr<NSImageRep> imageRep = [image bestRepresentationForRect:convertedRect context:nil hints:nil];
     RetainPtr<NSBitmapImageRep> bitmapImage;
-    if (!imageRep || ![imageRep isKindOfClass:[NSBitmapImageRep class]] || !NSEqualSizes(imageRep.size, imageSize)) {
+    if (!imageRep || ![imageRep isKindOfClass:[NSBitmapImageRep class]] || !NSEqualSizes(imageRep.get().size, imageSize)) {
         [image lockFocus];
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
         bitmapImage = adoptNS([[NSBitmapImageRep alloc] initWithFocusedViewRect:convertedRect]);
@@ -763,7 +773,7 @@ ALLOW_DEPRECATED_DECLARATIONS_BEGIN
 ALLOW_DEPRECATED_DECLARATIONS_END
     } else {
         flipImage = false;
-        bitmapImage = checked_objc_cast<NSBitmapImageRep>(imageRep);
+        bitmapImage = checked_objc_cast<NSBitmapImageRep>(imageRep.get());
     }
     ASSERT(bitmapImage);
 

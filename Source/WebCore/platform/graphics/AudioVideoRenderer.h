@@ -25,13 +25,13 @@
 
 #pragma once
 
-#include "HostingContext.h"
-#include "MediaPlayerEnums.h"
-#include "MediaPromiseTypes.h"
-#include "PlatformLayer.h"
-#include "TrackInfo.h"
-#include "VideoPlaybackQualityMetrics.h"
-#include "VideoTarget.h"
+#include <WebCore/HostingContext.h>
+#include <WebCore/MediaPlayerEnums.h>
+#include <WebCore/MediaPromiseTypes.h>
+#include <WebCore/PlatformLayer.h>
+#include <WebCore/TrackInfo.h>
+#include <WebCore/VideoPlaybackQualityMetrics.h>
+#include <WebCore/VideoTarget.h>
 #include <optional>
 #include <wtf/AbstractThreadSafeRefCountedAndCanMakeWeakPtr.h>
 #include <wtf/CompletionHandler.h>
@@ -43,8 +43,11 @@ namespace WebCore {
 
 class CDMInstance;
 class FloatRect;
+class GraphicsContext;
+class LegacyCDMSession;
 class LayoutRect;
 class MediaSample;
+class NativeImage;
 class PlatformDynamicRangeLimit;
 class ProcessIdentity;
 class TextTrackRepresentation;
@@ -68,7 +71,7 @@ public:
     virtual void setIsVisible(bool) = 0;
     virtual void setPresentationSize(const IntSize&) = 0;
     virtual void setShouldMaintainAspectRatio(bool) { }
-    virtual void acceleratedRenderingStateChanged(bool) { }
+    virtual void renderingCanBeAcceleratedChanged(bool) { }
     virtual void contentBoxRectChanged(const LayoutRect&) { }
     virtual void notifyFirstFrameAvailable(Function<void()>&&) { }
     virtual void notifyWhenHasAvailableVideoFrame(Function<void(const MediaTime&, double)>&&) { }
@@ -81,8 +84,12 @@ public:
     virtual void setResourceOwner(const ProcessIdentity&) { }
     virtual void flushAndRemoveImage() { };
     virtual RefPtr<VideoFrame> currentVideoFrame() const = 0;
+    virtual void paintCurrentVideoFrameInContext(GraphicsContext&, const FloatRect&) { }
+    virtual RefPtr<NativeImage> currentNativeImage() const { return nullptr; }
+#if ENABLE(VIDEO)
     virtual std::optional<VideoPlaybackQualityMetrics> videoPlaybackQualityMetrics() = 0;
-    virtual PlatformLayerContainer platformVideoLayer() const { return nullptr; }
+#endif
+    virtual PlatformLayer* platformVideoLayer() const { return nullptr; }
 
     using LayerHostingContextCallback = CompletionHandler<void(HostingContext)>;
     virtual void requestHostingContext(LayerHostingContextCallback&& completionHandler) { completionHandler({ }); }
@@ -119,7 +126,7 @@ public:
     virtual bool seeking() const = 0;
 };
 
-enum class SamplesRendererTrackIdentifierType { };
+struct SamplesRendererTrackIdentifierType;
 using SamplesRendererTrackIdentifier = AtomicObjectIdentifier<SamplesRendererTrackIdentifierType>;
 
 class TracksRendererManager {
@@ -129,7 +136,7 @@ public:
 
     virtual ~TracksRendererManager() = default;
 
-    virtual void setPreferences(VideoMediaSampleRendererPreferences) { }
+    virtual void setPreferences(VideoRendererPreferences) { }
     virtual void setHasProtectedVideoContent(bool) { }
 
     virtual TrackIdentifier addTrack(TrackType) = 0;
@@ -137,8 +144,8 @@ public:
 
     virtual void enqueueSample(TrackIdentifier, Ref<MediaSample>&&, std::optional<MediaTime> = std::nullopt) = 0;
     virtual bool isReadyForMoreSamples(TrackIdentifier) = 0;
-    virtual void requestMediaDataWhenReady(TrackIdentifier, Function<void(TrackIdentifier)>&&) = 0;
-    virtual void stopRequestingMediaData(TrackIdentifier) = 0;
+    using RequestPromise = NativePromise<TrackIdentifier, PlatformMediaError>;
+    virtual Ref<RequestPromise> requestMediaDataWhenReady(TrackIdentifier) = 0;
     virtual void notifyTrackNeedsReenqueuing(TrackIdentifier, Function<void(TrackIdentifier, const MediaTime&)>&&) { }
 
     virtual bool timeIsProgressing() const = 0;
@@ -161,10 +168,16 @@ public:
 
 #if ENABLE(ENCRYPTED_MEDIA)
     virtual void setCDMInstance(CDMInstance*) { }
+    virtual Ref<MediaPromise> setInitData(Ref<SharedBuffer>) { return MediaPromise::createAndResolve(); }
+    virtual void attemptToDecrypt() { }
+#endif
+#if ENABLE(LEGACY_ENCRYPTED_MEDIA)
+    virtual RefPtr<SharedBuffer> initData() const { return nullptr; }
+    virtual void setCDMSession(LegacyCDMSession*) { }
 #endif
 };
 
-class AudioVideoRenderer : public AudioInterface, public VideoInterface, public VideoFullscreenInterface, public SynchronizerInterface, public TracksRendererManager, public AbstractThreadSafeRefCountedAndCanMakeWeakPtr {
+class WEBCORE_EXPORT AudioVideoRenderer : public AudioInterface, public VideoInterface, public VideoFullscreenInterface, public SynchronizerInterface, public TracksRendererManager, public AbstractThreadSafeRefCountedAndCanMakeWeakPtr {
 public:
     virtual ~AudioVideoRenderer() = default;
 };

@@ -105,7 +105,7 @@
 
     [[NSNotificationCenter defaultCenter] addObserver:self
         selector:@selector(systemColorsDidChange:) name:systemColorsChangedNotification.get() object:nil];
-    [[[NSWorkspace sharedWorkspace] notificationCenter] addObserver:self
+    [retainPtr([[NSWorkspace sharedWorkspace] notificationCenter]) addObserver:self
         selector:@selector(accessibilityDisplayOptionsDidChange:) name:accessibilityDisplayOptionsChangedNotification.get() object:nil];
 
     return self;
@@ -390,7 +390,7 @@ Color RenderThemeMac::platformTextSearchHighlightColor(OptionSet<StyleColorOptio
     return colorFromCocoaColor([NSColor findHighlightColor]);
 }
 
-Color RenderThemeMac::platformAnnotationHighlightColor(OptionSet<StyleColorOptions>) const
+Color RenderThemeMac::platformAnnotationHighlightBackgroundColor(OptionSet<StyleColorOptions>) const
 {
     // FIXME: expose the real value from AppKit.
     return SRGBA<uint8_t> { 255, 238, 190 };
@@ -439,7 +439,7 @@ static Color activeButtonTextColor()
 static SRGBA<uint8_t> menuBackgroundColor()
 {
     RetainPtr offscreenRep = adoptNS([[NSBitmapImageRep alloc] initWithBitmapDataPlanes:nil pixelsWide:1 pixelsHigh:1
-        bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO colorSpaceName:RetainPtr { NSDeviceRGBColorSpace }.get() bytesPerRow:4 bitsPerPixel:32]);
+        bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO colorSpaceName:NSDeviceRGBColorSpace bytesPerRow:4 bitsPerPixel:32]);
 
     {
         LocalCurrentCGContext localContext { [NSGraphicsContext graphicsContextWithBitmapImageRep:offscreenRep.get()].CGContext };
@@ -720,13 +720,13 @@ Color RenderThemeMac::systemColor(CSSValueID cssValueID, OptionSet<StyleColorOpt
         case CSSValueAppleSystemEvenAlternatingContentBackground: {
             NSArray<NSColor *> *alternateColors = [NSColor alternatingContentBackgroundColors];
             ASSERT(alternateColors.count >= 2);
-            return semanticColorFromNSColor(alternateColors[0]);
+            return semanticColorFromNSColor(retainPtr(alternateColors[0]).get());
         }
 
         case CSSValueAppleSystemOddAlternatingContentBackground: {
             NSArray<NSColor *> *alternateColors = [NSColor alternatingContentBackgroundColors];
             ASSERT(alternateColors.count >= 2);
-            return semanticColorFromNSColor(alternateColors[1]);
+            return semanticColorFromNSColor(retainPtr(alternateColors[1]).get());
         }
 
         // FIXME: Remove this fallback when AppKit without tertiary-fill is not used anymore; see rdar://108340604.
@@ -930,15 +930,11 @@ static Style::PreferredSizePair checkboxSize(const Style::PreferredSizePair& zoo
 
 static const std::span<const IntSize, 4> radioSizes()
 {
-    static std::array<IntSize, 4> sizes;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        if (supportsLargeFormControls()) {
-            sizes = { { IntSize(14, 14), IntSize(12, 12), IntSize(10, 10), IntSize(16, 16) } };
-            return;
-        }
-        sizes = { { IntSize(16, 16), IntSize(12, 12), IntSize(10, 10), IntSize(0, 0) } };
-    });
+    static std::array<IntSize, 4> sizes = [] {
+        if (supportsLargeFormControls())
+            return std::array<IntSize, 4> { { IntSize(14, 14), IntSize(12, 12), IntSize(10, 10), IntSize(16, 16) } };
+        return std::array<IntSize, 4> { { IntSize(16, 16), IntSize(12, 12), IntSize(10, 10), IntSize(0, 0) } };
+    }();
     return sizes;
 }
 
@@ -1196,7 +1192,7 @@ static NSControlSize controlSizeForFont(const RenderStyle& style)
 
 static IntSize sizeForFont(const RenderStyle& style, std::span<const IntSize, 4> sizes)
 {
-    if (style.usedZoom() != 1.0f) {
+    if (style.usedZoom() != 1.0f && !style.evaluationTimeZoomEnabled()) {
         IntSize result = sizes[controlSizeForFont(style)];
         return IntSize(result.width() * style.usedZoom(), result.height() * style.usedZoom());
     }
@@ -1249,7 +1245,7 @@ void RenderThemeMac::adjustListButtonStyle(RenderStyle& style, const Element* el
 #endif
 
     // Add a margin to place the button at end of the input field.
-    style.setMarginEnd(-4_css_px);
+    style.setMarginEnd(-4_css_px / style.usedZoomForLength().value);
 }
 
 #if ENABLE(SERVICE_CONTROLS)
@@ -1367,24 +1363,24 @@ Style::PaddingBox RenderThemeMac::popupInternalPaddingBox(const RenderStyle& sty
     if (style.usedAppearance() == StyleAppearance::Menulist) {
         auto padding = popupButtonPadding(controlSizeForFont(style), style.writingMode().isBidiRTL());
         return {
-            toTruncatedPaddingEdge(padding[topPadding] * style.usedZoom()),
-            toTruncatedPaddingEdge(padding[rightPadding] * style.usedZoom()),
-            toTruncatedPaddingEdge(padding[bottomPadding] * style.usedZoom()),
-            toTruncatedPaddingEdge(padding[leftPadding] * style.usedZoom()),
+            toTruncatedPaddingEdge(padding[topPadding]),
+            toTruncatedPaddingEdge(padding[rightPadding]),
+            toTruncatedPaddingEdge(padding[bottomPadding]),
+            toTruncatedPaddingEdge(padding[leftPadding]),
         };
     }
 
     if (style.usedAppearance() == StyleAppearance::MenulistButton) {
         float arrowWidth = baseArrowWidth * (style.computedFontSize() / baseFontSize);
         float rightPadding = ceilf(arrowWidth + (arrowPaddingBefore + arrowPaddingAfter + paddingBeforeSeparator) * style.usedZoom());
-        float leftPadding = styledPopupPaddingLeft * style.usedZoom();
+        float leftPadding = styledPopupPaddingLeft;
         if (style.writingMode().isBidiRTL())
             std::swap(rightPadding, leftPadding);
 
         return {
-            toTruncatedPaddingEdge(styledPopupPaddingTop * style.usedZoom()),
-            toTruncatedPaddingEdge(rightPadding),
-            toTruncatedPaddingEdge(styledPopupPaddingBottom * style.usedZoom()),
+            toTruncatedPaddingEdge(styledPopupPaddingTop),
+            toTruncatedPaddingEdge(rightPadding / style.usedZoom()),
+            toTruncatedPaddingEdge(styledPopupPaddingBottom),
             toTruncatedPaddingEdge(leftPadding),
         };
     }
@@ -1801,12 +1797,12 @@ static RefPtr<Icon> iconForAttachment(const String& fileName, const String& atta
     }
 
     RetainPtr nsTitle = title.createNSString();
-    if (auto fileExtension = nsTitle.get().pathExtension; fileExtension.length) {
-        if (auto icon = Icon::createIconForFileExtension(fileExtension)) {
-            LOG_ATTACHMENT("-> Got icon for title file extension '%s'", String(fileExtension).utf8().data());
+    if (RetainPtr<NSString> fileExtension = nsTitle.get().pathExtension; fileExtension.get().length) {
+        if (auto icon = Icon::createIconForFileExtension(fileExtension.get())) {
+            LOG_ATTACHMENT("-> Got icon for title file extension '%s'", String(fileExtension.get()).utf8().data());
             return icon;
         }
-        LOG_ATTACHMENT("-> No icon for title file extension '%s'! Will fallback to public.data icon", String(fileExtension).utf8().data());
+        LOG_ATTACHMENT("-> No icon for title file extension '%s'! Will fallback to public.data icon", String(fileExtension.get()).utf8().data());
     } else
         LOG_ATTACHMENT("-> No file extension in title! Will fallback to public.data icon");
 
@@ -1820,9 +1816,9 @@ RenderThemeCocoa::IconAndSize RenderThemeMac::iconForAttachment(const String& fi
         return IconAndSize { nil, FloatSize() };
 
     if (auto icon = WebCore::iconForAttachment(fileName, attachmentType, title)) {
-        auto image = icon->image();
+        RetainPtr image = icon->image();
         auto size = [image size];
-        return IconAndSize { image, FloatSize(size) };
+        return IconAndSize { WTFMove(image), FloatSize(size) };
     }
 
     return IconAndSize { nil, FloatSize() };

@@ -422,7 +422,7 @@ void NetworkDataTaskCocoa::didReceiveResponse(WebCore::ResourceResponse&& respon
     if (isTopLevelNavigation())
         updateFirstPartyInfoForSession(response.url());
 #if ENABLE(NETWORK_ISSUE_REPORTING)
-    else if (NetworkIssueReporter::shouldReport([m_task _incompleteTaskMetrics])) {
+    else if (NetworkIssueReporter::shouldReport(retainPtr([m_task _incompleteTaskMetrics]).get())) {
         if (CheckedPtr session = networkSession())
             session->reportNetworkIssue(*m_webPageProxyID, firstRequest().url());
     }
@@ -681,7 +681,7 @@ String NetworkDataTaskCocoa::description() const
 void NetworkDataTaskCocoa::setH2PingCallback(const URL& url, CompletionHandler<void(Expected<WTF::Seconds, WebCore::ResourceError>&&)>&& completionHandler)
 {
     ASSERT(m_task.get()._preconnect);
-    auto handler = CompletionHandlerWithFinalizer<void(Expected<WTF::Seconds, WebCore::ResourceError>&&)>(WTFMove(completionHandler), [url = url.isolatedCopy()] (Function<void(Expected<WTF::Seconds, WebCore::ResourceError>&&)>& completionHandler) {
+    auto handler = CompletionHandlerWithFinalizer<void(Expected<WTF::Seconds, WebCore::ResourceError>&&)>(WTFMove(completionHandler), [url = url.isolatedCopy()] (Function<void(Expected<WTF::Seconds, WebCore::ResourceError>&&)>& completionHandler) mutable {
         ensureOnMainRunLoop([completionHandler = WTFMove(completionHandler), url = WTFMove(url).isolatedCopy()]() mutable {
             completionHandler(makeUnexpected(WebCore::internalError(url)));
         });

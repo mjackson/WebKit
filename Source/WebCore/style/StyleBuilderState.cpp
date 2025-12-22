@@ -44,12 +44,13 @@
 #include "CSSImageValue.h"
 #include "CSSNamedImageValue.h"
 #include "CSSPaintImageValue.h"
-#include "Document.h"
 #include "DocumentInlines.h"
+#include "DocumentView.h"
 #include "ElementInlines.h"
 #include "ElementTraversal.h"
 #include "FontCache.h"
 #include "HTMLElement.h"
+#include "LocalFrame.h"
 #include "RenderStyleSetters.h"
 #include "RenderTheme.h"
 #include "SVGElementTypeHelpers.h"
@@ -68,10 +69,13 @@
 #include "StyleImageSet.h"
 #include "StyleNamedImage.h"
 #include "StylePaintImage.h"
+#include "StylePrimitiveNumericTypes+Conversions.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
 
 namespace WebCore {
 namespace Style {
+
+WTF_MAKE_TZONE_ALLOCATED_IMPL(BuilderState);
 
 BuilderState::BuilderState(RenderStyle& style)
     : m_style(style)
@@ -83,6 +87,16 @@ BuilderState::BuilderState(RenderStyle& style, BuilderContext&& context)
     , m_context(WTFMove(context))
     , m_cssToLengthConversionData(style, *this)
 {
+}
+
+float BuilderState::zoomWithTextZoomFactor()
+{
+    if (RefPtr frame = document().frame()) {
+        float textZoomFactor = style().textZoom() != TextZoom::Reset ? frame->textZoomFactor() : 1.0f;
+        float usedZoom = evaluationTimeZoomEnabled(*this) ? 1.0f : style().usedZoom();
+        return usedZoom * textZoomFactor;
+    }
+    return cssToLengthConversionData().zoom();
 }
 
 // SVG handles zooming in a different way compared to CSS. The whole document is scaled instead
@@ -128,7 +142,7 @@ RefPtr<StyleImage> BuilderState::createStyleImage(const CSSValue& value) const
 
 void BuilderState::registerContentAttribute(const AtomString& attributeLocalName)
 {
-    if (style().pseudoElementType() == PseudoId::Before || style().pseudoElementType() == PseudoId::After)
+    if (style().pseudoElementType() == PseudoElementType::Before || style().pseudoElementType() == PseudoElementType::After)
         m_registeredContentAttributes.append(attributeLocalName);
 }
 
@@ -137,7 +151,7 @@ void BuilderState::adjustStyleForInterCharacterRuby()
     if (!m_style.isInterCharacterRubyPosition() || !element() || !element()->hasTagName(HTMLNames::rtTag))
         return;
 
-    m_style.setTextAlign(TextAlignMode::Center);
+    m_style.setTextAlign(TextAlign::Center);
     if (!m_style.writingMode().isVerticalTypographic())
         m_style.setWritingMode(StyleWritingMode::VerticalLr);
 }
@@ -243,8 +257,8 @@ void BuilderState::updateFontForSizeChange()
     auto& fontCascade = m_style.mutableFontCascadeWithoutUpdate();
     auto fontSize = fontCascade.size();
 
-    auto newWordSpacing = evaluate<float>(m_style.computedWordSpacing(), fontSize, ZoomNeeded { });
-    auto newLetterSpacing = evaluate<float>(m_style.computedLetterSpacing(), fontSize, ZoomNeeded { });
+    auto newWordSpacing = evaluate<float>(m_style.computedWordSpacing(), fontSize, m_style.usedZoomForLength());
+    auto newLetterSpacing = evaluate<float>(m_style.computedLetterSpacing(), fontSize, m_style.usedZoomForLength());
 
     if (newWordSpacing != fontCascade.wordSpacing())
         fontCascade.setWordSpacing(newWordSpacing);
@@ -269,7 +283,8 @@ void BuilderState::updateFontForSizeChange()
 void BuilderState::setFontSize(FontCascadeDescription& fontDescription, float size)
 {
     fontDescription.setSpecifiedSize(size);
-    fontDescription.setComputedSize(Style::computedFontSizeFromSpecifiedSize(size, fontDescription.isAbsoluteSize(), useSVGZoomRules(), &style(), document()));
+    auto computedFontSize = Style::computedFontSizeFromSpecifiedSize(size, fontDescription.isAbsoluteSize(), useSVGZoomRules(), &style(), document());
+    fontDescription.setComputedSize(computedFontSize.size, computedFontSize.usedZoomFactor);
 }
 
 CSSPropertyID BuilderState::cssPropertyID() const

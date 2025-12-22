@@ -71,6 +71,7 @@
 #include "SVGRectElement.h"
 #include "SVGRootInlineBox.h"
 #include "SVGStopElement.h"
+#include "Settings.h"
 #include "StyleCachedImage.h"
 #include <math.h>
 
@@ -204,10 +205,10 @@ static void writeSVGStrokePaintingResource(TextStream& ts, const RenderElement& 
     auto& style = renderer.style();
 
     SVGLengthContext lengthContext(&shape);
-    double dashOffset = lengthContext.valueForLength(style.strokeDashOffset());
-    double strokeWidth = lengthContext.valueForLength(style.strokeWidth());
+    double dashOffset = lengthContext.valueForLength(style.strokeDashOffset(), Style::ZoomNeeded { });
+    double strokeWidth = lengthContext.valueForLength(style.strokeWidth(), Style::ZoomNeeded { });
     auto dashArray = DashArray::map(style.strokeDashArray(), [&](auto& length) -> DashArrayElement {
-        return lengthContext.valueForLength(length);
+        return lengthContext.valueForLength(length, Style::ZoomNeeded { });
     });
 
     writeIfNotDefault(ts, "opacity"_s, style.strokeOpacity().value.value, 1.0f);
@@ -456,12 +457,15 @@ void writeSVGResourceContainer(TextStream& ts, const LegacyRenderSVGResourceCont
         writeNameValuePair(ts, "primitiveUnits"_s, filter.primitiveUnits());
         ts << '\n';
         // Creating a placeholder filter which is passed to the builder.
-        FloatRect dummyRect;
-        FloatSize dummyScale(1, 1);
-        auto dummyFilter = SVGFilterRenderer::create(filter.protectedFilterElement(), FilterRenderingMode::Software, dummyScale, dummyRect, dummyRect, NullGraphicsContext());
-        if (dummyFilter) {
+        Ref filterElement = filter.filterElement();
+        auto placeholderFilter = SVGFilterRenderer::create(filterElement.ptr(), filterElement, {
+                .referenceBox = { },
+                .filterRegion = { },
+                .scale = { 1, 1},
+            }, FilterRenderingMode::Software, NullGraphicsContext());
+        if (placeholderFilter) {
             TextStream::IndentScope indentScope(ts);
-            dummyFilter->externalRepresentation(ts, FilterRepresentation::TestOutput);
+            placeholderFilter->externalRepresentation(ts, FilterRepresentation::TestOutput);
         }
     } else if (resource.resourceType() == ClipperResourceType) {
         const auto& clipper = static_cast<const LegacyRenderSVGResourceClipper&>(resource);
@@ -581,7 +585,7 @@ void writeResources(TextStream& ts, const RenderObject& renderer, OptionSet<Rend
     // FIXME: We want to use SVGResourcesCache to determine which resources are present, instead of quering the resource <-> id cache.
     // For now leave the DRT output as is, but later on we should change this so cycles are properly ignored in the DRT output.
     if (style.hasPositionedMask()) {
-        if (RefPtr maskImage = style.maskLayers().first().image().tryStyleImage()) {
+        if (RefPtr maskImage = style.maskLayers().usedFirst().image().tryStyleImage()) {
             Ref document = renderer.document();
             auto resourceID = SVGURIReference::fragmentIdentifierFromIRIString(maskImage->url(), document);
             if (auto* masker = getRenderSVGResourceById<LegacyRenderSVGResourceMasker>(renderer.treeScopeForSVGReferences(), resourceID)) {

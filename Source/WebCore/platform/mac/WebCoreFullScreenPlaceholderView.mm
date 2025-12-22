@@ -76,7 +76,7 @@
 
 - (NSResponder *)target
 {
-    return _target.get().get();
+    return _target.getAutoreleased();
 }
 
 - (void)setTarget:(NSResponder *)target

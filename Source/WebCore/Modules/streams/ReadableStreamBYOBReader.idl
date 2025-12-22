@@ -30,15 +30,17 @@ dictionary ReadableStreamBYOBReaderReadOptions {
 };
 
 [
+    CustomIsReachable,
     EnabledBySetting=ReadableByteStreamAPIEnabled,
-    Exposed=*
+    Exposed=*,
+    JSCustomMarkFunction,
 ] interface ReadableStreamBYOBReader {
     [CallWith=CurrentGlobalObject] constructor(ReadableStream stream);
 
-    [CallWith=CurrentGlobalObject] Promise<ReadableStreamReadResult> read(ArrayBufferView view, optional ReadableStreamBYOBReaderReadOptions options = {});
+    [CallWith=CurrentGlobalObject, ImplementedAs=readForBindings] Promise<ReadableStreamReadResult> read(ArrayBufferView view, optional ReadableStreamBYOBReaderReadOptions options = {});
     [CallWith=CurrentGlobalObject] undefined releaseLock();
 
     // ReadableStreamGenericReader
     [ImplementedAs=closedPromise] readonly attribute Promise<undefined> closed;
-    [CallWith=CurrentGlobalObject] Promise<undefined> cancel(optional any reason);
+    [CallWith=CurrentGlobalObject, ReturnsOwnPromise] Promise<undefined> cancel(optional any reason);
 };

@@ -36,6 +36,9 @@
 #include "CachedPage.h"
 #include "DocumentInlines.h"
 #include "DocumentLoader.h"
+#include "DocumentPage.h"
+#include "DocumentView.h"
+#include "DocumentWindow.h"
 #include "FrameLoader.h"
 #include "FrameLoaderStateMachine.h"
 #include "FrameTree.h"
@@ -50,6 +53,7 @@
 #include "ProcessSwapDisposition.h"
 #include "ScrollingCoordinator.h"
 #include "SerializedScriptValue.h"
+#include "Settings.h"
 #include "SharedStringHash.h"
 #include "ShouldTreatAsContinuingLoad.h"
 #include "VisitedLinkStore.h"
@@ -762,11 +766,6 @@ void HistoryController::recursiveUpdateForSameDocumentNavigation()
     if (!m_provisionalItem)
         return;
 
-    // The provisional item may represent a different pending navigation.
-    // Don't commit it if it isn't a same document navigation.
-    if (m_currentItem && !protectedCurrentItem()->shouldDoSameDocumentNavigationTo(*protectedProvisionalItem()))
-        return;
-
     // Commit the provisional item.
     if (RefPtr provisionalItem = m_provisionalItem) {
         setCurrentItem(provisionalItem.releaseNonNull());
@@ -1085,13 +1084,13 @@ void HistoryController::pushState(RefPtr<SerializedScriptValue>&& stateObject, c
         document->protectedWindow()->protectedNavigation()->updateForNavigation(*currentItem, NavigationNavigationType::Push);
 }
 
-void HistoryController::replaceState(RefPtr<SerializedScriptValue>&& stateObject, const String& urlString)
+void HistoryController::updateBackForwardListForReplaceState(RefPtr<SerializedScriptValue>&& stateObject, const String& urlString)
 {
     RefPtr currentItem = m_currentItem;
     if (!currentItem)
         return;
 
-    LOG(History, "HistoryController %p replaceState: Setting url of current item %p to %s scrollRestoration %s", this, currentItem.get(), urlString.ascii().data(), currentItem->shouldRestoreScrollPosition() ? "auto" : "manual");
+    LOG(History, "HistoryController %p updateBackForwardListForReplaceState: Setting url of current item %p to %s scrollRestoration %s", this, currentItem.get(), urlString.ascii().data(), currentItem->shouldRestoreScrollPosition() ? "auto" : "manual");
 
     if (!urlString.isEmpty())
         currentItem->setURLString(urlString);
@@ -1099,6 +1098,15 @@ void HistoryController::replaceState(RefPtr<SerializedScriptValue>&& stateObject
     currentItem->setFormData(nullptr);
     currentItem->setFormContentType(String());
     currentItem->notifyChanged();
+}
+
+void HistoryController::replaceState(RefPtr<SerializedScriptValue>&& stateObject, const String& urlString)
+{
+    RefPtr currentItem = m_currentItem;
+    if (!currentItem)
+        return;
+
+    updateBackForwardListForReplaceState(WTFMove(stateObject), urlString);
 
     Ref frame = m_frame.get();
     RefPtr page = frame->page();
