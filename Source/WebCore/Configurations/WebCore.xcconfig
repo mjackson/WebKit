@@ -238,7 +238,9 @@ SWIFT_OBJC_INTEROP_MODE = objcxx;
 MODULEMAP_FILE = $(SRCROOT)/WebCore.modulemap;
 MODULEMAP_PRIVATE_FILE = $(SRCROOT)/WebCore_Private.modulemap;
 
-ENABLE_MODULE_VERIFIER = YES;
+// Temporarily disabled until rdar://166630726 is fixed, which is downstream of
+// PAL modularization.
+ENABLE_MODULE_VERIFIER = NO;
 ENABLE_MODULE_VERIFIER[sdk=macosx14*] = NO;
 MODULE_VERIFIER_SUPPORTED_LANGUAGES = objective-c++;
 MODULE_VERIFIER_SUPPORTED_LANGUAGES[sdk=macosx14*] = ;

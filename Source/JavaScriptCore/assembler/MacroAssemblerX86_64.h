@@ -25,6 +25,8 @@
 
 #pragma once
 
+#include <wtf/Platform.h>
+
 #if ENABLE(ASSEMBLER) && CPU(X86_64)
 
 #include "AbstractMacroAssembler.h"
@@ -1209,9 +1211,15 @@ public:
         xor32(imm, dest);
     }
 
+    void not32(RegisterID src, RegisterID dest)
+    {
+        move32IfNeeded(src, dest);
+        m_assembler.notl_r(dest);
+    }
+
     void not32(RegisterID srcDest)
     {
-        m_assembler.notl_r(srcDest);
+        not32(srcDest, srcDest);
     }
 
     void not32(Address dest)
@@ -4663,10 +4671,6 @@ protected:
     }
 
 private:
-    // Only MacroAssemblerX86 should be using the following method; SSE2 is always available on
-    // x86_64, and clients & subclasses of MacroAssembler should be using 'supportsFloatingPoint()'.
-    friend class MacroAssemblerX86;
-
     ALWAYS_INLINE void generateTest32(Address address, TrustedImm32 mask = TrustedImm32(-1))
     {
         if (mask.m_value == -1)
@@ -9228,10 +9232,6 @@ public:
 
     // Misc helper functions.
 
-    static bool supportsFloatingPoint() { return true; }
-    static bool supportsFloatingPointTruncate() { return true; }
-    static bool supportsFloatingPointSqrt() { return true; }
-    static bool supportsFloatingPointAbs() { return true; }
     static bool supportsFloat16() { return false; }
 
     template<PtrTag resultTag, PtrTag locationTag>

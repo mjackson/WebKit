@@ -73,10 +73,10 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(RenderSVGText);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderSVGText);
 
 RenderSVGText::RenderSVGText(SVGTextElement& element, RenderStyle&& style)
-    : RenderSVGBlock(Type::SVGText, element, WTFMove(style))
+    : RenderSVGBlock(Type::SVGText, element, WTF::move(style))
 {
     ASSERT(isRenderSVGText());
 }
@@ -403,7 +403,7 @@ void RenderSVGText::layout()
     LayoutUnit repaintLogicalTop;
     LayoutUnit repaintLogicalBottom;
     rebuildFloatingObjectSetFromIntrudingFloats();
-    layoutInlineChildren(RelayoutChildren::Yes, repaintLogicalTop, repaintLogicalBottom);
+    layoutInlineChildren(RelayoutChildren::Yes, logicalHeight(), repaintLogicalTop, repaintLogicalBottom);
 
     computePerCharacterLayoutInformation();
 
@@ -442,7 +442,8 @@ void RenderSVGText::layout()
 
 void RenderSVGText::computePerCharacterLayoutInformation()
 {
-    if (!hasLines())
+    auto hasSVGContent = legacyRootBox() || (inlineLayout() && inlineLayout()->hasContentfulInlineLine());
+    if (!hasSVGContent)
         return;
 
     if (m_layoutAttributes.isEmpty())
@@ -468,7 +469,7 @@ void RenderSVGText::computePerCharacterLayoutInformation()
     }
 
     if (inlineLayout()) {
-        auto boundaries = inlineLayout()->applySVGTextFragments(WTFMove(fragmentMap));
+        auto boundaries = inlineLayout()->applySVGTextFragments(WTF::move(fragmentMap));
         updatePositionAndOverflow(boundaries);
     }
 }
@@ -520,7 +521,7 @@ FloatRect RenderSVGText::layoutChildBoxes(LegacyInlineFlowBox* start, SVGTextFra
 
             auto it = fragmentMap.find(makeKey(*InlineIterator::svgTextBoxFor(textBox)));
             if (it != fragmentMap.end())
-                textBox->setTextFragments(WTFMove(it->value));
+                textBox->setTextFragments(WTF::move(it->value));
 
             boxRect = textBox->calculateBoundaries();
             textBox->setX(boxRect.x());
@@ -983,12 +984,12 @@ void RenderSVGText::updatePositionAndOverflow(const FloatRect& boundaries)
     ASSERT(m_objectBoundingBox == frameRect());
 }
 
-void RenderSVGText::styleDidChange(StyleDifference diff, const RenderStyle* oldStyle)
+void RenderSVGText::styleDidChange(Style::Difference diff, const RenderStyle* oldStyle)
 {
     auto needsTransformUpdate = [&]() {
         if (document().settings().layerBasedSVGEngineEnabled())
             return false;
-        if (diff != StyleDifference::Layout)
+        if (diff != Style::DifferenceResult::Layout)
             return false;
 
         auto& newStyle = style();

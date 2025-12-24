@@ -238,28 +238,28 @@ template<typename CharacterType> inline Expected<Ref<StringImpl>, UTF8Conversion
 
 Ref<StringImpl> StringImpl::reallocate(Ref<StringImpl>&& originalString, unsigned length, Latin1Character*& data)
 {
-    auto expectedStringImpl = tryReallocate(WTFMove(originalString), length, data);
+    auto expectedStringImpl = tryReallocate(WTF::move(originalString), length, data);
     RELEASE_ASSERT(expectedStringImpl);
-    return WTFMove(expectedStringImpl.value());
+    return WTF::move(expectedStringImpl.value());
 }
 
 Ref<StringImpl> StringImpl::reallocate(Ref<StringImpl>&& originalString, unsigned length, char16_t*& data)
 {
-    auto expectedStringImpl = tryReallocate(WTFMove(originalString), length, data);
+    auto expectedStringImpl = tryReallocate(WTF::move(originalString), length, data);
     RELEASE_ASSERT(expectedStringImpl);
-    return WTFMove(expectedStringImpl.value());
+    return WTF::move(expectedStringImpl.value());
 }
 
 Expected<Ref<StringImpl>, UTF8ConversionError> StringImpl::tryReallocate(Ref<StringImpl>&& originalString, unsigned length, Latin1Character*& data)
 {
     ASSERT(originalString->is8Bit());
-    return reallocateInternal(WTFMove(originalString), length, data);
+    return reallocateInternal(WTF::move(originalString), length, data);
 }
 
 Expected<Ref<StringImpl>, UTF8ConversionError> StringImpl::tryReallocate(Ref<StringImpl>&& originalString, unsigned length, char16_t*& data)
 {
     ASSERT(!originalString->is8Bit());
-    return reallocateInternal(WTFMove(originalString), length, data);
+    return reallocateInternal(WTF::move(originalString), length, data);
 }
 
 template<typename CharacterType> inline Ref<StringImpl> StringImpl::createInternal(std::span<const CharacterType> characters)
@@ -872,7 +872,7 @@ template<typename CharacterType, class CodeUnitPredicate> inline Ref<StringImpl>
 
     data.shrink(outc);
 
-    return adopt(WTFMove(data));
+    return adopt(WTF::move(data));
 }
 
 Ref<StringImpl> StringImpl::simplifyWhiteSpace(CodeUnitMatchFunction isWhiteSpace)

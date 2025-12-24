@@ -18,6 +18,7 @@ list(APPEND TestWTF_SOURCES
     ${test_main_SOURCES}
 
     Tests/WTF/glib/ActivityObserver.cpp
+    Tests/WTF/glib/GMallocString.cpp
     Tests/WTF/glib/GRefPtr.cpp
     Tests/WTF/glib/GUniquePtr.cpp
     Tests/WTF/glib/GWeakPtr.cpp
@@ -68,9 +69,9 @@ list(APPEND TestWebKit_PRIVATE_INCLUDE_DIRECTORIES
     ${FORWARDING_HEADERS_DIR}
 )
 
-list(APPEND TestWebKit_PRIVATE_LIBRARIES
-    WebKit::WPEToolingBackends
-)
+if (ENABLE_WPE_LEGACY_API)
+    list(APPEND TestWebKit_PRIVATE_LIBRARIES WebKit::WPEToolingBackends)
+endif ()
 
 if (ENABLE_WPE_PLATFORM)
     list(APPEND TestWebKit_PRIVATE_INCLUDE_DIRECTORIES
@@ -102,17 +103,17 @@ set(TestJSC_SOURCES
 set(TestJSC_PRIVATE_INCLUDE_DIRECTORIES
     ${CMAKE_BINARY_DIR}
     ${TESTWEBKITAPI_DIR}
+    "${JavaScriptCoreGLib_FRAMEWORK_HEADERS_DIR}"
+    "${JavaScriptCoreGLib_DERIVED_SOURCES_DIR}"
     "${JavaScriptCoreGLib_DERIVED_SOURCES_DIR}/jsc"
 )
 
-set(TestJSC_FRAMEWORKS
-    JavaScriptCore
-    WTF
-)
-
-if (NOT USE_SYSTEM_MALLOC)
-    list(APPEND TestJSC_FRAMEWORKS bmalloc)
-endif ()
+# To reduce binary bloat, link only against the shared libWPEWebKit library
+# without embedding the object files from the OBJECT library frameworks
+# (WTF, bmalloc, JavaScriptCore) that are already bundled into libWPEWebKit.
+# See detailed explanation at Source/JavaScriptCore/shell/PlatformWPE.cmake
+set(TestJSC_FRAMEWORKS WebKit)
+set(TestJavaScriptCore_FRAMEWORKS WebKit)
 
 set(TestJSC_DEFINITIONS
     WEBKIT_SRC_DIR="${CMAKE_SOURCE_DIR}"

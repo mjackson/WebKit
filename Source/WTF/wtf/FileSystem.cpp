@@ -345,9 +345,9 @@ MappedFileData createMappedFileData(const String& path, size_t bytesSize, FileHa
         return { };
 
     if (outputHandle)
-        *outputHandle = WTFMove(handle);
+        *outputHandle = WTF::move(handle);
 
-    return WTFMove(*mappedFile);
+    return WTF::move(*mappedFile);
 }
 
 void finalizeMappedFileData(MappedFileData& mappedFileData, size_t bytesSize)
@@ -718,7 +718,7 @@ FileHandle createDumpFile(StringView filename, StringView path)
 {
     if (path.isEmpty()) {
         auto [p, handle] = openTemporaryFile(nullString(), filename);
-        return WTFMove(handle);
+        return WTF::move(handle);
     }
     return openFile(makeString(path, pathSeparator, filename), FileOpenMode::Truncate);
 }
@@ -741,7 +741,7 @@ Vector<String> listDirectory(const String& path)
     for (auto it = std::filesystem::begin(entries), end = std::filesystem::end(entries); !ec && it != end; it.increment(ec)) {
         auto fileName = fromStdFileSystemPath(it->path().filename());
         if (!fileName.isNull())
-            fileNames.append(WTFMove(fileName));
+            fileNames.append(WTF::move(fileName));
     }
     return fileNames;
 }

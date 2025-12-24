@@ -96,7 +96,7 @@ IDBError MemoryIDBBackingStore::beginTransaction(const IDBTransactionInfo& info)
         }
     }
 
-    m_transactions.set(info.identifier(), WTFMove(transaction));
+    m_transactions.set(info.identifier(), WTF::move(transaction));
 
     return IDBError { };
 }
@@ -145,7 +145,7 @@ IDBError MemoryIDBBackingStore::createObjectStore(const IDBResourceIdentifier& t
     RELEASE_ASSERT(rawTransaction->isVersionChange());
 
     rawTransaction->addNewObjectStore(objectStore.get());
-    registerObjectStore(WTFMove(objectStore));
+    registerObjectStore(WTF::move(objectStore));
 
     return IDBError { };
 }
@@ -312,7 +312,7 @@ void MemoryIDBBackingStore::removeObjectStoreForVersionChangeAbort(MemoryObjectS
 
 void MemoryIDBBackingStore::restoreObjectStoreForVersionChangeAbort(Ref<MemoryObjectStore>&& objectStore)
 {
-    registerObjectStore(WTFMove(objectStore));
+    registerObjectStore(WTF::move(objectStore));
 }
 
 IDBError MemoryIDBBackingStore::keyExistsInObjectStore(const IDBResourceIdentifier&, IDBObjectStoreIdentifier objectStoreIdentifier, const IDBKeyData& keyData, bool& keyExists)
@@ -562,7 +562,7 @@ void MemoryIDBBackingStore::registerObjectStore(Ref<MemoryObjectStore>&& objectS
 
     auto identifier = objectStore->info().identifier();
     m_objectStoresByName.set(objectStore->info().name(), &objectStore.get());
-    m_objectStoresByIdentifier.set(identifier, WTFMove(objectStore));
+    m_objectStoresByIdentifier.set(identifier, WTF::move(objectStore));
 }
 
 void MemoryIDBBackingStore::unregisterObjectStore(MemoryObjectStore& objectStore)
@@ -675,14 +675,14 @@ void MemoryIDBBackingStore::forEachObjectStoreRecord(const IDBResourceIdentifier
     RefPtr transaction = m_transactions.get(transactionIdentifier);
     if (!transaction) {
         IDBError error { ExceptionCode::UnknownError, "Transaction is not active."_s };
-        apply(makeUnexpected(WTFMove(error)));
+        apply(makeUnexpected(WTF::move(error)));
         return;
     }
 
     RefPtr objectStore = m_objectStoresByIdentifier.get(objectStoreIdentifier);
     if (!objectStore) {
         IDBError error { ExceptionCode::ConstraintError, "Object store does not exist in backing store."_s };
-        apply(makeUnexpected(WTFMove(error)));
+        apply(makeUnexpected(WTF::move(error)));
         return;
     }
 

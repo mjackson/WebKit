@@ -25,6 +25,7 @@
 #include <WebCore/PaintPhase.h>
 #include <WebCore/RenderElement.h>
 #include <wtf/OptionSet.h>
+#include <wtf/UniquelyOwned.h>
 
 namespace WebCore {
 
@@ -44,7 +45,7 @@ struct SVGMarkerResource;
 }
 
 class RenderLayerModelObject : public RenderElement {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(RenderLayerModelObject);
+    WTF_MAKE_TZONE_ALLOCATED(RenderLayerModelObject);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderLayerModelObject);
 public:
     virtual ~RenderLayerModelObject();
@@ -55,8 +56,8 @@ public:
     RenderLayer* layer() const { return m_layer.get(); }
     CheckedPtr<RenderLayer> checkedLayer() const;
 
-    void styleWillChange(StyleDifference, const RenderStyle& newStyle) override;
-    void styleDidChange(StyleDifference, const RenderStyle* oldStyle) override;
+    void styleWillChange(Style::Difference, const RenderStyle& newStyle) override;
+    void styleDidChange(Style::Difference, const RenderStyle* oldStyle) override;
 
     virtual bool requiresLayer() const = 0;
 
@@ -140,7 +141,7 @@ protected:
 private:
     RenderSVGResourceMarker* svgMarkerResourceFromStyle(const Style::SVGMarkerResource&) const;
 
-    std::unique_ptr<RenderLayer> m_layer;
+    UniquelyOwnedPtr<RenderLayer> m_layer;
 
     // Used to store state between styleWillChange and styleDidChange
     static bool s_wasFloating;

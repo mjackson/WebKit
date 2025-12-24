@@ -59,7 +59,7 @@
 #import "NodeName.h"
 #import "RenderImage.h"
 #import "RenderObjectStyle.h"
-#import "RenderStyleInlines.h"
+#import "RenderStyle+GettersInlines.h"
 #import "RenderText.h"
 #import "StyleExtractor.h"
 #import "StyleProperties.h"
@@ -506,7 +506,7 @@ static AttributedString editingAttributedStringInternal(const SimpleRange& range
         stringLength += currentTextLength;
     }
 
-    return AttributedString::fromNSAttributedString(WTFMove(string));
+    return AttributedString::fromNSAttributedString(WTF::move(string));
 }
 
 AttributedString editingAttributedString(const SimpleRange& range, OptionSet<IncludedElement> includedElements)

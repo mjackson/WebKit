@@ -45,7 +45,7 @@ class GeoNotifier : public RefCountedAndCanMakeWeakPtr<GeoNotifier> {
 public:
     static Ref<GeoNotifier> create(Geolocation& geolocation, Ref<PositionCallback>&& positionCallback, RefPtr<PositionErrorCallback>&& positionErrorCallback, PositionOptions&& options)
     {
-        return adoptRef(*new GeoNotifier(geolocation, WTFMove(positionCallback), WTFMove(positionErrorCallback), WTFMove(options)));
+        return adoptRef(*new GeoNotifier(geolocation, WTF::move(positionCallback), WTF::move(positionErrorCallback), WTF::move(options)));
     }
 
     const PositionOptions& options() const { return m_options; }

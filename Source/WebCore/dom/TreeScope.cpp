@@ -93,7 +93,7 @@ TreeScope::TreeScope(ShadowRoot& shadowRoot, Document& document, RefPtr<CustomEl
     : m_rootNode(shadowRoot)
     , m_documentScope(document)
     , m_parentTreeScope(&document)
-    , m_customElementRegistry(WTFMove(registry))
+    , m_customElementRegistry(WTF::move(registry))
 {
     shadowRoot.setTreeScope(*this);
 }
@@ -151,7 +151,7 @@ void TreeScope::setParentTreeScope(TreeScope& newParentScope)
 
 void TreeScope::setCustomElementRegistry(RefPtr<CustomElementRegistry>&& registry)
 {
-    m_customElementRegistry = WTFMove(registry);
+    m_customElementRegistry = WTF::move(registry);
 }
 
 RefPtr<Element> TreeScope::getElementById(const AtomString& elementId) const
@@ -441,7 +441,7 @@ RefPtr<Element> TreeScope::elementFromPoint(double clientX, double clientY, HitT
         node = retargetToScope(*node);
     }
 
-    return uncheckedDowncast<Element>(WTFMove(node));
+    return uncheckedDowncast<Element>(WTF::move(node));
 }
 
 Vector<RefPtr<Element>> TreeScope::elementsFromPoint(double clientX, double clientY, HitTestSource source)
@@ -637,7 +637,7 @@ ExceptionOr<void> TreeScope::setAdoptedStyleSheets(Vector<Ref<CSSStyleSheet>>&& 
 {
     if (!m_adoptedStyleSheets && sheets.isEmpty())
         return { };
-    return ensureAdoptedStyleSheets().setSheets(WTFMove(sheets));
+    return ensureAdoptedStyleSheets().setSheets(WTF::move(sheets));
 }
 
 SVGResourcesMap& TreeScope::svgResourcesMap() const
@@ -769,7 +769,7 @@ void TreeScope::markPendingSVGResourcesForRemoval(const AtomString& id)
 
     auto existing = svgResourcesMap().pendingResources.take(id);
     if (!existing.isEmptyIgnoringNullReferences())
-        svgResourcesMap().pendingResourcesForRemoval.add(id, WTFMove(existing));
+        svgResourcesMap().pendingResourcesForRemoval.add(id, WTF::move(existing));
 }
 
 RefPtr<SVGElement> TreeScope::takeElementFromPendingSVGResourcesForRemovalMap(const AtomString& id)

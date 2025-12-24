@@ -65,7 +65,7 @@
 #include "NodeRenderStyle.h"
 #include "Position.h"
 #include "RenderInline.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include "RenderText.h"
 #include "ScriptDisallowedScope.h"
 #include "ScriptElement.h"
@@ -173,7 +173,7 @@ static Position positionAvoidingPrecedingNodes(Position position)
 }
 
 ReplacementFragment::ReplacementFragment(RefPtr<DocumentFragment>&& inputFragment, const VisibleSelection& selection)
-    : m_fragment(WTFMove(inputFragment))
+    : m_fragment(WTF::move(inputFragment))
     , m_hasInterchangeNewlineAtStart(false)
     , m_hasInterchangeNewlineAtEnd(false)
 {
@@ -255,7 +255,7 @@ void ReplacementFragment::removeContentsWithSideEffects()
         Ref element = *it;
         if (isScriptElement(element) || (is<HTMLStyleElement>(element) && element->getAttribute(classAttr) != WebKitMSOListQuirksStyle)
             || is<HTMLBaseElement>(element) || is<HTMLLinkElement>(element) || is<HTMLMetaElement>(element) || is<HTMLTitleElement>(element)) {
-            elementsToRemove.append(WTFMove(element));
+            elementsToRemove.append(WTF::move(element));
             it.traverseNextSkippingChildren();
             continue;
         }
@@ -269,7 +269,7 @@ void ReplacementFragment::removeContentsWithSideEffects()
     }
 
     for (auto& element : elementsToRemove)
-        removeNode(WTFMove(element));
+        removeNode(WTF::move(element));
 
     for (auto& item : attributesToRemove)
         item.first->removeAttribute(item.second);
@@ -392,7 +392,7 @@ void ReplacementFragment::removeInterchangeNodes(Node* container)
             next = NodeTraversal::nextSkippingChildren(*node);
             removeNodePreservingChildren(*node);
         }
-        node = WTFMove(next);
+        node = WTF::move(next);
     }
 }
 
@@ -473,11 +473,11 @@ inline void ReplaceSelectionCommand::InsertedNodes::didReplaceNode(Node* node, N
 }
 
 ReplaceSelectionCommand::ReplaceSelectionCommand(Ref<Document>&& document, RefPtr<DocumentFragment>&& fragment, OptionSet<CommandOption> options, EditAction editAction)
-    : CompositeEditCommand(WTFMove(document), editAction)
+    : CompositeEditCommand(WTF::move(document), editAction)
     , m_selectReplacement(options & SelectReplacement)
     , m_smartReplace(options & SmartReplace)
     , m_matchStyle(options & MatchStyle)
-    , m_documentFragment(WTFMove(fragment))
+    , m_documentFragment(WTF::move(fragment))
     , m_preventNesting(options & PreventNesting)
     , m_movingParagraph(options & MovingParagraph)
     , m_sanitizeFragment(options & SanitizeFragment)
@@ -889,14 +889,14 @@ void ReplaceSelectionCommand::moveNodeOutOfAncestor(Node& node, Node& ancestor, 
         if (!ancestor.isConnected())
             return;
         if (ancestor.nextSibling())
-            insertNodeBefore(WTFMove(protectedNode), *ancestor.nextSibling());
+            insertNodeBefore(WTF::move(protectedNode), *ancestor.nextSibling());
         else
-            appendNode(WTFMove(protectedNode), *ancestor.parentNode());
+            appendNode(WTF::move(protectedNode), *ancestor.parentNode());
     } else {
         RefPtr<Node> nodeToSplitTo = splitTreeToNode(node, ancestor, true);
         removeNode(node);
         if (nodeToSplitTo)
-            insertNodeBefore(WTFMove(protectedNode), *nodeToSplitTo);
+            insertNodeBefore(WTF::move(protectedNode), *nodeToSplitTo);
     }
 
     document().updateLayoutIgnorePendingStylesheets();
@@ -1002,7 +1002,7 @@ void ReplaceSelectionCommand::handleStyleSpans(InsertedNodes& insertedNodes)
     // so search for the top level style span instead of assuming it's at the top.
     for (RefPtr node = insertedNodes.firstNodeInserted(); node; node = NodeTraversal::next(*node)) {
         if (isLegacyAppleStyleSpan(node.get())) {
-            wrappingStyleSpan = downcast<HTMLElement>(WTFMove(node));
+            wrappingStyleSpan = downcast<HTMLElement>(WTF::move(node));
             break;
         }
     }
@@ -1792,7 +1792,7 @@ static RefPtr<HTMLElement> singleChildList(HTMLElement& element)
         return nullptr;
 
     RefPtr child { element.firstChild() };
-    return isListHTMLElement(child.get()) ? downcast<HTMLElement>(WTFMove(child)) : nullptr;
+    return isListHTMLElement(child.get()) ? downcast<HTMLElement>(WTF::move(child)) : nullptr;
 }
 
 static Ref<HTMLElement> deepestSingleChildList(HTMLElement& topLevelList)

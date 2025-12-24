@@ -161,7 +161,7 @@ void ProgressBarMac::draw(GraphicsContext& context, const FloatRoundedRect& bord
         context.scale(FloatSize(-1, 1));
     }
 
-    context.drawConsumingImageBuffer(WTFMove(imageBuffer), inflatedRect.location());
+    context.drawConsumingImageBuffer(WTF::move(imageBuffer), inflatedRect.location());
 }
 
 } // namespace WebCore

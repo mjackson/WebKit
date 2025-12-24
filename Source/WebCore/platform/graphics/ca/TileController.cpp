@@ -90,12 +90,7 @@ TileController::~TileController()
 
 void TileController::setClient(TiledBackingClient* client)
 {
-    if (client) {
-        m_client = *client;
-        return;
-    }
-
-    m_client = nullptr;
+    m_client = client;
 }
 
 PlatformLayerIdentifier TileController::layerIdentifier() const
@@ -158,8 +153,10 @@ void TileController::setContentsScale(float contentsScale)
         m_coverageMap->setDeviceScaleFactor(deviceScaleFactor);
 
     if (m_zoomedOutTileGrid && m_zoomedOutTileGrid->scale() == scale) {
-        if (m_tileGrid && m_client)
-            m_client->willRemoveGrid(*this, m_tileGrid->identifier());
+        if (m_tileGrid) {
+            if (RefPtr client = m_client.get())
+                client->willRemoveGrid(*this, m_tileGrid->identifier());
+        }
 
         m_tileGrid = std::exchange(m_zoomedOutTileGrid, nullptr);
         m_tileGrid->setIsZoomedOutTileGrid(false);
@@ -169,15 +166,17 @@ void TileController::setContentsScale(float contentsScale)
     }
 
     if (m_zoomedOutContentsScale && m_zoomedOutContentsScale == tileGrid().scale() && tileGrid().scale() != scale && !m_hasTilesWithTemporaryScaleFactor) {
-        if (m_zoomedOutTileGrid && m_client)
-            m_client->willRemoveGrid(*this, m_zoomedOutTileGrid->identifier());
+        if (m_zoomedOutTileGrid) {
+            if (RefPtr client = m_client.get())
+                client->willRemoveGrid(*this, m_zoomedOutTileGrid->identifier());
+        }
 
         m_zoomedOutTileGrid = std::exchange(m_tileGrid, nullptr);
         m_zoomedOutTileGrid->setIsZoomedOutTileGrid(true);
         m_tileGrid = makeUnique<TileGrid>(*this);
 
-        if (m_client)
-            m_client->didAddGrid(*this, m_tileGrid->identifier());
+        if (RefPtr client = m_client.get())
+            client->didAddGrid(*this, m_tileGrid->identifier());
 
         tileGridsChanged();
     }
@@ -185,14 +184,15 @@ void TileController::setContentsScale(float contentsScale)
     auto oldScale = tileGrid().scale();
     tileGrid().setScale(scale);
 
-    bool notifyClient = m_client && scale != oldScale;
-    if (notifyClient)
-        m_client->willRepaintTilesAfterScaleFactorChange(*this, tileGrid().identifier());
+    RefPtr client = m_client.get();
+    bool shouldNotifyClient = client && scale != oldScale;
+    if (shouldNotifyClient)
+        client->willRepaintTilesAfterScaleFactorChange(*this, tileGrid().identifier());
 
     tileGrid().setNeedsDisplay();
 
-    if (notifyClient)
-        m_client->didRepaintTilesAfterScaleFactorChange(*this, tileGrid().identifier());
+    if (shouldNotifyClient)
+        client->didRepaintTilesAfterScaleFactorChange(*this, tileGrid().identifier());
 }
 
 float TileController::contentsScale() const
@@ -301,10 +301,8 @@ void TileController::setCoverageRect(const FloatRect& rect)
     m_coverageRect = rect;
     setNeedsRevalidateTiles();
 
-    if (!m_client)
-        return;
-
-    m_client->coverageRectDidChange(*this, m_coverageRect);
+    if (RefPtr client = m_client.get())
+        client->coverageRectDidChange(*this, m_coverageRect);
 }
 
 bool TileController::tilesWouldChangeForCoverageRect(const FloatRect& rect) const
@@ -614,26 +612,20 @@ void TileController::didEndLiveResize()
 
 void TileController::willRepaintTile(TileGrid& tileGrid, TileIndex tileIndex, const FloatRect& tileClip, const FloatRect& paintDirtyRect)
 {
-    if (!m_client)
-        return;
-
-    m_client->willRepaintTile(*this, tileGrid.identifier(), tileIndex, tileClip, paintDirtyRect);
+    if (RefPtr client = m_client.get())
+        client->willRepaintTile(*this, tileGrid.identifier(), tileIndex, tileClip, paintDirtyRect);
 }
 
 void TileController::willRemoveTile(TileGrid& tileGrid, TileIndex tileIndex)
 {
-    if (!m_client)
-        return;
-
-    m_client->willRemoveTile(*this, tileGrid.identifier(), tileIndex);
+    if (RefPtr client = m_client.get())
+        client->willRemoveTile(*this, tileGrid.identifier(), tileIndex);
 }
 
 void TileController::willRepaintAllTiles(TileGrid& tileGrid)
 {
-    if (!m_client)
-        return;
-
-    m_client->willRepaintAllTiles(*this, tileGrid.identifier());
+    if (RefPtr client = m_client.get())
+        client->willRepaintAllTiles(*this, tileGrid.identifier());
 }
 
 void TileController::notePendingTileSizeChange()
@@ -724,8 +716,8 @@ void TileController::tileRevalidationTimerFired()
 
 void TileController::willRevalidateTiles(TileGrid& tileGrid, TileRevalidationType revalidationType)
 {
-    if (m_client)
-        m_client->willRevalidateTiles(*this, tileGrid.identifier(), revalidationType);
+    if (RefPtr client = m_client.get())
+        client->willRevalidateTiles(*this, tileGrid.identifier(), revalidationType);
 }
 
 void TileController::didRevalidateTiles(TileGrid& tileGrid, TileRevalidationType revalidationType, const HashSet<TileIndex>& tilesNeedingDisplay)
@@ -736,8 +728,8 @@ void TileController::didRevalidateTiles(TileGrid& tileGrid, TileRevalidationType
 
     updateTileCoverageMap();
 
-    if (m_client)
-        m_client->didRevalidateTiles(*this, tileGrid.identifier(), revalidationType, tilesNeedingDisplay);
+    if (RefPtr client = m_client.get())
+        client->didRevalidateTiles(*this, tileGrid.identifier(), revalidationType, tilesNeedingDisplay);
 }
 
 unsigned TileController::blankPixelCount() const
@@ -925,9 +917,10 @@ void TileController::logFilledVisibleFreshTile(unsigned blankPixelCount)
 #if ENABLE(RE_DYNAMIC_CONTENT_SCALING)
 std::optional<DynamicContentScalingDisplayList> TileController::dynamicContentScalingDisplayListForTile(const TileGrid& tileGrid, TileIndex index)
 {
-    if (!m_client)
+    RefPtr client = m_client.get();
+    if (!client)
         return std::nullopt;
-    return m_client->dynamicContentScalingDisplayListForTile(*this, tileGrid.identifier(), index);
+    return client->dynamicContentScalingDisplayListForTile(*this, tileGrid.identifier(), index);
 }
 #endif
 

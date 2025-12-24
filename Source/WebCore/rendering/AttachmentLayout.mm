@@ -58,9 +58,6 @@ constexpr CGFloat attachmentTitleBackgroundPadding = 3;
 constexpr CGFloat attachmentTitleMaximumWidth = 100 - (attachmentTitleBackgroundPadding * 2);
 constexpr CFIndex attachmentTitleMaximumLineCount = 2;
 
-constexpr auto attachmentTitleInactiveBackgroundColor = SRGBA<uint8_t> { 204, 204, 204 };
-constexpr auto attachmentTitleInactiveTextColor = SRGBA<uint8_t> { 100, 100, 100 };
-
 constexpr CGFloat attachmentSubtitleFontSize = 10;
 constexpr int attachmentSubtitleWidthIncrement = 10;
 constexpr auto attachmentSubtitleTextColor = SRGBA<uint8_t> { 82, 145, 214 };
@@ -81,15 +78,9 @@ constexpr CGFloat attachmentMargin = 3;
 
 static Color titleTextColorForAttachment(const RenderAttachment& attachment, AttachmentLayoutStyle style)
 {
-    Color result = RenderTheme::singleton().systemColor(CSSValueCanvastext, attachment.styleColorOptions());
-    
-    if (style == AttachmentLayoutStyle::Selected) {
-        if (attachment.frame().selection().isFocusedAndActive())
-            result = RenderTheme::singleton().systemColor(CSSValueAppleSystemAlternateSelectedText, attachment.styleColorOptions());
-        else
-            result = attachmentTitleInactiveTextColor;
-    }
-    return result;
+    if (style == AttachmentLayoutStyle::Selected && attachment.frame().selection().isFocusedAndActive())
+        return RenderTheme::singleton().systemColor(CSSValueAppleSystemAlternateSelectedText, attachment.styleColorOptions());
+    return RenderTheme::singleton().systemColor(CSSValueCanvastext, attachment.styleColorOptions());
 }
 
 void AttachmentLayout::layOutTitle(const RenderAttachment& attachment)

@@ -41,7 +41,9 @@
 #include "RenderBox.h"
 #include "RenderObjectInlines.h"
 #include "RenderProgress.h"
-#include "RenderStyleSetters.h"
+#include "RenderStyle+GettersInlines.h"
+#include "RenderStyle+InitialInlines.h"
+#include "RenderStyle+SettersInlines.h"
 #include "StylePadding.h"
 #include "ThemeAdwaita.h"
 #include "TimeRanges.h"
@@ -229,7 +231,7 @@ RefPtr<FragmentedSharedBuffer> RenderThemeAdwaita::mediaControlsImageDataForIcon
     auto data = FileSystem::readEntireFile(path);
     if (!data)
         return nullptr;
-    return SharedBuffer::create(WTFMove(*data));
+    return SharedBuffer::create(WTF::move(*data));
 #else
     return nullptr;
 #endif
@@ -416,7 +418,7 @@ Style::PreferredSizePair RenderThemeAdwaita::controlSize(StyleAppearance appeara
             buttonSizeWidth = 12_css_px * zoomFactor;
         if (buttonSizeHeight.isIntrinsicOrLegacyIntrinsicOrAuto())
             buttonSizeHeight = 12_css_px * zoomFactor;
-        return { WTFMove(buttonSizeWidth), WTFMove(buttonSizeHeight) };
+        return { WTF::move(buttonSizeWidth), WTF::move(buttonSizeHeight) };
     }
     case StyleAppearance::InnerSpinButton: {
         auto spinButtonSizeWidth = zoomedSize.width();
@@ -425,7 +427,7 @@ Style::PreferredSizePair RenderThemeAdwaita::controlSize(StyleAppearance appeara
             spinButtonSizeWidth = Style::PreferredSize::Fixed { static_cast<float>(static_cast<int>(arrowSize * zoomFactor)) };
         if (spinButtonSizeHeight.isIntrinsicOrLegacyIntrinsicOrAuto() || fontCascade.size() > arrowSize)
             spinButtonSizeHeight = Style::PreferredSize::Fixed { fontCascade.size() };
-        return { WTFMove(spinButtonSizeWidth), WTFMove(spinButtonSizeHeight) };
+        return { WTF::move(spinButtonSizeWidth), WTF::move(spinButtonSizeHeight) };
     }
     default:
         break;
@@ -447,7 +449,7 @@ Style::MinimumSizePair RenderThemeAdwaita::minimumControlSize(StyleAppearance, c
     if (resultHeight.isIntrinsicOrLegacyIntrinsicOrAuto())
         resultHeight = 0_css_px;
 
-    return { WTFMove(resultWidth), WTFMove(resultHeight) };
+    return { WTF::move(resultWidth), WTF::move(resultHeight) };
 }
 
 Style::LineWidthBox RenderThemeAdwaita::controlBorder(StyleAppearance appearance, const FontCascade& font, const Style::LineWidthBox& zoomedBox, float zoomFactor, const Element* element) const

@@ -66,8 +66,9 @@
 #include "RenderMeter.h"
 #include "RenderElementInlines.h"
 #include "RenderProgress.h"
-#include "RenderStyleSetters.h"
-#include "RenderObjectInlines.h"
+#include "RenderStyle+GettersInlines.h"
+#include "RenderStyle+InitialInlines.h"
+#include "RenderStyle+SettersInlines.h"
 #include "RenderView.h"
 #include "SearchFieldCancelButtonPart.h"
 #include "SearchFieldPart.h"
@@ -512,7 +513,7 @@ static void updateApplePayButtonPartForRenderer(ApplePayButtonPart& applePayButt
 
     applePayButtonPart.setButtonType(style->applePayButtonType());
     applePayButtonPart.setButtonStyle(style->applePayButtonStyle());
-    applePayButtonPart.setLocale(WTFMove(platformLocale));
+    applePayButtonPart.setLocale(WTF::move(platformLocale));
 }
 #endif
 
@@ -594,7 +595,7 @@ static void updateSliderTrackPartForRenderer(SliderTrackPart& sliderTrackPart, c
     sliderTrackPart.setThumbSize(thumbSize);
     sliderTrackPart.setTrackBounds(trackBounds);
     sliderTrackPart.setThumbPosition(thumbPosition);
-    sliderTrackPart.setTickRatios(WTFMove(tickRatios));
+    sliderTrackPart.setTickRatios(WTF::move(tickRatios));
 }
 
 static void updateSwitchThumbPartForRenderer(SwitchThumbPart& switchThumbPart, const RenderElement& renderer)
@@ -1362,7 +1363,7 @@ Style::MinimumSizePair RenderTheme::minimumControlSize(StyleAppearance appearanc
             resultHeight = preferredSize.height().asMinimumSize();
     }
 
-    return { WTFMove(resultWidth), WTFMove(resultHeight) };
+    return { WTF::move(resultWidth), WTF::move(resultHeight) };
 }
 
 Style::LineWidthBox RenderTheme::controlBorder(StyleAppearance appearance, const FontCascade&, const Style::LineWidthBox& zoomedBox, float, const Element*) const
@@ -1429,7 +1430,7 @@ void RenderTheme::adjustButtonOrCheckboxOrColorWellOrInnerSpinButtonOrRadioStyle
     // Padding
     auto paddingBox = controlPadding(appearance, style.paddingBox(), style.usedZoom());
     if (paddingBox != style.paddingBox())
-        style.setPaddingBox(WTFMove(paddingBox));
+        style.setPaddingBox(WTF::move(paddingBox));
 
     // Whitespace
     if (controlRequiresPreWhiteSpace(appearance)) {
@@ -1504,7 +1505,7 @@ void RenderTheme::adjustButtonOrCheckboxOrColorWellOrInnerSpinButtonOrRadioStyle
     if (auto controlFont = this->controlFont(appearance, fontCascade.get(), style.usedZoom())) {
         // If overriding the specified font with the theme font, also override the line height with the standard line height.
         style.setLineHeight(RenderStyle::initialLineHeight());
-        style.setFontDescription(WTFMove(controlFont.value()));
+        style.setFontDescription(WTF::move(controlFont.value()));
     }
 
     // Special style that tells enabled default buttons in active windows to use the ActiveButtonText color.

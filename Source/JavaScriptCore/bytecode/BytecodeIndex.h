@@ -1,5 +1,5 @@
 /*
-* Copyright (C) 2019 Apple Inc. All rights reserved.
+* Copyright (C) 2019-2025 Apple Inc. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions
@@ -70,13 +70,7 @@ public:
 
     // Comparison operators.
     explicit operator bool() const { return m_packedBits != invalidOffset && m_packedBits != deletedValue().offset(); }
-    bool operator ==(const BytecodeIndex& other) const { return asBits() == other.asBits(); }
-
-    bool operator <(const BytecodeIndex& other) const { return asBits() < other.asBits(); }
-    bool operator >(const BytecodeIndex& other) const { return asBits() > other.asBits(); }
-    bool operator <=(const BytecodeIndex& other) const { return asBits() <= other.asBits(); }
-    bool operator >=(const BytecodeIndex& other) const { return asBits() >= other.asBits(); }
-
+    friend auto operator<=>(const BytecodeIndex&, const BytecodeIndex&) = default;
 
     void dump(WTF::PrintStream&) const;
 

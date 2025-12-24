@@ -95,7 +95,7 @@ void GraphicsLayerTextureMapper::setNeedsDisplayInRect(const FloatRect& rect, Sh
 
 bool GraphicsLayerTextureMapper::setChildren(Vector<Ref<GraphicsLayer>>&& children)
 {
-    if (GraphicsLayer::setChildren(WTFMove(children))) {
+    if (GraphicsLayer::setChildren(WTF::move(children))) {
         notifyChange(ChildrenChange);
         return true;
     }
@@ -105,30 +105,30 @@ bool GraphicsLayerTextureMapper::setChildren(Vector<Ref<GraphicsLayer>>&& childr
 void GraphicsLayerTextureMapper::addChild(Ref<GraphicsLayer>&& layer)
 {
     notifyChange(ChildrenChange);
-    GraphicsLayer::addChild(WTFMove(layer));
+    GraphicsLayer::addChild(WTF::move(layer));
 }
 
 void GraphicsLayerTextureMapper::addChildAtIndex(Ref<GraphicsLayer>&& layer, int index)
 {
-    GraphicsLayer::addChildAtIndex(WTFMove(layer), index);
+    GraphicsLayer::addChildAtIndex(WTF::move(layer), index);
     notifyChange(ChildrenChange);
 }
 
 void GraphicsLayerTextureMapper::addChildAbove(Ref<GraphicsLayer>&& layer, GraphicsLayer* sibling)
 {
-    GraphicsLayer::addChildAbove(WTFMove(layer), sibling);
+    GraphicsLayer::addChildAbove(WTF::move(layer), sibling);
     notifyChange(ChildrenChange);
 }
 
 void GraphicsLayerTextureMapper::addChildBelow(Ref<GraphicsLayer>&& layer, GraphicsLayer* sibling)
 {
-    GraphicsLayer::addChildBelow(WTFMove(layer), sibling);
+    GraphicsLayer::addChildBelow(WTF::move(layer), sibling);
     notifyChange(ChildrenChange);
 }
 
 bool GraphicsLayerTextureMapper::replaceChild(GraphicsLayer* oldChild, Ref<GraphicsLayer>&& newChild)
 {
-    if (GraphicsLayer::replaceChild(oldChild, WTFMove(newChild))) {
+    if (GraphicsLayer::replaceChild(oldChild, WTF::move(newChild))) {
         notifyChange(ChildrenChange);
         return true;
     }
@@ -141,7 +141,7 @@ void GraphicsLayerTextureMapper::setMaskLayer(RefPtr<GraphicsLayer>&& value)
         return;
 
     GraphicsLayer* rawLayer = value.get();
-    GraphicsLayer::setMaskLayer(WTFMove(value));
+    GraphicsLayer::setMaskLayer(WTF::move(value));
     notifyChange(MaskLayerChange);
 
     if (!rawLayer)
@@ -155,7 +155,7 @@ void GraphicsLayerTextureMapper::setReplicatedByLayer(RefPtr<GraphicsLayer>&& va
 {
     if (value == replicaLayer())
         return;
-    GraphicsLayer::setReplicatedByLayer(WTFMove(value));
+    GraphicsLayer::setReplicatedByLayer(WTF::move(value));
     notifyChange(ReplicaLayerChange);
 }
 
@@ -429,7 +429,7 @@ void GraphicsLayerTextureMapper::commitLayerChanges()
         auto rawChildren = WTF::map(children(), [](auto& child) -> TextureMapperLayer* {
             return &downcast<GraphicsLayerTextureMapper>(child.get()).layer();
         });
-        m_layer.setChildren(WTFMove(rawChildren));
+        m_layer.setChildren(WTF::move(rawChildren));
     }
 
     if (m_changeMask & MaskLayerChange) {

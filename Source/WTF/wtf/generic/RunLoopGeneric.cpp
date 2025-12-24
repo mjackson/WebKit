@@ -279,7 +279,7 @@ void RunLoop::run()
 
 void RunLoop::setWakeUpCallback(WTF::Function<void()>&& function)
 {
-    RunLoop::currentSingleton().m_wakeUpCallback = WTFMove(function);
+    RunLoop::currentSingleton().m_wakeUpCallback = WTF::move(function);
 }
 #endif
 
@@ -355,7 +355,7 @@ void RunLoop::unscheduleWithLock(TimerBase::ScheduledTask& task)
 #if !USE(BUN_EVENT_LOOP)
 // For Bun, this is defined in RunLoopBun.cpp
 RunLoop::TimerBase::TimerBase(Ref<RunLoop>&& runLoop, ASCIILiteral description)
-    : m_runLoop(WTFMove(runLoop))
+    : m_runLoop(WTF::move(runLoop))
     , m_description(description)
     , m_scheduledTask(ScheduledTask::create(*this))
 {

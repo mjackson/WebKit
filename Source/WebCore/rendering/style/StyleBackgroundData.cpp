@@ -26,14 +26,14 @@
 #include "BorderData.h"
 #include "RenderStyleConstants.h"
 #include "RenderStyleDifference.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+InitialInlines.h"
 
 namespace WebCore {
 
 DEFINE_ALLOCATOR_WITH_HEAP_IDENTIFIER(StyleBackgroundData);
 
 StyleBackgroundData::StyleBackgroundData()
-    : background(RenderStyle::initialBackgroundLayers())
+    : background(CSS::Keyword::None { })
     , backgroundColor(RenderStyle::initialBackgroundColor())
 {
 }
@@ -58,33 +58,15 @@ bool StyleBackgroundData::operator==(const StyleBackgroundData& other) const
         && outline == other.outline;
 }
 
-bool StyleBackgroundData::isEquivalentForPainting(const StyleBackgroundData& other, bool currentColorDiffers) const
-{
-    if (this == &other) {
-        ASSERT(currentColorDiffers);
-        return !containsCurrentColor();
-    }
-
-    if (background != other.background || backgroundColor != other.backgroundColor)
-        return false;
-    if (currentColorDiffers && backgroundColor.containsCurrentColor())
-        return false;
-    if (!outline.isVisible() && !other.outline.isVisible())
-        return true;
-    if (currentColorDiffers && outline.color().containsCurrentColor())
-        return false;
-    return outline == other.outline;
-}
-
 bool StyleBackgroundData::containsCurrentColor() const
 {
     return backgroundColor.containsCurrentColor()
-        || outline.color().containsCurrentColor();
+        || outline.outlineColor.containsCurrentColor();
 }
 
 void StyleBackgroundData::dump(TextStream& ts, DumpStyleValues behavior) const
 {
-    if (behavior == DumpStyleValues::All || background != RenderStyle::initialBackgroundLayers())
+    if (behavior == DumpStyleValues::All || background != Style::BackgroundLayers { CSS::Keyword::None { } })
         ts.dumpProperty("background-image"_s, background);
     if (behavior == DumpStyleValues::All || backgroundColor != RenderStyle::initialBackgroundColor())
         ts.dumpProperty("background-color"_s, backgroundColor);

@@ -83,13 +83,13 @@ void MockCDMFactory::removeSessionWithID(const String& id)
 
 void MockCDMFactory::addKeysToSessionWithID(const String& id, Vector<Ref<SharedBuffer>>&& keys)
 {
-    auto addResult = m_sessions.add(id, WTFMove(keys));
+    auto addResult = m_sessions.add(id, WTF::move(keys));
     if (addResult.isNewEntry)
         return;
 
     auto& value = addResult.iterator->value;
     for (auto& key : keys)
-        value.append(WTFMove(key));
+        value.append(WTF::move(key));
 }
 
 Vector<Ref<SharedBuffer>> MockCDMFactory::removeKeysFromSessionWithID(const String& id)
@@ -98,7 +98,7 @@ Vector<Ref<SharedBuffer>> MockCDMFactory::removeKeysFromSessionWithID(const Stri
     if (it == m_sessions.end())
         return { };
 
-    return WTFMove(it->value);
+    return WTF::move(it->value);
 }
 
 const Vector<Ref<SharedBuffer>>* MockCDMFactory::keysForSessionWithID(const String& id) const
@@ -122,7 +122,7 @@ std::unique_ptr<CDMPrivate> MockCDMFactory::createCDM(const String&, const Strin
 }
 
 MockCDM::MockCDM(WeakPtr<MockCDMFactory> factory, const String& mediaKeysHashSalt)
-    : m_factory(WTFMove(factory))
+    : m_factory(WTF::move(factory))
     , m_mediaKeysHashSalt { mediaKeysHashSalt }
 {
 }
@@ -313,7 +313,7 @@ RefPtr<CDMInstanceSession> MockCDMInstance::createSession()
 }
 
 MockCDMInstanceSession::MockCDMInstanceSession(WeakPtr<MockCDMInstance>&& instance)
-    : m_instance(WTFMove(instance))
+    : m_instance(WTF::move(instance))
 {
 }
 
@@ -337,7 +337,7 @@ void MockCDMInstanceSession::requestLicense(LicenseType licenseType, KeyGrouping
     }
 
     String sessionID = createVersion4UUIDString();
-    factory->addKeysToSessionWithID(sessionID, WTFMove(keyIDs.value()));
+    factory->addKeysToSessionWithID(sessionID, WTF::move(keyIDs.value()));
 
     CString license { "license"_s };
     callback(SharedBuffer::create(license.span()), sessionID, false, SuccessValue::Succeeded);
@@ -371,7 +371,7 @@ void MockCDMInstanceSession::updateLicense(const String& sessionID, LicenseType,
     // FIXME: Session closure, expiration and message handling should be implemented
     // once the relevant algorithms are supported.
 
-    callback(false, WTFMove(changedKeys), std::nullopt, std::nullopt, SuccessValue::Succeeded);
+    callback(false, WTF::move(changedKeys), std::nullopt, std::nullopt, SuccessValue::Succeeded);
 }
 
 void MockCDMInstanceSession::loadSession(LicenseType, const String&, const String&, LoadSessionCallback&& callback)
@@ -387,7 +387,7 @@ void MockCDMInstanceSession::loadSession(LicenseType, const String&, const Strin
     CString messageData { "session loaded"_s };
     Message message { MessageType::LicenseRenewal, SharedBuffer::create(messageData.span()) };
 
-    callback(std::nullopt, std::nullopt, WTFMove(message), SuccessValue::Succeeded, SessionLoadFailure::None);
+    callback(std::nullopt, std::nullopt, WTF::move(message), SuccessValue::Succeeded, SessionLoadFailure::None);
 }
 
 void MockCDMInstanceSession::closeSession(const String& sessionID, CloseSessionCallback&& callback)
@@ -411,12 +411,12 @@ void MockCDMInstanceSession::removeSessionData(const String& id, LicenseType, Re
     }
 
     auto keys = factory->removeKeysFromSessionWithID(id);
-    auto keyStatusVector = WTF::map(WTFMove(keys), [](Ref<SharedBuffer>&& key) {
-        return std::pair { WTFMove(key), KeyStatus::Released };
+    auto keyStatusVector = WTF::map(WTF::move(keys), [](Ref<SharedBuffer>&& key) {
+        return std::pair { WTF::move(key), KeyStatus::Released };
     });
 
     CString message { "remove-message"_s };
-    callback(WTFMove(keyStatusVector), SharedBuffer::create(message.span()), SuccessValue::Succeeded);
+    callback(WTF::move(keyStatusVector), SharedBuffer::create(message.span()), SuccessValue::Succeeded);
 }
 
 void MockCDMInstanceSession::storeRecordOfKeyUsage(const String&)

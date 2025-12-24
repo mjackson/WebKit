@@ -144,9 +144,9 @@ void ExtensionStyleSheets::updateInjectedStyleSheetCache() const
         m_injectedStyleSheetToSource.set(sheet.copyRef(), userStyleSheet.source());
 
         if (sheet->contents().isUserStyleSheet())
-            m_injectedUserStyleSheets.append(WTFMove(sheet));
+            m_injectedUserStyleSheets.append(WTF::move(sheet));
         else
-            m_injectedAuthorStyleSheets.append(WTFMove(sheet));
+            m_injectedAuthorStyleSheets.append(WTF::move(sheet));
     };
 
     for (const auto& userStyleSheet : m_pageSpecificStyleSheets)
@@ -220,14 +220,14 @@ void ExtensionStyleSheets::invalidateInjectedStyleSheetCache()
 void ExtensionStyleSheets::addUserStyleSheet(Ref<StyleSheetContents>&& userSheet)
 {
     ASSERT(userSheet.get().isUserStyleSheet());
-    m_userStyleSheets.append(CSSStyleSheet::create(WTFMove(userSheet), protectedDocument().get()));
+    m_userStyleSheets.append(CSSStyleSheet::create(WTF::move(userSheet), protectedDocument().get()));
     protectedDocument()->styleScope().didChangeExtensionStyleSheets();
 }
 
 void ExtensionStyleSheets::addAuthorStyleSheetForTesting(Ref<StyleSheetContents>&& authorSheet)
 {
     ASSERT(!authorSheet.get().isUserStyleSheet());
-    m_authorStyleSheetsForTesting.append(CSSStyleSheet::create(WTFMove(authorSheet), protectedDocument().get()));
+    m_authorStyleSheetsForTesting.append(CSSStyleSheet::create(WTF::move(authorSheet), protectedDocument().get()));
     protectedDocument()->styleScope().didChangeExtensionStyleSheets();
 }
 

@@ -43,7 +43,7 @@ const ClassInfo TemporalPlainTime::s_info = { "Object"_s, &Base::s_info, nullptr
 
 TemporalPlainTime* TemporalPlainTime::create(VM& vm, Structure* structure, ISO8601::PlainTime&& plainTime)
 {
-    auto* object = new (NotNull, allocateCell<TemporalPlainTime>(vm)) TemporalPlainTime(vm, structure, WTFMove(plainTime));
+    auto* object = new (NotNull, allocateCell<TemporalPlainTime>(vm)) TemporalPlainTime(vm, structure, WTF::move(plainTime));
     object->finishCreation(vm);
     return object;
 }
@@ -55,7 +55,7 @@ Structure* TemporalPlainTime::createStructure(VM& vm, JSGlobalObject* globalObje
 
 TemporalPlainTime::TemporalPlainTime(VM& vm, Structure* structure, ISO8601::PlainTime&& plainTime)
     : Base(vm, structure)
-    , m_plainTime(WTFMove(plainTime))
+    , m_plainTime(WTF::move(plainTime))
 {
 }
 
@@ -140,7 +140,7 @@ TemporalPlainTime* TemporalPlainTime::tryCreateIfValid(JSGlobalObject* globalObj
     auto plainTime = toPlainTime(globalObject, duration);
     RETURN_IF_EXCEPTION(scope, { });
 
-    return TemporalPlainTime::create(vm, structure, WTFMove(plainTime));
+    return TemporalPlainTime::create(vm, structure, WTF::move(plainTime));
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal-balancetime
@@ -411,7 +411,7 @@ ISO8601::PlainTime TemporalPlainTime::regulateTime(JSGlobalObject* globalObject,
 {
     switch (overflow) {
     case TemporalOverflow::Constrain:
-        return constrainTime(WTFMove(duration));
+        return constrainTime(WTF::move(duration));
     case TemporalOverflow::Reject:
         return TemporalPlainTime::toPlainTime(globalObject, duration);
     }
@@ -445,9 +445,9 @@ TemporalPlainTime* TemporalPlainTime::from(JSGlobalObject* globalObject, JSValue
         }
         auto duration = toTemporalTimeRecord(globalObject, jsCast<JSObject*>(itemValue));
         RETURN_IF_EXCEPTION(scope, { });
-        auto plainTime = regulateTime(globalObject, WTFMove(duration), overflow);
+        auto plainTime = regulateTime(globalObject, WTF::move(duration), overflow);
         RETURN_IF_EXCEPTION(scope, { });
-        return TemporalPlainTime::create(vm, globalObject->plainTimeStructure(), WTFMove(plainTime));
+        return TemporalPlainTime::create(vm, globalObject->plainTimeStructure(), WTF::move(plainTime));
     }
 
     if (!itemValue.isString()) {
@@ -465,17 +465,17 @@ TemporalPlainTime* TemporalPlainTime::from(JSGlobalObject* globalObject, JSValue
 
     auto time = ISO8601::parseCalendarTime(string);
     if (time) {
-        auto [plainTime, timeZoneOptional, calendarOptional] = WTFMove(time.value());
+        auto [plainTime, timeZoneOptional, calendarOptional] = WTF::move(time.value());
         if (!(timeZoneOptional && timeZoneOptional->m_z))
-            return TemporalPlainTime::create(vm, globalObject->plainTimeStructure(), WTFMove(plainTime));
+            return TemporalPlainTime::create(vm, globalObject->plainTimeStructure(), WTF::move(plainTime));
     }
 
     auto dateTime = ISO8601::parseCalendarDateTime(string, TemporalDateFormat::Date);
     if (dateTime) {
-        auto [plainDate, plainTimeOptional, timeZoneOptional, calendarOptional] = WTFMove(dateTime.value());
+        auto [plainDate, plainTimeOptional, timeZoneOptional, calendarOptional] = WTF::move(dateTime.value());
         if (plainTimeOptional) {
             if (!(timeZoneOptional && timeZoneOptional->m_z))
-                return TemporalPlainTime::create(vm, globalObject->plainTimeStructure(), WTFMove(plainTimeOptional.value()));
+                return TemporalPlainTime::create(vm, globalObject->plainTimeStructure(), WTF::move(plainTimeOptional.value()));
         }
     }
 
@@ -554,7 +554,7 @@ ISO8601::PlainTime TemporalPlainTime::with(JSGlobalObject* globalObject, JSObjec
     duration.setMicroseconds(microsecondOptional.value_or(microsecond()));
     duration.setNanoseconds(nanosecondOptional.value_or(nanosecond()));
 
-    RELEASE_AND_RETURN(scope, regulateTime(globalObject, WTFMove(duration), overflow));
+    RELEASE_AND_RETURN(scope, regulateTime(globalObject, WTF::move(duration), overflow));
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal-differencetime

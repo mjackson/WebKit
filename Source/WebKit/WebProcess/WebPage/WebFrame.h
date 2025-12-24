@@ -218,8 +218,7 @@ public:
     String mimeTypeForResourceWithURL(const URL&) const;
 
     void setTextDirection(const String&);
-    void updateRemoteFrameSize(WebCore::IntSize);
-    void updateFrameSize(WebCore::IntSize);
+    void updateFrameRectFromRemote(WebCore::IntRect);
 
 #if PLATFORM(COCOA)
     typedef bool (*FrameFilterFunction)(WKBundleFrameRef, WKBundleFrameRef subframe, void* context);
@@ -285,7 +284,7 @@ private:
     uint64_t messageSenderDestinationID() const final;
 
     void setLayerHostingContextIdentifier(WebCore::LayerHostingContextIdentifier identifier) { m_layerHostingContextIdentifier = identifier; }
-    void updateLocalFrameSize(WebCore::LocalFrame&, WebCore::IntSize);
+    void updateLocalFrameRect(WebCore::LocalFrame&, WebCore::IntRect);
 
     inline WebCore::DocumentLoader* policySourceDocumentLoader() const;
 
@@ -293,7 +292,7 @@ private:
 
     void findFocusableElementDescendingIntoRemoteFrame(WebCore::FocusDirection, const WebCore::FocusEventData&, CompletionHandler<void(WebCore::FoundElementInRemoteFrame)>&&);
 
-    WebFrameInspectorTarget& ensureInspectorTarget();
+    CheckedRef<WebFrameInspectorTarget> ensureInspectorTarget();
 
     WeakPtr<WebCore::Frame> m_coreFrame;
     WeakPtr<WebPage> m_page;

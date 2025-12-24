@@ -68,7 +68,7 @@ Ref<CSSValue> CSSValueCreation<TextShadowList>::operator()(CSSValuePool&, const 
     for (const auto& shadow : value | std::views::reverse)
         list.value.append(toCSS(shadow, style));
 
-    return CSSTextShadowPropertyValue::create(CSS::TextShadowProperty { WTFMove(list) });
+    return CSSTextShadowPropertyValue::create(CSS::TextShadowProperty { WTF::move(list) });
 }
 
 auto CSSValueConversion<TextShadows>::operator()(BuilderState& state, const CSSValue& value) -> TextShadows

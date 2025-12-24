@@ -910,7 +910,6 @@ http/tests/security/local-user-CSS-from-remote.html [ Skip ] # Failure
 http/tests/security/local-video-poster-from-remote.html [ Skip ] # Failure
 http/tests/security/local-video-source-from-remote.html [ Skip ] # Failure
 http/tests/security/local-video-src-from-remote.html [ Skip ] # Failure
-http/tests/security/mixedContent/insecure-audio-video-in-main-frame.html [ Skip ] # Failure
 http/tests/security/module-no-mime-type.html [ Skip ] # Failure
 http/tests/security/sync-xhr-partition.html [ Skip ] # Failure
 http/tests/security/video-cross-origin-accessfailure.html [ Skip ] # Failure
@@ -1858,6 +1857,7 @@ webkit.org/b/277235 fast/dynamic/content-visibility-crash-with-continuation-and-
 fast/editing/apply-relative-font-style-change-crash-004.html [ Failure ]
 
 webkit.org/b/238644 fast/events/mouse-click-events.html [ Skip ]
+webkit.org/b/238644 fast/events/mouse-event-buttons.html [ Skip ]
 
 # Makes a subsequent test an assertion failure crash
 webkit.org/b/277121 [ Debug ] fast/events/event-handler-detached-document.html
@@ -4361,8 +4361,6 @@ fast/html/body-color-legacy-parsing-3.html [ Pass ImageOnlyFailure ]
 # Fails on Buildbot
 fast/picture/viewport-resize.html [ Pass Failure ]
 
-imported/w3c/web-platform-tests/css/css-viewport/zoom/iframe-zoom-nested.html [ ImageOnlyFailure Pass ]
-
 fast/text/backslash-to-yen-sign.html [ Pass Failure ]
 
 fast/text/all-small-caps-whitespace.html [ ImageOnlyFailure ]
@@ -4615,3 +4613,6 @@ imported/w3c/web-platform-tests/css/CSS2/box-display/display-008.xht [ ImageOnly
 imported/w3c/web-platform-tests/css/CSS2/box-display/display-009.xht [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/CSS2/box-display/display-012.xht [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/CSS2/box-display/display-013.xht [ ImageOnlyFailure ]
+
+# webkit.org/b/304535 ui-serif, ui-sans-serif, ui-monospace, ui-rounded generic families not implemented on Windows
+imported/w3c/web-platform-tests/css/css-fonts/generic-family-lang-attr-cascade.html [ ImageOnlyFailure ]

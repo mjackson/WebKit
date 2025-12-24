@@ -38,7 +38,7 @@
 namespace WebCore {
 
 PerformanceObserver::PerformanceObserver(ScriptExecutionContext& scriptExecutionContext, Ref<PerformanceObserverCallback>&& callback)
-    : m_callback(WTFMove(callback))
+    : m_callback(WTF::move(callback))
     , m_durationThreshold(PerformanceEventTiming::defaultDurationThreshold)
 {
     if (RefPtr document = dynamicDowncast<Document>(scriptExecutionContext)) {
@@ -148,7 +148,7 @@ void PerformanceObserver::deliver()
         return;
 
     Vector<Ref<PerformanceEntry>> entries = std::exchange(m_entriesToDeliver, { });
-    auto list = PerformanceObserverEntryList::create(WTFMove(entries));
+    auto list = PerformanceObserverEntryList::create(WTF::move(entries));
 
     InspectorInstrumentation::willFireObserverCallback(*context, "PerformanceObserver"_s);
     m_callback->invoke(*this, list, *this);

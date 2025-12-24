@@ -72,7 +72,7 @@ void WebTransportReceiveStreamSource::receiveBytes(std::span<const uint8_t> byte
         auto arrayBuffer = ArrayBuffer::tryCreateUninitialized(bytes.size(), 1);
         if (arrayBuffer)
             memcpySpan(arrayBuffer->mutableSpan(), bytes);
-        if (!controller().enqueue(WTFMove(arrayBuffer)))
+        if (!controller().enqueue(WTF::move(arrayBuffer)))
             doCancel();
     }
     if (withFin) {

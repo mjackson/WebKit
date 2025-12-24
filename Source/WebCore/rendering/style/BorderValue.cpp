@@ -34,17 +34,17 @@ namespace WebCore {
 
 bool BorderValue::isTransparent() const
 {
-    return m_color.isResolvedColor() && m_color.resolvedColor().isValid() && !m_color.resolvedColor().isVisible();
+    return color.isResolvedColor() && color.resolvedColor().isValid() && !color.resolvedColor().isVisible();
 }
 
 bool BorderValue::isVisible() const
 {
-    return nonZero() && !isTransparent() && style() != BorderStyle::Hidden;
+    return nonZero() && !isTransparent() && static_cast<BorderStyle>(style) != BorderStyle::Hidden;
 }
 
 TextStream& operator<<(TextStream& ts, const BorderValue& borderValue)
 {
-    return ts << borderValue.width() << ' ' << borderValue.style() << ' ' << borderValue.color();
+    return ts << borderValue.width << ' ' << static_cast<BorderStyle>(borderValue.style) << ' ' << borderValue.color;
 }
 
 } // namespace WebCore

@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <concepts>
 #include <initializer_list>
 #include <limits>
 #include <optional>
@@ -37,6 +38,7 @@
 #include <wtf/MathExtras.h>
 #include <wtf/Noncopyable.h>
 #include <wtf/NotFound.h>
+#include <wtf/RangeAdaptors.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/SwiftBridging.h>
 #include <wtf/ValueCheck.h>
@@ -124,7 +126,7 @@ struct VectorTypeOperations
             memcpy(static_cast<void*>(dst), static_cast<void*>(const_cast<T*>(src)), reinterpret_cast<const char*>(srcEnd) - reinterpret_cast<const char*>(src));
         else {
             while (src != srcEnd) {
-                new (NotNull, dst) T(WTFMove(*src));
+                new (NotNull, dst) T(WTF::move(*src));
                 src->~T();
                 ++dst;
                 ++src;
@@ -149,7 +151,7 @@ struct VectorTypeOperations
                 while (src != srcEnd) {
                     --srcEnd;
                     --dstEnd;
-                    new (NotNull, dstEnd) T(WTFMove(*srcEnd));
+                    new (NotNull, dstEnd) T(WTF::move(*srcEnd));
                     srcEnd->~T();
                 }
             }
@@ -602,6 +604,20 @@ public:
     {
     }
 
+    template<typename Range>
+        requires std::ranges::input_range<Range> && std::convertible_to<std::ranges::range_value_t<Range>, T>
+    explicit Vector(FromRange, Range&& range)
+    {
+        if constexpr (std::ranges::sized_range<Range>)
+            reserveInitialCapacity(std::ranges::size(range));
+        for (auto&& item : range) {
+            if constexpr (std::is_rvalue_reference_v<Range&&>)
+                append(WTF::move(item));
+            else
+                append(item);
+        }
+    }
+
     // Unlike in std::vector, this constructor does not initialize POD types.
     explicit Vector(size_t size)
         : Base(size, size)
@@ -643,7 +659,7 @@ public:
 
         for (size_t i = 0; i < size; ++i) {
             if (auto item = valueGenerator(i))
-                unsafeAppendWithoutCapacityCheck(WTFMove(*item));
+                unsafeAppendWithoutCapacityCheck(WTF::move(*item));
             else if (nulloptBehavior == NulloptBehavior::Abort)
                 break;
         }
@@ -764,7 +780,7 @@ public:
     
     T takeLast()
     {
-        T result = WTFMove(last());
+        T result = WTF::move(last());
         removeLast();
         return result;
     }
@@ -1530,7 +1546,7 @@ inline void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::app
     if (newSize > capacity())
         expandCapacity<FailureAction::Crash>(newSize);
     for (auto& item : val)
-        unsafeAppendWithoutCapacityCheck(WTFMove(item));
+        unsafeAppendWithoutCapacityCheck(WTF::move(item));
 }
 
 template<typename T, size_t inlineCapacity, typename OverflowHandler, size_t minCapacity, typename Malloc>
@@ -1851,7 +1867,7 @@ template<typename T>
 struct CompactMapTraits<std::optional<T>> {
     using ItemType = T;
     static bool hasValue(const std::optional<T>& returnValue) { return !!returnValue; }
-    static ItemType extractValue(std::optional<T>&& returnValue) { return WTFMove(*returnValue); }
+    static ItemType extractValue(std::optional<T>&& returnValue) { return WTF::move(*returnValue); }
 };
 
 template<typename T>
@@ -1872,7 +1888,7 @@ template<typename T>
 struct CompactMapTraits<RetainPtr<T>> {
     using ItemType = RetainPtr<T>;
     static bool hasValue(const RetainPtr<T>& returnValue) { return !!returnValue; }
-    static ItemType extractValue(RetainPtr<T>&& returnValue) { return WTFMove(returnValue); }
+    static ItemType extractValue(RetainPtr<T>&& returnValue) { return WTF::move(returnValue); }
 };
 
 template<typename MapFunction, typename DestinationVectorType, typename SourceType, typename Enable = void>
@@ -1885,7 +1901,7 @@ struct CompactMapper {
         for (auto&& item : source) {
             auto itemResult = mapFunction(item);
             if (CompactMapTraits<ResultItemType>::hasValue(itemResult))
-                result.append(CompactMapTraits<ResultItemType>::extractValue(WTFMove(itemResult)));
+                result.append(CompactMapTraits<ResultItemType>::extractValue(WTF::move(itemResult)));
         }
         result.shrinkToFit();
     }
@@ -1900,9 +1916,9 @@ struct CompactMapper<MapFunction, DestinationVectorType, SourceType> {
     static void compactMap(DestinationVectorType& result, SourceType&& source, NOESCAPE const MapFunction& mapFunction)
     {
         for (auto&& item : source) {
-            auto itemResult = mapFunction(WTFMove(item));
+            auto itemResult = mapFunction(WTF::move(item));
             if (CompactMapTraits<ResultItemType>::hasValue(itemResult))
-                result.unsafeAppendWithoutCapacityCheck(CompactMapTraits<ResultItemType>::extractValue(WTFMove(itemResult)));
+                result.unsafeAppendWithoutCapacityCheck(CompactMapTraits<ResultItemType>::extractValue(WTF::move(itemResult)));
         }
         result.shrinkToFit();
     }
@@ -1961,7 +1977,7 @@ struct FlatMapper<MapFunction, SourceType> {
     {
         Vector<DestinationItemType> result;
         for (auto&& item : source)
-            result.appendVector(mapFunction(WTFMove(item)));
+            result.appendVector(mapFunction(WTF::move(item)));
         result.shrinkToFit();
         return result;
     }

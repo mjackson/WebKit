@@ -29,7 +29,7 @@
 #import <Network/Network.h>
 #import <wtf/CompletionHandler.h>
 #import <wtf/CoroutineUtilities.h>
-#import <wtf/OSObjectPtr.h>
+#import <wtf/darwin/DispatchOSObject.h>
 
 namespace TestWebKitAPI {
 
@@ -100,7 +100,7 @@ public:
         : m_group(group) { }
     bool await_ready() { return false; }
     void await_suspend(std::coroutine_handle<>);
-    Connection await_resume() { return WTFMove(*m_result); }
+    Connection await_resume() { return WTF::move(*m_result); }
 private:
     ConnectionGroup m_group;
     std::optional<Connection> m_result;
@@ -114,7 +114,7 @@ public:
         : m_connection(connection) { }
     bool await_ready() { return false; }
     void await_suspend(std::coroutine_handle<>);
-    Vector<char> await_resume() { return WTFMove(m_result); }
+    Vector<char> await_resume() { return WTF::move(m_result); }
 private:
     Connection m_connection;
     Vector<char> m_result;
@@ -126,7 +126,7 @@ public:
         : m_connection(connection) { }
     bool await_ready() { return false; }
     void await_suspend(std::coroutine_handle<>);
-    Vector<uint8_t> await_resume() { return WTFMove(m_result); }
+    Vector<uint8_t> await_resume() { return WTF::move(m_result); }
 private:
     Connection m_connection;
     Vector<uint8_t> m_result;
@@ -135,7 +135,7 @@ private:
 class SendOperation {
 public:
     SendOperation(OSObjectPtr<dispatch_data_t>&& data, const Connection& connection)
-        : m_data(WTFMove(data))
+        : m_data(WTF::move(data))
         , m_connection(connection) { }
     bool await_ready() { return false; }
     void await_suspend(std::coroutine_handle<>);

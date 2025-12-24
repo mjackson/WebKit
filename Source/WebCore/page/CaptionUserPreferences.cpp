@@ -326,13 +326,15 @@ Vector<RefPtr<AudioTrack>> CaptionUserPreferences::sortedTrackListForMenu(AudioT
     return tracksForMenu;
 }
 
-int CaptionUserPreferences::textTrackSelectionScore(TextTrack* track, HTMLMediaElement* mediaElement) const
+int CaptionUserPreferences::textTrackSelectionScore(TextTrack& track, HTMLMediaElement& mediaElement) const
 {
-    if (!mediaElement || !mediaElement->player())
-        return 0;
+    auto* firstEnabledAudioTrack = mediaElement.audioTracks() ? mediaElement.audioTracks()->firstEnabled() : nullptr;
+    return textTrackSelectionScore(track, captionDisplayMode(), firstEnabledAudioTrack);
+}
 
-    CaptionDisplayMode displayMode = captionDisplayMode();
-    auto kind = track->kind();
+int CaptionUserPreferences::textTrackSelectionScore(TextTrack& track, CaptionDisplayMode displayMode, AudioTrack* enabledAudioTrack) const
+{
+    auto kind = track.kind();
     auto prefersTextDescriptions = kind == TextTrack::Kind::Descriptions && userPrefersTextDescriptions();
     if (displayMode == CaptionDisplayMode::Manual && !prefersTextDescriptions)
         return 0;
@@ -342,10 +344,10 @@ int CaptionUserPreferences::textTrackSelectionScore(TextTrack* track, HTMLMediaE
 
     if (kind != TextTrack::Kind::Captions && kind != TextTrack::Kind::Subtitles && kind != TextTrack::Kind::Forced && !prefersTextDescriptions)
         return 0;
-    if (!track->isMainProgramContent() && !prefersTextDescriptions)
+    if (!track.isMainProgramContent() && !prefersTextDescriptions)
         return 0;
 
-    bool trackHasOnlyForcedSubtitles = track->containsOnlyForcedSubtitles();
+    bool trackHasOnlyForcedSubtitles = track.containsOnlyForcedSubtitles();
     if (((trackHasOnlyForcedSubtitles && displayMode != CaptionDisplayMode::ForcedOnly) || (!trackHasOnlyForcedSubtitles && displayMode == CaptionDisplayMode::ForcedOnly)))
         return 0;
 
@@ -353,7 +355,7 @@ int CaptionUserPreferences::textTrackSelectionScore(TextTrack* track, HTMLMediaE
 
     if ((displayMode == CaptionDisplayMode::Automatic) || trackHasOnlyForcedSubtitles || prefersTextDescriptions) {
 
-        String textTrackLanguage = track->validBCP47Language();
+        String textTrackLanguage = track.validBCP47Language();
         if (textTrackLanguage.isEmpty())
             return 0;
 
@@ -363,8 +365,8 @@ int CaptionUserPreferences::textTrackSelectionScore(TextTrack* track, HTMLMediaE
         String audioTrackLanguage;
         if (testingMode())
             audioTrackLanguage = primaryAudioTrackLanguageOverride();
-        else
-            audioTrackLanguage = mediaElement->protectedPlayer()->languageOfPrimaryAudioTrack();
+        else if (enabledAudioTrack)
+            audioTrackLanguage = enabledAudioTrack->language();
 
         if (audioTrackLanguage.isEmpty())
             return 0;
@@ -402,7 +404,7 @@ int CaptionUserPreferences::textTrackSelectionScore(TextTrack* track, HTMLMediaE
         // When the user prefers accessibility tracks, rank is SDH, then CC, then subtitles.
         if (kind == TextTrack::Kind::Subtitles)
             trackScore = 1;
-        else if (track->isClosedCaptions())
+        else if (track.isClosedCaptions())
             trackScore = 2;
         else
             trackScore = 3;
@@ -410,7 +412,7 @@ int CaptionUserPreferences::textTrackSelectionScore(TextTrack* track, HTMLMediaE
         // When the user prefers translation tracks, rank is subtitles, then SDH, then CC tracks.
         if (kind == TextTrack::Kind::Subtitles)
             trackScore = 3;
-        else if (!track->isClosedCaptions())
+        else if (!track.isClosedCaptions())
             trackScore = 2;
         else
             trackScore = 1;
@@ -419,13 +421,13 @@ int CaptionUserPreferences::textTrackSelectionScore(TextTrack* track, HTMLMediaE
     return trackScore + textTrackLanguageSelectionScore(track, userPreferredCaptionLanguages);
 }
 
-int CaptionUserPreferences::textTrackLanguageSelectionScore(TextTrack* track, const Vector<String>& preferredLanguages) const
+int CaptionUserPreferences::textTrackLanguageSelectionScore(TextTrack& track, const Vector<String>& preferredLanguages) const
 {
-    if (track->validBCP47Language().isEmpty())
+    if (track.validBCP47Language().isEmpty())
         return 0;
 
     bool exactMatch;
-    size_t languageMatchIndex = indexOfBestMatchingLanguageInList(track->validBCP47Language(), preferredLanguages, exactMatch);
+    size_t languageMatchIndex = indexOfBestMatchingLanguageInList(track.validBCP47Language(), preferredLanguages, exactMatch);
     if (languageMatchIndex >= preferredLanguages.size())
         return 0;
 

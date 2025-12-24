@@ -23,14 +23,14 @@
 
 #include "RenderBlock.h"
 #include "RenderObjectInlines.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include "StyleInheritedData.h"
 #include <wtf/NeverDestroyed.h>
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(RenderCombineText);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderCombineText);
 
 const float textCombineMargin = 1.15f; // Allow em + 15% margin
 
@@ -44,7 +44,7 @@ RenderCombineText::RenderCombineText(Text& textNode, const String& string)
 
 RenderCombineText::~RenderCombineText() = default;
 
-void RenderCombineText::styleDidChange(StyleDifference diff, const RenderStyle* oldStyle)
+void RenderCombineText::styleDidChange(Style::Difference diff, const RenderStyle* oldStyle)
 {
     // FIXME: This is pretty hackish.
     // Only cache a new font style if our old one actually changed. We do this to avoid
@@ -133,10 +133,10 @@ void RenderCombineText::combineTextIfNeeded()
     m_isCombined = combinedTextWidth <= emWidth;
     
     if (m_isCombined)
-        m_combineFontStyle->setFontDescription(WTFMove(description)); // Need to change font orientation to horizontal.
+        m_combineFontStyle->setFontDescription(WTF::move(description)); // Need to change font orientation to horizontal.
     else {
         // Need to try compressed glyphs.
-        static const FontWidthVariant widthVariants[] = { FontWidthVariant::HalfWidth, FontWidthVariant::ThirdWidth, FontWidthVariant::QuarterWidth };
+        static constexpr auto widthVariants = std::to_array<FontWidthVariant>({ FontWidthVariant::HalfWidth, FontWidthVariant::ThirdWidth, FontWidthVariant::QuarterWidth });
         for (auto widthVariant : widthVariants) {
             description.setWidthVariant(widthVariant); // When modifying this, make sure to keep it in sync with FontPlatformData::isForTextCombine()!
 
@@ -150,7 +150,7 @@ void RenderCombineText::combineTextIfNeeded()
                 m_isCombined = true;
 
                 // Replace my font with the new one.
-                m_combineFontStyle->setFontDescription(WTFMove(description));
+                m_combineFontStyle->setFontDescription(WTF::move(description));
                 break;
             }
             

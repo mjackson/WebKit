@@ -201,7 +201,7 @@ LeafBoxIterator boxFor(const LayoutIntegration::InlineContent&, size_t boxIndex)
 // -----------------------------------------------
 
 inline Box::Box(PathVariant&& path)
-    : m_pathVariant(WTFMove(path))
+    : m_pathVariant(WTF::move(path))
 {
 }
 

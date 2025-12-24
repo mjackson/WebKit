@@ -26,6 +26,8 @@
 
 #pragma once
 
+#include "FPRInfo.h"
+#include "GPRInfo.h"
 #include "Reg.h"
 
 #if ENABLE(JIT)

@@ -26,7 +26,7 @@
 #include "config.h"
 #include "StyleFontData.h"
 
-#include "RenderStyleInlines.h"
+#include "RenderStyle+InitialInlines.h"
 #include "StylePrimitiveKeyword+Logging.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
 

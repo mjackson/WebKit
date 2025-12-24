@@ -372,7 +372,11 @@
                 "visited-link-color-support": true,
                 "color-property": true,
                 "style-builder-custom": "All",
-                "skip-render-style": true,
+                "skip-render-style-getter": true,
+                "skip-render-style-setter": true,
+                "skip-render-style-initial": true,
+                "render-style-changed-for-animation-custom": true,
+                "render-style-storage-path": ["m_rareInheritedData"],
                 "parser-grammar": "auto | <color>"
             },
             "specification": {
@@ -383,7 +387,7 @@
         "color": {
             "animation-type": "by computed value",
             "inherited": true,
-            "initial": "CanvasText",
+            "initial": "Canvastext",
             "codegen-properties": {
                 "accepts-quirky-color": true,
                 "animation-wrapper": "VisitedAffectedColorWrapper",
@@ -392,6 +396,7 @@
                 "style-builder-custom": "All",
                 "style-extractor-custom": true,
                 "fast-path-inherited": true,
+                "render-style-initial-custom": true,
                 "render-style-getter-custom": true,
                 "render-style-getter-exported": true,
                 "render-style-getter-inline": false,
@@ -399,7 +404,7 @@
                 "render-style-has-explicitly-set-storage-container": "struct",
                 "render-style-storage-path": ["m_inheritedData"],
                 "render-style-storage-kind": "reference",
-                "render-style-type": "Color",
+                "render-style-type": "WebCore::Color",
                 "render-style-visited-link-storage-path": ["m_inheritedData"],
                 "parser-grammar": "<color>"
             },
@@ -422,7 +427,7 @@
                 "settings-flag": "cssLineClampEnabled",
                 "render-style-name-for-methods": "OverflowContinue",
                 "render-style-storage-path": ["m_nonInheritedData", "rareData"],
-                "render-style-storage-kind": "value",
+                "render-style-storage-kind": "enum",
                 "render-style-type": "OverflowContinue",
                 "parser-grammar": "<<values>>",
                 "parser-exported": true
@@ -444,11 +449,13 @@
             "codegen-properties": {
                 "style-builder-custom": "Value",
                 "style-extractor-custom": true,
+                "render-style-has-explicitly-set-storage-path": ["m_nonInheritedData", "miscData"],
                 "render-style-getter": "computedDirection",
                 "render-style-getter-custom": true,
                 "render-style-setter-custom": true,
                 "render-style-setter-returns-if-changed": true,
-                "render-style-has-explicitly-set-storage-path": ["m_nonInheritedData", "miscData"],
+                "render-style-storage-container": "struct",
+                "render-style-storage-path": ["m_inheritedFlags"],
                 "render-style-storage-kind": "enum",
                 "render-style-type": "TextDirection",
                 "high-priority": true,
@@ -483,8 +490,14 @@
                 "inline-flex",
                 "grid",
                 "inline-grid",
-                "grid-lanes",
-                "inline-grid-lanes",
+                {
+                    "value": "grid-lanes",
+                    "settings-flag": "gridLanesEnabled"
+                },
+                {
+                    "value": "inline-grid-lanes",
+                    "settings-flag": "gridLanesEnabled"
+                },
                 {
                     "value": "ruby",
                     "status": "unimplemented"
@@ -627,8 +640,9 @@
                 "style-extractor-custom": true,
                 "style-builder-custom": "All",
                 "high-priority": true,
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "skip-render-style-initial": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-type": "Style::FontFamilies",
                 "parser-function": "consumeFontFamily",
                 "parser-grammar-unused": "[ <family-name> | <generic-family> | <-webkit-generic-family> ]#",
@@ -655,6 +669,10 @@
                 "smaller",
                 "larger",
                 {
+                    "value": "math",
+                    "settings-flag": "cssMathDepthEnabled"
+                },
+                {
                     "value": "-webkit-xxx-large",
                     "status": "non-standard"
                 },
@@ -670,11 +688,12 @@
                 "style-builder-custom": "All",
                 "style-extractor-custom": true,
                 "high-priority": true,
+                "skip-render-style-initial": true,
                 "render-style-getter": "specifiedFontSize",
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-type": "float",
-                "parser-grammar": "<absolute-size> | <relative-size> | <length-percentage [0,inf]> | <-webkit-absolute-size> | <-webkit-relative-size>",
+                "parser-grammar": "<absolute-size> | <relative-size> | <length-percentage [0,inf]> | math@(settings-flag=cssMathDepthEnabled) | <-webkit-absolute-size> | <-webkit-relative-size>",
                 "parser-exported": true
             },
             "specification": {
@@ -699,8 +718,8 @@
                 "font-property": true,
                 "high-priority": true,
                 "separator": " ",
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::FontSizeAdjust",
                 "parser-function": "consumeFontSizeAdjust",
@@ -726,8 +745,8 @@
             "codegen-properties": {
                 "font-property": true,
                 "high-priority": true,
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::FontStyle",
                 "parser-function": "consumeFontStyle",
@@ -753,8 +772,8 @@
                 "font-description-name-for-methods": "Weight",
                 "font-property": true,
                 "high-priority": true,
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::FontWeight",
                 "parser-grammar": "<font-weight-absolute> | bolder | lighter",
@@ -787,8 +806,8 @@
                     "font-description-name-for-methods": "Width",
                     "font-property": true,
                     "high-priority": true,
-                    "render-style-getter-custom": true,
-                    "render-style-setter-custom": true,
+                    "render-style-storage-container": "opaque",
+                    "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                     "render-style-storage-kind": "value",
                     "render-style-type": "Style::FontWidth",
                     "parser-grammar": "<font-width-absolute> | <percentage [0,inf]>"
@@ -799,8 +818,8 @@
                     "font-description-name-for-methods": "Width",
                     "font-property": true,
                     "high-priority": true,
-                    "render-style-getter-custom": true,
-                    "render-style-setter-custom": true,
+                    "render-style-storage-container": "opaque",
+                    "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                     "render-style-storage-kind": "value",
                     "render-style-type": "Style::FontWidth",
                     "parser-grammar": "<font-width-absolute>"
@@ -844,6 +863,7 @@
             ],
             "codegen-properties": {
                 "settings-flag": "cssTextBoxTrimEnabled",
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_rareInheritedData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::TextBoxEdge",
@@ -894,8 +914,8 @@
                 "font-description-name-for-methods": "TextRenderingMode",
                 "font-property": true,
                 "high-priority": true,
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-storage-kind": "enum",
                 "render-style-type": "TextRenderingMode",
                 "parser-grammar": "<<values>>"
@@ -916,8 +936,8 @@
                 "font-description-name-for-methods": "FeatureSettings",
                 "font-property": true,
                 "high-priority": true,
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::FontFeatureSettings",
                 "parser-grammar": "normal | <feature-tag-value>#@(no-single-item-opt)",
@@ -940,8 +960,8 @@
                 "font-description-name-for-methods": "VariationSettings",
                 "font-property": true,
                 "high-priority": true,
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::FontVariationSettings",
                 "parser-grammar": "normal | <variation-tag-value>#@(no-single-item-opt)"
@@ -968,8 +988,8 @@
                 "font-property": true,
                 "high-priority": true,
                 "style-builder-needs-system-font-shorthand-check": true,
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-storage-kind": "enum",
                 "render-style-type": "Kerning",
                 "parser-grammar": "<<values>>"
@@ -987,8 +1007,8 @@
             "codegen-properties": {
                 "font-property": true,
                 "high-priority": true,
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::FontPalette",
                 "parser-grammar": "normal | light | dark | <palette-identifier>"
@@ -1011,8 +1031,8 @@
             "codegen-properties": {
                 "font-property": true,
                 "high-priority": true,
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-storage-kind": "enum",
                 "render-style-type": "FontSmoothingMode",
                 "parser-grammar": "<<values>>"
@@ -1039,8 +1059,9 @@
                 "font-description-name-for-methods": "VariantLigatures",
                 "font-property": true,
                 "high-priority": true,
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-initial-constexpr": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::FontVariantLigatures",
                 "parser-grammar": "normal | none | [ <common-lig-values> || <discretionary-lig-values> || <historical-lig-values> || <contextual-alt-values> ]@(no-single-item-opt)"
@@ -1064,8 +1085,8 @@
                 "font-property": true,
                 "high-priority": true,
                 "style-builder-needs-system-font-shorthand-check": true,
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-storage-kind": "enum",
                 "render-style-type": "FontVariantPosition",
                 "parser-grammar": "<<values>>",
@@ -1094,8 +1115,8 @@
                 "font-property": true,
                 "high-priority": true,
                 "style-builder-needs-system-font-shorthand-check": true,
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-storage-kind": "enum",
                 "render-style-type": "FontVariantCaps",
                 "parser-grammar": "<<values>>",
@@ -1125,8 +1146,9 @@
                 "font-description-name-for-methods": "VariantNumeric",
                 "font-property": true,
                 "high-priority": true,
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-initial-constexpr": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::FontVariantNumeric",
                 "parser-grammar": "normal | [ <numeric-figure-values> || <numeric-spacing-values> || <numeric-fraction-values> || ordinal || slashed-zero ]@(no-single-item-opt)"
@@ -1144,8 +1166,8 @@
                 "font-description-name-for-methods": "VariantAlternates",
                 "font-property": true,
                 "high-priority": true,
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::FontVariantAlternates",
                 "parser-grammar": "normal | [ stylistic(<feature-value-name>) || historical-forms || styleset(<feature-value-name>#) || character-variant(<feature-value-name>#) || swash(<feature-value-name>) || ornaments(<feature-value-name>) || annotation(<feature-value-name>) ]@(no-single-item-opt)",
@@ -1176,8 +1198,9 @@
                 "font-description-name-for-methods": "VariantEastAsian",
                 "font-property": true,
                 "high-priority": true,
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-initial-constexpr": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::FontVariantEastAsian",
                 "parser-grammar": "normal | [ <east-asian-variant-values> || <east-asian-width-values> || ruby ]@(no-single-item-opt)",
@@ -1204,8 +1227,8 @@
                 "font-property": true,
                 "high-priority": true,
                 "style-builder-needs-system-font-shorthand-check": true,
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-storage-kind": "enum",
                 "render-style-type": "FontVariantEmoji",
                 "parser-grammar": "<<values>>",
@@ -1244,8 +1267,8 @@
             "codegen-properties": {
                 "font-property": true,
                 "high-priority": true,
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-storage-kind": "enum",
                 "render-style-type": "FontSynthesisLonghandValue",
                 "parser-grammar": "<<values>>"
@@ -1266,8 +1289,8 @@
             "codegen-properties": {
                 "font-property": true,
                 "high-priority": true,
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-storage-kind": "enum",
                 "render-style-type": "FontSynthesisLonghandValue",
                 "parser-grammar": "<<values>>"
@@ -1288,8 +1311,8 @@
             "codegen-properties": {
                 "font-property": true,
                 "high-priority": true,
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-storage-kind": "enum",
                 "render-style-type": "FontSynthesisLonghandValue",
                 "parser-grammar": "<<values>>"
@@ -1313,8 +1336,8 @@
                 "font-property": true,
                 "high-priority": true,
                 "style-builder-needs-system-font-shorthand-check": true,
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-storage-kind": "enum",
                 "render-style-type": "FontOpticalSizing",
                 "parser-grammar": "<<values>>"
@@ -1396,8 +1419,8 @@
                 "font-description-name-for-methods": "SpecifiedLocale",
                 "font-property": true,
                 "high-priority": true,
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::WebkitLocale",
                 "parser-grammar": "auto | <string>"
@@ -1419,6 +1442,8 @@
                 "render-style-getter-custom": true,
                 "render-style-setter-custom": true,
                 "render-style-setter-returns-if-changed": true,
+                "render-style-storage-container": "struct",
+                "render-style-storage-path": ["m_inheritedFlags"],
                 "render-style-storage-kind": "enum",
                 "render-style-type": "TextOrientation",
                 "high-priority": true,
@@ -1473,6 +1498,7 @@
                 "high-priority": true,
                 "style-builder-custom": "Value",
                 "render-style-name-for-methods": "TextSizeAdjust",
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_rareInheritedData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::TextSizeAdjust",
@@ -1514,8 +1540,9 @@
                 "font-property": true,
                 "high-priority": true,
                 "sink-priority": true,
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-initial-constexpr": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::TextSpacingTrim",
                 "parser-grammar": "<<values>>",
@@ -1544,8 +1571,9 @@
                 "font-property": true,
                 "high-priority": true,
                 "sink-priority": true,
-                "render-style-getter-custom": true,
-                "render-style-setter-custom": true,
+                "render-style-initial-constexpr": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_inheritedData", "fontData", "fontCascade"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::TextAutospace",
                 "parser-grammar": "normal | auto | no-autospace | [ ideograph-alpha || ideograph-numeric ]@(no-single-item-opt)",
@@ -1609,11 +1637,13 @@
                 ],
                 "style-builder-custom": "Value",
                 "style-extractor-custom": true,
+                "render-style-has-explicitly-set-storage-path": ["m_nonInheritedData", "miscData"],
                 "render-style-getter": "computedWritingMode",
                 "render-style-getter-custom": true,
                 "render-style-setter-custom": true,
                 "render-style-setter-returns-if-changed": true,
-                "render-style-has-explicitly-set-storage-path": ["m_nonInheritedData", "miscData"],
+                "render-style-storage-container": "struct",
+                "render-style-storage-path": ["m_inheritedFlags"],
                 "render-style-storage-kind": "enum",
                 "render-style-type": "StyleWritingMode",
                 "top-priority": true,
@@ -1659,6 +1689,7 @@
             "codegen-properties": {
                 "style-builder-custom": "All",
                 "high-priority": true,
+                "render-style-initial-constexpr": true,
                 "render-style-setter-custom": true,
                 "render-style-setter-returns-if-changed": true,
                 "render-style-storage-path": ["m_nonInheritedData", "rareData"],
@@ -1703,6 +1734,7 @@
         "-webkit-ruby-position": {
             "animation-type": "not animatable (legacy)",
             "inherited": true,
+            "initial": "before",
             "values": [
                 {
                     "value": "before",
@@ -1833,6 +1865,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "CompositeOperation",
                 "coordinated-value-list-property-item-type": "CompositeOperation",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "animations"],
                 "parser-grammar": "<single-animation-composition>#"
             },
             "specification": {
@@ -1850,6 +1884,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "Delay",
                 "coordinated-value-list-property-item-type": "Style::SingleAnimationDelay",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "animations"],
                 "separator": ",",
                 "parser-grammar": "<time>#"
             },
@@ -1874,6 +1910,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "Direction",
                 "coordinated-value-list-property-item-type": "AnimationDirection",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "animations"],
                 "separator": ",",
                 "parser-grammar": "<single-animation-direction>#"
             },
@@ -1892,6 +1930,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "Duration",
                 "coordinated-value-list-property-item-type": "Style::SingleAnimationDuration",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "animations"],
                 "style-extractor-custom": true,
                 "separator": ",",
                 "parser-grammar": "<single-animation-duration>#"
@@ -1918,6 +1958,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "FillMode",
                 "coordinated-value-list-property-item-type": "AnimationFillMode",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "animations"],
                 "separator": ",",
                 "parser-grammar": "<single-animation-fill-mode>#"
             },
@@ -1936,6 +1978,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "IterationCount",
                 "coordinated-value-list-property-item-type": "Style::SingleAnimationIterationCount",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "animations"],
                 "separator": ",",
                 "parser-grammar": "<single-animation-iteration-count>#"
             },
@@ -1957,6 +2001,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "Name",
                 "coordinated-value-list-property-item-type": "Style::SingleAnimationName",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "animations"],
                 "separator": ",",
                 "parser-grammar": "<single-animation-name>#"
             },
@@ -1979,6 +2025,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "PlayState",
                 "coordinated-value-list-property-item-type": "AnimationPlayState",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "animations"],
                 "separator": ",",
                 "parser-grammar": "<single-animation-play-state>#"
             },
@@ -2021,6 +2069,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "RangeStart",
                 "coordinated-value-list-property-item-type": "Style::SingleAnimationRangeStart",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "animations"],
                 "separator": ",",
                 "parser-grammar": "<single-animation-range-start>#",
                 "settings-flag": "scrollDrivenAnimationsEnabled"
@@ -2046,6 +2096,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "RangeEnd",
                 "coordinated-value-list-property-item-type": "Style::SingleAnimationRangeEnd",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "animations"],
                 "separator": ",",
                 "parser-grammar": "<single-animation-range-end>#",
                 "settings-flag": "scrollDrivenAnimationsEnabled"
@@ -2067,6 +2119,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "Timeline",
                 "coordinated-value-list-property-item-type": "Style::SingleAnimationTimeline",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "animations"],
                 "parser-grammar": "<single-animation-timeline>#"
             },
             "specification": {
@@ -2093,6 +2147,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "TimingFunction",
                 "coordinated-value-list-property-item-type": "Style::EasingFunction",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "animations"],
                 "separator": ",",
                 "parser-grammar": "<easing-function>#"
             },
@@ -2135,6 +2191,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "Attachment",
                 "coordinated-value-list-property-item-type": "FillAttachment",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "backgroundData", "background"],
                 "disables-native-appearance": true,
                 "separator": ",",
                 "parser-grammar": "<single-background-attachment>#"
@@ -2177,6 +2235,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "BlendMode",
                 "coordinated-value-list-property-item-type": "BlendMode",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "backgroundData", "background"],
                 "separator": ",",
                 "parser-grammar": "<single-background-blend-mode>#"
             },
@@ -2216,6 +2276,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "Clip",
                 "coordinated-value-list-property-item-type": "FillBox",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "backgroundData", "background"],
                 "separator": " ",
                 "disables-native-appearance": true,
                 "parser-grammar": "<single-background-clip>#"
@@ -2256,6 +2318,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "Image",
                 "coordinated-value-list-property-item-type": "Style::ImageOrNone",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "backgroundData", "background"],
                 "disables-native-appearance": true,
                 "medium-priority": true,
                 "separator": " ",
@@ -2279,6 +2343,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "Origin",
                 "coordinated-value-list-property-item-type": "FillBox",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "backgroundData", "background"],
                 "disables-native-appearance": true,
                 "separator": " ",
                 "parser-grammar": "<single-background-origin>#"
@@ -2313,6 +2379,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "PositionX",
                 "coordinated-value-list-property-item-type": "Style::PositionX",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "backgroundData", "background"],
                 "disables-native-appearance": true,
                 "parser-grammar": "<single-background-position-x>#"
             },
@@ -2328,6 +2396,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "PositionY",
                 "coordinated-value-list-property-item-type": "Style::PositionY",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "backgroundData", "background"],
                 "disables-native-appearance": true,
                 "parser-grammar": "<single-background-position-y>#"
             },
@@ -2351,6 +2421,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "Repeat",
                 "coordinated-value-list-property-item-type": "Style::RepeatStyle",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "backgroundData", "background"],
                 "parser-grammar": "<single-background-repeat>#"
             },
             "specification": {
@@ -2370,6 +2442,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "Size",
                 "coordinated-value-list-property-item-type": "Style::BackgroundSize",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "backgroundData", "background"],
                 "disables-native-appearance": true,
                 "separator": " ",
                 "parser-grammar": "<single-background-size>#"
@@ -2562,7 +2636,7 @@
         },
         "border-block-end-color": {
             "animation-type": "by computed value",
-            "initial": "currentColor",
+            "initial": "currentcolor",
             "codegen-properties": {
                 "aliases": [
                     "-webkit-border-after-color"
@@ -2659,7 +2733,7 @@
         },
         "border-block-start-color": {
             "animation-type": "by computed value",
-            "initial": "currentColor",
+            "initial": "currentcolor",
             "codegen-properties": {
                 "aliases": [
                     "-webkit-border-before-color"
@@ -2783,7 +2857,7 @@
         },
         "border-bottom-color": {
             "animation-type": "by computed value",
-            "initial": "currentColor",
+            "initial": "currentcolor",
             "codegen-properties": {
                 "logical-property-group": {
                     "name": "border-color",
@@ -2808,7 +2882,7 @@
         },
         "border-bottom-left-radius": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "aliases": [
                     "-webkit-border-bottom-left-radius"
@@ -2820,7 +2894,7 @@
                 "style-builder-custom": "All",
                 "disables-native-appearance": true,
                 "render-style-has-explicitly-set-storage-path": ["m_nonInheritedData", "surroundData"],
-                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.m_radii"],
+                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.radii"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::BorderRadiusValue",
@@ -2833,7 +2907,7 @@
         },
         "border-bottom-right-radius": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "aliases": [
                     "-webkit-border-bottom-right-radius"
@@ -2845,7 +2919,7 @@
                 "style-builder-custom": "All",
                 "disables-native-appearance": true,
                 "render-style-has-explicitly-set-storage-path": ["m_nonInheritedData", "surroundData"],
-                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.m_radii"],
+                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.radii"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::BorderRadiusValue",
@@ -2877,7 +2951,6 @@
                     "resolver": "bottom"
                 },
                 "disables-native-appearance": true,
-                "render-style-initial": "initialBorderStyle",
                 "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.styles()"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "enum",
@@ -2905,10 +2978,11 @@
                 "accepts-quirky-length": true,
                 "style-builder-custom": "Initial",
                 "disables-native-appearance": true,
-                "render-style-initial": "initialBorderWidth",
+                "render-style-initial-constexpr": true,
+                "render-style-initial-custom": true,
                 "render-style-getter-custom": true,
-                "render-style-storage-name": "m_width",
-                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.m_edges.bottom()"],
+                "render-style-storage-name": "width",
+                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.edges.bottom()"],
                 "render-style-storage-container": "struct",
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::LineWidth",
@@ -2959,7 +3033,7 @@
         },
         "border-end-end-radius": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "logical-property-group": {
                     "name": "border-radius",
@@ -2976,7 +3050,7 @@
         },
         "border-end-start-radius": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "logical-property-group": {
                     "name": "border-radius",
@@ -3013,10 +3087,9 @@
             "animation-type": "by computed value",
             "initial": "0",
             "codegen-properties": {
-                "style-builder-custom": "All",
                 "disables-native-appearance": true,
-                "render-style-storage-name": "outset",
-                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.m_image.m_data"],
+                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.borderImage", "borderImage"],
+                "render-style-storage-container": "struct",
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::BorderImageOutset",
                 "parser-grammar": "[ <number [0,inf]> | <length [0,inf]> ]{1,4}@(type=CSSQuadValue no-single-item-opt)",
@@ -3037,10 +3110,9 @@
                 "space"
             ],
             "codegen-properties": {
-                "style-builder-custom": "All",
                 "disables-native-appearance": true,
-                "render-style-storage-name": "repeat",
-                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.m_image.m_data"],
+                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.borderImage", "borderImage"],
+                "render-style-storage-container": "struct",
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::BorderImageRepeat",
                 "parser-grammar": "[ stretch | repeat | round | space ]{1,2}@(type=CSSValuePair default=previous)",
@@ -3058,10 +3130,9 @@
                 "fill"
             ],
             "codegen-properties": {
-                "style-builder-custom": "All",
                 "disables-native-appearance": true,
-                "render-style-storage-name": "slice",
-                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.m_image.m_data"],
+                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.borderImage", "borderImage"],
+                "render-style-storage-container": "struct",
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::BorderImageSlice",
                 "parser-function": "consumeBorderImageSlice",
@@ -3083,8 +3154,8 @@
             ],
             "codegen-properties": {
                 "disables-native-appearance": true,
-                "render-style-storage-name": "source",
-                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.m_image.m_data"],
+                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.borderImage", "borderImage"],
+                "render-style-storage-container": "struct",
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::BorderImageSource",
                 "parser-grammar": "none | <image>"
@@ -3101,11 +3172,10 @@
                 "auto"
             ],
             "codegen-properties": {
-                "style-builder-custom": "All",
                 "style-extractor-custom": true,
                 "disables-native-appearance": true,
-                "render-style-storage-name": "width",
-                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.m_image.m_data"],
+                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.borderImage", "borderImage"],
+                "render-style-storage-container": "struct",
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::BorderImageWidth",
                 "parser-function": "consumeBorderImageWidth",
@@ -3173,7 +3243,7 @@
         },
         "border-inline-end-color": {
             "animation-type": "by computed value",
-            "initial": "currentColor",
+            "initial": "currentcolor",
             "codegen-properties": {
                 "aliases": [
                     "-webkit-border-end-color"
@@ -3270,7 +3340,7 @@
         },
         "border-inline-start-color": {
             "animation-type": "by computed value",
-            "initial": "currentColor",
+            "initial": "currentcolor",
             "codegen-properties": {
                 "aliases": [
                     "-webkit-border-start-color"
@@ -3394,7 +3464,7 @@
         },
         "border-left-color": {
             "animation-type": "by computed value",
-            "initial": "currentColor",
+            "initial": "currentcolor",
             "codegen-properties": {
                 "logical-property-group": {
                     "name": "border-color",
@@ -3438,7 +3508,6 @@
                     "resolver": "left"
                 },
                 "disables-native-appearance": true,
-                "render-style-initial": "initialBorderStyle",
                 "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.styles()"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "enum",
@@ -3466,10 +3535,11 @@
                 "accepts-quirky-length": true,
                 "style-builder-custom": "Initial",
                 "disables-native-appearance": true,
-                "render-style-initial": "initialBorderWidth",
+                "render-style-initial-constexpr": true,
+                "render-style-initial-custom": true,
                 "render-style-getter-custom": true,
-                "render-style-storage-name": "m_width",
-                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.m_edges.left()"],
+                "render-style-storage-name": "width",
+                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.edges.left()"],
                 "render-style-storage-container": "struct",
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::LineWidth",
@@ -3515,7 +3585,7 @@
         },
         "border-right-color": {
             "animation-type": "by computed value",
-            "initial": "currentColor",
+            "initial": "currentcolor",
             "codegen-properties": {
                 "logical-property-group": {
                     "name": "border-color",
@@ -3559,7 +3629,6 @@
                     "resolver": "right"
                 },
                 "disables-native-appearance": true,
-                "render-style-initial": "initialBorderStyle",
                 "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.styles()"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "enum",
@@ -3587,10 +3656,11 @@
                 "accepts-quirky-length": true,
                 "style-builder-custom": "Initial",
                 "disables-native-appearance": true,
-                "render-style-initial": "initialBorderWidth",
+                "render-style-initial-constexpr": true,
+                "render-style-initial-custom": true,
                 "render-style-getter-custom": true,
-                "render-style-storage-name": "m_width",
-                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.m_edges.right()"],
+                "render-style-storage-name": "width",
+                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.edges.right()"],
                 "render-style-storage-container": "struct",
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::LineWidth",
@@ -3624,7 +3694,7 @@
         },
         "border-start-end-radius": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "logical-property-group": {
                     "name": "border-radius",
@@ -3641,7 +3711,7 @@
         },
         "border-start-start-radius": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "logical-property-group": {
                     "name": "border-radius",
@@ -3691,7 +3761,7 @@
         },
         "border-top-color": {
             "animation-type": "by computed value",
-            "initial": "currentColor",
+            "initial": "currentcolor",
             "codegen-properties": {
                 "logical-property-group": {
                     "name": "border-color",
@@ -3716,7 +3786,7 @@
         },
         "border-top-left-radius": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "aliases": [
                     "-webkit-border-top-left-radius"
@@ -3728,7 +3798,7 @@
                 "style-builder-custom": "All",
                 "disables-native-appearance": true,
                 "render-style-has-explicitly-set-storage-path": ["m_nonInheritedData", "surroundData"],
-                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.m_radii"],
+                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.radii"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::BorderRadiusValue",
@@ -3741,7 +3811,7 @@
         },
         "border-top-right-radius": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "aliases": [
                     "-webkit-border-top-right-radius"
@@ -3753,7 +3823,7 @@
                 "style-builder-custom": "All",
                 "disables-native-appearance": true,
                 "render-style-has-explicitly-set-storage-path": ["m_nonInheritedData", "surroundData"],
-                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.m_radii"],
+                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.radii"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::BorderRadiusValue",
@@ -3785,7 +3855,6 @@
                     "resolver": "top"
                 },
                 "disables-native-appearance": true,
-                "render-style-initial": "initialBorderStyle",
                 "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.styles()"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "enum",
@@ -3813,10 +3882,11 @@
                 "accepts-quirky-length": true,
                 "style-builder-custom": "Initial",
                 "disables-native-appearance": true,
-                "render-style-initial": "initialBorderWidth",
+                "render-style-initial-constexpr": true,
+                "render-style-initial-custom": true,
                 "render-style-getter-custom": true,
-                "render-style-storage-name": "m_width",
-                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.m_edges.top()"],
+                "render-style-storage-name": "width",
+                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.edges.top()"],
                 "render-style-storage-container": "struct",
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::LineWidth",
@@ -3858,7 +3928,6 @@
                 },
                 "accepts-quirky-length": true,
                 "style-extractor-custom": true,
-                "render-style-initial": "initialInset",
                 "render-style-storage-path": ["m_nonInheritedData", "surroundData", "inset"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
@@ -3938,7 +4007,6 @@
                 }
             ],
             "codegen-properties": {
-                "render-style-initial": "initialBreakBetween",
                 "render-style-storage-path": ["m_nonInheritedData", "rareData"],
                 "render-style-storage-kind": "enum",
                 "render-style-type": "BreakBetween",
@@ -3973,7 +4041,6 @@
                 }
             ],
             "codegen-properties": {
-                "render-style-initial": "initialBreakBetween",
                 "render-style-storage-path": ["m_nonInheritedData", "rareData"],
                 "render-style-storage-kind": "enum",
                 "render-style-type": "BreakBetween",
@@ -3998,7 +4065,6 @@
                 }
             ],
             "codegen-properties": {
-                "render-style-initial": "initialBreakInside",
                 "render-style-storage-path": ["m_nonInheritedData", "rareData"],
                 "render-style-storage-kind": "enum",
                 "render-style-type": "BreakInside",
@@ -4254,8 +4320,8 @@
                 },
                 "settings-flag": "cssCornerShapeEnabled",
                 "disables-native-appearance": true,
-                "render-style-initial": "initialCornerShapeValue",
-                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.m_cornerShapes"],
+                "render-style-initial-constexpr": true,
+                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.cornerShapes"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::CornerShapeValue",
@@ -4276,8 +4342,8 @@
                 },
                 "settings-flag": "cssCornerShapeEnabled",
                 "disables-native-appearance": true,
-                "render-style-initial": "initialCornerShapeValue",
-                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.m_cornerShapes"],
+                "render-style-initial-constexpr": true,
+                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.cornerShapes"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::CornerShapeValue",
@@ -4298,8 +4364,8 @@
                 },
                 "settings-flag": "cssCornerShapeEnabled",
                 "disables-native-appearance": true,
-                "render-style-initial": "initialCornerShapeValue",
-                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.m_cornerShapes"],
+                "render-style-initial-constexpr": true,
+                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.cornerShapes"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::CornerShapeValue",
@@ -4320,8 +4386,8 @@
                 },
                 "settings-flag": "cssCornerShapeEnabled",
                 "disables-native-appearance": true,
-                "render-style-initial": "initialCornerShapeValue",
-                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.m_cornerShapes"],
+                "render-style-initial-constexpr": true,
+                "render-style-storage-path": ["m_nonInheritedData", "surroundData", "border.cornerShapes"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::CornerShapeValue",
@@ -4416,7 +4482,11 @@
                 "animation-wrapper-requires-override-parameters": ["CSSPropertyCounterIncrement"],
                 "style-builder-custom": "All",
                 "style-extractor-custom": true,
-                "skip-render-style": true,
+                "skip-render-style-getter": true,
+                "skip-render-style-setter": true,
+                "skip-render-style-initial": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "rareData", "counterDirectives"],
                 "parser-function": "consumeCounterIncrement",
                 "parser-grammar-unused": "[ <counter-name> <integer>? ]+ | none",
                 "parser-grammar-unused-reason": "Needs support for default values on optionals."
@@ -4437,7 +4507,11 @@
                 "animation-wrapper-requires-override-parameters": ["CSSPropertyCounterReset"],
                 "style-builder-custom": "All",
                 "style-extractor-custom": true,
-                "skip-render-style": true,
+                "skip-render-style-getter": true,
+                "skip-render-style-setter": true,
+                "skip-render-style-initial": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "rareData", "counterDirectives"],
                 "parser-function": "consumeCounterReset",
                 "parser-grammar-unused": "[ <counter-name> <integer>? ]+ | none",
                 "parser-grammar-unused-reason": "Needs support for default values on optionals.",
@@ -4459,7 +4533,11 @@
                 "animation-wrapper-requires-override-parameters": ["CSSPropertyCounterSet"],
                 "style-builder-custom": "All",
                 "style-extractor-custom": true,
-                "skip-render-style": true,
+                "skip-render-style-getter": true,
+                "skip-render-style-setter": true,
+                "skip-render-style-initial": true,
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "rareData", "counterDirectives"],
                 "parser-function": "consumeCounterSet",
                 "parser-grammar-unused": "[ <counter-name> <integer>? ]+ | none",
                 "parser-grammar-unused-reason": "Needs support for default values on optionals."
@@ -4528,8 +4606,11 @@
                 }
             ],
             "codegen-properties": {
+                "render-style-changed-for-animation-custom": true,
                 "render-style-getter-custom": true,
                 "render-style-setter-custom": true,
+                "render-style-storage-container": "struct",
+                "render-style-storage-path": ["m_inheritedFlags"],
                 "render-style-type": "Style::Cursor",
                 "parser-function": "consumeCursor",
                 "parser-grammar-unused": "[ [ <url> [ <x> <y> ]? ]#{0,} [ <<values>> ] ]",
@@ -4560,7 +4641,7 @@
         },
         "cx": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "render-style-storage-path": ["m_svgStyle", "layoutData"],
                 "render-style-storage-kind": "reference",
@@ -4574,7 +4655,7 @@
         },
         "cy": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "render-style-storage-path": ["m_svgStyle", "layoutData"],
                 "render-style-storage-kind": "reference",
@@ -4715,6 +4796,7 @@
             "inherited": true,
             "initial": "1",
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_svgStyle", "fillData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::Opacity",
@@ -4795,6 +4877,7 @@
             "animation-type": "by computed value",
             "initial": "1",
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_svgStyle", "miscData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::Opacity",
@@ -4811,6 +4894,7 @@
             "initial": "0deg",
             "codegen-properties": {
                 "accepts-quirky-angle": true,
+                "render-style-initial-custom": true,
                 "render-style-storage-path": ["m_svgStyle", "inheritedFlags"],
                 "render-style-storage-container": "struct",
                 "render-style-storage-kind": "enum",
@@ -4911,7 +4995,6 @@
                     "resolver": "vertical"
                 },
                 "accepts-quirky-length": true,
-                "render-style-initial": "initialSize",
                 "render-style-storage-path": ["m_nonInheritedData", "boxData"],
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::PreferredSize",
@@ -5202,7 +5285,6 @@
                 },
                 "accepts-quirky-length": true,
                 "style-extractor-custom": true,
-                "render-style-initial": "initialInset",
                 "render-style-storage-path": ["m_nonInheritedData", "surroundData", "inset"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
@@ -5224,6 +5306,7 @@
             "codegen-properties": {
                 "accepts-quirky-length": true,
                 "animation-wrapper-requires-getter": "computedLetterSpacing",
+                "animation-wrapper-requires-setter": "setLetterSpacingFromAnimation",
                 "style-builder-custom": "All",
                 "style-extractor-custom": true,
                 "font-property": true,
@@ -5271,6 +5354,7 @@
             ],
             "codegen-properties": {
                 "settings-flag": "cssLineFitEdgeEnabled",
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_rareInheritedData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::LineFitEdge",
@@ -5522,7 +5606,7 @@
         },
         "margin-block-end": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "values": [
                 "auto"
             ],
@@ -5544,7 +5628,7 @@
         },
         "margin-block-start": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "aliases": [
                     "-webkit-margin-before"
@@ -5563,7 +5647,7 @@
         },
         "margin-bottom": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "values": [
                 "auto"
             ],
@@ -5574,7 +5658,6 @@
                 },
                 "accepts-quirky-length": true,
                 "style-extractor-custom": true,
-                "render-style-initial": "initialMargin",
                 "render-style-storage-path": ["m_nonInheritedData", "surroundData", "margin"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
@@ -5603,7 +5686,7 @@
         },
         "margin-inline-end": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "values": [
                 "auto"
             ],
@@ -5625,7 +5708,7 @@
         },
         "margin-inline-start": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "values": [
                 "auto"
             ],
@@ -5647,7 +5730,7 @@
         },
         "margin-left": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "values": [
                 "auto"
             ],
@@ -5658,7 +5741,6 @@
                 },
                 "accepts-quirky-length": true,
                 "style-extractor-custom": true,
-                "render-style-initial": "initialMargin",
                 "render-style-storage-path": ["m_nonInheritedData", "surroundData", "margin"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
@@ -5672,7 +5754,7 @@
         },
         "margin-right": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "values": [
                 "auto"
             ],
@@ -5683,7 +5765,6 @@
                 },
                 "accepts-quirky-length": true,
                 "style-extractor-custom": true,
-                "render-style-initial": "initialMargin",
                 "render-style-storage-path": ["m_nonInheritedData", "surroundData", "margin"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
@@ -5697,7 +5778,7 @@
         },
         "margin-top": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "values": [
                 "auto"
             ],
@@ -5708,7 +5789,6 @@
                 },
                 "accepts-quirky-length": true,
                 "style-extractor-custom": true,
-                "render-style-initial": "initialMargin",
                 "render-style-storage-path": ["m_nonInheritedData", "surroundData", "margin"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
@@ -5868,9 +5948,8 @@
                 "aliases": [
                     "-webkit-mask-box-image-outset"
                 ],
-                "style-builder-custom": "All",
-                "render-style-storage-name": "outset",
-                "render-style-storage-path": ["m_nonInheritedData", "rareData", "maskBorder.m_data"],
+                "render-style-storage-path": ["m_nonInheritedData", "rareData", "maskBorder", "maskBorder"],
+                "render-style-storage-container": "struct",
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::MaskBorderOutset",
                 "parser-grammar": "[ <number [0,inf]> | <length [0,inf]> ]{1,4}@(type=CSSQuadValue no-single-item-opt)"
@@ -5894,9 +5973,8 @@
                 "aliases": [
                     "-webkit-mask-box-image-repeat"
                 ],
-                "style-builder-custom": "All",
-                "render-style-storage-name": "repeat",
-                "render-style-storage-path": ["m_nonInheritedData", "rareData", "maskBorder.m_data"],
+                "render-style-storage-path": ["m_nonInheritedData", "rareData", "maskBorder", "maskBorder"],
+                "render-style-storage-container": "struct",
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::MaskBorderRepeat",
                 "parser-grammar": "[ stretch | repeat | round | space ]{1,2}@(type=CSSValuePair default=previous)"
@@ -5916,9 +5994,8 @@
                 "aliases": [
                     "-webkit-mask-box-image-slice"
                 ],
-                "style-builder-custom": "All",
-                "render-style-storage-name": "slice",
-                "render-style-storage-path": ["m_nonInheritedData", "rareData", "maskBorder.m_data"],
+                "render-style-storage-path": ["m_nonInheritedData", "rareData", "maskBorder", "maskBorder"],
+                "render-style-storage-container": "struct",
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::MaskBorderSlice",
                 "parser-function": "consumeBorderImageSlice",
@@ -5941,8 +6018,8 @@
                 "aliases": [
                     "-webkit-mask-box-image-source"
                 ],
-                "render-style-storage-name": "source",
-                "render-style-storage-path": ["m_nonInheritedData", "rareData", "maskBorder.m_data"],
+                "render-style-storage-path": ["m_nonInheritedData", "rareData", "maskBorder", "maskBorder"],
+                "render-style-storage-container": "struct",
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::MaskBorderSource",
                 "parser-grammar": "none | <image>"
@@ -5962,9 +6039,8 @@
                 "aliases": [
                     "-webkit-mask-box-image-width"
                 ],
-                "style-builder-custom": "All",
-                "render-style-storage-name": "width",
-                "render-style-storage-path": ["m_nonInheritedData", "rareData", "maskBorder.m_data"],
+                "render-style-storage-path": ["m_nonInheritedData", "rareData", "maskBorder", "maskBorder"],
+                "render-style-storage-container": "struct",
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::MaskBorderWidth",
                 "parser-function": "consumeBorderImageWidth",
@@ -6001,6 +6077,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "Clip",
                 "coordinated-value-list-property-item-type": "FillBox",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "mask"],
                 "parser-grammar": "<single-mask-clip>#"
             },
             "specification": {
@@ -6021,6 +6099,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "Composite",
                 "coordinated-value-list-property-item-type": "CompositeOperator",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "mask"],
                 "parser-grammar": "<single-mask-composite>#"
             },
             "specification": {
@@ -6041,6 +6121,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "Image",
                 "coordinated-value-list-property-item-type": "Style::ImageOrNone",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "mask"],
                 "medium-priority": true,
                 "parser-grammar": "<single-mask-image>#"
             },
@@ -6061,6 +6143,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "MaskMode",
                 "coordinated-value-list-property-item-type": "Style::MaskMode",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "mask"],
                 "parser-grammar": "<single-mask-mode>#"
             },
             "specification": {
@@ -6111,6 +6195,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "Origin",
                 "coordinated-value-list-property-item-type": "FillBox",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "mask"],
                 "parser-grammar": "<single-mask-origin>#"
             },
             "specification": {
@@ -6156,6 +6242,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "PositionX",
                 "coordinated-value-list-property-item-type": "Style::PositionX",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "mask"],
                 "parser-grammar": "<single-webkit-mask-position-x>#"
             },
             "status": {
@@ -6174,6 +6262,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "PositionY",
                 "coordinated-value-list-property-item-type": "Style::PositionY",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "mask"],
                 "parser-grammar": "<single-webkit-mask-position-y>#"
             },
             "status": {
@@ -6203,6 +6293,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "Repeat",
                 "coordinated-value-list-property-item-type": "Style::RepeatStyle",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "mask"],
                 "parser-grammar": "<single-mask-repeat>#"
             },
             "specification": {
@@ -6225,6 +6317,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "Size",
                 "coordinated-value-list-property-item-type": "Style::BackgroundSize",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "mask"],
                 "parser-grammar": "<single-mask-size>#"
             },
             "specification": {
@@ -6262,6 +6356,7 @@
                 "settings-flag": "cssMathDepthEnabled",
                 "top-priority": true,
                 "top-priority-reason": "This is top priority since it affects 'font-size', which is 'high-priority'",
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_rareInheritedData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::MathDepth",
@@ -6414,7 +6509,6 @@
                     "resolver": "vertical"
                 },
                 "accepts-quirky-length": true,
-                "render-style-initial": "initialMaxSize",
                 "render-style-storage-path": ["m_nonInheritedData", "boxData"],
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::MaximumSize",
@@ -6492,6 +6586,7 @@
             ],
             "codegen-properties": {
                 "settings-flag": "cssLineClampEnabled",
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "rareData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::MaximumLines",
@@ -6551,7 +6646,6 @@
                     "resolver": "horizontal"
                 },
                 "accepts-quirky-length": true,
-                "render-style-initial": "initialMaxSize",
                 "render-style-storage-path": ["m_nonInheritedData", "boxData"],
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::MaximumSize",
@@ -6565,7 +6659,7 @@
         },
         "min-block-size": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "values": [
                 "auto",
                 "min-content",
@@ -6622,7 +6716,7 @@
         },
         "min-height": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "auto",
             "values": [
                 "auto",
                 "min-content",
@@ -6667,7 +6761,6 @@
                     "resolver": "vertical"
                 },
                 "accepts-quirky-length": true,
-                "render-style-initial": "initialMinSize",
                 "render-style-storage-path": ["m_nonInheritedData", "boxData"],
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::MinimumSize",
@@ -6681,7 +6774,7 @@
         },
         "min-inline-size": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "values": [
                 "auto",
                 "min-content",
@@ -6738,7 +6831,7 @@
         },
         "min-width": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "auto",
             "values": [
                 "auto",
                 "min-content",
@@ -6783,7 +6876,6 @@
                     "resolver": "horizontal"
                 },
                 "accepts-quirky-length": true,
-                "render-style-initial": "initialMinSize",
                 "render-style-storage-path": ["m_nonInheritedData", "boxData"],
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::MinimumSize",
@@ -6852,7 +6944,7 @@
         },
         "offset-distance": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "animation-wrapper-acceleration": "threaded-only",
                 "render-style-storage-path": ["m_nonInheritedData", "rareData"],
@@ -6911,6 +7003,7 @@
             ],
             "codegen-properties": {
                 "animation-wrapper-acceleration": "threaded-only",
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "rareData"],
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::OffsetRotate",
@@ -6947,6 +7040,7 @@
                     "-webkit-opacity"
                 ],
                 "animation-wrapper-acceleration": "always",
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "miscData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::Opacity",
@@ -6963,9 +7057,11 @@
         "orphans": {
             "animation-type": "by computed value",
             "inherited": true,
-            "initial": "2",
+            "initial": "auto",
+            "initial-comment": "Current spec initial value is '2'.",
             "codegen-properties": {
                 "style-extractor-custom": true,
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_rareInheritedData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::Orphans",
@@ -6996,12 +7092,11 @@
         },
         "outline-color": {
             "animation-type": "by computed value",
-            "initial": "currentColor",
-            "initial-comment": "Current spec initial value is 'auto'",
+            "initial": "currentcolor",
+            "initial-comment": "Current spec initial value is 'auto'.",
             "codegen-properties": {
                 "visited-link-color-support": true,
                 "color-property": true,
-                "render-style-storage-name": "m_color",
                 "render-style-storage-path": ["m_nonInheritedData", "backgroundData", "outline"],
                 "render-style-storage-container": "struct",
                 "render-style-storage-kind": "reference",
@@ -7017,11 +7112,11 @@
         },
         "outline-offset": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-getter-custom": true,
                 "render-style-getter-inline": false,
-                "render-style-storage-name": "m_offset",
                 "render-style-storage-path": ["m_nonInheritedData", "backgroundData", "outline"],
                 "render-style-storage-container": "struct",
                 "render-style-storage-kind": "value",
@@ -7050,7 +7145,6 @@
                 "double"
             ],
             "codegen-properties": {
-                "render-style-storage-name": "m_style",
                 "render-style-storage-path": ["m_nonInheritedData", "backgroundData", "outline"],
                 "render-style-storage-container": "struct",
                 "render-style-storage-kind": "enum",
@@ -7072,9 +7166,10 @@
             ],
             "codegen-properties": {
                 "style-builder-custom": "Initial",
+                "render-style-initial-constexpr": true,
+                "render-style-initial-custom": true,
                 "render-style-getter-custom": true,
                 "render-style-getter-inline": false,
-                "render-style-storage-name": "m_width",
                 "render-style-storage-path": ["m_nonInheritedData", "backgroundData", "outline"],
                 "render-style-storage-container": "struct",
                 "render-style-storage-kind": "value",
@@ -7404,7 +7499,7 @@
         },
         "padding-block-end": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "aliases": [
                     "-webkit-padding-after"
@@ -7423,7 +7518,7 @@
         },
         "padding-block-start": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "aliases": [
                     "-webkit-padding-before"
@@ -7442,7 +7537,7 @@
         },
         "padding-bottom": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "logical-property-group": {
                     "name": "padding",
@@ -7452,7 +7547,6 @@
                 "style-builder-custom": "All",
                 "style-extractor-custom": true,
                 "render-style-has-explicitly-set-storage-path": ["m_nonInheritedData", "surroundData"],
-                "render-style-initial": "initialPadding",
                 "render-style-storage-path": ["m_nonInheritedData", "surroundData", "padding"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
@@ -7481,7 +7575,7 @@
         },
         "padding-inline-end": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "aliases": [
                     "-webkit-padding-end"
@@ -7500,7 +7594,7 @@
         },
         "padding-inline-start": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "aliases": [
                     "-webkit-padding-start"
@@ -7519,7 +7613,7 @@
         },
         "padding-left": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "logical-property-group": {
                     "name": "padding",
@@ -7529,7 +7623,6 @@
                 "style-builder-custom": "All",
                 "style-extractor-custom": true,
                 "render-style-has-explicitly-set-storage-path": ["m_nonInheritedData", "surroundData"],
-                "render-style-initial": "initialPadding",
                 "render-style-storage-path": ["m_nonInheritedData", "surroundData", "padding"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
@@ -7543,7 +7636,7 @@
         },
         "padding-right": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "logical-property-group": {
                     "name": "padding",
@@ -7553,7 +7646,6 @@
                 "style-builder-custom": "All",
                 "style-extractor-custom": true,
                 "render-style-has-explicitly-set-storage-path": ["m_nonInheritedData", "surroundData"],
-                "render-style-initial": "initialPadding",
                 "render-style-storage-path": ["m_nonInheritedData", "surroundData", "padding"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
@@ -7567,7 +7659,7 @@
         },
         "padding-top": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "logical-property-group": {
                     "name": "padding",
@@ -7577,7 +7669,6 @@
                 "style-builder-custom": "All",
                 "style-extractor-custom": true,
                 "render-style-has-explicitly-set-storage-path": ["m_nonInheritedData", "surroundData"],
-                "render-style-initial": "initialPadding",
                 "render-style-storage-path": ["m_nonInheritedData", "surroundData", "padding"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
@@ -7663,6 +7754,7 @@
                 "markers"
             ],
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_rareInheritedData"],
                 "render-style-storage-kind": "raw",
                 "render-style-type": "Style::SVGPaintOrder",
@@ -7757,7 +7849,7 @@
         },
         "r": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "render-style-storage-path": ["m_svgStyle", "layoutData"],
                 "render-style-storage-kind": "reference",
@@ -7808,7 +7900,6 @@
                 },
                 "accepts-quirky-length": true,
                 "style-extractor-custom": true,
-                "render-style-initial": "initialInset",
                 "render-style-storage-path": ["m_nonInheritedData", "surroundData", "inset"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
@@ -7941,6 +8032,7 @@
             "animation-type": "by computed value",
             "initial": "1",
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_svgStyle", "stopData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::Opacity",
@@ -8078,6 +8170,7 @@
             "inherited": true,
             "initial": "4",
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-name-for-methods": "StrokeMiterLimit",
                 "render-style-storage-path": ["m_rareInheritedData"],
                 "render-style-storage-kind": "value",
@@ -8098,6 +8191,7 @@
             "inherited": true,
             "initial": "1",
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_svgStyle", "strokeData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::Opacity",
@@ -8202,6 +8296,7 @@
             "inherited": true,
             "initial": "8",
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_rareInheritedData"],
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::TabSize",
@@ -8338,7 +8433,7 @@
         "text-indent": {
             "animation-type": "by computed value",
             "inherited": true,
-            "initial": "0",
+            "initial": "0px",
             "values": [
                 "hanging",
                 "each-line"
@@ -8537,7 +8632,6 @@
                 },
                 "accepts-quirky-length": true,
                 "style-extractor-custom": true,
-                "render-style-initial": "initialInset",
                 "render-style-storage-path": ["m_nonInheritedData", "surroundData", "inset"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
@@ -8582,6 +8676,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "Behavior",
                 "coordinated-value-list-property-item-type": "TransitionBehavior",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "transitions"],
                 "separator": ",",
                 "parser-grammar": "<transition-behavior-value>#"
             },
@@ -8600,6 +8696,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "Delay",
                 "coordinated-value-list-property-item-type": "Style::SingleTransitionDelay",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "transitions"],
                 "separator": ",",
                 "parser-grammar": "<time>#"
             },
@@ -8618,6 +8716,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "Duration",
                 "coordinated-value-list-property-item-type": "Style::SingleTransitionDuration",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "transitions"],
                 "separator": ",",
                 "parser-grammar": "<time [0,inf]>#"
             },
@@ -8640,6 +8740,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "Property",
                 "coordinated-value-list-property-item-type": "Style::SingleTransitionProperty",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "transitions"],
                 "parser-grammar": "none  | <single-transition-property>#"
             },
             "specification": {
@@ -8666,6 +8768,8 @@
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-name-for-methods": "TimingFunction",
                 "coordinated-value-list-property-item-type": "Style::EasingFunction",
+                "render-style-storage-container": "opaque",
+                "render-style-storage-path": ["m_nonInheritedData", "miscData", "transitions"],
                 "parser-grammar": "<easing-function>#"
             },
             "specification": {
@@ -8845,9 +8949,11 @@
         "widows": {
             "animation-type": "by computed value",
             "inherited": true,
-            "initial": "2",
+            "initial": "auto",
+            "initial-comment": "Current spec initial value is '2'.",
             "codegen-properties": {
                 "style-extractor-custom": true,
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_rareInheritedData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::Widows",
@@ -8907,7 +9013,6 @@
                     "resolver": "horizontal"
                 },
                 "accepts-quirky-length": true,
-                "render-style-initial": "initialSize",
                 "render-style-storage-path": ["m_nonInheritedData", "boxData"],
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::PreferredSize",
@@ -8982,6 +9087,7 @@
             "codegen-properties": {
                 "accepts-quirky-length": true,
                 "animation-wrapper-requires-getter": "computedWordSpacing",
+                "animation-wrapper-requires-setter": "setWordSpacingFromAnimation",
                 "style-builder-custom": "All",
                 "style-extractor-custom": true,
                 "font-property": true,
@@ -9001,7 +9107,7 @@
         },
         "x": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "render-style-storage-path": ["m_svgStyle", "layoutData"],
                 "render-style-storage-kind": "reference",
@@ -9015,7 +9121,7 @@
         },
         "y": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "render-style-storage-path": ["m_svgStyle", "layoutData"],
                 "render-style-storage-kind": "reference",
@@ -9034,9 +9140,12 @@
                 "auto"
             ],
             "codegen-properties": {
+                "render-style-changed-for-animation-custom": true,
                 "render-style-name-for-methods": "SpecifiedZIndex",
+                "render-style-initial-constexpr": true,
                 "render-style-getter-custom": true,
                 "render-style-setter-custom": true,
+                "render-style-storage-path": ["m_nonInheritedData", "boxData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::ZIndex",
                 "parser-grammar": "auto | <integer>"
@@ -9341,6 +9450,7 @@
         },
         "-webkit-background-clip": {
             "animation-type": "not animatable (legacy)",
+            "initial": "border-box",
             "codegen-properties": {
                 "cascade-alias": "background-clip",
                 "skip-style-builder": true,
@@ -9352,6 +9462,7 @@
         },
         "-webkit-background-origin": {
             "animation-type": "not animatable (legacy)",
+            "initial": "padding-box",
             "codegen-properties": {
                 "cascade-alias": "background-origin",
                 "skip-style-builder": true,
@@ -9380,6 +9491,7 @@
             "inherited": true,
             "initial": "0px",
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_inheritedData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::WebkitBorderSpacing",
@@ -9425,6 +9537,7 @@
             "inherited": true,
             "initial": "0px",
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_inheritedData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::WebkitBorderSpacing",
@@ -9479,6 +9592,7 @@
             "animation-type": "not animatable (legacy)",
             "initial": "0",
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "miscData", "deprecatedFlexibleBox"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::WebkitBoxFlex",
@@ -9494,6 +9608,7 @@
             "animation-type": "not animatable (legacy)",
             "initial": "1",
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "miscData", "deprecatedFlexibleBox"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::WebkitBoxFlexGroup",
@@ -9528,6 +9643,7 @@
             "animation-type": "not animatable (legacy)",
             "initial": "1",
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "miscData", "deprecatedFlexibleBox"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::WebkitBoxOrdinalGroup",
@@ -9597,6 +9713,7 @@
         },
         "-webkit-box-shadow": {
             "animation-type": "see prose",
+            "initial": "none",
             "codegen-properties": {
                 "cascade-alias": "box-shadow",
                 "skip-style-builder": true,
@@ -9695,6 +9812,7 @@
                 "aliases": [
                     "-webkit-column-count"
                 ],
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "miscData", "multiCol"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::ColumnCount",
@@ -9822,14 +9940,14 @@
         },
         "column-rule-color": {
             "animation-type": "by computed value",
-            "initial": "currentColor",
+            "initial": "currentcolor",
             "codegen-properties": {
                 "aliases": [
                     "-webkit-column-rule-color"
                 ],
                 "visited-link-color-support": true,
                 "color-property": true,
-                "render-style-storage-name": "m_color",
+                "render-style-storage-name": "color",
                 "render-style-storage-path": ["m_nonInheritedData", "miscData", "multiCol", "columnRule"],
                 "render-style-storage-container": "struct",
                 "render-style-storage-kind": "reference",
@@ -9861,8 +9979,7 @@
                 "aliases": [
                     "-webkit-column-rule-style"
                 ],
-                "render-style-initial": "initialBorderStyle",
-                "render-style-storage-name": "m_style",
+                "render-style-storage-name": "style",
                 "render-style-storage-path": ["m_nonInheritedData", "miscData", "multiCol", "columnRule"],
                 "render-style-storage-container": "struct",
                 "render-style-storage-kind": "enum",
@@ -9887,8 +10004,10 @@
                     "-webkit-column-rule-width"
                 ],
                 "style-builder-custom": "Initial",
+                "render-style-initial-constexpr": true,
+                "render-style-initial-custom": true,
                 "render-style-getter-custom": true,
-                "render-style-storage-name": "m_width",
+                "render-style-storage-name": "width",
                 "render-style-storage-path": ["m_nonInheritedData", "miscData", "multiCol", "columnRule"],
                 "render-style-storage-container": "struct",
                 "render-style-storage-kind": "value",
@@ -9931,6 +10050,7 @@
                 "aliases": [
                     "-webkit-column-width"
                 ],
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "miscData", "multiCol"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::ColumnWidth",
@@ -10103,6 +10223,7 @@
                 "aliases": [
                     "-webkit-align-content"
                 ],
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "miscData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::AlignContent",
@@ -10139,6 +10260,7 @@
                 "aliases": [
                     "-webkit-align-items"
                 ],
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "miscData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::AlignItems",
@@ -10177,6 +10299,7 @@
                 "aliases": [
                     "-webkit-align-self"
                 ],
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "miscData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::AlignSelf",
@@ -10314,6 +10437,7 @@
                 "aliases": [
                     "-webkit-flex-grow"
                 ],
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "miscData", "flexibleBox"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::FlexGrow",
@@ -10331,6 +10455,7 @@
                 "aliases": [
                     "-webkit-flex-shrink"
                 ],
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "miscData", "flexibleBox"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::FlexShrink",
@@ -10365,7 +10490,7 @@
         },
         "justify-content": {
             "animation-type": "discrete",
-            "initial": "flex-start",
+            "initial": "normal",
             "values": [
                 "normal",
                 "flex-start",
@@ -10386,6 +10511,7 @@
                 "aliases": [
                     "-webkit-justify-content"
                 ],
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "miscData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::JustifyContent",
@@ -10401,6 +10527,7 @@
         },
         "-webkit-backdrop-filter": {
             "animation-type": "see prose",
+            "initial": "none",
             "codegen-properties": {
                 "cascade-alias": "backdrop-filter",
                 "skip-style-builder": true,
@@ -10452,6 +10579,7 @@
             "animation-type": "discrete",
             "initial": "auto",
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "miscData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::JustifySelf",
@@ -10471,6 +10599,7 @@
                 "aliases": [
                     "-webkit-justify-items"
                 ],
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "miscData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::JustifyItems",
@@ -10774,9 +10903,11 @@
         },
         "grid-auto-flow": {
             "animation-type": "discrete",
-            "initial": "row",
+            "initial": "normal",
+            "initial-comment": "Current spec initial value is 'row'.",
             "codegen-properties": {
                 "style-extractor-custom": true,
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "rareData", "grid"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::GridAutoFlow",
@@ -10818,6 +10949,7 @@
                 "auto"
             ],
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_rareInheritedData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::HyphenateLimitEdge",
@@ -10833,6 +10965,7 @@
                 "auto"
             ],
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_rareInheritedData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::HyphenateLimitEdge",
@@ -10848,6 +10981,7 @@
                 "no-limit"
             ],
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_rareInheritedData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::HyphenateLimitLines",
@@ -10892,6 +11026,7 @@
                 "normal"
             ],
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "rareData"],
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::WebkitInitialLetter",
@@ -10921,6 +11056,7 @@
                 "initial-letter"
             ],
             "codegen-properties": {
+                "render-style-initial-custom": true,
                 "render-style-storage-path": ["m_rareInheritedData"],
                 "render-style-storage-kind": "raw",
                 "render-style-type": "Style::WebkitLineBoxContain",
@@ -11008,6 +11144,7 @@
                 "none"
             ],
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "rareData"],
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::WebkitLineClamp",
@@ -11100,6 +11237,7 @@
             "initial": "infinite",
             "codegen-properties": {
                 "internal-only": true,
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "rareData", "marquee"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::WebkitMarqueeRepetition",
@@ -11112,6 +11250,7 @@
             "initial": "85ms",
             "codegen-properties": {
                 "internal-only": true,
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "rareData", "marquee"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::WebkitMarqueeSpeed",
@@ -11182,6 +11321,7 @@
         },
         "-webkit-mask-clip": {
             "animation-type": "not animatable (legacy)",
+            "initial": "border-box",
             "codegen-properties": {
                 "cascade-alias": "mask-clip",
                 "skip-style-builder": true,
@@ -11200,6 +11340,7 @@
         },
         "-webkit-mask-composite": {
             "animation-type": "not animatable (legacy)",
+            "initial": "source-over",
             "codegen-properties": {
                 "cascade-alias": "mask-composite",
                 "skip-style-builder": true,
@@ -11218,6 +11359,7 @@
         },
         "-webkit-mask-source-type": {
             "animation-type": "not animatable (legacy)",
+            "initial": "auto",
             "codegen-properties": {
                 "cascade-alias": "mask-mode",
                 "skip-style-builder": true,
@@ -11294,6 +11436,7 @@
                 "aliases": [
                     "-webkit-order"
                 ],
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "miscData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::Order",
@@ -11401,7 +11544,7 @@
         "print-color-adjust": {
             "animation-type": "discrete",
             "inherited": true,
-            "initial": "exact", 
+            "initial": "economy", 
             "values": [
                 "exact",
                 "economy"
@@ -11436,7 +11579,7 @@
                 "render-style-storage-path": ["m_inheritedFlags"],
                 "render-style-storage-container": "struct",
                 "render-style-storage-kind": "enum",
-                "render-style-type": "Order",
+                "render-style-type": "WebCore::Order",
                 "parser-grammar": "<<values>>"
             },
             "status": "non-standard"
@@ -11444,6 +11587,7 @@
         "-webkit-text-combine": {
             "animation-type": "not animatable (legacy)",
             "inherited": true,
+            "initial": "none",
             "values": [
                 "none",
                 "horizontal"
@@ -11563,7 +11707,7 @@
         },
         "text-decoration-color": {
             "animation-type": "by computed value",
-            "initial": "currentColor",
+            "initial": "currentcolor",
             "codegen-properties": {
                 "aliases": [
                     "-webkit-text-decoration-color"
@@ -11680,6 +11824,7 @@
         "-webkit-text-decorations-in-effect": {
             "animation-type": "not animatable (internal)",
             "inherited": true,
+            "initial": "none",
             "codegen-properties": {
                 "skip-style-builder": true,
                 "render-style-name-for-methods": "TextDecorationLineInEffect",
@@ -11727,7 +11872,7 @@
         "text-emphasis-color": {
             "animation-type": "by computed value",
             "inherited": true,
-            "initial": "currentColor",
+            "initial": "currentcolor",
             "codegen-properties": {
                 "aliases": [
                     "-epub-text-emphasis-color",
@@ -11754,6 +11899,7 @@
                 "aliases": [
                     "-webkit-text-emphasis-position"
                 ],
+                "render-style-initial-custom": true,
                 "render-style-storage-path": ["m_rareInheritedData"],
                 "render-style-storage-kind": "raw",
                 "render-style-type": "Style::TextEmphasisPosition",
@@ -11786,7 +11932,7 @@
         "-webkit-text-fill-color": {
             "animation-type": "by computed value",
             "inherited": true,
-            "initial": "currentColor",
+            "initial": "currentcolor",
             "codegen-properties": {
                 "visited-link-color-support": true,
                 "color-property": true,
@@ -11837,7 +11983,7 @@
         "-webkit-text-stroke-color": {
             "animation-type": "by computed value",
             "inherited": true,
-            "initial": "currentColor",
+            "initial": "currentcolor",
             "codegen-properties": {
                 "visited-link-color-support": true,
                 "color-property": true,
@@ -11855,13 +12001,14 @@
         "-webkit-text-stroke-width": {
             "animation-type": "not animatable (legacy)",
             "inherited": true,
-            "initial": "0",
+            "initial": "0px",
             "values": [
                 "thin",
                 "medium",
                 "thick"
             ],
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_rareInheritedData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::WebkitTextStrokeWidth",
@@ -11974,7 +12121,7 @@
         },
         "transform-origin-z": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "aliases": [
                     "-webkit-transform-origin-z"
@@ -12201,7 +12348,6 @@
                     "name": "scroll-margin",
                     "resolver": "bottom"
                 },
-                "render-style-initial": "initialScrollMargin",
                 "render-style-storage-path": ["m_nonInheritedData", "rareData", "scrollMargin"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
@@ -12225,7 +12371,6 @@
                     "name": "scroll-margin",
                     "resolver": "left"
                 },
-                "render-style-initial": "initialScrollMargin",
                 "render-style-storage-path": ["m_nonInheritedData", "rareData", "scrollMargin"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
@@ -12249,7 +12394,6 @@
                     "name": "scroll-margin",
                     "resolver": "right"
                 },
-                "render-style-initial": "initialScrollMargin",
                 "render-style-storage-path": ["m_nonInheritedData", "rareData", "scrollMargin"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
@@ -12273,7 +12417,6 @@
                     "name": "scroll-margin",
                     "resolver": "top"
                 },
-                "render-style-initial": "initialScrollMargin",
                 "render-style-storage-path": ["m_nonInheritedData", "rareData", "scrollMargin"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
@@ -12412,7 +12555,6 @@
                     "name": "scroll-padding",
                     "resolver": "bottom"
                 },
-                "render-style-initial": "initialScrollPadding",
                 "render-style-storage-path": ["m_nonInheritedData", "rareData", "scrollPadding"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
@@ -12436,7 +12578,6 @@
                     "name": "scroll-padding",
                     "resolver": "left"
                 },
-                "render-style-initial": "initialScrollPadding",
                 "render-style-storage-path": ["m_nonInheritedData", "rareData", "scrollPadding"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
@@ -12460,7 +12601,6 @@
                     "name": "scroll-padding",
                     "resolver": "right"
                 },
-                "render-style-initial": "initialScrollPadding",
                 "render-style-storage-path": ["m_nonInheritedData", "rareData", "scrollPadding"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
@@ -12484,7 +12624,6 @@
                     "name": "scroll-padding",
                     "resolver": "top"
                 },
-                "render-style-initial": "initialScrollPadding",
                 "render-style-storage-path": ["m_nonInheritedData", "rareData", "scrollPadding"],
                 "render-style-storage-container": "physical-group",
                 "render-style-storage-kind": "reference",
@@ -12616,6 +12755,7 @@
                 "center"
             ],
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "rareData"],
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::ScrollSnapAlign",
@@ -12640,6 +12780,7 @@
                 "proximity"
             ],
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "rareData"],
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::ScrollSnapType",
@@ -12660,8 +12801,9 @@
                 "normal"
             ],
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "rareData"],
-                "render-style-storage-kind": "value",
+                "render-style-storage-kind": "enum",
                 "render-style-type": "ScrollSnapStop",
                 "parser-grammar": "<<values>>"
             },
@@ -12761,6 +12903,7 @@
             ],
             "codegen-properties": {
                 "settings-flag": "cssScrollbarGutterEnabled",
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "rareData"],
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::ScrollbarGutter",
@@ -12821,7 +12964,7 @@
         },
         "shape-margin": {
             "animation-type": "by computed value",
-            "initial": "0",
+            "initial": "0px",
             "codegen-properties": {
                 "aliases": [
                     "-webkit-shape-margin"
@@ -12843,6 +12986,7 @@
                 "aliases": [
                     "-webkit-shape-image-threshold"
                 ],
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "rareData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::ShapeImageThreshold",
@@ -13134,6 +13278,7 @@
             ],
             "codegen-properties": {
                 "settings-flag": "cssAnchorPositioningEnabled",
+                "render-style-initial-custom": true,
                 "render-style-storage-path": ["m_nonInheritedData", "rareData"],
                 "render-style-storage-kind": "raw",
                 "render-style-type": "Style::PositionVisibility",
@@ -13147,10 +13292,12 @@
         "-webkit-tap-highlight-color": {
             "animation-type": "not animatable (legacy)",
             "inherited": true,
-            "initial": "TapHighlightColor",
+            "initial": "@TapHighlightColor",
             "codegen-properties": {
                 "enable-if": "ENABLE_TOUCH_EVENTS",
                 "color-property": true,
+                "render-style-initial-custom": true,
+                "render-style-initial-inline": false,
                 "render-style-storage-path": ["m_rareInheritedData"],
                 "render-style-storage-kind": "reference",
                 "render-style-type": "Style::Color",
@@ -13211,6 +13358,7 @@
                 }
             ],
             "codegen-properties": {
+                "render-style-initial-constexpr": true,
                 "render-style-storage-path": ["m_nonInheritedData", "rareData"],
                 "render-style-storage-kind": "value",
                 "render-style-type": "Style::TouchAction",

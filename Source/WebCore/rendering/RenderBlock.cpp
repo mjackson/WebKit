@@ -91,7 +91,7 @@ namespace WebCore {
 using namespace HTMLNames;
 using namespace WTF::Unicode;
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(RenderBlock);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderBlock);
 
 struct SameSizeAsRenderBlock : public RenderBox {
 };
@@ -268,13 +268,13 @@ using RenderBlockRareDataMap = SingleThreadWeakHashMap<const RenderBlock, std::u
 static RenderBlockRareDataMap* gRareDataMap;
 
 RenderBlock::RenderBlock(Type type, Element& element, RenderStyle&& style, OptionSet<TypeFlag> baseTypeFlags, TypeSpecificFlags typeSpecificFlags)
-    : RenderBox(type, element, WTFMove(style), baseTypeFlags | TypeFlag::IsRenderBlock, typeSpecificFlags)
+    : RenderBox(type, element, WTF::move(style), baseTypeFlags | TypeFlag::IsRenderBlock, typeSpecificFlags)
 {
     ASSERT(isRenderBlock());
 }
 
 RenderBlock::RenderBlock(Type type, Document& document, RenderStyle&& style, OptionSet<TypeFlag> baseTypeFlags, TypeSpecificFlags typeSpecificFlags)
-    : RenderBox(type, document, WTFMove(style), baseTypeFlags | TypeFlag::IsRenderBlock, typeSpecificFlags)
+    : RenderBox(type, document, WTF::move(style), baseTypeFlags | TypeFlag::IsRenderBlock, typeSpecificFlags)
 {
     ASSERT(isRenderBlock());
 }
@@ -288,7 +288,7 @@ RenderBlock::~RenderBlock()
     // Do not add any more code here. Add it to willBeDestroyed() instead.
 }
 
-void RenderBlock::styleWillChange(StyleDifference diff, const RenderStyle& newStyle)
+void RenderBlock::styleWillChange(Style::Difference diff, const RenderStyle& newStyle)
 {
     const RenderStyle* oldStyle = hasInitializedStyle() ? &style() : nullptr;
     setBlockLevelReplacedOrAtomicInline(newStyle.isDisplayInlineType());
@@ -332,7 +332,7 @@ bool RenderBlock::paddingBoxLogicaHeightChanged(const RenderStyle& oldStyle, con
     return oldStyle.borderLeftWidth() != newStyle.borderLeftWidth() || oldStyle.borderRightWidth() != newStyle.borderRightWidth() || scrollbarHeightDidChange(ScrollbarOrientation::Vertical);
 }
 
-void RenderBlock::styleDidChange(StyleDifference diff, const RenderStyle* oldStyle)
+void RenderBlock::styleDidChange(Style::Difference diff, const RenderStyle* oldStyle)
 {
     RenderBox::styleDidChange(diff, oldStyle);
 
@@ -344,7 +344,7 @@ void RenderBlock::styleDidChange(StyleDifference diff, const RenderStyle* oldSty
     // It's possible for our border/padding to change, but for the overall logical width of the block to
     // end up being the same. We keep track of this change so in layoutBlock, we can know to set relayoutChildren=true.
     auto shouldForceRelayoutChildren = false;
-    if (oldStyle && diff == StyleDifference::Layout && needsLayout()) {
+    if (oldStyle && diff == Style::DifferenceResult::Layout && needsLayout()) {
         // Out-of-flow boxes anchored to the padding box.
         shouldForceRelayoutChildren = contentBoxLogicalWidthChanged(*oldStyle, style()) || (outOfFlowBoxes() && paddingBoxLogicaHeightChanged(*oldStyle, style()));
     }
@@ -1217,7 +1217,7 @@ void RenderBlock::paintObject(PaintInfo& paintInfo, const LayoutPoint& paintOffs
     }
 
     // 3. paint selection
-    if (!document().printing()) {
+    if (!protectedDocument()->printing()) {
         // Fill in gaps in selection on lines, between blocks and "empty space" when content is skipped.
         paintSelection(paintInfo, scrolledOffset);
     }
@@ -1355,7 +1355,7 @@ bool RenderBlock::createsNewFormattingContext() const
         || isFieldset()
         || isDocumentElementRenderer()
         || isRenderFragmentedFlow()
-        || isRenderSVGForeignObject()
+        || isRenderOrLegacyRenderSVGForeignObject()
         || style.specifiesColumns()
         || style.columnSpan() == ColumnSpan::All
         || style.display() == DisplayType::FlowRoot
@@ -2012,10 +2012,6 @@ Node* RenderBlock::nodeForHitTest() const
     // that was split. Use the appropriate inner node.
     if (auto* continuation = this->continuation())
         return continuation->element();
-    if (auto inlineBox = dynamicDowncast<RenderInline>(parent()); inlineBox && isAnonymousBlock()) {
-        ASSERT(settings().blocksInInlineLayoutEnabled());
-        return inlineBox->element();
-    }
     return element();
 }
 
@@ -2455,13 +2451,16 @@ std::optional<LayoutUnit> RenderBlock::firstLineBaseline() const
     if (isWritingModeRoot() && !isFlexItem())
         return { };
 
-    for (RenderBox* child = firstInFlowChildBox(); child; child = child->nextInFlowSiblingBox()) {
-        if (child->isLegend() && child->isExcludedFromNormalLayout())
-            continue;
-        if (auto baseline = child->firstLineBaseline())
-            return LayoutUnit { floorToInt(child->logicalTop() + baseline.value()) };
-    }
-    return { };
+    auto firstInFlowBaseline = [&] -> std::optional<LayoutUnit> {
+        for (CheckedPtr child = firstInFlowChildBox(); child; child = child->nextInFlowSiblingBox()) {
+            if (child->isLegend() && child->isExcludedFromNormalLayout())
+                continue;
+            if (auto baseline = child->firstLineBaseline())
+                return (settings().subpixelInlineLayoutEnabled() ? LayoutUnit(child->logicalTop()) : LayoutUnit(child->logicalTop().toInt())) + *baseline;
+        }
+        return { };
+    };
+    return firstInFlowBaseline();
 }
 
 std::optional<LayoutUnit> RenderBlock::lastLineBaseline() const
@@ -2469,16 +2468,19 @@ std::optional<LayoutUnit> RenderBlock::lastLineBaseline() const
     if (shouldApplyLayoutContainment())
         return { };
 
-    if (isWritingModeRoot())
+    if (isWritingModeRoot() && !isFlexItem())
         return { };
 
-    for (RenderBox* child = lastInFlowChildBox(); child; child = child->previousInFlowSiblingBox()) {
-        if (child->isLegend() && child->isExcludedFromNormalLayout())
-            continue;
-        if (auto baseline = child->lastLineBaseline())
-            return LayoutUnit { floorToInt(child->logicalTop() + baseline.value()) };
-    } 
-    return { };
+    auto lastInFlowBaseline = [&] -> std::optional<LayoutUnit> {
+        for (CheckedPtr child = lastInFlowChildBox(); child; child = child->previousInFlowSiblingBox()) {
+            if (child->isLegend() && child->isExcludedFromNormalLayout())
+                continue;
+            if (auto baseline = child->lastLineBaseline())
+                return (settings().subpixelInlineLayoutEnabled() ? LayoutUnit(child->logicalTop()) : LayoutUnit(child->logicalTop().toInt())) + *baseline;
+        }
+        return { };
+    };
+    return lastInFlowBaseline();
 }
 
 static inline bool isRenderBlockFlowOrRenderButton(RenderElement& renderElement)
@@ -2704,20 +2706,6 @@ const RenderStyle& RenderBlock::outlineStyleForRepaint() const
     if (auto* continuation = this->continuation())
         return continuation->style();
     return RenderElement::outlineStyleForRepaint();
-}
-
-void RenderBlock::updateHitTestResult(HitTestResult& result, const LayoutPoint& point) const
-{
-    if (result.innerNode())
-        return;
-
-    if (RefPtr node = nodeForHitTest()) {
-        result.setInnerNode(node.get());
-        if (!result.innerNonSharedNode())
-            result.setInnerNonSharedNode(node.get());
-        result.setPseudoElementIdentifier(style().pseudoElementIdentifier());
-        result.setLocalPoint(point);
-    }
 }
 
 LayoutUnit RenderBlock::offsetFromLogicalTopOfFirstPage() const
@@ -2992,7 +2980,7 @@ TextRun RenderBlock::constructTextRun(StringView stringView, const RenderStyle& 
     // 2. This replacement doesn't affect string indices. We're replacing a single Unicode code unit with another Unicode code unit.
     // How convenient.
     auto updatedString = RenderBlock::updateSecurityDiscCharacters(style, stringView.toStringWithoutCopying());
-    return TextRun(WTFMove(updatedString), 0, 0, expansion, textDirection, directionalOverride);
+    return TextRun(WTF::move(updatedString), 0, 0, expansion, textDirection, directionalOverride);
 }
 
 TextRun RenderBlock::constructTextRun(const String& string, const RenderStyle& style, ExpansionBehavior expansion, TextRunFlags flags)
@@ -3400,15 +3388,15 @@ String RenderBlock::updateSecurityDiscCharacters(const RenderStyle& style, Strin
 {
 #if !PLATFORM(COCOA)
     UNUSED_PARAM(style);
-    return WTFMove(string);
+    return WTF::move(string);
 #else
     if (style.textSecurity() == TextSecurity::None)
-        return WTFMove(string);
+        return WTF::move(string);
     // This PUA character in the system font is used to render password field dots on Cocoa platforms.
     constexpr char16_t textSecurityDiscPUACodePoint = 0xF79A;
     Ref font = style.fontCascade().primaryFont();
     if (!(font->platformData().isSystemFont() && font->glyphForCharacter(textSecurityDiscPUACodePoint)))
-        return WTFMove(string);
+        return WTF::move(string);
 
     // See RenderText::setRenderedText()
 #if PLATFORM(IOS_FAMILY)

@@ -222,7 +222,7 @@ void WebInspectorBackendClient::showPaintRect(const FloatRect& rect)
     paintLayer->addAnimation(fadeKeyframes, opacityAnimation.ptr(), "opacity"_s, 0);
 
     Ref rawLayer = paintLayer.get();
-    m_paintRectLayers.add(WTFMove(paintLayer));
+    m_paintRectLayers.add(WTF::move(paintLayer));
 
     Ref overlayRootLayer = paintRectOverlay->layer();
     overlayRootLayer->addChild(rawLayer.get());
@@ -297,7 +297,7 @@ bool WebInspectorBackendClient::setEmulatedConditions(std::optional<int64_t>&& b
 {
     RefPtr page = m_page.get();
     if (page && page->inspector()) {
-        page->inspector()->setEmulatedConditions(WTFMove(bytesPerSecondLimit));
+        page->inspector()->setEmulatedConditions(WTF::move(bytesPerSecondLimit));
         return true;
     }
 

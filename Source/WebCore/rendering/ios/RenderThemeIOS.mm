@@ -78,7 +78,7 @@
 #import "RenderMeter.h"
 #import "RenderObject.h"
 #import "RenderSlider.h"
-#import "RenderStyleSetters.h"
+#import "RenderStyle+SettersInlines.h"
 #import "RenderView.h"
 #import "Settings.h"
 #import "StylePadding.h"
@@ -432,7 +432,7 @@ void RenderThemeIOS::adjustRoundBorderRadius(RenderStyle& style, RenderBox& box)
     if (!style.writingMode().isHorizontal())
         borderRadius = { borderRadius.height(), borderRadius.width() };
 
-    style.setBorderRadius(WTFMove(borderRadius));
+    style.setBorderRadius(WTF::move(borderRadius));
 }
 
 static void applyCommonButtonPaddingToStyle(RenderStyle& style, const Element& element)
@@ -446,7 +446,7 @@ static void applyCommonButtonPaddingToStyle(RenderStyle& style, const Element& e
     if (!style.writingMode().isHorizontal())
         paddingBox = { paddingBox.left(), paddingBox.top(), paddingBox.right(), paddingBox.bottom() };
 
-    style.setPaddingBox(WTFMove(paddingBox));
+    style.setPaddingBox(WTF::move(paddingBox));
 }
 
 static void adjustSelectListButtonStyle(RenderStyle& style, const Element& element)
@@ -912,9 +912,9 @@ void RenderThemeIOS::adjustButtonLikeControlStyle(RenderStyle& style, const Elem
     if (!style.accentColor().isAuto()) {
         auto tintColor = style.usedAccentColor(element.document().styleColorOptions(&style));
         if (isSubmitStyleButton(&element))
-            style.setBackgroundColor(WTFMove(tintColor));
+            style.setBackgroundColor(WTF::move(tintColor));
         else
-            style.setColor(WTFMove(tintColor));
+            style.setColor(WTF::move(tintColor));
     }
 
     if (!element.active())
@@ -963,7 +963,7 @@ void RenderThemeIOS::adjustButtonStyle(RenderStyle& style, const Element* elemen
     if (!style.writingMode().isHorizontal())
         paddingBox = { paddingBox.left(), paddingBox.top(), paddingBox.right(), paddingBox.bottom() };
 
-    style.setPaddingBox(WTFMove(paddingBox));
+    style.setPaddingBox(WTF::move(paddingBox));
 
     if (!element)
         return;
@@ -1189,7 +1189,7 @@ const RenderThemeIOS::CSSValueToSystemColorMap& RenderThemeIOS::cssValueToSystem
                 LocalCurrentTraitCollection localTraitCollection(useDarkAppearance, useElevatedUserInterfaceLevel);
                 for (auto& cssValueSystemColorInformation : cssValueSystemColorInformationList()) {
                     if (auto color = systemColorFromCSSValueSystemColorInformation(cssValueSystemColorInformation, useDarkAppearance))
-                        map.add(CSSValueKey { cssValueSystemColorInformation.cssValueID, useDarkAppearance, useElevatedUserInterfaceLevel }, WTFMove(*color));
+                        map.add(CSSValueKey { cssValueSystemColorInformation.cssValueID, useDarkAppearance, useElevatedUserInterfaceLevel }, WTF::move(*color));
                 }
             }
         }
@@ -1200,7 +1200,7 @@ const RenderThemeIOS::CSSValueToSystemColorMap& RenderThemeIOS::cssValueToSystem
 
 void RenderThemeIOS::setCSSValueToSystemColorMap(CSSValueToSystemColorMap&& colorMap)
 {
-    globalCSSValueToSystemColorMap() = WTFMove(colorMap);
+    globalCSSValueToSystemColorMap() = WTF::move(colorMap);
 }
 
 void RenderThemeIOS::setFocusRingColor(const Color& color)
@@ -1878,7 +1878,7 @@ void RenderThemeIOS::paintColorWellDecorations(const RenderElement& renderer, co
 
     context.setStrokeThickness(strokeThickness);
     context.setStrokeStyle(StrokeStyle::SolidStroke);
-    context.setStrokeGradient(WTFMove(gradient));
+    context.setStrokeGradient(WTF::move(gradient));
     context.strokeEllipse(strokeRect);
 }
 

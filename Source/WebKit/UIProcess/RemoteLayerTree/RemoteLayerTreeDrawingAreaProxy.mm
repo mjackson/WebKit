@@ -132,7 +132,7 @@ void RemoteLayerTreeDrawingAreaProxy::removeRemotePageDrawingAreaProxy(RemotePag
 std::unique_ptr<RemoteLayerTreeHost> RemoteLayerTreeDrawingAreaProxy::detachRemoteLayerTreeHost()
 {
     m_remoteLayerTreeHost->detachFromDrawingArea();
-    return WTFMove(m_remoteLayerTreeHost);
+    return WTF::move(m_remoteLayerTreeHost);
 }
 
 void RemoteLayerTreeDrawingAreaProxy::sizeDidChange()
@@ -184,7 +184,7 @@ void RemoteLayerTreeDrawingAreaProxy::viewWillEndLiveResize()
 
 void RemoteLayerTreeDrawingAreaProxy::deviceScaleFactorDidChange(CompletionHandler<void()>&& completionHandler)
 {
-    Ref aggregator = CallbackAggregator::create(WTFMove(completionHandler));
+    Ref aggregator = CallbackAggregator::create(WTF::move(completionHandler));
     forEachProcessState([&](ProcessState& state, WebProcessProxy& webProcess) {
         if (RefPtr page = this->page())
             webProcess.sendWithAsyncReply(Messages::DrawingArea::SetDeviceScaleFactor(page->deviceScaleFactor()), [aggregator] { }, identifier());
@@ -521,7 +521,7 @@ void RemoteLayerTreeDrawingAreaProxy::commitLayerTreeTransaction(IPC::Connection
 
 void RemoteLayerTreeDrawingAreaProxy::asyncSetLayerContents(WebCore::PlatformLayerIdentifier layerID, RemoteLayerBackingStoreProperties&& properties)
 {
-    m_remoteLayerTreeHost->asyncSetLayerContents(layerID, WTFMove(properties));
+    m_remoteLayerTreeHost->asyncSetLayerContents(layerID, WTF::move(properties));
 }
 
 void RemoteLayerTreeDrawingAreaProxy::acceleratedAnimationDidStart(WebCore::PlatformLayerIdentifier layerID, const String& key, MonotonicTime startTime)

@@ -29,6 +29,7 @@
 #include <array>
 #include <wtf/FunctionTraits.h>
 #include <wtf/MathExtras.h>
+#include <wtf/Platform.h>
 #include <wtf/PrintStream.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN

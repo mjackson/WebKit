@@ -63,6 +63,14 @@ typedef nw_http_fields_t nw_http_response_t;
 
 #endif // USE(APPLE_INTERNAL_SDK)
 
+#if !defined(NW_HAS_WEBTRANSPORT_TRANSPORT_MODE)
+typedef enum : uint8_t {
+    nw_webtransport_transport_mode_unknown,
+    nw_webtransport_transport_mode_http2,
+    nw_webtransport_transport_mode_http3,
+} nw_webtransport_transport_mode_t;
+#endif
+
 #if !USE(APPLE_INTERNAL_SDK)
 
 WTF_EXTERN_C_BEGIN
@@ -113,6 +121,7 @@ bool nw_webtransport_metadata_get_session_closed(nw_protocol_metadata_t);
 void nw_webtransport_metadata_set_remote_drain_handler(nw_protocol_metadata_t, nw_webtransport_drain_handler_t, dispatch_queue_t);
 void nw_webtransport_metadata_set_local_draining(nw_protocol_metadata_t);
 OS_OBJECT_RETURNS_RETAINED nw_http_response_t nw_webtransport_metadata_copy_connect_response(nw_protocol_metadata_t);
+nw_webtransport_transport_mode_t nw_webtransport_metadata_get_transport_mode(nw_protocol_metadata_t);
 void nw_webtransport_metadata_set_remote_receive_error_handler(nw_protocol_metadata_t, nw_webtransport_receive_error_handler_t, dispatch_queue_t);
 void nw_webtransport_metadata_set_remote_send_error_handler(nw_protocol_metadata_t, nw_webtransport_send_error_handler_t, dispatch_queue_t);
 

@@ -108,7 +108,7 @@ void CommandLineAPIHost::inspect(JSC::JSGlobalObject& lexicalGlobalObject, JSC::
         return;
 
     auto remoteObject = Inspector::Protocol::BindingTraits<Inspector::Protocol::Runtime::RemoteObject>::runtimeCast(objectValue.releaseNonNull());
-    inspectorAgent->inspect(WTFMove(remoteObject), hintsObject.releaseNonNull());
+    inspectorAgent->inspect(WTF::move(remoteObject), hintsObject.releaseNonNull());
 }
 
 CommandLineAPIHost::EventListenersRecord CommandLineAPIHost::getEventListeners(JSGlobalObject& lexicalGlobalObject, EventTarget& target)
@@ -142,7 +142,7 @@ CommandLineAPIHost::EventListenersRecord CommandLineAPIHost::getEventListeners(J
         }
 
         if (!entries.isEmpty())
-            result.append({ eventType, WTFMove(entries) });
+            result.append({ eventType, WTF::move(entries) });
     }
 
     return result;
@@ -164,7 +164,7 @@ void CommandLineAPIHost::gatherRTCLogs(JSGlobalObject& globalObject, RefPtr<RTCL
         ASSERT(!logType.isNull());
         ASSERT(!logMessage.isNull());
 
-        callback->invoke({ WTFMove(logType), WTFMove(logMessage), WTFMove(logLevel), WTFMove(connection) });
+        callback->invoke({ WTF::move(logType), WTF::move(logMessage), WTF::move(logLevel), WTF::move(connection) });
     });
 }
 #endif
@@ -181,7 +181,7 @@ JSC::JSValue CommandLineAPIHost::InspectableObject::get(JSC::JSGlobalObject&)
 
 void CommandLineAPIHost::addInspectedObject(std::unique_ptr<CommandLineAPIHost::InspectableObject> object)
 {
-    m_inspectedObject = WTFMove(object);
+    m_inspectedObject = WTF::move(object);
 }
 
 JSC::JSValue CommandLineAPIHost::inspectedObject(JSC::JSGlobalObject& lexicalGlobalObject)

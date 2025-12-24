@@ -34,7 +34,7 @@
 #include "LocalFrameView.h"
 #include "Logging.h"
 #include "NodeDocument.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include "RenderView.h"
 #include "Settings.h"
 #include "StyleInheritedData.h"

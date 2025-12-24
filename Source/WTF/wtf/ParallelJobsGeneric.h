@@ -28,6 +28,8 @@
 #ifndef ParallelJobsGeneric_h
 #define ParallelJobsGeneric_h
 
+#include <wtf/Platform.h>
+
 #if ENABLE(THREADING_GENERIC)
 
 #include <wtf/Condition.h>

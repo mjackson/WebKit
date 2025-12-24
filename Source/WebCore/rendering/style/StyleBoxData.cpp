@@ -25,7 +25,7 @@
 
 #include "RenderStyleConstants.h"
 #include "RenderStyleDifference.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+InitialInlines.h"
 #include "StylePrimitiveKeyword+Logging.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
 
@@ -42,12 +42,12 @@ static_assert(sizeof(StyleBoxData) == sizeof(SameSizeAsStyleBoxData), "StyleBoxD
 DEFINE_ALLOCATOR_WITH_HEAP_IDENTIFIER(StyleBoxData);
 
 StyleBoxData::StyleBoxData()
-    : width(RenderStyle::initialSize())
-    , height(RenderStyle::initialSize())
-    , minWidth(RenderStyle::initialMinSize())
-    , maxWidth(RenderStyle::initialMaxSize())
-    , minHeight(RenderStyle::initialMinSize())
-    , maxHeight(RenderStyle::initialMaxSize())
+    : width(RenderStyle::initialWidth())
+    , height(RenderStyle::initialHeight())
+    , minWidth(RenderStyle::initialMinWidth())
+    , minHeight(RenderStyle::initialMinHeight())
+    , maxWidth(RenderStyle::initialMaxWidth())
+    , maxHeight(RenderStyle::initialMaxHeight())
     , verticalAlign(RenderStyle::initialVerticalAlign())
     , hasAutoSpecifiedZIndex(static_cast<uint8_t>(RenderStyle::initialSpecifiedZIndex().m_isAuto))
     , hasAutoUsedZIndex(static_cast<uint8_t>(RenderStyle::initialUsedZIndex().m_isAuto))
@@ -63,8 +63,8 @@ inline StyleBoxData::StyleBoxData(const StyleBoxData& o)
     , width(o.width)
     , height(o.height)
     , minWidth(o.minWidth)
-    , maxWidth(o.maxWidth)
     , minHeight(o.minHeight)
+    , maxWidth(o.maxWidth)
     , maxHeight(o.maxHeight)
     , verticalAlign(o.verticalAlign)
     , hasAutoSpecifiedZIndex(o.hasAutoSpecifiedZIndex)
@@ -86,8 +86,8 @@ bool StyleBoxData::operator==(const StyleBoxData& o) const
     return width == o.width
         && height == o.height
         && minWidth == o.minWidth
-        && maxWidth == o.maxWidth
         && minHeight == o.minHeight
+        && maxWidth == o.maxWidth
         && maxHeight == o.maxHeight
         && verticalAlign == o.verticalAlign
         && usedZIndexValue == o.usedZIndexValue
@@ -105,9 +105,9 @@ void StyleBoxData::dumpDifferences(TextStream& ts, const StyleBoxData& other) co
     LOG_IF_DIFFERENT(height);
 
     LOG_IF_DIFFERENT(minWidth);
-    LOG_IF_DIFFERENT(maxWidth);
-
     LOG_IF_DIFFERENT(minHeight);
+
+    LOG_IF_DIFFERENT(maxWidth);
     LOG_IF_DIFFERENT(maxHeight);
 
     LOG_IF_DIFFERENT(verticalAlign);

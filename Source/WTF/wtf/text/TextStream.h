@@ -28,6 +28,7 @@
 #include <span>
 #include <wtf/Forward.h>
 #include <wtf/HexNumber.h>
+#include <wtf/InlineWeakPtr.h>
 #include <wtf/Markable.h>
 #include <wtf/OptionSet.h>
 #include <wtf/Ref.h>
@@ -305,6 +306,15 @@ TextStream& operator<<(TextStream& ts, const WeakPtr<T, Counter>& item)
     if (item)
         return ts << *item;
     
+    return ts << "null"_s;
+}
+
+template<typename T>
+TextStream& operator<<(TextStream& ts, const InlineWeakPtr<T>& item)
+{
+    if (item)
+        return ts << *item;
+
     return ts << "null"_s;
 }
 

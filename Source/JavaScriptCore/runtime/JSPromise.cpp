@@ -37,8 +37,8 @@
 #include "JSInternalPromiseConstructor.h"
 #include "JSInternalPromisePrototype.h"
 #include "JSMicrotask.h"
-#include "JSPromiseAllContext.h"
-#include "JSPromiseAllGlobalContext.h"
+#include "JSPromiseCombinatorsContext.h"
+#include "JSPromiseCombinatorsGlobalContext.h"
 #include "JSPromiseConstructor.h"
 #include "JSPromisePrototype.h"
 #include "JSPromiseReaction.h"
@@ -417,6 +417,14 @@ void JSPromise::performPromiseThenWithInternalMicrotask(VM& vm, JSGlobalObject* 
     markAsHandled();
 }
 
+static ALWAYS_INLINE bool isIteratorResultObject(JSObject* object, JSGlobalObject* globalObject)
+{
+    if (globalObject->iteratorResultObjectStructure() != object->structure())
+        return false;
+
+    return globalObject->promiseThenWatchpointSet().isStillValid();
+}
+
 void JSPromise::rejectPromise(VM& vm, JSGlobalObject* globalObject, JSValue argument)
 {
     ASSERT(status() == Status::Pending);
@@ -464,6 +472,9 @@ void JSPromise::resolvePromise(JSGlobalObject* globalObject, JSValue resolution)
         if (promise->isThenFastAndNonObservable())
             return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJobFast, resolutionObject, this, jsUndefined(), jsUndefined());
     }
+
+    if (isIteratorResultObject(resolutionObject, globalObject))
+        return fulfillPromise(vm, globalObject, resolution);
 
     JSValue then;
     JSValue error;
@@ -564,7 +575,7 @@ JSC_DEFINE_HOST_FUNCTION(promiseResolvingFunctionResolveWithoutPromise, (JSGloba
     callee->setField(vm, JSFunctionWithFields::Field::ResolvingWithoutPromiseOther, jsNull());
     other->setField(vm, JSFunctionWithFields::Field::ResolvingWithoutPromiseOther, jsNull());
 
-    auto* context = jsCast<JSPromiseAllGlobalContext*>(callee->getField(JSFunctionWithFields::Field::ResolvingWithoutPromiseContext));
+    auto* context = jsCast<JSPromiseCombinatorsGlobalContext*>(callee->getField(JSFunctionWithFields::Field::ResolvingWithoutPromiseContext));
     JSValue argument = callFrame->argument(0);
     JSValue onFulfilled = context->promise();
     JSValue onRejected = context->values();
@@ -589,7 +600,7 @@ JSC_DEFINE_HOST_FUNCTION(promiseResolvingFunctionRejectWithoutPromise, (JSGlobal
     callee->setField(vm, JSFunctionWithFields::Field::ResolvingWithoutPromiseOther, jsNull());
     other->setField(vm, JSFunctionWithFields::Field::ResolvingWithoutPromiseOther, jsNull());
 
-    auto* context = jsCast<JSPromiseAllGlobalContext*>(callee->getField(JSFunctionWithFields::Field::ResolvingWithoutPromiseContext));
+    auto* context = jsCast<JSPromiseCombinatorsGlobalContext*>(callee->getField(JSFunctionWithFields::Field::ResolvingWithoutPromiseContext));
     JSValue argument = callFrame->argument(0);
     JSValue onFulfilled = context->promise();
     JSValue onRejected = context->values();
@@ -652,7 +663,7 @@ std::tuple<JSFunction*, JSFunction*> JSPromise::createResolvingFunctionsWithoutP
     auto* resolve = JSFunctionWithFields::create(vm, globalObject, vm.promiseResolvingFunctionResolveWithoutPromiseExecutable(), 1, nullString());
     auto* reject = JSFunctionWithFields::create(vm, globalObject, vm.promiseResolvingFunctionRejectWithoutPromiseExecutable(), 1, nullString());
 
-    auto* all = JSPromiseAllGlobalContext::create(vm, onFulfilled, onRejected, context);
+    auto* all = JSPromiseCombinatorsGlobalContext::create(vm, onFulfilled, onRejected, context);
 
     resolve->setField(vm, JSFunctionWithFields::Field::ResolvingWithoutPromiseContext, all);
     resolve->setField(vm, JSFunctionWithFields::Field::ResolvingWithoutPromiseOther, reject);
@@ -810,6 +821,9 @@ void JSPromise::resolveWithoutPromise(JSGlobalObject* globalObject, JSValue reso
             return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJobWithoutPromiseFast, resolutionObject, onFulfilled, onRejected, context);
     }
 
+    if (isIteratorResultObject(resolutionObject, globalObject))
+        return fulfillWithoutPromise(globalObject, resolution, onFulfilled, onRejected, context);
+
     JSValue then;
     JSValue error;
     {
@@ -900,6 +914,9 @@ void JSPromise::resolveWithInternalMicrotask(JSGlobalObject* globalObject, JSVal
         if (promise->isThenFastAndNonObservable())
             return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJobWithInternalMicrotaskFast, resolutionObject, jsNumber(static_cast<int32_t>(task)), context, jsUndefined());
     }
+
+    if (isIteratorResultObject(resolutionObject, globalObject))
+        return fulfillWithInternalMicrotask(globalObject, resolution, task, context);
 
     JSValue then;
     JSValue error;

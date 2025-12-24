@@ -52,7 +52,7 @@ ExceptionOr<void> UserMessageHandler::postMessage(JSC::JSGlobalObject& globalObj
         return Exception { ExceptionCode::InvalidAccessError };
     }
 
-    m_descriptor->didPostMessage(*this, globalObject, value, [promise = WTFMove(promise)](JSC::JSValue result, const String& errorMessage) {
+    m_descriptor->didPostMessage(*this, globalObject, value, [promise = WTF::move(promise)](JSC::JSValue result, const String& errorMessage) {
         if (errorMessage.isNull())
             return promise->resolveWithJSValue(result);
 

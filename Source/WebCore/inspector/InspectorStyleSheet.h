@@ -31,6 +31,7 @@
 #include <JavaScriptCore/InspectorProtocolObjects.h>
 #include <wtf/HashMap.h>
 #include <wtf/JSONValues.h>
+#include <wtf/RefCountedAndCanMakeWeakPtr.h>
 #include <wtf/Vector.h>
 
 namespace WebCore {
@@ -145,10 +146,10 @@ private:
 
     InspectorCSSId m_styleId;
     const Ref<CSSStyleDeclaration> m_style;
-    InspectorStyleSheet* m_parentStyleSheet;
+    WeakPtr<InspectorStyleSheet> m_parentStyleSheet;
 };
 
-class InspectorStyleSheet : public RefCounted<InspectorStyleSheet> {
+class InspectorStyleSheet : public RefCountedAndCanMakeWeakPtr<InspectorStyleSheet> {
 public:
     class Listener {
     public:

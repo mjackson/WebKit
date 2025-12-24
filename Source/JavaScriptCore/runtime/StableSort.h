@@ -26,6 +26,7 @@
 #pragma once
 
 #include "ArgList.h"
+#include "ThrowScope.h"
 #include <numeric>
 #include <wtf/Int128.h>
 #include <wtf/StdLibExtras.h>

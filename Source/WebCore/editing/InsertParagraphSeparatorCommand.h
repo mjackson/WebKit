@@ -35,7 +35,7 @@ class InsertParagraphSeparatorCommand : public CompositeEditCommand {
 public:
     static Ref<InsertParagraphSeparatorCommand> create(Ref<Document>&& document, bool useDefaultParagraphElement = false, bool pasteBlockqutoeIntoUnquotedArea = false, EditAction editingAction = EditAction::Insert)
     {
-        return adoptRef(*new InsertParagraphSeparatorCommand(WTFMove(document), useDefaultParagraphElement, pasteBlockqutoeIntoUnquotedArea, editingAction));
+        return adoptRef(*new InsertParagraphSeparatorCommand(WTF::move(document), useDefaultParagraphElement, pasteBlockqutoeIntoUnquotedArea, editingAction));
     }
 
 private:

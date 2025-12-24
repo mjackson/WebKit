@@ -360,7 +360,7 @@ TEST(WTF, MediaTimeInExpected)
     using Test = Expected<MediaTime, int>;
     Test test1;
     Test test2;
-    test1 = WTFMove(test2);
+    test1 = WTF::move(test2);
     UNUSED_VARIABLE(test1);
 }
 

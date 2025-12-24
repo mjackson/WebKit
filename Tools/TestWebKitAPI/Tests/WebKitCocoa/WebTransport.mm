@@ -56,6 +56,9 @@ SOFT_LINK_MAY_FAIL(Network, nw_webtransport_metadata_set_local_draining, void, (
 // FIXME: Replace this soft linking with a HAVE macro once rdar://164514830 is available on all tested OS builds.
 SOFT_LINK_MAY_FAIL(Network, nw_webtransport_metadata_get_session_closed, bool, (nw_protocol_metadata_t metadata), (metadata))
 
+// FIXME: Replace this soft linking with a HAVE macro once rdar://164917448 is available on all tested OS builds.
+SOFT_LINK_MAY_FAIL(Network, nw_webtransport_metadata_get_transport_mode, nw_webtransport_transport_mode_t, (nw_protocol_metadata_t metadata), (metadata))
+
 namespace TestWebKitAPI {
 
 static void enableWebTransport(WKWebViewConfiguration *configuration)
@@ -86,7 +89,7 @@ TEST(WebTransport, ClientBidirectional)
         request.append('d');
         request.append('e');
         request.append('f');
-        co_await connection.awaitableSend(WTFMove(request));
+        co_await connection.awaitableSend(WTF::move(request));
     });
 
     auto configuration = adoptNS([WKWebViewConfiguration new]);
@@ -149,7 +152,7 @@ TEST(WebTransport, Datagram)
     WebTransportServer echoServer([](ConnectionGroup group) -> ConnectionTask {
         auto datagramConnection = group.createWebTransportConnection(ConnectionGroup::ConnectionType::Datagram);
         auto request = co_await datagramConnection.awaitableReceiveBytes();
-        co_await datagramConnection.awaitableSend(WTFMove(request));
+        co_await datagramConnection.awaitableSend(WTF::move(request));
     });
 
     auto configuration = adoptNS([WKWebViewConfiguration new]);
@@ -186,13 +189,16 @@ TEST(WebTransport, Datagram)
         "    const groupStats = await g.getStats();"
         "    t.close();"
         "    await w.closed;"
-        "    alert('successfully read ' + new TextDecoder().decode(value) + ', group sent ' + groupStats.bytesWritten + ' bytes, maxDatagramSize ' + t.datagrams.maxDatagramSize);"
+        "    alert('successfully read ' + new TextDecoder().decode(value) + ', group sent ' + groupStats.bytesWritten + ' bytes, maxDatagramSize ' + t.datagrams.maxDatagramSize + ', reliability ' + t.reliability);"
         "  } catch (e) { alert('caught ' + e); }"
         "}; test();"
         "</script>",
         port];
     [webView loadHTMLString:html baseURL:[NSURL URLWithString:@"https://webkit.org/"]];
-    EXPECT_WK_STREQ([webView _test_waitForAlert], "successfully read abc, group sent 3 bytes, maxDatagramSize 65535");
+    if (!canLoadnw_webtransport_metadata_get_transport_mode())
+        EXPECT_WK_STREQ([webView _test_waitForAlert], "successfully read abc, group sent 3 bytes, maxDatagramSize 65535, reliability pending");
+    else
+        EXPECT_WK_STREQ([webView _test_waitForAlert], "successfully read abc, group sent 3 bytes, maxDatagramSize 65535, reliability supports-unreliable");
     EXPECT_TRUE(challenged);
 }
 
@@ -202,7 +208,7 @@ TEST(WebTransport, Unidirectional)
         auto connection = co_await group.receiveIncomingConnection();
         auto request = co_await connection.awaitableReceiveBytes();
         auto serverUnidirectionalStream = group.createWebTransportConnection(ConnectionGroup::ConnectionType::Unidirectional);
-        co_await serverUnidirectionalStream.awaitableSend(WTFMove(request));
+        co_await serverUnidirectionalStream.awaitableSend(WTF::move(request));
     });
 
     auto configuration = adoptNS([WKWebViewConfiguration new]);
@@ -249,7 +255,7 @@ TEST(WebTransport, ServerBidirectional)
         auto connection = co_await group.receiveIncomingConnection();
         auto request = co_await connection.awaitableReceiveBytes();
         auto serverBidirectionalStream = group.createWebTransportConnection(ConnectionGroup::ConnectionType::Bidirectional);
-        co_await serverBidirectionalStream.awaitableSend(WTFMove(request));
+        co_await serverBidirectionalStream.awaitableSend(WTF::move(request));
     });
 
     auto configuration = adoptNS([WKWebViewConfiguration new]);
@@ -474,7 +480,7 @@ TEST(WebTransport, Worker)
         auto connection = co_await group.receiveIncomingConnection();
         auto request = co_await connection.awaitableReceiveBytes();
         auto serverBidirectionalStream = group.createWebTransportConnection(ConnectionGroup::ConnectionType::Bidirectional);
-        co_await serverBidirectionalStream.awaitableSend(WTFMove(request));
+        co_await serverBidirectionalStream.awaitableSend(WTF::move(request));
     });
 
     auto mainHTML = "<script>"
@@ -521,7 +527,7 @@ TEST(WebTransport, WorkerAfterNetworkProcessCrash)
         auto connection = co_await group.receiveIncomingConnection();
         auto request = co_await connection.awaitableReceiveBytes();
         auto serverBidirectionalStream = group.createWebTransportConnection(ConnectionGroup::ConnectionType::Bidirectional);
-        co_await serverBidirectionalStream.awaitableSend(WTFMove(request));
+        co_await serverBidirectionalStream.awaitableSend(WTF::move(request));
     });
 
     auto mainHTML = "<script>"
@@ -579,13 +585,13 @@ TEST(WebTransport, CreateStreamsBeforeReady)
     WebTransportServer datagramServer([](ConnectionGroup group) -> ConnectionTask {
         auto datagramConnection = group.createWebTransportConnection(ConnectionGroup::ConnectionType::Datagram);
         auto request = co_await datagramConnection.awaitableReceiveBytes();
-        co_await datagramConnection.awaitableSend(WTFMove(request));
+        co_await datagramConnection.awaitableSend(WTF::move(request));
     });
 
     WebTransportServer streamServer([](ConnectionGroup group) -> ConnectionTask {
         auto connection = co_await group.receiveIncomingConnection();
         auto request = co_await connection.awaitableReceiveBytes();
-        co_await connection.awaitableSend(WTFMove(request));
+        co_await connection.awaitableSend(WTF::move(request));
     });
 
     RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
@@ -693,7 +699,7 @@ TEST(WebTransport, ServerCertificateHashes)
             auto connection = co_await group.receiveIncomingConnection();
             auto request = co_await connection.awaitableReceiveBytes();
             auto serverBidirectionalStream = group.createWebTransportConnection(ConnectionGroup::ConnectionType::Bidirectional);
-            co_await serverBidirectionalStream.awaitableSend(WTFMove(request));
+            co_await serverBidirectionalStream.awaitableSend(WTF::move(request));
         }, adoptNS(sec_identity_create(identity.get())).get());
 
         std::array<uint8_t, CC_SHA256_DIGEST_LENGTH> sha2 { };
@@ -787,7 +793,7 @@ TEST(WebTransport, BackForwardCache)
     WebTransportServer echoServer([&](ConnectionGroup group) -> ConnectionTask {
         auto datagramConnection = group.createWebTransportConnection(ConnectionGroup::ConnectionType::Datagram);
         auto request = co_await datagramConnection.awaitableReceiveBytes();
-        co_await datagramConnection.awaitableSend(WTFMove(request));
+        co_await datagramConnection.awaitableSend(WTF::move(request));
         co_await group.awaitableFailure();
         serverConnectionTerminatedByClient = true;
     });

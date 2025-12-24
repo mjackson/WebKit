@@ -87,7 +87,7 @@ public:
     bool removedFromTree(const RenderElement& parent, RenderObject& child);
     bool updateTextContent(const RenderText&, std::optional<size_t> offset, size_t oldLength);
     bool rootStyleWillChange(const RenderBlockFlow&, const RenderStyle& newStyle);
-    bool styleWillChange(const RenderElement&, const RenderStyle& newStyle, StyleDifference);
+    bool styleWillChange(const RenderElement&, const RenderStyle& newStyle, Style::Difference);
     bool boxContentWillChange(const RenderBox&);
 
     std::pair<LayoutUnit, LayoutUnit> computeIntrinsicWidthConstraints();
@@ -111,10 +111,11 @@ public:
     bool isPaginated() const;
     size_t lineCount() const;
     bool hasContentfulInlineOrBlockLine() const;
+    bool hasContentfulInlineLine() const;
     bool isSelfCollapsingContent() const;
     bool hasInkOverflow() const;
-    LayoutUnit firstLineBaseline() const;
-    LayoutUnit lastLineBaseline() const;
+    std::optional<LayoutUnit> firstLineBaseline() const;
+    std::optional<LayoutUnit> lastLineBaseline() const;
     LayoutRect firstInlineBoxRect(const RenderInline&) const;
     LayoutRect enclosingBorderBoxRectFor(const RenderInline&) const;
 

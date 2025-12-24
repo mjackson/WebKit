@@ -155,11 +155,11 @@ void AXLogger::log(const Vector<Ref<AXCoreObject>>& objects)
     }
 }
 
-void AXLogger::log(const std::pair<Ref<AccessibilityObject>, AXNotification>& notification)
+void AXLogger::log(const std::pair<Ref<AccessibilityObject>, AXNotificationWithData>& notification)
 {
     if (shouldLog()) {
         TextStream stream(TextStream::LineMode::MultipleLine);
-        stream << "Notification " << notification.second << " for object ";
+        stream << "Notification " << notification.second.notification << " for object ";
         stream << notification.first.get();
         LOG(Accessibility, "%s", stream.release().utf8().data());
     }
@@ -603,6 +603,10 @@ TextStream& operator<<(WTF::TextStream& stream, const TextUnderElementMode& mode
         stream << ", inHiddenSubtree: 1";
     if (!mode.considerHiddenState)
         stream << ", considerHiddenState: 0";
+    if (mode.includeListMarkers == IncludeListMarkerText::Yes)
+        stream << ", includeListMarkers: 1";
+    if (mode.descendIntoContainers == DescendIntoContainers::Yes)
+        stream << ", descendIntoContainers: 1";
     if (mode.ignoredChildNode)
         stream << ", ignoredChildNode: " << mode.ignoredChildNode;
     if (mode.trimWhitespace == TrimWhitespace::No)
@@ -1356,7 +1360,7 @@ void streamAXCoreObject(TextStream& stream, const AXCoreObject& object, const Op
 
     auto id = options & AXStreamOptions::IdentifierAttribute ? object.identifierAttribute() : emptyString();
     if (!id.isEmpty())
-        stream.dumpProperty("identifier"_s, WTFMove(id));
+        stream.dumpProperty("identifier"_s, WTF::move(id));
 
     if (options & AXStreamOptions::OuterHTML) {
         auto role = object.role();

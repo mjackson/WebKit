@@ -63,7 +63,7 @@ static RefPtr<Element> highestVisuallyEquivalentDivBelowRoot(Element* startBlock
 }
 
 InsertParagraphSeparatorCommand::InsertParagraphSeparatorCommand(Ref<Document>&& document, bool mustUseDefaultParagraphElement, bool pasteBlockqutoeIntoUnquotedArea, EditAction editingAction)
-    : CompositeEditCommand(WTFMove(document), editingAction)
+    : CompositeEditCommand(WTF::move(document), editingAction)
     , m_mustUseDefaultParagraphElement(mustUseDefaultParagraphElement)
     , m_pasteBlockqutoeIntoUnquotedArea(pasteBlockqutoeIntoUnquotedArea)
 {
@@ -137,13 +137,13 @@ void InsertParagraphSeparatorCommand::getAncestorsInsideBlock(const Node* insert
 Ref<Element> InsertParagraphSeparatorCommand::cloneHierarchyUnderNewBlock(const Vector<RefPtr<Element>>& ancestors, Ref<Element>&& blockToInsert)
 {
     // Make clones of ancestors in between the start node and the start block.
-    RefPtr<Element> parent = WTFMove(blockToInsert);
+    RefPtr<Element> parent = WTF::move(blockToInsert);
     for (size_t i = ancestors.size(); i != 0; --i) {
         auto child = ancestors[i - 1]->cloneElementWithoutChildren(document(), nullptr);
         // It should always be okay to remove id from the cloned elements, since the originals are not deleted.
         child->removeAttribute(idAttr);
         appendNode(child.copyRef(), parent.releaseNonNull());
-        parent = WTFMove(child);
+        parent = WTF::move(child);
     }
     
     return parent.releaseNonNull();
@@ -256,7 +256,7 @@ void InsertParagraphSeparatorCommand::doApply()
         // FIXME: If the node is hidden, we don't have a canonical position so we will do the wrong thing for tables and <hr>. https://bugs.webkit.org/show_bug.cgi?id=40342
         || (!canonicalPos.isNull() && canonicalPos.deprecatedNode()->renderer() && canonicalPos.deprecatedNode()->renderer()->isRenderTable())
         || (!canonicalPos.isNull() && canonicalPos.deprecatedNode()->hasTagName(hrTag))) {
-        applyCommandToComposite(InsertLineBreakCommand::create(WTFMove(document)));
+        applyCommandToComposite(InsertLineBreakCommand::create(WTF::move(document)));
         return;
     }
     
@@ -312,7 +312,7 @@ void InsertParagraphSeparatorCommand::doApply()
                 // represent the paragraph that we're leaving.
                 auto extraBlock = createDefaultParagraphElement(document);
                 appendNode(extraBlock.copyRef(), *startBlock);
-                if (!appendBlockPlaceholder(WTFMove(extraBlock)))
+                if (!appendBlockPlaceholder(WTF::move(extraBlock)))
                     return;
             }
             appendNode(*blockToInsert, *startBlock);
@@ -321,7 +321,7 @@ void InsertParagraphSeparatorCommand::doApply()
             // into an unquoted area. We then don't want the newline within the blockquote or else it will also be quoted.
             if (m_pasteBlockqutoeIntoUnquotedArea) {
                 if (RefPtr highestBlockquote = highestEnclosingNodeOfType(canonicalPos, &isMailBlockquote))
-                    startBlock = downcast<Element>(WTFMove(highestBlockquote));
+                    startBlock = downcast<Element>(WTF::move(highestBlockquote));
             }
 
             // Most of the time we want to stay at the nesting level of the startBlock (e.g., when nesting within lists).  However,
@@ -377,7 +377,7 @@ void InsertParagraphSeparatorCommand::doApply()
         getAncestorsInsideBlock(positionAvoidingSpecialElementBoundary(positionOutsideTabSpan(insertionPosition)).deprecatedNode(), startBlock.get(), ancestors);
 
         auto parent = cloneHierarchyUnderNewBlock(ancestors, *blockToInsert);
-        if (!appendBlockPlaceholder(WTFMove(parent)))
+        if (!appendBlockPlaceholder(WTF::move(parent)))
             return;
         
         // In this case, we need to set the new ending selection.

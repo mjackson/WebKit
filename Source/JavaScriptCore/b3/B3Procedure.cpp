@@ -74,7 +74,7 @@ BasicBlock* Procedure::addBlock(double frequency)
 {
     std::unique_ptr<BasicBlock> block(new BasicBlock(m_blocks.size(), frequency));
     BasicBlock* result = block.get();
-    m_blocks.append(WTFMove(block));
+    m_blocks.append(WTF::move(block));
     return result;
 }
 
@@ -91,7 +91,7 @@ Variable* Procedure::addVariable(Type type)
 Type Procedure::addTuple(Vector<Type>&& types)
 {
     Type result = Type::tupleFromIndex(m_tuples.size());
-    m_tuples.append(WTFMove(types));
+    m_tuples.append(WTF::move(types));
     ASSERT(result.isTuple());
     return result;
 }
@@ -111,7 +111,7 @@ Value* Procedure::clone(Value* value)
     std::unique_ptr<Value> clone(value->cloneImpl());
     clone->m_index = UINT_MAX;
     clone->owner = nullptr;
-    return m_values.add(WTFMove(clone));
+    return m_values.add(WTF::move(clone));
 }
 
 Value* Procedure::addIntConstant(Origin origin, Type type, int64_t value)
@@ -370,7 +370,7 @@ void* Procedure::addDataSection(size_t size)
         return nullptr;
     std::unique_ptr<DataSection> dataSection = makeUnique<DataSection>(size);
     void* result = dataSection->data();
-    m_byproducts->add(WTFMove(dataSection));
+    m_byproducts->add(WTF::move(dataSection));
     return result;
 }
 

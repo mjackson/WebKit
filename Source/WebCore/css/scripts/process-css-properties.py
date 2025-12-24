@@ -182,7 +182,7 @@ class Name(object):
 
     @staticmethod
     def convert_name_to_id(name):
-        return Name.special_case_name_to_id.get(name) or re.sub(r'(^[^-])|-(.)', lambda m: (m[1] or m[2]).upper(), name)
+        return Name.special_case_name_to_id.get(name) or re.sub(r'(^[^-])|-(.)', lambda m: (m[1] or m[2]).upper(), name).replace('.', '_').replace('(', '').replace(')', '')
 
     @property
     def id_without_prefix_with_lowercase_first_letter(self):
@@ -213,6 +213,12 @@ class PropertyName(Name):
 
 
 class ValueKeywordName(Name):
+    special_case_name_to_enum = {
+        'WindRule': { 'Nonzero': 'NonZero', 'Evenodd': 'EvenOdd' },
+        'FlexWrap': { 'Nowrap': 'NoWrap' },
+        'TextDirection': { 'Ltr': 'LTR', 'Rtl': 'RTL' }
+    }
+
     def __init__(self, name):
         super().__init__(name)
 
@@ -233,6 +239,122 @@ class ValueKeywordName(Name):
     @property
     def id(self):
         return f"CSSValueID::CSSValue{self.id_without_prefix}"
+
+    def cpp_enum_literal(self, base):
+        override_id = ValueKeywordName.special_case_name_to_enum.get(base, {}).get(self.id_without_prefix)
+        if override_id:
+            return f"{base}::{override_id}"
+        return f"{base}::{self.id_without_prefix}"
+
+    @property
+    def cpp_literal(self):
+        return f"CSS::Keyword::{self.id_without_prefix} {{ }}"
+
+    @property
+    def requires_using_namespace_css_literals(self):
+        return False
+
+
+class NumericLiteral(object):
+    class Kind(enum.Enum):
+        NUMBER      = ''
+        PERCENTAGE  = '%'
+        PX          = 'px'
+        S           = 's'
+        MS          = 'ms'
+        DEG         = 'deg'
+
+        @staticmethod
+        def from_suffix(suffix):
+            for kind in NumericLiteral.Kind:
+                if kind.value == suffix:
+                    return kind
+            raise Exception(f"Invalid numeric literal suffix: {suffix}")
+
+    def __init__(self, string):
+        match = re.fullmatch(r"(\d+)([a-z%]*)", string)
+        if not match:
+            raise Exception(f"Invalid numeric literal specified: {string}")
+
+        digits, suffix = match.groups()
+        self.digits = digits
+        self.kind = NumericLiteral.Kind.from_suffix(suffix)
+
+    def __str__(self):
+        return f"NumericLiteral {self.digits}{self.kind.value}"
+
+    def __repr__(self):
+        return self.__str__()
+
+    @property
+    def cpp_unit_type(self):
+        if self.kind == NumericLiteral.Kind.NUMBER:
+            return f"CSSUnitType::CSS_NUMBER"
+        elif self.kind == NumericLiteral.Kind.PERCENTAGE:
+            return f"CSSUnitType::CSS_PERCENTAGE"
+        else:
+            return f"CSSUnitType::CSS_{self.kind.value.upper()}"
+
+    @property
+    def cpp_literal(self):
+        if self.kind == NumericLiteral.Kind.NUMBER:
+            return f"{self.digits}_css_number"
+        elif self.kind == NumericLiteral.Kind.PERCENTAGE:
+            return f"{self.digits}_css_percentage"
+        else:
+            return f"{self.digits}_css_{self.kind.value}"
+
+    @property
+    def requires_using_namespace_css_literals(self):
+        return True
+
+
+class SpecialLiteral(Name):
+    def __init__(self, name):
+        super().__init__(name)
+
+    def __str__(self):
+        return f"SpecialLiteral {self.name}"
+
+    def __repr__(self):
+        return self.__str__()
+
+    @property
+    def requires_using_namespace_css_literals(self):
+        return False
+
+
+class InitialValue(object):
+    @staticmethod
+    def process(element):
+        if re.fullmatch(r"[A-Za-z-]+", element):
+            return ValueKeywordName(element)
+        elif re.fullmatch(r"\d+[a-z%]*", element):
+            return NumericLiteral(element)
+        elif re.fullmatch(r"@[A-Za-z-]+", element):
+            return SpecialLiteral(element)
+        else:
+            raise Exception(f"Unknown element '{element}' in initial value")
+
+    def __init__(self, string):
+        self.string = string
+        self.list = [InitialValue.process(element) for element in re.split(r",?\s+", string)]
+
+    def __str__(self):
+        return f"InitialValue {vars(self)}"
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __eq__(self, other):
+        return self.string == other.string
+
+    def __hash__(self):
+        return hash(self.string)
+
+    @property
+    def requires_using_namespace_css_literals(self):
+        return any(element.requires_using_namespace_css_literals for element in self.list)
 
 
 class Status:
@@ -491,11 +613,14 @@ class StylePropertyCodeGenProperties:
         Schema.Entry("parser-grammar-unused", allowed_types=[str]),
         Schema.Entry("parser-grammar-unused-reason", allowed_types=[str]),
         Schema.Entry("parser-shorthand", allowed_types=[str]),
+        Schema.Entry("render-style-changed-for-animation-custom", allowed_types=[bool], default_value=False),
         Schema.Entry("render-style-getter", allowed_types=[str]),
         Schema.Entry("render-style-getter-constexpr", allowed_types=[bool], default_value=False),
         Schema.Entry("render-style-getter-custom", allowed_types=[bool], default_value=False),
         Schema.Entry("render-style-getter-exported", allowed_types=[bool], default_value=False),
         Schema.Entry("render-style-getter-inline", allowed_types=[bool], default_value=True),
+        Schema.Entry("render-style-has-explicitly-set-getter-custom", allowed_types=[bool], default_value=False),
+        Schema.Entry("render-style-has-explicitly-set-setter-custom", allowed_types=[bool], default_value=False),
         Schema.Entry("render-style-has-explicitly-set-storage-container", allowed_types=[str], default_value='data'),
         Schema.Entry("render-style-has-explicitly-set-storage-name", allowed_types=[str]),
         Schema.Entry("render-style-has-explicitly-set-storage-path", allowed_types=[list]),
@@ -516,6 +641,8 @@ class StylePropertyCodeGenProperties:
         Schema.Entry("render-style-storage-name", allowed_types=[str]),
         Schema.Entry("render-style-storage-path", allowed_types=[list]),
         Schema.Entry("render-style-type", allowed_types=[str]),
+        Schema.Entry("render-style-visited-link-getter-custom", allowed_types=[bool], default_value=False),
+        Schema.Entry("render-style-visited-link-setter-custom", allowed_types=[bool], default_value=False),
         Schema.Entry("render-style-visited-link-storage-container", allowed_types=[str], default_value='data'),
         Schema.Entry("render-style-visited-link-storage-name", allowed_types=[str]),
         Schema.Entry("render-style-visited-link-storage-path", allowed_types=[list]),
@@ -528,6 +655,9 @@ class StylePropertyCodeGenProperties:
         Schema.Entry("skip-codegen", allowed_types=[bool], default_value=False),
         Schema.Entry("skip-parser", allowed_types=[bool], default_value=False),
         Schema.Entry("skip-render-style", allowed_types=[bool], default_value=False),
+        Schema.Entry("skip-render-style-getter", allowed_types=[bool], default_value=False),
+        Schema.Entry("skip-render-style-initial", allowed_types=[bool], default_value=False),
+        Schema.Entry("skip-render-style-setter", allowed_types=[bool], default_value=False),
         Schema.Entry("skip-style-builder", allowed_types=[bool], default_value=False),
         Schema.Entry("skip-style-extractor", allowed_types=[bool], default_value=False),
         Schema.Entry("status", allowed_types=[str]),
@@ -592,17 +722,32 @@ class StylePropertyCodeGenProperties:
             if json_value["render-style-storage-kind"] not in ['reference', 'value', 'enum', 'raw']:
                 raise Exception(f"{key_path} must be either 'reference', 'value', 'enum' or 'raw'.")
 
+            # Default the `render-style-initial` function to constexpr if the values is an 'enum' or 'raw'.
+            # FIXME: This should eventually be replaced by inspecting the grammar in inferring 'constexpr' as long as the grammar does not rely on storing a variable number of elements or use <length-percentage>, <custom-ident>, <dashed-ident>, <string>.
+            if "render-style-initial-constexpr" not in json_value:
+                if json_value["render-style-storage-kind"] in ['enum', 'raw']:
+                    json_value["render-style-initial-constexpr"] = True
+
         if "render-style-storage-container" in json_value:
-            if json_value["render-style-storage-container"] not in ['data', 'struct', 'physical-group']:
-                raise Exception(f"{key_path} must be either 'data', 'struct' or 'physical-group'.")
+            if json_value["render-style-storage-container"] not in ['data', 'struct', 'physical-group', 'opaque']:
+                raise Exception(f"{key_path} must be either 'data', 'struct', 'physical-group' or 'opaque'.")
+            if json_value["render-style-storage-container"] == 'opaque':
+                json_value["render-style-getter-custom"] = True
+                json_value["render-style-setter-custom"] = True
 
         if "render-style-visited-link-storage-container" in json_value:
-            if json_value["render-style-visited-link-storage-container"] not in ['data', 'struct', 'physical-group']:
-                raise Exception(f"{key_path} must be either 'data', 'struct' or 'physical-group'.")
+            if json_value["render-style-visited-link-storage-container"] not in ['data', 'struct', 'physical-group', 'opaque']:
+                raise Exception(f"{key_path} must be either 'data', 'struct', 'physical-group' or 'opaque'.")
+            if json_value["render-style-visited-link-storage-container"] == 'opaque':
+                json_value["render-style-visited-link-getter-custom"] = True
+                json_value["render-style-visited-link-setter-custom"] = True
 
         if "render-style-has-explicitly-set-storage-container" in json_value:
-            if json_value["render-style-has-explicitly-set-storage-container"] not in ['data', 'struct', 'physical-group']:
-                raise Exception(f"{key_path} must be either 'data', 'struct' or 'physical-group'.")
+            if json_value["render-style-has-explicitly-set-storage-container"] not in ['data', 'struct', 'physical-group', 'opaque']:
+                raise Exception(f"{key_path} must be either 'data', 'struct', 'physical-group' or 'opaque'.")
+            if json_value["render-style-has-explicitly-set-storage-container"] == 'opaque':
+                json_value["render-style-has-explicitly-set-getter-custom"] = True
+                json_value["render-style-has-explicitly-set-setter-custom"] = True
 
         if "render-style-storage-name" not in json_value:
             json_value["render-style-storage-name"] = json_value["render-style-getter"]
@@ -612,6 +757,14 @@ class StylePropertyCodeGenProperties:
 
         if "render-style-has-explicitly-set-storage-name" not in json_value:
             json_value["render-style-has-explicitly-set-storage-name"] = f"hasExplicitlySet{json_value['render-style-name-for-methods']}"
+
+        if "skip-render-style" in json_value:
+            if "skip-render-style-getter" not in json_value:
+                json_value["skip-render-style-getter"] = True
+            if "skip-render-style-initial" not in json_value:
+                json_value["skip-render-style-initial"] = True
+            if "skip-render-style-setter" not in json_value:
+                json_value["skip-render-style-setter"] = True
 
         if "style-builder-custom" not in json_value:
             json_value["style-builder-custom"] = ""
@@ -768,7 +921,9 @@ class StyleProperty:
             if not (codegen_properties.is_logical or codegen_properties.longhands):
                 raise Exception(f"'{name}' must specify an 'animation-type'.")
 
-        if "initial" not in json_value:
+        if "initial" in json_value:
+            json_value["initial"] = InitialValue(json_value["initial"])
+        else:
             if not (codegen_properties.is_logical or codegen_properties.longhands or codegen_properties.cascade_alias or codegen_properties.skip_style_builder):
                 raise Exception(f"'{name}' must specify 'initial'.")
 
@@ -890,6 +1045,16 @@ class StyleProperty:
 
         return False
 
+    @property
+    def is_animatable(self):
+        NOT_ANIMATABLE_TYPES = [
+            'not animatable',
+            'not animatable (needs triage)',
+            'not animatable (legacy)',
+            'not animatable (internal)'
+        ]
+        return self.animation_type not in NOT_ANIMATABLE_TYPES
+
     # Specialized accessors for coordinated list value properties.
 
     @property
@@ -951,6 +1116,98 @@ class StyleProperty:
         if "mask-" in self.name:
             return "MaskLayers"
         raise Exception(f"Unrecognized coordinated list value property name: '{self.name}")
+
+    # Computes the return type of the getter.
+    @property
+    def getter_return_type(self):
+        if self.codegen_properties.render_style_storage_kind == 'reference':
+            return f"const {self.codegen_properties.render_style_type}&"
+        return f"{self.codegen_properties.render_style_type}"
+
+    # Computes the argument type of the setter.
+    @property
+    def setter_argument_type(self):
+        if self.codegen_properties.render_style_storage_kind == 'reference':
+            return f"{self.codegen_properties.render_style_type}&&"
+        return f"{self.codegen_properties.render_style_type}"
+
+    # Computes the return type of the setter.
+    @property
+    def setter_return_type(self):
+        if self.codegen_properties.render_style_setter_returns_if_changed:
+            return f"bool"
+        return f"void"
+
+    # Computes the return type of the initial.
+    @property
+    def initial_return_type(self):
+        return f"{self.codegen_properties.render_style_type}"
+
+    # Computes the annotations, if any, of the getter's declaration.
+    @property
+    def getter_declaration_annotations(self):
+        annotations = []
+        if self.codegen_properties.render_style_getter_constexpr:
+            annotations += ["constexpr"]
+        elif self.codegen_properties.render_style_getter_inline:
+            annotations += ["inline"]
+        elif self.codegen_properties.render_style_getter_exported:
+            annotations += ["WEBCORE_EXPORT"]
+        return " ".join(annotations) + " " if annotations else ""
+
+    # Computes the annotations, if any, of the getter's definition.
+    @property
+    def getter_definition_annotations(self):
+        annotations = []
+        if self.codegen_properties.render_style_getter_constexpr:
+            annotations += ["constexpr"]
+        elif self.codegen_properties.render_style_getter_inline:
+            annotations += ["inline"]
+        return " ".join(annotations) + " " if annotations else ""
+
+    # Computes the annotations, if any, of the setter's declaration.
+    @property
+    def setter_declaration_annotations(self):
+        annotations = []
+        if self.codegen_properties.render_style_setter_constexpr:
+            annotations += ["constexpr"]
+        elif self.codegen_properties.render_style_setter_inline:
+            annotations += ["inline"]
+        elif self.codegen_properties.render_style_setter_exported:
+            annotations += ["WEBCORE_EXPORT"]
+        return " ".join(annotations) + " " if annotations else ""
+
+    # Computes the annotations, if any, of the setter's definition.
+    @property
+    def setter_definition_annotations(self):
+        annotations = []
+        if self.codegen_properties.render_style_setter_constexpr:
+            annotations += ["constexpr"]
+        elif self.codegen_properties.render_style_setter_inline:
+            annotations += ["inline"]
+        return " ".join(annotations) + " " if annotations else ""
+
+    # Computes the annotations, if any, of the initial's declaration.
+    @property
+    def initial_declaration_annotations(self):
+        annotations = []
+        if self.codegen_properties.render_style_initial_constexpr:
+            annotations += ["constexpr"]
+        elif self.codegen_properties.render_style_initial_inline:
+            annotations += ["inline"]
+        elif self.codegen_properties.render_style_initial_exported:
+            annotations += ["WEBCORE_EXPORT"]
+        return " ".join(annotations) + " " if annotations else ""
+
+    # Computes the annotations, if any, of the initial's definition.
+    @property
+    def initial_definition_annotations(self):
+        annotations = []
+        if self.codegen_properties.render_style_initial_constexpr:
+            annotations += ["constexpr"]
+        elif self.codegen_properties.render_style_initial_inline:
+            annotations += ["inline"]
+        return " ".join(annotations) + " " if annotations else ""
 
 
 class StyleProperties:
@@ -1370,6 +1627,27 @@ class Descriptors:
         return itertools.chain.from_iterable(descriptor_set.all for descriptor_set in self.descriptor_sets)
 
 
+class RenderStyleStorageTreeNode:
+    def __init__(self, name):
+        self.name = name
+        self.kind = "data"
+        self.children = {}
+        self.properties = []
+        self.visited_link_properties = []
+
+    def __str__(self):
+        return f"RenderStyleStorageTreeNode {vars(self)}"
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __eq__(self, other):
+        return self.name == other.name
+
+    def __hash__(self):
+        return hash(self.name)
+
+
 class PropertiesAndDescriptors:
     def __init__(self, style_properties, descriptors):
         self.style_properties = style_properties
@@ -1378,6 +1656,7 @@ class PropertiesAndDescriptors:
         self._all_by_name = None
         self._all_unique = None
         self._settings_flags = None
+        self._render_style_storage_model = None
 
     def __str__(self):
         return "PropertiesAndDescriptors"
@@ -1418,6 +1697,53 @@ class PropertiesAndDescriptors:
         # the current behavior and has no negative side effect. In the future, we should either separate
         # the descriptors out of CSSPropertyID or the descriptor-only ones together in some fashion.
         return sorted(result, key=functools.cmp_to_key(StyleProperties._sort_by_descending_priority_and_name))
+
+    def _compute_render_style_storage_model(self):
+        root = RenderStyleStorageTreeNode('RenderStyle')
+
+        for property in self.style_properties.all:
+            if property.codegen_properties.skip_render_style:
+                continue
+            if property.codegen_properties.is_logical:
+                continue
+            if property.codegen_properties.longhands:
+                continue
+            if property.codegen_properties.cascade_alias:
+                continue
+
+            if not property.codegen_properties.render_style_storage_path:
+                raise Exception(f"Missing RenderStyle storage path for property {property.id}.")
+
+            tree_node = root
+            for path_entry in property.codegen_properties.render_style_storage_path:
+                path_entry_node = RenderStyleStorageTreeNode(path_entry)
+
+                if path_entry_node.name not in tree_node.children:
+                    tree_node.children.update({ path_entry_node.name: path_entry_node })
+                tree_node = tree_node.children[path_entry_node.name]
+
+            if tree_node.kind != "data" and tree_node.kind != property.codegen_properties.render_style_storage_container:
+                raise Exception(f"Storage container '{'/'.join(property.codegen_properties.render_style_storage_path)}' has multiple container kinds specified: '{tree_node.kind}' and '{property.codegen_properties.render_style_storage_container}'")
+
+            tree_node.kind = property.codegen_properties.render_style_storage_container
+            tree_node.properties.append(property)
+
+            if property.codegen_properties.render_style_visited_link_storage_path:
+                tree_node = root
+                for path_entry in property.codegen_properties.render_style_visited_link_storage_path:
+                    path_entry_node = RenderStyleStorageTreeNode(path_entry)
+
+                    if path_entry_node.name not in tree_node.children:
+                        tree_node.children.update({ path_entry_node.name: path_entry_node })
+                    tree_node = tree_node.children[path_entry_node.name]
+
+                if tree_node.kind != "data" and tree_node.kind != property.codegen_properties.render_style_visited_link_storage_container:
+                    raise Exception(f"Storage container '{'/'.join(property.codegen_properties.render_style_visited_link_storage_path)}' has multiple container kinds specified: '{tree_node.kind}' and '{property.codegen_properties.render_style_visited_link_storage_container}'")
+
+                tree_node.kind = property.codegen_properties.render_style_visited_link_storage_container
+                tree_node.visited_link_properties.append(property)
+
+        return root
 
     # Returns a generator for the set of all properties and descriptors.
     @property
@@ -1481,6 +1807,13 @@ class PropertiesAndDescriptors:
         if not self._settings_flags:
             self._settings_flags = sorted(list(set([property.codegen_properties.settings_flag for property in self.all_properties_and_descriptors if property.codegen_properties.settings_flag])))
         return self._settings_flags
+
+    # Returns a tree representing the storage structure underlying RenderStyle.
+    @property
+    def render_style_storage_model(self):
+        if not self._render_style_storage_model:
+            self._render_style_storage_model = self._compute_render_style_storage_model()
+        return self._render_style_storage_model
 
 
 # MARK: - Property Parsing
@@ -2922,6 +3255,112 @@ class GenerationContext:
         to.write(f"}})();")
         to.newline()
 
+
+# Generates `CSSPropertyInitialValuesGeneratedInlines.h`.
+class GenerateCSSPropertyInitialValues:
+    def __init__(self, generation_context):
+        self.generation_context = generation_context
+
+    @property
+    def properties_and_descriptors(self):
+        return self.generation_context.properties_and_descriptors
+
+    @property
+    def properties(self):
+        return self.generation_context.properties_and_descriptors.style_properties
+
+    def generate(self):
+        self.generate_css_property_initial_values_generated_inlines_h()
+
+    # MARK: - Helper generator functions for CSSPropertyInitialValuesGeneratedInlines.h
+
+    def _generate_css_property_initial_values_generated_inlines_h_types(self, *, to):
+        to.write(f"struct InitialNumericValue {{")
+        with to.indent():
+            to.write(f"double number;")
+            to.write(f"CSSUnitType type {{ CSSUnitType::CSS_NUMBER }};")
+        to.write(f"}};")
+        to.newline()
+
+        to.write(f"using InitialValue = Variant<CSSValueID, InitialNumericValue>;")
+        to.newline()
+
+    def _generate_css_property_initial_values_generated_inlines_h_initial_value_for_longhand(self, *, to):
+        to.write(f"static constexpr InitialValue initialValueForLonghand(CSSPropertyID longhand)")
+        to.write(f"{{")
+        with to.indent():
+            to.write(f"switch (longhand) {{")
+
+            initial_value_to_property_list = {}
+            for property in self.properties_and_descriptors.style_properties.all_non_shorthands:
+                if property.codegen_properties.internal_only:
+                    continue
+                if property.initial is None:
+                    if self.generation_context.verbose:
+                        to.write(f"// Skipping {property.id_without_scope}, initial is None")
+                    continue
+                if len(property.initial.list) != 1:
+                    if self.generation_context.verbose:
+                        to.write(f"// Skipping {property.id_without_scope}, initial is a list with multiple values {property.initial.list}")
+                    continue
+                if isinstance(property.initial.list[0], SpecialLiteral):
+                    if self.generation_context.verbose:
+                        to.write(f"// Skipping {property.id_without_scope}, initial is a special value {property.initial.list}")
+                    continue
+                initial_value_to_property_list.setdefault(property.initial, [])
+                initial_value_to_property_list[property.initial].append(property)
+
+            for initial, group in initial_value_to_property_list.items():
+                for property in sorted(group, key=lambda x: x.id):
+                    to.write(f"case {property.id}:")
+
+                with to.indent():
+                    if isinstance(initial.list[0], NumericLiteral):
+                        to.write(f"return InitialNumericValue {{ {initial.list[0].digits}, {initial.list[0].cpp_unit_type} }};")
+                    elif isinstance(initial.list[0], ValueKeywordName):
+                        to.write(f"return {initial.list[0].id_without_scope};")
+
+            to.write(f"default:")
+            with to.indent():
+                to.write(f"RELEASE_ASSERT_NOT_REACHED();")
+
+            to.write(f"}}")
+        to.write(f"}}")
+
+    def generate_css_property_initial_values_generated_inlines_h(self):
+        with open('CSSPropertyInitialValuesGeneratedInlines.h', 'w') as output_file:
+            writer = Writer(output_file)
+
+            self.generation_context.generate_heading(
+                to=writer
+            )
+
+            self.generation_context.generate_required_header_pragma(
+                to=writer
+            )
+
+            self.generation_context.generate_includes(
+                to=writer,
+                headers=[
+                    "CSSPropertyNames.h",
+                    "CSSUnits.h",
+                    "CSSValueKeywords.h",
+                ],
+                system_headers=[
+                    "<wtf/Variant.h>",
+                ]
+            )
+
+            with self.generation_context.namespace("WebCore", to=writer):
+                self._generate_css_property_initial_values_generated_inlines_h_types(
+                    to=writer
+                )
+
+                self._generate_css_property_initial_values_generated_inlines_h_initial_value_for_longhand(
+                    to=writer
+                )
+
+
 # Generates `CSSPropertyNames.h` and `CSSPropertyNames.cpp`.
 class GenerateCSSPropertyNames:
     def __init__(self, generation_context):
@@ -2967,7 +3406,10 @@ class GenerateCSSPropertyNames:
             to=to,
             headers=[
                 "BoxSides.h",
+                "CSSParserContext.h",
                 "CSSProperty.h",
+                "CSSValueKeywords.h",
+                "DeprecatedGlobalSettings.h",
                 "Settings.h",
             ],
             system_headers=[
@@ -3359,6 +3801,138 @@ class GenerateCSSPropertyNames:
             }
             """)
 
+    def _generate_valid_keywords_for_property(self, *, to):
+        # Generate static arrays of valid keyword CSSValueIDs for each property
+        # that has a 'values' array in CSSProperties.json. This is used by the
+        # Inspector to provide completions for properties that aren't keyword-fast-path
+        # eligible but still have enumerated values.
+
+        # First, collect all properties with values and generate static arrays for them
+        properties_with_values = []
+        seen_array_names = set()
+        for prop in self.properties_and_descriptors.style_properties.all:
+            if hasattr(prop, 'values') and prop.values:
+                # Filter to only include values that have a valid keyword_term (actual keywords)
+                keyword_values = [value for value in prop.values if hasattr(value, 'value_keyword_name') and value.value_keyword_name]
+                if keyword_values:
+                    array_name = f"validKeywordsFor{prop.property_name.name_for_methods}"
+                    # Skip if we've already generated an array with this name (handles aliases)
+                    if array_name not in seen_array_names:
+                        seen_array_names.add(array_name)
+                        properties_with_values.append((prop, keyword_values, array_name))
+
+        # Generate static arrays for each property with values
+        for prop, keywordValues, array_name in properties_with_values:
+            value_ids = [value.value_keyword_name.id for value in keywordValues]
+            to.write(f"static constexpr std::array {array_name} {{")
+            with to.indent():
+                for value_id in value_ids:
+                    to.write(f"{value_id},")
+            to.write("};")
+            to.newline()
+
+        # Generate the switch function - include all properties, even those with duplicate array names
+        all_properties_with_values = []
+        for prop in self.properties_and_descriptors.style_properties.all:
+            if hasattr(prop, 'values') and prop.values:
+                keyword_values = [value for value in prop.values if hasattr(value, 'value_keyword_name') and value.value_keyword_name]
+                if keyword_values:
+                    array_name = f"validKeywordsFor{prop.property_name.name_for_methods}"
+                    all_properties_with_values.append((prop, keyword_values, array_name))
+
+        to.write("std::span<const CSSValueID> CSSProperty::validKeywordsForProperty(CSSPropertyID id)")
+        to.write("{")
+        with to.indent():
+            to.write("switch (id) {")
+            for prop, keyword_values, array_name in all_properties_with_values:
+                to.write(f"case {prop.id}:")
+                with to.indent():
+                    to.write(f"return std::span<const CSSValueID> {{ {array_name} }};")
+            to.write("default:")
+            with to.indent():
+                to.write("return { };")
+            to.write("}")
+        to.write("}")
+        to.newline()
+
+        # Generate isKeywordValidForPropertyValues function to check settings flags.
+        # This is used by the Inspector to filter keywords based on enabled settings.
+
+        # Collect properties that have any keywords with settings-flags
+        properties_with_settings_flags = []
+        for prop, keyword_values, array_name in all_properties_with_values:
+            # Check if any keyword has a settings_flag
+            keywords_with_flags = [(value, value.settings_flag) for value in keyword_values if value.settings_flag]
+            if keywords_with_flags:
+                properties_with_settings_flags.append((prop, keyword_values))
+
+        # Generate helper functions for properties with settings-flagged keywords
+        for prop, keyword_values in properties_with_settings_flags:
+            func_name = f"isKeywordValidFor{prop.property_name.name_for_methods}Values"
+            to.write(f"static bool {func_name}(CSSValueID keyword, const CSSParserContext& context)")
+            to.write("{")
+            with to.indent():
+                to.write("switch (keyword) {")
+
+                # Group keywords by their settings_flag (or lack thereof)
+                # Keywords without settings_flag always return true
+                keywords_without_flag = [value for value in keyword_values if not value.settings_flag]
+                keywords_with_flag = [value for value in keyword_values if value.settings_flag]
+
+                if keywords_without_flag:
+                    for value in keywords_without_flag:
+                        to.write(f"case {value.value_keyword_name.id}:")
+                    with to.indent():
+                        to.write("return true;")
+
+                # Group keywords by their settings_flag for efficient switch generation
+                from collections import defaultdict
+                flag_to_keywords = defaultdict(list)
+                for value in keywords_with_flag:
+                    flag_to_keywords[value.settings_flag].append(value)
+
+                for flag, keywordValues in flag_to_keywords.items():
+                    for value in keywordValues:
+                        to.write(f"case {value.value_keyword_name.id}:")
+                    with to.indent():
+                        # Check if this is a function call (e.g., DeprecatedGlobalSettings::attachmentElementEnabled())
+                        if "::" in flag or "(" in flag:
+                            to.write(f"return {flag};")
+                        else:
+                            to.write(f"return context.{flag};")
+
+                to.write("default:")
+                with to.indent():
+                    to.write("return false;")
+                to.write("}")
+            to.write("}")
+            to.newline()
+
+        # Generate the main isKeywordValidForPropertyValues switch function
+        to.write("bool CSSProperty::isKeywordValidForPropertyValues(CSSPropertyID id, CSSValueID keyword, const CSSParserContext& context)")
+        to.write("{")
+        with to.indent():
+            to.write("switch (id) {")
+
+            for prop, keyword_values, array_name in all_properties_with_values:
+                to.write(f"case {prop.id}:")
+                with to.indent():
+                    # Check if this property has any keywords with settings flags
+                    has_settings_flags = any(value.settings_flag for value in keyword_values)
+                    if has_settings_flags:
+                        func_name = f"isKeywordValidFor{prop.property_name.name_for_methods}Values"
+                        to.write(f"return {func_name}(keyword, context);")
+                    else:
+                        # No settings flags, just check if keyword is in the valid set
+                        to.write(f"return std::ranges::find({array_name}, keyword) != {array_name}.end();")
+
+            to.write("default:")
+            with to.indent():
+                to.write("return false;")
+            to.write("}")
+        to.write("}")
+        to.newline()
+
     def _term_matches_number_or_integer(self, term):
         if isinstance(term, MatchOneTerm):
             return any(self._term_matches_number_or_integer(inner_term) for inner_term in term.subterms)
@@ -3581,6 +4155,10 @@ class GenerateCSSPropertyNames:
             )
 
             self._generate_css_property_id_text_stream(
+                to=writer
+            )
+
+            self._generate_valid_keywords_for_property(
                 to=writer
             )
 
@@ -4020,7 +4598,7 @@ class GenerateStyleBuilderGenerated:
 
     def _converted_value(self, property, additional_parameters=[]):
         parameters = ['builderState', 'value'] + additional_parameters
-        return f"toStyleFromCSSValue<WebCore::{property.codegen_properties.render_style_type}>({', '.join(parameters)})"
+        return f"toStyleFromCSSValue<{property.codegen_properties.render_style_type}>({', '.join(parameters)})"
 
     # Color property setters.
 
@@ -4061,7 +4639,7 @@ class GenerateStyleBuilderGenerated:
 
     def _generate_font_property_inherit_value_setter(self, to, property):
         to.write(f"auto inheritedValue = builderState.parentStyle().{property.codegen_properties.render_style_getter}();")
-        to.write(f"builderState.{property.codegen_properties.font_description_setter.replace('set', 'setFontDescription', 1)}(WTFMove(inheritedValue));")
+        to.write(f"builderState.{property.codegen_properties.font_description_setter.replace('set', 'setFontDescription', 1)}(WTF::move(inheritedValue));")
 
     def _generate_font_property_value_setter(self, to, property, value):
         to.write(f"builderState.{property.codegen_properties.font_description_setter.replace('set', 'setFontDescription', 1)}({value});")
@@ -4240,7 +4818,9 @@ class GenerateStyleBuilderGenerated:
                 headers=[
                     "CSSPrimitiveValueMappings.h",
                     "CSSProperty.h",
-                    "RenderStyleSetters.h",
+                    "RenderStyle+GettersInlines.h",
+                    "RenderStyle+InitialInlines.h",
+                    "RenderStyle+SettersInlines.h",
                     "StyleBuilderCustom.h",
                     "StyleBuilderState.h",
                     "StylePropertyShorthand.h",
@@ -5204,13 +5784,6 @@ class GenerateStyleInterpolationWrapperMap:
         return False
 
     def _generate_css_property_animation_wrapper_map_cpp_constructor(self, *, to):
-        NOT_ANIMATABLE_TYPES = [
-            'not animatable',
-            'not animatable (needs triage)',
-            'not animatable (legacy)',
-            'not animatable (internal)'
-        ]
-
         to.write_block("""\
             static WrapperBase* makeShorthandWrapper(CSSPropertyID id, const std::array<WrapperBase*, cssPropertyIDEnumValueCount>& wrappers)
             {
@@ -5224,7 +5797,7 @@ class GenerateStyleInterpolationWrapperMap:
                     return wrapper;
                 });
 
-                return new ShorthandWrapper(id, WTFMove(longhandWrappers));
+                return new ShorthandWrapper(id, WTF::move(longhandWrappers));
             }
             """)
 
@@ -5251,7 +5824,7 @@ class GenerateStyleInterpolationWrapperMap:
                             to.write(f"nullptr, // {property.id} - logical, handled via resolution to physical")
                             continue
                         # Don't include not animatable properties.
-                        if property.animation_type in NOT_ANIMATABLE_TYPES:
+                        if not property.is_animatable:
                             to.write(f"nullptr, // {property.id} - {property.animation_type}")
                             continue
 
@@ -5279,8 +5852,8 @@ class GenerateStyleInterpolationWrapperMap:
         to.newline()
 
 
-# Generates `RenderStyleProperties.h`, `RenderStylePropertiesGettersInlines.h` and `RenderStylePropertiesSettersInlines.h`.
-class GenerateRenderStyleProperties:
+# Generates `StyleComputedStyleProperties.h`, `StyleComputedStyleProperties+GettersInlines.h`, `StyleComputedStyleProperties+SettersInlines.h` and `StyleComputedStyleProperties+InitialInlines.h`.
+class GenerateStyleComputedStyleProperties:
     def __init__(self, generation_context):
         self.generation_context = generation_context
 
@@ -5293,67 +5866,10 @@ class GenerateRenderStyleProperties:
         return self.generation_context.properties_and_descriptors.style_properties
 
     def generate(self):
-        self.generate_render_style_properties_h()
-        self.generate_render_style_properties_getters_inlines_h()
-        self.generate_render_style_properties_setters_inlines_h()
-
-    # Computes the return type of the getter.
-    def _compute_getter_return_type(self, property):
-        if property.codegen_properties.render_style_storage_kind == 'reference':
-            return f"const {property.codegen_properties.render_style_type}&"
-        return f"{property.codegen_properties.render_style_type}"
-
-    # Computes the argument type of the setter.
-    def _compute_setter_argument_type(self, property):
-        if property.codegen_properties.render_style_storage_kind == 'reference':
-            return f"{property.codegen_properties.render_style_type}&&"
-        return f"{property.codegen_properties.render_style_type}"
-
-    # Computes the return type of the setter.
-    def _compute_setter_return_type(self, property):
-        if property.codegen_properties.render_style_setter_returns_if_changed:
-            return f"bool"
-        return f"void"
-
-    # Computes the annotations, if any, of the getter's declaration.
-    def _compute_getter_declaration_annotations(self, property):
-        annotations = []
-        if property.codegen_properties.render_style_getter_constexpr:
-            annotations += ["constexpr"]
-        if property.codegen_properties.render_style_getter_inline:
-            annotations += ["inline"]
-        if property.codegen_properties.render_style_getter_exported:
-            annotations += ["WEBCORE_EXPORT"]
-        return " ".join(annotations) + " " if annotations else ""
-
-    # Computes the annotations, if any, of the getter's definition.
-    def _compute_getter_definition_annotations(self, property):
-        annotations = []
-        if property.codegen_properties.render_style_getter_constexpr:
-            annotations += ["constexpr"]
-        if property.codegen_properties.render_style_getter_inline:
-            annotations += ["inline"]
-        return " ".join(annotations) + " " if annotations else ""
-
-    # Computes the annotations, if any, of the setter's declaration.
-    def _compute_setter_declaration_annotations(self, property):
-        annotations = []
-        if property.codegen_properties.render_style_setter_constexpr:
-            annotations += ["constexpr"]
-        if property.codegen_properties.render_style_setter_inline:
-            annotations += ["inline"]
-        if property.codegen_properties.render_style_setter_exported:
-            annotations += ["WEBCORE_EXPORT"]
-        return " ".join(annotations) + " " if annotations else ""
-
-    # Computes the annotations, if any, of the setter's definition.
-    def _compute_setter_definition_annotations(self, property):
-        annotations = []
-        if property.codegen_properties.render_style_setter_constexpr:
-            annotations += ["constexpr"]
-        if property.codegen_properties.render_style_setter_inline:
-            annotations += ["inline"]
-        return " ".join(annotations) + " " if annotations else ""
+        self.generate_style_computed_style_properties_h()
+        self.generate_style_computed_style_properties_getters_inlines_h()
+        self.generate_style_computed_style_properties_setters_inlines_h()
+        self.generate_style_computed_style_properties_initial_inlines_h()
 
     # Computes the expression of loads needed to get the member variable used to store the property.
     def _compute_get_expression(self, property, container_kind, container_path, storage_type, storage_name, storage_kind):
@@ -5378,7 +5894,7 @@ class GenerateRenderStyleProperties:
     def _compute_set_expression(self, property, container_kind, container_path, storage_type, storage_name, storage_kind, argument_name):
         # Compute the right side of the assignment expression for the setter expression.
         if storage_kind == 'reference':
-            rhs = f"WTFMove({argument_name})"
+            rhs = f"WTF::move({argument_name})"
         elif storage_kind == 'enum':
             rhs = f"static_cast<unsigned>({argument_name})"
         elif storage_kind == 'raw':
@@ -5398,6 +5914,579 @@ class GenerateRenderStyleProperties:
 
         return expression
 
+    # Computes the expression for the initial value function.
+    def _compute_initial_expression(self, property):
+        def pick_literal_expression(element):
+            if property.codegen_properties.render_style_storage_kind == 'enum':
+                return element.cpp_enum_literal(property.codegen_properties.render_style_type)
+            return element.cpp_literal
+
+        if len(property.initial.list) == 1:
+            if isinstance(property.initial.list[0], SpecialLiteral):
+                raise Exception(f"Special literals must have custom initial function implementation")
+            return pick_literal_expression(property.initial.list[0])
+        else:
+            return "{ " + ", ".join(pick_literal_expression(element) for element in property.initial.list) + " }"
+
+    # Generate StyleComputedStyleProperties.h
+
+    def _generate_style_computed_style_properties_h_getter_function_declaration(self, *, to, function_name, annotations, return_type):
+        to.write(f"{annotations}{return_type} {function_name}() const;")
+
+    def _generate_style_computed_style_properties_h_setter_function_declaration(self, *, to, function_name, annotations, return_type, argument_type):
+        to.write(f"{annotations}{return_type} {function_name}({argument_type});")
+
+    def _generate_style_computed_style_properties_h_initial_function_declaration(self, *, to, function_name, annotations, return_type):
+        to.write(f"static {annotations}{return_type} {function_name}();")
+
+    def _generate_style_computed_style_properties_h_function_declarations(self, *, to):
+        needs_newline = False
+        for property in self.style_properties.all:
+            if property.codegen_properties.skip_render_style:
+                continue
+            if property.codegen_properties.is_logical:
+                continue
+            if property.codegen_properties.longhands:
+                continue
+            if property.codegen_properties.cascade_alias:
+                continue
+            if property.codegen_properties.coordinated_value_list_property:
+                continue
+
+            if needs_newline:
+                to.newline()
+            else:
+                needs_newline = True
+            to.write(f"// {property.id}")
+
+            if not property.codegen_properties.skip_render_style_getter:
+                getter_name = property.codegen_properties.render_style_getter
+                getter_annotations = property.getter_declaration_annotations
+                getter_return_type = property.getter_return_type
+
+                self._generate_style_computed_style_properties_h_getter_function_declaration(
+                    to=to,
+                    function_name=getter_name,
+                    annotations=getter_annotations,
+                    return_type=getter_return_type
+                )
+
+            if not property.codegen_properties.skip_render_style_setter:
+                setter_name = property.codegen_properties.render_style_setter
+                setter_annotations = property.setter_declaration_annotations
+                setter_return_type = property.setter_return_type
+                setter_argument_type = property.setter_argument_type
+
+                self._generate_style_computed_style_properties_h_setter_function_declaration(
+                    to=to,
+                    function_name=setter_name,
+                    annotations=setter_annotations,
+                    return_type=setter_return_type,
+                    argument_type=setter_argument_type
+                )
+
+            if not property.codegen_properties.skip_render_style_initial:
+                initial_name = property.codegen_properties.render_style_initial
+                initial_annotations = property.initial_declaration_annotations
+                initial_return_type = property.initial_return_type
+
+                self._generate_style_computed_style_properties_h_initial_function_declaration(
+                    to=to,
+                    function_name=initial_name,
+                    annotations=initial_annotations,
+                    return_type=initial_return_type
+                )
+
+            if property.codegen_properties.render_style_visited_link_storage_path:
+                getter_name = f"visitedLink{property.codegen_properties.render_style_name_for_methods}"
+                setter_name = f"setVisitedLink{property.codegen_properties.render_style_name_for_methods}"
+                getter_annotations = "inline "
+                getter_return_type = property.getter_return_type
+                setter_annotations = f"inline "
+                setter_return_type = f"void"
+                setter_argument_type = property.setter_argument_type
+
+                self._generate_style_computed_style_properties_h_getter_function_declaration(
+                    to=to,
+                    function_name=getter_name,
+                    annotations=getter_annotations,
+                    return_type=getter_return_type
+                )
+                self._generate_style_computed_style_properties_h_setter_function_declaration(
+                    to=to,
+                    function_name=setter_name,
+                    annotations=setter_annotations,
+                    return_type=setter_return_type,
+                    argument_type=setter_argument_type
+                )
+
+            if property.codegen_properties.render_style_has_explicitly_set_storage_path:
+                getter_name = f"hasExplicitlySet{property.codegen_properties.render_style_name_for_methods}"
+                setter_name = f"setHasExplicitlySet{property.codegen_properties.render_style_name_for_methods}"
+                getter_annotations = "inline "
+                getter_return_type = 'bool'
+                setter_annotations = f"inline "
+                setter_return_type = f"void"
+                setter_argument_type = 'bool'
+
+                self._generate_style_computed_style_properties_h_getter_function_declaration(
+                    to=to,
+                    function_name=getter_name,
+                    annotations=getter_annotations,
+                    return_type=getter_return_type
+                )
+                self._generate_style_computed_style_properties_h_setter_function_declaration(
+                    to=to,
+                    function_name=setter_name,
+                    annotations=setter_annotations,
+                    return_type=setter_return_type,
+                    argument_type=setter_argument_type
+                )
+
+    def generate_style_computed_style_properties_h(self):
+        with open('StyleComputedStyleProperties.h', 'w') as output_file:
+            writer = Writer(output_file)
+
+            self.generation_context.generate_heading(
+                to=writer
+            )
+
+            self.generation_context.generate_required_header_pragma(
+                to=writer
+            )
+
+            self.generation_context.generate_includes(
+                to=writer,
+                system_headers=[
+                    "<WebCore/StyleComputedStyleBase.h>",
+                ]
+            )
+
+            with self.generation_context.namespaces(["WebCore", "Style"], to=writer):
+                writer.write(f"class ComputedStyleProperties : public ComputedStyleBase {{")
+                writer.write(f"protected:")
+
+                with writer.indent():
+                    writer.write(f"ComputedStyleProperties(ComputedStyleProperties&&) = default;")
+                    writer.write(f"ComputedStyleProperties& operator=(ComputedStyleProperties&&) = default;")
+                    writer.newline()
+
+                    writer.write(f"ComputedStyleProperties(CreateDefaultStyleTag tag) : ComputedStyleBase {{ tag }} {{ }}")
+                    writer.write(f"ComputedStyleProperties(const ComputedStyleProperties& other, CloneTag tag) : ComputedStyleBase {{ other, tag }} {{ }}")
+                    writer.newline()
+
+                    writer.write(f"ComputedStyleProperties(ComputedStyleProperties& a, ComputedStyleProperties&& b) : ComputedStyleBase {{ a, WTF::move(b) }} {{ }}")
+                    writer.newline()
+
+                writer.write(f"public:")
+
+                with writer.indent():
+                    self._generate_style_computed_style_properties_h_function_declarations(
+                        to=writer
+                    )
+
+                writer.write(f"}};")
+                writer.newline()
+
+    # Generate StyleComputedStyleProperties+GettersInlines.h
+
+    def _generate_style_computed_style_properties_getters_inlines_h_function_definition(self, *, to, function_name, annotations, return_type, get_expression):
+        to.write(f"{annotations}{return_type} ComputedStyleProperties::{function_name}() const")
+        to.write(f"{{")
+        with to.indent():
+            to.write(f"return {get_expression};")
+        to.write(f"}}")
+        to.newline()
+
+    def _generate_style_computed_style_properties_getters_inlines_h_function_definitions(self, *, to):
+        for property in self.style_properties.all:
+            if property.codegen_properties.skip_render_style:
+                continue
+            if property.codegen_properties.skip_render_style_getter:
+                continue
+            if property.codegen_properties.is_logical:
+                continue
+            if property.codegen_properties.longhands:
+                continue
+            if property.codegen_properties.cascade_alias:
+                continue
+            if property.codegen_properties.coordinated_value_list_property:
+                continue
+
+            if not property.codegen_properties.render_style_storage_path:
+                raise Exception(f"Missing RenderStyle storage path for property {property.id}.")
+
+            if not property.codegen_properties.render_style_getter_custom:
+                function_name = property.codegen_properties.render_style_getter
+                annotations = property.getter_definition_annotations
+                return_type = property.getter_return_type
+                storage_type = property.codegen_properties.render_style_type
+                storage_name = property.codegen_properties.render_style_storage_name
+                storage_kind = property.codegen_properties.render_style_storage_kind
+                container_kind = property.codegen_properties.render_style_storage_container
+                container_path = property.codegen_properties.render_style_storage_path
+
+                self._generate_style_computed_style_properties_getters_inlines_h_function_definition(
+                    to=to,
+                    function_name=function_name,
+                    annotations=annotations,
+                    return_type=return_type,
+                    get_expression=self._compute_get_expression(property, container_kind, container_path, storage_type, storage_name, storage_kind)
+                )
+
+            if property.codegen_properties.render_style_visited_link_storage_path:
+                function_name = f"visitedLink{property.codegen_properties.render_style_name_for_methods}"
+                annotations = "inline "
+                return_type = property.getter_return_type
+                storage_type = property.codegen_properties.render_style_type
+                storage_kind = property.codegen_properties.render_style_storage_kind  # the storage kind for visited links are always the same as the principle value
+                storage_name = property.codegen_properties.render_style_visited_link_storage_name
+                container_kind = property.codegen_properties.render_style_visited_link_storage_container
+                container_path = property.codegen_properties.render_style_visited_link_storage_path
+
+                self._generate_style_computed_style_properties_getters_inlines_h_function_definition(
+                    to=to,
+                    function_name=function_name,
+                    annotations=annotations,
+                    return_type=return_type,
+                    get_expression=self._compute_get_expression(property, container_kind, container_path, storage_type, storage_name, storage_kind)
+                )
+
+            if property.codegen_properties.render_style_has_explicitly_set_storage_path:
+                function_name = f"hasExplicitlySet{property.codegen_properties.render_style_name_for_methods}"
+                annotations = "inline "
+                return_type = 'bool'
+                storage_type = 'bool'
+                storage_kind = 'value'
+                storage_name = property.codegen_properties.render_style_has_explicitly_set_storage_name
+                container_kind = property.codegen_properties.render_style_has_explicitly_set_storage_container
+                container_path = property.codegen_properties.render_style_has_explicitly_set_storage_path
+
+                self._generate_style_computed_style_properties_getters_inlines_h_function_definition(
+                    to=to,
+                    function_name=function_name,
+                    annotations=annotations,
+                    return_type=return_type,
+                    get_expression=self._compute_get_expression(property, container_kind, container_path, storage_type, storage_name, storage_kind)
+                )
+
+    def generate_style_computed_style_properties_getters_inlines_h(self):
+        with open('StyleComputedStyleProperties+GettersInlines.h', 'w') as output_file:
+            writer = Writer(output_file)
+
+            self.generation_context.generate_heading(
+                to=writer
+            )
+
+            self.generation_context.generate_required_header_pragma(
+                to=writer
+            )
+
+            writer.write("#ifndef COMPUTED_STYLE_PROPERTIES_GETTERS_INLINES_INCLUDE_TRAP")
+            writer.write("#error \"Please do not include this file anywhere except from StyleComputedStyle+GettersInlines.h.\"")
+            writer.write("#endif")
+            writer.newline()
+
+            self.generation_context.generate_includes(
+                to=writer,
+                system_headers=[
+                    "<WebCore/StyleComputedStyleProperties+GettersCustomInlines.h>",
+                ]
+            )
+
+            with self.generation_context.namespaces(["WebCore", "Style"], to=writer):
+                self._generate_style_computed_style_properties_getters_inlines_h_function_definitions(
+                    to=writer
+                )
+
+    # Generate StyleComputedStyleProperties+SettersInlines.h
+
+    def _generate_style_computed_style_properties_setters_inlines_h_function_definition(self, *, to, function_name, annotations, return_type, argument_type, argument_name, get_expression, set_expression):
+        to.write(f"{annotations}{return_type} ComputedStyleProperties::{function_name}({argument_type} {argument_name})")
+        to.write(f"{{")
+        with to.indent():
+            if return_type == 'void':
+                to.write(f"if ({argument_name} != {get_expression})")
+                with to.indent():
+                    to.write(f"{set_expression};")
+            elif return_type == 'bool':
+                to.write(f"if ({argument_name} != {get_expression}) {{")
+                with to.indent():
+                    to.write(f"{set_expression};")
+                    to.write(f"return true;")
+                to.write(f"}}")
+                to.write(f"return false;")
+        to.write(f"}}")
+        to.newline()
+
+    def _generate_style_computed_style_properties_setters_inlines_h_function_definitions(self, *, to):
+        for property in self.style_properties.all:
+            if property.codegen_properties.skip_render_style:
+                continue
+            if property.codegen_properties.skip_render_style_setter:
+                continue
+            if property.codegen_properties.is_logical:
+                continue
+            if property.codegen_properties.longhands:
+                continue
+            if property.codegen_properties.cascade_alias:
+                continue
+            if property.codegen_properties.coordinated_value_list_property:
+                continue
+
+            if not property.codegen_properties.render_style_storage_path:
+                raise Exception(f"Missing RenderStyle storage path for property {property.id}.")
+
+            if not property.codegen_properties.render_style_setter_custom:
+                function_name = property.codegen_properties.render_style_setter
+                annotations = property.setter_definition_annotations
+                return_type = "void"
+                argument_type = property.setter_argument_type
+                argument_name = "value"
+                storage_type = property.codegen_properties.render_style_type
+                storage_kind = property.codegen_properties.render_style_storage_kind
+                storage_name = property.codegen_properties.render_style_storage_name
+                container_kind = property.codegen_properties.render_style_storage_container
+                container_path = property.codegen_properties.render_style_storage_path
+
+                self._generate_style_computed_style_properties_setters_inlines_h_function_definition(
+                    to=to,
+                    function_name=function_name,
+                    annotations=annotations,
+                    return_type=return_type,
+                    argument_type=argument_type,
+                    argument_name=argument_name,
+                    get_expression=self._compute_get_expression(property, container_kind, container_path, storage_type, storage_name, storage_kind),
+                    set_expression=self._compute_set_expression(property, container_kind, container_path, storage_type, storage_name, storage_kind, argument_name)
+                )
+
+            if property.codegen_properties.render_style_visited_link_storage_path:
+                function_name = f"setVisitedLink{property.codegen_properties.render_style_name_for_methods}"
+                annotations = "inline "
+                return_type = "void"
+                argument_type = property.setter_argument_type
+                argument_name = "value"
+                storage_type = property.codegen_properties.render_style_type
+                storage_kind = property.codegen_properties.render_style_storage_kind  # the storage kind for visited links are always the same as the principle value
+                storage_name = property.codegen_properties.render_style_visited_link_storage_name
+                container_kind = property.codegen_properties.render_style_visited_link_storage_container
+                container_path = property.codegen_properties.render_style_visited_link_storage_path
+
+                self._generate_style_computed_style_properties_setters_inlines_h_function_definition(
+                    to=to,
+                    function_name=function_name,
+                    annotations=annotations,
+                    return_type=return_type,
+                    argument_type=argument_type,
+                    argument_name=argument_name,
+                    get_expression=self._compute_get_expression(property, container_kind, container_path, storage_type, storage_name, storage_kind),
+                    set_expression=self._compute_set_expression(property, container_kind, container_path, storage_type, storage_name, storage_kind, argument_name)
+                )
+
+            if property.codegen_properties.render_style_has_explicitly_set_storage_path:
+                function_name = f"setHasExplicitlySet{property.codegen_properties.render_style_name_for_methods}"
+                annotations = "inline "
+                return_type = "void"
+                argument_type = 'bool'
+                argument_name = f"value"
+                storage_type = 'bool'
+                storage_kind = 'value'
+                storage_name = property.codegen_properties.render_style_has_explicitly_set_storage_name
+                container_kind = property.codegen_properties.render_style_has_explicitly_set_storage_container
+                container_path = property.codegen_properties.render_style_has_explicitly_set_storage_path
+
+                self._generate_style_computed_style_properties_setters_inlines_h_function_definition(
+                    to=to,
+                    function_name=function_name,
+                    annotations=annotations,
+                    return_type=return_type,
+                    argument_type=argument_type,
+                    argument_name=argument_name,
+                    get_expression=self._compute_get_expression(property, container_kind, container_path, storage_type, storage_name, storage_kind),
+                    set_expression=self._compute_set_expression(property, container_kind, container_path, storage_type, storage_name, storage_kind, argument_name)
+                )
+
+    def generate_style_computed_style_properties_setters_inlines_h(self):
+        with open('StyleComputedStyleProperties+SettersInlines.h', 'w') as output_file:
+            writer = Writer(output_file)
+
+            self.generation_context.generate_heading(
+                to=writer
+            )
+
+            self.generation_context.generate_required_header_pragma(
+                to=writer
+            )
+
+            writer.write("#ifndef COMPUTED_STYLE_PROPERTIES_SETTERS_INLINES_INCLUDE_TRAP")
+            writer.write("#error \"Please do not include this file anywhere except from StyleComputedStyle+SettersInlines.h.\"")
+            writer.write("#endif")
+            writer.newline()
+
+            self.generation_context.generate_includes(
+                to=writer,
+                headers=[
+                    "StyleComputedStyleProperties+SettersCustomInlines.h",
+                ]
+            )
+
+            with self.generation_context.namespaces(["WebCore", "Style"], to=writer):
+                self._generate_style_computed_style_properties_setters_inlines_h_function_definitions(
+                    to=writer
+                )
+
+    # Generate StyleComputedStyleProperties+InitialInlines.h
+
+    def _generate_style_computed_style_properties_initial_inlines_h_function_definition(self, *, to, function_name, annotations, return_type, initial_expression, requires_using_namespace_css_literals):
+        to.write(f"{annotations}{return_type} ComputedStyleProperties::{function_name}()")
+        to.write(f"{{")
+        with to.indent():
+            if requires_using_namespace_css_literals:
+                to.write(f"using namespace CSS::Literals;")
+            to.write(f"return {initial_expression};")
+        to.write(f"}}")
+        to.newline()
+
+    def _generate_style_computed_style_properties_initial_inlines_h_function_definitions(self, *, to):
+        for property in self.style_properties.all:
+            if property.codegen_properties.skip_render_style:
+                continue
+            if property.codegen_properties.skip_render_style_initial:
+                continue
+            if property.codegen_properties.is_logical:
+                continue
+            if property.codegen_properties.longhands:
+                continue
+            if property.codegen_properties.cascade_alias:
+                continue
+            if property.codegen_properties.coordinated_value_list_property:
+                continue
+
+            if not property.codegen_properties.render_style_initial_custom:
+                function_name = property.codegen_properties.render_style_initial
+                annotations = property.initial_definition_annotations
+                return_type = property.initial_return_type
+                requires_using_namespace_css_literals = property.initial.requires_using_namespace_css_literals
+
+                self._generate_style_computed_style_properties_initial_inlines_h_function_definition(
+                    to=to,
+                    function_name=function_name,
+                    annotations=annotations,
+                    return_type=return_type,
+                    initial_expression=self._compute_initial_expression(property),
+                    requires_using_namespace_css_literals=requires_using_namespace_css_literals
+                )
+
+    def generate_style_computed_style_properties_initial_inlines_h(self):
+        with open('StyleComputedStyleProperties+InitialInlines.h', 'w') as output_file:
+            writer = Writer(output_file)
+
+            self.generation_context.generate_heading(
+                to=writer
+            )
+
+            self.generation_context.generate_required_header_pragma(
+                to=writer
+            )
+
+            writer.write("#ifndef COMPUTED_STYLE_PROPERTIES_INITIAL_INLINES_INCLUDE_TRAP")
+            writer.write("#error \"Please do not include this file anywhere except from StyleComputedStyle+InitialInlines.h.\"")
+            writer.write("#endif")
+            writer.newline()
+
+            self.generation_context.generate_includes(
+                to=writer,
+                system_headers=[
+                    "<WebCore/StyleComputedStyleProperties+InitialCustomInlines.h>",
+                ]
+            )
+
+            with self.generation_context.namespaces(["WebCore", "Style"], to=writer):
+                self._generate_style_computed_style_properties_initial_inlines_h_function_definitions(
+                    to=writer
+                )
+
+# Generates `RenderStyleProperties.h`, `RenderStyleProperties+GettersInlines.h`, `RenderStyleProperties+SettersInlines.h` and `RenderStyleProperties+InitialInlines.h`.
+class GenerateRenderStyleProperties:
+    def __init__(self, generation_context):
+        self.generation_context = generation_context
+
+    @property
+    def properties_and_descriptors(self):
+        return self.generation_context.properties_and_descriptors
+
+    @property
+    def style_properties(self):
+        return self.generation_context.properties_and_descriptors.style_properties
+
+    def generate(self):
+        self.generate_render_style_properties_h()
+        self.generate_render_style_properties_getters_inlines_h()
+        self.generate_render_style_properties_setters_inlines_h()
+        self.generate_render_style_properties_initial_inlines_h()
+
+    def _compute_forwarding_expression(self, property, storage_kind, argument_name):
+        if storage_kind == 'reference':
+            return f"WTF::move({argument_name})"
+        else:
+            return f"{argument_name}"
+
+    # Computes the annotations, if any, of the getter's declaration.
+    def _compute_getter_declaration_annotations(self, property):
+        annotations = ["inline"]
+        if property.codegen_properties.render_style_getter_constexpr:
+            annotations += ["constexpr"]
+        return " ".join(annotations) + " " if annotations else ""
+
+    # Computes the annotations, if any, of the getter's definition.
+    def _compute_getter_definition_annotations(self, property):
+        annotations = ["inline"]
+        if property.codegen_properties.render_style_getter_constexpr:
+            annotations += ["constexpr"]
+        return " ".join(annotations) + " " if annotations else ""
+
+    # Computes the annotations, if any, of the setter's declaration.
+    def _compute_setter_declaration_annotations(self, property):
+        annotations = ["inline"]
+        if property.codegen_properties.render_style_setter_constexpr:
+            annotations += ["constexpr"]
+        return " ".join(annotations) + " " if annotations else ""
+
+    # Computes the annotations, if any, of the setter's definition.
+    def _compute_setter_definition_annotations(self, property):
+        annotations = ["inline"]
+        if property.codegen_properties.render_style_setter_constexpr:
+            annotations += ["constexpr"]
+        return " ".join(annotations) + " " if annotations else ""
+
+    # Computes the annotations, if any, of the initial's declaration.
+    def _compute_initial_declaration_annotations(self, property):
+        annotations = ["inline"]
+        if property.codegen_properties.render_style_initial_constexpr:
+            annotations += ["constexpr"]
+        return " ".join(annotations) + " " if annotations else ""
+
+    # Computes the annotations, if any, of the initial's definition.
+    def _compute_initial_definition_annotations(self, property):
+        annotations = ["inline"]
+        if property.codegen_properties.render_style_initial_constexpr:
+            annotations += ["constexpr"]
+        return " ".join(annotations) + " " if annotations else ""
+
+    # Computes the expression for the initial value function.
+    def _compute_initial_expression(self, property):
+        def pick_literal_expression(element):
+            if property.codegen_properties.render_style_storage_kind == 'enum':
+                return element.cpp_enum_literal(property.codegen_properties.render_style_type)
+            return element.cpp_literal
+
+        if len(property.initial.list) == 1:
+            if isinstance(property.initial.list[0], SpecialLiteral):
+                raise Exception(f"Special literals must have custom initial function implementation")
+            return pick_literal_expression(property.initial.list[0])
+        else:
+            return "{ " + ", ".join(pick_literal_expression(element) for element in property.initial.list) + " }"
+
     # Generate RenderStyleProperties.h
 
     def _generate_render_style_properties_h_getter_function_declaration(self, *, to, function_name, annotations, return_type):
@@ -5405,6 +6494,9 @@ class GenerateRenderStyleProperties:
 
     def _generate_render_style_properties_h_setter_function_declaration(self, *, to, function_name, annotations, return_type, argument_type):
         to.write(f"{annotations}{return_type} {function_name}({argument_type});")
+
+    def _generate_render_style_properties_h_initial_function_declaration(self, *, to, function_name, annotations, return_type):
+        to.write(f"static {annotations}{return_type} {function_name}();")
 
     def _generate_render_style_properties_h_function_declarations(self, *, to):
         needs_newline = False
@@ -5426,36 +6518,52 @@ class GenerateRenderStyleProperties:
                 needs_newline = True
             to.write(f"// {property.id}")
 
-            getter_name = property.codegen_properties.render_style_getter
-            getter_annotations = self._compute_getter_declaration_annotations(property)
-            getter_return_type = self._compute_getter_return_type(property)
-            setter_name = property.codegen_properties.render_style_setter
-            setter_annotations = self._compute_setter_declaration_annotations(property)
-            setter_return_type = self._compute_setter_return_type(property)
-            setter_argument_type = self._compute_setter_argument_type(property)
+            if not property.codegen_properties.skip_render_style_getter:
+                getter_name = property.codegen_properties.render_style_getter
+                getter_annotations = self._compute_getter_declaration_annotations(property)
+                getter_return_type = property.getter_return_type
 
-            self._generate_render_style_properties_h_getter_function_declaration(
-                to=to,
-                function_name=getter_name,
-                annotations=getter_annotations,
-                return_type=getter_return_type
-            )
-            self._generate_render_style_properties_h_setter_function_declaration(
-                to=to,
-                function_name=setter_name,
-                annotations=setter_annotations,
-                return_type=setter_return_type,
-                argument_type=setter_argument_type
-            )
+                self._generate_render_style_properties_h_getter_function_declaration(
+                    to=to,
+                    function_name=getter_name,
+                    annotations=getter_annotations,
+                    return_type=getter_return_type
+                )
+
+            if not property.codegen_properties.skip_render_style_setter:
+                setter_name = property.codegen_properties.render_style_setter
+                setter_annotations = self._compute_setter_declaration_annotations(property)
+                setter_return_type = property.setter_return_type
+                setter_argument_type = property.setter_argument_type
+
+                self._generate_render_style_properties_h_setter_function_declaration(
+                    to=to,
+                    function_name=setter_name,
+                    annotations=setter_annotations,
+                    return_type=setter_return_type,
+                    argument_type=setter_argument_type
+                )
+
+            if not property.codegen_properties.skip_render_style_initial:
+                initial_name = property.codegen_properties.render_style_initial
+                initial_annotations = self._compute_initial_declaration_annotations(property)
+                initial_return_type = property.initial_return_type
+
+                self._generate_render_style_properties_h_initial_function_declaration(
+                    to=to,
+                    function_name=initial_name,
+                    annotations=initial_annotations,
+                    return_type=initial_return_type
+                )
 
             if property.codegen_properties.render_style_visited_link_storage_path:
                 getter_name = f"visitedLink{property.codegen_properties.render_style_name_for_methods}"
                 setter_name = f"setVisitedLink{property.codegen_properties.render_style_name_for_methods}"
                 getter_annotations = "inline "
-                getter_return_type = self._compute_getter_return_type(property)
+                getter_return_type = property.getter_return_type
                 setter_annotations = f"inline "
                 setter_return_type = f"void"
-                setter_argument_type = self._compute_setter_argument_type(property)
+                setter_argument_type = property.setter_argument_type
 
                 self._generate_render_style_properties_h_getter_function_declaration(
                     to=to,
@@ -5526,7 +6634,7 @@ class GenerateRenderStyleProperties:
                     writer.write(f"RenderStyleProperties(const RenderStyleProperties& other, CloneTag tag) : RenderStyleBase {{ other, tag }} {{ }}")
                     writer.newline()
 
-                    writer.write(f"RenderStyleProperties(RenderStyleProperties& a, RenderStyleProperties&& b) : RenderStyleBase {{ a, WTFMove(b) }} {{ }}")
+                    writer.write(f"RenderStyleProperties(RenderStyleProperties& a, RenderStyleProperties&& b) : RenderStyleBase {{ a, WTF::move(b) }} {{ }}")
                     writer.newline()
 
                 writer.write(f"public:")
@@ -5539,19 +6647,21 @@ class GenerateRenderStyleProperties:
                 writer.write(f"}};")
                 writer.newline()
 
-    # Generate RenderStylePropertiesGettersInlines.h
+    # Generate RenderStyleProperties+GettersInlines.h
 
-    def _generate_render_style_properties_getters_inlines_h_function_definition(self, *, to, function_name, annotations, return_type, get_expression):
+    def _generate_render_style_properties_getters_inlines_h_function_definition(self, *, to, function_name, annotations, return_type):
         to.write(f"{annotations}{return_type} RenderStyleProperties::{function_name}() const")
         to.write(f"{{")
         with to.indent():
-            to.write(f"return {get_expression};")
+            to.write(f"return m_computedStyle.{function_name}();")
         to.write(f"}}")
         to.newline()
 
     def _generate_render_style_properties_getters_inlines_h_function_definitions(self, *, to):
         for property in self.style_properties.all:
             if property.codegen_properties.skip_render_style:
+                continue
+            if property.codegen_properties.skip_render_style_getter:
                 continue
             if property.codegen_properties.is_logical:
                 continue
@@ -5562,65 +6672,46 @@ class GenerateRenderStyleProperties:
             if property.codegen_properties.coordinated_value_list_property:
                 continue
 
-            if not property.codegen_properties.render_style_storage_path and not property.codegen_properties.render_style_getter_custom:
-                raise Exception(f"Missing RenderStyle getter for property {property.id}.")
+            if not property.codegen_properties.render_style_storage_path:
+                raise Exception(f"Missing RenderStyle storage path for property {property.id}.")
 
-            if not property.codegen_properties.render_style_getter_custom:
-                function_name = property.codegen_properties.render_style_getter
-                annotations = self._compute_getter_definition_annotations(property)
-                return_type = self._compute_getter_return_type(property)
-                storage_type = property.codegen_properties.render_style_type
-                storage_name = property.codegen_properties.render_style_storage_name
-                storage_kind = property.codegen_properties.render_style_storage_kind
-                container_kind = property.codegen_properties.render_style_storage_container
-                container_path = property.codegen_properties.render_style_storage_path
+            function_name = property.codegen_properties.render_style_getter
+            annotations = self._compute_getter_definition_annotations(property)
+            return_type = property.getter_return_type
 
-                self._generate_render_style_properties_getters_inlines_h_function_definition(
-                    to=to,
-                    function_name=function_name,
-                    annotations=annotations,
-                    return_type=return_type,
-                    get_expression=self._compute_get_expression(property, container_kind, container_path, storage_type, storage_name, storage_kind)
-                )
+            self._generate_render_style_properties_getters_inlines_h_function_definition(
+                to=to,
+                function_name=function_name,
+                annotations=annotations,
+                return_type=return_type
+            )
 
             if property.codegen_properties.render_style_visited_link_storage_path:
                 function_name = f"visitedLink{property.codegen_properties.render_style_name_for_methods}"
                 annotations = "inline "
-                return_type = self._compute_getter_return_type(property)
-                storage_type = property.codegen_properties.render_style_type
-                storage_kind = property.codegen_properties.render_style_storage_kind  # the storage kind for visited links are always the same as the principle value
-                storage_name = property.codegen_properties.render_style_visited_link_storage_name
-                container_kind = property.codegen_properties.render_style_visited_link_storage_container
-                container_path = property.codegen_properties.render_style_visited_link_storage_path
+                return_type = property.getter_return_type
 
                 self._generate_render_style_properties_getters_inlines_h_function_definition(
                     to=to,
                     function_name=function_name,
                     annotations=annotations,
-                    return_type=return_type,
-                    get_expression=self._compute_get_expression(property, container_kind, container_path, storage_type, storage_name, storage_kind)
+                    return_type=return_type
                 )
 
             if property.codegen_properties.render_style_has_explicitly_set_storage_path:
                 function_name = f"hasExplicitlySet{property.codegen_properties.render_style_name_for_methods}"
                 annotations = "inline "
                 return_type = 'bool'
-                storage_type = 'bool'
-                storage_kind = 'value'
-                storage_name = property.codegen_properties.render_style_has_explicitly_set_storage_name
-                container_kind = property.codegen_properties.render_style_has_explicitly_set_storage_container
-                container_path = property.codegen_properties.render_style_has_explicitly_set_storage_path
 
                 self._generate_render_style_properties_getters_inlines_h_function_definition(
                     to=to,
                     function_name=function_name,
                     annotations=annotations,
-                    return_type=return_type,
-                    get_expression=self._compute_get_expression(property, container_kind, container_path, storage_type, storage_name, storage_kind)
+                    return_type=return_type
                 )
 
     def generate_render_style_properties_getters_inlines_h(self):
-        with open('RenderStylePropertiesGettersInlines.h', 'w') as output_file:
+        with open('RenderStyleProperties+GettersInlines.h', 'w') as output_file:
             writer = Writer(output_file)
 
             self.generation_context.generate_heading(
@@ -5632,14 +6723,15 @@ class GenerateRenderStyleProperties:
             )
 
             writer.write("#ifndef RENDER_STYLE_PROPERTIES_GETTERS_INLINES_INCLUDE_TRAP")
-            writer.write("#error \"Please do not include this file anywhere except from RenderStyleInlines.h.\"")
+            writer.write("#error \"Please do not include this file anywhere except from RenderStyle+GettersInlines.h.\"")
             writer.write("#endif")
             writer.newline()
 
             self.generation_context.generate_includes(
                 to=writer,
                 system_headers=[
-                    "<WebCore/RenderStylePropertiesGettersCustom.h>",
+                    "<WebCore/RenderStyleBase+GettersInlines.h>",
+                    "<WebCore/StyleComputedStyle+GettersInlines.h>",
                 ]
             )
 
@@ -5648,21 +6740,24 @@ class GenerateRenderStyleProperties:
                     to=writer
                 )
 
-    # Generate RenderStylePropertiesSettersInlines.h
+    # Generate RenderStyleProperties+SettersInlines.h
 
-    def _generate_render_style_properties_setters_inlines_h_function_definition(self, *, to, function_name, annotations, return_type, argument_type, argument_name, get_expression, set_expression):
+    def _generate_render_style_properties_setters_inlines_h_function_definition(self, *, to, function_name, annotations, return_type, argument_type, argument_name, forwarding_expression):
         to.write(f"{annotations}{return_type} RenderStyleProperties::{function_name}({argument_type} {argument_name})")
         to.write(f"{{")
         with to.indent():
-            to.write(f"if ({argument_name} != {get_expression})")
-            with to.indent():
-                to.write(f"{set_expression};")
+            if return_type == 'void':
+                to.write(f"m_computedStyle.{function_name}({forwarding_expression});")
+            else:
+                to.write(f"return m_computedStyle.{function_name}({forwarding_expression});")
         to.write(f"}}")
         to.newline()
 
     def _generate_render_style_properties_setters_inlines_h_function_definitions(self, *, to):
         for property in self.style_properties.all:
             if property.codegen_properties.skip_render_style:
+                continue
+            if property.codegen_properties.skip_render_style_setter:
                 continue
             if property.codegen_properties.is_logical:
                 continue
@@ -5673,43 +6768,33 @@ class GenerateRenderStyleProperties:
             if property.codegen_properties.coordinated_value_list_property:
                 continue
 
-            if not property.codegen_properties.render_style_storage_path and not property.codegen_properties.render_style_setter_custom:
-                raise Exception(f"Missing RenderStyle setter for property {property.id}.")
+            if not property.codegen_properties.render_style_storage_path:
+                raise Exception(f"Missing RenderStyle storage path for property {property.id}.")
 
-            if not property.codegen_properties.render_style_setter_custom:
-                function_name = property.codegen_properties.render_style_setter
-                annotations = self._compute_setter_definition_annotations(property)
-                return_type = "void"
-                argument_type = self._compute_setter_argument_type(property)
-                argument_name = "value"
-                storage_type = property.codegen_properties.render_style_type
-                storage_kind = property.codegen_properties.render_style_storage_kind
-                storage_name = property.codegen_properties.render_style_storage_name
-                container_kind = property.codegen_properties.render_style_storage_container
-                container_path = property.codegen_properties.render_style_storage_path
+            function_name = property.codegen_properties.render_style_setter
+            annotations = self._compute_setter_definition_annotations(property)
+            return_type = property.setter_return_type
+            argument_type = property.setter_argument_type
+            argument_name = "value"
+            storage_kind = property.codegen_properties.render_style_storage_kind
 
-                self._generate_render_style_properties_setters_inlines_h_function_definition(
-                    to=to,
-                    function_name=function_name,
-                    annotations=annotations,
-                    return_type=return_type,
-                    argument_type=argument_type,
-                    argument_name=argument_name,
-                    get_expression=self._compute_get_expression(property, container_kind, container_path, storage_type, storage_name, storage_kind),
-                    set_expression=self._compute_set_expression(property, container_kind, container_path, storage_type, storage_name, storage_kind, argument_name)
-                )
+            self._generate_render_style_properties_setters_inlines_h_function_definition(
+                to=to,
+                function_name=function_name,
+                annotations=annotations,
+                return_type=return_type,
+                argument_type=argument_type,
+                argument_name=argument_name,
+                forwarding_expression=self._compute_forwarding_expression(property, storage_kind, argument_name)
+            )
 
             if property.codegen_properties.render_style_visited_link_storage_path:
                 function_name = f"setVisitedLink{property.codegen_properties.render_style_name_for_methods}"
                 annotations = "inline "
                 return_type = "void"
-                argument_type = self._compute_setter_argument_type(property)
+                argument_type = property.setter_argument_type
                 argument_name = "value"
-                storage_type = property.codegen_properties.render_style_type
                 storage_kind = property.codegen_properties.render_style_storage_kind  # the storage kind for visited links are always the same as the principle value
-                storage_name = property.codegen_properties.render_style_visited_link_storage_name
-                container_kind = property.codegen_properties.render_style_visited_link_storage_container
-                container_path = property.codegen_properties.render_style_visited_link_storage_path
 
                 self._generate_render_style_properties_setters_inlines_h_function_definition(
                     to=to,
@@ -5718,8 +6803,7 @@ class GenerateRenderStyleProperties:
                     return_type=return_type,
                     argument_type=argument_type,
                     argument_name=argument_name,
-                    get_expression=self._compute_get_expression(property, container_kind, container_path, storage_type, storage_name, storage_kind),
-                    set_expression=self._compute_set_expression(property, container_kind, container_path, storage_type, storage_name, storage_kind, argument_name)
+                    forwarding_expression=self._compute_forwarding_expression(property, storage_kind, argument_name)
                 )
 
             if property.codegen_properties.render_style_has_explicitly_set_storage_path:
@@ -5728,11 +6812,7 @@ class GenerateRenderStyleProperties:
                 return_type = "void"
                 argument_type = 'bool'
                 argument_name = f"value"
-                storage_type = 'bool'
                 storage_kind = 'value'
-                storage_name = property.codegen_properties.render_style_has_explicitly_set_storage_name
-                container_kind = property.codegen_properties.render_style_has_explicitly_set_storage_container
-                container_path = property.codegen_properties.render_style_has_explicitly_set_storage_path
 
                 self._generate_render_style_properties_setters_inlines_h_function_definition(
                     to=to,
@@ -5741,12 +6821,11 @@ class GenerateRenderStyleProperties:
                     return_type=return_type,
                     argument_type=argument_type,
                     argument_name=argument_name,
-                    get_expression=self._compute_get_expression(property, container_kind, container_path, storage_type, storage_name, storage_kind),
-                    set_expression=self._compute_set_expression(property, container_kind, container_path, storage_type, storage_name, storage_kind, argument_name)
+                    forwarding_expression=self._compute_forwarding_expression(property, storage_kind, argument_name)
                 )
 
     def generate_render_style_properties_setters_inlines_h(self):
-        with open('RenderStylePropertiesSettersInlines.h', 'w') as output_file:
+        with open('RenderStyleProperties+SettersInlines.h', 'w') as output_file:
             writer = Writer(output_file)
 
             self.generation_context.generate_heading(
@@ -5758,14 +6837,15 @@ class GenerateRenderStyleProperties:
             )
 
             writer.write("#ifndef RENDER_STYLE_PROPERTIES_SETTERS_INLINES_INCLUDE_TRAP")
-            writer.write("#error \"Please do not include this file anywhere except from RenderStyleSetters.h.\"")
+            writer.write("#error \"Please do not include this file anywhere except from RenderStyle+SettersInlines.h.\"")
             writer.write("#endif")
             writer.newline()
 
             self.generation_context.generate_includes(
                 to=writer,
                 headers=[
-                    "RenderStylePropertiesSettersCustom.h",
+                    "RenderStyleBase+SettersInlines.h",
+                    "StyleComputedStyle+SettersInlines.h",
                 ]
             )
 
@@ -5773,6 +6853,331 @@ class GenerateRenderStyleProperties:
                 self._generate_render_style_properties_setters_inlines_h_function_definitions(
                     to=writer
                 )
+
+    # Generate RenderStyleProperties+InitialInlines.h
+
+    def _generate_render_style_properties_initial_inlines_h_function_definition(self, *, to, function_name, annotations, return_type):
+        to.write(f"{annotations}{return_type} RenderStyleProperties::{function_name}()")
+        to.write(f"{{")
+        with to.indent():
+            to.write(f"return Style::ComputedStyle::{function_name}();")
+        to.write(f"}}")
+        to.newline()
+
+    def _generate_render_style_properties_initial_inlines_h_function_definitions(self, *, to):
+        for property in self.style_properties.all:
+            if property.codegen_properties.skip_render_style:
+                continue
+            if property.codegen_properties.skip_render_style_initial:
+                continue
+            if property.codegen_properties.is_logical:
+                continue
+            if property.codegen_properties.longhands:
+                continue
+            if property.codegen_properties.cascade_alias:
+                continue
+            if property.codegen_properties.coordinated_value_list_property:
+                continue
+
+            function_name = property.codegen_properties.render_style_initial
+            annotations = self._compute_initial_definition_annotations(property)
+            return_type = property.initial_return_type
+
+            self._generate_render_style_properties_initial_inlines_h_function_definition(
+                to=to,
+                function_name=function_name,
+                annotations=annotations,
+                return_type=return_type
+            )
+
+    def generate_render_style_properties_initial_inlines_h(self):
+        with open('RenderStyleProperties+InitialInlines.h', 'w') as output_file:
+            writer = Writer(output_file)
+
+            self.generation_context.generate_heading(
+                to=writer
+            )
+
+            self.generation_context.generate_required_header_pragma(
+                to=writer
+            )
+
+            writer.write("#ifndef RENDER_STYLE_PROPERTIES_INITIAL_INLINES_INCLUDE_TRAP")
+            writer.write("#error \"Please do not include this file anywhere except from RenderStyle+InitialInlines.h.\"")
+            writer.write("#endif")
+            writer.newline()
+
+            self.generation_context.generate_includes(
+                to=writer,
+                system_headers=[
+                    "<WebCore/StyleComputedStyle+InitialInlines.h>",
+                ]
+            )
+
+            with self.generation_context.namespace("WebCore", to=writer):
+                self._generate_render_style_properties_initial_inlines_h_function_definitions(
+                    to=writer
+                )
+
+
+# Generates `StyleChangedAnimatablePropertiesGenerated.cpp`.
+class GenerateStyleChangedAnimatablePropertiesGenerated:
+    def __init__(self, generation_context):
+        self.generation_context = generation_context
+
+    @property
+    def properties_and_descriptors(self):
+        return self.generation_context.properties_and_descriptors
+
+    @property
+    def style_properties(self):
+        return self.generation_context.properties_and_descriptors.style_properties
+
+    def generate(self):
+        self.generate_style_changed_animatable_properties_generated_cpp()
+
+    def _generate_conservatively_collect_changed_animatable_properties_opaque(self, *, to, tree_node, generated_children, function_name):
+        assert(tree_node.kind == 'opaque')
+        assert(not tree_node.children)
+
+        to.write(f"static void {function_name}(const auto&, const auto&, CSSPropertiesBitSet& changingProperties)")
+        to.write(f"{{")
+
+        with to.indent():
+            animatable_properties = set()
+            non_animatable_properties = set()
+
+            for property in itertools.chain(tree_node.properties, tree_node.visited_link_properties):
+                if not property.is_animatable:
+                    non_animatable_properties.add(property)
+                else:
+                    animatable_properties.add(property)
+
+            for property in sorted(animatable_properties, key=lambda x: x.id):
+                to.write(f"changingProperties.m_properties.set({property.id_without_scope});")
+
+            if non_animatable_properties:
+                to.newline()
+                to.write("// Non-animatable properties:")
+                for property in sorted(non_animatable_properties, key=lambda x: x.id):
+                    to.write(f"// SKIPPED '{property}' - {property.animation_type}")
+
+        to.write(f"}}")
+        to.newline()
+
+    def _generate_conservatively_collect_changed_animatable_properties_function(self, *, to, tree_node, generated_children, function_name):
+        # Special case `opaque` nodes, as they can only have very specific kinds of children.
+        if tree_node.kind == 'opaque':
+            self._generate_conservatively_collect_changed_animatable_properties_opaque(
+                to=to,
+                tree_node=tree_node,
+                generated_children=generated_children,
+                function_name=function_name
+            )
+            return
+
+        to.write(f"static void {function_name}(const auto& a, const auto& b, CSSPropertiesBitSet& changingProperties)")
+        to.write(f"{{")
+
+        with to.indent():
+            # Partition children into 'data', 'opaque', and 'struct', based on the what kind of container the child is.
+            # Each of these have a slightly different dispatch needs.
+            data_children = []
+            opaque_children = []
+            struct_children = []
+
+            for child in sorted(generated_children, key=lambda x: x.name):
+                if child.kind == 'data':
+                    data_children.append(child)
+                elif child.kind == 'opaque':
+                    opaque_children.append(child)
+                else:
+                    struct_children.append(child)
+
+            animatable_properties = []
+            non_animatable_properties = []
+
+            for property in sorted(tree_node.properties, key=lambda x: x.id):
+                if not property.is_animatable:
+                    non_animatable_properties.append(property)
+                else:
+                    animatable_properties.append(property)
+
+            animatable_visited_link_properties = []
+            non_animatable_visited_link_properties = []
+
+            for property in sorted(tree_node.visited_link_properties, key=lambda x: x.id):
+                if not property.is_animatable:
+                    non_animatable_visited_link_properties.append(property)
+                else:
+                    animatable_visited_link_properties.append(property)
+
+            # Generate the "data" children, which require an additional check.
+            for child in data_children:
+                child_function_name = Name(f"{function_name}_{child.name}").id_without_prefix_with_lowercase_first_letter
+                child_value_getter =  f"{child.name}"
+
+                # For "data" nodes, first check if both point to the same object.
+                to.write(f"if (a.{child_value_getter}.ptr() != b.{child_value_getter}.ptr())")
+                with to.indent():
+                    to.write(f"{child_function_name}(*a.{child_value_getter}, *b.{child_value_getter}, changingProperties);")
+
+            if data_children and opaque_children:
+                to.newline()
+
+            # Generate the "opaque" children, which also require an additional check.
+            for child in opaque_children:
+                child_function_name = Name(f"{function_name}_{child.name}").id_without_prefix_with_lowercase_first_letter
+                child_value_getter =  f"{child.name}"
+
+                to.write(f"if (a.{child_value_getter} != b.{child_value_getter})")
+                with to.indent():
+                    to.write(f"{child_function_name}(a.{child_value_getter}, b.{child_value_getter}, changingProperties);")
+
+            if (data_children or opaque_children) and struct_children:
+                to.newline()
+
+            # Generate the "struct" children, which get called without any check.
+            for child in struct_children:
+                child_function_name = Name(f"{function_name}_{child.name}").id_without_prefix_with_lowercase_first_letter
+                child_value_getter =  f"{child.name}"
+
+                to.write(f"{child_function_name}(a.{child_value_getter}, b.{child_value_getter}, changingProperties);")
+
+            if (data_children or opaque_children or struct_children) and animatable_properties:
+                to.newline()
+
+            # Generate the animatable property children.
+            for property in animatable_properties:
+                if property.codegen_properties.render_style_changed_for_animation_custom:
+                    to.write(f"ChangedAnimatablePropertiesCustom::conservativelyCollectChangedAnimatablePropertiesFor{property.id_without_prefix}(a, b, changingProperties);")
+                    continue
+
+                if tree_node.kind == 'data':
+                    expression = f"{property.codegen_properties.render_style_storage_name}"
+                elif tree_node.kind == 'struct':
+                    expression = f"{property.codegen_properties.render_style_storage_name}"
+                elif tree_node.kind == 'physical-group':
+                    expression = f"{Name(property.codegen_properties.logical_property_group.resolver).id_without_prefix_with_lowercase_first_letter}()"
+
+                to.write(f"if (a.{expression} != b.{expression})")
+                with to.indent():
+                    to.write(f"changingProperties.m_properties.set({property.id_without_scope});")
+
+            if (data_children or opaque_children or struct_children or animatable_properties) and animatable_visited_link_properties:
+                to.newline()
+
+            # Generate the animatable visited link property children.
+            for property in animatable_visited_link_properties:
+                if property.codegen_properties.render_style_changed_for_animation_custom:
+                    to.write(f"ChangedAnimatablePropertiesCustom::conservativelyCollectChangedAnimatablePropertiesForVisitedLink{property.id_without_prefix}(a, b, changingProperties);")
+                    continue
+
+                if tree_node.kind == 'data':
+                    expression = f"{property.codegen_properties.render_style_visited_link_storage_name}"
+                elif tree_node.kind == 'struct':
+                    expression = f"{property.codegen_properties.render_style_visited_link_storage_name}"
+                elif tree_node.kind == 'physical-group':
+                    expression = f"{Name(property.codegen_properties.logical_property_group.resolver).id_without_prefix_with_lowercase_first_letter}()"
+
+                to.write(f"if (a.{expression} != b.{expression})")
+                with to.indent():
+                    to.write(f"changingProperties.m_properties.set({property.id_without_scope});")
+
+            # Print out comments detailing the non-animatable properties that were skipped.
+            if non_animatable_properties:
+                to.newline()
+                to.write("// Non-animatable properties:")
+                for property in non_animatable_properties:
+                    to.write(f"// SKIPPED '{property}' - {property.animation_type}")
+
+            # Print out comments detailing the non-animatable visited link properties that were skipped.
+            if non_animatable_visited_link_properties:
+                to.newline()
+                to.write("// Non-animatable visited link properties:")
+                for property in non_animatable_visited_link_properties:
+                    to.write(f"// SKIPPED '{property}' - {property.animation_type}")
+
+        to.write(f"}}")
+        to.newline()
+
+    def _generate_conservatively_collect_changed_animatable_properties_recursive(self, *, to, tree_node, function_name):
+        # First, recursively generate the collection functions for all child nodes, assuring they are callable.
+        generated_children = []
+
+        for child in tree_node.children.values():
+            child_function_name = Name(f"{function_name}_{child.name}").id_without_prefix_with_lowercase_first_letter
+
+            did_generate = self._generate_conservatively_collect_changed_animatable_properties_recursive(
+                to=to,
+                tree_node=child,
+                function_name=child_function_name
+            )
+
+            if did_generate:
+                generated_children.append(child)
+
+        # If we didn't generate any callable children, and we don't have any animatable properties, there is nothing to generate here.
+        if not generated_children and not any(property.is_animatable for property in tree_node.properties) and not any(property.is_animatable for property in tree_node.visited_link_properties):
+            return False
+
+        # Second, generate the function for this tree node.
+        self._generate_conservatively_collect_changed_animatable_properties_function(
+            to=to,
+            tree_node=tree_node,
+            generated_children=generated_children,
+            function_name=function_name
+        )
+        return True
+
+    def _generate_conservatively_collect_changed_animatable_properties(self, *, to):
+        to.write(f"class ChangedAnimatablePropertiesFunctions final {{")
+        to.write(f"public:")
+
+        with to.indent():
+            function_name = 'collect'
+            root = self.properties_and_descriptors.render_style_storage_model
+
+            self._generate_conservatively_collect_changed_animatable_properties_recursive(
+                to=to,
+                tree_node=root,
+                function_name=function_name
+            )
+
+        to.write(f"}};")
+        to.newline()
+
+        to.write(f"void ChangedAnimatablePropertiesGenerated::conservativelyCollectChangedAnimatableProperties(const ComputedStyle& a, const ComputedStyle& b, CSSPropertiesBitSet& changingProperties)")
+        to.write(f"{{")
+
+        with to.indent():
+            to.write(f"ChangedAnimatablePropertiesFunctions::collect(a, b, changingProperties);")
+
+        to.write(f"}}")
+        to.newline()
+
+    def generate_style_changed_animatable_properties_generated_cpp(self):
+        with open('StyleChangedAnimatablePropertiesGenerated.cpp', 'w') as output_file:
+            writer = Writer(output_file)
+
+            self.generation_context.generate_heading(
+                to=writer
+            )
+
+            self.generation_context.generate_cpp_required_includes(
+                to=writer,
+                header="StyleChangedAnimatablePropertiesGenerated.h"
+            )
+
+            self.generation_context.generate_includes(
+                to=writer,
+                headers=[
+                    "StyleChangedAnimatablePropertiesCustom.h",
+                ]
+            )
+
+            with self.generation_context.namespaces(["WebCore", "Style"], to=writer):
+                self._generate_conservatively_collect_changed_animatable_properties(to=writer)
 
 
 # Helper class for representing a function parameter.
@@ -5963,7 +7368,7 @@ class TermGeneratorFunctionTerm(TermGenerator):
                 to.write(f"return {{ }};")
 
             to.write(f"range = rangeCopy;")
-            to.write(f"return CSSFunctionValue::create({self.term.name.id}, WTFMove(*result));")
+            to.write(f"return CSSFunctionValue::create({self.term.name.id}, WTF::move(*result));")
         to.write(f"}};")
 
     def _generate_call_string(self, *, range_string, state_string):
@@ -6421,27 +7826,27 @@ class TermGeneratorMatchAllOrderedTerm(TermGenerator):
                         # can kick in and it hasn't been explicitly disabled via @(no-single-item-opt).
                         to.write(f"if (list.size() == 1)")
                         with to.indent():
-                            to.write(f"return WTFMove(list[0]); // single item optimization")
-                    to.write(f"return {return_type_create}(WTFMove(list));")
+                            to.write(f"return WTF::move(list[0]); // single item optimization")
+                    to.write(f"return {return_type_create}(WTF::move(list));")
                 else:
                     min_values = self.number_of_terms - self.number_of_optional_terms
                     max_values = self.number_of_terms
 
                     list_value_strings = []
                     for list_index in range(0, min_values - 1):
-                        list_value_strings.append(f"WTFMove(list[{list_index}])")
+                        list_value_strings.append(f"WTF::move(list[{list_index}])")
 
                     for list_index in range(min_values - 1, max_values - 1):
-                        list_value_strings.append(f"WTFMove(list[{list_index}])")
+                        list_value_strings.append(f"WTF::move(list[{list_index}])")
 
                         to.write(f"if (list.size() == {list_index + 1})")
                         with to.indent():
                             if list_index == 0 and self.term.single_value_optimization:
-                                to.write(f"return WTFMove(list[0]); // single item optimization")
+                                to.write(f"return WTF::move(list[0]); // single item optimization")
                             else:
                                 to.write(f"return {return_type_create}({', '.join(list_value_strings)});")
 
-                    list_value_strings.append(f"WTFMove(list[{max_values - 1}])")
+                    list_value_strings.append(f"WTF::move(list[{max_values - 1}])")
                     to.write(f"return {return_type_create}({', '.join(list_value_strings)});")
             else:
                 return_value_strings = []
@@ -6488,7 +7893,7 @@ class TermGeneratorMatchAllOrderedTerm(TermGenerator):
                     with to.indent():
                         to.write(f"return {{ }};")
 
-            to.write(f"return {{ WTFMove(list) }};")
+            to.write(f"return {{ WTF::move(list) }};")
 
         to.write(f"}};")
 
@@ -6634,8 +8039,8 @@ class TermGeneratorMatchAllAnyOrderTerm(TermGenerator):
                         # can kick in and it hasn't been explicitly disabled via @(no-single-item-opt).
                         to.write(f"if (list.size() == 1)")
                         with to.indent():
-                            to.write(f"return WTFMove(list[0]); // single item optimization")
-                    to.write(f"return CSSValueList::createSpaceSeparated(WTFMove(list));")
+                            to.write(f"return WTF::move(list[0]); // single item optimization")
+                    to.write(f"return CSSValueList::createSpaceSeparated(WTF::move(list));")
                 else:
                     return_type_create = f"{self.term.type}::create"
 
@@ -6644,19 +8049,19 @@ class TermGeneratorMatchAllAnyOrderTerm(TermGenerator):
 
                     list_value_strings = []
                     for list_index in range(0, min_values - 1):
-                        list_value_strings.append(f"WTFMove(list[{list_index}])")
+                        list_value_strings.append(f"WTF::move(list[{list_index}])")
 
                     for list_index in range(min_values - 1, max_values - 1):
-                        list_value_strings.append(f"WTFMove(list[{list_index}])")
+                        list_value_strings.append(f"WTF::move(list[{list_index}])")
 
                         to.write(f"if (list.size() == {list_index + 1})")
                         with to.indent():
                             if list_index == 0 and self.term.single_value_optimization:
-                                to.write(f"return WTFMove(list[0]); // single item optimization")
+                                to.write(f"return WTF::move(list[0]); // single item optimization")
                             else:
                                 to.write(f"return {return_type_create}({', '.join(list_value_strings)});")
 
-                    list_value_strings.append(f"WTFMove(list[{max_values - 1}])")
+                    list_value_strings.append(f"WTF::move(list[{max_values - 1}])")
                     to.write(f"return {return_type_create}({', '.join(list_value_strings)});")
             else:
                 if self.term.type == 'CSSValueList':
@@ -6702,7 +8107,7 @@ class TermGeneratorMatchAllAnyOrderTerm(TermGenerator):
                         with to.indent():
                             to.write(f"return {{ }};")
 
-            to.write(f"return {{ WTFMove(list) }};")
+            to.write(f"return {{ WTF::move(list) }};")
         to.write(f"}};")
 
     def _generate_call_string(self, *, range_string, state_string):
@@ -6835,8 +8240,8 @@ class TermGeneratorMatchOneOrMoreAnyOrderTerm(TermGenerator):
                 if self.term.single_value_optimization:
                     to.write(f"if (list.size() == 1)")
                     with to.indent():
-                        to.write(f"return WTFMove(list[0]); // single item optimization")
-                to.write(f"return CSSValueList::createSpaceSeparated(WTFMove(list));")
+                        to.write(f"return WTF::move(list[0]); // single item optimization")
+                to.write(f"return CSSValueList::createSpaceSeparated(WTF::move(list));")
             else:
                 return_type_create = f"{self.term.type}::create"
 
@@ -6845,19 +8250,19 @@ class TermGeneratorMatchOneOrMoreAnyOrderTerm(TermGenerator):
 
                 list_value_strings = []
                 for list_index in range(0, min_values - 1):
-                    list_value_strings.append(f"WTFMove(list[{list_index}])")
+                    list_value_strings.append(f"WTF::move(list[{list_index}])")
 
                 for list_index in range(min_values - 1, max_values - 1):
-                    list_value_strings.append(f"WTFMove(list[{list_index}])")
+                    list_value_strings.append(f"WTF::move(list[{list_index}])")
 
                     to.write(f"if (list.size() == {list_index + 1})")
                     with to.indent():
                         if list_index == 0 and self.term.single_value_optimization:
-                            to.write(f"return WTFMove(list[0]); // single item optimization")
+                            to.write(f"return WTF::move(list[0]); // single item optimization")
                         else:
                             to.write(f"return {return_type_create}({', '.join(list_value_strings)});")
 
-                list_value_strings.append(f"WTFMove(list[{max_values - 1}])")
+                list_value_strings.append(f"WTF::move(list[{max_values - 1}])")
                 to.write(f"return {return_type_create}({', '.join(list_value_strings)});")
         to.write(f"}};")
 
@@ -6880,7 +8285,7 @@ class TermGeneratorMatchOneOrMoreAnyOrderTerm(TermGenerator):
             to.write(f"if (list.isEmpty())")
             with to.indent():
                 to.write(f"return {{ }};")
-            to.write(f"return {{ WTFMove(list) }};")
+            to.write(f"return {{ WTF::move(list) }};")
         to.write(f"}};")
 
     def _generate_call_string(self, *, range_string, state_string):
@@ -8986,10 +10391,13 @@ def main():
     generation_context = GenerationContext(parsing_context.parsed_properties_and_descriptors, parsing_context.parsed_shared_grammar_rules, verbose=args.verbose, gperf_executable=args.gperf_executable)
 
     generators = [
+        GenerateCSSPropertyInitialValues,
         GenerateCSSPropertyNames,
         GenerateCSSPropertyParsing,
         GenerateCSSStylePropertiesPropertyNames,
         GenerateStyleBuilderGenerated,
+        GenerateStyleChangedAnimatablePropertiesGenerated,
+        GenerateStyleComputedStyleProperties,
         GenerateStyleExtractorGenerated,
         GenerateStyleInterpolationWrapperMap,
         GenerateStylePropertyShorthandFunctions,

@@ -57,7 +57,7 @@ class DeclarationKind(Enum):
         return self.name
 
     @classmethod
-    def from_sql(cls, value: bytes):
+    def from_sql(cls, value: bytes) -> DeclarationKind:
         return cls[value.decode()]
 
 
@@ -261,11 +261,20 @@ class SDKDB:
                                                  sdkdb_file, pred)
         return True
 
-    def add_binary(self, binary: Path, arch: str) -> bool:
+    def add_binary(self, binary: Path, arch: str, *,
+                   for_auditing: bool = False) -> bool:
+        # When only adding a binary to check exports, avoid generating the
+        # report until we know it missed the cache.
+        if for_auditing:
+            report = APIReport.from_binary(binary, arch=arch,
+                                           exports_only=False)
+            self._add_imports(report)
         stat_hash = binary.stat().st_mtime_ns
         if self._cache_hit_preparing_to_insert(binary, stat_hash):
             return False
-        report = APIReport.from_binary(binary, arch=arch, exports_only=True)
+        if not for_auditing:
+            report = APIReport.from_binary(binary, arch=arch,
+                                           exports_only=True)
         self._add_api_report(report, binary)
         return True
 
@@ -366,7 +375,7 @@ class SDKDB:
         cur.executemany('INSERT INTO condition VALUES (?)',
                         ((d,) for d in defines))
 
-    def add_for_auditing(self, report: APIReport):
+    def _add_imports(self, report: APIReport):
         cur = self.con.cursor()
         path = str(report.file.resolve())
         arch = report.arch
@@ -382,14 +391,9 @@ class SDKDB:
                           path, arch) if sym.startswith(_OBJC_METACLASS_) else
                          (sym, SYMBOL, path, arch)
                          for sym in report.imports))
-        # Some ObjC selectors may be implemented by methods in the binary.
-        # Since this binary's exports are not added to the cache, the query
-        # won't weed these false positives out. Instead, remove them via the
-        # `if` clause below.
-        method_names = {sel.name for sel in report.methods}
         cur.executemany('INSERT INTO imports VALUES (?, ?, ?, ?)',
                         ((sel, OBJC_SEL, path, report.arch)
-                         for sel in report.selrefs - method_names))
+                         for sel in report.selrefs))
 
     def audit(self) -> Iterable[Diagnostic]:
         cur = self.con.cursor()

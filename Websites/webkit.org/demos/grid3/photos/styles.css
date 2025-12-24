@@ -37,41 +37,36 @@ body:has(option[value="two"]:checked) main { /* before applying masonry */
 
 /* ---- Classic Masonry layout ---- */
 body:has(option[value="three"]:checked) main {
-	display: grid;
+	display: grid-lanes;
 	grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
-	grid-template-rows: masonry;
 	gap: 1rem;
 }
 
 /* ---- First & last columns fixed size ---- */
 body:has(option[value="four"]:checked) main {
-	display: grid;
+	display: grid-lanes;
 	grid-template-columns: 14ch repeat(auto-fill, minmax(28ch, 1fr)) 14ch;
-	grid-template-rows: masonry;
 	gap: 1rem;
 }
 
 /* ---- Alternating narrow & wide column ---- */
 body:has(option[value="five"]:checked) main {
-	display: grid;
+	display: grid-lanes;
 	grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr) minmax(14rem, 2fr)) minmax(8rem, 1fr);
-	grid-template-rows: masonry;
 	gap: 1rem;
 }
 
 /* ---- Fibonacci sequence ---- */
 body:has(option[value="ten"]:checked) main {
-	display: grid;
+	display: grid-lanes;
 	grid-template-columns: 1fr 1fr 2fr 3fr 5fr 8fr;
-	grid-template-rows: masonry;
 	gap: 1rem;
 }
 
 /* ---- Every 5th item is wider ---- */
 body:has(option[value="six"]:checked) main {
-	display: grid;
+	display: grid-lanes;
 	grid-template-columns: repeat(auto-fill, minmax(16ch, 1fr));
-	grid-template-rows: masonry;
 	gap: 1rem;
 	.card:nth-child(5n) {
 		grid-column: span 2;
@@ -84,9 +79,8 @@ body:has(option[value="seven"]:checked) main {
 	padding: 0;
 	margin-block: calc(2vw + 1rem);
 	margin-inline: calc(2vw + 1rem);
-	display: grid;
+	display: grid-lanes;
 	grid-template-columns: repeat(auto-fill, minmax(18ch, 1fr));
-	grid-template-rows: masonry; 
 	figure:has(.wide) {
 		grid-column: span 2;
 	}
@@ -101,9 +95,8 @@ body:has(option[value="eight"]:checked) {
 		padding: 0;
 		margin-block: calc(2vw + 1rem);
 		margin-inline: calc(2vw + 1rem);
-		display: grid;
+		display: grid-lanes;
 		grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
-		grid-template-rows: masonry;
 		/* Clicking makes item enlarge + View Transition animations */
 		/* idea borrowed from https://codepen.io/bramus/pen/zYmjaJq */
 		.expanded {
@@ -217,10 +210,9 @@ body:has(option[value="eight"]:checked) {
 /* ---- Horizontal Masonry ---- */
 body:has(option[value="nine"]:checked) {
 	main {
-		display: grid;
+		display: grid-lanes;
 		gap: 1rem;
 		grid-template-rows: repeat(5, 150px);
-		grid-template-columns: masonry;
 		overflow: scroll;
 	}
 	img {

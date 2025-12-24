@@ -43,14 +43,14 @@ namespace WebCore {
 
 using namespace MathMLNames;
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(RenderMathMLMenclose);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderMathMLMenclose);
 
 // The MathML in HTML5 implementation note suggests drawing the left part of longdiv with a parenthesis.
 // For now, we use a Bezier curve and this somewhat arbitrary value.
 const unsigned short longDivLeftSpace = 10;
 
 RenderMathMLMenclose::RenderMathMLMenclose(MathMLMencloseElement& element, RenderStyle&& style)
-    : RenderMathMLRow(Type::MathMLMenclose, element, WTFMove(style))
+    : RenderMathMLRow(Type::MathMLMenclose, element, WTF::move(style))
 {
     ASSERT(isRenderMathMLMenclose());
 }

@@ -97,7 +97,7 @@ void LocalConnection::verifyUser(const String& rpId, ClientDataType type, SecAcc
     }
 #endif
 
-    auto reply = makeBlockPtr([context = m_context, completionHandler = WTFMove(completionHandler)] (NSDictionary *information, NSError *error) mutable {
+    auto reply = makeBlockPtr([context = m_context, completionHandler = WTF::move(completionHandler)] (NSDictionary *information, NSError *error) mutable {
         UserVerification verification = UserVerification::Yes;
         if (error) {
             LOG_ERROR("Couldn't authenticate with biometrics: %@", error);
@@ -109,7 +109,7 @@ void LocalConnection::verifyUser(const String& rpId, ClientDataType type, SecAcc
             verification = UserVerification::Presence;
 
         // This block can be executed in another thread.
-        RunLoop::mainSingleton().dispatch([completionHandler = WTFMove(completionHandler), verification, context = WTFMove(context)] () mutable {
+        RunLoop::mainSingleton().dispatch([completionHandler = WTF::move(completionHandler), verification, context = WTF::move(context)] () mutable {
             completionHandler(verification, context.get());
         });
     });
@@ -141,7 +141,7 @@ void LocalConnection::verifyUser(SecAccessControlRef accessControl, LAContext *c
     auto options = adoptNS([[NSMutableDictionary alloc] init]);
     [options setObject:@YES forKey:RetainPtr { @(LAOptionNotInteractive) }.get()];
 
-    auto reply = makeBlockPtr([completionHandler = WTFMove(completionHandler)] (NSDictionary *information, NSError *error) mutable {
+    auto reply = makeBlockPtr([completionHandler = WTF::move(completionHandler)] (NSDictionary *information, NSError *error) mutable {
         UserVerification verification = UserVerification::Yes;
         if (error) {
             LOG_ERROR("Couldn't authenticate with biometrics: %@", error);
@@ -153,7 +153,7 @@ void LocalConnection::verifyUser(SecAccessControlRef accessControl, LAContext *c
             verification = UserVerification::Presence;
 
         // This block can be executed in another thread.
-        RunLoop::mainSingleton().dispatch([completionHandler = WTFMove(completionHandler), verification] () mutable {
+        RunLoop::mainSingleton().dispatch([completionHandler = WTF::move(completionHandler), verification] () mutable {
             completionHandler(verification);
         });
     });
@@ -190,7 +190,7 @@ RetainPtr<SecKeyRef> LocalConnection::createCredentialPrivateKey(LAContext *cont
     if (context) {
         auto mutableCopy = adoptNS([privateKeyAttributes mutableCopy]);
         mutableCopy.get()[(id)kSecUseAuthenticationContext] = context;
-        privateKeyAttributes = WTFMove(mutableCopy);
+        privateKeyAttributes = WTF::move(mutableCopy);
     }
 
     NSDictionary *attributes = @{

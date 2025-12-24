@@ -95,6 +95,36 @@ RemotePageProxy::RemotePageProxy(WebPageProxy& page, WebProcessProxy& process, c
 #endif
 }
 
+void RemotePageProxy::disconnect()
+{
+    if (RefPtr page = m_page.get()) {
+        page->isNoLongerAssociatedWithRemotePage(*this);
+#if PLATFORM(IOS_FAMILY) && ENABLE(DEVICE_ORIENTATION)
+        page->webDeviceOrientationUpdateProviderProxy()->removeAsMessageReceiverForProcess(m_process.get(), m_webPageID);
+#endif
+    }
+    if (m_drawingArea)
+        m_process->send(Messages::WebPage::Close(), m_webPageID);
+    m_process->removeRemotePageProxy(*this);
+
+    m_drawingArea = nullptr;
+#if ENABLE(FULLSCREEN_API)
+    m_fullscreenManager = nullptr;
+#endif
+#if ENABLE(VIDEO_PRESENTATION_MODE)
+    m_videoPresentationManager = nullptr;
+#endif
+#if PLATFORM(IOS_FAMILY) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
+    m_playbackSessionManager = nullptr;
+#endif
+    m_visitedLinkStoreRegistration = nullptr;
+    m_messageReceiverRegistration.stopReceivingMessages();
+    m_screenOrientationManager = nullptr;
+#if ASSERT_ENABLED
+    m_disconnected = true;
+#endif
+}
+
 void RemotePageProxy::injectPageIntoNewProcess()
 {
     RefPtr page = m_page.get();
@@ -158,15 +188,7 @@ void RemotePageProxy::processDidTerminate(WebProcessProxy& process, ProcessTermi
 
 RemotePageProxy::~RemotePageProxy()
 {
-#if PLATFORM(IOS_FAMILY) && ENABLE(DEVICE_ORIENTATION)
-    m_page->webDeviceOrientationUpdateProviderProxy()->removeAsMessageReceiverForProcess(m_process.get(), m_webPageID);
-#endif
-
-    if (RefPtr page = m_page.get())
-        page->isNoLongerAssociatedWithRemotePage(*this);
-    if (m_drawingArea)
-        m_process->send(Messages::WebPage::Close(), m_webPageID);
-    m_process->removeRemotePageProxy(*this);
+    ASSERT(m_disconnected);
 }
 
 void RemotePageProxy::didReceiveMessage(IPC::Connection& connection, IPC::Decoder& decoder)

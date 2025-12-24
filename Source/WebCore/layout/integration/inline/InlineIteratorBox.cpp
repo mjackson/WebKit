@@ -39,7 +39,7 @@ namespace WebCore {
 namespace InlineIterator {
 
 BoxIterator::BoxIterator(Box::PathVariant&& pathVariant)
-    : m_box(WTFMove(pathVariant))
+    : m_box(WTF::move(pathVariant))
 {
 }
 
@@ -142,7 +142,7 @@ RenderObject::HighlightState Box::selectionState() const
 }
 
 LeafBoxIterator::LeafBoxIterator(Box::PathVariant&& pathVariant)
-    : BoxIterator(WTFMove(pathVariant))
+    : BoxIterator(WTF::move(pathVariant))
 {
 }
 

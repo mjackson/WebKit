@@ -30,7 +30,7 @@
 #include "InlineFormattingContext.h"
 #include "InlineSoftLineBreakItem.h"
 #include "LayoutBoxGeometry.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include "TextFlags.h"
 #include "TextUtil.h"
 #include <ranges>
@@ -97,7 +97,7 @@ Line::Result Line::close()
 
     auto contentLogicalRight = this->contentLogicalRight() + m_rubyAlignContentRightOffset;
     auto isContentful = lineHasVisuallyNonEmptyContent();
-    return { WTFMove(m_runs)
+    return { WTF::move(m_runs)
         , contentLogicalWidth() + trailingClonedDecorationWidth
         , contentLogicalRight + trailingClonedDecorationWidth
         , isContentful

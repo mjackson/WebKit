@@ -59,7 +59,7 @@ bool appendCaptionTextIfNecessary(Element& element, Vector<AccessibilityText>& t
     if (RefPtr tableElement = dynamicDowncast<HTMLTableElement>(element)) {
         RefPtr caption = tableElement->caption();
         if (String captionText = caption ? caption->innerText() : emptyString(); !captionText.isEmpty()) {
-            textOrder.append(AccessibilityText(WTFMove(captionText), AccessibilityTextSource::LabelByElement));
+            textOrder.append(AccessibilityText(WTF::move(captionText), AccessibilityTextSource::LabelByElement));
             return true;
         }
     }

@@ -27,6 +27,9 @@
 
 #pragma once
 
+#include <wtf/FastMalloc.h>
+#include <wtf/Platform.h>
+
 #if ENABLE(THREADING_LIBDISPATCH)
 
 #include <wtf/darwin/DispatchExtras.h>

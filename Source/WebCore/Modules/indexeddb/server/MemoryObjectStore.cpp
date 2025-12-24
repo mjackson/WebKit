@@ -137,7 +137,7 @@ IDBError MemoryObjectStore::addIndex(MemoryBackingStoreTransaction& transaction,
     index->writeTransactionStarted(transaction);
     m_info.addExistingIndex(indexInfo);
     transaction.addNewIndex(index.get());
-    registerIndex(WTFMove(index));
+    registerIndex(WTF::move(index));
 
     return IDBError { };
 }
@@ -183,7 +183,7 @@ void MemoryObjectStore::maybeRestoreDeletedIndex(Ref<MemoryIndex>&& index)
     m_info.addExistingIndex(index->info());
 
     ASSERT(!m_indexesByIdentifier.contains(index->info().identifier()));
-    registerIndex(WTFMove(index));
+    registerIndex(WTF::move(index));
 }
 
 RefPtr<MemoryIndex> MemoryObjectStore::takeIndexByIdentifier(IDBIndexIdentifier indexIdentifier)
@@ -378,7 +378,7 @@ IDBError MemoryObjectStore::updateIndexesForPutRecord(const IDBKeyData& key, con
         if (!error.isNull())
             break;
 
-        changedIndexRecords.append(std::make_pair(WTFMove(index), indexKey));
+        changedIndexRecords.append(std::make_pair(WTF::move(index), indexKey));
     }
 
     // If any of the index puts failed, revert all of the ones that went through.
@@ -455,7 +455,7 @@ void MemoryObjectStore::getAllRecords(const IDBKeyRangeData& keyRangeData, std::
         range.lowerOpen = true;
         if (type == IndexedDB::GetAllType::Values)
             result.addValue(valueForKey(key));
-        result.addKey(WTFMove(key));
+        result.addKey(WTF::move(key));
 
         ++currentCount;
     }
@@ -508,7 +508,7 @@ void MemoryObjectStore::registerIndex(Ref<MemoryIndex>&& index)
 
     auto identifier = index->info().identifier();
     m_indexesByName.add(index->info().name(), &index.get());
-    m_indexesByIdentifier.add(identifier, WTFMove(index));
+    m_indexesByIdentifier.add(identifier, WTF::move(index));
 }
 
 MemoryObjectStoreCursor* MemoryObjectStore::maybeOpenCursor(const IDBCursorInfo& info, MemoryBackingStoreTransaction& transaction)

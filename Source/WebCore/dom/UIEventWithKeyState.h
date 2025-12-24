@@ -30,7 +30,7 @@
 namespace WebCore {
 
 class UIEventWithKeyState : public UIEvent {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(UIEventWithKeyState);
+    WTF_MAKE_TZONE_ALLOCATED(UIEventWithKeyState);
 public:
     using Modifier = PlatformEvent::Modifier;
 
@@ -52,14 +52,14 @@ protected:
 
     UIEventWithKeyState(enum EventInterfaceType eventInterface, const AtomString& type, CanBubble canBubble, IsCancelable cancelable, IsComposed isComposed,
         RefPtr<WindowProxy>&& view, int detail, OptionSet<Modifier> modifiers)
-        : UIEvent(eventInterface, type, canBubble, cancelable, isComposed, WTFMove(view), detail)
+        : UIEvent(eventInterface, type, canBubble, cancelable, isComposed, WTF::move(view), detail)
         , m_modifiers(modifiers)
     {
     }
 
     UIEventWithKeyState(enum EventInterfaceType eventInterface, const AtomString& type, CanBubble canBubble, IsCancelable cancelable, IsComposed isComposed,
         MonotonicTime timestamp, RefPtr<WindowProxy>&& view, int detail, OptionSet<Modifier> modifiers, IsTrusted isTrusted)
-        : UIEvent(eventInterface, type, canBubble, cancelable, isComposed, timestamp, WTFMove(view), detail, isTrusted)
+        : UIEvent(eventInterface, type, canBubble, cancelable, isComposed, timestamp, WTF::move(view), detail, isTrusted)
         , m_modifiers(modifiers)
     {
     }

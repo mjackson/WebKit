@@ -276,7 +276,7 @@ static RetainPtr<NSArray<NSArray<WKIdentityDocumentPresentmentRequestAuthenticat
 - (void)presentWithRequestData:(const WebCore::DigitalCredentialsRequestData &)requestData completionHandler:(CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData> &&)> &&)completionHandler
 {
     LOG(DigitalCredentials, "WKDigitalCredentialsPicker: Digital Credentials - Presenting with request data: %s.", requestData.topOrigin.toString().utf8().data());
-    _completionHandler = WTFMove(completionHandler);
+    _completionHandler = WTF::move(completionHandler);
 
     ASSERT(!_presentmentController);
 
@@ -376,7 +376,7 @@ static RetainPtr<NSArray<NSArray<WKIdentityDocumentPresentmentRequestAuthenticat
             Ref object = JSON::Object::create();
             object->setString("response"_s, responseData);
             auto responseObject = WebCore::DigitalCredentialsResponseData(IdentityCredentialProtocol::OrgIsoMdoc, object->toJSONString());
-            [self completeWith:WTFMove(responseObject)];
+            [self completeWith:WTF::move(responseObject)];
         } else if ([protocol isEqualToString:@"openid4vp"]) {
             WebCore::ExceptionData exceptionData = { ExceptionCode::NotSupportedError, "OpenID4VP protocol is not supported."_s };
             [self completeWith:makeUnexpected(exceptionData)];
@@ -447,7 +447,7 @@ static RetainPtr<NSArray<NSArray<WKIdentityDocumentPresentmentRequestAuthenticat
         return;
     }
 
-    _completionHandler(WTFMove(result));
+    _completionHandler(WTF::move(result));
 
     [self dismiss];
 }

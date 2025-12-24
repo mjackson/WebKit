@@ -146,7 +146,7 @@ bool MediaSessionManagerInterface::activeAudioSessionRequired() const
         return true;
 
     return std::ranges::any_of(m_audioCaptureSources, [](auto& source) {
-        return source.isCapturingAudio();
+        return Ref { source }->isCapturingAudio();
     });
 #else
     return false;
@@ -216,7 +216,7 @@ bool MediaSessionManagerInterface::hasActiveNowPlayingSessionInGroup(std::option
 
 void MediaSessionManagerInterface::enqueueTaskOnMainThread(Function<void()>&& task)
 {
-    callOnMainThread(CancellableTask(m_taskGroup, [task = WTFMove(task)] () mutable {
+    callOnMainThread(CancellableTask(m_taskGroup, [task = WTF::move(task)] () mutable {
         task();
     }));
 }
@@ -570,8 +570,8 @@ void MediaSessionManagerInterface::removeAudioCaptureSource(AudioCaptureSource& 
 int MediaSessionManagerInterface::countActiveAudioCaptureSources()
 {
     int count = 0;
-    for (const auto& source : m_audioCaptureSources) {
-        if (source.wantsToCaptureAudio())
+    for (Ref source : m_audioCaptureSources) {
+        if (source->wantsToCaptureAudio())
             ++count;
     }
     return count;
@@ -587,11 +587,11 @@ void MediaSessionManagerInterface::processDidReceiveRemoteControlCommand(Platfor
             continue;
 
         if (session->isNowPlayingEligible()) {
-            activeSession = WTFMove(session);
+            activeSession = WTF::move(session);
             break;
         }
         if (!activeSession)
-            activeSession = WTFMove(session);
+            activeSession = WTF::move(session);
     }
 
     if (activeSession)

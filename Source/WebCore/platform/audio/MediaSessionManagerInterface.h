@@ -161,7 +161,7 @@ public:
 #endif
 
 protected:
-    MediaSessionManagerInterface(PageIdentifier);
+    explicit MediaSessionManagerInterface(PageIdentifier);
 
     virtual WeakListHashSet<PlatformMediaSessionInterface>& sessions() const = 0;
     virtual Vector<WeakPtr<PlatformMediaSessionInterface>> copySessionsToVector() const = 0;
@@ -201,7 +201,6 @@ protected:
     bool willLog(WTFLogLevel) const;
 
 private:
-
     bool has(PlatformMediaSessionMediaType) const;
 
     std::array<MediaSessionRestrictions, static_cast<unsigned>(PlatformMediaSessionMediaType::WebAudio) + 1> m_restrictions;

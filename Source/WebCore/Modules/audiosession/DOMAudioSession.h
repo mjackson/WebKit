@@ -42,7 +42,7 @@ enum class DOMAudioSessionType : uint8_t { Auto, Playback, Transient, TransientS
 enum class DOMAudioSessionState : uint8_t { Inactive, Active, Interrupted };
 
 class DOMAudioSession final : public RefCounted<DOMAudioSession>, public ActiveDOMObject, public EventTarget, public AudioSessionInterruptionObserver {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(DOMAudioSession);
+    WTF_MAKE_TZONE_ALLOCATED(DOMAudioSession);
 public:
     USING_CAN_MAKE_WEAKPTR(EventTarget);
 

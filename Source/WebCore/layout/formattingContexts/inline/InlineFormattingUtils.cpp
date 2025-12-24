@@ -36,8 +36,9 @@
 #include "InlineQuirks.h"
 #include "LayoutBoxInlines.h"
 #include "LayoutElementBox.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include "RubyFormattingContext.h"
+#include "Settings.h"
 #include <ranges>
 
 namespace WebCore {
@@ -646,18 +647,36 @@ bool InlineFormattingUtils::shouldDiscardRemainingContentInBlockDirection() cons
     return lineClamp->maximumLines == inlineLayoutState.lineCountWithInlineContentIncludingNestedBlocks();
 }
 
-InlineLayoutUnit InlineFormattingUtils::ascent(const FontMetrics& fontMetrics, FontBaseline fontBaseline)
+InlineLayoutUnit InlineFormattingUtils::ascent(const FontMetrics& fontMetrics, FontBaseline fontBaseline, const InlineLevelBox& inlineLevelBox)
 {
-    return fontMetrics.intAscent(fontBaseline);
+    return ascent(fontMetrics, fontBaseline, inlineLevelBox.layoutBox());
 }
 
-InlineLayoutUnit InlineFormattingUtils::descent(const FontMetrics& fontMetrics, FontBaseline fontBaseline)
+InlineLayoutUnit InlineFormattingUtils::descent(const FontMetrics& fontMetrics, FontBaseline fontBaseline, const InlineLevelBox& inlineLevelBox)
 {
-    return fontMetrics.intDescent(fontBaseline);
+    return descent(fontMetrics, fontBaseline, inlineLevelBox.layoutBox());
 }
 
-InlineLayoutUnit InlineFormattingUtils::snapToInt(InlineLayoutUnit value, SnapDirection direction)
+InlineLayoutUnit InlineFormattingUtils::ascent(const FontMetrics& fontMetrics, FontBaseline fontBaseline, const Box& layoutBox)
 {
+    return layoutBox.rendererForIntegration()->settings().subpixelInlineLayoutEnabled() ? fontMetrics.ascent(fontBaseline) : fontMetrics.intAscent(fontBaseline);
+}
+
+InlineLayoutUnit InlineFormattingUtils::descent(const FontMetrics& fontMetrics, FontBaseline fontBaseline, const Box& layoutBox)
+{
+    return layoutBox.rendererForIntegration()->settings().subpixelInlineLayoutEnabled() ? fontMetrics.descent(fontBaseline) : fontMetrics.intDescent(fontBaseline);
+}
+
+InlineLayoutUnit InlineFormattingUtils::snapToInt(InlineLayoutUnit value, const InlineLevelBox& inlineLevelBox, SnapDirection direction)
+{
+    return snapToInt(value, inlineLevelBox.layoutBox(), direction);
+}
+
+InlineLayoutUnit InlineFormattingUtils::snapToInt(InlineLayoutUnit value, const Box& layoutBox, SnapDirection direction)
+{
+    if (layoutBox.rendererForIntegration()->settings().subpixelInlineLayoutEnabled())
+        return value;
+
     switch (direction) {
     case SnapDirection::Floor:
         return floorf(value);
@@ -667,6 +686,7 @@ InlineLayoutUnit InlineFormattingUtils::snapToInt(InlineLayoutUnit value, SnapDi
         return roundf(value);
     }
     ASSERT_NOT_REACHED();
+    return { };
 }
 
 }

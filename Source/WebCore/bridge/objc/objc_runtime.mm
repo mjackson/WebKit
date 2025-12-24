@@ -158,7 +158,7 @@ bool ObjcField::setValueToInstance(JSGlobalObject* lexicalGlobalObject, const In
 // ---------------------- ObjcArray ----------------------
 
 ObjcArray::ObjcArray(ObjectStructPtr a, RefPtr<RootObject>&& rootObject)
-    : Array(WTFMove(rootObject))
+    : Array(WTF::move(rootObject))
     , _array(a)
 {
 }

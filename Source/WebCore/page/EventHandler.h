@@ -46,6 +46,7 @@
 #include <wtf/Forward.h>
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
+#include <wtf/InlineWeakPtr.h>
 #include <wtf/Platform.h>
 #include <wtf/RefPtr.h>
 #include <wtf/TZoneMalloc.h>
@@ -653,7 +654,7 @@ private:
     Timer m_mouseEventTargetUpdateTimer;
     Timer m_mouseEventTargetFinalUpdateTimer;
     const UniqueRef<AutoscrollController> m_autoscrollController;
-    SingleThreadWeakPtr<RenderLayer> m_resizeLayer;
+    InlineWeakPtr<RenderLayer> m_resizeLayer;
 
     double m_maxMouseMovedDuration { 0 };
 

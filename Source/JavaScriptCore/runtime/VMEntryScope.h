@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "JSExportMacros.h"
 #include <functional>
 #include <wtf/Vector.h>
 

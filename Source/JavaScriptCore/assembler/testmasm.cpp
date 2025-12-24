@@ -296,7 +296,7 @@ T invoke(const MacroAssemblerCodeRef<JSEntryPtrTag>& code, Arguments... argument
 template<typename T, typename... Arguments>
 T compileAndRun(Generator&& generator, Arguments... arguments)
 {
-    return invoke<T>(compile(WTFMove(generator)), arguments...);
+    return invoke<T>(compile(WTF::move(generator)), arguments...);
 }
 
 void emitFunctionPrologue(CCallHelpers& jit)

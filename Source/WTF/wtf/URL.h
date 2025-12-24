@@ -77,7 +77,7 @@ public:
     URL& operator=(const URL&) = default;
 
     URL(URL&& other)
-        : m_string(WTFMove(other.m_string))
+        : m_string(WTF::move(other.m_string))
         , m_isValid(other.m_isValid)
         , m_protocolIsInHTTPFamily(other.m_protocolIsInHTTPFamily)
         , m_hasOpaquePath(other.m_hasOpaquePath)
@@ -96,7 +96,7 @@ public:
 
     URL& operator=(URL&& other)
     {
-        m_string = WTFMove(other.m_string);
+        m_string = WTF::move(other.m_string);
         m_isValid = other.m_isValid;
         other.m_isValid = false;
         m_protocolIsInHTTPFamily = other.m_protocolIsInHTTPFamily;

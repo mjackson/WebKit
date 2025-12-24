@@ -37,6 +37,8 @@
 #include <mach-o/dyld.h>
 #include <uuid/uuid.h>
 #include <wtf/spi/darwin/dyldSPI.h>
+#elif OS(QNX)
+#include <sys/link.h>
 #else
 #include <link.h>
 #endif
@@ -82,7 +84,7 @@ uint32_t computeJSCBytecodeCacheVersion()
         }
         cacheVersion.construct(0);
         dataLogLnIf(JSCBytecodeCacheVersionInternal::verbose, "Failed to get UUID for JavaScriptCore framework");
-#elif OS(UNIX) && !PLATFORM(PLAYSTATION) && !OS(HAIKU)
+#elif OS(UNIX) && !PLATFORM(PLAYSTATION) && !OS(HAIKU) && !OS(QNX)
         auto result = ([&] -> std::optional<uint32_t> {
             Dl_info info { };
             if (!dladdr(jsFunctionAddr, &info))

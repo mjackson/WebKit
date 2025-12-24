@@ -25,6 +25,8 @@
 
 #pragma once
 
+#ifdef __cplusplus
+
 #include "BPlatform.h"
 
 #if BUSE(TZONE)
@@ -42,12 +44,6 @@
 #define TZONE_SPEC_NAME_ARG(x)  , x
 #else
 #define TZONE_SPEC_NAME_ARG(x)
-#endif
-
-#if BUSE_DYNAMIC_TZONE_COMPACTION
-#define TZONE_DYNAMIC_COMPACTION_ARG(x) , ::bmalloc::api::encodeTZoneDynamicCompactModeKey<x>()
-#else
-#define TZONE_DYNAMIC_COMPACTION_ARG(x)
 #endif
 
 namespace bmalloc {
@@ -128,52 +124,7 @@ struct TZoneSpecification {
 #if BUSE_TZONE_SPEC_NAME_ARG
     const char* name;
 #endif
-#if BUSE_DYNAMIC_TZONE_COMPACTION
-    uint64_t dynamicCompactionKey;
-#endif
 };
-
-#if BUSE_DYNAMIC_TZONE_COMPACTION
-
-BALLOW_UNSAFE_BUFFER_USAGE_BEGIN
-template<size_t N>
-constexpr uint64_t fnv1aHash(const char (&name)[N])
-{
-    uint64_t hash = 14695981039346656037ull;
-    for (size_t i = 0; i < N - 1; ++i)
-        hash = (hash ^ static_cast<uint64_t>(name[i])) * 1099511628211ull;
-    return hash;
-}
-BALLOW_UNSAFE_BUFFER_USAGE_END
-
-template<typename T>
-inline constexpr uint64_t encodeTZoneDynamicCompactModeKey()
-{
-    // Use __PRETTY_FUNCTION__ instead of passing in #_type from
-    // MAKE_BTZONE_MALLOCED_COMMON_INLINE because #_type could collide across
-    // namespaces, while __PRETTY_FUNCTION__ will include the namespace in
-    // the signature.
-    return fnv1aHash(__PRETTY_FUNCTION__);
-}
-
-BEXPORT bool shouldDynamicallyCompactImpl(const TZoneSpecification& spec);
-
-extern bool g_tzoneDynamicCompactModeEnabled;
-inline bool shouldDynamicallyCompact(const TZoneSpecification& spec)
-{
-    if (!g_tzoneDynamicCompactModeEnabled)
-        return false;
-    return shouldDynamicallyCompactImpl(spec);
-}
-
-#else // !BUSE_DYNAMIC_TZONE_COMPACTION
-
-inline constexpr bool shouldDynamicallyCompact(const TZoneSpecification&)
-{
-    return false;
-}
-
-#endif // BUSE_DYNAMIC_TZONE_COMPACTION
 
 template<typename T>
 inline constexpr CompactAllocationMode compactAllocationMode()
@@ -217,14 +168,10 @@ public: \
     \
     void* operator new(size_t size) \
     { \
-        static const TZoneSpecification s_heapSpec = { &s_heapRef, sizeof(_type), CompactAllocationMode:: _compactMode, SizeAndAlignment::encode<_type>() TZONE_SPEC_NAME_ARG(#_type) TZONE_DYNAMIC_COMPACTION_ARG(_type) }; \
-        \
         if (!s_heapRef || size != sizeof(_type)) [[unlikely]] \
             BMUST_TAIL_CALL return operatorNewSlow(size); \
         BASSERT(::bmalloc::api::tzoneMallocFallback > TZoneMallocFallback::ForceDebugMalloc); \
         if constexpr (::bmalloc::api::compactAllocationMode<_type>() == CompactAllocationMode::Compact) \
-            return ::bmalloc::api::tzoneAllocateCompact(s_heapRef); \
-        if (::bmalloc::api::shouldDynamicallyCompact(s_heapSpec)) \
             return ::bmalloc::api::tzoneAllocateCompact(s_heapRef); \
         return ::bmalloc::api::tzoneAllocate ## _compactMode(s_heapRef); \
     } \
@@ -249,10 +196,8 @@ private: \
 private: \
     static _exportMacro BNO_INLINE void* operatorNewSlow(size_t size) \
     { \
-        static const TZoneSpecification s_heapSpec = { &s_heapRef, sizeof(_type), ::bmalloc::api::compactAllocationMode<_type>(), SizeAndAlignment::encode<_type>() TZONE_SPEC_NAME_ARG(#_type) TZONE_DYNAMIC_COMPACTION_ARG(_type) }; \
+        static const TZoneSpecification s_heapSpec = { &s_heapRef, sizeof(_type), ::bmalloc::api::compactAllocationMode<_type>(), SizeAndAlignment::encode<_type>() TZONE_SPEC_NAME_ARG(#_type) }; \
         if constexpr (::bmalloc::api::compactAllocationMode<_type>() == CompactAllocationMode::Compact) \
-            return ::bmalloc::api::tzoneAllocateCompactSlow(size, s_heapSpec); \
-        if (::bmalloc::api::shouldDynamicallyCompact(s_heapSpec)) \
             return ::bmalloc::api::tzoneAllocateCompactSlow(size, s_heapSpec); \
         return ::bmalloc::api::tzoneAllocate ## _compactMode ## Slow(size, s_heapSpec); \
     }
@@ -290,3 +235,5 @@ private: \
 using TZoneSpecification = ::bmalloc::api::TZoneSpecification;
 
 #endif // BUSE(TZONE)
+
+#endif // __cplusplus

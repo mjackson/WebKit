@@ -152,7 +152,7 @@ void Scope::createOrFindSharedShadowTreeResolver()
 
     auto key = makeResolverSharingKey();
 
-    auto result = documentScope().m_sharedShadowTreeResolvers.ensure(WTFMove(key), [&] {
+    auto result = documentScope().m_sharedShadowTreeResolvers.ensure(WTF::move(key), [&] {
         SetForScope isUpdatingStyleResolver { m_isUpdatingStyleResolver, true };
 
         m_resolver = Resolver::create(m_document, Resolver::ScopeType::ShadowTree);
@@ -387,7 +387,7 @@ void Scope::addStyleSheetCandidateNode(Node& node, bool createdByParser)
                 m_styleSheetCandidateNodes.appendOrMoveToLast(node);
             return;
         }
-        followingNode = WTFMove(n);
+        followingNode = WTF::move(n);
     } while (it != begin);
 
     LOG_WITH_STREAM(StyleSheets, stream << "Scope " << this << " addStyleSheetCandidateNode() " << node);
@@ -491,7 +491,7 @@ auto Scope::collectActiveStyleSheets() -> ActiveStyleSheetCollection
                 LOG_WITH_STREAM(StyleSheets, stream << " adding sheet " << sheet << " from " << node);
         }
         if (sheet)
-            sheets.append(WTFMove(sheet));
+            sheets.append(WTF::move(sheet));
     }
 
     auto canActivateAdoptedStyleSheet = [&](auto& sheet) {
@@ -507,7 +507,7 @@ auto Scope::collectActiveStyleSheets() -> ActiveStyleSheetCollection
         sheets.append(adoptedStyleSheet.ptr());
     }
 
-    return { WTFMove(sheets), WTFMove(styleSheetsForStyleSheetsList) };
+    return { WTF::move(sheets), WTF::move(styleSheetsForStyleSheetsList) };
 }
 
 Scope::StyleSheetChange Scope::analyzeStyleSheetChange(const Vector<RefPtr<CSSStyleSheet>>& newStylesheets)
@@ -548,7 +548,7 @@ Scope::StyleSheetChange Scope::analyzeStyleSheetChange(const Vector<RefPtr<CSSSt
 
     // If all new sheets were added at the end of the list we can just add them to existing Resolver.
     // If there were insertions we need to re-add all the stylesheets so rules are ordered correctly.
-    return { hasInsertions ? ResolverUpdateType::Reset : ResolverUpdateType::Additive, WTFMove(addedSheets) };
+    return { hasInsertions ? ResolverUpdateType::Reset : ResolverUpdateType::Additive, WTF::move(addedSheets) };
 }
 
 static void filterEnabledNonemptyCSSStyleSheets(Vector<RefPtr<CSSStyleSheet>>& result, const Vector<RefPtr<StyleSheet>>& sheets)
@@ -970,7 +970,7 @@ bool Scope::invalidateForContainerDependencies(LayoutDependencyUpdateContext& co
     if (!m_document->renderView())
         return false;
 
-    auto previousQueryContainerDimensions = WTFMove(m_queryContainerDimensionsOnLastUpdate);
+    auto previousQueryContainerDimensions = WTF::move(m_queryContainerDimensionsOnLastUpdate);
     m_queryContainerDimensionsOnLastUpdate.clear();
 
     Vector<CheckedPtr<Element>> containersToInvalidate;
@@ -1020,7 +1020,7 @@ bool Scope::invalidateForAnchorDependencies(LayoutDependencyUpdateContext& conte
     if (!m_document->renderView())
         return false;
 
-    auto previousAnchorPositions = WTFMove(m_anchorPositionsOnLastUpdate);
+    auto previousAnchorPositions = WTF::move(m_anchorPositionsOnLastUpdate);
     m_anchorPositionsOnLastUpdate.clear();
 
     Vector<CheckedRef<Element>> anchoredElementsToInvalidate;
@@ -1152,7 +1152,7 @@ std::optional<size_t> Scope::lastSuccessfulPositionOptionIndexFor(const Styleabl
 
 void Scope::setLastSuccessfulPositionOptionIndexMap(HashMap<AnchorPositionedKey, size_t>&& map)
 {
-    m_lastSuccessfulPositionOptionIndexes = WTFMove(map);
+    m_lastSuccessfulPositionOptionIndexes = WTF::move(map);
 }
 
 void Scope::forgetLastSuccessfulPositionOptionIndex(const Styleable& styleable)

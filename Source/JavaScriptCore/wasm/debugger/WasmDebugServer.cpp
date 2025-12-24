@@ -136,7 +136,7 @@ bool DebugServer::startRWI(VM* vm, Function<bool(const String&)>&& rwiResponseHa
     m_moduleManager = makeUnique<ModuleManager>(*vm);
     m_breakpointManager = makeUnique<BreakpointManager>();
     m_executionHandler = makeUnique<ExecutionHandler>(*this, *m_moduleManager, *m_breakpointManager);
-    m_rwiResponseHandler = WTFMove(rwiResponseHandler);
+    m_rwiResponseHandler = WTF::move(rwiResponseHandler);
 
     // RWI mode: No thread creation needed!
     // IPC messages are received by WasmDebuggerDispatcher on its WorkQueue thread

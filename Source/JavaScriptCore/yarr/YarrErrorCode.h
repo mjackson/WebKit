@@ -26,6 +26,7 @@
 
 #pragma once
 
+#include "JSExportMacros.h"
 #include <wtf/Forward.h>
 
 namespace JSC {

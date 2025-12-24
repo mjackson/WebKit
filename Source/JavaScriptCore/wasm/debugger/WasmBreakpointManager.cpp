@@ -51,7 +51,7 @@ void BreakpointManager::setBreakpoint(VirtualAddress address, Breakpoint&& break
     dataLogLnIf(Options::verboseWasmDebugger(), "[BreakpointManager] setBreakpoint ", breakpoint, " at moduleAddress:", address);
     if (breakpoint.isOneTimeBreakpoint())
         m_oneTimeBreakpoints.add(address);
-    m_breakpoints.set(address, WTFMove(breakpoint));
+    m_breakpoints.set(address, WTF::move(breakpoint));
 }
 
 Breakpoint* BreakpointManager::findBreakpoint(VirtualAddress address)

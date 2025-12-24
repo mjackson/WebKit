@@ -46,7 +46,7 @@ class WebContextMenuProxyGtk final : public WebContextMenuProxy {
 public:
     static auto create(GtkWidget* widget, WebPageProxy& page, FrameInfoData&& frameInfo, ContextMenuContextData&& context, const UserData& userData)
     {
-        return adoptRef(*new WebContextMenuProxyGtk(widget, page, WTFMove(frameInfo), WTFMove(context), userData));
+        return adoptRef(*new WebContextMenuProxyGtk(widget, page, WTF::move(frameInfo), WTF::move(context), userData));
     }
     ~WebContextMenuProxyGtk();
 

@@ -37,6 +37,7 @@ class IOSPort(DevicePort):
     port_name = "ios"
 
     DEVICE_TYPE = DeviceType(software_variant='iOS')
+    DRIVER_NAMES = ('WebKitTestRunner', 'DumpRenderTree')
 
     def __init__(self, host, port_name, **kwargs):
         super(IOSPort, self).__init__(host, port_name, **kwargs)
@@ -53,7 +54,7 @@ class IOSPort(DevicePort):
             device_type = self.DEVICE_TYPE
 
         wk_string = 'wk1'
-        if self.get_option('webkit_test_runner'):
+        if not self.is_webkitlegacy():
             wk_string = 'wk2'
 
         versions_to_fallback = []
@@ -105,7 +106,7 @@ class IOSPort(DevicePort):
                 expectations.append(self._apple_baseline_path(variant))
             expectations.append(self._webkit_baseline_path(variant))
 
-        if self.get_option('webkit_test_runner'):
+        if not self.is_webkitlegacy():
             expectations.append(self._webkit_baseline_path('wk2'))
 
         return expectations

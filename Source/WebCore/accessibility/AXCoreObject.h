@@ -222,7 +222,7 @@ struct AccessibilityText {
     AccessibilityTextSource textSource;
 
     AccessibilityText(String&& text, AccessibilityTextSource source)
-        : text(WTFMove(text))
+        : text(WTF::move(text))
         , textSource(source)
     { }
     AccessibilityText(const String& text, AccessibilityTextSource source)
@@ -255,6 +255,7 @@ enum class AccessibilityOrientation : uint8_t {
     Horizontal
 };
 
+enum class DescendIntoContainers : bool { No, Yes };
 enum class DidTimeout : bool { No, Yes };
 enum class IncludeListMarkerText : bool { No, Yes };
 enum class IncludeImageAltText : bool { No, Yes };
@@ -271,6 +272,8 @@ struct TextUnderElementMode {
     bool includeFocusableContent { false };
     bool considerHiddenState { true };
     bool inHiddenSubtree { false };
+    IncludeListMarkerText includeListMarkers { IncludeListMarkerText::No };
+    DescendIntoContainers descendIntoContainers { DescendIntoContainers::No };
     TrimWhitespace trimWhitespace { TrimWhitespace::Yes };
     CheckedPtr<Node> ignoredChildNode { nullptr };
 
@@ -823,7 +826,8 @@ public:
     }
     // This should be the visible text that's actually on the screen if possible.
     // If there's alternative text (e.g. provided by description()), that can override the title.
-    virtual String title() const;
+    // The `computedText` parameter is a performance optimization for callsites that have already computed the AccessibilityText.
+    virtual String title(Vector<AccessibilityText>* computedText = nullptr) const;
     // This is the value of the title HTML / SVG attribute, differing from the above function which refers to
     // the notion of "title" accessibility text, a composite of many different attributes and page text.
     virtual String titleAttribute() const = 0;
@@ -1242,7 +1246,9 @@ public:
     virtual void setPreventKeyboardDOMEventDispatch(bool) = 0;
     virtual Style::SpeakAs speakAs() const = 0;
     String speechHint() const;
-    String descriptionAttributeValue() const;
+
+    // The `computedText` parameter is a performance optimization for callsites that have already computed the AccessibilityText.
+    String descriptionAttributeValue(Vector<AccessibilityText>* computedText = nullptr) const;
     String helpTextAttributeValue() const;
 
     virtual bool hasApplePDFAnnotationAttribute() const = 0;

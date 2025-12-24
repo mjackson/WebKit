@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "CPU.h"
 #include "SIMDInfo.h"
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN

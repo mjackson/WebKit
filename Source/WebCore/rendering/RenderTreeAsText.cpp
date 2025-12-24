@@ -288,7 +288,7 @@ void RenderTreeAsText::writeRenderObject(TextStream& ts, const RenderObject& o, 
         LayoutUnit borderRight = box->borderRight();
         LayoutUnit borderBottom = box->borderBottom();
         LayoutUnit borderLeft = box->borderLeft();
-        bool overridden = renderElement->style().borderImage().overridesBorderWidths();
+        bool overridden = renderElement->style().borderImageWidth().overridesBorderWidths();
         if (box->isFieldset()) {
             const auto& block = downcast<RenderBlock>(*box);
             switch (renderElement->writingMode().blockDirection()) {

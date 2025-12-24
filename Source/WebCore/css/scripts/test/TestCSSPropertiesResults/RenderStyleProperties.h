@@ -14,40 +14,48 @@ protected:
     RenderStyleProperties(CreateDefaultStyleTag tag) : RenderStyleBase { tag } { }
     RenderStyleProperties(const RenderStyleProperties& other, CloneTag tag) : RenderStyleBase { other, tag } { }
 
-    RenderStyleProperties(RenderStyleProperties& a, RenderStyleProperties&& b) : RenderStyleBase { a, WTFMove(b) } { }
+    RenderStyleProperties(RenderStyleProperties& a, RenderStyleProperties&& b) : RenderStyleBase { a, WTF::move(b) } { }
 
 public:
     // CSSPropertyID::CSSPropertyTestRenderStyleStorageOneLevelEnum
     inline Style::TestEnumeration testRenderStyleStorageOneLevelEnum() const;
     inline void setTestRenderStyleStorageOneLevelEnum(Style::TestEnumeration);
+    static inline constexpr Style::TestEnumeration initialTestRenderStyleStorageOneLevelEnum();
 
     // CSSPropertyID::CSSPropertyTestRenderStyleStorageOneLevelRaw
     inline Style::TestRaw testRenderStyleStorageOneLevelRaw() const;
     inline void setTestRenderStyleStorageOneLevelRaw(Style::TestRaw);
+    static inline constexpr Style::TestRaw initialTestRenderStyleStorageOneLevelRaw();
 
     // CSSPropertyID::CSSPropertyTestRenderStyleStorageOneLevelReference
     inline const Style::Number<>& testRenderStyleStorageOneLevelReference() const;
     inline void setTestRenderStyleStorageOneLevelReference(Style::Number<>&&);
+    static inline Style::Number<> initialTestRenderStyleStorageOneLevelReference();
 
     // CSSPropertyID::CSSPropertyTestRenderStyleStorageOneLevelValue
     inline Style::Number<> testRenderStyleStorageOneLevelValue() const;
     inline void setTestRenderStyleStorageOneLevelValue(Style::Number<>);
+    static inline Style::Number<> initialTestRenderStyleStorageOneLevelValue();
 
     // CSSPropertyID::CSSPropertyTestRenderStyleStorageTwoLevelEnum
     inline Style::TestEnumeration testRenderStyleStorageTwoLevelEnum() const;
     inline void setTestRenderStyleStorageTwoLevelEnum(Style::TestEnumeration);
+    static inline constexpr Style::TestEnumeration initialTestRenderStyleStorageTwoLevelEnum();
 
     // CSSPropertyID::CSSPropertyTestRenderStyleStorageTwoLevelRaw
     inline Style::TestRaw testRenderStyleStorageTwoLevelRaw() const;
     inline void setTestRenderStyleStorageTwoLevelRaw(Style::TestRaw);
+    static inline constexpr Style::TestRaw initialTestRenderStyleStorageTwoLevelRaw();
 
     // CSSPropertyID::CSSPropertyTestRenderStyleStorageTwoLevelReference
     inline const Style::Number<>& testRenderStyleStorageTwoLevelReference() const;
     inline void setTestRenderStyleStorageTwoLevelReference(Style::Number<>&&);
+    static inline Style::Number<> initialTestRenderStyleStorageTwoLevelReference();
 
     // CSSPropertyID::CSSPropertyTestRenderStyleStorageTwoLevelValue
     inline Style::Number<> testRenderStyleStorageTwoLevelValue() const;
     inline void setTestRenderStyleStorageTwoLevelValue(Style::Number<>);
+    static inline Style::Number<> initialTestRenderStyleStorageTwoLevelValue();
 };
 
 } // namespace WebCore

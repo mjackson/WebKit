@@ -112,6 +112,8 @@ public:
 
     bool hasNetworkRequestsInProgress() const { return m_hasNetworkRequestsInProgress; }
 
+    void disconnect();
+
 private:
     RemotePageProxy(WebPageProxy&, WebProcessProxy&, const WebCore::Site&, WebPageProxyMessageReceiverRegistration*, std::optional<WebCore::PageIdentifier>);
     void didReceiveMessage(IPC::Connection&, IPC::Decoder&) final;
@@ -140,6 +142,9 @@ private:
     WebCore::MediaProducerMediaStateFlags m_mediaState;
     RefPtr<RemotePageScreenOrientationManagerProxy> m_screenOrientationManager;
     bool m_hasNetworkRequestsInProgress { false };
+#if ASSERT_ENABLED
+    bool m_disconnected { false };
+#endif
 };
 
 }

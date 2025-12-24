@@ -61,7 +61,7 @@ inline void MicrotaskQueue::performMicrotaskCheckpoint(VM& vm, NOESCAPE const In
                 // Let this task go away.
                 break;
             case QueuedTask::Result::Suspended: {
-                m_toKeep.enqueue(WTFMove(task));
+                m_toKeep.enqueue(WTF::move(task));
                 break;
             }
             }

@@ -28,23 +28,31 @@
 
 #if USE(CORE_IMAGE)
 
-#import <CoreImage/CIContext.h>
+#import "ColorSpaceCG.h"
+#import "DestinationColorSpace.h"
+#import "Logging.h"
 #import <CoreImage/CoreImage.h>
 #import <wtf/NeverDestroyed.h>
 #import <wtf/cocoa/TypeCastsCocoa.h>
 
 namespace WebCore {
 
-static RetainPtr<CIContext> sharedCIContext()
+static RetainPtr<CIContext> sharedLinearSRGBCIContext()
 {
-    static NeverDestroyed<RetainPtr<CIContext>> ciContext = [CIContext contextWithOptions:@{ kCIContextWorkingColorSpace: bridge_id_cast(adoptCF(CGColorSpaceCreateWithName(kCGColorSpaceSRGB))).get() }];
+    static NeverDestroyed<RetainPtr<CIContext>> ciContext = [CIContext contextWithOptions:@{ kCIContextWorkingColorSpace:(__bridge id)linearSRGBColorSpaceSingleton() }];
+    return ciContext;
+}
+
+static RetainPtr<CIContext> sharedSRGBCIContext()
+{
+    static NeverDestroyed<RetainPtr<CIContext>> ciContext = [CIContext contextWithOptions:@{ kCIContextWorkingColorSpace: (__bridge id)sRGBColorSpaceSingleton() }];
     return ciContext;
 }
 
 void FilterImage::setCIImage(RetainPtr<CIImage>&& ciImage)
 {
     ASSERT(ciImage);
-    m_ciImage = WTFMove(ciImage);
+    m_ciImage = WTF::move(ciImage);
 }
 
 size_t FilterImage::memoryCostOfCIImage() const
@@ -53,9 +61,12 @@ size_t FilterImage::memoryCostOfCIImage() const
     return FloatSize([m_ciImage.get() extent].size).area() * 4;
 }
 
-ImageBuffer* FilterImage::imageBufferFromCIImage()
+ImageBuffer* FilterImage::filterResultImageBuffer(FloatRect absoluteFilterRegion)
 {
-    ASSERT(m_ciImage);
+    UNUSED_PARAM(absoluteFilterRegion);
+
+    if (!m_ciImage)
+        return imageBuffer();
 
     if (m_imageBuffer)
         return m_imageBuffer.get();
@@ -66,8 +77,26 @@ ImageBuffer* FilterImage::imageBufferFromCIImage()
         return nullptr;
 
     ASSERT(imageBuffer->surface());
-    auto destRect = FloatRect { FloatPoint(), m_absoluteImageRect.size() };
-    [sharedCIContext().get() render:m_ciImage.get() toIOSurface:imageBuffer->surface()->surface() bounds:destRect colorSpace:m_colorSpace.platformColorSpace()];
+
+    RetainPtr context = colorSpace() == DestinationColorSpace::LinearSRGB() ? sharedLinearSRGBCIContext() : sharedSRGBCIContext();
+
+    // We use -[CIContext:startTaskToRender...] because it lets us specify `fromRect`, which provides the rect against which earlier
+    // CIImages extents are computed (in flipped coordinates). -[CIContext render:...] uses the size of the IOSurface, which is only
+    // the output size of the last filter operation.
+    RetainPtr destination = adoptNS([[CIRenderDestination alloc] initWithIOSurface:(__bridge id)imageBuffer->surface()->surface()]);
+    [destination setColorSpace:m_colorSpace.platformColorSpace()];
+
+    auto sourceRect = FloatRect { { }, absoluteFilterRegion.size() };
+    auto location = FloatPoint { m_absoluteImageRect.x() - absoluteFilterRegion.x(), absoluteFilterRegion.maxY() - m_absoluteImageRect.maxY() };
+    RetainPtr task = [context startTaskToRender:m_ciImage.get()
+                                       fromRect:sourceRect
+                                  toDestination:destination.get()
+                                        atPoint:-location
+                                          error:nil];
+    if (task)
+        [task waitUntilCompletedAndReturnError:nil];
+
+    LOG_WITH_STREAM(Filters, stream << "FilterImage::filterResultImageBuffer - output rect " << m_absoluteImageRect << " result " << ValueOrNull(m_imageBuffer.get()));
 
     return m_imageBuffer.get();
 }

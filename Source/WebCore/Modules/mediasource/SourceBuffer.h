@@ -71,7 +71,7 @@ class SourceBuffer
     , private LoggerHelper
 #endif
 {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(SourceBuffer);
+    WTF_MAKE_TZONE_ALLOCATED(SourceBuffer);
 public:
     void ref() const final { RefCounted::ref(); }
     void deref() const final { RefCounted::deref(); }

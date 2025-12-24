@@ -37,7 +37,7 @@ namespace WebCore {
 namespace InlineIterator {
 
 SVGTextBox::SVGTextBox(PathVariant&& path)
-    : TextBox(WTFMove(path))
+    : TextBox(WTF::move(path))
 {
 }
 
@@ -106,7 +106,7 @@ const SVGInlineTextBox* SVGTextBox::legacyInlineBox() const
 }
 
 SVGTextBoxIterator::SVGTextBoxIterator(Box::PathVariant&& path)
-    : TextBoxIterator(WTFMove(path))
+    : TextBoxIterator(WTF::move(path))
 {
 }
 

@@ -50,7 +50,7 @@ namespace WebCore {
 
 Ref<DigitalCredential> DigitalCredential::create(JSC::Strong<JSC::JSObject>&& data, IdentityCredentialProtocol protocol)
 {
-    return adoptRef(*new DigitalCredential(WTFMove(data), protocol));
+    return adoptRef(*new DigitalCredential(WTF::move(data), protocol));
 }
 
 DigitalCredential::~DigitalCredential() = default;
@@ -58,7 +58,7 @@ DigitalCredential::~DigitalCredential() = default;
 DigitalCredential::DigitalCredential(JSC::Strong<JSC::JSObject>&& data, IdentityCredentialProtocol protocol)
     : BasicCredential(createVersion4UUIDString(), Type::DigitalCredential, Discovery::CredentialStore)
     , m_protocol(protocol)
-    , m_data(WTFMove(data))
+    , m_data(WTF::move(data))
 {
 }
 
@@ -112,11 +112,6 @@ void DigitalCredential::discoverFromExternalSource(const Document& document, Cre
 {
     ASSERT(options.digital);
 
-    if (options.mediation() != MediationRequirement::Required) {
-        promise.reject(Exception { ExceptionCode::TypeError, "User mediation is required for DigitalCredential."_s });
-        return;
-    }
-
     if (!PermissionsPolicy::isFeatureEnabled(PermissionsPolicy::Feature::DigitalCredentialsGetRule, document, PermissionsPolicy::ShouldReportViolation::No)) {
         promise.reject(Exception { ExceptionCode::NotAllowedError, "Third-party iframes are not allowed to call .get() unless explicitly allowed via Permissions Policy (digital-credentials-get)"_s });
         return;
@@ -165,7 +160,7 @@ void DigitalCredential::discoverFromExternalSource(const Document& document, Cre
 
 #if HAVE(DIGITAL_CREDENTIALS_UI)
     Ref coordinator = page->credentialRequestCoordinator();
-    coordinator->presentPicker(document, WTFMove(promise), presentationRequestsOrException.releaseReturnValue(), options.signal);
+    coordinator->presentPicker(document, WTF::move(promise), presentationRequestsOrException.releaseReturnValue(), options.signal);
 #else
     promise.reject(Exception { ExceptionCode::NotSupportedError, "Digital credentials are not supported."_s });
 #endif

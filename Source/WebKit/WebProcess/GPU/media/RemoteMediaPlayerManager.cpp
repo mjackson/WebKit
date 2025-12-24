@@ -182,6 +182,7 @@ Ref<MediaPlayerPrivateInterface> RemoteMediaPlayerManager::createRemoteMediaPlay
     proxyConfiguration.documentSecurityOrigin = documentSecurityOrigin;
 
     proxyConfiguration.presentationSize = player.presentationSize();
+    proxyConfiguration.videoLayerSize = player.videoLayerSize();
 
     proxyConfiguration.allowedMediaContainerTypes = player.allowedMediaContainerTypes();
     proxyConfiguration.allowedMediaCodecTypes = player.allowedMediaCodecTypes();
@@ -260,7 +261,7 @@ void RemoteMediaPlayerManager::setUseGPUProcess(bool useGPUProcess)
         registrar(makeUnique<MediaPlayerRemoteFactory>(remoteEngineIdentifier, *weakThis.get()));
     };
 
-    RemoteMediaPlayerSupport::setRegisterRemotePlayerCallback(useGPUProcess ? WTFMove(registerEngine) : RemoteMediaPlayerSupport::RegisterRemotePlayerCallback());
+    RemoteMediaPlayerSupport::setRegisterRemotePlayerCallback(useGPUProcess ? WTF::move(registerEngine) : RemoteMediaPlayerSupport::RegisterRemotePlayerCallback());
 
 #if PLATFORM(COCOA) && ENABLE(MEDIA_STREAM)
     if (useGPUProcess) {

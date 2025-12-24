@@ -58,7 +58,7 @@ Ref<GraphicsLayer> GraphicsLayer::create(GraphicsLayerFactory* factory, Graphics
 
 GraphicsLayerCoordinated::GraphicsLayerCoordinated(Type layerType, GraphicsLayerClient& client, Ref<CoordinatedPlatformLayer>&& platformLayer)
     : GraphicsLayer(layerType, client)
-    , m_platformLayer(WTFMove(platformLayer))
+    , m_platformLayer(WTF::move(platformLayer))
 {
     m_platformLayer->setOwner(this);
     noteLayerPropertyChanged({ Change::ContentsScale, Change::ContentsVisible }, ScheduleFlush::Yes);
@@ -377,7 +377,7 @@ void GraphicsLayerCoordinated::setContentsDisplayDelegate(RefPtr<GraphicsLayerCo
     if (m_contentsDisplayDelegate == delegate)
         return;
 
-    m_contentsDisplayDelegate = WTFMove(delegate);
+    m_contentsDisplayDelegate = WTF::move(delegate);
 
     OptionSet<Change> change = { Change::ContentsBuffer };
     if (m_contentsDisplayDelegate) {
@@ -409,7 +409,7 @@ void GraphicsLayerCoordinated::setContentsToImage(Image* image)
         if (m_contentsImage && m_contentsImage->uniqueID() == nativeImage->uniqueID())
             return;
 
-        m_contentsImage = WTFMove(nativeImage);
+        m_contentsImage = WTF::move(nativeImage);
     } else {
         if (!m_contentsImage)
             return;
@@ -435,7 +435,7 @@ bool GraphicsLayerCoordinated::usesContentsLayer() const
 
 bool GraphicsLayerCoordinated::setChildren(Vector<Ref<GraphicsLayer>>&& children)
 {
-    if (!GraphicsLayer::setChildren(WTFMove(children)))
+    if (!GraphicsLayer::setChildren(WTF::move(children)))
         return false;
 
     noteLayerPropertyChanged(Change::Children, ScheduleFlush::Yes);
@@ -444,31 +444,31 @@ bool GraphicsLayerCoordinated::setChildren(Vector<Ref<GraphicsLayer>>&& children
 
 void GraphicsLayerCoordinated::addChild(Ref<GraphicsLayer>&& layer)
 {
-    GraphicsLayer::addChild(WTFMove(layer));
+    GraphicsLayer::addChild(WTF::move(layer));
     noteLayerPropertyChanged(Change::Children, ScheduleFlush::Yes);
 }
 
 void GraphicsLayerCoordinated::addChildAtIndex(Ref<GraphicsLayer>&& layer, int index)
 {
-    GraphicsLayer::addChildAtIndex(WTFMove(layer), index);
+    GraphicsLayer::addChildAtIndex(WTF::move(layer), index);
     noteLayerPropertyChanged(Change::Children, ScheduleFlush::Yes);
 }
 
 void GraphicsLayerCoordinated::addChildBelow(Ref<GraphicsLayer>&& layer, GraphicsLayer* sibling)
 {
-    GraphicsLayer::addChildBelow(WTFMove(layer), sibling);
+    GraphicsLayer::addChildBelow(WTF::move(layer), sibling);
     noteLayerPropertyChanged(Change::Children, ScheduleFlush::Yes);
 }
 
 void GraphicsLayerCoordinated::addChildAbove(Ref<GraphicsLayer>&& layer, GraphicsLayer* sibling)
 {
-    GraphicsLayer::addChildAbove(WTFMove(layer), sibling);
+    GraphicsLayer::addChildAbove(WTF::move(layer), sibling);
     noteLayerPropertyChanged(Change::Children, ScheduleFlush::Yes);
 }
 
 bool GraphicsLayerCoordinated::replaceChild(GraphicsLayer* oldChild, Ref<GraphicsLayer>&& newChild)
 {
-    if (!GraphicsLayer::replaceChild(oldChild, WTFMove(newChild)))
+    if (!GraphicsLayer::replaceChild(oldChild, WTF::move(newChild)))
         return false;
 
     noteLayerPropertyChanged(Change::Children, ScheduleFlush::Yes);
@@ -485,7 +485,7 @@ void GraphicsLayerCoordinated::setEventRegion(EventRegion&& eventRegion)
     if (m_eventRegion == eventRegion)
         return;
 
-    GraphicsLayer::setEventRegion(WTFMove(eventRegion));
+    GraphicsLayer::setEventRegion(WTF::move(eventRegion));
     noteLayerPropertyChanged(Change::EventRegion, ScheduleFlush::Yes);
 }
 
@@ -547,7 +547,7 @@ void GraphicsLayerCoordinated::setMaskLayer(RefPtr<GraphicsLayer>&& maskLayer)
     if (m_maskLayer == maskLayer)
         return;
 
-    GraphicsLayer::setMaskLayer(WTFMove(maskLayer));
+    GraphicsLayer::setMaskLayer(WTF::move(maskLayer));
     if (m_maskLayer) {
         m_maskLayer->setSize(m_size);
         m_maskLayer->setContentsVisible(m_contentsVisible);
@@ -560,7 +560,7 @@ void GraphicsLayerCoordinated::setReplicatedByLayer(RefPtr<GraphicsLayer>&& repl
     if (m_replicaLayer == replicaLayer)
         return;
 
-    GraphicsLayer::setReplicatedByLayer(WTFMove(replicaLayer));
+    GraphicsLayer::setReplicatedByLayer(WTF::move(replicaLayer));
     noteLayerPropertyChanged(Change::Replica, ScheduleFlush::Yes);
 }
 
@@ -784,7 +784,7 @@ std::pair<FloatPoint, float> GraphicsLayerCoordinated::computePositionRelativeTo
     }
 
     if (didFindAnyLayerThatAppliesPageScale)
-        return { WTFMove(offset), pageScale };
+        return { WTF::move(offset), pageScale };
 
     return { FloatPoint(), 1 };
 }
@@ -833,10 +833,10 @@ void GraphicsLayerCoordinated::updateGeometry(float pageScaleFactor, const Float
     FloatSize adjustedSize;
     computePixelAlignmentIfNeeded(pageScaleFactor, positionRelativeToBase, adjustedPosition, adjustedBoundsOrigin, adjustedAnchorPoint, adjustedSize);
 
-    m_platformLayer->setPosition(WTFMove(adjustedPosition));
-    m_platformLayer->setBoundsOrigin(WTFMove(adjustedBoundsOrigin));
-    m_platformLayer->setAnchorPoint(WTFMove(adjustedAnchorPoint));
-    m_platformLayer->setSize(WTFMove(adjustedSize));
+    m_platformLayer->setPosition(WTF::move(adjustedPosition));
+    m_platformLayer->setBoundsOrigin(WTF::move(adjustedBoundsOrigin));
+    m_platformLayer->setAnchorPoint(WTF::move(adjustedAnchorPoint));
+    m_platformLayer->setSize(WTF::move(adjustedSize));
 }
 
 void GraphicsLayerCoordinated::computeLayerTransformIfNeeded(bool affectedByTransformAnimation)
@@ -902,7 +902,7 @@ void GraphicsLayerCoordinated::updateVisibleRect(const FloatRect& rect)
     IntRect visibleRectFuture;
     // Non-invertible layers are not visible.
     if (!m_layerTransform.current.combined().isInvertible()) {
-        m_platformLayer->setTransformedVisibleRect(WTFMove(visibleRect), WTFMove(visibleRect));
+        m_platformLayer->setTransformedVisibleRect(WTF::move(visibleRect), WTF::move(visibleRect));
         return;
     }
 
@@ -919,7 +919,7 @@ void GraphicsLayerCoordinated::updateVisibleRect(const FloatRect& rect)
     visibleRectFuture = visibleRect;
     if (m_layerTransform.cachedInverse != m_layerTransform.cachedFutureInverse)
         visibleRectFuture.unite(transformedRect(m_layerTransform.cachedFutureInverse));
-    m_platformLayer->setTransformedVisibleRect(WTFMove(visibleRect), WTFMove(visibleRectFuture));
+    m_platformLayer->setTransformedVisibleRect(WTF::move(visibleRect), WTF::move(visibleRectFuture));
 }
 
 void GraphicsLayerCoordinated::updateBackdropFilters()
@@ -991,7 +991,7 @@ void GraphicsLayerCoordinated::updateIndicators()
     if (m_showDebugBorder)
         getDebugBorderInfo(borderColor, borderWidth);
 
-    m_platformLayer->setDebugBorder(WTFMove(borderColor), borderWidth);
+    m_platformLayer->setDebugBorder(WTF::move(borderColor), borderWidth);
     m_platformLayer->setShowRepaintCounter(m_showRepaintCounter);
 }
 

@@ -44,7 +44,7 @@ class TextTrackCueList;
 class VTTRegionList;
 
 class TextTrack : public TrackBase, public EventTarget, public ActiveDOMObject {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(TextTrack);
+    WTF_MAKE_TZONE_ALLOCATED(TextTrack);
 public:
     static Ref<TextTrack> create(ScriptExecutionContext*, const AtomString& kind, TrackID, const AtomString& label, const AtomString& language);
     static Ref<TextTrack> create(ScriptExecutionContext*, const AtomString& kind, const AtomString& id, const AtomString& label, const AtomString& language);
@@ -86,7 +86,7 @@ public:
 
     TextTrackCueList* cues();
     RefPtr<TextTrackCueList> protectedCues();
-    TextTrackCueList* activeCues() const;
+    TextTrackCueList* activeCues() const LIFETIME_BOUND;
 
     TextTrackCueList* cuesInternal() const { return m_cues.get(); }
     inline RefPtr<TextTrackCueList> protectedCues() const;
@@ -145,6 +145,7 @@ public:
     virtual void removeCuesNotInTimeRanges(const PlatformTimeRanges&);
 
     ScriptExecutionContext* scriptExecutionContext() const final;
+    RefPtr<ScriptExecutionContext> protectedScriptExecutionContext() const;
 
 protected:
     TextTrack(ScriptExecutionContext*, const AtomString& kind, TrackID, const AtomString& label, const AtomString& language, TextTrackType);
@@ -156,7 +157,7 @@ protected:
 
     void newCuesAvailable(const TextTrackCueList&);
 
-    RefPtr<TextTrackCueList> m_cues;
+    const RefPtr<TextTrackCueList> m_cues;
     std::optional<Vector<String>> m_styleSheets;
     WeakHashSet<TextTrackClient> m_clients;
 
@@ -176,6 +177,7 @@ private:
     RefPtr<VTTRegionList> m_regions;
 
     TextTrackCueList& ensureTextTrackCueList();
+    Ref<TextTrackCueList> ensureProtectedTextTrackCueList();
     Kind convertKind(const AtomString&);
 
     Mode m_mode { Mode::Disabled };

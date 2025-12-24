@@ -567,7 +567,7 @@ public:
     void appendBlock(std::unique_ptr<BasicBlock>&& basicBlock)
     {
         basicBlock->index = m_blocks.size();
-        m_blocks.append(WTFMove(basicBlock));
+        m_blocks.append(WTF::move(basicBlock));
     }
     
     void killBlock(BlockIndex blockIndex)
@@ -1236,7 +1236,7 @@ public:
 
     void appendCatchEntrypoint(BytecodeIndex bytecodeIndex, CodePtr<ExceptionHandlerPtrTag> machineCode, Vector<FlushFormat>&& argumentFormats)
     {
-        m_catchEntrypoints.append(CatchEntrypointData { machineCode, FixedVector<FlushFormat>(WTFMove(argumentFormats)), bytecodeIndex });
+        m_catchEntrypoints.append(CatchEntrypointData { machineCode, FixedVector<FlushFormat>(WTF::move(argumentFormats)), bytecodeIndex });
     }
 
     void freeDFGIRAfterLowering();

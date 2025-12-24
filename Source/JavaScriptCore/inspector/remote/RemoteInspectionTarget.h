@@ -25,8 +25,11 @@
 
 #pragma once
 
+#include <wtf/Platform.h>
+
 #if ENABLE(REMOTE_INSPECTOR)
 
+#include "JSExportMacros.h"
 #include "JSRemoteInspector.h"
 #include "RemoteControllableTarget.h"
 #include <wtf/ProcessID.h>

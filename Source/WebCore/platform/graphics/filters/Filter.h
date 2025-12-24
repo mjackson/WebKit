@@ -78,6 +78,8 @@ public:
     WEBCORE_EXPORT RefPtr<FilterImage> apply(ImageBuffer* sourceImage, const FloatRect& sourceImageRect, FilterResults&);
     WEBCORE_EXPORT FilterStyleVector createFilterStyles(GraphicsContext&, const FloatRect& sourceImageRect) const;
 
+    ImageBuffer* filterResultBuffer(FilterImage&) const;
+
 protected:
     Filter(Filter::Type, std::optional<RenderingResourceIdentifier> = std::nullopt);
     Filter(Filter::Type, const FilterGeometry&, std::optional<RenderingResourceIdentifier> = std::nullopt);

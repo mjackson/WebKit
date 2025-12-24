@@ -139,14 +139,14 @@ bool AVAssetMIMETypeCache::isUnsupportedContainerType(const String& type)
         return true;
 
     // Reject types we know AVFoundation does not support that sites commonly ask about.
-    static constexpr ComparableASCIILiteral unsupportedTypesArray[] = { "video/h264"_s, "video/x-flv"_s };
+    static constexpr auto unsupportedTypesArray = std::to_array<ComparableASCIILiteral>({ "video/h264"_s, "video/x-flv"_s });
     static constexpr SortedArraySet unsupportedTypesSet { unsupportedTypesArray };
     return unsupportedTypesSet.contains(lowerCaseType);
 }
 
 bool AVAssetMIMETypeCache::isStaticContainerType(StringView type)
 {
-    static constexpr ComparableLettersLiteral staticContainerTypesArray[] = {
+    static constexpr auto staticContainerTypesArray = std::to_array<ComparableLettersLiteral>({
         "application/vnd.apple.mpegurl"_s,
         "application/x-mpegurl"_s,
         "audio/3gpp"_s,
@@ -178,7 +178,7 @@ bool AVAssetMIMETypeCache::isStaticContainerType(StringView type)
         "video/x-m4v"_s,
         "video/x-mpeg"_s,
         "video/x-mpg"_s,
-    };
+    });
     static constexpr SortedArraySet staticContainerTypesSet { staticContainerTypesArray };
     return staticContainerTypesSet.contains(type);
 }

@@ -152,7 +152,7 @@ static void initialize()
     g_metadata.construct();
     auto metadata = makeUnique<Metadata>();
     memcpy(&metadata->defaults, &g_jscConfig.options, sizeof(OptionsStorage));
-    g_metadata.get() = WTFMove(metadata);
+    g_metadata.get() = WTF::move(metadata);
 }
 
 static void releaseMetadata()
@@ -693,6 +693,7 @@ static inline void disableAllJITOptions()
     disableAllWasmJITOptions();
 
     Options::useBaselineJIT() = false;
+    Options::useLOLJIT() = false;
     Options::useDFGJIT() = false;
     Options::useFTLJIT() = false;
     Options::useDOMJIT() = false;
@@ -900,6 +901,10 @@ void Options::notifyOptionsChanged()
             Options::forceAllFunctionsToUseSIMD() = true;
         }
     }
+
+    // TODO
+    if (Options::useLOLJIT())
+        Options::forceOSRExitToLLInt() = true;
 
     if (!Options::useConcurrentGC())
         Options::collectContinuously() = false;

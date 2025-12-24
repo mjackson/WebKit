@@ -40,6 +40,7 @@ class InspectorScriptProfilerAgent;
 
 class JSGlobalObjectConsoleClient final : public JSC::ConsoleClient {
     WTF_MAKE_TZONE_ALLOCATED(JSGlobalObjectConsoleClient);
+    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(JSGlobalObjectConsoleClient);
 public:
     explicit JSGlobalObjectConsoleClient(InspectorConsoleAgent*);
     ~JSGlobalObjectConsoleClient() final { }

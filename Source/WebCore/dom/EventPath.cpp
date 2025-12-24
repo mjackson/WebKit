@@ -108,7 +108,7 @@ void EventPath::buildPath(Node& originalTarget, Event& event)
             m_path.append(EventContext { contextType, *node, eventTargetRespectingTargetRules(*node), target.get(), closedShadowDepth });
 
             if (RefPtr maybeShadowRoot = dynamicDowncast<ShadowRoot>(*node)) {
-                shadowRoot = WTFMove(maybeShadowRoot);
+                shadowRoot = WTF::move(maybeShadowRoot);
                 break;
             }
 
@@ -130,10 +130,10 @@ void EventPath::buildPath(Node& originalTarget, Event& event)
                     if (shadowRootOfParent->mode() != ShadowRootMode::Open)
                         closedShadowDepth++;
                     // node is assigned to a slot. Continue dispatching the event at this slot.
-                    parent = WTFMove(assignedSlot);
+                    parent = WTF::move(assignedSlot);
                 }
             }
-            node = WTFMove(parent);
+            node = WTF::move(parent);
         }
 
         bool exitingShadowTreeOfTarget = &target->treeScope() == &node->treeScope();
@@ -176,14 +176,14 @@ void EventPath::setRelatedTarget(Node& origin, Node& relatedNode)
             break;
         }
 
-        context.setRelatedTarget(WTFMove(currentRelatedNode));
+        context.setRelatedTarget(WTF::move(currentRelatedNode));
 
         if (originIsRelatedTarget && context.node() == rootNodeInOriginTreeScope.ptr()) [[unlikely]] {
             m_path.shrink(contextIndex + 1);
             break;
         }
 
-        previousTreeScope = WTFMove(currentTreeScope);
+        previousTreeScope = WTF::move(currentTreeScope);
     }
 }
 
@@ -220,7 +220,7 @@ void EventPath::retargetTouch(EventContext::TouchListType type, const Touch& tou
         } else
             ASSERT(context.isWindowContext());
 
-        previousTreeScope = WTFMove(currentTreeScope);
+        previousTreeScope = WTF::move(currentTreeScope);
     }
 }
 
@@ -318,7 +318,7 @@ static Node* moveOutOfAllShadowRoots(Node& startingNode)
 }
 
 RelatedNodeRetargeter::RelatedNodeRetargeter(Ref<Node>&& relatedNode, Node& target)
-    : m_relatedNode(WTFMove(relatedNode))
+    : m_relatedNode(WTF::move(relatedNode))
     , m_retargetedRelatedNode(m_relatedNode.copyRef())
 {
     auto& targetTreeScope = target.treeScope();

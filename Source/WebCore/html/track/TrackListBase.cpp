@@ -37,7 +37,7 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(TrackListBase);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(TrackListBase);
 
 TrackListBase::TrackListBase(ScriptExecutionContext* context, Type type)
     : ActiveDOMObject(context)
@@ -102,7 +102,7 @@ void TrackListBase::remove(TrackBase& track, bool scheduleEvent)
     m_inbandTracks.removeAt(index);
 
     if (scheduleEvent)
-        scheduleRemoveTrackEvent(WTFMove(trackRef));
+        scheduleRemoveTrackEvent(WTF::move(trackRef));
 }
 
 bool TrackListBase::contains(TrackBase& track) const
@@ -117,7 +117,7 @@ bool TrackListBase::contains(TrackID trackID) const
 
 void TrackListBase::scheduleTrackEvent(const AtomString& eventName, Ref<TrackBase>&& track)
 {
-    queueTaskToDispatchEvent(*this, TaskSource::MediaElement, TrackEvent::create(eventName, Event::CanBubble::No, Event::IsCancelable::No, WTFMove(track)));
+    queueTaskToDispatchEvent(*this, TaskSource::MediaElement, TrackEvent::create(eventName, Event::CanBubble::No, Event::IsCancelable::No, WTF::move(track)));
 }
 
 void TrackListBase::scheduleAddTrackEvent(Ref<TrackBase>&& track)
@@ -140,7 +140,7 @@ void TrackListBase::scheduleAddTrackEvent(Ref<TrackBase>&& track)
     // bubble and is not cancelable, and that uses the TrackEvent interface, with
     // the track attribute initialized to the text track's TextTrack object, at
     // the media element's textTracks attribute's TextTrackList object.
-    scheduleTrackEvent(eventNames().addtrackEvent, WTFMove(track));
+    scheduleTrackEvent(eventNames().addtrackEvent, WTF::move(track));
 }
 
 void TrackListBase::scheduleRemoveTrackEvent(Ref<TrackBase>&& track)
@@ -167,7 +167,7 @@ void TrackListBase::scheduleRemoveTrackEvent(Ref<TrackBase>&& track)
     // interface, with the track attribute initialized to the text track's
     // TextTrack object, at the media element's textTracks attribute's
     // TextTrackList object.
-    scheduleTrackEvent(eventNames().removetrackEvent, WTFMove(track));
+    scheduleTrackEvent(eventNames().removetrackEvent, WTF::move(track));
 }
 
 void TrackListBase::scheduleChangeEvent()

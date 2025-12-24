@@ -30,6 +30,7 @@
 #include "ContextMenuContextData.h"
 #include "UserData.h"
 #include "WebContextMenuListenerProxy.h"
+#include "WebPageProxy.h"
 #include <wtf/RefCounted.h>
 #include <wtf/WeakPtr.h>
 

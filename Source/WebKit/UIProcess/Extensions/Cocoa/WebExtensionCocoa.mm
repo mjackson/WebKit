@@ -120,7 +120,7 @@ WebExtension::WebExtension(NSBundle *appExtensionBundle, NSURL *resourceURL, Ref
 
 WebExtension::WebExtension(NSDictionary *manifest, Resources&& resources)
     : m_manifestJSON(JSON::Value::null())
-    , m_resources(WTFMove(resources))
+    , m_resources(WTF::move(resources))
 {
     RELEASE_ASSERT(manifest);
 
@@ -307,9 +307,9 @@ Expected<Ref<WebCore::Icon>, RefPtr<API::Error>> WebExtension::iconForPath(const
             symbolName = symbolName.left(queryStringPosition);
 
 #if USE(APPKIT)
-        auto *result = [NSImage imageWithSystemSymbolName:symbolName.createNSString().get() accessibilityDescription:nil];
+        auto *result = [NSImage imageWithPrivateSystemSymbolName:symbolName.createNSString().get() accessibilityDescription:nil];
 #else
-        auto *result = [UIImage systemImageNamed:symbolName.createNSString().get()];
+        auto *result = [UIImage _systemImageNamed:symbolName.createNSString().get()];
 #endif
 
         if (RefPtr iconResult = WebCore::Icon::create(result))

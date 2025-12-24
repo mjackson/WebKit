@@ -26,6 +26,7 @@
 #pragma once
 
 #include "DebuggerPrimitives.h"
+#include "JSExportMacros.h"
 #include <wtf/Noncopyable.h>
 #include <wtf/Ref.h>
 #include <wtf/RefCounted.h>

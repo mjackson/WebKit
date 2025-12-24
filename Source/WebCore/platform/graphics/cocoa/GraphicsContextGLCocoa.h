@@ -177,20 +177,20 @@ protected:
 };
 
 inline IOSurfacePbuffer::IOSurfacePbuffer(std::unique_ptr<IOSurface>&& surface, void* pbuffer)
-    : IOSurfaceDrawingBuffer(WTFMove(surface))
+    : IOSurfaceDrawingBuffer(WTF::move(surface))
     , m_pbuffer(pbuffer)
 {
 }
 
 inline IOSurfacePbuffer::IOSurfacePbuffer(IOSurfacePbuffer&& other)
-    : IOSurfaceDrawingBuffer(WTFMove(other))
+    : IOSurfaceDrawingBuffer(WTF::move(other))
     , m_pbuffer(std::exchange(other.m_pbuffer, nullptr))
 {
 }
 
 inline IOSurfacePbuffer& IOSurfacePbuffer::operator=(IOSurfacePbuffer&& other)
 {
-    IOSurfaceDrawingBuffer::operator=(WTFMove(other));
+    IOSurfaceDrawingBuffer::operator=(WTF::move(other));
     m_pbuffer = std::exchange(other.m_pbuffer, nullptr);
     return *this;
 }

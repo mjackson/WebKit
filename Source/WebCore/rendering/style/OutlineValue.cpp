@@ -35,12 +35,12 @@ namespace WebCore {
 
 bool OutlineValue::nonZero() const
 {
-    return width() && style() != OutlineStyle::None;
+    return outlineWidth && static_cast<OutlineStyle>(outlineStyle) != OutlineStyle::None;
 }
 
 bool OutlineValue::isTransparent() const
 {
-    return m_color.isResolvedColor() && m_color.resolvedColor().isValid() && !m_color.resolvedColor().isVisible();
+    return outlineColor.isResolvedColor() && outlineColor.resolvedColor().isValid() && !outlineColor.resolvedColor().isVisible();
 }
 
 bool OutlineValue::isVisible() const
@@ -48,9 +48,9 @@ bool OutlineValue::isVisible() const
     return nonZero() && !isTransparent();
 }
 
-TextStream& operator<<(TextStream& ts, const OutlineValue& outlineValue)
+TextStream& operator<<(TextStream& ts, const OutlineValue& value)
 {
-    return ts << outlineValue.width() << ' ' << outlineValue.style() << ' ' << outlineValue.color() << " [offset "_s << outlineValue.offset() << ']';
+    return ts << value.outlineWidth << ' ' << static_cast<OutlineStyle>(value.outlineStyle) << ' ' << value.outlineColor << " [offset "_s << value.outlineOffset << ']';
 }
 
 } // namespace WebCore

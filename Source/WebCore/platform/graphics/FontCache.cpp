@@ -404,7 +404,7 @@ static Function<void()>& fontCacheInvalidationCallback()
 
 void FontCache::registerFontCacheInvalidationCallback(Function<void()>&& callback)
 {
-    fontCacheInvalidationCallback() = WTFMove(callback);
+    fontCacheInvalidationCallback() = WTF::move(callback);
 }
 
 template<typename F>

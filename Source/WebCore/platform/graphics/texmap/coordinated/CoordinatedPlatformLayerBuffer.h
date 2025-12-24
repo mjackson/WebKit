@@ -55,7 +55,7 @@ public:
 
     void waitForContentsIfNeeded()
     {
-        if (auto fence = WTFMove(m_fence))
+        if (auto fence = WTF::move(m_fence))
             fence->serverWait();
     }
 
@@ -64,7 +64,7 @@ protected:
         : m_type(type)
         , m_size(size)
         , m_flags(flags)
-        , m_fence(WTFMove(fence))
+        , m_fence(WTF::move(fence))
     {
     }
 

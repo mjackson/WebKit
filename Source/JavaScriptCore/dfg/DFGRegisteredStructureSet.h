@@ -25,10 +25,12 @@
 
 #pragma once
 
+#include <wtf/Platform.h>
+
 #if ENABLE(DFG_JIT)
 
-#include "ArrayProfile.h"
 #include "DFGRegisteredStructure.h"
+#include "ArrayProfile.h"
 #include "StructureSet.h"
 #include <wtf/TinyPtrSet.h>
 

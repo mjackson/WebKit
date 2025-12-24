@@ -28,7 +28,7 @@
 
 #include "InlineIteratorBox.h"
 #include "LayoutIntegrationLineLayout.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include "SVGTextFragment.h"
 #include "TextPainter.h"
 
@@ -45,6 +45,15 @@ bool InlineContent::hasContentfulInFlowBox() const
     ASSERT(m_displayContent.boxes.isEmpty() || m_displayContent.boxes[0].isRootInlineBox());
     for (auto& line : m_displayContent.lines) {
         if (line.hasContentfulInFlowBox())
+            return true;
+    }
+    return false;
+}
+
+bool InlineContent::hasContentfulInlineLevelBox() const
+{
+    for (auto& line : m_displayContent.lines) {
+        if (line.hasContentfulInlineLevelBox())
             return true;
     }
     return false;

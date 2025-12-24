@@ -51,7 +51,7 @@ class Blob;
 template<typename> class ExceptionOr;
 
 class FileReader final : public RefCounted<FileReader>, public ActiveDOMObject, public EventTarget, private FileReaderLoaderClient {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(FileReader);
+    WTF_MAKE_TZONE_ALLOCATED(FileReader);
 public:
     static Ref<FileReader> create(ScriptExecutionContext&);
 

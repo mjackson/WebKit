@@ -23,6 +23,7 @@
 
 #if PLATFORM(MAC)
 
+#import "AttachmentLayout.h"
 #import "BitmapImage.h"
 #import "CSSPropertyNames.h"
 #import "CSSValueKeywords.h"
@@ -60,7 +61,9 @@
 #import "RenderMedia.h"
 #import "RenderMeter.h"
 #import "RenderSlider.h"
-#import "RenderStyleSetters.h"
+#import "RenderStyle+GettersInlines.h"
+#import "RenderStyle+InitialInlines.h"
+#import "RenderStyle+SettersInlines.h"
 #import "RenderView.h"
 #import "SliderThumbElement.h"
 #import "StringTruncator.h"
@@ -843,7 +846,7 @@ static Style::PreferredSizePair sizeFromNSControlSize(NSControlSize nsControlSiz
         resultWidth = Style::PreferredSize::Fixed { static_cast<float>(controlSize.width()) };
     if (zoomedSize.height().isIntrinsicOrLegacyIntrinsicOrAuto() && controlSize.height() > 0)
         resultHeight = Style::PreferredSize::Fixed { static_cast<float>(controlSize.height()) };
-    return { WTFMove(resultWidth), WTFMove(resultHeight) };
+    return { WTF::move(resultWidth), WTF::move(resultHeight) };
 }
 
 static Style::PreferredSizePair sizeFromFont(const FontCascade& font, const Style::PreferredSizePair& zoomedSize, float zoomFactor, const std::span<const IntSize, 4> sizes)
@@ -1230,7 +1233,7 @@ static void setFontFromControlSize(RenderStyle& style, NSControlSize controlSize
 
     // Reset line height
     style.setLineHeight(RenderStyle::initialLineHeight());
-    style.setFontDescription(WTFMove(fontDescription));
+    style.setFontDescription(WTF::move(fontDescription));
 }
 
 void RenderThemeMac::adjustListButtonStyle(RenderStyle& style, const Element* element) const
@@ -1818,7 +1821,7 @@ RenderThemeCocoa::IconAndSize RenderThemeMac::iconForAttachment(const String& fi
     if (auto icon = WebCore::iconForAttachment(fileName, attachmentType, title)) {
         RetainPtr image = icon->image();
         auto size = [image size];
-        return IconAndSize { WTFMove(image), FloatSize(size) };
+        return IconAndSize { WTF::move(image), FloatSize(size) };
     }
 
     return IconAndSize { nil, FloatSize() };
@@ -1906,11 +1909,7 @@ static void paintAttachmentTitleBackground(const RenderAttachment& attachment, G
         return line.backgroundRect;
     });
 
-    Color backgroundColor;
-    if (attachment.frame().checkedSelection()->isFocusedAndActive())
-        backgroundColor = colorFromCocoaColor([NSColor selectedContentBackgroundColor]);
-    else
-        backgroundColor = attachmentTitleInactiveBackgroundColor;
+    Color backgroundColor = colorFromCocoaColor(attachment.frame().checkedSelection()->isFocusedAndActive() ? [NSColor selectedContentBackgroundColor] : [NSColor unemphasizedSelectedContentBackgroundColor]);
 
     backgroundColor = attachment.checkedStyle()->colorByApplyingColorFilter(backgroundColor);
     context.setFillColor(backgroundColor);

@@ -64,17 +64,17 @@ namespace WebCore {
 
 Ref<UserMediaRequest> UserMediaRequest::create(Document& document, MediaStreamRequest&& request, TrackConstraints&& audioConstraints, TrackConstraints&& videoConstraints, DOMPromiseDeferred<IDLInterface<MediaStream>>&& promise)
 {
-    auto result = adoptRef(*new UserMediaRequest(document, WTFMove(request), WTFMove(audioConstraints), WTFMove(videoConstraints), WTFMove(promise)));
+    auto result = adoptRef(*new UserMediaRequest(document, WTF::move(request), WTF::move(audioConstraints), WTF::move(videoConstraints), WTF::move(promise)));
     result->suspendIfNeeded();
     return result;
 }
 
 UserMediaRequest::UserMediaRequest(Document& document, MediaStreamRequest&& request, TrackConstraints&& audioConstraints, TrackConstraints&& videoConstraints, DOMPromiseDeferred<IDLInterface<MediaStream>>&& promise)
     : ActiveDOMObject(document)
-    , m_promise(makeUniqueRef<DOMPromiseDeferred<IDLInterface<MediaStream>>>(WTFMove(promise)))
-    , m_request(WTFMove(request))
-    , m_audioConstraints(WTFMove(audioConstraints))
-    , m_videoConstraints(WTFMove(videoConstraints))
+    , m_promise(makeUniqueRef<DOMPromiseDeferred<IDLInterface<MediaStream>>>(WTF::move(promise)))
+    , m_request(WTF::move(request))
+    , m_audioConstraints(WTF::move(audioConstraints))
+    , m_videoConstraints(WTF::move(videoConstraints))
 {
 }
 
@@ -167,10 +167,10 @@ void UserMediaRequest::allow(CaptureDevice&& audioDevice, CaptureDevice&& videoD
     if (mediaDevices)
         mediaDevices->willStartMediaCapture(!!audioDevice, !!videoDevice);
 
-    m_allowCompletionHandler = WTFMove(completionHandler);
-    queueTaskKeepingObjectAlive(*this, TaskSource::UserInteraction, [audioDevice = WTFMove(audioDevice), videoDevice = WTFMove(videoDevice), deviceIdentifierHashSalt = WTFMove(deviceIdentifierHashSalt)](auto& request) mutable {
+    m_allowCompletionHandler = WTF::move(completionHandler);
+    queueTaskKeepingObjectAlive(*this, TaskSource::UserInteraction, [audioDevice = WTF::move(audioDevice), videoDevice = WTF::move(videoDevice), deviceIdentifierHashSalt = WTF::move(deviceIdentifierHashSalt)](auto& request) mutable {
         auto callback = [protectedThis = Ref { request }, protector = request.makePendingActivity(request)](auto privateStreamOrError) mutable {
-            auto scopeExit = makeScopeExit([completionHandler = WTFMove(protectedThis->m_allowCompletionHandler)]() mutable {
+            auto scopeExit = makeScopeExit([completionHandler = WTF::move(protectedThis->m_allowCompletionHandler)]() mutable {
                 completionHandler();
             });
             if (protectedThis->isContextStopped()) {
@@ -190,12 +190,12 @@ void UserMediaRequest::allow(CaptureDevice&& audioDevice, CaptureDevice&& videoD
                 protectedThis->deny(error.denialReason, error.errorMessage, error.invalidConstraint);
                 return;
             }
-            auto privateStream = WTFMove(privateStreamOrError).value();
+            auto privateStream = WTF::move(privateStreamOrError).value();
 
             auto& document = downcast<Document>(*protectedThis->scriptExecutionContext());
             privateStream->monitorOrientation(document.orientationNotifier());
 
-            Ref stream = MediaStream::create(document, WTFMove(privateStream));
+            Ref stream = MediaStream::create(document, WTF::move(privateStream));
             stream->startProducingData();
 
             if (!isMediaStreamCorrectlyStarted(stream)) {
@@ -208,20 +208,20 @@ void UserMediaRequest::allow(CaptureDevice&& audioDevice, CaptureDevice&& videoD
                 AudioSession::singleton().tryToSetActive(true);
 #endif
                 if (std::holds_alternative<MediaTrackConstraints>(protectedThis->m_audioConstraints))
-                    audioTrack->setConstraints(std::get<MediaTrackConstraints>(WTFMove(protectedThis->m_audioConstraints)));
+                    audioTrack->setConstraints(std::get<MediaTrackConstraints>(WTF::move(protectedThis->m_audioConstraints)));
             }
             if (RefPtr videoTrack = stream->getFirstVideoTrack()) {
                 if (std::holds_alternative<MediaTrackConstraints>(protectedThis->m_videoConstraints))
-                    videoTrack->setConstraints(std::get<MediaTrackConstraints>(WTFMove(protectedThis->m_videoConstraints)));
+                    videoTrack->setConstraints(std::get<MediaTrackConstraints>(WTF::move(protectedThis->m_videoConstraints)));
             }
 
             ASSERT(document.isCapturing());
             document.setHasCaptureMediaStreamTrack();
-            protectedThis->m_promise->resolve(WTFMove(stream));
+            protectedThis->m_promise->resolve(WTF::move(stream));
         };
 
         auto& document = downcast<Document>(*request.scriptExecutionContext());
-        RealtimeMediaSourceCenter::singleton().createMediaStream(document.logger(), WTFMove(callback), WTFMove(deviceIdentifierHashSalt), WTFMove(audioDevice), WTFMove(videoDevice), request.m_request);
+        RealtimeMediaSourceCenter::singleton().createMediaStream(document.logger(), WTF::move(callback), WTF::move(deviceIdentifierHashSalt), WTF::move(audioDevice), WTF::move(videoDevice), request.m_request);
 
         if (!request.scriptExecutionContext())
             return;

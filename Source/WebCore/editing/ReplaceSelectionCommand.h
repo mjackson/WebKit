@@ -49,7 +49,7 @@ public:
 
     static Ref<ReplaceSelectionCommand> create(Ref<Document>&& document, RefPtr<DocumentFragment>&& fragment, OptionSet<CommandOption> options, EditAction editingAction = EditAction::Insert)
     {
-        return adoptRef(*new ReplaceSelectionCommand(WTFMove(document), WTFMove(fragment), options, editingAction));
+        return adoptRef(*new ReplaceSelectionCommand(WTF::move(document), WTF::move(fragment), options, editingAction));
     }
 
     virtual ~ReplaceSelectionCommand();

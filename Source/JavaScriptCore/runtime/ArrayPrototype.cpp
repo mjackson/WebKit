@@ -1014,7 +1014,7 @@ static ALWAYS_INLINE void sortImpl(JSGlobalObject* globalObject, JSObject* thisO
             JSValue value = JSValue::decode(encodedValue);
             String string = value.toWTFString(globalObject);
             RETURN_IF_EXCEPTION(scope, void());
-            entries.append(std::tuple { value, WTFMove(string) });
+            entries.append(std::tuple { value, WTF::move(string) });
         }
         sortBucketSort(sorted, 0, entries, 0);
         dest = sorted;

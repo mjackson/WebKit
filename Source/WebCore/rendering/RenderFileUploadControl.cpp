@@ -51,7 +51,7 @@ namespace WebCore {
 
 using namespace HTMLNames;
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(RenderFileUploadControl);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderFileUploadControl);
 
 constexpr int afterButtonSpacing = 4;
 constexpr int buttonShadowHeight = 2;
@@ -71,7 +71,7 @@ constexpr int defaultWidthNumChars = 38;
 #endif
 
 RenderFileUploadControl::RenderFileUploadControl(HTMLInputElement& input, RenderStyle&& style)
-    : RenderBlockFlow(Type::FileUploadControl, input, WTFMove(style))
+    : RenderBlockFlow(Type::FileUploadControl, input, WTF::move(style))
     , m_canReceiveDroppedFiles(input.canReceiveDroppedFiles())
 {
     ASSERT(isRenderFileUploadControl());

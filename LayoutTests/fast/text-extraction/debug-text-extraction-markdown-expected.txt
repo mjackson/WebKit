@@ -6,4 +6,6 @@ This is a list:
 - foo
 - bar
 - baz
+On sale for
+£10.99
 <!-- version=2 -->

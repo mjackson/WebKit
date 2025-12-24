@@ -26,6 +26,7 @@
 #pragma once
 
 #include "Identifier.h"
+#include "JSString.h"
 #include "KeyAtomStringCache.h"
 #include "SmallStrings.h"
 #include "VM.h"

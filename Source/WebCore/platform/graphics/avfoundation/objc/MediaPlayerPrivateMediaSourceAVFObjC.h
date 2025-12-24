@@ -111,7 +111,7 @@ public:
 
     void effectiveRateChanged();
     void setNaturalSize(const FloatSize&);
-    void characteristicsChanged();
+    void characteristicsFromMediaSourceChanged() final;
 
     MediaTime currentTime() const override;
     MediaTime currentOrPendingSeekTime() const final { return currentTime(); }

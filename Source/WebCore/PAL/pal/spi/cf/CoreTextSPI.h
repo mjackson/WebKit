@@ -244,13 +244,14 @@ bool CTFontIsAppleColorEmoji(CTFontRef);
 CTFontRef CTFontCreateForCharacters(CTFontRef currentFont, const UTF16Char *characters, CFIndex length, CFIndex *coveredLength);
 CGFloat CTFontGetSbixImageSizeForGlyphAndContentsScale(CTFontRef, const CGGlyph, CGFloat contentsScale);
 
-CFArrayRef _Nullable CTFontDescriptorCreateMatchingFontDescriptorsWithOptions(CTFontDescriptorRef, CFSetRef _Nullable, CTFontDescriptorMatchingOptions);
+CTFontUIFontType CTFontGetUIFontType(CTFontRef);
 CTFontDescriptorOptions CTFontDescriptorGetOptions(CTFontDescriptorRef);
 
 CFBitVectorRef CTFontCopyColorGlyphCoverage(CTFontRef);
 
 #if HAVE(CTFONTMANAGER_CREATEMEMORYSAFEFONTDESCRIPTORFROMDATA)
 CTFontDescriptorRef CTFontManagerCreateMemorySafeFontDescriptorFromData(CFDataRef);
+CFArrayRef FPFontCreateMemorySafeFontsFromData(CFDataRef);
 #endif
 
 typedef const struct __FPFont* FPFontRef;

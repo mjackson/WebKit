@@ -83,7 +83,7 @@ namespace WebCore {
 
 using namespace PeerConnection;
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(RTCPeerConnection);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(RTCPeerConnection);
 
 ExceptionOr<Ref<RTCPeerConnection>> RTCPeerConnection::create(Document& document, RTCConfiguration&& configuration)
 {
@@ -93,7 +93,7 @@ ExceptionOr<Ref<RTCPeerConnection>> RTCPeerConnection::create(Document& document
     auto peerConnection = adoptRef(*new RTCPeerConnection(document));
     peerConnection->suspendIfNeeded();
 
-    auto exception = peerConnection->initializeWithConfiguration(WTFMove(configuration));
+    auto exception = peerConnection->initializeWithConfiguration(WTF::move(configuration));
     if (exception.hasException())
         return exception.releaseException();
 
@@ -228,7 +228,7 @@ ExceptionOr<Ref<RTCRtpTransceiver>> RTCPeerConnection::addTransceiver(AddTransce
     INFO_LOG(LOGIDENTIFIER);
 
     if (auto exception = validateSendEncodings(init.sendEncodings, isAudioTransceiver(withTrack)))
-        return WTFMove(*exception);
+        return WTF::move(*exception);
 
     if (std::holds_alternative<String>(withTrack)) {
         const String& kind = std::get<String>(withTrack);
@@ -245,7 +245,7 @@ ExceptionOr<Ref<RTCRtpTransceiver>> RTCPeerConnection::addTransceiver(AddTransce
         return Exception { ExceptionCode::InvalidStateError };
 
     auto track = std::get<RefPtr<MediaStreamTrack>>(withTrack).releaseNonNull();
-    return protectedBackend()->addTransceiver(WTFMove(track), init);
+    return protectedBackend()->addTransceiver(WTF::move(track), init);
 }
 
 ExceptionOr<Ref<RTCRtpTransceiver>> RTCPeerConnection::addReceiveOnlyTransceiver(String&& kind)
@@ -322,12 +322,12 @@ void RTCPeerConnection::createOffer(RTCOfferOptions&& options, Ref<DeferredPromi
         }
     }
 
-    chainOperation(WTFMove(promise), [this, options = WTFMove(options)](Ref<DeferredPromise>&& promise) mutable {
+    chainOperation(WTF::move(promise), [this, options = WTF::move(options)](Ref<DeferredPromise>&& promise) mutable {
         if (m_signalingState != RTCSignalingState::Stable && m_signalingState != RTCSignalingState::HaveLocalOffer) {
             promise->reject(ExceptionCode::InvalidStateError);
             return;
         }
-        protectedBackend()->createOffer(WTFMove(options), [this, protectedThis = Ref { *this }, promise = PeerConnection::SessionDescriptionPromise(WTFMove(promise))](auto&& result) mutable {
+        protectedBackend()->createOffer(WTF::move(options), [this, protectedThis = Ref { *this }, promise = PeerConnection::SessionDescriptionPromise(WTF::move(promise))](auto&& result) mutable {
             if (isClosed())
                 return;
             if (result.hasException()) {
@@ -349,12 +349,12 @@ void RTCPeerConnection::createAnswer(RTCAnswerOptions&& options, Ref<DeferredPro
         return;
     }
 
-    chainOperation(WTFMove(promise), [this, options = WTFMove(options)](Ref<DeferredPromise>&& promise) mutable {
+    chainOperation(WTF::move(promise), [this, options = WTF::move(options)](Ref<DeferredPromise>&& promise) mutable {
         if (m_signalingState != RTCSignalingState::HaveRemoteOffer && m_signalingState != RTCSignalingState::HaveLocalPranswer) {
             promise->reject(ExceptionCode::InvalidStateError);
             return;
         }
-        protectedBackend()->createAnswer(WTFMove(options), [this, protectedThis = Ref { *this }, promise = PeerConnection::SessionDescriptionPromise(WTFMove(promise))](auto&& result) mutable {
+        protectedBackend()->createAnswer(WTF::move(options), [this, protectedThis = Ref { *this }, promise = PeerConnection::SessionDescriptionPromise(WTF::move(promise))](auto&& result) mutable {
             if (isClosed())
                 return;
             if (result.hasException()) {
@@ -395,7 +395,7 @@ void RTCPeerConnection::setLocalDescription(std::optional<RTCLocalSessionDescrip
     RELEASE_LOG_FORWARDABLE(WebRTC, RTCPEERCONNECTION_SETLOCALDESCRIPTION, logIdentifier(), sdp.utf8());
 #endif
 
-    chainOperation(WTFMove(promise), [this, localDescription = WTFMove(localDescription)](Ref<DeferredPromise>&& promise) mutable {
+    chainOperation(WTF::move(promise), [this, localDescription = WTF::move(localDescription)](Ref<DeferredPromise>&& promise) mutable {
         auto type = typeForSetLocalDescription(localDescription, m_signalingState);
         String sdp;
         if (localDescription)
@@ -407,11 +407,11 @@ void RTCPeerConnection::setLocalDescription(std::optional<RTCLocalSessionDescrip
 
         RefPtr<RTCSessionDescription> description;
         if (!sdp.isEmpty() || (type != RTCSdpType::Offer && type != RTCSdpType::Answer))
-            description = RTCSessionDescription::create(type, WTFMove(sdp));
-        protectedBackend()->setLocalDescription(description.get(), [protectedThis = Ref { *this }, promise = DOMPromiseDeferred<void>(WTFMove(promise))](ExceptionOr<void>&& result) mutable {
+            description = RTCSessionDescription::create(type, WTF::move(sdp));
+        protectedBackend()->setLocalDescription(description.get(), [protectedThis = Ref { *this }, promise = DOMPromiseDeferred<void>(WTF::move(promise))](ExceptionOr<void>&& result) mutable {
             if (protectedThis->isClosed())
                 return;
-            promise.settle(WTFMove(result));
+            promise.settle(WTF::move(result));
         });
     });
 }
@@ -428,23 +428,23 @@ void RTCPeerConnection::setRemoteDescription(RTCSessionDescriptionInit&& remoteD
     RELEASE_LOG_FORWARDABLE(WebRTC, RTCPEERCONNECTION_SETREMOTEDESCRIPTION, logIdentifier(), remoteDescription.sdp.utf8());
 #endif
 
-    chainOperation(WTFMove(promise), [this, remoteDescription = WTFMove(remoteDescription)](Ref<DeferredPromise>&& promise) mutable {
-        auto description = RTCSessionDescription::create(WTFMove(remoteDescription));
+    chainOperation(WTF::move(promise), [this, remoteDescription = WTF::move(remoteDescription)](Ref<DeferredPromise>&& promise) mutable {
+        auto description = RTCSessionDescription::create(WTF::move(remoteDescription));
         if (description->type() == RTCSdpType::Offer && m_signalingState != RTCSignalingState::Stable && m_signalingState != RTCSignalingState::HaveRemoteOffer) {
             auto rollbackDescription = RTCSessionDescription::create(RTCSdpType::Rollback, String { emptyString() });
-            protectedBackend()->setLocalDescription(rollbackDescription.ptr(), [this, protectedThis = Ref { *this }, description = WTFMove(description), promise = WTFMove(promise)](auto&&) mutable {
+            protectedBackend()->setLocalDescription(rollbackDescription.ptr(), [this, protectedThis = Ref { *this }, description = WTF::move(description), promise = WTF::move(promise)](auto&&) mutable {
                 if (isClosed())
                     return;
-                protectedBackend()->setRemoteDescription(description.get(), [protectedThis = Ref { *this }, promise = DOMPromiseDeferred<void>(WTFMove(promise))](ExceptionOr<void>&& result) mutable {
+                protectedBackend()->setRemoteDescription(description.get(), [protectedThis = Ref { *this }, promise = DOMPromiseDeferred<void>(WTF::move(promise))](ExceptionOr<void>&& result) mutable {
                     if (protectedThis->isClosed())
                         return;
-                    promise.settle(WTFMove(result));
+                    promise.settle(WTF::move(result));
                 });
             });
             return;
         }
-        protectedBackend()->setRemoteDescription(description.get(), [promise = DOMPromiseDeferred<void>(WTFMove(promise))](auto&& result) mutable {
-            promise.settle(WTFMove(result));
+        protectedBackend()->setRemoteDescription(description.get(), [promise = DOMPromiseDeferred<void>(WTF::move(promise))](auto&& result) mutable {
+            promise.settle(WTF::move(result));
         });
     });
 }
@@ -458,14 +458,14 @@ void RTCPeerConnection::addIceCandidate(Candidate&& rtcCandidate, Ref<DeferredPr
             if (init.candidate.isEmpty())
                 return nullptr;
 
-            auto result = RTCIceCandidate::create(WTFMove(init));
+            auto result = RTCIceCandidate::create(WTF::move(init));
             if (result.hasException()) {
                 exception = result.releaseException();
                 return nullptr;
             }
             return result.releaseReturnValue();
         }, [](RefPtr<RTCIceCandidate>& iceCandidate) {
-            return WTFMove(iceCandidate);
+            return WTF::move(iceCandidate);
         });
     }
 
@@ -484,11 +484,11 @@ void RTCPeerConnection::addIceCandidate(Candidate&& rtcCandidate, Ref<DeferredPr
     if (isClosed())
         return;
 
-    chainOperation(WTFMove(promise), [this, candidate = WTFMove(candidate)](Ref<DeferredPromise>&& promise) mutable {
-        protectedBackend()->addIceCandidate(candidate.get(), [protectedThis = Ref { *this }, promise = DOMPromiseDeferred<void>(WTFMove(promise))](auto&& result) mutable {
+    chainOperation(WTF::move(promise), [this, candidate = WTF::move(candidate)](Ref<DeferredPromise>&& promise) mutable {
+        protectedBackend()->addIceCandidate(candidate.get(), [protectedThis = Ref { *this }, promise = DOMPromiseDeferred<void>(WTF::move(promise))](auto&& result) mutable {
             if (protectedThis->isClosed())
                 return;
-            promise.settle(WTFMove(result));
+            promise.settle(WTF::move(result));
         });
     });
 }
@@ -518,15 +518,15 @@ ExceptionOr<Vector<MediaEndpointConfiguration::IceServerInfo>> RTCPeerConnection
         for (auto& server : newConfiguration.iceServers.value()) {
             Vector<String> urls;
             WTF::switchOn(server.urls, [&urls] (String& url) {
-                urls = { WTFMove(url) };
+                urls = { WTF::move(url) };
             }, [&urls] (Vector<String>& vector) {
-                urls = WTFMove(vector);
+                urls = WTF::move(vector);
             });
 
             urls.removeAllMatching([&](auto& urlString) {
                 URL url { URL { }, urlString };
                 if (url.path().endsWithIgnoringASCIICase(".local"_s) || !portAllowed(url) || isIPAddressDisallowed(url)) {
-                    queueTaskToDispatchEvent(*this, TaskSource::MediaElement, RTCPeerConnectionIceErrorEvent::create(Event::CanBubble::No, Event::IsCancelable::No, { }, { }, WTFMove(urlString), 701, "URL is not allowed"_s));
+                    queueTaskToDispatchEvent(*this, TaskSource::MediaElement, RTCPeerConnectionIceErrorEvent::create(Event::CanBubble::No, Event::IsCancelable::No, { }, { }, WTF::move(urlString), 701, "URL is not allowed"_s));
                     return true;
                 }
                 return false;
@@ -535,7 +535,7 @@ ExceptionOr<Vector<MediaEndpointConfiguration::IceServerInfo>> RTCPeerConnection
             auto serverURLs = WTF::map(urls, [](auto& url) -> URL {
                 return { URL { }, url };
             });
-            server.urls = WTFMove(urls);
+            server.urls = WTF::move(urls);
 
             for (auto& serverURL : serverURLs) {
                 if (serverURL.isNull())
@@ -553,7 +553,7 @@ ExceptionOr<Vector<MediaEndpointConfiguration::IceServerInfo>> RTCPeerConnection
                     return Exception { ExceptionCode::SyntaxError, "ICE server protocol not supported"_s };
             }
             if (serverURLs.size())
-                servers.append({ WTFMove(serverURLs), server.credential, server.username });
+                servers.append({ WTF::move(serverURLs), server.credential, server.username });
         }
     }
     return servers;
@@ -601,7 +601,7 @@ ExceptionOr<void> RTCPeerConnection::initializeWithConfiguration(RTCConfiguratio
     if (!m_backend)
         return Exception { ExceptionCode::InvalidAccessError, "Bad Configuration Parameters"_s };
 
-    m_configuration = WTFMove(configuration);
+    m_configuration = WTF::move(configuration);
     return { };
 }
 
@@ -632,7 +632,7 @@ ExceptionOr<void> RTCPeerConnection::setConfiguration(RTCConfiguration&& configu
     if (!protectedBackend()->setConfiguration({ servers.releaseReturnValue(), configuration.iceTransportPolicy, configuration.bundlePolicy, configuration.rtcpMuxPolicy, configuration.iceCandidatePoolSize, { } }))
         return Exception { ExceptionCode::InvalidAccessError, "Bad Configuration Parameters"_s };
 
-    m_configuration = WTFMove(configuration);
+    m_configuration = WTF::move(configuration);
     return { };
 }
 
@@ -641,22 +641,22 @@ void RTCPeerConnection::getStats(MediaStreamTrack* selector, Ref<DeferredPromise
     if (selector) {
         for (auto& transceiver : m_transceiverSet.list()) {
             if (transceiver->sender().track() == selector) {
-                protectedBackend()->getStats(transceiver->sender(), WTFMove(promise));
+                protectedBackend()->getStats(transceiver->sender(), WTF::move(promise));
                 return;
             }
             if (&transceiver->receiver().track() == selector) {
-                protectedBackend()->getStats(transceiver->receiver(), WTFMove(promise));
+                protectedBackend()->getStats(transceiver->receiver(), WTF::move(promise));
                 return;
             }
         }
     }
     promise->whenSettled([pendingActivity = makePendingActivity(*this)] { });
-    protectedBackend()->getStats(WTFMove(promise));
+    protectedBackend()->getStats(WTF::move(promise));
 }
 
 void RTCPeerConnection::gatherDecoderImplementationName(Function<void(String&&)>&& callback)
 {
-    protectedBackend()->gatherDecoderImplementationName(WTFMove(callback));
+    protectedBackend()->gatherDecoderImplementationName(WTF::move(callback));
 }
 
 // https://w3c.github.io/webrtc-pc/#dom-peerconnection-createdatachannel
@@ -689,7 +689,10 @@ ExceptionOr<Ref<RTCDataChannel>> RTCPeerConnection::createDataChannel(String&& l
     if (!channelHandler)
         return Exception { ExceptionCode::OperationError };
 
-    return RTCDataChannel::create(*document(), WTFMove(channelHandler), WTFMove(label), WTFMove(options), RTCDataChannelState::Connecting);
+    Ref channel = RTCDataChannel::create(*document(), WTF::move(channelHandler), WTF::move(label), WTF::move(options), RTCDataChannelState::Connecting);
+
+    m_channels.append(channel->identifier());
+    return channel;
 }
 
 bool RTCPeerConnection::doClose()
@@ -714,6 +717,9 @@ bool RTCPeerConnection::doClose()
     }
     m_operations.clear();
 
+    for (auto identifier : std::exchange(m_channels, { }))
+        RTCDataChannelHandlerClient::peerConnectionIsClosing(identifier);
+
     for (auto& transport : m_dtlsTransports)
         transport->close();
 
@@ -732,11 +738,6 @@ void RTCPeerConnection::close()
 ScriptExecutionContext* RTCPeerConnection::scriptExecutionContext() const
 {
     return ActiveDOMObject::scriptExecutionContext();
-}
-
-void RTCPeerConnection::emulatePlatformEvent(const String& action)
-{
-    protectedBackend()->emulatePlatformEvent(action);
 }
 
 void RTCPeerConnection::stop()
@@ -798,7 +799,7 @@ void RTCPeerConnection::addInternalTransceiver(Ref<RTCRtpTransceiver>&& transcei
 {
     ALWAYS_LOG(LOGIDENTIFIER, "Adding internal transceiver with mid "_s, transceiver->mid());
     transceiver->setConnection(*this);
-    m_transceiverSet.append(WTFMove(transceiver));
+    m_transceiverSet.append(WTF::move(transceiver));
 }
 
 void RTCPeerConnection::setSignalingState(RTCSignalingState newState)
@@ -986,7 +987,7 @@ void RTCPeerConnection::updateNegotiationNeededFlag(std::optional<uint32_t> even
 
 void RTCPeerConnection::scheduleEvent(Ref<Event>&& event)
 {
-    queueTaskKeepingObjectAlive(*this, TaskSource::Networking, [event = WTFMove(event)](auto& connection) mutable {
+    queueTaskKeepingObjectAlive(*this, TaskSource::Networking, [event = WTF::move(event)](auto& connection) mutable {
         connection.dispatchEvent(event);
     });
 }
@@ -999,11 +1000,12 @@ void RTCPeerConnection::dispatchEvent(Event& event)
 
 void RTCPeerConnection::dispatchDataChannelEvent(UniqueRef<RTCDataChannelHandler>&& channelHandler, String&& label, RTCDataChannelInit&& channelInit)
 {
-    queueTaskKeepingObjectAlive(*this, TaskSource::Networking, [label = WTFMove(label), channelHandler = WTFMove(channelHandler), channelInit = WTFMove(channelInit)](auto& connection) mutable {
+    queueTaskKeepingObjectAlive(*this, TaskSource::Networking, [label = WTF::move(label), channelHandler = WTF::move(channelHandler), channelInit = WTF::move(channelInit)](auto& connection) mutable {
         if (connection.isClosed())
             return;
 
-        Ref channel = RTCDataChannel::create(*connection.document(), channelHandler.moveToUniquePtr(), WTFMove(label), WTFMove(channelInit), RTCDataChannelState::Open);
+        Ref channel = RTCDataChannel::create(*connection.document(), channelHandler.moveToUniquePtr(), WTF::move(label), WTF::move(channelInit), RTCDataChannelState::Open);
+        connection.m_channels.append(channel->identifier());
         ALWAYS_LOG_WITH_THIS(&connection, LOGIDENTIFIER_WITH_THIS(&connection), makeString("Dispatching data-channel event for channel "_s, channel->label()));
         connection.dispatchEvent(RTCDataChannelEvent::create(eventNames().datachannelEvent, Event::CanBubble::No, Event::IsCancelable::No, Ref { channel }));
         channel->fireOpenEventIfNeeded();
@@ -1059,13 +1061,13 @@ static inline ExceptionOr<PeerConnectionBackend::CertificateInformation> certifi
 
 void RTCPeerConnection::generateCertificate(JSC::JSGlobalObject& lexicalGlobalObject, AlgorithmIdentifier&& algorithmIdentifier, DOMPromiseDeferred<IDLInterface<RTCCertificate>>&& promise)
 {
-    auto parameters = certificateTypeFromAlgorithmIdentifier(lexicalGlobalObject, WTFMove(algorithmIdentifier));
+    auto parameters = certificateTypeFromAlgorithmIdentifier(lexicalGlobalObject, WTF::move(algorithmIdentifier));
     if (parameters.hasException()) {
         promise.reject(parameters.releaseException());
         return;
     }
     auto& document = downcast<Document>(*JSC::jsCast<JSDOMGlobalObject*>(&lexicalGlobalObject)->scriptExecutionContext());
-    PeerConnectionBackend::generateCertificate(document, parameters.returnValue(), WTFMove(promise));
+    PeerConnectionBackend::generateCertificate(document, parameters.returnValue(), WTF::move(promise));
 }
 
 Vector<std::reference_wrapper<RTCRtpSender>> RTCPeerConnection::getSenders() const
@@ -1101,7 +1103,7 @@ void RTCPeerConnection::chainOperation(Ref<DeferredPromise>&& promise, Function<
 
         if (!m_operations.isEmpty()) {
             auto promiseOperation = m_operations.takeFirst();
-            promiseOperation.second(WTFMove(promiseOperation.first));
+            promiseOperation.second(WTF::move(promiseOperation.first));
             return;
         }
 
@@ -1111,12 +1113,12 @@ void RTCPeerConnection::chainOperation(Ref<DeferredPromise>&& promise, Function<
     });
 
     if (m_hasPendingOperation || !m_operations.isEmpty()) {
-        m_operations.append(std::make_pair(WTFMove(promise), WTFMove(operation)));
+        m_operations.append(std::make_pair(WTF::move(promise), WTF::move(operation)));
         return;
     }
 
     m_hasPendingOperation = true;
-    operation(WTFMove(promise));
+    operation(WTF::move(promise));
 }
 
 Document* RTCPeerConnection::document()
@@ -1129,7 +1131,7 @@ Ref<RTCIceTransport> RTCPeerConnection::getOrCreateIceTransport(UniqueRef<RTCIce
     auto index = m_iceTransports.findIf([&backend](auto& transport) { return backend.get() == transport->backend(); });
     if (index == notFound) {
         index = m_iceTransports.size();
-        m_iceTransports.append(RTCIceTransport::create(*scriptExecutionContext(), WTFMove(backend), *this));
+        m_iceTransports.append(RTCIceTransport::create(*scriptExecutionContext(), WTF::move(backend), *this));
     }
 
     return m_iceTransports[index].copyRef();
@@ -1149,7 +1151,7 @@ RefPtr<RTCDtlsTransport> RTCPeerConnection::getOrCreateDtlsTransport(std::unique
     if (index == notFound) {
         index = m_dtlsTransports.size();
         auto iceTransportBackend = backend->iceTransportBackend();
-        m_dtlsTransports.append(RTCDtlsTransport::create(*context, makeUniqueRefFromNonNullUniquePtr(WTFMove(backend)), getOrCreateIceTransport(WTFMove(iceTransportBackend))));
+        m_dtlsTransports.append(RTCDtlsTransport::create(*context, makeUniqueRefFromNonNullUniquePtr(WTF::move(backend)), getOrCreateIceTransport(WTF::move(iceTransportBackend))));
     }
 
     return m_dtlsTransports[index].copyRef();
@@ -1163,15 +1165,15 @@ static void updateDescription(RefPtr<RTCSessionDescription>& description, std::o
         description = nullptr;
         return;
     }
-    description = RTCSessionDescription::create(*type, WTFMove(sdp));
+    description = RTCSessionDescription::create(*type, WTF::move(sdp));
 }
 
 void RTCPeerConnection::updateDescriptions(PeerConnectionBackend::DescriptionStates&& states)
 {
-    updateDescription(m_currentLocalDescription, states.currentLocalDescriptionSdpType, WTFMove(states.currentLocalDescriptionSdp));
-    updateDescription(m_pendingLocalDescription, states.pendingLocalDescriptionSdpType, WTFMove(states.pendingLocalDescriptionSdp));
-    updateDescription(m_currentRemoteDescription, states.currentRemoteDescriptionSdpType, WTFMove(states.currentRemoteDescriptionSdp));
-    updateDescription(m_pendingRemoteDescription, states.pendingRemoteDescriptionSdpType, WTFMove(states.pendingRemoteDescriptionSdp));
+    updateDescription(m_currentLocalDescription, states.currentLocalDescriptionSdpType, WTF::move(states.currentLocalDescriptionSdp));
+    updateDescription(m_pendingLocalDescription, states.pendingLocalDescriptionSdpType, WTF::move(states.pendingLocalDescriptionSdp));
+    updateDescription(m_currentRemoteDescription, states.currentRemoteDescriptionSdpType, WTF::move(states.currentRemoteDescriptionSdp));
+    updateDescription(m_pendingRemoteDescription, states.pendingRemoteDescriptionSdpType, WTF::move(states.pendingRemoteDescriptionSdp));
 
     if (states.signalingState)
         setSignalingState(*states.signalingState);
@@ -1224,7 +1226,7 @@ void RTCPeerConnection::updateSctpBackend(std::unique_ptr<RTCSctpTransportBacken
         auto dtlsTransport = getOrCreateDtlsTransport(sctpBackend->dtlsTransportBackend().moveToUniquePtr());
         if (!dtlsTransport)
             return;
-        m_sctpTransport = RTCSctpTransport::create(*context, makeUniqueRefFromNonNullUniquePtr(WTFMove(sctpBackend)), dtlsTransport.releaseNonNull());
+        m_sctpTransport = RTCSctpTransport::create(*context, makeUniqueRefFromNonNullUniquePtr(WTF::move(sctpBackend)), dtlsTransport.releaseNonNull());
     }
 
     m_sctpTransport->updateMaxMessageSize(maxMessageSize);
@@ -1239,7 +1241,7 @@ WTFLogChannel& RTCPeerConnection::logChannel() const
 
 void RTCPeerConnection::startGatheringStatLogs(Function<void(String&&)>&& callback)
 {
-    protectedBackend()->startGatheringStatLogs(WTFMove(callback));
+    protectedBackend()->startGatheringStatLogs(WTF::move(callback));
 }
 
 void RTCPeerConnection::stopGatheringStatLogs()

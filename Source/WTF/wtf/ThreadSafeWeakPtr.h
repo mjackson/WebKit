@@ -109,10 +109,10 @@ public:
             deleteObject();
             break;
         case DestructionThread::Main:
-            ensureOnMainThread(WTFMove(deleteObject));
+            ensureOnMainThread(WTF::move(deleteObject));
             break;
         case DestructionThread::MainRunLoop:
-            ensureOnMainRunLoop(WTFMove(deleteObject));
+            ensureOnMainRunLoop(WTF::move(deleteObject));
             break;
         }
     }
@@ -250,10 +250,10 @@ public:
                     deleteObject();
                     break;
                 case DestructionThread::Main:
-                    ensureOnMainThread(WTFMove(deleteObject));
+                    ensureOnMainThread(WTF::move(deleteObject));
                     break;
                 case DestructionThread::MainRunLoop:
-                    ensureOnMainRunLoop(WTFMove(deleteObject));
+                    ensureOnMainRunLoop(WTF::move(deleteObject));
                     break;
                 }
             }
@@ -472,7 +472,7 @@ public:
     RefPtr<T> convertToWeak()
     {
         ASSERT(isStrong());
-        RefPtr<T> strong = WTFMove(m_strong);
+        RefPtr<T> strong = WTF::move(m_strong);
         m_weak = strong;
         m_weak.setTag(Status::Weak);
         ASSERT(isWeak());
@@ -485,7 +485,7 @@ public:
         RefPtr<T> strong = m_weak.get();
         m_weak.setTag(Status::Strong);
         m_weak = nullptr;
-        m_strong = WTFMove(strong);
+        m_strong = WTF::move(strong);
         ASSERT(isStrong());
         return m_strong.get();
     }
@@ -499,7 +499,7 @@ public:
 
     ThreadSafeWeakOrStrongPtr& operator=(ThreadSafeWeakOrStrongPtr&& other)
     {
-        ThreadSafeWeakOrStrongPtr moved(WTFMove(other));
+        ThreadSafeWeakOrStrongPtr moved(WTF::move(other));
         swap(moved);
         return *this;
     }
@@ -522,7 +522,7 @@ public:
     template<typename U>
     ThreadSafeWeakOrStrongPtr& operator=(RefPtr<U>&& strongReference)
     {
-        ThreadSafeWeakOrStrongPtr moved(WTFMove(strongReference));
+        ThreadSafeWeakOrStrongPtr moved(WTF::move(strongReference));
         swap(moved);
         return *this;
     }
@@ -538,7 +538,7 @@ public:
     template<typename U>
     ThreadSafeWeakOrStrongPtr& operator=(Ref<U>&& strongReference)
     {
-        ThreadSafeWeakOrStrongPtr moved(WTFMove(strongReference));
+        ThreadSafeWeakOrStrongPtr moved(WTF::move(strongReference));
         swap(moved);
         return *this;
     }
@@ -569,14 +569,14 @@ public:
     ThreadSafeWeakOrStrongPtr(ThreadSafeWeakOrStrongPtr&& other)
     {
         ASSERT(isStrong());
-        moveConstructFrom(WTFMove(other));
+        moveConstructFrom(WTF::move(other));
     }
 
     template<typename U>
     ThreadSafeWeakOrStrongPtr(ThreadSafeWeakOrStrongPtr<U>&& other)
     {
         ASSERT(isStrong());
-        moveConstructFrom(WTFMove(other));
+        moveConstructFrom(WTF::move(other));
     }
 
     template<typename U>
@@ -599,7 +599,7 @@ public:
     ThreadSafeWeakOrStrongPtr(Ref<U>&& strongReference)
     {
         ASSERT(isStrong());
-        m_strong = WTFMove(strongReference);
+        m_strong = WTF::move(strongReference);
         ASSERT(isStrong());
     }
 
@@ -607,7 +607,7 @@ public:
     ThreadSafeWeakOrStrongPtr(RefPtr<U>&& strongReference)
     {
         ASSERT(isStrong());
-        m_strong = WTFMove(strongReference);
+        m_strong = WTF::move(strongReference);
         ASSERT(isStrong());
     }
 
@@ -630,7 +630,7 @@ public:
             auto weak = std::exchange(other.m_weak, ThreadSafeWeakPtr<U, EnumTaggingTraits<U, Status>> { });
             ASSERT(other.isStrong());
             other.m_strong = std::exchange(m_strong, nullptr);
-            m_weak = WTFMove(weak);
+            m_weak = WTF::move(weak);
             ASSERT(isWeak());
             return;
         }
@@ -644,7 +644,7 @@ public:
         other.m_weak = std::exchange(m_weak, ThreadSafeWeakPtr<T, EnumTaggingTraits<T, Status>> { });
         ASSERT(other.isWeak());
         ASSERT(isStrong());
-        m_strong = WTFMove(strong);
+        m_strong = WTF::move(strong);
     }
 
 private:

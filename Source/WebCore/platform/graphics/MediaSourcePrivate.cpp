@@ -192,7 +192,15 @@ void MediaSourcePrivate::updateTracksType()
     TracksType tracksCombinedTypes;
     for (auto type : m_tracksTypes.values())
         tracksCombinedTypes |= type;
-    m_tracksCombinedTypes = tracksCombinedTypes;
+    if (m_tracksCombinedTypes.exchange(tracksCombinedTypes) != tracksCombinedTypes) {
+        ensureOnMainThread([weakThis = ThreadSafeWeakPtr { *this }] {
+            RefPtr protectedThis = weakThis.get();
+            if (!protectedThis)
+                return;
+            if (RefPtr player = protectedThis->player())
+                player->characteristicsFromMediaSourceChanged();
+        });
+    }
 }
 
 void MediaSourcePrivate::durationChanged(const MediaTime& duration)
@@ -218,9 +226,9 @@ void MediaSourcePrivate::trackBufferedChanged(SourceBufferPrivate& sourceBuffer,
 
     auto it = m_bufferedRanges.find(&sourceBuffer);
     if (it == m_bufferedRanges.end())
-        m_bufferedRanges.add(&sourceBuffer, WTFMove(ranges));
+        m_bufferedRanges.add(&sourceBuffer, WTF::move(ranges));
     else
-        it->value = WTFMove(ranges);
+        it->value = WTF::move(ranges);
     updateBufferedRanges();
 }
 
@@ -359,7 +367,7 @@ void MediaSourcePrivate::ensureOnDispatcher(Function<void()>&& function) const
         function();
         return;
     }
-    dispatcher->dispatch(WTFMove(function));
+    dispatcher->dispatch(WTF::move(function));
 }
 
 void MediaSourcePrivate::ensureOnDispatcherSync(NOESCAPE Function<void()>&& function) const
@@ -367,7 +375,7 @@ void MediaSourcePrivate::ensureOnDispatcherSync(NOESCAPE Function<void()>&& func
     if (m_dispatcher->isCurrent())
         function();
     else
-        m_dispatcher->dispatchSync(WTFMove(function));
+        m_dispatcher->dispatchSync(WTF::move(function));
 }
 
 MediaTime MediaSourcePrivate::currentTime() const

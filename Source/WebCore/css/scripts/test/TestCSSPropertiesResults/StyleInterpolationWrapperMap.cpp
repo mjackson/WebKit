@@ -24,7 +24,7 @@ static WrapperBase* makeShorthandWrapper(CSSPropertyID id, const std::array<Wrap
         return wrapper;
     });
 
-    return new ShorthandWrapper(id, WTFMove(longhandWrappers));
+    return new ShorthandWrapper(id, WTF::move(longhandWrappers));
 }
 
 WrapperMap::WrapperMap()

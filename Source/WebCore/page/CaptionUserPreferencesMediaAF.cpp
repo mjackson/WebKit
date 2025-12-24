@@ -311,7 +311,7 @@ void CaptionUserPreferencesMediaAF::captionPreferencesChanged()
 
 void CaptionUserPreferencesMediaAF::setCaptionPreferencesDelegate(std::unique_ptr<CaptionPreferencesDelegate>&& delegate)
 {
-    captionPreferencesDelegate() = WTFMove(delegate);
+    captionPreferencesDelegate() = WTF::move(delegate);
 }
 
 static bool behaviorShouldNotBeOverriden(MACaptionAppearanceBehavior behavior)
@@ -572,8 +572,8 @@ Vector<String> CaptionUserPreferencesMediaAF::preferredLanguages() const
 
     Vector<String> captionAndPreferredLanguages;
     captionAndPreferredLanguages.reserveInitialCapacity(captionLanguages.size() + preferredLanguages.size());
-    captionAndPreferredLanguages.appendVector(WTFMove(captionLanguages));
-    captionAndPreferredLanguages.appendVector(WTFMove(preferredLanguages));
+    captionAndPreferredLanguages.appendVector(WTF::move(captionLanguages));
+    captionAndPreferredLanguages.appendVector(WTF::move(preferredLanguages));
     return captionAndPreferredLanguages;
 }
 
@@ -823,7 +823,7 @@ Vector<RefPtr<AudioTrack>> CaptionUserPreferencesMediaAF::sortedTrackListForMenu
     for (unsigned i = 0, length = trackList->length(); i < length; ++i) {
         RefPtr track = trackList->item(i);
         String language = displayNameForLanguageLocale(track->validBCP47Language());
-        tracksForMenu.append(WTFMove(track));
+        tracksForMenu.append(WTF::move(track));
     }
 
     Collator collator;
@@ -1060,6 +1060,10 @@ String CaptionUserPreferencesMediaAF::captionPreviewTitle() const
         return CaptionUserPreferences::captionPreviewTitle();
 
     String activeProfileID = platformActiveProfileID();
+
+    if (canLoad_MediaAccessibility_MACaptionAppearanceCopyPreviewText())
+        return adoptCF(MACaptionAppearanceCopyPreviewText(activeProfileID.createCFString().get(), nullptr)).get();
+
     String activeProfileName = nameForProfileID(activeProfileID);
     if (activeProfileName.isEmpty())
         return CaptionUserPreferences::captionPreviewTitle();

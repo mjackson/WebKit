@@ -835,7 +835,7 @@ PlatformWebView* TestController::createOtherPlatformWebView(PlatformWebView* par
     TestController::singleton().updateWindowScaleForTest(view.ptr(), *TestController::singleton().protectedCurrentInvocation());
 
     PlatformWebView* viewToReturn = view.ptr();
-    m_auxiliaryWebViews.append(WTFMove(view));
+    m_auxiliaryWebViews.append(WTF::move(view));
     return viewToReturn;
 }
 
@@ -1889,8 +1889,8 @@ static void adoptAndCallCompletionHandler(void* context)
 struct UIScriptInvocationData {
     UIScriptInvocationData(unsigned callbackID, WebKit::WKRetainPtr<WKStringRef>&& scriptString, WeakPtr<TestInvocation>&& testInvocation)
         : callbackID(callbackID)
-        , scriptString(WTFMove(scriptString))
-        , testInvocation(WTFMove(testInvocation)) { }
+        , scriptString(WTF::move(scriptString))
+        , testInvocation(WTF::move(testInvocation)) { }
 
     unsigned callbackID;
     WebKit::WKRetainPtr<WKStringRef> scriptString;
@@ -2247,7 +2247,7 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
     }
 
     if (WKStringIsEqualToUTF8CString(command, "RemoveAllCookies"))
-        return removeAllCookies(WTFMove(completionHandler));
+        return removeAllCookies(WTF::move(completionHandler));
 
     if (WKStringIsEqualToUTF8CString(command, "AddChromeInputField")) {
         mainWebView()->addChromeInputField();
@@ -2291,7 +2291,7 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
         return WKPageDisplayAndTrackRepaintsForTesting(TestController::singleton().mainWebView()->page(), completionHandler.leak(), adoptAndCallCompletionHandler);
 
     if (WKStringIsEqualToUTF8CString(command, "SetResourceMonitorList"))
-        return setResourceMonitorList(stringValue(argument), WTFMove(completionHandler));
+        return setResourceMonitorList(stringValue(argument), WTF::move(completionHandler));
 
 
     if (WKStringIsEqualToUTF8CString(command, "SetPageScaleFactor")) {
@@ -2299,7 +2299,7 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
         auto scaleFactor = doubleValue(argumentDictionary, "scaleFactor");
         auto x = doubleValue(argumentDictionary, "x");
         auto y = doubleValue(argumentDictionary, "y");
-        return setPageScaleFactor(static_cast<float>(scaleFactor), static_cast<int>(x), static_cast<int>(y), WTFMove(completionHandler));
+        return setPageScaleFactor(static_cast<float>(scaleFactor), static_cast<int>(x), static_cast<int>(y), WTF::move(completionHandler));
     }
 
     if (WKStringIsEqualToUTF8CString(command, "SetObscuredContentInsets")) {
@@ -2312,7 +2312,7 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
     }
 
     if (WKStringIsEqualToUTF8CString(command, "UpdatePresentation"))
-        return updatePresentation(WTFMove(completionHandler));
+        return updatePresentation(WTF::move(completionHandler));
 
     if (WKStringIsEqualToUTF8CString(command, "FlushConsoleLogs"))
         return completionHandler(nullptr);
@@ -2324,33 +2324,33 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
         return completionHandler(takeViewPortSnapshot().get());
 
     if (WKStringIsEqualToUTF8CString(command, "SetStatisticsShouldBlockThirdPartyCookies"))
-        return setStatisticsShouldBlockThirdPartyCookies(booleanValue(argument), ThirdPartyCookieBlockingPolicy::All, WTFMove(completionHandler));
+        return setStatisticsShouldBlockThirdPartyCookies(booleanValue(argument), ThirdPartyCookieBlockingPolicy::All, WTF::move(completionHandler));
 
     if (WKStringIsEqualToUTF8CString(command, "SetStatisticsShouldDowngradeReferrer"))
-        return setStatisticsShouldDowngradeReferrer(booleanValue(argument), WTFMove(completionHandler));
+        return setStatisticsShouldDowngradeReferrer(booleanValue(argument), WTF::move(completionHandler));
 
     if (WKStringIsEqualToUTF8CString(command, "SetStatisticsFirstPartyWebsiteDataRemovalMode"))
-        return setStatisticsFirstPartyWebsiteDataRemovalMode(booleanValue(argument), WTFMove(completionHandler));
+        return setStatisticsFirstPartyWebsiteDataRemovalMode(booleanValue(argument), WTF::move(completionHandler));
 
     if (WKStringIsEqualToUTF8CString(command, "StatisticsSetToSameSiteStrictCookies"))
-        return setStatisticsToSameSiteStrictCookies(stringValue(argument), WTFMove(completionHandler));
+        return setStatisticsToSameSiteStrictCookies(stringValue(argument), WTF::move(completionHandler));
 
     if (WKStringIsEqualToUTF8CString(command, "StatisticsSetFirstPartyHostCNAMEDomain")) {
         auto argumentDictionary = dictionaryValue(argument);
         auto firstPartyURLString = stringValue(argumentDictionary, "FirstPartyURL");
         auto cnameURLString = stringValue(argumentDictionary, "CNAME");
-        setStatisticsFirstPartyHostCNAMEDomain(firstPartyURLString, cnameURLString, WTFMove(completionHandler));
+        setStatisticsFirstPartyHostCNAMEDomain(firstPartyURLString, cnameURLString, WTF::move(completionHandler));
         return;
     }
 
     if (WKStringIsEqualToUTF8CString(command, "StatisticsSetThirdPartyCNAMEDomain"))
-        return setStatisticsThirdPartyCNAMEDomain(stringValue(argument), WTFMove(completionHandler));
+        return setStatisticsThirdPartyCNAMEDomain(stringValue(argument), WTF::move(completionHandler));
 
     if (WKStringIsEqualToUTF8CString(command, "LoadedSubresourceDomains"))
-        return loadedSubresourceDomains(WTFMove(completionHandler));
+        return loadedSubresourceDomains(WTF::move(completionHandler));
 
     if (WKStringIsEqualToUTF8CString(command, "RemoveAllSessionCredentials"))
-        return TestController::singleton().removeAllSessionCredentials(WTFMove(completionHandler));
+        return TestController::singleton().removeAllSessionCredentials(WTF::move(completionHandler));
 
     if (WKStringIsEqualToUTF8CString(command, "SetStorageAccessPermission")) {
         auto argumentDictionary = dictionaryValue(argument);
@@ -2367,7 +2367,7 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
 
 
     if (WKStringIsEqualToUTF8CString(command, "GetAllStorageAccessEntries"))
-        return getAllStorageAccessEntries(WTFMove(completionHandler));
+        return getAllStorageAccessEntries(WTF::move(completionHandler));
 
     if (WKStringIsEqualToUTF8CString(command, "StatisticsResetToConsistentState")) {
         protectedCurrentInvocation()->dumpResourceLoadStatisticsIfNecessary();
@@ -2379,37 +2379,37 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
         auto argumentDictionary = dictionaryValue(argument);
         auto hostName = stringValue(argumentDictionary, "HostName");
         auto includeHttpOnlyCookies = booleanValue(argumentDictionary, "IncludeHttpOnlyCookies");
-        return TestController::singleton().statisticsDeleteCookiesForHost(hostName, includeHttpOnlyCookies, WTFMove(completionHandler));
+        return TestController::singleton().statisticsDeleteCookiesForHost(hostName, includeHttpOnlyCookies, WTF::move(completionHandler));
     }
 
     if (WKStringIsEqualToUTF8CString(command, "StatisticsClearInMemoryAndPersistentStore"))
-        return statisticsClearInMemoryAndPersistentStore(WTFMove(completionHandler));
+        return statisticsClearInMemoryAndPersistentStore(WTF::move(completionHandler));
 
     if (WKStringIsEqualToUTF8CString(command, "StatisticsClearThroughWebsiteDataRemoval"))
-        return statisticsClearThroughWebsiteDataRemoval(WTFMove(completionHandler));
+        return statisticsClearThroughWebsiteDataRemoval(WTF::move(completionHandler));
 
     if (WKStringIsEqualToUTF8CString(command, "StatisticsClearInMemoryAndPersistentStoreModifiedSinceHours"))
-        return statisticsClearInMemoryAndPersistentStoreModifiedSinceHours(uint64Value(argument), WTFMove(completionHandler));
+        return statisticsClearInMemoryAndPersistentStoreModifiedSinceHours(uint64Value(argument), WTF::move(completionHandler));
 
 
     if (WKStringIsEqualToUTF8CString(command, "StatisticsUpdateCookieBlocking"))
-        return statisticsUpdateCookieBlocking(WTFMove(completionHandler));
+        return statisticsUpdateCookieBlocking(WTF::move(completionHandler));
 
     if (WKStringIsEqualToUTF8CString(command, "StatisticsProcessStatisticsAndDataRecords"))
-        return TestController::singleton().statisticsProcessStatisticsAndDataRecords(WTFMove(completionHandler));
+        return TestController::singleton().statisticsProcessStatisticsAndDataRecords(WTF::move(completionHandler));
 
     if (WKStringIsEqualToUTF8CString(command, "SetStatisticsHasHadUserInteraction")) {
         auto argumentDictionary = dictionaryValue(argument);
         auto hostName = stringValue(argumentDictionary, "HostName");
         auto value = booleanValue(argumentDictionary, "Value");
-        setStatisticsHasHadUserInteraction(hostName, value, WTFMove(completionHandler));
+        setStatisticsHasHadUserInteraction(hostName, value, WTF::move(completionHandler));
         return;
     }
 
 
     if (WKStringIsEqualToUTF8CString(command, "SetStatisticsPrevalentResourceForDebugMode")) {
         WKStringRef hostName = stringValue(argument);
-        setStatisticsPrevalentResourceForDebugMode(hostName, WTFMove(completionHandler));
+        setStatisticsPrevalentResourceForDebugMode(hostName, WTF::move(completionHandler));
         return;
     }
 
@@ -2417,7 +2417,7 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
         auto argumentDictionary = dictionaryValue(argument);
         auto hostName = stringValue(argumentDictionary, "HostName");
         auto value = doubleValue(argumentDictionary, "Value");
-        setStatisticsLastSeen(hostName, value, WTFMove(completionHandler));
+        setStatisticsLastSeen(hostName, value, WTF::move(completionHandler));
         return;
     }
 
@@ -2433,7 +2433,7 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
         auto isPrevalent = booleanValue(argumentDictionary, "IsPrevalent");
         auto isVeryPrevalent = booleanValue(argumentDictionary, "IsVeryPrevalent");
         auto dataRecordsRemoved = uint64Value(argumentDictionary, "DataRecordsRemoved");
-        setStatisticsMergeStatistic(hostName, topFrameDomain1, topFrameDomain2, lastSeen, hadUserInteraction, mostRecentUserInteraction, isGrandfathered, isPrevalent, isVeryPrevalent, dataRecordsRemoved, WTFMove(completionHandler));
+        setStatisticsMergeStatistic(hostName, topFrameDomain1, topFrameDomain2, lastSeen, hadUserInteraction, mostRecentUserInteraction, isGrandfathered, isPrevalent, isVeryPrevalent, dataRecordsRemoved, WTF::move(completionHandler));
         return;
     }
 
@@ -2444,7 +2444,7 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
         auto hadUserInteraction = booleanValue(argumentDictionary, "HadUserInteraction");
         auto isScheduledForAllButCookieDataRemoval = booleanValue(argumentDictionary, "IsScheduledForAllButCookieDataRemoval");
         auto isPrevalent = booleanValue(argumentDictionary, "IsPrevalent");
-        setStatisticsExpiredStatistic(hostName, numberOfOperatingDaysPassed, hadUserInteraction, isScheduledForAllButCookieDataRemoval, isPrevalent, WTFMove(completionHandler));
+        setStatisticsExpiredStatistic(hostName, numberOfOperatingDaysPassed, hadUserInteraction, isScheduledForAllButCookieDataRemoval, isPrevalent, WTF::move(completionHandler));
         return;
     }
 
@@ -2452,7 +2452,7 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
         auto argumentDictionary = dictionaryValue(argument);
         auto hostName = stringValue(argumentDictionary, "HostName");
         auto value = booleanValue(argumentDictionary, "Value");
-        setStatisticsPrevalentResource(hostName, value, WTFMove(completionHandler));
+        setStatisticsPrevalentResource(hostName, value, WTF::move(completionHandler));
         return;
     }
 
@@ -2460,12 +2460,12 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
         auto argumentDictionary = dictionaryValue(argument);
         auto hostName = stringValue(argumentDictionary, "HostName");
         auto value = booleanValue(argumentDictionary, "Value");
-        setStatisticsVeryPrevalentResource(hostName, value, WTFMove(completionHandler));
+        setStatisticsVeryPrevalentResource(hostName, value, WTF::move(completionHandler));
         return;
     }
 
     if (WKStringIsEqualToUTF8CString(command, "SetStatisticsDebugMode"))
-        return setStatisticsDebugMode(booleanValue(argument), WTFMove(completionHandler));
+        return setStatisticsDebugMode(booleanValue(argument), WTF::move(completionHandler));
 
     if (WKStringIsEqualToUTF8CString(command, "InstallTooltipCallback")) {
         m_tooltipCallbacks.append(dynamic_wk_cast<WKJSHandleRef>(argument));
@@ -2628,10 +2628,10 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
     }
 
     if (WKStringIsEqualToUTF8CString(command, "SetStatisticsShouldBlockThirdPartyCookiesOnSitesWithoutUserInteraction"))
-        return setStatisticsShouldBlockThirdPartyCookies(booleanValue(argument), ThirdPartyCookieBlockingPolicy::AllOnlyOnSitesWithoutUserInteraction, WTFMove(completionHandler));
+        return setStatisticsShouldBlockThirdPartyCookies(booleanValue(argument), ThirdPartyCookieBlockingPolicy::AllOnlyOnSitesWithoutUserInteraction, WTF::move(completionHandler));
 
     if (WKStringIsEqualToUTF8CString(command, "SetStatisticsShouldBlockThirdPartyCookiesExceptPartitioned"))
-        return setStatisticsShouldBlockThirdPartyCookies(booleanValue(argument), ThirdPartyCookieBlockingPolicy::AllExceptPartitioned, WTFMove(completionHandler));
+        return setStatisticsShouldBlockThirdPartyCookies(booleanValue(argument), ThirdPartyCookieBlockingPolicy::AllExceptPartitioned, WTF::move(completionHandler));
 
     if (WKStringIsEqualToUTF8CString(command, "FindStringMatches")) {
         auto argumentDictionary = dictionaryValue(argument);
@@ -2644,12 +2644,12 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
 
     if (WKStringIsEqualToUTF8CString(command, "SetManagedDomains")) {
         const auto urlArray = WKURLArrayFromWKStringArray(argument);
-        return setManagedDomains(urlArray.get(), WTFMove(completionHandler));
+        return setManagedDomains(urlArray.get(), WTF::move(completionHandler));
     }
 
     if (WKStringIsEqualToUTF8CString(command, "SetAppBoundDomains")) {
         const auto urlArray = WKURLArrayFromWKStringArray(argument);
-        return setAppBoundDomains(urlArray.get(), WTFMove(completionHandler));
+        return setAppBoundDomains(urlArray.get(), WTF::move(completionHandler));
     }
 
     if (WKStringIsEqualToUTF8CString(command, "SetAuthenticationUsername")) {
@@ -2807,11 +2807,15 @@ static void contentExtensionStoreCallback(WKUserContentFilterRef filter, uint32_
 
 static std::string contentExtensionJSONPath(WKURLRef url)
 {
+    auto toJSON = [](std::string path) {
+        return path.substr(0, path.rfind('.')) + ".json";
+    };
+
     auto path = testPath(url);
     if (path.length())
-        return path + ".json";
+        return toJSON(path);
 
-    return "LayoutTests/http/tests" + toSTD(adoptWK(WKURLCopyPath(url)).get()) + ".json";
+    return "LayoutTests/http/tests" + toJSON(toSTD(adoptWK(WKURLCopyPath(url)).get()));
 }
 
 void TestController::configureContentExtensionForTest(const TestInvocation& test)
@@ -3368,7 +3372,7 @@ void TestController::didReceiveSynchronousMessageFromInjectedBundle(WKStringRef 
     }
 
     auto setHTTPCookieAcceptPolicy = [&] (WKHTTPCookieAcceptPolicy policy, CompletionHandler<void(WKTypeRef)>&& completionHandler) {
-        auto context = new CompletionHandler<void(WKTypeRef)>(WTFMove(completionHandler));
+        auto context = new CompletionHandler<void(WKTypeRef)>(WTF::move(completionHandler));
         WKHTTPCookieStoreSetHTTPCookieAcceptPolicy(WKWebsiteDataStoreGetHTTPCookieStore(websiteDataStore()), policy, context, [] (void* context) {
             auto completionHandlerPointer = static_cast<CompletionHandler<void(WKTypeRef)>*>(context);
             (*completionHandlerPointer)(nullptr);
@@ -3380,14 +3384,14 @@ void TestController::didReceiveSynchronousMessageFromInjectedBundle(WKStringRef 
         auto policy = WKBooleanGetValue(static_cast<WKBooleanRef>(messageBody))
             ? kWKHTTPCookieAcceptPolicyAlways
             : kWKHTTPCookieAcceptPolicyOnlyFromMainDocumentDomain;
-        return setHTTPCookieAcceptPolicy(policy, WTFMove(completionHandler));
+        return setHTTPCookieAcceptPolicy(policy, WTF::move(completionHandler));
     }
 
     if (WKStringIsEqualToUTF8CString(messageName, "SetOnlyAcceptFirstPartyCookies")) {
         auto policy = WKBooleanGetValue(static_cast<WKBooleanRef>(messageBody))
             ? kWKHTTPCookieAcceptPolicyExclusivelyFromMainDocumentDomain
             : kWKHTTPCookieAcceptPolicyOnlyFromMainDocumentDomain;
-        return setHTTPCookieAcceptPolicy(policy, WTFMove(completionHandler));
+        return setHTTPCookieAcceptPolicy(policy, WTF::move(completionHandler));
     }
 
     completionHandler(protectedCurrentInvocation()->didReceiveSynchronousMessageFromInjectedBundle(messageName, messageBody).get());
@@ -4206,7 +4210,7 @@ void TestController::decidePolicyForNavigationAction(WKPageRef page, WKNavigatio
     }
 
     if (m_shouldDecideNavigationPolicyAfterDelay)
-        RunLoop::mainSingleton().dispatch(WTFMove(decisionFunction));
+        RunLoop::mainSingleton().dispatch(WTF::move(decisionFunction));
     else
         decisionFunction();
 }
@@ -4249,7 +4253,7 @@ void TestController::decidePolicyForNavigationResponse(WKNavigationResponseRef n
     }
 
     if (m_shouldDecideResponsePolicyAfterDelay)
-        RunLoop::mainSingleton().dispatch(WTFMove(decisionFunction));
+        RunLoop::mainSingleton().dispatch(WTF::move(decisionFunction));
     else
         decisionFunction();
 }

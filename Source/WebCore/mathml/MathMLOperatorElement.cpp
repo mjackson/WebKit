@@ -38,7 +38,7 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(MathMLOperatorElement);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(MathMLOperatorElement);
 
 using namespace MathMLNames;
 using namespace MathMLOperatorDictionary;
@@ -271,7 +271,7 @@ void MathMLOperatorElement::attributeChanged(const QualifiedName& name, const At
 RenderPtr<RenderElement> MathMLOperatorElement::createElementRenderer(RenderStyle&& style, const RenderTreePosition&)
 {
     ASSERT(hasTagName(MathMLNames::moTag));
-    return createRenderer<RenderMathMLOperator>(RenderObject::Type::MathMLOperator, *this, WTFMove(style));
+    return createRenderer<RenderMathMLOperator>(RenderObject::Type::MathMLOperator, *this, WTF::move(style));
 }
 
 }

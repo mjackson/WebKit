@@ -52,16 +52,11 @@ public:
     void inheritFrom(const SVGRenderStyle&);
     void copyNonInheritedFrom(const SVGRenderStyle&);
 
-    bool changeRequiresRepaint(const SVGRenderStyle& other, bool currentColorDiffers) const;
-    bool changeRequiresLayout(const SVGRenderStyle& other) const;
-
     bool operator==(const SVGRenderStyle&) const;
 
 #if !LOG_DISABLED
     void dumpDifferences(TextStream&, const SVGRenderStyle&) const;
 #endif
-
-    void conservativelyCollectChangedAnimatableProperties(const SVGRenderStyle&, CSSPropertiesBitSet&) const;
 
     struct InheritedFlags {
         bool operator==(const InheritedFlags&) const = default;

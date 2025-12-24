@@ -102,14 +102,14 @@ WebSocketTask::WebSocketTask(NetworkSocketChannel& channel, const WebCore::Resou
                 return;
             }
             if (connection)
-                task->didConnect(WTFMove(connection));
+                task->didConnect(WTF::move(connection));
             else
                 task->didFail(String::fromUTF8(error->message));
         }, this);
 
     g_signal_connect(msg, "starting", G_CALLBACK(+[](SoupMessage* msg, WebSocketTask* task) {
         task->m_request.updateFromSoupMessageHeaders(soup_message_get_request_headers(msg));
-        task->protectedChannel()->didSendHandshakeRequest(WTFMove(task->m_request));
+        task->protectedChannel()->didSendHandshakeRequest(WTF::move(task->m_request));
     }), this);
 }
 
@@ -146,7 +146,7 @@ String WebSocketTask::acceptedExtensions() const
 
 void WebSocketTask::didConnect(GRefPtr<SoupWebsocketConnection>&& connection)
 {
-    m_connection = WTFMove(connection);
+    m_connection = WTF::move(connection);
 
     // Use the same maximum payload length as WebKit internal implementation for backwards compatibility.
     static const uint64_t maxPayloadLength = UINT64_C(0x7FFFFFFFFFFFFFFF);
@@ -203,7 +203,7 @@ void WebSocketTask::didFail(String&& errorMessage)
         g_signal_handlers_disconnect_by_data(m_handshakeMessage.get(), this);
         m_handshakeMessage = nullptr;
     }
-    channel->didReceiveMessageError(WTFMove(errorMessage));
+    channel->didReceiveMessageError(WTF::move(errorMessage));
     if (!m_connection) {
         didClose(SOUP_WEBSOCKET_CLOSE_ABNORMAL, { });
         return;
@@ -283,7 +283,7 @@ void WebSocketTask::resume()
 
 void WebSocketTask::delayFailTimerFired()
 {
-    didFail(WTFMove(m_delayErrorMessage));
+    didFail(WTF::move(m_delayErrorMessage));
 }
 
 } // namespace WebKit

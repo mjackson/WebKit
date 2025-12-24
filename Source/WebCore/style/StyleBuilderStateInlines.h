@@ -26,7 +26,7 @@
 
 #pragma once
 
-#include "RenderStyleSetters.h"
+#include "RenderStyle+SettersInlines.h"
 #include "StyleBuilderState.h"
 #include "StyleFontSizeFunctions.h"
 #include "StyleZoom.h"
@@ -42,7 +42,7 @@ inline void BuilderState::setUsedZoom(float zoom) { m_fontDirty |= m_style.setUs
 
 inline const FontCascadeDescription& BuilderState::parentFontDescription() { return parentStyle().fontDescription(); }
 inline const FontCascadeDescription& BuilderState::fontDescription() { return m_style.fontDescription(); }
-inline void BuilderState::setFontDescription(FontCascadeDescription&& description) { m_fontDirty |= m_style.setFontDescriptionWithoutUpdate(WTFMove(description)); }
+inline void BuilderState::setFontDescription(FontCascadeDescription&& description) { m_fontDirty |= m_style.setFontDescriptionWithoutUpdate(WTF::move(description)); }
 
 inline void BuilderState::setFontDescriptionKeywordSizeFromIdentifier(CSSValueID identifier)
 {
@@ -123,7 +123,7 @@ inline void BuilderState::setFontDescriptionFontSmoothing(FontSmoothingMode font
         return;
 
     m_fontDirty = true;
-    m_style.mutableFontDescriptionWithoutUpdate().setFontSmoothing(WTFMove(fontSmoothing));
+    m_style.mutableFontDescriptionWithoutUpdate().setFontSmoothing(WTF::move(fontSmoothing));
 }
 
 inline void BuilderState::setFontDescriptionFontStyle(FontStyle fontStyle)
@@ -144,7 +144,7 @@ inline void BuilderState::setFontDescriptionFontSynthesisSmallCaps(FontSynthesis
         return;
 
     m_fontDirty = true;
-    m_style.mutableFontDescriptionWithoutUpdate().setFontSynthesisSmallCaps(WTFMove(fontSynthesisSmallCaps));
+    m_style.mutableFontDescriptionWithoutUpdate().setFontSynthesisSmallCaps(WTF::move(fontSynthesisSmallCaps));
 }
 
 inline void BuilderState::setFontDescriptionFontSynthesisStyle(FontSynthesisLonghandValue fontSynthesisStyle)

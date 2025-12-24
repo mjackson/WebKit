@@ -418,7 +418,7 @@ std::unique_ptr<DOMPatchSupport::Digest> DOMPatchSupport::createDigest(Node& nod
             std::unique_ptr<Digest> childInfo = createDigest(*child, unusedNodesMap);
             addStringToSHA1(sha1, childInfo->sha1);
             child = child->nextSibling();
-            digest->children.append(WTFMove(childInfo));
+            digest->children.append(WTF::move(childInfo));
         }
         auto& element = downcast<Element>(node);
 

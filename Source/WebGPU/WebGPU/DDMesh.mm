@@ -27,6 +27,7 @@
 #import "DDMesh.h"
 
 #import "APIConversions.h"
+#import "DDModelTypes.h"
 #import "Instance.h"
 #import "TextureView.h"
 

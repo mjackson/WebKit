@@ -27,6 +27,7 @@
 
 #include "AllocationFailureMode.h"
 #include <climits>
+#include <cstdint>
 
 namespace JSC {
 

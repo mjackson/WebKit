@@ -530,9 +530,7 @@ RenderObject* AccessibilityRenderObject::renderParentObject() const
 
 AccessibilityObject* AccessibilityRenderObject::parentObject() const
 {
-    // FIXME: This is a safer cpp false positive. We should not need to ref the variable here
-    // as we merely return it right away (rdar://165602290).
-    SUPPRESS_UNCOUNTED_LOCAL if (auto* ownerParent = ownerParentObject()) [[unlikely]]
+    if (auto* ownerParent = ownerParentObject()) [[unlikely]]
         return ownerParent;
 
 #if USE(ATSPI)
@@ -674,17 +672,22 @@ String AccessibilityRenderObject::textUnderElement(TextUnderElementMode mode) co
     // just fanning out to nodes within our subtree to search for un-hidden nodes.
     // AccessibilityNodeObject::textUnderElement takes care of this, so call it directly.
     if (!m_renderer || mode.isHidden())
-        return AccessibilityNodeObject::textUnderElement(WTFMove(mode));
+        return AccessibilityNodeObject::textUnderElement(WTF::move(mode));
 
     if (auto* fileUpload = dynamicDowncast<RenderFileUploadControl>(*m_renderer))
         return fileUpload->buttonValue();
+
+    if (mode.includeListMarkers == IncludeListMarkerText::Yes) {
+        if (CheckedPtr listMarker = dynamicDowncast<RenderListMarker>(*m_renderer))
+            return listMarker->textWithSuffix();
+    }
 
     // Reflect when a content author has explicitly marked a line break.
     if (m_renderer->isBR())
         return "\n"_s;
 
     if (shouldGetTextFromNode(mode))
-        return AccessibilityNodeObject::textUnderElement(WTFMove(mode));
+        return AccessibilityNodeObject::textUnderElement(WTF::move(mode));
 
     // We use a text iterator for text objects AND for those cases where we are
     // explicitly asking for the full text under a given element.
@@ -742,7 +745,7 @@ String AccessibilityRenderObject::textUnderElement(TextUnderElementMode mode) co
             return renderText->text();
     }
 
-    return AccessibilityNodeObject::textUnderElement(WTFMove(mode));
+    return AccessibilityNodeObject::textUnderElement(WTF::move(mode));
 }
 
 bool AccessibilityRenderObject::shouldGetTextFromNode(const TextUnderElementMode& mode) const
@@ -1427,8 +1430,11 @@ bool AccessibilityRenderObject::computeIsIgnored() const
     // https://github.com/WebKit/WebKit/commit/ddeb923489b58fd890527bf0e432ebe6a477d2ef
     // Results in a lot of useless generics being exposed, which is wasteful. We should remove this.
     WeakPtr blockFlow = dynamicDowncast<RenderBlockFlow>(*m_renderer);
-    if (blockFlow && m_renderer->childrenInline() && !canSetFocusAttribute() && !blockFlow->hasBlocksInInlineLayout())
-        return !blockFlow->hasLines() && !clickableSelfOrAncestor();
+    if (blockFlow && m_renderer->childrenInline() && !canSetFocusAttribute() && !blockFlow->hasBlocksInInlineLayout()) {
+        // FIXME: Do we really need to check for SVG content here?
+        auto hasInlineOrSVGContent = blockFlow->hasContentfulInlineLine() || (blockFlow->svgTextLayout() && blockFlow->svgTextLayout()->lineCount());
+        return !hasInlineOrSVGContent && !clickableSelfOrAncestor();
+    }
 
     if (isCanvas()) {
         if (hasElementDescendant()) {
@@ -1771,11 +1777,11 @@ AXTextRuns AccessibilityRenderObject::textRuns()
 
         unsigned startIndex = fullString.length();
         unsigned endIndex = startIndex + lineString.length();
-        runs.append({ currentLineIndex, startIndex, endIndex, WTFMove(textRunDomOffsets), std::exchange(characterWidths, { }), lineHeight, distanceFromBoundsInDirection });
+        runs.append({ currentLineIndex, startIndex, endIndex, WTF::move(textRunDomOffsets), std::exchange(characterWidths, { }), lineHeight, distanceFromBoundsInDirection });
 
         fullString.append(lineString.toString());
     }
-    return { renderText->containingBlock(), WTFMove(runs), fullString.toString().isolatedCopy(), containsOnlyASCII };
+    return { renderText->containingBlock(), WTF::move(runs), fullString.toString().isolatedCopy(), containsOnlyASCII };
 }
 
 AXTextRunLineID AccessibilityRenderObject::listMarkerLineID() const
@@ -2667,7 +2673,7 @@ void AccessibilityRenderObject::addTextFieldChildren()
     Ref axSpinButton = uncheckedDowncast<AccessibilitySpinButton>(*axObjectCache()->create(AccessibilityRole::SpinButton));
     axSpinButton->setSpinButtonElement(spinButtonElement.get());
     axSpinButton->setParent(this);
-    addChild(WTFMove(axSpinButton));
+    addChild(WTF::move(axSpinButton));
 }
 
 bool AccessibilityRenderObject::isSVGImage() const
@@ -2997,7 +3003,7 @@ void AccessibilityRenderObject::addChildren()
         // AXChildIterator to walk the render tree / DOM (we may walk between the
         // two — reference AccessibilityObject::iterator documentation for more information).
         for (Ref object : AXChildIterator(*this))
-            addChildIfNeeded(WTFMove(object));
+            addChildIfNeeded(WTF::move(object));
     }
 
     if (RefPtr afterPseudo = element ? element->afterPseudoElement() : nullptr) {

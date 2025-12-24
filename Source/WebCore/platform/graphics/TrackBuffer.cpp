@@ -57,16 +57,16 @@ static inline MediaTime roundTowardsTimeScaleWithRoundingMargin(const MediaTime&
 
 UniqueRef<TrackBuffer> TrackBuffer::create(RefPtr<MediaDescription>&& description)
 {
-    return create(WTFMove(description), MediaTime::zeroTime());
+    return create(WTF::move(description), MediaTime::zeroTime());
 }
 
 UniqueRef<TrackBuffer> TrackBuffer::create(RefPtr<MediaDescription>&& description, const MediaTime& discontinuityTolerance)
 {
-    return makeUniqueRef<TrackBuffer>(WTFMove(description), discontinuityTolerance);
+    return makeUniqueRef<TrackBuffer>(WTF::move(description), discontinuityTolerance);
 }
 
 TrackBuffer::TrackBuffer(RefPtr<MediaDescription>&& description, const MediaTime& discontinuityTolerance)
-    : m_description(WTFMove(description))
+    : m_description(WTF::move(description))
     , m_enqueueDiscontinuityBoundary(discontinuityTolerance)
     , m_discontinuityTolerance(discontinuityTolerance)
 {
@@ -153,7 +153,7 @@ RefPtr<MediaSample> TrackBuffer::nextSample()
 
     MediaTime samplePresentationEnd = sample->presentationEndTime();
     if (highestEnqueuedPresentationTime().isInvalid() || samplePresentationEnd > highestEnqueuedPresentationTime())
-        setHighestEnqueuedPresentationTime(WTFMove(samplePresentationEnd));
+        setHighestEnqueuedPresentationTime(WTF::move(samplePresentationEnd));
 
     setLastEnqueuedDecodeKey({ sample->decodeTime(), sample->presentationTime() });
     setEnqueueDiscontinuityBoundary(sample->decodeTime() + sample->duration() + m_discontinuityTolerance);
@@ -237,7 +237,7 @@ bool TrackBuffer::reenqueueMediaForTime(const MediaTime& time, const MediaTime& 
     for (auto iter = reverseLastSyncSampleIter; iter != reverseCurrentSampleIter; --iter) {
         Ref copy = Ref { iter->second }->createNonDisplayingCopy();
         DecodeOrderSampleMap::KeyType decodeKey(copy->decodeTime(), copy->presentationTime());
-        m_decodeQueue.insert(DecodeOrderSampleMap::MapType::value_type(decodeKey, WTFMove(copy)));
+        m_decodeQueue.insert(DecodeOrderSampleMap::MapType::value_type(decodeKey, WTF::move(copy)));
     }
 
     MediaTime previousSampleTime;
@@ -253,7 +253,7 @@ bool TrackBuffer::reenqueueMediaForTime(const MediaTime& time, const MediaTime& 
         if (sample->presentationTime() < time) {
             Ref copy = sample->createNonDisplayingCopy();
             DecodeOrderSampleMap::KeyType decodeKey(copy->decodeTime(), copy->presentationTime());
-            m_decodeQueue.insert(DecodeOrderSampleMap::MapType::value_type(decodeKey, WTFMove(copy)));
+            m_decodeQueue.insert(DecodeOrderSampleMap::MapType::value_type(decodeKey, WTF::move(copy)));
         } else {
             m_decodeQueue.insert(*iter);
             if (sample->presentationTime() < m_minimumEnqueuedPresentationTime)
@@ -375,7 +375,7 @@ PlatformTimeRanges TrackBuffer::removeSamples(const DecodeOrderSampleMap::MapTyp
     return erasedRanges;
 }
 
-static WARN_UNUSED_RETURN bool decodeTimeComparator(const PresentationOrderSampleMap::MapType::value_type& a, const PresentationOrderSampleMap::MapType::value_type& b)
+WARN_UNUSED_RETURN static bool decodeTimeComparator(const PresentationOrderSampleMap::MapType::value_type& a, const PresentationOrderSampleMap::MapType::value_type& b)
 {
     return Ref { a.second }->decodeTime() < Ref { b.second }->decodeTime();
 };

@@ -51,6 +51,7 @@
 #include "WebFrameInspectorTarget.h"
 #include "WebFrameProxyMessages.h"
 #include "WebImage.h"
+#include "WebKeyboardEvent.h"
 #include "WebPage.h"
 #include "WebPageProxyMessages.h"
 #include "WebProcess.h"
@@ -187,7 +188,7 @@ Ref<WebFrame> WebFrame::createRemoteSubframe(WebPage& page, WebFrame& parent, We
     RELEASE_ASSERT(parentCoreFrame);
     auto coreFrame = RemoteFrame::createSubframe(*corePage, [frame] (auto&) {
         return makeUniqueRef<WebRemoteFrameClient>(frame.copyRef(), frame->makeInvalidator());
-    }, frameID, *parentCoreFrame, opener.get(), WTFMove(frameTreeSyncData), WebCore::Frame::AddToFrameTree::Yes);
+    }, frameID, *parentCoreFrame, opener.get(), WTF::move(frameTreeSyncData), WebCore::Frame::AddToFrameTree::Yes);
     frame->m_coreFrame = coreFrame.get();
     coreFrame->tree().setSpecifiedName(AtomString(frameName));
     return frame;
@@ -329,7 +330,7 @@ FrameInfoData WebFrame::info(WithCertificateInfo withCertificateInfo) const
         getCurrentProcessID(),
         isFocused(),
         coreLocalFrame ? coreLocalFrame->loader().errorOccurredInLoading() : false,
-        WTFMove(metrics)
+        WTF::move(metrics)
     };
 }
 
@@ -379,7 +380,7 @@ uint64_t WebFrame::setUpPolicyListener(WebCore::FramePolicyFunction&& policyFunc
     auto policyListenerID = generateListenerID();
     m_pendingPolicyChecks.add(policyListenerID, PolicyCheck {
         forNavigationAction,
-        WTFMove(policyFunction)
+        WTF::move(policyFunction)
     });
 
     return policyListenerID;
@@ -414,14 +415,16 @@ void WebFrame::loadDidCommitInAnotherProcess(std::optional<WebCore::LayerHosting
 
     if (ownerElement)
         localFrame->disconnectOwnerElement();
-    auto clientCreator = [protectedThis = Ref { *this }, invalidator = WTFMove(invalidator)] (auto&) mutable {
-        return makeUniqueRef<WebRemoteFrameClient>(WTFMove(protectedThis), WTFMove(invalidator));
+    auto clientCreator = [protectedThis = Ref { *this }, invalidator = WTF::move(invalidator)] (auto&) mutable {
+        return makeUniqueRef<WebRemoteFrameClient>(WTF::move(protectedThis), WTF::move(invalidator));
     };
 
     Ref frameTreeSyncData = localFrame->frameTreeSyncData();
     auto newFrame = ownerElement
-        ? WebCore::RemoteFrame::createSubframeWithContentsInAnotherProcess(*corePage, WTFMove(clientCreator), m_frameID, *ownerElement, layerHostingContextIdentifier, WTFMove(frameTreeSyncData))
-        : parent ? WebCore::RemoteFrame::createSubframe(*corePage, WTFMove(clientCreator), m_frameID, *parent, nullptr, WTFMove(frameTreeSyncData), WebCore::Frame::AddToFrameTree::No) : WebCore::RemoteFrame::createMainFrame(*corePage, WTFMove(clientCreator), m_frameID, nullptr, WTFMove(frameTreeSyncData));
+        ? WebCore::RemoteFrame::createSubframeWithContentsInAnotherProcess(*corePage, WTF::move(clientCreator), m_frameID, *ownerElement, layerHostingContextIdentifier, WTF::move(frameTreeSyncData))
+        : parent ? WebCore::RemoteFrame::createSubframe(*corePage, WTF::move(clientCreator), m_frameID, *parent, nullptr, WTF::move(frameTreeSyncData), WebCore::Frame::AddToFrameTree::No) : WebCore::RemoteFrame::createMainFrame(*corePage, WTF::move(clientCreator), m_frameID, nullptr, WTF::move(frameTreeSyncData));
+    m_coreFrame = newFrame.get();
+
     if (parent)
         parent->tree().replaceChild(*localFrame, newFrame);
     else
@@ -431,8 +434,6 @@ void WebFrame::loadDidCommitInAnotherProcess(std::optional<WebCore::LayerHosting
     newFrame->tree().setSpecifiedName(localFrame->tree().specifiedName());
     if (ownerRenderer)
         ownerRenderer->setWidget(newFrame->view());
-
-    m_coreFrame = newFrame.get();
 
     if (corePage->focusController().focusedFrame() == localFrame.get())
         corePage->focusController().setFocusedFrame(newFrame.ptr(), WebCore::BroadcastFocusedFrame::No);
@@ -459,9 +460,9 @@ void WebFrame::createProvisionalFrame(ProvisionalFrameCreationParameters&& param
 
     RefPtr parent = remoteFrame->tree().parent();
     auto clientCreator = [this, protectedThis = Ref { *this }] (auto& localFrame, auto& frameLoader) mutable {
-        return makeUniqueRefWithoutRefCountedCheck<WebLocalFrameLoaderClient>(localFrame, frameLoader, WTFMove(protectedThis), makeInvalidator());
+        return makeUniqueRefWithoutRefCountedCheck<WebLocalFrameLoaderClient>(localFrame, frameLoader, WTF::move(protectedThis), makeInvalidator());
     };
-    auto localFrame = parent ? LocalFrame::createProvisionalSubframe(*corePage, WTFMove(clientCreator), m_frameID, parameters.effectiveSandboxFlags, parameters.effectiveReferrerPolicy, parameters.scrollingMode, *parent, Ref { remoteFrame->frameTreeSyncData() }) : LocalFrame::createMainFrame(*corePage, WTFMove(clientCreator), m_frameID, parameters.effectiveSandboxFlags, parameters.effectiveReferrerPolicy, nullptr, Ref { remoteFrame->frameTreeSyncData() });
+    auto localFrame = parent ? LocalFrame::createProvisionalSubframe(*corePage, WTF::move(clientCreator), m_frameID, parameters.effectiveSandboxFlags, parameters.effectiveReferrerPolicy, parameters.scrollingMode, *parent, Ref { remoteFrame->frameTreeSyncData() }) : LocalFrame::createMainFrame(*corePage, WTF::move(clientCreator), m_frameID, parameters.effectiveSandboxFlags, parameters.effectiveReferrerPolicy, nullptr, Ref { remoteFrame->frameTreeSyncData() });
     ASSERT(!m_provisionalFrame);
     m_provisionalFrame = localFrame.ptr();
     m_frameIDBeforeProvisionalNavigation = parameters.frameIDBeforeProvisionalNavigation;
@@ -470,8 +471,8 @@ void WebFrame::createProvisionalFrame(ProvisionalFrameCreationParameters&& param
 
     if (parameters.layerHostingContextIdentifier)
         setLayerHostingContextIdentifier(*parameters.layerHostingContextIdentifier);
-    if (parameters.initialSize)
-        updateLocalFrameSize(localFrame, *parameters.initialSize);
+    if (parameters.initialRect)
+        updateLocalFrameRect(localFrame, *parameters.initialRect);
 }
 
 void WebFrame::destroyProvisionalFrame()
@@ -598,14 +599,14 @@ void WebFrame::didReceivePolicyDecision(uint64_t listenerID, PolicyDecision&& po
     if (!policyCheck.policyFunction)
         return;
 
-    FramePolicyFunction function = WTFMove(policyCheck.policyFunction);
+    FramePolicyFunction function = WTF::move(policyCheck.policyFunction);
     bool forNavigationAction = policyCheck.forNavigationAction == ForNavigationAction::Yes;
 
     if (forNavigationAction && localFrameLoaderClient() && policyDecision.websitePoliciesData) {
         ASSERT(page());
         if (page())
             page()->setAllowsContentJavaScriptFromMostRecentNavigation(policyDecision.websitePoliciesData->allowsContentJavaScript);
-        protectedLocalFrameLoaderClient()->applyWebsitePolicies(WTFMove(*policyDecision.websitePoliciesData));
+        protectedLocalFrameLoaderClient()->applyWebsitePolicies(WTF::move(*policyDecision.websitePoliciesData));
     }
 
     m_policyDownloadID = policyDecision.downloadID;
@@ -618,7 +619,7 @@ void WebFrame::didReceivePolicyDecision(uint64_t listenerID, PolicyDecision&& po
     if (policyDecision.policyAction == PolicyAction::Use && policyDecision.sandboxExtensionHandle) {
         if (RefPtr page = this->page()) {
             Ref mainWebFrame = page->mainWebFrame();
-            page->sandboxExtensionTracker().beginLoad(WTFMove(*(policyDecision.sandboxExtensionHandle)));
+            page->sandboxExtensionTracker().beginLoad(WTF::move(*(policyDecision.sandboxExtensionHandle)));
         }
     }
 
@@ -855,7 +856,7 @@ Ref<API::Array> WebFrame::childFrames()
         vector.append(webFrame);
     }
 
-    return API::Array::create(WTFMove(vector));
+    return API::Array::create(WTF::move(vector));
 }
 
 String WebFrame::layerTreeAsText() const
@@ -1202,36 +1203,41 @@ String WebFrame::mimeTypeForResourceWithURL(const URL& url) const
     return String();
 }
 
-void WebFrame::updateRemoteFrameSize(WebCore::IntSize size)
-{
-    send(Messages::WebFrameProxy::UpdateRemoteFrameSize(size));
-}
-
-void WebFrame::updateFrameSize(WebCore::IntSize newSize)
+void WebFrame::updateFrameRectFromRemote(WebCore::IntRect newRect)
 {
     ASSERT(m_page->corePage()->settings().siteIsolationEnabled());
-    RefPtr localFrame = coreLocalFrame();
-    if (!localFrame)
-        return;
-    updateLocalFrameSize(*localFrame, newSize);
+    if (RefPtr localFrame = coreLocalFrame())
+        updateLocalFrameRect(*localFrame, newRect);
+    else {
+        RefPtr remoteFrame = coreRemoteFrame();
+        RefPtr remoteFrameView = remoteFrame->view();
+
+        if (remoteFrameView->frameRect() != newRect)
+            remoteFrameView->setFrameRectWithoutSync(newRect);
+    }
 }
 
-void WebFrame::updateLocalFrameSize(WebCore::LocalFrame& localFrame, WebCore::IntSize newSize)
+void WebFrame::updateLocalFrameRect(WebCore::LocalFrame& localFrame, WebCore::IntRect newRect)
 {
     RefPtr frameView = localFrame.view();
     if (!frameView)
         return;
 
-    if (frameView->size() == newSize)
-        return;
+    auto oldRect = frameView->frameRect();
 
-    frameView->resize(newSize);
+    if (oldRect == newRect)
+        return;
+    frameView->setFrameRect(newRect);
+
 #if PLATFORM(IOS_FAMILY)
-    // FIXME: This ensures cross-site iframe render correctly;
-    // it should be removed after rdar://122429810 is fixed.
-    frameView->setExposedContentRect(frameView->frameRect());
-    frameView->setUnobscuredContentSize(frameView->size());
+    if (oldRect.size() != frameView->size()) {
+        // FIXME: This ensures cross-site iframe render correctly;
+        // it should be removed after rdar://122429810 is fixed.
+        frameView->setExposedContentRect(FloatRect { { }, frameView->size() });
+        frameView->setUnobscuredContentSize(frameView->size());
+    }
 #endif
+
 
     if (RefPtr drawingArea = m_page ? m_page->drawingArea() : nullptr) {
         drawingArea->setNeedsDisplay();
@@ -1263,7 +1269,7 @@ RetainPtr<CFDataRef> WebFrame::webArchiveData(FrameFilterFunction callback, void
         exclusionRules,
         mainResourceFileName
     };
-    auto archive = LegacyWebArchive::create(document, WTFMove(options), [this, callback, context](auto& frame) -> bool {
+    auto archive = LegacyWebArchive::create(document, WTF::move(options), [this, callback, context](auto& frame) -> bool {
         if (!callback)
             return true;
 
@@ -1590,7 +1596,7 @@ void WebFrame::takeSnapshotOfNode(JSHandleIdentifier identifier, CompletionHandl
     completion(bitmap->createHandle(SharedMemory::Protection::ReadOnly));
 }
 
-WebFrameInspectorTarget& WebFrame::ensureInspectorTarget()
+CheckedRef<WebFrameInspectorTarget> WebFrame::ensureInspectorTarget()
 {
     if (!m_inspectorTarget)
         m_inspectorTarget = makeUnique<WebFrameInspectorTarget>(*this);
@@ -1599,17 +1605,17 @@ WebFrameInspectorTarget& WebFrame::ensureInspectorTarget()
 
 void WebFrame::connectInspector(Inspector::FrontendChannel::ConnectionType connectionType)
 {
-    ensureInspectorTarget().connect(connectionType);
+    ensureInspectorTarget()->connect(connectionType);
 }
 
 void WebFrame::disconnectInspector()
 {
-    ensureInspectorTarget().disconnect();
+    ensureInspectorTarget()->disconnect();
 }
 
 void WebFrame::sendMessageToInspectorTarget(const String& message)
 {
-    ensureInspectorTarget().sendMessageToTargetBackend(message);
+    ensureInspectorTarget()->sendMessageToTargetBackend(message);
 }
 
 } // namespace WebKit

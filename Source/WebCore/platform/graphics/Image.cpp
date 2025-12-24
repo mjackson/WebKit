@@ -148,7 +148,7 @@ RefPtr<FragmentedSharedBuffer> Image::protectedData() const
 
 EncodedDataStatus Image::setData(RefPtr<FragmentedSharedBuffer>&& data, bool allDataReceived)
 {
-    m_encodedImageData = WTFMove(data);
+    m_encodedImageData = WTF::move(data);
 
     // Don't do anything; it is an empty image.
     if (!m_encodedImageData.get() || !m_encodedImageData->size())

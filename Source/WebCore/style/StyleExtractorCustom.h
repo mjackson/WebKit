@@ -59,7 +59,8 @@
 #include "RenderElementStyleInlines.h"
 #include "RenderGrid.h"
 #include "RenderInline.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
+#include "RenderStyle+InitialInlines.h"
 #include "StyleExtractorState.h"
 #include "StyleInterpolation.h"
 #include "StyleOrderedNamedLinesCollector.h"
@@ -1276,7 +1277,7 @@ template<CSSPropertyID propertyID, typename List, typename Mapper> Ref<CSSValue>
             resultListBuilder.append(mapper(state, PropertyAccessor::initial(), std::nullopt, list));
     }
 
-    return CSSValueList::createCommaSeparated(WTFMove(resultListBuilder));
+    return CSSValueList::createCommaSeparated(WTF::move(resultListBuilder));
 }
 
 template<CSSPropertyID propertyID, typename List, typename Mapper> void extractCoordinatedValueListSerialization(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, const List& list, Mapper&& mapper)
@@ -1329,7 +1330,7 @@ template<CSSPropertyID propertyID> Ref<CSSValue> extractCounterValue(ExtractorSt
         }
     }
     if (!list.isEmpty())
-        return CSSValueList::createSpaceSeparated(WTFMove(list));
+        return CSSValueList::createSpaceSeparated(WTF::move(list));
     return createCSSValue(state.pool, state.style, CSS::Keyword::None { });
 }
 
@@ -1414,7 +1415,7 @@ template<GridTrackSizingDirection direction> Ref<CSSValue> extractGridTemplateVa
             OrderedNamedLinesCollectorInSubgridLayout collector(state, tracks, renderGrid->numTracks(direction));
             for (int i = 0; i < collector.namedGridLineCount(); i++)
                 addValuesForNamedGridLinesAtIndex(list, collector, i, true);
-            return CSSValueList::createSpaceSeparated(WTFMove(list));
+            return CSSValueList::createSpaceSeparated(WTF::move(list));
         }
 
         OrderedNamedLinesCollectorInGridLayout collector(state, tracks, renderGrid->autoRepeatCountForDirection(direction), autoRepeatTrackSizes.size());
@@ -1434,7 +1435,7 @@ template<GridTrackSizingDirection direction> Ref<CSSValue> extractGridTemplateVa
         }
         if (end + offset >= 0)
             addValuesForNamedGridLinesAtIndex(list, collector, end + offset, false);
-        return CSSValueList::createSpaceSeparated(WTFMove(list));
+        return CSSValueList::createSpaceSeparated(WTF::move(list));
     }
 
     // Otherwise, the resolved value is the computed value, preserving repeat().
@@ -1466,13 +1467,13 @@ template<GridTrackSizingDirection direction> Ref<CSSValue> extractGridTemplateVa
                 CSSValueListBuilder repeatedValues;
                 for (auto& entry : repeat.list)
                     repeatVisitor(repeatedValues, entry);
-                list.append(CSSGridIntegerRepeatValue::create(CSSPrimitiveValue::createInteger(repeat.repeats), WTFMove(repeatedValues)));
+                list.append(CSSGridIntegerRepeatValue::create(CSSPrimitiveValue::createInteger(repeat.repeats), WTF::move(repeatedValues)));
             },
             [&](const GridTrackEntryAutoRepeat& repeat) {
                 CSSValueListBuilder repeatedValues;
                 for (auto& entry : repeat.list)
                     repeatVisitor(repeatedValues, entry);
-                list.append(CSSGridAutoRepeatValue::create(repeat.type == AutoRepeatType::Fill ? CSSValueAutoFill : CSSValueAutoFit, WTFMove(repeatedValues)));
+                list.append(CSSGridAutoRepeatValue::create(repeat.type == AutoRepeatType::Fill ? CSSValueAutoFill : CSSValueAutoFit, WTF::move(repeatedValues)));
             },
             [&](const GridTrackEntrySubgrid&) {
                 list.append(createCSSValue(state.pool, state.style, CSS::Keyword::Subgrid { }));
@@ -1480,7 +1481,7 @@ template<GridTrackSizingDirection direction> Ref<CSSValue> extractGridTemplateVa
         );
     }
 
-    return CSSValueList::createSpaceSeparated(WTFMove(list));
+    return CSSValueList::createSpaceSeparated(WTF::move(list));
 }
 
 template<GridTrackSizingDirection direction> void extractGridTemplateSerialization(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context)
@@ -1508,7 +1509,7 @@ inline Ref<CSSValueList> extractStandardSpaceSeparatedShorthand(ExtractorState& 
     CSSValueListBuilder list;
     for (auto longhand : shorthand)
         list.append(ExtractorGenerated::extractValue(state, longhand).releaseNonNull());
-    return CSSValueList::createSpaceSeparated(WTFMove(list));
+    return CSSValueList::createSpaceSeparated(WTF::move(list));
 }
 
 inline void extractStandardSpaceSeparatedShorthandSerialization(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, const StylePropertyShorthand& shorthand)
@@ -1523,7 +1524,7 @@ inline Ref<CSSValue> extractStandardSlashSeparatedShorthand(ExtractorState& stat
     CSSValueListBuilder builder;
     for (auto longhand : shorthand)
         builder.append(ExtractorGenerated::extractValue(state, longhand).releaseNonNull());
-    return CSSValueList::createSlashSeparated(WTFMove(builder));
+    return CSSValueList::createSlashSeparated(WTF::move(builder));
 }
 
 inline void extractStandardSlashSeparatedShorthandSerialization(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, const StylePropertyShorthand& shorthand)
@@ -1603,7 +1604,7 @@ inline RefPtr<CSSValue> extractCoalescingQuadShorthand(ExtractorState& state, co
         list.append(bottomValue.releaseNonNull());
     if (showLeft)
         list.append(leftValue.releaseNonNull());
-    return CSSValueList::createSpaceSeparated(WTFMove(list));
+    return CSSValueList::createSpaceSeparated(WTF::move(list));
 }
 
 inline void extractCoalescingQuadShorthandSerialization(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, const StylePropertyShorthand& shorthand)
@@ -1707,7 +1708,7 @@ inline Ref<CSSValue> extractBorderRadiusShorthand(ExtractorState& state, CSSProp
     auto extractBorderRadiusCornerValues = [&](auto& state, const auto& radius) {
         auto x = createCSSValue(state.pool, state.style, radius.width());
         auto y = radius.width() == radius.height() ? x.copyRef() : createCSSValue(state.pool, state.style, radius.height());
-        return std::pair<Ref<CSSValue>, Ref<CSSValue>> { WTFMove(x), WTFMove(y) };
+        return std::pair<Ref<CSSValue>, Ref<CSSValue>> { WTF::move(x), WTF::move(y) };
     };
 
     bool showHorizontalBottomLeft = state.style.borderTopRightRadius().width() != state.style.borderBottomLeftRadius().width();
@@ -1724,32 +1725,32 @@ inline Ref<CSSValue> extractBorderRadiusShorthand(ExtractorState& state, CSSProp
     auto [bottomLeftRadiusX, bottomLeftRadiusY] = extractBorderRadiusCornerValues(state, state.style.borderBottomLeftRadius());
 
     CSSValueListBuilder horizontalRadii;
-    horizontalRadii.append(WTFMove(topLeftRadiusX));
+    horizontalRadii.append(WTF::move(topLeftRadiusX));
     if (showHorizontalTopRight)
-        horizontalRadii.append(WTFMove(topRightRadiusX));
+        horizontalRadii.append(WTF::move(topRightRadiusX));
     if (showHorizontalBottomRight)
-        horizontalRadii.append(WTFMove(bottomRightRadiusX));
+        horizontalRadii.append(WTF::move(bottomRightRadiusX));
     if (showHorizontalBottomLeft)
-        horizontalRadii.append(WTFMove(bottomLeftRadiusX));
+        horizontalRadii.append(WTF::move(bottomLeftRadiusX));
 
     CSSValueListBuilder verticalRadii;
-    verticalRadii.append(WTFMove(topLeftRadiusY));
+    verticalRadii.append(WTF::move(topLeftRadiusY));
     if (showVerticalTopRight)
-        verticalRadii.append(WTFMove(topRightRadiusY));
+        verticalRadii.append(WTF::move(topRightRadiusY));
     if (showVerticalBottomRight)
-        verticalRadii.append(WTFMove(bottomRightRadiusY));
+        verticalRadii.append(WTF::move(bottomRightRadiusY));
     if (showVerticalBottomLeft)
-        verticalRadii.append(WTFMove(bottomLeftRadiusY));
+        verticalRadii.append(WTF::move(bottomLeftRadiusY));
 
     bool includeVertical = false;
     if (!itemsEqual(horizontalRadii, verticalRadii))
         includeVertical = true;
     else if (propertyID == CSSPropertyWebkitBorderRadius && showHorizontalTopRight && !showHorizontalBottomRight)
-        horizontalRadii.append(WTFMove(bottomRightRadiusX));
+        horizontalRadii.append(WTF::move(bottomRightRadiusX));
 
     if (!includeVertical)
-        return CSSValueList::createSlashSeparated(CSSValueList::createSpaceSeparated(WTFMove(horizontalRadii)));
-    return CSSValueList::createSlashSeparated(CSSValueList::createSpaceSeparated(WTFMove(horizontalRadii)), CSSValueList::createSpaceSeparated(WTFMove(verticalRadii)));
+        return CSSValueList::createSlashSeparated(CSSValueList::createSpaceSeparated(WTF::move(horizontalRadii)));
+    return CSSValueList::createSlashSeparated(CSSValueList::createSpaceSeparated(WTF::move(horizontalRadii)), CSSValueList::createSpaceSeparated(WTF::move(verticalRadii)));
 }
 
 inline void extractBorderRadiusShorthandSerialization(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, CSSPropertyID propertyID)
@@ -1823,12 +1824,12 @@ template<CSSPropertyID property> inline Ref<CSSValue> extractFillLayerPropertySh
             auto& value = *after->item(j);
             afterList.append(const_cast<CSSValue&>(layerCount == 1 ? value : *downcast<CSSValueList>(value).item(i)));
         }
-        auto list = CSSValueList::createSlashSeparated(CSSValueList::createSpaceSeparated(WTFMove(beforeList)), CSSValueList::createSpaceSeparated(WTFMove(afterList)));
+        auto list = CSSValueList::createSlashSeparated(CSSValueList::createSpaceSeparated(WTF::move(beforeList)), CSSValueList::createSpaceSeparated(WTF::move(afterList)));
         if (layerCount == 1)
             return list;
-        layers.append(WTFMove(list));
+        layers.append(WTF::move(list));
     }
-    return CSSValueList::createCommaSeparated(WTFMove(layers));
+    return CSSValueList::createCommaSeparated(WTF::move(layers));
 }
 
 template<CSSPropertyID property> inline void extractFillLayerPropertyShorthandSerialization(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context, const StylePropertyShorthand& propertiesBeforeSlashSeparator, const StylePropertyShorthand& propertiesAfterSlashSeparator, CSSPropertyID lastLayerProperty)
@@ -2151,18 +2152,18 @@ inline void ExtractorCustom::extractCounterSetSerialization(ExtractorState& stat
 
 inline RefPtr<CSSValue> ExtractorCustom::extractBorderImageWidth(ExtractorState& state)
 {
-    auto& borderImage = state.style.borderImage();
-    if (borderImage.overridesBorderWidths())
+    auto& borderImageWidth = state.style.borderImageWidth();
+    if (borderImageWidth.overridesBorderWidths())
         return nullptr;
-    return createCSSValue(state.pool, state.style, borderImage.width());
+    return createCSSValue(state.pool, state.style, borderImageWidth);
 }
 
 inline void ExtractorCustom::extractBorderImageWidthSerialization(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context)
 {
-    auto& borderImage = state.style.borderImage();
-    if (borderImage.overridesBorderWidths())
+    auto& borderImageWidth = state.style.borderImageWidth();
+    if (borderImageWidth.overridesBorderWidths())
         return;
-    serializationForCSS(builder, context, state.style, borderImage.width());
+    serializationForCSS(builder, context, state.style, borderImageWidth);
 }
 
 inline Ref<CSSValue> ExtractorCustom::extractTransform(ExtractorState& state)
@@ -2483,7 +2484,7 @@ inline Ref<CSSValue> convertSingleAnimation(ExtractorState& state, const Animati
         list.append(createCSSValue(state.pool, state.style, animation.compositeOperation()));
     if (list.isEmpty())
         return createCSSValue(state.pool, state.style, CSS::Keyword::None { });
-    return CSSValueList::createSpaceSeparated(WTFMove(list));
+    return CSSValueList::createSpaceSeparated(WTF::move(list));
 }
 
 inline RefPtr<CSSValue> ExtractorCustom::extractAnimationShorthand(ExtractorState& state)
@@ -2501,7 +2502,7 @@ inline RefPtr<CSSValue> ExtractorCustom::extractAnimationShorthand(ExtractorStat
         }
         list.append(convertSingleAnimation(state, animation, animations));
     }
-    return CSSValueList::createCommaSeparated(WTFMove(list));
+    return CSSValueList::createCommaSeparated(WTF::move(list));
 }
 
 inline void ExtractorCustom::extractAnimationShorthandSerialization(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context)
@@ -2532,7 +2533,7 @@ static Ref<CSSValueList> convertAnimationRange(ExtractorState& state, const Sing
         Ref value = createCSSValue(state.pool, state.style, edge);
         if (auto list = dynamicDowncast<CSSValueList>(value))
             return list.releaseNonNull();
-        return CSSValueList::createSpaceSeparated(WTFMove(value));
+        return CSSValueList::createSpaceSeparated(WTF::move(value));
     };
 
     Ref startValue = createRangeValue(range.start);
@@ -2540,14 +2541,14 @@ static Ref<CSSValueList> convertAnimationRange(ExtractorState& state, const Sing
     bool endValueEqualsStart = startValue->equals(endValue);
 
     if (startValue->length())
-        list.append(WTFMove(startValue));
+        list.append(WTF::move(startValue));
 
     bool isNormal = range.end.isNormal();
     bool isDefaultAndSameNameAsStart = range.start.name() == range.end.name() && range.end.hasDefaultOffset();
     if (endValue->length() && !endValueEqualsStart && !isNormal && !isDefaultAndSameNameAsStart)
-        list.append(WTFMove(endValue));
+        list.append(WTF::move(endValue));
 
-    return CSSValueList::createSpaceSeparated(WTFMove(list));
+    return CSSValueList::createSpaceSeparated(WTF::move(list));
 }
 
 inline RefPtr<CSSValue> ExtractorCustom::extractAnimationRangeShorthand(ExtractorState& state)
@@ -2648,9 +2649,9 @@ inline void ExtractorCustom::extractBorderBlockShorthandSerialization(ExtractorS
 inline RefPtr<CSSValue> ExtractorCustom::extractBorderImageShorthand(ExtractorState& state)
 {
     auto& borderImage = state.style.borderImage();
-    if (borderImage.source().isNone())
+    if (borderImage.borderImageSource.isNone())
         return createCSSValue(state.pool, state.style, CSS::Keyword::None { });
-    if (borderImage.overridesBorderWidths())
+    if (borderImage.borderImageWidth.overridesBorderWidths())
         return nullptr;
     return createCSSValue(state.pool, state.style, borderImage);
 }
@@ -2658,11 +2659,11 @@ inline RefPtr<CSSValue> ExtractorCustom::extractBorderImageShorthand(ExtractorSt
 inline void ExtractorCustom::extractBorderImageShorthandSerialization(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context)
 {
     auto& borderImage = state.style.borderImage();
-    if (borderImage.source().isNone()) {
+    if (borderImage.borderImageSource.isNone()) {
         serializationForCSS(builder, context, state.style, CSS::Keyword::None { });
         return;
     }
-    if (borderImage.overridesBorderWidths())
+    if (borderImage.borderImageWidth.overridesBorderWidths())
         return;
     serializationForCSS(builder, context, state.style, borderImage);
 }
@@ -2721,10 +2722,10 @@ inline RefPtr<CSSValue> ExtractorCustom::extractContainerShorthand(ExtractorStat
     }();
 
     if (state.style.containerType() == ContainerType::Normal)
-        return CSSValueList::createSlashSeparated(WTFMove(name));
+        return CSSValueList::createSlashSeparated(WTF::move(name));
 
     return CSSValueList::createSlashSeparated(
-        WTFMove(name),
+        WTF::move(name),
         ExtractorGenerated::extractValue(state, CSSPropertyContainerType).releaseNonNull()
     );
 }
@@ -2784,7 +2785,7 @@ inline RefPtr<CSSValue> ExtractorCustom::extractFontShorthand(ExtractorState& st
             && description.fontSizeAdjust().isNone()
             && description.kerning() == Kerning::Auto
             && description.featureSettings().isEmpty()
-            && description.opticalSizing() == FontOpticalSizing::Enabled
+            && description.opticalSizing() == FontOpticalSizing::Auto
             && description.variationSettings().isEmpty();
     };
 
@@ -2841,7 +2842,7 @@ inline RefPtr<CSSValue> ExtractorCustom::extractFontVariantShorthand(ExtractorSt
     }
     if (list.isEmpty())
         return createCSSValue(state.pool, state.style, CSS::Keyword::Normal { });
-    return CSSValueList::createSpaceSeparated(WTFMove(list));
+    return CSSValueList::createSpaceSeparated(WTF::move(list));
 }
 
 inline void ExtractorCustom::extractFontVariantShorthandSerialization(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context)
@@ -2944,7 +2945,7 @@ inline RefPtr<CSSValue> ExtractorCustom::extractOffsetShorthand(ExtractorState& 
 
     auto inner = innerList.isEmpty()
         ? Ref<CSSValue> { createCSSValue(state.pool, state.style, CSS::Keyword::Auto { }) }
-        : Ref<CSSValue> { CSSValueList::createSpaceSeparated(WTFMove(innerList)) };
+        : Ref<CSSValue> { CSSValueList::createSpaceSeparated(WTF::move(innerList)) };
 
     return WTF::switchOn(state.style.offsetAnchor(),
         [&](const CSS::Keyword::Auto&) -> Ref<CSSValue> {
@@ -2952,7 +2953,7 @@ inline RefPtr<CSSValue> ExtractorCustom::extractOffsetShorthand(ExtractorState& 
         },
         [&](const Position& position) -> Ref<CSSValue> {
             return CSSValueList::createSlashSeparated(
-                WTFMove(inner),
+                WTF::move(inner),
                 createCSSValue(state.pool, state.style, position)
             );
         }
@@ -3046,11 +3047,11 @@ inline RefPtr<CSSValue> ExtractorCustom::extractScrollTimelineShorthand(Extracto
         auto nameCSSValue = createCSSValue(state.pool, state.style, CustomIdentifier { name });
 
         if (axis == ScrollAxis::Block)
-            list.append(WTFMove(nameCSSValue));
+            list.append(WTF::move(nameCSSValue));
         else
             list.append(CSSValuePair::createNoncoalescing(nameCSSValue, createCSSValue(state.pool, state.style, axis)));
     }
-    return CSSValueList::createCommaSeparated(WTFMove(list));
+    return CSSValueList::createCommaSeparated(WTF::move(list));
 }
 
 inline void ExtractorCustom::extractScrollTimelineShorthandSerialization(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context)
@@ -3163,7 +3164,7 @@ inline Ref<CSSValue> convertSingleTransition(ExtractorState& state, const Transi
         list.append(createCSSValue(state.pool, state.style, transition.behavior()));
     if (list.isEmpty())
         return createCSSValue(state.pool, state.style, CSS::Keyword::All { });
-    return CSSValueList::createSpaceSeparated(WTFMove(list));
+    return CSSValueList::createSpaceSeparated(WTF::move(list));
 }
 
 inline RefPtr<CSSValue> ExtractorCustom::extractTransitionShorthand(ExtractorState& state)
@@ -3176,7 +3177,7 @@ inline RefPtr<CSSValue> ExtractorCustom::extractTransitionShorthand(ExtractorSta
     for (auto& transition : transitions.computedValues())
         list.append(convertSingleTransition(state, transition));
     ASSERT(!list.isEmpty());
-    return CSSValueList::createCommaSeparated(WTFMove(list));
+    return CSSValueList::createCommaSeparated(WTF::move(list));
 }
 
 inline void ExtractorCustom::extractTransitionShorthandSerialization(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context)
@@ -3212,20 +3213,20 @@ inline RefPtr<CSSValue> ExtractorCustom::extractViewTimelineShorthand(ExtractorS
         auto nameCSSValue = createCSSValue(state.pool, state.style, CustomIdentifier { name });
 
         if (hasDefaultAxis && hasDefaultInsets)
-            list.append(WTFMove(nameCSSValue));
+            list.append(WTF::move(nameCSSValue));
         else if (hasDefaultAxis)
             list.append(CSSValuePair::createNoncoalescing(nameCSSValue, createCSSValue(state.pool, state.style, insets)));
         else if (hasDefaultInsets)
             list.append(CSSValuePair::createNoncoalescing(nameCSSValue, createCSSValue(state.pool, state.style, axis)));
         else {
             list.append(CSSValueList::createSpaceSeparated(
-                WTFMove(nameCSSValue),
+                WTF::move(nameCSSValue),
                 createCSSValue(state.pool, state.style, axis),
                 createCSSValue(state.pool, state.style, insets)
             ));
         }
     }
-    return CSSValueList::createCommaSeparated(WTFMove(list));
+    return CSSValueList::createCommaSeparated(WTF::move(list));
 }
 
 inline void ExtractorCustom::extractViewTimelineShorthandSerialization(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context)
@@ -3247,11 +3248,11 @@ inline void ExtractorCustom::extractWhiteSpaceShorthandSerialization(ExtractorSt
 inline RefPtr<CSSValue> ExtractorCustom::extractWebkitBorderImageShorthand(ExtractorState& state)
 {
     auto& borderImage = state.style.borderImage();
-    if (borderImage.source().isNone())
+    if (borderImage.borderImageSource.isNone())
         return createCSSValue(state.pool, state.style, CSS::Keyword::None { });
     // -webkit-border-image has a legacy behavior that makes fixed border slices also set the border widths.
-    bool overridesBorderWidths = borderImage.width().values.anyOf([](const auto& side) { return side.isFixed(); });
-    if (overridesBorderWidths != borderImage.overridesBorderWidths())
+    bool overridesBorderWidths = borderImage.borderImageWidth.values.anyOf([](const auto& side) { return side.isFixed(); });
+    if (overridesBorderWidths != borderImage.borderImageWidth.overridesBorderWidths())
         return nullptr;
     return createCSSValue(state.pool, state.style, borderImage);
 }
@@ -3259,15 +3260,14 @@ inline RefPtr<CSSValue> ExtractorCustom::extractWebkitBorderImageShorthand(Extra
 inline void ExtractorCustom::extractWebkitBorderImageShorthandSerialization(ExtractorState& state, StringBuilder& builder, const CSS::SerializationContext& context)
 {
     auto& borderImage = state.style.borderImage();
-    if (borderImage.source().isNone()) {
+    if (borderImage.borderImageSource.isNone()) {
         serializationForCSS(builder, context, state.style, CSS::Keyword::None { });
         return;
     }
     // -webkit-border-image has a legacy behavior that makes fixed border slices also set the border widths.
-    bool overridesBorderWidths = borderImage.width().values.anyOf([](const auto& side) { return side.isFixed(); });
-    if (overridesBorderWidths != borderImage.overridesBorderWidths())
+    bool overridesBorderWidths = borderImage.borderImageWidth.values.anyOf([](const auto& side) { return side.isFixed(); });
+    if (overridesBorderWidths != borderImage.borderImageWidth.overridesBorderWidths())
         return;
-
     serializationForCSS(builder, context, state.style, borderImage);
 }
 

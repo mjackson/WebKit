@@ -184,10 +184,10 @@ private:
         {
             ASSERT(m_nestedCaptureGroupNames.size() > 1);
             ASSERT(m_activeCaptureGroupNames.size() > 1);
-            m_nestedCaptureGroupNames.last().addAll(WTFMove(m_activeCaptureGroupNames.last()));
+            m_nestedCaptureGroupNames.last().addAll(WTF::move(m_activeCaptureGroupNames.last()));
 
             // Add all the names seen in this parenthesis to the containing alternative.
-            m_activeCaptureGroupNames[m_activeCaptureGroupNames.size() - 2].addAll(WTFMove(m_nestedCaptureGroupNames.last()));
+            m_activeCaptureGroupNames[m_activeCaptureGroupNames.size() - 2].addAll(WTF::move(m_nestedCaptureGroupNames.last()));
 
             m_nestedCaptureGroupNames.removeLast();
             m_activeCaptureGroupNames.removeLast();

@@ -40,7 +40,7 @@ class LibWebRTCRtpTransceiverBackend final : public RTCRtpTransceiverBackend {
     WTF_MAKE_TZONE_ALLOCATED(LibWebRTCRtpTransceiverBackend);
 public:
     explicit LibWebRTCRtpTransceiverBackend(Ref<webrtc::RtpTransceiverInterface>&& rtcTransceiver)
-        : m_rtcTransceiver(WTFMove(rtcTransceiver))
+        : m_rtcTransceiver(WTF::move(rtcTransceiver))
     {
     }
 

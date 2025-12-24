@@ -29,6 +29,7 @@
 #include "Register.h"
 #include "StackAlignment.h"
 #include <wtf/ForbidHeapAllocation.h>
+#include <wtf/Platform.h>
 
 #if ENABLE(WEBASSEMBLY)
 #include "JSWebAssemblyInstance.h"

@@ -331,8 +331,8 @@ public:
             computeLexicallyCapturedVariablesAndPurgeCandidates();
     }
 
-    VariableEnvironment takeLexicalEnvironment() { return WTFMove(m_lexicalVariables); }
-    VariableEnvironment takeDeclaredVariables() { return WTFMove(m_declaredVariables); }
+    VariableEnvironment takeLexicalEnvironment() { return WTF::move(m_lexicalVariables); }
+    VariableEnvironment takeDeclaredVariables() { return WTF::move(m_declaredVariables); }
 
     void computeLexicallyCapturedVariablesAndPurgeCandidates()
     {
@@ -443,7 +443,7 @@ public:
         ASSERT(node);
         m_functionDeclarations.append(node);
     }
-    DeclarationStacks::FunctionStack takeFunctionDeclarations() { return WTFMove(m_functionDeclarations); }
+    DeclarationStacks::FunctionStack takeFunctionDeclarations() { return WTF::move(m_functionDeclarations); }
     
 
     DeclarationResultMask declareLexicalVariable(const Identifier* ident, bool isConstant, DeclarationImportType importType = DeclarationImportType::NotImported)
@@ -2149,16 +2149,16 @@ std::unique_ptr<ParsedNode> Parser<LexerType>::parse(ParserError& error, const I
                                     startColumn,
                                     endColumn,
                                     parseResult.value().sourceElements,
-                                    WTFMove(parseResult.value().varDeclarations),
-                                    WTFMove(parseResult.value().functionDeclarations),
-                                    WTFMove(parseResult.value().lexicalVariables),
+                                    WTF::move(parseResult.value().varDeclarations),
+                                    WTF::move(parseResult.value().functionDeclarations),
+                                    WTF::move(parseResult.value().lexicalVariables),
                                     parseResult.value().parameters,
                                     *m_source,
                                     parseResult.value().features,
                                     currentScope()->lexicallyScopedFeatures(),
                                     currentScope()->innerArrowFunctionFeatures(),
                                     parseResult.value().numConstants,
-                                    WTFMove(m_moduleScopeData));
+                                    WTF::move(m_moduleScopeData));
         result->setLoc(m_source->firstLine().oneBasedInt(), m_lexer->lineNumber(), m_lexer->currentOffset(), m_lexer->currentLineStartOffset());
         result->setEndOffset(m_lexer->currentOffset());
 

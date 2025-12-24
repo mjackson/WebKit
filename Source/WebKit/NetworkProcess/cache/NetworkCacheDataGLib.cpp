@@ -54,8 +54,8 @@ Data::Data(std::span<const uint8_t> data)
 }
 
 Data::Data(GRefPtr<GBytes>&& buffer, FileSystem::FileHandle&& fileHandle)
-    : m_buffer(WTFMove(buffer))
-    , m_fileHandle(Box<FileSystem::FileHandle>::create(WTFMove(fileHandle)))
+    : m_buffer(WTF::move(buffer))
+    , m_fileHandle(Box<FileSystem::FileHandle>::create(WTF::move(fileHandle)))
     , m_isMap(m_buffer && g_bytes_get_size(m_buffer.get()) && m_fileHandle->isValid())
 {
 }
@@ -136,8 +136,8 @@ Data Data::adoptMap(FileSystem::MappedFileData&& mappedFile, FileSystem::FileHan
     auto* map = mappedFile.span().data();
     ASSERT(map);
     ASSERT(map != MAP_FAILED);
-    MapWrapper* wrapper = new MapWrapper { WTFMove(mappedFile) };
-    return { adoptGRef(g_bytes_new_with_free_func(map, size, reinterpret_cast<GDestroyNotify>(deleteMapWrapper), wrapper)), WTFMove(fileHandle) };
+    MapWrapper* wrapper = new MapWrapper { WTF::move(mappedFile) };
+    return { adoptGRef(g_bytes_new_with_free_func(map, size, reinterpret_cast<GDestroyNotify>(deleteMapWrapper), wrapper)), WTF::move(fileHandle) };
 }
 
 RefPtr<WebCore::SharedMemory> Data::tryCreateSharedMemory() const

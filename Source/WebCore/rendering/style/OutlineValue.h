@@ -31,32 +31,17 @@
 
 namespace WebCore {
 
-class RenderStyleBase;
-
-class OutlineValue final {
-    friend class RenderStyleProperties;
-public:
-    OutlineValue()
-        : m_style(static_cast<unsigned>(OutlineStyle::None))
-    {
-    }
-
-    const Style::Color& color() const { return m_color; }
-    Style::LineWidth width() const { return m_width; }
-    Style::Length<> offset() const { return m_offset; }
-    OutlineStyle style() const { return static_cast<OutlineStyle>(m_style); }
+struct OutlineValue {
+    Style::Color outlineColor { Style::Color::currentColor() };
+    Style::LineWidth outlineWidth { Style::LineWidth::Length { 3.0f } };
+    Style::Length<> outlineOffset { 0 };
+    PREFERRED_TYPE(OutlineStyle) unsigned outlineStyle : 4 { static_cast<unsigned>(OutlineStyle::None) };
 
     bool isVisible() const;
     bool nonZero() const;
     bool isTransparent() const;
 
     bool operator==(const OutlineValue&) const = default;
-
-private:
-    Style::Color m_color { Style::Color::currentColor() };
-    Style::LineWidth m_width { Style::LineWidth::Length { 3.0f } };
-    Style::Length<> m_offset { 0 };
-    PREFERRED_TYPE(OutlineStyle) unsigned m_style : 4;
 };
 
 inline std::optional<BorderStyle> toBorderStyle(OutlineStyle outlineStyle)

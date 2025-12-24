@@ -60,7 +60,7 @@ class AudioNode
 #endif
 {
     WTF_MAKE_NONCOPYABLE(AudioNode);
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(AudioNode);
+    WTF_MAKE_TZONE_ALLOCATED(AudioNode);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(AudioNode);
 public:
     enum NodeType {

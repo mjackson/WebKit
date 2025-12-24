@@ -213,9 +213,6 @@ public:
     static constexpr unsigned StructureFlags = Base::StructureFlags | StructureIsImmortal;
     static constexpr uint8_t numberOfLowerTierPreciseCells = 0;
 
-#if ENABLE(STRUCTURE_ID_WITH_SHIFT)
-    static constexpr size_t atomSize = 32;
-#endif
     static_assert(JSCell::atomSize >= MarkedBlock::atomSize);
 
     static constexpr int s_maxTransitionLength = 64;

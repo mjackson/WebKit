@@ -211,7 +211,7 @@ OptionSet<WebCore::TouchAction> touchActionsForPoint(UIView *rootView, const Web
             return WebCore::TouchAction::Auto;
 
         if ([view isKindOfClass:[WKCompositingView class]]) {
-            hitView = WTFMove(view);
+            hitView = WTF::move(view);
             break;
         }
     }
@@ -240,7 +240,7 @@ OptionSet<WebCore::EventListenerRegionType> eventListenerTypesAtPoint(UIView *ro
     RetainPtr<UIView> hitView;
     for (RetainPtr view : viewsAtPoint | std::views::reverse) {
         if ([view isKindOfClass:[WKCompositingView class]]) {
-            hitView = WTFMove(view);
+            hitView = WTF::move(view);
             break;
         }
     }

@@ -64,8 +64,9 @@ public:
     virtual CaptionDisplayMode captionDisplayMode() const;
     virtual void setCaptionDisplayMode(CaptionDisplayMode);
 
-    virtual int textTrackSelectionScore(TextTrack*, HTMLMediaElement*) const;
-    virtual int textTrackLanguageSelectionScore(TextTrack*, const Vector<String>&) const;
+    virtual int textTrackSelectionScore(TextTrack&, CaptionDisplayMode, AudioTrack* enabledAudioTrack = nullptr) const;
+    virtual int textTrackSelectionScore(TextTrack&, HTMLMediaElement&) const;
+    virtual int textTrackLanguageSelectionScore(TextTrack&, const Vector<String>&) const;
 
     virtual bool userPrefersCaptions() const;
     virtual void setUserPrefersCaptions(bool);

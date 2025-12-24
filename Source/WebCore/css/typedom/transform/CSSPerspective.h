@@ -37,7 +37,7 @@ using CSSPerspectiveValue = Variant<RefPtr<CSSNumericValue>, String, RefPtr<CSSK
 class Document;
 
 class CSSPerspective : public CSSTransformComponent {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(CSSPerspective);
+    WTF_MAKE_TZONE_ALLOCATED(CSSPerspective);
 public:
     static ExceptionOr<Ref<CSSPerspective>> create(CSSPerspectiveValue);
     static ExceptionOr<Ref<CSSPerspective>> create(Ref<const CSSFunctionValue>, Document&);

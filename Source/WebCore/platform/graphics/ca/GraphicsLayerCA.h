@@ -574,7 +574,7 @@ private:
     enum class PlayState { Playing, PlayPending, Paused, PausePending };
     struct LayerPropertyAnimation {
         LayerPropertyAnimation(Ref<PlatformCAAnimation>&& caAnimation, const String& animationName, AnimatedProperty property, int index, Seconds timeOffset)
-            : m_animation(WTFMove(caAnimation))
+            : m_animation(WTF::move(caAnimation))
             , m_name(animationName)
             , m_property(property)
             , m_index(index)

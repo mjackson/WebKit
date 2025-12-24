@@ -88,7 +88,7 @@ public:
                 parentStackTrace = debuggerAgent->currentParentStackTrace();
         }
 
-        return ScriptCallStack::create(WTFMove(m_frames), m_truncated, parentStackTrace);
+        return ScriptCallStack::create(WTF::move(m_frames), m_truncated, parentStackTrace);
     }
 
 private:
@@ -207,7 +207,7 @@ Ref<ScriptCallStack> createScriptCallStackFromStackTrace(JSC::JSGlobalObject* gl
         if (auto* debuggerAgent = dynamicDowncast<InspectorDebuggerAgent>(debugger->client()))
             parentStackTrace = debuggerAgent->currentParentStackTrace();
     }
-    return ScriptCallStack::create(WTFMove(frames), stackTrace.size() > maxStackSize, parentStackTrace);
+    return ScriptCallStack::create(WTF::move(frames), stackTrace.size() > maxStackSize, parentStackTrace);
 }
 
 Ref<ScriptCallStack> createScriptCallStackFromException(JSC::JSGlobalObject* globalObject, JSC::Exception* exception, size_t maxStackSize)
@@ -223,7 +223,7 @@ Ref<ScriptArguments> createScriptArguments(JSC::JSGlobalObject* globalObject, JS
     size_t argumentCount = callFrame->argumentCount();
     for (size_t i = skipArgumentCount; i < argumentCount; ++i)
         arguments.append({ vm, callFrame->uncheckedArgument(i) });
-    return ScriptArguments::create(globalObject, WTFMove(arguments));
+    return ScriptArguments::create(globalObject, WTF::move(arguments));
 }
 
 } // namespace Inspector

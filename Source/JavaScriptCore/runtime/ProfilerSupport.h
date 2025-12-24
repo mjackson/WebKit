@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "JSExportMacros.h"
 #include <stdio.h>
 #include <wtf/FilePrintStream.h>
 #include <wtf/HashMap.h>

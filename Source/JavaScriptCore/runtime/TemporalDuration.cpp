@@ -42,7 +42,7 @@ const ClassInfo TemporalDuration::s_info = { "Object"_s, &Base::s_info, nullptr,
 
 TemporalDuration* TemporalDuration::create(VM& vm, Structure* structure, ISO8601::Duration&& duration)
 {
-    auto* object = new (NotNull, allocateCell<TemporalDuration>(vm)) TemporalDuration(vm, structure, WTFMove(duration));
+    auto* object = new (NotNull, allocateCell<TemporalDuration>(vm)) TemporalDuration(vm, structure, WTF::move(duration));
     object->finishCreation(vm);
     return object;
 }
@@ -54,7 +54,7 @@ Structure* TemporalDuration::createStructure(VM& vm, JSGlobalObject* globalObjec
 
 TemporalDuration::TemporalDuration(VM& vm, Structure* structure, ISO8601::Duration&& duration)
     : Base(vm, structure)
-    , m_duration(WTFMove(duration))
+    , m_duration(WTF::move(duration))
 {
 }
 
@@ -70,7 +70,7 @@ TemporalDuration* TemporalDuration::tryCreateIfValid(JSGlobalObject* globalObjec
         return { };
     }
 
-    return TemporalDuration::create(vm, structure ? structure : globalObject->durationStructure(), WTFMove(duration));
+    return TemporalDuration::create(vm, structure ? structure : globalObject->durationStructure(), WTF::move(duration));
 }
 
 // ToTemporalDurationRecord ( temporalDurationLike )
@@ -161,7 +161,7 @@ TemporalDuration* TemporalDuration::toTemporalDuration(JSGlobalObject* globalObj
     auto result = toISO8601Duration(globalObject, itemValue);
     RETURN_IF_EXCEPTION(scope, nullptr);
 
-    return TemporalDuration::create(vm, globalObject->durationStructure(), WTFMove(result));
+    return TemporalDuration::create(vm, globalObject->durationStructure(), WTF::move(result));
 }
 
 // ToLimitedTemporalDuration ( temporalDurationLike, disallowedFields )
@@ -195,7 +195,7 @@ TemporalDuration* TemporalDuration::from(JSGlobalObject* globalObject, JSValue i
 
     if (itemValue.inherits<TemporalDuration>()) {
         ISO8601::Duration cloned = jsCast<TemporalDuration*>(itemValue)->m_duration;
-        return TemporalDuration::create(vm, globalObject->durationStructure(), WTFMove(cloned));
+        return TemporalDuration::create(vm, globalObject->durationStructure(), WTF::move(cloned));
     }
 
     return toTemporalDuration(globalObject, itemValue);

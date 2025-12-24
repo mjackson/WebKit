@@ -30,12 +30,12 @@ namespace WTF {
 
 WTF_EXPORT_PRIVATE Ref<ExternalStringImpl> ExternalStringImpl::create(std::span<const Latin1Character> characters, void* context, ExternalStringImplFreeFunction&& free)
 {
-    return adoptRef(*new ExternalStringImpl(characters, context, WTFMove(free)));
+    return adoptRef(*new ExternalStringImpl(characters, context, WTF::move(free)));
 }
 
 WTF_EXPORT_PRIVATE Ref<ExternalStringImpl> ExternalStringImpl::create(std::span<const char16_t> characters, void* context, ExternalStringImplFreeFunction&& free)
 {
-    return adoptRef(*new ExternalStringImpl(characters, context, WTFMove(free)));
+    return adoptRef(*new ExternalStringImpl(characters, context, WTF::move(free)));
 }
 
 
@@ -53,7 +53,7 @@ WTF_EXPORT_PRIVATE Ref<ExternalStringImpl> ExternalStringImpl::createStatic(std:
 
 ExternalStringImpl::ExternalStringImpl(std::span<const Latin1Character> characters, void* ctx, ExternalStringImplFreeFunction&& free)
     : StringImpl(characters, ConstructWithoutCopying)
-    , m_free(WTFMove(free))
+    , m_free(WTF::move(free))
 {
     ASSERT(m_free);
     m_freeCtx = ctx;
@@ -63,7 +63,7 @@ ExternalStringImpl::ExternalStringImpl(std::span<const Latin1Character> characte
 
 ExternalStringImpl::ExternalStringImpl(std::span<const char16_t> characters, void* ctx, ExternalStringImplFreeFunction&& free)
     : StringImpl(characters, ConstructWithoutCopying)
-    , m_free(WTFMove(free))
+    , m_free(WTF::move(free))
 {
     ASSERT(m_free);
     m_freeCtx = ctx;
@@ -72,7 +72,7 @@ ExternalStringImpl::ExternalStringImpl(std::span<const char16_t> characters, voi
 
 ExternalStringImpl::ExternalStringImpl(std::span<const Latin1Character> characters, ExternalStringImplFreeFunction&& free)
     : StringImpl(characters, ConstructWithoutCopying)
-    , m_free(WTFMove(free))
+    , m_free(WTF::move(free))
 {
     ASSERT(m_free);
     m_freeCtx = nullptr;
@@ -82,7 +82,7 @@ ExternalStringImpl::ExternalStringImpl(std::span<const Latin1Character> characte
 
 ExternalStringImpl::ExternalStringImpl(std::span<const char16_t> characters, ExternalStringImplFreeFunction&& free)
     : StringImpl(characters, ConstructWithoutCopying)
-    , m_free(WTFMove(free))
+    , m_free(WTF::move(free))
 {
     ASSERT(m_free);
     m_freeCtx = nullptr;

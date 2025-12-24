@@ -1260,7 +1260,7 @@ class TestRunAPITests(BuildStepMixinAdditions, unittest.TestCase):
                         command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', base_command + ' > logs.txt 2>&1 ; ret=$? ; grep "Ran " logs.txt ; exit $ret'],
                         logfiles={'json': self.jsonFileName},
                         env={'RESULTS_SERVER_API_KEY': 'test-api-key'},
-                        timeout=1200,
+                        timeout=10800,
                         )
             .exit(0),
         )
@@ -1277,7 +1277,7 @@ class TestRunAPITests(BuildStepMixinAdditions, unittest.TestCase):
                         command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', base_command + ' > logs.txt 2>&1 ; ret=$? ; grep "Ran " logs.txt ; exit $ret'],
                         logfiles={'json': self.jsonFileName},
                         env={'RESULTS_SERVER_API_KEY': 'test-api-key'},
-                        timeout=1200,
+                        timeout=10800,
                         )
             .log('stdio', stderr=stderr_output)
             .exit(1),
@@ -2519,22 +2519,6 @@ class TestRunTest262Tests(BuildStepMixinAdditions, unittest.TestCase):
             .exit(2),
         )
         self.expect_outcome(result=FAILURE, state_string='3 Test262 tests failed')
-        return self.run_step()
-
-    def test_success_platform_flag_gtk(self):
-        self.setup_step(RunTest262Tests())
-        self.setProperty('platform', 'gtk')
-        self.setProperty('fullPlatform', 'gtk')
-        self.setProperty('configuration', 'release')
-        self.expectRemoteCommands(
-            ExpectShell(workdir='wkdir',
-                        timeout=1200,
-                        log_environ=True,
-                        command=['/bin/bash', '--posix', '-o', 'pipefail', '-c', 'perl Tools/Scripts/test262-runner --verbose --release --gtk 2>&1 | python3 Tools/Scripts/filter-test-logs test262'],
-                        )
-            .exit(0),
-        )
-        self.expect_outcome(result=SUCCESS, state_string='test262-test')
         return self.run_step()
 
 

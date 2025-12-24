@@ -26,6 +26,7 @@
 #pragma once
 
 #include "Allocator.h"
+#include <wtf/Assertions.h>
 
 namespace JSC {
 

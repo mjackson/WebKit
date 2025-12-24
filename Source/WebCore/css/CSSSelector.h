@@ -288,6 +288,8 @@ bool complexSelectorMatchesElementBackedPseudoElement(const CSSSelector&);
 enum class ComplexSelectorsEqualMode : bool { Full, IgnoreNonElementBackedPseudoElements };
 bool complexSelectorsEqual(const CSSSelector&, const CSSSelector&, ComplexSelectorsEqualMode = ComplexSelectorsEqualMode::Full);
 
+void addComplexSelector(Hasher&, const CSSSelector&, ComplexSelectorsEqualMode = ComplexSelectorsEqualMode::Full);
+
 inline bool operator==(const PossiblyQuotedIdentifier& a, const AtomString& b) { return a.identifier == b; }
 
 inline const QualifiedName& CSSSelector::attribute() const
@@ -372,7 +374,7 @@ inline void CSSSelector::setValue(const AtomString& value, bool matchLowerCase)
         return;
     }
 
-    m_data.rareData->matchingValue = WTFMove(matchingValue);
+    m_data.rareData->matchingValue = WTF::move(matchingValue);
     m_data.rareData->serializingValue = value;
 }
 

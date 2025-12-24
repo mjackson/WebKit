@@ -25,7 +25,9 @@
 
 #import "config.h"
 
+#import "InstanceMethodSwizzler.h"
 #import "PlatformUtilities.h"
+#import "SafeBrowsingSPI.h"
 #import "Test.h"
 #import "TestWKWebView.h"
 #import "Utilities.h"
@@ -34,6 +36,11 @@
 #import <WebKit/WKWebViewPrivate.h>
 #import <WebKit/_WKContentWorldConfiguration.h>
 #import <WebKit/_WKTextExtraction.h>
+#import <wtf/SoftLinking.h>
+#import <wtf/WorkQueue.h>
+
+SOFT_LINK_PRIVATE_FRAMEWORK(SafariSafeBrowsing);
+SOFT_LINK_CLASS(SafariSafeBrowsing, SSBLookupContext);
 
 @interface WKWebView (TextExtractionTests)
 - (NSString *)synchronouslyGetDebugText:(_WKTextExtractionConfiguration *)configuration;
@@ -429,5 +436,51 @@ TEST(TextExtractionTests, NodesToSkip)
     EXPECT_WK_STREQ("Test", lines[0]);
     EXPECT_WK_STREQ("0", lines[1]);
 }
+
+#if HAVE(SAFARI_SAFE_BROWSING_NAMESPACED_LISTS)
+
+typedef void(^WKSafeBrowsingNamespacedListBlock)(NSDictionary<NSString *, NSArray<NSString *> *> *, NSError *);
+static void overrideGetListsForNamespace(SSBLookupContext *instance, SEL, NSString *, NSString *, WKSafeBrowsingNamespacedListBlock completion)
+{
+    static NeverDestroyed workQueue = WorkQueue::create("Queue for simulating SSB API"_s);
+    workQueue.get()->dispatch([completion = makeBlockPtr(completion)] {
+        RetainPtr hardCodedResult = @{
+            @"test/domains": @[ @".*" ],
+            @"test/filter": @[ @"return input.replaceAll('o', '•').replaceAll('u', 'v')" ]
+        };
+        completion(hardCodedResult.get(), nil);
+    });
+}
+
+TEST(TextExtractionTests, FilteringRules)
+{
+    InstanceMethodSwizzler safeBrowsingSwizzler {
+        getSSBLookupContextClassSingleton(),
+        @selector(_getListsForNamespace:collectionId:completionHandler:),
+        reinterpret_cast<IMP>(overrideGetListsForNamespace)
+    };
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:^{
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        [[configuration preferences] _setTextExtractionEnabled:YES];
+        return configuration.autorelease();
+    }()]);
+
+    [webView synchronouslyLoadTestPageNamed:@"debug-text-extraction"];
+
+    RetainPtr debugText = [webView synchronouslyGetDebugText:^{
+        RetainPtr configuration = adoptNS([_WKTextExtractionConfiguration new]);
+        [configuration setOutputFormat:_WKTextExtractionOutputFormatHTML];
+        [configuration setNodeIdentifierInclusion:_WKTextExtractionNodeIdentifierInclusionNone];
+        [configuration setIncludeRects:NO];
+        return configuration.autorelease();
+    }()];
+
+    EXPECT_TRUE([debugText containsString:@"<input type='email' placeholder='Recipient address'>f••</input>"]);
+    EXPECT_TRUE([debugText containsString:@"<h3 aria-label='Heading'>Svbject</h3>"]);
+    EXPECT_TRUE([debugText containsString:@"The qvick br•wn f•x jvmped •ver the lazy d•g"]);
+}
+
+#endif // HAVE(SAFARI_SAFE_BROWSING_NAMESPACED_LISTS)
 
 } // namespace TestWebKitAPI

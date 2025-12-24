@@ -199,15 +199,16 @@ LiveRegionSnapshot AXLiveRegionManager::buildLiveRegionSnapshot(AccessibilityObj
             for (auto& child : object.unignoredChildren())
                 collectDescendants(downcast<AccessibilityObject>(child.get()));
 
-            snapshot.objects.append({ object.objectID(), textForObject(object), object.languageIncludingAncestors(), WTFMove(descendants) });
+            snapshot.objects.append({ object.objectID(), textForObject(object), object.languageIncludingAncestors(), WTF::move(descendants) });
             return;
         }
 
         if (shouldIncludeInSnapshot(object))
             snapshot.objects.append({ object.objectID(), textForObject(object), object.languageIncludingAncestors(), { } });
-
-        for (auto& child : object.unignoredChildren())
-            buildObjectList(downcast<AccessibilityObject>(child.get()));
+        else {
+            for (auto& child : object.unignoredChildren())
+                buildObjectList(downcast<AccessibilityObject>(child.get()));
+        }
     };
 
     buildObjectList(object);
@@ -220,6 +221,10 @@ bool AXLiveRegionManager::shouldIncludeInSnapshot(AccessibilityObject& object) c
     if (object.isStaticText())
         return true;
 
+    // Description will account for alt text, aria-label(ledby), and title attributes.
+    if (String description = object.description(); description.length())
+        return true;
+
     // If an object has unignored children, there isn't a need to include it in the snapshot since the children will return YES.
     if (object.hasUnignoredChild())
         return false;
@@ -228,18 +233,32 @@ bool AXLiveRegionManager::shouldIncludeInSnapshot(AccessibilityObject& object) c
     if (!object.stringValue().isEmpty())
         return true;
 
+    Vector<AccessibilityText> accessibilityText;
+    object.accessibilityText(accessibilityText);
+
 #if PLATFORM(COCOA)
     // For leaf objects, include if they have accessible description text (e.g., images with alt text).
-    if (!object.descriptionAttributeValue().isEmpty())
+    if (!object.descriptionAttributeValue(&accessibilityText).isEmpty())
         return true;
 #endif
+
+    // Some leaf objects (like buttons) return their text via `title`.
+    if (!object.title(&accessibilityText).isEmpty())
+        return true;
 
     return false;
 }
 
 String AXLiveRegionManager::textForObject(AccessibilityObject& object) const
 {
-    return object.textMarkerRange().toString(IncludeListMarkerText::Yes, IncludeImageAltText::Yes);
+    if (String description = object.description(); description.length())
+        return description;
+
+    TextUnderElementMode mode;
+    mode.includeListMarkers = IncludeListMarkerText::Yes;
+    // We want all of the text beneath this object when speaking live regions.
+    mode.descendIntoContainers = DescendIntoContainers::Yes;
+    return object.textUnderElement(mode);
 }
 
 AXLiveRegionManager::LiveRegionDiff AXLiveRegionManager::computeChanges(const Vector<LiveRegionObject>& oldObjects, const Vector<LiveRegionObject>& newObjects) const
@@ -333,10 +352,12 @@ AttributedString AXLiveRegionManager::computeAnnouncement(const LiveRegionSnapsh
         if (!object.language.isEmpty()) {
             HashMap<String, AttributedString::AttributeValue> languageAttribute;
             languageAttribute.set(accessibilityLanguageAttributeKey, AttributedString::AttributeValue { object.language });
-            attributes.append({ { startLocation, object.text.length() }, WTFMove(languageAttribute) });
+            // The - / + 1 allows us to set the language of the space character seemlessly with the text around it.
+            attributes.append({ { needsSpace && startLocation ? startLocation - 1 : startLocation, needsSpace && startLocation ? object.text.length() + 1 : object.text.length() }, WTF::move(languageAttribute) });
         }
 
-        needsSpace = true;
+        // If the preceeding object already ends with a space (e.g., list markers), no need to add another.
+        needsSpace = object.text.isEmpty() || object.text[object.text.length() - 1] != ' ';
         spokenObjects.add(object.objectID);
     };
 
@@ -359,7 +380,7 @@ AttributedString AXLiveRegionManager::computeAnnouncement(const LiveRegionSnapsh
 
         String removalPrefix = AXRemovedText();
         characterCount += removalPrefix.length();
-        stringBuilder.append(WTFMove(removalPrefix));
+        stringBuilder.append(WTF::move(removalPrefix));
         needsSpace = true;
 
         for (auto& object : diff.removed) {
@@ -384,7 +405,7 @@ AttributedString AXLiveRegionManager::computeAnnouncement(const LiveRegionSnapsh
     }
 
     auto string = stringBuilder.toString();
-    return AttributedString { WTFMove(string), WTFMove(attributes), std::nullopt };
+    return AttributedString { WTF::move(string), WTF::move(attributes), std::nullopt };
 }
 
 void AXLiveRegionManager::postAnnouncementForChange(AccessibilityObject& object, const LiveRegionSnapshot& oldSnapshot, const LiveRegionSnapshot& newSnapshot)
@@ -394,7 +415,7 @@ void AXLiveRegionManager::postAnnouncementForChange(AccessibilityObject& object,
         return;
 
     AttributedString announcement = computeAnnouncement(newSnapshot, diff);
-    if (announcement.isNull())
+    if (announcement.isNull() || announcement.string.isEmpty())
         return;
 
     if (CheckedPtr cache = m_cache)

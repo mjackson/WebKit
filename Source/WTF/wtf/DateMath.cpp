@@ -371,10 +371,11 @@ static inline double ymdhmsToMilliseconds(int year, long mon, long day, long hou
 
 // We follow the recommendation of RFC 2822 to consider all
 // obsolete time zones not listed here equivalent to "-0000".
-static constexpr struct KnownZone {
+struct KnownZone {
     ASCIILiteral tzName;
     int tzOffset;
-} knownZones[] = {
+};
+static constexpr auto knownZones = std::to_array<KnownZone>({
     { "ut"_s, 0 },
     { "gmt"_s, 0 },
     { "est"_s, -300 },
@@ -385,7 +386,7 @@ static constexpr struct KnownZone {
     { "mdt"_s, -360 },
     { "pst"_s, -480 },
     { "pdt"_s, -420 }
-};
+});
 
 inline static void skipSpacesAndComments(std::span<const Latin1Character>& s)
 {
@@ -1039,7 +1040,7 @@ bool setTimeZoneOverride(StringView timeZone)
 
     {
         Locker locker { innerTimeZoneOverrideLock };
-        innerTimeZoneOverride() = WTFMove(*canonicalBuffer);
+        innerTimeZoneOverride() = WTF::move(*canonicalBuffer);
     }
     return true;
 }

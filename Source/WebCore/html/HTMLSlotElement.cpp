@@ -43,7 +43,7 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(HTMLSlotElement);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(HTMLSlotElement);
 
 using namespace HTMLNames;
 
@@ -169,7 +169,7 @@ Vector<Ref<Node>> HTMLSlotElement::assignedNodes(const AssignedNodesOptions& opt
 Vector<Ref<Element>> HTMLSlotElement::assignedElements(const AssignedNodesOptions& options) const
 {
     return compactMap(assignedNodes(options), [](Ref<Node>&& node) -> RefPtr<Element> {
-        return dynamicDowncast<Element>(WTFMove(node));
+        return dynamicDowncast<Element>(WTF::move(node));
     });
 }
 

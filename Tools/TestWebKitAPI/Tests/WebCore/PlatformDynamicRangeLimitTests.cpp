@@ -27,7 +27,7 @@
 
 #include <WebCore/PlatformDynamicRangeLimit.h>
 
-#include <WebCore/RenderStyleInlines.h>
+#include <WebCore/RenderStyle+InitialInlines.h>
 #include <WebCore/StyleDynamicRangeLimit.h>
 
 namespace TestWebKitAPI {

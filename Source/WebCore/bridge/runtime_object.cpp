@@ -48,7 +48,7 @@ static JSC_DECLARE_CUSTOM_GETTER(methodGetter);
 
 RuntimeObject::RuntimeObject(VM& vm, Structure* structure, RefPtr<Instance>&& instance)
     : Base(vm, structure)
-    , m_instance(WTFMove(instance))
+    , m_instance(WTF::move(instance))
 {
 }
 

@@ -92,6 +92,7 @@ struct QuirksData {
         NeedsGoogleMapsScrollingQuirk,
         NeedsGoogleTranslateScrollingQuirk,
 #endif
+        NeedsGeforcenowWarningDisplayNoneQuirk,
         NeedsHotelsAnimationQuirk,
         NeedsMediaRewriteRangeRequestQuirk,
         NeedsMozillaFileTypeForDataTransferQuirk,
@@ -119,9 +120,7 @@ struct QuirksData {
         NeedsYouTubeMouseOutQuirk,
         NeedsYouTubeOverflowScrollQuirk,
 #endif
-#if ENABLE(DESKTOP_CONTENT_MODE_QUIRKS)
         NeedsZeroMaxTouchPointsQuirk,
-#endif
 #if PLATFORM(MAC)
         NeedsZomatoEmailLoginLabelQuirk,
 #endif
@@ -162,7 +161,7 @@ struct QuirksData {
         ShouldDisableWritingSuggestionsByDefaultQuirk,
         ShouldDispatchPlayPauseEventsOnResume,
 #if ENABLE(TOUCH_EVENTS)
-        ShouldDispatchPointerOutAfterHandlingSyntheticClick,
+        ShouldDispatchPointerOutAndLeaveAfterHandlingSyntheticClick,
 #endif
         ShouldDispatchSyntheticMouseEventsWhenModifyingSelectionQuirk,
         ShouldDispatchSimulatedMouseEventsAssumeDefaultPreventedQuirk,
@@ -208,6 +207,9 @@ struct QuirksData {
         ShouldPreventDispatchOfTouchEventQuirk,
 #endif
         ShouldPreventOrientationMediaQueryFromEvaluatingToLandscapeQuirk,
+#if ENABLE(PICTURE_IN_PICTURE_API)
+        ShouldReportDocumentAsVisibleIfActivePIPQuirk,
+#endif
         ShouldUseLegacySelectPopoverDismissalBehaviorInDataActivationQuirk,
 #if PLATFORM(IOS_FAMILY)
         ShouldSilenceWindowResizeEventsDuringApplicationSnapshotting,
@@ -228,6 +230,8 @@ struct QuirksData {
 #endif
         ShouldUnloadHeavyFrames,
         ShouldAvoidStartingSelectionOnMouseDownOverPointerCursor,
+        ShouldAllowNotificationPermissionWithoutUserGesture,
+        NeedsInstagramResizingReelsQuirk,
 
         NumberOfQuirks
     };

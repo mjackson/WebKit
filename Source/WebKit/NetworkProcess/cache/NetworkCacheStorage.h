@@ -71,7 +71,7 @@ public:
         {
         }
         Record isolatedCopy() const & { return { crossThreadCopy(key), timeStamp, header, body, bodyHash }; }
-        Record isolatedCopy() && { return { crossThreadCopy(WTFMove(key)), timeStamp, WTFMove(header), WTFMove(body), WTFMove(bodyHash) }; }
+        Record isolatedCopy() && { return { crossThreadCopy(WTF::move(key)), timeStamp, WTF::move(header), WTF::move(body), WTF::move(bodyHash) }; }
         bool isNull() const { return key.isNull(); }
 
         Key key;

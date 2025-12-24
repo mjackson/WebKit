@@ -31,37 +31,24 @@
 
 namespace WebCore {
 
-class BorderData;
-class RenderStyleBase;
-
-class BorderValue final {
-    friend class BorderData;
-    friend class RenderStyleProperties;
-public:
-    BorderValue()
-        : m_style(static_cast<unsigned>(BorderStyle::None))
-    {
-    }
-
-    const Style::Color& color() const { return m_color; }
-    Style::LineWidth width() const { return m_width; }
-    BorderStyle style() const { return static_cast<BorderStyle>(m_style); }
+struct BorderValue {
+    Style::Color color { Style::Color::currentColor() };
+    Style::LineWidth width { Style::LineWidth::Length { 3.0f } };
+    PREFERRED_TYPE(BorderStyle) unsigned style : 4 { static_cast<unsigned>(BorderStyle::None) };
 
     bool isVisible() const;
     bool nonZero() const;
     bool isTransparent() const;
 
-    bool operator==(const BorderValue&) const = default;
+    bool hasHiddenStyle() const { return static_cast<BorderStyle>(style) == BorderStyle::Hidden; }
+    bool hasVisibleStyle() const { return static_cast<BorderStyle>(style) > BorderStyle::Hidden; }
 
-private:
-    Style::Color m_color { Style::Color::currentColor() };
-    Style::LineWidth m_width { Style::LineWidth::Length { 3.0f } };
-    PREFERRED_TYPE(BorderStyle) unsigned m_style : 4;
+    bool operator==(const BorderValue&) const = default;
 };
 
 inline bool BorderValue::nonZero() const
 {
-    return width() && style() != BorderStyle::None;
+    return width && static_cast<BorderStyle>(style) != BorderStyle::None;
 }
 
 TextStream& operator<<(TextStream&, const BorderValue&);

@@ -373,7 +373,7 @@ void ControlMac::drawCell(GraphicsContext& context, const FloatRect& rect, float
         return;
 
     drawCellOrFocusRing(imageBuffer->context(), cellDrawingRect, deviceScaleFactor, style, cell, drawCell);
-    context.drawConsumingImageBuffer(WTFMove(imageBuffer), rect.location() - focusRingPadding);
+    context.drawConsumingImageBuffer(WTF::move(imageBuffer), rect.location() - focusRingPadding);
 }
 
 void ControlMac::drawListButton(GraphicsContext& context, const FloatRect& rect, float deviceScaleFactor, const ControlStyle& style)
@@ -418,7 +418,7 @@ void ControlMac::drawListButton(GraphicsContext& context, const FloatRect& rect,
     comboBoxButtonContext.scale(desiredComboBoxButtonSize.width() / comboBoxButtonSize.width());
     comboBoxButtonContext.clipRoundedRect(FloatRoundedRect(FloatRect(FloatPoint::zero(), comboBoxButtonSize), FloatRoundedRect::Radii(comboBoxButtonCornerRadii)));
     comboBoxButtonContext.translate(comboBoxButtonInset.scaled(-1));
-    comboBoxButtonContext.drawConsumingImageBuffer(WTFMove(comboBoxImageBuffer), FloatPoint::zero(), ImagePaintingOptions { ImageOrientation::Orientation::OriginBottomRight });
+    comboBoxButtonContext.drawConsumingImageBuffer(WTF::move(comboBoxImageBuffer), FloatPoint::zero(), ImagePaintingOptions { ImageOrientation::Orientation::OriginBottomRight });
 
     auto isVerticalWritingMode = style.states.contains(ControlStyle::State::VerticalWritingMode);
 
@@ -435,7 +435,7 @@ void ControlMac::drawListButton(GraphicsContext& context, const FloatRect& rect,
     if (isVerticalWritingMode)
         listButtonLocation = listButtonLocation.transposedPoint();
 
-    context.drawConsumingImageBuffer(WTFMove(comboBoxButtonImageBuffer), listButtonLocation);
+    context.drawConsumingImageBuffer(WTF::move(comboBoxButtonImageBuffer), listButtonLocation);
 }
 
 } // namespace WebCore

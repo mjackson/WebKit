@@ -150,7 +150,7 @@ JSValue JSModuleLoader::provideFetch(JSGlobalObject* globalObject, JSValue key, 
     SourceCode source { sourceCode };
     MarkedArgumentBuffer arguments;
     arguments.append(key);
-    arguments.append(JSSourceCode::create(vm, WTFMove(source)));
+    arguments.append(JSSourceCode::create(vm, WTF::move(source)));
     ASSERT(!arguments.hasOverflowed());
 
     RELEASE_AND_RETURN(scope, call(globalObject, function, callData, this, arguments));
@@ -367,7 +367,7 @@ JSC_DEFINE_HOST_FUNCTION(moduleLoaderParseModule, (JSGlobalObject * globalObject
 #endif
     case SourceProviderSourceType::JSON: {
         // https://tc39.es/proposal-json-modules/#sec-parse-json-module
-        auto* moduleRecord = SyntheticModuleRecord::parseJSONModule(globalObject, moduleKey, WTFMove(sourceCode));
+        auto* moduleRecord = SyntheticModuleRecord::parseJSONModule(globalObject, moduleKey, WTF::move(sourceCode));
         RETURN_IF_EXCEPTION(scope, JSValue::encode(promise->rejectWithCaughtException(globalObject, scope)));
         scope.release();
         promise->fulfill(vm, globalObject, moduleRecord);
@@ -413,7 +413,7 @@ JSC_DEFINE_HOST_FUNCTION(moduleLoaderParseModule, (JSGlobalObject * globalObject
 
     auto result = moduleAnalyzer.analyze(*moduleProgramNode);
     if (!result) {
-        auto [errorType, message] = WTFMove(result.error());
+        auto [errorType, message] = WTF::move(result.error());
         RELEASE_AND_RETURN(scope, JSValue::encode(rejectWithError(createError(globalObject, errorType, message))));
     }
 

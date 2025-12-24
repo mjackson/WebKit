@@ -26,6 +26,7 @@
 #pragma once
 
 #include "JSExportMacros.h"
+#include <cstdint>
 
 namespace JSC {
 

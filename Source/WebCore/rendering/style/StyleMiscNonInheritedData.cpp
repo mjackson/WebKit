@@ -27,7 +27,7 @@
 #include "StyleMiscNonInheritedData.h"
 
 #include "RenderStyleDifference.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+InitialInlines.h"
 #include "StyleDeprecatedFlexibleBoxData.h"
 #include "StyleFilterData.h"
 #include "StyleFlexibleBoxData.h"
@@ -50,9 +50,9 @@ StyleMiscNonInheritedData::StyleMiscNonInheritedData()
     , filter(StyleFilterData::create())
     , transform(StyleTransformData::create())
     , visitedLinkColor(StyleVisitedLinkColorData::create())
-    , mask(RenderStyle::initialMaskLayers())
-    , animations(RenderStyle::initialAnimations())
-    , transitions(RenderStyle::initialTransitions())
+    , mask(CSS::Keyword::None { })
+    , animations(CSS::Keyword::None { })
+    , transitions(CSS::Keyword::All { })
     , content(RenderStyle::initialContent())
     , boxShadow(RenderStyle::initialBoxShadow())
     , aspectRatio(RenderStyle::initialAspectRatio())

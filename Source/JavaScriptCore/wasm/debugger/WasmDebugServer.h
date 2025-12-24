@@ -25,16 +25,23 @@
 
 #pragma once
 
+#include <wtf/Compiler.h>
+#include <wtf/Platform.h>
+
 #if ENABLE(WEBASSEMBLY)
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
+#include "JSExportMacros.h"
+#include "VM.h"
 #include "WasmDebugServerUtilities.h"
 #include "WasmVirtualAddress.h"
 
 #include <atomic>
 #include <memory>
 #include <wtf/HashMap.h>
+#include <wtf/TZoneMalloc.h>
+#include <wtf/Threading.h>
 #include <wtf/Vector.h>
 #include <wtf/text/WTFString.h>
 

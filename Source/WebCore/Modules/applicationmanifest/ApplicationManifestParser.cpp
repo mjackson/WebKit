@@ -72,8 +72,8 @@ std::optional<ApplicationManifest> ApplicationManifestParser::parseWithValidatio
     return parser.parseManifest(*object, source, manifestURL, documentURL);
 }
 
-ApplicationManifestParser::ApplicationManifestParser(RefPtr<Document> document)
-    : m_document(document)
+ApplicationManifestParser::ApplicationManifestParser(RefPtr<Document>&& document)
+    : m_document(WTF::move(document))
 {
 }
 
@@ -108,7 +108,7 @@ ApplicationManifest ApplicationManifestParser::parseManifest(const JSON::Object&
     parsedManifest.description = parseDescription(manifest);
     parsedManifest.shortName = parseShortName(manifest);
     if (auto parsedScope = parseScope(manifest, documentURL, parsedManifest.startURL))
-        parsedManifest.scope = WTFMove(*parsedScope);
+        parsedManifest.scope = WTF::move(*parsedScope);
     else {
         parsedManifest.scope = URL { parsedManifest.startURL, "./"_s };
         parsedManifest.isDefaultScope = true;
@@ -188,11 +188,11 @@ ApplicationManifest::Direction ApplicationManifestParser::parseDir(const JSON::O
         return Auto;
     }
 
-    static constexpr std::pair<ComparableLettersLiteral, ApplicationManifest::Direction> directionMappings[] = {
+    static constexpr auto directionMappings = std::to_array<std::pair<ComparableLettersLiteral, ApplicationManifest::Direction>>({
         { "auto"_s, Auto },
         { "ltr"_s, LTR },
         { "rtl"_s, RTL },
-    };
+    });
     static constexpr SortedArrayMap directions { directionMappings };
 
     if (auto* dirValue = directions.tryGet(StringView(stringValue).trim(isASCIIWhitespace<char16_t>)))
@@ -214,12 +214,12 @@ ApplicationManifest::Display ApplicationManifestParser::parseDisplay(const JSON:
         return ApplicationManifest::Display::Browser;
     }
 
-    static constexpr std::pair<ComparableLettersLiteral, ApplicationManifest::Display> displayValueMappings[] = {
+    static constexpr auto displayValueMappings = std::to_array<std::pair<ComparableLettersLiteral, ApplicationManifest::Display>>({
         { "browser"_s, ApplicationManifest::Display::Browser },
         { "fullscreen"_s, ApplicationManifest::Display::Fullscreen },
         { "minimal-ui"_s, ApplicationManifest::Display::MinimalUI },
         { "standalone"_s, ApplicationManifest::Display::Standalone },
-    };
+    });
     static constexpr SortedArrayMap displayValues { displayValueMappings };
 
     if (auto* displayValue = displayValues.tryGet(StringView(stringValue).trim(isASCIIWhitespace<char16_t>)))
@@ -241,7 +241,7 @@ const std::optional<ScreenOrientationLockType> ApplicationManifestParser::parseO
         return std::nullopt;
     }
 
-    static constexpr std::pair<ComparableLettersLiteral, WebCore::ScreenOrientationLockType> orientationValueMappings[] = {
+    static constexpr auto orientationValueMappings = std::to_array<std::pair<ComparableLettersLiteral, WebCore::ScreenOrientationLockType>>({
         { "any"_s, WebCore::ScreenOrientationLockType::Any },
         { "landscape"_s, WebCore::ScreenOrientationLockType::Landscape },
         { "landscape-primary"_s, WebCore::ScreenOrientationLockType::LandscapePrimary },
@@ -250,7 +250,7 @@ const std::optional<ScreenOrientationLockType> ApplicationManifestParser::parseO
         { "portrait"_s, WebCore::ScreenOrientationLockType::Portrait },
         { "portrait-primary"_s, WebCore::ScreenOrientationLockType::PortraitPrimary },
         { "portrait-secondary"_s, WebCore::ScreenOrientationLockType::PortraitSecondary },
-    };
+    });
 
     static SortedArrayMap orientationValues { orientationValueMappings };
 
@@ -295,7 +295,7 @@ Vector<String> ApplicationManifestParser::parseCategories(const JSON::Object& ma
         if (!categoryObject)
             continue;
 
-        categoryResources.append(WTFMove(categoryObject));
+        categoryResources.append(WTF::move(categoryObject));
     }
 
     return categoryResources;
@@ -320,9 +320,9 @@ Vector<ApplicationManifest::Icon> ApplicationManifestParser::parseIcons(const JS
         auto iconObject = iconValue->asObject();
         if (!iconObject)
             continue;
-        const auto& iconJSON = *iconObject;
+        Ref iconJSON = *iconObject;
 
-        auto srcValue = iconJSON.getValue("src"_s);
+        auto srcValue = iconJSON->getValue("src"_s);
         if (!srcValue)
             continue;
         auto srcStringValue = srcValue->asString();
@@ -343,7 +343,7 @@ Vector<ApplicationManifest::Icon> ApplicationManifestParser::parseIcons(const JS
 
         currentIcon.type = parseGenericString(iconJSON, "type"_s);
 
-        auto purposeValue = iconJSON.getValue("purpose"_s);
+        auto purposeValue = iconJSON->getValue("purpose"_s);
         OptionSet<ApplicationManifest::Icon::Purpose> purposes;
 
         if (!purposeValue) {
@@ -374,7 +374,7 @@ Vector<ApplicationManifest::Icon> ApplicationManifestParser::parseIcons(const JS
             }
         }
 
-        imageResources.append(WTFMove(currentIcon));
+        imageResources.append(WTF::move(currentIcon));
     }
 
     return imageResources;
@@ -399,9 +399,9 @@ Vector<ApplicationManifest::Shortcut> ApplicationManifestParser::parseShortcuts(
         auto shortcutObject = shortcutValue->asObject();
         if (!shortcutObject)
             continue;
-        const auto& shortcutJSON = *shortcutObject;
+        Ref shortcutJSON = *shortcutObject;
 
-        auto urlValue = shortcutJSON.getValue("url"_s);
+        auto urlValue = shortcutJSON->getValue("url"_s);
         if (!urlValue)
             continue;
         auto urlStringValue = urlValue->asString();
@@ -417,11 +417,11 @@ Vector<ApplicationManifest::Shortcut> ApplicationManifestParser::parseShortcuts(
             logManifestPropertyInvalidURL("url"_s);
             continue;
         }
-        currentShortcut.url = WTFMove(shortcutURL);
+        currentShortcut.url = WTF::move(shortcutURL);
         currentShortcut.name = parseGenericString(shortcutJSON, "name"_s);
         currentShortcut.icons = parseIcons(shortcutJSON);
 
-        shortcutResources.append(WTFMove(currentShortcut));
+        shortcutResources.append(WTF::move(currentShortcut));
     }
 
     return shortcutResources;

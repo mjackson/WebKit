@@ -127,10 +127,20 @@ struct ContentEditableData {
     bool isFocused { false };
 };
 
+struct FormData {
+    String autocomplete;
+    String name;
+};
+
 struct TextFormControlData {
     Editable editable;
     String controlType;
     String autocomplete;
+    String pattern;
+    String name;
+    std::optional<int> minLength;
+    std::optional<int> maxLength;
+    bool isRequired { false };
     bool isReadonly { false };
     bool isDisabled { false };
     bool isChecked { false };
@@ -157,7 +167,7 @@ enum class ContainerType : uint8_t {
     Generic,
 };
 
-using ItemData = Variant<ContainerType, TextItemData, ScrollableItemData, ImageItemData, SelectData, ContentEditableData, TextFormControlData, LinkItemData>;
+using ItemData = Variant<ContainerType, TextItemData, ScrollableItemData, ImageItemData, SelectData, ContentEditableData, TextFormControlData, FormData, LinkItemData>;
 
 struct Item {
     ItemData data;
@@ -168,7 +178,9 @@ struct Item {
     OptionSet<EventListenerCategory> eventListeners;
     HashMap<String, String> ariaAttributes;
     String accessibilityRole;
+    String title;
     HashMap<String, String> clientAttributes;
+    unsigned enclosingBlockNumber { 0 };
 
     template<typename T> bool hasData() const
     {

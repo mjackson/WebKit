@@ -186,7 +186,7 @@ void ImageAnalysisQueue::resumeProcessing()
 
 void ImageAnalysisQueue::setDidBecomeEmptyCallback(Function<void()>&& callback)
 {
-    m_imageQueueEmptyHysteresis = makeUnique<PAL::HysteresisActivity>([callback = WTFMove(callback)] (PAL::HysteresisState state) {
+    m_imageQueueEmptyHysteresis = makeUnique<PAL::HysteresisActivity>([callback = WTF::move(callback)] (PAL::HysteresisState state) {
         if (state == PAL::HysteresisState::Stopped)
             callback();
     }, 1_s);

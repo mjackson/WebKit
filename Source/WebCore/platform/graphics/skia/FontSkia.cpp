@@ -201,13 +201,13 @@ bool Font::platformSupportsCodePoint(char32_t character, std::optional<char32_t>
 static inline SkFont::Edging edgingForFontSmoothingMode(const SkFont& font, FontSmoothingMode smoothingMode)
 {
     switch (smoothingMode) {
-    case FontSmoothingMode::AutoSmoothing:
+    case FontSmoothingMode::Auto:
         return font.getEdging();
     case FontSmoothingMode::Antialiased:
         return SkFont::Edging::kAntiAlias;
     case FontSmoothingMode::SubpixelAntialiased:
         return SkFont::Edging::kSubpixelAntiAlias;
-    case FontSmoothingMode::NoSmoothing:
+    case FontSmoothingMode::None:
         return SkFont::Edging::kAlias;
     }
 

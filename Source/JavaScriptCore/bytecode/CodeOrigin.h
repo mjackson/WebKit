@@ -26,6 +26,7 @@
 #pragma once
 
 #include "BytecodeIndex.h"
+#include "JSExportMacros.h"
 
 #include <limits.h>
 #include <wtf/HashMap.h>

@@ -70,7 +70,7 @@ PAS_IGNORE_WARNINGS_BEGIN("unsafe-buffer-usage")
 #define PAS_MTE_MEDIUM_PAGE_NO(ptr) (((uintptr_t)ptr) & PAS_MTE_MEDIUM_PAGE_NO_MASK)
 
 #define PAS_MTE_GET_MTAG(ptr) do { \
-        asm volatile( \
+        __asm__ volatile( \
             ".arch_extension memtag\n\t" \
             "ldg %0, [%0]" \
             : "+r"(ptr) \
@@ -79,7 +79,7 @@ PAS_IGNORE_WARNINGS_BEGIN("unsafe-buffer-usage")
         ); \
     } while (0)
 #define PAS_MTE_SET_TAG(ptr) do { \
-        asm volatile( \
+        __asm__ volatile( \
             ".arch_extension memtag\n\t" \
             "stg %0, [%0]" \
             : \
@@ -88,7 +88,7 @@ PAS_IGNORE_WARNINGS_BEGIN("unsafe-buffer-usage")
         ); \
     } while (0)
 #define PAS_MTE_SET_TAG_PAIR(ptr) do { \
-        asm volatile( \
+        __asm__ volatile( \
             ".arch_extension memtag\n\t" \
             "st2g %0, [%0]" \
             : \
@@ -97,7 +97,7 @@ PAS_IGNORE_WARNINGS_BEGIN("unsafe-buffer-usage")
         ); \
     } while (0)
 #define PAS_MTE_SET_TAG_WITH_OFFSET(ptr, offset) do { \
-        asm volatile( \
+        __asm__ volatile( \
             ".arch_extension memtag\n\t" \
             "stg %0, [%0, #" #offset "]" \
             : \
@@ -106,7 +106,7 @@ PAS_IGNORE_WARNINGS_BEGIN("unsafe-buffer-usage")
         ); \
     } while (0)
 #define PAS_MTE_SET_TAG_PAIR_WITH_OFFSET(ptr, offset) do { \
-        asm volatile( \
+        __asm__ volatile( \
             ".arch_extension memtag\n\t" \
             "st2g %0, [%0, #" #offset "]" \
             : \
@@ -115,7 +115,7 @@ PAS_IGNORE_WARNINGS_BEGIN("unsafe-buffer-usage")
         ); \
     } while (0)
 #define PAS_MTE_SET_TAG_POSTINDEX(ptr) do { \
-        asm volatile( \
+        __asm__ volatile( \
             ".arch_extension memtag\n\t" \
             "stg %0, [%0], #16" \
             : "+r"(ptr) \
@@ -124,7 +124,7 @@ PAS_IGNORE_WARNINGS_BEGIN("unsafe-buffer-usage")
         ); \
     } while (0)
 #define PAS_MTE_SET_TAG_PAIR_POSTINDEX(ptr) do { \
-        asm volatile( \
+        __asm__ volatile( \
             ".arch_extension memtag\n\t" \
             "st2g %0, [%0], #32" \
             : "+r"(ptr) \
@@ -137,7 +137,7 @@ PAS_IGNORE_WARNINGS_BEGIN("unsafe-buffer-usage")
             ptr &= (uintptr_t)~PAS_MTE_TAG_MASK; \
             break; \
         } \
-        asm volatile( \
+        __asm__ volatile( \
             ".arch_extension memtag\n\t" \
             "irg %0, %0, %1" \
             : "+r"(ptr) \
@@ -162,7 +162,7 @@ PAS_IGNORE_WARNINGS_BEGIN("unsafe-buffer-usage")
  */
 #define DC_GVA_GRANULE_SIZE 64
 #define PAS_MTE_SET_TAGS_USING_DC_GVA(ptr) do { \
-        asm volatile( \
+        __asm__ volatile( \
             ".arch_extension memtag\n\t" \
             "dc gva, %0" \
             : \

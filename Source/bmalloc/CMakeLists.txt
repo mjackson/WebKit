@@ -196,6 +196,7 @@ set(bmalloc_C_SOURCES
     libpas/src/libpas/pas_simple_type.c
     libpas/src/libpas/pas_small_medium_bootstrap_free_heap.c
     libpas/src/libpas/pas_small_medium_bootstrap_heap_page_provider.c
+    libpas/src/libpas/pas_stats.c
     libpas/src/libpas/pas_status_reporter.c
     libpas/src/libpas/pas_stream.c
     libpas/src/libpas/pas_string_stream.c
@@ -667,6 +668,7 @@ set(bmalloc_PUBLIC_HEADERS
     libpas/src/libpas/pas_small_medium_bootstrap_free_heap.h
     libpas/src/libpas/pas_small_medium_bootstrap_heap_page_provider.h
     libpas/src/libpas/pas_snprintf.h
+    libpas/src/libpas/pas_stats.h
     libpas/src/libpas/pas_status_reporter.h
     libpas/src/libpas/pas_stream.h
     libpas/src/libpas/pas_string_stream.h

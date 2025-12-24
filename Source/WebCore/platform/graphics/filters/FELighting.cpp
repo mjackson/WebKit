@@ -44,7 +44,7 @@ FELighting::FELighting(Type type, const Color& lightingColor, float surfaceScale
     , m_specularExponent(clampTo<float>(specularExponent, 1.0f, 128.0f))
     , m_kernelUnitLengthX(kernelUnitLengthX)
     , m_kernelUnitLengthY(kernelUnitLengthY)
-    , m_lightSource(WTFMove(lightSource))
+    , m_lightSource(WTF::move(lightSource))
 {
 }
 

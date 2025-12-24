@@ -73,18 +73,16 @@ body:has(option[value="two"]:checked) main nav {
 
 /* ---- Classic Masonry layout ---- */
 body:has(option[value="three"]:checked) main nav {
-	display: grid;
+	display: grid-lanes;
 	grid-template-columns: repeat(auto-fill, minmax(24ch, 1fr));
-	grid-template-rows: masonry;
 	column-gap: 2lh;
 	justify-content: center; 
 }
 
 /* ---- Max-content sized columns ---- */
 body:has(option[value="four"]:checked) main nav {
-	display: grid;
+	display: grid-lanes;
 	grid-template-columns: repeat(auto-fill, minmax(max-content, 24ch));
-	grid-template-rows: masonry;
 	column-gap: 4lh;
 	justify-content: center; 
 }

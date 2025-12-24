@@ -126,8 +126,8 @@ bool DeclaredStylePropertyMap::setCustomProperty(Document&, const AtomString& pr
         return false;
 
     CSSStyleSheet::RuleMutationScope mutationScope(m_ownerRule.get());
-    auto customPropertyValue = CSSCustomPropertyValue::createUnresolved(property, WTFMove(value));
-    styleRule->mutableProperties().addParsedProperty(CSSProperty(CSSPropertyCustom, WTFMove(customPropertyValue)));
+    auto customPropertyValue = CSSCustomPropertyValue::createUnresolved(property, WTF::move(value));
+    styleRule->mutableProperties().addParsedProperty(CSSProperty(CSSPropertyCustom, WTF::move(customPropertyValue)));
     return true;
 }
 

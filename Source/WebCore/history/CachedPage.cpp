@@ -184,7 +184,7 @@ void CachedPage::restore(Page& page)
 
     for (auto& domain : m_loadedSubresourceDomains) {
         if (localMainFrame)
-            localMainFrame->loader().client().didLoadFromRegistrableDomain(WTFMove(domain));
+            localMainFrame->loader().client().didLoadFromRegistrableDomain(WTF::move(domain));
     }
 
     clear();
@@ -203,9 +203,9 @@ void CachedPage::restoreNavigationAPIHistoryItems(LocalFrame& frame, BackForward
     if (RefPtr currentItem = frame.loader().history().currentItem()) {
         RefPtr previousItem = checkedBackForwardController->forwardItem();
         auto allItems = checkedBackForwardController->allItems(frame.frameID());
-        auto filteredItems = Navigation::filterHistoryItemsForNavigationAPI(WTFMove(allItems), *currentItem);
+        auto filteredItems = Navigation::filterHistoryItemsForNavigationAPI(WTF::move(allItems), *currentItem);
 
-        document->window()->navigation().updateForReactivation(WTFMove(filteredItems), *currentItem, previousItem.get());
+        document->window()->navigation().updateForReactivation(WTF::move(filteredItems), *currentItem, previousItem.get());
     }
 
     for (RefPtr child = frame.tree().firstChild(); child; child = child->tree().nextSibling()) {

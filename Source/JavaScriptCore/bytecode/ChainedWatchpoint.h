@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "JSCell.h"
 #include "PackedCellPtr.h"
 #include "Watchpoint.h"
 

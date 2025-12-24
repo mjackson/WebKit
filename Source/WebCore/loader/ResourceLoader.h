@@ -154,7 +154,7 @@ public:
     bool reachedTerminalState() const { return m_reachedTerminalState; }
 
     const ResourceRequest& request() const { return m_request; }
-    void setRequest(ResourceRequest&& request) { m_request = WTFMove(request); }
+    void setRequest(ResourceRequest&& request) { m_request = WTF::move(request); }
 
     void setDataBufferingPolicy(DataBufferingPolicy);
 

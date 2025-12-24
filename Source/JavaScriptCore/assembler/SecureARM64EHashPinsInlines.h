@@ -25,7 +25,11 @@
 
 #pragma once
 
+#include "ExecutableAllocator.h"
+#include "JSCConfig.h"
 #include "SecureARM64EHashPins.h"
+#include <wtf/Compiler.h>
+#include <wtf/Platform.h>
 
 #if CPU(ARM64E) && ENABLE(JIT)
 

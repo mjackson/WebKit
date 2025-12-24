@@ -20,7 +20,6 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from base64 import b64encode
 from buildbot.plugins import steps, util
 from buildbot.process import buildstep, logobserver, properties, remotecommand
 from buildbot.process.results import Results, SUCCESS, FAILURE, CANCELLED, WARNINGS, SKIPPED, EXCEPTION, RETRY
@@ -82,6 +81,7 @@ SCAN_BUILD_OUTPUT_DIR = 'scan-build-output'
 LLVM_DIR = 'llvm-project'
 STATIC_ANALYSIS_ARCHIVE_PATH = '/tmp/static-analysis.zip'
 SHOULD_FILTER_LOGS = load_password('SHOULD_FILTER_LOGS', default=True)
+SHOULD_LOAD_CONTRIBUTORS_FROM_NETWORK = load_password('SHOULD_FILTER_LOGS', default=True)
 
 if CURRENT_HOSTNAME in EWS_BUILD_HOSTNAMES:
     CURRENT_HOSTNAME = 'ews-build.webkit.org'
@@ -220,8 +220,7 @@ class GitHubMixin(object):
         headers = {'Accept': ['application/vnd.github.v3+json']}
         username, access_token = GitHub.credentials(user=GitHub.user_for_queue(self.getProperty('buildername', '')))
         if username and access_token:
-            auth_header = b64encode('{}:{}'.format(username, access_token).encode('utf-8')).decode('utf-8')
-            headers['Authorization'] = ['Basic {}'.format(auth_header)]
+            headers['Authorization'] = [f'Bearer {access_token}']
 
         response = yield TwistedAdditions.request(
             url, type=b'GET',
@@ -240,7 +239,6 @@ class GitHubMixin(object):
         graphql_url = 'https://api.github.com/graphql'
         username, access_token = GitHub.credentials(user=GitHub.user_for_queue(self.getProperty('buildername', '')))
         if username and access_token:
-            auth_header = b64encode('{}:{}'.format(username, access_token).encode('utf-8')).decode('utf-8')
             headers['Authorization'] = ['bearer {}'.format(access_token)]
 
         response = yield TwistedAdditions.request(
@@ -421,8 +419,7 @@ class GitHubMixin(object):
             headers = {'Accept': ['application/vnd.github.v3+json']}
             username, access_token = GitHub.credentials(user=GitHub.user_for_queue(self.getProperty('buildername', '')))
             if username and access_token:
-                auth_header = b64encode('{}:{}'.format(username, access_token).encode('utf-8')).decode('utf-8')
-                headers['Authorization'] = ['Basic {}'.format(auth_header)]
+                headers['Authorization'] = [f'Bearer {access_token}']
 
             response = yield TwistedAdditions.request(
                 pr_label_url, type=b'POST', timeout=60,
@@ -465,8 +462,7 @@ class GitHubMixin(object):
             headers = {'Accept': ['application/vnd.github.v3+json']}
             username, access_token = GitHub.credentials(user=GitHub.user_for_queue(self.getProperty('buildername', '')))
             if username and access_token:
-                auth_header = b64encode('{}:{}'.format(username, access_token).encode('utf-8')).decode('utf-8')
-                headers['Authorization'] = ['Basic {}'.format(auth_header)]
+                headers['Authorization'] = [f'Bearer {access_token}']
 
             response = yield TwistedAdditions.request(
                 pr_label_url, type=b'PUT', timeout=60,
@@ -496,8 +492,7 @@ class GitHubMixin(object):
             headers = {'Accept': ['application/vnd.github.v3+json']}
             username, access_token = GitHub.credentials(user=GitHub.user_for_queue(self.getProperty('buildername', '')))
             if username and access_token:
-                auth_header = b64encode(f'{username}:{access_token}'.encode('utf-8')).decode('utf-8')
-                headers['Authorization'] = [f'Basic {auth_header}']
+                headers['Authorization'] = [f'Bearer {access_token}']
             response = yield TwistedAdditions.request(
                 comment_url, type=b'POST', timeout=60,
                 headers=headers, json=dict(body=content),
@@ -538,8 +533,7 @@ class GitHubMixin(object):
             headers = {'Accept': ['application/vnd.github.v3+json']}
             username, access_token = GitHub.credentials(user=GitHub.user_for_queue(self.getProperty('buildername', '')))
             if username and access_token:
-                auth_header = b64encode(f'{username}:{access_token}'.encode('utf-8')).decode('utf-8')
-                headers['Authorization'] = [f'Basic {auth_header}']
+                headers['Authorization'] = [f'Bearer {access_token}']
             response = yield TwistedAdditions.request(
                 update_url, type=b'PATCH', timeout=60,
                 headers=headers, json=pr_info,
@@ -2085,7 +2079,7 @@ class ValidateUserForQueue(buildstep.BuildStep, AddToLogMixin):
 
     @defer.inlineCallbacks
     def run(self):
-        self.contributors, errors = yield Contributors.load(use_network=True)
+        self.contributors, errors = yield Contributors.load(use_network=SHOULD_LOAD_CONTRIBUTORS_FROM_NETWORK)
         for error in errors:
             yield self._addToLog('stdio', error)
 
@@ -2195,7 +2189,7 @@ class ValidateCommitterAndReviewer(buildstep.BuildStep, GitHubMixin, AddToLogMix
 
     @defer.inlineCallbacks
     def run(self):
-        self.contributors, errors = yield Contributors.load(use_network=True)
+        self.contributors, errors = yield Contributors.load(use_network=SHOULD_LOAD_CONTRIBUTORS_FROM_NETWORK)
         for error in errors:
             yield self._addToLog('stdio', error)
 
@@ -6846,7 +6840,7 @@ class ValidateCommitMessage(steps.ShellSequence, ShellMixin, AddToLogMixin):
             defer.returnValue(rc)
             return
 
-        self.contributors, errors = yield Contributors.load(use_network=True)
+        self.contributors, errors = yield Contributors.load(use_network=SHOULD_LOAD_CONTRIBUTORS_FROM_NETWORK)
         for error in errors:
             yield self._addToLog('stdio', error)
         yield self._addToLog('stdio', '\n')
@@ -6915,7 +6909,7 @@ class Canonicalize(steps.ShellSequence, ShellMixin, AddToLogMixin):
     @defer.inlineCallbacks
     def run(self):
         self.commands = []
-        self.contributors, errors = yield Contributors.load(use_network=True)
+        self.contributors, errors = yield Contributors.load(use_network=SHOULD_LOAD_CONTRIBUTORS_FROM_NETWORK)
         for error in errors:
             yield self._addToLog('stdio', error)
 

@@ -107,7 +107,7 @@ void ObjcInstance::moveGlobalExceptionToExecState(JSGlobalObject* lexicalGlobalO
 }
 
 ObjcInstance::ObjcInstance(id instance, RefPtr<RootObject>&& rootObject) 
-    : Instance(WTFMove(rootObject))
+    : Instance(WTF::move(rootObject))
     , _instance(instance)
 {
 }
@@ -116,7 +116,7 @@ Ref<ObjcInstance> ObjcInstance::create(id instance, RefPtr<RootObject>&& rootObj
 {
     auto result = wrapperCache().add((__bridge CFTypeRef)instance, nullptr);
     if (result.isNewEntry) {
-        auto wrapper = adoptRef(*new ObjcInstance(instance, WTFMove(rootObject)));
+        auto wrapper = adoptRef(*new ObjcInstance(instance, WTF::move(rootObject)));
         result.iterator->value = wrapper.ptr();
         return wrapper;
     }

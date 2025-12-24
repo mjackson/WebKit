@@ -394,7 +394,7 @@ void AXObjectCache::postPlatformAnnouncementNotification(const String& message)
     }
 }
 
-void AXObjectCache::postPlatformARIANotifyNotification(const String& announcement, NotifyPriority priority, InterruptBehavior interruptBehavior, const String& language)
+void AXObjectCache::postPlatformARIANotifyNotification(AccessibilityObject& object, const AriaNotifyData& notificationData)
 {
     ASSERT(isMainThread());
 
@@ -403,12 +403,13 @@ void AXObjectCache::postPlatformARIANotifyNotification(const String& announcemen
 #endif
 
     NSDictionary *userInfo = @{
-        NSAccessibilityARIAAnnouncementPriority: notifyPriorityToAXValueString(priority).get(),
-        NSAccessibilityARIAAnnouncementInterrupt: interruptBehaviorToAXValueString(interruptBehavior).get(),
-        NSAccessibilityAnnouncementKey: announcement.createNSString().get(),
-        NSAccessibilityAnnouncementLanguageKey: language.createNSString().get()
+        NSAccessibilityARIAAnnouncementPriority: notifyPriorityToAXValueString(notificationData.priority).get(),
+        NSAccessibilityARIAAnnouncementInterrupt: interruptBehaviorToAXValueString(notificationData.interrupt).get(),
+        NSAccessibilityAnnouncementKey: notificationData.message.createNSString().get(),
+        NSAccessibilityAnnouncementLanguageKey: notificationData.language.createNSString().get()
     };
-    NSAccessibilityPostNotificationWithUserInfo(NSApp, NSAccessibilityAnnouncementRequestedNotification, userInfo);
+
+    NSAccessibilityPostNotificationWithUserInfo(object.wrapper(), NSAccessibilityAnnouncementRequestedNotification, userInfo);
 
     if (gShouldRepostNotificationsForTests) [[unlikely]] {
         if (RefPtr root = getOrCreate(m_document->view()))
@@ -416,9 +417,9 @@ void AXObjectCache::postPlatformARIANotifyNotification(const String& announcemen
     }
 }
 
-void AXObjectCache::postPlatformLiveRegionNotification(AccessibilityObject& object, LiveRegionStatus status, const AttributedString& announcement)
+void AXObjectCache::postPlatformLiveRegionNotification(AccessibilityObject& object, const LiveRegionAnnouncementData& liveRegionData)
 {
-    RetainPtr userInfo = adoptNS([[NSMutableDictionary alloc] initWithObjectsAndKeys:announcement.nsAttributedString().get(), NSAccessibilityAnnouncementKey, @(status == LiveRegionStatus::Assertive ? NSAccessibilityPriorityHigh : NSAccessibilityPriorityLow), NSAccessibilityPriorityKey, @(YES), NSAccessibilityAnnouncementIsLiveRegionKey, nil]);
+    RetainPtr userInfo = adoptNS([[NSMutableDictionary alloc] initWithObjectsAndKeys:liveRegionData.message.nsAttributedString().get(), NSAccessibilityAnnouncementKey, @(liveRegionData.status == LiveRegionStatus::Assertive ? NSAccessibilityPriorityHigh : NSAccessibilityPriorityLow), NSAccessibilityPriorityKey, @(YES), NSAccessibilityAnnouncementIsLiveRegionKey, nil]);
 
     NSAccessibilityPostNotificationWithUserInfo(object.wrapper(), NSAccessibilityAnnouncementRequestedNotification, userInfo.get());
 
@@ -443,7 +444,7 @@ void AXObjectCache::deferSortForNewLiveRegion(Ref<AccessibilityObject>&& object)
         return;
 #endif
 
-    queueUnsortedObject(WTFMove(object), PreSortedObjectType::LiveRegion);
+    queueUnsortedObject(WTF::move(object), PreSortedObjectType::LiveRegion);
 }
 
 void AXObjectCache::queueUnsortedObject(Ref<AccessibilityObject>&& object, PreSortedObjectType type)
@@ -455,7 +456,7 @@ void AXObjectCache::queueUnsortedObject(Ref<AccessibilityObject>&& object, PreSo
     auto unsortedObjectListIterator = m_deferredUnsortedObjects.ensure(type, [&] {
         return Vector<Ref<AccessibilityObject>>();
     }).iterator;
-    unsortedObjectListIterator->value.appendIfNotContains(WTFMove(object));
+    unsortedObjectListIterator->value.appendIfNotContains(WTF::move(object));
 
     if (!m_performCacheUpdateTimer.isActive() && !m_performingDeferredCacheUpdate)
         m_performCacheUpdateTimer.startOneShot(0_s);
@@ -734,7 +735,7 @@ void AXObjectCache::handleScrolledToAnchor(const Node&)
 void AXObjectCache::platformPerformDeferredCacheUpdate()
 {
     for (auto& unsortedObjectsEntry : m_deferredUnsortedObjects)
-        addSortedObjects(WTFMove(unsortedObjectsEntry.value), unsortedObjectsEntry.key);
+        addSortedObjects(WTF::move(unsortedObjectsEntry.value), unsortedObjectsEntry.key);
     m_deferredUnsortedObjects.clear();
 }
 

@@ -40,11 +40,11 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(FilterData);
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(LegacyRenderSVGResourceFilter);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(FilterData);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(LegacyRenderSVGResourceFilter);
 
 LegacyRenderSVGResourceFilter::LegacyRenderSVGResourceFilter(SVGFilterElement& element, RenderStyle&& style)
-    : LegacyRenderSVGResourceContainer(Type::LegacySVGResourceFilter, element, WTFMove(style))
+    : LegacyRenderSVGResourceContainer(Type::LegacySVGResourceFilter, element, WTF::move(style))
 {
 }
 
@@ -57,15 +57,11 @@ bool LegacyRenderSVGResourceFilter::isIdentity() const
 
 void LegacyRenderSVGResourceFilter::removeAllClientsFromCache()
 {
-    LOG(Filters, "LegacyRenderSVGResourceFilter %p removeAllClientsFromCache", this);
-
     m_rendererFilterDataMap.clear();
 }
 
 void LegacyRenderSVGResourceFilter::removeClientFromCache(RenderElement& client)
 {
-    LOG(Filters, "LegacyRenderSVGResourceFilter %p removing client %p", this, &client);
-    
     auto findResult = m_rendererFilterDataMap.find(client);
     if (findResult != m_rendererFilterDataMap.end()) {
         FilterData& filterData = *findResult->value;

@@ -734,7 +734,7 @@ class ShorthandWrapper final : public WrapperBase {
 public:
     ShorthandWrapper(CSSPropertyID property, Vector<WrapperBase*> longhandWrappers)
         : WrapperBase(property)
-        , m_longhandWrappers(WTFMove(longhandWrappers))
+        , m_longhandWrappers(WTF::move(longhandWrappers))
     {
     }
 

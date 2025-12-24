@@ -303,6 +303,8 @@
     "webkitTransitionEnd": { "categories": ["CSSTransition"] },
     "webkitautofillrequest": { },
     "webkitassociateformcontrols": { },
+    "webkitbeforeblur": { },
+    "webkitbeforefocus": { },
     "webkitbeginfullscreen": { },
     "webkitcurrentplaybacktargetiswirelesschanged": { },
     "webkitendfullscreen": { },

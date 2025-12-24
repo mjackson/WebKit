@@ -162,7 +162,7 @@ bool ExecutionHandler::stopCode(CallFrame* callFrame, JSWebAssemblyInstance* ins
     if (auto* breakpoint = m_breakpointManager.findBreakpoint(address)) {
         StopReason stopReason(breakpoint->type, address, breakpoint->originalBytecode, pc, mc, locals, stack, callee, instance, callFrame);
         dataLogLnIf(Options::verboseWasmDebugger(), "[Code][Stop] Going to stop at ", *breakpoint, " with ", stopReason);
-        stopImpl(WTFMove(stopReason));
+        stopImpl(WTF::move(stopReason));
         return true;
     }
     return false;

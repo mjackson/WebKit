@@ -121,7 +121,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(AuthenticatorCoordinator);
 
 AuthenticatorCoordinator::AuthenticatorCoordinator(Page& page, std::unique_ptr<AuthenticatorCoordinatorClient>&& client)
     : m_page(page)
-    , m_client(WTFMove(client))
+    , m_client(WTF::move(client))
 {
 }
 
@@ -139,7 +139,7 @@ void AuthenticatorCoordinator::deref() const
 
 void AuthenticatorCoordinator::setClient(std::unique_ptr<AuthenticatorCoordinatorClient>&& client)
 {
-    m_client = WTFMove(client);
+    m_client = WTF::move(client);
 }
 
 void AuthenticatorCoordinator::create(const Document& document, CredentialCreationOptions&& createOptions, RefPtr<AbortSignal>&& abortSignal, CredentialPromise&& promise)
@@ -232,23 +232,23 @@ void AuthenticatorCoordinator::create(const Document& document, CredentialCreati
             if (!weakThis)
                 return;
             weakThis->m_isCancelling = true;
-            weakThis->m_client->cancel([weakThis = WTFMove(weakThis)] () mutable {
+            weakThis->m_client->cancel([weakThis = WTF::move(weakThis)] () mutable {
                 if (!weakThis)
                     return;
                 weakThis->m_isCancelling = false;
-                if (auto queuedRequest = WTFMove(weakThis->m_queuedRequest))
+                if (auto queuedRequest = WTF::move(weakThis->m_queuedRequest))
                     queuedRequest();
             });
         });
     }
 
-    auto callback = [weakThis = WeakPtr { *this }, promise = WTFMove(promise), abortSignal = WTFMove(abortSignal)] (AuthenticatorResponseData&& data, AuthenticatorAttachment attachment, ExceptionData&& exception) mutable {
+    auto callback = [weakThis = WeakPtr { *this }, promise = WTF::move(promise), abortSignal = WTF::move(abortSignal)] (AuthenticatorResponseData&& data, AuthenticatorAttachment attachment, ExceptionData&& exception) mutable {
         if (abortSignal && abortSignal->aborted()) {
             promise.reject(Exception { ExceptionCode::AbortError, "Aborted by AbortSignal."_s });
             return;
         }
 
-        if (auto response = AuthenticatorResponse::tryCreate(WTFMove(data), attachment)) {
+        if (auto response = AuthenticatorResponse::tryCreate(WTF::move(data), attachment)) {
             promise.resolve(PublicKeyCredential::create(response.releaseNonNull()).ptr());
             return;
         }
@@ -257,19 +257,19 @@ void AuthenticatorCoordinator::create(const Document& document, CredentialCreati
     };
 
     if (m_isCancelling) {
-        m_queuedRequest = [weakThis = WeakPtr { *this }, weakFrame = WeakPtr { *frame }, createOptions = WTFMove(createOptions), callback = WTFMove(callback)]() mutable {
+        m_queuedRequest = [weakThis = WeakPtr { *this }, weakFrame = WeakPtr { *frame }, createOptions = WTF::move(createOptions), callback = WTF::move(callback)]() mutable {
             if (!weakThis || !weakFrame)
                 return;
             const auto options = createOptions.publicKey.value();
             RefPtr frame = weakFrame.get();
             if (!frame)
                 return;
-            weakThis->m_client->makeCredential(*weakFrame, options, createOptions.mediation, WTFMove(callback));
+            weakThis->m_client->makeCredential(*weakFrame, options, createOptions.mediation, WTF::move(callback));
         };
         return;
     }
     // Async operations are dispatched and handled in the messenger.
-    m_client->makeCredential(*frame, options, createOptions.mediation, WTFMove(callback));
+    m_client->makeCredential(*frame, options, createOptions.mediation, WTF::move(callback));
 }
 
 void AuthenticatorCoordinator::discoverFromExternalSource(const Document& document, CredentialRequestOptions&& requestOptions, CredentialPromise&& promise)
@@ -289,7 +289,7 @@ void AuthenticatorCoordinator::discoverFromExternalSource(const Document& docume
     }
 
     // The request will be aborted in WebAuthenticatorCoordinatorProxy if conditional mediation is not available.
-    if (requestOptions.mediation() != MediationRequirement::Conditional && !document.hasFocus()) {
+    if (requestOptions.mediation != MediationRequirement::Conditional && !document.hasFocus()) {
         promise.reject(Exception { ExceptionCode::NotAllowedError, "The document is not focused."_s });
         return;
     }
@@ -351,23 +351,23 @@ void AuthenticatorCoordinator::discoverFromExternalSource(const Document& docume
             if (!weakThis)
                 return;
             weakThis->m_isCancelling = true;
-            weakThis->m_client->cancel([weakThis = WTFMove(weakThis)] () mutable {
+            weakThis->m_client->cancel([weakThis = WTF::move(weakThis)] () mutable {
                 if (!weakThis)
                     return;
                 weakThis->m_isCancelling = false;
-                if (auto queuedRequest = WTFMove(weakThis->m_queuedRequest))
+                if (auto queuedRequest = WTF::move(weakThis->m_queuedRequest))
                     queuedRequest();
             });
         });
     }
 
-    auto callback = [weakThis = WeakPtr { *this }, promise = WTFMove(promise), abortSignal = WTFMove(requestOptions.signal), weakPage = WeakPtr { document.page() }] (AuthenticatorResponseData&& data, AuthenticatorAttachment attachment, ExceptionData&& exception) mutable {
+    auto callback = [weakThis = WeakPtr { *this }, promise = WTF::move(promise), abortSignal = WTF::move(requestOptions.signal), weakPage = WeakPtr { document.page() }] (AuthenticatorResponseData&& data, AuthenticatorAttachment attachment, ExceptionData&& exception) mutable {
         if (abortSignal && abortSignal->aborted()) {
             promise.reject(Exception { ExceptionCode::AbortError, "Aborted by AbortSignal."_s });
             return;
         }
 
-        if (auto response = AuthenticatorResponse::tryCreate(WTFMove(data), attachment)) {
+        if (auto response = AuthenticatorResponse::tryCreate(WTF::move(data), attachment)) {
             if (RefPtr page = weakPage.get())
                 page->setLastAuthentication(LoginStatus::AuthenticationType::WebAuthn);
             promise.resolve(PublicKeyCredential::create(response.releaseNonNull()).ptr());
@@ -378,19 +378,19 @@ void AuthenticatorCoordinator::discoverFromExternalSource(const Document& docume
     };
 
     if (m_isCancelling) {
-        m_queuedRequest = [weakThis = WeakPtr { *this }, weakFrame = WeakPtr { *frame }, requestOptions = WTFMove(requestOptions), scopeCrossOriginParent, callback = WTFMove(callback)]() mutable {
+        m_queuedRequest = [weakThis = WeakPtr { *this }, weakFrame = WeakPtr { *frame }, requestOptions = WTF::move(requestOptions), scopeCrossOriginParent, callback = WTF::move(callback)]() mutable {
             if (!weakThis || !weakFrame)
                 return;
             const auto options = requestOptions.publicKey.value();
             RefPtr frame = weakFrame.get();
             if (!frame)
                 return;
-            weakThis->m_client->getAssertion(*weakFrame, options, requestOptions.mediation(), scopeCrossOriginParent, WTFMove(callback));
+            weakThis->m_client->getAssertion(*weakFrame, options, requestOptions.mediation, scopeCrossOriginParent, WTF::move(callback));
         };
         return;
     }
     // Async operations are dispatched and handled in the messenger.
-    m_client->getAssertion(*frame, options, requestOptions.mediation(), scopeCrossOriginParent, WTFMove(callback));
+    m_client->getAssertion(*frame, options, requestOptions.mediation, scopeCrossOriginParent, WTF::move(callback));
 }
 
 void AuthenticatorCoordinator::isUserVerifyingPlatformAuthenticatorAvailable(const Document& document, DOMPromiseDeferred<IDLBoolean>&& promise) const
@@ -404,12 +404,12 @@ void AuthenticatorCoordinator::isUserVerifyingPlatformAuthenticatorAvailable(con
 
     // FIXME(182767): We should consider more on the assessment of the return value. Right now, we return true/false
     // immediately according to platform specific procedures.
-    auto completionHandler = [promise = WTFMove(promise)] (bool result) mutable {
+    auto completionHandler = [promise = WTF::move(promise)] (bool result) mutable {
         promise.resolve(result);
     };
 
     // Async operation are dispatched and handled in the messenger.
-    m_client->isUserVerifyingPlatformAuthenticatorAvailable(document.securityOrigin(), WTFMove(completionHandler));
+    m_client->isUserVerifyingPlatformAuthenticatorAvailable(document.securityOrigin(), WTF::move(completionHandler));
 }
 
 
@@ -420,11 +420,11 @@ void AuthenticatorCoordinator::isConditionalMediationAvailable(const Document& d
         return;
     }
 
-    auto completionHandler = [promise = WTFMove(promise)] (bool result) mutable {
+    auto completionHandler = [promise = WTF::move(promise)] (bool result) mutable {
         promise.resolve(result);
     };
     // Async operations are dispatched and handled in the messenger.
-    m_client->isConditionalMediationAvailable(document.securityOrigin(), WTFMove(completionHandler));
+    m_client->isConditionalMediationAvailable(document.securityOrigin(), WTF::move(completionHandler));
 }
 
 void AuthenticatorCoordinator::getClientCapabilities(const Document& document, DOMPromiseDeferred<PublicKeyCredentialClientCapabilities>&& promise) const
@@ -434,11 +434,11 @@ void AuthenticatorCoordinator::getClientCapabilities(const Document& document, D
         return;
     }
 
-    auto completionHandler = [promise = WTFMove(promise)] (const Vector<KeyValuePair<String, bool>> result) mutable {
+    auto completionHandler = [promise = WTF::move(promise)] (const Vector<KeyValuePair<String, bool>> result) mutable {
         promise.resolve(result);
     };
 
-    m_client->getClientCapabilities(document.securityOrigin(), WTFMove(completionHandler));
+    m_client->getClientCapabilities(document.securityOrigin(), WTF::move(completionHandler));
 }
 
 void AuthenticatorCoordinator::signalUnknownCredential(const Document& document, UnknownCredentialOptions&& options, DOMPromiseDeferred<void>&& promise)
@@ -452,13 +452,14 @@ void AuthenticatorCoordinator::signalUnknownCredential(const Document& document,
         return;
     }
 
-    auto completionHandler = [promise = WTFMove(promise)] (std::optional<WebCore::ExceptionData> error) mutable {
+    auto completionHandler = [promise = WTF::move(promise)] (std::optional<WebCore::ExceptionData> error) mutable {
         if (error) {
             promise.reject(error->toException());
             return;
         }
+        promise.resolve();
     };
-    m_client->signalUnknownCredential(document.securityOrigin(), WTFMove(options), WTFMove(completionHandler));
+    m_client->signalUnknownCredential(document.securityOrigin(), WTF::move(options), WTF::move(completionHandler));
 }
 
 void AuthenticatorCoordinator::signalAllAcceptedCredentials(const Document& document, AllAcceptedCredentialsOptions&& options, DOMPromiseDeferred<void>&& promise)
@@ -472,13 +473,14 @@ void AuthenticatorCoordinator::signalAllAcceptedCredentials(const Document& docu
         return;
     }
 
-    auto completionHandler = [promise = WTFMove(promise)] (std::optional<WebCore::ExceptionData> error) mutable {
+    auto completionHandler = [promise = WTF::move(promise)] (std::optional<WebCore::ExceptionData> error) mutable {
         if (error) {
             promise.reject(error->toException());
             return;
         }
+        promise.resolve();
     };
-    m_client->signalAllAcceptedCredentials(document.securityOrigin(), WTFMove(options), WTFMove(completionHandler));
+    m_client->signalAllAcceptedCredentials(document.securityOrigin(), WTF::move(options), WTF::move(completionHandler));
 }
 
 void AuthenticatorCoordinator::signalCurrentUserDetails(const Document& document, CurrentUserDetailsOptions&& options, DOMPromiseDeferred<void>&& promise)
@@ -492,14 +494,14 @@ void AuthenticatorCoordinator::signalCurrentUserDetails(const Document& document
         return;
     }
 
-    auto completionHandler = [promise = WTFMove(promise)] (std::optional<WebCore::ExceptionData> error) mutable {
+    auto completionHandler = [promise = WTF::move(promise)] (std::optional<WebCore::ExceptionData> error) mutable {
         if (error) {
             promise.reject(error->toException());
             return;
         }
         promise.resolve();
     };
-    m_client->signalCurrentUserDetails(document.securityOrigin(), WTFMove(options), WTFMove(completionHandler));
+    m_client->signalCurrentUserDetails(document.securityOrigin(), WTF::move(options), WTF::move(completionHandler));
 }
 
 } // namespace WebCore

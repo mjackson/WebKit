@@ -48,42 +48,6 @@ enum class PrintColorAdjust : bool {
     Exact
 };
 
-// The difference between two styles.  The following values are used:
-// - StyleDifference::Equal - The two styles are identical
-// - StyleDifference::RecompositeLayer - The layer needs its position and transform updated, but no repaint
-// - StyleDifference::Repaint - The object just needs to be repainted.
-// - StyleDifference::RepaintIfText - The object needs to be repainted if it contains text.
-// - StyleDifference::RepaintLayer - The layer and its descendant layers needs to be repainted.
-// - StyleDifference::LayoutOutOfFlowMovementOnly - Only the position of this out-of-flow box has been updated
-// - StyleDifference::Overflow - Only overflow needs to be recomputed
-// - StyleDifference::OverflowAndOutOfFlowMovement - Both out-of-flow movement and overflow updates are required.
-// - StyleDifference::Layout - A full layout is required.
-enum class StyleDifference : uint8_t {
-    Equal,
-    RecompositeLayer,
-    Repaint,
-    RepaintIfText,
-    RepaintLayer,
-    LayoutOutOfFlowMovementOnly,
-    Overflow,
-    OverflowAndOutOfFlowMovement,
-    Layout,
-    NewStyle
-};
-
-// When some style properties change, different amounts of work have to be done depending on
-// context (e.g. whether the property is changing on an element which has a compositing layer).
-// A simple StyleDifference does not provide enough information so we return a bit mask of
-// StyleDifferenceContextSensitiveProperties from RenderStyle::diff() too.
-enum class StyleDifferenceContextSensitiveProperty : uint8_t {
-    Transform   = 1 << 0,
-    Opacity     = 1 << 1,
-    Filter      = 1 << 2,
-    ClipRect    = 1 << 3,
-    ClipPath    = 1 << 4,
-    WillChange  = 1 << 5,
-};
-
 enum class PseudoElementType : uint8_t {
     // Public:
     FirstLine,
@@ -98,6 +62,7 @@ enum class PseudoElementType : uint8_t {
     WebKitScrollbar,
     SpellingError,
     TargetText,
+    Checkmark,
     ViewTransition,
     ViewTransitionGroup,
     ViewTransitionImagePair,
@@ -129,6 +94,7 @@ constexpr auto allPublicPseudoElementTypes = EnumSet {
     PseudoElementType::WebKitScrollbar,
     PseudoElementType::SpellingError,
     PseudoElementType::TargetText,
+    PseudoElementType::Checkmark,
     PseudoElementType::ViewTransition,
     PseudoElementType::ViewTransitionGroup,
     PseudoElementType::ViewTransitionImagePair,
@@ -1250,8 +1216,6 @@ WTF::TextStream& operator<<(WTF::TextStream&, ScrollSnapAxisAlignType);
 WTF::TextStream& operator<<(WTF::TextStream&, ScrollSnapStop);
 WTF::TextStream& operator<<(WTF::TextStream&, ScrollSnapStrictness);
 WTF::TextStream& operator<<(WTF::TextStream&, Scroller);
-WTF::TextStream& operator<<(WTF::TextStream&, StyleDifference);
-WTF::TextStream& operator<<(WTF::TextStream&, StyleDifferenceContextSensitiveProperty);
 WTF::TextStream& operator<<(WTF::TextStream&, TableLayoutType);
 WTF::TextStream& operator<<(WTF::TextStream&, TextCombine);
 WTF::TextStream& operator<<(WTF::TextStream&, TextDecorationSkipInk);

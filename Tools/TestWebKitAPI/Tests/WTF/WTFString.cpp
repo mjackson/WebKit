@@ -279,7 +279,7 @@ TEST(WTF, StringReplaceWithLiteral)
 TEST(WTF, StringIsolatedCopy)
 {
     String original = "1234"_s;
-    auto copy = WTFMove(original).isolatedCopy();
+    auto copy = WTF::move(original).isolatedCopy();
     EXPECT_FALSE(original.impl() == copy.impl());
 }
 

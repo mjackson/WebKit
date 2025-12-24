@@ -256,6 +256,7 @@
     macro(resize) \
     macro(resolve) \
     macro(reject) \
+    macro(reason) \
     macro(roundingIncrement) \
     macro(roundingMode) \
     macro(roundingPriority) \
@@ -276,6 +277,7 @@
     macro(sourceURL) \
     macro(stack) \
     macro(stackTraceLimit) \
+    macro(status) \
     macro(sticky) \
     macro(style) \
     macro(subarray) \

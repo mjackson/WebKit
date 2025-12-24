@@ -5,7 +5,9 @@
 
 #include "CSSPrimitiveValueMappings.h"
 #include "CSSProperty.h"
-#include "RenderStyleSetters.h"
+#include "RenderStyle+GettersInlines.h"
+#include "RenderStyle+InitialInlines.h"
+#include "RenderStyle+SettersInlines.h"
 #include "StyleBuilderCustom.h"
 #include "StyleBuilderState.h"
 #include "StylePropertyShorthand.h"
@@ -49,7 +51,7 @@ public:
     }
     static void applyValueTestAnimationWrapper(BuilderState& builderState, CSSValue& value)
     {
-        builderState.style().setTestAnimationWrapper(toStyleFromCSSValue<WebCore::Style::Number<>>(builderState, value));
+        builderState.style().setTestAnimationWrapper(toStyleFromCSSValue<Style::Number<>>(builderState, value));
     }
     static void applyInitialTestAnimationWrapperAccelerationAlways(BuilderState& builderState)
     {
@@ -61,7 +63,7 @@ public:
     }
     static void applyValueTestAnimationWrapperAccelerationAlways(BuilderState& builderState, CSSValue& value)
     {
-        builderState.style().setTestAnimationWrapperAccelerationAlways(toStyleFromCSSValue<WebCore::Style::Number<>>(builderState, value));
+        builderState.style().setTestAnimationWrapperAccelerationAlways(toStyleFromCSSValue<Style::Number<>>(builderState, value));
     }
     static void applyInitialTestAnimationWrapperAccelerationThreadedOnly(BuilderState& builderState)
     {
@@ -73,7 +75,7 @@ public:
     }
     static void applyValueTestAnimationWrapperAccelerationThreadedOnly(BuilderState& builderState, CSSValue& value)
     {
-        builderState.style().setTestAnimationWrapperAccelerationThreadedOnly(toStyleFromCSSValue<WebCore::Style::Number<>>(builderState, value));
+        builderState.style().setTestAnimationWrapperAccelerationThreadedOnly(toStyleFromCSSValue<Style::Number<>>(builderState, value));
     }
     static void applyInitialTestRenderStyleStorageOneLevelEnum(BuilderState& builderState)
     {
@@ -85,7 +87,7 @@ public:
     }
     static void applyValueTestRenderStyleStorageOneLevelEnum(BuilderState& builderState, CSSValue& value)
     {
-        builderState.style().setTestRenderStyleStorageOneLevelEnum(toStyleFromCSSValue<WebCore::Style::TestEnumeration>(builderState, value));
+        builderState.style().setTestRenderStyleStorageOneLevelEnum(toStyleFromCSSValue<Style::TestEnumeration>(builderState, value));
     }
     static void applyInitialTestRenderStyleStorageOneLevelRaw(BuilderState& builderState)
     {
@@ -97,7 +99,7 @@ public:
     }
     static void applyValueTestRenderStyleStorageOneLevelRaw(BuilderState& builderState, CSSValue& value)
     {
-        builderState.style().setTestRenderStyleStorageOneLevelRaw(toStyleFromCSSValue<WebCore::Style::TestRaw>(builderState, value));
+        builderState.style().setTestRenderStyleStorageOneLevelRaw(toStyleFromCSSValue<Style::TestRaw>(builderState, value));
     }
     static void applyInitialTestRenderStyleStorageOneLevelReference(BuilderState& builderState)
     {
@@ -109,7 +111,7 @@ public:
     }
     static void applyValueTestRenderStyleStorageOneLevelReference(BuilderState& builderState, CSSValue& value)
     {
-        builderState.style().setTestRenderStyleStorageOneLevelReference(toStyleFromCSSValue<WebCore::Style::Number<>>(builderState, value));
+        builderState.style().setTestRenderStyleStorageOneLevelReference(toStyleFromCSSValue<Style::Number<>>(builderState, value));
     }
     static void applyInitialTestRenderStyleStorageOneLevelValue(BuilderState& builderState)
     {
@@ -121,7 +123,7 @@ public:
     }
     static void applyValueTestRenderStyleStorageOneLevelValue(BuilderState& builderState, CSSValue& value)
     {
-        builderState.style().setTestRenderStyleStorageOneLevelValue(toStyleFromCSSValue<WebCore::Style::Number<>>(builderState, value));
+        builderState.style().setTestRenderStyleStorageOneLevelValue(toStyleFromCSSValue<Style::Number<>>(builderState, value));
     }
     static void applyInitialTestRenderStyleStorageTwoLevelEnum(BuilderState& builderState)
     {
@@ -133,7 +135,7 @@ public:
     }
     static void applyValueTestRenderStyleStorageTwoLevelEnum(BuilderState& builderState, CSSValue& value)
     {
-        builderState.style().setTestRenderStyleStorageTwoLevelEnum(toStyleFromCSSValue<WebCore::Style::TestEnumeration>(builderState, value));
+        builderState.style().setTestRenderStyleStorageTwoLevelEnum(toStyleFromCSSValue<Style::TestEnumeration>(builderState, value));
     }
     static void applyInitialTestRenderStyleStorageTwoLevelRaw(BuilderState& builderState)
     {
@@ -145,7 +147,7 @@ public:
     }
     static void applyValueTestRenderStyleStorageTwoLevelRaw(BuilderState& builderState, CSSValue& value)
     {
-        builderState.style().setTestRenderStyleStorageTwoLevelRaw(toStyleFromCSSValue<WebCore::Style::TestRaw>(builderState, value));
+        builderState.style().setTestRenderStyleStorageTwoLevelRaw(toStyleFromCSSValue<Style::TestRaw>(builderState, value));
     }
     static void applyInitialTestRenderStyleStorageTwoLevelReference(BuilderState& builderState)
     {
@@ -157,7 +159,7 @@ public:
     }
     static void applyValueTestRenderStyleStorageTwoLevelReference(BuilderState& builderState, CSSValue& value)
     {
-        builderState.style().setTestRenderStyleStorageTwoLevelReference(toStyleFromCSSValue<WebCore::Style::Number<>>(builderState, value));
+        builderState.style().setTestRenderStyleStorageTwoLevelReference(toStyleFromCSSValue<Style::Number<>>(builderState, value));
     }
     static void applyInitialTestRenderStyleStorageTwoLevelValue(BuilderState& builderState)
     {
@@ -169,7 +171,7 @@ public:
     }
     static void applyValueTestRenderStyleStorageTwoLevelValue(BuilderState& builderState, CSSValue& value)
     {
-        builderState.style().setTestRenderStyleStorageTwoLevelValue(toStyleFromCSSValue<WebCore::Style::Number<>>(builderState, value));
+        builderState.style().setTestRenderStyleStorageTwoLevelValue(toStyleFromCSSValue<Style::Number<>>(builderState, value));
     }
     static void applyInitialTestSettingsOne(BuilderState& builderState)
     {
@@ -181,7 +183,7 @@ public:
     }
     static void applyValueTestSettingsOne(BuilderState& builderState, CSSValue& value)
     {
-        builderState.style().setTestSettingsOne(toStyleFromCSSValue<WebCore::Style::Number<>>(builderState, value));
+        builderState.style().setTestSettingsOne(toStyleFromCSSValue<Style::Number<>>(builderState, value));
     }
     static void applyInitialTestLogicalPropertyGroupPhysicalVertical(BuilderState& builderState)
     {
@@ -193,7 +195,7 @@ public:
     }
     static void applyValueTestLogicalPropertyGroupPhysicalVertical(BuilderState& builderState, CSSValue& value)
     {
-        builderState.style().setTestLogicalPropertyGroupPhysicalVertical(toStyleFromCSSValue<WebCore::Style::Number<>>(builderState, value));
+        builderState.style().setTestLogicalPropertyGroupPhysicalVertical(toStyleFromCSSValue<Style::Number<>>(builderState, value));
     }
 };
 

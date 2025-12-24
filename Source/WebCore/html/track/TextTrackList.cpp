@@ -37,7 +37,7 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(TextTrackList);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(TextTrackList);
 
 TextTrackList::TextTrackList(ScriptExecutionContext* context)
     : TrackListBase(context, TrackListBase::TextTrackList)
@@ -200,7 +200,7 @@ void TextTrackList::append(Ref<TextTrack>&& track)
     if (!track->trackList())
         track->setTrackList(*this);
 
-    scheduleAddTrackEvent(WTFMove(track));
+    scheduleAddTrackEvent(WTF::move(track));
 }
 
 void TextTrackList::remove(TrackBase& track, bool scheduleEvent)
@@ -234,7 +234,7 @@ void TextTrackList::remove(TrackBase& track, bool scheduleEvent)
     tracks->removeAt(index);
 
     if (scheduleEvent)
-        scheduleRemoveTrackEvent(WTFMove(trackRef));
+        scheduleRemoveTrackEvent(WTF::move(trackRef));
 }
 
 bool TextTrackList::contains(TrackBase& track) const

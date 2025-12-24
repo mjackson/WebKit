@@ -33,7 +33,7 @@
 #include "RenderObjectInlines.h"
 #include "RenderScrollbarPart.h"
 #include "RenderScrollbarTheme.h"
-#include "RenderStyleSetters.h"
+#include "RenderStyle+SettersInlines.h"
 #include "RenderWidget.h"
 #include "ScrollbarInlines.h"
 #include "StyleInheritedData.h"
@@ -257,9 +257,9 @@ void RenderScrollbar::updateScrollbarPart(ScrollbarPart partType)
     }
 
     if (auto& partRendererSlot = m_parts.add(partType, nullptr).iterator->value)
-        partRendererSlot->setStyle(WTFMove(*partStyle));
+        partRendererSlot->setStyle(WTF::move(*partStyle));
     else {
-        partRendererSlot = createRenderer<RenderScrollbarPart>(owningRenderer()->document(), WTFMove(*partStyle), this, partType);
+        partRendererSlot = createRenderer<RenderScrollbarPart>(owningRenderer()->document(), WTF::move(*partStyle), this, partType);
         partRendererSlot->initializeStyle();
     }
 }

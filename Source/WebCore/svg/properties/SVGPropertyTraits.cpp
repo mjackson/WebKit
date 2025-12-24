@@ -32,6 +32,7 @@
 #include "ContainerNodeInlines.h"
 #include "RenderElement.h"
 #include "RenderObjectStyle.h"
+#include "RenderStyle.h"
 #include "SVGElement.h"
 #include "StyleColor.h"
 #include <wtf/text/StringToIntegerConversion.h>
@@ -43,7 +44,7 @@ namespace {
 class SVGStyleColorResolutionDelegate final : public CSS::PlatformColorResolutionDelegate {
 public:
     explicit SVGStyleColorResolutionDelegate(Ref<SVGElement> element)
-        : m_element { WTFMove(element) }
+        : m_element { WTF::move(element) }
     {
     }
 

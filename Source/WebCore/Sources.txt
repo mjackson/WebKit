@@ -118,7 +118,6 @@ Modules/cookie-store/CookieStore.cpp
 Modules/cookie-store/CookieStoreManager.cpp
 Modules/cookie-store/ExtendableCookieChangeEvent.cpp
 Modules/credentialmanagement/BasicCredential.cpp
-Modules/credentialmanagement/CredentialRequestOptions.cpp
 Modules/credentialmanagement/CredentialsContainer.cpp
 Modules/credentialmanagement/NavigatorCredentials.cpp
 Modules/entriesapi/DOMFileSystem.cpp
@@ -459,10 +458,7 @@ Modules/webauthn/AuthenticatorAssertionResponse.cpp
 Modules/webauthn/AuthenticatorAttestationResponse.cpp
 Modules/webauthn/AuthenticatorCoordinator.cpp
 Modules/webauthn/AuthenticatorResponse.cpp
-Modules/webauthn/AuthenticatorSelectionCriteria.cpp
 Modules/webauthn/PublicKeyCredential.cpp
-Modules/webauthn/PublicKeyCredentialCreationOptions.cpp
-Modules/webauthn/PublicKeyCredentialRequestOptions.cpp
 Modules/webauthn/WebAuthenticationUtils.cpp
 Modules/webauthn/apdu/ApduCommand.cpp
 Modules/webauthn/apdu/ApduResponse.cpp
@@ -624,6 +620,7 @@ accessibility/AccessibilityTableHeaderContainer.cpp
 accessibility/isolatedtree/AXIsolatedObject.cpp
 accessibility/isolatedtree/AXIsolatedTree.cpp
 animation/AcceleratedEffectStackUpdater.cpp
+animation/AcceleratedTimelinesUpdater.cpp
 animation/AnimationEffect.cpp
 animation/AnimationEffectTiming.cpp
 animation/AnimationEventBase.cpp
@@ -1650,6 +1647,7 @@ html/MonthInputType.cpp
 html/NavigatorUserActivation.cpp
 html/NumberInputType.cpp
 html/OffscreenCanvas.cpp
+html/Origin.cpp
 html/PDFDocument.cpp
 html/PasswordInputType.cpp
 html/PermissionsPolicy.cpp
@@ -1889,9 +1887,9 @@ inspector/agents/InspectorWorkerAgent.cpp
 inspector/agents/WebConsoleAgent.cpp
 inspector/agents/WebDebuggerAgent.cpp
 inspector/agents/WebHeapAgent.cpp
+inspector/agents/frame/FrameConsoleAgent.cpp
 inspector/agents/page/PageAuditAgent.cpp
 inspector/agents/page/PageCanvasAgent.cpp
-inspector/agents/page/PageConsoleAgent.cpp
 inspector/agents/page/PageDOMDebuggerAgent.cpp
 inspector/agents/page/PageDebuggerAgent.cpp
 inspector/agents/page/PageHeapAgent.cpp
@@ -2571,6 +2569,7 @@ platform/graphics/MediaPlayer.cpp
 platform/graphics/MediaPlayerPrivate.cpp
 platform/graphics/MediaPlayerPrivateWirelessPlayback.cpp
 platform/graphics/MediaResourceSniffer.cpp
+platform/graphics/MediaSampleConverter.cpp
 platform/graphics/MediaSourcePrivate.cpp
 platform/graphics/Model.cpp
 platform/graphics/ModelContext.cpp
@@ -2718,6 +2717,7 @@ platform/mediastream/MediaEndpointConfiguration.cpp
 platform/mediastream/MediaStreamPrivate.cpp
 platform/mediastream/MediaStreamTrackDataHolder.cpp
 platform/mediastream/MediaStreamTrackPrivate.cpp
+platform/mediastream/RTCDataChannelHandlerClient.cpp
 platform/mediastream/RTCIceCandidateDescriptor.cpp
 platform/mediastream/RTCSessionDescriptionDescriptor.cpp
 platform/mediastream/RealtimeIncomingAudioSource.cpp
@@ -2987,12 +2987,12 @@ rendering/style/ReferenceFilterOperation.cpp
 rendering/style/RenderStyle.cpp
 rendering/style/RenderStyleBase.cpp
 rendering/style/RenderStyleConstants.cpp
-rendering/style/RenderStylePropertiesGettersCustom.cpp
 rendering/style/SVGRenderStyle.cpp
 rendering/style/SVGRenderStyleDefs.cpp
 rendering/style/StyleAppleColorFilterData.cpp
 rendering/style/StyleBackdropFilterData.cpp
 rendering/style/StyleBackgroundData.cpp
+rendering/style/StyleBorderImageData.cpp
 rendering/style/StyleBoxData.cpp
 rendering/style/StyleCachedImage.cpp
 rendering/style/StyleCanvasImage.cpp
@@ -3013,6 +3013,7 @@ rendering/style/StyleImageSet.cpp
 rendering/style/StyleInheritedData.cpp
 rendering/style/StyleInvalidImage.cpp
 rendering/style/StyleMarqueeData.cpp
+rendering/style/StyleMaskBorderData.cpp
 rendering/style/StyleMiscNonInheritedData.cpp
 rendering/style/StyleMultiColData.cpp
 rendering/style/StyleMultiImage.cpp
@@ -3151,8 +3152,10 @@ style/StyleAdjuster.cpp
 style/StyleBuilder.cpp
 style/StyleBuilderState.cpp
 style/StyleChange.cpp
+style/StyleChangedAnimatableProperties.cpp
 style/StyleCustomProperty.cpp
 style/StyleCustomPropertyRegistry.cpp
+style/StyleDifference.cpp
 style/StyleExtractor.cpp
 style/StyleFontSizeFunctions.cpp
 style/StyleInterpolation.cpp
@@ -3176,6 +3179,10 @@ style/calc/StyleCalculationTree+Evaluation.cpp
 style/calc/StyleCalculationTree.cpp
 style/calc/StyleCalculationValue.cpp
 style/calc/StyleCalculationValueMap.cpp
+style/computed/StyleComputedStyle.cpp
+style/computed/StyleComputedStyleBase.cpp
+style/computed/StyleComputedStyleProperties+GettersCustom.cpp
+style/computed/StyleComputedStyleProperties+InitialCustom.cpp
 style/values/align/StyleAlignContent.cpp
 style/values/align/StyleAlignItems.cpp
 style/values/align/StyleAlignSelf.cpp
@@ -3665,6 +3672,7 @@ JSSVGElementWrapperFactory.cpp
 MathMLElementFactory.cpp
 SVGElementFactory.cpp
 StyleBuilderGenerated.cpp
+StyleChangedAnimatablePropertiesGenerated.cpp
 StyleExtractorGenerated.cpp
 StyleInterpolationWrapperMap.cpp
 StylePropertyShorthandFunctions.cpp
@@ -4427,6 +4435,7 @@ JSMediaCapabilitiesDecodingInfo.cpp
 JSMediaCapabilitiesEncodingInfo.cpp
 JSMediaCapabilitiesInfo.cpp
 JSMediaController.cpp
+JSMediaControlsContextMenuItem.cpp
 JSMediaControlsHost.cpp
 JSMediaControlsUtils.cpp
 JSMediaDecodingConfiguration.cpp
@@ -4548,6 +4557,7 @@ JSOffscreenCanvasRenderingContext2D.cpp
 JSOpenID4VPRequest.cpp
 JSOptionalEffectTiming.cpp
 JSOpusEncoderConfig.cpp
+JSOrigin.cpp
 JSOscillatorNode.cpp
 JSOscillatorOptions.cpp
 JSOscillatorType.cpp

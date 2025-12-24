@@ -30,8 +30,6 @@
 
 #import "FEComponentTransfer.h"
 #import "Logging.h"
-#import <CoreImage/CIContext.h>
-#import <CoreImage/CIFilter.h>
 #import <CoreImage/CoreImage.h>
 #import <wtf/NeverDestroyed.h>
 #import <wtf/TZoneMallocInlines.h>
@@ -165,7 +163,7 @@ bool FEComponentTransferCoreImageApplier::applyGamma(RetainPtr<CIImage> inputIma
         }
         arguments:arguments.get()];
 
-    result.setCIImage(WTFMove(outputImage));
+    result.setCIImage(WTF::move(outputImage));
     return true;
 }
 #endif

@@ -30,12 +30,9 @@
 #include "SVGRenderStyleDefs.h"
 
 #include "RenderStyleDifference.h"
-#include "RenderStyleInlines.h"
-#include "SVGRenderStyle.h"
+#include "RenderStyle+InitialInlines.h"
 #include "StylePrimitiveKeyword+Logging.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
-#include <wtf/PointerComparison.h>
-#include <wtf/text/TextStream.h>
 
 namespace WebCore {
 

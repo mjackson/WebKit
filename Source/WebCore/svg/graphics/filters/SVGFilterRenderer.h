@@ -68,8 +68,8 @@ private:
     SVGFilterRenderer(const FilterGeometry&, SVGUnitTypes::SVGUnitType primitiveUnits, SVGFilterExpression&&, FilterEffectVector&&, std::optional<RenderingResourceIdentifier>);
 
     static std::optional<std::tuple<SVGFilterExpression, FilterEffectVector>> buildExpression(SVGElement* contextElement, SVGFilterElement&, const SVGFilterRenderer&, const GraphicsContext& destinationContext);
-    void setExpression(SVGFilterExpression&& expression) { m_expression = WTFMove(expression); }
-    void setEffects(FilterEffectVector&& effects) { m_effects = WTFMove(effects); }
+    void setExpression(SVGFilterExpression&& expression) { m_expression = WTF::move(expression); }
+    void setEffects(FilterEffectVector&& effects) { m_effects = WTF::move(effects); }
 
     FloatSize resolvedSize(const FloatSize&) const final;
     FloatPoint3D resolvedPoint3D(const FloatPoint3D&) const final;
