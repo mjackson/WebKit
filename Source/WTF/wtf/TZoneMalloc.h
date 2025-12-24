@@ -110,8 +110,6 @@
 #define WTF_MAKE_PREFERABLY_COMPACT_TZONE_ALLOCATED_EXPORT(name, exportMacro) WTF_MAKE_TZONE_ALLOCATED_EXPORT(name, exportMacro)
 #endif
 
-// Template implementations for instantiating allocator template static / methods
-
 // template implementation to go with WTF_MAKE_TZONE_ALLOCATED_TEMPLATE and
 // WTF_MAKE_TZONE_ALLOCATED_TEMPLATE_EXPORT if TZoneHeap is enabled. This
 // should be added immediately after the template definition.
