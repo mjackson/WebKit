@@ -68,11 +68,11 @@ void WebTransportSendStreamSink::write(ScriptExecutionContext& context, JSC::JSV
 
     WTF::switchOn(bufferSource.releaseReturnValue(), [&] (auto&& arrayBufferOrView) {
         constexpr bool withFin { false };
-        context.enqueueTaskWhenSettled(session->streamSendBytes(m_identifier, arrayBufferOrView->span(), withFin), TaskSource::Networking, [promise = WTFMove(promise)] (auto&& exception) mutable {
+        context.enqueueTaskWhenSettled(session->streamSendBytes(m_identifier, arrayBufferOrView->span(), withFin), TaskSource::Networking, [promise = WTF::move(promise)] (auto&& exception) mutable {
             if (!exception)
                 promise.settle(Exception { ExceptionCode::NetworkError });
             else if (*exception)
-                promise.settle(WTFMove(**exception));
+                promise.settle(WTF::move(**exception));
             else
                 promise.resolve();
         });

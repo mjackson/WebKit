@@ -44,7 +44,7 @@ class DeferredPromise;
 class ScriptExecutionContext;
 
 class CookieStore final : public RefCounted<CookieStore>, public EventTarget, public ActiveDOMObject, public CookieChangeListener {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(CookieStore);
+    WTF_MAKE_TZONE_ALLOCATED(CookieStore);
 public:
     void ref() const final { RefCounted::ref(); }
     void deref() const final { RefCounted::deref(); }
@@ -68,6 +68,9 @@ public:
 
 private:
     explicit CookieStore(ScriptExecutionContext*);
+
+    enum class GetType : bool { Get, GetAll };
+    void getShared(GetType, CookieStoreGetOptions&&, Ref<DeferredPromise>&&);
 
     // CookieChangeListener
     void cookiesAdded(const String& host, const Vector<Cookie>&) final;

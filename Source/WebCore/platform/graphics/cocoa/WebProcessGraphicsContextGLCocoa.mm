@@ -115,7 +115,7 @@ public:
         if (m_displayBuffer && displayBuffer->surface() == m_displayBuffer->surface())
             return;
         m_displayBuffer = IOSurface::createFromSurface(displayBuffer->protectedSurface().get(), { });
-        m_finishedFence = WTFMove(finishedFence);
+        m_finishedFence = WTF::move(finishedFence);
     }
 
 private:
@@ -149,7 +149,7 @@ private:
 };
 
 WebProcessGraphicsContextGLCocoa::WebProcessGraphicsContextGLCocoa(GraphicsContextGLAttributes&& attributes)
-    : GraphicsContextGLCocoa(WTFMove(attributes), { })
+    : GraphicsContextGLCocoa(WTF::move(attributes), { })
     , m_layerContentsDisplayDelegate(DisplayBufferDisplayDelegate::create(!attributes.alpha))
 {
 }
@@ -166,7 +166,7 @@ void WebProcessGraphicsContextGLCocoa::prepareForDisplay()
     // Currently there's no mechanism to detect if scheduled commands were lost, so we
     // assume that scheduled fence will always be signalled. 
     // Here we trust that compositor does not advance too far with multiple frames.
-    m_layerContentsDisplayDelegate->setDisplayBuffer(displayBufferSurface(), WTFMove(finishedFence));
+    m_layerContentsDisplayDelegate->setDisplayBuffer(displayBufferSurface(), WTF::move(finishedFence));
 }
 
 }

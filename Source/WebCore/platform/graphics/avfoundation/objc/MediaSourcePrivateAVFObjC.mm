@@ -95,7 +95,7 @@ void MediaSourcePrivateAVFObjC::setPlayer(MediaPlayerPrivateInterface* player)
     m_player = downcast<MediaPlayerPrivateMediaSourceAVFObjC>(player);
     Ref renderer = m_player.get()->audioVideoRenderer();
     m_renderer = renderer.get();
-    ensureOnDispatcher([protectedThis = Ref { *this }, renderer = WTFMove(renderer)] {
+    ensureOnDispatcher([protectedThis = Ref { *this }, renderer = WTF::move(renderer)] {
         for (Ref sourceBuffer : protectedThis->sourceBuffers())
             downcast<SourceBufferPrivateAVFObjC>(sourceBuffer)->setAudioVideoRenderer(renderer);
     });
@@ -140,7 +140,7 @@ MediaSourcePrivate::AddStatus MediaSourcePrivateAVFObjC::addSourceBuffer(const C
     newSourceBuffer->setMediaSourceDuration(duration());
     {
         Locker locker { m_lock };
-        m_sourceBuffers.append(WTFMove(newSourceBuffer));
+        m_sourceBuffers.append(WTF::move(newSourceBuffer));
     }
     return AddStatus::Ok;
 }
@@ -277,7 +277,7 @@ bool MediaSourcePrivateAVFObjC::timeIsProgressing() const
 
 void MediaSourcePrivateAVFObjC::callOnMainThreadWithPlayer(Function<void(MediaPlayerPrivateMediaSourceAVFObjC&)>&& callback)
 {
-    ensureOnMainThread([callback = WTFMove(callback), weakThis = ThreadSafeWeakPtr { *this }] {
+    ensureOnMainThread([callback = WTF::move(callback), weakThis = ThreadSafeWeakPtr { *this }] {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
             return;

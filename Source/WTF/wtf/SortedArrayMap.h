@@ -47,15 +47,12 @@ protected:
     static constexpr size_t binarySearchThreshold = 20;
 };
 
-template<typename T>
-using ArrayElementType = std::remove_reference_t<decltype(*std::begin(std::declval<T&>()))>;
-
-template<typename ArrayType> class SortedArrayMap : public SortedArrayBase {
+template<typename ElementType, std::size_t N>
+class SortedArrayMap : public SortedArrayBase {
 public:
-    using ElementType = ArrayElementType<ArrayType>;
     using ValueType = typename ElementType::second_type;
 
-    constexpr SortedArrayMap(const ArrayType&);
+    constexpr SortedArrayMap(const std::array<ElementType, N>&);
     template<typename KeyArgument> bool contains(const KeyArgument&) const;
 
     // FIXME: To match HashMap interface better, would be nice to get the default value from traits.
@@ -65,16 +62,16 @@ public:
     template<typename KeyArgument> const ValueType* tryGet(const KeyArgument&) const;
 
 private:
-    const ArrayType& m_array;
+    const std::array<ElementType, N>& m_array;
 };
 
-template<typename ArrayType> class SortedArraySet : public SortedArrayBase {
+template<typename ElementType, std::size_t N> class SortedArraySet : public SortedArrayBase {
 public:
-    constexpr SortedArraySet(const ArrayType&);
+    constexpr SortedArraySet(const std::array<ElementType, N>&);
     template<typename KeyArgument> bool contains(const KeyArgument&) const;
 
 private:
-    const ArrayType& m_array;
+    const std::array<ElementType, N>& m_array;
 };
 
 struct ComparableStringView {
@@ -165,7 +162,8 @@ template<ASCIISubset subset> constexpr ComparableASCIISubsetLiteral<subset>::Com
     ASSERT_UNDER_CONSTEXPR_CONTEXT(std::ranges::all_of(literal.span(), isInSubset<subset>));
 }
 
-template<typename ArrayType> constexpr SortedArrayMap<ArrayType>::SortedArrayMap(const ArrayType& array)
+template<typename ElementType, std::size_t N>
+constexpr SortedArrayMap<ElementType, N>::SortedArrayMap(const std::array<ElementType, N>& array)
     : m_array { array }
 {
     ASSERT_UNDER_CONSTEXPR_CONTEXT(std::is_sorted(std::begin(array), std::end(array), [](auto& a, auto b) {
@@ -173,7 +171,7 @@ template<typename ArrayType> constexpr SortedArrayMap<ArrayType>::SortedArrayMap
     }));
 }
 
-template<typename ArrayType> template<typename KeyArgument> inline auto SortedArrayMap<ArrayType>::tryGet(const KeyArgument& key) const -> const ValueType*
+template<typename ElementType, std::size_t N> template<typename KeyArgument> inline auto SortedArrayMap<ElementType, N>::tryGet(const KeyArgument& key) const -> const ValueType*
 {
     using KeyType = typename ElementType::first_type;
     auto parsedKey = SortedArrayKeyTraits<KeyType>::parse(key);
@@ -196,27 +194,26 @@ template<typename ArrayType> template<typename KeyArgument> inline auto SortedAr
     return &iterator->second;
 }
 
-template<typename ArrayType> template<typename KeyArgument> inline auto SortedArrayMap<ArrayType>::get(const KeyArgument& key, const ValueType& defaultValue) const -> ValueType
+template<typename ElementType, std::size_t N> template<typename KeyArgument> inline auto SortedArrayMap<ElementType, N>::get(const KeyArgument& key, const ValueType& defaultValue) const -> ValueType
 {
     auto result = tryGet(key);
     return result ? *result : defaultValue;
 }
 
-template<typename ArrayType> template<typename KeyArgument> inline bool SortedArrayMap<ArrayType>::contains(const KeyArgument& key) const
+template<typename ElementType, std::size_t N> template<typename KeyArgument> inline bool SortedArrayMap<ElementType, N>::contains(const KeyArgument& key) const
 {
     return tryGet(key);
 }
 
-template<typename ArrayType> constexpr SortedArraySet<ArrayType>::SortedArraySet(const ArrayType& array)
+template<typename ElementType, std::size_t N> constexpr SortedArraySet<ElementType, N>::SortedArraySet(const std::array<ElementType, N>& array)
     : m_array { array }
 {
     ASSERT_UNDER_CONSTEXPR_CONTEXT(std::is_sorted(std::begin(array), std::end(array)));
 }
 
-template<typename ArrayType> template<typename KeyArgument> inline bool SortedArraySet<ArrayType>::contains(const KeyArgument& key) const
+template<typename ElementType, std::size_t N> template<typename KeyArgument> inline bool SortedArraySet<ElementType, N>::contains(const KeyArgument& key) const
 {
-    using KeyType = typename std::remove_extent_t<ArrayType>;
-    auto parsedKey = SortedArrayKeyTraits<KeyType>::parse(key);
+    auto parsedKey = SortedArrayKeyTraits<ElementType>::parse(key);
     if (!parsedKey)
         return false;
     if (std::size(m_array) < binarySearchThreshold)

@@ -137,7 +137,7 @@ private:
 
         void dispatch()
         {
-            Ref { connection }->dispatchMessage(WTFMove(message));
+            Ref { connection }->dispatchMessage(WTF::move(message));
         }
     };
     Deque<ConnectionAndIncomingMessage> m_messagesBeingDispatched; // Only used on the main thread.
@@ -174,11 +174,11 @@ void Connection::SyncMessageState::enqueueMatchingMessages(Connection& connectio
         Deque<ConnectionAndIncomingMessage> rest;
         for (auto& connectionAndMessage : connectionAndMessages) {
             if (connectionAndMessage.connection.ptr() == &connection && connectionAndMessage.message->matches(receiverMatcher))
-                receiveQueue.enqueueMessage(connection, WTFMove(connectionAndMessage.message));
+                receiveQueue.enqueueMessage(connection, WTF::move(connectionAndMessage.message));
             else
-                rest.append(WTFMove(connectionAndMessage));
+                rest.append(WTF::move(connectionAndMessage));
         }
-        connectionAndMessages = WTFMove(rest);
+        connectionAndMessages = WTF::move(rest);
     };
     Locker locker { m_lock };
     enqueueMatchingMessagesInContainer(m_messagesBeingDispatched);
@@ -211,7 +211,7 @@ bool Connection::SyncMessageState::processIncomingMessage(Connection& connection
             while (!connection.m_incomingMessages.isEmpty())
                 m_messagesToDispatchWhileWaitingForSyncReply.append(ConnectionAndIncomingMessage { connection, connection.m_incomingMessages.takeFirst() });
         }
-        m_messagesToDispatchWhileWaitingForSyncReply.append(ConnectionAndIncomingMessage { connection, WTFMove(message) });
+        m_messagesToDispatchWhileWaitingForSyncReply.append(ConnectionAndIncomingMessage { connection, WTF::move(message) });
     }
 
     if (shouldDispatch) {
@@ -286,11 +286,11 @@ void Connection::SyncMessageState::dispatchMessagesAndResetDidScheduleDispatchMe
         Deque<ConnectionAndIncomingMessage> messagesToPutBack;
         for (auto& connectionAndIncomingMessage : m_messagesToDispatchWhileWaitingForSyncReply) {
             if (&connection == connectionAndIncomingMessage.connection.ptr())
-                m_messagesBeingDispatched.append(WTFMove(connectionAndIncomingMessage));
+                m_messagesBeingDispatched.append(WTF::move(connectionAndIncomingMessage));
             else
-                messagesToPutBack.append(WTFMove(connectionAndIncomingMessage));
+                messagesToPutBack.append(WTF::move(connectionAndIncomingMessage));
         }
-        m_messagesToDispatchWhileWaitingForSyncReply = WTFMove(messagesToPutBack);
+        m_messagesToDispatchWhileWaitingForSyncReply = WTF::move(messagesToPutBack);
     }
 
     while (!m_messagesBeingDispatched.isEmpty())
@@ -310,12 +310,12 @@ Connection::PendingSyncReply::~PendingSyncReply() = default;
 
 Ref<Connection> Connection::createServerConnection(Identifier&& identifier, Thread::QOS receiveQueueQOS)
 {
-    return adoptRef(*new Connection(WTFMove(identifier), true, receiveQueueQOS));
+    return adoptRef(*new Connection(WTF::move(identifier), true, receiveQueueQOS));
 }
 
 Ref<Connection> Connection::createClientConnection(Identifier&& identifier)
 {
-    return adoptRef(*new Connection(WTFMove(identifier), false));
+    return adoptRef(*new Connection(WTF::move(identifier), false));
 }
 
 static HashMap<IPC::Connection::UniqueID, ThreadSafeWeakPtr<Connection>>& connectionMap() WTF_REQUIRES_LOCK(s_connectionMapLock)
@@ -334,7 +334,7 @@ Connection::Connection(Identifier&& identifier, bool isServer, Thread::QOS recei
         connectionMap().add(m_uniqueID, this);
     }
 
-    platformInitialize(WTFMove(identifier));
+    platformInitialize(WTF::move(identifier));
 }
 
 Connection::~Connection()
@@ -384,11 +384,11 @@ void Connection::enqueueMatchingMessagesToMessageReceiveQueue(MessageReceiveQueu
     Deque<UniqueRef<Decoder>> remainingIncomingMessages;
     for (auto& message : m_incomingMessages) {
         if (message->matches(receiverMatcher))
-            receiveQueue.enqueueMessage(*this, WTFMove(message));
+            receiveQueue.enqueueMessage(*this, WTF::move(message));
         else
-            remainingIncomingMessages.append(WTFMove(message));
+            remainingIncomingMessages.append(WTF::move(message));
     }
-    m_incomingMessages = WTFMove(remainingIncomingMessages);
+    m_incomingMessages = WTF::move(remainingIncomingMessages);
 }
 
 void Connection::addMessageReceiveQueue(MessageReceiveQueue& receiveQueue, const ReceiverMatcher& receiverMatcher)
@@ -411,7 +411,7 @@ void Connection::addWorkQueueMessageReceiver(ReceiverName receiverName, WorkQueu
     auto receiveQueue = makeUnique<WorkQueueMessageReceiverQueue>(workQueue, receiver);
     Locker incomingMessagesLocker { m_incomingMessagesLock };
     enqueueMatchingMessagesToMessageReceiveQueue(*receiveQueue, receiverMatcher);
-    m_receiveQueues.add(WTFMove(receiveQueue), receiverMatcher);
+    m_receiveQueues.add(WTF::move(receiveQueue), receiverMatcher);
 }
 
 void Connection::removeWorkQueueMessageReceiver(ReceiverName receiverName, uint64_t destinationID)
@@ -425,7 +425,7 @@ void Connection::addMessageReceiver(FunctionDispatcher& dispatcher, MessageRecei
     auto receiveQueue = makeUnique<FunctionDispatcherQueue>(dispatcher, receiver);
     Locker incomingMessagesLocker { m_incomingMessagesLock };
     enqueueMatchingMessagesToMessageReceiveQueue(*receiveQueue, receiverMatcher);
-    m_receiveQueues.add(WTFMove(receiveQueue), receiverMatcher);
+    m_receiveQueues.add(WTF::move(receiveQueue), receiverMatcher);
 }
 
 void Connection::removeMessageReceiver(ReceiverName receiverName, uint64_t destinationID)
@@ -479,7 +479,7 @@ void Connection::setDidCloseOnConnectionWorkQueueCallback(DidCloseOnConnectionWo
 
 void Connection::setOutgoingMessageQueueIsGrowingLargeCallback(OutgoingMessageQueueIsGrowingLargeCallback&& callback)
 {
-    m_outgoingMessageQueueIsGrowingLargeCallback = WTFMove(callback);
+    m_outgoingMessageQueueIsGrowingLargeCallback = WTF::move(callback);
 }
 
 bool Connection::open(Client& client, SerialFunctionDispatcher& dispatcher)
@@ -524,7 +524,7 @@ void Connection::invalidate()
     m_outgoingMessageQueueIsGrowingLargeCallback = nullptr;
     [this] {
         Locker locker { m_incomingMessagesLock };
-        return WTFMove(m_syncState);
+        return WTF::move(m_syncState);
     }();
 
     cancelAsyncReplyHandlers();
@@ -542,7 +542,7 @@ auto Connection::createSyncMessageEncoder(MessageName messageName, uint64_t dest
     auto syncRequestID = makeSyncRequestID();
     encoder.get() << syncRequestID;
 
-    return { WTFMove(encoder), syncRequestID };
+    return { WTF::move(encoder), syncRequestID };
 }
 
 #if ENABLE(CORE_IPC_SIGNPOSTS)
@@ -583,7 +583,7 @@ Error Connection::sendMessage(UniqueRef<Encoder>&& encoder, OptionSet<SendOption
         WTFEmitSignpost(generateSignpostIdentifier(), IPCConnection, "sendMessage: %" PUBLIC_LOG_STRING, description(encoder->messageName()).characters());
 #endif
 
-    return sendMessageImpl(WTFMove(encoder), sendOptions, qos);
+    return sendMessageImpl(WTF::move(encoder), sendOptions, qos);
 }
 
 Error Connection::sendMessageImpl(UniqueRef<Encoder>&& encoder, OptionSet<SendOption> sendOptions, std::optional<Thread::QOS> qos)
@@ -608,8 +608,8 @@ Error Connection::sendMessageImpl(UniqueRef<Encoder>&& encoder, OptionSet<SendOp
     if (isMainRunLoop() && m_inDispatchMessageMarkedToUseFullySynchronousModeForTesting && !encoder->isSyncMessage() && !(encoder->messageReceiverName() == ReceiverName::IPC)) {
         auto [wrappedMessage, syncRequestID] = createSyncMessageEncoder(MessageName::WrappedAsyncMessageForTesting, encoder->destinationID());
         wrappedMessage->setFullySynchronousModeForTesting();
-        wrappedMessage->wrapForTesting(WTFMove(encoder));
-        DecoderOrError result = sendSyncMessage(syncRequestID, WTFMove(wrappedMessage), Timeout::infinity(), { });
+        wrappedMessage->wrapForTesting(WTF::move(encoder));
+        DecoderOrError result = sendSyncMessage(syncRequestID, WTF::move(wrappedMessage), Timeout::infinity(), { });
         return result.has_value() ? Error::NoError : result.error();
     }
 
@@ -641,7 +641,7 @@ Error Connection::sendMessageImpl(UniqueRef<Encoder>&& encoder, OptionSet<SendOp
     {
         Locker locker { m_outgoingMessagesLock };
         shouldDispatchMessageSend = m_outgoingMessages.isEmpty();
-        m_outgoingMessages.append(WTFMove(encoder));
+        m_outgoingMessages.append(WTF::move(encoder));
         outgoingMessagesCount = m_outgoingMessages.size();
         shouldNotifyOfQueueGrowingLarge = m_outgoingMessageQueueIsGrowingLargeCallback && outgoingMessagesCount > largeOutgoingMessageQueueCountThreshold && (MonotonicTime::now() - m_lastOutgoingMessageQueueIsGrowingLargeCallbackCallTime) >= largeOutgoingMessageQueueTimeThreshold;
         if (shouldNotifyOfQueueGrowingLarge) {
@@ -675,9 +675,9 @@ Error Connection::sendMessageImpl(UniqueRef<Encoder>&& encoder, OptionSet<SendOp
         };
 
         if (qos)
-            m_connectionQueue->dispatchWithQOS(WTFMove(sendOutgoingMessages), *qos);
+            m_connectionQueue->dispatchWithQOS(WTF::move(sendOutgoingMessages), *qos);
         else
-            m_connectionQueue->dispatch(WTFMove(sendOutgoingMessages));
+            m_connectionQueue->dispatch(WTF::move(sendOutgoingMessages));
     }
 
     return Error::NoError;
@@ -695,16 +695,16 @@ Error Connection::sendMessageWithAsyncReply(UniqueRef<Encoder>&& encoder, AsyncR
         auto signpostIdentifier = generateSignpostIdentifier();
         WTFBeginSignpost(signpostIdentifier, IPCConnection, "sendMessageWithAsyncReply: %" PUBLIC_LOG_STRING, description(encoder->messageName()).characters());
 
-        replyHandler.completionHandler = CompletionHandler<void(Connection*, Decoder*)>([signpostIdentifier, handler = WTFMove(replyHandler.completionHandler)](Connection* connection, Decoder *decoder) mutable {
+        replyHandler.completionHandler = CompletionHandler<void(Connection*, Decoder*)>([signpostIdentifier, handler = WTF::move(replyHandler.completionHandler)](Connection* connection, Decoder *decoder) mutable {
             WTFEndSignpost(signpostIdentifier, IPCConnection);
             handler(connection, decoder);
         });
     }
 #endif
 
-    addAsyncReplyHandler(WTFMove(replyHandler));
+    addAsyncReplyHandler(WTF::move(replyHandler));
 
-    auto error = sendMessageImpl(WTFMove(encoder), sendOptions, qos);
+    auto error = sendMessageImpl(WTF::move(encoder), sendOptions, qos);
     if (error == Error::NoError)
         return Error::NoError;
 
@@ -712,7 +712,7 @@ Error Connection::sendMessageWithAsyncReply(UniqueRef<Encoder>&& encoder, AsyncR
     if (auto replyHandlerToCancel = takeAsyncReplyHandler(replyID)) {
         // FIXME: Current contract is that completionHandler is called on the connection run loop.
         // This does not make sense. However, this needs a change that is done later.
-        RunLoop::mainSingleton().dispatch([completionHandler = WTFMove(replyHandlerToCancel)]() mutable {
+        RunLoop::mainSingleton().dispatch([completionHandler = WTF::move(replyHandlerToCancel)]() mutable {
             completionHandler(nullptr, nullptr);
         });
     }
@@ -725,8 +725,8 @@ Error Connection::sendMessageWithAsyncReplyWithDispatcher(UniqueRef<Encoder>&& e
     ASSERT(replyHandler.completionHandler);
     auto replyID = *replyHandler.replyID;
     encoder.get() << replyID;
-    addAsyncReplyHandlerWithDispatcher(WTFMove(replyHandler));
-    auto error = sendMessage(WTFMove(encoder), sendOptions, qos);
+    addAsyncReplyHandlerWithDispatcher(WTF::move(replyHandler));
+    auto error = sendMessage(WTF::move(encoder), sendOptions, qos);
     if (error == Error::NoError)
         return Error::NoError;
 
@@ -737,7 +737,7 @@ Error Connection::sendMessageWithAsyncReplyWithDispatcher(UniqueRef<Encoder>&& e
 
 Error Connection::sendSyncReply(UniqueRef<Encoder>&& encoder)
 {
-    return sendMessageImpl(WTFMove(encoder), { });
+    return sendMessageImpl(WTF::move(encoder), { });
 }
 
 Timeout Connection::timeoutRespectingIgnoreTimeoutsForTesting(Timeout timeout) const
@@ -792,10 +792,10 @@ auto Connection::waitForMessage(MessageName messageName, uint64_t destinationID,
                 UniqueRef<Decoder>& message = *it;
 
                 if (message->messageName() == messageName && message->destinationID() == destinationID) {
-                    UniqueRef<Decoder> returnedMessage = WTFMove(message);
+                    UniqueRef<Decoder> returnedMessage = WTF::move(message);
 
                     m_incomingMessages.remove(it);
-                    return { WTFMove(returnedMessage) };
+                    return { WTF::move(returnedMessage) };
                 }
 
                 if (message->isSyncMessage())
@@ -832,9 +832,9 @@ auto Connection::waitForMessage(MessageName messageName, uint64_t destinationID,
         }
 
         if (m_waitingForMessage->decoder) {
-            auto decoder = makeUniqueRefFromNonNullUniquePtr(WTFMove(m_waitingForMessage->decoder));
+            auto decoder = makeUniqueRefFromNonNullUniquePtr(WTF::move(m_waitingForMessage->decoder));
             m_waitingForMessage = nullptr;
-            return { WTFMove(decoder) };
+            return { WTF::move(decoder) };
         }
 
         if (!isValid()) {
@@ -910,7 +910,7 @@ auto Connection::sendSyncMessage(SyncRequestID syncRequestID, UniqueRef<Encoder>
 
     // Since sync IPC is blocking the current thread, make sure we use the same priority for the IPC sending thread
     // as the current thread.
-    sendMessageImpl(WTFMove(encoder), sendOptions, Thread::currentThreadQOS());
+    sendMessageImpl(WTF::move(encoder), sendOptions, Thread::currentThreadQOS());
 
     // Then wait for a reply. Waiting for a reply could involve dispatching incoming sync messages, so
     // keep an extra reference to the connection here in case it's invalidated.
@@ -962,7 +962,7 @@ auto Connection::waitForSyncReply(SyncRequestID syncRequestID, MessageName messa
                     protectedSyncState()->dispatchMessagesUntil(*identifierOfLastMessageToDispatchBeforeSyncReply);
                 }
 
-                return makeUniqueRefFromNonNullUniquePtr(WTFMove(replyDecoder));
+                return makeUniqueRefFromNonNullUniquePtr(WTF::move(replyDecoder));
             }
 
             // The connection was closed.
@@ -1040,7 +1040,7 @@ void Connection::processIncomingMessage(UniqueRef<Decoder> message)
     Locker incomingMessagesLocker { m_incomingMessagesLock };
 
     if (auto* receiveQueue = m_receiveQueues.get(message.get())) {
-        receiveQueue->enqueueMessage(*this, WTFMove(message));
+        receiveQueue->enqueueMessage(*this, WTF::move(message));
         return;
     }
 
@@ -1057,7 +1057,7 @@ void Connection::processIncomingMessage(UniqueRef<Decoder> message)
     if (message->messageName() == MessageName::SyncMessageReply || message->messageName() == MessageName::CancelSyncMessageReply) {
         incomingMessagesLocker.unlockEarly();
         waitForMessagesLocker.unlockEarly();
-        processIncomingSyncReply(WTFMove(message));
+        processIncomingSyncReply(WTF::move(message));
         return;
     }
 
@@ -1089,7 +1089,7 @@ void Connection::processIncomingMessage(UniqueRef<Decoder> message)
         Locker locker { m_incomingSyncMessageCallbackLock };
 
         for (auto& callback : m_incomingSyncMessageCallbacks.values())
-            RefPtr { m_incomingSyncMessageCallbackQueue }->dispatch(WTFMove(callback));
+            RefPtr { m_incomingSyncMessageCallbackQueue }->dispatch(WTF::move(callback));
 
         m_incomingSyncMessageCallbacks.clear();
     }
@@ -1111,7 +1111,7 @@ void Connection::processIncomingMessage(UniqueRef<Decoder> message)
         if (m_waitingForMessage->waitForOptions.contains(WaitForOption::InterruptWaitingIfSyncMessageArrives) && message->isSyncMessage()) {
             m_waitingForMessage->messageWaitingInterrupted = true;
             m_waitForMessageCondition.notifyOne();
-            enqueueIncomingMessage(WTFMove(message));
+            enqueueIncomingMessage(WTF::move(message));
             return;
         }
     }
@@ -1127,7 +1127,7 @@ void Connection::processIncomingMessage(UniqueRef<Decoder> message)
     if (syncState->processIncomingMessage(*this, message))
         return;
 
-    enqueueIncomingMessage(WTFMove(message));
+    enqueueIncomingMessage(WTF::move(message));
 }
 
 uint64_t Connection::installIncomingSyncMessageCallback(WTF::Function<void ()>&& callback)
@@ -1139,7 +1139,7 @@ uint64_t Connection::installIncomingSyncMessageCallback(WTF::Function<void ()>&&
     if (!m_incomingSyncMessageCallbackQueue)
         m_incomingSyncMessageCallbackQueue = WorkQueue::create("com.apple.WebKit.IPC.IncomingSyncMessageCallbackQueue"_s);
 
-    m_incomingSyncMessageCallbacks.add(m_nextIncomingSyncMessageCallbackID, WTFMove(callback));
+    m_incomingSyncMessageCallbacks.add(m_nextIncomingSyncMessageCallbackID, WTF::move(callback));
 
     return m_nextIncomingSyncMessageCallbackID;
 }
@@ -1177,8 +1177,8 @@ void Connection::addMessageObserver(const MessageObserver& observer)
 
 void Connection::dispatchIncomingMessageForTesting(UniqueRef<Decoder>&& decoder)
 {
-    m_connectionQueue->dispatch([protectedThis = Ref { *this }, decoder = WTFMove(decoder)]() mutable {
-        protectedThis->processIncomingMessage(WTFMove(decoder));
+    m_connectionQueue->dispatch([protectedThis = Ref { *this }, decoder = WTF::move(decoder)]() mutable {
+        protectedThis->processIncomingMessage(WTF::move(decoder));
     });
 }
 #endif
@@ -1251,7 +1251,7 @@ void Connection::sendOutgoingMessages()
         }
         ASSERT(message);
 
-        if (!sendOutgoingMessage(makeUniqueRefFromNonNullUniquePtr(WTFMove(message))))
+        if (!sendOutgoingMessage(makeUniqueRefFromNonNullUniquePtr(WTF::move(message))))
             break;
     }
 }
@@ -1272,9 +1272,9 @@ void Connection::dispatchSyncMessage(Decoder& decoder)
         if (m_fullySynchronousModeIsAllowedForTesting) {
             std::unique_ptr<Decoder> unwrappedDecoder = Decoder::unwrapForTesting(decoder);
             RELEASE_ASSERT(unwrappedDecoder);
-            processIncomingMessage(makeUniqueRefFromNonNullUniquePtr(WTFMove(unwrappedDecoder)));
+            processIncomingMessage(makeUniqueRefFromNonNullUniquePtr(WTF::move(unwrappedDecoder)));
             protectedSyncState()->dispatchMessages();
-            sendMessageImpl(WTFMove(replyEncoder), { });
+            sendMessageImpl(WTF::move(replyEncoder), { });
         } else
             decoder.markInvalid();
     } else
@@ -1322,7 +1322,7 @@ size_t Connection::pendingMessageCountForTesting() const
 
 void Connection::dispatchOnReceiveQueueForTesting(Function<void()>&& completionHandler)
 {
-    m_connectionQueue->dispatch(WTFMove(completionHandler));
+    m_connectionQueue->dispatch(WTF::move(completionHandler));
 }
 
 void Connection::didFailToSendSyncMessage(Error)
@@ -1356,7 +1356,7 @@ void Connection::enqueueIncomingMessage(UniqueRef<Decoder> incomingMessage)
         }
 #endif
 
-        m_incomingMessages.append(WTFMove(incomingMessage));
+        m_incomingMessages.append(WTF::move(incomingMessage));
 
         if (isIncomingMessagesThrottlingEnabled() && m_incomingMessages.size() != 1)
             return;
@@ -1434,7 +1434,7 @@ void Connection::dispatchMessage(UniqueRef<Decoder> message)
         // messages to one list.
         Locker incomingMessagesLocker { m_incomingMessagesLock };
         if (auto* receiveQueue = m_receiveQueues.get(message.get())) {
-            receiveQueue->enqueueMessage(*this, WTFMove(message));
+            receiveQueue->enqueueMessage(*this, WTF::move(message));
             return;
         }
     }
@@ -1541,7 +1541,7 @@ void Connection::dispatchOneIncomingMessage()
         message = m_incomingMessages.takeFirst().moveToUniquePtr();
     }
 
-    dispatchMessage(makeUniqueRefFromNonNullUniquePtr(WTFMove(message)));
+    dispatchMessage(makeUniqueRefFromNonNullUniquePtr(WTF::move(message)));
 }
 
 void Connection::dispatchSyncStateMessages()
@@ -1586,7 +1586,7 @@ void Connection::dispatchIncomingMessages()
         }
     }
 
-    dispatchMessage(makeUniqueRefFromNonNullUniquePtr(WTFMove(message)));
+    dispatchMessage(makeUniqueRefFromNonNullUniquePtr(WTF::move(message)));
 
     for (size_t i = 1; i < messagesToProcess; ++i) {
         {
@@ -1596,21 +1596,21 @@ void Connection::dispatchIncomingMessages()
 
             message = m_incomingMessages.takeFirst().moveToUniquePtr();
         }
-        dispatchMessage(makeUniqueRefFromNonNullUniquePtr(WTFMove(message)));
+        dispatchMessage(makeUniqueRefFromNonNullUniquePtr(WTF::move(message)));
     }
 }
 
 void Connection::addAsyncReplyHandler(AsyncReplyHandler&& handler)
 {
     Locker locker { m_incomingMessagesLock };
-    auto result = m_asyncReplyHandlers.add(*handler.replyID, WTFMove(handler.completionHandler));
+    auto result = m_asyncReplyHandlers.add(*handler.replyID, WTF::move(handler.completionHandler));
     ASSERT_UNUSED(result, result.isNewEntry);
 }
 
 void Connection::addAsyncReplyHandlerWithDispatcher(AsyncReplyHandlerWithDispatcher&& handler)
 {
     Locker locker { m_incomingMessagesLock };
-    auto result = m_asyncReplyHandlerWithDispatchers.add(*handler.replyID, WTFMove(handler.completionHandler));
+    auto result = m_asyncReplyHandlerWithDispatchers.add(*handler.replyID, WTF::move(handler.completionHandler));
     ASSERT_UNUSED(result, result.isNewEntry);
 }
 
@@ -1683,7 +1683,7 @@ void Connection::dispatchToClientWithIncomingMessagesLock(F&& clientRunLoopTask)
 {
     if (!m_syncState)
         return;
-    dispatcher()->dispatch(WTFMove(clientRunLoopTask));
+    dispatcher()->dispatch(WTF::move(clientRunLoopTask));
 }
 
 #if !USE(UNIX_DOMAIN_SOCKETS) && !OS(DARWIN) && !OS(WINDOWS)

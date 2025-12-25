@@ -27,7 +27,7 @@
 #include "UnplacedGridItem.h"
 
 #include "LayoutElementBox.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+InitialInlines.h"
 
 namespace WebCore {
 namespace Layout {

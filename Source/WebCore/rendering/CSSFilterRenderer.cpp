@@ -79,7 +79,7 @@ RefPtr<CSSFilterRenderer> CSSFilterRenderer::create(RenderElement& renderer, con
 
 Ref<CSSFilterRenderer> CSSFilterRenderer::create(Vector<Ref<FilterFunction>>&& functions, const FilterGeometry& geometry, OptionSet<FilterRenderingMode> preferredRenderingModes)
 {
-    Ref filter = adoptRef(*new CSSFilterRenderer(WTFMove(functions), geometry));
+    Ref filter = adoptRef(*new CSSFilterRenderer(WTF::move(functions), geometry));
     // Setting filter rendering modes cannot be moved to the constructor because it ends up
     // calling supportedFilterRenderingModes() which is a virtual function.
     filter->setFilterRenderingModes(preferredRenderingModes);
@@ -95,7 +95,7 @@ CSSFilterRenderer::CSSFilterRenderer(const FilterGeometry& geometry, bool hasFil
 
 CSSFilterRenderer::CSSFilterRenderer(Vector<Ref<FilterFunction>>&& functions, const FilterGeometry& geometry)
     : Filter(Type::CSSFilterRenderer, geometry)
-    , m_functions(WTFMove(functions))
+    , m_functions(WTF::move(functions))
 {
     clampFilterRegionIfNeeded();
 }
@@ -142,13 +142,13 @@ static RefPtr<FilterEffect> createGrayScaleEffect(const BasicColorMatrixFilterOp
         0, 0, 0, 1, 0,
     };
 
-    return FEColorMatrix::create(ColorMatrixType::FECOLORMATRIX_TYPE_MATRIX, WTFMove(inputParameters));
+    return FEColorMatrix::create(ColorMatrixType::FECOLORMATRIX_TYPE_MATRIX, WTF::move(inputParameters));
 }
 
 static RefPtr<FilterEffect> createHueRotateEffect(const BasicColorMatrixFilterOperation& colorMatrixOperation)
 {
     Vector<float> inputParameters { narrowPrecisionToFloat(colorMatrixOperation.amount()) };
-    return FEColorMatrix::create(ColorMatrixType::FECOLORMATRIX_TYPE_HUEROTATE, WTFMove(inputParameters));
+    return FEColorMatrix::create(ColorMatrixType::FECOLORMATRIX_TYPE_HUEROTATE, WTF::move(inputParameters));
 }
 
 static RefPtr<FilterEffect> createInvertEffect(const BasicComponentTransferFilterOperation& componentTransferOperation)
@@ -168,7 +168,7 @@ static RefPtr<FilterEffect> createOpacityEffect(const BasicComponentTransferFilt
 static RefPtr<FilterEffect> createSaturateEffect(const BasicColorMatrixFilterOperation& colorMatrixOperation)
 {
     Vector<float> inputParameters { narrowPrecisionToFloat(colorMatrixOperation.amount()) };
-    return FEColorMatrix::create(ColorMatrixType::FECOLORMATRIX_TYPE_SATURATE, WTFMove(inputParameters));
+    return FEColorMatrix::create(ColorMatrixType::FECOLORMATRIX_TYPE_SATURATE, WTF::move(inputParameters));
 }
 
 static RefPtr<FilterEffect> createSepiaEffect(const BasicColorMatrixFilterOperation& colorMatrixOperation)
@@ -181,7 +181,7 @@ static RefPtr<FilterEffect> createSepiaEffect(const BasicColorMatrixFilterOperat
         0, 0, 0, 1, 0,
     };
 
-    return FEColorMatrix::create(ColorMatrixType::FECOLORMATRIX_TYPE_MATRIX, WTFMove(inputParameters));
+    return FEColorMatrix::create(ColorMatrixType::FECOLORMATRIX_TYPE_MATRIX, WTF::move(inputParameters));
 }
 
 static RefPtr<SVGFilterElement> referenceFilterElement(const Style::ReferenceFilterOperation& filterOperation, RenderElement& renderer)
@@ -366,7 +366,7 @@ FilterStyleVector CSSFilterRenderer::createFilterStyles(GraphicsContext& context
             return { };
 
         lastStyle = result.last();
-        styles.appendVector(WTFMove(result));
+        styles.appendVector(WTF::move(result));
     }
 
     return styles;

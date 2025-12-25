@@ -129,7 +129,7 @@ public:
         Notification(Function<void()>&& function)
             : m_type(FunctionType)
             , m_finished(false)
-            , m_function(WTFMove(function))
+            , m_function(WTF::move(function))
         {
         }
         

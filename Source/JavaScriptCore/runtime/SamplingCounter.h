@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include "JSExportMacros.h"
 #include <stdint.h>
 #include <wtf/Assertions.h>
 

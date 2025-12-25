@@ -89,7 +89,7 @@ String CSSImportRule::cssTextInternal(const String& urlString) const
 
     auto supports = supportsText();
     if (!supports.isNull())
-        builder.append(" supports("_s, WTFMove(supports), ')');
+        builder.append(" supports("_s, WTF::move(supports), ')');
 
     if (!mediaQueries().isEmpty()) {
         builder.append(' ');
@@ -150,7 +150,7 @@ const MQ::MediaQueryList& CSSImportRule::mediaQueries() const
 
 void CSSImportRule::setMediaQueries(MQ::MediaQueryList&& queries)
 {
-    m_importRule->setMediaQueries(WTFMove(queries));
+    m_importRule->setMediaQueries(WTF::move(queries));
 }
 
 void CSSImportRule::getChildStyleSheets(HashSet<RefPtr<CSSStyleSheet>>& childStyleSheets)

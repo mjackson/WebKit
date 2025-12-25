@@ -55,7 +55,7 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(SVGUseElement);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(SVGUseElement);
 
 inline SVGUseElement::SVGUseElement(const QualifiedName& tagName, Document& document)
     : SVGGraphicsElement(tagName, document, makeUniqueRef<PropertyRegistry>(*this))
@@ -319,8 +319,8 @@ RefPtr<SVGElement> SVGUseElement::targetClone() const
 RenderPtr<RenderElement> SVGUseElement::createElementRenderer(RenderStyle&& style, const RenderTreePosition&)
 {
     if (document().settings().layerBasedSVGEngineEnabled())
-        return createRenderer<RenderSVGTransformableContainer>(*this, WTFMove(style));
-    return createRenderer<LegacyRenderSVGTransformableContainer>(*this, WTFMove(style));
+        return createRenderer<RenderSVGTransformableContainer>(*this, WTF::move(style));
+    return createRenderer<LegacyRenderSVGTransformableContainer>(*this, WTF::move(style));
 }
 
 static bool isDirectReference(const SVGElement& element)
@@ -468,7 +468,7 @@ RefPtr<SVGElement> SVGUseElement::findTarget(AtomString* targetID) const
 
     auto targetResult = targetElementFromIRIString(original->href(), original->treeScope(), original->externalDocument());
     if (targetID) {
-        *targetID = WTFMove(targetResult.identifier);
+        *targetID = WTF::move(targetResult.identifier);
         // If the reference is external, don't return the target ID to the caller.
         // The caller would use the target ID to wait for a pending resource on the wrong document.
         // If we ever want the change that and let the caller to wait on the external document,
@@ -658,9 +658,9 @@ void SVGUseElement::updateExternalDocument()
         options.mode = FetchOptions::Mode::SameOrigin;
         options.destination = FetchOptions::Destination::Image;
         options.sniffContent = ContentSniffingPolicy::DoNotSniffContent;
-        CachedResourceRequest request { ResourceRequest { WTFMove(externalDocumentURL) }, options };
+        CachedResourceRequest request { ResourceRequest { WTF::move(externalDocumentURL) }, options };
         request.setInitiator(*this);
-        m_externalDocument = document->protectedCachedResourceLoader()->requestSVGDocument(WTFMove(request)).value_or(nullptr);
+        m_externalDocument = document->protectedCachedResourceLoader()->requestSVGDocument(WTF::move(request)).value_or(nullptr);
         if (CachedResourceHandle externalDocument = m_externalDocument)
             externalDocument->addClient(*this);
     }

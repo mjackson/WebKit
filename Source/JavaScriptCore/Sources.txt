@@ -693,6 +693,8 @@ jit/ThunkGenerators.cpp
 jit/JITTZoneImpls.cpp
 jit/Width.cpp
 
+lol/LOLJIT.cpp
+
 llint/InPlaceInterpreter.cpp
 llint/LLIntCLoop.cpp
 llint/LLIntData.cpp
@@ -942,8 +944,8 @@ runtime/JSNativeStdFunction.cpp
 runtime/JSONObject.cpp
 runtime/JSObject.cpp
 runtime/JSPromise.cpp
-runtime/JSPromiseAllContext.cpp
-runtime/JSPromiseAllGlobalContext.cpp
+runtime/JSPromiseCombinatorsContext.cpp
+runtime/JSPromiseCombinatorsGlobalContext.cpp
 runtime/JSPromiseConstructor.cpp
 runtime/JSPromisePrototype.cpp
 runtime/JSPromiseReaction.cpp

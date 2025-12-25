@@ -147,7 +147,7 @@ void ProfilerSupport::markEnd(const void* identifier, Category category, CString
         }
     }
 
-    profiler.queue().dispatch([message = WTFMove(message), start, end] {
+    profiler.queue().dispatch([message = WTF::move(message), start, end] {
         auto& profiler = singleton();
         Locker locker { profiler.m_lock };
         profiler.write(locker, start, end, message);
@@ -162,7 +162,7 @@ void ProfilerSupport::mark(const void* identifier, Category, CString&& message)
         return;
 
     auto timestamp = generateTimestamp();
-    singleton().queue().dispatch([message = WTFMove(message), timestamp] {
+    singleton().queue().dispatch([message = WTF::move(message), timestamp] {
         auto& profiler = singleton();
         Locker locker { profiler.m_lock };
         profiler.write(locker, timestamp, timestamp, message);
@@ -181,7 +181,7 @@ void ProfilerSupport::markInterval(const void* identifier, Category, MonotonicTi
     uint64_t end = endTime.secondsSinceEpoch().nanosecondsAs<uint64_t>();
 
     auto& profiler = singleton();
-    profiler.queue().dispatch([message = WTFMove(message), start, end] {
+    profiler.queue().dispatch([message = WTF::move(message), start, end] {
         auto& profiler = singleton();
         Locker locker { profiler.m_lock };
         profiler.write(locker, start, end, message);

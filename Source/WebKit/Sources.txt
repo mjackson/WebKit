@@ -491,6 +491,7 @@ UIProcess/API/APIContentRuleList.cpp
 UIProcess/API/APIContentRuleListAction.cpp
 UIProcess/API/APIContentRuleListStore.cpp
 UIProcess/API/APIContentWorld.cpp
+UIProcess/API/APIContentWorldConfiguration.cpp
 UIProcess/API/APIContextMenuElementInfo.cpp
 UIProcess/API/APIDataTask.cpp
 UIProcess/API/APIDebuggableInfo.cpp

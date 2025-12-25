@@ -26,6 +26,7 @@
 #pragma once
 
 #include "JITCompilationMode.h"
+#include <wtf/Platform.h>
 
 #if ENABLE(DFG_JIT)
 

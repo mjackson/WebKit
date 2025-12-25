@@ -41,7 +41,7 @@ class TrackBase;
 using TrackID = uint64_t;
 
 class TrackListBase : public RefCounted<TrackListBase>, public EventTarget, public ActiveDOMObject {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(TrackListBase);
+    WTF_MAKE_TZONE_ALLOCATED(TrackListBase);
 public:
     virtual ~TrackListBase();
 

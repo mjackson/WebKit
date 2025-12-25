@@ -94,7 +94,7 @@ size_t AbstractModuleRecord::estimatedSize(JSCell* cell, VM& vm)
 
 void AbstractModuleRecord::appendRequestedModule(const Identifier& moduleName, RefPtr<ScriptFetchParameters>&& attributes)
 {
-    m_requestedModules.append({ moduleName.impl(), WTFMove(attributes) });
+    m_requestedModules.append({ moduleName.impl(), WTF::move(attributes) });
 }
 
 void AbstractModuleRecord::addStarExportEntry(const Identifier& moduleName)
@@ -806,12 +806,12 @@ JSModuleNamespaceObject* AbstractModuleRecord::getModuleNamespace(JSGlobalObject
             break;
 
         case Resolution::Type::Resolved:
-            resolutions.append({ WTFMove(ident), resolution });
+            resolutions.append({ WTF::move(ident), resolution });
             break;
         }
     }
 
-    JSModuleNamespaceObject* moduleNamespaceObject = JSModuleNamespaceObject::create(globalObject, globalObject->moduleNamespaceObjectStructure(), this, WTFMove(resolutions), shouldPreventExtensions);
+    JSModuleNamespaceObject* moduleNamespaceObject = JSModuleNamespaceObject::create(globalObject, globalObject->moduleNamespaceObjectStructure(), this, WTF::move(resolutions), shouldPreventExtensions);
     RETURN_IF_EXCEPTION(scope, nullptr);
  
     // Materialize *namespace* slot with module namespace object unless the module environment is not yet materialized, in which case we'll do it in setModuleEnvironment

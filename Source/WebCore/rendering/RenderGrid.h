@@ -69,7 +69,7 @@ private:
 };
 
 class RenderGrid final : public RenderBlock {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(RenderGrid);
+    WTF_MAKE_TZONE_ALLOCATED(RenderGrid);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderGrid);
 public:
     RenderGrid(Element&, RenderStyle&&);
@@ -77,7 +77,7 @@ public:
 
     Element& element() const { return downcast<Element>(nodeForNonAnonymous()); }
 
-    void styleDidChange(StyleDifference, const RenderStyle* oldStyle) override;
+    void styleDidChange(Style::Difference, const RenderStyle* oldStyle) override;
     void layoutBlock(RelayoutChildren, LayoutUnit pageLogicalHeight = 0_lu) override;
 
     bool canDropAnonymousBlockChild() const override { return false; }
@@ -257,7 +257,7 @@ private:
 
     std::optional<LayoutUnit> firstLineBaseline() const final;
     std::optional<LayoutUnit> lastLineBaseline() const final;
-    SingleThreadWeakPtr<RenderBox> getBaselineGridItem(ItemPosition alignment) const;
+    const RenderBox* baselineGridItem(ItemPosition alignment) const;
 
     LayoutUnit columnAxisBaselineOffsetForGridItem(const RenderBox&) const;
     LayoutUnit rowAxisBaselineOffsetForGridItem(const RenderBox&) const;

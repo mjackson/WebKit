@@ -374,23 +374,25 @@ bool large_mul(stackvec<size>& x, limb_span y) noexcept {
 
 template <typename = void>
 struct pow5_tables {
-  static constexpr uint32_t large_step = 135;
-  static constexpr uint64_t small_power_of_5[] = {
-    1UL, 5UL, 25UL, 125UL, 625UL, 3125UL, 15625UL, 78125UL, 390625UL,
-    1953125UL, 9765625UL, 48828125UL, 244140625UL, 1220703125UL,
-    6103515625UL, 30517578125UL, 152587890625UL, 762939453125UL,
-    3814697265625UL, 19073486328125UL, 95367431640625UL, 476837158203125UL,
-    2384185791015625UL, 11920928955078125UL, 59604644775390625UL,
-    298023223876953125UL, 1490116119384765625UL, 7450580596923828125UL,
-  };
+    static constexpr uint32_t large_step = 135;
+    static constexpr std::array<uint64_t, 28> small_power_of_5 = {
+        1UL, 5UL, 25UL, 125UL, 625UL, 3125UL, 15625UL, 78125UL, 390625UL,
+        1953125UL, 9765625UL, 48828125UL, 244140625UL, 1220703125UL,
+        6103515625UL, 30517578125UL, 152587890625UL, 762939453125UL,
+        3814697265625UL, 19073486328125UL, 95367431640625UL, 476837158203125UL,
+        2384185791015625UL, 11920928955078125UL, 59604644775390625UL,
+        298023223876953125UL, 1490116119384765625UL, 7450580596923828125UL,
+      };
 #ifdef FASTFLOAT_64BIT_LIMB
-  constexpr static limb large_power_of_5[] = {
-    1414648277510068013UL, 9180637584431281687UL, 4539964771860779200UL,
-    10482974169319127550UL, 198276706040285095UL};
+    static constexpr std::array<limb, 5> large_power_of_5 = {
+        1414648277510068013UL, 9180637584431281687UL, 4539964771860779200UL,
+        10482974169319127550UL, 198276706040285095UL
+      };
 #else
-  constexpr static limb large_power_of_5[] = {
-    4279965485U, 329373468U, 4020270615U, 2137533757U, 4287402176U,
-    1057042919U, 1071430142U, 2440757623U, 381945767U, 46164893U};
+    static constexpr std::array<limb, 10> large_power_of_5 = {
+        4279965485U, 329373468U, 4020270615U, 2137533757U, 4287402176U,
+        1057042919U, 1071430142U, 2440757623U, 381945767U, 46164893U
+      };
 #endif
 };
 
@@ -398,10 +400,15 @@ template <typename T>
 constexpr uint32_t pow5_tables<T>::large_step;
 
 template <typename T>
-constexpr uint64_t pow5_tables<T>::small_power_of_5[];
+constexpr std::array<uint64_t, 28> pow5_tables<T>::small_power_of_5;
 
+#ifdef FASTFLOAT_64BIT_LIMB
 template <typename T>
-constexpr limb pow5_tables<T>::large_power_of_5[];
+constexpr std::array<limb, 5> pow5_tables<T>::large_power_of_5;
+#else
+template <typename T>
+constexpr std::array<limb, 10> pow5_tables<T>::large_power_of_5;
+#endif
 
 // big integer type. implements a small subset of big integer
 // arithmetic, using simple algorithms since asymptotically
@@ -578,8 +585,7 @@ struct bigint : pow5_tables<> {
   // multiply as if by 5 raised to a power.
   FASTFLOAT_CONSTEXPR20 bool pow5(uint32_t exp) noexcept {
     // multiply by a power of 5
-    size_t large_length = sizeof(large_power_of_5) / sizeof(limb);
-    limb_span large = limb_span(large_power_of_5, large_length);
+    limb_span large = limb_span(large_power_of_5);
     while (exp >= large_step) {
       FASTFLOAT_TRY(large_mul(vec, large));
       exp -= large_step;

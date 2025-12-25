@@ -69,7 +69,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(WorkerInspectorController);
 
 WorkerInspectorController::WorkerInspectorController(WorkerOrWorkletGlobalScope& globalScope)
     : m_instrumentingAgents(InstrumentingAgents::create(*this))
-    , m_injectedScriptManager(makeUniqueRef<WebInjectedScriptManager>(*this, WebInjectedScriptHost::create()))
+    , m_injectedScriptManager(WebInjectedScriptManager::create(*this, WebInjectedScriptHost::create()))
     , m_frontendRouter(FrontendRouter::create())
     , m_backendDispatcher(BackendDispatcher::create(m_frontendRouter.copyRef()))
     , m_executionStopwatch(Stopwatch::create())
@@ -81,7 +81,7 @@ WorkerInspectorController::WorkerInspectorController(WorkerOrWorkletGlobalScope&
 
     auto consoleAgent = makeUniqueRef<WorkerConsoleAgent>(workerContext);
     m_instrumentingAgents->setWebConsoleAgent(consoleAgent.ptr());
-    m_agents.append(WTFMove(consoleAgent));
+    m_agents.append(WTF::move(consoleAgent));
 }
 
 WorkerInspectorController::~WorkerInspectorController()
@@ -109,8 +109,8 @@ void WorkerInspectorController::frontendInitialized()
     if (m_pauseAfterInitialization) {
         m_pauseAfterInitialization = false;
 
-        ensureDebuggerAgent().enable();
-        ensureDebuggerAgent().pause();
+        std::ignore = ensureDebuggerAgent().enable();
+        std::ignore = ensureDebuggerAgent().pause();
     }
 
     if (m_isAutomaticInspection && is<ServiceWorkerGlobalScope>(m_globalScope)) {
@@ -246,7 +246,7 @@ void WorkerInspectorController::createLazyAgents()
 
     auto scriptProfilerAgent = makeUniqueRef<InspectorScriptProfilerAgent>(workerContext);
     m_instrumentingAgents->setPersistentScriptProfilerAgent(scriptProfilerAgent.ptr());
-    m_agents.append(WTFMove(scriptProfilerAgent));
+    m_agents.append(WTF::move(scriptProfilerAgent));
 
     if (auto& commandLineAPIHost = m_injectedScriptManager->commandLineAPIHost())
         commandLineAPIHost->init(m_instrumentingAgents.get());
@@ -258,7 +258,7 @@ WorkerDebuggerAgent& WorkerInspectorController::ensureDebuggerAgent()
         auto workerContext = workerAgentContext();
         auto debuggerAgent = makeUniqueRef<WorkerDebuggerAgent>(workerContext);
         m_debuggerAgent = debuggerAgent.ptr();
-        m_agents.append(WTFMove(debuggerAgent));
+        m_agents.append(WTF::move(debuggerAgent));
     }
     return *m_debuggerAgent;
 }

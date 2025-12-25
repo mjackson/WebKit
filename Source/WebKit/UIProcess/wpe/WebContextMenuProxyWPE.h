@@ -35,7 +35,7 @@ class WebContextMenuProxyWPE final : public WebContextMenuProxy {
 public:
     static auto create(WebPageProxy& page, ContextMenuContextData&& context, const UserData& userData)
     {
-        return adoptRef(*new WebContextMenuProxyWPE(page, WTFMove(context), userData));
+        return adoptRef(*new WebContextMenuProxyWPE(page, WTF::move(context), userData));
     }
 
 private:

@@ -25,6 +25,9 @@
 
 #pragma once
 
+#include <wtf/Compiler.h>
+#include <wtf/Platform.h>
+
 #if ENABLE(WEBASSEMBLY)
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN

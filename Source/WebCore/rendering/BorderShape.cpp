@@ -36,7 +36,7 @@
 #include "LayoutRect.h"
 #include "LayoutRoundedRect.h"
 #include "Path.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 
 namespace WebCore {
 

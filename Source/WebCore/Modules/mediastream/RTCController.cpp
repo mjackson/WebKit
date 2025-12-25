@@ -176,7 +176,7 @@ static String toWebRTCLogLevel(webrtc::LoggingSeverity severity)
 void RTCController::startGatheringLogs(Document& document, LogCallback&& callback)
 {
     m_gatheringLogsDocument = document;
-    m_callback = WTFMove(callback);
+    m_callback = WTF::move(callback);
     for (Ref connection : m_peerConnections) {
         if (connection->scriptExecutionContext() != &document) {
             connection->stopGatheringStatLogs();
@@ -189,7 +189,7 @@ void RTCController::startGatheringLogs(Document& document, LogCallback&& callbac
         m_logSink = makeUnique<LibWebRTCLogSink>([weakThis = WeakPtr { *this }] (auto&& logLevel, auto&& logMessage) {
             ensureOnMainThread([weakThis, logMessage = fromStdString(logMessage).isolatedCopy(), logLevel] () mutable {
                 if (auto protectedThis = weakThis.get())
-                    protectedThis->m_callback("backend-logs"_s, WTFMove(logMessage), toWebRTCLogLevel(logLevel), nullptr);
+                    protectedThis->m_callback("backend-logs"_s, WTF::move(logMessage), toWebRTCLogLevel(logLevel), nullptr);
             });
         });
         m_logSink->start();
@@ -201,7 +201,7 @@ void RTCController::startGatheringLogs(Document& document, LogCallback&& callbac
         m_logSink = makeUnique<GStreamerWebRTCLogSink>([weakThis = WeakPtr { *this }](const auto& logLevel, const auto& logMessage) {
             ensureOnMainThread([weakThis, logMessage = logMessage.isolatedCopy(), logLevel = logLevel.isolatedCopy()]() mutable {
                 if (auto protectedThis = weakThis.get())
-                    protectedThis->m_callback("backend-logs"_s, WTFMove(logMessage), WTFMove(logLevel), nullptr);
+                    protectedThis->m_callback("backend-logs"_s, WTF::move(logMessage), WTF::move(logLevel), nullptr);
             });
         });
         m_logSink->start();
@@ -226,7 +226,7 @@ void RTCController::startGatheringStatLogs(RTCPeerConnection& connection)
 {
     connection.startGatheringStatLogs([weakThis = WeakPtr { *this }, connection = WeakPtr { connection }] (auto&& stats) {
         if (weakThis)
-            weakThis->m_callback("stats"_s, WTFMove(stats), { }, connection.get());
+            weakThis->m_callback("stats"_s, WTF::move(stats), { }, connection.get());
     });
 }
 

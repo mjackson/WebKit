@@ -28,6 +28,7 @@
 #include "BorderData.h"
 
 #include "RenderStyle.h"
+#include "RenderStyleDifference.h"
 #include "StylePrimitiveKeyword+Logging.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
 #include <wtf/PointerComparison.h>
@@ -35,27 +36,16 @@
 
 namespace WebCore {
 
-bool BorderData::containsCurrentColor() const
+BorderData::BorderData()
+    : borderImage { StyleBorderImageData::create() }
 {
-    return m_edges.anyOf([](const auto& edge) {
-        return edge.isVisible() && edge.color().containsCurrentColor();
-    });
 }
 
-bool BorderData::isEquivalentForPainting(const BorderData& other, bool currentColorDiffers) const
+bool BorderData::containsCurrentColor() const
 {
-    if (this == &other) {
-        ASSERT(currentColorDiffers);
-        return !containsCurrentColor();
-    }
-
-    if (*this != other)
-        return false;
-
-    if (!currentColorDiffers)
-        return true;
-
-    return !containsCurrentColor();
+    return edges.anyOf([](const auto& edge) {
+        return edge.isVisible() && edge.color.containsCurrentColor();
+    });
 }
 
 void BorderData::dump(TextStream& ts, DumpStyleValues behavior) const
@@ -69,16 +59,14 @@ void BorderData::dump(TextStream& ts, DumpStyleValues behavior) const
     if (behavior == DumpStyleValues::All || bottom() != BorderValue())
         ts.dumpProperty("bottom"_s, bottom());
 
-    if (behavior == DumpStyleValues::All || topLeftCornerShape() != Style::CornerShapeValue::round())
+    if (behavior == DumpStyleValues::All || topLeftCornerShape() != Style::CornerShapeValue(CSS::Keyword::Round { }))
         ts.dumpProperty("top-left corner shape"_s, topLeftCornerShape());
-    if (behavior == DumpStyleValues::All || topRightCornerShape() != Style::CornerShapeValue::round())
+    if (behavior == DumpStyleValues::All || topRightCornerShape() != Style::CornerShapeValue(CSS::Keyword::Round { }))
         ts.dumpProperty("top-right corner shape"_s, topRightCornerShape());
-    if (behavior == DumpStyleValues::All || bottomLeftCornerShape() != Style::CornerShapeValue::round())
+    if (behavior == DumpStyleValues::All || bottomLeftCornerShape() != Style::CornerShapeValue(CSS::Keyword::Round { }))
         ts.dumpProperty("bottom-left corner shape"_s, bottomLeftCornerShape());
-    if (behavior == DumpStyleValues::All || bottomRightCornerShape() != Style::CornerShapeValue::round())
+    if (behavior == DumpStyleValues::All || bottomRightCornerShape() != Style::CornerShapeValue(CSS::Keyword::Round { }))
         ts.dumpProperty("bottom-right corner shape"_s, bottomRightCornerShape());
-
-    ts.dumpProperty("image"_s, image());
 
     if (behavior == DumpStyleValues::All || !Style::isKnownZero(topLeftRadius()))
         ts.dumpProperty("top-left"_s, topLeftRadius());
@@ -88,7 +76,20 @@ void BorderData::dump(TextStream& ts, DumpStyleValues behavior) const
         ts.dumpProperty("bottom-left"_s, bottomLeftRadius());
     if (behavior == DumpStyleValues::All || !Style::isKnownZero(bottomRightRadius()))
         ts.dumpProperty("bottom-right"_s, bottomRightRadius());
+
+    borderImage->dump(ts, behavior);
 }
+
+#if !LOG_DISABLED
+void BorderData::dumpDifferences(TextStream& ts, const BorderData& other) const
+{
+    LOG_IF_DIFFERENT(edges);
+    LOG_IF_DIFFERENT(radii);
+    LOG_IF_DIFFERENT(cornerShapes);
+
+    borderImage->dumpDifferences(ts, other.borderImage);
+}
+#endif
 
 TextStream& operator<<(TextStream& ts, const BorderData& borderData)
 {

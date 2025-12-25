@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2021 Apple Inc. All rights reserved.
+ * Copyright (C) 2008-2025 Apple Inc. All rights reserved.
  * Copyright (C) 2020 Alexey Shvayka <shvaikalesh@gmail.com>.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -238,9 +238,7 @@ Structure::Structure(VM& vm, JSGlobalObject* globalObject, JSValue prototype, co
 
     validateFlags();
 
-#if ENABLE(STRUCTURE_ID_WITH_SHIFT)
     ASSERT(WTF::roundUpToMultipleOf<Structure::atomSize>(this) == this);
-#endif
 }
 
 const ClassInfo Structure::s_info = { "Structure"_s, nullptr, nullptr, nullptr, CREATE_METHOD_TABLE(Structure) };
@@ -286,9 +284,7 @@ Structure::Structure(VM& vm, CreatingEarlyCellTag)
     ASSERT(hasReadOnlyOrGetterSetterPropertiesExcludingProto() == m_classInfo->hasStaticPropertyWithAnyOfAttributes(static_cast<uint8_t>(PropertyAttribute::ReadOnlyOrAccessorOrCustomAccessorOrValue)));
     ASSERT(!this->typeInfo().overridesGetCallData() || m_classInfo->methodTable.getCallData != &JSCell::getCallData);
 
-#if ENABLE(STRUCTURE_ID_WITH_SHIFT)
     ASSERT(WTF::roundUpToMultipleOf<Structure::atomSize>(this) == this);
-#endif
 }
 
 Structure::Structure(VM& vm, StructureVariant variant, Structure* previous)
@@ -343,9 +339,7 @@ Structure::Structure(VM& vm, StructureVariant variant, Structure* previous)
     ASSERT(hasReadOnlyOrGetterSetterPropertiesExcludingProto() || !m_classInfo->hasStaticPropertyWithAnyOfAttributes(static_cast<uint8_t>(PropertyAttribute::ReadOnlyOrAccessorOrCustomAccessorOrValue)));
     ASSERT(!this->typeInfo().overridesGetCallData() || m_classInfo->methodTable.getCallData != &JSCell::getCallData);
 
-#if ENABLE(STRUCTURE_ID_WITH_SHIFT)
     ASSERT(WTF::roundUpToMultipleOf<Structure::atomSize>(this) == this);
-#endif
 }
 
 Structure::~Structure() = default;
@@ -1465,7 +1459,7 @@ Ref<StructureShape> Structure::toStructureShape(JSValue value, bool& sawPolyProt
 
         auto newShape = StructureShape::create();
         curShape->setProto(newShape.copyRef());
-        curShape = WTFMove(newShape);
+        curShape = WTF::move(newShape);
         curValue = prototypeObject;
         curStructure = prototypeObject->structure();
     }

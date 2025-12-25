@@ -45,7 +45,7 @@
 #include "RenderInline.h"
 #include "RenderListBox.h"
 #include "RenderObjectDocument.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include "RenderSVGModelObject.h"
 #include "RenderTheme.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
@@ -190,7 +190,7 @@ void OutlinePainter::paintOutlineWithLineRects(const RenderInline& renderer, con
         rect.inflate(outlineOffset + outlineWidth / 2);
         pixelSnappedRects.append(snapRectToDevicePixels(rect, deviceScaleFactor));
     }
-    auto path = PathUtilities::pathWithShrinkWrappedRectsForOutline(pixelSnappedRects, styleToUse->border().radii(), outlineOffset, styleToUse->writingMode(), deviceScaleFactor);
+    auto path = PathUtilities::pathWithShrinkWrappedRectsForOutline(pixelSnappedRects, styleToUse->border().radii, outlineOffset, styleToUse->writingMode(), deviceScaleFactor);
     if (path.isEmpty()) {
         // Disjoint line spanning inline boxes.
         for (auto rect : lineRects) {
@@ -267,7 +267,7 @@ void OutlinePainter::paintFocusRing(const RenderElement& renderer, const Vector<
     styleOptions.add(StyleColorOptions::UseSystemAppearance);
     auto focusRingColor = usePlatformFocusRingColorForOutlineStyleAuto() ? RenderTheme::singleton().focusRingColor(styleOptions) : style->visitedDependentColorWithColorFilter(CSSPropertyOutlineColor);
     if (useShrinkWrappedFocusRingForOutlineStyleAuto() && style->hasBorderRadius()) {
-        Path path = PathUtilities::pathWithShrinkWrappedRectsForOutline(pixelSnappedFocusRingRects, style->border().radii(), outlineOffset, style->writingMode(), deviceScaleFactor);
+        Path path = PathUtilities::pathWithShrinkWrappedRectsForOutline(pixelSnappedFocusRingRects, style->border().radii, outlineOffset, style->writingMode(), deviceScaleFactor);
         if (path.isEmpty()) {
             for (auto rect : pixelSnappedFocusRingRects)
                 path.addRect(rect);
@@ -386,7 +386,7 @@ bool OutlinePainter::collectFocusRingRectsForBlock(const RenderBlock& renderer, 
         auto topMargin = prevInlineHasLineBox ? renderer.collapsedMarginBefore() : 0_lu;
         auto bottomMargin = nextInlineHasLineBox ? renderer.collapsedMarginAfter() : 0_lu;
         LayoutRect rect(additionalOffset.x(), additionalOffset.y() - topMargin, renderer.width(), renderer.height() + topMargin + bottomMargin);
-        appendIfNotEmpty(rects, WTFMove(rect));
+        appendIfNotEmpty(rects, WTF::move(rect));
     } else if (renderer.width() && renderer.height())
         rects.append(LayoutRect(additionalOffset, renderer.size()));
 
@@ -437,7 +437,7 @@ void OutlinePainter::collectFocusRingRectsForInlineChildren(const RenderBlockFlo
             , additionalOffset.y() + top
             , LayoutUnit { unflippedVisualRect.width() }
             , bottom - top };
-        appendIfNotEmpty(rects, WTFMove(rect));
+        appendIfNotEmpty(rects, WTF::move(rect));
     }
 
     if (hasBlockContent) {

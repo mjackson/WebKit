@@ -47,7 +47,7 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(AudioBuffer);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(AudioBuffer);
 
 RefPtr<AudioBuffer> AudioBuffer::create(unsigned numberOfChannels, size_t numberOfFrames, float sampleRate, LegacyPreventDetaching preventDetaching)
 {
@@ -114,10 +114,10 @@ AudioBuffer::AudioBuffer(unsigned numberOfChannels, size_t length, float sampleR
         if (preventDetaching == LegacyPreventDetaching::Yes)
             channelDataArray->setDetachable(false);
 
-        channels.append(WTFMove(channelDataArray));
+        channels.append(WTF::move(channelDataArray));
     }
 
-    m_channels = WTFMove(channels);
+    m_channels = WTF::move(channels);
     m_channelWrappers = FixedVector<JSValueInWrappedObject> { m_channels.size() };
 }
 
@@ -143,10 +143,10 @@ AudioBuffer::AudioBuffer(AudioBus& bus)
         }
 
         channelDataArray->setRange(bus.channel(i)->data(), m_originalLength, 0);
-        channels.append(WTFMove(channelDataArray));
+        channels.append(WTF::move(channelDataArray));
     }
 
-    m_channels = WTFMove(channels);
+    m_channels = WTF::move(channels);
     m_channelWrappers = FixedVector<JSValueInWrappedObject> { m_channels.size() };
 }
 

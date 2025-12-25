@@ -52,17 +52,17 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(RenderSVGModelObject);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderSVGModelObject);
 
 RenderSVGModelObject::RenderSVGModelObject(Type type, Document& document, RenderStyle&& style, OptionSet<SVGModelObjectFlag> typeFlags)
-    : RenderLayerModelObject(type, document, WTFMove(style), { }, typeFlags)
+    : RenderLayerModelObject(type, document, WTF::move(style), { }, typeFlags)
 {
     ASSERT(!isLegacyRenderSVGModelObject());
     ASSERT(isRenderSVGModelObject());
 }
 
 RenderSVGModelObject::RenderSVGModelObject(Type type, SVGElement& element, RenderStyle&& style, OptionSet<SVGModelObjectFlag> typeFlags)
-    : RenderLayerModelObject(type, element, WTFMove(style), { }, typeFlags)
+    : RenderLayerModelObject(type, element, WTF::move(style), { }, typeFlags)
 {
     ASSERT(!isLegacyRenderSVGModelObject());
     ASSERT(isRenderSVGModelObject());
@@ -147,7 +147,7 @@ void RenderSVGModelObject::absoluteQuads(Vector<FloatQuad>& quads, bool* wasFixe
     quads.append(localToAbsoluteQuad(FloatRect { { }, m_layoutRect.size() }, UseTransforms, wasFixed));
 }
 
-void RenderSVGModelObject::styleDidChange(StyleDifference diff, const RenderStyle* oldStyle)
+void RenderSVGModelObject::styleDidChange(Style::Difference diff, const RenderStyle* oldStyle)
 {
     RenderLayerModelObject::styleDidChange(diff, oldStyle);
 

@@ -58,7 +58,9 @@
 #include "Page.h"
 #include "PathOperation.h"
 #include "RenderBox.h"
-#include "RenderStyleSetters.h"
+#include "RenderStyle+GettersInlines.h"
+#include "RenderStyle+InitialInlines.h"
+#include "RenderStyle+SettersInlines.h"
 #include "RenderTheme.h"
 #include "RenderView.h"
 #include "SVGElement.h"
@@ -525,6 +527,15 @@ void Adjuster::adjustFirstLetterStyle(RenderStyle& style)
     style.setEffectiveDisplay(style.isFloating() ? DisplayType::Block : DisplayType::Inline);
 }
 
+void Adjuster::adjustFirstLineStyle(RenderStyle& style)
+{
+    if (style.pseudoElementType() != PseudoElementType::FirstLine)
+        return;
+
+    // Force inline display.
+    style.setEffectiveDisplay(DisplayType::Inline);
+}
+
 void Adjuster::adjust(RenderStyle& style) const
 {
     if (style.display() == DisplayType::Contents)
@@ -566,6 +577,7 @@ void Adjuster::adjust(RenderStyle& style) const
             style.setEffectiveDisplay(equivalentBlockDisplay(style));
 
         adjustFirstLetterStyle(style);
+        adjustFirstLineStyle(style);
 
         // FIXME: Don't support this mutation for pseudo styles like first-letter or first-line, since it's not completely
         // clear how that should work.
@@ -1066,6 +1078,13 @@ void Adjuster::adjustForSiteSpecificQuirks(RenderStyle& style) const
             style.setOverflowY(Overflow::Auto);
     }
 
+    if (documentQuirks.needsGeforcenowWarningDisplayNoneQuirk()) {
+        static MainThreadNeverDestroyed<const AtomString> overlayClassName("cdk-overlay-container"_s);
+        static MainThreadNeverDestroyed<const AtomString> unsupportedClassName("unsupported-scenario-container"_s);
+        if (is<HTMLDivElement>(*m_element) && (m_element->hasClassName(overlayClassName) || m_element->hasClassName(unsupportedClassName)))
+            style.setEffectiveDisplay(DisplayType::None);
+    }
+
 #if PLATFORM(IOS_FAMILY)
     if (documentQuirks.needsGoogleMapsScrollingQuirk()) {
         static MainThreadNeverDestroyed<const AtomString> className("PUtLdf"_s);
@@ -1136,8 +1155,8 @@ void Adjuster::adjustForSiteSpecificQuirks(RenderStyle& style) const
         menuFadeInAnimation.setFillMode(AnimationFillMode::Forwards);
 
         auto& animations = style.ensureAnimations();
-        animations.append(WTFMove(menuGrowLeftAnimation));
-        animations.append(WTFMove(menuFadeInAnimation));
+        animations.append(WTF::move(menuGrowLeftAnimation));
+        animations.append(WTF::move(menuFadeInAnimation));
     }
 
 #if PLATFORM(IOS_FAMILY)
@@ -1154,6 +1173,9 @@ void Adjuster::adjustForSiteSpecificQuirks(RenderStyle& style) const
             style.setBackgroundColor({ WebCore::Color::transparentBlack });
     }
 #endif
+
+    if (documentQuirks.needsInstagramResizingReelsQuirk(*m_element, style, m_parentStyle))
+        style.setFlexGrow(1);
 }
 
 void Adjuster::propagateToDocumentElementAndInitialContainingBlock(Update& update, const Document& document)
@@ -1197,7 +1219,7 @@ void Adjuster::propagateToDocumentElementAndInitialContainingBlock(Update& updat
         newRootStyle->setWritingMode(writingMode);
         newRootStyle->setDirection(direction);
         newRootStyle->setColumnStylesFromPaginationMode(document.view()->pagination().mode);
-        update.addInitialContainingBlockUpdate(WTFMove(newRootStyle));
+        update.addInitialContainingBlockUpdate(WTF::move(newRootStyle));
     }
 
     // https://drafts.csswg.org/css-writing-modes-3/#principal-flow
@@ -1303,7 +1325,7 @@ bool Adjuster::adjustForTextAutosizing(RenderStyle& style, AdjustmentForTextAuto
     if (auto newFontSize = adjustment.newFontSize) {
         auto fontDescription = style.fontDescription();
         fontDescription.setComputedSize(*newFontSize);
-        style.setFontDescription(WTFMove(fontDescription));
+        style.setFontDescription(WTF::move(fontDescription));
     }
     if (auto newLineHeight = adjustment.newLineHeight)
         style.setLineHeight(LineHeight::Fixed { *newLineHeight });

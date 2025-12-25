@@ -42,7 +42,7 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(LegacyRenderSVGContainer);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(LegacyRenderSVGContainer);
 
 static bool shouldSuspendRepaintForChildren(const LegacyRenderSVGContainer& container)
 {
@@ -64,7 +64,7 @@ static bool shouldSuspendRepaintForChildren(const LegacyRenderSVGContainer& cont
 }
 
 LegacyRenderSVGContainer::LegacyRenderSVGContainer(Type type, SVGElement& element, RenderStyle&& style, OptionSet<SVGModelObjectFlag> svgFlags)
-    : LegacyRenderSVGModelObject(type, element, WTFMove(style), svgFlags | SVGModelObjectFlag::IsContainer | SVGModelObjectFlag::UsesBoundaryCaching)
+    : LegacyRenderSVGModelObject(type, element, WTF::move(style), svgFlags | SVGModelObjectFlag::IsContainer | SVGModelObjectFlag::UsesBoundaryCaching)
 {
 }
 

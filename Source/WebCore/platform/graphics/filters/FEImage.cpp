@@ -32,12 +32,12 @@ namespace WebCore {
 
 Ref<FEImage> FEImage::create(SourceImage&& sourceImage, const FloatRect& sourceImageRect, const SVGPreserveAspectRatioValue& preserveAspectRatio)
 {
-    return adoptRef(*new FEImage(WTFMove(sourceImage), sourceImageRect, preserveAspectRatio));
+    return adoptRef(*new FEImage(WTF::move(sourceImage), sourceImageRect, preserveAspectRatio));
 }
 
 FEImage::FEImage(SourceImage&& sourceImage, const FloatRect& sourceImageRect, const SVGPreserveAspectRatioValue& preserveAspectRatio)
     : FilterEffect(Type::FEImage)
-    , m_sourceImage(WTFMove(sourceImage))
+    , m_sourceImage(WTF::move(sourceImage))
     , m_sourceImageRect(sourceImageRect)
     , m_preserveAspectRatio(preserveAspectRatio)
 {

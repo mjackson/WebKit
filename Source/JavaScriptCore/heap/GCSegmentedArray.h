@@ -25,8 +25,11 @@
 
 #pragma once
 
+#include "JSExportMacros.h"
+#include <wtf/Compiler.h>
 #include <wtf/DebugHeap.h>
 #include <wtf/DoublyLinkedList.h>
+#include <wtf/FastMalloc.h>
 #include <wtf/Forward.h>
 #include <wtf/Noncopyable.h>
 #include <wtf/TZoneMalloc.h>

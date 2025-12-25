@@ -25,7 +25,7 @@
 #include "config.h"
 #include "StyleMargin.h"
 
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include "StyleBuilderChecking.h"
 #include "StyleLengthWrapper+CSSValueConversion.h"
 
@@ -62,10 +62,9 @@ auto CSSValueConversion<MarginEdge>::operator()(BuilderState& state, const CSSPr
         : cssToLengthConversionDataWithTextZoomFactorIfNeeded(state, primitiveValue.isFontIndependentLength());
 
     if (primitiveValue.isLength()) {
-        auto textZoom = (evaluationTimeZoomEnabled(state) && !primitiveValue.isFontIndependentLength()) ? conversionData.zoom() : 1.0f;
         return MarginEdge {
             typename MarginEdge::Fixed {
-                CSS::clampToRange<MarginEdge::Fixed::range, float>(primitiveValue.resolveAsLength(conversionData) * textZoom, minValueForCssLength, maxValueForCssLength),
+                CSS::clampToRange<MarginEdge::Fixed::range, float>(primitiveValue.resolveAsLength(conversionData), minValueForCssLength, maxValueForCssLength),
             },
             primitiveValue.primitiveType() == CSSUnitType::CSS_QUIRKY_EM
         };

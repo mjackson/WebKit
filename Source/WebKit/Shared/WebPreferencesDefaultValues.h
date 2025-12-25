@@ -204,6 +204,7 @@ bool defaultTrustedTypesEnabled();
 
 bool defaultGetBoundingClientRectZoomedEnabled();
 bool defaultFacebookLiveRecordingQuirkEnabled();
+bool defaultFontFaceSetConstructorEnabled();
 
 #if HAVE(MATERIAL_HOSTING)
 bool defaultHostedBlurMaterialInMediaControlsEnabled();

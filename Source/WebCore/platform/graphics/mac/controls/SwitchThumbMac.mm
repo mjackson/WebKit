@@ -136,7 +136,7 @@ void SwitchThumbMac::draw(GraphicsContext& context, const FloatRoundedRect& bord
     if (isVertical)
         SwitchMacUtilities::rotateContextForVerticalWritingMode(context, inflatedTrackRect);
 
-    context.drawConsumingImageBuffer(WTFMove(trackImage), inflatedTrackRect.location());
+    context.drawConsumingImageBuffer(WTF::move(trackImage), inflatedTrackRect.location());
 }
 
 } // namespace WebCore

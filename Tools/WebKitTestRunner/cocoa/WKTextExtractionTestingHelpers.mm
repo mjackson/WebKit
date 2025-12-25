@@ -134,6 +134,15 @@ static void buildDescriptionIgnoringChildren(TextStream& stream, WKTextExtractio
         return;
     }
 
+    if (auto form = downcastItem(item, WKTextExtractionFormItem)) {
+        stream << "FORM"_s;
+        if (form.autocomplete.length)
+            stream << " autocomplete='"_s << form.autocomplete << '\'';
+        if (form.name.length)
+            stream << " name='"_s << form.name << '\'';
+        return;
+    }
+
     ASSERT_NOT_REACHED();
 }
 

@@ -100,7 +100,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
     selectorArray[0].m_isLastInSelectorList = true;
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
-    return CSSSelectorList { WTFMove(selectorArray) };
+    return CSSSelectorList { WTF::move(selectorArray) };
 }
 
 CSSSelectorList CSSSelectorList::makeCopyingComplexSelector(const CSSSelector& complexSelector)
@@ -118,7 +118,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
     selectorArray[length - 1].m_isLastInSelectorList = true;
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
-    return CSSSelectorList { WTFMove(selectorArray) };
+    return CSSSelectorList { WTF::move(selectorArray) };
 }
 
 CSSSelectorList CSSSelectorList::makeJoining(const CSSSelectorList& a, const CSSSelectorList& b)
@@ -143,7 +143,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
     selectorArray[aComponentCount + bComponentCount - 1].m_isLastInSelectorList = true;
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
-    return CSSSelectorList { WTFMove(selectorArray) };
+    return CSSSelectorList { WTF::move(selectorArray) };
 }
 
 CSSSelectorList CSSSelectorList::makeJoining(const Vector<const CSSSelectorList*>& lists)
@@ -170,7 +170,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
     selectorArray[componentIndex - 1].m_isLastInSelectorList = true;
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
-    return CSSSelectorList { WTFMove(selectorArray) };
+    return CSSSelectorList { WTF::move(selectorArray) };
 }
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
@@ -277,5 +277,12 @@ bool CSSSelectorList::operator==(const CSSSelectorList& other) const
     }
     return true;
 }
+
+void add(Hasher& hasher, const CSSSelectorList& list)
+{
+    for (auto& selector : list)
+        addComplexSelector(hasher, selector);
+}
+
 
 } // namespace WebCore

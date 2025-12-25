@@ -25,7 +25,15 @@
 
 #pragma once
 
+#include "AllocationFailureMode.h"
+#include "IsoSubspace.h"
+#include "VM.h"
+#include <cstdint>
+#include <wtf/Compiler.h>
+
 namespace JSC {
+
+class GCDeferralContext;
 
 namespace GCClient {
 

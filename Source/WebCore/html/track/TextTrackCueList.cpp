@@ -95,7 +95,7 @@ TextTrackCueList& TextTrackCueList::activeCues()
             activeCuesVector.append(cue);
     }
     ASSERT_SORTED(activeCuesVector);
-    m_activeCues->m_vector = WTFMove(activeCuesVector);
+    m_activeCues->m_vector = WTF::move(activeCuesVector);
 
     // FIXME: This list of active cues is not updated as cues are added, removed, become active, and become inactive.
     // Instead it is only updated each time this function is called again. That is not consistent with other dynamic DOM lists.
@@ -106,10 +106,10 @@ void TextTrackCueList::add(Ref<TextTrackCue>&& cue)
 {
     ASSERT(!m_vector.contains(cue.ptr()));
 
-    RefPtr<TextTrackCue> cueRefPtr { WTFMove(cue) };
+    RefPtr<TextTrackCue> cueRefPtr { WTF::move(cue) };
     unsigned insertionPosition = std::ranges::upper_bound(m_vector, cueRefPtr, cueSortsBefore) - m_vector.begin();
     ASSERT_SORTED(m_vector);
-    m_vector.insert(insertionPosition, WTFMove(cueRefPtr));
+    m_vector.insert(insertionPosition, WTF::move(cueRefPtr));
     ASSERT_SORTED(m_vector);
 }
 

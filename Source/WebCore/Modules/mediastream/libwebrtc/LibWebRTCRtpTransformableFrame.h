@@ -39,7 +39,7 @@ namespace WebCore {
 class LibWebRTCRtpTransformableFrame final : public RTCRtpTransformableFrame {
     WTF_MAKE_TZONE_ALLOCATED(LibWebRTCRtpTransformableFrame);
 public:
-    static Ref<LibWebRTCRtpTransformableFrame> create(std::unique_ptr<webrtc::TransformableFrameInterface>&& frame, bool isAudio) { return adoptRef(*new LibWebRTCRtpTransformableFrame(WTFMove(frame), isAudio)); }
+    static Ref<LibWebRTCRtpTransformableFrame> create(std::unique_ptr<webrtc::TransformableFrameInterface>&& frame, bool isAudio) { return adoptRef(*new LibWebRTCRtpTransformableFrame(WTF::move(frame), isAudio)); }
     ~LibWebRTCRtpTransformableFrame();
 
     std::unique_ptr<webrtc::TransformableFrameInterface> takeRTCFrame();

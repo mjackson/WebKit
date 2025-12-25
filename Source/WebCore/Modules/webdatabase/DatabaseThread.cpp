@@ -63,9 +63,10 @@ void DatabaseThread::start()
     if (m_thread)
         return;
 
-    m_thread = Thread::create("WebCore: Database"_s, [this] {
-        databaseThread();
-    });
+    lazyInitialize(m_thread, Thread::create("WebCore: Database"_s, [weakThis = ThreadSafeWeakPtr { *this }] {
+        if (RefPtr protectedThis = weakThis.get())
+            protectedThis->databaseThread();
+    }));
 }
 
 void DatabaseThread::requestTermination(DatabaseTaskSynchronizer* cleanupSync)
@@ -104,7 +105,7 @@ void DatabaseThread::databaseThread()
     // Clean up the list of all pending transactions on this database thread
     m_transactionCoordinator->shutdown();
 
-    LOG(StorageAPI, "About to detach thread %p and clear the ref to DatabaseThread %p, which currently has %i ref(s)", m_thread.get(), this, refCount());
+    LOG(StorageAPI, "About to detach thread %p and clear the ref to DatabaseThread %p, which currently has %zu ref(s)", m_thread.get(), this, refCount());
 
     // Close the databases that we ran transactions on. This ensures that if any transactions are still open, they are rolled back and we don't leave the database in an
     // inconsistent or locked state.
@@ -153,20 +154,20 @@ void DatabaseThread::recordDatabaseClosed(Database& database)
 void DatabaseThread::scheduleTask(std::unique_ptr<DatabaseTask>&& task)
 {
     ASSERT(!task->hasSynchronizer() || task->hasCheckedForTermination());
-    m_queue.append(WTFMove(task));
+    m_queue.append(WTF::move(task));
 }
 
 void DatabaseThread::scheduleImmediateTask(std::unique_ptr<DatabaseTask>&& task)
 {
     ASSERT(!task->hasSynchronizer() || task->hasCheckedForTermination());
-    m_queue.prepend(WTFMove(task));
+    m_queue.prepend(WTF::move(task));
 }
 
 void DatabaseThread::unscheduleDatabaseTasks(Database& database)
 {
     // The thread loop is running, sp some tasks for this database may still be executed. This is unavoidable.
-    m_queue.removeIf([&database] (const DatabaseTask& task) {
-        return &task.database() == &database;
+    m_queue.removeIf([&database](const DatabaseTask& task) {
+        return task.database().ptr() == &database;
     });
 }
 

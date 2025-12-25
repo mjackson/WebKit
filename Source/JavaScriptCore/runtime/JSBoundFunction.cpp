@@ -345,7 +345,7 @@ String JSBoundFunction::nameStringWithoutGCSlow(VM& vm)
     StringBuilder builder(OverflowPolicy::RecordOverflow);
     for (unsigned i = 0; i < nestingCount; ++i)
         builder.append("bound "_s);
-    builder.append(WTFMove(terminal));
+    builder.append(WTF::move(terminal));
     if (builder.hasOverflowed())
         return emptyString();
     return builder.toString();

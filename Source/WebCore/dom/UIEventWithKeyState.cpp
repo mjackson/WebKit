@@ -25,7 +25,7 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(UIEventWithKeyState);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(UIEventWithKeyState);
 
 auto UIEventWithKeyState::modifiersFromInitializer(const EventModifierInit& initializer) -> OptionSet<Modifier>
 {

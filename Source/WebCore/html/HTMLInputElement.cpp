@@ -72,7 +72,8 @@
 #include "PseudoClassChangeInvalidation.h"
 #include "RadioInputType.h"
 #include "RenderObjectInlines.h"
-#include "RenderStyleSetters.h"
+#include "RenderStyle+InitialInlines.h"
+#include "RenderStyle+SettersInlines.h"
 #include "RenderTextControlSingleLine.h"
 #include "RenderTheme.h"
 #include "ResourceLoadObserver.h"
@@ -97,7 +98,7 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(HTMLInputElement);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(HTMLInputElement);
 
 using namespace CSS::Literals;
 using namespace HTMLNames;
@@ -544,7 +545,7 @@ void HTMLInputElement::updateType(const AtomString& typeAttributeValue)
 
     if (didStoreValue && !willStoreValue) {
         if (auto dirtyValue = std::exchange(m_valueIfDirty, { }); !dirtyValue.isEmpty())
-            setAttributeWithoutSynchronization(valueAttr, AtomString { WTFMove(dirtyValue) });
+            setAttributeWithoutSynchronization(valueAttr, AtomString { WTF::move(dirtyValue) });
     }
 
     m_inputType->removeShadowSubtree();
@@ -554,7 +555,7 @@ void HTMLInputElement::updateType(const AtomString& typeAttributeValue)
     bool didDirAutoUseValue = m_inputType->dirAutoUsesValue();
     bool previouslySelectable = m_inputType->supportsSelectionAPI();
 
-    m_inputType = WTFMove(newType);
+    m_inputType = WTF::move(newType);
     if (!didStoreValue && willStoreValue)
         m_valueIfDirty = sanitizeValue(attributeWithoutSynchronization(valueAttr));
     else
@@ -928,7 +929,7 @@ bool HTMLInputElement::rendererIsNeeded(const RenderStyle& style)
 
 RenderPtr<RenderElement> HTMLInputElement::createElementRenderer(RenderStyle&& style, const RenderTreePosition&)
 {
-    return m_inputType->createInputRenderer(WTFMove(style));
+    return m_inputType->createInputRenderer(WTF::move(style));
 }
 
 bool HTMLInputElement::isReplaced(const RenderStyle*) const
@@ -1085,6 +1086,8 @@ void HTMLInputElement::setChecked(bool isChecked, WasSetByJavaScript wasCheckedB
         if (CheckedPtr cache = renderer->document().existingAXObjectCache())
             cache->checkedStateChanged(*this);
     }
+
+    invalidateStyleInternal();
 }
 
 void HTMLInputElement::setIndeterminate(bool newValue)
@@ -1623,7 +1626,7 @@ FileList* HTMLInputElement::files()
 void HTMLInputElement::setFiles(RefPtr<FileList>&& files, WasSetByJavaScript wasSetByJavaScript)
 {
     if (auto* fileInputType = dynamicDowncast<FileInputType>(*m_inputType))
-        fileInputType->setFiles(WTFMove(files), wasSetByJavaScript);
+        fileInputType->setFiles(WTF::move(files), wasSetByJavaScript);
 }
 
 #if ENABLE(DRAG_SUPPORT)

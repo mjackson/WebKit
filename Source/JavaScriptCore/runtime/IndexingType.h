@@ -27,6 +27,7 @@
 
 #include "Options.h"
 #include "SpeculatedType.h"
+#include <cstdint>
 #include <wtf/LockAlgorithm.h>
 #include <wtf/StdLibExtras.h>
 

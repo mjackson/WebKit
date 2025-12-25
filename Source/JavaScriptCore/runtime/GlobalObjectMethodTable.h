@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include "Exception.h"
 #include <wtf/Forward.h>
 
 namespace JSC {

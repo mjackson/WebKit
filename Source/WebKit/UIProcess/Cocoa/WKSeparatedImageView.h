@@ -34,6 +34,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)layerWasCleared:(CALayer *)layer;
 @end
 
+NS_SWIFT_UI_ACTOR
 @interface WKSeparatedImageView : UIView <WKObservingLayerDelegate>
 
 - (instancetype)init NS_DESIGNATED_INITIALIZER;

@@ -26,7 +26,7 @@
 #include "StyleOffsetPosition.h"
 
 #include "CSSPositionValue.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+InitialInlines.h"
 #include "StyleBuilderChecking.h"
 #include "StyleLengthWrapper+Blending.h"
 #include "StylePrimitiveKeyword+Logging.h"

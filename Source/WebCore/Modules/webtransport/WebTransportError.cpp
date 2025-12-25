@@ -30,12 +30,12 @@ namespace WebCore {
 
 Ref<WebTransportError> WebTransportError::create(String&& message, WebTransportErrorOptions&& options)
 {
-    return adoptRef(*new WebTransportError(WTFMove(message), WTFMove(options)));
+    return adoptRef(*new WebTransportError(WTF::move(message), WTF::move(options)));
 }
 
 WebTransportError::WebTransportError(String&& message, WebTransportErrorOptions&& options)
-    : DOMException(0, "WebTransportError"_s, WTFMove(message), DOMException::Type::WebTransportError)
-    , m_options(WTFMove(options))
+    : DOMException(0, "WebTransportError"_s, WTF::move(message), DOMException::Type::WebTransportError)
+    , m_options(WTF::move(options))
 {
 }
 

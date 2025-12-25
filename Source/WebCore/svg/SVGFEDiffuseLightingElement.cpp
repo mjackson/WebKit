@@ -25,7 +25,7 @@
 #include "FEDiffuseLighting.h"
 #include "NodeName.h"
 #include "RenderElement.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include "SVGFELightElement.h"
 #include "SVGNames.h"
 #include "SVGParserUtilities.h"
@@ -34,7 +34,7 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(SVGFEDiffuseLightingElement);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(SVGFEDiffuseLightingElement);
 
 inline SVGFEDiffuseLightingElement::SVGFEDiffuseLightingElement(const QualifiedName& tagName, Document& document)
     : SVGFilterPrimitiveStandardAttributes(tagName, document, makeUniqueRef<PropertyRegistry>(*this))
@@ -170,7 +170,7 @@ RefPtr<FilterEffect> SVGFEDiffuseLightingElement::createFilterEffect(const Filte
 
     Color color = style.colorWithColorFilter(style.lightingColor());
 
-    return FEDiffuseLighting::create(color, surfaceScale(), diffuseConstant(), kernelUnitLengthX(), kernelUnitLengthY(), WTFMove(lightSource));
+    return FEDiffuseLighting::create(color, surfaceScale(), diffuseConstant(), kernelUnitLengthX(), kernelUnitLengthY(), WTF::move(lightSource));
 }
 
 } // namespace WebCore

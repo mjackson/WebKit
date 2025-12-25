@@ -23,6 +23,9 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+// FIXME <https://webkit.org/b/302429>: Remove this deprecated Page debuggable type as WebKitLegacy now also has
+// multi-target support, with the LegacyWebPageDebuggable that works with WI.MultiplexingBackendTarget in the frontend.
+
 #pragma once
 
 #if ENABLE(REMOTE_INSPECTOR)

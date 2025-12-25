@@ -27,7 +27,7 @@
 #include "FESpecularLighting.h"
 #include "NodeName.h"
 #include "RenderElement.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include "SVGFELightElement.h"
 #include "SVGNames.h"
 #include "SVGParserUtilities.h"
@@ -36,7 +36,7 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(SVGFESpecularLightingElement);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(SVGFESpecularLightingElement);
 
 inline SVGFESpecularLightingElement::SVGFESpecularLightingElement(const QualifiedName& tagName, Document& document)
     : SVGFilterPrimitiveStandardAttributes(tagName, document, makeUniqueRef<PropertyRegistry>(*this))
@@ -171,7 +171,7 @@ RefPtr<FilterEffect> SVGFESpecularLightingElement::createFilterEffect(const Filt
 
     auto color = style.colorWithColorFilter(style.lightingColor());
 
-    return FESpecularLighting::create(color, surfaceScale(), specularConstant(), specularExponent(), kernelUnitLengthX(), kernelUnitLengthY(), WTFMove(lightSource));
+    return FESpecularLighting::create(color, surfaceScale(), specularConstant(), specularExponent(), kernelUnitLengthX(), kernelUnitLengthY(), WTF::move(lightSource));
 }
 
 } // namespace WebCore

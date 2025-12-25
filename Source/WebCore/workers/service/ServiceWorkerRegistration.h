@@ -55,7 +55,7 @@ class WebCoreOpaqueRoot;
 struct CookieStoreGetOptions;
 
 class ServiceWorkerRegistration final : public RefCounted<ServiceWorkerRegistration>, public Supplementable<ServiceWorkerRegistration>, public EventTarget, public ActiveDOMObject, public PushSubscriptionOwner {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED_EXPORT(ServiceWorkerRegistration, WEBCORE_EXPORT);
+    WTF_MAKE_TZONE_ALLOCATED_EXPORT(ServiceWorkerRegistration, WEBCORE_EXPORT);
 public:
     static Ref<ServiceWorkerRegistration> getOrCreate(ScriptExecutionContext&, Ref<ServiceWorkerContainer>&&, ServiceWorkerRegistrationData&&);
 

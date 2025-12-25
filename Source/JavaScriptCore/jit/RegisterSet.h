@@ -25,6 +25,8 @@
 
 #pragma once
 
+#include <wtf/Platform.h>
+
 #if !ENABLE(C_LOOP)
 
 #include "FPRInfo.h"
@@ -124,9 +126,9 @@ public:
         return *this;
     }
 
-    inline constexpr RegisterSet buildAndValidate() const WARN_UNUSED_RETURN;
-    inline constexpr RegisterSet buildWithLowerBits() const WARN_UNUSED_RETURN;
-    inline constexpr ScalarRegisterSet buildScalarRegisterSet() const WARN_UNUSED_RETURN;
+    WARN_UNUSED_RETURN inline constexpr RegisterSet buildAndValidate() const;
+    WARN_UNUSED_RETURN inline constexpr RegisterSet buildWithLowerBits() const;
+    WARN_UNUSED_RETURN inline constexpr ScalarRegisterSet buildScalarRegisterSet() const;
     inline constexpr size_t numberOfSetRegisters() const;
     inline size_t numberOfSetGPRs() const;
     inline size_t numberOfSetFPRs() const;
@@ -302,7 +304,7 @@ public:
         return *this;
     }
 
-    inline constexpr ScalarRegisterSet buildScalarRegisterSet() const WARN_UNUSED_RETURN;
+    WARN_UNUSED_RETURN inline constexpr ScalarRegisterSet buildScalarRegisterSet() const;
 
     template<typename Func>
     inline constexpr void forEach(const Func& func) const
@@ -328,16 +330,14 @@ public:
             });
     }
 
-    class iterator {
+    class iterator : public RegisterBitSet::iterator {
+        WTF_FORBID_HEAP_ALLOCATION;
+        using Base = RegisterBitSet::iterator;
     public:
-        inline constexpr iterator() { }
+        // FIXME: It seems like these shouldn't be necessary but Clang complains about them missing for the static_casts in begin()/end() below.
+        constexpr iterator(const Base& base) : Base(base) { }
 
-        inline constexpr iterator(const RegisterBitSet::iterator& iter)
-            : m_iter(iter)
-        {
-        }
-
-        inline constexpr Reg reg() const { return Reg::fromIndex(*m_iter); }
+        inline constexpr Reg reg() const { return Reg::fromIndex(Base::operator*()); }
         inline constexpr Reg operator*() const { return reg(); }
 
         inline constexpr bool isGPR() const { return reg().isGPR(); }
@@ -345,21 +345,10 @@ public:
 
         inline constexpr GPRReg gpr() const { return reg().gpr(); }
         inline constexpr FPRReg fpr() const { return reg().fpr(); }
-
-        iterator& operator++()
-        {
-            ++m_iter;
-            return *this;
-        }
-
-        friend constexpr bool operator==(const iterator&, const iterator&) = default;
-
-    private:
-        RegisterBitSet::iterator m_iter;
     };
 
-    inline constexpr iterator begin() const { return iterator(m_bits.begin()); }
-    inline constexpr iterator end() const { return iterator(m_bits.end()); }
+    inline constexpr iterator begin() const LIFETIME_BOUND { return static_cast<iterator>(m_bits.begin()); }
+    inline constexpr iterator end() const LIFETIME_BOUND { return static_cast<iterator>(m_bits.end()); }
 
     inline constexpr RegisterSet& add(Reg reg, Width width)
     {
@@ -479,7 +468,7 @@ public:
     inline uint64_t bitsForDebugging() const { return m_bits.storage()[0]; }
     friend constexpr bool operator==(const ScalarRegisterSet&, const ScalarRegisterSet&) = default;
 
-    inline constexpr RegisterSet toRegisterSet() const WARN_UNUSED_RETURN
+    WARN_UNUSED_RETURN inline constexpr RegisterSet toRegisterSet() const
     {
         RegisterSet result;
         m_bits.forEachSetBit(
@@ -531,6 +520,14 @@ public:
     inline constexpr size_t numberOfSetRegisters() const
     {
         return m_bits.count();
+    }
+
+    template<typename Func>
+    inline constexpr void forEachReg(const Func& func) const
+    {
+        m_bits.forEachSetBit([&] (size_t index) {
+            func(Reg::fromIndex(index));
+        });
     }
 
     void dump(PrintStream& out) const { toRegisterSet().dump(out); }

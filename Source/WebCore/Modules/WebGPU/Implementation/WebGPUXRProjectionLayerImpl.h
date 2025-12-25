@@ -45,7 +45,7 @@ class XRProjectionLayerImpl final : public XRProjectionLayer {
 public:
     static Ref<XRProjectionLayerImpl> create(WebGPUPtr<WGPUXRProjectionLayer>&& projectionLayer, ConvertToBackingContext& convertToBackingContext)
     {
-        return adoptRef(*new XRProjectionLayerImpl(WTFMove(projectionLayer), convertToBackingContext));
+        return adoptRef(*new XRProjectionLayerImpl(WTF::move(projectionLayer), convertToBackingContext));
     }
 
     virtual ~XRProjectionLayerImpl();

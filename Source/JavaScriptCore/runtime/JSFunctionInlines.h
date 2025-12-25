@@ -209,7 +209,7 @@ inline JSString* JSFunction::originalName(JSGlobalObject* globalObject)
         name = makeNameWithOutOfMemoryCheck(globalObject, scope, "Setter "_s, "set "_s, name);
         RETURN_IF_EXCEPTION(scope, { });
     }
-    return jsString(vm, WTFMove(name));
+    return jsString(vm, WTF::move(name));
 }
 
 inline bool JSFunction::canAssumeNameAndLengthAreOriginal(VM&)

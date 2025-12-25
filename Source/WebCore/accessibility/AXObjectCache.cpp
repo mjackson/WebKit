@@ -923,7 +923,7 @@ void AXObjectCache::setIsolatedTree(Ref<AXIsolatedTree> tree)
 {
     ASSERT(isMainThread());
     if (RefPtr frame = m_document ? m_document->frame() : nullptr)
-        frame->loader().client().setIsolatedTree(WTFMove(tree));
+        frame->loader().client().setIsolatedTree(WTF::move(tree));
 }
 #endif
 
@@ -1249,16 +1249,16 @@ void AXObjectCache::updateLoadingProgress(double newProgressValue)
 #endif
 }
 
-void AXObjectCache::onTopDocumentLoaded(RenderObject& renderObject)
+void AXObjectCache::onTopDocumentLoaded(RenderObject& renderer)
 {
-    postNotification(getOrCreate(renderObject), AXNotification::NewDocumentLoadComplete);
+    postDeferredNotification(renderer, AXNotification::NewDocumentLoadComplete);
 }
 
-void AXObjectCache::onNonTopDocumentLoaded(RenderObject& renderObject)
+void AXObjectCache::onNonTopDocumentLoaded(RenderObject& renderer)
 {
     // AXLoadComplete can only be posted on the top document, so if it's a document
     // in an iframe that just finished loading, post AXLayoutComplete instead.
-    postNotification(getOrCreate(renderObject), AXNotification::LayoutComplete);
+    postDeferredNotification(renderer, AXNotification::LayoutComplete);
 }
 
 void AXObjectCache::onAutocorrectionOccured(Element& element)
@@ -1637,7 +1637,7 @@ void AXObjectCache::notificationPostTimerFired()
     auto notifications = std::exchange(m_notificationsToPost, { });
 
     // Filter out the notifications that are not going to be posted to platform clients.
-    Vector<std::pair<Ref<AccessibilityObject>, AXNotification>> notificationsToPost;
+    Vector<std::pair<Ref<AccessibilityObject>, AXNotificationWithData>> notificationsToPost;
     notificationsToPost.reserveInitialCapacity(notifications.size());
     for (auto& note : notifications) {
         if (note.first->isDetached() || !note.first->axObjectCache())
@@ -1652,22 +1652,35 @@ void AXObjectCache::notificationPostTimerFired()
         }
 #endif
 
-        if (note.second == AXNotification::MenuOpened) {
+        if (note.second.notification == AXNotification::MenuOpened) {
             // Only notify if the object is in fact a menu.
             note.first->updateChildrenIfNecessary();
             if (note.first->role() != AccessibilityRole::Menu)
                 continue;
         }
 
-        notificationsToPost.append(WTFMove(note));
+        notificationsToPost.append(WTF::move(note));
     }
 
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     updateIsolatedTree(notificationsToPost);
 #endif
 
-    for (const auto& note : notificationsToPost)
-        postPlatformNotification(note.first, note.second);
+    for (const auto& note : notificationsToPost) {
+        WTF::switchOn(note.second.data,
+            [&](const AriaNotifyData& data) {
+                postPlatformARIANotifyNotification(note.first, data);
+            },
+#if PLATFORM(COCOA)
+            [&](const LiveRegionAnnouncementData& data) {
+                postPlatformLiveRegionNotification(note.first, data);
+            },
+#endif
+            [&](std::monostate) {
+                postPlatformNotification(note.first, note.second.notification);
+            }
+        );
+    }
 }
 
 #if PLATFORM(COCOA)
@@ -1752,7 +1765,8 @@ void AXObjectCache::postNotification(AccessibilityObject* object, Document* docu
 void AXObjectCache::postNotification(AccessibilityObject& object, AXNotification notification)
 {
     AXTRACE(makeString("AXObjectCache::postNotification 0x"_s, hex(reinterpret_cast<uintptr_t>(this))));
-    AXLOG(std::make_pair(Ref { object }, notification));
+    auto dataNotification = AXNotificationWithData(notification);
+    AXLOG(std::make_pair(Ref { object }, dataNotification));
     ASSERT(isMainThread());
 
     stopCachingComputedObjectAttributes();
@@ -1763,14 +1777,14 @@ void AXObjectCache::postNotification(AccessibilityObject& object, AXNotification
         return;
 #endif
 
-    m_notificationsToPost.append(std::make_pair(Ref { object }, notification));
+    m_notificationsToPost.append(std::make_pair(Ref { object }, dataNotification));
     if (!m_notificationPostTimer.isActive())
         m_notificationPostTimer.startOneShot(0_s);
 }
 
 void AXObjectCache::postARIANotifyNotification(Node& node, const String& announcement, const AriaNotifyOptions& options)
 {
-    RefPtr object = getOrCreate(node);
+    RefPtr<AccessibilityObject> object = getOrCreate(node);
     if (!object)
         return;
 
@@ -1801,13 +1815,19 @@ void AXObjectCache::postARIANotifyNotification(Node& node, const String& announc
         }
     }
 
-    postPlatformARIANotifyNotification(announcement, priority, interruptBehavior, object->languageIncludingAncestors());
+    m_notificationsToPost.append(std::make_pair(Ref { *object }, AXNotificationWithData(AXNotification::ARIANotify, AriaNotifyData { announcement, priority, interruptBehavior, object->languageIncludingAncestors() })));
+    if (!m_notificationPostTimer.isActive())
+        m_notificationPostTimer.startOneShot(0_s);
 }
 
+#if PLATFORM(COCOA)
 void AXObjectCache::postLiveRegionNotification(AccessibilityObject& object, LiveRegionStatus status, const AttributedString& announcement)
 {
-    postPlatformLiveRegionNotification(object, status, announcement);
+    m_notificationsToPost.append(std::make_pair(Ref { object }, AXNotificationWithData(AXNotification::LiveRegionAnnouncement, LiveRegionAnnouncementData { announcement, status })));
+    if (!m_notificationPostTimer.isActive())
+        m_notificationPostTimer.startOneShot(0_s);
 }
+#endif
 
 void AXObjectCache::checkedStateChanged(Element& element)
 {
@@ -2216,7 +2236,7 @@ bool AXObjectCache::onTextColorChange(Element& element, const RenderStyle* oldSt
 }
 #endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
-void AXObjectCache::onStyleChange(RenderText& renderText, StyleDifference difference, const RenderStyle* oldStyle, const RenderStyle& newStyle)
+void AXObjectCache::onStyleChange(RenderText& renderText, Style::Difference difference, const RenderStyle* oldStyle, const RenderStyle& newStyle)
 {
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     if (!oldStyle)
@@ -2229,8 +2249,8 @@ void AXObjectCache::onStyleChange(RenderText& renderText, StyleDifference differ
         return;
 #endif // !ENABLE(AX_THREAD_TEXT_APIS)
 
-    bool diffIsEqual = difference == StyleDifference::Equal;
-    // When speak-as changes, style difference will be StyleDifference::Equal (so "equal"
+    bool diffIsEqual = difference == Style::DifferenceResult::Equal;
+    // When speak-as changes, style difference will be Style::DifferenceResult::Equal (so "equal"
     // is not exactly accurate). So if the styles are "equal" and speak-as hasn't changed,
     // we have nothing to do.
     if (diffIsEqual) {
@@ -2249,7 +2269,7 @@ void AXObjectCache::onStyleChange(RenderText& renderText, StyleDifference differ
     if (speakAsChanged) [[unlikely]]
         postNotification(*object, AXNotification::SpeakAsChanged);
 
-    // The following style changes will not have a StyleDifference::Equal, so we can
+    // The following style changes will not have a Style::DifferenceResult::Equal, so we can
     // exit early if the diff is equal.
     if (diffIsEqual)
         return;
@@ -2319,7 +2339,7 @@ void AXObjectCache::onTextCompositionChange(Node& node, CompositionState composi
 #endif
 
     if (RefPtr observableObject = object->observableObject())
-        object = WTFMove(observableObject);
+        object = WTF::move(observableObject);
 
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     updateIsolatedTree(object.get(), AXNotification::TextCompositionChanged);
@@ -2508,10 +2528,10 @@ void AXObjectCache::postTextStateChangeNotification(const Position& position, co
 #if PLATFORM(COCOA)
         if (position.atLastEditingPositionForNode()) {
             if (RefPtr nextSibling = object->nextSiblingUnignored(1))
-                object = WTFMove(nextSibling);
+                object = WTF::move(nextSibling);
         } else if (position.atFirstEditingPositionForNode()) {
             if (RefPtr previousSibling = object->previousSiblingUnignored(1))
-                object = WTFMove(previousSibling);
+                object = WTF::move(previousSibling);
         }
 #elif USE(ATSPI)
         // ATSPI doesn't expose text nodes, so we need the parent
@@ -2794,7 +2814,7 @@ void AXObjectCache::postLiveRegionChangeNotification(AccessibilityObject& object
 
     Ref objectRef = object;
     if (!m_changedLiveRegions.contains(objectRef))
-        m_changedLiveRegions.add(WTFMove(objectRef));
+        m_changedLiveRegions.add(WTF::move(objectRef));
 
     m_liveRegionChangedPostTimer.startOneShot(0_s);
 }
@@ -3146,7 +3166,7 @@ void AXObjectCache::handleAttributeChange(Element* element, const QualifiedName&
 
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
             for (Ref summary : descendantsOfType<HTMLSummaryElement>(*element))
-                updateIsolatedTree(get(WTFMove(summary)), AXNotification::ExpandedChanged);
+                updateIsolatedTree(get(WTF::move(summary)), AXNotification::ExpandedChanged);
 #endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
         }
     } else if (attrName == rowspanAttr) {
@@ -4953,6 +4973,10 @@ void AXObjectCache::performDeferredCacheUpdate(ForceLayout forceLayout)
     });
     m_deferredScrollbarUpdateChangeList.clear();
 
+    for (const auto& notificationData : m_deferredNotifications)
+        handleDeferredNotification(notificationData);
+    m_deferredNotifications.clear();
+
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     if (m_deferredRegenerateIsolatedTree) {
         if (auto tree = AXIsolatedTree::treeForFrameID(m_frameID)) {
@@ -4988,6 +5012,26 @@ void AXObjectCache::performDeferredCacheUpdate(ForceLayout forceLayout)
     platformPerformDeferredCacheUpdate();
 }
 
+void AXObjectCache::handleDeferredNotification(const DeferredNotificationData& data)
+{
+    if (CheckedPtr renderer = data.renderer.get()) {
+        // The point of deferring the notification is to post it when style and layout
+        // are clean, so this function should not be called unless this is true.
+        ASSERT(!needsLayoutOrStyleRecalc(renderer->document()) && !renderer->needsLayout());
+        postNotification(getOrCreate(*renderer), data.notification);
+    } else if (RefPtr element = data.element.get()) {
+        ASSERT(!needsLayoutOrStyleRecalc(element->document()));
+        postNotification(getOrCreate(*element), data.notification);
+    }
+}
+
+void AXObjectCache::postDeferredNotification(RenderObject& renderer, AXNotification notification)
+{
+    // We want to post this notification, but it may not be safe to call getOrCreate right now
+    // (e.g. because style or layout is dirty). Defer to a time we know the page state is clean.
+    m_deferredNotifications.append(DeferredNotificationData { renderer, notification });
+}
+
 void AXObjectCache::handleMenuListValueChanged(Element& element)
 {
     RefPtr<AccessibilityObject> object = get(&element);
@@ -5013,7 +5057,7 @@ void AXObjectCache::updateIsolatedTree(AccessibilityObject& object, AXNotificati
     updateIsolatedTree({ std::make_pair(Ref { object }, notification) });
 }
 
-void AXObjectCache::updateIsolatedTree(const Vector<std::pair<Ref<AccessibilityObject>, AXNotification>>& notifications)
+void AXObjectCache::updateIsolatedTree(const Vector<std::pair<Ref<AccessibilityObject>, AXNotificationWithData>>& notifications)
 {
     AXTRACE(makeString("AXObjectCache::updateIsolatedTree 0x"_s, hex(reinterpret_cast<uintptr_t>(this))));
 
@@ -5039,7 +5083,7 @@ void AXObjectCache::updateIsolatedTree(const Vector<std::pair<Ref<AccessibilityO
         if (notification.first->isDetached())
             continue;
 
-        switch (notification.second) {
+        switch (notification.second.notification) {
         case AXNotification::AbbreviationChanged:
             tree->queueNodeUpdate(notification.first->objectID(), { AXProperty::Abbreviation });
             break;
@@ -5287,7 +5331,7 @@ void AXObjectCache::onPaint(const RenderObject& renderer, IntRect&& paintRect) c
         return;
 
     if (std::optional axID = getAXID(const_cast<RenderObject&>(renderer))) {
-        bool cachedNewRect = m_geometryManager->cacheRectIfNeeded(*axID, WTFMove(paintRect));
+        bool cachedNewRect = m_geometryManager->cacheRectIfNeeded(*axID, WTF::move(paintRect));
 
         if (cachedNewRect) {
             auto* renderImage = dynamicDowncast<RenderImage>(renderer);
@@ -5309,7 +5353,7 @@ void AXObjectCache::onPaint(const Widget& widget, IntRect&& paintRect) const
     if (!m_frameID)
         return;
     if (std::optional axID = m_widgetIdMapping.getOptional(const_cast<Widget&>(widget)))
-        std::ignore = m_geometryManager->cacheRectIfNeeded(*axID, WTFMove(paintRect));
+        std::ignore = m_geometryManager->cacheRectIfNeeded(*axID, WTF::move(paintRect));
 }
 
 void AXObjectCache::onPaint(const RenderText& renderText, size_t lineIndex)

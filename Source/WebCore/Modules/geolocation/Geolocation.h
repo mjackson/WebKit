@@ -55,7 +55,7 @@ class SecurityOrigin;
 struct PositionOptions;
 
 class Geolocation final : public RefCounted<Geolocation>, public ScriptWrappable, public ActiveDOMObject {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED_EXPORT(Geolocation, WEBCORE_EXPORT);
+    WTF_MAKE_TZONE_ALLOCATED_EXPORT(Geolocation, WEBCORE_EXPORT);
     friend class GeoNotifier;
 public:
     void ref() const final { RefCounted::ref(); }

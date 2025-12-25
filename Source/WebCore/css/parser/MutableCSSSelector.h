@@ -51,7 +51,7 @@ public:
 
     ~MutableCSSSelector();
 
-    std::unique_ptr<CSSSelector> releaseSelector() { return WTFMove(m_selector); }
+    std::unique_ptr<CSSSelector> releaseSelector() { return WTF::move(m_selector); }
     const CSSSelector* selector() const { return m_selector.get(); };
     CSSSelector* selector() { return m_selector.get(); }
 
@@ -99,7 +99,7 @@ public:
     MutableCSSSelector* leftmostSimpleSelector();
     const MutableCSSSelector* leftmostSimpleSelector() const;
     bool startsWithExplicitCombinator() const;
-    void setPrecedingInComplexSelector(std::unique_ptr<MutableCSSSelector> selector) { m_precedingInComplexSelector = WTFMove(selector); }
+    void setPrecedingInComplexSelector(std::unique_ptr<MutableCSSSelector> selector) { m_precedingInComplexSelector = WTF::move(selector); }
     void prependInComplexSelector(CSSSelector::Relation, std::unique_ptr<MutableCSSSelector>);
     void prependInComplexSelectorAsRelative(std::unique_ptr<MutableCSSSelector>);
     void appendTagInComplexSelector(const QualifiedName&, bool tagIsForNamespaceRule = false);

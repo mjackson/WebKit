@@ -98,7 +98,7 @@ JSC_DEFINE_HOST_FUNCTION(constructTemporalPlainTime, (JSGlobalObject* globalObje
         if (!std::isfinite(duration[durationIndex]))
             return throwVMRangeError(globalObject, scope, "Temporal.PlainTime properties must be finite"_s);
     }
-    RELEASE_AND_RETURN(scope, JSValue::encode(TemporalPlainTime::tryCreateIfValid(globalObject, structure, WTFMove(duration))));
+    RELEASE_AND_RETURN(scope, JSValue::encode(TemporalPlainTime::tryCreateIfValid(globalObject, structure, WTF::move(duration))));
 }
 
 JSC_DEFINE_HOST_FUNCTION(callTemporalPlainTime, (JSGlobalObject* globalObject, CallFrame*))

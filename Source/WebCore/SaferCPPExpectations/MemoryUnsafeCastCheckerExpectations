@@ -5,12 +5,10 @@ Modules/Model/Implementation/ModelDowncastConvertToBackingContext.cpp
 Modules/WebGPU/Implementation/WebGPUBindGroupImpl.cpp
 Modules/WebGPU/Implementation/WebGPUDowncastConvertToBackingContext.cpp
 Modules/WebGPU/Implementation/WebGPUXRBindingImpl.cpp
-Modules/mediastream/PeerConnectionBackend.cpp
 Modules/mediastream/libwebrtc/LibWebRTCPeerConnectionBackend.cpp
 Modules/mediastream/libwebrtc/LibWebRTCRtpReceiverBackend.cpp
 Modules/mediastream/libwebrtc/LibWebRTCRtpTransformBackend.cpp
 Modules/mediastream/libwebrtc/LibWebRTCStatsCollector.cpp
-Modules/speech/SpeechSynthesis.cpp
 Modules/webaudio/WaveShaperProcessor.cpp
 SVGNames.cpp
 TagName.cpp
@@ -47,7 +45,6 @@ domjit/DOMJITHelpers.h
 domjit/JSDocumentDOMJIT.cpp
 domjit/JSNodeDOMJIT.cpp
 html/InputType.cpp
-html/track/TextTrackCueGeneric.cpp
 inspector/CommandLineAPIModule.cpp
 inspector/agents/InspectorCSSAgent.cpp
 layout/layouttree/LayoutIterator.h
@@ -74,8 +71,6 @@ rendering/svg/SVGRenderTreeAsText.cpp
 rendering/svg/SVGTextQuery.cpp
 svg/SVGFELightElement.cpp
 svg/SVGPathSegListSource.cpp
-svg/SVGTRefElement.cpp
-svg/animation/SVGSMILElement.cpp
 svg/properties/SVGAnimatedDecoratedProperty.h
 svg/properties/SVGAnimatedPrimitiveProperty.h
 svg/properties/SVGAnimatedPropertyAccessorImpl.h

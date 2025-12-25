@@ -508,6 +508,9 @@
         "before": {
             "supports-single-colon-for-compatibility": true
         },
+        "checkmark": {
+            "settings-flag": "cssAppearanceBaseEnabled"
+        },
         "cue": {
             "argument": "optional",
             "conditional": "ENABLE(VIDEO)",

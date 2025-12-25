@@ -34,7 +34,7 @@ namespace WebCore {
 
 class ImageBufferSkiaAcceleratedBackend final : public ImageBufferSkiaSurfaceBackend
 {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(ImageBufferSkiaAcceleratedBackend);
+    WTF_MAKE_TZONE_ALLOCATED(ImageBufferSkiaAcceleratedBackend);
     WTF_MAKE_NONCOPYABLE(ImageBufferSkiaAcceleratedBackend);
 public:
     static std::unique_ptr<ImageBufferSkiaAcceleratedBackend> create(const Parameters&, const ImageBufferCreationContext&);
@@ -46,6 +46,7 @@ public:
 private:
     ImageBufferSkiaAcceleratedBackend(const Parameters&, sk_sp<SkSurface>&&);
 
+    void flushContext() final;
     void prepareForDisplay() final;
 
     RefPtr<NativeImage> copyNativeImage() final;

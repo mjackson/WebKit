@@ -104,7 +104,7 @@ bool CSSVariableReferenceValue::resolveAndCacheValue(Style::Builder& builder, NO
     if (auto data = tryResolveSimpleReference(builder)) {
         if (!arePointingToEqualData(m_cacheDependencyData, data))
             cacheFunction(data);
-        m_cacheDependencyData = WTFMove(data);
+        m_cacheDependencyData = WTF::move(data);
         return true;
     }
 

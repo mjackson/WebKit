@@ -36,7 +36,7 @@
 #include <wtf/text/WTFString.h>
 
 #if PLATFORM(COCOA)
-#include <wtf/OSObjectPtr.h>
+#include <wtf/darwin/DispatchOSObject.h>
 #endif
 
 #if USE(GLIB)

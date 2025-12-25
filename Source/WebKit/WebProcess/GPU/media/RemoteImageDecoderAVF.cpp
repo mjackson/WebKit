@@ -91,7 +91,7 @@ EncodedDataStatus RemoteImageDecoderAVF::encodedDataStatus() const
 
 void RemoteImageDecoderAVF::setEncodedDataStatusChangeCallback(WTF::Function<void(EncodedDataStatus)>&& callback)
 {
-    m_encodedDataStatusChangedCallback = WTFMove(callback);
+    m_encodedDataStatusChangedCallback = WTF::move(callback);
 }
 
 IntSize RemoteImageDecoderAVF::size() const
@@ -165,11 +165,11 @@ PlatformImagePtr RemoteImageDecoderAVF::createFrameImageAtIndex(size_t index, Su
 
         imageHandle->takeOwnershipOfMemory(MemoryLedger::Graphics);
 
-        if (RefPtr bitmap = ShareableBitmap::create(WTFMove(*imageHandle)))
+        if (RefPtr bitmap = ShareableBitmap::create(WTF::move(*imageHandle)))
             protectedThis->m_frameImages.add(index, bitmap->createPlatformImage(DontCopyBackingStore));
     };
 
-    callOnMainRunLoopAndWait(WTFMove(createFrameImage));
+    callOnMainRunLoopAndWait(WTF::move(createFrameImage));
 
     if (m_frameImages.contains(index))
         return m_frameImages.get(index);

@@ -35,7 +35,7 @@
 #include "Latin1TextIterator.h"
 #include "LayoutInlineTextBox.h"
 #include "RenderBox.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include "SurrogatePairAwareTextIterator.h"
 #include "TextRun.h"
 #include "TextSpacing.h"

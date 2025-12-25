@@ -26,6 +26,7 @@
 
 #pragma once
 
+#include "ExecutableInfo.h"
 #include "ParserModes.h"
 #include "UnlinkedSourceCode.h"
 #include <wtf/HashTraits.h>

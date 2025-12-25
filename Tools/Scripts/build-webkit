@@ -60,6 +60,7 @@ if (shouldBuildForCrossTarget()) {
     my @command = (File::Spec->catfile(sourceDir(), "Tools", "Scripts", "build-webkit"));
     runInFlatpak(@command);
 }
+maybeUseContainerSDKRootDir();
 
 my $originalWorkingDirectory = getcwd();
 chdirWebKit();

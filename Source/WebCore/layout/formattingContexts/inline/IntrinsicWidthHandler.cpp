@@ -29,7 +29,8 @@
 #include "InlineFormattingContext.h"
 #include "InlineLineBuilder.h"
 #include "LayoutElementBox.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
+#include "RenderStyle+InitialInlines.h"
 #include "TextOnlySimpleLineBuilder.h"
 
 namespace WebCore {
@@ -213,7 +214,7 @@ InlineLayoutUnit IntrinsicWidthHandler::computedIntrinsicWidthForConstraint(Intr
                 m_maximumIntrinsicWidthResultForSingleLine = { };
                 if (mayCacheLayoutResult == MayCacheLayoutResult::No)
                     return;
-                m_maximumIntrinsicWidthResultForSingleLine = WTFMove(lineLayoutResult);
+                m_maximumIntrinsicWidthResultForSingleLine = WTF::move(lineLayoutResult);
             };
             cacheLineBreakingResultForSubsequentLayoutIfApplicable();
             break;
@@ -222,7 +223,7 @@ InlineLayoutUnit IntrinsicWidthHandler::computedIntrinsicWidthForConstraint(Intr
         // Support single line only.
         mayCacheLayoutResult = MayCacheLayoutResult::No;
         previousLineEnd = layoutRange.start;
-        previousLine = PreviousLine { lineIndex++, lineLayoutResult.contentGeometry.trailingOverflowingContentWidth, lineLayoutResult.endsWithLineBreak(), { }, WTFMove(lineLayoutResult.floatContent.suspendedFloats) };
+        previousLine = PreviousLine { lineIndex++, lineLayoutResult.contentGeometry.trailingOverflowingContentWidth, lineLayoutResult.endsWithLineBreak(), { }, WTF::move(lineLayoutResult.floatContent.suspendedFloats) };
         isFirstFormattedLineCandidate &= !lineLayoutResult.hasContentfulInFlowContent();
     }
     m_maximumContentWidthBetweenLineBreaks = std::max(contentWidthBetweenLineBreaks.current, contentWidthBetweenLineBreaks.maximum);
@@ -289,7 +290,7 @@ InlineLayoutUnit IntrinsicWidthHandler::simplifiedMaximumWidth(MayCacheLayoutRes
     ASSERT(contentLogicalWidth == lineContent.contentLogicalWidth);
 
     m_maximumIntrinsicWidthResultForSingleLine = LineLayoutResult { { 0, 1 }
-        , WTFMove(lineContent.runs)
+        , WTF::move(lineContent.runs)
         , { }
         , { { }, lineContent.contentLogicalWidth, lineContent.contentLogicalRight, { } }
         , { }

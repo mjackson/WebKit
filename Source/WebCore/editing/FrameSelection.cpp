@@ -75,7 +75,7 @@
 #include "Range.h"
 #include "RenderLayer.h"
 #include "RenderLayerScrollableArea.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include "RenderText.h"
 #include "RenderTextControl.h"
 #include "RenderTheme.h"
@@ -150,7 +150,7 @@ IntRect DragCaretController::editableElementRectInRootViewCoordinates() const
 
     RefPtr<ContainerNode> editableContainer;
     if (RefPtr formControl = enclosingTextFormControl(m_position.deepEquivalent()))
-        editableContainer = WTFMove(formControl);
+        editableContainer = WTF::move(formControl);
     else
         editableContainer = highestEditableRoot(m_position.deepEquivalent());
 
@@ -2538,7 +2538,7 @@ RefPtr<MutableStyleProperties> FrameSelection::copyTypingStyle() const
 
 void FrameSelection::setTypingStyle(RefPtr<EditingStyle>&& style)
 {
-    m_typingStyle = WTFMove(style);
+    m_typingStyle = WTF::move(style);
 }
 
 void FrameSelection::clearTypingStyle()

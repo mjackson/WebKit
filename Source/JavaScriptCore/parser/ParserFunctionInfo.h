@@ -25,6 +25,8 @@
 
 #pragma once
 
+#include "Identifier.h"
+
 namespace JSC {
 
 template <class TreeBuilder>

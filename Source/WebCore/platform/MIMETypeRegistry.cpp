@@ -79,7 +79,7 @@ static String normalizedImageMIMEType(const String&);
 // supported (should be image/tiff). This can be removed when Mail addresses:
 // <rdar://problem/7879510> Mail should use standard image mimetypes
 // and we fix sniffing so that it corrects items such as image/jpg -> image/jpeg.
-constexpr ComparableCaseFoldingASCIILiteral supportedImageMIMETypeArray[] = {
+constexpr auto supportedImageMIMETypeArray = std::to_array<ComparableCaseFoldingASCIILiteral>({
 #if PLATFORM(IOS_FAMILY)
     "application/bmp"_s,
     "application/jpg"_s,
@@ -153,11 +153,11 @@ constexpr ComparableCaseFoldingASCIILiteral supportedImageMIMETypeArray[] = {
 #if PLATFORM(IOS_FAMILY) || !USE(CG)
     "image/x-xbitmap"_s,
 #endif
-};
+});
 
-template<ASCIISubset subset, unsigned size> static FixedVector<ASCIILiteral> makeFixedVector(const ComparableASCIISubsetLiteral<subset> (&array)[size])
+template<ASCIISubset subset, std::size_t size> static FixedVector<ASCIILiteral> makeFixedVector(const std::array<ComparableASCIISubsetLiteral<subset>, size>& array)
 {
-    FixedVector<ASCIILiteral> result(std::size(array));
+    FixedVector<ASCIILiteral> result(array.size());
     std::ranges::transform(array, result.begin(), [](auto literal) {
         return literal.literal;
     });
@@ -197,7 +197,7 @@ HashSet<String, ASCIICaseInsensitiveHash>& MIMETypeRegistry::additionalSupported
 }
 
 // https://html.spec.whatwg.org/multipage/scripting.html#javascript-mime-type
-constexpr ComparableLettersLiteral supportedJavaScriptMIMETypeArray[] = {
+constexpr auto supportedJavaScriptMIMETypeArray = std::to_array<ComparableLettersLiteral>({
     "application/ecmascript"_s,
     "application/javascript"_s,
     "application/x-ecmascript"_s,
@@ -214,7 +214,7 @@ constexpr ComparableLettersLiteral supportedJavaScriptMIMETypeArray[] = {
     "text/livescript"_s,
     "text/x-ecmascript"_s,
     "text/x-javascript"_s,
-};
+});
 
 HashSet<String, ASCIICaseInsensitiveHash>& MIMETypeRegistry::supportedNonImageMIMETypes()
 {
@@ -263,17 +263,17 @@ const HashSet<String>& MIMETypeRegistry::supportedMediaMIMETypes()
     return types;
 }
 
-constexpr ComparableLettersLiteral pdfMIMETypeArray[] = {
+constexpr auto pdfMIMETypeArray = std::to_array<ComparableLettersLiteral>({
     "application/pdf"_s,
     "text/pdf"_s,
-};
+});
 
 FixedVector<ASCIILiteral> MIMETypeRegistry::pdfMIMETypes()
 {
     return makeFixedVector(pdfMIMETypeArray);
 }
 
-constexpr ComparableLettersLiteral unsupportedTextMIMETypeArray[] = {
+constexpr auto unsupportedTextMIMETypeArray = std::to_array<ComparableLettersLiteral>({
     "text/calendar"_s,
     "text/directory"_s,
     "text/ldif"_s,
@@ -292,7 +292,7 @@ constexpr ComparableLettersLiteral unsupportedTextMIMETypeArray[] = {
     "text/x-vcalendar"_s,
     "text/x-vcard"_s,
     "text/x-vcf"_s,
-};
+});
 
 FixedVector<ASCIILiteral> MIMETypeRegistry::unsupportedTextMIMETypes()
 {
@@ -306,7 +306,7 @@ static const HashMap<String, Vector<String>, ASCIICaseInsensitiveHash>& commonMi
         HashMap<String, Vector<String>, ASCIICaseInsensitiveHash> map;
         // A table of common media MIME types and file extensions used when a platform's
         // specific MIME type lookup doesn't have a match for a media file extension.
-        static constexpr TypeExtensionPair commonMediaTypes[] = {
+        static constexpr auto commonMediaTypes = std::to_array<TypeExtensionPair>({
             // Ogg
             { "application/ogg"_s, "ogx"_s },
             { "audio/ogg"_s, "ogg"_s },
@@ -384,7 +384,7 @@ static const HashMap<String, Vector<String>, ASCIICaseInsensitiveHash>& commonMi
             // ADPCM
             { "audio/x-wav"_s, "wav"_s },
             { "audio/vnd.wave"_s, "wav"_s },
-        };
+        });
         for (auto& pair : commonMediaTypes) {
             ASCIILiteral type = pair.type;
             ASCIILiteral extension = pair.extension;
@@ -509,7 +509,7 @@ std::unique_ptr<MIMETypeRegistryThreadGlobalData> MIMETypeRegistry::createMIMETy
 #endif
     };
 #endif
-    return makeUnique<MIMETypeRegistryThreadGlobalData>(WTFMove(supportedImageMIMETypesForEncoding));
+    return makeUnique<MIMETypeRegistryThreadGlobalData>(WTF::move(supportedImageMIMETypesForEncoding));
 }
 
 bool MIMETypeRegistry::isSupportedImageMIMETypeForEncoding(const String& mimeType)
@@ -663,16 +663,16 @@ const String& defaultMIMEType()
     return defaultMIMEType;
 }
 
-constexpr ComparableLettersLiteral usdMIMETypeArray[] = {
+constexpr auto usdMIMETypeArray = std::to_array<ComparableLettersLiteral>({
     "model/usd"_s, // Unofficial, but supported because we documented this.
     "model/vnd.pixar.usd"_s, // Unofficial, but supported because we documented this.
     "model/vnd.reality"_s,
     "model/vnd.usdz+zip"_s, // The official type: https://www.iana.org/assignments/media-types/model/vnd.usdz+zip
-};
+});
 
-constexpr ComparableLettersLiteral gltfMIMETypeArray[] = {
+constexpr auto gltfMIMETypeArray = std::to_array<ComparableLettersLiteral>({
     "model/gltf-binary"_s, // The official glTF binary (.glb) format: https://www.iana.org/assignments/media-types/model/gltf-binary
-};
+});
 
 FixedVector<ASCIILiteral> MIMETypeRegistry::usdMIMETypes()
 {
@@ -706,7 +706,7 @@ static String normalizedImageMIMEType(const String& mimeType)
 {
 #if USE(CURL)
     // FIXME: Since this is only used in isSupportedImageMIMEType, we should consider removing the non-image types below.
-    static constexpr std::pair<ComparableLettersLiteral, ASCIILiteral> mimeTypeAssociationArray[] = {
+    static constexpr auto mimeTypeAssociationArray = std::to_array<std::pair<ComparableLettersLiteral, ASCIILiteral>>({
         { "application/ico"_s, "image/vnd.microsoft.icon"_s },
         { "application/java"_s, "application/java-archive"_s },
         { "application/x-java-archive"_s, "application/java-archive"_s },
@@ -753,7 +753,7 @@ static String normalizedImageMIMEType(const String& mimeType)
         { "video/avi"_s, "video/x-msvideo"_s },
         { "video/x-m4v"_s, "video/mp4"_s },
         { "video/x-quicktime"_s, "video/quicktime"_s },
-    };
+    });
     static constexpr SortedArrayMap associationMap { mimeTypeAssociationArray };
     auto normalizedType = associationMap.tryGet(mimeType);
     return normalizedType ? *normalizedType : mimeType;

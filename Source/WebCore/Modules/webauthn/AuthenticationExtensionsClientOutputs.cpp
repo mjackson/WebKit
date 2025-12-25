@@ -67,7 +67,7 @@ std::optional<AuthenticationExtensionsClientOutputs> AuthenticationExtensionsCli
         largeBlobIt = largeBlobMap.find(cbor::CBORValue("blob"));
         if (largeBlobIt != largeBlobMap.end() && largeBlobIt->second.isByteString()) {
             RefPtr<ArrayBuffer> blob = ArrayBuffer::create(largeBlobIt->second.getByteString());
-            largeBlob.blob = WTFMove(blob);
+            largeBlob.blob = WTF::move(blob);
         }
 
         largeBlobIt = largeBlobMap.find(cbor::CBORValue("written"));
@@ -105,7 +105,7 @@ Vector<uint8_t> AuthenticationExtensionsClientOutputs::toCBOR() const
         clientOutputsMap[cbor::CBORValue("largeBlob")] = cbor::CBORValue(largeBlobMap);
     }
 
-    auto clientOutputs = cbor::CBORWriter::write(cbor::CBORValue(WTFMove(clientOutputsMap)));
+    auto clientOutputs = cbor::CBORWriter::write(cbor::CBORValue(WTF::move(clientOutputsMap)));
     ASSERT(clientOutputs);
 
     return *clientOutputs;

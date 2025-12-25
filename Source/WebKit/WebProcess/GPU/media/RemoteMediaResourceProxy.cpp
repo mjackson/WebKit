@@ -38,7 +38,7 @@ namespace WebKit {
 WTF_MAKE_TZONE_ALLOCATED_IMPL(RemoteMediaResourceProxy);
 
 RemoteMediaResourceProxy::RemoteMediaResourceProxy(Ref<IPC::Connection>&& connection, WebCore::PlatformMediaResource& platformMediaResource, RemoteMediaResourceIdentifier identifier)
-    : m_connection(WTFMove(connection))
+    : m_connection(WTF::move(connection))
     , m_platformMediaResource(platformMediaResource)
     , m_id(identifier)
 {
@@ -53,15 +53,15 @@ Ref<WebCore::PlatformMediaResource> RemoteMediaResourceProxy::protectedMediaReso
 
 void RemoteMediaResourceProxy::responseReceived(WebCore::PlatformMediaResource&, const WebCore::ResourceResponse& response, CompletionHandler<void(WebCore::ShouldContinuePolicyCheck)>&& completionHandler)
 {
-    m_connection->sendWithAsyncReply(Messages::RemoteMediaResourceManager::ResponseReceived(m_id, response, protectedMediaResource()->didPassAccessControlCheck()), [completionHandler = WTFMove(completionHandler)](auto shouldContinue) mutable {
+    m_connection->sendWithAsyncReply(Messages::RemoteMediaResourceManager::ResponseReceived(m_id, response, protectedMediaResource()->didPassAccessControlCheck()), [completionHandler = WTF::move(completionHandler)](auto shouldContinue) mutable {
         completionHandler(shouldContinue);
     });
 }
 
 void RemoteMediaResourceProxy::redirectReceived(WebCore::PlatformMediaResource&, WebCore::ResourceRequest&& request, const WebCore::ResourceResponse& response, CompletionHandler<void(WebCore::ResourceRequest&&)>&& completionHandler)
 {
-    m_connection->sendWithAsyncReply(Messages::RemoteMediaResourceManager::RedirectReceived(m_id, WTFMove(request), response), [completionHandler = WTFMove(completionHandler)](WebCore::ResourceRequest&& request) mutable {
-        completionHandler(WTFMove(request));
+    m_connection->sendWithAsyncReply(Messages::RemoteMediaResourceManager::RedirectReceived(m_id, WTF::move(request), response), [completionHandler = WTF::move(completionHandler)](WebCore::ResourceRequest&& request) mutable {
+        completionHandler(WTF::move(request));
     });
 }
 

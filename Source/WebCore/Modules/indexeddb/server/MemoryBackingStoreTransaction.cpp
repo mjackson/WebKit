@@ -104,7 +104,7 @@ void MemoryBackingStoreTransaction::addExistingIndex(MemoryIndex& index)
 void MemoryBackingStoreTransaction::indexDeleted(Ref<MemoryIndex>&& index)
 {
     m_indexes.remove(&index.get());
-    m_deletedIndexes.add(WTFMove(index));
+    m_deletedIndexes.add(WTF::move(index));
 }
 
 void MemoryBackingStoreTransaction::addExistingObjectStore(MemoryObjectStore& objectStore)
@@ -139,7 +139,7 @@ void MemoryBackingStoreTransaction::objectStoreDeleted(Ref<MemoryObjectStore>&& 
 
     auto addResult = m_deletedObjectStores.add(objectStore->info().name(), nullptr);
     if (addResult.isNewEntry)
-        addResult.iterator->value = WTFMove(objectStore);
+        addResult.iterator->value = WTF::move(objectStore);
 }
 
 void MemoryBackingStoreTransaction::objectStoreRenamed(MemoryObjectStore& objectStore, const String& oldName)
@@ -191,7 +191,7 @@ void MemoryBackingStoreTransaction::abort()
             objectStore->info().deleteIndex(identifier);
             index->rename(originalName);
             objectStore->info().addExistingIndex(index->info());
-            objectStore->registerIndex(WTFMove(indexToReRegister));
+            objectStore->registerIndex(WTF::move(indexToReRegister));
         }
     }
     m_originalIndexNames.clear();

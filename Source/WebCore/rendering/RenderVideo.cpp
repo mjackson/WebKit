@@ -54,10 +54,10 @@ namespace WebCore {
 
 using namespace HTMLNames;
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(RenderVideo);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderVideo);
 
 RenderVideo::RenderVideo(HTMLVideoElement& element, RenderStyle&& style)
-    : RenderMedia(Type::Video, element, WTFMove(style))
+    : RenderMedia(Type::Video, element, WTF::move(style))
 {
     setIntrinsicSize(calculateIntrinsicSize());
     ASSERT(isRenderVideo());
@@ -297,7 +297,7 @@ void RenderVideo::layout()
     updatePlayer();
 }
 
-void RenderVideo::styleDidChange(StyleDifference difference, const RenderStyle* oldStyle)
+void RenderVideo::styleDidChange(Style::Difference difference, const RenderStyle* oldStyle)
 {
     RenderMedia::styleDidChange(difference, oldStyle);
     if (!oldStyle || style().objectFit() != oldStyle->objectFit())

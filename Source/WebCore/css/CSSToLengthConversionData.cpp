@@ -32,7 +32,7 @@
 #include "CSSToLengthConversionData.h"
 
 #include "FloatSize.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include "RenderView.h"
 #include "StyleBuilderState.h"
 
@@ -74,7 +74,7 @@ const FontCascade& CSSToLengthConversionData::fontCascadeForFontUnits() const
     return style()->fontCascade();
 }
 
-int CSSToLengthConversionData::computedLineHeightForFontUnits() const
+float CSSToLengthConversionData::computedLineHeightForFontUnits() const
 {
     if (computingFontSize()) {
         ASSERT(parentStyle());

@@ -29,6 +29,7 @@
 #include "MacroAssembler.h"
 #include "Printer.h"
 #include "ProbeContext.h"
+#include <wtf/Platform.h>
 
 namespace JSC {
 

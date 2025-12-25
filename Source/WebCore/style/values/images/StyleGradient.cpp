@@ -33,7 +33,7 @@
 #include "GeometryUtilities.h"
 #include "Gradient.h"
 #include "GradientColorStop.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include "StylePrimitiveNumericTypes+Conversions.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
 
@@ -365,7 +365,7 @@ template<typename GradientAdapter, typename StyleGradient> GradientColorStops co
 
     std::ranges::stable_sort(result, { }, &WebCore::GradientColorStop::offset);
 
-    return GradientColorStops::Sorted { WTFMove(result) };
+    return GradientColorStops::Sorted { WTF::move(result) };
 }
 
 template<typename GradientAdapter, typename StyleGradient> GradientColorStops computeStops(GradientAdapter& gradientAdapter, const StyleGradient& styleGradient, const RenderStyle& style)
@@ -626,7 +626,7 @@ template<typename GradientAdapter, typename StyleGradient> GradientColorStops co
                     }
                 }
 
-                stops = WTFMove(generatedStops);
+                stops = WTF::move(generatedStops);
             }
         }
     }
@@ -856,7 +856,7 @@ template<CSSValueID Name> static Ref<WebCore::Gradient> createPlatformGradient(c
     LinearGradientAdapter adapter { data };
     auto stops = computeStops(adapter, linear, style);
 
-    return WebCore::Gradient::create(WTFMove(data), linear.parameters.colorInterpolationMethod.method, GradientSpreadMethod::Pad, WTFMove(stops));
+    return WebCore::Gradient::create(WTF::move(data), linear.parameters.colorInterpolationMethod.method, GradientSpreadMethod::Pad, WTF::move(stops));
 }
 
 // MARK: - Prefixed Linear create.
@@ -911,7 +911,7 @@ template<CSSValueID Name> static Ref<WebCore::Gradient> createPlatformGradient(c
     LinearGradientAdapter adapter { data };
     auto stops = computeStops(adapter, linear, style);
 
-    return WebCore::Gradient::create(WTFMove(data), linear.parameters.colorInterpolationMethod.method, GradientSpreadMethod::Pad, WTFMove(stops));
+    return WebCore::Gradient::create(WTF::move(data), linear.parameters.colorInterpolationMethod.method, GradientSpreadMethod::Pad, WTF::move(stops));
 }
 
 // MARK: - Deprecated Linear create.
@@ -927,7 +927,7 @@ template<CSSValueID Name> static Ref<WebCore::Gradient> createPlatformGradient(c
     LinearGradientAdapter adapter { data };
     auto stops = computeStopsForDeprecatedVariants(adapter, linear, style);
 
-    return WebCore::Gradient::create(WTFMove(data), linear.parameters.colorInterpolationMethod.method, GradientSpreadMethod::Pad, WTFMove(stops));
+    return WebCore::Gradient::create(WTF::move(data), linear.parameters.colorInterpolationMethod.method, GradientSpreadMethod::Pad, WTF::move(stops));
 }
 
 // MARK: - Radial create.
@@ -1022,7 +1022,7 @@ template<CSSValueID Name> static Ref<WebCore::Gradient> createPlatformGradient(c
     RadialGradientAdapter adapter { data, size };
     auto stops = computeStops(adapter, radial, style);
 
-    return WebCore::Gradient::create(WTFMove(data), radial.parameters.colorInterpolationMethod.method, GradientSpreadMethod::Pad, WTFMove(stops));
+    return WebCore::Gradient::create(WTF::move(data), radial.parameters.colorInterpolationMethod.method, GradientSpreadMethod::Pad, WTF::move(stops));
 }
 
 // MARK: - Prefixed Radial create.
@@ -1129,7 +1129,7 @@ template<CSSValueID Name> static Ref<WebCore::Gradient> createPlatformGradient(c
     RadialGradientAdapter adapter { data, size };
     auto stops = computeStops(adapter, radial, style);
 
-    return WebCore::Gradient::create(WTFMove(data), radial.parameters.colorInterpolationMethod.method, GradientSpreadMethod::Pad, WTFMove(stops));
+    return WebCore::Gradient::create(WTF::move(data), radial.parameters.colorInterpolationMethod.method, GradientSpreadMethod::Pad, WTF::move(stops));
 }
 
 // MARK: - Deprecated Radial create.
@@ -1149,7 +1149,7 @@ template<CSSValueID Name> static Ref<WebCore::Gradient> createPlatformGradient(c
     RadialGradientAdapter adapter { data, size };
     auto stops = computeStopsForDeprecatedVariants(adapter, radial, style);
 
-    return WebCore::Gradient::create(WTFMove(data), radial.parameters.colorInterpolationMethod.method, GradientSpreadMethod::Pad, WTFMove(stops));
+    return WebCore::Gradient::create(WTF::move(data), radial.parameters.colorInterpolationMethod.method, GradientSpreadMethod::Pad, WTF::move(stops));
 }
 
 // MARK: - Conic create.
@@ -1169,7 +1169,7 @@ template<CSSValueID Name> static Ref<WebCore::Gradient> createPlatformGradient(c
     ConicGradientAdapter adapter;
     auto stops = computeStops(adapter, conic, style);
 
-    return WebCore::Gradient::create(WTFMove(data), conic.parameters.colorInterpolationMethod.method, GradientSpreadMethod::Pad, WTFMove(stops));
+    return WebCore::Gradient::create(WTF::move(data), conic.parameters.colorInterpolationMethod.method, GradientSpreadMethod::Pad, WTF::move(stops));
 }
 
 // MARK: - createPlatformGradient

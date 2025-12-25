@@ -88,7 +88,7 @@ void FrameTree::removeChild(Frame& child)
 
     child.tree().m_parent = nullptr;
     newLocationForPrevious = std::exchange(child.tree().m_previousSibling, nullptr);
-    newLocationForNext = WTFMove(child.tree().m_nextSibling);
+    newLocationForNext = WTF::move(child.tree().m_nextSibling);
 
     m_scopedChildCount = invalidCount;
 }

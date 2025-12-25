@@ -102,7 +102,7 @@ void StyleSurroundData::dumpDifferences(TextStream& ts, const StyleSurroundData&
     LOG_IF_DIFFERENT(inset);
     LOG_IF_DIFFERENT(margin);
     LOG_IF_DIFFERENT(padding);
-    LOG_IF_DIFFERENT(border);
+    border.dumpDifferences(ts, other.border);
 }
 #endif
 

@@ -55,7 +55,7 @@ public:
 };
 
 class RenderTableSection final : public RenderBox {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(RenderTableSection);
+    WTF_MAKE_TZONE_ALLOCATED(RenderTableSection);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderTableSection);
 public:
     RenderTableSection(Element&, RenderStyle&&);
@@ -154,7 +154,7 @@ public:
     bool backgroundIsKnownToBeOpaqueInRect(const LayoutRect&) const override { return false; }
 
 private:
-    void styleDidChange(StyleDifference, const RenderStyle* oldStyle) override;
+    void styleDidChange(Style::Difference, const RenderStyle* oldStyle) override;
 
     static RenderPtr<RenderTableSection> createTableSectionWithStyle(Document&, const RenderStyle&);
 

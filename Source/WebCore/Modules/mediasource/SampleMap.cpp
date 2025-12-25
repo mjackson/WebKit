@@ -115,7 +115,7 @@ void SampleMap::addSample(Ref<MediaSample>&& sample)
     presentationOrder().m_samples.insert(PresentationOrderSampleMap::MapType::value_type(presentationTime, sample));
 
     auto decodeKey = DecodeOrderSampleMap::KeyType(sample->decodeTime(), presentationTime);
-    decodeOrder().m_samples.insert(DecodeOrderSampleMap::MapType::value_type(decodeKey, WTFMove(sample)));
+    decodeOrder().m_samples.insert(DecodeOrderSampleMap::MapType::value_type(decodeKey, WTF::move(sample)));
 }
 
 void SampleMap::removeSample(const MediaSample& sample)
@@ -266,6 +266,20 @@ DecodeOrderSampleMap::iterator DecodeOrderSampleMap::findSyncSampleAfterPresenta
     if (Ref { foundSample->second }->presentationTime() > upperBound)
         return end();
     return foundSample;
+}
+
+DecodeOrderSampleMap::iterator DecodeOrderSampleMap::findSyncSamplePriorToDecodeKey(const KeyType& key)
+{
+    reverse_iterator reverseCursor = reverseFindSampleWithDecodeKey(key);
+    if (reverseCursor == rend())
+        return end();
+
+    reverseCursor = findSyncSamplePriorToDecodeIterator(reverseCursor);
+    if (reverseCursor == rend())
+        return end();
+
+    Ref sample = reverseCursor->second;
+    return findSampleWithDecodeKey(KeyType(sample->decodeTime(), sample->presentationTime()));
 }
 
 DecodeOrderSampleMap::iterator DecodeOrderSampleMap::findSyncSampleAfterDecodeIterator(iterator currentSampleDTS)

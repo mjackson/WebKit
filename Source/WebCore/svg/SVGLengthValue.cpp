@@ -355,7 +355,7 @@ ExceptionOr<void> SVGLengthValue::setValueAsString(StringView string)
         if (!tokenRange.atEnd())
             return Exception { ExceptionCode::SyntaxError };
 
-        m_value = isFloatOverflow(*number) ? CSS::Number<>(0) : WTFMove(*number);
+        m_value = isFloatOverflow(*number) ? CSS::Number<>(0) : WTF::move(*number);
 
         return { };
     }
@@ -369,7 +369,7 @@ ExceptionOr<void> SVGLengthValue::setValueAsString(StringView string)
         if (length->isCalc())
             return Exception { ExceptionCode::SyntaxError };
 
-        m_value = WTFMove(*length);
+        m_value = WTF::move(*length);
 
         return { };
     }

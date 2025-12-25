@@ -139,17 +139,17 @@ void KeyframeValueList::insert(std::unique_ptr<const AnimationValue> value)
         if (curValue->keyTime() == value->keyTime()) {
             ASSERT_NOT_REACHED();
             // insert after
-            m_values.insert(i + 1, WTFMove(value));
+            m_values.insert(i + 1, WTF::move(value));
             return;
         }
         if (curValue->keyTime() > value->keyTime()) {
             // insert before
-            m_values.insert(i, WTFMove(value));
+            m_values.insert(i, WTF::move(value));
             return;
         }
     }
     
-    m_values.append(WTFMove(value));
+    m_values.append(WTF::move(value));
 }
 
 #if !USE(CA)
@@ -318,7 +318,7 @@ bool GraphicsLayer::setChildren(Vector<Ref<GraphicsLayer>>&& newChildren)
 
     size_t listSize = newChildren.size();
     for (size_t i = 0; i < listSize; ++i)
-        addChild(WTFMove(newChildren[i]));
+        addChild(WTF::move(newChildren[i]));
     
     return true;
 }
@@ -329,7 +329,7 @@ void GraphicsLayer::addChild(Ref<GraphicsLayer>&& childLayer)
     
     childLayer->removeFromParent();
     childLayer->setParent(this);
-    m_children.append(WTFMove(childLayer));
+    m_children.append(WTF::move(childLayer));
 }
 
 void GraphicsLayer::addChildAtIndex(Ref<GraphicsLayer>&& childLayer, int index)
@@ -338,7 +338,7 @@ void GraphicsLayer::addChildAtIndex(Ref<GraphicsLayer>&& childLayer, int index)
 
     childLayer->removeFromParent();
     childLayer->setParent(this);
-    m_children.insert(index, WTFMove(childLayer));
+    m_children.insert(index, WTF::move(childLayer));
 }
 
 void GraphicsLayer::addChildBelow(Ref<GraphicsLayer>&& childLayer, GraphicsLayer* sibling)
@@ -350,12 +350,12 @@ void GraphicsLayer::addChildBelow(Ref<GraphicsLayer>&& childLayer, GraphicsLayer
 
     for (unsigned i = 0; i < m_children.size(); i++) {
         if (sibling == m_children[i].ptr()) {
-            m_children.insert(i, WTFMove(childLayer));
+            m_children.insert(i, WTF::move(childLayer));
             return;
         }
     }
 
-    m_children.append(WTFMove(childLayer));
+    m_children.append(WTF::move(childLayer));
 }
 
 void GraphicsLayer::addChildAbove(Ref<GraphicsLayer>&& childLayer, GraphicsLayer* sibling)
@@ -367,12 +367,12 @@ void GraphicsLayer::addChildAbove(Ref<GraphicsLayer>&& childLayer, GraphicsLayer
 
     for (unsigned i = 0; i < m_children.size(); i++) {
         if (sibling == m_children[i].ptr()) {
-            m_children.insert(i + 1, WTFMove(childLayer));
+            m_children.insert(i + 1, WTF::move(childLayer));
             return;
         }
     }
 
-    m_children.append(WTFMove(childLayer));
+    m_children.append(WTF::move(childLayer));
 }
 
 bool GraphicsLayer::replaceChild(GraphicsLayer* oldChild, Ref<GraphicsLayer>&& newChild)
@@ -384,7 +384,7 @@ bool GraphicsLayer::replaceChild(GraphicsLayer* oldChild, Ref<GraphicsLayer>&& n
     bool found = false;
     for (unsigned i = 0; i < m_children.size(); i++) {
         if (oldChild == m_children[i].ptr()) {
-            m_children[i] = WTFMove(newChild);
+            m_children[i] = WTF::move(newChild);
             found = true;
             break;
         }
@@ -532,7 +532,7 @@ void GraphicsLayer::setMaskLayer(RefPtr<GraphicsLayer>&& layer)
         m_maskLayer->setIsMaskLayer(false);
     }
     
-    m_maskLayer = WTFMove(layer);
+    m_maskLayer = WTF::move(layer);
 }
 
 MediaPlayerVideoGravity GraphicsLayer::videoGravity() const
@@ -591,7 +591,7 @@ void GraphicsLayer::setShapeLayerWindRule(WindRule windRule)
 
 void GraphicsLayer::setEventRegion(EventRegion&& eventRegion)
 {
-    m_eventRegion = WTFMove(eventRegion);
+    m_eventRegion = WTF::move(eventRegion);
 }
 
 void GraphicsLayer::noteDeviceOrPageScaleFactorChangedIncludingDescendants()
@@ -625,7 +625,7 @@ void GraphicsLayer::setReplicatedByLayer(RefPtr<GraphicsLayer>&& layer)
     if (layer)
         layer->setReplicatedLayer(this);
 
-    m_replicaLayer = WTFMove(layer);
+    m_replicaLayer = WTF::move(layer);
 }
 
 void GraphicsLayer::setOffsetFromRenderer(const FloatSize& offset, ShouldSetNeedsDisplay shouldSetNeedsDisplay)
@@ -880,8 +880,8 @@ void GraphicsLayer::setAcceleratedEffectsAndBaseValues(AcceleratedEffects&& effe
     if (!m_effectStack)
         m_effectStack = AcceleratedEffectStack::create();
 
-    m_effectStack->setEffects(WTFMove(effects));
-    m_effectStack->setBaseValues(WTFMove(baseValues));
+    m_effectStack->setEffects(WTF::move(effects));
+    m_effectStack->setBaseValues(WTF::move(baseValues));
 }
 #endif
 
@@ -907,7 +907,7 @@ void GraphicsLayer::addRepaintRect(const FloatRect& repaintRect)
     FloatRect largestRepaintRect(FloatPoint(), m_size);
     largestRepaintRect.intersect(repaintRect);
 
-    repaintRectMap().add(this, Vector<FloatRect>()).iterator->value.append(WTFMove(largestRepaintRect));
+    repaintRectMap().add(this, Vector<FloatRect>()).iterator->value.append(WTF::move(largestRepaintRect));
 }
 
 void GraphicsLayer::traverse(GraphicsLayer& layer, NOESCAPE const Function<void(GraphicsLayer&)>& traversalFunc)

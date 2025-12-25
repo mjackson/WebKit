@@ -76,7 +76,7 @@ struct PerformanceMeasureOptions;
 template<typename> class ExceptionOr;
 
 class Performance final : public RefCounted<Performance>, public ContextDestructionObserver, public EventTarget {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(Performance);
+    WTF_MAKE_TZONE_ALLOCATED(Performance);
 public:
     static Ref<Performance> create(ScriptExecutionContext* context, MonotonicTime timeOrigin) { return adoptRef(*new Performance(context, timeOrigin)); }
     ~Performance();
@@ -135,9 +135,6 @@ public:
     MonotonicTime monotonicTimeFromRelativeTime(DOMHighResTimeStamp) const;
 
     ScriptExecutionContext* scriptExecutionContext() const final;
-
-    using RefCounted::ref;
-    using RefCounted::deref;
 
     void scheduleTaskIfNeeded();
 

@@ -95,7 +95,7 @@ class BaseAudioContext
     , public LoggerHelper
 #endif
 {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(BaseAudioContext);
+    WTF_MAKE_TZONE_ALLOCATED(BaseAudioContext);
 public:
     USING_CAN_MAKE_WEAKPTR(EventTarget);
 

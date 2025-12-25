@@ -184,7 +184,7 @@ BasicBlock* Code::addBlock(double frequency)
 {
     std::unique_ptr<BasicBlock> block(new BasicBlock(m_blocks.size(), frequency));
     BasicBlock* result = block.get();
-    m_blocks.append(WTFMove(block));
+    m_blocks.append(WTF::move(block));
     return result;
 }
 
@@ -203,7 +203,7 @@ StackSlot* Code::addStackSlot(uint64_t byteSize, StackSlotKind kind)
 Special* Code::addSpecial(std::unique_ptr<Special> special)
 {
     special->m_code = this;
-    return m_specials.add(WTFMove(special));
+    return m_specials.add(WTF::move(special));
 }
 
 CCallSpecial* Code::cCallSpecial()
@@ -242,7 +242,7 @@ std::optional<unsigned> Code::entrypointIndex(BasicBlock* block) const
 
 void Code::setCalleeSaveRegisterAtOffsetList(RegisterAtOffsetList&& registerAtOffsetList, StackSlot* slot)
 {
-    m_uncorrectedCalleeSaveRegisterAtOffsetList = WTFMove(registerAtOffsetList);
+    m_uncorrectedCalleeSaveRegisterAtOffsetList = WTF::move(registerAtOffsetList);
     for (const RegisterAtOffset& registerAtOffset : m_uncorrectedCalleeSaveRegisterAtOffsetList) {
         ASSERT(registerAtOffset.width() <= Width64);
         m_calleeSaveRegisters.add(registerAtOffset.reg(), registerAtOffset.width());

@@ -74,7 +74,7 @@ class DOMMapAdapter;
 class RTCStatsReport : public RefCounted<RTCStatsReport> {
 public:
     using MapInitializer = Function<void(DOMMapAdapter&)>;
-    static Ref<RTCStatsReport> create(MapInitializer&& mapInitializer) { return adoptRef(*new RTCStatsReport(WTFMove(mapInitializer))); }
+    static Ref<RTCStatsReport> create(MapInitializer&& mapInitializer) { return adoptRef(*new RTCStatsReport(WTF::move(mapInitializer))); }
 
     void initializeMapLike(DOMMapAdapter& adapter) { m_mapInitializer(adapter); }
 
@@ -516,7 +516,7 @@ private:
 };
 
 inline RTCStatsReport::RTCStatsReport(MapInitializer&& mapInitializer)
-    : m_mapInitializer(WTFMove(mapInitializer))
+    : m_mapInitializer(WTF::move(mapInitializer))
 {
 }
 

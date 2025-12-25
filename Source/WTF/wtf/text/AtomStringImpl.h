@@ -140,7 +140,7 @@ ALWAYS_INLINE Ref<AtomStringImpl> AtomStringImpl::add(Ref<StringImpl>&& string)
 {
     if (is<AtomStringImpl>(string)) {
         ASSERT_WITH_MESSAGE(!string->length() || isInAtomStringTable(string.ptr()), "The atom string comes from an other thread!");
-        return uncheckedDowncast<AtomStringImpl>(WTFMove(string));
+        return uncheckedDowncast<AtomStringImpl>(WTF::move(string));
     }
 #if USE(BUN_JSC_ADDITIONS)
     // TODO: remove once atomic strings are process-wide.
@@ -150,7 +150,7 @@ ALWAYS_INLINE Ref<AtomStringImpl> AtomStringImpl::add(Ref<StringImpl>&& string)
         return *add(string->span16());
     }
 #endif
-    return addSlowCase(WTFMove(string));
+    return addSlowCase(WTF::move(string));
 }
 
 ALWAYS_INLINE Ref<AtomStringImpl> AtomStringImpl::add(AtomStringTable& stringTable, StringImpl& string)

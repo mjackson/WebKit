@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "CollectionScope.h"
 #include "IndexingType.h"
 #include "WeakGCMap.h"
 #include <wtf/HashFunctions.h>

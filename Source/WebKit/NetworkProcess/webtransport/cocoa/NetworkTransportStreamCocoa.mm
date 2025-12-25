@@ -74,7 +74,7 @@ void NetworkTransportStream::sendBytes(std::span<const uint8_t> data, bool withF
         weakThis = WeakPtr { *this },
         withFin = withFin,
         bytesSent = data.size(),
-        completionHandler = WTFMove(completionHandler)
+        completionHandler = WTF::move(completionHandler)
     ] (nw_error_t error) mutable {
         RefPtr protectedThis = weakThis.get();
         if (error) {

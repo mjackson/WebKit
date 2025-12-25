@@ -41,7 +41,7 @@ class FlexLayout;
 }
 
 class RenderFlexibleBox : public RenderBlock {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(RenderFlexibleBox);
+    WTF_MAKE_TZONE_ALLOCATED(RenderFlexibleBox);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderFlexibleBox);
 public:
     RenderFlexibleBox(Type, Element&, RenderStyle&&);
@@ -58,7 +58,7 @@ public:
     std::optional<LayoutUnit> firstLineBaseline() const override;
     std::optional<LayoutUnit> lastLineBaseline() const override;
 
-    void styleDidChange(StyleDifference, const RenderStyle*) override;
+    void styleDidChange(Style::Difference, const RenderStyle*) override;
     bool hitTestChildren(const HitTestRequest&, HitTestResult&, const HitTestLocation&, const LayoutPoint& adjustedLocation, HitTestAction) override;
     void paintChildren(PaintInfo& forSelf, const LayoutPoint&, PaintInfo& forChild, bool usePrintRect) override;
 

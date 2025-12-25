@@ -73,7 +73,7 @@ void CSSPageRule::setSelectorText(const String& selectorText)
 
     CSSStyleSheet::RuleMutationScope mutationScope(this);
 
-    m_pageRule->wrapperAdoptSelectorList(WTFMove(*selectorList));
+    m_pageRule->wrapperAdoptSelectorList(WTF::move(*selectorList));
 }
 
 String CSSPageRule::cssText() const

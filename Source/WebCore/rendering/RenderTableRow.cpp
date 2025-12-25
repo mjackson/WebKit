@@ -47,10 +47,10 @@ namespace WebCore {
 
 using namespace HTMLNames;
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(RenderTableRow);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderTableRow);
 
 RenderTableRow::RenderTableRow(Element& element, RenderStyle&& style)
-    : RenderBox(Type::TableRow, element, WTFMove(style))
+    : RenderBox(Type::TableRow, element, WTF::move(style))
     , m_rowIndex(unsetRowIndex)
 {
     setInline(false);
@@ -58,7 +58,7 @@ RenderTableRow::RenderTableRow(Element& element, RenderStyle&& style)
 }
 
 RenderTableRow::RenderTableRow(Document& document, RenderStyle&& style)
-    : RenderBox(Type::TableRow, document, WTFMove(style))
+    : RenderBox(Type::TableRow, document, WTF::move(style))
     , m_rowIndex(unsetRowIndex)
 {
     setInline(false);
@@ -87,7 +87,7 @@ static bool borderWidthChanged(const RenderStyle* oldStyle, const RenderStyle* n
         || oldStyle->borderBottomWidth() != newStyle->borderBottomWidth();
 }
 
-void RenderTableRow::styleDidChange(StyleDifference diff, const RenderStyle* oldStyle)
+void RenderTableRow::styleDidChange(Style::Difference diff, const RenderStyle* oldStyle)
 {
     ASSERT(style().display() == DisplayType::TableRow);
 
@@ -102,7 +102,7 @@ void RenderTableRow::styleDidChange(StyleDifference diff, const RenderStyle* old
         if (oldStyle)
             table->invalidateCollapsedBordersAfterStyleChangeIfNeeded(*oldStyle, style());
 
-        if (oldStyle && diff == StyleDifference::Layout && needsLayout() && table->collapseBorders() && borderWidthChanged(oldStyle, &style())) {
+        if (oldStyle && diff == Style::DifferenceResult::Layout && needsLayout() && table->collapseBorders() && borderWidthChanged(oldStyle, &style())) {
             // If the border width changes on a row, we need to make sure the cells in the row know to lay out again.
             // This only happens when borders are collapsed, since they end up affecting the border sides of the cell
             // itself.

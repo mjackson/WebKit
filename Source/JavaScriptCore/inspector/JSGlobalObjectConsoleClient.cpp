@@ -78,7 +78,7 @@ void JSGlobalObjectConsoleClient::messageWithTypeAndLevel(MessageType type, Mess
 
     String message;
     arguments->getFirstArgumentAsString(message);
-    m_consoleAgent->addMessageToConsole(makeUnique<ConsoleMessage>(MessageSource::ConsoleAPI, type, level, message, WTFMove(arguments), globalObject));
+    m_consoleAgent->addMessageToConsole(makeUnique<ConsoleMessage>(MessageSource::ConsoleAPI, type, level, message, WTF::move(arguments), globalObject));
 
     if (type == MessageType::Assert) {
         if (m_debuggerAgent)
@@ -148,20 +148,20 @@ void JSGlobalObjectConsoleClient::startConsoleProfile()
 {
     if (m_debuggerAgent) {
         m_profileRestoreBreakpointActiveValue = m_debuggerAgent->breakpointsActive();
-        m_debuggerAgent->setBreakpointsActive(false);
+        std::ignore = m_debuggerAgent->setBreakpointsActive(false);
     }
 
     if (m_scriptProfilerAgent)
-        m_scriptProfilerAgent->startTracking(true);
+        std::ignore = m_scriptProfilerAgent->startTracking(true);
 }
 
 void JSGlobalObjectConsoleClient::stopConsoleProfile()
 {
     if (m_scriptProfilerAgent)
-        m_scriptProfilerAgent->stopTracking();
+        std::ignore = m_scriptProfilerAgent->stopTracking();
 
     if (m_debuggerAgent)
-        m_debuggerAgent->setBreakpointsActive(m_profileRestoreBreakpointActiveValue);
+        std::ignore = m_debuggerAgent->setBreakpointsActive(m_profileRestoreBreakpointActiveValue);
 }
 
 void JSGlobalObjectConsoleClient::takeHeapSnapshot(JSC::JSGlobalObject*, const String& title)
@@ -185,7 +185,7 @@ void JSGlobalObjectConsoleClient::timeLog(JSGlobalObject* globalObject, const St
     if (!m_consoleAgent->developerExtrasEnabled()) [[likely]]
         return;
 
-    m_consoleAgent->logTiming(globalObject, label, WTFMove(arguments));
+    m_consoleAgent->logTiming(globalObject, label, WTF::move(arguments));
 }
 
 void JSGlobalObjectConsoleClient::timeEnd(JSGlobalObject* globalObject, const String& label)

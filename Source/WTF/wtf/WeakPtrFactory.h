@@ -57,6 +57,13 @@ public:
     {
     }
 
+    void prepareForUseOnlyOnMainThread()
+    {
+#if ASSERT_ENABLED
+        m_wasConstructedOnMainThread = true;
+#endif
+    }
+
     void prepareForUseOnlyOnNonMainThread()
     {
 #if ASSERT_ENABLED

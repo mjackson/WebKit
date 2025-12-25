@@ -40,7 +40,7 @@ template<typename IDLType> class DOMPromiseProxyWithResolveCallback;
 class DOMException;
 
 class FontFaceSet final : public RefCounted<FontFaceSet>, private FontEventClient, public EventTarget, public ActiveDOMObject {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(FontFaceSet);
+    WTF_MAKE_TZONE_ALLOCATED(FontFaceSet);
 public:
     static Ref<FontFaceSet> create(ScriptExecutionContext&, const Vector<Ref<FontFace>>& initialFaces);
     static Ref<FontFaceSet> create(ScriptExecutionContext&, CSSFontFaceSet& backing);
@@ -85,7 +85,7 @@ private:
     struct PendingPromise : RefCounted<PendingPromise> {
         static Ref<PendingPromise> create(LoadPromise&& promise)
         {
-            return adoptRef(*new PendingPromise(WTFMove(promise)));
+            return adoptRef(*new PendingPromise(WTF::move(promise)));
         }
         ~PendingPromise();
 

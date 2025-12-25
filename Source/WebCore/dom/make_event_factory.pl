@@ -133,7 +133,7 @@ sub generateImplementation()
         }
         if ($factoryFunction eq "toNewlyCreated") {
             print F "    case ${namespace}InterfaceType::${interfaceName}:\n";
-            print F "        return createWrapper<$interfaceName$suffix>(globalObject, WTFMove(impl));\n";
+            print F "        return createWrapper<$interfaceName$suffix>(globalObject, WTF::move(impl));\n";
         } else {
             print F "    case ${namespace}InterfaceType::${interfaceName}:\n";
             print F "        return toJS(state, globalObject, static_cast<$interfaceName&>(impl));\n";
@@ -143,7 +143,7 @@ sub generateImplementation()
 
     print F "    }\n";
     if ($factoryFunction eq "toNewlyCreated") {
-        print F "    return createWrapper<$namespace>(globalObject, WTFMove(impl));\n";
+        print F "    return createWrapper<$namespace>(globalObject, WTF::move(impl));\n";
     } else {
         print F "    return wrap(state, globalObject, impl);\n";
     }

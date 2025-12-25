@@ -58,7 +58,7 @@ WebContextMenuItemGlib::WebContextMenuItemGlib(const WebContextMenuItemGlib& dat
     : WebContextMenuItemData(ContextMenuItemType::Action, data.action(), String { data.title() }, data.enabled(), false)
 {
     m_gAction = data.gAction();
-    m_submenuItems = WTFMove(submenu);
+    m_submenuItems = WTF::move(submenu);
 #if PLATFORM(GTK) && !USE(GTK4)
     m_gtkAction = data.gtkAction();
 #endif

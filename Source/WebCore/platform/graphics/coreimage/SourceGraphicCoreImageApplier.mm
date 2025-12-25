@@ -32,8 +32,6 @@
 #import "IOSurface.h"
 #import "ImageBuffer.h"
 #import "NativeImage.h"
-#import <CoreImage/CIContext.h>
-#import <CoreImage/CIFilter.h>
 #import <CoreImage/CoreImage.h>
 #import <wtf/TZoneMallocInlines.h>
 
@@ -58,7 +56,7 @@ bool SourceGraphicCoreImageApplier::apply(const Filter&, std::span<const Ref<Fil
     if (!image)
         return false;
 
-    result.setCIImage(WTFMove(image));
+    result.setCIImage(WTF::move(image));
     return true;
 }
 

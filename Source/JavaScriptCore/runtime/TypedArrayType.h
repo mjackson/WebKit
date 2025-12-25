@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "JSExportMacros.h"
 #include "JSType.h"
 #include <wtf/Float16.h>
 #include <wtf/PrintStream.h>

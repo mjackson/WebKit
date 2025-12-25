@@ -44,8 +44,8 @@
 #include "RenderLayerCompositor.h"
 #include "RenderObjectInlines.h"
 #include "RenderStyle.h"
-#include "RenderStyleInlines.h"
-#include "RenderStyleSetters.h"
+#include "RenderStyle+GettersInlines.h"
+#include "RenderStyle+SettersInlines.h"
 #include "RenderView.h"
 #include "StyleBuilderState.h"
 #include "StyleScope.h"
@@ -285,7 +285,7 @@ void AnchorPositionEvaluator::captureScrollSnapshots(RenderBox& anchored, bool i
         || anchored.style().positionVisibility().contains(PositionVisibilityValue::NoOverflow))
         adjuster.setFallbackLimits(anchored);
 
-    auto captureDiff = anchored.layoutContext().registerAnchorScrollAdjuster(WTFMove(adjuster));
+    auto captureDiff = anchored.layoutContext().registerAnchorScrollAdjuster(WTF::move(adjuster));
     if (invalidateStyleForScrollPositionChanges && AnchorScrollAdjuster::SnapshotsDiffer == captureDiff && anchored.style().usesAnchorFunctions()) {
         // Scroll positions changed since the last capture, which means anchor() resolution needs updating.
         if (CheckedPtr element = anchored.element())
@@ -437,7 +437,7 @@ static LayoutSize offsetFromAncestorContainer(const RenderElement& descendantCon
 
         offset += currentOffset;
         referencePoint.move(currentOffset);
-        currentContainer = WTFMove(nextContainer);
+        currentContainer = WTF::move(nextContainer);
     } while (currentContainer != maxContainer);
 
     if (CheckedPtr descendantInline = dynamicDowncast<RenderInline>(&descendantContainer)) {
@@ -1295,7 +1295,7 @@ void AnchorPositionEvaluator::updateAnchorPositioningStatesAfterInterleavedLayou
                 }
                 document.styleScope().anchorPositionedToAnchorMap().set(*element, AnchorPositionedToAnchorEntry {
                     .pseudoElementIdentifier = elementAndState.key.second,
-                    .anchors = WTFMove(anchors)
+                    .anchors = WTF::move(anchors)
                 });
             }
             state.stage = renderer && renderer->style().usesAnchorFunctions() ? AnchorPositionResolutionStage::ResolveAnchorFunctions : AnchorPositionResolutionStage::Resolved;

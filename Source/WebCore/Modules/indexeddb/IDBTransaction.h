@@ -68,7 +68,7 @@ class TransactionOperation;
 }
 
 class IDBTransaction final : public ThreadSafeRefCounted<IDBTransaction>, public EventTarget, public IDBActiveDOMObject {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED_EXPORT(IDBTransaction, WEBCORE_EXPORT);
+    WTF_MAKE_TZONE_ALLOCATED_EXPORT(IDBTransaction, WEBCORE_EXPORT);
 public:
     static Ref<IDBTransaction> create(IDBDatabase&, const IDBTransactionInfo&);
     static Ref<IDBTransaction> create(IDBDatabase&, const IDBTransactionInfo&, IDBOpenDBRequest&);
@@ -258,7 +258,7 @@ private:
     WeakHashSet<IDBRequest, WeakPtrImplWithEventTargetData> m_cursorRequests;
 
     Deque<RefPtr<IDBClient::TransactionOperation>> m_pendingTransactionOperationQueue;
-    Deque<IDBClient::TransactionOperation*> m_transactionOperationsInProgressQueue;
+    Deque<RefPtr<IDBClient::TransactionOperation>> m_transactionOperationsInProgressQueue;
     Deque<RefPtr<IDBClient::TransactionOperation>> m_abortQueue;
     HashMap<RefPtr<IDBClient::TransactionOperation>, IDBResultData> m_transactionOperationResultMap;
     HashMap<IDBResourceIdentifier, RefPtr<IDBClient::TransactionOperation>> m_transactionOperationMap;

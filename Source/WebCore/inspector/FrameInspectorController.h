@@ -53,6 +53,7 @@ class InspectorFrontendClient;
 class InspectorInstrumentation;
 class InstrumentingAgents;
 class LocalFrame;
+class PageInspectorController;
 class WebInjectedScriptManager;
 struct FrameAgentContext;
 
@@ -61,7 +62,7 @@ class FrameInspectorController final : public Inspector::InspectorEnvironment, p
     WTF_MAKE_TZONE_ALLOCATED(FrameInspectorController);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(FrameInspectorController);
 public:
-    FrameInspectorController(LocalFrame&);
+    FrameInspectorController(LocalFrame&, PageInspectorController&);
     ~FrameInspectorController() override;
 
     // AbstractCanMakeCheckedPtr overrides
@@ -98,7 +99,7 @@ private:
 
     WeakRef<LocalFrame> m_frame;
     const Ref<InstrumentingAgents> m_instrumentingAgents;
-    const UniqueRef<WebInjectedScriptManager> m_injectedScriptManager;
+    const Ref<WebInjectedScriptManager> m_injectedScriptManager;
     const Ref<Inspector::FrontendRouter> m_frontendRouter;
     const Ref<Inspector::BackendDispatcher> m_backendDispatcher;
     const Ref<WTF::Stopwatch> m_executionStopwatch;

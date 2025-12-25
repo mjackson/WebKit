@@ -35,6 +35,7 @@ set(JavaScriptCore_PRIVATE_INCLUDE_DIRECTORIES
     "${JAVASCRIPTCORE_DIR}/interpreter"
     "${JAVASCRIPTCORE_DIR}/jit"
     "${JAVASCRIPTCORE_DIR}/llint"
+    "${JAVASCRIPTCORE_DIR}/lol"
     "${JAVASCRIPTCORE_DIR}/parser"
     "${JAVASCRIPTCORE_DIR}/profiler"
     "${JAVASCRIPTCORE_DIR}/runtime"
@@ -559,6 +560,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     API/OpaqueJSString.h
 
     assembler/ARM64Assembler.h
+    assembler/ARM64EAssembler.h
     assembler/ARM64Registers.h
     assembler/ARMv7Assembler.h
     assembler/ARMv7Registers.h
@@ -590,6 +592,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     assembler/RegisterInfo.h
     assembler/SecureARM64EHashPins.h
     assembler/SecureARM64EHashPinsInlines.h
+    assembler/TargetAssemblerDefinitions.h
     assembler/X86Assembler.h
     assembler/X86_64Registers.h
 
@@ -1030,6 +1033,9 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
 
     llint/LLIntOpcode.h
     llint/LLIntThunks.h
+
+    lol/LOLJIT.h
+    lol/LOLRegisterAllocator.h
 
     parser/ASTBuilder.h
     parser/Lexer.h

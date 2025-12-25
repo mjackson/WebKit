@@ -103,6 +103,7 @@ class StyleDeprecatedFlexibleBoxData;
 class StyleFlexibleBoxData;
 class StyleGridData;
 class StyleGridItemData;
+class StyleMaskBorderData;
 class StyleMultiColData;
 class StyleResolver;
 class StyleTransformData;
@@ -130,10 +131,6 @@ public:
     void dumpDifferences(TextStream&, const StyleRareNonInheritedData&) const;
 #endif
 
-    bool hasBackdropFilters() const;
-    bool hasScrollTimelines() const { return !scrollTimelines.isEmpty() || !scrollTimelineNames.isNone(); }
-    bool hasViewTimelines() const { return !viewTimelines.isEmpty() || !viewTimelineNames.isNone(); }
-
     Style::Contain usedContain() const;
 
     Style::ContainIntrinsicSize containIntrinsicWidth;
@@ -145,18 +142,15 @@ public:
 
     Style::MaximumLines maxLines;
 
-    OverflowContinue overflowContinue { OverflowContinue::Auto };
-
     Style::TouchAction touchAction;
 
     Style::WebkitInitialLetter initialLetter;
 
-    DataRef<StyleMarqueeData> marquee; // Marquee properties
-
-    DataRef<StyleBackdropFilterData> backdropFilter; // Filter operations (url, sepia, blur, etc.)
-
+    DataRef<StyleMarqueeData> marquee;
+    DataRef<StyleBackdropFilterData> backdropFilter;
     DataRef<StyleGridData> grid;
     DataRef<StyleGridItemData> gridItem;
+    DataRef<StyleMaskBorderData> maskBorder;
 
     Style::Clip clip { CSS::Keyword::Auto { } };
 
@@ -168,8 +162,6 @@ public:
     Style::WillChange willChange;
 
     Style::WebkitBoxReflect boxReflect;
-
-    Style::MaskBorder maskBorder;
 
     Style::PageSize pageSize;
 
@@ -223,7 +215,6 @@ public:
 
     Style::ScrollSnapType scrollSnapType;
     Style::ScrollSnapAlign scrollSnapAlign;
-    ScrollSnapStop scrollSnapStop;
 
     AtomString pseudoElementNameArgument;
 
@@ -278,6 +269,8 @@ public:
     PREFERRED_TYPE(bool) unsigned useSVGZoomRulesForLength : 1;
     PREFERRED_TYPE(Style::MarginTrim) unsigned marginTrim : 4;
     PREFERRED_TYPE(Style::Contain) unsigned contain : 5;
+    PREFERRED_TYPE(OverflowContinue) unsigned overflowContinue : 1;
+    PREFERRED_TYPE(ScrollSnapStop) unsigned scrollSnapStop : 1;
 
 private:
     StyleRareNonInheritedData();

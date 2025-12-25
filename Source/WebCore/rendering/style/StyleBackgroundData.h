@@ -51,19 +51,17 @@ public:
     void dumpDifferences(TextStream&, const StyleBackgroundData&) const;
 #endif
 
-    bool isEquivalentForPainting(const StyleBackgroundData&, bool currentColorDiffers) const;
-
     Style::BackgroundLayers background;
     Style::Color backgroundColor;
     OutlineValue outline;
 
     void dump(TextStream&, DumpStyleValues = DumpStyleValues::All) const;
 
+    bool containsCurrentColor() const;
+
 private:
     StyleBackgroundData();
     StyleBackgroundData(const StyleBackgroundData&);
-
-    bool containsCurrentColor() const;
 };
 
 WTF::TextStream& operator<<(WTF::TextStream&, const StyleBackgroundData&);

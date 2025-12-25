@@ -44,7 +44,7 @@ class Navigation;
 class SerializedScriptValue;
 
 class NavigationHistoryEntry final : public RefCounted<NavigationHistoryEntry>, public EventTarget, public ActiveDOMObject {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(NavigationHistoryEntry);
+    WTF_MAKE_TZONE_ALLOCATED(NavigationHistoryEntry);
 public:
     static Ref<NavigationHistoryEntry> create(Navigation&, Ref<HistoryItem>&&);
     static Ref<NavigationHistoryEntry> create(Navigation&, const NavigationHistoryEntry&);

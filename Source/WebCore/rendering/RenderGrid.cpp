@@ -55,7 +55,7 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(RenderGrid);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderGrid);
 
 enum class TrackSizeRestriction : uint8_t {
     AllowInfinity,
@@ -63,7 +63,7 @@ enum class TrackSizeRestriction : uint8_t {
 };
 
 RenderGrid::RenderGrid(Element& element, RenderStyle&& style)
-    : RenderBlock(Type::Grid, element, WTFMove(style), { })
+    : RenderBlock(Type::Grid, element, WTF::move(style), { })
     , m_grid(*this)
     , m_trackSizingAlgorithm(this, currentGrid())
     , m_masonryLayout(*this)
@@ -136,10 +136,10 @@ bool RenderGrid::selfAlignmentChangedFromStretch(Style::GridTrackSizingDirection
         && selfAlignmentForGridItem(alignmentContextType, gridItem, &newStyle).position() != ItemPosition::Stretch;
 }
 
-void RenderGrid::styleDidChange(StyleDifference diff, const RenderStyle* oldStyle)
+void RenderGrid::styleDidChange(Style::Difference diff, const RenderStyle* oldStyle)
 {
     RenderBlock::styleDidChange(diff, oldStyle);
-    if (!oldStyle || diff != StyleDifference::Layout)
+    if (!oldStyle || diff != Style::DifferenceResult::Layout)
         return;
 
     m_intrinsicLogicalHeightsForRowSizingFirstPass.reset();
@@ -1688,7 +1688,7 @@ LayoutUnit RenderGrid::gridAreaBreadthForGridItemIncludingAlignmentOffsets(const
     auto finalTrackPosition = positions[span.endLine() - 1];
 
     // Track Positions vector stores the 'start' grid line of each track, so we have to add last track's baseSize.
-    return finalTrackPosition - initialTrackPosition + tracks[span.endLine() - 1].baseSize();
+    return finalTrackPosition - initialTrackPosition + tracks[span.endLine() - 1]->baseSize();
 }
 
 void RenderGrid::populateGridPositionsForDirection(const GridTrackSizingAlgorithm& algorithm, Style::GridTrackSizingDirection direction)
@@ -1721,8 +1721,8 @@ void RenderGrid::populateGridPositionsForDirection(const GridTrackSizingAlgorith
         unsigned nextToLastLine = numberOfLines - 2;
 
         for (unsigned i = 0; i < nextToLastLine; ++i)
-            positions[i + 1] = positions[i] + offsetBetweenTracks.distributionOffset + tracks[i].unclampedBaseSize() + gap;
-        positions[lastLine] = positions[nextToLastLine] + tracks[nextToLastLine].unclampedBaseSize();
+            positions[i + 1] = positions[i] + offsetBetweenTracks.distributionOffset + tracks[i]->unclampedBaseSize() + gap;
+        positions[lastLine] = positions[nextToLastLine] + tracks[nextToLastLine]->unclampedBaseSize();
 
         if (isMasonry(direction))
             positions[lastLine] = m_masonryLayout.gridContentSize() + positions[0];
@@ -1923,52 +1923,56 @@ bool RenderGrid::isBaselineAlignmentForGridItem(const RenderBox& gridItem, Style
 std::optional<LayoutUnit> RenderGrid::firstLineBaseline() const
 {
     if ((isWritingModeRoot() && !isFlexItem()) || !currentGrid().hasGridItems() || shouldApplyLayoutContainment())
-        return std::nullopt;
+        return { };
 
     // Finding the first grid item in grid order.
-    auto baselineGridItem = getBaselineGridItem(ItemPosition::Baseline);
+    CheckedPtr baselineGridItem = this->baselineGridItem(ItemPosition::Baseline);
 
     if (!baselineGridItem)
-        return std::nullopt;
+        return { };
 
-    auto baseline = GridLayoutFunctions::isOrthogonalGridItem(*this, *baselineGridItem) ? std::nullopt : baselineGridItem->firstLineBaseline();
-    // We take border-box's bottom if no valid baseline.
+    auto baseline = std::optional<LayoutUnit> { };
+    if (!GridLayoutFunctions::isOrthogonalGridItem(*this, *baselineGridItem))
+        baseline = baselineGridItem->firstLineBaseline();
+
     if (!baseline) {
+        // We take border-box's bottom if no valid baseline.
         // FIXME: We should pass |direction| into firstLineBaseline and stop bailing out if we're a writing
         // mode root. This would also fix some cases where the grid is orthogonal to its container.
         auto gridWritingMode = style().writingMode();
         auto dominantBaseline = BaselineAlignmentState::dominantBaseline(gridWritingMode);
         auto direction = isHorizontalWritingMode() ? LineDirection::Horizontal : LineDirection::Vertical;
-        return BaselineAlignmentState::synthesizedBaseline(*baselineGridItem, dominantBaseline, gridWritingMode, direction, BaselineSynthesisEdge::BorderBox) + logicalTopForChild(*baselineGridItem);
+        baseline = BaselineAlignmentState::synthesizedBaseline(*baselineGridItem, dominantBaseline, gridWritingMode, direction, BaselineSynthesisEdge::BorderBox);
     }
-    return baseline.value() + baselineGridItem->logicalTop().toInt();
+    return (settings().subpixelInlineLayoutEnabled() ? LayoutUnit(logicalTopForChild(*baselineGridItem)) : LayoutUnit(logicalTopForChild(*baselineGridItem).toInt())) + *baseline;
 }
 
 std::optional<LayoutUnit> RenderGrid::lastLineBaseline() const
 {
     if (isWritingModeRoot() || !currentGrid().hasGridItems() || shouldApplyLayoutContainment())
-        return std::nullopt;
+        return { };
 
-    auto baselineGridItem = getBaselineGridItem(ItemPosition::LastBaseline);
+    CheckedPtr baselineGridItem = this->baselineGridItem(ItemPosition::LastBaseline);
     if (!baselineGridItem)
-        return std::nullopt;
+        return { };
 
-    auto baseline = GridLayoutFunctions::isOrthogonalGridItem(*this, *baselineGridItem) ? std::nullopt : baselineGridItem->lastLineBaseline();
+    auto baseline = std::optional<LayoutUnit> { };
+    if (!GridLayoutFunctions::isOrthogonalGridItem(*this, *baselineGridItem))
+        baseline = baselineGridItem->lastLineBaseline();
+
     if (!baseline) {
         auto direction = isHorizontalWritingMode() ? LineDirection::Horizontal : LineDirection::Vertical;
         auto gridWritingMode = style().writingMode();
         auto dominantBaseline = BaselineAlignmentState::dominantBaseline(gridWritingMode);
-        return BaselineAlignmentState::synthesizedBaseline(*baselineGridItem, dominantBaseline, gridWritingMode, direction, BaselineSynthesisEdge::BorderBox) + logicalTopForChild(*baselineGridItem);
-
+        baseline = BaselineAlignmentState::synthesizedBaseline(*baselineGridItem, dominantBaseline, gridWritingMode, direction, BaselineSynthesisEdge::BorderBox);
     }
-
-    return baseline.value() + baselineGridItem->logicalTop().toInt();
+    return (settings().subpixelInlineLayoutEnabled() ? LayoutUnit(logicalTopForChild(*baselineGridItem)) : LayoutUnit(logicalTopForChild(*baselineGridItem).toInt())) + *baseline;
 }
 
-SingleThreadWeakPtr<RenderBox> RenderGrid::getBaselineGridItem(ItemPosition alignment) const
+const RenderBox* RenderGrid::baselineGridItem(ItemPosition alignment) const
 {
     ASSERT(alignment == ItemPosition::Baseline || alignment == ItemPosition::LastBaseline);
-    const RenderBox* baselineGridItem = nullptr;
+    const RenderBox* baselineGridItem = { };
     unsigned numColumns = currentGrid().numTracks(Style::GridTrackSizingDirection::Columns);
     auto rowIndexDeterminingBaseline = alignment == ItemPosition::Baseline ? 0 : currentGrid().numTracks(Style::GridTrackSizingDirection::Rows) - 1;
     for (size_t column = 0; column < numColumns; column++) {

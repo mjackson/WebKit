@@ -43,6 +43,7 @@ struct CSSSelectorParserContext {
     bool targetTextPseudoElementEnabled : 1 { false };
     bool thumbAndTrackPseudoElementsEnabled : 1 { false };
     bool viewTransitionsEnabled : 1 { false };
+    bool cssAppearanceBaseEnabled : 1 { false };
     bool webkitMediaTextTrackDisplayQuirkEnabled : 1 { false };
 
     bool isHashTableDeletedValue : 1 { false };

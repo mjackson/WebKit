@@ -31,7 +31,7 @@
 #include "ImageQualityController.h"
 #include "LayoutRect.h"
 #include "RenderStyleConstants.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include "StyleImage.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
 #include <wtf/Vector.h>

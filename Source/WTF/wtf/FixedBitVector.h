@@ -51,7 +51,7 @@ public:
     }
 
     FixedBitVector(BitVector&& other)
-        : m_bitVector(WTFMove(other))
+        : m_bitVector(WTF::move(other))
     {
     }
 

@@ -54,10 +54,10 @@ public:
     void setSupportedDataTypes(Vector<String>&&);
 
     const Vector<MediaKeySessionType>& supportedSessionTypes() const { return m_supportedSessionTypes; }
-    void setSupportedSessionTypes(Vector<MediaKeySessionType>&& types) { m_supportedSessionTypes = WTFMove(types); }
+    void setSupportedSessionTypes(Vector<MediaKeySessionType>&& types) { m_supportedSessionTypes = WTF::move(types); }
 
     const Vector<String>& supportedRobustness() const { return m_supportedRobustness; }
-    void setSupportedRobustness(Vector<String>&& supportedRobustness) { m_supportedRobustness = WTFMove(supportedRobustness); }
+    void setSupportedRobustness(Vector<String>&& supportedRobustness) { m_supportedRobustness = WTF::move(supportedRobustness); }
 
     MediaKeysRequirement distinctiveIdentifiersRequirement() const { return m_distinctiveIdentifiersRequirement; }
     void setDistinctiveIdentifiersRequirement(MediaKeysRequirement requirement) { m_distinctiveIdentifiersRequirement = requirement; }
@@ -75,7 +75,7 @@ public:
     void setSupportsSessions(bool flag) { m_supportsSessions = flag; }
 
     const Vector<MediaKeyEncryptionScheme>& supportedEncryptionSchemes() const { return m_supportedEncryptionSchemes; }
-    void setSupportedEncryptionSchemes(Vector<MediaKeyEncryptionScheme>&& schemes) { m_supportedEncryptionSchemes = WTFMove(schemes); }
+    void setSupportedEncryptionSchemes(Vector<MediaKeyEncryptionScheme>&& schemes) { m_supportedEncryptionSchemes = WTF::move(schemes); }
 
     void unregister();
 

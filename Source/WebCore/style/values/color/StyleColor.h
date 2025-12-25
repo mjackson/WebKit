@@ -104,6 +104,9 @@ public:
     // Convenience constructors that create Style::ResolvedColor.
     Color(WebCore::Color);
     Color(SRGBA<uint8_t>);
+    Color(CSS::Keyword::Transparent);
+    Color(CSS::Keyword::Black);
+    Color(CSS::Keyword::White);
 
     WEBCORE_EXPORT Color(ResolvedColor&&);
     WEBCORE_EXPORT Color(CurrentColor&&);

@@ -43,11 +43,11 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(RenderTextControl);
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(RenderTextControlInnerContainer);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderTextControl);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderTextControlInnerContainer);
 
 RenderTextControl::RenderTextControl(Type type, HTMLTextFormControlElement& element, RenderStyle&& style)
-    : RenderBlockFlow(type, element, WTFMove(style), BlockFlowFlag::IsTextControl)
+    : RenderBlockFlow(type, element, WTF::move(style), BlockFlowFlag::IsTextControl)
 {
     ASSERT(isRenderTextControl());
 }
@@ -69,7 +69,7 @@ RefPtr<TextControlInnerTextElement> RenderTextControl::innerTextElement() const
     return textFormControlElement().innerTextElement();
 }
 
-void RenderTextControl::styleDidChange(StyleDifference diff, const RenderStyle* oldStyle)
+void RenderTextControl::styleDidChange(Style::Difference diff, const RenderStyle* oldStyle)
 {
     RenderBlockFlow::styleDidChange(diff, oldStyle);
     auto innerText = innerTextElement();
@@ -82,8 +82,8 @@ void RenderTextControl::styleDidChange(StyleDifference diff, const RenderStyle* 
         auto newInnerTextStyle = textFormControlElement().createInnerTextStyle(style());
         auto oldInnerTextStyle = textFormControlElement().createInnerTextStyle(*oldStyle);
         if (newInnerTextStyle != oldInnerTextStyle)
-            innerTextRenderer->setStyle(WTFMove(newInnerTextStyle));
-        else if (diff == StyleDifference::RepaintIfText || diff == StyleDifference::Repaint) {
+            innerTextRenderer->setStyle(WTF::move(newInnerTextStyle));
+        else if (diff == Style::DifferenceResult::RepaintIfText || diff == Style::DifferenceResult::Repaint) {
             // Repaint is expected to be propagated down to the shadow tree when non-inherited style property changes
             // (e.g. text-decoration-color) since that's where the value actually takes effect.
             innerTextRenderer->repaint();
@@ -267,7 +267,7 @@ int RenderTextControl::innerLineHeight() const
 #endif
 
 RenderTextControlInnerContainer::RenderTextControlInnerContainer(Element& element, RenderStyle&& style)
-    : RenderFlexibleBox(Type::TextControlInnerContainer, element, WTFMove(style))
+    : RenderFlexibleBox(Type::TextControlInnerContainer, element, WTF::move(style))
 {
 
 }

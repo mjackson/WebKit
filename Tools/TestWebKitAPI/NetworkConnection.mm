@@ -41,6 +41,7 @@
 #if HAVE(WEB_TRANSPORT)
 SOFT_LINK_FRAMEWORK(Network)
 SOFT_LINK_MAY_FAIL(Network, nw_webtransport_metadata_set_local_draining, void, (nw_protocol_metadata_t metadata), (metadata))
+#define nw_webtransport_metadata_set_local_draining softLinknw_webtransport_metadata_set_local_draining
 #endif
 
 namespace TestWebKitAPI {
@@ -68,7 +69,7 @@ static OSObjectPtr<dispatch_data_t> dataFromString(String&& s)
 
 void Connection::receiveBytes(CompletionHandler<void(Vector<uint8_t>&&)>&& completionHandler, size_t minimumSize) const
 {
-    nw_connection_receive(m_connection.get(), minimumSize, std::numeric_limits<uint32_t>::max(), makeBlockPtr([connection = *this, completionHandler = WTFMove(completionHandler)](dispatch_data_t content, nw_content_context_t, bool, nw_error_t error) mutable {
+    nw_connection_receive(m_connection.get(), minimumSize, std::numeric_limits<uint32_t>::max(), makeBlockPtr([connection = *this, completionHandler = WTF::move(completionHandler)](dispatch_data_t content, nw_content_context_t, bool, nw_error_t error) mutable {
         if (error || !content)
             return completionHandler({ });
         completionHandler(vectorFromData(content));
@@ -77,18 +78,18 @@ void Connection::receiveBytes(CompletionHandler<void(Vector<uint8_t>&&)>&& compl
 
 void Connection::receiveHTTPRequest(CompletionHandler<void(Vector<char>&&)>&& completionHandler, Vector<char>&& buffer) const
 {
-    receiveBytes([connection = *this, completionHandler = WTFMove(completionHandler), buffer = WTFMove(buffer)](Vector<uint8_t>&& bytes) mutable {
-        buffer.appendVector(WTFMove(bytes));
+    receiveBytes([connection = *this, completionHandler = WTF::move(completionHandler), buffer = WTF::move(buffer)](Vector<uint8_t>&& bytes) mutable {
+        buffer.appendVector(WTF::move(bytes));
         if (size_t doubleNewlineIndex = find(buffer.span(), "\r\n\r\n"_span); doubleNewlineIndex != notFound) {
             if (size_t contentLengthBeginIndex = find(buffer.span(), "Content-Length"_span); contentLengthBeginIndex != notFound) {
                 size_t contentLength = parseIntegerAllowingTrailingJunk<int>(buffer.span().subspan(contentLengthBeginIndex + strlen("Content-Length: "))).value_or(0);
                 size_t headerLength = doubleNewlineIndex + strlen("\r\n\r\n");
                 if (buffer.size() - headerLength < contentLength)
-                    return connection.receiveHTTPRequest(WTFMove(completionHandler), WTFMove(buffer));
+                    return connection.receiveHTTPRequest(WTF::move(completionHandler), WTF::move(buffer));
             }
-            completionHandler(WTFMove(buffer));
+            completionHandler(WTF::move(buffer));
         } else
-            connection.receiveHTTPRequest(WTFMove(completionHandler), WTFMove(buffer));
+            connection.receiveHTTPRequest(WTF::move(completionHandler), WTF::move(buffer));
     });
 }
 
@@ -100,7 +101,7 @@ ReceiveHTTPRequestOperation Connection::awaitableReceiveHTTPRequest() const
 void ReceiveHTTPRequestOperation::await_suspend(std::coroutine_handle<> handle)
 {
     m_connection.receiveHTTPRequest([this, handle](Vector<char>&& result) mutable {
-        m_result = WTFMove(result);
+        m_result = WTF::move(result);
         handle();
     });
 }
@@ -113,36 +114,36 @@ ReceiveBytesOperation Connection::awaitableReceiveBytes() const
 void ReceiveBytesOperation::await_suspend(std::coroutine_handle<> handle)
 {
     m_connection.receiveBytes([this, handle](Vector<uint8_t>&& result) mutable {
-        m_result = WTFMove(result);
+        m_result = WTF::move(result);
         handle();
     });
 }
 
 void SendOperation::await_suspend(std::coroutine_handle<> handle)
 {
-    m_connection.send(WTFMove(m_data), [handle] (bool) mutable {
+    m_connection.send(WTF::move(m_data), [handle] (bool) mutable {
         handle();
     });
 }
 
 SendOperation Connection::awaitableSend(Vector<uint8_t>&& message)
 {
-    return { makeDispatchData(WTFMove(message)), *this };
+    return { makeDispatchData(WTF::move(message)), *this };
 }
 
 SendOperation Connection::awaitableSend(String&& message)
 {
-    return { dataFromString(WTFMove(message)), *this };
+    return { dataFromString(WTF::move(message)), *this };
 }
 
 SendOperation Connection::awaitableSend(OSObjectPtr<dispatch_data_t>&& data)
 {
-    return { WTFMove(data), *this };
+    return { WTF::move(data), *this };
 }
 
 void Connection::send(String&& message, CompletionHandler<void()>&& completionHandler) const
 {
-    send(dataFromString(WTFMove(message)), [completionHandler = WTFMove(completionHandler)] (bool) mutable {
+    send(dataFromString(WTF::move(message)), [completionHandler = WTF::move(completionHandler)] (bool) mutable {
         if (completionHandler)
             completionHandler();
     });
@@ -150,7 +151,7 @@ void Connection::send(String&& message, CompletionHandler<void()>&& completionHa
 
 void Connection::send(Vector<uint8_t>&& message, CompletionHandler<void()>&& completionHandler) const
 {
-    send(makeDispatchData(WTFMove(message)), [completionHandler = WTFMove(completionHandler)] (bool) mutable {
+    send(makeDispatchData(WTF::move(message)), [completionHandler = WTF::move(completionHandler)] (bool) mutable {
         if (completionHandler)
             completionHandler();
     });
@@ -158,12 +159,12 @@ void Connection::send(Vector<uint8_t>&& message, CompletionHandler<void()>&& com
 
 void Connection::sendAndReportError(Vector<uint8_t>&& message, CompletionHandler<void(bool)>&& completionHandler) const
 {
-    send(makeDispatchData(WTFMove(message)), WTFMove(completionHandler));
+    send(makeDispatchData(WTF::move(message)), WTF::move(completionHandler));
 }
 
 void Connection::send(OSObjectPtr<dispatch_data_t>&& message, CompletionHandler<void(bool)>&& completionHandler) const
 {
-    nw_connection_send(m_connection.get(), message.get(), NW_CONNECTION_DEFAULT_MESSAGE_CONTEXT, true, makeBlockPtr([completionHandler = WTFMove(completionHandler)](nw_error_t error) mutable {
+    nw_connection_send(m_connection.get(), message.get(), NW_CONNECTION_DEFAULT_MESSAGE_CONTEXT, true, makeBlockPtr([completionHandler = WTF::move(completionHandler)](nw_error_t error) mutable {
         if (completionHandler)
             completionHandler(!!error);
     }).get());
@@ -171,7 +172,7 @@ void Connection::send(OSObjectPtr<dispatch_data_t>&& message, CompletionHandler<
 
 void Connection::webSocketHandshake(CompletionHandler<void()>&& connectionHandler)
 {
-    receiveHTTPRequest([connection = Connection(*this), connectionHandler = WTFMove(connectionHandler)] (Vector<char>&& request) mutable {
+    receiveHTTPRequest([connection = Connection(*this), connectionHandler = WTF::move(connectionHandler)] (Vector<char>&& request) mutable {
 
         auto webSocketAcceptValue = [] (const Vector<char>& request) {
             constexpr auto keyHeaderField = "Sec-WebSocket-Key: "_s;
@@ -194,13 +195,13 @@ void Connection::webSocketHandshake(CompletionHandler<void()>&& connectionHandle
             { "Upgrade"_s, "websocket"_s },
             { "Connection"_s, "Upgrade"_s },
             { "Sec-WebSocket-Accept"_s, webSocketAcceptValue(request) }
-        }).serialize(HTTPResponse::IncludeContentLength::No), WTFMove(connectionHandler));
+        }).serialize(HTTPResponse::IncludeContentLength::No), WTF::move(connectionHandler));
     });
 }
 
 void Connection::terminate(CompletionHandler<void()>&& completionHandler)
 {
-    nw_connection_set_state_changed_handler(m_connection.get(), makeBlockPtr([completionHandler = WTFMove(completionHandler)] (nw_connection_state_t state, nw_error_t error) mutable {
+    nw_connection_set_state_changed_handler(m_connection.get(), makeBlockPtr([completionHandler = WTF::move(completionHandler)] (nw_connection_state_t state, nw_error_t error) mutable {
         ASSERT_UNUSED(error, !error);
         if (state == nw_connection_state_cancelled && completionHandler)
             completionHandler();
@@ -239,7 +240,7 @@ void ConnectionGroup::markAsFailed()
 Awaitable<void> ConnectionGroup::awaitableFailure()
 {
     co_return co_await AwaitableFromCompletionHandler<void> { [data = m_data] (auto completionHandler) {
-        data->failureCompletionHandler = WTFMove(completionHandler);
+        data->failureCompletionHandler = WTF::move(completionHandler);
     } };
 }
 
@@ -265,7 +266,7 @@ void ConnectionGroup::cancel()
 void ReceiveIncomingConnectionOperation::await_suspend(std::coroutine_handle<> handle)
 {
     m_group.receiveIncomingConnection([this, handle](Connection result) mutable {
-        m_result = WTFMove(result);
+        m_result = WTF::move(result);
         handle();
     });
 }
@@ -277,7 +278,7 @@ ReceiveIncomingConnectionOperation ConnectionGroup::receiveIncomingConnection() 
 
 void ConnectionGroup::receiveIncomingConnection(CompletionHandler<void(Connection)>&& connectionHandler)
 {
-    m_data->connectionHandler = WTFMove(connectionHandler);
+    m_data->connectionHandler = WTF::move(connectionHandler);
 }
 
 void ConnectionGroup::receiveIncomingConnection(Connection connection)

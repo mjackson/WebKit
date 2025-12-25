@@ -161,10 +161,6 @@ sub processCLI {
     my $specifiedResultsFile;
     my $specifiedExpectationsFile;
 
-    # Cache the product dir. Do this before processing CLI options because it implicitly processes
-    # CLI args.
-    productDir();
-
     # If adding a new commandline argument, you must update the POD
     # documentation at the end of the file.
     GetOptions(
@@ -327,6 +323,7 @@ sub processCLI {
 sub setupEnvironment()
 {
     if ($^O eq "linux") {
+        maybeUseContainerSDKRootDir();
         setupUnixWebKitEnvironment(productDir());
     }
 }

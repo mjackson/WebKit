@@ -46,7 +46,7 @@ FilterFunction::~FilterFunction()
 
 AtomString FilterFunction::filterName(Type filterType)
 {
-    static constexpr std::pair<FilterFunction::Type, ASCIILiteral> namesArray[] = {
+    static constexpr auto namesArray = std::to_array<std::pair<FilterFunction::Type, ASCIILiteral>>({
         { FilterFunction::Type::CSSFilterRenderer,   "CSSFilterRenderer"_s   },
         { FilterFunction::Type::SVGFilterRenderer,   "SVGFilterRenderer"_s   },
         
@@ -70,7 +70,7 @@ AtomString FilterFunction::filterName(Type filterType)
 
         { FilterFunction::Type::SourceAlpha,         "SourceAlpha"_s         },
         { FilterFunction::Type::SourceGraphic,       "SourceGraphic"_s       }
-    };
+    });
 
     static constexpr SortedArrayMap namesMap { namesArray };
     

@@ -25,6 +25,8 @@
 
 #pragma once
 
+#include <wtf/Platform.h>
+
 #if ENABLE(INSPECTOR_ALTERNATE_DISPATCHERS)
 
 #include "AugmentableInspectorController.h"
@@ -40,7 +42,7 @@ class AlternateDispatchableAgent final : public InspectorAgentBase {
 public:
     AlternateDispatchableAgent(const String& domainName, AugmentableInspectorController& controller, std::unique_ptr<TAlternateDispatcher> alternateDispatcher)
         : InspectorAgentBase(domainName)
-        , m_alternateDispatcher(WTFMove(alternateDispatcher))
+        , m_alternateDispatcher(WTF::move(alternateDispatcher))
         , m_backendDispatcher(TBackendDispatcher::create(controller.backendDispatcher(), nullptr))
     {
         m_backendDispatcher->setAlternateDispatcher(m_alternateDispatcher.get());

@@ -825,13 +825,13 @@ class RunTest262Tests(TestWithFailureCount, CustomFlagsMixin, ShellMixin):
     test_summary_re = re.compile(r'^\! NEW FAIL')
 
     def run(self):
-        self.appendCustomBuildFlags(self.getProperty('platform'), self.getProperty('fullPlatform'))
         filter_command = ' '.join(self.command) + ' 2>&1 | python3 Tools/Scripts/filter-test-logs test262'
         self.command = self.shell_command(filter_command)
 
         self.log_observer = ParseByLineLogObserver(self.parseOutputLine)
         self.addLogObserver('stdio', self.log_observer)
         self.failedTestCount = 0
+        self.appendCustomBuildFlags(self.getProperty('platform'), self.getProperty('fullPlatform'))
 
         steps_to_add = [
             GenerateS3URL(
@@ -1065,6 +1065,7 @@ class RunAPITests(TestWithFailureCount, CustomFlagsMixin, ShellMixin):
 
     def __init__(self, *args, **kwargs):
         kwargs['logEnviron'] = False
+        kwargs['timeout'] = 3 * 60 * 60
         super().__init__(*args, **kwargs)
 
     def _is_valid_additional_argument(self, argument):

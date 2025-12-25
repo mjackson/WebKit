@@ -69,7 +69,7 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(HTMLFormElement);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(HTMLFormElement);
 
 using namespace HTMLNames;
 
@@ -179,7 +179,7 @@ std::optional<Variant<RefPtr<RadioNodeList>, RefPtr<Element>>> HTMLFormElement::
     if (namedItems.isEmpty())
         return std::nullopt;
     if (namedItems.size() == 1)
-        return Variant<RefPtr<RadioNodeList>, RefPtr<Element>> { RefPtr<Element> { WTFMove(namedItems[0]) } };
+        return Variant<RefPtr<RadioNodeList>, RefPtr<Element>> { RefPtr<Element> { WTF::move(namedItems[0]) } };
 
     return Variant<RefPtr<RadioNodeList>, RefPtr<Element>> { RefPtr<RadioNodeList> { radioNodeList(name) } };
 }
@@ -284,7 +284,7 @@ void HTMLFormElement::submitIfPossible(Event* event, HTMLFormControlElement* sub
         targetFrame = frame.get();
     auto formState = FormState::create(*this, textFieldValues(), document(), NotSubmittedByJavaScript);
     if (RefPtr localTargetFrame = dynamicDowncast<LocalFrame>(targetFrame))
-        localTargetFrame->loader().client().dispatchWillSendSubmitEvent(WTFMove(formState));
+        localTargetFrame->loader().client().dispatchWillSendSubmitEvent(WTF::move(formState));
 
     Ref protectedThis { *this };
 
@@ -360,7 +360,7 @@ RefPtr<HTMLFormControlElement> HTMLFormElement::findSubmitButton(HTMLFormControl
         if (control->isActivatedSubmit())
             return nullptr;
         if (!firstSuccessfulSubmitButton && control->isSuccessfulSubmitButton())
-            firstSuccessfulSubmitButton = WTFMove(control);
+            firstSuccessfulSubmitButton = WTF::move(control);
     }
     return firstSuccessfulSubmitButton;
 }
@@ -416,9 +416,9 @@ void HTMLFormElement::submit(Event* event, bool processingUserGesture, FormSubmi
     m_plannedFormSubmission = formSubmission;
 
     if (formSubmission->method() == FormSubmission::Method::Dialog)
-        submitDialog(WTFMove(formSubmission));
+        submitDialog(WTF::move(formSubmission));
     else
-        frame->loader().submitForm(WTFMove(formSubmission));
+        frame->loader().submitForm(WTF::move(formSubmission));
 
     m_shouldSubmit = false;
     m_isSubmittingOrPreparingForSubmission = false;
@@ -664,7 +664,7 @@ Ref<HTMLFormControlsCollection> HTMLFormElement::elements()
         Ref controlsCollection = ensureRareData().ensureNodeLists().addCachedCollection<HTMLFormControlsCollection>(*this, CollectionType::FormControls);
         if (!isConnected())
             return controlsCollection;
-        m_controlsCollection = WTFMove(controlsCollection);
+        m_controlsCollection = WTF::move(controlsCollection);
     }
     return *m_controlsCollection;
 }
@@ -769,7 +769,7 @@ void HTMLFormElement::resetDefaultButton()
 
     ScriptDisallowedScope::InMainThread scriptDisallowedScope;
 
-    auto oldDefault = WTFMove(m_defaultButton);
+    auto oldDefault = WTF::move(m_defaultButton);
     defaultButton();
     if (m_defaultButton != oldDefault) {
         if (oldDefault)

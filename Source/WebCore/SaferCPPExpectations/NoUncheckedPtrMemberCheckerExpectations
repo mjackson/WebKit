@@ -26,8 +26,6 @@ layout/layouttree/LayoutChildIterator.h
 layout/layouttree/LayoutContainingBlockChainIterator.h
 layout/layouttree/LayoutDescendantIterator.h
 layout/layouttree/LayoutIterator.h
-loader/DocumentThreadableLoader.h
-loader/WorkerThreadableLoader.h
 page/FrameSnapshotting.cpp
 [ iOS ] page/ios/ContentChangeObserver.h
 platform/graphics/TextRunIterator.h

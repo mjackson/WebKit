@@ -47,7 +47,7 @@ public:
     }
 
     RefCountable(T&& value)
-        : m_value(WTFMove(value))
+        : m_value(WTF::move(value))
     {
     }
 
@@ -65,12 +65,12 @@ public:
     }
 #endif
 
-    T& operator*()
+    T& operator*() LIFETIME_BOUND
     {
         return m_value;
     }
 
-    const T& operator*() const
+    const T& operator*() const LIFETIME_BOUND
     {
         return m_value;
     }

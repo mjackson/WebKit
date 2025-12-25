@@ -43,7 +43,7 @@ class WebCodecsErrorCallback;
 class WebCodecsVideoFrameOutputCallback;
 
 class WebCodecsVideoDecoder : public WebCodecsBase {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(WebCodecsVideoDecoder);
+    WTF_MAKE_TZONE_ALLOCATED(WebCodecsVideoDecoder);
 public:
     ~WebCodecsVideoDecoder();
 

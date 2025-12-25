@@ -236,7 +236,7 @@ bool IDBKeyData::decode(KeyedDecoder& decoder, IDBKeyData& result)
         if (!decoder.decodeBytes("binary"_s, bytes))
             return false;
 
-        result.m_value = ThreadSafeDataBuffer::create(WTFMove(bytes));
+        result.m_value = ThreadSafeDataBuffer::create(WTF::move(bytes));
         return true;
     }
     case IndexedDB::KeyType::Array:

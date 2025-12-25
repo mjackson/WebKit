@@ -59,7 +59,7 @@ static const ASCIILiteral failedToStartServiceErrorMessage { "Failed to start Ge
 static const ASCIILiteral framelessDocumentErrorMessage { "Geolocation cannot be used in frameless documents"_s };
 static const ASCIILiteral originCannotRequestGeolocationErrorMessage { "Origin does not have permission to use Geolocation service"_s };
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(Geolocation);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(Geolocation);
 
 static RefPtr<GeolocationPosition> createGeolocationPosition(std::optional<GeolocationPositionData>&& position)
 {
@@ -67,7 +67,7 @@ static RefPtr<GeolocationPosition> createGeolocationPosition(std::optional<Geolo
         return nullptr;
     
     EpochTimeStamp timestamp = convertSecondsToEpochTimeStamp(position->timestamp);
-    return GeolocationPosition::create(GeolocationCoordinates::create(WTFMove(position.value())), timestamp);
+    return GeolocationPosition::create(GeolocationCoordinates::create(WTF::move(position.value())), timestamp);
 }
 
 static Ref<GeolocationPositionError> createGeolocationPositionError(GeolocationError& error)
@@ -91,7 +91,7 @@ bool Geolocation::Watchers::add(int id, RefPtr<GeoNotifier>&& notifier)
 
     if (!m_idToNotifierMap.add(id, notifier.get()).isNewEntry)
         return false;
-    m_notifierToIdMap.set(WTFMove(notifier), id);
+    m_notifierToIdMap.set(WTF::move(notifier), id);
     return true;
 }
 
@@ -316,17 +316,17 @@ void Geolocation::getCurrentPosition(Ref<PositionCallback>&& successCallback, Re
             return;
 
         if (RefPtr context = errorCallback->scriptExecutionContext()) {
-            context->checkedEventLoop()->queueTask(TaskSource::Geolocation, [errorCallback = WTFMove(errorCallback)] {
+            context->checkedEventLoop()->queueTask(TaskSource::Geolocation, [errorCallback = WTF::move(errorCallback)] {
                 errorCallback->invoke(GeolocationPositionError::create(GeolocationPositionError::POSITION_UNAVAILABLE, "Document is not fully active"_s));
             });
         }
         return;
     }
 
-    auto notifier = GeoNotifier::create(*this, WTFMove(successCallback), WTFMove(errorCallback), WTFMove(options));
+    auto notifier = GeoNotifier::create(*this, WTF::move(successCallback), WTF::move(errorCallback), WTF::move(options));
     startRequest(notifier.ptr());
 
-    m_oneShots.add(WTFMove(notifier));
+    m_oneShots.add(WTF::move(notifier));
 }
 
 int Geolocation::watchPosition(Ref<PositionCallback>&& successCallback, RefPtr<PositionErrorCallback>&& errorCallback, PositionOptions&& options)
@@ -337,14 +337,14 @@ int Geolocation::watchPosition(Ref<PositionCallback>&& successCallback, RefPtr<P
             return 0;
 
         if (RefPtr context = errorCallback->scriptExecutionContext()) {
-            context->checkedEventLoop()->queueTask(TaskSource::Geolocation, [errorCallback = WTFMove(errorCallback)] {
+            context->checkedEventLoop()->queueTask(TaskSource::Geolocation, [errorCallback = WTF::move(errorCallback)] {
                 errorCallback->invoke(GeolocationPositionError::create(GeolocationPositionError::POSITION_UNAVAILABLE, "Document is not fully active"_s));
             });
         }
         return 0;
     }
 
-    auto notifier = GeoNotifier::create(*this, WTFMove(successCallback), WTFMove(errorCallback), WTFMove(options));
+    auto notifier = GeoNotifier::create(*this, WTF::move(successCallback), WTF::move(errorCallback), WTF::move(options));
     startRequest(notifier.ptr());
 
     int watchID;
@@ -363,7 +363,7 @@ static void logError(const String& target, const bool isSecure, Document* docume
     auto message = makeString("[blocked] Access to geolocation was blocked over"_s,
         isSecure ? " secure connection with mixed content to "_s : " insecure connection to "_s,
         target, ".\n"_s);
-    document->addConsoleMessage(MessageSource::Security, MessageLevel::Error, WTFMove(message));
+    document->addConsoleMessage(MessageSource::Security, MessageLevel::Error, WTF::move(message));
 }
     
 bool Geolocation::shouldBlockGeolocationRequests()

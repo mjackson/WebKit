@@ -73,8 +73,8 @@ SourceModule SourceModule::create()
 
 SourceModule& SourceModule::withFunctionType(Vector<uint8_t> params, Vector<uint8_t> results)
 {
-    m_params = WTFMove(params);
-    m_results = WTFMove(results);
+    m_params = WTF::move(params);
+    m_results = WTF::move(results);
     return *this;
 }
 
@@ -86,7 +86,7 @@ SourceModule& SourceModule::withAdditionalType(Vector<uint8_t> params, Vector<ui
     typeEntry.appendVector(params);
     typeEntry.append(static_cast<uint8_t>(results.size()));
     typeEntry.appendVector(results);
-    m_additionalTypes.append(WTFMove(typeEntry));
+    m_additionalTypes.append(WTF::move(typeEntry));
     return *this;
 }
 
@@ -241,7 +241,7 @@ SourceModule SourceModule::build()
     module.appendVector(m_functionBody);
 
     SourceModule result;
-    result.bytes = WTFMove(module);
+    result.bytes = WTF::move(module);
     result.functionDataStart = functionDataStart;
     result.bytecodeStart = bytecodeStart;
     result.m_vm = m_vm;
@@ -324,7 +324,7 @@ static OffsetToNextInstructions convertMappingsToAbsolute(uint32_t bytecodeStart
         UncheckedKeyHashSet<uint32_t> targets;
         for (uint32_t to : tos)
             targets.add(bytecodeStart + to);
-        expectedMappings.add(bytecodeStart + from, WTFMove(targets));
+        expectedMappings.add(bytecodeStart + from, WTF::move(targets));
     }
     return expectedMappings;
 }

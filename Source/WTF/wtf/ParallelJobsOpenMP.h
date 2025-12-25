@@ -28,6 +28,8 @@
 #ifndef ParallelJobsOpenMP_h
 #define ParallelJobsOpenMP_h
 
+#include <wtf/Platform.h>
+
 #if ENABLE(THREADING_OPENMP)
 
 #include <omp.h>

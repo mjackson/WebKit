@@ -25,6 +25,8 @@
 
 #pragma once
 
+#include "JSExportMacros.h"
+#include <cstdint>
 
 class VM;
 

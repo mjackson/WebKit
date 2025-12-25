@@ -26,14 +26,14 @@
 #include "Document.h"
 #include "LegacyRenderSVGResource.h"
 #include "RenderSVGGradientStop.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include "SVGGradientElement.h"
 #include "SVGNames.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(SVGStopElement);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(SVGStopElement);
 
 inline SVGStopElement::SVGStopElement(const QualifiedName& tagName, Document& document)
     : SVGElement(tagName, document, makeUniqueRef<PropertyRegistry>(*this))
@@ -79,7 +79,7 @@ void SVGStopElement::svgAttributeChanged(const QualifiedName& attrName)
 
 RenderPtr<RenderElement> SVGStopElement::createElementRenderer(RenderStyle&& style, const RenderTreePosition&)
 {
-    return createRenderer<RenderSVGGradientStop>(*this, WTFMove(style));
+    return createRenderer<RenderSVGGradientStop>(*this, WTF::move(style));
 }
 
 bool SVGStopElement::rendererIsNeeded(const RenderStyle&)

@@ -25,7 +25,10 @@
 
 #pragma once
 
+#include "JSExportMacros.h"
+#include <cstdint>
 #include <limits.h>
+#include <wtf/Platform.h>
 
 namespace JSC {
 

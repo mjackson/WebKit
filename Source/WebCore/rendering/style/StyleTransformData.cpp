@@ -22,8 +22,8 @@
 #include "config.h"
 #include "StyleTransformData.h"
 
-#include "RenderStyleInlines.h"
 #include "RenderStyleDifference.h"
+#include "RenderStyle+InitialInlines.h"
 #include "StylePrimitiveKeyword+Logging.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
 
@@ -33,7 +33,7 @@ DEFINE_ALLOCATOR_WITH_HEAP_IDENTIFIER(StyleTransformData);
 
 StyleTransformData::StyleTransformData()
     : transform(RenderStyle::initialTransform())
-    , origin(RenderStyle::initialTransformOrigin())
+    , origin({ RenderStyle::initialTransformOriginX(), RenderStyle::initialTransformOriginY(), RenderStyle::initialTransformOriginZ() })
     , transformBox(static_cast<unsigned>(RenderStyle::initialTransformBox()))
 {
 }

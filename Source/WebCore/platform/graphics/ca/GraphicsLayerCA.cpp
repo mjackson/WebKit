@@ -327,7 +327,7 @@ Ref<GraphicsLayer> GraphicsLayer::create(GraphicsLayerFactory* factory, Graphics
     
     auto layer = adoptRef(*new GraphicsLayerCA(layerType, client));
     layer->initialize(layerType);
-    return WTFMove(layer);
+    return WTF::move(layer);
 }
 
 bool GraphicsLayerCA::filtersCanBeComposited(const FilterOperations& filters)
@@ -517,7 +517,7 @@ PlatformLayer* GraphicsLayerCA::platformLayer() const
 
 bool GraphicsLayerCA::setChildren(Vector<Ref<GraphicsLayer>>&& children)
 {
-    bool childrenChanged = GraphicsLayer::setChildren(WTFMove(children));
+    bool childrenChanged = GraphicsLayer::setChildren(WTF::move(children));
     if (childrenChanged)
         noteSublayersChanged();
     
@@ -526,31 +526,31 @@ bool GraphicsLayerCA::setChildren(Vector<Ref<GraphicsLayer>>&& children)
 
 void GraphicsLayerCA::addChild(Ref<GraphicsLayer>&& childLayer)
 {
-    GraphicsLayer::addChild(WTFMove(childLayer));
+    GraphicsLayer::addChild(WTF::move(childLayer));
     noteSublayersChanged();
 }
 
 void GraphicsLayerCA::addChildAtIndex(Ref<GraphicsLayer>&& childLayer, int index)
 {
-    GraphicsLayer::addChildAtIndex(WTFMove(childLayer), index);
+    GraphicsLayer::addChildAtIndex(WTF::move(childLayer), index);
     noteSublayersChanged();
 }
 
 void GraphicsLayerCA::addChildBelow(Ref<GraphicsLayer>&& childLayer, GraphicsLayer* sibling)
 {
-    GraphicsLayer::addChildBelow(WTFMove(childLayer), sibling);
+    GraphicsLayer::addChildBelow(WTF::move(childLayer), sibling);
     noteSublayersChanged();
 }
 
 void GraphicsLayerCA::addChildAbove(Ref<GraphicsLayer>&& childLayer, GraphicsLayer* sibling)
 {
-    GraphicsLayer::addChildAbove(WTFMove(childLayer), sibling);
+    GraphicsLayer::addChildAbove(WTF::move(childLayer), sibling);
     noteSublayersChanged();
 }
 
 bool GraphicsLayerCA::replaceChild(GraphicsLayer* oldChild, Ref<GraphicsLayer>&& newChild)
 {
-    if (GraphicsLayer::replaceChild(oldChild, WTFMove(newChild))) {
+    if (GraphicsLayer::replaceChild(oldChild, WTF::move(newChild))) {
         noteSublayersChanged();
         return true;
     }
@@ -567,7 +567,7 @@ void GraphicsLayerCA::setMaskLayer(RefPtr<GraphicsLayer>&& layer)
     if (layer == m_maskLayer)
         return;
 
-    GraphicsLayer::setMaskLayer(WTFMove(layer));
+    GraphicsLayer::setMaskLayer(WTF::move(layer));
     noteLayerPropertyChanged(MaskLayerChanged);
 
     propagateLayerChangeToReplicas();
@@ -590,7 +590,7 @@ void GraphicsLayerCA::setReplicatedByLayer(RefPtr<GraphicsLayer>&& layer)
     if (layer == m_replicaLayer)
         return;
 
-    GraphicsLayer::setReplicatedByLayer(WTFMove(layer));
+    GraphicsLayer::setReplicatedByLayer(WTF::move(layer));
     noteSublayersChanged();
     noteLayerPropertyChanged(ReplicatedLayerChanged);
 }
@@ -1102,7 +1102,7 @@ void GraphicsLayerCA::setEventRegion(EventRegion&& eventRegion)
     if (eventRegion == m_eventRegion)
         return;
 
-    GraphicsLayer::setEventRegion(WTFMove(eventRegion));
+    GraphicsLayer::setEventRegion(WTF::move(eventRegion));
     noteLayerPropertyChanged(EventRegionChanged, m_isCommittingChanges ? DontScheduleFlush : ScheduleFlush);
 }
 
@@ -1318,7 +1318,7 @@ void GraphicsLayerCA::setContentsToImage(Image* image)
         if (m_pendingContentsImage == newImage)
             return;
 
-        m_pendingContentsImage = WTFMove(newImage);
+        m_pendingContentsImage = WTF::move(newImage);
         m_contentsLayerPurpose = ContentsLayerPurpose::Image;
         if (!m_contentsLayer)
             noteSublayersChanged();
@@ -1413,7 +1413,7 @@ void GraphicsLayerCA::setContentsToPlatformLayer(PlatformLayer* platformLayer, C
     // For now we don't support such a case.
     if (platformLayer) {
         if (RefPtr platformCALayer = PlatformCALayer::platformCALayerForLayer(platformLayer))
-            m_contentsLayer = WTFMove(platformCALayer);
+            m_contentsLayer = WTF::move(platformCALayer);
         else
             m_contentsLayer = createPlatformCALayer(platformLayer, this);
         Ref { *m_contentsLayer }->setBackingStoreAttached(false);
@@ -1518,7 +1518,7 @@ void GraphicsLayerCA::setContentsDisplayDelegate(RefPtr<GraphicsLayerContentsDis
 
 PlatformLayerIdentifier GraphicsLayerCA::setContentsToAsyncDisplayDelegate(RefPtr<GraphicsLayerContentsDisplayDelegate> delegate, ContentsLayerPurpose purpose)
 {
-    setContentsDisplayDelegate(WTFMove(delegate), purpose);
+    setContentsDisplayDelegate(WTF::move(delegate), purpose);
     return m_contentsLayer->layerID();
 }
 
@@ -3247,7 +3247,7 @@ void GraphicsLayerCA::updateClippingStrategy(PlatformCALayer& clippingLayer, Ref
 
     clippingLayer.setCornerRadius(0);
     RefPtr maskLayer = shapeMaskLayer;
-    clippingLayer.setMaskLayer(WTFMove(maskLayer));
+    clippingLayer.setMaskLayer(WTF::move(maskLayer));
 }
 
 void GraphicsLayerCA::updateContentsRects()
@@ -3346,10 +3346,10 @@ void GraphicsLayerCA::updateMaskLayer()
     
     LayerMap* layerCloneMap;
     if (RefPtr structuralLayer = m_structuralLayer; structuralLayer && structuralLayerPurpose() == StructuralLayerForBackdrop) {
-        structuralLayer->setMaskLayer(WTFMove(maskCALayer));
+        structuralLayer->setMaskLayer(WTF::move(maskCALayer));
         layerCloneMap = m_layerClones ? &m_layerClones->structuralLayerClones : nullptr;
     } else {
-        protectedLayer()->setMaskLayer(WTFMove(maskCALayer));
+        protectedLayer()->setMaskLayer(WTF::move(maskCALayer));
         layerCloneMap = m_layerClones ? &m_layerClones->primaryLayerClones : nullptr;
     }
 
@@ -3357,7 +3357,7 @@ void GraphicsLayerCA::updateMaskLayer()
     if (layerCloneMap) {
         for (auto& clone : *layerCloneMap) {
             RefPtr<PlatformCALayer> maskClone = maskLayerCloneMap ? maskLayerCloneMap->get(clone.key) : nullptr;
-            Ref { *clone.value }->setMaskLayer(WTFMove(maskClone));
+            Ref { *clone.value }->setMaskLayer(WTF::move(maskClone));
         }
     }
 }
@@ -3412,7 +3412,7 @@ GraphicsLayerCA::CloneID GraphicsLayerCA::ReplicaState::cloneID() const
         currChar = (currChar << 1) | m_replicaBranches[i];
     }
     
-    return String::adopt(WTFMove(result));
+    return String::adopt(WTF::move(result));
 }
 
 RefPtr<PlatformCALayer> GraphicsLayerCA::replicatedLayerRoot(ReplicaState& replicaState)
@@ -3456,11 +3456,11 @@ void GraphicsLayerCA::updateAnimations()
         caAnimationGroup->setDuration(infiniteDuration);
         caAnimationGroup->setAnimations(animations);
 
-        auto animationGroup = LayerPropertyAnimation(WTFMove(caAnimationGroup), makeString("group-"_s, WTF::UUID::createVersion4()), property, 0, 0_s);
+        auto animationGroup = LayerPropertyAnimation(WTF::move(caAnimationGroup), makeString("group-"_s, WTF::UUID::createVersion4()), property, 0, 0_s);
         animationGroup.m_beginTime = animationGroupBeginTime;
 
         setAnimationOnLayer(animationGroup);
-        m_animationGroups.append(WTFMove(animationGroup));
+        m_animationGroups.append(WTF::move(animationGroup));
     };
 
     enum class Additive : bool { No, Yes };
@@ -3504,11 +3504,11 @@ void GraphicsLayerCA::updateAnimations()
         caAnimation->setFromValue(matrix);
         caAnimation->setToValue(matrix);
 
-        auto animation = LayerPropertyAnimation(WTFMove(caAnimation), makeString("base-transform-"_s, WTF::UUID::createVersion4()), property, 0, 0_s);
+        auto animation = LayerPropertyAnimation(WTF::move(caAnimation), makeString("base-transform-"_s, WTF::UUID::createVersion4()), property, 0, 0_s);
         if (delay)
             animation.m_beginTime = currentTime - animationGroupBeginTime;
 
-        m_baseValueTransformAnimations.append(WTFMove(animation));
+        m_baseValueTransformAnimations.append(WTF::move(animation));
         return &m_baseValueTransformAnimations.last();
     };
 
@@ -5061,7 +5061,7 @@ RefPtr<PlatformCALayer> GraphicsLayerCA::fetchCloneLayers(GraphicsLayer* replica
 
     if (RefPtr maskLayer = m_maskLayer) {
         RefPtr<PlatformCALayer> maskClone = downcast<GraphicsLayerCA>(*maskLayer).fetchCloneLayers(replicaRoot, replicaState, IntermediateCloneLevel);
-        primaryLayer->setMaskLayer(WTFMove(maskClone));
+        primaryLayer->setMaskLayer(WTF::move(maskClone));
     }
 
     if (m_replicatedLayer) {
@@ -5095,16 +5095,16 @@ RefPtr<PlatformCALayer> GraphicsLayerCA::fetchCloneLayers(GraphicsLayer* replica
         contentsClippingLayer->appendSublayer(*contentsLayer);
 
     if (contentsShapeMaskLayer)
-        contentsClippingLayer->setMaskLayer(WTFMove(contentsShapeMaskLayer));
+        contentsClippingLayer->setMaskLayer(WTF::move(contentsShapeMaskLayer));
 
     if (shapeMaskLayer)
-        primaryLayer->setMaskLayer(WTFMove(shapeMaskLayer));
+        primaryLayer->setMaskLayer(WTF::move(shapeMaskLayer));
 
     if (replicaLayer || structuralLayer || contentsLayer || contentsClippingLayer || childLayers.size() > 0) {
         if (structuralLayer) {
             if (backdropLayer) {
                 clonalSublayers.append(backdropLayer);
-                backdropLayer->setMaskLayer(WTFMove(backdropClippingLayer));
+                backdropLayer->setMaskLayer(WTF::move(backdropClippingLayer));
             }
             
             // Replicas render behind the actual layer content.
@@ -5130,7 +5130,7 @@ RefPtr<PlatformCALayer> GraphicsLayerCA::fetchCloneLayers(GraphicsLayer* replica
         for (auto& childLayer : childLayers) {
             Ref childLayerCA = downcast<GraphicsLayerCA>(childLayer.get());
             if (auto platformLayer = childLayerCA->fetchCloneLayers(replicaRoot, replicaState, IntermediateCloneLevel))
-                clonalSublayers.append(WTFMove(platformLayer));
+                clonalSublayers.append(WTF::move(platformLayer));
         }
 
         replicaState.pop();
@@ -5337,7 +5337,7 @@ void GraphicsLayerCA::setAcceleratedEffectsAndBaseValues(AcceleratedEffects&& ef
 {
     auto hadEffectStack = !!acceleratedEffectStack();
 
-    GraphicsLayer::setAcceleratedEffectsAndBaseValues(WTFMove(effects), WTFMove(baseValues));
+    GraphicsLayer::setAcceleratedEffectsAndBaseValues(WTF::move(effects), WTF::move(baseValues));
 
     // Nothing to do if we didn't have an accelerated stack and we still don't.
     if (!hadEffectStack && !acceleratedEffectStack())

@@ -34,7 +34,7 @@
 #include "LayoutInitialContainingBlock.h"
 #include "Logging.h"
 #include "PlacedFloats.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
 #include "TableFormattingState.h"
 

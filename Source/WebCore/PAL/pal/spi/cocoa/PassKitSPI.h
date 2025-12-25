@@ -399,3 +399,10 @@ NS_ASSUME_NONNULL_END
 #define PAL_PASSKIT_SPI_GUARD_AGAINST_INDIRECT_INCLUSION
 #import "PassKitInstallmentsSPI.h"
 #undef PAL_PASSKIT_SPI_GUARD_AGAINST_INDIRECT_INCLUSION
+
+#if HAVE(PASSKIT_DELEGATED_REQUEST)
+// FIXME: <rdar://165836164> (Remove bincompat staging code from WebKit)
+@interface PKPaymentRequest (DelegatedRequest)
+@property (nonatomic, assign) BOOL isDelegatedRequest;
+@end
+#endif // HAVE(PASSKIT_DELEGATED_REQUEST)

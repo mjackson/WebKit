@@ -164,7 +164,7 @@ JSC_DEFINE_HOST_FUNCTION(temporalPlainDatePrototypeFuncAdd, (JSGlobalObject* glo
     ISO8601::PlainDate result = TemporalCalendar::addDurationToDate(globalObject, plainDate->plainDate(), duration, overflow);
     RETURN_IF_EXCEPTION(scope, { });
 
-    RELEASE_AND_RETURN(scope, JSValue::encode(TemporalPlainDate::create(vm, globalObject->plainDateStructure(), WTFMove(result))));
+    RELEASE_AND_RETURN(scope, JSValue::encode(TemporalPlainDate::create(vm, globalObject->plainDateStructure(), WTF::move(result))));
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal.plaindate.prototype.subtract
@@ -186,7 +186,7 @@ JSC_DEFINE_HOST_FUNCTION(temporalPlainDatePrototypeFuncSubtract, (JSGlobalObject
     ISO8601::PlainDate result = TemporalCalendar::addDurationToDate(globalObject, plainDate->plainDate(), -duration, overflow);
     RETURN_IF_EXCEPTION(scope, { });
 
-    RELEASE_AND_RETURN(scope, JSValue::encode(TemporalPlainDate::create(vm, globalObject->plainDateStructure(), WTFMove(result))));
+    RELEASE_AND_RETURN(scope, JSValue::encode(TemporalPlainDate::create(vm, globalObject->plainDateStructure(), WTF::move(result))));
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal.plaindate.prototype.with
@@ -206,7 +206,7 @@ JSC_DEFINE_HOST_FUNCTION(temporalPlainDatePrototypeFuncWith, (JSGlobalObject* gl
     auto result = plainDate->with(globalObject, asObject(temporalDateLike), callFrame->argument(1));
     RETURN_IF_EXCEPTION(scope, { });
 
-    return JSValue::encode(TemporalPlainDate::create(vm, globalObject->plainDateStructure(), WTFMove(result)));
+    return JSValue::encode(TemporalPlainDate::create(vm, globalObject->plainDateStructure(), WTF::move(result)));
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal.plaindate.prototype.until
@@ -225,7 +225,7 @@ JSC_DEFINE_HOST_FUNCTION(temporalPlainDatePrototypeFuncUntil, (JSGlobalObject* g
     auto result = plainDate->until(globalObject, other, callFrame->argument(1));
     RETURN_IF_EXCEPTION(scope, { });
 
-    RELEASE_AND_RETURN(scope, JSValue::encode(TemporalDuration::tryCreateIfValid(globalObject, WTFMove(result), globalObject->durationStructure())));
+    RELEASE_AND_RETURN(scope, JSValue::encode(TemporalDuration::tryCreateIfValid(globalObject, WTF::move(result), globalObject->durationStructure())));
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal.plaindate.prototype.since
@@ -244,7 +244,7 @@ JSC_DEFINE_HOST_FUNCTION(temporalPlainDatePrototypeFuncSince, (JSGlobalObject* g
     auto result = plainDate->since(globalObject, other, callFrame->argument(1));
     RETURN_IF_EXCEPTION(scope, { });
 
-    RELEASE_AND_RETURN(scope, JSValue::encode(TemporalDuration::tryCreateIfValid(globalObject, WTFMove(result), globalObject->durationStructure())));
+    RELEASE_AND_RETURN(scope, JSValue::encode(TemporalDuration::tryCreateIfValid(globalObject, WTF::move(result), globalObject->durationStructure())));
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal.plaindate.prototype.equals

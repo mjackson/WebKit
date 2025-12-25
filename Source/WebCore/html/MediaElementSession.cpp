@@ -60,7 +60,6 @@
 #include "SourceBuffer.h"
 #include "TextTrack.h"
 #include "TextTrackList.h"
-#include "VideoProjectionMetadata.h"
 #include "VideoTrack.h"
 #include "VideoTrackConfiguration.h"
 #include "VideoTrackList.h"
@@ -269,7 +268,7 @@ void MediaElementSession::clientWillBeginAutoplaying()
 
 void MediaElementSession::clientWillBeginPlayback(CompletionHandler<void(bool)>&& completionHandler)
 {
-    PlatformMediaSession::clientWillBeginPlayback([weakThis = WeakPtr { *this }, completionHandler = WTFMove(completionHandler)](bool willBegin) mutable {
+    PlatformMediaSession::clientWillBeginPlayback([weakThis = WeakPtr { *this }, completionHandler = WTF::move(completionHandler)](bool willBegin) mutable {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis || !willBegin) {
             completionHandler(false);
@@ -952,7 +951,7 @@ void MediaElementSession::setHasPlaybackTargetAvailabilityListeners(bool hasList
 
 void MediaElementSession::setPlaybackTarget(Ref<MediaPlaybackTarget>&& device)
 {
-    m_playbackTarget = WTFMove(device);
+    m_playbackTarget = WTF::move(device);
     client().setWirelessPlaybackTarget(*m_playbackTarget.copyRef());
 }
 
@@ -1608,7 +1607,7 @@ void MediaElementSession::updateMediaUsageIfChanged()
     if (m_mediaUsageInfo && *m_mediaUsageInfo == usage)
         return;
 
-    m_mediaUsageInfo = WTFMove(usage);
+    m_mediaUsageInfo = WTF::move(usage);
 
 #if ENABLE(MEDIA_USAGE)
     addMediaUsageManagerSessionIfNecessary();
@@ -1708,10 +1707,11 @@ String MediaElementSession::descriptionForTrack(const VideoTrack& track)
         builder.append(' ', track.configuration().codec());
     if (track.configuration().isProtected())
         builder.append(" protected"_s);
-    if (track.configuration().spatialVideoMetadata())
-        builder.append(" spatial"_s);
-    if (auto metadata = track.configuration().videoProjectionMetadata())
+    if (auto metadata = track.configuration().immersiveVideoMetadata()) {
+        if (metadata->isSpatial())
+            builder.append(" spatial"_s);
         builder.append(' ', convertEnumerationToString(metadata->kind));
+    }
 
     return builder.toString();
 }

@@ -90,7 +90,7 @@ inline PushSubscriptionSetIdentifier PushSubscriptionSetIdentifier::isolatedCopy
 
 inline PushSubscriptionSetIdentifier PushSubscriptionSetIdentifier::isolatedCopy() &&
 {
-    return { WTFMove(bundleIdentifier).isolatedCopy(), WTFMove(pushPartition).isolatedCopy(), dataStoreIdentifier };
+    return { WTF::move(bundleIdentifier).isolatedCopy(), WTF::move(pushPartition).isolatedCopy(), dataStoreIdentifier };
 }
 
 } // namespace WebCore

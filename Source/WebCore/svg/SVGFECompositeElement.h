@@ -63,7 +63,7 @@ struct SVGPropertyTraits<CompositeOperationType> {
 
     static CompositeOperationType fromString(SVGElement&, const String& value)
     {
-        static constexpr std::pair<ComparableASCIILiteral, CompositeOperationType> mappings[] = {
+        static constexpr auto mappings = std::to_array<std::pair<ComparableASCIILiteral, CompositeOperationType>>({
             { "arithmetic"_s, CompositeOperationType::FECOMPOSITE_OPERATOR_ARITHMETIC },
             { "atop"_s, CompositeOperationType::FECOMPOSITE_OPERATOR_ATOP },
             { "in"_s, CompositeOperationType::FECOMPOSITE_OPERATOR_IN },
@@ -71,14 +71,14 @@ struct SVGPropertyTraits<CompositeOperationType> {
             { "out"_s, CompositeOperationType::FECOMPOSITE_OPERATOR_OUT },
             { "over"_s, CompositeOperationType::FECOMPOSITE_OPERATOR_OVER },
             { "xor"_s, CompositeOperationType::FECOMPOSITE_OPERATOR_XOR },
-        };
+        });
         static constexpr SortedArrayMap map { mappings };
         return map.get(value, CompositeOperationType::FECOMPOSITE_OPERATOR_UNKNOWN);
     }
 };
 
 class SVGFECompositeElement final : public SVGFilterPrimitiveStandardAttributes {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(SVGFECompositeElement);
+    WTF_MAKE_TZONE_ALLOCATED(SVGFECompositeElement);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(SVGFECompositeElement);
 public:
     static Ref<SVGFECompositeElement> create(const QualifiedName&, Document&);

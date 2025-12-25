@@ -612,7 +612,7 @@ JSFunction::PropertyStatus JSFunction::reifyName(VM& vm, JSGlobalObject* globalO
     RETURN_IF_EXCEPTION(throwScope, PropertyStatus::Lazy);
 
     rareData->setHasReifiedName();
-    putDirect(vm, propID, jsString(vm, WTFMove(name)), initialAttributes);
+    putDirect(vm, propID, jsString(vm, WTF::move(name)), initialAttributes);
     return PropertyStatus::Reified;
 }
 

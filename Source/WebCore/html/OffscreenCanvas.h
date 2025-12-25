@@ -98,7 +98,7 @@ private:
 };
 
 class OffscreenCanvas final : public ActiveDOMObject, public CanvasBase, public RefCounted<OffscreenCanvas>, public EventTarget {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED_EXPORT(OffscreenCanvas, WEBCORE_EXPORT);
+    WTF_MAKE_TZONE_ALLOCATED_EXPORT(OffscreenCanvas, WEBCORE_EXPORT);
 public:
     struct ImageEncodeOptions {
         String type = "image/png"_s;

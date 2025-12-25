@@ -49,7 +49,7 @@ class MediaRecorder final
     , public EventTarget
     , private MediaStreamPrivateObserver
     , private MediaStreamTrackPrivateObserver {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(MediaRecorder);
+    WTF_MAKE_TZONE_ALLOCATED(MediaRecorder);
 public:
     void ref() const final { RefCounted::ref(); }
     void deref() const final { RefCounted::deref(); }
@@ -126,6 +126,8 @@ private:
     void updateBitRates() { computeBitRates(&m_stream->privateStream()); }
     void computeBitRates(const MediaStreamPrivate*);
     void timeSlicerTimerFired();
+
+    CheckedPtr<MediaRecorderPrivate> checkedPrivate();
 
     static CreatorFunction m_customCreator;
 

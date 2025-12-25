@@ -46,7 +46,7 @@ template<typename> class ExceptionOr;
 class Exception;
 
 class WebCodecsAudioDecoder : public WebCodecsBase {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(WebCodecsAudioDecoder);
+    WTF_MAKE_TZONE_ALLOCATED(WebCodecsAudioDecoder);
 public:
     ~WebCodecsAudioDecoder();
 

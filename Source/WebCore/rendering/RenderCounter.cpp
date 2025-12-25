@@ -49,7 +49,7 @@ namespace WebCore {
 
 using namespace HTMLNames;
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(RenderCounter);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderCounter);
 
 using CounterMap = HashMap<AtomString, Ref<CounterNode>>;
 using CounterMaps = SingleThreadWeakHashMap<RenderElement, std::unique_ptr<CounterMap>>;
@@ -322,7 +322,7 @@ static CounterInsertionPoint findPlaceForCounter(RenderElement& counterOwner, co
                         // our identified parent.
                         if (previousSibling->parent() != currentCounter)
                             previousSibling = nullptr;
-                        return { currentCounter, WTFMove(previousSibling) };
+                        return { currentCounter, WTF::move(previousSibling) };
                     }
                     // CurrentCounter, the counter at the EndSearchRenderer, is not reset.
                     if (!isReset || !areRenderersElementsSiblings(*currentRenderer, counterOwner)) {
@@ -330,7 +330,7 @@ static CounterInsertionPoint findPlaceForCounter(RenderElement& counterOwner, co
                         // to an ancestor of the placed counter's owner renderer we know we are a sibling of that node.
                         if (currentCounter->parent() != previousSibling->parent())
                             return { };
-                        return { currentCounter->parent(), WTFMove(previousSibling) };
+                        return { currentCounter->parent(), WTF::move(previousSibling) };
                     }
                 } else { 
                     // We are at the potential end of the search, but we had no previous sibling candidate
@@ -340,7 +340,7 @@ static CounterInsertionPoint findPlaceForCounter(RenderElement& counterOwner, co
                     if (currentCounter->actsAsReset()) {
                         if (isReset && areRenderersElementsSiblings(*currentRenderer, counterOwner))
                             return { currentCounter->parent(), currentCounter };
-                        return { currentCounter, WTFMove(previousSibling) };
+                        return { currentCounter, WTF::move(previousSibling) };
                     }
                     if (!isReset || !areRenderersElementsSiblings(*currentRenderer, counterOwner))
                         return { currentCounter->parent(), currentCounter };
@@ -507,7 +507,7 @@ void RenderCounter::updateCounter()
 static void destroyCounterNodeWithoutMapRemoval(const AtomString& identifier, CounterNode& node)
 {
     RefPtr<CounterNode> previous;
-    for (RefPtr<CounterNode> child = node.lastDescendant(); child && child != &node; child = WTFMove(previous)) {
+    for (RefPtr<CounterNode> child = node.lastDescendant(); child && child != &node; child = WTF::move(previous)) {
         previous = child->previousInPreOrder();
         child->parent()->removeChild(*child);
         ASSERT(counterMaps().find(child->owner())->value->get(identifier) == child);

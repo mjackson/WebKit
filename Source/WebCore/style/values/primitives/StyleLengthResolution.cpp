@@ -39,7 +39,7 @@
 #include "RenderBox.h"
 #include "RenderBoxInlines.h"
 #include "RenderStyle.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include "RenderView.h"
 #include "StylePrimitiveNumericTypes+Conversions.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
@@ -204,6 +204,24 @@ double computeUnzoomedNonCalcLengthDouble(double value, CSS::LengthUnit lengthUn
     RELEASE_ASSERT_NOT_REACHED();
 }
 
+static double adjustZoomStateForFontRelativeUnitsIfNeeded(double value, const CSSToLengthConversionData& conversionData)
+{
+    // Apply text zoom for font-relative units when evaluationTimeZoomEnabled with unzoomed range option.
+    // computedSizeForRangeZoomOption returns unzoomed font size when rangeZoomOption is Unzoomed,
+    // so we need to multiply by text zoom to get the correct final value.
+    // We explicitly use zoomWithTextZoomFactor() here instead of conversionData.zoom() because
+    // zoomWithTextZoomFactor() is guaranteed to return only the text zoom factor (not page zoom or other zoom types)
+    // when evaluationTimeZoomEnabled is true. This ensures font-relative units scale correctly with text zoom
+    // while remaining independent of other zoom mechanisms.
+    if (conversionData.evaluationTimeZoomEnabled() && conversionData.rangeZoomOption() == CSS::RangeZoomOptions::Unzoomed) {
+        if (CheckedPtr builderState = conversionData.styleBuilderState()) {
+            auto textZoom = builderState->zoomWithTextZoomFactor();
+            return value * textZoom;
+        }
+    }
+    return value;
+}
+
 double computeCanonicalNonCalcLengthDouble(double value, CSS::LengthUnit lengthUnit, const CSSToLengthConversionData& conversionData)
 {
     // We are only interested in canonicalizing to `px`, not adjusting for zoom, which will be handled later. When computing font-size, zoom is not applied in the same way, so must be special cased here.
@@ -278,6 +296,7 @@ double computeNonCalcLengthDouble(double value, CSS::LengthUnit lengthUnit, cons
         // We really need to compute EX using fontMetrics for the original specifiedSize and not use
         // our actual constructed rendering font.
         value = computeUnzoomedNonCalcLengthDouble(value, lengthUnit, conversionData.propertyToCompute(), &conversionData.fontCascadeForFontUnits(), conversionData.rangeZoomOption());
+        value = adjustZoomStateForFontRelativeUnitsIfNeeded(value, conversionData);
         break;
 
     case Lh:
@@ -301,6 +320,7 @@ double computeNonCalcLengthDouble(double value, CSS::LengthUnit lengthUnit, cons
     case Rex:
     case Ric:
         value = computeUnzoomedNonCalcLengthDouble(value, lengthUnit, conversionData.propertyToCompute(), conversionData.rootStyle() ? &conversionData.rootStyle()->fontCascade() : &conversionData.fontCascadeForFontUnits(), conversionData.rangeZoomOption());
+        value = adjustZoomStateForFontRelativeUnitsIfNeeded(value, conversionData);
         break;
 
     case Rlh:

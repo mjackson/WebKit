@@ -2296,7 +2296,7 @@ public:
             ByteTermDumper(&m_pattern).dumpDisjunction(m_bodyDisjunction.get());
 #endif
 
-        return makeUnique<BytecodePattern>(WTFMove(m_bodyDisjunction), m_allParenthesesInfo, m_pattern, allocator, lock, m_pattern.offsetVectorBaseForNamedCaptures(), m_pattern.offsetsSize());
+        return makeUnique<BytecodePattern>(WTF::move(m_bodyDisjunction), m_allParenthesesInfo, m_pattern, allocator, lock, m_pattern.offsetVectorBaseForNamedCaptures(), m_pattern.offsetsSize());
     }
 
     void checkInput(unsigned count)
@@ -2547,7 +2547,7 @@ public:
 
         m_bodyDisjunction->terms.append(ByteTerm(ByteTerm::Type::ParenthesesSubpattern, subpatternId, parenthesesDisjunction.get(), capture, inputPosition, m_currentFlags));
         m_bodyDisjunction->terms.last().m_matchDirection = parenthesesMatchDirection;
-        m_allParenthesesInfo.append(WTFMove(parenthesesDisjunction));
+        m_allParenthesesInfo.append(WTF::move(parenthesesDisjunction));
 
         if (m_pattern.hasDuplicateNamedCaptureGroups() && capture) {
             auto duplicateNamedGroupId = m_pattern.m_duplicateNamedGroupForSubpatternId[subpatternId];
@@ -2665,7 +2665,7 @@ public:
         m_currentAlternativeIndex = newAlternativeIndex;
     }
 
-    std::optional<ErrorCode> WARN_UNUSED_RETURN emitDisjunction(PatternDisjunction* disjunction, CheckedUint32 inputCountAlreadyChecked, unsigned parenthesesInputCountAlreadyChecked, MatchDirection matchDirection = Forward)
+    WARN_UNUSED_RETURN std::optional<ErrorCode> emitDisjunction(PatternDisjunction* disjunction, CheckedUint32 inputCountAlreadyChecked, unsigned parenthesesInputCountAlreadyChecked, MatchDirection matchDirection = Forward)
     {
         if (!isSafeToRecurse()) [[unlikely]]
             return ErrorCode::TooManyDisjunctions;

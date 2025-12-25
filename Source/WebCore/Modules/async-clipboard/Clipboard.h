@@ -40,7 +40,7 @@ class Pasteboard;
 class PasteboardCustomData;
 
 class Clipboard final : public RefCounted<Clipboard>, public EventTarget {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(Clipboard);
+    WTF_MAKE_TZONE_ALLOCATED(Clipboard);
 public:
     static Ref<Clipboard> create(Navigator&);
     ~Clipboard();
@@ -83,7 +83,7 @@ private:
     public:
         static Ref<ItemWriter> create(Clipboard& clipboard, Ref<DeferredPromise>&& promise)
         {
-            return adoptRef(*new ItemWriter(clipboard, WTFMove(promise)));
+            return adoptRef(*new ItemWriter(clipboard, WTF::move(promise)));
         }
 
         ~ItemWriter();

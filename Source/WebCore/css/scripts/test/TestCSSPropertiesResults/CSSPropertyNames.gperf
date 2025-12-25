@@ -5,7 +5,10 @@
 #include "CSSPropertyNames.h"
 
 #include "BoxSides.h"
+#include "CSSParserContext.h"
 #include "CSSProperty.h"
+#include "CSSValueKeywords.h"
+#include "DeprecatedGlobalSettings.h"
 #include "Settings.h"
 #include <string.h>
 #include <wtf/ASCIICType.h>
@@ -849,6 +852,46 @@ void add(Hasher& hasher, const CSSPropertySettings& settings)
 TextStream& operator<<(TextStream& stream, CSSPropertyID property)
 {
     return stream << nameLiteral(property);
+}
+
+static constexpr std::array validKeywordsForTestUsingSharedRule {
+    CSSValueID::CSSValueAuto,
+};
+
+static constexpr std::array validKeywordsForTestUsingSharedRuleExported {
+    CSSValueID::CSSValueAuto,
+};
+
+static constexpr std::array validKeywordsForTestUsingSharedRuleWithOverrideFunction {
+    CSSValueID::CSSValueAuto,
+};
+
+std::span<const CSSValueID> CSSProperty::validKeywordsForProperty(CSSPropertyID id)
+{
+    switch (id) {
+    case CSSPropertyID::CSSPropertyTestUsingSharedRule:
+        return std::span<const CSSValueID> { validKeywordsForTestUsingSharedRule };
+    case CSSPropertyID::CSSPropertyTestUsingSharedRuleExported:
+        return std::span<const CSSValueID> { validKeywordsForTestUsingSharedRuleExported };
+    case CSSPropertyID::CSSPropertyTestUsingSharedRuleWithOverrideFunction:
+        return std::span<const CSSValueID> { validKeywordsForTestUsingSharedRuleWithOverrideFunction };
+    default:
+        return { };
+    }
+}
+
+bool CSSProperty::isKeywordValidForPropertyValues(CSSPropertyID id, CSSValueID keyword, const CSSParserContext& context)
+{
+    switch (id) {
+    case CSSPropertyID::CSSPropertyTestUsingSharedRule:
+        return std::ranges::find(validKeywordsForTestUsingSharedRule, keyword) != validKeywordsForTestUsingSharedRule.end();
+    case CSSPropertyID::CSSPropertyTestUsingSharedRuleExported:
+        return std::ranges::find(validKeywordsForTestUsingSharedRuleExported, keyword) != validKeywordsForTestUsingSharedRuleExported.end();
+    case CSSPropertyID::CSSPropertyTestUsingSharedRuleWithOverrideFunction:
+        return std::ranges::find(validKeywordsForTestUsingSharedRuleWithOverrideFunction, keyword) != validKeywordsForTestUsingSharedRuleWithOverrideFunction.end();
+    default:
+        return false;
+    }
 }
 
 } // namespace WebCore

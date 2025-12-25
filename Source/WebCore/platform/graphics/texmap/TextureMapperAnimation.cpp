@@ -75,7 +75,7 @@ static FilterOperations applyFilterAnimation(const FilterOperations& from, const
         }
     }
 
-    return FilterOperations { WTFMove(operations) };
+    return FilterOperations { WTF::move(operations) };
 }
 
 static bool shouldReverseAnimationValue(GraphicsLayerAnimation::Direction direction, int loopCount)

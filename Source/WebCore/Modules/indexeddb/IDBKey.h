@@ -41,7 +41,7 @@ class JSArrayBufferView;
 namespace WebCore {
 
 class IDBKey : public RefCounted<IDBKey> {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(IDBKey);
+    WTF_MAKE_TZONE_ALLOCATED(IDBKey);
 public:
     static Ref<IDBKey> createInvalid()
     {
@@ -142,9 +142,6 @@ public:
     bool isEqual(const IDBKey& other) const;
 
     size_t sizeEstimate() const { return m_sizeEstimate; }
-
-    using RefCounted<IDBKey>::ref;
-    using RefCounted<IDBKey>::deref;
 
 #if !LOG_DISABLED
     String loggingString() const;

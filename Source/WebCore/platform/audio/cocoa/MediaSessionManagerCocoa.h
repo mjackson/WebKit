@@ -48,7 +48,13 @@ class WEBCORE_EXPORT MediaSessionManagerCocoa
     , public AudioHardwareListener::Client {
     WTF_MAKE_TZONE_ALLOCATED(MediaSessionManagerCocoa);
 public:
-    MediaSessionManagerCocoa(PageIdentifier);
+#if PLATFORM(MAC)
+    static Ref<MediaSessionManagerCocoa> create(PageIdentifier);
+#endif
+
+    // NowPlayingManagerClient.
+    void ref() const override { PlatformMediaSessionManager::ref(); }
+    void deref() const override { PlatformMediaSessionManager::deref(); }
     
     static WEBCORE_EXPORT void clearNowPlayingInfo();
     static WEBCORE_EXPORT void setNowPlayingInfo(bool setAsNowPlayingApplication, bool shouldUpdateNowPlayingSuppression, const NowPlayingInfo&);
@@ -56,6 +62,8 @@ public:
     static String audioTimePitchAlgorithmForMediaPlayerPitchCorrectionAlgorithm(MediaPlayerPitchCorrectionAlgorithm, bool preservesPitch, double rate);
 
 protected:
+    explicit MediaSessionManagerCocoa(PageIdentifier);
+
     void updateSessionState() override;
     void beginInterruption(PlatformMediaSession::InterruptionType) final;
 

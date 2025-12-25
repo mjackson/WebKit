@@ -41,14 +41,14 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(CSSSkew);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(CSSSkew);
 
 ExceptionOr<Ref<CSSSkew>> CSSSkew::create(Ref<CSSNumericValue> ax, Ref<CSSNumericValue> ay)
 {
     if (!ax->type().matches<CSSNumericBaseType::Angle>()
         || !ay->type().matches<CSSNumericBaseType::Angle>())
         return Exception { ExceptionCode::TypeError };
-    return adoptRef(*new CSSSkew(WTFMove(ax), WTFMove(ay)));
+    return adoptRef(*new CSSSkew(WTF::move(ax), WTF::move(ay)));
 }
 
 ExceptionOr<Ref<CSSSkew>> CSSSkew::create(Ref<const CSSFunctionValue> cssFunctionValue, Document& document)
@@ -82,8 +82,8 @@ ExceptionOr<Ref<CSSSkew>> CSSSkew::create(Ref<const CSSFunctionValue> cssFunctio
 
 CSSSkew::CSSSkew(Ref<CSSNumericValue> ax, Ref<CSSNumericValue> ay)
     : CSSTransformComponent(Is2D::Yes)
-    , m_ax(WTFMove(ax))
-    , m_ay(WTFMove(ay))
+    , m_ax(WTF::move(ax))
+    , m_ay(WTF::move(ay))
 {
 }
 
@@ -92,7 +92,7 @@ ExceptionOr<void> CSSSkew::setAx(Ref<CSSNumericValue> ax)
     if (!ax->type().matches<CSSNumericBaseType::Angle>())
         return Exception { ExceptionCode::TypeError };
 
-    m_ax = WTFMove(ax);
+    m_ax = WTF::move(ax);
     return { };
 }
 
@@ -101,7 +101,7 @@ ExceptionOr<void> CSSSkew::setAy(Ref<CSSNumericValue> ay)
     if (!ay->type().matches<CSSNumericBaseType::Angle>())
         return Exception { ExceptionCode::TypeError };
 
-    m_ay = WTFMove(ay);
+    m_ay = WTF::move(ay);
     return { };
 }
 
@@ -133,7 +133,7 @@ ExceptionOr<Ref<DOMMatrix>> CSSSkew::toMatrix()
     TransformationMatrix matrix { };
     matrix.skew(x->value(), y->value());
 
-    return { DOMMatrix::create(WTFMove(matrix), DOMMatrixReadOnly::Is2D::Yes) };
+    return { DOMMatrix::create(WTF::move(matrix), DOMMatrixReadOnly::Is2D::Yes) };
 }
 
 RefPtr<CSSValue> CSSSkew::toCSSValue() const

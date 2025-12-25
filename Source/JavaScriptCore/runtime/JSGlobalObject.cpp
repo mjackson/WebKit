@@ -208,8 +208,8 @@
 #include "JSWebAssemblyTag.h"
 #include "JSWithScope.h"
 #include "JSWrapForValidIteratorInlines.h"
-#include "JSPromiseAllContextInlines.h"
-#include "JSPromiseAllGlobalContext.h"
+#include "JSPromiseCombinatorsContextInlines.h"
+#include "JSPromiseCombinatorsGlobalContext.h"
 #include "JSPromiseReaction.h"
 #include "LazyClassStructureInlines.h"
 #include "LazyPropertyInlines.h"
@@ -600,7 +600,7 @@ JSC_DEFINE_HOST_FUNCTION(signpostStart, (JSGlobalObject* globalObject, CallFrame
     auto message = asSignpostString(globalObject, callFrame->argument(0));
     RETURN_IF_EXCEPTION(scope, EncodedJSValue());
 
-    globalObject->startSignpost(WTFMove(message));
+    globalObject->startSignpost(WTF::move(message));
     return JSValue::encode(jsUndefined());
 }
 
@@ -612,7 +612,7 @@ JSC_DEFINE_HOST_FUNCTION(signpostStop, (JSGlobalObject* globalObject, CallFrame*
     auto message = asSignpostString(globalObject, callFrame->argument(0));
     RETURN_IF_EXCEPTION(scope, EncodedJSValue());
 
-    globalObject->stopSignpost(WTFMove(message));
+    globalObject->stopSignpost(WTF::move(message));
     return JSValue::encode(jsUndefined());
 }
 
@@ -625,7 +625,7 @@ void JSGlobalObject::startSignpost(String&& message)
     UNUSED_VARIABLE(identifier);
     auto string = message.ascii();
     WTFBeginSignpostAlways(identifier, JSCJSGlobalObject, "%" PUBLIC_LOG_STRING, string.data());
-    ProfilerSupport::markStart(identifier, ProfilerSupport::Category::JSGlobalObjectSignpost, WTFMove(string));
+    ProfilerSupport::markStart(identifier, ProfilerSupport::Category::JSGlobalObjectSignpost, WTF::move(string));
 }
 
 void JSGlobalObject::stopSignpost(String&& message)
@@ -636,7 +636,7 @@ void JSGlobalObject::stopSignpost(String&& message)
     UNUSED_VARIABLE(identifier);
     auto string = message.ascii();
     WTFEndSignpostAlways(identifier, JSCJSGlobalObject, "%" PUBLIC_LOG_STRING, string.data());
-    ProfilerSupport::markEnd(identifier, ProfilerSupport::Category::JSGlobalObjectSignpost, WTFMove(string));
+    ProfilerSupport::markEnd(identifier, ProfilerSupport::Category::JSGlobalObjectSignpost, WTF::move(string));
     --activeJSGlobalObjectSignpostIntervalCount;
 }
 
@@ -754,7 +754,7 @@ JSC_DEFINE_HOST_FUNCTION(enqueueJob, (JSGlobalObject* globalObject, CallFrame* c
     JSValue argument3 = callFrame->argument(4);
     // BunInvokeJobWithArguments expects: job, arg0, arg1, arg2, arg3
     JSC::QueuedTask task { nullptr, JSC::InternalMicrotask::BunInvokeJobWithArguments, globalObject, job, argument0, argument1, argument2, argument3 };
-    globalObject->vm().queueMicrotask(WTFMove(task));
+    globalObject->vm().queueMicrotask(WTF::move(task));
     return encodedJSUndefined();
 }
 #endif
@@ -1086,7 +1086,7 @@ void JSGlobalObject::init(VM& vm)
     m_inspectorController = makeUnique<Inspector::JSGlobalObjectInspectorController>(*this);
     m_inspectorDebuggable = JSGlobalObjectDebuggable::create(*this);
     m_inspectorDebuggable->init();
-    m_consoleClient = checkedInspectorController()->consoleClient();
+    m_consoleClient = checkedInspectorController()->consoleClient().get();
 #endif
 
     m_functionPrototype.set(vm, this, FunctionPrototype::create(vm, FunctionPrototype::createStructure(vm, this, jsNull()))); // The real prototype will be set once ObjectPrototype is created.
@@ -1590,6 +1590,14 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
     m_promiseCapabilityObjectStructure.initLater(
         [] (const Initializer<Structure>& init) {
             init.set(createPromiseCapabilityObjectStructure(init.vm, *init.owner));
+        });
+    m_promiseAllSettledFulfilledResultStructure.initLater(
+        [] (const Initializer<Structure>& init) {
+            init.set(createPromiseAllSettledFulfilledResultStructure(init.vm, *init.owner));
+        });
+    m_promiseAllSettledRejectedResultStructure.initLater(
+        [] (const Initializer<Structure>& init) {
+            init.set(createPromiseAllSettledRejectedResultStructure(init.vm, *init.owner));
         });
 
     m_collatorStructure.initLater(
@@ -2419,7 +2427,7 @@ void JSGlobalObject::addSymbolTableEntry(const Identifier& ident)
     ScopeOffset offset = symbolTable()->takeNextScopeOffset(locker);
     SymbolTableEntry newEntry(VarOffset(offset), 0);
     newEntry.prepareToWatch();
-    symbolTable()->add(locker, ident.impl(), WTFMove(newEntry));
+    symbolTable()->add(locker, ident.impl(), WTF::move(newEntry));
 
     ScopeOffset offsetForAssert = addVariables(1, jsUndefined());
     RELEASE_ASSERT(offsetForAssert == offset);
@@ -3032,6 +3040,8 @@ void JSGlobalObject::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     thisObject->m_dataPropertyDescriptorObjectStructure.visit(visitor);
     thisObject->m_accessorPropertyDescriptorObjectStructure.visit(visitor);
     thisObject->m_promiseCapabilityObjectStructure.visit(visitor);
+    thisObject->m_promiseAllSettledFulfilledResultStructure.visit(visitor);
+    thisObject->m_promiseAllSettledRejectedResultStructure.visit(visitor);
     visitor.append(thisObject->m_regExpMatchesArrayStructure);
     visitor.append(thisObject->m_regExpMatchesArrayWithIndicesStructure);
     visitor.append(thisObject->m_regExpMatchesIndicesArrayStructure);
@@ -3152,7 +3162,7 @@ void JSGlobalObject::addStaticGlobals(GlobalPropertyInfo* globals, int count)
             SymbolTableEntry newEntry(VarOffset(offset), global.attributes);
             newEntry.prepareToWatch();
             watchpointSet = newEntry.watchpointSet();
-            symbolTable()->add(locker, global.identifier.impl(), WTFMove(newEntry));
+            symbolTable()->add(locker, global.identifier.impl(), WTF::move(newEntry));
             variable = &variableAt(offset);
         }
         symbolTablePutTouchWatchpointSet(vm(), this, global.identifier, global.value, variable, watchpointSet);
@@ -3467,21 +3477,21 @@ void JSGlobalObject::installObjectAdaptiveStructureWatchpoint(const ObjectProper
 {
     auto watchpoint = makeUniqueRef<ObjectAdaptiveStructureWatchpoint>(this, key, watchpointSet);
     watchpoint->install(*m_vm);
-    m_installedObjectAdaptiveStructureWatchpoints.append(WTFMove(watchpoint));
+    m_installedObjectAdaptiveStructureWatchpoints.append(WTF::move(watchpoint));
 }
 
 void JSGlobalObject::installObjectPropertyChangeAdaptiveWatchpoint(const ObjectPropertyCondition& key, InlineWatchpointSet& watchpointSet)
 {
     auto watchpoint = makeUniqueRef<ObjectPropertyChangeAdaptiveWatchpoint<InlineWatchpointSet>>(this, key, watchpointSet);
     watchpoint->install(*m_vm);
-    m_installedObjectPropertyChangeAdaptiveWatchpoints.append(WTFMove(watchpoint));
+    m_installedObjectPropertyChangeAdaptiveWatchpoints.append(WTF::move(watchpoint));
 }
 
 void JSGlobalObject::installChainedWatchpoint(InlineWatchpointSet& from, InlineWatchpointSet& to)
 {
     auto watchpoint = makeUniqueRef<ChainedWatchpoint>(this, to);
     watchpoint->install(from, *m_vm);
-    m_installedChainedWatchpoints.append(WTFMove(watchpoint));
+    m_installedChainedWatchpoints.append(WTF::move(watchpoint));
 }
 
 void JSGlobalObject::tryInstallPropertyDescriptorFastPathWatchpoint()
@@ -3624,17 +3634,17 @@ void JSGlobalObject::queueMicrotaskToEventLoop(JSC::JSGlobalObject& globalObject
 {
     if (globalObject.debugger()) [[unlikely]]
         task.setDispatcher(DebuggableMicrotaskDispatcher::create());
-    globalObject.vm().queueMicrotask(WTFMove(task));
+    globalObject.vm().queueMicrotask(WTF::move(task));
 }
 
 void JSGlobalObject::queueMicrotask(InternalMicrotask job, JSValue argument0, JSValue argument1, JSValue argument2, JSValue argument3)
 {
     QueuedTask task { nullptr, job, this, argument0, argument1, argument2, argument3 };
     if (globalObjectMethodTable()->queueMicrotaskToEventLoop) {
-        globalObjectMethodTable()->queueMicrotaskToEventLoop(*this, WTFMove(task));
+        globalObjectMethodTable()->queueMicrotaskToEventLoop(*this, WTF::move(task));
         return;
     }
-    vm().queueMicrotask(WTFMove(task));
+    vm().queueMicrotask(WTF::move(task));
 }
 
 void JSGlobalObject::promiseRejectionTracker(JSGlobalObject* globalObject, JSPromise* promise, JSPromiseRejectionOperation operation)
@@ -3655,10 +3665,10 @@ void JSGlobalObject::queueMicrotask(InternalMicrotask job, JSValue argument0, JS
 {
     QueuedTask task { nullptr, job, this, argument0, argument1, argument2, argument3, argument4 };
     if (globalObjectMethodTable()->queueMicrotaskToEventLoop) {
-        globalObjectMethodTable()->queueMicrotaskToEventLoop(*this, WTFMove(task));
+        globalObjectMethodTable()->queueMicrotaskToEventLoop(*this, WTF::move(task));
         return;
     }
-    vm().queueMicrotask(WTFMove(task));
+    vm().queueMicrotask(WTF::move(task));
 }
 #endif
 
@@ -3669,12 +3679,12 @@ void JSGlobalObject::reportUncaughtExceptionAtEventLoop(JSGlobalObject*, Excepti
 
 void JSGlobalObject::setConsoleClient(WeakPtr<ConsoleClient>&& consoleClient)
 {
-    m_consoleClient = WTFMove(consoleClient);
+    m_consoleClient = WTF::move(consoleClient);
 }
 
-WeakPtr<ConsoleClient> JSGlobalObject::consoleClient() const
+CheckedPtr<ConsoleClient> JSGlobalObject::consoleClient() const
 {
-    return m_consoleClient;
+    return m_consoleClient.get();
 }
 
 void JSGlobalObject::setDebugger(Debugger* debugger)
@@ -3744,7 +3754,7 @@ void JSGlobalObject::finishCreation(VM& vm, JSObject* thisValue)
 #ifdef JSC_GLIB_API_ENABLED
 void JSGlobalObject::setWrapperMap(std::unique_ptr<WrapperMap>&& map)
 {
-    m_wrapperMap = WTFMove(map);
+    m_wrapperMap = WTF::move(map);
 }
 #endif
 
@@ -3754,7 +3764,7 @@ void JSGlobalObject::addWeakTicket(DeferredWorkTimer::Ticket ticket)
     if (!m_weakTickets) {
         auto weakTickets = makeUnique<ThreadSafeWeakHashSet<DeferredWorkTimer::TicketData>>();
         WTF::storeStoreFence();
-        m_weakTickets = WTFMove(weakTickets);
+        m_weakTickets = WTF::move(weakTickets);
     }
     m_weakTickets->add(*ticket);
     vm().writeBarrier(this);

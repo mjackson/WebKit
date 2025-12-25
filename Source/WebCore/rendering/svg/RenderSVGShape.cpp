@@ -40,7 +40,7 @@
 #include "PointerEventsHitRules.h"
 #include "RenderObjectDocument.h"
 #include "RenderSVGShapeInlines.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include "RenderView.h"
 #include "SVGPaintServerHandling.h"
 #include "SVGPathData.h"
@@ -51,10 +51,10 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(RenderSVGShape);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderSVGShape);
 
 RenderSVGShape::RenderSVGShape(Type type, SVGGraphicsElement& element, RenderStyle&& style)
-    : RenderSVGModelObject(type, element, WTFMove(style), SVGModelObjectFlag::IsShape)
+    : RenderSVGModelObject(type, element, WTF::move(style), SVGModelObjectFlag::IsShape)
 {
 }
 
@@ -406,11 +406,11 @@ std::unique_ptr<Path> RenderSVGShape::createPath() const
     return makeUnique<Path>(pathFromGraphicsElement(protectedGraphicsElement()));
 }
 
-void RenderSVGShape::styleWillChange(StyleDifference diff, const RenderStyle& newStyle)
+void RenderSVGShape::styleWillChange(Style::Difference diff, const RenderStyle& newStyle)
 {
     auto* oldStyle = hasInitializedStyle() ? &style() : nullptr;
     if (oldStyle) {
-        if (diff == StyleDifference::Layout)
+        if (diff == Style::DifferenceResult::Layout)
             setNeedsShapeUpdate();
     }
 

@@ -26,6 +26,7 @@
 #pragma once
 
 #include "Yarr.h"
+#include <memory>
 #include <optional>
 #include <wtf/Forward.h>
 

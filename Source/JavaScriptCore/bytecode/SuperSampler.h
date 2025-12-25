@@ -25,7 +25,10 @@
 
 #pragma once
 
+#include "JSExportMacros.h"
 #include <atomic>
+#include <cstdint>
+#include <wtf/Assertions.h>
 
 namespace JSC {
 

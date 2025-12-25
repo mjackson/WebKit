@@ -220,7 +220,7 @@ private:
     public:
         static Ref<OutOfLineComponents> create(ColorComponents<float, 4>&& components)
         {
-            return adoptRef(*new OutOfLineComponents(WTFMove(components)));
+            return adoptRef(*new OutOfLineComponents(WTF::move(components)));
         }
 
         float unresolvedAlpha() const { return m_components[3]; }
@@ -230,7 +230,7 @@ private:
 
     private:
         OutOfLineComponents(ColorComponents<float, 4>&& components)
-            : m_components(WTFMove(components))
+            : m_components(WTF::move(components))
         {
         }
 
@@ -380,7 +380,7 @@ inline Color::Color(const std::optional<ColorType>& color, OptionSet<Flags> flag
 
 inline Color::Color(Ref<OutOfLineComponents>&& outOfLineComponents, ColorSpace colorSpace, OptionSet<Flags> flags)
 {
-    setOutOfLineComponents(WTFMove(outOfLineComponents), colorSpace, toFlagsIncludingPrivate(flags));
+    setOutOfLineComponents(WTF::move(outOfLineComponents), colorSpace, toFlagsIncludingPrivate(flags));
 }
 
 inline Color::Color(WTF::HashTableEmptyValueType)
@@ -402,7 +402,7 @@ inline Color::Color(const Color& other)
 
 inline Color::Color(Color&& other)
 {
-    *this = WTFMove(other);
+    *this = WTF::move(other);
 }
 
 inline Color& Color::operator=(const Color& other)
@@ -631,7 +631,7 @@ inline void Color::setColor(SRGBA<uint8_t> color, OptionSet<FlagsIncludingPrivat
 inline void Color::setOutOfLineComponents(Ref<OutOfLineComponents>&& color, ColorSpace colorSpace, OptionSet<FlagsIncludingPrivate> flags)
 {
     flags.add({ FlagsIncludingPrivate::Valid, FlagsIncludingPrivate::OutOfLine });
-    m_colorAndFlags = encodedOutOfLineComponents(WTFMove(color)) | encodedColorSpace(colorSpace) | encodedFlags(flags);
+    m_colorAndFlags = encodedOutOfLineComponents(WTF::move(color)) | encodedColorSpace(colorSpace) | encodedFlags(flags);
     ASSERT(isOutOfLine());
 }
 

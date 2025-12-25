@@ -39,7 +39,7 @@
 #include "NodeRenderStyle.h"
 #include "Page.h"
 #include "RenderObjectInlines.h"
-#include "RenderStyleSetters.h"
+#include "RenderStyle+SettersInlines.h"
 #include "RenderView.h"
 #include "Settings.h"
 #include "StyleAdjuster.h"
@@ -103,12 +103,12 @@ RenderStyle resolveForDocument(const Document& document)
         return fontDescription;
     }();
 
-    auto fontCascade = FontCascade { WTFMove(fontDescription), documentStyle.fontCascade() };
+    auto fontCascade = FontCascade { WTF::move(fontDescription), documentStyle.fontCascade() };
 
     // We don't just call setFontDescription() because we need to provide the fontSelector to the FontCascade.
     RefPtr fontSelector = document.protectedFontSelector();
-    fontCascade.update(WTFMove(fontSelector));
-    documentStyle.setFontCascade(WTFMove(fontCascade));
+    fontCascade.update(WTF::move(fontSelector));
+    documentStyle.setFontCascade(WTF::move(fontCascade));
 
     documentStyle.setEvaluationTimeZoomEnabled(document.settings().evaluationTimeZoomEnabled());
 

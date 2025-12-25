@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include "JSExportMacros.h"
 #include <mutex>
 #include <wtf/Assertions.h>
 #include <wtf/ForbidHeapAllocation.h>

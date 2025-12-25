@@ -63,7 +63,7 @@ void WakeLockManager::addWakeLock(Ref<WakeLockSentinel>&& lock, std::optional<Pa
     auto type = lock->type();
     auto& locks = m_wakeLocks.ensure(type, [] { return Vector<RefPtr<WakeLockSentinel>>(); }).iterator->value;
     ASSERT(!locks.contains(lock.ptr()));
-    locks.append(WTFMove(lock));
+    locks.append(WTF::move(lock));
 
     if (locks.size() != 1)
         return;

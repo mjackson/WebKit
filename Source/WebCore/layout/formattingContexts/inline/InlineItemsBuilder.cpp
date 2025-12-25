@@ -29,7 +29,7 @@
 #include "FontCascade.h"
 #include "InlineSoftLineBreakItem.h"
 #include "RenderObjectInlines.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include "Settings.h"
 #include "StyleResolver.h"
 #include "TextBreakingPositionCache.h"
@@ -106,8 +106,8 @@ void InlineItemsBuilder::build(InlineItemPosition startPosition)
         ASSERT(!startPosition || startPosition.index < inlineItemCache.content().size());
         auto isPopulatedFromCache = m_textContentPopulatedFromCache && *m_textContentPopulatedFromCache ? InlineContentCache::InlineItems::IsPopulatedFromCache::Yes : InlineContentCache::InlineItems::IsPopulatedFromCache::No;
         if (!startPosition || startPosition.index >= inlineItemCache.content().size())
-            return inlineItemCache.set(WTFMove(inlineItemList), contentAttributes, isPopulatedFromCache);
-        inlineItemCache.replace(startPosition.index, WTFMove(inlineItemList), contentAttributes, isPopulatedFromCache);
+            return inlineItemCache.set(WTF::move(inlineItemList), contentAttributes, isPopulatedFromCache);
+        inlineItemCache.replace(startPosition.index, WTF::move(inlineItemList), contentAttributes, isPopulatedFromCache);
     };
     adjustInlineContentCacheWithNewInlineItems();
 
@@ -186,7 +186,7 @@ void InlineItemsBuilder::computeInlineBoxBoundaryTextSpacings(const InlineItemLi
         processInlineBoxBoundary = false;
     }
     if (!spacings.isEmpty())
-        inlineContentCache().setInlineBoxBoundaryTextSpacings(WTFMove(spacings));
+        inlineContentCache().setInlineBoxBoundaryTextSpacings(WTF::move(spacings));
 }
 
 static inline bool isTextOrLineBreak(const Box& layoutBox)
@@ -816,7 +816,7 @@ InlineContentCache::InlineItems::ContentAttributes InlineItemsBuilder::computeCo
         if (!inlineItem.isInlineBoxEnd())
             isTextAndForcedLineBreakOnlyContent = isTextAndForcedLineBreakOnlyContent && isTextOrLineBreak(inlineItem.layoutBox());
     }
-    inlineContentCache().setTrimmableTextSpacings(WTFMove(trimmableTextSpacings));
+    inlineContentCache().setTrimmableTextSpacings(WTF::move(trimmableTextSpacings));
 
     return { m_contentRequiresVisualReordering, isTextAndForcedLineBreakOnlyContent, m_hasTextAutospace, inlineBoxCount };
 }
@@ -1068,7 +1068,7 @@ void InlineItemsBuilder::populateBreakingPositionCache(const InlineItemList& inl
 
         ASSERT(!breakingPositionList.isEmpty());
         if (breakingPositionList.size() >= TextBreakingPositionCache::minimumRequiredContentBreaks)
-            breakingPositionCache.set({ inlineTextBox->content(), context, securityOrigin.data() }, WTFMove(breakingPositionList));
+            breakingPositionCache.set({ inlineTextBox->content(), context, securityOrigin.data() }, WTF::move(breakingPositionList));
         index += span.size();
     }
 }

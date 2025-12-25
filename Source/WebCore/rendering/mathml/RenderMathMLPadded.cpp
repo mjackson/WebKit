@@ -35,10 +35,10 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(RenderMathMLPadded);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderMathMLPadded);
 
 RenderMathMLPadded::RenderMathMLPadded(MathMLPaddedElement& element, RenderStyle&& style)
-    : RenderMathMLRow(Type::MathMLPadded, element, WTFMove(style))
+    : RenderMathMLRow(Type::MathMLPadded, element, WTF::move(style))
 {
     ASSERT(isRenderMathMLPadded());
 }
@@ -120,7 +120,7 @@ void RenderMathMLPadded::layoutBlock(RelayoutChildren relayoutChildren, LayoutUn
     LayoutUnit ascent = mpaddedHeight(contentAscent);
     LayoutUnit descent = mpaddedDepth(contentDescent);
 
-    auto inlineShift = style().writingMode().inlineDirection() == FlowDirection::RightToLeft ? -lspace() : lspace();
+    auto inlineShift = style().writingMode().inlineDirection() == FlowDirection::RightToLeft ? (width - contentWidth - lspace()) : lspace();
 
     // Align children on the new baseline and shift them by (lspace, -voffset)
     shiftInFlowChildren(inlineShift, ascent - contentAscent - voffset());

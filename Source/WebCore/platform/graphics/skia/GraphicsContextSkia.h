@@ -41,6 +41,8 @@ class SkSurface;
 
 namespace WebCore {
 
+class Pattern;
+
 using SkiaImageToFenceMap = HashMap<const SkImage*, std::unique_ptr<GLFence>>;
 
 class WEBCORE_EXPORT GraphicsContextSkia final : public GraphicsContext {
@@ -116,8 +118,8 @@ public:
 
     void drawSkiaText(const sk_sp<SkTextBlob>&, SkScalar, SkScalar, bool, bool);
 
-    static std::unique_ptr<GLFence> createAcceleratedRenderingFenceIfNeeded(SkSurface*);
-    static std::unique_ptr<GLFence> createAcceleratedRenderingFenceIfNeeded(const sk_sp<SkImage>&);
+    static std::unique_ptr<GLFence> createAcceleratedRenderingFence(SkSurface*);
+    static std::unique_ptr<GLFence> createAcceleratedRenderingFence(const sk_sp<SkImage>&, GrDirectContext*);
 
 private:
     enum class ContextMode : bool {
@@ -126,8 +128,8 @@ private:
     };
 
     bool makeGLContextCurrentIfNeeded() const;
-    void trackAcceleratedRenderingFenceIfNeeded(const sk_sp<SkImage>&);
-    void trackAcceleratedRenderingFenceIfNeeded(SkPaint&);
+    void trackAcceleratedRenderingFenceIfNeeded(const sk_sp<SkImage>&, GrDirectContext*);
+    void trackAcceleratedRenderingFenceIfNeeded(Pattern&);
 
     void setupFillSource(SkPaint&);
     void setupStrokeSource(SkPaint&);

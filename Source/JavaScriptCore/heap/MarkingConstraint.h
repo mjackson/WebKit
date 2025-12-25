@@ -28,6 +28,7 @@
 #include "ConstraintConcurrency.h"
 #include "ConstraintParallelism.h"
 #include "ConstraintVolatility.h"
+#include "JSExportMacros.h"
 #include <limits.h>
 #include <wtf/Lock.h>
 #include <wtf/Noncopyable.h>

@@ -114,7 +114,7 @@ typedef const void* WrappedImagePtr;
 
 // Base class for all rendering tree objects.
 class RenderObject : public CanMakeSingleThreadWeakPtr<RenderObject>, public CanMakeCheckedPtr<RenderObject> {
-    WTF_MAKE_PREFERABLY_COMPACT_TZONE_OR_ISO_ALLOCATED(RenderObject);
+    WTF_MAKE_PREFERABLY_COMPACT_TZONE_ALLOCATED(RenderObject);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderObject);
     friend class RenderBlock;
     friend class RenderBlockFlow;
@@ -562,8 +562,8 @@ public:
     bool isRenderSVGViewportContainer() const { return type() == Type::SVGViewportContainer; }
     bool isLegacyRenderSVGViewportContainer() const { return type() == Type::LegacySVGViewportContainer; }
     bool isRenderSVGGradientStop() const { return type() == Type::SVGGradientStop; }
-    bool isLegacyRenderSVGHiddenContainer() const { return type() == Type::LegacySVGHiddenContainer || isLegacyRenderSVGResourceContainer(); }
-    bool isRenderSVGHiddenContainer() const { return type() == Type::SVGHiddenContainer || isRenderSVGResourceContainer() || isRenderSVGResourceFilterPrimitive(); }
+    bool isLegacyRenderSVGHiddenContainer() const { return isLegacyRenderSVGModelObject() && m_typeSpecificFlags.svgFlags().contains(SVGModelObjectFlag::IsHiddenContainer); }
+    bool isRenderSVGHiddenContainer() const { return isRenderSVGModelObject() && m_typeSpecificFlags.svgFlags().contains(SVGModelObjectFlag::IsHiddenContainer); }
     bool isLegacyRenderSVGPath() const { return type() == Type::LegacySVGPath; }
     bool isRenderSVGPath() const { return type() == Type::SVGPath; }
     bool isRenderSVGShape() const { return isRenderSVGModelObject() && m_typeSpecificFlags.svgFlags().contains(SVGModelObjectFlag::IsShape); }
@@ -707,6 +707,7 @@ public:
     bool outOfFlowChildNeedsLayout() const { return m_stateBitfields.hasFlag(StateFlag::OutOfFlowChildNeedsLayout); }
     bool needsSimplifiedNormalFlowLayout() const { return m_stateBitfields.hasFlag(StateFlag::NeedsSimplifiedNormalFlowLayout); }
     bool needsSimplifiedNormalFlowLayoutOnly() const;
+    bool needsNormalChildOrSimplifiedLayoutOnly() const;
     bool normalChildNeedsLayout() const { return m_stateBitfields.hasFlag(StateFlag::NormalChildNeedsLayout); }
     bool outOfFlowChildNeedsStaticPositionLayout() const { return m_stateBitfields.hasFlag(StateFlag::OutOfFlowChildNeedsStaticPositionLayout); }
 
@@ -1353,20 +1354,6 @@ inline void RenderObject::invalidateBackgroundObscurationStatus()
     m_stateBitfields.setBoxDecorationState(BoxDecorationState::InvalidObscurationStatus);
 }
 
-inline bool RenderObject::needsSimplifiedNormalFlowLayoutOnly() const
-{
-    return needsSimplifiedNormalFlowLayout() && !selfNeedsLayout() && !normalChildNeedsLayout()
-        && !outOfFlowChildNeedsLayout() && !needsOutOfFlowMovementLayout();
-}
-
-inline RenderFragmentedFlow* RenderObject::enclosingFragmentedFlow() const
-{
-    if (fragmentedFlowState() == FragmentedFlowState::NotInsideFlow)
-        return nullptr;
-
-    return locateEnclosingFragmentedFlow();
-}
-
 inline bool RenderObject::needsLayout() const
 {
     return selfNeedsLayout()
@@ -1383,6 +1370,31 @@ inline bool RenderObject::needsOutOfFlowMovementLayoutOnly() const
         && !normalChildNeedsLayout()
         && !outOfFlowChildNeedsLayout()
         && !needsSimplifiedNormalFlowLayout();
+}
+
+inline bool RenderObject::needsSimplifiedNormalFlowLayoutOnly() const
+{
+    return needsSimplifiedNormalFlowLayout()
+        && !selfNeedsLayout()
+        && !normalChildNeedsLayout()
+        && !outOfFlowChildNeedsLayout()
+        && !needsOutOfFlowMovementLayout();
+}
+
+inline bool RenderObject::needsNormalChildOrSimplifiedLayoutOnly() const
+{
+    return (normalChildNeedsLayout() || needsSimplifiedNormalFlowLayout())
+        && !selfNeedsLayout()
+        && !outOfFlowChildNeedsLayout()
+        && !needsOutOfFlowMovementLayout();
+}
+
+inline RenderFragmentedFlow* RenderObject::enclosingFragmentedFlow() const
+{
+    if (fragmentedFlowState() == FragmentedFlowState::NotInsideFlow)
+        return nullptr;
+
+    return locateEnclosingFragmentedFlow();
 }
 
 inline void RenderObject::setPositionState(PositionType position)

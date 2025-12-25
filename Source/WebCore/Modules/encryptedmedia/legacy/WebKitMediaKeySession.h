@@ -42,10 +42,11 @@ class WebKitMediaKeyError;
 template<typename> class ExceptionOr;
 
 class WebKitMediaKeySession final : public RefCounted<WebKitMediaKeySession>, public EventTarget, public ActiveDOMObject, private LegacyCDMSessionClient {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(WebKitMediaKeySession);
+    WTF_MAKE_TZONE_ALLOCATED(WebKitMediaKeySession);
 public:
     USING_CAN_MAKE_WEAKPTR(EventTarget);
 
+    // ActiveDOMObject, LegacyCDMSessionClient.
     void ref() const final { RefCounted::ref(); }
     void deref() const final { RefCounted::deref(); }
 

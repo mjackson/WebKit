@@ -113,9 +113,9 @@ void PageDebuggable::disconnect(FrontendChannel& channel)
 
 void PageDebuggable::dispatchMessageFromRemote(String&& message)
 {
-    callOnMainThreadAndWait([this, protectedThis = Ref { *this }, message = WTFMove(message).isolatedCopy()]() mutable {
+    callOnMainThreadAndWait([this, protectedThis = Ref { *this }, message = WTF::move(message).isolatedCopy()]() mutable {
         if (RefPtr page = m_page.get())
-            page->protectedInspectorController()->dispatchMessageFromFrontend(WTFMove(message));
+            page->protectedInspectorController()->dispatchMessageFromFrontend(WTF::move(message));
     });
 }
 

@@ -38,7 +38,7 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(InbandDataTextTrack);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(InbandDataTextTrack);
 
 inline InbandDataTextTrack::InbandDataTextTrack(ScriptExecutionContext& context, InbandTextTrackPrivate& trackPrivate)
     : InbandTextTrack(context, trackPrivate)
@@ -88,7 +88,7 @@ void InbandDataTextTrack::addDataCue(const MediaTime& start, const MediaTime& en
 
     INFO_LOG(LOGIDENTIFIER, cue.get());
 
-    addCue(WTFMove(cue));
+    addCue(WTF::move(cue));
 }
 
 RefPtr<DataCue> InbandDataTextTrack::findIncompleteCue(const SerializedPlatformDataCue& cueToFind)

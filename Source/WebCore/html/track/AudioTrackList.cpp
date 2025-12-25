@@ -56,7 +56,7 @@ void AudioTrackList::append(Ref<AudioTrack>&& track)
     if (!track->trackList())
         track->setTrackList(*this);
 
-    scheduleAddTrackEvent(WTFMove(track));
+    scheduleAddTrackEvent(WTF::move(track));
 }
 
 void AudioTrackList::remove(TrackBase& track, bool scheduleEvent)

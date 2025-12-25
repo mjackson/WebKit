@@ -36,7 +36,7 @@
 #include "FontSizeAdjust.h"
 #include "FrameDestructionObserverInlines.h"
 #include "LocalFrame.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 
 namespace WebCore {
 

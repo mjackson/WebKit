@@ -60,8 +60,8 @@
 #include "RenderFragmentedFlow.h"
 #include "RenderImageResourceStyleImage.h"
 #include "RenderObjectInlines.h"
-#include "RenderStyleInlines.h"
-#include "RenderStyleSetters.h"
+#include "RenderStyle+GettersInlines.h"
+#include "RenderStyle+InitialInlines.h"
 #include "RenderTheme.h"
 #include "RenderView.h"
 #include "SVGElementTypeHelpers.h"
@@ -93,7 +93,7 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(RenderImage);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderImage);
 
 #if PLATFORM(IOS_FAMILY)
 // FIXME: This doesn't behave correctly for floating or positioned images, but WebCore doesn't handle those well
@@ -158,7 +158,7 @@ void RenderImage::collectSelectionGeometries(Vector<SelectionGeometry>& geometri
 using namespace HTMLNames;
 
 RenderImage::RenderImage(Type type, Element& element, RenderStyle&& style, OptionSet<ReplacedFlag> flags, StyleImage* styleImage, const float imageDevicePixelRatio)
-    : RenderReplaced(type, element, WTFMove(style), IntSize(), flags | ReplacedFlag::IsImage)
+    : RenderReplaced(type, element, WTF::move(style), IntSize(), flags | ReplacedFlag::IsImage)
     , m_imageResource(styleImage ? makeUnique<RenderImageResourceStyleImage>(*styleImage) : makeUnique<RenderImageResource>())
     , m_hasImageOverlay([&] {
         auto* htmlElement = dynamicDowncast<HTMLElement>(element);
@@ -178,12 +178,12 @@ RenderImage::RenderImage(Type type, Element& element, RenderStyle&& style, Optio
 }
 
 RenderImage::RenderImage(Type type, Element& element, RenderStyle&& style, StyleImage* styleImage, const float imageDevicePixelRatio)
-    : RenderImage(type, element, WTFMove(style), ReplacedFlag::IsImage, styleImage, imageDevicePixelRatio)
+    : RenderImage(type, element, WTF::move(style), ReplacedFlag::IsImage, styleImage, imageDevicePixelRatio)
 {
 }
 
 RenderImage::RenderImage(Type type, Document& document, RenderStyle&& style, StyleImage* styleImage)
-    : RenderReplaced(type, document, WTFMove(style), IntSize(), ReplacedFlag::IsImage)
+    : RenderReplaced(type, document, WTF::move(style), IntSize(), ReplacedFlag::IsImage)
     , m_imageResource(styleImage ? makeUnique<RenderImageResourceStyleImage>(*styleImage) : makeUnique<RenderImageResource>())
 {
 }
@@ -250,14 +250,14 @@ ImageSizeChangeType RenderImage::setImageSizeForAltText(CachedImage* newImage /*
     return ImageSizeChangeForAltText;
 }
 
-void RenderImage::styleWillChange(StyleDifference diff, const RenderStyle& newStyle)
+void RenderImage::styleWillChange(Style::Difference diff, const RenderStyle& newStyle)
 {
     if (!hasInitializedStyle())
         imageResource().initialize(*this);
     RenderReplaced::styleWillChange(diff, newStyle);
 }
 
-void RenderImage::styleDidChange(StyleDifference diff, const RenderStyle* oldStyle)
+void RenderImage::styleDidChange(Style::Difference diff, const RenderStyle* oldStyle)
 {
     RenderReplaced::styleDidChange(diff, oldStyle);
     if (m_needsToSetSizeForAltText) {
@@ -266,7 +266,7 @@ void RenderImage::styleDidChange(StyleDifference diff, const RenderStyle* oldSty
         m_needsToSetSizeForAltText = false;
     }
 
-    if (oldStyle && diff == StyleDifference::Layout) {
+    if (oldStyle && diff == Style::DifferenceResult::Layout) {
         if (oldStyle->imageOrientation() != style().imageOrientation())
             return repaintOrMarkForLayout(ImageSizeChangeNone);
 

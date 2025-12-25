@@ -493,7 +493,7 @@ bool MediaPlayerPrivateAVFoundation::supportsFullscreen() const
 
 void MediaPlayerPrivateAVFoundation::setResolvedURL(URL&& resolvedURL)
 {
-    m_resolvedURL = WTFMove(resolvedURL);
+    m_resolvedURL = WTF::move(resolvedURL);
     m_resolvedOrigin = SecurityOrigin::create(m_resolvedURL);
 }
 
@@ -861,7 +861,7 @@ bool MediaPlayerPrivateAVFoundation::extractKeyURIKeyIDAndCertificateFromInitDat
     if (!status || offset + certificateLength > initData->length())
         return false;
 
-    certificate = Uint8Array::tryCreate(WTFMove(initDataBuffer), offset, certificateLength);
+    certificate = Uint8Array::tryCreate(WTF::move(initDataBuffer), offset, certificateLength);
     if (!certificate)
         return false;
 
@@ -896,7 +896,7 @@ void MediaPlayerPrivateAVFoundation::queueTaskOnEventLoop(Function<void()>&& tas
 {
     ASSERT(isMainThread());
     if (RefPtr player = m_player.get())
-        player->queueTaskOnEventLoop(WTFMove(task));
+        player->queueTaskOnEventLoop(WTF::move(task));
 }
 
 #if !RELEASE_LOG_DISABLED

@@ -42,7 +42,7 @@ namespace WebCore {
 using namespace HTMLNames;
 
 BreakBlockquoteCommand::BreakBlockquoteCommand(Ref<Document>&& document)
-    : CompositeEditCommand(WTFMove(document))
+    : CompositeEditCommand(WTF::move(document))
 {
 }
 
@@ -130,14 +130,14 @@ void BreakBlockquoteCommand::doApply()
     if (RefPtr textNode = dynamicDowncast<Text>(*startNode)) {
         if (static_cast<unsigned>(pos.deprecatedEditingOffset()) >= textNode->length()) {
             if (RefPtr nextNode = NodeTraversal::next(*startNode))
-                startNode = WTFMove(nextNode);
+                startNode = WTF::move(nextNode);
         } else if (pos.deprecatedEditingOffset() > 0)
             splitTextNode(*textNode, pos.deprecatedEditingOffset());
     } else if (pos.deprecatedEditingOffset() > 0) {
         if (RefPtr child = startNode->traverseToChildAt(pos.deprecatedEditingOffset()))
-            startNode = WTFMove(child);
+            startNode = WTF::move(child);
         else if (RefPtr next = NodeTraversal::next(*startNode))
-            startNode = WTFMove(next);
+            startNode = WTF::move(next);
     }
     
     // If there's nothing inside topBlockquote to move, we're finished.
@@ -176,7 +176,7 @@ void BreakBlockquoteCommand::doApply()
         }
             
         appendNode(clonedChild.copyRef(), clonedAncestor.releaseNonNull());
-        clonedAncestor = WTFMove(clonedChild);
+        clonedAncestor = WTF::move(clonedChild);
     }
 
     moveRemainingSiblingsToNewParent(startNode.get(), nullptr, *clonedAncestor);

@@ -44,7 +44,7 @@ public:
     CSSSelectorList(CSSSelectorList&&) = default;
     explicit CSSSelectorList(MutableCSSSelectorList&&);
     explicit CSSSelectorList(UniqueArray<CSSSelector>&& array)
-        : m_selectorArray(WTFMove(array)) { }
+        : m_selectorArray(WTF::move(array)) { }
 
     static CSSSelectorList makeCopyingSimpleSelector(const CSSSelector&);
     static CSSSelectorList makeCopyingComplexSelector(const CSSSelector&);
@@ -52,8 +52,8 @@ public:
     static CSSSelectorList makeJoining(const Vector<const CSSSelectorList*>&);
 
     bool isEmpty() const { return !m_selectorArray; }
-    const CSSSelector* first() const { return m_selectorArray.get(); }
-    const CSSSelector* selectorAt(size_t index) const
+    const CSSSelector* first() const LIFETIME_BOUND { return m_selectorArray.get(); }
+    const CSSSelector* selectorAt(size_t index) const LIFETIME_BOUND
     {
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
         return &m_selectorArray[index];
@@ -126,5 +126,7 @@ private:
     // End of the array is indicated by m_isLastInSelectorList bit in the last item.
     UniqueArray<CSSSelector> m_selectorArray;
 };
+
+void add(Hasher&, const CSSSelectorList&);
 
 } // namespace WebCore

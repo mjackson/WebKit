@@ -48,8 +48,8 @@ namespace WebCore {
 
 StyleFilterImage::StyleFilterImage(RefPtr<StyleImage>&& image, Style::Filter&& filter)
     : StyleGeneratedImage { Type::FilterImage, StyleFilterImage::isFixedSize }
-    , m_image { WTFMove(image) }
-    , m_filter { WTFMove(filter) }
+    , m_image { WTF::move(image) }
+    , m_filter { WTF::move(filter) }
     , m_inputImageIsReady { false }
 {
 }
@@ -155,7 +155,7 @@ RefPtr<Image> StyleFilterImage::image(const RenderElement* renderer, const Float
     });
     if (!filteredImage)
         return &Image::nullImage();
-    return BitmapImage::create(WTFMove(filteredImage));
+    return BitmapImage::create(WTF::move(filteredImage));
 }
 
 bool StyleFilterImage::knownToBeOpaque(const RenderElement&) const

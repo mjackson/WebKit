@@ -1307,6 +1307,13 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
         return nullptr;
     }
 
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+    if (WKStringIsEqualToUTF8CString(messageName, "ExitImmersive")) {
+        TestController::singleton().exitImmersive();
+        return nullptr;
+    }
+#endif
+
     if (WKStringIsEqualToUTF8CString(messageName, "ShouldForceRepaint"))
         return adoptWK(WKBooleanCreate(m_forceRepaint));
 

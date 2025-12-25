@@ -51,7 +51,7 @@
 #include "FontCache.h"
 #include "HTMLElement.h"
 #include "LocalFrame.h"
-#include "RenderStyleSetters.h"
+#include "RenderStyle+SettersInlines.h"
 #include "RenderTheme.h"
 #include "SVGElementTypeHelpers.h"
 #include "SVGSVGElement.h"
@@ -84,7 +84,7 @@ BuilderState::BuilderState(RenderStyle& style)
 
 BuilderState::BuilderState(RenderStyle& style, BuilderContext&& context)
     : m_style(style)
-    , m_context(WTFMove(context))
+    , m_context(WTF::move(context))
     , m_cssToLengthConversionData(style, *this)
 {
 }
@@ -196,7 +196,7 @@ void BuilderState::updateFontForTextSizeAdjust()
     else
         newFontDescription.setComputedSize(newFontDescription.specifiedSize());
 
-    m_style.setFontDescriptionWithoutUpdate(WTFMove(newFontDescription));
+    m_style.setFontDescriptionWithoutUpdate(WTF::move(newFontDescription));
 }
 #endif
 
@@ -235,7 +235,7 @@ void BuilderState::updateFontForGenericFamilyChange()
 
     auto newFontDescription = childFont;
     setFontSize(newFontDescription, size);
-    m_style.setFontDescriptionWithoutUpdate(WTFMove(newFontDescription));
+    m_style.setFontDescriptionWithoutUpdate(WTF::move(newFontDescription));
 }
 
 void BuilderState::updateFontForOrientationChange()
@@ -249,35 +249,13 @@ void BuilderState::updateFontForOrientationChange()
     auto newFontDescription = fontDescription;
     newFontDescription.setNonCJKGlyphOrientation(glyphOrientation);
     newFontDescription.setOrientation(fontOrientation);
-    m_style.setFontDescriptionWithoutUpdate(WTFMove(newFontDescription));
+    m_style.setFontDescriptionWithoutUpdate(WTF::move(newFontDescription));
 }
 
 void BuilderState::updateFontForSizeChange()
 {
-    auto& fontCascade = m_style.mutableFontCascadeWithoutUpdate();
-    auto fontSize = fontCascade.size();
-
-    auto newWordSpacing = evaluate<float>(m_style.computedWordSpacing(), fontSize, m_style.usedZoomForLength());
-    auto newLetterSpacing = evaluate<float>(m_style.computedLetterSpacing(), fontSize, m_style.usedZoomForLength());
-
-    if (newWordSpacing != fontCascade.wordSpacing())
-        fontCascade.setWordSpacing(newWordSpacing);
-
-    if (newLetterSpacing != fontCascade.letterSpacing()) {
-        fontCascade.setLetterSpacing(newLetterSpacing);
-
-        const auto& oldFontDescription = m_style.fontDescription();
-
-        bool oldShouldDisableLigatures = oldFontDescription.shouldDisableLigaturesForSpacing();
-        bool newShouldDisableLigatures = newLetterSpacing != 0;
-
-        // Switching letter-spacing between zero and non-zero requires updating to enable/disable ligatures.
-        if (oldShouldDisableLigatures != newShouldDisableLigatures) {
-            auto newFontDescription = oldFontDescription;
-            newFontDescription.setShouldDisableLigaturesForSpacing(newShouldDisableLigatures);
-            m_style.setFontDescriptionWithoutUpdate(WTFMove(newFontDescription));
-        }
-    }
+    m_style.synchronizeLetterSpacingWithFontCascadeWithoutUpdate();
+    m_style.synchronizeWordSpacingWithFontCascadeWithoutUpdate();
 }
 
 void BuilderState::setFontSize(FontCascadeDescription& fontDescription, float size)

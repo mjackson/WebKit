@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include <JavaScriptCore/JSBase.h>
+#include "JSBase.h"
 
 #ifdef __APPLE__
 #include <mach/kern_return.h>

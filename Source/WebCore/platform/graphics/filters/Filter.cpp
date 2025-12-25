@@ -132,4 +132,14 @@ FilterStyleVector Filter::createFilterStyles(GraphicsContext& context, const Flo
     return result;
 }
 
+ImageBuffer* Filter::filterResultBuffer(FilterImage& filterImage) const
+{
+#if USE(CORE_IMAGE)
+    auto absoluteFilterRegion = scaledByFilterScale(filterRegion());
+    return filterImage.filterResultImageBuffer(absoluteFilterRegion);
+#endif
+
+    return filterImage.imageBuffer();
+}
+
 } // namespace WebCore

@@ -42,6 +42,9 @@
 #include "FrameDestructionObserverInlines.h"
 #include "HTMLElement.h"
 #include "LocalFrame.h"
+#include "RenderStyle+GettersInlines.h"
+#include "RenderStyle+InitialInlines.h"
+#include "RenderStyle+SettersInlines.h"
 #include "SVGElement.h"
 #include "SVGElementTypeHelpers.h"
 #include "SVGPathElement.h"
@@ -79,6 +82,10 @@ inline BackgroundSize forwardInheritedValue(const BackgroundSize& value) { auto 
 inline BlockEllipsis forwardInheritedValue(const BlockEllipsis& value) { auto copy = value; return copy; }
 inline BlockStepSize forwardInheritedValue(const BlockStepSize& value) { auto copy = value; return copy; }
 inline BorderImageSource forwardInheritedValue(const BorderImageSource& value) { auto copy = value; return copy; }
+inline BorderImageSlice forwardInheritedValue(const BorderImageSlice& value) { auto copy = value; return copy; }
+inline BorderImageWidth forwardInheritedValue(const BorderImageWidth& value) { auto copy = value; return copy; }
+inline BorderImageOutset forwardInheritedValue(const BorderImageOutset& value) { auto copy = value; return copy; }
+inline BorderImageRepeat forwardInheritedValue(const BorderImageRepeat& value) { auto copy = value; return copy; }
 inline BorderRadiusValue forwardInheritedValue(const BorderRadiusValue& value) { auto copy = value; return copy; }
 inline BoxShadows forwardInheritedValue(const BoxShadows& value) { auto copy = value; return copy; }
 inline ContainIntrinsicSize forwardInheritedValue(const ContainIntrinsicSize& value) { auto copy = value; return copy; }
@@ -93,6 +100,10 @@ inline FilterOperations forwardInheritedValue(const FilterOperations& value) { a
 inline ScrollMarginEdge forwardInheritedValue(const ScrollMarginEdge& value) { auto copy = value; return copy; }
 inline ScrollPaddingEdge forwardInheritedValue(const ScrollPaddingEdge& value) { auto copy = value; return copy; }
 inline MaskBorderSource forwardInheritedValue(const MaskBorderSource& value) { auto copy = value; return copy; }
+inline MaskBorderSlice forwardInheritedValue(const MaskBorderSlice& value) { auto copy = value; return copy; }
+inline MaskBorderWidth forwardInheritedValue(const MaskBorderWidth& value) { auto copy = value; return copy; }
+inline MaskBorderOutset forwardInheritedValue(const MaskBorderOutset& value) { auto copy = value; return copy; }
+inline MaskBorderRepeat forwardInheritedValue(const MaskBorderRepeat& value) { auto copy = value; return copy; }
 inline MarginEdge forwardInheritedValue(const MarginEdge& value) { auto copy = value; return copy; }
 inline PaddingEdge forwardInheritedValue(const PaddingEdge& value) { auto copy = value; return copy; }
 inline ImageOrNone forwardInheritedValue(const ImageOrNone& value) { auto copy = value; return copy; }
@@ -190,10 +201,6 @@ public:
     DECLARE_PROPERTY_CUSTOM_HANDLERS(BorderBottomRightRadius);
     DECLARE_PROPERTY_CUSTOM_HANDLERS(BorderTopLeftRadius);
     DECLARE_PROPERTY_CUSTOM_HANDLERS(BorderTopRightRadius);
-    DECLARE_PROPERTY_CUSTOM_HANDLERS(BorderImageOutset);
-    DECLARE_PROPERTY_CUSTOM_HANDLERS(BorderImageRepeat);
-    DECLARE_PROPERTY_CUSTOM_HANDLERS(BorderImageSlice);
-    DECLARE_PROPERTY_CUSTOM_HANDLERS(BorderImageWidth);
     DECLARE_PROPERTY_CUSTOM_HANDLERS(CaretColor);
     DECLARE_PROPERTY_CUSTOM_HANDLERS(Color);
     DECLARE_PROPERTY_CUSTOM_HANDLERS(CounterIncrement);
@@ -206,10 +213,6 @@ public:
 #if ENABLE(TEXT_AUTOSIZING)
     DECLARE_PROPERTY_CUSTOM_HANDLERS(LineHeight);
 #endif
-    DECLARE_PROPERTY_CUSTOM_HANDLERS(MaskBorderOutset);
-    DECLARE_PROPERTY_CUSTOM_HANDLERS(MaskBorderRepeat);
-    DECLARE_PROPERTY_CUSTOM_HANDLERS(MaskBorderSlice);
-    DECLARE_PROPERTY_CUSTOM_HANDLERS(MaskBorderWidth);
     DECLARE_PROPERTY_CUSTOM_HANDLERS(PaddingBottom);
     DECLARE_PROPERTY_CUSTOM_HANDLERS(PaddingLeft);
     DECLARE_PROPERTY_CUSTOM_HANDLERS(PaddingRight);
@@ -256,6 +259,7 @@ private:
     static float largerFontSize(float size);
     static float smallerFontSize(float size);
     static float determineRubyTextSizeMultiplier(BuilderState&);
+    static float determineMathDepthScale(BuilderState&);
 };
 
 // MARK: - CoordinatedValueList Utilities
@@ -373,120 +377,6 @@ inline void BuilderCustom::applyValueZoom(BuilderState& builderState, CSSValue& 
             builderState.setZoom(zoom);
     }
 }
-
-enum BorderImageModifierType { Outset, Repeat, Slice, Width };
-
-template<typename T, BorderImageModifierType modifier>
-class ApplyPropertyBorderImageModifier {
-public:
-    static void applyInheritValue(BuilderState& builderState)
-    {
-        T image(getValue(builderState.style()));
-        switch (modifier) {
-        case Outset:
-            image.copyOutsetFrom(getValue(builderState.parentStyle()));
-            break;
-        case Repeat:
-            image.copyRepeatFrom(getValue(builderState.parentStyle()));
-            break;
-        case Slice:
-            image.copySliceFrom(getValue(builderState.parentStyle()));
-            break;
-        case Width:
-            image.copyWidthFrom(getValue(builderState.parentStyle()));
-            break;
-        }
-        setValue(builderState.style(), WTFMove(image));
-    }
-
-    static void applyInitialValue(BuilderState& builderState)
-    {
-        T image(getValue(builderState.style()));
-        switch (modifier) {
-        case Outset:
-            image.copyOutsetFrom(initialValue());
-            break;
-        case Repeat:
-            image.copyRepeatFrom(initialValue());
-            break;
-        case Slice:
-            image.copySliceFrom(initialValue());
-            break;
-        case Width:
-            image.copyWidthFrom(initialValue());
-            break;
-        }
-        setValue(builderState.style(), WTFMove(image));
-    }
-
-    static void applyValue(BuilderState& builderState, CSSValue& value)
-    {
-        T image(getValue(builderState.style()));
-        switch (modifier) {
-        case Outset:
-            image.setOutset(toStyleFromCSSValue<typename T::Outset>(builderState, value));
-            break;
-        case Repeat:
-            image.setRepeat(toStyleFromCSSValue<typename T::Repeat>(builderState, value));
-            break;
-        case Slice:
-            image.setSlice(toStyleFromCSSValue<typename T::Slice>(builderState, value));
-            break;
-        case Width:
-            image.setWidth(toStyleFromCSSValue<typename T::Width>(builderState, value));
-            break;
-        }
-        setValue(builderState.style(), WTFMove(image));
-    }
-
-private:
-    static T initialValue()
-    {
-        if constexpr (std::same_as<T, BorderImage>)
-            return RenderStyle::initialBorderImage();
-        else if constexpr (std::same_as<T, MaskBorder>)
-            return RenderStyle::initialMaskBorder();
-    }
-
-    static const T& getValue(const RenderStyle& style)
-    {
-        if constexpr (std::same_as<T, BorderImage>)
-            return style.borderImage();
-        else if constexpr (std::same_as<T, MaskBorder>)
-            return style.maskBorder();
-    }
-
-    static void setValue(RenderStyle& style, T&& value)
-    {
-        if constexpr (std::same_as<T, BorderImage>)
-            style.setBorderImage(WTFMove(value));
-        else if constexpr (std::same_as<T, MaskBorder>)
-            style.setMaskBorder(WTFMove(value));
-    }
-};
-
-#define DEFINE_BORDER_IMAGE_MODIFIER_HANDLER(type, modifier) \
-inline void BuilderCustom::applyInherit##type##modifier(BuilderState& builderState) \
-{ \
-    ApplyPropertyBorderImageModifier<type, modifier>::applyInheritValue(builderState); \
-} \
-inline void BuilderCustom::applyInitial##type##modifier(BuilderState& builderState) \
-{ \
-    ApplyPropertyBorderImageModifier<type, modifier>::applyInitialValue(builderState); \
-} \
-inline void BuilderCustom::applyValue##type##modifier(BuilderState& builderState, CSSValue& value) \
-{ \
-    ApplyPropertyBorderImageModifier<type, modifier>::applyValue(builderState, value); \
-}
-
-DEFINE_BORDER_IMAGE_MODIFIER_HANDLER(BorderImage, Outset)
-DEFINE_BORDER_IMAGE_MODIFIER_HANDLER(BorderImage, Repeat)
-DEFINE_BORDER_IMAGE_MODIFIER_HANDLER(BorderImage, Slice)
-DEFINE_BORDER_IMAGE_MODIFIER_HANDLER(BorderImage, Width)
-DEFINE_BORDER_IMAGE_MODIFIER_HANDLER(MaskBorder, Outset)
-DEFINE_BORDER_IMAGE_MODIFIER_HANDLER(MaskBorder, Repeat)
-DEFINE_BORDER_IMAGE_MODIFIER_HANDLER(MaskBorder, Slice)
-DEFINE_BORDER_IMAGE_MODIFIER_HANDLER(MaskBorder, Width)
 
 void maybeUpdateFontForLetterSpacingOrWordSpacing(BuilderState& builderState, CSSValue& value)
 {
@@ -636,8 +526,8 @@ inline void BuilderCustom::applyValueLineHeight(BuilderState& builderState, CSSV
         return toStyleFromCSSValue<LineHeight>(builderState, *primitiveValue, multiplier);
     }();
 
-    builderState.style().setLineHeight(WTFMove(computedLineHeight));
-    builderState.style().setSpecifiedLineHeight(WTFMove(lineHeight));
+    builderState.style().setLineHeight(WTF::move(computedLineHeight));
+    builderState.style().setSpecifiedLineHeight(WTF::move(lineHeight));
 }
 
 #endif
@@ -772,22 +662,22 @@ inline void BuilderCustom::applyValueFontFamily(BuilderState& builderState, CSSV
 
 inline void BuilderCustom::applyInitialBorderTopWidth(BuilderState& builderState)
 {
-    builderState.style().setBorderTopWidth(Style::LineWidth { RenderStyle::initialBorderWidth().value.unresolvedValue() * builderState.style().usedZoom() });
+    builderState.style().setBorderTopWidth(Style::LineWidth { RenderStyle::initialBorderTopWidth().value.unresolvedValue() * builderState.style().usedZoom() });
 }
 
 inline void BuilderCustom::applyInitialBorderRightWidth(BuilderState& builderState)
 {
-    builderState.style().setBorderRightWidth(Style::LineWidth { RenderStyle::initialBorderWidth().value.unresolvedValue() * builderState.style().usedZoom() });
+    builderState.style().setBorderRightWidth(Style::LineWidth { RenderStyle::initialBorderRightWidth().value.unresolvedValue() * builderState.style().usedZoom() });
 }
 
 inline void BuilderCustom::applyInitialBorderBottomWidth(BuilderState& builderState)
 {
-    builderState.style().setBorderBottomWidth(Style::LineWidth { RenderStyle::initialBorderWidth().value.unresolvedValue() * builderState.style().usedZoom() });
+    builderState.style().setBorderBottomWidth(Style::LineWidth { RenderStyle::initialBorderBottomWidth().value.unresolvedValue() * builderState.style().usedZoom() });
 }
 
 inline void BuilderCustom::applyInitialBorderLeftWidth(BuilderState& builderState)
 {
-    builderState.style().setBorderLeftWidth(Style::LineWidth { RenderStyle::initialBorderWidth().value.unresolvedValue() * builderState.style().usedZoom() });
+    builderState.style().setBorderLeftWidth(Style::LineWidth { RenderStyle::initialBorderLeftWidth().value.unresolvedValue() * builderState.style().usedZoom() });
 }
 
 inline void BuilderCustom::applyInitialOutlineWidth(BuilderState& builderState)
@@ -802,7 +692,7 @@ inline void BuilderCustom::applyInitialColumnRuleWidth(BuilderState& builderStat
 
 inline void BuilderCustom::applyInitialBorderBottomLeftRadius(BuilderState& builderState)
 {
-    builderState.style().setBorderBottomLeftRadius(RenderStyle::initialBorderRadius());
+    builderState.style().setBorderBottomLeftRadius(RenderStyle::initialBorderBottomLeftRadius());
     builderState.style().setHasExplicitlySetBorderBottomLeftRadius(false);
 }
 
@@ -820,7 +710,7 @@ inline void BuilderCustom::applyValueBorderBottomLeftRadius(BuilderState& builde
 
 inline void BuilderCustom::applyInitialBorderBottomRightRadius(BuilderState& builderState)
 {
-    builderState.style().setBorderBottomRightRadius(RenderStyle::initialBorderRadius());
+    builderState.style().setBorderBottomRightRadius(RenderStyle::initialBorderBottomRightRadius());
     builderState.style().setHasExplicitlySetBorderBottomRightRadius(false);
 }
 
@@ -838,7 +728,7 @@ inline void BuilderCustom::applyValueBorderBottomRightRadius(BuilderState& build
 
 inline void BuilderCustom::applyInitialBorderTopLeftRadius(BuilderState& builderState)
 {
-    builderState.style().setBorderTopLeftRadius(RenderStyle::initialBorderRadius());
+    builderState.style().setBorderTopLeftRadius(RenderStyle::initialBorderTopLeftRadius());
     builderState.style().setHasExplicitlySetBorderTopLeftRadius(false);
 }
 
@@ -856,7 +746,7 @@ inline void BuilderCustom::applyValueBorderTopLeftRadius(BuilderState& builderSt
 
 inline void BuilderCustom::applyInitialBorderTopRightRadius(BuilderState& builderState)
 {
-    builderState.style().setBorderTopRightRadius(RenderStyle::initialBorderRadius());
+    builderState.style().setBorderTopRightRadius(RenderStyle::initialBorderTopRightRadius());
     builderState.style().setHasExplicitlySetBorderTopRightRadius(false);
 }
 
@@ -1040,7 +930,7 @@ inline void BuilderCustom::applyInitialFontSize(BuilderState& builderState)
 
     fontDescription.setKeywordSizeFromIdentifier(CSSValueMedium);
     builderState.setFontSize(fontDescription, size);
-    builderState.setFontDescription(WTFMove(fontDescription));
+    builderState.setFontDescription(WTF::move(fontDescription));
 }
 
 inline void BuilderCustom::applyInheritFontSize(BuilderState& builderState)
@@ -1096,6 +986,59 @@ inline float BuilderCustom::determineRubyTextSizeMultiplier(BuilderState& builde
     return 0.25f;
 }
 
+// https://w3c.github.io/mathml-core/#the-math-script-level-property
+inline float BuilderCustom::determineMathDepthScale(BuilderState& builderState)
+{
+    // Step 1.
+    auto inherited = builderState.parentStyle().mathDepth();
+    auto computed = builderState.style().mathDepth();
+    float scale = 1.0f;
+    float scaleDown = 0.71f;
+
+    // Step 2.
+    if (inherited == computed)
+        return scale;
+    bool invertScaleFactor = false;
+    if (computed < inherited) {
+        std::swap(computed, inherited);
+        invertScaleFactor = true;
+    }
+
+    // Step 3.
+    int exponent = computed.value - inherited.value;
+
+    // Step 4.
+#if ENABLE(MATHML)
+    Ref primaryFont = builderState.style().fontCascade().primaryFont();
+    if (RefPtr mathData = primaryFont->mathData()) {
+        float scriptPercentScaleDown = mathData->getMathConstant(primaryFont, OpenTypeMathData::ScriptPercentScaleDown);
+        if (!scriptPercentScaleDown)
+            scriptPercentScaleDown = 0.71;
+
+        float scriptScriptPercentScaleDown = mathData->getMathConstant(primaryFont, OpenTypeMathData::ScriptScriptPercentScaleDown);
+        if (!scriptScriptPercentScaleDown)
+            scriptScriptPercentScaleDown = 0.5041;
+
+        if (inherited <= 0 && computed >= 2) {
+            scale *= scriptScriptPercentScaleDown;
+            exponent -= 2;
+        } else if (inherited == 1) {
+            scale *= scriptScriptPercentScaleDown / scriptPercentScaleDown;
+            exponent--;
+        } else if (computed == 1) {
+            scale *= scriptPercentScaleDown;
+            exponent--;
+        }
+    }
+#endif
+
+    // Step 5.
+    scale *= std::pow(scaleDown, exponent);
+
+    // Step 6.
+    return invertScaleFactor ? 1.f / scale : scale;
+}
+
 inline void BuilderCustom::applyValueFontSize(BuilderState& builderState, CSSValue& value)
 {
     auto& fontDescription = builderState.fontDescription();
@@ -1110,7 +1053,7 @@ inline void BuilderCustom::applyValueFontSize(BuilderState& builderState, CSSVal
 
     float size = 0;
     if (CSSValueID ident = primitiveValue->valueID()) {
-        builderState.setFontDescriptionIsAbsoluteSize((parentIsAbsoluteSize && (ident == CSSValueLarger || ident == CSSValueSmaller || ident == CSSValueWebkitRubyText)) || CSSPropertyParserHelpers::isSystemFontShorthand(ident));
+        builderState.setFontDescriptionIsAbsoluteSize((parentIsAbsoluteSize && (ident == CSSValueLarger || ident == CSSValueSmaller || ident == CSSValueWebkitRubyText || ident == CSSValueMath)) || CSSPropertyParserHelpers::isSystemFontShorthand(ident));
 
         if (CSSPropertyParserHelpers::isSystemFontShorthand(ident))
             size = SystemFontDatabase::singleton().systemFontShorthandSize(CSSPropertyParserHelpers::lowerFontShorthand(ident));
@@ -1132,6 +1075,9 @@ inline void BuilderCustom::applyValueFontSize(BuilderState& builderState, CSSVal
             break;
         case CSSValueSmaller:
             size = smallerFontSize(parentSize);
+            break;
+        case CSSValueMath:
+            size = determineMathDepthScale(builderState) * parentSize;
             break;
         case CSSValueWebkitRubyText:
             size = determineRubyTextSizeMultiplier(builderState) * parentSize;
@@ -1213,7 +1159,7 @@ inline void BuilderCustom::applyInheritColor(BuilderState& builderState)
 
 inline void BuilderCustom::applyInitialPaddingBottom(BuilderState& builderState)
 {
-    builderState.style().setPaddingBottom(RenderStyle::initialPadding());
+    builderState.style().setPaddingBottom(RenderStyle::initialPaddingBottom());
     builderState.style().setHasExplicitlySetPaddingBottom(builderState.isAuthorOrigin());
 }
 
@@ -1231,7 +1177,7 @@ inline void BuilderCustom::applyValuePaddingBottom(BuilderState& builderState, C
 
 inline void BuilderCustom::applyInitialPaddingLeft(BuilderState& builderState)
 {
-    builderState.style().setPaddingLeft(RenderStyle::initialPadding());
+    builderState.style().setPaddingLeft(RenderStyle::initialPaddingLeft());
     builderState.style().setHasExplicitlySetPaddingLeft(builderState.isAuthorOrigin());
 }
 
@@ -1249,7 +1195,7 @@ inline void BuilderCustom::applyValuePaddingLeft(BuilderState& builderState, CSS
 
 inline void BuilderCustom::applyInitialPaddingRight(BuilderState& builderState)
 {
-    builderState.style().setPaddingRight(RenderStyle::initialPadding());
+    builderState.style().setPaddingRight(RenderStyle::initialPaddingRight());
     builderState.style().setHasExplicitlySetPaddingRight(builderState.isAuthorOrigin());
 }
 
@@ -1267,7 +1213,7 @@ inline void BuilderCustom::applyValuePaddingRight(BuilderState& builderState, CS
 
 inline void BuilderCustom::applyInitialPaddingTop(BuilderState& builderState)
 {
-    builderState.style().setPaddingTop(RenderStyle::initialPadding());
+    builderState.style().setPaddingTop(RenderStyle::initialPaddingTop());
     builderState.style().setHasExplicitlySetPaddingTop(builderState.isAuthorOrigin());
 }
 

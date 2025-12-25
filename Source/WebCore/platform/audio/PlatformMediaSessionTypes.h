@@ -25,14 +25,7 @@
 
 #pragma once
 
-namespace WebCore {
-class AudioCaptureSource;
-}
-
-namespace WTF {
-template<typename T> struct IsDeprecatedWeakRefSmartPointerException;
-template<> struct IsDeprecatedWeakRefSmartPointerException<WebCore::AudioCaptureSource> : std::true_type { };
-}
+#include <wtf/AbstractRefCountedAndCanMakeWeakPtr.h>
 
 namespace WebCore {
 
@@ -127,7 +120,7 @@ enum class MediaSessionRestriction : uint8_t {
 };
 using MediaSessionRestrictions = OptionSet<MediaSessionRestriction>;
 
-class AudioCaptureSource : public CanMakeWeakPtr<AudioCaptureSource> {
+class AudioCaptureSource : public AbstractRefCountedAndCanMakeWeakPtr<AudioCaptureSource> {
 public:
     virtual ~AudioCaptureSource() = default;
     virtual bool isCapturingAudio() const = 0;

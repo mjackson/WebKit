@@ -42,7 +42,7 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(CSSTranslate);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(CSSTranslate);
 
 ExceptionOr<Ref<CSSTranslate>> CSSTranslate::create(Ref<CSSNumericValue> x, Ref<CSSNumericValue> y, RefPtr<CSSNumericValue> z)
 {
@@ -55,7 +55,7 @@ ExceptionOr<Ref<CSSTranslate>> CSSTranslate::create(Ref<CSSNumericValue> x, Ref<
         || !z->type().matches<CSSNumericBaseType::Length>())
         return Exception { ExceptionCode::TypeError };
 
-    return adoptRef(*new CSSTranslate(is2D, WTFMove(x), WTFMove(y), z.releaseNonNull()));
+    return adoptRef(*new CSSTranslate(is2D, WTF::move(x), WTF::move(y), z.releaseNonNull()));
 }
 
 ExceptionOr<Ref<CSSTranslate>> CSSTranslate::create(Ref<const CSSFunctionValue> cssFunctionValue, Document& document)
@@ -78,7 +78,7 @@ ExceptionOr<Ref<CSSTranslate>> CSSTranslate::create(Ref<const CSSFunctionValue> 
             ASSERT_NOT_REACHED();
             return Exception { ExceptionCode::TypeError, "Unexpected number of values."_s };
         }
-        return create(WTFMove(components));
+        return create(WTF::move(components));
     };
 
     switch (cssFunctionValue->name()) {
@@ -112,9 +112,9 @@ ExceptionOr<Ref<CSSTranslate>> CSSTranslate::create(Ref<const CSSFunctionValue> 
 
 CSSTranslate::CSSTranslate(CSSTransformComponent::Is2D is2D, Ref<CSSNumericValue> x, Ref<CSSNumericValue> y, Ref<CSSNumericValue> z)
     : CSSTransformComponent(is2D)
-    , m_x(WTFMove(x))
-    , m_y(WTFMove(y))
-    , m_z(WTFMove(z))
+    , m_x(WTF::move(x))
+    , m_y(WTF::move(y))
+    , m_z(WTF::move(z))
 {
 }
 
@@ -137,7 +137,7 @@ ExceptionOr<void> CSSTranslate::setZ(Ref<CSSNumericValue> z)
     if (!z->type().matches<CSSNumericBaseType::Length>())
         return Exception { ExceptionCode::TypeError };
 
-    m_z = WTFMove(z);
+    m_z = WTF::move(z);
     return { };
 }
 
@@ -171,7 +171,7 @@ ExceptionOr<Ref<DOMMatrix>> CSSTranslate::toMatrix()
     else
         matrix.translate3d(x, y, z);
 
-    return { DOMMatrix::create(WTFMove(matrix), is2D() ? DOMMatrixReadOnly::Is2D::Yes : DOMMatrixReadOnly::Is2D::No) };
+    return { DOMMatrix::create(WTF::move(matrix), is2D() ? DOMMatrixReadOnly::Is2D::Yes : DOMMatrixReadOnly::Is2D::No) };
 }
 
 RefPtr<CSSValue> CSSTranslate::toCSSValue() const

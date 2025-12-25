@@ -1,27 +1,19 @@
-Modules/applicationmanifest/ApplicationManifestParser.cpp
 Modules/credentialmanagement/CredentialsContainer.cpp
 Modules/mediacontrols/MediaControlsHost.cpp
-Modules/mediarecorder/MediaRecorder.cpp
 Modules/mediastream/RTCController.cpp
 Modules/mediastream/RTCPeerConnection.cpp
-Modules/mediastream/RTCRtpScriptTransformer.cpp
 Modules/model-element/HTMLModelElement.cpp
 Modules/pictureinpicture/HTMLVideoElementPictureInPicture.cpp
 Modules/push-api/PushDatabase.cpp
 Modules/push-api/PushManager.cpp
 Modules/push-api/PushSubscription.cpp
 Modules/remoteplayback/RemotePlayback.cpp
-Modules/storage/StorageManager.cpp
-Modules/webaudio/BiquadFilterNode.cpp
 Modules/webaudio/DefaultAudioDestinationNode.cpp
 Modules/webaudio/IIRFilterNode.cpp
 Modules/webaudio/MediaStreamAudioDestinationNode.cpp
 Modules/webaudio/WaveShaperNode.cpp
-Modules/webdatabase/ChangeVersionWrapper.cpp
 Modules/webdatabase/Database.cpp
-Modules/webdatabase/DatabaseContext.cpp
 Modules/webdatabase/DatabaseManager.cpp
-Modules/webdatabase/LocalDOMWindowWebDatabase.cpp
 Modules/webdatabase/SQLTransaction.cpp
 StyleBuilderGenerated.cpp
 StyleExtractorGenerated.cpp
@@ -38,8 +30,6 @@ accessibility/AccessibilityObjectInlines.h
 accessibility/AccessibilityProgressIndicator.cpp
 accessibility/AccessibilityRenderObject.cpp
 accessibility/AccessibilityScrollView.cpp
-accessibility/AccessibilitySlider.cpp
-accessibility/AccessibilitySpinButton.cpp
 accessibility/cocoa/AccessibilityObjectCocoa.mm
 [ iOS ] accessibility/ios/AccessibilityObjectIOS.mm
 [ iOS ] accessibility/ios/WebAccessibilityObjectWrapperIOS.mm
@@ -80,7 +70,6 @@ bindings/js/JSStylePropertyMapReadOnlyCustom.cpp
 bindings/js/JSWorkerGlobalScopeBase.cpp
 bindings/js/JSWorkerNavigatorCustom.cpp
 bindings/js/JSWorkletGlobalScopeBase.cpp
-bindings/js/JSXMLHttpRequestCustom.cpp
 bindings/js/ScheduledAction.cpp
 bindings/js/ScriptModuleLoader.cpp
 bridge/objc/WebScriptObject.mm
@@ -91,7 +80,6 @@ css/CSSStyleProperties.cpp
 css/CSSStyleSheet.cpp
 css/CSSStyleSheetObservableArray.cpp
 css/CSSToLengthConversionData.cpp
-css/CSSVariableReferenceValue.cpp
 css/MediaQueryList.cpp
 css/MediaQueryMatcher.cpp
 css/SelectorChecker.cpp
@@ -127,7 +115,6 @@ dom/LiveNodeListInlines.h
 dom/MouseRelatedEvent.cpp
 dom/MutationObserver.cpp
 dom/MutationObserverRegistration.cpp
-dom/MutationRecord.cpp
 dom/NamedNodeMap.cpp
 dom/Node.cpp
 dom/NodeIterator.cpp
@@ -139,7 +126,6 @@ dom/PositionIterator.cpp
 dom/Range.cpp
 dom/RangeBoundaryPoint.h
 dom/ScriptElement.cpp
-dom/ScriptRunner.cpp
 dom/SelectorQuery.cpp
 dom/ShadowRoot.cpp
 dom/SimpleRange.cpp
@@ -149,7 +135,6 @@ dom/TreeScope.cpp
 dom/TreeScopeOrderedMap.cpp
 dom/TypedElementDescendantIteratorInlines.h
 dom/ViewTransition.cpp
-[ Mac ] dom/mac/ImageControlsMac.cpp
 editing/AlternativeTextController.cpp
 editing/ApplyBlockElementCommand.cpp
 editing/ApplyStyleCommand.cpp
@@ -191,13 +176,11 @@ editing/cocoa/WebContentReaderCocoa.mm
 [ Mac ] editing/mac/EditorMac.mm
 editing/mac/FrameSelectionMac.mm
 editing/markup.cpp
-history/CachedFrame.cpp
 html/CachedHTMLCollection.h
 html/CachedHTMLCollectionInlines.h
 html/CollectionTraversalInlines.h
 [ iOS ] html/ColorInputType.cpp
 html/FTPDirectoryDocument.cpp
-html/FormAssociatedCustomElement.cpp
 html/FormAssociatedElement.cpp
 [ iOS ] html/HTMLAnchorElement.cpp
 html/HTMLFormElement.cpp
@@ -209,14 +192,10 @@ html/HTMLOptionsCollection.cpp
 html/HTMLPlugInElement.cpp
 html/HTMLTextFormControlElement.cpp
 html/ImageBitmap.cpp
-html/ImageDocument.cpp
 html/LazyLoadFrameObserver.cpp
 html/LazyLoadImageObserver.cpp
-html/MediaDocument.cpp
 html/MediaElementSession.cpp
 html/ModelDocument.cpp
-html/PluginDocument.cpp
-html/RadioNodeList.cpp
 html/ValidatedFormListedElement.cpp
 html/ValidationMessage.cpp
 html/canvas/CanvasRenderingContext2D.cpp
@@ -232,9 +211,6 @@ html/parser/HTMLTreeBuilder.cpp
 html/shadow/DateTimeNumericFieldElement.cpp
 html/shadow/DateTimeSymbolicFieldElement.cpp
 html/shadow/SliderThumbElement.cpp
-html/track/InbandWebVTTTextTrack.cpp
-html/track/LoadableTextTrack.cpp
-html/track/TextTrackCue.cpp
 inspector/DOMEditor.cpp
 inspector/DOMPatchSupport.cpp
 inspector/InspectorAuditAccessibilityObject.cpp
@@ -331,9 +307,6 @@ layout/layouttree/LayoutContainingBlockChainIterator.h
 layout/layouttree/LayoutTreeBuilder.cpp
 loader/ApplicationManifestLoader.cpp
 loader/CrossOriginPreflightChecker.cpp
-loader/DocumentLoader.cpp
-loader/DocumentThreadableLoader.cpp
-loader/DocumentWriter.cpp
 loader/FrameLoadRequest.cpp
 loader/FrameLoader.cpp
 loader/ImageLoader.cpp
@@ -345,7 +318,6 @@ loader/ResourceMonitor.cpp
 loader/ResourceMonitorPersistence.cpp
 loader/SubframeLoader.cpp
 loader/SubresourceLoader.cpp
-loader/ThreadableLoaderClientWrapper.h
 loader/WorkerThreadableLoader.cpp
 loader/archive/cf/LegacyWebArchive.cpp
 mathml/MathMLElement.cpp
@@ -356,9 +328,7 @@ mathml/MathMLSelectElement.cpp
 page/AutoscrollController.cpp
 [ iOS ] page/Chrome.cpp
 [ Mac ] page/ContextMenuController.cpp
-page/DOMSelection.cpp
 [ iOS ] page/DOMTimer.cpp
-page/DebugPageOverlays.cpp
 page/DragController.cpp
 page/ElementTargetingController.cpp
 page/EventHandler.cpp
@@ -391,7 +361,6 @@ page/ResizeObserver.cpp
 page/ScrollBehavior.cpp
 page/SettingsBase.cpp
 page/SpatialNavigation.cpp
-page/TextIndicator.cpp
 page/VisualViewport.cpp
 page/cocoa/PageCocoa.mm
 [ iOS ] page/ios/ContentChangeObserver.cpp
@@ -407,7 +376,6 @@ page/scrolling/ScrollingCoordinator.cpp
 page/scrolling/ScrollingStateNode.cpp
 page/scrolling/ScrollingStateOverflowScrollProxyNode.cpp
 page/scrolling/ScrollingStateStickyNode.cpp
-page/text-extraction/TextExtraction.cpp
 page/writing-tools/WritingToolsController.mm
 platform/DragImage.cpp
 platform/ScrollView.cpp
@@ -503,6 +471,7 @@ rendering/RenderImageResourceStyleImage.h
 rendering/RenderInline.cpp
 rendering/RenderIterator.h
 rendering/RenderLayer.cpp
+rendering/RenderLayer.h
 rendering/RenderLayerBacking.cpp
 rendering/RenderLayerBacking.h
 rendering/RenderLayerCompositor.cpp
@@ -572,7 +541,10 @@ rendering/mathml/RenderMathMLToken.cpp
 rendering/mathml/RenderMathMLUnderOver.cpp
 rendering/shapes/ShapeOutsideInfo.cpp
 rendering/style/RenderStyle.cpp
-rendering/style/RenderStyleBase.cpp
+rendering/style/RenderStyle.h
+rendering/style/RenderStyle+GettersInlines.h
+rendering/style/RenderStyle+SettersInlines.h
+rendering/style/RenderStyleBase+GettersInlines.h
 rendering/style/StyleCachedImage.cpp
 rendering/style/StyleCanvasImage.cpp
 rendering/style/StyleGeneratedImage.cpp
@@ -662,6 +634,7 @@ style/StyleBuilder.cpp
 style/StyleBuilderCustom.h
 style/StyleBuilderState.cpp
 style/StyleBuilderStateInlines.h
+style/StyleChangedAnimatableProperties.cpp
 style/StyleCustomPropertyRegistry.cpp
 style/StyleExtractor.cpp
 style/StyleExtractorCustom.h
@@ -676,6 +649,8 @@ style/StyleTreeResolver.cpp
 style/StyleUpdate.cpp
 style/Styleable.cpp
 style/Styleable.h
+style/computed/StyleComputedStyle.cpp
+style/computed/StyleComputedStyleBase.cpp
 style/values/color/StyleColor.cpp
 style/values/color/StyleKeywordColor.cpp
 style/values/content/StyleContent.cpp
@@ -688,9 +663,7 @@ svg/SVGClipPathElement.cpp
 svg/SVGCursorElement.cpp
 svg/SVGElement.cpp
 svg/SVGElement.h
-svg/SVGFEDiffuseLightingElement.cpp
 svg/SVGFEImageElement.cpp
-svg/SVGFESpecularLightingElement.cpp
 svg/SVGFontFaceElement.cpp
 svg/SVGFontFaceUriElement.cpp
 svg/SVGImageElement.cpp

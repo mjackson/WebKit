@@ -27,6 +27,7 @@
 
 #include "StrongForward.h"
 #include "TypedArrayAdaptersForwardDeclarations.h"
+#include <cstdint>
 
 namespace JSC {
 class ArrayBuffer;

@@ -75,7 +75,7 @@ namespace WebCore {
 constexpr unsigned maxHardwareContexts = 4;
 #endif
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(AudioContext);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(AudioContext);
 
 #if OS(WINDOWS)
 static unsigned hardwareContextCount;
@@ -231,7 +231,7 @@ void AudioContext::close(DOMPromiseDeferred<void>&& promise)
         return;
     }
 
-    addReaction(State::Closed, WTFMove(promise));
+    addReaction(State::Closed, WTF::move(promise));
 
     lazyInitialize();
 
@@ -252,15 +252,15 @@ void AudioContext::suspendRendering(DOMPromiseDeferred<void>&& promise)
     m_wasSuspendedByScript = true;
 
     if (!willPausePlayback()) {
-        addReaction(State::Suspended, WTFMove(promise));
+        addReaction(State::Suspended, WTF::move(promise));
         return;
     }
 
     lazyInitialize();
 
-    protectedDestination()->suspend([activity = makePendingActivity(*this), promise = WTFMove(promise)](std::optional<Exception>&& exception) mutable {
+    protectedDestination()->suspend([activity = makePendingActivity(*this), promise = WTF::move(promise)](std::optional<Exception>&& exception) mutable {
         if (exception) {
-            promise.reject(WTFMove(*exception));
+            promise.reject(WTF::move(*exception));
             return;
         }
         activity->object().setState(State::Suspended);
@@ -277,21 +277,21 @@ void AudioContext::resumeRendering(DOMPromiseDeferred<void>&& promise)
 
     m_wasSuspendedByScript = false;
 
-    willBeginPlayback([weakThis = WeakPtr { *this }, promise = WTFMove(promise)](bool willBegin) mutable {
+    willBeginPlayback([weakThis = WeakPtr { *this }, promise = WTF::move(promise)](bool willBegin) mutable {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
             return;
 
         if (!willBegin) {
-            protectedThis->addReaction(State::Running, WTFMove(promise));
+            protectedThis->addReaction(State::Running, WTF::move(promise));
             return;
         }
 
         protectedThis->lazyInitialize();
 
-        protectedThis->protectedDestination()->resume([activity = protectedThis->makePendingActivity(*protectedThis), promise = WTFMove(promise)](std::optional<Exception>&& exception) mutable {
+        protectedThis->protectedDestination()->resume([activity = protectedThis->makePendingActivity(*protectedThis), promise = WTF::move(promise)](std::optional<Exception>&& exception) mutable {
             if (exception) {
-                promise.reject(WTFMove(*exception));
+                promise.reject(WTF::move(*exception));
                 return;
             }
 
@@ -301,7 +301,7 @@ void AudioContext::resumeRendering(DOMPromiseDeferred<void>&& promise)
             bool interrupted = activity->object().m_mediaSession->state() == PlatformMediaSession::State::Interrupted;
             activity->object().setState(interrupted ? State::Interrupted : State::Running);
             if (interrupted)
-                activity->object().addReaction(State::Running, WTFMove(promise));
+                activity->object().addReaction(State::Running, WTF::move(promise));
             else
                 promise.resolve();
         });
@@ -335,7 +335,7 @@ void AudioContext::startRendering()
             return;
 
         protectedThis->lazyInitialize();
-        protectedThis->protectedDestination()->startRendering([pendingActivity = protectedThis->makePendingActivity(*protectedThis), protectedThis = WTFMove(protectedThis)](std::optional<Exception>&& exception) {
+        protectedThis->protectedDestination()->startRendering([pendingActivity = protectedThis->makePendingActivity(*protectedThis), protectedThis = WTF::move(protectedThis)](std::optional<Exception>&& exception) {
             if (!exception)
                 protectedThis->setState(State::Running);
         });
@@ -416,7 +416,7 @@ void AudioContext::mayResumePlayback(bool shouldResume)
 
         protectedThis->lazyInitialize();
 
-        protectedThis->protectedDestination()->resume([pendingActivity = protectedThis->makePendingActivity(*protectedThis), protectedThis = WTFMove(protectedThis)](std::optional<Exception>&& exception) {
+        protectedThis->protectedDestination()->resume([pendingActivity = protectedThis->makePendingActivity(*protectedThis), protectedThis = WTF::move(protectedThis)](std::optional<Exception>&& exception) {
             protectedThis->setState(exception ? State::Suspended : State::Running);
         });
     });
@@ -451,7 +451,7 @@ void AudioContext::willBeginPlayback(CompletionHandler<void(bool)>&& completionH
         removeBehaviorRestriction(BehaviorRestrictionFlags::RequirePageConsentForAudioStartRestriction);
     }
 
-    m_mediaSession->clientWillBeginPlayback([weakThis = WeakPtr { *this }, completionHandler = WTFMove(completionHandler), logSiteIdentifier = WTFMove(logSiteIdentifier)](bool willBegin) mutable {
+    m_mediaSession->clientWillBeginPlayback([weakThis = WeakPtr { *this }, completionHandler = WTF::move(completionHandler), logSiteIdentifier = WTF::move(logSiteIdentifier)](bool willBegin) mutable {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis) {
             completionHandler(false);

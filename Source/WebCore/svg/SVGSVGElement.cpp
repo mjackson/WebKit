@@ -64,7 +64,7 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(SVGSVGElement);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(SVGSVGElement);
 
 inline SVGSVGElement::SVGSVGElement(const QualifiedName& tagName, Document& document)
     : SVGGraphicsElement(tagName, document, makeUniqueRef<PropertyRegistry>(*this), TypeFlag::HasDidMoveToNewDocument)
@@ -287,9 +287,9 @@ Ref<NodeList> SVGSVGElement::collectIntersectionOrEnclosureList(SVGRect& rect, S
     Vector<Ref<Element>> elements;
     for (Ref element : descendantsOfType<SVGElement>(referenceElement ? *referenceElement : *this)) {
         if (checkFunction(element, rect))
-            elements.append(WTFMove(element));
+            elements.append(WTF::move(element));
     }
-    return StaticElementList::create(WTFMove(elements));
+    return StaticElementList::create(WTF::move(elements));
 }
 
 static bool checkIntersectionWithoutUpdatingLayout(SVGElement& element, SVGRect& rect)
@@ -467,14 +467,14 @@ RenderPtr<RenderElement> SVGSVGElement::createElementRenderer(RenderStyle&& styl
     if (isOutermostSVGSVGElement()) {
         if (document().settings().layerBasedSVGEngineEnabled()) {
             protectedDocument()->setMayHaveRenderedSVGRootElements();
-            return createRenderer<RenderSVGRoot>(*this, WTFMove(style));
+            return createRenderer<RenderSVGRoot>(*this, WTF::move(style));
         }
-        return createRenderer<LegacyRenderSVGRoot>(*this, WTFMove(style));
+        return createRenderer<LegacyRenderSVGRoot>(*this, WTF::move(style));
     }
 
     if (document().settings().layerBasedSVGEngineEnabled())
-        return createRenderer<RenderSVGViewportContainer>(*this, WTFMove(style));
-    return createRenderer<LegacyRenderSVGViewportContainer>(*this, WTFMove(style));
+        return createRenderer<RenderSVGViewportContainer>(*this, WTF::move(style));
+    return createRenderer<LegacyRenderSVGViewportContainer>(*this, WTF::move(style));
 }
 
 bool SVGSVGElement::isReplaced(const RenderStyle*) const

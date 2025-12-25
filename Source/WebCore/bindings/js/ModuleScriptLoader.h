@@ -52,7 +52,7 @@ protected:
         : m_client(&client)
         , m_promise(&promise)
         , m_scriptFetcher(scriptFetcher)
-        , m_parameters(WTFMove(parameters))
+        , m_parameters(WTF::move(parameters))
     {
     }
 

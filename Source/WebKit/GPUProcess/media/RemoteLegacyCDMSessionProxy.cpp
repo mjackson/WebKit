@@ -94,7 +94,7 @@ void RemoteLegacyCDMSessionProxy::generateKeyRequest(const String& mimeType, Ref
         return;
     }
     
-    auto initDataArray = convertToUint8Array(WTFMove(initData));
+    auto initDataArray = convertToUint8Array(WTF::move(initData));
     if (!initDataArray) {
         completion({ }, emptyString(), 0, 0);
         return;
@@ -126,7 +126,7 @@ void RemoteLegacyCDMSessionProxy::update(RefPtr<SharedBuffer>&& update, UpdateCa
         return;
     }
     
-    auto updateArray = convertToUint8Array(WTFMove(update));
+    auto updateArray = convertToUint8Array(WTF::move(update));
     if (!updateArray) {
         completion(false, nullptr, 0, 0);
         return;

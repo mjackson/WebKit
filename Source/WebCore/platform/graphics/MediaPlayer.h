@@ -270,7 +270,7 @@ public:
     virtual float mediaPlayerContentsScale() const { return 1; }
     virtual bool mediaPlayerPlatformVolumeConfigurationRequired() const { return false; }
     virtual bool mediaPlayerIsLooping() const { return false; }
-    virtual CachedResourceLoader* mediaPlayerCachedResourceLoader() { return nullptr; }
+    virtual CachedResourceLoader* mediaPlayerCachedResourceLoader() const { return nullptr; }
     virtual Ref<PlatformMediaResourceLoader> mediaPlayerCreateResourceLoader() = 0;
     virtual bool doesHaveAttribute(const AtomString&, AtomString* = nullptr) const { return false; }
     virtual bool mediaPlayerShouldUsePersistentCache() const { return true; }
@@ -326,7 +326,7 @@ public:
     virtual String audioOutputDeviceId() const { return { }; }
     virtual String audioOutputDeviceIdOverride() const { return { }; }
 
-    virtual void mediaPlayerQueueTaskOnEventLoop(Function<void()>&& task) { callOnMainThread(WTFMove(task)); }
+    virtual void mediaPlayerQueueTaskOnEventLoop(Function<void()>&& task) { callOnMainThread(WTF::move(task)); }
 
 #if PLATFORM(COCOA)
     virtual void mediaPlayerOnNewVideoFrameMetadata(VideoFrameMetadata&&, RetainPtr<CVPixelBufferRef>&&) { }
@@ -635,7 +635,7 @@ public:
 
     String elementId() const;
 
-    CachedResourceLoader* cachedResourceLoader();
+    CachedResourceLoader* cachedResourceLoader() const;
     Ref<PlatformMediaResourceLoader> mediaResourceLoader();
 
     void addAudioTrack(AudioTrackPrivate&);

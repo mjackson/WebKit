@@ -27,16 +27,16 @@
 #include "GradientAttributes.h"
 #include "GraphicsContext.h"
 #include "RenderSVGText.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include "SVGRenderingContext.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(LegacyRenderSVGResourceGradient);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(LegacyRenderSVGResourceGradient);
 
 LegacyRenderSVGResourceGradient::LegacyRenderSVGResourceGradient(Type type, SVGGradientElement& node, RenderStyle&& style)
-    : LegacyRenderSVGResourceContainer(type, node, WTFMove(style))
+    : LegacyRenderSVGResourceContainer(type, node, WTF::move(style))
 {
 }
 
@@ -260,7 +260,7 @@ void TextGradientClipper::postApplyResource(RenderElement& renderer, GraphicsCon
 
     SVGRenderingContext::clipToImageBuffer(*context, targetRect, scale, m_imageBuffer, false);
 
-    context->setFillGradient(WTFMove(gradient), userspaceTransform);
+    context->setFillGradient(WTF::move(gradient), userspaceTransform);
     context->fillRect(targetRect);
 
     m_imageBuffer = nullptr;
@@ -298,7 +298,7 @@ void TextGradientCompositor::postApplyResource(RenderElement& renderer, Graphics
     Ref gradient = *gradientData.gradient;
     auto userspaceTransform = calculateGradientUserspaceTransform(renderer, gradientUnits, gradientTransform);
 
-    context->setFillGradient(WTFMove(gradient), userspaceTransform);
+    context->setFillGradient(WTF::move(gradient), userspaceTransform);
     context->fillRect(targetRect);
 
     context->endTransparencyLayer();
@@ -320,10 +320,10 @@ auto LegacyRenderSVGResourceGradient::applyResource(RenderElement& renderer, con
 #if USE(CG)
     if (resourceMode.contains(RenderSVGResourceMode::ApplyToText)) {
         // PDF does not support some CompositeOperation
-        if (context->renderingMode() == RenderingMode::PDFDocument)
-            m_gradientApplier = makeUnique<TextGradientClipper>();
-        else
+        if (context->renderingMode() != RenderingMode::PDFDocument && style.paintOrder() == Style::SVGPaintOrder::Type::FillStrokeMarkers)
             m_gradientApplier = makeUnique<TextGradientCompositor>();
+        else
+            m_gradientApplier = makeUnique<TextGradientClipper>();
     }
 #endif
 

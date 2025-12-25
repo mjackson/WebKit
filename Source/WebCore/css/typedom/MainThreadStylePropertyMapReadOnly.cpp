@@ -63,7 +63,7 @@ ExceptionOr<MainThreadStylePropertyMapReadOnly::CSSStyleValueOrUndefined> MainTh
 
     if (isCustomPropertyName(property)) {
         if (auto value = reifyValue(*document, customPropertyValue(property), CSSPropertyCustom))
-            return { WTFMove(value) };
+            return { WTF::move(value) };
 
         return { std::monostate { } };
     }
@@ -74,13 +74,13 @@ ExceptionOr<MainThreadStylePropertyMapReadOnly::CSSStyleValueOrUndefined> MainTh
 
     if (isShorthand(propertyID)) {
         if (auto value = CSSStyleValueFactory::constructStyleValueForShorthandSerialization(*document, shorthandPropertySerialization(propertyID)))
-            return { WTFMove(value) };
+            return { WTF::move(value) };
 
         return { std::monostate { } };
     }
 
     if (auto value = reifyValue(*document, propertyValue(propertyID), propertyID))
-        return { WTFMove(value) };
+        return { WTF::move(value) };
 
     return { std::monostate { } };
 }
@@ -101,7 +101,7 @@ ExceptionOr<Vector<RefPtr<CSSStyleValue>>> MainThreadStylePropertyMapReadOnly::g
 
     if (isShorthand(propertyID)) {
         if (RefPtr value = CSSStyleValueFactory::constructStyleValueForShorthandSerialization(*document, shorthandPropertySerialization(propertyID)))
-            return Vector<RefPtr<CSSStyleValue>> { WTFMove(value) };
+            return Vector<RefPtr<CSSStyleValue>> { WTF::move(value) };
         return Vector<RefPtr<CSSStyleValue>> { };
     }
 

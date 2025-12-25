@@ -23,9 +23,8 @@
 #include "config.h"
 #include "StyleRareInheritedData.h"
 
-#include "RenderStyleInlines.h"
-#include "RenderStyleConstants.h"
 #include "RenderStyleDifference.h"
+#include "RenderStyle+InitialInlines.h"
 #include "StyleAppleColorFilterData.h"
 #include "StyleImage.h"
 #include "StylePrimitiveKeyword+Logging.h"

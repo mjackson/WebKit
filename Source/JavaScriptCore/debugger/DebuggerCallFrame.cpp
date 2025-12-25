@@ -90,7 +90,7 @@ Ref<DebuggerCallFrame> DebuggerCallFrame::create(VM& vm, CallFrame* callFrame)
             callFrame = frame.frame;
         Ref<DebuggerCallFrame> currentFrame = adoptRef(*new DebuggerCallFrame(vm, callFrame, frame));
         currentFrame->m_caller = currentParent;
-        currentParent = WTFMove(currentFrame);
+        currentParent = WTF::move(currentFrame);
     }
     return *currentParent;
 }
@@ -293,7 +293,7 @@ void DebuggerCallFrame::invalidate()
             frame->m_scope->invalidateChain();
             frame->m_scope.clear();
         }
-        frame = WTFMove(frame->m_caller);
+        frame = WTF::move(frame->m_caller);
     }
 }
 

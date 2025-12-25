@@ -26,8 +26,8 @@
 #include "config.h"
 #include "StyleGridData.h"
 
-#include "RenderStyleInlines.h"
 #include "RenderStyleDifference.h"
+#include "RenderStyle+InitialInlines.h"
 #include "StylePrimitiveKeyword+Logging.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
 

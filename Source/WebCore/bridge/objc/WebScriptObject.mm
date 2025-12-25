@@ -116,7 +116,7 @@ id createJSWrapper(JSC::JSObject* object, RefPtr<JSC::Bindings::RootObject>&& or
 {
     if (id wrapper = getJSWrapper(object))
         return wrapper;
-    return adoptNS([[WebScriptObject alloc] _initWithJSObject:object originRootObject:WTFMove(origin) rootObject:WTFMove(root)]).autorelease();
+    return adoptNS([[WebScriptObject alloc] _initWithJSObject:object originRootObject:WTF::move(origin) rootObject:WTF::move(root)]).autorelease();
 }
 
 static void addExceptionToConsole(JSC::JSGlobalObject* lexicalGlobalObject, JSC::Exception* exception)
@@ -231,7 +231,7 @@ void disconnectWindowWrapper(WebScriptObject *windowWrapper)
 
     self = [super init];
     _private = [[WebScriptObjectPrivate alloc] init];
-    [self _setImp:imp originRootObject:WTFMove(originRootObject) rootObject:WTFMove(rootObject)];
+    [self _setImp:imp originRootObject:WTF::move(originRootObject) rootObject:WTF::move(rootObject)];
     
     return self;
 }

@@ -415,6 +415,7 @@ JS_BINDING_IDLS := \
     $(WebCore)/Modules/mediacapabilities/VideoConfiguration.idl \
     $(WebCore)/Modules/mediacapabilities/WorkerNavigator+MediaCapabilities.idl \
     $(WebCore)/Modules/mediacontrols/DOMWindow+MediaControls.idl \
+	$(WebCore)/Modules/mediacontrols/MediaControlsContextMenuItem.idl \
     $(WebCore)/Modules/mediacontrols/MediaControlsHost.idl \
     $(WebCore)/Modules/mediacontrols/MediaControlsUtils.idl \
     $(WebCore)/Modules/mediarecorder/BlobEvent.idl \
@@ -1390,6 +1391,7 @@ JS_BINDING_IDLS := \
     $(WebCore)/html/MediaEncryptedEvent.idl \
     $(WebCore)/html/MediaError.idl \
     $(WebCore)/html/OffscreenCanvas.idl \
+    $(WebCore)/html/Origin.idl \
     $(WebCore)/html/PopoverInvokerElement.idl \
     $(WebCore)/html/RadioNodeList.idl \
     $(WebCore)/html/ResolvedCaptionDisplaySettingsOptions.idl \
@@ -1787,6 +1789,8 @@ JS_BINDING_IDLS := \
     $(WebCore)/testing/MockCDMFactory.idl \
     $(WebCore)/testing/MockCaptionDisplaySettingsClientCallback.idl \
     $(WebCore)/testing/MockContentFilterSettings.idl \
+	$(WebCore)/testing/MockMediaDeviceRoute.idl \
+	$(WebCore)/testing/MockMediaDeviceRouteController.idl \
     $(WebCore)/testing/MockPageOverlay.idl \
     $(WebCore)/testing/MockPaymentAddress.idl \
     $(WebCore)/testing/MockPaymentContactFields.idl \
@@ -1935,6 +1939,7 @@ all : \
     $(JS_DOM_IMPLEMENTATIONS) \
     $(WEB_DOM_HEADERS) \
     \
+    CSSPropertyInitialValuesGeneratedInlines.h \
     CSSPropertyNames.cpp \
     CSSPropertyNames.h \
     CSSPropertyParsing.cpp \
@@ -1969,8 +1974,9 @@ all : \
     NodeName.cpp \
     NodeName.h \
     RenderStyleProperties.h \
-    RenderStylePropertiesGettersInlines.h \
-    RenderStylePropertiesSettersInlines.h \
+    RenderStyleProperties+GettersInlines.h \
+    RenderStyleProperties+InitialInlines.h \
+    RenderStyleProperties+SettersInlines.h \
     SVGElementFactory.cpp \
     SVGElementFactory.h \
     SVGElementTypeHelpers.h \
@@ -1979,6 +1985,11 @@ all : \
     SelectorPseudoClassAndCompatibilityElementMap.cpp \
     SelectorPseudoElementMap.cpp \
     StyleBuilderGenerated.cpp \
+    StyleComputedStyleProperties.h \
+    StyleComputedStyleProperties+GettersInlines.h \
+    StyleComputedStyleProperties+InitialInlines.h \
+    StyleComputedStyleProperties+SettersInlines.h \
+    StyleChangedAnimatablePropertiesGenerated.cpp \
     StyleExtractorGenerated.cpp \
     StyleInterpolationWrapperMap.cpp \
     StyleInterpolationWrapperMap.h \
@@ -2016,15 +2027,22 @@ WEBCORE_CSS_VALUE_KEYWORDS := $(WebCore)/css/CSSValueKeywords.in
 WEBCORE_CSS_VALUE_KEYWORDS := $(WEBCORE_CSS_VALUE_KEYWORDS) $(WebCore)/css/SVGCSSValueKeywords.in $(POSSIBLE_ADDITIONAL_CSS_VALUE_KEYWORDS)
 
 CSS_PROPERTY_NAME_FILES = \
+    CSSPropertyInitialValuesGeneratedInlines.h \
     CSSPropertyNames.cpp \
     CSSPropertyNames.h \
     CSSPropertyParsing.cpp \
     CSSPropertyParsing.h \
     CSSStyleProperties+PropertyNames.idl \
     RenderStyleProperties.h \
-    RenderStylePropertiesGettersInlines.h \
-    RenderStylePropertiesSettersInlines.h \
+    RenderStyleProperties+GettersInlines.h \
+    RenderStyleProperties+InitialInlines.h \
+    RenderStyleProperties+SettersInlines.h \
     StyleBuilderGenerated.cpp \
+    StyleComputedStyleProperties.h \
+    StyleComputedStyleProperties+GettersInlines.h \
+    StyleComputedStyleProperties+InitialInlines.h \
+    StyleComputedStyleProperties+SettersInlines.h \
+    StyleChangedAnimatablePropertiesGenerated.cpp \
     StyleExtractorGenerated.cpp \
     StyleInterpolationWrapperMap.cpp \
     StyleInterpolationWrapperMap.h \
@@ -2198,6 +2216,8 @@ USER_AGENT_STYLE_SHEETS = \
     $(WebCore)/css/htmlSwitchControl.css \
     $(WebCore)/css/mathml.css \
     $(WebCore)/css/mathmlCoreExtras.css \
+    $(WebCore)/css/mathmlFontSizeMath.css \
+    $(WebCore)/css/mathmlLegacyFontSizeMath.css \
     $(WebCore)/css/popover.css \
     $(WebCore)/css/quirks.css \
     $(WebCore)/css/svg.css \
@@ -2609,10 +2629,10 @@ IDL_INTERMEDIATE_FILES = \
 IDL_INTERMEDIATE_PATTERNS = $(call to-pattern, $(IDL_INTERMEDIATE_FILES))
 
 IDL_FILE_NAMES_LIST = IDLFileNamesList.txt
-$(IDL_FILE_NAMES_LIST) : $(JS_BINDING_IDLS)
+$(IDL_FILE_NAMES_LIST) : $(JS_BINDING_IDLS) $(WebCore)/DerivedSources.make
 	echo $(JS_BINDING_IDLS) | tr " " "\n" > $@
 
-$(IDL_INTERMEDIATE_PATTERNS) : $(PREPROCESS_IDLS_SCRIPTS) $(IDL_ATTRIBUTES_FILE) $(IDL_FILE_NAMES_LIST) $(JS_BINDING_IDLS) $(FEATURE_AND_PLATFORM_FLAGS_RESPONSE_FILE)
+$(IDL_INTERMEDIATE_PATTERNS) : $(PREPROCESS_IDLS_SCRIPTS) $(IDL_ATTRIBUTES_FILE) $(JS_BINDING_IDLS) $(FEATURE_AND_PLATFORM_FLAGS_RESPONSE_FILE) | $(IDL_FILE_NAMES_LIST)
 	$(PERL) $(WebCore)/bindings/scripts/preprocess-idls.pl --defines "$(FEATURE_AND_PLATFORM_DEFINES) LANGUAGE_JAVASCRIPT" --idlFileNamesList $(IDL_FILE_NAMES_LIST) --idlAttributesFile $(IDL_ATTRIBUTES_FILE) --supplementalDependencyFile $(SUPPLEMENTAL_DEPENDENCY_FILE) --isoSubspacesHeaderFile $(ISO_SUBSPACES_HEADER_FILE) --clientISOSubspacesHeaderFile $(CLIENT_ISO_SUBSPACES_HEADER_FILE) --constructorsHeaderFile $(CONSTRUCTORS_HEADER_FILE) --windowConstructorsFile $(WINDOW_CONSTRUCTORS_FILE) --workerGlobalScopeConstructorsFile $(WORKERGLOBALSCOPE_CONSTRUCTORS_FILE) --shadowRealmGlobalScopeConstructorsFile $(SHADOWREALMGLOBALSCOPE_CONSTRUCTORS_FILE) --dedicatedWorkerGlobalScopeConstructorsFile $(DEDICATEDWORKERGLOBALSCOPE_CONSTRUCTORS_FILE) --serviceWorkerGlobalScopeConstructorsFile $(SERVICEWORKERGLOBALSCOPE_CONSTRUCTORS_FILE) --sharedWorkerGlobalScopeConstructorsFile $(SHAREDWORKERGLOBALSCOPE_CONSTRUCTORS_FILE) --workletGlobalScopeConstructorsFile $(WORKLETGLOBALSCOPE_CONSTRUCTORS_FILE) --paintWorkletGlobalScopeConstructorsFile $(PAINTWORKLETGLOBALSCOPE_CONSTRUCTORS_FILE) --audioWorkletGlobalScopeConstructorsFile $(AUDIOWORKLETGLOBALSCOPE_CONSTRUCTORS_FILE) --supplementalMakefileDeps $(SUPPLEMENTAL_MAKEFILE_DEPS)
 
 #
@@ -2662,7 +2682,7 @@ vpath %.idl $(ADDITIONAL_BINDING_IDLS_PATHS) $(WebCore)/bindings/scripts
 # -------------------------------------------------
 define GENERATE_BINDINGS_template
 
-JS$(call get_bare_name,$(1)).cpp JS$(call get_bare_name,$(1)).h: $(1) $$(JS_BINDINGS_SCRIPTS) $$(IDL_ATTRIBUTES_FILE) $$(IDL_INTERMEDIATE_FILES) $$(FEATURE_AND_PLATFORM_FLAGS_RESPONSE_FILE) $(IDL_FILE_NAMES_LIST)
+JS$(call get_bare_name,$(1)).cpp JS$(call get_bare_name,$(1)).h: $(1) $$(JS_BINDINGS_SCRIPTS) $$(IDL_ATTRIBUTES_FILE) $$(IDL_INTERMEDIATE_FILES) $$(FEATURE_AND_PLATFORM_FLAGS_RESPONSE_FILE) | $(IDL_FILE_NAMES_LIST)
 	$$(PERL) $$(WebCore)/bindings/scripts/generate-bindings.pl \
 		$$(IDL_COMMON_ARGS) \
 		--defines "$$(FEATURE_AND_PLATFORM_DEFINES) LANGUAGE_JAVASCRIPT" \

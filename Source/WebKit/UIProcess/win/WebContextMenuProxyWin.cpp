@@ -103,8 +103,8 @@ void WebContextMenuProxyWin::showContextMenuWithItems(Vector<Ref<WebContextMenuI
 }
 
 WebContextMenuProxyWin::WebContextMenuProxyWin(WebPageProxy& page, FrameInfoData&& frameInfo, ContextMenuContextData&& context, const UserData& userData)
-    : WebContextMenuProxy(page, WTFMove(context), userData)
-    , m_frameInfo(WTFMove(frameInfo))
+    : WebContextMenuProxy(page, WTF::move(context), userData)
+    , m_frameInfo(WTF::move(frameInfo))
 {
     m_menu = createMenu(m_context);
 }

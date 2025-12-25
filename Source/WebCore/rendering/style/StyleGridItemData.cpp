@@ -32,7 +32,7 @@
 #include "StyleGridItemData.h"
 
 #include "RenderStyleDifference.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+InitialInlines.h"
 
 namespace WebCore {
 

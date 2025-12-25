@@ -1226,7 +1226,7 @@ namespace JSC {
             if (isGeneratorOrAsyncFunctionWrapperParseMode(m_codeBlock->parseMode()) && isGeneratorOrAsyncFunctionBodyParseMode(parseMode))
                 generatorOrAsyncWrapperFunctionParameterNames = getParameterNames();
 
-            return UnlinkedFunctionExecutable::create(m_vm, m_scopeNode->source(), metadata, isBuiltinFunction() ? UnlinkedBuiltinFunction : UnlinkedNormalFunction, constructAbility, InlineAttribute::None, scriptMode(), WTFMove(optionalVariablesUnderTDZ), WTFMove(generatorOrAsyncWrapperFunctionParameterNames), WTFMove(parentPrivateNameEnvironment), newDerivedContextType, needsClassFieldInitializer, privateBrandRequirement);
+            return UnlinkedFunctionExecutable::create(m_vm, m_scopeNode->source(), metadata, isBuiltinFunction() ? UnlinkedBuiltinFunction : UnlinkedNormalFunction, constructAbility, InlineAttribute::None, scriptMode(), WTF::move(optionalVariablesUnderTDZ), WTF::move(generatorOrAsyncWrapperFunctionParameterNames), WTF::move(parentPrivateNameEnvironment), newDerivedContextType, needsClassFieldInitializer, privateBrandRequirement);
         }
 
         RefPtr<TDZEnvironmentLink> getVariablesUnderTDZ();

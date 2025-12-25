@@ -134,7 +134,7 @@ bool AXSearchManager::matchForSearchKeyAtIndex(Ref<AXCoreObject> axObject, const
         auto ranges = axObject->misspellingRanges();
         bool hasMisspelling = !ranges.isEmpty();
         if (hasMisspelling)
-            m_misspellingRanges.set(axObject->objectID(), WTFMove(ranges));
+            m_misspellingRanges.set(axObject->objectID(), WTF::move(ranges));
         return hasMisspelling;
     }
     case AccessibilitySearchKey::Outline:
@@ -206,7 +206,7 @@ bool AXSearchManager::matchWithResultsLimit(Ref<AXCoreObject> object, const Acce
 static void appendAccessibilityObject(Ref<AXCoreObject> object, AccessibilityObject::AccessibilityChildrenVector& results)
 {
     if (!object->isAttachment()) [[likely]]
-        results.append(WTFMove(object));
+        results.append(WTF::move(object));
     else if (RefPtr axObject = dynamicDowncast<AccessibilityObject>(object)) {
         // Find the next descendant of this attachment object so search can continue through frames.
         RefPtr widget = axObject->widgetForAttachmentView();

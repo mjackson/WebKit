@@ -93,6 +93,7 @@ struct Config {
     void* endExecutableMemory;
     uintptr_t startOfFixedWritableMemoryPool;
     uintptr_t startOfStructureHeap;
+    uintptr_t structureIDBase;
     uintptr_t sizeOfStructureHeap;
     void* defaultCallThunk;
     void* arityFixupThunk;
@@ -140,12 +141,17 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 constexpr size_t offsetOfJSCConfigInitializeHasBeenCalled = offsetof(JSC::Config, initializeHasBeenCalled);
 constexpr size_t offsetOfJSCConfigGateMap = offsetof(JSC::Config, llint.gateMap);
-constexpr size_t offsetOfJSCConfigStartOfStructureHeap = offsetof(JSC::Config, startOfStructureHeap);
+constexpr size_t offsetOfJSCConfigStructureIDBase = offsetof(JSC::Config, structureIDBase);
 constexpr size_t offsetOfJSCConfigDefaultCallThunk = offsetof(JSC::Config, defaultCallThunk);
 
 ALWAYS_INLINE PURE_FUNCTION uintptr_t startOfStructureHeap()
 {
     return g_jscConfig.startOfStructureHeap;
+}
+
+ALWAYS_INLINE PURE_FUNCTION uintptr_t structureIDBase()
+{
+    return g_jscConfig.structureIDBase;
 }
 
 } // namespace JSC

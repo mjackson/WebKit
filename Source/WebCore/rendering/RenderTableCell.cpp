@@ -4,7 +4,7 @@
  *           (C) 1998 Waldo Bastian (bastian@kde.org)
  *           (C) 1999 Lars Knoll (knoll@kde.org)
  *           (C) 1999 Antti Koivisto (koivisto@kde.org)
- * Copyright (C) 2003-2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2003-2025 Apple Inc. All rights reserved.
  * Copyright (C) 2016-2017 Google Inc. All rights reserved.
  * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
  *
@@ -63,7 +63,7 @@ namespace WebCore {
 
 using namespace HTMLNames;
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(RenderTableCell);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderTableCell);
 
 struct SameSizeAsRenderTableCell : public RenderBlockFlow {
     unsigned bitfields;
@@ -76,7 +76,7 @@ static_assert(sizeof(RenderTableCell) == sizeof(SameSizeAsRenderTableCell), "Ren
 static_assert(sizeof(CollapsedBorderValue) <= 24, "CollapsedBorderValue should stay small");
 
 RenderTableCell::RenderTableCell(Element& element, RenderStyle&& style)
-    : RenderBlockFlow(Type::TableCell, element, WTFMove(style))
+    : RenderBlockFlow(Type::TableCell, element, WTF::move(style))
     , m_column(unsetColumnIndex)
     , m_cellWidthChanged(false)
     , m_hasColSpan(false)
@@ -93,7 +93,7 @@ RenderTableCell::RenderTableCell(Element& element, RenderStyle&& style)
 }
 
 RenderTableCell::RenderTableCell(Document& document, RenderStyle&& style)
-    : RenderBlockFlow(Type::TableCell, document, WTFMove(style))
+    : RenderBlockFlow(Type::TableCell, document, WTF::move(style))
     , m_column(unsetColumnIndex)
     , m_cellWidthChanged(false)
     , m_hasColSpan(false)
@@ -288,6 +288,12 @@ bool RenderTableCell::computeIntrinsicPadding(LayoutUnit heightConstraint)
 
     auto applyStandard = [&] {
         auto baseline = cellBaselinePosition();
+        if (!firstInFlowChild() && baseline == borderAndPaddingBefore()) {
+            // If baseline equals borderAndPaddingBefore(), there is no real content.
+            intrinsicPaddingBefore = 0;
+            return;
+        }
+
         auto needsIntrinsicPadding = baseline > borderAndPaddingBefore() || !borderBoxLogicalHeight;
         if (needsIntrinsicPadding)
             intrinsicPaddingBefore = section()->rowBaseline(rowIndex()) - (baseline - oldIntrinsicPaddingBefore);
@@ -616,7 +622,7 @@ static inline void markCellDirtyWhenCollapsedBorderChanges(RenderTableCell* cell
     cell->setNeedsLayoutAndPreferredWidthsUpdate();
 }
 
-void RenderTableCell::styleDidChange(StyleDifference diff, const RenderStyle* oldStyle)
+void RenderTableCell::styleDidChange(Style::Difference diff, const RenderStyle* oldStyle)
 {
     ASSERT(style().display() == DisplayType::TableCell);
     ASSERT(!row() || row()->rowIndexWasSet());
@@ -633,7 +639,7 @@ void RenderTableCell::styleDidChange(StyleDifference diff, const RenderStyle* ol
 
     if (CheckedPtr table = this->table(); table && oldStyle) {
         table->invalidateCollapsedBordersAfterStyleChangeIfNeeded(*oldStyle, style(), this);
-        if (table->collapseBorders() && diff == StyleDifference::Layout) {
+        if (table->collapseBorders() && diff == Style::DifferenceResult::Layout) {
             markCellDirtyWhenCollapsedBorderChanges(table->cellBelow(this));
             markCellDirtyWhenCollapsedBorderChanges(table->cellAbove(this));
             markCellDirtyWhenCollapsedBorderChanges(table->cellBefore(this));

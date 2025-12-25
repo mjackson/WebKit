@@ -30,9 +30,8 @@
 
 #include <WebCore/EventListener.h>
 #include <WebCore/HTMLMediaElementEnums.h>
+#include <WebCore/ImmersiveVideoMetadata.h>
 #include <WebCore/PlaybackSessionModel.h>
-#include <WebCore/SpatialVideoMetadata.h>
-#include <WebCore/VideoProjectionMetadata.h>
 #include <wtf/CheckedPtr.h>
 #include <wtf/HashSet.h>
 #include <wtf/Observer.h>
@@ -168,8 +167,7 @@ private:
     Vector<RefPtr<TextTrack>> m_legibleTracksForMenu;
     Vector<RefPtr<AudioTrack>> m_audioTracksForMenu;
     AudioSessionSoundStageSize m_soundStageSize;
-    std::optional<SpatialVideoMetadata> m_spatialVideoMetadata;
-    std::optional<VideoProjectionMetadata> m_videoProjectionMetadata;
+    std::optional<ImmersiveVideoMetadata> m_immersiveVideoMetadata;
 
     const Ref<Observer<void()>> m_videoTrackConfigurationObserver;
 };

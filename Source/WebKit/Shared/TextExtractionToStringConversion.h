@@ -66,9 +66,9 @@ using TextExtractionFilterCallback = Function<Ref<TextExtractionFilterPromise>(c
 
 struct TextExtractionOptions {
     TextExtractionOptions(TextExtractionOptions&& other)
-        : filterCallbacks(WTFMove(other.filterCallbacks))
-        , nativeMenuItems(WTFMove(other.nativeMenuItems))
-        , replacementStrings(WTFMove(other.replacementStrings))
+        : filterCallbacks(WTF::move(other.filterCallbacks))
+        , nativeMenuItems(WTF::move(other.nativeMenuItems))
+        , replacementStrings(WTF::move(other.replacementStrings))
         , version(other.version)
         , flags(other.flags)
         , outputFormat(other.outputFormat)
@@ -76,9 +76,9 @@ struct TextExtractionOptions {
     }
 
     TextExtractionOptions(Vector<TextExtractionFilterCallback>&& filters, Vector<String>&& items, HashMap<String, String>&& replacementStrings, std::optional<TextExtractionVersion> version, TextExtractionOptionFlags flags, TextExtractionOutputFormat outputFormat)
-        : filterCallbacks(WTFMove(filters))
-        , nativeMenuItems(WTFMove(items))
-        , replacementStrings(WTFMove(replacementStrings))
+        : filterCallbacks(WTF::move(filters))
+        , nativeMenuItems(WTF::move(items))
+        , replacementStrings(WTF::move(replacementStrings))
         , version(version)
         , flags(flags)
         , outputFormat(outputFormat)

@@ -52,6 +52,7 @@ public:
     static Ref<RemoteLegacyCDMSessionProxy> create(RemoteLegacyCDMFactoryProxy&, uint64_t logIdentifier, RemoteLegacyCDMSessionIdentifier, WebCore::LegacyCDM&);
     ~RemoteLegacyCDMSessionProxy();
 
+    // IPC::MessageReceiver, WebCore::LegacyCDMSessionClient.
     void ref() const final { RefCounted::ref(); }
     void deref() const final { RefCounted::deref(); }
 

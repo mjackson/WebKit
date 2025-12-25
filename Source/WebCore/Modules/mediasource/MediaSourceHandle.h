@@ -41,7 +41,7 @@ class MediaSourcePrivateClient;
 
 class MediaSourceHandle
     : public RefCounted<MediaSourceHandle> {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(MediaSourceHandle);
+    WTF_MAKE_TZONE_ALLOCATED(MediaSourceHandle);
 public:
     static Ref<MediaSourceHandle> create(Ref<MediaSourceHandle>&&);
     Ref<MediaSourceHandle> detach();

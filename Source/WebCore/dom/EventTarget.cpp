@@ -58,7 +58,7 @@
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(EventTargetData);
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(EventTarget);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(EventTarget);
 
 struct SameSizeAsEventTarget : ScriptWrappable, CanMakeWeakPtrWithBitField<EventTarget, WeakPtrFactoryInitialization::Lazy, WeakPtrImplWithEventTargetData> {
     virtual ~SameSizeAsEventTarget() = default; // Allocate vtable pointer.

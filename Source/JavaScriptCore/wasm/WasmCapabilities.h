@@ -27,6 +27,7 @@
 
 #include "Options.h"
 #include "VM.h"
+#include <wtf/Platform.h>
 
 namespace JSC {
 namespace Wasm {

@@ -728,7 +728,7 @@ bool CodeBlock::finishCreation(VM& vm, ScriptExecutable* ownerExecutable, Unlink
             }
 
             std::pair<TypeLocation*, bool> locationPair = vm.typeProfiler()->typeLocationCache()->getTypeLocation(globalVariableID,
-                ownerExecutable->sourceID(), divotStart, divotEnd, WTFMove(globalTypeSet), &vm);
+                ownerExecutable->sourceID(), divotStart, divotEnd, WTF::move(globalTypeSet), &vm);
             TypeLocation* location = locationPair.first;
             bool isNewLocation = locationPair.second;
 
@@ -830,7 +830,7 @@ void CodeBlock::setupWithUnlinkedBaselineCode(Ref<BaselineJITCode> jitCode)
             }
             }
         }
-        setBaselineJITData(WTFMove(baselineJITData));
+        setBaselineJITData(WTF::move(baselineJITData));
 
         // Set optimization thresholds only after instructions is initialized and JITData is initialized, since these
         // rely on the instruction count (and are in theory permitted to also inspect the instruction stream to more accurate assess the cost of tier-up).
@@ -852,7 +852,7 @@ void CodeBlock::setupWithUnlinkedBaselineCode(Ref<BaselineJITCode> jitCode)
     }
 
     if (jitCode->m_isShareable && !unlinkedCodeBlock()->m_unlinkedBaselineCode && Options::useBaselineJITCodeSharing())
-        unlinkedCodeBlock()->m_unlinkedBaselineCode = WTFMove(jitCode);
+        unlinkedCodeBlock()->m_unlinkedBaselineCode = WTF::move(jitCode);
 }
 #endif // ENABLE(JIT)
 
@@ -2295,7 +2295,7 @@ void CodeBlock::jettison(Profiler::JettisonReason reason, ReoptimizationMode mod
     {
         ConcurrentJSLocker locker(m_lock);
         forEachStructureStubInfo([&](StructureStubInfo& stubInfo) {
-            stubInfo.reset(locker, this);
+            stubInfo.deref();
             return IterationStatus::Continue;
         });
     }
@@ -2915,7 +2915,7 @@ bool CodeBlock::hasIdentifier(UniquedStringImpl* uid)
             }
 #endif
             WTF::storeStoreFence();
-            m_cachedIdentifierUids = WTFMove(cachedIdentifierUids);
+            m_cachedIdentifierUids = WTF::move(cachedIdentifierUids);
         }
         return m_cachedIdentifierUids.contains(uid);
     }

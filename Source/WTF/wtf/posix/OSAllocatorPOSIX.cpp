@@ -252,7 +252,7 @@ void* OSAllocator::reserveAndCommit(size_t bytes, Usage usage, void* address, bo
 
 void OSAllocator::commit(void* address, size_t bytes, bool writable, bool executable)
 {
-#if OS(LINUX) || OS(HAIKU)
+#if OS(LINUX) || OS(HAIKU) || OS(QNX)
     UNUSED_PARAM(writable);
     UNUSED_PARAM(executable);
     while (madvise(address, bytes, MADV_WILLNEED | BUN_MADV_DONTFORK) == -1 && errno == EAGAIN) {

@@ -58,7 +58,7 @@ class SecurityOriginData;
 struct XRSessionInit;
 
 class WebXRSystem final : public RefCounted<WebXRSystem>, public EventTarget, public ActiveDOMObject {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(WebXRSystem);
+    WTF_MAKE_TZONE_ALLOCATED(WebXRSystem);
 public:
     using IsSessionSupportedPromise = DOMPromiseDeferred<IDLBoolean>;
     using RequestSessionPromise = DOMPromiseDeferred<IDLInterface<WebXRSession>>;

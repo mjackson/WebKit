@@ -63,14 +63,20 @@ template<typename OwnerType, typename... BaseTypes>
 class SVGPropertyOwnerRegistry;
 
 class SVGElement : public StyledElement, public SVGPropertyOwner {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(SVGElement);
+    WTF_MAKE_TZONE_ALLOCATED(SVGElement);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(SVGElement);
 public:
     bool isInnerSVGSVGElement() const;
     bool isOutermostSVGSVGElement() const;
 
     SVGSVGElement* ownerSVGElement() const;
-    SVGElement* viewportElement() const;
+
+    enum class ViewportElementType : uint8_t {
+        Any, // Returns first SVGSVGElement, SVGImageElement, or symbol
+        SVGSVGOnly // Returns only SVGSVGElement
+    };
+
+    SVGElement* viewportElement(ViewportElementType = ViewportElementType::Any) const;
 
     String title() const override;
     virtual bool supportsMarkers() const { return false; }

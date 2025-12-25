@@ -38,6 +38,7 @@
 #include "RenderObjectInlines.h"
 #include "RenderSVGRoot.h"
 #include "RenderSVGShape.h"
+#include "RenderStyle+InitialInlines.h"
 #include "RenderView.h"
 #include "SVGResourceElementClient.h"
 #include "SVGResources.h"

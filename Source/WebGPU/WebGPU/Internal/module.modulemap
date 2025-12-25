@@ -26,4 +26,6 @@ module WebGPU_Internal [system] {
     module * {
         export *
     }
+
+    export *
 }

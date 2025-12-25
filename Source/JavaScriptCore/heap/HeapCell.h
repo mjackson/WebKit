@@ -27,6 +27,9 @@
 
 #include "DestructionMode.h"
 #include "EnsureStillAliveHere.h"
+#include <bit>
+#include <cstdint>
+#include <wtf/Compiler.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 

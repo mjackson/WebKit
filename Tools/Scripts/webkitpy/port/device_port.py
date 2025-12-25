@@ -69,11 +69,10 @@ class DevicePort(DarwinPort):
         return int(self.get_option('child_processes'))
 
     def driver_name(self):
-        if self.get_option('driver_name'):
-            return self.get_option('driver_name')
-        if self.get_option('webkit_test_runner'):
+        parent = super(DevicePort, self).driver_name()
+        if parent == 'WebKitTestRunner':
             return 'WebKitTestRunnerApp.app'
-        return 'DumpRenderTree.app'
+        return f'{parent}.app'
 
     # A device is the target host for a specific worker number.
     def target_host(self, worker_number=None):

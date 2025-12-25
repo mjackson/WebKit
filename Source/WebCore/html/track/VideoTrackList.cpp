@@ -57,7 +57,7 @@ void VideoTrackList::append(Ref<VideoTrack>&& track)
     if (!track->trackList())
         track->setTrackList(*this);
 
-    scheduleAddTrackEvent(WTFMove(track));
+    scheduleAddTrackEvent(WTF::move(track));
 }
 
 VideoTrack* VideoTrackList::item(unsigned index) const

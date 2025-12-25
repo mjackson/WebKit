@@ -65,6 +65,40 @@ extension WKTextExtractionItem {
 }
 
 @_objcImplementation
+extension WKTextExtractionFormItem {
+    let autocomplete: String
+    let name: String
+
+    init(
+        autocomplete: String,
+        name: String,
+        rectInWebView: CGRect,
+        children: [WKTextExtractionItem],
+        eventListeners: WKTextExtractionEventListenerTypes,
+        ariaAttributes: [String: String],
+        accessibilityRole: String,
+        nodeIdentifier: String?
+    ) {
+        self.autocomplete = autocomplete
+        self.name = name
+        super
+            .init(
+                with: rectInWebView,
+                children: children,
+                eventListeners: eventListeners,
+                ariaAttributes: ariaAttributes,
+                accessibilityRole: accessibilityRole,
+                nodeIdentifier: nodeIdentifier
+            )
+    }
+
+    #if compiler(<6.0)
+    @objc
+    deinit {}
+    #endif
+}
+
+@_objcImplementation
 extension WKTextExtractionContainerItem {
     let container: WKTextExtractionContainer
 

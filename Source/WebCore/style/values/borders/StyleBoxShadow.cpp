@@ -73,7 +73,7 @@ Ref<CSSValue> CSSValueCreation<BoxShadowList>::operator()(CSSValuePool&, const R
     for (const auto& shadow : value | std::views::reverse)
         list.value.append(toCSS(shadow, style));
 
-    return CSSBoxShadowPropertyValue::create(CSS::BoxShadowProperty { WTFMove(list) });
+    return CSSBoxShadowPropertyValue::create(CSS::BoxShadowProperty { WTF::move(list) });
 }
 
 auto CSSValueConversion<BoxShadows>::operator()(BuilderState& state, const CSSValue& value) -> BoxShadows

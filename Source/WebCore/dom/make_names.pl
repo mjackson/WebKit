@@ -1917,8 +1917,8 @@ sub printWrapperFunctions
 static JSDOMObject* create${JSInterfaceName}Wrapper(JSDOMGlobalObject* globalObject, Ref<$parameters{namespace}Element>&& element)
 {
     if (element->is$parameters{fallbackInterfaceName}())
-        return createWrapper<$parameters{fallbackInterfaceName}>(globalObject, WTFMove(element));
-    return createWrapper<${JSInterfaceName}>(globalObject, WTFMove(element));
+        return createWrapper<$parameters{fallbackInterfaceName}>(globalObject, WTF::move(element));
+    return createWrapper<${JSInterfaceName}>(globalObject, WTF::move(element));
 }
 
 END
@@ -1927,8 +1927,8 @@ END
 static JSDOMObject* create$allElements{$elementKey}{interfaceName}Wrapper(JSDOMGlobalObject* globalObject, Ref<$parameters{namespace}Element>&& element)
 {
     if (element->is$parameters{fallbackInterfaceName}())
-        return createWrapper<$parameters{fallbackInterfaceName}>(globalObject, WTFMove(element));
-    return createWrapper<${JSInterfaceName}>(globalObject, WTFMove(element));
+        return createWrapper<$parameters{fallbackInterfaceName}>(globalObject, WTF::move(element));
+    return createWrapper<${JSInterfaceName}>(globalObject, WTF::move(element));
 }
 
 END
@@ -1938,15 +1938,15 @@ END
 static JSDOMObject* create${JSInterfaceName}Wrapper(JSDOMGlobalObject* globalObject, Ref<$parameters{namespace}Element>&& element)
 {
     if (element->is$parameters{fallbackInterfaceName}())
-        return createWrapper<$parameters{fallbackJSInterfaceName}>(globalObject, WTFMove(element));
-    return createWrapper<${JSInterfaceName}>(globalObject, WTFMove(element));
+        return createWrapper<$parameters{fallbackJSInterfaceName}>(globalObject, WTF::move(element));
+    return createWrapper<${JSInterfaceName}>(globalObject, WTF::move(element));
 }
 END
         } else {
             print F <<END;
 static JSDOMObject* create${JSInterfaceName}Wrapper(JSDOMGlobalObject* globalObject, Ref<$parameters{namespace}Element>&& element)
 {
-    return createWrapper<${JSInterfaceName}>(globalObject, WTFMove(element));
+    return createWrapper<${JSInterfaceName}>(globalObject, WTF::move(element));
 }
 
 END
@@ -2028,7 +2028,7 @@ END
             $ucName = $allElements{$elementKey}{JSInterfaceName};
         }
         print F "    case NodeName::" . $parameters{namespace} . "_" . $allElements{$elementKey}{identifier} . ":\n";
-        print F "        return create${ucName}Wrapper(globalObject, WTFMove(element));\n";
+        print F "        return create${ucName}Wrapper(globalObject, WTF::move(element));\n";
         print F "#endif\n" if $conditional;
     }
     print F "    default:\n";
@@ -2037,7 +2037,7 @@ END
     if ($parameters{customElementInterfaceName}) {
         print F <<END;
     if (!element->isUnknownElement())
-        return createWrapper<$parameters{customElementInterfaceName}>(globalObject, WTFMove(element));
+        return createWrapper<$parameters{customElementInterfaceName}>(globalObject, WTF::move(element));
 END
     }
 
@@ -2048,7 +2048,7 @@ END
     }
 
     print F <<END;
-    return createWrapper<$parameters{fallbackJSInterfaceName}>(globalObject, WTFMove(element));
+    return createWrapper<$parameters{fallbackJSInterfaceName}>(globalObject, WTF::move(element));
 }
 
 }

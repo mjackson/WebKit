@@ -15,11 +15,12 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 namespace fast_float {
 
 // 1e0 to 1e19
-constexpr static uint64_t powers_of_ten_uint64[] = {
+static constexpr auto powers_of_ten_uint64 = std::to_array<uint64_t>({
     1UL, 10UL, 100UL, 1000UL, 10000UL, 100000UL, 1000000UL, 10000000UL, 100000000UL,
     1000000000UL, 10000000000UL, 100000000000UL, 1000000000000UL, 10000000000000UL,
     100000000000000UL, 1000000000000000UL, 10000000000000000UL, 100000000000000000UL,
-    1000000000000000000UL, 10000000000000000000UL};
+    1000000000000000000UL, 10000000000000000000UL
+});
 
 // calculate the exponent, in scientific notation, of the number.
 // this algorithm is not even close to optimized, but it has no practical

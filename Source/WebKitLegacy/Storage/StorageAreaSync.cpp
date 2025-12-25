@@ -51,8 +51,8 @@ inline StorageAreaSync::StorageAreaSync(RefPtr<StorageSyncManager>&& storageSync
     : m_syncTimer(*this, &StorageAreaSync::syncTimerFired)
     , m_itemsCleared(false)
     , m_finalSyncScheduled(false)
-    , m_storageArea(WTFMove(storageArea))
-    , m_syncManager(WTFMove(storageSyncManager))
+    , m_storageArea(WTF::move(storageArea))
+    , m_syncManager(WTF::move(storageSyncManager))
     , m_databaseIdentifier(databaseIdentifier.isolatedCopy())
     , m_clearItemsWhileSyncing(false)
     , m_syncScheduled(false)
@@ -75,7 +75,7 @@ inline StorageAreaSync::StorageAreaSync(RefPtr<StorageSyncManager>&& storageSync
 
 Ref<StorageAreaSync> StorageAreaSync::create(RefPtr<StorageSyncManager>&& storageSyncManager, Ref<StorageAreaImpl>&& storageArea, const String& databaseIdentifier)
 {
-    return adoptRef(*new StorageAreaSync(WTFMove(storageSyncManager), WTFMove(storageArea), databaseIdentifier));
+    return adoptRef(*new StorageAreaSync(WTF::move(storageSyncManager), WTF::move(storageArea), databaseIdentifier));
 }
 
 StorageAreaSync::~StorageAreaSync()
@@ -347,7 +347,7 @@ void StorageAreaSync::performImport()
         return;
     }
 
-    m_storageArea->importItems(WTFMove(itemMap));
+    m_storageArea->importItems(WTF::move(itemMap));
 
     markImported();
 }

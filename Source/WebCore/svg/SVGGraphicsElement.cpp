@@ -46,10 +46,10 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(SVGGraphicsElement);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(SVGGraphicsElement);
 
 SVGGraphicsElement::SVGGraphicsElement(const QualifiedName& tagName, Document& document, UniqueRef<SVGPropertyRegistry>&& propertyRegistry, OptionSet<TypeFlag> typeFlags)
-    : SVGElement(tagName, document, WTFMove(propertyRegistry), typeFlags)
+    : SVGElement(tagName, document, WTF::move(propertyRegistry), typeFlags)
     , SVGTests(this)
     , m_shouldIsolateBlending(false)
     , m_transform(SVGAnimatedTransformList::create(this))
@@ -155,9 +155,10 @@ void SVGGraphicsElement::svgAttributeChanged(const QualifiedName& attrName)
             return;
         }
 
-        if (CheckedPtr renderer = this->renderer())
+        if (CheckedPtr renderer = this->renderer()) {
             renderer->setNeedsTransformUpdate();
-        updateSVGRendererForElementChange();
+            updateSVGRendererForElementChange();
+        }
         return;
     }
 
@@ -188,8 +189,8 @@ FloatRect SVGGraphicsElement::getBBox(StyleUpdateStrategy styleUpdateStrategy)
 RenderPtr<RenderElement> SVGGraphicsElement::createElementRenderer(RenderStyle&& style, const RenderTreePosition&)
 {
     if (document().settings().layerBasedSVGEngineEnabled())
-        return createRenderer<RenderSVGPath>(*this, WTFMove(style));
-    return createRenderer<LegacyRenderSVGPath>(*this, WTFMove(style));
+        return createRenderer<RenderSVGPath>(*this, WTF::move(style));
+    return createRenderer<LegacyRenderSVGPath>(*this, WTF::move(style));
 }
 
 void SVGGraphicsElement::didAttachRenderers()

@@ -31,7 +31,7 @@
 #include "FlexRect.h"
 #include "InlineFormattingContext.h"
 #include "PathOperation.h"
-#include "RenderStyleSetters.h"
+#include "RenderStyle+SettersInlines.h"
 #include "StyleContentAlignmentData.h"
 #include "StyleSelfAlignmentData.h"
 #include <wtf/FixedVector.h>

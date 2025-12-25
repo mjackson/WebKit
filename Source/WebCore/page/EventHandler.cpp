@@ -860,7 +860,7 @@ bool EventHandler::handleMousePressEventSingleClick(const MouseEventWithHitTestR
         if (event.event().syntheticClickType() != SyntheticClickType::NoTap) {
             auto adjustedVisiblePosition = wordBoundaryForPositionWithoutCrossingLine(visiblePosition).first;
             if (adjustedVisiblePosition.isNotNull())
-                visiblePosition = WTFMove(adjustedVisiblePosition);
+                visiblePosition = WTF::move(adjustedVisiblePosition);
         }
         newSelection = expandSelectionToRespectSelectOnMouseDown(*targetNode, visiblePosition);
     }
@@ -1642,7 +1642,7 @@ void EventHandler::updateCursor()
 void EventHandler::updateCursor(LocalFrameView& view, const HitTestResult& result, bool shiftKey)
 {
     if (auto optionalCursor = selectCursor(result, shiftKey)) {
-        m_currentMouseCursor = WTFMove(optionalCursor.value());
+        m_currentMouseCursor = WTF::move(optionalCursor.value());
         view.setCursor(m_currentMouseCursor);
     }
 }
@@ -2775,7 +2775,7 @@ static bool findDropZone(Node& target, DataTransfer& dataTransfer)
 
 EventHandler::DragTargetResponse EventHandler::dispatchDragEnterOrDragOverEvent(const AtomString& eventType, Element& target, const PlatformMouseEvent& event, std::unique_ptr<Pasteboard>&& pasteboard, OptionSet<DragOperation> sourceOperationMask, bool draggingFiles)
 {
-    auto dataTransfer = DataTransfer::createForUpdatingDropTarget(target.protectedDocument(), WTFMove(pasteboard), sourceOperationMask, draggingFiles);
+    auto dataTransfer = DataTransfer::createForUpdatingDropTarget(target.protectedDocument(), WTF::move(pasteboard), sourceOperationMask, draggingFiles);
     bool accept = dispatchDragEvent(eventType, target, event, dataTransfer.get());
     if (!accept)
         accept = findDropZone(target, dataTransfer);
@@ -2798,7 +2798,7 @@ EventHandler::DragTargetResponse EventHandler::updateDragAndDrop(const PlatformM
     if (RefPtr targetNode = mouseEvent.targetNode()) {
         // Drag events should never go to non-element nodes (following IE, and proper mouseover/out dispatch)
         if (is<Element>(*targetNode))
-            newTarget = uncheckedDowncast<Element>(WTFMove(targetNode));
+            newTarget = uncheckedDowncast<Element>(WTF::move(targetNode));
         else
             newTarget = targetNode->parentOrShadowHostElement();
     }
@@ -2848,7 +2848,7 @@ EventHandler::DragTargetResponse EventHandler::updateDragAndDrop(const PlatformM
             m_shouldOnlyFireDragOverEvent = false;
         }
     }
-    m_dragTarget = WTFMove(newTarget);
+    m_dragTarget = WTF::move(newTarget);
     return response;
 }
 
@@ -2858,11 +2858,11 @@ void EventHandler::cancelDragAndDrop(const PlatformMouseEvent& event, std::uniqu
 
     if (auto [isFrameOwner, targetFrame] = contentFrameForNode(m_dragTarget.copyRef().get()); isFrameOwner) {
         if (targetFrame)
-            targetFrame->eventHandler().cancelDragAndDrop(event, WTFMove(pasteboard), sourceOperationMask, draggingFiles);
+            targetFrame->eventHandler().cancelDragAndDrop(event, WTF::move(pasteboard), sourceOperationMask, draggingFiles);
     } else if (RefPtr dragTarget = m_dragTarget) {
         dispatchEventToDragSourceElement(eventNames().dragEvent, event);
 
-        auto dataTransfer = DataTransfer::createForUpdatingDropTarget(dragTarget->protectedDocument(), WTFMove(pasteboard), sourceOperationMask, draggingFiles);
+        auto dataTransfer = DataTransfer::createForUpdatingDropTarget(dragTarget->protectedDocument(), WTF::move(pasteboard), sourceOperationMask, draggingFiles);
         dispatchDragEvent(eventNames().dragleaveEvent, *dragTarget, event, dataTransfer.get());
         dataTransfer->makeInvalidForSecurity();
     }
@@ -2876,9 +2876,9 @@ bool EventHandler::performDragAndDrop(const PlatformMouseEvent& event, std::uniq
     bool preventedDefault = false;
     if (auto [isFrameOwner, targetFrame] = contentFrameForNode(m_dragTarget.copyRef().get()); isFrameOwner) {
         if (targetFrame)
-            preventedDefault = targetFrame->eventHandler().performDragAndDrop(event, WTFMove(pasteboard), sourceOperationMask, draggingFiles);
+            preventedDefault = targetFrame->eventHandler().performDragAndDrop(event, WTF::move(pasteboard), sourceOperationMask, draggingFiles);
     } else if (RefPtr dragTarget = m_dragTarget) {
-        Ref dataTransfer = DataTransfer::createForDrop(dragTarget->protectedDocument(), WTFMove(pasteboard), sourceOperationMask, draggingFiles);
+        Ref dataTransfer = DataTransfer::createForDrop(dragTarget->protectedDocument(), WTF::move(pasteboard), sourceOperationMask, draggingFiles);
         preventedDefault = dispatchDragEvent(eventNames().dropEvent, *dragTarget, event, dataTransfer);
         dataTransfer->makeInvalidForSecurity();
     }
@@ -2902,7 +2902,7 @@ void EventHandler::clearDragState()
 
 void EventHandler::setCapturingMouseEventsElement(RefPtr<Element>&& element)
 {
-    m_capturingMouseEventsElement = WTFMove(element);
+    m_capturingMouseEventsElement = WTF::move(element);
     m_isCapturingRootElementForMouseEvents = false;
     m_eventHandlerWillResetCapturingMouseEventsElement = false;
 }
@@ -3080,7 +3080,7 @@ void EventHandler::updateMouseEventTargetNode(const AtomString& eventType, Node*
 
             if (!elementsUnderMouse.isEmpty())
                 elementsUnderMouse.removeAt(0);
-            m_ancestorsOfLastElementUnderMouse = WTFMove(elementsUnderMouse);
+            m_ancestorsOfLastElementUnderMouse = WTF::move(elementsUnderMouse);
         }
 
         // Event handling may have moved the element to a different document.
@@ -4742,7 +4742,7 @@ bool EventHandler::handleDrag(const MouseEventWithHitTestResults& event, CheckDr
         m_mouseDownMayStartDrag = dispatchDragStartEventOnSourceElement(dragStartDataTransfer);
         if (downcast<StaticPasteboard>(dragStartDataTransfer->pasteboard()).hasNonDefaultData())
             hasNonDefaultPasteboardData = HasNonDefaultPasteboardData::Yes;
-        dragState().dataTransfer->moveDragState(WTFMove(dragStartDataTransfer));
+        dragState().dataTransfer->moveDragState(WTF::move(dragStartDataTransfer));
 
         if (RefPtr draggedElement = this->draggedElement(); draggedElement && dragState().type == DragSourceAction::DHTML && !dragState().dataTransfer->hasDragImage()) {
             draggedElement->protectedDocument()->updateStyleIfNeeded();
@@ -5536,7 +5536,7 @@ Expected<bool, RemoteFrameGeometryTransformer> EventHandler::handleTouchEvent(co
             ASSERT(pointState < PlatformTouchPoint::TouchStateEnd);
             if (!changedTouches[pointState].m_touches)
                 changedTouches[pointState].m_touches = TouchList::create();
-            changedTouches[pointState].m_touches->append(WTFMove(touch));
+            changedTouches[pointState].m_touches->append(WTF::move(touch));
             changedTouches[pointState].m_targets.add(touchTarget);
         }
     }

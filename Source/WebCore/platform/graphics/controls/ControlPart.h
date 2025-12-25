@@ -45,7 +45,7 @@ public:
 
     WEBCORE_EXPORT ControlFactory& controlFactory() const;
     WEBCORE_EXPORT Ref<ControlFactory> protectedControlFactory() const;
-    void setOverrideControlFactory(RefPtr<ControlFactory>&& controlFactory) { m_overrideControlFactory = WTFMove(controlFactory); }
+    void setOverrideControlFactory(RefPtr<ControlFactory>&& controlFactory) { m_overrideControlFactory = WTF::move(controlFactory); }
 
     FloatSize sizeForBounds(const FloatRect& bounds, const ControlStyle&);
     FloatRect rectForBounds(const FloatRect& bounds, const ControlStyle&);

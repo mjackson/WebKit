@@ -206,7 +206,7 @@ void BunV8HeapSnapshotBuilder::analyzeEdge(JSCell* from, JSCell* to, RootMarkRea
     }
     }
 
-    m_edges.append(WTFMove(edge));
+    m_edges.append(WTF::move(edge));
 }
 
 void BunV8HeapSnapshotBuilder::analyzePropertyNameEdge(JSCell* from, JSCell* to, UniquedStringImpl* propertyName)
@@ -220,7 +220,7 @@ void BunV8HeapSnapshotBuilder::analyzePropertyNameEdge(JSCell* from, JSCell* to,
     edge.toNodeId = getOrCreateNodeId(to);
     edge.typeIndex = static_cast<unsigned>(V8EdgeType::Property);
     edge.name = WTF::String(propertyName);
-    m_edges.append(WTFMove(edge));
+    m_edges.append(WTF::move(edge));
 }
 
 void BunV8HeapSnapshotBuilder::analyzeVariableNameEdge(JSCell* from, JSCell* to, UniquedStringImpl* variableName)
@@ -235,7 +235,7 @@ void BunV8HeapSnapshotBuilder::analyzeVariableNameEdge(JSCell* from, JSCell* to,
     edge.typeIndex = static_cast<unsigned>(V8EdgeType::Context);
     edge.name = String(variableName);
 
-    m_edges.append(WTFMove(edge));
+    m_edges.append(WTF::move(edge));
 }
 
 void BunV8HeapSnapshotBuilder::analyzeIndexEdge(JSCell* from, JSCell* to, uint32_t index)
@@ -250,7 +250,7 @@ void BunV8HeapSnapshotBuilder::analyzeIndexEdge(JSCell* from, JSCell* to, uint32
     edge.typeIndex = static_cast<unsigned>(V8EdgeType::Element);
     edge.index = index;
 
-    m_edges.append(WTFMove(edge));
+    m_edges.append(WTF::move(edge));
 }
 
 void BunV8HeapSnapshotBuilder::setOpaqueRootReachabilityReasonForCell(JSCell*, ASCIILiteral) {}
@@ -621,7 +621,7 @@ String BunV8HeapSnapshotBuilder::generateV8HeapSnapshot()
 
             if (!isDuplicate) {
                 if (writeIndex != readIndex)
-                    m_edges[writeIndex] = WTFMove(m_edges[readIndex]);
+                    m_edges[writeIndex] = WTF::move(m_edges[readIndex]);
                 m_nodes[curr.fromNodeId].edgesCount++;
                 writeIndex++;
             }

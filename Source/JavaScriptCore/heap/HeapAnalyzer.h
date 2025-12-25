@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "JSExportMacros.h"
 #include "RootMarkReason.h"
 #include <wtf/text/UniquedStringImpl.h>
 #include <wtf/text/WTFString.h>

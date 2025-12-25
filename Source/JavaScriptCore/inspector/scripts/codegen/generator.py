@@ -146,7 +146,7 @@ class Generator:
 
             if framework_name == "WTF" or framework_name == "std":
                 includes.add("#include <%s>" % header_path)
-            elif (is_system_header is True and framework_name == "JavaScriptCore") or self.model().framework.name != framework_name:
+            elif self.model().framework.name != framework_name:
                 includes.add("#include <%s/%s>" % (framework_name, os.path.basename(header_path)))
             else:
                 includes.add("#include \"%s\"" % os.path.basename(header_path))

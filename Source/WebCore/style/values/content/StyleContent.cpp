@@ -30,8 +30,8 @@
 #include "CSSCounterValue.h"
 #include "CSSPrimitiveValue.h"
 #include "CSSValueList.h"
-#include "RenderStyleInlines.h"
-#include "RenderStyleSetters.h"
+#include "RenderStyle+GettersInlines.h"
+#include "RenderStyle+SettersInlines.h"
 #include "StyleBuilderChecking.h"
 
 namespace WebCore {

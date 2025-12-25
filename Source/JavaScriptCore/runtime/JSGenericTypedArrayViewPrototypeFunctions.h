@@ -455,7 +455,7 @@ ALWAYS_INLINE EncodedJSValue genericTypedArrayViewProtoFuncIncludes(VM& vm, JSGl
         IdempotentArrayBufferByteLengthGetter<std::memory_order_seq_cst> getter;
         auto lengthValue = integerIndexedObjectLength(thisObject, getter);
         if (!lengthValue) [[unlikely]]
-            return JSValue::encode(jsBoolean(valueToFind.isUndefined()));
+            return JSValue::encode(jsBoolean(index < length && valueToFind.isUndefined()));
 
         updatedLength = lengthValue.value();
     }
@@ -1886,7 +1886,7 @@ ALWAYS_INLINE EncodedJSValue genericTypedArrayViewProtoFuncSubarray(VM& vm, JSGl
     scope.release();
     return JSValue::encode(speciesConstruct(globalObject, thisObject, [&]() {
         Structure* structure = globalObject->typedArrayStructure(ViewClass::TypedArrayStorageType, arrayBuffer->isResizableOrGrowableShared());
-        return ViewClass::create(globalObject, structure, WTFMove(arrayBuffer), newByteOffset, count);
+        return ViewClass::create(globalObject, structure, WTF::move(arrayBuffer), newByteOffset, count);
     }, [&](MarkedArgumentBuffer& args) {
         args.append(vm.m_typedArrayController->toJS(globalObject, thisObject->globalObject(), arrayBuffer.get()));
         args.append(jsNumber(newByteOffset));

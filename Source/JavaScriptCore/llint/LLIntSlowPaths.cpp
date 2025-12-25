@@ -406,7 +406,7 @@ static inline bool jitCompileAndSetHeuristics(VM& vm, CodeBlock* codeBlock)
 
     if (worklistState == JITWorklist::NotKnown) {
         Ref<BaselineJITPlan> plan = adoptRef(*new BaselineJITPlan(codeBlock));
-        JITWorklist::ensureGlobalWorklist().enqueue(WTFMove(plan));
+        JITWorklist::ensureGlobalWorklist().enqueue(WTF::move(plan));
         return codeBlock->jitType() == JITType::BaselineJIT;
     }
 
@@ -883,7 +883,7 @@ static void setupGetByIdPrototypeCache(JSGlobalObject* globalObject, VM& vm, Cod
     }
 
     ASSERT((offset == invalidOffset) == slot.isUnset());
-    auto result = watchpointMap.add(std::make_tuple(structure->id(), bytecodeIndex), WTFMove(watchpoints));
+    auto result = watchpointMap.add(std::make_tuple(structure->id(), bytecodeIndex), WTF::move(watchpoints));
     ASSERT_UNUSED(result, result.isNewEntry);
 
     {

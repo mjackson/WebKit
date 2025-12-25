@@ -25,16 +25,31 @@
 
 import Metal
 import WebGPU_Internal
-public typealias WTFString = String
-public typealias String = Swift.String
+private import wtf.Core.text.TextStream
 
+typealias String = Swift.String
+
+// FIXME: Eventually all these "thunks" should be removed.
+// swift-format-ignore: AllPublicDeclarationsHaveDocumentation
 public func clearBuffer(
-    commandEncoder: WebGPU.CommandEncoder, buffer: WebGPU.Buffer, offset: UInt64, size: inout UInt64
+    commandEncoder: WebGPU.CommandEncoder,
+    buffer: WebGPU.Buffer,
+    offset: UInt64,
+    size: inout UInt64
 ) {
     commandEncoder.clearBuffer(buffer: buffer, offset: offset, size: &size)
 }
-public func resolveQuerySet(commandEncoder: WebGPU.CommandEncoder, querySet: WebGPU.QuerySet, firstQuery: UInt32, queryCount:UInt32, destination: WebGPU.Buffer, destinationOffset: UInt64)
-{
+
+// FIXME: Eventually all these "thunks" should be removed.
+// swift-format-ignore: AllPublicDeclarationsHaveDocumentation
+public func resolveQuerySet(
+    commandEncoder: WebGPU.CommandEncoder,
+    querySet: WebGPU.QuerySet,
+    firstQuery: UInt32,
+    queryCount: UInt32,
+    destination: WebGPU.Buffer,
+    destinationOffset: UInt64
+) {
     commandEncoder.resolveQuerySet(querySet, firstQuery: firstQuery, queryCount: queryCount, destination: destination, destinationOffset: destinationOffset)
 }
 
@@ -66,7 +81,14 @@ public func CommandEncoder_copyTextureToTexture_thunk(commandEncoder: WebGPU.Com
 // swift-format-ignore: AlwaysUseLowerCamelCase
 // swift-format-ignore: AllPublicDeclarationsHaveDocumentation
 @_expose(Cxx)
-public func CommandEncoder_copyBufferToBuffer_thunk(commandEncoder: WebGPU.CommandEncoder, source: WebGPU.Buffer, sourceOffset: UInt64, destination: WebGPU.Buffer, destinationOffset: UInt64, size: UInt64) {
+public func CommandEncoder_copyBufferToBuffer_thunk(
+    commandEncoder: WebGPU.CommandEncoder,
+    source: WebGPU.Buffer,
+    sourceOffset: UInt64,
+    destination: WebGPU.Buffer,
+    destinationOffset: UInt64,
+    size: UInt64
+) {
     commandEncoder.copyBufferToBuffer(source: source, sourceOffset: sourceOffset, destination: destination, destinationOffset: destinationOffset, size: size)
 }
 
@@ -219,17 +241,32 @@ extension WebGPU.CommandEncoder {
         commandBuffer?.label = CxxBridging.convertWTFStringToNSString(descriptor.label)
 
         #if arch(x86_64) && (os(macOS) || targetEnvironment(macCatalyst))
-        if m_managedBuffers.count != 0 || m_managedTextures.count != 0 {
+        if (m_managedBuffers?.count ?? 0) != 0 || (m_managedTextures?.count ?? 0) != 0 {
             let blitCommandEncoder = commandBuffer?.makeBlitCommandEncoder()
-            for case let buffer as MTLBuffer in m_managedBuffers {
-                blitCommandEncoder?.synchronize(resource: buffer)
+
+            // swift-format-ignore: AlwaysUseLowerCamelCase
+            if let m_managedBuffers {
+                for buffer in m_managedBuffers {
+                    // FIXME: `NSSet` should not be used, and then this cast will not be needed.
+                    // This is safe because `m_managedBuffers` is a `NSMutableSet<id<MTLBuffer>>`.
+                    // swift-format-ignore: NeverForceUnwrap
+                    blitCommandEncoder?.synchronize(resource: buffer as! any MTLBuffer)
+                }
             }
-            for case let texture as MTLTexture in m_managedTextures {
-                blitCommandEncoder?.synchronize(resource: texture)
+
+            // swift-format-ignore: AlwaysUseLowerCamelCase
+            if let m_managedTextures {
+                for texture in m_managedTextures {
+                    // FIXME: `NSSet` should not be used, and then this cast will not be needed.
+                    // This is safe because `m_managedTextures` is a `NSMutableSet<id<MTLTexture>>`.
+                    // swift-format-ignore: NeverForceUnwrap
+                    blitCommandEncoder?.synchronize(resource: texture as! any MTLTexture)
+                }
             }
+
             blitCommandEncoder?.endEncoding()
         }
-        #endif
+        #endif // arch(x86_64) && (os(macOS) || targetEnvironment(macCatalyst))
 
         let result = createCommandBuffer(commandBuffer, m_device.ptr(), m_sharedEvent, m_sharedEventSignalValue)
         m_sharedEvent = nil
@@ -241,16 +278,21 @@ extension WebGPU.CommandEncoder {
 
         return result
     }
+
     public func clearTextureIfNeeded(destination: WGPUImageCopyTexture, slice: UInt) {
-        return WebGPU.CommandEncoder.clearTextureIfNeeded(destination, slice, m_device.ptr(), m_blitCommandEncoder)
+        WebGPU.CommandEncoder.clearTextureIfNeeded(destination, slice, m_device.ptr(), m_blitCommandEncoder)
     }
-    private func clearTextureIfNeeded(destination: WGPUImageCopyTexture , slice: UInt, device: WebGPU.Device , blitCommandEncoder: MTLBlitCommandEncoder?)
-    {
+
+    private func clearTextureIfNeeded(
+        destination: WGPUImageCopyTexture,
+        slice: UInt,
+        device: WebGPU.Device,
+        blitCommandEncoder: MTLBlitCommandEncoder?
+    ) {
         let texture = WebGPU.fromAPI(destination.texture)
         let mipLevel: UInt = UInt(destination.mipLevel)
         clearTextureIfNeeded(texture, mipLevel, slice, device, blitCommandEncoder)
     }
-
 
     private func clearTextureIfNeeded(
         _ texture: WebGPU.Texture,

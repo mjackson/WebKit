@@ -180,7 +180,7 @@ struct UnadjustedStyle;
 }
 
 class Element : public ContainerNode {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(Element);
+    WTF_MAKE_TZONE_ALLOCATED(Element);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(Element);
 public:
     static Ref<Element> create(const QualifiedName&, Document&);
@@ -827,7 +827,7 @@ public:
     // This should be called whenever an element changes in a manner that can affect its style.
     void invalidateStyle();
 
-    // As above but also call RenderElement::setStyle with StyleDifference::RecompositeLayer flag for
+    // As above but also call RenderElement::setStyle with Style::DifferenceResult::RecompositeLayer flag for
     // the element even when the style doesn't change. This is mostly needed by the animation code.
     WEBCORE_EXPORT void invalidateStyleAndLayerComposition();
 

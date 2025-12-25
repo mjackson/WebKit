@@ -60,7 +60,7 @@ using namespace HTMLNames;
 
 TokenPreloadScanner::TagId TokenPreloadScanner::tagIdFor(const HTMLToken::DataVector& data)
 {
-    static constexpr std::pair<PackedASCIILiteral<uint64_t>, TokenPreloadScanner::TagId> mappings[] = {
+    static constexpr auto mappings = std::to_array<std::pair<PackedASCIILiteral<uint64_t>, TokenPreloadScanner::TagId>>({
         { "base"_s, TagId::Base },
         { "img"_s, TagId::Img },
         { "input"_s, TagId::Input },
@@ -72,7 +72,7 @@ TokenPreloadScanner::TagId TokenPreloadScanner::tagIdFor(const HTMLToken::DataVe
         { "style"_s, TagId::Style },
         { "template"_s, TagId::Template },
         { "video"_s, TagId::Video },
-    };
+    });
     static constexpr SortedArrayMap map { mappings };
     return map.get(data.span(), TagId::Unknown);
 }
@@ -489,7 +489,7 @@ void TokenPreloadScanner::scan(const HTMLToken& token, Vector<std::unique_ptr<Pr
         TagId tagId = tagIdFor(token.name());
         if (tagId == TagId::Template) {
             bool isDeclarativeShadowRoot = false;
-            static constexpr char16_t shadowRootAsUTF16[] = { 's', 'h', 'a', 'd', 'o', 'w', 'r', 'o', 'o', 't', 'm', 'o', 'd', 'e' };
+            static constexpr auto shadowRootAsUTF16 = std::to_array<char16_t>({ 's', 'h', 'a', 'd', 'o', 'w', 'r', 'o', 'o', 't', 'm', 'o', 'd', 'e' });
             const auto* shadowRootModeAttribute = findAttribute(token.attributes(), shadowRootAsUTF16);
             if (shadowRootModeAttribute) {
                 String shadowRootValue(shadowRootModeAttribute->value);
@@ -523,7 +523,7 @@ void TokenPreloadScanner::scan(const HTMLToken& token, Vector<std::unique_ptr<Pr
         StartTagScanner scanner(document, tagId, m_deviceScaleFactor);
         scanner.processAttributes(token.attributes(), m_pictureSourceState);
         if (auto request = scanner.createPreloadRequest(m_predictedBaseElementURL))
-            requests.append(WTFMove(request));
+            requests.append(WTF::move(request));
         return;
     }
 
@@ -535,13 +535,13 @@ void TokenPreloadScanner::scan(const HTMLToken& token, Vector<std::unique_ptr<Pr
 void TokenPreloadScanner::updatePredictedBaseURL(const HTMLToken& token, bool shouldRestrictBaseURLSchemes)
 {
     ASSERT(m_predictedBaseElementURL.isEmpty());
-    static constexpr char16_t hrefAsUTF16[] = { 'h', 'r', 'e', 'f' };
+    static constexpr auto hrefAsUTF16 = std::to_array<char16_t>({ 'h', 'r', 'e', 'f' });
     auto* hrefAttribute = findAttribute(token.attributes(), hrefAsUTF16);
     if (!hrefAttribute)
         return;
     URL temp { m_documentURL, StringImpl::create8BitIfPossible(hrefAttribute->value) };
     if (!shouldRestrictBaseURLSchemes || SecurityPolicy::isBaseURLSchemeAllowed(temp))
-        m_predictedBaseElementURL = WTFMove(temp).isValid() ? WTFMove(temp).isolatedCopy() : URL();
+        m_predictedBaseElementURL = WTF::move(temp).isValid() ? WTF::move(temp).isolatedCopy() : URL();
 }
 
 HTMLPreloadScanner::HTMLPreloadScanner(const HTMLParserOptions& options, const URL& documentURL, float deviceScaleFactor)
@@ -573,7 +573,7 @@ void HTMLPreloadScanner::scan(HTMLResourcePreloader& preloader, Document& docume
         m_scanner.scan(*token, requests, document);
     }
 
-    preloader.preload(WTFMove(requests));
+    preloader.preload(WTF::move(requests));
 }
 
 bool testPreloadScannerViewportSupport(Document* document)

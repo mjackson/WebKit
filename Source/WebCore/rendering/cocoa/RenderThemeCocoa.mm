@@ -55,6 +55,7 @@
 #import "RenderMeter.h"
 #import "RenderProgress.h"
 #import "RenderSlider.h"
+#import "RenderStyle+SettersInlines.h"
 #import "RenderText.h"
 #import "Settings.h"
 #import "StylePrimitiveNumericTypes+Evaluation.h"
@@ -466,14 +467,14 @@ static const String& macOSInlineMediaControlsStyleSheet()
         "    padding-inline: var(--inline-controls-inside-margin);"
         "    margin-bottom: var(--inline-controls-inside-margin);"
         "}"
-        ".media-controls.mac.inline:not(.audio) > .controls-bar.bottom > .left-cluster,"
+        ".media-controls.mac.inline:not(.audio) > .controls-bar.bottom > .buttons-container.left,"
         ".media-controls.mac.inline:not(.audio) > .controls-bar.bottom > .time-control,"
-        ".media-controls.mac.inline:not(.audio) > .controls-bar.bottom > .right-cluster {"
+        ".media-controls.mac.inline:not(.audio) > .controls-bar.bottom > .buttons-container.right {"
         "    display: flex;"
         "    align-items: center;"
         "    position: relative;"
         "}"
-        ".media-controls.mac.inline:not(.audio) > .controls-bar.bottom > .left-cluster {"
+        ".media-controls.mac.inline:not(.audio) > .controls-bar.bottom > .buttons-container.left {"
         "    flex: 0 0 auto;"
         "    justify-content: flex-start;"
         "    min-width: fit-content;"
@@ -481,20 +482,10 @@ static const String& macOSInlineMediaControlsStyleSheet()
         ".media-controls.mac.inline:not(.audio) > .controls-bar.bottom > .time-control {"
         "    max-width: 540px;"
         "}"
-        ".media-controls.mac.inline:not(.audio) > .controls-bar.bottom > .right-cluster {"
+        ".media-controls.mac.inline:not(.audio) > .controls-bar.bottom > .buttons-container.right {"
         "    flex: 0 0 auto;"
         "    justify-content: flex-end;"
         "    min-width: fit-content;"
-        "}"
-        ".media-controls.mac.inline:not(.audio) .buttons-container.right {"
-        "    position: relative !important;"
-        "    right: auto !important;"
-        "    left: 30px !important;"
-        "    top: auto !important;"
-        "    bottom: auto !important;"
-        "    display: flex !important;"
-        "    align-items: center;"
-        "    gap: 8px;"
         "}"
         ".media-controls.mac.inline:not(.audio) .controls-bar.bottom .time-control .slider,"
         ".media-controls.mac.inline:not(.audio) .controls-bar.bottom .time-control .scrubber{"
@@ -512,11 +503,6 @@ static const String& macOSInlineMediaControlsStyleSheet()
         "    top: 50%;"
         "    transform: translateY(-50%);"
         "    height: 7.5px;"
-        "}"
-        ".media-controls.mac.inline:not(.audio) .buttons-container.right > * {"
-        "    display: flex;"
-        "    position: relative !important;"
-        "    left: -8px !important;"
         "}"
         ".media-controls.mac.inline:not(.audio) .slider.default > .appearance > .fill > .primary {"
         "    left: 0;"
@@ -1169,7 +1155,7 @@ static RoundedShape continuousRoundedShape(const FloatRect& rect, const float co
 
     Path path;
     path.addContinuousRoundedRect(rect, cornerRadius);
-    return { WTFMove(path), rect, cornerRadius, CornerType::Continuous };
+    return { WTF::move(path), rect, cornerRadius, CornerType::Continuous };
 }
 
 static RoundedShape roundedShape(const FloatRect& rect, const float cornerRadius, ShouldComputePath computePath)
@@ -1179,7 +1165,7 @@ static RoundedShape roundedShape(const FloatRect& rect, const float cornerRadius
 
     Path path;
     path.addRoundedRect(FloatRoundedRect { rect, FloatRoundedRect::Radii { cornerRadius, cornerRadius } });
-    return { WTFMove(path), rect, cornerRadius, CornerType::Noncontinuous };
+    return { WTF::move(path), rect, cornerRadius, CornerType::Noncontinuous };
 }
 
 static bool nodeIsDateOrTimeRelatedInput(Node* node)
@@ -1742,13 +1728,13 @@ bool RenderThemeCocoa::adjustColorWellSwatchStyleForVectorBasedControls(RenderSt
 static void applyPaddingIfNotExplicitlySet(RenderStyle& style, Style::PaddingBox paddingBox)
 {
     if (!style.hasExplicitlySetPaddingLeft())
-        style.setPaddingLeft(WTFMove(paddingBox.left()));
+        style.setPaddingLeft(WTF::move(paddingBox.left()));
     if (!style.hasExplicitlySetPaddingTop())
-        style.setPaddingTop(WTFMove(paddingBox.top()));
+        style.setPaddingTop(WTF::move(paddingBox.top()));
     if (!style.hasExplicitlySetPaddingRight())
-        style.setPaddingRight(WTFMove(paddingBox.right()));
+        style.setPaddingRight(WTF::move(paddingBox.right()));
     if (!style.hasExplicitlySetPaddingBottom())
-        style.setPaddingBottom(WTFMove(paddingBox.bottom()));
+        style.setPaddingBottom(WTF::move(paddingBox.bottom()));
 }
 
 bool RenderThemeCocoa::adjustColorWellSwatchWrapperStyleForVectorBasedControls(RenderStyle& style, const Element* element) const
@@ -1821,7 +1807,7 @@ bool RenderThemeCocoa::paintColorWellDecorationsForVectorBasedControls(const Ren
 
     context.setStrokeThickness(strokeThickness);
     context.setStrokeStyle(StrokeStyle::SolidStroke);
-    context.setStrokeGradient(WTFMove(gradient));
+    context.setStrokeGradient(WTF::move(gradient));
 
     context.translate(rect.center());
     context.rotate(piOverTwoFloat);

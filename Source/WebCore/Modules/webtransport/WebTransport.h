@@ -112,6 +112,7 @@ private:
 
     // ActiveDOMObject.
     bool virtualHasPendingActivity() const final;
+    void suspend(ReasonForSuspension) final;
 
     void receiveDatagram(std::span<const uint8_t>, bool, std::optional<Exception>&&) final;
     void receiveIncomingUnidirectionalStream(WebTransportStreamIdentifier) final;

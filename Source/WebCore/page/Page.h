@@ -75,6 +75,10 @@
 #include <WebCore/ShouldRequireExplicitConsentForGamepadAccess.h>
 #endif
 
+#if ENABLE(THREADED_ANIMATIONS)
+#include <WebCore/AcceleratedTimelinesUpdater.h>
+#endif
+
 namespace JSC {
 class Debugger;
 class JSGlobalObject;
@@ -428,7 +432,7 @@ public:
     WEBCORE_EXPORT const URL& mainFrameURL() const;
     SecurityOrigin& mainFrameOrigin() const;
     Ref<SecurityOrigin> protectedMainFrameOrigin() const;
-    WEBCORE_EXPORT RefPtr<Frame> findFrameByPath(const Vector<size_t>& path) const;
+    WEBCORE_EXPORT RefPtr<Frame> findFrameByPath(const Vector<uint64_t>& path) const;
 
     WEBCORE_EXPORT void setMainFrameURLAndOrigin(const URL&, RefPtr<SecurityOrigin>&&);
 #if ENABLE(DOM_AUDIO_SESSION)
@@ -457,7 +461,7 @@ public:
     void setOpenedByDOMWithOpener(bool value) { m_openedByDOMWithOpener = value; }
 
     const RegistrableDomain& openedByScriptDomain() const { return m_openedByScriptDomain; }
-    void setOpenedByScriptDomain(RegistrableDomain&& domain) { m_openedByScriptDomain = WTFMove(domain); }
+    void setOpenedByScriptDomain(RegistrableDomain&& domain) { m_openedByScriptDomain = WTF::move(domain); }
 
     WEBCORE_EXPORT void goToItem(LocalFrame& rootFrame, HistoryItem&, FrameLoadType, ShouldTreatAsContinuingLoad, ProcessSwapDisposition processSwapDisposition = ProcessSwapDisposition::None);
     void goToItemForNavigationAPI(LocalFrame& rootFrame, HistoryItem&, FrameLoadType, LocalFrame& triggeringFrame, NavigationAPIMethodTracker*);
@@ -1410,6 +1414,11 @@ public:
     void showCaptionDisplaySettings(HTMLMediaElement&, const ResolvedCaptionDisplaySettingsOptions&, CompletionHandler<void(ExceptionOr<void>)>&&);
 #endif
 
+#if ENABLE(THREADED_ANIMATIONS)
+    AcceleratedTimelinesUpdater* acceleratedTimelinesUpdater() const { return m_acceleratedTimelinesUpdater.get(); }
+    AcceleratedTimelinesUpdater& ensureAcceleratedTimelinesUpdater();
+#endif
+
 private:
     explicit Page(PageConfiguration&&);
 
@@ -1893,6 +1902,11 @@ private:
 #if ENABLE(VIDEO)
     RefPtr<CaptionDisplaySettingsClient> m_captionDisplaySettingsClientForTesting;
 #endif
+
+#if ENABLE(THREADED_ANIMATIONS)
+    const std::unique_ptr<AcceleratedTimelinesUpdater> m_acceleratedTimelinesUpdater;
+#endif
+
 }; // class Page
 
 WTF::TextStream& operator<<(WTF::TextStream&, RenderingUpdateStep);

@@ -27,7 +27,8 @@
 #include "RangeBasedLineBuilder.h"
 
 #include "InlineFormattingContext.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
+#include "RenderStyle+InitialInlines.h"
 
 namespace WebCore {
 namespace Layout {
@@ -59,7 +60,7 @@ LineLayoutResult RangeBasedLineBuilder::layoutInlineContent(const LineInput& lin
         auto lineRect = lineInput.initialLogicalRect;
         auto contentLeft = InlineFormattingUtils::horizontalAlignmentOffset(rootStyle(), { }, lineRect.width(), { }, true);
         return LineLayoutResult { lineInput.needsLayoutRange
-            , WTFMove(inlineBoxRuns)
+            , WTF::move(inlineBoxRuns)
             , { }
             , { contentLeft, { }, contentLeft, std::max(0.f, contentLeft - lineRect.right()) }
             , { lineRect.topLeft(), lineRect.width(), lineRect.left() }

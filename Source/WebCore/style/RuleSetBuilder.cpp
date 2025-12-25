@@ -126,7 +126,7 @@ void RuleSetBuilder::addChildRule(Ref<StyleRuleBase> rule)
         return;
 
     case StyleRuleType::Scope: {
-        auto scopeRule = uncheckedDowncast<StyleRuleScope>(WTFMove(rule));
+        auto scopeRule = uncheckedDowncast<StyleRuleScope>(WTF::move(rule));
         auto previousScopeIdentifier = m_currentScopeIdentifier;
         if (m_ruleSet) {
             m_ruleSet->m_scopeRules.append({ scopeRule.copyRef(), previousScopeIdentifier });
@@ -166,7 +166,7 @@ void RuleSetBuilder::addChildRule(Ref<StyleRuleBase> rule)
         return;
 
     case StyleRuleType::Media: {
-        auto mediaRule = uncheckedDowncast<StyleRuleMedia>(WTFMove(rule));
+        auto mediaRule = uncheckedDowncast<StyleRuleMedia>(WTF::move(rule));
         if (m_mediaQueryCollector.pushAndEvaluate(mediaRule->mediaQueries()))
             addChildRules(mediaRule->childRules());
         m_mediaQueryCollector.pop(mediaRule->mediaQueries());
@@ -174,7 +174,7 @@ void RuleSetBuilder::addChildRule(Ref<StyleRuleBase> rule)
     }
 
     case StyleRuleType::Container: {
-        auto containerRule = uncheckedDowncast<StyleRuleContainer>(WTFMove(rule));
+        auto containerRule = uncheckedDowncast<StyleRuleContainer>(WTF::move(rule));
         auto previousContainerQueryIdentifier = m_currentContainerQueryIdentifier;
         if (m_ruleSet) {
             m_ruleSet->m_containerQueries.append({ containerRule.copyRef(), previousContainerQueryIdentifier });
@@ -190,7 +190,7 @@ void RuleSetBuilder::addChildRule(Ref<StyleRuleBase> rule)
     case StyleRuleType::LayerStatement: {
         disallowDynamicMediaQueryEvaluationIfNeeded();
 
-        auto layerRule = uncheckedDowncast<StyleRuleLayer>(WTFMove(rule));
+        auto layerRule = uncheckedDowncast<StyleRuleLayer>(WTF::move(rule));
         if (layerRule->isStatement()) {
             // Statement syntax just registers the layers.
             registerLayers(layerRule->nameList());
@@ -205,14 +205,14 @@ void RuleSetBuilder::addChildRule(Ref<StyleRuleBase> rule)
 
     case StyleRuleType::StartingStyle: {
         SetForScope startingStyleScope { m_usedRuleTypes, m_usedRuleTypes | UsedRuleType::StartingStyle };
-        auto startingStyleRule = uncheckedDowncast<StyleRuleStartingStyle>(WTFMove(rule));
+        auto startingStyleRule = uncheckedDowncast<StyleRuleStartingStyle>(WTF::move(rule));
         addChildRules(startingStyleRule->childRules());
         return;
     }
 
     case StyleRuleType::InternalBaseAppearance: {
         SetForScope scope { m_usedRuleTypes, m_usedRuleTypes | UsedRuleType::BaseAppearance };
-        auto internalBaseAppearanceRule = uncheckedDowncast<StyleRuleInternalBaseAppearance>(WTFMove(rule));
+        auto internalBaseAppearanceRule = uncheckedDowncast<StyleRuleInternalBaseAppearance>(WTF::move(rule));
         addChildRules(internalBaseAppearanceRule->childRules());
         return;
     }
@@ -231,7 +231,7 @@ void RuleSetBuilder::addChildRule(Ref<StyleRuleBase> rule)
         return;
 
     case StyleRuleType::Supports: {
-        auto supportsRule = uncheckedDowncast<StyleRuleSupports>(WTFMove(rule));
+        auto supportsRule = uncheckedDowncast<StyleRuleSupports>(WTF::move(rule));
         if (supportsRule->conditionIsSupported())
             addChildRules(supportsRule->childRules());
         return;
@@ -292,7 +292,7 @@ void RuleSetBuilder::resolveSelectorListWithNesting(StyleRuleWithNesting& rule)
     }
 
     auto resolvedSelectorList = CSSSelectorParser::resolveNestingParent(rule.originalSelectorList(), parentResolvedSelectorList, parentIsScopeRule);
-    rule.wrapperAdoptSelectorList(WTFMove(resolvedSelectorList));
+    rule.wrapperAdoptSelectorList(WTF::move(resolvedSelectorList));
 }
 
 void RuleSetBuilder::addStyleRuleWithSelectorList(const CSSSelectorList& selectorList, const StyleRule& rule)
@@ -304,7 +304,7 @@ void RuleSetBuilder::addStyleRuleWithSelectorList(const CSSSelectorList& selecto
     for (size_t selectorIndex = 0; selectorIndex != notFound; selectorIndex = selectorList.indexOfNextSelectorAfter(selectorIndex)) {
         RuleData ruleData(rule, selectorIndex, selectorListIndex, m_ruleSet->ruleCount(), m_usedRuleTypes);
         m_mediaQueryCollector.addRuleIfNeeded(ruleData);
-        m_ruleSet->addRule(WTFMove(ruleData), m_currentCascadeLayerIdentifier, m_currentContainerQueryIdentifier, m_currentScopeIdentifier);
+        m_ruleSet->addRule(WTF::move(ruleData), m_currentCascadeLayerIdentifier, m_currentContainerQueryIdentifier, m_currentScopeIdentifier, &m_featureCollectionContext);
         ++selectorListIndex;
     }
 }
@@ -341,7 +341,7 @@ void RuleSetBuilder::addStyleRule(StyleRuleNestedDeclarations& rule)
         auto whereSelector = makeUnique<MutableCSSSelector>();
         whereSelector->setMatch(CSSSelector::Match::PseudoClass);
         whereSelector->setPseudoClass(CSSSelector::PseudoClass::Where);
-        whereSelector->setSelectorList(makeUnique<CSSSelectorList>(MutableCSSSelectorList::from(WTFMove(scopeSelector))));
+        whereSelector->setSelectorList(makeUnique<CSSSelectorList>(MutableCSSSelectorList::from(WTF::move(scopeSelector))));
         return whereSelector;
     };
 
@@ -490,7 +490,7 @@ void RuleSetBuilder::addMutatingRulesToResolver()
 
     // The order may change so we need to reprocess resolver mutating rules from earlier stylesheets.
     auto rulesToAdd = std::exchange(m_ruleSet->m_resolverMutatingRulesInLayers, { });
-    rulesToAdd.appendVector(WTFMove(m_collectedResolverMutatingRules));
+    rulesToAdd.appendVector(WTF::move(m_collectedResolverMutatingRules));
 
     if (!m_cascadeLayerIdentifierMap.isEmpty())
         std::ranges::stable_sort(rulesToAdd, compareLayers);
@@ -554,7 +554,7 @@ void RuleSetBuilder::updateDynamicMediaQueries()
 
     if (!m_mediaQueryCollector.dynamicMediaQueryRules.isEmpty()) {
         auto firstNewIndex = m_ruleSet->m_dynamicMediaQueryRules.size();
-        m_ruleSet->m_dynamicMediaQueryRules.appendVector(WTFMove(m_mediaQueryCollector.dynamicMediaQueryRules));
+        m_ruleSet->m_dynamicMediaQueryRules.appendVector(WTF::move(m_mediaQueryCollector.dynamicMediaQueryRules));
 
         // Set the initial values.
         m_ruleSet->evaluateDynamicMediaQueryRules(m_mediaQueryCollector.evaluator, firstNewIndex);
@@ -598,7 +598,7 @@ void RuleSetBuilder::MediaQueryCollector::pop(const MQ::MediaQueryList& mediaQue
         } else
             rules.requiresFullReset = true;
 
-        dynamicMediaQueryRules.append(WTFMove(rules));
+        dynamicMediaQueryRules.append(WTF::move(rules));
     }
 
     dynamicContextStack.removeLast();

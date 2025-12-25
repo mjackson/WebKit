@@ -37,6 +37,7 @@
 #include "RenderLayerModelObject.h"
 #include "RenderLayerScrollableArea.h"
 #include "RenderObjectInlines.h"
+#include "RenderStyle+InitialInlines.h"
 #include "RenderView.h"
 #include "StylableInlines.h"
 #include "StyleSingleAnimationRange.h"
@@ -419,9 +420,11 @@ bool ScrollTimeline::computeCanBeAccelerated() const
 
 void ScrollTimeline::scheduleAcceleratedRepresentationUpdate()
 {
-    if (CheckedPtr controller = this->controller()) {
-        if (auto* acceleratedEffectStackUpdater = controller->existingAcceleratedEffectStackUpdater())
-            acceleratedEffectStackUpdater->scrollTimelineDidChange(*this);
+    if (auto source = m_source.styleable()) {
+        if (RefPtr page = source->element.protectedDocument()->page()) {
+            if (auto* acceleratedTimelinesUpdater = page->acceleratedTimelinesUpdater())
+                acceleratedTimelinesUpdater->scrollTimelineDidChange(*this);
+        }
     }
 }
 

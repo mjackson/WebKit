@@ -185,7 +185,7 @@ class HTMLMediaElement
 #endif
     , public CanMakeWeakPtr<HTMLMediaElement, WeakPtrFactoryInitialization::Eager>
 {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(HTMLMediaElement);
+    WTF_MAKE_TZONE_ALLOCATED(HTMLMediaElement);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(HTMLMediaElement);
 public:
     USING_CAN_MAKE_WEAKPTR(SINGLE_ARG(CanMakeWeakPtr<HTMLMediaElement, WeakPtrFactoryInitialization::Eager>));
@@ -882,7 +882,7 @@ private:
     float mediaPlayerContentsScale() const override;
     bool mediaPlayerPlatformVolumeConfigurationRequired() const override;
     bool mediaPlayerIsLooping() const override;
-    CachedResourceLoader* mediaPlayerCachedResourceLoader() override;
+    CachedResourceLoader* mediaPlayerCachedResourceLoader() const override;
     Ref<PlatformMediaResourceLoader> mediaPlayerCreateResourceLoader() override;
     bool mediaPlayerShouldUsePersistentCache() const override;
     const String& mediaPlayerMediaCacheDirectory() const override;
@@ -1174,6 +1174,7 @@ private:
     bool limitedMatroskaSupportEnabled() const;
 
     void maybeUpdatePlayerPreload() const;
+    void canProduceAudioChanged();
 
     Timer m_progressEventTimer;
     Timer m_playbackProgressTimer;

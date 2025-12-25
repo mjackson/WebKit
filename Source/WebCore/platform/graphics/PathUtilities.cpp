@@ -91,7 +91,11 @@ private:
 FloatPointGraph::Node* FloatPointGraph::findOrCreateNode(FloatPoint point)
 {
     for (auto& testNode : m_allNodes) {
-        if (areEssentiallyEqual(*testNode, point))
+        auto tolerance = [&] (auto a, auto b) {
+            auto toleranceInPixel = 0.005f;
+            return toleranceInPixel / std::max(std::abs(a), std::abs(b)) * 100.f;
+        };
+        if (WTF::areEssentiallyEqual(testNode->x(), point.x(), tolerance(testNode->x(), point.x())) && WTF::areEssentiallyEqual(testNode->y(), point.y(), tolerance(testNode->y(), point.y())))
             return testNode.get();
     }
 
@@ -299,7 +303,7 @@ Vector<Path> PathUtilities::pathsWithShrinkWrappedRects(const Vector<FloatRect>&
         Path path;
         for (const auto& rect : rects)
             path.addRoundedRect(rect, FloatSize(radius, radius));
-        return { WTFMove(path) };
+        return { WTF::move(path) };
     }
 
     FloatPointGraph graph;
@@ -308,7 +312,7 @@ Vector<Path> PathUtilities::pathsWithShrinkWrappedRects(const Vector<FloatRect>&
         Path path;
         for (const auto& rect : rects)
             path.addRoundedRect(rect, FloatSize(radius, radius));
-        return { WTFMove(path) };
+        return { WTF::move(path) };
     }
 
     return WTF::map(polys, [&](auto& poly) {

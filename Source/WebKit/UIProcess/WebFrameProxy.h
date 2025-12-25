@@ -30,7 +30,7 @@
 #include "MessageReceiver.h"
 #include <WebCore/CertificateInfo.h>
 #include <WebCore/FrameLoaderTypes.h>
-#include <WebCore/IntSize.h>
+#include <WebCore/IntRect.h>
 #include <WebCore/LayerHostingContextIdentifier.h>
 #include <WebCore/PageIdentifier.h>
 #include <WebCore/ReferrerPolicy.h>
@@ -186,7 +186,7 @@ public:
     WebFramePolicyListenerProxy& setUpPolicyListenerProxy(CompletionHandler<void(WebCore::PolicyAction, API::WebsitePolicies*, ProcessSwapRequestedByClient, std::optional<NavigatingToAppBoundDomain>, WasNavigationIntercepted)>&&, ShouldExpectSafeBrowsingResult, ShouldExpectAppBoundDomainResult, ShouldWaitForInitialLinkDecorationFilteringData, ShouldWaitForSiteHasStorageCheck);
 
 #if ENABLE(CONTENT_FILTERING)
-    void contentFilterDidBlockLoad(WebCore::ContentFilterUnblockHandler contentFilterUnblockHandler) { m_contentFilterUnblockHandler = WTFMove(contentFilterUnblockHandler); }
+    void contentFilterDidBlockLoad(WebCore::ContentFilterUnblockHandler contentFilterUnblockHandler) { m_contentFilterUnblockHandler = WTF::move(contentFilterUnblockHandler); }
     bool didHandleContentFilterUnblockNavigation(const WebCore::ResourceRequest&);
 #endif
 
@@ -211,7 +211,7 @@ public:
 
     WebFrameProxy* parentFrame() const { return m_parentFrame.get(); }
     Ref<WebFrameProxy> rootFrame();
-    RefPtr<WebFrameProxy> childFrame(size_t index) const;
+    RefPtr<WebFrameProxy> childFrame(uint64_t index) const;
 
     WebProcessProxy& process() const;
     Ref<WebProcessProxy> protectedProcess() const;
@@ -251,7 +251,6 @@ public:
     bool isPendingInitialHistoryItem() const { return m_isPendingInitialHistoryItem; }
 
     WebCore::LayerHostingContextIdentifier layerHostingContextIdentifier() const { return m_layerHostingContextIdentifier; }
-    void updateRemoteFrameSize(WebCore::IntSize);
     void setAppBadge(const WebCore::SecurityOriginData&, std::optional<uint64_t> badge);
     void findFocusableElementDescendingIntoRemoteFrame(WebCore::FocusDirection, const WebCore::FocusEventData&, CompletionHandler<void(WebCore::FoundElementInRemoteFrame)>&&);
 
@@ -264,11 +263,13 @@ public:
     WebCore::ScrollbarMode scrollingMode() const { return m_scrollingMode; }
     void updateScrollingMode(WebCore::ScrollbarMode);
 
-    void updateOpener(WebCore::FrameIdentifier);
-    WebFrameProxy* opener() { return m_opener.get(); }
+    void updateOpener(std::optional<WebCore::FrameIdentifier>);
+    WebFrameProxy* opener() const { return m_opener.get(); }
     void disownOpener() { m_opener = nullptr; }
+    WebFrameProxy* disownedOpener() const { return m_disownedOpener.get(); }
 
-    std::optional<WebCore::IntSize> remoteFrameSize() const { return m_remoteFrameSize; }
+    std::optional<WebCore::IntRect> remoteFrameRect() const { return m_remoteFrameRect; }
+    void setRemoteFrameRect(WebCore::IntRect rect) { m_remoteFrameRect = rect; }
 
     void takeSnapshotOfNode(WebCore::JSHandleIdentifier, CompletionHandler<void(std::optional<WebCore::ShareableBitmapHandle>&&)>&&);
 
@@ -295,6 +296,7 @@ private:
     WeakPtr<WebPageProxy> m_page;
     Ref<FrameProcess> m_frameProcess;
     WeakPtr<WebFrameProxy> m_opener;
+    WeakPtr<WebFrameProxy> m_disownedOpener;
 
     FrameLoadState m_frameLoadState;
 
@@ -314,7 +316,7 @@ private:
     CompletionHandler<void(std::optional<WebCore::PageIdentifier>, std::optional<WebCore::FrameIdentifier>)> m_navigateCallback;
     const WebCore::LayerHostingContextIdentifier m_layerHostingContextIdentifier;
     bool m_isPendingInitialHistoryItem { false };
-    std::optional<WebCore::IntSize> m_remoteFrameSize;
+    std::optional<WebCore::IntRect> m_remoteFrameRect;
     WebCore::SandboxFlags m_effectiveSandboxFlags;
     WebCore::ReferrerPolicy m_effectiveReferrerPolicy { WebCore::ReferrerPolicy::EmptyString };
     WebCore::ScrollbarMode m_scrollingMode;

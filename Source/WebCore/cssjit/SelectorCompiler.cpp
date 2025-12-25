@@ -1488,6 +1488,7 @@ static FunctionType constructFragmentsInternal(const CSSSelector* rootSelector, 
             case CSSSelector::PseudoElement::After:
             case CSSSelector::PseudoElement::Backdrop:
             case CSSSelector::PseudoElement::Before:
+            case CSSSelector::PseudoElement::Checkmark:
             case CSSSelector::PseudoElement::FirstLetter:
             case CSSSelector::PseudoElement::FirstLine:
             case CSSSelector::PseudoElement::GrammarError:
@@ -2406,7 +2407,7 @@ void SelectorCodeGenerator::generateSelectorChecker()
             } else
                 failureStack = successStack;
 
-            m_stackAllocator.merge(WTFMove(successStack), WTFMove(failureStack));
+            m_stackAllocator.merge(WTF::move(successStack), WTF::move(failureStack));
             return;
         }
     }
@@ -2441,7 +2442,7 @@ void SelectorCodeGenerator::generateSelectorChecker()
         generateReturn();
     } else
         earlyFailureStack = successStack;
-    m_stackAllocator.merge(WTFMove(successStack), WTFMove(earlyFailureStack));
+    m_stackAllocator.merge(WTF::move(successStack), WTF::move(earlyFailureStack));
 }
 
 void SelectorCodeGenerator::generateSelectorCheckerExcludingPseudoElements(Assembler::JumpList& failureCases, const SelectorFragmentList& selectorFragmentList)
@@ -2592,7 +2593,7 @@ void SelectorCodeGenerator::generateElementMatchesSelectorList(Assembler::JumpLi
 
         skipFailureCase.link(&m_assembler);
 
-        m_stackAllocator.merge(WTFMove(successStack), WTFMove(failureStack));
+        m_stackAllocator.merge(WTF::move(successStack), WTF::move(failureStack));
     }
 }
 

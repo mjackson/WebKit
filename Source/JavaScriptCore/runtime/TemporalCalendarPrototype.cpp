@@ -122,7 +122,7 @@ JSC_DEFINE_HOST_FUNCTION(temporalCalendarPrototypeFuncDateFromFields, (JSGlobalO
     ISO8601::PlainDate plainDate = calendar->isoDateFromFields(globalObject, asObject(value), TemporalDateFormat::Date, options, overflow);
     RETURN_IF_EXCEPTION(scope, { });
 
-    RELEASE_AND_RETURN(scope, JSValue::encode(TemporalPlainDate::create(vm, globalObject->plainDateStructure(), WTFMove(plainDate))));
+    RELEASE_AND_RETURN(scope, JSValue::encode(TemporalPlainDate::create(vm, globalObject->plainDateStructure(), WTF::move(plainDate))));
 }
 
 // https://tc39.es/proposal-temporal/#sup-temporal.calendar.prototype.dateadd
@@ -151,7 +151,7 @@ JSC_DEFINE_HOST_FUNCTION(temporalCalendarPrototypeFuncDateAdd, (JSGlobalObject* 
     ISO8601::PlainDate plainDate = calendar->addDurationToDate(globalObject, date->plainDate(), duration, overflow);
     RETURN_IF_EXCEPTION(scope, { });
 
-    RELEASE_AND_RETURN(scope, JSValue::encode(TemporalPlainDate::create(vm, globalObject->plainDateStructure(), WTFMove(plainDate))));
+    RELEASE_AND_RETURN(scope, JSValue::encode(TemporalPlainDate::create(vm, globalObject->plainDateStructure(), WTF::move(plainDate))));
 }
 
 // https://tc39.es/proposal-temporal/#sup-temporal.calendar.prototype.dateuntil
@@ -183,7 +183,7 @@ JSC_DEFINE_HOST_FUNCTION(temporalCalendarPrototypeFuncDateUntil, (JSGlobalObject
 
     auto result = TemporalCalendar::calendarDateUntil(date1->plainDate(), date2->plainDate(), largestUnit);
 
-    RELEASE_AND_RETURN(scope, JSValue::encode(TemporalDuration::tryCreateIfValid(globalObject, WTFMove(result), globalObject->durationStructure())));
+    RELEASE_AND_RETURN(scope, JSValue::encode(TemporalDuration::tryCreateIfValid(globalObject, WTF::move(result), globalObject->durationStructure())));
 }
 
 // https://tc39.es/proposal-temporal/#sup-temporal.calendar.prototype.fields

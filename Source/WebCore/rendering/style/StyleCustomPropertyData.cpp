@@ -85,7 +85,7 @@ void CustomPropertyData::set(const AtomString& name, Ref<const CustomProperty>&&
 
     m_mayHaveAnimatableProperties = m_mayHaveAnimatableProperties || value->isAnimatable();
 
-    auto addResult = m_ownValues.set(name, WTFMove(value));
+    auto addResult = m_ownValues.set(name, WTF::move(value));
 
     bool isNewProperty = addResult.isNewEntry && (!m_parentValues || !m_parentValues->get(name));
     if (isNewProperty)

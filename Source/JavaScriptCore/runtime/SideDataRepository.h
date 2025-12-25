@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "JSExportMacros.h"
 #include <wtf/HashMap.h>
 #include <wtf/Locker.h>
 #include <wtf/NeverDestroyed.h>

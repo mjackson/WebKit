@@ -27,6 +27,7 @@
 
 #include "Options.h"
 #include "WasmName.h"
+#include <wtf/Compiler.h>
 #include <wtf/Noncopyable.h>
 #include <wtf/text/CString.h>
 #include <wtf/ThreadSafeRefCounted.h>

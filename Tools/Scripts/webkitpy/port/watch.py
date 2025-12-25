@@ -38,17 +38,6 @@ class WatchPort(DevicePort):
 
     DEVICE_TYPE = DeviceType(software_variant='watchOS')
 
-    def __init__(self, *args, **kwargs):
-        super(WatchPort, self).__init__(*args, **kwargs)
-
-        if self.get_option('webkit_test_runner', False) == False:
-            raise RuntimeError('DumpRenderTree is not supported on this platform.')
-
-    def driver_name(self):
-        if self.get_option('driver_name'):
-            return self.get_option('driver_name')
-        return 'WebKitTestRunnerApp.app'
-
     def version_name(self):
         if self._os_version is None:
             return None

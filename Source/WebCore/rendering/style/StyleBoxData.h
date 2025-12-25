@@ -57,9 +57,9 @@ public:
     Style::PreferredSize height;
 
     Style::MinimumSize minWidth;
-    Style::MaximumSize maxWidth;
-
     Style::MinimumSize minHeight;
+
+    Style::MaximumSize maxWidth;
     Style::MaximumSize maxHeight;
 
     Style::VerticalAlign verticalAlign;

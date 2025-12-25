@@ -103,7 +103,7 @@ namespace Inspector {
 
 class AlternateBackendDispatcher {
 public:
-    void setBackendDispatcher(RefPtr<BackendDispatcher>&& dispatcher) { m_backendDispatcher = WTFMove(dispatcher); }
+    void setBackendDispatcher(RefPtr<BackendDispatcher>&& dispatcher) { m_backendDispatcher = WTF::move(dispatcher); }
     BackendDispatcher* backendDispatcher() const { return m_backendDispatcher.get(); }
 private:
     RefPtr<BackendDispatcher> m_backendDispatcher;
@@ -402,7 +402,7 @@ public:
         }
 
         Builder(Ref<KeyPath>&& object)
-            : m_result(WTFMove(object))
+            : m_result(WTF::move(object))
         {
             static_assert(STATE == NoFieldsSet, "builder created in non init state");
         }
@@ -447,7 +447,7 @@ public:
 
     void setArray(Ref<JSON::ArrayOf<String>>&& in_opt_array)
     {
-        JSON::ObjectBase::setArray("array"_s, WTFMove(in_opt_array));
+        JSON::ObjectBase::setArray("array"_s, WTF::move(in_opt_array));
     }
 };
 
@@ -927,11 +927,11 @@ inline String toProtocolString(TestProtocolRuntimeKeyPathType value)
 template<>
 inline std::optional<TestProtocolRuntimeKeyPathType> fromProtocolString(const String& value)
 {
-    static constexpr std::pair<ComparableASCIILiteral, TestProtocolRuntimeKeyPathType> mappings[] = {
+    static constexpr auto mappings = std::to_array<std::pair<ComparableASCIILiteral, TestProtocolRuntimeKeyPathType>>({
         { "array"_s, TestProtocolRuntimeKeyPathTypeArray },
         { "null"_s, TestProtocolRuntimeKeyPathTypeNull },
         { "string"_s, TestProtocolRuntimeKeyPathTypeString },
-    };
+    });
     static constexpr SortedArrayMap map { mappings };
     if (auto* result = map.tryGet(value))
         return *result;

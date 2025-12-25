@@ -29,7 +29,7 @@
 
 #if ENABLE(MATHML)
 
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include "StyleInheritedData.h"
 #include <wtf/StdLibExtras.h>
 
@@ -685,7 +685,7 @@ void MathOperator::paintHorizontalGlyphAssembly(const RenderStyle& style, PaintI
         fillWithHorizontalExtensionGlyph(style, info, LayoutPoint(leftGlyphPaintRect.maxX(), baselineY), LayoutPoint(rightGlyphPaintRect.x(), baselineY));
 }
 
-void MathOperator::paint(const RenderStyle& style, PaintInfo& info, const LayoutPoint& paintOffset)
+void MathOperator::paint(const RenderStyle& style, PaintInfo& info, const LayoutPoint& paintOffset, float deviceScaleFactor)
 {
     if (info.context().paintingDisabled() || info.phase != PaintPhase::Foreground || style.usedVisibility() != Visibility::Visible)
         return;
@@ -720,9 +720,15 @@ void MathOperator::paint(const RenderStyle& style, PaintInfo& info, const Layout
     if (m_stretchType == StretchType::SizeVariant)
         glyphData.glyph = m_variantGlyph;
 
-    LayoutPoint operatorTopLeft = paintOffset;
-    FloatRect glyphBounds = boundsForGlyph(glyphData);
-    LayoutPoint operatorOrigin { operatorTopLeft.x(), LayoutUnit(operatorTopLeft.y() - glyphBounds.y()) };
+    auto operatorTopLeft = paintOffset;
+    auto glyphBounds = boundsForGlyph(glyphData);
+    auto operatorOrigin = LayoutPoint { operatorTopLeft.x(), LayoutUnit(operatorTopLeft.y() - glyphBounds.y()) };
+
+    if (style.writingMode().isHorizontal())
+        operatorOrigin.setY(roundToDevicePixel(LayoutUnit { operatorOrigin.y() }, deviceScaleFactor));
+    else
+        operatorOrigin.setX(roundToDevicePixel(LayoutUnit { operatorOrigin.x() }, deviceScaleFactor));
+
     // FIXME: If we're just drawing a single glyph, why do we need to compute an advance?
     auto advance = makeGlyphBufferAdvance(advanceWidthForGlyph(glyphData));
     paintInfo.context().drawGlyphs(*glyphData.font, singleElementSpan(glyphData.glyph), singleElementSpan(advance), operatorOrigin, style.fontCascade().fontDescription().usedFontSmoothing());

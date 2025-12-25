@@ -21,6 +21,7 @@
 
 #include "RenderSVGResourceGradient.h"
 #include "RenderView.h"
+#include "RenderStyle+InitialInlines.h"
 #include "SVGRenderSupport.h"
 
 namespace WebCore {

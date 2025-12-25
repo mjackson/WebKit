@@ -26,6 +26,7 @@
 #pragma once
 
 #include "Integrity.h"
+#include "JSCConfig.h"
 #include "JSCJSValue.h"
 #include "StructureID.h"
 #include "VM.h"
@@ -100,8 +101,8 @@ ALWAYS_INLINE void auditCellFully(VM& vm, JSCell* cell)
 ALWAYS_INLINE void auditStructureID(StructureID structureID)
 {
     UNUSED_PARAM(structureID);
-#if CPU(ADDRESS64) && !ENABLE(STRUCTURE_ID_WITH_SHIFT)
-    ASSERT(static_cast<uintptr_t>(structureID.bits()) <= structureHeapAddressSize + StructureID::nukedStructureIDBit);
+#if CPU(ADDRESS64)
+    ASSERT(std::bit_cast<uintptr_t>(structureID.decode()) - startOfStructureHeap() <= g_jscConfig.sizeOfStructureHeap);
 #endif
 #if ENABLE(EXTRA_INTEGRITY_CHECKS) || ASSERT_ENABLED
     Structure* structure = structureID.tryDecode();

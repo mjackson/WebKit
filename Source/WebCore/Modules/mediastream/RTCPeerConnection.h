@@ -90,7 +90,7 @@ class RTCPeerConnection final
     , private LoggerHelper
 #endif
 {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED_EXPORT(RTCPeerConnection, WEBCORE_EXPORT);
+    WTF_MAKE_TZONE_ALLOCATED_EXPORT(RTCPeerConnection, WEBCORE_EXPORT);
 public:
     static ExceptionOr<Ref<RTCPeerConnection>> create(Document&, RTCConfiguration&&);
     WEBCORE_EXPORT virtual ~RTCPeerConnection();
@@ -173,9 +173,6 @@ public:
     ScriptExecutionContext* scriptExecutionContext() const final;
     using ActiveDOMObject::protectedScriptExecutionContext;
 
-    // Used for testing with a mock
-    WEBCORE_EXPORT void emulatePlatformEvent(const String& action);
-
     // API used by PeerConnectionBackend and relatives
     void updateIceGatheringState(RTCIceGatheringState);
     void updateIceConnectionState(RTCIceConnectionState);
@@ -249,7 +246,7 @@ private:
     bool doClose();
     void doStop();
 
-    void getStats(RTCRtpSender& sender, Ref<DeferredPromise>&& promise) { protectedBackend()->getStats(sender, WTFMove(promise)); }
+    void getStats(RTCRtpSender& sender, Ref<DeferredPromise>&& promise) { protectedBackend()->getStats(sender, WTF::move(promise)); }
 
     ExceptionOr<Vector<MediaEndpointConfiguration::CertificatePEM>> certificatesFromConfiguration(const RTCConfiguration&);
     void chainOperation(Ref<DeferredPromise>&&, Function<void(Ref<DeferredPromise>&&)>&&);
@@ -281,8 +278,9 @@ private:
     const std::unique_ptr<PeerConnectionBackend> m_backend;
 
     RTCConfiguration m_configuration;
-    RTCController* m_controller { nullptr };
+    WeakPtr<RTCController> m_controller;
     Vector<RefPtr<RTCCertificate>> m_certificates;
+    Vector<RTCDataChannelIdentifier> m_channels;
     bool m_shouldDelayTasks { false };
     Deque<std::pair<Ref<DeferredPromise>, Function<void(Ref<DeferredPromise>&&)>>> m_operations;
     bool m_hasPendingOperation { false };

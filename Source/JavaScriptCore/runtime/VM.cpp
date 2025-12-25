@@ -76,8 +76,8 @@
 #include "JSMap.h"
 #include "JSMicrotask.h"
 #include "JSPromise.h"
-#include "JSPromiseAllContextInlines.h"
-#include "JSPromiseAllGlobalContext.h"
+#include "JSPromiseCombinatorsContextInlines.h"
+#include "JSPromiseCombinatorsGlobalContext.h"
 #include "JSPromiseConstructor.h"
 #include "JSPromiseReaction.h"
 #include "JSPropertyNameEnumeratorInlines.h"
@@ -325,8 +325,8 @@ VM::VM(VMType vmType, HeapType heapType, WTF::RunLoop* runLoop, bool* success)
     functionExecutableStructure.setWithoutWriteBarrier(FunctionExecutable::createStructure(*this, nullptr, jsNull()));
     moduleProgramExecutableStructure.setWithoutWriteBarrier(ModuleProgramExecutable::createStructure(*this, nullptr, jsNull()));
     promiseReactionStructure.setWithoutWriteBarrier(JSPromiseReaction::createStructure(*this, nullptr, jsNull()));
-    promiseAllContextStructure.setWithoutWriteBarrier(JSPromiseAllContext::createStructure(*this, nullptr, jsNull()));
-    promiseAllGlobalContextStructure.setWithoutWriteBarrier(JSPromiseAllGlobalContext::createStructure(*this, nullptr, jsNull()));
+    promiseCombinatorsContextStructure.setWithoutWriteBarrier(JSPromiseCombinatorsContext::createStructure(*this, nullptr, jsNull()));
+    promiseCombinatorsGlobalContextStructure.setWithoutWriteBarrier(JSPromiseCombinatorsGlobalContext::createStructure(*this, nullptr, jsNull()));
     regExpStructure.setWithoutWriteBarrier(RegExp::createStructure(*this, nullptr, jsNull()));
     symbolStructure.setWithoutWriteBarrier(Symbol::createStructure(*this, nullptr, jsNull()));
     symbolTableStructure.setWithoutWriteBarrier(SymbolTable::createStructure(*this, nullptr, jsNull()));
@@ -414,7 +414,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
         setShouldBuildPCToCodeOriginMapping();
         Ref<Stopwatch> stopwatch = Stopwatch::create();
         stopwatch->start();
-        ensureSamplingProfiler(WTFMove(stopwatch));
+        ensureSamplingProfiler(WTF::move(stopwatch));
         if (Options::samplingProfilerPath())
             m_samplingProfiler->registerForReportAtExit();
         m_samplingProfiler->start();
@@ -609,7 +609,7 @@ RefPtr<VM> VM::tryCreate(HeapType heapType, WTF::RunLoop* runLoop)
 SamplingProfiler& VM::ensureSamplingProfiler(Ref<Stopwatch>&& stopwatch)
 {
     if (!m_samplingProfiler) {
-        lazyInitialize(m_samplingProfiler, adoptRef(*new SamplingProfiler(*this, WTFMove(stopwatch))));
+        lazyInitialize(m_samplingProfiler, adoptRef(*new SamplingProfiler(*this, WTF::move(stopwatch))));
         requestEntryScopeService(EntryScopeService::SamplingProfiler);
     }
     return *m_samplingProfiler;
@@ -893,7 +893,7 @@ void VM::whenIdle(Function<void()>&& callback)
         callback();
         return;
     }
-    m_didPopListeners.append(WTFMove(callback));
+    m_didPopListeners.append(WTF::move(callback));
     requestEntryScopeService(EntryScopeService::PopListeners);
 }
 
@@ -1132,7 +1132,7 @@ void VM::pushCheckpointOSRSideState(std::unique_ptr<CheckpointOSRExitSideState>&
     for (const auto& sideState : m_checkpointSideState)
         ASSERT(sideState->associatedCallFrame != payload->associatedCallFrame);
 #endif
-    m_checkpointSideState.append(WTFMove(payload));
+    m_checkpointSideState.append(WTF::move(payload));
 
 #if ASSERT_ENABLED
     auto bounds = StackBounds::currentThreadStackBounds();
@@ -1297,7 +1297,6 @@ void VM::dumpTypeProfilerData()
     typeProfiler()->dumpTypeProfilerData(*this);
 }
 
-
 void VM::callPromiseRejectionCallback(Strong<JSPromise>& promise)
 {
     JSObject* callback = promise->globalObject()->unhandledRejectionCallback();
@@ -1320,7 +1319,7 @@ void VM::callPromiseRejectionCallback(Strong<JSPromise>& promise)
 void VM::didExhaustMicrotaskQueue()
 {
     while (!m_aboutToBeNotifiedRejectedPromises.isEmpty()) {
-        auto unhandledRejections = WTFMove(m_aboutToBeNotifiedRejectedPromises);
+        auto unhandledRejections = WTF::move(m_aboutToBeNotifiedRejectedPromises);
         for (auto& promise : unhandledRejections) {
             if (promise->isHandled())
                 continue;
@@ -1490,7 +1489,7 @@ JSPropertyNameEnumerator* VM::emptyPropertyNameEnumeratorSlow()
 {
     ASSERT(!m_emptyPropertyNameEnumerator);
     PropertyNameArrayBuilder propertyNames(*this, PropertyNameMode::Strings, PrivateSymbolMode::Exclude);
-    auto* enumerator = JSPropertyNameEnumerator::create(*this, nullptr, 0, 0, WTFMove(propertyNames));
+    auto* enumerator = JSPropertyNameEnumerator::create(*this, nullptr, 0, 0, WTF::move(propertyNames));
     m_emptyPropertyNameEnumerator.setWithoutWriteBarrier(enumerator);
     return enumerator;
 }
@@ -1567,6 +1566,54 @@ NativeExecutable* VM::promiseAllSlowFulfillFunctionExecutableSlow()
     return executable;
 }
 
+NativeExecutable* VM::promiseAllSettledFulfillFunctionExecutableSlow()
+{
+    ASSERT(!m_promiseAllSettledFulfillFunctionExecutable);
+    auto* executable = getHostFunction(promiseAllSettledFulfillFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    m_promiseAllSettledFulfillFunctionExecutable.setWithoutWriteBarrier(executable);
+    return executable;
+}
+
+NativeExecutable* VM::promiseAllSettledRejectFunctionExecutableSlow()
+{
+    ASSERT(!m_promiseAllSettledRejectFunctionExecutable);
+    auto* executable = getHostFunction(promiseAllSettledRejectFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    m_promiseAllSettledRejectFunctionExecutable.setWithoutWriteBarrier(executable);
+    return executable;
+}
+
+NativeExecutable* VM::promiseAllSettledSlowFulfillFunctionExecutableSlow()
+{
+    ASSERT(!m_promiseAllSettledSlowFulfillFunctionExecutable);
+    auto* executable = getHostFunction(promiseAllSettledSlowFulfillFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    m_promiseAllSettledSlowFulfillFunctionExecutable.setWithoutWriteBarrier(executable);
+    return executable;
+}
+
+NativeExecutable* VM::promiseAllSettledSlowRejectFunctionExecutableSlow()
+{
+    ASSERT(!m_promiseAllSettledSlowRejectFunctionExecutable);
+    auto* executable = getHostFunction(promiseAllSettledSlowRejectFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    m_promiseAllSettledSlowRejectFunctionExecutable.setWithoutWriteBarrier(executable);
+    return executable;
+}
+
+NativeExecutable* VM::promiseAnyRejectFunctionExecutableSlow()
+{
+    ASSERT(!m_promiseAnyRejectFunctionExecutable);
+    auto* executable = getHostFunction(promiseAnyRejectFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    m_promiseAnyRejectFunctionExecutable.setWithoutWriteBarrier(executable);
+    return executable;
+}
+
+NativeExecutable* VM::promiseAnySlowRejectFunctionExecutableSlow()
+{
+    ASSERT(!m_promiseAnySlowRejectFunctionExecutable);
+    auto* executable = getHostFunction(promiseAnySlowRejectFunction, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    m_promiseAnySlowRejectFunctionExecutable.setWithoutWriteBarrier(executable);
+    return executable;
+}
+
 void VM::executeEntryScopeServicesOnEntry()
 {
     if (hasEntryScopeServiceRequest(EntryScopeService::FirePrimitiveGigacageEnabled)) [[unlikely]] {
@@ -1608,7 +1655,7 @@ void VM::executeEntryScopeServicesOnExit()
         watchdog->exitedVM();
 
     if (hasEntryScopeServiceRequest(EntryScopeService::PopListeners)) {
-        auto listeners = WTFMove(m_didPopListeners);
+        auto listeners = WTF::move(m_didPopListeners);
         for (auto& listener : listeners)
             listener();
         clearEntryScopeService(EntryScopeService::PopListeners);
@@ -1651,7 +1698,7 @@ void VM::addLoopHintExecutionCounter(const JSInstruction* instruction)
     if (addResult.isNewEntry) {
         auto ptr = WTF::makeUniqueWithoutFastMallocCheck<uintptr_t>();
         *ptr = 0;
-        addResult.iterator->value.second = WTFMove(ptr);
+        addResult.iterator->value.second = WTF::move(ptr);
     }
     ++addResult.iterator->value.first;
 }
@@ -1711,8 +1758,8 @@ void VM::visitAggregateImpl(Visitor& visitor)
 #endif
     visitor.append(moduleProgramExecutableStructure);
     visitor.append(promiseReactionStructure);
-    visitor.append(promiseAllContextStructure);
-    visitor.append(promiseAllGlobalContextStructure);
+    visitor.append(promiseCombinatorsContextStructure);
+    visitor.append(promiseCombinatorsGlobalContextStructure);
     visitor.append(regExpStructure);
     visitor.append(symbolStructure);
     visitor.append(symbolTableStructure);
@@ -1758,6 +1805,12 @@ void VM::visitAggregateImpl(Visitor& visitor)
     visitor.append(m_promiseCapabilityExecutorExecutable);
     visitor.append(m_promiseAllFulfillFunctionExecutable);
     visitor.append(m_promiseAllSlowFulfillFunctionExecutable);
+    visitor.append(m_promiseAllSettledFulfillFunctionExecutable);
+    visitor.append(m_promiseAllSettledRejectFunctionExecutable);
+    visitor.append(m_promiseAllSettledSlowFulfillFunctionExecutable);
+    visitor.append(m_promiseAllSettledSlowRejectFunctionExecutable);
+    visitor.append(m_promiseAnyRejectFunctionExecutable);
+    visitor.append(m_promiseAnySlowRejectFunctionExecutable);
 }
 DEFINE_VISIT_AGGREGATE(VM);
 

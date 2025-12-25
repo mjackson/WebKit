@@ -36,7 +36,7 @@
 #include "Logging.h"
 #include "RenderObjectDocument.h"
 #include "RenderSVGText.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+GettersInlines.h"
 #include "RenderView.h"
 #include "SVGClipPathElement.h"
 #include "SVGElementTypeHelpers.h"
@@ -51,10 +51,10 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(LegacyRenderSVGResourceClipper);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(LegacyRenderSVGResourceClipper);
 
 LegacyRenderSVGResourceClipper::LegacyRenderSVGResourceClipper(SVGClipPathElement& element, RenderStyle&& style)
-    : LegacyRenderSVGResourceContainer(Type::LegacySVGResourceClipper, element, WTFMove(style))
+    : LegacyRenderSVGResourceContainer(Type::LegacySVGResourceClipper, element, WTF::move(style))
 {
 }
 

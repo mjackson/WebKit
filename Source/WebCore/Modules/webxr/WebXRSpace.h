@@ -41,7 +41,7 @@ class ScriptExecutionContext;
 class WebXRRigidTransform;
 
 class WebXRSpace : public EventTarget, public ContextDestructionObserver {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(WebXRSpace);
+    WTF_MAKE_TZONE_ALLOCATED(WebXRSpace);
 public:
     virtual ~WebXRSpace();
 
@@ -51,6 +51,9 @@ public:
 
     virtual WebXRSession* session() const = 0;
     virtual std::optional<TransformationMatrix> nativeOrigin() const = 0;
+#if ENABLE(WEBXR_HIT_TEST)
+    virtual std::optional<PlatformXR::NativeOriginInformation> nativeOriginInformation() const { return std::nullopt; }
+#endif
     std::optional<TransformationMatrix> effectiveOrigin() const;
     virtual std::optional<bool> isPositionEmulated() const;
 
@@ -79,7 +82,7 @@ private:
 // This is a helper class to implement the viewer space owned by a WebXRSession.
 // It avoids a circular reference between the session and the reference space.
 class WebXRViewerSpace : public RefCounted<WebXRViewerSpace>, public WebXRSpace {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(WebXRViewerSpace);
+    WTF_MAKE_TZONE_ALLOCATED(WebXRViewerSpace);
 public:
     static Ref< WebXRViewerSpace> create(Document& document, WebXRSession& session)
     {

@@ -26,6 +26,7 @@
 #pragma once
 
 #include "WasmStreamingParser.h"
+#include <wtf/Platform.h>
 
 #if ENABLE(WEBASSEMBLY)
 

@@ -28,7 +28,9 @@
 
 #pragma once
 
+#include "JSExportMacros.h"
 #include <wtf/Forward.h>
+#include <wtf/Variant.h>
 
 namespace JSC { namespace Yarr {
 class RegularExpression;

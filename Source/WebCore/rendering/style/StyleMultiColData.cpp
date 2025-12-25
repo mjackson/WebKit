@@ -24,7 +24,7 @@
 #include "StyleMultiColData.h"
 
 #include "RenderStyleDifference.h"
-#include "RenderStyleInlines.h"
+#include "RenderStyle+InitialInlines.h"
 #include "StylePrimitiveKeyword+Logging.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
 
@@ -89,9 +89,9 @@ void StyleMultiColData::dumpDifferences(TextStream& ts, const StyleMultiColData&
 
 Style::LineWidth StyleMultiColData::columnRuleWidth() const
 {
-    if (columnRule.style() == BorderStyle::None || columnRule.style() == BorderStyle::Hidden)
+    if (!columnRule.hasVisibleStyle())
         return Style::LineWidth { 0_css_px };
-    return columnRule.width();
+    return columnRule.width;
 }
 
 } // namespace WebCore

@@ -123,7 +123,6 @@ void WebProcessActivityState::reset()
 #if PLATFORM(IOS_FAMILY)
     m_openingAppLinkActivity = nullptr;
 #endif
-    m_networkActivity = nullptr;
 }
 
 void WebProcessActivityState::dropVisibleActivity()

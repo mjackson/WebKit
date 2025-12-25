@@ -40,7 +40,7 @@ class SVGTextElement;
 class SVGTextLayoutEngine;
 
 class RenderSVGText final : public RenderSVGBlock {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED(RenderSVGText);
+    WTF_MAKE_TZONE_ALLOCATED(RenderSVGText);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderSVGText);
 public:
     RenderSVGText(SVGTextElement&, RenderStyle&&);
@@ -104,7 +104,7 @@ private:
 
     void willBeDestroyed() override;
 
-    void styleDidChange(StyleDifference, const RenderStyle* oldStyle) final;
+    void styleDidChange(Style::Difference, const RenderStyle* oldStyle) final;
 
     // FIXME: [LBSE] Begin code only needed for legacy SVG engine.
     bool nodeAtFloatPoint(const HitTestRequest&, HitTestResult&, const FloatPoint& pointInParent, HitTestAction) override;

@@ -4400,7 +4400,7 @@ TEST(ServiceWorkers, ServiceWorkerStorageTiming)
     HashMap<String, String> sourceHeaders;
     sourceHeaders.add("Cache-Control"_s, "no-cache"_s);
     sourceHeaders.add("Content-Type"_s, "application/javascript"_s);
-    server.setResponse("/sw.js"_s, TestWebKitAPI::HTTPResponse { WTFMove(sourceHeaders), serviceWorkerStorageTimingScriptBytesV2 });
+    server.setResponse("/sw.js"_s, TestWebKitAPI::HTTPResponse { WTF::move(sourceHeaders), serviceWorkerStorageTimingScriptBytesV2 });
 
     done = false;
     expectedMessage = "Message from worker: V1"_s;

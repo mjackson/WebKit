@@ -325,6 +325,7 @@ template<typename> class ExceptionOr;
 
 enum class CollectionType : uint8_t;
 enum CSSPropertyID : uint16_t;
+enum class DidUpdateAnyContentRelevancy : bool;
 
 enum class CompositeOperator : uint8_t;
 enum class ContentRelevancy : uint8_t;
@@ -451,13 +452,13 @@ class Document
     , public Supplementable<Document>
     , public Logger::Observer
     , public ReportingClient {
-    WTF_MAKE_TZONE_OR_ISO_ALLOCATED_EXPORT(Document, WEBCORE_EXPORT);
+    WTF_MAKE_TZONE_ALLOCATED_EXPORT(Document, WEBCORE_EXPORT);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(Document);
 public:
     USING_CAN_MAKE_WEAKPTR(EventTarget);
     USING_CAN_MAKE_CHECKEDPTR(ScriptExecutionContext);
 
-    void setDidBeginCheckedPtrDeletion()
+    void setDidBeginCheckedPtrDeletion() final
     {
         ContainerNode::setDidBeginCheckedPtrDeletion();
         ScriptExecutionContext::setDidBeginCheckedPtrDeletion();
@@ -932,8 +933,7 @@ public:
     ScriptableDocumentParser* scriptableDocumentParser() const;
     HTMLDocumentParser* htmlDocumentParser() const;
 
-    bool printing() const { return m_printing; }
-    void setPrinting(bool p) { m_printing = p; }
+    WEBCORE_EXPORT bool printing() const;
 
     bool paginatedForScreen() const { return m_paginatedForScreen; }
     void setPaginatedForScreen(bool p) { m_paginatedForScreen = p; }
@@ -1076,7 +1076,7 @@ public:
 
     Document& contextDocument() const;
     Ref<Document> protectedContextDocument() const { return contextDocument(); }
-    void setContextDocument(Ref<Document>&& document) { m_contextDocument = WTFMove(document); }
+    void setContextDocument(Ref<Document>&& document) { m_contextDocument = WTF::move(document); }
     
     OptionSet<ParserContentPolicy> parserContentPolicy() const { return m_parserContentPolicy; }
     void setParserContentPolicy(OptionSet<ParserContentPolicy> policy) { m_parserContentPolicy = policy; }
@@ -1963,6 +1963,7 @@ public:
 
     HighlightRegistry* textExtractionHighlightRegistryIfExists() const { return m_textExtractionHighlightRegistry.get(); }
     HighlightRegistry& textExtractionHighlightRegistry();
+    Ref<HighlightRegistry> protectedTextExtractionHighlightRegistry();
         
 #if ENABLE(APP_HIGHLIGHTS)
     HighlightRegistry* appHighlightRegistryIfExists() { return m_appHighlightRegistry.get(); }
@@ -2044,7 +2045,8 @@ public:
     virtual void didChangeViewSize() { }
     bool isNavigationBlockedByThirdPartyIFrameRedirectBlocking(Frame& targetFrame, const URL& destinationURL);
 
-    void updateRelevancyOfContentVisibilityElements();
+    enum UpdateLayoutIfContentVisibilityChanged : bool { No, Yes };
+    DidUpdateAnyContentRelevancy updateRelevancyOfContentVisibilityElements(UpdateLayoutIfContentVisibilityChanged = UpdateLayoutIfContentVisibilityChanged::Yes);
     void scheduleContentRelevancyUpdate(ContentRelevancy);
     void updateContentRelevancyForScrollIfNeeded(const Element& scrollAnchor);
 
@@ -2514,12 +2516,12 @@ private:
 #if ENABLE(TEXT_AUTOSIZING)
     std::unique_ptr<TextAutoSizing> m_textAutoSizing;
 #endif
-        
-    RefPtr<HighlightRegistry> m_highlightRegistry;
-    RefPtr<HighlightRegistry> m_fragmentHighlightRegistry;
-    RefPtr<HighlightRegistry> m_textExtractionHighlightRegistry;
+
+    const RefPtr<HighlightRegistry> m_highlightRegistry;
+    const RefPtr<HighlightRegistry> m_fragmentHighlightRegistry;
+    const RefPtr<HighlightRegistry> m_textExtractionHighlightRegistry;
 #if ENABLE(APP_HIGHLIGHTS)
-    RefPtr<HighlightRegistry> m_appHighlightRegistry;
+    const RefPtr<HighlightRegistry> m_appHighlightRegistry;
     std::unique_ptr<AppHighlightStorage> m_appHighlightStorage;
 #endif
 

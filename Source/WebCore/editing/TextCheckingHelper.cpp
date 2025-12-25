@@ -65,7 +65,7 @@ static void findGrammaticalErrors(TextCheckerClient& client, StringView text, Ve
         TextCheckingResult badGrammar;
         badGrammar.type = TextCheckingType::Grammar;
         badGrammar.range = CharacterRange(checkLocation + badGrammarLocation, badGrammarLength);
-        badGrammar.details = WTFMove(badGrammarDetails);
+        badGrammar.details = WTF::move(badGrammarDetails);
         results.append(badGrammar);
 
         checkLocation += badGrammarLocation + badGrammarLength;
@@ -131,7 +131,7 @@ void TextCheckingParagraph::expandRangeToNextEnd()
 {
     paragraphRange();
     if (auto end = makeBoundaryPoint(endOfParagraph(startOfNextParagraph(makeDeprecatedLegacyPosition(m_paragraphRange->start)))))
-        m_paragraphRange->end = WTFMove(*end);
+        m_paragraphRange->end = WTF::move(*end);
     invalidateParagraphRangeValues();
 }
 
@@ -270,7 +270,7 @@ auto TextCheckingHelper::findMisspelledWords(Operation operation) const -> std::
                     text.substring(misspellingLocation, misspellingLength).toString(),
                     currentChunkOffset + misspellingLocation
                 },
-                WTFMove(misspellingRange)
+                WTF::move(misspellingRange)
             };
         }
 
@@ -403,7 +403,7 @@ auto TextCheckingHelper::findFirstMisspelledWordOrUngrammaticalPhrase(bool check
         auto nextParagraphRange = makeSimpleRange(nextStart, endOfParagraph(nextStart));
         if (!nextParagraphRange)
             break;
-        paragraphRange = WTFMove(*nextParagraphRange);
+        paragraphRange = WTF::move(*nextParagraphRange);
 
         firstIteration = false;
         totalLengthProcessed += currentLength;
@@ -527,7 +527,7 @@ TextCheckingGuesses TextCheckingHelper::guessesForMisspelledWordOrUngrammaticalP
             Vector<String> guesses;
             m_client.textChecker()->getGuessesForWord(misspelledWord, String(), currentSelection, guesses);
             m_client.updateSpellingUIWithMisspelledWord(misspelledWord);
-            return { WTFMove(guesses), true, false };
+            return { WTF::move(guesses), true, false };
         }
     }
     
@@ -542,7 +542,7 @@ TextCheckingGuesses TextCheckingHelper::guessesForMisspelledWordOrUngrammaticalP
                     String badGrammarPhrase = paragraph.text().substring(result.range.location, result.range.length).toString();
                     ASSERT(badGrammarPhrase.length());
                     m_client.updateSpellingUIWithGrammarString(badGrammarPhrase, detail);
-                    return { WTFMove(detail.guesses), false, true };
+                    return { WTF::move(detail.guesses), false, true };
                 }
             }
         }
@@ -586,10 +586,10 @@ void checkTextOfParagraph(TextCheckerClient& client, StringView text, OptionSet<
         findGrammaticalErrors(client, text.left(grammarCheckLength), grammaticalErrors);
     }
 
-    results = WTFMove(grammaticalErrors);
+    results = WTF::move(grammaticalErrors);
 
     if (results.isEmpty())
-        results = WTFMove(misspellings);
+        results = WTF::move(misspellings);
     else
         results.appendVector(misspellings);
 #endif // USE(UNIFIED_TEXT_CHECKING)

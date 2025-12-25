@@ -56,7 +56,7 @@ public:
     void ref() const final { RefCountedAndCanMakeWeakPtr::ref(); }
     void deref() const final { RefCountedAndCanMakeWeakPtr::deref(); }
 
-    void setRTCSender(RefPtr<webrtc::RtpSenderInterface>&& rtcSender) { m_rtcSender = WTFMove(rtcSender); }
+    void setRTCSender(RefPtr<webrtc::RtpSenderInterface>&& rtcSender) { m_rtcSender = WTF::move(rtcSender); }
     webrtc::RtpSenderInterface* rtcSender() { return m_rtcSender.get(); }
     RefPtr<webrtc::RtpSenderInterface> protectedRTCSender() { return m_rtcSender; }
 

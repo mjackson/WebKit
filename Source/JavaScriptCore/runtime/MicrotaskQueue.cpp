@@ -107,7 +107,7 @@ void MicrotaskQueue::enqueue(QueuedTask&& task)
 {
     auto* globalObject = task.globalObject();
     auto identifier = task.identifier();
-    m_queue.enqueue(WTFMove(task));
+    m_queue.enqueue(WTF::move(task));
     if (globalObject) {
         if (auto* debugger = globalObject->debugger(); debugger && identifier) [[unlikely]]
             debugger->didQueueMicrotask(globalObject, identifier.value());

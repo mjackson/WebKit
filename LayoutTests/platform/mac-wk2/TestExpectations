@@ -49,6 +49,14 @@ ipc/restrictedendpoints/mac [ Pass ]
 fast/page-color-sampling [ Pass ]
 [ Sequoia+ ] webanimations/threaded-animations [ Pass ]
 
+editing/pasteboard/data-transfer-get-data-on-drop-custom.html [ Pass ]
+editing/pasteboard/data-transfer-get-data-on-drop-plain-text.html [ Pass ]
+editing/pasteboard/data-transfer-get-data-on-drop-rich-text.html [ Pass ]
+editing/pasteboard/data-transfer-get-data-on-drop-url.html [ Pass ]
+editing/pasteboard/data-transfer-set-data-sanitize-html-when-dragging-in-null-origin.html [ Pass ]
+editing/pasteboard/data-transfer-set-data-sanitize-url-when-dragging-in-null-origin.html [ Pass ]
+editing/pasteboard/data-transfer-item-list-add-file-on-drag.html [ Pass ]
+
 fast/events/autoscroll-when-zoomed.html [ Pass ]
 fast/events/autoscroll-main-document.html [ Pass ]
 
@@ -71,6 +79,8 @@ fast/repaint/background-attachment-local-scroll.html [ Pass ]
 fast/repaint/background-attachment-fixed-in-composited-scroll.html [ Pass ]
 fast/scrolling/unfocusing-page-while-keyboard-scrolling.html [ Pass ]
 
+http/tests/security/clipboard/drag-drop-html-cross-origin-iframe-in-same-origin.html [ Pass ]
+
 http/tests/ssl/applepay [ Pass ]
 
 fast/visual-viewport/rubberbanding-viewport-rects.html [ Pass ]
@@ -78,6 +88,7 @@ fast/visual-viewport/rubberbanding-viewport-rects-header-footer.html  [ Pass ]
 
 
 http/tests/paymentrequest/ApplePayModifier-disbursementRequest.https.html [ Skip ]
+http/tests/paymentrequest/paymentrequest-isDelegatedRequest.https.html [ Skip ]
 http/tests/paymentrequest [ Pass ]
 http/tests/inspector/paymentrequest [ Pass ]
 imported/w3c/web-platform-tests/payment-request [ Pass ]
@@ -333,6 +344,7 @@ fast/forms/file/file-input-empty-validation.html [ Failure ]
 editing/mac/input/insert-dictated-text.html
 editing/mac/input/crash-for-empty-text-alternative.html
 editing/mac/input/edit-dictated-text-with-alternative.html
+editing/mac/attributed-string/
 
 # This test times out on Mac WK2 every time.
 webkit.org/b/89199 editing/spelling/grammar-edit-word.html [ Skip ]
@@ -942,6 +954,8 @@ webkit.org/b/197207 http/wpt/resource-timing/rt-resources-per-frame.html [ Pass 
 
 webkit.org/b/197662 imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-getStats.https.html [ Pass Failure ]
 
+imported/w3c/web-platform-tests/webrtc/RTCIceTransport.html [ Skip ]
+
 webkit.org/b/198195 fast/css/sticky/sticky-left-percentage.html [ Pass ImageOnlyFailure ]
 
 webkit.org/b/187828 [ Release ] fast/css-grid-layout/flex-content-sized-columns-resize.html [ Pass ImageOnlyFailure ]
@@ -1454,7 +1468,6 @@ webkit.org/b/260113 [ arm64 ] http/wpt/webauthn/ctap-hid-failure.https.html [ Pa
 [ Sonoma+ ] fast/images/animations-resume-from-last-displayed-frame.html [ Pass ]
 [ Sonoma+ ] fast/images/pagewide-play-pause-animateTransform-svg-animation.html [ Pass ]
 [ Sonoma+ ] fast/images/pagewide-play-pause-offscreen-animations.html [ Pass ]
-[ Sonoma+ ] fast/images/mac/play-all-pause-all-animations-context-menu-items.html [ Pass ]
 [ Sonoma+ ] fast/images/mac/animation-context-menu-items-presence.html [ Pass ]
 # This test was added in https://bugs.webkit.org/show_bug.cgi?id=250475 — re-enable it here for Sonoma.
 
@@ -2342,8 +2355,6 @@ webkit.org/b/297006 [ Debug ] http/tests/media/media-element-frame-destroyed-cra
 
 webkit.org/b/267778 [ Release ] fast/forms/listbox-padding-clip-selected.html [ Pass ImageOnlyFailure ]
 
-webkit.org/b/298256 [ Debug ] fast/dom/document-all.html [ Pass Timeout ]
-
 webkit.org/b/298269 imported/w3c/web-platform-tests/html/anonymous-iframe/session-storage.tentative.https.window.html [ Pass Failure ]
 
 webkit.org/b/298278 imported/w3c/web-platform-tests/html/anonymous-iframe/local-storage.tentative.https.window.html [ Pass Failure ]
@@ -2398,8 +2409,6 @@ fast/events/popup-blocking-timers1.html [ Timeout ]
 fast/events/popup-blocked-from-fake-user-gesture.html [ Timeout ]
 fast/events/popup-allowed-from-gesture-initiated-event.html [ Timeout ]
 
-webkit.org/b/302169 [ Debug ] css3/filters/backdrop/effect-hw.html [ ImageOnlyFailure ]
-
 webkit.org/b/302172 [ Debug ] imported/w3c/web-platform-tests/css/css-view-transitions/backdrop-filter-animated.html [ ImageOnlyFailure ]
 
 webkit.org/b/302174 [ Tahoe Debug arm64 ] platform/mac/media/encrypted-media/fps-generateRequest.html [ Timeout ]
@@ -2428,3 +2437,14 @@ webkit.org/b/303507 [ Sonoma+ Debug ] inspector/dom/customElementState.html [ Ti
 webkit.org/b/303507 [ Sonoma+ Debug ] inspector/injected-script/observable.html [ Timeout ]
 webkit.org/b/303507 [ Sonoma+ Debug ] inspector/network/intercept-aborted-request.html [ Timeout ]
 webkit.org/b/303507 [ Sonoma+ Debug ] inspector/page/filter-cookies-for-domain.html [ Timeout ]
+
+webkit.org/b/304079 [ Debug ] http/tests/ipc/ipc-fetch-task-message-crash.html [ Timeout ]
+
+webkit.org/b/304427 fast/html/HTMLPluginElement-renderer-destroyed-crash.html [ Skip ]
+
+webkit.org/b/304616 fast/images/mac/play-all-pause-all-animations-context-menu-items.html [ Pass Timeout ]
+
+# webkit.org/b/304651 REGRESSION(304792@main): [macOS iOS] Flaky crash in site-isolation tests
+[ Release ] http/tests/site-isolation/history/add-iframes-and-navigate-mainframe.html [ Skip ]
+[ Release ] http/tests/site-isolation/focus-click-navigation-activeElement.html [ Skip ]
+[ Release ] http/tests/site-isolation/history/add-iframes-and-go-back.html [ Skip ]
