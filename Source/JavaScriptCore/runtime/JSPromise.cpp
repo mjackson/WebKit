@@ -297,12 +297,8 @@ void JSPromise::performPromiseThen(VM& vm, JSGlobalObject* globalObject, JSValue
     case JSPromise::Status::Pending: {
 #if USE(BUN_JSC_ADDITIONS)
         // AsyncLocalStorage support: wrap context with async context if present
-        // Matches behavior from PromiseOperations.js:
-        //   var asyncContext = @getInternalField(@asyncContext, 0);
-        //   if (asyncContext)
-        //       context = [context, asyncContext];
-        if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
-            JSValue asyncContext = asyncContextData->getInternalField(0);
+        {
+            JSValue asyncContext = globalObject->asyncContext();
             if (!asyncContext.isUndefined()) {
                 // Create array [context, asyncContext]
                 ObjectInitializationScope initializationScope(vm);
@@ -325,8 +321,8 @@ void JSPromise::performPromiseThen(VM& vm, JSGlobalObject* globalObject, JSValue
             globalObject->globalObjectMethodTable()->promiseRejectionTracker(globalObject, this, JSPromiseRejectionOperation::Handle);
 #if USE(BUN_JSC_ADDITIONS)
         // AsyncLocalStorage support: wrap context with async context if present
-        if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
-            JSValue asyncContext = asyncContextData->getInternalField(0);
+        {
+            JSValue asyncContext = globalObject->asyncContext();
             if (!asyncContext.isUndefined()) {
                 // Create array [context, asyncContext]
                 ObjectInitializationScope initializationScope(vm);
@@ -350,8 +346,8 @@ void JSPromise::performPromiseThen(VM& vm, JSGlobalObject* globalObject, JSValue
     case JSPromise::Status::Fulfilled: {
 #if USE(BUN_JSC_ADDITIONS)
         // AsyncLocalStorage support: wrap context with async context if present
-        if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
-            JSValue asyncContext = asyncContextData->getInternalField(0);
+        {
+            JSValue asyncContext = globalObject->asyncContext();
             if (!asyncContext.isUndefined()) {
                 // Create array [context, asyncContext]
                 ObjectInitializationScope initializationScope(vm);
@@ -380,8 +376,8 @@ void JSPromise::performPromiseThenWithInternalMicrotask(VM& vm, JSGlobalObject* 
 {
 #if USE(BUN_JSC_ADDITIONS)
     // AsyncLocalStorage support: wrap context with async context if present
-    if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
-        JSValue asyncContext = asyncContextData->getInternalField(0);
+    {
+        JSValue asyncContext = globalObject->asyncContext();
         if (!asyncContext.isUndefined()) {
             // Create array [context, asyncContext]
             ObjectInitializationScope initializationScope(vm);
@@ -496,9 +492,7 @@ void JSPromise::resolvePromise(JSGlobalObject* globalObject, JSValue resolution)
     auto [ resolve, reject ] = createResolvingFunctions(vm, globalObject);
 #if USE(BUN_JSC_ADDITIONS)
     // AsyncLocalStorage support: capture async context when queuing thenable resolution
-    JSValue asyncContext = jsUndefined();
-    if (auto* asyncContextData = globalObject->m_asyncContextData.get())
-        asyncContext = asyncContextData->getInternalField(0);
+    JSValue asyncContext = globalObject->asyncContext();
     return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJob, resolutionObject, then, resolve, reject, asyncContext);
 #else
     return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJob, resolutionObject, then, resolve, reject);
@@ -844,9 +838,7 @@ void JSPromise::resolveWithoutPromise(JSGlobalObject* globalObject, JSValue reso
     auto [ resolve, reject ] = createResolvingFunctionsWithoutPromise(vm, globalObject, onFulfilled, onRejected, context);
 #if USE(BUN_JSC_ADDITIONS)
     // AsyncLocalStorage support: capture async context when queuing thenable resolution
-    JSValue asyncContext = jsUndefined();
-    if (auto* asyncContextData = globalObject->m_asyncContextData.get())
-        asyncContext = asyncContextData->getInternalField(0);
+    JSValue asyncContext = globalObject->asyncContext();
     return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJob, resolutionObject, then, resolve, reject, asyncContext);
 #else
     return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJob, resolutionObject, then, resolve, reject);
@@ -859,8 +851,8 @@ void JSPromise::rejectWithoutPromise(JSGlobalObject* globalObject, JSValue argum
     UNUSED_PARAM(onFulfilled);
 #if USE(BUN_JSC_ADDITIONS)
     // AsyncLocalStorage support: wrap context with async context if present
-    if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
-        JSValue asyncContext = asyncContextData->getInternalField(0);
+    {
+        JSValue asyncContext = globalObject->asyncContext();
         if (!asyncContext.isUndefined()) {
             // Create array [context, asyncContext]
             ObjectInitializationScope initializationScope(vm);
@@ -883,8 +875,8 @@ void JSPromise::fulfillWithoutPromise(JSGlobalObject* globalObject, JSValue argu
     UNUSED_PARAM(onRejected);
 #if USE(BUN_JSC_ADDITIONS)
     // AsyncLocalStorage support: wrap context with async context if present
-    if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
-        JSValue asyncContext = asyncContextData->getInternalField(0);
+    {
+        JSValue asyncContext = globalObject->asyncContext();
         if (!asyncContext.isUndefined()) {
             // Create array [context, asyncContext]
             ObjectInitializationScope initializationScope(vm);
@@ -938,9 +930,7 @@ void JSPromise::resolveWithInternalMicrotask(JSGlobalObject* globalObject, JSVal
     auto [ resolve, reject ] = createResolvingFunctionsWithInternalMicrotask(vm, globalObject, task, context);
 #if USE(BUN_JSC_ADDITIONS)
     // AsyncLocalStorage support: capture async context when queuing thenable resolution
-    JSValue asyncContext = jsUndefined();
-    if (auto* asyncContextData = globalObject->m_asyncContextData.get())
-        asyncContext = asyncContextData->getInternalField(0);
+    JSValue asyncContext = globalObject->asyncContext();
     return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJob, resolutionObject, then, resolve, reject, asyncContext);
 #else
     return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJob, resolutionObject, then, resolve, reject);
@@ -952,8 +942,8 @@ void JSPromise::rejectWithInternalMicrotask(JSGlobalObject* globalObject, JSValu
 #if USE(BUN_JSC_ADDITIONS)
     // AsyncLocalStorage support: wrap context with async context if present
     VM& vm = globalObject->vm();
-    if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
-        JSValue asyncContext = asyncContextData->getInternalField(0);
+    {
+        JSValue asyncContext = globalObject->asyncContext();
         if (!asyncContext.isUndefined()) {
             // Create array [context, asyncContext]
             ObjectInitializationScope initializationScope(vm);
@@ -975,8 +965,8 @@ void JSPromise::fulfillWithInternalMicrotask(JSGlobalObject* globalObject, JSVal
 #if USE(BUN_JSC_ADDITIONS)
     // AsyncLocalStorage support: wrap context with async context if present
     VM& vm = globalObject->vm();
-    if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
-        JSValue asyncContext = asyncContextData->getInternalField(0);
+    {
+        JSValue asyncContext = globalObject->asyncContext();
         if (!asyncContext.isUndefined()) {
             // Create array [context, asyncContext]
             ObjectInitializationScope initializationScope(vm);

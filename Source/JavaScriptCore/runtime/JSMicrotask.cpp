@@ -160,11 +160,9 @@ static void promiseResolveThenableJob(JSGlobalObject* globalObject, JSValue prom
     JSValue previousAsyncContext;
     bool hasAsyncContext = false;
     if (!asyncContext.isUndefined()) {
-        if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
-            previousAsyncContext = asyncContextData->getInternalField(0);
-            asyncContextData->putInternalField(vm, 0, asyncContext);
-            hasAsyncContext = true;
-        }
+        previousAsyncContext = globalObject->asyncContext();
+        globalObject->setAsyncContext(vm, asyncContext);
+        hasAsyncContext = true;
     }
 #endif
 
@@ -178,10 +176,8 @@ static void promiseResolveThenableJob(JSGlobalObject* globalObject, JSValue prom
         if (!scope.exception()) [[likely]] {
 #if USE(BUN_JSC_ADDITIONS)
             // Restore async context before returning
-            if (hasAsyncContext) {
-                if (auto* asyncContextData = globalObject->m_asyncContextData.get())
-                    asyncContextData->putInternalField(vm, 0, previousAsyncContext);
-            }
+            if (hasAsyncContext)
+                globalObject->setAsyncContext(vm, previousAsyncContext);
 #endif
             return;
         }
@@ -191,20 +187,16 @@ static void promiseResolveThenableJob(JSGlobalObject* globalObject, JSValue prom
     if (!scope.clearExceptionExceptTermination()) [[unlikely]] {
 #if USE(BUN_JSC_ADDITIONS)
         // Restore async context before returning
-        if (hasAsyncContext) {
-            if (auto* asyncContextData = globalObject->m_asyncContextData.get())
-                asyncContextData->putInternalField(vm, 0, previousAsyncContext);
-        }
+        if (hasAsyncContext)
+            globalObject->setAsyncContext(vm, previousAsyncContext);
 #endif
         return;
     }
 
 #if USE(BUN_JSC_ADDITIONS)
     // Restore async context after exception handling
-    if (hasAsyncContext) {
-        if (auto* asyncContextData = globalObject->m_asyncContextData.get())
-            asyncContextData->putInternalField(vm, 0, previousAsyncContext);
-    }
+    if (hasAsyncContext)
+        globalObject->setAsyncContext(vm, previousAsyncContext);
 #endif
 
     MarkedArgumentBuffer arguments;
@@ -373,8 +365,8 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
             //   if (asyncContext)
             //       context = [jsUndefined(), asyncContext];
             JSValue context = jsUndefined();
-            if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
-                JSValue asyncContext = asyncContextData->getInternalField(0);
+            {
+                JSValue asyncContext = globalObject->asyncContext();
                 if (!asyncContext.isUndefined()) {
                     // Create array [context, asyncContext]
                     ObjectInitializationScope initializationScope(vm);
@@ -432,8 +424,8 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
             //   var asyncContext = @getInternalField(@asyncContext, 0);
             //   if (asyncContext)
             //       context = [context, asyncContext];
-            if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
-                JSValue asyncContext = asyncContextData->getInternalField(0);
+            {
+                JSValue asyncContext = globalObject->asyncContext();
                 if (!asyncContext.isUndefined()) {
                     // Create array [context, asyncContext]
                     ObjectInitializationScope initializationScope(vm);
@@ -595,13 +587,11 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
         bool hasAsyncContext = false;
         if (auto* contextArray = jsDynamicCast<JSArray*>(context)) {
             if (contextArray->length() == 2) {
-                if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
-                    previousAsyncContext = asyncContextData->getInternalField(0);
-                    JSValue asyncContext = contextArray->getIndexQuickly(1);
-                    asyncContextData->putInternalField(vm, 0, asyncContext);
-                    context = contextArray->getIndexQuickly(0);
-                    hasAsyncContext = true;
-                }
+                previousAsyncContext = globalObject->asyncContext();
+                JSValue asyncContext = contextArray->getIndexQuickly(1);
+                globalObject->setAsyncContext(vm, asyncContext);
+                context = contextArray->getIndexQuickly(0);
+                hasAsyncContext = true;
             }
         }
 #endif
@@ -629,10 +619,8 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
                 if (!catchScope.clearExceptionExceptTermination()) [[unlikely]] {
 #if USE(BUN_JSC_ADDITIONS)
                     // Restore async context before returning
-                    if (hasAsyncContext) {
-                        if (auto* asyncContextData = globalObject->m_asyncContextData.get())
-                            asyncContextData->putInternalField(vm, 0, previousAsyncContext);
-                    }
+                    if (hasAsyncContext)
+                        globalObject->setAsyncContext(vm, previousAsyncContext);
 #endif
                     scope.release();
                     return;
@@ -644,10 +632,8 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
             if (auto* promise = jsDynamicCast<JSPromise*>(promiseOrCapability)) {
 #if USE(BUN_JSC_ADDITIONS)
                 // Restore async context before exception check (must restore even if exception occurs)
-                if (hasAsyncContext) {
-                    if (auto* asyncContextData = globalObject->m_asyncContextData.get())
-                        asyncContextData->putInternalField(vm, 0, previousAsyncContext);
-                }
+                if (hasAsyncContext)
+                    globalObject->setAsyncContext(vm, previousAsyncContext);
 #endif
                 RELEASE_AND_RETURN(scope, promise->rejectPromise(vm, globalObject, error));
             }
@@ -662,10 +648,8 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
             call(globalObject, reject, jsUndefined(), arguments, "reject is not a function"_s);
 #if USE(BUN_JSC_ADDITIONS)
             // Restore async context after operation
-            if (hasAsyncContext) {
-                if (auto* asyncContextData = globalObject->m_asyncContextData.get())
-                    asyncContextData->putInternalField(vm, 0, previousAsyncContext);
-            }
+            if (hasAsyncContext)
+                globalObject->setAsyncContext(vm, previousAsyncContext);
 #endif
             return;
         }
@@ -674,10 +658,8 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
             promise->resolvePromise(globalObject, result);
 #if USE(BUN_JSC_ADDITIONS)
             // Restore async context before exception check (must restore even if exception occurs)
-            if (hasAsyncContext) {
-                if (auto* asyncContextData = globalObject->m_asyncContextData.get())
-                    asyncContextData->putInternalField(vm, 0, previousAsyncContext);
-            }
+            if (hasAsyncContext)
+                globalObject->setAsyncContext(vm, previousAsyncContext);
 #endif
             RETURN_IF_EXCEPTION(scope, void());
             return;
@@ -693,10 +675,8 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
         call(globalObject, resolve, jsUndefined(), arguments, "resolve is not a function"_s);
 #if USE(BUN_JSC_ADDITIONS)
         // Restore async context after operation
-        if (hasAsyncContext) {
-            if (auto* asyncContextData = globalObject->m_asyncContextData.get())
-                asyncContextData->putInternalField(vm, 0, previousAsyncContext);
-        }
+        if (hasAsyncContext)
+            globalObject->setAsyncContext(vm, previousAsyncContext);
 #endif
         return;
     }
@@ -718,13 +698,11 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
         bool hasAsyncContext = false;
         if (auto* contextArray = jsDynamicCast<JSArray*>(context)) {
             if (contextArray->length() == 2) {
-                if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
-                    previousAsyncContext = asyncContextData->getInternalField(0);
-                    JSValue asyncContext = contextArray->getIndexQuickly(1);
-                    asyncContextData->putInternalField(vm, 0, asyncContext);
-                    context = contextArray->getIndexQuickly(0);
-                    hasAsyncContext = true;
-                }
+                previousAsyncContext = globalObject->asyncContext();
+                JSValue asyncContext = contextArray->getIndexQuickly(1);
+                globalObject->setAsyncContext(vm, asyncContext);
+                context = contextArray->getIndexQuickly(0);
+                hasAsyncContext = true;
             }
         }
 #endif
@@ -747,10 +725,8 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
 
 #if USE(BUN_JSC_ADDITIONS)
         // Restore async context after handler execution
-        if (hasAsyncContext) {
-            if (auto* asyncContextData = globalObject->m_asyncContextData.get())
-                asyncContextData->putInternalField(vm, 0, previousAsyncContext);
-        }
+        if (hasAsyncContext)
+            globalObject->setAsyncContext(vm, previousAsyncContext);
 #endif
 
         return;
@@ -833,13 +809,11 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
         bool hasAsyncContext = false;
         if (auto* contextArray = jsDynamicCast<JSArray*>(context)) {
             if (contextArray->length() == 2) {
-                if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
-                    previousAsyncContext = asyncContextData->getInternalField(0);
-                    JSValue asyncContext = contextArray->getIndexQuickly(1);
-                    asyncContextData->putInternalField(vm, 0, asyncContext);
-                    context = contextArray->getIndexQuickly(0);
-                    hasAsyncContext = true;
-                }
+                previousAsyncContext = globalObject->asyncContext();
+                JSValue asyncContext = contextArray->getIndexQuickly(1);
+                globalObject->setAsyncContext(vm, asyncContext);
+                context = contextArray->getIndexQuickly(0);
+                hasAsyncContext = true;
             }
         }
 #endif
@@ -868,10 +842,8 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
                 if (!catchScope.clearExceptionExceptTermination()) [[unlikely]] {
 #if USE(BUN_JSC_ADDITIONS)
                     // Restore async context before returning
-                    if (hasAsyncContext) {
-                        if (auto* asyncContextData = globalObject->m_asyncContextData.get())
-                            asyncContextData->putInternalField(vm, 0, previousAsyncContext);
-                    }
+                    if (hasAsyncContext)
+                        globalObject->setAsyncContext(vm, previousAsyncContext);
 #endif
                     scope.release();
                     return;
@@ -883,10 +855,8 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
             auto* promise = jsCast<JSPromise*>(generator->context());
 #if USE(BUN_JSC_ADDITIONS)
             // Restore async context before returning
-            if (hasAsyncContext) {
-                if (auto* asyncContextData = globalObject->m_asyncContextData.get())
-                    asyncContextData->putInternalField(vm, 0, previousAsyncContext);
-            }
+            if (hasAsyncContext)
+                globalObject->setAsyncContext(vm, previousAsyncContext);
 #endif
             scope.release();
             promise->reject(vm, globalObject, error);
@@ -897,10 +867,8 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
             auto* promise = jsCast<JSPromise*>(generator->context());
 #if USE(BUN_JSC_ADDITIONS)
             // Restore async context before returning
-            if (hasAsyncContext) {
-                if (auto* asyncContextData = globalObject->m_asyncContextData.get())
-                    asyncContextData->putInternalField(vm, 0, previousAsyncContext);
-            }
+            if (hasAsyncContext)
+                globalObject->setAsyncContext(vm, previousAsyncContext);
 #endif
             scope.release();
             promise->resolve(globalObject, value);
@@ -913,10 +881,8 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
         // Restore async context after resolveWithInternalMicrotaskForAsyncAwait
         // This must happen AFTER the call because resolveWithInternalMicrotaskForAsyncAwait calls
         // performPromiseThenWithInternalMicrotask which needs to capture the current async context
-        if (hasAsyncContext) {
-            if (auto* asyncContextData = globalObject->m_asyncContextData.get())
-                asyncContextData->putInternalField(vm, 0, previousAsyncContext);
-        }
+        if (hasAsyncContext)
+            globalObject->setAsyncContext(vm, previousAsyncContext);
 #endif
         return;
     }

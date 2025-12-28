@@ -2155,19 +2155,8 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
     });
 
 #if USE(BUN_JSC_ADDITIONS)
-    // Link Time Constant would be faster, but it seems OpGetInternalField does not expect having a linkTimeConstant,
-    // so `@getInternalField(@asyncContext, 0)` will crash. If we can read/write to the internal field from JS in a better way, that could improve perf.
-    // m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::asyncContext)].initLater([](const Initializer<JSCell>& init) {
-    //     auto* globalObject = jsCast<JSGlobalObject*>(init.owner);
-    //     init.set(AsyncContext::create(init.vm, AsyncContext::createStructure(init.vm, globalObject, globalObject->objectPrototype())));
-    // });
     m_internalFieldTupleStructure.set(vm, this, InternalFieldTuple::createStructure(vm, this));
-
-    InternalFieldTuple* asyncContext = InternalFieldTuple::create(vm, internalFieldTupleStructure(), jsUndefined(), jsUndefined());
-    putDirectWithoutTransition(
-        vm, vm.propertyNames->builtinNames().asyncContextPrivateName(),
-        asyncContext, PropertyAttribute::DontEnum | PropertyAttribute::DontDelete | PropertyAttribute::ReadOnly);
-    m_asyncContextData.set(vm, this, asyncContext);
+    m_asyncContext.set(vm, this, jsUndefined());
 #endif
 
     m_performProxyObjectHasFunction.set(vm, this, jsCast<JSFunction*>(linkTimeConstant(LinkTimeConstant::performProxyObjectHas)));
@@ -2883,7 +2872,9 @@ void JSGlobalObject::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     visitor.append(thisObject->m_globalThis);
 
 #if USE(BUN_JSC_ADDITIONS)
-    visitor.append(thisObject->m_asyncContextData);
+    visitor.append(thisObject->m_asyncContext);
+    // m_asyncContextDelegateParent is a raw pointer to parent global object, not visited here
+    // (the parent is kept alive through normal object graph traversal)
     visitor.append(thisObject->m_internalFieldTupleStructure);
 #endif
 

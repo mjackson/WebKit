@@ -475,7 +475,9 @@ public:
 
 #if USE(BUN_JSC_ADDITIONS)
     bool m_isAsyncContextTrackingEnabled { false };
-    WriteBarrier<InternalFieldTuple> m_asyncContextData;
+    WriteBarrier<Unknown> m_asyncContext;
+    // For NodeVMGlobalObject: delegate async context to parent to share context across VM boundaries
+    JSGlobalObject* m_asyncContextDelegateParent { nullptr };
 #endif
 
     Debugger* m_debugger;
@@ -643,9 +645,29 @@ public:
     double jsDateNow() const {
         if (overridenDateNow > -1)
             return overridenDateNow;
-        
+
         return WTF::jsCurrentTime();
     }
+
+#if USE(BUN_JSC_ADDITIONS)
+    // Access the async context stored in m_asyncContext field
+    // If m_asyncContextDelegateParent is set (for NodeVMGlobalObject), delegate to parent
+    JSValue asyncContext() const {
+        if (m_asyncContextDelegateParent)
+            return m_asyncContextDelegateParent->asyncContext();
+        return m_asyncContext.get();
+    }
+    void setAsyncContext(VM& vm, JSValue value) {
+        if (m_asyncContextDelegateParent) {
+            m_asyncContextDelegateParent->setAsyncContext(vm, value);
+            return;
+        }
+        m_asyncContext.set(vm, this, value);
+    }
+    void setAsyncContextDelegateParent(JSGlobalObject* parent) {
+        m_asyncContextDelegateParent = parent;
+    }
+#endif
 
     TrustedTypesEnforcement m_trustedTypesEnforcement { TrustedTypesEnforcement::None };
 
