@@ -59,10 +59,6 @@ enum class InternalMicrotask : uint16_t {
 #endif
 };
 
-#if USE(BUN_JSC_ADDITIONS)
-constexpr unsigned maxMicrotaskArguments = 5;
-#else
 constexpr unsigned maxMicrotaskArguments = 4;
-#endif
 
 } // namespace JSC

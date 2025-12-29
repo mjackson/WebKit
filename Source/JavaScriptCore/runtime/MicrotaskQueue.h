@@ -141,11 +141,7 @@ private:
     JSGlobalObject* m_globalObject;
     JSValue m_arguments[maxArguments] { };
 };
-#if USE(BUN_JSC_ADDITIONS)
-static_assert(sizeof(QueuedTask) <= 56, "Size of QueuedTask is critical for performance");
-#else
 static_assert(sizeof(QueuedTask) <= 48, "Size of QueuedTask is critical for performance");
-#endif
 
 class MarkedMicrotaskDeque {
 public:

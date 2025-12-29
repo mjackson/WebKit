@@ -46,6 +46,10 @@
 #include "InternalFieldTuple.h"
 #include "JSArray.h"
 #include "ObjectInitializationScope.h"
+
+// External function to report unhandled errors (defined in Bun's bindings)
+// Weak symbol so standalone JSC builds work without Bun
+extern "C" __attribute__((weak)) void Bun__reportUnhandledError(JSC::JSGlobalObject*, JSC::EncodedJSValue);
 #endif
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
@@ -504,7 +508,14 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
         JSValue resolve = arguments[2];
         JSValue reject = arguments[3];
 #if USE(BUN_JSC_ADDITIONS)
-        JSValue asyncContext = arguments[4];
+        // Unpack asyncContext if resolve is a [resolve, asyncContext] array
+        JSValue asyncContext = jsUndefined();
+        if (auto* resolveArray = jsDynamicCast<JSArray*>(resolve)) {
+            if (resolveArray->length() == 2) {
+                resolve = resolveArray->getIndexQuickly(0);
+                asyncContext = resolveArray->getIndexQuickly(1);
+            }
+        }
         RELEASE_AND_RETURN(scope, promiseResolveThenableJob(globalObject, promise, then, resolve, reject, asyncContext));
 #else
         RELEASE_AND_RETURN(scope, promiseResolveThenableJob(globalObject, promise, then, resolve, reject, jsUndefined()));
@@ -765,36 +776,92 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
 
 #if USE(BUN_JSC_ADDITIONS)
     case InternalMicrotask::BunPerformMicrotaskJob: {
-        // Bun's performMicrotask function:
-        // arguments[0]: performMicrotask function
-        // arguments[1]: job function
-        // arguments[2]: async context
-        // arguments[3]: first argument to job (optional)
-        // arguments[4]: second argument to job (optional)
-        JSValue performMicrotaskFunction = arguments[0];
-        MarkedArgumentBuffer args;
-        // Add non-empty arguments only
-        for (size_t i = 1; i < maxMicrotaskArguments; ++i) {
-            if (!arguments[i].isEmpty())
-                args.append(arguments[i]);
+        // Bun's performMicrotask job:
+        // arguments[0]: job function
+        // arguments[1]: async context
+        // arguments[2]: first argument to job (optional)
+        // arguments[3]: second argument to job (optional)
+
+        JSValue job = arguments[0];
+        JSValue asyncContext = arguments[1];
+
+        // Async context setup (same pattern as other cases)
+        JSValue previousAsyncContext;
+        bool hasAsyncContext = false;
+        if (!asyncContext.isUndefined()) {
+            if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
+                previousAsyncContext = asyncContextData->getInternalField(0);
+                asyncContextData->putInternalField(vm, 0, asyncContext);
+                hasAsyncContext = true;
+            }
         }
-        ASSERT(!args.hasOverflowed());
-        scope.release();
-        callMicrotask(globalObject, performMicrotaskFunction, jsUndefined(), nullptr, args, "performMicrotask is not a function"_s);
+
+        // Call the job function
+        JSValue error;
+        {
+            auto catchScope = DECLARE_CATCH_SCOPE(vm);
+            MarkedArgumentBuffer args;
+            for (size_t i = 2; i < maxMicrotaskArguments; ++i) {
+                if (!arguments[i].isEmpty())
+                    args.append(arguments[i]);
+            }
+            ASSERT(!args.hasOverflowed());
+
+            callMicrotask(globalObject, job, jsUndefined(), nullptr, args, "job is not a function"_s);
+
+            if (catchScope.exception()) {
+                error = catchScope.exception()->value();
+                catchScope.clearException();
+            }
+        }
+
+        // Restore async context
+        if (hasAsyncContext) {
+            if (auto* asyncContextData = globalObject->m_asyncContextData.get())
+                asyncContextData->putInternalField(vm, 0, previousAsyncContext);
+        }
+
+        // Exception handling (Bun-specific) - same behavior as jsFunctionPerformMicrotask
+        if (error && Bun__reportUnhandledError) {
+            Bun__reportUnhandledError(globalObject, JSValue::encode(error));
+        }
+
         return;
     }
 
     case InternalMicrotask::BunInvokeJobWithArguments: {
-        // Simple job invocation with arguments:
+        // Job invocation with arguments:
         // arguments[0]: job function
-        // arguments[1-4]: arguments (optional)
+        // arguments[1]: arg0
+        // arguments[2]: arg1
+        // arguments[3]: packedArgs (may be [arg2, arg3] array)
         JSValue job = arguments[0];
         MarkedArgumentBuffer args;
-        // Add non-empty arguments only
-        for (size_t i = 1; i < maxMicrotaskArguments; ++i) {
-            if (!arguments[i].isEmpty())
-                args.append(arguments[i]);
+
+        // Add arg0 and arg1
+        if (!arguments[1].isEmpty())
+            args.append(arguments[1]);
+        if (!arguments[2].isEmpty())
+            args.append(arguments[2]);
+
+        // Unpack arguments[3] if it's a [arg2, arg3] array
+        // Note: Must check isCell() and the cell pointer validity before jsDynamicCast
+        // because some callers may not provide a 4th argument, leaving it empty or
+        // potentially as an invalid cell representation
+        JSValue packedArgs = arguments[3];
+        if (packedArgs.isCell() && packedArgs.asCell()) {
+            if (auto* argsArray = jsDynamicCast<JSArray*>(packedArgs)) {
+                if (argsArray->length() == 2) {
+                    args.append(argsArray->getIndexQuickly(0));
+                    args.append(argsArray->getIndexQuickly(1));
+                }
+            } else {
+                args.append(packedArgs);
+            }
+        } else if (!packedArgs.isEmpty() && !packedArgs.isUndefined()) {
+            args.append(packedArgs);
         }
+
         ASSERT(!args.hasOverflowed());
         scope.release();
         callMicrotask(globalObject, job, jsUndefined(), nullptr, args, "job is not a function"_s);

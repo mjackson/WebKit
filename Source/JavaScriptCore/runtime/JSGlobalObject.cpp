@@ -745,15 +745,36 @@ const GlobalObjectMethodTable* JSGlobalObject::baseGlobalObjectMethodTable()
 #if USE(BUN_JSC_ADDITIONS)
 JSC_DEFINE_HOST_FUNCTION(enqueueJob, (JSGlobalObject* globalObject, CallFrame* callFrame))
 {
+    VM& vm = globalObject->vm();
     auto* job = jsCast<JSFunction*>(callFrame->argument(0));
     ASSERT(job->globalObject() == globalObject);
     // For $enqueueJob, we invoke the job function with up to 4 arguments directly
+    // BunInvokeJobWithArguments arguments: job, arg0, arg1, packedArgs
+    // If there are more than 2 additional arguments, pack them into an array
     JSValue argument0 = callFrame->argument(1);
     JSValue argument1 = callFrame->argument(2);
     JSValue argument2 = callFrame->argument(3);
     JSValue argument3 = callFrame->argument(4);
-    // BunInvokeJobWithArguments expects: job, arg0, arg1, arg2, arg3
-    JSC::QueuedTask task { nullptr, JSC::InternalMicrotask::BunInvokeJobWithArguments, globalObject, job, argument0, argument1, argument2, argument3 };
+
+    // Pack argument2 and argument3 into an array if needed
+    JSValue packedArgs;
+    if (!argument2.isUndefined() || !argument3.isUndefined()) {
+        ObjectInitializationScope initializationScope(vm);
+        JSArray* argsArray = JSArray::tryCreateUninitializedRestricted(initializationScope,
+            globalObject->arrayStructureForIndexingTypeDuringAllocation(ArrayWithContiguous), 2);
+        if (argsArray) {
+            argsArray->initializeIndex(initializationScope, 0, argument2);
+            argsArray->initializeIndex(initializationScope, 1, argument3);
+            packedArgs = argsArray;
+        } else {
+            packedArgs = jsUndefined();
+        }
+    } else {
+        packedArgs = jsUndefined();
+    }
+
+    // BunInvokeJobWithArguments: job, arg0, arg1, packedArgs (containing arg2, arg3)
+    JSC::QueuedTask task { nullptr, JSC::InternalMicrotask::BunInvokeJobWithArguments, globalObject, job, argument0, argument1, packedArgs };
     globalObject->vm().queueMicrotask(WTF::move(task));
     return encodedJSUndefined();
 }
@@ -3660,17 +3681,6 @@ void JSGlobalObject::promiseRejectionTracker(JSGlobalObject* globalObject, JSPro
     }
 }
 
-#if USE(BUN_JSC_ADDITIONS)
-void JSGlobalObject::queueMicrotask(InternalMicrotask job, JSValue argument0, JSValue argument1, JSValue argument2, JSValue argument3, JSValue argument4)
-{
-    QueuedTask task { nullptr, job, this, argument0, argument1, argument2, argument3, argument4 };
-    if (globalObjectMethodTable()->queueMicrotaskToEventLoop) {
-        globalObjectMethodTable()->queueMicrotaskToEventLoop(*this, WTF::move(task));
-        return;
-    }
-    vm().queueMicrotask(WTF::move(task));
-}
-#endif
 
 void JSGlobalObject::reportUncaughtExceptionAtEventLoop(JSGlobalObject*, Exception* exception)
 {

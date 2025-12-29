@@ -495,11 +495,24 @@ void JSPromise::resolvePromise(JSGlobalObject* globalObject, JSValue resolution)
 
     auto [ resolve, reject ] = createResolvingFunctions(vm, globalObject);
 #if USE(BUN_JSC_ADDITIONS)
-    // AsyncLocalStorage support: capture async context when queuing thenable resolution
+    // AsyncLocalStorage support: pack asyncContext with resolve to fit in 4 arguments
     JSValue asyncContext = jsUndefined();
     if (auto* asyncContextData = globalObject->m_asyncContextData.get())
         asyncContext = asyncContextData->getInternalField(0);
-    return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJob, resolutionObject, then, resolve, reject, asyncContext);
+
+    // If asyncContext is present, create [resolve, asyncContext] array
+    JSValue resolveArg = resolve;
+    if (!asyncContext.isUndefined()) {
+        ObjectInitializationScope initializationScope(vm);
+        JSArray* packedResolve = JSArray::tryCreateUninitializedRestricted(initializationScope,
+            globalObject->arrayStructureForIndexingTypeDuringAllocation(ArrayWithContiguous), 2);
+        if (packedResolve) {
+            packedResolve->initializeIndex(initializationScope, 0, resolve);
+            packedResolve->initializeIndex(initializationScope, 1, asyncContext);
+            resolveArg = packedResolve;
+        }
+    }
+    return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJob, resolutionObject, then, resolveArg, reject);
 #else
     return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJob, resolutionObject, then, resolve, reject);
 #endif
@@ -843,11 +856,24 @@ void JSPromise::resolveWithoutPromise(JSGlobalObject* globalObject, JSValue reso
 
     auto [ resolve, reject ] = createResolvingFunctionsWithoutPromise(vm, globalObject, onFulfilled, onRejected, context);
 #if USE(BUN_JSC_ADDITIONS)
-    // AsyncLocalStorage support: capture async context when queuing thenable resolution
+    // AsyncLocalStorage support: pack asyncContext with resolve to fit in 4 arguments
     JSValue asyncContext = jsUndefined();
     if (auto* asyncContextData = globalObject->m_asyncContextData.get())
         asyncContext = asyncContextData->getInternalField(0);
-    return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJob, resolutionObject, then, resolve, reject, asyncContext);
+
+    // If asyncContext is present, create [resolve, asyncContext] array
+    JSValue resolveArg = resolve;
+    if (!asyncContext.isUndefined()) {
+        ObjectInitializationScope initializationScope(vm);
+        JSArray* packedResolve = JSArray::tryCreateUninitializedRestricted(initializationScope,
+            globalObject->arrayStructureForIndexingTypeDuringAllocation(ArrayWithContiguous), 2);
+        if (packedResolve) {
+            packedResolve->initializeIndex(initializationScope, 0, resolve);
+            packedResolve->initializeIndex(initializationScope, 1, asyncContext);
+            resolveArg = packedResolve;
+        }
+    }
+    return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJob, resolutionObject, then, resolveArg, reject);
 #else
     return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJob, resolutionObject, then, resolve, reject);
 #endif
@@ -937,11 +963,24 @@ void JSPromise::resolveWithInternalMicrotask(JSGlobalObject* globalObject, JSVal
 
     auto [ resolve, reject ] = createResolvingFunctionsWithInternalMicrotask(vm, globalObject, task, context);
 #if USE(BUN_JSC_ADDITIONS)
-    // AsyncLocalStorage support: capture async context when queuing thenable resolution
+    // AsyncLocalStorage support: pack asyncContext with resolve to fit in 4 arguments
     JSValue asyncContext = jsUndefined();
     if (auto* asyncContextData = globalObject->m_asyncContextData.get())
         asyncContext = asyncContextData->getInternalField(0);
-    return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJob, resolutionObject, then, resolve, reject, asyncContext);
+
+    // If asyncContext is present, create [resolve, asyncContext] array
+    JSValue resolveArg = resolve;
+    if (!asyncContext.isUndefined()) {
+        ObjectInitializationScope initializationScope(vm);
+        JSArray* packedResolve = JSArray::tryCreateUninitializedRestricted(initializationScope,
+            globalObject->arrayStructureForIndexingTypeDuringAllocation(ArrayWithContiguous), 2);
+        if (packedResolve) {
+            packedResolve->initializeIndex(initializationScope, 0, resolve);
+            packedResolve->initializeIndex(initializationScope, 1, asyncContext);
+            resolveArg = packedResolve;
+        }
+    }
+    return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJob, resolutionObject, then, resolveArg, reject);
 #else
     return globalObject->queueMicrotask(InternalMicrotask::PromiseResolveThenableJob, resolutionObject, then, resolve, reject);
 #endif
