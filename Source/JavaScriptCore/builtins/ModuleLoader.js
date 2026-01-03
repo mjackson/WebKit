@@ -550,6 +550,7 @@ function moduleEvaluation(entry, fetcher)
         return this.asyncModuleEvaluation(entry, fetcher, dependencies);
 }
 
+@visibility=PrivateRecursive
 async function asyncModuleEvaluation(entry, fetcher, dependencies)
 {
     "use strict";
@@ -586,6 +587,7 @@ function provideFetch(key, value)
     @fulfillFetch(entry, value);
 }
 
+@visibility=PrivateRecursive
 async function loadModule(key, parameters, fetcher)
 {
     "use strict";
@@ -603,6 +605,7 @@ function linkAndEvaluateModule(key, fetcher)
     return this.moduleEvaluation(entry, fetcher);
 }
 
+@visibility=PrivateRecursive
 async function loadAndEvaluateModule(moduleName, parameters, fetcher)
 {
     "use strict";
@@ -612,6 +615,7 @@ async function loadAndEvaluateModule(moduleName, parameters, fetcher)
     return await this.linkAndEvaluateModule(key, fetcher);
 }
 
+@visibility=PrivateRecursive
 async function requestImportModule(moduleName, referrer, parameters, fetcher)
 {
     "use strict";
