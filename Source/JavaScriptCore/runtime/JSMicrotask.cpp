@@ -936,21 +936,39 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
 
 #if USE(BUN_JSC_ADDITIONS)
     case InternalMicrotask::BunPerformMicrotaskJob: {
-        // Bun's performMicrotask function:
-        // arguments[0]: performMicrotask function
-        // arguments[1]: job function
-        // arguments[2]: async context
-        // arguments[3]: first argument to job (optional)
-        JSValue performMicrotaskFunction = arguments[0];
+        // Bun's microtask job with async context handling:
+        // arguments[0]: job function
+        // arguments[1]: async context
+        // arguments[2]: first argument to job (optional)
+        // arguments[3]: second argument to job (optional)
+        JSValue job = arguments[0];
+        JSValue asyncContext = arguments[1];
+
+        // Set up async context
+        bool hasAsyncContext = !asyncContext.isUndefined();
+        JSValue previousAsyncContext;
+        if (hasAsyncContext) {
+            if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
+                previousAsyncContext = asyncContextData->getInternalField(0);
+                asyncContextData->putInternalField(vm, 0, asyncContext);
+            }
+        }
+
         MarkedArgumentBuffer args;
-        // Add non-empty arguments only
-        for (size_t i = 1; i < maxMicrotaskArguments; ++i) {
+        // Add non-empty arguments only (starting from index 2)
+        for (size_t i = 2; i < maxMicrotaskArguments; ++i) {
             if (!arguments[i].isEmpty())
                 args.append(arguments[i]);
         }
         ASSERT(!args.hasOverflowed());
         scope.release();
-        callMicrotask(globalObject, performMicrotaskFunction, jsUndefined(), nullptr, args, "performMicrotask is not a function"_s);
+        callMicrotask(globalObject, job, jsUndefined(), nullptr, args, "job is not a function"_s);
+
+        // Restore async context
+        if (hasAsyncContext) {
+            if (auto* asyncContextData = globalObject->m_asyncContextData.get())
+                asyncContextData->putInternalField(vm, 0, previousAsyncContext);
+        }
         return;
     }
 
