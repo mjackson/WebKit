@@ -35,8 +35,6 @@
 
 namespace JSC {
 
-DECLARE_ALLOCATOR_WITH_HEAP_IDENTIFIER_AND_EXPORT(StringReplaceCache, WTF_INTERNAL);
-
 class JSCellButterfly;
 class RegExp;
 
