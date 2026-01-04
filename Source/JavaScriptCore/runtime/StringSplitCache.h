@@ -27,12 +27,15 @@
 #pragma once
 
 #include <array>
+#include <wtf/DebugHeap.h>
 #include <wtf/FastMalloc.h>
 #include <wtf/Noncopyable.h>
 #include <wtf/RefPtr.h>
 #include <wtf/TZoneMalloc.h>
 
 namespace JSC {
+
+DECLARE_ALLOCATOR_WITH_HEAP_IDENTIFIER_AND_EXPORT(StringSplitCache, WTF_INTERNAL);
 
 class JSCellButterfly;
 
