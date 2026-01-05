@@ -293,29 +293,34 @@ void JSPromise::performPromiseThen(VM& vm, JSGlobalObject* globalObject, JSValue
         onRejected = globalObject->promiseEmptyOnRejectedFunction();
 
     JSValue reactionsOrResult = this->reactionsOrResult();
-    switch (status()) {
-    case JSPromise::Status::Pending: {
-        JSValue context = jsUndefined();
+
 #if USE(BUN_JSC_ADDITIONS)
-        // AsyncLocalStorage support: wrap context with async context if present
-        // Matches behavior from PromiseOperations.js:
-        //   var asyncContext = @getInternalField(@asyncContext, 0);
-        //   if (asyncContext)
-        //       context = [context, asyncContext];
-        if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
-            JSValue asyncContext = asyncContextData->getInternalField(0);
-            if (!asyncContext.isUndefined()) {
-                // Create array [context, asyncContext]
-                ObjectInitializationScope initializationScope(vm);
-                JSArray* contextArray = JSArray::tryCreateUninitializedRestricted(initializationScope,
-                    globalObject->arrayStructureForIndexingTypeDuringAllocation(ArrayWithContiguous), 2);
-                if (contextArray) {
-                    contextArray->initializeIndex(initializationScope, 0, context);
-                    contextArray->initializeIndex(initializationScope, 1, asyncContext);
-                    context = contextArray;
-                }
+    // AsyncLocalStorage support: compute context with async context if present
+    // Matches behavior from PromiseOperations.js:
+    //   var asyncContext = @getInternalField(@asyncContext, 0);
+    //   if (asyncContext)
+    //       context = [context, asyncContext];
+    JSValue context = jsUndefined();
+    if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
+        JSValue asyncContext = asyncContextData->getInternalField(0);
+        if (!asyncContext.isUndefined()) {
+            // Create array [context, asyncContext]
+            ObjectInitializationScope initializationScope(vm);
+            JSArray* contextArray = JSArray::tryCreateUninitializedRestricted(initializationScope,
+                globalObject->arrayStructureForIndexingTypeDuringAllocation(ArrayWithContiguous), 2);
+            if (contextArray) {
+                contextArray->initializeIndex(initializationScope, 0, jsUndefined());
+                contextArray->initializeIndex(initializationScope, 1, asyncContext);
+                context = contextArray;
             }
         }
+    }
+#endif
+
+    switch (status()) {
+    case JSPromise::Status::Pending: {
+#if !USE(BUN_JSC_ADDITIONS)
+        JSValue context = jsUndefined();
 #endif
         auto* reaction = JSPromiseReaction::create(vm, promiseOrCapability, onFulfilled, onRejected, context, jsDynamicCast<JSPromiseReaction*>(reactionsOrResult));
         setReactionsOrResult(vm, reaction);
@@ -324,11 +329,21 @@ void JSPromise::performPromiseThen(VM& vm, JSGlobalObject* globalObject, JSValue
     case JSPromise::Status::Rejected: {
         if (!isHandled())
             globalObject->globalObjectMethodTable()->promiseRejectionTracker(globalObject, this, JSPromiseRejectionOperation::Handle);
+#if USE(BUN_JSC_ADDITIONS)
+        // BUN: Use 6-arg queueMicrotask to put context in args[3] where handlers expect it
+        globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(Status::Rejected), promiseOrCapability, onRejected, reactionsOrResult, context);
+#else
         globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(Status::Rejected), promiseOrCapability, onRejected, reactionsOrResult);
+#endif
         break;
     }
     case JSPromise::Status::Fulfilled: {
+#if USE(BUN_JSC_ADDITIONS)
+        // BUN: Use 6-arg queueMicrotask to put context in args[3] where handlers expect it
+        globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(Status::Fulfilled), promiseOrCapability, onFulfilled, reactionsOrResult, context);
+#else
         globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(Status::Fulfilled), promiseOrCapability, onFulfilled, reactionsOrResult);
+#endif
         break;
     }
     }
@@ -365,11 +380,44 @@ void JSPromise::performPromiseThenWithInternalMicrotask(VM& vm, JSGlobalObject* 
     case JSPromise::Status::Rejected: {
         if (!isHandled())
             globalObject->globalObjectMethodTable()->promiseRejectionTracker(globalObject, this, JSPromiseRejectionOperation::Handle);
+#if USE(BUN_JSC_ADDITIONS)
+        // BUN: Different tasks expect context in different argument positions:
+        // - Combinator jobs (PromiseAllResolveJob, etc.): args[2] = context
+        // - AsyncFunctionResume: args[3] = context (generator)
+        // Use 5-arg for combinator jobs (context in args[2]), 6-arg for others (context in args[3])
+        switch (task) {
+        case InternalMicrotask::PromiseAllResolveJob:
+        case InternalMicrotask::PromiseAllSettledResolveJob:
+        case InternalMicrotask::PromiseAnyResolveJob:
+        case InternalMicrotask::InternalPromiseAllResolveJob:
+            globalObject->queueMicrotask(task, static_cast<uint8_t>(Status::Rejected), promise, reactionsOrResult, context);
+            break;
+        default:
+            globalObject->queueMicrotask(task, static_cast<uint8_t>(Status::Rejected), promise, reactionsOrResult, jsUndefined(), context);
+            break;
+        }
+#else
         globalObject->queueMicrotask(task, static_cast<uint8_t>(Status::Rejected), promise, reactionsOrResult, context);
+#endif
         break;
     }
     case JSPromise::Status::Fulfilled: {
+#if USE(BUN_JSC_ADDITIONS)
+        // BUN: Different tasks expect context in different argument positions
+        switch (task) {
+        case InternalMicrotask::PromiseAllResolveJob:
+        case InternalMicrotask::PromiseAllSettledResolveJob:
+        case InternalMicrotask::PromiseAnyResolveJob:
+        case InternalMicrotask::InternalPromiseAllResolveJob:
+            globalObject->queueMicrotask(task, static_cast<uint8_t>(Status::Fulfilled), promise, reactionsOrResult, context);
+            break;
+        default:
+            globalObject->queueMicrotask(task, static_cast<uint8_t>(Status::Fulfilled), promise, reactionsOrResult, jsUndefined(), context);
+            break;
+        }
+#else
         globalObject->queueMicrotask(task, static_cast<uint8_t>(Status::Fulfilled), promise, reactionsOrResult, context);
+#endif
         break;
     }
     }
@@ -655,11 +703,33 @@ void JSPromise::triggerPromiseReactions(VM& vm, JSGlobalObject* globalObject, St
 
         if (handler.isInt32()) {
             auto task = static_cast<InternalMicrotask>(handler.asInt32());
+#if USE(BUN_JSC_ADDITIONS)
+            // BUN: Different tasks expect context in different argument positions:
+            // - Combinator jobs (PromiseAllResolveJob, etc.): args[2] = context
+            // - AsyncFunctionResume: args[3] = context (generator)
+            switch (task) {
+            case InternalMicrotask::PromiseAllResolveJob:
+            case InternalMicrotask::PromiseAllSettledResolveJob:
+            case InternalMicrotask::PromiseAnyResolveJob:
+            case InternalMicrotask::InternalPromiseAllResolveJob:
+                globalObject->queueMicrotask(task, static_cast<uint8_t>(status), promise, argument, context);
+                break;
+            default:
+                globalObject->queueMicrotask(task, static_cast<uint8_t>(status), promise, argument, jsUndefined(), context);
+                break;
+            }
+#else
             globalObject->queueMicrotask(task, static_cast<uint8_t>(status), promise, argument, context);
+#endif
             continue;
         }
+#if USE(BUN_JSC_ADDITIONS)
+        // BUN: Pass context (even if undefined/null) so that PromiseReactionJob has valid arguments[3]
+        globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(status), promise, handler, argument, context);
+#else
         ASSERT(context.isUndefinedOrNull());
         globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(status), promise, handler, argument);
+#endif
     }
 }
 
@@ -684,11 +754,21 @@ void JSPromise::resolveWithInternalMicrotaskForAsyncAwait(JSGlobalObject* global
             }
         }
         if (error) [[unlikely]] {
+#if USE(BUN_JSC_ADDITIONS)
+            // BUN: For AsyncFunctionResume, context must be in arguments[3]
+            std::array<JSValue, maxMicrotaskArguments> arguments { {
+                jsUndefined(),
+                error,
+                task == InternalMicrotask::AsyncFunctionResume ? jsUndefined() : context,
+                task == InternalMicrotask::AsyncFunctionResume ? context : JSValue(),
+            } };
+#else
             std::array<JSValue, maxMicrotaskArguments> arguments { {
                 jsUndefined(),
                 error,
                 context,
             } };
+#endif
             runInternalMicrotask(globalObject, task, static_cast<uint8_t>(JSPromise::Status::Rejected), arguments);
             return;
         }
@@ -739,12 +819,30 @@ void JSPromise::resolveWithInternalMicrotask(JSGlobalObject* globalObject, JSVal
 
 void JSPromise::rejectWithInternalMicrotask(JSGlobalObject* globalObject, JSValue argument, InternalMicrotask task, JSValue context)
 {
+#if USE(BUN_JSC_ADDITIONS)
+    // BUN: For AsyncFunctionResume, use 6-arg queueMicrotask so context is in args[3]
+    // to match performPromiseThenWithInternalMicrotask
+    if (task == InternalMicrotask::AsyncFunctionResume)
+        globalObject->queueMicrotask(task, static_cast<uint8_t>(Status::Rejected), jsUndefined(), argument, jsUndefined(), context);
+    else
+        globalObject->queueMicrotask(task, static_cast<uint8_t>(Status::Rejected), jsUndefined(), argument, context);
+#else
     globalObject->queueMicrotask(task, static_cast<uint8_t>(Status::Rejected), jsUndefined(), argument, context);
+#endif
 }
 
 void JSPromise::fulfillWithInternalMicrotask(JSGlobalObject* globalObject, JSValue argument, InternalMicrotask task, JSValue context)
 {
+#if USE(BUN_JSC_ADDITIONS)
+    // BUN: For AsyncFunctionResume, use 6-arg queueMicrotask so context is in args[3]
+    // to match performPromiseThenWithInternalMicrotask
+    if (task == InternalMicrotask::AsyncFunctionResume)
+        globalObject->queueMicrotask(task, static_cast<uint8_t>(Status::Fulfilled), jsUndefined(), argument, jsUndefined(), context);
+    else
+        globalObject->queueMicrotask(task, static_cast<uint8_t>(Status::Fulfilled), jsUndefined(), argument, context);
+#else
     globalObject->queueMicrotask(task, static_cast<uint8_t>(Status::Fulfilled), jsUndefined(), argument, context);
+#endif
 }
 
 bool JSPromise::isThenFastAndNonObservable()

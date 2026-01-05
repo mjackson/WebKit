@@ -810,6 +810,8 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
         //   }
         JSValue previousAsyncContext;
         bool hasAsyncContext = false;
+        // Check !isEmpty() first because ValueEmpty (0x0) incorrectly passes isCell() check
+        if (!context.isEmpty() && !context.isUndefinedOrNull()) {
         if (auto* contextArray = jsDynamicCast<JSArray*>(context)) {
             if (contextArray->length() == 2) {
                 if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
@@ -821,24 +823,40 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
                 }
             }
         }
+        }
 #endif
 
         JSValue result;
         JSValue error;
         {
             auto catchScope = DECLARE_CATCH_SCOPE(vm);
-            // Use MarkedArgumentBuffer with updated context
-            if (context.isUndefinedOrNull()) {
-                MarkedArgumentBuffer args;
-                args.append(argument);
-                ASSERT(!args.hasOverflowed());
-                result = callMicrotask(globalObject, handler, jsUndefined(), dynamicCastToCell(handler), args, "handler is not a function"_s);
+
+            // ECMAScript spec: If handler is undefined, use identity function behavior
+            // Fulfilled: result = argument
+            // Rejected: error = argument
+            if (handler.isUndefinedOrNull()) {
+                auto status = static_cast<JSPromise::Status>(payload);
+                if (status == JSPromise::Status::Fulfilled) {
+                    result = argument;
+                } else {
+                    // Rejected: argument becomes the error
+                    error = argument;
+                }
             } else {
-                MarkedArgumentBuffer args;
-                args.append(argument);
-                args.append(context);
-                ASSERT(!args.hasOverflowed());
-                result = callMicrotask(globalObject, handler, jsUndefined(), dynamicCastToCell(context), args, "handler is not a function"_s);
+                // Use MarkedArgumentBuffer with updated context
+                // Also check isEmpty() since ValueEmpty (0x0) is different from undefined/null
+                if (context.isUndefinedOrNull() || context.isEmpty()) {
+                    MarkedArgumentBuffer args;
+                    args.append(argument);
+                    ASSERT(!args.hasOverflowed());
+                    result = callMicrotask(globalObject, handler, jsUndefined(), dynamicCastToCell(handler), args, "handler is not a function"_s);
+                } else {
+                    MarkedArgumentBuffer args;
+                    args.append(argument);
+                    args.append(context);
+                    ASSERT(!args.hasOverflowed());
+                    result = callMicrotask(globalObject, handler, jsUndefined(), dynamicCastToCell(context), args, "handler is not a function"_s);
+                }
             }
 
             if (catchScope.exception()) {
@@ -1019,6 +1037,8 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
         //   }
         JSValue previousAsyncContext;
         bool hasAsyncContext = false;
+        // Check !isEmpty() first because ValueEmpty (0x0) incorrectly passes isCell() check
+        if (!context.isEmpty() && !context.isUndefinedOrNull()) {
         if (auto* contextArray = jsDynamicCast<JSArray*>(context)) {
             if (contextArray->length() == 2) {
                 if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
@@ -1029,6 +1049,7 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
                     hasAsyncContext = true;
                 }
             }
+        }
         }
 #endif
 
