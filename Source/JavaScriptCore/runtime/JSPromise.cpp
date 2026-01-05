@@ -350,6 +350,58 @@ void JSPromise::performPromiseThen(VM& vm, JSGlobalObject* globalObject, JSValue
     markAsHandled();
 }
 
+#if USE(BUN_JSC_ADDITIONS)
+// BUN: Overload with explicit external context for Bun handlers (e.g., NodeHTTPResponse)
+void JSPromise::performPromiseThen(VM& vm, JSGlobalObject* globalObject, JSValue onFulfilled, JSValue onRejected, JSValue promiseOrCapability, JSValue externalContext)
+{
+    if (!onFulfilled.isCallable())
+        onFulfilled = globalObject->promiseEmptyOnFulfilledFunction();
+
+    if (!onRejected.isCallable())
+        onRejected = globalObject->promiseEmptyOnRejectedFunction();
+
+    JSValue reactionsOrResult = this->reactionsOrResult();
+
+    // BUN: Use externalContext if provided, otherwise compute context with async context
+    JSValue context = externalContext;
+    if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
+        JSValue asyncContext = asyncContextData->getInternalField(0);
+        if (!asyncContext.isUndefined()) {
+            // Create array [externalContext, asyncContext]
+            ObjectInitializationScope initializationScope(vm);
+            JSArray* contextArray = JSArray::tryCreateUninitializedRestricted(initializationScope,
+                globalObject->arrayStructureForIndexingTypeDuringAllocation(ArrayWithContiguous), 2);
+            if (contextArray) {
+                contextArray->initializeIndex(initializationScope, 0, externalContext);
+                contextArray->initializeIndex(initializationScope, 1, asyncContext);
+                context = contextArray;
+            }
+        }
+    }
+
+    switch (status()) {
+    case JSPromise::Status::Pending: {
+        auto* reaction = JSPromiseReaction::create(vm, promiseOrCapability, onFulfilled, onRejected, context, jsDynamicCast<JSPromiseReaction*>(reactionsOrResult));
+        setReactionsOrResult(vm, reaction);
+        break;
+    }
+    case JSPromise::Status::Rejected: {
+        if (!isHandled())
+            globalObject->globalObjectMethodTable()->promiseRejectionTracker(globalObject, this, JSPromiseRejectionOperation::Handle);
+        // BUN: Use 6-arg queueMicrotask to put context in args[3] where handlers expect it
+        globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(Status::Rejected), promiseOrCapability, onRejected, reactionsOrResult, context);
+        break;
+    }
+    case JSPromise::Status::Fulfilled: {
+        // BUN: Use 6-arg queueMicrotask to put context in args[3] where handlers expect it
+        globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(Status::Fulfilled), promiseOrCapability, onFulfilled, reactionsOrResult, context);
+        break;
+    }
+    }
+    markAsHandled();
+}
+#endif
+
 void JSPromise::performPromiseThenWithInternalMicrotask(VM& vm, JSGlobalObject* globalObject, InternalMicrotask task, JSValue promise, JSValue context)
 {
 #if USE(BUN_JSC_ADDITIONS)
@@ -723,11 +775,27 @@ void JSPromise::triggerPromiseReactions(VM& vm, JSGlobalObject* globalObject, St
 #endif
             continue;
         }
+        // If handler is undefined, use PromiseResolveWithoutHandlerJob which just passes through the result
+        if (handler.isUndefined()) {
+            if (auto* promiseCell = jsDynamicCast<JSPromise*>(promise)) {
+                globalObject->queueMicrotask(InternalMicrotask::PromiseResolveWithoutHandlerJob, static_cast<uint8_t>(status), promiseCell, argument, jsUndefined());
+                continue;
+            }
+        }
+
+        if (promise.isUndefinedOrNull()) {
+#if USE(BUN_JSC_ADDITIONS)
+            globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJobWithoutPromise, 0, handler, argument, context, jsUndefined());
+#else
+            globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJobWithoutPromise, 0, handler, argument, context);
+#endif
+            continue;
+        }
+
 #if USE(BUN_JSC_ADDITIONS)
         // BUN: Pass context (even if undefined/null) so that PromiseReactionJob has valid arguments[3]
         globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(status), promise, handler, argument, context);
 #else
-        ASSERT(context.isUndefinedOrNull());
         globalObject->queueMicrotask(InternalMicrotask::PromiseReactionJob, static_cast<uint8_t>(status), promise, handler, argument);
 #endif
     }

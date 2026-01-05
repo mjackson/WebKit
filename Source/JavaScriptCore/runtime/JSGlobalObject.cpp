@@ -903,7 +903,13 @@ JSC_DEFINE_HOST_FUNCTION(performPromiseThen, (JSGlobalObject* globalObject, Call
     JSValue onFulfilled = callFrame->uncheckedArgument(1);
     JSValue onRejected = callFrame->uncheckedArgument(2);
     JSValue promiseOrCapability = callFrame->uncheckedArgument(3);
+#if USE(BUN_JSC_ADDITIONS)
+    // BUN: Support 5th argument for external context (e.g., NodeHTTPResponse)
+    JSValue externalContext = callFrame->argumentCount() > 4 ? callFrame->uncheckedArgument(4) : jsUndefined();
+    promise->performPromiseThen(globalObject->vm(), globalObject, onFulfilled, onRejected, promiseOrCapability, externalContext);
+#else
     promise->performPromiseThen(globalObject->vm(), globalObject, onFulfilled, onRejected, promiseOrCapability);
+#endif
     return encodedJSUndefined();
 }
 

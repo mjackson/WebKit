@@ -812,17 +812,17 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
         bool hasAsyncContext = false;
         // Check !isEmpty() first because ValueEmpty (0x0) incorrectly passes isCell() check
         if (!context.isEmpty() && !context.isUndefinedOrNull()) {
-        if (auto* contextArray = jsDynamicCast<JSArray*>(context)) {
-            if (contextArray->length() == 2) {
-                if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
-                    previousAsyncContext = asyncContextData->getInternalField(0);
-                    JSValue asyncContext = contextArray->getIndexQuickly(1);
-                    asyncContextData->putInternalField(vm, 0, asyncContext);
-                    context = contextArray->getIndexQuickly(0);
-                    hasAsyncContext = true;
+            if (auto* contextArray = jsDynamicCast<JSArray*>(context)) {
+                if (contextArray->length() == 2) {
+                    if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
+                        previousAsyncContext = asyncContextData->getInternalField(0);
+                        JSValue asyncContext = contextArray->getIndexQuickly(1);
+                        asyncContextData->putInternalField(vm, 0, asyncContext);
+                        context = contextArray->getIndexQuickly(0);
+                        hasAsyncContext = true;
+                    }
                 }
             }
-        }
         }
 #endif
 
@@ -830,40 +830,19 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
         JSValue error;
         {
             auto catchScope = DECLARE_CATCH_SCOPE(vm);
-
-            // ECMAScript spec: If handler is undefined, use identity function behavior
-            // Fulfilled: result = argument
-            // Rejected: error = argument
-            if (handler.isUndefinedOrNull()) {
-                auto status = static_cast<JSPromise::Status>(payload);
-                if (status == JSPromise::Status::Fulfilled) {
-                    result = argument;
-                } else {
-                    // Rejected: argument becomes the error
-                    error = argument;
-                }
+            // Use MarkedArgumentBuffer with updated context
+            // BUN: Always pass context as second argument, even if undefined, because some Bun handlers expect it
+            MarkedArgumentBuffer args;
+            args.append(argument);
+            args.append(context);
+            ASSERT(!args.hasOverflowed());
+            if (context.isUndefinedOrNull() || context.isEmpty()) {
+                result = callMicrotask(globalObject, handler, jsUndefined(), dynamicCastToCell(handler), args, "handler is not a function"_s);
             } else {
-                // Use MarkedArgumentBuffer with updated context
-                // Also check isEmpty() since ValueEmpty (0x0) is different from undefined/null
-                if (context.isUndefinedOrNull() || context.isEmpty()) {
-                    MarkedArgumentBuffer args;
-                    args.append(argument);
-                    ASSERT(!args.hasOverflowed());
-                    result = callMicrotask(globalObject, handler, jsUndefined(), dynamicCastToCell(handler), args, "handler is not a function"_s);
-                } else {
-                    MarkedArgumentBuffer args;
-                    args.append(argument);
-                    args.append(context);
-                    ASSERT(!args.hasOverflowed());
-                    result = callMicrotask(globalObject, handler, jsUndefined(), dynamicCastToCell(context), args, "handler is not a function"_s);
-                }
+                result = callMicrotask(globalObject, handler, jsUndefined(), dynamicCastToCell(context), args, "handler is not a function"_s);
             }
 
             if (catchScope.exception()) {
-                if (promiseOrCapability.isUndefinedOrNull()) {
-                    scope.release();
-                    return;
-                }
                 error = catchScope.exception()->value();
                 if (!catchScope.clearExceptionExceptTermination()) [[unlikely]] {
 #if USE(BUN_JSC_ADDITIONS)
@@ -876,11 +855,6 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
                     scope.release();
                     return;
                 }
-            }
-
-            if (promiseOrCapability.isUndefinedOrNull()) {
-                scope.release();
-                return;
             }
         }
 
@@ -942,6 +916,54 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
                 asyncContextData->putInternalField(vm, 0, previousAsyncContext);
         }
 #endif
+        return;
+    }
+
+    case InternalMicrotask::PromiseReactionJobWithoutPromise: {
+        JSValue handler = arguments[0];
+        JSValue argument = arguments[1];
+        JSValue context = arguments[2];
+
+#if USE(BUN_JSC_ADDITIONS)
+        // AsyncLocalStorage support: extract and set async context if present in context array
+        JSValue previousAsyncContext;
+        bool hasAsyncContext = false;
+        if (!context.isEmpty() && !context.isUndefinedOrNull()) {
+            if (auto* contextArray = jsDynamicCast<JSArray*>(context)) {
+                if (contextArray->length() == 2) {
+                    if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
+                        previousAsyncContext = asyncContextData->getInternalField(0);
+                        JSValue asyncContext = contextArray->getIndexQuickly(1);
+                        asyncContextData->putInternalField(vm, 0, asyncContext);
+                        context = contextArray->getIndexQuickly(0);
+                        hasAsyncContext = true;
+                    }
+                }
+            }
+        }
+#endif
+
+        // Use MarkedArgumentBuffer with updated context
+        // BUN: Always pass context as second argument, even if undefined, because some Bun handlers expect it
+        MarkedArgumentBuffer args;
+        args.append(argument);
+        args.append(context);
+        ASSERT(!args.hasOverflowed());
+        scope.release();
+        if (context.isUndefinedOrNull() || context.isEmpty()) {
+            callMicrotask(globalObject, handler, jsUndefined(), dynamicCastToCell(handler), args, "handler is not a function"_s);
+        } else {
+            callMicrotask(globalObject, handler, jsUndefined(), dynamicCastToCell(context), args, "handler is not a function"_s);
+        }
+
+#if USE(BUN_JSC_ADDITIONS)
+        // Restore async context after handler execution
+        if (hasAsyncContext) {
+            if (auto* asyncContextData = globalObject->m_asyncContextData.get())
+                asyncContextData->putInternalField(vm, 0, previousAsyncContext);
+        }
+#endif
+
         return;
     }
 
