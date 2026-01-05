@@ -250,9 +250,13 @@ jobs:
           Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
           Join-Path (Resolve-Path ~).Path "scoop\shims" >> $Env:GITHUB_PATH
       - name: Install LLVM and Ninja
+        # Scoop's LLVM manifest updates frequently. When the requested version (19.1.7)
+        # doesn't match the current manifest, scoop tries to auto-generate one, which
+        # requires 7zip. To avoid this dependency, we install directly from a pinned
+        # manifest URL from the ScoopInstaller/Main repo at the specific commit.
         run: |
-          scoop install 7zip ninja
-          scoop install llvm@19.1.7
+          scoop install ninja
+          scoop install https://raw.githubusercontent.com/ScoopInstaller/Main/65eca0ff6f26ef270093cfff4f5c0f55b2d9c8c0/bucket/llvm.json
           Join-Path (Resolve-Path ~).Path "scoop\apps\llvm\current\bin" >> $Env:GITHUB_PATH
       - uses: cygwin/cygwin-install-action@006ad0b0946ca6d0a3ea2d4437677fa767392401
       - uses: actions/checkout@v4
