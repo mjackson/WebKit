@@ -768,12 +768,17 @@ void JSPromise::triggerPromiseReactions(VM& vm, JSGlobalObject* globalObject, St
 #if USE(BUN_JSC_ADDITIONS)
             // BUN: Different tasks expect context in different argument positions:
             // - Combinator jobs (PromiseAllResolveJob, etc.): args[2] = context
+            // - AsyncGenerator jobs: args[2] = context (generator)
             // - AsyncFunctionResume: args[3] = context (generator)
             switch (task) {
             case InternalMicrotask::PromiseAllResolveJob:
             case InternalMicrotask::PromiseAllSettledResolveJob:
             case InternalMicrotask::PromiseAnyResolveJob:
             case InternalMicrotask::InternalPromiseAllResolveJob:
+            case InternalMicrotask::AsyncGeneratorYieldAwaited:
+            case InternalMicrotask::AsyncGeneratorBodyCallNormal:
+            case InternalMicrotask::AsyncGeneratorBodyCallReturn:
+            case InternalMicrotask::AsyncGeneratorResumeNext:
                 globalObject->queueMicrotask(task, static_cast<uint8_t>(status), promise, argument, context);
                 break;
             default:
