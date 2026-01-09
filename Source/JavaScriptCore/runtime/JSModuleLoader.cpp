@@ -397,6 +397,23 @@ JSC_DEFINE_HOST_FUNCTION(moduleLoaderParseModule, (JSGlobalObject * globalObject
     }
     }
 
+#if USE(BUN_JSC_ADDITIONS)
+    // Check if we can skip parsing by using cached module metadata
+    if (sourceCode.provider()->hasCachedModuleMetadata()) {
+        JSModuleRecord* moduleRecord = sourceCode.provider()->createModuleRecordFromCache(globalObject, moduleKey);
+        if (moduleRecord) {
+            dataLogLnIf(Options::dumpModuleLoadingState(), "loader [restored from cache] ", moduleKey);
+            scope.release();
+            size_t memoryCost = moduleRecord->sourceCode().memoryCost();
+            vm.heap.reportExtraMemoryAllocated(moduleRecord, memoryCost);
+            promise->fulfillWithNonPromise(globalObject, moduleRecord);
+            return JSValue::encode(promise);
+        }
+        // If createModuleRecordFromCache failed, fall through to normal parsing
+        RETURN_IF_EXCEPTION(scope, JSValue::encode(promise->rejectWithCaughtException(globalObject, scope)));
+    }
+#endif
+
     ParserError error;
     std::unique_ptr<ModuleProgramNode> moduleProgramNode = parseRootNode<ModuleProgramNode>(
         vm, sourceCode, ImplementationVisibility::Public, JSParserBuiltinMode::NotBuiltin,
