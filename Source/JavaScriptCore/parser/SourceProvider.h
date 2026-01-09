@@ -46,8 +46,6 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 namespace JSC {
 
-class JSGlobalObject;
-class JSModuleRecord;
 class SourceCode;
 class UnlinkedFunctionExecutable;
 class UnlinkedFunctionCodeBlock;
@@ -81,10 +79,6 @@ public:
     JS_EXPORT_PRIVATE virtual void commitCachedBytecode() const { }
 #if USE(BUN_JSC_ADDITIONS)
     JS_EXPORT_PRIVATE virtual size_t memoryCost() const { return 0; }
-
-    // ESM bytecode cache support
-    JS_EXPORT_PRIVATE virtual bool hasCachedModuleMetadata() const { return false; }
-    JS_EXPORT_PRIVATE virtual JSModuleRecord* createModuleRecordFromCache(JSGlobalObject*, const Identifier&) { return nullptr; }
 #endif
 
     StringView getRange(int start, int end) const LIFETIME_BOUND
