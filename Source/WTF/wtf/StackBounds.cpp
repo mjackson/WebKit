@@ -178,6 +178,38 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 #elif OS(WINDOWS)
 
+#if USE(BUN_JSC_ADDITIONS)
+// Use GetCurrentThreadStackLimits for robust stack bounds calculation.
+// This avoids issues with VirtualQuery-based calculation that assumes a specific
+// 3-layer stack structure (uncommitted -> guard -> committed) which can fail when:
+// - Guard pages are consumed by another thread (BrokenGuardPage issue)
+// - Security software scans process memory and triggers guard page exceptions
+// - The stack is fully committed (no uncommitted region)
+// - Embedded application scenarios (Ruby Bug #11438)
+//
+// GetCurrentThreadStackLimits returns OS-maintained stack limits that are:
+// - Independent of guard page state
+// - Independent of VirtualQuery results
+// - Accurate regardless of stack memory layout
+//
+// References:
+// - https://github.com/chaelim/BrokenGuardPage
+// - https://devblogs.microsoft.com/oldnewthing/20220203-00/?p=106215
+// - https://bugs.ruby-lang.org/issues/11438
+
+StackBounds StackBounds::currentThreadStackBoundsInternal()
+{
+    ULONG_PTR lowLimit = 0;
+    ULONG_PTR highLimit = 0;
+    GetCurrentThreadStackLimits(&lowLimit, &highLimit);
+
+    void* origin = reinterpret_cast<void*>(highLimit);
+    void* bound = reinterpret_cast<void*>(lowLimit);
+    return StackBounds { origin, bound };
+}
+
+#else // !USE(BUN_JSC_ADDITIONS)
+
 StackBounds StackBounds::currentThreadStackBoundsInternal()
 {
     MEMORY_BASIC_INFORMATION stackOrigin { };
@@ -226,6 +258,8 @@ StackBounds StackBounds::currentThreadStackBoundsInternal()
     void* bound = static_cast<char*>(endOfStack) + guardPage.RegionSize;
     return StackBounds { origin, bound };
 }
+
+#endif // USE(BUN_JSC_ADDITIONS)
 
 #else
 #error Need a way to get the stack bounds on this platform
