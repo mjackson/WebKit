@@ -54,6 +54,7 @@ private:
     FloatRect objectBoundingBox() const final;
     FloatRect strokeBoundingBox() const final;
     FloatRect repaintRectInLocalCoordinates(RepaintRectCalculation = RepaintRectCalculation::Fast) const final;
+    FloatRect decoratedBoundingBox() const final;
 
     LayoutPoint currentSVGLayoutLocation() const final { return { }; }
     void setCurrentSVGLayoutLocation(const LayoutPoint&) final { ASSERT_NOT_REACHED(); }

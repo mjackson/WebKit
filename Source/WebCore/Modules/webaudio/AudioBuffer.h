@@ -112,7 +112,7 @@ private:
 
     float m_sampleRate;
     size_t m_originalLength;
-    FixedVector<RefPtr<Float32Array>> m_channels;
+    FixedVector<Ref<Float32Array>> m_channels;
     FixedVector<JSValueInWrappedObject> m_channelWrappers;
     bool m_isDetachable { true };
     mutable Lock m_channelsLock;

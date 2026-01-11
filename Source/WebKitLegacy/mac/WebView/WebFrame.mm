@@ -1055,7 +1055,7 @@ static NSURL *createUniqueWebDataURL();
     auto* bodyRenderer = body->renderer();
     if (!bodyRenderer)
         return nil;
-    WebCore::Color color = bodyRenderer->style().visitedDependentColorWithColorFilter(WebCore::CSSPropertyBackgroundColor);
+    auto color = bodyRenderer->style().visitedDependentBackgroundColorApplyingColorFilter();
     if (!color.isValid())
         return nil;
 #if !PLATFORM(IOS_FAMILY)

@@ -38,10 +38,11 @@ namespace WebCore {
 
 Path Font::platformPathForGlyph(Glyph glyph) const
 {
-    auto path = PathSkia::create();
     const auto& font = m_platformData.skFont();
-    font.getPath(glyph, path->platformPath());
-    return { path };
+    if (auto skPath = font.getPath(glyph))
+        return { PathSkia::create(WTF::move(*skPath)) };
+
+    return { };
 }
 
 FloatRect Font::platformBoundsForGlyph(Glyph glyph) const

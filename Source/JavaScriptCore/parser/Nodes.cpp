@@ -279,6 +279,7 @@ bool FunctionMetadataNode::operator==(const FunctionMetadataNode& other) const
         && m_functionMode == other.m_functionMode
         && m_startColumn == other.m_startColumn
         && m_endColumn == other.m_endColumn
+        && m_functionStart == other.m_functionStart
         && m_functionNameStart == other.m_functionNameStart
         && m_parametersStart == other.m_parametersStart
         && m_source == other.m_source

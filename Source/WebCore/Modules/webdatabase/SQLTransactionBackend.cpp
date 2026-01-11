@@ -348,7 +348,10 @@ SQLTransactionBackend::SQLTransactionBackend(SQLTransaction& frontend)
 
 SQLTransactionBackend::~SQLTransactionBackend()
 {
-    ASSERT(!frontend()->m_sqliteTransaction);
+#if ASSERT_ENABLED
+    RefPtr frontend = m_frontend.get();
+    ASSERT(!frontend || !frontend->m_sqliteTransaction);
+#endif
 }
 
 void SQLTransactionBackend::doCleanup()

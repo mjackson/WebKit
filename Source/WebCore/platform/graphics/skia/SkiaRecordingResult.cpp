@@ -26,7 +26,7 @@
 #include "config.h"
 #include "SkiaRecordingResult.h"
 
-#if USE(COORDINATED_GRAPHICS) && USE(SKIA)
+#if USE(SKIA)
 
 namespace WebCore {
 
@@ -62,4 +62,4 @@ void SkiaRecordingResult::waitForFenceIfNeeded(const SkImage& image)
 
 } // namespace WebCore
 
-#endif // USE(COORDINATED_GRAPHICS) && USE(SKIA)
+#endif // USE(SKIA)

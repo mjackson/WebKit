@@ -169,7 +169,7 @@ private:
 
 Ref<SourceBuffer> SourceBuffer::create(Ref<SourceBufferPrivate>&& sourceBufferPrivate, MediaSource& source)
 {
-    auto sourceBuffer = adoptRef(*new SourceBuffer(WTF::move(sourceBufferPrivate), source));
+    Ref sourceBuffer = adoptRef(*new SourceBuffer(WTF::move(sourceBufferPrivate), source));
     sourceBuffer->suspendIfNeeded();
     return sourceBuffer;
 }
@@ -929,7 +929,7 @@ Ref<MediaPromise> SourceBuffer::sourceBufferPrivateDidReceiveInitializationSegme
             // FIXME: Implement steps 5.2.1-5.2.8.1 as per Editor's Draft 09 January 2015, and reorder this
             // 5.2.1 Let new audio track be a new AudioTrack object.
             // 5.2.2 Generate a unique ID and assign it to the id property on new video track.
-            auto newAudioTrack = AudioTrack::create(protectedScriptExecutionContext().get(), Ref { *audioTrackInfo.track });
+            Ref newAudioTrack = AudioTrack::create(protectedScriptExecutionContext().get(), Ref { *audioTrackInfo.track });
             newAudioTrack->addClient(*this);
             newAudioTrack->setSourceBuffer(this);
 
@@ -976,7 +976,7 @@ Ref<MediaPromise> SourceBuffer::sourceBufferPrivateDidReceiveInitializationSegme
             // FIXME: Implement steps 5.3.1-5.3.8.1 as per Editor's Draft 09 January 2015, and reorder this
             // 5.3.1 Let new video track be a new VideoTrack object.
             // 5.3.2 Generate a unique ID and assign it to the id property on new video track.
-            auto newVideoTrack = VideoTrack::create(protectedScriptExecutionContext().get(), Ref { *videoTrackInfo.track });
+            Ref newVideoTrack = VideoTrack::create(protectedScriptExecutionContext().get(), Ref { *videoTrackInfo.track });
             newVideoTrack->addClient(*this);
             newVideoTrack->setSourceBuffer(this);
 
@@ -1020,24 +1020,24 @@ Ref<MediaPromise> SourceBuffer::sourceBufferPrivateDidReceiveInitializationSegme
 
         // 5.4 For each text track in the initialization segment, run following steps:
         for (auto& textTrackInfo : segment.textTracks) {
-            auto& textTrackPrivate = *textTrackInfo.track;
+            Ref textTrackPrivate = *textTrackInfo.track;
 
             // FIXME: Implement steps 5.4.1-5.4.8.1 as per Editor's Draft 09 January 2015, and reorder this
             // 5.4.1 Let new text track be a new TextTrack object with its properties populated with the
             // appropriate information from the initialization segment.
-            auto newTextTrack = InbandTextTrack::create(*protectedScriptExecutionContext(), textTrackPrivate);
+            Ref newTextTrack = InbandTextTrack::create(*protectedScriptExecutionContext(), textTrackPrivate);
             newTextTrack->addClient(*this);
 
             // 5.4.2 If the mode property on new text track equals "showing" or "hidden", then set active
             // track flag to true.
-            if (textTrackPrivate.mode() != InbandTextTrackPrivate::Mode::Disabled)
+            if (textTrackPrivate->mode() != InbandTextTrackPrivate::Mode::Disabled)
                 activeTrackFlag = true;
 
             // 5.4.3 Add new text track to the textTracks attribute on this SourceBuffer object.
             // 5.4.4 Queue a task to fire a trusted event named addtrack, that does not bubble and is
             // not cancelable, and that uses the TrackEvent interface, at textTracks attribute on this
             // SourceBuffer object.
-            textTracks->append(newTextTrack.get());
+            textTracks->append(newTextTrack);
 
             // 5.4.5 Add new text track to the textTracks attribute on the HTMLMediaElement.
             // 5.4.6 Queue a task to fire a trusted event named addtrack, that does not bubble and is
@@ -1051,13 +1051,13 @@ Ref<MediaPromise> SourceBuffer::sourceBufferPrivateDidReceiveInitializationSegme
                 // Let mirrored text track be a new TextTrack object.
                 // Assign the same property values to mirrored text track as were determined for new text track.
                 // Add mirrored text track to the textTracks attribute on the HTMLMediaElement.
-                source->addTextTrackMirrorToElement(textTrackPrivate);
+                source->addTextTrackMirrorToElement(textTrackPrivate.get());
             }
 
             m_textCodecs.append(RefPtr { textTrackInfo.description }->codec().toAtomString());
 
             // 5.4.7 Create a new track buffer to store coded frames for this track.
-            m_private->addTrackBuffer(textTrackPrivate.id(), WTF::move(textTrackInfo.description));
+            m_private->addTrackBuffer(textTrackPrivate->id(), WTF::move(textTrackInfo.description));
         }
 
         // 5.5 If active track flag equals true, then run the following steps:
@@ -1405,11 +1405,11 @@ void SourceBuffer::updateBuffered()
         if (isManaged()) {
             auto addedRanges = m_buffered->ranges();
             addedRanges -= oldRanges;
-            auto addedTimeRanges = TimeRanges::create(WTF::move(addedRanges));
+            Ref addedTimeRanges = TimeRanges::create(WTF::move(addedRanges));
 
             auto removedRanges = oldRanges;
             removedRanges -= m_buffered->ranges();
-            auto removedTimeRanges = TimeRanges::create(WTF::move(removedRanges));
+            Ref removedTimeRanges = TimeRanges::create(WTF::move(removedRanges));
 
             queueTaskToDispatchEvent(*this, TaskSource::MediaElement, BufferedChangeEvent::create(WTF::move(addedTimeRanges), WTF::move(removedTimeRanges)));
         }

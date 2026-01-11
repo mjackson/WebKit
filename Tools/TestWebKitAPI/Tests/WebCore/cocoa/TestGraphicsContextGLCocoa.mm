@@ -39,6 +39,7 @@
 #import <wtf/HashSet.h>
 #import <wtf/MemoryFootprint.h>
 #import <wtf/StdLibExtras.h>
+#import <wtf/TZoneMallocInlines.h>
 
 namespace TestWebKitAPI {
 
@@ -56,7 +57,7 @@ private:
 };
 
 class TestedGraphicsContextGLCocoa : public GraphicsContextGLCocoa {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED(TestedGraphicsContextGLCocoa);
+    WTF_MAKE_TZONE_ALLOCATED(TestedGraphicsContextGLCocoa);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(TestedGraphicsContextGLCocoa);
 public:
     static RefPtr<TestedGraphicsContextGLCocoa> create(GraphicsContextGLAttributes&& attributes)
@@ -73,6 +74,8 @@ private:
     {
     }
 };
+
+WTF_MAKE_TZONE_ALLOCATED_IMPL(TestedGraphicsContextGLCocoa);
 
 class GraphicsContextGLCocoaTest : public ::testing::Test {
 protected:

@@ -93,10 +93,11 @@ public:
     FloatRect strokeBoundingBox() const final;
     FloatRect approximateStrokeBoundingBox() const;
     FloatRect repaintRectInLocalCoordinates(RepaintRectCalculation = RepaintRectCalculation::Fast) const final { return SVGBoundingBoxComputation::computeRepaintBoundingBox(*this); }
+    FloatRect decoratedBoundingBox() const final { return SVGBoundingBoxComputation::computeDecoratedBoundingBox(*this); }
 
     bool needsHasSVGTransformFlags() const final;
 
-    void applyTransform(TransformationMatrix&, const RenderStyle&, const FloatRect& boundingBox, OptionSet<RenderStyle::TransformOperationOption>) const final;
+    void applyTransform(TransformationMatrix&, const RenderStyle&, const FloatRect& boundingBox, OptionSet<Style::TransformResolverOption>) const final;
 
     AffineTransform nonScalingStrokeTransform() const;
 
@@ -110,6 +111,7 @@ protected:
     virtual bool shapeDependentStrokeContains(const FloatPoint&, PointCoordinateSpace = GlobalCoordinateSpace);
     virtual bool shapeDependentFillContains(const FloatPoint&, const WindRule) const;
     float strokeWidth() const;
+    float strokeWidthForMarkerUnits() const;
 
     inline bool hasNonScalingStroke() const;
     Path* nonScalingStrokePath(const Path*, const AffineTransform&) const;

@@ -86,11 +86,11 @@ ExceptionOr<Ref<CSSPerspective>> CSSPerspective::create(Ref<const CSSFunctionVal
     auto keywordOrNumeric = CSSStyleValueFactory::reifyValue(document, *cssFunctionValue->item(0), std::nullopt);
     if (keywordOrNumeric.hasException())
         return keywordOrNumeric.releaseException();
-    auto& keywordOrNumericValue = keywordOrNumeric.returnValue().get();
-    return [&]() -> ExceptionOr<Ref<CSSPerspective>> {
-        if (auto* keywordValue = dynamicDowncast<CSSKeywordValue>(keywordOrNumericValue))
+    Ref keywordOrNumericValue = keywordOrNumeric.returnValue();
+    return [&] -> ExceptionOr<Ref<CSSPerspective>> {
+        if (RefPtr keywordValue = dynamicDowncast<CSSKeywordValue>(keywordOrNumericValue))
             return CSSPerspective::create(keywordValue);
-        if (auto* numericValue = dynamicDowncast<CSSNumericValue>(keywordOrNumericValue))
+        if (RefPtr numericValue = dynamicDowncast<CSSNumericValue>(keywordOrNumericValue))
             return CSSPerspective::create(numericValue);
         return Exception { ExceptionCode::TypeError, "Expected a CSSNumericValue."_s };
     }();

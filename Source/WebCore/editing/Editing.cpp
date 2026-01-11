@@ -1211,9 +1211,9 @@ IntRect absoluteBoundsForLocalCaretRect(RenderBlock* rendererForCaretPainting, c
     return rendererForCaretPainting->localToAbsoluteQuad(FloatRect(localRect), UseTransforms, insideFixed).enclosingBoundingBox();
 }
 
-HashSet<RefPtr<HTMLImageElement>> visibleImageElementsInRangeWithNonLoadedImages(const SimpleRange& range)
+HashSet<Ref<HTMLImageElement>> visibleImageElementsInRangeWithNonLoadedImages(const SimpleRange& range)
 {
-    HashSet<RefPtr<HTMLImageElement>> result;
+    HashSet<Ref<HTMLImageElement>> result;
     for (TextIterator iterator(range); !iterator.atEnd(); iterator.advance()) {
         RefPtr imageElement = dynamicDowncast<HTMLImageElement>(iterator.node());
         if (!imageElement)
@@ -1221,7 +1221,7 @@ HashSet<RefPtr<HTMLImageElement>> visibleImageElementsInRangeWithNonLoadedImages
 
         auto* cachedImage = imageElement->cachedImage();
         if (cachedImage && cachedImage->isLoading())
-            result.add(WTF::move(imageElement));
+            result.add(imageElement.releaseNonNull());
     }
     return result;
 }

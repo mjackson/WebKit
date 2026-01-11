@@ -74,7 +74,7 @@ public:
     void deref() const final { RefCounted::deref(); }
     USING_CAN_MAKE_WEAKPTR(EventTarget);
 
-    WEBCORE_EXPORT static HashSet<CheckedPtr<WebAnimation>>& instances();
+    WEBCORE_EXPORT static HashSet<CheckedRef<WebAnimation>>& instances();
 
     virtual bool isStyleOriginatedAnimation() const { return false; }
     virtual bool isCSSAnimation() const { return false; }
@@ -276,6 +276,8 @@ private:
 };
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(WebAnimation)
 
 #define SPECIALIZE_TYPE_TRAITS_WEB_ANIMATION(ToValueTypeName, predicate) \
 SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::ToValueTypeName) \

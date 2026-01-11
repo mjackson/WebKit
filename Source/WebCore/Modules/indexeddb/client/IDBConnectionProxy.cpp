@@ -581,7 +581,7 @@ void IDBConnectionProxy::unregisterDatabaseConnection(IDBDatabase& database)
     m_databaseConnectionMap.remove(database.databaseConnectionIdentifier());
 }
 
-void IDBConnectionProxy::forgetActiveOperations(const Vector<RefPtr<TransactionOperation>>& operations)
+void IDBConnectionProxy::forgetActiveOperations(const Vector<Ref<TransactionOperation>>& operations)
 {
     Locker locker { m_transactionOperationLock };
 

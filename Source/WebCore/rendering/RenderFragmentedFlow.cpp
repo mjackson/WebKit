@@ -174,18 +174,18 @@ void RenderFragmentedFlow::updateLogicalWidth()
 RenderBox::LogicalExtentComputedValues RenderFragmentedFlow::computeLogicalHeight(LayoutUnit, LayoutUnit logicalTop) const
 {
     LogicalExtentComputedValues computedValues;
-    computedValues.m_position = logicalTop;
-    computedValues.m_extent = 0;
+    computedValues.position = logicalTop;
+    computedValues.extent = 0;
 
     const LayoutUnit maxFlowSize = RenderFragmentedFlow::maxLogicalHeight();
     for (auto& fragment : m_fragmentList) {
         ASSERT(!fragment.needsLayout() || fragment.isRenderFragmentContainerSet());
 
-        LayoutUnit distanceToMaxSize = maxFlowSize - computedValues.m_extent;
-        computedValues.m_extent += std::min(distanceToMaxSize, fragment.logicalHeightOfAllFragmentedFlowContent());
+        LayoutUnit distanceToMaxSize = maxFlowSize - computedValues.extent;
+        computedValues.extent += std::min(distanceToMaxSize, fragment.logicalHeightOfAllFragmentedFlowContent());
 
         // If we reached the maximum size there's no point in going further.
-        if (computedValues.m_extent == maxFlowSize)
+        if (computedValues.extent == maxFlowSize)
             return computedValues;
     }
     return computedValues;

@@ -878,7 +878,7 @@ RefPtr<Node> StyledMarkupAccumulator::traverseNodesForSerialization(Node& startN
     RefPtr<Node> next;
     for (RefPtr n = startNode; n != pastEnd; lastNode = n, n = next) {
 
-        Vector<RefPtr<Node>, 8> exitedAncestors;
+        Vector<Ref<Node>, 8> exitedAncestors;
         next = nullptr;
 
         auto advanceToAncestorSibling = [&]() {
@@ -887,7 +887,7 @@ RefPtr<Node> StyledMarkupAccumulator::traverseNodesForSerialization(Node& startN
                 return;
             }
             for (RefPtr ancestor = parentNode(*n); ancestor; ancestor = parentNode(*ancestor)) {
-                exitedAncestors.append(ancestor);
+                exitedAncestors.append(*ancestor);
                 if (RefPtr sibling = nextSibling(*ancestor)) {
                     next = WTF::move(sibling);
                     return;
@@ -923,7 +923,7 @@ RefPtr<Node> StyledMarkupAccumulator::traverseNodesForSerialization(Node& startN
         for (auto& ancestor : exitedAncestors) {
             if (!depth && next == pastEnd)
                 break;
-            exitNode(*ancestor);
+            exitNode(ancestor);
         }
     }
     

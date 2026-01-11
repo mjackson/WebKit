@@ -338,7 +338,8 @@ void ReadableStreamDefaultReader::onClosedPromiseResolution(Function<void()>&& c
         if (!closedPromise->globalObject() || !protectedThis->m_closedResolutionCallback || closedPromise->status() != DOMPromise::Status::Fulfilled)
             return;
 
-        protectedThis->m_closedResolutionCallback();
+        // We exhange m_closedResolutionCallback to reset it to an empty function, which will deallocate any captured variable of the callback.
+        std::exchange(protectedThis->m_closedResolutionCallback, { })();
     });
 }
 

@@ -28,6 +28,7 @@
 #include "ChannelCountMode.h"
 #include "ChannelInterpretation.h"
 #include "EventTarget.h"
+#include "EventTargetInterfaces.h"
 #include "ExceptionOr.h"
 #include <wtf/CheckedRef.h>
 #include <wtf/Forward.h>
@@ -319,6 +320,8 @@ template<> struct LogArgument<WebCore::AudioNode::NodeType> {
 };
 
 } // namespace WTF
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(AudioNode)
 
 #define SPECIALIZE_TYPE_TRAITS_AUDIONODE(ToValueTypeName, NodeTypeName) \
 SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::ToValueTypeName) \

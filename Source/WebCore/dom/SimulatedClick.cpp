@@ -73,7 +73,7 @@ private:
 
     static OptionSet<Modifier> modifiersFromUnderlyingEvent(const RefPtr<Event>& underlyingEvent)
     {
-        UIEventWithKeyState* keyStateEvent = findEventWithKeyState(underlyingEvent.get());
+        RefPtr keyStateEvent = findEventWithKeyState(underlyingEvent.get());
         if (!keyStateEvent)
             return { };
         return keyStateEvent->modifierKeys();

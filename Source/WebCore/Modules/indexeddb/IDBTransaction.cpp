@@ -281,11 +281,11 @@ void IDBTransaction::abortInProgressOperations(const IDBError& error)
 {
     LOG(IndexedDB, "IDBTransaction::abortInProgressOperations");
 
-    auto inProgressAbortVector = copyToVectorOf<RefPtr<IDBClient::TransactionOperation>>(m_transactionOperationsInProgressQueue);
+    auto inProgressAbortVector = copyToVector(m_transactionOperationsInProgressQueue);
     m_transactionOperationsInProgressQueue.clear();
 
     for (auto& operation : inProgressAbortVector) {
-        m_transactionOperationsInProgressQueue.append(operation);
+        m_transactionOperationsInProgressQueue.append(operation.copyRef());
         m_currentlyCompletingRequest = nullptr;
         operation->doComplete(IDBResultData::error(operation->identifier(), error));
     }
@@ -305,7 +305,7 @@ void IDBTransaction::abortOnServerAndCancelRequests(IDBClient::TransactionOperat
     m_database->connectionProxy().abortTransaction(*this);
 
     ASSERT(m_transactionOperationMap.contains(operation.identifier()));
-    ASSERT(m_transactionOperationsInProgressQueue.last() == &operation);
+    ASSERT(m_transactionOperationsInProgressQueue.last().ptr() == &operation);
     m_transactionOperationMap.remove(operation.identifier());
     m_transactionOperationsInProgressQueue.removeLast();
 
@@ -316,7 +316,7 @@ void IDBTransaction::abortOnServerAndCancelRequests(IDBClient::TransactionOperat
     abortInProgressOperations(error);
 
     for (auto& operation : m_abortQueue) {
-        m_transactionOperationsInProgressQueue.append(operation.get());
+        m_transactionOperationsInProgressQueue.append(operation.copyRef());
         operation->doComplete(IDBResultData::error(operation->identifier(), error));
         m_currentlyCompletingRequest = nullptr;
     }
@@ -402,7 +402,7 @@ void IDBTransaction::operationCompletedOnServer(const IDBResultData& data, IDBCl
     if (!m_transactionOperationMap.contains(operation.identifier()))
         return;
 
-    m_transactionOperationResultMap.set(&operation, IDBResultData(data));
+    m_transactionOperationResultMap.set(operation, IDBResultData(data));
 
     if (!m_currentlyCompletingRequest)
         handleOperationsCompletedOnServer();
@@ -414,11 +414,11 @@ void IDBTransaction::handleOperationsCompletedOnServer()
     ASSERT(canCurrentThreadAccessThreadLocalData(m_database->originThread()));
 
     while (!m_transactionOperationsInProgressQueue.isEmpty() && !m_currentlyCompletingRequest) {
-        RefPtr<IDBClient::TransactionOperation> currentOperation = m_transactionOperationsInProgressQueue.first();
-        if (!m_transactionOperationResultMap.contains(currentOperation))
+        RefPtr currentOperation = m_transactionOperationsInProgressQueue.first().ptr();
+        if (!m_transactionOperationResultMap.contains(currentOperation.get()))
             return;
 
-        currentOperation->doComplete(m_transactionOperationResultMap.take(currentOperation));
+        currentOperation->doComplete(m_transactionOperationResultMap.take(currentOperation.get()));
     }
 }
 
@@ -495,7 +495,7 @@ void IDBTransaction::commitOnServer(IDBClient::TransactionOperation& operation, 
     m_database->connectionProxy().commitTransaction(*this, handledRequestResultsCount);
 
     ASSERT(!m_transactionOperationsInProgressQueue.isEmpty());
-    ASSERT(m_transactionOperationsInProgressQueue.last() == &operation);
+    ASSERT(m_transactionOperationsInProgressQueue.last().ptr() == &operation);
     m_transactionOperationsInProgressQueue.removeLast();
     if (!m_transactionOperationsInProgressQueue.isEmpty())
         m_lastTransactionOperationBeforeCommit = m_transactionOperationsInProgressQueue.last()->identifier();
@@ -1419,7 +1419,7 @@ void IDBTransaction::operationCompletedOnClient(IDBClient::TransactionOperation&
     ASSERT(canCurrentThreadAccessThreadLocalData(m_database->originThread()));
     ASSERT(canCurrentThreadAccessThreadLocalData(operation.originThread()));
     ASSERT(m_transactionOperationMap.get(operation.identifier()) == &operation);
-    ASSERT(m_transactionOperationsInProgressQueue.first() == &operation);
+    ASSERT(m_transactionOperationsInProgressQueue.first().ptr() == &operation);
 
     m_transactionOperationMap.remove(operation.identifier());
     m_transactionOperationsInProgressQueue.removeFirst();
@@ -1472,7 +1472,7 @@ void IDBTransaction::connectionClosedFromServer(const IDBError& error)
 
     // Move operations out of m_pendingTransactionOperationQueue, otherwise we may start handling
     // them after we forcibly complete in-progress transactions.
-    Deque<RefPtr<IDBClient::TransactionOperation>> pendingTransactionOperationQueue;
+    Deque<Ref<IDBClient::TransactionOperation>> pendingTransactionOperationQueue;
     pendingTransactionOperationQueue.swap(m_pendingTransactionOperationQueue);
 
     abortInProgressOperations(error);
@@ -1480,8 +1480,8 @@ void IDBTransaction::connectionClosedFromServer(const IDBError& error)
     auto operations = copyToVector(m_transactionOperationMap.values());
     for (auto& operation : operations) {
         m_currentlyCompletingRequest = nullptr;
-        m_transactionOperationsInProgressQueue.append(operation.get());
-        ASSERT(m_transactionOperationsInProgressQueue.first() == operation.get());
+        m_transactionOperationsInProgressQueue.append(operation.copyRef());
+        ASSERT(m_transactionOperationsInProgressQueue.first().ptr() == operation.ptr());
         operation->doComplete(IDBResultData::error(operation->identifier(), error));
     }
     m_currentlyCompletingRequest = nullptr;
@@ -1524,7 +1524,7 @@ void IDBTransaction::handlePendingOperations()
 
     while (!m_pendingTransactionOperationQueue.isEmpty()) {
         auto operation = m_pendingTransactionOperationQueue.takeFirst();
-        m_transactionOperationsInProgressQueue.append(operation.get());
+        m_transactionOperationsInProgressQueue.append(operation.copyRef());
         operation->perform();
 
         if (!operation->nextRequestCanGoToServer())

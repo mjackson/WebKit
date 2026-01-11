@@ -6,6 +6,21 @@ function shouldBe(actual, expected) {
 
 {
     var arraybuffer = new ArrayBuffer(4, { maxByteLength: 20 });
+    var int8array = new Int8Array(arraybuffer);
+    var index = {
+        valueOf() {
+            arraybuffer.resize(0);
+            return 10;
+        },
+    };
+    shouldBe(int8array.length, 4);
+    var result = int8array.includes(undefined, index);
+    shouldBe(int8array.length, 0);
+    shouldBe(result, false);
+}
+
+{
+    var arraybuffer = new ArrayBuffer(4, { maxByteLength: 20 });
     var byteOffset = 1; // Uses byteOffset to make typed array out-of-bounds when shrinking size to zero.
     var int8array = new Int8Array(arraybuffer, byteOffset);
     var index = {

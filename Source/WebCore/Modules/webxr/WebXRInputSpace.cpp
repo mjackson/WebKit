@@ -62,7 +62,7 @@ std::optional<TransformationMatrix> WebXRInputSpace::nativeOrigin() const
 #if ENABLE(WEBXR_HIT_TEST)
 std::optional<PlatformXR::NativeOriginInformation> WebXRInputSpace::nativeOriginInformation() const
 {
-    return { PlatformXR::InputSourceSpaceInfo { m_handle, PlatformXR::InputSourceSpaceType::TargetRay } };
+    return { PlatformXR::InputSourceSpaceInfo { m_handle, m_type } };
 }
 #endif
 

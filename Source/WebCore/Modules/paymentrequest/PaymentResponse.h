@@ -136,4 +136,6 @@ private:
 
 } // namespace WebCore
 
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(PaymentResponse)
+
 #endif // ENABLE(PAYMENT_REQUEST)

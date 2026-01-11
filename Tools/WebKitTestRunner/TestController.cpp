@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -2150,9 +2150,9 @@ static WKRetainPtr<WKArrayRef> WKURLArrayFromWKStringArray(const WKTypeRef array
     auto urlArray = adoptWK(WKMutableArrayCreate());
     const auto length = WKArrayGetSize(stringArray);
     for (size_t i = 0; i < length; i++) {
-        const auto str = WKArrayGetItemAtIndex(stringArray, i);
-        const auto cstr = toWTFString(stringValue(str)).utf8().data();
-        WKArrayAppendItem(urlArray.get(), adoptWK(WKURLCreateWithUTF8CString(cstr)).get());
+        auto str = WKArrayGetItemAtIndex(stringArray, i);
+        auto cstr = toWTFString(stringValue(str)).utf8();
+        WKArrayAppendItem(urlArray.get(), adoptWK(WKURLCreateWithUTF8CString(cstr.data())).get());
     }
 
     return urlArray;
@@ -2205,23 +2205,24 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, WKCompl
     });
 }
 
-static WKRetainPtr<WKURLRef> makeOpenPanelURL(WKURLRef baseURL, const char* filePath)
+static WKRetainPtr<WKURLRef> makeOpenPanelURL(WKURLRef baseURL, const String& filePath)
 {
 #if OS(WINDOWS)
-    if (!PathIsRelativeA(filePath)) {
+    auto cFilePath = FileSystem::fileSystemRepresentation(filePath);
+    if (!PathIsRelativeA(cFilePath.data())) {
         char fileURI[INTERNET_MAX_PATH_LENGTH];
         DWORD fileURILength = INTERNET_MAX_PATH_LENGTH;
-        UrlCreateFromPathA(filePath, fileURI, &fileURILength, 0);
+        UrlCreateFromPathA(cFilePath.data(), fileURI, &fileURILength, 0);
         return adoptWK(WKURLCreateWithUTF8CString(fileURI));
     }
 #else
     WKRetainPtr<WKURLRef> fileURL;
-    if (filePath[0] == '/') {
+    if (!filePath.isEmpty() && filePath[0] == '/') {
         fileURL = adoptWK(WKURLCreateWithUTF8CString("file://"));
         baseURL = fileURL.get();
     }
 #endif
-    return adoptWK(WKURLCreateWithBaseURL(baseURL, filePath));
+    return adoptWK(WKURLCreateWithBaseURL(baseURL, filePath.utf8().data()));
 }
 
 void TestController::didReceiveScriptMessage(WKScriptMessageRef message, CompletionHandler<void(WKTypeRef)>&& completionHandler)
@@ -2691,9 +2692,9 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
 
         const auto length = WKArrayGetSize(files);
         for (size_t i = 0; i < length; i++) {
-            const auto file = WKArrayGetItemAtIndex(files, i);
-            const auto fileStr = toWTFString(dynamic_wk_cast<WKStringRef>(file)).utf8().data();
-            auto fileURL = makeOpenPanelURL(currentTestURL(), fileStr);
+            auto file = WKArrayGetItemAtIndex(files, i);
+            String fileString = toWTFString(dynamic_wk_cast<WKStringRef>(file));
+            auto fileURL = makeOpenPanelURL(currentTestURL(), fileString);
             WKArrayAppendItem(fileURLs.get(), fileURL.get());
         }
 

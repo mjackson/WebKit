@@ -72,7 +72,7 @@ public:
     static RenderWidget* find(const Widget&);
 
     enum class ChildWidgetState { Valid, Destroyed };
-    WARN_UNUSED_RETURN ChildWidgetState updateWidgetPosition();
+    [[nodiscard]] ChildWidgetState updateWidgetPosition();
     WEBCORE_EXPORT IntRect windowClipRect() const;
 
     virtual bool requiresAcceleratedCompositing() const;

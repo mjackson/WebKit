@@ -66,11 +66,11 @@ RenderBox::LogicalExtentComputedValues RenderProgress::computeLogicalHeight(Layo
     auto computedValues = RenderBox::computeLogicalHeight(logicalHeight, logicalTop);
     LayoutRect frame = frameRect();
     if (isHorizontalWritingMode())
-        frame.setHeight(computedValues.m_extent);
+        frame.setHeight(computedValues.extent);
     else
-        frame.setWidth(computedValues.m_extent);
+        frame.setWidth(computedValues.extent);
     IntSize frameSize = theme().progressBarRectForBounds(*this, snappedIntRect(frame)).size();
-    computedValues.m_extent = isHorizontalWritingMode() ? frameSize.height() : frameSize.width();
+    computedValues.extent = isHorizontalWritingMode() ? frameSize.height() : frameSize.width();
     return computedValues;
 }
 

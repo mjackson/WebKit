@@ -36,6 +36,7 @@
 #include "PixelBuffer.h"
 #include "PlatformDisplay.h"
 #include <wtf/StdLibExtras.h>
+#include <wtf/TZoneMallocInlines.h>
 
 #if ENABLE(MEDIA_STREAM) || ENABLE(WEB_CODECS)
 #include "VideoFrame.h"
@@ -67,6 +68,8 @@
 #endif
 
 namespace WebCore {
+
+WTF_MAKE_TZONE_ALLOCATED_IMPL(GraphicsContextGLTextureMapperANGLE);
 
 GraphicsContextGLANGLE::~GraphicsContextGLANGLE()
 {

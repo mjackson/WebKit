@@ -65,7 +65,7 @@ auto CSSValueConversion<Content>::operator()(BuilderState& state, const CSSValue
         if (!state.style().pseudoElementType())
             state.style().setHasAttrContent();
         else
-            const_cast<RenderStyle&>(state.parentStyle()).setHasAttrContent();
+            const_cast<ComputedStyle&>(state.parentStyle()).setHasAttrContent();
 
         QualifiedName attr(nullAtom(), value.attributeName().impl(), nullAtom());
         RefPtr element = state.element();

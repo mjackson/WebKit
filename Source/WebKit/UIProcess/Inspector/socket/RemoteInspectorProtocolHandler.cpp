@@ -54,7 +54,7 @@ namespace WebKit {
 using namespace WebCore;
 
 class ScriptMessageClient final : public WebScriptMessageHandler::Client {
-    WTF_MAKE_TZONE_ALLOCATED_INLINE(X);
+    WTF_MAKE_TZONE_ALLOCATED(ScriptMessageClient);
 public:
     ScriptMessageClient(RemoteInspectorProtocolHandler& inspectorProtocolHandler)
         : m_inspectorProtocolHandler(inspectorProtocolHandler) { }
@@ -92,8 +92,10 @@ private:
     CheckedRef<RemoteInspectorProtocolHandler> m_inspectorProtocolHandler;
 };
 
+WTF_MAKE_TZONE_ALLOCATED_IMPL(ScriptMessageClient);
+
 class LoaderClient final : public API::LoaderClient {
-    WTF_MAKE_TZONE_ALLOCATED_INLINE(LoaderClient);
+    WTF_MAKE_TZONE_ALLOCATED(LoaderClient);
 public:
     LoaderClient(Function<void()>&& loadedCallback)
         : m_loadedCallback { WTF::move(loadedCallback) } { }
@@ -106,6 +108,8 @@ public:
 private:
     Function<void()> m_loadedCallback;
 };
+
+WTF_MAKE_TZONE_ALLOCATED_IMPL(LoaderClient);
 
 static std::optional<Inspector::DebuggableType> parseDebuggableTypeFromString(const String& debuggableTypeString)
 {

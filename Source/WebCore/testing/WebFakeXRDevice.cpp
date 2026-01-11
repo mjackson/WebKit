@@ -215,7 +215,10 @@ void SimulatedXRDevice::frameTimerFired()
             auto i = data.inputSources.findIf([&](auto& item) { return item.handle == inputSource.handle; });
             if (i == notFound)
                 return;
-            origin = data.inputSources[i].pointerOrigin.pose;
+            if (inputSource.type == PlatformXR::InputSourceSpaceType::TargetRay)
+                origin = data.inputSources[i].pointerOrigin.pose;
+            else
+                origin = data.inputSources[i].gripOrigin.value_or(PlatformXR::FrameData::InputSourcePose { }).pose;
         });
         if (!origin)
             continue;

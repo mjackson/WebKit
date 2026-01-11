@@ -79,6 +79,14 @@ BoxIterator& BoxIterator::traverseLineRightwardOnLineSkippingChildren()
     return *this;
 }
 
+BoxIterator& BoxIterator::traverseLineLeftwardOnLine()
+{
+    WTF::switchOn(m_box.m_pathVariant, [](auto& path) {
+        path.traversePreviousBoxOnLine();
+    });
+    return *this;
+}
+
 bool Box::isSVGText() const
 {
     return isText() && renderer().isRenderSVGInlineText();

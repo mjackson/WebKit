@@ -648,7 +648,7 @@ void TextBoxPainter::paintForeground(const StyledMarkedText& markedText)
         m_style,
         markedText.style.textStyles,
         markedText.style.textShadow,
-        (!markedText.style.textShadow.isNone() && m_style->hasAppleColorFilter()) ? m_style->appleColorFilter() : Style::AppleColorFilter::none(),
+        (!markedText.style.textShadow.isNone() && !m_style->appleColorFilter().isNone()) ? m_style->appleColorFilter() : Style::AppleColorFilter::none(),
         emphasisMark,
         emphasisMarkOffset,
         m_isCombinedText ? &downcast<RenderCombineText>(m_renderer.get()) : nullptr
@@ -730,7 +730,7 @@ TextDecorationPainter TextBoxPainter::createDecorationPainter(const StyledMarked
         context,
         fontCascade(),
         markedText.style.textShadow,
-        (!markedText.style.textShadow.isNone() && m_style->hasAppleColorFilter()) ? m_style->appleColorFilter() : Style::AppleColorFilter::none(),
+        (!markedText.style.textShadow.isNone() && !m_style->appleColorFilter().isNone()) ? m_style->appleColorFilter() : Style::AppleColorFilter::none(),
         m_document->printing(),
         writingMode()
     };
@@ -1026,7 +1026,9 @@ void TextBoxPainter::fillCompositionUnderline(float start, float width, const Co
         start += 1;
         width -= 2;
 
-        auto underlineColor = underline.compositionUnderlineColor == CompositionUnderlineColor::TextColor ? m_style->visitedDependentColorWithColorFilter(CSSPropertyWebkitTextFillColor) : m_style->colorByApplyingColorFilter(underline.color);
+        auto underlineColor = underline.compositionUnderlineColor == CompositionUnderlineColor::TextColor
+            ? m_style->visitedDependentTextFillColorApplyingColorFilter()
+            : Style::ColorResolver { m_style }.colorResolvingCurrentColorApplyingColorFilter(underline.color);
 
         auto& context = m_paintInfo.context();
         context.setStrokeColor(underlineColor);
@@ -1429,7 +1431,7 @@ FloatPoint TextBoxPainter::textOriginFromPaintRect(const FloatRect& paintRect) c
 bool TextBoxPainter::isInsideShapedContent() const
 {
     auto& textContent = textBox().box().text();
-    return textContent.isAtShapingBoundaryStart() || textContent.isAtShapingBoundaryEnd() || textContent.isBetweenShapingBoundaries();
+    return textContent.isAtShapingBoundaryStart() || textContent.isAtShapingBoundaryEnd() || textContent.isInsideShapingBoundary();
 }
 
 }

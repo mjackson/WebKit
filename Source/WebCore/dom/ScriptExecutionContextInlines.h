@@ -36,7 +36,7 @@ namespace WebCore {
 
 inline bool ScriptExecutionContext::addTimeout(int timeoutId, DOMTimer& timer)
 {
-    return m_timeouts.add(timeoutId, &timer).isNewEntry;
+    return m_timeouts.add(timeoutId, timer).isNewEntry;
 }
 
 inline RefPtr<DOMTimer> ScriptExecutionContext::takeTimeout(int timeoutId)

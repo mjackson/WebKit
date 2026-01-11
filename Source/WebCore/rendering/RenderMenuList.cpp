@@ -509,16 +509,10 @@ bool RenderMenuList::itemIsEnabled(unsigned listIndex) const
 PopupMenuStyle RenderMenuList::itemStyle(unsigned listIndex) const
 {
     const auto& listItems = selectElement().listItems();
-    if (listIndex >= listItems.size()) {
-        // If we are making an out of bounds access, then we want to use the style
-        // of a different option element (index 0). However, if there isn't an option element
-        // before at index 0, we fall back to the menu's style.
-        if (!listIndex)
-            return menuStyle();
-
-        // Try to retrieve the style of an option element we know exists (index 0).
+    if (!listItems.size())
+        return menuStyle();
+    if (listIndex >= listItems.size())
         listIndex = 0;
-    }
     HTMLElement* element = listItems[listIndex].get();
 
     Color itemBackgroundColor;
@@ -530,7 +524,7 @@ PopupMenuStyle RenderMenuList::itemStyle(unsigned listIndex) const
         return menuStyle();
 
     return PopupMenuStyle(
-        style->visitedDependentColorWithColorFilter(CSSPropertyColor),
+        style->visitedDependentColorApplyingColorFilter(),
         itemBackgroundColor,
         style->fontCascade(),
         element->getAttribute(langAttr),
@@ -547,7 +541,7 @@ void RenderMenuList::getItemBackgroundColor(unsigned listIndex, Color& itemBackg
 {
     const auto& listItems = selectElement().listItems();
     if (listIndex >= listItems.size()) {
-        itemBackgroundColor = style().visitedDependentColorWithColorFilter(CSSPropertyBackgroundColor);
+        itemBackgroundColor = style().visitedDependentBackgroundColorApplyingColorFilter();
         itemHasCustomBackgroundColor = false;
         return;
     }
@@ -555,7 +549,7 @@ void RenderMenuList::getItemBackgroundColor(unsigned listIndex, Color& itemBackg
 
     Color backgroundColor;
     if (auto* style = element->computedStyleForEditability())
-        backgroundColor = style->visitedDependentColorWithColorFilter(CSSPropertyBackgroundColor);
+        backgroundColor = style->visitedDependentBackgroundColorApplyingColorFilter();
 
     itemHasCustomBackgroundColor = backgroundColor.isValid() && backgroundColor.isVisible();
     // If the item has an opaque background color, return that.
@@ -565,7 +559,7 @@ void RenderMenuList::getItemBackgroundColor(unsigned listIndex, Color& itemBackg
     }
 
     // Otherwise, the item's background is overlayed on top of the menu background.
-    backgroundColor = blendSourceOver(style().visitedDependentColorWithColorFilter(CSSPropertyBackgroundColor), backgroundColor);
+    backgroundColor = blendSourceOver(style().visitedDependentBackgroundColorApplyingColorFilter(), backgroundColor);
     if (backgroundColor.isOpaque()) {
         itemBackgroundColor = backgroundColor;
         return;
@@ -580,8 +574,8 @@ PopupMenuStyle RenderMenuList::menuStyle() const
     auto& styleToUse = m_innerBlock ? m_innerBlock->style() : style();
     auto absBounds = absoluteBoundingBoxRectIgnoringTransforms();
     return PopupMenuStyle(
-        styleToUse.visitedDependentColorWithColorFilter(CSSPropertyColor),
-        styleToUse.visitedDependentColorWithColorFilter(CSSPropertyBackgroundColor),
+        styleToUse.visitedDependentColorApplyingColorFilter(),
+        styleToUse.visitedDependentBackgroundColorApplyingColorFilter(),
         styleToUse.fontCascade(),
         nullString(),
         styleToUse.usedVisibility() == Visibility::Visible,

@@ -151,3 +151,5 @@ inline EventSource::State EventSource::readyState() const
 }
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(EventSource)

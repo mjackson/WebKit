@@ -131,6 +131,7 @@ Variant<std::monostate, Exception, Ref<TrustedHTML>, Ref<TrustedScript>, Ref<Tru
         return std::monostate();
 
     VM& vm = scriptExecutionContext.vm();
+    JSC::JSLockHolder locker(vm);
 
     auto jsExpectedType = JSC::jsString(vm, String(trustedTypeToString(expectedType)));
     auto jsSink = JSC::jsString(vm, sink);

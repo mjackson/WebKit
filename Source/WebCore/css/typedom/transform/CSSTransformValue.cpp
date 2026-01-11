@@ -99,7 +99,7 @@ static ExceptionOr<Ref<CSSTransformComponent>> createTransformComponent(Ref<cons
 ExceptionOr<Ref<CSSTransformValue>> CSSTransformValue::create(Ref<const CSSTransformListValue> list, Document& document)
 {
     Vector<Ref<CSSTransformComponent>> components;
-    for (auto& value : list.get()) {
+    for (Ref value : list.get()) {
         RefPtr functionValue = dynamicDowncast<CSSFunctionValue>(value);
         if (!functionValue)
             return Exception { ExceptionCode::TypeError, "Expected only function values in a transform list."_s };

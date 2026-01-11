@@ -81,7 +81,7 @@ private:
 
     WeakRef<Document, WeakPtrImplWithEventTargetData> m_document;
     Deque<Ref<PendingScript>> m_scriptsToExecuteInOrder;
-    Vector<RefPtr<PendingScript>> m_scriptsToExecuteSoon; // http://www.whatwg.org/specs/web-apps/current-work/#set-of-scripts-that-will-execute-as-soon-as-possible
+    Vector<Ref<PendingScript>> m_scriptsToExecuteSoon; // https://html.spec.whatwg.org/#set-of-scripts-that-will-execute-as-soon-as-possible
     HashSet<Ref<PendingScript>> m_pendingAsyncScripts;
     Timer m_timer;
 };

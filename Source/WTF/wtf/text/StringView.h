@@ -1378,31 +1378,31 @@ inline bool String::containsIgnoringASCIICase(StringView string, unsigned start)
     return findIgnoringASCIICase(string, start) != notFound;
 }
 
-WARN_UNUSED_RETURN inline String makeStringByReplacingAll(const String& string, StringView target, StringView replacement)
+[[nodiscard]] inline String makeStringByReplacingAll(const String& string, StringView target, StringView replacement)
 {
     if (auto* impl = string.impl())
         return String { impl->replace(target, replacement) };
     return string;
 }
 
-WARN_UNUSED_RETURN inline String makeStringByReplacing(const String& string, unsigned start, unsigned length, StringView replacement)
+[[nodiscard]] inline String makeStringByReplacing(const String& string, unsigned start, unsigned length, StringView replacement)
 {
     if (auto* impl = string.impl())
         return String { impl->replace(start, length, replacement) };
     return string;
 }
 
-WARN_UNUSED_RETURN inline String makeStringByReplacingAll(const String& string, char16_t target, StringView replacement)
+[[nodiscard]] inline String makeStringByReplacingAll(const String& string, char16_t target, StringView replacement)
 {
     if (auto* impl = string.impl())
         return String { impl->replace(target, replacement) };
     return string;
 }
 
-WARN_UNUSED_RETURN WTF_EXPORT_PRIVATE String makeStringByReplacingAll(StringView, char16_t target, char16_t replacement);
-WARN_UNUSED_RETURN WTF_EXPORT_PRIVATE String makeStringBySimplifyingNewLinesSlowCase(const String&, unsigned firstCarriageReturnOffset);
+[[nodiscard]] WTF_EXPORT_PRIVATE String makeStringByReplacingAll(StringView, char16_t target, char16_t replacement);
+[[nodiscard]] WTF_EXPORT_PRIVATE String makeStringBySimplifyingNewLinesSlowCase(const String&, unsigned firstCarriageReturnOffset);
 
-WARN_UNUSED_RETURN inline String makeStringBySimplifyingNewLines(const String& string)
+[[nodiscard]] inline String makeStringBySimplifyingNewLines(const String& string)
 {
     auto firstCarriageReturn = string.find('\r');
     if (firstCarriageReturn == notFound)

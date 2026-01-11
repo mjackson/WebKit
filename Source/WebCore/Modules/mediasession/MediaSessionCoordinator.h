@@ -121,6 +121,8 @@ private:
     std::optional<PlaySessionCommand> m_currentPlaySessionCommand;
 };
 
-}
+} // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(MediaSessionCoordinator)
 
 #endif // ENABLE(MEDIA_SESSION_COORDINATOR)

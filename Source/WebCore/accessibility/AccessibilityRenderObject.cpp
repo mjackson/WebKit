@@ -898,8 +898,8 @@ LayoutRect AccessibilityRenderObject::boundingBoxRect() const
         isSVGRoot = true;
 
     if (auto* renderText = dynamicDowncast<RenderText>(*renderer)) {
-        std::optional stitchGroup  = this->stitchGroup();
-        if (!stitchGroup || stitchGroup->representativeID() != objectID() || stitchGroup->isEmpty())
+        std::optional stitchGroup = stitchGroupIfRepresentative();
+        if (!stitchGroup)
             quads = renderText->absoluteQuadsClippedToEllipsis();
         else {
             // |this| is a stitching of multiple objects, so we need to combine all of their bounding boxes.
@@ -910,14 +910,12 @@ LayoutRect AccessibilityRenderObject::boundingBoxRect() const
                 if (std::optional range = makeSimpleRange(positionBeforeNode(node.get()), positionAfterNode(endNode.get()))) {
                     quads = RenderObject::absoluteTextQuads(*range);
 
-                    if (CheckedPtr cache = axObjectCache()) {
-                        for (AXID axID : stitchGroup->members()) {
-                            if (axID == stitchGroup->representativeID())
-                                break;
-                            if (RefPtr object = cache->objectForID(axID)) {
-                                if (CheckedPtr renderListMarker = dynamicDowncast<RenderListMarker>(object->renderer()))
-                                    renderListMarker->absoluteFocusRingQuads(quads);
-                            }
+                    for (AXID axID : stitchGroup->members()) {
+                        if (axID == objectID())
+                            break;
+                        if (RefPtr object = cache->objectForID(axID)) {
+                            if (CheckedPtr renderListMarker = dynamicDowncast<RenderListMarker>(object->renderer()))
+                                renderListMarker->absoluteFocusRingQuads(quads);
                         }
                     }
                 }
@@ -990,7 +988,7 @@ Path AccessibilityRenderObject::elementPath() const
         if (!needsPath)
             return { };
 
-        auto outlineOffset = Style::evaluate<float>(style.outlineOffset(), Style::ZoomNeeded { });
+        auto outlineOffset = Style::evaluate<float>(style.usedOutlineOffset(), Style::ZoomNeeded { });
         float deviceScaleFactor = renderText->document().deviceScaleFactor();
         Vector<FloatRect> pixelSnappedRects;
         for (auto rect : rects) {
@@ -2370,6 +2368,11 @@ AccessibilityObject* AccessibilityRenderObject::accessibilityHitTest(const IntPo
 
         result = result->parentObjectUnignored();
     }
+
+    if (std::optional stitchedIntoID = result ? result->stitchedIntoID() : std::nullopt) {
+        if (RefPtr stitchRepresentative = cache->objectForID(*stitchedIntoID))
+            return stitchRepresentative.unsafeGet();
+    }
     return result.unsafeGet();
 }
 
@@ -3132,7 +3135,7 @@ bool AccessibilityRenderObject::hasSameFontColor(AXCoreObject& object)
     if (!m_renderer || !renderer)
         return false;
 
-    return m_renderer->style().visitedDependentColor(CSSPropertyColor) == renderer->style().visitedDependentColor(CSSPropertyColor);
+    return m_renderer->style().visitedDependentColor() == renderer->style().visitedDependentColor();
 }
 
 bool AccessibilityRenderObject::hasSameStyle(AXCoreObject& object)

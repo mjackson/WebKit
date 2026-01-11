@@ -183,4 +183,6 @@ private:
 
 } // namespace WebCore
 
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(Notification)
+
 #endif // ENABLE(NOTIFICATIONS)

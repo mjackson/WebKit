@@ -836,7 +836,7 @@ PartialResult BBQJIT::addLocal(Type type, uint32_t numberOfLocals)
 
 // Tables
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addTableSet(unsigned tableIndex, Value index, Value value)
+[[nodiscard]] PartialResult BBQJIT::addTableSet(unsigned tableIndex, Value index, Value value)
 {
     // FIXME: Emit this inline <https://bugs.webkit.org/show_bug.cgi?id=198506>.
     ASSERT(index.type() == TypeKind::I32);
@@ -861,7 +861,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addTableSet(unsigned tableIndex, Value 
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addTableInit(unsigned elementIndex, unsigned tableIndex, ExpressionType dstOffset, ExpressionType srcOffset, ExpressionType length)
+[[nodiscard]] PartialResult BBQJIT::addTableInit(unsigned elementIndex, unsigned tableIndex, ExpressionType dstOffset, ExpressionType srcOffset, ExpressionType length)
 {
     ASSERT(dstOffset.type() == TypeKind::I32);
     ASSERT(srcOffset.type() == TypeKind::I32);
@@ -888,7 +888,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addTableInit(unsigned elementIndex, uns
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addElemDrop(unsigned elementIndex)
+[[nodiscard]] PartialResult BBQJIT::addElemDrop(unsigned elementIndex)
 {
     Vector<Value, 8> arguments = {
         instanceValue(),
@@ -900,7 +900,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addElemDrop(unsigned elementIndex)
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addTableSize(unsigned tableIndex, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addTableSize(unsigned tableIndex, Value& result)
 {
     Vector<Value, 8> arguments = {
         instanceValue(),
@@ -913,7 +913,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addTableSize(unsigned tableIndex, Value
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addTableGrow(unsigned tableIndex, Value fill, Value delta, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addTableGrow(unsigned tableIndex, Value fill, Value delta, Value& result)
 {
     ASSERT(delta.type() == TypeKind::I32);
 
@@ -929,7 +929,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addTableGrow(unsigned tableIndex, Value
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addTableFill(unsigned tableIndex, Value offset, Value fill, Value count)
+[[nodiscard]] PartialResult BBQJIT::addTableFill(unsigned tableIndex, Value offset, Value fill, Value count)
 {
     ASSERT(offset.type() == TypeKind::I32);
     ASSERT(count.type() == TypeKind::I32);
@@ -952,7 +952,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addTableFill(unsigned tableIndex, Value
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addTableCopy(unsigned dstTableIndex, unsigned srcTableIndex, Value dstOffset, Value srcOffset, Value length)
+[[nodiscard]] PartialResult BBQJIT::addTableCopy(unsigned dstTableIndex, unsigned srcTableIndex, Value dstOffset, Value srcOffset, Value length)
 {
     ASSERT(dstOffset.type() == TypeKind::I32);
     ASSERT(srcOffset.type() == TypeKind::I32);
@@ -979,7 +979,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addTableCopy(unsigned dstTableIndex, un
 
 // Locals
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::getLocal(uint32_t localIndex, Value& result)
+[[nodiscard]] PartialResult BBQJIT::getLocal(uint32_t localIndex, Value& result)
 {
     // Currently, we load locals as temps, which basically prevents register allocation of locals.
     // This is probably not ideal, we have infrastructure to support binding locals to registers, but
@@ -992,7 +992,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::getLocal(uint32_t localIndex, Value& re
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::setLocal(uint32_t localIndex, Value value)
+[[nodiscard]] PartialResult BBQJIT::setLocal(uint32_t localIndex, Value value)
 {
     if (!value.isConst())
         loadIfNecessary(value);
@@ -1004,7 +1004,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::setLocal(uint32_t localIndex, Value val
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::teeLocal(uint32_t localIndex, Value value, Value& result)
+[[nodiscard]] PartialResult BBQJIT::teeLocal(uint32_t localIndex, Value value, Value& result)
 {
     auto type = m_parser->typeOfLocal(localIndex);
     Value local = Value::fromLocal(type.kind, localIndex);
@@ -1098,7 +1098,7 @@ Address BBQJIT::materializePointer(Location pointerLocation, uint32_t uoffset)
     return Address(pointerLocation.asGPR(), static_cast<int32_t>(uoffset));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addGrowMemory(Value delta, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addGrowMemory(Value delta, Value& result)
 {
     Vector<Value, 8> arguments = { instanceValue(), delta };
     result = topValue(TypeKind::I32);
@@ -1110,7 +1110,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addGrowMemory(Value delta, Value& resul
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addCurrentMemory(Value& result)
+[[nodiscard]] PartialResult BBQJIT::addCurrentMemory(Value& result)
 {
     result = topValue(TypeKind::I32);
     Location resultLocation = allocate(result);
@@ -1126,7 +1126,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addCurrentMemory(Value& result)
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addMemoryFill(Value dstAddress, Value targetValue, Value count)
+[[nodiscard]] PartialResult BBQJIT::addMemoryFill(Value dstAddress, Value targetValue, Value count)
 {
     ASSERT(dstAddress.type() == TypeKind::I32);
     ASSERT(targetValue.type() == TypeKind::I32);
@@ -1149,7 +1149,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addMemoryFill(Value dstAddress, Value t
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addMemoryCopy(Value dstAddress, Value srcAddress, Value count)
+[[nodiscard]] PartialResult BBQJIT::addMemoryCopy(Value dstAddress, Value srcAddress, Value count)
 {
     ASSERT(dstAddress.type() == TypeKind::I32);
     ASSERT(srcAddress.type() == TypeKind::I32);
@@ -1172,7 +1172,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addMemoryCopy(Value dstAddress, Value s
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addMemoryInit(unsigned dataSegmentIndex, Value dstAddress, Value srcAddress, Value length)
+[[nodiscard]] PartialResult BBQJIT::addMemoryInit(unsigned dataSegmentIndex, Value dstAddress, Value srcAddress, Value length)
 {
     ASSERT(dstAddress.type() == TypeKind::I32);
     ASSERT(srcAddress.type() == TypeKind::I32);
@@ -1196,7 +1196,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addMemoryInit(unsigned dataSegmentIndex
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addDataDrop(unsigned dataSegmentIndex)
+[[nodiscard]] PartialResult BBQJIT::addDataDrop(unsigned dataSegmentIndex)
 {
     Vector<Value, 8> arguments = { instanceValue(), Value::fromI32(dataSegmentIndex) };
     emitCCall(&operationWasmDataDrop, arguments);
@@ -1207,7 +1207,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addDataDrop(unsigned dataSegmentIndex)
 
 // Atomics
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::atomicLoad(ExtAtomicOpType loadOp, Type valueType, ExpressionType pointer, ExpressionType& result, uint32_t uoffset)
+[[nodiscard]] PartialResult BBQJIT::atomicLoad(ExtAtomicOpType loadOp, Type valueType, ExpressionType pointer, ExpressionType& result, uint32_t uoffset)
 {
     if (sumOverflows<uint32_t>(uoffset, sizeOfAtomicOpMemoryAccess(loadOp))) [[unlikely]] {
         // FIXME: Same issue as in AirIRGenerator::load(): https://bugs.webkit.org/show_bug.cgi?id=166435
@@ -1222,7 +1222,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::atomicLoad(ExtAtomicOpType loadOp, Type
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::atomicStore(ExtAtomicOpType storeOp, Type valueType, ExpressionType pointer, ExpressionType value, uint32_t uoffset)
+[[nodiscard]] PartialResult BBQJIT::atomicStore(ExtAtomicOpType storeOp, Type valueType, ExpressionType pointer, ExpressionType value, uint32_t uoffset)
 {
     Location valueLocation = locationOf(value);
     if (sumOverflows<uint32_t>(uoffset, sizeOfAtomicOpMemoryAccess(storeOp))) [[unlikely]] {
@@ -1238,7 +1238,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::atomicStore(ExtAtomicOpType storeOp, Ty
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::atomicBinaryRMW(ExtAtomicOpType op, Type valueType, ExpressionType pointer, ExpressionType value, ExpressionType& result, uint32_t uoffset)
+[[nodiscard]] PartialResult BBQJIT::atomicBinaryRMW(ExtAtomicOpType op, Type valueType, ExpressionType pointer, ExpressionType value, ExpressionType& result, uint32_t uoffset)
 {
     Location valueLocation = locationOf(value);
     if (sumOverflows<uint32_t>(uoffset, sizeOfAtomicOpMemoryAccess(op))) [[unlikely]] {
@@ -1256,7 +1256,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::atomicBinaryRMW(ExtAtomicOpType op, Typ
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::atomicCompareExchange(ExtAtomicOpType op, Type valueType, ExpressionType pointer, ExpressionType expected, ExpressionType value, ExpressionType& result, uint32_t uoffset)
+[[nodiscard]] PartialResult BBQJIT::atomicCompareExchange(ExtAtomicOpType op, Type valueType, ExpressionType pointer, ExpressionType expected, ExpressionType value, ExpressionType& result, uint32_t uoffset)
 {
     Location valueLocation = locationOf(value);
     if (sumOverflows<uint32_t>(uoffset, sizeOfAtomicOpMemoryAccess(op))) [[unlikely]] {
@@ -1275,7 +1275,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::atomicCompareExchange(ExtAtomicOpType o
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::atomicWait(ExtAtomicOpType op, ExpressionType pointer, ExpressionType value, ExpressionType timeout, ExpressionType& result, uint32_t uoffset)
+[[nodiscard]] PartialResult BBQJIT::atomicWait(ExtAtomicOpType op, ExpressionType pointer, ExpressionType value, ExpressionType timeout, ExpressionType& result, uint32_t uoffset)
 {
     Vector<Value, 8> arguments = {
         instanceValue(),
@@ -1298,7 +1298,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::atomicWait(ExtAtomicOpType op, Expressi
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::atomicNotify(ExtAtomicOpType op, ExpressionType pointer, ExpressionType count, ExpressionType& result, uint32_t uoffset)
+[[nodiscard]] PartialResult BBQJIT::atomicNotify(ExtAtomicOpType op, ExpressionType pointer, ExpressionType count, ExpressionType& result, uint32_t uoffset)
 {
     Vector<Value, 8> arguments = {
         instanceValue(),
@@ -1316,7 +1316,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::atomicNotify(ExtAtomicOpType op, Expres
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::atomicFence(ExtAtomicOpType, uint8_t)
+[[nodiscard]] PartialResult BBQJIT::atomicFence(ExtAtomicOpType, uint8_t)
 {
     m_jit.memoryFence();
     return { };
@@ -1419,7 +1419,7 @@ FloatingPointRange BBQJIT::lookupTruncationRange(TruncationKind truncationKind)
     return FloatingPointRange { min, max, closedLowerEndpoint };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::truncTrapping(OpType truncationOp, Value operand, Value& result, Type returnType, Type operandType)
+[[nodiscard]] PartialResult BBQJIT::truncTrapping(OpType truncationOp, Value operand, Value& result, Type returnType, Type operandType)
 {
     ScratchScope<0, 2> scratches(*this);
 
@@ -1465,7 +1465,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::truncTrapping(OpType truncationOp, Valu
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::truncSaturated(Ext1OpType truncationOp, Value operand, Value& result, Type returnType, Type operandType)
+[[nodiscard]] PartialResult BBQJIT::truncSaturated(Ext1OpType truncationOp, Value operand, Value& result, Type returnType, Type operandType)
 {
     ScratchScope<0, 2> scratches(*this);
 
@@ -1605,21 +1605,21 @@ void BBQJIT::pushArrayNewFromSegment(ArraySegmentOperation operation, uint32_t t
     emitThrowOnNullReference(exceptionType, resultLocation);
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addArrayNewData(uint32_t typeIndex, uint32_t dataIndex, ExpressionType arraySize, ExpressionType offset, ExpressionType& result)
+[[nodiscard]] PartialResult BBQJIT::addArrayNewData(uint32_t typeIndex, uint32_t dataIndex, ExpressionType arraySize, ExpressionType offset, ExpressionType& result)
 {
     pushArrayNewFromSegment(operationWasmArrayNewData, typeIndex, dataIndex, arraySize, offset, ExceptionType::BadArrayNewInitData, result);
     LOG_INSTRUCTION("ArrayNewData", typeIndex, dataIndex, arraySize, offset, RESULT(result));
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addArrayNewElem(uint32_t typeIndex, uint32_t elemSegmentIndex, ExpressionType arraySize, ExpressionType offset, ExpressionType& result)
+[[nodiscard]] PartialResult BBQJIT::addArrayNewElem(uint32_t typeIndex, uint32_t elemSegmentIndex, ExpressionType arraySize, ExpressionType offset, ExpressionType& result)
 {
     pushArrayNewFromSegment(operationWasmArrayNewElem, typeIndex, elemSegmentIndex, arraySize, offset, ExceptionType::BadArrayNewInitElem, result);
     LOG_INSTRUCTION("ArrayNewElem", typeIndex, elemSegmentIndex, arraySize, offset, RESULT(result));
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addArrayCopy(uint32_t dstTypeIndex, TypedExpression typedDst, ExpressionType dstOffset, uint32_t srcTypeIndex, TypedExpression typedSrc, ExpressionType srcOffset, ExpressionType size)
+[[nodiscard]] PartialResult BBQJIT::addArrayCopy(uint32_t dstTypeIndex, TypedExpression typedDst, ExpressionType dstOffset, uint32_t srcTypeIndex, TypedExpression typedSrc, ExpressionType srcOffset, ExpressionType size)
 {
     auto dst = typedDst.value();
     auto src = typedSrc.value();
@@ -1664,7 +1664,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addArrayCopy(uint32_t dstTypeIndex, Typ
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addArrayInitElem(uint32_t dstTypeIndex, TypedExpression typedDst, ExpressionType dstOffset, uint32_t srcElementIndex, ExpressionType srcOffset, ExpressionType size)
+[[nodiscard]] PartialResult BBQJIT::addArrayInitElem(uint32_t dstTypeIndex, TypedExpression typedDst, ExpressionType dstOffset, uint32_t srcElementIndex, ExpressionType srcOffset, ExpressionType size)
 {
     auto dst = typedDst.value();
     if (dst.isConst()) {
@@ -1703,7 +1703,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addArrayInitElem(uint32_t dstTypeIndex,
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addArrayInitData(uint32_t dstTypeIndex, TypedExpression typedDst, ExpressionType dstOffset, uint32_t srcDataIndex, ExpressionType srcOffset, ExpressionType size)
+[[nodiscard]] PartialResult BBQJIT::addArrayInitData(uint32_t dstTypeIndex, TypedExpression typedDst, ExpressionType dstOffset, uint32_t srcDataIndex, ExpressionType srcOffset, ExpressionType size)
 {
     auto dst = typedDst.value();
     if (dst.isConst()) {
@@ -1742,7 +1742,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addArrayInitData(uint32_t dstTypeIndex,
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addAnyConvertExtern(ExpressionType reference, ExpressionType& result)
+[[nodiscard]] PartialResult BBQJIT::addAnyConvertExtern(ExpressionType reference, ExpressionType& result)
 {
     Vector<Value, 8> arguments = {
         reference
@@ -1754,7 +1754,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addAnyConvertExtern(ExpressionType refe
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addExternConvertAny(ExpressionType reference, ExpressionType& result)
+[[nodiscard]] PartialResult BBQJIT::addExternConvertAny(ExpressionType reference, ExpressionType& result)
 {
     auto referenceLocation = reference.isConst() ? Location::none() : loadIfNecessary(reference);
     consume(reference);
@@ -1771,7 +1771,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addExternConvertAny(ExpressionType refe
 }
 
 // Basic operators
-WARN_UNUSED_RETURN PartialResult BBQJIT::addSelect(Value condition, Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addSelect(Value condition, Value lhs, Value rhs, Value& result)
 {
     if (condition.isConst()) {
         Value src = condition.asI32() ? lhs : rhs;
@@ -1845,7 +1845,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addSelect(Value condition, Value lhs, V
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Add(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32Add(Value lhs, Value rhs, Value& result)
 {
     EMIT_BINARY(
         "I32Add", TypeKind::I32,
@@ -1859,7 +1859,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Add(Value lhs, Value rhs, Value& 
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Add(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF32Add(Value lhs, Value rhs, Value& result)
 {
     EMIT_BINARY(
         "F32Add", TypeKind::F32,
@@ -1875,7 +1875,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Add(Value lhs, Value rhs, Value& 
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF64Add(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF64Add(Value lhs, Value rhs, Value& result)
 {
     EMIT_BINARY(
         "F64Add", TypeKind::F64,
@@ -1891,7 +1891,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addF64Add(Value lhs, Value rhs, Value& 
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Sub(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32Sub(Value lhs, Value rhs, Value& result)
 {
     EMIT_BINARY(
         "I32Sub", TypeKind::I32,
@@ -1910,7 +1910,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Sub(Value lhs, Value rhs, Value& 
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Sub(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF32Sub(Value lhs, Value rhs, Value& result)
 {
     EMIT_BINARY(
         "F32Sub", TypeKind::F32,
@@ -1933,7 +1933,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Sub(Value lhs, Value rhs, Value& 
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF64Sub(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF64Sub(Value lhs, Value rhs, Value& result)
 {
     EMIT_BINARY(
         "F64Sub", TypeKind::F64,
@@ -1956,7 +1956,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addF64Sub(Value lhs, Value rhs, Value& 
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Mul(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32Mul(Value lhs, Value rhs, Value& result)
 {
     EMIT_BINARY(
         "I32Mul", TypeKind::I32,
@@ -1974,7 +1974,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Mul(Value lhs, Value rhs, Value& 
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Mul(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF32Mul(Value lhs, Value rhs, Value& result)
 {
     EMIT_BINARY(
         "F32Mul", TypeKind::F32,
@@ -1990,7 +1990,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Mul(Value lhs, Value rhs, Value& 
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF64Mul(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF64Mul(Value lhs, Value rhs, Value& result)
 {
     EMIT_BINARY(
         "F64Mul", TypeKind::F64,
@@ -2045,7 +2045,7 @@ Value BBQJIT::checkConstantDivision(const Value& lhs, const Value& rhs)
     return rhs;
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32DivS(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32DivS(Value lhs, Value rhs, Value& result)
 {
     PREPARE_FOR_MOD_OR_DIV;
     EMIT_BINARY(
@@ -2062,7 +2062,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI32DivS(Value lhs, Value rhs, Value&
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI64DivS(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI64DivS(Value lhs, Value rhs, Value& result)
 {
     PREPARE_FOR_MOD_OR_DIV;
     EMIT_BINARY(
@@ -2079,7 +2079,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI64DivS(Value lhs, Value rhs, Value&
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32DivU(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32DivU(Value lhs, Value rhs, Value& result)
 {
     PREPARE_FOR_MOD_OR_DIV;
     EMIT_BINARY(
@@ -2096,7 +2096,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI32DivU(Value lhs, Value rhs, Value&
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI64DivU(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI64DivU(Value lhs, Value rhs, Value& result)
 {
     PREPARE_FOR_MOD_OR_DIV;
     EMIT_BINARY(
@@ -2113,7 +2113,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI64DivU(Value lhs, Value rhs, Value&
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32RemS(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32RemS(Value lhs, Value rhs, Value& result)
 {
     PREPARE_FOR_MOD_OR_DIV;
     EMIT_BINARY(
@@ -2130,7 +2130,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI32RemS(Value lhs, Value rhs, Value&
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI64RemS(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI64RemS(Value lhs, Value rhs, Value& result)
 {
     PREPARE_FOR_MOD_OR_DIV;
     EMIT_BINARY(
@@ -2147,7 +2147,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI64RemS(Value lhs, Value rhs, Value&
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32RemU(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32RemU(Value lhs, Value rhs, Value& result)
 {
     PREPARE_FOR_MOD_OR_DIV;
     EMIT_BINARY(
@@ -2164,7 +2164,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI32RemU(Value lhs, Value rhs, Value&
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI64RemU(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI64RemU(Value lhs, Value rhs, Value& result)
 {
     PREPARE_FOR_MOD_OR_DIV;
     EMIT_BINARY(
@@ -2181,7 +2181,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI64RemU(Value lhs, Value rhs, Value&
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Div(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF32Div(Value lhs, Value rhs, Value& result)
 {
     EMIT_BINARY(
         "F32Div", TypeKind::F32,
@@ -2197,7 +2197,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Div(Value lhs, Value rhs, Value& 
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF64Div(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF64Div(Value lhs, Value rhs, Value& result)
 {
     EMIT_BINARY(
         "F64Div", TypeKind::F64,
@@ -2281,7 +2281,7 @@ void BBQJIT::emitFloatingPointMinOrMax(FPRReg left, FPRReg right, FPRReg result)
 #endif
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Min(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF32Min(Value lhs, Value rhs, Value& result)
 {
     EMIT_BINARY(
         "F32Min", TypeKind::F32,
@@ -2297,7 +2297,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Min(Value lhs, Value rhs, Value& 
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF64Min(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF64Min(Value lhs, Value rhs, Value& result)
 {
     EMIT_BINARY(
         "F64Min", TypeKind::F64,
@@ -2313,7 +2313,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addF64Min(Value lhs, Value rhs, Value& 
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Max(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF32Max(Value lhs, Value rhs, Value& result)
 {
     EMIT_BINARY(
         "F32Max", TypeKind::F32,
@@ -2329,7 +2329,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Max(Value lhs, Value rhs, Value& 
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF64Max(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF64Max(Value lhs, Value rhs, Value& result)
 {
     EMIT_BINARY(
         "F64Max", TypeKind::F64,
@@ -2345,7 +2345,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addF64Max(Value lhs, Value rhs, Value& 
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32And(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32And(Value lhs, Value rhs, Value& result)
 {
     EMIT_BINARY(
         "I32And", TypeKind::I32,
@@ -2359,7 +2359,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI32And(Value lhs, Value rhs, Value& 
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Xor(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32Xor(Value lhs, Value rhs, Value& result)
 {
     EMIT_BINARY(
         "I32Xor", TypeKind::I32,
@@ -2373,7 +2373,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Xor(Value lhs, Value rhs, Value& 
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Or(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32Or(Value lhs, Value rhs, Value& result)
 {
     EMIT_BINARY(
         "I32Or", TypeKind::I32,
@@ -2395,7 +2395,7 @@ void BBQJIT::moveShiftAmountIfNecessary(Location& rhsLocation)
     }
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Shl(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32Shl(Value lhs, Value rhs, Value& result)
 {
     PREPARE_FOR_SHIFT;
     EMIT_BINARY(
@@ -2417,7 +2417,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Shl(Value lhs, Value rhs, Value& 
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32ShrS(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32ShrS(Value lhs, Value rhs, Value& result)
 {
     PREPARE_FOR_SHIFT;
     EMIT_BINARY(
@@ -2439,7 +2439,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI32ShrS(Value lhs, Value rhs, Value&
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32ShrU(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32ShrU(Value lhs, Value rhs, Value& result)
 {
     PREPARE_FOR_SHIFT;
     EMIT_BINARY(
@@ -2461,7 +2461,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI32ShrU(Value lhs, Value rhs, Value&
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Rotl(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32Rotl(Value lhs, Value rhs, Value& result)
 {
     PREPARE_FOR_SHIFT;
     EMIT_BINARY(
@@ -2501,7 +2501,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Rotl(Value lhs, Value rhs, Value&
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Rotr(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32Rotr(Value lhs, Value rhs, Value& result)
 {
     PREPARE_FOR_SHIFT;
     EMIT_BINARY(
@@ -2523,7 +2523,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Rotr(Value lhs, Value rhs, Value&
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Clz(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32Clz(Value operand, Value& result)
 {
     EMIT_UNARY(
         "I32Clz", TypeKind::I32,
@@ -2534,7 +2534,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Clz(Value operand, Value& result)
     );
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Ctz(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32Ctz(Value operand, Value& result)
 {
     EMIT_UNARY(
         "I32Ctz", TypeKind::I32,
@@ -2565,102 +2565,102 @@ PartialResult BBQJIT::emitCompareI32(const char* opcode, Value& lhs, Value& rhs,
 #define RELOP_AS_LAMBDA(op) [](auto lhs, auto rhs) -> auto { return lhs op rhs; }
 #define TYPED_RELOP_AS_LAMBDA(type, op) [](auto lhs, auto rhs) -> auto { return static_cast<type>(lhs) op static_cast<type>(rhs); }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Eq(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32Eq(Value lhs, Value rhs, Value& result)
 {
     return emitCompareI32("I32Eq", lhs, rhs, result, RelationalCondition::Equal, RELOP_AS_LAMBDA( == ));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI64Eq(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI64Eq(Value lhs, Value rhs, Value& result)
 {
     return emitCompareI64("I64Eq", lhs, rhs, result, RelationalCondition::Equal, RELOP_AS_LAMBDA( == ));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Ne(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32Ne(Value lhs, Value rhs, Value& result)
 {
     return emitCompareI32("I32Ne", lhs, rhs, result, RelationalCondition::NotEqual, RELOP_AS_LAMBDA( != ));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI64Ne(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI64Ne(Value lhs, Value rhs, Value& result)
 {
     return emitCompareI64("I64Ne", lhs, rhs, result, RelationalCondition::NotEqual, RELOP_AS_LAMBDA( != ));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32LtS(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32LtS(Value lhs, Value rhs, Value& result)
 {
     return emitCompareI32("I32LtS", lhs, rhs, result, RelationalCondition::LessThan, RELOP_AS_LAMBDA( < ));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI64LtS(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI64LtS(Value lhs, Value rhs, Value& result)
 {
     return emitCompareI64("I64LtS", lhs, rhs, result, RelationalCondition::LessThan, RELOP_AS_LAMBDA( < ));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32LeS(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32LeS(Value lhs, Value rhs, Value& result)
 {
     return emitCompareI32("I32LeS", lhs, rhs, result, RelationalCondition::LessThanOrEqual, RELOP_AS_LAMBDA( <= ));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI64LeS(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI64LeS(Value lhs, Value rhs, Value& result)
 {
     return emitCompareI64("I64LeS", lhs, rhs, result, RelationalCondition::LessThanOrEqual, RELOP_AS_LAMBDA( <= ));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32GtS(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32GtS(Value lhs, Value rhs, Value& result)
 {
     return emitCompareI32("I32GtS", lhs, rhs, result, RelationalCondition::GreaterThan, RELOP_AS_LAMBDA( > ));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI64GtS(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI64GtS(Value lhs, Value rhs, Value& result)
 {
     return emitCompareI64("I64GtS", lhs, rhs, result, RelationalCondition::GreaterThan, RELOP_AS_LAMBDA( > ));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32GeS(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32GeS(Value lhs, Value rhs, Value& result)
 {
     return emitCompareI32("I32GeS", lhs, rhs, result, RelationalCondition::GreaterThanOrEqual, RELOP_AS_LAMBDA( >= ));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI64GeS(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI64GeS(Value lhs, Value rhs, Value& result)
 {
     return emitCompareI64("I64GeS", lhs, rhs, result, RelationalCondition::GreaterThanOrEqual, RELOP_AS_LAMBDA( >= ));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32LtU(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32LtU(Value lhs, Value rhs, Value& result)
 {
     return emitCompareI32("I32LtU", lhs, rhs, result, RelationalCondition::Below, TYPED_RELOP_AS_LAMBDA(uint32_t, <));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI64LtU(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI64LtU(Value lhs, Value rhs, Value& result)
 {
     return emitCompareI64("I64LtU", lhs, rhs, result, RelationalCondition::Below, TYPED_RELOP_AS_LAMBDA(uint64_t, <));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32LeU(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32LeU(Value lhs, Value rhs, Value& result)
 {
     return emitCompareI32("I32LeU", lhs, rhs, result, RelationalCondition::BelowOrEqual, TYPED_RELOP_AS_LAMBDA(uint32_t, <=));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI64LeU(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI64LeU(Value lhs, Value rhs, Value& result)
 {
     return emitCompareI64("I64LeU", lhs, rhs, result, RelationalCondition::BelowOrEqual, TYPED_RELOP_AS_LAMBDA(uint64_t, <=));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32GtU(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32GtU(Value lhs, Value rhs, Value& result)
 {
     return emitCompareI32("I32GtU", lhs, rhs, result, RelationalCondition::Above, TYPED_RELOP_AS_LAMBDA(uint32_t, >));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI64GtU(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI64GtU(Value lhs, Value rhs, Value& result)
 {
     return emitCompareI64("I64GtU", lhs, rhs, result, RelationalCondition::Above, TYPED_RELOP_AS_LAMBDA(uint64_t, >));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32GeU(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32GeU(Value lhs, Value rhs, Value& result)
 {
     return emitCompareI32("I32GeU", lhs, rhs, result, RelationalCondition::AboveOrEqual, TYPED_RELOP_AS_LAMBDA(uint32_t, >=));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI64GeU(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI64GeU(Value lhs, Value rhs, Value& result)
 {
     return emitCompareI64("I64GeU", lhs, rhs, result, RelationalCondition::AboveOrEqual, TYPED_RELOP_AS_LAMBDA(uint64_t, >=));
 }
@@ -2697,62 +2697,62 @@ PartialResult BBQJIT::emitCompareF64(const char* opcode, Value& lhs, Value& rhs,
     )
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Eq(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF32Eq(Value lhs, Value rhs, Value& result)
 {
     return emitCompareF32("F32Eq", lhs, rhs, result, DoubleCondition::DoubleEqualAndOrdered, RELOP_AS_LAMBDA( == ));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF64Eq(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF64Eq(Value lhs, Value rhs, Value& result)
 {
     return emitCompareF64("F64Eq", lhs, rhs, result, DoubleCondition::DoubleEqualAndOrdered, RELOP_AS_LAMBDA( == ));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Ne(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF32Ne(Value lhs, Value rhs, Value& result)
 {
     return emitCompareF32("F32Ne", lhs, rhs, result, DoubleCondition::DoubleNotEqualOrUnordered, RELOP_AS_LAMBDA( != ));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF64Ne(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF64Ne(Value lhs, Value rhs, Value& result)
 {
     return emitCompareF64("F64Ne", lhs, rhs, result, DoubleCondition::DoubleNotEqualOrUnordered, RELOP_AS_LAMBDA( != ));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Lt(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF32Lt(Value lhs, Value rhs, Value& result)
 {
     return emitCompareF32("F32Lt", lhs, rhs, result, DoubleCondition::DoubleLessThanAndOrdered, RELOP_AS_LAMBDA( < ));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF64Lt(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF64Lt(Value lhs, Value rhs, Value& result)
 {
     return emitCompareF64("F64Lt", lhs, rhs, result, DoubleCondition::DoubleLessThanAndOrdered, RELOP_AS_LAMBDA( < ));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Le(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF32Le(Value lhs, Value rhs, Value& result)
 {
     return emitCompareF32("F32Le", lhs, rhs, result, DoubleCondition::DoubleLessThanOrEqualAndOrdered, RELOP_AS_LAMBDA( <= ));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF64Le(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF64Le(Value lhs, Value rhs, Value& result)
 {
     return emitCompareF64("F64Le", lhs, rhs, result, DoubleCondition::DoubleLessThanOrEqualAndOrdered, RELOP_AS_LAMBDA( <= ));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Gt(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF32Gt(Value lhs, Value rhs, Value& result)
 {
     return emitCompareF32("F32Gt", lhs, rhs, result, DoubleCondition::DoubleGreaterThanAndOrdered, RELOP_AS_LAMBDA( > ));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF64Gt(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF64Gt(Value lhs, Value rhs, Value& result)
 {
     return emitCompareF64("F64Gt", lhs, rhs, result, DoubleCondition::DoubleGreaterThanAndOrdered, RELOP_AS_LAMBDA( > ));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Ge(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF32Ge(Value lhs, Value rhs, Value& result)
 {
     return emitCompareF32("F32Ge", lhs, rhs, result, DoubleCondition::DoubleGreaterThanOrEqualAndOrdered, RELOP_AS_LAMBDA( >= ));
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF64Ge(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF64Ge(Value lhs, Value rhs, Value& result)
 {
     return emitCompareF64("F64Ge", lhs, rhs, result, DoubleCondition::DoubleGreaterThanOrEqualAndOrdered, RELOP_AS_LAMBDA( >= ));
 }
@@ -2771,7 +2771,7 @@ PartialResult BBQJIT::addI32Extend8S(Value operand, Value& result)
     )
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Extend16S(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32Extend16S(Value operand, Value& result)
 {
     EMIT_UNARY(
         "I32Extend16S", TypeKind::I32,
@@ -2782,7 +2782,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Extend16S(Value operand, Value& r
     )
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Eqz(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32Eqz(Value operand, Value& result)
 {
     EMIT_UNARY(
         "I32Eqz", TypeKind::I32,
@@ -2793,7 +2793,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Eqz(Value operand, Value& result)
     )
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Popcnt(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32Popcnt(Value operand, Value& result)
 {
     EMIT_UNARY(
         "I32Popcnt", TypeKind::I32,
@@ -2818,7 +2818,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI32Popcnt(Value operand, Value& resu
     )
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI64Popcnt(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI64Popcnt(Value operand, Value& result)
 {
     EMIT_UNARY(
         "I64Popcnt", TypeKind::I64,
@@ -2843,7 +2843,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI64Popcnt(Value operand, Value& resu
     )
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32ReinterpretF32(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32ReinterpretF32(Value operand, Value& result)
 {
     EMIT_UNARY(
         "I32ReinterpretF32", TypeKind::I32,
@@ -2854,7 +2854,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addI32ReinterpretF32(Value operand, Val
     )
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF32ReinterpretI32(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF32ReinterpretI32(Value operand, Value& result)
 {
     EMIT_UNARY(
         "F32ReinterpretI32", TypeKind::F32,
@@ -2865,7 +2865,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addF32ReinterpretI32(Value operand, Val
     )
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF32DemoteF64(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF32DemoteF64(Value operand, Value& result)
 {
     EMIT_UNARY(
         "F32DemoteF64", TypeKind::F32,
@@ -2876,7 +2876,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addF32DemoteF64(Value operand, Value& r
     )
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF64PromoteF32(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF64PromoteF32(Value operand, Value& result)
 {
     EMIT_UNARY(
         "F64PromoteF32", TypeKind::F64,
@@ -2887,7 +2887,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addF64PromoteF32(Value operand, Value& 
     )
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF64Copysign(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF64Copysign(Value lhs, Value rhs, Value& result)
 {
     EMIT_BINARY(
         "F64Copysign", TypeKind::F64,
@@ -2914,7 +2914,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addF64Copysign(Value lhs, Value rhs, Va
     )
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF32ConvertSI32(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF32ConvertSI32(Value operand, Value& result)
 {
     EMIT_UNARY(
         "F32ConvertSI32", TypeKind::F32,
@@ -2925,7 +2925,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addF32ConvertSI32(Value operand, Value&
     )
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF64ConvertSI32(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF64ConvertSI32(Value operand, Value& result)
 {
     EMIT_UNARY(
         "F64ConvertSI32", TypeKind::F64,
@@ -2936,7 +2936,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addF64ConvertSI32(Value operand, Value&
     )
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Copysign(Value lhs, Value rhs, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF32Copysign(Value lhs, Value rhs, Value& result)
 {
     EMIT_BINARY(
         "F32Copysign", TypeKind::F32,
@@ -2963,7 +2963,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Copysign(Value lhs, Value rhs, Va
     )
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Abs(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF32Abs(Value operand, Value& result)
 {
     EMIT_UNARY(
         "F32Abs", TypeKind::F32,
@@ -2979,7 +2979,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Abs(Value operand, Value& result)
     )
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF64Abs(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF64Abs(Value operand, Value& result)
 {
     EMIT_UNARY(
         "F64Abs", TypeKind::F64,
@@ -2995,7 +2995,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addF64Abs(Value operand, Value& result)
     )
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Sqrt(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF32Sqrt(Value operand, Value& result)
 {
     EMIT_UNARY(
         "F32Sqrt", TypeKind::F32,
@@ -3006,7 +3006,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Sqrt(Value operand, Value& result
     )
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF64Sqrt(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF64Sqrt(Value operand, Value& result)
 {
     EMIT_UNARY(
         "F64Sqrt", TypeKind::F64,
@@ -3017,88 +3017,76 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addF64Sqrt(Value operand, Value& result
     )
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF32Neg(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF32Neg(Value operand, Value& result)
 {
     EMIT_UNARY(
         "F32Neg", TypeKind::F32,
         BLOCK(Value::fromF32(-operand.asF32())),
         BLOCK(
-#if CPU(X86_64)
-            m_jit.moveFloatTo32(operandLocation.asFPR(), wasmScratchGPR);
-            m_jit.xor32(TrustedImm32(std::bit_cast<uint32_t>(static_cast<float>(-0.0))), wasmScratchGPR);
-            m_jit.move32ToFloat(wasmScratchGPR, resultLocation.asFPR());
-#else
             m_jit.negateFloat(operandLocation.asFPR(), resultLocation.asFPR());
-#endif
         )
     )
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addF64Neg(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addF64Neg(Value operand, Value& result)
 {
     EMIT_UNARY(
         "F64Neg", TypeKind::F64,
         BLOCK(Value::fromF64(-operand.asF64())),
         BLOCK(
-#if CPU(X86_64)
-            m_jit.moveDoubleTo64(operandLocation.asFPR(), wasmScratchGPR);
-            m_jit.xor64(TrustedImm64(std::bit_cast<uint64_t>(static_cast<double>(-0.0))), wasmScratchGPR);
-            m_jit.move64ToDouble(wasmScratchGPR, resultLocation.asFPR());
-#else
             m_jit.negateDouble(operandLocation.asFPR(), resultLocation.asFPR());
-#endif
         )
     )
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32TruncSF32(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32TruncSF32(Value operand, Value& result)
 {
     return truncTrapping(OpType::I32TruncSF32, operand, result, Types::I32, Types::F32);
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32TruncSF64(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32TruncSF64(Value operand, Value& result)
 {
     return truncTrapping(OpType::I32TruncSF64, operand, result, Types::I32, Types::F64);
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32TruncUF32(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32TruncUF32(Value operand, Value& result)
 {
     return truncTrapping(OpType::I32TruncUF32, operand, result, Types::I32, Types::F32);
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI32TruncUF64(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI32TruncUF64(Value operand, Value& result)
 {
     return truncTrapping(OpType::I32TruncUF64, operand, result, Types::I32, Types::F64);
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI64TruncSF32(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI64TruncSF32(Value operand, Value& result)
 {
     return truncTrapping(OpType::I64TruncSF32, operand, result, Types::I64, Types::F32);
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI64TruncSF64(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI64TruncSF64(Value operand, Value& result)
 {
     return truncTrapping(OpType::I64TruncSF64, operand, result, Types::I64, Types::F64);
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI64TruncUF32(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI64TruncUF32(Value operand, Value& result)
 {
     return truncTrapping(OpType::I64TruncUF32, operand, result, Types::I64, Types::F32);
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addI64TruncUF64(Value operand, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addI64TruncUF64(Value operand, Value& result)
 {
     return truncTrapping(OpType::I64TruncUF64, operand, result, Types::I64, Types::F64);
 }
 
 // References
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addRefEq(Value ref0, Value ref1, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addRefEq(Value ref0, Value ref1, Value& result)
 {
     return addI64Eq(ref0, ref1, result);
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addRefFunc(FunctionSpaceIndex index, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addRefFunc(FunctionSpaceIndex index, Value& result)
 {
     // FIXME: Emit this inline <https://bugs.webkit.org/show_bug.cgi?id=198506>.
     TypeKind returnType = TypeKind::Ref;
@@ -3135,7 +3123,7 @@ void BBQJIT::emitEntryTierUpCheck()
 }
 
 // Control flow
-WARN_UNUSED_RETURN ControlData BBQJIT::addTopLevel(BlockSignature signature)
+[[nodiscard]] ControlData BBQJIT::addTopLevel(BlockSignature signature)
 {
     if (Options::verboseBBQJITInstructions()) [[unlikely]] {
         auto nameSection = m_info.nameSection;
@@ -3376,7 +3364,7 @@ MacroAssembler::Label BBQJIT::addLoopOSREntrypoint()
     return label;
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addBlock(BlockSignature signature, Stack& enclosingStack, ControlType& result, Stack& newStack)
+[[nodiscard]] PartialResult BBQJIT::addBlock(BlockSignature signature, Stack& enclosingStack, ControlType& result, Stack& newStack)
 {
     result = ControlData(*this, BlockType::Block, signature, currentControlData().enclosedHeight() + currentControlData().implicitSlots() + enclosingStack.size() - signature.m_signature->argumentCount());
     currentControlData().flushAndSingleExit(*this, result, enclosingStack, true, false);
@@ -3532,7 +3520,7 @@ void BBQJIT::emitLoopTierUpCheckAndOSREntryData(const ControlData& data, Stack& 
 #endif
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addLoop(BlockSignature signature, Stack& enclosingStack, ControlType& result, Stack& newStack, uint32_t loopIndex)
+[[nodiscard]] PartialResult BBQJIT::addLoop(BlockSignature signature, Stack& enclosingStack, ControlType& result, Stack& newStack, uint32_t loopIndex)
 {
     result = ControlData(*this, BlockType::Loop, signature, currentControlData().enclosedHeight() + currentControlData().implicitSlots() + enclosingStack.size() - signature.m_signature->argumentCount());
     currentControlData().flushAndSingleExit(*this, result, enclosingStack, true, false);
@@ -3550,7 +3538,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addLoop(BlockSignature signature, Stack
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addIf(Value condition, BlockSignature signature, Stack& enclosingStack, ControlData& result, Stack& newStack)
+[[nodiscard]] PartialResult BBQJIT::addIf(Value condition, BlockSignature signature, Stack& enclosingStack, ControlData& result, Stack& newStack)
 {
     RegisterSet liveScratchGPRs;
     Location conditionLocation;
@@ -3577,7 +3565,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addIf(Value condition, BlockSignature s
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addElse(ControlData& data, Stack& expressionStack)
+[[nodiscard]] PartialResult BBQJIT::addElse(ControlData& data, Stack& expressionStack)
 {
     data.flushAndSingleExit(*this, data, expressionStack, false, true);
     ControlData dataElse(ControlData::UseBlockCallingConventionOfOtherBranch, BlockType::Else, data);
@@ -3602,7 +3590,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addElse(ControlData& data, Stack& expre
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addElseToUnreachable(ControlData& data)
+[[nodiscard]] PartialResult BBQJIT::addElseToUnreachable(ControlData& data)
 {
     // We want to flush or consume all values on the stack to reset the allocator
     // state entering the else block.
@@ -3627,7 +3615,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addElseToUnreachable(ControlData& data)
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addTry(BlockSignature signature, Stack& enclosingStack, ControlType& result, Stack& newStack)
+[[nodiscard]] PartialResult BBQJIT::addTry(BlockSignature signature, Stack& enclosingStack, ControlType& result, Stack& newStack)
 {
     m_usesExceptions = true;
     ++m_tryCatchDepth;
@@ -3643,7 +3631,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addTry(BlockSignature signature, Stack&
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addTryTable(BlockSignature signature, Stack& enclosingStack, const Vector<CatchHandler>& targets, ControlType& result, Stack& newStack)
+[[nodiscard]] PartialResult BBQJIT::addTryTable(BlockSignature signature, Stack& enclosingStack, const Vector<CatchHandler>& targets, ControlType& result, Stack& newStack)
 {
     m_usesExceptions = true;
     ++m_tryCatchDepth;
@@ -3672,7 +3660,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addTryTable(BlockSignature signature, S
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addCatch(unsigned exceptionIndex, const TypeDefinition& exceptionSignature, Stack& expressionStack, ControlType& data, ResultList& results)
+[[nodiscard]] PartialResult BBQJIT::addCatch(unsigned exceptionIndex, const TypeDefinition& exceptionSignature, Stack& expressionStack, ControlType& data, ResultList& results)
 {
     m_usesExceptions = true;
     data.flushAndSingleExit(*this, data, expressionStack, false, true);
@@ -3696,7 +3684,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addCatch(unsigned exceptionIndex, const
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addCatchToUnreachable(unsigned exceptionIndex, const TypeDefinition& exceptionSignature, ControlType& data, ResultList& results)
+[[nodiscard]] PartialResult BBQJIT::addCatchToUnreachable(unsigned exceptionIndex, const TypeDefinition& exceptionSignature, ControlType& data, ResultList& results)
 {
     m_usesExceptions = true;
     unbindAllRegisters();
@@ -3718,7 +3706,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addCatchToUnreachable(unsigned exceptio
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addCatchAll(Stack& expressionStack, ControlType& data)
+[[nodiscard]] PartialResult BBQJIT::addCatchAll(Stack& expressionStack, ControlType& data)
 {
     m_usesExceptions = true;
     data.flushAndSingleExit(*this, data, expressionStack, false, true);
@@ -3742,7 +3730,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addCatchAll(Stack& expressionStack, Con
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addCatchAllToUnreachable(ControlType& data)
+[[nodiscard]] PartialResult BBQJIT::addCatchAllToUnreachable(ControlType& data)
 {
     m_usesExceptions = true;
     unbindAllRegisters();
@@ -3764,12 +3752,12 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addCatchAllToUnreachable(ControlType& d
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addDelegate(ControlType& target, ControlType& data)
+[[nodiscard]] PartialResult BBQJIT::addDelegate(ControlType& target, ControlType& data)
 {
     return addDelegateToUnreachable(target, data);
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addDelegateToUnreachable(ControlType& target, ControlType& data)
+[[nodiscard]] PartialResult BBQJIT::addDelegateToUnreachable(ControlType& target, ControlType& data)
 {
     unsigned depth = 0;
     if (ControlType::isTry(target))
@@ -3783,7 +3771,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addDelegateToUnreachable(ControlType& t
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addThrow(unsigned exceptionIndex, ArgumentList& arguments, Stack&)
+[[nodiscard]] PartialResult BBQJIT::addThrow(unsigned exceptionIndex, ArgumentList& arguments, Stack&)
 {
 
     LOG_INSTRUCTION("Throw", arguments);
@@ -3818,7 +3806,7 @@ void BBQJIT::prepareForExceptions()
     }
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addReturn(const ControlData& data, const Stack& returnValues)
+[[nodiscard]] PartialResult BBQJIT::addReturn(const ControlData& data, const Stack& returnValues)
 {
     CallInformation wasmCallInfo = wasmCallingConvention().callInformationFor(*data.signature().m_signature, CallRole::Callee);
 
@@ -3855,7 +3843,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addReturn(const ControlData& data, cons
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addBranch(ControlData& target, Value condition, Stack& results)
+[[nodiscard]] PartialResult BBQJIT::addBranch(ControlData& target, Value condition, Stack& results)
 {
     if (condition.isConst() && !condition.asI32()) // If condition is known to be false, this is a no-op.
         return { };
@@ -3892,7 +3880,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addBranch(ControlData& target, Value co
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addSwitch(Value condition, const Vector<ControlData*>& targets, ControlData& defaultTarget, Stack& results)
+[[nodiscard]] PartialResult BBQJIT::addSwitch(Value condition, const Vector<ControlData*>& targets, ControlData& defaultTarget, Stack& results)
 {
     ASSERT(condition.type() == TypeKind::I32);
 
@@ -3972,12 +3960,12 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addSwitch(Value condition, const Vector
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::endBlock(ControlEntry& entry, Stack& stack)
+[[nodiscard]] PartialResult BBQJIT::endBlock(ControlEntry& entry, Stack& stack)
 {
     return addEndToUnreachable(entry, stack, false);
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addEndToUnreachable(ControlEntry& entry, Stack& stack, bool unreachable)
+[[nodiscard]] PartialResult BBQJIT::addEndToUnreachable(ControlEntry& entry, Stack& stack, bool unreachable)
 {
     ControlData& entryData = entry.controlData;
 
@@ -4056,7 +4044,7 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addEndToUnreachable(ControlEntry& entry
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::endTopLevel(BlockSignature, const Stack&)
+[[nodiscard]] PartialResult BBQJIT::endTopLevel(BlockSignature, const Stack&)
 {
     int frameSize = stackCheckSize();
     CCallHelpers& jit = m_jit;
@@ -4430,7 +4418,7 @@ void BBQJIT::emitTailCall(FunctionSpaceIndex functionIndexSpace, const TypeDefin
 }
 
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addCall(unsigned callProfileIndex, FunctionSpaceIndex functionIndexSpace, const TypeDefinition& signature, ArgumentList& arguments, ResultList& results, CallType callType)
+[[nodiscard]] PartialResult BBQJIT::addCall(unsigned callProfileIndex, FunctionSpaceIndex functionIndexSpace, const TypeDefinition& signature, ArgumentList& arguments, ResultList& results, CallType callType)
 {
     emitIncrementCallProfileCount(callProfileIndex);
     JIT_COMMENT(m_jit, "calling functionIndexSpace: ", functionIndexSpace, ConditionalDump(!m_info.isImportedFunctionFromFunctionIndexSpace(functionIndexSpace), " functionIndex: ", functionIndexSpace - m_info.importFunctionCount()));
@@ -4696,7 +4684,7 @@ void BBQJIT::emitIndirectTailCall(const char* opcode, const Value& callee, GPRRe
         consume(value);
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addCallIndirect(unsigned callProfileIndex, unsigned tableIndex, const TypeDefinition& originalSignature, ArgumentList& args, ResultList& results, CallType callType)
+[[nodiscard]] PartialResult BBQJIT::addCallIndirect(unsigned callProfileIndex, unsigned tableIndex, const TypeDefinition& originalSignature, ArgumentList& args, ResultList& results, CallType callType)
 {
     emitIncrementCallProfileCount(callProfileIndex);
     Value calleeIndex = args.takeLast();
@@ -4810,14 +4798,14 @@ WARN_UNUSED_RETURN PartialResult BBQJIT::addCallIndirect(unsigned callProfileInd
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addUnreachable()
+[[nodiscard]] PartialResult BBQJIT::addUnreachable()
 {
     LOG_INSTRUCTION("Unreachable");
     emitThrowException(ExceptionType::Unreachable);
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addCrash()
+[[nodiscard]] PartialResult BBQJIT::addCrash()
 {
     m_jit.breakpoint();
     return { };
@@ -4965,7 +4953,7 @@ PartialResult BBQJIT::addFusedBranchCompare(OpType opType, ControlType& target, 
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addFusedIfCompare(OpType op, ExpressionType operand, BlockSignature signature, Stack& enclosingStack, ControlData& result, Stack& newStack)
+[[nodiscard]] PartialResult BBQJIT::addFusedIfCompare(OpType op, ExpressionType operand, BlockSignature signature, Stack& enclosingStack, ControlData& result, Stack& newStack)
 {
     BranchFoldResult foldResult = tryFoldFusedBranchCompare(op, operand);
 
@@ -5234,7 +5222,7 @@ PartialResult BBQJIT::addFusedBranchCompare(OpType opType, ControlType& target, 
     return { };
 }
 
-WARN_UNUSED_RETURN PartialResult BBQJIT::addFusedIfCompare(OpType op, ExpressionType left, ExpressionType right, BlockSignature signature, Stack& enclosingStack, ControlData& result, Stack& newStack)
+[[nodiscard]] PartialResult BBQJIT::addFusedIfCompare(OpType op, ExpressionType left, ExpressionType right, BlockSignature signature, Stack& enclosingStack, ControlData& result, Stack& newStack)
 {
     BranchFoldResult foldResult = tryFoldFusedBranchCompare(op, left, right);
 

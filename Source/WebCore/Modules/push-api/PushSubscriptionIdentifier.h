@@ -27,6 +27,7 @@
 
 #include <wtf/HashTraits.h>
 #include <wtf/Hasher.h>
+#include <wtf/Markable.h>
 #include <wtf/ObjectIdentifier.h>
 #include <wtf/UUID.h>
 #include <wtf/text/WTFString.h>

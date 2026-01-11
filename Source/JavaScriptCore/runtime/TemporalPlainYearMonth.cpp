@@ -230,6 +230,40 @@ ISO8601::PlainDate TemporalPlainYearMonth::with(JSGlobalObject* globalObject, JS
     RELEASE_AND_RETURN(scope, TemporalCalendar::yearMonthFromFields(globalObject, y, m, optionalMonthCode, overflow));
 }
 
+template<DifferenceOperation op>
+ISO8601::Duration TemporalPlainYearMonth::sinceOrUntil(JSGlobalObject* globalObject, TemporalPlainYearMonth* other, JSValue optionsValue)
+{
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    bool calendarsMatch = calendar()->equals(globalObject, other->calendar());
+    RETURN_IF_EXCEPTION(scope, { });
+    if (!calendarsMatch) [[unlikely]] {
+        throwRangeError(globalObject, scope, "calendars must match"_s);
+        return { };
+    }
+
+    if (!calendar()->isISO8601()) [[unlikely]] {
+        throwRangeError(globalObject, scope, "unimplemented: with non-ISO8601 calendar"_s);
+        return { };
+    }
+
+    auto [smallestUnit, largestUnit, roundingMode, increment] = extractDifferenceOptions(globalObject, optionsValue, UnitGroup::Date, TemporalUnit::Month, TemporalUnit::Year);
+    RETURN_IF_EXCEPTION(scope, { });
+
+    RELEASE_AND_RETURN(scope, TemporalCalendar::differenceTemporalPlainYearMonth<op>(globalObject, plainYearMonth(), other->plainYearMonth(), increment, smallestUnit, largestUnit, roundingMode));
+}
+
+ISO8601::Duration TemporalPlainYearMonth::until(JSGlobalObject* globalObject, TemporalPlainYearMonth* other, JSValue optionsValue)
+{
+    return sinceOrUntil<DifferenceOperation::Until>(globalObject, other, optionsValue);
+}
+
+ISO8601::Duration TemporalPlainYearMonth::since(JSGlobalObject* globalObject, TemporalPlainYearMonth* other, JSValue optionsValue)
+{
+    return sinceOrUntil<DifferenceOperation::Since>(globalObject, other, optionsValue);
+}
+
 String TemporalPlainYearMonth::monthCode() const
 {
     return ISO8601::monthCode(m_plainYearMonth.month());

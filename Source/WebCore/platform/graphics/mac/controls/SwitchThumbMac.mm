@@ -69,12 +69,13 @@ void SwitchThumbMac::draw(GraphicsContext& context, const FloatRoundedRect& bord
 
     GraphicsContextStateSaver stateSaver(context);
 
-    auto isOn = owningPart().isOn();
+    Ref owningPart = this->owningPart();
+    auto isOn = owningPart->isOn();
     auto isInlineFlipped = style.states.contains(ControlStyle::State::InlineFlippedWritingMode);
     auto isVertical = style.states.contains(ControlStyle::State::VerticalWritingMode);
     auto isEnabled = style.states.contains(ControlStyle::State::Enabled);
     auto isPressed = style.states.contains(ControlStyle::State::Pressed);
-    auto progress = SwitchMacUtilities::easeInOut(owningPart().progress());
+    auto progress = SwitchMacUtilities::easeInOut(owningPart->progress());
 
     auto logicalBounds = SwitchMacUtilities::rectWithTransposedSize(borderRect.rect(), isVertical);
     auto controlSize = controlSizeForSize(logicalBounds.size(), style);

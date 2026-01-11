@@ -26,6 +26,7 @@
 #pragma once
 
 #include "EventTarget.h"
+#include "EventTargetInterfaces.h"
 #include "LocalDOMWindowProperty.h"
 #include <wtf/RefCounted.h>
 
@@ -72,3 +73,5 @@ private:
 };
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(VisualViewport)

@@ -59,7 +59,7 @@ public:
 private:
     TextTrackCueList() = default;
 
-    Vector<RefPtr<TextTrackCue>> m_vector;
+    Vector<Ref<TextTrackCue>> m_vector;
     RefPtr<TextTrackCueList> m_activeCues;
 };
 

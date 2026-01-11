@@ -35,6 +35,7 @@
 #include "RenderObjectInlines.h"
 #include "SVGElementTypeHelpers.h"
 #include "SVGRenderingContext.h"
+#include "Settings.h"
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/TextStream.h>
 
@@ -132,11 +133,13 @@ auto LegacyRenderSVGResourceFilter::applyResource(RenderElement& renderer, const
         .filterRegion = filterRegion,
         .scale = filterScale,
     }, preferredFilterModes, *context, RenderingResourceIdentifier::generate());
+
     if (!filterData->filter) {
         m_rendererFilterDataMap.remove(renderer);
         return { };
     }
 
+    filterData->filter->setIsShowingDebugOverlay(renderer.settings().showDebugBorders());
     filterData->filter->clampFilterRegionIfNeeded();
 
 #if USE(CAIRO)

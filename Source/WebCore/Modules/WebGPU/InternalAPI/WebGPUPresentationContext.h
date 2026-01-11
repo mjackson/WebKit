@@ -48,7 +48,7 @@ class PresentationContext : public RefCountedAndCanMakeWeakPtr<PresentationConte
 public:
     virtual ~PresentationContext() = default;
 
-    WARN_UNUSED_RETURN virtual bool configure(const CanvasConfiguration&) = 0;
+    [[nodiscard]] virtual bool configure(const CanvasConfiguration&) = 0;
     virtual void unconfigure() = 0;
     virtual void present(uint32_t frameIndex, bool = false) = 0;
 

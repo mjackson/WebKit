@@ -107,6 +107,8 @@ InspectorBackend.activateDomain("Database", null);
 
 #pragma once
 
+#include <wtf/Platform.h>
+
 #if ENABLE(INSPECTOR_ALTERNATE_DISPATCHERS)
 
 #include "TestProtocolObjects.h"
@@ -348,6 +350,7 @@ namespace Inspector {
 #pragma once
 
 #include <JavaScriptCore/InspectorProtocolTypes.h>
+#include <JavaScriptCore/JSExportMacros.h>
 #include <wtf/JSONValues.h>
 #include <wtf/text/WTFString.h>
 
@@ -1758,13 +1761,12 @@ inline String toProtocolString(TestProtocolDatabaseMouseButton value)
 template<>
 inline std::optional<TestProtocolDatabaseMouseButton> fromProtocolString(const String& value)
 {
-    static constexpr auto mappings = std::to_array<std::pair<ComparableASCIILiteral, TestProtocolDatabaseMouseButton>>({
+    static constexpr SortedArrayMap map { std::to_array<std::pair<ComparableASCIILiteral, TestProtocolDatabaseMouseButton>>({
         { "Left"_s, TestProtocolDatabaseMouseButtonLeft },
         { "Middle"_s, TestProtocolDatabaseMouseButtonMiddle },
         { "None"_s, TestProtocolDatabaseMouseButtonNone },
         { "Right"_s, TestProtocolDatabaseMouseButtonRight },
-    });
-    static constexpr SortedArrayMap map { mappings };
+   }) };
     if (auto* result = map.tryGet(value))
         return *result;
     return std::nullopt;
@@ -1783,11 +1785,10 @@ inline String toProtocolString(TestProtocolDatabaseOptionalParameterBundleDirect
 template<>
 inline std::optional<TestProtocolDatabaseOptionalParameterBundleDirectionality> fromProtocolString(const String& value)
 {
-    static constexpr auto mappings = std::to_array<std::pair<ComparableASCIILiteral, TestProtocolDatabaseOptionalParameterBundleDirectionality>>({
+    static constexpr SortedArrayMap map { std::to_array<std::pair<ComparableASCIILiteral, TestProtocolDatabaseOptionalParameterBundleDirectionality>>({
         { "LTR"_s, TestProtocolDatabaseOptionalParameterBundleDirectionalityLTR },
         { "RTL"_s, TestProtocolDatabaseOptionalParameterBundleDirectionalityRTL },
-    });
-    static constexpr SortedArrayMap map { mappings };
+   }) };
     if (auto* result = map.tryGet(value))
         return *result;
     return std::nullopt;
@@ -1806,11 +1807,10 @@ inline String toProtocolString(TestProtocolDatabaseParameterBundleDirectionality
 template<>
 inline std::optional<TestProtocolDatabaseParameterBundleDirectionality> fromProtocolString(const String& value)
 {
-    static constexpr auto mappings = std::to_array<std::pair<ComparableASCIILiteral, TestProtocolDatabaseParameterBundleDirectionality>>({
+    static constexpr SortedArrayMap map { std::to_array<std::pair<ComparableASCIILiteral, TestProtocolDatabaseParameterBundleDirectionality>>({
         { "LTR"_s, TestProtocolDatabaseParameterBundleDirectionalityLTR },
         { "RTL"_s, TestProtocolDatabaseParameterBundleDirectionalityRTL },
-    });
-    static constexpr SortedArrayMap map { mappings };
+   }) };
     if (auto* result = map.tryGet(value))
         return *result;
     return std::nullopt;
@@ -1829,11 +1829,10 @@ inline String toProtocolString(TestProtocolTestParameterBundleDirectionality val
 template<>
 inline std::optional<TestProtocolTestParameterBundleDirectionality> fromProtocolString(const String& value)
 {
-    static constexpr auto mappings = std::to_array<std::pair<ComparableASCIILiteral, TestProtocolTestParameterBundleDirectionality>>({
+    static constexpr SortedArrayMap map { std::to_array<std::pair<ComparableASCIILiteral, TestProtocolTestParameterBundleDirectionality>>({
         { "LTR"_s, TestProtocolTestParameterBundleDirectionalityLTR },
         { "RTL"_s, TestProtocolTestParameterBundleDirectionalityRTL },
-    });
-    static constexpr SortedArrayMap map { mappings };
+   }) };
     if (auto* result = map.tryGet(value))
         return *result;
     return std::nullopt;

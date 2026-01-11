@@ -95,11 +95,8 @@ bool SVGFESpecularLightingElement::setFilterEffectAttribute(FilterEffect& filter
     };
 
     switch (attrName.nodeName()) {
-    case AttributeNames::lighting_colorAttr: {
-        auto& style = renderer()->style();
-        auto color = style.colorWithColorFilter(style.lightingColor());
-        return effect.setLightingColor(color);
-    }
+    case AttributeNames::lighting_colorAttr:
+        return effect.setLightingColor(renderer()->checkedStyle()->lightingColorResolvingCurrentColorApplyingColorFilter());
     case AttributeNames::surfaceScaleAttr:
         return effect.setSurfaceScale(surfaceScale());
     case AttributeNames::specularConstantAttr:
@@ -167,11 +164,7 @@ RefPtr<FilterEffect> SVGFESpecularLightingElement::createFilterEffect(const Filt
         return nullptr;
 
     Ref lightSource = lightElement->lightSource();
-    auto& style = renderer->style();
-
-    auto color = style.colorWithColorFilter(style.lightingColor());
-
-    return FESpecularLighting::create(color, surfaceScale(), specularConstant(), specularExponent(), kernelUnitLengthX(), kernelUnitLengthY(), WTF::move(lightSource));
+    return FESpecularLighting::create(renderer->checkedStyle()->lightingColorResolvingCurrentColorApplyingColorFilter(), surfaceScale(), specularConstant(), specularExponent(), kernelUnitLengthX(), kernelUnitLengthY(), WTF::move(lightSource));
 }
 
 } // namespace WebCore

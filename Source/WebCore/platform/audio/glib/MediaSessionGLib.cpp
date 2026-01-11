@@ -39,7 +39,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(MediaSessionGLib);
 
 static std::optional<PlatformMediaSession::RemoteControlCommandType> getCommand(const char* name)
 {
-    static const auto commandList = std::to_array<std::pair<ComparableASCIILiteral, PlatformMediaSession::RemoteControlCommandType>>({
+    static const SortedArrayMap map { std::to_array<std::pair<ComparableASCIILiteral, PlatformMediaSession::RemoteControlCommandType>>({
         { "Next"_s, PlatformMediaSession::RemoteControlCommandType::NextTrackCommand },
         { "Pause"_s, PlatformMediaSession::RemoteControlCommandType::PauseCommand },
         { "Play"_s, PlatformMediaSession::RemoteControlCommandType::PlayCommand },
@@ -47,9 +47,7 @@ static std::optional<PlatformMediaSession::RemoteControlCommandType> getCommand(
         { "Previous"_s, PlatformMediaSession::RemoteControlCommandType::PreviousTrackCommand },
         { "Seek"_s, PlatformMediaSession::RemoteControlCommandType::SeekToPlaybackPositionCommand },
         { "Stop"_s, PlatformMediaSession::RemoteControlCommandType::StopCommand }
-    });
-
-    static const SortedArrayMap map { commandList };
+    }) };
     auto value = map.get(StringView::fromLatin1(name), PlatformMediaSession::RemoteControlCommandType::NoCommand);
     if (value == PlatformMediaSession::RemoteControlCommandType::NoCommand)
         return { };
@@ -98,7 +96,7 @@ enum class MprisProperty : uint8_t {
 
 static std::optional<MprisProperty> getMprisProperty(const char* propertyName)
 {
-    static constexpr auto propertiesList = std::to_array<std::pair<ComparableASCIILiteral, MprisProperty>>({
+    static constexpr SortedArrayMap map { std::to_array<std::pair<ComparableASCIILiteral, MprisProperty>>({
         { "CanControl"_s, MprisProperty::CanControl },
         { "CanGoNext"_s, MprisProperty::CanGoNext },
         { "CanGoPrevious"_s, MprisProperty::CanGoPrevious },
@@ -115,8 +113,7 @@ static std::optional<MprisProperty> getMprisProperty(const char* propertyName)
         { "Position"_s, MprisProperty::GetPosition },
         { "SupportedMimeTypes"_s, MprisProperty::SupportedMimeTypes },
         { "SupportedUriSchemes"_s, MprisProperty::SupportedUriSchemes }
-    });
-    static constexpr SortedArrayMap map { propertiesList };
+    }) };
     auto value = map.get(StringView::fromLatin1(propertyName), MprisProperty::NoProperty);
     if (value == MprisProperty::NoProperty)
         return { };

@@ -435,7 +435,7 @@ void InspectorFrontendClientLocal::showResources()
 
 void InspectorFrontendClientLocal::showMainResourceForFrame(LocalFrame* frame)
 {
-    String frameId = protectedInspectedPageController()->ensurePageAgent().frameId(frame);
+    String frameId = CheckedRef { protectedInspectedPageController()->ensurePageAgent() }->frameId(frame);
     m_frontendAPIDispatcher->dispatchCommandWithResultAsync("showMainResourceForFrame"_s, { JSON::Value::create(frameId) });
 }
 

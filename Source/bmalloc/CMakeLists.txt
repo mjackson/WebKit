@@ -725,6 +725,21 @@ if (ATOMICS_REQUIRE_LIBATOMIC)
     list(APPEND bmalloc_LIBRARIES atomic)
 endif ()
 
+
+# GCC fails to compile with -O1 due to always_inline and unresolved indirect calls.
+# But it works either with -O0 (skips inlining) or with -O2 (resolves the callee).
+if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    string(TOUPPER "${CMAKE_BUILD_TYPE}" _BUILD_TYPE_UPPER)
+    set(_all_c_flags "${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_${_BUILD_TYPE_UPPER}}")
+    if (_all_c_flags MATCHES "-O1")
+        set_source_files_properties(
+            libpas/src/libpas/pas_fast_large_free_heap.c
+            libpas/src/libpas/pas_simple_large_free_heap.c
+            PROPERTIES COMPILE_OPTIONS "-O2"
+        )
+    endif ()
+endif ()
+
 set(bmalloc_COMPILE_OPTIONS
     -Wno-cast-align
     -Wno-missing-field-initializers

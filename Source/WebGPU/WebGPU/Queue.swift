@@ -23,8 +23,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import Metal
-import WebGPU_Internal
+public import Metal
+internal import WebGPU_Internal.Queue
 
 private let largeBufferSize = 32 * 1024 * 1024
 

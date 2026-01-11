@@ -36,6 +36,7 @@ namespace WebCore {
 
 class CSSSelector;
 class StyleSheetContents;
+class StyleRuleFunction;
 class StyleRulePositionTry;
 class StyleRuleViewTransition;
 

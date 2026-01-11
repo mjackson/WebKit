@@ -38,6 +38,7 @@
 #include "StyleOffsetDistance.h"
 #include "StyleOffsetPath.h"
 #include "StyleOffsetPosition.h"
+#include "StyleTransformResolver.h"
 #include "TransformOperationData.h"
 
 namespace WebCore {
@@ -121,7 +122,7 @@ AcceleratedEffectValues::AcceleratedEffectValues(const RenderStyle& style, const
 
     if (!style.offsetPath().isNone() && transformOperationData) {
         if (auto path = Style::tryPath(style.offsetPath(), *transformOperationData)) {
-            transformOrigin = { .value = style.computeTransformOrigin(transformOperationData->boundingBox).xy() };
+            transformOrigin = { .value = Style::TransformResolver::computeTransformOrigin(style, transformOperationData->boundingBox).xy() };
             offsetPath = Style::toPlatform(style.offsetPath());
             offsetDistance = Style::evaluate<AcceleratedEffectOffsetDistance>(style.offsetDistance(), path->length(), Style::ZoomNeeded { });
             offsetRotate = Style::evaluate<AcceleratedEffectOffsetRotate>(style.offsetRotate());

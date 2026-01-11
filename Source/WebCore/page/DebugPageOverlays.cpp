@@ -204,7 +204,7 @@ static void drawRightAlignedText(const String& text, GraphicsContext& context, c
 
 void NonFastScrollableRegionOverlay::drawRect(PageOverlay& pageOverlay, GraphicsContext& context, const IntRect&)
 {
-    static constexpr auto colorMappings = std::to_array<std::pair<EventTrackingRegions::EventType, SRGBA<uint8_t>>>({
+    constexpr SortedArrayMap colors { std::to_array<std::pair<EventTrackingRegions::EventType, SRGBA<uint8_t>>>({
         { EventTrackingRegions::EventType::Mousedown, { 80, 245, 80, 50 } },
         { EventTrackingRegions::EventType::Mousemove, { 245, 245, 80, 50 } },
         { EventTrackingRegions::EventType::Mouseup, { 80, 245, 176, 50 } },
@@ -213,8 +213,7 @@ void NonFastScrollableRegionOverlay::drawRect(PageOverlay& pageOverlay, Graphics
         { EventTrackingRegions::EventType::Touchmove, { 80, 204, 245, 50 } },
         { EventTrackingRegions::EventType::Touchstart, { 191, 191, 63, 50 } },
         { EventTrackingRegions::EventType::Wheel, { 255, 128, 0, 50 } },
-    });
-    constexpr SortedArrayMap colors { colorMappings };
+    }) };
     constexpr auto defaultColor = Color::black.colorWithAlphaByte(64);
 
     IntRect bounds = pageOverlay.bounds();

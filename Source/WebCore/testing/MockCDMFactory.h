@@ -160,7 +160,7 @@ private:
 
 class MockCDMInstanceSession : public CDMInstanceSession {
 public:
-    MockCDMInstanceSession(WeakPtr<MockCDMInstance>&&);
+    explicit MockCDMInstanceSession(WeakPtr<MockCDMInstance>&&);
 
 private:
     void requestLicense(LicenseType, KeyGroupingStrategy, const String& initDataType, Ref<SharedBuffer>&& initData, LicenseCallback&&) final;

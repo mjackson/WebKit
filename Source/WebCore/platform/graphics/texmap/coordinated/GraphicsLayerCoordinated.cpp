@@ -40,6 +40,8 @@
 #include "GraphicsLayerAsyncContentsDisplayDelegateCoordinated.h"
 #include "GraphicsLayerContentsDisplayDelegate.h"
 #include "GraphicsLayerFactory.h"
+#include "GraphicsLayerFilterAnimationValue.h"
+#include "GraphicsLayerKeyframeValueList.h"
 #include "Image.h"
 #include "NativeImage.h"
 #include <wtf/Locker.h>
@@ -587,7 +589,7 @@ void GraphicsLayerCoordinated::setBackdropFiltersRect(const FloatRoundedRect& ba
     noteLayerPropertyChanged(Change::BackdropRect, ScheduleFlush::Yes);
 }
 
-bool GraphicsLayerCoordinated::addAnimation(const KeyframeValueList& valueList, const GraphicsLayerAnimation* animation, const String& animationName, double timeOffset)
+bool GraphicsLayerCoordinated::addAnimation(const GraphicsLayerKeyframeValueList& valueList, const GraphicsLayerAnimation* animation, const String& animationName, double timeOffset)
 {
     ASSERT(!animationName.isEmpty());
     ASSERT(animation);
@@ -605,7 +607,7 @@ bool GraphicsLayerCoordinated::addAnimation(const KeyframeValueList& valueList, 
         if (listIndex < 0)
             return false;
 
-        const auto& filters = static_cast<const FilterAnimationValue&>(valueList.at(listIndex)).value();
+        const auto& filters = static_cast<const GraphicsLayerFilterAnimationValue&>(valueList.at(listIndex)).value();
         // The animation of drop-shadow filter with currentColor isn't supported yet.
         // GraphicsLayerCA doesn't accept animations with drap-shadow. Do it here.
         if (filters.hasFilterOfType<FilterOperation::Type::DropShadowWithStyleColor>())

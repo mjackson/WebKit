@@ -27,6 +27,7 @@
 
 #include "AbstractWorker.h"
 #include "ActiveDOMObject.h"
+#include "EventTargetInterfaces.h"
 #include "SharedWorkerKey.h"
 #include "SharedWorkerObjectIdentifier.h"
 #include "URLKeepingBlobAlive.h"
@@ -93,3 +94,5 @@ private:
 };
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(SharedWorker)

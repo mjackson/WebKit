@@ -39,11 +39,12 @@ RenderSVGResourceGradient::~RenderSVGResourceGradient() = default;
 
 GradientColorStops RenderSVGResourceGradient::stopsByApplyingColorFilter(const GradientColorStops& stops, const RenderStyle& style) const
 {
-    if (!style.hasAppleColorFilter())
+    if (style.appleColorFilter().isNone())
         return stops;
 
-    return stops.mapColors([&] (auto& color) {
-        return style.colorByApplyingColorFilter(color);
+    Style::ColorResolver colorResolver { style };
+    return stops.mapColors([&](auto& color) {
+        return colorResolver.colorApplyingColorFilter(color);
     });
 }
 

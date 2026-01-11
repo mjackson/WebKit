@@ -118,10 +118,10 @@ private:
 
 inline void refComputePassEncoder(WebGPU::ComputePassEncoder* obj)
 {
-    ref(obj);
+    WTF::ref(obj);
 }
 
 inline void derefComputePassEncoder(WebGPU::ComputePassEncoder* obj)
 {
-    deref(obj);
+    WTF::deref(obj);
 }

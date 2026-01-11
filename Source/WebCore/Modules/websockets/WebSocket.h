@@ -32,6 +32,7 @@
 
 #include "ActiveDOMObject.h"
 #include "EventTarget.h"
+#include "EventTargetInterfaces.h"
 #include "WebSocketChannelClient.h"
 #include <wtf/CheckedRef.h>
 #include <wtf/HashSet.h>
@@ -149,3 +150,5 @@ private:
 };
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(WebSocket)

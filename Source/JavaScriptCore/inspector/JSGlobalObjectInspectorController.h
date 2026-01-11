@@ -29,6 +29,7 @@
 #include "InspectorEnvironment.h"
 #include "InspectorFrontendRouter.h"
 #include "Strong.h"
+#include <wtf/CheckedPtr.h>
 #include <wtf/CheckedRef.h>
 #include <wtf/Forward.h>
 #include <wtf/Noncopyable.h>
@@ -135,7 +136,7 @@ private:
     InspectorConsoleAgent* m_consoleAgent { nullptr };
 
     // Lazy, but also on-demand agents.
-    InspectorAgent* m_inspectorAgent { nullptr };
+    CheckedPtr<InspectorAgent> m_inspectorAgent;
     InspectorDebuggerAgent* m_debuggerAgent { nullptr };
 
     const Ref<FrontendRouter> m_frontendRouter;

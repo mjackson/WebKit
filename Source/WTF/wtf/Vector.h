@@ -63,17 +63,14 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 template<typename T>
 struct VectorCopier {
-    template<typename U>
-    static void uninitializedCopy(const U* src, const U* srcEnd, T* dst)
+    template<typename U, std::size_t Extent>
+    static void uninitializedCopy(std::span<const U, Extent> src, std::span<T> dst)
     {
         if constexpr (std::is_trivial_v<T> && std::same_as<T, U>)
-            memcpy(static_cast<void*>(dst), static_cast<void*>(const_cast<T*>(src)), reinterpret_cast<const char*>(srcEnd) - reinterpret_cast<const char*>(src));
+            memcpySpan(dst, src);
         else {
-            while (src != srcEnd) {
-                new (NotNull, dst) T(*src);
-                ++dst;
-                ++src;
-            }
+            for (size_t i = 0; i < src.size(); ++i)
+                new (NotNull, &dst[i]) T(src[i]);
         }
     }
 };
@@ -163,22 +160,15 @@ struct VectorTypeOperations
         moveOverlapping(std::to_address(src.begin()), std::to_address(src.end()), std::to_address(dst.begin()));
     }
 
-    static void uninitializedCopy(const T* src, const T* srcEnd, T* dst)
+    template<std::size_t Extent>
+    static void uninitializedCopy(std::span<const T, Extent> src, std::span<T> dst)
     {
         if constexpr (VectorTraits<T>::canCopyWithMemcpy)
-            memcpy(static_cast<void*>(dst), static_cast<void*>(const_cast<T*>(src)), reinterpret_cast<const char*>(srcEnd) - reinterpret_cast<const char*>(src));
+            memcpySpan(asMutableByteSpan(dst), asByteSpan(src));
         else {
-            while (src != srcEnd) {
-                new (NotNull, dst) T(*src);
-                ++dst;
-                ++src;
-            }
+            for (size_t i = 0; i < src.size(); ++i)
+                new (NotNull, &dst[i]) T(src[i]);
         }
-    }
-
-    static void uninitializedCopy(std::span<const T> src, std::span<T> dst)
-    {
-        uninitializedCopy(std::to_address(src.begin()), std::to_address(src.end()), std::to_address(dst.begin()));
     }
 
     static void uninitializedFill(T* dst, T* dstEnd, const T& val)
@@ -668,7 +658,7 @@ public:
 
     template<typename U, size_t Extent>
     Vector(std::array<U, Extent> array)
-        : Vector(std::span { array }) { }
+        : Vector(std::span<const U, Extent> { array }) { }
 
     template<typename U, size_t Extent> Vector(std::span<U, Extent> span)
         : Base(span.size(), span.size())
@@ -676,7 +666,7 @@ public:
         asanSetInitialBufferSizeTo(span.size());
 
         if (begin())
-            VectorCopier<T>::uninitializedCopy(span.data(), span.data() + span.size(), begin());
+            VectorCopier<T>::uninitializedCopy(spanConstCast<const U>(span), mutableSpan());
     }
 
     Vector(std::initializer_list<T> initializerList)
@@ -784,13 +774,21 @@ public:
         removeLast();
         return result;
     }
-    
+
     bool contains(const auto&) const;
     bool containsIf(NOESCAPE const Invocable<bool(const T&)> auto&) const;
     size_t find(const auto&) const;
     size_t findIf(NOESCAPE const Invocable<bool(const T&)> auto&) const;
     size_t reverseFind(const auto&) const;
     size_t reverseFindIf(NOESCAPE const Invocable<bool(const T&)> auto&) const;
+
+    // Overloads for smart pointer element types that take raw pointer parameters.
+    template<SmartPtr U = T, typename V> requires std::same_as<U, T> && std::derived_from<V, typename GetPtrHelper<U>::UnderlyingType>
+    bool contains(V*) const;
+    template<SmartPtr U = T, typename V> requires std::same_as<U, T> && std::derived_from<V, typename GetPtrHelper<U>::UnderlyingType>
+    size_t find(V*) const;
+    template<SmartPtr U = T, typename V> requires std::same_as<U, T> && std::derived_from<V, typename GetPtrHelper<U>::UnderlyingType>
+    size_t reverseFind(V*) const;
 
     bool appendIfNotContains(const auto&);
 
@@ -837,6 +835,8 @@ public:
     void removeAt(size_t position);
     void removeAt(size_t position, size_t length);
     bool removeFirst(const auto&);
+    template<SmartPtr U = T, typename V> requires std::same_as<U, T> && std::derived_from<V, typename GetPtrHelper<U>::UnderlyingType>
+    bool removeFirst(V*);
     bool removeFirstMatching(NOESCAPE const Invocable<bool(T&)> auto&, size_t startIndex = 0);
     bool removeLast(const auto&);
     bool removeLastMatching(NOESCAPE const Invocable<bool(T&)> auto&);
@@ -968,7 +968,7 @@ Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::Vector(const Ve
     asanSetInitialBufferSizeTo(other.size());
 
     if (begin())
-        TypeOperations::uninitializedCopy(other.begin(), other.end(), begin());
+        TypeOperations::uninitializedCopy(other.span(), mutableSpan());
 }
 
 template<typename T, size_t inlineCapacity, typename OverflowHandler, size_t minCapacity, typename Malloc>
@@ -979,7 +979,7 @@ Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::Vector(const Ve
     asanSetInitialBufferSizeTo(other.size());
 
     if (begin())
-        TypeOperations::uninitializedCopy(other.begin(), other.end(), begin());
+        TypeOperations::uninitializedCopy(other.span(), mutableSpan());
 }
 
 template<typename T, size_t inlineCapacity, typename OverflowHandler, size_t minCapacity, typename Malloc>
@@ -999,8 +999,8 @@ Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>& Vector<T, inlin
     asanBufferSizeWillChangeTo(other.size());
 
     std::copy_n(other.begin(), size(), begin());
-    TypeOperations::uninitializedCopy(other.begin() + size(), other.end(), end());
-    m_size = other.size();
+    auto oldSize = std::exchange(m_size, other.size());
+    TypeOperations::uninitializedCopy(other.span().subspan(oldSize), mutableSpan().subspan(oldSize));
 
     return *this;
 }
@@ -1027,8 +1027,8 @@ Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>& Vector<T, inlin
     asanBufferSizeWillChangeTo(other.size());
 
     std::copy_n(other.begin(), size(), begin());
-    TypeOperations::uninitializedCopy(other.begin() + size(), other.end(), end());
-    m_size = other.size();
+    auto oldSize = std::exchange(m_size, other.size());
+    TypeOperations::uninitializedCopy(other.span().subspan(oldSize), mutableSpan().subspan(oldSize));
 
     return *this;
 }
@@ -1120,6 +1120,40 @@ bool Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::appendIfNo
         return false;
     append(value);
     return true;
+}
+
+template<typename T, size_t inlineCapacity, typename OverflowHandler, size_t minCapacity, typename Malloc>
+template<SmartPtr U, typename V> requires std::same_as<U, T> && std::derived_from<V, typename GetPtrHelper<U>::UnderlyingType>
+bool Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::contains(V* ptr) const
+{
+    return find(ptr) != notFound;
+}
+
+template<typename T, size_t inlineCapacity, typename OverflowHandler, size_t minCapacity, typename Malloc>
+template<SmartPtr U, typename V> requires std::same_as<U, T> && std::derived_from<V, typename GetPtrHelper<U>::UnderlyingType>
+size_t Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::find(V* ptr) const
+{
+    return findIf([&](auto& item) {
+        return GetPtrHelper<U>::getPtr(item) == ptr;
+    });
+}
+
+template<typename T, size_t inlineCapacity, typename OverflowHandler, size_t minCapacity, typename Malloc>
+template<SmartPtr U, typename V> requires std::same_as<U, T> && std::derived_from<V, typename GetPtrHelper<U>::UnderlyingType>
+size_t Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::reverseFind(V* ptr) const
+{
+    return reverseFindIf([&](auto& item) {
+        return GetPtrHelper<U>::getPtr(item) == ptr;
+    });
+}
+
+template<typename T, size_t inlineCapacity, typename OverflowHandler, size_t minCapacity, typename Malloc>
+template<SmartPtr U, typename V> requires std::same_as<U, T> && std::derived_from<V, typename GetPtrHelper<U>::UnderlyingType>
+bool Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::removeFirst(V* ptr)
+{
+    return removeFirstMatching([&](auto& item) {
+        return GetPtrHelper<U>::getPtr(item) == ptr;
+    });
 }
 
 template<typename T, size_t inlineCapacity, typename OverflowHandler, size_t minCapacity, typename Malloc>
@@ -1423,9 +1457,8 @@ ALWAYS_INLINE bool Vector<T, inlineCapacity, OverflowHandler, minCapacity, Mallo
             return false;
     }
     asanBufferSizeWillChangeTo(newSize);
-    T* dest = end();
-    VectorCopier<T>::uninitializedCopy(dataPtr, std::addressof(dataPtr[dataSize]), dest);
-    m_size = newSize;
+    auto oldSize = std::exchange(m_size, newSize);
+    VectorCopier<T>::uninitializedCopy(unsafeMakeSpan(dataPtr, dataSize), mutableSpan().subspan(oldSize));
     return true;
 }
 
@@ -1440,9 +1473,8 @@ ALWAYS_INLINE bool Vector<T, inlineCapacity, OverflowHandler, minCapacity, Mallo
 
     size_t newSize = m_size + dataSize;
     asanBufferSizeWillChangeTo(newSize);
-    T* dest = end();
-    VectorCopier<T>::uninitializedCopy(data, std::addressof(data[dataSize]), dest);
-    m_size = newSize;
+    auto oldSize = std::exchange(m_size, newSize);
+    VectorCopier<T>::uninitializedCopy(unsafeMakeSpan(data, dataSize), mutableSpan().subspan(oldSize));
     return true;
 }
 
@@ -1561,10 +1593,10 @@ void Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::insertSpan
     if (newSize < m_size)
         CRASH();
     asanBufferSizeWillChangeTo(newSize);
-    T* spot = mutableSpan().subspan(position).data();
-    TypeOperations::moveOverlapping(spot, end(), spot + data.size());
-    VectorCopier<T>::uninitializedCopy(std::to_address(data.begin()), std::to_address(data.end()), spot);
-    m_size = newSize;
+    auto oldSize = std::exchange(m_size, newSize);
+    auto spot = mutableSpan().subspan(position);
+    TypeOperations::moveOverlapping(spot.data(), spot.data() + oldSize - position, spot.data() + data.size());
+    VectorCopier<T>::uninitializedCopy(spanConstCast<const U>(data), spot);
 }
 
 template<typename T, size_t inlineCapacity, typename OverflowHandler, size_t minCapacity, typename Malloc>

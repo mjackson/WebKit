@@ -93,7 +93,7 @@ namespace WTF {
     class SegmentedVector final {
         friend class SegmentedVectorIterator<T, SegmentSize, Malloc>;
         WTF_MAKE_NONCOPYABLE(SegmentedVector);
-        WTF_DEPRECATED_MAKE_FAST_ALLOCATED(SegmentedVectorIterator);
+        WTF_DEPRECATED_MAKE_FAST_ALLOCATED(SegmentedVector);
 
     public:
         using Iterator = SegmentedVectorIterator<T, SegmentSize, Malloc>;

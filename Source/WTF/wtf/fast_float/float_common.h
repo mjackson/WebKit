@@ -5,12 +5,11 @@
 #include <cstdint>
 #include <cassert>
 #include <cstring>
+#include <span>
 #include <type_traits>
 #include <system_error>
 
 #include "constexpr_feature_detect.h"
-
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 namespace fast_float {
 
@@ -195,26 +194,6 @@ fastfloat_strncasecmp(UC const * input1, UC const * input2, size_t length) {
 #ifndef FLT_EVAL_METHOD
 #error "FLT_EVAL_METHOD should be defined, please include cfloat."
 #endif
-
-// a pointer and a length to a contiguous block of memory
-template <typename T>
-struct span {
-  const T* ptr;
-  size_t length;
-  constexpr span(const T* _ptr, size_t _length) : ptr(_ptr), length(_length) {}
-  template<std::size_t N>
-  constexpr span(const std::array<T, N>& array) : ptr(array.data()), length(array.size()) {}
-  constexpr span() : ptr(nullptr), length(0) { }
-
-  constexpr size_t len() const noexcept {
-    return length;
-  }
-
-  FASTFLOAT_CONSTEXPR14 const T& operator[](size_t index) const noexcept {
-    FASTFLOAT_DEBUG_ASSERT(index < length);
-    return ptr[index];
-  }
-};
 
 struct value128 {
   uint64_t low;
@@ -621,7 +600,7 @@ static constexpr uint64_t int_cmp_zeros()
     return (sizeof(UC) == 1) ? 0x3030303030303030 : (sizeof(UC) == 2) ? (uint64_t(UC('0')) << 48 | uint64_t(UC('0')) << 32 | uint64_t(UC('0')) << 16 | UC('0')) : (uint64_t(UC('0')) << 32 | UC('0'));
 }
 template<typename UC>
-static constexpr int int_cmp_len()
+static constexpr size_t int_cmp_len()
 {
     return sizeof(uint64_t) / sizeof(UC);
 }
@@ -676,7 +655,5 @@ constexpr char32_t const * str_const_inf<char32_t>()
     return U"infinity";
 }
 } // namespace fast_float
-
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 #endif

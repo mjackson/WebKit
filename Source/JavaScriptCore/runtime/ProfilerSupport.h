@@ -27,8 +27,9 @@
 
 #include "JSExportMacros.h"
 #include <stdio.h>
-#include <wtf/FilePrintStream.h>
+#include <wtf/FileHandle.h>
 #include <wtf/HashMap.h>
+#include <wtf/JSONValues.h>
 #include <wtf/Lock.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/TZoneMalloc.h>
@@ -67,15 +68,18 @@ public:
 
     static ProfilerSupport& singleton();
 
+    static void dumpIonGraphFunction(const String& functionName, Ref<JSON::Object>&&);
+
+    static uint32_t getCurrentThreadID();
+
 private:
     ProfilerSupport();
 
     void write(const AbstractLocker&, uint64_t start, uint64_t end, const CString& message) WTF_REQUIRES_LOCK(m_lock);
 
     const Ref<WorkQueue> m_queue;
-    std::unique_ptr<FilePrintStream> m_fileStream;
     std::array<HashMap<const void*, uint64_t>, numberOfCategories> m_markers;
-    int m_fd { -1 };
+    WTF::FileSystemImpl::FileHandle m_file { };
     Lock m_tableLock;
     Lock m_lock;
 };

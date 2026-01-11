@@ -795,9 +795,20 @@ std::optional<SimpleRange> AccessibilityObject::selectionRange() const
 
 std::optional<SimpleRange> AccessibilityObject::simpleRange() const
 {
-    auto* node = this->node();
+    RefPtr node = this->node();
     if (!node)
         return std::nullopt;
+
+    std::optional stitchGroup = stitchGroupIfRepresentative();
+    if (!stitchGroup)
+        return AXObjectCache::rangeForNodeContents(*node);
+
+    // |this| is a stitching of multiple objects, so we need to include all of their contents in the range.
+    CheckedPtr cache = axObjectCache();
+    if (RefPtr endNode = cache ? lastNode(stitchGroup->members(), *cache) : nullptr) {
+        if (std::optional range = makeSimpleRange(positionBeforeNode(node.get()), positionAfterNode(endNode.get())))
+            return range;
+    }
     return AXObjectCache::rangeForNodeContents(*node);
 }
 

@@ -596,9 +596,13 @@ void SourceBufferPrivate::computeEvictionData(ComputeEvictionDataRule rule)
                 buffered.intersectWith(trackBuffer.buffered());
             });
 
+            if (!buffered.length())
+                return evictableSize;
+
             // We can evict everything from currentTime+timeChunk (3s) to the end of the buffer, not contiguous in current range.
             auto rangeStartAfterCurrentTime = currentTime + timeChunk;
             const auto rangeEndAfterCurrentTime = buffered.maximumBufferedTime();
+            ASSERT(rangeEndAfterCurrentTime.isValid());
 
             if (rangeStartAfterCurrentTime >= rangeEndAfterCurrentTime)
                 return evictableSize;
@@ -1501,7 +1505,7 @@ MediaTime SourceBufferPrivate::maximumBufferedTime() const
 
     MediaTime maximumTime = MediaTime::negativeInfiniteTime();
     iterateTrackBuffers([&](const TrackBuffer& trackBuffer) {
-        maximumTime = std::max(maximumTime, trackBuffer.buffered().maximumBufferedTime());
+        maximumTime = std::max(maximumTime, trackBuffer.maximumBufferedTime());
     });
     return maximumTime;
 }

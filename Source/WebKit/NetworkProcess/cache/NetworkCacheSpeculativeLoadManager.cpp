@@ -244,7 +244,7 @@ private:
             LOG(NetworkCacheSpeculativePreloading, "(NetworkProcess) * Subresource: '%s'.", subresourceLoad->key.identifier().utf8().data());
 #endif
 
-        RefPtr storage = m_storage.get();
+        Ref storage = m_storage.get();
         if (m_existingEntry) {
             m_existingEntry->updateSubresourceLoads(m_subresourceLoads);
             storage->store(m_existingEntry->encodeAsStorageRecord(), [](const Data&) { });
@@ -254,7 +254,7 @@ private:
         }
     }
 
-    ThreadSafeWeakPtr<Storage> m_storage; // Not expected be to be null.
+    ThreadSafeWeakRef<Storage> m_storage;
     Key m_mainResourceKey;
     Vector<std::unique_ptr<SubresourceLoad>> m_subresourceLoads;
     WTF::Function<void()> m_loadCompletionHandler;
@@ -283,7 +283,7 @@ Ref<Cache> SpeculativeLoadManager::protectedCache() const
 
 Ref<Storage> SpeculativeLoadManager::protectedStorage() const
 {
-    return m_storage.get().releaseNonNull();
+    return m_storage.get();
 }
 
 bool SpeculativeLoadManager::canUsePreloadedEntry(const PreloadedEntry& entry, const ResourceRequest& actualRequest)
@@ -644,7 +644,7 @@ void SpeculativeLoadManager::startSpeculativeRevalidation(const GlobalFrameID& f
 void SpeculativeLoadManager::retrieveSubresourcesEntry(const Key& storageKey, WTF::Function<void (std::unique_ptr<SubresourcesEntry>)>&& completionHandler)
 {
     ASSERT(storageKey.type() == "Resource"_s);
-    RefPtr storage = m_storage.get();
+    Ref storage = m_storage.get();
     auto subresourcesStorageKey = makeSubresourcesKey(storageKey, storage->salt());
     storage->retrieve(subresourcesStorageKey, static_cast<unsigned>(ResourceLoadPriority::Medium), [completionHandler = WTF::move(completionHandler)](auto record, auto timings) {
         if (record.isNull()) {

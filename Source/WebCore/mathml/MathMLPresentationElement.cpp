@@ -213,7 +213,7 @@ const MathMLElement::Length& MathMLPresentationElement::cachedMathMLLength(const
 MathVariant MathMLPresentationElement::parseMathVariantAttribute(const AtomString& attributeValue)
 {
     // The mathvariant attribute values is case-sensitive.
-    static constexpr auto mappings = std::to_array<std::pair<ComparableASCIILiteral, MathVariant>>({
+    static constexpr SortedArrayMap map { std::to_array<std::pair<ComparableASCIILiteral, MathVariant>>({
         { "bold"_s, MathVariant::Bold },
         { "bold-fraktur"_s, MathVariant::BoldFraktur },
         { "bold-italic"_s, MathVariant::BoldItalic },
@@ -232,8 +232,7 @@ MathVariant MathMLPresentationElement::parseMathVariantAttribute(const AtomStrin
         { "script"_s, MathVariant::Script },
         { "stretched"_s, MathVariant::Stretched },
         { "tailed"_s, MathVariant::Tailed },
-    });
-    static constexpr SortedArrayMap map { mappings };
+    }) };
     return map.get(attributeValue, MathVariant::None);
 }
 

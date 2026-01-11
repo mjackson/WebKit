@@ -114,6 +114,8 @@ private:
     Timer m_addKeyTimer;
 };
 
-}
+} // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(WebKitMediaKeySession)
 
 #endif // ENABLE(LEGACY_ENCRYPTED_MEDIA)

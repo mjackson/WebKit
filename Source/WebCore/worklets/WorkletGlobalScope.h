@@ -130,4 +130,6 @@ private:
 
 SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::WorkletGlobalScope)
 static bool isType(const WebCore::ScriptExecutionContext& context) { return context.isWorkletGlobalScope(); }
+static bool isType(const WebCore::WorkerOrWorkletGlobalScope& context) { return context.isWorkletGlobalScope(); }
+static bool isType(const WebCore::EventTarget& context) { return context.eventTargetInterface() == WebCore::EventTargetInterfaceType::WorkletGlobalScope; }
 SPECIALIZE_TYPE_TRAITS_END()

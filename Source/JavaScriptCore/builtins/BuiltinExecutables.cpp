@@ -103,7 +103,7 @@ UnlinkedFunctionExecutable* BuiltinExecutables::createExecutable(VM& vm, const S
     unsigned asyncOffset = isAsyncFunction ? strlen("async ") : 0;
     unsigned parametersStart = strlen("function (") + asyncOffset;
     unsigned startColumn = parametersStart;
-    int functionKeywordStart = strlen("(") + asyncOffset;
+    int functionKeywordStart = strlen("(");
     int functionNameStart = parametersStart;
     bool isInStrictContext = false;
     bool isArrowFunctionBodyExpression = false;
@@ -196,6 +196,11 @@ UnlinkedFunctionExecutable* BuiltinExecutables::createExecutable(VM& vm, const S
     UnlinkedFunctionKind kind = isBuiltinDefaultClassConstructor ? UnlinkedNormalFunction : UnlinkedBuiltinFunction;
 
     SourceParseMode parseMode = isAsyncFunction ? SourceParseMode::AsyncFunctionMode : SourceParseMode::NormalFunctionMode;
+
+    // Async functions should have Private visibility for correct stack traces.
+    // See https://bugs.webkit.org/show_bug.cgi?id=304740
+    if (isAsyncFunction)
+        implementationVisibility = std::max(implementationVisibility, ImplementationVisibility::Private);
 
     JSTokenLocation start;
     start.line = -1;

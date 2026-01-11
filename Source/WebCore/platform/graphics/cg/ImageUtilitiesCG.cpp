@@ -99,10 +99,16 @@ static String transcodeImage(const String& path, const String& destinationUTI, c
 
 Vector<String> findImagesForTranscoding(const Vector<String>& paths, const Vector<String>& allowedMIMETypes)
 {
+    bool allowAllImages = allowedMIMETypes.contains("image/*"_s);
+
     bool needsTranscoding = false;
     auto transcodingPaths = paths.map([&](auto& path) {
-        // Append a path of the image which needs transcoding. Otherwise append a null string.
-        if (!allowedMIMETypes.contains(WebCore::MIMETypeRegistry::mimeTypeForPath(path))) {
+        auto mimeType = WebCore::MIMETypeRegistry::mimeTypeForPath(path);
+
+        if (allowAllImages && mimeType.startsWith("image/"_s))
+            return nullString();
+
+        if (!allowedMIMETypes.contains(mimeType)) {
             needsTranscoding = true;
             return path;
         }

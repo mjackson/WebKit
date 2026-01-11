@@ -36,11 +36,12 @@
 #include "CSSSerializationContext.h"
 #include "CSSStyleDeclaration.h"
 #include "CommonAtomStrings.h"
+#include "ComposedTreeIterator.h"
 #include "ContainerNodeInlines.h"
 #include "DOMWrapperWorld.h"
 #include "DataTransfer.h"
-#include "Document.h"
 #include "DocumentFragment.h"
+#include "DocumentView.h"
 #include "Editing.h"
 #include "EditingBehavior.h"
 #include "EditingInlines.h"
@@ -48,6 +49,7 @@
 #include "EventNames.h"
 #include "FilterOperations.h"
 #include "FrameSelection.h"
+#include "GraphicsTypes.h"
 #include "HTMLBRElement.h"
 #include "HTMLBaseElement.h"
 #include "HTMLBodyElement.h"
@@ -80,6 +82,7 @@
 #include "UnicodeHelpers.h"
 #include "VisibleUnits.h"
 #include "markup.h"
+#include <wtf/IterationStatus.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/RobinHoodHashSet.h>
 #include <wtf/StdLibExtras.h>
@@ -636,7 +639,7 @@ static bool fragmentNeedsColorTransformed(ReplacementFragment& fragment, const P
         ScriptDisallowedScope::InMainThread scriptDisallowedScope;
 
         CheckedPtr editableRootRenderer = editableRoot->renderer();
-        if (!editableRootRenderer || !editableRootRenderer->style().hasAppleColorFilter())
+        if (!editableRootRenderer || editableRootRenderer->style().appleColorFilter().isNone())
             return false;
 
         const auto& colorFilter = editableRootRenderer->style().appleColorFilter();
@@ -1400,6 +1403,12 @@ void ReplaceSelectionCommand::doApply()
     if (!insertedNodes.firstNodeInserted()->isConnected())
         return;
 
+    if (!needsColorTransformed) {
+        // In the case where color filtering is disabled, we need to separately ensure that pasting dark
+        // text into an editor that uses dark mode appearance does not result in unreadable text.
+        removeForegroundColorsInDarkModeIfNeeded(insertedNodes);
+    }
+
     VisiblePosition startOfInsertedContent = firstPositionInOrBeforeNode(insertedNodes.firstNodeInserted());
 
     // We inserted before the insertionBlock to prevent nesting, and the content before the insertionBlock wasn't in its own block and
@@ -1988,6 +1997,105 @@ void ReplaceSelectionCommand::updateDirectionForStartOfInsertedContentIfNeeded(c
 
     if (restoreOriginalEndingSelection)
         setEndingSelection(originalEndingSelection);
+}
+
+using ElementToStyleProperties = HashMap<Ref<StyledElement>, Vector<CSSPropertyID, 2>>;
+[[nodiscard]] static IterationStatus collectStylesToRemove(Node& node, const Node& lastLeaf, double backgroundLuminance, ElementToStyleProperties& stylesToRemove)
+{
+    auto addStylesToRemove = [&](StyledElement& element) {
+        RefPtr style = element.inlineStyle();
+        if (!style)
+            return;
+
+        CheckedPtr renderer = element.renderer();
+        if (!renderer)
+            return;
+
+        if (!renderer->useDarkAppearance())
+            return;
+
+        Ref document = node.document();
+        if (auto color = style->propertyAsColor(CSSPropertyBackgroundColor)) {
+            auto compositeOperator = document->compositeOperatorForBackgroundColor(*color, *renderer);
+            if (compositeOperator != CompositeOperator::DestinationIn && compositeOperator != CompositeOperator::DestinationOut)
+                return;
+        }
+
+        Vector<CSSPropertyID, 2> propertiesToRemove;
+        for (auto property : { CSSPropertyColor, CSSPropertyCaretColor }) {
+            auto color = style->propertyAsColor(property);
+            if (!color)
+                continue;
+
+            static constexpr auto minLuminanceDifference = 0.1;
+            if (std::abs(color->luminance() - backgroundLuminance) >= minLuminanceDifference)
+                continue;
+
+            propertiesToRemove.append(property);
+        }
+
+        if (propertiesToRemove.isEmpty())
+            return;
+
+        stylesToRemove.add(element, WTF::move(propertiesToRemove));
+    };
+
+    if (RefPtr element = dynamicDowncast<StyledElement>(node))
+        addStylesToRemove(*element);
+
+    if (RefPtr container = dynamicDowncast<ContainerNode>(node)) {
+        for (Ref child : composedTreeChildren(*container)) {
+            if (collectStylesToRemove(child, lastLeaf, backgroundLuminance, stylesToRemove) == IterationStatus::Done)
+                break;
+        }
+    }
+
+    return &node == &lastLeaf ? IterationStatus::Done : IterationStatus::Continue;
+}
+
+void ReplaceSelectionCommand::removeForegroundColorsInDarkModeIfNeeded(const InsertedNodes& nodes)
+{
+    Ref document = this->document();
+    RefPtr page = document->page();
+    if (!page)
+        return;
+
+    if (!page->isEditable())
+        return;
+
+    RefPtr view = document->view();
+    if (!view)
+        return;
+
+    document->updateLayoutIgnorePendingStylesheets();
+
+    ElementToStyleProperties stylesToRemove;
+    auto documentLuminance = view->documentBackgroundColor().luminance();
+    RefPtr lastLeafInserted = nodes.lastLeafInserted();
+
+    {
+        ScriptDisallowedScope::InMainThread scriptDisallowedScope;
+
+        for (RefPtr node = nodes.firstNodeInserted(); node; node = nextSiblingInComposedTreeIgnoringUserAgentShadow(*node)) {
+            if (collectStylesToRemove(*node, *lastLeafInserted, documentLuminance, stylesToRemove) == IterationStatus::Done)
+                break;
+        }
+    }
+
+    if (stylesToRemove.isEmpty())
+        return;
+
+    for (auto& [element, properties] : stylesToRemove) {
+        RefPtr inlineStyle = element->inlineStyle();
+        if (!inlineStyle)
+            continue;
+
+        Ref newStyle = inlineStyle->mutableCopy();
+        newStyle->removeProperties(properties);
+        setNodeAttribute(element, styleAttr, newStyle->asTextAtom(CSS::defaultSerializationContext()));
+    }
+
+    document->updateStyleIfNeeded();
 }
 
 } // namespace WebCore

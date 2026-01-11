@@ -139,7 +139,8 @@ void SwitchTrackMac::draw(GraphicsContext& context, const FloatRoundedRect& bord
 {
     GraphicsContextStateSaver stateSaver(context);
 
-    auto isOn = owningPart().isOn();
+    Ref owningPart = this->owningPart();
+    auto isOn = owningPart->isOn();
     auto isInlineFlipped = style.states.contains(ControlStyle::State::InlineFlippedWritingMode);
     auto isVertical = style.states.contains(ControlStyle::State::VerticalWritingMode);
     auto isEnabled = style.states.contains(ControlStyle::State::Enabled);
@@ -147,7 +148,7 @@ void SwitchTrackMac::draw(GraphicsContext& context, const FloatRoundedRect& bord
     auto isInActiveWindow = style.states.contains(ControlStyle::State::WindowActive);
     auto isFocused = style.states.contains(ControlStyle::State::Focused);
     auto needsOnOffLabels = userPrefersWithoutColorDifferentiation();
-    auto progress = SwitchMacUtilities::easeInOut(owningPart().progress());
+    auto progress = SwitchMacUtilities::easeInOut(owningPart->progress());
 
     auto logicalBounds = SwitchMacUtilities::rectWithTransposedSize(borderRect.rect(), isVertical);
     auto controlSize = controlSizeForSize(logicalBounds.size(), style);

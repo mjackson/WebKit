@@ -83,6 +83,11 @@ imported/w3c/web-platform-tests/css/css-view-transitions/pseudo-with-classes-mis
 imported/w3c/web-platform-tests/css/css-view-transitions/window-resize-aborts-transition.html [ Failure ]
 imported/w3c/web-platform-tests/css/css-view-transitions/window-resize-aborts-transition-before-ready.html [ Failure ]
 
+# Path with marker failures
+svg/W3C-SVG-1.1/painting-marker-03-f.svg [ Failure ]
+
+webkit.org/b/131347 svg/custom/hidpi-masking-clipping.svg [ Pass ImageOnlyFailure ]
+
 #//////////////////////////////////////////////////////////////////////////////////////////
 # End of Triaged Expectations
 #//////////////////////////////////////////////////////////////////////////////////////////

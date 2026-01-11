@@ -39,6 +39,9 @@ class ArrayBufferView;
 
 namespace WebCore {
 
+class Document;
+class WebCoreOpaqueRoot;
+
 template<typename IDLType> class DOMPromiseProxyWithResolveCallback;
 template<typename> class ExceptionOr;
 
@@ -110,5 +113,7 @@ private:
     const UniqueRef<LoadedPromise> m_loadedPromise;
     bool m_mayLoadedPromiseBeScriptObservable { false };
 };
+
+WebCoreOpaqueRoot root(FontFace*);
 
 }

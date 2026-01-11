@@ -75,12 +75,13 @@ void UIEventWithKeyState::setModifierKeys(bool ctrlKey, bool altKey, bool shiftK
     m_modifiers = result;
 }
 
-UIEventWithKeyState* findEventWithKeyState(Event* event)
+RefPtr<UIEventWithKeyState> findEventWithKeyState(Event* event)
 {
-    for (Event* e = event; e; e = e->underlyingEvent())
+    for (RefPtr e = event; e; e = e->underlyingEvent()) {
         if (e->isKeyboardEvent() || e->isMouseEvent())
-            return downcast<UIEventWithKeyState>(e);
-    return 0;
+            return downcast<UIEventWithKeyState>(WTF::move(e));
+    }
+    return nullptr;
 }
 
 } // namespace WebCore

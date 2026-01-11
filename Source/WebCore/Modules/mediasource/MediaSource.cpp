@@ -389,6 +389,7 @@ Ref<MediaTimePromise> MediaSource::waitForTarget(const SeekTarget& target)
         m_seekTargetPromise->reject(PlatformMediaError::Cancelled);
     }
     m_seekTargetPromise.emplace(PlatformMediaError::SourceRemoved);
+    Ref promise = m_seekTargetPromise->promise();
     m_pendingSeekTarget = target;
 
     // Run the following steps as part of the "Wait until the user agent has established whether or not the
@@ -406,11 +407,10 @@ Ref<MediaTimePromise> MediaSource::waitForTarget(const SeekTarget& target)
         // than HAVE_METADATA.
         monitorSourceBuffers();
 
-        return m_seekTargetPromise->promise();
+        return promise;
     }
     // ↳ Otherwise
     // Continue
-    auto promise = m_seekTargetPromise->promise();
     completeSeek();
     return promise;
 }
@@ -984,7 +984,7 @@ void MediaSource::removeSourceBufferWithOptionalDestruction(SourceBuffer& buffer
 
             // 5.3 For each AudioTrack object in the SourceBuffer audioTracks list, run the following steps:
             for (ssize_t index = audioTracks->length() - 1; index >= 0; index--) {
-                Ref track = *audioTracks->item(index);
+                Ref track = audioTracks->item(index);
 
                 if (withDestruction) {
                     // 5.3.1 Set the sourceBuffer attribute on the AudioTrack object to null.
@@ -1039,7 +1039,7 @@ void MediaSource::removeSourceBufferWithOptionalDestruction(SourceBuffer& buffer
 
             // 7.3 For each VideoTrack object in the SourceBuffer videoTracks list, run the following steps:
             for (ssize_t index = videoTracks->length() - 1; index >= 0; index--) {
-                Ref track = *videoTracks->item(index);
+                Ref track = videoTracks->item(index);
 
                 if (withDestruction) {
                     // 7.3.1 Set the sourceBuffer attribute on the VideoTrack object to null.

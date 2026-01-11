@@ -251,4 +251,6 @@ typedef Vector<Ref<MediaStreamTrack>> MediaStreamTrackVector;
 
 } // namespace WebCore
 
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(MediaStreamTrack)
+
 #endif // ENABLE(MEDIA_STREAM)

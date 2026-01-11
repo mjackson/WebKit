@@ -45,7 +45,7 @@
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
 #include <skia/core/SkColorFilter.h>
 #include <skia/core/SkImage.h>
-#include <skia/core/SkPath.h>
+#include <skia/core/SkPathBuilder.h>
 #include <skia/core/SkPathEffect.h>
 #include <skia/core/SkPathTypes.h>
 #include <skia/core/SkPictureRecorder.h>
@@ -781,22 +781,22 @@ static SkPath createErrorUnderlinePath(const FloatRect& boundaries)
     const double bottom = y + height;
     const double top = y;
 
-    SkPath path;
+    SkPathBuilder builder;
 
     // Bottom triangle wave, left to right.
-    path.moveTo(SkDoubleToScalar(x - halfSquare), SkDoubleToScalar(top + halfSquare));
+    builder.moveTo(SkDoubleToScalar(x - halfSquare), SkDoubleToScalar(top + halfSquare));
 
     int i = 0;
     for (i = 0; i < widthUnits; i += 2) {
         const double middle = x + (i + 1) * unitWidth;
         const double right = x + (i + 2) * unitWidth;
 
-        path.lineTo(SkDoubleToScalar(middle), SkDoubleToScalar(bottom));
+        builder.lineTo(SkDoubleToScalar(middle), SkDoubleToScalar(bottom));
 
         if (i + 2 == widthUnits)
-            path.lineTo(SkDoubleToScalar(right + halfSquare), SkDoubleToScalar(top + halfSquare));
+            builder.lineTo(SkDoubleToScalar(right + halfSquare), SkDoubleToScalar(top + halfSquare));
         else if (i + 1 != widthUnits)
-            path.lineTo(SkDoubleToScalar(right), SkDoubleToScalar(top + square));
+            builder.lineTo(SkDoubleToScalar(right), SkDoubleToScalar(top + square));
     }
 
     // Top triangle wave, right to left.
@@ -806,18 +806,18 @@ static SkPath createErrorUnderlinePath(const FloatRect& boundaries)
         const double right = x + (i + 2) * unitWidth;
 
         if (i + 1 == widthUnits)
-            path.lineTo(SkDoubleToScalar(middle + halfSquare), SkDoubleToScalar(bottom - halfSquare));
+            builder.lineTo(SkDoubleToScalar(middle + halfSquare), SkDoubleToScalar(bottom - halfSquare));
         else {
             if (i + 2 == widthUnits)
-                path.lineTo(SkDoubleToScalar(right), SkDoubleToScalar(top));
+                builder.lineTo(SkDoubleToScalar(right), SkDoubleToScalar(top));
 
-            path.lineTo(SkDoubleToScalar(middle), SkDoubleToScalar(bottom - halfSquare));
+            builder.lineTo(SkDoubleToScalar(middle), SkDoubleToScalar(bottom - halfSquare));
         }
 
-        path.lineTo(SkDoubleToScalar(left), SkDoubleToScalar(top));
+        builder.lineTo(SkDoubleToScalar(left), SkDoubleToScalar(top));
     }
 
-    return path;
+    return builder.detach();
 }
 
 void GraphicsContextSkia::drawDotsForDocumentMarker(const FloatRect& boundaries, DocumentMarkerLineStyle style)

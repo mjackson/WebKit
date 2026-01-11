@@ -108,9 +108,11 @@ auto ToStyle<CSS::GradientDeprecatedColorStop>::operator()(const CSS::GradientDe
 
 static WebCore::Color resolveColorStopColor(const Color& styleColor, const RenderStyle& style, bool hasColorFilter)
 {
+    Style::ColorResolver colorResolver { style };
+
     if (hasColorFilter)
-        return style.colorWithColorFilter(styleColor);
-    return style.colorResolvingCurrentColor(styleColor);
+        return colorResolver.colorResolvingCurrentColorApplyingColorFilter(styleColor);
+    return colorResolver.colorResolvingCurrentColor(styleColor);
 }
 
 static WebCore::Color resolveColorStopColor(const Markable<Color>& styleColor, const RenderStyle& style, bool hasColorFilter)
@@ -355,7 +357,7 @@ public:
 
 template<typename GradientAdapter, typename StyleGradient> GradientColorStops computeStopsForDeprecatedVariants(GradientAdapter&, const StyleGradient& styleGradient, const RenderStyle& style)
 {
-    bool hasColorFilter = style.hasAppleColorFilter();
+    bool hasColorFilter = !style.appleColorFilter().isNone();
     auto result = styleGradient.parameters.stops.value.template map<GradientColorStops::StopVector>([&](auto& stop) -> WebCore::GradientColorStop {
         return {
             resolveColorStopPosition(stop.position),
@@ -370,7 +372,7 @@ template<typename GradientAdapter, typename StyleGradient> GradientColorStops co
 
 template<typename GradientAdapter, typename StyleGradient> GradientColorStops computeStops(GradientAdapter& gradientAdapter, const StyleGradient& styleGradient, const RenderStyle& style)
 {
-    bool hasColorFilter = style.hasAppleColorFilter();
+    bool hasColorFilter = !style.appleColorFilter().isNone();
 
     size_t numberOfStops = styleGradient.parameters.stops.size();
     Vector<ResolvedGradientStop> stops(numberOfStops);
@@ -1207,7 +1209,7 @@ bool stopsAreCacheable(const Gradient& gradient)
 
 template<typename T> static bool isOpaque(const T& gradient, const RenderStyle& style)
 {
-    bool hasColorFilter = style.hasAppleColorFilter();
+    bool hasColorFilter = !style.appleColorFilter().isNone();
 
     return std::ranges::all_of(gradient.parameters.stops, [&](auto& stop) {
         return resolveColorStopColor(stop.color, style, hasColorFilter).isOpaque();

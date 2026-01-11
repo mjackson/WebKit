@@ -31,6 +31,7 @@
 #include <WebCore/AudioSession.h>
 #include <WebCore/ContextDestructionObserver.h>
 #include <WebCore/EventTarget.h>
+#include <WebCore/EventTargetInterfaces.h>
 #include <wtf/RefCounted.h>
 #include <wtf/TZoneMallocInlines.h>
 
@@ -84,5 +85,7 @@ private:
 };
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(DOMAudioSession)
 
 #endif // ENABLE(DOM_AUDIO_SESSION)

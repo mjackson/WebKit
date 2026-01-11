@@ -92,6 +92,14 @@ FloatRect RenderSVGInline::repaintRectInLocalCoordinates(RepaintRectCalculation 
     return FloatRect();
 }
 
+FloatRect RenderSVGInline::decoratedBoundingBox() const
+{
+    if (auto* textAncestor = RenderSVGText::locateRenderSVGTextAncestor(*this))
+        return textAncestor->decoratedBoundingBox();
+
+    return { };
+}
+
 LayoutRect RenderSVGInline::clippedOverflowRect(const RenderLayerModelObject* repaintContainer, VisibleRectContext context) const
 {
     if (document().settings().layerBasedSVGEngineEnabled())

@@ -32,6 +32,8 @@
 #include <WebCore/GraphicsLayer.h>
 #include <WebCore/GraphicsLayerAnimation.h>
 #include <WebCore/GraphicsLayerFactory.h>
+#include <WebCore/GraphicsLayerFloatAnimationValue.h>
+#include <WebCore/GraphicsLayerKeyframeValueList.h>
 #include <WebCore/LocalFrame.h>
 #include <WebCore/Page.h>
 #include <WebCore/PageInspectorController.h>
@@ -211,10 +213,10 @@ void WebInspectorBackendClient::showPaintRect(const FloatRect& rect)
     paintLayer->setSize(rect.size());
     paintLayer->setBackgroundColor(Color::red.colorWithAlphaByte(51));
 
-    KeyframeValueList fadeKeyframes(AnimatedProperty::Opacity);
-    fadeKeyframes.insert(makeUnique<FloatAnimationValue>(0, 1));
+    GraphicsLayerKeyframeValueList fadeKeyframes(AnimatedProperty::Opacity);
+    fadeKeyframes.insert(makeUnique<GraphicsLayerFloatAnimationValue>(0, 1));
 
-    fadeKeyframes.insert(makeUnique<FloatAnimationValue>(0.25, 0));
+    fadeKeyframes.insert(makeUnique<GraphicsLayerFloatAnimationValue>(0.25, 0));
 
     Ref opacityAnimation = GraphicsLayerAnimation::create();
     opacityAnimation->setDuration(0.25);

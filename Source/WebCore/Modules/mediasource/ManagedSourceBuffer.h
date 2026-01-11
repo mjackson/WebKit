@@ -43,12 +43,12 @@ public:
 
 private:
     ManagedSourceBuffer(Ref<SourceBufferPrivate>&&, ManagedMediaSource&);
+
+    enum EventTargetInterfaceType eventTargetInterface() const final { return EventTargetInterfaceType::ManagedSourceBuffer; }
 };
 
 } // namespace WebCore
 
-SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::ManagedSourceBuffer)
-    static bool isType(const WebCore::SourceBuffer& buffer) { return buffer.isManaged(); }
-SPECIALIZE_TYPE_TRAITS_END()
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(ManagedSourceBuffer)
 
 #endif // ENABLE(MEDIA_SOURCE)

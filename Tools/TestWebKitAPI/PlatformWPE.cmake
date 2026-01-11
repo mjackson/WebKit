@@ -103,17 +103,29 @@ set(TestJSC_SOURCES
 set(TestJSC_PRIVATE_INCLUDE_DIRECTORIES
     ${CMAKE_BINARY_DIR}
     ${TESTWEBKITAPI_DIR}
-    "${JavaScriptCoreGLib_FRAMEWORK_HEADERS_DIR}"
-    "${JavaScriptCoreGLib_DERIVED_SOURCES_DIR}"
     "${JavaScriptCoreGLib_DERIVED_SOURCES_DIR}/jsc"
 )
 
-# To reduce binary bloat, link only against the shared libWPEWebKit library
-# without embedding the object files from the OBJECT library frameworks
-# (WTF, bmalloc, JavaScriptCore) that are already bundled into libWPEWebKit.
+# If developer_mode is enabled, to reduce binary bloat, link this binaries
+# against the shared libWPEWebKit library rather than embedding the object
+# files from the frameworks (statically linking).
 # See detailed explanation at Source/JavaScriptCore/shell/PlatformWPE.cmake
-set(TestJSC_FRAMEWORKS WebKit)
-set(TestJavaScriptCore_FRAMEWORKS WebKit)
+if (DEVELOPER_MODE)
+    list(APPEND TestJSC_PRIVATE_INCLUDE_DIRECTORIES
+        "${JavaScriptCoreGLib_FRAMEWORK_HEADERS_DIR}"
+        "${JavaScriptCoreGLib_DERIVED_SOURCES_DIR}"
+    )
+    set(TestJSC_FRAMEWORKS WebKit)
+    set(TestJavaScriptCore_FRAMEWORKS WebKit)
+else ()
+    set(TestJSC_FRAMEWORKS
+        JavaScriptCore
+        WTF
+    )
+    if (NOT USE_SYSTEM_MALLOC)
+        list(APPEND TestJSC_FRAMEWORKS bmalloc)
+    endif ()
+endif ()
 
 set(TestJSC_DEFINITIONS
     WEBKIT_SRC_DIR="${CMAKE_SOURCE_DIR}"

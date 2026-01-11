@@ -27,7 +27,7 @@
 
 #include "CSSBoxShadowPropertyValue.h"
 #include "ColorBlending.h"
-#include "RenderStyle.h"
+#include "RenderStyle+GettersInlines.h"
 #include "StyleBuilderChecking.h"
 #include "StylePrimitiveNumericTypes+Blending.h"
 #include "StylePrimitiveNumericTypes+Conversions.h"
@@ -120,8 +120,11 @@ static inline std::optional<CSS::Keyword::Inset> blendInset(std::optional<CSS::K
 
 auto Blending<BoxShadow>::blend(const BoxShadow& a, const BoxShadow& b, const RenderStyle& aStyle, const RenderStyle& bStyle, const BlendingContext& context) -> BoxShadow
 {
+    ColorResolver aColorResolver { aStyle };
+    ColorResolver bColorResolver { bStyle };
+
     return {
-        .color = WebCore::blend(aStyle.colorResolvingCurrentColor(a.color), bStyle.colorResolvingCurrentColor(b.color), context),
+        .color = WebCore::blend(aColorResolver.colorResolvingCurrentColor(a.color), bColorResolver.colorResolvingCurrentColor(b.color), context),
         .location = WebCore::Style::blend(a.location, b.location, context),
         .blur = WebCore::Style::blend(a.blur, b.blur, context),
         .spread = WebCore::Style::blend(a.spread, b.spread, context),

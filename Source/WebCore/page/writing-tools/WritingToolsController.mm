@@ -193,7 +193,7 @@ static RetainPtr<NSAttributedString> attributedStringApplyingBodyTextColorIfNece
 
     CheckedRef style = renderer->style();
 
-    Color textColor = style->visitedDependentColorWithColorFilter(CSSPropertyColor);
+    auto textColor = style->visitedDependentColorApplyingColorFilter();
     if (!textColor.isVisible())
         return attributedString;
 

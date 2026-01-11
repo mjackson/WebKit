@@ -568,16 +568,15 @@ static void getListFromNSArray(JSC::JSGlobalObject* lexicalGlobalObject, NSArray
         JSC::VM& vm = rootObject->globalObject()->vm();
         JSLockHolder lock(vm);
 
-        if (object->inherits<JSHTMLElement>()) {
+        if (auto* jsHTMLElement = JSC::jsDynamicCast<JSHTMLElement*>(object)) {
             // Plugin elements cache the instance internally.
-            if (RefPtr instance = static_cast<ObjcInstance*>(pluginInstance(jsCast<JSHTMLElement*>(object)->wrapped())))
+            if (RefPtr instance = downcast<ObjcInstance>(pluginInstance(jsHTMLElement->wrapped())))
                 return instance->getObject();
-        } else if (object->inherits<ObjCRuntimeObject>()) {
-            ObjCRuntimeObject* runtimeObject = static_cast<ObjCRuntimeObject*>(object);
+        } else if (auto* runtimeObject = JSC::jsDynamicCast<ObjCRuntimeObject*>(object)) {
             RefPtr instance = runtimeObject->getInternalObjCInstance();
-            if (instance)
-                return instance->getObject();
-            return nil;
+            if (!instance)
+                return nil;
+            return instance->getObject();
         }
 
         return [WebScriptObject scriptObjectForJSObject:toRef(object) originRootObject:originRootObject rootObject:rootObject];

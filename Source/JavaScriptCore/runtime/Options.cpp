@@ -827,10 +827,14 @@ void Options::notifyOptionsChanged()
 #endif
 
 #if ENABLE(WEBASSEMBLY)
+#if CPU(ARM64)
     if (Options::enableWasmDebugger()) [[unlikely]] {
         Options::useBBQJIT() = false;
         Options::useOMGJIT() = false;
     }
+#else
+    Options::enableWasmDebugger() = false;
+#endif
 #endif
 
     // At initialization time, we may decide that useJIT should be false for any

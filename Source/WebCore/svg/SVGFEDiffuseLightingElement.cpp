@@ -89,11 +89,8 @@ bool SVGFEDiffuseLightingElement::setFilterEffectAttribute(FilterEffect& filterE
     };
 
     switch (attrName.nodeName()) {
-    case AttributeNames::lighting_colorAttr: {
-        auto& style = renderer()->style();
-        auto color = style.colorWithColorFilter(style.lightingColor());
-        return effect.setLightingColor(color);
-    }
+    case AttributeNames::lighting_colorAttr:
+        return effect.setLightingColor(renderer()->checkedStyle()->lightingColorResolvingCurrentColorApplyingColorFilter());
     case AttributeNames::surfaceScaleAttr:
         return effect.setSurfaceScale(surfaceScale());
     case AttributeNames::diffuseConstantAttr:
@@ -166,11 +163,7 @@ RefPtr<FilterEffect> SVGFEDiffuseLightingElement::createFilterEffect(const Filte
         return nullptr;
 
     Ref lightSource = lightElement->lightSource();
-    auto& style = renderer->style();
-
-    Color color = style.colorWithColorFilter(style.lightingColor());
-
-    return FEDiffuseLighting::create(color, surfaceScale(), diffuseConstant(), kernelUnitLengthX(), kernelUnitLengthY(), WTF::move(lightSource));
+    return FEDiffuseLighting::create(renderer->checkedStyle()->lightingColorResolvingCurrentColorApplyingColorFilter(), surfaceScale(), diffuseConstant(), kernelUnitLengthX(), kernelUnitLengthY(), WTF::move(lightSource));
 }
 
 } // namespace WebCore

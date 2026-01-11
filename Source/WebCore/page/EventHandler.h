@@ -53,6 +53,14 @@
 #include <wtf/WeakRef.h>
 
 #if PLATFORM(COCOA)
+#include <wtf/WeakObjCPtr.h>
+#endif
+
+#if PLATFORM(IOS_FAMILY) && defined(__OBJC__)
+#include <WebCore/WAKAppKitStubs.h>
+#endif
+
+#if PLATFORM(COCOA)
 OBJC_CLASS NSView;
 #endif
 
@@ -62,10 +70,6 @@ OBJC_CLASS WebEvent;
 
 #if PLATFORM(MAC)
 OBJC_CLASS NSEvent;
-#endif
-
-#if PLATFORM(IOS_FAMILY) && defined(__OBJC__)
-#include <WebCore/WAKAppKitStubs.h>
 #endif
 
 namespace WebCore {
@@ -609,10 +613,12 @@ private:
     private:
         Expected<std::monostate, InabilityReason> m_state;
     };
+#ifndef __swift__ // FIXME: (rdar://167557269) temporary until SWIFT_COPYABLE_IF is fully supported
     CapturesDragging capturesDragging() const { return m_capturesDragging; }
+#endif
 
 #if PLATFORM(COCOA) && defined(__OBJC__)
-    NSView *mouseDownViewIfStillGood();
+    RetainPtr<NSView> mouseDownViewIfStillGood();
 
     PlatformMouseEvent currentPlatformMouseEvent() const;
 #endif
@@ -762,7 +768,7 @@ private:
 #endif
 
 #if PLATFORM(COCOA)
-    NSView *m_mouseDownView { nullptr };
+    WeakObjCPtr<NSView> m_mouseDownView;
     bool m_sendingEventToSubview { false };
 #endif
 

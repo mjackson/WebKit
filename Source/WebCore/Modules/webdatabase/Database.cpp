@@ -311,11 +311,11 @@ public:
 
     ~DoneCreatingDatabaseOnExitCaller()
     {
-        DatabaseTracker::singleton().doneCreatingDatabase(*m_database.get());
+        DatabaseTracker::singleton().doneCreatingDatabase(m_database.get());
     }
 
 private:
-    ThreadSafeWeakPtr<Database> m_database;
+    ThreadSafeWeakRef<Database> m_database;
 };
 
 ExceptionOr<void> Database::performOpenAndVerify(bool shouldSetVersionInNewDatabase)

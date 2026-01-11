@@ -51,6 +51,9 @@ public:
     OptionSet<FilterRenderingMode> filterRenderingModes() const { return m_filterRenderingModes; }
     WEBCORE_EXPORT void setFilterRenderingModes(OptionSet<FilterRenderingMode> preferredFilterRenderingModes);
 
+    void setIsShowingDebugOverlay(bool showOverlay) { m_isShowingDebugOverlay = showOverlay; }
+    bool isShowingDebugOverlay() const { return m_isShowingDebugOverlay; }
+
     const FilterGeometry& geometry() const { return m_geometry; }
 
     FloatSize filterScale() const { return m_geometry.scale; }
@@ -71,6 +74,17 @@ public:
     FloatRect maxEffectRect(const FloatRect& primitiveSubregion) const;
     FloatRect clipToMaxEffectRect(const FloatRect& imageRect, const FloatRect& primitiveSubregion) const;
 
+#if USE(CORE_IMAGE)
+    // When CSS filter has a mixture of CSS and SVG filters, we need to compute CI filter geometry
+    // against a consistent enclosing rect, which we compute as the union of the filter regions
+    // of all the filters in the chain.
+    FloatRect enclosingFilterRegion() const { return m_enclosingFilterRegion; }
+    void setEnclosingFilterRegion(const FloatRect& rect) { m_enclosingFilterRegion = rect; }
+
+    FloatRect absoluteEnclosingFilterRegion() const;
+    FloatRect flippedRectRelativeToAbsoluteEnclosingFilterRegion(const FloatRect&) const;
+#endif
+
     virtual FilterEffectVector effectsOfType(FilterFunction::Type) const = 0;
 
     bool clampFilterRegionIfNeeded();
@@ -89,7 +103,11 @@ protected:
 
 private:
     FilterGeometry m_geometry;
+#if USE(CORE_IMAGE)
+    FloatRect m_enclosingFilterRegion;
+#endif
     OptionSet<FilterRenderingMode> m_filterRenderingModes { FilterRenderingMode::Software };
+    bool m_isShowingDebugOverlay { false };
 };
 
 } // namespace WebCore

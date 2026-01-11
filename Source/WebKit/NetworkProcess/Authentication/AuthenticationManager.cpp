@@ -44,7 +44,7 @@ namespace WebKit {
 using namespace WebCore;
 
 struct AuthenticationManager::Challenge {
-    WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(AuthenticationManager);
+    WTF_MAKE_STRUCT_TZONE_ALLOCATED(Challenge);
     Challenge(std::optional<WebPageProxyIdentifier> pageID, const WebCore::AuthenticationChallenge& challenge, ChallengeCompletionHandler&& completionHandler)
         : pageID(pageID)
         , challenge(challenge)
@@ -54,6 +54,8 @@ struct AuthenticationManager::Challenge {
     WebCore::AuthenticationChallenge challenge;
     ChallengeCompletionHandler completionHandler;
 };
+
+WTF_MAKE_STRUCT_TZONE_ALLOCATED_IMPL(AuthenticationManager::Challenge);
 
 static bool canCoalesceChallenge(const WebCore::AuthenticationChallenge& challenge)
 {

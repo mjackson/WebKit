@@ -36,7 +36,7 @@ class RTCRtpSFrameTransformErrorEvent final : public Event {
 public:
     virtual ~RTCRtpSFrameTransformErrorEvent();
 
-    enum Type { Authentication, KeyID, Syntax };
+    enum class Type : uint8_t { Authentication, KeyID, Syntax };
 
     struct Init : EventInit {
         Type errorType;

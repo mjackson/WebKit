@@ -103,7 +103,7 @@ public:
     void retrieve(const Key&, unsigned priority, RetrieveCompletionHandler&&);
 
     using MappedBodyHandler = Function<void (const Data& mappedBody)>;
-    void store(const Record&, MappedBodyHandler&&);
+    void store(const Record&, MappedBodyHandler&&, bool storeBlobInMemoryCache = false);
 
     void remove(const Key&);
     void remove(const Vector<Key>&, CompletionHandler<void()>&&);
@@ -169,7 +169,7 @@ private:
     void finishWriteOperationActivity(WriteOperationIdentifier);
 
     bool shouldStoreBodyAsBlob(const Data& bodyData);
-    std::optional<BlobStorage::Blob> storeBodyAsBlob(WriteOperationIdentifier, const Storage::Record&);
+    std::optional<BlobStorage::Blob> storeBodyAsBlob(WriteOperationIdentifier, const Storage::Record&, bool);
     Data encodeRecord(const Record&, std::optional<BlobStorage::Blob>);
     Record readRecord(const Data&);
     void readRecordFromData(Storage::ReadOperationIdentifier, MonotonicTime, std::optional<Vector<uint8_t>>&&);

@@ -101,7 +101,6 @@ LineBoxIterator lineBoxFor(const LayoutIntegration::InlineContent& inlineContent
     return { LineBoxIteratorModernPath { inlineContent, lineIndex } };
 }
 
-
 LineBoxIterator LineBox::next() const
 {
     return LineBoxIterator(*this).traverseNext();

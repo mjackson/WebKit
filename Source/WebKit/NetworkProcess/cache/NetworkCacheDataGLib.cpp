@@ -39,6 +39,7 @@
 #include <gio/gfiledescriptorbased.h>
 #endif
 
+#include <wtf/MallocSpan.h>
 #include <wtf/glib/GSpanExtras.h>
 
 namespace WebKit {
@@ -46,10 +47,9 @@ namespace NetworkCache {
 
 Data::Data(std::span<const uint8_t> data)
 {
-    uint8_t* copiedData = static_cast<uint8_t*>(fastMalloc(data.size()));
-    IGNORE_CLANG_WARNINGS_BEGIN("unsafe-buffer-usage-in-libc-call")
-    memcpy(copiedData, data.data(), data.size());
-    IGNORE_CLANG_WARNINGS_END
+    auto span = MallocSpan<uint8_t>::malloc(data.size());
+    memcpySpan(span.mutableSpan(), data);
+    auto* copiedData = span.leakSpan().data();
     m_buffer = adoptGRef(g_bytes_new_with_free_func(copiedData, data.size(), fastFree, copiedData));
 }
 
@@ -106,15 +106,10 @@ Data concatenate(const Data& a, const Data& b)
         return a;
 
     size_t size = a.size() + b.size();
-    WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // GTK/WPE port
-    uint8_t* data = static_cast<uint8_t*>(fastMalloc(size));
-    gsize aLength;
-    const auto* aData = g_bytes_get_data(a.bytes(), &aLength);
-    memcpy(data, aData, aLength);
-    gsize bLength;
-    const auto* bData = g_bytes_get_data(b.bytes(), &bLength);
-    memcpy(data + aLength, bData, bLength);
-    WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
+    auto span = MallocSpan<uint8_t>::malloc(size);
+    memcpySpan(span.mutableSpan(), a.span());
+    memcpySpan(span.mutableSpan().last(b.size()), b.span());
+    auto* data = span.leakSpan().data();
 
     return { adoptGRef(g_bytes_new_with_free_func(data, size, fastFree, data)) };
 }

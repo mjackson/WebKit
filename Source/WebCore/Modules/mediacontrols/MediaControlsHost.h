@@ -27,6 +27,7 @@
 
 #if ENABLE(VIDEO)
 
+#include "HTMLMediaElementEnums.h"
 #include "JSValueInWrappedObject.h"
 #include "MediaSession.h"
 #include <wtf/Ref.h>
@@ -85,8 +86,8 @@ public:
     double brightness() const { return 1; }
     void setBrightness(double) { }
 
-    Vector<RefPtr<TextTrack>> sortedTrackListForMenu(TextTrackList&);
-    Vector<RefPtr<AudioTrack>> sortedTrackListForMenu(AudioTrackList&);
+    Vector<Ref<TextTrack>> sortedTrackListForMenu(TextTrackList&);
+    Vector<Ref<AudioTrack>> sortedTrackListForMenu(AudioTrackList&);
 
     using TextOrAudioTrack = Variant<RefPtr<TextTrack>, RefPtr<AudioTrack>>;
     String displayNameForTrack(const std::optional<TextOrAudioTrack>&);
@@ -180,9 +181,9 @@ private:
 #if ENABLE(VIDEO_PRESENTATION_MODE)
         PictureInPictureTag,
 #endif
-        RefPtr<AudioTrack>,
-        RefPtr<TextTrack>,
-        RefPtr<VTTCue>,
+        Ref<AudioTrack>,
+        Ref<TextTrack>,
+        Ref<VTTCue>,
         PlaybackSpeed,
         ShowMediaStatsTag
     >;
@@ -190,6 +191,8 @@ private:
 
     std::pair<Vector<MenuItem>, MenuDataMap> mediaControlsContextMenuItems(String&& optionsJSONString);
 #endif
+
+    Ref<HTMLMediaElement> protectedMediaElement() const;
 
     WeakRef<HTMLMediaElement> m_mediaElement;
     RefPtr<MediaControlTextTrackContainerElement> m_textTrackContainer;

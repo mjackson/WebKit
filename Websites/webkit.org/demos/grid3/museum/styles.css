@@ -77,7 +77,7 @@ aside.interface {
      color: color(display-p3 0.455 0.747 0.99);
   }
   section.show-code {
-     background: color(display-p3 0.818 0.906 0.98)
+     background: color(display-p3 0.818 0.906 0.98);
   }
   pre {
     color: #444;
@@ -415,6 +415,6 @@ body:has(input[type="checkbox"]:checked) {
     background: #aaa;
     a, section, footer {
       opacity: 0.6;
-    }	
+    }    
   }
 }

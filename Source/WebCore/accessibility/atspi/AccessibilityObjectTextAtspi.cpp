@@ -772,13 +772,13 @@ AccessibilityObjectAtspi::TextAttributes AccessibilityObjectAtspi::textAttribute
                 attributes.add(name, value);
         };
 
-        auto bgColor = style.visitedDependentColor(CSSPropertyBackgroundColor);
+        auto bgColor = style.visitedDependentBackgroundColor();
         if (bgColor.isValid() && bgColor.isVisible()) {
             auto [r, g, b, a] = bgColor.toColorTypeLossy<SRGBA<uint8_t>>().resolved();
             addAttributeIfNeeded("bg-color"_s, makeString(r, ',', g, ',', b));
         }
 
-        auto fgColor = style.visitedDependentColor(CSSPropertyColor);
+        auto fgColor = style.visitedDependentColor();
         if (fgColor.isValid() && fgColor.isVisible()) {
             auto [r, g, b, a] = fgColor.toColorTypeLossy<SRGBA<uint8_t>>().resolved();
             addAttributeIfNeeded("fg-color"_s, makeString(r, ',', g, ',', b));

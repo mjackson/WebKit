@@ -11,6 +11,71 @@
 namespace WebCore {
 namespace Style {
 
+inline const Style::Color& ComputedStyleProperties::testColor() const
+{
+    return level1->testColor;
+}
+
+inline decltype(auto) ComputedStyleProperties::testColorResolver() const
+{
+    return ColorPropertyResolver<ColorPropertyTraits<PropertyNameConstant<CSSPropertyTestColor>>> { *this };
+}
+
+inline const Style::Color& ComputedStyleProperties::testColorAllowsTypesAbsolute() const
+{
+    return level1->testColorAllowsTypesAbsolute;
+}
+
+inline decltype(auto) ComputedStyleProperties::testColorAllowsTypesAbsoluteResolver() const
+{
+    return ColorPropertyResolver<ColorPropertyTraits<PropertyNameConstant<CSSPropertyTestColorAllowsTypesAbsolute>>> { *this };
+}
+
+inline const Style::Color& ComputedStyleProperties::testColorPropertyWithVisitedLinkSupport() const
+{
+    return level1->testColorPropertyWithVisitedLinkSupport;
+}
+
+inline const Style::Color& ComputedStyleProperties::visitedLinkTestColorPropertyWithVisitedLinkSupport() const
+{
+    return level1->level2->visitedLinkTestColorPropertyWithVisitedLinkSupport;
+}
+
+inline decltype(auto) ComputedStyleProperties::testColorPropertyWithVisitedLinkSupportResolver() const
+{
+    return ColorPropertyResolver<ColorPropertyTraits<PropertyNameConstant<CSSPropertyTestColorPropertyWithVisitedLinkSupport>>> { *this };
+}
+
+inline Style::Number<> ComputedStyleProperties::testRenderStyleHasExplicitlySetPolicyAllAuthorOrigin() const
+{
+    return level1->level2->testRenderStyleHasExplicitlySetPolicyAllAuthorOrigin;
+}
+
+inline bool ComputedStyleProperties::hasExplicitlySetTestRenderStyleHasExplicitlySetPolicyAllAuthorOrigin() const
+{
+    return level1->level2->hasExplicitlySetTestRenderStyleHasExplicitlySetPolicyAllAuthorOrigin;
+}
+
+inline Style::Number<> ComputedStyleProperties::testRenderStyleHasExplicitlySetPolicyAllBorderRadius() const
+{
+    return level1->level2->testRenderStyleHasExplicitlySetPolicyAllBorderRadius;
+}
+
+inline bool ComputedStyleProperties::hasExplicitlySetTestRenderStyleHasExplicitlySetPolicyAllBorderRadius() const
+{
+    return level1->level2->hasExplicitlySetTestRenderStyleHasExplicitlySetPolicyAllBorderRadius;
+}
+
+inline Style::Number<> ComputedStyleProperties::testRenderStyleHasExplicitlySetPolicyValueOnly() const
+{
+    return level1->level2->testRenderStyleHasExplicitlySetPolicyValueOnly;
+}
+
+inline bool ComputedStyleProperties::hasExplicitlySetTestRenderStyleHasExplicitlySetPolicyValueOnly() const
+{
+    return level1->level2->hasExplicitlySetTestRenderStyleHasExplicitlySetPolicyValueOnly;
+}
+
 inline Style::TestEnumeration ComputedStyleProperties::testRenderStyleStorageOneLevelEnum() const
 {
     return static_cast<Style::TestEnumeration>(level1->testRenderStyleStorageOneLevelEnum);
@@ -49,6 +114,56 @@ inline const Style::Number<>& ComputedStyleProperties::testRenderStyleStorageTwo
 inline Style::Number<> ComputedStyleProperties::testRenderStyleStorageTwoLevelValue() const
 {
     return level1->level2->testRenderStyleStorageTwoLevelValue;
+}
+
+inline Style::Number<> ComputedStyleProperties::testLogicalPropertyGroupPhysicalHorizontal() const
+{
+    return level1->testLogicalPropertyGroupPhysicalHorizontal;
+}
+
+inline Style::Number<> ComputedStyleProperties::testLogicalPropertyGroupPhysicalVertical() const
+{
+    return level1->testLogicalPropertyGroupPhysicalVertical;
+}
+
+inline Style::Number<> ComputedStyleProperties::logicalTestLogicalPropertyGroupPhysicalHorizontal(WritingMode writingMode) const
+{
+    return writingMode.isHorizontal() ? testLogicalPropertyGroupPhysicalHorizontal() : testLogicalPropertyGroupPhysicalVertical();
+}
+
+inline Style::Number<> ComputedStyleProperties::logicalTestLogicalPropertyGroupPhysicalHorizontal() const
+{
+    return logicalTestLogicalPropertyGroupPhysicalHorizontal(writingMode());
+}
+
+inline Style::Number<> ComputedStyleProperties::logicalTestLogicalPropertyGroupPhysicalVertical(WritingMode writingMode) const
+{
+    return writingMode.isHorizontal() ? testLogicalPropertyGroupPhysicalVertical() : testLogicalPropertyGroupPhysicalHorizontal();
+}
+
+inline Style::Number<> ComputedStyleProperties::logicalTestLogicalPropertyGroupPhysicalVertical() const
+{
+    return logicalTestLogicalPropertyGroupPhysicalVertical(writingMode());
+}
+
+inline const Color& ColorPropertyTraits<PropertyNameConstant<CSSPropertyTestColor>>::color(const ComputedStyleProperties& style)
+{
+    return style.testColor();
+}
+
+inline const Color& ColorPropertyTraits<PropertyNameConstant<CSSPropertyTestColorAllowsTypesAbsolute>>::color(const ComputedStyleProperties& style)
+{
+    return style.testColorAllowsTypesAbsolute();
+}
+
+inline const Color& ColorPropertyTraits<PropertyNameConstant<CSSPropertyTestColorPropertyWithVisitedLinkSupport>>::color(const ComputedStyleProperties& style)
+{
+    return style.testColorPropertyWithVisitedLinkSupport();
+}
+
+inline const Color& ColorPropertyTraits<PropertyNameConstant<CSSPropertyTestColorPropertyWithVisitedLinkSupport>>::visitedLinkColor(const ComputedStyleProperties& style)
+{
+    return style.visitedLinkTestColorPropertyWithVisitedLinkSupport();
 }
 
 } // namespace WebCore

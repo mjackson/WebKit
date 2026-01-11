@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Apple Inc. All rights reserved.
+ * Copyright (C) 2011-2025 Apple Inc. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -24,7 +24,6 @@
 #include "RenderBlock.h"
 #include "RenderObjectInlines.h"
 #include "RenderStyle+GettersInlines.h"
-#include "StyleInheritedData.h"
 #include <wtf/NeverDestroyed.h>
 #include <wtf/TZoneMallocInlines.h>
 
@@ -122,6 +121,7 @@ void RenderCombineText::combineTextIfNeeded()
 
     FontCascade horizontalFont(FontCascadeDescription { description }, style().fontCascade());
     horizontalFont.update(fontSelector.copyRef());
+    horizontalFont.setLetterSpacing(0);
 
     GlyphOverflow glyphOverflow;
     glyphOverflow.computeBounds = true;
@@ -132,9 +132,10 @@ void RenderCombineText::combineTextIfNeeded()
 
     m_isCombined = combinedTextWidth <= emWidth;
     
-    if (m_isCombined)
+    if (m_isCombined) {
         m_combineFontStyle->setFontDescription(WTF::move(description)); // Need to change font orientation to horizontal.
-    else {
+        m_combineFontStyle->mutableFontCascadeWithoutUpdate().setLetterSpacing(0);
+    } else {
         // Need to try compressed glyphs.
         static constexpr auto widthVariants = std::to_array<FontWidthVariant>({ FontWidthVariant::HalfWidth, FontWidthVariant::ThirdWidth, FontWidthVariant::QuarterWidth });
         for (auto widthVariant : widthVariants) {
@@ -142,6 +143,7 @@ void RenderCombineText::combineTextIfNeeded()
 
             FontCascade compressedFont(FontCascadeDescription { description }, style().fontCascade());
             compressedFont.update(fontSelector.copyRef());
+            compressedFont.setLetterSpacing(0);
             
             glyphOverflow.left = glyphOverflow.top = glyphOverflow.right = glyphOverflow.bottom = 0;
             float runWidth = width(0, text().length(), compressedFont, 0, nullptr, &glyphOverflow);
@@ -151,6 +153,7 @@ void RenderCombineText::combineTextIfNeeded()
 
                 // Replace my font with the new one.
                 m_combineFontStyle->setFontDescription(WTF::move(description));
+                m_combineFontStyle->mutableFontCascadeWithoutUpdate().setLetterSpacing(0);
                 break;
             }
             
@@ -172,12 +175,14 @@ void RenderCombineText::combineTextIfNeeded()
         
             FontCascade compressedFont(FontCascadeDescription { bestFitDescription }, style().fontCascade());
             compressedFont.update(fontSelector.copyRef());
+            compressedFont.setLetterSpacing(0);
             
             glyphOverflow.left = glyphOverflow.top = glyphOverflow.right = glyphOverflow.bottom = 0;
             float runWidth = width(0, text().length(), compressedFont, 0, nullptr, &glyphOverflow);
             if (runWidth <= emWidth) {
                 combinedTextWidth = runWidth;
                 m_isCombined = true;
+                m_combineFontStyle->mutableFontCascadeWithoutUpdate().setLetterSpacing(0);
                 break;
             }
             scaleFactor -= 0.05f;

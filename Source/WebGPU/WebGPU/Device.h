@@ -28,6 +28,7 @@
 #import "BindableResource.h"
 #import "HardwareCapabilities.h"
 #import "Queue.h"
+#import "WGSL.h"
 #import <CoreVideo/CVMetalTextureCache.h>
 #import <CoreVideo/CoreVideo.h>
 #import <IOSurface/IOSurfaceRef.h>
@@ -53,10 +54,6 @@ IGNORE_CLANG_WARNINGS_BEGIN("nullability-completeness")
 
 struct WGPUDeviceImpl {
 };
-
-namespace WGSL {
-struct PipelineLayout;
-}
 
 namespace WebGPU {
 

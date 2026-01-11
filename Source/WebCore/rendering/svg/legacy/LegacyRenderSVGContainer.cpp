@@ -169,7 +169,7 @@ void LegacyRenderSVGContainer::paint(PaintInfo& paintInfo, const LayoutPoint&)
     // outline rect into parent coords before drawing.
     // FIXME: This means our focus ring won't share our rotation like it should.
     // We should instead disable our clip during PaintPhase::Outline
-    if (paintInfo.phase == PaintPhase::SelfOutline && style().outlineWidth() && style().usedVisibility() == Visibility::Visible) {
+    if (paintInfo.phase == PaintPhase::SelfOutline && style().usedOutlineWidth() && style().usedVisibility() == Visibility::Visible) {
         IntRect paintRectInParent = enclosingIntRect(localToParentTransform().mapRect(repaintRect));
         paintOutline(paintInfo, paintRectInParent);
     }
@@ -219,6 +219,11 @@ FloatRect LegacyRenderSVGContainer::repaintRectInLocalCoordinates(RepaintRectCal
         m_accurateRepaintBoundingBox = boundingBoxes.repaintBoundingBox;
     }
     return *m_accurateRepaintBoundingBox;
+}
+
+FloatRect LegacyRenderSVGContainer::decoratedBoundingBox() const
+{
+    return SVGRenderSupport::computeContainerDecoratedBoundingBox(*this);
 }
 
 bool LegacyRenderSVGContainer::nodeAtFloatPoint(const HitTestRequest& request, HitTestResult& result, const FloatPoint& pointInParent, HitTestAction hitTestAction)

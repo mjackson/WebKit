@@ -32,6 +32,7 @@
 
 #include "CSSCustomPropertyValue.h"
 #include "CSSFontSelector.h"
+#include "CSSFunctionValue.h"
 #include "CSSPaintImageValue.h"
 #include "CSSPendingSubstitutionValue.h"
 #include "CSSPropertyParser.h"
@@ -44,11 +45,11 @@
 #include "HTMLElement.h"
 #include "PaintWorkletGlobalScope.h"
 #include "RenderStyle+GettersInlines.h"
-#include "RenderStyle+InitialInlines.h"
 #include "RenderStyle+SettersInlines.h"
 #include "Settings.h"
 #include "StyleAdjuster.h"
 #include "StyleBuilderGenerated.h"
+#include "StyleComputedStyle+InitialInlines.h"
 #include "StyleCustomProperty.h"
 #include "StyleCustomPropertyData.h"
 #include "StyleCustomPropertyRegistry.h"
@@ -152,7 +153,7 @@ void Builder::applyNonHighPriorityProperties()
 
 void Builder::adjustAfterApplying()
 {
-    Adjuster::adjustFromBuilder(m_state->style());
+    Adjuster::adjustFromBuilder(m_state->renderStyle());
 }
 
 void Builder::applyLogicalGroupProperties()
@@ -256,13 +257,14 @@ void Builder::applyCustomPropertyImpl(const AtomString& name, const PropertyCasc
         return CSSWideKeyword::Unset;
     };
 
+    SetForScope levelScope(m_state->m_currentProperty, &property);
+    SetForScope scopedLinkMatchMutation(m_state->m_linkMatch, SelectorChecker::MatchDefault);
+
     auto resolvedValue = resolveCustomPropertyValue(customPropertyValue.get());
 
     if (!resolvedValue || m_state->m_inCycleCustomProperties.contains(name))
         resolvedValue = createInvalidOrUnset();
 
-    SetForScope levelScope(m_state->m_currentProperty, &property);
-    SetForScope scopedLinkMatchMutation(m_state->m_linkMatch, SelectorChecker::MatchDefault);
     applyCustomProperty(name, WTF::move(*resolvedValue));
 
     AtomString takenName = m_state->m_inProgressCustomProperties.take(name);
@@ -721,7 +723,7 @@ std::optional<Variant<Ref<const Style::CustomProperty>, CSSWideKeyword>> Builder
 
 void Builder::applyPageSizeDescriptor(CSSValue& value)
 {
-    m_state->style().setPageSize(RenderStyle::initialPageSize());
+    m_state->style().setPageSize(Style::ComputedStyle::initialPageSize());
 
     auto convertedPageSize = toStyleFromCSSValue<PageSize>(m_state, value);
 

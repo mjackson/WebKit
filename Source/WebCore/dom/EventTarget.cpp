@@ -226,7 +226,7 @@ bool EventTarget::setAttributeEventListener(const AtomString& eventType, RefPtr<
 
 RefPtr<JSEventListener> EventTarget::attributeEventListener(const AtomString& eventType, DOMWrapperWorld& isolatedWorld)
 {
-    for (RefPtr eventListener : eventListeners(eventType)) {
+    for (Ref eventListener : eventListeners(eventType)) {
         RefPtr jsListener = dynamicDowncast<JSEventListener>(eventListener->callback());
         if (jsListener && jsListener->isAttribute() && jsListener->isolatedWorld() == &isolatedWorld)
             return jsListener;
@@ -393,9 +393,9 @@ void EventTarget::innerInvokeEventListeners(Event& event, EventListenerVector li
         callback->checkValidityForEventTarget(*this);
 #endif
 
-        InspectorInstrumentation::willHandleEvent(context, event, *registeredListener);
+        InspectorInstrumentation::willHandleEvent(context, event, registeredListener);
         callback->handleEvent(context, event);
-        InspectorInstrumentation::didHandleEvent(context, event, *registeredListener);
+        InspectorInstrumentation::didHandleEvent(context, event, registeredListener);
 
         if (registeredListener->isPassive())
             event.setInPassiveListener(false);

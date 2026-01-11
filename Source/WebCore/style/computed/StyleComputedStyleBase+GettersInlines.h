@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025-2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -32,6 +32,7 @@
 #include <WebCore/StyleBorderImage.h>
 #include <WebCore/StyleBorderImageData.h>
 #include <WebCore/StyleBoxData.h>
+#include <WebCore/StyleCustomPropertyData.h>
 #include <WebCore/StyleDeprecatedFlexibleBoxData.h>
 #include <WebCore/StyleFillLayers.h>
 #include <WebCore/StyleFilterData.h>
@@ -53,14 +54,21 @@
 #include <WebCore/StyleGridItemData.h>
 #include <WebCore/StyleGridTrackSizingDirection.h>
 #include <WebCore/StyleInheritedData.h>
+#include <WebCore/StyleInheritedRareData.h>
 #include <WebCore/StyleMarqueeData.h>
 #include <WebCore/StyleMaskBorder.h>
 #include <WebCore/StyleMaskBorderData.h>
-#include <WebCore/StyleMiscNonInheritedData.h>
-#include <WebCore/StyleMultiColData.h>
+#include <WebCore/StyleMultiColumnData.h>
 #include <WebCore/StyleNonInheritedData.h>
-#include <WebCore/StyleRareInheritedData.h>
-#include <WebCore/StyleRareNonInheritedData.h>
+#include <WebCore/StyleNonInheritedMiscData.h>
+#include <WebCore/StyleNonInheritedRareData.h>
+#include <WebCore/StyleSVGData.h>
+#include <WebCore/StyleSVGFillData.h>
+#include <WebCore/StyleSVGLayoutData.h>
+#include <WebCore/StyleSVGMarkerResourceData.h>
+#include <WebCore/StyleSVGNonInheritedMiscData.h>
+#include <WebCore/StyleSVGStopData.h>
+#include <WebCore/StyleSVGStrokeData.h>
 #include <WebCore/StyleSurroundData.h>
 #include <WebCore/StyleTextAlign.h>
 #include <WebCore/StyleTextAutospace.h>
@@ -142,32 +150,32 @@ inline bool ComputedStyleBase::disallowsFastPathInheritance() const
 
 inline bool ComputedStyleBase::effectiveInert() const
 {
-    return m_rareInheritedData->effectiveInert;
+    return m_inheritedRareData->effectiveInert;
 }
 
 inline bool ComputedStyleBase::isEffectivelyTransparent() const
 {
-    return m_rareInheritedData->effectivelyTransparent;
+    return m_inheritedRareData->effectivelyTransparent;
 }
 
 inline bool ComputedStyleBase::insideDefaultButton() const
 {
-    return m_rareInheritedData->insideDefaultButton;
+    return m_inheritedRareData->insideDefaultButton;
 }
 
 inline bool ComputedStyleBase::insideSubmitButton() const
 {
-    return m_rareInheritedData->insideSubmitButton;
+    return m_inheritedRareData->insideSubmitButton;
 }
 
 inline bool ComputedStyleBase::isInSubtreeWithBlendMode() const
 {
-    return m_rareInheritedData->isInSubtreeWithBlendMode;
+    return m_inheritedRareData->isInSubtreeWithBlendMode;
 }
 
 inline bool ComputedStyleBase::isForceHidden() const
 {
-    return m_rareInheritedData->isForceHidden;
+    return m_inheritedRareData->isForceHidden;
 }
 
 inline bool ComputedStyleBase::hasDisplayAffectedByAnimations() const
@@ -197,7 +205,7 @@ inline bool ComputedStyleBase::isPopoverInvoker() const
 
 inline bool ComputedStyleBase::autoRevealsWhenFound() const
 {
-    return m_rareInheritedData->autoRevealsWhenFound;
+    return m_inheritedRareData->autoRevealsWhenFound;
 }
 
 inline bool ComputedStyleBase::nativeAppearanceDisabled() const
@@ -207,7 +215,7 @@ inline bool ComputedStyleBase::nativeAppearanceDisabled() const
 
 inline OptionSet<EventListenerRegionType> ComputedStyleBase::eventListenerRegionTypes() const
 {
-    return m_rareInheritedData->eventListenerRegionTypes;
+    return m_inheritedRareData->eventListenerRegionTypes;
 }
 
 inline bool ComputedStyleBase::hasAttrContent() const
@@ -237,12 +245,12 @@ inline StyleAppearance ComputedStyleBase::usedAppearance() const
 
 inline ContentVisibility ComputedStyleBase::usedContentVisibility() const
 {
-    return static_cast<ContentVisibility>(m_rareInheritedData->usedContentVisibility);
+    return static_cast<ContentVisibility>(m_inheritedRareData->usedContentVisibility);
 }
 
 inline TouchAction ComputedStyleBase::usedTouchAction() const
 {
-    return m_rareInheritedData->usedTouchAction;
+    return m_inheritedRareData->usedTouchAction;
 }
 
 inline ZIndex ComputedStyleBase::usedZIndex() const
@@ -254,7 +262,7 @@ inline ZIndex ComputedStyleBase::usedZIndex() const
 
 inline AppleVisualEffect ComputedStyleBase::usedAppleVisualEffectForSubtree() const
 {
-    return static_cast<AppleVisualEffect>(m_rareInheritedData->usedAppleVisualEffectForSubtree);
+    return static_cast<AppleVisualEffect>(m_inheritedRareData->usedAppleVisualEffectForSubtree);
 }
 
 #endif
@@ -283,7 +291,7 @@ inline bool ComputedStyleBase::hasAnyPublicPseudoStyles() const
 
 inline const CustomPropertyData& ComputedStyleBase::inheritedCustomProperties() const
 {
-    return m_rareInheritedData->customProperties.get();
+    return m_inheritedRareData->customProperties.get();
 }
 
 inline const CustomPropertyData& ComputedStyleBase::nonInheritedCustomProperties() const
@@ -295,12 +303,12 @@ inline const CustomPropertyData& ComputedStyleBase::nonInheritedCustomProperties
 
 inline bool ComputedStyleBase::evaluationTimeZoomEnabled() const
 {
-    return m_rareInheritedData->evaluationTimeZoomEnabled;
+    return m_inheritedRareData->evaluationTimeZoomEnabled;
 }
 
 inline float ComputedStyleBase::deviceScaleFactor() const
 {
-    return m_rareInheritedData->deviceScaleFactor;
+    return m_inheritedRareData->deviceScaleFactor;
 }
 
 inline bool ComputedStyleBase::useSVGZoomRulesForLength() const
@@ -310,18 +318,22 @@ inline bool ComputedStyleBase::useSVGZoomRulesForLength() const
 
 inline float ComputedStyleBase::usedZoom() const
 {
-    return m_rareInheritedData->usedZoom;
+    return m_inheritedRareData->usedZoom;
 }
 
 inline ZoomFactor ComputedStyleBase::usedZoomForLength() const
 {
+    static constexpr ZoomFactor unzoomed(1.0f);
+    if (!inheritedFlags().isZoomed)
+        return unzoomed;
+
     if (useSVGZoomRulesForLength())
-        return ZoomFactor(1.0f, deviceScaleFactor());
+        return unzoomed;
 
     if (evaluationTimeZoomEnabled())
-        return ZoomFactor(usedZoom(), deviceScaleFactor());
+        return ZoomFactor(usedZoom());
 
-    return ZoomFactor(1.0f, deviceScaleFactor());
+    return unzoomed;
 }
 
 // MARK: - Fonts
@@ -433,11 +445,6 @@ inline const BorderData& ComputedStyleBase::border() const
     return m_nonInheritedData->surroundData->border;
 }
 
-inline LineWidthBox ComputedStyleBase::borderWidth() const
-{
-    return border().borderWidth();
-}
-
 inline const BorderRadius& ComputedStyleBase::borderRadii() const
 {
     return border().radii;
@@ -480,28 +487,6 @@ inline CursorType ComputedStyleBase::cursorType() const
 inline const PageSize& ComputedStyleBase::pageSize() const
 {
     return m_nonInheritedData->rareData->pageSize;
-}
-
-// FIXME: Add a type that encapsulates both caretColor() and hasAutoCaretColor().
-
-inline const Color& ComputedStyleBase::caretColor() const
-{
-    return m_rareInheritedData->caretColor;
-}
-
-inline bool ComputedStyleBase::hasAutoCaretColor() const
-{
-    return m_rareInheritedData->hasAutoCaretColor;
-}
-
-inline const Color& ComputedStyleBase::visitedLinkCaretColor() const
-{
-    return m_rareInheritedData->visitedLinkCaretColor;
-}
-
-inline bool ComputedStyleBase::hasVisitedLinkAutoCaretColor() const
-{
-    return m_rareInheritedData->hasVisitedLinkAutoCaretColor;
 }
 
 } // namespace Style

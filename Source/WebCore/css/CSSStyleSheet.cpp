@@ -598,7 +598,7 @@ Ref<StyleSheetContents> CSSStyleSheet::protectedContents()
     return m_contents;
 }
 
-void CSSStyleSheet::getChildStyleSheets(HashSet<RefPtr<CSSStyleSheet>>& childStyleSheets)
+void CSSStyleSheet::getChildStyleSheets(HashSet<Ref<CSSStyleSheet>>& childStyleSheets)
 {
     RefPtr ruleList = cssRules();
     if (!ruleList)

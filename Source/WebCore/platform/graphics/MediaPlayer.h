@@ -288,7 +288,7 @@ public:
 
     virtual void textTrackRepresentationBoundsChanged(const IntRect&) { }
 
-    virtual Vector<RefPtr<PlatformTextTrack>> outOfBandTrackSources() { return { }; }
+    virtual Vector<Ref<PlatformTextTrack>> outOfBandTrackSources() { return { }; }
 
 #if PLATFORM(IOS_FAMILY)
     virtual String mediaPlayerNetworkInterfaceName() const { return String(); }
@@ -654,7 +654,7 @@ public:
     void tracksChanged();
 
     void notifyTrackModeChanged();
-    Vector<RefPtr<PlatformTextTrack>> outOfBandTrackSources();
+    Vector<Ref<PlatformTextTrack>> outOfBandTrackSources();
 
 #if PLATFORM(IOS_FAMILY)
     String mediaPlayerNetworkInterfaceName() const;

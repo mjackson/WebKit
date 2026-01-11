@@ -55,7 +55,7 @@ public:
     RefPtr<CSSValue> toCSSValue() const final;
 
 private:
-    CSSPerspective(CSSPerspectiveValue);
+    explicit CSSPerspective(CSSPerspectiveValue);
 
     void setIs2D(bool);
 

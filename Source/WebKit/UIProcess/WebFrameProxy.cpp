@@ -35,6 +35,7 @@
 #include "FrameProcess.h"
 #include "FrameTreeCreationParameters.h"
 #include "FrameTreeNodeData.h"
+#include "JSHandleInfo.h"
 #include "LoadedWebArchive.h"
 #include "MessageSenderInlines.h"
 #include "NetworkProcessMessages.h"
@@ -876,6 +877,66 @@ void WebFrameProxy::sendMessageToInspectorFrontend(const String& targetId, const
 {
     if (RefPtr page = m_page.get())
         page->inspectorController().sendMessageToInspectorFrontend(targetId, message);
+}
+
+void WebFrameProxy::requestTextExtraction(WebCore::TextExtraction::Request&& request, CompletionHandler<void(WebCore::TextExtraction::Item&&)>&& completion)
+{
+    if (RefPtr page = m_page.get(); !page || !page->hasRunningProcess())
+        return completion({ });
+
+    sendWithAsyncReply(Messages::WebFrame::RequestTextExtraction(WTF::move(request)), WTF::move(completion));
+}
+
+void WebFrameProxy::handleTextExtractionInteraction(TextExtraction::Interaction&& interaction, CompletionHandler<void(bool, String&&)>&& completion)
+{
+    if (RefPtr page = m_page.get(); !page || !page->hasRunningProcess()) {
+        ASSERT_NOT_REACHED();
+        return completion(false, "Internal inconsistency / unexpected state. Please file a bug"_s);
+    }
+
+    sendWithAsyncReply(Messages::WebFrame::HandleTextExtractionInteraction(WTF::move(interaction)), WTF::move(completion));
+}
+
+void WebFrameProxy::takeSnapshotOfExtractedText(TextExtraction::ExtractedText&& extractedText, CompletionHandler<void(RefPtr<TextIndicator>&&)>&& completion)
+{
+    if (RefPtr page = m_page.get(); !page || !page->hasRunningProcess())
+        return completion({ });
+
+    sendWithAsyncReply(Messages::WebFrame::TakeSnapshotOfExtractedText(WTF::move(extractedText)), WTF::move(completion));
+}
+
+void WebFrameProxy::describeTextExtractionInteraction(TextExtraction::Interaction&& interaction, CompletionHandler<void(TextExtraction::InteractionDescription&&)>&& completion)
+{
+    if (RefPtr page = m_page.get(); !page || !page->hasRunningProcess()) {
+        ASSERT_NOT_REACHED();
+        return completion({ "Internal inconsistency / unexpected state. Please file a bug"_s, { } });
+    }
+
+    sendWithAsyncReply(Messages::WebFrame::DescribeTextExtractionInteraction(WTF::move(interaction)), WTF::move(completion));
+}
+
+void WebFrameProxy::requestJSHandleForExtractedText(TextExtraction::ExtractedText&& extractedText, CompletionHandler<void(std::optional<JSHandleInfo>&&)>&& completion)
+{
+    if (RefPtr page = m_page.get(); !page || !page->hasRunningProcess())
+        return completion({ });
+
+    sendWithAsyncReply(Messages::WebFrame::RequestJSHandleForExtractedText(WTF::move(extractedText)), WTF::move(completion));
+}
+
+void WebFrameProxy::getSelectorPathsForNode(JSHandleInfo&& handle, CompletionHandler<void(Vector<HashSet<String>>&&)>&& completion)
+{
+    if (RefPtr page = m_page.get(); !page || !page->hasRunningProcess())
+        return completion({ });
+
+    sendWithAsyncReply(Messages::WebFrame::GetSelectorPathsForNode(WTF::move(handle)), WTF::move(completion));
+}
+
+void WebFrameProxy::getNodeForSelectorPaths(Vector<HashSet<String>>&& selectors, CompletionHandler<void(std::optional<JSHandleInfo>&&)>&& completion)
+{
+    if (RefPtr page = m_page.get(); !page || !page->hasRunningProcess())
+        return completion({ });
+
+    sendWithAsyncReply(Messages::WebFrame::GetNodeForSelectorPaths(WTF::move(selectors)), WTF::move(completion));
 }
 
 } // namespace WebKit

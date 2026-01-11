@@ -75,7 +75,7 @@ static WebGPU::DeviceDescriptor convertToBacking(const std::optional<GPUDeviceDe
 
 static GPUFeatureName convertFeatureNameToEnum(const String& stringValue)
 {
-    static constexpr auto mappings = std::to_array<std::pair<ComparableASCIILiteral, GPUFeatureName>>({
+    static constexpr SortedArrayMap enumerationMapping { std::to_array<std::pair<ComparableASCIILiteral, GPUFeatureName>>({
         { "bgra8unorm-storage"_s, GPUFeatureName::Bgra8unormStorage },
         { "clip-distances"_s, GPUFeatureName::ClipDistances },
         { "core-features-and-limits"_s, GPUFeatureName::CoreFeaturesAndLimits },
@@ -96,8 +96,7 @@ static GPUFeatureName convertFeatureNameToEnum(const String& stringValue)
         { "texture-compression-etc2"_s, GPUFeatureName::TextureCompressionEtc2 },
         { "texture-formats-tier1"_s, GPUFeatureName::TextureFormatsTier1 },
         { "timestamp-query"_s, GPUFeatureName::TimestampQuery },
-    });
-    static constexpr SortedArrayMap enumerationMapping { mappings };
+    }) };
     if (auto* enumerationValue = enumerationMapping.tryGet(stringValue); enumerationValue) [[likely]]
         return *enumerationValue;
 

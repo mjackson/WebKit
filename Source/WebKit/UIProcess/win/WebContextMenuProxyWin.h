@@ -44,14 +44,11 @@ public:
     }
     ~WebContextMenuProxyWin();
 
-    FrameInfoData frameInfo() { return m_frameInfo; }
-
 private:
     WebContextMenuProxyWin(WebPageProxy&, FrameInfoData&&, ContextMenuContextData&&, const UserData&);
     void showContextMenuWithItems(Vector<Ref<WebContextMenuItem>>&&) override;
 
     HMENU m_menu;
-    FrameInfoData m_frameInfo;
 };
 
 

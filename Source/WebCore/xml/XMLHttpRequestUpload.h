@@ -60,3 +60,5 @@ private:
 WebCoreOpaqueRoot root(XMLHttpRequestUpload*);
     
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(XMLHttpRequestUpload)

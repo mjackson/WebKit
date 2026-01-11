@@ -327,18 +327,18 @@ static bool findViewInSubviews(NSView *superview, NSView *target)
     return false;
 }
 
-NSView *EventHandler::mouseDownViewIfStillGood()
+RetainPtr<NSView> EventHandler::mouseDownViewIfStillGood()
 {
     // Since we have no way of tracking the lifetime of m_mouseDownView, we have to assume that
     // it could be deallocated already. We search for it in our subview tree; if we don't find
     // it, we set it to nil.
-    NSView *mouseDownView = m_mouseDownView;
+    RetainPtr mouseDownView = m_mouseDownView.get();
     if (!mouseDownView) {
         return nil;
     }
     auto* topFrameView = m_frame->view();
     NSView *topView = topFrameView ? topFrameView->platformWidget() : nil;
-    if (!topView || !findViewInSubviews(topView, mouseDownView)) {
+    if (!topView || !findViewInSubviews(topView, mouseDownView.get())) {
         m_mouseDownView = nil;
         return nil;
     }
@@ -352,7 +352,7 @@ bool EventHandler::eventActivatedView(const PlatformMouseEvent&) const
 
 bool EventHandler::eventLoopHandleMouseUp(const MouseEventWithHitTestResults&)
 {
-    NSView *view = mouseDownViewIfStillGood();
+    RetainPtr view = mouseDownViewIfStillGood();
     if (!view)
         return false;
 

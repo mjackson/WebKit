@@ -67,6 +67,8 @@ inline static WKTextExtractionContainer containerType(TextExtraction::ContainerT
         return WKTextExtractionContainerSubscript;
     case TextExtraction::ContainerType::Superscript:
         return WKTextExtractionContainerSuperscript;
+    case TextExtraction::ContainerType::Strikethrough:
+        return WKTextExtractionContainerStrikethrough;
     case TextExtraction::ContainerType::Generic:
         return WKTextExtractionContainerGeneric;
     }
@@ -213,6 +215,15 @@ inline static RetainPtr<WKTextExtractionItem> createItemWithChildren(const TextE
             return adoptNS([[WKTextExtractionLinkItem alloc]
                 initWithTarget:data.target.createNSString().get()
                 url:data.completedURL.createNSURL().get()
+                rectInWebView:rectInWebView
+                children:children
+                eventListeners:eventListeners
+                ariaAttributes:ariaAttributes.get()
+                accessibilityRole:accessibilityRole.get()
+                nodeIdentifier:nodeIdentifier.get()]);
+        }, [&](const TextExtraction::IFrameData& data) -> RetainPtr<WKTextExtractionItem> {
+            return adoptNS([[WKTextExtractionIFrameItem alloc]
+                initWithOrigin:data.origin.createNSString().get()
                 rectInWebView:rectInWebView
                 children:children
                 eventListeners:eventListeners

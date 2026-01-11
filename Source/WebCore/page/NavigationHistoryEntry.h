@@ -28,6 +28,7 @@
 #include "ActiveDOMObject.h"
 #include "EventHandler.h"
 #include "EventTarget.h"
+#include "EventTargetInterfaces.h"
 #include "HistoryItem.h"
 #include "ReferrerPolicy.h"
 #include "ScriptExecutionContextIdentifier.h"
@@ -103,3 +104,5 @@ private:
 };
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(NavigationHistoryEntry)

@@ -45,7 +45,7 @@ public:
     }
 
     bool hasOneRef() const { return m_refCount == 1; }
-    unsigned refCount() const { return m_refCount; }
+    uint32_t refCount() const { return m_refCount; }
 
     // Debug APIs
     void adopted() { m_refCountDebugger.adopted(); }
@@ -84,7 +84,7 @@ protected:
     }
 
 private:
-    mutable std::atomic<unsigned> m_refCount { 1 };
+    mutable std::atomic<uint32_t> m_refCount { 1 };
     NO_UNIQUE_ADDRESS RefCountDebugger m_refCountDebugger;
 };
 

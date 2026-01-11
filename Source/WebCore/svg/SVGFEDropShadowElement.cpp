@@ -125,12 +125,10 @@ bool SVGFEDropShadowElement::setFilterEffectAttribute(FilterEffect& filterEffect
         return effect.setDx(dx());
     case AttributeNames::dyAttr:
         return effect.setDy(dy());
-    case AttributeNames::flood_colorAttr: {
-        auto& style = renderer()->style();
-        return effect.setShadowColor(style.colorResolvingCurrentColor(style.floodColor()));
-    }
+    case AttributeNames::flood_colorAttr:
+        return effect.setShadowColor(renderer()->checkedStyle()->floodColorResolvingCurrentColor());
     case AttributeNames::flood_opacityAttr:
-        return effect.setShadowOpacity(renderer()->style().floodOpacity().value.value);
+        return effect.setShadowOpacity(renderer()->checkedStyle()->floodOpacity().value.value);
     default:
         break;
     }
@@ -159,9 +157,8 @@ RefPtr<FilterEffect> SVGFEDropShadowElement::createFilterEffect(const FilterEffe
     if (stdDeviationX() < 0 || stdDeviationY() < 0)
         return nullptr;
 
-    auto& style = renderer->style();
-
-    return FEDropShadow::create(stdDeviationX(), stdDeviationY(), dx(), dy(), style.colorWithColorFilter(style.floodColor()), style.floodOpacity().value.value);
+    CheckedRef style = renderer->style();
+    return FEDropShadow::create(stdDeviationX(), stdDeviationY(), dx(), dy(), style->floodColorResolvingCurrentColorApplyingColorFilter(), style->floodOpacity().value.value);
 }
 
 } // namespace WebCore

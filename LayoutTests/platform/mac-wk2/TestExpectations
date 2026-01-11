@@ -32,6 +32,7 @@ fast/web-share [ Pass ]
 imported/w3c/web-platform-tests/web-share [ Pass ]
 media/modern-media-controls/overflow-support [ Pass ]
 http/tests/media/modern-media-controls/overflow-support [ Pass ]
+http/tests/text-extraction [ Pass ]
 media/modern-media-controls/tracks-support [ Pass ]
 remote-layer-tree [ Pass ]
 remote-layer-tree/ios [ Skip ]
@@ -577,11 +578,7 @@ webkit.org/b/149087 [ Debug ] http/tests/cache/disk-cache/disk-cache-vary.html [
 webkit.org/b/147075 [ Debug ] http/tests/cache/disk-cache/disk-cache-disable.html [ Pass Failure Timeout ]
 webkit.org/b/149087 [ Debug ] http/tests/cache/disk-cache/disk-cache-vary-no-body.html [ Pass Failure Timeout ]
 
-webkit.org/b/150241 webarchive/loading/object.html [ Pass Crash ]
-
 webkit.org/b/150942 animations/multiple-backgrounds.html [ Pass ImageOnlyFailure ]
-
-webkit.org/b/151326 webarchive/loading/missing-data.html [ Pass Crash ]
 
 webkit.org/b/151455 [ Release ] http/tests/xmlhttprequest/workers/methods-async.html [ Pass Timeout ]
 
@@ -590,7 +587,6 @@ webkit.org/b/150542 fast/forms/state-restore-per-form.html [ Pass Timeout ]
 webkit.org/b/254706 imported/w3c/web-platform-tests/html/dom/idlharness.https.html [ Pass Failure ]
 
 webkit.org/b/151709 [ Release ] http/tests/xmlhttprequest/workers/methods.html [ Pass Timeout ]
-
 
 # webkit.org/b/263955 Twelve css WPTs are failing with async overflow scrolling enabled on macOS
 imported/w3c/web-platform-tests/css/compositing/mix-blend-mode/mix-blend-mode-parent-element-overflow-scroll.html [ ImageOnlyFailure ]
@@ -1035,8 +1031,6 @@ webkit.org/b/207938 http/wpt/crypto/derive-hmac-key-crash.any.html [ Pass Crash 
 
 webkit.org/b/207962 accessibility/mac/aria-menu-item-selected-notification.html [ Slow ]
 [ Debug ] accessibility/mac/line-index-for-textmarker.html [ Slow ]
-
-webkit.org/b/208014 [ Debug ] http/tests/websocket/tests/hybi/no-subprotocol.html [ Pass Crash ]
 
 webkit.org/b/208062 http/wpt/fetch/disable-speculative-for-reload.html [ Pass Failure ]
 
@@ -1778,7 +1772,6 @@ http/tests/webgpu/webgpu/shader/execution/flow_control/switch.html [ Pass ]
 webkit.org/b/264306 fast/scrolling/mac/scrollbars/very-wide-overlay-scrollbar.html [ Pass ImageOnlyFailure Timeout ]
 
 webkit.org/b/265599 [ Sonoma+ Debug x86_64 ] imported/w3c/web-platform-tests/html/browsers/the-window-object/open-close/open-features-tokenization-noreferrer.html [ Pass Crash ]
-imported/w3c/web-platform-tests/html/browsers/the-window-object/open-close/open_initial_size.html [ Skip ]
 
 # WindowProxy property access delegate callbacks are only implemented on Mac and iOS WK2.
 http/wpt/opener/child-access-parent-via-windowproxy.html [ Pass ]
@@ -2386,8 +2379,6 @@ webkit.org/b/299830 imported/w3c/web-platform-tests/storage-access-api/hasStorag
 
 webkit.org/b/299826 [ Release x86_64 ] media/modern-media-controls/media-controller/media-controller-click-on-video-background-should-pause.html [ Crash ]
 
-webkit.org/b/300864 imported/w3c/web-platform-tests/css/css-viewport/zoom/filters-drop-shadow.html [ Pass ImageOnlyFailure ]
-
 webkit.org/b/301153 [ Debug ] fast/parser/entity-comment-in-textarea.html [ Pass Timeout ]
 
 webkit.org/b/301566 [ Debug ] imported/w3c/web-platform-tests/custom-elements/registries/Element-innerHTML.html [ Skip ]
@@ -2438,13 +2429,20 @@ webkit.org/b/303507 [ Sonoma+ Debug ] inspector/injected-script/observable.html 
 webkit.org/b/303507 [ Sonoma+ Debug ] inspector/network/intercept-aborted-request.html [ Timeout ]
 webkit.org/b/303507 [ Sonoma+ Debug ] inspector/page/filter-cookies-for-domain.html [ Timeout ]
 
-webkit.org/b/304079 [ Debug ] http/tests/ipc/ipc-fetch-task-message-crash.html [ Timeout ]
-
 webkit.org/b/304427 fast/html/HTMLPluginElement-renderer-destroyed-crash.html [ Skip ]
 
 webkit.org/b/304616 fast/images/mac/play-all-pause-all-animations-context-menu-items.html [ Pass Timeout ]
 
-# webkit.org/b/304651 REGRESSION(304792@main): [macOS iOS] Flaky crash in site-isolation tests
-[ Release ] http/tests/site-isolation/history/add-iframes-and-navigate-mainframe.html [ Skip ]
-[ Release ] http/tests/site-isolation/focus-click-navigation-activeElement.html [ Skip ]
-[ Release ] http/tests/site-isolation/history/add-iframes-and-go-back.html [ Skip ]
+webkit.org/b/304851 imported/w3c/web-platform-tests/workers/worker-performance.worker.html [ Pass Failure ]
+
+# webkit.org/b/304865 [macOS Debug ] ASSERTION FAILED: m_wrapper /Volumes/Data/worker/macOS-Tahoe-Debug-Build-EWS/build/Source/WebCore/bindings/js/ in fast/webgpu/repro_301290.html
+[ Debug ] fast/webgpu/repeated-out-of-memory-error.html [ Skip ]
+[ Debug ] fast/webgpu/repro_301290.html [ Skip ]
+
+webkit.org/b/304995 [ Release ] imported/w3c/web-platform-tests/largest-contentful-paint/video-poster.html [ Pass Failure ]
+
+# webkit.org/b/305026 REGRESSION (305166@main): [ macOS ] http/tests/lazyload/lazy-image-load-in-iframes-scripting-disabled.html is a flaky crash
+http/tests/lazyload/lazy-image-load-in-iframes-scripting-disabled.html [ Pass Crash ]
+http/tests/lists/list-new-parent-no-sibling-append.html [ Pass Crash ]
+
+webkit.org/b/305086 [ arm64 ] imported/w3c/web-platform-tests/media-source/mediasource-changetype-play-without-codecs-parameter.html [ Pass Failure ]

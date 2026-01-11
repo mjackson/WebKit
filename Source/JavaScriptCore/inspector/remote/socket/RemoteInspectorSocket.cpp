@@ -131,8 +131,6 @@ TargetListing RemoteInspector::listingForInspectionTarget(const RemoteInspection
     targetListing->setBoolean("hasLocalDebugger"_s, target.hasLocalDebugger());
     if (target.type() == RemoteInspectionTarget::Type::WebPage || target.type() == RemoteInspectionTarget::Type::LegacyWebPage)
         targetListing->setString("type"_s, "web-page"_s);
-    else if (target.type() == RemoteInspectionTarget::Type::Page)
-        targetListing->setString("type"_s, "page"_s);
     else if (target.type() == RemoteInspectionTarget::Type::JavaScript)
         targetListing->setString("type"_s, "javascript"_s);
     else if (target.type() == RemoteInspectionTarget::Type::ServiceWorker)

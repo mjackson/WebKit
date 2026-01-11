@@ -209,8 +209,10 @@ void VideoPresentationInterfaceLMK::exitExternalPlayback()
         }
         invalidatePlayerViewController();
 
-        if (RefPtr model = this->videoPresentationModel())
+        if (RefPtr model = this->videoPresentationModel()) {
+            model->setRequiresTextTrackRepresentation(false);
             model->didExitExternalPlayback();
+        }
 
         if (handler)
             handler(success);
@@ -249,8 +251,10 @@ void VideoPresentationInterfaceLMK::didSetVideoReceiverEndpoint()
 
     ALWAYS_LOG_IF_POSSIBLE(LOGIDENTIFIER);
 
-    if (RefPtr model = this->videoPresentationModel())
+    if (RefPtr model = this->videoPresentationModel()) {
+        model->setRequiresTextTrackRepresentation(true);
         model->didEnterExternalPlayback();
+    }
 }
 
 UIViewController *VideoPresentationInterfaceLMK::playerViewController() const

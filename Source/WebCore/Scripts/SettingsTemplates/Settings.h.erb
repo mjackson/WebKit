@@ -72,7 +72,8 @@ struct SettingsValues {
 };
 
 class Settings : public SettingsBase, public RefCounted<Settings> {
-    WTF_MAKE_NONCOPYABLE(Settings); WTF_DEPRECATED_MAKE_FAST_ALLOCATED(Settings);
+    WTF_MAKE_NONCOPYABLE(Settings);
+    WTF_MAKE_TZONE_ALLOCATED(Settings);
 public:
     WEBCORE_EXPORT static Ref<Settings> create(Page*);
     WEBCORE_EXPORT virtual ~Settings();

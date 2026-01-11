@@ -153,13 +153,13 @@ void CSSImportRule::setMediaQueries(MQ::MediaQueryList&& queries)
     m_importRule->setMediaQueries(WTF::move(queries));
 }
 
-void CSSImportRule::getChildStyleSheets(HashSet<RefPtr<CSSStyleSheet>>& childStyleSheets)
+void CSSImportRule::getChildStyleSheets(HashSet<Ref<CSSStyleSheet>>& childStyleSheets)
 {
     RefPtr sheet = styleSheet();
     if (!sheet)
         return;
 
-    if (childStyleSheets.add(sheet).isNewEntry)
+    if (childStyleSheets.add(*sheet).isNewEntry)
         sheet->getChildStyleSheets(childStyleSheets);
 }
 

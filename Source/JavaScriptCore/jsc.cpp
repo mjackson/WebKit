@@ -4316,6 +4316,9 @@ void CommandLine::parseArguments(int argc, char** argv, int start)
         constexpr auto wasmDebugOption = "--wasm-debugger"_s;
         bool isBareOption = argView.length() == wasmDebugOption.length();
         if (argView.startsWith(wasmDebugOption) && (isBareOption || argView[wasmDebugOption.length()] == '=')) {
+#if !CPU(ARM64)
+            dataLogLn("ERROR: --wasm-debugger only supported on ARM64");
+#else
             JSC::Options::enableWasmDebugger() = true;
             JSC::Options::useBBQJIT() = false;
             JSC::Options::useOMGJIT() = false;
@@ -4326,6 +4329,7 @@ void CommandLine::parseArguments(int argc, char** argv, int start)
                 else
                     dataLogLn("ERROR: invalid port number for --wasm-debugger=", suffix);
             }
+#endif
             continue;
         }
 #endif
@@ -4407,7 +4411,7 @@ int runJSC(const CommandLine& options, bool isWorker, const Func& func)
 
 #if ENABLE(WEBASSEMBLY)
             if (Options::enableWasmDebugger()) [[unlikely]]
-                Wasm::DebugServer::singleton().start(&vm);
+                Wasm::DebugServer::singleton().start();
 #endif
 
             func(vm, globalObject, success);

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2010 Google Inc. All rights reserved.
- * Copyright (C) 2016-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2016-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -45,6 +45,7 @@
 #include "Performance.h"
 #include "PlatformMediaSessionManager.h"
 #include "Settings.h"
+#include <wtf/CryptographicallyRandomNumber.h>
 #include <wtf/MediaTime.h>
 #include <wtf/TZoneMallocInlines.h>
 
@@ -595,8 +596,9 @@ std::optional<NowPlayingInfo> AudioContext::nowPlayingInfo() const
             { },
             { }
         },
-        MediaPlayer::invalidTime(),
-        MediaPlayer::invalidTime(),
+        cryptographicallyRandomNumber<uint64_t>(),
+        std::numeric_limits<double>::quiet_NaN(),
+        std::numeric_limits<double>::quiet_NaN(),
         1.0,
         false,
         m_currentIdentifier,

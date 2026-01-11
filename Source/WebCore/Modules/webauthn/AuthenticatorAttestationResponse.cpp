@@ -196,7 +196,7 @@ RegistrationResponseJSON::AuthenticatorAttestationResponseJSON AuthenticatorAtte
     for (auto transport : getTransports())
         transports.append(toString(transport));
     RegistrationResponseJSON::AuthenticatorAttestationResponseJSON value;
-    if (auto clientData = clientDataJSON())
+    if (RefPtr clientData = clientDataJSON())
         value.clientDataJSON = base64URLEncodeToString(clientData->span());
     value.transports = transports;
     if (auto authData = getAuthenticatorData())

@@ -195,9 +195,6 @@ void WebSWContextManagerConnection::installServiceWorker(ServiceWorkerContextDat
             WebPage::adjustSettingsForLockdownMode(page->settings(), m_preferencesStore ? &m_preferencesStore.value() : nullptr);
 
         page->setupForRemoteWorker(contextData.scriptURL, contextData.registration.key.topOrigin(), contextData.referrerPolicy, advancedPrivacyProtections);
-#if ENABLE(REMOTE_INSPECTOR)
-        page->setInspectable(inspectable == ServiceWorkerIsInspectable::Yes);
-#endif // ENABLE(REMOTE_INSPECTOR)
 
         std::unique_ptr<WebCore::NotificationClient> notificationClient;
 #if ENABLE(NOTIFICATIONS)

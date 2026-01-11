@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2023 Apple Inc. All rights reserved.
+ * Copyright (C) 2011-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -443,7 +443,7 @@ MediaPlayerPrivateAVFoundationObjC::~MediaPlayerPrivateAVFoundationObjC()
     [[m_avAsset resourceLoader] setDelegate:nil queue:0];
 
     for (auto& pair : m_resourceLoaderMap) {
-        m_targetDispatcher->dispatch([loader = pair.value] () mutable {
+        m_targetDispatcher->dispatch([loader = pair.value] mutable {
             loader->stopLoading();
         });
     }
@@ -803,20 +803,20 @@ void MediaPlayerPrivateAVFoundationObjC::createAVAssetForURL(const URL& url)
     if (!player)
         return;
 
-    player->getRawCookies(url, [this, weakThis = ThreadSafeWeakPtr { *this }, options = WTF::move(options), url] (auto cookies) mutable {
+    player->getRawCookies(url, [weakThis = ThreadSafeWeakPtr { *this }, options = WTF::move(options), url](auto cookies) mutable {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
             return;
 
         if (cookies.size()) {
-            auto nsCookies = createNSArray(cookies, [] (auto& cookie) -> NSHTTPCookie * {
+            auto nsCookies = createNSArray(cookies, [](auto& cookie) -> NSHTTPCookie * {
                 return cookie.createNSHTTPCookie().autorelease();
             });
 
             [options setObject:nsCookies.get() forKey:AVURLAssetHTTPCookiesKey];
         }
 
-        createAVAssetForURL(url, WTF::move(options));
+        protectedThis->createAVAssetForURL(url, WTF::move(options));
     });
 #else
     createAVAssetForURL(url, WTF::move(options));
@@ -922,7 +922,7 @@ void MediaPlayerPrivateAVFoundationObjC::createAVAssetForURL(const URL& url, Ret
 
     auto outOfBandTrackSources = player->outOfBandTrackSources();
     if (!outOfBandTrackSources.isEmpty()) {
-        auto outOfBandTracks = createNSArray(outOfBandTrackSources, [] (auto& trackSource) {
+        auto outOfBandTracks = createNSArray(outOfBandTrackSources, [](auto& trackSource) {
             return @{
                 AVOutOfBandAlternateTrackDisplayNameKey: trackSource->label().createNSString().get(),
                 AVOutOfBandAlternateTrackExtendedLanguageTagKey: trackSource->language().createNSString().get(),
@@ -1127,7 +1127,7 @@ void MediaPlayerPrivateAVFoundationObjC::createAVPlayer()
 #endif
 
     ASSERT(!m_currentTimeObserver);
-    m_currentTimeObserver = [m_avPlayer addPeriodicTimeObserverForInterval:PAL::CMTimeMake(1, 10) queue:mainDispatchQueueSingleton() usingBlock:[weakThis = ThreadSafeWeakPtr { *this }, identifier = LOGIDENTIFIER] (CMTime cmTime) {
+    m_currentTimeObserver = [m_avPlayer addPeriodicTimeObserverForInterval:PAL::CMTimeMake(1, 10) queue:mainDispatchQueueSingleton() usingBlock:[weakThis = ThreadSafeWeakPtr { *this }, identifier = LOGIDENTIFIER](CMTime cmTime) {
         ensureOnMainThread([weakThis, cmTime, identifier] {
             RefPtr protectedThis = weakThis.get();
             if (!protectedThis)
@@ -1319,9 +1319,9 @@ RetainPtr<PlatformLayer> MediaPlayerPrivateAVFoundationObjC::createVideoFullscre
 
 void MediaPlayerPrivateAVFoundationObjC::setVideoFullscreenLayer(PlatformLayer* videoFullscreenLayer, Function<void()>&& completionHandler)
 {
-    auto completion = [videoFullscreenLayer, completionHandler = WTF::move(completionHandler), protectedThis = Ref { *this }]() mutable {
+    auto completion = [videoFullscreenLayer = retainPtr(videoFullscreenLayer), completionHandler = WTF::move(completionHandler), protectedThis = Ref { *this }] mutable {
         RefPtr lastImage = protectedThis->m_lastImage;
-        protectedThis->m_videoLayerManager->setVideoFullscreenLayer(videoFullscreenLayer, WTF::move(completionHandler), lastImage ? lastImage->platformImage() : nullptr);
+        protectedThis->m_videoLayerManager->setVideoFullscreenLayer(videoFullscreenLayer.get(), WTF::move(completionHandler), lastImage ? lastImage->platformImage() : nullptr);
         protectedThis->updateVideoLayerGravity(ShouldAnimate::Yes);
         protectedThis->updateDisableExternalPlayback();
     };
@@ -1402,12 +1402,12 @@ void MediaPlayerPrivateAVFoundationObjC::sceneIdentifierDidChange()
 }
 #endif
 
-void MediaPlayerPrivateAVFoundationObjC::didEnd()
+void MediaPlayerPrivateAVFoundationObjC::didEnd(double now)
 {
     m_requestedPlaying = false;
     m_timeControlStatusAtCachedCurrentTime = AVPlayerTimeControlStatusPaused;
     m_wallClockAtCachedCurrentTime = std::nullopt;
-    MediaPlayerPrivateAVFoundation::didEnd();
+    MediaPlayerPrivateAVFoundation::didEnd(now);
 }
 
 void MediaPlayerPrivateAVFoundationObjC::platformSetVisible(bool isVisible)
@@ -2298,7 +2298,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
             continue;
 
         String language = [locale localeIdentifier];
-        auto track = m_chapterTracks.ensure(language, [&]() {
+        auto track = m_chapterTracks.ensure(language, [&] {
             auto track = InbandChapterTrackPrivateAVFObjC::create(locale, m_currentTextTrackID++);
             if (player)
                 player->addTextTrack(track.get());
@@ -3051,7 +3051,7 @@ AVAssetTrack* MediaPlayerPrivateAVFoundationObjC::firstEnabledTrack(AVMediaChara
         return nil;
 
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
-    return [] (NSArray* tracks) -> AVAssetTrack* {
+    return [](NSArray* tracks) -> AVAssetTrack* {
         NSUInteger index = [tracks indexOfObjectPassingTest:^(id obj, NSUInteger, BOOL *) {
             return [static_cast<AVAssetTrack*>(obj) isEnabled];
         }];
@@ -4257,13 +4257,17 @@ NSArray* playerKVOProperties()
     });
 }
 
-- (void)didEnd:(NSNotification *)unusedNotification
+- (void)didEnd:(NSNotification *)notification
 {
-    UNUSED_PARAM(unusedNotification);
-    ensureOnMainThread([self, strongSelf = retainPtr(self)] {
+    AVPlayerItem* playerItem = notification.object;
+    double currentTime = 0;
+    if ([playerItem isKindOfClass:PAL::getAVPlayerItemClassSingleton()])
+        currentTime = PAL::CMTimeGetSeconds([playerItem currentTime]);
+
+    ensureOnMainThread([self, currentTime, strongSelf = retainPtr(self)] {
         if (RefPtr player = m_player.get()) {
-            player->queueTaskOnEventLoop([player = WTF::move(player)] {
-                player->didEnd();
+            player->queueTaskOnEventLoop([player = WTF::move(player), currentTime] {
+                player->didEnd(currentTime);
             });
         }
     });
@@ -4283,8 +4287,8 @@ NSArray* playerKVOProperties()
 
 - (void)observeValueForKeyPath:keyPath ofObject:(id)object change:(NSDictionary *)change context:(MediaPlayerAVFoundationObservationContext)context
 {
-    auto queueTaskOnEventLoopWithPlayer = [self, strongSelf = retainPtr(self)] (Function<void(MediaPlayerPrivateAVFoundationObjC&)>&& function) mutable {
-        ensureOnMainThread([self, strongSelf = WTF::move(strongSelf), function = WTF::move(function)] () mutable {
+    auto queueTaskOnEventLoopWithPlayer = [self, strongSelf = retainPtr(self)](Function<void(MediaPlayerPrivateAVFoundationObjC&)>&& function) mutable {
+        ensureOnMainThread([self, strongSelf = WTF::move(strongSelf), function = WTF::move(function)] mutable {
             if (RefPtr player = m_player.get()) {
                 player->queueTaskOnEventLoop([player = WTF::move(player), function = WTF::move(function)] {
                     ScriptDisallowedScope::InMainThread scriptDisallowedScope;
@@ -4300,16 +4304,16 @@ NSArray* playerKVOProperties()
         id newValue = [change valueForKey:NSKeyValueChangeNewKey];
         auto seekableTimeRanges = RetainPtr<NSArray> { newValue };
 
-        RefPtr { m_backgroundQueue }->dispatch([seekableTimeRanges = WTF::move(seekableTimeRanges), playerItem = RetainPtr<AVPlayerItem> { object }, queueTaskOnEventLoopWithPlayer] () mutable {
+        RefPtr { m_backgroundQueue }->dispatch([seekableTimeRanges = WTF::move(seekableTimeRanges), playerItem = RetainPtr<AVPlayerItem> { object }, queueTaskOnEventLoopWithPlayer] mutable {
             auto seekableTimeRangesLastModifiedTime = [playerItem seekableTimeRangesLastModifiedTime];
             auto liveUpdateInterval = [playerItem liveUpdateInterval];
-            queueTaskOnEventLoopWithPlayer([seekableTimeRanges = WTF::move(seekableTimeRanges), seekableTimeRangesLastModifiedTime, liveUpdateInterval] (auto& player) mutable {
+            queueTaskOnEventLoopWithPlayer([seekableTimeRanges = WTF::move(seekableTimeRanges), seekableTimeRangesLastModifiedTime, liveUpdateInterval](auto& player) mutable {
                 player.seekableTimeRangesDidChange(WTF::move(seekableTimeRanges), seekableTimeRangesLastModifiedTime, liveUpdateInterval);
             });
         });
     }
 
-    queueTaskOnEventLoopWithPlayer([keyPath = RetainPtr { keyPath }, change = RetainPtr { change }, object = RetainPtr { object }, context] (auto& player) mutable {
+    queueTaskOnEventLoopWithPlayer([keyPath = RetainPtr { keyPath }, change = RetainPtr { change }, object = RetainPtr { object }, context](auto& player) mutable {
         id newValue = [change valueForKey:NSKeyValueChangeNewKey];
         bool willChange = [[change valueForKey:NSKeyValueChangeNotificationIsPriorKey] boolValue];
         bool shouldLogValue = !willChange;
@@ -4401,7 +4405,7 @@ NSArray* playerKVOProperties()
 {
     UNUSED_PARAM(output);
 
-    ensureOnMainThread([self, strongSelf = retainPtr(self), strings = retainPtr(strings), nativeSamples = retainPtr(nativeSamples), itemTime]() mutable {
+    ensureOnMainThread([self, strongSelf = retainPtr(self), strings = retainPtr(strings), nativeSamples = retainPtr(nativeSamples), itemTime] mutable {
         if (RefPtr player = m_player.get()) {
             player->queueTaskOnEventLoop([player = WTF::move(player), strings = WTF::move(strings), nativeSamples = WTF::move(nativeSamples), itemTime] {
                 ScriptDisallowedScope::InMainThread scriptDisallowedScope;
@@ -4481,7 +4485,7 @@ NSArray* playerKVOProperties()
     if (!player)
         return NO;
 
-    ensureOnMainThread([self, strongSelf = retainPtr(self), loadingRequest = retainPtr(loadingRequest)]() mutable {
+    ensureOnMainThread([self, strongSelf = retainPtr(self), loadingRequest = retainPtr(loadingRequest)] mutable {
         if (RefPtr player = m_player.get()) {
             player->queueTaskOnEventLoop([player = WTF::move(player), loadingRequest = WTF::move(loadingRequest)] {
                 if (!player->shouldWaitForLoadingOfResource(loadingRequest.get()))
@@ -4504,7 +4508,7 @@ NSArray* playerKVOProperties()
 - (void)resourceLoader:(AVAssetResourceLoader *)resourceLoader didCancelLoadingRequest:(AVAssetResourceLoadingRequest *)loadingRequest
 {
     UNUSED_PARAM(resourceLoader);
-    ensureOnMainThread([self, strongSelf = retainPtr(self), loadingRequest = retainPtr(loadingRequest)]() mutable {
+    ensureOnMainThread([self, strongSelf = retainPtr(self), loadingRequest = retainPtr(loadingRequest)] mutable {
         if (RefPtr player = m_player.get()) {
             player->queueTaskOnEventLoop([player = WTF::move(player), loadingRequest = WTF::move(loadingRequest)] {
                 ScriptDisallowedScope::InMainThread scriptDisallowedScope;

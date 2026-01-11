@@ -278,21 +278,14 @@ TEST(WTF, MemoryDumpRange)
     uint8_t data[] = { 0x41, 0x42, 0x43, 0x44, 0x45 }; // "ABCDE"
 
     // Test range with pointers in correct order
-    MemoryDump dump1 = MemoryDump(data, data + 5);
+    MemoryDump dump1 = MemoryDump(std::span { data });
     EXPECT_EQ(dump1.span().data(), reinterpret_cast<const std::byte*>(data));
     EXPECT_EQ(dump1.span().size(), 5u);
     EXPECT_EQ(dump1.sizeLimit(), MemoryDump::DefaultSizeLimit);
-    EXPECT_EQ(dump1.invertedEnd(), nullptr);
-
-    // Test range with pointers in reverse order
-    MemoryDump dump2(data + 5, data);
-    EXPECT_EQ(dump2.span().data(), reinterpret_cast<const std::byte*>(data + 5));
-    EXPECT_EQ(dump2.span().size(), 0u);
-    EXPECT_EQ(dump2.invertedEnd(), reinterpret_cast<const std::byte*>(data));
 
     // Test range with custom size limit
     constexpr size_t customLimit = 256;
-    MemoryDump dump3(data, data + 3, customLimit);
+    MemoryDump dump3(std::span { data }.first(3), customLimit);
     EXPECT_EQ(dump3.span().data(), reinterpret_cast<const std::byte*>(data));
     EXPECT_EQ(dump3.span().size(), 3u);
     EXPECT_EQ(dump3.sizeLimit(), customLimit);
@@ -303,12 +296,6 @@ TEST(WTF, MemoryDumpRange)
     auto result1 = stream1.tryToString();
     EXPECT_TRUE(result1.has_value());
     EXPECT_TRUE(result1.value().contains("ABCDE"_s));
-
-    StringPrintStream stream2;
-    stream2.print(dump2);
-    auto result2 = stream2.tryToString();
-    EXPECT_TRUE(result2.has_value());
-    EXPECT_TRUE(result2.value().contains("span end is below the start"_s));
 }
 
 } // namespace TestWebKitAPI

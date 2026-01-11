@@ -36,11 +36,13 @@
 #include "CSSPositionTryRule.h"
 #include "CSSSelectorParser.h"
 #include "CSSViewTransitionRule.h"
+#include "CustomFunctionRegistry.h"
 #include "Document.h"
 #include "MediaQueryEvaluator.h"
 #include "MutableCSSSelector.h"
 #include "StyleCustomPropertyRegistry.h"
 #include "StyleResolver.h"
+#include "StyleRuleFunction.h"
 #include "StyleRuleImport.h"
 #include "StyleScope.h"
 #include "StyleSheetContents.h"
@@ -237,12 +239,33 @@ void RuleSetBuilder::addChildRule(Ref<StyleRuleBase> rule)
         return;
     }
 
+    case StyleRuleType::Function: {
+        disallowDynamicMediaQueryEvaluationIfNeeded();
+
+        auto functionRule = uncheckedDowncast<StyleRuleFunction>(WTF::move(rule));
+        m_currentFunctionDeclarationsList.clear();
+        addChildRules(functionRule->childRules());
+
+        if (m_resolver) {
+            m_functionDeclarationsMap.ensure(functionRule, [&] {
+                return std::exchange(m_currentFunctionDeclarationsList, { });
+            });
+            m_collectedResolverMutatingRules.append({ functionRule, m_currentCascadeLayerIdentifier });
+        }
+        return;
+    }
+    case StyleRuleType::FunctionDeclarations: {
+        disallowDynamicMediaQueryEvaluationIfNeeded();
+
+        auto functionDeclarations = uncheckedDowncast<StyleRuleFunctionDeclarations>(WTF::move(rule));
+        m_currentFunctionDeclarationsList.append(WTF::move(functionDeclarations));
+        return;
+    }
+
     case StyleRuleType::Import:
     case StyleRuleType::Margin:
     case StyleRuleType::Namespace:
     case StyleRuleType::FontFeatureValuesBlock:
-    case StyleRuleType::Function:
-    case StyleRuleType::FunctionDeclarations:
         return;
 
     case StyleRuleType::Charset:
@@ -544,6 +567,11 @@ void RuleSetBuilder::addMutatingRulesToResolver()
             m_ruleSet->m_positionTryRules.set(positionTryRule->name(), positionTryRule);
         }
 
+        if (auto* functionRule = dynamicDowncast<StyleRuleFunction>(rule.get())) {
+            auto declarationsList = m_functionDeclarationsMap.get(*functionRule);
+            CheckedRef registry = m_resolver->ensureCustomFunctionRegistry();
+            registry->registerFunction(*functionRule, declarationsList);
+        }
     }
 }
 

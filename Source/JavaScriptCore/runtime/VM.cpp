@@ -135,6 +135,8 @@
 #include "VMManager.h"
 #include "VariableEnvironment.h"
 #include "WaiterListManager.h"
+#include "WasmDebugServerUtilities.h"
+#include "WasmExecutionHandler.h"
 #include "WasmWorklist.h"
 #include "Watchdog.h"
 #include "WeakGCMapInlines.h"
@@ -160,6 +162,11 @@
 
 #if ENABLE(WEBASSEMBLY)
 #include "JSWebAssemblyInstance.h"
+#endif
+
+#if PLATFORM(COCOA)
+#include <notify.h>
+#include <wtf/darwin/DispatchExtras.h>
 #endif
 
 namespace JSC {
@@ -389,14 +396,34 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
     if (Options::useProfiler()) [[unlikely]] {
         m_perBytecodeProfiler = makeUnique<Profiler::Database>(*this);
 
-        if (Options::dumpProfilerDataAtExit()) [[unlikely]] {
-            StringPrintStream pathOut;
-            const char* profilerPath = getenv("JSC_PROFILER_PATH");
-            if (profilerPath)
-                pathOut.print(profilerPath, "/");
-            pathOut.print("JSCProfile-", getCurrentProcessID(), "-", m_perBytecodeProfiler->databaseID(), ".json");
-            m_perBytecodeProfiler->registerToSaveAtExit(pathOut.toCString().data());
-        }
+        StringPrintStream pathOut;
+        const char* profilerPath = getenv("JSC_PROFILER_PATH");
+        if (profilerPath)
+            pathOut.print(profilerPath, "/");
+        pathOut.print("JSCProfile-", getCurrentProcessID(), "-", m_perBytecodeProfiler->databaseID(), ".json");
+        static NeverDestroyed<CString> pathOutString = pathOut.toCString();
+
+#if PLATFORM(COCOA)
+        static std::once_flag registerFlag;
+        std::call_once(registerFlag, [this]() {
+            int pid = getpid();
+            const char* key = "com.apple.WebKit.bytecode.profiler";
+            dataLogF("<BYTECODE.STAT><%d> Registering callback for dumping profiles, dumping to %s.\n", pid, pathOutString->data());
+            dataLogF("<BYTECODE.STAT><%d> Use `notifyutil -v -p %s` to dump statistics.\n", pid, key);
+
+            int token;
+            notify_register_dispatch(key, &token, mainDispatchQueueSingleton(), ^(int) {
+                dataLogF("<BYTECODE.STAT><%d> Dumping\n", pid);
+                if (!m_perBytecodeProfiler->save(pathOutString->data()))
+                    dataLogF("<BYTECODE.STAT><%d> Failed to dump to %s. Do you need to add a sandbox extension? ((allow file-write* (subpath \"/private/tmp/\")) in WebProcess.sb.in\n", pid, pathOutString->data());
+                else
+                    dataLogF("<BYTECODE.STAT><%d> Dumped to %s\n", pid, pathOutString->data());
+            });
+        });
+#endif
+
+        if (Options::dumpProfilerDataAtExit()) [[unlikely]]
+            m_perBytecodeProfiler->registerToSaveAtExit(pathOutString->data());
     }
 
     // Initialize this last, as a free way of asserting that VM initialization itself
@@ -444,6 +471,11 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
     if (Options::useTracePoints())
         requestEntryScopeService(EntryScopeService::TracePoints);
+
+#if ENABLE(WEBASSEMBLY)
+    if (Options::enableWasmDebugger()) [[unlikely]]
+        m_debugState = makeUnique<Wasm::DebugState>();
+#endif
 
 #if ENABLE(JIT)
     // Make sure that any stubs that the JIT is going to use are initialized in non-compilation threads.
@@ -546,6 +578,14 @@ VM::~VM()
 
 #if ENABLE(JIT)
     m_sharedJITStubs = nullptr;
+#endif
+
+#if ENABLE(WEBASSEMBLY)
+    if (Options::enableWasmDebugger()) [[unlikely]] {
+        auto& debugServer = Wasm::DebugServer::singleton();
+        if (debugServer.isConnected())
+            debugServer.execution().notifyVMDestruction(this);
+    }
 #endif
 }
 
@@ -1356,7 +1396,7 @@ void VM::drainMicrotasks()
                         return dispatcher->run(task);
 
                     auto catchScope = DECLARE_CATCH_SCOPE(*this);
-                    runInternalMicrotask(globalObject, task.job(), task.arguments());
+                    runInternalMicrotask(globalObject, task.job(), task.payload(), task.arguments());
                     catchScope.clearExceptionExceptTermination();
                     return QueuedTask::Result::Executed;
                 });
@@ -1485,6 +1525,13 @@ Ref<Waiter> VM::syncWaiter()
     return m_syncWaiter;
 }
 
+JSValue VM::checkVMEntryPermission()
+{
+    if (Options::crashOnDisallowedVMEntry() || g_jscConfig.vmEntryDisallowed)
+        CRASH_WITH_EXTRA_SECURITY_IMPLICATION_AND_INFO(VMEntryDisallowed, "VM entry disallowed"_s);
+    return jsUndefined();
+}
+
 JSPropertyNameEnumerator* VM::emptyPropertyNameEnumeratorSlow()
 {
     ASSERT(!m_emptyPropertyNameEnumerator);
@@ -1526,19 +1573,19 @@ NativeExecutable* VM::promiseFirstResolvingFunctionRejectExecutableSlow()
     return executable;
 }
 
-NativeExecutable* VM::promiseResolvingFunctionResolveWithoutPromiseExecutableSlow()
+NativeExecutable* VM::promiseResolvingFunctionResolveWithInternalMicrotaskExecutableSlow()
 {
-    ASSERT(!m_promiseResolvingFunctionResolveWithoutPromiseExecutable);
-    auto* executable = getHostFunction(promiseResolvingFunctionResolveWithoutPromise, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
-    m_promiseResolvingFunctionResolveWithoutPromiseExecutable.setWithoutWriteBarrier(executable);
+    ASSERT(!m_promiseResolvingFunctionResolveWithInternalMicrotaskExecutable);
+    auto* executable = getHostFunction(promiseResolvingFunctionResolveWithInternalMicrotask, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    m_promiseResolvingFunctionResolveWithInternalMicrotaskExecutable.setWithoutWriteBarrier(executable);
     return executable;
 }
 
-NativeExecutable* VM::promiseResolvingFunctionRejectWithoutPromiseExecutableSlow()
+NativeExecutable* VM::promiseResolvingFunctionRejectWithInternalMicrotaskExecutableSlow()
 {
-    ASSERT(!m_promiseResolvingFunctionRejectWithoutPromiseExecutable);
-    auto* executable = getHostFunction(promiseResolvingFunctionRejectWithoutPromise, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
-    m_promiseResolvingFunctionRejectWithoutPromiseExecutable.setWithoutWriteBarrier(executable);
+    ASSERT(!m_promiseResolvingFunctionRejectWithInternalMicrotaskExecutable);
+    auto* executable = getHostFunction(promiseResolvingFunctionRejectWithInternalMicrotask, ImplementationVisibility::Public, callHostFunctionAsConstructor, emptyString());
+    m_promiseResolvingFunctionRejectWithInternalMicrotaskExecutable.setWithoutWriteBarrier(executable);
     return executable;
 }
 
@@ -1800,8 +1847,8 @@ void VM::visitAggregateImpl(Visitor& visitor)
     visitor.append(m_promiseResolvingFunctionRejectExecutable);
     visitor.append(m_promiseFirstResolvingFunctionResolveExecutable);
     visitor.append(m_promiseFirstResolvingFunctionRejectExecutable);
-    visitor.append(m_promiseResolvingFunctionResolveWithoutPromiseExecutable);
-    visitor.append(m_promiseResolvingFunctionRejectWithoutPromiseExecutable);
+    visitor.append(m_promiseResolvingFunctionResolveWithInternalMicrotaskExecutable);
+    visitor.append(m_promiseResolvingFunctionRejectWithInternalMicrotaskExecutable);
     visitor.append(m_promiseCapabilityExecutorExecutable);
     visitor.append(m_promiseAllFulfillFunctionExecutable);
     visitor.append(m_promiseAllSlowFulfillFunctionExecutable);
@@ -1938,5 +1985,13 @@ void VM::DrainMicrotaskDelayScope::decrement()
         m_vm->drainMicrotasks();
     }
 }
+
+#if ENABLE(WEBASSEMBLY)
+Wasm::DebugState* VM::debugState()
+{
+    RELEASE_ASSERT(!!m_debugState);
+    return m_debugState.get();
+}
+#endif
 
 } // namespace JSC

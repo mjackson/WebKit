@@ -290,8 +290,7 @@ AXObjectCache::AXObjectCache(LocalFrame& localFrame, Document* document)
 
     // If loading completed before the cache was created, loading progress will have been reset to zero.
     // Consider loading progress to be 100% in this case.
-    Page* page = localFrame.page();
-    if (page) {
+    if (RefPtr page = localFrame.page()) {
         m_loadingProgress = page->progress().estimatedProgress();
         m_pageActivityState = page->activityState();
     }
@@ -338,11 +337,12 @@ String AXObjectCache::debugDescription() const
 {
     TextStream stream;
     stream << this;
+    RefPtr document = m_document.get();
     return makeString(
         "AXObjectCache "_s,
         stream.release(),
         " { "_s,
-        m_document ? m_document->debugDescription() : "null document"_s,
+        document ? document->debugDescription() : "null document"_s,
         " }"_s
     );
 }
@@ -479,7 +479,7 @@ bool AXObjectCache::isNodeVisible(const Node* node) const
     if (!element)
         return false;
 
-    auto* renderer = element->renderer();
+    CheckedPtr renderer = element->renderer();
     if (!renderer)
         return false;
 
@@ -487,14 +487,14 @@ bool AXObjectCache::isNodeVisible(const Node* node) const
     if (style.display() == DisplayType::None)
         return false;
 
-    auto* renderLayer = renderer->enclosingLayer();
+    CheckedPtr renderLayer = renderer->enclosingLayer();
     if (isVisibilityHidden(style) && renderLayer && !renderLayer->hasVisibleContent())
         return false;
 
     // Check whether this object or any of its ancestors has opacity 0.
     // The resulting opacity of a RenderObject is computed as the multiplication
     // of its opacity times the opacities of its ancestors.
-    for (auto* ancestor = renderer; ancestor; ancestor = ancestor->parent()) {
+    for (CheckedPtr ancestor = renderer; ancestor; ancestor = ancestor->parent()) {
         if (ancestor->style().opacity().isTransparent())
             return false;
     }
@@ -1497,7 +1497,6 @@ void AXObjectCache::handleLiveRegionCreated(Element& element)
 #if PLATFORM(COCOA)
         if (m_liveRegionManager) {
             m_liveRegionManager->registerLiveRegion(*axObject, true);
-            return;
         }
 #endif
 
@@ -2090,7 +2089,7 @@ void AXObjectCache::onSlottedContentChange(const HTMLSlotElement& slot)
 
 void AXObjectCache::onDetailsSummarySlotChange(const HTMLDetailsElement& details)
 {
-    for (auto& summary : childrenOfType<HTMLSummaryElement>(const_cast<HTMLDetailsElement&>(details))) {
+    for (Ref summary : childrenOfType<HTMLSummaryElement>(const_cast<HTMLDetailsElement&>(details))) {
         if (RefPtr object = get(summary))
             m_deferredRecomputeActiveSummaryList.add(*object);
     }
@@ -2103,8 +2102,8 @@ void AXObjectCache::onRadioGroupMembershipChanged(HTMLElement& radio)
             if (sibling.ptr() == &radio)
                 continue;
 
-            if (auto* axObject = get(sibling.ptr()))
-                postNotification(axObject, &sibling->document(), AXNotification::RadioGroupMembershipChanged);
+            if (RefPtr axObject = get(sibling.ptr()))
+                postNotification(axObject.get(), sibling->protectedDocument().ptr(), AXNotification::RadioGroupMembershipChanged);
         }
     }
 }
@@ -2227,7 +2226,7 @@ bool AXObjectCache::onTextColorChange(Element& element, const RenderStyle* oldSt
     if (!tree)
         return false;
 
-    if (oldStyle->visitedDependentColor(CSSPropertyColor) != newStyle->visitedDependentColor(CSSPropertyColor)) {
+    if (oldStyle->visitedDependentColor() != newStyle->visitedDependentColor()) {
         postNotification(*object, AXNotification::TextColorChanged);
         return true;
     }
@@ -2275,7 +2274,7 @@ void AXObjectCache::onStyleChange(RenderText& renderText, Style::Difference diff
         return;
 
 #if ENABLE(AX_THREAD_TEXT_APIS)
-    if (oldStyle->visitedDependentColor(CSSPropertyBackgroundColor) != newStyle.visitedDependentColor(CSSPropertyBackgroundColor))
+    if (oldStyle->visitedDependentBackgroundColor() != newStyle.visitedDependentBackgroundColor())
         tree->queueNodeUpdate(object->objectID(), { AXProperty::BackgroundColor });
 
     if (oldStyle->verticalAlign() != newStyle.verticalAlign())
@@ -3109,9 +3108,10 @@ void AXObjectCache::handleAttributeChange(Element* element, const QualifiedName&
             bool updatedLabelFor = updateLabelFor(*label);
 
             if (updatedLabelFor) {
-                if (RefPtr oldControl = element->treeScope().elementByIdResolvingReferenceTarget(oldValue))
+                Ref treeScope = element->treeScope();
+                if (RefPtr oldControl = treeScope->elementByIdResolvingReferenceTarget(oldValue))
                     postNotification(oldControl.get(), AXNotification::TextChanged);
-                if (RefPtr newControl = element->treeScope().elementByIdResolvingReferenceTarget(newValue))
+                if (RefPtr newControl = treeScope->elementByIdResolvingReferenceTarget(newValue))
                     postNotification(newControl.get(), AXNotification::TextChanged);
             }
         }
@@ -3298,8 +3298,8 @@ void AXObjectCache::handleAttributeChange(Element* element, const QualifiedName&
             childrenChanged(parent.get());
 #endif // ENABLE(INCLUDE_IGNORED_IN_CORE_AX_TREE)
 
-        if (m_currentModalElement && m_currentModalElement->isDescendantOf(element))
-            deferModalChange(*m_currentModalElement);
+        if (RefPtr currentModalElement = m_currentModalElement.get(); currentModalElement && currentModalElement->isDescendantOf(element))
+            deferModalChange(*currentModalElement);
     } else if (attrName == aria_invalidAttr)
         postNotification(element, AXNotification::InvalidStatusChanged);
     else if (attrName == aria_modalAttr) {
@@ -4574,9 +4574,10 @@ CharacterOffset AXObjectCache::characterOffsetForPoint(const IntPoint& point, AX
 
 CharacterOffset AXObjectCache::characterOffsetForPoint(const IntPoint& point)
 {
-    if (!m_document)
+    RefPtr document = m_document.get();
+    if (!document)
         return { };
-    auto range = makeSimpleRange(m_document->caretPositionFromPoint(point, HitTestSource::User));
+    auto range = makeSimpleRange(document->caretPositionFromPoint(point, HitTestSource::User));
     if (!range)
         return { };
     return startOrEndCharacterOffsetForRange(*range, true);
@@ -4822,16 +4823,16 @@ void AXObjectCache::performDeferredCacheUpdate(ForceLayout forceLayout)
     };
 
     AXLOGDeferredCollection("RendererChangedList"_s, m_deferredRendererChangedList);
-    for (auto& object : m_deferredRendererChangedList) {
-        object.updateRole();
-        object.recomputeIsIgnored();
+    for (Ref object : m_deferredRendererChangedList) {
+        object->updateRole();
+        object->recomputeIsIgnored();
     }
     m_deferredRendererChangedList.clear();
 
     AXLOGDeferredCollection("RecomputeActiveSummaryList"_s, m_deferredRecomputeActiveSummaryList);
-    for (auto& object : m_deferredRecomputeActiveSummaryList) {
-        object.updateRole();
-        object.recomputeIsIgnored();
+    for (Ref object : m_deferredRecomputeActiveSummaryList) {
+        object->updateRole();
+        object->recomputeIsIgnored();
     }
     m_deferredRecomputeActiveSummaryList.clear();
 
@@ -5902,7 +5903,7 @@ bool AXObjectCache::addRelation(Element& origin, const QualifiedName& attribute)
 
     SpaceSplitString ids(value, SpaceSplitString::ShouldFoldCase::No);
     for (auto& id : ids) {
-        RefPtr target = origin.treeScope().elementByIdResolvingReferenceTarget(id);
+        RefPtr target = origin.protectedTreeScope()->elementByIdResolvingReferenceTarget(id);
         if (!target || target == &origin)
             continue;
 

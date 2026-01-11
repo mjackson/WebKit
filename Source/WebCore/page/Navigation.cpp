@@ -1129,6 +1129,10 @@ Navigation::DispatchResult Navigation::innerDispatchNavigateEvent(NavigationNavi
 
         RefPtr fromNavigationHistoryEntry = currentEntry();
         ASSERT(fromNavigationHistoryEntry);
+        if (!fromNavigationHistoryEntry) {
+            abortOngoingNavigation(event);
+            return DispatchResult::Aborted;
+        }
 
         {
             auto& domGlobalObject = *jsCast<JSDOMGlobalObject*>(scriptExecutionContext->globalObject());

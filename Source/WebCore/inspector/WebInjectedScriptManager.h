@@ -41,23 +41,32 @@ class WebInjectedScriptManager final : public Inspector::InjectedScriptManager, 
 public:
     static Ref<WebInjectedScriptManager> create(Inspector::InspectorEnvironment&, Ref<Inspector::InjectedScriptHost>&&);
 
-    ~WebInjectedScriptManager() override;
+    ~WebInjectedScriptManager() final;
 
-    const RefPtr<CommandLineAPIHost>& commandLineAPIHost() const { return m_commandLineAPIHost; }
+    CommandLineAPIHost* commandLineAPIHost() const { return m_commandLineAPIHost.get(); }
 
-    void connect() override;
-    void disconnect() override;
-    void discardInjectedScripts() override;
+    void addClient();
+    void removeClient();
+
+    void connect() final;
+    void disconnect() final;
+    void discardInjectedScripts() final;
 
     void discardInjectedScriptsFor(LocalDOMWindow&);
 
 private:
+    bool isWebInjectedScriptManager() const final { return true; }
+
     WebInjectedScriptManager(Inspector::InspectorEnvironment&, Ref<Inspector::InjectedScriptHost>&&);
 
-    bool isConnected() const { return m_commandLineAPIHost; }
-    void didCreateInjectedScript(const Inspector::InjectedScript&) override;
+    void didCreateInjectedScript(const Inspector::InjectedScript&) final;
 
     RefPtr<CommandLineAPIHost> m_commandLineAPIHost;
+    int m_clientCount { 0 };
 };
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::WebInjectedScriptManager) \
+    static bool isType(const Inspector::InjectedScriptManager& manager) { return manager.isWebInjectedScriptManager(); } \
+SPECIALIZE_TYPE_TRAITS_END()

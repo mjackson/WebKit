@@ -96,13 +96,13 @@ AuthenticatorResponseData AuthenticatorAssertionResponse::data() const
 AuthenticationResponseJSON::AuthenticatorAssertionResponseJSON AuthenticatorAssertionResponse::toJSON()
 {
     AuthenticationResponseJSON::AuthenticatorAssertionResponseJSON value;
-    if (auto authData = authenticatorData())
+    if (RefPtr authData = authenticatorData())
         value.authenticatorData = base64URLEncodeToString(authData->span());
-    if (auto sig = signature())
+    if (RefPtr sig = signature())
         value.signature = base64URLEncodeToString(sig->span());
     if (auto handle = userHandle())
         value.userHandle = base64URLEncodeToString(handle->span());
-    if (auto clientData = clientDataJSON())
+    if (RefPtr clientData = clientDataJSON())
         value.clientDataJSON = base64URLEncodeToString(clientData->span());
     return value;
 }

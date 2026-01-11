@@ -28,6 +28,8 @@
 
 #include <fcntl.h>
 #include <wtf/FileSystem.h>
+#include <wtf/HashMap.h>
+#include <wtf/Lock.h>
 #include <wtf/StdLibExtras.h>
 
 #if !OS(WINDOWS)

@@ -830,13 +830,7 @@ def frameworkFromJSCPath(jscPath)
         parentDirectory.dirname
     elsif $hostOS == "playstation"
         jscPath.dirname
-    elsif parentDirectory.basename.to_s =~ /^Debug/ or parentDirectory.basename.to_s =~ /^Release/
-        jscPath.dirname + "JavaScriptCore.framework"
-    elsif (parentDirectory / "JavaScriptCore.framework").directory? and (parentDirectory / "jsc").exist?
-        if !(parentDirectory / "JavaScriptCore.framework/Helpers/jsc").exist?
-            $stderr.puts "Warning: jsc binary exists in the specified directory, but not within JavaScriptCore.framework. Copying into the framework.\n"
-            FileUtils.cp((parentDirectory / "jsc"), (parentDirectory / "JavaScriptCore.framework/Helpers/jsc"))
-        end
+    elsif parentDirectory.basename.to_s =~ /^Debug/ or parentDirectory.basename.to_s =~ /^Release/ or (parentDirectory / "JavaScriptCore.framework").directory?
         jscPath.dirname + "JavaScriptCore.framework"
     else
         $stderr.puts "Warning: cannot identify JSC framework, doing generic VM copy.\n"

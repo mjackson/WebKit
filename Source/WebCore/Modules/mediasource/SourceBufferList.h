@@ -90,4 +90,6 @@ WebCoreOpaqueRoot root(SourceBufferList*);
 
 } // namespace WebCore
 
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(SourceBufferList)
+
 #endif // ENABLE(MEDIA_SOURCE)

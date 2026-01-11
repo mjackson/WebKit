@@ -155,4 +155,6 @@ private:
 
 } // namespace WebCore
 
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(MediaKeySession)
+
 #endif // ENABLE(ENCRYPTED_MEDIA)

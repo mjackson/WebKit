@@ -69,7 +69,7 @@ AudioMediaStreamTrackRenderer::AudioMediaStreamTrackRenderer(Init&& init)
     , m_audioModule(WTF::move(init.audioModule))
 #endif
 #if !RELEASE_LOG_DISABLED
-    , m_logger(init.logger)
+    , m_logger(WTF::move(init.logger))
     , m_logIdentifier(init.logIdentifier)
 #endif
 {

@@ -70,7 +70,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(MediaPlayerPrivateMediaFoundation::Direct3DPresent
 WTF_MAKE_TZONE_ALLOCATED_IMPL(MediaPlayerPrivateMediaFoundation::CustomVideoPresenter);
 
 class MediaPlayerPrivateMediaFoundation::AsyncCallback : public IMFAsyncCallback {
-    WTF_MAKE_TZONE_ALLOCATED_INLINE(MediaPlayerPrivateMediaFoundationAsyncCallback);
+    WTF_MAKE_TZONE_ALLOCATED(AsyncCallback);
 public:
     AsyncCallback(Function<void(IMFAsyncResult*)>&& callback)
         : m_callback(WTF::move(callback))
@@ -118,6 +118,8 @@ private:
     Function<void(IMFAsyncResult*)> m_callback;
 };
 
+WTF_MAKE_TZONE_ALLOCATED_IMPL(MediaPlayerPrivateMediaFoundation::AsyncCallback);
+
 MediaPlayerPrivateMediaFoundation::MediaPlayerPrivateMediaFoundation(MediaPlayer& player)
     : m_weakThis(this)
     , m_player(player)
@@ -140,7 +142,7 @@ MediaPlayerPrivateMediaFoundation::~MediaPlayerPrivateMediaFoundation()
 }
 
 class MediaPlayerFactoryMediaFoundation final : public MediaPlayerFactory {
-    WTF_MAKE_TZONE_ALLOCATED_INLINE(MediaPlayerFactoryMediaFoundation);
+    WTF_MAKE_TZONE_ALLOCATED(MediaPlayerFactoryMediaFoundation);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(MediaPlayerFactoryMediaFoundation);
 private:
     MediaPlayerEnums::MediaEngineIdentifier identifier() const final { return MediaPlayerEnums::MediaEngineIdentifier::MediaFoundation; };
@@ -160,6 +162,8 @@ private:
         return MediaPlayerPrivateMediaFoundation::supportsType(parameters);
     }
 };
+
+WTF_MAKE_TZONE_ALLOCATED_IMPL(MediaPlayerFactoryMediaFoundation);
 
 void MediaPlayerPrivateMediaFoundation::registerMediaEngine(MediaEngineRegistrar registrar)
 {

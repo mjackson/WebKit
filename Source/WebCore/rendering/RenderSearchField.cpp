@@ -288,8 +288,8 @@ PopupMenuStyle RenderSearchField::itemStyle(unsigned) const
 PopupMenuStyle RenderSearchField::menuStyle() const
 {
     return PopupMenuStyle(
-        style().visitedDependentColorWithColorFilter(CSSPropertyColor),
-        style().visitedDependentColorWithColorFilter(CSSPropertyBackgroundColor),
+        style().visitedDependentColorApplyingColorFilter(),
+        style().visitedDependentBackgroundColorApplyingColorFilter(),
         style().fontCascade(),
         nullString(),
         style().usedVisibility() == Visibility::Visible,

@@ -35,13 +35,13 @@
 #include "RenderSVGText.h"
 #include "RenderSVGViewportContainer.h"
 #include "RenderStyle+GettersInlines.h"
-#include "RenderStyle+InitialInlines.h"
 #include "RenderStyle+SettersInlines.h"
 #include "RenderTreeBuilderBlock.h"
 #include "RenderTreeBuilderBlockFlow.h"
 #include "RenderTreeBuilderInline.h"
 #include "SVGResourcesCache.h"
 #include "Settings.h"
+#include "StyleComputedStyle+InitialInlines.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
@@ -144,7 +144,7 @@ RenderSVGViewportContainer& RenderTreeBuilder::SVG::findOrCreateParentForChild(R
 
 RenderSVGViewportContainer& RenderTreeBuilder::SVG::createViewportContainer(RenderSVGRoot& parent)
 {
-    auto viewportContainerStyle = RenderStyle::createAnonymousStyleWithDisplay(parent.style(), RenderStyle::initialDisplay());
+    auto viewportContainerStyle = RenderStyle::createAnonymousStyleWithDisplay(parent.style(), Style::ComputedStyle::initialDisplay());
     viewportContainerStyle.setUsedZIndex(0); // Enforce a stacking context.
     viewportContainerStyle.setTransformOriginX(0_css_px);
     viewportContainerStyle.setTransformOriginY(0_css_px);

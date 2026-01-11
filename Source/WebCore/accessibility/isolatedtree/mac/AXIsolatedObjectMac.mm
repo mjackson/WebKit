@@ -341,7 +341,13 @@ AXTextMarkerRange AXIsolatedObject::textMarkerRange() const
         // {ID 5, Role Group}
         //
         // We would expect the returned range to be: {ID 2, offset 0} to {ID 4, offset 3}
-        std::optional stopAtID = idOfNextSiblingIncludingIgnoredOrParent();
+        Ref stopAfterObject = *this;
+
+        if (std::optional stitchGroup = stitchGroupIfRepresentative()) {
+            if (RefPtr lastGroupMember = tree()->objectForID(stitchGroup->members().last()))
+                stopAfterObject = lastGroupMember.releaseNonNull();
+        }
+        std::optional<AXID> stopAtID = stopAfterObject->idOfNextSiblingIncludingIgnoredOrParent();
 
         auto thisMarker = AXTextMarker { *this, 0 };
         AXTextMarkerRange range { thisMarker, thisMarker };

@@ -363,15 +363,6 @@
             "WTF_Condition.OneProducerTenConsumersHundredSlotsNotifyOne": {
                 "expected": {"gtk": {"slow": true, "status": ["TIMEOUT", "PASS"], "bug": "webkit.org/b/246472" }}
             },
-            "WTF_HashMap.InlineWeakPtr": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/304549" }}
-            },
-            "WTF_HashSet.InlineWeakPtr": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/304549" }}
-            },
-            "WTF_ListHashSet.InlineWeakPtr": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/304549" }}
-            },
             "WTF_Lock.ContendedShortSection": {
                 "expected": {"all": {"slow": true, "status": ["TIMEOUT", "PASS"], "bug": "webkit.org/b/260029" }}
             },

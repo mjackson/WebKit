@@ -52,7 +52,7 @@ struct Box {
         StringView renderedContent() const { return m_adjustedContentToRender.isNull() ? originalContent() : m_adjustedContentToRender; }
         bool isAtShapingBoundaryStart() const { return m_shapingBoundary == ShapingBoundary::Start; }
         bool isAtShapingBoundaryEnd() const { return m_shapingBoundary == ShapingBoundary::End; }
-        bool isBetweenShapingBoundaries() const { return m_shapingBoundary == ShapingBoundary::Inside; }
+        bool isInsideShapingBoundary() const { return m_shapingBoundary == ShapingBoundary::Inside; }
         bool hasHyphen() const { return m_hasHyphen; }
         std::optional<size_t> partiallyVisibleContentLength() const;
         void setPartiallyVisibleContentLength(size_t truncatedLength);

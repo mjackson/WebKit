@@ -41,8 +41,6 @@ class FEFloodCoreImageApplier final : public FilterEffectConcreteApplier<FEFlood
 public:
     FEFloodCoreImageApplier(const FEFlood&);
 
-    static bool supportsCoreImageRendering(const FEFlood&);
-
 private:
     bool apply(const Filter&, std::span<const Ref<FilterImage>> inputs, FilterImage& result) const final;
 };

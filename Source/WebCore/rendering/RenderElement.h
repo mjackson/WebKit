@@ -125,7 +125,6 @@ public:
 
     bool hasEligibleContainmentForSizeQuery() const;
 
-    Color selectionColor(CSSPropertyID) const;
     std::unique_ptr<RenderStyle> selectionPseudoStyle() const;
 
     // Obtains the selection colors that should be used when painting a selection.
@@ -443,6 +442,8 @@ private:
     void clearReferencedSVGResources();
 
     const RenderStyle* textSegmentPseudoStyle(PseudoElementType) const;
+
+    template<typename> Color selectionColor() const;
 
     SingleThreadPackedWeakPtr<RenderObject> m_firstChild;
     unsigned m_hasInitializedStyle : 1;

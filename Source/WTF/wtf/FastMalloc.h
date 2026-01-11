@@ -354,6 +354,16 @@ struct NonDestructingDeleter {
     }
 };
 
+// This replicates the same logic as bmalloc::TZoneL::usesTZoneHeap() so that
+// FastMalloc.h doesn't have to include TZoneHeap.h.
+template<typename T>
+inline constexpr bool usesTZoneHeap()
+{
+    if constexpr (requires { std::remove_pointer_t<T>::usesTZoneHeap; })
+        return std::remove_pointer_t<T>::usesTZoneHeap();
+    return false;
+}
+
 } // namespace WTF
 
 #if !defined(NDEBUG)
@@ -428,7 +438,9 @@ using WTF::tryFastCompactMalloc;
 using WTF::tryFastCompactZeroedMalloc;
 using WTF::fastCompactAlignedMalloc;
 
-#define WTF_DEPRECATED_MAKE_FAST_ALLOCATED_IMPL \
+#define WTF_DEPRECATED_MAKE_FAST_ALLOCATED_IMPL(_type) \
+    static_assert(!WTF::usesTZoneHeap<_type>(), "Decendents of TZONE_ALLOCATED classes must also be TZONE_ALLOCATED"); \
+    \
     void* operator new(size_t, void* p) { return p; } \
     void* operator new[](size_t, void* p) { return p; } \
     \
@@ -462,7 +474,9 @@ using WTF::fastCompactAlignedMalloc;
     } \
     using WTFIsFastMallocAllocated = int; \
 
-#define WTF_DEPRECATED_MAKE_FAST_COMPACT_ALLOCATED_IMPL \
+#define WTF_DEPRECATED_MAKE_FAST_COMPACT_ALLOCATED_IMPL(_type) \
+    static_assert(!WTF::usesTZoneHeap<_type>(), "Decendents of TZONE_ALLOCATED classes must also be TZONE_ALLOCATED"); \
+    \
     WTF_ALLOW_COMPACT_POINTERS_IMPL; \
     void* operator new(size_t, void* p) { return p; } \
     void* operator new[](size_t, void* p) { return p; } \
@@ -501,22 +515,22 @@ using WTF::fastCompactAlignedMalloc;
 // https://bugs.webkit.org/show_bug.cgi?id=205702
 #define WTF_DEPRECATED_MAKE_FAST_ALLOCATED(name) \
 public: \
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_IMPL \
+    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_IMPL(name) \
 private: \
 using __thisIsHereToForceASemicolonAfterThisMacro UNUSED_TYPE_ALIAS = int
 
 #define WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(name) \
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_IMPL \
+    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_IMPL(name) \
 using __thisIsHereToForceASemicolonAfterThisMacro UNUSED_TYPE_ALIAS = int
 
 #define WTF_DEPRECATED_MAKE_FAST_COMPACT_ALLOCATED(name) \
 public: \
-    WTF_DEPRECATED_MAKE_FAST_COMPACT_ALLOCATED_IMPL \
+    WTF_DEPRECATED_MAKE_FAST_COMPACT_ALLOCATED_IMPL(name) \
 private: \
 using __thisIsHereToForceASemicolonAfterThisMacro UNUSED_TYPE_ALIAS = int
 
 #define WTF_DEPRECATED_MAKE_STRUCT_FAST_COMPACT_ALLOCATED(name) \
-    WTF_DEPRECATED_MAKE_FAST_COMPACT_ALLOCATED_IMPL \
+    WTF_DEPRECATED_MAKE_FAST_COMPACT_ALLOCATED_IMPL(name) \
 using __thisIsHereToForceASemicolonAfterThisMacro UNUSED_TYPE_ALIAS = int
 
 #if ENABLE(MALLOC_HEAP_BREAKDOWN)
@@ -578,7 +592,7 @@ using __thisIsHereToForceASemicolonAfterThisMacro UNUSED_TYPE_ALIAS = int
 #else // ENABLE(MALLOC_HEAP_BREAKDOWN)
 
 #define WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER_IMPL(className, heapgroup) \
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_IMPL
+    WTF_DEPRECATED_MAKE_FAST_ALLOCATED_IMPL(className)
 
 #define WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(className, heapgroup) \
 public: \
@@ -592,7 +606,7 @@ public: \
 using __thisIsHereToForceASemicolonAfterThisMacro UNUSED_TYPE_ALIAS = int
 
 #define WTF_DEPRECATED_MAKE_FAST_COMPACT_ALLOCATED_WITH_HEAP_IDENTIFIER_IMPL(className, heapgroup) \
-    WTF_DEPRECATED_MAKE_FAST_COMPACT_ALLOCATED_IMPL
+    WTF_DEPRECATED_MAKE_FAST_COMPACT_ALLOCATED_IMPL(className)
 
 #define WTF_DEPRECATED_MAKE_FAST_COMPACT_ALLOCATED_WITH_HEAP_IDENTIFIER(className, heapgroup) \
 public: \

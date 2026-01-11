@@ -49,6 +49,7 @@
 #include "ElementInlines.h"
 #include "ElementTraversal.h"
 #include "FontCache.h"
+#include "FrameDestructionObserverInlines.h"
 #include "HTMLElement.h"
 #include "LocalFrame.h"
 #include "RenderStyle+SettersInlines.h"
@@ -261,7 +262,7 @@ void BuilderState::updateFontForSizeChange()
 void BuilderState::setFontSize(FontCascadeDescription& fontDescription, float size)
 {
     fontDescription.setSpecifiedSize(size);
-    auto computedFontSize = Style::computedFontSizeFromSpecifiedSize(size, fontDescription.isAbsoluteSize(), useSVGZoomRules(), &style(), document());
+    auto computedFontSize = Style::computedFontSizeFromSpecifiedSize(size, fontDescription.isAbsoluteSize(), useSVGZoomRules(), style(), document());
     fontDescription.setComputedSize(computedFontSize.size, computedFontSize.usedZoomFactor);
 }
 

@@ -5,15 +5,12 @@ Modules/entriesapi/FileSystemEntry.cpp
 Modules/entriesapi/FileSystemFileEntry.cpp
 Modules/filesystem/FileSystemFileHandle.cpp
 Modules/identity/CredentialRequestCoordinator.cpp
-Modules/mediacontrols/MediaControlsHost.cpp
 Modules/mediasession/MediaMetadata.cpp
 Modules/mediasession/MediaSession.cpp
 [ Mac ] Modules/mediasession/MediaSessionCoordinator.cpp
 [ Mac ] Modules/mediasession/MediaSessionCoordinator.h
-Modules/mediasource/MediaSourceHandle.cpp
 Modules/mediastream/MediaStreamTrack.cpp
 Modules/mediastream/MediaStreamTrackProcessor.cpp
-Modules/mediastream/RTCController.cpp
 Modules/mediastream/RTCDTMFSender.cpp
 Modules/mediastream/RTCDataChannelRemoteHandler.cpp
 Modules/mediastream/RTCEncodedFrame.cpp
@@ -22,9 +19,7 @@ Modules/mediastream/RTCRtpReceiver.cpp
 Modules/mediastream/RTCRtpSFrameTransform.cpp
 Modules/mediastream/RTCRtpSender.cpp
 Modules/mediastream/RTCRtpTransform.cpp
-Modules/mediastream/UserMediaRequest.cpp
 Modules/mediastream/libwebrtc/LibWebRTCObservers.h
-Modules/model-element/HTMLModelElement.cpp
 [ Mac ] Modules/model-element/scenekit/SceneKitModelPlayer.mm
 Modules/pictureinpicture/HTMLVideoElementPictureInPicture.cpp
 Modules/push-api/PushManager.cpp
@@ -60,9 +55,6 @@ Modules/webaudio/OfflineAudioDestinationNode.cpp
 Modules/webaudio/OscillatorNode.cpp
 Modules/webaudio/PannerNode.cpp
 Modules/webaudio/ScriptProcessorNode.cpp
-Modules/webauthn/AuthenticationExtensionsClientOutputs.cpp
-Modules/webauthn/AuthenticatorCoordinator.cpp
-Modules/webauthn/fido/Pin.cpp
 Modules/webcodecs/WebCodecsAudioData.cpp
 Modules/webcodecs/WebCodecsAudioInternalData.h
 Modules/webcodecs/WebCodecsVideoFrame.cpp
@@ -71,10 +63,7 @@ Modules/webdatabase/DatabaseManager.cpp
 Modules/webdatabase/SQLTransaction.cpp
 Modules/webtransport/WebTransport.cpp
 StyleChangedAnimatablePropertiesGenerated.cpp
-accessibility/AXLogger.cpp
 accessibility/AXObjectCache.cpp
-accessibility/AXObjectCache.h
-accessibility/AXSearchManager.cpp
 accessibility/AccessibilityListBoxOption.cpp
 accessibility/AccessibilityMenuList.cpp
 accessibility/AccessibilityMenuListOption.cpp
@@ -83,13 +72,11 @@ accessibility/AccessibilityNodeObject.cpp
 accessibility/AccessibilityObject.cpp
 accessibility/AccessibilityObject.h
 accessibility/AccessibilityRenderObject.cpp
-accessibility/AccessibilityScrollView.cpp
 accessibility/AccessibilityTableHeaderContainer.cpp
 [ iOS ] accessibility/ios/AXObjectCacheIOS.mm
 [ iOS ] accessibility/ios/AccessibilityObjectIOS.mm
 [ iOS ] accessibility/ios/WebAccessibilityObjectWrapperIOS.mm
 [ Mac ] accessibility/isolatedtree/AXIsolatedTree.cpp
-[ Mac ] accessibility/mac/AXObjectCacheMac.mm
 [ Mac ] accessibility/mac/AccessibilityObjectMac.mm
 [ iOS ] accessibility/mac/WebAccessibilityObjectWrapperBase.mm
 animation/AnimationEffectTiming.cpp
@@ -194,7 +181,6 @@ bindings/js/WebAssemblyScriptBufferSourceProvider.h
 bindings/js/WebCoreJSClientData.cpp
 bindings/js/WebCoreTypedArrayController.cpp
 bindings/js/WindowProxy.cpp
-bindings/js/WorkerModuleScriptLoader.cpp
 bridge/jsc/BridgeJSC.cpp
 bridge/objc/WebScriptObject.mm
 bridge/objc/objc_runtime.mm
@@ -372,7 +358,6 @@ editing/cocoa/WebContentReaderCocoa.mm
 [ Mac ] editing/mac/EditorMac.mm
 editing/mac/FrameSelectionMac.mm
 editing/markup.cpp
-history/CachedPage.cpp
 html/CachedHTMLCollection.h
 html/CachedHTMLCollectionInlines.h
 html/CollectionTraversalInlines.h
@@ -424,9 +409,7 @@ html/parser/HTMLParserScheduler.cpp
 html/parser/HTMLScriptRunner.cpp
 html/parser/HTMLTreeBuilder.cpp
 html/shadow/MediaControlTextTrackContainerElement.cpp
-inspector/CommandLineAPIModule.cpp
 inspector/DOMEditor.cpp
-inspector/DOMPatchSupport.cpp
 inspector/InspectorAuditAccessibilityObject.cpp
 inspector/InspectorCanvas.cpp
 inspector/InspectorCanvas.h
@@ -442,7 +425,6 @@ inspector/InspectorShaderProgram.cpp
 inspector/InspectorStyleSheet.cpp
 inspector/NetworkResourcesData.cpp
 inspector/PageDebugger.cpp
-inspector/PageInspectorController.cpp
 inspector/WebInjectedScriptManager.cpp
 inspector/WorkerDebugger.cpp
 inspector/agents/InspectorAnimationAgent.cpp
@@ -498,7 +480,6 @@ page/EventSource.cpp
 page/FocusController.cpp
 page/FrameDestructionObserver.cpp
 page/FrameSnapshotting.cpp
-page/ImageAnalysisQueue.cpp
 page/ImageOverlayController.cpp
 page/InteractionRegion.cpp
 page/IntersectionObserver.cpp
@@ -511,7 +492,6 @@ page/NavigateEvent.cpp
 page/NavigationDestination.cpp
 page/NavigationDestination.h
 page/PageColorSampler.cpp
-page/PageOverlayController.cpp
 page/PageSerializer.cpp
 page/PartitionedSecurityOrigin.h
 page/Performance.cpp
@@ -533,7 +513,6 @@ page/ScrollBehavior.cpp
 page/SettingsBase.cpp
 page/SpatialNavigation.cpp
 page/UndoItem.cpp
-page/UserMessageHandler.cpp
 page/VisualViewport.cpp
 page/WheelEventTestMonitor.cpp
 page/WheelEventTestMonitor.h
@@ -555,7 +534,6 @@ page/scrolling/AsyncScrollingCoordinator.cpp
 page/scrolling/ScrollAnchoringController.cpp
 page/scrolling/ScrollSnapOffsetsInfo.cpp
 page/scrolling/ScrollingCoordinator.cpp
-[ Mac ] page/scrolling/ScrollingTreeGestureState.cpp
 [ Mac ] page/scrolling/ThreadedScrollingCoordinator.cpp
 [ Mac ] page/scrolling/mac/ScrollingCoordinatorMac.mm
 page/text-extraction/TextExtraction.cpp
@@ -579,7 +557,6 @@ platform/graphics/DisplayRefreshMonitorManager.h
 platform/graphics/FontCache.cpp
 platform/graphics/FontRanges.cpp
 platform/graphics/GraphicsLayer.cpp
-platform/graphics/GraphicsLayer.h
 platform/graphics/ImageAdapter.cpp
 platform/graphics/ImageBackingStore.h
 platform/graphics/ImageBufferContextSwitcher.cpp
@@ -591,12 +568,9 @@ platform/graphics/avfoundation/InbandMetadataTextTrackPrivateAVF.cpp
 platform/graphics/avfoundation/objc/CDMInstanceFairPlayStreamingAVFObjC.mm
 platform/graphics/avfoundation/objc/CDMSessionAVContentKeySession.mm
 platform/graphics/avfoundation/objc/MediaPlayerPrivateMediaStreamAVFObjC.mm
-platform/graphics/avfoundation/objc/MediaSourcePrivateAVFObjC.mm
 platform/graphics/avfoundation/objc/SourceBufferPrivateAVFObjC.mm
 platform/graphics/avfoundation/objc/WebCoreAVFResourceLoader.mm
 platform/graphics/ca/GraphicsLayerCA.cpp
-platform/graphics/ca/TileController.cpp
-platform/graphics/ca/TileCoverageMap.cpp
 platform/graphics/ca/TileGrid.cpp
 platform/graphics/ca/cocoa/PlatformCAAnimationCocoa.mm
 platform/graphics/ca/cocoa/PlatformCALayerCocoa.mm
@@ -643,8 +617,6 @@ platform/graphics/transforms/TransformOperationsSharedPrimitivesPrefix.h
 [ iOS ] platform/ios/wak/WAKWindow.mm
 platform/mediastream/RealtimeOutgoingAudioSource.cpp
 platform/mediastream/RealtimeOutgoingVideoSource.cpp
-platform/mediastream/cocoa/AudioMediaStreamTrackRendererCocoa.cpp
-platform/mediastream/cocoa/AudioMediaStreamTrackRendererUnit.cpp
 platform/mediastream/cocoa/IncomingAudioMediaStreamTrackRendererUnit.cpp
 [ iOS ] platform/mediastream/ios/ReplayKitCaptureSource.mm
 platform/mediastream/mac/MediaStreamTrackAudioSourceProviderCocoa.cpp
@@ -652,7 +624,6 @@ platform/mediastream/mac/RealtimeOutgoingAudioSourceCocoa.cpp
 platform/mediastream/mac/WebAudioSourceProviderCocoa.mm
 platform/mock/MockRealtimeVideoSource.cpp
 platform/mock/RTCNotifiersMock.cpp
-platform/mock/mediasource/MockMediaSourcePrivate.cpp
 platform/network/mac/ResourceHandleMac.mm
 platform/network/mac/WebCoreResourceHandleAsOperationQueueDelegate.mm
 platform/text/BidiContext.cpp
@@ -707,7 +678,6 @@ rendering/RenderProgress.cpp
 rendering/RenderQuote.cpp
 rendering/RenderReplaced.cpp
 rendering/RenderReplica.cpp
-rendering/RenderScrollbar.cpp
 rendering/RenderScrollbarPart.cpp
 rendering/RenderSearchField.cpp
 rendering/RenderTable.cpp
@@ -821,7 +791,6 @@ style/Styleable.h
 style/UserAgentStyle.cpp
 style/computed/StyleComputedStyle.cpp
 style/computed/StyleComputedStyleBase.cpp
-style/computed/StyleComputedStyleProperties+GettersCustomInlines.h
 style/values/primitives/StyleLengthWrapperData.cpp
 style/values/transforms/StyleRotate.cpp
 style/values/transforms/StyleScale.cpp
@@ -906,11 +875,8 @@ svg/properties/SVGValuePropertyListAnimator.h
 svg/properties/SVGValuePropertyListAnimatorImpl.h
 testing/InternalSettings.cpp
 testing/Internals.cpp
-[ Mac ] testing/Internals.mm
 testing/LegacyMockCDM.cpp
 [ Mac ] testing/MockMediaSessionCoordinator.cpp
-testing/MockPageOverlay.cpp
-testing/MockPageOverlayClient.cpp
 testing/ServiceWorkerInternals.cpp
 testing/js/WebCoreTestSupport.cpp
 workers/shared/SharedWorker.cpp

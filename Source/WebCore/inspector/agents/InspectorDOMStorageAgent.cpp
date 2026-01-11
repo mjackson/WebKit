@@ -168,11 +168,11 @@ Inspector::Protocol::ErrorStringOr<void> InspectorDOMStorageAgent::clearDOMStora
 
 String InspectorDOMStorageAgent::storageId(Storage& storage)
 {
-    auto* document = storage.frame()->document();
+    RefPtr document = storage.frame()->document();
     ASSERT(document);
-    auto* window = document->window();
+    RefPtr window = document->window();
     ASSERT(window);
-    Ref<SecurityOrigin> securityOrigin = document->securityOrigin();
+    Ref securityOrigin = document->securityOrigin();
     bool isLocalStorage = window->optionalLocalStorage() == &storage;
     return InspectorDOMStorageAgent::storageId(securityOrigin, isLocalStorage)->toJSONString();
 }
@@ -219,7 +219,7 @@ RefPtr<StorageArea> InspectorDOMStorageAgent::findStorageArea(Inspector::Protoco
         return nullptr;
     }
 
-    auto& document = *targetFrame->document();
+    Ref document = *targetFrame->document();
     if (!*isLocalStorage)
         return m_inspectedPage->storageNamespaceProvider().sessionStorageArea(document);
     return m_inspectedPage->storageNamespaceProvider().localStorageArea(document);

@@ -30,6 +30,7 @@
 #include "EventNames.h"
 #include "HTMLNames.h"
 #include "MouseEvent.h"
+#include "StyleAppearance.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
@@ -67,6 +68,14 @@ void DataListButtonElement::defaultEventHandler(Event& event)
 
     if (!event.defaultHandled())
         HTMLDivElement::defaultEventHandler(event);
+}
+
+bool DataListButtonElement::canAdjustStyleForAppearance() const
+{
+    RefPtr host = shadowHost();
+    if (host && host->existingComputedStyle())
+        return host->existingComputedStyle()->usedAppearance() != StyleAppearance::None;
+    return true;
 }
 
 bool DataListButtonElement::isDisabledFormControl() const

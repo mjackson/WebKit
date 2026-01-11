@@ -45,10 +45,10 @@ class Connection {
 public:
     void send(String&&, CompletionHandler<void()>&& = nullptr) const;
     void send(Vector<uint8_t>&&, CompletionHandler<void()>&& = nullptr) const;
-    void send(OSObjectPtr<dispatch_data_t>&&, CompletionHandler<void(bool)>&& = nullptr) const;
-    SendOperation awaitableSend(Vector<uint8_t>&&);
-    SendOperation awaitableSend(String&&);
-    SendOperation awaitableSend(OSObjectPtr<dispatch_data_t>&&);
+    void send(OSObjectPtr<dispatch_data_t>&&, CompletionHandler<void(bool)>&& = nullptr, bool isComplete = true) const;
+    SendOperation awaitableSend(Vector<uint8_t>&&, bool isComplete = true);
+    SendOperation awaitableSend(String&&, bool isComplete = true);
+    SendOperation awaitableSend(OSObjectPtr<dispatch_data_t>&&, bool isComplete = true);
     void sendAndReportError(Vector<uint8_t>&&, CompletionHandler<void(bool)>&&) const;
     void receiveBytes(CompletionHandler<void(Vector<uint8_t>&&)>&&, size_t minimumSize = 1) const;
     ReceiveBytesOperation awaitableReceiveBytes() const;
@@ -57,6 +57,12 @@ public:
     void webSocketHandshake(CompletionHandler<void()>&& = { });
     void terminate(CompletionHandler<void()>&& = { });
     void cancel();
+#if HAVE(WEB_TRANSPORT)
+    void abortReads(uint64_t errorCode);
+    void abortWrites(uint64_t errorCode);
+    void setRemoteReceiveErrorHandler(CompletionHandler<void(uint64_t)>&&);
+    void setRemoteSendErrorHandler(CompletionHandler<void(uint64_t)>&&);
+#endif // HAVE(WEB_TRANSPORT)
 
 private:
     friend class HTTPServer;
@@ -134,15 +140,17 @@ private:
 
 class SendOperation {
 public:
-    SendOperation(OSObjectPtr<dispatch_data_t>&& data, const Connection& connection)
+    SendOperation(OSObjectPtr<dispatch_data_t>&& data, const Connection& connection, bool isComplete = true)
         : m_data(WTF::move(data))
-        , m_connection(connection) { }
+        , m_connection(connection)
+        , m_isComplete(isComplete) { }
     bool await_ready() { return false; }
     void await_suspend(std::coroutine_handle<>);
     void await_resume() { }
 private:
     OSObjectPtr<dispatch_data_t> m_data;
     Connection m_connection;
+    bool m_isComplete;
 };
 
 } // namespace TestWebKitAPI

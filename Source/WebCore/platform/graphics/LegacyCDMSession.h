@@ -30,13 +30,13 @@
 #include <JavaScriptCore/Forward.h>
 #include <wtf/AbstractRefCountedAndCanMakeWeakPtr.h>
 #include <wtf/Forward.h>
-#include <wtf/TZoneMallocInlines.h>
+#include <wtf/TZoneMalloc.h>
 #include <wtf/WeakPtr.h>
 
 namespace WebCore {
 
 class LegacyCDMSessionClient : public AbstractRefCountedAndCanMakeWeakPtr<LegacyCDMSessionClient> {
-    WTF_MAKE_TZONE_ALLOCATED_INLINE(LegacyCDMSessionClient);
+    WTF_FORBID_HEAP_ALLOCATION_FOR_ABSTRACT_CLASS(LegacyCDMSessionClient);
 public:
     virtual ~LegacyCDMSessionClient() = default;
     virtual void sendMessage(Uint8Array*, String destinationURL) = 0;

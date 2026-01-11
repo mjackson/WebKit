@@ -46,14 +46,14 @@ RemoteMediaResourceProxy::RemoteMediaResourceProxy(Ref<IPC::Connection>&& connec
 
 RemoteMediaResourceProxy::~RemoteMediaResourceProxy() = default;
 
-Ref<WebCore::PlatformMediaResource> RemoteMediaResourceProxy::protectedMediaResource() const
+Ref<WebCore::PlatformMediaResource> RemoteMediaResourceProxy::mediaResource() const
 {
-    return m_platformMediaResource.get().releaseNonNull();
+    return m_platformMediaResource.get();
 }
 
 void RemoteMediaResourceProxy::responseReceived(WebCore::PlatformMediaResource&, const WebCore::ResourceResponse& response, CompletionHandler<void(WebCore::ShouldContinuePolicyCheck)>&& completionHandler)
 {
-    m_connection->sendWithAsyncReply(Messages::RemoteMediaResourceManager::ResponseReceived(m_id, response, protectedMediaResource()->didPassAccessControlCheck()), [completionHandler = WTF::move(completionHandler)](auto shouldContinue) mutable {
+    m_connection->sendWithAsyncReply(Messages::RemoteMediaResourceManager::ResponseReceived(m_id, response, mediaResource()->didPassAccessControlCheck()), [completionHandler = WTF::move(completionHandler)](auto shouldContinue) mutable {
         completionHandler(shouldContinue);
     });
 }

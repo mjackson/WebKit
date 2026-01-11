@@ -103,7 +103,6 @@
 #import <WebCore/RenderTheme.h>
 #import <WebCore/RenderView.h>
 #import <WebCore/ScrollView.h>
-#import <WebCore/StyleInheritedData.h>
 #import <WebCore/TextIterator.h>
 #import <WebCore/VisibleUnits.h>
 #import <WebCore/WindowsKeyboardCodes.h>
@@ -230,7 +229,7 @@ static String commandNameForSelectorName(const String& selectorName)
 {
     // Map selectors into Editor command names.
     // This is not needed for any selectors that have the same name as the Editor command.
-    static constexpr auto selectorExceptions = std::to_array<std::pair<ComparableASCIILiteral, ASCIILiteral>>({
+    static constexpr SortedArrayMap map { std::to_array<std::pair<ComparableASCIILiteral, ASCIILiteral>>({
         { "insertNewlineIgnoringFieldEditor:"_s, "InsertNewline"_s },
         { "insertParagraphSeparator:"_s, "InsertNewline"_s },
         { "insertTabIgnoringFieldEditor:"_s, "InsertTab"_s },
@@ -238,8 +237,7 @@ static String commandNameForSelectorName(const String& selectorName)
         { "pageDownAndModifySelection:"_s, "MovePageDownAndModifySelection"_s },
         { "pageUp:"_s, "MovePageUp"_s },
         { "pageUpAndModifySelection:"_s, "MovePageUpAndModifySelection"_s },
-    });
-    static constexpr SortedArrayMap map { selectorExceptions };
+    }) };
     if (auto commandName = map.tryGet(selectorName))
         return *commandName;
 

@@ -81,4 +81,6 @@ private:
     bool m_needsNotification { false };
 };
 
-}
+} // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(MediaQueryList)

@@ -2,7 +2,7 @@
  * Copyright (C) 1999 Lars Knoll (knoll@kde.org)
  *           (C) 1999 Antti Koivisto (koivisto@kde.org)
  *           (C) 2005 Allan Sandfeld Jensen (kde@carewolf.com)
- *           (C) 2005, 2006 Samuel Weinig (sam.weinig@gmail.com)
+ * Copyright (C) 2005-2026 Samuel Weinig (sam@webkit.org)
  * Copyright (C) 2005-2025 Apple Inc. All rights reserved.
  * Copyright (C) 2010-2018 Google Inc. All rights reserved.
  *
@@ -493,7 +493,7 @@ bool RenderElement::repaintBeforeStyleChange(Style::Difference diff, const Rende
         if (shouldRepaintForStyleDifference(diff))
             return RequiredRepaint::RendererOnly;
 
-        if (newStyle.outlineSize() < oldStyle.outlineSize())
+        if (newStyle.usedOutlineSize() < oldStyle.usedOutlineSize())
             return RequiredRepaint::RendererOnly;
 
         if (auto* modelObject = dynamicDowncast<RenderLayerModelObject>(*this)) {
@@ -1054,7 +1054,7 @@ void RenderElement::styleWillChange(Style::Difference diff, const RenderStyle& n
 
 inline void RenderCounter::rendererStyleChanged(RenderElement& renderer, const RenderStyle* oldStyle, const RenderStyle& newStyle)
 {
-    if ((!oldStyle || oldStyle->counterDirectives().map.isEmpty()) && newStyle.counterDirectives().map.isEmpty())
+    if ((!oldStyle || oldStyle->usedCounterDirectives().map.isEmpty()) && newStyle.usedCounterDirectives().map.isEmpty())
         return;
 
     rendererStyleChangedSlowCase(renderer, oldStyle, newStyle);
@@ -1123,7 +1123,7 @@ void RenderElement::styleDidChange(Style::Difference diff, const RenderStyle* ol
     bool hasOutlineAuto = outlineStyleForRepaint().outlineStyle() == OutlineStyle::Auto;
     if (hasOutlineAuto != hadOutlineAuto) {
         updateOutlineAutoAncestor(hasOutlineAuto);
-        issueRepaintForOutlineAuto(hasOutlineAuto ? outlineStyleForRepaint().outlineSize() : oldStyle->outlineSize());
+        issueRepaintForOutlineAuto(hasOutlineAuto ? outlineStyleForRepaint().usedOutlineSize() : oldStyle->usedOutlineSize());
     }
 
     bool shouldCheckIfInAncestorChain = false;
@@ -1499,7 +1499,7 @@ bool RenderElement::repaintAfterLayoutIfNeeded(SingleThreadWeakPtr<const RenderL
 
     const RenderStyle& outlineStyle = outlineStyleForRepaint();
     auto& style = this->style();
-    auto outlineWidth = LayoutUnit { outlineStyle.outlineSize() };
+    auto outlineWidth = LayoutUnit { outlineStyle.usedOutlineSize() };
     auto insetShadowExtent = Style::shadowInsetExtent(style.boxShadow(), style.usedZoomForLength());
     auto sizeDelta = LayoutSize { absoluteValue(newOutlineBoundsRect.width() - oldOutlineBoundsRect.width()), absoluteValue(newOutlineBoundsRect.height() - oldOutlineBoundsRect.height()) };
     if (sizeDelta.width()) {
@@ -1519,7 +1519,7 @@ bool RenderElement::repaintAfterLayoutIfNeeded(SingleThreadWeakPtr<const RenderL
                 });
             };
             auto outlineRightInsetExtent = [&] -> LayoutUnit {
-                auto offset = Style::evaluate<LayoutUnit>(outlineStyle.outlineOffset(), Style::ZoomNeeded { });
+                auto offset = Style::evaluate<LayoutUnit>(outlineStyle.usedOutlineOffset(), Style::ZoomNeeded { });
                 return offset < 0 ? -offset : 0_lu;
             };
             auto boxShadowRightInsetExtent = [&] {
@@ -1563,7 +1563,7 @@ bool RenderElement::repaintAfterLayoutIfNeeded(SingleThreadWeakPtr<const RenderL
                 });
             };
             auto outlineBottomInsetExtent = [&] -> LayoutUnit {
-                auto offset = Style::evaluate<LayoutUnit>(outlineStyle.outlineOffset(), Style::ZoomNeeded { });
+                auto offset = Style::evaluate<LayoutUnit>(outlineStyle.usedOutlineOffset(), Style::ZoomNeeded { });
                 return offset < 0 ? -offset : 0_lu;
             };
             auto boxShadowBottomInsetExtent = [&]() -> LayoutUnit {
@@ -1876,7 +1876,8 @@ const RenderStyle* RenderElement::textSegmentPseudoStyle(PseudoElementType pseud
     return nullptr;
 }
 
-Color RenderElement::selectionColor(CSSPropertyID colorProperty) const
+template<typename Property>
+Color RenderElement::selectionColor() const
 {
     // If the element is unselectable, or we are only painting the selection,
     // don't override the foreground color with the selection foreground color.
@@ -1885,9 +1886,10 @@ Color RenderElement::selectionColor(CSSPropertyID colorProperty) const
         return Color();
 
     if (auto pseudoStyle = selectionPseudoStyle()) {
-        Color color = pseudoStyle->visitedDependentColorWithColorFilter(colorProperty);
+        Style::ColorPropertyResolver<Style::ColorPropertyTraits<Property>> colorPropertyResolver { *pseudoStyle };
+        auto color = colorPropertyResolver.visitedDependentColorApplyingColorFilter();
         if (!color.isValid())
-            color = pseudoStyle->visitedDependentColorWithColorFilter(CSSPropertyColor);
+            color = pseudoStyle->visitedDependentColorApplyingColorFilter();
         return color;
     }
 
@@ -1916,12 +1918,12 @@ std::unique_ptr<RenderStyle> RenderElement::selectionPseudoStyle() const
 
 Color RenderElement::selectionForegroundColor() const
 {
-    return selectionColor(CSSPropertyWebkitTextFillColor);
+    return selectionColor<PropertyNameConstant<CSSPropertyWebkitTextFillColor>>();
 }
 
 Color RenderElement::selectionEmphasisMarkColor() const
 {
-    return selectionColor(CSSPropertyTextEmphasisColor);
+    return selectionColor<PropertyNameConstant<CSSPropertyTextEmphasisColor>>();
 }
 
 Color RenderElement::selectionBackgroundColor() const
@@ -1930,7 +1932,7 @@ Color RenderElement::selectionBackgroundColor() const
         return Color();
 
     if (frame().selection().shouldShowBlockCursor() && frame().selection().isCaret())
-        return theme().transformSelectionBackgroundColor(style().visitedDependentColorWithColorFilter(CSSPropertyColor), styleColorOptions());
+        return theme().transformSelectionBackgroundColor(style().visitedDependentColorApplyingColorFilter(), styleColorOptions());
 
     auto pseudoStyleCandidate = this;
     if (pseudoStyleCandidate->isAnonymous())
@@ -1938,8 +1940,8 @@ Color RenderElement::selectionBackgroundColor() const
 
     if (pseudoStyleCandidate) {
         auto pseudoStyle = pseudoStyleCandidate->selectionPseudoStyle();
-        if (pseudoStyle && pseudoStyle->visitedDependentColorWithColorFilter(CSSPropertyBackgroundColor).isValid())
-            return theme().transformSelectionBackgroundColor(pseudoStyle->visitedDependentColorWithColorFilter(CSSPropertyBackgroundColor), styleColorOptions());
+        if (pseudoStyle && pseudoStyle->visitedDependentBackgroundColorApplyingColorFilter().isValid())
+            return theme().transformSelectionBackgroundColor(pseudoStyle->visitedDependentBackgroundColorApplyingColorFilter(), styleColorOptions());
     }
 
     if (frame().selection().isFocusedAndActive())
@@ -2107,7 +2109,7 @@ MarginRect RenderElement::absoluteAnchorRectWithScrollMargin(bool* insideFixed) 
     // box of the transformed border box of the target element.
     // See https://www.w3.org/TR/css-scroll-snap-1/#scroll-margin.
     auto marginRect = anchorRect;
-    marginRect.expand(Style::extentForRect(scrollMarginBox, anchorRect));
+    marginRect.expand(Style::extentForRect(scrollMarginBox, anchorRect, style().usedZoomForLength()));
     return { marginRect, anchorRect };
 }
 

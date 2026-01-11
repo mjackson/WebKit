@@ -31,7 +31,10 @@ namespace JSC {
 
 class ScriptFetcher : public RefCounted<ScriptFetcher> {
 public:
-    virtual ~ScriptFetcher() = default;
+    virtual ~ScriptFetcher() { }
+
+    virtual bool isCachedScriptFetcher() const { return false; }
+    virtual bool isWorkerScriptFetcher() const { return false; }
 
 #if USE(BUN_JSC_ADDITIONS)
     enum class Type: uint8_t {

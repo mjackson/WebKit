@@ -47,6 +47,7 @@ public:
     bool isObjectBoundingBoxValid() const { return !m_viewport.isEmpty(); }
     FloatRect strokeBoundingBox() const override { return FloatRect(FloatPoint(), m_viewport.size()); }
     FloatRect repaintRectInLocalCoordinates(RepaintRectCalculation = RepaintRectCalculation::Fast) const override { return FloatRect(FloatPoint(), m_viewport.size()); }
+    FloatRect decoratedBoundingBox() const override { return FloatRect(FloatPoint(), m_viewport.size()); }
 
     bool nodeAtFloatPoint(const HitTestRequest&, HitTestResult&, const FloatPoint& pointInParent, HitTestAction) override;
 

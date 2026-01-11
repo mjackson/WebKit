@@ -65,7 +65,6 @@ public:
         // This gets surfaced also as a "web-page"-typed target in the frontend. The "Legacy" prefix is only there
         // to support static typing, the SPECIALIZE_TYPE_TRAITS_CONTROLLABLE_TARGET in LegacyWebPageDebuggable.
         LegacyWebPage,
-        Page,
         ServiceWorker,
         // This is specifically for the JSC Wasm Debugger server, which is a standalone
         // debugging target for WebAssembly execution. This is NOT used by regular Web Inspector

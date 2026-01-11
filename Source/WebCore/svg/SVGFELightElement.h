@@ -83,3 +83,12 @@ private:
 };
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::SVGFELightElement)
+    static bool isType(const WebCore::SVGElement& element)
+    {
+        return element.hasTagName(WebCore::SVGNames::feDistantLightTag)
+            || element.hasTagName(WebCore::SVGNames::fePointLightTag)
+            || element.hasTagName(WebCore::SVGNames::feSpotLightTag);
+    }
+SPECIALIZE_TYPE_TRAITS_END()

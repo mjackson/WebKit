@@ -4,7 +4,7 @@
  *           (C) 2000 Dirk Mueller (mueller@kde.org)
  * Copyright (C) 2003, 2005, 2006, 2007, 2008, 2022 Apple Inc. All rights reserved.
  * Copyright (C) 2006 Graham Dennis (graham.dennis@gmail.com)
- * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025-2026 Samuel Weinig <sam@webkit.org>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -32,14 +32,9 @@
 
 namespace WebCore {
 
-bool BorderValue::isTransparent() const
-{
-    return color.isResolvedColor() && color.resolvedColor().isValid() && !color.resolvedColor().isVisible();
-}
-
 bool BorderValue::isVisible() const
 {
-    return nonZero() && !isTransparent() && static_cast<BorderStyle>(style) != BorderStyle::Hidden;
+    return nonZero() && !color.isKnownTransparent() && static_cast<BorderStyle>(style) != BorderStyle::Hidden;
 }
 
 TextStream& operator<<(TextStream& ts, const BorderValue& borderValue)

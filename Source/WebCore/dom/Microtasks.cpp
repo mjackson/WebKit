@@ -96,7 +96,7 @@ void MicrotaskQueue::runJSMicrotaskWithDebugger(JSC::JSGlobalObject* globalObjec
 void MicrotaskQueue::runJSMicrotask(JSC::JSGlobalObject* globalObject, JSC::VM& vm, JSC::QueuedTask& task)
 {
     auto scope = DECLARE_CATCH_SCOPE(vm);
-    JSC::runInternalMicrotask(globalObject, task.job(), task.arguments());
+    JSC::runInternalMicrotask(globalObject, task.job(), task.payload(), task.arguments());
     if (scope.exception()) [[unlikely]] {
         auto* exception = scope.exception();
         if (!scope.clearExceptionExceptTermination()) [[unlikely]]

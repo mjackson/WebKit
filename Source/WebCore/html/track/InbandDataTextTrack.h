@@ -59,7 +59,7 @@ private:
 
     RefPtr<DataCue> findIncompleteCue(const SerializedPlatformDataCue&);
 
-    Vector<RefPtr<DataCue>> m_incompleteCueMap;
+    Vector<Ref<DataCue>> m_incompleteCueMap;
 #endif
 };
 

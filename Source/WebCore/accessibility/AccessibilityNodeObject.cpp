@@ -4063,8 +4063,8 @@ String AccessibilityNodeObject::stringValue() const
     }
 
     if (node->isTextNode()) {
-        std::optional stitchGroup  = this->stitchGroup();
-        if (!stitchGroup || stitchGroup->representativeID() != objectID())
+        std::optional stitchGroup = stitchGroupIfRepresentative();
+        if (!stitchGroup)
             return textUnderElement();
 
         // |this| is the sum of several stitched text-like objects. Our string value should
@@ -4074,13 +4074,13 @@ String AccessibilityNodeObject::stringValue() const
         // See AccessibilityObject::shouldCacheStringValue.
         CheckedPtr cache = axObjectCache();
 
-        RefPtr endNode = !stitchGroup->isEmpty() && cache ? lastNode(stitchGroup->members(), *cache) : nullptr;
+        RefPtr endNode = cache ? lastNode(stitchGroup->members(), *cache) : nullptr;
         if (!endNode)
             return textUnderElement();
 
         StringBuilder builder;
         for (AXID axID : stitchGroup->members()) {
-            if (axID == stitchGroup->representativeID())
+            if (axID == objectID())
                 break;
             if (RefPtr object = cache->objectForID(axID)) {
                 // The only objects preceeding the group representative in the accessibility tree are renderer-only

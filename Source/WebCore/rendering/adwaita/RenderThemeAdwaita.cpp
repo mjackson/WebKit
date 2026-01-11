@@ -42,8 +42,8 @@
 #include "RenderObjectInlines.h"
 #include "RenderProgress.h"
 #include "RenderStyle+GettersInlines.h"
-#include "RenderStyle+InitialInlines.h"
 #include "RenderStyle+SettersInlines.h"
+#include "StyleComputedStyle+InitialInlines.h"
 #include "StylePadding.h"
 #include "ThemeAdwaita.h"
 #include "TimeRanges.h"
@@ -339,7 +339,7 @@ void RenderThemeAdwaita::adjustSearchFieldStyle(RenderStyle& style, const Elemen
 void RenderThemeAdwaita::adjustMenuListStyle(RenderStyle& style, const Element* element) const
 {
     RenderTheme::adjustMenuListStyle(style, element);
-    style.setLineHeight(RenderStyle::initialLineHeight());
+    style.setLineHeight(Style::ComputedStyle::initialLineHeight());
 }
 
 void RenderThemeAdwaita::adjustMenuListButtonStyle(RenderStyle& style, const Element* element) const
@@ -397,6 +397,7 @@ int RenderThemeAdwaita::sliderTickOffsetFromTrackCenter() const
 
 void RenderThemeAdwaita::adjustListButtonStyle(RenderStyle& style, const Element*) const
 {
+    style.setLogicalWidth(16_css_px);
     // Add a margin to place the button at end of the input field.
     if (style.isLeftToRightDirection())
         style.setMarginRight(-2_css_px);

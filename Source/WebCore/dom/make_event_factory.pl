@@ -136,7 +136,7 @@ sub generateImplementation()
             print F "        return createWrapper<$interfaceName$suffix>(globalObject, WTF::move(impl));\n";
         } else {
             print F "    case ${namespace}InterfaceType::${interfaceName}:\n";
-            print F "        return toJS(state, globalObject, static_cast<$interfaceName&>(impl));\n";
+            print F "        return toJS(state, globalObject, downcast<$interfaceName>(impl));\n";
         }
         print F "#endif\n" if $conditional;
     }

@@ -433,7 +433,7 @@ private:
     WeakHashSet<ContextDestructionObserver> m_destructionObservers;
     WeakHashSet<ActiveDOMObject> m_activeDOMObjects;
 
-    HashMap<int, RefPtr<DOMTimer>> m_timeouts;
+    HashMap<int, Ref<DOMTimer>> m_timeouts;
 
     struct PendingException;
     std::unique_ptr<Vector<std::unique_ptr<PendingException>>> m_pendingExceptions;

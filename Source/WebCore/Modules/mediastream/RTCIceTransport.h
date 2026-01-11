@@ -99,4 +99,6 @@ private:
 
 } // namespace WebCore
 
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(RTCIceTransport)
+
 #endif // ENABLE(WEB_RTC)

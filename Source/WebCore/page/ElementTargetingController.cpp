@@ -52,7 +52,7 @@
 #include "HTMLNames.h"
 #include "HitTestRequest.h"
 #include "HitTestResult.h"
-#include "LocalFrame.h"
+#include "LocalFrameInlines.h"
 #include "LocalFrameView.h"
 #include "NamedNodeMap.h"
 #include "NodeInlines.h"
@@ -552,6 +552,19 @@ static Vector<Vector<String>> selectorsForTarget(Element& element, ElementSelect
 
     selectorsIncludingShadowHost.append(WTF::move(selectors));
     return selectorsIncludingShadowHost;
+}
+
+RefPtr<Element> ElementTargetingController::elementFromSelectors(Document& document, const TargetedElementSelectors& selectors)
+{
+    return findElementFromSelectors(document, selectors).element;
+}
+
+TargetedElementSelectors ElementTargetingController::selectorsForElement(Element& element)
+{
+    ElementSelectorCache cache;
+    return WTF::map(selectorsForTarget(element, cache), [](auto&& selectors) {
+        return HashSet<String> { WTF::move(selectors) };
+    });
 }
 
 static inline RectEdges<bool> computeOffsetEdges(const RenderStyle& style)
@@ -1736,7 +1749,12 @@ ElementTargetingController::FindElementFromSelectorsResult ElementTargetingContr
     if (!document)
         return { };
 
-    Ref<ContainerNode> containerToQuery = *document;
+    return findElementFromSelectors(*document, selectorsForElementIncludingShadowHosts);
+}
+
+ElementTargetingController::FindElementFromSelectorsResult ElementTargetingController::findElementFromSelectors(Document& document, const TargetedElementSelectors& selectorsForElementIncludingShadowHosts)
+{
+    Ref<ContainerNode> containerToQuery = document;
     size_t indexOfSelectorToQuery = 0;
     for (auto& selectorsToQuery : selectorsForElementIncludingShadowHosts) {
         bool isLastTarget = ++indexOfSelectorToQuery == selectorsForElementIncludingShadowHosts.size();

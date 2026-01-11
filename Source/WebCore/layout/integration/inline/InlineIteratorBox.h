@@ -149,8 +149,10 @@ public:
 
     BoxIterator& traverseLineRightwardOnLine();
     BoxIterator& traverseLineRightwardOnLineSkippingChildren();
+    BoxIterator& traverseLineLeftwardOnLine();
 
     BoxIterator& operator++() { return traverseLineRightwardOnLine(); }
+    BoxIterator& operator--() { return traverseLineLeftwardOnLine(); }
 
     bool atEnd() const;
 

@@ -35,8 +35,8 @@
 #include "LayoutBoxGeometry.h"
 #include "LayoutShape.h"
 #include "RenderStyle+GettersInlines.h"
-#include "RenderStyle+InitialInlines.h"
 #include "RubyFormattingContext.h"
+#include "StyleComputedStyle+InitialInlines.h"
 #include "StyleWebKitLineBoxContain.h"
 #include "TextUtil.h"
 #include "UnicodeBidi.h"
@@ -85,7 +85,7 @@ static inline StringBuilder toString(const Line::RunList& runs)
         if (!run.isText())
             continue;
         auto& textContent = run.textContent();
-        lineContentBuilder.append(StringView(downcast<InlineTextBox>(run.layoutBox()).content()).substring(textContent->start, textContent->length));
+        lineContentBuilder.append(StringView(downcast<InlineTextBox>(run.layoutBox()).content()).substring(textContent.start, textContent.length));
     }
     return lineContentBuilder;
 }
@@ -648,7 +648,7 @@ UniqueRef<LineContent> LineBuilder::placeInlineAndFloatContent(const InlineItemR
                     return;
 
                 auto spaceToDistribute = horizontalAvailableSpace - m_line.contentLogicalWidth() + (m_line.isHangingTrailingContentWhitespace() ? m_line.hangingTrailingContentWidth() : 0.f);
-                if (root().isRubyAnnotationBox() && rootStyle.textAlign() == RenderStyle::initialTextAlign()) {
+                if (root().isRubyAnnotationBox() && rootStyle.textAlign() == Style::ComputedStyle::initialTextAlign()) {
                     lineContent->rubyAnnotationOffset = RubyFormattingContext::applyRubyAlignOnAnnotationBox(m_line, spaceToDistribute, formattingContext());
                     m_line.inflateContentLogicalWidth(spaceToDistribute);
                     m_line.adjustContentRightWithRubyAlign(2 * lineContent->rubyAnnotationOffset);
@@ -1370,12 +1370,17 @@ void LineBuilder::handleBlockContent(const InlineItem& blockItem)
     ASSERT(blockItem.isBlock());
     // Blocks are always the only content on the line.
     ASSERT(!m_line.hasContentOrListMarker());
-    if (!isInIntrinsicWidthMode())
-        formattingContext().integrationUtils().layoutWithFormattingContextForBlockInInline(downcast<ElementBox>(blockItem.layoutBox()), LayoutPoint { m_lineLogicalRect.topLeft() }, layoutState());
-    auto marginBoxLogicalWidth = formattingContext().formattingUtils().inlineItemWidth(blockItem, { }, false);
-    m_line.appendBlock(blockItem, marginBoxLogicalWidth);
+    if (isInIntrinsicWidthMode())
+        return m_line.appendBlock(blockItem, formattingContext().formattingUtils().inlineItemWidth(blockItem, { }, false));
+
     if (rootStyle().writingMode().isBidiRTL())
         m_line.setContentNeedsBidiReordering();
+
+    formattingContext().integrationUtils().layoutWithFormattingContextForBlockInInline(downcast<ElementBox>(blockItem.layoutBox()), LayoutPoint { m_lineLogicalRect.topLeft() }, layoutState());
+    auto contentWidth = InlineLayoutUnit { };
+    if (formattingContext().geometryForBox(blockItem.layoutBox()).borderBoxHeight())
+        contentWidth = formattingContext().formattingUtils().inlineItemWidth(blockItem, { }, false);
+    m_line.appendBlock(blockItem, contentWidth);
 }
 
 LineBuilder::Result LineBuilder::handleInlineContent(const InlineItemRange& layoutRange, LineCandidate& lineCandidate)
@@ -1652,7 +1657,7 @@ void LineBuilder::commitCandidateContent(LineCandidate& lineCandidate, std::opti
                 }
 
                 if (shapingBoundaryStart)
-                    return { Line::ShapingBoundary::Middle };
+                    return { Line::ShapingBoundary::Inside };
 
                 return { };
             };

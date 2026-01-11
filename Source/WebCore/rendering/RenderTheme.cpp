@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2005-2025 Apple Inc. All rights reserved.
  * Copyright (C) 2014 Google Inc. All rights reserved.
- * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025-2026 Samuel Weinig <sam@webkit.org>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -32,6 +32,7 @@
 #include "ColorSerialization.h"
 #include "ColorWellPart.h"
 #include "ContainerNodeInlines.h"
+#include "DataListButtonElement.h"
 #include "DeprecatedGlobalSettings.h"
 #include "Document.h"
 #include "FileList.h"
@@ -67,7 +68,6 @@
 #include "RenderElementInlines.h"
 #include "RenderProgress.h"
 #include "RenderStyle+GettersInlines.h"
-#include "RenderStyle+InitialInlines.h"
 #include "RenderStyle+SettersInlines.h"
 #include "RenderView.h"
 #include "SearchFieldCancelButtonPart.h"
@@ -78,6 +78,7 @@
 #include "SliderTrackPart.h"
 #include "SpinButtonElement.h"
 #include "StringTruncator.h"
+#include "StyleComputedStyle+InitialInlines.h"
 #include "StylePadding.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
 #include "SwitchThumbPart.h"
@@ -454,8 +455,12 @@ StyleAppearance RenderTheme::autoAppearanceForElement(RenderStyle& style, const 
     if (element->isInUserAgentShadowTree()) {
         auto& part = element->userAgentPart();
 
-        if (part == UserAgentParts::webkitListButton())
+        if (RefPtr button = dynamicDowncast<DataListButtonElement>(element)) {
+            ASSERT(part == UserAgentParts::webkitListButton());
+            if (!button->canAdjustStyleForAppearance())
+                return StyleAppearance::None;
             return StyleAppearance::ListButton;
+        }
 
         if (part == UserAgentParts::webkitSearchCancelButton())
             return StyleAppearance::SearchFieldCancelButton;
@@ -842,8 +847,8 @@ ControlStyle RenderTheme::extractControlStyleForRenderer(const RenderElement& re
         style->computedFontSize(),
         style->usedZoom(),
         style->usedAccentColor(renderObject.styleColorOptions()),
-        style->visitedDependentColorWithColorFilter(CSSPropertyColor),
-        Style::evaluate<FloatBoxExtent>(style->borderWidth(), Style::ZoomNeeded { })
+        style->visitedDependentColorApplyingColorFilter(),
+        Style::evaluate<FloatBoxExtent>(style->usedBorderWidths().to<Style::LineWidthBox>(), Style::ZoomNeeded { })
     };
 }
 
@@ -1387,7 +1392,7 @@ void RenderTheme::adjustButtonOrCheckboxOrColorWellOrInnerSpinButtonOrRadioStyle
     auto appearance = style.usedAppearance();
     CheckedRef fontCascade = style.fontCascade();
 
-    auto borderBox = controlBorder(appearance, fontCascade.get(), style.borderWidth(), style.usedZoom(), element);
+    auto borderBox = controlBorder(appearance, fontCascade.get(), style.usedBorderWidths().to<Style::LineWidthBox>(), style.usedZoom(), element);
 
     auto supportsVerticalWritingMode = [](StyleAppearance appearance) {
         return appearance == StyleAppearance::Button
@@ -1400,29 +1405,27 @@ void RenderTheme::adjustButtonOrCheckboxOrColorWellOrInnerSpinButtonOrRadioStyle
     if (!style.writingMode().isHorizontal() && supportsVerticalWritingMode(appearance))
         borderBox = Style::LineWidthBox { borderBox.left(), borderBox.top(), borderBox.right(), borderBox.bottom() };
 
-    if (Style::evaluate<float>(borderBox.top(), Style::ZoomNeeded { }) != Style::evaluate<int>(style.borderTopWidth(), Style::ZoomNeeded { })) {
+    if (Style::evaluate<float>(borderBox.top(), Style::ZoomNeeded { }) != Style::evaluate<int>(style.usedBorderTopWidth(), Style::ZoomNeeded { })) {
         if (!borderBox.top().isZero())
-            style.setBorderTopWidth(borderBox.top());
+            style.setBorderTopWidth(Style::LineWidth { borderBox.top() });
         else
             style.resetBorderTop();
     }
-    if (Style::evaluate<float>(borderBox.right(), Style::ZoomNeeded { }) != Style::evaluate<int>(style.borderRightWidth(), Style::ZoomNeeded { })) {
+    if (Style::evaluate<float>(borderBox.right(), Style::ZoomNeeded { }) != Style::evaluate<int>(style.usedBorderRightWidth(), Style::ZoomNeeded { })) {
         if (!borderBox.right().isZero())
-            style.setBorderRightWidth(borderBox.right());
+            style.setBorderRightWidth(Style::LineWidth { borderBox.right() });
         else
             style.resetBorderRight();
     }
-    if (Style::evaluate<float>(borderBox.bottom(), Style::ZoomNeeded { }) != Style::evaluate<int>(style.borderBottomWidth(), Style::ZoomNeeded { })) {
-        style.setBorderBottomWidth(borderBox.bottom());
+    if (Style::evaluate<float>(borderBox.bottom(), Style::ZoomNeeded { }) != Style::evaluate<int>(style.usedBorderBottomWidth(), Style::ZoomNeeded { })) {
         if (!borderBox.bottom().isZero())
-            style.setBorderBottomWidth(borderBox.bottom());
+            style.setBorderBottomWidth(Style::LineWidth { borderBox.bottom() });
         else
             style.resetBorderBottom();
     }
-    if (Style::evaluate<float>(borderBox.left(), Style::ZoomNeeded { }) != Style::evaluate<int>(style.borderLeftWidth(), Style::ZoomNeeded { })) {
-        style.setBorderLeftWidth(borderBox.left());
+    if (Style::evaluate<float>(borderBox.left(), Style::ZoomNeeded { }) != Style::evaluate<int>(style.usedBorderLeftWidth(), Style::ZoomNeeded { })) {
         if (!borderBox.left().isZero())
-            style.setBorderLeftWidth(borderBox.left());
+            style.setBorderLeftWidth(Style::LineWidth { borderBox.left() });
         else
             style.resetBorderLeft();
     }
@@ -1441,7 +1444,7 @@ void RenderTheme::adjustButtonOrCheckboxOrColorWellOrInnerSpinButtonOrRadioStyle
     // Width / Height
     // The width and height here are affected by the zoom.
     // FIXME: Check is flawed, since it doesn't take min-width/max-width into account.
-    auto zoomForDeterminingControlSize = Style::ZoomFactor { usedZoomForComputedStyle(style), style.deviceScaleFactor() };
+    auto zoomForDeterminingControlSize = Style::ZoomFactor { usedZoomForComputedStyle(style) };
     auto controlSize = this->controlSize(appearance, fontCascade.get(), { style.width(), style.height() }, zoomForDeterminingControlSize.value);
     if (controlSize.width() != style.width())
         style.setWidth(Style::PreferredSize { controlSize.width() });
@@ -1504,7 +1507,7 @@ void RenderTheme::adjustButtonOrCheckboxOrColorWellOrInnerSpinButtonOrRadioStyle
     // Font
     if (auto controlFont = this->controlFont(appearance, fontCascade.get(), style.usedZoom())) {
         // If overriding the specified font with the theme font, also override the line height with the standard line height.
-        style.setLineHeight(RenderStyle::initialLineHeight());
+        style.setLineHeight(Style::ComputedStyle::initialLineHeight());
         style.setFontDescription(WTF::move(controlFont.value()));
     }
 
@@ -1629,7 +1632,7 @@ void RenderTheme::paintSliderTicks(const RenderElement& renderer, const PaintInf
         tickRegionWidth = trackBounds.height() - thumbSize.width();
     }
     GraphicsContextStateSaver stateSaver(paintInfo.context());
-    paintInfo.context().setFillColor(style->visitedDependentColorWithColorFilter(CSSPropertyColor));
+    paintInfo.context().setFillColor(style->visitedDependentColorApplyingColorFilter());
     bool isInlineFlipped = (!isHorizontal && renderer.writingMode().isHorizontal()) || renderer.writingMode().isInlineFlipped();
     for (Ref optionElement : dataList->suggestions()) {
         if (auto optionValue = input->listOptionValueAsDouble(optionElement.get())) {

@@ -40,11 +40,11 @@
 #include "JITBitXorGenerator.h"
 #include "JITInlines.h"
 #include "JITLeftShiftGenerator.h"
-#include "JITOperations.h"
 #include "JITSizeStatistics.h"
 #include "JITThunks.h"
 #include "LLIntEntrypoint.h"
 #include "LLIntThunks.h"
+#include "LOLJITOperations.h"
 #include "LinkBuffer.h"
 #include "MaxFrameExtentForSlowPathCall.h"
 #include "ModuleProgramCodeBlock.h"
@@ -761,12 +761,11 @@ template<typename Op>
 void LOLJIT::emitCommonSlowPathSlowCaseCall(const JSInstruction* currentInstruction, Vector<SlowCaseEntry>::iterator& iter, SlowPathFunction stub)
 {
     auto bytecode = currentInstruction->as<Op>();
-    m_replayAllocator.allocate(*this, bytecode, m_bytecodeIndex);
+    auto allocations = m_replayAllocator.allocate(*this, bytecode, m_bytecodeIndex);
 
     linkAllSlowCases(iter);
 
-    // If a use is the same as a def we have to spill it before the call.
-    silentSpill(m_replayAllocator);
+    silentSpill(m_replayAllocator, allocations);
     JITSlowPathCall slowPathCall(this, stub);
     slowPathCall.call();
     // The slow path will write the result to the stack, so we have silentFill fill it.
@@ -801,7 +800,7 @@ void LOLJIT::emitSlow_op_eq(const JSInstruction* currentInstruction, Vector<Slow
 
     linkAllSlowCases(iter);
 
-    silentSpill(m_replayAllocator, destRegs.payloadGPR());
+    silentSpill(m_replayAllocator, allocations);
     loadGlobalObject(s_scratch);
     callOperation(operationCompareEq, s_scratch, leftRegs, rightRegs);
     boxBoolean(returnValueGPR, destRegs);
@@ -829,12 +828,30 @@ void LOLJIT::emitSlow_op_neq(const JSInstruction* currentInstruction, Vector<Slo
     auto [ leftRegs, rightRegs ] = allocations.uses;
     auto [ destRegs ] = allocations.defs;
 
-    silentSpill(m_replayAllocator, destRegs.payloadGPR());
+    silentSpill(m_replayAllocator, allocations);
     loadGlobalObject(s_scratch);
     callOperation(operationCompareEq, s_scratch, leftRegs, rightRegs);
     xor32(TrustedImm32(0x1), returnValueGPR);
     boxBoolean(returnValueGPR, destRegs);
     silentFill(m_replayAllocator, destRegs.payloadGPR());
+}
+
+void LOLJIT::emitLoadCharacterString(RegisterID src, RegisterID dst, JumpList& failures)
+{
+    failures.append(branchIfNotString(src));
+    loadPtr(MacroAssembler::Address(src, JSString::offsetOfValue()), dst);
+    failures.append(branchIfRopeStringImpl(dst));
+    failures.append(branch32(NotEqual, MacroAssembler::Address(dst, StringImpl::lengthMemoryOffset()), TrustedImm32(1)));
+
+    // FIXME: We could deduplicate the String's data load if we had an extra scratch but we'd have find one for all our callers, which for emitCompareImpl likely entails teaching the allocator about constants.
+    auto is16Bit = branchTest32(Zero, Address(dst, StringImpl::flagsOffset()), TrustedImm32(StringImpl::flagIs8Bit()));
+    loadPtr(MacroAssembler::Address(dst, StringImpl::dataOffset()), dst);
+    load8(MacroAssembler::Address(dst, 0), dst);
+    auto done = jump();
+    is16Bit.link(this);
+    loadPtr(MacroAssembler::Address(dst, StringImpl::dataOffset()), dst);
+    load16(MacroAssembler::Address(dst, 0), dst);
+    done.link(this);
 }
 
 template<typename Op>
@@ -870,9 +887,10 @@ ALWAYS_INLINE void LOLJIT::emitCompareImpl(VirtualRegister op1, JSValueRegs op1R
 
         addSlowCase(branchIfNotCell(rightRegs));
         JumpList failures;
-        emitLoadCharacterString(rightRegs.payloadGPR(), rightRegs.payloadGPR(), failures);
+        // FIXME: We could deduplicate the String's data load in emitLoadCharacterString if we had an extra scratch but we'd have to teach the register allocator about constants to do that unless we wanted to have the scratch in all cases, which doesn't seem worth it.
+        emitLoadCharacterString(rightRegs.payloadGPR(), s_scratch, failures);
         addSlowCase(failures);
-        emitCompare(commute(cond), rightRegs, Imm32(asString(getConstantOperand(left))->tryGetValue(disallowAllocation).data[0]));
+        emitCompare(commute(cond), JSValueRegs { s_scratch }, Imm32(asString(getConstantOperand(left))->tryGetValue(disallowAllocation).data[0]));
         return true;
     };
 
@@ -918,79 +936,82 @@ void LOLJIT::emitCompareSlow(const JSInstruction* instruction, DoubleCondition c
         compareDouble(condition, left, right, s_scratch);
         boxBoolean(s_scratch, dstRegs);
     };
-    emitCompareSlowImpl(op1, op1Regs, op2, op2Regs, dstRegs, operation, iter, emitDoubleCompare);
+    emitCompareSlowImpl(allocations, op1, op1Regs, op2, op2Regs, dstRegs, operation, iter, emitDoubleCompare);
 }
 
-template<typename SlowOperation, typename EmitDoubleCompareFunctor>
-void LOLJIT::emitCompareSlowImpl(VirtualRegister op1, JSValueRegs op1Regs, VirtualRegister op2, JSValueRegs op2Regs, JSValueRegs dstRegs, SlowOperation operation, Vector<SlowCaseEntry>::iterator& iter, const EmitDoubleCompareFunctor& emitDoubleCompare)
+template<typename SlowOperation>
+void LOLJIT::emitCompareSlowImpl(const auto& allocations, VirtualRegister lhs, JSValueRegs lhsRegs, VirtualRegister rhs, JSValueRegs rhsRegs, JSValueRegs dstRegs, SlowOperation operation, Vector<SlowCaseEntry>::iterator& iter, const Invocable<void(FPRReg, FPRReg)> auto& emitDoubleCompare)
 {
     // We generate inline code for the following cases in the slow path:
     // - floating-point number to constant int immediate
     // - constant int immediate to floating-point number
     // - floating-point number to floating-point number.
-    if (isOperandConstantChar(op1) || isOperandConstantChar(op2)) {
+    if (isOperandConstantChar(lhs) || isOperandConstantChar(rhs)) {
         linkAllSlowCases(iter);
 
-        silentSpill(m_replayAllocator, dstRegs.payloadGPR());
+        silentSpill(m_replayAllocator, allocations);
         loadGlobalObject(s_scratch);
-        callOperation(operation, s_scratch, op1Regs, op2Regs);
+        callOperation(operation, s_scratch, lhsRegs, rhsRegs);
         if (dstRegs)
             boxBoolean(returnValueGPR, dstRegs);
         silentFill(m_replayAllocator, dstRegs.payloadGPR());
         return;
     }
 
-    auto handleConstantIntOperandSlow = [&](VirtualRegister op, JSValueRegs op1Regs, FPRReg fpReg1, JSValueRegs op2Regs, FPRReg fpReg2) {
-        if (!isOperandConstantInt(op))
+    constexpr FPRReg lhsFPR = fpRegT0;
+    constexpr FPRReg rhsFPR = fpRegT1;
+    auto handleConstantIntOperandSlow = [&](VirtualRegister maybeConstantOperand, JSValueRegs constantRegs, FPRReg constantFPR, JSValueRegs nonConstantRegs, FPRReg nonConstantFPR) {
+        if (!isOperandConstantInt(maybeConstantOperand))
             return false;
         linkAllSlowCases(iter);
 
-        Jump fail1 = branchIfNotNumber(op2Regs, s_scratch);
-        unboxDouble(op2Regs.payloadGPR(), s_scratch, fpReg2);
+        Jump fail1 = branchIfNotNumber(nonConstantRegs, s_scratch);
+        unboxDouble(nonConstantRegs.payloadGPR(), s_scratch, nonConstantFPR);
 
-        convertInt32ToDouble(op1Regs.payloadGPR(), fpReg1);
+        convertInt32ToDouble(constantRegs.payloadGPR(), constantFPR);
 
-        emitDoubleCompare(fpRegT0, fpRegT1);
+        // We compare these in their original order since we cannot invert double comparisons (due to NaNs)
+        emitDoubleCompare(lhsFPR, rhsFPR);
 
         jump().linkTo(fastPathResumePoint(), this);
 
         fail1.link(this);
 
-        silentSpill(m_replayAllocator, dstRegs.payloadGPR());
+        silentSpill(m_replayAllocator, allocations);
         loadGlobalObject(s_scratch);
-        callOperation(operation, s_scratch, op1Regs, op2Regs);
+        callOperation(operation, s_scratch, lhsRegs, rhsRegs);
         if (dstRegs)
             boxBoolean(returnValueGPR, dstRegs);
         silentFill(m_replayAllocator, dstRegs.payloadGPR());
         return true;
     };
 
-    if (handleConstantIntOperandSlow(op1, op1Regs, fpRegT0, op2Regs, fpRegT1))
+    if (handleConstantIntOperandSlow(lhs, lhsRegs, lhsFPR, rhsRegs, rhsFPR))
         return;
-    if (handleConstantIntOperandSlow(op2, op2Regs, fpRegT1, op1Regs, fpRegT0))
+    if (handleConstantIntOperandSlow(rhs, rhsRegs, rhsFPR, lhsRegs, lhsFPR))
         return;
 
     linkSlowCase(iter); // LHS is not Int.
 
     JumpList slows;
     JIT_COMMENT(*this, "checking for both doubles");
-    slows.append(branchIfNotNumber(op1Regs, s_scratch));
-    slows.append(branchIfNotNumber(op2Regs, s_scratch));
-    // We only have to check if one side is an Int32 as we already must have failed the isInt32(op1) && isInt32(op2) from the fast path.
-    slows.append(branchIfInt32(op2Regs));
-    unboxDouble(op1Regs, s_scratch, fpRegT0);
-    unboxDouble(op2Regs, s_scratch, fpRegT1);
+    slows.append(branchIfNotNumber(lhsRegs, s_scratch));
+    slows.append(branchIfNotNumber(rhsRegs, s_scratch));
+    // We only have to check if rhs is an Int32 as we already must have failed the isInt32(lhs) from the fast path.
+    slows.append(branchIfInt32(rhsRegs));
+    unboxDouble(lhsRegs, s_scratch, lhsFPR);
+    unboxDouble(rhsRegs, s_scratch, rhsFPR);
 
-    emitDoubleCompare(fpRegT0, fpRegT1);
+    emitDoubleCompare(lhsFPR, rhsFPR);
 
     jump().linkTo(fastPathResumePoint(), this);
 
     slows.link(*this);
 
     linkSlowCase(iter); // RHS is not Int.
-    silentSpill(m_replayAllocator, dstRegs.payloadGPR());
+    silentSpill(m_replayAllocator, allocations);
     loadGlobalObject(s_scratch);
-    callOperation(operation, s_scratch, op1Regs, op2Regs);
+    callOperation(operation, s_scratch, lhsRegs, rhsRegs);
     if (dstRegs)
         boxBoolean(returnValueGPR, dstRegs);
     silentFill(m_replayAllocator, dstRegs.payloadGPR());
@@ -1271,7 +1292,7 @@ void LOLJIT::emitMathICFast(JITBinaryMathIC<Generator>* mathIC, const JSInstruct
     if (!generatedInlineCode) {
         // FIXME: We should consider doing a handler IC for math bytecodes.
         BinaryArithProfile* arithProfile = mathIC->arithProfile();
-        silentSpill(m_fastAllocator, destRegs.gpr());
+        silentSpill(m_fastAllocator, allocations);
         loadGlobalObject(s_scratch);
         if (arithProfile && shouldEmitProfiling())
             callOperationWithResult(profiledFunction, destRegs, s_scratch, leftRegs, rightRegs, TrustedImmPtr(arithProfile));
@@ -1323,7 +1344,7 @@ void LOLJIT::emitMathICSlow(JITBinaryMathIC<Generator>* mathIC, const JSInstruct
     auto slowPathStart = label();
 #endif
 
-    silentSpill(m_replayAllocator, destRegs.gpr());
+    silentSpill(m_replayAllocator, allocations);
 
     BinaryArithProfile* arithProfile = mathIC->arithProfile();
     loadGlobalObject(s_scratch);
@@ -1371,7 +1392,7 @@ void LOLJIT::emitMathICFast(JITUnaryMathIC<Generator>* mathIC, const JSInstructi
     if (!generatedInlineCode) {
         UnaryArithProfile* arithProfile = mathIC->arithProfile();
         // FIXME: We should consider doing a handler IC for math bytecodes.
-        silentSpill(m_fastAllocator, destRegs.gpr());
+        silentSpill(m_fastAllocator, allocations);
         loadGlobalObject(s_scratch);
         if (arithProfile && shouldEmitProfiling())
             callOperationWithResult(profiledFunction, destRegs, s_scratch, srcRegs, TrustedImmPtr(arithProfile));
@@ -1410,7 +1431,7 @@ void LOLJIT::emitMathICSlow(JITUnaryMathIC<Generator>* mathIC, const JSInstructi
     auto slowPathStart = label();
 #endif
 
-    silentSpill(m_replayAllocator, destRegs.gpr());
+    silentSpill(m_replayAllocator, allocations);
 
     UnaryArithProfile* arithProfile = mathIC->arithProfile();
     loadGlobalObject(s_scratch);
@@ -1543,6 +1564,7 @@ void LOLJIT::emit_op_get_from_scope(const JSInstruction* currentInstruction)
         static_assert(!(Metadata::offsetOfGetPutInfo() % metadataMinAlignment));
         static_assert(!(Metadata::offsetOfStructureID() % metadataMinAlignment));
         static_assert(!(Metadata::offsetOfOperand() % metadataPointerAlignment));
+        // TODO: We should check if we're going to fall into the default case and do the right thing there.
         auto metadataAddress = computeBaseAddressForMetadata<metadataMinAlignment>(bytecode, metadataGPR);
 
         auto getPutInfoAddress = metadataAddress.withOffset(Metadata::offsetOfGetPutInfo());
@@ -1572,8 +1594,9 @@ void LOLJIT::emit_op_get_from_scope(const JSInstruction* currentInstruction)
         case GlobalLexicalVar: {
             addSlowCase(branch32(NotEqual, s_scratch, TrustedImm32(profiledResolveType)));
             loadPtr(operandAddress, s_scratch);
-            loadValue(Address(s_scratch), destRegs);
-            addSlowCase(branchIfEmpty(destRegs));
+            loadValue(Address(s_scratch), s_scratchRegs);
+            addSlowCase(branchIfEmpty(s_scratchRegs));
+            moveValueRegs(s_scratchRegs, destRegs);
             break;
         }
         default: {
@@ -1595,15 +1618,15 @@ void LOLJIT::emit_op_get_from_scope(const JSInstruction* currentInstruction)
             else
                 code = vm().getCTIStub(generateOpGetFromScopeThunk<GlobalVar>);
 
-            // FIXME: This only needs to save the BaselineJITRegisters::GetFromScope registers.
-            silentSpill(m_fastAllocator, destRegs.gpr());
+            // TODO: This only needs to save the BaselineJITRegisters::GetFromScope registers.
+            silentSpill(m_fastAllocator, allocations);
+
+            move(scopeRegs.payloadGPR(), thunkScopeGPR);
             if (metadataAddress.base != thunkMetadataGPR) {
                 // Materialize metadataGPR for the thunks if we didn't already.
                 uint32_t metadataOffset = m_profiledCodeBlock->metadataTable()->offsetInMetadataTable(bytecode);
                 addPtr(TrustedImm32(metadataOffset), GPRInfo::metadataTableRegister, thunkMetadataGPR);
             }
-            // Thunks expect scopeGPR to have the scope
-            move(scopeRegs.payloadGPR(), thunkScopeGPR);
             move(TrustedImm32(bytecodeOffset), thunkBytecodeOffsetGPR);
             nearCallThunk(CodeLocationLabel { code.retaggedCode<NoPtrTag>() });
             // Thunk returns result in returnValueJSR, move to the allocated register
@@ -1660,8 +1683,8 @@ void LOLJIT::emitSlow_op_get_from_scope(const JSInstruction* currentInstruction,
         code = vm().getCTIStub(generateOpGetFromScopeThunk<GlobalVar>);
 
 
-    silentSpill(m_replayAllocator, destRegs.gpr());
-    // Thunks expect scopeGPR to have the scope
+    silentSpill(m_replayAllocator, allocations);
+
     move(scopeGPR, thunkScopeGPR);
     // Materialize metadataGPR if we didn't already. Has to happen after thunkScopeGPR.
     uint32_t metadataOffset = m_profiledCodeBlock->metadataTable()->offsetInMetadataTable(bytecode);
@@ -1673,6 +1696,689 @@ void LOLJIT::emitSlow_op_get_from_scope(const JSInstruction* currentInstruction,
     silentFill(m_replayAllocator, destRegs.gpr());
     m_replayAllocator.releaseScratches(allocations);
 }
+
+template <ResolveType profiledResolveType>
+MacroAssemblerCodeRef<JITThunkPtrTag> LOLJIT::generateOpGetFromScopeThunk(VM& vm)
+{
+    // The thunk generated by this function can only work with the LLInt / Baseline JIT because
+    // it makes assumptions about the right globalObject being available from CallFrame::codeBlock().
+    // DFG/FTL may inline functions belonging to other globalObjects, which may not match
+    // CallFrame::codeBlock().
+    using Metadata = OpGetFromScope::Metadata;
+
+    using BaselineJITRegisters::GetFromScope::metadataGPR; // Incoming
+    using BaselineJITRegisters::GetFromScope::scopeGPR; // Incoming
+    using BaselineJITRegisters::GetFromScope::bytecodeOffsetGPR; // Incoming - pass through to slow path.
+    using BaselineJITRegisters::GetFromScope::scratch1GPR;
+    UNUSED_PARAM(bytecodeOffsetGPR);
+
+    CCallHelpers jit;
+
+    jit.tagReturnAddress();
+
+    JumpList slowCase;
+
+    auto doVarInjectionCheck = [&] (bool needsVarInjectionChecks) {
+        if (!needsVarInjectionChecks)
+            return;
+        loadGlobalObject(jit, scratch1GPR);
+        jit.loadPtr(Address(scratch1GPR, JSGlobalObject::offsetOfVarInjectionWatchpoint()), scratch1GPR);
+        slowCase.append(jit.branch8(Equal, Address(scratch1GPR, WatchpointSet::offsetOfState()), TrustedImm32(IsInvalidated)));
+    };
+
+    auto emitCode = [&] (ResolveType resolveType) {
+        switch (resolveType) {
+        case GlobalProperty:
+        case GlobalPropertyWithVarInjectionChecks: {
+            // Structure check covers var injection since we don't cache structures for anything but the GlobalObject. Additionally, resolve_scope handles checking for the var injection.
+            jit.load32(Address(metadataGPR, OpGetFromScope::Metadata::offsetOfStructureID()), scratch1GPR);
+            slowCase.append(jit.branch32(NotEqual, Address(scopeGPR, JSCell::structureIDOffset()), scratch1GPR));
+
+            jit.jitAssert(scopedLambda<Jump(void)>([&] () -> Jump {
+                loadGlobalObject(jit, scratch1GPR);
+                return jit.branchPtr(Equal, scopeGPR, scratch1GPR);
+            }));
+
+            jit.loadPtr(Address(metadataGPR, Metadata::offsetOfOperand()), scratch1GPR);
+
+            if (ASSERT_ENABLED) {
+                Jump isOutOfLine = jit.branch32(GreaterThanOrEqual, scratch1GPR, TrustedImm32(firstOutOfLineOffset));
+                jit.abortWithReason(JITOffsetIsNotOutOfLine);
+                isOutOfLine.link(&jit);
+            }
+
+            jit.loadPtr(Address(scopeGPR, JSObject::butterflyOffset()), scopeGPR);
+            jit.negPtr(scratch1GPR);
+            jit.loadValue(BaseIndex(scopeGPR, scratch1GPR, TimesEight, (firstOutOfLineOffset - 2) * sizeof(EncodedJSValue)), returnValueJSR);
+            break;
+        }
+        case GlobalVar:
+        case GlobalVarWithVarInjectionChecks:
+        case GlobalLexicalVar:
+        case GlobalLexicalVarWithVarInjectionChecks:
+            doVarInjectionCheck(needsVarInjectionChecks(resolveType));
+            jit.loadPtr(Address(metadataGPR, Metadata::offsetOfOperand()), scratch1GPR);
+            jit.loadValue(Address(scratch1GPR), returnValueJSR);
+            if (resolveType == GlobalLexicalVar || resolveType == GlobalLexicalVarWithVarInjectionChecks) // TDZ check.
+                slowCase.append(jit.branchIfEmpty(returnValueJSR));
+            break;
+        case ClosureVar:
+        case ClosureVarWithVarInjectionChecks:
+            doVarInjectionCheck(needsVarInjectionChecks(resolveType));
+            jit.loadPtr(Address(metadataGPR,  Metadata::offsetOfOperand()), scratch1GPR);
+            jit.loadValue(BaseIndex(scopeGPR, scratch1GPR, TimesEight, JSLexicalEnvironment::offsetOfVariables()), returnValueJSR);
+            break;
+        case Dynamic:
+            slowCase.append(jit.jump());
+            break;
+        case ResolvedClosureVar:
+        case ModuleVar:
+        case UnresolvedProperty:
+        case UnresolvedPropertyWithVarInjectionChecks:
+            RELEASE_ASSERT_NOT_REACHED();
+        }
+    };
+
+    if (profiledResolveType == ClosureVar || profiledResolveType == ClosureVarWithVarInjectionChecks)
+        emitCode(profiledResolveType);
+    else {
+        JumpList skipToEnd;
+        jit.load32(Address(metadataGPR, Metadata::offsetOfGetPutInfo()), scratch1GPR);
+        jit.and32(TrustedImm32(GetPutInfo::typeBits), scratch1GPR); // Load ResolveType into scratch1GPR
+
+        auto emitCaseWithoutCheck = [&] (ResolveType resolveType) {
+            Jump notCase = jit.branch32(NotEqual, scratch1GPR, TrustedImm32(resolveType));
+            emitCode(resolveType);
+            skipToEnd.append(jit.jump());
+            notCase.link(&jit);
+        };
+
+        auto emitCase = [&] (ResolveType resolveType) {
+            if (profiledResolveType != resolveType)
+                emitCaseWithoutCheck(resolveType);
+        };
+
+        switch (profiledResolveType) {
+        case ResolvedClosureVar:
+        case ModuleVar:
+        case UnresolvedProperty:
+        case UnresolvedPropertyWithVarInjectionChecks:
+            break;
+        default:
+            emitCaseWithoutCheck(profiledResolveType);
+            break;
+        }
+
+        emitCase(GlobalVar);
+        emitCase(GlobalProperty);
+        emitCase(GlobalLexicalVar);
+        emitCase(GlobalVarWithVarInjectionChecks);
+        emitCase(GlobalPropertyWithVarInjectionChecks);
+        emitCase(GlobalLexicalVarWithVarInjectionChecks);
+
+        slowCase.append(jit.jump());
+        skipToEnd.link(&jit);
+    }
+
+    jit.ret();
+
+    slowCase.linkThunk(CodeLocationLabel { vm.getCTIStub(slow_op_get_from_scopeGenerator).retaggedCode<NoPtrTag>() }, &jit);
+
+    LinkBuffer patchBuffer(jit, GLOBAL_THUNK_ID, LinkBuffer::Profile::ExtraCTIThunk);
+    return FINALIZE_THUNK(patchBuffer, JITThunkPtrTag, "get_from_scope"_s, "Baseline: get_from_scope");
+}
+
+MacroAssemblerCodeRef<JITThunkPtrTag> LOLJIT::slow_op_get_from_scopeGenerator(VM& vm)
+{
+    // The thunk generated by this function can only work with the LLInt / Baseline JIT because
+    // it makes assumptions about the right globalObject being available from CallFrame::codeBlock().
+    // DFG/FTL may inline functions belonging to other globalObjects, which may not match
+    // CallFrame::codeBlock().
+    CCallHelpers jit;
+
+    using BaselineJITRegisters::GetFromScope::scopeGPR; // Incoming
+    using BaselineJITRegisters::GetFromScope::metadataGPR; // Incoming
+    using BaselineJITRegisters::GetFromScope::bytecodeOffsetGPR; // Incoming
+    constexpr GPRReg globalObjectGPR = argumentGPR0;
+    static_assert(noOverlap(metadataGPR, bytecodeOffsetGPR, globalObjectGPR, scopeGPR));
+    static_assert(noOverlap(metadataGPR, returnValueGPR));
+
+    jit.emitCTIThunkPrologue(/* returnAddressAlreadyTagged: */ true); // Return address tagged in 'generateOpGetFromScopeThunk'
+
+    jit.store32(bytecodeOffsetGPR, tagFor(CallFrameSlot::argumentCountIncludingThis));
+    jit.prepareCallOperation(vm);
+
+    // save metadataGPR (arguments to call below are in registers on all platforms, so ok to stack this).
+    // Note: we will do a call, so can't use pushToSave, as it does not maintain ABI stack alignment.
+    jit.subPtr(TrustedImmPtr(16), stackPointerRegister);
+    jit.storePtr(metadataGPR, Address(stackPointerRegister));
+
+    jit.setupArguments<decltype(operationGetFromScopeForLOL)>(bytecodeOffsetGPR, scopeGPR);
+    jit.callOperation<OperationPtrTag>(operationGetFromScopeForLOL);
+    Jump exceptionCheck = jit.emitNonPatchableExceptionCheck(vm);
+
+    jit.loadPtr(Address(stackPointerRegister), metadataGPR); // Restore metadataGPR
+    jit.addPtr(TrustedImmPtr(16), stackPointerRegister); // Restore stack pointer
+
+    jit.emitCTIThunkEpilogue();
+    jit.ret();
+
+    exceptionCheck.link(&jit);
+    jit.addPtr(TrustedImmPtr(16), stackPointerRegister); // Restore stack pointer
+
+    jit.jumpThunk(CodeLocationLabel { vm.getCTIStub(popThunkStackPreservesAndHandleExceptionGenerator).retaggedCode<NoPtrTag>() });
+
+    LinkBuffer patchBuffer(jit, GLOBAL_THUNK_ID, LinkBuffer::Profile::ExtraCTIThunk);
+    return FINALIZE_THUNK(patchBuffer, JITThunkPtrTag, "slow_op_get_from_scope"_s, "Baseline: slow_op_get_from_scope");
+}
+
+void LOLJIT::emit_op_put_to_scope(const JSInstruction* currentInstruction)
+{
+    auto bytecode = currentInstruction->as<OpPutToScope>();
+    auto allocations = m_fastAllocator.allocate(*this, bytecode, m_bytecodeIndex);
+    auto [ scopeRegs, valueRegs ] = allocations.uses;
+    auto [ metadataRegs ] = allocations.scratches;
+
+    ResolveType profiledResolveType = bytecode.metadata(m_profiledCodeBlock).m_getPutInfo.resolveType();
+
+    GPRReg scopeGPR = scopeRegs.payloadGPR();
+    GPRReg metadataGPR = metadataRegs.payloadGPR();
+    using Metadata = OpPutToScope::Metadata;
+
+    constexpr size_t metadataPointerAlignment = alignof(void*);
+    static_assert(!(Metadata::offsetOfGetPutInfo() % metadataPointerAlignment));
+    static_assert(!(Metadata::offsetOfStructureID() % metadataPointerAlignment));
+    static_assert(!(Metadata::offsetOfOperand() % metadataPointerAlignment));
+    static_assert(!(Metadata::offsetOfWatchpointSet() % metadataPointerAlignment));
+    auto metadataAddress = computeBaseAddressForMetadata<metadataPointerAlignment>(bytecode, metadataGPR);
+    auto getPutInfoAddress = metadataAddress.withOffset(Metadata::offsetOfGetPutInfo());
+    auto structureIDAddress = metadataAddress.withOffset(Metadata::offsetOfStructureID());
+    auto operandAddress = metadataAddress.withOffset(Metadata::offsetOfOperand());
+    auto watchpointSetAddress = metadataAddress.withOffset(Metadata::offsetOfWatchpointSet());
+
+    auto emitCode = [&] (ResolveType resolveType) {
+        switch (resolveType) {
+        case GlobalProperty:
+        case GlobalPropertyWithVarInjectionChecks: {
+            // Structure check covers var injection since we don't cache structures for anything but the GlobalObject.
+            // Additionally, resolve_scope handles checking for the var injection.
+            load32(structureIDAddress, s_scratch);
+            addSlowCase(branch32(NotEqual, Address(scopeGPR, JSCell::structureIDOffset()), s_scratch));
+
+            jitAssert(scopedLambda<Jump(void)>([&] () -> Jump {
+                loadGlobalObject(s_scratch);
+                return branchPtr(Equal, scopeGPR, s_scratch);
+            }));
+
+            loadPtr(Address(scopeGPR, JSObject::butterflyOffset()), s_scratch);
+            loadPtr(operandAddress, metadataGPR);
+            negPtr(metadataGPR);
+            storeValue(valueRegs, BaseIndex(s_scratch, metadataGPR, TimesEight, (firstOutOfLineOffset - 2) * sizeof(EncodedJSValue)));
+            emitWriteBarrier(m_fastAllocator, allocations, scopeRegs, valueRegs, s_scratch, ShouldFilterValue);
+            break;
+        }
+        case GlobalVar:
+        case GlobalVarWithVarInjectionChecks:
+        case GlobalLexicalVar:
+        case GlobalLexicalVarWithVarInjectionChecks: {
+            emitVarInjectionCheck(needsVarInjectionChecks(resolveType), s_scratch);
+            emitVarReadOnlyCheck(resolveType, s_scratch);
+
+            loadPtr(operandAddress, s_scratch);
+
+            // It would be a bit nicer to do this after the TDZ check below but that would mean the live range of metadataGPR requires a additional scratch.
+            // That said, it shouldn't practically make a difference since we won't be watchpointing an empty value.
+            loadPtr(watchpointSetAddress, metadataGPR);
+            emitNotifyWriteWatchpoint(metadataGPR);
+
+            if (!isInitialization(bytecode.m_getPutInfo.initializationMode()) && (resolveType == GlobalLexicalVar || resolveType == GlobalLexicalVarWithVarInjectionChecks)) {
+                // We need to do a TDZ check here because we can't always prove we need to emit TDZ checks statically.
+                loadValue(Address(s_scratch), metadataRegs);
+                addSlowCase(branchIfEmpty(metadataRegs));
+            }
+
+            storeValue(valueRegs, Address(s_scratch));
+
+            emitWriteBarrier(m_fastAllocator, allocations, scopeRegs, valueRegs, s_scratch, ShouldFilterValue);
+            break;
+        }
+        case ResolvedClosureVar:
+        case ClosureVar:
+        case ClosureVarWithVarInjectionChecks:
+            emitVarInjectionCheck(needsVarInjectionChecks(resolveType), s_scratch);
+
+            loadPtr(watchpointSetAddress, s_scratch);
+            loadPtr(operandAddress, metadataGPR);
+            emitNotifyWriteWatchpoint(s_scratch);
+            storeValue(valueRegs, BaseIndex(scopeRegs.payloadGPR(), metadataGPR, TimesEight, JSLexicalEnvironment::offsetOfVariables()));
+
+            emitWriteBarrier(m_fastAllocator, allocations, scopeRegs, valueRegs, s_scratch, ShouldFilterValue);
+            break;
+        case ModuleVar:
+        case Dynamic:
+            addSlowCase(jump());
+            break;
+        case UnresolvedProperty:
+        case UnresolvedPropertyWithVarInjectionChecks:
+            RELEASE_ASSERT_NOT_REACHED();
+            break;
+        }
+    };
+
+    // If any linked CodeBlock sees ClosureVar/ ClosureVarWithVarInjectionChecks, then we can compile things
+    // that way for all CodeBlocks, since we've proven that is the type we will be. If we're a ClosureVar,
+    // all CodeBlocks will be ClosureVar. If we're ClosureVarWithVarInjectionChecks, we're always ClosureVar
+    // if the var injection watchpoint isn't fired. If it is fired, then we take the slow path, so it doesn't
+    // matter what type we are dynamically.
+    if (profiledResolveType == ClosureVar)
+        emitCode(ClosureVar);
+    else if (profiledResolveType == ResolvedClosureVar)
+        emitCode(ResolvedClosureVar);
+    else if (profiledResolveType == ClosureVarWithVarInjectionChecks)
+        emitCode(ClosureVarWithVarInjectionChecks);
+    else {
+        JumpList skipToEnd;
+        load32(getPutInfoAddress, s_scratch);
+        and32(TrustedImm32(GetPutInfo::typeBits), s_scratch); // Load ResolveType into scratch
+
+        auto emitCaseWithoutCheck = [&] (ResolveType resolveType) {
+            Jump notCase = branch32(NotEqual, s_scratch, TrustedImm32(resolveType));
+            emitCode(resolveType);
+            skipToEnd.append(jump());
+            notCase.link(this);
+        };
+
+        auto emitCase = [&] (ResolveType resolveType) {
+            if (profiledResolveType != resolveType)
+                emitCaseWithoutCheck(resolveType);
+        };
+
+        switch (profiledResolveType) {
+        case UnresolvedProperty:
+        case UnresolvedPropertyWithVarInjectionChecks:
+            break;
+        default:
+            emitCaseWithoutCheck(profiledResolveType);
+            break;
+        }
+
+        emitCase(GlobalVar);
+        emitCase(GlobalProperty);
+        emitCase(GlobalLexicalVar);
+        emitCase(GlobalVarWithVarInjectionChecks);
+        emitCase(GlobalPropertyWithVarInjectionChecks);
+        emitCase(GlobalLexicalVarWithVarInjectionChecks);
+
+        addSlowCase(jump());
+        skipToEnd.link(this);
+    }
+
+    m_fastAllocator.releaseScratches(allocations);
+}
+
+void LOLJIT::emitSlow_op_put_to_scope(const JSInstruction* currentInstruction, Vector<SlowCaseEntry>::iterator& iter)
+{
+    linkAllSlowCases(iter);
+
+    auto bytecode = currentInstruction->as<OpPutToScope>();
+    auto allocations = m_replayAllocator.allocate(*this, bytecode, m_bytecodeIndex);
+    auto [ scopeRegs, valueRegs ] = allocations.uses;
+
+    ResolveType profiledResolveType = bytecode.metadata(m_profiledCodeBlock).m_getPutInfo.resolveType();
+    silentSpill(m_replayAllocator, allocations);
+    if (profiledResolveType == ModuleVar) {
+        // If any linked CodeBlock saw a ModuleVar, then all linked CodeBlocks are guaranteed
+        // to also see ModuleVar.
+        JITSlowPathCall slowPathCall(this, slow_path_throw_strict_mode_readonly_property_write_error);
+        slowPathCall.call();
+    } else {
+        uint32_t bytecodeOffset = m_bytecodeIndex.offset();
+        ASSERT(BytecodeIndex(m_bytecodeIndex.offset()) == m_bytecodeIndex);
+        ASSERT(m_unlinkedCodeBlock->instructionAt(m_bytecodeIndex) == currentInstruction);
+
+        callOperation(operationPutToScopeForLOL, TrustedImm32(bytecodeOffset), scopeRegs.payloadGPR(), valueRegs.payloadGPR());
+    }
+    silentFill(m_replayAllocator);
+    m_replayAllocator.releaseScratches(allocations);
+}
+
+void LOLJIT::emit_op_resolve_scope(const JSInstruction* currentInstruction)
+{
+    auto bytecode = currentInstruction->as<OpResolveScope>();
+    // TODO: This should only allocate scopeRegs when profiledResolveType == ClosureVar as that's the only case that uses it and its static otherwise.
+    // Perhaps we should have a ResolveClosureScope instruction instead as that would use less operands for every other case.
+    auto allocations = m_fastAllocator.allocate(*this, bytecode, m_bytecodeIndex);
+    auto [ scopeRegs ] = allocations.uses;
+    auto [ destRegs ] = allocations.defs;
+    auto [ metadataRegs ] = allocations.scratches;
+
+    ResolveType profiledResolveType = bytecode.metadata(m_profiledCodeBlock).m_resolveType;
+    uint32_t bytecodeOffset = m_bytecodeIndex.offset();
+    ASSERT(BytecodeIndex(m_bytecodeIndex.offset()) == m_bytecodeIndex);
+    ASSERT(m_unlinkedCodeBlock->instructionAt(m_bytecodeIndex) == currentInstruction);
+
+    using Metadata = OpResolveScope::Metadata;
+    GPRReg metadataGPR = metadataRegs.payloadGPR();
+
+    // If we profile certain resolve types, we're guaranteed all linked code will have the same
+    // resolve type.
+
+    if (profiledResolveType == ModuleVar)
+        loadPtrFromMetadata(bytecode, Metadata::offsetOfLexicalEnvironment(), destRegs.payloadGPR());
+    else if (profiledResolveType == ClosureVar) {
+        move(scopeRegs.payloadGPR(), destRegs.payloadGPR());
+        unsigned localScopeDepth = bytecode.metadata(m_profiledCodeBlock).m_localScopeDepth;
+        if (localScopeDepth < 8) {
+            for (unsigned index = 0; index < localScopeDepth; ++index)
+                loadPtr(Address(destRegs.payloadGPR(), JSScope::offsetOfNext()), destRegs.payloadGPR());
+        } else {
+            ASSERT(localScopeDepth >= 8);
+            load32FromMetadata(bytecode, Metadata::offsetOfLocalScopeDepth(), s_scratch);
+            auto loop = label();
+            loadPtr(Address(destRegs.payloadGPR(), JSScope::offsetOfNext()), destRegs.payloadGPR());
+            branchSub32(NonZero, s_scratch, TrustedImm32(1), s_scratch).linkTo(loop, this);
+        }
+    } else {
+        // Inlined fast path for common types.
+        constexpr size_t metadataMinAlignment = 4;
+        static_assert(!(Metadata::offsetOfResolveType() % metadataMinAlignment));
+        static_assert(!(Metadata::offsetOfGlobalLexicalBindingEpoch() % metadataMinAlignment));
+        // TODO: We should check if we're going to fall into the default case and do the right thing there.
+        auto metadataAddress = computeBaseAddressForMetadata<4>(bytecode, metadataGPR);
+
+        auto resolveTypeAddress = metadataAddress.withOffset(Metadata::offsetOfResolveType());
+        auto globalLexicalBindingEpochAddress = metadataAddress.withOffset(Metadata::offsetOfGlobalLexicalBindingEpoch());
+
+        // FIXME: This code is weird when caching fails because it goes to a slow path that will check the exact same condition before falling into the C++ slow path.
+        // It's unclear if that makes a meaningful difference for perf but we should consider doing something smarter.
+        switch (profiledResolveType) {
+        case GlobalProperty: {
+            // This saves a move when scopeRegs != destRegs.
+            // FIXME: This is probably not correct for 32-bit.
+            GPRReg globalObjectGPR = scopeRegs == destRegs ? s_scratch : destRegs.payloadGPR();
+            addSlowCase(branch32(NotEqual, resolveTypeAddress, TrustedImm32(profiledResolveType)));
+            loadGlobalObject(globalObjectGPR);
+            load32(globalLexicalBindingEpochAddress, metadataGPR);
+            addSlowCase(branch32(NotEqual, Address(globalObjectGPR, JSGlobalObject::offsetOfGlobalLexicalBindingEpoch()), metadataGPR));
+            move(globalObjectGPR, destRegs.payloadGPR());
+            break;
+        }
+        case GlobalVar: {
+            addSlowCase(branch32(NotEqual, resolveTypeAddress, TrustedImm32(profiledResolveType)));
+            loadGlobalObject(destRegs.payloadGPR());
+            break;
+        }
+        case GlobalLexicalVar: {
+            addSlowCase(branch32(NotEqual, resolveTypeAddress, TrustedImm32(profiledResolveType)));
+            loadGlobalObject(destRegs.payloadGPR());
+            loadPtr(Address(destRegs.payloadGPR(), JSGlobalObject::offsetOfGlobalLexicalEnvironment()), destRegs.payloadGPR());
+            break;
+        }
+        default: {
+            MacroAssemblerCodeRef<JITThunkPtrTag> code;
+            if (profiledResolveType == ClosureVarWithVarInjectionChecks)
+                code = vm().getCTIStub(generateOpResolveScopeThunk<ClosureVarWithVarInjectionChecks>);
+            else if (profiledResolveType == GlobalVarWithVarInjectionChecks)
+                code = vm().getCTIStub(generateOpResolveScopeThunk<GlobalVarWithVarInjectionChecks>);
+            else if (profiledResolveType == GlobalPropertyWithVarInjectionChecks)
+                code = vm().getCTIStub(generateOpResolveScopeThunk<GlobalPropertyWithVarInjectionChecks>);
+            else if (profiledResolveType == GlobalLexicalVarWithVarInjectionChecks)
+                code = vm().getCTIStub(generateOpResolveScopeThunk<GlobalLexicalVarWithVarInjectionChecks>);
+            else
+                code = vm().getCTIStub(generateOpResolveScopeThunk<GlobalVar>);
+
+
+            // TODO: We should teach RegisterAllocator to always pick these registers when not one of the constant resolve types (e.g. ModuleVar).
+            silentSpill(m_fastAllocator, allocations);
+
+            if (metadataAddress.base != metadataGPR) {
+                // Materialize metadataGPR for the thunks if we didn't already.
+                // First move scope in case it conflicts with ResolveScope::metadataGPR
+                move(scopeRegs.payloadGPR(), BaselineJITRegisters::ResolveScope::scopeGPR);
+                uint32_t metadataOffset = m_profiledCodeBlock->metadataTable()->offsetInMetadataTable(bytecode);
+                addPtr(TrustedImm32(metadataOffset), GPRInfo::metadataTableRegister, BaselineJITRegisters::ResolveScope::metadataGPR);
+            } else
+                shuffleRegisters<GPRReg, 2>({ scopeRegs.payloadGPR(), metadataGPR }, { BaselineJITRegisters::ResolveScope::scopeGPR, BaselineJITRegisters::ResolveScope::metadataGPR });
+
+            move(TrustedImm32(bytecodeOffset), BaselineJITRegisters::ResolveScope::bytecodeOffsetGPR);
+            nearCallThunk(CodeLocationLabel { code.retaggedCode<NoPtrTag>() });
+            move(returnValueGPR, destRegs.payloadGPR());
+            silentFill(m_fastAllocator, destRegs.payloadGPR());
+            break;
+        }
+        }
+    }
+
+    setFastPathResumePoint();
+    boxCell(destRegs.payloadGPR(), destRegs);
+    m_fastAllocator.releaseScratches(allocations);
+}
+
+void LOLJIT::emitSlow_op_resolve_scope(const JSInstruction* currentInstruction, Vector<SlowCaseEntry>::iterator& iter)
+{
+
+    auto bytecode = currentInstruction->as<OpResolveScope>();
+    auto allocations = m_replayAllocator.allocate(*this, bytecode, m_bytecodeIndex);
+    auto [ scopeRegs ] = allocations.uses;
+    auto [ destRegs ] = allocations.defs;
+
+    if (!hasAnySlowCases(iter)) {
+        m_replayAllocator.releaseScratches(allocations);
+        return;
+    }
+
+    linkAllSlowCases(iter);
+
+    ResolveType profiledResolveType = bytecode.metadata(m_profiledCodeBlock).m_resolveType;
+    uint32_t bytecodeOffset = m_bytecodeIndex.offset();
+
+    MacroAssemblerCodeRef<JITThunkPtrTag> code;
+    if (profiledResolveType == ClosureVarWithVarInjectionChecks)
+        code = vm().getCTIStub(generateOpResolveScopeThunk<ClosureVarWithVarInjectionChecks>);
+    else if (profiledResolveType == GlobalVar)
+        code = vm().getCTIStub(generateOpResolveScopeThunk<GlobalVar>);
+    else if (profiledResolveType == GlobalProperty)
+        code = vm().getCTIStub(generateOpResolveScopeThunk<GlobalProperty>);
+    else if (profiledResolveType == GlobalLexicalVar)
+        code = vm().getCTIStub(generateOpResolveScopeThunk<GlobalLexicalVar>);
+    else if (profiledResolveType == GlobalVarWithVarInjectionChecks)
+        code = vm().getCTIStub(generateOpResolveScopeThunk<GlobalVarWithVarInjectionChecks>);
+    else if (profiledResolveType == GlobalPropertyWithVarInjectionChecks)
+        code = vm().getCTIStub(generateOpResolveScopeThunk<GlobalPropertyWithVarInjectionChecks>);
+    else if (profiledResolveType == GlobalLexicalVarWithVarInjectionChecks)
+        code = vm().getCTIStub(generateOpResolveScopeThunk<GlobalLexicalVarWithVarInjectionChecks>);
+    else
+        code = vm().getCTIStub(generateOpResolveScopeThunk<GlobalVar>);
+
+
+    silentSpill(m_replayAllocator, allocations);
+
+    move(scopeRegs.payloadGPR(), BaselineJITRegisters::ResolveScope::scopeGPR);
+
+    constexpr size_t metadataMinAlignment = 4;
+    Address metadataAddress = computeBaseAddressForMetadata<metadataMinAlignment>(bytecode, BaselineJITRegisters::ResolveScope::metadataGPR);
+    if (metadataAddress.base != BaselineJITRegisters::ResolveScope::metadataGPR)
+        addPtr(TrustedImm32(m_profiledCodeBlock->metadataTable()->offsetInMetadataTable(bytecode)), GPRInfo::metadataTableRegister, BaselineJITRegisters::ResolveScope::metadataGPR);
+
+    move(TrustedImm32(bytecodeOffset), BaselineJITRegisters::ResolveScope::bytecodeOffsetGPR);
+    nearCallThunk(CodeLocationLabel { code.retaggedCode<NoPtrTag>() });
+    move(returnValueGPR, destRegs.payloadGPR());
+    silentFill(m_replayAllocator, destRegs.payloadGPR());
+    m_replayAllocator.releaseScratches(allocations);
+}
+
+template <ResolveType profiledResolveType>
+MacroAssemblerCodeRef<JITThunkPtrTag> LOLJIT::generateOpResolveScopeThunk(VM& vm)
+{
+    // The thunk generated by this function can only work with the LLInt / Baseline JIT because
+    // it makes assumptions about the right globalObject being available from CallFrame::codeBlock().
+    // DFG/FTL may inline functions belonging to other globalObjects, which may not match
+    // CallFrame::codeBlock().
+
+    CCallHelpers jit;
+
+    using Metadata = OpResolveScope::Metadata;
+    using BaselineJITRegisters::ResolveScope::metadataGPR; // Incoming
+    // TODO: This should probably not be the same as the returnValueGPR for just the emitResolveClosure case.
+    using BaselineJITRegisters::ResolveScope::scopeGPR; // Incoming
+    using BaselineJITRegisters::ResolveScope::bytecodeOffsetGPR; // Incoming - pass through to slow path.
+    using BaselineJITRegisters::ResolveScope::scratch1GPR;
+    using BaselineJITRegisters::ResolveScope::scratch2GPR;
+    UNUSED_PARAM(bytecodeOffsetGPR);
+    // NOTE: This means we can't write to returnValueGPR until AFTER the last slowCase branch. Otherwise we could clobber the scope for native.
+    static_assert(scopeGPR == returnValueGPR); // emitResolveClosure assumes this.
+
+    jit.tagReturnAddress();
+
+    JumpList slowCase;
+
+    auto doVarInjectionCheck = [&] (bool needsVarInjectionChecks, GPRReg globalObjectGPR = InvalidGPRReg) {
+        if (!needsVarInjectionChecks)
+            return;
+        if (globalObjectGPR == InvalidGPRReg) {
+            globalObjectGPR = scratch1GPR;
+            loadGlobalObject(jit, globalObjectGPR);
+        }
+        jit.loadPtr(Address(globalObjectGPR, JSGlobalObject::offsetOfVarInjectionWatchpoint()), scratch1GPR);
+        slowCase.append(jit.branch8(Equal, Address(scratch1GPR, WatchpointSet::offsetOfState()), TrustedImm32(IsInvalidated)));
+    };
+
+    auto emitResolveClosure = [&] (bool needsVarInjectionChecks) {
+        doVarInjectionCheck(needsVarInjectionChecks);
+        jit.load32(Address(metadataGPR, Metadata::offsetOfLocalScopeDepth()), scratch1GPR);
+        RELEASE_ASSERT(scopeGPR == returnValueGPR);
+
+        Label loop = jit.label();
+        Jump done = jit.branchTest32(Zero, scratch1GPR);
+        jit.loadPtr(Address(returnValueGPR, JSScope::offsetOfNext()), returnValueGPR);
+        jit.sub32(TrustedImm32(1), scratch1GPR);
+        jit.jump().linkTo(loop, &jit);
+        done.link(&jit);
+    };
+
+    auto emitCode = [&] (ResolveType resolveType) {
+        JIT_COMMENT(jit, "Starting case for ", resolveType);
+        switch (resolveType) {
+        case GlobalProperty:
+        case GlobalPropertyWithVarInjectionChecks: {
+            // JSScope::constantScopeForCodeBlock() loads codeBlock->globalObject().
+            loadGlobalObject(jit, scratch2GPR);
+            doVarInjectionCheck(needsVarInjectionChecks(resolveType), scratch2GPR);
+            jit.load32(Address(metadataGPR, Metadata::offsetOfGlobalLexicalBindingEpoch()), scratch1GPR);
+            slowCase.append(jit.branch32(NotEqual, Address(scratch2GPR, JSGlobalObject::offsetOfGlobalLexicalBindingEpoch()), scratch1GPR));
+            jit.move(scratch2GPR, returnValueGPR);
+            break;
+        }
+
+        case GlobalVar:
+        case GlobalVarWithVarInjectionChecks:
+        case GlobalLexicalVar:
+        case GlobalLexicalVarWithVarInjectionChecks: {
+            // JSScope::constantScopeForCodeBlock() loads codeBlock->globalObject() for GlobalVar*,
+            // and codeBlock->globalObject()->globalLexicalEnvironment() for GlobalLexicalVar*.
+            loadGlobalObject(jit, scratch2GPR);
+            doVarInjectionCheck(needsVarInjectionChecks(resolveType), scratch2GPR);
+            if (resolveType == GlobalLexicalVar || resolveType == GlobalLexicalVarWithVarInjectionChecks)
+                jit.loadPtr(Address(scratch2GPR, JSGlobalObject::offsetOfGlobalLexicalEnvironment()), returnValueGPR);
+            else
+                jit.move(scratch2GPR, returnValueGPR);
+            break;
+        }
+        case ClosureVar:
+        case ClosureVarWithVarInjectionChecks:
+            emitResolveClosure(needsVarInjectionChecks(resolveType));
+            break;
+        case Dynamic:
+            slowCase.append(jit.jump());
+            break;
+        case ResolvedClosureVar:
+        case ModuleVar:
+        case UnresolvedProperty:
+        case UnresolvedPropertyWithVarInjectionChecks:
+            RELEASE_ASSERT_NOT_REACHED();
+        }
+    };
+
+    if (profiledResolveType == ClosureVar)
+        emitCode(ClosureVar);
+    else if (profiledResolveType == ClosureVarWithVarInjectionChecks)
+        emitCode(ClosureVarWithVarInjectionChecks);
+    else {
+        JumpList skipToEnd;
+        jit.load32(Address(metadataGPR, Metadata::offsetOfResolveType()), regT1);
+
+        auto emitCaseWithoutCheck = [&] (ResolveType resolveType) {
+            Jump notCase = jit.branch32(NotEqual, regT1, TrustedImm32(resolveType));
+            emitCode(resolveType);
+            skipToEnd.append(jit.jump());
+            notCase.link(&jit);
+        };
+
+        auto emitCase = [&] (ResolveType resolveType) {
+            if (resolveType != profiledResolveType)
+                emitCaseWithoutCheck(resolveType);
+        };
+
+        // Check that we're the profiled resolve type first.
+        switch (profiledResolveType) {
+        case ResolvedClosureVar:
+        case ModuleVar:
+        case UnresolvedProperty:
+        case UnresolvedPropertyWithVarInjectionChecks:
+            break;
+        default:
+            emitCaseWithoutCheck(profiledResolveType);
+            break;
+        }
+
+        emitCase(GlobalVar);
+        emitCase(GlobalProperty);
+        emitCase(GlobalLexicalVar);
+        emitCase(GlobalVarWithVarInjectionChecks);
+        emitCase(GlobalPropertyWithVarInjectionChecks);
+        emitCase(GlobalLexicalVarWithVarInjectionChecks);
+        slowCase.append(jit.jump());
+
+        skipToEnd.link(&jit);
+    }
+
+    jit.ret();
+
+    slowCase.linkThunk(CodeLocationLabel { vm.getCTIStub(slow_op_resolve_scopeGenerator).retaggedCode<NoPtrTag>() }, &jit);
+
+    LinkBuffer patchBuffer(jit, GLOBAL_THUNK_ID, LinkBuffer::Profile::ExtraCTIThunk);
+    return FINALIZE_THUNK(patchBuffer, JITThunkPtrTag, "resolve_scope"_s, "Baseline: resolve_scope");
+}
+
+MacroAssemblerCodeRef<JITThunkPtrTag> LOLJIT::slow_op_resolve_scopeGenerator(VM& vm)
+{
+    // The thunk generated by this function can only work with the LLInt / Baseline JIT because
+    // it makes assumptions about the right globalObject being available from CallFrame::codeBlock().
+    // DFG/FTL may inline functions belonging to other globalObjects, which may not match
+    // CallFrame::codeBlock().
+    CCallHelpers jit;
+
+    using BaselineJITRegisters::ResolveScope::scopeGPR; // Incoming
+    using BaselineJITRegisters::ResolveScope::bytecodeOffsetGPR; // Incoming
+
+    jit.emitCTIThunkPrologue(/* returnAddressAlreadyTagged: */ true); // Return address tagged in 'generateOpResolveScopeThunk'
+
+    // Call slow operation
+    jit.store32(bytecodeOffsetGPR, tagFor(CallFrameSlot::argumentCountIncludingThis));
+    jit.prepareCallOperation(vm);
+    // FIXME: Maybe it's profitable to pick the order of arguments for this to match the incoming GPRs.
+    jit.setupArguments<decltype(operationResolveScopeForLOL)>(bytecodeOffsetGPR, scopeGPR);
+    jit.callOperation<OperationPtrTag>(operationResolveScopeForLOL);
+
+    jit.emitCTIThunkEpilogue();
+
+    // Tail call to exception check thunk
+    jit.jumpThunk(CodeLocationLabel(vm.getCTIStub(CommonJITThunkID::CheckException).retaggedCode<NoPtrTag>()));
+
+    LinkBuffer patchBuffer(jit, GLOBAL_THUNK_ID, LinkBuffer::Profile::ExtraCTIThunk);
+    return FINALIZE_THUNK(patchBuffer, JITThunkPtrTag, "slow_op_resolve_scope"_s, "Baseline: slow_op_resolve_scope");
+}
+
 
 } // namespace JSC
 

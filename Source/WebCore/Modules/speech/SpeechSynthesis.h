@@ -138,4 +138,6 @@ template<> struct EnumTraits<WebCore::SpeechSynthesis::BehaviorRestrictionFlags>
 
 } // namespace WTF
 
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(SpeechSynthesis)
+
 #endif // ENABLE(SPEECH_SYNTHESIS)

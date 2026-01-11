@@ -268,6 +268,7 @@ public:
     WEBCORE_EXPORT bool shouldHideSoftTopScrollEdgeEffectDuringFocus(const Element&) const;
 
     bool needsClaudeSidebarViewportUnitQuirk(Element&, const RenderStyle&) const;
+    bool needsChromeOSNavigatorUserAgentQuirk(const Document&) const;
 #endif
 
     bool needsMozillaFileTypeForDataTransfer() const;

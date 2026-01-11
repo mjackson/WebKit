@@ -70,6 +70,9 @@
 #define WTF_MAKE_TZONE_ALLOCATED_TEMPLATE_IMPL_WITH_MULTIPLE_OR_SPECIALIZED_PARAMETERS() \
     using __thisIsHereToForceASemicolonAfterThisMacro UNUSED_TYPE_ALIAS = int
 
+#define WTF_MAKE_INHERITED_TZONE_ALLOCATED(name) \
+    using __thisIsHereToForceASemicolonAfterThisMacro UNUSED_TYPE_ALIAS = int
+
 #else // !USE(SYSTEM_MALLOC) && USE(TZONE_MALLOC)
 
 #include <bmalloc/TZoneHeap.h>
@@ -125,6 +128,17 @@
 //     TZONE_TEMPLATE_PARAMS, TZONE_TYPE
 #define WTF_MAKE_TZONE_ALLOCATED_TEMPLATE_IMPL_WITH_MULTIPLE_OR_SPECIALIZED_PARAMETERS() \
     MAKE_BTZONE_MALLOCED_TEMPLATE_IMPL_WITH_MULTIPLE_PARAMETERS()
+
+// Annotation to inherit TZone allocation without declaring own heapRef.
+// This is only allowed if the current class is the same size and alignment as the parent class.
+#define WTF_MAKE_INHERITED_TZONE_ALLOCATED(name) \
+    void verifyTZoneSizeClassAndAssignmentMatchesInheritedSizeClassAndAssignment() \
+    { \
+        static_assert(::bmalloc::TZone::usesTZoneHeap<name>() \
+            && ::bmalloc::TZone::inheritedSizeClass<name>() == ::bmalloc::TZone::sizeClass<name>() \
+            && ::bmalloc::TZone::inheritedAlignment<name>() == ::bmalloc::TZone::alignment<name>()); \
+    } \
+    using __thisIsHereToForceASemicolonAfterThisMacro UNUSED_TYPE_ALIAS = int
 
 #endif
 

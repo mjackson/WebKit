@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025-2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -404,6 +404,13 @@ inline float RenderStyleBase::usedWordSpacing() const
     return m_computedStyle.usedWordSpacing();
 }
 
+// MARK: Used Counter Directives
+
+inline const CounterDirectiveMap& RenderStyleBase::usedCounterDirectives() const
+{
+    return m_computedStyle.usedCounterDirectives();
+}
+
 // MARK: - Aggregates
 
 inline const Style::InsetBox& RenderStyleBase::insetBox() const
@@ -481,19 +488,9 @@ inline const Style::PerspectiveOrigin& RenderStyleBase::perspectiveOrigin() cons
     return m_computedStyle.perspectiveOrigin();
 }
 
-inline const OutlineValue& RenderStyleBase::outline() const
-{
-    return m_computedStyle.outline();
-}
-
 inline const BorderData& RenderStyleBase::border() const
 {
     return m_computedStyle.border();
-}
-
-inline Style::LineWidthBox RenderStyleBase::borderWidth() const
-{
-    return m_computedStyle.borderWidth();
 }
 
 inline const Style::BorderRadius& RenderStyleBase::borderRadii() const
@@ -521,11 +518,6 @@ inline const BorderValue& RenderStyleBase::borderTop() const
     return m_computedStyle.borderTop();
 }
 
-inline const BorderValue& RenderStyleBase::columnRule() const
-{
-    return m_computedStyle.columnRule();
-}
-
 // MARK: - Properties/descriptors that are not yet generated
 
 inline CursorType RenderStyleBase::cursorType() const
@@ -538,40 +530,6 @@ inline CursorType RenderStyleBase::cursorType() const
 inline const Style::PageSize& RenderStyleBase::pageSize() const
 {
     return m_computedStyle.pageSize();
-}
-
-// FIXME: Add a type that encapsulates both caretColor() and hasAutoCaretColor().
-
-inline const Style::Color& RenderStyleBase::caretColor() const
-{
-    return m_computedStyle.caretColor();
-}
-
-inline bool RenderStyleBase::hasAutoCaretColor() const
-{
-    return m_computedStyle.hasAutoCaretColor();
-}
-
-inline const Style::Color& RenderStyleBase::visitedLinkCaretColor() const
-{
-    return m_computedStyle.visitedLinkCaretColor();
-}
-
-inline bool RenderStyleBase::hasVisitedLinkAutoCaretColor() const
-{
-    return m_computedStyle.hasVisitedLinkAutoCaretColor();
-}
-
-// MARK: - Properties/descriptors that are not yet generated
-
-inline const CounterDirectiveMap& RenderStyleBase::counterDirectives() const
-{
-    return m_computedStyle.counterDirectives();
-}
-
-inline CounterDirectiveMap& RenderStyleBase::accessCounterDirectives()
-{
-    return m_computedStyle.accessCounterDirectives();
 }
 
 } // namespace WebCore

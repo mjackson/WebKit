@@ -221,7 +221,7 @@ bool HTMLFormElement::validateInteractively()
             control->hideVisibleValidationMessage();
     }
 
-    Vector<RefPtr<ValidatedFormListedElement>> unhandledInvalidControls;
+    Vector<Ref<ValidatedFormListedElement>> unhandledInvalidControls;
     if (!checkInvalidControlsAndCollectUnhandled(unhandledInvalidControls))
         return true;
     // Because the form has invalid controls, we abort the form submission and
@@ -781,11 +781,11 @@ void HTMLFormElement::resetDefaultButton()
 
 bool HTMLFormElement::checkValidity()
 {
-    Vector<RefPtr<ValidatedFormListedElement>> controls;
+    Vector<Ref<ValidatedFormListedElement>> controls;
     return !checkInvalidControlsAndCollectUnhandled(controls);
 }
 
-bool HTMLFormElement::checkInvalidControlsAndCollectUnhandled(Vector<RefPtr<ValidatedFormListedElement>>& unhandledInvalidControls)
+bool HTMLFormElement::checkInvalidControlsAndCollectUnhandled(Vector<Ref<ValidatedFormListedElement>>& unhandledInvalidControls)
 {
     Ref<HTMLFormElement> protectedThis(*this);
     // Copy m_listedElements because event handlers called from HTMLFormControlElement::checkValidity() might change m_listedElements.

@@ -1864,7 +1864,7 @@ WritingDirection EditingStyle::textDirectionForSelection(const VisibleSelection&
 Ref<EditingStyle> EditingStyle::inverseTransformColorIfNeeded(Element& element)
 {
     CheckedPtr renderer = element.renderer();
-    if (!m_mutableStyle || !renderer || !renderer->style().hasAppleColorFilter())
+    if (!m_mutableStyle || !renderer || renderer->style().appleColorFilter().isNone())
         return *this;
 
     auto colorForPropertyIfInvertible = [&](CSSPropertyID id) -> std::optional<Color> {

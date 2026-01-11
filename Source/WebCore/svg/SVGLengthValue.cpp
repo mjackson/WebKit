@@ -328,7 +328,7 @@ ExceptionOr<void> SVGLengthValue::setValueAsString(StringView string)
         return Exception { ExceptionCode::SyntaxError };
 
     // Trim leading and trailing whitespace to match SVG parsing expectations.
-    auto trimmedString = string.toString().trim(isASCIIWhitespace);
+    auto trimmedString = string.trim(isASCIIWhitespace<char16_t>);
     if (trimmedString.isEmpty())
         return Exception { ExceptionCode::SyntaxError };
 
@@ -348,7 +348,7 @@ ExceptionOr<void> SVGLengthValue::setValueAsString(StringView string)
         .context = parserContext
     };
 
-    CSSTokenizer tokenizer(trimmedString);
+    CSSTokenizer tokenizer(trimmedString.toString());
     auto tokenRange = tokenizer.tokenRange();
 
     if (auto number = CSSPropertyParserHelpers::MetaConsumer<CSS::Number<>>::consume(tokenRange, parserState, { })) {

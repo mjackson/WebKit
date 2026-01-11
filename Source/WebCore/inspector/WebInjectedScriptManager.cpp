@@ -50,7 +50,25 @@ WebInjectedScriptManager::WebInjectedScriptManager(InspectorEnvironment& environ
 
 WebInjectedScriptManager::~WebInjectedScriptManager()
 {
-    if (isConnected())
+    ASSERT(!m_clientCount);
+    if (m_clientCount > 0) {
+        m_clientCount = 0;
+        disconnect();
+    }
+}
+
+void WebInjectedScriptManager::addClient()
+{
+    ++m_clientCount;
+    if (m_clientCount == 1)
+        connect();
+}
+
+void WebInjectedScriptManager::removeClient()
+{
+    ASSERT(m_clientCount > 0);
+    --m_clientCount;
+    if (!m_clientCount)
         disconnect();
 }
 
@@ -65,10 +83,7 @@ void WebInjectedScriptManager::disconnect()
 {
     InjectedScriptManager::disconnect();
 
-    if (m_commandLineAPIHost) {
-        m_commandLineAPIHost->disconnect();
-        m_commandLineAPIHost = nullptr;
-    }
+    m_commandLineAPIHost = nullptr;
 }
 
 void WebInjectedScriptManager::discardInjectedScripts()

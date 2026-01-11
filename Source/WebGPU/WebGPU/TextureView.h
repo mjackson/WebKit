@@ -111,10 +111,10 @@ private:
 
 inline void refTextureView(WebGPU::TextureView* obj)
 {
-    ref(obj);
+    WTF::ref(obj);
 }
 
 inline void derefTextureView(WebGPU::TextureView* obj)
 {
-    deref(obj);
+    WTF::deref(obj);
 }

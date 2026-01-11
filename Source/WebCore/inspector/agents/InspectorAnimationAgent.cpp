@@ -295,7 +295,7 @@ Inspector::Protocol::ErrorStringOr<void> InspectorAnimationAgent::enable()
     {
         for (auto& animation : WebAnimation::instances()) {
             if (existsInCurrentPage(animation->scriptExecutionContext()))
-                bindAnimation(*animation, nullptr);
+                bindAnimation(animation, nullptr);
         }
     }
 

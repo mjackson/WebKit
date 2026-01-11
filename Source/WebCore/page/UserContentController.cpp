@@ -49,7 +49,7 @@ UserContentController::~UserContentController() = default;
 void UserContentController::forEachUserScript(NOESCAPE const Function<void(DOMWrapperWorld&, const UserScript&)>& functor) const
 {
     for (const auto& worldAndUserScriptVector : m_userScripts) {
-        auto& world = *worldAndUserScriptVector.key.get();
+        Ref world = *worldAndUserScriptVector.key;
         for (const auto& userScript : *worldAndUserScriptVector.value)
             functor(world, *userScript);
     }

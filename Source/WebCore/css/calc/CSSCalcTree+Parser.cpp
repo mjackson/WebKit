@@ -57,14 +57,13 @@ static constexpr int maxExpressionDepth = 100;
 
 static std::optional<std::pair<Number, Type>> lookupConstantNumber(CSSValueID symbol)
 {
-    static constexpr auto constantMappings = std::to_array<std::pair<CSSValueID, double>>({
+    static constexpr SortedArrayMap constantMap { std::to_array<std::pair<CSSValueID, double>>({
         { CSSValueE,                     std::numbers::e                          },
         { CSSValuePi,                    std::numbers::pi                         },
         { CSSValueInfinity,              std::numeric_limits<double>::infinity()  },
         { CSSValueNegativeInfinity, -1 * std::numeric_limits<double>::infinity()  },
         { CSSValueNaN,                   std::numeric_limits<double>::quiet_NaN() },
-    });
-    static constexpr SortedArrayMap constantMap { constantMappings };
+    }) };
     if (auto value = constantMap.tryGet(symbol))
         return std::make_pair(Number { .value = *value }, Type { });
     return std::nullopt;

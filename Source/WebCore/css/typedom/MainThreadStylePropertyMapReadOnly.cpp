@@ -57,7 +57,7 @@ Document* MainThreadStylePropertyMapReadOnly::documentFromContext(ScriptExecutio
 // https://drafts.css-houdini.org/css-typed-om-1/#dom-stylepropertymapreadonly-get
 ExceptionOr<MainThreadStylePropertyMapReadOnly::CSSStyleValueOrUndefined> MainThreadStylePropertyMapReadOnly::get(ScriptExecutionContext& context, const AtomString& property) const
 {
-    auto* document = documentFromContext(context);
+    RefPtr document = documentFromContext(context);
     if (!document)
         return { std::monostate { } };
 
@@ -88,7 +88,7 @@ ExceptionOr<MainThreadStylePropertyMapReadOnly::CSSStyleValueOrUndefined> MainTh
 // https://drafts.css-houdini.org/css-typed-om-1/#dom-stylepropertymapreadonly-getall
 ExceptionOr<Vector<RefPtr<CSSStyleValue>>> MainThreadStylePropertyMapReadOnly::getAll(ScriptExecutionContext& context, const AtomString& property) const
 {
-    auto* document = documentFromContext(context);
+    RefPtr document = documentFromContext(context);
     if (!document)
         return Vector<RefPtr<CSSStyleValue>> { };
 

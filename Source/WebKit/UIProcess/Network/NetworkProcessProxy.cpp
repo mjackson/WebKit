@@ -225,6 +225,8 @@ void NetworkProcessProxy::sendCreationParametersToNewProcess()
     parameters.enableModernDownloadProgress = CFPreferencesGetAppBooleanValue(CFSTR("EnableModernDownloadProgress"), CFSTR("com.apple.WebKit"), nullptr);
 #endif
     parameters.allowedFirstPartiesForCookies = WebProcessProxy::allowedFirstPartiesForCookies();
+    for (auto it = m_allowedFilePathsByProcess.begin(); it != m_allowedFilePathsByProcess.end(); ++it)
+        parameters.allowedFilePaths.add(it->key.coreProcessIdentifier(), copyToVector(it->value));
 
 #if PLATFORM(COCOA)
     parameters.isParentProcessFullWebBrowserOrRunningTest = isFullWebBrowserOrRunningTest();
@@ -1996,6 +1998,16 @@ void NetworkProcessProxy::addAllowedFirstPartyForCookies(WebProcessProxy& webPro
         sendWithAsyncReply(Messages::NetworkProcess::AddAllowedFirstPartyForCookies(webProcessProxy.coreProcessIdentifier(), firstPartyForCookies, loadedWebArchive), WTF::move(completionHandler));
     else
         completionHandler();
+}
+
+void NetworkProcessProxy::addAllowedFilePaths(WebProcessProxy& webProcessProxy, const Vector<String>& paths)
+{
+    auto& pathSet = m_allowedFilePathsByProcess.ensure(webProcessProxy, [] {
+        return HashSet<String> { };
+    }).iterator->value;
+
+    for (auto& path : paths)
+        pathSet.add(path);
 }
 
 #if USE(RUNNINGBOARD)

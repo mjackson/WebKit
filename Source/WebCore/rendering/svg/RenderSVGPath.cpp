@@ -228,12 +228,13 @@ void RenderSVGPath::drawMarkers(PaintInfo& paintInfo)
     if (!markerStart && !markerMid && !markerEnd)
         return;
 
-    float strokeWidth = this->strokeWidth();
+    float strokeWidth = this->strokeWidthForMarkerUnits();
     for (auto& markerPosition : m_markerPositions) {
         if (auto* marker = markerForType(markerPosition.type, markerStart.get(), markerMid.get(), markerEnd.get()); marker && marker->hasLayer()) {
             auto& context = paintInfo.context();
             GraphicsContextStateSaver stateSaver(context);
 
+            context.setLineDash(DashArray(), 0);
             auto contentTransform = marker->markerTransformation(markerPosition.origin, markerPosition.angle, strokeWidth);
             marker->checkedLayer()->paintSVGResourceLayer(context, contentTransform);
         }

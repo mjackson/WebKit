@@ -504,12 +504,12 @@ static void CallbackForContainIntrinsicSize(const Vector<Ref<ResizeObserverEntry
             ASSERT(box->style().hasAutoLengthContainIntrinsicSize());
 
             auto contentBoxSize = entry->contentBoxSize().at(0);
-            if (box->style().containIntrinsicLogicalWidth().hasAuto()) {
+            if (box->style().logicalContainIntrinsicWidth().hasAuto()) {
                 auto adjustedWidth = LayoutUnit { applyZoom(contentBoxSize->inlineSize(), box->style()) };
                 target->setLastRememberedLogicalWidth(adjustedWidth);
             }
 
-            if (box->style().containIntrinsicLogicalHeight().hasAuto()) {
+            if (box->style().logicalContainIntrinsicHeight().hasAuto()) {
                 auto adjustedHeight = LayoutUnit { applyZoom(contentBoxSize->blockSize(), box->style()) };
                 target->setLastRememberedLogicalHeight(adjustedHeight);
             }
@@ -1466,21 +1466,21 @@ std::optional<SpatialBackdropSource> Document::determineActiveSpatialBackdropSou
 }
 #endif
 
-Color Document::linkColor(const RenderStyle& style) const
+Color Document::linkColor(const Style::ComputedStyle& style) const
 {
     if (m_linkColor.isValid())
         return m_linkColor;
     return CSS::colorFromKeyword(CSSValueWebkitLink, styleColorOptions(&style));
 }
 
-Color Document::visitedLinkColor(const RenderStyle& style) const
+Color Document::visitedLinkColor(const Style::ComputedStyle& style) const
 {
     if (m_visitedLinkColor.isValid())
         return m_visitedLinkColor;
     return CSS::colorFromKeyword(CSSValueWebkitLink, styleColorOptions(&style) | StyleColorOptions::ForVisitedLink);
 }
 
-Color Document::activeLinkColor(const RenderStyle& style) const
+Color Document::activeLinkColor(const Style::ComputedStyle& style) const
 {
     if (m_activeLinkColor.isValid())
         return m_activeLinkColor;
@@ -4410,6 +4410,7 @@ void Document::implicitClose()
 
     m_processingLoadEvent = false;
 
+    // FIXME: This needs to notify all FontFaceSet objects, not just the one owned by the CSSFontSelector: webkit.org/b/304381.
     if (RefPtr fontSelector = fontSelectorIfExists()) {
         if (RefPtr fontFaceSet = fontSelector->fontFaceSetIfExists())
             fontFaceSet->documentDidFinishLoading();
@@ -9725,6 +9726,18 @@ unsigned Document::styleRecalcCount() const
     return m_styleRecalcCount;
 }
 
+#if ENABLE(TOUCH_EVENTS)
+bool Document::hasTouchEventHandlers() const
+{
+#if ENABLE(TOUCH_EVENT_REGIONS)
+    return !m_touchEventTargets.isEmptyIgnoringNullReferences()
+        || !m_touchEventHandlerCounts.isEmptyIgnoringNullReferences();
+#else
+    return !m_touchEventTargets.isEmptyIgnoringNullReferences();
+#endif
+}
+#endif
+
 DocumentLoader* Document::loader() const
 {
     if (!m_frame)
@@ -9903,10 +9916,10 @@ void Document::updateHoverActiveState(const HitTestRequest& request, Element* in
 {
     ASSERT(!request.readOnly());
 
-    Vector<RefPtr<Element>, 32> elementsToClearActive;
-    Vector<RefPtr<Element>, 32> elementsToSetActive;
-    Vector<RefPtr<Element>, 32> elementsToClearHover;
-    Vector<RefPtr<Element>, 32> elementsToSetHover;
+    Vector<Ref<Element>, 32> elementsToClearActive;
+    Vector<Ref<Element>, 32> elementsToSetActive;
+    Vector<Ref<Element>, 32> elementsToClearHover;
+    Vector<Ref<Element>, 32> elementsToSetHover;
 
     RefPtr innerElementInDocument = innerElement;
     while (innerElementInDocument && &innerElementInDocument->document() != this) {
@@ -9918,7 +9931,7 @@ void Document::updateHoverActiveState(const HitTestRequest& request, Element* in
     if (oldActiveElement && !request.active()) {
         // We are clearing the :active chain because the mouse has been released.
         for (RefPtr currentElement = oldActiveElement; currentElement; currentElement = currentElement->parentElementInComposedTree()) {
-            elementsToClearActive.append(currentElement);
+            elementsToClearActive.append(*currentElement);
             m_userActionElements.setInActiveChain(*currentElement, false);
         }
         m_activeElement = nullptr;
@@ -9969,7 +9982,7 @@ void Document::updateHoverActiveState(const HitTestRequest& request, Element* in
                 break;
             if (mustBeInActiveChain && !element->isInActiveChain())
                 continue;
-            elementsToClearHover.append(element);
+            elementsToClearHover.append(*element);
         }
         // Unset hovered nodes in sub frame documents if the old hovered node was a frame owner.
         if (auto* frameOwnerElement = dynamicDowncast<HTMLFrameOwnerElement>(oldHoveredElement.get())) {
@@ -9983,28 +9996,28 @@ void Document::updateHoverActiveState(const HitTestRequest& request, Element* in
         if (mustBeInActiveChain && !element->isInActiveChain())
             continue;
         if (allowActiveChanges)
-            elementsToSetActive.append(element);
+            elementsToSetActive.append(*element);
         if (element == commonAncestor)
             sawCommonAncestor = true;
         if (!sawCommonAncestor)
-            elementsToSetHover.append(element);
+            elementsToSetHover.append(*element);
     }
 
     auto changeState = [](auto& elements, auto pseudoClass, auto value, auto&& setter) {
         if (elements.isEmpty())
             return;
 
-        Style::PseudoClassChangeInvalidation styleInvalidation { *elements.last(), pseudoClass, value, Style::InvalidationScope::Descendants };
+        Style::PseudoClassChangeInvalidation styleInvalidation { elements.last(), pseudoClass, value, Style::InvalidationScope::Descendants };
 
         // We need to do descendant invalidation for each shadow tree separately as the style is per-scope.
         Vector<Style::PseudoClassChangeInvalidation> shadowDescendantStyleInvalidations;
         for (auto& element : elements) {
-            if (hasShadowRootParent(*element))
-                shadowDescendantStyleInvalidations.append({ *element, pseudoClass, value, Style::InvalidationScope::Descendants });
+            if (hasShadowRootParent(element))
+                shadowDescendantStyleInvalidations.append({ element, pseudoClass, value, Style::InvalidationScope::Descendants });
         }
 
         for (auto& element : elements)
-            setter(*element);
+            setter(element.get());
     };
 
     changeState(elementsToClearActive, CSSSelector::PseudoClass::Active, false, [](auto& element) {
@@ -10087,7 +10100,7 @@ float Document::deviceScaleFactor() const
 }
 
 #if ENABLE(DARK_MODE_CSS)
-OptionSet<ColorScheme> Document::resolvedColorScheme(const RenderStyle* style) const
+OptionSet<ColorScheme> Document::resolvedColorScheme(const Style::ComputedStyle* style) const
 {
     bool isNormal = !style || style->colorScheme().isNormal();
     return isNormal ? m_colorScheme : style->colorScheme().colorScheme();
@@ -10095,6 +10108,11 @@ OptionSet<ColorScheme> Document::resolvedColorScheme(const RenderStyle* style) c
 #endif
 
 bool Document::useDarkAppearance(const RenderStyle* style) const
+{
+    return useDarkAppearance(style ? &style->computedStyle() : static_cast<const Style::ComputedStyle*>(nullptr));
+}
+
+bool Document::useDarkAppearance([[maybe_unused]] const Style::ComputedStyle* style) const
 {
 #if ENABLE(DARK_MODE_CSS)
     auto colorScheme = resolvedColorScheme(style);
@@ -10128,6 +10146,11 @@ bool Document::useElevatedUserInterfaceLevel() const
 }
 
 OptionSet<StyleColorOptions> Document::styleColorOptions(const RenderStyle* style) const
+{
+    return styleColorOptions(style ? &style->computedStyle() : static_cast<const Style::ComputedStyle*>(nullptr));
+}
+
+OptionSet<StyleColorOptions> Document::styleColorOptions(const Style::ComputedStyle* style) const
 {
     OptionSet<StyleColorOptions> options;
     if (settings().useSystemAppearance())
@@ -11004,14 +11027,14 @@ DocumentTimeline& Document::timeline()
     return *m_timeline;
 }
 
-Vector<RefPtr<WebAnimation>> Document::getAnimations()
+Vector<Ref<WebAnimation>> Document::getAnimations()
 {
-    return matchingAnimations([] (Element& target) -> bool {
+    return matchingAnimations([](Element& target) {
         return !target.containingShadowRoot();
     });
 }
 
-Vector<RefPtr<WebAnimation>> Document::matchingAnimations(NOESCAPE const Function<bool(Element&)>& function)
+Vector<Ref<WebAnimation>> Document::matchingAnimations(NOESCAPE const Function<bool(Element&)>& function)
 {
     // For the list of animations to be current, we need to account for any pending CSS changes,
     // such as updates to CSS Animations and CSS Transitions. This requires updating layout as
@@ -11020,7 +11043,7 @@ Vector<RefPtr<WebAnimation>> Document::matchingAnimations(NOESCAPE const Functio
         owner->protectedDocument()->updateLayout();
     updateStyleIfNeeded();
 
-    Vector<RefPtr<WebAnimation>> animations;
+    Vector<Ref<WebAnimation>> animations;
 
     auto effectCanBeListed = [&](AnimationEffect* effect) {
         if (is<CustomEffect>(effect))
@@ -11036,11 +11059,11 @@ Vector<RefPtr<WebAnimation>> Document::matchingAnimations(NOESCAPE const Functio
 
     for (auto& animation : WebAnimation::instances()) {
         if (animation->isRelevant() && effectCanBeListed(animation->effect()))
-            animations.append(animation.get());
+            animations.append(animation);
     }
 
     std::ranges::stable_sort(animations, [](auto& lhs, auto& rhs) {
-        return compareAnimationsByCompositeOrder(*lhs, *rhs);
+        return compareAnimationsByCompositeOrder(lhs, rhs);
     });
 
     return animations;
@@ -11049,7 +11072,7 @@ Vector<RefPtr<WebAnimation>> Document::matchingAnimations(NOESCAPE const Functio
 void Document::keyframesRuleDidChange(const String& name)
 {
     for (auto& animation : WebAnimation::instances()) {
-        auto cssAnimation = dynamicDowncast<CSSAnimation>(*animation);
+        auto cssAnimation = dynamicDowncast<CSSAnimation>(animation.get());
         if (!cssAnimation || !cssAnimation->isRelevant())
             continue;
 

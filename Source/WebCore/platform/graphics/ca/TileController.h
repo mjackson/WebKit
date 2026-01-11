@@ -96,8 +96,8 @@ public:
     WEBCORE_EXPORT void setTilesOpaque(bool);
     bool tilesAreOpaque() const { return m_tilesAreOpaque; }
 
-    PlatformCALayer& rootLayer() { return *m_tileCacheLayer; }
-    const PlatformCALayer& rootLayer() const { return *m_tileCacheLayer; }
+    Ref<PlatformCALayer> rootLayer() { return m_tileCacheLayer.get().releaseNonNull(); }
+    Ref<const PlatformCALayer> rootLayer() const { return m_tileCacheLayer.get().releaseNonNull(); }
 
     WEBCORE_EXPORT void setTileDebugBorderWidth(float);
     WEBCORE_EXPORT void setTileDebugBorderColor(Color);
@@ -230,13 +230,13 @@ private:
 
     IntRect boundsForSize(const FloatSize&) const;
 
-    PlatformCALayerClient* owningGraphicsLayer() const { return m_tileCacheLayer->owner(); }
+    PlatformCALayerClient* owningGraphicsLayer() const { return m_tileCacheLayer.get()->owner(); }
 
     void clearObscuredInsetsAdjustments() final { m_obscuredInsetsDelta = std::nullopt; }
     void obscuredInsetsWillChange(FloatBoxExtent&& obscuredInsetsDelta) final { m_obscuredInsetsDelta = WTF::move(obscuredInsetsDelta); }
     FloatRect adjustedTileClipRectForObscuredInsets(const FloatRect&) const;
 
-    PlatformCALayer* m_tileCacheLayer;
+    ThreadSafeWeakPtr<PlatformCALayer> m_tileCacheLayer;
 
     ThreadSafeWeakPtr<TiledBackingClient> m_client;
 

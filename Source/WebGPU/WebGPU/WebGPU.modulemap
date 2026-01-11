@@ -1,7 +1,2 @@
 framework module WebGPU [system] {
-    umbrella "Headers"
-
-    module * {
-        export *
-    }
 }

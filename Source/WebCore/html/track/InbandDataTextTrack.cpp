@@ -83,7 +83,7 @@ void InbandDataTextTrack::addDataCue(const MediaTime& start, const MediaTime& en
     if (end.isPositiveInfinite()) {
         if (textTrackList && textTrackList->duration().isValid())
             cue->setEndTime(textTrackList->duration());
-        m_incompleteCueMap.append(&cue.get());
+        m_incompleteCueMap.append(cue.copyRef());
     }
 
     INFO_LOG(LOGIDENTIFIER, cue.get());
@@ -100,7 +100,7 @@ RefPtr<DataCue> InbandDataTextTrack::findIncompleteCue(const SerializedPlatformD
     if (index == notFound)
         return nullptr;
 
-    return m_incompleteCueMap[index];
+    return m_incompleteCueMap[index].ptr();
 }
 
 void InbandDataTextTrack::updateDataCue(const MediaTime& start, const MediaTime& inEnd, SerializedPlatformDataCue& platformValue)
@@ -116,7 +116,7 @@ void InbandDataTextTrack::updateDataCue(const MediaTime& start, const MediaTime&
     if (end.isPositiveInfinite() && textTrackList && textTrackList->duration().isValid())
         end = textTrackList->duration();
     else
-        m_incompleteCueMap.removeFirst(cue);
+        m_incompleteCueMap.removeFirst(cue.get());
 
     INFO_LOG(LOGIDENTIFIER, "was start = ", cue->startMediaTime(), ", end = ", cue->endMediaTime(), ", will be start = ", start, ", end = ", end);
 
@@ -130,7 +130,7 @@ void InbandDataTextTrack::removeDataCue(const MediaTime&, const MediaTime&, Seri
 {
     if (auto cue = findIncompleteCue(platformValue)) {
         INFO_LOG(LOGIDENTIFIER, "removing: ", *cue);
-        m_incompleteCueMap.removeFirst(cue);
+        m_incompleteCueMap.removeFirst(cue.get());
         InbandTextTrack::removeCue(*cue);
     }
 }

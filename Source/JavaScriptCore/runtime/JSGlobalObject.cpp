@@ -49,7 +49,6 @@
 #include "AsyncFromSyncIteratorPrototypeInlines.h"
 #include "AsyncFunctionConstructorInlines.h"
 #include "AsyncFunctionPrototypeInlines.h"
-// >>>>>>> upstream/main
 #include "AsyncGeneratorFunctionConstructor.h"
 #include "AsyncGeneratorFunctionPrototypeInlines.h"
 #include "AsyncGeneratorPrototypeInlines.h"
@@ -219,6 +218,7 @@
 #include "MapPrototypeInlines.h"
 #include "MarkedSpaceInlines.h"
 #include "MathObjectInlines.h"
+#include "Microtask.h"
 #include "NativeErrorConstructorInlines.h"
 #include "NativeErrorPrototypeInlines.h"
 #include "NullGetterFunctionInlines.h"
@@ -353,15 +353,11 @@ static JSC_DECLARE_HOST_FUNCTION(disableSuperSampler);
 static JSC_DECLARE_HOST_FUNCTION(resolvePromise);
 static JSC_DECLARE_HOST_FUNCTION(rejectPromise);
 static JSC_DECLARE_HOST_FUNCTION(fulfillPromise);
-static JSC_DECLARE_HOST_FUNCTION(resolveWithoutPromise);
-static JSC_DECLARE_HOST_FUNCTION(rejectWithoutPromise);
-static JSC_DECLARE_HOST_FUNCTION(fulfillWithoutPromise);
 static JSC_DECLARE_HOST_FUNCTION(resolvePromiseWithFirstResolvingFunctionCallCheck);
 static JSC_DECLARE_HOST_FUNCTION(rejectPromiseWithFirstResolvingFunctionCallCheck);
 static JSC_DECLARE_HOST_FUNCTION(fulfillPromiseWithFirstResolvingFunctionCallCheck);
-static JSC_DECLARE_HOST_FUNCTION(resolveWithoutPromiseForAsyncAwait);
+static JSC_DECLARE_HOST_FUNCTION(resolveWithInternalMicrotaskForAsyncAwait);
 static JSC_DECLARE_HOST_FUNCTION(driveAsyncFunction);
-static JSC_DECLARE_HOST_FUNCTION(awaitValue);
 static JSC_DECLARE_HOST_FUNCTION(newHandledRejectedPromise);
 static JSC_DECLARE_HOST_FUNCTION(promiseEmptyOnFulfilled);
 static JSC_DECLARE_HOST_FUNCTION(promiseEmptyOnRejected);
@@ -371,6 +367,9 @@ static JSC_DECLARE_HOST_FUNCTION(promiseReject);
 static JSC_DECLARE_HOST_FUNCTION(promiseResolveWithThen);
 #endif
 static JSC_DECLARE_HOST_FUNCTION(performPromiseThen);
+static JSC_DECLARE_HOST_FUNCTION(asyncGeneratorQueueEnqueue);
+static JSC_DECLARE_HOST_FUNCTION(asyncGeneratorQueueDequeueResolve);
+static JSC_DECLARE_HOST_FUNCTION(asyncGeneratorQueueDequeueReject);
 #if ASSERT_ENABLED
 static JSC_DECLARE_HOST_FUNCTION(assertCall);
 #endif
@@ -753,7 +752,7 @@ JSC_DEFINE_HOST_FUNCTION(enqueueJob, (JSGlobalObject* globalObject, CallFrame* c
     JSValue argument2 = callFrame->argument(3);
     JSValue argument3 = callFrame->argument(4);
     // BunInvokeJobWithArguments expects: job, arg0, arg1, arg2, arg3
-    JSC::QueuedTask task { nullptr, JSC::InternalMicrotask::BunInvokeJobWithArguments, globalObject, job, argument0, argument1, argument2, argument3 };
+    JSC::QueuedTask task { nullptr, JSC::InternalMicrotask::BunInvokeJobWithArguments, 0, globalObject, job, argument0, argument1, argument2, argument3 };
     globalObject->vm().queueMicrotask(WTF::move(task));
     return encodedJSUndefined();
 }
@@ -783,24 +782,6 @@ JSC_DEFINE_HOST_FUNCTION(fulfillPromise, (JSGlobalObject* globalObject, CallFram
     return encodedJSUndefined();
 }
 
-JSC_DEFINE_HOST_FUNCTION(resolveWithoutPromise, (JSGlobalObject* globalObject, CallFrame* callFrame))
-{
-    JSPromise::resolveWithoutPromise(globalObject, callFrame->uncheckedArgument(0), callFrame->uncheckedArgument(1), callFrame->uncheckedArgument(2), callFrame->uncheckedArgument(3));
-    return encodedJSUndefined();
-}
-
-JSC_DEFINE_HOST_FUNCTION(rejectWithoutPromise, (JSGlobalObject* globalObject, CallFrame* callFrame))
-{
-    JSPromise::rejectWithoutPromise(globalObject, callFrame->uncheckedArgument(0), callFrame->uncheckedArgument(1), callFrame->uncheckedArgument(2), callFrame->uncheckedArgument(3));
-    return encodedJSUndefined();
-}
-
-JSC_DEFINE_HOST_FUNCTION(fulfillWithoutPromise, (JSGlobalObject* globalObject, CallFrame* callFrame))
-{
-    JSPromise::fulfillWithoutPromise(globalObject, callFrame->uncheckedArgument(0), callFrame->uncheckedArgument(1), callFrame->uncheckedArgument(2), callFrame->uncheckedArgument(3));
-    return encodedJSUndefined();
-}
-
 JSC_DEFINE_HOST_FUNCTION(resolvePromiseWithFirstResolvingFunctionCallCheck, (JSGlobalObject* globalObject, CallFrame* callFrame))
 {
     auto* promise = jsCast<JSPromise*>(callFrame->uncheckedArgument(0));
@@ -825,13 +806,12 @@ JSC_DEFINE_HOST_FUNCTION(fulfillPromiseWithFirstResolvingFunctionCallCheck, (JSG
     return encodedJSUndefined();
 }
 
-JSC_DEFINE_HOST_FUNCTION(resolveWithoutPromiseForAsyncAwait, (JSGlobalObject* globalObject, CallFrame* callFrame))
+JSC_DEFINE_HOST_FUNCTION(resolveWithInternalMicrotaskForAsyncAwait, (JSGlobalObject* globalObject, CallFrame* callFrame))
 {
     JSValue resolution = callFrame->uncheckedArgument(0);
-    JSValue onFulfilled = callFrame->uncheckedArgument(1);
-    JSValue onRejected = callFrame->uncheckedArgument(2);
-    JSValue context = callFrame->uncheckedArgument(3);
-    JSPromise::resolveWithoutPromiseForAsyncAwait(globalObject, resolution, onFulfilled, onRejected, context);
+    auto task = static_cast<InternalMicrotask>(callFrame->uncheckedArgument(1).asUInt32AsAnyInt());
+    JSValue context = callFrame->uncheckedArgument(2);
+    JSPromise::resolveWithInternalMicrotaskForAsyncAwait(globalObject, resolution, task, context);
     return encodedJSUndefined();
 }
 
@@ -840,15 +820,6 @@ JSC_DEFINE_HOST_FUNCTION(driveAsyncFunction, (JSGlobalObject* globalObject, Call
     JSValue resolution = callFrame->uncheckedArgument(0);
     JSValue context = callFrame->uncheckedArgument(1);
     JSPromise::resolveWithInternalMicrotaskForAsyncAwait(globalObject, resolution, InternalMicrotask::AsyncFunctionResume, context);
-    return encodedJSUndefined();
-}
-
-JSC_DEFINE_HOST_FUNCTION(awaitValue, (JSGlobalObject* globalObject, CallFrame* callFrame))
-{
-    JSValue generator = callFrame->uncheckedArgument(0);
-    JSValue value = callFrame->uncheckedArgument(1);
-    JSValue onFulfilled = callFrame->uncheckedArgument(2);
-    JSPromise::resolveWithoutPromiseForAsyncAwait(globalObject, value, onFulfilled, globalObject->asyncGeneratorYieldOnRejectedFunction(), generator);
     return encodedJSUndefined();
 }
 
@@ -932,9 +903,57 @@ JSC_DEFINE_HOST_FUNCTION(performPromiseThen, (JSGlobalObject* globalObject, Call
     JSValue onFulfilled = callFrame->uncheckedArgument(1);
     JSValue onRejected = callFrame->uncheckedArgument(2);
     JSValue promiseOrCapability = callFrame->uncheckedArgument(3);
-    JSValue context = callFrame->uncheckedArgument(4);
-    promise->performPromiseThen(globalObject->vm(), globalObject, onFulfilled, onRejected, promiseOrCapability, context);
+    promise->performPromiseThen(globalObject->vm(), globalObject, onFulfilled, onRejected, promiseOrCapability);
     return encodedJSUndefined();
+}
+
+JSC_DEFINE_HOST_FUNCTION(asyncGeneratorQueueEnqueue, (JSGlobalObject* globalObject, CallFrame* callFrame))
+{
+    VM& vm = globalObject->vm();
+
+    JSAsyncGenerator* generator = jsDynamicCast<JSAsyncGenerator*>(callFrame->uncheckedArgument(0));
+    JSValue value = callFrame->uncheckedArgument(1);
+    int32_t resumeMode = callFrame->uncheckedArgument(2).asInt32();
+    JSPromise* promise = jsCast<JSPromise*>(callFrame->uncheckedArgument(3));
+
+    if (!generator) [[unlikely]] {
+        promise->reject(vm, globalObject, createTypeError(globalObject, "|this| should be an async generator"_s));
+        return JSValue::encode(jsNumber(static_cast<int32_t>(JSAsyncGenerator::AsyncGeneratorResumeMode::Empty)));
+    }
+
+    generator->enqueue(vm, value, resumeMode, promise);
+
+    if (generator->isExecutionState())
+        return JSValue::encode(jsNumber(static_cast<int32_t>(JSAsyncGenerator::AsyncGeneratorResumeMode::Empty)));
+    return JSValue::encode(jsNumber(generator->resumeMode()));
+}
+
+JSC_DEFINE_HOST_FUNCTION(asyncGeneratorQueueDequeueResolve, (JSGlobalObject* globalObject, CallFrame* callFrame))
+{
+    VM& vm = globalObject->vm();
+
+    JSAsyncGenerator* generator = jsCast<JSAsyncGenerator*>(callFrame->uncheckedArgument(0));
+    JSValue resolution = callFrame->uncheckedArgument(1);
+
+    auto [value, resumeMode, promise] = generator->dequeue(vm);
+
+    promise->resolve(globalObject, resolution);
+
+    return JSValue::encode(jsNumber(generator->resumeMode()));
+}
+
+JSC_DEFINE_HOST_FUNCTION(asyncGeneratorQueueDequeueReject, (JSGlobalObject* globalObject, CallFrame* callFrame))
+{
+    VM& vm = globalObject->vm();
+
+    JSAsyncGenerator* generator = jsCast<JSAsyncGenerator*>(callFrame->uncheckedArgument(0));
+    JSValue error = callFrame->uncheckedArgument(1);
+
+    auto [value, resumeMode, promise] = generator->dequeue(vm);
+
+    promise->reject(vm, globalObject, error);
+
+    return JSValue::encode(jsNumber(generator->resumeMode()));
 }
 
 JS_GLOBAL_OBJECT_ADDITIONS_2;
@@ -1906,9 +1925,6 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
     m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::setStorage)].initLater([] (const Initializer<JSCell>& init) {
             init.set(JSFunction::create(init.vm, jsCast<JSGlobalObject*>(init.owner), 0, "setStorage"_s, setPrivateFuncSetStorage, ImplementationVisibility::Private, JSSetStorageIntrinsic));
         });
-    m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::setClone)].initLater([] (const Initializer<JSCell>& init) {
-            init.set(JSFunction::create(init.vm, jsCast<JSGlobalObject*>(init.owner), 0, "setClone"_s, setPrivateFuncClone, ImplementationVisibility::Private));
-        });
 
     m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::importModule)].initLater([] (const Initializer<JSCell>& init) {
             init.set(JSFunction::create(init.vm, jsCast<JSGlobalObject*>(init.owner), 0, "importModule"_s, globalFuncImportModule, ImplementationVisibility::Private));
@@ -1933,15 +1949,6 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
     m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::fulfillPromise)].initLater([] (const Initializer<JSCell>& init) {
             init.set(JSFunction::create(init.vm, jsCast<JSGlobalObject*>(init.owner), 2, "fulfillPromise"_s, fulfillPromise, ImplementationVisibility::Private));
         });
-    m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::resolveWithoutPromise)].initLater([] (const Initializer<JSCell>& init) {
-            init.set(JSFunction::create(init.vm, jsCast<JSGlobalObject*>(init.owner), 4, "resolveWithoutPromise"_s, resolveWithoutPromise, ImplementationVisibility::Private));
-        });
-    m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::rejectWithoutPromise)].initLater([] (const Initializer<JSCell>& init) {
-            init.set(JSFunction::create(init.vm, jsCast<JSGlobalObject*>(init.owner), 4, "rejectWithoutPromise"_s, rejectWithoutPromise, ImplementationVisibility::Private));
-        });
-    m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::fulfillWithoutPromise)].initLater([] (const Initializer<JSCell>& init) {
-            init.set(JSFunction::create(init.vm, jsCast<JSGlobalObject*>(init.owner), 4, "fulfillWithoutPromise"_s, fulfillWithoutPromise, ImplementationVisibility::Private));
-        });
     m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::resolvePromiseWithFirstResolvingFunctionCallCheck)].initLater([] (const Initializer<JSCell>& init) {
             init.set(JSFunction::create(init.vm, jsCast<JSGlobalObject*>(init.owner), 2, "resolvePromiseWithFirstResolvingFunctionCallCheck"_s, resolvePromiseWithFirstResolvingFunctionCallCheck, ImplementationVisibility::Private, ResolvePromiseWithFirstResolvingFunctionCallCheckIntrinsic));
         });
@@ -1951,14 +1958,20 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
     m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::fulfillPromiseWithFirstResolvingFunctionCallCheck)].initLater([] (const Initializer<JSCell>& init) {
             init.set(JSFunction::create(init.vm, jsCast<JSGlobalObject*>(init.owner), 2, "fulfillPromiseWithFirstResolvingFunctionCallCheck"_s, fulfillPromiseWithFirstResolvingFunctionCallCheck, ImplementationVisibility::Private, FulfillPromiseWithFirstResolvingFunctionCallCheckIntrinsic));
         });
-    m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::resolveWithoutPromiseForAsyncAwait)].initLater([] (const Initializer<JSCell>& init) {
-            init.set(JSFunction::create(init.vm, jsCast<JSGlobalObject*>(init.owner), 4, "resolveWithoutPromiseForAsyncAwait"_s, resolveWithoutPromiseForAsyncAwait, ImplementationVisibility::Private));
+    m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::resolveWithInternalMicrotaskForAsyncAwait)].initLater([] (const Initializer<JSCell>& init) {
+            init.set(JSFunction::create(init.vm, jsCast<JSGlobalObject*>(init.owner), 3, "resolveWithInternalMicrotaskForAsyncAwait"_s, resolveWithInternalMicrotaskForAsyncAwait, ImplementationVisibility::Private));
+        });
+    m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::asyncGeneratorQueueEnqueue)].initLater([] (const Initializer<JSCell>& init) {
+            init.set(JSFunction::create(init.vm, jsCast<JSGlobalObject*>(init.owner), 4, "asyncGeneratorQueueEnqueue"_s, asyncGeneratorQueueEnqueue, ImplementationVisibility::Private));
+        });
+    m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::asyncGeneratorQueueDequeueResolve)].initLater([] (const Initializer<JSCell>& init) {
+            init.set(JSFunction::create(init.vm, jsCast<JSGlobalObject*>(init.owner), 2, "asyncGeneratorQueueDequeueResolve"_s, asyncGeneratorQueueDequeueResolve, ImplementationVisibility::Private));
+        });
+    m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::asyncGeneratorQueueDequeueReject)].initLater([] (const Initializer<JSCell>& init) {
+            init.set(JSFunction::create(init.vm, jsCast<JSGlobalObject*>(init.owner), 2, "asyncGeneratorQueueDequeueReject"_s, asyncGeneratorQueueDequeueReject, ImplementationVisibility::Private));
         });
     m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::driveAsyncFunction)].initLater([] (const Initializer<JSCell>& init) {
             init.set(JSFunction::create(init.vm, jsCast<JSGlobalObject*>(init.owner), 2, "driveAsyncFunction"_s, driveAsyncFunction, ImplementationVisibility::Private));
-        });
-    m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::awaitValue)].initLater([] (const Initializer<JSCell>& init) {
-            init.set(JSFunction::create(init.vm, jsCast<JSGlobalObject*>(init.owner), 1, "awaitValue"_s, awaitValue, ImplementationVisibility::Private));
         });
     m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::newHandledRejectedPromise)].initLater([] (const Initializer<JSCell>& init) {
             init.set(JSFunction::create(init.vm, jsCast<JSGlobalObject*>(init.owner), 1, "newHandledRejectedPromise"_s, newHandledRejectedPromise, ImplementationVisibility::Private));
@@ -1981,7 +1994,7 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
         });
 #endif
     m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::performPromiseThen)].initLater([] (const Initializer<JSCell>& init) {
-            init.set(JSFunction::create(init.vm, jsCast<JSGlobalObject*>(init.owner), 5, "performPromiseThen"_s, performPromiseThen, ImplementationVisibility::Private));
+            init.set(JSFunction::create(init.vm, jsCast<JSGlobalObject*>(init.owner), 4, "performPromiseThen"_s, performPromiseThen, ImplementationVisibility::Private));
         });
 
     m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::makeTypeError)].initLater([] (const Initializer<JSCell>& init) {
@@ -2259,6 +2272,7 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
     installObjectPropertyChangeAdaptiveWatchpoint(setupAdaptiveWatchpoint(this, m_regExpPrototype.get(), vm.propertyNames->unicode), m_regExpPrimordialPropertiesWatchpointSet);
     installObjectPropertyChangeAdaptiveWatchpoint(setupAdaptiveWatchpoint(this, m_regExpPrototype.get(), vm.propertyNames->unicodeSets), m_regExpPrimordialPropertiesWatchpointSet);
     installObjectPropertyChangeAdaptiveWatchpoint(setupAdaptiveWatchpoint(this, m_regExpPrototype.get(), vm.propertyNames->replaceSymbol), m_regExpPrimordialPropertiesWatchpointSet);
+    installObjectPropertyChangeAdaptiveWatchpoint(setupAdaptiveWatchpoint(this, m_regExpPrototype.get(), vm.propertyNames->matchSymbol), m_regExpPrimordialPropertiesWatchpointSet);
     installObjectPropertyChangeAdaptiveWatchpoint(setupAdaptiveWatchpoint(this, jsSetPrototype(), vm.propertyNames->has), m_setPrimordialPropertiesWatchpointSet);
     installObjectPropertyChangeAdaptiveWatchpoint(setupAdaptiveWatchpoint(this, jsSetPrototype(), vm.propertyNames->keys), m_setPrimordialPropertiesWatchpointSet);
 
@@ -3637,9 +3651,9 @@ void JSGlobalObject::queueMicrotaskToEventLoop(JSC::JSGlobalObject& globalObject
     globalObject.vm().queueMicrotask(WTF::move(task));
 }
 
-void JSGlobalObject::queueMicrotask(InternalMicrotask job, JSValue argument0, JSValue argument1, JSValue argument2, JSValue argument3)
+void JSGlobalObject::queueMicrotask(InternalMicrotask job, uint8_t payload, JSValue argument0, JSValue argument1, JSValue argument2)
 {
-    QueuedTask task { nullptr, job, this, argument0, argument1, argument2, argument3 };
+    QueuedTask task { nullptr, job, payload, this, argument0, argument1, argument2 };
     if (globalObjectMethodTable()->queueMicrotaskToEventLoop) {
         globalObjectMethodTable()->queueMicrotaskToEventLoop(*this, WTF::move(task));
         return;
@@ -3663,7 +3677,7 @@ void JSGlobalObject::promiseRejectionTracker(JSGlobalObject* globalObject, JSPro
 #if USE(BUN_JSC_ADDITIONS)
 void JSGlobalObject::queueMicrotask(InternalMicrotask job, JSValue argument0, JSValue argument1, JSValue argument2, JSValue argument3, JSValue argument4)
 {
-    QueuedTask task { nullptr, job, this, argument0, argument1, argument2, argument3, argument4 };
+    QueuedTask task { nullptr, job, 0, this, argument0, argument1, argument2, argument3, argument4 };
     if (globalObjectMethodTable()->queueMicrotaskToEventLoop) {
         globalObjectMethodTable()->queueMicrotaskToEventLoop(*this, WTF::move(task));
         return;

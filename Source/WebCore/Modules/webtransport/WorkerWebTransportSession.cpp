@@ -30,7 +30,6 @@
 #include "WebTransport.h"
 #include "WebTransportConnectionStats.h"
 #include "WebTransportReceiveStreamStats.h"
-#include "WebTransportSendStreamSink.h"
 #include "WebTransportSendStreamStats.h"
 #include "WritableStreamSink.h"
 
@@ -101,14 +100,14 @@ void WorkerWebTransportSession::receiveIncomingUnidirectionalStream(WebTransport
     });
 }
 
-void WorkerWebTransportSession::receiveBidirectionalStream(Ref<WebTransportSendStreamSink>&& sink)
+void WorkerWebTransportSession::receiveBidirectionalStream(WebTransportStreamIdentifier identifier)
 {
     ASSERT(RunLoop::isMain());
-    ScriptExecutionContext::postTaskTo(m_contextID, [sink = WTF::move(sink), weakClient = m_client] (auto&) mutable {
+    ScriptExecutionContext::postTaskTo(m_contextID, [identifier, weakClient = m_client] (auto&) mutable {
         RefPtr client = weakClient.get();
         if (!client)
             return;
-        client->receiveBidirectionalStream(WTF::move(sink));
+        client->receiveBidirectionalStream(identifier);
     });
 }
 
@@ -153,22 +152,22 @@ Ref<WebTransportSendPromise> WorkerWebTransportSession::sendDatagram(std::option
     return WebTransportSendPromise::createAndReject();
 }
 
-Ref<WritableStreamPromise> WorkerWebTransportSession::createOutgoingUnidirectionalStream()
+Ref<WebTransportStreamPromise> WorkerWebTransportSession::createOutgoingUnidirectionalStream()
 {
     ASSERT(!RunLoop::isMain());
     if (RefPtr session = m_session)
         return session->createOutgoingUnidirectionalStream();
     ASSERT_NOT_REACHED_WITH_MESSAGE("Session should be set up before use then never removed.");
-    return WritableStreamPromise::createAndReject();
+    return WebTransportStreamPromise::createAndReject();
 }
 
-Ref<BidirectionalStreamPromise> WorkerWebTransportSession::createBidirectionalStream()
+Ref<WebTransportStreamPromise> WorkerWebTransportSession::createBidirectionalStream()
 {
     ASSERT(!RunLoop::isMain());
     if (RefPtr session = m_session)
         return session->createBidirectionalStream();
     ASSERT_NOT_REACHED_WITH_MESSAGE("Session should be set up before use then never removed.");
-    return BidirectionalStreamPromise::createAndReject();
+    return WebTransportStreamPromise::createAndReject();
 }
 
 Ref<WebTransportSendPromise> WorkerWebTransportSession::streamSendBytes(WebTransportStreamIdentifier identifier, std::span<const uint8_t> bytes, bool withFin)

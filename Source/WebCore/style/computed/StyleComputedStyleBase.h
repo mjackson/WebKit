@@ -5,7 +5,7 @@
  * Copyright (C) 2003-2023 Apple Inc. All rights reserved.
  * Copyright (C) 2014-2021 Google Inc. All rights reserved.
  * Copyright (C) 2006 Graham Dennis (graham.dennis@gmail.com)
- * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025-2026 Samuel Weinig <sam@webkit.org>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -28,7 +28,6 @@
 
 #include <WebCore/BoxExtents.h>
 #include <WebCore/PseudoElementIdentifier.h>
-#include <WebCore/StyleGridAutoFlow.h>
 #include <WebCore/StyleGridAutoFlow.h>
 #include <WebCore/StylePrimitiveNumeric+Forward.h>
 #include <WebCore/WritingMode.h>
@@ -61,11 +60,7 @@ class RenderElement;
 class RenderStyle;
 class RenderStyleBase;
 class RenderStyleProperties;
-class SVGRenderStyle;
 class ScrollTimeline;
-class StyleInheritedData;
-class StyleNonInheritedData;
-class StyleRareInheritedData;
 class TransformationMatrix;
 class ViewTimeline;
 
@@ -215,6 +210,11 @@ class ChangedAnimatablePropertiesFunctions;
 class CustomProperty;
 class CustomPropertyData;
 class CustomPropertyRegistry;
+class DifferenceFunctions;
+class InheritedData;
+class NonInheritedData;
+class InheritedRareData;
+class SVGData;
 
 struct AccentColor;
 struct AlignContent;
@@ -236,6 +236,7 @@ struct BorderImageSource;
 struct BorderImageWidth;
 struct BorderRadius;
 struct BoxShadow;
+struct CaretColor;
 struct Clip;
 struct ClipPath;
 struct Color;
@@ -247,10 +248,14 @@ struct ContainIntrinsicSize;
 struct ContainerNames;
 struct Content;
 struct CornerShapeValue;
+struct CounterIncrement;
+struct CounterReset;
+struct CounterSet;
 struct Cursor;
 struct DynamicRangeLimit;
 struct Filter;
 struct FlexBasis;
+struct FlowTolerance;
 struct FontFamilies;
 struct FontFamiliesView;
 struct FontFeatureSettings;
@@ -275,7 +280,6 @@ struct HyphenateLimitEdge;
 struct HyphenateLimitLines;
 struct ImageOrNone;
 struct InsetEdge;
-struct ItemTolerance;
 struct JustifyContent;
 struct JustifyItems;
 struct JustifySelf;
@@ -401,6 +405,7 @@ enum class TextAlign : uint8_t;
 enum class WebkitOverflowScrolling : bool;
 enum class WebkitTouchCallout : bool;
 
+template<typename> struct ColorPropertyTraits;
 template<typename> struct CoordinatedValueList;
 template<typename> struct Shadows;
 
@@ -434,7 +439,7 @@ using WebkitBoxFlex = Number<CSS::All, float>;
 using WebkitBoxFlexGroup = Integer<CSS::Nonnegative>;
 using WebkitBoxOrdinalGroup = Integer<CSS::Positive>;
 
-constexpr auto PublicPseudoIDBits = 18;
+constexpr auto PublicPseudoIDBits = 17;
 constexpr auto TextDecorationLineBits = 5;
 constexpr auto TextTransformBits = 6;
 constexpr auto PseudoElementTypeBits = 5;
@@ -653,7 +658,14 @@ public:
     inline float usedLetterSpacing() const;
     inline float usedWordSpacing() const;
 
-    // MARK: Writing Modes
+    // MARK: - Used Counter Directives
+
+    const CounterDirectiveMap& usedCounterDirectives() const;
+    void updateUsedCounterIncrementDirectives();
+    void updateUsedCounterResetDirectives();
+    void updateUsedCounterSetDirectives();
+
+    // MARK: - Writing Modes
 
     // FIXME: Rename to something that doesn't conflict with a property name.
     // Aggregates `writing-mode`, `direction` and `text-orientation`.
@@ -668,7 +680,7 @@ public:
         return writingMode().isBidiLTR();
     }
 
-    // MARK: Aggregates
+    // MARK: - Aggregates
 
     inline Animations& ensureAnimations();
     inline BackgroundLayers& ensureBackgroundLayers();
@@ -698,7 +710,6 @@ public:
     inline const TransformOrigin& transformOrigin() const;
     inline const Transitions& transitions() const;
     inline const ViewTimelines& viewTimelines() const;
-    inline LineWidthBox borderWidth() const;
 
     inline void setBackgroundLayers(BackgroundLayers&&);
     inline void setBorderImage(BorderImage&&);
@@ -717,22 +728,8 @@ public:
 
     // MARK: - Properties/descriptors that are not yet generated
 
-    // `caret-color`
-    inline const Color& caretColor() const;
-    inline const Color& visitedLinkCaretColor() const;
-    inline bool hasAutoCaretColor() const;
-    inline bool hasVisitedLinkAutoCaretColor() const;
-    inline void setCaretColor(Color&&);
-    inline void setVisitedLinkCaretColor(Color&&);
-    inline void setHasAutoCaretColor();
-    inline void setHasVisitedLinkAutoCaretColor();
-
     // `cursor`
     inline CursorType cursorType() const;
-
-    // `counter-*`
-    const CounterDirectiveMap& counterDirectives() const;
-    CounterDirectiveMap& accessCounterDirectives();
 
     // `@page size`
     inline const PageSize& pageSize() const;
@@ -820,23 +817,17 @@ public:
         PREFERRED_TYPE(PrintColorAdjust) unsigned char printColorAdjust : 1;
         PREFERRED_TYPE(InsideLink) unsigned char insideLink : 2;
 
+        PREFERRED_TYPE(bool) unsigned char isZoomed : 1;
+
 #if ENABLE(TEXT_AUTOSIZING)
         unsigned autosizeStatus : 5;
 #endif
-        // Total = 56 bits (fits in 8 bytes)
+        // Total = 63 bits (fits in 8 bytes)
     };
-
-    const StyleNonInheritedData& nonInheritedData() const { return m_nonInheritedData; }
-    const NonInheritedFlags& nonInheritedFlags() const { return m_nonInheritedFlags; }
-
-    const StyleRareInheritedData& rareInheritedData() const { return m_rareInheritedData; }
-    const StyleInheritedData& inheritedData() const { return m_inheritedData; }
-    const InheritedFlags& inheritedFlags() const { return m_inheritedFlags; }
-
-    const SVGRenderStyle& svgStyle() const { return m_svgStyle; }
 
 protected:
     friend class ChangedAnimatablePropertiesFunctions;
+    friend class DifferenceFunctions;
     friend class WebCore::RenderStyle;
     friend class WebCore::RenderStyleBase;
     friend class WebCore::RenderStyleProperties;
@@ -849,19 +840,29 @@ protected:
 
     ComputedStyleBase(ComputedStyleBase&, ComputedStyleBase&&);
 
-    // non-inherited attributes
-    DataRef<StyleNonInheritedData> m_nonInheritedData;
+    const NonInheritedFlags& nonInheritedFlags() const { return m_nonInheritedFlags; }
+    const NonInheritedData& nonInheritedData() const { return m_nonInheritedData; }
+
+    const InheritedFlags& inheritedFlags() const { return m_inheritedFlags; }
+    const InheritedData& inheritedData() const { return m_inheritedData; }
+    const InheritedRareData& inheritedRareData() const { return m_inheritedRareData; }
+
+    const SVGData& svgData() const { return m_svgData; }
+
+    // Non-inherited data
+    DataRef<NonInheritedData> m_nonInheritedData;
     NonInheritedFlags m_nonInheritedFlags;
 
-    // inherited attributes
-    DataRef<StyleRareInheritedData> m_rareInheritedData;
-    DataRef<StyleInheritedData> m_inheritedData;
+    // Inherited data
+    DataRef<InheritedRareData> m_inheritedRareData;
+    DataRef<InheritedData> m_inheritedData;
     InheritedFlags m_inheritedFlags;
 
-    // list of associated pseudo styles
-    std::unique_ptr<PseudoStyleCache> m_cachedPseudoStyles;
+    // Non-inherited and inherited data specialized to SVG
+    DataRef<SVGData> m_svgData;
 
-    DataRef<SVGRenderStyle> m_svgStyle;
+    // Associated pseudo styles
+    std::unique_ptr<PseudoStyleCache> m_cachedPseudoStyles;
 
 #if ASSERT_ENABLED || ENABLE(SECURITY_ASSERTIONS)
     bool m_deletionHasBegun { false };

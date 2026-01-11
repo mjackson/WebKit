@@ -48,30 +48,20 @@
 
 namespace bmalloc {
 
-namespace api {
-
-enum class TZoneMallocFallback : uint8_t {
-    Undecided,
-    ForceDebugMalloc,
-    DoNotFallBack
-};
-
-extern BEXPORT TZoneMallocFallback tzoneMallocFallback;
-
-using HeapRef = void*;
+namespace TZone {
 
 static constexpr size_t sizeClassFor(size_t size)
 {
-    constexpr unsigned tzoneSmallSizeThreshold = 512;
+    constexpr size_t tzoneSmallSizeThreshold = 512;
     constexpr double tzoneMidSizeGrowthRate = 1.05;
-    constexpr unsigned tzoneMidSizeThreshold = 7872;
+    constexpr size_t tzoneMidSizeThreshold = 7872;
     constexpr double tzoneLargeSizeGrowthRate = 1.3;
 
     if (size <= tzoneSmallSizeThreshold)
         return roundUpToMultipleOf<16>(size);
     double nextSize = tzoneSmallSizeThreshold;
     size_t previousRoundedNextSize = 0;
-    size_t roundedNextSize = tzoneSmallSizeThreshold;
+    size_t roundedNextSize = roundUpToMultipleOf<16>(tzoneSmallSizeThreshold);
     do {
         previousRoundedNextSize = roundedNextSize;
         nextSize = nextSize * tzoneMidSizeGrowthRate;
@@ -91,6 +81,56 @@ static constexpr size_t sizeClassFor(size_t size)
     return roundedNextSize;
 }
 
+template<typename T>
+static constexpr size_t sizeClass()
+{
+    return sizeClassFor(sizeof(T));
+}
+
+template<typename T>
+static constexpr size_t alignment()
+{
+    return roundUpToMultipleOf<16>(alignof(T));
+}
+
+template<typename T>
+inline constexpr unsigned inheritedSizeClass()
+{
+    if constexpr (requires { std::remove_pointer_t<T>::inheritedSizeClass; })
+        return std::remove_pointer_t<T>::inheritedSizeClass();
+    return 0;
+}
+
+template<typename T>
+inline constexpr unsigned inheritedAlignment()
+{
+    if constexpr (requires { std::remove_pointer_t<T>::inheritedAlignment; })
+        return std::remove_pointer_t<T>::inheritedAlignment();
+    return 0;
+}
+
+template<typename T>
+inline constexpr bool usesTZoneHeap()
+{
+    if constexpr (requires { std::remove_pointer_t<T>::usesTZoneHeap; })
+        return std::remove_pointer_t<T>::usesTZoneHeap();
+    return false;
+}
+
+} // namespace TZone
+
+namespace api {
+
+enum class TZoneMallocFallback : uint8_t {
+    Undecided,
+    ForceDebugMalloc,
+    DoNotFallBack
+};
+
+extern BEXPORT TZoneMallocFallback tzoneMallocFallback;
+
+using HeapRef = void*;
+
 struct SizeAndAlignment {
     using Value = uint64_t;
 
@@ -102,8 +142,8 @@ struct SizeAndAlignment {
     template<typename T>
     static constexpr Value encode()
     {
-        size_t size = roundUpToMultipleOf<16>(::bmalloc::api::sizeClassFor(sizeof(T)));
-        size_t alignment = roundUpToMultipleOf<16>(alignof(T));
+        size_t size = ::bmalloc::TZone::sizeClass<T>();
+        size_t alignment = ::bmalloc::TZone::alignment<T>();
         return encode(size, alignment);
     }
 
@@ -154,6 +194,10 @@ private: \
     static _exportMacro const TZoneSpecification s_heapSpec; \
     \
 public: \
+    static constexpr bool usesTZoneHeap() { return true; } \
+    static constexpr unsigned inheritedSizeClass() { return ::bmalloc::TZone::sizeClass<_type>(); } \
+    static constexpr unsigned inheritedAlignment() { return ::bmalloc::TZone::alignment<_type>(); } \
+    \
     BINLINE void* operator new(size_t, void* p) { return p; } \
     BINLINE void* operator new[](size_t, void* p) { return p; } \
     \

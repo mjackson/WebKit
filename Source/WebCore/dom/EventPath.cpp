@@ -67,7 +67,7 @@ private:
 
     const Ref<Node> m_relatedNode;
     RefPtr<Node> m_retargetedRelatedNode;
-    Vector<RefPtr<TreeScope>, 8> m_ancestorTreeScopes;
+    Vector<Ref<TreeScope>, 8> m_ancestorTreeScopes;
     unsigned m_lowestCommonAncestorIndex { 0 };
     bool m_hasDifferentTreeRoot { false };
 };
@@ -348,8 +348,8 @@ RelatedNodeRetargeter::RelatedNodeRetargeter(Ref<Node>&& relatedNode, Node& targ
 
     unsigned i = m_ancestorTreeScopes.size();
     unsigned j = targetTreeScopeAncestors.size();
-    ASSERT_WITH_SECURITY_IMPLICATION(m_ancestorTreeScopes.last() == targetTreeScopeAncestors.last().ptr());
-    while (m_ancestorTreeScopes[i - 1] == targetTreeScopeAncestors[j - 1].ptr()) {
+    ASSERT_WITH_SECURITY_IMPLICATION(m_ancestorTreeScopes.last().ptr() == targetTreeScopeAncestors.last().ptr());
+    while (m_ancestorTreeScopes[i - 1].ptr() == targetTreeScopeAncestors[j - 1].ptr()) {
         i--;
         j--;
         if (!i || !j)
@@ -394,7 +394,7 @@ void RelatedNodeRetargeter::moveToNewTreeScope(TreeScope* previousTreeScope, Tre
         if (m_lowestCommonAncestorIndex) {
             if (m_ancestorTreeScopes.isEmpty())
                 collectTreeScopes();
-            bool relatedNodeIsInSlot = m_ancestorTreeScopes[m_lowestCommonAncestorIndex - 1] == &newTreeScope;
+            bool relatedNodeIsInSlot = m_ancestorTreeScopes[m_lowestCommonAncestorIndex - 1].ptr() == &newTreeScope;
             if (relatedNodeIsInSlot) {
                 m_lowestCommonAncestorIndex--;
                 m_retargetedRelatedNode = nodeInLowestCommonAncestor();
@@ -422,8 +422,8 @@ inline Node* RelatedNodeRetargeter::nodeInLowestCommonAncestor()
 void RelatedNodeRetargeter::collectTreeScopes()
 {
     ASSERT(m_ancestorTreeScopes.isEmpty());
-    for (TreeScope* currentTreeScope = &m_relatedNode->treeScope(); currentTreeScope; currentTreeScope = currentTreeScope->parentTreeScope())
-        m_ancestorTreeScopes.append(currentTreeScope);
+    for (auto* currentTreeScope = &m_relatedNode->treeScope(); currentTreeScope; currentTreeScope = currentTreeScope->parentTreeScope())
+        m_ancestorTreeScopes.append(*currentTreeScope);
     ASSERT_WITH_SECURITY_IMPLICATION(!m_ancestorTreeScopes.isEmpty());
 }
 

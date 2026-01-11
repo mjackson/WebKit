@@ -39,6 +39,7 @@
 #include "RemotePageFullscreenManagerProxy.h"
 #include "RemotePageScreenOrientationManagerProxy.h"
 #include "RemotePageVisitedLinkStoreRegistration.h"
+#include "RemotePageWebDeviceOrientationUpdateProviderProxy.h"
 #include "UserMediaProcessManager.h"
 #include "WebBackForwardList.h"
 #include "WebBackForwardListMessages.h"
@@ -89,20 +90,12 @@ RemotePageProxy::RemotePageProxy(WebPageProxy& page, WebProcessProxy& process, c
         m_messageReceiverRegistration.startReceivingMessages(m_process, m_webPageID, *this, page.backForwardList());
 
     m_process->addRemotePageProxy(*this);
-
-#if PLATFORM(IOS_FAMILY) && ENABLE(DEVICE_ORIENTATION)
-    m_page->webDeviceOrientationUpdateProviderProxy()->addAsMessageReceiverForProcess(m_process.get(), m_webPageID);
-#endif
 }
 
 void RemotePageProxy::disconnect()
 {
-    if (RefPtr page = m_page.get()) {
+    if (RefPtr page = m_page.get())
         page->isNoLongerAssociatedWithRemotePage(*this);
-#if PLATFORM(IOS_FAMILY) && ENABLE(DEVICE_ORIENTATION)
-        page->webDeviceOrientationUpdateProviderProxy()->removeAsMessageReceiverForProcess(m_process.get(), m_webPageID);
-#endif
-    }
     if (m_drawingArea)
         m_process->send(Messages::WebPage::Close(), m_webPageID);
     m_process->removeRemotePageProxy(*this);
@@ -113,6 +106,9 @@ void RemotePageProxy::disconnect()
 #endif
 #if ENABLE(VIDEO_PRESENTATION_MODE)
     m_videoPresentationManager = nullptr;
+#endif
+#if PLATFORM(IOS_FAMILY) && ENABLE(DEVICE_ORIENTATION)
+    m_webDeviceOrientationUpdateProvider = nullptr;
 #endif
 #if PLATFORM(IOS_FAMILY) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
     m_playbackSessionManager = nullptr;
@@ -151,6 +147,9 @@ void RemotePageProxy::injectPageIntoNewProcess()
 #endif
 #if ENABLE(VIDEO_PRESENTATION_MODE)
     m_videoPresentationManager = RemotePageVideoPresentationManagerProxy::create(pageID(), m_process, page->protectedVideoPresentationManager().get());
+#endif
+#if PLATFORM(IOS_FAMILY) && ENABLE(DEVICE_ORIENTATION)
+    m_webDeviceOrientationUpdateProvider = RemotePageWebDeviceOrientationUpdateProviderProxy::create(pageID(), m_process, page->protectedWebDeviceOrientationUpdateProviderProxy().get());
 #endif
 #if PLATFORM(IOS_FAMILY) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
     m_playbackSessionManager = RemotePagePlaybackSessionManagerProxy::create(pageID(), page->protectedPlaybackSessionManager().get(), m_process);

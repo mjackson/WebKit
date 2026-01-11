@@ -36,7 +36,7 @@
 #include "RenderSVGText.h"
 #include "RenderStyle+GettersInlines.h"
 #include "SVGInlineTextBox.h"
-#include "SVGPaintServerHandling.h"
+#include "SVGPaintServerHandlingInlines.h"
 #include "SVGResourcesCache.h"
 #include "SVGTextFragment.h"
 #include "Settings.h"

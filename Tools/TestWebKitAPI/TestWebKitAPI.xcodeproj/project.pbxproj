@@ -1445,6 +1445,7 @@
 		F42A9E702CC2FE84002280C0 /* subframes.html in Copy Resources */ = {isa = PBXBuildFile; fileRef = F42A9E6F2CC2FE84002280C0 /* subframes.html */; };
 		F42D634422A1729F00D2FB3A /* AutocorrectionTestsIOS.mm in Sources */ = {isa = PBXBuildFile; fileRef = F42D634322A1729F00D2FB3A /* AutocorrectionTestsIOS.mm */; };
 		F434CA1A22E65BCA005DDB26 /* ScrollToRevealSelection.mm in Sources */ = {isa = PBXBuildFile; fileRef = F434CA1922E65BCA005DDB26 /* ScrollToRevealSelection.mm */; };
+		F439524E2F0DBE2900C08066 /* image-in-scrolled-subframe.html in Copy Resources */ = {isa = PBXBuildFile; fileRef = F43952462F0DBAD100C08066 /* image-in-scrolled-subframe.html */; };
 		F43B320E2C9C801100838ABA /* audio-fingerprinting.js in Copy Resources */ = {isa = PBXBuildFile; fileRef = F43B320C2C9C801100838ABA /* audio-fingerprinting.js */; };
 		F43B320F2C9C801100838ABA /* canvas-fingerprinting.js in Copy Resources */ = {isa = PBXBuildFile; fileRef = F43B320D2C9C801100838ABA /* canvas-fingerprinting.js */; };
 		F43CAB1D278A326500C8D0A2 /* CloseWhileCommittingLoad.mm in Sources */ = {isa = PBXBuildFile; fileRef = F43CAB1C278A326500C8D0A2 /* CloseWhileCommittingLoad.mm */; };
@@ -2077,6 +2078,7 @@
 				A17C47852C98E5C20023F3C7 /* image-and-textarea.html in Copy Resources */,
 				A17C47862C98E5C20023F3C7 /* image-controls.html in Copy Resources */,
 				A17C47872C98E5C20023F3C7 /* image-in-link-and-input.html in Copy Resources */,
+				F439524E2F0DBE2900C08066 /* image-in-scrolled-subframe.html in Copy Resources */,
 				A17C47882C98E5C20023F3C7 /* image-map.html in Copy Resources */,
 				A17C47892C98E5C20023F3C7 /* image-with-text.html in Copy Resources */,
 				A17C478A2C98E5C20023F3C7 /* image.html in Copy Resources */,
@@ -4263,6 +4265,7 @@
 		F434CA1922E65BCA005DDB26 /* ScrollToRevealSelection.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ScrollToRevealSelection.mm; sourceTree = "<group>"; };
 		F4352F9E26D4037000E605E4 /* editable-responsive-body.html */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.html; path = "editable-responsive-body.html"; sourceTree = "<group>"; };
 		F4365E232BB1181A005E8C1A /* element-targeting-2.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "element-targeting-2.html"; sourceTree = "<group>"; };
+		F43952462F0DBAD100C08066 /* image-in-scrolled-subframe.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "image-in-scrolled-subframe.html"; sourceTree = "<group>"; };
 		F43B320C2C9C801100838ABA /* audio-fingerprinting.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = "audio-fingerprinting.js"; sourceTree = "<group>"; };
 		F43B320D2C9C801100838ABA /* canvas-fingerprinting.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = "canvas-fingerprinting.js"; sourceTree = "<group>"; };
 		F43C3823278133190099ABCE /* NSResponderTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = NSResponderTests.mm; sourceTree = "<group>"; };
@@ -4943,6 +4946,7 @@
 				510477751D298E03009747EB /* IDBDeleteRecovery.mm */,
 				5110FCEF1E01CBAA006F8D0B /* IDBIndexUpgradeToV2.mm */,
 				93BCBC8023CC6EE800CA2221 /* IDBObjectStoreInfoUpgradeToV2.mm */,
+				F43952462F0DBAD100C08066 /* image-in-scrolled-subframe.html */,
 				F44A7D1F268D5C6900B49BB8 /* ImageAnalysisTests.mm */,
 				51CF3E8E2EE7F09900EEAFDD /* ImmersiveVideoMetadata.mm */,
 				49AEEF6B2407358600C87E4C /* InAppBrowserPrivacy.mm */,

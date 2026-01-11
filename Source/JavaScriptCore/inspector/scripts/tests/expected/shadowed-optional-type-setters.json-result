@@ -93,6 +93,8 @@
 
 #pragma once
 
+#include <wtf/Platform.h>
+
 #if ENABLE(INSPECTOR_ALTERNATE_DISPATCHERS)
 
 #include "TestProtocolObjects.h"
@@ -334,6 +336,7 @@ namespace Inspector {
 #pragma once
 
 #include <JavaScriptCore/InspectorProtocolTypes.h>
+#include <JavaScriptCore/JSExportMacros.h>
 #include <wtf/JSONValues.h>
 #include <wtf/text/WTFString.h>
 
@@ -927,12 +930,11 @@ inline String toProtocolString(TestProtocolRuntimeKeyPathType value)
 template<>
 inline std::optional<TestProtocolRuntimeKeyPathType> fromProtocolString(const String& value)
 {
-    static constexpr auto mappings = std::to_array<std::pair<ComparableASCIILiteral, TestProtocolRuntimeKeyPathType>>({
+    static constexpr SortedArrayMap map { std::to_array<std::pair<ComparableASCIILiteral, TestProtocolRuntimeKeyPathType>>({
         { "array"_s, TestProtocolRuntimeKeyPathTypeArray },
         { "null"_s, TestProtocolRuntimeKeyPathTypeNull },
         { "string"_s, TestProtocolRuntimeKeyPathTypeString },
-    });
-    static constexpr SortedArrayMap map { mappings };
+   }) };
     if (auto* result = map.tryGet(value))
         return *result;
     return std::nullopt;

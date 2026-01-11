@@ -29,6 +29,7 @@
 #include "CookieChangeListener.h"
 #include "CookieJar.h"
 #include "EventTarget.h"
+#include "EventTargetInterfaces.h"
 #include <wtf/Forward.h>
 #include <wtf/RefCounted.h>
 #include <wtf/TZoneMalloc.h>
@@ -99,4 +100,6 @@ private:
     HashMap<uint64_t, Ref<DeferredPromise>> m_promises;
 };
 
-}
+} // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(CookieStore)

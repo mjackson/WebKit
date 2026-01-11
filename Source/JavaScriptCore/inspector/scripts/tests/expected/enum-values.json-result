@@ -129,6 +129,8 @@ InspectorBackend.activateDomain("EventDomain", null);
 
 #pragma once
 
+#include <wtf/Platform.h>
+
 #if ENABLE(INSPECTOR_ALTERNATE_DISPATCHERS)
 
 #include "TestProtocolObjects.h"
@@ -515,6 +517,7 @@ void EventDomainFrontendDispatcher::event(Protocol::TypeDomain::Enum enumRequire
 #pragma once
 
 #include <JavaScriptCore/InspectorProtocolTypes.h>
+#include <JavaScriptCore/JSExportMacros.h>
 #include <wtf/JSONValues.h>
 #include <wtf/text/WTFString.h>
 
@@ -1162,12 +1165,11 @@ inline String toProtocolString(TestProtocolTypeDomainEnum value)
 template<>
 inline std::optional<TestProtocolTypeDomainEnum> fromProtocolString(const String& value)
 {
-    static constexpr auto mappings = std::to_array<std::pair<ComparableASCIILiteral, TestProtocolTypeDomainEnum>>({
+    static constexpr SortedArrayMap map { std::to_array<std::pair<ComparableASCIILiteral, TestProtocolTypeDomainEnum>>({
         { "1"_s, TestProtocolTypeDomainEnum1 },
         { "2"_s, TestProtocolTypeDomainEnum2 },
         { "shared"_s, TestProtocolTypeDomainEnumShared },
-    });
-    static constexpr SortedArrayMap map { mappings };
+   }) };
     if (auto* result = map.tryGet(value))
         return *result;
     return std::nullopt;

@@ -203,7 +203,7 @@ void InternalWritableStreamWriter::onClosedPromiseResolution(Function<void()>&& 
     });
 }
 
-void InternalWritableStreamWriter::whenReady(Function<void ()>&& callback)
+void InternalWritableStreamWriter::whenReady(Function<void (bool)>&& callback)
 {
     auto* globalObject = this->globalObject();
     if (!globalObject)
@@ -225,9 +225,7 @@ void InternalWritableStreamWriter::whenReady(Function<void ()>&& callback)
 
     Ref domPromise = DOMPromise::create(*globalObject, *promise);
     domPromise->whenSettled([domPromise, callback = WTF::move(callback)]() mutable {
-        if (domPromise->status() != DOMPromise::Status::Fulfilled)
-            return;
-        callback();
+        callback(domPromise->status() == DOMPromise::Status::Fulfilled);
     });
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2022 Apple Inc. All rights reserved.
+ * Copyright (C) 2011-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -687,14 +687,15 @@ void MediaPlayerPrivateAVFoundation::seekCompleted(bool finished)
     }
 }
 
-void MediaPlayerPrivateAVFoundation::didEnd()
+void MediaPlayerPrivateAVFoundation::didEnd(double now)
 {
     // Hang onto the current time and use it as duration from now on since we are definitely at
     // the end of the movie. Do this because the initial duration is sometimes an estimate.
-    MediaTime now = currentTime();
     ALWAYS_LOG(LOGIDENTIFIER, "currentTime: ", now, ", seeking: ", m_seeking);
-    if (now > MediaTime::zeroTime() && !m_seeking)
-        m_cachedDuration = now;
+    if (now > 0 && !m_seeking) {
+        ALWAYS_LOG(LOGIDENTIFIER, "Updating cached duration to ", now);
+        m_cachedDuration = MediaTime::createWithDouble(now);
+    }
 
     updateStates();
     if (RefPtr player = m_player.get())

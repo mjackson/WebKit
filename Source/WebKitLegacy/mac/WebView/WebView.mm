@@ -9450,7 +9450,7 @@ static NSTextAlignment nsTextAlignmentFromRenderStyle(const WebCore::RenderStyle
                 } else
                     [_private->_textTouchBarItemController setTextIsUnderlined:style->textDecorationLineInEffect().hasUnderline()];
 
-                Color textColor = style->visitedDependentColor(CSSPropertyColor);
+                auto textColor = style->visitedDependentColor();
                 if (textColor.isValid())
                     [_private->_textTouchBarItemController setTextColor:cocoaColor(textColor).get()];
 

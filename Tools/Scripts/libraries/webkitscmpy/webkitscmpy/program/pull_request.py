@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2023 Apple Inc. All rights reserved.
+# Copyright (C) 2021-2025 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -324,10 +324,11 @@ class PullRequest(Command):
         existing_pr = None
         user, _ = remote.credentials(required=False)
         for pr in remote.pull_requests.find(opened=None, head=branch):
+            # GitHub's search apparently uses substring matching, so check for an exact match.
+            if branch != pr.head:
+                continue
             existing_pr = pr
             if not existing_pr.opened:
-                continue
-            if branch != pr.head:
                 continue
             if user and existing_pr.author == user:
                 break

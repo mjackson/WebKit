@@ -69,4 +69,6 @@ private:
 
 } // namespace WebCore
 
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(PictureInPictureWindow)
+
 #endif // ENABLE(PICTURE_IN_PICTURE_API)

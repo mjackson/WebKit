@@ -126,8 +126,8 @@ void AudioMediaStreamTrackRendererCocoa::setRegisteredDataSource(RefPtr<AudioSam
 {
     ASSERT(isMainThread());
 
-    if (m_registeredDataSource)
-        rendererUnit().removeSource(m_deviceID, *m_registeredDataSource);
+    if (RefPtr registeredDataSource = m_registeredDataSource)
+        rendererUnit().removeSource(m_deviceID, *registeredDataSource);
 
     if (!m_outputDescription)
         return;
@@ -139,7 +139,7 @@ void AudioMediaStreamTrackRendererCocoa::setRegisteredDataSource(RefPtr<AudioSam
     source->setLogger(logger(), logIdentifier());
     source->setVolume(volume());
     rendererUnit().addResetObserver(m_deviceID, m_resetObserver);
-    rendererUnit().addSource(m_deviceID, *m_registeredDataSource);
+    rendererUnit().addSource(m_deviceID, *source);
 }
 
 static unsigned pollSamplesCount()

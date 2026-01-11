@@ -88,11 +88,11 @@ IDBError MemoryIDBBackingStore::beginTransaction(const IDBTransactionInfo& info)
     // VersionChange transactions are scoped to "every object store".
     if (transaction->isVersionChange()) {
         for (auto& objectStore : m_objectStoresByIdentifier.values())
-            transaction->addExistingObjectStore(*objectStore);
+            transaction->addExistingObjectStore(objectStore);
     } else if (transaction->isWriting()) {
         for (auto& iterator : m_objectStoresByName) {
             if (info.objectStores().contains(iterator.key))
-                transaction->addExistingObjectStore(Ref { *iterator.value });
+                transaction->addExistingObjectStore(Ref { iterator.value });
         }
     }
 
@@ -195,7 +195,7 @@ IDBError MemoryIDBBackingStore::renameObjectStore(const IDBResourceIdentifier& t
     transaction->objectStoreRenamed(*objectStore, oldName);
 
     m_objectStoresByName.remove(oldName);
-    m_objectStoresByName.set(newName, objectStore);
+    m_objectStoresByName.set(newName, objectStore.releaseNonNull());
 
     m_databaseInfo->renameObjectStore(objectStoreIdentifier, newName);
 
@@ -293,7 +293,7 @@ void MemoryIDBBackingStore::renameObjectStoreForVersionChangeAbort(MemoryObjectS
     auto identifier = objectStore.info().identifier();
     auto currentName = objectStore.info().name();
     m_objectStoresByName.remove(currentName);
-    m_objectStoresByName.set(oldName, &objectStore);
+    m_objectStoresByName.set(oldName, objectStore);
     m_databaseInfo->renameObjectStore(identifier, oldName);
     objectStore.rename(oldName);
 }
@@ -561,7 +561,7 @@ void MemoryIDBBackingStore::registerObjectStore(Ref<MemoryObjectStore>&& objectS
     RELEASE_ASSERT(!m_objectStoresByName.contains(objectStore->info().name()));
 
     auto identifier = objectStore->info().identifier();
-    m_objectStoresByName.set(objectStore->info().name(), &objectStore.get());
+    m_objectStoresByName.set(objectStore->info().name(), objectStore.copyRef());
     m_objectStoresByIdentifier.set(identifier, WTF::move(objectStore));
 }
 

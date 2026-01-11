@@ -106,9 +106,10 @@ Ref<RunLoop> RunLoop::create(ASCIILiteral threadName, ThreadType threadType, Thr
     RefPtr<RunLoop> runLoop;
     BinarySemaphore semaphore;
     Thread::create(threadName, [&] SUPPRESS_UNCOUNTED_LAMBDA_CAPTURE {
-        runLoop = &RunLoop::currentSingleton();
+        auto& current = RunLoop::currentSingleton();
+        runLoop = &current;
         semaphore.signal();
-        runLoop->run();
+        current.run();
     }, threadType, qos)->detach();
     semaphore.wait();
     return runLoop.releaseNonNull();

@@ -59,8 +59,6 @@
 #include "RenderTreeBuilder.h"
 #include "RenderView.h"
 #include "Settings.h"
-#include "StyleBoxShadow.h"
-#include "StyleInheritedData.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
 #include <wtf/SetForScope.h>
 #include <wtf/StackStats.h>
@@ -290,10 +288,10 @@ void RenderTable::updateLogicalWidth()
     if (isOutOfFlowPositioned()) {
         LogicalExtentComputedValues computedValues;
         computeOutOfFlowPositionedLogicalWidth(computedValues);
-        setLogicalWidth(computedValues.m_extent);
-        setLogicalLeft(computedValues.m_position);
-        setMarginStart(computedValues.m_margins.m_start);
-        setMarginEnd(computedValues.m_margins.m_end);
+        setLogicalWidth(computedValues.extent);
+        setLogicalLeft(computedValues.position);
+        setMarginStart(computedValues.margins.start);
+        setMarginEnd(computedValues.margins.end);
     }
 
     RenderBlock& cb = *containingBlock();
@@ -357,10 +355,10 @@ void RenderTable::updateLogicalWidth()
         ComputedMarginValues marginValues;
         bool hasSameDirection = !cb.writingMode().isInlineOpposing(writingMode());
         computeInlineDirectionMargins(cb, availableLogicalWidth, containerLogicalWidthForAutoMargins, logicalWidth(),
-            hasSameDirection ? marginValues.m_start : marginValues.m_end,
-            hasSameDirection ? marginValues.m_end : marginValues.m_start);
-        setMarginStart(marginValues.m_start);
-        setMarginEnd(marginValues.m_end);
+            hasSameDirection ? marginValues.start : marginValues.end,
+            hasSameDirection ? marginValues.end : marginValues.start);
+        setMarginStart(marginValues.start);
+        setMarginEnd(marginValues.end);
     } else {
         setMarginStart(Style::evaluateMinimum<LayoutUnit>(style().marginStart(), availableLogicalWidth,  style().usedZoomForLength()));
         setMarginEnd(Style::evaluateMinimum<LayoutUnit>(style().marginEnd(), availableLogicalWidth,  style().usedZoomForLength()));
@@ -422,7 +420,14 @@ void RenderTable::layoutCaption(RenderTableCaption& caption)
     if (!selfNeedsLayout() && caption.checkForRepaintDuringLayout())
         caption.repaintDuringLayoutIfMoved(captionRect);
 
-    setLogicalHeight(logicalHeight() + caption.logicalHeight() + caption.marginBefore() + caption.marginAfter());
+    // When caption has a different writing mode, we need to use the caption's size in the table's writing mode.
+    LayoutUnit captionLogicalHeightInTableWritingMode;
+    if (caption.writingMode().isOrthogonal(writingMode()))
+        captionLogicalHeightInTableWritingMode = caption.logicalWidth();
+    else
+        captionLogicalHeightInTableWritingMode = caption.logicalHeight();
+
+    setLogicalHeight(logicalHeight() + captionLogicalHeightInTableWritingMode + caption.marginBefore() + caption.marginAfter());
 }
 
 void RenderTable::layoutCaptions(BottomCaptionLayoutPhase bottomCaptionLayoutPhase)
@@ -640,7 +645,7 @@ void RenderTable::layout()
         // The location or height of one or more sections may have changed.
         invalidateCachedColumnOffsets();
 
-        computeOverflow(clientLogicalBottom());
+        computeOverflow(flippedContentBoxRect());
     }
 
     auto* layoutState = view().frameView().layoutContext().layoutState();

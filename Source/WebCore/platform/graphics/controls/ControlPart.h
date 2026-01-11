@@ -29,7 +29,7 @@
 #include <WebCore/ControlFactory.h>
 #include <WebCore/PlatformControl.h>
 #include <WebCore/StyleAppearance.h>
-#include <wtf/ThreadSafeRefCounted.h>
+#include <wtf/ThreadSafeWeakPtr.h>
 
 namespace WebCore {
 
@@ -37,7 +37,7 @@ class FloatRect;
 class GraphicsContext;
 class ControlFactory;
 
-class ControlPart : public ThreadSafeRefCounted<ControlPart> {
+class ControlPart : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<ControlPart> {
 public:
     virtual ~ControlPart() = default;
 
@@ -60,7 +60,6 @@ protected:
     const StyleAppearance m_type;
 
     mutable std::unique_ptr<PlatformControl> m_platformControl;
-    RefPtr<ControlFactory> m_controlFactory;
     RefPtr<ControlFactory> m_overrideControlFactory;
 };
 

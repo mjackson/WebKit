@@ -120,7 +120,7 @@ ExceptionOr<void> StylePropertyMap::set(Document& document, const AtomString& pr
     // we do some pre-validation.
     // FIXME: Eventually, we should be able to generate most of the validation code and not rely on the CSS parser
     // at all.
-    if (auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(*value); primitiveValue && primitiveValue->isNumberOrInteger()) {
+    if (RefPtr primitiveValue = dynamicDowncast<CSSPrimitiveValue>(*value); primitiveValue && primitiveValue->isNumberOrInteger()) {
         if (!CSSProperty::allowsNumberOrIntegerInput(propertyID))
             return Exception { ExceptionCode::TypeError, "Invalid value: This property doesn't allow <number> input"_s };
     }
@@ -161,7 +161,7 @@ ExceptionOr<void> StylePropertyMap::append(Document& document, const AtomString&
 
     auto currentValue = propertyValue(propertyID);
     CSSValueListBuilder list;
-    if (auto* currentList = dynamicDowncast<CSSValueList>(currentValue.get()))
+    if (RefPtr currentList = dynamicDowncast<CSSValueList>(currentValue))
         list = currentList->copyValues();
     else if (currentValue)
         list.append(currentValue.releaseNonNull());

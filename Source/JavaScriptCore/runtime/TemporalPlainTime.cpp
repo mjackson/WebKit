@@ -252,6 +252,7 @@ ISO8601::Duration TemporalPlainTime::roundTime(ISO8601::PlainTime plainTime, dou
     return ISO8601::Duration();
 }
 
+// https://tc39.es/proposal-temporal/#sec-temporal.plaintime.prototype.round
 ISO8601::PlainTime TemporalPlainTime::round(JSGlobalObject* globalObject, JSValue optionsValue) const
 {
     VM& vm = globalObject->vm();
@@ -264,35 +265,42 @@ ISO8601::PlainTime TemporalPlainTime::round(JSGlobalObject* globalObject, JSValu
         RETURN_IF_EXCEPTION(scope, { });
 
         smallest = temporalUnitType(string);
-        if (!smallest) {
+        if (!smallest) [[unlikely]] {
             throwRangeError(globalObject, scope, "smallestUnit is an invalid Temporal unit"_s);
             return { };
         }
 
-        if (smallest.value() <= TemporalUnit::Day) {
+        if (smallest.value() <= TemporalUnit::Day) [[unlikely]] {
             throwRangeError(globalObject, scope, "smallestUnit is a disallowed unit"_s);
             return { };
         }
     } else {
         options = intlGetOptionsObject(globalObject, optionsValue);
         RETURN_IF_EXCEPTION(scope, { });
-
-        smallest = temporalSmallestUnit(globalObject, options, { TemporalUnit::Year, TemporalUnit::Month, TemporalUnit::Week, TemporalUnit::Day });
-        RETURN_IF_EXCEPTION(scope, { });
-        if (!smallest) {
-            throwRangeError(globalObject, scope, "Cannot round without a smallestUnit option"_s);
-            return { };
-        }
     }
-    TemporalUnit smallestUnit = smallest.value();
 
+    auto roundingIncrement = temporalRoundingIncrement(globalObject, options);
+    RETURN_IF_EXCEPTION(scope, { });
     auto roundingMode = temporalRoundingMode(globalObject, options, RoundingMode::HalfExpand);
     RETURN_IF_EXCEPTION(scope, { });
-
-    auto increment = temporalRoundingIncrement(globalObject, options, maximumRoundingIncrement(smallestUnit), false);
+    if (!smallest) {
+        auto smallestMaybeAuto = getTemporalUnitValuedOption(globalObject, options, vm.propertyNames->smallestUnit);
+        RETURN_IF_EXCEPTION(scope, { });
+        ASSERT(std::holds_alternative<std::optional<TemporalUnit>>(smallestMaybeAuto));
+        smallest = std::get<std::optional<TemporalUnit>>(smallestMaybeAuto);
+    }
+    if (!smallest) [[unlikely]] {
+        throwRangeError(globalObject, scope, "smallestUnit is required for rounding"_s);
+        return { };
+    }
+    auto smallestUnit = smallest.value();
+    validateTemporalUnitValue(globalObject, smallestUnit, UnitGroup::Time, AllowedUnit::None, "smallestUnit"_s);
+    RETURN_IF_EXCEPTION(scope, { });
+    auto maximum = maximumRoundingIncrement(smallestUnit);
+    validateTemporalRoundingIncrement(globalObject, roundingIncrement, maximum, Inclusivity::Exclusive);
     RETURN_IF_EXCEPTION(scope, { });
 
-    auto duration = roundTime(m_plainTime, increment, smallestUnit, roundingMode, std::nullopt);
+    auto duration = roundTime(m_plainTime, roundingIncrement, smallestUnit, roundingMode, std::nullopt);
     RELEASE_AND_RETURN(scope, toPlainTime(globalObject, duration));
 }
 
@@ -419,32 +427,32 @@ ISO8601::PlainTime TemporalPlainTime::regulateTime(JSGlobalObject* globalObject,
 }
 
 // https://tc39.es/proposal-temporal/#sec-temporal-totemporaltime
-TemporalPlainTime* TemporalPlainTime::from(JSGlobalObject* globalObject, JSValue itemValue, std::optional<TemporalOverflow> overflowValue)
+TemporalPlainTime* TemporalPlainTime::from(JSGlobalObject* globalObject, JSValue itemValue, JSObject* options)
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
-
-    auto overflow = overflowValue.value_or(TemporalOverflow::Constrain);
 
     if (itemValue.isObject()) {
         if (itemValue.inherits<TemporalPlainTime>())
             return jsCast<TemporalPlainTime*>(itemValue);
 
-        if (itemValue.inherits<TemporalPlainDateTime>())
+        if (itemValue.inherits<TemporalPlainDateTime>()) {
+            // Validate overflow -- see step 2(a)(ii) of ToTemporalTime
+            if (options) {
+                toTemporalOverflow(globalObject, options);
+                RETURN_IF_EXCEPTION(scope, { });
+            }
             return TemporalPlainTime::create(vm, globalObject->plainTimeStructure(), jsCast<TemporalPlainDateTime*>(itemValue)->plainTime());
-
-        JSObject* calendar = TemporalCalendar::getTemporalCalendarWithISODefault(globalObject, itemValue);
-        RETURN_IF_EXCEPTION(scope, { });
-        JSString* calendarString = calendar->toString(globalObject);
-        RETURN_IF_EXCEPTION(scope, { });
-        auto calendarWTFString = calendarString->value(globalObject);
-        RETURN_IF_EXCEPTION(scope, { });
-        if (calendarWTFString.data != "iso8601"_s) {
-            throwRangeError(globalObject, scope, "calendar is not iso8601"_s);
-            return { };
         }
         auto duration = toTemporalTimeRecord(globalObject, jsCast<JSObject*>(itemValue));
         RETURN_IF_EXCEPTION(scope, { });
+
+        TemporalOverflow overflow = TemporalOverflow::Constrain;
+        if (options) {
+            overflow = toTemporalOverflow(globalObject, options);
+            RETURN_IF_EXCEPTION(scope, { });
+        }
+
         auto plainTime = regulateTime(globalObject, WTF::move(duration), overflow);
         RETURN_IF_EXCEPTION(scope, { });
         return TemporalPlainTime::create(vm, globalObject->plainTimeStructure(), WTF::move(plainTime));
@@ -462,6 +470,11 @@ TemporalPlainTime* TemporalPlainTime::from(JSGlobalObject* globalObject, JSValue
 
     auto string = itemValue.toWTFString(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
+    // Validate overflow -- see step 3(g) of ToTemporalTime
+    if (options) {
+        toTemporalOverflow(globalObject, options);
+        RETURN_IF_EXCEPTION(scope, { });
+    }
 
     auto time = ISO8601::parseCalendarTime(string);
     if (time) {

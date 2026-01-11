@@ -76,7 +76,7 @@ private:
 
     const bool m_detachable;
     bool m_detached { false };
-    Ref<SharedPrivate> m_private;
+    const Ref<SharedPrivate> m_private;
 };
 
 using DetachedMediaSourceHandle = MediaSourceHandle;

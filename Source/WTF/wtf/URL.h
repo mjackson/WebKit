@@ -339,8 +339,6 @@ WTF_EXPORT_PRIVATE std::optional<URL> makeVectorElement(const URL*, id);
 
 #endif
 
-WTF_EXPORT_PRIVATE TextStream& operator<<(TextStream&, const URL&);
-
 template<> struct DefaultHash<URL>;
 template<> struct HashTraits<URL>;
 

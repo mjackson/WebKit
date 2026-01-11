@@ -61,7 +61,7 @@ void WakeLockManager::deref() const
 void WakeLockManager::addWakeLock(Ref<WakeLockSentinel>&& lock, std::optional<PageIdentifier> pageID)
 {
     auto type = lock->type();
-    auto& locks = m_wakeLocks.ensure(type, [] { return Vector<RefPtr<WakeLockSentinel>>(); }).iterator->value;
+    auto& locks = m_wakeLocks.ensure(type, [] { return Vector<Ref<WakeLockSentinel>>(); }).iterator->value;
     ASSERT(!locks.contains(lock.ptr()));
     locks.append(WTF::move(lock));
 
@@ -112,7 +112,7 @@ void WakeLockManager::releaseAllLocks(WakeLockType type)
 
     auto& locks = it->value;
     while (!locks.isEmpty()) {
-        RefPtr lock = *locks.begin();
+        Ref lock = *locks.begin();
         lock->release(*this);
     }
 }

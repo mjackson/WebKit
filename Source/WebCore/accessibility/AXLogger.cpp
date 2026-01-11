@@ -416,8 +416,8 @@ TextStream& operator<<(TextStream& stream, const AccessibilitySearchCriteria& cr
     };
 
     stream << "SearchCriteria " << &criteria;
-    streamCriteriaObject("anchorObject"_s, criteria.anchorObject);
-    streamCriteriaObject("startObject"_s, criteria.startObject);
+    streamCriteriaObject("anchorObject"_s, RefPtr { criteria.anchorObject.get() }.get());
+    streamCriteriaObject("startObject"_s, RefPtr { criteria.startObject.get() }.get());
     stream.dumpProperty("searchDirection"_s, criteria.searchDirection);
 
     stream.nextLine();
@@ -1319,7 +1319,7 @@ TextStream& operator<<(TextStream& stream, AXObjectCache& axObjectCache)
     RefPtr document = axObjectCache.document();
     if (!document)
         stream << "No document!";
-    else if (RefPtr root = axObjectCache.get(document->view())) {
+    else if (RefPtr root = axObjectCache.get(document->protectedView().get())) {
         constexpr OptionSet<AXStreamOptions> options = { AXStreamOptions::ObjectID, AXStreamOptions::Role, AXStreamOptions::ParentID, AXStreamOptions::IdentifierAttribute, AXStreamOptions::OuterHTML, AXStreamOptions::DisplayContents, AXStreamOptions::Address, AXStreamOptions::RendererOrNode };
         streamSubtree(stream, root.releaseNonNull(), options);
     } else

@@ -105,6 +105,8 @@ InspectorBackend.activateDomain("Test", null);
 
 #pragma once
 
+#include <wtf/Platform.h>
+
 #if ENABLE(INSPECTOR_ALTERNATE_DISPATCHERS)
 
 #include "TestProtocolObjects.h"
@@ -346,6 +348,7 @@ namespace Inspector {
 #pragma once
 
 #include <JavaScriptCore/InspectorProtocolTypes.h>
+#include <JavaScriptCore/JSExportMacros.h>
 #include <wtf/JSONValues.h>
 #include <wtf/text/WTFString.h>
 
@@ -1276,13 +1279,12 @@ inline String toProtocolString(TestProtocolTestUncastedAnimals value)
 template<>
 inline std::optional<TestProtocolTestUncastedAnimals> fromProtocolString(const String& value)
 {
-    static constexpr auto mappings = std::to_array<std::pair<ComparableASCIILiteral, TestProtocolTestUncastedAnimals>>({
+    static constexpr SortedArrayMap map { std::to_array<std::pair<ComparableASCIILiteral, TestProtocolTestUncastedAnimals>>({
         { "Cats"_s, TestProtocolTestUncastedAnimalsCats },
         { "Cows"_s, TestProtocolTestUncastedAnimalsCows },
         { "Hens"_s, TestProtocolTestUncastedAnimalsHens },
         { "Pigs"_s, TestProtocolTestUncastedAnimalsPigs },
-    });
-    static constexpr SortedArrayMap map { mappings };
+   }) };
     if (auto* result = map.tryGet(value))
         return *result;
     return std::nullopt;
@@ -1305,13 +1307,12 @@ inline String toProtocolString(TestProtocolTestCastedAnimals value)
 template<>
 inline std::optional<TestProtocolTestCastedAnimals> fromProtocolString(const String& value)
 {
-    static constexpr auto mappings = std::to_array<std::pair<ComparableASCIILiteral, TestProtocolTestCastedAnimals>>({
+    static constexpr SortedArrayMap map { std::to_array<std::pair<ComparableASCIILiteral, TestProtocolTestCastedAnimals>>({
         { "Crows"_s, TestProtocolTestCastedAnimalsCrows },
         { "Ducks"_s, TestProtocolTestCastedAnimalsDucks },
         { "Flamingos"_s, TestProtocolTestCastedAnimalsFlamingos },
         { "Hens"_s, TestProtocolTestCastedAnimalsHens },
-    });
-    static constexpr SortedArrayMap map { mappings };
+   }) };
     if (auto* result = map.tryGet(value))
         return *result;
     return std::nullopt;

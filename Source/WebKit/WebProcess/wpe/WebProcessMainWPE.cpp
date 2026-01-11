@@ -76,7 +76,7 @@ public:
 #endif
 
 #if ENABLE(DEVELOPER_MODE)
-        if (g_getenv("WEBKIT2_PAUSE_WEB_PROCESS_ON_LAUNCH"))
+        if (g_getenv("WEBKIT_PAUSE_WEB_PROCESS_ON_LAUNCH"))
             WTF::sleep(30_s);
 #endif
 

@@ -5,6 +5,7 @@
  * Copyright (C) 2003-2023 Apple Inc. All rights reserved.
  * Copyright (C) 2006 Graham Dennis (graham.dennis@gmail.com)
  * Copyright (C) 2009 Torch Mobile Inc. All rights reserved. (http://www.torchmobile.com/)
+ * Copyright (C) 2026 Samuel Weinig <sam@webkit.org>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -62,7 +63,6 @@ enum class PseudoElementType : uint8_t {
     WebKitScrollbar,
     SpellingError,
     TargetText,
-    Checkmark,
     ViewTransition,
     ViewTransitionGroup,
     ViewTransitionImagePair,
@@ -94,7 +94,6 @@ constexpr auto allPublicPseudoElementTypes = EnumSet {
     PseudoElementType::WebKitScrollbar,
     PseudoElementType::SpellingError,
     PseudoElementType::TargetText,
-    PseudoElementType::Checkmark,
     PseudoElementType::ViewTransition,
     PseudoElementType::ViewTransitionGroup,
     PseudoElementType::ViewTransitionImagePair,
@@ -155,6 +154,11 @@ enum class BorderStyle : uint8_t {
     Solid,
     Double
 };
+
+inline bool isVisibleBorderStyle(BorderStyle value)
+{
+    return value > BorderStyle::Hidden;
+}
 
 enum class BorderPrecedence : uint8_t {
     Off,

@@ -298,7 +298,7 @@ void LegacyRenderSVGShape::paint(PaintInfo& paintInfo, const LayoutPoint&)
         }
     }
 
-    if (style().outlineWidth())
+    if (style().usedOutlineWidth())
         paintOutline(childPaintInfo, IntRect(boundingBox));
 }
 
@@ -449,12 +449,39 @@ FloatRect LegacyRenderSVGShape::repaintRectInLocalCoordinates(RepaintRectCalcula
     return strokeBoundingBox;
 }
 
+FloatRect LegacyRenderSVGShape::decoratedBoundingBox() const
+{
+    // FIXME: strokeBoundingBox currently includes markers via adjustStrokeBoundingBoxForMarkersAndZeroLengthLinecaps.
+    // Ideally, strokeBoundingBox should only include stroke. We should refactor to compute
+    // decoratedBoundingBox = strokeBoundingBox() + markers explicitly.
+    return strokeBoundingBox();
+}
+
 float LegacyRenderSVGShape::strokeWidth() const
 {
     Ref graphicsElement = this->graphicsElement();
     SVGLengthContext lengthContext(graphicsElement.ptr());
     auto strokeWidth = lengthContext.valueForLength(style().strokeWidth(), Style::ZoomNeeded { });
     return std::isnan(strokeWidth) ? 0 : strokeWidth;
+}
+
+float LegacyRenderSVGShape::strokeWidthForMarkerUnits() const
+{
+    float strokeWidth = this->strokeWidth();
+    if (!hasNonScalingStroke())
+        return strokeWidth;
+
+    auto nonScalingTransform = nonScalingStrokeTransform();
+    if (!nonScalingTransform.isInvertible())
+        return 0.f;
+
+    double xScale = nonScalingTransform.xScale();
+    double yScale = nonScalingTransform.yScale();
+    if (xScale == yScale) [[likely]]
+        return strokeWidth / xScale;
+
+    float scaleFactor = clampTo<float>(std::sqrt((xScale * xScale + yScale * yScale) / 2));
+    return strokeWidth / scaleFactor;
 }
 
 Path& LegacyRenderSVGShape::ensurePath()

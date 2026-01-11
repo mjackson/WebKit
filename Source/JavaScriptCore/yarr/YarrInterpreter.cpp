@@ -547,6 +547,9 @@ public:
         if (characterClass->m_anyCharacter)
             return true;
 
+        if (characterClass->m_table && ch < CharacterClass::tableSize)
+            return static_cast<bool>(characterClass->m_table[ch]);
+
         const size_t thresholdForBinarySearch = 6;
 
         if (!isASCII(ch)) {
@@ -2665,7 +2668,7 @@ public:
         m_currentAlternativeIndex = newAlternativeIndex;
     }
 
-    WARN_UNUSED_RETURN std::optional<ErrorCode> emitDisjunction(PatternDisjunction* disjunction, CheckedUint32 inputCountAlreadyChecked, unsigned parenthesesInputCountAlreadyChecked, MatchDirection matchDirection = Forward)
+    [[nodiscard]] std::optional<ErrorCode> emitDisjunction(PatternDisjunction* disjunction, CheckedUint32 inputCountAlreadyChecked, unsigned parenthesesInputCountAlreadyChecked, MatchDirection matchDirection = Forward)
     {
         if (!isSafeToRecurse()) [[unlikely]]
             return ErrorCode::TooManyDisjunctions;

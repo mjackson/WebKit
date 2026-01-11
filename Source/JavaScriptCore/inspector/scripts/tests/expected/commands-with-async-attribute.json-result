@@ -113,6 +113,8 @@ InspectorBackend.activateDomain("Database", null);
 
 #pragma once
 
+#include <wtf/Platform.h>
+
 #if ENABLE(INSPECTOR_ALTERNATE_DISPATCHERS)
 
 #include "TestProtocolObjects.h"
@@ -609,6 +611,7 @@ namespace Inspector {
 #pragma once
 
 #include <JavaScriptCore/InspectorProtocolTypes.h>
+#include <JavaScriptCore/JSExportMacros.h>
 #include <wtf/JSONValues.h>
 #include <wtf/text/WTFString.h>
 
@@ -1461,12 +1464,11 @@ inline String toProtocolString(TestProtocolDatabasePrimaryColors value)
 template<>
 inline std::optional<TestProtocolDatabasePrimaryColors> fromProtocolString(const String& value)
 {
-    static constexpr auto mappings = std::to_array<std::pair<ComparableASCIILiteral, TestProtocolDatabasePrimaryColors>>({
+    static constexpr SortedArrayMap map { std::to_array<std::pair<ComparableASCIILiteral, TestProtocolDatabasePrimaryColors>>({
         { "blue"_s, TestProtocolDatabasePrimaryColorsBlue },
         { "green"_s, TestProtocolDatabasePrimaryColorsGreen },
         { "red"_s, TestProtocolDatabasePrimaryColorsRed },
-    });
-    static constexpr SortedArrayMap map { mappings };
+   }) };
     if (auto* result = map.tryGet(value))
         return *result;
     return std::nullopt;
@@ -1489,13 +1491,12 @@ inline String toProtocolString(TestProtocolDatabaseExecuteSQLSyncOptionalReturnV
 template<>
 inline std::optional<TestProtocolDatabaseExecuteSQLSyncOptionalReturnValuesPrintColor> fromProtocolString(const String& value)
 {
-    static constexpr auto mappings = std::to_array<std::pair<ComparableASCIILiteral, TestProtocolDatabaseExecuteSQLSyncOptionalReturnValuesPrintColor>>({
+    static constexpr SortedArrayMap map { std::to_array<std::pair<ComparableASCIILiteral, TestProtocolDatabaseExecuteSQLSyncOptionalReturnValuesPrintColor>>({
         { "black"_s, TestProtocolDatabaseExecuteSQLSyncOptionalReturnValuesPrintColorBlack },
         { "cyan"_s, TestProtocolDatabaseExecuteSQLSyncOptionalReturnValuesPrintColorCyan },
         { "magenta"_s, TestProtocolDatabaseExecuteSQLSyncOptionalReturnValuesPrintColorMagenta },
         { "yellow"_s, TestProtocolDatabaseExecuteSQLSyncOptionalReturnValuesPrintColorYellow },
-    });
-    static constexpr SortedArrayMap map { mappings };
+   }) };
     if (auto* result = map.tryGet(value))
         return *result;
     return std::nullopt;
@@ -1518,13 +1519,12 @@ inline String toProtocolString(TestProtocolDatabaseExecuteSQLAsyncOptionalReturn
 template<>
 inline std::optional<TestProtocolDatabaseExecuteSQLAsyncOptionalReturnValuesPrintColor> fromProtocolString(const String& value)
 {
-    static constexpr auto mappings = std::to_array<std::pair<ComparableASCIILiteral, TestProtocolDatabaseExecuteSQLAsyncOptionalReturnValuesPrintColor>>({
+    static constexpr SortedArrayMap map { std::to_array<std::pair<ComparableASCIILiteral, TestProtocolDatabaseExecuteSQLAsyncOptionalReturnValuesPrintColor>>({
         { "black"_s, TestProtocolDatabaseExecuteSQLAsyncOptionalReturnValuesPrintColorBlack },
         { "cyan"_s, TestProtocolDatabaseExecuteSQLAsyncOptionalReturnValuesPrintColorCyan },
         { "magenta"_s, TestProtocolDatabaseExecuteSQLAsyncOptionalReturnValuesPrintColorMagenta },
         { "yellow"_s, TestProtocolDatabaseExecuteSQLAsyncOptionalReturnValuesPrintColorYellow },
-    });
-    static constexpr SortedArrayMap map { mappings };
+   }) };
     if (auto* result = map.tryGet(value))
         return *result;
     return std::nullopt;
@@ -1547,13 +1547,12 @@ inline String toProtocolString(TestProtocolDatabaseExecuteSQLSyncPrintColor valu
 template<>
 inline std::optional<TestProtocolDatabaseExecuteSQLSyncPrintColor> fromProtocolString(const String& value)
 {
-    static constexpr auto mappings = std::to_array<std::pair<ComparableASCIILiteral, TestProtocolDatabaseExecuteSQLSyncPrintColor>>({
+    static constexpr SortedArrayMap map { std::to_array<std::pair<ComparableASCIILiteral, TestProtocolDatabaseExecuteSQLSyncPrintColor>>({
         { "black"_s, TestProtocolDatabaseExecuteSQLSyncPrintColorBlack },
         { "cyan"_s, TestProtocolDatabaseExecuteSQLSyncPrintColorCyan },
         { "magenta"_s, TestProtocolDatabaseExecuteSQLSyncPrintColorMagenta },
         { "yellow"_s, TestProtocolDatabaseExecuteSQLSyncPrintColorYellow },
-    });
-    static constexpr SortedArrayMap map { mappings };
+   }) };
     if (auto* result = map.tryGet(value))
         return *result;
     return std::nullopt;
@@ -1576,13 +1575,12 @@ inline String toProtocolString(TestProtocolDatabaseExecuteSQLAsyncPrintColor val
 template<>
 inline std::optional<TestProtocolDatabaseExecuteSQLAsyncPrintColor> fromProtocolString(const String& value)
 {
-    static constexpr auto mappings = std::to_array<std::pair<ComparableASCIILiteral, TestProtocolDatabaseExecuteSQLAsyncPrintColor>>({
+    static constexpr SortedArrayMap map { std::to_array<std::pair<ComparableASCIILiteral, TestProtocolDatabaseExecuteSQLAsyncPrintColor>>({
         { "black"_s, TestProtocolDatabaseExecuteSQLAsyncPrintColorBlack },
         { "cyan"_s, TestProtocolDatabaseExecuteSQLAsyncPrintColorCyan },
         { "magenta"_s, TestProtocolDatabaseExecuteSQLAsyncPrintColorMagenta },
         { "yellow"_s, TestProtocolDatabaseExecuteSQLAsyncPrintColorYellow },
-    });
-    static constexpr SortedArrayMap map { mappings };
+   }) };
     if (auto* result = map.tryGet(value))
         return *result;
     return std::nullopt;

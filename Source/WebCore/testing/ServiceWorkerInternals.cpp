@@ -51,8 +51,8 @@ ServiceWorkerInternals::~ServiceWorkerInternals() = default;
 
 void ServiceWorkerInternals::setOnline(bool isOnline)
 {
-    callOnMainThread([identifier = m_identifier, isOnline] () {
-        if (auto* proxy = SWContextManager::singleton().serviceWorkerThreadProxy(identifier))
+    callOnMainThread([identifier = m_identifier, isOnline] {
+        if (RefPtr proxy = SWContextManager::singleton().serviceWorkerThreadProxy(identifier))
             proxy->notifyNetworkStateChange(isOnline);
     });
 }
@@ -74,7 +74,7 @@ void ServiceWorkerInternals::schedulePushEvent(const String& message, RefPtr<Def
         data = Vector(byteCast<uint8_t>(message.utf8().span()));
     callOnMainThread([identifier = m_identifier, data = WTF::move(data), weakThis = WeakPtr { *this }, counter]() mutable {
         SWContextManager::singleton().firePushEvent(identifier, WTF::move(data), std::nullopt, [identifier, weakThis = WTF::move(weakThis), counter](bool result, std::optional<NotificationPayload>&&) mutable {
-            if (auto* proxy = SWContextManager::singleton().serviceWorkerThreadProxy(identifier)) {
+            if (RefPtr proxy = SWContextManager::singleton().serviceWorkerThreadProxy(identifier)) {
                 proxy->thread().runLoop().postTaskForMode([weakThis = WTF::move(weakThis), counter, result](auto&) {
                     if (!weakThis)
                         return;
@@ -152,7 +152,7 @@ String ServiceWorkerInternals::processName() const
 
 bool ServiceWorkerInternals::isThrottleable() const
 {
-    auto* connection = SWContextManager::singleton().connection();
+    RefPtr connection = SWContextManager::singleton().connection();
     return connection ? connection->isThrottleable() : true;
 }
 
@@ -165,14 +165,15 @@ void ServiceWorkerInternals::lastNavigationWasAppInitiated(Ref<DeferredPromise>&
 {
     ASSERT(!m_lastNavigationWasAppInitiatedPromise);
     m_lastNavigationWasAppInitiatedPromise = WTF::move(promise);
-    callOnMainThread([identifier = m_identifier, weakThis = WeakPtr { *this }]() mutable {
-        if (auto* proxy = SWContextManager::singleton().serviceWorkerThreadProxy(identifier)) {
+    callOnMainThread([identifier = m_identifier, weakThis = WeakPtr { *this }] mutable {
+        if (RefPtr proxy = SWContextManager::singleton().serviceWorkerThreadProxy(identifier)) {
             proxy->thread().runLoop().postTaskForMode([weakThis = WTF::move(weakThis), appInitiated = proxy->lastNavigationWasAppInitiated()](auto&) {
-                if (!weakThis || !weakThis->m_lastNavigationWasAppInitiatedPromise)
+                RefPtr protectedThis = weakThis.get();
+                if (!protectedThis || !protectedThis->m_lastNavigationWasAppInitiatedPromise)
                     return;
 
-                weakThis->m_lastNavigationWasAppInitiatedPromise->resolve<IDLBoolean>(appInitiated);
-                weakThis->m_lastNavigationWasAppInitiatedPromise = nullptr;
+                protectedThis->m_lastNavigationWasAppInitiatedPromise->resolve<IDLBoolean>(appInitiated);
+                protectedThis->m_lastNavigationWasAppInitiatedPromise = nullptr;
             }, WorkerRunLoop::defaultMode());
         }
     });

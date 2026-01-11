@@ -4904,9 +4904,9 @@ void RenderLayerCompositor::rootOrBodyStyleChanged(RenderElement& renderer, cons
 
     Color oldBackgroundColor;
     if (oldStyle)
-        oldBackgroundColor = oldStyle->visitedDependentColorWithColorFilter(CSSPropertyBackgroundColor);
+        oldBackgroundColor = oldStyle->visitedDependentBackgroundColorApplyingColorFilter();
 
-    if (oldBackgroundColor != renderer.style().visitedDependentColorWithColorFilter(CSSPropertyBackgroundColor))
+    if (oldBackgroundColor != renderer.style().visitedDependentBackgroundColorApplyingColorFilter())
         rootBackgroundColorOrTransparencyChanged();
 
     bool hadFixedBackground = oldStyle && Style::hasEntirelyFixedBackground(oldStyle->backgroundLayers());

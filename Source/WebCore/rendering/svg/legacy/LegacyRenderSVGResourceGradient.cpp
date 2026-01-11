@@ -192,16 +192,14 @@ static inline std::tuple<FloatRect, FloatSize> calculateGradientGeometry(RenderE
     auto* textRootBlock = RenderSVGText::locateRenderSVGTextAncestor(renderer);
     ASSERT(textRootBlock);
 
-    // FIXME: This needs to be bounding box and should not use repaint rect.
-    // https://bugs.webkit.org/show_bug.cgi?id=278551
-    FloatRect repaintRect = textRootBlock->repaintRectInLocalCoordinates(RepaintRectCalculation::Accurate);
+    FloatRect decoratedBounds = textRootBlock->decoratedBoundingBox();
 
     AffineTransform absoluteTransform = SVGRenderingContext::calculateTransformationToOutermostCoordinateSystem(*textRootBlock);
 
     // Ignore 2D rotation, as it doesn't affect the size of the target.
     FloatSize scale(absoluteTransform.xScale(), absoluteTransform.yScale());
 
-    return { repaintRect, scale };
+    return { decoratedBounds, scale };
 }
 
 static inline AffineTransform calculateGradientUserspaceTransform(RenderElement& renderer, SVGUnitTypes::SVGUnitType gradientUnits, const AffineTransform& gradientTransform)
@@ -355,10 +353,13 @@ void LegacyRenderSVGResourceGradient::postApplyResource(RenderElement& renderer,
 
 GradientColorStops LegacyRenderSVGResourceGradient::stopsByApplyingColorFilter(const GradientColorStops& stops, const RenderStyle& style)
 {
-    if (!style.hasAppleColorFilter())
+    if (style.appleColorFilter().isNone())
         return stops;
 
-    return stops.mapColors([&] (auto& color) { return style.colorByApplyingColorFilter(color); });
+    Style::ColorResolver colorResolver { style };
+    return stops.mapColors([&](auto& color) {
+        return colorResolver.colorApplyingColorFilter(color);
+    });
 }
 
 GradientSpreadMethod LegacyRenderSVGResourceGradient::platformSpreadMethodFromSVGType(SVGSpreadMethodType method)

@@ -40,12 +40,6 @@
 
 #import "LocalAuthenticationSoftLink.h"
 
-#if USE(APPLE_INTERNAL_SDK)
-#import <WebKitAdditions/LocalConnectionAdditions.h>
-#else
-#define LOCAL_CONNECTION_ADDITIONS
-#endif
-
 namespace WebKit {
 using namespace WebCore;
 
@@ -57,6 +51,15 @@ static inline String bundleName()
 }
 #endif
 } // namespace
+
+static bool shouldUseAlternateAttributes()
+{
+#if ENABLE(SYNCED_CREDENTIALS)
+    if (WebKit::getASCWebKitSPISupportClassSingleton())
+        return [WebKit::getASCWebKitSPISupportClassSingleton() shouldUseAlternateCredentialStore];
+#endif
+    return false;
+}
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(LocalConnection);
 
@@ -177,6 +180,21 @@ void LocalConnection::verifyUser(SecAccessControlRef accessControl, LAContext *c
     [context evaluateAccessControl:accessControl operation:LAAccessControlOperationUseKeySign options:options.get() reply:reply.get()];
 }
 
+static NSDictionary *alternateAttributes(LAContext *context, SecAccessControlRef accessControlRef, const String& secAttrLabel, NSData *secAttrApplicationTag)
+{
+    return @{
+        (id)kSecAttrSynchronizable: @YES,
+        (id)kSecAttrKeyType: (id)kSecAttrKeyTypeECSECPrimeRandom,
+        (id)kSecAttrKeySizeInBits: @256,
+        (id)kSecPrivateKeyAttrs: @{
+            (id)kSecAttrIsPermanent: @YES,
+            (id)kSecAttrAccessGroup: WebCore::LocalAuthenticatorAccessGroup,
+            (id)kSecAttrLabel: secAttrLabel.createNSString().get(),
+            (id)kSecAttrApplicationTag: secAttrApplicationTag,
+        }
+    };
+}
+
 RetainPtr<SecKeyRef> LocalConnection::createCredentialPrivateKey(LAContext *context, SecAccessControlRef accessControlRef, const String& secAttrLabel, NSData *secAttrApplicationTag) const
 {
     RetainPtr privateKeyAttributes = @{
@@ -193,16 +211,18 @@ RetainPtr<SecKeyRef> LocalConnection::createCredentialPrivateKey(LAContext *cont
         privateKeyAttributes = WTF::move(mutableCopy);
     }
 
-    NSDictionary *attributes = @{
+    RetainPtr attributes = @{
         (id)kSecAttrTokenID: (id)kSecAttrTokenIDSecureEnclave,
         (id)kSecAttrKeyType: (id)kSecAttrKeyTypeECSECPrimeRandom,
         (id)kSecAttrKeySizeInBits: @256,
         (id)kSecPrivateKeyAttrs: privateKeyAttributes.get(),
     };
 
-    LOCAL_CONNECTION_ADDITIONS
+    if (shouldUseAlternateAttributes())
+        attributes = alternateAttributes(context, accessControlRef, secAttrLabel, secAttrApplicationTag);
+
     CFErrorRef rawError = nullptr;
-    auto credentialPrivateKey = adoptCF(SecKeyCreateRandomKey((__bridge CFDictionaryRef)attributes, &rawError));
+    auto credentialPrivateKey = adoptCF(SecKeyCreateRandomKey((__bridge CFDictionaryRef)attributes.get(), &rawError));
     // FIXME: The Security framework API is missing the `CF_RETURNS_RETAINED` annotation (rdar://161546781).
     SUPPRESS_RETAINPTR_CTOR_ADOPT if (auto error = adoptCF(rawError)) {
         LOG_ERROR("Couldn't create private key: %@", bridge_cast(error.get()));

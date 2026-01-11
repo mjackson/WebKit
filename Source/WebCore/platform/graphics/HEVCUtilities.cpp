@@ -291,27 +291,25 @@ std::optional<HEVCParameters> parseHEVCDecoderConfigurationRecord(FourCC codecCo
 
 static std::optional<DoViParameters::Codec> parseDoViCodecType(StringView string)
 {
-    static constexpr auto typesArray = std::to_array<std::pair<PackedLettersLiteral<uint32_t>, DoViParameters::Codec>>({
+    static constexpr SortedArrayMap typesMap { std::to_array<std::pair<PackedLettersLiteral<uint32_t>, DoViParameters::Codec>>({
         { "dva1"_s, DoViParameters::Codec::AVC1 },
         { "dvav"_s, DoViParameters::Codec::AVC3 },
         { "dvh1"_s, DoViParameters::Codec::HVC1 },
         { "dvhe"_s, DoViParameters::Codec::HEV1 },
-    });
-    static constexpr SortedArrayMap typesMap { typesArray };
+    }) };
     return makeOptionalFromPointer(typesMap.tryGet(string));
 }
 
 static std::optional<uint16_t> profileIDForAlphabeticDoViProfile(StringView profile)
 {
     // See Table 7 of "Dolby Vision Profiles and Levels Version 1.3.2"
-    static constexpr auto profilesArray = std::to_array<std::pair<PackedLettersLiteral<uint64_t>, uint16_t>>({
+    static constexpr SortedArrayMap profilesMap { std::to_array<std::pair<PackedLettersLiteral<uint64_t>, uint16_t>>({
         { "dvav.se"_s, 9 },
         { "dvhe.dtb"_s, 7 },
         { "dvhe.dtr"_s, 4 },
         { "dvhe.st"_s, 8 },
         { "dvhe.stn"_s, 5 },
-    });
-    static constexpr SortedArrayMap profilesMap { profilesArray };
+    }) };
     return makeOptionalFromPointer(profilesMap.tryGet(profile));
 }
 

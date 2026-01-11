@@ -156,12 +156,11 @@ template<> std::optional<TestObj::EnumType> parseEnumerationFromString<TestObj::
 {
     if (stringValue.isEmpty())
         return TestObj::EnumType::EmptyString;
-    static constexpr std::array<std::pair<ComparableASCIILiteral, TestObj::EnumType>, 3> mappings {
-        std::pair<ComparableASCIILiteral, TestObj::EnumType> { "EnumValue2"_s, TestObj::EnumType::EnumValue2 },
-        std::pair<ComparableASCIILiteral, TestObj::EnumType> { "EnumValue3"_s, TestObj::EnumType::EnumValue3 },
-        std::pair<ComparableASCIILiteral, TestObj::EnumType> { "enumValue1"_s, TestObj::EnumType::EnumValue1 },
-    };
-    static constexpr SortedArrayMap enumerationMapping { mappings };
+    static constexpr SortedArrayMap enumerationMapping { std::to_array<std::pair<ComparableASCIILiteral, TestObj::EnumType>>({
+        { "EnumValue2"_s, TestObj::EnumType::EnumValue2 },
+        { "EnumValue3"_s, TestObj::EnumType::EnumValue3 },
+        { "enumValue1"_s, TestObj::EnumType::EnumValue1 },
+    }) };
     if (auto* enumerationValue = enumerationMapping.tryGet(stringValue); enumerationValue) [[likely]]
         return *enumerationValue;
     return std::nullopt;
@@ -196,11 +195,10 @@ template<> JSString* convertEnumerationToJS(VM& vm, TestObj::EnumTrailingComma e
 
 template<> std::optional<TestObj::EnumTrailingComma> parseEnumerationFromString<TestObj::EnumTrailingComma>(const String& stringValue)
 {
-    static constexpr std::array<std::pair<ComparableASCIILiteral, TestObj::EnumTrailingComma>, 2> mappings {
-        std::pair<ComparableASCIILiteral, TestObj::EnumTrailingComma> { "enumValue1"_s, TestObj::EnumTrailingComma::EnumValue1 },
-        std::pair<ComparableASCIILiteral, TestObj::EnumTrailingComma> { "enumValue2"_s, TestObj::EnumTrailingComma::EnumValue2 },
-    };
-    static constexpr SortedArrayMap enumerationMapping { mappings };
+    static constexpr SortedArrayMap enumerationMapping { std::to_array<std::pair<ComparableASCIILiteral, TestObj::EnumTrailingComma>>({
+        { "enumValue1"_s, TestObj::EnumTrailingComma::EnumValue1 },
+        { "enumValue2"_s, TestObj::EnumTrailingComma::EnumValue2 },
+    }) };
     if (auto* enumerationValue = enumerationMapping.tryGet(stringValue); enumerationValue) [[likely]]
         return *enumerationValue;
     return std::nullopt;
@@ -241,12 +239,11 @@ template<> std::optional<TestObj::Optional> parseEnumerationFromString<TestObj::
 {
     if (stringValue.isEmpty())
         return TestObj::Optional::EmptyString;
-    static constexpr std::array<std::pair<ComparableASCIILiteral, TestObj::Optional>, 3> mappings {
-        std::pair<ComparableASCIILiteral, TestObj::Optional> { "OptionalValue1"_s, TestObj::Optional::OptionalValue1 },
-        std::pair<ComparableASCIILiteral, TestObj::Optional> { "OptionalValue2"_s, TestObj::Optional::OptionalValue2 },
-        std::pair<ComparableASCIILiteral, TestObj::Optional> { "OptionalValue3"_s, TestObj::Optional::OptionalValue3 },
-    };
-    static constexpr SortedArrayMap enumerationMapping { mappings };
+    static constexpr SortedArrayMap enumerationMapping { std::to_array<std::pair<ComparableASCIILiteral, TestObj::Optional>>({
+        { "OptionalValue1"_s, TestObj::Optional::OptionalValue1 },
+        { "OptionalValue2"_s, TestObj::Optional::OptionalValue2 },
+        { "OptionalValue3"_s, TestObj::Optional::OptionalValue3 },
+    }) };
     if (auto* enumerationValue = enumerationMapping.tryGet(stringValue); enumerationValue) [[likely]]
         return *enumerationValue;
     return std::nullopt;
@@ -281,11 +278,10 @@ template<> JSString* convertEnumerationToJS(VM& vm, AlternateEnumName enumeratio
 
 template<> std::optional<AlternateEnumName> parseEnumerationFromString<AlternateEnumName>(const String& stringValue)
 {
-    static constexpr std::array<std::pair<ComparableASCIILiteral, AlternateEnumName>, 2> mappings {
-        std::pair<ComparableASCIILiteral, AlternateEnumName> { "EnumValue2"_s, AlternateEnumName::EnumValue2 },
-        std::pair<ComparableASCIILiteral, AlternateEnumName> { "enumValue1"_s, AlternateEnumName::EnumValue1 },
-    };
-    static constexpr SortedArrayMap enumerationMapping { mappings };
+    static constexpr SortedArrayMap enumerationMapping { std::to_array<std::pair<ComparableASCIILiteral, AlternateEnumName>>({
+        { "EnumValue2"_s, AlternateEnumName::EnumValue2 },
+        { "enumValue1"_s, AlternateEnumName::EnumValue1 },
+    }) };
     if (auto* enumerationValue = enumerationMapping.tryGet(stringValue); enumerationValue) [[likely]]
         return *enumerationValue;
     return std::nullopt;
@@ -320,10 +316,9 @@ template<> JSString* convertEnumerationToJS(VM& vm, TestObj::EnumA enumerationVa
 
 template<> std::optional<TestObj::EnumA> parseEnumerationFromString<TestObj::EnumA>(const String& stringValue)
 {
-    static constexpr std::array<std::pair<ComparableASCIILiteral, TestObj::EnumA>, 1> mappings {
-        std::pair<ComparableASCIILiteral, TestObj::EnumA> { "A"_s, TestObj::EnumA::A },
-    };
-    static constexpr SortedArrayMap enumerationMapping { mappings };
+    static constexpr SortedArrayMap enumerationMapping { std::to_array<std::pair<ComparableASCIILiteral, TestObj::EnumA>>({
+        { "A"_s, TestObj::EnumA::A },
+    }) };
     if (auto* enumerationValue = enumerationMapping.tryGet(stringValue); enumerationValue) [[likely]]
         return *enumerationValue;
     return std::nullopt;
@@ -360,10 +355,9 @@ template<> JSString* convertEnumerationToJS(VM& vm, TestObj::EnumB enumerationVa
 
 template<> std::optional<TestObj::EnumB> parseEnumerationFromString<TestObj::EnumB>(const String& stringValue)
 {
-    static constexpr std::array<std::pair<ComparableASCIILiteral, TestObj::EnumB>, 1> mappings {
-        std::pair<ComparableASCIILiteral, TestObj::EnumB> { "B"_s, TestObj::EnumB::B },
-    };
-    static constexpr SortedArrayMap enumerationMapping { mappings };
+    static constexpr SortedArrayMap enumerationMapping { std::to_array<std::pair<ComparableASCIILiteral, TestObj::EnumB>>({
+        { "B"_s, TestObj::EnumB::B },
+    }) };
     if (auto* enumerationValue = enumerationMapping.tryGet(stringValue); enumerationValue) [[likely]]
         return *enumerationValue;
     return std::nullopt;
@@ -400,10 +394,9 @@ template<> JSString* convertEnumerationToJS(VM& vm, TestObj::EnumC enumerationVa
 
 template<> std::optional<TestObj::EnumC> parseEnumerationFromString<TestObj::EnumC>(const String& stringValue)
 {
-    static constexpr std::array<std::pair<ComparableASCIILiteral, TestObj::EnumC>, 1> mappings {
-        std::pair<ComparableASCIILiteral, TestObj::EnumC> { "C"_s, TestObj::EnumC::C },
-    };
-    static constexpr SortedArrayMap enumerationMapping { mappings };
+    static constexpr SortedArrayMap enumerationMapping { std::to_array<std::pair<ComparableASCIILiteral, TestObj::EnumC>>({
+        { "C"_s, TestObj::EnumC::C },
+    }) };
     if (auto* enumerationValue = enumerationMapping.tryGet(stringValue); enumerationValue) [[likely]]
         return *enumerationValue;
     return std::nullopt;
@@ -440,11 +433,10 @@ template<> JSString* convertEnumerationToJS(VM& vm, TestObj::Kind enumerationVal
 
 template<> std::optional<TestObj::Kind> parseEnumerationFromString<TestObj::Kind>(const String& stringValue)
 {
-    static constexpr std::array<std::pair<ComparableASCIILiteral, TestObj::Kind>, 2> mappings {
-        std::pair<ComparableASCIILiteral, TestObj::Kind> { "dead"_s, TestObj::Kind::Dead },
-        std::pair<ComparableASCIILiteral, TestObj::Kind> { "quick"_s, TestObj::Kind::Quick },
-    };
-    static constexpr SortedArrayMap enumerationMapping { mappings };
+    static constexpr SortedArrayMap enumerationMapping { std::to_array<std::pair<ComparableASCIILiteral, TestObj::Kind>>({
+        { "dead"_s, TestObj::Kind::Dead },
+        { "quick"_s, TestObj::Kind::Quick },
+    }) };
     if (auto* enumerationValue = enumerationMapping.tryGet(stringValue); enumerationValue) [[likely]]
         return *enumerationValue;
     return std::nullopt;
@@ -479,11 +471,10 @@ template<> JSString* convertEnumerationToJS(VM& vm, TestObj::Size enumerationVal
 
 template<> std::optional<TestObj::Size> parseEnumerationFromString<TestObj::Size>(const String& stringValue)
 {
-    static constexpr std::array<std::pair<ComparableASCIILiteral, TestObj::Size>, 2> mappings {
-        std::pair<ComparableASCIILiteral, TestObj::Size> { "much-much-larger"_s, TestObj::Size::MuchMuchLarger },
-        std::pair<ComparableASCIILiteral, TestObj::Size> { "small"_s, TestObj::Size::Small },
-    };
-    static constexpr SortedArrayMap enumerationMapping { mappings };
+    static constexpr SortedArrayMap enumerationMapping { std::to_array<std::pair<ComparableASCIILiteral, TestObj::Size>>({
+        { "much-much-larger"_s, TestObj::Size::MuchMuchLarger },
+        { "small"_s, TestObj::Size::Small },
+    }) };
     if (auto* enumerationValue = enumerationMapping.tryGet(stringValue); enumerationValue) [[likely]]
         return *enumerationValue;
     return std::nullopt;
@@ -518,11 +509,10 @@ template<> JSString* convertEnumerationToJS(VM& vm, TestObj::Confidence enumerat
 
 template<> std::optional<TestObj::Confidence> parseEnumerationFromString<TestObj::Confidence>(const String& stringValue)
 {
-    static constexpr std::array<std::pair<ComparableASCIILiteral, TestObj::Confidence>, 2> mappings {
-        std::pair<ComparableASCIILiteral, TestObj::Confidence> { "high"_s, TestObj::Confidence::High },
-        std::pair<ComparableASCIILiteral, TestObj::Confidence> { "kinda-low"_s, TestObj::Confidence::KindaLow },
-    };
-    static constexpr SortedArrayMap enumerationMapping { mappings };
+    static constexpr SortedArrayMap enumerationMapping { std::to_array<std::pair<ComparableASCIILiteral, TestObj::Confidence>>({
+        { "high"_s, TestObj::Confidence::High },
+        { "kinda-low"_s, TestObj::Confidence::KindaLow },
+    }) };
     if (auto* enumerationValue = enumerationMapping.tryGet(stringValue); enumerationValue) [[likely]]
         return *enumerationValue;
     return std::nullopt;
@@ -563,12 +553,11 @@ template<> std::optional<TestObj::EnumWithMissingValueDefault> parseEnumerationF
 {
     if (stringValue.isEmpty())
         return TestObj::EnumWithMissingValueDefault::EmptyString;
-    static constexpr std::array<std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingValueDefault>, 3> mappings {
-        std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingValueDefault> { "value1"_s, TestObj::EnumWithMissingValueDefault::Value1 },
-        std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingValueDefault> { "value2"_s, TestObj::EnumWithMissingValueDefault::Value2 },
-        std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingValueDefault> { "value3"_s, TestObj::EnumWithMissingValueDefault::Value3 },
-    };
-    static constexpr SortedArrayMap enumerationMapping { mappings };
+    static constexpr SortedArrayMap enumerationMapping { std::to_array<std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingValueDefault>>({
+        { "value1"_s, TestObj::EnumWithMissingValueDefault::Value1 },
+        { "value2"_s, TestObj::EnumWithMissingValueDefault::Value2 },
+        { "value3"_s, TestObj::EnumWithMissingValueDefault::Value3 },
+    }) };
     if (auto* enumerationValue = enumerationMapping.tryGet(stringValue); enumerationValue) [[likely]]
         return *enumerationValue;
     return std::nullopt;
@@ -609,12 +598,11 @@ template<> std::optional<TestObj::EnumWithInvalidValueDefault> parseEnumerationF
 {
     if (stringValue.isEmpty())
         return TestObj::EnumWithInvalidValueDefault::EmptyString;
-    static constexpr std::array<std::pair<ComparableASCIILiteral, TestObj::EnumWithInvalidValueDefault>, 3> mappings {
-        std::pair<ComparableASCIILiteral, TestObj::EnumWithInvalidValueDefault> { "value1"_s, TestObj::EnumWithInvalidValueDefault::Value1 },
-        std::pair<ComparableASCIILiteral, TestObj::EnumWithInvalidValueDefault> { "value2"_s, TestObj::EnumWithInvalidValueDefault::Value2 },
-        std::pair<ComparableASCIILiteral, TestObj::EnumWithInvalidValueDefault> { "value3"_s, TestObj::EnumWithInvalidValueDefault::Value3 },
-    };
-    static constexpr SortedArrayMap enumerationMapping { mappings };
+    static constexpr SortedArrayMap enumerationMapping { std::to_array<std::pair<ComparableASCIILiteral, TestObj::EnumWithInvalidValueDefault>>({
+        { "value1"_s, TestObj::EnumWithInvalidValueDefault::Value1 },
+        { "value2"_s, TestObj::EnumWithInvalidValueDefault::Value2 },
+        { "value3"_s, TestObj::EnumWithInvalidValueDefault::Value3 },
+    }) };
     if (auto* enumerationValue = enumerationMapping.tryGet(stringValue); enumerationValue) [[likely]]
         return *enumerationValue;
     return std::nullopt;
@@ -655,12 +643,11 @@ template<> std::optional<TestObj::EnumWithMissingAndInvalidValueDefault> parseEn
 {
     if (stringValue.isEmpty())
         return TestObj::EnumWithMissingAndInvalidValueDefault::EmptyString;
-    static constexpr std::array<std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingAndInvalidValueDefault>, 3> mappings {
-        std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingAndInvalidValueDefault> { "value1"_s, TestObj::EnumWithMissingAndInvalidValueDefault::Value1 },
-        std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingAndInvalidValueDefault> { "value2"_s, TestObj::EnumWithMissingAndInvalidValueDefault::Value2 },
-        std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingAndInvalidValueDefault> { "value3"_s, TestObj::EnumWithMissingAndInvalidValueDefault::Value3 },
-    };
-    static constexpr SortedArrayMap enumerationMapping { mappings };
+    static constexpr SortedArrayMap enumerationMapping { std::to_array<std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingAndInvalidValueDefault>>({
+        { "value1"_s, TestObj::EnumWithMissingAndInvalidValueDefault::Value1 },
+        { "value2"_s, TestObj::EnumWithMissingAndInvalidValueDefault::Value2 },
+        { "value3"_s, TestObj::EnumWithMissingAndInvalidValueDefault::Value3 },
+    }) };
     if (auto* enumerationValue = enumerationMapping.tryGet(stringValue); enumerationValue) [[likely]]
         return *enumerationValue;
     return std::nullopt;
@@ -701,12 +688,11 @@ template<> std::optional<TestObj::EnumWithMissingValueDefaultNoQuotes> parseEnum
 {
     if (stringValue.isEmpty())
         return TestObj::EnumWithMissingValueDefaultNoQuotes::EmptyString;
-    static constexpr std::array<std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingValueDefaultNoQuotes>, 3> mappings {
-        std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingValueDefaultNoQuotes> { "value1"_s, TestObj::EnumWithMissingValueDefaultNoQuotes::Value1 },
-        std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingValueDefaultNoQuotes> { "value2"_s, TestObj::EnumWithMissingValueDefaultNoQuotes::Value2 },
-        std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingValueDefaultNoQuotes> { "value3"_s, TestObj::EnumWithMissingValueDefaultNoQuotes::Value3 },
-    };
-    static constexpr SortedArrayMap enumerationMapping { mappings };
+    static constexpr SortedArrayMap enumerationMapping { std::to_array<std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingValueDefaultNoQuotes>>({
+        { "value1"_s, TestObj::EnumWithMissingValueDefaultNoQuotes::Value1 },
+        { "value2"_s, TestObj::EnumWithMissingValueDefaultNoQuotes::Value2 },
+        { "value3"_s, TestObj::EnumWithMissingValueDefaultNoQuotes::Value3 },
+    }) };
     if (auto* enumerationValue = enumerationMapping.tryGet(stringValue); enumerationValue) [[likely]]
         return *enumerationValue;
     return std::nullopt;
@@ -747,12 +733,11 @@ template<> std::optional<TestObj::EnumWithMissingValueDefaultAsEmptyValue> parse
 {
     if (stringValue.isEmpty())
         return TestObj::EnumWithMissingValueDefaultAsEmptyValue::EmptyString;
-    static constexpr std::array<std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingValueDefaultAsEmptyValue>, 3> mappings {
-        std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingValueDefaultAsEmptyValue> { "value1"_s, TestObj::EnumWithMissingValueDefaultAsEmptyValue::Value1 },
-        std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingValueDefaultAsEmptyValue> { "value2"_s, TestObj::EnumWithMissingValueDefaultAsEmptyValue::Value2 },
-        std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingValueDefaultAsEmptyValue> { "value3"_s, TestObj::EnumWithMissingValueDefaultAsEmptyValue::Value3 },
-    };
-    static constexpr SortedArrayMap enumerationMapping { mappings };
+    static constexpr SortedArrayMap enumerationMapping { std::to_array<std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingValueDefaultAsEmptyValue>>({
+        { "value1"_s, TestObj::EnumWithMissingValueDefaultAsEmptyValue::Value1 },
+        { "value2"_s, TestObj::EnumWithMissingValueDefaultAsEmptyValue::Value2 },
+        { "value3"_s, TestObj::EnumWithMissingValueDefaultAsEmptyValue::Value3 },
+    }) };
     if (auto* enumerationValue = enumerationMapping.tryGet(stringValue); enumerationValue) [[likely]]
         return *enumerationValue;
     return std::nullopt;
@@ -793,12 +778,11 @@ template<> std::optional<TestObj::EnumWithMissingValueDefaultNotInEnumValues> pa
 {
     if (stringValue.isEmpty())
         return TestObj::EnumWithMissingValueDefaultNotInEnumValues::EmptyString;
-    static constexpr std::array<std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingValueDefaultNotInEnumValues>, 3> mappings {
-        std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingValueDefaultNotInEnumValues> { "value1"_s, TestObj::EnumWithMissingValueDefaultNotInEnumValues::Value1 },
-        std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingValueDefaultNotInEnumValues> { "value2"_s, TestObj::EnumWithMissingValueDefaultNotInEnumValues::Value2 },
-        std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingValueDefaultNotInEnumValues> { "value3"_s, TestObj::EnumWithMissingValueDefaultNotInEnumValues::Value3 },
-    };
-    static constexpr SortedArrayMap enumerationMapping { mappings };
+    static constexpr SortedArrayMap enumerationMapping { std::to_array<std::pair<ComparableASCIILiteral, TestObj::EnumWithMissingValueDefaultNotInEnumValues>>({
+        { "value1"_s, TestObj::EnumWithMissingValueDefaultNotInEnumValues::Value1 },
+        { "value2"_s, TestObj::EnumWithMissingValueDefaultNotInEnumValues::Value2 },
+        { "value3"_s, TestObj::EnumWithMissingValueDefaultNotInEnumValues::Value3 },
+    }) };
     if (auto* enumerationValue = enumerationMapping.tryGet(stringValue); enumerationValue) [[likely]]
         return *enumerationValue;
     return std::nullopt;

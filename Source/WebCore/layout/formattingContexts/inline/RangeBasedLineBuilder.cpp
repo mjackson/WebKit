@@ -28,7 +28,7 @@
 
 #include "InlineFormattingContext.h"
 #include "RenderStyle+GettersInlines.h"
-#include "RenderStyle+InitialInlines.h"
+#include "StyleComputedStyle+InitialInlines.h"
 
 namespace WebCore {
 namespace Layout {
@@ -148,7 +148,7 @@ bool RangeBasedLineBuilder::isEligibleForRangeInlineLayout(const InlineFormattin
             auto& inlineBox = inlineItem.layoutBox();
             if (inlineFormattingContext.geometryForBox(inlineBox).horizontalMarginBorderAndPadding())
                 return true;
-            if (inlineBox.style().boxDecorationBreak() != RenderStyle::initialBoxDecorationBreak())
+            if (inlineBox.style().boxDecorationBreak() != Style::ComputedStyle::initialBoxDecorationBreak())
                 return true;
         }
         ASSERT_NOT_REACHED();

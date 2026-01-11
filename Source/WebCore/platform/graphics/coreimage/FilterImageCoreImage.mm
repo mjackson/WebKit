@@ -30,9 +30,13 @@
 
 #import "ColorSpaceCG.h"
 #import "DestinationColorSpace.h"
+#import "Filter.h"
 #import "Logging.h"
+#import <CoreImage/CIFilterBuiltins.h>
 #import <CoreImage/CoreImage.h>
+#import <wtf/MathExtras.h>
 #import <wtf/NeverDestroyed.h>
+#import <wtf/SystemTracing.h>
 #import <wtf/cocoa/TypeCastsCocoa.h>
 
 namespace WebCore {
@@ -61,9 +65,10 @@ size_t FilterImage::memoryCostOfCIImage() const
     return FloatSize([m_ciImage.get() extent].size).area() * 4;
 }
 
-ImageBuffer* FilterImage::filterResultImageBuffer(FloatRect absoluteFilterRegion)
+ImageBuffer* FilterImage::filterResultImageBuffer(const Filter& filter)
 {
-    UNUSED_PARAM(absoluteFilterRegion);
+    TraceScope traceScope(CoreImageRenderStart, CoreImageRenderEnd);
+    BEGIN_BLOCK_OBJC_EXCEPTIONS
 
     if (!m_ciImage)
         return imageBuffer();
@@ -86,9 +91,23 @@ ImageBuffer* FilterImage::filterResultImageBuffer(FloatRect absoluteFilterRegion
     RetainPtr destination = adoptNS([[CIRenderDestination alloc] initWithIOSurface:(__bridge id)imageBuffer->surface()->surface()]);
     [destination setColorSpace:m_colorSpace.platformColorSpace()];
 
+    RetainPtr image = m_ciImage;
+
+    if (filter.isShowingDebugOverlay()) {
+        RetainPtr stripesFilter = [CIFilter stripesGeneratorFilter];
+        [stripesFilter setWidth:30];
+        [stripesFilter setColor0:[CIColor clearColor]];
+        [stripesFilter setColor1:[CIColor colorWithRed:1.f green:0.95f blue:0 alpha:0.35]];
+        [stripesFilter setSharpness:0.9];
+        RetainPtr rotatedStripes = [[stripesFilter outputImage] imageByApplyingTransform:CGAffineTransformMakeRotation(deg2rad(45.f))];
+
+        image = [rotatedStripes imageByCompositingOverImage:image.get()];
+    }
+
+    auto absoluteFilterRegion = filter.absoluteEnclosingFilterRegion();
     auto sourceRect = FloatRect { { }, absoluteFilterRegion.size() };
     auto location = FloatPoint { m_absoluteImageRect.x() - absoluteFilterRegion.x(), absoluteFilterRegion.maxY() - m_absoluteImageRect.maxY() };
-    RetainPtr task = [context startTaskToRender:m_ciImage.get()
+    RetainPtr task = [context startTaskToRender:image.get()
                                        fromRect:sourceRect
                                   toDestination:destination.get()
                                         atPoint:-location
@@ -97,8 +116,10 @@ ImageBuffer* FilterImage::filterResultImageBuffer(FloatRect absoluteFilterRegion
         [task waitUntilCompletedAndReturnError:nil];
 
     LOG_WITH_STREAM(Filters, stream << "FilterImage::filterResultImageBuffer - output rect " << m_absoluteImageRect << " result " << ValueOrNull(m_imageBuffer.get()));
-
     return m_imageBuffer.get();
+
+    END_BLOCK_OBJC_EXCEPTIONS
+    return nullptr;
 }
 
 } // namespace WebCore

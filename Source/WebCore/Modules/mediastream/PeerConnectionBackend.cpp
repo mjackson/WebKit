@@ -410,7 +410,7 @@ void PeerConnectionBackend::setLocalDescriptionSucceeded(std::optional<Descripti
                 RefPtr<RTCRtpTransceiver> transceiver;
                 for (auto& item : peerConnection.currentTransceivers()) {
                     if (item->mid() == transceiverState.mid) {
-                        transceiver = item;
+                        transceiver = item.ptr();
                         break;
                     }
                 }
@@ -516,7 +516,7 @@ void PeerConnectionBackend::setRemoteDescriptionSucceeded(std::optional<Descript
                 RefPtr<RTCRtpTransceiver> transceiver;
                 for (auto& item : peerConnection.currentTransceivers()) {
                     if (item->mid() == transceiverState.mid) {
-                        transceiver = item;
+                        transceiver = item.ptr();
                         break;
                     }
                 }

@@ -1702,7 +1702,7 @@ void MediaPlayer::notifyTrackModeChanged()
         privateInterface->notifyTrackModeChanged();
 }
 
-Vector<RefPtr<PlatformTextTrack>> MediaPlayer::outOfBandTrackSources()
+Vector<Ref<PlatformTextTrack>> MediaPlayer::outOfBandTrackSources()
 {
     return protectedClient()->outOfBandTrackSources();
 }

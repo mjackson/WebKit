@@ -92,6 +92,8 @@ private:
     size_t m_decoderCount { 0 };
 };
 
-}
+} // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(WebCodecsAudioDecoder)
 
 #endif

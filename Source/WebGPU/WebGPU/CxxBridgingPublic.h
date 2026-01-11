@@ -28,6 +28,8 @@
 // FIXME: Remove this file once compiler support for `-emit-clang-header-min-access` is available
 // everywhere where needed.
 
+#ifdef __cplusplus
+
 #include <span>
 
 namespace WebGPU {
@@ -36,3 +38,5 @@ using SpanConstUInt8 = std::span<const uint8_t>;
 using SpanUInt8 = std::span<uint8_t>;
 
 }
+
+#endif // __cplusplus

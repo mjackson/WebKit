@@ -209,7 +209,7 @@ JSC::JSInternalPromise* ScriptModuleLoader::fetch(JSC::JSGlobalObject* jsGlobalO
         parameters = scriptFetchParameters->parameters();
 
     if (m_ownerType == OwnerType::Document) {
-        auto loader = CachedModuleScriptLoader::create(*this, deferred.get(), *static_cast<CachedScriptFetcher*>(JSC::jsCast<JSC::JSScriptFetcher*>(scriptFetcher)->fetcher()), WTF::move(parameters));
+        Ref loader = CachedModuleScriptLoader::create(*this, deferred.get(), *downcast<CachedScriptFetcher>(JSC::jsCast<JSC::JSScriptFetcher*>(scriptFetcher)->fetcher()), WTF::move(parameters));
         m_loaders.add(loader.copyRef());
 
         // Prevent non-normal worlds from loading with a service worker.
@@ -222,7 +222,7 @@ JSC::JSInternalPromise* ScriptModuleLoader::fetch(JSC::JSGlobalObject* jsGlobalO
             return jsPromise;
         }
     } else {
-        auto loader = WorkerModuleScriptLoader::create(*this, deferred.get(), *static_cast<WorkerScriptFetcher*>(JSC::jsCast<JSC::JSScriptFetcher*>(scriptFetcher)->fetcher()), WTF::move(parameters));
+        Ref loader = WorkerModuleScriptLoader::create(*this, deferred.get(), *downcast<WorkerScriptFetcher>(JSC::jsCast<JSC::JSScriptFetcher*>(scriptFetcher)->fetcher()), WTF::move(parameters));
         m_loaders.add(loader.copyRef());
         loader->load(*m_context, WTF::move(completedURL));
     }
@@ -384,7 +384,7 @@ JSC::JSInternalPromise* ScriptModuleLoader::importModule(JSC::JSGlobalObject* js
             // https://html.spec.whatwg.org/multipage/webappapis.html#fetch-an-import()-module-script-graph
             // Destination should be "script" for dynamic-import.
             if (m_ownerType == OwnerType::WorkerOrWorklet) {
-                auto& fetcher = static_cast<WorkerScriptFetcher&>(*scriptFetcher);
+                auto& fetcher = downcast<WorkerScriptFetcher>(*scriptFetcher);
                 scriptFetcher = WorkerScriptFetcher::create(*parameters, fetcher.credentials(), destination, fetcher.referrerPolicy());
             }
         }
@@ -474,7 +474,7 @@ void ScriptModuleLoader::notifyFinished(ModuleScriptLoader& moduleScriptLoader, 
 
     JSC::SourceCode sourceCode;
     if (m_ownerType == OwnerType::Document) {
-        auto& loader = static_cast<CachedModuleScriptLoader&>(moduleScriptLoader);
+        auto& loader = downcast<CachedModuleScriptLoader>(moduleScriptLoader);
         auto& cachedScript = *loader.cachedScript();
 
         if (cachedScript.resourceError().isAccessControl()) {
@@ -542,7 +542,7 @@ void ScriptModuleLoader::notifyFinished(ModuleScriptLoader& moduleScriptLoader, 
             RELEASE_ASSERT_NOT_REACHED();
         }
     } else {
-        auto& loader = static_cast<WorkerModuleScriptLoader&>(moduleScriptLoader);
+        auto& loader = downcast<WorkerModuleScriptLoader>(moduleScriptLoader);
 
         if (loader.failed()) {
             ASSERT(!loader.retrievedFromServiceWorkerCache());
@@ -586,7 +586,7 @@ void ScriptModuleLoader::notifyFinished(ModuleScriptLoader& moduleScriptLoader, 
             if (auto* parameters = loader.parameters()) {
                 // If this is top-level-module, then we extract referrer-policy and apply to the dependent modules.
                 if (parameters->isTopLevelModule())
-                    static_cast<WorkerScriptFetcher&>(loader.scriptFetcher()).setReferrerPolicy(loader.referrerPolicy());
+                    downcast<WorkerScriptFetcher>(loader.scriptFetcher()).setReferrerPolicy(loader.referrerPolicy());
             }
             responseURL = canonicalizeAndRegisterResponseURL(responseURL, workerScriptLoader.isRedirected(), workerScriptLoader.responseSource());
             if (auto* globalScope = dynamicDowncast<ServiceWorkerGlobalScope>(*context))

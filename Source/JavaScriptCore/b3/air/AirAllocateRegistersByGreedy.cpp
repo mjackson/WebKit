@@ -973,8 +973,16 @@ private:
                         // a & b interfere so b must either have been spilled or assigned a different register.
                         if (!bReg)
                             continue;
-                        if (aReg == bReg)
+                        if (aReg == bReg) {
+                            if (m_code.isPinned(aReg)) {
+                                // It's okay if both Tmps were coalseced to the same pinned register.
+                                TmpData& regData = m_map[Tmp(aReg)];
+                                if (regData.coalescables.containsIf([a](auto& with) { return with.tmp == a; })
+                                    && regData.coalescables.containsIf([b](auto& with) { return with.tmp == b; }))
+                                    continue;
+                            }
                             fail(block, a, b);
+                        }
                     }
                 }
             }
@@ -1290,7 +1298,7 @@ private:
             TmpData& data = m_map[tmp];
             for (auto& with : data.coalescables) {
                 ASSERT(!with.tmp.isReg());
-                assign(with.tmp, m_map[with.tmp], reg);
+                coalesceWithPinned(with.tmp, m_map[with.tmp], reg);
                 m_stats[tmp.bank()].numCoalescedPinned++;
             }
         });
@@ -1753,14 +1761,27 @@ private:
         return true;
     }
 
-    void assign(Tmp tmp, TmpData& tmpData, Reg reg)
+    void assignImpl(Tmp tmp, TmpData& tmpData, Reg reg)
     {
-        m_regRanges[reg].add(tmp, tmpData.liveRange);
         ASSERT(tmpData.stage != Stage::Assigned && tmpData.stage != Stage::Spilled);
+        ASSERT(&m_map[tmp] == &tmpData);
         tmpData.stage = Stage::Assigned;
         tmpData.assigned = reg;
         dataLogLnIf(verbose(), "Assigned ", tmp, " to ", reg);
         tmpData.validate();
+    }
+
+    void coalesceWithPinned(Tmp tmp, TmpData& tmpData, Reg reg)
+    {
+        ASSERT(m_code.isPinned(reg));
+        assignImpl(tmp, tmpData, reg);
+    }
+
+    void assign(Tmp tmp, TmpData& tmpData, Reg reg)
+    {
+        ASSERT(m_allAllowedRegisters.contains(reg, IgnoreVectors));
+        m_regRanges[reg].add(tmp, tmpData.liveRange);
+        assignImpl(tmp, tmpData, reg);
     }
 
     void evict(Tmp tmp, TmpData& tmpData, Reg reg)

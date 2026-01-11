@@ -85,10 +85,10 @@ template <class T> concept YarrSyntaxCheckable = requires (T& checker, Vector<Ve
 template<YarrSyntaxCheckable Delegate, typename CharType>
 class Parser {
 public:
-    Parser(Delegate& delegate, StringView pattern, CompileMode compileMode, unsigned backReferenceLimit, bool isNamedForwardReferenceAllowed)
+    Parser(Delegate& delegate, std::span<const CharType> pattern, CompileMode compileMode, unsigned backReferenceLimit, bool isNamedForwardReferenceAllowed)
         : m_delegate(delegate)
-        , m_data(pattern.span<CharType>().data())
-        , m_size(pattern.length())
+        , m_data(pattern.data())
+        , m_size(pattern.size())
         , m_compileMode(compileMode)
         , m_backReferenceLimit(backReferenceLimit)
         , m_isNamedForwardReferenceAllowed(isNamedForwardReferenceAllowed)
@@ -2268,8 +2268,8 @@ template<YarrSyntaxCheckable Delegate>
 ErrorCode parse(Delegate& delegate, const StringView pattern, CompileMode compileMode, unsigned backReferenceLimit = quantifyInfinite, bool isNamedForwardReferenceAllowed = true)
 {
     if (pattern.is8Bit())
-        return Parser<Delegate, Latin1Character>(delegate, pattern, compileMode, backReferenceLimit, isNamedForwardReferenceAllowed).parse();
-    return Parser<Delegate, char16_t>(delegate, pattern, compileMode, backReferenceLimit, isNamedForwardReferenceAllowed).parse();
+        return Parser<Delegate, Latin1Character>(delegate, pattern.span8(), compileMode, backReferenceLimit, isNamedForwardReferenceAllowed).parse();
+    return Parser<Delegate, char16_t>(delegate, pattern.span16(), compileMode, backReferenceLimit, isNamedForwardReferenceAllowed).parse();
 }
 
 } } // namespace JSC::Yarr

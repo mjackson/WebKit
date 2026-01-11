@@ -177,9 +177,19 @@ JSC_DEFINE_HOST_FUNCTION(temporalCalendarPrototypeFuncDateUntil, (JSGlobalObject
     JSObject* options = intlGetOptionsObject(globalObject, callFrame->argument(2));
     RETURN_IF_EXCEPTION(scope, { });
 
-    auto largest = temporalLargestUnit(globalObject, options, { TemporalUnit::Hour, TemporalUnit::Minute, TemporalUnit::Second, TemporalUnit::Millisecond, TemporalUnit::Microsecond, TemporalUnit::Nanosecond }, TemporalUnit::Day);
+    auto largest = getTemporalUnitValuedOption(globalObject, options, vm.propertyNames->largestUnit);
+
     RETURN_IF_EXCEPTION(scope, { });
-    TemporalUnit largestUnit = largest.value_or(TemporalUnit::Day);
+    TemporalUnit largestUnit = TemporalUnit::Day;
+    if (std::holds_alternative<std::optional<TemporalUnit>>(largest)) {
+        auto largestUnitOptional = std::get<std::optional<TemporalUnit>>(largest);
+        if (largestUnitOptional)
+            largestUnit = largestUnitOptional.value();
+    }
+
+    auto disallowedUnits = { TemporalUnit::Hour, TemporalUnit::Minute, TemporalUnit::Second, TemporalUnit::Millisecond, TemporalUnit::Microsecond, TemporalUnit::Nanosecond };
+    if (disallowedUnits.size() && std::find(disallowedUnits.begin(), disallowedUnits.end(), largestUnit) != disallowedUnits.end())
+        return throwVMRangeError(globalObject, scope, "largestUnit is a disallowed unit"_s);
 
     auto result = TemporalCalendar::calendarDateUntil(date1->plainDate(), date2->plainDate(), largestUnit);
 

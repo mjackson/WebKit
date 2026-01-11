@@ -108,4 +108,6 @@ private:
 
 } // namespace WebCore
 
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(RTCRtpSFrameTransform)
+
 #endif // ENABLE(WEB_RTC)

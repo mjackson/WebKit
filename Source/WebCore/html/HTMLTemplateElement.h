@@ -46,6 +46,7 @@ public:
 
     DocumentFragment& fragmentForInsertion() const;
     DocumentFragment& content() const;
+    Ref<DocumentFragment> protectedContent() const { return content(); }
     DocumentFragment* contentIfAvailable() const;
 
     const AtomString& shadowRootMode() const;

@@ -147,9 +147,9 @@ void BreakBlockquoteCommand::doApply()
     }
     
     // Build up list of ancestors in between the start node and the top blockquote.
-    Vector<RefPtr<Element>> ancestors;    
+    Vector<Ref<Element>> ancestors;
     for (RefPtr node = startNode->parentElement(); node && node != topBlockquote; node = node->parentElement())
-        ancestors.append(node.copyRef());
+        ancestors.append(*node);
     
     // Insert a clone of the top blockquote after the break.
     auto clonedBlockquote = topBlockquote->cloneElementWithoutChildren(document(), nullptr);
@@ -164,8 +164,8 @@ void BreakBlockquoteCommand::doApply()
         auto clonedChild = ancestors[i - 1]->cloneElementWithoutChildren(document(), nullptr);
         // Preserve list item numbering in cloned lists.
         if (clonedChild->isElementNode() && clonedChild->hasTagName(olTag)) {
-            RefPtr<Node> listChildNode = i > 1 ? ancestors[i - 2].get() : startNode.get();
-            // The first child of the cloned list might not be a list item element, 
+            RefPtr<Node> listChildNode = i > 1 ? ancestors[i - 2].ptr() : startNode.get();
+            // The first child of the cloned list might not be a list item element,
             // find the first one so that we know where to start numbering.
             while (listChildNode && !listChildNode->hasTagName(liTag))
                 listChildNode = listChildNode->nextSibling();
@@ -174,7 +174,7 @@ void BreakBlockquoteCommand::doApply()
                     setNodeAttribute(clonedChild, startAttr, AtomString::number(listItemRenderer->value()));
             }
         }
-            
+
         appendNode(clonedChild.copyRef(), clonedAncestor.releaseNonNull());
         clonedAncestor = WTF::move(clonedChild);
     }
@@ -188,7 +188,7 @@ void BreakBlockquoteCommand::doApply()
         // into the clone corresponding to the ancestor's parent.
         RefPtr<Element> ancestor;
         RefPtr<Element> clonedParent;
-        for (ancestor = ancestors.first(), clonedParent = clonedAncestor->parentElement();
+        for (ancestor = ancestors.first().get(), clonedParent = clonedAncestor->parentElement();
             ancestor && ancestor != topBlockquote;
             ancestor = ancestor->parentElement(), clonedParent = clonedParent->parentElement()) {
             if (!clonedParent)

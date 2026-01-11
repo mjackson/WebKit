@@ -146,7 +146,7 @@ public:
     const PartMappings& partMappings() const;
     void invalidatePartMappings();
 
-    Vector<RefPtr<WebAnimation>> getAnimations();
+    Vector<Ref<WebAnimation>> getAnimations();
 
     bool hasReferenceTarget() const { return !m_referenceTarget.isNull(); }
     const AtomString& referenceTarget() const { return m_referenceTarget; }

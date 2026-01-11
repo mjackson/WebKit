@@ -25,7 +25,7 @@
 
 #include "config.h"
 #include "FontCascadeDescription.h"
-
+#include "Logging.h"
 #include "SystemFontDatabaseCoreText.h"
 
 namespace WebCore {

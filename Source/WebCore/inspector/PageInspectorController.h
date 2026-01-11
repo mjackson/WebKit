@@ -165,9 +165,9 @@ private:
     InspectorFrontendClient* m_inspectorFrontendClient { nullptr };
 
     // Lazy, but also on-demand agents.
-    Inspector::InspectorAgent* m_inspectorAgent { nullptr };
+    CheckedPtr<Inspector::InspectorAgent> m_inspectorAgent;
     CheckedPtr<InspectorDOMAgent> m_domAgent;
-    InspectorPageAgent* m_pageAgent { nullptr };
+    CheckedPtr<InspectorPageAgent> m_pageAgent;
 
     bool m_isUnderTest { false };
     bool m_isAutomaticInspection { false };

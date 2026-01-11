@@ -25,6 +25,12 @@
 
 #pragma once
 
+// FIXME: Remove the `__has_feature(modules)` condition when possible.
+#if !__has_feature(modules)
+
+#include <wtf/Compiler.h>
+#include <wtf/Platform.h>
+
 DECLARE_SYSTEM_HEADER
 
 #if HAVE(PASSKIT_RECURRING_SUMMARY_ITEM)
@@ -105,11 +111,6 @@ DECLARE_SYSTEM_HEADER
 
 #if !PLATFORM(MAC) || USE(APPLE_INTERNAL_SDK)
 
-// FIXME: (rdar://165525506) This file is invalid in a module because PassKit has symbols with incorrect linkage.
-// FIXME: PassKit does not declare its NSString constant symbols with C linkage, so we end up with
-// linkage mismatches in the SOFT_LINK_CONSTANT macros used in PassKitSoftLink.mm unless we wrap
-// these includes in an extern "C" block.
-WTF_EXTERN_C_BEGIN
 #if HAVE(PASSKIT_MODULARIZATION) && USE(APPLE_INTERNAL_SDK)
 #import <PassKitCore/PKConstants.h>
 #import <PassKitCore/PKError.h>
@@ -117,7 +118,6 @@ WTF_EXTERN_C_BEGIN
 #import <PassKit/PKConstants.h>
 #import <PassKit/PKError.h>
 #endif
-WTF_EXTERN_C_END
 
 #endif // !PLATFORM(MAC) || USE(APPLE_INTERNAL_SDK)
 
@@ -406,3 +406,5 @@ NS_ASSUME_NONNULL_END
 @property (nonatomic, assign) BOOL isDelegatedRequest;
 @end
 #endif // HAVE(PASSKIT_DELEGATED_REQUEST)
+
+#endif // !__has_feature(modules)

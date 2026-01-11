@@ -52,7 +52,7 @@ class SortedArrayMap : public SortedArrayBase {
 public:
     using ValueType = typename ElementType::second_type;
 
-    constexpr SortedArrayMap(const std::array<ElementType, N>&);
+    constexpr SortedArrayMap(std::array<ElementType, N>&&);
     template<typename KeyArgument> bool contains(const KeyArgument&) const;
 
     // FIXME: To match HashMap interface better, would be nice to get the default value from traits.
@@ -61,17 +61,21 @@ public:
     // FIXME: Should add a function like this to HashMap so the two kinds of maps are more interchangable.
     template<typename KeyArgument> const ValueType* tryGet(const KeyArgument&) const;
 
+    const std::array<ElementType, N>& array() const { return m_array; }
+
 private:
-    const std::array<ElementType, N>& m_array;
+    std::array<ElementType, N> m_array;
 };
 
 template<typename ElementType, std::size_t N> class SortedArraySet : public SortedArrayBase {
 public:
-    constexpr SortedArraySet(const std::array<ElementType, N>&);
+    constexpr SortedArraySet(std::array<ElementType, N>&&);
     template<typename KeyArgument> bool contains(const KeyArgument&) const;
 
+    const std::array<ElementType, N>& array() const { return m_array; }
+
 private:
-    const std::array<ElementType, N>& m_array;
+    std::array<ElementType, N> m_array;
 };
 
 struct ComparableStringView {
@@ -163,10 +167,10 @@ template<ASCIISubset subset> constexpr ComparableASCIISubsetLiteral<subset>::Com
 }
 
 template<typename ElementType, std::size_t N>
-constexpr SortedArrayMap<ElementType, N>::SortedArrayMap(const std::array<ElementType, N>& array)
-    : m_array { array }
+constexpr SortedArrayMap<ElementType, N>::SortedArrayMap(std::array<ElementType, N>&& array)
+    : m_array { WTF::move(array) }
 {
-    ASSERT_UNDER_CONSTEXPR_CONTEXT(std::is_sorted(std::begin(array), std::end(array), [](auto& a, auto b) {
+    ASSERT_UNDER_CONSTEXPR_CONTEXT(std::is_sorted(m_array.begin(), m_array.end(), [](auto& a, auto b) {
         return a.first < b.first;
     }));
 }
@@ -178,17 +182,17 @@ template<typename ElementType, std::size_t N> template<typename KeyArgument> inl
     if (!parsedKey)
         return nullptr;
     decltype(std::begin(m_array)) iterator;
-    if (std::size(m_array) < binarySearchThreshold) {
-        iterator = std::find_if(std::begin(m_array), std::end(m_array), [&parsedKey](auto& pair) {
+    if constexpr (N < binarySearchThreshold) {
+        iterator = std::find_if(m_array.begin(), m_array.end(), [&parsedKey](auto& pair) {
             return pair.first == *parsedKey;
         });
-        if (iterator == std::end(m_array))
+        if (iterator == m_array.end())
             return nullptr;
     } else {
-        iterator = std::lower_bound(std::begin(m_array), std::end(m_array), *parsedKey, [](auto& pair, auto& value) {
+        iterator = std::lower_bound(m_array.begin(), m_array.end(), *parsedKey, [](auto& pair, auto& value) {
             return pair.first < value;
         });
-        if (iterator == std::end(m_array) || !(iterator->first == *parsedKey))
+        if (iterator == m_array.end() || !(iterator->first == *parsedKey))
             return nullptr;
     }
     return &iterator->second;
@@ -205,10 +209,10 @@ template<typename ElementType, std::size_t N> template<typename KeyArgument> inl
     return tryGet(key);
 }
 
-template<typename ElementType, std::size_t N> constexpr SortedArraySet<ElementType, N>::SortedArraySet(const std::array<ElementType, N>& array)
-    : m_array { array }
+template<typename ElementType, std::size_t N> constexpr SortedArraySet<ElementType, N>::SortedArraySet(std::array<ElementType, N>&& array)
+    : m_array { WTF::move(array) }
 {
-    ASSERT_UNDER_CONSTEXPR_CONTEXT(std::is_sorted(std::begin(array), std::end(array)));
+    ASSERT_UNDER_CONSTEXPR_CONTEXT(std::is_sorted(m_array.begin(), m_array.end()));
 }
 
 template<typename ElementType, std::size_t N> template<typename KeyArgument> inline bool SortedArraySet<ElementType, N>::contains(const KeyArgument& key) const
@@ -216,26 +220,20 @@ template<typename ElementType, std::size_t N> template<typename KeyArgument> inl
     auto parsedKey = SortedArrayKeyTraits<ElementType>::parse(key);
     if (!parsedKey)
         return false;
-    if (std::size(m_array) < binarySearchThreshold)
-        return std::find(std::begin(m_array), std::end(m_array), *parsedKey) != std::end(m_array);
-    auto iterator = std::lower_bound(std::begin(m_array), std::end(m_array), *parsedKey);
-    return iterator != std::end(m_array) && *iterator == *parsedKey;
+    if constexpr (N < binarySearchThreshold)
+        return std::find(m_array.begin(), m_array.end(), *parsedKey) != m_array.end();
+    auto iterator = std::lower_bound(m_array.begin(), m_array.end(), *parsedKey);
+    return iterator != m_array.end() && *iterator == *parsedKey;
 }
 
 constexpr int compareSpansConstExpr(std::span<const char> a, std::span<const char> b)
 {
-    auto commonLength = std::min(a.size(), b.size());
-    size_t i = 0;
-    while (i < commonLength && a[i] == b[i])
-        ++i;
-    if (i == commonLength) {
-        if (a.size() == b.size())
-            return 0;
-        return a.size() < b.size() ? -1 : 1;
+    auto minLength = std::min(a.size(), b.size());
+    for (size_t i = 0; i < minLength; ++i) {
+        if (a[i] != b[i])
+            return a[i] < b[i] ? -1 : 1;
     }
-    auto aCharacter = a[i];
-    auto bCharacter = b[i];
-    return aCharacter == bCharacter ? 0 : aCharacter < bCharacter ? -1 : 1;
+    return a.size() == b.size() ? 0 : (a.size() < b.size() ? -1 : 1);
 }
 
 template<typename CharacterType> inline bool lessThanASCIICaseFolding(std::span<const CharacterType> characters, ASCIILiteral literalWithNoUppercase)
@@ -246,7 +244,7 @@ template<typename CharacterType> inline bool lessThanASCIICaseFolding(std::span<
         if (lowercaseCharacter != literalCharacter)
             return lowercaseCharacter < literalCharacter;
     }
-    return literalWithNoUppercase.length() < characters.size();
+    return characters.size() < literalWithNoUppercase.length();
 }
 
 inline bool lessThanASCIICaseFolding(StringView string, ASCIILiteral literalWithNoUppercase)

@@ -1,3 +1,4 @@
+//@ skip if $memoryLimited
 const crash_point= 0x41414141;
 const loop_start = crash_point&0xffffff00;
 const loop_end   = crash_point+1;

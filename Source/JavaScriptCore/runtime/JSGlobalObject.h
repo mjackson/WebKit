@@ -775,7 +775,6 @@ public:
     JSFunction* parseIntFunction() const { return m_parseIntFunction.get(this); }
     JSFunction* parseFloatFunction() const { return m_parseFloatFunction.get(this); }
 
-    JSFunction* asyncGeneratorYieldOnRejectedFunction() const;
     JSFunction* promiseEmptyOnFulfilledFunction() const;
     JSFunction* promiseEmptyOnRejectedFunction() const;
     JSFunction* evalFunction() const;
@@ -1200,6 +1199,9 @@ public:
         if (Options::useTrustedTypes())
             m_trustedTypesEnforcement = enforcement;
     }
+
+    void queueMicrotask(InternalMicrotask, uint8_t, JSValue, JSValue, JSValue);
+
 
 #if ASSERT_ENABLED
     const JSGlobalObject* globalObjectAtDebuggerEntry() const { return m_globalObjectAtDebuggerEntry; }

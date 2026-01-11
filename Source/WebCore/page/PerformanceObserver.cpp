@@ -42,7 +42,7 @@ PerformanceObserver::PerformanceObserver(ScriptExecutionContext& scriptExecution
     , m_durationThreshold(PerformanceEventTiming::defaultDurationThreshold)
 {
     if (RefPtr document = dynamicDowncast<Document>(scriptExecutionContext)) {
-        if (auto* window = document->window())
+        if (RefPtr window = document->window())
             m_performance = window->performance();
     } else if (RefPtr workerGlobalScope = dynamicDowncast<WorkerGlobalScope>(scriptExecutionContext))
         m_performance = workerGlobalScope->performance();

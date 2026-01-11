@@ -135,6 +135,7 @@
 #include "SyntheticEditingCommandType.h"
 #include "TextChecker.h"
 #include "TextCheckerState.h"
+#include "TextExtractionAssertionScope.h"
 #include "TextRecognitionUpdateResult.h"
 #include "URLSchemeTaskParameters.h"
 #include "UndoOrRedo.h"
@@ -3155,9 +3156,6 @@ void WebPageProxy::activityStateDidChange(OptionSet<ActivityState> mayHaveChange
         return;
     }
     scheduleActivityStateUpdate();
-#elif PLATFORM(GTK) || PLATFORM(WPE)
-    UNUSED_PARAM(dispatchMode);
-    scheduleActivityStateUpdate();
 #else
     UNUSED_PARAM(dispatchMode);
     dispatchActivityStateChange();
@@ -3618,7 +3616,7 @@ void WebPageProxy::executeEditCommand(const String& commandName, const String& a
 
     auto completionHandler = [weakThis = WeakPtr { *this }, callbackFunction = WTF::move(callbackFunction), commandName, argument, targetFrameID] () mutable {
         RefPtr protectedThis = weakThis.get();
-        if (!protectedThis)
+        if (!protectedThis || !protectedThis->hasRunningProcess())
             return callbackFunction();
 
         protectedThis->sendWithAsyncReplyToProcessContainingFrame(targetFrameID, Messages::WebPage::ExecuteEditCommandWithCallback(commandName, argument), [callbackFunction = WTF::move(callbackFunction), backgroundActivity = weakThis->processContainingFrame(targetFrameID)->protectedThrottler()->backgroundActivity("WebPageProxy::executeEditCommand"_s)] () mutable {
@@ -5292,7 +5290,13 @@ void WebPageProxy::receivedNavigationActionPolicyDecision(WebProcessProxy& proce
             navigation->setPendingSharedProcess(*sharedProcess);
             ASSERT(!sharedProcess->process().isInProcessCache());
             if (frame->isMainFrame()) {
-                protectedWebsiteDataStore()->protectedNetworkProcess()->addAllowedFirstPartyForCookies(sharedProcess->process(), site.domain(), LoadedWebArchive::No, [process = Ref { sharedProcess->process() }, continueWithProcessForNavigation = WTF::move(continueWithProcessForNavigation)] mutable {
+                Ref process { sharedProcess->process() };
+                auto shutdownPreventingScope = process->shutdownPreventingScope();
+                protectedWebsiteDataStore()->protectedNetworkProcess()->addAllowedFirstPartyForCookies(sharedProcess->process(), site.domain(), LoadedWebArchive::No, [
+                    process = WTF::move(process),
+                    shutdownPreventingScope = WTF::move(shutdownPreventingScope),
+                    continueWithProcessForNavigation = WTF::move(continueWithProcessForNavigation)
+                ] mutable {
                     continueWithProcessForNavigation(WTF::move(process), nullptr, "Uses shared Web process"_s);
                 });
             } else
@@ -7841,7 +7845,8 @@ void WebPageProxy::broadcastFrameTreeSyncData(IPC::Connection& connection, Frame
     Ref process = WebProcessProxy::fromConnection(connection);
 
     RefPtr webFrameProxy = WebFrameProxy::webFrame(frameID);
-    MESSAGE_CHECK(process, webFrameProxy);
+    if (!webFrameProxy)
+        return;
 
     // FIXME: This could instead be an option in FrameTreeSyncData.in to allow
     // certain properties to be mutable from non-frame-owning processes.
@@ -7863,7 +7868,10 @@ void WebPageProxy::broadcastAllFrameTreeSyncData(IPC::Connection& connection, Fr
     Ref process = WebProcessProxy::fromConnection(connection);
 
     RefPtr webFrameProxy = WebFrameProxy::webFrame(frameID);
-    MESSAGE_CHECK(process, webFrameProxy && &webFrameProxy->process() == &process.get());
+    if (!webFrameProxy)
+        return;
+
+    MESSAGE_CHECK(process, &webFrameProxy->process() == &process.get());
 
     forEachWebContentProcess([&](auto& webProcess, auto pageID) {
         if (webProcess == process)
@@ -9764,7 +9772,7 @@ void WebPageProxy::showDigitalCredentialsPicker(IPC::Connection& connection, con
 #endif
 }
 
-void WebPageProxy::fetchRawDigitalCredentialRequests(CompletionHandler<void(Vector<Variant<WebCore::MobileDocumentRequest, WebCore::OpenID4VPRequest>>)>&& completionHandler)
+void WebPageProxy::fetchRawDigitalCredentialRequests(CompletionHandler<void(Vector<WebCore::MobileDocumentRequest>)>&& completionHandler)
 {
 #if HAVE(DIGITAL_CREDENTIALS_UI)
     sendWithAsyncReply(Messages::DigitalCredentialsCoordinator::ProvideRawDigitalCredentialRequests(), WTF::move(completionHandler));
@@ -10357,6 +10365,13 @@ void WebPageProxy::setMockVideoPresentationModeEnabled(bool enabled)
         videoPresentationManager->setMockVideoPresentationModeEnabled(enabled);
 }
 
+#endif
+
+#if PLATFORM(IOS_FAMILY) && ENABLE(DEVICE_ORIENTATION)
+RefPtr<WebDeviceOrientationUpdateProviderProxy> WebPageProxy::protectedWebDeviceOrientationUpdateProviderProxy()
+{
+    return m_webDeviceOrientationUpdateProviderProxy;
+}
 #endif
 
 #if ENABLE(VIDEO) || ENABLE(WEB_AUDIO)
@@ -13677,6 +13692,8 @@ void WebPageProxy::updateWebsitePolicies(const API::WebsitePolicies& policies)
 
 void WebPageProxy::convertPointToMainFrameCoordinates(WebCore::FloatPoint point, std::optional<WebCore::FrameIdentifier> frameID, CompletionHandler<void(std::optional<WebCore::FloatPoint>)>&& completionHandler)
 {
+    // FIXME: This method returns a point in main frame content coordinates when site isolation is disabled,
+    // but returns a point in root view coordinates when site isolation is enabled.
     RefPtr frame = WebFrameProxy::webFrame(frameID);
     if (!frame)
         return completionHandler(std::nullopt);
@@ -17154,41 +17171,6 @@ void WebPageProxy::takeSnapshotForTargetedElement(const API::TargetedElementInfo
     sendWithAsyncReply(Messages::WebPage::TakeSnapshotForTargetedElement(info.nodeIdentifier(), info.documentIdentifier()), WTF::move(completion));
 }
 
-void WebPageProxy::requestTextExtraction(WebCore::TextExtraction::Request&& request, CompletionHandler<void(WebCore::TextExtraction::Item&&)>&& completion)
-{
-    if (!hasRunningProcess())
-        return completion({ });
-    sendWithAsyncReply(Messages::WebPage::RequestTextExtraction(WTF::move(request)), WTF::move(completion));
-}
-
-void WebPageProxy::handleTextExtractionInteraction(TextExtraction::Interaction&& interaction, CompletionHandler<void(bool, String&&)>&& completion)
-{
-    if (!hasRunningProcess()) {
-        ASSERT_NOT_REACHED();
-        return completion(false, "Internal inconsistency / unexpected state. Please file a bug"_s);
-    }
-
-    sendWithAsyncReply(Messages::WebPage::HandleTextExtractionInteraction(WTF::move(interaction)), WTF::move(completion));
-}
-
-void WebPageProxy::takeSnapshotOfExtractedText(TextExtraction::ExtractedText&& extractedText, CompletionHandler<void(RefPtr<TextIndicator>&&)>&& completion)
-{
-    if (!hasRunningProcess())
-        return completion({ });
-
-    sendWithAsyncReply(Messages::WebPage::TakeSnapshotOfExtractedText(WTF::move(extractedText)), WTF::move(completion));
-}
-
-void WebPageProxy::describeTextExtractionInteraction(TextExtraction::Interaction&& interaction, CompletionHandler<void(TextExtraction::InteractionDescription&&)>&& completion)
-{
-    if (!hasRunningProcess()) {
-        ASSERT_NOT_REACHED();
-        return completion({ "Internal inconsistency / unexpected state. Please file a bug"_s, { } });
-    }
-
-    sendWithAsyncReply(Messages::WebPage::DescribeTextExtractionInteraction(WTF::move(interaction)), WTF::move(completion));
-}
-
 void WebPageProxy::hasTextExtractionFilterRules(CompletionHandler<void(bool)>&& completion)
 {
     sendWithAsyncReply(Messages::WebPage::HasTextExtractionFilterRules(), WTF::move(completion));
@@ -17508,6 +17490,27 @@ void WebPageProxy::takeActivitiesOnRemotePage(RemotePageProxy& remotePage)
 
     if (hasValidNetworkActivity())
         remotePage.processActivityState().takeNetworkActivity();
+}
+
+UniqueRef<TextExtractionAssertionScope> WebPageProxy::createTextExtractionAssertionScope()
+{
+    return makeUniqueRef<TextExtractionAssertionScope>(*this);
+}
+
+void WebPageProxy::takeTextExtractionAssertion()
+{
+    m_mainFrameProcessActivityState->takeTextExtractionAssertion();
+    protectedBrowsingContextGroup()->forEachRemotePage(*this, [](auto& remotePage) {
+        remotePage.processActivityState().takeTextExtractionAssertion();
+    });
+}
+
+void WebPageProxy::dropTextExtractionAssertion()
+{
+    m_mainFrameProcessActivityState->dropTextExtractionAssertion();
+    protectedBrowsingContextGroup()->forEachRemotePage(*this, [](auto& remotePage) {
+        remotePage.processActivityState().dropTextExtractionAssertion();
+    });
 }
 
 // See SwiftDemoLogo.swift for the rationale here

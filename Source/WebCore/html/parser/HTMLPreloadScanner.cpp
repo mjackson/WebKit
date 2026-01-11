@@ -60,7 +60,7 @@ using namespace HTMLNames;
 
 TokenPreloadScanner::TagId TokenPreloadScanner::tagIdFor(const HTMLToken::DataVector& data)
 {
-    static constexpr auto mappings = std::to_array<std::pair<PackedASCIILiteral<uint64_t>, TokenPreloadScanner::TagId>>({
+    static constexpr SortedArrayMap map { std::to_array<std::pair<PackedASCIILiteral<uint64_t>, TokenPreloadScanner::TagId>>({
         { "base"_s, TagId::Base },
         { "img"_s, TagId::Img },
         { "input"_s, TagId::Input },
@@ -72,8 +72,7 @@ TokenPreloadScanner::TagId TokenPreloadScanner::tagIdFor(const HTMLToken::DataVe
         { "style"_s, TagId::Style },
         { "template"_s, TagId::Template },
         { "video"_s, TagId::Video },
-    });
-    static constexpr SortedArrayMap map { mappings };
+    }) };
     return map.get(data.span(), TagId::Unknown);
 }
 
@@ -131,7 +130,7 @@ public:
         }
 
         if (m_tagId == TagId::Source && !pictureState.isEmpty() && !pictureState.last() && m_mediaMatched && m_typeMatched && !m_srcSetAttribute.isEmpty()) {
-            auto sourceSize = SizesAttributeParser(m_sizesAttribute, document).length();
+            auto sourceSize = SizesAttributeParser(m_sizesAttribute, document).effectiveSize();
             ImageCandidate imageCandidate = bestFitSourceForImageAttributes(m_deviceScaleFactor, AtomString { m_urlToLoad }, m_srcSetAttribute, sourceSize);
             if (!imageCandidate.isEmpty()) {
                 pictureState.last() = true;
@@ -141,7 +140,7 @@ public:
 
         // Resolve between src and srcSet if we have them and the tag is img.
         if (m_tagId == TagId::Img && !m_srcSetAttribute.isEmpty()) {
-            auto sourceSize = SizesAttributeParser(m_sizesAttribute, document).length();
+            auto sourceSize = SizesAttributeParser(m_sizesAttribute, document).effectiveSize();
             ImageCandidate imageCandidate = bestFitSourceForImageAttributes(m_deviceScaleFactor, AtomString { m_urlToLoad }, m_srcSetAttribute, sourceSize);
             setURLToLoadAllowingReplacement(imageCandidate.string.view);
         }

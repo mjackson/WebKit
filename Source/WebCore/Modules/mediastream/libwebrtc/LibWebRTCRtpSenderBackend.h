@@ -69,6 +69,8 @@ private:
     LibWebRTCRtpSenderBackend(LibWebRTCPeerConnectionBackend&, RefPtr<webrtc::RtpSenderInterface>&&, Source&&);
     LibWebRTCRtpSenderBackend(LibWebRTCPeerConnectionBackend&, RefPtr<webrtc::RtpSenderInterface>&&);
 
+    bool isLibWebRTCRtpSenderBackend() const final { return true; }
+
     bool replaceTrack(RTCRtpSender&, MediaStreamTrack*) final;
     RTCRtpSendParameters getParameters() const final;
     void setParameters(const RTCRtpSendParameters&, DOMPromiseDeferred<void>&&) final;
@@ -91,5 +93,9 @@ private:
 };
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::LibWebRTCRtpSenderBackend)
+    static bool isType(const WebCore::RTCRtpSenderBackend& backend) { return backend.isLibWebRTCRtpSenderBackend(); }
+SPECIALIZE_TYPE_TRAITS_END()
 
 #endif // ENABLE(WEB_RTC) && USE(LIBWEBRTC)

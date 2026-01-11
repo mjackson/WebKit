@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2023 Apple Inc. All rights reserved.
+ * Copyright (C) 2020-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -78,8 +78,10 @@ protected:
     std::optional<NowPlayingInfo> nowPlayingInfo() const final { return m_nowPlayingInfo; }
 
     void scheduleSessionStatusUpdate() final;
-    void updateNowPlayingInfo();
+    void updateNowPlayingInfo() final;
+    void setNowPlayingUpdateInterval(double) final;
     void updateActiveNowPlayingSession(RefPtr<PlatformMediaSessionInterface>);
+    bool shouldUpdateNowPlaying(const NowPlayingInfo&);
 
     void removeSession(PlatformMediaSessionInterface&) override;
     void addSession(PlatformMediaSessionInterface&) override;
@@ -132,9 +134,12 @@ private:
     double m_lastUpdatedNowPlayingDuration { NAN };
     double m_lastUpdatedNowPlayingElapsedTime { NAN };
     Markable<MediaUniqueIdentifier> m_lastUpdatedNowPlayingInfoUniqueIdentifier;
-    std::optional<NowPlayingInfo> m_nowPlayingInfo;
 
+    std::optional<NowPlayingInfo> m_nowPlayingInfo;
     const std::unique_ptr<NowPlayingManager> m_nowPlayingManager;
+    RunLoop::Timer m_nowPlayingUpdateTimer;
+    Seconds m_nowPlayingUpdateInterval { 5_s };
+
     RefPtr<AudioHardwareListener> m_audioHardwareListener;
 
     AudioHardwareListener::BufferSizeRange m_supportedAudioHardwareBufferSizes;

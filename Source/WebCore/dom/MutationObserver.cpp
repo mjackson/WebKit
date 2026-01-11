@@ -150,7 +150,7 @@ void MutationObserver::enqueueMutationRecord(Ref<MutationRecord>&& mutation)
     m_records.append(WTF::move(mutation));
 
     Ref eventLoop = document->windowEventLoop();
-    eventLoop->activeMutationObservers().add(this);
+    eventLoop->activeMutationObservers().add(*this);
     eventLoop->queueMutationObserverCompoundMicrotask();
 }
 
@@ -179,7 +179,7 @@ void MutationObserver::enqueueShadowRootAttachedEvent(Element& element)
 void MutationObserver::setHasTransientRegistration(Document& document)
 {
     Ref eventLoop = document.windowEventLoop();
-    eventLoop->activeMutationObservers().add(this);
+    eventLoop->activeMutationObservers().add(*this);
     eventLoop->queueMutationObserverCompoundMicrotask();
 }
 

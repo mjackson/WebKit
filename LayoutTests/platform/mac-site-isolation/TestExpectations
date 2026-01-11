@@ -302,7 +302,6 @@ security/contentSecurityPolicy/plugins-types-allows-youtube-plugin-replacement.h
 storage/indexeddb/IDBTransaction-page-cache.html [ Skip ]
 tiled-drawing/scrolling/scroll-snap/scroll-snap-mandatory-async-overflow.html [ Skip ]
 tiled-drawing/tiled-drawing-scroll-position-page-cache-restoration.html [ Skip ]
-webgl/2.0.y/conformance/textures/video/tex-2d-alpha-alpha-unsigned_byte.html [ Skip ]
 webrtc/datachannel/datachannel-page-cache-send.html [ Skip ]
 webrtc/datachannel/datachannel-page-cache.html [ Skip ]
 webrtc/peerconnection-page-cache-long.html [ Skip ]

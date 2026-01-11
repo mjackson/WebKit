@@ -65,7 +65,7 @@ QueuedTaskResult DebuggableMicrotaskDispatcher::run(QueuedTask& task)
             return QueuedTask::Result::Executed;
     }
 
-    runInternalMicrotask(globalObject, task.job(), task.arguments());
+    runInternalMicrotask(globalObject, task.job(), task.payload(), task.arguments());
     if (!catchScope.clearExceptionExceptTermination()) [[unlikely]]
         return QueuedTask::Result::Executed;
 

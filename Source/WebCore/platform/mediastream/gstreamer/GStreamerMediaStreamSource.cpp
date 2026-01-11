@@ -63,7 +63,7 @@ static GstStaticPadTemplate audioSrcTemplate = GST_STATIC_PAD_TEMPLATE("audio_sr
 GST_DEBUG_CATEGORY_STATIC(webkitMediaStreamSrcDebug);
 #define GST_CAT_DEFAULT webkitMediaStreamSrcDebug
 
-WARN_UNUSED_RETURN GRefPtr<GstTagList> mediaStreamTrackPrivateGetTags(const RefPtr<MediaStreamTrackPrivate>& track)
+[[nodiscard]] GRefPtr<GstTagList> mediaStreamTrackPrivateGetTags(const RefPtr<MediaStreamTrackPrivate>& track)
 {
     auto tagList = adoptGRef(gst_tag_list_new_empty());
 
@@ -946,12 +946,6 @@ static void webkitMediaStreamSrcCleanup(WebKitMediaStreamSrc* self, const RefPtr
     gst_element_remove_pad(element, pad.get());
 }
 
-struct CleanupData {
-    GThreadSafeWeakPtr<GstElement> element;
-    RefPtr<InternalSource> source;
-};
-WEBKIT_DEFINE_ASYNC_DATA_STRUCT(CleanupData);
-
 void WebKitMediaStreamObserver::didRemoveTrack(MediaStreamTrackPrivate& track)
 {
     auto src = m_src.get();
@@ -979,7 +973,11 @@ void WebKitMediaStreamObserver::didRemoveTrack(MediaStreamTrackPrivate& track)
         return item->id() == track.id();
     });
 
+    if (sourceId.isNull())
+        return;
+
     auto source = priv->sources.take(sourceId);
+
     // Properly stop data flow. The source stops observing notifications from WebCore.
     if (!source->signalEndOfStream()) {
         // Make sure that the video.videoWidth is reset to 0.
@@ -995,41 +993,17 @@ void WebKitMediaStreamObserver::didRemoveTrack(MediaStreamTrackPrivate& track)
     auto element = GST_ELEMENT_CAST(self);
     auto pad = adoptGRef(gst_element_get_static_pad(element, source->padName().ascii().data()));
 
-    auto data = createCleanupData();
-    data->element.reset(src.get());
-    data->source = WTF::move(source);
-    gst_pad_add_probe(pad.get(), GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM, reinterpret_cast<GstPadProbeCallback>(+[](GstPad*, GstPadProbeInfo* info, gpointer userData) -> GstPadProbeReturn {
-        auto event = GST_PAD_PROBE_INFO_EVENT(info);
-        if (GST_EVENT_TYPE(event) != GST_EVENT_EOS)
-            return GST_PAD_PROBE_OK;
+    gst_pad_push_event(pad.get(), gst_event_new_flush_start());
+    gst_pad_push_event(pad.get(), gst_event_new_flush_stop(FALSE));
+    gst_pad_set_active(pad.get(), false);
 
-        auto data = reinterpret_cast<CleanupData*>(userData);
-        auto element = data->element.get();
-        if (!element)
-            return GST_PAD_PROBE_REMOVE;
+    // Make sure that the video.videoWidth is reset to 0.
+    webkitMediaStreamSrcEnsureStreamCollectionPosted(self);
 
-        auto cleanupData = createCleanupData();
-        cleanupData->element.reset(element.get());
-        cleanupData->source = WTF::move(data->source);
-        gst_element_call_async(element.get(), reinterpret_cast<GstElementCallAsyncFunc>(+[](GstElement*, gpointer userData) {
-            auto data = reinterpret_cast<CleanupData*>(userData);
-            auto element = data->element.get();
-            if (!element)
-                return;
-
-            auto self = WEBKIT_MEDIA_STREAM_SRC_CAST(element.get());
-
-            // Make sure that the video.videoWidth is reset to 0.
-            webkitMediaStreamSrcEnsureStreamCollectionPosted(self);
-
-            callOnMainThread([src = WTF::move(element), source = WTF::move(data->source)] {
-                auto self = WEBKIT_MEDIA_STREAM_SRC_CAST(src.get());
-                webkitMediaStreamSrcCleanup(self, source);
-            });
-        }), cleanupData, reinterpret_cast<GDestroyNotify>(destroyCleanupData));
-
-        return GST_PAD_PROBE_OK;
-    }), data, reinterpret_cast<GDestroyNotify>(destroyCleanupData));
+    callOnMainThread([src = WTF::move(src), source = WTF::move(source)] {
+        auto self = WEBKIT_MEDIA_STREAM_SRC_CAST(src.get());
+        webkitMediaStreamSrcCleanup(self, source);
+    });
 }
 
 static GstURIType webkitMediaStreamSrcUriGetType(GType)

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2012 Google Inc. All rights reserved.
- * Copyright (C) 2013-2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2013-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -470,7 +470,7 @@ private:
     void bringToFront() final { }
     void setForcedAppearance(InspectorFrontendClient::Appearance) final { }
     String localizedStringsURL() const final { return String(); }
-    DebuggableType debuggableType() const final { return DebuggableType::Page; }
+    DebuggableType debuggableType() const final { return DebuggableType::WebPage; }
     String targetPlatformName() const { return "Unknown"_s; }
     String targetBuildVersion() const { return "Unknown"_s; }
     String targetProductVersion() const { return "Unknown"_s; }
@@ -691,7 +691,7 @@ void Internals::resetToConsistentState(Page& page)
 #if ENABLE(WEB_RTC)
     auto& rtcProvider = page.webRTCProvider();
 #if USE(LIBWEBRTC)
-    auto& webRTCProvider = reinterpret_cast<LibWebRTCProvider&>(rtcProvider);
+    auto& webRTCProvider = downcast<LibWebRTCProvider>(rtcProvider);
     WebCore::useRealRTCPeerConnectionFactory(webRTCProvider);
     webRTCProvider.disableNonLocalhostConnections();
     webRTCProvider.setVP9HardwareSupportForTesting({ });
@@ -1822,17 +1822,17 @@ void Internals::enableMockSpeechSynthesizer()
     if (!synthesis)
         return;
 
-    auto mock = PlatformSpeechSynthesizerMock::create(*synthesis);
-    m_platformSpeechSynthesizer = static_cast<PlatformSpeechSynthesizerMock*>(mock.ptr());
+    Ref mock = PlatformSpeechSynthesizerMock::create(*synthesis);
+    m_platformSpeechSynthesizer = mock.copyRef();
     synthesis->setPlatformSynthesizer(WTF::move(mock));
 }
 
 void Internals::enableMockSpeechSynthesizerForMediaElement(HTMLMediaElement& element)
 {
     auto& synthesis = element.speechSynthesis();
-    auto mock = PlatformSpeechSynthesizerMock::create(synthesis);
+    Ref mock = PlatformSpeechSynthesizerMock::create(synthesis);
 
-    m_platformSpeechSynthesizer = static_cast<PlatformSpeechSynthesizerMock*>(mock.ptr());
+    m_platformSpeechSynthesizer = mock.copyRef();
     synthesis.setPlatformSynthesizer(WTF::move(mock));
 }
 
@@ -1868,7 +1868,7 @@ void Internals::useMockRTCPeerConnectionFactory(const String& testCase)
 
 #if USE(LIBWEBRTC)
     Document* document = contextDocument();
-    auto* provider = (document && document->page()) ? &static_cast<LibWebRTCProvider&>(document->page()->webRTCProvider()) : nullptr;
+    auto* provider = (document && document->page()) ? &downcast<LibWebRTCProvider>(document->page()->webRTCProvider()) : nullptr;
     WebCore::useMockRTCPeerConnectionFactory(provider, testCase);
 #else
     UNUSED_PARAM(testCase);
@@ -1895,7 +1895,7 @@ void Internals::setEnumeratingAllNetworkInterfacesEnabled(bool enabled)
     auto* page = document->page();
     if (!page)
         return;
-    auto& rtcProvider = static_cast<LibWebRTCProvider&>(page->webRTCProvider());
+    auto& rtcProvider = downcast<LibWebRTCProvider>(page->webRTCProvider());
     if (enabled)
         rtcProvider.enableEnumeratingAllNetworkInterfaces();
     else
@@ -1942,7 +1942,7 @@ void Internals::disableWebRTCHardwareVP9()
 {
 #if USE(LIBWEBRTC)
     if (auto* page = contextDocument()->page()) {
-        auto& rtcProvider = static_cast<LibWebRTCProvider&>(page->webRTCProvider());
+        auto& rtcProvider = downcast<LibWebRTCProvider>(page->webRTCProvider());
         rtcProvider.setVP9HardwareSupportForTesting(false);
         rtcProvider.clearFactory();
     }
@@ -1953,7 +1953,7 @@ bool Internals::isSupportingVP9HardwareDecoder() const
 {
 #if USE(LIBWEBRTC)
     if (auto* page = contextDocument()->page()) {
-        auto& rtcProvider = static_cast<LibWebRTCProvider&>(page->webRTCProvider());
+        auto& rtcProvider = downcast<LibWebRTCProvider>(page->webRTCProvider());
         return rtcProvider.isSupportingVP9HardwareDecoder();
     }
 #endif
@@ -5445,6 +5445,13 @@ ExceptionOr<Internals::NowPlayingState> Internals::nowPlayingState() const
 #endif
 }
 
+void Internals::setNowPlayingUpdateInterval(double interval)
+{
+    if (RefPtr manager = sessionManager())
+        manager->setNowPlayingUpdateInterval(interval);
+}
+
+
 #if ENABLE(VIDEO)
 RefPtr<HTMLMediaElement> Internals::bestMediaElementForRemoteControls(Internals::PlaybackControlsPurpose purpose)
 {
@@ -5993,6 +6000,16 @@ void Internals::setShowAllPlugins(bool show)
 bool Internals::isReadableStreamDisturbed(ReadableStream& stream)
 {
     return stream.isDisturbed();
+}
+
+void Internals::observeReadableStreamLifetime(ReadableStream& stream)
+{
+    m_observedLiveReadableStreams.add(stream);
+}
+
+unsigned Internals::observedLiveReadableStreamCount()
+{
+    return m_observedLiveReadableStreams.computeSize();
 }
 
 JSValue Internals::cloneArrayBuffer(JSC::JSGlobalObject& lexicalGlobalObject, JSValue buffer, JSValue srcByteOffset, JSValue srcLength)
@@ -7898,7 +7915,7 @@ Internals::SelectorFilterHashCounts Internals::selectorFilterHashCounts(const St
     if (!selectorList)
         return { };
     
-    auto hashes = SelectorFilter::collectHashesForTesting(*selectorList->first());
+    auto hashes = SelectorFilter::collectHashesForTesting(selectorList->first());
 
     return { hashes.ids.size(), hashes.classes.size(), hashes.tags.size(), hashes.attributes.size() };
 }

@@ -247,7 +247,11 @@ const AtomString& HTMLImageElement::currentSrc()
 void HTMLImageElement::setBestFitURLAndDPRFromImageCandidate(const ImageCandidate& candidate)
 {
     m_bestFitImageURL = candidate.string.toAtomString();
-    m_currentURL = protectedDocument()->completeURL(imageSourceURL());
+
+    auto& sourceURL = imageSourceURL();
+    // Only complete the URL if it's non-empty to avoid resolving "" to the document base URL.
+    m_currentURL = sourceURL.isEmpty() ? URL() : protectedDocument()->completeURL(sourceURL);
+
     m_currentSrc = { };
     if (candidate.density >= 0)
         m_imageDevicePixelRatio = 1 / candidate.density;
@@ -305,7 +309,7 @@ ImageCandidate HTMLImageElement::bestFitSourceFromPictureElement()
 
         m_dynamicMediaQueryResults.appendVector(sizesParser.dynamicMediaQueryResults());
 
-        auto sourceSize = sizesParser.length();
+        auto sourceSize = sizesParser.effectiveSize();
 
         candidate = bestFitSourceForImageAttributes(document->deviceScaleFactor(), nullAtom(), srcset, sourceSize, [&](auto& candidate) {
             return m_imageLoader->shouldIgnoreCandidateWhenLoadingFromArchive(candidate);
@@ -366,7 +370,7 @@ void HTMLImageElement::selectImageSource(RelevantMutation relevantMutation)
             // If we don't have a <picture> or didn't find a source, then we use our own attributes.
             SizesAttributeParser sizesParser(attributeWithoutSynchronization(sizesAttr).string(), document.get());
             m_dynamicMediaQueryResults.appendVector(sizesParser.dynamicMediaQueryResults());
-            auto sourceSize = sizesParser.length();
+            auto sourceSize = sizesParser.effectiveSize();
             candidate = bestFitSourceForImageAttributes(document->deviceScaleFactor(), srcAttribute, srcsetAttribute, sourceSize, [&](auto& candidate) {
                 return m_imageLoader->shouldIgnoreCandidateWhenLoadingFromArchive(candidate);
             });

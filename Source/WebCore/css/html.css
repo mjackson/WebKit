@@ -695,12 +695,10 @@ input::-webkit-list-button {
     flex: none;
     -webkit-user-select: none;
 #if defined(WTF_PLATFORM_IOS_FAMILY) && WTF_PLATFORM_IOS_FAMILY
-    inline-size: 11px;
     /* Make it easier to hit the button on iOS */
     padding: 7px;
     margin: -7px;
 #else
-    inline-size: 16px;
     block-size: 100%;
 #endif
 }

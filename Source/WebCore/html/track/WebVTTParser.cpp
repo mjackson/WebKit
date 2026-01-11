@@ -399,7 +399,7 @@ bool WebVTTParser::checkAndStoreStyleSheet(StringView line)
             return true;
 
         const auto& selectorList = styleRule->selectorList();
-        if (selectorList.listSize() != 1)
+        if (selectorList.size() != 1)
             return true;
         auto selector = selectorList.selectorAt(0);
         auto selectorText = selector->selectorText();

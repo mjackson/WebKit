@@ -1300,7 +1300,12 @@ TEST(WKUserContentController, DidAssociateFormControls)
     EXPECT_WK_STREQ([webView _test_waitForAlert], "pass [object HTMLInputElement]");
 }
 
+// FIXME when webkit.org/b/304021 is resolved.
+#if PLATFORM(MAC)
+TEST(WKUserContentController, DISABLED_DidAssociateFormControlsFromShadowTree)
+#else
 TEST(WKUserContentController, DidAssociateFormControlsFromShadowTree)
+#endif
 {
     RetainPtr webView = adoptNS([TestWKWebView new]);
     RetainPtr configuration = adoptNS([_WKContentWorldConfiguration new]);

@@ -214,6 +214,16 @@ public:
             setAtEnd();
     }
 
+    void traversePreviousBoxOnLine()
+    {
+        auto lineIndex = box().lineIndex();
+
+        traversePreviousBox();
+
+        if (!atEnd() && lineIndex != box().lineIndex())
+            setAtEnd();
+    }
+
     BoxModernPath firstLeafBoxForInlineBox() const
     {
         ASSERT(box().isInlineBox());

@@ -2084,7 +2084,7 @@ static UGPRPair handleHostCall(CallFrame* calleeFrame, JSValue callee, CodeSpeci
 
     ASSERT(kind == CodeSpecializationKind::CodeForConstruct);
 
-    auto constructData = JSC::getConstructData(callee);
+    auto constructData = JSC::getConstructDataInline(callee);
     ASSERT(constructData.type != CallData::Type::JS);
 
     if (constructData.type == CallData::Type::Native) {
@@ -2862,7 +2862,7 @@ extern "C" void SYSV_ABI llint_write_barrier_slow(CallFrame* callFrame, JSCell* 
 
 extern "C" UGPRPair SYSV_ABI llint_check_vm_entry_permission(VM*, ProtoCallFrame*)
 {
-    Interpreter::checkVMEntryPermission();
+    VM::checkVMEntryPermission();
     return encodeResult(nullptr, nullptr);
 }
 

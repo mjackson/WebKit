@@ -46,6 +46,8 @@
 
 namespace WebCore {
 
+WTF_MAKE_STRUCT_TZONE_ALLOCATED_IMPL(PrewarmInformation);
+
 void ProcessWarming::initializeNames()
 {
     initializeCommonAtomStrings();

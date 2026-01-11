@@ -513,6 +513,11 @@ FloatRect LegacyRenderSVGRoot::repaintRectInLocalCoordinates(RepaintRectCalculat
     return *m_accurateRepaintBoundingBox;
 }
 
+FloatRect LegacyRenderSVGRoot::decoratedBoundingBox() const
+{
+    return SVGRenderSupport::computeContainerDecoratedBoundingBox(*this);
+}
+
 bool LegacyRenderSVGRoot::nodeAtPoint(const HitTestRequest& request, HitTestResult& result, const HitTestLocation& locationInContainer, const LayoutPoint& accumulatedOffset, HitTestAction hitTestAction)
 {
     LayoutPoint pointInParent = locationInContainer.point() - toLayoutSize(accumulatedOffset);

@@ -123,7 +123,7 @@ void ScriptRunner::timerFired()
 {
     Ref document = m_document.get();
 
-    Vector<RefPtr<PendingScript>> scripts;
+    Vector<Ref<PendingScript>> scripts;
 
     if (document->shouldDeferAsynchronousScriptsUntilParsingFinishes()) {
         // Scripts not added by the parser are executed asynchronously and yet do not have the 'async' attribute set.
@@ -140,14 +140,9 @@ void ScriptRunner::timerFired()
     while (!m_scriptsToExecuteInOrder.isEmpty() && Ref { m_scriptsToExecuteInOrder.first() }->isLoaded())
         scripts.append(m_scriptsToExecuteInOrder.takeFirst());
 
-    for (auto& currentScript : scripts) {
-        RefPtr script = WTF::move(currentScript);
-        ASSERT(script);
-        // Paper over https://bugs.webkit.org/show_bug.cgi?id=144050
-        if (!script)
-            continue;
+    for (Ref script : scripts) {
         ASSERT(script->needsLoading());
-        script->element().executePendingScript(*script);
+        script->element().executePendingScript(script);
         document->decrementLoadEventDelayCount();
     }
 }

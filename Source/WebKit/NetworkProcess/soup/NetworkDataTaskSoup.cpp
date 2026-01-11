@@ -1085,8 +1085,8 @@ void NetworkDataTaskSoup::didGetHeaders()
             m_networkLoadMetrics.firstInterimResponseStart = responseStartTime;
     } else {
         // This is a final response (2xx, 3xx, 4xx, 5xx) - capture final response timing
-        if (!m_networkLoadMetrics.finalResponseHeadersStart)
-            m_networkLoadMetrics.finalResponseHeadersStart = responseStartTime;
+        if (!m_networkLoadMetrics.responseStart)
+            m_networkLoadMetrics.responseStart = responseStartTime;
     }
 
     m_networkLoadMetrics.responseStart = responseStartTime;

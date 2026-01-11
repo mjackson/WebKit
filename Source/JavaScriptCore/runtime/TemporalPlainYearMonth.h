@@ -68,11 +68,17 @@ public:
     String toString(JSGlobalObject*, JSValue options) const;
     String toString() const;
 
+    ISO8601::Duration until(JSGlobalObject*, TemporalPlainYearMonth*, JSValue options);
+    ISO8601::Duration since(JSGlobalObject*, TemporalPlainYearMonth*, JSValue options);
+
     DECLARE_VISIT_CHILDREN;
 
 private:
     TemporalPlainYearMonth(VM&, Structure*, ISO8601::PlainYearMonth&&);
     void finishCreation(VM&);
+
+    template<DifferenceOperation>
+    ISO8601::Duration sinceOrUntil(JSGlobalObject*, TemporalPlainYearMonth*, JSValue);
 
     ISO8601::PlainYearMonth m_plainYearMonth;
     LazyProperty<TemporalPlainYearMonth, TemporalCalendar> m_calendar;

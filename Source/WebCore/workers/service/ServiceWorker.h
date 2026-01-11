@@ -28,6 +28,7 @@
 #include "ActiveDOMObject.h"
 #include "ContextDestructionObserver.h"
 #include "EventTarget.h"
+#include "EventTargetInterfaces.h"
 #include "ScriptExecutionContext.h"
 #include "ServiceWorkerData.h"
 #include <JavaScriptCore/Strong.h>
@@ -100,3 +101,5 @@ inline ServiceWorker* ScriptExecutionContext::serviceWorker(ServiceWorkerIdentif
 }
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(ServiceWorker)

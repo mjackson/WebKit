@@ -108,8 +108,8 @@ void UserMediaRequest::start()
     // 4. If the current settings object's responsible document is NOT allowed to use the feature indicated by
     //    attribute name allowusermedia, return a promise rejected with a DOMException object whose name
     //    attribute has the value SecurityError.
-    auto& document = downcast<Document>(*context);
-    auto* controller = UserMediaController::from(document.page());
+    Ref document = downcast<Document>(*context);
+    auto* controller = UserMediaController::from(document->protectedPage().get());
     if (!controller) {
         deny(MediaAccessDenialReason::UserMediaDisabled);
         return;
@@ -124,21 +124,21 @@ void UserMediaRequest::start()
     switch (m_request.type) {
     case MediaStreamRequest::Type::DisplayMedia:
     case MediaStreamRequest::Type::DisplayMediaWithAudio:
-        if (!PermissionsPolicy::isFeatureEnabled(PermissionsPolicy::Feature::DisplayCapture, document)) {
+        if (!PermissionsPolicy::isFeatureEnabled(PermissionsPolicy::Feature::DisplayCapture, document.get())) {
             deny(MediaAccessDenialReason::PermissionDenied);
-            controller->logGetDisplayMediaDenial(document);
+            controller->logGetDisplayMediaDenial(document.get());
             return;
         }
         break;
     case MediaStreamRequest::Type::UserMedia:
-        if (m_request.audioConstraints.isValid && !PermissionsPolicy::isFeatureEnabled(PermissionsPolicy::Feature::Microphone, document)) {
+        if (m_request.audioConstraints.isValid && !PermissionsPolicy::isFeatureEnabled(PermissionsPolicy::Feature::Microphone, document.get())) {
             deny(MediaAccessDenialReason::PermissionDenied);
-            controller->logGetUserMediaDenial(document);
+            controller->logGetUserMediaDenial(document.get());
             return;
         }
-        if (m_request.videoConstraints.isValid && !PermissionsPolicy::isFeatureEnabled(PermissionsPolicy::Feature::Camera, document)) {
+        if (m_request.videoConstraints.isValid && !PermissionsPolicy::isFeatureEnabled(PermissionsPolicy::Feature::Camera, document.get())) {
             deny(MediaAccessDenialReason::PermissionDenied);
-            controller->logGetUserMediaDenial(document);
+            controller->logGetUserMediaDenial(document.get());
             return;
         }
         break;
@@ -287,7 +287,7 @@ void UserMediaRequest::deny(MediaAccessDenialReason reason, const String& messag
 void UserMediaRequest::stop()
 {
     Ref document = downcast<Document>(*scriptExecutionContext());
-    if (auto* controller = UserMediaController::from(document->page()))
+    if (auto* controller = UserMediaController::from(document->protectedPage().get()))
         controller->cancelUserMediaAccessRequest(*this);
 }
 

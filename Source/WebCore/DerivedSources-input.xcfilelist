@@ -521,7 +521,6 @@ $(PROJECT_DIR)/Modules/identity/DigitalCredentialRequest.idl
 $(PROJECT_DIR)/Modules/identity/DigitalCredentialRequestOptions.idl
 $(PROJECT_DIR)/Modules/identity/IdentityCredentialProtocol.idl
 $(PROJECT_DIR)/Modules/identity/protocols/ISO18013/MobileDocumentRequest.idl
-$(PROJECT_DIR)/Modules/identity/protocols/openid/OpenID4VPRequest.idl
 $(PROJECT_DIR)/Modules/indexeddb/IDBCursor.idl
 $(PROJECT_DIR)/Modules/indexeddb/IDBCursorDirection.idl
 $(PROJECT_DIR)/Modules/indexeddb/IDBCursorWithValue.idl
@@ -1344,6 +1343,8 @@ $(PROJECT_DIR)/css/ElementCSSInlineStyle+Typedom.idl
 $(PROJECT_DIR)/css/ElementCSSInlineStyle.idl
 $(PROJECT_DIR)/css/FontFace.idl
 $(PROJECT_DIR)/css/FontFaceSet.idl
+$(PROJECT_DIR)/css/FontFaceSetLoadEvent.idl
+$(PROJECT_DIR)/css/FontFaceSetLoadEventInit.idl
 $(PROJECT_DIR)/css/FontFaceSource.idl
 $(PROJECT_DIR)/css/LinkStyle.idl
 $(PROJECT_DIR)/css/MediaList.idl

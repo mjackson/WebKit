@@ -126,6 +126,7 @@ static void registerNotificationForWebContentFilterTypeChange()
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenterSingleton(), nullptr, &webContentFilterTypeDidChange, CFSTR("com.apple.ManagedConfiguration.webContentFilterTypeChanged"), nullptr, CFNotificationSuspensionBehaviorCoalesce);
+        CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenterSingleton(), nullptr, &webContentFilterTypeDidChange, CFSTR("com.apple.WebKit.WebContentRestrictionsChanged"), nullptr, CFNotificationSuspensionBehaviorCoalesce);
     });
 }
 

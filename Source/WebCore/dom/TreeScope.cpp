@@ -444,9 +444,9 @@ RefPtr<Element> TreeScope::elementFromPoint(double clientX, double clientY, HitT
     return uncheckedDowncast<Element>(WTF::move(node));
 }
 
-Vector<RefPtr<Element>> TreeScope::elementsFromPoint(double clientX, double clientY, HitTestSource source)
+Vector<Ref<Element>> TreeScope::elementsFromPoint(double clientX, double clientY, HitTestSource source)
 {
-    Vector<RefPtr<Element>> elements;
+    Vector<Ref<Element>> elements;
 
     Ref document = documentScope();
     if (!document->hasLivingRenderTree())
@@ -490,14 +490,14 @@ Vector<RefPtr<Element>> TreeScope::elementsFromPoint(double clientX, double clie
         if (node == lastNode)
             continue;
 
-        elements.append(uncheckedDowncast<Element>(node));
+        elements.append(uncheckedDowncast<Element>(*node));
         lastNode = node;
     }
 
     if (auto* rootDocument = dynamicDowncast<Document>(m_rootNode.get())) {
-        if (Element* rootElement = rootDocument->documentElement()) {
-            if (elements.isEmpty() || elements.last() != rootElement)
-                elements.append(rootElement);
+        if (auto* rootElement = rootDocument->documentElement()) {
+            if (elements.isEmpty() || elements.last().ptr() != rootElement)
+                elements.append(*rootElement);
         }
     }
 
@@ -656,12 +656,15 @@ void TreeScope::addSVGResource(const AtomString& id, LegacyRenderSVGResourceCont
     svgResourcesMap().legacyResources.set(id, &resource);
 }
 
-void TreeScope::removeSVGResource(const AtomString& id)
+void TreeScope::removeSVGResource(const AtomString& id, LegacyRenderSVGResourceContainer& resource)
 {
     if (id.isEmpty())
         return;
 
-    svgResourcesMap().legacyResources.remove(id);
+    auto& resources = svgResourcesMap().legacyResources;
+    auto it = resources.find(id);
+    if (it != resources.end() && it->value == &resource)
+        resources.remove(it);
 }
 
 LegacyRenderSVGResourceContainer* TreeScope::lookupLegacySVGResoureById(const AtomString& id) const

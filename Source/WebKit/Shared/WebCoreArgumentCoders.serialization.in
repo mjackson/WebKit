@@ -1,4 +1,4 @@
-# Copyright (C) 2022-2025 Apple Inc. All rights reserved.
+# Copyright (C) 2022-2026 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -6340,8 +6340,6 @@ struct WebCore::MockWebAuthenticationConfiguration {
 
 #if HAVE(DIGITAL_CREDENTIALS_UI)
 
-struct WebCore::OpenID4VPRequest {
-};
 
 header: <WebCore/ISO18013.h>
 [Nested] struct WebCore::ISO18013ElementInfo {
@@ -6373,7 +6371,7 @@ struct WebCore::MobileDocumentRequest {
 };
 
 struct WebCore::DigitalCredentialsRequestData {
-    Vector<Variant<WebCore::ValidatedMobileDocumentRequest, WebCore::OpenID4VPRequest>> requests;
+    Vector<WebCore::ValidatedMobileDocumentRequest> requests;
     [Validator='!topOrigin->isNull()'] WebCore::SecurityOriginData topOrigin;
     [Validator='!documentOrigin->isNull()'] WebCore::SecurityOriginData documentOrigin;
 };
@@ -6384,7 +6382,6 @@ struct WebCore::DigitalCredentialsResponseData {
 };
 
 [Nested] enum class WebCore::IdentityCredentialProtocol : uint8_t {
-    Openid4vp,
     OrgIsoMdoc
 };
 
@@ -6785,6 +6782,7 @@ header: <WebCore/TextExtractionTypes.h>
     None,
     EditableOnly,
     Interactive,
+    AllContainers,
 };
 
 header: <WebCore/TextExtractionTypes.h>
@@ -6848,6 +6846,7 @@ header: <WebCore/TextExtractionTypes.h>
 header: <WebCore/TextExtractionTypes.h>
 [CustomHeader] struct WebCore::TextExtraction::ImageItemData {
     URL completedSource;
+    String shortenedName;
     String altText;
 };
 
@@ -6855,6 +6854,13 @@ header: <WebCore/TextExtractionTypes.h>
 [CustomHeader] struct WebCore::TextExtraction::LinkItemData {
     String target;
     URL completedURL;
+    String shortenedURLString;
+};
+
+header: <WebCore/TextExtractionTypes.h>
+[CustomHeader] struct WebCore::TextExtraction::IFrameData {
+    String origin;
+    WebCore::FrameIdentifier identifier;
 };
 
 header: <WebCore/TextExtractionTypes.h>
@@ -6904,6 +6910,7 @@ header: <WebCore/TextExtractionTypes.h>
     Canvas,
     Subscript,
     Superscript,
+    Strikethrough,
     Generic
 };
 
@@ -6918,7 +6925,7 @@ header: <WebCore/TextExtractionTypes.h>
 
 header: <WebCore/TextExtractionTypes.h>
 [CustomHeader] struct WebCore::TextExtraction::Item {
-    Variant<WebCore::TextExtraction::ContainerType, WebCore::TextExtraction::TextItemData, WebCore::TextExtraction::ScrollableItemData, WebCore::TextExtraction::ImageItemData, WebCore::TextExtraction::SelectData, WebCore::TextExtraction::ContentEditableData, WebCore::TextExtraction::TextFormControlData, WebCore::TextExtraction::FormData, WebCore::TextExtraction::LinkItemData> data;
+    Variant<WebCore::TextExtraction::ContainerType, WebCore::TextExtraction::TextItemData, WebCore::TextExtraction::ScrollableItemData, WebCore::TextExtraction::ImageItemData, WebCore::TextExtraction::SelectData, WebCore::TextExtraction::ContentEditableData, WebCore::TextExtraction::TextFormControlData, WebCore::TextExtraction::FormData, WebCore::TextExtraction::LinkItemData, WebCore::TextExtraction::IFrameData> data;
     WebCore::FloatRect rectInRootView;
     Vector<WebCore::TextExtraction::Item> children;
     String nodeName;
@@ -7458,7 +7465,6 @@ class WebCore::NetworkLoadMetrics {
     MonotonicTime responseEnd;
     MonotonicTime workerStart;
     MonotonicTime firstInterimResponseStart;
-    MonotonicTime finalResponseHeadersStart;
 
     String protocol;
 
@@ -7558,6 +7564,7 @@ header: <WebCore/NowPlayingInfo.h>
 
 struct WebCore::NowPlayingInfo {
     WebCore::NowPlayingMetadata metadata;
+    uint64_t updateTime;
     double duration;
     double currentTime;
     double rate;
@@ -7666,6 +7673,7 @@ header: <WebCore/Filter.h>
     Vector<Ref<WebCore::FilterFunction>> functions();
     WebCore::FilterGeometry geometry();
     OptionSet<WebCore::FilterRenderingMode> filterRenderingModes();
+    bool isShowingDebugOverlay();
 }
 
 [AdditionalEncoder=StreamConnectionEncoder, RefCounted] class WebCore::SVGFilterRenderer {
@@ -7674,6 +7682,7 @@ header: <WebCore/Filter.h>
     [Validator='WebCore::SVGFilterRenderer::isValidSVGFilterExpression(*expression, *effects)'] Vector<Ref<WebCore::FilterEffect>> effects();
     WebCore::FilterGeometry geometry();
     OptionSet<WebCore::FilterRenderingMode> filterRenderingModes();
+    bool isShowingDebugOverlay();
     std::optional<WebCore::RenderingResourceIdentifier> renderingResourceIdentifierIfExists();
 }
 

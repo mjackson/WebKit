@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Igalia S.L.
+ * Copyright (C) 2024, 2025 Igalia S.L.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,16 +30,20 @@
 #include "FontRenderOptions.h"
 #include "GLContext.h"
 #include "GLFence.h"
+#include "GraphicsContextSkia.h"
 #include "IntRect.h"
 #include "NativeImage.h"
 #include "PixelBuffer.h"
 #include "PixelBufferConversion.h"
 #include "PlatformDisplay.h"
 #include "ProcessCapabilities.h"
+#include "SkiaRecordingResult.h"
+#include "SkiaReplayCanvas.h"
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
 #include <skia/core/SkPixmap.h>
 #include <skia/gpu/ganesh/GrBackendSurface.h>
 #include <skia/gpu/ganesh/SkSurfaceGanesh.h>
+#include <skia/utils/SkNWayCanvas.h>
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
 #include <wtf/TZoneMallocInlines.h>
 
@@ -52,6 +56,25 @@ WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
 #endif
 
 namespace WebCore {
+
+// A canvas proxy that delegates all drawing operations to a single target canvas,
+// which can be dynamically switched. This allows GraphicsContextSkia to hold a
+// reference to this canvas while the actual target (recording vs surface) changes.
+class SkiaSwitchableCanvas final : public SkNWayCanvas {
+WTF_MAKE_TZONE_ALLOCATED(SkiaSwitchableCanvas);
+public:
+    explicit SkiaSwitchableCanvas(const IntSize& size)
+        : SkNWayCanvas(size.width(), size.height())
+    {
+    }
+
+    void switchToCanvas(SkCanvas* canvas)
+    {
+        SkNWayCanvas::removeAll();
+        if (canvas)
+            SkNWayCanvas::addCanvas(canvas);
+    }
+};
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ImageBufferSkiaAcceleratedBackend);
 
@@ -123,10 +146,132 @@ ImageBufferSkiaAcceleratedBackend::ImageBufferSkiaAcceleratedBackend(const Param
 #endif
 }
 
-ImageBufferSkiaAcceleratedBackend::~ImageBufferSkiaAcceleratedBackend() = default;
+ImageBufferSkiaAcceleratedBackend::~ImageBufferSkiaAcceleratedBackend()
+{
+    // Unwind the surface context's save/restore stack before destruction
+    if (parameters().purpose == RenderingPurpose::Canvas)
+        m_context.unwindStateStack();
+}
+
+GraphicsContext& ImageBufferSkiaAcceleratedBackend::context()
+{
+    if (parameters().purpose != RenderingPurpose::Canvas || !m_shouldUseCanvasRecording)
+        return ImageBufferSkiaSurfaceBackend::context();
+
+    ensureCanvasRecordingContext();
+    return *m_canvasRecordingContext;
+}
+
+void ImageBufferSkiaAcceleratedBackend::ensureCanvasRecordingContext()
+{
+    if (m_canvasRecordingContext)
+        return;
+
+    // Create a switchable canvas that will delegate to either recording or surface canvas.
+    // GraphicsContextSkia holds a reference to this canvas, which never changes - only the
+    // target canvas it delegates to changes.
+    m_switchableCanvas = makeUnique<SkiaSwitchableCanvas>(size());
+
+    auto* recordingCanvas = m_pictureRecorder.beginRecording(size().width(), size().height());
+    m_switchableCanvas->switchToCanvas(recordingCanvas);
+
+    // Dont' use Canvas purpose: SkPictureRecorder is CPU-side, doesn't need GL context.
+    m_canvasRecordingContext = makeUnique<GraphicsContextSkia>(static_cast<SkCanvas&>(*m_switchableCanvas), RenderingMode::Accelerated, RenderingPurpose::LayerBacking);
+    m_canvasRecordingContext->applyDeviceScaleFactor(resolutionScale());
+    m_canvasRecordingContext->beginRecording();
+}
+
+void ImageBufferSkiaAcceleratedBackend::copyGraphicsState(const GraphicsContextSkia& from, GraphicsContextSkia& to)
+{
+    const auto& fromState = from.state();
+
+    to.setFillBrush(fromState.fillBrush());
+    to.setFillRule(fromState.fillRule());
+
+    to.setStrokeBrush(fromState.strokeBrush());
+    to.setStrokeThickness(fromState.strokeThickness());
+    to.setStrokeStyle(fromState.strokeStyle());
+
+    to.setAlpha(fromState.alpha());
+    to.setCompositeOperation(fromState.compositeMode().operation, fromState.compositeMode().blendMode);
+    to.setImageInterpolationQuality(fromState.imageInterpolationQuality());
+
+    // Copy Skia-specific state (lineCap, lineJoin, miterLimit, lineDash)
+    to.m_skiaState = from.m_skiaState;
+}
+
+std::unique_ptr<GLFence> ImageBufferSkiaAcceleratedBackend::flushCanvasRecordingContextIfNeeded()
+{
+    // Only flush if we have an active recording (not already flushed).
+    if (!m_canvasRecordingContext || !m_shouldUseCanvasRecording)
+        return nullptr;
+
+    if (!PlatformDisplay::sharedDisplay().skiaGLContext()->makeContextCurrent())
+        return nullptr;
+
+    // Copy the canvas state from the recording context to the base context before unwinding.
+    // This ensures we capture the current drawing state (fillColor, strokeColor, etc.).
+    if (m_canvasRecordingContext->stackSize()) {
+        auto& baseContext = static_cast<GraphicsContextSkia&>(ImageBufferSkiaSurfaceBackend::context());
+        copyGraphicsState(*m_canvasRecordingContext, baseContext);
+    }
+
+    // Save the current CTM before unwinding, so we can restore user transforms
+    // after redirecting the recording context to the base canvas
+    auto savedCTM = m_canvasRecordingContext->getCTM(GraphicsContext::IncludeDeviceScale::PossiblyIncludeDeviceScale);
+
+    // Unwind the state stack before finishing the recording, while the canvas is still valid
+    m_canvasRecordingContext->unwindStateStack();
+
+    IntRect recordRect(IntPoint(), size());
+    auto imageToFenceMap = m_canvasRecordingContext->endRecording();
+    auto picture = m_pictureRecorder.finishRecordingAsPicture();
+
+    RefPtr<SkiaRecordingResult> recording = SkiaRecordingResult::create(WTF::move(picture), WTF::move(imageToFenceMap), recordRect, RenderingMode::Accelerated, false, 1.0);
+
+    auto* canvas = m_surface->getCanvas();
+    if (recording->hasFences()) {
+        auto replayCanvas = SkiaReplayCanvas::create(size(), recording);
+        replayCanvas->addCanvas(canvas);
+        replayCanvas->picture()->playback(&replayCanvas.get());
+        replayCanvas->removeCanvas(canvas);
+    } else
+        recording->picture()->playback(canvas);
+
+    // Switch the switchable canvas to target the surface canvas instead of the recording canvas.
+    m_switchableCanvas->switchToCanvas(m_surface->getCanvas());
+
+    // The stack unwinding reset the CTM to identity, losing all user-applied transforms.
+    // Therefore restore the CTM that was active before unwinding.
+    m_canvasRecordingContext->setCTM(savedCTM);
+    m_shouldUseCanvasRecording = false;
+
+    auto* recordingContext = m_surface->recordingContext();
+    auto* grContext = recordingContext ? recordingContext->asDirectContext() : nullptr;
+
+    auto& glDisplay = PlatformDisplay::sharedDisplay().glDisplay();
+    if (GLFence::isSupported(glDisplay)) {
+        grContext->flushAndSubmit(m_surface.get(), GrSyncCpu::kNo);
+        if (auto fence = GLFence::create(glDisplay))
+            return fence;
+        grContext->submit(GrSyncCpu::kYes);
+        return nullptr;
+    }
+
+    grContext->flushAndSubmit(m_surface.get(), GrSyncCpu::kYes);
+    return nullptr;
+}
 
 void ImageBufferSkiaAcceleratedBackend::flushContext()
 {
+    // For canvas recording, flush the recording and wait for GPU completion.
+    // flushCanvasRecordingContextIfNeeded() already checks m_canvasRecordingContext && m_shouldUseCanvasRecording.
+    if (auto fence = flushCanvasRecordingContextIfNeeded()) {
+        fence->serverWait();
+        return;
+    }
+
+    // Normal surface flush.
     if (!m_surface)
         return;
 
@@ -140,12 +285,34 @@ void ImageBufferSkiaAcceleratedBackend::prepareForDisplay()
     if (!m_layerContentsDisplayDelegate)
         return;
 
+    // Flush and get fence for async GPU→display synchronization
+    auto fence = flushCanvasRecordingContextIfNeeded();
+
+    // If not using canvas recording (or recording already flushed), create a fence the traditional way
+    if (!fence)
+        fence = GLFence::create(PlatformDisplay::sharedDisplay().glDisplay());
+
     auto image = createNativeImageReference();
     if (!image)
         return;
 
-    auto fence = GLFence::create(PlatformDisplay::sharedDisplay().glDisplay());
     m_layerContentsDisplayDelegate->setDisplayBuffer(CoordinatedPlatformLayerBufferNativeImage::create(image.releaseNonNull(), WTF::move(fence)));
+
+    // Re-enable recording mode for subsequent drawing operations.
+    // This allows batching to occur again after each prepareForDisplay() cycle.
+    if (m_canvasRecordingContext) {
+        auto* recordingCanvas = m_pictureRecorder.beginRecording(size().width(), size().height());
+        m_switchableCanvas->switchToCanvas(recordingCanvas);
+        m_canvasRecordingContext->beginRecording();
+        m_shouldUseCanvasRecording = true;
+
+        // Restore state from base context to recording context
+        auto& baseContext = static_cast<GraphicsContextSkia&>(ImageBufferSkiaSurfaceBackend::context());
+        copyGraphicsState(baseContext, *m_canvasRecordingContext);
+
+        // Restore CTM from base context to recording context
+        m_canvasRecordingContext->setCTM(baseContext.getCTM(GraphicsContext::IncludeDeviceScale::PossiblyIncludeDeviceScale));
+    }
 #endif
 }
 
@@ -158,6 +325,8 @@ RefPtr<NativeImage> ImageBufferSkiaAcceleratedBackend::copyNativeImage()
 
 RefPtr<NativeImage> ImageBufferSkiaAcceleratedBackend::createNativeImageReference()
 {
+    flushCanvasRecordingContextIfNeeded();
+
     auto* recordingContext = m_surface->recordingContext();
     auto* grContext = recordingContext ? recordingContext->asDirectContext() : nullptr;
 
@@ -175,6 +344,10 @@ void ImageBufferSkiaAcceleratedBackend::getPixelBuffer(const IntRect& srcRect, P
 {
     if (!PlatformDisplay::sharedDisplay().skiaGLContext()->makeContextCurrent())
         return;
+
+    // CPU needs to read pixels now, wait for GPU completion.
+    if (auto fence = flushCanvasRecordingContextIfNeeded())
+        fence->serverWait();
 
     const IntRect backendRect { { }, size() };
     const auto sourceRectClipped = intersection(backendRect, srcRect);
@@ -212,6 +385,10 @@ static std::span<uint8_t> mutableSpan(SkData* data)
 
 void ImageBufferSkiaAcceleratedBackend::putPixelBuffer(const PixelBufferSourceView& pixelBuffer, const IntRect& srcRect, const IntPoint& destPoint, AlphaPremultiplication destFormat)
 {
+    // CPU needs to write pixels now, wait for GPU completion.
+    if (auto fence = flushCanvasRecordingContextIfNeeded())
+        fence->serverWait();
+
     UNUSED_PARAM(destFormat);
 
     if (!PlatformDisplay::sharedDisplay().skiaGLContext()->makeContextCurrent())

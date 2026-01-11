@@ -49,6 +49,7 @@
 #import <WebKit/WKWebViewConfiguration.h>
 #import <WebKit/WKWebViewPrivateForTesting.h>
 #import <WebKit/WKWebViewPrivateForTestingMac.h>
+#import <wtf/cocoa/TypeCastsCocoa.h>
 #import <wtf/darwin/DispatchExtras.h>
 
 #if ENABLE(POINTER_LOCK)
@@ -58,8 +59,8 @@
 - (instancetype)initWithName:(NSString *)name additionalButtons:(uint32_t)additionalButtons;
 @end
 
-@interface GCMouseInput ()
-- (void)handleMouseMovementEventWithDelta:(CGPoint)delta;
+@interface GCPhysicalInputProfile (SPI)
+@property (readonly) dispatch_queue_t handlerQueue;
 @end
 #endif
 
@@ -1823,12 +1824,7 @@ TEST_F(PointerLockTests, DeniedWithoutMouseDevice)
     TestWebKitAPI::Util::run(&done);
 }
 
-// FIXME rdar://166568197
-#if PLATFORM(IOS)
-TEST_F(PointerLockTests, DISABLED_MouseDeviceMove)
-#else
 TEST_F(PointerLockTests, MouseDeviceMove)
-#endif
 {
     click(200, 200);
     [pointerLockDelegate() waitForPointerLockEngaged];
@@ -1836,7 +1832,13 @@ TEST_F(PointerLockTests, MouseDeviceMove)
     float deltaX = 10.0f;
     float deltaY = 5.0f;
     RetainPtr mouseInput = [fakeMouse() mouseInput];
-    [mouseInput handleMouseMovementEventWithDelta:CGPointMake(deltaX, deltaY)];
+    if (GCMouseMoved handler = [mouseInput mouseMovedHandler]) {
+        RetainPtr profile = dynamic_objc_cast<GCPhysicalInputProfile>(mouseInput);
+        dispatch_async([profile handlerQueue], ^{
+            // Positive cursor movement is a move up, not down.
+            handler(mouseInput.get(), deltaX, -deltaY);
+        });
+    }
 
     [pointerLockDelegate() waitForMouseMoveEvents];
     CGPoint capturedDelta = [[pointerLockDelegate() mouseMoveEvents].firstObject CGPointValue];

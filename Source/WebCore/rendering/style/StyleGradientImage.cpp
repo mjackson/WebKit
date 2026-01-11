@@ -81,7 +81,7 @@ RefPtr<Image> StyleGradientImage::image(const RenderElement* renderer, const Flo
 
     auto& style = isForFirstLine ? renderer->firstLineStyle() : renderer->style();
 
-    bool cacheable = m_knownCacheableBarringFilter && !style.hasAppleColorFilter();
+    bool cacheable = m_knownCacheableBarringFilter && style.appleColorFilter().isNone();
     if (cacheable) {
         if (auto* result = const_cast<StyleGradientImage&>(*this).cachedImageForSize(size))
             return result;

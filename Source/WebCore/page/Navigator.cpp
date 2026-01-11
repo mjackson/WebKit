@@ -93,6 +93,14 @@ const String& Navigator::userAgent() const
         return m_userAgent;
     if (frame->settings().webAPIStatisticsEnabled())
         ResourceLoadObserver::singleton().logNavigatorAPIAccessed(*frame->protectedDocument(), NavigatorAPIsAccessed::UserAgent);
+
+#if PLATFORM(IOS_FAMILY)
+    if (RefPtr document = frame->document(); document && document->quirks().needsChromeOSNavigatorUserAgentQuirk(*document)) {
+        static NeverDestroyed<String> chromeOSUserAgent = "Mozilla/5.0 (X11; CrOS x86_64 15917.71.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"_s;
+        return chromeOSUserAgent.get();
+    }
+#endif
+
     if (m_userAgent.isNull())
         m_userAgent = frame->loader().userAgent(frame->document()->url());
     return m_userAgent;

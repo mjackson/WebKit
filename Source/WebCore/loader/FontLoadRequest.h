@@ -28,7 +28,7 @@
 
 #include <WebCore/FontTaggedSettings.h>
 #include <wtf/AbstractRefCountedAndCanMakeWeakPtr.h>
-#include <wtf/TZoneMallocInlines.h>
+#include <wtf/TZoneMalloc.h>
 #include <wtf/WeakPtr.h>
 #include <wtf/text/AtomString.h>
 
@@ -41,7 +41,7 @@ class FontLoadRequest;
 struct FontSelectionSpecifiedCapabilities;
 
 class FontLoadRequestClient : public AbstractRefCountedAndCanMakeWeakPtr<FontLoadRequestClient> {
-    WTF_MAKE_TZONE_ALLOCATED_INLINE(FontLoadRequestClient);
+    WTF_FORBID_HEAP_ALLOCATION_WITH_VALIDATION(FontLoadRequestClient);
 public:
     virtual ~FontLoadRequestClient() = default;
     virtual void fontLoaded(FontLoadRequest&) { }

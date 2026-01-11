@@ -3608,12 +3608,7 @@ void miniaturizeWebView(TestWKWebView* webView)
 }
 #endif // PLATFORM(MAC)
 
-// FIXME when rdar://158787776 is resolved
-#if PLATFORM(MAC)
-TEST(ServiceWorker, DISABLED_ServiceWorkerWindowClientFocus)
-#else
 TEST(ServiceWorker, ServiceWorkerWindowClientFocus)
-#endif
 {
     [WKWebsiteDataStore _allowWebsiteDataRecordsForAllOrigins];
 
@@ -3664,8 +3659,10 @@ TEST(ServiceWorker, ServiceWorkerWindowClientFocus)
 #if PLATFORM(MAC)
     EXPECT_TRUE([webView1 hostWindow].isVisible);
     EXPECT_FALSE([webView2 hostWindow].isVisible);
-    EXPECT_FALSE([webView1 hostWindow].isMiniaturized);
-    EXPECT_TRUE([webView2 hostWindow].isMiniaturized);
+    while ([webView1 hostWindow].isMiniaturized)
+        TestWebKitAPI::Util::spinRunLoop(1);
+    while (![webView2 hostWindow].isMiniaturized)
+        TestWebKitAPI::Util::spinRunLoop(1);
 
     // FIXME: We should be able to run these tests in iOS once pages are actually visible.
     done = false;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Apple Inc. All rights reserved.
+ * Copyright (C) 2023-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -265,6 +265,9 @@ MediaPlayer::ReadyState MediaSourcePrivate::mediaPlayerReadyState() const
 
 void MediaSourcePrivate::setMediaPlayerReadyState(MediaPlayer::ReadyState readyState)
 {
+    if (m_mediaPlayerReadyState == readyState)
+        return;
+
     m_mediaPlayerReadyState = readyState;
     ensureOnMainThread([weakThis = ThreadSafeWeakPtr { *this }] {
         RefPtr protectedThis = weakThis.get();

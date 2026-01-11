@@ -66,6 +66,8 @@ ASCIILiteral description(WKTextExtractionContainer container)
         return "SUBSCRIPT"_s;
     case WKTextExtractionContainerSuperscript:
         return "SUPERSCRIPT"_s;
+    case WKTextExtractionContainerStrikethrough:
+        return "STRIKETHROUGH"_s;
     case WKTextExtractionContainerGeneric:
         return "GENERIC"_s;
     }

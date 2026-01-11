@@ -673,7 +673,6 @@ public:
     AutoFillButtonType valueAutofillButtonType() const final;
 
     // ARIA live-region features.
-    AccessibilityObject* liveRegionAncestor(bool excludeIfOff = true) const final { return Accessibility::liveRegionAncestor(*this, excludeIfOff); }
     const String explicitLiveRegionStatus() const override { return String(); }
     const String explicitLiveRegionRelevant() const override { return nullAtom(); }
     bool liveRegionAtomic() const override { return false; }
@@ -799,11 +798,6 @@ public:
     bool hasCursorPointer() const override { return false; }
     bool hasPointerEventsNone() const override { return false; }
     bool showsCursorOnHover() const override { return false; }
-    AccessibilityObject* clickableSelfOrAncestor(ClickHandlerFilter filter = ClickHandlerFilter::ExcludeBody) const final { return Accessibility::clickableSelfOrAncestor(*this, filter); };
-    AccessibilityObject* focusableAncestor() final { return Accessibility::focusableAncestor(*this); }
-    AccessibilityObject* editableAncestor() const final { return Accessibility::editableAncestor(*this); };
-    AccessibilityObject* highestEditableAncestor() final { return Accessibility::highestEditableAncestor(*this); }
-    AccessibilityObject* exposedTableAncestor(bool includeSelf = false) const final { return Accessibility::exposedTableAncestor(*this, includeSelf); }
 
     const AccessibilityScrollView* ancestorAccessibilityScrollView(bool includeSelf) const;
     virtual AccessibilityObject* webAreaObject() const { return nullptr; }

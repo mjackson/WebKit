@@ -8,4 +8,10 @@ This is a list:
 - baz
 On sale for
 £10.99
+This
+~~text~~
+has a
+~~line through it~~
+. The price
+~~was \~\~$50~~
 <!-- version=2 -->

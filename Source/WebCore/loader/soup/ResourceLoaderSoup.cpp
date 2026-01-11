@@ -54,7 +54,7 @@ static std::optional<String> contentTypeLookUpForKnownResource(const char* filen
     if (dotIndex != notFound && dotIndex < (fileName.length() - 1))
         extension = fileName.substring(dotIndex);
 
-    static constexpr auto extensionTypeMapping = std::to_array<std::pair<ComparableLettersLiteral, ASCIILiteral>>({
+    static constexpr SortedArrayMap mappings { std::to_array<std::pair<ComparableLettersLiteral, ASCIILiteral>>({
         { ".css"_s, "text/css"_s },
         { ".gif"_s, "image/gif"_s },
         { ".html"_s, "text/html"_s },
@@ -64,9 +64,7 @@ static std::optional<String> contentTypeLookUpForKnownResource(const char* filen
         { ".pfb"_s, "application/x-font-type1"_s },
         { ".svg"_s, "image/svg+xml"_s },
         { ".ttf"_s, "font/ttf"_s },
-    });
-
-    static constexpr SortedArrayMap mappings { extensionTypeMapping };
+    }) };
     if (const auto contentType = mappings.tryGet(extension))
         return *contentType;
 

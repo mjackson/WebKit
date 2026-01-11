@@ -150,7 +150,7 @@ public:
     void clear() { m_keys.clear(); }
     bool containsKeyID(const KeyIDType& keyID) const { return m_keys.contains(keyID); }
 
-    WARN_UNUSED_RETURN RefPtr<T> keyHandle(const KeyIDType& keyID) const
+    [[nodiscard]] RefPtr<T> keyHandle(const KeyIDType& keyID) const
     {
         auto findingResult = m_keys.find(keyID);
         if (findingResult == m_keys.end())
@@ -158,7 +158,7 @@ public:
         return findingResult->value;
     }
 
-    WARN_UNUSED_RETURN KeyStatusVector allKeysAs(CDMInstanceSession::KeyStatus status) const
+    [[nodiscard]] KeyStatusVector allKeysAs(CDMInstanceSession::KeyStatus status) const
     {
         CDMInstanceSession::KeyStatusVector keyStatusVector = convertToJSKeyStatusVector();
         for (auto& keyStatus : keyStatusVector)
@@ -166,7 +166,7 @@ public:
         return keyStatusVector;
     }
 
-    WARN_UNUSED_RETURN KeyStatusVector convertToJSKeyStatusVector() const
+    [[nodiscard]] KeyStatusVector convertToJSKeyStatusVector() const
     {
         KeyStoreBase::KeyStatusVector vector;
         for (const auto& key : m_keys.values())
@@ -283,7 +283,7 @@ public:
 
     WEBCORE_EXPORT static void registerFactory(CDMProxyFactory&);
     WEBCORE_EXPORT static void unregisterFactory(CDMProxyFactory&);
-    WARN_UNUSED_RETURN WEBCORE_EXPORT static RefPtr<CDMProxy> createCDMProxyForKeySystem(const String&);
+    [[nodiscard]] WEBCORE_EXPORT static RefPtr<CDMProxy> createCDMProxyForKeySystem(const String&);
 
 protected:
     virtual RefPtr<CDMProxy> createCDMProxy(const String&) = 0;

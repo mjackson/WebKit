@@ -46,7 +46,8 @@
 #include "SharedBuffer.h"
 
 namespace WebCore {
-DEFINE_ALLOCATOR_WITH_HEAP_IDENTIFIER(CSSFontFaceSource);
+
+WTF_MAKE_TZONE_ALLOCATED_IMPL(CSSFontFaceSource);
 
 inline void CSSFontFaceSource::setStatus(Status newStatus)
 {

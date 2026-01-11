@@ -25,6 +25,9 @@
 
 #pragma once
 
+#include <wtf/Compiler.h>
+#include <wtf/Platform.h>
+
 DECLARE_SYSTEM_HEADER
 
 #import <Network/Network.h>
@@ -112,6 +115,7 @@ void nw_webtransport_options_set_allow_joining_before_ready(nw_protocol_options_
 void nw_webtransport_options_set_initial_max_streams_uni(nw_protocol_options_t, uint64_t);
 void nw_webtransport_options_set_initial_max_streams_bidi(nw_protocol_options_t, uint64_t);
 
+bool nw_webtransport_metadata_get_is_peer_initiated(nw_protocol_metadata_t);
 bool nw_webtransport_metadata_get_is_unidirectional(nw_protocol_metadata_t);
 uint32_t nw_webtransport_metadata_get_session_error_code(nw_protocol_metadata_t);
 void nw_webtransport_metadata_set_session_error_code(nw_protocol_metadata_t, uint32_t);

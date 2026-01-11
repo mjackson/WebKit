@@ -142,6 +142,8 @@ RTCStatsReport::InboundRtpStreamStats::InboundRtpStreamStats(const GstStructure*
     framesDropped = gstStructureGet<uint64_t>(structure, "frames-dropped"_s);
     frameWidth = gstStructureGet<unsigned>(structure, "frame-width"_s);
     frameHeight = gstStructureGet<unsigned>(structure, "frame-height"_s);
+    framesReceived = gstStructureGet<uint64_t>(structure, "frames-received"_s);
+    keyFramesDecoded = gstStructureGet<uint64_t>(structure, "key-frames-decoded"_s);
 
     if (auto identifier = gstStructureGetString(structure, "track-identifier"_s))
         trackIdentifier = identifier.span();

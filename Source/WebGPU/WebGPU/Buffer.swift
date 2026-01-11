@@ -23,7 +23,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import WebGPU_Internal
+private import CxxStdlib
+internal import WebGPU_Internal.Buffer
 
 extension WebGPU.Buffer {
     func copy(from source: Span<UInt8>, offset: Int) {

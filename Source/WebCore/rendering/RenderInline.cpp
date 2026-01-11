@@ -54,7 +54,6 @@
 #include "RenderTreeBuilder.h"
 #include "RenderView.h"
 #include "Settings.h"
-#include "StyleInheritedData.h"
 #include "TransformState.h"
 #include "VisiblePosition.h"
 #include <wtf/SetForScope.h>
@@ -614,7 +613,7 @@ LayoutRect RenderInline::clippedOverflowRect(const RenderLayerModelObject* repai
             repaintRect.move(renderInline->layer()->offsetForInFlowPosition());
     }
 
-    LayoutUnit outlineSize { style().outlineSize() };
+    LayoutUnit outlineSize { style().usedOutlineSize() };
     repaintRect.inflate(outlineSize);
 
     if (hitRepaintContainer || !containingBlock)

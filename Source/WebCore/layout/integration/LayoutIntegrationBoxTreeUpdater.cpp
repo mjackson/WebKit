@@ -48,11 +48,11 @@
 #include "RenderSVGInline.h"
 #include "RenderSlider.h"
 #include "RenderStyle+GettersInlines.h"
-#include "RenderStyle+InitialInlines.h"
 #include "RenderStyle+SettersInlines.h"
 #include "RenderTable.h"
 #include "RenderTextControl.h"
 #include "RenderView.h"
+#include "StyleComputedStyle+InitialInlines.h"
 #include "TextUtil.h"
 
 #if ENABLE(TREE_DEBUGGING)
@@ -204,16 +204,16 @@ void BoxTreeUpdater::adjustStyleIfNeeded(const RenderElement& renderer, RenderSt
             auto shouldNotRetainBorderPaddingAndMarginEnd = !renderInline->isContinuation() && renderInline->inlineContinuation();
             // This looks like continuation renderer.
             if (shouldNotRetainBorderPaddingAndMarginStart) {
-                // This uses `RenderStyle::initialMarginLeft()` because there is no defined initial value for margin start. However, since all margin edges have the same initial value, this is fine.
-                styleToAdjust.setMarginStart(RenderStyle::initialMarginLeft());
+                // This uses `Style::ComputedStyle::initialMarginLeft()` because there is no defined initial value for margin start. However, since all margin edges have the same initial value, this is fine.
+                styleToAdjust.setMarginStart(Style::ComputedStyle::initialMarginLeft());
                 styleToAdjust.resetBorderLeft();
-                styleToAdjust.setPaddingLeft(RenderStyle::initialPaddingLeft());
+                styleToAdjust.setPaddingLeft(Style::ComputedStyle::initialPaddingLeft());
             }
             if (shouldNotRetainBorderPaddingAndMarginEnd) {
-                // This uses `RenderStyle::initialMarginRight()` because there is no defined initial value for margin end. However, since all margin edges have the same initial value, this is fine.
-                styleToAdjust.setMarginEnd(RenderStyle::initialMarginRight());
+                // This uses `Style::ComputedStyle::initialMarginRight()` because there is no defined initial value for margin end. However, since all margin edges have the same initial value, this is fine.
+                styleToAdjust.setMarginEnd(Style::ComputedStyle::initialMarginRight());
                 styleToAdjust.resetBorderRight();
-                styleToAdjust.setPaddingRight(RenderStyle::initialPaddingRight());
+                styleToAdjust.setPaddingRight(Style::ComputedStyle::initialPaddingRight());
             }
 
             auto isSupportedInlineDisplay = [&] {

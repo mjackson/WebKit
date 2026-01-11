@@ -67,7 +67,7 @@ ExceptionOr<Ref<CSSScale>> CSSScale::create(Ref<const CSSFunctionValue> cssFunct
 {
     auto makeScale = [&](NOESCAPE const Function<ExceptionOr<Ref<CSSScale>>(Vector<RefPtr<CSSNumericValue>>&&)>& create, size_t minNumberOfComponents, std::optional<size_t> maxNumberOfComponents = std::nullopt) -> ExceptionOr<Ref<CSSScale>> {
         Vector<RefPtr<CSSNumericValue>> components;
-        for (auto& componentCSSValue : cssFunctionValue.get()) {
+        for (Ref componentCSSValue : cssFunctionValue.get()) {
             auto valueOrException = CSSStyleValueFactory::reifyValue(document, componentCSSValue, std::nullopt);
             if (valueOrException.hasException())
                 return valueOrException.releaseException();
@@ -152,9 +152,9 @@ void CSSScale::serialize(StringBuilder& builder) const
 
 ExceptionOr<Ref<DOMMatrix>> CSSScale::toMatrix()
 {
-    auto* xUnitValue = dynamicDowncast<CSSUnitValue>(m_x.get());
-    auto* yUnitValue = dynamicDowncast<CSSUnitValue>(m_y.get());
-    auto* zUnitValue = dynamicDowncast<CSSUnitValue>(m_z.get());
+    RefPtr xUnitValue = dynamicDowncast<CSSUnitValue>(m_x);
+    RefPtr yUnitValue = dynamicDowncast<CSSUnitValue>(m_y);
+    RefPtr zUnitValue = dynamicDowncast<CSSUnitValue>(m_z);
     if (!xUnitValue || !yUnitValue || !zUnitValue)
         return Exception { ExceptionCode::TypeError };
 

@@ -68,7 +68,7 @@ void LibWebRTCRtpTransformBackend::sendFrameToOutput(std::unique_ptr<webrtc::Tra
 
 void LibWebRTCRtpTransformBackend::processTransformedFrame(RTCRtpTransformableFrame& frame)
 {
-    if (auto rtcFrame = static_cast<LibWebRTCRtpTransformableFrame&>(frame).takeRTCFrame())
+    if (auto rtcFrame = downcast<LibWebRTCRtpTransformableFrame>(frame).takeRTCFrame())
         sendFrameToOutput(WTF::move(rtcFrame));
 }
 

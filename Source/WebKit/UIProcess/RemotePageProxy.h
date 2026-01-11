@@ -74,6 +74,10 @@ class WebProcessActivityState;
 class WebProcessProxy;
 class WebScreenOrientationManagerProxy;
 
+#if PLATFORM(IOS_FAMILY) && ENABLE(DEVICE_ORIENTATION)
+class RemotePageWebDeviceOrientationUpdateProviderProxy;
+#endif
+
 struct FrameInfoData;
 struct FrameTreeCreationParameters;
 struct NavigationActionData;
@@ -133,6 +137,9 @@ private:
 #endif
 #if ENABLE(VIDEO_PRESENTATION_MODE)
     RefPtr<RemotePageVideoPresentationManagerProxy> m_videoPresentationManager;
+#endif
+#if PLATFORM(IOS_FAMILY) && ENABLE(DEVICE_ORIENTATION)
+    RefPtr<RemotePageWebDeviceOrientationUpdateProviderProxy> m_webDeviceOrientationUpdateProvider;
 #endif
 #if PLATFORM(IOS_FAMILY) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
     RefPtr<RemotePagePlaybackSessionManagerProxy> m_playbackSessionManager;

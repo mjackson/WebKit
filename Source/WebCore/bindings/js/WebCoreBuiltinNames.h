@@ -191,6 +191,8 @@ namespace WebCore {
     macro(DecompressionStreamTransform) \
     macro(DelayNode) \
     macro(DeprecationReportBody) \
+    macro(DeviceMotionEvent) \
+    macro(DeviceOrientationEvent) \
     macro(DigitalCredential) \
     macro(DocumentTimeline) \
     macro(DynamicsCompressorNode) \
@@ -671,6 +673,8 @@ namespace WebCore {
     macro(onbeforematch) \
     macro(oncommand) \
     macro(oncookiechange) \
+    macro(ondevicemotion) \
+    macro(ondeviceorientation) \
     macro(onnotificationclick) \
     macro(onnotificationclose) \
     macro(onpush) \

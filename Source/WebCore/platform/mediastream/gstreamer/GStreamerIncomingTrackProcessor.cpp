@@ -233,6 +233,16 @@ GRefPtr<GstElement> GStreamerIncomingTrackProcessor::incomingTrackProcessor()
         configureMediaStreamVideoDecoder(element);
         webkitGstTraceProcessingTimeForElement(element);
 
+        auto sinkPad = adoptGRef(gst_element_get_static_pad(element, "sink"));
+        gst_pad_add_probe(sinkPad.get(), static_cast<GstPadProbeType>(GST_PAD_PROBE_TYPE_BUFFER), [](GstPad*, GstPadProbeInfo* info, gpointer userData) -> GstPadProbeReturn {
+            auto self = reinterpret_cast<GStreamerIncomingTrackProcessor*>(userData);
+            auto buffer = GST_PAD_PROBE_INFO_BUFFER(info);
+            if (!GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_DELTA_UNIT))
+                self->m_decodedKeyFrames++;
+            self->m_framesReceived++;
+            return GST_PAD_PROBE_OK;
+        }, userData, nullptr);
+
         auto pad = adoptGRef(gst_element_get_static_pad(element, "src"));
         gst_pad_add_probe(pad.get(), static_cast<GstPadProbeType>(GST_PAD_PROBE_TYPE_BUFFER | GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM), [](GstPad* pad, GstPadProbeInfo* info, gpointer userData) -> GstPadProbeReturn {
             auto self = reinterpret_cast<GStreamerIncomingTrackProcessor*>(userData);
@@ -370,7 +380,8 @@ const GstStructure* GStreamerIncomingTrackProcessor::stats()
     g_object_get(m_sink.get(), "stats", &stats.outPtr(), nullptr);
 
     auto droppedVideoFrames = gstStructureGet<uint64_t>(stats.get(), "dropped"_s).value_or(0);
-    m_stats.reset(gst_structure_new("incoming-video-stats", "frames-decoded", G_TYPE_UINT64, m_decodedVideoFrames, "frames-dropped", G_TYPE_UINT64, droppedVideoFrames, nullptr));
+    m_stats.reset(gst_structure_new("incoming-video-stats", "frames-decoded", G_TYPE_UINT64, m_decodedVideoFrames, "frames-dropped", G_TYPE_UINT64, droppedVideoFrames,
+        "frames-received", G_TYPE_UINT64, m_framesReceived, "key-frames-decoded", G_TYPE_UINT64, m_decodedKeyFrames, nullptr));
 
     if (!m_videoSize.isZero())
         gst_structure_set(m_stats.get(), "frame-width", G_TYPE_UINT, static_cast<unsigned>(m_videoSize.width()), "frame-height", G_TYPE_UINT, static_cast<unsigned>(m_videoSize.height()), nullptr);

@@ -35,7 +35,7 @@
 #include "FontCascade.h"
 #include "NodeDocument.h"
 #include "RenderStyle+GettersInlines.h"
-#include "RenderStyle+InitialInlines.h"
+#include "StyleComputedStyle+InitialInlines.h"
 #include "StyleLengthResolution.h"
 #include "StyleResolver.h"
 #include "StyleScope.h"
@@ -79,10 +79,10 @@ bool MatchedDeclarationsCache::isCacheable(const Element& element, const RenderS
     // content:attr() value depends on the element it is being applied to.
     if (style.hasAttrContent() || (style.pseudoElementType() && parentStyle.hasAttrContent()))
         return false;
-    if (style.zoom() != RenderStyle::initialZoom())
+    if (style.zoom() != Style::ComputedStyle::initialZoom())
         return false;
-    if (style.writingMode().computedWritingMode() != RenderStyle::initialWritingMode()
-        || style.writingMode().computedTextDirection() != RenderStyle::initialDirection())
+    if (style.writingMode().computedWritingMode() != Style::ComputedStyle::initialWritingMode()
+        || style.writingMode().computedTextDirection() != Style::ComputedStyle::initialDirection())
         return false;
     if (style.usesContainerUnits())
         return false;

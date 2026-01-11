@@ -325,7 +325,7 @@ Token Lexer<T>::nextToken()
 
             String view(StringImpl::createWithoutCopying(startOfToken.subspan(0, currentTokenLength())));
 
-            static constexpr auto keywordMappings = std::to_array<std::pair<ComparableASCIILiteral, TokenType>>({
+            static constexpr SortedArrayMap keywords { std::to_array<std::pair<ComparableASCIILiteral, TokenType>>({
                 { "_"_s, TokenType::Underbar },
 
 #define MAPPING_ENTRY(lexeme, name)\
@@ -333,11 +333,10 @@ Token Lexer<T>::nextToken()
 FOREACH_KEYWORD(MAPPING_ENTRY)
 #undef MAPPING_ENTRY
 
-            });
-            static constexpr SortedArrayMap keywords { keywordMappings };
+            }) };
 
             // https://www.w3.org/TR/WGSL/#reserved-words
-            static constexpr auto reservedWords = std::to_array<ComparableASCIILiteral>({
+            static constexpr SortedArraySet reservedWordSet { std::to_array<ComparableASCIILiteral>({
                 "NULL"_s,
                 "Self"_s,
                 "abstract"_s,
@@ -483,8 +482,7 @@ FOREACH_KEYWORD(MAPPING_ENTRY)
                 "with"_s,
                 "writeonly"_s,
                 "yield"_s,
-            });
-            static constexpr SortedArraySet reservedWordSet { reservedWords };
+            }) };
 
             auto tokenType = keywords.get(view);
             if (tokenType != TokenType::Invalid)

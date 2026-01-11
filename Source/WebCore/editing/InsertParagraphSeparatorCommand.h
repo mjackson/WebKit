@@ -45,8 +45,8 @@ private:
 
     void calculateStyleBeforeInsertion(const Position&);
     void applyStyleAfterInsertion(Node* originalEnclosingBlock);
-    void getAncestorsInsideBlock(const Node* insertionNode, Element* outerBlock, Vector<RefPtr<Element>>& ancestors);
-    Ref<Element> cloneHierarchyUnderNewBlock(const Vector<RefPtr<Element>>& ancestors, Ref<Element>&& blockToInsert);
+    void getAncestorsInsideBlock(const Node* insertionNode, Element* outerBlock, Vector<Ref<Element>>& ancestors);
+    Ref<Element> cloneHierarchyUnderNewBlock(const Vector<Ref<Element>>& ancestors, Ref<Element>&& blockToInsert);
 
     bool shouldUseDefaultParagraphElement(Node*) const;
 
