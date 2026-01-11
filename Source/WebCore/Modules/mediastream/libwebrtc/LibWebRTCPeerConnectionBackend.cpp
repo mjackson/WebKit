@@ -67,7 +67,7 @@ static const std::unique_ptr<PeerConnectionBackend> createLibWebRTCPeerConnectio
     if (!page)
         return nullptr;
 
-    auto& webRTCProvider = static_cast<LibWebRTCProvider&>(page->webRTCProvider());
+    auto& webRTCProvider = downcast<LibWebRTCProvider>(page->webRTCProvider());
     webRTCProvider.setEnableWebRTCEncryption(page->settings().webRTCEncryptionEnabled());
 
     RefPtr endpoint = LibWebRTCMediaEndpoint::create(peerConnection, webRTCProvider, document, configurationFromMediaEndpointConfiguration(WTF::move(configuration)));
@@ -205,7 +205,7 @@ void LibWebRTCPeerConnectionBackend::getStats(Ref<DeferredPromise>&& promise)
 static inline LibWebRTCRtpSenderBackend& backendFromRTPSender(RTCRtpSender& sender)
 {
     ASSERT(!sender.isStopped());
-    return static_cast<LibWebRTCRtpSenderBackend&>(*sender.backend());
+    return downcast<LibWebRTCRtpSenderBackend>(*sender.backend());
 }
 
 static inline Ref<LibWebRTCRtpSenderBackend> protectedBackendFromRTPSender(RTCRtpSender& sender)
@@ -228,7 +228,7 @@ void LibWebRTCPeerConnectionBackend::getStats(RTCRtpReceiver& receiver, Ref<Defe
 {
     RefPtr<webrtc::RtpReceiverInterface> rtcReceiver;
     if (auto* backend = receiver.backend())
-        rtcReceiver = &static_cast<LibWebRTCRtpReceiverBackend*>(backend)->rtcReceiver();
+        rtcReceiver = downcast<LibWebRTCRtpReceiverBackend>(backend)->rtcReceiver();
 
     if (!rtcReceiver) {
         m_endpoint->getStats(WTF::move(promise));
@@ -290,15 +290,15 @@ void LibWebRTCPeerConnectionBackend::doAddIceCandidate(RTCIceCandidate& candidat
 
 Ref<RTCRtpReceiver> LibWebRTCPeerConnectionBackend::createReceiver(std::unique_ptr<LibWebRTCRtpReceiverBackend>&& backend)
 {
-    auto& document = downcast<Document>(*protectedPeerConnection()->scriptExecutionContext());
+    Ref document = downcast<Document>(*protectedPeerConnection()->scriptExecutionContext());
 
-    auto source = backend->createSource(document);
+    auto source = backend->createSource(document.get());
 
     // Remote source is initially muted and will be unmuted when receiving the first packet.
     source->setMuted(true);
     auto trackID = source->persistentID();
-    auto remoteTrackPrivate = MediaStreamTrackPrivate::create(document.logger(), WTF::move(source), WTF::move(trackID));
-    auto remoteTrack = MediaStreamTrack::create(document, WTF::move(remoteTrackPrivate));
+    Ref remoteTrackPrivate = MediaStreamTrackPrivate::create(document->logger(), WTF::move(source), WTF::move(trackID));
+    Ref remoteTrack = MediaStreamTrack::create(document.get(), WTF::move(remoteTrackPrivate));
 
     return RTCRtpReceiver::create(*this, WTF::move(remoteTrack), WTF::move(backend));
 }
@@ -308,7 +308,7 @@ std::unique_ptr<RTCDataChannelHandler> LibWebRTCPeerConnectionBackend::createDat
     return m_endpoint->createDataChannel(label, options);
 }
 
-static inline RefPtr<RTCRtpSender> findExistingSender(const Vector<RefPtr<RTCRtpTransceiver>>& transceivers, LibWebRTCRtpSenderBackend& senderBackend)
+static inline RefPtr<RTCRtpSender> findExistingSender(const Vector<Ref<RTCRtpTransceiver>>& transceivers, LibWebRTCRtpSenderBackend& senderBackend)
 {
     ASSERT(senderBackend.rtcSender());
     for (auto& transceiver : transceivers) {
@@ -376,14 +376,14 @@ void LibWebRTCPeerConnectionBackend::setSenderSourceFromTrack(LibWebRTCRtpSender
 
 static inline LibWebRTCRtpTransceiverBackend& backendFromRTPTransceiver(RTCRtpTransceiver& transceiver)
 {
-    return static_cast<LibWebRTCRtpTransceiverBackend&>(*transceiver.backend());
+    return downcast<LibWebRTCRtpTransceiverBackend>(*transceiver.backend());
 }
 
 RefPtr<RTCRtpTransceiver> LibWebRTCPeerConnectionBackend::existingTransceiver(Function<bool(LibWebRTCRtpTransceiverBackend&)>&& matchingFunction)
 {
     for (auto& transceiver : protectedPeerConnection()->currentTransceivers()) {
-        if (matchingFunction(backendFromRTPTransceiver(*transceiver)))
-            return transceiver;
+        if (matchingFunction(backendFromRTPTransceiver(transceiver)))
+            return transceiver.ptr();
     }
     return nullptr;
 }
@@ -413,7 +413,7 @@ void LibWebRTCPeerConnectionBackend::applyRotationForOutgoingVideoSources()
 {
     for (auto& transceiver : protectedPeerConnection()->currentTransceivers()) {
         if (!transceiver->sender().isStopped()) {
-            if (auto* videoSource = protectedBackendFromRTPSender(transceiver->sender())->videoSource())
+            if (RefPtr videoSource = protectedBackendFromRTPSender(transceiver->sender())->videoSource())
                 videoSource->applyRotation();
         }
     }

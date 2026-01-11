@@ -92,14 +92,14 @@ private:
 
 class RtpTransceiverSet {
 public:
-    const Vector<RefPtr<RTCRtpTransceiver>>& list() const { return m_transceivers; }
+    const Vector<Ref<RTCRtpTransceiver>>& list() const { return m_transceivers; }
     void append(Ref<RTCRtpTransceiver>&&);
 
     Vector<std::reference_wrapper<RTCRtpSender>> senders() const;
     Vector<std::reference_wrapper<RTCRtpReceiver>> receivers() const;
 
 private:
-    Vector<RefPtr<RTCRtpTransceiver>> m_transceivers;
+    Vector<Ref<RTCRtpTransceiver>> m_transceivers;
 };
 
 } // namespace WebCore

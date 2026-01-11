@@ -459,7 +459,7 @@ bool SourceModule::parseAndVerifyDebugInfo(OpcodeType expectedOpcode, std::initi
 template bool SourceModule::parseAndVerifyDebugInfo(JSC::Wasm::OpType, std::initializer_list<std::pair<uint32_t, std::initializer_list<uint32_t>>>) const;
 template bool SourceModule::parseAndVerifyDebugInfo(JSC::Wasm::ExtGCOpType, std::initializer_list<std::pair<uint32_t, std::initializer_list<uint32_t>>>) const;
 
-static int test()
+UNUSED_FUNCTION static int test()
 {
     dataLogLn("Starting WASM Debug Info Test Suite");
     dataLogLn("===============================================");
@@ -506,7 +506,12 @@ static int test()
 
 int testWasmDebugInfo()
 {
+#if !CPU(ARM64)
+    dataLogLn("WASM Debug Info Tests SKIPPED (only supported on ARM64)");
+    return 0;
+#else
     return WasmDebugInfoTest::test();
+#endif
 }
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END

@@ -151,6 +151,7 @@
 #include "StyleProperties.h"
 #include "StyleResolver.h"
 #include "StyleScaleTransformFunction.h"
+#include "StyleTransformResolver.h"
 #include "StyleTranslateTransformFunction.h"
 #include "Styleable.h"
 #include "TransformOperationData.h"
@@ -1689,7 +1690,7 @@ FloatRect RenderLayer::referenceBoxRectForClipPath(CSSBoxType boxType, const Lay
     return referenceBoxRect;
 }
 
-void RenderLayer::updateTransformFromStyle(TransformationMatrix& transform, const RenderStyle& style, OptionSet<RenderStyle::TransformOperationOption> options) const
+void RenderLayer::updateTransformFromStyle(TransformationMatrix& transform, const RenderStyle& style, OptionSet<Style::TransformResolverOption> options) const
 {
     // https://drafts.csswg.org/css-anchor-position-1/#default-scroll-shift
     // > After layout has been performed for abspos, it is additionally shifted by
@@ -1726,7 +1727,7 @@ void RenderLayer::updateTransform()
     
     if (hasTransform) {
         m_transform->makeIdentity();
-        updateTransformFromStyle(*m_transform, renderer().style(), RenderStyle::allTransformOperations());
+        updateTransformFromStyle(*m_transform, renderer().style(), Style::TransformResolver::allTransformOperations);
     }
 
     if (had3DTransform != has3DTransform()) {
@@ -1752,7 +1753,7 @@ void RenderLayer::forceStackingContextIfNeeded()
     }
 }
 
-TransformationMatrix RenderLayer::currentTransform(OptionSet<RenderStyle::TransformOperationOption> options) const
+TransformationMatrix RenderLayer::currentTransform(OptionSet<Style::TransformResolverOption> options) const
 {
     if (!m_transform)
         return { };
@@ -1762,7 +1763,7 @@ TransformationMatrix RenderLayer::currentTransform(OptionSet<RenderStyle::Transf
 
     // Query the animatedStyle() to obtain the current transformation, when accelerated transform animations are running.
     auto styleable = Styleable::fromRenderer(renderer());
-    if ((styleable && styleable->isRunningAcceleratedTransformRelatedAnimation()) || !options.contains(RenderStyle::TransformOperationOption::TransformOrigin)) {
+    if ((styleable && styleable->isRunningAcceleratedTransformRelatedAnimation()) || !options.contains(Style::TransformResolverOption::TransformOrigin)) {
         std::unique_ptr<RenderStyle> animatedStyle = renderer().animatedStyle();
 
         TransformationMatrix transform;
@@ -1775,7 +1776,7 @@ TransformationMatrix RenderLayer::currentTransform(OptionSet<RenderStyle::Transf
 
 TransformationMatrix RenderLayer::currentTransform() const
 {
-    return currentTransform(RenderStyle::allTransformOperations());
+    return currentTransform(Style::TransformResolver::allTransformOperations);
 }
 
 TransformationMatrix RenderLayer::renderableTransform(OptionSet<PaintBehavior> paintBehavior) const
@@ -2232,7 +2233,11 @@ TransformationMatrix RenderLayer::perspectiveTransform() const
         return { };
 
     auto transformReferenceBoxRect = snapRectToDevicePixelsIfNeeded(renderer().transformReferenceBoxRect(style), renderer());
-    auto perspectiveOrigin = style.computePerspectiveOrigin(transformReferenceBoxRect);
+
+    TransformationMatrix transform;
+    Style::TransformResolver transformResolver { transform, style };
+
+    auto perspectiveOrigin = transformResolver.computePerspectiveOrigin(transformReferenceBoxRect);
 
     // In the regular case of a non-clipped, non-scrolled GraphicsLayer, all transformations
     // (via CSS 'transform' / 'perspective') are applied with respect to a predefined anchor point,
@@ -2246,16 +2251,16 @@ TransformationMatrix RenderLayer::perspectiveTransform() const
     // However the GraphicsLayer platform implementations (e.g. CA on macOS) apply the children transform,
     // defined on the parent, with respect to the anchor point of the parent, when rendering child elements.
     // This is wrong, as the perspective transformation (applied to a child of the element defining the
-    // 3d effect), must be independant of the chosen transform-origin (the parents transform origin
+    // 3d effect), must be independent of the chosen transform-origin (the parents transform origin
     // must not affect its children).
     //
-    // To circumvent this, explicitely remove the transform-origin dependency in the perspective matrix.
+    // To circumvent this, explicitly remove the transform-origin dependency in the perspective matrix.
     auto transformOrigin = transformOriginPixelSnappedIfNeeded();
 
-    TransformationMatrix transform;
-    style.unapplyTransformOrigin(transform, transformOrigin);
-    style.applyPerspective(transform, perspectiveOrigin);
-    style.applyTransformOrigin(transform, transformOrigin);
+    transformResolver.unapplyTransformOrigin(transformOrigin);
+    transformResolver.applyPerspective(perspectiveOrigin);
+    transformResolver.applyTransformOrigin(transformOrigin);
+
     return transform;
 }
 
@@ -2267,7 +2272,7 @@ FloatPoint3D RenderLayer::transformOriginPixelSnappedIfNeeded() const
     const auto& style = renderer().style();
     auto referenceBoxRect = renderer().transformReferenceBoxRect(style);
 
-    auto origin = style.computeTransformOrigin(referenceBoxRect);
+    auto origin = Style::TransformResolver::computeTransformOrigin(style, referenceBoxRect);
     if (rendererNeedsPixelSnapping(renderer()))
         origin.setXY(roundPointToDevicePixels(LayoutPoint(origin.xy()), renderer().document().deviceScaleFactor()));
     return origin;

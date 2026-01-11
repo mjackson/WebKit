@@ -39,9 +39,8 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(TrackListBase);
 
-TrackListBase::TrackListBase(ScriptExecutionContext* context, Type type)
+TrackListBase::TrackListBase(ScriptExecutionContext* context)
     : ActiveDOMObject(context)
-    , m_type(type)
 {
 }
 
@@ -55,7 +54,7 @@ ScriptExecutionContext* TrackListBase::scriptExecutionContext() const
 void TrackListBase::didMoveToNewDocument(Document& newDocument)
 {
     ActiveDOMObject::didMoveToNewDocument(newDocument);
-    for (RefPtr track : m_inbandTracks)
+    for (Ref track : m_inbandTracks)
         track->didMoveToNewDocument(newDocument);
 }
 
@@ -79,7 +78,7 @@ RefPtr<TrackBase> TrackListBase::find(TrackID trackID) const
     });
     if (index == notFound)
         return nullptr;
-    return m_inbandTracks[index];
+    return m_inbandTracks[index].copyRef();
 }
 
 void TrackListBase::remove(TrackID trackID, bool scheduleEvent)
@@ -97,7 +96,7 @@ void TrackListBase::remove(TrackBase& track, bool scheduleEvent)
     if (track.trackList() == this)
         track.clearTrackList();
 
-    Ref<TrackBase> trackRef = *m_inbandTracks[index];
+    Ref trackRef = m_inbandTracks[index];
 
     m_inbandTracks.removeAt(index);
 
@@ -107,7 +106,7 @@ void TrackListBase::remove(TrackBase& track, bool scheduleEvent)
 
 bool TrackListBase::contains(TrackBase& track) const
 {
-    return m_inbandTracks.find(&track) != notFound;
+    return m_inbandTracks.contains(&track);
 }
 
 bool TrackListBase::contains(TrackID trackID) const

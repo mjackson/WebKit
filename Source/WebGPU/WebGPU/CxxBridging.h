@@ -25,7 +25,10 @@
 
 #pragma once
 
+#include "CommandBuffer.h"
+#include "ComputePassEncoder.h"
 #include "IsValidToUseWith.h"
+#include "RenderPassEncoder.h"
 #include <span>
 #include <wtf/CheckedArithmetic.h>
 #include <wtf/MathExtras.h>

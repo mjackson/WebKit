@@ -57,9 +57,9 @@ public:
 
     void didMoveToNewDocument(Document& newDocument) final;
 
-    static TextTrack& captionMenuOffItem();
-    static TextTrack& captionMenuOnItem();
-    static TextTrack& captionMenuAutomaticItem();
+    static TextTrack& captionMenuOffItemSingleton();
+    static TextTrack& captionMenuOnItemSingleton();
+    static TextTrack& captionMenuAutomaticItemSingleton();
 
     static bool isValidKindKeyword(const AtomString&);
 
@@ -255,6 +255,7 @@ template<> struct HashTraits<WebCore::TextTrack::Kind> : StrongEnumHashTraits<We
 
 SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::TextTrack)
     static bool isType(const WebCore::TrackBase& track) { return track.type() == WebCore::TrackBase::TextTrack; }
+    static bool isType(const WebCore::EventTarget& context) { return context.eventTargetInterface() == WebCore::EventTargetInterfaceType::TextTrack; }
 SPECIALIZE_TYPE_TRAITS_END()
 
 #endif

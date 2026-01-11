@@ -44,6 +44,10 @@ public: \
     using TZoneMallocFallback = ::bmalloc::api::TZoneMallocFallback; \
     using CompactAllocationMode = ::bmalloc::CompactAllocationMode; \
     \
+    static constexpr bool usesTZoneHeap() { return true; } \
+    static constexpr unsigned inheritedSizeClass() { return ::bmalloc::TZone::sizeClass<_type>(); } \
+    static constexpr unsigned inheritedAlignment() { return ::bmalloc::TZone::alignment<_type>(); } \
+    \
     BINLINE void* operator new(size_t, void* p) { return p; } \
     BINLINE void* operator new[](size_t, void* p) { return p; } \
     \

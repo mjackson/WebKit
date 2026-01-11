@@ -190,7 +190,7 @@ private:
     void videoTrackSelectedChanged(VideoTrack&) final;
 
     // EventTarget
-    enum EventTargetInterfaceType eventTargetInterface() const final { return EventTargetInterfaceType::SourceBuffer; }
+    enum EventTargetInterfaceType eventTargetInterface() const override { return EventTargetInterfaceType::SourceBuffer; }
 
     bool isRemoved() const;
     void scheduleEvent(const AtomString& eventName);
@@ -280,5 +280,7 @@ private:
 };
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(SourceBuffer)
 
 #endif

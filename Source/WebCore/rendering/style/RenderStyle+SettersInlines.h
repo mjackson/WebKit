@@ -77,6 +77,11 @@ inline void RenderStyle::copyPseudoElementBitsFrom(const RenderStyle& other)
 
 // MARK: - Style adjustment utilities
 
+inline void RenderStyle::setPageScaleTransform(float scale)
+{
+    m_computedStyle.setPageScaleTransform(scale);
+}
+
 inline void RenderStyle::setColumnStylesFromPaginationMode(PaginationMode paginationMode)
 {
     m_computedStyle.setColumnStylesFromPaginationMode(paginationMode);
@@ -175,56 +180,6 @@ inline void RenderStyle::resetBorderExceptRadius()
 inline void RenderStyle::resetBorderRadius()
 {
     m_computedStyle.resetBorderRadius();
-}
-
-// MARK: - Logical setters
-
-inline void RenderStyle::setLogicalHeight(Style::PreferredSize&& height)
-{
-    if (writingMode().isHorizontal())
-        setHeight(WTF::move(height));
-    else
-        setWidth(WTF::move(height));
-}
-
-inline void RenderStyle::setLogicalWidth(Style::PreferredSize&& width)
-{
-    if (writingMode().isHorizontal())
-        setWidth(WTF::move(width));
-    else
-        setHeight(WTF::move(width));
-}
-
-inline void RenderStyle::setLogicalMinWidth(Style::MinimumSize&& width)
-{
-    if (writingMode().isHorizontal())
-        setMinWidth(WTF::move(width));
-    else
-        setMinHeight(WTF::move(width));
-}
-
-inline void RenderStyle::setLogicalMaxWidth(Style::MaximumSize&& width)
-{
-    if (writingMode().isHorizontal())
-        setMaxWidth(WTF::move(width));
-    else
-        setMaxHeight(WTF::move(width));
-}
-
-inline void RenderStyle::setLogicalMinHeight(Style::MinimumSize&& height)
-{
-    if (writingMode().isHorizontal())
-        setMinHeight(WTF::move(height));
-    else
-        setMinWidth(WTF::move(height));
-}
-
-inline void RenderStyle::setLogicalMaxHeight(Style::MaximumSize&& height)
-{
-    if (writingMode().isHorizontal())
-        setMaxHeight(WTF::move(height));
-    else
-        setMaxWidth(WTF::move(height));
 }
 
 } // namespace WebCore

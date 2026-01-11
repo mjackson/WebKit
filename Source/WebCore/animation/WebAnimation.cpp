@@ -68,9 +68,9 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(WebAnimation);
 
-HashSet<CheckedPtr<WebAnimation>>& WebAnimation::instances()
+HashSet<CheckedRef<WebAnimation>>& WebAnimation::instances()
 {
-    static NeverDestroyed<HashSet<CheckedPtr<WebAnimation>>> instances;
+    static NeverDestroyed<HashSet<CheckedRef<WebAnimation>>> instances;
     return instances;
 }
 
@@ -113,15 +113,15 @@ WebAnimation::WebAnimation(Document& document)
     , m_finishedPromise(makeUniqueRef<FinishedPromise>(*this, &WebAnimation::finishedPromiseResolve))
     , m_timelineRange({ Style::SingleAnimationRangeStart { CSS::Keyword::Normal { } }, Style::SingleAnimationRangeEnd { CSS::Keyword::Normal { } } })
 {
-    instances().add(this);
+    instances().add(*this);
 }
 
 WebAnimation::~WebAnimation()
 {
     InspectorInstrumentation::willDestroyWebAnimation(*this);
 
-    ASSERT(instances().contains(this));
-    instances().remove(this);
+    ASSERT(instances().contains(*this));
+    instances().remove(*this);
 }
 
 ScriptExecutionContext* WebAnimation::scriptExecutionContext() const

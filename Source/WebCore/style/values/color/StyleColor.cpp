@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2015 Google Inc. All rights reserved.
  * Copyright (C) 2016-2023 Apple Inc. All rights reserved.
- * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025-2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -304,6 +304,11 @@ const WebCore::Color& Color::resolvedColor() const
     return std::get<ResolvedColor>(value).color;
 }
 
+bool Color::isKnownTransparent() const
+{
+    return isResolvedColor() && resolvedColor().isValid() && !resolvedColor().isVisible();
+}
+
 template<typename T> Color::ColorKind Color::makeIndirectColor(T&& colorType)
 {
     return { makeUniqueRef<T>(WTF::move(colorType)) };
@@ -334,7 +339,8 @@ void serializationForCSSTokenization(StringBuilder& builder, const CSS::Serializ
 void Serialize<Color>::operator()(StringBuilder& builder, const CSS::SerializationContext&, const RenderStyle& style, const Color& value)
 {
     // NOTE: The specialization of Style::Serialize is used for computed value serialization, so the resolved "used" value is used.
-    builder.append(WebCore::serializationForCSS(style.colorResolvingCurrentColor(value)));
+    ColorResolver colorResolver { style };
+    builder.append(WebCore::serializationForCSS(colorResolver.colorResolvingCurrentColor(value)));
 }
 
 // MARK: - TextStream.
@@ -355,7 +361,7 @@ Color toStyleColor(const CSS::Color& value, ColorResolutionState& state)
     return WTF::switchOn(value, [&](const auto& color) { return toStyleColor(color, state); });
 }
 
-Color toStyleColor(const CSS::Color& value, Ref<const Document> document, const RenderStyle& style, const CSSToLengthConversionData& conversionData, ForVisitedLink forVisitedLink)
+Color toStyleColor(const CSS::Color& value, Ref<const Document> document, const ComputedStyle& style, const CSSToLengthConversionData& conversionData, ForVisitedLink forVisitedLink)
 {
     auto resolutionState = ColorResolutionState {
         .document = document,
@@ -373,7 +379,8 @@ Color toStyleColor(const CSS::Color& value, const BuilderState& builderState, Fo
 
 auto ToCSS<Color>::operator()(const Color& value, const RenderStyle& style) -> CSS::Color
 {
-    return CSS::Color { CSS::ResolvedColor { style.colorResolvingCurrentColor(value) } };
+    ColorResolver colorResolver { style };
+    return CSS::Color { CSS::ResolvedColor { colorResolver.colorResolvingCurrentColor(value) } };
 }
 
 auto ToStyle<CSS::Color>::operator()(const CSS::Color& value, const BuilderState& builderState, ForVisitedLink forVisitedLink) -> Color
@@ -408,7 +415,8 @@ auto CSSValueConversion<Color>::operator()(BuilderState& builderState, const CSS
 
 Ref<CSSValue> CSSValueCreation<Color>::operator()(CSSValuePool& pool, const RenderStyle& style, const Color& value)
 {
-    return pool.createColorValue(style.colorResolvingCurrentColor(value));
+    ColorResolver colorResolver { style };
+    return pool.createColorValue(colorResolver.colorResolvingCurrentColor(value));
 }
 
 // MARK: - Blending
@@ -421,7 +429,10 @@ auto Blending<Color>::equals(const Color& a, const Color& b, const RenderStyle& 
     if (a.isResolvedColor() && b.isResolvedColor())
         return a.resolvedColor() == b.resolvedColor();
 
-    return aStyle.colorResolvingCurrentColor(a) == bStyle.colorResolvingCurrentColor(b);
+    ColorResolver aColorResolver { aStyle };
+    ColorResolver bColorResolver { bStyle };
+
+    return aColorResolver.colorResolvingCurrentColor(a) == bColorResolver.colorResolvingCurrentColor(b);
 }
 
 auto Blending<Color>::canBlend(const Color& a, const Color& b) -> bool
@@ -433,7 +444,10 @@ auto Blending<Color>::canBlend(const Color& a, const Color& b) -> bool
 
 auto Blending<Color>::blend(const Color& a, const Color& b, const RenderStyle& aStyle, const RenderStyle& bStyle, const BlendingContext& context) -> Color
 {
-    return WebCore::blend(aStyle.colorResolvingCurrentColor(a), bStyle.colorResolvingCurrentColor(b), context);
+    ColorResolver aColorResolver { aStyle };
+    ColorResolver bColorResolver { bStyle };
+
+    return WebCore::blend(aColorResolver.colorResolvingCurrentColor(a), bColorResolver.colorResolvingCurrentColor(b), context);
 }
 
 } // namespace Style

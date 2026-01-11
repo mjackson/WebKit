@@ -534,6 +534,7 @@ std::unique_ptr<Entry> Cache::store(const WebCore::ResourceRequest& request, con
 
     auto cacheEntry = makeEntry(request, response, privateRelayed, WTF::move(responseData));
     auto record = cacheEntry->encodeAsStorageRecord();
+    bool storeBlobInMemoryCache = request.isTopSite();
 
     m_storage->store(record, [protectedThis = Ref { *this }, completionHandler = WTF::move(completionHandler)](const Data& bodyData) mutable {
         MappedBody mappedBody;
@@ -552,7 +553,7 @@ std::unique_ptr<Entry> Cache::store(const WebCore::ResourceRequest& request, con
         if (completionHandler)
             completionHandler(WTF::move(mappedBody));
         LOG(NetworkCache, "(NetworkProcess) stored");
-    });
+    }, storeBlobInMemoryCache);
 
     return cacheEntry;
 }
@@ -590,8 +591,9 @@ std::unique_ptr<Entry> Cache::update(const WebCore::ResourceRequest& originalReq
 
     auto updateEntry = makeUnique<Entry>(existingEntry.key(), response, privateRelayed, existingEntry.buffer(), WebCore::collectVaryingRequestHeaders(m_networkProcess->checkedStorageSession(m_sessionID).get(), originalRequest, response));
     auto updateRecord = updateEntry->encodeAsStorageRecord();
+    bool storeBlobInMemoryCache = originalRequest.isTopSite();
 
-    m_storage->store(updateRecord, { });
+    m_storage->store(updateRecord, { }, storeBlobInMemoryCache);
 
     return updateEntry;
 }

@@ -371,7 +371,8 @@ void RenderWidget::paint(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
 
     if (hasLayer() && layer()->canResize()) {
         ASSERT(layer()->scrollableArea());
-        layer()->scrollableArea()->paintResizer(paintInfo.context(), roundedIntPoint(adjustedPaintOffset), paintInfo.rect);
+        auto controlsRects = layer()->scrollableArea()->overflowControlsRects();
+        layer()->scrollableArea()->paintResizer(paintInfo.context(), roundedIntPoint(adjustedPaintOffset), controlsRects.resizer, paintInfo.rect);
     }
 }
 

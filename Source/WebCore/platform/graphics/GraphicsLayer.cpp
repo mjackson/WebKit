@@ -30,7 +30,10 @@
 #include "FloatPoint.h"
 #include "FloatRect.h"
 #include "GraphicsContext.h"
+#include "GraphicsLayerAnimationValue.h"
 #include "GraphicsLayerContentsDisplayDelegate.h"
+#include "GraphicsLayerFilterAnimationValue.h"
+#include "GraphicsLayerKeyframeValueList.h"
 #include "LayoutRect.h"
 #include "MediaPlayerEnums.h"
 #include "RotateTransformOperation.h"
@@ -58,11 +61,6 @@
 
 namespace WebCore {
 
-WTF_MAKE_TZONE_ALLOCATED_IMPL(AnimationValue);
-WTF_MAKE_TZONE_ALLOCATED_IMPL(FloatAnimationValue);
-WTF_MAKE_TZONE_ALLOCATED_IMPL(TransformAnimationValue);
-WTF_MAKE_TZONE_ALLOCATED_IMPL(FilterAnimationValue);
-WTF_MAKE_TZONE_ALLOCATED_IMPL(KeyframeValueList);
 WTF_MAKE_TZONE_ALLOCATED_IMPL(GraphicsLayer);
 
 #if ENABLE(THREADED_ANIMATIONS)
@@ -130,26 +128,6 @@ static RepaintMap& repaintRectMap()
 {
     static NeverDestroyed<RepaintMap> map;
     return map;
-}
-
-void KeyframeValueList::insert(std::unique_ptr<const AnimationValue> value)
-{
-    for (size_t i = 0; i < m_values.size(); ++i) {
-        const AnimationValue* curValue = m_values[i].get();
-        if (curValue->keyTime() == value->keyTime()) {
-            ASSERT_NOT_REACHED();
-            // insert after
-            m_values.insert(i + 1, WTF::move(value));
-            return;
-        }
-        if (curValue->keyTime() > value->keyTime()) {
-            // insert before
-            m_values.insert(i, WTF::move(value));
-            return;
-        }
-    }
-    
-    m_values.append(WTF::move(value));
 }
 
 #if !USE(CA)
@@ -414,8 +392,7 @@ void GraphicsLayer::removeAllChildren()
 
 void GraphicsLayer::removeFromParentInternal()
 {
-    if (m_parent) {
-        GraphicsLayer* parent = m_parent;
+    if (auto* parent = m_parent.get()) {
         setParent(nullptr);
         parent->m_children.removeFirstMatching([this](auto& layer) {
             return layer.ptr() == this;
@@ -831,12 +808,12 @@ void GraphicsLayer::setZPosition(float position)
     m_zPosition = position;
 }
 
-static inline const FilterOperations& filterOperationsAt(const KeyframeValueList& valueList, size_t index)
+static inline const FilterOperations& filterOperationsAt(const GraphicsLayerKeyframeValueList& valueList, size_t index)
 {
-    return static_cast<const FilterAnimationValue&>(valueList.at(index)).value();
+    return downcast<GraphicsLayerFilterAnimationValue>(valueList.at(index)).value();
 }
 
-int GraphicsLayer::validateFilterOperations(const KeyframeValueList& valueList)
+int GraphicsLayer::validateFilterOperations(const GraphicsLayerKeyframeValueList& valueList)
 {
     ASSERT(valueList.property() == AnimatedProperty::Filter || valueList.property() == AnimatedProperty::WebkitBackdropFilter);
 
@@ -1081,7 +1058,7 @@ void GraphicsLayer::dumpProperties(TextStream& ts, OptionSet<LayerTreeAsTextOpti
     if (m_replicatedLayer) {
         ts << indent << "(replicated layer"_s;
         if (options & LayerTreeAsTextOptions::Debug)
-            ts << ' ' << m_replicatedLayer;
+            ts << ' ' << m_replicatedLayer.get();
         ts << ")\n"_s;
     }
 

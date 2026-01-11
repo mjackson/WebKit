@@ -211,15 +211,14 @@ Vector<ResourceResponse> MediaResourceLoader::responsesForTesting() const
 
 static bool isManifestMIMEType(const URL& url, const String& mimeType)
 {
-    static constexpr auto staticManifestMIMETypesArray = std::to_array<ComparableLettersLiteral>({
+    static constexpr SortedArraySet staticManifestMIMETypesSet { std::to_array<ComparableLettersLiteral>({
         "application/json"_s,
         "application/vnd.apple.mpegurl"_s,
         "application/vnd.apple.steering-list"_s,
         "application/x-mpegurl"_s,
         "audio/mpegurl"_s,
         "audio/x-mpegurl"_s
-    });
-    static constexpr SortedArraySet staticManifestMIMETypesSet { staticManifestMIMETypesArray };
+    }) };
 
     if (mimeType.isEmpty() || equalLettersIgnoringASCIICase(mimeType, "application/octet-stream"_s))
         return staticManifestMIMETypesSet.contains(ContentType::fromURL(url).containerType());

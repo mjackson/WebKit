@@ -96,8 +96,8 @@ Vector<uint8_t> AuthenticationExtensionsClientOutputs::toCBOR() const
         if (largeBlob->supported)
             largeBlobMap[cbor::CBORValue("supported")] = cbor::CBORValue(largeBlob->supported.value());
 
-        if (largeBlob->blob)
-            largeBlobMap[cbor::CBORValue("blob")] = cbor::CBORValue(largeBlob->blob->toVector());
+        if (RefPtr blob = largeBlob->blob)
+            largeBlobMap[cbor::CBORValue("blob")] = cbor::CBORValue(blob->toVector());
 
         if (largeBlob->written)
             largeBlobMap[cbor::CBORValue("written")] = cbor::CBORValue(largeBlob->written.value());
@@ -116,10 +116,12 @@ AuthenticationExtensionsClientOutputsJSON AuthenticationExtensionsClientOutputs:
     AuthenticationExtensionsClientOutputsJSON result;
     result.appid = appid;
     result.credProps = credProps;
+    RefPtr<ArrayBuffer> blob;
     if (largeBlob) {
+        blob = largeBlob->blob;
         result.largeBlob = AuthenticationExtensionsClientOutputsJSON::LargeBlobOutputsJSON {
             largeBlob->supported,
-            base64URLEncodeToString(largeBlob->blob->span()),
+            base64URLEncodeToString(blob->span()),
             largeBlob->written,
         };
     }
@@ -127,8 +129,8 @@ AuthenticationExtensionsClientOutputsJSON AuthenticationExtensionsClientOutputs:
         result.prf = AuthenticationExtensionsClientOutputsJSON::PRFOutputsJSON {
             prf->enabled,
             AuthenticationExtensionsClientOutputsJSON::PRFValuesJSON {
-                base64URLEncodeToString(largeBlob->blob->span()),
-                base64URLEncodeToString(largeBlob->blob->span()),
+                base64URLEncodeToString(blob->span()),
+                base64URLEncodeToString(blob->span()),
             },
         };
     }

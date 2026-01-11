@@ -291,7 +291,7 @@ public:
 
     ~StyleRulePage();
 
-    const CSSSelector* selector() const { return m_selectorList.first(); }    
+    const CSSSelector& selector() const { return m_selectorList.first(); }
     const StyleProperties& properties() const { return m_properties; }
     MutableStyleProperties& mutableProperties();
 
@@ -513,10 +513,10 @@ inline void StyleRule::adoptSelectorList(CSSSelectorList&& selectors)
 
 inline CompiledSelector& StyleRule::compiledSelectorForListIndex(unsigned index) const
 {
-    ASSERT(index < m_selectorList.listSize());
+    ASSERT(index < m_selectorList.size());
 
     if (m_compiledSelectors.isEmpty())
-        m_compiledSelectors = FixedVector<CompiledSelector>(m_selectorList.listSize());
+        m_compiledSelectors = FixedVector<CompiledSelector>(m_selectorList.size());
     return m_compiledSelectors[index];
 }
 

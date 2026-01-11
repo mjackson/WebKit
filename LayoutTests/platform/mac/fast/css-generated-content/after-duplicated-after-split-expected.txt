@@ -20,8 +20,8 @@ layer at (0,0) size 800x600
       RenderBlock {DIV} at (0,68) size 784x220
         RenderText {#text} at (0,0) size 454x110
           text run at (0,0) width 454: "The test did"
-        RenderInline {SPAN} at (0,0) size 784x220
-          RenderInline {B} at (0,0) size 784x220
+        RenderInline {SPAN} at (0,0) size 454x220
+          RenderInline {B} at (0,0) size 454x220
             RenderBlock {DIV} at (0,110) size 784x0
           RenderInline (generated) at (0,110) size 147x110
             RenderText at (0,110) size 147x110

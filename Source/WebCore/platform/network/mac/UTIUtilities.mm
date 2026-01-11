@@ -103,13 +103,12 @@ RetainPtr<CFStringRef> mimeTypeFromUTITree(CFStringRef uti)
 
 static NSString *UTIFromPotentiallyUnknownMIMEType(StringView mimeType)
 {
-    static constexpr auto typesArray = std::to_array<std::pair<ComparableLettersLiteral, NSString *>>({
+    static constexpr SortedArrayMap typesMap { std::to_array<std::pair<ComparableLettersLiteral, NSString *>>({
         { "model/usd"_s, @"com.pixar.universal-scene-description-mobile" },
         { "model/vnd.pixar.usd"_s, @"com.pixar.universal-scene-description-mobile" },
         { "model/vnd.reality"_s, @"com.apple.reality" },
         { "model/vnd.usdz+zip"_s, @"com.pixar.universal-scene-description-mobile" },
-    });
-    static constexpr SortedArrayMap typesMap { typesArray };
+    }) };
     return typesMap.get(mimeType, nil);
 }
 

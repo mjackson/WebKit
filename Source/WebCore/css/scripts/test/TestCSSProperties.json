@@ -5,7 +5,7 @@
             "animation-type": "discrete",
             "initial": "0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<number>"
@@ -16,7 +16,7 @@
             "initial": "0",
             "values": [ "auto" ],
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "auto | <shared-rule-one>"
@@ -27,7 +27,7 @@
             "initial": "0",
             "values": [ "auto" ],
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "auto | <shared-rule-exported>"
@@ -38,7 +38,7 @@
             "initial": "0",
             "values": [ "auto" ],
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "auto | <shared-rule-with-override-function>"
@@ -48,7 +48,7 @@
             "animation-type": "discrete",
             "initial": "0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "sink-priority": true,
@@ -59,7 +59,7 @@
             "animation-type": "discrete",
             "initial": "0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "high-priority": true,
@@ -70,7 +70,7 @@
             "animation-type": "discrete",
             "initial": "0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "top-priority": true,
@@ -82,7 +82,7 @@
             "animation-type": "discrete",
             "initial": "0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "medium-priority": true,
@@ -96,8 +96,8 @@
                 "animation-wrapper": "DiscreteCoordinatedValueListPropertyWrapper",
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-item-type": "Style::Number<>",
-                "render-style-storage-container": "opaque",
-                "render-style-storage-path": ["coordinateValueList", "aggregates"],
+                "computed-style-storage-container": "opaque",
+                "computed-style-storage-path": ["coordinateValueList", "aggregates"],
                 "parser-grammar": "<number>#"
             }
         },
@@ -107,8 +107,8 @@
             "codegen-properties": {
                 "coordinated-value-list-property": true,
                 "coordinated-value-list-property-item-type": "Style::Number<>",
-                "render-style-storage-container": "opaque",
-                "render-style-storage-path": ["coordinateValueList", "aggregates"],
+                "computed-style-storage-container": "opaque",
+                "computed-style-storage-path": ["coordinateValueList", "aggregates"],
                 "parser-grammar": "<number>#"
             }
         },
@@ -116,7 +116,7 @@
             "animation-type": "discrete",
             "initial": "0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<number [-inf, -10]> | <length [0, inf]> | <angle [-90,90]> | <percentage [1,100]>"
@@ -126,9 +126,9 @@
             "animation-type": "discrete",
             "initial": "0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "settings-flag": "cssSettingsOneEnabled",
-                "render-style-type": "Style::Number<>",
+                "computed-style-type": "Style::Number<>",
                 "parser-grammar": "<number>"
             }
         },
@@ -137,9 +137,9 @@
             "animation-type": "by computed value",
             "initial": "0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "animation-wrapper": "Wrapper<float>",
-                "render-style-type": "Style::Number<>",
+                "computed-style-type": "Style::Number<>",
                 "parser-grammar": "<number>"
             }
         },
@@ -147,10 +147,10 @@
             "animation-type": "by computed value",
             "initial": "0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "animation-wrapper": "Wrapper<float>",
                 "animation-wrapper-acceleration": "always",
-                "render-style-type": "Style::Number<>",
+                "computed-style-type": "Style::Number<>",
                 "parser-grammar": "<number>"
             }
         },
@@ -158,10 +158,10 @@
             "animation-type": "by computed value",
             "initial": "0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "animation-wrapper": "Wrapper<float>",
                 "animation-wrapper-acceleration": "threaded-only",
-                "render-style-type": "Style::Number<>",
+                "computed-style-type": "Style::Number<>",
                 "parser-grammar": "<number>"
             }
         },
@@ -170,13 +170,15 @@
             "animation-type": "discrete",
             "initial": "0",
             "codegen-properties": {
-                "skip-render-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "logical-property-group": {
                     "name": "test-group",
                     "resolver": "horizontal"
                 },
+                "computed-style-storage-path": ["level1"],
+                "computed-style-storage-kind": "value",
+                "computed-style-type": "Style::Number<>",
                 "parser-grammar": "<number>"
             }
         },
@@ -184,43 +186,47 @@
             "animation-type": "discrete",
             "initial": "0",
             "codegen-properties": {
-                "skip-render-style": true,
                 "logical-property-group": {
                     "name": "test-group",
                     "resolver": "vertical"
                 },
-                "render-style-type": "Style::Number<>",
+                "computed-style-storage-path": ["level1"],
+                "computed-style-storage-kind": "value",
+                "computed-style-type": "Style::Number<>",
                 "parser-grammar": "<number>"
             }
         },
         "test-logical-property-group-logical-block": {
             "codegen-properties": {
-                "skip-render-style": true,
                 "skip-style-builder": true,
                 "logical-property-group": {
                     "name": "test-group",
                     "resolver": "block"
                 },
-                "render-style-type": "Style::Number<>",
+                "computed-style-storage-path": ["level1"],
+                "computed-style-storage-kind": "value",
+                "computed-style-type": "Style::Number<>",
                 "parser-grammar": "<number>"
             }
         },
         "test-logical-property-group-logical-inline": {
             "codegen-properties": {
-                "skip-render-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "logical-property-group": {
                     "name": "test-group",
                     "resolver": "inline"
                 },
+                "computed-style-storage-path": ["level1"],
+                "computed-style-storage-kind": "value",
+                "computed-style-type": "Style::Number<>",
                 "parser-grammar": "<number>"
             }
         },
 
         "test-shorthand-one": {
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "longhands": [
@@ -235,7 +241,7 @@
         },
         "test-shorthand-two": {
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "longhands": [
@@ -250,7 +256,7 @@
         },
         "font": {
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "longhands": [
@@ -264,7 +270,7 @@
         },
         "all": {
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "longhands": [
@@ -279,7 +285,7 @@
             "animation-type": "discrete",
             "initial": "0 0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<number>*"
@@ -289,7 +295,7 @@
             "animation-type": "discrete",
             "initial": "0 0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<number>*@(no-single-item-opt)"
@@ -299,7 +305,7 @@
             "animation-type": "discrete",
             "initial": "0 0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<number>{2,}"
@@ -309,7 +315,7 @@
             "animation-type": "discrete",
             "initial": "0 0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<number>{1,}"
@@ -319,7 +325,7 @@
             "animation-type": "discrete",
             "initial": "0 0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<number>{1,}@(no-single-item-opt)"
@@ -330,7 +336,7 @@
             "animation-type": "discrete",
             "initial": "0, 0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<number>#{2,}"
@@ -340,7 +346,7 @@
             "animation-type": "discrete",
             "initial": "0, 0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<number>#{1,}"
@@ -350,7 +356,7 @@
             "animation-type": "discrete",
             "initial": "0, 0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<number>#{1,}@(no-single-item-opt)"
@@ -361,7 +367,7 @@
             "animation-type": "discrete",
             "initial": "0 0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<number>{2,3}"
@@ -371,7 +377,7 @@
             "animation-type": "discrete",
             "initial": "0 0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<number>{1,3}"
@@ -381,7 +387,7 @@
             "animation-type": "discrete",
             "initial": "0 0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<number>{1,3}@(no-single-item-opt)"
@@ -391,7 +397,7 @@
             "animation-type": "discrete",
             "initial": "0 0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<number>{2}"
@@ -401,7 +407,7 @@
             "animation-type": "discrete",
             "initial": "0 0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<number>{1,2}@(type=CSSValuePair)"
@@ -411,7 +417,7 @@
             "animation-type": "discrete",
             "initial": "0 0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<number>{1,2}@(type=CSSValuePair no-single-item-opt)"
@@ -421,7 +427,7 @@
             "animation-type": "discrete",
             "initial": "0 0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<number>{1,2}@(type=CSSValuePair default=previous)"
@@ -431,7 +437,7 @@
             "animation-type": "discrete",
             "initial": "0 0 0 0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<number>{1,4}@(type=CSSValuePair default=previous)"
@@ -442,7 +448,7 @@
             "animation-type": "discrete",
             "initial": "0, 0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<number>#{2,3}"
@@ -452,7 +458,7 @@
             "animation-type": "discrete",
             "initial": "0, 0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<number>#{1,3}"
@@ -462,7 +468,7 @@
             "animation-type": "discrete",
             "initial": "0, 0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<number>#{1,3}@(no-single-item-opt)"
@@ -472,7 +478,7 @@
             "animation-type": "discrete",
             "initial": "0, 0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<number>#{2}"
@@ -483,7 +489,7 @@
             "animation-type": "discrete",
             "initial": "0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> | <custom-ident> | <length> ]"
@@ -493,7 +499,7 @@
             "animation-type": "discrete",
             "initial": "0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> | foo | bar | baz | [ <custom-ident> && <dashed-ident> ] ]"
@@ -503,7 +509,7 @@
             "animation-type": "discrete",
             "initial": "0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> | foo@(settings-flag=cssSettingsFooDisabled) | bar | baz | [ <custom-ident> && <dashed-ident> ] ]"
@@ -513,7 +519,7 @@
             "animation-type": "discrete",
             "initial": "0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number>@(settings-flag=cssSettingsReferenceDisabled) | foo | bar | baz | [ <custom-ident> && <dashed-ident> ] ]"
@@ -523,7 +529,7 @@
             "animation-type": "discrete",
             "initial": "0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> | foo | bar | baz | [ <custom-ident> && <dashed-ident> ]@(settings-flag=cssSettingsGroupDisabled) ]"
@@ -533,7 +539,7 @@
             "animation-type": "discrete",
             "initial": "none",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "none || [ foo | bar ]@(settings-flag=cssSettingsGroupDisabled)"
@@ -543,7 +549,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> <custom-ident> <length> ]"
@@ -553,7 +559,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> <custom-ident>? <length> ]"
@@ -563,7 +569,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> <custom-ident>? <length>? ]"
@@ -573,7 +579,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> <custom-ident>? <length>? ]@(no-single-item-opt)"
@@ -583,7 +589,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> <custom-ident> <length>? ]"
@@ -593,7 +599,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> <custom-ident> <length> ]@(type=CSSCustomType)"
@@ -603,7 +609,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> <custom-ident>? <length>? ]@(type=CSSCustomType)"
@@ -613,7 +619,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> <custom-ident>? <length>? ]@(type=CSSCustomType no-single-item-opt)"
@@ -623,7 +629,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> <custom-ident> <length>? ]@(type=CSSCustomType)"
@@ -633,7 +639,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> && <custom-ident> && <length> ]"
@@ -643,7 +649,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> && <custom-ident>? && <length> ]"
@@ -653,7 +659,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> && <custom-ident>? && <length>? ]"
@@ -663,7 +669,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> && <custom-ident>? && <length>? ]@(no-single-item-opt)"
@@ -673,7 +679,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> && <custom-ident> && <length> ]@(preserve-order)"
@@ -683,7 +689,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> && <custom-ident> && <length> ]@(preserve-order no-single-item-opt)"
@@ -693,7 +699,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> && <custom-ident>? && <length>? ]@(preserve-order)"
@@ -703,7 +709,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> && <custom-ident>? && <length>? ]@(preserve-order no-single-item-opt)"
@@ -713,7 +719,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> && <custom-ident> && <length> ]@(type=CSSCustomType)"
@@ -723,7 +729,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> && <custom-ident> && <length> ]@(preserve-order type=CSSCustomType)"
@@ -733,7 +739,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> && <custom-ident>? && <length>? ]@(type=CSSCustomType)"
@@ -743,7 +749,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> && <custom-ident>? && <length>? ]@(preserve-order type=CSSCustomType)"
@@ -753,7 +759,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> && <custom-ident> && <length>? ]@(type=CSSCustomType)"
@@ -763,7 +769,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> && <custom-ident> && <length>? ]@(type=CSSCustomType no-single-item-opt)"
@@ -773,7 +779,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> && <custom-ident> && <length>? ]@(preserve-order type=CSSCustomType)"
@@ -783,7 +789,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> && <custom-ident> && <length>? ]@(preserve-order type=CSSCustomType no-single-item-opt)"
@@ -793,7 +799,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> || <custom-ident> || <length> ]"
@@ -803,7 +809,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> || <custom-ident> || <length> ]@(no-single-item-opt)"
@@ -813,7 +819,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> || <custom-ident> || <length> ]@(preserve-order)"
@@ -823,7 +829,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> || <custom-ident> || <length> ]@(preserve-order no-single-item-opt)"
@@ -833,7 +839,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> || <custom-ident> || <length> ]@(type=CSSCustomType)"
@@ -843,7 +849,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> || <custom-ident> || <length> ]@(type=CSSCustomType no-single-item-opt)"
@@ -853,7 +859,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> || <custom-ident> || <length> ]@(preserve-order type=CSSCustomType)"
@@ -863,7 +869,7 @@
             "animation-type": "discrete",
             "initial": "0 foo 1px",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "[ <number> || <custom-ident> || <length> ]@(preserve-order type=CSSCustomType no-single-item-opt)"
@@ -874,7 +880,7 @@
             "initial": "@invalid-for-test",
             "initial-comment": "Parsing initial values with functions is not yet supported",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "foo()"
@@ -885,7 +891,7 @@
             "initial": "@invalid-for-test",
             "initial-comment": "Parsing initial values with functions is not yet supported",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "foo( <number> )"
@@ -896,7 +902,7 @@
             "initial": "@invalid-for-test",
             "initial-comment": "Parsing initial values with functions is not yet supported",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "foo( <number> | <string> | bar | baz )"
@@ -907,7 +913,7 @@
             "initial": "@invalid-for-test",
             "initial-comment": "Parsing initial values with functions is not yet supported",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "foo( <number>? )"
@@ -918,7 +924,7 @@
             "initial": "@invalid-for-test",
             "initial-comment": "Parsing initial values with functions is not yet supported",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "foo( <number>#{1,4} )"
@@ -929,7 +935,7 @@
             "initial": "@invalid-for-test",
             "initial-comment": "Parsing initial values with functions is not yet supported",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "foo( <number>#{3} )"
@@ -940,7 +946,7 @@
             "initial": "@invalid-for-test",
             "initial-comment": "Parsing initial values with functions is not yet supported",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "foo( <number># )"
@@ -951,7 +957,7 @@
             "initial": "@invalid-for-test",
             "initial-comment": "Parsing initial values with functions is not yet supported",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "foo( <number>#{2,} )"
@@ -962,7 +968,7 @@
             "initial": "@invalid-for-test",
             "initial-comment": "Parsing initial values with functions is not yet supported",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "foo( <number> <string> )"
@@ -973,7 +979,7 @@
             "initial": "@invalid-for-test",
             "initial-comment": "Parsing initial values with functions is not yet supported",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "foo( <number> <string>? )"
@@ -984,7 +990,7 @@
             "initial": "@invalid-for-test",
             "initial-comment": "Parsing initial values with functions is not yet supported",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "foo( <number> && <string> )"
@@ -995,7 +1001,7 @@
             "initial": "@invalid-for-test",
             "initial-comment": "Parsing initial values with functions is not yet supported",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "foo( <number> && <string>? )"
@@ -1006,32 +1012,45 @@
             "initial": "@invalid-for-test",
             "initial-comment": "Parsing initial values with functions is not yet supported",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "foo( <number> || <string> )"
             }
         },
         "test-color": {
-            "animation-type": "discrete",
+            "animation-type": "by computed value",
             "initial": "currentColor",
             "codegen-properties": {
-                "skip-render-style": true,
-                "skip-style-builder": true,
-                "skip-style-extractor": true,
                 "color-property": true,
+                "computed-style-storage-path": ["level1"],
+                "computed-style-storage-kind": "reference",
+                "computed-style-type": "Style::Color",
                 "parser-grammar": "<color>"
             }
         },
         "test-color-allows-types-absolute": {
-            "animation-type": "discrete",
+            "animation-type": "by computed value",
             "initial": "currentColor",
             "codegen-properties": {
-                "skip-render-style": true,
-                "skip-style-builder": true,
-                "skip-style-extractor": true,
                 "color-property": true,
+                "computed-style-storage-path": ["level1"],
+                "computed-style-storage-kind": "reference",
+                "computed-style-type": "Style::Color",
                 "parser-grammar": "<color allowed-types=absolute>"
+            }
+        },
+        "test-color-property-with-visited-link-support": {
+            "animation-type": "by computed value",
+            "initial": "currentColor",
+            "codegen-properties": {
+                "visited-link-color-support": true,
+                "color-property": true,
+                "computed-style-storage-path": ["level1"],
+                "computed-style-storage-kind": "reference",
+                "computed-style-type": "Style::Color",
+                "computed-style-visited-link-storage-path": ["level1", "level2"],
+                "parser-grammar": "<color>"
             }
         },
         "test-image": {
@@ -1039,7 +1058,7 @@
             "initial": "@invalid-for-test",
             "initial-comment": "Parsing initial values with functions is not yet supported",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<image>"
@@ -1050,7 +1069,7 @@
             "initial": "@invalid-for-test",
             "initial-comment": "Parsing initial values with functions is not yet supported",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "<image allowed-types=url,generated>"
@@ -1060,7 +1079,7 @@
             "animation-type": "discrete",
             "initial": "foo",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "foo | bar"
@@ -1070,7 +1089,7 @@
             "animation-type": "discrete",
             "initial": "foo",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "foo@(aliased-to=baz) | bar"
@@ -1080,7 +1099,7 @@
             "animation-type": "discrete",
             "initial": "none",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "none | <url>"
@@ -1090,7 +1109,7 @@
             "animation-type": "discrete",
             "initial": "none",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "skip-style-extractor": true,
                 "parser-grammar": "none | <url allowed-modifiers=crossorigin,integrity,referrerpolicy>"
@@ -1101,33 +1120,10 @@
             "animation-type": "discrete",
             "initial": "0",
             "codegen-properties": {
-                "skip-render-style": true,
+                "skip-computed-style": true,
                 "skip-style-builder": true,
                 "style-extractor-custom": true,
                 "parser-grammar": "<number>"
-            }
-        },
-        "test-color-property-with-no-visited-link-support": {
-            "animation-type": "discrete",
-            "initial": "currentColor",
-            "codegen-properties": {
-                "skip-render-style": true,
-                "skip-style-builder": true,
-                "skip-style-extractor": true,
-                "color-property": true,
-                "parser-grammar": "<color>"
-            }
-        },
-        "test-color-property-with-visited-link-support": {
-            "animation-type": "discrete",
-            "initial": "currentColor",
-            "codegen-properties": {
-                "skip-render-style": true,
-                "skip-style-builder": true,
-                "skip-style-extractor": true,
-                "visited-link-color-support": true,
-                "color-property": true,
-                "parser-grammar": "<color>"
             }
         },
         "test-render-style-storage-one-level-reference": {
@@ -1135,9 +1131,9 @@
             "initial": "0",
             "codegen-properties": {
                 "parser-grammar": "<number>",
-                "render-style-storage-path": ["level1"],
-                "render-style-storage-kind": "reference",
-                "render-style-type": "Style::Number<>"
+                "computed-style-storage-path": ["level1"],
+                "computed-style-storage-kind": "reference",
+                "computed-style-type": "Style::Number<>"
             }
         },
         "test-render-style-storage-one-level-value": {
@@ -1145,9 +1141,9 @@
             "initial": "0",
             "codegen-properties": {
                 "parser-grammar": "<number>",
-                "render-style-storage-path": ["level1"],
-                "render-style-storage-kind": "value",
-                "render-style-type": "Style::Number<>"
+                "computed-style-storage-path": ["level1"],
+                "computed-style-storage-kind": "value",
+                "computed-style-type": "Style::Number<>"
             }
         },
         "test-render-style-storage-one-level-enum": {
@@ -1155,9 +1151,9 @@
             "initial": "foo",
             "codegen-properties": {
                 "parser-grammar": "foo | bar",
-                "render-style-storage-path": ["level1"],
-                "render-style-storage-kind": "enum",
-                "render-style-type": "Style::TestEnumeration"
+                "computed-style-storage-path": ["level1"],
+                "computed-style-storage-kind": "enum",
+                "computed-style-type": "Style::TestEnumeration"
             }
         },
         "test-render-style-storage-one-level-raw": {
@@ -1165,9 +1161,9 @@
             "initial": "foo",
             "codegen-properties": {
                 "parser-grammar": "foo || bar",
-                "render-style-storage-path": ["level1"],
-                "render-style-storage-kind": "raw",
-                "render-style-type": "Style::TestRaw"
+                "computed-style-storage-path": ["level1"],
+                "computed-style-storage-kind": "raw",
+                "computed-style-type": "Style::TestRaw"
             }
         },
         "test-render-style-storage-two-level-reference": {
@@ -1175,9 +1171,9 @@
             "initial": "0",
             "codegen-properties": {
                 "parser-grammar": "<number>",
-                "render-style-storage-path": ["level1", "level2"],
-                "render-style-storage-kind": "reference",
-                "render-style-type": "Style::Number<>"
+                "computed-style-storage-path": ["level1", "level2"],
+                "computed-style-storage-kind": "reference",
+                "computed-style-type": "Style::Number<>"
             }
         },
         "test-render-style-storage-two-level-value": {
@@ -1185,9 +1181,9 @@
             "initial": "0",
             "codegen-properties": {
                 "parser-grammar": "<number>",
-                "render-style-storage-path": ["level1", "level2"],
-                "render-style-storage-kind": "value",
-                "render-style-type": "Style::Number<>"
+                "computed-style-storage-path": ["level1", "level2"],
+                "computed-style-storage-kind": "value",
+                "computed-style-type": "Style::Number<>"
             }
         },
         "test-render-style-storage-two-level-enum": {
@@ -1195,9 +1191,9 @@
             "initial": "foo",
             "codegen-properties": {
                 "parser-grammar": "foo | bar",
-                "render-style-storage-path": ["level1", "level2"],
-                "render-style-storage-kind": "enum",
-                "render-style-type": "Style::TestEnumeration"
+                "computed-style-storage-path": ["level1", "level2"],
+                "computed-style-storage-kind": "enum",
+                "computed-style-type": "Style::TestEnumeration"
             }
         },
         "test-render-style-storage-two-level-raw": {
@@ -1205,9 +1201,46 @@
             "initial": "foo",
             "codegen-properties": {
                 "parser-grammar": "foo || bar",
-                "render-style-storage-path": ["level1", "level2"],
-                "render-style-storage-kind": "raw",
-                "render-style-type": "Style::TestRaw"
+                "computed-style-storage-path": ["level1", "level2"],
+                "computed-style-storage-kind": "raw",
+                "computed-style-type": "Style::TestRaw"
+            }
+        },
+
+        "test-render-style-has-explicitly-set-policy-all-author-origin": {
+            "animation-type": "discrete",
+            "initial": "0",
+            "codegen-properties": {
+                "parser-grammar": "<number>",
+                "computed-style-has-explicitly-set-policy": "all-author-origin",
+                "computed-style-has-explicitly-set-storage-path": ["level1", "level2"],
+                "computed-style-storage-path": ["level1", "level2"],
+                "computed-style-storage-kind": "value",
+                "computed-style-type": "Style::Number<>"
+            }
+        },
+        "test-render-style-has-explicitly-set-policy-all-border-radius": {
+            "animation-type": "discrete",
+            "initial": "0",
+            "codegen-properties": {
+                "parser-grammar": "<number>",
+                "computed-style-has-explicitly-set-policy": "all-border-radius",
+                "computed-style-has-explicitly-set-storage-path": ["level1", "level2"],
+                "computed-style-storage-path": ["level1", "level2"],
+                "computed-style-storage-kind": "value",
+                "computed-style-type": "Style::Number<>"
+            }
+        },
+        "test-render-style-has-explicitly-set-policy-value-only": {
+            "animation-type": "discrete",
+            "initial": "0",
+            "codegen-properties": {
+                "parser-grammar": "<number>",
+                "computed-style-has-explicitly-set-policy": "value-only",
+                "computed-style-has-explicitly-set-storage-path": ["level1", "level2"],
+                "computed-style-storage-path": ["level1", "level2"],
+                "computed-style-storage-kind": "value",
+                "computed-style-type": "Style::Number<>"
             }
         }
     },

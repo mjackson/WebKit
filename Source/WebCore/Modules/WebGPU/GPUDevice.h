@@ -188,4 +188,6 @@ private:
     bool m_waitingForDeviceLostPromise { false };
 };
 
-}
+} // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(GPUDevice)

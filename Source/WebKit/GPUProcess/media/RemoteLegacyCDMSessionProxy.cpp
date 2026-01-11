@@ -42,6 +42,8 @@ namespace WebKit {
 
 using namespace WebCore;
 
+WTF_MAKE_TZONE_ALLOCATED_IMPL(RemoteLegacyCDMSessionProxy);
+
 Ref<RemoteLegacyCDMSessionProxy> RemoteLegacyCDMSessionProxy::create(RemoteLegacyCDMFactoryProxy& factory, uint64_t logIdentifier, RemoteLegacyCDMSessionIdentifier sessionIdentifier, WebCore::LegacyCDM& cdm)
 {
     return adoptRef(*new RemoteLegacyCDMSessionProxy(factory, logIdentifier, sessionIdentifier, cdm));

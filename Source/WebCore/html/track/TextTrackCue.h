@@ -192,6 +192,8 @@ template<> struct LogArgument<WebCore::TextTrackCue> {
     static String toString(const WebCore::TextTrackCue& cue) { return cue.toJSONString(); }
 };
 
-}
+} // namespace WTF
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(TextTrackCue)
 
 #endif

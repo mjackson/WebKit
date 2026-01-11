@@ -299,10 +299,8 @@ void EditCommandComposition::reapply()
     if (!m_document->editor().willReapplyEditing(*this))
         return;
 
-    for (size_t i = 0; i < m_commands.size(); ++i) {
-        RefPtr command = m_commands[i].get();
+    for (Ref command : m_commands)
         command->doReapply();
-    }
 
     m_document->editor().reappliedEditing(*this);
 
@@ -312,7 +310,7 @@ void EditCommandComposition::reapply()
     RELEASE_ASSERT_WITH_SECURITY_IMPLICATION(m_document->selection().isNone() || m_document->selection().isConnectedToDocument());
 }
 
-void EditCommandComposition::append(SimpleEditCommand* command)
+void EditCommandComposition::append(SimpleEditCommand& command)
 {
     m_commands.append(command);
 }
@@ -339,10 +337,8 @@ void EditCommandComposition::setRangeDeletedByUnapply(const VisiblePositionIndex
 #ifndef NDEBUG
 void EditCommandComposition::getNodesInCommand(NodeSet& nodes)
 {
-    for (size_t i = 0; i < m_commands.size(); ++i) {
-        RefPtr command = m_commands[i].get();
+    for (Ref command : m_commands)
         command->getNodesInCommand(nodes);
-    }
 }
 #endif
 
@@ -427,7 +423,7 @@ void CompositeEditCommand::didApplyCommand()
     document().editor().appliedEditing(*this);
 }
 
-Vector<RefPtr<StaticRange>> CompositeEditCommand::targetRanges() const
+Vector<Ref<StaticRange>> CompositeEditCommand::targetRanges() const
 {
     ASSERT(!isEditingTextAreaOrTextInput());
     auto firstRange = document().selection().selection().firstRange();
@@ -437,7 +433,7 @@ Vector<RefPtr<StaticRange>> CompositeEditCommand::targetRanges() const
     return { 1, StaticRange::create(WTF::move(*firstRange)) };
 }
 
-Vector<RefPtr<StaticRange>> CompositeEditCommand::targetRangesForBindings() const
+Vector<Ref<StaticRange>> CompositeEditCommand::targetRangesForBindings() const
 {
     if (isEditingTextAreaOrTextInput())
         return { };
@@ -509,7 +505,7 @@ void CompositeEditCommand::applyCommandToComposite(Ref<EditCommand>&& command)
     command->doApply();
     if (auto* simpleCommand = dynamicDowncast<SimpleEditCommand>(command.get())) {
         command->setParent(nullptr);
-        ensureComposition()->append(simpleCommand);
+        ensureComposition()->append(*simpleCommand);
     }
     m_commands.append(WTF::move(command));
 }

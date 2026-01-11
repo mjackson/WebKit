@@ -43,6 +43,10 @@ root
             subscript
                 'WebKit home page:',[…]
                 link,uid=…,[…],url='https://webkit.org/'
+            strikethrough
+                'This',[…]
+                link,uid=…,url='https://www.apple.com/','link',[…]
+                'was deleted',[…]
     role='contentinfo'
         'Footer content with',[…]
         role='img',aria-label='copyright symbol','©',[…]

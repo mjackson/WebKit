@@ -50,7 +50,7 @@ IDBKeyData::IDBKeyData(const IDBKey* key)
         m_value = Vector<IDBKeyData>();
         auto& array = std::get<Vector<IDBKeyData>>(m_value);
         for (auto& key2 : key->array())
-            array.append(IDBKeyData(key2.get()));
+            array.append(IDBKeyData(key2.ptr()));
         break;
     }
     case IndexedDB::KeyType::Binary:
@@ -111,12 +111,10 @@ RefPtr<IDBKey> IDBKeyData::maybeCreateIDBKey() const
     case IndexedDB::KeyType::Invalid:
         return IDBKey::createInvalid();
     case IndexedDB::KeyType::Array: {
-        Vector<RefPtr<IDBKey>> array;
-        for (auto& keyData : std::get<Vector<IDBKeyData>>(m_value)) {
-            array.append(keyData.maybeCreateIDBKey());
-            ASSERT(array.last());
-        }
-        return IDBKey::createArray(array);
+        auto array = std::get<Vector<IDBKeyData>>(m_value).map([](auto& keyData) {
+            return keyData.maybeCreateIDBKey().releaseNonNull();
+        });
+        return IDBKey::createArray(WTF::move(array));
     }
     case IndexedDB::KeyType::Binary:
         return IDBKey::createBinary(std::get<ThreadSafeDataBuffer>(m_value));
@@ -442,7 +440,6 @@ size_t IDBKeyData::size() const
     case IndexedDB::KeyType::Invalid:
         return 0;
     case IndexedDB::KeyType::Array: {
-        Vector<RefPtr<IDBKey>> array;
         size_t totalSize = 0;
         for (auto& keyData : std::get<Vector<IDBKeyData>>(m_value))
             totalSize += keyData.size();

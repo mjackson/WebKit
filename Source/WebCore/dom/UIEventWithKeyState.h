@@ -45,7 +45,7 @@ public:
     WEBCORE_EXPORT bool getModifierState(const String& keyIdentifier) const;
 
 protected:
-    UIEventWithKeyState(enum EventInterfaceType eventInterface)
+    explicit UIEventWithKeyState(enum EventInterfaceType eventInterface)
         : UIEvent(eventInterface)
     {
     }
@@ -80,7 +80,7 @@ private:
     OptionSet<Modifier> m_modifiers;
 };
 
-UIEventWithKeyState* findEventWithKeyState(Event*);
+RefPtr<UIEventWithKeyState> findEventWithKeyState(Event*);
 
 } // namespace WebCore
 

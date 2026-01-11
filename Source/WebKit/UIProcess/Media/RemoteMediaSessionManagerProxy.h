@@ -82,7 +82,7 @@ public:
 #if USE(AUDIO_SESSION)
     // WebCore::AudioSession.
     ThreadSafeWeakPtrControlBlock& controlBlock() const final { return REMOTE_MEDIA_SESSION_MANAGER_BASE_CLASS::controlBlock(); }
-    size_t weakRefCount() const final { return REMOTE_MEDIA_SESSION_MANAGER_BASE_CLASS::weakRefCount(); }
+    uint32_t weakRefCount() const final { return REMOTE_MEDIA_SESSION_MANAGER_BASE_CLASS::weakRefCount(); }
 #endif
 
     const Ref<WebProcessProxy> process() const { return m_process; }

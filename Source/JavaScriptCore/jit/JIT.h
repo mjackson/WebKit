@@ -291,7 +291,8 @@ namespace JSC {
         void compileOpStrictEqCommon(VirtualRegister src1,  VirtualRegister src2);
 #endif
 
-        enum WriteBarrierMode { UnconditionalWriteBarrier, ShouldFilterBase, ShouldFilterValue, ShouldFilterBaseAndValue };
+        enum class WriteBarrierMode { UnconditionalWriteBarrier, ShouldFilterBase, ShouldFilterValue, ShouldFilterBaseAndValue };
+        using enum WriteBarrierMode;
         // value register in write barrier is used before any scratch registers
         // so may safely be the same as either of the scratch registers.
         void emitWriteBarrier(VirtualRegister owner, WriteBarrierMode);

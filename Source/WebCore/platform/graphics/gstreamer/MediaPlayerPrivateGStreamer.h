@@ -466,6 +466,9 @@ protected:
 
     bool updateVideoSinkStatistics();
 
+    uint64_t m_framesReceived { 0 };
+    uint64_t m_decodedKeyFrames { 0 };
+
 private:
     class TaskAtMediaTimeScheduler {
     public:

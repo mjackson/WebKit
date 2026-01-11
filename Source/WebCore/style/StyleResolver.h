@@ -72,6 +72,7 @@ enum class RuleMatchingBehavior: uint8_t {
 
 namespace Style {
 
+class CustomFunctionRegistry;
 struct BuilderContext;
 struct CachedMatchResult;
 struct ResolvedStyle;
@@ -117,7 +118,7 @@ public:
 
     ScopeType scopeType() const { return m_scopeType; }
 
-    void appendAuthorStyleSheets(std::span<const RefPtr<CSSStyleSheet>>);
+    void appendAuthorStyleSheets(std::span<const Ref<CSSStyleSheet>>);
 
     ScopeRuleSets& ruleSets() { return m_ruleSets; }
     const ScopeRuleSets& ruleSets() const { return m_ruleSets; }
@@ -153,6 +154,9 @@ public:
     void addKeyframeStyle(Ref<StyleRuleKeyframes>&&);
     Vector<Ref<StyleRuleKeyframe>> keyframeRulesForName(const AtomString&, const TimingFunction*) const;
 
+    const CustomFunctionRegistry* customFunctionRegistry() const;
+    CustomFunctionRegistry& ensureCustomFunctionRegistry();
+
     RefPtr<StyleRuleViewTransition> viewTransitionRule() const;
 
     bool usesFirstLineRules() const { return m_ruleSets.features().usesFirstLineRules; }
@@ -187,6 +191,8 @@ private:
     ScopeRuleSets m_ruleSets;
 
     KeyframesRuleMap m_keyframesRuleMap;
+
+    std::unique_ptr<Style::CustomFunctionRegistry> m_customFunctionRegistry;
 
     MQ::MediaQueryEvaluator m_mediaQueryEvaluator;
     std::unique_ptr<RenderStyle> m_rootDefaultStyle;

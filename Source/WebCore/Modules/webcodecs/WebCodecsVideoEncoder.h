@@ -98,6 +98,8 @@ private:
     size_t m_encoderCount { 0 };
 };
 
-}
+} // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(WebCodecsVideoEncoder)
 
 #endif

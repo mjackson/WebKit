@@ -46,10 +46,16 @@ SOFT_LINK_CLASS(SafariSafeBrowsing, SSBLookupContext);
 - (NSString *)synchronouslyGetDebugText:(_WKTextExtractionConfiguration *)configuration;
 - (_WKTextExtractionResult *)synchronouslyExtractDebugTextResult:(_WKTextExtractionConfiguration *)configuration;
 - (_WKTextExtractionInteractionResult *)synchronouslyPerformInteraction:(_WKTextExtractionInteraction *)interaction;
+- (NSData *)synchronouslyGetSelectorPathDataForNode:(_WKJSHandle *)node;
+- (_WKJSHandle *)synchronouslyGetNodeForSelectorPathData:(NSData *)data;
 @end
 
 @interface _WKTextExtractionInteraction (TextExtractionTests)
 - (NSString *)debugDescriptionInWebView:(WKWebView *)webView error:(NSError **)outError;
+@end
+
+@interface _WKTextExtractionResult (TextExtractionTests)
+- (_WKJSHandle *)jsHandleForNodeIdentifier:(NSString *)nodeIdentifier searchText:(NSString *)searchText;
 @end
 
 @implementation WKWebView (TextExtractionTests)
@@ -87,6 +93,30 @@ SOFT_LINK_CLASS(SafariSafeBrowsing, SSBLookupContext);
     return result.autorelease();
 }
 
+- (NSData *)synchronouslyGetSelectorPathDataForNode:(_WKJSHandle *)node
+{
+    __block bool done = false;
+    __block RetainPtr<NSData> result;
+    [self _getSelectorPathDataForNode:node completionHandler:^(NSData *data) {
+        result = data;
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
+    return result.autorelease();
+}
+
+- (_WKJSHandle *)synchronouslyGetNodeForSelectorPathData:(NSData *)data
+{
+    __block bool done = false;
+    __block RetainPtr<_WKJSHandle> result;
+    [self _getNodeForSelectorPathData:data completionHandler:^(_WKJSHandle *handle) {
+        result = handle;
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
+    return result.autorelease();
+}
+
 @end
 
 @implementation _WKTextExtractionInteraction (TextExtractionTests)
@@ -104,6 +134,22 @@ SOFT_LINK_CLASS(SafariSafeBrowsing, SSBLookupContext);
     TestWebKitAPI::Util::run(&done);
     if (outError)
         *outError = error.autorelease();
+    return result.autorelease();
+}
+
+@end
+
+@implementation _WKTextExtractionResult (TextExtractionTests)
+
+- (_WKJSHandle *)jsHandleForNodeIdentifier:(NSString *)nodeIdentifier searchText:(NSString *)searchText
+{
+    __block bool done = false;
+    __block RetainPtr<_WKJSHandle> result;
+    [self requestJSHandleForNodeIdentifier:nodeIdentifier searchText:searchText completionHandler:^(_WKJSHandle *handle) {
+        result = handle;
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
     return result.autorelease();
 }
 
@@ -437,6 +483,87 @@ TEST(TextExtractionTests, NodesToSkip)
     EXPECT_WK_STREQ("0", lines[1]);
 }
 
+TEST(TextExtractionTests, RequestJSHandleForNodeIdentifier)
+{
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:^{
+        RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+        [[configuration preferences] _setTextExtractionEnabled:YES];
+        return configuration.autorelease();
+    }()]);
+
+    [webView synchronouslyLoadTestPageNamed:@"debug-text-extraction"];
+
+    RetainPtr extractionResult = [webView synchronouslyExtractDebugTextResult:^{
+        RetainPtr configuration = adoptNS([_WKTextExtractionConfiguration new]);
+        [configuration setIncludeRects:NO];
+        [configuration setIncludeURLs:NO];
+        return configuration.autorelease();
+    }()];
+
+    RetainPtr debugTextForSubject = [webView synchronouslyGetDebugText:^{
+        RetainPtr configuration = adoptNS([_WKTextExtractionConfiguration new]);
+        [configuration setIncludeRects:NO];
+        [configuration setIncludeURLs:NO];
+        [configuration setNodeIdentifierInclusion:_WKTextExtractionNodeIdentifierInclusionNone];
+
+        RetainPtr nodeID = extractNodeIdentifier([extractionResult textContent], @"Compose a new message");
+        [configuration setTargetNode:[extractionResult jsHandleForNodeIdentifier:nodeID.get() searchText:@"Subject"]];
+        return configuration.autorelease();
+    }()];
+
+    EXPECT_WK_STREQ(debugTextForSubject.get(), @"root\n\taria-label='Heading','Subject'\nversion=2");
+
+    RetainPtr debugTextForBody = [webView synchronouslyGetDebugText:^{
+        RetainPtr configuration = adoptNS([_WKTextExtractionConfiguration new]);
+        [configuration setIncludeRects:NO];
+        [configuration setIncludeURLs:NO];
+        [configuration setNodeIdentifierInclusion:_WKTextExtractionNodeIdentifierInclusionNone];
+        [configuration setTargetNode:[extractionResult jsHandleForNodeIdentifier:nil searchText:@"The quick brown fox"]];
+        return configuration.autorelease();
+    }()];
+
+    EXPECT_WK_STREQ(debugTextForBody.get(), @"root,'“The quick brown fox jumped over the lazy dog”'\nversion=2");
+}
+
+TEST(TextExtractionTests, ResolveTargetNodeFromSelectorData)
+{
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [[configuration preferences] _setTextExtractionEnabled:YES];
+
+    RetainPtr selectorData = [&] {
+        RetainPtr originalWebView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+        [originalWebView synchronouslyLoadTestPageNamed:@"debug-text-extraction"];
+
+        RetainPtr world = [WKContentWorld _worldWithConfiguration:^{
+            RetainPtr configuration = adoptNS([_WKContentWorldConfiguration new]);
+            [configuration setAllowJSHandleCreation:YES];
+            return configuration.autorelease();
+        }()];
+
+        RetainPtr subjectHandle = [originalWebView querySelector:@"h3" frame:nil world:world.get()];
+        return [originalWebView synchronouslyGetSelectorPathDataForNode:subjectHandle.get()];
+    }();
+
+    EXPECT_NOT_NULL(selectorData.get());
+
+    RetainPtr newWebView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    [newWebView synchronouslyLoadTestPageNamed:@"debug-text-extraction"];
+
+    RetainPtr resolvedHandle = [newWebView synchronouslyGetNodeForSelectorPathData:selectorData.get()];
+    EXPECT_NOT_NULL(resolvedHandle.get());
+
+    RetainPtr debugText = [newWebView synchronouslyGetDebugText:^{
+        RetainPtr configuration = adoptNS([_WKTextExtractionConfiguration new]);
+        [configuration setIncludeRects:NO];
+        [configuration setIncludeURLs:NO];
+        [configuration setNodeIdentifierInclusion:_WKTextExtractionNodeIdentifierInclusionNone];
+        [configuration setTargetNode:resolvedHandle.get()];
+        return configuration.autorelease();
+    }()];
+
+    EXPECT_WK_STREQ(debugText.get(), @"root\n\taria-label='Heading','Subject'\nversion=2");
+}
+
 #if HAVE(SAFARI_SAFE_BROWSING_NAMESPACED_LISTS)
 
 typedef void(^WKSafeBrowsingNamespacedListBlock)(NSDictionary<NSString *, NSArray<NSString *> *> *, NSError *);
@@ -445,8 +572,10 @@ static void overrideGetListsForNamespace(SSBLookupContext *instance, SEL, NSStri
     static NeverDestroyed workQueue = WorkQueue::create("Queue for simulating SSB API"_s);
     workQueue.get()->dispatch([completion = makeBlockPtr(completion)] {
         RetainPtr hardCodedResult = @{
-            @"test/domains": @[ @".*" ],
-            @"test/filter": @[ @"return input.replaceAll('o', '•').replaceAll('u', 'v')" ]
+            @"test1/domains": @[ @".*" ],
+            @"test1/filter": @[ @"return input.length >= 1000 ? '<too long>' : null" ],
+            @"test2/domains": @[ @".*" ],
+            @"test2/filter": @[ @"return input.replaceAll('o', '•').replaceAll('u', 'v')" ],
         };
         completion(hardCodedResult.get(), nil);
     });

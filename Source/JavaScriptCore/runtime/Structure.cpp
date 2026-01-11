@@ -211,9 +211,10 @@ Structure::Structure(VM& vm, JSGlobalObject* globalObject, JSValue prototype, co
 
     setDictionaryKind(NoneDictionaryKind);
     setIsPinnedPropertyTable(false);
-    setHasAnyKindOfGetterSetterProperties(classInfo->hasStaticPropertyWithAnyOfAttributes(static_cast<uint8_t>(PropertyAttribute::AccessorOrCustomAccessorOrValue)));
-    setHasReadOnlyOrGetterSetterPropertiesExcludingProto(hasAnyKindOfGetterSetterProperties() || classInfo->hasStaticPropertyWithAnyOfAttributes(static_cast<uint8_t>(PropertyAttribute::ReadOnly)));
+    setHasAnyKindOfGetterSetterProperties(m_classInfo->hasStaticPropertyWithAnyOfAttributes(static_cast<uint8_t>(PropertyAttribute::AccessorOrCustomAccessorOrValue)));
+    setHasReadOnlyOrGetterSetterPropertiesExcludingProto(hasAnyKindOfGetterSetterProperties() || m_classInfo->hasStaticPropertyWithAnyOfAttributes(static_cast<uint8_t>(PropertyAttribute::ReadOnly)));
     setHasNonEnumerableProperties(hasStaticNonEnumerableProperty || typeInfo.overridesGetOwnPropertySlot());
+    setHasSpecialProperties(false);
     setHasNonConfigurableProperties(hasStaticNonConfigurableProperty || typeInfo.overridesGetOwnPropertySlot());
     setHasNonConfigurableReadOnlyOrGetterSetterProperties(hasStaticNonConfigurableProperty || (typeInfo.overridesGetOwnPropertySlot() && typeInfo.type() != ArrayType));
     setHasUnderscoreProtoPropertyExcludingOriginalProto(false);
@@ -261,6 +262,7 @@ Structure::Structure(VM& vm, CreatingEarlyCellTag)
     setHasAnyKindOfGetterSetterProperties(m_classInfo->hasStaticPropertyWithAnyOfAttributes(static_cast<uint8_t>(PropertyAttribute::AccessorOrCustomAccessorOrValue)));
     setHasReadOnlyOrGetterSetterPropertiesExcludingProto(hasAnyKindOfGetterSetterProperties() || m_classInfo->hasStaticPropertyWithAnyOfAttributes(static_cast<uint8_t>(PropertyAttribute::ReadOnly)));
     setHasNonEnumerableProperties(hasStaticNonEnumerableProperty || typeInfo.overridesGetOwnPropertySlot());
+    setHasSpecialProperties(false);
     setHasNonConfigurableProperties(hasStaticNonConfigurableProperty || typeInfo.overridesGetOwnPropertySlot());
     setHasNonConfigurableReadOnlyOrGetterSetterProperties(hasStaticNonConfigurableProperty || (typeInfo.overridesGetOwnPropertySlot() && typeInfo.type() != ArrayType));
     setHasUnderscoreProtoPropertyExcludingOriginalProto(false);
@@ -304,6 +306,7 @@ Structure::Structure(VM& vm, StructureVariant variant, Structure* previous)
     setHasAnyKindOfGetterSetterProperties(previous->hasAnyKindOfGetterSetterProperties());
     setHasReadOnlyOrGetterSetterPropertiesExcludingProto(previous->hasReadOnlyOrGetterSetterPropertiesExcludingProto());
     setHasNonEnumerableProperties(previous->hasNonEnumerableProperties());
+    setHasSpecialProperties(previous->hasSpecialProperties());
     setHasNonConfigurableProperties(previous->hasNonConfigurableProperties());
     setHasNonConfigurableReadOnlyOrGetterSetterProperties(previous->hasNonConfigurableReadOnlyOrGetterSetterProperties());
     setHasUnderscoreProtoPropertyExcludingOriginalProto(previous->hasUnderscoreProtoPropertyExcludingOriginalProto());
@@ -1541,6 +1544,18 @@ bool ClassInfo::hasStaticPropertyWithAnyOfAttributes(uint8_t attributes) const
     for (const ClassInfo* ci = this; ci; ci = ci->parentClass) {
         if (const HashTable* table = ci->staticPropHashTable) {
             if (table->seenPropertyAttributes & attributes)
+                return true;
+        }
+    }
+    return false;
+}
+
+bool ClassInfo::hasStaticProperty(PropertyName propertyName) const
+{
+    for (const ClassInfo* ci = this; ci; ci = ci->parentClass) {
+        if (const HashTable* table = ci->staticPropHashTable) {
+            auto* entry = table->entry(propertyName);
+            if (entry)
                 return true;
         }
     }

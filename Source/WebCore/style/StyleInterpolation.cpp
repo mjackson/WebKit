@@ -77,8 +77,12 @@ static std::optional<CustomProperty::Value> interpolateSyntaxValues(const Render
         },
         [&](const Color& fromStyleColor) -> std::optional<CustomProperty::Value> {
             auto& toStyleColor = std::get<Color>(to);
-            if (!fromStyleColor.isCurrentColor() || !toStyleColor.isCurrentColor())
-                return blendFunc(fromStyle.colorResolvingCurrentColor(fromStyleColor), toStyle.colorResolvingCurrentColor(toStyleColor), context);
+            if (!fromStyleColor.isCurrentColor() || !toStyleColor.isCurrentColor()) {
+                ColorResolver fromColorResolver { fromStyle };
+                ColorResolver toColorResolver { toStyle };
+
+                return blendFunc(fromColorResolver.colorResolvingCurrentColor(fromStyleColor), toColorResolver.colorResolvingCurrentColor(toStyleColor), context);
+            }
             return { };
         },
         [&](const TransformFunction& fromTransform) -> std::optional<CustomProperty::Value> {

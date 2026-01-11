@@ -402,11 +402,11 @@ public:
     void addAudioTrack(Ref<AudioTrack>&&);
     void addTextTrack(Ref<TextTrack>&&);
     void addVideoTrack(Ref<VideoTrack>&&);
-    void removeAudioTrack(Ref<AudioTrack>&&);
+    void removeAudioTrack(AudioTrack&);
     void removeAudioTrack(TrackID);
     void removeTextTrack(TextTrack&, bool scheduleEvent = true);
     void removeTextTrack(TrackID, bool scheduleEvent = true);
-    void removeVideoTrack(Ref<VideoTrack>&&);
+    void removeVideoTrack(VideoTrack&);
     void removeVideoTrack(TrackID);
     void forgetResourceSpecificTracks();
     void closeCaptionTracksChanged();
@@ -423,7 +423,7 @@ public:
     void mediaPlayerDidRemoveVideoTrack(VideoTrackPrivate&) final;
     void mediaPlayerDidReportGPUMemoryFootprint(size_t) final;
 
-    Vector<RefPtr<PlatformTextTrack>> outOfBandTrackSources() final;
+    Vector<Ref<PlatformTextTrack>> outOfBandTrackSources() final;
 
     struct TrackGroup;
     void configureTextTrackGroupForLanguage(const TrackGroup&) const;
@@ -1361,7 +1361,7 @@ private:
     const RefPtr<AudioTrackList> m_audioTracks;
     const RefPtr<TextTrackList> m_textTracks;
     const RefPtr<VideoTrackList> m_videoTracks;
-    Vector<RefPtr<TextTrack>> m_textTracksWhenResourceSelectionBegan;
+    Vector<Ref<TextTrack>> m_textTracksWhenResourceSelectionBegan;
 
     struct CueData;
     std::unique_ptr<CueData> m_cueData;

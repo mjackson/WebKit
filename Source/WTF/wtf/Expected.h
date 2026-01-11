@@ -249,8 +249,10 @@ struct base {
     constexpr base(value_tag_t, value_type&& val) : s(WTF::InPlaceIndexT<0>(), std::forward<value_type>(val)) { }
     constexpr base(error_tag_t, const error_type& err) : s(WTF::InPlaceIndexT<1>(), err) { }
     constexpr base(error_tag_t, error_type&& err) : s(WTF::InPlaceIndexT<1>(), std::forward<error_type>(err)) { }
+#ifndef __swift__ // FIXME: (rdar://167557269) temporary until SWIFT_COPYABLE_IF is fully supported
     constexpr base(const base& o)
         : s(o.s) { }
+#endif
     constexpr base(base&& o)
         : s(std::forward<Variant<value_type, error_type>>(o.s)) { }
 };

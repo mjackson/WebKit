@@ -228,6 +228,7 @@ using ReplayRegisterAllocator = RegisterAllocator<ReplayBackend>;
     macro(OpToObject, m_operand, 0) \
     macro(OpToNumeric, m_operand, 0) \
     macro(OpBitnot, m_operand, 0) \
+    macro(OpResolveScope, m_scope, 1) \
     macro(OpGetFromScope, m_scope, 1)
 
 #define ALLOCATE_USE_DEFS_FOR_UNARY_OP(Struct, operand, scratchCount) \
@@ -270,6 +271,15 @@ FOR_EACH_BINARY_OP(ALLOCATE_USE_DEFS_FOR_BINARY_OP)
 
 #undef ALLOCATE_USE_DEFS_FOR_BINARY_OP
 #undef FOR_EACH_BINARY_OP
+
+template<typename Backend>
+auto RegisterAllocator<Backend>::allocate(Backend& jit, const OpPutToScope& instruction, BytecodeIndex index)
+{
+    std::array<VirtualRegister, 2> uses = { instruction.m_scope, instruction.m_value };
+    std::array<VirtualRegister, 0> defs = { };
+    return allocateImpl<1>(jit, instruction, index, uses, defs); // 1 scratch for metadata
+}
+
 
 } // namespace JSC
 

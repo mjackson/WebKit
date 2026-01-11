@@ -74,6 +74,8 @@ TrackBuffer::TrackBuffer(RefPtr<MediaDescription>&& description, const MediaTime
 
 MediaTime TrackBuffer::maximumBufferedTime() const
 {
+    if (!m_buffered.length())
+        return MediaTime::zeroTime();
     return m_buffered.maximumBufferedTime();
 }
 
@@ -375,13 +377,15 @@ PlatformTimeRanges TrackBuffer::removeSamples(const DecodeOrderSampleMap::MapTyp
     return erasedRanges;
 }
 
-WARN_UNUSED_RETURN static bool decodeTimeComparator(const PresentationOrderSampleMap::MapType::value_type& a, const PresentationOrderSampleMap::MapType::value_type& b)
+[[nodiscard]] static bool decodeTimeComparator(const PresentationOrderSampleMap::MapType::value_type& a, const PresentationOrderSampleMap::MapType::value_type& b)
 {
     return Ref { a.second }->decodeTime() < Ref { b.second }->decodeTime();
 };
 
 int64_t TrackBuffer::removeCodedFrames(const MediaTime& start, const MediaTime& end, const MediaTime& currentTime)
 {
+    ASSERT(start.isValid());
+    ASSERT(end.isValid());
     // 3.5.9 Coded Frame Removal Algorithm
     // https://dvcs.w3.org/hg/html-media/raw-file/tip/media-source/media-source.html#sourcebuffer-coded-frame-removal
     
@@ -417,7 +421,7 @@ int64_t TrackBuffer::removeCodedFrames(const MediaTime& start, const MediaTime& 
 
     auto removePresentationStart = m_samples.presentationOrder().findSampleContainingOrAfterPresentationTime(start);
     auto removePresentationEnd = m_samples.presentationOrder().findSampleStartingOnOrAfterPresentationTime(end);
-    if (removePresentationStart == removePresentationEnd)
+    if (removePresentationStart == m_samples.presentationOrder().end() || removePresentationStart == removePresentationEnd)
         return framesSizeBefore - samples().sizeInBytes(); // This could be negative if new frames were created above.
 
     // 3.3 Remove all media data, from this track buffer, that contain starting timestamps greater than or equal to
@@ -455,9 +459,11 @@ int64_t TrackBuffer::removeCodedFrames(const MediaTime& start, const MediaTime& 
 
 int64_t TrackBuffer::codedFramesIntervalSize(const MediaTime& start, const MediaTime& end)
 {
+    ASSERT(start.isValid());
+    ASSERT(end.isValid());
     auto removePresentationStart = m_samples.presentationOrder().findSampleContainingOrAfterPresentationTime(start);
     auto removePresentationEnd = m_samples.presentationOrder().findSampleStartingOnOrAfterPresentationTime(end);
-    if (removePresentationStart == removePresentationEnd)
+    if (removePresentationStart == m_samples.presentationOrder().end() || removePresentationStart == removePresentationEnd)
         return 0;
 
     auto divideSampleIfPossibleAtPresentationTime = [&] (const MediaTime& time, bool dropFirstPart) -> int64_t  {

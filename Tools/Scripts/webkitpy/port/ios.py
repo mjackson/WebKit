@@ -26,14 +26,14 @@ from webkitcorepy import Version
 
 from webkitpy.common.version_name_map import VersionNameMap, INTERNAL_TABLE
 from webkitpy.port.config import apple_additions
-from webkitpy.port.device_port import DevicePort
+from webkitpy.port.embedded_port import EmbeddedPort
 from webkitpy.port.simulator_process import SimulatorProcess
 from webkitpy.xcode.device_type import DeviceType
 
 _log = logging.getLogger(__name__)
 
 
-class IOSPort(DevicePort):
+class IOSPort(EmbeddedPort):
     port_name = "ios"
 
     DEVICE_TYPE = DeviceType(software_variant='iOS')

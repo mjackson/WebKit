@@ -253,11 +253,7 @@ void printInternal(PrintStream& out, MemoryDump value)
         return;
     }
     if (span.empty()) [[unlikely]] {
-        auto* invertedEnd = value.invertedEnd();
-        if (!invertedEnd)
-            out.printf("%08" PRIxPTR ": (span is empty)", reinterpret_cast<uintptr_t>(span.data()));
-        else
-            out.printf("%08" PRIxPTR ": (span end is below the start: %p)", reinterpret_cast<uintptr_t>(span.data()), invertedEnd);
+        out.printf("%08" PRIxPTR ": (span is empty)", reinterpret_cast<uintptr_t>(span.data()));
         return;
     }
 

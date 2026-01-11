@@ -49,7 +49,7 @@ public:
     }
 
     const PositionOptions& options() const { return m_options; }
-    void setFatalError(RefPtr<GeolocationPositionError>&&);
+    void setFatalError(Ref<GeolocationPositionError>&&);
 
     bool useCachedPosition() const { return m_useCachedPosition; }
     void setUseCachedPosition();
@@ -70,7 +70,7 @@ private:
     const RefPtr<PositionErrorCallback> m_errorCallback;
     PositionOptions m_options;
     Timer m_timer;
-    RefPtr<GeolocationPositionError> m_fatalError;
+    const RefPtr<GeolocationPositionError> m_fatalError;
     bool m_useCachedPosition;
 };
 

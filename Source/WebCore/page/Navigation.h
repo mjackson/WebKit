@@ -26,6 +26,7 @@
 #pragma once
 
 #include "EventTarget.h"
+#include "EventTargetInterfaces.h"
 #include "JSDOMPromiseDeferred.h"
 #include "LocalDOMWindowProperty.h"
 #include "NavigateEvent.h"
@@ -291,3 +292,5 @@ private:
 };
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(Navigation)

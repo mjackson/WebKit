@@ -52,9 +52,9 @@
 #include "RenderReplaced.h"
 #include "RenderSVGRoot.h"
 #include "RenderStyle+GettersInlines.h"
-#include "RenderStyle+InitialInlines.h"
 #include "RenderTable.h"
 #include "RenderView.h"
+#include "StyleComputedStyle+InitialInlines.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
 #include "WritingMode.h"
 #include <limits>
@@ -374,29 +374,16 @@ void RenderFlexibleBox::styleDidChange(Style::Difference diff, const RenderStyle
     if (!oldStyle || diff != Style::DifferenceResult::Layout)
         return;
 
-    auto oldStyleAlignItemsIsStretch = oldStyle->alignItems().resolve(selfAlignmentNormalBehavior()).position() == ItemPosition::Stretch;
+    auto oldAlignItems = oldStyle->alignItems().resolve().position();
+    auto newAlignItems = style().alignItems().resolve().position();
+    auto alignItemsStretchChanged = (oldAlignItems == ItemPosition::Normal || oldAlignItems == ItemPosition::Stretch) != (newAlignItems == ItemPosition::Normal || newAlignItems == ItemPosition::Stretch);
     for (auto& flexItem : childrenOfType<RenderBox>(*this)) {
         // Flex items that were previously stretching need to be relayed out so we
         // can compute new available cross axis space. This is only necessary for
         // stretching since other alignment values don't change the size of the
         // box.
-        if (oldStyleAlignItemsIsStretch) {
-            auto normalBehavior = selfAlignmentNormalBehavior();
-
-            auto previousAlignment = [&] {
-                if (!flexItem.style().alignSelf().isAuto())
-                    return flexItem.style().alignSelf().resolve(normalBehavior).position();
-                return oldStyle->alignItems().resolve(normalBehavior).position();
-            }();
-            auto newAlignment = [&] {
-                if (!flexItem.style().alignSelf().isAuto())
-                    return flexItem.style().alignSelf().resolve(normalBehavior).position();
-                return style().alignItems().resolve(normalBehavior).position();
-            }();
-
-            if (previousAlignment == ItemPosition::Stretch && previousAlignment != newAlignment)
-                flexItem.setChildNeedsLayout(MarkOnlyThis);
-        }
+        if (alignItemsStretchChanged && flexItem.style().alignSelf().isAuto())
+            flexItem.setChildNeedsLayout(MarkOnlyThis);
     }
 }
 
@@ -493,7 +480,8 @@ void RenderFlexibleBox::layoutBlock(RelayoutChildren relayoutChildren, LayoutUni
 
         repaintFlexItemsDuringLayoutIfMoved(oldFlexItemRects);
         // FIXME: css3/flexbox/repaint-rtl-column.html seems to repaint more overflow than it needs to.
-        computeOverflow(layoutOverflowLogicalBottom(*this));
+        computeOverflow(flippedContentBoxRect(), ComputeOverflowOptions::MarginsExtendContentArea);
+        // FIXME: Only the items at the edges should contribute to the content area. But this distinction only matters in some weird cases with extreme negative margins.
 
         updateDescendantTransformsAfterLayout();
     }
@@ -702,7 +690,7 @@ LayoutUnit RenderFlexibleBox::flexItemIntrinsicLogicalWidth(RenderBox& flexItem)
         OverridingSizesScope cleanOverridingWidthScope(flexItem, OverridingSizesScope::Axis::Inline);
         flexItem.computeLogicalWidth(values);
     }
-    return values.m_extent;
+    return values.extent;
 }
 
 LayoutUnit RenderFlexibleBox::crossAxisIntrinsicExtentForFlexItem(RenderBox& flexItem)
@@ -743,9 +731,9 @@ LayoutUnit RenderFlexibleBox::mainAxisContentExtent(LayoutUnit contentLogicalHei
     LayoutUnit borderPaddingAndScrollbar = borderAndPaddingLogicalHeight() + scrollbarLogicalHeight();
     LayoutUnit borderBoxLogicalHeight = contentLogicalHeight + borderPaddingAndScrollbar;
     auto computedValues = computeLogicalHeight(borderBoxLogicalHeight, logicalTop());
-    if (computedValues.m_extent == LayoutUnit::max())
-        return computedValues.m_extent;
-    return std::max(0_lu, computedValues.m_extent - borderPaddingAndScrollbar);
+    if (computedValues.extent == LayoutUnit::max())
+        return computedValues.extent;
+    return std::max(0_lu, computedValues.extent - borderPaddingAndScrollbar);
 }
 
 // FIXME: consider adding this check to RenderBox::hasIntrinsicAspectRatio(). We could even make it
@@ -1824,7 +1812,7 @@ bool RenderFlexibleBox::canUseFlexItemForPercentageResolution(const RenderBox& f
         if (mainAxisIsFlexItemInlineAxis(flexItem))
             return alignmentForFlexItem(flexItem) == ItemPosition::Stretch;
 
-        if (flexItem.style().flexGrow() == RenderStyle::initialFlexGrow() && flexItem.style().flexShrink().isZero() && flexItemMainSizeIsDefinite(flexItem, flexBasisForFlexItem(flexItem)))
+        if (flexItem.style().flexGrow() == Style::ComputedStyle::initialFlexGrow() && flexItem.style().flexShrink().isZero() && flexItemMainSizeIsDefinite(flexItem, flexBasisForFlexItem(flexItem)))
             return true;
 
         return canComputePercentageFlexBasis(flexItem, Style::PreferredSize { 0_css_percentage }, UpdatePercentageHeightDescendants::Yes);
@@ -2209,20 +2197,14 @@ void RenderFlexibleBox::prepareFlexItemForPositionedLayout(RenderBox& flexItem)
 
 inline OverflowAlignment RenderFlexibleBox::overflowAlignmentForFlexItem(const RenderBox& flexItem) const
 {
-    auto normalBehavior = selfAlignmentNormalBehavior();
-    if (!flexItem.style().alignSelf().isAuto())
-        return flexItem.style().alignSelf().resolve(normalBehavior).overflow();
-    return style().alignItems().resolve(normalBehavior).overflow();
+    return flexItem.style().alignSelf().resolve(&style()).overflow();
 }
 
 ItemPosition RenderFlexibleBox::alignmentForFlexItem(const RenderBox& flexItem) const
 {
-    auto align = [&] {
-        auto normalBehavior = selfAlignmentNormalBehavior();
-        if (!flexItem.style().alignSelf().isAuto())
-            return flexItem.style().alignSelf().resolve(normalBehavior).position();
-        return style().alignItems().resolve(normalBehavior).position();
-    }();
+    auto align = flexItem.style().alignSelf().resolve(&style()).position();
+    if (align == ItemPosition::Normal)
+        align = ItemPosition::Stretch;
 
     ASSERT(align != ItemPosition::Auto && align != ItemPosition::Normal);
     // Left and Right are only for justify-*.
@@ -2271,6 +2253,23 @@ void RenderFlexibleBox::resetAutoMarginsAndLogicalTopInCrossAxis(RenderBox& flex
                 flexItem.setMarginRight(0_lu);
         }
     }
+}
+
+bool RenderFlexibleBox::willStretchItem(const RenderBox& item, LogicalBoxAxis containingAxis, StretchingMode mode) const
+{
+    auto physicalAxis = mapAxisLogicalToPhysical(writingMode(), containingAxis);
+    if (isHorizontalFlow() == (BoxAxis::Horizontal == physicalAxis))
+        return false;
+
+    auto& itemStyle = item.style();
+
+    if (!itemStyle.alignSelf().resolve(&style()).isStretchy(mode == StretchingMode::Explicit ? ItemPosition::Normal : ItemPosition::Stretch))
+        return false;
+
+    bool isItemBlockAxis = (LogicalBoxAxis::Block == containingAxis) == !writingMode().isOrthogonal(itemStyle.writingMode());
+    return isItemBlockAxis
+        ? itemStyle.logicalHeight().isAuto() && !itemStyle.marginBefore().isAuto() && !itemStyle.marginAfter().isAuto()
+        : itemStyle.logicalWidth().isAuto() && !itemStyle.marginStart().isAuto() && !itemStyle.marginEnd().isAuto();
 }
 
 bool RenderFlexibleBox::needToStretchFlexItemLogicalHeight(const RenderBox& flexItem) const

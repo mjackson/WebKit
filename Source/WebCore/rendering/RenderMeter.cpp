@@ -66,11 +66,11 @@ RenderBox::LogicalExtentComputedValues RenderMeter::computeLogicalHeight(LayoutU
     auto computedValues = RenderBox::computeLogicalHeight(logicalHeight, logicalTop);
     LayoutRect frame = frameRect();
     if (isHorizontalWritingMode())
-        frame.setHeight(computedValues.m_extent);
+        frame.setHeight(computedValues.extent);
     else
-        frame.setWidth(computedValues.m_extent);
+        frame.setWidth(computedValues.extent);
     auto frameSize = theme().meterSizeForBounds(*this, snappedIntRect(frame));
-    computedValues.m_extent = isHorizontalWritingMode() ? frameSize.height() : frameSize.width();
+    computedValues.extent = isHorizontalWritingMode() ? frameSize.height() : frameSize.width();
     return computedValues;
 }
 

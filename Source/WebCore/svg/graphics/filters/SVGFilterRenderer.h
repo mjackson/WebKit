@@ -39,7 +39,7 @@ class SVGFilterElement;
 class SVGFilterRenderer final : public Filter {
 public:
     static RefPtr<SVGFilterRenderer> create(SVGElement* contextElement, SVGFilterElement&, const FilterGeometry&, OptionSet<FilterRenderingMode>, const GraphicsContext& destinationContext, std::optional<RenderingResourceIdentifier> = std::nullopt);
-    WEBCORE_EXPORT static Ref<SVGFilterRenderer> create(SVGUnitTypes::SVGUnitType primitiveUnits, SVGFilterExpression&&, FilterEffectVector&&, const FilterGeometry&, OptionSet<FilterRenderingMode>, std::optional<RenderingResourceIdentifier>);
+    WEBCORE_EXPORT static Ref<SVGFilterRenderer> create(SVGUnitTypes::SVGUnitType primitiveUnits, SVGFilterExpression&&, FilterEffectVector&&, const FilterGeometry&, OptionSet<FilterRenderingMode>, bool showDebugOverlay, std::optional<RenderingResourceIdentifier>);
 
     static bool isIdentity(SVGFilterElement&);
     static IntOutsets calculateOutsets(SVGFilterElement&, const FloatRect& targetBoundingBox);

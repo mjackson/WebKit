@@ -11,6 +11,39 @@
 namespace WebCore {
 namespace Style {
 
+inline Style::Color ComputedStyleProperties::initialTestColor()
+{
+    return CSS::Keyword::CurrentColor { };
+}
+
+inline Style::Color ComputedStyleProperties::initialTestColorAllowsTypesAbsolute()
+{
+    return CSS::Keyword::CurrentColor { };
+}
+
+inline Style::Color ComputedStyleProperties::initialTestColorPropertyWithVisitedLinkSupport()
+{
+    return CSS::Keyword::CurrentColor { };
+}
+
+inline Style::Number<> ComputedStyleProperties::initialTestRenderStyleHasExplicitlySetPolicyAllAuthorOrigin()
+{
+    using namespace CSS::Literals;
+    return 0_css_number;
+}
+
+inline Style::Number<> ComputedStyleProperties::initialTestRenderStyleHasExplicitlySetPolicyAllBorderRadius()
+{
+    using namespace CSS::Literals;
+    return 0_css_number;
+}
+
+inline Style::Number<> ComputedStyleProperties::initialTestRenderStyleHasExplicitlySetPolicyValueOnly()
+{
+    using namespace CSS::Literals;
+    return 0_css_number;
+}
+
 constexpr Style::TestEnumeration ComputedStyleProperties::initialTestRenderStyleStorageOneLevelEnum()
 {
     return Style::TestEnumeration::Foo;
@@ -50,6 +83,18 @@ inline Style::Number<> ComputedStyleProperties::initialTestRenderStyleStorageTwo
 }
 
 inline Style::Number<> ComputedStyleProperties::initialTestRenderStyleStorageTwoLevelValue()
+{
+    using namespace CSS::Literals;
+    return 0_css_number;
+}
+
+inline Style::Number<> ComputedStyleProperties::initialTestLogicalPropertyGroupPhysicalHorizontal()
+{
+    using namespace CSS::Literals;
+    return 0_css_number;
+}
+
+inline Style::Number<> ComputedStyleProperties::initialTestLogicalPropertyGroupPhysicalVertical()
 {
     using namespace CSS::Literals;
     return 0_css_number;

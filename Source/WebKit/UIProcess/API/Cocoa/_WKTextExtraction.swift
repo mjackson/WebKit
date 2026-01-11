@@ -355,6 +355,37 @@ extension WKTextExtractionLink {
 }
 
 @_objcImplementation
+extension WKTextExtractionIFrameItem {
+    let origin: String
+
+    init(
+        origin: String,
+        rectInWebView: CGRect,
+        children: [WKTextExtractionItem],
+        eventListeners: WKTextExtractionEventListenerTypes,
+        ariaAttributes: [String: String],
+        accessibilityRole: String,
+        nodeIdentifier: String?
+    ) {
+        self.origin = origin
+        super
+            .init(
+                with: rectInWebView,
+                children: children,
+                eventListeners: eventListeners,
+                ariaAttributes: ariaAttributes,
+                accessibilityRole: accessibilityRole,
+                nodeIdentifier: nodeIdentifier
+            )
+    }
+
+    #if compiler(<6.0)
+    @objc
+    deinit {}
+    #endif
+}
+
+@_objcImplementation
 extension WKTextExtractionTextItem {
     var content: String
     var selectedRange: NSRange

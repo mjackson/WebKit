@@ -242,10 +242,11 @@ void InlineBoxPainter::paintDecorations()
     if (!BackgroundPainter::boxShadowShouldBeAppliedToBackground(renderer(), adjustedPaintoffset, BleedAvoidance::None, m_inlineBox))
         paintBoxShadow(Style::ShadowStyle::Normal, paintRect);
 
-    auto color = style.visitedDependentColor(CSSPropertyBackgroundColor, m_paintInfo.paintBehavior);
+    auto color = style.visitedDependentBackgroundColor(m_paintInfo.paintBehavior);
     auto compositeOp = renderer().document().compositeOperatorForBackgroundColor(color, renderer());
 
-    color = style.colorByApplyingColorFilter(color);
+    Style::ColorResolver colorResolver { style };
+    color = colorResolver.colorApplyingColorFilter(color);
 
     paintFillLayers(color, style.backgroundLayers(), paintRect, compositeOp);
     paintBoxShadow(Style::ShadowStyle::Inset, paintRect);

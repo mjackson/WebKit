@@ -69,6 +69,8 @@ public:
 
     void dispatchMessageFromFrontend(const String&);
 
+    InstrumentingAgents& instrumentingAgents() const { return m_instrumentingAgents.get(); }
+
     // InspectorEnvironment
     bool developerExtrasEnabled() const override { return true; }
     bool canAccessInspectedScriptState(JSC::JSGlobalObject*) const override { return true; }

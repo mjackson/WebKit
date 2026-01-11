@@ -69,13 +69,13 @@ static String recordFilePathWithDirectory(const String& directory, const Network
 }
 
 struct RecordMetaData {
-    RecordMetaData() { }
+    RecordMetaData() = default;
     explicit RecordMetaData(const NetworkCache::Key& key)
         : cacheStorageVersion(currentVersion)
         , key(key)
     { }
 
-    unsigned cacheStorageVersion;
+    unsigned cacheStorageVersion { 0 };
     NetworkCache::Key key;
     WallTime timeStamp;
     SHA1::Digest headerHash;

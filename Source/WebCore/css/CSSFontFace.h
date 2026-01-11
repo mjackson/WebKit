@@ -138,7 +138,7 @@ public:
     // We don't guarantee that the FontFace wrapper will be the same every time you ask for it.
     Ref<FontFace> wrapper(ScriptExecutionContext*);
     void setWrapper(FontFace&);
-    FontFace* existingWrapper();
+    FontFace* existingWrapper() const;
 
     struct FontLoadTiming {
         Seconds blockPeriod;

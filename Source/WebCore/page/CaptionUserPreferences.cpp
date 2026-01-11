@@ -112,16 +112,16 @@ void CaptionUserPreferences::setCaptionDisplayMode(CaptionUserPreferences::Capti
     notify();
 }
 
-Page* CaptionUserPreferences::currentPage() const
+RefPtr<Page> CaptionUserPreferences::currentPage() const
 {
-    for (auto& page : m_pageGroup->pages())
-        return &page;
+    for (Ref page : m_pageGroup->pages())
+        return page;
     return nullptr;
 }
 
 bool CaptionUserPreferences::userPrefersCaptions() const
 {
-    auto* page = currentPage();
+    RefPtr page = currentPage();
     if (!page)
         return false;
 
@@ -211,37 +211,37 @@ Vector<String> CaptionUserPreferences::preferredAudioCharacteristics() const
     return characteristics;
 }
 
-static String trackDisplayName(TextTrack* track)
+static String trackDisplayName(const TextTrack& track)
 {
-    if (track == &TextTrack::captionMenuOffItem())
+    if (&track == &TextTrack::captionMenuOffItemSingleton())
         return textTrackOffMenuItemText();
-    if (track == &TextTrack::captionMenuOnItem())
+    if (&track == &TextTrack::captionMenuOnItemSingleton())
         return textTrackOnMenuItemText();
-    if (track == &TextTrack::captionMenuAutomaticItem())
+    if (&track == &TextTrack::captionMenuAutomaticItemSingleton())
         return textTrackAutomaticMenuItemText();
 
-    if (auto label = track->label().string().trim(isASCIIWhitespace); !label.isEmpty())
-        return track->label();
-    if (auto languageIdentifier = track->validBCP47Language(); !languageIdentifier.isEmpty())
+    if (auto label = track.label().string().trim(isASCIIWhitespace); !label.isEmpty())
+        return track.label();
+    if (auto languageIdentifier = track.validBCP47Language(); !languageIdentifier.isEmpty())
         return languageIdentifier;
     return trackNoLabelText();
 }
 
-String CaptionUserPreferences::displayNameForTrack(TextTrack* track) const
+String CaptionUserPreferences::displayNameForTrack(const TextTrack& track) const
 {
     return trackDisplayName(track);
 }
 
-MediaSelectionOption CaptionUserPreferences::mediaSelectionOptionForTrack(TextTrack* track) const
+MediaSelectionOption CaptionUserPreferences::mediaSelectionOptionForTrack(const TextTrack& track) const
 {
     auto legibleType = MediaSelectionOption::LegibleType::Regular;
-    if (track == &TextTrack::captionMenuOffItem())
+    if (&track == &TextTrack::captionMenuOffItemSingleton())
         legibleType = MediaSelectionOption::LegibleType::LegibleOff;
-    else if (track == &TextTrack::captionMenuAutomaticItem())
+    else if (&track == &TextTrack::captionMenuAutomaticItemSingleton())
         legibleType = MediaSelectionOption::LegibleType::LegibleAuto;
 
     auto mediaType = MediaSelectionOption::MediaType::Unknown;
-    switch (track->kind()) {
+    switch (track.kind()) {
     case TextTrack::Kind::Forced:
     case TextTrack::Kind::Descriptions:
     case TextTrack::Kind::Subtitles:
@@ -261,16 +261,16 @@ MediaSelectionOption CaptionUserPreferences::mediaSelectionOptionForTrack(TextTr
     return { mediaType, displayNameForTrack(track), legibleType };
 }
     
-Vector<RefPtr<TextTrack>> CaptionUserPreferences::sortedTrackListForMenu(TextTrackList* trackList, HashSet<TextTrack::Kind> kinds)
+Vector<Ref<TextTrack>> CaptionUserPreferences::sortedTrackListForMenu(TextTrackList* trackList, HashSet<TextTrack::Kind> kinds)
 {
     ASSERT(trackList);
 
-    Vector<RefPtr<TextTrack>> tracksForMenu;
+    Vector<Ref<TextTrack>> tracksForMenu;
 
     for (unsigned i = 0, length = trackList->length(); i < length; ++i) {
-        TextTrack* track = trackList->item(i);
+        Ref track = *trackList->item(i);
         if (kinds.contains(track->kind()))
-            tracksForMenu.append(track);
+            tracksForMenu.append(WTF::move(track));
     }
 
     Collator collator;
@@ -280,42 +280,40 @@ Vector<RefPtr<TextTrack>> CaptionUserPreferences::sortedTrackListForMenu(TextTra
     });
 
     if (kinds.contains(TextTrack::Kind::Subtitles) || kinds.contains(TextTrack::Kind::Captions) || kinds.contains(TextTrack::Kind::Descriptions)) {
-        tracksForMenu.insert(0, &TextTrack::captionMenuOffItem());
-        tracksForMenu.insert(1, &TextTrack::captionMenuAutomaticItem());
+        tracksForMenu.insert(0, TextTrack::captionMenuOffItemSingleton());
+        tracksForMenu.insert(1, TextTrack::captionMenuAutomaticItemSingleton());
     }
 
     return tracksForMenu;
 }
 
-static String trackDisplayName(AudioTrack* track)
+static String trackDisplayName(const AudioTrack& track)
 {
-    if (auto label = track->label().string().trim(isASCIIWhitespace); !label.isEmpty())
-        return track->label();
-    if (auto languageIdentifier = track->validBCP47Language(); !languageIdentifier.isEmpty())
+    if (auto label = track.label().string().trim(isASCIIWhitespace); !label.isEmpty())
+        return track.label();
+    if (auto languageIdentifier = track.validBCP47Language(); !languageIdentifier.isEmpty())
         return languageIdentifier;
     return trackNoLabelText();
 }
 
-String CaptionUserPreferences::displayNameForTrack(AudioTrack* track) const
+String CaptionUserPreferences::displayNameForTrack(const AudioTrack& track) const
 {
     return trackDisplayName(track);
 }
 
-MediaSelectionOption CaptionUserPreferences::mediaSelectionOptionForTrack(AudioTrack* track) const
+MediaSelectionOption CaptionUserPreferences::mediaSelectionOptionForTrack(const AudioTrack& track) const
 {
     return { MediaSelectionOption::MediaType::Audio, displayNameForTrack(track), MediaSelectionOption::LegibleType::Regular };
 }
 
-Vector<RefPtr<AudioTrack>> CaptionUserPreferences::sortedTrackListForMenu(AudioTrackList* trackList)
+Vector<Ref<AudioTrack>> CaptionUserPreferences::sortedTrackListForMenu(AudioTrackList* trackList)
 {
     ASSERT(trackList);
 
-    Vector<RefPtr<AudioTrack>> tracksForMenu;
+    Vector<Ref<AudioTrack>> tracksForMenu;
 
-    for (unsigned i = 0, length = trackList->length(); i < length; ++i) {
-        AudioTrack* track = trackList->item(i);
-        tracksForMenu.append(track);
-    }
+    for (unsigned i = 0, length = trackList->length(); i < length; ++i)
+        tracksForMenu.append(Ref { trackList->item(i) });
 
     Collator collator;
 
@@ -328,8 +326,8 @@ Vector<RefPtr<AudioTrack>> CaptionUserPreferences::sortedTrackListForMenu(AudioT
 
 int CaptionUserPreferences::textTrackSelectionScore(TextTrack& track, HTMLMediaElement& mediaElement) const
 {
-    auto* firstEnabledAudioTrack = mediaElement.audioTracks() ? mediaElement.audioTracks()->firstEnabled() : nullptr;
-    return textTrackSelectionScore(track, captionDisplayMode(), firstEnabledAudioTrack);
+    RefPtr firstEnabledAudioTrack = mediaElement.audioTracks() ? mediaElement.audioTracks()->firstEnabled() : nullptr;
+    return textTrackSelectionScore(track, captionDisplayMode(), firstEnabledAudioTrack.get());
 }
 
 int CaptionUserPreferences::textTrackSelectionScore(TextTrack& track, CaptionDisplayMode displayMode, AudioTrack* enabledAudioTrack) const
@@ -467,7 +465,7 @@ String CaptionUserPreferences::captionPreviewTitle() const
     if (testingMode())
         return "This is a preview"_s;
 
-    return WEB_UI_STRING_KEY("This is a preview style", "This is a preview style (Caption User Preferences)", "Caption Style Preview String");
+    return captionStylePreview();
 }
 
 PageGroup& CaptionUserPreferences::pageGroup() const

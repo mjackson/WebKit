@@ -333,6 +333,8 @@ Expected<typename Parser<LexerType>::ParseInnerResult, String> Parser<LexerType>
         features |= ImportMetaFeature;
     if (m_seenArgumentsDotLength && scope->hasDeclaredGlobalArguments())
         features |= ArgumentsFeature;
+    if (scope->asyncFunctionBodyDoesNotUseAwait())
+        features |= AsyncFunctionWithoutAwaitFeature;
 
 #if ASSERT_ENABLED
 #ifndef BUN_SKIP_FAILING_ASSERTIONS
@@ -568,7 +570,6 @@ template <typename LexerType>
 template <class TreeBuilder> TreeSourceElements Parser<LexerType>::parseAsyncFunctionSourceElements(TreeBuilder& context, const Identifier& calleeName, bool isArrowFunctionBodyExpression, SourceElementsMode mode)
 {
     ASSERT(isAsyncFunctionOrAsyncGeneratorWrapperParseMode(sourceParseMode()));
-    auto sourceElements = context.createSourceElements();
 
     unsigned functionStart = tokenStart();
     JSTokenLocation startLocation(tokenLocation());
@@ -576,15 +577,13 @@ template <class TreeBuilder> TreeSourceElements Parser<LexerType>::parseAsyncFun
     unsigned startColumn = tokenColumn();
     int functionNameStart = m_token.m_startPosition.offset;
     int parametersStart = functionNameStart;
+    int startLine = tokenLine();
 
-    ParserFunctionInfo<TreeBuilder> info;
-    info.name = &m_vm.propertyNames->nullIdentifier;
-    createGeneratorParameters(context, info.parameterCount);
-    info.startOffset = parametersStart;
-    info.startLine = tokenLine();
+    SourceParseMode bodyParseMode = getAsyncFunctionBodyParseMode(sourceParseMode());
+    SetForScope innerParseMode(m_parseMode, bodyParseMode);
 
-    SourceParseMode parseMode = getAsyncFunctionBodyParseMode(sourceParseMode());
-    SetForScope innerParseMode(m_parseMode, parseMode);
+    bool bodyUsesAwait = false;
+    SavePoint bodySavePoint = createSavePoint(context);
     {
         AutoPopScopeRef asyncFunctionBodyScope(this, pushScope());
 
@@ -603,9 +602,47 @@ template <class TreeBuilder> TreeSourceElements Parser<LexerType>::parseAsyncFun
             else
                 failIfFalse(parseSourceElements(syntaxChecker, mode), "Cannot parse the body of async function");
         }
-        popScope(asyncFunctionBodyScope, TreeBuilder::NeedsFreeVariableInfo);
+        bodyUsesAwait = asyncFunctionBodyScope->usesAwait();
+
+        // When body doesn't use await, we'll inline it directly in the wrapper.
+        // In this case, there's no body function, so we don't need to track closed variables
+        // (which would unnecessarily mark parameters as captured).
+        popScope(asyncFunctionBodyScope, bodyUsesAwait ? TreeBuilder::NeedsFreeVariableInfo : false);
     }
-    info.body = context.createFunctionMetadata(startLocation, tokenLocation(), startColumn, tokenColumn(), functionStart, functionNameStart, parametersStart, implementationVisibility(), lexicallyScopedFeatures(), ConstructorKind::None, m_superBinding, info.parameterCount, sourceParseMode(), isArrowFunctionBodyExpression);
+
+    // If the body doesn't use await, we can inline it directly into the wrapper.
+    // without creating a separate body function or generator infrastructure.
+    // For example,
+    //
+    //     async function test(a, b) {
+    //         return 42;
+    //     }
+    //
+    if (!bodyUsesAwait) {
+        // Re-parse with ASTBuilder to get the actual body AST.
+        // Parse directly in the wrapper's scope (not a separate body scope) so that
+        // lexical variables (let, const) are registered in the wrapper's scope.
+        restoreSavePoint(context, bodySavePoint);
+        currentFunctionScope()->setAsyncFunctionBodyDoesNotUseAwait();
+        if (isArrowFunctionBodyExpression)
+            return parseArrowFunctionSingleExpressionBodySourceElements(context);
+        return parseSourceElements(context, mode);
+    }
+
+    // Full async function path (has await) - create body function with generator parameters.
+    auto sourceElements = context.createSourceElements();
+
+    ParserFunctionInfo<TreeBuilder> info;
+    info.name = &m_vm.propertyNames->nullIdentifier;
+    createGeneratorParameters(context, info.parameterCount);
+    info.startOffset = parametersStart;
+    info.startLine = startLine;
+
+    ImplementationVisibility implementationVisibility = this->implementationVisibility();
+    if (implementationVisibility == ImplementationVisibility::Private)
+        implementationVisibility = ImplementationVisibility::Public;
+
+    info.body = context.createFunctionMetadata(startLocation, tokenLocation(), startColumn, tokenColumn(), functionStart, functionNameStart, parametersStart, implementationVisibility, lexicallyScopedFeatures(), ConstructorKind::None, m_superBinding, info.parameterCount, sourceParseMode(), isArrowFunctionBodyExpression);
 
     if (!calleeName.isEmpty() && !calleeName.isSymbol())
         info.body->setEcmaName(calleeName);
@@ -613,7 +650,7 @@ template <class TreeBuilder> TreeSourceElements Parser<LexerType>::parseAsyncFun
     info.endOffset = isArrowFunctionBodyExpression ? tokenLocation().endOffset : m_token.m_data.offset;
     info.parametersStartColumn = startColumn;
 
-    auto functionExpr = context.createAsyncFunctionBody(startLocation, info, parseMode, calleeName);
+    auto functionExpr = context.createAsyncFunctionBody(startLocation, info, bodyParseMode, calleeName);
     auto statement = context.createExprStatement(startLocation, functionExpr, start, m_lastTokenEndPosition.line);
     context.appendStatement(sourceElements, statement);
 
@@ -1399,6 +1436,7 @@ template <class TreeBuilder> TreeStatement Parser<LexerType>::parseForStatement(
     if (match(AWAIT)) {
         semanticFailIfFalse(currentScope()->isAsyncFunction() || isModuleParseMode(sourceParseMode()), "for-await-of can only be used in an async function or async generator");
         isAwaitFor = true;
+        currentFunctionScope()->setUsesAwait();
         next();
     }
 
@@ -1873,6 +1911,9 @@ template <class TreeBuilder> TreeStatement Parser<LexerType>::parseTryStatement(
             matchOrFail(OPENBRACE, "Expected exception handler to be a block statement");
             catchBlock = parseBlockStatement(context, BlockType::CatchBlock);
             failIfFalse(catchBlock, "Unable to parse 'catch' block");
+            // Handle `try { } catch (/* never used */ error) { }`
+            if (ident && !catchScope->usedVariablesContains(ident->impl()) && !catchScope->usesEval() && !catchScope->hasVariableBeingHoisted(ident->impl()))
+                catchPattern = 0;
             std::tie(catchEnvironment, functionStack) = popScope(catchScope, TreeBuilder::NeedsFreeVariableInfo);
             ASSERT(functionStack.isEmpty());
             RELEASE_ASSERT(!ident || (catchEnvironment.size() == 1 && catchEnvironment.contains(ident->impl())));
@@ -2236,7 +2277,12 @@ template <class TreeBuilder> TreeFunctionBody Parser<LexerType>::parseFunctionBo
     }
     unsigned endColumn = tokenColumn();
     SuperBinding functionSuperBinding = adjustSuperBindingForBaseConstructor(constructorKind, superBinding, sourceParseMode(), currentScope());
-    return context.createFunctionMetadata(startLocation, tokenLocation(), startColumn, endColumn, functionStart, functionNameStart, parametersStart, implementationVisibility(), lexicallyScopedFeatures(), constructorKind, functionSuperBinding, parameterCount, sourceParseMode(), isArrowFunctionBodyExpression);
+    ImplementationVisibility implementationVisibility = this->implementationVisibility();
+    if (isAsyncFunctionWrapperParseMode(sourceParseMode()) && currentScope()->usesAwait()) {
+        implementationVisibility = std::max(ImplementationVisibility::Private, implementationVisibility);
+        currentScope()->setImplementationVisibility(implementationVisibility);
+    }
+    return context.createFunctionMetadata(startLocation, tokenLocation(), startColumn, endColumn, functionStart, functionNameStart, parametersStart, implementationVisibility, lexicallyScopedFeatures(), constructorKind, functionSuperBinding, parameterCount, sourceParseMode(), isArrowFunctionBodyExpression);
 }
 
 static const char* stringArticleForFunctionMode(SourceParseMode mode)
@@ -2483,13 +2529,9 @@ template <class TreeBuilder> bool Parser<LexerType>::parseFunctionInfo(TreeBuild
 
             SuperBinding functionSuperBinding = adjustSuperBindingForBaseConstructor(constructorKind, expectedSuperBinding, mode, cachedInfo->needsSuperBinding, cachedInfo->usesEval, cachedInfo->innerArrowFunctionFeatures);
 
-            // Grab this from the current `Scope` instead of saving it to `SourceProviderCacheItem`
-            // since it's trivial to compute each time.
-            auto implementationVisibility = this->implementationVisibility();
-
             functionInfo.body = context.createFunctionMetadata(
                 startLocation, endLocation, startColumn, bodyEndColumn, functionStart,
-                functionNameStart, parametersStart, implementationVisibility,
+                functionNameStart, parametersStart, static_cast<ImplementationVisibility>(cachedInfo->implementationVisibility),
                 cachedInfo->lexicallyScopedFeatures(), constructorKind, functionSuperBinding,
                 cachedInfo->parameterCount,
                 mode, functionBodyType == ArrowFunctionBodyExpression);
@@ -2666,6 +2708,7 @@ template <class TreeBuilder> bool Parser<LexerType>::parseFunctionInfo(TreeBuild
         return parseFunctionBody(context, syntaxChecker, startLocation, startColumn, functionStart, functionNameStart, parametersStart, constructorKind, expectedSuperBinding, functionBodyType, functionInfo.parameterCount);
     };
 
+    ImplementationVisibility implementationVisibility = this->implementationVisibility();
     if (isGeneratorOrAsyncFunctionWrapperParseMode(mode)) {
         AutoPopScopeRef generatorBodyScope(this, pushScope());
         SourceParseMode innerParseMode = isAsyncFunctionOrAsyncGeneratorWrapperParseMode(mode) ? getAsyncFunctionBodyParseMode(mode) : SourceParseMode::GeneratorBodyMode;
@@ -2687,6 +2730,7 @@ template <class TreeBuilder> bool Parser<LexerType>::parseFunctionInfo(TreeBuild
         if  (generatorBodyScope->strictMode())
             functionScope->setStrictMode();
 
+        implementationVisibility = generatorBodyScope->implementationVisibility();
         popScope(generatorBodyScope, TreeBuilder::NeedsFreeVariableInfo);
     } else
         functionInfo.body = performParsingFunctionBody();
@@ -2730,6 +2774,7 @@ template <class TreeBuilder> bool Parser<LexerType>::parseFunctionInfo(TreeBuild
         parameters.parameterCount = functionInfo.parameterCount;
         parameters.constructorKind = constructorKind;
         parameters.expectedSuperBinding = expectedSuperBinding;
+        parameters.implementationVisibility = implementationVisibility;
         if (functionBodyType == ArrowFunctionBodyExpression) {
             parameters.isBodyArrowExpression = true;
             parameters.tokenType = m_token.m_type;
@@ -4319,6 +4364,7 @@ template <class TreeBuilder> TreeExpression Parser<LexerType>::parseAwaitExpress
     JSTextPosition argumentStart = tokenStartPosition();
     TreeExpression argument = parseUnaryExpression(context);
     failIfFalse(argument, "Failed to parse await expression");
+    currentFunctionScope()->setUsesAwait();
     return context.createAwait(location, argument, divotStart, argumentStart, lastTokenEndPosition());
 }
 

@@ -862,6 +862,8 @@ void RemoteLayerTreeDrawingAreaProxy::waitForDidUpdateActivityState(ActivityStat
 
 void RemoteLayerTreeDrawingAreaProxy::hideContentUntilPendingUpdate()
 {
+    if (!m_remoteLayerTreeHost)
+        return;
     RELEASE_LOG(RemoteLayerTree, "RemoteLayerTreeDrawingAreaProxy(%" PRIu64 ")::hideContentUntilPendingUpdate", identifier().toUInt64());
     m_replyForUnhidingContent = webProcessProxy().sendWithAsyncReply(Messages::DrawingArea::DispatchAfterEnsuringDrawing(), [] () { }, messageSenderDestinationID(), { }, WebProcessProxy::ShouldStartProcessThrottlerActivity::No);
     m_remoteLayerTreeHost->detachRootLayer();
@@ -870,6 +872,8 @@ void RemoteLayerTreeDrawingAreaProxy::hideContentUntilPendingUpdate()
 
 void RemoteLayerTreeDrawingAreaProxy::hideContentUntilAnyUpdate()
 {
+    if (!m_remoteLayerTreeHost)
+        return;
     RELEASE_LOG(RemoteLayerTree, "RemoteLayerTreeDrawingAreaProxy(%" PRIu64 ")::hideContentUntilAnyUpdate", identifier().toUInt64());
     m_remoteLayerTreeHost->detachRootLayer();
     m_hasDetachedRootLayer = true;

@@ -44,8 +44,8 @@ CSSToLengthConversionData::CSSToLengthConversionData(CSSToLengthConversionData&&
 
 CSSToLengthConversionData::CSSToLengthConversionData(const RenderStyle& style, Style::BuilderState& builderState)
     : m_style(&style)
-    , m_rootStyle(builderState.rootElementStyle())
-    , m_parentStyle(&builderState.parentStyle())
+    , m_rootStyle(builderState.rootElementRenderStyle())
+    , m_parentStyle(&builderState.parentRenderStyle())
     , m_renderView(builderState.document().renderView())
     , m_elementForContainerUnitResolution(builderState.element())
     , m_styleBuilderState(&builderState)

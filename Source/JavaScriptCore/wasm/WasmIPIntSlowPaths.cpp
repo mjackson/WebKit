@@ -44,6 +44,8 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include "WasmCallee.h"
 #include "WasmCallingConvention.h"
 #include "WasmDebugServer.h"
+#include "WasmDebugServerUtilities.h"
+#include "WasmExecutionHandler.h"
 #include "WasmIPIntGenerator.h"
 #include "WasmModuleInformation.h"
 #include "WasmOSREntryPlan.h"
@@ -70,16 +72,22 @@ namespace JSC { namespace IPInt {
 
 // Sets a breakpoint at the callee entry when stepping into a call.
 // Should Call this before WASM_CALL_RETURN in prepare_call* functions.
-#define IPINT_HANDLE_STEP_INTO_CALL(vmValue, boxedCalleeValue, targetInstanceValue) do { \
-        if (Options::enableWasmDebugger()) [[unlikely]] \
-            Wasm::DebugServer::singleton().setStepIntoBreakpointForCall((vmValue), (boxedCalleeValue), (targetInstanceValue)); \
+#define IPINT_HANDLE_STEP_INTO_CALL(callerVM, boxedCallee, calleeInstance) do { \
+        if (Options::enableWasmDebugger()) [[unlikely]] { \
+            Wasm::DebugServer& debugServer = Wasm::DebugServer::singleton(); \
+            if (debugServer.isConnected()) \
+                debugServer.execution().setStepIntoBreakpointForCall((callerVM), (boxedCallee), (calleeInstance)); \
+        } \
     } while (false)
 
 // Sets a breakpoint at the exception handler when stepping into a throw.
 // Should Call this after genericUnwind() in throw/rethrow/throw_ref functions.
-#define IPINT_HANDLE_STEP_INTO_THROW(vm, instance) do { \
-        if (Options::enableWasmDebugger()) [[unlikely]] \
-            Wasm::DebugServer::singleton().setStepIntoBreakpointForThrow((vm), (instance)); \
+#define IPINT_HANDLE_STEP_INTO_THROW(throwVM) do { \
+        if (Options::enableWasmDebugger()) [[unlikely]] { \
+            Wasm::DebugServer& debugServer = Wasm::DebugServer::singleton(); \
+            if (debugServer.isConnected()) \
+                debugServer.execution().setStepIntoBreakpointForThrow((throwVM)); \
+        } \
     } while (false)
 
 
@@ -441,7 +449,7 @@ WASM_IPINT_EXTERN_CPP_DECL(throw_exception, CallFrame* callFrame, IPIntStackEntr
     ASSERT(!!vm.callFrameForCatch);
     ASSERT(!!vm.targetMachinePCForThrow);
 
-    IPINT_HANDLE_STEP_INTO_THROW(vm, instance);
+    IPINT_HANDLE_STEP_INTO_THROW(vm);
     WASM_RETURN_TWO(vm.targetMachinePCForThrow, nullptr);
 }
 
@@ -467,7 +475,7 @@ WASM_IPINT_EXTERN_CPP_DECL(rethrow_exception, CallFrame* callFrame, IPIntStackEn
     ASSERT(!!vm.callFrameForCatch);
     ASSERT(!!vm.targetMachinePCForThrow);
 
-    IPINT_HANDLE_STEP_INTO_THROW(vm, instance);
+    IPINT_HANDLE_STEP_INTO_THROW(vm);
     WASM_RETURN_TWO(vm.targetMachinePCForThrow, nullptr);
 }
 
@@ -487,7 +495,7 @@ WASM_IPINT_EXTERN_CPP_DECL(throw_ref, CallFrame* callFrame, EncodedJSValue exnre
     ASSERT(!!vm.callFrameForCatch);
     ASSERT(!!vm.targetMachinePCForThrow);
 
-    IPINT_HANDLE_STEP_INTO_THROW(vm, instance);
+    IPINT_HANDLE_STEP_INTO_THROW(vm);
     WASM_RETURN_TWO(vm.targetMachinePCForThrow, nullptr);
 }
 
@@ -1171,6 +1179,10 @@ extern "C" UGPRPair SYSV_ABI slow_path_wasm_popcountll(const void* pc, uint64_t 
 WASM_IPINT_EXTERN_CPP_DECL(check_stack_and_vm_traps, void* candidateNewStackPointer, Wasm::IPIntCallee* callee)
 {
     VM& vm = instance->vm();
+
+    if (Options::enableWasmDebugger()) [[unlikely]]
+        vm.debugState()->setPrologueStopData(instance, callee);
+
     if (vm.traps().handleTrapsIfNeeded()) {
         if (vm.hasPendingTerminationException())
             IPINT_THROW(Wasm::ExceptionType::Termination);
@@ -1178,13 +1190,8 @@ WASM_IPINT_EXTERN_CPP_DECL(check_stack_and_vm_traps, void* candidateNewStackPoin
     }
 
     // Redo stack check because we may really have gotten here due to an imminent StackOverflow.
-    if (vm.softStackLimit() <= candidateNewStackPointer) {
-        if (Options::enableWasmDebugger()) [[unlikely]] {
-            if (vm.isWasmStopWorldActive())
-                Wasm::DebugServer::singleton().setInterruptBreakpoint(instance, callee);
-        }
+    if (vm.softStackLimit() <= candidateNewStackPointer)
         IPINT_RETURN(encodedJSValue()); // No stack overflow. Carry on.
-    }
 
     IPINT_THROW(Wasm::ExceptionType::StackOverflow);
 }
@@ -1232,7 +1239,7 @@ WASM_IPINT_EXTERN_CPP_DECL(unreachable_breakpoint_handler, CallFrame* callFrame,
             IPIntStackEntry* stackPointer = reinterpret_cast<IPIntStackEntry*>(sp + 4);
             if (Options::verboseWasmDebugger())
                 displayWasmDebugState(instance, callee, stackPointer, pl);
-            breakpointHandled = debugServer.stopCode(callFrame, instance, callee, pc, mc, pl, stackPointer);
+            breakpointHandled = debugServer.execution().hitBreakpoint(callFrame, instance, callee, pc, mc, pl, stackPointer);
         }
     }
     dataLogLnIf(Options::verboseWasmDebugger(), "[Code][unreachable] Done with breakpointHandled=", breakpointHandled);

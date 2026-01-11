@@ -1017,27 +1017,27 @@ void AsyncScrollingCoordinator::setNodeLayers(ScrollingNodeID nodeID, const Node
     if (!node)
         return;
 
-    node->setLayer(nodeLayers.layer);
+    node->setLayer(nodeLayers.layer.get());
 
     if (auto* scrollingNode = dynamicDowncast<ScrollingStateScrollingNode>(*node)) {
-        scrollingNode->setScrollContainerLayer(nodeLayers.scrollContainerLayer);
-        scrollingNode->setScrolledContentsLayer(nodeLayers.scrolledContentsLayer);
-        scrollingNode->setHorizontalScrollbarLayer(nodeLayers.horizontalScrollbarLayer);
-        scrollingNode->setVerticalScrollbarLayer(nodeLayers.verticalScrollbarLayer);
+        scrollingNode->setScrollContainerLayer(nodeLayers.scrollContainerLayer.get());
+        scrollingNode->setScrolledContentsLayer(nodeLayers.scrolledContentsLayer.get());
+        scrollingNode->setHorizontalScrollbarLayer(nodeLayers.horizontalScrollbarLayer.get());
+        scrollingNode->setVerticalScrollbarLayer(nodeLayers.verticalScrollbarLayer.get());
         if (RefPtr frameView = frameViewForScrollingNode(nodeID)) {
             if (CheckedPtr scrollableArea = frameView->scrollableAreaForScrollingNodeID(nodeID))
                 scrollingNode->setScrollbarLayoutDirection(scrollableArea->shouldPlaceVerticalScrollbarOnLeft() ? UserInterfaceLayoutDirection::RTL : UserInterfaceLayoutDirection::LTR);
         }
 
         if (auto* frameScrollingNode = dynamicDowncast<ScrollingStateFrameScrollingNode>(*scrollingNode)) {
-            frameScrollingNode->setInsetClipLayer(nodeLayers.insetClipLayer);
-            frameScrollingNode->setCounterScrollingLayer(nodeLayers.counterScrollingLayer);
-            frameScrollingNode->setRootContentsLayer(nodeLayers.rootContentsLayer);
+            frameScrollingNode->setInsetClipLayer(nodeLayers.insetClipLayer.get());
+            frameScrollingNode->setCounterScrollingLayer(nodeLayers.counterScrollingLayer.get());
+            frameScrollingNode->setRootContentsLayer(nodeLayers.rootContentsLayer.get());
         }
     }
 
     if (RefPtr stickyNode = dynamicDowncast<ScrollingStateStickyNode>(*node))
-        stickyNode->setViewportAnchorLayer(nodeLayers.viewportAnchorLayer);
+        stickyNode->setViewportAnchorLayer(nodeLayers.viewportAnchorLayer.get());
 }
 
 void AsyncScrollingCoordinator::setFrameScrollingNodeState(ScrollingNodeID nodeID, const LocalFrameView& frameView)

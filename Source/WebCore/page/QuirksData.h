@@ -232,6 +232,9 @@ struct QuirksData {
         ShouldAvoidStartingSelectionOnMouseDownOverPointerCursor,
         ShouldAllowNotificationPermissionWithoutUserGesture,
         NeedsInstagramResizingReelsQuirk,
+#if PLATFORM(IOS_FAMILY)
+        NeedsChromeOSNavigatorUserAgentQuirk,
+#endif
 
         NumberOfQuirks
     };

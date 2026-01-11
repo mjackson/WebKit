@@ -27,6 +27,7 @@
 #include "WebFrame.h"
 
 #include "APIArray.h"
+#include "ContentWorldShared.h"
 #include "DownloadManager.h"
 #include "DrawingArea.h"
 #include "FrameInfoData.h"
@@ -36,6 +37,7 @@
 #include "InjectedBundleNodeHandle.h"
 #include "InjectedBundleRangeHandle.h"
 #include "InjectedBundleScriptWorld.h"
+#include "JSHandleInfo.h"
 #include "Logging.h"
 #include "MessageSenderInlines.h"
 #include "NetworkConnectionToWebProcessMessages.h"
@@ -76,6 +78,7 @@
 #include <WebCore/DocumentWindow.h>
 #include <WebCore/Editor.h>
 #include <WebCore/ElementChildIteratorInlines.h>
+#include <WebCore/ElementTargetingController.h>
 #include <WebCore/EventHandler.h>
 #include <WebCore/File.h>
 #include <WebCore/FocusController.h>
@@ -101,6 +104,7 @@
 #include <WebCore/LocalFrameInlines.h>
 #include <WebCore/LocalFrameView.h>
 #include <WebCore/MouseEventTypes.h>
+#include <WebCore/NodeDocument.h>
 #include <WebCore/OriginAccessPatterns.h>
 #include <WebCore/PluginDocument.h>
 #include <WebCore/PointerCaptureController.h>
@@ -117,6 +121,7 @@
 #include <WebCore/ShareableBitmapHandle.h>
 #include <WebCore/SharedMemory.h>
 #include <WebCore/SubresourceLoader.h>
+#include <WebCore/TextExtraction.h>
 #include <WebCore/TextIterator.h>
 #include <WebCore/TextResourceDecoder.h>
 #include <WebCore/WebKitJSHandle.h>
@@ -1514,6 +1519,24 @@ String WebFrame::frameTextForTesting(bool includeSubframes)
     return builder.toString();
 }
 
+static Ref<WebKitJSHandle> createJSHandle(Node& node)
+{
+    Ref document = node.document();
+    auto* lexicalGlobalObject = document->globalObject();
+    RELEASE_ASSERT(lexicalGlobalObject->template inherits<JSDOMGlobalObject>());
+    auto* domGlobalObject = jsCast<JSDOMGlobalObject*>(lexicalGlobalObject);
+    JSLockHolder locker { lexicalGlobalObject };
+    return WebKitJSHandle::create(toJS(lexicalGlobalObject, domGlobalObject, node).toObject(lexicalGlobalObject));
+}
+
+std::pair<Ref<WebKitJSHandle>, JSHandleInfo> WebFrame::createAndPrepareToSendJSHandle(Node& node) const
+{
+    Ref handle = createJSHandle(node);
+    WebKitJSHandle::jsHandleSentToAnotherProcess(handle->identifier());
+    JSHandleInfo handleInfo { handle->identifier(), pageContentWorldIdentifier(), info(), handle->windowFrameIdentifier() };
+    return { WTF::move(handle), WTF::move(handleInfo) };
+}
+
 WebFrame* WebFrame::webFrame(std::optional<WebCore::FrameIdentifier> frameID)
 {
     return WebProcess::singleton().webFrame(frameID);
@@ -1571,21 +1594,26 @@ void WebFrame::findFocusableElementDescendingIntoRemoteFrame(WebCore::FocusDirec
     completionHandler(foundElementInRemoteFrame);
 }
 
+static RefPtr<Node> nodeFromJSHandleIdentifier(JSHandleIdentifier identifier)
+{
+    auto* object = WebKitJSHandle::objectForIdentifier(identifier);
+    if (!object)
+        return { };
+
+    auto* jsNode = jsDynamicCast<JSNode*>(object);
+    if (!jsNode)
+        return { };
+
+    return jsNode->wrapped();
+}
+
 void WebFrame::takeSnapshotOfNode(JSHandleIdentifier identifier, CompletionHandler<void(std::optional<ShareableBitmapHandle>&&)>&& completion)
 {
     RefPtr page = m_page.get();
     if (!page)
         return completion({ });
 
-    auto* object = WebKitJSHandle::objectForIdentifier(identifier);
-    if (!object)
-        return completion({ });
-
-    auto* jsNode = jsDynamicCast<JSNode*>(object);
-    if (!jsNode)
-        return completion({ });
-
-    RefPtr node = jsNode->wrapped();
+    RefPtr node = nodeFromJSHandleIdentifier(identifier);
     if (!node)
         return completion({ });
 
@@ -1616,6 +1644,101 @@ void WebFrame::disconnectInspector()
 void WebFrame::sendMessageToInspectorTarget(const String& message)
 {
     ensureInspectorTarget()->sendMessageToTargetBackend(message);
+}
+
+void WebFrame::requestTextExtraction(TextExtraction::Request&& request, CompletionHandler<void(TextExtraction::Item&&)>&& completion)
+{
+    RefPtr frame = coreLocalFrame();
+    if (!frame)
+        return completion({ });
+
+    completion(TextExtraction::extractItem(WTF::move(request), *frame));
+}
+
+void WebFrame::takeSnapshotOfExtractedText(TextExtraction::ExtractedText&& extractedText, CompletionHandler<void(RefPtr<TextIndicator>&&)>&& completion)
+{
+    RefPtr frame = coreLocalFrame();
+    if (!frame)
+        return completion({ });
+
+    auto range = TextExtraction::rangeForExtractedText(*frame, WTF::move(extractedText));
+    if (!range)
+        return completion({ });
+
+    using enum WebCore::TextIndicatorOption;
+    constexpr OptionSet options {
+        RespectTextColor,
+        PaintBackgrounds,
+        PaintAllContent,
+        TightlyFitContent,
+        UseBoundingRectAndPaintAllContentForComplexRanges,
+        DoNotClipToVisibleRect
+    };
+
+    completion(TextIndicator::createWithRange(*range, options, TextIndicatorPresentationTransition::None));
+}
+
+void WebFrame::describeTextExtractionInteraction(TextExtraction::Interaction&& interaction, CompletionHandler<void(TextExtraction::InteractionDescription&&)>&& completion)
+{
+    RefPtr frame = coreLocalFrame();
+    if (!frame)
+        return completion({ });
+
+    completion(TextExtraction::interactionDescription(interaction, *frame));
+}
+
+void WebFrame::handleTextExtractionInteraction(TextExtraction::Interaction&& interaction, CompletionHandler<void(bool, String&&)>&& completion)
+{
+    RefPtr frame = coreLocalFrame();
+    if (!frame)
+        return completion(false, "Browsing context is unavailable"_s);
+
+    TextExtraction::handleInteraction(WTF::move(interaction), *frame, WTF::move(completion));
+}
+
+void WebFrame::requestJSHandleForExtractedText(TextExtraction::ExtractedText&& extractedText, CompletionHandler<void(std::optional<JSHandleInfo>&&)>&& completion)
+{
+    RefPtr frame = coreLocalFrame();
+    if (!frame)
+        return completion({ });
+
+    RefPtr element = TextExtraction::elementForExtractedText(*frame, WTF::move(extractedText));
+    if (!element)
+        return completion({ });
+
+    auto [handle, info] = createAndPrepareToSendJSHandle(*element);
+    completion({ WTF::move(info) });
+}
+
+void WebFrame::getSelectorPathsForNode(JSHandleInfo&& handle, CompletionHandler<void(Vector<HashSet<String>>&&)>&& completion)
+{
+    RefPtr node = nodeFromJSHandleIdentifier(handle.identifier);
+    if (!node)
+        return completion({ });
+
+    RefPtr element = dynamicDowncast<Element>(*node) ?: node->parentElementInComposedTree();
+    if (!element)
+        return completion({ });
+
+    completion(ElementTargetingController::selectorsForElement(*element));
+}
+
+void WebFrame::getNodeForSelectorPaths(Vector<HashSet<String>>&& selectors, CompletionHandler<void(std::optional<JSHandleInfo>&&)>&& completion)
+{
+    RefPtr frame = coreLocalFrame();
+    if (!frame)
+        return completion({ });
+
+    RefPtr document = frame->document();
+    if (!document)
+        return completion({ });
+
+    RefPtr element = ElementTargetingController::elementFromSelectors(*document, selectors);
+    if (!element)
+        return completion({ });
+
+    auto [handle, info] = createAndPrepareToSendJSHandle(*element);
+    completion({ WTF::move(info) });
 }
 
 } // namespace WebKit

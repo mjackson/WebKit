@@ -206,10 +206,11 @@ void Storage::ReadOperation::finishReadBlob(BlobStorage::Blob&& blob, MonotonicT
 class Storage::WriteOperation {
     WTF_MAKE_TZONE_ALLOCATED(Storage::WriteOperation);
 public:
-    WriteOperation(const Record& record, MappedBodyHandler&& mappedBodyHandler)
+    WriteOperation(const Record& record, MappedBodyHandler&& mappedBodyHandler, bool storeBlobInMemoryCache)
         : m_identifier(Storage::WriteOperationIdentifier::generate())
         , m_record(record)
         , m_mappedBodyHandler(WTF::move(mappedBodyHandler))
+        , m_storeBlobInMemoryCache(storeBlobInMemoryCache)
     {
         ASSERT(isMainRunLoop());
     }
@@ -222,11 +223,13 @@ public:
     Storage::WriteOperationIdentifier identifier() const { return m_identifier; }
     const Record& record() const WTF_REQUIRES_CAPABILITY(mainThread) { return m_record; }
     void invokeMappedBodyHandler(const Data&);
+    bool storeBlobInMemoryCache() const { return m_storeBlobInMemoryCache; }
 
 private:
     Storage::WriteOperationIdentifier m_identifier;
     const Record m_record;
     const MappedBodyHandler m_mappedBodyHandler;
+    bool m_storeBlobInMemoryCache;
 };
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(Storage::WriteOperation);
@@ -395,6 +398,10 @@ static void deleteEmptyRecordsDirectories(const String& recordsPath)
     });
 }
 
+// Cache a small number of recently used memory mapped main resource blobs to speed up hot loads of
+// recently visited websites.
+static constexpr unsigned blobStorageMemoryCacheFileLimit = 0;
+
 Storage::Storage(const String& baseDirectoryPath, Mode mode, Salt salt, size_t capacity)
     : m_basePath(baseDirectoryPath)
     , m_recordsPath(makeRecordsDirectoryPath(baseDirectoryPath))
@@ -406,7 +413,7 @@ Storage::Storage(const String& baseDirectoryPath, Mode mode, Salt salt, size_t c
     , m_ioQueue(ConcurrentWorkQueue::create("com.apple.WebKit.Cache.Storage"_s, WorkQueue::QOS::UserInteractive))
     , m_backgroundIOQueue(ConcurrentWorkQueue::create("com.apple.WebKit.Cache.Storage.background"_s, WorkQueue::QOS::Utility))
     , m_serialBackgroundIOQueue(WorkQueue::create("com.apple.WebKit.Cache.Storage.serialBackground"_s, WorkQueue::QOS::Utility))
-    , m_blobStorage(makeBlobDirectoryPath(baseDirectoryPath), m_salt)
+    , m_blobStorage(makeBlobDirectoryPath(baseDirectoryPath), m_salt, blobStorageMemoryCacheFileLimit)
 {
     ASSERT(RunLoop::isMain());
 
@@ -575,13 +582,13 @@ String Storage::blobPathForKey(const Key& key) const
 }
 
 struct RecordMetaData {
-    RecordMetaData() { }
+    RecordMetaData() = default;
     explicit RecordMetaData(const Key& key)
         : cacheStorageVersion(Storage::version)
         , key(key)
     { }
 
-    unsigned cacheStorageVersion;
+    unsigned cacheStorageVersion { 0 };
     Key key;
     WallTime timeStamp;
     SHA1::Digest headerHash;
@@ -594,7 +601,7 @@ struct RecordMetaData {
     uint64_t headerOffset { 0 };
 };
 
-WARN_UNUSED_RETURN static bool decodeRecordMetaData(RecordMetaData& metaData, const Data& fileData)
+[[nodiscard]] static bool decodeRecordMetaData(RecordMetaData& metaData, const Data& fileData)
 {
     bool success = false;
     fileData.apply([&metaData, &success](std::span<const uint8_t> span) {
@@ -658,7 +665,7 @@ WARN_UNUSED_RETURN static bool decodeRecordMetaData(RecordMetaData& metaData, co
     return success;
 }
 
-WARN_UNUSED_RETURN static bool decodeRecordHeader(const Data& fileData, RecordMetaData& metaData, Data& headerData, const Salt& salt)
+[[nodiscard]] static bool decodeRecordHeader(const Data& fileData, RecordMetaData& metaData, Data& headerData, const Salt& salt)
 {
     if (!decodeRecordMetaData(metaData, fileData)) {
         LOG(NetworkCacheStorage, "(NetworkProcess) meta data decode failure");
@@ -728,12 +735,12 @@ static Data encodeRecordMetaData(const RecordMetaData& metaData)
     return Data(encoder.span());
 }
 
-std::optional<BlobStorage::Blob> Storage::storeBodyAsBlob(WriteOperationIdentifier identifier, const Storage::Record& record)
+std::optional<BlobStorage::Blob> Storage::storeBodyAsBlob(WriteOperationIdentifier identifier, const Storage::Record& record, bool storeBlobInMemoryCache)
 {
     auto blobPath = blobPathForKey(record.key);
 
     // Store the body.
-    auto blob = m_blobStorage.add(blobPath, record.body);
+    auto blob = m_blobStorage.add(blobPath, record.body, storeBlobInMemoryCache);
     if (blob.data.isNull())
         return { };
 
@@ -1013,7 +1020,7 @@ void Storage::dispatchWriteOperation(std::unique_ptr<WriteOperation> writeOperat
     // This was added already when starting the store but filter might have been wiped.
     addToRecordFilter(record.key);
 
-    backgroundIOQueue().dispatch([this, protectedThis = Ref { *this }, identifier, record = crossThreadCopy(WTF::move(record))]() mutable {
+    backgroundIOQueue().dispatch([this, protectedThis = Ref { *this }, identifier, record = crossThreadCopy(WTF::move(record)), storeBlobInMemoryCache = writeOperation.storeBlobInMemoryCache()]() mutable {
         auto recordDirectoryPath = recordDirectoryPathForKey(record.key);
         auto recordPath = recordPathForKey(record.key);
         FileSystem::makeAllDirectories(recordDirectoryPath);
@@ -1021,7 +1028,7 @@ void Storage::dispatchWriteOperation(std::unique_ptr<WriteOperation> writeOperat
         addWriteOperationActivity(identifier);
 
         bool shouldStoreAsBlob = shouldStoreBodyAsBlob(record.body);
-        auto blob = shouldStoreAsBlob ? storeBodyAsBlob(identifier, record) : std::nullopt;
+        auto blob = shouldStoreAsBlob ? storeBodyAsBlob(identifier, record, storeBlobInMemoryCache) : std::nullopt;
         auto recordData = encodeRecord(record, blob);
         auto recordSize = recordData.size();
 
@@ -1090,7 +1097,7 @@ void Storage::retrieve(const Key& key, unsigned priority, RetrieveCompletionHand
     dispatchPendingReadOperations();
 }
 
-void Storage::store(const Record& record, MappedBodyHandler&& mappedBodyHandler)
+void Storage::store(const Record& record, MappedBodyHandler&& mappedBodyHandler, bool storeBlobInMemoryCache)
 {
     ASSERT(RunLoop::isMain());
     ASSERT(!record.key.isNull());
@@ -1098,7 +1105,7 @@ void Storage::store(const Record& record, MappedBodyHandler&& mappedBodyHandler)
     if (!m_capacity)
         return;
 
-    auto writeOperation = makeUnique<WriteOperation>(record, WTF::move(mappedBodyHandler));
+    auto writeOperation = makeUnique<WriteOperation>(record, WTF::move(mappedBodyHandler), storeBlobInMemoryCache);
     m_pendingWriteOperations.prepend(WTF::move(writeOperation));
 
     // Add key to the filter already here as we do lookups from the pending operations too.

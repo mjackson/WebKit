@@ -382,7 +382,6 @@ JS_BINDING_IDLS := \
     $(WebCore)/Modules/identity/DigitalCredentialRequestOptions.idl \
     $(WebCore)/Modules/identity/IdentityCredentialProtocol.idl \
     $(WebCore)/Modules/identity/protocols/ISO18013/MobileDocumentRequest.idl \
-    $(WebCore)/Modules/identity/protocols/openid/OpenID4VPRequest.idl \
     $(WebCore)/Modules/indexeddb/IDBCursor.idl \
     $(WebCore)/Modules/indexeddb/IDBCursorDirection.idl \
     $(WebCore)/Modules/indexeddb/IDBCursorWithValue.idl \
@@ -1056,6 +1055,8 @@ JS_BINDING_IDLS := \
     $(WebCore)/css/ElementCSSInlineStyle+Typedom.idl \
     $(WebCore)/css/FontFace.idl \
     $(WebCore)/css/FontFaceSet.idl \
+    $(WebCore)/css/FontFaceSetLoadEvent.idl \
+    $(WebCore)/css/FontFaceSetLoadEventInit.idl \
     $(WebCore)/css/FontFaceSource.idl \
     $(WebCore)/css/LinkStyle.idl \
     $(WebCore)/css/MediaList.idl \
@@ -1975,7 +1976,6 @@ all : \
     NodeName.h \
     RenderStyleProperties.h \
     RenderStyleProperties+GettersInlines.h \
-    RenderStyleProperties+InitialInlines.h \
     RenderStyleProperties+SettersInlines.h \
     SVGElementFactory.cpp \
     SVGElementFactory.h \
@@ -1985,6 +1985,7 @@ all : \
     SelectorPseudoClassAndCompatibilityElementMap.cpp \
     SelectorPseudoElementMap.cpp \
     StyleBuilderGenerated.cpp \
+    StyleComputedStyleProperties.cpp \
     StyleComputedStyleProperties.h \
     StyleComputedStyleProperties+GettersInlines.h \
     StyleComputedStyleProperties+InitialInlines.h \
@@ -2035,9 +2036,9 @@ CSS_PROPERTY_NAME_FILES = \
     CSSStyleProperties+PropertyNames.idl \
     RenderStyleProperties.h \
     RenderStyleProperties+GettersInlines.h \
-    RenderStyleProperties+InitialInlines.h \
     RenderStyleProperties+SettersInlines.h \
     StyleBuilderGenerated.cpp \
+    StyleComputedStyleProperties.cpp \
     StyleComputedStyleProperties.h \
     StyleComputedStyleProperties+GettersInlines.h \
     StyleComputedStyleProperties+InitialInlines.h \

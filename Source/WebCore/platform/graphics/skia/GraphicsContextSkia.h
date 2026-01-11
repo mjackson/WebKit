@@ -46,6 +46,7 @@ class Pattern;
 using SkiaImageToFenceMap = HashMap<const SkImage*, std::unique_ptr<GLFence>>;
 
 class WEBCORE_EXPORT GraphicsContextSkia final : public GraphicsContext {
+    friend class ImageBufferSkiaAcceleratedBackend;
 public:
     GraphicsContextSkia(SkCanvas&, RenderingMode, RenderingPurpose, CompletionHandler<void()>&& = nullptr);
     virtual ~GraphicsContextSkia();

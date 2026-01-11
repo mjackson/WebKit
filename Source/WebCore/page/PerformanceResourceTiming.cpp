@@ -237,10 +237,10 @@ double PerformanceResourceTiming::finalResponseHeadersStart() const
         return 0.0;
 
     // Return 0 if no final response headers timing was captured.
-    if (!m_resourceTiming.networkLoadMetrics().finalResponseHeadersStart)
+    if (!m_resourceTiming.networkLoadMetrics().responseStart)
         return 0.0;
 
-    return networkLoadTimeToDOMHighResTimeStamp(m_timeOrigin, m_resourceTiming.networkLoadMetrics().finalResponseHeadersStart);
+    return networkLoadTimeToDOMHighResTimeStamp(m_timeOrigin, m_resourceTiming.networkLoadMetrics().responseStart);
 }
 
 double PerformanceResourceTiming::firstInterimResponseStart() const
@@ -265,14 +265,7 @@ double PerformanceResourceTiming::responseStart() const
     if (m_resourceTiming.networkLoadMetrics().firstInterimResponseStart)
         return networkLoadTimeToDOMHighResTimeStamp(m_timeOrigin, m_resourceTiming.networkLoadMetrics().firstInterimResponseStart);
 
-    if (m_resourceTiming.networkLoadMetrics().finalResponseHeadersStart)
-        return networkLoadTimeToDOMHighResTimeStamp(m_timeOrigin, m_resourceTiming.networkLoadMetrics().finalResponseHeadersStart);
-
-    // Fallback to legacy responseStart for backward compatibility.
-    if (!m_resourceTiming.networkLoadMetrics().responseStart)
-        return requestStart();
-
-    return networkLoadTimeToDOMHighResTimeStamp(m_timeOrigin, m_resourceTiming.networkLoadMetrics().responseStart);
+    return finalResponseHeadersStart();
 }
 
 double PerformanceResourceTiming::responseEnd() const

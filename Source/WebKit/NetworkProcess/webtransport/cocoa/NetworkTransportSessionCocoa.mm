@@ -484,64 +484,28 @@ void NetworkTransportSession::setupConnectionHandler()
     nw_connection_group_set_new_connection_handler(m_connectionGroup.get(), makeBlockPtr([weakThis = WeakPtr { *this }] (nw_connection_t inboundConnection) mutable {
         ASSERT(inboundConnection);
         RefPtr protectedThis = weakThis.get();
-        if (!protectedThis)
+        if (!protectedThis) {
+            nw_connection_cancel(inboundConnection);
             return;
-        nw_connection_set_state_changed_handler(inboundConnection, makeBlockPtr([
-            weakThis = WeakPtr { *protectedThis },
-            inboundConnection = RetainPtr { inboundConnection }
-        ] (nw_connection_state_t state, nw_error_t error) mutable {
-            if (!inboundConnection)
-                return;
-            RefPtr protectedThis = weakThis.get();
-            if (!protectedThis) {
-                inboundConnection = nullptr;
-                return;
-            }
-            switch (state) {
-            case nw_connection_state_invalid:
-            case nw_connection_state_waiting:
-            case nw_connection_state_preparing:
-                return; // We will get another callback with another state change.
-            case nw_connection_state_ready:
-                break;
-            case nw_connection_state_failed:
-            case nw_connection_state_cancelled:
-                inboundConnection = nullptr;
-                return;
-            }
-            RetainPtr metadata = adoptNS(nw_connection_copy_protocol_metadata(inboundConnection.get(), adoptNS(nw_protocol_copy_webtransport_definition()).get()));
-            bool unidirectional = nw_webtransport_metadata_get_is_unidirectional(metadata.get());
-            auto streamType = unidirectional ? NetworkTransportStreamType::IncomingUnidirectional : NetworkTransportStreamType::Bidirectional;
-            Ref stream = NetworkTransportStream::create(*protectedThis.get(), std::exchange(inboundConnection, nullptr).get(), streamType);
-            auto identifier = stream->identifier();
-            ASSERT(!protectedThis->m_streams.contains(identifier));
-            protectedThis->m_streams.set(identifier, stream);
+        }
 
-            if (unidirectional)
+        Ref stream = NetworkTransportStream::create(*protectedThis, inboundConnection);
+        auto identifier = stream->identifier();
+        ASSERT(!protectedThis->m_streams.contains(identifier));
+        protectedThis->m_streams.set(identifier, stream.copyRef());
+        stream->start([weakThis = WeakPtr { *protectedThis }, identifier] (std::optional<NetworkTransportStreamType> streamType) mutable {
+            RefPtr protectedThis = weakThis.get();
+            if (!protectedThis)
+                return;
+            if (!streamType) {
+                protectedThis->destroyStream(identifier, std::nullopt);
+                return;
+            }
+            if (*streamType == NetworkTransportStreamType::IncomingUnidirectional)
                 protectedThis->receiveIncomingUnidirectionalStream(identifier);
             else
                 protectedThis->receiveBidirectionalStream(identifier);
-
-            if (!unidirectional && canLoad_Network_nw_webtransport_metadata_set_remote_receive_error_handler()) {
-                softLink_Network_nw_webtransport_metadata_set_remote_receive_error_handler(metadata.get(), makeBlockPtr([weakThis = WeakPtr { *protectedThis }, identifier] (uint64_t errorCode) mutable {
-                    RefPtr protectedThis = weakThis.get();
-                    if (!protectedThis)
-                        return;
-                    protectedThis->send(Messages::WebTransportSession::StreamSendError(identifier, errorCode));
-                }).get(), mainDispatchQueueSingleton());
-            }
-
-            if (canLoad_Network_nw_webtransport_metadata_set_remote_send_error_handler()) {
-                softLink_Network_nw_webtransport_metadata_set_remote_send_error_handler(metadata.get(), makeBlockPtr([weakThis = WeakPtr { *protectedThis }, identifier] (uint64_t errorCode) mutable {
-                    RefPtr protectedThis = weakThis.get();
-                    if (!protectedThis)
-                        return;
-                    protectedThis->send(Messages::WebTransportSession::StreamReceiveError(identifier, errorCode));
-                }).get(), mainDispatchQueueSingleton());
-            }
-        }).get());
-        nw_connection_set_queue(inboundConnection, mainDispatchQueueSingleton());
-        nw_connection_start(inboundConnection);
+        });
     }).get());
 #endif // HAVE(WEB_TRANSPORT)
 }
@@ -565,68 +529,20 @@ void NetworkTransportSession::createStream(NetworkTransportStreamType streamType
         return completionHandler(std::nullopt);
     }
 
-    auto creationCompletionHandler = [
-        weakThis = WeakPtr { *this },
-        completionHandler = WTF::move(completionHandler)
-    ] (RefPtr<NetworkTransportStream>&& stream) mutable {
-        if (!completionHandler)
-            return;
-        RefPtr protectedThis = weakThis.get();
-        if (!protectedThis || !stream)
-            return completionHandler(std::nullopt);
-        auto identifier = stream->identifier();
-        ASSERT(!protectedThis->m_streams.contains(identifier));
-        protectedThis->m_streams.set(identifier, stream.releaseNonNull());
-        completionHandler(identifier);
-    };
-
-    Ref stream = NetworkTransportStream::create(*this, connection.get(), streamType);
-
-    nw_connection_set_state_changed_handler(connection.get(), makeBlockPtr([
-        creationCompletionHandler = WTF::move(creationCompletionHandler),
-        stream = WTF::move(stream),
-        connection,
-        streamType,
-        weakThis = WeakPtr { *this }
-    ] (nw_connection_state_t state, nw_error_t error) mutable {
-        switch (state) {
-        case nw_connection_state_invalid:
-        case nw_connection_state_waiting:
-        case nw_connection_state_preparing:
-            return; // We will get another callback with another state change.
-        case nw_connection_state_ready:
-            break;
-        case nw_connection_state_failed:
-        case nw_connection_state_cancelled:
-            return creationCompletionHandler(nullptr);
-        }
+    Ref stream = NetworkTransportStream::create(*this, connection.get());
+    auto identifier = stream->identifier();
+    ASSERT(!m_streams.contains(identifier));
+    m_streams.set(identifier, stream.copyRef());
+    stream->start([weakThis = WeakPtr { *this }, identifier, completionHandler = WTF::move(completionHandler)] (std::optional<NetworkTransportStreamType> streamType) mutable {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
-            return creationCompletionHandler(nullptr);
-        RetainPtr metadata = adoptNS(nw_connection_copy_protocol_metadata(connection.get(), adoptNS(nw_protocol_copy_webtransport_definition()).get()));
-        bool unidirectional = streamType == NetworkTransportStreamType::OutgoingUnidirectional;
-        auto identifier = stream->identifier();
-        if (canLoad_Network_nw_webtransport_metadata_set_remote_receive_error_handler()) {
-            softLink_Network_nw_webtransport_metadata_set_remote_receive_error_handler(metadata.get(), makeBlockPtr([weakThis = WeakPtr { *protectedThis }, identifier] (uint64_t errorCode) mutable {
-                RefPtr protectedThis = weakThis.get();
-                if (!protectedThis)
-                    return;
-                protectedThis->send(Messages::WebTransportSession::StreamSendError(identifier, errorCode));
-            }).get(), mainDispatchQueueSingleton());
+            return completionHandler(std::nullopt);
+        if (!streamType) {
+            protectedThis->destroyStream(identifier, std::nullopt);
+            return completionHandler(std::nullopt);
         }
-
-        if (!unidirectional && canLoad_Network_nw_webtransport_metadata_set_remote_send_error_handler()) {
-            softLink_Network_nw_webtransport_metadata_set_remote_send_error_handler(metadata.get(), makeBlockPtr([weakThis = WeakPtr { *protectedThis }, identifier] (uint64_t errorCode) mutable {
-                RefPtr protectedThis = weakThis.get();
-                if (!protectedThis)
-                    return;
-                protectedThis->send(Messages::WebTransportSession::StreamReceiveError(identifier, errorCode));
-            }).get(), mainDispatchQueueSingleton());
-        }
-        return creationCompletionHandler(WTF::move(stream));
-    }).get());
-    nw_connection_set_queue(connection.get(), mainDispatchQueueSingleton());
-    nw_connection_start(connection.get());
+        completionHandler(identifier);
+    });
 #else
     completionHandler(std::nullopt);
 #endif // HAVE(WEB_TRANSPORT)
@@ -685,5 +601,14 @@ void NetworkTransportSession::terminate(WebCore::WebTransportSessionErrorCode co
 
     nw_connection_group_cancel(m_connectionGroup.get());
 #endif // HAVE(WEB_TRANSPORT)
+}
+
+bool NetworkTransportSession::isSessionClosed() const
+{
+#if HAVE(WEB_TRANSPORT)
+    if (m_sessionMetadata && canLoad_Network_nw_webtransport_metadata_get_session_closed())
+        return softLink_Network_nw_webtransport_metadata_get_session_closed(m_sessionMetadata.get());
+#endif
+    return false;
 }
 }

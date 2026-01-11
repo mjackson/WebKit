@@ -2,7 +2,7 @@
  * Copyright (C) 1999 Antti Koivisto (koivisto@kde.org)
  * Copyright (C) 2004-2023 Apple Inc. All rights reserved.
  * Copyright (C) 2011 Adobe Systems Incorporated. All rights reserved.
- * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025-2026 Samuel Weinig <sam@webkit.org>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -26,45 +26,23 @@
 
 #include "AutosizeStatus.h"
 #include "CSSCustomPropertyValue.h"
-#include "CSSPropertyNames.h"
-#include "CSSPropertyParser.h"
-#include "CSSValuePool.h"
 #include "ColorBlending.h"
-#include "FloatRoundedRect.h"
 #include "FontCascade.h"
 #include "FontSelector.h"
-#include "InlineIteratorTextBox.h"
-#include "InlineTextBoxStyle.h"
 #include "Logging.h"
-#include "MotionPath.h"
 #include "Pagination.h"
-#include "PathTraversalState.h"
 #include "RenderBlock.h"
 #include "RenderElement.h"
 #include "RenderStyleBase+ConstructionInlines.h"
-#include "RenderStyleDifference.h"
 #include "RenderStyle+SettersInlines.h"
 #include "RenderTheme.h"
-#include "SVGRenderStyle.h"
-#include "ScaleTransformOperation.h"
-#include "ScrollAxis.h"
 #include "StyleCustomPropertyRegistry.h"
-#include "StyleExtractor.h"
-#include "StyleImage.h"
-#include "StyleInheritedData.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
-#include "StyleResolver.h"
-#include "StyleScaleTransformFunction.h"
-#include "StyleSelfAlignmentData.h"
-#include "StyleTextDecorationLine.h"
-#include "StyleTextTransform.h"
+#include "StyleTransformResolver.h"
 #include "StyleTreeResolver.h"
-#include "TransformOperationData.h"
 #include <algorithm>
 #include <wtf/MathExtras.h>
-#include <wtf/PointerComparison.h>
 #include <wtf/StdLibExtras.h>
-#include <wtf/text/TextStream.h>
 
 #if ENABLE(TEXT_AUTOSIZING)
 #include <wtf/text/StringHash.h>
@@ -255,7 +233,7 @@ bool RenderStyle::isIdempotentTextAutosizingCandidate(AutosizeStatus status) con
                 if (auto fixedHeight = height().tryFixed(); specifiedLineHeight().isFixed() && fixedHeight) {
                     if (auto fixedSpecifiedLineHeight = specifiedLineHeight().tryFixed()) {
                         float specifiedSize = specifiedFontSize();
-                        if (fixedSpecifiedLineHeight->resolveZoom(Style::ZoomFactor { 1.0f, deviceScaleFactor() }) - specifiedSize > smallMinimumDifferenceThresholdBetweenLineHeightAndSpecifiedFontSizeForBoostingText
+                        if (fixedSpecifiedLineHeight->resolveZoom(Style::ZoomFactor { 1.0f }) - specifiedSize > smallMinimumDifferenceThresholdBetweenLineHeightAndSpecifiedFontSizeForBoostingText
                             && fixedHeight->resolveZoom(usedZoomForLength()) - specifiedSize > smallMinimumDifferenceThresholdBetweenLineHeightAndSpecifiedFontSizeForBoostingText)
                             return true;
                     }
@@ -298,265 +276,7 @@ bool RenderStyle::isIdempotentTextAutosizingCandidate(AutosizeStatus status) con
 
 #endif // ENABLE(TEXT_AUTOSIZING)
 
-// MARK: - Transforms
-
-bool RenderStyle::affectedByTransformOrigin() const
-{
-    if (rotate().affectedByTransformOrigin())
-        return true;
-
-    if (scale().affectedByTransformOrigin())
-        return true;
-
-    if (transform().affectedByTransformOrigin())
-        return true;
-
-    if (hasOffsetPath())
-        return true;
-
-    return false;
-}
-
-FloatPoint RenderStyle::computePerspectiveOrigin(const FloatRect& boundingBox) const
-{
-    return boundingBox.location() + Style::evaluate<FloatPoint>(perspectiveOrigin(), boundingBox.size(), Style::ZoomNeeded { });
-}
-
-void RenderStyle::applyPerspective(TransformationMatrix& transform, const FloatPoint& originTranslate) const
-{
-    // https://www.w3.org/TR/css-transforms-2/#perspective
-    // The perspective matrix is computed as follows:
-    // 1. Start with the identity matrix.
-
-    // 2. Translate by the computed X and Y values of perspective-origin
-    transform.translate(originTranslate.x(), originTranslate.y());
-
-    // 3. Multiply by the matrix that would be obtained from the perspective() transform function, where the length is provided by the value of the perspective property
-    transform.applyPerspective(usedPerspective());
-
-    // 4. Translate by the negated computed X and Y values of perspective-origin
-    transform.translate(-originTranslate.x(), -originTranslate.y());
-}
-
-FloatPoint3D RenderStyle::computeTransformOrigin(const FloatRect& boundingBox) const
-{
-    FloatPoint3D originTranslate;
-    originTranslate.setXY(boundingBox.location() + Style::evaluate<FloatPoint>(transformOrigin().xy(), boundingBox.size(), Style::ZoomNeeded { }));
-    originTranslate.setZ(transformOriginZ().resolveZoom(Style::ZoomNeeded { }));
-    return originTranslate;
-}
-
-void RenderStyle::applyTransformOrigin(TransformationMatrix& transform, const FloatPoint3D& originTranslate) const
-{
-    if (!originTranslate.isZero())
-        transform.translate3d(originTranslate.x(), originTranslate.y(), originTranslate.z());
-}
-
-void RenderStyle::unapplyTransformOrigin(TransformationMatrix& transform, const FloatPoint3D& originTranslate) const
-{
-    if (!originTranslate.isZero())
-        transform.translate3d(-originTranslate.x(), -originTranslate.y(), -originTranslate.z());
-}
-
-void RenderStyle::applyTransform(TransformationMatrix& transform, const TransformOperationData& transformData, OptionSet<RenderStyle::TransformOperationOption> options) const
-{
-    if (!options.contains(RenderStyle::TransformOperationOption::TransformOrigin) || !affectedByTransformOrigin()) {
-        applyCSSTransform(transform, transformData, options);
-        return;
-    }
-
-    auto originTranslate = computeTransformOrigin(transformData.boundingBox);
-    applyTransformOrigin(transform, originTranslate);
-    applyCSSTransform(transform, transformData, options);
-    unapplyTransformOrigin(transform, originTranslate);
-}
-
-void RenderStyle::applyTransform(TransformationMatrix& transform, const TransformOperationData& transformData) const
-{
-    applyTransform(transform, transformData, allTransformOperations());
-}
-
-void RenderStyle::applyCSSTransform(TransformationMatrix& transform, const TransformOperationData& operationData, OptionSet<RenderStyle::TransformOperationOption> options) const
-{
-    // https://www.w3.org/TR/css-transforms-2/#ctm
-    // The transformation matrix is computed from the transform, transform-origin, translate, rotate, scale, and offset properties as follows:
-    // 1. Start with the identity matrix.
-
-    // 2. Translate by the computed X, Y, and Z values of transform-origin.
-    // (implemented in applyTransformOrigin)
-    auto& boundingBox = operationData.boundingBox;
-
-    // 3. Translate by the computed X, Y, and Z values of translate.
-    if (options.contains(RenderStyle::TransformOperationOption::Translate))
-        translate().apply(transform, boundingBox.size());
-
-    // 4. Rotate by the computed <angle> about the specified axis of rotate.
-    if (options.contains(RenderStyle::TransformOperationOption::Rotate))
-        rotate().apply(transform, boundingBox.size());
-
-    // 5. Scale by the computed X, Y, and Z values of scale.
-    if (options.contains(RenderStyle::TransformOperationOption::Scale))
-        scale().apply(transform, boundingBox.size());
-
-    // 6. Translate and rotate by the transform specified by offset.
-    if (options.contains(RenderStyle::TransformOperationOption::Offset))
-        MotionPath::applyMotionPathTransform(transform, operationData, *this);
-
-    // 7. Multiply by each of the transform functions in transform from left to right.
-    this->transform().apply(transform, boundingBox.size());
-
-    // 8. Translate by the negated computed X, Y and Z values of transform-origin.
-    // (implemented in unapplyTransformOrigin)
-}
-
-void RenderStyle::setPageScaleTransform(float scale)
-{
-    if (scale == 1)
-        return;
-
-    setTransform(Style::Transform { Style::TransformFunction { Style::ScaleTransformFunction::create(scale, scale, Style::TransformFunctionType::Scale) } });
-    setTransformOriginX(0_css_px);
-    setTransformOriginY(0_css_px);
-}
-
-// MARK: - Color
-
-const Style::Color& RenderStyle::unresolvedColorForProperty(CSSPropertyID colorProperty, bool visitedLink) const
-{
-    switch (colorProperty) {
-    case CSSPropertyAccentColor:
-        return accentColor().colorOrCurrentColor();
-    case CSSPropertyBackgroundColor:
-        return visitedLink ? visitedLinkBackgroundColor() : backgroundColor();
-    case CSSPropertyBorderBottomColor:
-        return visitedLink ? visitedLinkBorderBottomColor() : borderBottomColor();
-    case CSSPropertyBorderLeftColor:
-        return visitedLink ? visitedLinkBorderLeftColor() : borderLeftColor();
-    case CSSPropertyBorderRightColor:
-        return visitedLink ? visitedLinkBorderRightColor() : borderRightColor();
-    case CSSPropertyBorderTopColor:
-        return visitedLink ? visitedLinkBorderTopColor() : borderTopColor();
-    case CSSPropertyFill:
-        return fill().colorDisregardingType();
-    case CSSPropertyFloodColor:
-        return floodColor();
-    case CSSPropertyLightingColor:
-        return lightingColor();
-    case CSSPropertyOutlineColor:
-        return visitedLink ? visitedLinkOutlineColor() : outlineColor();
-    case CSSPropertyStopColor:
-        return stopColor();
-    case CSSPropertyStroke:
-        return stroke().colorDisregardingType();
-    case CSSPropertyStrokeColor:
-        return visitedLink ? visitedLinkStrokeColor() : strokeColor();
-    case CSSPropertyBorderBlockEndColor:
-    case CSSPropertyBorderBlockStartColor:
-    case CSSPropertyBorderInlineEndColor:
-    case CSSPropertyBorderInlineStartColor:
-        return unresolvedColorForProperty(CSSProperty::resolveDirectionAwareProperty(colorProperty, writingMode()));
-    case CSSPropertyColumnRuleColor:
-        return visitedLink ? visitedLinkColumnRuleColor() : columnRuleColor();
-    case CSSPropertyTextEmphasisColor:
-        return visitedLink ? visitedLinkTextEmphasisColor() : textEmphasisColor();
-    case CSSPropertyWebkitTextFillColor:
-        return visitedLink ? visitedLinkTextFillColor() : textFillColor();
-    case CSSPropertyWebkitTextStrokeColor:
-        return visitedLink ? visitedLinkTextStrokeColor() : textStrokeColor();
-    case CSSPropertyTextDecorationColor:
-        return visitedLink ? visitedLinkTextDecorationColor() : textDecorationColor();
-    case CSSPropertyCaretColor:
-        return visitedLink ? visitedLinkCaretColor() : caretColor();
-    default:
-        ASSERT_NOT_REACHED();
-        break;
-    }
-
-    static NeverDestroyed<Style::Color> defaultColor { };
-    return defaultColor;
-}
-
-Color RenderStyle::colorResolvingCurrentColor(CSSPropertyID colorProperty, bool visitedLink) const
-{
-    if (colorProperty == CSSPropertyColor)
-        return visitedLink ? visitedLinkColor() : color();
-
-    auto& result = unresolvedColorForProperty(colorProperty, visitedLink);
-    if (result.isCurrentColor()) {
-        if (colorProperty == CSSPropertyTextDecorationColor) {
-            if (hasPositiveStrokeWidth()) {
-                // Prefer stroke color if possible but not if it's fully transparent.
-                auto strokeColor = colorResolvingCurrentColor(usedStrokeColorProperty(), visitedLink);
-                if (strokeColor.isVisible())
-                    return strokeColor;
-            }
-
-            return colorResolvingCurrentColor(CSSPropertyWebkitTextFillColor, visitedLink);
-        }
-
-        return visitedLink ? visitedLinkColor() : color();
-    }
-
-    return colorResolvingCurrentColor(result, visitedLink);
-}
-
-Color RenderStyle::colorResolvingCurrentColor(const Style::Color& color, bool visitedLink) const
-{
-    return color.resolveColor(visitedLink ? visitedLinkColor() : this->color());
-}
-
-Color RenderStyle::visitedDependentColor(CSSPropertyID colorProperty, OptionSet<PaintBehavior> paintBehavior) const
-{
-    auto unvisitedColor = colorResolvingCurrentColor(colorProperty, false);
-    if (insideLink() != InsideLink::InsideVisited)
-        return unvisitedColor;
-
-    if (paintBehavior.contains(PaintBehavior::DontShowVisitedLinks))
-        return unvisitedColor;
-
-    if (isInSubtreeWithBlendMode())
-        return unvisitedColor;
-
-    auto visitedColor = colorResolvingCurrentColor(colorProperty, true);
-
-    // FIXME: Technically someone could explicitly specify the color transparent, but for now we'll just
-    // assume that if the background color is transparent that it wasn't set. Note that it's weird that
-    // we're returning unvisited info for a visited link, but given our restriction that the alpha values
-    // have to match, it makes more sense to return the unvisited background color if specified than it
-    // does to return black. This behavior matches what Firefox 4 does as well.
-    if (colorProperty == CSSPropertyBackgroundColor && visitedColor == Color::transparentBlack)
-        return unvisitedColor;
-
-    // Take the alpha from the unvisited color, but get the RGB values from the visited color.
-    return visitedColor.colorWithAlpha(unvisitedColor.alphaAsFloat());
-}
-
-Color RenderStyle::visitedDependentColorWithColorFilter(CSSPropertyID colorProperty, OptionSet<PaintBehavior> paintBehavior) const
-{
-    if (!hasAppleColorFilter())
-        return visitedDependentColor(colorProperty, paintBehavior);
-
-    return colorByApplyingColorFilter(visitedDependentColor(colorProperty, paintBehavior));
-}
-
-Color RenderStyle::colorByApplyingColorFilter(const Color& color) const
-{
-    auto transformedColor = color;
-    appleColorFilter().transformColor(transformedColor);
-    return transformedColor;
-}
-
-Color RenderStyle::colorWithColorFilter(const Style::Color& color) const
-{
-    return colorByApplyingColorFilter(colorResolvingCurrentColor(color));
-}
-
 // MARK: - Used Values
-
-float RenderStyle::outlineSize() const
-{
-    return std::max(0.0f, Style::evaluate<float>(outlineWidth(), Style::ZoomNeeded { }) + Style::evaluate<float>(outlineOffset(), Style::ZoomNeeded { }));
-}
 
 String RenderStyle::altFromContent() const
 {
@@ -609,12 +329,12 @@ float RenderStyle::usedStrokeWidth(const IntSize& viewportSize) const
 
 Color RenderStyle::usedStrokeColor() const
 {
-    return visitedDependentColor(usedStrokeColorProperty());
+    return hasExplicitlySetStrokeColor() ? visitedDependentStrokeColor() : visitedDependentTextStrokeColor();
 }
 
-inline CSSPropertyID RenderStyle::usedStrokeColorProperty() const
+Color RenderStyle::usedStrokeColorApplyingColorFilter() const
 {
-    return hasExplicitlySetStrokeColor() ? CSSPropertyStrokeColor : CSSPropertyWebkitTextStrokeColor;
+    return hasExplicitlySetStrokeColor() ? visitedDependentStrokeColorApplyingColorFilter() : visitedDependentTextStrokeColorApplyingColorFilter();
 }
 
 Style::Contain RenderStyle::usedContain() const
@@ -696,9 +416,10 @@ Color RenderStyle::usedScrollbarThumbColor() const
             return { };
         },
         [&](const auto& parts) -> Color {
-            if (hasAppleColorFilter())
-                return colorByApplyingColorFilter(colorResolvingCurrentColor(parts.thumb));
-            return colorResolvingCurrentColor(parts.thumb);
+            Style::ColorResolver colorResolver { *this };
+            if (!appleColorFilter().isNone())
+                return colorResolver.colorResolvingCurrentColorApplyingColorFilter(parts.thumb);
+            return colorResolver.colorResolvingCurrentColor(parts.thumb);
         }
     );
 }
@@ -710,9 +431,10 @@ Color RenderStyle::usedScrollbarTrackColor() const
             return { };
         },
         [&](const auto& parts) -> Color {
-            if (hasAppleColorFilter())
-                return colorByApplyingColorFilter(colorResolvingCurrentColor(parts.track));
-            return colorResolvingCurrentColor(parts.track);
+            Style::ColorResolver colorResolver { *this };
+            if (!appleColorFilter().isNone())
+                return colorResolver.colorResolvingCurrentColorApplyingColorFilter(parts.track);
+            return colorResolver.colorResolvingCurrentColor(parts.track);
         }
     );
 }
@@ -724,19 +446,50 @@ Color RenderStyle::usedAccentColor(OptionSet<StyleColorOptions> styleColorOption
             return { };
         },
         [&](const Style::Color& color) -> Color {
-            auto resolvedAccentColor = colorResolvingCurrentColor(color);
+            Style::ColorResolver colorResolver { *this };
+
+            auto resolvedAccentColor = colorResolver.colorResolvingCurrentColor(color);
 
             if (!resolvedAccentColor.isOpaque()) {
                 auto computedCanvasColor = RenderTheme::singleton().systemColor(CSSValueCanvas, styleColorOptions);
                 resolvedAccentColor = blendSourceOver(computedCanvasColor, resolvedAccentColor);
             }
 
-            if (hasAppleColorFilter())
-                return colorByApplyingColorFilter(resolvedAccentColor);
-
+            if (!appleColorFilter().isNone())
+                return colorResolver.colorApplyingColorFilter(resolvedAccentColor);
             return resolvedAccentColor;
         }
     );
+}
+
+Style::LineWidth RenderStyle::usedColumnRuleWidth() const
+{
+    if (!isVisibleBorderStyle(m_computedStyle.columnRuleStyle()))
+        return 0_css_px;
+    return m_computedStyle.columnRuleWidth();
+}
+
+Style::Length<> RenderStyle::usedOutlineOffset() const
+{
+    auto& outline = m_computedStyle.outline();
+    if (static_cast<OutlineStyle>(outline.outlineStyle) == OutlineStyle::Auto)
+        return Style::Length<> { Style::evaluate<float>(outline.outlineOffset, Style::ZoomNeeded { }) + RenderTheme::platformFocusRingOffset(Style::evaluate<float>(outline.outlineWidth, Style::ZoomNeeded { })) };
+    return outline.outlineOffset;
+}
+
+Style::LineWidth RenderStyle::usedOutlineWidth() const
+{
+    auto& outline = m_computedStyle.outline();
+    if (static_cast<OutlineStyle>(outline.outlineStyle) == OutlineStyle::None)
+        return 0_css_px;
+    if (static_cast<OutlineStyle>(outline.outlineStyle) == OutlineStyle::Auto)
+        return Style::LineWidth { std::max(Style::evaluate<float>(outline.outlineWidth, Style::ZoomNeeded { }), RenderTheme::platformFocusRingWidth()) };
+    return outline.outlineWidth;
+}
+
+float RenderStyle::usedOutlineSize() const
+{
+    return std::max(0.0f, Style::evaluate<float>(usedOutlineWidth(), Style::ZoomNeeded { }) + Style::evaluate<float>(usedOutlineOffset(), Style::ZoomNeeded { }));
 }
 
 // MARK: - Derived Values
@@ -757,20 +510,20 @@ static LayoutUnit computeOutset(const OutsetValue& outsetValue, LayoutUnit borde
 LayoutBoxExtent RenderStyle::imageOutsets(const Style::BorderImage& image) const
 {
     return {
-        computeOutset(image.outset().values.top(), Style::evaluate<LayoutUnit>(borderTopWidth(), Style::ZoomNeeded { })),
-        computeOutset(image.outset().values.right(), Style::evaluate<LayoutUnit>(borderRightWidth(), Style::ZoomNeeded { })),
-        computeOutset(image.outset().values.bottom(), Style::evaluate<LayoutUnit>(borderBottomWidth(), Style::ZoomNeeded { })),
-        computeOutset(image.outset().values.left(), Style::evaluate<LayoutUnit>(borderLeftWidth(), Style::ZoomNeeded { })),
+        computeOutset(image.outset().values.top(), Style::evaluate<LayoutUnit>(usedBorderTopWidth(), Style::ZoomNeeded { })),
+        computeOutset(image.outset().values.right(), Style::evaluate<LayoutUnit>(usedBorderRightWidth(), Style::ZoomNeeded { })),
+        computeOutset(image.outset().values.bottom(), Style::evaluate<LayoutUnit>(usedBorderBottomWidth(), Style::ZoomNeeded { })),
+        computeOutset(image.outset().values.left(), Style::evaluate<LayoutUnit>(usedBorderLeftWidth(), Style::ZoomNeeded { })),
     };
 }
 
 LayoutBoxExtent RenderStyle::imageOutsets(const Style::MaskBorder& image) const
 {
     return {
-        computeOutset(image.outset().values.top(), Style::evaluate<LayoutUnit>(borderTopWidth(), Style::ZoomNeeded { })),
-        computeOutset(image.outset().values.right(), Style::evaluate<LayoutUnit>(borderRightWidth(), Style::ZoomNeeded { })),
-        computeOutset(image.outset().values.bottom(), Style::evaluate<LayoutUnit>(borderBottomWidth(), Style::ZoomNeeded { })),
-        computeOutset(image.outset().values.left(), Style::evaluate<LayoutUnit>(borderLeftWidth(), Style::ZoomNeeded { })),
+        computeOutset(image.outset().values.top(), Style::evaluate<LayoutUnit>(usedBorderTopWidth(), Style::ZoomNeeded { })),
+        computeOutset(image.outset().values.right(), Style::evaluate<LayoutUnit>(usedBorderRightWidth(), Style::ZoomNeeded { })),
+        computeOutset(image.outset().values.bottom(), Style::evaluate<LayoutUnit>(usedBorderBottomWidth(), Style::ZoomNeeded { })),
+        computeOutset(image.outset().values.left(), Style::evaluate<LayoutUnit>(usedBorderLeftWidth(), Style::ZoomNeeded { })),
     };
 }
 
@@ -830,168 +583,6 @@ const BorderValue& RenderStyle::borderEnd(const WritingMode writingMode) const
     if (writingMode.isHorizontal())
         return writingMode.isInlineLeftToRight() ? borderRight() : borderLeft();
     return writingMode.isInlineTopToBottom() ? borderBottom() : borderTop();
-}
-
-Style::LineWidth RenderStyle::borderBeforeWidth(const WritingMode writingMode) const
-{
-    switch (writingMode.blockDirection()) {
-    case FlowDirection::TopToBottom:
-        return borderTopWidth();
-    case FlowDirection::BottomToTop:
-        return borderBottomWidth();
-    case FlowDirection::LeftToRight:
-        return borderLeftWidth();
-    case FlowDirection::RightToLeft:
-        return borderRightWidth();
-    }
-    ASSERT_NOT_REACHED();
-    return borderTopWidth();
-}
-
-Style::LineWidth RenderStyle::borderAfterWidth(const WritingMode writingMode) const
-{
-    switch (writingMode.blockDirection()) {
-    case FlowDirection::TopToBottom:
-        return borderBottomWidth();
-    case FlowDirection::BottomToTop:
-        return borderTopWidth();
-    case FlowDirection::LeftToRight:
-        return borderRightWidth();
-    case FlowDirection::RightToLeft:
-        return borderLeftWidth();
-    }
-    ASSERT_NOT_REACHED();
-    return borderBottomWidth();
-}
-
-Style::LineWidth RenderStyle::borderStartWidth(const WritingMode writingMode) const
-{
-    if (writingMode.isHorizontal())
-        return writingMode.isInlineLeftToRight() ? borderLeftWidth() : borderRightWidth();
-    return writingMode.isInlineTopToBottom() ? borderTopWidth() : borderBottomWidth();
-}
-
-Style::LineWidth RenderStyle::borderEndWidth(const WritingMode writingMode) const
-{
-    if (writingMode.isHorizontal())
-        return writingMode.isInlineLeftToRight() ? borderRightWidth() : borderLeftWidth();
-    return writingMode.isInlineTopToBottom() ? borderBottomWidth() : borderTopWidth();
-}
-
-void RenderStyle::setMarginStart(Style::MarginEdge&& margin)
-{
-    if (writingMode().isHorizontal()) {
-        if (writingMode().isInlineLeftToRight())
-            setMarginLeft(WTF::move(margin));
-        else
-            setMarginRight(WTF::move(margin));
-    } else {
-        if (writingMode().isInlineTopToBottom())
-            setMarginTop(WTF::move(margin));
-        else
-            setMarginBottom(WTF::move(margin));
-    }
-}
-
-void RenderStyle::setMarginEnd(Style::MarginEdge&& margin)
-{
-    if (writingMode().isHorizontal()) {
-        if (writingMode().isInlineLeftToRight())
-            setMarginRight(WTF::move(margin));
-        else
-            setMarginLeft(WTF::move(margin));
-    } else {
-        if (writingMode().isInlineTopToBottom())
-            setMarginBottom(WTF::move(margin));
-        else
-            setMarginTop(WTF::move(margin));
-    }
-}
-
-void RenderStyle::setMarginBefore(Style::MarginEdge&& margin)
-{
-    switch (writingMode().blockDirection()) {
-    case FlowDirection::TopToBottom:
-        return setMarginTop(WTF::move(margin));
-    case FlowDirection::BottomToTop:
-        return setMarginBottom(WTF::move(margin));
-    case FlowDirection::LeftToRight:
-        return setMarginLeft(WTF::move(margin));
-    case FlowDirection::RightToLeft:
-        return setMarginRight(WTF::move(margin));
-    }
-}
-
-void RenderStyle::setMarginAfter(Style::MarginEdge&& margin)
-{
-    switch (writingMode().blockDirection()) {
-    case FlowDirection::TopToBottom:
-        return setMarginBottom(WTF::move(margin));
-    case FlowDirection::BottomToTop:
-        return setMarginTop(WTF::move(margin));
-    case FlowDirection::LeftToRight:
-        return setMarginRight(WTF::move(margin));
-    case FlowDirection::RightToLeft:
-        return setMarginLeft(WTF::move(margin));
-    }
-}
-
-void RenderStyle::setPaddingStart(Style::PaddingEdge&& padding)
-{
-    if (writingMode().isHorizontal()) {
-        if (writingMode().isInlineLeftToRight())
-            setPaddingLeft(WTF::move(padding));
-        else
-            setPaddingRight(WTF::move(padding));
-    } else {
-        if (writingMode().isInlineTopToBottom())
-            setPaddingTop(WTF::move(padding));
-        else
-            setPaddingBottom(WTF::move(padding));
-    }
-}
-
-void RenderStyle::setPaddingEnd(Style::PaddingEdge&& padding)
-{
-    if (writingMode().isHorizontal()) {
-        if (writingMode().isInlineLeftToRight())
-            setPaddingRight(WTF::move(padding));
-        else
-            setPaddingLeft(WTF::move(padding));
-    } else {
-        if (writingMode().isInlineTopToBottom())
-            setPaddingBottom(WTF::move(padding));
-        else
-            setPaddingTop(WTF::move(padding));
-    }
-}
-
-void RenderStyle::setPaddingBefore(Style::PaddingEdge&& padding)
-{
-    switch (writingMode().blockDirection()) {
-    case FlowDirection::TopToBottom:
-        return setPaddingTop(WTF::move(padding));
-    case FlowDirection::BottomToTop:
-        return setPaddingBottom(WTF::move(padding));
-    case FlowDirection::LeftToRight:
-        return setPaddingLeft(WTF::move(padding));
-    case FlowDirection::RightToLeft:
-        return setPaddingRight(WTF::move(padding));
-    }
-}
-
-void RenderStyle::setPaddingAfter(Style::PaddingEdge&& padding)
-{
-    switch (writingMode().blockDirection()) {
-    case FlowDirection::TopToBottom:
-        return setPaddingBottom(WTF::move(padding));
-    case FlowDirection::BottomToTop:
-        return setPaddingTop(WTF::move(padding));
-    case FlowDirection::LeftToRight:
-        return setPaddingRight(WTF::move(padding));
-    case FlowDirection::RightToLeft:
-        return setPaddingLeft(WTF::move(padding));
-    }
 }
 
 } // namespace WebCore

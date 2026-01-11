@@ -30,7 +30,11 @@
 
 - (void)dealloc
 {
-    SUPPRESS_UNRETAINED_ARG [_appid release];
+    self.appid = nil;
+    self.evalByCredential = nil;
+    self.eval = nil;
+    self.largeBlob = nil;
+
     [super dealloc];
 }
 

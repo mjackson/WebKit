@@ -77,19 +77,19 @@ static const AtomString& forcedKeyword()
     return forced;
 }
 
-TextTrack& TextTrack::captionMenuOffItem()
+TextTrack& TextTrack::captionMenuOffItemSingleton()
 {
     static TextTrack& off = TextTrack::create(nullptr, "off menu item"_s, emptyAtom(), emptyAtom(), emptyAtom()).leakRef();
     return off;
 }
 
-TextTrack& TextTrack::captionMenuOnItem()
+TextTrack& TextTrack::captionMenuOnItemSingleton()
 {
     static TextTrack& on = TextTrack::create(nullptr, "on menu item"_s, emptyAtom(), emptyAtom(), emptyAtom()).leakRef();
     return on;
 }
 
-TextTrack& TextTrack::captionMenuAutomaticItem()
+TextTrack& TextTrack::captionMenuAutomaticItemSingleton()
 {
     static TextTrack& automatic = TextTrack::create(nullptr, "automatic menu item"_s, emptyAtom(), emptyAtom(), emptyAtom()).leakRef();
     return automatic;

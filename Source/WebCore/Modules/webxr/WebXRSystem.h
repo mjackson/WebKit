@@ -98,7 +98,7 @@ protected:
     void stop() override;
 
 private:
-    WebXRSystem(Navigator&);
+    explicit WebXRSystem(Navigator&);
 
     using FeatureList = PlatformXR::Device::FeatureList;
     using JSFeatureList = Vector<JSC::JSValue>;
@@ -161,5 +161,7 @@ private:
 };
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(WebXRSystem)
 
 #endif // ENABLE(WEBXR)

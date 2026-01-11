@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024-2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2024-2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -1647,6 +1647,65 @@ template<size_t I, typename T> decltype(auto) get(const MinimallySerializingSpac
 template<typename T> inline constexpr auto TreatAsTupleLike<MinimallySerializingSpaceSeparatedRectCorners<T>> = true;
 template<typename T> inline constexpr auto SerializationSeparator<MinimallySerializingSpaceSeparatedRectCorners<T>> = SerializationSeparatorType::Space;
 template<typename T> inline constexpr auto SerializationCoalescing<MinimallySerializingSpaceSeparatedRectCorners<T>> = SerializationCoalescingType::Minimal;
+
+// `RectEdgesView` provides a `RectEdges`-like view of data that is not stored in a `RectEdges`
+// derived data type. Instead, the provided `Accessor` type provides access to the edges via
+// its `get` and `set` delegation functions.
+template<bool isConst, typename Data, template<BoxSide> typename Accessor, typename GetterType, typename SetterType = GetterType>
+struct RectEdgesView {
+    std::conditional_t<isConst, const Data&, Data&> data;
+
+    GetterType top() const { return Accessor<BoxSide::Top>::get(data); }
+    GetterType right() const { return Accessor<BoxSide::Right>::get(data); }
+    GetterType bottom() const { return Accessor<BoxSide::Bottom>::get(data); }
+    GetterType left() const { return Accessor<BoxSide::Left>::get(data); }
+
+    void setTop(SetterType value) requires (!isConst) { Accessor<BoxSide::Top>::set(data, std::forward<SetterType>(value)); }
+    void setRight(SetterType value) requires (!isConst){ Accessor<BoxSide::Right>::set(data, std::forward<SetterType>(value)); }
+    void setBottom(SetterType value) requires (!isConst){ Accessor<BoxSide::Bottom>::set(data, std::forward<SetterType>(value)); }
+    void setLeft(SetterType value) requires (!isConst) { Accessor<BoxSide::Left>::set(data, std::forward<SetterType>(value)); }
+
+    GetterType before(WritingMode writingMode) const { return at(mapSideLogicalToPhysical(writingMode, LogicalBoxSide::BlockStart)); }
+    GetterType after(WritingMode writingMode) const { return at(mapSideLogicalToPhysical(writingMode, LogicalBoxSide::BlockEnd)); }
+    GetterType start(WritingMode writingMode) const { return at(mapSideLogicalToPhysical(writingMode, LogicalBoxSide::InlineStart)); }
+    GetterType end(WritingMode writingMode) const { return at(mapSideLogicalToPhysical(writingMode, LogicalBoxSide::InlineEnd)); }
+    GetterType logicalLeft(WritingMode writingMode) const { return at(mapSideLogicalToPhysical(writingMode, LogicalBoxSide::LogicalLeft)); }
+    GetterType logicalRight(WritingMode writingMode) const { return at(mapSideLogicalToPhysical(writingMode, LogicalBoxSide::LogicalRight)); }
+
+    void setBefore(SetterType before, WritingMode writingMode) requires (!isConst) { setAt(mapSideLogicalToPhysical(writingMode, LogicalBoxSide::BlockStart), std::forward<SetterType>(before)); }
+    void setAfter(SetterType after, WritingMode writingMode) requires (!isConst) { setAt(mapSideLogicalToPhysical(writingMode, LogicalBoxSide::BlockEnd), std::forward<SetterType>(after)); }
+    void setStart(SetterType start, WritingMode writingMode) requires (!isConst) { setAt(mapSideLogicalToPhysical(writingMode, LogicalBoxSide::InlineStart), std::forward<SetterType>(start)); }
+    void setEnd(SetterType end, WritingMode writingMode) requires (!isConst) { setAt(mapSideLogicalToPhysical(writingMode, LogicalBoxSide::InlineEnd), std::forward<SetterType>(end)); }
+    void setLogicalLeft(SetterType logicalLeft, WritingMode writingMode) requires (!isConst) { setAt(mapSideLogicalToPhysical(writingMode, LogicalBoxSide::LogicalLeft), std::forward<SetterType>(logicalLeft)); }
+    void setLogicalRight(SetterType logicalRight, WritingMode writingMode) requires (!isConst) { setAt(mapSideLogicalToPhysical(writingMode, LogicalBoxSide::LogicalRight), std::forward<SetterType>(logicalRight)); }
+
+    GetterType at(BoxSide side) const
+    {
+        switch (side) {
+        case BoxSide::Top:    return top();
+        case BoxSide::Right:  return right();
+        case BoxSide::Bottom: return bottom();
+        case BoxSide::Left:   return left();
+        }
+        RELEASE_ASSERT_NOT_REACHED();
+    }
+
+    void setAt(BoxSide side, SetterType value) requires (!isConst)
+    {
+        switch (side) {
+        case BoxSide::Top:    setTop(std::forward<SetterType>(value)); return;
+        case BoxSide::Right:  setRight(std::forward<SetterType>(value)); return;
+        case BoxSide::Bottom: setBottom(std::forward<SetterType>(value)); return;
+        case BoxSide::Left:   setLeft(std::forward<SetterType>(value)); return;
+        }
+        RELEASE_ASSERT_NOT_REACHED();
+    }
+
+    template<typename T> auto to() const -> T
+    {
+        return T { top(), right(), bottom(), left() };
+    }
+};
 
 // MARK: - Logging
 

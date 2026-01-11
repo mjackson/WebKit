@@ -29,6 +29,7 @@
 #include "CSSStyleDeclaration.h"
 #include "Settings.h"
 #include <JavaScriptCore/InspectorProtocolObjects.h>
+#include <wtf/CheckedPtr.h>
 #include <wtf/HashMap.h>
 #include <wtf/JSONValues.h>
 #include <wtf/RefCountedAndCanMakeWeakPtr.h>
@@ -224,7 +225,7 @@ private:
     Vector<Ref<CSSStyleRule>> cssStyleRulesSplitFromSameRule(CSSStyleRule&);
     Vector<const CSSSelector*> selectorsForCSSStyleRule(CSSStyleRule&);
 
-    InspectorPageAgent* m_pageAgent;
+    CheckedPtr<InspectorPageAgent> m_pageAgent;
     String m_id;
     RefPtr<CSSStyleSheet> m_pageStyleSheet;
     Inspector::Protocol::CSS::StyleSheetOrigin m_origin;

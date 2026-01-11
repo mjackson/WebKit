@@ -100,7 +100,7 @@ TextUtil::FallbackFontList LineBoxBuilder::collectFallbackFonts(const InlineLeve
         // Simplified text measuring works with primary font only.
         return { };
     }
-    auto text = *run.textContent();
+    auto& text = run.textContent();
     auto fallbackFonts = TextUtil::fallbackFontsForText(StringView(inlineTextBox.content()).substring(text.start, text.length), style, text.needsHyphen ? TextUtil::IncludeHyphen::Yes : TextUtil::IncludeHyphen::No);
     if (fallbackFonts.isEmptyIgnoringNullReferences())
         return { };
@@ -536,11 +536,14 @@ void LineBoxBuilder::constructBlockContent(LineBox& lineBox)
     }
 
     // Since we don't need to position and align block content inside the line, we don't need to create any boxes for this block content.
-    auto& blockGeometry = formattingContext().geometryForBox(runs.last().layoutBox());
+    auto& blockRun = runs.last();
+    ASSERT(blockRun.isBlock());
+    auto& blockGeometry = formattingContext().geometryForBox(blockRun.layoutBox());
     for (size_t index = 0;  index < runs.size() - 1; ++index) {
         auto& run = runs[index];
         if (run.isLineSpanningInlineBoxStart()) {
-            auto lineSpanningInlineBox = InlineLevelBox::createInlineBox(run.layoutBox(), run.layoutBox().style(), lineLayoutResult.contentGeometry.logicalLeft, lineLayoutResult.lineGeometry.logicalWidth, InlineLevelBox::LineSpanningInlineBox::Yes);
+            auto inlineBoxWidth = blockRun.logicalWidth() ? lineLayoutResult.lineGeometry.logicalWidth : 0.f;
+            auto lineSpanningInlineBox = InlineLevelBox::createInlineBox(run.layoutBox(), run.layoutBox().style(), lineLayoutResult.contentGeometry.logicalLeft, inlineBoxWidth, InlineLevelBox::LineSpanningInlineBox::Yes);
             setVerticalPropertiesForInlineLevelBox(lineBox, lineSpanningInlineBox);
             lineSpanningInlineBox.setLogicalTop(blockGeometry.marginBefore());
             lineSpanningInlineBox.setLogicalHeight(InlineLayoutUnit(blockGeometry.borderBoxHeight()));
@@ -608,9 +611,9 @@ void LineBoxBuilder::adjustInlineBoxHeightsForLineBoxContainIfApplicable(LineBox
                 continue;
 
             auto& textBox = downcast<InlineTextBox>(run.layoutBox());
-            auto textContent = run.textContent();
+            auto& textContent = run.textContent();
             auto& style = isFirstFormattedLine() ? textBox.firstLineStyle() : textBox.style();
-            auto enclosingAscentDescentForRun = TextUtil::enclosingGlyphBoundsForText(StringView(textBox.content()).substring(textContent->start, textContent->length), style, textBox.shouldUseSimpleGlyphOverflowCodePath() ? TextUtil::ShouldUseSimpleGlyphOverflowCodePath::Yes : TextUtil::ShouldUseSimpleGlyphOverflowCodePath::No);
+            auto enclosingAscentDescentForRun = TextUtil::enclosingGlyphBoundsForText(StringView(textBox.content()).substring(textContent.start, textContent.length), style, textBox.shouldUseSimpleGlyphOverflowCodePath() ? TextUtil::ShouldUseSimpleGlyphOverflowCodePath::Yes : TextUtil::ShouldUseSimpleGlyphOverflowCodePath::No);
 
             auto& parentInlineBox = lineBox.parentInlineBox(run);
             auto enclosingAscentDescentForInlineBox = inlineBoxBoundsMap.get(&parentInlineBox);
@@ -634,9 +637,9 @@ void LineBoxBuilder::adjustInlineBoxHeightsForLineBoxContainIfApplicable(LineBox
                 continue;
 
             auto& textBox = downcast<InlineTextBox>(run.layoutBox());
-            auto textContent = run.textContent();
+            auto& textContent = run.textContent();
             auto& style = isFirstFormattedLine() ? textBox.firstLineStyle() : textBox.style();
-            auto ascentAndDescent = TextUtil::enclosingGlyphBoundsForText(StringView(textBox.content()).substring(textContent->start, textContent->length), style, textBox.shouldUseSimpleGlyphOverflowCodePath() ? TextUtil::ShouldUseSimpleGlyphOverflowCodePath::Yes : TextUtil::ShouldUseSimpleGlyphOverflowCodePath::No);
+            auto ascentAndDescent = TextUtil::enclosingGlyphBoundsForText(StringView(textBox.content()).substring(textContent.start, textContent.length), style, textBox.shouldUseSimpleGlyphOverflowCodePath() ? TextUtil::ShouldUseSimpleGlyphOverflowCodePath::Yes : TextUtil::ShouldUseSimpleGlyphOverflowCodePath::No);
 
             initialLetterDescent = ascentAndDescent.descent;
             if (lineBox.baselineType() != FontBaseline::Alphabetic)

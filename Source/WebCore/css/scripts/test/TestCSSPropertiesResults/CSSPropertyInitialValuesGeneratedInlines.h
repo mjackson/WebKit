@@ -36,6 +36,9 @@ static constexpr InitialValue initialValueForLonghand(CSSPropertyID longhand)
     case CSSPropertyID::CSSPropertyTestMediumPriority:
     case CSSPropertyID::CSSPropertyTestNumericValueRange:
     case CSSPropertyID::CSSPropertyTestProperty:
+    case CSSPropertyID::CSSPropertyTestRenderStyleHasExplicitlySetPolicyAllAuthorOrigin:
+    case CSSPropertyID::CSSPropertyTestRenderStyleHasExplicitlySetPolicyAllBorderRadius:
+    case CSSPropertyID::CSSPropertyTestRenderStyleHasExplicitlySetPolicyValueOnly:
     case CSSPropertyID::CSSPropertyTestRenderStyleStorageOneLevelReference:
     case CSSPropertyID::CSSPropertyTestRenderStyleStorageOneLevelValue:
     case CSSPropertyID::CSSPropertyTestRenderStyleStorageTwoLevelReference:
@@ -49,7 +52,6 @@ static constexpr InitialValue initialValueForLonghand(CSSPropertyID longhand)
         return InitialNumericValue { 0, CSSUnitType::CSS_NUMBER };
     case CSSPropertyID::CSSPropertyTestColor:
     case CSSPropertyID::CSSPropertyTestColorAllowsTypesAbsolute:
-    case CSSPropertyID::CSSPropertyTestColorPropertyWithNoVisitedLinkSupport:
     case CSSPropertyID::CSSPropertyTestColorPropertyWithVisitedLinkSupport:
         return CSSValueCurrentColor;
     case CSSPropertyID::CSSPropertyTestKeyword:

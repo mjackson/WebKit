@@ -69,6 +69,10 @@ void outputLayerPositionTreeRecursive(TextStream&, const WebCore::RenderLayer&, 
 
 namespace WebCore {
 
+namespace Style {
+enum class TransformResolverOption : uint8_t;
+}
+
 class ClipRects;
 class ClipRectsCache;
 class HitTestRequest;
@@ -807,11 +811,11 @@ public:
     // Note that this transform has the transform-origin baked in.
     TransformationMatrix* transform() const { return m_transform.get(); }
     // updateTransformFromStyle computes a transform according to the passed options (e.g. transform-origin baked in or excluded) and the given style.
-    void updateTransformFromStyle(TransformationMatrix&, const RenderStyle&, OptionSet<RenderStyle::TransformOperationOption>) const;
+    void updateTransformFromStyle(TransformationMatrix&, const RenderStyle&, OptionSet<Style::TransformResolverOption>) const;
     // currentTransform computes a transform which takes accelerated animations into account. The
     // resulting transform has transform-origin baked in, unless non-default options are given. If
     // the layer does not have a transform, the identity matrix is returned.
-    TransformationMatrix currentTransform(OptionSet<RenderStyle::TransformOperationOption>) const;
+    TransformationMatrix currentTransform(OptionSet<Style::TransformResolverOption>) const;
     TransformationMatrix currentTransform() const;
     TransformationMatrix renderableTransform(OptionSet<PaintBehavior>) const;
     
@@ -1323,6 +1327,16 @@ private:
         IntRect scrollCornerOrResizerRect() const
         {
             return !scrollCorner.isEmpty() ? scrollCorner : resizer;
+        }
+        IntRect scrollbarRect(ScrollbarOrientation orientation)
+        {
+            switch (orientation) {
+            case ScrollbarOrientation::Horizontal:
+                return horizontalScrollbar;
+            case ScrollbarOrientation::Vertical:
+                return verticalScrollbar;
+            }
+            return { };
         }
     };
     OverflowControlRects overflowControlsRects() const;

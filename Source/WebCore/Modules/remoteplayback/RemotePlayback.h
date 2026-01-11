@@ -121,7 +121,9 @@ private:
     bool m_available { false };
 };
 
-}
+} // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(RemotePlayback)
 
 #endif // ENABLE(WIRELESS_PLAYBACK_TARGET)
 

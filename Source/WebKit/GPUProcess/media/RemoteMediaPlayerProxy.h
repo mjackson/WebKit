@@ -313,7 +313,7 @@ private:
     void textTrackRepresentationBoundsChanged(const WebCore::IntRect&) final;
 
 #if PLATFORM(COCOA)
-    Vector<RefPtr<WebCore::PlatformTextTrack>> outOfBandTrackSources() final;
+    Vector<Ref<WebCore::PlatformTextTrack>> outOfBandTrackSources() final;
 #endif
 
 #if PLATFORM(IOS_FAMILY)

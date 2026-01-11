@@ -81,7 +81,7 @@ public:
     void transformToColorSpace(const DestinationColorSpace&);
 
 #if USE(CORE_IMAGE)
-    ImageBuffer* filterResultImageBuffer(FloatRect absoluteFilterRegion);
+    ImageBuffer* filterResultImageBuffer(const Filter&);
 
     RetainPtr<CIImage> ciImage() const { return m_ciImage; }
     void setCIImage(RetainPtr<CIImage>&&);

@@ -1588,7 +1588,7 @@ void LocalFrame::showResourceMonitoringError()
 
 #if ENABLE(DARK_MODE_CSS)
     if (CheckedPtr style = iframeElement->existingComputedStyle())
-        colorScheme = document->resolvedColorScheme(style.get());
+        colorScheme = document->resolvedColorScheme(&style->computedStyle());
 #endif
 
     iframeElement->setSrcdoc(generateResourceMonitorErrorHTML(colorScheme), SubstituteData::SessionHistoryVisibility::Hidden);
@@ -1660,7 +1660,7 @@ void LocalFrame::showMemoryMonitorError()
 
 #if ENABLE(DARK_MODE_CSS)
     if (CheckedPtr style = iframeElement->existingComputedStyle())
-        colorScheme = document->resolvedColorScheme(style.get());
+        colorScheme = document->resolvedColorScheme(&style->computedStyle());
 #endif
 
     iframeElement->setSrcdoc(generateFrameMemoryMonitorErrorHTML(colorScheme), SubstituteData::SessionHistoryVisibility::Hidden);

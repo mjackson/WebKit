@@ -33,6 +33,7 @@
 #include "ComposedTreeIterator.h"
 #include "ContainerNodeInlines.h"
 #include "DocumentPage.h"
+#include "DocumentSecurityOrigin.h"
 #include "DocumentView.h"
 #include "Editing.h"
 #include "Editor.h"
@@ -79,6 +80,7 @@
 #include "ScriptController.h"
 #include "SimpleRange.h"
 #include "StaticRange.h"
+#include "StringEntropyHelpers.h"
 #include "Text.h"
 #include "TextIterator.h"
 #include "TypedElementDescendantIteratorInlines.h"
@@ -188,6 +190,7 @@ static inline TextNodesAndText collectText(const SimpleRange& range, IncludeText
 using ClientNodeAttributesMap = WeakHashMap<Node, HashMap<String, String>, WeakPtrImplWithEventTargetData>;
 
 struct TraversalContext {
+    const Request originalRequest;
     const ClientNodeAttributesMap clientNodeAttributes;
     const TextAndSelectedRangeMap visibleText;
     const WeakHashSet<Node, WeakPtrImplWithEventTargetData> nodesToSkip;
@@ -424,10 +427,30 @@ static inline Variant<SkipExtraction, ItemData, URL, Editable> extractItemData(N
                 if (context.mergeParagraphs)
                     return { WTF::move(url) };
 
-                if (RefPtr anchor = dynamicDowncast<HTMLAnchorElement>(*element))
-                    return { LinkItemData { anchor->target(), WTF::move(url) } };
+                auto shortenedURLString = [&] {
+                    auto shortenedURL = StringEntropyHelpers::removeHighEntropyComponents(url);
+                    auto shortenedString = shortenedURL.string();
+                    if (!shortenedURL.protocolIsInHTTPFamily())
+                        return shortenedString;
 
-                return { LinkItemData { { }, WTF::move(url) } };
+                    if (auto endOfProtocol = shortenedString.find("://"_s); endOfProtocol != notFound)
+                        shortenedString = shortenedString.substring(endOfProtocol + 3);
+
+                    if (shortenedString.endsWith('/'))
+                        shortenedString = shortenedString.left(shortenedString.length() - 1);
+
+                    return shortenedString;
+                }();
+
+                String target;
+                if (RefPtr anchor = dynamicDowncast<HTMLAnchorElement>(*element))
+                    target = anchor->target();
+
+                return { LinkItemData {
+                    WTF::move(target),
+                    WTF::move(url),
+                    WTF::move(shortenedURLString)
+                } };
             }
         }
     }
@@ -449,8 +472,25 @@ static inline Variant<SkipExtraction, ItemData, URL, Editable> extractItemData(N
         } };
     }
 
-    if (RefPtr image = dynamicDowncast<HTMLImageElement>(element))
-        return { ImageItemData { image->getURLAttribute(HTMLNames::srcAttr), image->altText() } };
+    if (RefPtr image = dynamicDowncast<HTMLImageElement>(element)) {
+        auto completedSourceURL = image->getURLAttribute(HTMLNames::srcAttr);
+        return { ImageItemData {
+            .completedSource = completedSourceURL,
+            .shortenedName = StringEntropyHelpers::lowEntropyLastPathComponent(completedSourceURL, "image"_s),
+            .altText = image->altText(),
+        } };
+    }
+
+    if (RefPtr iframe = dynamicDowncast<HTMLIFrameElement>(element)) {
+        if (RefPtr contentFrame = iframe->contentFrame()) {
+            if (RefPtr frameOrigin = contentFrame->frameDocumentSecurityOrigin()) {
+                return { IFrameData {
+                    .origin = frameOrigin->toString(),
+                    .identifier = contentFrame->frameID(),
+                } };
+            }
+        }
+    }
 
     if (RefPtr form = dynamicDowncast<HTMLFormElement>(element)) {
         return { FormData {
@@ -555,6 +595,9 @@ static inline Variant<SkipExtraction, ItemData, URL, Editable> extractItemData(N
     if (element->hasTagName(HTMLNames::subTag))
         return { ItemData { ContainerType::Subscript } };
 
+    if (element->hasTagName(HTMLNames::delTag) || element->hasTagName(HTMLNames::sTag) || element->hasTagName(HTMLNames::strikeTag))
+        return { ItemData { ContainerType::Strikethrough } };
+
     if (CheckedPtr renderElement = dynamicDowncast<RenderBox>(*renderer); renderElement && renderElement->style().hasViewportConstrainedPosition())
         return { ItemData { ContainerType::ViewportConstrained } };
 
@@ -571,8 +614,14 @@ static inline Variant<SkipExtraction, ItemData, URL, Editable> extractItemData(N
 static inline bool shouldIncludeNodeIdentifier(NodeIdentifierInclusion inclusion, OptionSet<EventListenerCategory> eventListeners, AccessibilityRole role, const ItemData& data)
 {
     using enum NodeIdentifierInclusion;
-    if (inclusion == None)
+    switch (inclusion) {
+    case None:
         return false;
+    case AllContainers:
+        return !std::holds_alternative<TextItemData>(data);
+    default:
+        break;
+    }
 
     return WTF::switchOn(data,
         [inclusion, eventListeners, role](ContainerType type) {
@@ -591,6 +640,7 @@ static inline bool shouldIncludeNodeIdentifier(NodeIdentifierInclusion inclusion
             case ContainerType::Nav:
             case ContainerType::Subscript:
             case ContainerType::Superscript:
+            case ContainerType::Strikethrough:
             case ContainerType::Generic:
                 return eventListeners || AccessibilityObject::isARIAControl(role);
             case ContainerType::Button:
@@ -615,6 +665,11 @@ static inline bool shouldIncludeNodeIdentifier(NodeIdentifierInclusion inclusion
         [inclusion](auto&) {
             return inclusion == Interactive;
         });
+}
+
+static bool areSameOrigin(Document& document, Document& other)
+{
+    return document.protectedSecurityOrigin()->isSameOriginAs(other.protectedSecurityOrigin());
 }
 
 static inline void extractRecursive(Node& node, Item& parentItem, TraversalContext& context)
@@ -794,6 +849,13 @@ static inline void extractRecursive(Node& node, Item& parentItem, TraversalConte
     if (RefPtr container = dynamicDowncast<ContainerNode>(node)) {
         for (Ref child : composedTreeChildren<0>(*container))
             extractRecursive(child.get(), item ? *item : parentItem, context);
+
+        if (RefPtr iframe = dynamicDowncast<HTMLIFrameElement>(node); iframe && item) {
+            if (RefPtr frame = dynamicDowncast<LocalFrame>(iframe->contentFrame())) {
+                if (RefPtr document = frame->document(); document && areSameOrigin(*document, node.protectedDocument()))
+                    item->children.appendVector(extractItem(Request { context.originalRequest }, *frame).children);
+            }
+        }
     }
 
     if (onlyCollectTextAndLinks) {
@@ -887,25 +949,18 @@ static Node* nodeFromJSHandle(JSHandleIdentifier identifier)
     return nullptr;
 }
 
-Item extractItem(Request&& request, Page& page)
+Item extractItem(Request&& request, LocalFrame& frame)
 {
     Item root { ContainerType::Root, { }, { }, { }, { }, { }, { }, { }, { }, { }, 0 };
-    RefPtr mainFrame = dynamicDowncast<LocalFrame>(page.mainFrame());
-    if (!mainFrame) {
-        // FIXME: Propagate text extraction to RemoteFrames.
-        return root;
-    }
-
-    RefPtr mainDocument = mainFrame->document();
-    if (!mainDocument)
+    RefPtr document = frame.document();
+    if (!document)
         return root;
 
-    RefPtr bodyElement = mainDocument->body();
+    RefPtr bodyElement = document->body();
     if (!bodyElement)
         return root;
 
-    mainDocument->updateLayoutIgnorePendingStylesheets();
-    root.rectInRootView = rootViewBounds(*bodyElement);
+    document->updateLayoutIgnorePendingStylesheets();
 
     RefPtr extractionRootNode = [&] -> Node* {
         if (!request.targetNodeHandleIdentifier)
@@ -917,9 +972,17 @@ Item extractItem(Request&& request, Page& page)
     if (!extractionRootNode)
         return root;
 
+    RefPtr view = frame.view();
+    if (!view)
+        return root;
+
+    root.rectInRootView = view->contentsToRootView(IntRect { IntPoint::zero(), view->contentsSize() });
+    if (root.rectInRootView.isEmpty())
+        return root;
+
     {
         ClientNodeAttributesMap clientNodeAttributes;
-        for (auto&& [attribute, values] : WTF::move(request.clientNodeAttributes)) {
+        for (auto&& [attribute, values] : request.clientNodeAttributes) {
             for (auto&& [identifier, value] : WTF::move(values)) {
                 RefPtr node = nodeFromJSHandle(identifier);
                 if (!node)
@@ -940,10 +1003,11 @@ Item extractItem(Request&& request, Page& page)
         }
 
         TraversalContext context {
+            .originalRequest = { request },
             .clientNodeAttributes = WTF::move(clientNodeAttributes),
             .visibleText = collectText(*extractionRootNode, includeTextInAutoFilledControls),
             .nodesToSkip = WTF::move(nodesToSkip),
-            .rectInRootView = WTF::move(request.collectionRectInRootView),
+            .rectInRootView = request.collectionRectInRootView,
             .enclosingBlocks = { },
             .enclosingBlockNumberMap = { },
             .onlyCollectTextAndLinksCount = 0,
@@ -1227,21 +1291,17 @@ static String searchTextNotFoundDescription(const String& searchText)
 static constexpr auto nullFrameDescription = "Browsing context has been detached"_s;
 static constexpr auto interactedWithSelectElementDescription = "Successfully updated option in select element"_s;
 
-static void dispatchSimulatedClick(Page& page, IntPoint location, CompletionHandler<void(bool, String&&)>&& completion)
+static void dispatchSimulatedClick(LocalFrame& frame, IntPoint location, CompletionHandler<void(bool, String&&)>&& completion)
 {
-    RefPtr frame = page.localMainFrame();
-    if (!frame)
-        return completion(false, nullFrameDescription);
-
-    frame->eventHandler().handleMouseMoveEvent({
+    frame.eventHandler().handleMouseMoveEvent({
         location, location, MouseButton::Left, PlatformEvent::Type::MouseMoved, 0, { }, MonotonicTime::now(), ForceAtClick, SyntheticClickType::NoTap
     });
 
-    frame->eventHandler().handleMousePressEvent({
+    frame.eventHandler().handleMousePressEvent({
         location, location, MouseButton::Left, PlatformEvent::Type::MousePressed, 1, { }, MonotonicTime::now(), ForceAtClick, SyntheticClickType::NoTap
     });
 
-    frame->eventHandler().handleMouseReleaseEvent({
+    frame.eventHandler().handleMouseReleaseEvent({
         location, location, MouseButton::Left, PlatformEvent::Type::MouseReleased, 1, { }, MonotonicTime::now(), ForceAtClick, SyntheticClickType::NoTap
     });
 
@@ -1282,9 +1342,9 @@ static void dispatchSimulatedClick(Node& targetNode, const String& searchText, C
     if (!view)
         return completion(false, "Document is not visible to the user"_s);
 
-    RefPtr page = document->page();
-    if (!page)
-        return completion(false, "Document has been detached from the page"_s);
+    RefPtr frame = document->frame();
+    if (!frame)
+        return completion(false, nullFrameDescription);
 
     std::optional<FloatRect> targetRectInRootView;
     if (!searchText.isEmpty()) {
@@ -1307,7 +1367,7 @@ static void dispatchSimulatedClick(Node& targetNode, const String& searchText, C
     auto centerInRootView = roundedIntPoint(targetRectInRootView->center());
     if (RefPtr target = findNodeAtRootViewLocation(*view, document, centerInRootView); target && (target == element || target->isShadowIncludingDescendantOf(*element))) {
         // Dispatch mouse events over the center of the element, if possible.
-        return dispatchSimulatedClick(*page, centerInRootView, WTF::move(completion));
+        return dispatchSimulatedClick(*frame, centerInRootView, WTF::move(completion));
     }
 
     UserGestureIndicator indicator { IsProcessingUserGesture::Yes, element->protectedDocument().ptr() };
@@ -1345,16 +1405,12 @@ static bool selectOptionByValue(NodeIdentifier identifier, const String& optionT
     return false;
 }
 
-static RefPtr<Node> resolveNodeWithBodyAsFallback(Page& page, std::optional<NodeIdentifier> identifier)
+static RefPtr<Node> resolveNodeWithBodyAsFallback(LocalFrame& frame, std::optional<NodeIdentifier> identifier)
 {
     if (identifier)
         return Node::fromIdentifier(WTF::move(*identifier));
 
-    RefPtr mainFrame = page.localMainFrame();
-    if (!mainFrame)
-        return { };
-
-    RefPtr document = mainFrame->document();
+    RefPtr document = frame.document();
     if (!document)
         return { };
 
@@ -1369,9 +1425,9 @@ static std::optional<SimpleRange> rangeForTextInContainer(const String& searchTe
     return searchForText(node, searchText);
 }
 
-static void selectText(Page& page, std::optional<NodeIdentifier>&& identifier, const String& searchText, bool revealText, CompletionHandler<void(bool, String&&)>&& completion)
+static void selectText(LocalFrame& frame, std::optional<NodeIdentifier>&& identifier, const String& searchText, bool revealText, CompletionHandler<void(bool, String&&)>&& completion)
 {
-    RefPtr foundNode = resolveNodeWithBodyAsFallback(page, identifier);
+    RefPtr foundNode = resolveNodeWithBodyAsFallback(frame, identifier);
     if (!foundNode)
         return completion(false, invalidNodeIdentifierDescription(WTF::move(identifier)));
 
@@ -1395,9 +1451,9 @@ static void selectText(Page& page, std::optional<NodeIdentifier>&& identifier, c
     return completion(true, { });
 }
 
-static void highlightText(Page& page, std::optional<NodeIdentifier>&& identifier, const String& searchText, bool scrollToVisible, CompletionHandler<void(bool, String&&)>&& completion)
+static void highlightText(LocalFrame& frame, std::optional<NodeIdentifier>&& identifier, const String& searchText, bool scrollToVisible, CompletionHandler<void(bool, String&&)>&& completion)
 {
-    RefPtr foundNode = resolveNodeWithBodyAsFallback(page, identifier);
+    RefPtr foundNode = resolveNodeWithBodyAsFallback(frame, identifier);
     if (!foundNode)
         return completion(false, invalidNodeIdentifierDescription(WTF::move(identifier)));
 
@@ -1418,17 +1474,13 @@ static void highlightText(Page& page, std::optional<NodeIdentifier>&& identifier
     return completion(true, { });
 }
 
-static void scrollBy(Page& page, std::optional<NodeIdentifier>&& identifier, FloatSize scrollDelta, CompletionHandler<void(bool, String&&)>&& completion)
+static void scrollBy(LocalFrame& frame, std::optional<NodeIdentifier>&& identifier, FloatSize scrollDelta, CompletionHandler<void(bool, String&&)>&& completion)
 {
-    RefPtr foundNode = resolveNodeWithBodyAsFallback(page, identifier);
+    RefPtr foundNode = resolveNodeWithBodyAsFallback(frame, identifier);
     if (!foundNode)
         return completion(false, invalidNodeIdentifierDescription(WTF::move(identifier)));
 
-    RefPtr frame = foundNode->protectedDocument()->frame();
-    if (!frame)
-        return completion(false, nullFrameDescription);
-
-    WeakPtr scroller = CheckedRef { frame->eventHandler() }->enclosingScrollableArea(foundNode.get());
+    WeakPtr scroller = CheckedRef { frame.eventHandler() }->enclosingScrollableArea(foundNode.get());
     if (!scroller)
         return completion(false, "No scrollable area found"_s);
 
@@ -1451,7 +1503,7 @@ static bool simulateKeyPress(LocalFrame& frame, const String& key)
     return true;
 }
 
-static void simulateKeyPress(Page& page, std::optional<NodeIdentifier>&& identifier, const String& text, CompletionHandler<void(bool, String&&)>&& completion)
+static void simulateKeyPress(LocalFrame& targetFrame, std::optional<NodeIdentifier>&& identifier, const String& text, CompletionHandler<void(bool, String&&)>&& completion)
 {
     if (identifier) {
         RefPtr focusTarget = dynamicDowncast<Element>(Node::fromIdentifier(*identifier));
@@ -1462,17 +1514,13 @@ static void simulateKeyPress(Page& page, std::optional<NodeIdentifier>&& identif
             focusTarget->focus();
     }
 
-    RefPtr targetFrame = page.focusController().focusedOrMainFrame();
-    if (!targetFrame)
-        return completion(false, nullFrameDescription);
-
     String canonicalKey = text;
     if (text == "\n"_s || text == "Return"_s)
         canonicalKey = "Enter"_s;
     else if (text == "Left"_s || text == "Right"_s || text == "Up"_s || text == "Down"_s)
         canonicalKey = makeString("Arrow"_s, text);
 
-    if (simulateKeyPress(*targetFrame, canonicalKey))
+    if (simulateKeyPress(targetFrame, canonicalKey))
         return completion(true, { });
 
     if (!text.is8Bit()) {
@@ -1482,7 +1530,7 @@ static void simulateKeyPress(Page& page, std::optional<NodeIdentifier>&& identif
 
     bool succeeded = true;
     for (auto character : text.span8()) {
-        if (!simulateKeyPress(*targetFrame, { std::span { &character, 1 } }))
+        if (!simulateKeyPress(targetFrame, { std::span { &character, 1 } }))
             succeeded = false;
     }
 
@@ -1535,12 +1583,12 @@ static void focusAndInsertText(NodeIdentifier identifier, String&& text, bool re
     });
 }
 
-void handleInteraction(Interaction&& interaction, Page& page, CompletionHandler<void(bool, String&&)>&& completion)
+void handleInteraction(Interaction&& interaction, LocalFrame& frame, CompletionHandler<void(bool, String&&)>&& completion)
 {
     switch (interaction.action) {
     case Action::Click: {
         if (auto location = interaction.locationInRootView)
-            return dispatchSimulatedClick(page, roundedIntPoint(*location), WTF::move(completion));
+            return dispatchSimulatedClick(frame, roundedIntPoint(*location), WTF::move(completion));
 
         if (auto identifier = interaction.nodeIdentifier)
             return dispatchSimulatedClick(*identifier, WTF::move(interaction.text), WTF::move(completion));
@@ -1566,7 +1614,7 @@ void handleInteraction(Interaction&& interaction, Page& page, CompletionHandler<
         if (interaction.text.isEmpty() && !interaction.nodeIdentifier)
             return completion(false, "Missing nodeIdentifier and/or text"_s);
 
-        return selectText(page, WTF::move(interaction.nodeIdentifier), WTF::move(interaction.text), interaction.scrollToVisible, WTF::move(completion));
+        return selectText(frame, WTF::move(interaction.nodeIdentifier), WTF::move(interaction.text), interaction.scrollToVisible, WTF::move(completion));
     }
     case Action::TextInput: {
         if (auto identifier = interaction.nodeIdentifier)
@@ -1575,18 +1623,18 @@ void handleInteraction(Interaction&& interaction, Page& page, CompletionHandler<
         return completion(false, "Missing nodeIdentifier"_s);
     }
     case Action::KeyPress:
-        return simulateKeyPress(page, WTF::move(interaction.nodeIdentifier), interaction.text, WTF::move(completion));
+        return simulateKeyPress(frame, WTF::move(interaction.nodeIdentifier), interaction.text, WTF::move(completion));
     case Action::HighlightText: {
         if (interaction.text.isEmpty() && !interaction.nodeIdentifier)
             return completion(false, "Missing nodeIdentifier and/or text"_s);
 
-        return highlightText(page, WTF::move(interaction.nodeIdentifier), WTF::move(interaction.text), interaction.scrollToVisible, WTF::move(completion));
+        return highlightText(frame, WTF::move(interaction.nodeIdentifier), WTF::move(interaction.text), interaction.scrollToVisible, WTF::move(completion));
     }
     case Action::ScrollBy:
         if (interaction.scrollDelta.isZero())
             return completion(false, "Scroll delta is zero"_s);
 
-        return scrollBy(page, WTF::move(interaction.nodeIdentifier), interaction.scrollDelta, WTF::move(completion));
+        return scrollBy(frame, WTF::move(interaction.nodeIdentifier), interaction.scrollDelta, WTF::move(completion));
     default:
         ASSERT_NOT_REACHED();
         break;
@@ -1726,17 +1774,13 @@ static String textDescription(std::optional<NodeIdentifier> identifier, Vector<S
     return textDescription(RefPtr { Node::fromIdentifier(*identifier) }.get(), stringsToValidate);
 }
 
-static String textDescription(Page& page, FloatPoint locationInRootView, Vector<String>& stringsToValidate)
+static String textDescription(LocalFrame& frame, FloatPoint locationInRootView, Vector<String>& stringsToValidate)
 {
-    RefPtr frame = page.localMainFrame();
-    if (!frame)
-        return { };
-
-    RefPtr document = frame->document();
+    RefPtr document = frame.document();
     if (!document)
         return { };
 
-    RefPtr view = frame->view();
+    RefPtr view = frame.view();
     if (!view)
         return { };
 
@@ -1747,7 +1791,7 @@ static String textDescription(Page& page, FloatPoint locationInRootView, Vector<
     return textDescription(targetNode.get(), stringsToValidate);
 }
 
-InteractionDescription interactionDescription(const Interaction& interaction, Page& page)
+InteractionDescription interactionDescription(const Interaction& interaction, LocalFrame& frame)
 {
     auto action = interaction.action;
     bool isSingleKeyPress = action == Action::KeyPress && PlatformKeyboardEvent::syntheticEventFromText(PlatformEvent::Type::KeyUp, interaction.text);
@@ -1820,7 +1864,7 @@ InteractionDescription interactionDescription(const Interaction& interaction, Pa
     if (auto location = interaction.locationInRootView) {
         auto roundedLocation = roundedIntPoint(*location);
         description.append(" at coordinates ("_s, roundedLocation.x(), ", "_s, roundedLocation.y(), ')');
-        appendElementString(page, *location, stringsToValidate);
+        appendElementString(frame, *location, stringsToValidate);
     } else
         appendElementString(interaction.nodeIdentifier, stringsToValidate);
 
@@ -1834,6 +1878,19 @@ InteractionDescription interactionDescription(const Interaction& interaction, Pa
         description.append(makeString(appendedReplaceTextDescription ? " and"_s : ","_s, " scrolling the targeted range into view"_s));
 
     return { description.toString(), WTF::move(stringsToValidate) };
+}
+
+RefPtr<Element> elementForExtractedText(const LocalFrame& frame, ExtractedText&& extractedText)
+{
+    auto range = rangeForExtractedText(frame, WTF::move(extractedText));
+    if (!range)
+        return { };
+
+    RefPtr node = commonInclusiveAncestor<ComposedTree>(*range);
+    if (!node)
+        return { };
+
+    return dynamicDowncast<Element>(node) ?: node->parentElementInComposedTree();
 }
 
 std::optional<SimpleRange> rangeForExtractedText(const LocalFrame& frame, ExtractedText&& extractedText)
@@ -1895,12 +1952,12 @@ void applyRules(const String& input, std::optional<NodeIdentifier>&& containerNo
     if (!document)
         return completion(input);
 
-    RefPtr containerNode = resolveNodeWithBodyAsFallback(page, WTF::move(containerNodeID));
+    RefPtr containerNode = resolveNodeWithBodyAsFallback(*mainFrame, WTF::move(containerNodeID));
     if (!containerNode)
         return completion(input);
 
     Ref world = filteringWorld();
-    auto arguments = [&] {
+    auto makeArguments = [&] {
         ArgumentMap argumentMap;
         argumentMap.reserveInitialCapacity(2);
         argumentMap.add("input"_s, [input](auto& lexicalGlobalObject) {
@@ -1915,7 +1972,7 @@ void applyRules(const String& input, std::optional<NodeIdentifier>&& containerNo
             return toJS(&lexicalGlobalObject, mainFrame->checkedScript()->globalObject(world), *containerNode);
         });
         return std::make_optional(WTF::move(argumentMap));
-    }();
+    };
 
     auto filteredStrings = Box<Vector<String>>::create();
     auto aggregator = MainRunLoopCallbackAggregator::create([completion = WTF::move(completion), input, filteredStrings] mutable {
@@ -1944,7 +2001,7 @@ void applyRules(const String& input, std::optional<NodeIdentifier>&& containerNo
             SourceTaintedOrigin::Untainted,
             { },
             true, // runAsAsyncFunction
-            WTF::move(arguments),
+            makeArguments(),
             false, // forceUserGesture
             RemoveTransientActivation::No
         };

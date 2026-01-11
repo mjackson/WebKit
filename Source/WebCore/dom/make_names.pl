@@ -824,7 +824,7 @@ sub printNamesHeaderFile
     open F, ">$headerPath";
 
     printLicenseHeader($F);
-    printHeaderHead($F, "DOM", $parameters{namespace}, <<END, "class $parameters{namespace}QualifiedName : public QualifiedName { };\n\n");
+    printHeaderHead($F, "DOM", $parameters{namespace}, <<END, "class $parameters{namespace}QualifiedName : public QualifiedName {\npublic:\n    using QualifiedName::QualifiedName;\n};\n\n");
 #include <WebCore/QualifiedName.h>
 #include <span>
 #include <wtf/NeverDestroyed.h>
@@ -998,26 +998,7 @@ sub printTagNameCppFile
     }
     print F "#include <wtf/text/FastCharacterComparison.h>\n";
     print F "\n";
-    print F "WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN\n";
-    print F "\n";
     print F "namespace WebCore {\n";
-    print F "\n";
-    print F "static constexpr void* tagQualifiedNamePointers[] = {\n";
-    my %handledTags = ();
-    for my $elementKey (sort byElementNameOrder keys %allElements) {
-        my $cppNamespace = $allElements{$elementKey}{cppNamespace};
-        my $identifier = $allElements{$elementKey}{identifier};
-        print F "    &${cppNamespace}Names::${identifier}Tag,\n" unless $handledTags{$identifier};
-        $handledTags{$identifier} = 1;
-    }
-    print F "};\n";
-    print F "\n";
-    print F "static constexpr StringImpl::StaticStringImpl unadjustedTagNames[] = {\n";
-    for my $elementKey (sort byElementNameOrder keys %allElements) {
-        next if $allElements{$elementKey}{unadjustedTagEnumValue} eq "";
-        print F "    StringImpl::StaticStringImpl { \"$allElements{$elementKey}{parsedTagName}\" },\n";
-    }
-    print F "};\n";
     print F "\n";
     print F "void initializeTagNameStrings() {\n";
     print F "    static bool initialized = false;\n";
@@ -1025,15 +1006,25 @@ sub printTagNameCppFile
     print F "        return;\n";
     print F "\n";
     print F "    tagNameStrings.construct();\n";
-    print F "    auto tagNamesEntry = tagNameStrings->begin();\n";
-    print F "    ++tagNamesEntry; // Skip TagName::Unknown\n";
-    print F "    for (auto* qualifiedName : tagQualifiedNamePointers)\n";
-    print F "        *(tagNamesEntry++) = reinterpret_cast<LazyNeverDestroyed<QualifiedName>*>(qualifiedName)->get().localName();\n";
-    print F "    for (auto& string : unadjustedTagNames) {\n";
-    print F "        reinterpret_cast<const StringImpl&>(string).assertHashIsCorrect();\n";
-    print F "        *(tagNamesEntry++) = AtomString(string);\n";
-    print F "    }\n";
-    print F "    ASSERT(tagNamesEntry == tagNameStrings->end());\n";
+    print F "    auto& strings = tagNameStrings.get();\n";
+    print F "\n";
+    print F "    // Initialize tag name strings from QualifiedName objects\n";
+    my %handledTags = ();
+    for my $elementKey (sort byElementNameOrder keys %allElements) {
+        my $cppNamespace = $allElements{$elementKey}{cppNamespace};
+        my $identifier = $allElements{$elementKey}{identifier};
+        my $tagEnumValue = $allElements{$elementKey}{tagEnumValue};
+        next if $handledTags{$identifier};
+        $handledTags{$identifier} = 1;
+        print F "    strings[TagName::$tagEnumValue] = ${cppNamespace}Names::${identifier}Tag->localName();\n";
+    }
+    print F "\n";
+    print F "    // Initialize unadjusted tag names\n";
+    for my $elementKey (sort byElementNameOrder keys %allElements) {
+        next if $allElements{$elementKey}{unadjustedTagEnumValue} eq "";
+        my $unadjustedTagEnumValue = $allElements{$elementKey}{unadjustedTagEnumValue};
+        print F "    strings[TagName::$unadjustedTagEnumValue] = \"$allElements{$elementKey}{parsedTagName}\"_s;\n";
+    }
     print F "}\n";
     print F "\n";
     print F "template <typename characterType>\n";
@@ -1057,8 +1048,6 @@ sub printTagNameCppFile
     print F "#endif\n";
     print F "\n";
     print F "} // namespace WebCore\n";
-    print F "\n";
-    print F "WTF_ALLOW_UNSAFE_BUFFER_USAGE_END\n";
     print F "\n";
     close F;
 }
@@ -1225,8 +1214,6 @@ sub printNodeNameCppFile
     print F "#include \"Namespace.h\"\n";
     print F "#include <wtf/text/FastCharacterComparison.h>\n";
     print F "\n";
-    print F "WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN\n";
-    print F "\n";
     print F "namespace WebCore {\n";
     print F "\n";
     my @allNamespaces = sort (keys %allElementsPerNamespace, keys %allAttrsPerNamespace);
@@ -1323,8 +1310,6 @@ sub printNodeNameCppFile
     print F "\n";
     print F "} // namespace WebCore\n";
     print F "\n";
-    print F "WTF_ALLOW_UNSAFE_BUFFER_USAGE_END\n";
-    print F "\n";
     close F;
 }
 
@@ -1395,7 +1380,7 @@ sub generateFindNameForLength
                 my $letter = substr($string, $currentIndex, 1);
                 print F "${indent}if (buffer[$currentIndex] == '$letter') {\n";
             } else {
-                my $bufferStart = $currentIndex > 0 ? "buffer.data() + $currentIndex" : "buffer.data()";
+                my $bufferStart = $currentIndex > 0 ? "buffer.subspan($currentIndex).data()" : "buffer.data()";
                 if ($lengthToCompare <= 8) {
                     print F "${indent}if (compareCharacters($bufferStart";
                     for (my $index = $currentIndex; $index < $length; $index = $index + 1) {
@@ -1665,36 +1650,14 @@ sub printDefinitions
     my ($F, $namesRef, $type, $namespaceURI, $namespaceEnumValue) = @_;
 
     my $shortCamelType = ucfirst(substr(substr($type, 0, -1), 0, 4));
-    my $capitalizedType = ucfirst($type);
-
-    my @tableEntryFields = (
-        "LazyNeverDestroyed<const QualifiedName>* targetAddress",
-        "const StaticStringImpl& name",
-        "NodeName nodeName"
-    );
-
-    my $cast = $type eq "tags" ? "(LazyNeverDestroyed<const QualifiedName>*)" : "";
 
     print F "\n";
-    print F "    struct ${capitalizedType}TableEntry {\n";
-
-    print F map { "        $_;\n" } @tableEntryFields;
-
-    print F "    };\n";
-    print F "\n";
-    print F "    static const ${capitalizedType}TableEntry ${type}Table[] = {\n";
-
+    print F "    // Initialize $type\n";
     for my $key (sort keys %$namesRef) {
         my $identifier = $namesRef->{$key}{identifier};
         my $nodeNameEnumValue = $namesRef->{$key}{nodeNameEnumValue} || "Unknown";
-        # Attribute names never correspond to a recognized NodeName.
-        print F "        { $cast&$identifier$shortCamelType, *(&${identifier}Data), NodeName::$nodeNameEnumValue },\n";
+        print F "    $identifier$shortCamelType.construct(nullAtom(), AtomString(${identifier}Data), $namespaceURI, Namespace::$namespaceEnumValue, NodeName::$nodeNameEnumValue);\n";
     }
-
-    print F "    };\n";
-    print F "\n";
-    print F "    for (auto& entry : ${type}Table)\n";
-    print F "        entry.targetAddress->construct(nullAtom(), AtomString(entry.name), $namespaceURI, Namespace::$namespaceEnumValue, entry.nodeName);\n";
 }
 
 ## ElementFactory routines

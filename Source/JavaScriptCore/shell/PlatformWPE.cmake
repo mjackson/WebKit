@@ -9,9 +9,12 @@
 # regardless of whether those objects are already contained in a SHARED
 # library in the list. Including both WebKit and the OBJECT frameworks
 # would cause duplicate symbols and bloated binaries.
-set(jsc_FRAMEWORKS WebKit)
 
+# The goal is to reduce binary size of the built-products. See bug 304213
+# This only works with -DDEVELOPER_MODE=ON because without it a webkitglib-symbols.map
+# filter is passed to the linker that makes the required symbols not visible.
 if (DEVELOPER_MODE)
+    set(jsc_FRAMEWORKS WebKit)
     set(testapi_FRAMEWORKS ${jsc_FRAMEWORKS})
     set(testmasm_FRAMEWORKS ${jsc_FRAMEWORKS})
     set(testRegExp_FRAMEWORKS ${jsc_FRAMEWORKS})

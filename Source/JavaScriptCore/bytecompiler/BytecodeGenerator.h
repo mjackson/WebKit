@@ -370,6 +370,7 @@ namespace JSC {
         bool usesThis() const { return m_scopeNode->usesThis(); }
         bool isFunctionNode() const { return m_scopeNode->isFunctionNode(); }
         bool hasShadowsArgumentsCodeFeature() const { return m_scopeNode->hasShadowsArgumentsFeature(); }
+        bool isAsyncFunctionWithoutAwait() const { return m_scopeNode->isAsyncFunctionWithoutAwait(); }
         LexicallyScopedFeatures lexicallyScopedFeatures() const { return m_scopeNode->lexicallyScopedFeatures(); }
         PrivateBrandRequirement privateBrandRequirement() const { return m_codeBlock->privateBrandRequirement(); }
         ConstructorKind constructorKind() const { return m_codeBlock->constructorKind(); }
@@ -1047,6 +1048,8 @@ namespace JSC {
     public:
         void pushFinallyControlFlowScope(FinallyContext&);
         void popFinallyControlFlowScope();
+
+        bool hasFinallyScopes() const { return m_currentFinallyContext; }
 
         void pushOptionalChainTarget();
         void popOptionalChainTarget();

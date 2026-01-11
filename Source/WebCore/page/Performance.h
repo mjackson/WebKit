@@ -188,4 +188,6 @@ private:
     ListHashSet<RefPtr<PerformanceObserver>> m_observers;
 };
 
-}
+} // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(Performance)

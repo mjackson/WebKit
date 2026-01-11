@@ -48,7 +48,7 @@ public:
 
     inline SVGUnitTypes::SVGUnitType clipPathUnits() const;
 
-    void applyTransform(TransformationMatrix&, const RenderStyle&, const FloatRect& boundingBox, OptionSet<RenderStyle::TransformOperationOption>) const final;
+    void applyTransform(TransformationMatrix&, const RenderStyle&, const FloatRect& boundingBox, OptionSet<Style::TransformResolverOption>) const final;
 
 private:
     void element() const = delete;

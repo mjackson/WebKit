@@ -64,7 +64,7 @@ TextStream& FESpecularLighting::externalRepresentation(TextStream& ts, FilterRep
     FilterEffect::externalRepresentation(ts, representation);
     
     ts << " surfaceScale=\""_s << m_surfaceScale << '"';
-    ts << " specualConstant=\""_s << m_specularConstant << '"';
+    ts << " specularConstant=\""_s << m_specularConstant << '"';
     ts << " specularExponent=\""_s << m_specularExponent << '"';
 
     ts << "]\n"_s;

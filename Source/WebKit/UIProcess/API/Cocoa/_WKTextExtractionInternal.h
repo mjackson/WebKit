@@ -62,7 +62,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface _WKTextExtractionResult ()
 
-- (instancetype)initWithTextContent:(NSString *)textContent filteredOutAnyText:(BOOL)filteredOutAnyText;
+- (instancetype)initWithWebView:(nullable WKWebView *)webView textContent:(NSString *)textContent filteredOutAnyText:(BOOL)filteredOutAnyText shortenedURLs:(NSDictionary<NSString *, NSURL *> *)shortenedURLs;
 
 @end
 
@@ -91,6 +91,7 @@ typedef NS_ENUM(NSInteger, WKTextExtractionContainer) {
     WKTextExtractionContainerCanvas,
     WKTextExtractionContainerSubscript,
     WKTextExtractionContainerSuperscript,
+    WKTextExtractionContainerStrikethrough,
     WKTextExtractionContainerGeneric
 };
 
@@ -146,6 +147,11 @@ typedef NS_ENUM(NSInteger, WKTextExtractionEditableType) {
 - (instancetype)initWithTarget:(NSString *)target url:(nullable NSURL *)url rectInWebView:(CGRect)rectInWebView children:(NSArray<WKTextExtractionItem *> *)children eventListeners:(WKTextExtractionEventListenerTypes)eventListeners ariaAttributes:(NSDictionary<NSString *, NSString *> *)ariaAttributes accessibilityRole:(NSString *)accessibilityRole nodeIdentifier:(nullable NSString *)nodeIdentifier;
 @property (nonatomic, readonly) NSString *target;
 @property (nonatomic, readonly, nullable) NSURL *url;
+@end
+
+@interface WKTextExtractionIFrameItem : WKTextExtractionItem
+- (instancetype)initWithOrigin:(NSString *)origin rectInWebView:(CGRect)rectInWebView children:(NSArray<WKTextExtractionItem *> *)children eventListeners:(WKTextExtractionEventListenerTypes)eventListeners ariaAttributes:(NSDictionary<NSString *, NSString *> *)ariaAttributes accessibilityRole:(NSString *)accessibilityRole nodeIdentifier:(nullable NSString *)nodeIdentifier;
+@property (nonatomic, readonly) NSString *origin;
 @end
 
 @interface WKTextExtractionContentEditableItem : WKTextExtractionItem

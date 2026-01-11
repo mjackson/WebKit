@@ -212,7 +212,7 @@ void RenderFileUploadControl::paintControl(PaintInfo& paintInfo, const LayoutPoi
             return roundToInt(marginBoxLogicalHeight(containingBlock()->writingMode()));
         }();
 
-        paintInfo.context().setFillColor(style().visitedDependentColorWithColorFilter(CSSPropertyColor));
+        paintInfo.context().setFillColor(style().visitedDependentColorApplyingColorFilter());
         
         // Draw the filename
         {

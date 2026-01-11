@@ -92,13 +92,13 @@ addEventListener("load", async () => {
     testRunner.waitUntilDone();
 
     const results = [];
-    for (let outputFormat of ["texttree", "html"]) {
+    for (let outputFormat of ["texttree", "html", "json"]) {
         const heading = document.createElement("h1");
         heading.textContent = `-- ${outputFormat}`;
 
         const container = document.createElement("pre");
         container.classList.add("text-representation");
-        container.textContent = await UIHelper.requestDebugText({
+        let textContent = await UIHelper.requestDebugText({
             normalize: true,
             includeRects: false,
             includeURLs: false,
@@ -108,6 +108,13 @@ addEventListener("load", async () => {
             includeTextInAutoFilledControls: true,
             outputFormat,
         });
+
+        if (outputFormat === "json") {
+            // Make sure output JSON is pretty-printed, so that text diffs are easy to read.
+            textContent = JSON.stringify(JSON.parse(textContent), null, "  ");
+        }
+
+        container.textContent = textContent;
         results.push(heading);
         results.push(container);
         results.push(document.createElement("br"));

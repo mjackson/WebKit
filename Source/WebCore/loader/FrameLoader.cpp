@@ -4746,11 +4746,6 @@ void FrameLoader::didChangeTitle(DocumentLoader* loader)
         m_client->setMainFrameDocumentReady(true); // update observers with new DOMDocument
         m_client->dispatchDidReceiveTitle(loader->title());
     }
-
-#if ENABLE(REMOTE_INSPECTOR)
-    if (m_frame->isMainFrame())
-        protectedFrame()->protectedPage()->remoteInspectorInformationDidChange();
-#endif
 }
 
 void FrameLoader::dispatchDidCommitLoad(std::optional<HasInsecureContent> initialHasInsecureContent, std::optional<UsedLegacyTLS> initialUsedLegacyTLS, std::optional<WasPrivateRelayed> initialWasPrivateRelayed)
@@ -4764,11 +4759,6 @@ void FrameLoader::dispatchDidCommitLoad(std::optional<HasInsecureContent> initia
         page->didCommitLoad();
 
     InspectorInstrumentation::didCommitLoad(protectedFrame(), protectedDocumentLoader().get());
-
-#if ENABLE(REMOTE_INSPECTOR)
-    if (RefPtr page = m_frame->page(); page && m_frame->isMainFrame())
-        page->remoteInspectorInformationDidChange();
-#endif
 }
 
 void FrameLoader::tellClientAboutPastMemoryCacheLoads()

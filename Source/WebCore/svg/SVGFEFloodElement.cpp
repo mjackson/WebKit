@@ -53,7 +53,7 @@ bool SVGFEFloodElement::setFilterEffectAttribute(FilterEffect& effect, const Qua
 
     auto& feFlood = downcast<FEFlood>(effect);
     if (attrName == SVGNames::flood_colorAttr)
-        return feFlood.setFloodColor(style.colorResolvingCurrentColor(style.floodColor()));
+        return feFlood.setFloodColor(style.floodColorResolvingCurrentColor());
     if (attrName == SVGNames::flood_opacityAttr)
         return feFlood.setFloodOpacity(style.floodOpacity().value.value);
 
@@ -67,12 +67,8 @@ RefPtr<FilterEffect> SVGFEFloodElement::createFilterEffect(const FilterEffectVec
     if (!renderer)
         return nullptr;
 
-    auto& style = renderer->style();
-
-    auto color = style.colorWithColorFilter(style.floodColor());
-    float opacity = style.floodOpacity().value.value;
-
-    return FEFlood::create(color, opacity);
+    CheckedRef style = renderer->style();
+    return FEFlood::create(style->floodColorResolvingCurrentColorApplyingColorFilter(), style->floodOpacity().value.value);
 }
 
 } // namespace WebCore

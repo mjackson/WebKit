@@ -4,7 +4,7 @@
  *           (C) 2000 Dirk Mueller (mueller@kde.org)
  * Copyright (C) 2003, 2005, 2006, 2007, 2008, 2022 Apple Inc. All rights reserved.
  * Copyright (C) 2006 Graham Dennis (graham.dennis@gmail.com)
- * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025-2026 Samuel Weinig <sam@webkit.org>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -38,14 +38,9 @@ bool OutlineValue::nonZero() const
     return outlineWidth && static_cast<OutlineStyle>(outlineStyle) != OutlineStyle::None;
 }
 
-bool OutlineValue::isTransparent() const
-{
-    return outlineColor.isResolvedColor() && outlineColor.resolvedColor().isValid() && !outlineColor.resolvedColor().isVisible();
-}
-
 bool OutlineValue::isVisible() const
 {
-    return nonZero() && !isTransparent();
+    return nonZero() && !outlineColor.isKnownTransparent();
 }
 
 TextStream& operator<<(TextStream& ts, const OutlineValue& value)

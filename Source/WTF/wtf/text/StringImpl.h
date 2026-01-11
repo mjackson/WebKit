@@ -153,14 +153,14 @@ public:
     static constexpr unsigned MaxLength = std::numeric_limits<int32_t>::max();
 
 protected:
-    StringImplShape(unsigned refCount, std::span<const Latin1Character>, unsigned hashAndFlags);
-    StringImplShape(unsigned refCount, std::span<const char16_t>, unsigned hashAndFlags);
+    StringImplShape(uint32_t refCount, std::span<const Latin1Character>, unsigned hashAndFlags);
+    StringImplShape(uint32_t refCount, std::span<const char16_t>, unsigned hashAndFlags);
 
     enum ConstructWithConstExprTag { ConstructWithConstExpr };
-    template<unsigned characterCount> constexpr StringImplShape(unsigned refCount, unsigned length, const char (&characters)[characterCount], unsigned hashAndFlags, ConstructWithConstExprTag);
-    template<unsigned characterCount> constexpr StringImplShape(unsigned refCount, unsigned length, const char16_t (&characters)[characterCount], unsigned hashAndFlags, ConstructWithConstExprTag);
+    template<unsigned characterCount> constexpr StringImplShape(uint32_t refCount, unsigned length, const char (&characters)[characterCount], unsigned hashAndFlags, ConstructWithConstExprTag);
+    template<unsigned characterCount> constexpr StringImplShape(uint32_t refCount, unsigned length, const char16_t (&characters)[characterCount], unsigned hashAndFlags, ConstructWithConstExprTag);
 
-    std::atomic<unsigned> m_refCount;
+    std::atomic<uint32_t> m_refCount;
     unsigned m_length;
     union {
         const Latin1Character* m_data8;
@@ -340,6 +340,8 @@ public:
     static WTF_EXPORT_PRIVATE Expected<CString, UTF8ConversionError> utf8ForCharacters(std::span<const Latin1Character> characters);
     static WTF_EXPORT_PRIVATE Expected<CString, UTF8ConversionError> utf8ForCharacters(std::span<const char16_t> characters, ConversionMode = LenientConversion);
     static WTF_EXPORT_PRIVATE Expected<size_t, UTF8ConversionError> utf8ForCharactersIntoBuffer(std::span<const char16_t> characters, ConversionMode, Vector<char8_t, 1024>&);
+    static WTF_EXPORT_PRIVATE size_t utf8LengthFromUTF16(std::span<const char16_t> characters);
+    static WTF_EXPORT_PRIVATE size_t tryConvertUTF16ToUTF8(std::span<const char16_t> source, std::span<char8_t> destination);
 
     template<typename Func>
     static Expected<std::invoke_result_t<Func, std::span<const char8_t>>, UTF8ConversionError> tryGetUTF8ForCharacters(NOESCAPE const Func&, std::span<const Latin1Character> characters);
@@ -378,7 +380,7 @@ public:
 
     SUPPRESS_TSAN bool isStatic() const { return m_refCount.load(std::memory_order_relaxed) & s_refCountFlagIsStaticString; }
 
-    size_t refCount() const { return m_refCount.load(std::memory_order_relaxed) / s_refCountIncrement; }
+    uint32_t refCount() const { return m_refCount.load(std::memory_order_relaxed) / s_refCountIncrement; }
     bool hasOneRef() const { return m_refCount.load(std::memory_order_relaxed) == s_refCountIncrement; }
     bool hasAtLeastOneRef() const { return m_refCount.load(std::memory_order_relaxed); } // For assertions.
 
@@ -585,8 +587,8 @@ private:
     Ref<StringImpl> convertToUppercaseWithoutLocaleUpconvert();
 
     // The bottom bit in the ref count indicates a static (immortal) string.
-    static constexpr unsigned s_refCountFlagIsStaticString = 0x1;
-    static constexpr unsigned s_refCountIncrement = 0x2; // This allows us to ref / deref without disturbing the static string flag.
+    static constexpr uint32_t s_refCountFlagIsStaticString = 0x1;
+    static constexpr uint32_t s_refCountIncrement = 0x2; // This allows us to ref / deref without disturbing the static string flag.
 
 #if STRING_STATS
     WTF_EXPORT_PRIVATE static StringStats m_stringStats;
@@ -886,7 +888,7 @@ inline bool deprecatedIsNotSpaceOrNewline(char16_t character)
     return !deprecatedIsSpaceOrNewline(character);
 }
 
-inline StringImplShape::StringImplShape(unsigned refCount, std::span<const Latin1Character> data, unsigned hashAndFlags)
+inline StringImplShape::StringImplShape(uint32_t refCount, std::span<const Latin1Character> data, unsigned hashAndFlags)
     : m_refCount(refCount)
     , m_length(data.size())
     , m_data8(data.data())
@@ -895,7 +897,7 @@ inline StringImplShape::StringImplShape(unsigned refCount, std::span<const Latin
     RELEASE_ASSERT(data.size() <= MaxLength);
 }
 
-inline StringImplShape::StringImplShape(unsigned refCount, std::span<const char16_t> data, unsigned hashAndFlags)
+inline StringImplShape::StringImplShape(uint32_t refCount, std::span<const char16_t> data, unsigned hashAndFlags)
     : m_refCount(refCount)
     , m_length(data.size())
     , m_data16(data.data())
@@ -904,7 +906,7 @@ inline StringImplShape::StringImplShape(unsigned refCount, std::span<const char1
     RELEASE_ASSERT(data.size() <= MaxLength);
 }
 
-template<unsigned characterCount> constexpr StringImplShape::StringImplShape(unsigned refCount, unsigned length, const char (&characters)[characterCount], unsigned hashAndFlags, ConstructWithConstExprTag)
+template<unsigned characterCount> constexpr StringImplShape::StringImplShape(uint32_t refCount, unsigned length, const char (&characters)[characterCount], unsigned hashAndFlags, ConstructWithConstExprTag)
     : m_refCount(refCount)
     , m_length(length)
     , m_data8Char(characters)
@@ -913,7 +915,7 @@ template<unsigned characterCount> constexpr StringImplShape::StringImplShape(uns
     RELEASE_ASSERT(length <= MaxLength);
 }
 
-template<unsigned characterCount> constexpr StringImplShape::StringImplShape(unsigned refCount, unsigned length, const char16_t (&characters)[characterCount], unsigned hashAndFlags, ConstructWithConstExprTag)
+template<unsigned characterCount> constexpr StringImplShape::StringImplShape(uint32_t refCount, unsigned length, const char16_t (&characters)[characterCount], unsigned hashAndFlags, ConstructWithConstExprTag)
     : m_refCount(refCount)
     , m_length(length)
     , m_data16Char(characters)
@@ -1151,12 +1153,12 @@ inline size_t StringImpl::costDuringGC()
         return 0;
 
     if (bufferOwnership() == BufferSubstring)
-        return divideRoundedUp(substringBuffer()->costDuringGC(), refCount());
+        return divideRoundedUp<size_t>(substringBuffer()->costDuringGC(), refCount());
 
     size_t result = m_length;
     if (!is8Bit())
         result <<= 1;
-    return divideRoundedUp(result, refCount());
+    return divideRoundedUp<size_t>(result, refCount());
 }
 
 inline void StringImpl::setIsAtom(bool isAtom)
@@ -1506,11 +1508,20 @@ inline Expected<std::invoke_result_t<Func, std::span<const char8_t>>, UTF8Conver
     if (characters.empty())
         return function(nonNullEmptyUTF8Span());
 
+    size_t utf8Length = utf8LengthFromUTF16(characters);
+    if (!isValidCapacityForVector<char8_t>(utf8Length)) [[unlikely]]
+        return makeUnexpected(UTF8ConversionError::OutOfMemory);
+
+    Vector<char8_t, 1024> bufferVector(utf8Length);
+    size_t simdConvertedSize = tryConvertUTF16ToUTF8(characters, bufferVector.mutableSpan());
+    if (simdConvertedSize != notFound)
+        return function(bufferVector.span().first(simdConvertedSize));
+
     if (productOverflows<size_t>(characters.size(), 3) || !isValidCapacityForVector<char8_t>(characters.size() * 3)) [[unlikely]]
         return makeUnexpected(UTF8ConversionError::OutOfMemory);
 
     size_t bufferSize = characters.size() * 3;
-    Vector<char8_t, 1024> bufferVector(bufferSize);
+    bufferVector.grow(bufferSize);
     auto convertedSize = utf8ForCharactersIntoBuffer(characters, mode, bufferVector);
     if (!convertedSize)
         return makeUnexpected(convertedSize.error());

@@ -41,10 +41,12 @@
 #include "MediationRequirement.h"
 #include "PermissionsPolicy.h"
 #include "VisibilityState.h"
+#include <JavaScriptCore/ConsoleTypes.h>
 #include <Logging.h>
 #include <wtf/JSONValues.h>
 #include <wtf/UUID.h>
 #include <wtf/text/Base64.h>
+#include <wtf/text/StringConcatenate.h>
 
 namespace WebCore {
 
@@ -62,7 +64,14 @@ DigitalCredential::DigitalCredential(JSC::Strong<JSC::JSObject>&& data, Identity
 {
 }
 
-static ExceptionOr<UnvalidatedDigitalCredentialRequest> jsToCredentialRequest(const Document& document, const DigitalCredentialRequest& request)
+static std::optional<IdentityCredentialProtocol> convertProtocolString(const String& protocolString)
+{
+    if (protocolString == "org-iso-mdoc"_s)
+        return IdentityCredentialProtocol::OrgIsoMdoc;
+    return std::nullopt;
+}
+
+static ExceptionOr<std::optional<UnvalidatedDigitalCredentialRequest>> jsToCredentialRequest(const Document& document, const DigitalCredentialRequest& request)
 {
     auto scope = DECLARE_THROW_SCOPE(document.globalObject()->vm());
     auto* globalObject = document.globalObject();
@@ -72,18 +81,16 @@ static ExceptionOr<UnvalidatedDigitalCredentialRequest> jsToCredentialRequest(co
     if (scope.exception()) [[unlikely]]
         return Exception { ExceptionCode::ExistingExceptionError };
 
-    switch (request.protocol) {
+    auto protocol = convertProtocolString(request.protocol);
+    if (!protocol)
+        return std::optional<UnvalidatedDigitalCredentialRequest> { std::nullopt }; // Return empty optional for unknown protocols
+
+    switch (*protocol) {
     case IdentityCredentialProtocol::OrgIsoMdoc: {
         auto result = convertDictionary<MobileDocumentRequest>(*globalObject, request.data.get());
         if (result.hasException(scope)) [[unlikely]]
             return Exception { ExceptionCode::ExistingExceptionError };
-        return DigitalCredentialRequestTypes { WTF::InPlaceType<MobileDocumentRequest>, result.releaseReturnValue() };
-    }
-    case IdentityCredentialProtocol::Openid4vp: {
-        auto result = convertDictionary<OpenID4VPRequest>(*globalObject, request.data.get());
-        if (result.hasException(scope)) [[unlikely]]
-            return Exception { ExceptionCode::ExistingExceptionError };
-        return DigitalCredentialRequestTypes { WTF::InPlaceType<OpenID4VPRequest>, result.releaseReturnValue() };
+        return std::make_optional<UnvalidatedDigitalCredentialRequest>(result.releaseReturnValue());
     }
     default:
         ASSERT_NOT_REACHED();
@@ -95,18 +102,26 @@ ExceptionOr<Vector<UnvalidatedDigitalCredentialRequest>> DigitalCredential::conv
 {
     Vector<UnvalidatedDigitalCredentialRequest> results;
     for (auto& request : requests) {
-        auto resultOrException = jsToCredentialRequest(document, request);
-        if (resultOrException.hasException())
-            return resultOrException.releaseException();
-        results.append(resultOrException.releaseReturnValue());
+        auto result = jsToCredentialRequest(document, request);
+        if (result.hasException())
+            return result.releaseException();
+
+        if (auto value = result.returnValue()) {
+            results.append(*value);
+            continue;
+        }
+
+        if (RefPtr context = document.scriptExecutionContext()) {
+            String warning = makeString("Ignoring DigitalCredentialRequest with unsupported protocol: \""_s, request.protocol, "\""_s);
+            context->addConsoleMessage(MessageSource::Other, MessageLevel::Warning, warning);
+        }
     }
 
     if (results.isEmpty())
-        return Exception { ExceptionCode::TypeError, "At least one request must present."_s };
+        return Exception { ExceptionCode::TypeError, "At least one supported DigitalCredentialRequest must present"_s };
 
     return results;
 }
-
 
 void DigitalCredential::discoverFromExternalSource(const Document& document, CredentialPromise&& promise, CredentialRequestOptions&& options)
 {

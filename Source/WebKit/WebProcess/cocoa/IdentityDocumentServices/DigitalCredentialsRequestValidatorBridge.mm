@@ -147,28 +147,14 @@ static WebCore::ValidatedMobileDocumentRequest buildValidatedRequest(WKIdentityD
     return validatedRequest;
 }
 
-Vector<WebCore::ValidatedDigitalCredentialRequest> DigitalCredentials::validateRequests(const SecurityOrigin &topOrigin, const Document &document, const Vector<UnvalidatedDigitalCredentialRequest> &unvalidatedRequests)
+Vector<WebCore::ValidatedMobileDocumentRequest> DigitalCredentials::validateRequests(const SecurityOrigin &topOrigin, const Document &document, const Vector<WebCore::MobileDocumentRequest> &unvalidatedRequests)
 {
     RetainPtr convertedTopOrigin = topOrigin.toURL().createNSURL().get();
     RetainPtr validator = adoptNS([WebKit::allocWKIdentityDocumentRawRequestValidatorInstance() init]);
 
-    Vector<WebCore::ValidatedDigitalCredentialRequest> validatedRequests;
+    Vector<WebCore::ValidatedMobileDocumentRequest> validatedRequests;
 
-    for (auto request : unvalidatedRequests) {
-        if (!std::holds_alternative<WebCore::MobileDocumentRequest>(request)) {
-            LOG(DigitalCredentials, "Incoming unvalidated request is not a supported type.");
-
-            const_cast<Document&>(document).addConsoleMessage(makeUnique<Inspector::ConsoleMessage>(
-                MessageSource::JS,
-                MessageType::Log,
-                MessageLevel::Warning,
-                "Encountered an unsupported request protocol. The request will be ignored."_s
-            ));
-
-            continue;
-        }
-
-        auto mobileDocumentRequest = std::get<WebCore::MobileDocumentRequest>(request);
+    for (auto mobileDocumentRequest : unvalidatedRequests) {
 
         RetainPtr convertedEncryptionInfo = mobileDocumentRequest.encryptionInfo.createNSString();
         RetainPtr convertedDeviceRequest = mobileDocumentRequest.deviceRequest.createNSString();
@@ -180,8 +166,7 @@ Vector<WebCore::ValidatedDigitalCredentialRequest> DigitalCredentials::validateR
 
         if (validatedISORequest) {
             auto validatedMobileDocumentRequest = buildValidatedRequest(validatedISORequest.get());
-            auto resultVariant = WTF::Variant<WebCore::ValidatedMobileDocumentRequest, WebCore::OpenID4VPRequest>(validatedMobileDocumentRequest);
-            validatedRequests.append(WTF::move(resultVariant));
+            validatedRequests.append(WTF::move(validatedMobileDocumentRequest));
         } else if (error) {
             RetainPtr debugDescription = dynamic_objc_cast<NSString>(error.userInfo[NSDebugDescriptionErrorKey]);
             String errorMessage = "An error occurred validating the incoming 'org-iso-mdoc' request. The request will be ignored."_s;

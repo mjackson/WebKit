@@ -59,7 +59,7 @@ ExceptionOr<Ref<CSSSkew>> CSSSkew::create(Ref<const CSSFunctionValue> cssFunctio
     }
 
     Vector<Ref<CSSNumericValue>> components;
-    for (auto& componentCSSValue : cssFunctionValue.get()) {
+    for (Ref componentCSSValue : cssFunctionValue.get()) {
         auto valueOrException = CSSStyleValueFactory::reifyValue(document, componentCSSValue, std::nullopt);
         if (valueOrException.hasException())
             return valueOrException.releaseException();
@@ -110,7 +110,7 @@ void CSSSkew::serialize(StringBuilder& builder) const
     // https://drafts.css-houdini.org/css-typed-om/#serialize-a-cssskew
     builder.append("skew("_s);
     m_ax->serialize(builder);
-    if (auto* ayUnitValue = dynamicDowncast<CSSUnitValue>(m_ay.get()); !ayUnitValue || ayUnitValue->value()) {
+    if (RefPtr ayUnitValue = dynamicDowncast<CSSUnitValue>(m_ay); !ayUnitValue || ayUnitValue->value()) {
         builder.append(", "_s);
         m_ay->serialize(builder);
     }
@@ -138,11 +138,11 @@ ExceptionOr<Ref<DOMMatrix>> CSSSkew::toMatrix()
 
 RefPtr<CSSValue> CSSSkew::toCSSValue() const
 {
-    auto ax = m_ax->toCSSValue();
-    auto ay = m_ay->toCSSValue();
+    RefPtr ax = m_ax->toCSSValue();
+    RefPtr ay = m_ay->toCSSValue();
     if (!ax || !ay)
         return nullptr;
-    if (auto* ayUnitValue = dynamicDowncast<CSSUnitValue>(m_ay.get()); ayUnitValue && !ayUnitValue->value())
+    if (RefPtr ayUnitValue = dynamicDowncast<CSSUnitValue>(m_ay); ayUnitValue && !ayUnitValue->value())
         return CSSFunctionValue::create(CSSValueSkew, ax.releaseNonNull());
     return CSSFunctionValue::create(CSSValueSkew, ax.releaseNonNull(), ay.releaseNonNull());
 }

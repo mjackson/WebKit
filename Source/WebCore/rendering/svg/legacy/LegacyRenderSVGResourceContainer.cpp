@@ -62,7 +62,7 @@ void LegacyRenderSVGResourceContainer::willBeDestroyed()
     SVGResourcesCache::resourceDestroyed(*this);
 
     if (m_registered) {
-        treeScopeForSVGReferences().removeSVGResource(m_id);
+        treeScopeForSVGReferences().removeSVGResource(m_id, *this);
         m_registered = false;
     }
 
@@ -85,7 +85,7 @@ void LegacyRenderSVGResourceContainer::idChanged()
     removeAllClientsFromCacheAndMarkForInvalidation();
 
     // Remove old id, that is guaranteed to be present in cache.
-    treeScopeForSVGReferences().removeSVGResource(m_id);
+    treeScopeForSVGReferences().removeSVGResource(m_id, *this);
     m_id = element().getIdAttribute();
 
     registerResource();

@@ -221,7 +221,7 @@ JSC::JSValue ObjcInstance::invokeMethod(JSGlobalObject* lexicalGlobalObject, Cal
     if (!asObject(runtimeMethod)->inherits<ObjCRuntimeMethod>())
         return throwTypeError(lexicalGlobalObject, scope, "Attempt to invoke non-plug-in method on plug-in object."_s);
 
-    ObjcMethod *method = static_cast<ObjcMethod*>(runtimeMethod->method());
+    auto* method = downcast<ObjcMethod>(runtimeMethod->method());
     ASSERT(method);
 
     return invokeObjcMethod(lexicalGlobalObject, callFrame, method);

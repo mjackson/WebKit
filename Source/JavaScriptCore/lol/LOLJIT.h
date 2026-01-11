@@ -60,7 +60,9 @@ namespace JSC::LOL {
     macro(op_lesseq) \
     macro(op_greater) \
     macro(op_greatereq) \
+    macro(op_resolve_scope) \
     macro(op_get_from_scope) \
+    macro(op_put_to_scope) \
     macro(op_lshift) \
     macro(op_to_number) \
     macro(op_to_string) \
@@ -264,12 +266,17 @@ private:
     template<typename Op>
     void emitRightShiftFastPath(const JSInstruction* currentInstruction, JITRightShiftGenerator::ShiftType snippetShiftType);
 
-    void silentSpill(auto& allocator, auto... excludeGPRs)
+    void silentSpill(auto& allocator, const auto& allocations)
     {
+        ScalarRegisterSet uses = RegisterSetBuilder::fromIterable(allocations.uses).buildScalarRegisterSet();
+        ScalarRegisterSet defs = RegisterSetBuilder::fromIterable(allocations.defs).buildScalarRegisterSet();
         JIT_COMMENT(*this, "Silent spilling");
         for (Reg reg : allocator.allocatedRegisters()) {
             GPRReg gpr = reg.gpr();
-            if (((gpr == excludeGPRs) || ... || false))
+            // We don't want to save defs unless they happen to alias a use. We need to save all uses
+            // in case an exception is thrown by the operation and subsequently caught in the same frame.
+            // FIXME: We could check if the exception would be caught in the same function here.
+            if (defs.contains(gpr, IgnoreVectors) && !uses.contains(gpr, IgnoreVectors))
                 continue;
             VirtualRegister binding = allocator.bindingFor(gpr);
             // This is scratch
@@ -297,6 +304,30 @@ private:
             emitGetVirtualRegister(binding, JSValueRegs(gpr));
         }
     }
+
+    void emitWriteBarrier(const auto& allocator, const auto& allocations, JSValueRegs owner, JSValueRegs value, GPRReg scratch, WriteBarrierMode mode)
+    {
+        ASSERT(noOverlap(owner, value.payloadGPR(), scratch));
+
+        JumpList done;
+        if (mode == ShouldFilterBase || mode == ShouldFilterBaseAndValue)
+            done.append(branchIfNotCell(owner));
+        else
+            jitAssertIsCell(owner.payloadGPR());
+
+        if (mode == ShouldFilterValue || mode == ShouldFilterBaseAndValue)
+            done.append(branchIfNotCell(value));
+
+        // TODO: We should have a way to add out-of-line slow paths in a encapsulated way i.e. some addSlowPath(lambda)
+        done.append(barrierBranch(vm(), owner.payloadGPR(), scratch));
+        silentSpill(allocator, allocations);
+        callOperationNoExceptionCheck(operationWriteBarrierSlowPath, TrustedImmPtr(&vm()), owner.payloadGPR());
+        silentFill(allocator);
+
+        done.link(this);
+    }
+
+    void emitLoadCharacterString(RegisterID src, RegisterID dst, JumpList& failures);
 
     template<typename Op>
         requires (LOLJIT::isImplemented(Op::opcodeID))
@@ -326,8 +357,17 @@ private:
 
     template<typename Op, typename SlowOperation>
     void emitCompareSlow(const JSInstruction*, DoubleCondition, SlowOperation, Vector<SlowCaseEntry>::iterator&);
-    template<typename SlowOperation, typename EmitDoubleCompareFunctor>
-    void emitCompareSlowImpl(VirtualRegister op1, JSValueRegs op1Regs, VirtualRegister op2, JSValueRegs op2Regs, JSValueRegs dstRegs, SlowOperation, Vector<SlowCaseEntry>::iterator&, const EmitDoubleCompareFunctor&);
+    template<typename SlowOperation>
+    void emitCompareSlowImpl(const auto& allocations, VirtualRegister op1, JSValueRegs op1Regs, VirtualRegister op2, JSValueRegs op2Regs, JSValueRegs dstRegs, SlowOperation, Vector<SlowCaseEntry>::iterator&, const Invocable<void(FPRReg, FPRReg)> auto&);
+
+
+    static MacroAssemblerCodeRef<JITThunkPtrTag> slow_op_get_from_scopeGenerator(VM&);
+    static MacroAssemblerCodeRef<JITThunkPtrTag> slow_op_resolve_scopeGenerator(VM&);
+    static MacroAssemblerCodeRef<JITThunkPtrTag> slow_op_put_to_scopeGenerator(VM&);
+    template <ResolveType>
+    static MacroAssemblerCodeRef<JITThunkPtrTag> generateOpGetFromScopeThunk(VM&);
+    template <ResolveType>
+    static MacroAssemblerCodeRef<JITThunkPtrTag> generateOpResolveScopeThunk(VM&);
 
     Vector<RegisterSet> m_liveTempsForSlowPaths;
     Vector<JSValueRegs> m_slowPathOperandRegs;

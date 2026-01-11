@@ -190,7 +190,7 @@ void WebInspectorBackend::showMainResourceForFrame(WebCore::FrameIdentifier fram
     if (!m_page->corePage())
         return;
 
-    String inspectorFrameIdentifier = m_page->corePage()->inspectorController().ensurePageAgent().frameId(frame->protectedCoreLocalFrame().get());
+    String inspectorFrameIdentifier = CheckedRef { m_page->corePage()->inspectorController().ensurePageAgent() }->frameId(frame->protectedCoreLocalFrame().get());
 
     whenFrontendConnectionEstablished([inspectorFrameIdentifier](auto& frontendConnection) {
         frontendConnection.send(Messages::WebInspectorUI::ShowMainResourceForFrame(inspectorFrameIdentifier), 0);

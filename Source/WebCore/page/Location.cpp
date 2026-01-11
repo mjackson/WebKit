@@ -29,6 +29,8 @@
 #include "config.h"
 #include "Location.h"
 
+#include "DocumentQuirks.h"
+#include "ExceptionOr.h"
 #include "FrameLoader.h"
 #include "LocalDOMWindow.h"
 #include "LocalDOMWindowProperty.h"

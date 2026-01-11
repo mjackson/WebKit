@@ -28,6 +28,7 @@
 #if ENABLE(VIDEO)
 
 #include <WebCore/Color.h>
+#include <WebCore/EventTargetInterfaces.h>
 #include <WebCore/VTTCue.h>
 
 namespace WebCore {
@@ -89,10 +90,11 @@ namespace WTF {
 
 template<> struct LogArgument<WebCore::TextTrackCueGeneric> : LogArgument<WebCore::TextTrackCue> { };
 
-}
+} // namespace WTF
 
 SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::TextTrackCueGeneric)
 static bool isType(const WebCore::TextTrackCue& cue) { return cue.cueType() == WebCore::TextTrackCue::ConvertedToWebVTT; }
+static bool isType(const WebCore::EventTarget& context) { return context.eventTargetInterface() == WebCore::EventTargetInterfaceType::TextTrackCue; }
 SPECIALIZE_TYPE_TRAITS_END()
 
 #endif

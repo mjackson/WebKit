@@ -47,7 +47,7 @@ private:
     InsertedIntoAncestorResult insertedIntoAncestor(InsertionType, ContainerNode&) final;
     void didFinishInsertingNode() final;
 
-    Vector<RefPtr<HTMLDetailsElement>> otherElementsInNameGroup();
+    Vector<Ref<HTMLDetailsElement>> otherElementsInNameGroup();
     void ensureDetailsExclusivityAfterMutation();
     void attributeChanged(const QualifiedName&, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason) final;
 

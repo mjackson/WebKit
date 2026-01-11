@@ -88,7 +88,8 @@ private:
 
 inline bool Node::hasTagName(const MathMLQualifiedName& name) const
 {
-    return isMathMLElement() && downcast<MathMLElement>(*this).hasTagName(name);
+    auto* element = dynamicDowncast<MathMLElement>(*this);
+    return element && element->hasTagName(name);
 }
 
 } // namespace WebCore

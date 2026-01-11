@@ -35,6 +35,9 @@
 #include "WebWheelEvent.h"
 #include <WebCore/GraphicsLayer.h>
 #include <WebCore/GraphicsLayerAnimation.h>
+#include <WebCore/GraphicsLayerFloatAnimationValue.h>
+#include <WebCore/GraphicsLayerKeyframeValueList.h>
+#include <WebCore/GraphicsLayerTransformAnimationValue.h>
 #include <WebCore/NotImplemented.h>
 #include <WebCore/PlatformWheelEvent.h>
 #include <WebCore/TiledBacking.h>
@@ -490,11 +493,11 @@ void PDFDiscretePresentationController::startTransitionAnimation(PageTransitionS
         operations.reserveInitialCapacity(1);
         operations.append(TranslateTransformOperation::create(offset.width(), offset.height(), 0, TransformOperationType::Translate));
 
-        return makeUnique<TransformAnimationValue>(keyTime, TransformOperations { WTF::move(operations) }, nullptr);
+        return makeUnique<GraphicsLayerTransformAnimationValue>(keyTime, TransformOperations { WTF::move(operations) }, nullptr);
     };
 
     auto createPositionKeyframesForAnimation = [&](TransitionDirection direction, FloatSize initialOffset, FloatSize finalOffset) {
-        auto keyframes = KeyframeValueList { AnimatedProperty::Translate };
+        auto keyframes = GraphicsLayerKeyframeValueList { AnimatedProperty::Translate };
         auto initialValue = transformAnimationValueForTranslation(0, initialOffset);
         auto finalValue = transformAnimationValueForTranslation(1, finalOffset);
         keyframes.insert(WTF::move(initialValue));
@@ -503,9 +506,9 @@ void PDFDiscretePresentationController::startTransitionAnimation(PageTransitionS
     };
 
     auto createOpacityKeyframesForAnimation = [](TransitionDirection direction, std::array<float, 2> startEndOpacities) {
-        auto keyframes = KeyframeValueList { AnimatedProperty::Opacity };
-        keyframes.insert(makeUnique<FloatAnimationValue>(0, startEndOpacities[startIndex]));
-        keyframes.insert(makeUnique<FloatAnimationValue>(1, startEndOpacities[endIndex]));
+        auto keyframes = GraphicsLayerKeyframeValueList { AnimatedProperty::Opacity };
+        keyframes.insert(makeUnique<GraphicsLayerFloatAnimationValue>(0, startEndOpacities[startIndex]));
+        keyframes.insert(makeUnique<GraphicsLayerFloatAnimationValue>(1, startEndOpacities[endIndex]));
         return keyframes;
     };
 

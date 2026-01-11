@@ -218,6 +218,4 @@ WebCoreOpaqueRoot root(IDBRequest*);
 
 } // namespace WebCore
 
-SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::IDBRequest)
-    static bool isType(const WebCore::EventTarget& eventTarget) { return eventTarget.eventTargetInterface() == WebCore::EventTargetInterfaceType::IDBRequest; }
-SPECIALIZE_TYPE_TRAITS_END()
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(IDBRequest)

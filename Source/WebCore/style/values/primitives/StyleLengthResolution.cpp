@@ -254,7 +254,12 @@ double computeNonCalcLengthDouble(double value, CSS::LengthUnit lengthUnit, cons
             auto* containerRenderer = dynamicDowncast<RenderBox>(element->renderer());
             if (containerRenderer && containerRenderer->hasEligibleContainmentForSizeQuery()) {
                 auto widthOrHeight = physicalAxis == CQ::Axis::Width ? containerRenderer->contentBoxWidth() : containerRenderer->contentBoxHeight();
-                return widthOrHeight * value / 100;
+                auto adjustedWidthOrHeight = widthOrHeight.toDouble();
+
+                if (!conversionData.computingFontSize())
+                    adjustedWidthOrHeight = adjustValueForPageZoom(adjustedWidthOrHeight, conversionData);
+
+                return adjustedWidthOrHeight * value / 100;
             }
             // For pseudo-elements the element itself can be the container. Avoid looping forever.
             mode = Style::ContainerQueryEvaluator::SelectionMode::Element;
@@ -307,7 +312,7 @@ double computeNonCalcLengthDouble(double value, CSS::LengthUnit lengthUnit, cons
             // We can't use computedLineHeightForFontUnits if the line height is fixed since
             // that will apply the usedZoomFactor. We probably should refactor it so that
             // does not happen and we don't have to special case this scenario.
-            value *= Style::evaluate<LayoutUnit>(*fixedLineHeight, Style::ZoomFactor { conversionData.zoom(), conversionData.style()->deviceScaleFactor() }).toFloat();
+            value *= Style::evaluate<LayoutUnit>(*fixedLineHeight, Style::ZoomFactor { conversionData.zoom() }).toFloat();
         } else
             value *= conversionData.computedLineHeightForFontUnits();
         break;

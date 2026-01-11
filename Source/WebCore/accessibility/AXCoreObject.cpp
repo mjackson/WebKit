@@ -387,6 +387,14 @@ AXCoreObject::AccessibilityChildrenVector AXCoreObject::stitchedUnignoredChildre
     return childrenAfterStitching(unignoredChildren());
 }
 
+std::optional<AXStitchGroup> AXCoreObject::stitchGroupIfRepresentative() const
+{
+    std::optional stitchGroup = this->stitchGroup();
+    if (!stitchGroup || stitchGroup->representativeID() != objectID() || stitchGroup->isEmpty())
+        return { };
+    return stitchGroup;
+}
+
 AXCoreObject* AXCoreObject::blockFlowAncestor() const
 {
     return Accessibility::findAncestor(*this, /* includeSelf */ false, [] (const auto& ancestor) {

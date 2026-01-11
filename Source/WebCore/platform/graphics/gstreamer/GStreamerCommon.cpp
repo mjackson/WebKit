@@ -123,7 +123,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(WebCoreLogObserver);
 
 static GstClockTime s_webkitGstInitTime;
 
-WARN_UNUSED_RETURN GstPad* webkitGstGhostPadFromStaticTemplate(GstStaticPadTemplate* staticPadTemplate, CStringView name, GstPad* target)
+[[nodiscard]] GstPad* webkitGstGhostPadFromStaticTemplate(GstStaticPadTemplate* staticPadTemplate, CStringView name, GstPad* target)
 {
     GstPad* pad;
     GRefPtr padTemplate = gst_static_pad_template_get(staticPadTemplate);
@@ -1276,6 +1276,24 @@ static ASCIILiteral webrtcStatsTypeName(int value)
     return nullptr;
 }
 
+static ASCIILiteral webrtcDtlsTransportStateName(int value)
+{
+    switch (value) {
+    case GST_WEBRTC_DTLS_TRANSPORT_STATE_NEW:
+        return "new"_s;
+    case GST_WEBRTC_DTLS_TRANSPORT_STATE_CLOSED:
+        return "closed"_s;
+    case GST_WEBRTC_DTLS_TRANSPORT_STATE_FAILED:
+        return "failed"_s;
+    case GST_WEBRTC_DTLS_TRANSPORT_STATE_CONNECTING:
+        return "connecting"_s;
+    case GST_WEBRTC_DTLS_TRANSPORT_STATE_CONNECTED:
+        return "connected"_s;
+    }
+    ASSERT_NOT_REACHED();
+    return nullptr;
+}
+
 #if GST_CHECK_VERSION(1, 27, 0)
 static ASCIILiteral webrtcIceTcpCandidateTypeName(int value)
 {
@@ -1288,6 +1306,20 @@ static ASCIILiteral webrtcIceTcpCandidateTypeName(int value)
         return "passive"_s;
     case GST_WEBRTC_ICE_TCP_CANDIDATE_TYPE_SO:
         return "so"_s;
+    }
+    ASSERT_NOT_REACHED();
+    return nullptr;
+}
+
+static ASCIILiteral webrtcDtlsRoleName(int value)
+{
+    switch (value) {
+    case GST_WEBRTC_DTLS_ROLE_CLIENT:
+        return "client"_s;
+    case GST_WEBRTC_DTLS_ROLE_SERVER:
+        return "server"_s;
+    case GST_WEBRTC_DTLS_ROLE_UNKNOWN:
+        return "unknown"_s;
     }
     ASSERT_NOT_REACHED();
     return nullptr;
@@ -1509,9 +1541,19 @@ static std::optional<RefPtr<JSON::Value>> gstStructureValueToJSON(const GValue* 
         if (!name.isEmpty()) [[likely]]
             return JSON::Value::create(makeString(name))->asValue();
     }
+    if (valueType == GST_TYPE_WEBRTC_DTLS_TRANSPORT_STATE) {
+        auto name = webrtcDtlsTransportStateName(g_value_get_enum(value));
+        if (!name.isEmpty()) [[likely]]
+            return JSON::Value::create(makeString(name))->asValue();
+    }
 #if GST_CHECK_VERSION(1, 27, 0)
     if (valueType == GST_TYPE_WEBRTC_ICE_TCP_CANDIDATE_TYPE) {
         auto name = webrtcIceTcpCandidateTypeName(g_value_get_enum(value));
+        if (!name.isEmpty()) [[likely]]
+            return JSON::Value::create(makeString(name))->asValue();
+    }
+    if (valueType == GST_TYPE_WEBRTC_DTLS_ROLE) {
+        auto name = webrtcDtlsRoleName(g_value_get_enum(value));
         if (!name.isEmpty()) [[likely]]
             return JSON::Value::create(makeString(name))->asValue();
     }

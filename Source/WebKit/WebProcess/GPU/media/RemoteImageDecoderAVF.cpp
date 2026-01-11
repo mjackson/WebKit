@@ -57,12 +57,12 @@ RemoteImageDecoderAVF::RemoteImageDecoderAVF(RemoteImageDecoderAVFManager& manag
 
 RemoteImageDecoderAVF::~RemoteImageDecoderAVF()
 {
-    protectedManager()->deleteRemoteImageDecoder(m_identifier);
+    manager()->deleteRemoteImageDecoder(m_identifier);
 }
 
-Ref<RemoteImageDecoderAVFManager> RemoteImageDecoderAVF::protectedManager() const
+Ref<RemoteImageDecoderAVFManager> RemoteImageDecoderAVF::manager() const
 {
-    return m_manager.get().releaseNonNull();
+    return m_manager.get();
 }
 
 bool RemoteImageDecoderAVF::canDecodeType(const String& mimeType)

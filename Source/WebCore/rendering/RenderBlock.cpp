@@ -4,6 +4,7 @@
  *           (C) 2007 David Smith (catfish.man@gmail.com)
  * Copyright (C) 2003-2025 Apple Inc. All rights reserved.
  * Copyright (C) Research In Motion Limited 2010. All rights reserved.
+ * Copyright (C) 2026 Samuel Weinig <sam@webkit.org>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -308,15 +309,15 @@ bool RenderBlock::scrollbarWidthDidChange(const RenderStyle& oldStyle, const Ren
 bool RenderBlock::contentBoxLogicalWidthChanged(const RenderStyle& oldStyle, const RenderStyle& newStyle)
 {
     if (newStyle.writingMode().isHorizontal()) {
-        return oldStyle.borderLeftWidth() != newStyle.borderLeftWidth()
-            || oldStyle.borderRightWidth() != newStyle.borderRightWidth()
+        return oldStyle.usedBorderLeftWidth() != newStyle.usedBorderLeftWidth()
+            || oldStyle.usedBorderRightWidth() != newStyle.usedBorderRightWidth()
             || oldStyle.paddingLeft() != newStyle.paddingLeft()
             || oldStyle.paddingRight() != newStyle.paddingRight()
             || scrollbarWidthDidChange(oldStyle, newStyle, ScrollbarOrientation::Vertical);
     }
 
-    return oldStyle.borderTopWidth() != newStyle.borderTopWidth()
-        || oldStyle.borderBottomWidth() != newStyle.borderBottomWidth()
+    return oldStyle.usedBorderTopWidth() != newStyle.usedBorderTopWidth()
+        || oldStyle.usedBorderBottomWidth() != newStyle.usedBorderBottomWidth()
         || oldStyle.paddingTop() != newStyle.paddingTop()
         || oldStyle.paddingBottom() != newStyle.paddingBottom()
         || scrollbarWidthDidChange(oldStyle, newStyle, ScrollbarOrientation::Horizontal);
@@ -328,8 +329,8 @@ bool RenderBlock::paddingBoxLogicaHeightChanged(const RenderStyle& oldStyle, con
         return (orientation == ScrollbarOrientation::Vertical ? includeVerticalScrollbarSize() : includeHorizontalScrollbarSize()) && oldStyle.scrollbarWidth() != newStyle.scrollbarWidth();
     };
     if (newStyle.writingMode().isHorizontal())
-        return oldStyle.borderTopWidth() != newStyle.borderTopWidth() || oldStyle.borderBottomWidth() != newStyle.borderBottomWidth() || scrollbarHeightDidChange(ScrollbarOrientation::Horizontal);
-    return oldStyle.borderLeftWidth() != newStyle.borderLeftWidth() || oldStyle.borderRightWidth() != newStyle.borderRightWidth() || scrollbarHeightDidChange(ScrollbarOrientation::Vertical);
+        return oldStyle.usedBorderTopWidth() != newStyle.usedBorderTopWidth() || oldStyle.usedBorderBottomWidth() != newStyle.usedBorderBottomWidth() || scrollbarHeightDidChange(ScrollbarOrientation::Horizontal);
+    return oldStyle.usedBorderLeftWidth() != newStyle.usedBorderLeftWidth() || oldStyle.usedBorderRightWidth() != newStyle.usedBorderRightWidth() || scrollbarHeightDidChange(ScrollbarOrientation::Vertical);
 }
 
 void RenderBlock::styleDidChange(Style::Difference diff, const RenderStyle* oldStyle)
@@ -563,32 +564,25 @@ void RenderBlock::layoutBlock(RelayoutChildren, LayoutUnit)
 
 // Overflow is always relative to the border-box of the element in question.
 // Therefore, if the element has a vertical scrollbar placed on the left, an overflow rect at x=2px would conceptually intersect the scrollbar.
-void RenderBlock::computeOverflow(LayoutUnit oldClientAfterEdge, OptionSet<ComputeOverflowOptions> options)
+void RenderBlock::computeOverflow(LayoutRect contentArea, OptionSet<ComputeOverflowOptions> options)
 {
     clearOverflow();
     addOverflowFromInFlowChildren(options);
     addOverflowFromOutOfFlowBoxes();
 
-    if (hasNonVisibleOverflow()) {
-        auto includePaddingAfter = [&] {
-            // When we have overflow clip, propagate the original spillout since it will include collapsed bottom margins and bottom padding.
-            auto clientRect = flippedClientBoxRect();
-            auto rectToApply = clientRect;
-            // Set the axis we don't care about to be 1, since we want this overflow to always be considered reachable.
-            if (isHorizontalWritingMode()) {
-                rectToApply.setWidth(1);
-                rectToApply.setHeight(std::max(0_lu, oldClientAfterEdge - clientRect.y()));
-            } else {
-                rectToApply.setWidth(std::max(0_lu, oldClientAfterEdge - clientRect.x()));
-                rectToApply.setHeight(1);
-            }
-            addLayoutOverflow(rectToApply);
-        };
-        includePaddingAfter();
-        if (hasRenderOverflow())
-            m_overflow->setLayoutClientAfterEdge(oldClientAfterEdge);
+    if (hasPotentiallyScrollableOverflow()) {
+        if (!flippedContentBoxRect().contains(contentArea))
+            ensureOverflow();
+        if (hasRenderOverflow()) {
+            m_overflow->addContentOverflow(contentArea);
+            auto contentOverflow = m_overflow->contentArea();
+            flipForWritingMode(contentOverflow);
+            contentOverflow.expand(padding());
+            flipForWritingMode(contentOverflow);
+            addLayoutOverflow(contentOverflow);
+        }
     }
-        
+
     // Add visual overflow from box-shadow, border-image-outset and outline.
     addVisualEffectOverflow();
 
@@ -600,14 +594,15 @@ void RenderBlock::clearLayoutOverflow()
 {
     if (!m_overflow)
         return;
-    
+
     if (visualOverflowRect() == borderBoxRect()) {
         // FIXME: Implement complete solution for fragments overflow.
         clearOverflow();
         return;
     }
-    
+
     m_overflow->setLayoutOverflow(borderBoxRect());
+    m_overflow->setContentArea(flippedContentBoxRect());
 }
 
 void RenderBlock::addOverflowFromOutOfFlowBoxes()
@@ -738,8 +733,8 @@ bool RenderBlock::simplifiedLayout()
     // lowestPosition on every relayout so it's not a regression.
     // computeOverflow expects the bottom edge before we clamp our height. Since this information isn't available during
     // simplifiedLayout, we cache the value in m_overflow.
-    LayoutUnit oldClientAfterEdge = hasRenderOverflow() ? m_overflow->layoutClientAfterEdge() : clientLogicalBottom();
-    computeOverflow(oldClientAfterEdge, ComputeOverflowOptions::RecomputeFloats);
+    auto contentArea = hasRenderOverflow() ? m_overflow->contentArea() : flippedContentBoxRect();
+    computeOverflow(contentArea, ComputeOverflowOptions::RecomputeFloats);
 
     updateLayerTransform();
 
@@ -768,12 +763,12 @@ void RenderBlock::markFixedPositionBoxForLayoutIfNeeded(RenderBox& positionedChi
     if (hasStaticInlinePosition) {
         LogicalExtentComputedValues computedValues;
         positionedChild.computeLogicalWidth(computedValues);
-        LayoutUnit newLeft = computedValues.m_position;
+        LayoutUnit newLeft = computedValues.position;
         if (newLeft != positionedChild.logicalLeft())
             positionedChild.setChildNeedsLayout(MarkOnlyThis);
     } else if (hasStaticBlockPosition) {
         auto logicalTop = positionedChild.logicalTop();
-        if (logicalTop != positionedChild.computeLogicalHeight(positionedChild.logicalHeight(), logicalTop).m_position)
+        if (logicalTop != positionedChild.computeLogicalHeight(positionedChild.logicalHeight(), logicalTop).position)
             positionedChild.setChildNeedsLayout(MarkOnlyThis);
     }
 }
@@ -814,11 +809,25 @@ void RenderBlock::layoutOutOfFlowBox(RenderBox& outOfFlowBox, RelayoutChildren r
         return;
     }
 
+    auto& outOfFlowBoxStyle = outOfFlowBox.style();
     // When a non-positioned block element moves, it may have positioned children that are implicitly positioned relative to the
     // non-positioned block.  Rather than trying to detect all of these movement cases, we just always lay out positioned
     // objects that are positioned implicitly like this.  Such objects are rare, and so in typical DHTML menu usage (where everything is
     // positioned explicitly) this should not incur a performance penalty.
-    if (relayoutChildren == RelayoutChildren::Yes || (outOfFlowBox.style().hasStaticBlockPosition(isHorizontalWritingMode()) && outOfFlowBox.parent() != this))
+    auto needsLayout = [&] {
+        if (relayoutChildren == RelayoutChildren::Yes)
+            return true;
+        if (outOfFlowBox.parent() == this)
+            return false;
+        if (outOfFlowBoxStyle.hasStaticBlockPosition(isHorizontalWritingMode()))
+            return true;
+        if (outOfFlowBoxStyle.hasStaticInlinePosition(isHorizontalWritingMode())) {
+            // FIXME: We could just set the logical left on this out-of-flow box since the box itself does not really need layout (we are just moving an out-of-flow renderer here).
+            return outOfFlowBox.logicalLeft() != PositionedLayoutConstraints { outOfFlowBox, LogicalBoxAxis::Inline }.computedInlineStaticDistance();
+        }
+        return false;
+    };
+    if (needsLayout())
         outOfFlowBox.setChildNeedsLayout(MarkOnlyThis);
 
     // If relayoutChildren is set and the child has percentage padding or an embedded content box, we also need to invalidate the childs pref widths.
@@ -830,7 +839,7 @@ void RenderBlock::layoutOutOfFlowBox(RenderBox& outOfFlowBox, RelayoutChildren r
     // We don't have to do a full layout.  We just have to update our position. Try that first. If we have shrink-to-fit width
     // and we hit the available width constraint, the layoutIfNeeded() will catch it and do a full layout.
     if (outOfFlowBox.needsOutOfFlowMovementLayoutOnly() && outOfFlowBox.tryLayoutDoingOutOfFlowMovementOnly()) {
-        if (Style::AnchorPositionEvaluator::isAnchorPositioned(outOfFlowBox.style()))
+        if (Style::AnchorPositionEvaluator::isAnchorPositioned(outOfFlowBoxStyle))
             Style::AnchorPositionEvaluator::captureScrollSnapshots(outOfFlowBox);
         outOfFlowBox.clearNeedsLayout();
     }
@@ -2181,7 +2190,7 @@ PositionWithAffinity RenderBlock::positionForPoint(const LayoutPoint& point, Hit
         LayoutUnit pointLogicalLeft = isHorizontalWritingMode() ? point.x() : point.y();
         LayoutUnit pointLogicalTop = isHorizontalWritingMode() ? point.y() : point.x();
 
-        if (pointLogicalTop < 0)
+        if (pointLogicalLeft < 0)
             return createPositionWithAffinity(caretMinOffset(), Affinity::Downstream);
         if (pointLogicalLeft >= logicalWidth())
             return createPositionWithAffinity(caretMaxOffset(), Affinity::Downstream);
@@ -2237,6 +2246,14 @@ void RenderBlock::offsetForContents(LayoutPoint& offset) const
     offset = flipForWritingMode(offset);
     offset += toLayoutSize(scrollPosition());
     offset = flipForWritingMode(offset);
+}
+
+bool RenderBlock::willStretchItem(const RenderBox& item, LogicalBoxAxis containingAxis, StretchingMode mode) const
+{
+    UNUSED_PARAM(item);
+    UNUSED_PARAM(containingAxis);
+    UNUSED_PARAM(mode);
+    return false;
 }
 
 void RenderBlock::computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const
@@ -2790,7 +2807,7 @@ void RenderBlock::estimateFragmentRangeForBoxChild(const RenderBox& box) const
     auto estimatedValues = box.computeLogicalHeight(RenderFragmentedFlow::maxLogicalHeight(), logicalTopForChild(box));
     LayoutUnit offsetFromLogicalTopOfFirstFragment = box.offsetFromLogicalTopOfFirstPage();
     RenderFragmentContainer* startFragment = fragmentedFlow->fragmentAtBlockOffset(this, offsetFromLogicalTopOfFirstFragment, true);
-    RenderFragmentContainer* endFragment = fragmentedFlow->fragmentAtBlockOffset(this, offsetFromLogicalTopOfFirstFragment + estimatedValues.m_extent, true);
+    RenderFragmentContainer* endFragment = fragmentedFlow->fragmentAtBlockOffset(this, offsetFromLogicalTopOfFirstFragment + estimatedValues.extent, true);
 
     fragmentedFlow->setFragmentRangeForBox(box, startFragment, endFragment);
 }
@@ -3062,7 +3079,7 @@ std::optional<LayoutUnit> RenderBlock::availableLogicalHeightForPercentageComput
         if (isOutOfFlowPositionedWithSpecifiedHeight) {
             // Don't allow this to affect the block' size() member variable, since this
             // can get called while the block is still laying out its kids.
-            return std::max(0_lu, computeLogicalHeight(logicalHeight(), 0_lu).m_extent - borderAndPaddingLogicalHeight() - scrollbarLogicalHeight());
+            return std::max(0_lu, computeLogicalHeight(logicalHeight(), 0_lu).extent - borderAndPaddingLogicalHeight() - scrollbarLogicalHeight());
         }
 
         if (style.logicalHeight().isPercentOrCalculated()) {

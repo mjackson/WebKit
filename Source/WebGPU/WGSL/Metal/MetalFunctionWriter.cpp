@@ -2174,7 +2174,7 @@ void FunctionDefinitionWriter::visit(const Type* type, AST::CallExpression& call
     }
 
     if (auto* target = dynamicDowncast<AST::IdentifierExpression>(call.target())) {
-        static constexpr auto builtinMappings = std::to_array<std::pair<ComparableASCIILiteral, void(*)(FunctionDefinitionWriter*, AST::CallExpression&)>>({
+        static constexpr SortedArrayMap builtins { std::to_array<std::pair<ComparableASCIILiteral, void(*)(FunctionDefinitionWriter*, AST::CallExpression&)>>({
             { "__dynamicOffset"_s, emitDynamicOffset },
             { "arrayLength"_s, emitArrayLength },
             { "atomicAdd"_s, emitAtomicAdd },
@@ -2219,8 +2219,7 @@ void FunctionDefinitionWriter::visit(const Type* type, AST::CallExpression& call
             { "unpack4xU8"_s, emitUnpack4xU8 },
             { "workgroupBarrier"_s, emitWorkgroupBarrier },
             { "workgroupUniformLoad"_s, emitWorkgroupUniformLoad },
-        });
-        static constexpr SortedArrayMap builtins { builtinMappings };
+        }) };
         const auto& targetName = target->identifier().id();
         if (auto mappedBuiltin = builtins.get(targetName)) {
             mappedBuiltin(this, call);
@@ -2237,7 +2236,7 @@ void FunctionDefinitionWriter::visit(const Type* type, AST::CallExpression& call
 #define NOOP_HELPER(name) \
     [](HelperGenerator&) { return #name##_s; }
 
-        static constexpr auto directMappings = std::to_array<std::pair<ComparableASCIILiteral, ASCIILiteral(*)(HelperGenerator&)>>({
+        static constexpr SortedArrayMap mappedNames { std::to_array<std::pair<ComparableASCIILiteral, ASCIILiteral(*)(HelperGenerator&)>>({
             { "acos"_s, EMIT_HELPER(Acos) },
             { "acosh"_s, EMIT_HELPER(Acosh) },
             { "asin"_s, EMIT_HELPER(Asin) },
@@ -2279,12 +2278,10 @@ void FunctionDefinitionWriter::visit(const Type* type, AST::CallExpression& call
             { "unpack2x16unorm"_s, NOOP_HELPER(unpack_unorm2x16_to_float) },
             { "unpack4x8snorm"_s, NOOP_HELPER(unpack_snorm4x8_to_float) },
             { "unpack4x8unorm"_s, NOOP_HELPER(unpack_unorm4x8_to_float) },
-        });
-
+        }) };
 #undef EMIT_HELPER
 #undef NOOP_HELPER
 
-        static constexpr SortedArrayMap mappedNames { directMappings };
         if (call.isConstructor()) {
             if (call.isFloatToIntConversion()) {
                 m_body.append("__wgslFtoi<"_s);

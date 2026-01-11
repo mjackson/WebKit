@@ -59,6 +59,7 @@
 #include "SVGTextElement.h"
 #include "SVGURIReference.h"
 #include "Settings.h"
+#include "StyleTransformResolver.h"
 #include "TransformOperationData.h"
 #include "TransformState.h"
 #include <wtf/MathExtras.h>
@@ -391,7 +392,7 @@ void RenderLayerModelObject::mapLocalToSVGContainer(const RenderLayerModelObject
     container->mapLocalToContainer(ancestorContainer, transformState, mode, wasFixed);
 }
 
-void RenderLayerModelObject::applySVGTransform(TransformationMatrix& transform, const SVGGraphicsElement& graphicsElement, const RenderStyle& style, const FloatRect& boundingBox, const std::optional<AffineTransform>& preApplySVGTransformMatrix, const std::optional<AffineTransform>& postApplySVGTransformMatrix, OptionSet<RenderStyle::TransformOperationOption> options) const
+void RenderLayerModelObject::applySVGTransform(TransformationMatrix& transform, const SVGGraphicsElement& graphicsElement, const RenderStyle& style, const FloatRect& boundingBox, const std::optional<AffineTransform>& preApplySVGTransformMatrix, const std::optional<AffineTransform>& postApplySVGTransformMatrix, OptionSet<Style::TransformResolverOption> options) const
 {
     auto svgTransform = graphicsElement.transform().concatenate();
     auto* supplementalTransform = graphicsElement.supplementalTransform(); // SMIL <animateMotion>
@@ -408,6 +409,8 @@ void RenderLayerModelObject::applySVGTransform(TransformationMatrix& transform, 
     if (!hasCSSTransform && !hasSVGTransform)
         return;
 
+    Style::TransformResolver transformResolver { transform, style };
+
     auto affectedByTransformOrigin = [&]() {
         if (preApplySVGTransformMatrix && !preApplySVGTransformMatrix->isIdentityOrTranslation())
             return true;
@@ -416,15 +419,15 @@ void RenderLayerModelObject::applySVGTransform(TransformationMatrix& transform, 
         if (supplementalTransform && !supplementalTransform->isIdentityOrTranslation())
             return true;
         if (hasCSSTransform)
-            return style.affectedByTransformOrigin();
+            return transformResolver.affectedByTransformOrigin();
         return !svgTransform.isIdentityOrTranslation();
     };
 
     FloatPoint3D originTranslate;
-    if (options.contains(RenderStyle::TransformOperationOption::TransformOrigin) && affectedByTransformOrigin())
-        originTranslate = style.computeTransformOrigin(boundingBox);
+    if (options.contains(Style::TransformResolverOption::TransformOrigin) && affectedByTransformOrigin())
+        originTranslate = transformResolver.computeTransformOrigin(boundingBox);
 
-    style.applyTransformOrigin(transform, originTranslate);
+    transformResolver.applyTransformOrigin(originTranslate);
 
     if (supplementalTransform)
         transform.multiplyAffineTransform(*supplementalTransform);
@@ -434,14 +437,14 @@ void RenderLayerModelObject::applySVGTransform(TransformationMatrix& transform, 
 
     // CSS transforms take precedence over SVG transforms.
     if (hasCSSTransform)
-        style.applyCSSTransform(transform, TransformOperationData(boundingBox, this), options);
+        transformResolver.applyCSSTransform(TransformOperationData(boundingBox, this), options);
     else if (!svgTransform.isIdentity())
         transform.multiplyAffineTransform(svgTransform);
 
     if (postApplySVGTransformMatrix)
         transform.multiplyAffineTransform(postApplySVGTransformMatrix.value());
 
-    style.unapplyTransformOrigin(transform, originTranslate);
+    transformResolver.unapplyTransformOrigin(originTranslate);
 }
 
 void RenderLayerModelObject::updateHasSVGTransformFlags()

@@ -76,9 +76,7 @@ void RemoteMediaEngineConfigurationFactoryProxy::deref() const
 
 std::optional<SharedPreferencesForWebProcess> RemoteMediaEngineConfigurationFactoryProxy::sharedPreferencesForWebProcess() const
 {
-    if (RefPtr connection = m_connection.get())
-        return connection->sharedPreferencesForWebProcess();
-    return std::nullopt;
+    return m_connection.get()->sharedPreferencesForWebProcess();
 }
 
 }

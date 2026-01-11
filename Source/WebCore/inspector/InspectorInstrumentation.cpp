@@ -940,8 +940,15 @@ void InspectorInstrumentation::consoleCountResetImpl(InstrumentingAgents& instru
 
 void InspectorInstrumentation::takeHeapSnapshotImpl(InstrumentingAgents& instrumentingAgents, const String& title)
 {
-    if (auto* consoleAgent = instrumentingAgents.webConsoleAgent())
-        consoleAgent->takeHeapSnapshot(title);
+    if (auto* heapAgent = instrumentingAgents.persistentWebHeapAgent()) {
+        auto result = heapAgent->snapshot();
+        if (!result)
+            return;
+
+        auto [timestamp, snapshotData] = WTF::move(result.value());
+        if (auto* consoleAgent = instrumentingAgents.webConsoleAgent())
+            consoleAgent->reportHeapSnapshot(timestamp, snapshotData, title);
+    }
 }
 
 void InspectorInstrumentation::startConsoleTimingImpl(InstrumentingAgents& instrumentingAgents, JSC::JSGlobalObject* exec, const String& label)

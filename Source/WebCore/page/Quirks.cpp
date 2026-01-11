@@ -1993,6 +1993,22 @@ bool Quirks::shouldIgnoreContentObservationForClick(const Node& targetNode) cons
     return true;
 }
 
+bool Quirks::needsChromeOSNavigatorUserAgentQuirk(const Document& document) const
+{
+    QUIRKS_EARLY_RETURN_IF_DISABLED_WITH_VALUE(false);
+
+    if (!m_quirksData.quirkIsEnabled(QuirksData::SiteSpecificQuirk::NeedsChromeOSNavigatorUserAgentQuirk))
+        return false;
+
+    if (document.url().lastPathComponent() != "wordeditorframe.aspx"_s)
+        return false;
+
+    if (document.currentSourceURL().lastPathComponent() != "wordeditords.js"_s)
+        return false;
+
+    return true;
+}
+
 #endif // PLATFORM(IOS_FAMILY)
 
 // outlook.live.com: rdar://136624720
@@ -2961,6 +2977,8 @@ static void handleLiveQuirks(QuirksData& quirksData, const URL& quirksURL, const
 #if PLATFORM(IOS_FAMILY)
     // outlook.live.com: rdar://152277211
     quirksData.setQuirkState(QuirksData::SiteSpecificQuirk::MayNeedToIgnoreContentObservation, quirksData.isOutlook);
+    // live.com: rdar://167489768
+    quirksData.enableQuirk(QuirksData::SiteSpecificQuirk::NeedsChromeOSNavigatorUserAgentQuirk);
 #endif
     // live.com rdar://52116170
     quirksData.enableQuirk(QuirksData::SiteSpecificQuirk::ShouldAvoidResizingWhenInputViewBoundsChangeQuirk);

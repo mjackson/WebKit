@@ -1128,7 +1128,8 @@ angle::Result TextureMtl::ensureSamplerStateCreated(const gl::Context *context)
 angle::Result TextureMtl::createViewFromBaseToMaxLevel()
 {
     ASSERT(mNativeTextureStorage);
-    uint32_t maxLevel = std::min(mNativeTextureStorage->getMaxSupportedGLLevel(), mState.getEffectiveMaxLevel());
+    uint32_t maxLevel =
+        std::min(mNativeTextureStorage->getMaxSupportedGLLevel(), mState.getEffectiveMaxLevel());
 
     // In edge case where base level > max level, clamp up to base level.
     maxLevel = std::max(maxLevel, mState.getEffectiveBaseLevel());
@@ -1179,8 +1180,8 @@ angle::Result TextureMtl::onBaseMaxLevelsChanged(const gl::Context *context)
 
     // Account for clamping in createViewFromBaseToMaxLevel() to avoid redundant storage
     // re-creation when max < base (e.g., base=7 with max toggling 1->2->3 should not re-create).
-    GLuint effectiveMaxForStorage = std::max(mState.getMipmapMaxLevel(),
-                                             mState.getEffectiveBaseLevel());
+    GLuint effectiveMaxForStorage =
+        std::max(mState.getMipmapMaxLevel(), mState.getEffectiveBaseLevel());
 
     if (mState.getEffectiveBaseLevel() == mNativeTextureStorage->getBaseGLLevel() &&
         effectiveMaxForStorage == mNativeTextureStorage->getMaxSupportedGLLevel())

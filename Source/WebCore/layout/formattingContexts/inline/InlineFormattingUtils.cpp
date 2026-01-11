@@ -630,7 +630,7 @@ std::optional<LineLayoutResult::InlineContentEnding> InlineFormattingUtils::inli
             continue;
         if (run.isLineBreak())
             return { LineLayoutResult::InlineContentEnding::LineBreak };
-        if (auto& textContent = run.textContent(); textContent && textContent->needsHyphen)
+        if (run.isText() && run.textContent().needsHyphen)
             return { LineLayoutResult::InlineContentEnding::Hyphen };
         return { LineLayoutResult::InlineContentEnding::Generic };
     }

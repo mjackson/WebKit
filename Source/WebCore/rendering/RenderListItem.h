@@ -64,7 +64,7 @@ private:
     void computePreferredLogicalWidths() final;
 
     void updateValueNow() const;
-    void counterDirectivesChanged();
+    void usedCounterDirectivesChanged();
 
     SingleThreadWeakPtr<RenderListMarker> m_marker;
     mutable std::optional<int> m_value;

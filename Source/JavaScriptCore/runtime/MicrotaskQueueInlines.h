@@ -38,6 +38,11 @@ inline void MicrotaskQueue::performMicrotaskCheckpoint(VM& vm, NOESCAPE const In
     if (vm.executionForbidden()) [[unlikely]]
         clear();
     else {
+        if (vm.disallowVMEntryCount) [[unlikely]] {
+            VM::checkVMEntryPermission();
+            return;
+        }
+
         while (!m_queue.isEmpty()) {
             auto task = m_queue.dequeue();
             auto result = functor(task);
@@ -66,6 +71,7 @@ inline void MicrotaskQueue::performMicrotaskCheckpoint(VM& vm, NOESCAPE const In
             }
             }
         }
+        vm.didEnterVM = true;
     }
     m_queue.swap(m_toKeep);
 }

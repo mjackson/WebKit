@@ -371,26 +371,4 @@ inline void RenderStyleBase::setPageSize(Style::PageSize&& pageSize)
     m_computedStyle.setPageSize(WTF::move(pageSize));
 }
 
-// FIXME: Add a type that encapsulates both caretColor() and hasAutoCaretColor().
-
-inline void RenderStyleBase::setCaretColor(Style::Color&& color)
-{
-    m_computedStyle.setCaretColor(WTF::move(color));
-}
-
-inline void RenderStyleBase::setHasAutoCaretColor()
-{
-    m_computedStyle.setHasAutoCaretColor();
-}
-
-inline void RenderStyleBase::setVisitedLinkCaretColor(Style::Color&& value)
-{
-    m_computedStyle.setVisitedLinkCaretColor(WTF::move(value));
-}
-
-inline void RenderStyleBase::setHasVisitedLinkAutoCaretColor()
-{
-    m_computedStyle.setHasVisitedLinkAutoCaretColor();
-}
-
 } // namespace WebCore

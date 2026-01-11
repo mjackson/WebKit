@@ -1,6 +1,6 @@
 {
     "domain": "LayerTree",
-    "debuggableTypes": ["page", "web-page"],
+    "debuggableTypes": ["web-page"],
     "targetTypes": ["page"],
     "types": [
         {

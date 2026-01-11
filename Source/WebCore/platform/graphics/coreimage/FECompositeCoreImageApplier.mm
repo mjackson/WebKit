@@ -35,6 +35,51 @@
 
 namespace WebCore {
 
+static CIKernel* compositeArithmeticKernel()
+{
+    static NeverDestroyed<RetainPtr<CIKernel>> kernel;
+    static std::once_flag onceFlag;
+
+    std::call_once(onceFlag, [] {
+        NSError *error = nil;
+        // FIXME: Why not a CIColorKernel?
+        NSArray<CIKernel *> *kernels = [CIKernel kernelsWithMetalString:@R"( /* NOLINT */
+extern "C" {
+namespace coreimage {
+
+[[stitchable]] float4 composite_arithmetic(sampler front, sampler back,
+    vector_float4 constants,
+    destination dest)
+{
+    float2 destPosition = dest.coord();
+
+    float2 frontPosition = front.transform(destPosition);
+    float4 frontPixel = front.sample(frontPosition);
+
+    float2 backPosition = back.transform(destPosition);
+    float4 backPixel = back.sample(backPosition);
+
+    float4 resultPixel = clamp(constants.x * frontPixel * backPixel + constants.y * frontPixel + constants.z * backPixel + constants.w, 0, 1);
+    resultPixel = clamp(resultPixel, 0, resultPixel.a);
+    return resultPixel;
+}
+
+} // namespace coreimage
+} // extern "C"
+
+        )" error:&error]; /* NOLINT */
+
+        if (error || !kernels || !kernels.count) {
+            LOG(Filters, "Composite Arithmetic kernel compilation failed: %@", error);
+            return;
+        }
+
+        kernel.get() = kernels[0];
+    });
+
+    return kernel.get().get();
+}
+
 WTF_MAKE_TZONE_ALLOCATED_IMPL(FECompositeCoreImageApplier);
 
 FECompositeCoreImageApplier::FECompositeCoreImageApplier(const FEComposite& effect)
@@ -42,29 +87,17 @@ FECompositeCoreImageApplier::FECompositeCoreImageApplier(const FEComposite& effe
 {
 }
 
-bool FECompositeCoreImageApplier::supportsCoreImageRendering(const FEComposite& effect)
+bool FECompositeCoreImageApplier::supportsCoreImageRendering(const FEComposite&)
 {
-    return effect.operation() != CompositeOperationType::FECOMPOSITE_OPERATOR_ARITHMETIC;
+    return true;
 }
 
-bool FECompositeCoreImageApplier::apply(const Filter&, std::span<const Ref<FilterImage>> inputs, FilterImage& result) const
+RetainPtr<CIImage> FECompositeCoreImageApplier::applyBuiltIn(RetainPtr<CIImage>&& frontImage, RetainPtr<CIImage>&& backImage, const FloatRect&) const
 {
-    ASSERT(inputs.size() == 2);
-    auto& input1 = inputs[0].get();
-    auto& input2 = inputs[1].get();
-
-    auto inputImage1 = input1.ciImage();
-    if (!inputImage1)
-        return false;
-
-    auto inputImage2 = input2.ciImage();
-    if (!inputImage2)
-        return false;
-
     RetainPtr<CIBlendKernel> kernel;
     switch (m_effect->operation()) {
     case CompositeOperationType::FECOMPOSITE_OPERATOR_UNKNOWN:
-        return false;
+        return nil;
     case CompositeOperationType::FECOMPOSITE_OPERATOR_OVER:
         kernel = [CIBlendKernel sourceOver];
         break;
@@ -72,7 +105,7 @@ bool FECompositeCoreImageApplier::apply(const Filter&, std::span<const Ref<Filte
         kernel = [CIBlendKernel sourceIn];
         break;
     case CompositeOperationType::FECOMPOSITE_OPERATOR_OUT:
-        kernel = [CIBlendKernel destinationOut];
+        kernel = [CIBlendKernel sourceOut];
         break;
     case CompositeOperationType::FECOMPOSITE_OPERATOR_ATOP:
         kernel = [CIBlendKernel sourceAtop];
@@ -88,8 +121,57 @@ bool FECompositeCoreImageApplier::apply(const Filter&, std::span<const Ref<Filte
         break;
     }
 
-    RetainPtr resultImage = [kernel applyWithForeground:inputImage1.get() background:inputImage2.get()];
-    result.setCIImage(resultImage.get());
+    return [kernel applyWithForeground:frontImage.get() background:backImage.get()];
+}
+
+RetainPtr<CIImage> FECompositeCoreImageApplier::applyArithmetic(RetainPtr<CIImage>&& frontImage, RetainPtr<CIImage>&& backImage, const FloatRect& extent) const
+{
+    RetainPtr kernel = compositeArithmeticKernel();
+    if (!kernel)
+        return nil;
+
+    RetainPtr<NSArray> arguments = @[
+        frontImage.get(),
+        backImage.get(),
+        [CIVector vectorWithX:m_effect->k1() Y:m_effect->k2() Z:m_effect->k3() W:m_effect->k4()]
+    ];
+
+    RetainPtr<CIImage> outputImage = [kernel applyWithExtent:extent
+        roiCallback:^CGRect(int, CGRect destRect) {
+            return destRect;
+        }
+        arguments:arguments.get()];
+
+    return outputImage;
+}
+
+bool FECompositeCoreImageApplier::apply(const Filter& filter, std::span<const Ref<FilterImage>> inputs, FilterImage& result) const
+{
+    ASSERT(inputs.size() == 2);
+    Ref input1 = inputs[0].get();
+    Ref input2 = inputs[1].get();
+
+    RetainPtr inputImage1 = input1->ciImage();
+    if (!inputImage1)
+        return false;
+
+    RetainPtr inputImage2 = input2->ciImage();
+    if (!inputImage2)
+        return false;
+
+    auto extent = filter.flippedRectRelativeToAbsoluteEnclosingFilterRegion(result.absoluteImageRect());
+
+    RetainPtr<CIImage> resultImage;
+    if (m_effect->operation() == CompositeOperationType::FECOMPOSITE_OPERATOR_ARITHMETIC)
+        resultImage = applyArithmetic(WTF::move(inputImage1), WTF::move(inputImage2), extent);
+    else
+        resultImage = applyBuiltIn(WTF::move(inputImage1), WTF::move(inputImage2), extent);
+
+    resultImage = [resultImage imageByCroppingToRect:extent];
+    if (!resultImage)
+        return false;
+
+    result.setCIImage(WTF::move(resultImage));
     return true;
 }
 

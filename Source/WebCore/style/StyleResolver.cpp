@@ -42,6 +42,7 @@
 #include "CSSStyleSheet.h"
 #include "CSSViewTransitionRule.h"
 #include "CompositeOperation.h"
+#include "CustomFunctionRegistry.h"
 #include "DocumentInlines.h"
 #include "DocumentResourceLoader.h"
 #include "DocumentView.h"
@@ -243,7 +244,7 @@ void Resolver::addCurrentSVGFontFaceRules()
     }
 }
 
-void Resolver::appendAuthorStyleSheets(std::span<const RefPtr<CSSStyleSheet>> styleSheets)
+void Resolver::appendAuthorStyleSheets(std::span<const Ref<CSSStyleSheet>> styleSheets)
 {
     m_ruleSets.appendAuthorStyleSheets(styleSheets, &m_mediaQueryEvaluator, m_inspectorCSSOMWrappers);
 
@@ -644,7 +645,7 @@ std::unique_ptr<RenderStyle> Resolver::defaultStyleForElement(const Element* ele
 
     auto size = fontSizeForKeyword(CSSValueMedium, false, document());
     fontDescription.setSpecifiedSize(size);
-    auto computedFontSize = computedFontSizeFromSpecifiedSize(size, fontDescription.isAbsoluteSize(), is<SVGElement>(element), style.get(), document());
+    auto computedFontSize = computedFontSizeFromSpecifiedSize(size, fontDescription.isAbsoluteSize(), is<SVGElement>(element), style->computedStyle(), document());
     fontDescription.setComputedSize(computedFontSize.size, computedFontSize.usedZoomFactor);
 
     fontDescription.setShouldAllowUserInstalledFonts(settings().shouldAllowUserInstalledFonts() ? AllowUserInstalledFonts::Yes : AllowUserInstalledFonts::No);
@@ -854,6 +855,18 @@ void Resolver::setViewTransitionStyles(CSSSelector::PseudoElement element, const
     auto* viewTransitionsStyle = m_ruleSets.dynamicViewTransitionsStyle();
     RuleSetBuilder builder(*viewTransitionsStyle, mediaQueryEvaluator(), this);
     builder.addStyleRule(styleRule);
+}
+
+const CustomFunctionRegistry* Resolver::customFunctionRegistry() const
+{
+    return m_customFunctionRegistry.get();
+}
+
+CustomFunctionRegistry& Resolver::ensureCustomFunctionRegistry()
+{
+    if (!m_customFunctionRegistry)
+        m_customFunctionRegistry = makeUnique<CustomFunctionRegistry>();
+    return *m_customFunctionRegistry;
 }
 
 } // namespace Style

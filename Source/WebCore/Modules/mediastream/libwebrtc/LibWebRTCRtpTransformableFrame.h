@@ -47,6 +47,8 @@ public:
 private:
     LibWebRTCRtpTransformableFrame(std::unique_ptr<webrtc::TransformableFrameInterface>&&, bool isAudio);
 
+    bool isLibWebRTCRtpTransformableFrame() const final { return true; }
+
     // RTCRtpTransformableFrame
     std::span<const uint8_t> data() const final;
     void setData(std::span<const uint8_t>) final;
@@ -63,5 +65,9 @@ private:
 };
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::LibWebRTCRtpTransformableFrame)
+    static bool isType(const WebCore::RTCRtpTransformableFrame& backend) { return backend.isLibWebRTCRtpTransformableFrame(); }
+SPECIALIZE_TYPE_TRAITS_END()
 
 #endif // ENABLE(WEB_RTC) && USE(LIBWEBRTC)

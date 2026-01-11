@@ -5,7 +5,7 @@
  * Copyright (C) 2003-2023 Apple Inc. All rights reserved.
  * Copyright (C) 2014-2021 Google Inc. All rights reserved.
  * Copyright (C) 2006 Graham Dennis (graham.dennis@gmail.com)
- * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025-2026 Samuel Weinig <sam@webkit.org>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -230,7 +230,11 @@ public:
     inline float usedLetterSpacing() const;
     inline float usedWordSpacing() const;
 
-    // MARK: Writing Modes
+    // MARK: - Used Counter Directives
+
+    inline const CounterDirectiveMap& usedCounterDirectives() const;
+
+    // MARK: - Writing Modes
 
     // FIXME: Rename to something that doesn't conflict with a property name.
     // Aggregates `writing-mode`, `direction` and `text-orientation`.
@@ -239,7 +243,7 @@ public:
     // FIXME: *Deprecated* Deprecated due to confusion between physical inline directions and bidi / line-relative directions.
     bool isLeftToRightDirection() const { return writingMode().isBidiLTR(); }
 
-    // MARK: Aggregates
+    // MARK: - Aggregates
 
     inline Style::Animations& ensureAnimations();
     inline Style::BackgroundLayers& ensureBackgroundLayers();
@@ -251,8 +255,6 @@ public:
     inline const BorderValue& borderLeft() const;
     inline const BorderValue& borderRight() const;
     inline const BorderValue& borderTop() const;
-    inline const BorderValue& columnRule() const;
-    inline const OutlineValue& outline() const;
     inline const Style::Animations& animations() const;
     inline const Style::BackgroundLayers& backgroundLayers() const;
     inline const Style::BorderImage& borderImage() const;
@@ -269,7 +271,6 @@ public:
     inline const Style::TransformOrigin& transformOrigin() const;
     inline const Style::Transitions& transitions() const;
     inline const Style::ViewTimelines& viewTimelines() const;
-    inline Style::LineWidthBox borderWidth() const;
 
     inline void setBackgroundLayers(Style::BackgroundLayers&&);
     inline void setBorderImage(Style::BorderImage&&);
@@ -288,43 +289,30 @@ public:
 
     // MARK: - Properties/descriptors that are not yet generated
 
-    // `caret-color`
-    inline const Style::Color& caretColor() const;
-    inline const Style::Color& visitedLinkCaretColor() const;
-    inline bool hasAutoCaretColor() const;
-    inline bool hasVisitedLinkAutoCaretColor() const;
-    inline void setCaretColor(Style::Color&&);
-    inline void setVisitedLinkCaretColor(Style::Color&&);
-    inline void setHasAutoCaretColor();
-    inline void setHasVisitedLinkAutoCaretColor();
-
     // `cursor`
     inline CursorType cursorType() const;
-
-    // `counter-*`
-    inline const CounterDirectiveMap& counterDirectives() const;
-    inline CounterDirectiveMap& accessCounterDirectives();
 
     // `@page size`
     inline const Style::PageSize& pageSize() const;
     inline void setPageSize(Style::PageSize&&);
 
-    using NonInheritedFlags = Style::ComputedStyle::NonInheritedFlags;
-    using InheritedFlags = Style::ComputedStyle::InheritedFlags;
+    // MARK: - Underlying ComputedStyle
 
-    const StyleNonInheritedData& nonInheritedData() const { return m_computedStyle.nonInheritedData(); }
-    const NonInheritedFlags& nonInheritedFlags() const { return m_computedStyle.nonInheritedFlags(); }
-
-    const StyleRareInheritedData& rareInheritedData() const { return m_computedStyle.rareInheritedData(); }
-    const StyleInheritedData& inheritedData() const { return m_computedStyle.inheritedData(); }
-    const InheritedFlags& inheritedFlags() const { return m_computedStyle.inheritedFlags(); }
-
-    const SVGRenderStyle& svgStyle() const { return m_computedStyle.svgStyle(); }
-
+    Style::ComputedStyle& computedStyle() { return m_computedStyle; }
     const Style::ComputedStyle& computedStyle() const { return m_computedStyle; }
 
 protected:
     friend class RenderStyle;
+    friend class Style::DifferenceFunctions;
+
+    const Style::NonInheritedData& nonInheritedData() const { return computedStyle().nonInheritedData(); }
+    const Style::ComputedStyle::NonInheritedFlags& nonInheritedFlags() const { return computedStyle().nonInheritedFlags(); }
+
+    const Style::InheritedRareData& inheritedRareData() const { return computedStyle().inheritedRareData(); }
+    const Style::InheritedData& inheritedData() const { return computedStyle().inheritedData(); }
+    const Style::ComputedStyle::InheritedFlags& inheritedFlags() const { return computedStyle().inheritedFlags(); }
+
+    const Style::SVGData& svgData() const { return computedStyle().svgData(); }
 
     enum CloneTag { Clone };
     enum CreateDefaultStyleTag { CreateDefaultStyle };

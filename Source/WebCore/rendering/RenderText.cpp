@@ -1584,7 +1584,7 @@ Vector<char16_t> RenderText::previousCharacter() const
 static String convertToFullSizeKana(const String& string)
 {
     // https://www.w3.org/TR/css-text-3/#small-kana
-    static constexpr auto kanasMap = std::to_array<std::pair<char32_t, char16_t>>({
+    static constexpr SortedArrayMap sortedMap { std::to_array<std::pair<char32_t, char16_t>>({
         { 0x3041, 0x3042 },
         { 0x3043, 0x3044 },
         { 0x3045, 0x3046 },
@@ -1643,9 +1643,7 @@ static String convertToFullSizeKana(const String& string)
         { 0x1B165, 0x30F1 },
         { 0x1B166, 0x30F2 },
         { 0x1B167, 0x30F3 }
-    });
-
-    static constexpr SortedArrayMap sortedMap { kanasMap };
+    }) };
 
     auto codePoints = StringView { string }.codePoints();
 

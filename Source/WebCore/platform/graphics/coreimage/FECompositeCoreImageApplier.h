@@ -44,7 +44,10 @@ public:
     static bool supportsCoreImageRendering(const FEComposite&);
 
 private:
-    bool apply(const Filter&, std::span<const Ref<FilterImage>> inputs, FilterImage& result) const final;
+    bool apply(const Filter&, std::span<const Ref<FilterImage>>, FilterImage&) const final;
+
+    RetainPtr<CIImage> applyBuiltIn(RetainPtr<CIImage>&&, RetainPtr<CIImage>&&, const FloatRect& extent) const;
+    RetainPtr<CIImage> applyArithmetic(RetainPtr<CIImage>&&, RetainPtr<CIImage>&&, const FloatRect& extent) const;
 };
 
 } // namespace WebCore

@@ -30,8 +30,8 @@
 #include "CSSBorderImageSliceValue.h"
 #include "CSSBorderImageWidthValue.h"
 #include "CSSValueList.h"
-#include "RenderStyle+InitialInlines.h"
 #include "StyleBuilderChecking.h"
+#include "StyleComputedStyle+InitialInlines.h"
 #include "StylePrimitiveKeyword+CSSValueCreation.h"
 #include "StylePrimitiveKeyword+Logging.h"
 #include "StylePrimitiveKeyword+Serialization.h"
@@ -42,11 +42,11 @@ namespace WebCore {
 namespace Style {
 
 MaskBorder::MaskBorder()
-    : maskBorderSource { RenderStyle::initialMaskBorderSource() }
-    , maskBorderSlice { RenderStyle::initialMaskBorderSlice() }
-    , maskBorderWidth { RenderStyle::initialMaskBorderWidth() }
-    , maskBorderOutset { RenderStyle::initialMaskBorderOutset() }
-    , maskBorderRepeat { RenderStyle::initialMaskBorderRepeat() }
+    : maskBorderSource { Style::ComputedStyle::initialMaskBorderSource() }
+    , maskBorderSlice { Style::ComputedStyle::initialMaskBorderSlice() }
+    , maskBorderWidth { Style::ComputedStyle::initialMaskBorderWidth() }
+    , maskBorderOutset { Style::ComputedStyle::initialMaskBorderOutset() }
+    , maskBorderRepeat { Style::ComputedStyle::initialMaskBorderRepeat() }
 {
 }
 

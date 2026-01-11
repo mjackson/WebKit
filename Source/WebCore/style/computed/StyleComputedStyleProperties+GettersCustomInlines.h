@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025-2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -34,13 +34,14 @@
 #include <WebCore/GraphicsTypes.h>
 #include <WebCore/HitTestRequest.h>
 #include <WebCore/PositionTryOrder.h>
-#include <WebCore/SVGRenderStyle.h>
 #include <WebCore/ScrollTypes.h>
 #include <WebCore/StyleAppearance.h>
 #include <WebCore/StyleAppleColorFilterData.h>
 #include <WebCore/StyleBackdropFilterData.h>
 #include <WebCore/StyleBackgroundData.h>
 #include <WebCore/StyleBoxData.h>
+#include <WebCore/StyleColorResolver.h>
+#include <WebCore/StyleCustomPropertyData.h>
 #include <WebCore/StyleDeprecatedFlexibleBoxData.h>
 #include <WebCore/StyleFillLayers.h>
 #include <WebCore/StyleFilterData.h>
@@ -62,12 +63,19 @@
 #include <WebCore/StyleGridItemData.h>
 #include <WebCore/StyleGridTrackSizingDirection.h>
 #include <WebCore/StyleInheritedData.h>
+#include <WebCore/StyleInheritedRareData.h>
 #include <WebCore/StyleMarqueeData.h>
-#include <WebCore/StyleMiscNonInheritedData.h>
-#include <WebCore/StyleMultiColData.h>
+#include <WebCore/StyleMultiColumnData.h>
 #include <WebCore/StyleNonInheritedData.h>
-#include <WebCore/StyleRareInheritedData.h>
-#include <WebCore/StyleRareNonInheritedData.h>
+#include <WebCore/StyleNonInheritedMiscData.h>
+#include <WebCore/StyleNonInheritedRareData.h>
+#include <WebCore/StyleSVGData.h>
+#include <WebCore/StyleSVGFillData.h>
+#include <WebCore/StyleSVGLayoutData.h>
+#include <WebCore/StyleSVGMarkerResourceData.h>
+#include <WebCore/StyleSVGNonInheritedMiscData.h>
+#include <WebCore/StyleSVGStopData.h>
+#include <WebCore/StyleSVGStrokeData.h>
 #include <WebCore/StyleSurroundData.h>
 #include <WebCore/StyleTextAlign.h>
 #include <WebCore/StyleTextAutospace.h>
@@ -96,7 +104,7 @@ namespace Style {
 
 inline Cursor ComputedStyleProperties::cursor() const
 {
-    return { m_rareInheritedData->cursorImages, static_cast<CursorType>(m_inheritedFlags.cursorType) };
+    return { m_inheritedRareData->cursorImages, static_cast<CursorType>(m_inheritedFlags.cursorType) };
 }
 
 inline ZIndex ComputedStyleProperties::specifiedZIndex() const
@@ -119,33 +127,6 @@ inline StyleWritingMode ComputedStyleProperties::computedWritingMode() const
 inline TextOrientation ComputedStyleProperties::computedTextOrientation() const
 {
     return writingMode().computedTextOrientation();
-}
-
-// FIXME: Support properties where the getter returns a different value than the setter checks for equality or rename these to be used*() and generate the real getters.
-
-inline LineWidth ComputedStyleProperties::borderBottomWidth() const
-{
-    return border().borderBottomWidth();
-}
-
-inline LineWidth ComputedStyleProperties::borderLeftWidth() const
-{
-    return border().borderLeftWidth();
-}
-
-inline LineWidth ComputedStyleProperties::borderRightWidth() const
-{
-    return border().borderRightWidth();
-}
-
-inline LineWidth ComputedStyleProperties::borderTopWidth() const
-{
-    return border().borderTopWidth();
-}
-
-inline LineWidth ComputedStyleProperties::columnRuleWidth() const
-{
-    return m_nonInheritedData->miscData->multiCol->columnRuleWidth();
 }
 
 // FIXME: Support font properties.
@@ -286,6 +267,107 @@ inline TextSpacingTrim ComputedStyleProperties::textSpacingTrim() const
 inline WebkitLocale ComputedStyleProperties::locale() const
 {
     return fontDescription().specifiedLocale();
+}
+
+// MARK: - Custom ColorPropertyTrait function definitions
+
+inline const Color& ColorPropertyTraits<PropertyNameConstant<CSSPropertyColor>>::color(const ComputedStyleProperties&)
+{
+    // FIXME: This works because because `currentColor` will be resolved to `color()`. It would be slightly nicer if we could return an actual `Style::Color`, but `color()` is currently stored as a `WebCore::Color` and therefore we cannot return it as a reference.
+    return Color::currentColor();
+}
+
+inline const Color& ColorPropertyTraits<PropertyNameConstant<CSSPropertyColor>>::visitedLinkColor(const ComputedStyleProperties&)
+{
+    // FIXME: This works because because `currentColor` will be resolved to `visitedLinkColor()`. It would be slightly nicer if we could return an actual `Style::Color`, but `visitedLinkColor()` is currently stored as a `WebCore::Color` and therefore we cannot return it as a reference.
+    return Color::currentColor();
+}
+
+inline const Color& ColorPropertyTraits<PropertyNameConstant<CSSPropertyAccentColor>>::color(const ComputedStyleProperties& style)
+{
+    return style.accentColor().colorOrCurrentColor();
+}
+
+inline const Color& ColorPropertyTraits<PropertyNameConstant<CSSPropertyCaretColor>>::color(const ComputedStyleProperties& style)
+{
+    return style.caretColor().colorOrCurrentColor();
+}
+
+inline const Color& ColorPropertyTraits<PropertyNameConstant<CSSPropertyCaretColor>>::visitedLinkColor(const ComputedStyleProperties& style)
+{
+    return style.visitedLinkCaretColor().colorOrCurrentColor();
+}
+
+inline const Color& ColorPropertyTraits<PropertyNameConstant<CSSPropertyFill>>::color(const ComputedStyleProperties& style)
+{
+    return style.fill().colorDisregardingType();
+}
+
+inline const Color& ColorPropertyTraits<PropertyNameConstant<CSSPropertyFill>>::visitedLinkColor(const ComputedStyleProperties& style)
+{
+    return style.visitedLinkFill().colorDisregardingType();
+}
+
+inline const Color& ColorPropertyTraits<PropertyNameConstant<CSSPropertyStroke>>::color(const ComputedStyleProperties& style)
+{
+    return style.stroke().colorDisregardingType();
+}
+
+inline const Color& ColorPropertyTraits<PropertyNameConstant<CSSPropertyStroke>>::visitedLinkColor(const ComputedStyleProperties& style)
+{
+    return style.visitedLinkStroke().colorDisregardingType();
+}
+
+inline WebCore::Color ColorPropertyTraits<PropertyNameConstant<CSSPropertyTextDecorationColor>>::colorResolvingCurrentColor(const ComputedStyleProperties& style)
+{
+    auto& result = style.textDecorationColor();
+    if (result.isCurrentColor()) {
+        if ((style.hasExplicitlySetStrokeWidth() && style.strokeWidth().isPossiblyPositive()) || style.textStrokeWidth().isPositive()) {
+            // Prefer stroke color if possible but not if it's fully transparent.
+            if (style.hasExplicitlySetStrokeColor()) {
+                auto strokeColor = style.strokeColor().resolveColor(style.color());
+                if (strokeColor.isVisible())
+                    return strokeColor;
+            } else {
+                auto strokeColor = style.textStrokeColor().resolveColor(style.color());
+                if (strokeColor.isVisible())
+                    return strokeColor;
+            }
+        }
+        return style.textFillColor().resolveColor(style.color());
+    }
+    return result.resolveColor(style.color());
+}
+
+inline WebCore::Color ColorPropertyTraits<PropertyNameConstant<CSSPropertyTextDecorationColor>>::visitedLinkColorResolvingCurrentColor(const ComputedStyleProperties& style)
+{
+    auto& result = style.visitedLinkTextDecorationColor();
+    if (result.isCurrentColor()) {
+        if ((style.hasExplicitlySetStrokeWidth() && style.strokeWidth().isPossiblyPositive()) || style.textStrokeWidth().isPositive()) {
+            // Prefer stroke color if possible but not if it's fully transparent.
+            if (style.hasExplicitlySetStrokeColor()) {
+                auto strokeColor = style.visitedLinkStrokeColor().resolveColor(style.visitedLinkColor());
+                if (strokeColor.isVisible())
+                    return strokeColor;
+            } else {
+                auto strokeColor = style.visitedLinkTextStrokeColor().resolveColor(style.visitedLinkColor());
+                if (strokeColor.isVisible())
+                    return strokeColor;
+            }
+        }
+        return style.visitedLinkTextFillColor().resolveColor(style.visitedLinkColor());
+    }
+    return result.resolveColor(style.visitedLinkColor());
+}
+
+inline bool ColorPropertyTraits<PropertyNameConstant<CSSPropertyBackgroundColor>>::excludesVisitedLinkColor(const WebCore::Color& visitedLinkColor)
+{
+    // FIXME: Technically someone could explicitly specify the color transparent, but for now we'll just
+    // assume that if the background color is transparent that it wasn't set. Note that it's weird that
+    // we're returning unvisited info for a visited link, but given our restriction that the alpha values
+    // have to match, it makes more sense to return the unvisited background color if specified than it
+    // does to return black. This behavior matches what Firefox 4 does as well.
+    return visitedLinkColor == WebCore::Color::transparentBlack;
 }
 
 } // namespace Style

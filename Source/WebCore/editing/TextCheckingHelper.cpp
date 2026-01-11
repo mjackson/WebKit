@@ -243,7 +243,7 @@ auto TextCheckingHelper::findMisspelledWords(Operation operation) const -> std::
 
         int misspellingLocation = -1;
         int misspellingLength = 0;
-        m_client.textChecker()->checkSpellingOfString(text, &misspellingLocation, &misspellingLength);
+        checkedClient()->textChecker()->checkSpellingOfString(text, &misspellingLocation, &misspellingLength);
 
         int textLength = text.length();
 
@@ -339,7 +339,7 @@ auto TextCheckingHelper::findFirstMisspelledWordOrUngrammaticalPhrase(bool check
                 VisibleSelection currentSelection;
                 if (auto* frame = paragraphRange.start.document().frame())
                     currentSelection = frame->selection().selection();
-                checkTextOfParagraph(*m_client.textChecker(), paragraphString, checkingTypes, results, currentSelection);
+                checkTextOfParagraph(*checkedClient()->textChecker(), paragraphString, checkingTypes, results, currentSelection);
 
                 for (auto& result : results) {
                     if (result.type == TextCheckingType::Spelling && result.range.location >= currentStartOffset && result.range.location + result.range.length <= currentEndOffset) {
@@ -459,7 +459,7 @@ auto TextCheckingHelper::findUngrammaticalPhrases(Operation operation) const -> 
         Vector<GrammarDetail> grammarDetails;
         int badGrammarPhraseLocation = -1;
         int badGrammarPhraseLength = 0;
-        m_client.textChecker()->checkGrammarOfString(paragraph.text().substring(startOffset), grammarDetails, &badGrammarPhraseLocation, &badGrammarPhraseLength);
+        checkedClient()->textChecker()->checkGrammarOfString(paragraph.text().substring(startOffset), grammarDetails, &badGrammarPhraseLocation, &badGrammarPhraseLength);
         
         if (!badGrammarPhraseLength) {
             ASSERT(badGrammarPhraseLocation == -1);
@@ -518,15 +518,16 @@ TextCheckingGuesses TextCheckingHelper::guessesForMisspelledWordOrUngrammaticalP
     VisibleSelection currentSelection;
     if (auto frame = m_range.start.document().frame())
         currentSelection = frame->selection().selection();
-    checkTextOfParagraph(*m_client.textChecker(), paragraph.text(), checkingTypes, results, currentSelection);
+    CheckedRef client = m_client.get();
+    checkTextOfParagraph(*client->textChecker(), paragraph.text(), checkingTypes, results, currentSelection);
 
     for (auto& result : results) {
         if (result.type == TextCheckingType::Spelling && paragraph.checkingRangeMatches(result.range)) {
             String misspelledWord = paragraph.checkingSubstring().toString();
             ASSERT(misspelledWord.length());
             Vector<String> guesses;
-            m_client.textChecker()->getGuessesForWord(misspelledWord, String(), currentSelection, guesses);
-            m_client.updateSpellingUIWithMisspelledWord(misspelledWord);
+            client->textChecker()->getGuessesForWord(misspelledWord, String(), currentSelection, guesses);
+            client->updateSpellingUIWithMisspelledWord(misspelledWord);
             return { WTF::move(guesses), true, false };
         }
     }
@@ -541,7 +542,7 @@ TextCheckingGuesses TextCheckingHelper::guessesForMisspelledWordOrUngrammaticalP
                 if (paragraph.checkingRangeMatches({ result.range.location + detail.range.location, detail.range.length })) {
                     String badGrammarPhrase = paragraph.text().substring(result.range.location, result.range.length).toString();
                     ASSERT(badGrammarPhrase.length());
-                    m_client.updateSpellingUIWithGrammarString(badGrammarPhrase, detail);
+                    client->updateSpellingUIWithGrammarString(badGrammarPhrase, detail);
                     return { WTF::move(detail.guesses), false, true };
                 }
             }
@@ -564,6 +565,11 @@ void TextCheckingHelper::markAllUngrammaticalPhrases() const
 bool TextCheckingHelper::unifiedTextCheckerEnabled() const
 {
     return WebCore::unifiedTextCheckerEnabled(m_range.start.document().frame());
+}
+
+CheckedRef<EditorClient> TextCheckingHelper::checkedClient() const
+{
+    return m_client.get();
 }
 
 void checkTextOfParagraph(TextCheckerClient& client, StringView text, OptionSet<TextCheckingType> checkingTypes, Vector<TextCheckingResult>& results, const VisibleSelection& currentSelection)

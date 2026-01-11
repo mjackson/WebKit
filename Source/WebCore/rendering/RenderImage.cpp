@@ -61,13 +61,13 @@
 #include "RenderImageResourceStyleImage.h"
 #include "RenderObjectInlines.h"
 #include "RenderStyle+GettersInlines.h"
-#include "RenderStyle+InitialInlines.h"
 #include "RenderTheme.h"
 #include "RenderView.h"
 #include "SVGElementTypeHelpers.h"
 #include "SVGImage.h"
 #include "SVGSVGElement.h"
 #include "Settings.h"
+#include "StyleComputedStyle+InitialInlines.h"
 #include "TextPainter.h"
 #include <wtf/StackStats.h>
 #include <wtf/TypeCasts.h>
@@ -597,7 +597,7 @@ void RenderImage::paintReplaced(PaintInfo& paintInfo, const LayoutPoint& paintOf
                     return availableLogicalHeight >= fontMetrics.intHeight();
                 };
                 if (hasRoomForAltText()) {
-                    context.setFillColor(style.visitedDependentColorWithColorFilter(CSSPropertyColor));
+                    context.setFillColor(style.visitedDependentColorApplyingColorFilter());
                     if (isHorizontal) {
                         auto altTextLocation = [&]() -> LayoutPoint {
                             auto contentHorizontalOffset = LayoutUnit { leftBorder + leftPadding + (paddingWidth / 2) - missingImageBorderWidth };
@@ -702,7 +702,7 @@ void RenderImage::paintAreaElementFocusRing(PaintInfo& paintInfo, const LayoutPo
     if (!areaElementStyle)
         return;
 
-    auto outlineWidth = Style::evaluate<float>(areaElementStyle->outlineWidth(), Style::ZoomNeeded { });
+    auto outlineWidth = Style::evaluate<float>(areaElementStyle->usedOutlineWidth(), Style::ZoomNeeded { });
     if (!outlineWidth)
         return;
 
@@ -725,7 +725,7 @@ void RenderImage::paintAreaElementFocusRing(PaintInfo& paintInfo, const LayoutPo
     styleOptions.add(StyleColorOptions::UseSystemAppearance);
     paintInfo.context().drawFocusRing(path, outlineWidth, RenderTheme::singleton().focusRingColor(styleOptions));
 #else
-    paintInfo.context().drawFocusRing(path, outlineWidth, areaElementStyle->visitedDependentColorWithColorFilter(CSSPropertyOutlineColor));
+    paintInfo.context().drawFocusRing(path, outlineWidth, areaElementStyle->visitedDependentOutlineColorApplyingColorFilter());
 #endif // PLATFORM(MAC)
 }
 
@@ -809,7 +809,7 @@ bool RenderImage::foregroundIsKnownToBeOpaqueInRect(const LayoutRect& localRect,
     if (auto objectFit = style().objectFit(); objectFit != ObjectFit::Fill && objectFit != ObjectFit::Cover)
         return false;
 
-    if (style().objectPosition() != RenderStyle::initialObjectPosition())
+    if (style().objectPosition() != Style::ComputedStyle::initialObjectPosition())
         return false;
 
     // Check for image with alpha.

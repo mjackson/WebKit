@@ -34,6 +34,8 @@ public:
     RenderSVGTransformableContainer(SVGGraphicsElement&, RenderStyle&&);
     virtual ~RenderSVGTransformableContainer();
 
+    FloatSize additionalContainerTranslation() const;
+
 private:
     ASCIILiteral renderName() const final { return "RenderSVGTransformableContainer"_s; }
 
@@ -41,8 +43,7 @@ private:
     SVGGraphicsElement& graphicsElement() const;
     Ref<SVGGraphicsElement> protectedGraphicsElement() const;
 
-    FloatSize additionalContainerTranslation() const;
-    void applyTransform(TransformationMatrix&, const RenderStyle&, const FloatRect& boundingBox, OptionSet<RenderStyle::TransformOperationOption>) const final;
+    void applyTransform(TransformationMatrix&, const RenderStyle&, const FloatRect& boundingBox, OptionSet<Style::TransformResolverOption>) const final;
     void updateLayerTransform() final;
     bool needsHasSVGTransformFlags() const final;
 

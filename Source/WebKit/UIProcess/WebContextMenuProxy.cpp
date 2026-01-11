@@ -36,9 +36,10 @@
 
 namespace WebKit {
 
-WebContextMenuProxy::WebContextMenuProxy(WebPageProxy& page, ContextMenuContextData&& context, const UserData& userData)
+WebContextMenuProxy::WebContextMenuProxy(WebPageProxy& page, FrameInfoData&& frameInfo, ContextMenuContextData&& context, const UserData& userData)
     : m_context(WTF::move(context))
     , m_userData(userData)
+    , m_frameInfo(WTF::move(frameInfo))
     , m_page(page)
 {
 }

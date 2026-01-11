@@ -26,6 +26,7 @@
 #pragma once
 
 #include "EventTarget.h"
+#include "EventTargetInterfaces.h"
 #include <wtf/TZoneMalloc.h>
 #include <wtf/Vector.h>
 #include <wtf/WeakPtr.h>
@@ -115,3 +116,5 @@ private:
 };
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(Clipboard)

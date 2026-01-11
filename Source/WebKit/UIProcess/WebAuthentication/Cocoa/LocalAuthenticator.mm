@@ -58,26 +58,49 @@
 
 #import "AuthenticationServicesCoreSoftLink.h"
 
-#if USE(APPLE_INTERNAL_SDK)
-#import <WebKitAdditions/LocalAuthenticatorAdditions.h>
-#else
-static void updateQueryIfNecessary(NSMutableDictionary *)
-{
-}
+#define kSecAttrSharingGroup @"ggrp"
+
 static inline String groupForAttributes(NSDictionary *attributes)
 {
+    if ([[attributes allKeys] containsObject:kSecAttrSharingGroup]) {
+        if (auto *nsString = dynamic_objc_cast<NSString>(attributes[kSecAttrSharingGroup]))
+            return nsString;
+    }
     return nullString();
 }
+
 static bool shouldUpdateQuery()
 {
+    if (WebKit::getASCWebKitSPISupportClassSingleton())
+        return [WebKit::getASCWebKitSPISupportClassSingleton() shouldUseAlternateCredentialStore];
+
     return false;
 }
-static inline RefPtr<ArrayBuffer> alternateBlobIfNecessary(const WebKit::WebAuthenticationRequestData requestData)
+
+static void updateQueryIfNecessary(NSMutableDictionary *dictionary)
 {
-    return nullptr;
+    if (!shouldUpdateQuery())
+        return;
+
+    [dictionary setObject:@YES forKey:(__bridge id)kSecAttrSynchronizable];
 }
 
-#endif
+static inline RefPtr<ArrayBuffer> alternateBlobIfNecessary(const WebKit::WebAuthenticationRequestData& requestData)
+{
+#if HAVE(WEB_AUTHN_PRF_API)
+    return nullptr;
+#else
+    RetainPtr nsClientDataHash = toNSData(requestData.hash.span());
+    auto& requestOptions = std::get<WebCore::PublicKeyCredentialRequestOptions>(requestData.options);
+    if (![WebKit::getASCWebKitSPISupportClassSingleton() respondsToSelector:@selector(alternateLargeBlobIfNecessaryForRelyingParty:clientDataHash:)])
+        return nullptr;
+    NSData *alternateBlob = [WebKit::getASCWebKitSPISupportClassSingleton() alternateLargeBlobIfNecessaryForRelyingParty:requestOptions.rpId.createNSString().autorelease() clientDataHash:nsClientDataHash.get()];
+    if (!alternateBlob)
+        return nullptr;
+
+    return ArrayBuffer::tryCreate(span(alternateBlob));
+#endif // not HAVE(WEB_AUTHN_PRF_API)
+}
 
 namespace WebKit {
 using namespace fido;

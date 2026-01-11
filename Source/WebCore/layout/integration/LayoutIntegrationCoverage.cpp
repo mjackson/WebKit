@@ -39,11 +39,11 @@
 #include "RenderSVGBlock.h"
 #include "RenderSVGForeignObject.h"
 #include "RenderStyle+GettersInlines.h"
-#include "RenderStyle+InitialInlines.h"
 #include "RenderTable.h"
 #include "RenderTextControl.h"
 #include "RenderView.h"
 #include "Settings.h"
+#include "StyleComputedStyle+InitialInlines.h"
 #include "StyleContentAlignmentData.h"
 #include "StyleSelfAlignmentData.h"
 #include <pal/Logging.h>
@@ -126,7 +126,7 @@ static EnumSet<FlexAvoidanceReason> canUseForFlexLayoutWithReason(const RenderFl
     if (mayHaveScrollbarOrScrollableOverflow(flexBoxStyle))
         ADD_REASON_AND_RETURN_IF_NEEDED(FlexBoxHasUnsupportedOverflow, reasons, includeReasons);
 
-    if (flexBoxStyle.marginTrim() != RenderStyle::initialMarginTrim())
+    if (flexBoxStyle.marginTrim() != Style::ComputedStyle::initialMarginTrim())
         ADD_REASON_AND_RETURN_IF_NEEDED(FlexBoxHasMarginTrim, reasons, includeReasons);
 
     auto isFlexBoxInsideBFC = [&] {
@@ -144,7 +144,7 @@ static EnumSet<FlexAvoidanceReason> canUseForFlexLayoutWithReason(const RenderFl
         ADD_REASON_AND_RETURN_IF_NEEDED(FlexBoxHasNestedFlex, reasons, includeReasons);
     }
 
-    if (flexBoxStyle.minHeight() != RenderStyle::initialMinHeight() || flexBoxStyle.maxHeight() != RenderStyle::initialMaxHeight())
+    if (flexBoxStyle.minHeight() != Style::ComputedStyle::initialMinHeight() || flexBoxStyle.maxHeight() != Style::ComputedStyle::initialMaxHeight())
         ADD_REASON_AND_RETURN_IF_NEEDED(FlexWithNonInitialMinMaxHeight, reasons, includeReasons);
 
     if (flexBox.isOutOfFlowPositioned()) {
@@ -178,7 +178,7 @@ static EnumSet<FlexAvoidanceReason> canUseForFlexLayoutWithReason(const RenderFl
         if (!flexItemStyle.height().isFixed())
             ADD_REASON_AND_RETURN_IF_NEEDED(FlexItemHasNonFixedHeight, reasons, includeReasons);
 
-        if (flexItemStyle.minHeight() != RenderStyle::initialMinHeight() || flexItemStyle.maxHeight() != RenderStyle::initialMaxHeight())
+        if (flexItemStyle.minHeight() != Style::ComputedStyle::initialMinHeight() || flexItemStyle.maxHeight() != Style::ComputedStyle::initialMaxHeight())
             ADD_REASON_AND_RETURN_IF_NEEDED(FlexWithNonInitialMinMaxHeight, reasons, includeReasons);
 
         if (flexItemStyle.usedContain().contains(Style::ContainValue::Size))

@@ -59,6 +59,8 @@ struct OffsetPath {
     std::optional<BasicShapePath> tryBasicShape() const;
     std::optional<BoxPath> tryBox() const;
 
+    bool affectedByTransformOrigin() const { return !isNone(); }
+
     template<typename> bool holdsAlternative() const;
     template<typename... F> decltype(auto) switchOn(F&&...) const;
 

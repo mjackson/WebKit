@@ -67,7 +67,7 @@ layer at (0,0) size 800x600
                   RenderText {#text} at (0,0) size 105x18
                     text run at (0,0) width 105: "...continues here"
       RenderBlock {DIV} at (0,208) size 784x36
-        RenderInline {SPAN} at (0,0) size 784x36
+        RenderInline {SPAN} at (0,0) size 105x36
           RenderText {#text} at (0,0) size 41x18
             text run at (0,0) width 41: "Text..."
           RenderBlock {DIV} at (0,18) size 784x0
@@ -124,7 +124,7 @@ layer at (0,0) size 800x600
                   RenderText {#text} at (0,0) size 105x18
                     text run at (0,0) width 105: "...continues here"
       RenderBlock {DIV} at (0,334) size 784x36
-        RenderInline {SPAN} at (0,0) size 784x36
+        RenderInline {SPAN} at (0,0) size 105x36
           RenderText {#text} at (0,0) size 41x18
             text run at (0,0) width 41: "Text..."
           RenderBlock {DIV} at (0,18) size 784x0
@@ -183,7 +183,7 @@ layer at (0,0) size 800x600
                   RenderText {#text} at (0,0) size 105x18
                     text run at (0,0) width 105: "...continues here"
       RenderBlock {DIV} at (0,460) size 784x36
-        RenderInline {SPAN} at (0,0) size 784x36
+        RenderInline {SPAN} at (0,0) size 105x36
           RenderText {#text} at (0,0) size 41x18
             text run at (0,0) width 41: "Text..."
           RenderBlock {DIV} at (0,18) size 784x0

@@ -3429,8 +3429,16 @@ JSC_DEFINE_HOST_FUNCTION(functionCreateBuiltin, (JSGlobalObject* globalObject, C
     auto functionText = asString(callFrame->argument(0))->value(globalObject);
     RETURN_IF_EXCEPTION(scope, encodedJSValue());
 
+    ImplementationVisibility visibility = ImplementationVisibility::Public;
+    if (callFrame->argumentCount() >= 2 && callFrame->argument(1).isString()) {
+        String visibilityString = asString(callFrame->argument(1))->value(globalObject);
+        RETURN_IF_EXCEPTION(scope, encodedJSValue());
+        if (visibilityString == "private"_s)
+            visibility = ImplementationVisibility::Private;
+    }
+
     SourceCode source = makeSource(WTF::move(functionText), { }, SourceTaintedOrigin::Untainted);
-    JSFunction* func = JSFunction::create(vm, globalObject, createBuiltinExecutable(vm, source, Identifier::fromString(vm, "foo"_s), ImplementationVisibility::Public, ConstructorKind::None, ConstructAbility::CannotConstruct, InlineAttribute::None)->link(vm, nullptr, source), globalObject);
+    JSFunction* func = JSFunction::create(vm, globalObject, createBuiltinExecutable(vm, source, Identifier::fromString(vm, "foo"_s), visibility, ConstructorKind::None, ConstructAbility::CannotConstruct, InlineAttribute::None)->link(vm, nullptr, source), globalObject);
 
     return JSValue::encode(func);
 }

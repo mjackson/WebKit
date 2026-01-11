@@ -608,12 +608,12 @@ void RenderBlockFlow::layoutBlock(RelayoutChildren relayoutChildren, LayoutUnit 
 
     // Calculate our new height.
     LayoutUnit oldHeight = logicalHeight();
-    LayoutUnit oldClientAfterEdge = clientLogicalBottom();
+    auto afterPaddingEdge = clientLogicalBottom();
 
     // Before updating the final size of the flow thread make sure a forced break is applied after the content.
     // This ensures the size information is correctly computed for the last auto-height fragment receiving content.
     if (CheckedPtr fragmentedFlow = dynamicDowncast<RenderFragmentedFlow>(*this))
-        fragmentedFlow->applyBreakAfterContent(oldClientAfterEdge);
+        fragmentedFlow->applyBreakAfterContent(afterPaddingEdge);
 
     updateLogicalHeight();
     LayoutUnit newHeight = logicalHeight();
@@ -630,7 +630,7 @@ void RenderBlockFlow::layoutBlock(RelayoutChildren relayoutChildren, LayoutUnit 
     };
     if (shouldApplyAlignContent()) {
         alignContentShift = shiftForAlignContent(oldHeight, repaintLogicalTop, repaintLogicalBottom);
-        oldClientAfterEdge += alignContentShift;
+        afterPaddingEdge += alignContentShift;
         if (alignContentShift < 0)
             ensureRareBlockFlowData().m_alignContentShift = alignContentShift;
     } else if (hasRareBlockFlowData())
@@ -665,7 +665,12 @@ void RenderBlockFlow::layoutBlock(RelayoutChildren relayoutChildren, LayoutUnit 
     updateDescendantTransformsAfterLayout();
 
     // Add overflow from children (unless we're multi-column, since in that case all our child overflow is clipped anyway).
-    computeOverflow(oldClientAfterEdge);
+    auto contentArea = flippedContentBoxRect();
+    if (writingMode().isHorizontal())
+        contentArea.shiftMaxYEdgeTo(afterPaddingEdge - paddingAfter());
+    else
+        contentArea.shiftMaxXEdgeTo(afterPaddingEdge - paddingAfter());
+    computeOverflow(contentArea);
 
     auto* state = view().frameView().layoutContext().layoutState();
     if (state && state->pageLogicalHeight())
@@ -2508,9 +2513,9 @@ void RenderBlockFlow::addFloatsToNewParent(RenderBlockFlow& toBlockFlow) const
     }
 }
 
-void RenderBlockFlow::computeOverflow(LayoutUnit oldClientAfterEdge, OptionSet<ComputeOverflowOptions> options)
+void RenderBlockFlow::computeOverflow(LayoutRect contentArea, OptionSet<ComputeOverflowOptions> options)
 {
-    RenderBlock::computeOverflow(oldClientAfterEdge, options);
+    RenderBlock::computeOverflow(contentArea, options);
 
     auto addOverflowFromFloatsIfApplicable = [&] {
 
@@ -4477,7 +4482,7 @@ void RenderBlockFlow::checkForPaginationLogicalHeightChange(RelayoutChildren& re
         LayoutUnit newColumnHeight;
         if (hasDefiniteLogicalHeight() || view().frameView().pagination().mode != Pagination::Mode::Unpaginated) {
             auto computedValues = computeLogicalHeight(0_lu, logicalTop());
-            newColumnHeight = std::max<LayoutUnit>(computedValues.m_extent - borderAndPaddingLogicalHeight() - scrollbarLogicalHeight(), 0);
+            newColumnHeight = std::max<LayoutUnit>(computedValues.extent - borderAndPaddingLogicalHeight() - scrollbarLogicalHeight(), 0);
             if (fragmentedFlow->columnHeightAvailable() != newColumnHeight)
                 relayoutChildren = RelayoutChildren::Yes;
         }
@@ -4992,7 +4997,7 @@ void RenderBlockFlow::computeInlinePreferredLogicalWidths(LayoutUnit& minLogical
             LayoutUnit childMaxPreferredLogicalWidth;
             CheckedPtr box = dynamicDowncast<RenderBox>(*child);
             if (box->isHorizontalWritingMode() != isHorizontalWritingMode()) {
-                auto extent = box->computeLogicalHeight(box->borderAndPaddingLogicalHeight(), 0).m_extent;
+                auto extent = box->computeLogicalHeight(box->borderAndPaddingLogicalHeight(), 0).extent;
                 childMinPreferredLogicalWidth = extent;
                 childMaxPreferredLogicalWidth = extent;
             } else

@@ -473,7 +473,6 @@ void ServiceWorkerThreadProxy::setInspectable(bool inspectable)
 {
     ASSERT(isMainThread());
 #if ENABLE(REMOTE_INSPECTOR)
-    m_page->setInspectable(inspectable);
     m_remoteDebuggable->setInspectable(inspectable);
 #else
     UNUSED_PARAM(inspectable);

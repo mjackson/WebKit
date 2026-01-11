@@ -138,10 +138,10 @@ class TestSDKDB(TestCase):
     def tearDown(self):
         self.sdkdb.con.close()
 
-    def add_library(self):
+    def add_library(self, fixture=R, file=F, file_hash=F_Hash):
         with self.sdkdb:
-            self.sdkdb._cache_hit_preparing_to_insert(F, F_Hash)
-            self.sdkdb._add_api_report(R, F)
+            self.sdkdb._cache_hit_preparing_to_insert(file, file_hash)
+            self.sdkdb._add_api_report(fixture, file)
 
     def add_partial_sdkdb(self):
         with self.sdkdb:
@@ -398,3 +398,21 @@ class TestSDKDB(TestCase):
                                              kind=OBJC_SEL,
                                              exported_in=F_Client),
                       self.audit_with(client))
+
+    def test_exported_in_nonnull(self):
+        # Add the same API declarations twice (i.e. two different SDKs loaded
+        # into the same cache).
+        self.add_library(file=Path('/some/other/sdk/libdoesntexist.dylib'))
+        self.add_library()
+
+        # Reconnect and load only the second source of our symbols.
+        self.reconnect()
+        self.add_library()
+
+        # Cause an UnnecessaryAllowedName. It should have a nonnull
+        # export_path.
+        self.add_allowlist()
+        self.assertIn(UnnecessaryAllowedName(name='initWithData:',
+                                             kind=OBJC_SEL, file=A_File,
+                                             exported_in=F),
+                      self.audit_with(R_Client))

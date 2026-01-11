@@ -93,7 +93,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(InspectorCSSAgent);
 class InspectorCSSAgent::StyleSheetAction : public InspectorHistory::Action {
     WTF_MAKE_NONCOPYABLE(StyleSheetAction);
 public:
-    StyleSheetAction(InspectorStyleSheet* styleSheet)
+    explicit StyleSheetAction(InspectorStyleSheet* styleSheet)
         : InspectorHistory::Action()
         , m_styleSheet(styleSheet)
     {
@@ -113,6 +113,8 @@ public:
     }
 
 private:
+    bool isSetStyleSheetTextAction() const final { return true; }
+
     ExceptionOr<void> perform() final
     {
         auto result = m_styleSheet->text();
@@ -148,7 +150,7 @@ private:
     void merge(std::unique_ptr<Action> action) override
     {
         ASSERT(action->mergeId() == mergeId());
-        m_text = static_cast<SetStyleSheetTextAction&>(*action).m_text;
+        m_text = downcast<SetStyleSheetTextAction>(*action).m_text;
     }
 
     String m_text;
@@ -439,8 +441,6 @@ std::optional<Inspector::Protocol::CSS::PseudoId> InspectorCSSAgent::protocolVal
         return Inspector::Protocol::CSS::PseudoId::SpellingError;
     case PseudoElementType::TargetText:
         return Inspector::Protocol::CSS::PseudoId::TargetText;
-    case PseudoElementType::Checkmark:
-        return Inspector::Protocol::CSS::PseudoId::Checkmark;
     case PseudoElementType::ViewTransition:
         return Inspector::Protocol::CSS::PseudoId::ViewTransition;
     case PseudoElementType::ViewTransitionGroup:
@@ -659,7 +659,7 @@ void InspectorCSSAgent::collectAllDocumentStyleSheets(Document& document, Vector
 {
     auto cssStyleSheets = document.styleScope().activeStyleSheetsForInspector();
     for (auto& cssStyleSheet : cssStyleSheets)
-        collectStyleSheets(cssStyleSheet.get(), result);
+        collectStyleSheets(cssStyleSheet.ptr(), result);
 }
 
 void InspectorCSSAgent::collectStyleSheets(CSSStyleSheet* styleSheet, Vector<CSSStyleSheet*>& result)
@@ -1448,3 +1448,10 @@ void InspectorCSSAgent::resetPseudoStates()
 }
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::InspectorCSSAgent::SetStyleSheetTextAction)
+    static bool isType(const WebCore::InspectorHistory::Action& action)
+    {
+        return action.isSetStyleSheetTextAction();
+    }
+SPECIALIZE_TYPE_TRAITS_END()

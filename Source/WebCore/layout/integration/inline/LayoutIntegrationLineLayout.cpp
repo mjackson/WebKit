@@ -1069,7 +1069,15 @@ InlineIterator::InlineBoxIterator LineLayout::firstRootInlineBox() const
     if (!m_inlineContent || !m_inlineContent->hasContentfulInFlowBox())
         return { };
 
-    return InlineIterator::inlineBoxFor(*m_inlineContent, m_inlineContent->displayContent().boxes[0]);
+    return InlineIterator::inlineBoxFor(*m_inlineContent, m_inlineContent->displayContent().boxes.first());
+}
+
+InlineIterator::InlineBoxIterator LineLayout::lastRootInlineBox() const
+{
+    if (!m_inlineContent || !m_inlineContent->hasContentfulInFlowBox())
+        return { };
+
+    return InlineIterator::inlineBoxFor(*m_inlineContent, m_inlineContent->displayContent().boxes.last());
 }
 
 InlineIterator::LineBoxIterator LineLayout::firstLineBox() const
@@ -1151,9 +1159,7 @@ Vector<FloatRect> LineLayout::collectInlineBoxRects(const RenderInline& renderIn
 
     Vector<FloatRect> result;
     m_inlineContent->traverseNonRootInlineBoxes(layoutBox, [&](auto& inlineBox) {
-        auto rect = inlineBox.visualRectIgnoringBlockDirection();
-        if (result.isEmpty() || !rect.isEmpty())
-            result.append(rect);
+        result.append(inlineBox.visualRectIgnoringBlockDirection());
     });
     return result;
 }

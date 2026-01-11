@@ -154,7 +154,7 @@ private:
     void prepareDataChannel(GstWebRTCDataChannel*, gboolean isLocal);
     void onDataChannel(GstWebRTCDataChannel*);
 
-    WARN_UNUSED_RETURN GstElement* requestAuxiliarySender(GRefPtr<GstWebRTCDTLSTransport>&&);
+    [[nodiscard]] GstElement* requestAuxiliarySender(GRefPtr<GstWebRTCDTLSTransport>&&);
 
     MediaStream& mediaStreamFromRTCStream(String mediaStreamId);
 
@@ -167,7 +167,7 @@ private:
 
     void processSDPMessage(const GstSDPMessage*, Function<void(unsigned index, CStringView mid, const GstSDPMedia*)>);
 
-    WARN_UNUSED_RETURN GRefPtr<GstPad> requestPad(const GRefPtr<GstCaps>&, const String& mediaStreamID);
+    [[nodiscard]] GRefPtr<GstPad> requestPad(const GRefPtr<GstCaps>&, const String& mediaStreamID);
 
     std::optional<bool> isIceGatheringComplete(const String& currentLocalDescription);
 

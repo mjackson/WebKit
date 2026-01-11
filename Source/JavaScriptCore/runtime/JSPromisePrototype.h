@@ -51,10 +51,8 @@ public:
 
 protected:
     void finishCreation(VM&, JSGlobalObject*);
-    JSPromisePrototype(VM&, Structure*);
-
-private:
     void addOwnInternalSlots(VM&, JSGlobalObject*);
+    JSPromisePrototype(VM&, Structure*);
 };
 
 bool promiseSpeciesWatchpointIsValid(VM&, JSPromise*);

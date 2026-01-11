@@ -491,9 +491,9 @@ Vector<Ref<ShadowRoot>> assignedShadowRootsIfSlotted(const Node& node)
     return result;
 }
 
-Vector<RefPtr<WebAnimation>> ShadowRoot::getAnimations()
+Vector<Ref<WebAnimation>> ShadowRoot::getAnimations()
 {
-    return document().matchingAnimations([&] (Element& target) -> bool {
+    return document().matchingAnimations([&](Element& target) {
         return target.containingShadowRoot() == this;
     });
 }

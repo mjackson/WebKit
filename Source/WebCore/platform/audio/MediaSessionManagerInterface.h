@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2025-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -77,6 +77,8 @@ public:
     virtual bool shouldDeactivateAudioSession() { return m_shouldDeactivateAudioSession; };
 
     virtual void updateNowPlayingInfoIfNecessary();
+    virtual void updateNowPlayingInfo() { updateNowPlayingInfoIfNecessary(); }
+    virtual void setNowPlayingUpdateInterval(double) { };
     virtual void updateAudioSessionCategoryIfNecessary();
 
     virtual std::optional<NowPlayingInfo> nowPlayingInfo() const { return { }; }

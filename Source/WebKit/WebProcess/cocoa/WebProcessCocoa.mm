@@ -622,6 +622,9 @@ void WebProcess::platformInitializeWebProcess(WebProcessCreationParameters& para
 #if ENABLE(CLOSE_WEBCONTENT_XPC_CONNECTION_POST_LAUNCH)
     xpc_connection_cancel(parentProcessConnection()->xpcConnection());
 #endif
+
+    if (getenv("WEBKIT_PAUSE_WEB_PROCESS_ON_LAUNCH"))
+        WTF::sleep(5_s);
 }
 
 void WebProcess::platformSetWebsiteDataStoreParameters(WebProcessDataStoreParameters&& parameters)

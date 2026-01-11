@@ -194,9 +194,9 @@ void HTMLDetailsElement::didFinishInsertingNode()
     ensureDetailsExclusivityAfterMutation();
 }
 
-Vector<RefPtr<HTMLDetailsElement>> HTMLDetailsElement::otherElementsInNameGroup()
+Vector<Ref<HTMLDetailsElement>> HTMLDetailsElement::otherElementsInNameGroup()
 {
-    Vector<RefPtr<HTMLDetailsElement>> otherElementsInNameGroup;
+    Vector<Ref<HTMLDetailsElement>> otherElementsInNameGroup;
     const auto& detailElementName = attributeWithoutSynchronization(nameAttr);
     for (Ref element : descendantsOfType<HTMLDetailsElement>(rootNode())) {
         if (element.ptr() != this && element->attributeWithoutSynchronization(nameAttr) == detailElementName)

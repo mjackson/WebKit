@@ -124,13 +124,11 @@ static bool canOptimizeSingleAttributeExactMatch(const CSSSelector& selector)
 
 SelectorDataList::SelectorDataList(const CSSSelectorList& selectorList)
 {
-    unsigned selectorCount = std::ranges::distance(selectorList);
+    m_selectors = FixedVector<SelectorData>::map(selectorList, [](auto& selector) {
+        return SelectorData { &selector };
+    });
 
-    m_selectors.reserveInitialCapacity(selectorCount);
-    for (auto& selector : selectorList)
-        m_selectors.append({ &selector });
-
-    if (selectorCount == 1) {
+    if (m_selectors.size() == 1) {
         const CSSSelector& selector = *m_selectors.first().selector;
         if (selector.isFirstInComplexSelector()) {
             switch (selector.match()) {

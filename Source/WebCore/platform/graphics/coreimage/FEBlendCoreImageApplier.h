@@ -41,8 +41,6 @@ class FEBlendCoreImageApplier final : public FilterEffectConcreteApplier<FEBlend
 public:
     FEBlendCoreImageApplier(const FEBlend&);
 
-    static bool supportsCoreImageRendering(const FEBlend&);
-
 private:
     bool apply(const Filter&, std::span<const Ref<FilterImage>> inputs, FilterImage& result) const final;
 };

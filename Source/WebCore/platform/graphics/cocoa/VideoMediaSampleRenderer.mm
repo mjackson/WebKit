@@ -320,7 +320,10 @@ void VideoMediaSampleRenderer::stopRequestingMediaData()
 {
     assertIsMainThread();
 
-    m_readyForMoreMediaDataFunction = nullptr;
+    // Destroy the readyForMoreMediaDataFunction in the next runloop to protect
+    // against re-entrancy if clients call into stopRequestingMediaData() during
+    // an invocation of readyForMoreMediaDataFunction.
+    callOnMainThread([readyForMoreMediaDataFunction = std::exchange(m_readyForMoreMediaDataFunction, nullptr)] { });
 
     if (isUsingDecompressionSession()) {
         // stopRequestingMediaData may deadlock if used on the main thread while enqueuing on the workqueue

@@ -167,6 +167,8 @@ public:
         case WakeUpAndApplyDisplayListStart:
         case ThreadTimersStart:
         case TimerFiredStart:
+        case CoreImageRenderStart:
+        case TextExtractionStart:
             beginMark(nullptr, tracePointCodeName(code).spanIncludingNullTerminator(), "%s", "");
             break;
 
@@ -231,6 +233,8 @@ public:
         case WakeUpAndApplyDisplayListEnd:
         case ThreadTimersEnd:
         case TimerFiredEnd:
+        case CoreImageRenderEnd:
+        case TextExtractionEnd:
             endMark(nullptr, tracePointCodeName(code).spanIncludingNullTerminator(), "%s", "");
             break;
 
@@ -418,6 +422,9 @@ private:
         case TimerFiredStart:
         case TimerFiredEnd:
             return "WebCoreTimerExecution"_s;
+        case CoreImageRenderStart:
+        case CoreImageRenderEnd:
+            return "CoreImageRender"_s;
 
         case WebHTMLViewPaintStart:
         case WebHTMLViewPaintEnd:
@@ -501,6 +508,11 @@ private:
         case WaitForCompositionCompletionStart:
         case WaitForCompositionCompletionEnd:
             return "WaitForCompositionCompletion"_s;
+
+        case TextExtractionStart:
+        case TextExtractionEnd:
+            return "TextExtraction"_s;
+
         case RenderLayerTreeStart:
         case RenderLayerTreeEnd:
             return "RenderLayerTree"_s;

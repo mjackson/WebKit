@@ -634,7 +634,7 @@ pas_heap_ref* TZoneHeapManager::TZoneHeapManager::heapRefForTZoneTypeDifferentSi
     LockHolder lock(differentSizeMutex());
     RELEASE_BASSERT(tzoneMallocFallback == TZoneMallocFallback::DoNotFallBack);
 
-    unsigned newSize = sizeClassFor(requestedSize);
+    unsigned newSize = TZone::sizeClassFor(requestedSize);
     unsigned alignment = SizeAndAlignment::decodeAlignment(spec.sizeAndAlignment);
     TZoneTypeKey key(spec.addressOfHeapRef, newSize, alignment);
 

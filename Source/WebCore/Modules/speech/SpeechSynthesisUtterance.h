@@ -30,6 +30,7 @@
 #include <WebCore/ActiveDOMObject.h>
 #include <WebCore/ContextDestructionObserver.h>
 #include <WebCore/EventTarget.h>
+#include <WebCore/EventTargetInterfaces.h>
 #include <WebCore/PlatformSpeechSynthesisUtterance.h>
 #include <WebCore/SpeechSynthesisErrorCode.h>
 #include <WebCore/SpeechSynthesisVoice.h>
@@ -130,6 +131,10 @@ private:
 } // namespace WebCore
 
 SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::SpeechSynthesisUtterance)
+    static bool isType(const WebCore::EventTarget& context)
+    {
+        return context.eventTargetInterface() == WebCore::EventTargetInterfaceType::SpeechSynthesisUtterance;
+    }
     static bool isType(const WebCore::PlatformSpeechSynthesisUtteranceClient& client)
     {
         return client.isSpeechSynthesisUtterance();

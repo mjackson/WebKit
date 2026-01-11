@@ -325,24 +325,42 @@ TemporalPlainDateTime* TemporalPlainDateTime::round(JSGlobalObject* globalObject
     } else {
         options = intlGetOptionsObject(globalObject, optionsValue);
         RETURN_IF_EXCEPTION(scope, { });
+    }
 
-        smallest = temporalSmallestUnit(globalObject, options, { TemporalUnit::Year, TemporalUnit::Month, TemporalUnit::Week });
+    auto roundingIncrement = temporalRoundingIncrement(globalObject, options);
+    RETURN_IF_EXCEPTION(scope, { });
+
+    auto roundingMode = temporalRoundingMode(globalObject, options, RoundingMode::HalfExpand);
+    RETURN_IF_EXCEPTION(scope, { });
+
+    if (!smallest) {
+        auto smallestUnitMaybeAuto = getTemporalUnitValuedOption(globalObject, options, vm.propertyNames->smallestUnit);
         RETURN_IF_EXCEPTION(scope, { });
+        ASSERT(std::holds_alternative<std::optional<TemporalUnit>>(smallestUnitMaybeAuto));
+        smallest = std::get<std::optional<TemporalUnit>>(smallestUnitMaybeAuto);
         if (!smallest) {
             throwRangeError(globalObject, scope, "Cannot round without a smallestUnit option"_s);
             return { };
         }
     }
-    TemporalUnit smallestUnit = smallest.value();
 
-    auto roundingMode = temporalRoundingMode(globalObject, options, RoundingMode::HalfExpand);
+    auto smallestUnit = smallest.value();
+
+    validateTemporalUnitValue(globalObject, smallestUnit, UnitGroup::Time, AllowedUnit::Day, "smallestUnit"_s);
     RETURN_IF_EXCEPTION(scope, { });
 
-    std::optional<double> maximum = smallestUnit == TemporalUnit::Day ? 1 : maximumRoundingIncrement(smallestUnit);
-    auto increment = temporalRoundingIncrement(globalObject, options, maximum, false);
+    unsigned maximum = 1;
+    Inclusivity isInclusive = Inclusivity::Inclusive;
+    if (smallestUnit != TemporalUnit::Day) {
+        auto maximumOptional = maximumRoundingIncrement(smallestUnit);
+        ASSERT(maximumOptional);
+        maximum = maximumOptional.value();
+        isInclusive = Inclusivity::Exclusive;
+    }
+    validateTemporalRoundingIncrement(globalObject, roundingIncrement, maximum, isInclusive);
     RETURN_IF_EXCEPTION(scope, { });
 
-    auto duration = TemporalPlainTime::roundTime(m_plainTime, increment, smallestUnit, roundingMode, std::nullopt);
+    auto duration = TemporalPlainTime::roundTime(m_plainTime, roundingIncrement, smallestUnit, roundingMode, std::nullopt);
     auto plainTime = TemporalPlainTime::toPlainTime(globalObject, duration);
     RETURN_IF_EXCEPTION(scope, { });
 

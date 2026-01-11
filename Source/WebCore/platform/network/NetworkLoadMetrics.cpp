@@ -32,7 +32,7 @@ namespace WebCore {
 
 NetworkLoadMetrics::NetworkLoadMetrics() = default;
 
-NetworkLoadMetrics::NetworkLoadMetrics(MonotonicTime&& redirectStart, MonotonicTime&& fetchStart, MonotonicTime&& domainLookupStart, MonotonicTime&& domainLookupEnd, MonotonicTime&& connectStart, MonotonicTime&& secureConnectionStart, MonotonicTime&& connectEnd, MonotonicTime&& requestStart, MonotonicTime&& responseStart, MonotonicTime&& responseEnd, MonotonicTime&& workerStart, MonotonicTime&& firstInterimResponseStart, MonotonicTime&& finalResponseHeadersStart, String&& protocol, uint16_t redirectCount, bool complete, bool cellular, bool expensive, bool constrained, bool multipath, bool isReusedConnection, bool failsTAOCheck, bool hasCrossOriginRedirect, bool fromPrefetch, bool fromCache, PrivacyStance privacyStance, uint64_t responseBodyBytesReceived, uint64_t responseBodyDecodedSize, RefPtr<AdditionalNetworkLoadMetricsForWebInspector>&& additionalNetworkLoadMetricsForWebInspector)
+NetworkLoadMetrics::NetworkLoadMetrics(MonotonicTime&& redirectStart, MonotonicTime&& fetchStart, MonotonicTime&& domainLookupStart, MonotonicTime&& domainLookupEnd, MonotonicTime&& connectStart, MonotonicTime&& secureConnectionStart, MonotonicTime&& connectEnd, MonotonicTime&& requestStart, MonotonicTime&& responseStart, MonotonicTime&& responseEnd, MonotonicTime&& workerStart, MonotonicTime&& firstInterimResponseStart, String&& protocol, uint16_t redirectCount, bool complete, bool cellular, bool expensive, bool constrained, bool multipath, bool isReusedConnection, bool failsTAOCheck, bool hasCrossOriginRedirect, bool fromPrefetch, bool fromCache, PrivacyStance privacyStance, uint64_t responseBodyBytesReceived, uint64_t responseBodyDecodedSize, RefPtr<AdditionalNetworkLoadMetricsForWebInspector>&& additionalNetworkLoadMetricsForWebInspector)
     : redirectStart(WTF::move(redirectStart))
     , fetchStart(WTF::move(fetchStart))
     , domainLookupStart(WTF::move(domainLookupStart))
@@ -45,7 +45,6 @@ NetworkLoadMetrics::NetworkLoadMetrics(MonotonicTime&& redirectStart, MonotonicT
     , responseEnd(WTF::move(responseEnd))
     , workerStart(WTF::move(workerStart))
     , firstInterimResponseStart(WTF::move(firstInterimResponseStart))
-    , finalResponseHeadersStart(WTF::move(finalResponseHeadersStart))
     , protocol(protocol)
     , redirectCount(redirectCount)
     , complete(complete)
@@ -79,7 +78,6 @@ void NetworkLoadMetrics::updateFromFinalMetrics(const NetworkLoadMetrics& other)
     MonotonicTime originalResponseEnd = responseEnd;
     MonotonicTime originalWorkerStart = workerStart;
     MonotonicTime originalFirstInterimResponseStart = firstInterimResponseStart;
-    MonotonicTime originalFinalResponseHeadersStart = finalResponseHeadersStart;
     bool originalFromPrefetch = fromPrefetch;
     bool originalFromCache = fromCache;
 
@@ -109,8 +107,6 @@ void NetworkLoadMetrics::updateFromFinalMetrics(const NetworkLoadMetrics& other)
         workerStart = originalWorkerStart;
     if (!firstInterimResponseStart)
         firstInterimResponseStart = originalFirstInterimResponseStart;
-    if (!finalResponseHeadersStart)
-        finalResponseHeadersStart = originalFinalResponseHeadersStart;
     if (!fromPrefetch)
         fromPrefetch = originalFromPrefetch;
     if (!fromCache)
@@ -159,7 +155,6 @@ NetworkLoadMetrics NetworkLoadMetrics::isolatedCopy() const
     copy.responseEnd = responseEnd.isolatedCopy();
     copy.workerStart = workerStart.isolatedCopy();
     copy.firstInterimResponseStart = firstInterimResponseStart.isolatedCopy();
-    copy.finalResponseHeadersStart = finalResponseHeadersStart.isolatedCopy();
 
     copy.protocol = protocol.isolatedCopy();
 

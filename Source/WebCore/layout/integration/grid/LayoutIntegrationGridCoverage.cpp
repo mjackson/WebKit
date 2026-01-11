@@ -125,18 +125,18 @@ static std::optional<GridAvoidanceReason> hasValidRowEnd(const Style::GridPositi
 {
     return WTF::switchOn(rowEnd,
         [&](const CSS::Keyword::Auto&) -> std::optional<GridAvoidanceReason> {
-            return GridAvoidanceReason::GridItemHasUnsupportedColumnPlacement;
+            return GridAvoidanceReason::GridItemHasUnsupportedRowPlacement;
         },
         [&](const Style::GridPositionExplicit&) -> std::optional<GridAvoidanceReason> {
             if (!rowEnd.namedGridLine().isEmpty() || rowEnd.explicitPosition() < 0 || rowEnd.explicitPosition() > static_cast<int>(linesFromGridTemplateRowsCount))
-                return GridAvoidanceReason::GridItemHasUnsupportedColumnPlacement;
+                return GridAvoidanceReason::GridItemHasUnsupportedRowPlacement;
             return { };
         },
         [&](const Style::GridPositionSpan&) -> std::optional<GridAvoidanceReason> {
-            return GridAvoidanceReason::GridItemHasUnsupportedColumnPlacement;
+            return GridAvoidanceReason::GridItemHasUnsupportedRowPlacement;
         },
         [&](const CustomIdentifier&) -> std::optional<GridAvoidanceReason> {
-            return GridAvoidanceReason::GridItemHasUnsupportedColumnPlacement;
+            return GridAvoidanceReason::GridItemHasUnsupportedRowPlacement;
         }
     );
 }

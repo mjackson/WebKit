@@ -29,7 +29,7 @@
 #include "InlineContentCache.h"
 #include "InlineFormattingContext.h"
 #include "RenderStyle+GettersInlines.h"
-#include "RenderStyle+InitialInlines.h"
+#include "StyleComputedStyle+InitialInlines.h"
 
 namespace WebCore {
 namespace Layout {
@@ -506,7 +506,7 @@ bool TextOnlySimpleLineBuilder::isEligibleForSimplifiedInlineLayoutByStyle(const
             return false;
         if (style.wordBreak() == WordBreak::AutoPhrase)
             return false;
-        if (style.textIndent() != RenderStyle::initialTextIndent())
+        if (style.textIndent() != Style::ComputedStyle::initialTextIndent())
             return false;
         if (style.textAlignLast() == Style::TextAlignLast::Justify || style.textAlign() == Style::TextAlign::Justify || style.display() == DisplayType::RubyAnnotation)
             return false;

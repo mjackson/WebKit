@@ -152,4 +152,6 @@ private:
 
 } // namespace WebCore
 
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(MediaRecorder)
+
 #endif // ENABLE(MEDIA_RECORDER)

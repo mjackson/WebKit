@@ -72,7 +72,6 @@
 #include "PseudoClassChangeInvalidation.h"
 #include "RadioInputType.h"
 #include "RenderObjectInlines.h"
-#include "RenderStyle+InitialInlines.h"
 #include "RenderStyle+SettersInlines.h"
 #include "RenderTextControlSingleLine.h"
 #include "RenderTheme.h"
@@ -81,6 +80,7 @@
 #include "SearchInputType.h"
 #include "Settings.h"
 #include "StepRange.h"
+#include "StyleComputedStyle+InitialInlines.h"
 #include "StyleGradientImage.h"
 #include "TextControlInnerElements.h"
 #include "TextInputType.h"
@@ -1086,8 +1086,6 @@ void HTMLInputElement::setChecked(bool isChecked, WasSetByJavaScript wasCheckedB
         if (CheckedPtr cache = renderer->document().existingAXObjectCache())
             cache->checkedStateChanged(*this);
     }
-
-    invalidateStyleInternal();
 }
 
 void HTMLInputElement::setIndeterminate(bool newValue)
@@ -2365,7 +2363,7 @@ RenderStyle HTMLInputElement::createInnerTextStyle(const RenderStyle& style)
         return isText() && !style.logicalHeight().isAuto() && !hasAutofillStrongPasswordButton();
     };
     if (shouldUseInitialLineHeight())
-        textBlockStyle.setLineHeight(RenderStyle::initialLineHeight());
+        textBlockStyle.setLineHeight(Style::ComputedStyle::initialLineHeight());
 
     return textBlockStyle;
 }

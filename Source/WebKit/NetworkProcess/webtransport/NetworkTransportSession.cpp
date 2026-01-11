@@ -203,6 +203,11 @@ void NetworkTransportSession::getStats(CompletionHandler<void(WebCore::WebTransp
 void NetworkTransportSession::terminate(WebCore::WebTransportSessionErrorCode, CString&&)
 {
 }
+
+bool NetworkTransportSession::isSessionClosed() const
+{
+    return false;
+}
 #endif
 
 }

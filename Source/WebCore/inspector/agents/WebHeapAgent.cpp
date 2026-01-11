@@ -129,22 +129,9 @@ void WebHeapAgent::willDestroyFrontendAndBackend(DisconnectReason reason)
     agents->setPersistentWebHeapAgent(nullptr);
 }
 
-Inspector::Protocol::ErrorStringOr<void> WebHeapAgent::enable()
-{
-    auto result = InspectorHeapAgent::enable();
-
-    if (auto* consoleAgent = Ref { m_instrumentingAgents.get() }->webConsoleAgent())
-        consoleAgent->setHeapAgent(this);
-
-    return result;
-}
-
 Inspector::Protocol::ErrorStringOr<void> WebHeapAgent::disable()
 {
     m_sendGarbageCollectionEventsTask->reset();
-
-    if (auto* consoleAgent = Ref { m_instrumentingAgents.get() }->webConsoleAgent())
-        consoleAgent->setHeapAgent(nullptr);
 
     return InspectorHeapAgent::disable();
 }

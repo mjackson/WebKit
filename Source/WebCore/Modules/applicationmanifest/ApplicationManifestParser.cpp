@@ -188,12 +188,11 @@ ApplicationManifest::Direction ApplicationManifestParser::parseDir(const JSON::O
         return Auto;
     }
 
-    static constexpr auto directionMappings = std::to_array<std::pair<ComparableLettersLiteral, ApplicationManifest::Direction>>({
+    static constexpr SortedArrayMap directions { std::to_array<std::pair<ComparableLettersLiteral, ApplicationManifest::Direction>>({
         { "auto"_s, Auto },
         { "ltr"_s, LTR },
         { "rtl"_s, RTL },
-    });
-    static constexpr SortedArrayMap directions { directionMappings };
+    }) };
 
     if (auto* dirValue = directions.tryGet(StringView(stringValue).trim(isASCIIWhitespace<char16_t>)))
         return *dirValue;
@@ -214,13 +213,12 @@ ApplicationManifest::Display ApplicationManifestParser::parseDisplay(const JSON:
         return ApplicationManifest::Display::Browser;
     }
 
-    static constexpr auto displayValueMappings = std::to_array<std::pair<ComparableLettersLiteral, ApplicationManifest::Display>>({
+    static constexpr SortedArrayMap displayValues { std::to_array<std::pair<ComparableLettersLiteral, ApplicationManifest::Display>>({
         { "browser"_s, ApplicationManifest::Display::Browser },
         { "fullscreen"_s, ApplicationManifest::Display::Fullscreen },
         { "minimal-ui"_s, ApplicationManifest::Display::MinimalUI },
         { "standalone"_s, ApplicationManifest::Display::Standalone },
-    });
-    static constexpr SortedArrayMap displayValues { displayValueMappings };
+    }) };
 
     if (auto* displayValue = displayValues.tryGet(StringView(stringValue).trim(isASCIIWhitespace<char16_t>)))
         return *displayValue;
@@ -241,7 +239,7 @@ const std::optional<ScreenOrientationLockType> ApplicationManifestParser::parseO
         return std::nullopt;
     }
 
-    static constexpr auto orientationValueMappings = std::to_array<std::pair<ComparableLettersLiteral, WebCore::ScreenOrientationLockType>>({
+    static SortedArrayMap orientationValues { std::to_array<std::pair<ComparableLettersLiteral, WebCore::ScreenOrientationLockType>>({
         { "any"_s, WebCore::ScreenOrientationLockType::Any },
         { "landscape"_s, WebCore::ScreenOrientationLockType::Landscape },
         { "landscape-primary"_s, WebCore::ScreenOrientationLockType::LandscapePrimary },
@@ -250,9 +248,7 @@ const std::optional<ScreenOrientationLockType> ApplicationManifestParser::parseO
         { "portrait"_s, WebCore::ScreenOrientationLockType::Portrait },
         { "portrait-primary"_s, WebCore::ScreenOrientationLockType::PortraitPrimary },
         { "portrait-secondary"_s, WebCore::ScreenOrientationLockType::PortraitSecondary },
-    });
-
-    static SortedArrayMap orientationValues { orientationValueMappings };
+    }) };
 
     if (auto* orientationValue = orientationValues.tryGet(StringView(stringValue).trim(isASCIIWhitespace<char16_t>)))
         return *orientationValue;
@@ -317,10 +313,9 @@ Vector<ApplicationManifest::Icon> ApplicationManifestParser::parseIcons(const JS
 
     for (const auto& iconValue : *manifestIconsArray) {
         ApplicationManifest::Icon currentIcon;
-        auto iconObject = iconValue->asObject();
-        if (!iconObject)
+        RefPtr iconJSON = iconValue->asObject();
+        if (!iconJSON)
             continue;
-        Ref iconJSON = *iconObject;
 
         auto srcValue = iconJSON->getValue("src"_s);
         if (!srcValue)
@@ -339,9 +334,9 @@ Vector<ApplicationManifest::Icon> ApplicationManifestParser::parseIcons(const JS
         }
         currentIcon.src = srcURL;
 
-        currentIcon.sizes = parseGenericString(iconJSON, "sizes"_s).split(' ');
+        currentIcon.sizes = parseGenericString(*iconJSON, "sizes"_s).split(' ');
 
-        currentIcon.type = parseGenericString(iconJSON, "type"_s);
+        currentIcon.type = parseGenericString(*iconJSON, "type"_s);
 
         auto purposeValue = iconJSON->getValue("purpose"_s);
         OptionSet<ApplicationManifest::Icon::Purpose> purposes;
@@ -396,10 +391,9 @@ Vector<ApplicationManifest::Shortcut> ApplicationManifestParser::parseShortcuts(
 
     for (const auto& shortcutValue : *manifestShortcutsArray) {
         ApplicationManifest::Shortcut currentShortcut;
-        auto shortcutObject = shortcutValue->asObject();
-        if (!shortcutObject)
+        RefPtr shortcutJSON = shortcutValue->asObject();
+        if (!shortcutJSON)
             continue;
-        Ref shortcutJSON = *shortcutObject;
 
         auto urlValue = shortcutJSON->getValue("url"_s);
         if (!urlValue)
@@ -418,8 +412,8 @@ Vector<ApplicationManifest::Shortcut> ApplicationManifestParser::parseShortcuts(
             continue;
         }
         currentShortcut.url = WTF::move(shortcutURL);
-        currentShortcut.name = parseGenericString(shortcutJSON, "name"_s);
-        currentShortcut.icons = parseIcons(shortcutJSON);
+        currentShortcut.name = parseGenericString(*shortcutJSON, "name"_s);
+        currentShortcut.icons = parseIcons(*shortcutJSON);
 
         shortcutResources.append(WTF::move(currentShortcut));
     }

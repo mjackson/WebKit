@@ -30,6 +30,7 @@
 #include "ImageDecoder.h"
 #include "Logging.h"
 #include <wtf/SystemTracing.h>
+#include <wtf/text/TextStream.h>
 
 namespace WebCore {
 

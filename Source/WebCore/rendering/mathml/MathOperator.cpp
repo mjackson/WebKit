@@ -30,7 +30,6 @@
 #if ENABLE(MATHML)
 
 #include "RenderStyle+GettersInlines.h"
-#include "StyleInheritedData.h"
 #include <wtf/StdLibExtras.h>
 
 static const unsigned kRadicalOperator = 0x221A;
@@ -693,7 +692,7 @@ void MathOperator::paint(const RenderStyle& style, PaintInfo& info, const Layout
     // Make a copy of the PaintInfo because applyTransform will modify its rect.
     PaintInfo paintInfo(info);
     GraphicsContextStateSaver stateSaver(paintInfo.context());
-    paintInfo.context().setFillColor(style.visitedDependentColorWithColorFilter(CSSPropertyColor));
+    paintInfo.context().setFillColor(style.visitedDependentColorApplyingColorFilter());
 
     // For a radical character, we may need some scale transform to stretch it vertically or mirror it.
     if (m_baseCharacter == kRadicalOperator) {

@@ -42,7 +42,15 @@
 SOFT_LINK_FRAMEWORK(Network)
 SOFT_LINK_MAY_FAIL(Network, nw_webtransport_metadata_set_local_draining, void, (nw_protocol_metadata_t metadata), (metadata))
 #define nw_webtransport_metadata_set_local_draining softLinknw_webtransport_metadata_set_local_draining
-#endif
+SOFT_LINK_MAY_FAIL(Network, nw_connection_abort_reads, void, (nw_connection_t connection, uint64_t error_code), (connection, error_code))
+#define nw_connection_abort_reads softLinknw_connection_abort_reads
+SOFT_LINK_MAY_FAIL(Network, nw_connection_abort_writes, void, (nw_connection_t connection, uint64_t error_code), (connection, error_code))
+#define nw_connection_abort_writes softLinknw_connection_abort_writes
+SOFT_LINK_MAY_FAIL(Network, nw_webtransport_metadata_set_remote_receive_error_handler, void, (nw_protocol_metadata_t metadata, nw_webtransport_receive_error_handler_t handler, dispatch_queue_t queue), (metadata, handler, queue))
+#define nw_webtransport_metadata_set_remote_receive_error_handler softLinknw_webtransport_metadata_set_remote_receive_error_handler
+SOFT_LINK_MAY_FAIL(Network, nw_webtransport_metadata_set_remote_send_error_handler, void, (nw_protocol_metadata_t metadata, nw_webtransport_send_error_handler_t handler, dispatch_queue_t queue), (metadata, handler, queue))
+#define nw_webtransport_metadata_set_remote_send_error_handler softLinknw_webtransport_metadata_set_remote_send_error_handler
+#endif // HAVE(WEB_TRANSPORT)
 
 namespace TestWebKitAPI {
 
@@ -123,22 +131,22 @@ void SendOperation::await_suspend(std::coroutine_handle<> handle)
 {
     m_connection.send(WTF::move(m_data), [handle] (bool) mutable {
         handle();
-    });
+    }, m_isComplete);
 }
 
-SendOperation Connection::awaitableSend(Vector<uint8_t>&& message)
+SendOperation Connection::awaitableSend(Vector<uint8_t>&& message, bool isComplete)
 {
-    return { makeDispatchData(WTF::move(message)), *this };
+    return { makeDispatchData(WTF::move(message)), *this, isComplete };
 }
 
-SendOperation Connection::awaitableSend(String&& message)
+SendOperation Connection::awaitableSend(String&& message, bool isComplete)
 {
-    return { dataFromString(WTF::move(message)), *this };
+    return { dataFromString(WTF::move(message)), *this, isComplete };
 }
 
-SendOperation Connection::awaitableSend(OSObjectPtr<dispatch_data_t>&& data)
+SendOperation Connection::awaitableSend(OSObjectPtr<dispatch_data_t>&& data, bool isComplete)
 {
-    return { WTF::move(data), *this };
+    return { WTF::move(data), *this, isComplete };
 }
 
 void Connection::send(String&& message, CompletionHandler<void()>&& completionHandler) const
@@ -162,9 +170,9 @@ void Connection::sendAndReportError(Vector<uint8_t>&& message, CompletionHandler
     send(makeDispatchData(WTF::move(message)), WTF::move(completionHandler));
 }
 
-void Connection::send(OSObjectPtr<dispatch_data_t>&& message, CompletionHandler<void(bool)>&& completionHandler) const
+void Connection::send(OSObjectPtr<dispatch_data_t>&& message, CompletionHandler<void(bool)>&& completionHandler, bool isComplete) const
 {
-    nw_connection_send(m_connection.get(), message.get(), NW_CONNECTION_DEFAULT_MESSAGE_CONTEXT, true, makeBlockPtr([completionHandler = WTF::move(completionHandler)](nw_error_t error) mutable {
+    nw_connection_send(m_connection.get(), message.get(), NW_CONNECTION_DEFAULT_MESSAGE_CONTEXT, isComplete, makeBlockPtr([completionHandler = WTF::move(completionHandler)](nw_error_t error) mutable {
         if (completionHandler)
             completionHandler(!!error);
     }).get());
@@ -210,6 +218,38 @@ void Connection::terminate(CompletionHandler<void()>&& completionHandler)
 }
 
 #if HAVE(WEB_TRANSPORT)
+
+void Connection::abortReads(uint64_t errorCode)
+{
+    if (canLoadnw_connection_abort_reads())
+        nw_connection_abort_reads(m_connection.get(), errorCode);
+}
+
+void Connection::abortWrites(uint64_t errorCode)
+{
+    if (canLoadnw_connection_abort_writes())
+        nw_connection_abort_writes(m_connection.get(), errorCode);
+}
+
+void Connection::setRemoteReceiveErrorHandler(CompletionHandler<void(uint64_t)>&& completionHandler)
+{
+    RetainPtr metadata = adoptNS(nw_connection_copy_protocol_metadata(m_connection.get(), adoptNS(nw_protocol_copy_webtransport_definition()).get()));
+    if (metadata && canLoadnw_webtransport_metadata_set_remote_receive_error_handler()) {
+        nw_webtransport_metadata_set_remote_receive_error_handler(metadata.get(), makeBlockPtr([completionHandler = WTF::move(completionHandler)] (uint64_t errorCode) mutable {
+            completionHandler(errorCode);
+        }).get(), mainDispatchQueueSingleton());
+    }
+}
+
+void Connection::setRemoteSendErrorHandler(CompletionHandler<void(uint64_t)>&& completionHandler)
+{
+    RetainPtr metadata = adoptNS(nw_connection_copy_protocol_metadata(m_connection.get(), adoptNS(nw_protocol_copy_webtransport_definition()).get()));
+    if (metadata && canLoadnw_webtransport_metadata_set_remote_send_error_handler()) {
+        nw_webtransport_metadata_set_remote_send_error_handler(metadata.get(), makeBlockPtr([completionHandler = WTF::move(completionHandler)] (uint64_t errorCode) mutable {
+            completionHandler(errorCode);
+        }).get(), mainDispatchQueueSingleton());
+    }
+}
 
 // FIXME: This shouldn't need to be thread safe.
 // Make it non-thread-safe once rdar://161905206 is resolved.

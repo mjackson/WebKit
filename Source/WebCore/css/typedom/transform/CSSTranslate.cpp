@@ -62,7 +62,7 @@ ExceptionOr<Ref<CSSTranslate>> CSSTranslate::create(Ref<const CSSFunctionValue> 
 {
     auto makeTranslate = [&](NOESCAPE const Function<ExceptionOr<Ref<CSSTranslate>>(Vector<Ref<CSSNumericValue>>&&)>& create, size_t minNumberOfComponents, std::optional<size_t> maxNumberOfComponents = std::nullopt) -> ExceptionOr<Ref<CSSTranslate>> {
         Vector<Ref<CSSNumericValue>> components;
-        for (auto& componentCSSValue : cssFunctionValue.get()) {
+        for (Ref componentCSSValue : cssFunctionValue.get()) {
             auto valueOrException = CSSStyleValueFactory::reifyValue(document, componentCSSValue, std::nullopt);
             if (valueOrException.hasException())
                 return valueOrException.releaseException();
@@ -176,18 +176,18 @@ ExceptionOr<Ref<DOMMatrix>> CSSTranslate::toMatrix()
 
 RefPtr<CSSValue> CSSTranslate::toCSSValue() const
 {
-    auto x = m_x->toCSSValue();
+    RefPtr x = m_x->toCSSValue();
     if (!x)
         return nullptr;
 
-    auto y = m_y->toCSSValue();
+    RefPtr y = m_y->toCSSValue();
     if (!y)
         return nullptr;
 
     if (is2D())
         return CSSFunctionValue::create(CSSValueTranslate, x.releaseNonNull(), y.releaseNonNull());
 
-    auto z = m_z->toCSSValue();
+    RefPtr z = m_z->toCSSValue();
     if (!z)
         return nullptr;
 

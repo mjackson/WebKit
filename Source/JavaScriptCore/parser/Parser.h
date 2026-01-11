@@ -170,7 +170,11 @@ public:
     ImplementationVisibility implementationVisibility() const { return m_implementationVisibility; }
     void resetImplementationVisibility()
     {
-        m_implementationVisibility = ImplementationVisibility::Public;
+        setImplementationVisibility(ImplementationVisibility::Public);
+    }
+    void setImplementationVisibility(ImplementationVisibility implementationVisibility)
+    {
+        m_implementationVisibility = implementationVisibility;
     }
 
     void startSwitch() { m_switchDepth++; }
@@ -503,6 +507,11 @@ public:
         return m_lexicalVariables.contains(ident);
     }
 
+    bool hasVariableBeingHoisted(UniquedStringImpl* ident) const
+    {
+        return m_variablesBeingHoisted.contains(ident);
+    }
+
     bool hasPrivateName(const Identifier& ident)
     {
         return m_lexicalVariables.hasPrivateName(ident);
@@ -647,6 +656,12 @@ public:
     bool needsFullActivation() const { return m_needsFullActivation; }
     bool isArrowFunctionBoundary() { return m_isArrowFunctionBoundary; }
     bool isArrowFunction() { return m_isArrowFunction; }
+
+    void setAsyncFunctionBodyDoesNotUseAwait() { m_asyncFunctionBodyDoesNotUseAwait = true; }
+    bool asyncFunctionBodyDoesNotUseAwait() const { return m_asyncFunctionBodyDoesNotUseAwait; }
+
+    void setUsesAwait() { m_usesAwait = true; }
+    bool usesAwait() const { return m_usesAwait; }
 
     bool hasDirectSuper() const { return m_hasDirectSuper; }
     void setHasDirectSuper() { m_hasDirectSuper = true; }
@@ -845,6 +860,7 @@ public:
         m_usesImportMeta = info->usesImportMeta;
         m_lexicallyScopedFeatures = info->lexicallyScopedFeatures();
         m_innerArrowFunctionFeatures = info->innerArrowFunctionFeatures;
+        m_implementationVisibility = static_cast<ImplementationVisibility>(info->implementationVisibility);
         m_needsFullActivation = info->needsFullActivation;
         m_needsSuperBinding = info->needsSuperBinding;
         UniquedStringImplPtrSet& destSet = m_usedVariables.last();
@@ -979,6 +995,8 @@ private:
     bool m_isEvalContext : 1 { false };
     bool m_hasNonSimpleParameterList : 1 { false };
     bool m_isClassScope : 1 { false };
+    bool m_asyncFunctionBodyDoesNotUseAwait : 1 { false };
+    bool m_usesAwait : 1 { false };
     EvalContextType m_evalContextType { EvalContextType::None };
     ConstructorKind m_constructorKind { ConstructorKind::None };
     DerivedContextType m_derivedContextType { DerivedContextType::None };

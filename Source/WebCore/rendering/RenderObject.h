@@ -638,6 +638,11 @@ public:
     // This returns approximate rectangle for SVG renderers when RepaintRectCalculation::Fast is specified.
     virtual FloatRect repaintRectInLocalCoordinates(RepaintRectCalculation = RepaintRectCalculation::Fast) const;
 
+    // Returns the bounding box including fill, stroke, and markers.
+    // This is the geometric visual extent, used for masks/gradients/clippers.
+    // Unlike repaintRectInLocalCoordinates, this is always accurate.
+    virtual FloatRect decoratedBoundingBox() const;
+
     // This only returns the transform="" value from the element
     // most callsites want localToParentTransform() instead.
     virtual AffineTransform localTransform() const;

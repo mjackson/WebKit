@@ -48,6 +48,10 @@ public:
     std::optional<bool> isPositionEmulated() const final { return m_pose.isPositionEmulated; }
     void setPose(const PlatformXR::FrameData::InputSourcePose& pose) { m_pose = pose; }
 
+#if ENABLE(WEBXR_HIT_TEST)
+    void setType(PlatformXR::InputSourceSpaceType type) { m_type = type; }
+#endif
+
 private:
     WebXRInputSpace(Document&, WebXRSession&, const PlatformXR::FrameData::InputSourcePose&, PlatformXR::InputSourceHandle);
     WebXRSession* session() const final { return m_session.get(); }
@@ -62,6 +66,9 @@ private:
     WeakPtr<WebXRSession> m_session;
     PlatformXR::FrameData::InputSourcePose m_pose;
     [[maybe_unused]] PlatformXR::InputSourceHandle m_handle;
+#if ENABLE(WEBXR_HIT_TEST)
+    PlatformXR::InputSourceSpaceType m_type { PlatformXR::InputSourceSpaceType::TargetRay };
+#endif
 };
 
 } // namespace WebCore

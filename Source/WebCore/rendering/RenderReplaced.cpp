@@ -54,12 +54,12 @@
 #include "RenderLayoutState.h"
 #include "RenderObjectInlines.h"
 #include "RenderStyle+GettersInlines.h"
-#include "RenderStyle+InitialInlines.h"
 #include "RenderTheme.h"
 #include "RenderVideo.h"
 #include "RenderView.h"
 #include "RenderedDocumentMarker.h"
 #include "Settings.h"
+#include "StyleComputedStyle+InitialInlines.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
 #include "VisiblePosition.h"
 #include <wtf/StackStats.h>
@@ -120,7 +120,7 @@ void RenderReplaced::willBeDestroyed()
 void RenderReplaced::styleDidChange(Style::Difference diff, const RenderStyle* oldStyle)
 {
     RenderBox::styleDidChange(diff, oldStyle);
-    auto previousUsedZoom = oldStyle ? oldStyle->usedZoom() : Style::evaluate<float>(RenderStyle::initialZoom());
+    auto previousUsedZoom = oldStyle ? oldStyle->usedZoom() : Style::evaluate<float>(Style::ComputedStyle::initialZoom());
     if (previousUsedZoom != style().usedZoom())
         intrinsicSizeChanged();
 }
@@ -226,7 +226,7 @@ Color RenderReplaced::calculateHighlightColor() const
                     continue;
 
                 if (auto highlightStyle = getCachedPseudoStyle({ PseudoElementType::Highlight, highlight.key }, &style()))
-                    return highlightStyle->colorResolvingCurrentColor(highlightStyle->backgroundColor());
+                    return highlightStyle->backgroundColorResolvingCurrentColor();
             }
         }
     }
@@ -312,7 +312,7 @@ void RenderReplaced::paint(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
 
     LayoutRect paintRect = LayoutRect(adjustedPaintOffset, size());
     if (paintInfo.phase == PaintPhase::Outline || paintInfo.phase == PaintPhase::SelfOutline) {
-        if (style().outlineWidth())
+        if (style().usedOutlineWidth())
             paintOutline(paintInfo, paintRect);
         return;
     }
@@ -1012,7 +1012,7 @@ void RenderReplaced::computeReplacedOutOfFlowPositionedLogicalWidth(LogicalExten
     // NOTE: This value of width is final in that the min/max width calculations
     // are dealt with in computeReplacedWidth(). This means that the steps to produce
     // correct max/min in the non-replaced version, are not necessary.
-    computedValues.m_extent = computeReplacedLogicalWidth() + borderAndPaddingLogicalWidth();
+    computedValues.extent = computeReplacedLogicalWidth() + borderAndPaddingLogicalWidth();
 
     inlineConstraints.resolvePosition(computedValues);
     inlineConstraints.fixupLogicalLeftPosition(computedValues);
@@ -1026,7 +1026,7 @@ void RenderReplaced::computeReplacedOutOfFlowPositionedLogicalHeight(LogicalExte
     // NOTE: This value of height is final in that the min/max height calculations
     // are dealt with in computeReplacedHeight(). This means that the steps to produce
     // correct max/min in the non-replaced version, are not necessary.
-    computedValues.m_extent = computeReplacedLogicalHeight() + borderAndPaddingLogicalHeight();
+    computedValues.extent = computeReplacedLogicalHeight() + borderAndPaddingLogicalHeight();
 
     blockConstraints.resolvePosition(computedValues);
     blockConstraints.adjustLogicalTopWithLogicalHeightIfNeeded(computedValues);
@@ -1145,12 +1145,12 @@ bool RenderReplaced::replacedMinMaxLogicalHeightComputesAsNone(const auto& logic
 
 bool RenderReplaced::replacedMinLogicalHeightComputesAsNone() const
 {
-    return replacedMinMaxLogicalHeightComputesAsNone(style().logicalMinHeight(), RenderStyle::initialMinHeight());
+    return replacedMinMaxLogicalHeightComputesAsNone(style().logicalMinHeight(), Style::ComputedStyle::initialMinHeight());
 }
 
 bool RenderReplaced::replacedMaxLogicalHeightComputesAsNone() const
 {
-    return replacedMinMaxLogicalHeightComputesAsNone(style().logicalMaxHeight(), RenderStyle::initialMaxHeight());
+    return replacedMinMaxLogicalHeightComputesAsNone(style().logicalMaxHeight(), Style::ComputedStyle::initialMaxHeight());
 }
 
 LayoutUnit RenderReplaced::computeReplacedLogicalHeightRespectingMinMaxHeight(LayoutUnit logicalHeight) const
@@ -1206,7 +1206,7 @@ LayoutUnit RenderReplaced::computeReplacedLogicalHeightUsingGeneric(const SizeTy
             auto& block = downcast<RenderBlock>(*container);
             auto computedValues = block.computeLogicalHeight(block.logicalHeight(), 0);
             LayoutUnit borderPaddingAdjustment = isOutOfFlowPositioned() ? block.borderLogicalHeight() : block.borderAndPaddingLogicalHeight();
-            LayoutUnit newContentHeight = computedValues.m_extent - block.scrollbarLogicalHeight() - borderPaddingAdjustment;
+            LayoutUnit newContentHeight = computedValues.extent - block.scrollbarLogicalHeight() - borderPaddingAdjustment;
 
             if constexpr (Style::IsPercentage<std::decay_t<decltype(logicalHeight)>>)
                 return adjustContentBoxLogicalHeightForBoxSizing(Style::evaluate<LayoutUnit>(logicalHeight, newContentHeight));

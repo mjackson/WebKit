@@ -38,10 +38,6 @@
 #import <wtf/StdLibExtras.h>
 #import <wtf/TZoneMallocInlines.h>
 
-#if ENABLE(WEBGPU_SWIFT)
-#import "WebGPUSwiftInternal.h"
-#endif
-
 namespace WebGPU {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(Instance);

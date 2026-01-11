@@ -92,6 +92,8 @@ protected:
     }
 
 private:
+    bool isWorkerScriptFetcher() const final { return true; }
+
     FetchOptions::Credentials m_credentials;
     FetchOptions::Destination m_destination;
     ReferrerPolicy m_referrerPolicy { ReferrerPolicy::EmptyString };
@@ -103,3 +105,7 @@ private:
 };
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::WorkerScriptFetcher)
+    static bool isType(const JSC::ScriptFetcher& fetcher) { return fetcher.isWorkerScriptFetcher(); }
+SPECIALIZE_TYPE_TRAITS_END()

@@ -299,7 +299,7 @@ void RenderMathMLFraction::paint(PaintInfo& info, const LayoutPoint& paintOffset
 
     info.context().setStrokeThickness(thickness);
     info.context().setStrokeStyle(StrokeStyle::SolidStroke);
-    info.context().setStrokeColor(style().visitedDependentColorWithColorFilter(CSSPropertyColor));
+    info.context().setStrokeColor(style().visitedDependentColorApplyingColorFilter());
     // MathML Core says the fraction bar takes the full width of the content box.
     auto endPoint = roundPointToDevicePixels({ adjustedPaintOffset.x() + logicalWidth() - borderAndPaddingLogicalWidth(), adjustedPaintOffset.y() }, document().deviceScaleFactor());
     info.context().drawLine(adjustedPaintOffset, endPoint);

@@ -421,7 +421,7 @@ class SDKDB:
                     'SELECT i.arch, i.kind, i.input_file, i.name, '
                     '       a.kind, group_concat(aw.input_file), a.name, '
                     '           min(a.allow_unused), '
-                    '       ew.input_file, '
+                    '       group_concat(ew.input_file), '
                     '       sum(e.name IS NOT NULL AND '
                     '           ew.input_file IS NOT NULL) as export_found, '
                     '       sum(a.name IS NOT NULL AND '
@@ -453,7 +453,7 @@ class SDKDB:
                     'ORDER BY i.input_file, i.kind, a.kind, i.name, a.name')
         for (arch, import_kind, input_path, import_name,
              allowed_kind, allowlist_paths, allowed_name, allow_unused,
-             export_path, export_found, allow_found) in cur.fetchall():
+             export_paths, export_found, allow_found) in cur.fetchall():
             if import_name and not export_found and not allow_found:
                 # Imported but neither exported nor allowed => possible SPI.
                 yield MissingName(name=import_name, file=Path(input_path),
@@ -470,6 +470,10 @@ class SDKDB:
                 # Allowed but also exported => unnecessary allowlist entry to
                 # remove.
                 for path in sorted(set(allowlist_paths.split(','))):
+                    # Normally, a declaration would only be exported from one
+                    # library in the SDK. If the cache sees multiple sources,
+                    # just pick one.
+                    export_path = min(export_paths.split(','))
                     yield UnnecessaryAllowedName(name=allowed_name,
                                                  file=Path(path),
                                                  kind=allowed_kind,

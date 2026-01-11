@@ -372,7 +372,7 @@ public:
     RefPtr<Attr> attrIfExists(const QualifiedName&);
     Ref<Attr> ensureAttr(const QualifiedName&);
 
-    const Vector<RefPtr<Attr>>& attrNodeList();
+    const Vector<Ref<Attr>>& attrNodeList();
 
     const QualifiedName& tagQName() const { return m_tagName; }
 #if ENABLE(JIT)
@@ -883,7 +883,7 @@ public:
     RefPtr<Element> findAnchorElementForLink(String& outAnchorName);
 
     ExceptionOr<Ref<WebAnimation>> animate(JSC::JSGlobalObject&, JSC::Strong<JSC::JSObject>&&, std::optional<Variant<double, KeyframeAnimationOptions>>&&);
-    Vector<RefPtr<WebAnimation>> getAnimations(std::optional<GetAnimationsOptions>);
+    Vector<Ref<WebAnimation>> getAnimations(std::optional<GetAnimationsOptions>);
 
     String description() const override;
     String debugDescription() const override;

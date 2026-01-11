@@ -2598,19 +2598,22 @@ String plainText(const SimpleRange& range, TextIteratorBehaviors defaultBehavior
 
     Ref document = range.start.document();
 
-    unsigned bufferLength = 0;
-    StringBuilder builder;
-    builder.reserveCapacity(initialCapacity);
     TextIteratorBehaviors behaviors = defaultBehavior;
     if (!isDisplayString)
         behaviors.add(TextIteratorBehavior::EmitsTextsWithoutTranscoding);
 
-    for (TextIterator it(range, behaviors); !it.atEnd(); it.advance()) {
+    TextIterator it(range, behaviors);
+    if (it.atEnd())
+        return emptyString();
+
+    StringBuilder builder;
+    builder.reserveCapacity(initialCapacity);
+
+    for (; !it.atEnd(); it.advance()) {
         it.appendTextToStringBuilder(builder);
-        bufferLength += it.text().length();
     }
 
-    if (!bufferLength)
+    if (builder.isEmpty())
         return emptyString();
 
     String result = builder.toString();

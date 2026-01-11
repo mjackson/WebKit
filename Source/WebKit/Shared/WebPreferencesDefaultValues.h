@@ -104,6 +104,7 @@ bool defaultScrollAnimatorEnabled();
 bool defaultPassiveWheelListenersAsDefaultOnDocument();
 bool defaultWheelEventGesturesBecomeNonBlocking();
 bool defaultAppleMailPaginationQuirkEnabled();
+bool defaultUseAppKitGestures();
 #endif
 
 #if ENABLE(MEDIA_STREAM)

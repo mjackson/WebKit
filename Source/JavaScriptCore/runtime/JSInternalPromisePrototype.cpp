@@ -38,6 +38,7 @@ JSInternalPromisePrototype* JSInternalPromisePrototype::create(VM& vm, JSGlobalO
 {
     JSInternalPromisePrototype* object = new (NotNull, allocateCell<JSInternalPromisePrototype>(vm)) JSInternalPromisePrototype(vm, structure);
     object->finishCreation(vm, globalObject);
+    object->addOwnInternalSlots(vm, globalObject);
     return object;
 }
 

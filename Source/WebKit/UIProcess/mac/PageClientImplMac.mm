@@ -108,6 +108,8 @@ namespace WebKit {
 
 using namespace WebCore;
 
+WTF_MAKE_TZONE_ALLOCATED_IMPL(PageClientImpl);
+
 PageClientImpl::PageClientImpl(NSView *view, WKWebView *webView)
     : PageClientImplCocoa(webView)
     , m_view(view)

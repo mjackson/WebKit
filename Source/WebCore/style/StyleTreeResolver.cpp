@@ -365,7 +365,7 @@ auto TreeResolver::resolveElement(Element& element, const RenderStyle* existingS
     // This is needed for resolving color:-webkit-text for subsequent elements.
     // FIXME: We shouldn't mutate document when resolving style.
     if (&element == m_document->body())
-        m_document->setTextColor(update.style->visitedDependentColor(CSSPropertyColor));
+        m_document->setTextColor(update.style->visitedDependentColor());
 
     // FIXME: These elements should not change renderer based on appearance property.
     if (RefPtr input = dynamicDowncast<HTMLInputElement>(element); (input && input->isSearchField())
@@ -416,7 +416,6 @@ auto TreeResolver::resolveElement(Element& element, const RenderStyle* existingS
     resolveAndAddPseudoElementStyle({ PseudoElementType::Before });
     resolveAndAddPseudoElementStyle({ PseudoElementType::After });
     resolveAndAddPseudoElementStyle({ PseudoElementType::Backdrop });
-    resolveAndAddPseudoElementStyle({ PseudoElementType::Checkmark });
 
     if (isDocumentElement && m_document->hasViewTransitionPseudoElementTree()) {
         resolveAndAddPseudoElementStyle({ PseudoElementType::ViewTransition });
@@ -763,6 +762,11 @@ ElementUpdate TreeResolver::createAnimatedElementUpdate(ResolvedStyle&& resolved
 
     std::unique_ptr<RenderStyle> startingStyle;
 
+    // The style of the styleable is constantly in flux during anchor resolution and/or trying
+    // position options. Hence we skip updating/applying animations until both processes are
+    // complete and the style is stable.
+    auto skipAnimationForAnchorPosition = hasUnresolvedAnchorPosition(styleable) || isTryingPositionOption(styleable);
+
     auto* oldStyle = [&]() -> const RenderStyle* {
         if (auto* styleBefore = beforeResolutionStyle(element, styleable.pseudoElementIdentifier))
             return styleBefore;
@@ -776,8 +780,14 @@ ElementUpdate TreeResolver::createAnimatedElementUpdate(ResolvedStyle&& resolved
         return nullptr;
     }();
 
+    if (skipAnimationForAnchorPosition) {
+        // A styleable gets its style resolved multiple times for anchor positioning.
+        // Therefore when updating animation is deferred, save the old style so it's restored
+        // (using beforeResolutionStyle) and can be used when animation is finally updated/applied.
+        saveBeforeResolutionStyleForInterleaving(styleable.element, oldStyle);
+    }
+
     auto unanimatedDisplay = resolvedStyle.style->display();
-    auto hasUnresolvedAnchorPosition = this->hasUnresolvedAnchorPosition(styleable);
 
     WeakStyleOriginatedAnimations newStyleOriginatedAnimations;
 
@@ -785,7 +795,7 @@ ElementUpdate TreeResolver::createAnimatedElementUpdate(ResolvedStyle&& resolved
         if (document.backForwardCacheState() != Document::NotInBackForwardCache || document.printing())
             return;
 
-        if (hasUnresolvedAnchorPosition)
+        if (skipAnimationForAnchorPosition)
             return;
 
         if (oldStyle && (oldStyle->hasTransitions() || resolvedStyle.style->hasTransitions()))
@@ -810,7 +820,7 @@ ElementUpdate TreeResolver::createAnimatedElementUpdate(ResolvedStyle&& resolved
     };
 
     auto applyAnimations = [&]() -> std::pair<std::unique_ptr<RenderStyle>, OptionSet<AnimationImpact>> {
-        if (hasUnresolvedAnchorPosition) {
+        if (skipAnimationForAnchorPosition) {
             auto newStyle = WTF::move(resolvedStyle.style);
             ASSERT(newStyle);
 
@@ -1450,7 +1460,6 @@ std::unique_ptr<Update> TreeResolver::resolve()
         if (elementAndState.value->stage < AnchorPositionResolutionStage::Resolved) {
             const_cast<Element&>(*elementAndState.key.first).invalidateForResumingAnchorPositionedElementResolution();
             m_needsInterleavedLayout = true;
-            saveBeforeResolutionStyleForInterleaving(*elementAndState.key.first);
         }
     }
 
@@ -1459,7 +1468,6 @@ std::unique_ptr<Update> TreeResolver::resolve()
             ASSERT(styleable.first);
             const_cast<Element&>(*styleable.first).invalidateForResumingAnchorPositionedElementResolution();
             m_needsInterleavedLayout = true;
-            saveBeforeResolutionStyleForInterleaving(*styleable.first);
         }
     }
 
@@ -1849,13 +1857,9 @@ const RenderStyle* TreeResolver::beforeResolutionStyle(const Element& element, s
     return resolvePseudoStyle(element.renderOrDisplayContentsStyle());
 }
 
-void TreeResolver::saveBeforeResolutionStyleForInterleaving(const Element& element)
+void TreeResolver::saveBeforeResolutionStyleForInterleaving(const Element& element, const RenderStyle* style)
 {
-    m_savedBeforeResolutionStylesForInterleaving.ensure(element, [&]() -> std::unique_ptr<RenderStyle> {
-        if (auto* style = element.renderOrDisplayContentsStyle())
-            return makeUnique<RenderStyle>(RenderStyle::cloneIncludingPseudoElements(*style));
-        return { };
-    });
+    m_savedBeforeResolutionStylesForInterleaving.add(element, style ? RenderStyle::clonePtr(*style) : nullptr);
 }
 
 bool TreeResolver::hasUnresolvedAnchorPosition(const Styleable& styleable) const
@@ -1872,6 +1876,14 @@ bool TreeResolver::hasResolvedAnchorPosition(const Styleable& styleable) const
     auto* anchorPositionedState = m_treeResolutionState.anchorPositionedStates.get({ &styleable.element, styleable.pseudoElementIdentifier });
     if (anchorPositionedState && anchorPositionedState->stage >= AnchorPositionResolutionStage::Resolved)
         return true;
+
+    return false;
+}
+
+bool TreeResolver::isTryingPositionOption(const Styleable& styleable) const
+{
+    if (auto it = m_positionOptions.find({ styleable.element, styleable.pseudoElementIdentifier }); it != m_positionOptions.end())
+        return !it->value.chosen;
 
     return false;
 }

@@ -74,6 +74,8 @@ private:
 
     std::optional<Vector<CSSParserToken>> resolveTokenRange(CSSParserTokenRange, Style::Builder&) const;
     bool resolveVariableReference(CSSParserTokenRange, CSSValueID, Vector<CSSParserToken>&, Style::Builder&) const;
+    bool evaluateDashedFunction(StringView functionName, CSSParserTokenRange, Vector<CSSParserToken>&, Style::Builder&) const;
+
     enum class FallbackResult : uint8_t { None, Valid, Invalid };
     std::pair<FallbackResult, Vector<CSSParserToken>> resolveVariableFallback(const AtomString& variableName, CSSParserTokenRange, CSSValueID functionId, Style::Builder&) const;
 

@@ -418,12 +418,12 @@ IntRect TileController::boundsForSize(const FloatSize& size) const
 
 IntRect TileController::bounds() const
 {
-    return boundsForSize(m_tileCacheLayer->bounds().size());
+    return boundsForSize(m_tileCacheLayer.get()->bounds().size());
 }
 
 IntRect TileController::boundsWithoutMargin() const
 {
-    return IntRect(IntPoint(), expandedIntSize(m_tileCacheLayer->bounds().size()));
+    return IntRect(IntPoint(), expandedIntSize(m_tileCacheLayer.get()->bounds().size()));
 }
 
 IntRect TileController::boundsAtLastRevalidateWithoutMargin() const
@@ -558,7 +558,7 @@ FloatRect TileController::adjustTileCoverageRectForScrolling(const FloatRect& co
         return visibleRect;
 
 #if !PLATFORM(IOS_FAMILY)
-    if (m_tileCacheLayer->isPageTiledBackingLayer())
+    if (m_tileCacheLayer.get()->isPageTiledBackingLayer())
         return adjustTileCoverageForDesktopPageScrolling(coverageRect, newSize, previousVisibleRect, visibleRect);
 #else
     UNUSED_PARAM(previousVisibleRect);
@@ -591,12 +591,12 @@ void TileController::scheduleTileRevalidation(Seconds interval)
 
 bool TileController::shouldAggressivelyRetainTiles() const
 {
-    return owningGraphicsLayer()->platformCALayerShouldAggressivelyRetainTiles(m_tileCacheLayer);
+    return owningGraphicsLayer()->platformCALayerShouldAggressivelyRetainTiles(m_tileCacheLayer.get().get());
 }
 
 bool TileController::shouldTemporarilyRetainTileCohorts() const
 {
-    return owningGraphicsLayer()->platformCALayerShouldTemporarilyRetainTileCohorts(m_tileCacheLayer);
+    return owningGraphicsLayer()->platformCALayerShouldTemporarilyRetainTileCohorts(m_tileCacheLayer.get().get());
 }
 
 void TileController::willStartLiveResize()
@@ -694,7 +694,7 @@ void TileController::clearZoomedOutTileGrid()
 
 void TileController::tileGridsChanged()
 {
-    return owningGraphicsLayer()->platformCALayerCustomSublayersChanged(m_tileCacheLayer);
+    return owningGraphicsLayer()->platformCALayerCustomSublayersChanged(m_tileCacheLayer.get().get());
 }
 
 void TileController::tileRevalidationTimerFired()
@@ -859,10 +859,11 @@ int TileController::rightMarginWidth() const
 
 Ref<PlatformCALayer> TileController::createTileLayer(const IntRect& tileRect, TileGrid& grid)
 {
-    float temporaryScaleFactor = owningGraphicsLayer()->platformCALayerContentsScaleMultiplierForNewTiles(m_tileCacheLayer);
+    RefPtr tileCacheLayer = m_tileCacheLayer.get();
+    float temporaryScaleFactor = owningGraphicsLayer()->platformCALayerContentsScaleMultiplierForNewTiles(tileCacheLayer.get());
     m_hasTilesWithTemporaryScaleFactor |= temporaryScaleFactor != 1;
 
-    auto layer = m_tileCacheLayer->createCompatibleLayerOrTakeFromPool(PlatformCALayer::LayerType::LayerTypeTiledBackingTileLayer, &grid, tileRect.size());
+    auto layer = tileCacheLayer->createCompatibleLayerOrTakeFromPool(PlatformCALayer::LayerType::LayerTypeTiledBackingTileLayer, &grid, tileRect.size());
     layer->setAnchorPoint(FloatPoint3D());
     layer->setPosition(tileRect.location());
     layer->setBorderColor(m_tileDebugBorderColor);

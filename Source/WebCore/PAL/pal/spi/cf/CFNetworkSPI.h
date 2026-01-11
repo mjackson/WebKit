@@ -25,6 +25,9 @@
 
 #pragma once
 
+#include <wtf/Compiler.h>
+#include <wtf/Platform.h>
+
 DECLARE_SYSTEM_HEADER
 
 #include <CFNetwork/CFNetwork.h>
@@ -65,6 +68,8 @@ DECLARE_SYSTEM_HEADER
 #include <Network/Network.h>
 
 #if defined(__OBJC__)
+
+#include <Foundation/Foundation.h>
 
 @interface _NSHTTPConnectionInfo : NSObject
 - (void)sendPingWithReceiveHandler:(void (^)(NSError * _Nullable error, NSTimeInterval interval))pongHandler;

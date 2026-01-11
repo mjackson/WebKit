@@ -263,7 +263,7 @@ void MockCDMInstance::initializeWithConfiguration(const MediaKeySystemConfigurat
         if (!cdm || !cdm->supportsConfiguration(configuration))
             return CDMInstanceSuccessValue::Failed;
 
-        MockCDMFactory* factory = cdm->factory();
+        RefPtr factory = cdm->factory();
         if (!factory)
             return CDMInstanceSuccessValue::Failed;
 
@@ -319,7 +319,7 @@ MockCDMInstanceSession::MockCDMInstanceSession(WeakPtr<MockCDMInstance>&& instan
 
 void MockCDMInstanceSession::requestLicense(LicenseType licenseType, KeyGroupingStrategy, const String& initDataType, Ref<SharedBuffer>&& initData, LicenseCallback&& callback)
 {
-    MockCDMFactory* factory = m_instance ? m_instance->factory() : nullptr;
+    RefPtr factory = m_instance ? m_instance->factory() : nullptr;
     if (!factory) {
         callback(SharedBuffer::create(), emptyString(), false, SuccessValue::Failed);
         return;
@@ -345,7 +345,7 @@ void MockCDMInstanceSession::requestLicense(LicenseType licenseType, KeyGrouping
 
 void MockCDMInstanceSession::updateLicense(const String& sessionID, LicenseType, Ref<SharedBuffer>&& response, LicenseUpdateCallback&& callback)
 {
-    MockCDMFactory* factory = m_instance ? m_instance->factory() : nullptr;
+    RefPtr factory = m_instance ? m_instance->factory() : nullptr;
     if (!factory) {
         callback(false, std::nullopt, std::nullopt, std::nullopt, SuccessValue::Failed);
         return;
@@ -376,7 +376,7 @@ void MockCDMInstanceSession::updateLicense(const String& sessionID, LicenseType,
 
 void MockCDMInstanceSession::loadSession(LicenseType, const String&, const String&, LoadSessionCallback&& callback)
 {
-    MockCDMFactory* factory = m_instance ? m_instance->factory() : nullptr;
+    RefPtr factory = m_instance ? m_instance->factory() : nullptr;
     if (!factory) {
         callback(std::nullopt, std::nullopt, std::nullopt, SuccessValue::Failed, SessionLoadFailure::Other);
         return;
@@ -392,7 +392,7 @@ void MockCDMInstanceSession::loadSession(LicenseType, const String&, const Strin
 
 void MockCDMInstanceSession::closeSession(const String& sessionID, CloseSessionCallback&& callback)
 {
-    MockCDMFactory* factory = m_instance ? m_instance->factory() : nullptr;
+    RefPtr factory = m_instance ? m_instance->factory() : nullptr;
     if (!factory) {
         callback();
         return;
@@ -404,7 +404,7 @@ void MockCDMInstanceSession::closeSession(const String& sessionID, CloseSessionC
 
 void MockCDMInstanceSession::removeSessionData(const String& id, LicenseType, RemoveSessionDataCallback&& callback)
 {
-    MockCDMFactory* factory = m_instance ? m_instance->factory() : nullptr;
+    RefPtr factory = m_instance ? m_instance->factory() : nullptr;
     if (!factory) {
         callback({ }, nullptr, SuccessValue::Failed);
         return;

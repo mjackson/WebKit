@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 1997 Martin Jones (mjones@kde.org)
  *           (C) 1997 Torben Weis (weis@kde.org)
  *           (C) 1998 Waldo Bastian (bastian@kde.org)
@@ -6,6 +6,7 @@
  *           (C) 1999 Antti Koivisto (koivisto@kde.org)
  * Copyright (C) 2003-2023 Apple Inc. All rights reserved.
  * Copyright (C) 2015 Google Inc. All rights reserved.
+ * Copyright (C) 2026 Samuel Weinig <sam@webkit.org>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -39,7 +40,6 @@
 #include "RenderTableCell.h"
 #include "RenderTreeBuilder.h"
 #include "RenderView.h"
-#include "StyleInheritedData.h"
 #include <wtf/StackStats.h>
 #include <wtf/TZoneMallocInlines.h>
 
@@ -81,10 +81,10 @@ void RenderTableRow::willBeRemovedFromTree()
 
 static bool borderWidthChanged(const RenderStyle* oldStyle, const RenderStyle* newStyle)
 {
-    return oldStyle->borderLeftWidth() != newStyle->borderLeftWidth()
-        || oldStyle->borderTopWidth() != newStyle->borderTopWidth()
-        || oldStyle->borderRightWidth() != newStyle->borderRightWidth()
-        || oldStyle->borderBottomWidth() != newStyle->borderBottomWidth();
+    return oldStyle->usedBorderLeftWidth() != newStyle->usedBorderLeftWidth()
+        || oldStyle->usedBorderTopWidth() != newStyle->usedBorderTopWidth()
+        || oldStyle->usedBorderRightWidth() != newStyle->usedBorderRightWidth()
+        || oldStyle->usedBorderBottomWidth() != newStyle->usedBorderBottomWidth();
 }
 
 void RenderTableRow::styleDidChange(Style::Difference diff, const RenderStyle* oldStyle)

@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2012-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -459,7 +460,7 @@ void WebPage::getPlatformEditorState(LocalFrame& frame, EditorState& result) con
             if (RefPtr editableRoot = selection.rootEditableElement(); editableRoot && editableRoot->renderer()) {
                 auto& style = editableRoot->renderer()->style();
                 postLayoutData.caretColor = CaretBase::computeCaretColor(style, editableRoot.get());
-                postLayoutData.hasCaretColorAuto = style.hasAutoCaretColor();
+                postLayoutData.hasCaretColorAuto = style.caretColor().isAuto();
                 postLayoutData.hasGrammarDocumentMarkers = editableRoot->document().markers().hasMarkers(makeRangeSelectingNodeContents(*editableRoot), DocumentMarkerType::Grammar);
             }
         }
@@ -1363,8 +1364,7 @@ void WebPage::sendTapHighlightForNodeIfNecessary(WebKit::TapIdentifier requestID
     Vector<FloatQuad> quads;
     if (RenderObject *renderer = updatedNode->renderer()) {
         renderer->absoluteQuads(quads);
-        auto& style = renderer->style();
-        auto highlightColor = style.colorResolvingCurrentColor(style.tapHighlightColor());
+        auto highlightColor = renderer->style().tapHighlightColorResolvingCurrentColor();
         if (!updatedNode->document().frame()->isMainFrame()) {
             auto* view = updatedNode->document().frame()->view();
             for (auto& quad : quads)
@@ -2121,9 +2121,9 @@ IntRect WebPage::absoluteInteractionBounds(const Node& node)
     auto& style = renderer->style();
     FloatRect boundingBox = renderer->absoluteBoundingBoxRect(true /* use transforms*/);
     // This is wrong. It's subtracting borders after converting to absolute coords on something that probably doesn't represent a rectangular element.
-    boundingBox.move(WebCore::Style::evaluate<float>(style.borderLeftWidth(), WebCore::Style::ZoomNeeded { }), WebCore::Style::evaluate<float>(style.borderTopWidth(), WebCore::Style::ZoomNeeded { }));
-    boundingBox.setWidth(boundingBox.width() - WebCore::Style::evaluate<float>(style.borderLeftWidth(), WebCore::Style::ZoomNeeded { }) - WebCore::Style::evaluate<float>(style.borderRightWidth(), WebCore::Style::ZoomNeeded { }));
-    boundingBox.setHeight(boundingBox.height() - WebCore::Style::evaluate<float>(style.borderBottomWidth(), WebCore::Style::ZoomNeeded { }) - WebCore::Style::evaluate<float>(style.borderTopWidth(), WebCore::Style::ZoomNeeded { }));
+    boundingBox.move(WebCore::Style::evaluate<float>(style.usedBorderLeftWidth(), WebCore::Style::ZoomNeeded { }), WebCore::Style::evaluate<float>(style.usedBorderTopWidth(), WebCore::Style::ZoomNeeded { }));
+    boundingBox.setWidth(boundingBox.width() - WebCore::Style::evaluate<float>(style.usedBorderLeftWidth(), WebCore::Style::ZoomNeeded { }) - WebCore::Style::evaluate<float>(style.usedBorderRightWidth(), WebCore::Style::ZoomNeeded { }));
+    boundingBox.setHeight(boundingBox.height() - WebCore::Style::evaluate<float>(style.usedBorderBottomWidth(), WebCore::Style::ZoomNeeded { }) - WebCore::Style::evaluate<float>(style.usedBorderTopWidth(), WebCore::Style::ZoomNeeded { }));
     return enclosingIntRect(boundingBox);
 }
 

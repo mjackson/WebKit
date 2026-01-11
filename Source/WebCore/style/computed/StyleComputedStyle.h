@@ -61,6 +61,7 @@ public:
 
     // MARK: - Style adjustment utilities
 
+    void setPageScaleTransform(float);
     void setColumnStylesFromPaginationMode(PaginationMode);
     inline void addToTextDecorationLineInEffect(TextDecorationLine);
     inline void containIntrinsicWidthAddAuto();

@@ -94,8 +94,6 @@ WorkerInspectorController::~WorkerInspectorController()
 
 void WorkerInspectorController::workerTerminating()
 {
-    m_injectedScriptManager->disconnect();
-
     disconnectFrontend(Inspector::DisconnectReason::InspectedTargetDestroyed);
 
     m_agents.discardValues();
@@ -139,6 +137,7 @@ void WorkerInspectorController::connectFrontend(bool isAutomaticInspection, bool
 
     m_forwardingChannel = makeUnique<WorkerToPageFrontendChannel>(m_globalScope);
     m_frontendRouter->connectFrontend(*m_forwardingChannel.get());
+    m_injectedScriptManager->addClient();
     m_agents.didCreateFrontendAndBackend();
 
     updateServiceWorkerPageFrontendCount();
@@ -159,6 +158,7 @@ void WorkerInspectorController::disconnectFrontend(Inspector::DisconnectReason r
     });
 
     m_agents.willDestroyFrontendAndBackend(reason);
+    m_injectedScriptManager->removeClient();
     m_frontendRouter->disconnectFrontend(*m_forwardingChannel.get());
     m_forwardingChannel = nullptr;
 
@@ -222,8 +222,6 @@ void WorkerInspectorController::createLazyAgents()
 
     m_debugger = makeUnique<WorkerDebugger>(m_globalScope);
 
-    m_injectedScriptManager->connect();
-
     auto workerContext = workerAgentContext();
 
     m_agents.append(makeUniqueRef<WorkerRuntimeAgent>(workerContext));
@@ -247,9 +245,6 @@ void WorkerInspectorController::createLazyAgents()
     auto scriptProfilerAgent = makeUniqueRef<InspectorScriptProfilerAgent>(workerContext);
     m_instrumentingAgents->setPersistentScriptProfilerAgent(scriptProfilerAgent.ptr());
     m_agents.append(WTF::move(scriptProfilerAgent));
-
-    if (auto& commandLineAPIHost = m_injectedScriptManager->commandLineAPIHost())
-        commandLineAPIHost->init(m_instrumentingAgents.get());
 }
 
 WorkerDebuggerAgent& WorkerInspectorController::ensureDebuggerAgent()

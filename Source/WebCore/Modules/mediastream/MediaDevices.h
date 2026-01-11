@@ -148,4 +148,6 @@ private:
 
 } // namespace WebCore
 
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(MediaDevices)
+
 #endif // ENABLE(MEDIA_STREAM)

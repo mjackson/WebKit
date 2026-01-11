@@ -1739,6 +1739,9 @@ void NetworkResourceLoader::sendResultForCacheEntry(std::unique_ptr<NetworkCache
         metrics.responseBodyBytesReceived = 0;
         metrics.responseBodyDecodedSize = 0;
         send(Messages::WebResourceLoader::DidFinishResourceLoad(WTF::move(metrics)));
+
+        if (shouldSendResourceLoadMessages())
+            protectedConnectionToWebProcess()->networkProcess().protectedParentProcessConnection()->send(Messages::NetworkProcessProxy::ResourceLoadDidCompleteWithError(webPageProxyID(), resourceLoadInfo(), m_response, { }), 0);
     };
 
     LOADER_RELEASE_LOG("sendResultForCacheEntry:");

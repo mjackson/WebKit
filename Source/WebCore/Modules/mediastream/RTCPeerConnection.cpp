@@ -172,7 +172,7 @@ ExceptionOr<void> RTCPeerConnection::removeTrack(RTCRtpSender& sender)
     RTCRtpTransceiver* senderTransceiver = nullptr;
     for (auto& transceiver : m_transceiverSet.list()) {
         if (&sender == &transceiver->sender()) {
-            senderTransceiver = transceiver.get();
+            senderTransceiver = transceiver.ptr();
             shouldAbort = sender.isStopped() || !sender.track();
             break;
         }
@@ -513,48 +513,51 @@ ExceptionOr<Vector<MediaEndpointConfiguration::IceServerInfo>> RTCPeerConnection
         return Exception { ExceptionCode::InvalidModificationError, "IceTransportPolicy pool size does not match existing pool size"_s };
 
     Vector<MediaEndpointConfiguration::IceServerInfo> servers;
-    if (newConfiguration.iceServers) {
-        servers.reserveInitialCapacity(newConfiguration.iceServers->size());
-        for (auto& server : newConfiguration.iceServers.value()) {
-            Vector<String> urls;
-            WTF::switchOn(server.urls, [&urls] (String& url) {
-                urls = { WTF::move(url) };
-            }, [&urls] (Vector<String>& vector) {
-                urls = WTF::move(vector);
-            });
+    servers.reserveInitialCapacity(newConfiguration.iceServers.size());
+    for (auto& server : newConfiguration.iceServers) {
+        Vector<String> urls;
+        WTF::switchOn(server.urls, [&urls] (String& url) {
+            urls = { WTF::move(url) };
+        }, [&urls] (Vector<String>& vector) {
+            urls = WTF::move(vector);
+        });
 
-            urls.removeAllMatching([&](auto& urlString) {
-                URL url { URL { }, urlString };
-                if (url.path().endsWithIgnoringASCIICase(".local"_s) || !portAllowed(url) || isIPAddressDisallowed(url)) {
-                    queueTaskToDispatchEvent(*this, TaskSource::MediaElement, RTCPeerConnectionIceErrorEvent::create(Event::CanBubble::No, Event::IsCancelable::No, { }, { }, WTF::move(urlString), 701, "URL is not allowed"_s));
-                    return true;
-                }
-                return false;
-            });
-
-            auto serverURLs = WTF::map(urls, [](auto& url) -> URL {
-                return { URL { }, url };
-            });
-            server.urls = WTF::move(urls);
-
-            for (auto& serverURL : serverURLs) {
-                if (serverURL.isNull())
-                    return Exception { ExceptionCode::TypeError, "Bad ICE server URL"_s };
-                if (serverURL.protocolIs("turn"_s) || serverURL.protocolIs("turns"_s)) {
-                    if (server.credential.isNull() || server.username.isNull())
-                        return Exception { ExceptionCode::InvalidAccessError, "TURN/TURNS server requires both username and credential"_s };
-                    // https://tools.ietf.org/html/rfc8489#section-14.3
-                    if (server.credential.length() > 64 || server.username.length() > 64) {
-                        constexpr size_t MaxTurnUsernameLength = 509;
-                        if (server.credential.utf8().length() > MaxTurnUsernameLength || server.username.utf8().length() > MaxTurnUsernameLength)
-                            return Exception { ExceptionCode::TypeError, "TURN/TURNS username and/or credential are too long"_s };
-                    }
-                } else if (!serverURL.protocolIs("stun"_s) && !serverURL.protocolIs("stuns"_s))
-                    return Exception { ExceptionCode::SyntaxError, "ICE server protocol not supported"_s };
+        urls.removeAllMatching([&](auto& urlString) {
+            URL url { URL { }, urlString };
+            if (url.path().endsWithIgnoringASCIICase(".local"_s) || !portAllowed(url) || isIPAddressDisallowed(url)) {
+                queueTaskToDispatchEvent(*this, TaskSource::MediaElement, RTCPeerConnectionIceErrorEvent::create(Event::CanBubble::No, Event::IsCancelable::No, { }, { }, WTF::move(urlString), 701, "URL is not allowed"_s));
+                return true;
             }
-            if (serverURLs.size())
-                servers.append({ WTF::move(serverURLs), server.credential, server.username });
+            return false;
+        });
+
+        if (urls.isEmpty())
+            return Exception { ExceptionCode::SyntaxError, "Empty ICE servers list"_s };
+
+        auto serverURLs = WTF::map(urls, [](auto& url) -> URL {
+            return { URL { }, url };
+        });
+        server.urls = WTF::move(urls);
+
+        for (auto& serverURL : serverURLs) {
+            if (serverURL.isNull())
+                return Exception { ExceptionCode::TypeError, "Bad ICE server URL"_s };
+            if (serverURL.protocolIs("turn"_s) || serverURL.protocolIs("turns"_s)) {
+                if (server.credential.isNull() || server.username.isNull())
+                    return Exception { ExceptionCode::InvalidAccessError, "TURN/TURNS server requires both username and credential"_s };
+                // https://tools.ietf.org/html/rfc8489#section-14.3
+                if (server.credential.length() > 64 || server.username.length() > 64) {
+                    constexpr size_t MaxTurnUsernameLength = 509;
+                    if (server.credential.utf8().length() > MaxTurnUsernameLength || server.username.utf8().length() > MaxTurnUsernameLength)
+                        return Exception { ExceptionCode::InvalidAccessError, "TURN/TURNS username and/or credential are too long"_s };
+                }
+            } else if (!serverURL.protocolIs("stun"_s) && !serverURL.protocolIs("stuns"_s))
+                return Exception { ExceptionCode::SyntaxError, "ICE server protocol not supported"_s };
+            else if (serverURL.hasQuery())
+                return Exception { ExceptionCode::SyntaxError, "Invalid STUN URL"_s };
         }
+        if (serverURLs.size())
+            servers.append({ WTF::move(serverURLs), server.credential, server.username });
     }
     return servers;
 }
@@ -562,12 +565,12 @@ ExceptionOr<Vector<MediaEndpointConfiguration::IceServerInfo>> RTCPeerConnection
 ExceptionOr<Vector<MediaEndpointConfiguration::CertificatePEM>> RTCPeerConnection::certificatesFromConfiguration(const RTCConfiguration& configuration)
 {
     auto currentMilliSeconds = WallTime::now().secondsSinceEpoch().milliseconds();
-    auto& origin = document()->securityOrigin();
+    Ref origin = protectedDocument()->securityOrigin();
 
     Vector<MediaEndpointConfiguration::CertificatePEM> certificates;
     certificates.reserveInitialCapacity(configuration.certificates.size());
     for (auto& certificate : configuration.certificates) {
-        if (!origin.isSameOriginAs(certificate->origin()))
+        if (!origin->isSameOriginAs(certificate->origin()))
             return Exception { ExceptionCode::InvalidAccessError, "Certificate does not have a valid origin"_s };
 
         if (currentMilliSeconds > certificate->expires())
@@ -689,7 +692,7 @@ ExceptionOr<Ref<RTCDataChannel>> RTCPeerConnection::createDataChannel(String&& l
     if (!channelHandler)
         return Exception { ExceptionCode::OperationError };
 
-    Ref channel = RTCDataChannel::create(*document(), WTF::move(channelHandler), WTF::move(label), WTF::move(options), RTCDataChannelState::Connecting);
+    Ref channel = RTCDataChannel::create(*protectedDocument(), WTF::move(channelHandler), WTF::move(label), WTF::move(options), RTCDataChannelState::Connecting);
 
     m_channels.append(channel->identifier());
     return channel;
@@ -759,13 +762,13 @@ void RTCPeerConnection::doStop()
 void RTCPeerConnection::registerToController(RTCController& controller)
 {
     m_controller = &controller;
-    m_controller->add(*this);
+    controller.add(*this);
 }
 
 void RTCPeerConnection::unregisterFromController()
 {
-    if (m_controller)
-        m_controller->remove(*this);
+    if (RefPtr controller = m_controller.get())
+        controller->remove(*this);
 }
 
 void RTCPeerConnection::suspend(ReasonForSuspension reason)
@@ -858,7 +861,7 @@ RTCPeerConnectionState RTCPeerConnection::computeConnectionState()
         if (m_sctpTransport && &m_sctpTransport->transport().iceTransport() == iceTransport.ptr())
             return false;
         return std::ranges::all_of(m_transceiverSet.list(), [&iceTransport](auto& transceiver) {
-            return !isIceTransportUsedByTransceiver(iceTransport.get(), *transceiver);
+            return !isIceTransportUsedByTransceiver(iceTransport.get(), transceiver);
         });
     });
 
@@ -912,7 +915,7 @@ RTCIceConnectionState RTCPeerConnection::computeIceConnectionStateFromIceTranspo
         if (m_sctpTransport && &m_sctpTransport->transport().iceTransport() == iceTransport.ptr())
             return false;
         return std::ranges::all_of(m_transceiverSet.list(), [&iceTransport](auto& transceiver) {
-            return !isIceTransportUsedByTransceiver(iceTransport.get(), *transceiver);
+            return !isIceTransportUsedByTransceiver(iceTransport.get(), transceiver);
         });
     });
 
@@ -1066,8 +1069,8 @@ void RTCPeerConnection::generateCertificate(JSC::JSGlobalObject& lexicalGlobalOb
         promise.reject(parameters.releaseException());
         return;
     }
-    auto& document = downcast<Document>(*JSC::jsCast<JSDOMGlobalObject*>(&lexicalGlobalObject)->scriptExecutionContext());
-    PeerConnectionBackend::generateCertificate(document, parameters.returnValue(), WTF::move(promise));
+    Ref document = downcast<Document>(*JSC::jsCast<JSDOMGlobalObject*>(&lexicalGlobalObject)->scriptExecutionContext());
+    PeerConnectionBackend::generateCertificate(document.get(), parameters.returnValue(), WTF::move(promise));
 }
 
 Vector<std::reference_wrapper<RTCRtpSender>> RTCPeerConnection::getSenders() const
@@ -1080,7 +1083,7 @@ Vector<std::reference_wrapper<RTCRtpReceiver>> RTCPeerConnection::getReceivers()
     return m_transceiverSet.receivers();
 }
 
-const Vector<RefPtr<RTCRtpTransceiver>>& RTCPeerConnection::getTransceivers() const
+const Vector<Ref<RTCRtpTransceiver>>& RTCPeerConnection::getTransceivers() const
 {
     return m_transceiverSet.list();
 }
@@ -1126,12 +1129,17 @@ Document* RTCPeerConnection::document()
     return downcast<Document>(scriptExecutionContext());
 }
 
+RefPtr<Document> RTCPeerConnection::protectedDocument()
+{
+    return document();
+}
+
 Ref<RTCIceTransport> RTCPeerConnection::getOrCreateIceTransport(UniqueRef<RTCIceTransportBackend>&& backend)
 {
     auto index = m_iceTransports.findIf([&backend](auto& transport) { return backend.get() == transport->backend(); });
     if (index == notFound) {
         index = m_iceTransports.size();
-        m_iceTransports.append(RTCIceTransport::create(*scriptExecutionContext(), WTF::move(backend), *this));
+        m_iceTransports.append(RTCIceTransport::create(*protectedScriptExecutionContext(), WTF::move(backend), *this));
     }
 
     return m_iceTransports[index].copyRef();
@@ -1188,7 +1196,7 @@ void RTCPeerConnection::updateTransceiverTransports()
 {
     for (auto& transceiver : m_transceiverSet.list()) {
         auto& sender = transceiver->sender();
-        if (auto* senderBackend = sender.backend())
+        if (RefPtr senderBackend = sender.backend())
             sender.setTransport(getOrCreateDtlsTransport(senderBackend->dtlsTransportBackend()));
 
         auto& receiver = transceiver->receiver();
@@ -1218,18 +1226,20 @@ void RTCPeerConnection::updateSctpBackend(std::unique_ptr<RTCSctpTransportBacken
         return;
     }
 
-    if (!m_sctpTransport || m_sctpTransport->backend() != *sctpBackend) {
+    RefPtr sctpTransport = m_sctpTransport;
+    if (!sctpTransport || sctpTransport->backend() != *sctpBackend) {
         RefPtr context = scriptExecutionContext();
         if (!context)
             return;
 
-        auto dtlsTransport = getOrCreateDtlsTransport(sctpBackend->dtlsTransportBackend().moveToUniquePtr());
+        RefPtr dtlsTransport = getOrCreateDtlsTransport(sctpBackend->dtlsTransportBackend().moveToUniquePtr());
         if (!dtlsTransport)
             return;
-        m_sctpTransport = RTCSctpTransport::create(*context, makeUniqueRefFromNonNullUniquePtr(WTF::move(sctpBackend)), dtlsTransport.releaseNonNull());
+        sctpTransport = RTCSctpTransport::create(*context, makeUniqueRefFromNonNullUniquePtr(WTF::move(sctpBackend)), dtlsTransport.releaseNonNull());
+        m_sctpTransport = sctpTransport.copyRef();
     }
 
-    m_sctpTransport->updateMaxMessageSize(maxMessageSize);
+    sctpTransport->updateMaxMessageSize(maxMessageSize);
 }
 
 #if !RELEASE_LOG_DISABLED

@@ -3615,6 +3615,16 @@ void MediaPlayerPrivateGStreamer::configureVideoDecoder(GstElement* decoder)
 
     configureMediaStreamVideoDecoder(decoder);
 
+    auto sinkPad = adoptGRef(gst_element_get_static_pad(decoder, "sink"));
+    gst_pad_add_probe(sinkPad.get(), static_cast<GstPadProbeType>(GST_PAD_PROBE_TYPE_BUFFER), [](GstPad*, GstPadProbeInfo* info, gpointer userData) -> GstPadProbeReturn {
+        auto* player = static_cast<MediaPlayerPrivateGStreamer*>(userData);
+        auto buffer = GST_PAD_PROBE_INFO_BUFFER(info);
+        if (!GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_DELTA_UNIT))
+            player->m_decodedKeyFrames++;
+        player->m_framesReceived++;
+        return GST_PAD_PROBE_OK;
+    }, this, nullptr);
+
     auto pad = adoptGRef(gst_element_get_static_pad(decoder, "src"));
     if (!pad) {
         GST_INFO_OBJECT(pipeline(), "the decoder %s does not have a src pad, probably because it's a hardware decoder sink, can't get decoder stats", name.utf8());
@@ -3638,7 +3648,8 @@ void MediaPlayerPrivateGStreamer::configureVideoDecoder(GstElement* decoder)
             auto* query = GST_QUERY_CAST(GST_PAD_PROBE_INFO_DATA(info));
             auto* structure = gst_query_writable_structure(query);
             if (gst_structure_has_name(structure, "webkit-video-decoder-stats")) {
-                gst_structure_set(structure, "frames-decoded", G_TYPE_UINT64, player->decodedVideoFramesCount(), nullptr);
+                gst_structure_set(structure, "frames-decoded", G_TYPE_UINT64, player->decodedVideoFramesCount(), "frames-received", G_TYPE_UINT64, player->m_framesReceived,
+                    "key-frames-decoded", G_TYPE_UINT64, player->m_decodedKeyFrames, nullptr);
 
                 if (player->updateVideoSinkStatistics())
                     gst_structure_set(structure, "frames-dropped", G_TYPE_UINT64, player->m_droppedVideoFrames, "frames-per-second", G_TYPE_DOUBLE, player->m_averageFrameRate, nullptr);

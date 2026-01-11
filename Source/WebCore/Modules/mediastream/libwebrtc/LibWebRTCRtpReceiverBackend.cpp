@@ -111,7 +111,7 @@ Ref<RealtimeMediaSource> LibWebRTCRtpReceiverBackend::createSource(Document& doc
         webrtc::scoped_refptr<webrtc::AudioTrackInterface> audioTrack { static_cast<webrtc::AudioTrackInterface*>(rtcTrack.get()) };
         Ref source = RealtimeIncomingAudioSource::create(toRef(WTF::move(audioTrack)), fromStdString(rtcTrack->id()));
         if (document.page()) {
-            auto& webRTCProvider = reinterpret_cast<LibWebRTCProvider&>(document.page()->webRTCProvider());
+            auto& webRTCProvider = downcast<LibWebRTCProvider>(document.page()->webRTCProvider());
             source->setAudioModule(webRTCProvider.audioModule());
         }
         return source;

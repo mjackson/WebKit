@@ -77,7 +77,7 @@ static Lock s_connectionMapLock;
 class Connection::SyncMessageState final : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<SyncMessageState> {
 public:
     static Ref<SyncMessageState> getOrCreate(SerialFunctionDispatcher&);
-    Ref<SerialFunctionDispatcher> dispatcher() const { return m_dispatcher.get().releaseNonNull(); }
+    Ref<SerialFunctionDispatcher> dispatcher() const { return m_dispatcher.get(); }
     ~SyncMessageState();
 
     void wakeUpClientRunLoop()
@@ -143,7 +143,7 @@ private:
     Deque<ConnectionAndIncomingMessage> m_messagesBeingDispatched; // Only used on the main thread.
     Deque<ConnectionAndIncomingMessage> m_messagesToDispatchWhileWaitingForSyncReply WTF_GUARDED_BY_LOCK(m_lock);
 
-    ThreadSafeWeakPtr<SerialFunctionDispatcher> m_dispatcher; // Cannot be null.
+    ThreadSafeWeakRef<SerialFunctionDispatcher> m_dispatcher;
 };
 
 Lock Connection::SyncMessageState::syncMessageStateMapLock;
@@ -169,7 +169,7 @@ Connection::SyncMessageState::~SyncMessageState()
 
 void Connection::SyncMessageState::enqueueMatchingMessages(Connection& connection, MessageReceiveQueue& receiveQueue, const ReceiverMatcher& receiverMatcher)
 {
-    assertIsCurrent(*m_dispatcher.get());
+    assertIsCurrent(m_dispatcher.get());
     auto enqueueMatchingMessagesInContainer = [&](Deque<ConnectionAndIncomingMessage>& connectionAndMessages) {
         Deque<ConnectionAndIncomingMessage> rest;
         for (auto& connectionAndMessage : connectionAndMessages) {
@@ -215,9 +215,7 @@ bool Connection::SyncMessageState::processIncomingMessage(Connection& connection
     }
 
     if (shouldDispatch) {
-        RefPtr dispatcher = m_dispatcher.get();
-        RELEASE_ASSERT(dispatcher);
-        dispatcher->dispatch([protectedConnection = Ref { connection }]() mutable {
+        m_dispatcher.get()->dispatch([protectedConnection = Ref { connection }]() mutable {
             protectedConnection->dispatchSyncStateMessages();
         });
     }
@@ -229,7 +227,7 @@ bool Connection::SyncMessageState::processIncomingMessage(Connection& connection
 
 void Connection::SyncMessageState::dispatchMessages(Function<void(MessageName, uint64_t)>&& willDispatchMessage)
 {
-    assertIsCurrent(*m_dispatcher.get());
+    assertIsCurrent(m_dispatcher.get());
     {
         Locker locker { m_lock };
         if (m_messagesBeingDispatched.isEmpty())
@@ -250,7 +248,7 @@ void Connection::SyncMessageState::dispatchMessages(Function<void(MessageName, u
 
 void Connection::SyncMessageState::dispatchMessagesUntil(MessageIdentifier lastMessageToDispatch)
 {
-    assertIsCurrent(*m_dispatcher.get());
+    assertIsCurrent(m_dispatcher.get());
     {
         Locker locker { m_lock };
         if (!m_messagesToDispatchWhileWaitingForSyncReply.containsIf([&](auto& message) { return message.identifier == lastMessageToDispatch; }))
@@ -277,7 +275,7 @@ auto Connection::SyncMessageState::identifierOfLastMessageToDispatchWhileWaiting
 
 void Connection::SyncMessageState::dispatchMessagesAndResetDidScheduleDispatchMessagesForConnection(Connection& connection)
 {
-    assertIsCurrent(*m_dispatcher.get());
+    assertIsCurrent(m_dispatcher.get());
     {
         Locker locker { m_lock };
         ASSERT(m_didScheduleDispatchMessagesWorkSet.contains(&connection));

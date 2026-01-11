@@ -27,7 +27,6 @@
 
 #if PLATFORM(MAC)
 
-#include "FrameInfoData.h"
 #include "WebContextMenuProxy.h"
 #include <wtf/RetainPtr.h>
 #include <wtf/WeakObjCPtr.h>
@@ -120,7 +119,6 @@ private:
 #if ENABLE(VIDEO)
     RetainPtr<WKCaptionStyleMenuController> m_captionStyleMenuController;
 #endif
-    const FrameInfoData m_frameInfo;
 };
 
 } // namespace WebKit

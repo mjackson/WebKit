@@ -68,6 +68,8 @@ namespace WebCore {
 
 using GL = GraphicsContextGL;
 
+WTF_MAKE_TZONE_ALLOCATED_IMPL(GraphicsContextGLCocoa);
+
 // This variable is accessed in single-threaded manner.
 // For WK1, this variable is accessed from multiple threads but always sequentially.
 static GraphicsContextGLANGLE* currentContext;

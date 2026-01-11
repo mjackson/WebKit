@@ -49,7 +49,8 @@ protected:
     {
         m_refCountDebugger.willDestroy(m_strongCount);
         RELEASE_ASSERT(m_strongCount == 1);
-        m_strongCount = 0;
+        // Use volatile to prevent compilers from eliminating this code. <https://webkit.org/b/304549>
+        *static_cast<volatile unsigned*>(&m_strongCount) = 0;
     }
 
     // Returns true if the pointer should be destroyed.

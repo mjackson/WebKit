@@ -1312,17 +1312,17 @@ CSSLineFitEdgeEnabled:
 
 CSSMathDepthEnabled:
   type: bool
-  status: testable
+  status: stable
   category: css
   humanReadableName: "CSS math-depth"
   humanReadableDescription: "Enable support for math-depth from MathML Core."
   defaultValue:
     WebKitLegacy:
-      default: false
+      default: true
     WebKit:
-      default: false
+      default: true
     WebCore:
-      default: false
+      default: true
 
 CSSPaintingAPIEnabled:
   type: bool
@@ -8574,7 +8574,7 @@ UseAppKitGestures:
     WebKitLegacy:
       default: false
     WebKit:
-      default: false
+      default: defaultUseAppKitGestures()
     WebCore:
       default: false
 
@@ -9527,7 +9527,7 @@ WebLocksAPIEnabled:
 
 WebMUseRemoteAudioVideoRenderer:
   type: bool
-  status: stable
+  status: testable
   category: media
   humanReadableName: "WebM player uses GPU renderer"
   humanReadableDescription: "WebM player uses GPU renderer"
@@ -9536,9 +9536,9 @@ WebMUseRemoteAudioVideoRenderer:
     WebKitLegacy:
       default: false
     WebKit:
-      default: true
+      default: false
     WebCore:
-      default: true
+      default: false
   sharedPreferenceForWebProcess: true
 
 WebPageSpatialBackdropEnabled:

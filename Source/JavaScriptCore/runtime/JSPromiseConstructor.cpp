@@ -231,24 +231,19 @@ static JSObject* promiseRaceSlow(JSGlobalObject* globalObject, CallFrame* callFr
         }
         ASSERT(nextPromise);
 
-        if (auto* nextPromiseObj = jsDynamicCast<JSPromise*>(nextPromise); nextPromiseObj && nextPromiseObj->isThenFastAndNonObservable()) [[likely]] {
-            scope.release();
-            nextPromiseObj->performPromiseThen(vm, globalObject, resolve, reject, jsUndefined(), promise);
-        } else {
-            JSValue then = nextPromise.get(globalObject, vm.propertyNames->then);
-            RETURN_IF_EXCEPTION(scope, void());
-            CallData thenCallData = getCallDataInline(then);
-            if (thenCallData.type == CallData::Type::None) [[unlikely]] {
-                throwTypeError(globalObject, scope, "then is not a function"_s);
-                return;
-            }
-            MarkedArgumentBuffer thenArguments;
-            thenArguments.append(resolve);
-            thenArguments.append(reject);
-            ASSERT(!thenArguments.hasOverflowed());
-            scope.release();
-            call(globalObject, then, thenCallData, nextPromise, thenArguments);
+        JSValue then = nextPromise.get(globalObject, vm.propertyNames->then);
+        RETURN_IF_EXCEPTION(scope, void());
+        CallData thenCallData = getCallDataInline(then);
+        if (thenCallData.type == CallData::Type::None) [[unlikely]] {
+            throwTypeError(globalObject, scope, "then is not a function"_s);
+            return;
         }
+        MarkedArgumentBuffer thenArguments;
+        thenArguments.append(resolve);
+        thenArguments.append(reject);
+        ASSERT(!thenArguments.hasOverflowed());
+        scope.release();
+        call(globalObject, then, thenCallData, nextPromise, thenArguments);
     });
 
     if (scope.exception()) [[unlikely]]

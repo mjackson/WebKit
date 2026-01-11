@@ -129,7 +129,7 @@ public:
     void registerDatabaseConnection(IDBDatabase&, ScriptExecutionContextIdentifier);
     void unregisterDatabaseConnection(IDBDatabase&);
 
-    void forgetActiveOperations(const Vector<RefPtr<TransactionOperation>>&);
+    void forgetActiveOperations(const Vector<Ref<TransactionOperation>>&);
     void forgetTransaction(IDBTransaction&);
     void abortActivitiesForCurrentThread();
     void setContextSuspended(ScriptExecutionContext& currentContext, bool isContextSuspended);

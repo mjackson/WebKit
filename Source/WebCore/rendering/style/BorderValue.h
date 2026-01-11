@@ -4,7 +4,7 @@
  *           (C) 2000 Dirk Mueller (mueller@kde.org)
  * Copyright (C) 2003, 2005, 2006, 2007, 2008 Apple Inc. All rights reserved.
  * Copyright (C) 2006 Graham Dennis (graham.dennis@gmail.com)
- * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025-2026 Samuel Weinig <sam@webkit.org>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -38,10 +38,9 @@ struct BorderValue {
 
     bool isVisible() const;
     bool nonZero() const;
-    bool isTransparent() const;
 
     bool hasHiddenStyle() const { return static_cast<BorderStyle>(style) == BorderStyle::Hidden; }
-    bool hasVisibleStyle() const { return static_cast<BorderStyle>(style) > BorderStyle::Hidden; }
+    bool hasVisibleStyle() const { return isVisibleBorderStyle(static_cast<BorderStyle>(style)); }
 
     bool operator==(const BorderValue&) const = default;
 };

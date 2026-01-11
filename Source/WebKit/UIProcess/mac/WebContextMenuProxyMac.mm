@@ -238,9 +238,8 @@ namespace WebKit {
 using namespace WebCore;
 
 WebContextMenuProxyMac::WebContextMenuProxyMac(NSView *webView, WebPageProxy& page, FrameInfoData&& frameInfo, ContextMenuContextData&& context, const UserData& userData)
-    : WebContextMenuProxy(page, WTF::move(context), userData)
+    : WebContextMenuProxy(page, WTF::move(frameInfo), WTF::move(context), userData)
     , m_webView(webView)
-    , m_frameInfo(WTF::move(frameInfo))
 {
 }
 

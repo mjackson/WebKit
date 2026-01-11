@@ -94,7 +94,7 @@ RenderStyle resolveForDocument(const Document& document)
         int size = fontSizeForKeyword(CSSValueMedium, false, document);
         fontDescription.setSpecifiedSize(size);
         bool useSVGZoomRules = document.isSVGDocument();
-        auto computedFontSize = computedFontSizeFromSpecifiedSize(size, fontDescription.isAbsoluteSize(), useSVGZoomRules, &documentStyle, document);
+        auto computedFontSize = computedFontSizeFromSpecifiedSize(size, fontDescription.isAbsoluteSize(), useSVGZoomRules, documentStyle.computedStyle(), document);
         fontDescription.setComputedSize(computedFontSize.size, computedFontSize.usedZoomFactor);
 
         auto [fontOrientation, glyphOrientation] = documentStyle.fontAndGlyphOrientation();

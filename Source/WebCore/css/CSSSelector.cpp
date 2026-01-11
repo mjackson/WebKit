@@ -48,6 +48,7 @@
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(CSSSelector);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(CSSSelector::RareData);
 
 using namespace HTMLNames;
 
@@ -301,8 +302,6 @@ std::optional<PseudoElementType> CSSSelector::stylePseudoElementTypeFor(PseudoEl
         return PseudoElementType::Before;
     case PseudoElement::After:
         return PseudoElementType::After;
-    case PseudoElement::Checkmark:
-        return PseudoElementType::Checkmark;
     case PseudoElement::WebKitScrollbar:
         return PseudoElementType::WebKitScrollbar;
     case PseudoElement::WebKitScrollbarButton:
@@ -838,7 +837,6 @@ CSSSelector::CSSSelector(const CSSSelector& other)
     : m_relation(other.m_relation)
     , m_match(other.m_match)
     , m_pseudoType(other.m_pseudoType)
-    , m_isLastInSelectorList(other.m_isLastInSelectorList)
     , m_isFirstInComplexSelector(other.m_isFirstInComplexSelector)
     , m_isLastInComplexSelector(other.m_isLastInComplexSelector)
     , m_hasRareData(other.m_hasRareData)
@@ -863,7 +861,6 @@ CSSSelector::CSSSelector(const CSSSelector& other, MutableSelectorCopyTag)
     : CSSSelector(other)
 {
     // Restore the selector list bits to the initial state when copying to a MutableCSSSelector.
-    m_isLastInSelectorList = false;
     m_isFirstInComplexSelector = true;
     m_isLastInComplexSelector = true;
 }

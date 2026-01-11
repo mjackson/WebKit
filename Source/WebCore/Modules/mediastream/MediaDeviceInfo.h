@@ -61,8 +61,6 @@ private:
 
 MediaDeviceInfo::Kind toMediaDeviceInfoKind(CaptureDevice::DeviceType);
 
-typedef Vector<RefPtr<MediaDeviceInfo>> MediaDeviceInfoVector;
-
-}
+} // namespace WebCore
 
 #endif

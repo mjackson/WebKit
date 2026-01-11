@@ -123,6 +123,7 @@ public:
     InlineIterator::LeafBoxIterator boxFor(const RenderElement&) const;
     InlineIterator::InlineBoxIterator firstInlineBoxFor(const RenderInline&) const;
     InlineIterator::InlineBoxIterator firstRootInlineBox() const;
+    InlineIterator::InlineBoxIterator lastRootInlineBox() const;
     InlineIterator::LineBoxIterator firstLineBox() const;
     InlineIterator::LineBoxIterator lastLineBox() const;
 

@@ -158,5 +158,13 @@ BoxRange<BoxIterator> boxesFor(const RenderSVGText& svgText)
     return { BoxIterator { BoxLegacyPath { svgText.legacyRootBox() } } };
 }
 
+BoxIterator lastBoxFor(const RenderSVGText& svgText)
+{
+    if (auto* lineLayout = svgText.inlineLayout())
+        return { BoxIterator { *lineLayout->lastRootInlineBox() } };
+
+    return { BoxIterator { BoxLegacyPath { svgText.legacyRootBox() } } };
+}
+
 }
 }

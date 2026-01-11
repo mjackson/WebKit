@@ -30,7 +30,7 @@
 #include "InlineLineBuilder.h"
 #include "LayoutElementBox.h"
 #include "RenderStyle+GettersInlines.h"
-#include "RenderStyle+InitialInlines.h"
+#include "StyleComputedStyle+InitialInlines.h"
 #include "TextOnlySimpleLineBuilder.h"
 
 namespace WebCore {
@@ -45,7 +45,7 @@ static bool isBoxEligibleForNonLineBuilderMinimumWidth(const ElementBox& box)
 
 static bool isContentEligibleForNonLineBuilderMaximumWidth(const ElementBox& rootBox, const InlineItemList& inlineItemList)
 {
-    if (inlineItemList.size() != 1 || rootBox.style().textIndent() != RenderStyle::initialTextIndent())
+    if (inlineItemList.size() != 1 || rootBox.style().textIndent() != Style::ComputedStyle::initialTextIndent())
         return false;
 
     auto* inlineTextItem = dynamicDowncast<InlineTextItem>(inlineItemList[0]);
@@ -202,7 +202,15 @@ InlineLayoutUnit IntrinsicWidthHandler::computedIntrinsicWidthForConstraint(Intr
             return InlineLayoutUnit { leftWidth + rightWidth };
         };
 
-        auto lineContentLogicalWidth = lineLayoutResult.lineGeometry.logicalTopLeft.x() + lineLayoutResult.contentGeometry.logicalWidth + floatContentWidth();
+        auto lineContentLogicalWidth = [&] {
+            auto contentWidth = lineLayoutResult.lineGeometry.logicalTopLeft.x() + lineLayoutResult.contentGeometry.logicalWidth + floatContentWidth();
+            if (lineLayoutResult.runs.isEmpty())
+                return contentWidth;
+            auto& leadingRun = lineLayoutResult.runs.first();
+            if (leadingRun.isListMarkerOutside())
+                contentWidth -= leadingRun.logicalRight();
+            return contentWidth;
+        }();
         maximumContentWidth = std::max(maximumContentWidth, lineContentLogicalWidth);
         contentWidthBetweenLineBreaks.current += (lineContentLogicalWidth + lineLayoutResult.hangingContent.logicalWidth);
         if (lineLayoutResult.endsWithLineBreak())

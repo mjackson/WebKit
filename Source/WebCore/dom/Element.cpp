@@ -204,13 +204,13 @@ static_assert(sizeof(Element) == sizeof(SameSizeAsElement), "Element should stay
 using namespace HTMLNames;
 using namespace XMLNames;
 
-static HashMap<WeakRef<Element, WeakPtrImplWithEventTargetData>, Vector<RefPtr<Attr>>>& attrNodeListMap()
+static HashMap<WeakRef<Element, WeakPtrImplWithEventTargetData>, Vector<Ref<Attr>>>& attrNodeListMap()
 {
-    static NeverDestroyed<HashMap<WeakRef<Element, WeakPtrImplWithEventTargetData>, Vector<RefPtr<Attr>>>> map;
+    static NeverDestroyed<HashMap<WeakRef<Element, WeakPtrImplWithEventTargetData>, Vector<Ref<Attr>>>> map;
     return map;
 }
 
-static Vector<RefPtr<Attr>>* attrNodeListForElement(Element& element)
+static Vector<Ref<Attr>>* attrNodeListForElement(Element& element)
 {
     if (!element.hasSyntheticAttrChildNodes())
         return nullptr;
@@ -218,7 +218,7 @@ static Vector<RefPtr<Attr>>* attrNodeListForElement(Element& element)
     return &attrNodeListMap().find(element)->value;
 }
 
-static Vector<RefPtr<Attr>>& ensureAttrNodeListForElement(Element& element)
+static Vector<Ref<Attr>>& ensureAttrNodeListForElement(Element& element)
 {
     if (element.hasSyntheticAttrChildNodes()) {
         ASSERT(attrNodeListMap().contains(element));
@@ -226,7 +226,7 @@ static Vector<RefPtr<Attr>>& ensureAttrNodeListForElement(Element& element)
     }
     ASSERT(!attrNodeListMap().contains(element));
     element.setHasSyntheticAttrChildNodes(true);
-    return attrNodeListMap().add(element, Vector<RefPtr<Attr>>()).iterator->value;
+    return attrNodeListMap().add(element, Vector<Ref<Attr>>()).iterator->value;
 }
 
 static void removeAttrNodeListForElement(Element& element)
@@ -237,11 +237,11 @@ static void removeAttrNodeListForElement(Element& element)
     element.setHasSyntheticAttrChildNodes(false);
 }
 
-static Attr* findAttrNodeInList(Vector<RefPtr<Attr>>& attrNodeList, const QualifiedName& name)
+static Attr* findAttrNodeInList(Vector<Ref<Attr>>& attrNodeList, const QualifiedName& name)
 {
     for (auto& node : attrNodeList) {
         if (node->qualifiedName().matches(name))
-            return node.get();
+            return node.ptr();
     }
     return nullptr;
 }
@@ -3743,7 +3743,7 @@ String Element::debugDescription() const
     return builder.toString();
 }
 
-const Vector<RefPtr<Attr>>& Element::attrNodeList()
+const Vector<Ref<Attr>>& Element::attrNodeList()
 {
     ASSERT(hasSyntheticAttrChildNodes());
     return *attrNodeListForElement(*this);
@@ -3758,7 +3758,7 @@ void Element::attachAttributeNodeIfNeeded(Attr& attrNode)
     ScriptDisallowedScope::InMainThread scriptDisallowedScope;
 
     attrNode.attachToElement(*this);
-    ensureAttrNodeListForElement(*this).append(&attrNode);
+    ensureAttrNodeListForElement(*this).append(attrNode);
 }
 
 ExceptionOr<RefPtr<Attr>> Element::setAttributeNode(Attr& attrNode)
@@ -5702,13 +5702,13 @@ RefPtr<Attr> Element::attrIfExists(const QualifiedName& name)
 Ref<Attr> Element::ensureAttr(const QualifiedName& name)
 {
     auto& attrNodeList = ensureAttrNodeListForElement(*this);
-    RefPtr<Attr> attrNode = findAttrNodeInList(attrNodeList, name);
-    if (!attrNode) {
-        attrNode = Attr::create(*this, name);
-        attrNode->setTreeScopeRecursively(treeScope());
-        attrNodeList.append(attrNode);
-    }
-    return attrNode.releaseNonNull();
+    if (RefPtr attrNode = findAttrNodeInList(attrNodeList, name))
+        return attrNode.releaseNonNull();
+
+    Ref attrNode = Attr::create(*this, name);
+    attrNode->setTreeScopeRecursively(treeScope());
+    attrNodeList.append(attrNode);
+    return attrNode;
 }
 
 void Element::detachAttrNodeFromElementWithValue(Attr* attrNode, const AtomString& value)
@@ -6154,14 +6154,14 @@ ExceptionOr<Ref<WebAnimation>> Element::animate(JSC::JSGlobalObject& lexicalGlob
     return animation;
 }
 
-Vector<RefPtr<WebAnimation>> Element::getAnimations(std::optional<GetAnimationsOptions> options)
+Vector<Ref<WebAnimation>> Element::getAnimations(std::optional<GetAnimationsOptions> options)
 {
     // If we are to return animations in the subtree, we can get all of the document's animations and filter
     // animations targeting that are not registered on this element, one of its pseudo elements or a child's
     // pseudo element.
     Ref document = this->document();
     if (options && options->subtree) {
-        return document->matchingAnimations([&] (Element& target) -> bool {
+        return document->matchingAnimations([&](Element& target) {
             return contains(&target);
         });
     }
@@ -6174,11 +6174,11 @@ Vector<RefPtr<WebAnimation>> Element::getAnimations(std::optional<GetAnimationsO
         owner->protectedDocument()->updateLayout();
     document->updateStyleIfNeeded();
 
-    Vector<RefPtr<WebAnimation>> animations;
+    Vector<Ref<WebAnimation>> animations;
     if (auto* effectStack = keyframeEffectStack({ })) {
         for (auto& effect : effectStack->sortedEffects()) {
             if (effect->animation()->isRelevant())
-                animations.append(effect->animation());
+                animations.append(*effect->animation());
         }
     }
     return animations;

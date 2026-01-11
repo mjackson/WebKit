@@ -96,6 +96,7 @@ symbols = [
     "nw_parameters_create_webtransport_http",
     "nw_protocol_copy_webtransport_definition",
     "nw_webtransport_create_options",
+    "nw_webtransport_metadata_get_is_peer_initiated",
     "nw_webtransport_metadata_get_is_unidirectional",
     "nw_webtransport_metadata_get_session_error_code",
     "nw_webtransport_metadata_set_session_error_code",

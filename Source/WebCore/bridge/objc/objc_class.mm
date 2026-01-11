@@ -160,7 +160,7 @@ Field* ObjcClass::fieldNamed(PropertyName propertyName, Instance* instance) cons
 
     CString jsName = name.ascii();
     RetainPtr<NSString> fieldName = adoptNS([[NSString alloc] initWithCString:jsName.data() encoding:NSASCIIStringEncoding]);
-    id targetObject = (static_cast<ObjcInstance*>(instance))->getObject();
+    id targetObject = (downcast<ObjcInstance>(instance))->getObject();
 #if PLATFORM(IOS_FAMILY)
     IGNORE_WARNINGS_BEGIN("undeclared-selector")
     id attributes = [targetObject respondsToSelector:@selector(attributeKeys)] ? [targetObject performSelector:@selector(attributeKeys)] : nil;
@@ -230,7 +230,7 @@ Field* ObjcClass::fieldNamed(PropertyName propertyName, Instance* instance) cons
 
 JSValue ObjcClass::fallbackObject(JSGlobalObject* lexicalGlobalObject, Instance* instance, PropertyName propertyName)
 {
-    ObjcInstance* objcInstance = static_cast<ObjcInstance*>(instance);
+    auto* objcInstance = downcast<ObjcInstance>(instance);
     id targetObject = objcInstance->getObject();
     
     if (![targetObject respondsToSelector:@selector(invokeUndefinedMethodFromWebScript:withArguments:)])

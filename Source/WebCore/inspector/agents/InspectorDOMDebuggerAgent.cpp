@@ -261,7 +261,7 @@ Inspector::Protocol::ErrorStringOr<void> InspectorDOMDebuggerAgent::removeEventB
 static JSC::JSGlobalObject* globalObjectFor(ScriptExecutionContext& scriptExecutionContext, EventListener& eventListener)
 {
     if (auto* jsEventListener = dynamicDowncast<JSEventListener>(eventListener)) {
-        if (auto* isolatedWorld = jsEventListener->isolatedWorld())
+        if (RefPtr isolatedWorld = jsEventListener->isolatedWorld())
             return toJSDOMGlobalObject(scriptExecutionContext, *isolatedWorld);
     }
 

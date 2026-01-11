@@ -90,6 +90,7 @@ private:
     FloatRect objectBoundingBox() const override { return m_objectBoundingBox.value_or(FloatRect()); }
     FloatRect strokeBoundingBox() const override;
     FloatRect repaintRectInLocalCoordinates(RepaintRectCalculation = RepaintRectCalculation::Fast) const override;
+    FloatRect decoratedBoundingBox() const override;
 
     bool nodeAtPoint(const HitTestRequest&, HitTestResult&, const HitTestLocation& locationInContainer, const LayoutPoint& accumulatedOffset, HitTestAction) override;
 

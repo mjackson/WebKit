@@ -268,7 +268,7 @@ JSValue DebuggerCallFrame::evaluateWithScopeExtension(VM& vm, const String& scri
         auto* jsScope = debuggerCallFrame->scope(vm)->jsScope();
         VMEntryScope entryScope(vm, jsScope->globalObject());
         if (vm.disallowVMEntryCount) [[unlikely]]
-            result = Interpreter::checkVMEntryPermission();
+            result = VM::checkVMEntryPermission();
         else
             result = vm.interpreter.executeEval(eval, debuggerCallFrame->thisValue(vm), jsScope);
     }

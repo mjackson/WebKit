@@ -56,11 +56,9 @@ CSSPageDescriptors& CSSPageRule::style()
 
 String CSSPageRule::selectorText() const
 {
-    if (auto* selector = m_pageRule->selector()) {
-        if (!selector->selectorText().isEmpty())
-            return selector->selectorText();
-    }
-    return ""_s;
+    if (auto& selector = m_pageRule->selector(); !selector.selectorText().isEmpty())
+        return selector.selectorText();
+    return emptyString();
 }
 
 void CSSPageRule::setSelectorText(const String& selectorText)

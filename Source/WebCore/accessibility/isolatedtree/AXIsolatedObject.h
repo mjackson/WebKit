@@ -86,8 +86,6 @@ public:
     AXIsolatedObject* parentObject() const final { return parentObjectUnignored(); }
     AXIsolatedObject* parentObjectUnignored() const final { return tree()->objectForID(parent()); }
 #endif // ENABLE(INCLUDE_IGNORED_IN_CORE_AX_TREE)
-    AXIsolatedObject* clickableSelfOrAncestor(ClickHandlerFilter filter = ClickHandlerFilter::ExcludeBody) const final { return Accessibility::clickableSelfOrAncestor(*this, filter); };
-    AXIsolatedObject* editableAncestor() const final { return Accessibility::editableAncestor(*this); };
     bool isEditableWebArea() const final { return boolAttributeValue(AXProperty::IsEditableWebArea); }
     bool canSetFocusAttribute() const final { return boolAttributeValue(AXProperty::CanSetFocusAttribute); }
     AttributedStringStyle stylesForAttributedString() const final;
@@ -240,7 +238,6 @@ private:
     bool isOutput() const final { return elementName() == ElementName::HTML_output; }
 
     // Table support.
-    AXIsolatedObject* exposedTableAncestor(bool includeSelf = false) const final { return Accessibility::exposedTableAncestor(*this, includeSelf); }
     AccessibilityChildrenVector columns() final { return tree()->objectsForIDs(vectorAttributeValue<AXID>(AXProperty::Columns)); }
     AccessibilityChildrenVector rows() final { return tree()->objectsForIDs(vectorAttributeValue<AXID>(AXProperty::Rows)); }
     unsigned columnCount() final { return static_cast<unsigned>(columns().size()); }
@@ -407,15 +404,12 @@ private:
     AccessibilityChildrenVector allSortedLiveRegions() const final;
     AccessibilityChildrenVector allSortedNonRootWebAreas() const final;
 #endif
-    AXIsolatedObject* focusableAncestor() final { return Accessibility::focusableAncestor(*this); }
-    AXIsolatedObject* highestEditableAncestor() final { return Accessibility::highestEditableAncestor(*this); }
     std::optional<AccessibilityOrientation> explicitOrientation() const { return optionalAttributeValue<AccessibilityOrientation>(AXProperty::ExplicitOrientation); }
     unsigned ariaLevel() const final { return unsignedAttributeValue(AXProperty::ARIALevel); }
     String language() const final { return stringAttributeValue(AXProperty::Language); }
     void setSelectedChildren(const AccessibilityChildrenVector&) final;
     AccessibilityChildrenVector visibleChildren() final { return tree()->objectsForIDs(vectorAttributeValue<AXID>(AXProperty::VisibleChildren)); }
     void setChildrenIDs(Vector<AXID>&&);
-    AXIsolatedObject* liveRegionAncestor(bool excludeIfOff = true) const final { return Accessibility::liveRegionAncestor(*this, excludeIfOff); }
     const String explicitLiveRegionStatus() const final { return stringAttributeValue(AXProperty::ExplicitLiveRegionStatus); }
     const String explicitLiveRegionRelevant() const final { return stringAttributeValue(AXProperty::ExplicitLiveRegionRelevant); }
     bool liveRegionAtomic() const final { return boolAttributeValue(AXProperty::LiveRegionAtomic); }

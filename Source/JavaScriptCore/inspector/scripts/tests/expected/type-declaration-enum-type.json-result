@@ -105,6 +105,8 @@ InspectorBackend.activateDomain("Runtime", null);
 
 #pragma once
 
+#include <wtf/Platform.h>
+
 #if ENABLE(INSPECTOR_ALTERNATE_DISPATCHERS)
 
 #include "TestProtocolObjects.h"
@@ -346,6 +348,7 @@ namespace Inspector {
 #pragma once
 
 #include <JavaScriptCore/InspectorProtocolTypes.h>
+#include <JavaScriptCore/JSExportMacros.h>
 #include <wtf/JSONValues.h>
 #include <wtf/text/WTFString.h>
 
@@ -906,13 +909,12 @@ inline String toProtocolString(TestProtocolRuntimeFarmAnimals value)
 template<>
 inline std::optional<TestProtocolRuntimeFarmAnimals> fromProtocolString(const String& value)
 {
-    static constexpr auto mappings = std::to_array<std::pair<ComparableASCIILiteral, TestProtocolRuntimeFarmAnimals>>({
+    static constexpr SortedArrayMap map { std::to_array<std::pair<ComparableASCIILiteral, TestProtocolRuntimeFarmAnimals>>({
         { "Cats"_s, TestProtocolRuntimeFarmAnimalsCats },
         { "Cows"_s, TestProtocolRuntimeFarmAnimalsCows },
         { "Hens"_s, TestProtocolRuntimeFarmAnimalsHens },
         { "Pigs"_s, TestProtocolRuntimeFarmAnimalsPigs },
-    });
-    static constexpr SortedArrayMap map { mappings };
+   }) };
     if (auto* result = map.tryGet(value))
         return *result;
     return std::nullopt;
@@ -935,13 +937,12 @@ inline String toProtocolString(TestProtocolRuntimeTwoLeggedAnimals value)
 template<>
 inline std::optional<TestProtocolRuntimeTwoLeggedAnimals> fromProtocolString(const String& value)
 {
-    static constexpr auto mappings = std::to_array<std::pair<ComparableASCIILiteral, TestProtocolRuntimeTwoLeggedAnimals>>({
+    static constexpr SortedArrayMap map { std::to_array<std::pair<ComparableASCIILiteral, TestProtocolRuntimeTwoLeggedAnimals>>({
         { "Crows"_s, TestProtocolRuntimeTwoLeggedAnimalsCrows },
         { "Ducks"_s, TestProtocolRuntimeTwoLeggedAnimalsDucks },
         { "Flamingos"_s, TestProtocolRuntimeTwoLeggedAnimalsFlamingos },
         { "Hens"_s, TestProtocolRuntimeTwoLeggedAnimalsHens },
-    });
-    static constexpr SortedArrayMap map { mappings };
+   }) };
     if (auto* result = map.tryGet(value))
         return *result;
     return std::nullopt;

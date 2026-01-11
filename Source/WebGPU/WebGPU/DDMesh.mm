@@ -38,7 +38,6 @@
 #import <wtf/threads/BinarySemaphore.h>
 
 #if ENABLE(GPU_PROCESS_MODEL)
-#import "WebGPUSwiftInternal.h"
 
 #if __has_include(</System/Library/SubFrameworks/RealityCoreRenderer.framework/RealityCoreRenderer>)
 asm(".linker_option \"-framework\", \"/System/Library/SubFrameworks/RealityCoreRenderer.framework/RealityCoreRenderer\"");

@@ -88,6 +88,7 @@ Shared/glib/JavaScriptEvaluationResultGLib.cpp
 Shared/glib/ProcessExecutablePathGLib.cpp
 Shared/glib/UserMessage.cpp
 Shared/glib/WebContextMenuItemGlib.cpp
+Shared/glib/WebKitContextMenuGAction.cpp @no-unify
 
 Shared/libwpe/NativeWebKeyboardEventLibWPE.cpp
 Shared/libwpe/NativeWebMouseEventLibWPE.cpp

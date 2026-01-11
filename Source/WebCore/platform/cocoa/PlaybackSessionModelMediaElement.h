@@ -164,8 +164,8 @@ private:
     RefPtr<HTMLMediaElement> m_mediaElement;
     bool m_isListening { false };
     HashSet<CheckedPtr<PlaybackSessionModelClient>> m_clients;
-    Vector<RefPtr<TextTrack>> m_legibleTracksForMenu;
-    Vector<RefPtr<AudioTrack>> m_audioTracksForMenu;
+    Vector<Ref<TextTrack>> m_legibleTracksForMenu;
+    Vector<Ref<AudioTrack>> m_audioTracksForMenu;
     AudioSessionSoundStageSize m_soundStageSize;
     std::optional<ImmersiveVideoMetadata> m_immersiveVideoMetadata;
 

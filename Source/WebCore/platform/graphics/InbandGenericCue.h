@@ -29,6 +29,7 @@
 
 #include <WebCore/Color.h>
 #include <WebCore/InbandGenericCueIdentifier.h>
+#include <wtf/Markable.h>
 #include <wtf/MediaTime.h>
 
 namespace WebCore {

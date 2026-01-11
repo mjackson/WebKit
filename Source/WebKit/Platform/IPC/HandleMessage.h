@@ -37,6 +37,7 @@
 #include <wtf/RefCountable.h>
 #include <wtf/RuntimeApplicationChecks.h>
 #include <wtf/StdLibExtras.h>
+#include <wtf/text/TextStream.h>
 
 namespace IPC {
 

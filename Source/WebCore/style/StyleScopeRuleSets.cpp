@@ -147,7 +147,7 @@ void ScopeRuleSets::initializeUserStyle()
         m_userStyle = WTF::move(userStyle);
 }
 
-void ScopeRuleSets::collectRulesFromUserStyleSheets(const Vector<RefPtr<CSSStyleSheet>>& userSheets, RuleSet& userStyle, const MQ::MediaQueryEvaluator& mediaQueryEvaluator)
+void ScopeRuleSets::collectRulesFromUserStyleSheets(const Vector<Ref<CSSStyleSheet>>& userSheets, RuleSet& userStyle, const MQ::MediaQueryEvaluator& mediaQueryEvaluator)
 {
     RuleSetBuilder builder(userStyle, mediaQueryEvaluator, &m_styleResolver);
     for (auto& sheet : userSheets) {
@@ -249,7 +249,7 @@ std::optional<DynamicMediaQueryEvaluationChanges> ScopeRuleSets::evaluateDynamic
     return evaluationChanges;
 }
 
-void ScopeRuleSets::appendAuthorStyleSheets(std::span<const RefPtr<CSSStyleSheet>> styleSheets, MQ::MediaQueryEvaluator* mediaQueryEvaluator, InspectorCSSOMWrappers& inspectorCSSOMWrappers)
+void ScopeRuleSets::appendAuthorStyleSheets(std::span<const Ref<CSSStyleSheet>> styleSheets, MQ::MediaQueryEvaluator* mediaQueryEvaluator, InspectorCSSOMWrappers& inspectorCSSOMWrappers)
 {
     RuleSetBuilder builder(*m_authorStyle, *mediaQueryEvaluator, &m_styleResolver, RuleSetBuilder::ShrinkToFit::Enable);
 
@@ -260,14 +260,14 @@ void ScopeRuleSets::appendAuthorStyleSheets(std::span<const RefPtr<CSSStyleSheet
         // the content is exact same to the previous one.
         if (previous) {
             if (&previous->contents() == &cssSheet->contents() && previous->mediaQueries().isEmpty() && cssSheet->mediaQueries().isEmpty()) {
-                inspectorCSSOMWrappers.collectFromStyleSheetIfNeeded(cssSheet.get());
+                inspectorCSSOMWrappers.collectFromStyleSheetIfNeeded(cssSheet);
                 continue;
             }
         }
 
         builder.addRulesFromSheet(cssSheet->contents(), cssSheet->mediaQueries());
-        inspectorCSSOMWrappers.collectFromStyleSheetIfNeeded(cssSheet.get());
-        previous = cssSheet;
+        inspectorCSSOMWrappers.collectFromStyleSheetIfNeeded(cssSheet);
+        previous = cssSheet.ptr();
     }
 
     collectFeatures();

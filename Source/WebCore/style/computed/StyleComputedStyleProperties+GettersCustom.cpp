@@ -36,23 +36,5 @@ const WebCore::Color& ComputedStyleProperties::color() const
     return m_inheritedData->color;
 }
 
-LineWidth ComputedStyleProperties::outlineWidth() const
-{
-    auto& outline = m_nonInheritedData->backgroundData->outline;
-    if (static_cast<OutlineStyle>(outline.outlineStyle) == OutlineStyle::None)
-        return 0_css_px;
-    if (static_cast<OutlineStyle>(outline.outlineStyle) == OutlineStyle::Auto)
-        return LineWidth { std::max(evaluate<float>(outline.outlineWidth, ZoomNeeded { }), RenderTheme::platformFocusRingWidth()) };
-    return outline.outlineWidth;
-}
-
-Length<> ComputedStyleProperties::outlineOffset() const
-{
-    auto& outline = m_nonInheritedData->backgroundData->outline;
-    if (static_cast<OutlineStyle>(outline.outlineStyle) == OutlineStyle::Auto)
-        return Length<> { evaluate<float>(outline.outlineOffset, ZoomNeeded { }) + RenderTheme::platformFocusRingOffset(evaluate<float>(outline.outlineWidth, ZoomNeeded { })) };
-    return outline.outlineOffset;
-}
-
 } // namespace Style
 } // namespace WebCore

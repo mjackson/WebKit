@@ -200,4 +200,6 @@ WebCoreOpaqueRoot root(WebXRSession*);
 
 } // namespace WebCore
 
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(WebXRSession)
+
 #endif // ENABLE(WEBXR)

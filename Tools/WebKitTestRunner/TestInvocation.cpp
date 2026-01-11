@@ -95,8 +95,8 @@ TestInvocation::TestInvocation(WKURLRef url, const TestOptions& options)
 {
     m_urlString = toWTFString(adoptWK(WKURLCopyString(m_url.get())).get());
 
-    // FIXME: Avoid mutating the setting via a test directory like this.
-    m_dumpFrameLoadCallbacks = urlContains("loading/"_s) && !urlContains("://localhost"_s);
+    // FIXME: Improve this matching: webkit.org/b/304314.
+    m_dumpFrameLoadCallbacks = urlContains("loading/"_s) && !urlContains("://localhost"_s) && !urlContains("css-font-loading/"_s);
 }
 
 TestInvocation::~TestInvocation() = default;

@@ -43,7 +43,7 @@ public:
     struct MediaSampleItem {
         using MediaSampleDataType = RefPtr<FragmentedSharedBuffer>;
         MediaTime presentationTime;
-        MediaTime decodeTime { MediaTime::indefiniteTime() };
+        MediaTime decodeTime { MediaTime::invalidTime() };
         MediaTime duration { MediaTime::zeroTime() };
         std::pair<MediaTime, MediaTime> trimInterval { MediaTime::zeroTime(), MediaTime::zeroTime() };
         MediaSampleDataType data;

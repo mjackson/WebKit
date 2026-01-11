@@ -28,6 +28,11 @@
 
 namespace WebCore {
 
+Ref<WebTransportError> WebTransportError::create(WebTransportErrorOptions&& options)
+{
+    return create(String(emptyString()), WTF::move(options));
+}
+
 Ref<WebTransportError> WebTransportError::create(String&& message, WebTransportErrorOptions&& options)
 {
     return adoptRef(*new WebTransportError(WTF::move(message), WTF::move(options)));

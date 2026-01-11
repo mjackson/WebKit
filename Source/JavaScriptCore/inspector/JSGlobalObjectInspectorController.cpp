@@ -361,8 +361,7 @@ void JSGlobalObjectInspectorController::createLazyAgents()
     m_agents.append(WTF::move(scriptProfilerAgent));
 
     auto heapAgent = makeUniqueRef<InspectorHeapAgent>(context);
-    if (m_consoleAgent)
-        m_consoleAgent->setHeapAgent(heapAgent.ptr());
+    m_consoleClient->setPersistentHeapAgent(heapAgent.ptr());
     m_agents.append(WTF::move(heapAgent));
 
     m_agents.append(makeUniqueRef<JSGlobalObjectAuditAgent>(context));

@@ -293,14 +293,14 @@ static RefPtr<IDBKey> idbKeyFromInspectorObject(Ref<JSON::Object>&& key)
         if (!array)
             return nullptr;
 
-        Vector<RefPtr<IDBKey>> keyArray;
+        Vector<Ref<IDBKey>> keyArray;
         for (size_t i = 0; i < array->length(); ++i) {
             auto object = array->get(i)->asObject();
             if (!object)
                 return nullptr;
-            keyArray.append(idbKeyFromInspectorObject(object.releaseNonNull()));
+            keyArray.append(idbKeyFromInspectorObject(object.releaseNonNull()).releaseNonNull());
         }
-        return IDBKey::createArray(keyArray);
+        return IDBKey::createArray(WTF::move(keyArray));
     }
     }
 

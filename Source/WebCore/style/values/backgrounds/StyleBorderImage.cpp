@@ -28,8 +28,8 @@
 
 #include "CSSBorderImage.h"
 #include "CSSValueList.h"
-#include "RenderStyle+InitialInlines.h"
 #include "StyleBuilderChecking.h"
+#include "StyleComputedStyle+InitialInlines.h"
 #include "StylePrimitiveKeyword+CSSValueCreation.h"
 #include "StylePrimitiveKeyword+Logging.h"
 #include "StylePrimitiveKeyword+Serialization.h"
@@ -40,11 +40,11 @@ namespace WebCore {
 namespace Style {
 
 BorderImage::BorderImage()
-    : borderImageSource { RenderStyle::initialBorderImageSource() }
-    , borderImageSlice { RenderStyle::initialBorderImageSlice() }
-    , borderImageWidth { RenderStyle::initialBorderImageWidth() }
-    , borderImageOutset { RenderStyle::initialBorderImageOutset() }
-    , borderImageRepeat { RenderStyle::initialBorderImageRepeat() }
+    : borderImageSource { Style::ComputedStyle::initialBorderImageSource() }
+    , borderImageSlice { Style::ComputedStyle::initialBorderImageSlice() }
+    , borderImageWidth { Style::ComputedStyle::initialBorderImageWidth() }
+    , borderImageOutset { Style::ComputedStyle::initialBorderImageOutset() }
+    , borderImageRepeat { Style::ComputedStyle::initialBorderImageRepeat() }
 {
 }
 

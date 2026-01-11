@@ -486,7 +486,7 @@ bool FontCascade::hasValidAverageCharWidth() const
         return false;
 #endif
 
-    static constexpr auto names = std::to_array<ComparableASCIILiteral>({
+    static constexpr SortedArraySet set { std::to_array<ComparableASCIILiteral>({
         "#GungSeo"_s,
         "#HeadLineA"_s,
         "#PCMyungjo"_s,
@@ -521,8 +521,7 @@ bool FontCascade::hasValidAverageCharWidth() const
         "STHeiti"_s,
         "Symbol"_s,
         "Times"_s,
-    });
-    static constexpr SortedArraySet set { names };
+    }) };
     return !set.contains(family);
 }
 

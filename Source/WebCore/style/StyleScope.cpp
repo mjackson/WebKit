@@ -510,7 +510,7 @@ auto Scope::collectActiveStyleSheets() -> ActiveStyleSheetCollection
     return { WTF::move(sheets), WTF::move(styleSheetsForStyleSheetsList) };
 }
 
-Scope::StyleSheetChange Scope::analyzeStyleSheetChange(const Vector<RefPtr<CSSStyleSheet>>& newStylesheets)
+Scope::StyleSheetChange Scope::analyzeStyleSheetChange(const Vector<Ref<CSSStyleSheet>>& newStylesheets)
 {
     unsigned newStylesheetCount = newStylesheets.size();
 
@@ -551,7 +551,7 @@ Scope::StyleSheetChange Scope::analyzeStyleSheetChange(const Vector<RefPtr<CSSSt
     return { hasInsertions ? ResolverUpdateType::Reset : ResolverUpdateType::Additive, WTF::move(addedSheets) };
 }
 
-static void filterEnabledNonemptyCSSStyleSheets(Vector<RefPtr<CSSStyleSheet>>& result, const Vector<RefPtr<StyleSheet>>& sheets)
+static void filterEnabledNonemptyCSSStyleSheets(Vector<Ref<CSSStyleSheet>>& result, const Vector<RefPtr<StyleSheet>>& sheets)
 {
     for (auto& sheet : sheets) {
         auto* styleSheet = dynamicDowncast<CSSStyleSheet>(*sheet);
@@ -563,7 +563,7 @@ static void filterEnabledNonemptyCSSStyleSheets(Vector<RefPtr<CSSStyleSheet>>& r
             continue;
         if (!styleSheet->length())
             continue;
-        result.append(styleSheet);
+        result.append(*styleSheet);
     }
 }
 
@@ -585,7 +585,7 @@ void Scope::updateActiveStyleSheets(UpdateType updateType)
 
     auto collection = collectActiveStyleSheets();
 
-    Vector<RefPtr<CSSStyleSheet>> activeCSSStyleSheets;
+    Vector<Ref<CSSStyleSheet>> activeCSSStyleSheets;
 
     if (!isForUserAgentShadowTree()) {
         activeCSSStyleSheets.appendVector(m_document->extensionStyleSheets().injectedAuthorStyleSheets());
@@ -636,7 +636,7 @@ void Scope::invalidateStyleAfterStyleSheetChange(const StyleSheetChange& styleSh
     invalidator.invalidateStyle(*this);
 }
 
-void Scope::updateResolver(std::span<const RefPtr<CSSStyleSheet>> activeStyleSheets, ResolverUpdateType updateType)
+void Scope::updateResolver(std::span<const Ref<CSSStyleSheet>> activeStyleSheets, ResolverUpdateType updateType)
 {
     if (updateType == ResolverUpdateType::Reconstruct) {
         clearResolver();
@@ -663,13 +663,13 @@ void Scope::updateResolver(std::span<const RefPtr<CSSStyleSheet>> activeStyleShe
     m_resolver->appendAuthorStyleSheets(activeStyleSheets.subspan(firstNewIndex));
 }
 
-const Vector<RefPtr<CSSStyleSheet>> Scope::activeStyleSheetsForInspector()
+const Vector<Ref<CSSStyleSheet>> Scope::activeStyleSheetsForInspector()
 {
-    Vector<RefPtr<CSSStyleSheet>> result;
+    Vector<Ref<CSSStyleSheet>> result;
 
     if (CheckedPtr extensionStyleSheets = m_document->extensionStyleSheetsIfExists()) {
         if (auto* pageUserSheet = extensionStyleSheets->pageUserSheet())
-            result.append(pageUserSheet);
+            result.append(*pageUserSheet);
         result.appendVector(extensionStyleSheets->documentUserStyleSheets());
         result.appendVector(extensionStyleSheets->injectedUserStyleSheets());
         result.appendVector(extensionStyleSheets->injectedAuthorStyleSheets());
@@ -684,7 +684,7 @@ const Vector<RefPtr<CSSStyleSheet>> Scope::activeStyleSheetsForInspector()
         if (sheet->disabled())
             continue;
 
-        result.append(sheet);
+        result.append(*sheet);
     }
 
     return result;
@@ -697,7 +697,7 @@ bool Scope::activeStyleSheetsContains(const CSSStyleSheet& sheet) const
 
     if (m_weakCopyOfActiveStyleSheetListForFastLookup.isEmpty()) {
         for (auto& activeStyleSheet : m_activeStyleSheets)
-            m_weakCopyOfActiveStyleSheetListForFastLookup.add(*activeStyleSheet);
+            m_weakCopyOfActiveStyleSheetListForFastLookup.add(activeStyleSheet.get());
     }
     return m_weakCopyOfActiveStyleSheetListForFastLookup.contains(sheet);
 }

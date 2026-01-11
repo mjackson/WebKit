@@ -928,9 +928,9 @@ bool RemoteMediaPlayerProxy::doesHaveAttribute(const AtomString&, AtomString*) c
 }
 
 #if PLATFORM(COCOA)
-Vector<RefPtr<PlatformTextTrack>> RemoteMediaPlayerProxy::outOfBandTrackSources()
+Vector<Ref<PlatformTextTrack>> RemoteMediaPlayerProxy::outOfBandTrackSources()
 {
-    return WTF::map(m_configuration.outOfBandTrackData, [](auto& data) -> RefPtr<PlatformTextTrack> {
+    return WTF::map(m_configuration.outOfBandTrackData, [](auto& data) {
         return PlatformTextTrack::create(WTF::move(data));
     });
 }

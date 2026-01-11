@@ -114,7 +114,7 @@ TextPaintStyle computeTextPaintStyle(const RenderText& renderer, const RenderSty
         }
     }
 
-    paintStyle.fillColor = lineStyle.visitedDependentColorWithColorFilter(CSSPropertyWebkitTextFillColor, paintInfo.paintBehavior);
+    paintStyle.fillColor = lineStyle.visitedDependentTextFillColorApplyingColorFilter(paintInfo.paintBehavior);
 
     bool forceBackgroundToWhite = false;
     if (frame->document() && frame->protectedDocument()->printing()) {
@@ -134,13 +134,13 @@ TextPaintStyle computeTextPaintStyle(const RenderText& renderer, const RenderSty
     if (forceBackgroundToWhite)
         paintStyle.fillColor = adjustColorForVisibilityOnBackground(paintStyle.fillColor, Color::white);
 
-    paintStyle.strokeColor = lineStyle.colorByApplyingColorFilter(lineStyle.usedStrokeColor());
+    paintStyle.strokeColor = lineStyle.usedStrokeColorApplyingColorFilter();
 
     // Make the text stroke color legible against a white background
     if (forceBackgroundToWhite)
         paintStyle.strokeColor = adjustColorForVisibilityOnBackground(paintStyle.strokeColor, Color::white);
 
-    paintStyle.emphasisMarkColor = lineStyle.visitedDependentColorWithColorFilter(CSSPropertyTextEmphasisColor);
+    paintStyle.emphasisMarkColor = lineStyle.visitedDependentTextEmphasisColorApplyingColorFilter();
 
     // Make the text stroke color legible against a white background
     if (forceBackgroundToWhite)

@@ -168,7 +168,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(IgnoreSelectionChangeForScope);
 WTF_MAKE_TZONE_ALLOCATED_IMPL(Editor);
 
 static bool dispatchBeforeInputEvent(Element& element, const AtomString& inputType, IsInputMethodComposing isInputMethodComposing, const String& data = { },
-    RefPtr<DataTransfer>&& dataTransfer = nullptr, const Vector<RefPtr<StaticRange>>& targetRanges = { }, Event::IsCancelable cancelable = Event::IsCancelable::Yes)
+    RefPtr<DataTransfer>&& dataTransfer = nullptr, const Vector<Ref<StaticRange>>& targetRanges = { }, Event::IsCancelable cancelable = Event::IsCancelable::Yes)
 {
     auto event = InputEvent::create(eventNames().beforeinputEvent, inputType, cancelable, element.document().windowProxy(), data,
         WTF::move(dataTransfer), targetRanges, 0, isInputMethodComposing);
@@ -177,7 +177,7 @@ static bool dispatchBeforeInputEvent(Element& element, const AtomString& inputTy
 }
 
 static void dispatchInputEvent(Element& element, const AtomString& inputType, IsInputMethodComposing isInputMethodComposing, const String& data = { },
-    RefPtr<DataTransfer>&& dataTransfer = nullptr, const Vector<RefPtr<StaticRange>>& targetRanges = { })
+    RefPtr<DataTransfer>&& dataTransfer = nullptr, const Vector<Ref<StaticRange>>& targetRanges = { })
 {
     // FIXME: We should not be dispatching to the scoped queue here. Normally, input events are dispatched in CompositeEditCommand::apply after the end of the scope,
     // but TypingCommands are special in that existing TypingCommands that are applied again fire input events *from within* the scope by calling typingAddedToOpenCommand.
@@ -1203,7 +1203,7 @@ static inline void adjustMarkerTypesToRemoveForWordsAffectedByEditing(OptionSet<
 }
 
 static bool dispatchBeforeInputEvents(RefPtr<Element> startRoot, RefPtr<Element> endRoot, const AtomString& inputTypeName, IsInputMethodComposing isInputMethodComposing,
-    const String& data = { }, RefPtr<DataTransfer>&& dataTransfer = nullptr, const Vector<RefPtr<StaticRange>>& targetRanges = { }, Event::IsCancelable cancelable = Event::IsCancelable::Yes)
+    const String& data = { }, RefPtr<DataTransfer>&& dataTransfer = nullptr, const Vector<Ref<StaticRange>>& targetRanges = { }, Event::IsCancelable cancelable = Event::IsCancelable::Yes)
 {
     bool continueWithDefaultBehavior = true;
     if (startRoot)
@@ -1214,7 +1214,7 @@ static bool dispatchBeforeInputEvents(RefPtr<Element> startRoot, RefPtr<Element>
 }
 
 static void dispatchInputEvents(RefPtr<Element> startRoot, RefPtr<Element> endRoot, const AtomString& inputTypeName, IsInputMethodComposing isInputMethodComposing,
-    const String& data = { }, RefPtr<DataTransfer>&& dataTransfer = nullptr, const Vector<RefPtr<StaticRange>>& targetRanges = { })
+    const String& data = { }, RefPtr<DataTransfer>&& dataTransfer = nullptr, const Vector<Ref<StaticRange>>& targetRanges = { })
 {
     if (startRoot)
         dispatchInputEvent(*startRoot, inputTypeName, isInputMethodComposing, data, WTF::move(dataTransfer), targetRanges);
@@ -1222,7 +1222,7 @@ static void dispatchInputEvents(RefPtr<Element> startRoot, RefPtr<Element> endRo
         dispatchInputEvent(*endRoot, inputTypeName, isInputMethodComposing, data, WTF::move(dataTransfer), targetRanges);
 }
 
-bool Editor::willApplyEditing(CompositeEditCommand& command, Vector<RefPtr<StaticRange>>&& targetRanges)
+bool Editor::willApplyEditing(CompositeEditCommand& command, Vector<Ref<StaticRange>>&& targetRanges)
 {
 #if ENABLE(WRITING_TOOLS)
     if (suppressEditingForWritingTools()) {
@@ -4607,11 +4607,11 @@ FontAttributes Editor::fontAttributesAtSelectionStart()
 
     // FIXME: for now, always report the colors after applying -apple-color-filter. In future not all clients
     // may want this, so we may have to add a setting to control it. See also editingAttributedStringFromRange().
-    auto backgroundColor = style->visitedDependentColorWithColorFilter(CSSPropertyBackgroundColor);
+    auto backgroundColor = style->visitedDependentBackgroundColorApplyingColorFilter();
     if (backgroundColor.isVisible())
         attributes.backgroundColor = backgroundColor;
 
-    auto foregroundColor = style->visitedDependentColorWithColorFilter(CSSPropertyColor);
+    auto foregroundColor = style->visitedDependentColorApplyingColorFilter();
     // FIXME: isBlackColor not suitable for dark mode.
     if (foregroundColor.isValid() && !Color::isBlackColor(foregroundColor))
         attributes.foregroundColor = foregroundColor;
@@ -4621,10 +4621,14 @@ FontAttributes Editor::fontAttributesAtSelectionStart()
             return FontShadow { };
         },
         [&](const auto& shadows) {
+            Style::ColorResolver colorResolver { *style };
             const auto& zoomFactor = style->usedZoomForLength();
             return FontShadow {
-                style->colorWithColorFilter(shadows[0].color),
-                { shadows[0].location.x().resolveZoom(zoomFactor), shadows[0].location.y().resolveZoom(zoomFactor) },
+                colorResolver.colorResolvingCurrentColorApplyingColorFilter(shadows[0].color),
+                {
+                    shadows[0].location.x().resolveZoom(zoomFactor),
+                    shadows[0].location.y().resolveZoom(zoomFactor),
+                },
                 shadows[0].blur.resolveZoom(zoomFactor)
             };
         }

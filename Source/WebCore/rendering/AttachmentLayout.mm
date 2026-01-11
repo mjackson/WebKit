@@ -132,7 +132,10 @@ void AttachmentLayout::layOutSubtitle(const RenderAttachment& attachment)
     String subtitleText = attachment.attachmentElement().attachmentSubtitleForDisplay();
     if (subtitleText.isEmpty())
         return;
-    auto subtitleColor = attachment.style().colorByApplyingColorFilter(attachmentSubtitleTextColor);
+
+    Style::ColorResolver colorResolver { attachment.style() };
+    auto subtitleColor = colorResolver.colorApplyingColorFilter(attachmentSubtitleTextColor);
+
     CFStringRef language = nullptr; // By not specifying a language we use the system language.
     auto font = adoptCF(CTFontCreateUIFontForLanguage(kCTFontUIFontSystem, attachmentSubtitleFontSize, language));
     NSDictionary *textAttributes = @{
@@ -221,7 +224,7 @@ static RetainPtr<CTFontRef> attachmentActionFont()
 
 static RetainPtr<UIColor> attachmentActionColor(const RenderAttachment& attachment)
 {
-    return cocoaColor(attachment.style().visitedDependentColor(CSSPropertyColor));
+    return cocoaColor(attachment.style().visitedDependentColor());
 }
 
 static RetainPtr<CTFontRef> attachmentTitleFont()

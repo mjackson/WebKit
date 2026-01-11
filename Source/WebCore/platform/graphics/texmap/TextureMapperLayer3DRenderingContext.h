@@ -40,7 +40,7 @@ class FloatPlane3D;
 class TextureMapper;
 
 class TextureMapperLayer3DRenderingContext final {
-    WTF_MAKE_TZONE_ALLOCATED(TextureMapperLayerPreserves3DContext);
+    WTF_MAKE_TZONE_ALLOCATED(TextureMapperLayer3DRenderingContext);
 public:
     void paint(TextureMapper&, const Vector<TextureMapperLayer*>&,
         const std::function<void(TextureMapperLayer*, const ClipPath&)>&);

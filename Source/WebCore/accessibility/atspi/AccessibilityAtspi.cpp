@@ -612,7 +612,7 @@ struct RoleNameEntry {
     const char* localizedName;
 };
 
-static constexpr auto roleNames = std::to_array<std::pair<AccessibilityRole, RoleNameEntry>>({
+static constexpr SortedArrayMap roleNamesMap { std::to_array<std::pair<AccessibilityRole, RoleNameEntry>>({
     { AccessibilityRole::Application, { "application", N_("application") } },
     { AccessibilityRole::ApplicationAlert, { "notification", N_("notification") } },
     { AccessibilityRole::ApplicationAlertDialog, { "alert", N_("alert") } },
@@ -727,11 +727,10 @@ static constexpr auto roleNames = std::to_array<std::pair<AccessibilityRole, Rol
     { AccessibilityRole::UserInterfaceTooltip, { "tool tip", N_("tool tip") } },
     { AccessibilityRole::Video, { "video", N_("video") } },
     { AccessibilityRole::WebArea, { "document web", N_("document web") } },
-});
+}) };
 
 const char* AccessibilityAtspi::localizedRoleName(AccessibilityRole role)
 {
-    static constexpr SortedArrayMap roleNamesMap { roleNames };
     if (auto entry = roleNamesMap.tryGet(role))
         return entry->localizedName;
 
@@ -840,7 +839,7 @@ namespace Accessibility {
 PlatformRoleMap createPlatformRoleMap()
 {
     PlatformRoleMap roleMap;
-    for (const auto& entry : roleNames)
+    for (const auto& entry : roleNamesMap.array())
         roleMap.add(static_cast<unsigned>(entry.first), String::fromUTF8(entry.second.name));
     return roleMap;
 }

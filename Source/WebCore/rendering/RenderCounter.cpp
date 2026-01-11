@@ -221,7 +221,7 @@ static std::optional<CounterPlan> planCounter(RenderElement& renderer, const Ato
             return std::nullopt;
     }
 
-    auto directives = style.counterDirectives().map.get(identifier);
+    auto directives = style.usedCounterDirectives().map.get(identifier);
 
     if (identifier == "list-item"_s) {
         auto itemDirectives = listItemCounterDirectives(renderer);
@@ -289,7 +289,7 @@ static CounterInsertionPoint findPlaceForCounter(RenderElement& counterOwner, co
         Vector<RenderElement*> previousRenderers;
         RenderElement* current = currentRenderer;
         while (current && !current->hasCounterNodeMap()) {
-            if (!current->style().counterDirectives().map.isEmpty())
+            if (!current->style().usedCounterDirectives().map.isEmpty())
                 previousRenderers.append(current);
             current = previousInPreOrderRespectingContainment(*current);
         }
@@ -551,8 +551,8 @@ void RenderCounter::rendererStyleChangedSlowCase(RenderElement& renderer, const 
         return; // cannot have generated content or if it can have, it will be handled during attaching
 
     const CounterDirectiveMap* oldCounterDirectives;
-    if (oldStyle && !(oldCounterDirectives = &oldStyle->counterDirectives())->map.isEmpty()) {
-        if (auto& newCounterDirectives = newStyle.counterDirectives().map; !newCounterDirectives.isEmpty()) {
+    if (oldStyle && !(oldCounterDirectives = &oldStyle->usedCounterDirectives())->map.isEmpty()) {
+        if (auto& newCounterDirectives = newStyle.usedCounterDirectives().map; !newCounterDirectives.isEmpty()) {
             for (auto& keyValue : newCounterDirectives) {
                 auto existingEntry = oldCounterDirectives->map.find(keyValue.key);
                 if (existingEntry != oldCounterDirectives->map.end()) {
@@ -578,7 +578,7 @@ void RenderCounter::rendererStyleChangedSlowCase(RenderElement& renderer, const 
         if (renderer.hasCounterNodeMap())
             RenderCounter::destroyCounterNodes(renderer);
 
-        for (auto& key : newStyle.counterDirectives().map.keys()) {
+        for (auto& key : newStyle.usedCounterDirectives().map.keys()) {
             // We must create this node here, because the added node may be a node with no display such as
             // as those created by the increment or reset directives and the re-layout that will happen will
             // not catch the change if the node had no children.

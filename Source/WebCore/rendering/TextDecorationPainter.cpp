@@ -277,7 +277,8 @@ void TextDecorationPainter::paintBackgroundDecorations(const RenderStyle& style,
                 boxOrigin.move(0, -extraOffset);
                 extraOffset = 0;
             }
-            auto shadowColor = style.colorResolvingCurrentColor(shadow.color);
+            Style::ColorResolver colorResolver { style };
+            auto shadowColor = colorResolver.colorResolvingCurrentColor(shadow.color);
 
             m_shadowColorFilter.transformColor(shadowColor);
 
@@ -383,7 +384,7 @@ Color TextDecorationPainter::decorationColor(const RenderStyle& style, OptionSet
     if (paintBehavior.contains(PaintBehavior::ForceWhiteText))
         return Color::white;
 
-    return style.visitedDependentColorWithColorFilter(CSSPropertyTextDecorationColor, paintBehavior);
+    return style.visitedDependentTextDecorationColorApplyingColorFilter(paintBehavior);
 }
 
 auto TextDecorationPainter::stylesForRenderer(const RenderObject& renderer, Style::TextDecorationLine requestedDecorations, bool firstLineStyle, OptionSet<PaintBehavior> paintBehavior, std::optional<PseudoElementType> pseudoElementType) -> Styles

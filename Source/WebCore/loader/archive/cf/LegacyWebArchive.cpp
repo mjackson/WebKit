@@ -631,8 +631,8 @@ static HashMap<Ref<CSSStyleSheet>, String> addSubresourcesForCSSStyleSheetsIfNec
         if (uniqueCSSStyleSheets.contains(*cssStyleSheet))
             continue;
 
-        HashSet<RefPtr<CSSStyleSheet>> cssStyleSheets;
-        cssStyleSheets.add(cssStyleSheet.get());
+        HashSet<Ref<CSSStyleSheet>> cssStyleSheets;
+        cssStyleSheets.add(*cssStyleSheet);
         cssStyleSheet->getChildStyleSheets(cssStyleSheets);
         for (auto& currentCSSStyleSheet : cssStyleSheets) {
             bool isExternalStyleSheet = !currentCSSStyleSheet->href().isEmpty() || currentCSSStyleSheet->ownerRule();
@@ -643,7 +643,7 @@ static HashMap<Ref<CSSStyleSheet>, String> addSubresourcesForCSSStyleSheetsIfNec
             if (url.isNull() || url.isEmpty())
                 continue;
 
-            auto addResult = uniqueCSSStyleSheets.add(*currentCSSStyleSheet, emptyString());
+            auto addResult = uniqueCSSStyleSheets.add(currentCSSStyleSheet.copyRef(), emptyString());
             if (!addResult.isNewEntry)
                 continue;
 
@@ -662,7 +662,7 @@ static HashMap<Ref<CSSStyleSheet>, String> addSubresourcesForCSSStyleSheetsIfNec
             String subresourceFileName = generateValidFileName(url, uniqueFileNames, extension);
             uniqueFileNames.add(subresourceFileName);
             addResult.iterator->value = FileSystem::pathByAppendingComponent(subresourcesDirectoryName, subresourceFileName);
-            serializationContext.replacementURLStringsForCSSStyleSheet.add(*currentCSSStyleSheet, subresourceFileName);
+            serializationContext.replacementURLStringsForCSSStyleSheet.add(currentCSSStyleSheet.copyRef(), subresourceFileName);
         }
     }
 

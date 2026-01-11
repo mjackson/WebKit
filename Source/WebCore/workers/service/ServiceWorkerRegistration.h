@@ -28,6 +28,7 @@
 #include "ActiveDOMObject.h"
 #include "CookieStoreManager.h"
 #include "EventTarget.h"
+#include "EventTargetInterfaces.h"
 #include "JSDOMPromiseDeferredForward.h"
 #include "Notification.h"
 #include "NotificationOptions.h"
@@ -144,3 +145,5 @@ private:
 WebCoreOpaqueRoot root(ServiceWorkerRegistration*);
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(ServiceWorkerRegistration)

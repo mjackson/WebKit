@@ -1576,6 +1576,9 @@
 /* This is the %s subtitle style (Caption User Preferences) */
 "This is the %s subtitle style" = "This is the %s subtitle style";
 
+/* Caption Style Preview String */
+"This is a preview style" = "This is a preview style";
+
 /* Not Secure Connection warning text */
 "This website does not support connecting securely over HTTPS. The information you see and enter on this website, including credit cards, phone numbers, and passwords, can be read and altered by other people." = "This website does not support connecting securely over HTTPS. The information you see and enter on this website, including credit cards, phone numbers, and passwords, can be read and altered by other people.";
 

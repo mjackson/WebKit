@@ -2199,7 +2199,7 @@ static unsigned traverseSubtreeToUpdateTreeScope(Node& root, NOESCAPE const Move
 
         if (element->hasSyntheticAttrChildNodes()) {
             for (auto& attr : element->attrNodeList()) {
-                moveNode(*attr);
+                moveNode(attr);
                 ++count;
             }
         }

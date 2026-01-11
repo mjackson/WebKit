@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2017-2024 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,15 +26,11 @@
 #include "config.h"
 #include "RenderTreeBuilderFormControls.h"
 
-#include "HTMLInputElement.h"
-#include "InputType.h"
 #include "RenderBlockFlow.h"
 #include "RenderBlockInlines.h"
 #include "RenderButton.h"
-#include "RenderDescendantIterator.h"
 #include "RenderMenuList.h"
 #include "RenderTreeBuilderBlock.h"
-#include "Settings.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
@@ -101,53 +97,6 @@ RenderBlock& RenderTreeBuilder::FormControls::findOrCreateParentForChild(RenderM
     m_builder.blockBuilder().attach(parent, WTF::move(wrapper), nullptr);
     parent.setInnerRenderer(*innerRenderer);
     return *innerRenderer;
-}
-
-void RenderTreeBuilder::FormControls::updateCheckmark(RenderBlockFlow& flow)
-{
-    RefPtr inputElement = dynamicDowncast<HTMLInputElement>(flow.element());
-    ASSERT(inputElement);
-
-    auto pseudoStyle = flow.getCachedPseudoStyle({ PseudoElementType::Checkmark });
-    if (!pseudoStyle)
-        return;
-
-    auto shouldHaveCheckmarkRenderer = [&]() -> bool {
-        return flow.style().appearance() == StyleAppearance::Base && pseudoStyle->display() != DisplayType::None;
-    };
-
-    for (CheckedRef child : childrenOfType<RenderElement>(flow)) {
-        if (child->style().pseudoElementType() == PseudoElementType::Checkmark) {
-            if (!shouldHaveCheckmarkRenderer())
-                m_builder.destroy(child);
-            return;
-        }
-    }
-
-    if (!shouldHaveCheckmarkRenderer())
-        return;
-
-    Ref document = flow.document();
-    auto checkmarkStyle = RenderStyle::clone(*pseudoStyle);
-
-    RenderPtr<RenderBlockFlow> checkmark = createRenderer<RenderBlockFlow>(RenderObject::Type::BlockFlow, document, WTF::move(checkmarkStyle));
-    checkmark->initializeStyle();
-
-    m_builder.attach(flow, WTF::move(checkmark));
-}
-
-void RenderTreeBuilder::FormControls::updateAfterDescendants(RenderBlockFlow& flow)
-{
-    RefPtr inputElement = dynamicDowncast<HTMLInputElement>(flow.element());
-    if (!inputElement)
-        return;
-
-    RefPtr inputType = inputElement->inputType();
-    if (!inputType)
-        return;
-
-    if (inputType->isCheckable())
-        updateCheckmark(flow);
 }
 
 }

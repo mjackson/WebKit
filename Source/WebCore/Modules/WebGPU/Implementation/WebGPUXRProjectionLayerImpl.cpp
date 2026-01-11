@@ -37,6 +37,8 @@
 
 namespace WebCore::WebGPU {
 
+WTF_MAKE_TZONE_ALLOCATED_IMPL(XRProjectionLayerImpl);
+
 XRProjectionLayerImpl::XRProjectionLayerImpl(WebGPUPtr<WGPUXRProjectionLayer>&& projectionLayer, ConvertToBackingContext& convertToBackingContext)
     : m_backing(WTF::move(projectionLayer))
     , m_convertToBackingContext(convertToBackingContext)

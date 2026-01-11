@@ -129,6 +129,8 @@ private:
 
     void updateDirectionForStartOfInsertedContentIfNeeded(const InsertedNodes&);
 
+    void removeForegroundColorsInDarkModeIfNeeded(const InsertedNodes&);
+
     RefPtr<DocumentFragment> protectedDocumentFragment() const { return m_documentFragment; }
 
     VisibleSelection m_visibleSelectionForInsertedText;

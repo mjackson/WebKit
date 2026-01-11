@@ -796,8 +796,8 @@ void WebAutomationSessionProxy::computeElementLayout(WebCore::PageIdentifier pag
 
     auto elementInViewCenterPoint = visiblePortionOfElementRect.center();
     auto elementList = containerElement->protectedTreeScope()->elementsFromPoint(elementInViewCenterPoint.x(), elementInViewCenterPoint.y(), WebCore::HitTestSource::User);
-    auto index = elementList.findIf([containerElement] (auto& item) {
-        return item.get() == containerElement.get();
+    auto index = elementList.findIf([containerElement](auto& item) {
+        return item.ptr() == containerElement;
     });
     if (elementList.isEmpty() || index == notFound) {
         // We hit this case if the element is visibility:hidden or opacity:0, in which case it will not hit test
@@ -812,7 +812,7 @@ void WebAutomationSessionProxy::computeElementLayout(WebCore::PageIdentifier pag
     // Check the case where a non-descendant element hit tests before the target element. For example, a child <option>
     // of a <select> does not obscure the <select>, but two sibling <div> that overlap at the IVCP will obscure each other.
     // Node::isDescendantOf() is not self-inclusive, so that is explicitly checked here.
-    isObscured = elementList[0] != containerElement && !RefPtr { elementList[0] }->isShadowIncludingDescendantOf(containerElement.get());
+    isObscured = elementList[0].ptr() != containerElement && !Ref { elementList[0] }->isShadowIncludingDescendantOf(containerElement.get());
 
     switch (coordinateSystem) {
     case CoordinateSystem::Page:

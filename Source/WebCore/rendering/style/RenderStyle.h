@@ -5,7 +5,7 @@
  * Copyright (C) 2003-2023 Apple Inc. All rights reserved.
  * Copyright (C) 2014-2021 Google Inc. All rights reserved.
  * Copyright (C) 2006 Graham Dennis (graham.dennis@gmail.com)
- * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025-2026 Samuel Weinig <sam@webkit.org>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -38,7 +38,7 @@ public:
     explicit RenderStyle(CreateDefaultStyleTag);
     RenderStyle(const RenderStyle&, CloneTag);
 
-    WARN_UNUSED_RETURN RenderStyle replace(RenderStyle&&);
+    [[nodiscard]] RenderStyle replace(RenderStyle&&);
 
     static RenderStyle& defaultStyleSingleton();
 
@@ -88,7 +88,8 @@ public:
 
     // MARK: - Style adjustment utilities
 
-    void setColumnStylesFromPaginationMode(PaginationMode);
+    inline void setPageScaleTransform(float);
+    inline void setColumnStylesFromPaginationMode(PaginationMode);
     inline void addToTextDecorationLineInEffect(Style::TextDecorationLine);
     inline void containIntrinsicWidthAddAuto();
     inline void containIntrinsicHeightAddAuto();
@@ -122,35 +123,14 @@ public:
 #endif
 
     // MARK: - Logical Values
-    // FIXME: Generate the logical getter/setters on RenderStyleProperties.
 
-    // Logical Inset
+    // Logical Inset aliases
     inline const Style::InsetEdge& logicalLeft() const;
     inline const Style::InsetEdge& logicalRight() const;
     inline const Style::InsetEdge& logicalTop() const;
     inline const Style::InsetEdge& logicalBottom() const;
 
-    // Logical Sizing
-    inline const Style::PreferredSize& logicalWidth(const WritingMode) const;
-    inline const Style::PreferredSize& logicalHeight(const WritingMode) const;
-    inline const Style::MinimumSize& logicalMinWidth(const WritingMode) const;
-    inline const Style::MinimumSize& logicalMinHeight(const WritingMode) const;
-    inline const Style::MaximumSize& logicalMaxWidth(const WritingMode) const;
-    inline const Style::MaximumSize& logicalMaxHeight(const WritingMode) const;
-    inline const Style::PreferredSize& logicalWidth() const;
-    inline const Style::PreferredSize& logicalHeight() const;
-    inline const Style::MinimumSize& logicalMinWidth() const;
-    inline const Style::MinimumSize& logicalMinHeight() const;
-    inline const Style::MaximumSize& logicalMaxWidth() const;
-    inline const Style::MaximumSize& logicalMaxHeight() const;
-    inline void setLogicalWidth(Style::PreferredSize&&);
-    inline void setLogicalHeight(Style::PreferredSize&&);
-    inline void setLogicalMinWidth(Style::MinimumSize&&);
-    inline void setLogicalMinHeight(Style::MinimumSize&&);
-    inline void setLogicalMaxWidth(Style::MaximumSize&&);
-    inline void setLogicalMaxHeight(Style::MaximumSize&&);
-
-    // Logical Border
+    // Logical Border (aggregate)
     const BorderValue& borderBefore(const WritingMode) const;
     const BorderValue& borderAfter(const WritingMode) const;
     const BorderValue& borderStart(const WritingMode) const;
@@ -159,52 +139,12 @@ public:
     inline const BorderValue& borderAfter() const;
     inline const BorderValue& borderStart() const;
     inline const BorderValue& borderEnd() const;
-    Style::LineWidth borderBeforeWidth(const WritingMode) const;
-    Style::LineWidth borderAfterWidth(const WritingMode) const;
-    Style::LineWidth borderStartWidth(const WritingMode) const;
-    Style::LineWidth borderEndWidth(const WritingMode) const;
-    inline Style::LineWidth borderBeforeWidth() const;
-    inline Style::LineWidth borderAfterWidth() const;
-    inline Style::LineWidth borderStartWidth() const;
-    inline Style::LineWidth borderEndWidth() const;
-
-    // Logical Margin
-    inline const Style::MarginEdge& marginStart(const WritingMode) const;
-    inline const Style::MarginEdge& marginEnd(const WritingMode) const;
-    inline const Style::MarginEdge& marginBefore(const WritingMode) const;
-    inline const Style::MarginEdge& marginAfter(const WritingMode) const;
-    inline const Style::MarginEdge& marginBefore() const;
-    inline const Style::MarginEdge& marginAfter() const;
-    inline const Style::MarginEdge& marginStart() const;
-    inline const Style::MarginEdge& marginEnd() const;
-    void setMarginStart(Style::MarginEdge&&);
-    void setMarginEnd(Style::MarginEdge&&);
-    void setMarginBefore(Style::MarginEdge&&);
-    void setMarginAfter(Style::MarginEdge&&);
-
-    // Logical Padding
-    inline const Style::PaddingEdge& paddingBefore(const WritingMode) const;
-    inline const Style::PaddingEdge& paddingAfter(const WritingMode) const;
-    inline const Style::PaddingEdge& paddingStart(const WritingMode) const;
-    inline const Style::PaddingEdge& paddingEnd(const WritingMode) const;
-    inline const Style::PaddingEdge& paddingBefore() const;
-    inline const Style::PaddingEdge& paddingAfter() const;
-    inline const Style::PaddingEdge& paddingStart() const;
-    inline const Style::PaddingEdge& paddingEnd() const;
-    void setPaddingStart(Style::PaddingEdge&&);
-    void setPaddingEnd(Style::PaddingEdge&&);
-    void setPaddingBefore(Style::PaddingEdge&&);
-    void setPaddingAfter(Style::PaddingEdge&&);
 
     // Logical Aspect Ratio
     inline Style::Number<CSS::Nonnegative> aspectRatioLogicalWidth() const;
     inline Style::Number<CSS::Nonnegative> aspectRatioLogicalHeight() const;
     inline double logicalAspectRatio() const;
     inline BoxSizing boxSizingForAspectRatio() const;
-
-    // Logical ContainIntrinsicSize
-    inline const Style::ContainIntrinsicSize& containIntrinsicLogicalWidth() const;
-    inline const Style::ContainIntrinsicSize& containIntrinsicLogicalHeight() const;
 
     // Logical Grid
     inline const Style::GridTrackSizes& gridAutoList(Style::GridTrackSizingDirection) const;
@@ -225,11 +165,11 @@ public:
 
     // MARK: - Used Values
 
-    float outlineSize() const; // used value combining `outline-width` and `outline-offset`
     String altFromContent() const;
     const AtomString& hyphenString() const;
     float usedStrokeWidth(const IntSize& viewportSize) const;
     Color usedStrokeColor() const;
+    Color usedStrokeColorApplyingColorFilter() const;
     inline PointerEvents usedPointerEvents() const;
     inline Visibility usedVisibility() const;
     inline UserModify usedUserModify() const;
@@ -243,12 +183,35 @@ public:
     static UsedFloat usedFloat(const RenderElement&); // Returns logical left/right (block-relative).
     static UsedClear usedClear(const RenderElement&); // Returns logical left/right (block-relative).
 
+    Style::LineWidth usedColumnRuleWidth() const;
+
+    Style::Length<> usedOutlineOffset() const;
+    Style::LineWidth usedOutlineWidth() const;
+    float usedOutlineSize() const; // used value combining `outline-width` and `outline-offset`
+
+    inline decltype(auto) usedBorderWidths() const;
+    inline Style::LineWidth usedBorderBottomWidth() const;
+    inline Style::LineWidth usedBorderLeftWidth() const;
+    inline Style::LineWidth usedBorderRightWidth() const;
+    inline Style::LineWidth usedBorderTopWidth() const;
+    inline Style::LineWidth usedBorderWidthStart(WritingMode) const;
+    inline Style::LineWidth usedBorderWidthEnd(WritingMode) const;
+    inline Style::LineWidth usedBorderWidthBefore(WritingMode) const;
+    inline Style::LineWidth usedBorderWidthAfter(WritingMode) const;
+    inline Style::LineWidth usedBorderWidthLogicalLeft(WritingMode) const;
+    inline Style::LineWidth usedBorderWidthLogicalRight(WritingMode) const;
+    inline Style::LineWidth usedBorderWidthStart() const;
+    inline Style::LineWidth usedBorderWidthEnd() const;
+    inline Style::LineWidth usedBorderWidthBefore() const;
+    inline Style::LineWidth usedBorderWidthAfter() const;
+    inline Style::LineWidth usedBorderWidthLogicalLeft() const;
+    inline Style::LineWidth usedBorderWidthLogicalRight() const;
+
     // MARK: - has*()
 
     inline bool hasAnimations() const;
     inline bool hasAnimationsOrTransitions() const;
     inline bool hasAppearance() const;
-    inline bool hasAppleColorFilter() const;
     inline bool hasAspectRatio() const;
     inline bool hasAutoLengthContainIntrinsicSize() const;
     inline bool hasBackdropFilter() const;
@@ -331,12 +294,6 @@ public:
 
     inline bool specifiesColumns() const;
 
-    inline bool columnRuleIsTransparent() const;
-    inline bool borderLeftIsTransparent() const;
-    inline bool borderRightIsTransparent() const;
-    inline bool borderTopIsTransparent() const;
-    inline bool borderBottomIsTransparent() const;
-
     inline bool usesStandardScrollbarStyle() const;
     inline bool usesLegacyScrollbarStyle() const;
     inline bool shouldPlaceVerticalScrollbarOnLeft() const;
@@ -350,8 +307,6 @@ public:
     static constexpr bool preserveNewline(WhiteSpaceCollapse);
     static constexpr bool collapseWhiteSpace(WhiteSpaceCollapse);
 
-    // MARK: - Transforms
-
     // Return true if any transform related property (currently transform, translate, scale, rotate, transformStyle3D or perspective)
     // indicates that we are transforming. The usedTransformStyle3D is not used here because in many cases (such as for deciding
     // whether or not to establish a containing block), the computed value is what matters.
@@ -359,57 +314,9 @@ public:
     inline bool preserves3D() const;
     inline bool affectsTransform() const;
 
-    enum class TransformOperationOption : uint8_t {
-        TransformOrigin = 1 << 0,
-        Translate       = 1 << 1,
-        Rotate          = 1 << 2,
-        Scale           = 1 << 3,
-        Offset          = 1 << 4
-    };
-
-    static constexpr OptionSet<TransformOperationOption> allTransformOperations();
-    static constexpr OptionSet<TransformOperationOption> individualTransformOperations();
-
-    bool affectedByTransformOrigin() const;
-
-    FloatPoint computePerspectiveOrigin(const FloatRect& boundingBox) const;
-    void applyPerspective(TransformationMatrix&, const FloatPoint& originTranslate) const;
-
-    FloatPoint3D computeTransformOrigin(const FloatRect& boundingBox) const;
-    void applyTransformOrigin(TransformationMatrix&, const FloatPoint3D& originTranslate) const;
-    void unapplyTransformOrigin(TransformationMatrix&, const FloatPoint3D& originTranslate) const;
-
-    // applyTransform calls applyTransformOrigin(), then applyCSSTransform(), followed by unapplyTransformOrigin().
-    void applyTransform(TransformationMatrix&, const TransformOperationData& boundingBox) const;
-    void applyTransform(TransformationMatrix&, const TransformOperationData& boundingBox, OptionSet<TransformOperationOption>) const;
-    void applyCSSTransform(TransformationMatrix&, const TransformOperationData& boundingBox) const;
-    void applyCSSTransform(TransformationMatrix&, const TransformOperationData& boundingBox, OptionSet<TransformOperationOption>) const;
-    void setPageScaleTransform(float);
-
-    // MARK: - Colors
-
-    // Resolves the currentColor keyword, but must not be used for the "color" property which has a different semantic.
-    Color colorResolvingCurrentColor(CSSPropertyID colorProperty, bool visitedLink) const;
-    WEBCORE_EXPORT Color colorResolvingCurrentColor(const Style::Color&, bool visitedLink = false) const;
-    WEBCORE_EXPORT Color visitedDependentColor(CSSPropertyID, OptionSet<PaintBehavior> = { }) const;
-    WEBCORE_EXPORT Color visitedDependentColorWithColorFilter(CSSPropertyID, OptionSet<PaintBehavior> = { }) const;
-    WEBCORE_EXPORT Color colorByApplyingColorFilter(const Color&) const;
-    WEBCORE_EXPORT Color colorWithColorFilter(const Style::Color&) const;
-
-    // MARK: - Non-property initial values.
-
-    static inline Style::PageSize initialPageSize();
-    static constexpr Style::ZIndex initialUsedZIndex();
-#if ENABLE(TEXT_AUTOSIZING)
-    static inline Style::LineHeight initialSpecifiedLineHeight();
-#endif
-
 private:
     // This constructor is used to implement the replace operation.
     RenderStyle(RenderStyle&, RenderStyle&&);
-
-    inline const Style::Color& unresolvedColorForProperty(CSSPropertyID, bool visitedLink = false) const;
-    inline CSSPropertyID usedStrokeColorProperty() const;
 
     inline bool hasAutoLeftAndRight() const;
     inline bool hasAutoTopAndBottom() const;

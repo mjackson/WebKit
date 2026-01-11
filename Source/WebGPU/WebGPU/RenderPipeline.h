@@ -43,7 +43,6 @@ namespace WebGPU {
 
 class BindGroupLayout;
 class Device;
-class PipelineLayout;
 class TextureOrTextureView;
 class TextureView;
 

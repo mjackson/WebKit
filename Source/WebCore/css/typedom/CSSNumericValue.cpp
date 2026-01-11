@@ -217,9 +217,9 @@ static RefPtr<CSSNumericValue> operationOnValuesOfSameUnit(T&& operation, const 
         return unitValue ? unitValue->unitEnum() == downcast<CSSUnitValue>(values[0].get()).unitEnum() : false;
     });
     if (allValuesHaveSameUnit) {
-        auto& firstUnitValue = downcast<CSSUnitValue>(values[0].get());
-        auto unit = firstUnitValue.unitEnum();
-        double result = firstUnitValue.value();
+        Ref firstUnitValue = downcast<CSSUnitValue>(values[0]);
+        auto unit = firstUnitValue->unitEnum();
+        double result = firstUnitValue->value();
         for (size_t i = 1; i < values.size(); ++i)
             result = operation(result, downcast<CSSUnitValue>(values[i].get()).value());
         return CSSUnitValue::create(result, unit);

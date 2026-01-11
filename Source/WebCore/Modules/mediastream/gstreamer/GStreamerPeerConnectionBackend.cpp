@@ -328,7 +328,7 @@ ExceptionOr<Ref<RTCRtpSender>> GStreamerPeerConnectionBackend::addTrack(MediaStr
         RefPtr<RTCRtpTransceiver> transceiver;
         for (const auto& currentTransceiver : protectedPeerConnection()->currentTransceivers()) {
             if (&currentTransceiver->sender() == sender.get()) {
-                transceiver = currentTransceiver;
+                transceiver = currentTransceiver.ptr();
                 break;
             }
         }
@@ -411,8 +411,8 @@ static inline GStreamerRtpTransceiverBackend& backendFromRTPTransceiver(RTCRtpTr
 RefPtr<RTCRtpTransceiver> GStreamerPeerConnectionBackend::existingTransceiver(WTF::Function<bool(GStreamerRtpTransceiverBackend&)>&& matchingFunction)
 {
     for (auto& transceiver : protectedPeerConnection()->currentTransceivers()) {
-        if (matchingFunction(backendFromRTPTransceiver(*transceiver)))
-            return transceiver;
+        if (matchingFunction(backendFromRTPTransceiver(transceiver)))
+            return transceiver.ptr();
     }
     return nullptr;
 }
@@ -489,7 +489,7 @@ void GStreamerPeerConnectionBackend::tearDown()
         if (auto receiverBackend = receiver.backend())
             static_cast<GStreamerRtpReceiverBackend*>(receiverBackend)->tearDown();
 
-        auto& backend = backendFromRTPTransceiver(*transceiver);
+        auto& backend = backendFromRTPTransceiver(transceiver);
         backend.tearDown();
     }
     connection().clearTransports();

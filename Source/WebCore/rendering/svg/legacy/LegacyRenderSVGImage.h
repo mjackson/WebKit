@@ -69,6 +69,7 @@ private:
     FloatRect objectBoundingBox() const override { return m_objectBoundingBox; }
     FloatRect strokeBoundingBox() const override { return m_objectBoundingBox; }
     FloatRect repaintRectInLocalCoordinates(RepaintRectCalculation = RepaintRectCalculation::Fast) const override { return m_repaintBoundingBox; }
+    FloatRect decoratedBoundingBox() const override { return m_objectBoundingBox; }
 
     void addFocusRingRects(Vector<LayoutRect>&, const LayoutPoint& additionalOffset, const RenderLayerModelObject* paintContainer = 0) const override;
 

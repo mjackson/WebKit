@@ -29,6 +29,7 @@
 #include "JSCJSValue.h"
 #include "JSGlobalObject.h"
 #include "JSString.h"
+#include <wtf/text/StringConcatenateNumbers.h>
 
 namespace JSC {
 

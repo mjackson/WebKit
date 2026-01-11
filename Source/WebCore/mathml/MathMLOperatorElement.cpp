@@ -46,6 +46,7 @@ using namespace MathMLOperatorDictionary;
 MathMLOperatorElement::MathMLOperatorElement(const QualifiedName& tagName, Document& document)
     : MathMLTokenElement(tagName, document)
 {
+    ASSERT(hasTagName(MathMLNames::moTag));
 }
 
 Ref<MathMLOperatorElement> MathMLOperatorElement::create(const QualifiedName& tagName, Document& document)
@@ -270,10 +271,9 @@ void MathMLOperatorElement::attributeChanged(const QualifiedName& name, const At
 
 RenderPtr<RenderElement> MathMLOperatorElement::createElementRenderer(RenderStyle&& style, const RenderTreePosition&)
 {
-    ASSERT(hasTagName(MathMLNames::moTag));
     return createRenderer<RenderMathMLOperator>(RenderObject::Type::MathMLOperator, *this, WTF::move(style));
 }
 
-}
+} // namespace WebCore
 
 #endif // ENABLE(MATHML)

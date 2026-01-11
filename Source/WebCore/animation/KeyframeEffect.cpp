@@ -77,6 +77,7 @@
 #include "StyleResolver.h"
 #include "StyleScope.h"
 #include "StyleSingleAnimationRange.h"
+#include "StyleTransformResolver.h"
 #include "StyleWillChange.h"
 #include "StyledElement.h"
 #include "TimelineRangeOffset.h"
@@ -2529,8 +2530,7 @@ bool KeyframeEffect::computeExtentOfTransformAnimation(LayoutRect& bounds) const
     auto addStyleToCumulativeBounds = [&](const RenderStyle& style) {
         auto keyframeBounds = bounds;
 
-        TransformationMatrix transform;
-        style.applyTransform(transform, transformOperationData);
+        auto transform = Style::TransformResolver::computeTransform(style, transformOperationData);
         if (!transform.isAffine())
             return false;
 

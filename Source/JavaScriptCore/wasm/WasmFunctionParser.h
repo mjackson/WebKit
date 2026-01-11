@@ -155,8 +155,8 @@ public:
 
     FunctionParser(Context&, std::span<const uint8_t> function, const TypeDefinition&, const ModuleInformation&);
 
-    WARN_UNUSED_RETURN Result parse();
-    WARN_UNUSED_RETURN Result parseConstantExpression();
+    [[nodiscard]] Result parse();
+    [[nodiscard]] Result parseConstantExpression();
 
     OpType currentOpcode() const { return m_currentOpcode; }
     uint32_t currentExtendedOpcode() const { return m_currentExtOp; }
@@ -207,25 +207,25 @@ public:
 private:
     static constexpr bool verbose = false;
 
-    WARN_UNUSED_RETURN PartialResult parseBody();
-    WARN_UNUSED_RETURN PartialResult parseExpression();
-    WARN_UNUSED_RETURN PartialResult parseUnreachableExpression();
-    WARN_UNUSED_RETURN PartialResult unifyControl(ArgumentList&, unsigned level);
-    WARN_UNUSED_RETURN PartialResult checkLocalInitialized(uint32_t);
-    WARN_UNUSED_RETURN PartialResult checkExpressionStack(const ControlType&, bool forceSignature = false);
+    [[nodiscard]] PartialResult parseBody();
+    [[nodiscard]] PartialResult parseExpression();
+    [[nodiscard]] PartialResult parseUnreachableExpression();
+    [[nodiscard]] PartialResult unifyControl(ArgumentList&, unsigned level);
+    [[nodiscard]] PartialResult checkLocalInitialized(uint32_t);
+    [[nodiscard]] PartialResult checkExpressionStack(const ControlType&, bool forceSignature = false);
 
     enum BranchConditionalityTag {
         Unconditional,
         Conditional
     };
 
-    WARN_UNUSED_RETURN PartialResult checkBranchTarget(const ControlType&, BranchConditionalityTag);
+    [[nodiscard]] PartialResult checkBranchTarget(const ControlType&, BranchConditionalityTag);
 
-    WARN_UNUSED_RETURN PartialResult parseImmLaneIdx(uint8_t laneCount, uint8_t&);
-    WARN_UNUSED_RETURN PartialResult parseBlockSignature(const ModuleInformation&, BlockSignature&);
-    WARN_UNUSED_RETURN PartialResult parseReftypeSignature(const ModuleInformation&, BlockSignature&);
+    [[nodiscard]] PartialResult parseImmLaneIdx(uint8_t laneCount, uint8_t&);
+    [[nodiscard]] PartialResult parseBlockSignature(const ModuleInformation&, BlockSignature&);
+    [[nodiscard]] PartialResult parseReftypeSignature(const ModuleInformation&, BlockSignature&);
 
-    WARN_UNUSED_RETURN PartialResult parseNestedBlocksEagerly(bool&);
+    [[nodiscard]] PartialResult parseNestedBlocksEagerly(bool&);
     void switchToBlock(ControlType&&, Stack&&);
 
 #define WASM_TRY_POP_EXPRESSION_STACK_INTO(result, what) do { \
@@ -235,88 +235,88 @@ private:
     } while (0)
 
     using UnaryOperationHandler = PartialResult (Context::*)(ExpressionType, ExpressionType&);
-    WARN_UNUSED_RETURN PartialResult unaryCase(OpType, UnaryOperationHandler, Type returnType, Type operandType);
-    WARN_UNUSED_RETURN PartialResult unaryCompareCase(OpType, UnaryOperationHandler, Type returnType, Type operandType);
+    [[nodiscard]] PartialResult unaryCase(OpType, UnaryOperationHandler, Type returnType, Type operandType);
+    [[nodiscard]] PartialResult unaryCompareCase(OpType, UnaryOperationHandler, Type returnType, Type operandType);
     using BinaryOperationHandler = PartialResult (Context::*)(ExpressionType, ExpressionType, ExpressionType&);
-    WARN_UNUSED_RETURN PartialResult binaryCase(OpType, BinaryOperationHandler, Type returnType, Type lhsType, Type rhsType);
-    WARN_UNUSED_RETURN PartialResult binaryCompareCase(OpType, BinaryOperationHandler, Type returnType, Type lhsType, Type rhsType);
+    [[nodiscard]] PartialResult binaryCase(OpType, BinaryOperationHandler, Type returnType, Type lhsType, Type rhsType);
+    [[nodiscard]] PartialResult binaryCompareCase(OpType, BinaryOperationHandler, Type returnType, Type lhsType, Type rhsType);
 
-    WARN_UNUSED_RETURN PartialResult store(Type memoryType);
-    WARN_UNUSED_RETURN PartialResult load(Type memoryType);
+    [[nodiscard]] PartialResult store(Type memoryType);
+    [[nodiscard]] PartialResult load(Type memoryType);
 
-    WARN_UNUSED_RETURN PartialResult truncSaturated(Ext1OpType, Type returnType, Type operandType);
+    [[nodiscard]] PartialResult truncSaturated(Ext1OpType, Type returnType, Type operandType);
 
-    WARN_UNUSED_RETURN PartialResult atomicLoad(ExtAtomicOpType, Type memoryType);
-    WARN_UNUSED_RETURN PartialResult atomicStore(ExtAtomicOpType, Type memoryType);
-    WARN_UNUSED_RETURN PartialResult atomicBinaryRMW(ExtAtomicOpType, Type memoryType);
-    WARN_UNUSED_RETURN PartialResult atomicCompareExchange(ExtAtomicOpType, Type memoryType);
-    WARN_UNUSED_RETURN PartialResult atomicWait(ExtAtomicOpType, Type memoryType);
-    WARN_UNUSED_RETURN PartialResult atomicNotify(ExtAtomicOpType);
-    WARN_UNUSED_RETURN PartialResult atomicFence(ExtAtomicOpType);
+    [[nodiscard]] PartialResult atomicLoad(ExtAtomicOpType, Type memoryType);
+    [[nodiscard]] PartialResult atomicStore(ExtAtomicOpType, Type memoryType);
+    [[nodiscard]] PartialResult atomicBinaryRMW(ExtAtomicOpType, Type memoryType);
+    [[nodiscard]] PartialResult atomicCompareExchange(ExtAtomicOpType, Type memoryType);
+    [[nodiscard]] PartialResult atomicWait(ExtAtomicOpType, Type memoryType);
+    [[nodiscard]] PartialResult atomicNotify(ExtAtomicOpType);
+    [[nodiscard]] PartialResult atomicFence(ExtAtomicOpType);
 
 #if ENABLE(B3_JIT)
     template<bool isReachable, typename = void>
-    WARN_UNUSED_RETURN PartialResult simd(SIMDLaneOperation, SIMDLane, SIMDSignMode, B3::Air::Arg optionalRelation = { });
+    [[nodiscard]] PartialResult simd(SIMDLaneOperation, SIMDLane, SIMDSignMode, B3::Air::Arg optionalRelation = { });
 #endif
 
-    WARN_UNUSED_RETURN PartialResult parseTableIndex(unsigned&);
-    WARN_UNUSED_RETURN PartialResult parseElementIndex(unsigned&);
-    WARN_UNUSED_RETURN PartialResult parseDataSegmentIndex(unsigned&);
+    [[nodiscard]] PartialResult parseTableIndex(unsigned&);
+    [[nodiscard]] PartialResult parseElementIndex(unsigned&);
+    [[nodiscard]] PartialResult parseDataSegmentIndex(unsigned&);
 
-    WARN_UNUSED_RETURN PartialResult parseIndexForLocal(uint32_t&);
-    WARN_UNUSED_RETURN PartialResult parseIndexForGlobal(uint32_t&);
-    WARN_UNUSED_RETURN PartialResult parseFunctionIndex(FunctionSpaceIndex&);
-    WARN_UNUSED_RETURN PartialResult parseExceptionIndex(uint32_t&);
-    WARN_UNUSED_RETURN PartialResult parseBranchTarget(uint32_t&, uint32_t = 0);
-    WARN_UNUSED_RETURN PartialResult parseDelegateTarget(uint32_t&, uint32_t);
+    [[nodiscard]] PartialResult parseIndexForLocal(uint32_t&);
+    [[nodiscard]] PartialResult parseIndexForGlobal(uint32_t&);
+    [[nodiscard]] PartialResult parseFunctionIndex(FunctionSpaceIndex&);
+    [[nodiscard]] PartialResult parseExceptionIndex(uint32_t&);
+    [[nodiscard]] PartialResult parseBranchTarget(uint32_t&, uint32_t = 0);
+    [[nodiscard]] PartialResult parseDelegateTarget(uint32_t&, uint32_t);
 
     struct TableInitImmediates {
         unsigned elementIndex;
         unsigned tableIndex;
     };
-    WARN_UNUSED_RETURN PartialResult parseTableInitImmediates(TableInitImmediates&);
+    [[nodiscard]] PartialResult parseTableInitImmediates(TableInitImmediates&);
 
     struct TableCopyImmediates {
         unsigned srcTableIndex;
         unsigned dstTableIndex;
     };
-    WARN_UNUSED_RETURN PartialResult parseTableCopyImmediates(TableCopyImmediates&);
+    [[nodiscard]] PartialResult parseTableCopyImmediates(TableCopyImmediates&);
 
     struct AnnotatedSelectImmediates {
         unsigned sizeOfAnnotationVector;
         Type targetType;
     };
-    WARN_UNUSED_RETURN PartialResult parseAnnotatedSelectImmediates(AnnotatedSelectImmediates&);
+    [[nodiscard]] PartialResult parseAnnotatedSelectImmediates(AnnotatedSelectImmediates&);
 
-    WARN_UNUSED_RETURN PartialResult parseMemoryFillImmediate();
-    WARN_UNUSED_RETURN PartialResult parseMemoryCopyImmediates();
+    [[nodiscard]] PartialResult parseMemoryFillImmediate();
+    [[nodiscard]] PartialResult parseMemoryCopyImmediates();
 
     struct MemoryInitImmediates {
         unsigned dataSegmentIndex;
         unsigned unused;
     };
-    WARN_UNUSED_RETURN PartialResult parseMemoryInitImmediates(MemoryInitImmediates&);
+    [[nodiscard]] PartialResult parseMemoryInitImmediates(MemoryInitImmediates&);
 
-    WARN_UNUSED_RETURN PartialResult parseStructTypeIndex(uint32_t& structTypeIndex, ASCIILiteral operation);
-    WARN_UNUSED_RETURN PartialResult parseStructFieldIndex(uint32_t& structFieldIndex, const StructType&, ASCIILiteral operation);
+    [[nodiscard]] PartialResult parseStructTypeIndex(uint32_t& structTypeIndex, ASCIILiteral operation);
+    [[nodiscard]] PartialResult parseStructFieldIndex(uint32_t& structFieldIndex, const StructType&, ASCIILiteral operation);
 
     struct StructTypeIndexAndFieldIndex {
         uint32_t structTypeIndex;
         uint32_t fieldIndex;
     };
-    WARN_UNUSED_RETURN PartialResult parseStructTypeIndexAndFieldIndex(StructTypeIndexAndFieldIndex& result, ASCIILiteral operation);
+    [[nodiscard]] PartialResult parseStructTypeIndexAndFieldIndex(StructTypeIndexAndFieldIndex& result, ASCIILiteral operation);
 
     struct StructFieldManipulation {
         StructTypeIndexAndFieldIndex indices;
         TypedExpression structReference;
         FieldType field;
     };
-    WARN_UNUSED_RETURN PartialResult parseStructFieldManipulation(StructFieldManipulation& result, ASCIILiteral operation);
+    [[nodiscard]] PartialResult parseStructFieldManipulation(StructFieldManipulation& result, ASCIILiteral operation);
 
 #define WASM_TRY_ADD_TO_CONTEXT(add_expression) WASM_FAIL_IF_HELPER_FAILS(m_context.add_expression)
 
     template <typename ...Args>
-    WARN_UNUSED_RETURN NEVER_INLINE UnexpectedResult validationFail(const Args&... args) const
+    [[nodiscard]] NEVER_INLINE UnexpectedResult validationFail(const Args&... args) const
     {
         using namespace FailureHelper; // See ADL comment in WasmParser.h.
         if (ASSERT_ENABLED && Options::crashOnFailedWasmValidate())
@@ -328,7 +328,7 @@ private:
     }
 
     template <typename Arg>
-    WARN_UNUSED_RETURN String validationFailHelper(const Arg& arg) const
+    [[nodiscard]] String validationFailHelper(const Arg& arg) const
     {
         if constexpr (std::is_same<Arg, Type>())
             return typeToStringModuleRelative(arg);
@@ -378,8 +378,8 @@ private:
     // FIXME add a macro as above for WASM_TRY_APPEND_TO_CONTROL_STACK https://bugs.webkit.org/show_bug.cgi?id=165862
 
     void addReferencedFunctions(const Element&);
-    WARN_UNUSED_RETURN PartialResult parseArrayTypeDefinition(ASCIILiteral, bool, uint32_t&, FieldType&, Type&);
-    WARN_UNUSED_RETURN PartialResult parseBlockSignatureAndNotifySIMDUseIfNeeded(BlockSignature&);
+    [[nodiscard]] PartialResult parseArrayTypeDefinition(ASCIILiteral, bool, uint32_t&, FieldType&, Type&);
+    [[nodiscard]] PartialResult parseBlockSignatureAndNotifySIMDUseIfNeeded(BlockSignature&);
 
     Context& m_context;
     Stack m_expressionStack;

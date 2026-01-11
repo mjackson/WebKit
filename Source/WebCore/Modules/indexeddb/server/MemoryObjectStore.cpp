@@ -364,7 +364,7 @@ void MemoryObjectStore::updateIndexesForDeleteRecord(const IDBKeyData& value)
 IDBError MemoryObjectStore::updateIndexesForPutRecord(const IDBKeyData& key, const IndexIDToIndexKeyMap& indexKeys)
 {
     IDBError error;
-    Vector<std::pair<RefPtr<MemoryIndex>, IndexKey>> changedIndexRecords;
+    Vector<std::pair<Ref<MemoryIndex>, IndexKey>> changedIndexRecords;
 
     for (const auto& [indexID, indexKey] : indexKeys) {
         RefPtr index = m_indexesByIdentifier.get(indexID);
@@ -378,13 +378,13 @@ IDBError MemoryObjectStore::updateIndexesForPutRecord(const IDBKeyData& key, con
         if (!error.isNull())
             break;
 
-        changedIndexRecords.append(std::make_pair(WTF::move(index), indexKey));
+        changedIndexRecords.append(std::make_pair(index.releaseNonNull(), indexKey));
     }
 
     // If any of the index puts failed, revert all of the ones that went through.
     if (!error.isNull()) {
         for (auto& record : changedIndexRecords)
-            Ref { *record.first }->removeRecord(key, record.second);
+            Ref { record.first }->removeRecord(key, record.second);
     }
 
     return error;
@@ -507,7 +507,7 @@ void MemoryObjectStore::registerIndex(Ref<MemoryIndex>&& index)
     ASSERT(!m_indexesByName.contains(index->info().name()));
 
     auto identifier = index->info().identifier();
-    m_indexesByName.add(index->info().name(), &index.get());
+    m_indexesByName.add(index->info().name(), index);
     m_indexesByIdentifier.add(identifier, WTF::move(index));
 }
 
@@ -532,7 +532,7 @@ void MemoryObjectStore::renameIndex(MemoryIndex& index, const String& newName)
     ASSERT(m_info.infoForExistingIndex(index.info().identifier()) == m_info.infoForExistingIndex(index.info().name()));
 
     m_info.infoForExistingIndex(index.info().identifier())->rename(newName);
-    m_indexesByName.add(newName, m_indexesByName.take(index.info().name()));
+    m_indexesByName.add(newName, m_indexesByName.take(index.info().name()).releaseNonNull());
     index.rename(newName);
 }
 

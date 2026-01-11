@@ -407,7 +407,7 @@ public:
     };
     static_assert(!std::is_default_constructible_v<CodecStats>);
 
-    enum DtlsRole {
+    enum class DtlsRole : uint8_t {
         Client,
         Server,
         Unknown

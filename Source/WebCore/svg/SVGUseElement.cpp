@@ -159,6 +159,13 @@ FloatRect SVGUseElement::getBBox(StyleUpdateStrategy styleUpdateStrategy)
     if (bbox.isEmpty())
         return { };
 
+    if (document().settings().layerBasedSVGEngineEnabled()) {
+        auto* transformableContainer = dynamicDowncast<RenderSVGTransformableContainer>(renderer());
+        ASSERT(transformableContainer);
+        bbox.move(transformableContainer->additionalContainerTranslation());
+        return bbox;
+    }
+
     auto* transformableContainer = dynamicDowncast<LegacyRenderSVGTransformableContainer>(renderer());
     ASSERT(transformableContainer && transformableContainer->isObjectBoundingBoxValid());
     bbox.move(transformableContainer->additionalTranslation());
@@ -335,21 +342,39 @@ static bool isDirectReference(const SVGElement& element)
         || element.hasTagName(textTag);
 }
 
+SVGGraphicsElement* SVGUseElement::visibleTargetGraphicsElement() const
+{
+    RefPtr clone = this->targetClone();
+    auto* targetElement = dynamicDowncast<SVGGraphicsElement>(clone.get());
+    if (!targetElement)
+        return nullptr;
+
+    CheckedPtr renderer = targetElement->renderer();
+    if (!renderer)
+        return nullptr;
+
+    auto& style = renderer->style();
+    if (style.display() == DisplayType::None || style.usedVisibility() != Visibility::Visible)
+        return nullptr;
+
+    // Spec: "If a <use> element is a child of a clipPath element, it must directly
+    // reference <path>, <text> or basic shapes elements. Indirect references are an
+    // error and the clipPath element must be ignored."
+    if (!isDirectReference(*targetElement))
+        return nullptr;
+
+    return targetElement;
+}
+
 Path SVGUseElement::toClipPath()
 {
     RELEASE_ASSERT(!document().settings().layerBasedSVGEngineEnabled());
 
-    RefPtr targetClone = dynamicDowncast<SVGGraphicsElement>(this->targetClone());
-    if (!targetClone)
+    RefPtr element = visibleTargetGraphicsElement();
+    if (!element)
         return { };
 
-    if (!isDirectReference(*targetClone)) {
-        // Spec: Indirect references are an error (14.3.5)
-        protectedDocument()->checkedSVGExtensions()->reportError("Not allowed to use indirect reference in <clip-path>"_s);
-        return { };
-    }
-
-    Path path = targetClone->toClipPath();
+    Path path = element->toClipPath();
     SVGLengthContext lengthContext(this);
     // FIXME: Find a way to do this without manual resolution of x/y here. It's potentially incorrect.
     path.translate(FloatSize(x().value(lengthContext), y().value(lengthContext)));

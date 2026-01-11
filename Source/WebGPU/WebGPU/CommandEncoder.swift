@@ -23,11 +23,13 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import Metal
-import WebGPU_Internal
-private import wtf.Core.text.TextStream
-
-typealias String = Swift.String
+public import Metal
+internal import WebGPU_Internal.Buffer
+internal import WebGPU_Internal.CommandEncoder
+internal import WebGPU_Internal.CxxBridging
+internal import WebGPU_Internal.QuerySet
+internal import WebGPU_Internal.TextureOrTextureView
+public import WebGPU_Private.WebGPU
 
 // FIXME: Eventually all these "thunks" should be removed.
 // swift-format-ignore: AllPublicDeclarationsHaveDocumentation

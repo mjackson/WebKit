@@ -149,7 +149,7 @@ private:
     // Validates each of the controls, and stores controls of which 'invalid'
     // event was not canceled to the specified vector. Returns true if there
     // are any invalid controls in this form.
-    bool checkInvalidControlsAndCollectUnhandled(Vector<RefPtr<ValidatedFormListedElement>>&);
+    bool checkInvalidControlsAndCollectUnhandled(Vector<Ref<ValidatedFormListedElement>>&);
 
     RefPtr<HTMLElement> elementFromPastNamesMap(const AtomString&) const;
     void addToPastNamesMap(FormAssociatedElement&, const AtomString& pastName);

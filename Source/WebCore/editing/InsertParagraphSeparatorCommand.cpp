@@ -123,18 +123,18 @@ bool InsertParagraphSeparatorCommand::shouldUseDefaultParagraphElement(Node* enc
            enclosingBlock->hasTagName(h5Tag);
 }
 
-void InsertParagraphSeparatorCommand::getAncestorsInsideBlock(const Node* insertionNode, Element* outerBlock, Vector<RefPtr<Element>>& ancestors)
+void InsertParagraphSeparatorCommand::getAncestorsInsideBlock(const Node* insertionNode, Element* outerBlock, Vector<Ref<Element>>& ancestors)
 {
     ancestors.clear();
-    
+
     // Build up list of ancestors elements between the insertion node and the outer block.
     if (insertionNode != outerBlock) {
         for (RefPtr element = insertionNode->parentElement(); element && element != outerBlock; element = element->parentElement())
-            ancestors.append(element);
+            ancestors.append(*element);
     }
 }
 
-Ref<Element> InsertParagraphSeparatorCommand::cloneHierarchyUnderNewBlock(const Vector<RefPtr<Element>>& ancestors, Ref<Element>&& blockToInsert)
+Ref<Element> InsertParagraphSeparatorCommand::cloneHierarchyUnderNewBlock(const Vector<Ref<Element>>& ancestors, Ref<Element>&& blockToInsert)
 {
     // Make clones of ancestors in between the start node and the start block.
     RefPtr<Element> parent = WTF::move(blockToInsert);
@@ -145,7 +145,7 @@ Ref<Element> InsertParagraphSeparatorCommand::cloneHierarchyUnderNewBlock(const 
         appendNode(child.copyRef(), parent.releaseNonNull());
         parent = WTF::move(child);
     }
-    
+
     return parent.releaseNonNull();
 }
 
@@ -333,9 +333,9 @@ void InsertParagraphSeparatorCommand::doApply()
         }
 
         // Recreate the same structure in the new paragraph.
-        
-        Vector<RefPtr<Element>> ancestors;
-        getAncestorsInsideBlock(positionOutsideTabSpan(insertionPosition).deprecatedNode(), startBlock.get(), ancestors);      
+
+        Vector<Ref<Element>> ancestors;
+        getAncestorsInsideBlock(positionOutsideTabSpan(insertionPosition).deprecatedNode(), startBlock.get(), ancestors);
         Ref parent = cloneHierarchyUnderNewBlock(ancestors, *blockToInsert);
         
         if (!appendBlockPlaceholder(parent.copyRef()))
@@ -373,7 +373,7 @@ void InsertParagraphSeparatorCommand::doApply()
 
         // Recreate the same structure in the new paragraph.
 
-        Vector<RefPtr<Element>> ancestors;
+        Vector<Ref<Element>> ancestors;
         getAncestorsInsideBlock(positionAvoidingSpecialElementBoundary(positionOutsideTabSpan(insertionPosition)).deprecatedNode(), startBlock.get(), ancestors);
 
         auto parent = cloneHierarchyUnderNewBlock(ancestors, *blockToInsert);

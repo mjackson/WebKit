@@ -69,7 +69,6 @@ platform/graphics/ca/TileCoverageMap.cpp
 platform/graphics/ca/cocoa/PlatformCAAnimationCocoa.mm
 [ Mac ] platform/graphics/ca/cocoa/PlatformCAFiltersCocoa.mm
 platform/graphics/ca/cocoa/PlatformCALayerCocoa.mm
-platform/graphics/cg/CGSubimageCacheWithTimer.cpp
 platform/graphics/cg/GradientCG.cpp
 platform/graphics/cg/GradientRendererCG.cpp
 platform/graphics/cg/GraphicsContextCG.cpp

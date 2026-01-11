@@ -175,6 +175,8 @@ private:
     unsigned m_version;
 };
 
-}
+} // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_EVENTTARGET(ApplePaySession)
 
 #endif

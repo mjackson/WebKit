@@ -125,6 +125,8 @@ enum TracePointCode {
     ThreadTimersEnd,
     TimerFiredStart,
     TimerFiredEnd,
+    CoreImageRenderStart,
+    CoreImageRenderEnd,
 
     WebKitRange = 10000,
     WebHTMLViewPaintStart,
@@ -174,6 +176,8 @@ enum TracePointCode {
     WebXRCPFrameStartSubmissionEnd,
     WebXRCPFrameEndSubmissionStart,
     WebXRCPFrameEndSubmissionEnd,
+    TextExtractionStart,
+    TextExtractionEnd,
 
     GPUProcessRange = 16000,
     WakeUpAndApplyDisplayListStart,

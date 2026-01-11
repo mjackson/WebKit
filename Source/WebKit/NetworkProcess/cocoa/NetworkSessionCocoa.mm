@@ -858,10 +858,6 @@ static NSDictionary<NSString *, id> *extractResolutionReport(NSError *error)
     if (auto networkDataTask = [self existingTask:dataTask]) {
         ASSERT(RunLoop::isMain());
 
-        // Capture the timestamp when the final (non-1xx) response headers are received.
-        // https://github.com/w3c/resource-timing/pull/408
-        networkDataTask->networkLoadMetrics().finalResponseHeadersStart = MonotonicTime::now();
-
         NegotiatedLegacyTLS negotiatedLegacyTLS = NegotiatedLegacyTLS::No;
         RetainPtr<NSURLSessionTaskMetrics> taskMetrics = dataTask._incompleteTaskMetrics;
 

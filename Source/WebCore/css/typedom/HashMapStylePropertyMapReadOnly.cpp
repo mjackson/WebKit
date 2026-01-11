@@ -65,7 +65,7 @@ unsigned HashMapStylePropertyMapReadOnly::size() const
 
 auto HashMapStylePropertyMapReadOnly::entries(ScriptExecutionContext* context) const -> Vector<StylePropertyMapEntry>
 {
-    auto* document = context ? documentFromContext(*context) : nullptr;
+    RefPtr document = context ? documentFromContext(*context) : nullptr;
     if (!document)
         return { };
 

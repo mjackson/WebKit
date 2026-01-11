@@ -465,7 +465,7 @@ ALWAYS_INLINE EncodedJSValue genericTypedArrayViewProtoFuncIncludes(VM& vm, JSGl
     if (!targetOption) {
         // Even though our TypedArray's length is updated, we iterate up to `length`.
         // So, if `updatedLength` is smaller than `length`, we will see undefined after that.
-        return JSValue::encode(jsBoolean(valueToFind.isUndefined() && length > updatedLength));
+        return JSValue::encode(jsBoolean(index < length && updatedLength < length && valueToFind.isUndefined()));
     }
 
     scope.assertNoExceptionExceptTermination();

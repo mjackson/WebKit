@@ -50,10 +50,10 @@
 namespace WebCore {
 namespace Style {
 
-void InspectorCSSOMWrappers::collectFromStyleSheetIfNeeded(CSSStyleSheet* styleSheet)
+void InspectorCSSOMWrappers::collectFromStyleSheetIfNeeded(CSSStyleSheet& styleSheet)
 {
     if (!m_styleRuleToCSSOMWrapperMap.isEmpty())
-        collect(styleSheet);
+        collect(&styleSheet);
 }
 
 template <class ListType>
@@ -110,18 +110,18 @@ void InspectorCSSOMWrappers::collectFromStyleSheetContents(StyleSheetContents* s
     collect(styleSheetWrapper.ptr());
 }
 
-void InspectorCSSOMWrappers::collectFromStyleSheets(const Vector<RefPtr<CSSStyleSheet>>& sheets)
+void InspectorCSSOMWrappers::collectFromStyleSheets(const Vector<Ref<CSSStyleSheet>>& sheets)
 {
     for (auto& sheet : sheets)
-        collect(sheet.get());
+        collect(sheet.ptr());
 }
 
-void InspectorCSSOMWrappers::maybeCollectFromStyleSheets(const Vector<RefPtr<CSSStyleSheet>>& sheets)
+void InspectorCSSOMWrappers::maybeCollectFromStyleSheets(const Vector<Ref<CSSStyleSheet>>& sheets)
 {
     for (auto& sheet : sheets) {
-        if (!m_styleSheetCSSOMWrapperSet.contains(sheet.get())) {
-            m_styleSheetCSSOMWrapperSet.add(sheet);
-            collect(sheet.get());
+        if (!m_styleSheetCSSOMWrapperSet.contains(sheet)) {
+            m_styleSheetCSSOMWrapperSet.add(sheet.copyRef());
+            collect(sheet.ptr());
         }
     }
 }

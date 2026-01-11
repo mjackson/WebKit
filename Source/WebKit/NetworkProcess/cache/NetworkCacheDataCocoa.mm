@@ -53,6 +53,11 @@ Data::Data(Vector<uint8_t>&& data)
 {
 }
 
+Data Data::copyData() const
+{
+    return { protectedDispatchData(), m_isMap ? Backing::Map : Backing::Buffer };
+}
+
 OSObjectPtr<dispatch_data_t> Data::protectedDispatchData() const
 {
     return dispatchData();

@@ -154,7 +154,7 @@ JSValue toJS(JSGlobalObject& lexicalGlobalObject, JSGlobalObject& globalObject, 
         auto outArray = constructEmptyArray(&globalObject, static_cast<JSC::ArrayAllocationProfile*>(nullptr), size);
         RETURN_IF_EXCEPTION(scope, JSValue());
         for (size_t i = 0; i < size; ++i) {
-            outArray->putDirectIndex(&lexicalGlobalObject, i, toJS(lexicalGlobalObject, globalObject, inArray.at(i).get()));
+            outArray->putDirectIndex(&lexicalGlobalObject, i, toJS(lexicalGlobalObject, globalObject, inArray.at(i).ptr()));
             RETURN_IF_EXCEPTION(scope, JSValue());
         }
         return outArray;
@@ -228,7 +228,7 @@ static RefPtr<IDBKey> createIDBKeyFromValue(JSGlobalObject& lexicalGlobalObject,
 
             stack.append(array);
 
-            Vector<RefPtr<IDBKey>> subkeys;
+            Vector<Ref<IDBKey>> subkeys;
             for (size_t i = 0; i < length; i++) {
                 JSValue item = array->getIndex(&lexicalGlobalObject, i);
                 RETURN_IF_EXCEPTION(scope, { });
@@ -237,11 +237,11 @@ static RefPtr<IDBKey> createIDBKeyFromValue(JSGlobalObject& lexicalGlobalObject,
                 if (!subkey)
                     subkeys.append(IDBKey::createInvalid());
                 else
-                    subkeys.append(subkey);
+                    subkeys.append(subkey.releaseNonNull());
             }
 
             stack.removeLast();
-            return IDBKey::createArray(subkeys);
+            return IDBKey::createArray(WTF::move(subkeys));
         }
 
         if (auto* arrayBuffer = jsDynamicCast<JSArrayBuffer*>(value))
@@ -361,15 +361,14 @@ RefPtr<IDBKey> maybeCreateIDBKeyFromScriptValueAndKeyPath(JSGlobalObject& lexica
 {
     if (std::holds_alternative<Vector<String>>(keyPath)) {
         auto& array = std::get<Vector<String>>(keyPath);
-        bool hasNullKey = false;
-        auto result = WTF::map(array, [&](auto& string) -> RefPtr<IDBKey> {
-            auto key = internalCreateIDBKeyFromScriptValueAndKeyPath(lexicalGlobalObject, value, string);
+        Vector<Ref<IDBKey>> result(array.size(), [&](size_t i) -> std::optional<Ref<IDBKey>> {
+            RefPtr key = internalCreateIDBKeyFromScriptValueAndKeyPath(lexicalGlobalObject, value, array[i]);
             if (!key)
-                hasNullKey = true;
-            return key;
-        });
-        if (hasNullKey)
-            return nullptr;
+                return std::nullopt;
+            return key.releaseNonNull();
+        }, NulloptBehavior::Abort);
+        if (result.size() != array.size())
+            return nullptr; // Had null keys.
         return IDBKey::createArray(WTF::move(result));
     }
 
@@ -453,7 +452,7 @@ static IndexKey::Data createKeyPathArray(JSGlobalObject& lexicalGlobalObject, JS
         if (info.multiEntry() && idbKey->type() == IndexedDB::KeyType::Array) {
             Vector<IDBKeyData> keys;
             for (auto& key : idbKey->array())
-                keys.append(key.get());
+                keys.append(key.ptr());
             return keys;
         }
         return idbKey.get();

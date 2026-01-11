@@ -353,9 +353,12 @@ std::optional<WebXRSystem::ResolvedRequestedFeatures> WebXRSystem::resolveReques
     //    with mode to the indicated feature list if it is not already present.
     // https://immersive-web.github.io/webxr/#default-features
     auto requiredFeaturesWithDefaultFeatures = init.requiredFeatures;
-    requiredFeaturesWithDefaultFeatures.append(JSC::jsStringWithCache(globalObject.vm(), PlatformXR::sessionFeatureDescriptor(PlatformXR::SessionFeature::ReferenceSpaceTypeViewer)));
-    if (isImmersive(mode))
-        requiredFeaturesWithDefaultFeatures.append(JSC::jsStringWithCache(globalObject.vm(), PlatformXR::sessionFeatureDescriptor(PlatformXR::SessionFeature::ReferenceSpaceTypeLocal)));
+    {
+        JSC::JSLockHolder locker(&globalObject);
+        requiredFeaturesWithDefaultFeatures.append(JSC::jsStringWithCache(globalObject.vm(), PlatformXR::sessionFeatureDescriptor(PlatformXR::SessionFeature::ReferenceSpaceTypeViewer)));
+        if (isImmersive(mode))
+            requiredFeaturesWithDefaultFeatures.append(JSC::jsStringWithCache(globalObject.vm(), PlatformXR::sessionFeatureDescriptor(PlatformXR::SessionFeature::ReferenceSpaceTypeLocal)));
+    }
 
     // 8. For each feature in requiredFeatures|optionalFeatures perform the following steps:
     // 9. For each feature in optionalFeatures perform the following steps:

@@ -64,7 +64,6 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include "VMThreadContext.h"
 #include "VMTraps.h"
 #include "WasmContext.h"
-#include "WasmDebugServerUtilities.h"
 #include "WeakGCMap.h"
 #include "WriteBarrier.h"
 #include <wtf/BumpPointerAllocator.h>
@@ -186,6 +185,14 @@ class Database;
 namespace DOMJIT {
 class Signature;
 }
+
+#if ENABLE(WEBASSEMBLY)
+class JSWebAssemblyInstance;
+namespace Wasm {
+class IPIntCallee;
+struct DebugState;
+}
+#endif
 
 struct EntryFrame;
 
@@ -313,6 +320,8 @@ public:
 
     bool executionForbidden() const { return m_executionForbidden; }
     void setExecutionForbidden() { m_executionForbidden = true; }
+
+    static JS_EXPORT_PRIVATE JSValue checkVMEntryPermission();
 
     // Setting this means that the VM can never recover from a TerminationException.
     // Currently, we'll only set this for worker threads. Ideally, we want this
@@ -563,8 +572,8 @@ public:
     WriteBarrier<NativeExecutable> m_promiseResolvingFunctionRejectExecutable;
     WriteBarrier<NativeExecutable> m_promiseFirstResolvingFunctionResolveExecutable;
     WriteBarrier<NativeExecutable> m_promiseFirstResolvingFunctionRejectExecutable;
-    WriteBarrier<NativeExecutable> m_promiseResolvingFunctionResolveWithoutPromiseExecutable;
-    WriteBarrier<NativeExecutable> m_promiseResolvingFunctionRejectWithoutPromiseExecutable;
+    WriteBarrier<NativeExecutable> m_promiseResolvingFunctionResolveWithInternalMicrotaskExecutable;
+    WriteBarrier<NativeExecutable> m_promiseResolvingFunctionRejectWithInternalMicrotaskExecutable;
     WriteBarrier<NativeExecutable> m_promiseCapabilityExecutorExecutable;
     WriteBarrier<NativeExecutable> m_promiseAllFulfillFunctionExecutable;
     WriteBarrier<NativeExecutable> m_promiseAllSlowFulfillFunctionExecutable;
@@ -663,18 +672,18 @@ public:
         return promiseFirstResolvingFunctionRejectExecutableSlow();
     }
 
-    NativeExecutable* promiseResolvingFunctionResolveWithoutPromiseExecutable()
+    NativeExecutable* promiseResolvingFunctionResolveWithInternalMicrotaskExecutable()
     {
-        if (m_promiseResolvingFunctionResolveWithoutPromiseExecutable) [[likely]]
-            return m_promiseResolvingFunctionResolveWithoutPromiseExecutable.get();
-        return promiseResolvingFunctionResolveWithoutPromiseExecutableSlow();
+        if (m_promiseResolvingFunctionResolveWithInternalMicrotaskExecutable) [[likely]]
+            return m_promiseResolvingFunctionResolveWithInternalMicrotaskExecutable.get();
+        return promiseResolvingFunctionResolveWithInternalMicrotaskExecutableSlow();
     }
 
-    NativeExecutable* promiseResolvingFunctionRejectWithoutPromiseExecutable()
+    NativeExecutable* promiseResolvingFunctionRejectWithInternalMicrotaskExecutable()
     {
-        if (m_promiseResolvingFunctionRejectWithoutPromiseExecutable) [[likely]]
-            return m_promiseResolvingFunctionRejectWithoutPromiseExecutable.get();
-        return promiseResolvingFunctionRejectWithoutPromiseExecutableSlow();
+        if (m_promiseResolvingFunctionRejectWithInternalMicrotaskExecutable) [[likely]]
+            return m_promiseResolvingFunctionRejectWithInternalMicrotaskExecutable.get();
+        return promiseResolvingFunctionRejectWithInternalMicrotaskExecutableSlow();
     }
 
     NativeExecutable* promiseCapabilityExecutorExecutable()
@@ -1197,14 +1206,8 @@ public:
     void notifyDebuggerHookInjected() { m_isDebuggerHookInjected = true; }
     bool isDebuggerHookInjected() const { return m_isDebuggerHookInjected; }
 
-    bool isWasmStopWorldActive() { return m_isWasmStopWorldActive; }
-    void setIsWasmStopWorldActive(bool isWasmStopWorldActive) { m_isWasmStopWorldActive = isWasmStopWorldActive; }
-
 #if ENABLE(WEBASSEMBLY)
-    bool takeStepIntoWasmCall() { return m_stepIntoEvent.take(Wasm::StepIntoEvent::StepIntoCall); }
-    void setStepIntoWasmCall() { m_stepIntoEvent.set(Wasm::StepIntoEvent::StepIntoCall); }
-    bool takeStepIntoWasmThrow() { return m_stepIntoEvent.take(Wasm::StepIntoEvent::StepIntoThrow); }
-    void setStepIntoWasmThrow() { m_stepIntoEvent.set(Wasm::StepIntoEvent::StepIntoThrow); }
+    JS_EXPORT_PRIVATE Wasm::DebugState* debugState();
 #endif
 
 private:
@@ -1217,8 +1220,8 @@ private:
     NativeExecutable* promiseResolvingFunctionRejectExecutableSlow();
     NativeExecutable* promiseFirstResolvingFunctionResolveExecutableSlow();
     NativeExecutable* promiseFirstResolvingFunctionRejectExecutableSlow();
-    NativeExecutable* promiseResolvingFunctionResolveWithoutPromiseExecutableSlow();
-    NativeExecutable* promiseResolvingFunctionRejectWithoutPromiseExecutableSlow();
+    NativeExecutable* promiseResolvingFunctionResolveWithInternalMicrotaskExecutableSlow();
+    NativeExecutable* promiseResolvingFunctionRejectWithInternalMicrotaskExecutableSlow();
     NativeExecutable* promiseCapabilityExecutorExecutableSlow();
     NativeExecutable* promiseAllFulfillFunctionExecutableSlow();
     NativeExecutable* promiseAllSlowFulfillFunctionExecutableSlow();
@@ -1343,10 +1346,9 @@ private:
     bool m_executionForbidden { false };
     bool m_executionForbiddenOnTermination { false };
     bool m_isDebuggerHookInjected { false };
-    bool m_isWasmStopWorldActive { false };
 
 #if ENABLE(WEBASSEMBLY)
-    Wasm::StepIntoEvent m_stepIntoEvent;
+    std::unique_ptr<Wasm::DebugState> m_debugState;
 #endif
 
     Lock m_loopHintExecutionCountLock;

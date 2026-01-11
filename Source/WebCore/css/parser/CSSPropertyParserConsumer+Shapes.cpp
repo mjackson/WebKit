@@ -67,11 +67,10 @@ static std::optional<CSS::FillRule> peekFillRule(CSSParserTokenRange& range)
     // <'fill-rule'> = nonzero | evenodd
     // https://svgwg.org/svg2-draft/painting.html#FillRuleProperty
 
-    static constexpr auto fillRuleMappings = std::to_array<std::pair<CSSValueID, CSS::FillRule>>({
+    static constexpr SortedArrayMap fillRuleMap { std::to_array<std::pair<CSSValueID, CSS::FillRule>>({
         { CSSValueNonzero, CSS::FillRule { CSS::Keyword::Nonzero { } } },
         { CSSValueEvenodd, CSS::FillRule { CSS::Keyword::Evenodd { } } },
-    });
-    static constexpr SortedArrayMap fillRuleMap { fillRuleMappings };
+    }) };
 
     return peekIdentUsingMapping(range, fillRuleMap);
 }
@@ -114,12 +113,11 @@ static std::optional<CSS::RelativeControlPoint> consumeRelativeControlPoint(CSSP
 
     using Anchor = CSS::RelativeControlPoint::Anchor;
 
-    static constexpr auto anchorMappings = std::to_array<std::pair<CSSValueID, Anchor>>({
+    static constexpr SortedArrayMap anchorMap { std::to_array<std::pair<CSSValueID, Anchor>>({
         { CSSValueStart, Anchor { CSS::Keyword::Start { } } },
         { CSSValueEnd, Anchor { CSS::Keyword::End { } } },
         { CSSValueOrigin, Anchor { CSS::Keyword::Origin { } } },
-    });
-    static constexpr SortedArrayMap anchorMap { anchorMappings };
+    }) };
 
     auto rangeCopy = range;
 
@@ -183,13 +181,12 @@ static CSS::Circle::RadialSize consumeCircleRadialSize(CSSParserTokenRange& rang
     // <radial-extent>  = closest-corner | closest-side | farthest-corner | farthest-side
     // Default to `closest-side` if no radial-size is provided.
 
-    static constexpr auto extentMappings = std::to_array<std::pair<CSSValueID, CSS::Circle::Extent>>({
+    static constexpr SortedArrayMap extentMap { std::to_array<std::pair<CSSValueID, CSS::Circle::Extent>>({
         { CSSValueClosestSide, CSS::Circle::Extent { CSS::Keyword::ClosestSide { } } },
         { CSSValueClosestCorner, CSS::Circle::Extent { CSS::Keyword::ClosestCorner { } } },
         { CSSValueFarthestSide, CSS::Circle::Extent { CSS::Keyword::FarthestSide { } } },
         { CSSValueFarthestCorner, CSS::Circle::Extent { CSS::Keyword::FarthestCorner { } } },
-    });
-    static constexpr SortedArrayMap extentMap { extentMappings };
+    }) };
 
     // Default to `closest-side` if no radial-size is provided.
     // FIXME: The spec says that `farthest-corner` should be the default, but this does not match the tests.
@@ -242,13 +239,12 @@ static std::optional<CSS::Ellipse::RadialSize> consumeEllipseRadialSize(CSSParse
     // <radial-extent>  = closest-corner | closest-side | farthest-corner | farthest-side
     // Default to `closest-side` if no radial-size is provided.
 
-    static constexpr auto extentMappings = std::to_array<std::pair<CSSValueID, CSS::Ellipse::Extent>>({
+    static constexpr SortedArrayMap extentMap { std::to_array<std::pair<CSSValueID, CSS::Ellipse::Extent>>({
         { CSSValueClosestSide, CSS::Ellipse::Extent { CSS::Keyword::ClosestSide { } } },
         { CSSValueClosestCorner, CSS::Ellipse::Extent { CSS::Keyword::ClosestCorner { } } },
         { CSSValueFarthestSide, CSS::Ellipse::Extent { CSS::Keyword::FarthestSide { } } },
         { CSSValueFarthestCorner, CSS::Ellipse::Extent { CSS::Keyword::FarthestCorner { } } },
-    });
-    static constexpr SortedArrayMap extentMap { extentMappings };
+    }) };
 
     if (range.peek().type() == IdentToken) {
         if (auto extent = consumeIdentUsingMapping(range, extentMap))
@@ -373,11 +369,10 @@ static std::optional<CSS::CommandAffinity> consumeShapeCommandAffinity(CSSParser
     // <by-to> = by | to
     // https://drafts.csswg.org/css-shapes-2/#typedef-shape-by-to
 
-    static constexpr auto affinityMappings = std::to_array<std::pair<CSSValueID, CSS::CommandAffinity>>({
+    static constexpr SortedArrayMap affinityMap { std::to_array<std::pair<CSSValueID, CSS::CommandAffinity>>({
         { CSSValueTo, CSS::CommandAffinity { CSS::Keyword::To { } } },
         { CSSValueBy, CSS::CommandAffinity { CSS::Keyword::By { } } },
-    });
-    static constexpr SortedArrayMap affinityMap { affinityMappings };
+    }) };
 
     return consumeIdentUsingMapping(range, affinityMap);
 }

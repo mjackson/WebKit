@@ -114,7 +114,13 @@ private:
 } // namespace WebCore
 
 SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::DedicatedWorkerGlobalScope)
+    static bool isType(const WebCore::EventTarget& context) { return context.eventTargetInterface() == WebCore::EventTargetInterfaceType::DedicatedWorkerGlobalScope; }
     static bool isType(const WebCore::ScriptExecutionContext& context)
+    {
+        auto* global = dynamicDowncast<WebCore::WorkerGlobalScope>(context);
+        return global && global->type() == WebCore::WorkerGlobalScope::Type::DedicatedWorker;
+    }
+    static bool isType(const WebCore::WorkerOrWorkletGlobalScope& context)
     {
         auto* global = dynamicDowncast<WebCore::WorkerGlobalScope>(context);
         return global && global->type() == WebCore::WorkerGlobalScope::Type::DedicatedWorker;

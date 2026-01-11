@@ -42,40 +42,22 @@ class MemoryDump {
 public:
     static constexpr size_t DefaultSizeLimit = 4 * 1024;
 
-    template<typename T>
-    explicit MemoryDump(std::span<T> span, size_t sizeLimit = DefaultSizeLimit)
+    template<typename T, std::size_t N = std::dynamic_extent>
+    explicit MemoryDump(std::span<T, N> span, size_t sizeLimit = DefaultSizeLimit)
         : m_data(std::as_bytes(span))
         , m_sizeLimit(sizeLimit)
     { }
 
-    explicit MemoryDump(const void* start, const void* end, size_t sizeLimit = DefaultSizeLimit);
     MemoryDump() = default;
 
     std::span<const std::byte> span() const { return m_data; }
     size_t sizeLimit() const { return m_sizeLimit; }
-    const std::byte* invertedEnd() const { return m_invertedEnd; }
 
 private:
     std::span<const std::byte> m_data { };
     size_t m_sizeLimit { DefaultSizeLimit };
-    const std::byte* m_invertedEnd { nullptr }; // end pointer value, if it was below the start pointer
     // TODO: enhance to support larger chunks than 1 bytes
 };
-
-inline MemoryDump::MemoryDump(const void* start, const void* end, size_t sizeLimit)
-    : m_sizeLimit(sizeLimit)
-{
-    auto* startByte = static_cast<const std::byte*>(start);
-    auto* endByte = static_cast<const std::byte*>(end);
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
-    if (startByte <= endByte) [[likely]]
-        m_data = std::span<const std::byte>(startByte, endByte - startByte);
-    else {
-        m_data = std::span<const std::byte>(startByte, 0);
-        m_invertedEnd = endByte;
-    }
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
-}
 
 } // namespace WTF
 

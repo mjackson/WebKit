@@ -25,6 +25,8 @@
 
 #pragma once
 
+#include <wtf/Platform.h>
+
 #if USE(AVFOUNDATION)
 // FIXME: Should be USE(COREMEDIA), but this isn't currently defined on Windows.
 

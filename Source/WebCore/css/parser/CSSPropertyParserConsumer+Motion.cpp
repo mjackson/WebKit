@@ -54,14 +54,13 @@ static RefPtr<CSSValue> consumeRayFunction(CSSParserTokenRange& range, CSS::Prop
     // <ray-size> = closest-side | closest-corner | farthest-side | farthest-corner | sides
     // https://drafts.fxtf.org/motion-1/#ray-function
 
-    static constexpr auto sizeMappings = std::to_array<std::pair<CSSValueID, CSS::RaySize>>({
+    static constexpr SortedArrayMap sizeMap { std::to_array<std::pair<CSSValueID, CSS::RaySize>>({
         { CSSValueClosestSide, CSS::RaySize { CSS::Keyword::ClosestSide { } } },
         { CSSValueClosestCorner, CSS::RaySize { CSS::Keyword::ClosestCorner { } } },
         { CSSValueFarthestSide, CSS::RaySize { CSS::Keyword::FarthestSide { } } },
         { CSSValueFarthestCorner, CSS::RaySize { CSS::Keyword::FarthestCorner { } } },
         { CSSValueSides, CSS::RaySize { CSS::Keyword::Sides { } } },
-    });
-    static constexpr SortedArrayMap sizeMap { sizeMappings };
+    }) };
 
     if (range.peek().type() != FunctionToken || range.peek().functionId() != CSSValueRay)
         return { };

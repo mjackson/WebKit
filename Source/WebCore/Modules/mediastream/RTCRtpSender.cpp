@@ -217,7 +217,7 @@ std::optional<RTCRtpTransceiverDirection> RTCRtpSender::currentTransceiverDirect
     RTCRtpTransceiver* senderTransceiver = nullptr;
     for (auto& transceiver : m_connection->currentTransceivers()) {
         if (&transceiver->sender() == this) {
-            senderTransceiver = transceiver.get();
+            senderTransceiver = transceiver.ptr();
             break;
         }
     }

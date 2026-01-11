@@ -738,7 +738,7 @@ static LayoutUnit computeInsetValue(CSSPropertyID insetPropertyID, CheckedRef<co
 
 CheckedPtr<RenderBoxModelObject> AnchorPositionEvaluator::findAnchorForAnchorFunctionAndAttemptResolution(BuilderState& builderState, std::optional<ScopedName> anchorNameArgument)
 {
-    auto& style = builderState.style();
+    auto& style = builderState.renderStyle();
     style.setUsesAnchorFunctions();
 
     if (!builderState.anchorPositionedStates())
@@ -828,7 +828,7 @@ bool AnchorPositionEvaluator::propertyAllowsAnchorFunction(CSSPropertyID propert
 
 std::optional<double> AnchorPositionEvaluator::evaluate(BuilderState& builderState, std::optional<ScopedName> elementName, Side side)
 {
-    auto& style = builderState.style();
+    auto& style = builderState.renderStyle();
 
     auto propertyID = builderState.cssPropertyID();
     auto physicalAxis = mapInsetPropertyToPhysicalAxis(propertyID, style.writingMode());
@@ -952,7 +952,7 @@ bool AnchorPositionEvaluator::propertyAllowsAnchorSizeFunction(CSSPropertyID pro
 std::optional<double> AnchorPositionEvaluator::evaluateSize(BuilderState& builderState, std::optional<ScopedName> elementName, std::optional<AnchorSizeDimension> dimension)
 {
     auto propertyID = builderState.cssPropertyID();
-    const auto& style = builderState.style();
+    const auto& style = builderState.renderStyle();
 
     auto isValidAnchorSize = [&] {
         // It’s being used in a sizing property, an inset property, or a margin property...

@@ -24,7 +24,6 @@
 
 #include "SVGNames.h"
 #include "SVGPropertyOwner.h"
-#include "SVGRenderStyleDefs.h"
 #include "StyledElement.h"
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
@@ -280,11 +279,13 @@ inline SVGElement::InstanceUpdateBlocker::~InstanceUpdateBlocker()
     m_element->setInstanceUpdatesBlocked(false);
 }
 
-
-
 } // namespace WebCore
 
 SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::SVGElement)
-    static bool isType(const WebCore::EventTarget& eventTarget) { return eventTarget.isNode() && static_cast<const WebCore::Node&>(eventTarget).isSVGElement(); }
+    static bool isType(const WebCore::EventTarget& eventTarget)
+    {
+        auto* node = dynamicDowncast<WebCore::Node>(eventTarget);
+        return node && node->isSVGElement();
+    }
     static bool isType(const WebCore::Node& node) { return node.isSVGElement(); }
 SPECIALIZE_TYPE_TRAITS_END()

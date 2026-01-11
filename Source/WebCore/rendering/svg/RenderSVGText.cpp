@@ -717,8 +717,8 @@ bool RenderSVGText::nodeAtPoint(const HitTestRequest& request, HitTestResult& re
 bool RenderSVGText::hitTestInlineChildren(const HitTestRequest& request, HitTestResult& result, const HitTestLocation& locationInContainer, const LayoutPoint& accumulatedOffset, HitTestAction)
 {
     auto hitTestInlineBoxes = [&] {
-        for (auto& box : InlineIterator::boxesFor(*this)) {
-            auto* textBox = dynamicDowncast<InlineIterator::SVGTextBox>(box);
+        for (auto boxIterator = InlineIterator::lastBoxFor(*this); boxIterator; --boxIterator) {
+            auto* textBox = dynamicDowncast<InlineIterator::SVGTextBox>(*boxIterator);
             if (!textBox)
                 continue;
 
@@ -770,7 +770,7 @@ bool RenderSVGText::hitTestInlineChildren(const HitTestRequest& request, HitTest
     return false;
 }
 
-void RenderSVGText::applyTransform(TransformationMatrix& transform, const RenderStyle& style, const FloatRect& boundingBox, OptionSet<RenderStyle::TransformOperationOption> options) const
+void RenderSVGText::applyTransform(TransformationMatrix& transform, const RenderStyle& style, const FloatRect& boundingBox, OptionSet<Style::TransformResolverOption> options) const
 {
     ASSERT(document().settings().layerBasedSVGEngineEnabled());
     applySVGTransform(transform, protectedTextElement(), style, boundingBox, std::nullopt, std::nullopt, options);
@@ -913,9 +913,12 @@ void RenderSVGText::paintInlineChildren(PaintInfo& paintInfo, const LayoutPoint&
             auto* renderer = dynamicDowncast<RenderElement>(box->renderer());
             contextStack.append({ const_cast<RenderElement&>(*renderer), paintInfo, SVGRenderingContext::SaveGraphicsContext });
 
-            if (!contextStack.last().isRenderingPrepared() || renderer->hasSelfPaintingLayer()) {
-                box.traverseLineRightwardOnLineSkippingChildren();
-                continue;
+            // FIXME: find out if we can skip children too in LBSE case.
+            if (!document().settings().layerBasedSVGEngineEnabled()) {
+                if (!contextStack.last().isRenderingPrepared() || renderer->hasSelfPaintingLayer()) {
+                    box.traverseLineRightwardOnLineSkippingChildren();
+                    continue;
+                }
             }
         }
 
@@ -936,6 +939,11 @@ FloatRect RenderSVGText::strokeBoundingBox() const
     SVGLengthContext lengthContext(textElement.ptr());
     strokeBoundaries.inflate(lengthContext.valueForLength(style().strokeWidth(), Style::ZoomNeeded { }));
     return strokeBoundaries;
+}
+
+FloatRect RenderSVGText::decoratedBoundingBox() const
+{
+    return SVGBoundingBoxComputation::computeDecoratedBoundingBox(*this);
 }
 
 FloatRect RenderSVGText::repaintRectInLocalCoordinates(RepaintRectCalculation repaintRectCalculation) const

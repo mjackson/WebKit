@@ -81,41 +81,41 @@ PublicKeyCredential::PublicKeyCredential(Ref<AuthenticatorResponse>&& response)
 
 void PublicKeyCredential::isUserVerifyingPlatformAuthenticatorAvailable(Document& document, DOMPromiseDeferred<IDLBoolean>&& promise)
 {
-    if (auto* page = document.page())
+    if (RefPtr page = document.page())
         page->authenticatorCoordinator().isUserVerifyingPlatformAuthenticatorAvailable(document, WTF::move(promise));
 }
 
 void PublicKeyCredential::getClientCapabilities(Document& document, DOMPromiseDeferred<IDLRecord<IDLDOMString, IDLBoolean>>&& promise)
 {
-    if (auto* page = document.page())
+    if (RefPtr page = document.page())
         page->authenticatorCoordinator().getClientCapabilities(document, WTF::move(promise));
 }
 
 PublicKeyCredentialJSON PublicKeyCredential::toJSON()
 {
-    if (is<AuthenticatorAttestationResponse>(m_response)) {
+    if (RefPtr attestationResponse = dynamicDowncast<AuthenticatorAttestationResponse>(m_response)) {
         RegistrationResponseJSON response;
-        if (auto id = rawId()) {
+        if (RefPtr id = rawId()) {
             auto encodedString = base64URLEncodeToString(id->span());
             response.id = encodedString;
             response.rawId = encodedString;
         }
 
-        response.response = downcast<AuthenticatorAttestationResponse>(m_response)->toJSON();
+        response.response = attestationResponse->toJSON();
         response.authenticatorAttachment = convertEnumerationToString(authenticatorAttachment());
         response.clientExtensionResults = getClientExtensionResults().toJSON();
         response.type = type();
 
         return response;
     }
-    if (is<AuthenticatorAssertionResponse>(m_response)) {
+    if (RefPtr assertionResponse = dynamicDowncast<AuthenticatorAssertionResponse>(m_response)) {
         AuthenticationResponseJSON response;
-        if (auto id = rawId()) {
+        if (RefPtr id = rawId()) {
             auto encodedString = base64URLEncodeToString(id->span());
             response.id = encodedString;
             response.rawId = encodedString;
         }
-        response.response = downcast<AuthenticatorAssertionResponse>(m_response)->toJSON();
+        response.response = assertionResponse->toJSON();
         response.authenticatorAttachment = convertEnumerationToString(authenticatorAttachment());
         response.clientExtensionResults = getClientExtensionResults().toJSON();
         response.type = type();
@@ -300,19 +300,19 @@ ExceptionOr<PublicKeyCredentialRequestOptions> PublicKeyCredential::parseRequest
 
 void PublicKeyCredential::signalUnknownCredential(Document& document, UnknownCredentialOptions&& options, DOMPromiseDeferred<void>&& promise)
 {
-    if (auto* page = document.page())
+    if (RefPtr page = document.page())
         page->authenticatorCoordinator().signalUnknownCredential(document, WTF::move(options), WTF::move(promise));
 }
 
 void PublicKeyCredential::signalAllAcceptedCredentials(Document& document, AllAcceptedCredentialsOptions&& options, DOMPromiseDeferred<void>&& promise)
 {
-    if (auto* page = document.page())
+    if (RefPtr page = document.page())
         page->authenticatorCoordinator().signalAllAcceptedCredentials(document, WTF::move(options), WTF::move(promise));
 }
 
 void PublicKeyCredential::signalCurrentUserDetails(Document& document, CurrentUserDetailsOptions&& options, DOMPromiseDeferred<void>&& promise)
 {
-    if (auto* page = document.page())
+    if (RefPtr page = document.page())
         page->authenticatorCoordinator().signalCurrentUserDetails(document, WTF::move(options), WTF::move(promise));
 }
 

@@ -1098,19 +1098,17 @@ FloatRect AXIsolatedObject::relativeFrame() const
         relativeFrame = *cachedRelativeFrame;
 
         if (isStaticText()) {
-            if (std::optional stitchGroup = this->stitchGroup()) {
-                if (stitchGroup->representativeID() == objectID() && !stitchGroup->isEmpty()) {
-                    // |this| is a stitching of multiple objects, so we need to combine all of their frames.
+            if (std::optional stitchGroup = stitchGroupIfRepresentative()) {
+                // |this| is a stitching of multiple objects, so we need to combine all of their frames.
 
-                    RefPtr tree = this->tree();
-                    for (AXID axID : stitchGroup->members()) {
-                        if (axID == objectID())
-                            continue;
+                RefPtr tree = this->tree();
+                for (AXID axID : stitchGroup->members()) {
+                    if (axID == objectID())
+                        continue;
 
-                        if (RefPtr object = tree->objectForID(axID)) {
-                            if (std::optional otherCachedFrame = object->cachedRelativeFrame())
-                                relativeFrame = unionRect(relativeFrame, *otherCachedFrame);
-                        }
+                    if (RefPtr object = tree->objectForID(axID)) {
+                        if (std::optional otherCachedFrame = object->cachedRelativeFrame())
+                            relativeFrame = unionRect(relativeFrame, *otherCachedFrame);
                     }
                 }
             }
@@ -1804,15 +1802,9 @@ String AXIsolatedObject::stringValue() const
     size_t index = indexOfProperty(AXProperty::StringValue);
     if (index == notFound) {
         if (hasStitchableRole()) {
-            std::optional stitchGroup = this->stitchGroup();
+            std::optional stitchGroup = stitchGroupIfRepresentative();
             if (!stitchGroup)
                 return textMarkerRange().toString(IncludeListMarkerText::No);
-
-            AXID thisID = objectID();
-            if (stitchGroup->representativeID() != thisID) {
-                // |this| is stitched into another object, so don't return any string value.
-                return emptyString();
-            }
 
             // |this| is the sum of several stitched text-like objects. Our string value should
             // include all of them.
@@ -1823,7 +1815,7 @@ String AXIsolatedObject::stringValue() const
             AXTextMarker endMarker;
 
             RefPtr tree = std::get<RefPtr<AXIsolatedTree>>(axTreeForID(treeID()));
-            if (!tree || stitchGroup->isEmpty())
+            if (!tree)
                 return textMarkerRange().toString(IncludeListMarkerText::No);
 
             for (auto axID = stitchGroup->members().rbegin(); axID != stitchGroup->members().rend(); ++axID) {

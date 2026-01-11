@@ -203,16 +203,8 @@ void InspectorConsoleAgent::stopTiming(JSC::JSGlobalObject* globalObject, const 
     m_times.remove(it);
 }
 
-void InspectorConsoleAgent::takeHeapSnapshot(const String& title)
+void InspectorConsoleAgent::reportHeapSnapshot(double timestamp, const String& snapshotData, const String& title)
 {
-    if (!m_heapAgent)
-        return;
-
-    auto result = m_heapAgent->snapshot();
-    if (!result)
-        return;
-
-    auto [timestamp, snapshotData] = WTF::move(result.value());
     m_frontendDispatcher->heapSnapshot(timestamp, snapshotData, title);
 }
 
