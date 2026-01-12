@@ -197,10 +197,19 @@ class VM;
 // the world mode back to RunAll (unblocking other VMs and threads)  since the current
 // VM is no longer viable for continuing execution.
 
+#if USE(BUN_JSC_ADDITIONS)
 #define FOR_EACH_STOP_THE_WORLD_REASON(v) \
     v(GC) \
     v(WasmDebugger) \
     v(MemoryDebugger) \
+    v(JSDebugger)
+#else
+#define FOR_EACH_STOP_THE_WORLD_REASON(v) \
+    v(GC) \
+    v(WasmDebugger) \
+    v(MemoryDebugger)
+#endif
+
 
 class VMManager {
     WTF_MAKE_NONCOPYABLE(VMManager);
@@ -270,6 +279,9 @@ public:
     JS_EXPORT_PRIVATE static void setWasmDebuggerOnStop(StopTheWorldCallback);
     JS_EXPORT_PRIVATE static void setWasmDebuggerOnResume(PostResumeCallback);
     JS_EXPORT_PRIVATE static void setMemoryDebuggerCallback(StopTheWorldCallback);
+#if USE(BUN_JSC_ADDITIONS)
+    JS_EXPORT_PRIVATE static void setJSDebuggerCallback(StopTheWorldCallback);
+#endif
 
     ALWAYS_INLINE CONCURRENT_SAFE static void requestStopAll(StopReason reason)
     {

@@ -159,6 +159,13 @@ void VMManager::setMemoryDebuggerCallback(StopTheWorldCallback callback)
     g_jscConfig.memoryDebuggerStopTheWorld = callback;
 }
 
+#if USE(BUN_JSC_ADDITIONS)
+void VMManager::setJSDebuggerCallback(StopTheWorldCallback callback)
+{
+    g_jscConfig.jsDebuggerStopTheWorld = callback;
+}
+#endif
+
 void VMManager::incrementActiveVMs(VM& vm) WTF_REQUIRES_LOCK(m_worldLock)
 {
     if (!vm.traps().m_hasBeenCountedAsActive) {
@@ -394,6 +401,11 @@ void VMManager::notifyVMStop(VM& vm, StopTheWorldEvent event)
         case StopReason::MemoryDebugger:
             status = g_jscConfig.memoryDebuggerStopTheWorld(vm, event);
             break;
+#if USE(BUN_JSC_ADDITIONS)
+        case StopReason::JSDebugger:
+            status = g_jscConfig.jsDebuggerStopTheWorld(vm, event);
+            break;
+#endif
         case StopReason::None:
             RELEASE_ASSERT_NOT_REACHED();
         }

@@ -476,7 +476,6 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
         auto event = takeTopPriorityTrap(mask);
         switch (event) {
         case NeedDebuggerBreak:
-            dataLog("VM ", RawPointer(&vm), " on pid ", getCurrentProcessID(), " received NeedDebuggerBreak trap\n");
             invalidateCodeBlocksOnStack(vm.topCallFrame);
             didHandleTrap = true;
             break;
