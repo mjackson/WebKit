@@ -913,8 +913,16 @@ JSObject* JSPromise::promiseResolve(JSGlobalObject* globalObject, JSObject* cons
 
     if (argument.inherits<JSPromise>()) {
         auto* promise = jsCast<JSPromise*>(argument);
-        if (promiseSpeciesWatchpointIsValid(vm, promise)) [[likely]]
+        if (promiseSpeciesWatchpointIsValid(vm, promise)) [[likely]] {
+            // For InternalPromise, we can only return the same promise if the constructor
+            // matches. This preserves the behavior where Promise.resolve(InternalPromise)
+            // creates a new regular Promise, ensuring user-facing APIs return regular Promises.
+            if (promise->structure()->classInfoForCells() == JSInternalPromise::info()) {
+                if (constructor != globalObject->internalPromiseConstructor())
+                    goto createNewPromise;
+            }
             return promise;
+        }
 
         auto property = promise->get(globalObject, vm.propertyNames->constructor);
         RETURN_IF_EXCEPTION(scope, { });
@@ -922,6 +930,7 @@ JSObject* JSPromise::promiseResolve(JSGlobalObject* globalObject, JSObject* cons
         if (property == constructor)
             return promise;
     }
+createNewPromise:
 
     if (constructor == globalObject->promiseConstructor()) [[likely]] {
         JSPromise* promise = JSPromise::create(vm, globalObject->promiseStructure());
