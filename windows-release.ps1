@@ -92,7 +92,12 @@ function Patch-IcuVcxProj {
         $content = $content -replace '(<PreprocessorDefinitions>)', '$1U_STATIC_IMPLEMENTATION;'
     }
 
-    # 5. Remove DLL-specific link settings
+    # 5. Disable Whole Program Optimization (/GL) - required for lld-link compatibility
+    # MSBuild with /GL generates LTCG object files that only work with MSVC's link.exe
+    # Since JSC uses clang-cl with lld-link, we must disable /GL
+    $content = $content -replace '<WholeProgramOptimization>true</WholeProgramOptimization>', '<WholeProgramOptimization>false</WholeProgramOptimization>'
+
+    # 6. Remove DLL-specific link settings
     $content = $content -replace '<OutputFile>[^<]*\.(dll|DLL)</OutputFile>', ''
     $content = $content -replace '<ImportLibrary>[^<]*</ImportLibrary>', ''
 
