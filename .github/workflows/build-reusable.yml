@@ -257,7 +257,7 @@ jobs:
           scoop config use_external_7zip true
           scoop install ninja llvm@19.1.7
           Join-Path (Resolve-Path ~).Path "scoop\apps\llvm\current\bin" >> $Env:GITHUB_PATH
-      - uses: cygwin/cygwin-install-action@006ad0b0946ca6d0a3ea2d4437677fa767392401
+      # Note: Cygwin is no longer needed - ICU is now built with MSBuild
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.build_ref }}
