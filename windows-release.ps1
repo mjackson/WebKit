@@ -1,9 +1,6 @@
 param(
-    # not on by default because CI does not need it (for some reason)
-    # and i really really really really do not want to break anything
-    #
-    # you almost certainly need this to build locally
-    [switch][bool]$ExtraEffortPathManagement = $false
+    [ValidateSet("x64", "ARM64")]
+    [string]$Platform = "x64"
 )
 $ErrorActionPreference = "Stop"
 
@@ -13,39 +10,28 @@ if ($env:VSINSTALLDIR -eq $null) {
     $vsDir = Get-ChildItem -Path "C:\Program Files\Microsoft Visual Studio\2022" -Directory
     if ($vsDir -eq $null) {
         throw "Visual Studio directory not found."
-    } 
+    }
     Push-Location $vsDir
     try {
-        . (Join-Path -Path $vsDir.FullName -ChildPath "Common7\Tools\Launch-VsDevShell.ps1") -Arch amd64 -HostArch amd64
+        $targetArch = if ($Platform -eq "ARM64") { "arm64" } else { "amd64" }
+        . (Join-Path -Path $vsDir.FullName -ChildPath "Common7\Tools\Launch-VsDevShell.ps1") -Arch $targetArch -HostArch amd64
     }
     finally { Pop-Location }
 }
 
-if ($Env:VSCMD_ARG_TGT_ARCH -eq "x86") {
+if ($Platform -eq "x64" -and $Env:VSCMD_ARG_TGT_ARCH -eq "x86") {
     # Please do not try to compile Bun for 32 bit. It will not work. I promise.
     throw "Visual Studio environment is targetting 32 bit. This configuration is definetly a mistake."
 }
 
-# Fix up $PATH
+# Fix up $PATH - remove mingw and strawberry perl paths that can interfere with MSVC
 Write-Host $env:PATH
 
-$MakeExe = (Get-Command make).Path
-
 $SplitPath = $env:PATH -split ";";
-$MSVCPaths = $SplitPath | Where-Object { $_ -like "Microsoft Visual Studio" }
-$SplitPath = $MSVCPaths + ($SplitPath | Where-Object { $_ -notlike "Microsoft Visual Studio" } | Where-Object { $_ -notlike "*mingw*" })
+$MSVCPaths = $SplitPath | Where-Object { $_ -like "*Microsoft Visual Studio*" }
+$SplitPath = $MSVCPaths + ($SplitPath | Where-Object { $_ -notlike "*Microsoft Visual Studio*" } | Where-Object { $_ -notlike "*mingw*" })
 $PathWithPerl = $SplitPath -join ";"
 $env:PATH = ($SplitPath | Where-Object { $_ -notlike "*strawberry*" }) -join ';'
-
-if($ExtraEffortPathManagement) {
-    $SedPath = $(& cygwin.exe -c 'where sed')
-    $SedDir = Split-Path $SedPath
-    $LinkPath = $(gcm link).Path
-    $LinkDir = Split-Path $LinkPath
-
-    # override coreutils link with the msvc one
-    $env:PATH = "$LinkDir;$SedDir;$PathWithPerl"
-}
 
 Write-Host $env:PATH
 
@@ -60,16 +46,9 @@ $WebKitBuild = if ($env:WEBKIT_BUILD_DIR) { $env:WEBKIT_BUILD_DIR } else { "WebK
 $CMAKE_BUILD_TYPE = if ($env:CMAKE_BUILD_TYPE) { $env:CMAKE_BUILD_TYPE } else { "Release" }
 $BUN_WEBKIT_VERSION = if ($env:BUN_WEBKIT_VERSION) { $env:BUN_WEBKIT_VERSION } else { $(git rev-parse HEAD) }
 
-# WebKit/JavaScriptCore requires being linked against the dynamic ICU library,
-# but we do not want Bun to ship with DLLs, so we build ICU statically and
-# link against that. This means we need both the static and dynamic build of
-# ICU, once to link webkit, and second to link bun.
-#
-# I spent a few hours trying to find a way to get it to work with just the
-# static library, did not get any meaningful results.
-#
-# Note that Bun works fine when you use this dual library technique.
-# TODO: update to 75.1. It seems that additional CFLAGS need to be passed here.
+# WebKit/JavaScriptCore requires ICU. We build ICU statically using MSBuild
+# with /MT (static CRT) to avoid shipping DLLs with Bun.
+# Note: This approach replaces the previous Cygwin-based autotools build.
 $ICU_SOURCE_URL = "https://github.com/unicode-org/icu/releases/download/release-73-2/icu4c-73_2-src.tgz"
 
 $ICU_STATIC_ROOT = Join-Path $WebKitBuild "icu"
@@ -78,90 +57,169 @@ $ICU_STATIC_INCLUDE_DIR = Join-Path $ICU_STATIC_ROOT "include"
 
 $null = mkdir $WebKitBuild -ErrorAction SilentlyContinue
 
-if (!(Test-Path -Path $ICU_STATIC_ROOT)) {
+# Function to patch vcxproj files for static library build with /MT
+function Patch-IcuVcxProj {
+    param(
+        [string]$FilePath,
+        [string]$Configuration
+    )
+
+    $BackupPath = "$FilePath.bak"
+
+    if (-not (Test-Path $FilePath)) {
+        throw "File not found: $FilePath"
+    }
+
+    # Create backup if not exists
+    if (-not (Test-Path $BackupPath)) {
+        Copy-Item $FilePath $BackupPath
+        Write-Host "  Backed up: $(Split-Path -Leaf $FilePath)"
+    }
+
+    $content = Get-Content $FilePath -Raw
+
+    # 1. Change ConfigurationType from DynamicLibrary to StaticLibrary
+    $content = $content -replace '<ConfigurationType>DynamicLibrary</ConfigurationType>', '<ConfigurationType>StaticLibrary</ConfigurationType>'
+
+    # 2. Change RuntimeLibrary for Release: MultiThreadedDLL -> MultiThreaded
+    $content = $content -replace '<RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>', '<RuntimeLibrary>MultiThreaded</RuntimeLibrary>'
+
+    # 3. Change RuntimeLibrary for Debug: MultiThreadedDebugDLL -> MultiThreadedDebug
+    $content = $content -replace '<RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>', '<RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>'
+
+    # 4. Add U_STATIC_IMPLEMENTATION to preprocessor definitions (if not already present)
+    if ($content -notmatch 'U_STATIC_IMPLEMENTATION') {
+        $content = $content -replace '(<PreprocessorDefinitions>)', '$1U_STATIC_IMPLEMENTATION;'
+    }
+
+    # 5. Remove DLL-specific link settings
+    $content = $content -replace '<OutputFile>[^<]*\.(dll|DLL)</OutputFile>', ''
+    $content = $content -replace '<ImportLibrary>[^<]*</ImportLibrary>', ''
+
+    # For stubdata - remove resource-only DLL settings
+    if ($FilePath -match "stubdata") {
+        $content = $content -replace '<NoEntryPoint>true</NoEntryPoint>', ''
+        $content = $content -replace '<TurnOffAssemblyGeneration>true</TurnOffAssemblyGeneration>', ''
+    }
+
+    Set-Content $FilePath $content -NoNewline
+    Write-Host "  Patched: $(Split-Path -Leaf $FilePath)"
+}
+
+if (!(Test-Path -Path $ICU_STATIC_ROOT) -or !(Test-Path -Path "$ICU_STATIC_LIBRARY/icuuc.lib")) {
     $ICU_STATIC_TAR = Join-Path $WebKitBuild "icu4c-src.tgz"
-    
+
     if (!(Test-Path $ICU_STATIC_TAR)) {
         Write-Host ":: Downloading ICU"
         Invoke-WebRequest -Uri $ICU_SOURCE_URL -OutFile $ICU_STATIC_TAR
     }
-    Write-Host ":: Extracting ICU"
-    tar.exe -xzf $ICU_STATIC_TAR -C $WebKitBuild
-    if ($LASTEXITCODE -ne 0) { throw "tar failed with exit code $LASTEXITCODE" }
 
-    # two patches needed to build statically with clang-cl
-    
-    # 1. fix build script to align with bun's compiler requirements
-    #    a. replace references to `cl` with `clang-cl` from configure
-    #    b. use -MT instead of -MD to statically link the C runtime
-    #    c. enable debug build for Debug configuration
-    $ConfigureFile = Get-Content "$ICU_STATIC_ROOT/source/runConfigureICU" -Raw
-    $ConfigureFile = $ConfigureFile -replace "=cl", "=clang-cl"
-    if ($CMAKE_BUILD_TYPE -eq "Debug") {
-        $ConfigureFile = $ConfigureFile -replace "debug=0", "debug=1"
-        $ConfigureFile = $ConfigureFile -replace "release=1", "release=0"
-        $ConfigureFile = $ConfigureFile -replace "-MDd", "-MTd /DU_STATIC_IMPLEMENTATION"
-    } else {
-        $ConfigureFile = $ConfigureFile -replace "-MD'", "-MT /DU_STATIC_IMPLEMENTATION'"
+    if (!(Test-Path "$ICU_STATIC_ROOT/source")) {
+        Write-Host ":: Extracting ICU"
+        tar.exe -xzf $ICU_STATIC_TAR -C $WebKitBuild
+        if ($LASTEXITCODE -ne 0) { throw "tar failed with exit code $LASTEXITCODE" }
     }
 
-    Set-Content "$ICU_STATIC_ROOT/source/runConfigureICU" $ConfigureFile -NoNewline -Encoding UTF8
-    
-    Push-Location $ICU_STATIC_ROOT/source
-    try {
-        Write-Host ":: Configuring ICU Build"
+    $IcuSourceDir = Join-Path $ICU_STATIC_ROOT "source"
 
-        if ($CMAKE_BUILD_TYPE -eq "Release") {
-            bash.exe ./runConfigureICU Cygwin/MSVC `
-                --enable-static `
-                --disable-shared `
-                --with-data-packaging=static `
-                --disable-samples `
-                --disable-tests `
-                --disable-debug `
-                --enable-release
-        } elseif ($CMAKE_BUILD_TYPE -eq "Debug") {
-            bash.exe ./runConfigureICU Cygwin/MSVC `
-                --enable-static `
-                --disable-shared `
-                --with-data-packaging=static `
-                --disable-samples `
-                --disable-tests `
-                --enable-debug `
-                --disable-release
-        }
+    # Patch vcxproj files for static build with /MT
+    Write-Host ":: Patching ICU vcxproj files for static build..."
+    $vcxprojFiles = @(
+        "common\common.vcxproj",
+        "i18n\i18n.vcxproj",
+        "stubdata\stubdata.vcxproj"
+    )
 
-        if ($LASTEXITCODE -ne 0) { 
-            Get-Content "config.log"
-            throw "runConfigureICU failed with exit code $LASTEXITCODE"
-        }
-    
-        Write-Host ":: Building ICU"
-        & $MakeExe "-j$((Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors)"
-        if ($LASTEXITCODE -ne 0) { throw "make failed with exit code $LASTEXITCODE" }
+    foreach ($file in $vcxprojFiles) {
+        Patch-IcuVcxProj -FilePath (Join-Path $IcuSourceDir $file) -Configuration $CMAKE_BUILD_TYPE
     }
-    finally { Pop-Location }
-    
+
+    # Find MSBuild
+    $vswhere = "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
+    if (-not (Test-Path $vswhere)) {
+        throw "vswhere not found. Please install Visual Studio."
+    }
+
+    $vsPath = & $vswhere -latest -property installationPath
+    $msbuildPath = Join-Path $vsPath "MSBuild\Current\Bin\MSBuild.exe"
+
+    if (-not (Test-Path $msbuildPath)) {
+        throw "MSBuild not found at: $msbuildPath"
+    }
+
+    Write-Host ""
+    Write-Host ":: Using MSBuild: $msbuildPath"
+
+    # Build ICU projects using MSBuild
+    $slnPath = Join-Path $IcuSourceDir "allinone\allinone.sln"
+    $msbuildConfiguration = $CMAKE_BUILD_TYPE
+
+    # Build order matters: stubdata -> common -> i18n
+    $buildTargets = @("stubdata", "common", "i18n")
+
+    foreach ($target in $buildTargets) {
+        Write-Host ""
+        Write-Host ":: Building ICU $target..."
+
+        $buildArgs = @(
+            $slnPath,
+            "/t:$target",
+            "/p:Configuration=$msbuildConfiguration",
+            "/p:Platform=$Platform",
+            "/p:SkipUWP=true",
+            "/m",
+            "/v:minimal"
+        )
+
+        & $msbuildPath $buildArgs
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "MSBuild failed for $target with exit code $LASTEXITCODE"
+        }
+
+        Write-Host ":: Built $target successfully"
+    }
+
+    # Copy output files to expected locations
+    Write-Host ""
+    Write-Host ":: Copying ICU output files..."
+
     $null = mkdir -Force $ICU_STATIC_INCLUDE_DIR/unicode
-    Copy-Item -r $ICU_STATIC_ROOT/source/common/unicode/* $ICU_STATIC_INCLUDE_DIR/unicode
-    Copy-Item -r $ICU_STATIC_ROOT/source/i18n/unicode/* $ICU_STATIC_INCLUDE_DIR/unicode
     $null = mkdir -Force $ICU_STATIC_LIBRARY
-    Copy-Item -r $ICU_STATIC_ROOT/source/lib/* $ICU_STATIC_LIBRARY/
 
-    # JSC expects the static library to be named icudt.lib
-    if ($CMAKE_BUILD_TYPE -eq "Release") {
-        Move-Item $ICU_STATIC_LIBRARY/sicudt.lib $ICU_STATIC_LIBRARY/icudt.lib
-        Move-Item $ICU_STATIC_LIBRARY/sicutu.lib $ICU_STATIC_LIBRARY/icutu.lib
-        Move-Item $ICU_STATIC_LIBRARY/sicuio.lib $ICU_STATIC_LIBRARY/icuio.lib
-        Move-Item $ICU_STATIC_LIBRARY/sicuin.lib $ICU_STATIC_LIBRARY/icuin.lib
-        Move-Item $ICU_STATIC_LIBRARY/sicuuc.lib $ICU_STATIC_LIBRARY/icuuc.lib
-    } elseif ($CMAKE_BUILD_TYPE -eq "Debug") {
-        Move-Item $ICU_STATIC_LIBRARY/sicudtd.lib $ICU_STATIC_LIBRARY/icudt.lib
-        Move-Item $ICU_STATIC_LIBRARY/sicutud.lib $ICU_STATIC_LIBRARY/icutu.lib
-        Move-Item $ICU_STATIC_LIBRARY/sicuiod.lib $ICU_STATIC_LIBRARY/icuio.lib
-        Move-Item $ICU_STATIC_LIBRARY/sicuind.lib $ICU_STATIC_LIBRARY/icuin.lib
-        Move-Item $ICU_STATIC_LIBRARY/sicuucd.lib $ICU_STATIC_LIBRARY/icuuc.lib
+    # Copy headers
+    Copy-Item -r "$IcuSourceDir/common/unicode/*" "$ICU_STATIC_INCLUDE_DIR/unicode"
+    Copy-Item -r "$IcuSourceDir/i18n/unicode/*" "$ICU_STATIC_INCLUDE_DIR/unicode"
+
+    # Find and copy static libraries from MSBuild output
+    # MSBuild outputs to: <project>/<Platform>/<Configuration>/<project>.lib
+    $commonLibSrc = Join-Path $IcuSourceDir "common\$Platform\$msbuildConfiguration\common.lib"
+    $i18nLibSrc = Join-Path $IcuSourceDir "i18n\$Platform\$msbuildConfiguration\i18n.lib"
+    $stubdataLibSrc = Join-Path $IcuSourceDir "stubdata\$Platform\$msbuildConfiguration\stubdata.lib"
+
+    # JSC expects libraries named icuuc.lib, icuin.lib, icudt.lib (without 's' prefix)
+    if (Test-Path $commonLibSrc) {
+        Copy-Item $commonLibSrc "$ICU_STATIC_LIBRARY/icuuc.lib" -Force
+        Write-Host "  Copied: common.lib -> icuuc.lib"
+    } else {
+        throw "ICU common library not found at: $commonLibSrc"
     }
+
+    if (Test-Path $i18nLibSrc) {
+        Copy-Item $i18nLibSrc "$ICU_STATIC_LIBRARY/icuin.lib" -Force
+        Write-Host "  Copied: i18n.lib -> icuin.lib"
+    } else {
+        throw "ICU i18n library not found at: $i18nLibSrc"
+    }
+
+    if (Test-Path $stubdataLibSrc) {
+        Copy-Item $stubdataLibSrc "$ICU_STATIC_LIBRARY/icudt.lib" -Force
+        Write-Host "  Copied: stubdata.lib -> icudt.lib"
+    } else {
+        throw "ICU stubdata library not found at: $stubdataLibSrc"
+    }
+
+    Write-Host ":: ICU build completed successfully!"
 }
 
 Write-Host ":: Configuring WebKit"
@@ -248,18 +306,16 @@ if (Test-Path -Path $WebKitBuild/lib64) {
 
 Copy-Item $WebKitBuild/cmakeconfig.h $output/include/cmakeconfig.h
 
+# Copy ICU libraries to output with 's' prefix (static) naming convention
+# This is the naming convention expected by Bun
 if ($CMAKE_BUILD_TYPE -eq "Release") {
-    Move-Item $ICU_STATIC_LIBRARY/icudt.lib $ICU_STATIC_LIBRARY/sicudt.lib
-    Move-Item $ICU_STATIC_LIBRARY/icutu.lib $ICU_STATIC_LIBRARY/sicutu.lib
-    Move-Item $ICU_STATIC_LIBRARY/icuio.lib $ICU_STATIC_LIBRARY/sicuio.lib
-    Move-Item $ICU_STATIC_LIBRARY/icuin.lib $ICU_STATIC_LIBRARY/sicuin.lib
-    Move-Item $ICU_STATIC_LIBRARY/icuuc.lib $ICU_STATIC_LIBRARY/sicuuc.lib
+    Copy-Item "$ICU_STATIC_LIBRARY/icudt.lib" "$output/lib/sicudt.lib" -Force
+    Copy-Item "$ICU_STATIC_LIBRARY/icuin.lib" "$output/lib/sicuin.lib" -Force
+    Copy-Item "$ICU_STATIC_LIBRARY/icuuc.lib" "$output/lib/sicuuc.lib" -Force
 } elseif ($CMAKE_BUILD_TYPE -eq "Debug") {
-    Move-Item $ICU_STATIC_LIBRARY/icudt.lib $ICU_STATIC_LIBRARY/sicudtd.lib
-    Move-Item $ICU_STATIC_LIBRARY/icutu.lib $ICU_STATIC_LIBRARY/sicutud.lib
-    Move-Item $ICU_STATIC_LIBRARY/icuio.lib $ICU_STATIC_LIBRARY/sicuiod.lib
-    Move-Item $ICU_STATIC_LIBRARY/icuin.lib $ICU_STATIC_LIBRARY/sicuind.lib
-    Move-Item $ICU_STATIC_LIBRARY/icuuc.lib $ICU_STATIC_LIBRARY/sicuucd.lib
+    Copy-Item "$ICU_STATIC_LIBRARY/icudt.lib" "$output/lib/sicudtd.lib" -Force
+    Copy-Item "$ICU_STATIC_LIBRARY/icuin.lib" "$output/lib/sicuind.lib" -Force
+    Copy-Item "$ICU_STATIC_LIBRARY/icuuc.lib" "$output/lib/sicuucd.lib" -Force
 }
 
 Add-Content -Path $output/include/cmakeconfig.h -Value "`#define BUN_WEBKIT_VERSION `"$BUN_WEBKIT_VERSION`""
@@ -287,8 +343,9 @@ if (Test-Path -Path $WebKitBuild/bmalloc) {
     -replace "#import <JavaScriptCore/JSValuePrivate.h>", "#include <JavaScriptCore/JSValuePrivate.h>" `
 | Set-Content -Path $output/include/JavaScriptCore/JSValueInternal.h
 
+# Copy ICU headers to output
 Copy-Item -r $ICU_STATIC_INCLUDE_DIR/* $output/include/
-Copy-Item -r $ICU_STATIC_LIBRARY/* $output/lib/
+# Note: ICU libraries are already copied with correct names above (sicudt.lib, sicuin.lib, sicuuc.lib)
 
 $packageJsonContent = @{
     name       = $env:PACKAGE_JSON_LABEL
