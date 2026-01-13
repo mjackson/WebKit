@@ -139,6 +139,18 @@ if (!(Test-Path -Path $ICU_STATIC_ROOT) -or !(Test-Path -Path "$ICU_STATIC_LIBRA
         Patch-IcuVcxProj -FilePath (Join-Path $IcuSourceDir $file) -Configuration $CMAKE_BUILD_TYPE
     }
 
+    # Patch the .props file to disable /GL (Whole Program Optimization)
+    # This is required because lld-link cannot read LTCG object files
+    $propsFile = Join-Path $IcuSourceDir "allinone\Build.Windows.ProjectConfiguration.props"
+    if (Test-Path $propsFile) {
+        Write-Host ":: Patching Build.Windows.ProjectConfiguration.props to disable /GL..."
+        $propsContent = Get-Content $propsFile -Raw
+        $propsContent = $propsContent -replace '<WholeProgramOptimization>true</WholeProgramOptimization>', '<WholeProgramOptimization>false</WholeProgramOptimization>'
+        $propsContent = $propsContent -replace '<LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>', '<LinkTimeCodeGeneration></LinkTimeCodeGeneration>'
+        Set-Content $propsFile $propsContent -NoNewline
+        Write-Host "  Patched: Build.Windows.ProjectConfiguration.props"
+    }
+
     # Find MSBuild
     $vswhere = "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
     if (-not (Test-Path $vswhere)) {
