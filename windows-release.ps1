@@ -136,8 +136,67 @@ if (!(Test-Path -Path $ICU_STATIC_ROOT) -or !(Test-Path -Path "$ICU_STATIC_LIBRA
 
     $IcuSourceDir = Join-Path $ICU_STATIC_ROOT "source"
 
+    # Find MSBuild
+    $vswhere = "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
+    if (-not (Test-Path $vswhere)) {
+        throw "vswhere not found. Please install Visual Studio."
+    }
+
+    $vsPath = & $vswhere -latest -property installationPath
+    $msbuildPath = Join-Path $vsPath "MSBuild\Current\Bin\MSBuild.exe"
+
+    if (-not (Test-Path $msbuildPath)) {
+        throw "MSBuild not found at: $msbuildPath"
+    }
+
+    Write-Host ""
+    Write-Host ":: Using MSBuild: $msbuildPath"
+
+    $slnPath = Join-Path $IcuSourceDir "allinone\allinone.sln"
+    $msbuildConfiguration = $CMAKE_BUILD_TYPE
+
+    # ========================================================================
+    # STAGE 1: Build makedata with default DLL configuration
+    # ========================================================================
+    # The ICU tools (pkgdata, etc.) require DLL linkage to build and run.
+    # We build makedata first with default configuration to generate ICU data.
+    # The output sicudt.lib is pure data with no CRT dependencies, so it works
+    # with any runtime configuration.
+    Write-Host ""
+    Write-Host ":: STAGE 1: Building ICU makedata (generates ICU data)..."
+
+    # Set ICU_PACKAGE_MODE to build static data library instead of DLL
+    # This is passed to makedata.mak via environment variable
+    $env:ICU_PACKAGE_MODE = "-m static"
+    Write-Host ":: ICU_PACKAGE_MODE set to: $env:ICU_PACKAGE_MODE"
+
+    $buildArgs = @(
+        $slnPath,
+        "/t:makedata",
+        "/p:Configuration=$msbuildConfiguration",
+        "/p:Platform=$Platform",
+        "/p:SkipUWP=true",
+        "/m",
+        "/v:normal"
+    )
+
+    & $msbuildPath $buildArgs
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "MSBuild failed for makedata with exit code $LASTEXITCODE"
+    }
+
+    Write-Host ":: Built makedata successfully"
+
+    # ========================================================================
+    # STAGE 2: Rebuild common and i18n as static libraries with /MT
+    # ========================================================================
+    # Now that we have the ICU data, we patch and rebuild the core libraries
+    # with static CRT (/MT) for use in Bun.
+    Write-Host ""
+    Write-Host ":: STAGE 2: Rebuilding ICU common and i18n as static libraries with /MT..."
+
     # Patch vcxproj files for static build with /MT
-    # We patch common, i18n, and stubdata for static library configuration
     Write-Host ":: Patching ICU vcxproj files for static build..."
     $vcxprojFiles = @(
         "common\common.vcxproj",
@@ -161,61 +220,9 @@ if (!(Test-Path -Path $ICU_STATIC_ROOT) -or !(Test-Path -Path "$ICU_STATIC_LIBRA
         Write-Host "  Patched: Build.Windows.ProjectConfiguration.props"
     }
 
-    # Find MSBuild
-    $vswhere = "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
-    if (-not (Test-Path $vswhere)) {
-        throw "vswhere not found. Please install Visual Studio."
-    }
-
-    $vsPath = & $vswhere -latest -property installationPath
-    $msbuildPath = Join-Path $vsPath "MSBuild\Current\Bin\MSBuild.exe"
-
-    if (-not (Test-Path $msbuildPath)) {
-        throw "MSBuild not found at: $msbuildPath"
-    }
-
-    Write-Host ""
-    Write-Host ":: Using MSBuild: $msbuildPath"
-
-    # Build ICU projects using MSBuild
-    $slnPath = Join-Path $IcuSourceDir "allinone\allinone.sln"
-    $msbuildConfiguration = $CMAKE_BUILD_TYPE
-
-    # Set ICU_PACKAGE_MODE to build static data library instead of DLL
-    # This is passed to makedata.mak via environment variable
-    $env:ICU_PACKAGE_MODE = "-m static"
-    Write-Host ":: ICU_PACKAGE_MODE set to: $env:ICU_PACKAGE_MODE"
-
-    # Build makedata target - this builds all required tools and generates the ICU data
-    # The makedata project depends on: stubdata, common, i18n, toolutil, and various tools
-    # MSBuild will automatically build these dependencies first
-    Write-Host ""
-    Write-Host ":: Building ICU makedata (this will build all dependencies including tools)..."
-
-    $buildArgs = @(
-        $slnPath,
-        "/t:makedata",
-        "/p:Configuration=$msbuildConfiguration",
-        "/p:Platform=$Platform",
-        "/p:SkipUWP=true",
-        "/m",
-        "/v:normal"
-    )
-
-    & $msbuildPath $buildArgs
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "MSBuild failed for makedata with exit code $LASTEXITCODE"
-    }
-
-    Write-Host ":: Built makedata successfully"
-
-    # Now build common and i18n as static libraries (they were built as dependencies but we need static versions)
-    Write-Host ""
-    Write-Host ":: Building ICU common and i18n as static libraries..."
-
+    # Rebuild common and i18n with /MT (they need full rebuild after patching)
     foreach ($target in @("common", "i18n")) {
-        Write-Host ":: Building ICU $target..."
+        Write-Host ":: Building ICU $target with /MT..."
 
         $buildArgs = @(
             $slnPath,
