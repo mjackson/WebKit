@@ -49,7 +49,16 @@ $BUN_WEBKIT_VERSION = if ($env:BUN_WEBKIT_VERSION) { $env:BUN_WEBKIT_VERSION } e
 # WebKit/JavaScriptCore requires ICU. We build ICU statically using MSBuild
 # with /MT (static CRT) to avoid shipping DLLs with Bun.
 # Note: This approach replaces the previous Cygwin-based autotools build.
+# The makedata project requires Python 3 to generate the ICU data.
 $ICU_SOURCE_URL = "https://github.com/unicode-org/icu/releases/download/release-73-2/icu4c-73_2-src.tgz"
+
+# Verify Python 3 is available (required for ICU data build)
+try {
+    $pythonVersion = & py -3 --version 2>&1
+    Write-Host ":: Found Python: $pythonVersion"
+} catch {
+    throw "Python 3 is required to build ICU data. Please install Python 3 and ensure 'py -3' is available."
+}
 
 $ICU_STATIC_ROOT = Join-Path $WebKitBuild "icu"
 $ICU_STATIC_LIBRARY = Join-Path $ICU_STATIC_ROOT "lib"
@@ -111,7 +120,7 @@ function Patch-IcuVcxProj {
     Write-Host "  Patched: $(Split-Path -Leaf $FilePath)"
 }
 
-if (!(Test-Path -Path $ICU_STATIC_ROOT) -or !(Test-Path -Path "$ICU_STATIC_LIBRARY/icuuc.lib")) {
+if (!(Test-Path -Path $ICU_STATIC_ROOT) -or !(Test-Path -Path "$ICU_STATIC_LIBRARY/sicudt.lib")) {
     $ICU_STATIC_TAR = Join-Path $WebKitBuild "icu4c-src.tgz"
 
     if (!(Test-Path $ICU_STATIC_TAR)) {
@@ -126,6 +135,82 @@ if (!(Test-Path -Path $ICU_STATIC_ROOT) -or !(Test-Path -Path "$ICU_STATIC_LIBRA
     }
 
     $IcuSourceDir = Join-Path $ICU_STATIC_ROOT "source"
+
+    # Patch makedata.mak to skip DLL copy when building static
+    # The original makedata.mak always tries to copy icudt*.dll even when -m static is used
+    # We use -ignore flag with copy to suppress errors when the DLL doesn't exist (static build)
+    $makedataMak = Join-Path $IcuSourceDir "data\makedata.mak"
+    if (Test-Path $makedataMak) {
+        Write-Host ":: Patching makedata.mak to skip DLL copy for static build..."
+        $makedataContent = Get-Content $makedataMak -Raw
+
+        # Add '-' prefix to copy command to ignore errors (nmake ignores exit code with - prefix)
+        # This makes the copy optional - it succeeds if file exists, silently continues if not
+        $makedataContent = $makedataContent -replace '\tcopy "\$\(U_ICUDATA_NAME\)\.dll"', "`t-copy `"`$(U_ICUDATA_NAME).dll`""
+
+        Set-Content $makedataMak $makedataContent -NoNewline
+        Write-Host "  Patched: makedata.mak"
+    }
+
+    # Find MSBuild
+    $vswhere = "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
+    if (-not (Test-Path $vswhere)) {
+        throw "vswhere not found. Please install Visual Studio."
+    }
+
+    $vsPath = & $vswhere -latest -property installationPath
+    $msbuildPath = Join-Path $vsPath "MSBuild\Current\Bin\MSBuild.exe"
+
+    if (-not (Test-Path $msbuildPath)) {
+        throw "MSBuild not found at: $msbuildPath"
+    }
+
+    Write-Host ""
+    Write-Host ":: Using MSBuild: $msbuildPath"
+
+    $slnPath = Join-Path $IcuSourceDir "allinone\allinone.sln"
+    $msbuildConfiguration = $CMAKE_BUILD_TYPE
+
+    # ========================================================================
+    # STAGE 1: Build makedata with default DLL configuration
+    # ========================================================================
+    # The ICU tools (pkgdata, etc.) require DLL linkage to build and run.
+    # We build makedata first with default configuration to generate ICU data.
+    # The output sicudt.lib is pure data with no CRT dependencies, so it works
+    # with any runtime configuration.
+    Write-Host ""
+    Write-Host ":: STAGE 1: Building ICU makedata (generates ICU data)..."
+
+    # Set ICU_PACKAGE_MODE to build static data library instead of DLL
+    # This is passed to makedata.mak via environment variable
+    $env:ICU_PACKAGE_MODE = "-m static"
+    Write-Host ":: ICU_PACKAGE_MODE set to: $env:ICU_PACKAGE_MODE"
+
+    $buildArgs = @(
+        $slnPath,
+        "/t:makedata",
+        "/p:Configuration=$msbuildConfiguration",
+        "/p:Platform=$Platform",
+        "/p:SkipUWP=true",
+        "/m",
+        "/v:normal"
+    )
+
+    & $msbuildPath $buildArgs
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "MSBuild failed for makedata with exit code $LASTEXITCODE"
+    }
+
+    Write-Host ":: Built makedata successfully"
+
+    # ========================================================================
+    # STAGE 2: Rebuild common and i18n as static libraries with /MT
+    # ========================================================================
+    # Now that we have the ICU data, we patch and rebuild the core libraries
+    # with static CRT (/MT) for use in Bun.
+    Write-Host ""
+    Write-Host ":: STAGE 2: Rebuilding ICU common and i18n as static libraries with /MT..."
 
     # Patch vcxproj files for static build with /MT
     Write-Host ":: Patching ICU vcxproj files for static build..."
@@ -151,32 +236,9 @@ if (!(Test-Path -Path $ICU_STATIC_ROOT) -or !(Test-Path -Path "$ICU_STATIC_LIBRA
         Write-Host "  Patched: Build.Windows.ProjectConfiguration.props"
     }
 
-    # Find MSBuild
-    $vswhere = "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
-    if (-not (Test-Path $vswhere)) {
-        throw "vswhere not found. Please install Visual Studio."
-    }
-
-    $vsPath = & $vswhere -latest -property installationPath
-    $msbuildPath = Join-Path $vsPath "MSBuild\Current\Bin\MSBuild.exe"
-
-    if (-not (Test-Path $msbuildPath)) {
-        throw "MSBuild not found at: $msbuildPath"
-    }
-
-    Write-Host ""
-    Write-Host ":: Using MSBuild: $msbuildPath"
-
-    # Build ICU projects using MSBuild
-    $slnPath = Join-Path $IcuSourceDir "allinone\allinone.sln"
-    $msbuildConfiguration = $CMAKE_BUILD_TYPE
-
-    # Build order matters: stubdata -> common -> i18n
-    $buildTargets = @("stubdata", "common", "i18n")
-
-    foreach ($target in $buildTargets) {
-        Write-Host ""
-        Write-Host ":: Building ICU $target..."
+    # Rebuild common and i18n with /MT (they need full rebuild after patching)
+    foreach ($target in @("common", "i18n")) {
+        Write-Host ":: Building ICU $target with /MT..."
 
         $buildArgs = @(
             $slnPath,
@@ -212,9 +274,32 @@ if (!(Test-Path -Path $ICU_STATIC_ROOT) -or !(Test-Path -Path "$ICU_STATIC_LIBRA
     # MSBuild outputs to: <project>/<Platform>/<Configuration>/<project>.lib
     $commonLibSrc = Join-Path $IcuSourceDir "common\$Platform\$msbuildConfiguration\common.lib"
     $i18nLibSrc = Join-Path $IcuSourceDir "i18n\$Platform\$msbuildConfiguration\i18n.lib"
-    $stubdataLibSrc = Join-Path $IcuSourceDir "stubdata\$Platform\$msbuildConfiguration\stubdata.lib"
 
-    # JSC expects libraries named icuuc.lib, icuin.lib, icudt.lib (without 's' prefix)
+    # The ICU data library is generated by makedata with pkgdata tool
+    # Output location depends on platform: bin64 for x64, binARM64 for ARM64
+    $binDir = if ($Platform -eq "x64") { "bin64" } else { "bin$Platform" }
+
+    # pkgdata generates sicudt73.lib (static ICU data) when ICU_PACKAGE_MODE=-m static
+    $icuDataLibSrc = Join-Path $IcuSourceDir "..\$binDir\sicudt73.lib"
+
+    # Also check alternative locations
+    if (-not (Test-Path $icuDataLibSrc)) {
+        $icuDataLibSrc = Join-Path $IcuSourceDir "data\out\tmp\sicudt73.lib"
+    }
+    if (-not (Test-Path $icuDataLibSrc)) {
+        $icuDataLibSrc = Join-Path $IcuSourceDir "data\out\sicudt73.lib"
+    }
+    if (-not (Test-Path $icuDataLibSrc)) {
+        # Search for the file in the ICU directory tree
+        Write-Host ":: Searching for ICU data library..."
+        $foundLib = Get-ChildItem -Path $ICU_STATIC_ROOT -Recurse -Filter "sicudt*.lib" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($foundLib) {
+            $icuDataLibSrc = $foundLib.FullName
+            Write-Host ":: Found ICU data library at: $icuDataLibSrc"
+        }
+    }
+
+    # Copy common library
     if (Test-Path $commonLibSrc) {
         Copy-Item $commonLibSrc "$ICU_STATIC_LIBRARY/icuuc.lib" -Force
         Write-Host "  Copied: common.lib -> icuuc.lib"
@@ -222,6 +307,7 @@ if (!(Test-Path -Path $ICU_STATIC_ROOT) -or !(Test-Path -Path "$ICU_STATIC_LIBRA
         throw "ICU common library not found at: $commonLibSrc"
     }
 
+    # Copy i18n library
     if (Test-Path $i18nLibSrc) {
         Copy-Item $i18nLibSrc "$ICU_STATIC_LIBRARY/icuin.lib" -Force
         Write-Host "  Copied: i18n.lib -> icuin.lib"
@@ -229,11 +315,17 @@ if (!(Test-Path -Path $ICU_STATIC_ROOT) -or !(Test-Path -Path "$ICU_STATIC_LIBRA
         throw "ICU i18n library not found at: $i18nLibSrc"
     }
 
-    if (Test-Path $stubdataLibSrc) {
-        Copy-Item $stubdataLibSrc "$ICU_STATIC_LIBRARY/icudt.lib" -Force
-        Write-Host "  Copied: stubdata.lib -> icudt.lib"
+    # Copy data library (with full Unicode data, not just stub)
+    if (Test-Path $icuDataLibSrc) {
+        Copy-Item $icuDataLibSrc "$ICU_STATIC_LIBRARY/sicudt.lib" -Force
+        Write-Host "  Copied: $(Split-Path -Leaf $icuDataLibSrc) -> sicudt.lib"
     } else {
-        throw "ICU stubdata library not found at: $stubdataLibSrc"
+        # List what files were actually generated for debugging
+        Write-Host ":: WARNING: ICU data library not found. Listing generated files..."
+        Get-ChildItem -Path $ICU_STATIC_ROOT -Recurse -Filter "*.lib" | ForEach-Object {
+            Write-Host "    Found: $($_.FullName)"
+        }
+        throw "ICU data library not found. Expected at: $icuDataLibSrc"
     }
 
     Write-Host ":: ICU build completed successfully!"
@@ -325,12 +417,13 @@ Copy-Item $WebKitBuild/cmakeconfig.h $output/include/cmakeconfig.h
 
 # Copy ICU libraries to output with 's' prefix (static) naming convention
 # This is the naming convention expected by Bun
+# Note: sicudt.lib contains the full ICU Unicode data (built via makedata project)
 if ($CMAKE_BUILD_TYPE -eq "Release") {
-    Copy-Item "$ICU_STATIC_LIBRARY/icudt.lib" "$output/lib/sicudt.lib" -Force
+    Copy-Item "$ICU_STATIC_LIBRARY/sicudt.lib" "$output/lib/sicudt.lib" -Force
     Copy-Item "$ICU_STATIC_LIBRARY/icuin.lib" "$output/lib/sicuin.lib" -Force
     Copy-Item "$ICU_STATIC_LIBRARY/icuuc.lib" "$output/lib/sicuuc.lib" -Force
 } elseif ($CMAKE_BUILD_TYPE -eq "Debug") {
-    Copy-Item "$ICU_STATIC_LIBRARY/icudt.lib" "$output/lib/sicudtd.lib" -Force
+    Copy-Item "$ICU_STATIC_LIBRARY/sicudt.lib" "$output/lib/sicudtd.lib" -Force
     Copy-Item "$ICU_STATIC_LIBRARY/icuin.lib" "$output/lib/sicuind.lib" -Force
     Copy-Item "$ICU_STATIC_LIBRARY/icuuc.lib" "$output/lib/sicuucd.lib" -Force
 }
