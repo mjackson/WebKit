@@ -33,6 +33,9 @@
 #include "JSInternalPromise.h"
 #include "JSPromise.h"
 #include "JSPromiseCombinatorsGlobalContext.h"
+#if USE(BUN_JSC_ADDITIONS)
+#include "InternalFieldTuple.h"
+#endif
 
 namespace JSC {
 
@@ -271,7 +274,22 @@ JSC_DEFINE_HOST_FUNCTION(promiseProtoFuncFinally, (JSGlobalObject* globalObject,
     if (promise && promise->isThenFastAndNonObservable() && promiseSpeciesWatchpointIsValid(vm, promise)) [[likely]] {
         JSPromise* resultPromise = JSPromise::create(vm, globalObject->promiseStructure());
         auto* context = JSPromiseCombinatorsGlobalContext::create(vm, resultPromise, onFinally, jsUndefined());
+#if USE(BUN_JSC_ADDITIONS)
+        // Wrap context with async context in InternalFieldTuple: [context, asyncContext]
+        JSValue contextValue = context;
+        if (auto* asyncContextData = globalObject->m_asyncContextData.get()) {
+            JSValue asyncContext = asyncContextData->getInternalField(0);
+            if (!asyncContext.isUndefined()) {
+                auto* tuple = InternalFieldTuple::create(vm, globalObject->internalFieldTupleStructure());
+                tuple->putInternalField(vm, 0, context);
+                tuple->putInternalField(vm, 1, asyncContext);
+                contextValue = tuple;
+            }
+        }
+        promise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::PromiseFinallyReactionJob, resultPromise, contextValue);
+#else
         promise->performPromiseThenWithInternalMicrotask(vm, globalObject, InternalMicrotask::PromiseFinallyReactionJob, resultPromise, context);
+#endif
         return JSValue::encode(resultPromise);
     }
 
