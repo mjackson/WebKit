@@ -136,6 +136,22 @@ if (!(Test-Path -Path $ICU_STATIC_ROOT) -or !(Test-Path -Path "$ICU_STATIC_LIBRA
 
     $IcuSourceDir = Join-Path $ICU_STATIC_ROOT "source"
 
+    # Patch makedata.mak to skip DLL copy when building static
+    # The original makedata.mak always tries to copy icudt*.dll even when -m static is used
+    # We use -ignore flag with copy to suppress errors when the DLL doesn't exist (static build)
+    $makedataMak = Join-Path $IcuSourceDir "data\makedata.mak"
+    if (Test-Path $makedataMak) {
+        Write-Host ":: Patching makedata.mak to skip DLL copy for static build..."
+        $makedataContent = Get-Content $makedataMak -Raw
+
+        # Add '-' prefix to copy command to ignore errors (nmake ignores exit code with - prefix)
+        # This makes the copy optional - it succeeds if file exists, silently continues if not
+        $makedataContent = $makedataContent -replace '\tcopy "\$\(U_ICUDATA_NAME\)\.dll"', "`t-copy `"`$(U_ICUDATA_NAME).dll`""
+
+        Set-Content $makedataMak $makedataContent -NoNewline
+        Write-Host "  Patched: makedata.mak"
+    }
+
     # Find MSBuild
     $vswhere = "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
     if (-not (Test-Path $vswhere)) {
