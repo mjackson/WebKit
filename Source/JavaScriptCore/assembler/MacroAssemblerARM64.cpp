@@ -325,6 +325,13 @@ static_assert(JIT_PROBE_PC_PTR_TAG == JITProbePCPtrTag);
 static_assert(JIT_PROBE_STACK_INITIALIZATION_FUNCTION_PTR_TAG == JITProbeStackInitializationFunctionPtrTag);
 #endif
 
+// The probe trampoline requires inline assembly with .balign directives.
+// Unfortunately, LLVM has a bug on Windows ARM64 that causes a fatal error
+// "Failed to evaluate function length in SEH unwind info" when inline assembly
+// contains alignment directives. See llvm/llvm-project#47432 for details.
+// As a workaround, we disable the probe functionality on Windows ARM64.
+#if !(OS(WINDOWS) && CPU(ARM64))
+
 // We use x29 and x30 instead of fp and lr because GCC's inline assembler does not recognize fp and lr.
 // See https://bugs.webkit.org/show_bug.cgi?id=175512 for details.
 __asm__(
@@ -601,6 +608,18 @@ void MacroAssembler::probe(Probe::Function function, void* arg)
     add64(TrustedImm32(sizeof(LRRestorationRecord)), sp);
     JIT_COMMENT(*this, "First non-probe instruction");
 }
+
+#else // OS(WINDOWS) && CPU(ARM64)
+
+// Stub implementation for Windows ARM64 where probe is disabled.
+// The probe functionality is primarily used for debugging/profiling.
+void MacroAssembler::probe(Probe::Function, void*)
+{
+    // Probe is not supported on Windows ARM64 due to LLVM bug llvm/llvm-project#47432
+    RELEASE_ASSERT_NOT_REACHED_WITH_MESSAGE("Probe is not supported on Windows ARM64");
+}
+
+#endif // !(OS(WINDOWS) && CPU(ARM64))
 
 void MacroAssemblerARM64::collectCPUFeatures()
 {
