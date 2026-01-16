@@ -353,10 +353,10 @@ $WebAssemblyState = if ($NoWebassembly) { "OFF" } else { "ON" }
 if ($Platform -eq "ARM64") {
     $ClangPath = "C:/LLVM/bin/clang-cl.exe"
     $LldLinkPath = "C:/LLVM/bin/lld-link.exe"
-    # Workaround for LLVM SEH unwind bug on Windows ARM64 (llvm/llvm-project#47432)
-    # The bug causes "Failed to evaluate function length in SEH unwind info" when
-    # inline assembly contains alignment directives. Disabling loop alignment avoids this.
-    $ARM64SehWorkaround = "/clang:-falign-loops=1"
+    # Note: The LLVM SEH unwind bug on Windows ARM64 (llvm/llvm-project#47432) is worked
+    # around by disabling the probe functionality in MacroAssemblerARM64.cpp rather than
+    # using compiler flags.
+    $ARM64SehWorkaround = ""
     Write-Host ":: Using ARM64 LLVM toolchain: $ClangPath"
 } else {
     $ClangPath = "clang-cl"
