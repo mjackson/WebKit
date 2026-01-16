@@ -262,7 +262,10 @@ ALWAYS_INLINE void gcSafeZeroMemory(T* dst, size_t bytes)
         : "a"(zero)
         : "memory"
     );
-#elif CPU(ARM64)
+#elif CPU(ARM64) && !(OS(WINDOWS))
+    // On Windows ARM64, LLVM has a bug (llvm/llvm-project#47432) that causes a
+    // fatal error "Failed to evaluate function length in SEH unwind info" when
+    // inline assembly contains alignment directives. Fall back to scalar code.
     uint64_t alignedBytes = (static_cast<uint64_t>(bytes) / 64) * 64;
     uint64_t dstPtr = static_cast<uint64_t>(std::bit_cast<uintptr_t>(dst));
     uint64_t end = dstPtr + bytes;
