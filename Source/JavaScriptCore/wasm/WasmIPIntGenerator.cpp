@@ -128,8 +128,8 @@ struct IPIntControlType {
     {
     }
 
-    IPIntControlType(BlockSignature signature, uint32_t stackSize, BlockType blockType, CatchKind catchKind = CatchKind::Catch)
-        : m_signature(signature)
+    IPIntControlType(BlockSignature&& signature, uint32_t stackSize, BlockType blockType, CatchKind catchKind = CatchKind::Catch)
+        : m_signature(WTF::move(signature))
         , m_blockType(blockType)
         , m_catchKind(catchKind)
         , m_stackSize(stackSize)
@@ -155,22 +155,22 @@ struct IPIntControlType {
 
     BlockType blockType() const { return m_blockType; }
     CatchKind catchKind() const { return m_catchKind; }
-    BlockSignature signature() const { return m_signature; }
+    const BlockSignature& signature() const { return m_signature; }
     unsigned stackSize() const { return m_stackSize; }
 
     Type branchTargetType(unsigned i) const
     {
         ASSERT(i < branchTargetArity());
         if (blockType() == BlockType::Loop)
-            return m_signature.m_signature->argumentType(i);
-        return m_signature.m_signature->returnType(i);
+            return m_signature.argumentType(i);
+        return m_signature.returnType(i);
     }
 
     unsigned branchTargetArity() const
     {
         return isLoop(*this)
-            ? m_signature.m_signature->argumentCount()
-            : m_signature.m_signature->returnCount();
+            ? m_signature.argumentCount()
+            : m_signature.returnCount();
     }
 
 private:
@@ -484,15 +484,15 @@ public:
 
     // Control flow
 
-    [[nodiscard]] ControlType addTopLevel(BlockSignature);
-    [[nodiscard]] PartialResult addBlock(BlockSignature, Stack&, ControlType&, Stack&);
-    [[nodiscard]] PartialResult addLoop(BlockSignature, Stack&, ControlType&, Stack&, uint32_t);
-    [[nodiscard]] PartialResult addIf(ExpressionType, BlockSignature, Stack&, ControlType&, Stack&);
+    [[nodiscard]] ControlType addTopLevel(BlockSignature&&);
+    [[nodiscard]] PartialResult addBlock(BlockSignature&&, Stack&, ControlType&, Stack&);
+    [[nodiscard]] PartialResult addLoop(BlockSignature&&, Stack&, ControlType&, Stack&, uint32_t);
+    [[nodiscard]] PartialResult addIf(ExpressionType, BlockSignature&&, Stack&, ControlType&, Stack&);
     [[nodiscard]] PartialResult addElse(ControlType&, Stack&);
     [[nodiscard]] PartialResult addElseToUnreachable(ControlType&);
 
-    [[nodiscard]] PartialResult addTry(BlockSignature, Stack&, ControlType&, Stack&);
-    [[nodiscard]] PartialResult addTryTable(BlockSignature, Stack& enclosingStack, const Vector<CatchHandler>& targets, ControlType& result, Stack& newStack);
+    [[nodiscard]] PartialResult addTry(BlockSignature&&, Stack&, ControlType&, Stack&);
+    [[nodiscard]] PartialResult addTryTable(BlockSignature&&, Stack& enclosingStack, const Vector<CatchHandler>& targets, ControlType& result, Stack& newStack);
     [[nodiscard]] PartialResult addCatch(unsigned, const TypeDefinition&, Stack&, ControlType&, ResultList&);
     [[nodiscard]] PartialResult addCatchToUnreachable(unsigned, const TypeDefinition&, ControlType&, ResultList&);
     [[nodiscard]] PartialResult addCatchAll(Stack&, ControlType&);
@@ -509,16 +509,16 @@ public:
     [[nodiscard]] PartialResult addBranchCast(ControlType&, ExpressionType, Stack&, bool, int32_t, bool);
     [[nodiscard]] PartialResult addSwitch(ExpressionType, const Vector<ControlType*>&, ControlType&, const Stack&);
     [[nodiscard]] PartialResult endBlock(ControlEntry&, Stack&);
-    void endTryTable(ControlType& data);
+    void endTryTable(const ControlType& data);
     [[nodiscard]] PartialResult addEndToUnreachable(ControlEntry&, Stack&);
 
-    [[nodiscard]] PartialResult endTopLevel(BlockSignature, const Stack&);
+    [[nodiscard]] PartialResult endTopLevel(const Stack&);
 
     // Fused comparison stubs (TODO: make use of these for better codegen)
     [[nodiscard]] PartialResult addFusedBranchCompare(OpType, ControlType&, ExpressionType, const Stack&) { RELEASE_ASSERT_NOT_REACHED(); }
     [[nodiscard]] PartialResult addFusedBranchCompare(OpType, ControlType&, ExpressionType, ExpressionType, const Stack&) { RELEASE_ASSERT_NOT_REACHED(); }
-    [[nodiscard]] PartialResult addFusedIfCompare(OpType, ExpressionType, BlockSignature, Stack&, ControlType&, Stack&) { RELEASE_ASSERT_NOT_REACHED(); }
-    [[nodiscard]] PartialResult addFusedIfCompare(OpType, ExpressionType, ExpressionType, BlockSignature, Stack&, ControlType&, Stack&) { RELEASE_ASSERT_NOT_REACHED(); }
+    [[nodiscard]] PartialResult addFusedIfCompare(OpType, ExpressionType, BlockSignature&&, Stack&, ControlType&, Stack&) { RELEASE_ASSERT_NOT_REACHED(); }
+    [[nodiscard]] PartialResult addFusedIfCompare(OpType, ExpressionType, ExpressionType, BlockSignature&&, Stack&, ControlType&, Stack&) { RELEASE_ASSERT_NOT_REACHED(); }
 
     // Calls
 
@@ -2195,9 +2195,10 @@ void IPIntGenerator::resolveExitTarget(unsigned index, IPIntLocation loc)
     control.m_exitTarget = loc;
 }
 
-[[nodiscard]] IPIntGenerator::ControlType IPIntGenerator::addTopLevel(BlockSignature signature)
+[[nodiscard]] IPIntGenerator::ControlType IPIntGenerator::addTopLevel(BlockSignature&& signature)
 {
-    return ControlType(signature, 0, BlockType::TopLevel);
+    ControlType topLevel = ControlType(WTF::move(signature), 0, BlockType::TopLevel);
+    return topLevel;
 }
 
 [[nodiscard]] PartialResult IPIntGenerator::addSelect(ExpressionType, ExpressionType, ExpressionType, ExpressionType&)
@@ -2207,10 +2208,10 @@ void IPIntGenerator::resolveExitTarget(unsigned index, IPIntLocation loc)
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addBlock(BlockSignature signature, Stack& oldStack, ControlType& block, Stack& newStack)
+[[nodiscard]] PartialResult IPIntGenerator::addBlock(BlockSignature&& signature, Stack& oldStack, ControlType& block, Stack& newStack)
 {
     splitStack(signature, oldStack, newStack);
-    block = ControlType(signature, m_stackSize.value() - newStack.size(), BlockType::Block);
+    block = ControlType(WTF::move(signature), m_stackSize.value() - newStack.size(), BlockType::Block);
     block.m_index = m_controlStructuresAwaitingCoalescing.size();
     block.m_pc = curPC();
     block.m_mc = curMC();
@@ -2234,10 +2235,10 @@ void IPIntGenerator::resolveExitTarget(unsigned index, IPIntLocation loc)
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addLoop(BlockSignature signature, Stack& oldStack, ControlType& block, Stack& newStack, uint32_t loopIndex)
+[[nodiscard]] PartialResult IPIntGenerator::addLoop(BlockSignature&& signature, Stack& oldStack, ControlType& block, Stack& newStack, uint32_t loopIndex)
 {
     splitStack(signature, oldStack, newStack);
-    block = ControlType(signature, m_stackSize.value() - newStack.size(), BlockType::Loop);
+    block = ControlType(WTF::move(signature), m_stackSize.value() - newStack.size(), BlockType::Loop);
     block.m_index = m_controlStructuresAwaitingCoalescing.size();
     block.m_pendingOffset = -1; // no need to update!
     block.m_pc = curPC();
@@ -2265,11 +2266,11 @@ void IPIntGenerator::resolveExitTarget(unsigned index, IPIntLocation loc)
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addIf(ExpressionType, BlockSignature signature, Stack& oldStack, ControlType& block, Stack& newStack)
+[[nodiscard]] PartialResult IPIntGenerator::addIf(ExpressionType, BlockSignature&& signature, Stack& oldStack, ControlType& block, Stack& newStack)
 {
     splitStack(signature, oldStack, newStack);
     changeStackSize(-1);
-    block = ControlType(signature, m_stackSize.value() - newStack.size(), BlockType::If);
+    block = ControlType(WTF::move(signature), m_stackSize.value() - newStack.size(), BlockType::If);
     block.m_index = m_controlStructuresAwaitingCoalescing.size();
     block.m_pc = curPC();
     block.m_mc = curMC();
@@ -2300,9 +2301,8 @@ void IPIntGenerator::resolveExitTarget(unsigned index, IPIntLocation loc)
 [[nodiscard]] PartialResult IPIntGenerator::addElseToUnreachable(ControlType& block)
 {
     auto blockSignature = block.signature();
-    const FunctionSignature& signature = *blockSignature.m_signature;
     m_stackSize = block.stackSize();
-    changeStackSize(signature.argumentCount());
+    changeStackSize(blockSignature.argumentCount());
     auto ifIndex = block.m_index;
 
     auto mdIf = reinterpret_cast<IPInt::IfMetadata*>(m_metadata->m_metadata.mutableSpan().data() + block.m_pendingOffset);
@@ -2315,7 +2315,7 @@ void IPIntGenerator::resolveExitTarget(unsigned index, IPIntLocation loc)
     if (m_parser->currentOpcode() == OpType::End) {
         // Edge case: if ... end with no else
         mdIf->elseDeltaMC = curMC() - block.m_mc;
-        block = ControlType(block.signature(), block.stackSize(), BlockType::Else);
+        block = ControlType(WTF::move(blockSignature), block.stackSize(), BlockType::Else);
         block.m_index = ifIndex;
         block.m_pendingOffset = -1;
         return { };
@@ -2323,7 +2323,7 @@ void IPIntGenerator::resolveExitTarget(unsigned index, IPIntLocation loc)
 
     // New MC, normal case
     mdIf->elseDeltaMC = safeCast<uint32_t>(curMC() + sizeof(IPInt::BlockMetadata)) - block.m_mc;
-    block = ControlType(block.signature(), block.stackSize(), BlockType::Else);
+    block = ControlType(WTF::move(blockSignature), block.stackSize(), BlockType::Else);
     block.m_index = ifIndex;
     block.m_pc = curPC();
     block.m_mc = curMC();
@@ -2335,13 +2335,13 @@ void IPIntGenerator::resolveExitTarget(unsigned index, IPIntLocation loc)
 
 // Exception Handling
 
-[[nodiscard]] PartialResult IPIntGenerator::addTry(BlockSignature signature, Stack& oldStack, ControlType& block, Stack& newStack)
+[[nodiscard]] PartialResult IPIntGenerator::addTry(BlockSignature&& signature, Stack& oldStack, ControlType& block, Stack& newStack)
 {
     m_tryDepth++;
     m_maxTryDepth = std::max(m_maxTryDepth, m_tryDepth.value());
 
     splitStack(signature, oldStack, newStack);
-    block = ControlType(signature, m_stackSize.value() - newStack.size(), BlockType::Try);
+    block = ControlType(WTF::move(signature), m_stackSize.value() - newStack.size(), BlockType::Try);
     block.m_index = m_controlStructuresAwaitingCoalescing.size();
     block.m_tryDepth = m_tryDepth;
     block.m_pc = curPC();
@@ -2366,10 +2366,10 @@ void IPIntGenerator::resolveExitTarget(unsigned index, IPIntLocation loc)
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addTryTable(BlockSignature signature, Stack& enclosingStack, const Vector<CatchHandler>& targets, ControlType& result, Stack& newStack)
+[[nodiscard]] PartialResult IPIntGenerator::addTryTable(BlockSignature&& signature, Stack& enclosingStack, const Vector<CatchHandler>& targets, ControlType& result, Stack& newStack)
 {
     splitStack(signature, enclosingStack, newStack);
-    result = ControlType(signature, m_stackSize.value() - newStack.size(), BlockType::TryTable);
+    result = ControlType(WTF::move(signature), m_stackSize.value() - newStack.size(), BlockType::TryTable);
     result.m_tryTableTargets.reserveInitialCapacity(targets.size());
     result.m_index = m_controlStructuresAwaitingCoalescing.size();
     result.m_pc = curPC();
@@ -2423,7 +2423,7 @@ void IPIntGenerator::resolveExitTarget(unsigned index, IPIntLocation loc)
 void IPIntGenerator::convertTryToCatch(ControlType& tryBlock, CatchKind catchKind)
 {
     ASSERT(ControlType::isTry(tryBlock));
-    ControlType catchBlock = ControlType(tryBlock.signature(), tryBlock.stackSize(), BlockType::Catch, catchKind);
+    ControlType catchBlock = ControlType(BlockSignature { tryBlock.signature() }, tryBlock.stackSize(), BlockType::Catch, catchKind);
     catchBlock.m_pc = tryBlock.m_pc;
     catchBlock.m_pcEnd = m_parser->currentOpcodeStartingOffset() - m_metadata->m_bytecodeOffset;
     catchBlock.m_tryDepth = tryBlock.m_tryDepth;
@@ -2695,7 +2695,7 @@ void IPIntGenerator::convertTryToCatch(ControlType& tryBlock, CatchKind catchKin
     return addEndToUnreachable(entry, stack);
 }
 
-void IPIntGenerator::endTryTable(ControlType& data)
+void IPIntGenerator::endTryTable(const ControlType& data)
 {
     auto targets = data.m_tryTableTargets;
 
@@ -2736,13 +2736,11 @@ void IPIntGenerator::endTryTable(ControlType& data)
 
 [[nodiscard]] PartialResult IPIntGenerator::addEndToUnreachable(ControlEntry& entry, Stack&)
 {
-    auto blockSignature = entry.controlData.signature();
-    const auto& signature = *blockSignature.m_signature;
-    for (unsigned i = 0; i < signature.returnCount(); i ++)
-        entry.enclosedExpressionStack.constructAndAppend(signature.returnType(i), Value { });
-    auto block = entry.controlData;
+    const auto& block = entry.controlData;
+    for (unsigned i = 0; i < block.signature().returnCount(); i ++)
+        entry.enclosedExpressionStack.constructAndAppend(block.signature().returnType(i), Value { });
     m_stackSize = block.stackSize();
-    changeStackSize(signature.returnCount());
+    changeStackSize(block.signature().returnCount());
 
     if (ControlType::isTry(block) || ControlType::isAnyCatch(block)) {
         --m_tryDepth;
@@ -2792,12 +2790,11 @@ void IPIntGenerator::endTryTable(ControlType& data)
     return { };
 }
 
-auto IPIntGenerator::endTopLevel(BlockSignature signature, const Stack& expressionStack) -> PartialResult
+auto IPIntGenerator::endTopLevel(const Stack&) -> PartialResult
 {
     bool isNotDebugMode = !m_debugInfo;
     if (m_usesSIMD && isNotDebugMode)
         m_info.markUsesSIMD(m_metadata->functionIndex());
-    RELEASE_ASSERT(expressionStack.size() == signature.m_signature->returnCount());
     if (isNotDebugMode)
         m_info.doneSeeingFunction(m_metadata->m_functionIndex);
     return { };

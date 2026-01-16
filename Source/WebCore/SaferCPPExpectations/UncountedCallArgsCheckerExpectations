@@ -8,7 +8,6 @@ Modules/identity/CredentialRequestCoordinator.cpp
 Modules/mediasession/MediaMetadata.cpp
 Modules/mediasession/MediaSession.cpp
 [ Mac ] Modules/mediasession/MediaSessionCoordinator.cpp
-[ Mac ] Modules/mediasession/MediaSessionCoordinator.h
 Modules/mediastream/MediaStreamTrack.cpp
 Modules/mediastream/MediaStreamTrackProcessor.cpp
 Modules/mediastream/RTCDTMFSender.cpp
@@ -50,7 +49,6 @@ Modules/webaudio/DefaultAudioDestinationNode.cpp
 Modules/webaudio/DynamicsCompressorNode.cpp
 Modules/webaudio/MediaElementAudioSourceNode.cpp
 Modules/webaudio/MediaStreamAudioDestinationNode.cpp
-Modules/webaudio/MediaStreamAudioSourceNode.cpp
 Modules/webaudio/OfflineAudioDestinationNode.cpp
 Modules/webaudio/OscillatorNode.cpp
 Modules/webaudio/PannerNode.cpp
@@ -312,7 +310,6 @@ dom/ShadowRoot.h
 dom/SimpleRange.cpp
 dom/SimulatedClick.cpp
 dom/SpaceSplitString.h
-dom/StaticRange.cpp
 dom/StyledElement.cpp
 dom/TreeScope.cpp
 dom/TreeScopeOrderedMap.cpp
@@ -679,7 +676,6 @@ rendering/RenderQuote.cpp
 rendering/RenderReplaced.cpp
 rendering/RenderReplica.cpp
 rendering/RenderScrollbarPart.cpp
-rendering/RenderSearchField.cpp
 rendering/RenderTable.cpp
 rendering/RenderTableCell.cpp
 rendering/RenderTableSection.cpp

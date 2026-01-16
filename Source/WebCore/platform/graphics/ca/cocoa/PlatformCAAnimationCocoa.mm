@@ -574,7 +574,7 @@ void PlatformCAAnimationCocoa::copyTimingFunctionsFrom(const PlatformCAAnimation
     [static_cast<CAKeyframeAnimation *>(m_animation.get()) setTimingFunctions:[other timingFunctions]];
 }
 
-void PlatformCAAnimationCocoa::setAnimations(const Vector<RefPtr<PlatformCAAnimation>>& value)
+void PlatformCAAnimationCocoa::setAnimations(const Vector<Ref<PlatformCAAnimation>>& value)
 {
     ASSERT(animationType() == AnimationType::Group);
     ASSERT([static_cast<CAAnimation *>(m_animation.get()) isKindOfClass:[CAAnimationGroup class]]);

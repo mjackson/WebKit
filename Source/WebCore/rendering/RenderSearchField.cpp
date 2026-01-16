@@ -75,7 +75,7 @@ RenderSearchField::~RenderSearchField() = default;
 void RenderSearchField::willBeDestroyed()
 {
     if (RefPtr searchPopup = std::exchange(m_searchPopup, nullptr))
-        searchPopup->popupMenu()->disconnectClient();
+        searchPopup->protectedPopupMenu()->disconnectClient();
 
     RenderTextControlSingleLine::willBeDestroyed();
 }
@@ -116,7 +116,7 @@ void RenderSearchField::addSearchResult()
     if (!m_searchPopup)
         m_searchPopup = page().chrome().createSearchPopupMenu(*this);
 
-    m_searchPopup->saveRecentSearches(name, m_recentSearches);
+    protectedSearchPopup()->saveRecentSearches(name, m_recentSearches);
 }
 
 void RenderSearchField::showPopup()
@@ -127,13 +127,14 @@ void RenderSearchField::showPopup()
     if (!m_searchPopup)
         m_searchPopup = page().chrome().createSearchPopupMenu(*this);
 
-    if (!m_searchPopup->enabled())
+    Ref popup = *m_searchPopup;
+    if (!popup->enabled())
         return;
 
     m_searchPopupIsVisible = true;
 
     const AtomString& name = autosaveName();
-    m_searchPopup->loadRecentSearches(name, m_recentSearches);
+    popup->loadRecentSearches(name, m_recentSearches);
 
     // Trim the recent searches list if the maximum size has changed since we last saved.
     if (static_cast<int>(m_recentSearches.size()) > inputElement().maxResults()) {
@@ -141,7 +142,7 @@ void RenderSearchField::showPopup()
             m_recentSearches.removeLast();
         } while (static_cast<int>(m_recentSearches.size()) > inputElement().maxResults());
 
-        m_searchPopup->saveRecentSearches(name, m_recentSearches);
+        popup->saveRecentSearches(name, m_recentSearches);
     }
 
     FloatPoint absTopLeft = localToAbsolute(FloatPoint(), UseTransforms);
@@ -159,13 +160,13 @@ void RenderSearchField::hidePopup()
 LayoutUnit RenderSearchField::computeControlLogicalHeight(LayoutUnit lineHeight, LayoutUnit nonContentHeight) const
 {
     RefPtr resultsButton = resultsButtonElement();
-    if (auto* resultsRenderer = resultsButton ? resultsButton->renderBox() : nullptr) {
+    if (CheckedPtr resultsRenderer = resultsButton ? resultsButton->renderBox() : nullptr) {
         resultsRenderer->updateLogicalHeight();
         nonContentHeight = std::max(nonContentHeight, resultsRenderer->borderAndPaddingLogicalHeight() + resultsRenderer->marginLogicalHeight());
         lineHeight = std::max(lineHeight, resultsRenderer->logicalHeight());
     }
     RefPtr cancelButton = cancelButtonElement();
-    if (auto* cancelRenderer = cancelButton ? cancelButton->renderBox() : nullptr) {
+    if (CheckedPtr cancelRenderer = cancelButton ? cancelButton->renderBox() : nullptr) {
         cancelRenderer->updateLogicalHeight();
         nonContentHeight = std::max(nonContentHeight, cancelRenderer->borderAndPaddingLogicalHeight() + cancelRenderer->marginLogicalHeight());
         lineHeight = std::max(lineHeight, cancelRenderer->logicalHeight());
@@ -180,7 +181,7 @@ std::span<const RecentSearch> RenderSearchField::recentSearches()
         m_searchPopup = page().chrome().createSearchPopupMenu(*this);
 
     const AtomString& name = autosaveName();
-    m_searchPopup->loadRecentSearches(name, m_recentSearches);
+    protectedSearchPopup()->loadRecentSearches(name, m_recentSearches);
 
     return m_recentSearches.span();
 }
@@ -198,23 +199,23 @@ void RenderSearchField::updateFromElement()
 
 void RenderSearchField::updateCancelButtonVisibility() const
 {
-    RenderElement* cancelButtonRenderer = cancelButtonElement()->renderer();
+    CheckedPtr cancelButtonRenderer = cancelButtonElement()->renderer();
     if (!cancelButtonRenderer)
         return;
 
-    const RenderStyle& curStyle = cancelButtonRenderer->style();
+    CheckedRef curStyle = cancelButtonRenderer->style();
     Visibility buttonVisibility = visibilityForCancelButton();
-    if (curStyle.usedVisibility() == buttonVisibility)
+    if (curStyle->usedVisibility() == buttonVisibility)
         return;
 
-    auto cancelButtonStyle = RenderStyle::clone(curStyle);
+    auto cancelButtonStyle = RenderStyle::clone(curStyle.get());
     cancelButtonStyle.setVisibility(buttonVisibility);
     cancelButtonRenderer->setStyle(WTF::move(cancelButtonStyle));
 }
 
 Visibility RenderSearchField::visibilityForCancelButton() const
 {
-    return (style().usedVisibility() == Visibility::Hidden || inputElement().value()->isEmpty()) ? Visibility::Hidden : Visibility::Visible;
+    return (style().usedVisibility() == Visibility::Hidden || protectedInputElement()->value()->isEmpty()) ? Visibility::Hidden : Visibility::Visible;
 }
 
 const AtomString& RenderSearchField::autosaveName() const
@@ -233,7 +234,7 @@ void RenderSearchField::valueChanged(unsigned listIndex, bool fireEvents)
             if (!name.isEmpty()) {
                 if (!m_searchPopup)
                     m_searchPopup = page().chrome().createSearchPopupMenu(*this);
-                m_searchPopup->saveRecentSearches(name, m_recentSearches);
+                protectedSearchPopup()->saveRecentSearches(name, m_recentSearches);
             }
         }
     } else {
@@ -287,16 +288,17 @@ PopupMenuStyle RenderSearchField::itemStyle(unsigned) const
 
 PopupMenuStyle RenderSearchField::menuStyle() const
 {
+    CheckedRef style = this->style();
     return PopupMenuStyle(
-        style().visitedDependentColorApplyingColorFilter(),
-        style().visitedDependentBackgroundColorApplyingColorFilter(),
-        style().fontCascade(),
+        style->visitedDependentColorApplyingColorFilter(),
+        style->visitedDependentBackgroundColorApplyingColorFilter(),
+        style->fontCascade(),
         nullString(),
-        style().usedVisibility() == Visibility::Visible,
-        style().display() == DisplayType::None,
+        style->usedVisibility() == Visibility::Visible,
+        style->display() == DisplayType::None,
         true,
         writingMode().bidiDirection(),
-        isOverride(style().unicodeBidi()),
+        isOverride(style->unicodeBidi()),
         PopupMenuStyle::CustomBackgroundColor
     );
 }
@@ -329,7 +331,7 @@ LayoutUnit RenderSearchField::clientPaddingRight() const
 {
     LayoutUnit padding = paddingRight();
     RefPtr container = containerElement();
-    if (auto* containerBox = container ? container->renderBox() : nullptr) {
+    if (CheckedPtr containerBox = container ? container->renderBox() : nullptr) {
         RefPtr innerBlock = innerBlockElement();
         if (auto* innerBlockBox = innerBlock ? innerBlock->renderBox() : nullptr)
             padding += containerBox->width() - (innerBlockBox->x() + innerBlockBox->width());
@@ -346,7 +348,7 @@ int RenderSearchField::listSize() const
     return m_recentSearches.size() + 3;
 }
 
-int RenderSearchField::selectedIndex() const
+int RenderSearchField::popupSelectedIndex() const
 {
     return -1;
 }
@@ -379,7 +381,7 @@ void RenderSearchField::setTextFromItem(unsigned listIndex)
 
 FontSelector* RenderSearchField::fontSelector() const
 {
-    return &document().fontSelector();
+    return &protectedDocument()->fontSelector();
 }
 
 HostWindow* RenderSearchField::hostWindow() const

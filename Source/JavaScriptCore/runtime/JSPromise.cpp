@@ -256,11 +256,7 @@ JSPromise* JSPromise::rejectWithCaughtException(JSGlobalObject* globalObject, Th
     VM& vm = globalObject->vm();
     Exception* exception = scope.exception();
     ASSERT(exception);
-    if (vm.isTerminationException(exception)) [[unlikely]] {
-        scope.release();
-        return this;
-    }
-    scope.clearException();
+    TRY_CLEAR_EXCEPTION(scope, nullptr);
     scope.release();
     reject(vm, globalObject, exception->value());
     return this;

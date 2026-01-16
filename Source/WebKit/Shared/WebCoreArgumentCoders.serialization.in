@@ -5290,7 +5290,8 @@ struct WebCore::RouterSourceDict {
 enum class WebCore::RouterSourceEnum : uint8_t {
     Cache,
     FetchEvent,
-    Network
+    Network,
+    RaceNetworkAndFetchHandler
 };
 
 enum class WebCore::RunningStatus : bool
@@ -5916,6 +5917,12 @@ enum class WebCore::ShouldOpenExternalURLsPolicy : uint8_t {
     ShouldNotAllow,
     ShouldAllowExternalSchemesButNotAppLinks,
     ShouldAllow,
+};
+
+enum class WebCore::NavigationUpgradeToHTTPSBehavior : uint8_t {
+    Disabled,
+    HTTPFallback,
+    BasedOnPolicy
 };
 
 header: <WebCore/NavigationScheduler.h>
@@ -6930,6 +6937,7 @@ header: <WebCore/TextExtractionTypes.h>
     Vector<WebCore::TextExtraction::Item> children;
     String nodeName;
     std::optional<WebCore::NodeIdentifier> nodeIdentifier;
+    std::optional<WebCore::FrameIdentifier> frameIdentifier;
     OptionSet<WebCore::TextExtraction::EventListenerCategory> eventListeners;
     HashMap<String, String> ariaAttributes;
     String accessibilityRole;
@@ -7957,14 +7965,14 @@ headers: <JavaScriptCore/WasmModule.h> <WebCore/ImageBitmap.h> <WebCore/MessageP
     Vector<std::unique_ptr<WebCore::DetachedRTCDataChannel>> detachedRTCDataChannels;
 #endif
 #if ENABLE(WEB_CODECS)
-    Vector<RefPtr<WebCore::WebCodecsEncodedVideoChunkStorage>> serializedVideoChunks;
-    Vector<RefPtr<WebCore::WebCodecsEncodedAudioChunkStorage>> serializedAudioChunks;
+    Vector<Ref<WebCore::WebCodecsEncodedVideoChunkStorage>> serializedVideoChunks;
+    Vector<Ref<WebCore::WebCodecsEncodedAudioChunkStorage>> serializedAudioChunks;
     [NotSerialized] Vector<WebCore::WebCodecsVideoFrameData> serializedVideoFrames;
     [NotSerialized] Vector<WebCore::WebCodecsAudioInternalData> serializedAudioData;
 #endif
 #if ENABLE(WEB_RTC)
-    [NotSerialized] Vector<RefPtr<WebCore::RTCRtpTransformableFrame>> serializedRTCEncodedAudioFrames;
-    [NotSerialized] Vector<RefPtr<WebCore::RTCRtpTransformableFrame>> serializedRTCEncodedVideoFrames;
+    [NotSerialized] Vector<Ref<WebCore::RTCRtpTransformableFrame>> serializedRTCEncodedAudioFrames;
+    [NotSerialized] Vector<Ref<WebCore::RTCRtpTransformableFrame>> serializedRTCEncodedVideoFrames;
 #endif
 #if ENABLE(MEDIA_SOURCE_IN_WORKERS)
     [NotSerialized] Vector<RefPtr<WebCore::DetachedMediaSourceHandle>> detachedMediaSourceHandles;
@@ -7976,11 +7984,11 @@ headers: <JavaScriptCore/WasmModule.h> <WebCore/ImageBitmap.h> <WebCore/MessageP
     [NotSerialized] Vector<std::optional<WebCore::DetachedImageBitmap>> detachedImageBitmaps;
 #if ENABLE(OFFSCREEN_CANVAS_IN_WORKERS)
     [NotSerialized] Vector<std::unique_ptr<WebCore::DetachedOffscreenCanvas>> detachedOffscreenCanvases;
-    [NotSerialized] Vector<RefPtr<WebCore::OffscreenCanvas>> inMemoryOffscreenCanvases;
+    [NotSerialized] Vector<Ref<WebCore::OffscreenCanvas>> inMemoryOffscreenCanvases;
 #endif
     [NotSerialized] Vector<Ref<WebCore::MessagePort>> inMemoryMessagePorts;
 #if ENABLE(WEBASSEMBLY)
-    [NotSerialized] std::unique_ptr<Vector<RefPtr<JSC::Wasm::Module>>> wasmModulesArray;
+    [NotSerialized] std::unique_ptr<Vector<Ref<JSC::Wasm::Module>>> wasmModulesArray;
     [NotSerialized] std::unique_ptr<Vector<RefPtr<JSC::SharedArrayBufferContents>>> wasmMemoryHandlesArray;
 #endif
     [NotSerialized] Vector<WebCore::URLKeepingBlobAlive> blobHandles;
@@ -9102,6 +9110,7 @@ header: <WebCore/AXObjectCache.h>
     bool isAccessibilityThreadInitialized;
     String liveTree;
     String isolatedTree;
+    Vector<String> warnings;
     uint64_t remoteTokenHash;
     uint64_t webProcessLocalTokenHash;
 };
@@ -9218,4 +9227,11 @@ header: <WebCore/ResolvedCaptionDisplaySettingsOptions.h>
     std::optional<WebCore::FloatRect> anchorBounds;
     std::optional<WebCore::ResolvedCaptionDisplaySettingsOptionsXPositionArea> xPositionArea;
     std::optional<WebCore::ResolvedCaptionDisplaySettingsOptionsYPositionArea> yPositionArea;
+};
+
+header: <WebCore/EventHandler.h>
+[CustomHeader] enum class WebCore::LastKnownMousePositionSource : uint8_t {
+    Mouse,
+    Wheel,
+    Touch
 };

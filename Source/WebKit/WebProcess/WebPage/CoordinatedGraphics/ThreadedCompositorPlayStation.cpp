@@ -266,7 +266,7 @@ void ThreadedCompositor::paintToCurrentGLContext(const TransformationMatrix& mat
         m_surface->setFrameDamage(WTF::move(frameDamage));
 
         if (m_damage.flags->contains(DamagePropagationFlags::UseForCompositing)) {
-            const auto& damageSinceLastSurfaceUse = m_surface->frameDamageSinceLastUse();
+            const auto& damageSinceLastSurfaceUse = m_surface->renderTargetDamage();
             if (damageSinceLastSurfaceUse && !FloatRect(damageSinceLastSurfaceUse->bounds()).contains(clipRect))
                 rectContainingRegionThatActuallyChanged = FloatRoundedRect(damageSinceLastSurfaceUse->bounds());
 

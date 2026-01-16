@@ -831,12 +831,12 @@ TEST(WKWebExtensionAPIDeclarativeNetRequest, RedirectRule)
         }
     };
 
-    auto *backgroundScript = Util::constructScript(@[
+    RetainPtr backgroundScript = Util::constructScript(@[
         @"browser.test.sendMessage('Load Tab')"
     ]);
 
     auto *resources = @{
-        @"background.js": backgroundScript,
+        @"background.js": backgroundScript.get(),
         @"rules.json": rules
     };
 

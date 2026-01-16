@@ -186,7 +186,7 @@ static JSObject* promiseRaceSlow(JSGlobalObject* globalObject, CallFrame* callFr
     auto callRejectWithScopeException = [&]() -> void {
         Exception* exception = scope.exception();
         ASSERT(exception);
-        scope.clearException();
+        TRY_CLEAR_EXCEPTION(scope, void());
         callReject(exception->value());
     };
 
@@ -269,7 +269,7 @@ JSC_DEFINE_HOST_FUNCTION(promiseConstructorFuncRace, (JSGlobalObject* globalObje
     auto callReject = [&]() -> void {
         Exception* exception = scope.exception();
         ASSERT(exception);
-        scope.clearException();
+        TRY_CLEAR_EXCEPTION(scope, void());
         scope.release();
         promise->reject(vm, globalObject, exception);
     };
@@ -335,7 +335,7 @@ static JSObject* promiseAllSlow(JSGlobalObject* globalObject, CallFrame* callFra
     auto callRejectWithScopeException = [&]() -> void {
         Exception* exception = scope.exception();
         ASSERT(exception);
-        scope.clearException();
+        TRY_CLEAR_EXCEPTION(scope, void());
         callReject(exception->value());
     };
 
@@ -468,7 +468,7 @@ JSC_DEFINE_HOST_FUNCTION(promiseConstructorFuncAll, (JSGlobalObject* globalObjec
     auto callReject = [&]() -> void {
         Exception* exception = scope.exception();
         ASSERT(exception);
-        scope.clearException();
+        TRY_CLEAR_EXCEPTION(scope, void());
         scope.release();
         promise->reject(vm, globalObject, exception);
     };
@@ -656,7 +656,7 @@ static JSObject* promiseAllSettledSlow(JSGlobalObject* globalObject, CallFrame* 
     auto callRejectWithScopeException = [&]() -> void {
         Exception* exception = scope.exception();
         ASSERT(exception);
-        scope.clearException();
+        TRY_CLEAR_EXCEPTION(scope, void());
         callReject(exception->value());
     };
 
@@ -794,7 +794,7 @@ JSC_DEFINE_HOST_FUNCTION(promiseConstructorFuncAllSettled, (JSGlobalObject* glob
     auto callReject = [&]() -> void {
         Exception* exception = scope.exception();
         ASSERT(exception);
-        scope.clearException();
+        TRY_CLEAR_EXCEPTION(scope, void());
         scope.release();
         promise->reject(vm, globalObject, exception);
     };
@@ -1139,7 +1139,7 @@ static JSObject* promiseAnySlow(JSGlobalObject* globalObject, CallFrame* callFra
     auto callRejectWithScopeException = [&]() -> void {
         Exception* exception = scope.exception();
         ASSERT(exception);
-        scope.clearException();
+        TRY_CLEAR_EXCEPTION(scope, void());
         callReject(exception->value());
     };
 
@@ -1267,7 +1267,7 @@ JSC_DEFINE_HOST_FUNCTION(promiseConstructorFuncAny, (JSGlobalObject* globalObjec
     auto callReject = [&]() -> void {
         Exception* exception = scope.exception();
         ASSERT(exception);
-        scope.clearException();
+        TRY_CLEAR_EXCEPTION(scope, void());
         scope.release();
         promise->reject(vm, globalObject, exception);
     };

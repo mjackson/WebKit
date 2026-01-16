@@ -29,6 +29,7 @@
 #include "config.h"
 #include "AccessibilityListBoxOption.h"
 
+#include "AXLoggerBase.h"
 #include "AXObjectCacheInlines.h"
 #include "AccessibilityObjectInlines.h"
 #include "ContainerNodeInlines.h"
@@ -146,7 +147,7 @@ String AccessibilityListBoxOption::stringValue() const
 
 Element* AccessibilityListBoxOption::actionElement() const
 {
-    ASSERT(is<HTMLElement>(m_node.get()));
+    AX_ASSERT(is<HTMLElement>(m_node.get()));
     return dynamicDowncast<Element>(m_node.get());
 }
 

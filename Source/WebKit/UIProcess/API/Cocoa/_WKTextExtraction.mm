@@ -37,6 +37,7 @@
     HashMap<RetainPtr<NSString>, HashMap<RetainPtr<_WKJSHandle>, RetainPtr<NSString>>> _clientNodeAttributes;
     RetainPtr<NSDictionary<NSString *, NSString *>> _replacementStrings;
     RetainPtr<NSArray<_WKJSHandle *>> _nodesToSkip;
+    RetainPtr<NSArray<WKFrameInfo *>> _additionalFrames;
 }
 
 - (instancetype)init
@@ -85,6 +86,16 @@
 - (void)setNodesToSkip:(NSArray<_WKJSHandle *> *)nodesToSkip
 {
     _nodesToSkip = adoptNS([nodesToSkip copy]);
+}
+
+- (NSArray<WKFrameInfo *> *)additionalFrames
+{
+    return _additionalFrames.get() ?: @[ ];
+}
+
+- (void)setAdditionalFrames:(NSArray<WKFrameInfo *> *)frames
+{
+    _additionalFrames = adoptNS([frames copy]);
 }
 
 - (void)addClientAttribute:(NSString *)attributeName value:(NSString *)attributeValue forNode:(_WKJSHandle *)node

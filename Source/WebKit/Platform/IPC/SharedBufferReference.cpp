@@ -80,7 +80,7 @@ RefPtr<WebCore::SharedBuffer> SharedBufferReference::unsafeBuffer() const
     return nullptr;
 }
 
-std::span<const uint8_t> SharedBufferReference::span() const
+std::span<const uint8_t> SharedBufferReference::span() const LIFETIME_BOUND
 {
 #if !USE(UNIX_DOMAIN_SOCKETS)
     RELEASE_ASSERT_WITH_MESSAGE(isEmpty() || (!m_buffer && m_memory), "Must only be called on IPC's receiver side");

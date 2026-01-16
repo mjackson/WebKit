@@ -242,7 +242,7 @@ void Node::dumpStatistics()
     for (auto& node : liveNodeSet()) {
         if (node.hasRareData()) {
             ++nodesWithRareData;
-            if (auto* element = dynamicDowncast<Element>(node)) {
+            if (CheckedPtr element = dynamicDowncast<Element>(node)) {
                 ++elementsWithRareData;
                 if (element->hasNamedNodeMap())
                     ++elementsWithNamedNodeMap;
@@ -1844,99 +1844,57 @@ bool connectedInSameTreeScope(const Node* a, const Node* b)
     return a && b && a->isConnected() == b->isConnected() && &a->treeScope() == &b->treeScope();
 }
 
-// FIXME: Refactor so this calls treeOrder, with additional code for any exotic inefficient things that are needed only here.
 unsigned short Node::compareDocumentPosition(Node& otherNode)
 {
     if (&otherNode == this)
         return DOCUMENT_POSITION_EQUIVALENT;
-    
+
     auto* attr1 = dynamicDowncast<Attr>(*this);
     auto* attr2 = dynamicDowncast<Attr>(otherNode);
-    
-    Node* start1 = attr1 ? attr1->ownerElement() : this;
-    Node* start2 = attr2 ? attr2->ownerElement() : &otherNode;
-    
-    // If either of start1 or start2 is null, then we are disconnected, since one of the nodes is
-    // an orphaned attribute node.
+
+    auto* start1 = attr1 ? attr1->ownerElement() : this;
+    auto* start2 = attr2 ? attr2->ownerElement() : &otherNode;
+
     if (!start1 || !start2)
         return compareDetachedElementsPosition(*this, otherNode);
 
-    Vector<Node*, 16> chain1;
-    Vector<Node*, 16> chain2;
-    if (attr1)
-        chain1.append(attr1);
-    if (attr2)
-        chain2.append(attr2);
-    
-    if (attr1 && attr2 && start1 == start2 && start1) {
-        // We are comparing two attributes on the same node. Crawl our attribute map and see which one we hit first.
-        Element* owner1 = attr1->ownerElement();
-        owner1->synchronizeAllAttributes();
-        for (auto& attribute : owner1->attributes()) {
-            // If neither of the two determining nodes is a child node and nodeType is the same for both determining nodes, then an
-            // implementation-dependent order between the determining nodes is returned. This order is stable as long as no nodes of
-            // the same nodeType are inserted into or removed from the direct container. This would be the case, for example, 
-            // when comparing two attributes of the same element, and inserting or removing additional attributes might change 
-            // the order between existing attributes.
+    if (attr1 && attr2 && start1 == start2) {
+        auto& element = downcast<Element>(*start1);
+        element.synchronizeAllAttributes();
+        for (auto& attribute : element.attributes()) {
             if (attr1->qualifiedName() == attribute.name())
                 return DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC | DOCUMENT_POSITION_FOLLOWING;
             if (attr2->qualifiedName() == attribute.name())
                 return DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC | DOCUMENT_POSITION_PRECEDING;
         }
-        
         ASSERT_NOT_REACHED();
         return DOCUMENT_POSITION_DISCONNECTED;
     }
 
-    // If one node is in the document and the other is not, we must be disconnected.
-    // If the nodes have different owning documents, they must be disconnected.
-    if (!connectedInSameTreeScope(start1, start2))
+    auto order = treeOrder<Tree>(*start1, *start2);
+
+    if (order == std::partial_ordering::unordered)
         return compareDetachedElementsPosition(*this, otherNode);
 
-    // We need to find a common ancestor container, and then compare the indices of the two immediate children.
-    Node* current;
-    for (current = start1; current; current = current->parentNode())
-        chain1.append(current);
-    for (current = start2; current; current = current->parentNode())
-        chain2.append(current);
-
-    unsigned index1 = chain1.size();
-    unsigned index2 = chain2.size();
-
-    // If the two elements don't have a common root, they're not in the same tree.
-    if (chain1[index1 - 1] != chain2[index2 - 1])
-        return compareDetachedElementsPosition(*this, otherNode);
-
-    // Walk the two chains backwards and look for the first difference.
-    for (unsigned i = std::min(index1, index2); i; --i) {
-        Node* child1 = chain1[--index1];
-        Node* child2 = chain2[--index2];
-        if (child1 != child2) {
-            // If one of the children is an attribute, it wins.
-            if (child1->nodeType() == ATTRIBUTE_NODE)
-                return DOCUMENT_POSITION_FOLLOWING;
-            if (child2->nodeType() == ATTRIBUTE_NODE)
-                return DOCUMENT_POSITION_PRECEDING;
-            
-            if (!child2->nextSibling())
-                return DOCUMENT_POSITION_FOLLOWING;
-            if (!child1->nextSibling())
-                return DOCUMENT_POSITION_PRECEDING;
-
-            // Otherwise we need to see which node occurs first.  Crawl backwards from child2 looking for child1.
-            for (Node* child = child2->previousSibling(); child; child = child->previousSibling()) {
-                if (child == child1)
-                    return DOCUMENT_POSITION_FOLLOWING;
-            }
-            return DOCUMENT_POSITION_PRECEDING;
-        }
+    if (order == std::partial_ordering::equivalent) {
+        if (attr1)
+            return DOCUMENT_POSITION_PRECEDING | DOCUMENT_POSITION_CONTAINS;
+        if (attr2)
+            return DOCUMENT_POSITION_FOLLOWING | DOCUMENT_POSITION_CONTAINED_BY;
+        ASSERT_NOT_REACHED();
+        return DOCUMENT_POSITION_EQUIVALENT;
     }
-    
-    // There was no difference between the two parent chains, i.e., one was a subset of the other.  The shorter
-    // chain is the ancestor.
-    return index1 < index2 ? 
-               DOCUMENT_POSITION_FOLLOWING | DOCUMENT_POSITION_CONTAINED_BY :
-               DOCUMENT_POSITION_PRECEDING | DOCUMENT_POSITION_CONTAINS;
+
+    if (order == std::partial_ordering::less) {
+        if (!attr1 && start2->isDescendantOf(*this))
+            return DOCUMENT_POSITION_FOLLOWING | DOCUMENT_POSITION_CONTAINED_BY;
+        return DOCUMENT_POSITION_FOLLOWING;
+    }
+
+    ASSERT(order == std::partial_ordering::greater);
+    if (!attr2 && start1->isDescendantOf(otherNode))
+        return DOCUMENT_POSITION_PRECEDING | DOCUMENT_POSITION_CONTAINS;
+    return DOCUMENT_POSITION_PRECEDING;
 }
 
 FloatPoint Node::convertToPage(const FloatPoint& p) const

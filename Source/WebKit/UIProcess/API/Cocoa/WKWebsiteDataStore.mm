@@ -1609,6 +1609,28 @@ struct WKWebsiteData {
     });
 }
 
+- (NSString *)_thirdPartyCookieBlockingModeForTesting
+{
+    switch (protectedWebsiteDataStore(self)->thirdPartyCookieBlockingMode()) {
+    case WebCore::ThirdPartyCookieBlockingMode::All:
+        return @"All";
+    case WebCore::ThirdPartyCookieBlockingMode::AllExceptBetweenAppBoundDomains:
+        return @"AllExceptBetweenAppBoundDomains";
+    case WebCore::ThirdPartyCookieBlockingMode::AllExceptManagedDomains:
+        return @"AllExceptManagedDomains";
+#if ENABLE(OPT_IN_PARTITIONED_COOKIES)
+    case WebCore::ThirdPartyCookieBlockingMode::AllExceptPartitioned:
+        return @"AllExceptPartitioned";
+#endif
+    case WebCore::ThirdPartyCookieBlockingMode::AllOnSitesWithoutUserInteraction:
+        return @"AllOnSitesWithoutUserInteraction";
+    case WebCore::ThirdPartyCookieBlockingMode::OnlyAccordingToPerDomainPolicy:
+        return @"OnlyAccordingToPerDomainPolicy";
+    }
+
+    return @"Invalid";
+}
+
 @end
 
 #if PLATFORM(IOS)

@@ -443,20 +443,21 @@ public:
     static void removeTreeForFrameID(FrameIdentifier);
 
     // Retrieve the tree for the frame ID of any LocalFrame
-    static RefPtr<AXIsolatedTree> treeForFrameID(std::optional<FrameIdentifier>);
     static RefPtr<AXIsolatedTree> treeForFrameID(FrameIdentifier);
     static RefPtr<AXIsolatedTree> treeForFrameIDAlreadyLocked(FrameIdentifier);
     AXObjectCache* axObjectCache() const;
     constexpr AXGeometryManager* geometryManager() const { return m_geometryManager.get(); }
 
-    AXIsolatedObject* rootNode() { ASSERT(!isMainThread()); return m_rootNode.get(); }
+    AXIsolatedObject* rootNode() { AX_ASSERT(!isMainThread()); return m_rootNode.get(); }
+    std::optional<AXID> pendingRootNodeID();
     RefPtr<AXIsolatedObject> rootWebArea();
     std::optional<AXID> focusedNodeID();
     WEBCORE_EXPORT RefPtr<AXIsolatedObject> focusedNode();
 
+    bool unsafeHasObjectForID(AXID axID) const;
     inline AXIsolatedObject* objectForID(AXID axID) const
     {
-        AX_DEBUG_ASSERT(!isMainThread());
+        AX_ASSERT(!isMainThread());
 
         auto iterator = m_readerThreadNodeMap.find(axID);
         if (iterator != m_readerThreadNodeMap.end())
@@ -733,19 +734,14 @@ std::optional<AXPropertyFlag> convertToPropertyFlag(AXProperty);
 
 inline AXObjectCache* AXIsolatedTree::axObjectCache() const
 {
-    AX_DEBUG_ASSERT(isMainThread());
+    AX_ASSERT(isMainThread());
     return m_axObjectCache.get();
-}
-
-inline RefPtr<AXIsolatedTree> AXIsolatedTree::treeForFrameID(std::optional<FrameIdentifier> frameID)
-{
-    return frameID ? treeForFrameID(*frameID) : nullptr;
 }
 
 template<typename U>
 inline Vector<Ref<AXCoreObject>> AXIsolatedTree::objectsForIDs(const U& axIDs)
 {
-    ASSERT(!isMainThread());
+    AX_ASSERT(!isMainThread());
 
     Vector<Ref<AXCoreObject>> result;
     result.reserveInitialCapacity(axIDs.size());

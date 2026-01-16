@@ -19,17 +19,6 @@
 #include <limits.h>
 #include <utility>
 
-/*  Contains path methods that require SkPathData -- not SkPathRef:
- *
- *  The remaining fields:
- *  - fFillType
- *  - fIsVolatile
- *
- *  ... are shared in both implemtations.
- */
-
-#ifdef SK_PATH_USES_PATHDATA
-
 /*
  *  This returns a singleton instance which SkPath uses to signify that its pathdata is in error:
  *  either because the inputs were invalid (e.g. bad verbs), or its coordintes were non-finite
@@ -123,14 +112,10 @@ bool SkPath::isFinite() const {
 
 bool SkPath::isValid() const { return this->isFinite(); }
 
-bool SkPath::hasComputedBounds() const { return true; }
-
 uint32_t SkPath::getGenerationID() const { return fPathData->uniqueID(); }
 
 #ifdef SK_DEBUG
 void SkPath::validate() const {}
-
-void SkPath::validateRef() const {}
 #endif
 
 std::optional<SkPathOvalInfo> SkPath::getOvalInfo() const { return fPathData->asOval(); }
@@ -231,15 +216,13 @@ SkPathBuilder& SkPathBuilder::operator=(const SkPath& src) {
         return *this;
     }
 
-    const SkPathData& pdata = *src.fPathData;
-
-    this->addRaw(pdata.raw(src.getFillType(), SkResolveConvexity::kYes));
+    this->addRaw(src.fPathData->raw(src.getFillType(), SkResolveConvexity::kYes));
 
     // These are not part of SkPathRaw, so we set them separately
-
-    fLastMoveIndex = SkPathPriv::FindLastMoveToIndex(pdata.verbs(), pdata.points().size());
-    fType = pdata.fType;
-    fIsA  = pdata.fIsA;
+    fLastMoveIndex = SkPathPriv::FindLastMoveToIndex(fVerbs, fPts.size());
+    SkASSERT(fLastMoveIndex < fPts.size());
+    fType = src.fPathData->fType;
+    fIsA  = src.fPathData->fIsA;
 
     return *this;
 }
@@ -258,5 +241,3 @@ SkPath SkPathBuilder::snapshot(const SkMatrix* mx) const {
     }
     return SkPath::MakeNullCheck(std::move(pdata), fFillType, fIsVolatile);
 }
-
-#endif

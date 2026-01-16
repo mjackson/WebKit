@@ -29,6 +29,7 @@
 #include "config.h"
 #include "AXCoreObject.h"
 
+#include "AXLoggerBase.h"
 #include "AXUtilities.h"
 #include "DocumentView.h"
 #include "HTMLAreaElement.h"
@@ -318,6 +319,14 @@ AXCoreObject::AccessibilityChildrenVector AXCoreObject::unignoredChildren(bool u
         }
         unignoredChildren.append(*descendant);
 
+        constexpr size_t maxChildrenFailsafe = 100000;
+        if (unignoredChildren.size() >= maxChildrenFailsafe) [[unlikely]] {
+            // This should never happen in a well-formed accessibility tree, so we must
+            // be looping infinitely.
+            ASSERT_NOT_REACHED();
+            return unignoredChildren;
+        }
+
         while (descendant && descendant != this) {
             if (!parent) {
                 parent = descendant->parentObject();
@@ -410,7 +419,7 @@ std::optional<AXStitchGroup> AXCoreObject::stitchGroupFromGroups(const Vector<AX
     AXID thisAXID = objectID();
     for (const auto& group : *groups) {
         // Stitching zero or one elements doesn't make sense, so ensure our group is two or larger.
-        ASSERT(group.members().size() >= 2);
+        AX_ASSERT(group.members().size() >= 2);
 
         if (group.members().contains(thisAXID)) {
             if (includeGroupMembers == IncludeGroupMembers::No) {
@@ -502,7 +511,7 @@ void AXCoreObject::verifyChildrenIndexInParent(const AccessibilityChildrenVector
     }
 
     for (unsigned i = 0; i < children.size(); i++)
-        ASSERT(children[i]->indexInParent() == i);
+        AX_ASSERT(children[i]->indexInParent() == i);
 }
 #endif
 
@@ -577,7 +586,7 @@ size_t AXCoreObject::indexInSiblings(const AccessibilityChildrenVector& siblings
     unsigned indexOfThis = indexInParent();
     if (indexOfThis >= siblings.size() || siblings[indexOfThis]->objectID() != objectID()) [[unlikely]] {
         // If this happens, the accessibility tree is an incorrect state.
-        ASSERT_NOT_REACHED();
+        AX_ASSERT_NOT_REACHED();
 
         return siblings.findIf([this] (const Ref<AXCoreObject>& object) {
             return object.ptr() == this;
@@ -626,8 +635,8 @@ AXCoreObject* AXCoreObject::previousSiblingIncludingIgnored(bool updateChildrenI
 AXCoreObject* AXCoreObject::nextUnignoredSibling(bool updateChildrenIfNeeded, AXCoreObject* unignoredParent) const
 {
     // In some contexts, we may have already computed the `unignoredParent`, which is what this parameter is.
-    // In debug, ensure this is actually our parent.
-    ASSERT(unignoredParent == parentObjectUnignored());
+    // Ensure this is actually our parent.
+    AX_ASSERT(unignoredParent == parentObjectUnignored());
 
     RefPtr parent = unignoredParent ? unignoredParent : parentObjectUnignored();
     if (!parent)
@@ -846,7 +855,7 @@ AXCoreObject::AccessibilityChildrenVector AXCoreObject::selectedChildren()
         return selectedItems;
     }
     default:
-        ASSERT_NOT_REACHED();
+        AX_ASSERT_NOT_REACHED();
         break;
     }
     return { };
@@ -854,7 +863,7 @@ AXCoreObject::AccessibilityChildrenVector AXCoreObject::selectedChildren()
 
 AXCoreObject::AccessibilityChildrenVector AXCoreObject::listboxSelectedChildren()
 {
-    ASSERT(role() == AccessibilityRole::ListBox);
+    AX_ASSERT(role() == AccessibilityRole::ListBox);
 
     AccessibilityChildrenVector result;
     bool isMulti = isMultiSelectable();
@@ -871,7 +880,7 @@ AXCoreObject::AccessibilityChildrenVector AXCoreObject::listboxSelectedChildren(
 
 AXCoreObject::AccessibilityChildrenVector AXCoreObject::selectedRows()
 {
-    ASSERT(role() == AccessibilityRole::Grid || role() == AccessibilityRole::Tree || role() == AccessibilityRole::TreeGrid);
+    AX_ASSERT(role() == AccessibilityRole::Grid || role() == AccessibilityRole::Tree || role() == AccessibilityRole::TreeGrid);
 
     bool isMulti = isMultiSelectable();
 
@@ -903,7 +912,7 @@ AXCoreObject::AccessibilityChildrenVector AXCoreObject::selectedRows()
 
 AXCoreObject::AccessibilityChildrenVector AXCoreObject::selectedListItems()
 {
-    ASSERT(role() == AccessibilityRole::List);
+    AX_ASSERT(role() == AccessibilityRole::List);
 
     AccessibilityChildrenVector selectedListItems;
     for (const auto& child : unignoredChildren()) {
@@ -1559,7 +1568,7 @@ bool AXCoreObject::supportsActiveDescendant() const
 AXCoreObject* AXCoreObject::activeDescendant() const
 {
     auto activeDescendants = relatedObjects(AXRelation::ActiveDescendant);
-    ASSERT(activeDescendants.size() <= 1);
+    AX_ASSERT(activeDescendants.size() <= 1);
     if (!activeDescendants.isEmpty())
         return activeDescendants[0].unsafePtr();
     return nullptr;
@@ -1916,12 +1925,12 @@ std::partial_ordering AXCoreObject::partialOrder(const AXCoreObject& other)
         if (ourAncestorIndex > otherAncestorIndex)
             return std::partial_ordering::greater;
 
-        ASSERT_NOT_REACHED();
+        AX_ASSERT_NOT_REACHED();
         return std::partial_ordering::equivalent;
     };
 
     // I got into an infinite loop here that I wasn't able to reproduce again in order to debug.
-    // For now, add a failsafe and ASSERT() so we can try to debug the root cause when it does
+    // For now, add a failsafe and AX_ASSERT() so we can try to debug the root cause when it does
     // happen again.
     unsigned failsafeCounter = 0;
     // This variable is 2 times the max render tree depth because the accessibility tree can be
@@ -1938,7 +1947,7 @@ std::partial_ordering AXCoreObject::partialOrder(const AXCoreObject& other)
         ++failsafeCounter;
 
         if (RefPtr maybeParent = current ? current->parentObject() : nullptr) {
-            ASSERT(current != maybeParent);
+            AX_ASSERT(current != maybeParent);
 
             if (maybeParent == &other) {
                 // We are a descendant of the other object, so we come after it.
@@ -1959,12 +1968,12 @@ std::partial_ordering AXCoreObject::partialOrder(const AXCoreObject& other)
                 return orderingFromIndices(ourAncestorIndex, otherAncestorIndex);
             }
             current = parent.ptr();
-            ASSERT(!ourAncestors.contains(parent));
+            AX_ASSERT(!ourAncestors.contains(parent));
             ourAncestors.appendOrMoveToLast(WTF::move(parent));
         }
 
         if (RefPtr maybeParent = otherCurrent ? otherCurrent->parentObject() : nullptr) {
-            ASSERT(otherCurrent != maybeParent);
+            AX_ASSERT(otherCurrent != maybeParent);
 
             if (maybeParent == this) {
                 // The other object is a descendant of ours, so we come before it in tree-order.
@@ -1980,15 +1989,15 @@ std::partial_ordering AXCoreObject::partialOrder(const AXCoreObject& other)
                 return orderingFromIndices(ourAncestorIndex, otherAncestorIndex);
             }
             otherCurrent = parent.ptr();
-            ASSERT(!otherAncestors.contains(parent));
+            AX_ASSERT(!otherAncestors.contains(parent));
             otherAncestors.appendOrMoveToLast(WTF::move(parent));
         }
     }
 
-    ASSERT(failsafeCounter < maxIterations);
+    AX_ASSERT(failsafeCounter < maxIterations);
     // If we pass the above ASSERT but hit this one, it means we didn't loop infinitely,
     // but also did not find a shared ancestor between the two objects, which shouldn't ever happen.
-    ASSERT_NOT_REACHED();
+    AX_ASSERT_NOT_REACHED();
     return std::partial_ordering::unordered;
 }
 

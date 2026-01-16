@@ -870,7 +870,7 @@ void ScriptController::executeJavaScriptURL(const URL& url, const NavigationActi
 
     auto preNavigationCheckHolder = requireTrustedTypesForPreNavigationCheckPasses(*scriptExecutionContext, url.string());
     if (preNavigationCheckHolder.hasException()) {
-        throwScope.clearException();
+        TRY_CLEAR_EXCEPTION(throwScope, void());
         return;
     }
 

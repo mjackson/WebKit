@@ -66,8 +66,12 @@ void DigitalCredentialsCoordinator::showDigitalCredentialsPicker(Vector<Unvalida
     m_rawRequests = WTF::move(rawRequests);
 
     if (RefPtr page = m_page.get()) {
-        page->showDigitalCredentialsPicker(request, [this, completionHandler = WTF::move(completionHandler)](Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&& responseOrException) mutable {
-            m_rawRequests.clear();
+        page->showDigitalCredentialsPicker(request, [weakThis = WeakPtr { *this }, completionHandler = WTF::move(completionHandler)](Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&& responseOrException) mutable {
+            RefPtr protectedThis = weakThis.get();
+            if (!protectedThis)
+                return completionHandler(makeUnexpected(WebCore::ExceptionData { WebCore::ExceptionCode::AbortError, "The coordinator is no longer available."_s }));
+
+            protectedThis->m_rawRequests.clear();
             completionHandler(WTF::move(responseOrException));
         });
     } else {

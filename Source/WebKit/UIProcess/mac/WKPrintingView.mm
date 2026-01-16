@@ -482,7 +482,7 @@ static RetainPtr<NSString> linkDestinationName(PDFDocument *document, PDFDestina
         return;
     }
 
-    RetainPtr<CGContextRef> context = [[NSGraphicsContext currentContext] CGContext];
+    RetainPtr context = [[NSGraphicsContext currentContext] CGContext];
 
     CGContextSaveGState(context.get());
     CGContextTranslateCTM(context.get(), point.x, point.y);

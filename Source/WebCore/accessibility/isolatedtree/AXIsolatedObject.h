@@ -30,6 +30,7 @@
 
 #include <WebCore/AXCoreObject.h>
 #include <WebCore/AXIsolatedTree.h>
+#include <WebCore/AXLoggerBase.h>
 #include <WebCore/AXObjectCache.h>
 #include <WebCore/AXTreeStoreInlines.h>
 #include <WebCore/IntPoint.h>
@@ -625,7 +626,7 @@ private:
 
         RefPtr<AccessibilityObject> axObjectOnMainThread() const
         {
-            ASSERT(isMainThread());
+            AX_ASSERT(isMainThread());
 
             CheckedPtr cache = m_tree->axObjectCache();
             return cache ? cache->objectForID(m_axID) : nullptr;
@@ -668,7 +669,7 @@ inline T AXIsolatedObject::propertyValue(AXProperty property) const
 
     return WTF::switchOn(m_properties[index].second,
         [] (const T& typedValue) { return typedValue; },
-        [] (auto&) { ASSERT_NOT_REACHED();
+        [] (auto&) { AX_ASSERT_NOT_REACHED();
             return T(); }
     );
 }
@@ -688,7 +689,7 @@ inline bool AXIsolatedObject::hasPropertyFlag(AXPropertyFlag flag) const
 
 inline bool AXIsolatedObject::hasPropertyFlag(AXProperty property) const
 {
-    ASSERT(static_cast<uint16_t>(property) <= lastPropertyFlagIndex);
+    AX_ASSERT(static_cast<uint16_t>(property) <= lastPropertyFlagIndex);
     uint16_t propertyIndex = static_cast<uint16_t>(property);
     return hasPropertyFlag(static_cast<AXPropertyFlag>(1 << propertyIndex));
 }

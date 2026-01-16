@@ -287,7 +287,6 @@ enum class CompositingPolicy : bool {
 
 enum class FinalizeRenderingUpdateFlags : uint8_t {
     ApplyScrollingTreeLayerPositions    = 1 << 0,
-    InvalidateImagesWithAsyncDecodes    = 1 << 1,
 };
 
 enum class RenderingUpdateStep : uint32_t {
@@ -1404,6 +1403,8 @@ public:
     AcceleratedTimelinesUpdater* acceleratedTimelinesUpdater() const { return m_acceleratedTimelinesUpdater.get(); }
     AcceleratedTimelinesUpdater& ensureAcceleratedTimelinesUpdater();
 #endif
+
+    void syncLocalFrameInfoToRemote();
 
 private:
     explicit Page(PageConfiguration&&);

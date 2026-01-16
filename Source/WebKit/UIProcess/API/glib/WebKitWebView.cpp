@@ -111,6 +111,7 @@
 #include "WPEUtilities.h"
 #include "WPEWebViewLegacy.h"
 #include "WPEWebViewPlatform.h"
+#include "WebContextMenuProxy.h"
 #include "WebKitOptionMenuPrivate.h"
 #include "WebKitWebViewBackendPrivate.h"
 #include "WebKitWebViewClient.h"
@@ -3017,6 +3018,7 @@ void webkitWebViewPopulateContextMenu(WebKitWebView* webView, const Vector<WebCo
     if (userData)
         webkit_context_menu_set_user_data(WEBKIT_CONTEXT_MENU(contextMenu.get()), userData);
     webkitContextMenuSetEvent(contextMenu.get(), webkitWebViewBaseTakeContextMenuEvent(webViewBase));
+    webkitContextMenuSetPosition(contextMenu.get(), contextMenuProxy->menuLocation());
 
     GRefPtr<WebKitHitTestResult> hitTestResult = adoptGRef(webkitHitTestResultCreate(hitTestResultData));
     gboolean returnValue;
@@ -3045,6 +3047,9 @@ void webkitWebViewPopulateContextMenu(WebKitWebView* webView, const Vector<WebCo
     GRefPtr<WebKitContextMenu> contextMenu = adoptGRef(webkitContextMenuCreate(proposedMenu));
     if (userData)
         webkit_context_menu_set_user_data(WEBKIT_CONTEXT_MENU(contextMenu.get()), userData);
+    if (auto* contextMenuProxy = getPage(webView).activeContextMenu())
+        webkitContextMenuSetPosition(contextMenu.get(), contextMenuProxy->menuLocation());
+
     GRefPtr<WebKitHitTestResult> hitTestResult = adoptGRef(webkitHitTestResultCreate(hitTestResultData));
     gboolean returnValue;
     g_signal_emit(webView, signals[CONTEXT_MENU], 0, contextMenu.get(),
@@ -3052,6 +3057,13 @@ void webkitWebViewPopulateContextMenu(WebKitWebView* webView, const Vector<WebCo
         nullptr,
 #endif
         hitTestResult.get(), &returnValue);
+    if (!returnValue)
+        return;
+
+    webkitContextMenuSetPage(contextMenu.get(), &getPage(webView));
+
+    // Clear the menu to make sure it's useless after signal emission.
+    webkit_context_menu_remove_all(contextMenu.get());
 }
 #endif
 #endif // ENABLE(CONTEXT_MENUS)

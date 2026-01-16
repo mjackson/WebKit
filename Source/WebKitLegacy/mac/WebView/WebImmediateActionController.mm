@@ -429,12 +429,12 @@ static WebCore::IntRect elementBoundingBoxInWindowCoordinatesFromNode(WebCore::N
 
     if ([[_webView UIDelegate] respondsToSelector:@selector(_webView:actionContextForHitTestResult:range:)]) {
         DOMRange *customDataDetectorsRange;
-        auto actionContext = [(id)[_webView UIDelegate] _webView:_webView
+        RetainPtr actionContext = [(id)[_webView UIDelegate] _webView:_webView
             actionContextForHitTestResult:adoptNS([[WebElementDictionary alloc] initWithHitTestResult:_hitTestResult]).get()
             range:&customDataDetectorsRange];
         if (actionContext && customDataDetectorsRange) {
             detectedItem = { {
-                (WKDDActionContext *)actionContext,
+                (WKDDActionContext *)actionContext.get(),
                 { }, // FIXME: Seems like an empty rect isn't really OK.
                 makeSimpleRange(*core(customDataDetectorsRange))
             } };

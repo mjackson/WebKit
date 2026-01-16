@@ -71,7 +71,7 @@ public:
 
     std::unique_ptr<RTCDataChannelHandler> createDataChannel(const String&, const RTCDataChannelInit&);
 
-    void addIceCandidate(GStreamerIceCandidate&, PeerConnectionBackend::AddIceCandidateCallback&&);
+    void addIceCandidate(const RTCIceCandidate&, PeerConnectionBackend::AddIceCandidateCallback&&);
 
     void prepareForClose();
     void close();

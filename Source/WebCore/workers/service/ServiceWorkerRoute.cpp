@@ -36,63 +36,109 @@
 
 namespace WebCore {
 
-static size_t computeServiceWorkerRouteConditionCount(const ServiceWorkerRouteCondition& routeCondition)
+// https://w3c.github.io/ServiceWorker/#count-router-inner-conditions
+std::optional<size_t> countRouterInnerConditions(const ServiceWorkerRouteCondition& routeCondition, size_t result, size_t depth)
 {
-    size_t count = 1;
-    for (auto& condition : routeCondition.orConditions)
-        count += computeServiceWorkerRouteConditionCount(condition);
-    if (routeCondition.notCondition)
-        count += computeServiceWorkerRouteConditionCount(*routeCondition.notCondition);
-    return count;
-}
+    --result;
+    if (!result || !depth)
+        return { };
 
-size_t computeServiceWorkerRouteConditionCount(const ServiceWorkerRoute& route)
-{
-    return computeServiceWorkerRouteConditionCount(route.condition);
-}
-
-static std::optional<ExceptionData> validateURLPatternComponent(StringView component, EncodingCallbackType type)
-{
-    auto result = URLPatternUtilities::URLPatternParser::parse(component, { .ignoreCase = true }, type);
-    if (result.hasException())
-        return ExceptionData { result.exception().code(), result.releaseException().releaseMessage() };
-
-    auto parts = result.releaseReturnValue();
-    for (auto& part : parts) {
-        // FIXME: We should only reject for regexp group and support all other values.
-        if (part.type != URLPatternUtilities::PartType::FixedText && part.type != URLPatternUtilities::PartType::FullWildcard)
-            return ExceptionData { ExceptionCode::NotSupportedError, "URLPattern component value not supported"_s };
+    for (auto& condition : routeCondition.orConditions) {
+        auto orResult = countRouterInnerConditions(condition, result, depth - 1);
+        if (!orResult)
+            return { };
+        result = *orResult;
     }
 
+    if (routeCondition.notCondition) {
+        auto notResult = countRouterInnerConditions(*routeCondition.notCondition, result, depth - 1);
+        if (!notResult)
+            return { };
+        result = *notResult;
+    }
+    return result;
+}
+
+static URLPatternUtilities::URLPatternStringOptions computeOptions(EncodingCallbackType type, bool ignoreCase)
+{
+    switch (type) {
+    case EncodingCallbackType::Protocol:
+        return { };
+    case EncodingCallbackType::Username:
+        return { };
+    case EncodingCallbackType::Password:
+        return { };
+    case EncodingCallbackType::Host:
+    case EncodingCallbackType::IPv6Host:
+        return { .delimiterCodepoint = "."_s };
+    case EncodingCallbackType::Path:
+        return { "/"_s, "/"_s, ignoreCase };
+    case EncodingCallbackType::OpaquePath:
+        return { { }, { }, ignoreCase };
+    case EncodingCallbackType::Port:
+        return { };
+    case EncodingCallbackType::Search:
+        return { { }, { }, ignoreCase };
+    case EncodingCallbackType::Hash:
+        return { { }, { }, ignoreCase };
+    }
+
+    ASSERT_NOT_REACHED();
+    return { };
+}
+
+static Expected<String, ExceptionData> validateAndCompileURLPatternComponent(StringView component, EncodingCallbackType type)
+{
+    auto options = computeOptions(type, true);
+    auto result = URLPatternUtilities::URLPatternParser::parse(component, options, type);
+    if (result.hasException())
+        return makeUnexpected(ExceptionData { result.exception().code(), result.releaseException().releaseMessage() });
+
+    auto parts = result.releaseReturnValue();
+
+    bool hasRegexGroups = parts.containsIf([](auto& part) {
+        return part.type == URLPatternUtilities::PartType::Regexp;
+    });
+    ASSERT(!hasRegexGroups);
+    if (hasRegexGroups)
+        return makeUnexpected(ExceptionData { ExceptionCode::TypeError, "Service Worker route url pattern has regexp groups"_s });
+
+    return generateRegexAndNameList(parts, options).first;
+}
+
+static std::optional<ExceptionData> validateAndUpdateURLPatternComponent(String& component, EncodingCallbackType type)
+{
+    if (component == "*"_s) {
+        component = { };
+        return { };
+    }
+
+    auto exceptionOrCompiledExpression = validateAndCompileURLPatternComponent(component, type);
+    if (!exceptionOrCompiledExpression)
+        return exceptionOrCompiledExpression.error();
+
+    component = exceptionOrCompiledExpression.value();
     return { };
 }
 
 static inline std::optional<ExceptionData> validateServiceWorkerRouteCondition(ServiceWorkerRouteCondition& condition)
 {
     if (condition.urlPattern) {
-        if (auto exception = validateURLPatternComponent(condition.urlPattern->protocol, EncodingCallbackType::Protocol))
+        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->protocol, EncodingCallbackType::Protocol))
             return exception;
-        if (auto exception = validateURLPatternComponent(condition.urlPattern->username, EncodingCallbackType::Username))
+        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->username, EncodingCallbackType::Username))
             return exception;
-        if (auto exception = validateURLPatternComponent(condition.urlPattern->password, EncodingCallbackType::Password))
+        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->password, EncodingCallbackType::Password))
             return exception;
-        if (auto exception = validateURLPatternComponent(condition.urlPattern->hostname, EncodingCallbackType::Host))
+        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->hostname, EncodingCallbackType::Host))
             return exception;
-        if (auto exception = validateURLPatternComponent(condition.urlPattern->pathname, EncodingCallbackType::Path))
+        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->pathname, EncodingCallbackType::Path))
             return exception;
-        if (auto exception = validateURLPatternComponent(condition.urlPattern->port, EncodingCallbackType::Port))
+        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->port, EncodingCallbackType::Port))
             return exception;
-        if (auto exception = validateURLPatternComponent(condition.urlPattern->search, EncodingCallbackType::Search))
+        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->search, EncodingCallbackType::Search))
             return exception;
-        if (auto exception = validateURLPatternComponent(condition.urlPattern->hash, EncodingCallbackType::Hash))
-            return exception;
-        if (auto exception = validateURLPatternComponent(condition.urlPattern->protocol, EncodingCallbackType::Protocol))
-            return exception;
-        if (auto exception = validateURLPatternComponent(condition.urlPattern->protocol, EncodingCallbackType::Protocol))
-            return exception;
-        if (auto exception = validateURLPatternComponent(condition.urlPattern->protocol, EncodingCallbackType::Protocol))
-            return exception;
-        if (auto exception = validateURLPatternComponent(condition.urlPattern->protocol, EncodingCallbackType::Protocol))
+        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->hash, EncodingCallbackType::Hash))
             return exception;
     }
 
@@ -126,12 +172,16 @@ std::optional<ExceptionData> validateServiceWorkerRoute(ServiceWorkerRoute& rout
 
 static bool matchURLPatternComponent(const String& pattern, StringView value)
 {
-    // FIXME: Fully support pattern matching, check for case, whitespace...
-    if (pattern.isNull() || pattern == "*"_s)
+    if (pattern.isNull())
         return true;
 
+#if !PLATFORM(COCOA)
+    // FIXME: Fully support pattern matching, check for case, whitespace...
     bool isPatternFinishingByStar = pattern.endsWith("*"_s);
     return isPatternFinishingByStar ? value.startsWith(pattern.substring(pattern.length() - 1)) : value == pattern;
+#else
+    return isRegexpMatching(pattern, value);
+#endif
 }
 
 static bool matchURLPattern(const ServiceWorkerRoutePattern& urlPattern, const URL& url)

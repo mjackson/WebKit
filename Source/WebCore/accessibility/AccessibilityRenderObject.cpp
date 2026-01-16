@@ -169,12 +169,12 @@ AccessibilityRenderObject::AccessibilityRenderObject(AXID axID, Node& node, AXOb
     : AccessibilityNodeObject(axID, &node, cache)
 {
     // We should only ever create an instance of this class with a node if that node has no renderer (i.e. because of display:contents).
-    ASSERT(!node.renderer());
+    AX_ASSERT(!node.renderer());
 }
 
 AccessibilityRenderObject::~AccessibilityRenderObject()
 {
-    ASSERT(isDetached());
+    AX_ASSERT(isDetached());
 }
 
 Ref<AccessibilityRenderObject> AccessibilityRenderObject::create(AXID axID, RenderObject& renderer, AXObjectCache& cache)
@@ -343,7 +343,7 @@ static inline RenderObject* childBeforeConsideringContinuations(RenderInline* re
         }
     }
 
-    ASSERT_NOT_REACHED();
+    AX_ASSERT_NOT_REACHED();
     return nullptr;
 }
 
@@ -370,7 +370,7 @@ AccessibilityObject* AccessibilityRenderObject::previousSibling() const
         // Case 2: Anonymous block parent of the end of a continuation - skip all the way to before
         // the parent of the start, since everything in between will be linked up via the continuation.
         auto* firstParent = startOfContinuations(*renderBlock->firstChild())->parent();
-        ASSERT(firstParent);
+        AX_ASSERT(firstParent);
         while (firstChildIsInlineContinuation(*firstParent))
             firstParent = startOfContinuations(*firstParent->firstChild())->parent();
         previousSibling = firstParent->previousSibling();
@@ -416,7 +416,7 @@ AccessibilityObject* AccessibilityRenderObject::nextSibling() const
         // Case 2: Anonymous block parent of the start of a continuation - skip all the way to
         // after the parent of the end, since everything in between will be linked up via the continuation.
         auto* lastParent = endOfContinuations(*renderBlock->lastChild())->parent();
-        ASSERT(lastParent);
+        AX_ASSERT(lastParent);
         while (lastChildHasContinuation(*lastParent))
             lastParent = endOfContinuations(*lastParent->lastChild())->parent();
         nextSibling = lastParent->nextSibling();
@@ -1186,7 +1186,7 @@ static bool webAreaIsPresentational(RenderObject* renderer)
 bool AccessibilityRenderObject::computeIsIgnored() const
 {
 #ifndef NDEBUG
-    ASSERT(m_initialized);
+    AX_ASSERT(m_initialized);
 #endif
 
     if (!m_renderer)
@@ -1267,7 +1267,7 @@ bool AccessibilityRenderObject::computeIsIgnored() const
         // Text elements with no rendered text, or only whitespace should not be part of the AX tree.
         if (!renderText->hasRenderedText()) {
             // Layout must be clean to make the right decision here (because hasRenderedText() can return false solely because layout is dirty).
-            ASSERT(!renderText->needsLayout() || !renderText->text().length());
+            AX_ASSERT(!renderText->needsLayout() || !renderText->text().length());
             return true;
         }
 
@@ -1545,7 +1545,7 @@ CharacterRange AccessibilityRenderObject::documentBasedSelectedTextRange() const
 
 String AccessibilityRenderObject::selectedText() const
 {
-    ASSERT(isTextControl());
+    AX_ASSERT(isTextControl());
 
     if (isSecureField())
         return String(); // need to return something distinct from empty string
@@ -1560,7 +1560,7 @@ String AccessibilityRenderObject::selectedText() const
 
 CharacterRange AccessibilityRenderObject::selectedTextRange() const
 {
-    ASSERT(isTextControl());
+    AX_ASSERT(isTextControl());
 
     // Use the text control native range if it's a native object.
     if (isNativeTextControl() && m_renderer) {
@@ -1713,7 +1713,7 @@ AXTextRuns AccessibilityRenderObject::textRuns()
 
     auto domOffset = [] (unsigned value) -> uint16_t {
         // It shouldn't be possible for any textbox to have more than 65535 characters.
-        ASSERT(value <= std::numeric_limits<uint16_t>::max());
+        AX_ASSERT(value <= std::numeric_limits<uint16_t>::max());
         return static_cast<uint16_t>(value);
     };
 
@@ -1784,7 +1784,7 @@ AXTextRuns AccessibilityRenderObject::textRuns()
 
 AXTextRunLineID AccessibilityRenderObject::listMarkerLineID() const
 {
-    ASSERT(role() == AccessibilityRole::ListMarker);
+    AX_ASSERT(role() == AccessibilityRole::ListMarker);
     return { renderer() ? renderer()->containingBlock() : nullptr, 0 };
 }
 
@@ -1797,7 +1797,7 @@ String AccessibilityRenderObject::listMarkerText() const
 
 int AccessibilityRenderObject::insertionPointLineNumber() const
 {
-    ASSERT(isTextControl());
+    AX_ASSERT(isTextControl());
 
     // Use the text control native range if it's a native object.
     if (isNativeTextControl() && m_renderer) {
@@ -1856,7 +1856,7 @@ void AccessibilityRenderObject::setSelectedTextRange(CharacterRange&& range)
         textControl->focus(focusOptions);
         textControl->setSelectionRange(range.location, range.location + range.length);
     } else if (m_renderer) {
-        ASSERT(node());
+        AX_ASSERT(node());
         Ref node = *this->node();
         auto elementRange = simpleRange();
         auto start = visiblePositionForIndexUsingCharacterIterator(node.get(), range.location);
@@ -1966,7 +1966,7 @@ AXCoreObject::AccessibilityChildrenVector AccessibilityRenderObject::documentLin
     for (unsigned i = 0; RefPtr current = links->item(i); ++i) {
         if (current->renderer()) {
             RefPtr axObject = cache->getOrCreate(*current);
-            ASSERT(axObject);
+            AX_ASSERT(axObject);
             if (!axObject->isIgnored() && axObject->isLink())
                 result.append(axObject.releaseNonNull());
         } else {
@@ -2727,7 +2727,7 @@ AccessibilitySVGObject* AccessibilityRenderObject::remoteSVGRootElement(CreateIf
         return nullptr;
 
     RefPtr rootSVGObject = createIfNecessary == CreateIfNecessary::Yes ? cache->getOrCreate(*rendererRoot) : cache->get(rendererRoot);
-    ASSERT(createIfNecessary == CreateIfNecessary::No || rootSVGObject);
+    AX_ASSERT(createIfNecessary == CreateIfNecessary::No || rootSVGObject);
     return dynamicDowncast<AccessibilitySVGObject>(rootSVGObject).unsafeGet();
 }
 
@@ -2775,7 +2775,7 @@ void AccessibilityRenderObject::addCanvasChildren()
 
     // If it's a canvas, it won't have rendered children, but it might have accessible fallback content.
     // Clear m_childrenInitialized because AccessibilityNodeObject::addChildren will expect it to be false.
-    ASSERT(!m_children.size());
+    AX_ASSERT(!m_children.size());
     m_childrenInitialized = false;
     AccessibilityNodeObject::addChildren();
 }
@@ -2919,7 +2919,7 @@ void AccessibilityRenderObject::addChildren()
     }
     // If the need to add more children in addition to existing children arises,
     // childrenChanged should have been called, leaving the object with no children.
-    AX_DEBUG_ASSERT(!m_childrenInitialized);
+    AX_ASSERT(!m_childrenInitialized);
     m_childrenInitialized = true;
 
     auto scopeExit = makeScopeExit([this, protectedThis = Ref { *this }] {
@@ -3157,7 +3157,7 @@ bool AccessibilityRenderObject::hasUnderline() const
 
 String AccessibilityRenderObject::secureFieldValue() const
 {
-    ASSERT(isSecureField());
+    AX_ASSERT(isSecureField());
 
     // Look for the RenderText object in the RenderObject tree for this input field.
     RenderObject* renderer = node()->renderer();
@@ -3191,8 +3191,8 @@ void AccessibilityRenderObject::scrollTo(const IntPoint& point) const
         return;
 
     // FIXME: is point a ScrollOffset or ScrollPosition? Test in RTL overflow.
-    ASSERT(box->layer());
-    ASSERT(box->layer()->scrollableArea());
+    AX_ASSERT(box->layer());
+    AX_ASSERT(box->layer()->scrollableArea());
     box->layer()->scrollableArea()->scrollToOffset(point);
 }
 

@@ -1832,7 +1832,7 @@ void DocumentLoader::substituteResourceDeliveryTimerFired()
     for (auto& pendingSubstituteResource : pendingSubstituteResources) {
         auto& loader = pendingSubstituteResource.key;
         if (auto& resource = pendingSubstituteResource.value)
-            resource->deliver(*loader);
+            resource->deliver(loader);
         else {
             // A null resource means that we should fail the load.
             // FIXME: Maybe we should use another error here - something like "not in cache".
@@ -1889,13 +1889,13 @@ bool DocumentLoader::scheduleArchiveLoad(ResourceLoader& loader, const ResourceR
 void DocumentLoader::scheduleSubstituteResourceLoad(ResourceLoader& loader, SubstituteResource& resource)
 {
     ASSERT(!loader.options().serviceWorkerRegistrationIdentifier);
-    m_pendingSubstituteResources.set(&loader, &resource);
+    m_pendingSubstituteResources.set(loader, &resource);
     deliverSubstituteResourcesAfterDelay();
 }
 
 void DocumentLoader::scheduleCannotShowURLError(ResourceLoader& loader)
 {
-    m_pendingSubstituteResources.set(&loader, nullptr);
+    m_pendingSubstituteResources.set(loader, nullptr);
     deliverSubstituteResourcesAfterDelay();
 }
 
@@ -2476,7 +2476,7 @@ void DocumentLoader::didGetLoadDecisionForIcon(bool decision, uint64_t loadIdent
         return completionHandler(nullptr);
 
     Ref iconLoader = IconLoader::create(*this, icon.url);
-    m_iconLoaders.add(iconLoader.copyRef(), WTF::move(completionHandler));
+    m_iconLoaders.add(iconLoader, WTF::move(completionHandler));
 
     iconLoader->startLoading();
 }

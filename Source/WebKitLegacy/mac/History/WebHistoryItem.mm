@@ -138,10 +138,10 @@ void WKNotifyHistoryItemChanged()
 {
     WebCoreThreadViolationCheckRoundOne();
 
-    WebHistoryItem *item = [self initWithWebCoreHistoryItem:HistoryItem::create(LegacyHistoryItemClient::singleton(), URLString, title)];
+    RetainPtr item = [self initWithWebCoreHistoryItem:HistoryItem::create(LegacyHistoryItemClient::singleton(), URLString, title)];
     item->_private->_lastVisitedTime = time;
 
-    return item;
+    return item.autorelease();
 }
 
 - (void)dealloc
@@ -225,7 +225,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 - (NSString *)description
 {
     HistoryItem* coreItem = core(_private);
-    NSMutableString *result = [NSMutableString stringWithFormat:@"%@ %@", [super description], coreItem->urlString().createNSString().get()];
+    RetainPtr result = [NSMutableString stringWithFormat:@"%@ %@", [super description], coreItem->urlString().createNSString().get()];
     if (!coreItem->target().isEmpty())
         [result appendFormat:@" in \"%@\"", coreItem->target().createNSString().get()];
     if (coreItem->isTargetItem())
@@ -233,13 +233,13 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     if (coreItem->formData()) {
         [result appendString:@" *POST*"];
     }
-    
+
     if (coreItem->children().size()) {
         const auto& children = coreItem->children();
         int currPos = [result length];
-        unsigned size = children.size();        
+        unsigned size = children.size();
         for (unsigned i = 0; i < size; ++i) {
-            WebHistoryItem *child = kit(const_cast<HistoryItem*>(children[i].ptr()));
+            RetainPtr child = kit(const_cast<HistoryItem*>(children[i].ptr()));
             [result appendString:@"\n"];
             [result appendString:[child description]];
         }
@@ -247,8 +247,8 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         NSRange replRange = { static_cast<NSUInteger>(currPos), [result length] - currPos };
         [result replaceOccurrencesOfString:@"\n" withString:@"\n    " options:0 range:replRange];
     }
-    
-    return result;
+
+    return result.autorelease();
 }
 
 HistoryItem* core(WebHistoryItem *item)

@@ -822,6 +822,7 @@ imported/w3c/web-platform-tests/html/webappapis/scripting/processing-model-2/unh
 imported/w3c/web-platform-tests/html/webappapis/user-prompts/cannot-show-simple-dialogs/confirm-different-origin-frame.sub.html [ Skip ]
 imported/w3c/web-platform-tests/html/webappapis/user-prompts/cannot-show-simple-dialogs/prompt-different-origin-frame.sub.html [ Skip ]
 imported/w3c/web-platform-tests/workers/WorkerLocation-origin.sub.window.html [ Skip ]
+imported/w3c/web-platform-tests/html/infrastructure/urls/resolving-urls/query-encoding/utf-16be.html [ Skip ]
 imported/w3c/web-platform-tests/html/infrastructure/urls/resolving-urls/query-encoding/utf-16le.html [ Skip ]
 imported/w3c/web-platform-tests/html/infrastructure/urls/resolving-urls/query-encoding/utf-8.html [ Skip ]
 imported/w3c/web-platform-tests/html/browsers/browsing-the-web/history-traversal/browsing_context_name_cross_origin_2.html [ Skip ]
@@ -2429,7 +2430,6 @@ fast/webgpu/nocrash/fuzz-291181-reduced.html [ Pass Failure Timeout ]
 [ Debug ] fast/webgpu/nocrash/fuzz-275294.html [ Pass Crash ]
 
 # Imported W3C HTML/DOM ref tests that are failing.
-imported/w3c/web-platform-tests/html/semantics/embedded-content/the-img-element/environment-changes/viewport-change.html [ Failure ]
 imported/w3c/web-platform-tests/html/semantics/embedded-content/the-img-element/update-the-image-data/current-request-microtask-002.html [ Skip ]
 webkit.org/b/253143 imported/w3c/web-platform-tests/html/semantics/embedded-content/the-img-element/sizes/sizes-auto-rendering.html [ ImageOnlyFailure ]
 webkit.org/b/253143 imported/w3c/web-platform-tests/html/semantics/embedded-content/the-img-element/sizes/sizes-auto-rendering-dynamic.html [ ImageOnlyFailure ]
@@ -2579,8 +2579,6 @@ webkit.org/b/135053 [ Debug ] html5lib/webkit-resumer.html [ Slow ]
 webkit.org/b/207586 css3/filters/effect-combined-hw.html [ ImageOnlyFailure ]
 webkit.org/b/207586 css3/filters/effect-drop-shadow-hw.html [ ImageOnlyFailure ]
 webkit.org/b/207586 css3/filters/effect-drop-shadow.html [ ImageOnlyFailure ]
-
-webkit.org/b/207586 css3/filters/effect-drop-shadow-clip-abspos.html [ ImageOnlyFailure ]
 
 webkit.org/b/261667 css3/masking/mask-reference-png-fragment.html [ ImageOnlyFailure ]
 
@@ -5025,6 +5023,14 @@ webkit.org/b/206753 imported/w3c/web-platform-tests/css/css-backgrounds/first-le
 
 webkit.org/b/206579 [ Debug ] imported/w3c/web-platform-tests/css/css-backgrounds/background-size/vector/zero-height-ratio-auto-5px.html [ Skip ]
 webkit.org/b/206579 [ Debug ] imported/w3c/web-platform-tests/css/css-backgrounds/background-size/vector/zero-width-ratio-auto-5px.html [ Skip ]
+
+webkit.org/b/299914 imported/w3c/web-platform-tests/css/css-backgrounds/background-origin/origin-border-box_with_radius.html [ ImageOnlyFailure ]
+
+webkit.org/b/299909 imported/w3c/web-platform-tests/css/css-backgrounds/background-origin/origin-content-box_with_radius.html [ ImageOnlyFailure ]
+webkit.org/b/299909 imported/w3c/web-platform-tests/css/css-backgrounds/background-origin/origin-padding-box_with_radius.html [ ImageOnlyFailure ]
+
+imported/w3c/web-platform-tests/css/css-backgrounds/border-image-repeat-002.htm [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-backgrounds/border-radius-clip-002.htm [ ImageOnlyFailure ]
 
 webkit.org/b/207262 imported/w3c/web-platform-tests/web-animations/timing-model/animations/sync-start-times.html [ Pass ImageOnlyFailure ]
 webkit.org/b/266149 imported/w3c/web-platform-tests/web-animations/responsive/toggle-animated-iframe-visibility.html [ ImageOnlyFailure ]
@@ -8168,6 +8174,7 @@ imported/w3c/web-platform-tests/css/css-viewport/zoom/border.html [ ImageOnlyFai
 
 # RenderTreeNeedsLayoutChecker hits.
 webkit.org/b/304002 [ Debug ] fast/inline/missing-content-on-autofill-with-out-of-flow-input-descendant.html [ Skip ]
+webkit.org/b/305468 [ Debug ] fast/dynamic/input-crash-after-style-change.html [ Skip ]
 
 # Digital Credentials API tests failing due to lack of implementation
 webkit.org/b/303807 imported/w3c/web-platform-tests/digital-credentials/allow-attribute-with-create.https.html [ Skip ]

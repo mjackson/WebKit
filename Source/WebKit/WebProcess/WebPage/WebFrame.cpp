@@ -478,6 +478,9 @@ void WebFrame::createProvisionalFrame(ProvisionalFrameCreationParameters&& param
         setLayerHostingContextIdentifier(*parameters.layerHostingContextIdentifier);
     if (parameters.initialRect)
         updateLocalFrameRect(localFrame, *parameters.initialRect);
+
+    if (parameters.commitTiming == CommitTiming::Immediately)
+        commitProvisionalFrame();
 }
 
 void WebFrame::destroyProvisionalFrame()

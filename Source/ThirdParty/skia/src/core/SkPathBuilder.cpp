@@ -222,6 +222,7 @@ SkPathBuilder& SkPathBuilder::close() {
 SkPathBuilder& SkPathBuilder::rMoveTo(SkVector pt) {
     SkPoint lastPt = {0,0}; // in case we're empty
     if (!fPts.empty()) {
+        SkASSERT(fLastMoveIndex >= 0);
         if (fVerbs.back() == SkPathVerb::kClose) {
             lastPt = fPts[fLastMoveIndex];
         } else {
@@ -663,6 +664,16 @@ SkPathBuilder& SkPathBuilder::addRaw(const SkPathRaw& raw) {
             case SkPathVerb::kClose: this->close(); break;
         }
     }
+
+    auto has_trailing_move = [](SkSpan<const SkPathVerb> vbs) {
+        return vbs.size() > 0 && vbs.back() == SkPathVerb::kMove;
+    };
+
+    // if the iterator 'trimmed' off a trialing move, we restore it here
+    if (has_trailing_move(raw.verbs()) && !has_trailing_move(this->verbs())) {
+        this->moveTo(raw.points().back());
+    }
+
     return *this;
 }
 
@@ -1022,6 +1033,10 @@ SkPathBuilder& SkPathBuilder::transform(const SkMatrix& matrix) {
     matrix.mapPoints(fPts);
 
     return *this;
+}
+
+std::optional<SkRect> SkPathBuilder::computeFiniteBounds() const {
+    return SkPathPriv::TrimmedBounds(this->points(), this->verbs());
 }
 
 std::optional<SkRect> SkPathBuilder::computeTightBounds() const {

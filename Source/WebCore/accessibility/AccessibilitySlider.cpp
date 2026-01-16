@@ -30,6 +30,7 @@
 #include "AccessibilitySlider.h"
 
 #include "AccessibilityObjectInlines.h"
+#include "AXLoggerBase.h"
 #include "AXObjectCache.h"
 #include "ContainerNodeInlines.h"
 #include "FrameDestructionObserverInlines.h"
@@ -82,7 +83,7 @@ std::optional<AccessibilityOrientation> AccessibilitySlider::explicitOrientation
 
 void AccessibilitySlider::addChildren()
 {
-    ASSERT(!m_childrenInitialized);
+    AX_ASSERT(!m_childrenInitialized);
     m_childrenInitialized = true;
     auto clearDirtySubtree = makeScopeExit([&] {
         m_subtreeDirty = false;
@@ -110,7 +111,7 @@ void AccessibilitySlider::addChildren()
 AccessibilityObject* AccessibilitySlider::elementAccessibilityHitTest(const IntPoint& point) const
 {
     if (m_children.size()) {
-        ASSERT(m_children.size() == 1);
+        AX_ASSERT(m_children.size() == 1);
         if (Ref { m_children[0] }->elementRect().contains(point))
             return dynamicDowncast<AccessibilityObject>(m_children[0].get());
     }

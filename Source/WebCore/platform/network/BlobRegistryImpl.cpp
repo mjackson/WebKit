@@ -110,11 +110,13 @@ void BlobRegistryImpl::appendStorageItems(BlobData* blobData, const BlobDataItem
         auto& item = items[itemsIndex];
         long long currentLength = item.length() - offset;
         long long newLength = currentLength > length ? length : currentLength;
-        if (item.type() == BlobDataItem::Type::Data)
-            blobData->appendData(*item.data(), item.offset() + offset, newLength);
-        else {
-            ASSERT(item.type() == BlobDataItem::Type::File);
-            blobData->appendFile(item.protectedFile().get(), item.offset() + offset, newLength);
+        switch (item.type()) {
+        case BlobDataItem::Type::Data:
+            blobData->appendData(item.data(), item.offset() + offset, newLength);
+            break;
+        case BlobDataItem::Type::File:
+            blobData->appendFile(item.protectedFile(), item.offset() + offset, newLength);
+            break;
         }
         length -= newLength;
         offset = 0;
@@ -412,16 +414,16 @@ void BlobRegistryImpl::writeBlobsToTemporaryFilesForIndexedDB(const Vector<Strin
     });
 }
 
-Vector<RefPtr<BlobDataFileReference>> BlobRegistryImpl::filesInBlob(const URL& url, const std::optional<SecurityOriginData>& topOrigin) const
+Vector<Ref<BlobDataFileReference>> BlobRegistryImpl::filesInBlob(const URL& url, const std::optional<SecurityOriginData>& topOrigin) const
 {
     RefPtr blobData = blobDataFromURL(url, topOrigin);
     if (!blobData)
         return { };
 
-    Vector<RefPtr<BlobDataFileReference>> result;
+    Vector<Ref<BlobDataFileReference>> result;
     for (const BlobDataItem& item : blobData->items()) {
         if (item.type() == BlobDataItem::Type::File)
-            result.append(item.file());
+            result.append(item.protectedFile());
     }
 
     return result;

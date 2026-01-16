@@ -148,13 +148,13 @@ Ref<AccessibilityNodeObject> AccessibilityNodeObject::create(AXID axID, Node* no
 
 AccessibilityNodeObject::~AccessibilityNodeObject()
 {
-    ASSERT(isDetached());
+    AX_ASSERT(isDetached());
 }
 
 void AccessibilityNodeObject::init()
 {
 #ifndef NDEBUG
-    ASSERT(!m_initialized);
+    AX_ASSERT(!m_initialized);
     m_initialized = true;
 #endif
     m_ariaRole = determineAriaRoleAttribute();
@@ -231,7 +231,7 @@ AccessibilityObject* AccessibilityNodeObject::nextSibling() const
 AccessibilityObject* AccessibilityNodeObject::ownerParentObject() const
 {
     auto owners = this->owners();
-    AX_DEBUG_ASSERT(owners.size() <= 1);
+    AX_ASSERT(owners.size() <= 1);
     return owners.size() ? dynamicDowncast<AccessibilityObject>(owners.first().get()) : nullptr;
 }
 
@@ -383,7 +383,7 @@ AccessibilityRole AccessibilityNodeObject::determineListRoleWithCleanChildren()
     if (!isAccessibilityList())
         return AccessibilityRole::Unknown;
 
-    ASSERT(!needsToUpdateChildren() && childrenInitialized());
+    AX_ASSERT(!needsToUpdateChildren() && childrenInitialized());
 
     // Directory is mapped to list for now, but does not adhere to the same heuristics.
     if (ariaRoleAttribute() == AccessibilityRole::Directory)
@@ -685,7 +685,7 @@ AccessibilityRole AccessibilityNodeObject::determineAccessibilityRoleFromNode(Tr
 AccessibilityRole AccessibilityNodeObject::roleFromInputElement(const HTMLInputElement& input) const
 {
     AXTRACE("AccessibilityNodeObject::roleFromInputElement"_s);
-    ASSERT(dynamicDowncast<HTMLInputElement>(node()) == &input);
+    AX_ASSERT(dynamicDowncast<HTMLInputElement>(node()) == &input);
 
     if (input.isTextButton())
         return buttonRoleType();
@@ -788,7 +788,7 @@ void AccessibilityNodeObject::addChildren()
 {
     // If the need to add more children in addition to existing children arises,
     // childrenChanged should have been called, leaving the object with no children.
-    ASSERT(!m_childrenInitialized);
+    AX_ASSERT(!m_childrenInitialized);
     m_childrenInitialized = true;
 
     auto clearDirtySubtree = makeScopeExit([&] {
@@ -944,7 +944,7 @@ bool AccessibilityNodeObject::computeIsIgnored() const
 #ifndef NDEBUG
     // Double-check that an AccessibilityObject is never accessed before
     // it's been initialized.
-    ASSERT(m_initialized);
+    AX_ASSERT(m_initialized);
 #endif
     if (isTree())
         return isIgnoredByDefault();
@@ -2250,7 +2250,7 @@ AXCoreObject::AccessibilityChildrenVector AccessibilityNodeObject::visibleRows()
 void AccessibilityNodeObject::addTableChildrenAndCellSlots()
 {
     // isExposableTable() should've been checked before this method was even called.
-    ASSERT(isExposableTable());
+    AX_ASSERT(isExposableTable());
 
     if (!isExposableTable()) [[unlikely]]
         return;
@@ -4007,7 +4007,7 @@ Vector<AXStitchGroup> AccessibilityNodeObject::stitchGroups() const
 
                     // Avoid doing the wrong thing when !renderText->hasRenderedText() is only true
                     // because it has dirty layout. We should not run this function when layout is dirty.
-                    ASSERT(!renderText || !renderText->needsLayout() || !renderText->text().length());
+                    AX_ASSERT(!renderText || !renderText->needsLayout() || !renderText->text().length());
 
                     if (!renderText || !renderText->hasRenderedText())
                         continue;
@@ -4085,7 +4085,7 @@ String AccessibilityNodeObject::stringValue() const
             if (RefPtr object = cache->objectForID(axID)) {
                 // The only objects preceeding the group representative in the accessibility tree are renderer-only
                 // objects like list markers and CSS generated content.
-                ASSERT(!object->node());
+                AX_ASSERT(!object->node());
                 if (CheckedPtr renderListMarker = dynamicDowncast<RenderListMarker>(object->renderer()))
                     builder.append(renderListMarker->textWithSuffix());
             }
@@ -4625,7 +4625,7 @@ static bool childrenContainOnlyStaticText(const AccessibilityObject::Accessibili
 
 bool AccessibilityNodeObject::isLabelContainingOnlyStaticText() const
 {
-    ASSERT(isNativeLabel());
+    AX_ASSERT(isNativeLabel());
 
     // m_containsOnlyStaticTextDirty is set (if necessary) by addChildren(), so update our children before checking the flag.
     const_cast<AccessibilityNodeObject*>(this)->updateChildrenIfNecessary();

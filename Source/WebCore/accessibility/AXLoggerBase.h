@@ -43,12 +43,17 @@ bool isAccessibilityLogChannelEnabled();
     } \
 } while (0)
 
-// Enable this in order to get debug asserts, which are called too frequently to be enabled
-// by default.
-#define AX_DEBUG_ASSERTS_ENABLED 0
+#ifndef AX_ASSERTS_ENABLED
+#define AX_ASSERTS_ENABLED 0
+#endif
 
-#if AX_DEBUG_ASSERTS_ENABLED
-#define AX_DEBUG_ASSERT(assertion) ASSERT(assertion)
+#if AX_ASSERTS_ENABLED
+// Prefer these asserts to the debug assert equivalents.
+// RELEASE_ASSERT and similar are preferable to these asserts for cases where we want to assert
+// in all configurations.
+#define AX_ASSERT(assertion) RELEASE_ASSERT(assertion)
+#define AX_ASSERT_NOT_REACHED(assertion) RELEASE_ASSERT_NOT_REACHED(assertion)
 #else
-#define AX_DEBUG_ASSERT(assertion) ((void)0)
+#define AX_ASSERT(assertion) ASSERT(assertion)
+#define AX_ASSERT_NOT_REACHED(assertion) ASSERT_NOT_REACHED(assertion)
 #endif

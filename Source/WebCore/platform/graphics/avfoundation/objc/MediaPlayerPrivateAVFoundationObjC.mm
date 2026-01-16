@@ -2472,10 +2472,10 @@ void determineChangedTracksFromNewTracksAndOldItems(NSArray* tracks, NSString* t
 
     if (player) {
         for (auto& removedItem : removedItems)
-            (player.get()->*removedFunction)(*removedItem);
+            (player.get()->*removedFunction)(removedItem.get());
 
         for (auto& addedItem : addedItems)
-            (player.get()->*addedFunction)(*addedItem);
+            (player.get()->*addedFunction)(addedItem.get());
     }
 }
 
@@ -2484,32 +2484,30 @@ void determineChangedTracksFromNewTracksAndOldItems(MediaSelectionGroupAVFObjC* 
 {
     group->updateOptions(characteristics);
 
-    ListHashSet<RefPtr<MediaSelectionOptionAVFObjC>> newSelectionOptions;
+    ListHashSet<Ref<MediaSelectionOptionAVFObjC>> newSelectionOptions;
     for (auto& option : group->options()) {
-        if (!option)
-            continue;
         RetainPtr avOption = option->avMediaSelectionOption();
         if (!avOption)
             continue;
         newSelectionOptions.add(option);
     }
 
-    ListHashSet<RefPtr<MediaSelectionOptionAVFObjC>> oldSelectionOptions;
+    ListHashSet<Ref<MediaSelectionOptionAVFObjC>> oldSelectionOptions;
     for (auto& oldItem : oldItems) {
         if (RefPtr option = oldItem->mediaSelectionOption())
-            oldSelectionOptions.add(WTF::move(option));
+            oldSelectionOptions.add(option.releaseNonNull());
     }
 
     // Find the added & removed AVMediaSelectionOptions:
-    ListHashSet<RefPtr<MediaSelectionOptionAVFObjC>> removedSelectionOptions;
+    ListHashSet<Ref<MediaSelectionOptionAVFObjC>> removedSelectionOptions;
     for (auto& oldOption : oldSelectionOptions) {
-        if (!newSelectionOptions.contains(oldOption))
+        if (!newSelectionOptions.contains(oldOption.ptr()))
             removedSelectionOptions.add(oldOption);
     }
 
-    ListHashSet<RefPtr<MediaSelectionOptionAVFObjC>> addedSelectionOptions;
+    ListHashSet<Ref<MediaSelectionOptionAVFObjC>> addedSelectionOptions;
     for (auto& newOption : newSelectionOptions) {
-        if (!oldSelectionOptions.contains(newOption))
+        if (!oldSelectionOptions.contains(newOption.ptr()))
             addedSelectionOptions.add(newOption);
     }
 
@@ -2527,17 +2525,17 @@ void determineChangedTracksFromNewTracksAndOldItems(MediaSelectionGroupAVFObjC* 
     }
 
     for (auto& option : addedSelectionOptions)
-        addedItems.append(itemFactory(*option.get()));
+        addedItems.append(itemFactory(option));
 
     replacementItems.appendVector(addedItems);
     oldItems.swap(replacementItems);
 
     if (player) {
         for (auto& removedItem : removedItems)
-            (player.get()->*removedFunction)(*removedItem);
+            (player.get()->*removedFunction)(removedItem.get());
 
         for (auto& addedItem : addedItems)
-            (player.get()->*addedFunction)(*addedItem);
+            (player.get()->*addedFunction)(addedItem.get());
     }
 }
 

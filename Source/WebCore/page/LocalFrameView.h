@@ -322,6 +322,7 @@ public:
 
     // These are in document coordinates, unaffected by page scale (but affected by zooming).
     WEBCORE_EXPORT LayoutRect layoutViewportRect() const final;
+    void updateLayoutViewportRect();
     WEBCORE_EXPORT LayoutRect visualViewportRect() const;
 
     LayoutRect layoutViewportRectIncludingObscuredInsets() const;
@@ -713,7 +714,6 @@ public:
     void setSpeculativeTilingDelayDisabledForTesting(bool disabled) { m_speculativeTilingDelayDisabledForTesting = disabled; }
 
     WEBCORE_EXPORT void invalidateControlTints();
-    void invalidateImagesWithAsyncDecodes();
     void updateAccessibilityObjectRegions();
     AXObjectCache* axObjectCache() const;
 

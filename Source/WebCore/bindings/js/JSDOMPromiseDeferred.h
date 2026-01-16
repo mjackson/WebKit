@@ -200,7 +200,14 @@ public:
 
     JSC::JSValue promise() const;
 
-    void whenSettled(Function<void()>&&);
+    void whenSettled(Function<void()>&& callback)
+    {
+        return whenSettledWithResult([callback = WTF::move(callback)](JSDOMGlobalObject*, bool, JSC::JSValue) {
+            callback();
+        });
+    }
+    void whenSettledWithResult(Function<void(JSDOMGlobalObject*, bool, JSC::JSValue)>&&);
+
     bool needsAbort() const { return m_needsAbort; }
 
     void markAsHandled() const

@@ -28,6 +28,7 @@
 #include "src/base/SkEndian.h"
 #include "src/base/SkScopeExit.h"
 #include "src/base/SkSharedMutex.h"
+#include "src/codec/SkCodecPriv.h"
 #include "src/core/SkDraw.h"
 #include "src/core/SkGlyph.h"
 #include "src/core/SkMaskGamma.h"
@@ -792,10 +793,10 @@ bool SkScalerContext_DW::drawColorV1Paint(SkCanvas& canvas,
             linePositions,
             skColors.get(), SkColorSpace::MakeSRGB(), skStops.get(), stops.size(),
             tileMode,
-            SkGradientShader::Interpolation{
-                SkGradientShader::Interpolation::InPremul::kNo,
-                SkGradientShader::Interpolation::ColorSpace::kSRGB,
-                SkGradientShader::Interpolation::HueMethod::kShorter
+            SkGradient::Interpolation{
+                SkGradient::Interpolation::InPremul::kNo,
+                SkGradient::Interpolation::ColorSpace::kSRGB,
+                SkGradient::Interpolation::HueMethod::kShorter
             },
             nullptr));
 
@@ -985,10 +986,10 @@ bool SkScalerContext_DW::drawColorV1Paint(SkCanvas& canvas,
             start, startRadius, end, endRadius,
             skColors.get(), SkColorSpace::MakeSRGB(), skStops.get(), stops.size(),
             tileMode,
-            SkGradientShader::Interpolation{
-                SkGradientShader::Interpolation::InPremul::kNo,
-                SkGradientShader::Interpolation::ColorSpace::kSRGB,
-                SkGradientShader::Interpolation::HueMethod::kShorter
+            SkGradient::Interpolation{
+                SkGradient::Interpolation::InPremul::kNo,
+                SkGradient::Interpolation::ColorSpace::kSRGB,
+                SkGradient::Interpolation::HueMethod::kShorter
             },
             nullptr));
         canvas.drawPaint(skPaint);
@@ -1106,10 +1107,10 @@ bool SkScalerContext_DW::drawColorV1Paint(SkCanvas& canvas,
             skColors.get(), SkColorSpace::MakeSRGB(), skStops.get(), stops.size(),
             tileMode,
             startAngleScaled, endAngleScaled,
-            SkGradientShader::Interpolation{
-                SkGradientShader::Interpolation::InPremul::kNo,
-                SkGradientShader::Interpolation::ColorSpace::kSRGB,
-                SkGradientShader::Interpolation::HueMethod::kShorter
+            SkGradient::Interpolation{
+                SkGradient::Interpolation::InPremul::kNo,
+                SkGradient::Interpolation::ColorSpace::kSRGB,
+                SkGradient::Interpolation::HueMethod::kShorter
             },
             nullptr));
         canvas.drawPaint(skPaint);
@@ -1707,6 +1708,11 @@ static void ReleaseProc(const void* ptr, void* context) {
 }
 }
 
+static void check_png() {
+    SkASSERTF(SkCodecs::HasDecoder("png"),
+        "No PNG decoder registered. A call to SkCodecs::Register is necessary.");
+}
+
 bool SkScalerContext_DW::generatePngMetrics(const SkGlyph& glyph, SkRect* bounds) {
     IDWriteFontFace4* fontFace4 = this->getDWriteTypeface()->fDWriteFontFace4.get();
     if (!fontFace4) {
@@ -1737,6 +1743,7 @@ bool SkScalerContext_DW::generatePngMetrics(const SkGlyph& glyph, SkRect* bounds
 
     sk_sp<SkImage> image = SkImages::DeferredFromEncodedData(std::move(data));
     if (!image) {
+        check_png();
         return false;
     }
 
@@ -2347,6 +2354,7 @@ bool SkScalerContext_DW::drawPngImage(const SkGlyph& glyph, SkCanvas& canvas) {
                                               context);
     sk_sp<SkImage> image = SkImages::DeferredFromEncodedData(std::move(data));
     if (!image) {
+        check_png();
         return false;
     }
 

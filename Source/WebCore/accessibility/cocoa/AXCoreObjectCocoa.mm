@@ -26,6 +26,7 @@
 #import "config.h"
 #import "AXCoreObject.h"
 
+#import "AXLoggerBase.h"
 #import "AXObjectCache.h"
 #import "AXTreeStoreInlines.h"
 #import "AccessibilityObjectInlines.h"
@@ -292,8 +293,7 @@ RetainPtr<NSMutableAttributedString> AXCoreObject::createAttributedString(String
     // attributedStringSetCompositionAttributes(string.get(), node, textRange);
 
     if (spellCheck == AXCoreObject::SpellCheck::Yes) {
-        RefPtr node = this->node();
-        if (AXObjectCache::shouldSpellCheck() && node) {
+        if (RefPtr node = AXObjectCache::shouldSpellCheck() ? this->node() : nullptr) {
             // FIXME: This eagerly resolves misspellings, and since it requires a node, we will
             // never do this if `this` is an AXIsolatedObject`. We might need to figure out how
             // to spellcheck off the main-thread.
@@ -493,7 +493,7 @@ bool AXCoreObject::isEmptyGroup()
 
 AXCoreObject::AccessibilityChildrenVector AXCoreObject::crossFrameSortedDescendants(size_t limit, PreSortedObjectType type) const
 {
-    ASSERT(type == PreSortedObjectType::LiveRegion || type == PreSortedObjectType::WebArea);
+    AX_ASSERT(type == PreSortedObjectType::LiveRegion || type == PreSortedObjectType::WebArea);
     auto sortedObjects = type == PreSortedObjectType::LiveRegion ? allSortedLiveRegions() : allSortedNonRootWebAreas();
     AXCoreObject::AccessibilityChildrenVector results;
     for (const Ref<AXCoreObject>& object : sortedObjects) {

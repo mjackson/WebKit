@@ -29,6 +29,7 @@
 
 NS_HEADER_AUDIT_BEGIN(nullability, sendability)
 
+@class WKFrameInfo;
 @class WKWebView;
 @class _WKJSHandle;
 
@@ -130,6 +131,13 @@ WK_CLASS_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA))
  The default value is an empty array.
  */
 @property (nonatomic, copy) NSArray<_WKJSHandle *> *nodesToSkip;
+
+/*!
+ If specified, text extraction includes content from these frames in addition to
+ content in the main frame and same-origin subframes (which are included by default).
+ The default value is an empty array.
+ */
+@property (nonatomic, copy, null_resettable) NSArray<WKFrameInfo *> *additionalFrames;
 
 /*!
  Client-specified attributes and values to add when extracting DOM nodes.

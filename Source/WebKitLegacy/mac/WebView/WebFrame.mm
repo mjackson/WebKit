@@ -315,9 +315,9 @@ WebView *getWebView(WebFrame *webFrame)
 
 + (Ref<WebCore::LocalFrame>)_createFrameWithPage:(WebCore::Page&)page frameName:(const AtomString&)name frameView:(WebFrameView *)frameView ownerElement:(WebCore::HTMLFrameOwnerElement&)ownerElement
 {
-    WebView *webView = kit(&page);
+    RetainPtr webView = kit(&page);
 
-    RetainPtr<WebFrame> frame = adoptNS([[self alloc] _initWithWebFrameView:frameView webView:webView]);
+    RetainPtr<WebFrame> frame = adoptNS([[self alloc] _initWithWebFrameView:frameView webView:webView.get()]);
 
     auto effectiveSandboxFlags = ownerElement.sandboxFlags();
     if (RefPtr parentLocalFrame = ownerElement.document().frame())
@@ -337,7 +337,7 @@ WebView *getWebView(WebFrame *webFrame)
 
     [webView _setZoomMultiplier:[webView _realZoomMultiplier] isTextOnly:[webView _realZoomMultiplierIsTextOnly]];
 
-    if (RefPtr controller = [webView inspectorController]) {
+    if (RefPtr controller = [webView.get() inspectorController]) {
         frame->_private->webPageInspectorController = controller.get();
         controller->frameCreated(coreFrame.get());
     }
@@ -347,9 +347,9 @@ WebView *getWebView(WebFrame *webFrame)
 
 + (void)_createMainFrameWithPage:(WebCore::Page*)page frameName:(const AtomString&)name frameView:(WebFrameView *)frameView
 {
-    WebView *webView = kit(page);
+    RetainPtr webView = kit(page);
 
-    RetainPtr<WebFrame> frame = adoptNS([[self alloc] _initWithWebFrameView:frameView webView:webView]);
+    RetainPtr<WebFrame> frame = adoptNS([[self alloc] _initWithWebFrameView:frameView webView:webView.get()]);
     auto* localMainFrame = dynamicDowncast<WebCore::LocalFrame>(page->mainFrame());
     if (!localMainFrame)
         return;
@@ -361,7 +361,7 @@ WebView *getWebView(WebFrame *webFrame)
 
     [webView _setZoomMultiplier:[webView _realZoomMultiplier] isTextOnly:[webView _realZoomMultiplierIsTextOnly]];
 
-    frame->_private->webPageInspectorController = [webView inspectorController];
+    frame->_private->webPageInspectorController = [webView.get() inspectorController];
     [webView inspectorController]->frameCreated(*localMainFrame);
 }
 
@@ -460,7 +460,7 @@ static NSURL *createUniqueWebDataURL();
 
 - (void)_updateBackgroundAndUpdatesWhileOffscreen
 {
-    WebView *webView = getWebView(self);
+    RetainPtr webView = getWebView(self);
     BOOL drawsBackground = [webView drawsBackground];
 #if !PLATFORM(IOS_FAMILY)
     NSColor *backgroundColor = [webView backgroundColor];
@@ -475,7 +475,7 @@ static NSURL *createUniqueWebDataURL();
             continue;
         // Don't call setDrawsBackground:YES here because it may be NO because of a load
         // in progress; WebFrameLoaderClient keeps it set to NO during the load process.
-        WebFrame *webFrame = kit(frame);
+        RetainPtr webFrame = kit(frame);
         if (!drawsBackground)
             [[[webFrame frameView] _scrollView] setDrawsBackground:NO];
 #if !PLATFORM(IOS_FAMILY)
@@ -580,9 +580,9 @@ static NSURL *createUniqueWebDataURL();
         auto* frame = dynamicDowncast<WebCore::LocalFrame>(abstractFrame);
         if (!frame)
             continue;
-        WebFrame *webFrame = kit(frame);
+        RetainPtr webFrame = kit(frame);
         if ([webFrame _hasSelection])
-            return webFrame;
+            return webFrame.autorelease();
     }
     return nil;
 }
@@ -665,11 +665,11 @@ static NSURL *createUniqueWebDataURL();
 #if !PLATFORM(IOS_FAMILY)
     ASSERT([[NSGraphicsContext currentContext] isFlipped]);
 
-    CGContextRef ctx = [[NSGraphicsContext currentContext] CGContext];
+    RetainPtr<CGContextRef> ctx = [[NSGraphicsContext currentContext] CGContext];
 #else
-    CGContextRef ctx = WKGetCurrentGraphicsContext();
+    RetainPtr<CGContextRef> ctx = WKGetCurrentGraphicsContext();
 #endif
-    WebCore::GraphicsContextCG context(ctx);
+    WebCore::GraphicsContextCG context(ctx.get());
     auto* view = _private->coreFrame->view();
     
     OptionSet<WebCore::PaintBehavior> oldBehavior = view->paintBehavior();
@@ -682,7 +682,7 @@ static NSURL *createUniqueWebDataURL();
             paintBehavior.add(parentView->paintBehavior() & flagsToCopy);
         }
     } else
-        paintBehavior.add([self _paintBehaviorForDestinationContext:ctx]);
+        paintBehavior.add([self _paintBehaviorForDestinationContext:ctx.get()]);
         
     view->setPaintBehavior(paintBehavior);
 

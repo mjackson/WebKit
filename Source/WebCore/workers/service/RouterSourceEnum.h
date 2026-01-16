@@ -27,6 +27,6 @@
 
 namespace WebCore {
 
-enum class RouterSourceEnum : uint8_t { Cache, FetchEvent, Network };
+enum class RouterSourceEnum : uint8_t { Cache, FetchEvent, Network, RaceNetworkAndFetchHandler };
 
 } // namespace WebCore

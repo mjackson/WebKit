@@ -3574,20 +3574,6 @@ HTMLEnhancedSelectSelectedContentEnabled:
      WebCore:
        default: false
 
-HTMLLegacyAttributeValueSerializationEnabled:
-   type: bool
-   status: internal
-   category: dom
-   humanReadableName: "HTML legacy attribute value serialization"
-   humanReadableDescription: "Enable HTML legacy attribute value serialization"
-   defaultValue:
-     WebKitLegacy:
-       default: false
-     WebKit:
-       default: false
-     WebCore:
-       default: false
-
 HTTPEquivEnabled:
   type: bool
   status: mature
@@ -5975,17 +5961,17 @@ OptInPartitionedCookiesEnabled:
 
 OriginAPIEnabled:
   type: bool
-  status: testable
+  status: stable
   category: dom
   humanReadableName: "Origin API"
   humanReadableDescription: "Enable the Origin API"
   defaultValue:
     WebKitLegacy:
-      default: false
+      default: true
     WebKit:
-      default: false
+      default: true
     WebCore:
-      default: false
+      default: true
 
 OverlappingBackingStoreProvidersEnabled:
   type: bool
@@ -7832,17 +7818,17 @@ SpeakerSelectionRequiresUserGesture:
 
 SpeculationRulesPrefetchEnabled:
   type: bool
-  status: testable
+  status: stable
   category: html
   humanReadableName: "SpeculationRules prefetch"
   humanReadableDescription: "SpeculationRules prefetch"
   defaultValue:
     WebKitLegacy:
-      default: false
+      default: true
     WebKit:
-      default: false
+      default: true
     WebCore:
-      default: false
+      default: true
   disableInLockdownMode: true
   sharedPreferenceForWebProcess: true
   richJavaScript: true
@@ -8291,7 +8277,7 @@ TextTracksInMSEEnabled:
 
 ThreadedScrollDrivenAnimationsEnabled:
   type: bool
-  status: stable
+  status: preview
   category: animation
   humanReadableName: "Threaded Scroll-driven Animations"
   humanReadableDescription: "Run qualifying scroll-driven animations on a separate thread"
@@ -8300,9 +8286,9 @@ ThreadedScrollDrivenAnimationsEnabled:
     WebKitLegacy:
       default: false
     WebKit:
-      default: true
+      default: false
     WebCore:
-      default: true
+      default: false
 
 ThreadedScrollingEnabled:
   type: bool

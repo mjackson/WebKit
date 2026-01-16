@@ -118,7 +118,7 @@ public:
 #if ENABLE(DAMAGE_TRACKING)
     void setFrameDamage(WebCore::Damage&&);
     const std::optional<WebCore::Damage>& frameDamage() const { return m_frameDamage; }
-    const std::optional<WebCore::Damage>& frameDamageSinceLastUse();
+    const std::optional<WebCore::Damage>& renderTargetDamage();
 #endif
 
     void didCreateCompositingRunLoop(WTF::RunLoop&);

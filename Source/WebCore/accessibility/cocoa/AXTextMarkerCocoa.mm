@@ -47,12 +47,12 @@ AXTextMarker::AXTextMarker(PlatformTextMarkerData platformData)
 
 #if PLATFORM(MAC)
     if (CFGetTypeID(platformData) != AXTextMarkerGetTypeID()) {
-        ASSERT_NOT_REACHED();
+        AX_ASSERT_NOT_REACHED();
         return;
     }
 
     if (AXTextMarkerGetLength(platformData) != sizeof(m_data)) {
-        ASSERT_NOT_REACHED();
+        AX_ASSERT_NOT_REACHED();
         return;
     }
 
@@ -75,7 +75,7 @@ RetainPtr<PlatformTextMarkerData> AXTextMarker::platformData() const
 // FIXME: There's a lot of duplicated code between this function and AXTextMarkerRange::toString().
 RetainPtr<NSAttributedString> AXTextMarkerRange::toAttributedString(AXCoreObject::SpellCheck spellCheck) const
 {
-    ASSERT(!isMainThread());
+    AX_ASSERT(!isMainThread());
 
     auto start = m_start.toTextRunMarker();
     if (!start.isValid())
@@ -152,7 +152,7 @@ RetainPtr<NSAttributedString> AXTextMarkerRange::toAttributedString(AXCoreObject
 AXTextMarkerRange::AXTextMarkerRange(AXTextMarkerRangeRef textMarkerRangeRef)
 {
     if (!textMarkerRangeRef || CFGetTypeID(textMarkerRangeRef) != AXTextMarkerRangeGetTypeID()) {
-        ASSERT_NOT_REACHED();
+        AX_ASSERT_NOT_REACHED();
         return;
     }
 
@@ -193,7 +193,6 @@ RetainPtr<NSArray> AXTextMarkerRange::platformData() const
         return nil;
 
     RefPtr object = downcast<AccessibilityObject>(m_start.object());
-    ASSERT(object); // Since *this is not null.
     auto* cache = object->axObjectCache();
     if (!cache)
         return nil;

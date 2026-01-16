@@ -223,7 +223,7 @@
 #include <WebCore/DeprecatedGlobalSettings.h>
 #include <WebCore/DiagnosticLoggingClient.h>
 #include <WebCore/DiagnosticLoggingKeys.h>
-#include <WebCore/DigitalCredentialRequest.h>
+#include <WebCore/DigitalCredentialGetRequest.h>
 #include <WebCore/DigitalCredentialRequestOptions.h>
 #include <WebCore/DigitalCredentialsProtocols.h>
 #include <WebCore/DigitalCredentialsRequestData.h>
@@ -231,6 +231,7 @@
 #include <WebCore/DragController.h>
 #include <WebCore/DragData.h>
 #include <WebCore/ElementContext.h>
+#include <WebCore/EventHandler.h>
 #include <WebCore/EventNames.h>
 #include <WebCore/ExceptionCode.h>
 #include <WebCore/ExceptionData.h>
@@ -794,9 +795,6 @@ WebPageProxy::Internals::Internals(WebPageProxy& page, std::optional<SecurityOri
         if (RefPtr page = weakPage.get())
             page->wheelEventHysteresisUpdated(state);
     })
-#endif
-#if ENABLE(VIDEO_PRESENTATION_MODE)
-    , fullscreenVideoTextRecognitionTimer(RunLoop::mainSingleton(), "WebPageProxy::Internals::FullscreenVideoTextRecognitionTimer"_s, &page, &WebPageProxy::fullscreenVideoTextRecognitionTimerFired)
 #endif
 #if PLATFORM(GTK) || PLATFORM(WPE)
     , activityStateChangeTimer(RunLoop::mainSingleton(), "WebPageProxy::Internals::activityStateChangeTimer"_s, &page, &WebPageProxy::dispatchActivityStateChange)
@@ -4297,7 +4295,7 @@ void WebPageProxy::continueWheelEventHandling(const WebWheelEvent& wheelEvent, c
     if (!result.needsMainThreadProcessing()) {
         if (m_mainFrame && wheelEvent.phase() == WebWheelEvent::Phase::Began) {
             // When wheel events are handled entirely in the UI process, we still need to tell the web process where the mouse is for cursor updates.
-            sendToProcessContainingFrame(m_mainFrame->frameID(), Messages::WebPage::SetLastKnownMousePosition(m_mainFrame->frameID(), wheelEvent.position(), wheelEvent.globalPosition()));
+            sendToProcessContainingFrame(m_mainFrame->frameID(), Messages::WebPage::SetLastKnownMousePosition(m_mainFrame->frameID(), wheelEvent.position(), wheelEvent.globalPosition(), WebCore::LastKnownMousePositionSource::Wheel));
         }
 
         wheelEventHandlingCompleted(result.wasHandled);
@@ -5156,6 +5154,8 @@ void WebPageProxy::receivedNavigationActionPolicyDecision(WebProcessProxy& proce
     else if (processSwapRequestedByClient == ProcessSwapRequestedByClient::Yes || !usesSameWebsiteDataStore || (navigation.isRequestFromClientOrUserInput() && !navigation.isFromLoadData() && mainFrameSiteChanges))
         browsingContextGroup = BrowsingContextGroup::create();
 
+    Site site { navigation.currentRequest().url() };
+    Site mainFrameSite = frame.isMainFrame() ? site : Site { URL(protectedPageLoadState()->activeURL()) };
     auto continueWithProcessForNavigation = [
         this,
         protectedThis = Ref { *this },
@@ -5169,7 +5169,10 @@ void WebPageProxy::receivedNavigationActionPolicyDecision(WebProcessProxy& proce
         processInitiatingNavigation = Ref { processInitiatingNavigation },
         message = WTF::move(message),
         loadedWebArchive,
-        replacedDataStoreForWebArchiveLoad
+        replacedDataStoreForWebArchiveLoad,
+        site,
+        mainFrameSite,
+        preferences
     ] (Ref<WebProcessProxy>&& processNavigatingTo, SuspendedPageProxy* destinationSuspendedPage, ASCIILiteral reason) mutable {
         ASSERT(!processNavigatingTo->isInProcessCache());
         // If the navigation has been destroyed or the frame has been replaced by PSON, then no need to proceed.
@@ -5222,6 +5225,17 @@ void WebPageProxy::receivedNavigationActionPolicyDecision(WebProcessProxy& proce
             return;
         }
 
+        if (auto frameProcessSite = frame->frameProcess().site(); frameProcessSite
+            && !frame->frameProcess().isArchiveProcess()
+            && !site.isEmpty()
+            && processNavigatingFrom->coreProcessIdentifier() == processNavigatingTo->coreProcessIdentifier()
+            && processNavigatingTo->coreProcessIdentifier() == frame->process().coreProcessIdentifier()) {
+            // If re-using the same process for navigation and the site is changing, call ensureProcessForSite for the new site, but don't InjectBrowsingContextIntoProcess
+            // since BrowsingContextGroup is already keeping track of the process under the previous site.
+            if (frameProcessSite != site)
+                frame->setProcess(protectedBrowsingContextGroup()->ensureProcessForSite(site, mainFrameSite, frame->frameProcess().process(), preferences, LoadedWebArchive::No, BrowsingContextGroupUpdate::AddProcess));
+        }
+
         if (loadContinuingInNonInitiatingProcess) {
             // FIXME: Add more parameters as appropriate. <rdar://116200985>
             LoadParameters loadParameters;
@@ -5267,8 +5281,6 @@ void WebPageProxy::receivedNavigationActionPolicyDecision(WebProcessProxy& proce
         receivedPolicyDecision(policyAction, navigation.ptr(), websitePoliciesAndProcess(navigation->websitePolicies(), processNavigatingTo), WTF::move(navigationAction), WillContinueLoadInNewProcess::No, WTF::move(optionalHandle), WTF::move(message), WTF::move(completionHandler));
     };
 
-    Site site { navigation.currentRequest().url() };
-    Site mainFrameSite = frame.isMainFrame() ? site : Site { URL(protectedPageLoadState()->activeURL()) };
     browsingContextGroup->sharedProcessForSite(websiteDataStore, policies.get(), preferences, site, mainFrameSite, lockdownMode, enhancedSecurity, Ref { m_configuration }, frame.isMainFrame() ? IsMainFrame::Yes : IsMainFrame::No, [
         this,
         protectedThis = Ref { *this },
@@ -5523,7 +5535,18 @@ void WebPageProxy::continueNavigationInNewProcess(API::Navigation& navigation, W
         if (navigation.isInitialFrameSrcLoad())
             frame.setIsPendingInitialHistoryItem(true);
 
-        frame.prepareForProvisionalLoadInProcess(newProcess, navigation, browsingContextGroup, [
+        // about:blank frames should inherit the origin of the which originated navigation.
+        // If the two frames share origins, they should share the same process.
+        //
+        // From HTML Spec: browsing the Web, section 7.4.2.2, Item 23, sub-item 5:
+        // https://html.spec.whatwg.org/multipage/browsing-the-web.html#beginning-navigation
+        //
+        // If url matches about:blank or is about:srcdoc, then:
+        //     Set documentState's origin to initiatorOriginSnapshot.
+        //     Set documentState's about base URL to initiatorBaseURLSnapshot.
+        std::optional<SecurityOriginData> originator = navigation.currentRequest().url().isAboutBlank() && navigation.originatingFrameInfo() ? std::make_optional(navigation.originatingFrameInfo()->securityOrigin) : std::nullopt;
+
+        frame.prepareForProvisionalLoadInProcess(newProcess, navigation, browsingContextGroup, originator, [
             loadParameters = WTF::move(loadParameters),
             newProcess = newProcess.copyRef(),
             preventProcessShutdownScope = newProcess->shutdownPreventingScope()
@@ -5535,7 +5558,7 @@ void WebPageProxy::continueNavigationInNewProcess(API::Navigation& navigation, W
 
     // FIXME: Assert the equality of data stores regardless of whether site isolation is enabled or not.
     ASSERT(!protectedPreferences()->siteIsolationEnabled() || newProcess->websiteDataStore() == &websiteDataStore());
-    Ref frameProcess = browsingContextGroup.ensureProcessForSite(navigationSite, Site { mainFrame()->url() }, newProcess, preferences, loadedWebArchive, InjectBrowsingContextIntoProcess::No);
+    Ref frameProcess = browsingContextGroup.ensureProcessForSite(navigationSite, Site { mainFrame()->url() }, newProcess, preferences, loadedWebArchive, BrowsingContextGroupUpdate::None);
     // Make sure we destroy any existing ProvisionalPageProxy object *before* we construct a new one.
     // It is important from the previous provisional page to unregister itself before we register a
     // new one to avoid confusion.
@@ -7627,12 +7650,6 @@ void WebPageProxy::didCommitLoadForFrame(IPC::Connection& connection, FrameIdent
 
     frame->didCommitLoad(mimeType, certificateInfo, containsPluginDocument);
 
-    if (auto frameProcessSite = frame->frameProcess().site(); frameProcessSite && !frame->frameProcess().isArchiveProcess()) {
-        auto frameSite = Site { frame->url() };
-        if (frameProcessSite->isEmpty() && !frameSite.isEmpty())
-            frame->setProcess(protectedBrowsingContextGroup()->ensureProcessForSite(frameSite, Site { protectedMainFrame()->url() }, frame->frameProcess().process(), preferences));
-    }
-
     if (frame->isMainFrame()) {
         std::optional<WebCore::PrivateClickMeasurement> privateClickMeasurement;
         if (internals().privateClickMeasurement)
@@ -7850,8 +7867,12 @@ void WebPageProxy::broadcastFrameTreeSyncData(IPC::Connection& connection, Frame
 
     // FIXME: This could instead be an option in FrameTreeSyncData.in to allow
     // certain properties to be mutable from non-frame-owning processes.
-    if (frameTreePropertyIsRestrictedToFrameOwningProcess(data.type))
-        MESSAGE_CHECK(process, &webFrameProxy->process() == &process.get());
+    if (frameTreePropertyIsRestrictedToFrameOwningProcess(data.type)) {
+        if (&webFrameProxy->process() != &process.get()) {
+            // FIXME: make this a MESSAGE_CHECK.
+            return;
+        }
+    }
 
     if (data.type == WebCore::FrameTreeSyncDataType::FrameRect)
         webFrameProxy->setRemoteFrameRect(std::get<IntRect>(data.value));
@@ -9367,7 +9388,6 @@ void WebPageProxy::didEnterFullscreen(PlaybackSessionContextIdentifier identifie
     m_uiClient->didEnterFullscreen(this);
 
     internals().currentFullscreenVideoSessionIdentifier = identifier;
-    updateFullscreenVideoTextRecognition();
 }
 
 void WebPageProxy::didExitFullscreen(PlaybackSessionContextIdentifier identifier)
@@ -9379,10 +9399,8 @@ void WebPageProxy::didExitFullscreen(PlaybackSessionContextIdentifier identifier
         pageClient->didExitFullscreen();
     m_uiClient->didExitFullscreen(this);
 
-    if (internals().currentFullscreenVideoSessionIdentifier == identifier) {
+    if (internals().currentFullscreenVideoSessionIdentifier == identifier)
         internals().currentFullscreenVideoSessionIdentifier = std::nullopt;
-        updateFullscreenVideoTextRecognition();
-    }
 }
 
 void WebPageProxy::didCleanupFullscreen(PlaybackSessionContextIdentifier)
@@ -12211,7 +12229,6 @@ void WebPageProxy::resetStateAfterProcessExited(ProcessTerminationReason termina
     }
 
 #if ENABLE(VIDEO_PRESENTATION_MODE)
-    internals().fullscreenVideoTextRecognitionTimer.stop();
     internals().currentFullscreenVideoSessionIdentifier = std::nullopt;
 #endif
 
@@ -16522,34 +16539,13 @@ void WebPageProxy::requestCookieConsent(CompletionHandler<void(CookieConsentDeci
 }
 
 #if ENABLE(IMAGE_ANALYSIS) && ENABLE(VIDEO)
-void WebPageProxy::beginTextRecognitionForVideoInElementFullScreen(MediaPlayerIdentifier identifier, FloatRect bounds)
+void WebPageProxy::beginTextRecognitionForVideoInElementFullScreen(ShareableBitmap::Handle&& bitmapHandle, FloatRect bounds)
 {
     RefPtr pageClient = this->pageClient();
     if (!pageClient || !pageClient->isTextRecognitionInFullscreenVideoEnabled())
         return;
 
-#if ENABLE(GPU_PROCESS)
-    RefPtr gpuProcess = GPUProcessProxy::singletonIfCreated();
-    if (!gpuProcess)
-        return;
-
-    m_isPerformingTextRecognitionInElementFullScreen = true;
-    gpuProcess->requestBitmapImageForCurrentTime(m_legacyMainFrameProcess->coreProcessIdentifier(), identifier, [weakThis = WeakPtr { *this }, bounds](std::optional<ShareableBitmap::Handle>&& bitmapHandle) {
-        RefPtr protectedThis = weakThis.get();
-        if (!protectedThis || !protectedThis->m_isPerformingTextRecognitionInElementFullScreen)
-            return;
-
-        if (!bitmapHandle)
-            return;
-
-        if (RefPtr pageClient = protectedThis->pageClient())
-            pageClient->beginTextRecognitionForVideoInElementFullscreen(WTF::move(*bitmapHandle), bounds);
-        protectedThis->m_isPerformingTextRecognitionInElementFullScreen = false;
-    });
-#else
-    UNUSED_PARAM(identifier);
-    UNUSED_PARAM(bounds);
-#endif
+    pageClient->beginTextRecognitionForVideoInElementFullscreen(WTF::move(bitmapHandle), bounds);
 }
 
 void WebPageProxy::cancelTextRecognitionForVideoInElementFullScreen()
@@ -16558,7 +16554,6 @@ void WebPageProxy::cancelTextRecognitionForVideoInElementFullScreen()
     if (!pageClient || !pageClient->isTextRecognitionInFullscreenVideoEnabled())
         return;
 
-    m_isPerformingTextRecognitionInElementFullScreen = false;
     pageClient->cancelTextRecognitionForVideoInElementFullscreen();
 }
 #endif // #if ENABLE(IMAGE_ANALYSIS) && ENABLE(VIDEO)

@@ -693,7 +693,7 @@ public:
             : m_enclosedHeight(0)
         { }
 
-        ControlData(BBQJIT& generator, BlockType, BlockSignature, LocalOrTempIndex enclosedHeight, RegisterSet liveScratchGPRs, RegisterSet liveScratchFPRs);
+        ControlData(BBQJIT& generator, BlockType, BlockSignature&&, LocalOrTempIndex enclosedHeight, RegisterSet liveScratchGPRs, RegisterSet liveScratchFPRs);
 
         // Re-use the argument layout of another block (eg. else will re-use the argument/result locations from if)
         enum BranchCallingConventionReuseTag { UseBlockCallingConventionOfOtherBranch };
@@ -862,7 +862,7 @@ public:
         const Vector<Location, 2>& resultLocations() const;
 
         BlockType blockType() const;
-        BlockSignature signature() const;
+        const BlockSignature& signature() const;
 
         FunctionArgCount branchTargetArity() const;
 
@@ -1924,13 +1924,13 @@ public:
     void emitEntryTierUpCheck();
 
     // Control flow
-    [[nodiscard]] ControlData addTopLevel(BlockSignature signature);
+    [[nodiscard]] ControlData addTopLevel(BlockSignature&&);
 
     bool hasLoops() const;
 
     MacroAssembler::Label addLoopOSREntrypoint();
 
-    [[nodiscard]] PartialResult addBlock(BlockSignature signature, Stack& enclosingStack, ControlType& result, Stack& newStack);
+    [[nodiscard]] PartialResult addBlock(BlockSignature&&, Stack& enclosingStack, ControlType& result, Stack& newStack);
 
     B3::Type toB3Type(Type type);
 
@@ -1942,16 +1942,16 @@ public:
 
     void emitLoopTierUpCheckAndOSREntryData(const ControlData&, Stack& enclosingStack, unsigned loopIndex);
 
-    [[nodiscard]] PartialResult addLoop(BlockSignature signature, Stack& enclosingStack, ControlType& result, Stack& newStack, uint32_t loopIndex);
+    [[nodiscard]] PartialResult addLoop(BlockSignature&&, Stack& enclosingStack, ControlType& result, Stack& newStack, uint32_t loopIndex);
 
-    [[nodiscard]] PartialResult addIf(Value condition, BlockSignature signature, Stack& enclosingStack, ControlData& result, Stack& newStack);
+    [[nodiscard]] PartialResult addIf(Value condition, BlockSignature&&, Stack& enclosingStack, ControlData& result, Stack& newStack);
 
     [[nodiscard]] PartialResult addElse(ControlData& data, Stack& expressionStack);
 
     [[nodiscard]] PartialResult addElseToUnreachable(ControlData& data);
 
-    [[nodiscard]] PartialResult addTry(BlockSignature signature, Stack& enclosingStack, ControlType& result, Stack& newStack);
-    [[nodiscard]] PartialResult addTryTable(BlockSignature, Stack& enclosingStack, const Vector<CatchHandler>& targets, ControlType& result, Stack& newStack);
+    [[nodiscard]] PartialResult addTry(BlockSignature&&, Stack& enclosingStack, ControlType& result, Stack& newStack);
+    [[nodiscard]] PartialResult addTryTable(BlockSignature&&, Stack& enclosingStack, const Vector<CatchHandler>& targets, ControlType& result, Stack& newStack);
 
     void emitCatchPrologue();
 
@@ -1996,7 +1996,7 @@ public:
 
     int alignedFrameSize(int frameSize) const;
 
-    [[nodiscard]] PartialResult endTopLevel(BlockSignature, const Stack&);
+    [[nodiscard]] PartialResult endTopLevel(const Stack&);
 
     enum BranchFoldResult {
         BranchAlwaysTaken,
@@ -2011,8 +2011,8 @@ public:
 
     [[nodiscard]] PartialResult addFusedBranchCompare(OpType, ControlType& target, ExpressionType, Stack&);
     [[nodiscard]] PartialResult addFusedBranchCompare(OpType, ControlType& target, ExpressionType, ExpressionType, Stack&);
-    [[nodiscard]] PartialResult addFusedIfCompare(OpType, ExpressionType, BlockSignature, Stack&, ControlType&, Stack&);
-    [[nodiscard]] PartialResult addFusedIfCompare(OpType, ExpressionType, ExpressionType, BlockSignature, Stack&, ControlType&, Stack&);
+    [[nodiscard]] PartialResult addFusedIfCompare(OpType, ExpressionType, BlockSignature&&, Stack&, ControlType&, Stack&);
+    [[nodiscard]] PartialResult addFusedIfCompare(OpType, ExpressionType, ExpressionType, BlockSignature&&, Stack&, ControlType&, Stack&);
 
     // Flush a value to its canonical slot.
     void flushValue(Value value);

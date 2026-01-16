@@ -1976,11 +1976,19 @@ struct AddIceCandidateCallData {
 };
 WEBKIT_DEFINE_ASYNC_DATA_STRUCT(AddIceCandidateCallData)
 
-void GStreamerMediaEndpoint::addIceCandidate(GStreamerIceCandidate& candidate, PeerConnectionBackend::AddIceCandidateCallback&& callback)
+void GStreamerMediaEndpoint::addIceCandidate(const RTCIceCandidate& candidate, PeerConnectionBackend::AddIceCandidateCallback&& callback)
 {
-    GST_DEBUG_OBJECT(m_pipeline.get(), "Adding ICE candidate %s", candidate.candidate.utf8().data());
+    String sdp = candidate.candidate();
+    if (sdp.startsWithIgnoringASCIICase("a="_s))
+        sdp = sdp.substring(2);
 
-    if (!candidate.candidate.startsWith("candidate:"_s) && !candidate.candidate.startsWith("a=candidate:"_s)) {
+    sdp = sdp.trim([](auto c) {
+        return c == ' ';
+    });
+    auto sdpString = sdp.utf8();
+    GST_DEBUG_OBJECT(m_pipeline.get(), "Adding ICE candidate %s", sdpString.data());
+
+    if (!sdp.startsWith("candidate:"_s)) {
         callOnMainThread([task = createSharedTask<PeerConnectionBackend::AddIceCandidateCallbackFunction>(WTF::move(callback))]() mutable {
             task->run(Exception { ExceptionCode::OperationError, "Expect line: candidate:<candidate-str>"_s });
         });
@@ -1995,14 +2003,7 @@ void GStreamerMediaEndpoint::addIceCandidate(GStreamerIceCandidate& candidate, P
         data->webrtcBin = m_webrtcBin;
         data->callback = WTF::move(callback);
 
-        StringView view;
-        if (candidate.candidate.startsWithIgnoringASCIICase("a="_s))
-            view = candidate.candidate.substring(2);
-        else
-            view = candidate.candidate;
-
-        view = view.trim(isASCIIWhitespace<char8_t>);
-        g_signal_emit_by_name(m_webrtcBin.get(), "add-ice-candidate-full", candidate.sdpMLineIndex, view.toStringWithoutCopying().utf8().data(), gst_promise_new_with_change_func([](GstPromise* rawPromise, gpointer userData) {
+        g_signal_emit_by_name(m_webrtcBin.get(), "add-ice-candidate-full", candidate.sdpMLineIndex().value_or(0), sdpString.data(), gst_promise_new_with_change_func([](GstPromise* rawPromise, gpointer userData) {
             auto* data = reinterpret_cast<AddIceCandidateCallData*>(userData);
             auto promise = adoptGRef(rawPromise);
             auto result = gst_promise_wait(promise.get());
@@ -2030,7 +2031,7 @@ void GStreamerMediaEndpoint::addIceCandidate(GStreamerIceCandidate& candidate, P
     }
 
     // Candidate parsing is still needed for old GStreamer versions.
-    auto parsedCandidate = parseIceCandidateSDP(candidate.candidate);
+    auto parsedCandidate = parseIceCandidateSDP(sdp);
     if (!parsedCandidate) {
         callOnMainThread([task = createSharedTask<PeerConnectionBackend::AddIceCandidateCallbackFunction>(WTF::move(callback))]() mutable {
             task->run(Exception { ExceptionCode::OperationError, "Error processing ICE candidate"_s });
@@ -2039,7 +2040,7 @@ void GStreamerMediaEndpoint::addIceCandidate(GStreamerIceCandidate& candidate, P
     }
 
     // This is racy but nothing we can do about it when we are on older GStreamer runtimes.
-    g_signal_emit_by_name(m_webrtcBin.get(), "add-ice-candidate", candidate.sdpMLineIndex, candidate.candidate.utf8().data());
+    g_signal_emit_by_name(m_webrtcBin.get(), "add-ice-candidate", candidate.sdpMLineIndex().value_or(0), sdp.utf8().data());
     callOnMainThread([task = createSharedTask<PeerConnectionBackend::AddIceCandidateCallbackFunction>(WTF::move(callback)), weakWebrtcBin = GThreadSafeWeakPtr { m_webrtcBin.get() }]() mutable {
         auto webrtcBin = weakWebrtcBin.get();
         if (!webrtcBin)

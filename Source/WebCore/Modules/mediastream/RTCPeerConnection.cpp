@@ -1027,7 +1027,7 @@ static inline ExceptionOr<PeerConnectionBackend::CertificateInformation> certifi
 
     auto parametersConversionResult = convertDictionary<RTCPeerConnection::CertificateParameters>(lexicalGlobalObject, value.get());
     if (parametersConversionResult.hasException(scope)) [[unlikely]] {
-        scope.clearException();
+        TRY_CLEAR_EXCEPTION(scope, Exception(ExceptionCode::TypeError, "Termination"_s));
         return Exception { ExceptionCode::TypeError, "Unable to read certificate parameters"_s };
     }
     auto parameters = parametersConversionResult.releaseReturnValue();

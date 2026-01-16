@@ -110,14 +110,14 @@ void DeferredPromise::callFunction(JSGlobalObject& lexicalGlobalObject, ResolveM
         clear();
 }
 
-void DeferredPromise::whenSettled(Function<void()>&& callback)
+void DeferredPromise::whenSettledWithResult(Function<void(JSDOMGlobalObject*, bool, JSC::JSValue)>&& callback)
 {
     if (shouldIgnoreRequestToFulfill())
         return;
 
     if (activeDOMObjectsAreSuspended()) {
         scriptExecutionContext()->eventLoop().queueTask(TaskSource::Networking, [this, protectedThis = Ref { *this }, callback = WTF::move(callback)]() mutable {
-            whenSettled(WTF::move(callback));
+            whenSettledWithResult(WTF::move(callback));
         });
         return;
     }

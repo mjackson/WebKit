@@ -88,6 +88,5 @@ mac/WebView/WebScriptDebugDelegate.mm
 mac/WebView/WebScriptDebugger.mm
 mac/WebView/WebScriptWorld.mm
 [ Mac ] mac/WebView/WebTextCompletionController.mm
-[ Mac ] mac/WebView/WebVideoFullscreenController.mm
 mac/WebView/WebView.mm
 mac/WebView/WebViewRenderingUpdateScheduler.mm

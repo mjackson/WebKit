@@ -1048,7 +1048,7 @@ void AcceleratedSurface::setFrameDamage(Damage&& damage)
         m_frameDamage = std::nullopt;
 }
 
-const std::optional<Damage>& AcceleratedSurface::frameDamageSinceLastUse()
+const std::optional<Damage>& AcceleratedSurface::renderTargetDamage()
 {
     m_swapChain.addDamage(m_frameDamage);
     ASSERT(m_target);

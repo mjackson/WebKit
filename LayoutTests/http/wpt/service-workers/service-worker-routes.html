@@ -16,11 +16,11 @@ promise_test(async test => {
     const worker = registration.installing;
     await waitForState(worker, "installing");
 
-    worker.postMessage(257);
+    worker.postMessage(1024);
     const result = await new Promise(resolve => navigator.serviceWorker.onmessage = e => resolve(e.data));
     worker.postMessage("finish");
 
-    assert_equals(result, "TypeError: Too many routes are registered");
+    assert_equals(result, "TypeError: Router registration limit is hit");
     await waitForState(worker, "redundant");
 }, "Try to register too many routes in one call");
 
@@ -42,8 +42,8 @@ promise_test(async test => {
     }
     worker.postMessage("finish");
 
-    assert_equals(result, "TypeError: Too many routes are registered");
-    assert_equals(counter, 256);
+    assert_equals(result, "TypeError: Router registration limit is hit");
+    assert_equals(counter, 1023);
     // FIXME: We should check that worker state goes to "redundant".
     // await waitForState(worker, "redundant");
 }, "Try to register too many routes incrementally");

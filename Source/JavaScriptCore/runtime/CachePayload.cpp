@@ -63,7 +63,7 @@ CachePayload::~CachePayload() {
         m_destructor(span().data());
 }
 
-std::span<const uint8_t> CachePayload::span() const
+std::span<const uint8_t> CachePayload::span() const LIFETIME_BOUND
 {
     return WTF::switchOn(m_data, 
         [](const std::span<uint8_t>&data) -> std::span<const uint8_t> {

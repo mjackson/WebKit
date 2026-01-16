@@ -124,7 +124,7 @@ enum class IncludeTextInAutoFilledControls : bool { No, Yes };
 
 using TextNodesAndText = Vector<std::pair<Ref<Text>, String>>;
 using TextAndSelectedRange = std::pair<String, std::optional<CharacterRange>>;
-using TextAndSelectedRangeMap = HashMap<RefPtr<Text>, TextAndSelectedRange>;
+using TextAndSelectedRangeMap = HashMap<Ref<Text>, TextAndSelectedRange>;
 
 static bool hasEnclosingAutoFilledInput(Node& node)
 {
@@ -195,6 +195,7 @@ struct TraversalContext {
     const TextAndSelectedRangeMap visibleText;
     const WeakHashSet<Node, WeakPtrImplWithEventTargetData> nodesToSkip;
     const std::optional<FloatRect> rectInRootView;
+    const FrameIdentifier frameIdentifier;
     Vector<WeakPtr<Node, WeakPtrImplWithEventTargetData>> enclosingBlocks;
     WeakHashMap<Node, unsigned, WeakPtrImplWithEventTargetData> enclosingBlockNumberMap;
     unsigned onlyCollectTextAndLinksCount { 0 };
@@ -267,12 +268,12 @@ static inline TextAndSelectedRangeMap collectText(Node& node, IncludeTextInAutoF
 
     TextAndSelectedRangeMap result;
     for (auto& [node, text] : textBeforeRangedSelection)
-        result.add(node.ptr(), TextAndSelectedRange { text, { } });
+        result.add(node, TextAndSelectedRange { text, { } });
 
     bool isFirstSelectedNode = true;
     for (auto& [node, text] : textInRangedSelection) {
         if (std::exchange(isFirstSelectedNode, false)) {
-            if (auto entry = result.find(node.ptr()); entry != result.end() && entry->key == node.ptr()) {
+            if (auto entry = result.find(node.ptr()); entry != result.end() && entry->key.ptr() == node.ptr()) {
                 entry->value = std::make_pair(
                     makeString(entry->value.first, text),
                     CharacterRange { entry->value.first.length(), text.length() }
@@ -280,18 +281,18 @@ static inline TextAndSelectedRangeMap collectText(Node& node, IncludeTextInAutoF
                 continue;
             }
         }
-        result.add(node.ptr(), TextAndSelectedRange { text, CharacterRange { 0, text.length() } });
+        result.add(node, TextAndSelectedRange { text, CharacterRange { 0, text.length() } });
     }
 
     bool isFirstNodeAfterSelection = true;
     for (auto& [node, text] : textAfterRangedSelection) {
         if (std::exchange(isFirstNodeAfterSelection, false)) {
-            if (auto entry = result.find(node.ptr()); entry != result.end() && entry->key == node.ptr()) {
+            if (auto entry = result.find(node.ptr()); entry != result.end() && entry->key.ptr() == node.ptr()) {
                 entry->value.first = makeString(entry->value.first, text);
                 continue;
             }
         }
-        result.add(node.ptr(), TextAndSelectedRange { text, std::nullopt });
+        result.add(node, TextAndSelectedRange { text, std::nullopt });
     }
 
     return result;
@@ -411,7 +412,7 @@ static inline Variant<SkipExtraction, ItemData, URL, Editable> extractItemData(N
         if (shouldTreatAsPasswordField(textNode->shadowHost()))
             return { SkipExtraction::Self };
 
-        if (auto iterator = context.visibleText.find(textNode); iterator != context.visibleText.end()) {
+        if (auto iterator = context.visibleText.find(*textNode); iterator != context.visibleText.end()) {
             auto& [textContent, selectedRange] = iterator->value;
             return { TextItemData { { }, selectedRange, textContent, { } } };
         }
@@ -814,6 +815,7 @@ static inline void extractRecursive(Node& node, Item& parentItem, TraversalConte
                 { },
                 node.nodeName(),
                 WTF::move(nodeIdentifier),
+                { context.frameIdentifier },
                 eventListeners,
                 WTF::move(ariaAttributes),
                 WTF::move(role),
@@ -835,6 +837,7 @@ static inline void extractRecursive(Node& node, Item& parentItem, TraversalConte
                 { },
                 { },
                 { },
+                { context.frameIdentifier },
                 eventListeners,
                 WTF::move(ariaAttributes),
                 WTF::move(role),
@@ -951,7 +954,8 @@ static Node* nodeFromJSHandle(JSHandleIdentifier identifier)
 
 Item extractItem(Request&& request, LocalFrame& frame)
 {
-    Item root { ContainerType::Root, { }, { }, { }, { }, { }, { }, { }, { }, { }, 0 };
+    auto frameID = frame.frameID();
+    Item root { ContainerType::Root, { }, { }, { }, { }, frameID, { }, { }, { }, { }, { }, 0 };
     RefPtr document = frame.document();
     if (!document)
         return root;
@@ -1008,6 +1012,7 @@ Item extractItem(Request&& request, LocalFrame& frame)
             .visibleText = collectText(*extractionRootNode, includeTextInAutoFilledControls),
             .nodesToSkip = WTF::move(nodesToSkip),
             .rectInRootView = request.collectionRectInRootView,
+            .frameIdentifier = WTF::move(frameID),
             .enclosingBlocks = { },
             .enclosingBlockNumberMap = { },
             .onlyCollectTextAndLinksCount = 0,

@@ -262,7 +262,7 @@ void WebChromeClient::focusedFrameChanged(Frame*)
 
 RefPtr<Page> WebChromeClient::createWindow(LocalFrame& frame, const String& openedMainFrameName, const WindowFeatures& features, const NavigationAction&)
 {
-    id delegate = [m_webView UIDelegate];
+    RetainPtr<id> delegate = [m_webView UIDelegate];
     WebView *newWebView;
 
 #if ENABLE(FULLSCREEN_API)
@@ -273,8 +273,8 @@ RefPtr<Page> WebChromeClient::createWindow(LocalFrame& frame, const String& open
         }
     }
 #endif
-    
-    if ([delegate respondsToSelector:@selector(webView:createWebViewWithRequest:windowFeatures:)]) {
+
+    if ([delegate.get() respondsToSelector:@selector(webView:createWebViewWithRequest:windowFeatures:)]) {
         auto dictFeatures = adoptNS([[NSMutableDictionary alloc] initWithObjectsAndKeys:
             @(features.wantsPopup()), @"wantsPopup",
             @(features.hasAdditionalFeatures), @"hasAdditionalFeatures",
@@ -306,7 +306,7 @@ RefPtr<Page> WebChromeClient::createWindow(LocalFrame& frame, const String& open
             [dictFeatures setObject:@(*features.dialog) forKey:@"dialog"];
 
         newWebView = CallUIDelegate(m_webView, @selector(webView:createWebViewWithRequest:windowFeatures:), nil, dictFeatures.get());
-    } else if (features.dialog && [delegate respondsToSelector:@selector(webView:createWebViewModalDialogWithRequest:)])
+    } else if (features.dialog && [delegate.get() respondsToSelector:@selector(webView:createWebViewModalDialogWithRequest:)])
         newWebView = CallUIDelegate(m_webView, @selector(webView:createWebViewModalDialogWithRequest:), nil);
     else
         newWebView = CallUIDelegate(m_webView, @selector(webView:createWebViewWithRequest:), nil);
@@ -466,12 +466,12 @@ inline static NSString *stringForMessageLevel(MessageLevel level)
 void WebChromeClient::addMessageToConsole(MessageSource source, MessageLevel level, const String& message, unsigned lineNumber, unsigned columnNumber, const String& sourceURL)
 {
 #if !PLATFORM(IOS_FAMILY)
-    id delegate = [m_webView UIDelegate];
+    RetainPtr<id> delegate = [m_webView UIDelegate];
 #else
     if (![m_webView _allowsMessaging])
         return;
 
-    id delegate = [m_webView _UIKitDelegate];
+    RetainPtr<id> delegate = [m_webView _UIKitDelegate];
     // No delegate means nothing to send this data to so bail.
     if (!delegate)
         return;
@@ -480,19 +480,19 @@ void WebChromeClient::addMessageToConsole(MessageSource source, MessageLevel lev
     BOOL respondsToNewSelector = NO;
 
     SEL selector = @selector(webView:addMessageToConsole:withSource:);
-    if ([delegate respondsToSelector:selector])
+    if ([delegate.get() respondsToSelector:selector])
         respondsToNewSelector = YES;
     else {
         // The old selector only takes JSMessageSource messages.
         if (source != MessageSource::JS)
             return;
         selector = @selector(webView:addMessageToConsole:);
-        if (![delegate respondsToSelector:selector])
+        if (![delegate.get() respondsToSelector:selector])
             return;
     }
 
     NSString *messageSource = stringForMessageSource(source);
-    auto dictionary = @{
+    RetainPtr dictionary = @{
         @"message": message.createNSString().get(),
         @"lineNumber": @(lineNumber),
         @"columnNumber": @(columnNumber),
@@ -502,13 +502,13 @@ void WebChromeClient::addMessageToConsole(MessageSource source, MessageLevel lev
     };
 
 #if PLATFORM(IOS_FAMILY)
-    [[[m_webView _UIKitDelegateForwarder] asyncForwarder] webView:m_webView addMessageToConsole:dictionary withSource:messageSource];
+    [[[m_webView _UIKitDelegateForwarder] asyncForwarder] webView:m_webView addMessageToConsole:dictionary.get() withSource:messageSource];
     UNUSED_VARIABLE(respondsToNewSelector);
 #else
     if (respondsToNewSelector)
-        CallUIDelegate(m_webView, selector, dictionary, messageSource);
+        CallUIDelegate(m_webView, selector, dictionary.get(), messageSource);
     else
-        CallUIDelegate(m_webView, selector, dictionary);
+        CallUIDelegate(m_webView, selector, dictionary.get());
 #endif
 }
 
@@ -544,16 +544,16 @@ void WebChromeClient::closeWindow()
 
 void WebChromeClient::runJavaScriptAlert(LocalFrame& frame, const String& message)
 {
-    id delegate = [m_webView UIDelegate];
+    RetainPtr<id> delegate = [m_webView UIDelegate];
     SEL selector = @selector(webView:runJavaScriptAlertPanelWithMessage:initiatedByFrame:);
-    if ([delegate respondsToSelector:selector]) {
+    if ([delegate.get() respondsToSelector:selector]) {
         CallUIDelegate(m_webView, selector, message.createNSString().get(), kit(&frame));
         return;
     }
 
     // Call the old version of the delegate method if it is implemented.
     selector = @selector(webView:runJavaScriptAlertPanelWithMessage:);
-    if ([delegate respondsToSelector:selector]) {
+    if ([delegate.get() respondsToSelector:selector]) {
         CallUIDelegate(m_webView, selector, message.createNSString().get());
         return;
     }
@@ -561,14 +561,14 @@ void WebChromeClient::runJavaScriptAlert(LocalFrame& frame, const String& messag
 
 bool WebChromeClient::runJavaScriptConfirm(LocalFrame& frame, const String& message)
 {
-    id delegate = [m_webView UIDelegate];
+    RetainPtr<id> delegate = [m_webView UIDelegate];
     SEL selector = @selector(webView:runJavaScriptConfirmPanelWithMessage:initiatedByFrame:);
-    if ([delegate respondsToSelector:selector])
+    if ([delegate.get() respondsToSelector:selector])
         return CallUIDelegateReturningBoolean(NO, m_webView, selector, message.createNSString().get(), kit(&frame));
 
     // Call the old version of the delegate method if it is implemented.
     selector = @selector(webView:runJavaScriptConfirmPanelWithMessage:);
-    if ([delegate respondsToSelector:selector])
+    if ([delegate.get() respondsToSelector:selector])
         return CallUIDelegateReturningBoolean(NO, m_webView, selector, message.createNSString().get());
 
     return NO;
@@ -576,17 +576,17 @@ bool WebChromeClient::runJavaScriptConfirm(LocalFrame& frame, const String& mess
 
 bool WebChromeClient::runJavaScriptPrompt(LocalFrame& frame, const String& prompt, const String& defaultText, String& result)
 {
-    id delegate = [m_webView UIDelegate];
+    RetainPtr<id> delegate = [m_webView UIDelegate];
     SEL selector = @selector(webView:runJavaScriptTextInputPanelWithPrompt:defaultText:initiatedByFrame:);
     RetainPtr defaultString = defaultText.createNSString();
-    if ([delegate respondsToSelector:selector]) {
+    if ([delegate.get() respondsToSelector:selector]) {
         result = (NSString *)CallUIDelegate(m_webView, selector, prompt.createNSString().get(), defaultString.get(), kit(&frame));
         return !result.isNull();
     }
 
     // Call the old version of the delegate method if it is implemented.
     selector = @selector(webView:runJavaScriptTextInputPanelWithPrompt:defaultText:);
-    if ([delegate respondsToSelector:selector]) {
+    if ([delegate.get() respondsToSelector:selector]) {
         result = (NSString *)CallUIDelegate(m_webView, selector, prompt.createNSString().get(), defaultString.get());
         return !result.isNull();
     }
@@ -659,10 +659,10 @@ void WebChromeClient::scrollContainingScrollViewsToRevealRect(const IntRect& r) 
     // perhaps in a delegate method, rather than something WebKit does unconditionally.
     NSView *coordinateView = [[[m_webView mainFrame] frameView] documentView];
     NSRect rect = r;
-    for (NSView *view = m_webView; view; view = [view superview]) {
-        if ([view isKindOfClass:[NSClipView class]]) {
-            NSClipView *clipView = (NSClipView *)view;
-            NSView *documentView = [clipView documentView];
+    for (RetainPtr<NSView> view = m_webView; view; view = [view.get() superview]) {
+        if ([view.get() isKindOfClass:[NSClipView class]]) {
+            RetainPtr clipView = (NSClipView *)view.get();
+            NSView *documentView = [clipView.get() documentView];
             [documentView scrollRectToVisible:[documentView convertRect:rect fromView:coordinateView]];
         }
     }
@@ -785,10 +785,10 @@ void WebChromeClient::runOpenPanel(LocalFrame&, FileChooser& chooser)
     BEGIN_BLOCK_OBJC_EXCEPTIONS
     BOOL allowMultipleFiles = chooser.settings().allowsMultipleFiles;
     auto listener = adoptNS([[WebOpenPanelResultListener alloc] initWithChooser:chooser]);
-    id delegate = [m_webView UIDelegate];
-    if ([delegate respondsToSelector:@selector(webView:runOpenPanelForFileButtonWithResultListener:allowMultipleFiles:)])
+    RetainPtr<id> delegate = [m_webView UIDelegate];
+    if ([delegate.get() respondsToSelector:@selector(webView:runOpenPanelForFileButtonWithResultListener:allowMultipleFiles:)])
         CallUIDelegate(m_webView, @selector(webView:runOpenPanelForFileButtonWithResultListener:allowMultipleFiles:), listener.get(), allowMultipleFiles);
-    else if ([delegate respondsToSelector:@selector(webView:runOpenPanelForFileButtonWithResultListener:)])
+    else if ([delegate.get() respondsToSelector:@selector(webView:runOpenPanelForFileButtonWithResultListener:)])
         CallUIDelegate(m_webView, @selector(webView:runOpenPanelForFileButtonWithResultListener:), listener.get());
     else
         [listener cancel];
@@ -946,11 +946,11 @@ void WebChromeClient::attachRootGraphicsLayer(LocalFrame& frame, GraphicsLayer* 
         return;
     }
 
-    WebHTMLView *webHTMLView = (WebHTMLView *)documentView;
+    RetainPtr webHTMLView = (WebHTMLView *)documentView;
     if (graphicsLayer)
-        [webHTMLView attachRootLayer:graphicsLayer->platformLayer()];
+        [webHTMLView.get() attachRootLayer:graphicsLayer->platformLayer()];
     else
-        [webHTMLView detachRootLayer];
+        [webHTMLView.get() detachRootLayer];
     END_BLOCK_OBJC_EXCEPTIONS
 #endif
 }

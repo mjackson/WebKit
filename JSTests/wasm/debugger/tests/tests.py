@@ -866,13 +866,11 @@ class ThrowCatchAllTestCase(BaseTestCase):
     def execute(self):
         self.setup_debugging_session_or_raise("resources/wasm/throw-catch-all.js")
 
-        # FIXME: LLDB crashes on this test.
-        # try:
-        #     for _ in range(1):
-        #         self.stepTest()
+        try:
+            self.stepTest()
 
-        # except Exception as e:
-        #     raise Exception(f"Throw catch_all test failed: {e}")
+        except Exception as e:
+            raise Exception(f"Throw catch_all test failed: {e}")
 
     def stepTest(self):
         self.send_lldb_command_or_raise("b 0x400000000000006e")
@@ -933,13 +931,11 @@ class DelegateTestCase(BaseTestCase):
     def execute(self):
         self.setup_debugging_session_or_raise("resources/wasm/delegate.js")
 
-        # FIXME: LLDB crashes on this test.
-        # try:
-        #     for _ in range(1):
-        #         self.stepTest()
+        try:
+            self.stepTest()
 
-        # except Exception as e:
-        #     raise Exception(f"Delegate test failed: {e}")
+        except Exception as e:
+            raise Exception(f"Delegate test failed: {e}")
 
     def stepTest(self):
         self.send_lldb_command_or_raise("b 0x40000000000000c6")
@@ -1046,13 +1042,11 @@ class RethrowTestCase(BaseTestCase):
     def execute(self):
         self.setup_debugging_session_or_raise("resources/wasm/rethrow.js")
 
-        # FIXME: LLDB crashes on this test.
-        # try:
-        #     for _ in range(1):
-        #         self.stepTest()
+        try:
+            self.stepTest()
 
-        # except Exception as e:
-        #     raise Exception(f"Rethrow test failed: {e}")
+        except Exception as e:
+            raise Exception(f"Rethrow test failed: {e}")
 
     def stepTest(self):
         self.send_lldb_command_or_raise("b 0x40000000000000b8")
@@ -1365,13 +1359,11 @@ class TryTableTestCase(BaseTestCase):
     def execute(self):
         self.setup_debugging_session_or_raise("resources/wasm/try-table.js")
 
-        # FIXME: LLDB crashes on this test.
-        # try:
-        #     for _ in range(1):
-        #         self.stepTest()
+        try:
+            self.stepTest()
 
-        # except Exception as e:
-        #     raise Exception(f"Try table test failed: {e}")
+        except Exception as e:
+            raise Exception(f"Try table test failed: {e}")
 
     def stepTest(self):
         self.send_lldb_command_or_raise("b 0x40000000000000aa")

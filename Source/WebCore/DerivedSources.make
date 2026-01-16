@@ -378,7 +378,7 @@ JS_BINDING_IDLS := \
     $(WebCore)/Modules/highlight/HighlightRegistry.idl \
     $(WebCore)/Modules/highlight/Highlight.idl \
     $(WebCore)/Modules/identity/DigitalCredential.idl \
-    $(WebCore)/Modules/identity/DigitalCredentialRequest.idl \
+    $(WebCore)/Modules/identity/DigitalCredentialGetRequest.idl \
     $(WebCore)/Modules/identity/DigitalCredentialRequestOptions.idl \
     $(WebCore)/Modules/identity/IdentityCredentialProtocol.idl \
     $(WebCore)/Modules/identity/protocols/ISO18013/MobileDocumentRequest.idl \
@@ -2822,6 +2822,6 @@ WEBCORE_LOG_DECLARATIONS_FILES = \
     WebCoreLogDefinitions.h \
     WebCoreVirtualLogFunctions.h \
 
-$(WEBCORE_LOG_DECLARATIONS_FILES) : $(WebCore)/platform/LogMessages.in
+$(WEBCORE_LOG_DECLARATIONS_FILES) : $(WebCore)/platform/LogMessages.in $(WebCore)/Scripts/generate-log-declarations.py
 	@echo Creating WebCore log definitions $@
 	$(PYTHON) $(WebCore)/Scripts/generate-log-declarations.py $< $(WEBCORE_LOG_DECLARATIONS_FILES)

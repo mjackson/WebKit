@@ -214,7 +214,6 @@ ISO8601::PlainDate TemporalPlainYearMonth::with(JSGlobalObject* globalObject, JS
         return { };
     }
 
-
     auto [optionalMonth, optionalMonthCode, optionalYear] = TemporalPlainDate::toYearMonth(globalObject, temporalYearMonthLike);
     RETURN_IF_EXCEPTION(scope, { });
     if (!optionalMonth && !optionalMonthCode && !optionalYear) [[unlikely]] {
@@ -222,11 +221,20 @@ ISO8601::PlainDate TemporalPlainYearMonth::with(JSGlobalObject* globalObject, JS
         return { };
     }
 
-    TemporalOverflow overflow = toTemporalOverflow(globalObject, optionsValue);
+    int32_t y = optionalYear.value_or(year());
+    int32_t m = 0;
+    if (optionalMonth)
+        m = optionalMonth.value();
+    else if (optionalMonthCode)
+        m = optionalMonthCode->monthNumber;
+    else
+        m = month();
+
+    JSObject* options = intlGetOptionsObject(globalObject, optionsValue);
+    RETURN_IF_EXCEPTION(scope, { });
+    TemporalOverflow overflow = toTemporalOverflow(globalObject, options);
     RETURN_IF_EXCEPTION(scope, { });
 
-    int32_t y = optionalYear.value_or(year());
-    int32_t m = optionalMonth.value_or(month());
     RELEASE_AND_RETURN(scope, TemporalCalendar::yearMonthFromFields(globalObject, y, m, optionalMonthCode, overflow));
 }
 
@@ -250,6 +258,9 @@ ISO8601::Duration TemporalPlainYearMonth::sinceOrUntil(JSGlobalObject* globalObj
 
     auto [smallestUnit, largestUnit, roundingMode, increment] = extractDifferenceOptions(globalObject, optionsValue, UnitGroup::Date, TemporalUnit::Month, TemporalUnit::Year);
     RETURN_IF_EXCEPTION(scope, { });
+
+    if (op == DifferenceOperation::Since)
+        roundingMode = negateTemporalRoundingMode(roundingMode);
 
     RELEASE_AND_RETURN(scope, TemporalCalendar::differenceTemporalPlainYearMonth<op>(globalObject, plainYearMonth(), other->plainYearMonth(), increment, smallestUnit, largestUnit, roundingMode));
 }

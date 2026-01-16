@@ -431,7 +431,7 @@ bool JSDOMGlobalObject::canCompileStrings(JSGlobalObject* globalObject, Compilat
         // https://w3c.github.io/webappsec-csp/#can-compile-strings
         // Step 2.7. If the algorithm throws an error, throw an EvalError.
         // This clears the existing exceptions and returns false, where the caller throws an EvalError.
-        throwScope.clearException();
+        TRY_CLEAR_EXCEPTION(throwScope, false);
         return false;
     }
 

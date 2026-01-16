@@ -246,7 +246,7 @@ void AXLogger::log(const String& collectionName, const AXObjectCache::DeferredCo
         [&size] (const WeakListHashSet<Element, WeakPtrImplWithEventTargetData>& typedCollection) { size = typedCollection.computeSize(); },
         [&size] (const WeakHashMap<Element, String, WeakPtrImplWithEventTargetData>& typedCollection) { size = typedCollection.computeSize(); },
         [] (auto&) {
-            ASSERT_NOT_REACHED();
+            AX_ASSERT_NOT_REACHED();
             return;
         });
     if (size)
@@ -591,7 +591,7 @@ TextStream& operator<<(WTF::TextStream& stream, const TextUnderElementMode& mode
         childrenInclusion = "IncludeNameFromContentsChildren"_s;
         break;
     default:
-        ASSERT_NOT_REACHED();
+        AX_ASSERT_NOT_REACHED();
         break;
     }
 
@@ -1279,7 +1279,7 @@ TextStream& operator<<(TextStream& stream, const AXCoreObject& object)
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 TextStream& operator<<(TextStream& stream, AXIsolatedTree& tree)
 {
-    ASSERT(!isMainThread());
+    AX_ASSERT(!isMainThread());
     TextStream::GroupScope groupScope(stream);
     stream << "treeID " << tree.treeID();
     stream.dumpProperty("rootNodeID"_s, tree.rootNode()->objectID());
@@ -1292,7 +1292,7 @@ TextStream& operator<<(TextStream& stream, AXIsolatedTree& tree)
 
 void streamIsolatedSubtreeOnMainThread(TextStream& stream, const AXIsolatedTree& tree, AXID objectID, const OptionSet<AXStreamOptions>& options)
 {
-    ASSERT(isMainThread());
+    AX_ASSERT(isMainThread());
 
     stream.increaseIndent();
     TextStream::GroupScope groupScope(stream);

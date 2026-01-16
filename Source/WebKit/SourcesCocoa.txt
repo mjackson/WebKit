@@ -916,7 +916,6 @@ DrawingAreaMessageReceiver.cpp
 DrawingAreaProxyMessageReceiver.cpp
 DigitalCredentialsCoordinatorMessageReceiver.cpp
 EventDispatcherMessageReceiver.cpp
-IPCTesterReceiverSwiftMessageReceiver.cpp
 GPUConnectionToWebProcessMessageReceiver.cpp
 GPUProcessConnectionMessageReceiver.cpp
 GPUProcessMessageReceiver.cpp

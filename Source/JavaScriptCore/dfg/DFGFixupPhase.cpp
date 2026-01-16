@@ -2423,15 +2423,11 @@ private:
         }
 
         case GetGetterSetterByOffset: {
-            if (!node->child1()->hasStorageResult())
-                fixEdge<KnownCellUse>(node->child1());
             fixEdge<KnownCellUse>(node->child2());
             break;
         }
 
         case GetByOffset: {
-            if (!node->child1()->hasStorageResult())
-                fixEdge<KnownCellUse>(node->child1());
             fixEdge<KnownCellUse>(node->child2());
             attemptToMakeDoubleResultForGet(node);
             break;
@@ -2443,8 +2439,6 @@ private:
         }
             
         case PutByOffset: {
-            if (!node->child1()->hasStorageResult())
-                fixEdge<KnownCellUse>(node->child1());
             fixEdge<KnownCellUse>(node->child2());
             if (!attemptToMakeDoubleRepForPut(node, node->child3()))
                 speculateForBarrier(node->child3());
@@ -2934,7 +2928,6 @@ private:
 
         case LoadMapValue:
         case IsEmptyStorage:
-            fixEdge<UntypedUse>(node->child1());
             break;
 
         case MapGet:
@@ -4551,7 +4544,7 @@ private:
             if (!storage)
                 return;
             
-            storageChild = Edge(storage);
+            storageChild = storage->defaultEdge();
             return;
         } }
     }
@@ -4972,7 +4965,7 @@ private:
         if (!storage)
             return;
             
-        node->child2() = Edge(storage);
+        node->child2() = storage->defaultEdge();
     }
 
     void convertToHasIndexedProperty(Node* node)

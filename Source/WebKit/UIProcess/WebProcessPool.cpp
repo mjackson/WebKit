@@ -979,7 +979,7 @@ WebProcessDataStoreParameters WebProcessPool::webProcessDataStoreParameters(WebP
 #endif
         websiteDataStore.trackingPreventionEnabled()
 #if ENABLE(OPT_IN_PARTITIONED_COOKIES)
-        , websiteDataStore.isOptInCookiePartitioningEnabled()
+        , websiteDataStore.computeIsOptInCookiePartitioningEnabled()
 #endif
     };
 }
@@ -2275,6 +2275,12 @@ std::tuple<Ref<WebProcessProxy>, RefPtr<SuspendedPageProxy>, ASCIILiteral> WebPr
     if (!sourceProcess->hasCommittedAnyProvisionalLoads() && !siteIsolationEnabled) {
         tryPrewarmWithDomainInformation(sourceProcess, targetSite.domain());
         return { WTF::move(sourceProcess), nullptr, "Process has not yet committed any provisional loads"_s };
+    }
+
+    if (siteIsolationEnabled && navigation.currentRequest().url().isAboutBlank()) {
+        RefPtr navigationOriginatorFrame = navigation.originatingFrameInfo() ? WebFrameProxy::webFrame(navigation.originatingFrameInfo()->frameID) : nullptr;
+        if (navigationOriginatorFrame)
+            return { navigationOriginatorFrame->process(), nullptr, "Frame is navigating to about:blank from a cross site origin. Switching to process that originated navigation."_s };
     }
 
     // FIXME: We should support process swap when a window has been opened via window.open() without 'noopener'.

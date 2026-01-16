@@ -180,9 +180,9 @@ private:
     Position m_end;
     SingleThreadWeakPtr<DocumentLoader> m_dataSource;
 
-    HashMap<RefPtr<Element>, RetainPtr<NSDictionary>> m_attributesForElements;
+    HashMap<Ref<Element>, RetainPtr<NSDictionary>> m_attributesForElements;
     HashMap<RetainPtr<CFTypeRef>, RefPtr<Element>> m_textTableFooters;
-    HashMap<RefPtr<Element>, RetainPtr<NSDictionary>> m_aggregatedAttributesForElements;
+    HashMap<Ref<Element>, RetainPtr<NSDictionary>> m_aggregatedAttributesForElements;
 
     UserSelectNoneStateCache m_userSelectNoneStateCache;
     bool m_ignoreUserSelectNoneContent { false };
@@ -1103,7 +1103,7 @@ NSDictionary *HTMLConverter::computedAttributesForElement(Element& element)
 
 NSDictionary* HTMLConverter::attributesForElement(Element& element)
 {
-    auto& attributes = m_attributesForElements.add(&element, nullptr).iterator->value;
+    auto& attributes = m_attributesForElements.add(element, nullptr).iterator->value;
     if (!attributes)
         attributes = computedAttributesForElement(element);
     return attributes.get();
@@ -1121,7 +1121,7 @@ RetainPtr<NSDictionary> HTMLConverter::aggregatedAttributesForAncestors(Characte
 
 RetainPtr<NSDictionary> HTMLConverter::aggregatedAttributesForElementAndItsAncestors(Element& element)
 {
-    auto& cachedAttributes = m_aggregatedAttributesForElements.add(&element, nullptr).iterator->value;
+    auto& cachedAttributes = m_aggregatedAttributesForElements.add(element, nullptr).iterator->value;
     if (cachedAttributes)
         return cachedAttributes.get();
 
@@ -1139,7 +1139,7 @@ RetainPtr<NSDictionary> HTMLConverter::aggregatedAttributesForElementAndItsAnces
 
     RetainPtr<NSMutableDictionary> attributesForAncestors = adoptNS([aggregatedAttributesForElementAndItsAncestors(downcast<Element>(*ancestor)) mutableCopy]);
     [attributesForAncestors addEntriesFromDictionary:attributesForCurrentElement];
-    m_aggregatedAttributesForElements.set(&element, attributesForAncestors);
+    m_aggregatedAttributesForElements.set(element, attributesForAncestors);
 
     return attributesForAncestors;
 }
@@ -1198,21 +1198,21 @@ void HTMLConverter::_newTabForElement(Element& element)
 
 static Class _WebMessageDocumentClassSingleton()
 {
-    static Class _WebMessageDocumentClass = Nil;
+    static NeverDestroyed<RetainPtr<Class>> _WebMessageDocumentClass;
     static BOOL lookedUpClass = NO;
     if (!lookedUpClass) {
         // If the class is not there, we don't want to try again
 #if PLATFORM(MAC)
-        _WebMessageDocumentClass = objc_lookUpClass("EditableWebMessageDocument");
+        _WebMessageDocumentClass.get() = objc_lookUpClass("EditableWebMessageDocument");
 #endif
-        if (!_WebMessageDocumentClass)
-            _WebMessageDocumentClass = objc_lookUpClass("WebMessageDocument");
+        if (!_WebMessageDocumentClass.get())
+            _WebMessageDocumentClass.get() = objc_lookUpClass("WebMessageDocument");
 
-        if (_WebMessageDocumentClass && ![_WebMessageDocumentClass respondsToSelector:@selector(document:attachment:forURL:)])
-            _WebMessageDocumentClass = Nil;
+        if (_WebMessageDocumentClass.get() && ![_WebMessageDocumentClass->get() respondsToSelector:@selector(document:attachment:forURL:)])
+            _WebMessageDocumentClass.get() = Nil;
         lookedUpClass = YES;
     }
-    return _WebMessageDocumentClass;
+    return _WebMessageDocumentClass->get();
 }
 
 #if ENABLE(MULTI_REPRESENTATION_HEIC)

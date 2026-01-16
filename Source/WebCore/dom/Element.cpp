@@ -2275,14 +2275,19 @@ String Element::userInfo() const
     return elementRareData()->userInfo();
 }
 
-void Element::notifyAttributeChanged(const QualifiedName& name, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason reason)
+ALWAYS_INLINE void Element::notifyAttributeChangedCommon(const QualifiedName& name, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason reason)
 {
     attributeChanged(name, oldValue, newValue, reason);
 
-    document().incDOMTreeVersion();
-
     if (isDefinedCustomElement()) [[unlikely]]
         CustomElementReactionQueue::enqueueAttributeChangedCallbackIfNeeded(*this, name, oldValue, newValue);
+}
+
+void Element::notifyAttributeChanged(const QualifiedName& name, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason reason)
+{
+    notifyAttributeChangedCommon(name, oldValue, newValue, reason);
+
+    document().incDOMTreeVersion();
 
     if (oldValue != newValue) {
         IsMutationBySetInnerHTML isMutationBySetInnerHTML = reason == AttributeModificationReason::ParserFastPath
@@ -2295,6 +2300,13 @@ void Element::notifyAttributeChanged(const QualifiedName& name, const AtomString
         if (isConnected() && oldValue == nullAtom())
             document().attributeAddedToElement(name);
     }
+}
+
+void Element::parserNotifyAttributeAdded(const QualifiedName& name, const AtomString& value, AttributeModificationReason reason)
+{
+    ASSERT(!isConnected());
+    ASSERT(!parentNode());
+    notifyAttributeChangedCommon(name, nullAtom(), value, reason);
 }
 
 void Element::attributeChanged(const QualifiedName& name, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason reason)
@@ -2857,7 +2869,10 @@ void Element::parserSetAttributes(std::span<const Attribute> attributes, Attribu
 
     // Use attributes instead of m_elementData because attributeChanged might modify m_elementData.
     for (const auto& attribute : attributes)
-        notifyAttributeChanged(attribute.name(), nullAtom(), attribute.value(), reason);
+        parserNotifyAttributeAdded(attribute.name(), attribute.value(), reason);
+
+    if (!attributes.empty())
+        document().incDOMTreeVersion();
 }
 
 void Element::didMoveToNewDocument(Document& oldDocument, Document& newDocument)

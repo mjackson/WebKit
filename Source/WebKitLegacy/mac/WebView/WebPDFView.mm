@@ -106,7 +106,7 @@ extern "C" NSString *_NSPathForSystemFramework(NSString *framework);
 
 // MARK: C UTILITY FUNCTIONS
 
-static void _applicationInfoForMIMEType(NSString *type, NSString **name, NSImage **image)
+static void _applicationInfoForMIMEType(NSString *type, RetainPtr<NSString>& name, NSImage **image)
 {
     CFURLRef appURL = nullptr;
 
@@ -115,15 +115,14 @@ ALLOW_DEPRECATED_DECLARATIONS_BEGIN
 ALLOW_DEPRECATED_DECLARATIONS_END
     if (error != noErr)
         return;
-    
+
     NSString *appPath = [(__bridge NSURL *)appURL path];
     CFRelease(appURL);
-    
-    *image = [[NSWorkspace sharedWorkspace] iconForFile:appPath];  
-    [*image setSize:NSMakeSize(16.f,16.f)];  
-    
-    NSString *appName = [[NSFileManager defaultManager] displayNameAtPath:appPath];
-    *name = appName;
+
+    *image = [[NSWorkspace sharedWorkspace] iconForFile:appPath];
+    [*image setSize:NSMakeSize(16.f,16.f)];
+
+    name = [[NSFileManager defaultManager] displayNameAtPath:appPath];
 }
 
 // FIXME 4182876: We can eliminate this function in favor if -isEqual: if [PDFSelection isEqual:] is overridden
@@ -270,7 +269,7 @@ static BOOL _PDFSelectionsAreEqual(PDFSelection *selectionA, PDFSelection *selec
     // This works together with setNextKeyView to splice our PDFSubview into
     // the key loop similar to the way NSScrollView does this.
     NSWindow *window = [self window];
-    id newFirstResponder = nil;
+    RetainPtr<id> newFirstResponder;
     
     if ([window keyViewSelectionDirection] == NSSelectingPrevious) {
         NSView *previousValidKeyView = [self previousValidKeyView];
@@ -281,11 +280,11 @@ static BOOL _PDFSelectionsAreEqual(PDFSelection *selectionA, PDFSelection *selec
         if ([PDFDocumentView acceptsFirstResponder])
             newFirstResponder = PDFDocumentView;
     }
-    
-    if (!newFirstResponder)
+
+    if (!newFirstResponder.get())
         return NO;
-    
-    if (![window makeFirstResponder:newFirstResponder])
+
+    if (![window makeFirstResponder:newFirstResponder.get()])
         return NO;
     
     [[dataSource webFrame] _clearSelectionInOtherFrames];
@@ -332,41 +331,41 @@ static BOOL _PDFSelectionsAreEqual(PDFSelection *selectionA, PDFSelection *selec
 
 - (void)_recursiveDisplayRectIfNeededIgnoringOpacity:(NSRect)rect isVisibleRect:(BOOL)isVisibleRect rectIsVisibleRectForView:(NSView *)visibleView topView:(BOOL)topView
 {
-    CGContextRef context = [[NSGraphicsContext currentContext] CGContext];
-    
-    bool allowsSmoothing = CGContextGetAllowsFontSmoothing(context);
-    bool allowsSubpixelQuantization = CGContextGetAllowsFontSubpixelQuantization(context);
-    
+    RetainPtr context = [[NSGraphicsContext currentContext] CGContext];
+
+    bool allowsSmoothing = CGContextGetAllowsFontSmoothing(context.get());
+    bool allowsSubpixelQuantization = CGContextGetAllowsFontSubpixelQuantization(context.get());
+
     [super _recursiveDisplayRectIfNeededIgnoringOpacity:rect isVisibleRect:isVisibleRect rectIsVisibleRectForView:visibleView topView:topView];
-    
-    CGContextSetAllowsFontSmoothing(context, allowsSmoothing);
-    CGContextSetAllowsFontSubpixelQuantization(context, allowsSubpixelQuantization);
+
+    CGContextSetAllowsFontSmoothing(context.get(), allowsSmoothing);
+    CGContextSetAllowsFontSubpixelQuantization(context.get(), allowsSubpixelQuantization);
 }
 
 - (void)_recursiveDisplayAllDirtyWithLockFocus:(BOOL)needsLockFocus visRect:(NSRect)visRect
 {
-    CGContextRef context = [[NSGraphicsContext currentContext] CGContext];
-    
-    bool allowsSmoothing = CGContextGetAllowsFontSmoothing(context);
-    bool allowsSubpixelQuantization = CGContextGetAllowsFontSubpixelQuantization(context);
-    
+    RetainPtr context = [[NSGraphicsContext currentContext] CGContext];
+
+    bool allowsSmoothing = CGContextGetAllowsFontSmoothing(context.get());
+    bool allowsSubpixelQuantization = CGContextGetAllowsFontSubpixelQuantization(context.get());
+
     [super _recursiveDisplayAllDirtyWithLockFocus:needsLockFocus visRect:visRect];
-    
-    CGContextSetAllowsFontSmoothing(context, allowsSmoothing);
-    CGContextSetAllowsFontSubpixelQuantization(context, allowsSubpixelQuantization);
+
+    CGContextSetAllowsFontSmoothing(context.get(), allowsSmoothing);
+    CGContextSetAllowsFontSubpixelQuantization(context.get(), allowsSubpixelQuantization);
 }
 
 - (void)_recursive:(BOOL)recurse displayRectIgnoringOpacity:(NSRect)displayRect inContext:(NSGraphicsContext *)graphicsContext topView:(BOOL)topView
 {
-    CGContextRef context = [graphicsContext CGContext];
-    
-    bool allowsSmoothing = CGContextGetAllowsFontSmoothing(context);
-    bool allowsSubpixelQuantization = CGContextGetAllowsFontSubpixelQuantization(context);
-    
+    RetainPtr<CGContextRef> context = [graphicsContext CGContext];
+
+    bool allowsSmoothing = CGContextGetAllowsFontSmoothing(context.get());
+    bool allowsSubpixelQuantization = CGContextGetAllowsFontSubpixelQuantization(context.get());
+
     [super _recursive:recurse displayRectIgnoringOpacity:displayRect inContext:graphicsContext topView:topView];
-    
-    CGContextSetAllowsFontSmoothing(context, allowsSmoothing);
-    CGContextSetAllowsFontSubpixelQuantization(context, allowsSubpixelQuantization);
+
+    CGContextSetAllowsFontSmoothing(context.get(), allowsSmoothing);
+    CGContextSetAllowsFontSubpixelQuantization(context.get(), allowsSubpixelQuantization);
 }
 
 - (void)_recursive:(BOOL)recurseX displayRectIgnoringOpacity:(NSRect)displayRect inGraphicsContext:(NSGraphicsContext *)graphicsContext CGContext:(CGContextRef)context topView:(BOOL)isTopView shouldChangeFontReferenceColor:(BOOL)shouldChangeFontReferenceColor
@@ -384,18 +383,18 @@ static BOOL _PDFSelectionsAreEqual(PDFSelection *selectionA, PDFSelection *selec
 {
     // Start with the menu items supplied by PDFKit, with WebKit tags applied
     NSMutableArray *items = [self _menuItemsFromPDFKitForEvent:theEvent];
-    
+
     // Add in an "Open with <default PDF viewer>" item
-    NSString *appName = nil;
+    RetainPtr<NSString> appName;
     NSImage *appIcon = nil;
-    
-    _applicationInfoForMIMEType([dataSource _responseMIMEType], &appName, &appIcon);
-    if (!appName)
+
+    _applicationInfoForMIMEType([dataSource _responseMIMEType], appName, &appIcon);
+    if (!appName.get())
         appName = UI_STRING_INTERNAL("Finder", "Default application name for Open With context menu");
-    
+
     // To match the PDFKit style, we'll add Open with Preview even when there's no document yet to view, and
     // disable it using validateUserInterfaceItem.
-    NSString *title = [NSString stringWithFormat:UI_STRING_INTERNAL("Open with %@", "context menu item for PDF"), appName];
+    NSString *title = [NSString stringWithFormat:UI_STRING_INTERNAL("Open with %@", "context menu item for PDF"), appName.get()];
     auto item = adoptNS([[NSMenuItem alloc] initWithTitle:title action:@selector(_openWithFinder:) keyEquivalent:@""]);
     [item setTag:WebMenuItemTagOpenWithDefaultApplication];
     if (appIcon)
@@ -646,14 +645,14 @@ static BOOL _PDFSelectionsAreEqual(PDFSelection *selectionA, PDFSelection *selec
     if (range && !containsCrossingDocumentBoundaries(makeSimpleRange(*core(range)), *core([dataSource webFrame])->document()))
         return 0;
 
-    PDFSelection *previousMatch = nil;
+    RetainPtr<PDFSelection> previousMatch;
     auto matches = adoptNS([[NSMutableArray alloc] initWithCapacity:limit]);
 
     for (;;) {
-        PDFSelection *nextMatch = [self _nextMatchFor:string direction:YES caseSensitive:!(options & WebFindOptionsCaseInsensitive) wrap:NO fromSelection:previousMatch startInSelection:NO];
+        PDFSelection *nextMatch = [self _nextMatchFor:string direction:YES caseSensitive:!(options & WebFindOptionsCaseInsensitive) wrap:NO fromSelection:previousMatch.get() startInSelection:NO];
         if (!nextMatch)
             break;
-        
+
         [matches addObject:nextMatch];
         previousMatch = nextMatch;
 

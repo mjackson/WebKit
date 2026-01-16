@@ -68,7 +68,6 @@ var gniExportDescs = []exporter.GNIExportDesc{
 		{Var: "skia_codec_rust_png",
 			Rules: []string{
 				"//src/codec:rust_png_srcs",
-				"//rust/common:ffi_utils",
 			},
 		},
 		{Var: "skia_codec_rust_png_ffi_rs_srcs",
@@ -84,6 +83,38 @@ var gniExportDescs = []exporter.GNIExportDesc{
 		{Var: "skia_codec_rust_png_ffi_cpp_hdrs",
 			Rules: []string{
 				"//rust/png:ffi_cpp",
+			},
+		},
+		{Var: "skia_codec_rust_bmp_public",
+			Rules: []string{
+				"//experimental/rust_bmp/decoder:hdrs",
+			},
+		},
+		{Var: "skia_codec_rust_bmp",
+			Rules: []string{
+				"//experimental/rust_bmp/decoder:srcs",
+				"//experimental/rust_bmp/decoder/impl:skbmprustcodec_hdrs",
+				"//experimental/rust_bmp/decoder/impl:skbmprustcodec_srcs",
+			},
+		},
+		{Var: "skia_codec_rust_bmp_ffi_rs_srcs",
+			Rules: []string{
+				"//experimental/rust_bmp/ffi:rs_srcs",
+			},
+		},
+		{Var: "skia_codec_rust_bmp_ffi_cxx_bridge_srcs",
+			Rules: []string{
+				"//experimental/rust_bmp/ffi:cxx_bridge_srcs",
+			},
+		},
+		{Var: "skia_codec_rust_icc_codec_srcs",
+			Rules: []string{
+				"//src/codec:rust_icc_codec_srcs",
+			},
+		},
+		{Var: "skia_codec_rust_icc_codec_hdrs",
+			Rules: []string{
+				"//src/codec:rust_icc_codec_hdrs",
 			},
 		},
 	}},
@@ -137,7 +168,6 @@ var gniExportDescs = []exporter.GNIExportDesc{
 		{Var: "skia_encode_rust_png_srcs",
 			Rules: []string{
 				"//src/encode:rust_png_srcs",
-				"//rust/common:ffi_utils",
 			}},
 		{Var: "skia_encode_png_base",
 			Rules: []string{
@@ -445,6 +475,26 @@ var gniExportDescs = []exporter.GNIExportDesc{
 		{Var: "skia_rust_common_ffi_cpp_srcs",
 			Rules: []string{
 				"//rust/common:ffi_cpp",
+			},
+		},
+		{Var: "skia_rust_icc_ffi_rs_srcs",
+			Rules: []string{
+				"//rust/icc:rs_srcs",
+			},
+		},
+		{Var: "skia_rust_icc_ffi_cxx_bridge_srcs",
+			Rules: []string{
+				"//rust/icc:cxx_bridge_srcs",
+			},
+		},
+		{Var: "skia_rust_icc_ffi_cpp_hdrs",
+			Rules: []string{
+				"//rust/icc:ffi_hdrs",
+			},
+		},
+		{Var: "skia_rust_icc_ffi_cpp_srcs",
+			Rules: []string{
+				"//rust/icc:ffi_cpp",
 			},
 		},
 	}},

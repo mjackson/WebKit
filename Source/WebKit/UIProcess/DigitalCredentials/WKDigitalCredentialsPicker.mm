@@ -41,7 +41,7 @@
 #import <Foundation/Foundation.h>
 #import <JavaScriptCore/ConsoleTypes.h>
 #import <Security/SecTrust.h>
-#import <WebCore/DigitalCredentialRequest.h>
+#import <WebCore/DigitalCredentialGetRequest.h>
 #import <WebCore/DigitalCredentialsProtocols.h>
 #import <WebCore/DigitalCredentialsRequestData.h>
 #import <WebCore/DigitalCredentialsResponseData.h>
@@ -189,8 +189,8 @@ static RetainPtr<NSArray<NSArray<WKIdentityDocumentPresentmentRequestAuthenticat
 
         CFIndex count = CFArrayGetCount(certificateChain.get());
         for (CFIndex i = 0; i < count; ++i) {
-            auto certificate = checked_cf_cast<SecCertificateRef>(CFArrayGetValueAtIndex(certificateChain.get(), i));
-            RetainPtr mappedCertificate = adoptNS([WebKit::allocWKIdentityDocumentPresentmentRequestAuthenticationCertificateInstance() initWithCertificate:certificate]);
+            RetainPtr certificate = checked_cf_cast<SecCertificateRef>(CFArrayGetValueAtIndex(certificateChain.get(), i));
+            RetainPtr mappedCertificate = adoptNS([WebKit::allocWKIdentityDocumentPresentmentRequestAuthenticationCertificateInstance() initWithCertificate:certificate.get()]);
             [mappedCertificateChain addObject:mappedCertificate.get()];
         }
         [mappedRequestAuthenticationCertificates addObject:mappedCertificateChain.get()];
@@ -233,23 +233,31 @@ static RetainPtr<NSArray<NSArray<WKIdentityDocumentPresentmentRequestAuthenticat
 
 - (CocoaWindow *)presentationAnchor
 {
-    return [_webView window];
+    if (RetainPtr webView = _webView.get())
+        return [webView window];
+    return nil;
 }
 
 - (void)fetchRawRequestsWithCompletionHandler:(void (^)(NSArray<WKIdentityDocumentPresentmentRawRequest *> *))completionHandler
 {
     LOG(DigitalCredentials, "Fetching raw requests from web content process");
-    _page->fetchRawDigitalCredentialRequests([completionHandler = makeBlockPtr(completionHandler)](auto&& unvalidatedRequests) {
+    RefPtr page = _page.get();
+    if (!page) {
+        LOG(DigitalCredentials, "Cannot fetch raw requests: page is null");
+        completionHandler(@[]);
+        return;
+    }
+    page->fetchRawDigitalCredentialRequests([completionHandler = makeBlockPtr(completionHandler)](auto &&unvalidatedRequests) {
         RetainPtr<NSMutableArray<WKIdentityDocumentPresentmentRawRequest *>> rawRequests = adoptNS([[NSMutableArray alloc] init]);
 
-        for (auto&& unvalidatedRequest : unvalidatedRequests) {
+        for (auto &&unvalidatedRequest : unvalidatedRequests) {
             const auto &mobileDocumentRequest = unvalidatedRequest;
             RetainPtr deviceRequest = mobileDocumentRequest.deviceRequest.createNSString();
             RetainPtr encryptionInfo = mobileDocumentRequest.encryptionInfo.createNSString();
 
             RetainPtr<NSDictionary<NSString *, id>> jsonRequest = @{
-                @"deviceRequest": deviceRequest.get(),
-                @"encryptionInfo": encryptionInfo.get()
+                @"deviceRequest" : deviceRequest.get(),
+                @"encryptionInfo" : encryptionInfo.get()
             };
 
             NSError *error = nil;
@@ -296,7 +304,7 @@ static RetainPtr<NSArray<NSArray<WKIdentityDocumentPresentmentRequestAuthenticat
 
 - (void)performRequest:(const WebCore::DigitalCredentialsRequestData &)requestData
 {
-    RetainPtr<NSMutableArray<WKIdentityDocumentPresentmentMobileDocumentRequest *>> mobileDocumentRequests = adoptNS([[NSMutableArray alloc] init]);
+    RetainPtr mobileDocumentRequests = adoptNS([[NSMutableArray alloc] init]);
 
     for (auto&& validatedRequest : requestData.requests) {
 
@@ -401,16 +409,16 @@ static RetainPtr<NSArray<NSArray<WKIdentityDocumentPresentmentRequestAuthenticat
         break;
     }
 
-    if (_page) {
+    if (RefPtr page = _page.get()) {
         String consoleMessage = exceptionData.message;
         RetainPtr debugDescription = dynamic_objc_cast<NSString>(error.userInfo[NSDebugDescriptionErrorKey]);
         if ([debugDescription length])
             consoleMessage = makeString(consoleMessage, " ("_s, String(debugDescription.get()), ")"_s);
 
-        auto targetFrameID = _page->focusedFrame() ? _page->focusedFrame()->frameID() : _page->mainFrame()->frameID();
+        auto targetFrameID = page->focusedFrame() ? page->focusedFrame()->frameID() : page->mainFrame()->frameID();
         auto logLevel = exceptionData.code == ExceptionCode::AbortError ? MessageLevel::Warning : MessageLevel::Error;
 
-        _page->addConsoleMessage(targetFrameID, MessageSource::JS, logLevel, makeString("Digital Credential request failed: "_s, consoleMessage));
+        page->addConsoleMessage(targetFrameID, MessageSource::JS, logLevel, makeString("Digital Credential request failed: "_s, consoleMessage));
     }
 
     [self completeWith:makeUnexpected(exceptionData)];

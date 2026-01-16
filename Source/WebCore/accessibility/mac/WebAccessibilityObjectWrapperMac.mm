@@ -171,7 +171,7 @@ static inline NSInteger gmtToLocalTimeOffset(DateComponentsType type)
 
 - (void)detach
 {
-    ASSERT(isMainThread());
+    AX_ASSERT(isMainThread());
 
     // If the IsolatedObject is initialized, do not UnregisterUniqueIdForUIElement here because the wrapper may be in the middle of serving a request on the AX thread.
     // The IsolatedObject is capable to tend to some requests after the live object is gone.
@@ -223,7 +223,7 @@ static inline BOOL AXObjectIsTextMarkerRange(id object)
 
 static IntRect screenToContents(AXCoreObject& axObject, IntRect&& rect)
 {
-    ASSERT(isMainThread());
+    AX_ASSERT(isMainThread());
 
     RefPtr document = axObject.document();
     RefPtr frameView = document ? document->view() : nullptr;
@@ -318,7 +318,7 @@ static AccessibilityTextOperation accessibilityTextOperationForParameterizedAttr
 
     if ([markerRanges isKindOfClass:[NSArray class]]) {
         operation.textRanges = makeVector(markerRanges.get(), [&axObjectCache] (id markerRange) {
-            ASSERT(AXObjectIsTextMarkerRange(markerRange));
+            AX_ASSERT(AXObjectIsTextMarkerRange(markerRange));
             return rangeForTextMarkerRange(axObjectCache, (AXTextMarkerRangeRef)markerRange);
         });
     }
@@ -631,7 +631,10 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_BEGIN
         // This exists to tell assistive technologies that WebKit stitches adjacent text
         // elements together in the accessibility tree — thus, assistive technologies know
         // they don't need to.
-        @"AXPerformsOwnTextStitching"
+        @"AXPerformsOwnTextStitching",
+        // This indicates to assistive technologies whether WebKit will handle posting
+        // announcements for live region updates, or whether the AT is responsible.
+        @"AXPostsOwnLiveRegionAnnouncements"
     ];
     static NeverDestroyed spinButtonCommonAttributes = [] {
         auto tempArray = adoptNS([[NSMutableArray alloc] initWithArray:attributes.get().get()]);
@@ -2358,7 +2361,7 @@ ALLOW_DEPRECATED_DECLARATIONS_BEGIN
 
 - (void)_accessibilityPerformPressAction
 {
-    ASSERT(isMainThread());
+    AX_ASSERT(isMainThread());
     RefPtr<AXCoreObject> backingObject = self.updateObjectBackingStore;
     if (!backingObject)
         return;
@@ -2434,7 +2437,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 - (void)_accessibilityShowContextMenu
 {
     AXTRACE("WebAccessibilityObjectWrapper _accessibilityShowContextMenu"_s);
-    ASSERT(isMainThread());
+    AX_ASSERT(isMainThread());
 
     RefPtr<AccessibilityObject> backingObject = dynamicDowncast<AccessibilityObject>(self.axBackingObject);
     if (!backingObject) {
@@ -2530,7 +2533,8 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
             return;
 
         AXTreeData data = cache->treeData({ { AXStreamOptions::IdentifierAttribute, AXStreamOptions::OuterHTML, AXStreamOptions::RendererOrNode } }); // Can specify AXStreamOptions here if needed (e.g., TextRuns)
-        SAFE_FPRINTF(stderr, "==AX Trees==\n%s\n%s\n", data.liveTree.utf8(), data.isolatedTree.utf8());
+
+        data.dumpToStderr();
     });
 }
 
@@ -2601,7 +2605,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
 
     // handle the command
     if ([attributeName isEqualToString:NSAccessibilitySelectedTextMarkerRangeAttribute]) {
-        ASSERT(textMarkerRange);
+        AX_ASSERT(textMarkerRange);
         Accessibility::performFunctionOnMainThread([textMarkerRange = retainPtr(textMarkerRange), protectedSelf = retainPtr(self)] {
             if (RefPtr<AXCoreObject> backingObject = protectedSelf.get().axBackingObject)
                 backingObject->setSelectedVisiblePositionRange(AXTextMarkerRange { textMarkerRange.get() });
@@ -2776,7 +2780,7 @@ enum class TextUnit {
         case TextUnit::Paragraph:
             return inputMarker.paragraphRange().platformData().autorelease();
         default:
-            ASSERT_NOT_REACHED();
+            AX_ASSERT_NOT_REACHED();
             return nil;
         }
     }
@@ -2806,7 +2810,7 @@ enum class TextUnit {
             range = cache->paragraphForCharacterOffset(marker);
             break;
         default:
-            ASSERT_NOT_REACHED();
+            AX_ASSERT_NOT_REACHED();
             break;
         }
 
@@ -2829,7 +2833,7 @@ enum class TextUnit {
                 rangeType = LineRangeType::Right;
                 break;
             default:
-                ASSERT_NOT_REACHED();
+                AX_ASSERT_NOT_REACHED();
                 break;
             }
             return AXTextMarker { textMarker }.lineRange(rangeType).platformData().bridgingAutorelease();
@@ -2854,7 +2858,7 @@ enum class TextUnit {
             visiblePositionRange = backingObject->rightLineVisiblePositionRange(marker);
             break;
         default:
-            ASSERT_NOT_REACHED();
+            AX_ASSERT_NOT_REACHED();
             break;
         }
 
@@ -2921,7 +2925,7 @@ enum class TextUnit {
         case TextUnit::PreviousLineStart:
             return textMarkerForVisiblePosition(cache.get(), backingObject->previousLineStartPosition(oldMarker));
         default:
-            ASSERT_NOT_REACHED();
+            AX_ASSERT_NOT_REACHED();
             break;
         }
 
@@ -3026,10 +3030,10 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_BEGIN
 
             auto criteria = accessibilityTextCriteriaForParameterizedAttribute(protectedDictionary.get());
             criteria.second.textRanges = backingObject->findTextRanges(criteria.first);
-            ASSERT(criteria.second.textRanges.size() <= 1);
+            AX_ASSERT(criteria.second.textRanges.size() <= 1);
             return backingObject->performTextOperation(criteria.second);
         });
-        ASSERT(result.size() <= 1);
+        AX_ASSERT(result.size() <= 1);
         if (result.size() > 0)
             return result[0].createNSString().autorelease();
         return @"";
@@ -3103,7 +3107,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_BEGIN
             && criteria.searchKeys.contains(AccessibilitySearchKey::AnyType)
             && (!criteria.visibleOnly || backingObject->isVisible())) {
             RetainPtr remoteFrameChildren = children(*backingObject);
-            ASSERT([remoteFrameChildren count] == 1);
+            AX_ASSERT([remoteFrameChildren count] == 1);
             if ([remoteFrameChildren count] == 1) {
                 NSUInteger includedChildrenCount = std::min([remoteFrameChildren count], NSUInteger(criteria.resultsLimit));
                 widgetChildren = [remoteFrameChildren subarrayWithRange:NSMakeRange(0, includedChildrenCount)];

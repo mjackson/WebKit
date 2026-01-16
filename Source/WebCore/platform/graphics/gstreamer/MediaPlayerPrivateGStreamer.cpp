@@ -389,7 +389,7 @@ void MediaPlayerPrivateGStreamer::load(const String& urlString)
 
     // Reset network and ready states. Those will be set properly once
     // the pipeline pre-rolled.
-    m_networkState = MediaPlayer::NetworkState::Loading;
+    m_networkState = m_isDelayingLoad ? MediaPlayer::NetworkState::Idle : MediaPlayer::NetworkState::Loading;
     player->networkStateChanged();
     m_readyState = MediaPlayer::ReadyState::HaveNothing;
     player->readyStateChanged();

@@ -10,8 +10,10 @@
 
 #include "include/core/SkColor.h"
 #include "include/core/SkColorSpace.h"
+#include "include/core/SkImage.h"
 #include "include/core/SkRefCnt.h"
-#include "include/private/base/SkAPI.h"
+#include "include/core/SkSpan.h"
+#include "include/private/SkHdrMetadata.h"
 
 #include <optional>
 #include <vector>
@@ -27,12 +29,14 @@ namespace skhdr {
  * SMPTE ST 2094-50: Dynamic metadata for color volume transform — Application #5
  * https://github.com/SMPTE/st2094-50
  */
-struct SK_API Agtm {
+class AgtmImpl final : public Agtm {
+  public:
     // A PiecewiseCubic metadata group, described in Clause 5.1, Piecewise cubic function.
     struct PiecewiseCubicFunction {
         // The GainCurveNumControlPoints metadata item.
-        static constexpr size_t kMaxNumControlPoints = 32;
-        size_t fNumControlPoints = 0;
+        static constexpr uint8_t kMinNumControlPoints = 1u;
+        static constexpr uint8_t kMaxNumControlPoints = 32u;
+        uint8_t fNumControlPoints = 0;
 
         // The GainCurveControlPointX, GainCurveControlPointY, and GainCurveControlPointM metadata
         // items.
@@ -78,8 +82,19 @@ struct SK_API Agtm {
         SkColor4f evaluate(const SkColor4f& c) const;
     };
 
+    // Characterization of the type of tone mapping specified.
+    enum class Type {
+        // Did not specify an AdaptiveToneMap.
+        kNone,
+        // Specified to use RWTMO as the tone mapping.
+        kReferenceWhite,
+        // Specified its own custom parameters.
+        kCustom,
+    };
+    Type fType = Type::kNone;
+
     // The HdrReferenceWhite metadata item.
-    float fHdrReferenceWhite = 203.f;
+    float fHdrReferenceWhite = kDefaultHdrReferenceWhite;
 
     // The BaselineHdrHeadroom metadata item.
     float fBaselineHdrHeadroom = 0.f;
@@ -87,18 +102,24 @@ struct SK_API Agtm {
     // The GainApplicationSpaceColorPrimaries metadata item.
     SkColorSpacePrimaries fGainApplicationSpacePrimaries = {0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f};
 
-    // The GainApplicationOffset metadata item.
-    float fGainApplicationOffset = 0.f;
-
     // The NumAlternateImages metadata item.
-    static constexpr size_t kMaxNumAlternateImages = 4;
-    size_t fNumAlternateImages = 0;
+    static constexpr uint8_t kMaxNumAlternateImages = 4u;
+    uint8_t fNumAlternateImages = 0u;
 
     // The AlternateHdrHeadroom metadata item list.
     float fAlternateHdrHeadroom[kMaxNumAlternateImages];
 
     // The GainFunction metadata item list.
     GainFunction fGainFunction[kMaxNumAlternateImages];
+
+    // SkImage containing the control point values for use by the color filter, populated by
+    // populateGainCurvesXYM.
+    sk_sp<SkImage> fGainCurvesXYM;
+
+    /**
+     * Populate the fGainCurvesXYM which will cache the gain curves' values in an SkImage.
+     */
+    void populateGainCurvesXYM();
 
     /**
      * This will populate the metadata with the Reference White Tone Mapping Operator (RWTMO)
@@ -107,19 +128,48 @@ struct SK_API Agtm {
     void populateUsingRwtmo();
 
     /**
+     * The encoding is defined in SMPTE ST 2094-50 candidate draft 2. This will deserialize the
+     * smpte_st_2094_50_application_info_v0() bitstream. Return false if parsing fails.
+     */
+    bool parse(const SkData* data);
+
+    /**
      * Compute the weighting for the specified targeted HDR headroom according to the computations
      * in Clause 5.4.5, Computation of the adaptive tone map.
      */
     struct Weighting {
         // The index into fAlternateImages for fWeight. If fWeight[i] is 0 then
         // fAlternateImageIndex[i] is not used and should be set to kInvalidIndex.
-        static constexpr size_t kInvalidIndex = SIZE_MAX;
-        size_t fAlternateImageIndex[2] = {kInvalidIndex, kInvalidIndex};
+        static constexpr uint8_t kInvalidIndex = 255;
+        uint8_t fAlternateImageIndex[2] = {kInvalidIndex, kInvalidIndex};
 
         // The value of fWeight[i] is weight for the fAlternateImageIndex[i]-th alternate image.
         float fWeight[2] = {0.f, 0.f};
     };
-    Weighting ComputeWeighting(float targetedHdrHeadroom) const;
+    Weighting computeWeighting(float targetedHdrHeadroom) const;
+
+    /**
+     * Apply the tone mapping to `colors` in the gain application color space, targeting the
+     * specified `targetedHdrHeadroom`.
+     */
+    void applyGain(SkSpan<SkColor4f> colors, float targetedHdrHeadroom) const;
+
+    /**
+     * Return the gain application color space.
+     */
+    sk_sp<SkColorSpace> getGainApplicationSpace() const;
+
+    /**
+     * Implementation of the Agtm interface.
+     */
+    ~AgtmImpl() override = default;
+    sk_sp<SkData> serialize() const override;
+    float getHdrReferenceWhite() const override;
+    bool hasBaselineHdrHeadroom() const override;
+    float getBaselineHdrHeadroom() const override;
+    bool isClamp() const override;
+    sk_sp<SkColorFilter> makeColorFilter(float targetedHdrHeadroom) const override;
+    SkString toString() const override;
 };
 
 }  // namespace skhdr

@@ -50,7 +50,7 @@ inline bool CharacterOffset::isEqual(const CharacterOffset& other) const
 template<typename U>
 inline Vector<Ref<AXCoreObject>> AXObjectCache::objectsForIDs(const U& axIDs) const
 {
-    ASSERT(isMainThread());
+    AX_ASSERT(isMainThread());
 
     CheckedPtr cache = this;
     return WTF::compactMap(axIDs, [cache](auto& axID) -> std::optional<Ref<AXCoreObject>> {

@@ -714,8 +714,8 @@ TEST(WKWebExtensionAPIRuntime, SendMessageFromSubframe)
         { "/subframe"_s, { { { "Content-Type"_s, "text/html"_s } }, ""_s } },
     }, TestWebKitAPI::HTTPServer::Protocol::Http);
 
-    auto *urlRequestMain = server.requestWithLocalhost("/main"_s);
-    auto *urlRequestSubframe = server.request("/subframe"_s);
+    RetainPtr urlRequestMain = server.requestWithLocalhost("/main"_s);
+    RetainPtr urlRequestSubframe = server.request("/subframe"_s);
 
     auto *backgroundScript = Util::constructScript(@[
         @"browser.runtime.onMessage.addListener((message, sender) => {",
@@ -762,11 +762,11 @@ TEST(WKWebExtensionAPIRuntime, SendMessageFromSubframe)
 
     auto manager = Util::loadExtension(manifest, resources);
 
-    [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequestSubframe.URL];
+    [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequestSubframe.get().URL];
 
     [manager runUntilTestMessage:@"Load Tab"];
 
-    [manager.get().defaultTab.webView loadRequest:urlRequestMain];
+    [manager.get().defaultTab.webView loadRequest:urlRequestMain.get()];
 
     [manager run];
 }
@@ -1101,8 +1101,8 @@ TEST(WKWebExtensionAPIRuntime, ConnectFromSubframe)
         { "/subframe"_s, { { { "Content-Type"_s, "text/html"_s } }, ""_s } },
     }, TestWebKitAPI::HTTPServer::Protocol::Http);
 
-    auto *urlRequestMain = server.requestWithLocalhost("/main"_s);
-    auto *urlRequestSubframe = server.request("/subframe"_s);
+    RetainPtr urlRequestMain = server.requestWithLocalhost("/main"_s);
+    RetainPtr urlRequestSubframe = server.request("/subframe"_s);
 
     auto *backgroundScript = Util::constructScript(@[
         @"browser.runtime.onConnect.addListener((port) => {",
@@ -1157,11 +1157,11 @@ TEST(WKWebExtensionAPIRuntime, ConnectFromSubframe)
 
     auto manager = Util::loadExtension(manifest, resources);
 
-    [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequestSubframe.URL];
+    [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequestSubframe.get().URL];
 
     [manager runUntilTestMessage:@"Load Tab"];
 
-    [manager.get().defaultTab.webView loadRequest:urlRequestMain];
+    [manager.get().defaultTab.webView loadRequest:urlRequestMain.get()];
 
     [manager run];
 }

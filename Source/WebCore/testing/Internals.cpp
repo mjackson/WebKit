@@ -1801,6 +1801,8 @@ ExceptionOr<void> Internals::setFormControlStateOfPreviousHistoryItem(const Vect
 void Internals::simulateSpeechSynthesizerVoiceListChange()
 {
     if (m_platformSpeechSynthesizer) {
+        m_platformSpeechSynthesizer->setInitialVoiceListToEmpty(false);
+        m_platformSpeechSynthesizer->initializeVoiceList();
         m_platformSpeechSynthesizer->client().voicesDidChange();
         return;
     }
@@ -1834,6 +1836,12 @@ void Internals::enableMockSpeechSynthesizerForMediaElement(HTMLMediaElement& ele
 
     m_platformSpeechSynthesizer = mock.copyRef();
     synthesis.setPlatformSynthesizer(WTF::move(mock));
+}
+
+void Internals::setInitialVoiceListToEmpty()
+{
+    if (m_platformSpeechSynthesizer)
+        m_platformSpeechSynthesizer->setInitialVoiceListToEmpty(true);
 }
 
 ExceptionOr<void> Internals::setSpeechUtteranceDuration(double duration)

@@ -1743,12 +1743,8 @@ static JSRegExpStringIterator::Field regExpStringIteratorInternalFieldIndex(Byte
         return JSRegExpStringIterator::Field::RegExp;
     if (node->entry().emitter() == &BytecodeIntrinsicNode::emit_intrinsic_regExpStringIteratorFieldString)
         return JSRegExpStringIterator::Field::String;
-    if (node->entry().emitter() == &BytecodeIntrinsicNode::emit_intrinsic_regExpStringIteratorFieldGlobal)
-        return JSRegExpStringIterator::Field::Global;
-    if (node->entry().emitter() == &BytecodeIntrinsicNode::emit_intrinsic_regExpStringIteratorFieldFullUnicode)
-        return JSRegExpStringIterator::Field::FullUnicode;
-    if (node->entry().emitter() == &BytecodeIntrinsicNode::emit_intrinsic_regExpStringIteratorFieldDone)
-        return JSRegExpStringIterator::Field::Done;
+    if (node->entry().emitter() == &BytecodeIntrinsicNode::emit_intrinsic_regExpStringIteratorFieldFlags)
+        return JSRegExpStringIterator::Field::Flags;
     RELEASE_ASSERT_NOT_REACHED();
     return JSRegExpStringIterator::Field::RegExp;
 }

@@ -275,29 +275,24 @@ void ViewTransition::callUpdateCallback()
         }
     }
 
-    callbackPromise->whenSettled([weakThis = WeakPtr { *this }, callbackPromise] () mutable {
+    callbackPromise->whenSettledWithResult([weakThis = WeakPtr { *this }](auto*, bool isFulfilled, auto result) mutable {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
             return;
         protectedThis->m_updateCallbackTimeout = nullptr;
-        switch (callbackPromise->status()) {
-        case DOMPromise::Status::Fulfilled:
+        if (isFulfilled) {
             Ref { protectedThis->m_updateCallbackDone.second }->resolve();
             protectedThis->activateViewTransition();
-            break;
-        case DOMPromise::Status::Rejected:
-            Ref { protectedThis->m_updateCallbackDone.second }->rejectWithCallback([&] (auto&) {
-                return callbackPromise->result();
-            }, RejectAsHandled::No);
-            if (protectedThis->m_phase == ViewTransitionPhase::Done)
-                return;
-            Ref { protectedThis->m_ready.second }->markAsHandled();
-            protectedThis->skipViewTransition(callbackPromise->result());
-            break;
-        case DOMPromise::Status::Pending:
-            ASSERT_NOT_REACHED();
-            break;
+            return;
         }
+
+        Ref { protectedThis->m_updateCallbackDone.second }->rejectWithCallback([&result] (auto&) {
+            return result;
+        }, RejectAsHandled::No);
+        if (protectedThis->m_phase == ViewTransitionPhase::Done)
+            return;
+        Ref { protectedThis->m_ready.second }->markAsHandled();
+        protectedThis->skipViewTransition(WTF::move(result));
     });
 
     m_updateCallbackTimeout = document->checkedEventLoop()->scheduleTask(defaultTimeout, TaskSource::DOMManipulation, [weakThis = WeakPtr { *this }] {

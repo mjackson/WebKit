@@ -27,6 +27,7 @@
 
 #include "AXIsolatedObject.h"
 #include "AXLogger.h"
+#include "AXLoggerBase.h"
 #include "AXObjectCache.h"
 #include "AXTreeStore.h"
 #include "AXTreeStoreInlines.h"
@@ -59,9 +60,9 @@ static std::optional<AXID> nodeID(AXObjectCache& cache, Node* node)
 
 TextMarkerData::TextMarkerData(AXObjectCache& cache, const VisiblePosition& visiblePosition, int charStart, int charOffset, bool ignoredParam, TextMarkerOrigin originParam)
 {
-    ASSERT(isMainThread());
+    AX_ASSERT(isMainThread());
 #if ENABLE(AX_THREAD_TEXT_APIS)
-    ASSERT(!AXObjectCache::shouldCreateAXThreadCompatibleMarkers());
+    AX_ASSERT(!AXObjectCache::shouldCreateAXThreadCompatibleMarkers());
 #endif
 
     zeroBytes(*this);
@@ -80,7 +81,7 @@ TextMarkerData::TextMarkerData(AXObjectCache& cache, const VisiblePosition& visi
 
 TextMarkerData::TextMarkerData(AXObjectCache& cache, const CharacterOffset& characterOffsetParam, bool ignoredParam, TextMarkerOrigin originParam)
 {
-    ASSERT(isMainThread());
+    AX_ASSERT(isMainThread());
 
     zeroBytes(*this);
 
@@ -108,13 +109,13 @@ TextMarkerData::TextMarkerData(AXObjectCache& cache, const CharacterOffset& char
 
 AXTextMarker::AXTextMarker(const VisiblePosition& visiblePosition, TextMarkerOrigin origin)
 {
-    ASSERT(isMainThread());
+    AX_ASSERT(isMainThread());
 
     if (visiblePosition.isNull())
         return;
 
     RefPtr node = visiblePosition.deepEquivalent().anchorNode();
-    ASSERT(node);
+    AX_ASSERT(node);
     if (!node)
         return;
 
@@ -128,7 +129,7 @@ AXTextMarker::AXTextMarker(const VisiblePosition& visiblePosition, TextMarkerOri
 
 AXTextMarker::AXTextMarker(const CharacterOffset& characterOffset, TextMarkerOrigin origin)
 {
-    ASSERT(isMainThread());
+    AX_ASSERT(isMainThread());
 
     if (characterOffset.isNull())
         return;
@@ -139,7 +140,7 @@ AXTextMarker::AXTextMarker(const CharacterOffset& characterOffset, TextMarkerOri
 
 AXTextMarker::operator VisiblePosition() const
 {
-    ASSERT(isMainThread());
+    AX_ASSERT(isMainThread());
 
     WeakPtr cache = AXTreeStore<AXObjectCache>::axObjectCacheForID(treeID());
     if (!cache)
@@ -150,7 +151,7 @@ AXTextMarker::operator VisiblePosition() const
 
 AXTextMarker::operator CharacterOffset() const
 {
-    ASSERT(isMainThread());
+    AX_ASSERT(isMainThread());
 
     if (isIgnored() || isNull())
         return { };
@@ -187,7 +188,7 @@ static Node* nodeAndOffsetForReplacedNode(Node& replacedNode, int& offset, int c
 
 std::optional<BoundaryPoint> AXTextMarker::boundaryPoint() const
 {
-    ASSERT(isMainThread());
+    AX_ASSERT(isMainThread());
 
     CharacterOffset characterOffset = *this;
     if (characterOffset.isNull())
@@ -258,19 +259,19 @@ AXTextMarkerRange::AXTextMarkerRange(const VisibleSelection& selection)
     : m_start(selection.visibleStart())
     , m_end(selection.visibleEnd())
 {
-    ASSERT(isMainThread());
+    AX_ASSERT(isMainThread());
 }
 
 AXTextMarkerRange::AXTextMarkerRange(const VisiblePositionRange& range)
     : m_start(range.start)
     , m_end(range.end)
 {
-    ASSERT(isMainThread());
+    AX_ASSERT(isMainThread());
 }
 
 AXTextMarkerRange::AXTextMarkerRange(const std::optional<SimpleRange>& range)
 {
-    ASSERT(isMainThread());
+    AX_ASSERT(isMainThread());
 
     if (!range)
         return;
@@ -328,7 +329,7 @@ AXTextMarkerRange::AXTextMarkerRange(std::optional<AXID> treeID, std::optional<A
 
 AXTextMarkerRange::operator VisiblePositionRange() const
 {
-    ASSERT(isMainThread());
+    AX_ASSERT(isMainThread());
     if (!m_start || !m_end)
         return { };
     return { m_start, m_end };
@@ -336,7 +337,7 @@ AXTextMarkerRange::operator VisiblePositionRange() const
 
 std::optional<SimpleRange> AXTextMarkerRange::simpleRange() const
 {
-    ASSERT(isMainThread());
+    AX_ASSERT(isMainThread());
 
     auto startBoundaryPoint = m_start.boundaryPoint();
     if (!startBoundaryPoint)
@@ -356,7 +357,7 @@ std::optional<CharacterRange> AXTextMarkerRange::characterRange() const
         return std::nullopt;
 
     if (m_start.m_data.characterOffset > m_end.m_data.characterOffset) {
-        ASSERT_NOT_REACHED();
+        AX_ASSERT_NOT_REACHED();
         return std::nullopt;
     }
     return { { m_start.m_data.characterOffset, m_end.m_data.characterOffset - m_start.m_data.characterOffset } };
@@ -649,7 +650,7 @@ String AXTextMarkerRange::toString(IncludeListMarkerText includeListMarkerText, 
 #if ENABLE(AX_THREAD_TEXT_APIS)
 AXTextMarker AXTextMarker::convertToDomOffset() const
 {
-    ASSERT(!isMainThread());
+    AX_ASSERT(!isMainThread());
 
     if (!isValid())
         return { };
@@ -859,7 +860,7 @@ bool AXTextMarker::atLineBoundaryForDirection(AXDirection direction, const AXTex
 
 unsigned AXTextMarker::offsetFromRoot() const
 {
-    ASSERT(!isMainThread());
+    AX_ASSERT(!isMainThread());
 
     if (!isValid())
         return 0;
@@ -913,7 +914,7 @@ unsigned AXTextMarker::offsetFromRoot() const
 
 AXTextMarker AXTextMarker::nextMarkerFromOffset(unsigned offset, ForceSingleOffsetMovement forceSingleOffsetMovement, std::optional<AXID> stopAtID) const
 {
-    ASSERT(!isMainThread());
+    AX_ASSERT(!isMainThread());
 
     if (!isValid())
         return { };
@@ -934,7 +935,7 @@ AXTextMarker AXTextMarker::nextMarkerFromOffset(unsigned offset, ForceSingleOffs
 
 AXTextMarker AXTextMarker::findLastBefore(std::optional<AXID> stopAtID) const
 {
-    ASSERT(!isMainThread());
+    AX_ASSERT(!isMainThread());
 
     if (!isValid())
         return { };
@@ -962,7 +963,7 @@ AXTextMarker AXTextMarker::findLastBefore(std::optional<AXID> stopAtID) const
 
 AXTextMarkerRange AXTextMarker::rangeWithSameStyle() const
 {
-    ASSERT(!isMainThread());
+    AX_ASSERT(!isMainThread());
 
     if (!isValid())
         return { };
@@ -1015,7 +1016,7 @@ static FloatRect viewportRelativeFrameFromRuns(Ref<AXIsolatedObject> object, uns
 
 FloatRect AXTextMarkerRange::viewportRelativeFrame() const
 {
-    ASSERT(!isMainThread());
+    AX_ASSERT(!isMainThread());
 
     auto start = m_start.toTextRunMarker();
     if (!start.isValid())
@@ -1045,7 +1046,7 @@ FloatRect AXTextMarkerRange::viewportRelativeFrame() const
 
 AXTextMarkerRange AXTextMarkerRange::convertToDomOffsetRange() const
 {
-    ASSERT(!isMainThread());
+    AX_ASSERT(!isMainThread());
 
     return {
         m_start.convertToDomOffset(),
@@ -1055,7 +1056,7 @@ AXTextMarkerRange AXTextMarkerRange::convertToDomOffsetRange() const
 
 const AXTextRuns* AXTextMarker::runs() const
 {
-    ASSERT(!isMainThread());
+    AX_ASSERT(!isMainThread());
 
     RefPtr object = isolatedObject();
     return object ? object->textRuns() : nullptr;
@@ -1176,12 +1177,12 @@ AXTextMarker AXTextMarker::findLine(AXDirection direction, AXTextUnitBoundary bo
             if (adjacentRunIndex != notFound && adjacentRunIndex > runIndex && adjacentRunIndex - runIndex > 1) {
                 // The scenario we're trying to detect should only have resulted in one run / line being skipped.
                 // Our affinity flip won't result in the correct behavior if we've somehow jumped >2 lines.
-                ASSERT(adjacentRunIndex - runIndex == 2);
+                AX_ASSERT(adjacentRunIndex - runIndex == 2);
                 // This scenario really should only happen with single "entity" runs (where an entity could be an ASCII
                 // character, or a multi-byte emoji that occupies multiple indices but is one atomic entity).
                 AX_BROKEN_ASSERT(!currentRuns->containsOnlyASCII || (currentRuns->runLength(runIndex) == 1 && currentRuns->runLength(adjacentRunIndex) == 1));
                 // The next line end is simply the adjacent marker with an upstream affinity (with an ASSERT to verify this).
-                ASSERT(currentRuns->indexForOffset(adjacentMarker.offset(), Affinity::Upstream) == runIndex + 1);
+                AX_ASSERT(currentRuns->indexForOffset(adjacentMarker.offset(), Affinity::Upstream) == runIndex + 1);
                 adjacentMarker.setAffinity(Affinity::Upstream);
                 return adjacentMarker;
             }
@@ -1514,7 +1515,7 @@ AXTextMarkerRange AXTextMarker::lineRange(LineRangeType type, IncludeTrailingLin
         return { WTF::move(startMarker), WTF::move(endMarker) };
     }
 
-    ASSERT(type == LineRangeType::Right);
+    AX_ASSERT(type == LineRangeType::Right);
 
     // Move forwards off a line end (because this a "right-line" request).
     auto startMarker = atLineEnd() ? findMarker(AXDirection::Next) : *this;
@@ -1663,7 +1664,7 @@ AXIsolatedObject* findObjectWithRuns(AXIsolatedObject& start, AXDirection direct
         }
         return current.unsafeGet();
     }
-    ASSERT(direction == AXDirection::Previous);
+    AX_ASSERT(direction == AXDirection::Previous);
 
     auto previousInPreOrder = [&] (AXIsolatedObject& object) -> AXIsolatedObject* {
         if (RefPtr sibling = object.previousSiblingIncludingIgnored(/* updateChildrenIfNeeded */ true)) {

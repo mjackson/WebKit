@@ -491,12 +491,12 @@ inline String::String(RefPtr<ExternalStringImpl>&& string)
 }
 
 
-template<> inline std::span<const Latin1Character> String::span<Latin1Character>() const
+template<> inline std::span<const Latin1Character> String::span<Latin1Character>() const LIFETIME_BOUND
 {
     return span8();
 }
 
-template<> inline std::span<const char16_t> String::span<char16_t>() const
+template<> inline std::span<const char16_t> String::span<char16_t>() const LIFETIME_BOUND
 {
     return span16();
 }

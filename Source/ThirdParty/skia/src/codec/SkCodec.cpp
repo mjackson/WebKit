@@ -38,7 +38,9 @@
 #include "include/codec/SkAvifDecoder.h"
 #endif
 
-#if defined(SK_CODEC_DECODES_BMP)
+#if defined(SK_CODEC_DECODES_BMP_WITH_RUST)
+#include "experimental/rust_bmp/decoder/SkBmpRustDecoder.h"
+#elif defined(SK_CODEC_DECODES_BMP)
 #include "include/codec/SkBmpDecoder.h"
 #endif
 
@@ -103,7 +105,10 @@ static std::vector<Decoder>* get_decoders_for_editing() {
 #if defined(SK_CODEC_DECODES_ICO)
             decoders->push_back(SkIcoDecoder::Decoder());
 #endif
-#if defined(SK_CODEC_DECODES_BMP)
+
+#if defined(SK_CODEC_DECODES_BMP_WITH_RUST)
+            decoders->push_back(SkBmpRustDecoder::Decoder());
+#elif defined(SK_CODEC_DECODES_BMP)
             decoders->push_back(SkBmpDecoder::Decoder());
 #endif
 #if defined(SK_CODEC_DECODES_WBMP)
@@ -236,10 +241,10 @@ std::unique_ptr<SkCodec> SkCodec::MakeFromStream(
     return nullptr;
 }
 
-std::unique_ptr<SkCodec> SkCodec::MakeFromData(sk_sp<SkData> data, SkPngChunkReader* reader) {
+std::unique_ptr<SkCodec> SkCodec::MakeFromData(sk_sp<const SkData> data, SkPngChunkReader* reader) {
     return MakeFromData(std::move(data), SkCodecs::get_decoders(), reader);
 }
-std::unique_ptr<SkCodec> SkCodec::MakeFromData(sk_sp<SkData> data,
+std::unique_ptr<SkCodec> SkCodec::MakeFromData(sk_sp<const SkData> data,
                                                SkSpan<const SkCodecs::Decoder> decoders,
                                                SkPngChunkReader* reader) {
     if (!data) {
@@ -260,10 +265,6 @@ SkCodec::SkCodec(SkEncodedInfo&& info,
         , fOptions() {}
 
 SkCodec::~SkCodec() {}
-
-void SkCodec::setSrcXformFormat(XformFormat pixelFormat) {
-    fSrcXformFormat = pixelFormat;
-}
 
 bool SkCodec::queryYUVAInfo(const SkYUVAPixmapInfo::SupportedDataTypes& supportedDataTypes,
                             SkYUVAPixmapInfo* yuvaPixmapInfo) const {

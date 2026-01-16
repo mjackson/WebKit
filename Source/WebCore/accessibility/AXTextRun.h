@@ -28,6 +28,7 @@
 #if ENABLE(AX_THREAD_TEXT_APIS)
 
 #include <CoreText/CTFont.h>
+#include <WebCore/AXLoggerBase.h>
 #include <WebCore/FloatRect.h>
 #include <WebCore/TextAffinity.h>
 #include <WebCore/TextFlags.h>
@@ -102,7 +103,7 @@ struct AXTextRun {
     {
         // Runs should have a non-zero length (i.e. endIndex should strictly be greater than startIndex).
         // This is important because several parts of AXTextMarker rely on this assumption.
-        ASSERT(endIndex > startIndex);
+        AX_ASSERT(endIndex > startIndex);
     }
 
     const FixedVector<std::array<uint16_t, 2>>& domOffsets() const { return textRunDomOffsets; }
