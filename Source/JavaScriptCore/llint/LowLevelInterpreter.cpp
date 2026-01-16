@@ -588,6 +588,16 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
     SYMBOL_STRING(label) ":\n"
 #endif
 
+// On Windows ARM64, we disable alignment directives in inline assembly because
+// LLVM has a bug (llvm/llvm-project#47432) that causes a fatal error
+// "Failed to evaluate function length in SEH unwind info" when inline assembly
+// contains alignment directives. The alignment is not strictly required for
+// correctness, only for performance optimization.
+#if OS(WINDOWS) && CPU(ARM64)
+#define OFFLINE_ASM_ALIGN4B ""
+#define OFFLINE_ASM_NOALIGN ""
+#define OFFLINE_ASM_ALIGN_TRAP(align) ""
+#else
 #define OFFLINE_ASM_ALIGN4B ".balign 4\n"
 #define OFFLINE_ASM_NOALIGN ""
 
@@ -600,6 +610,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 #elif CPU(RISCV64)
 #define OFFLINE_ASM_ALIGN_TRAP(align) OFFLINE_ASM_BEGIN_SPACER "\n .balignw " #align ", 0x9002\n" // pad with c.ebreak instructions
 #endif
+#endif // !(OS(WINDOWS) && CPU(ARM64))
 
 #define OFFLINE_ASM_EXPORT_SYMBOL(symbol)
 
