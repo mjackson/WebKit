@@ -383,9 +383,9 @@ cmake -S . -B $WebKitBuild `
     "-DCMAKE_CXX_COMPILER=${ClangPath}" `
     "-DCMAKE_LINKER=${LldLinkPath}" `
     "-DCMAKE_C_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG /DU_STATIC_IMPLEMENTATION " `
-    "-DCMAKE_CXX_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG /DU_STATIC_IMPLEMENTATION -Xclang -fno-c++-static-destructors " `
+    "-DCMAKE_CXX_FLAGS_RELEASE=/Zi /O2 /Ob2 /DNDEBUG /DU_STATIC_IMPLEMENTATION /clang:-fno-c++-static-destructors " `
     "-DCMAKE_C_FLAGS_DEBUG=/Zi /FS /O0 /Ob0 /DU_STATIC_IMPLEMENTATION " `
-    "-DCMAKE_CXX_FLAGS_DEBUG=/Zi /FS /O0 /Ob0 /DU_STATIC_IMPLEMENTATION -Xclang -fno-c++-static-destructors " `
+    "-DCMAKE_CXX_FLAGS_DEBUG=/Zi /FS /O0 /Ob0 /DU_STATIC_IMPLEMENTATION /clang:-fno-c++-static-destructors " `
     -DENABLE_REMOTE_INSPECTOR=ON `
     "-DCMAKE_MSVC_RUNTIME_LIBRARY=${CmakeMsvcRuntimeLibrary}" `
     -G Ninja
