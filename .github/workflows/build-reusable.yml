@@ -276,9 +276,9 @@ jobs:
           "C:\Program Files\7-Zip" >> $Env:GITHUB_PATH
           scoop config use_external_7zip true
           scoop install ninja
-          # Install LLVM ARM64 manually since Scoop may not have it
+          # Install LLVM ARM64 from official LLVM releases
           $llvmVersion = "19.1.7"
-          $llvmUrl = "https://github.com/aspect-build/llvm-project/releases/download/llvm-$llvmVersion/LLVM-$llvmVersion-woa64.exe"
+          $llvmUrl = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$llvmVersion/LLVM-$llvmVersion-woa64.exe"
           $llvmPath = "C:\LLVM"
           Invoke-WebRequest -Uri $llvmUrl -OutFile "$env:TEMP\llvm-arm64.exe"
           & "C:\Program Files\7-Zip\7z.exe" x "$env:TEMP\llvm-arm64.exe" -o"$llvmPath" -y
