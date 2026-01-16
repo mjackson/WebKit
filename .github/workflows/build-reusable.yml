@@ -277,7 +277,8 @@ jobs:
           scoop config use_external_7zip true
           scoop install ninja
           # Install LLVM ARM64 from official LLVM releases
-          $llvmVersion = "19.1.7"
+          # Use LLVM 21 for ARM64 - has better Windows ARM64 support and fixes SEH unwind bugs
+          $llvmVersion = "21.1.8"
           $llvmUrl = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$llvmVersion/LLVM-$llvmVersion-woa64.exe"
           $llvmPath = "C:\LLVM"
           Invoke-WebRequest -Uri $llvmUrl -OutFile "$env:TEMP\llvm-arm64.exe"
