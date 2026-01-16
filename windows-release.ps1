@@ -192,6 +192,7 @@ if (!(Test-Path -Path $ICU_STATIC_ROOT) -or !(Test-Path -Path "$ICU_STATIC_LIBRA
         "/p:Configuration=$msbuildConfiguration",
         "/p:Platform=$Platform",
         "/p:SkipUWP=true",
+        "/p:WindowsTargetPlatformVersion=10.0",
         "/m",
         "/v:normal"
     )
@@ -246,6 +247,7 @@ if (!(Test-Path -Path $ICU_STATIC_ROOT) -or !(Test-Path -Path "$ICU_STATIC_LIBRA
             "/p:Configuration=$msbuildConfiguration",
             "/p:Platform=$Platform",
             "/p:SkipUWP=true",
+            "/p:WindowsTargetPlatformVersion=10.0",
             "/m",
             "/v:minimal"
         )
