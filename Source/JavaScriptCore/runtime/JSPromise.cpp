@@ -184,14 +184,9 @@ JSPromise* JSPromise::rejectedPromise(JSGlobalObject* globalObject, JSValue valu
 
 JSPromise* JSPromise::rejectedPromiseWithCaughtException(JSGlobalObject* globalObject, ThrowScope& scope)
 {
-    VM& vm = globalObject->vm();
     Exception* exception = scope.exception();
     ASSERT(exception);
-    if (vm.isTerminationException(exception)) [[unlikely]] {
-        scope.release();
-        return nullptr;
-    }
-    scope.clearException();
+    TRY_CLEAR_EXCEPTION(scope, nullptr);
     scope.release();
     return rejectedPromise(globalObject, exception->value());
 }
