@@ -576,7 +576,9 @@ __asm__(
 #else
     "ret" "\n"
 #endif
+#if !OS(WINDOWS)
     ".previous" "\n"
+#endif
 );
 
 void MacroAssembler::probe(Probe::Function function, void* arg)

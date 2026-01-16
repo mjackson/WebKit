@@ -146,7 +146,8 @@
 
 /* FIXME: This name should be more specific if it is only for use with CallFrame* */
 /* Use __builtin_frame_address(1) to get CallFrame* */
-#if CPU(ARM64) || CPU(X86_64)
+/* Windows ARM64 is excluded because _AddressOfReturnAddress() approach is unreliable */
+#if (CPU(ARM64) && !OS(WINDOWS)) || CPU(X86_64)
 #define USE_BUILTIN_FRAME_ADDRESS 1
 #endif
 

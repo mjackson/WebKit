@@ -897,7 +897,7 @@ typedef MathThunkCallingConvention(*MathThunk)(MathThunkCallingConvention);
     } \
     static MathThunk UnaryDoubleOpWrapper(function) = &function##Thunk;
 
-#elif CPU(ARM64)
+#elif CPU(ARM64) && !OS(WINDOWS)
 
 #define defineUnaryDoubleOpWrapper(function) \
     __asm__( \
