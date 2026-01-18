@@ -174,7 +174,17 @@ private:
     static unsigned computeNumberOfGCMarkers(unsigned maxNumberOfGCMarkers);
     static unsigned computeNumberOfWorkerThreads(int maxNumberOfWorkerThreads, int minimum = 1);
     static int32_t computePriorityDeltaOfWorkerThreads(int32_t twoCorePriorityDelta, int32_t multiCorePriorityDelta);
-    static constexpr bool jitEnabledByDefault() { return !useCompressedHeap && (is32Bit() || isAddress64Bit()); }
+    static constexpr bool jitEnabledByDefault()
+    {
+#if OS(WINDOWS) && CPU(ARM64)
+        // Windows ARM64 JIT support is not yet complete. The probe trampoline
+        // and other JIT infrastructure uses inline assembly that doesn't work
+        // with Windows COFF format. Disable JIT by default until this is fixed.
+        return false;
+#else
+        return !useCompressedHeap && (is32Bit() || isAddress64Bit());
+#endif
+    }
     static constexpr bool ipintEnabledByDefault() { return isARM64() || isARM64E() || isX86_64(); }
 };
 
