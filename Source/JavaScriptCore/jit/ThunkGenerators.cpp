@@ -897,7 +897,8 @@ typedef MathThunkCallingConvention(*MathThunk)(MathThunkCallingConvention);
     } \
     static MathThunk UnaryDoubleOpWrapper(function) = &function##Thunk;
 
-#elif CPU(ARM64)
+#elif CPU(ARM64) && !OS(WINDOWS)
+// Windows ARM64 doesn't support .previous directive in inline asm (COFF limitation)
 
 #define defineUnaryDoubleOpWrapper(function) \
     __asm__( \
