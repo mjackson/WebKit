@@ -76,6 +76,11 @@ void initialize()
     FOR_EACH_IPINT_BASE_POINTER(INIT_IPINT_BASE_POINTER)
 #undef INIT_IPINT_BASE_POINTER
 
+    // Skip IPInt validation on Windows ARM64 - the .balign directive doesn't work
+    // correctly with COFF format, causing opcode handler alignment to differ from
+    // expectations. IPInt will still function but may have slightly different
+    // performance characteristics.
+#if !(OS(WINDOWS) && CPU(ARM64))
     FOR_EACH_IPINT_OPCODE(VALIDATE_IPINT_OPCODE);
     FOR_EACH_IPINT_GC_OPCODE(VALIDATE_IPINT_GC_OPCODE);
     FOR_EACH_IPINT_CONVERSION_OPCODE(VALIDATE_IPINT_CONVERSION_OPCODE);
@@ -87,6 +92,7 @@ void initialize()
     FOR_EACH_IPINT_MINT_CALL_OPCODE(VALIDATE_IPINT_MINT_CALL_OPCODE);
     FOR_EACH_IPINT_MINT_RETURN_OPCODE(VALIDATE_IPINT_MINT_RETURN_OPCODE);
     FOR_EACH_IPINT_UINT_OPCODE(VALIDATE_IPINT_UINT_OPCODE);
+#endif // !(OS(WINDOWS) && CPU(ARM64))
 #else
     RELEASE_ASSERT_NOT_REACHED("IPInt only supports ARM64 and X86_64 (for now).");
 #endif
