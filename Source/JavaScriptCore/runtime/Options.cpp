@@ -637,10 +637,11 @@ static void overrideDefaults()
 #endif
 
 #if OS(WINDOWS) && CPU(ARM64)
-    // FTLForOSREntry causes crashes on Windows ARM64 with certain code patterns
-    // (nested loops with array access, modulo operations as array indices).
-    // Disable until the root cause is investigated and fixed.
-    Options::useOSREntryToFTL() = false;
+    // FTL JIT causes intermittent crashes on Windows ARM64 due to issues
+    // in the FTL code generator. Even with single-threaded compilation,
+    // the crash rate is around 40%. Disable FTL until the root cause is
+    // investigated and fixed. DFG still provides significant optimization.
+    Options::useFTLJIT() = false;
 #endif
 }
 
