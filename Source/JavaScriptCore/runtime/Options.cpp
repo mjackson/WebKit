@@ -635,6 +635,13 @@ static void overrideDefaults()
     if (Options::usePartialLoopUnrolling())
         Options::maxPartialLoopUnrollingBodyNodeSize() = 50;
 #endif
+
+#if OS(WINDOWS) && CPU(ARM64)
+    // FTLForOSREntry causes crashes on Windows ARM64 with certain code patterns
+    // (nested loops with array access, modulo operations as array indices).
+    // Disable until the root cause is investigated and fixed.
+    Options::useOSREntryToFTL() = false;
+#endif
 }
 
 bool Options::setAllJITCodeValidations(const char* valueStr)
