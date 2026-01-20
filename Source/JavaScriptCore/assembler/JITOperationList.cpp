@@ -184,10 +184,12 @@ struct LLIntOperations {
 
 static LLIntOperations llintOperations()
 {
+    dataLogLn("llintOperations(): entering");
     static const JITOperationAnnotation* operations = nullptr;
     static size_t numberOfOperations = 0;
     static std::once_flag onceKey;
     std::call_once(onceKey, [&] {
+        dataLogLn("llintOperations(): initializing operationsStorage");
         static const JITOperationAnnotation operationsStorage[] = {
             LLINT_ROUTINE(llint_function_for_call_prologue)
             LLINT_ROUTINE(llint_function_for_construct_prologue)

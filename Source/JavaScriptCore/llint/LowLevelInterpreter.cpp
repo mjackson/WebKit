@@ -588,7 +588,13 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
     SYMBOL_STRING(label) ":\n"
 #endif
 
+#if OS(WINDOWS) && CPU(ARM64)
+// COFF uses power-of-two alignment: .align N means 2^N bytes
+// For 4-byte alignment: log2(4) = 2
+#define OFFLINE_ASM_ALIGN4B ".align 2\n"
+#else
 #define OFFLINE_ASM_ALIGN4B ".balign 4\n"
+#endif
 #define OFFLINE_ASM_NOALIGN ""
 
 #if CPU(ARM64) || CPU(ARM64E)

@@ -329,7 +329,13 @@ static_assert(JIT_PROBE_STACK_INITIALIZATION_FUNCTION_PTR_TAG == JITProbeStackIn
 // See https://bugs.webkit.org/show_bug.cgi?id=175512 for details.
 __asm__(
     ".text" "\n"
+#if OS(WINDOWS)
+    // COFF uses power-of-two alignment: .align N means 2^N bytes
+    // For 16-byte alignment: log2(16) = 4
+    ".align 4" "\n"
+#else
     ".balign 16" "\n"
+#endif
     ".globl " SYMBOL_STRING(ctiMasmProbeTrampoline) "\n"
     HIDE_SYMBOL(ctiMasmProbeTrampoline) "\n"
     SYMBOL_STRING(ctiMasmProbeTrampoline) ":" "\n"

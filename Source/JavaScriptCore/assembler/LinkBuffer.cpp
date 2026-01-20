@@ -354,7 +354,7 @@ void LinkBuffer::copyCompactAndLinkCode(MacroAssembler& macroAssembler, JITCompi
             recordLinkOffsets(m_assemblerStorage, readPtr, linkRecord.from(), offset);
             readPtr += regionSize;
             writePtr += regionSize;
-                
+
             // Calculate absolute address of the jump target, in the case of backwards
             // branches we need to be precise, forward branches we are pessimistic
             const uint8_t* target;
@@ -401,9 +401,8 @@ void LinkBuffer::copyCompactAndLinkCode(MacroAssembler& macroAssembler, JITCompi
         }
     }
 
-
     recordLinkOffsets(m_assemblerStorage, readPtr, initialSize, readPtr - writePtr);
-        
+
     for (unsigned i = 0; i < jumpCount; ++i) {
         auto& linkRecord = jumpsToLink[i];
         uint8_t* location = codeOutData + linkRecord.from();
