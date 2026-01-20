@@ -43,7 +43,20 @@ const VCPKG_ARM64_PATH = join(WEBKIT_DIR, "vcpkg_installed", "arm64-windows-stat
 const VCPKG_X64_PATH = join(WEBKIT_DIR, "vcpkg_installed", "x64-windows-static");
 const VCPKG_ROOT = existsSync(VCPKG_ARM64_PATH) ? VCPKG_ARM64_PATH : VCPKG_X64_PATH;
 const ICU_INCLUDE_DIR = join(VCPKG_ROOT, "include");
-const ICU_LIBRARY = join(VCPKG_ROOT, "lib");
+
+// Get ICU library paths based on build config (debug uses 'd' suffix libraries)
+function getICULibraryPaths(config: BuildConfig) {
+  const isDebug = config === "debug";
+  // vcpkg static ICU libraries: release in lib/, debug in debug/lib/ with 'd' suffix
+  const libDir = isDebug ? join(VCPKG_ROOT, "debug", "lib") : join(VCPKG_ROOT, "lib");
+  const suffix = isDebug ? "d" : "";
+  return {
+    ICU_LIBRARY: libDir,
+    ICU_DATA_LIBRARY: join(libDir, `sicudt${suffix}.lib`),
+    ICU_I18N_LIBRARY: join(libDir, `sicuin${suffix}.lib`),
+    ICU_UC_LIBRARY: join(libDir, `sicuuc${suffix}.lib`),
+  };
+}
 
 // Homebrew prefix detection
 const HOMEBREW_PREFIX = IS_ARM64 ? "/opt/homebrew/" : "/usr/local/";
@@ -86,7 +99,7 @@ const getBuildDir = (config: BuildConfig) => {
 };
 
 // Common CMake flags
-const getCommonFlags = () => {
+const getCommonFlags = (config: BuildConfig) => {
   const flags = [
     "-DPORT=JSCOnly",
     "-DENABLE_STATIC_JSC=ON",
@@ -130,6 +143,8 @@ const getCommonFlags = () => {
   } else if (IS_WINDOWS) {
     // Find lld-link for Windows builds
     const lldLink = findExecutable(["lld-link.exe", "lld-link"]) || "lld-link";
+    // Get ICU library paths for this build config (debug uses 'd' suffix libraries)
+    const icuPaths = getICULibraryPaths(config);
 
     flags.push(
       "-DENABLE_REMOTE_INSPECTOR=ON",
@@ -137,8 +152,12 @@ const getCommonFlags = () => {
       "-DUSE_SYSTEM_MALLOC=ON",
       `-DCMAKE_LINKER=${lldLink}`,
       `-DICU_ROOT=${VCPKG_ROOT}`,
-      `-DICU_LIBRARY=${ICU_LIBRARY}`,
+      `-DICU_LIBRARY=${icuPaths.ICU_LIBRARY}`,
       `-DICU_INCLUDE_DIR=${ICU_INCLUDE_DIR}`,
+      // Explicitly set ICU library paths to use vcpkg static libs (debug has 'd' suffix)
+      `-DICU_DATA_LIBRARY_RELEASE=${icuPaths.ICU_DATA_LIBRARY}`,
+      `-DICU_I18N_LIBRARY_RELEASE=${icuPaths.ICU_I18N_LIBRARY}`,
+      `-DICU_UC_LIBRARY_RELEASE=${icuPaths.ICU_UC_LIBRARY}`,
       "-DCMAKE_C_FLAGS=/DU_STATIC_IMPLEMENTATION",
       "-DCMAKE_CXX_FLAGS=/DU_STATIC_IMPLEMENTATION /clang:-fno-c++-static-destructors"
     );
@@ -149,7 +168,7 @@ const getCommonFlags = () => {
 
 // Build-specific CMake flags
 const getBuildFlags = (config: BuildConfig) => {
-  const flags = [...getCommonFlags()];
+  const flags = [...getCommonFlags(config)];
 
   switch (config) {
     case "debug":
