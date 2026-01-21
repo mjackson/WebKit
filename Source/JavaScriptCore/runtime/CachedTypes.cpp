@@ -1872,7 +1872,7 @@ private:
     CachedPrivateNameEnvironment m_parentPrivateNameEnvironment;
 };
 
-class __attribute__((gcc_struct)) CachedFunctionExecutable : public CachedObject<UnlinkedFunctionExecutable> {
+class CachedFunctionExecutable : public CachedObject<UnlinkedFunctionExecutable> {
     friend struct CachedFunctionExecutableOffsets;
 
 public:
@@ -1892,7 +1892,7 @@ public:
 
     CodeFeatures features() const { return m_mutableMetadata.m_features; }
     LexicallyScopedFeatures lexicallyScopedFeatures() const { return m_mutableMetadata.m_lexicallyScopedFeatures; }
-    SourceParseMode sourceParseMode() const { return m_sourceParseMode; }
+    SourceParseMode sourceParseMode() const { return static_cast<SourceParseMode>(m_sourceParseMode); }
 
     unsigned hasCapturedVariables() const { return m_mutableMetadata.m_hasCapturedVariables; }
     ImplementationVisibility implementationVisibility() const { return static_cast<ImplementationVisibility>(m_implementationVisibility); }
@@ -1933,9 +1933,9 @@ private:
     unsigned m_superBinding : 1;
     unsigned m_parametersStartOffset : 31;
     unsigned m_unlinkedFunctionEnd;
-    unsigned m_parameterCount:31;
+    unsigned m_parameterCount : 31;
     unsigned m_privateBrandRequirement : 1;
-    SourceParseMode m_sourceParseMode;
+    unsigned m_sourceParseMode : 8; // SourceParseMode
     unsigned m_constructorKind : 2;
     unsigned m_functionMode : 2; // FunctionMode
     unsigned m_derivedContextType: 2;
@@ -1968,7 +1968,7 @@ ptrdiff_t CachedFunctionExecutableOffsets::metadataOffset()
 }
 
 template<typename CodeBlockType>
-class __attribute__((gcc_struct)) CachedCodeBlock : public CachedObject<CodeBlockType> {
+class CachedCodeBlock : public CachedObject<CodeBlockType> {
 public:
     void encode(Encoder&, const UnlinkedCodeBlock&);
     void decode(Decoder&, UnlinkedCodeBlock&) const;
@@ -2004,8 +2004,8 @@ public:
 
     CodeFeatures features() const { return m_features; }
     LexicallyScopedFeatures lexicallyScopedFeatures() const { return m_lexicallyScopedFeatures; }
-    SourceParseMode parseMode() const { return m_parseMode; }
-    OptionSet<CodeGenerationMode> codeGenerationMode() const { return m_codeGenerationMode; }
+    SourceParseMode parseMode() const { return static_cast<SourceParseMode>(m_parseMode); }
+    OptionSet<CodeGenerationMode> codeGenerationMode() const { return OptionSet<CodeGenerationMode>::fromRaw(m_codeGenerationMode); }
     unsigned codeType() const { return m_codeType; }
 
     UnlinkedCodeBlock::RareData* rareData(Decoder& decoder) const { return m_rareData.decode(decoder); }
@@ -2033,10 +2033,10 @@ private:
     unsigned m_codeType : 2;
     unsigned m_hasCheckpoints : 1;
 
-    CodeFeatures m_features : bitWidthOfCodeFeatures;
-    LexicallyScopedFeatures m_lexicallyScopedFeatures : bitWidthOfLexicallyScopedFeatures;
-    SourceParseMode m_parseMode;
-    OptionSet<CodeGenerationMode> m_codeGenerationMode;
+    unsigned m_features : bitWidthOfCodeFeatures; // CodeFeatures
+    unsigned m_lexicallyScopedFeatures : bitWidthOfLexicallyScopedFeatures; // LexicallyScopedFeatures
+    unsigned m_parseMode : 8; // SourceParseMode
+    unsigned m_codeGenerationMode : 8; // OptionSet<CodeGenerationMode>
 
     unsigned m_lineCount;
     unsigned m_endColumn;
@@ -2306,7 +2306,7 @@ ALWAYS_INLINE void CachedFunctionExecutable::encode(Encoder& encoder, const Unli
     m_unlinkedFunctionEnd = executable.m_unlinkedFunctionEnd;
     m_parameterCount = executable.m_parameterCount;
 
-    m_sourceParseMode = executable.m_sourceParseMode;
+    m_sourceParseMode = static_cast<uint8_t>(executable.m_sourceParseMode);
 
     m_isBuiltinFunction = executable.m_isBuiltinFunction;
     m_isBuiltinDefaultClassConstructor = executable.m_isBuiltinDefaultClassConstructor;
@@ -2430,8 +2430,8 @@ ALWAYS_INLINE void CachedCodeBlock<CodeBlockType>::encode(Encoder& encoder, cons
     m_numParameters = codeBlock.m_numParameters;
     m_features = codeBlock.m_features;
     m_lexicallyScopedFeatures = codeBlock.m_lexicallyScopedFeatures;
-    m_parseMode = codeBlock.m_parseMode;
-    m_codeGenerationMode = codeBlock.m_codeGenerationMode;
+    m_parseMode = static_cast<uint8_t>(codeBlock.m_parseMode);
+    m_codeGenerationMode = codeBlock.m_codeGenerationMode.toRaw();
     m_codeType = codeBlock.m_codeType;
     m_hasCheckpoints = codeBlock.m_hasCheckpoints;
     m_numValueProfiles = codeBlock.m_valueProfiles.size();
