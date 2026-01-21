@@ -1872,7 +1872,7 @@ private:
     CachedPrivateNameEnvironment m_parentPrivateNameEnvironment;
 };
 
-class CachedFunctionExecutable : public CachedObject<UnlinkedFunctionExecutable> {
+class __attribute__((gcc_struct)) CachedFunctionExecutable : public CachedObject<UnlinkedFunctionExecutable> {
     friend struct CachedFunctionExecutableOffsets;
 
 public:
@@ -1968,7 +1968,7 @@ ptrdiff_t CachedFunctionExecutableOffsets::metadataOffset()
 }
 
 template<typename CodeBlockType>
-class CachedCodeBlock : public CachedObject<CodeBlockType> {
+class __attribute__((gcc_struct)) CachedCodeBlock : public CachedObject<CodeBlockType> {
 public:
     void encode(Encoder&, const UnlinkedCodeBlock&);
     void decode(Decoder&, UnlinkedCodeBlock&) const;
