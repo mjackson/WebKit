@@ -635,14 +635,6 @@ static void overrideDefaults()
     if (Options::usePartialLoopUnrolling())
         Options::maxPartialLoopUnrollingBodyNodeSize() = 50;
 #endif
-
-#if OS(WINDOWS) && CPU(ARM64)
-    // FTL JIT causes intermittent crashes on Windows ARM64 due to issues
-    // in the FTL code generator. Even with single-threaded compilation,
-    // the crash rate is around 40%. Disable FTL until the root cause is
-    // investigated and fixed. DFG still provides significant optimization.
-    Options::useFTLJIT() = false;
-#endif
 }
 
 bool Options::setAllJITCodeValidations(const char* valueStr)
