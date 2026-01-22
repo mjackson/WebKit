@@ -325,6 +325,9 @@ static JSC_DECLARE_HOST_FUNCTION(functionDescribe);
 static JSC_DECLARE_HOST_FUNCTION(functionDescribeArray);
 static JSC_DECLARE_HOST_FUNCTION(functionSleepSeconds);
 static JSC_DECLARE_HOST_FUNCTION(functionJSCStack);
+#if USE(BUN_JSC_ADDITIONS)
+static JSC_DECLARE_HOST_FUNCTION(functionStreamingJSONParse);
+#endif
 static JSC_DECLARE_HOST_FUNCTION(functionGCAndSweep);
 static JSC_DECLARE_HOST_FUNCTION(functionFullGC);
 static JSC_DECLARE_HOST_FUNCTION(functionEdenGC);
@@ -663,6 +666,9 @@ private:
         addFunction(vm, "printErr"_s, functionPrintStdErr, 1);
         addFunction(vm, "prettyPrint"_s, functionPrettyPrint, 1);
         addFunction(vm, "quit"_s, functionQuit, 0);
+#if USE(BUN_JSC_ADDITIONS)
+        addFunction(vm, "streamingJSONParse"_s, functionStreamingJSONParse, 1);
+#endif
         addFunction(vm, "gc"_s, functionGCAndSweep, 0);
         addFunction(vm, "fullGC"_s, functionFullGC, 0);
         addFunction(vm, "edenGC"_s, functionEdenGC, 0);
@@ -1776,6 +1782,47 @@ JSC_DEFINE_HOST_FUNCTION(functionJSCStack, (JSGlobalObject* globalObject, CallFr
     fprintf(stderr, "%s", trace.toString().utf8().data());
     return JSValue::encode(jsUndefined());
 }
+
+#if USE(BUN_JSC_ADDITIONS)
+JSC_DEFINE_HOST_FUNCTION(functionStreamingJSONParse, (JSGlobalObject* globalObject, CallFrame* callFrame))
+{
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    JSValue arg = callFrame->argument(0);
+    auto* inputString = arg.toString(globalObject);
+    RETURN_IF_EXCEPTION(scope, { });
+    auto view = inputString->view(globalObject);
+    RETURN_IF_EXCEPTION(scope, { });
+
+    MarkedArgumentBuffer values;
+    auto result = streamingJSONParse(globalObject, view, values);
+    RETURN_IF_EXCEPTION(scope, { });
+
+    JSArray* array = constructArray(globalObject, static_cast<ArrayAllocationProfile*>(nullptr), values);
+    RETURN_IF_EXCEPTION(scope, { });
+
+    JSObject* resultObj = constructEmptyObject(globalObject);
+    resultObj->putDirect(vm, Identifier::fromString(vm, "values"_s), array);
+    resultObj->putDirect(vm, Identifier::fromString(vm, "charactersConsumed"_s), jsNumber(result.charactersConsumed));
+
+    ASCIILiteral statusStr;
+    switch (result.status) {
+    case StreamingJSONParseResult::Status::Complete:
+        statusStr = "complete"_s;
+        break;
+    case StreamingJSONParseResult::Status::NeedMoreData:
+        statusStr = "needMoreData"_s;
+        break;
+    case StreamingJSONParseResult::Status::Error:
+        statusStr = "error"_s;
+        break;
+    }
+    resultObj->putDirect(vm, Identifier::fromString(vm, "status"_s), jsString(vm, String(statusStr)));
+
+    return JSValue::encode(resultObj);
+}
+#endif // USE(BUN_JSC_ADDITIONS)
 
 JSC_DEFINE_HOST_FUNCTION(functionGCAndSweep, (JSGlobalObject* globalObject, CallFrame*))
 {

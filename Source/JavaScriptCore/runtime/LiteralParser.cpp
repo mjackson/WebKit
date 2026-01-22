@@ -740,6 +740,9 @@ ALWAYS_INLINE TokenType LiteralParser<CharType, reviverMode>::Lexer::lex(Literal
     m_currentTokenID++;
 #endif
 
+#if USE(BUN_JSC_ADDITIONS)
+    m_positionAfterLastToken = m_ptr;
+#endif
     while (m_ptr < m_end && isJSONWhiteSpace(*m_ptr))
         ++m_ptr;
 
@@ -1919,6 +1922,57 @@ JSValue LiteralParser<CharType, reviverMode>::parse(VM& vm, ParserState initialS
         continue;
     }
 }
+
+#if USE(BUN_JSC_ADDITIONS)
+template<typename CharType, JSONReviverMode reviverMode>
+StreamingJSONParseResult LiteralParser<CharType, reviverMode>::tryStreamingParse(MarkedArgumentBuffer& results)
+    requires (reviverMode == JSONReviverMode::Disabled)
+{
+    ASSERT(m_mode == StrictJSON);
+    VM& vm = getVM(m_globalObject);
+    size_t lastGoodPosition = 0;
+
+    m_lexer.next();
+
+    while (true) {
+        TokenType type = m_lexer.currentToken()->type;
+
+        if (type == TokEnd)
+            return { lastGoodPosition, StreamingJSONParseResult::Status::Complete };
+
+        JSValue value;
+        if (type == TokLBrace || type == TokLBracket) {
+            if (Options::useRecursiveJSONParse()) [[likely]]
+                value = parseRecursively<StrictJSON>(vm, std::bit_cast<uint8_t*>(vm.softStackLimit()));
+            else
+                value = parse(vm, StartParseExpression, nullptr);
+        } else
+            value = parsePrimitiveValue(vm);
+
+        if (!value) {
+            if (m_lexer.isAtEnd())
+                return { lastGoodPosition, StreamingJSONParseResult::Status::NeedMoreData };
+            return { lastGoodPosition, StreamingJSONParseResult::Status::Error };
+        }
+
+        results.appendWithCrashOnOverflow(value);
+        lastGoodPosition = static_cast<size_t>(m_lexer.positionAfterLastToken() - m_lexer.start());
+
+        // Find the next newline and skip directly to it — one WTF::find,
+        // which uses memchr for 8-bit. This is both the delimiter check
+        // and the advance.
+        auto remaining = std::span { m_lexer.positionAfterLastToken(), m_lexer.end() };
+        size_t nlIndex = WTF::find(remaining, static_cast<CharType>('\n'));
+        if (nlIndex != notFound) {
+            m_lexer.advanceTo(remaining.data() + nlIndex + 1);
+            m_lexer.next();
+        } else if (m_lexer.currentToken()->type != TokEnd) {
+            m_parseErrorMessage = "Expected newline between JSON values"_s;
+            return { lastGoodPosition, StreamingJSONParseResult::Status::Error };
+        }
+    }
+}
+#endif // USE(BUN_JSC_ADDITIONS)
 
 // Instantiate the two flavors of LiteralParser we need instead of putting most of this file in LiteralParser.h
 template class LiteralParser<Latin1Character, JSONReviverMode::Enabled>;

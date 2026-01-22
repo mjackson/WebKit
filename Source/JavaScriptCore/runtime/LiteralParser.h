@@ -29,6 +29,9 @@
 #include "GetVM.h"
 #include "Identifier.h"
 #include "JSCJSValue.h"
+#if USE(BUN_JSC_ADDITIONS)
+#include "JSONObject.h"
+#endif
 #include <array>
 #include <wtf/Range.h>
 #include <wtf/text/MakeString.h>
@@ -204,6 +207,11 @@ public:
     bool tryJSONPParse(Vector<JSONPData>&, bool needsFullSourceInfo)
         requires (reviverMode == JSONReviverMode::Disabled);
 
+#if USE(BUN_JSC_ADDITIONS)
+    StreamingJSONParseResult tryStreamingParse(MarkedArgumentBuffer& results)
+        requires (reviverMode == JSONReviverMode::Disabled);
+#endif
+
 private:
     class Lexer {
     public:
@@ -257,6 +265,12 @@ private:
 
         const CharType* ptr() const { return m_ptr; }
         const CharType* start() const { return m_start; }
+#if USE(BUN_JSC_ADDITIONS)
+        bool isAtEnd() const { return m_ptr >= m_end; }
+        const CharType* positionAfterLastToken() const { return m_positionAfterLastToken; }
+        const CharType* end() const { return m_end; }
+        void advanceTo(const CharType* p) { m_ptr = p; }
+#endif
         inline const CharType* currentTokenStart() const;
         inline const CharType* currentTokenEnd() const;
         
@@ -276,6 +290,9 @@ private:
         const CharType* m_end;
         StringBuilder m_builder;
         const CharType* m_start;
+#if USE(BUN_JSC_ADDITIONS)
+        const CharType* m_positionAfterLastToken { nullptr };
+#endif
         const CharType* m_currentTokenStart { nullptr };
         const CharType* m_currentTokenEnd { nullptr };
 #if ASSERT_ENABLED
