@@ -1911,6 +1911,22 @@ JSValue JSONParse(JSGlobalObject* globalObject, StringView json)
     return jsonParser.tryLiteralParse();
 }
 
+#if USE(BUN_JSC_ADDITIONS)
+StreamingJSONParseResult streamingJSONParse(JSGlobalObject* globalObject, StringView input, MarkedArgumentBuffer& results)
+{
+    if (input.isNull())
+        return { 0, StreamingJSONParseResult::Status::Complete };
+
+    if (input.is8Bit()) {
+        LiteralParser<Latin1Character, JSONReviverMode::Disabled> parser(globalObject, input.span8(), StrictJSON);
+        return parser.tryStreamingParse(results);
+    }
+
+    LiteralParser<char16_t, JSONReviverMode::Disabled> parser(globalObject, input.span16(), StrictJSON);
+    return parser.tryStreamingParse(results);
+}
+#endif // USE(BUN_JSC_ADDITIONS)
+
 JSValue JSONParseWithException(JSGlobalObject* globalObject, StringView json)
 {
     VM& vm = globalObject->vm();

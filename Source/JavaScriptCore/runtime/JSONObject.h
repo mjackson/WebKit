@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "ArgList.h"
 #include "JSObject.h"
 
 namespace JSC {
@@ -61,5 +62,15 @@ JS_EXPORT_PRIVATE JSValue JSONParse(JSGlobalObject*, StringView);
 JSValue JSONParseWithException(JSGlobalObject*, StringView);
 JS_EXPORT_PRIVATE String JSONStringify(JSGlobalObject*, JSValue, JSValue space);
 JS_EXPORT_PRIVATE String JSONStringify(JSGlobalObject*, JSValue, unsigned indent);
-    
+
+#if USE(BUN_JSC_ADDITIONS)
+struct StreamingJSONParseResult {
+    size_t charactersConsumed;
+    enum class Status : uint8_t { Complete, NeedMoreData, Error } status;
+};
+
+JS_EXPORT_PRIVATE StreamingJSONParseResult streamingJSONParse(
+    JSGlobalObject*, StringView input, MarkedArgumentBuffer& results);
+#endif
+
 } // namespace JSC
