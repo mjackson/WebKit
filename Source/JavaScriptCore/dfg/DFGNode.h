@@ -3247,6 +3247,11 @@ public:
         return isProxyObjectSpeculation(prediction());
     }
 
+    bool shouldSpeculateSetObject()
+    {
+        return isSetObjectSpeculation(prediction());
+    }
+
     bool shouldSpeculateGlobalProxy()
     {
         return isGlobalProxySpeculation(prediction());

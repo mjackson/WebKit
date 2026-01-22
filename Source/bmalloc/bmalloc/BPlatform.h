@@ -74,6 +74,10 @@
 #define BOS_WINDOWS 1
 #endif
 
+#if defined(__HAIKU__)
+#define BOS_HAIKU 1
+#endif
+
 #if BOS(DARWIN) && !defined(BUILDING_WITH_CMAKE)
 #if TARGET_OS_IOS
 #define BOS_IOS 1
@@ -378,9 +382,25 @@
 #define ENABLE_PHYSICAL_PAGE_MAP 0
 #endif
 
+#if defined(USE_MIMALLOC) && USE_MIMALLOC
+#define BUSE_MIMALLOC 1
+#else
+#define BUSE_MIMALLOC 0
+#endif
+
+#if defined(USE_SYSTEM_MALLOC) && USE_SYSTEM_MALLOC
+#define BUSE_SYSTEM_MALLOC 1
+#else
+#if BOS(DARWIN) && !BCPU(ADDRESS64)
+#define BUSE_SYSTEM_MALLOC 1
+#else
+#define BUSE_SYSTEM_MALLOC 0
+#endif
+#endif
+
 /* BENABLE(LIBPAS) is enabling libpas build. But this does not mean we use libpas for bmalloc replacement. */
 #if !defined(BENABLE_LIBPAS)
-#if BCPU(ADDRESS64) && (BOS(DARWIN) || BOS(WINDOWS) || (BOS(LINUX) && (BCPU(X86_64) || BCPU(ARM64))) || BPLATFORM(PLAYSTATION))
+#if (!BUSE(MIMALLOC) && !BUSE(SYSTEM_MALLOC)) && BCPU(ADDRESS64) && (BOS(DARWIN) || BOS(WINDOWS) || (BOS(LINUX) && (BCPU(X86_64) || BCPU(ARM64))) || BPLATFORM(PLAYSTATION))
 #define BENABLE_LIBPAS 1
 #ifndef PAS_BMALLOC
 #define PAS_BMALLOC 1
@@ -397,6 +417,25 @@
 #else
 #define BUSE_LIBPAS 0
 #endif
+#endif
+
+#if BUSE(LIBPAS)
+#if BUSE(MIMALLOC) || BUSE(SYSTEM_MALLOC)
+#error "libpas, mimalloc, and system malloc are exclusive"
+#endif
+#elif BUSE(MIMALLOC)
+#if BUSE(LIBPAS) || BUSE(SYSTEM_MALLOC)
+#error "libpas, mimalloc, and system malloc are exclusive"
+#endif
+#elif BUSE(SYSTEM_MALLOC)
+#if BUSE(LIBPAS) || BUSE(MIMALLOC)
+#error "libpas, mimalloc, and system malloc are exclusive"
+#endif
+#if BOS(WINDOWS)
+#error "System malloc configuration is not supported in Windows since aligned memory cannot be freed via ::free. Use mimalloc instead"
+#endif
+#else
+#error "libpas, mimalloc, or system malloc needs to be specified"
 #endif
 
 #if BUSE_LIBPAS
@@ -435,4 +474,12 @@
 #else
 #define BUSE_TZONE 0
 #endif
+#endif
+
+#if ((BOS(DARWIN) || BOS(LINUX)) && \
+    !BUSE(MIMALLOC) && \
+    (BCPU(X86_64) || (BCPU(ARM64) && !defined(__ILP32__) && (!BPLATFORM(IOS_FAMILY) || BPLATFORM(IOS)))))
+#define GIGACAGE_ENABLED 1
+#else
+#define GIGACAGE_ENABLED 0
 #endif

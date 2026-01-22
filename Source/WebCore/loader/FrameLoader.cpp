@@ -416,7 +416,7 @@ LocalFrame& FrameLoader::frame() const
 
 Ref<LocalFrame> FrameLoader::protectedFrame() const
 {
-    return m_frame.get();
+    return m_frame;
 }
 
 void FrameLoader::init()
@@ -707,7 +707,7 @@ void FrameLoader::clear(RefPtr<Document>&& newDocument, bool clearWindowProperti
     bool neededClear = m_needsClear;
     m_needsClear = false;
 
-    Ref<LocalFrame> frame = m_frame.get();
+    Ref frame = m_frame;
 
     RefPtr document = frame->document();
     if (neededClear)
@@ -897,7 +897,7 @@ void FrameLoader::finishedParsing()
 {
     LOG(Loading, "WebCoreLoading frame %" PRIu64 ": Finished parsing", m_frame->frameID().toUInt64());
 
-    Ref<LocalFrame> frame = m_frame.get();
+    Ref frame = m_frame;
 
     frame->injectUserScripts(UserScriptInjectionTime::DocumentEnd);
 
@@ -965,7 +965,7 @@ void FrameLoader::checkCompleted()
     if (m_isComplete)
         return;
 
-    Ref<LocalFrame> frame = m_frame.get();
+    Ref frame = m_frame;
     Ref<Document> document = *frame->document();
 
     // FIXME: It would be better if resource loads were kicked off after render tree update (or didn't complete synchronously).
@@ -2222,8 +2222,8 @@ void FrameLoader::stopForUserCancel(bool deferCheckLoadComplete)
 DocumentLoader* FrameLoader::activeDocumentLoader() const
 {
     if (m_state == FrameState::Provisional)
-        return m_provisionalDocumentLoader.get();
-    return m_documentLoader.get();
+        return m_provisionalDocumentLoader;
+    return m_documentLoader;
 }
 
 RefPtr<DocumentLoader> FrameLoader::protectedActiveDocumentLoader() const
@@ -4647,7 +4647,7 @@ void FrameLoader::retryAfterFailedCacheOnlyMainResourceLoad()
     ASSERT(!m_loadingFromCachedPage);
     ASSERT(history().provisionalItem());
     ASSERT(history().provisionalItem()->formData());
-    ASSERT(history().provisionalItem() == m_requestedHistoryItem.get());
+    ASSERT(history().provisionalItem() == m_requestedHistoryItem);
 
     FrameLoadType loadType = m_loadType;
     RefPtr item = history().provisionalItem();
@@ -4791,7 +4791,7 @@ void FrameLoader::tellClientAboutPastMemoryCacheLoads()
 
 NetworkingContext* FrameLoader::networkingContext() const
 {
-    return m_networkingContext.get();
+    return m_networkingContext;
 }
 
 RefPtr<NetworkingContext> FrameLoader::protectedNetworkingContext() const

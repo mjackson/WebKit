@@ -1,6 +1,6 @@
 
 PASS Main resource load matched with the condition
-FAIL Main resource load matched with the ignore case condition assert_equals: expected 0 but got 1
+PASS Main resource load matched with the ignore case condition
 PASS Main resource load matched without the ignore case condition
 PASS Main resource load not matched with the condition
 PASS Main resource load matched with the cache source

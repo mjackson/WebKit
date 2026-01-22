@@ -42,6 +42,9 @@
 #include "B3ValueInlines.h"
 #include "B3ValueKeyInlines.h"
 #include "B3WasmBoundsCheckValue.h"
+#include "B3WasmStructGetValue.h"
+#include "B3WasmStructNewValue.h"
+#include "B3WasmStructSetValue.h"
 #include <wtf/CommaPrinter.h>
 #include <wtf/ListDump.h>
 #include <wtf/StackTrace.h>
@@ -876,6 +879,24 @@ Effects Value::effects() const
         result.exitsSideways = true;
         result.reads = HeapRange::top();
         break;
+    case WasmStructGet: {
+        const auto* derived = as<WasmStructGetValue>();
+        result.reads = derived->range();
+        result.controlDependent = true;
+        result.readsMutability = derived->mutability();
+        break;
+    }
+    case WasmStructSet: {
+        const auto* derived = as<WasmStructSetValue>();
+        result.writes = derived->range();
+        result.controlDependent = true;
+        break;
+    }
+    case WasmStructNew:
+        result.reads = HeapRange::top();
+        result.writes = HeapRange::top();
+        result.exitsSideways = true;
+        break;
     case Upsilon:
     case Set:
         result.writesLocalState = true;
@@ -1093,6 +1114,9 @@ ValueKey Value::key() const
     case AtomicXchg:
     case WasmAddress:
     case WasmBoundsCheck:
+    case WasmStructGet:
+    case WasmStructSet:
+    case WasmStructNew:
     case MemoryCopy:
     case MemoryFill:
     case Fence:

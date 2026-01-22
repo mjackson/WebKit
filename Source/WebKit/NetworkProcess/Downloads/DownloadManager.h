@@ -118,14 +118,13 @@ public:
 
     IPC::Connection* downloadProxyConnection();
     AuthenticationManager& downloadsAuthenticationManager();
-    
+
     Client& client() { return m_client; }
-    Ref<Client> protectedClient() { return m_client.get(); }
 
 private:
-    CheckedRef<Client> m_client;
+    const CheckedRef<Client> m_client;
     HashMap<DownloadID, Ref<PendingDownload>> m_pendingDownloads;
-    HashMap<DownloadID, RefPtr<NetworkDataTask>> m_downloadsAfterDestinationDecided;
+    HashMap<DownloadID, Ref<NetworkDataTask>> m_downloadsAfterDestinationDecided;
     DownloadMap m_downloads;
 };
 

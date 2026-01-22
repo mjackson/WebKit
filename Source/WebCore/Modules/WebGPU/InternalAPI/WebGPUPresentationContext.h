@@ -56,6 +56,7 @@ public:
     virtual RefPtr<WebCore::NativeImage> getMetalTextureAsNativeImage(uint32_t bufferIndex, bool& isIOSurfaceSupportedFormat) = 0;
 
     virtual bool isRemotePresentationContextProxy() const { return false; }
+    virtual bool isPresentationContextImpl() const { return false; }
 
 protected:
     PresentationContext() = default;

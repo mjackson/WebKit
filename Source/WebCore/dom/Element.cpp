@@ -1195,7 +1195,7 @@ static std::optional<std::pair<SingleThreadWeakPtr<RenderElement>, LayoutRect>> 
         itemIndex = 0;
 
     auto itemLocalRect = renderListBox->itemBoundingBoxRect({ }, itemIndex);
-    return std::pair<SingleThreadWeakPtr<RenderElement>, LayoutRect> { renderListBox.releaseNonNull(), itemLocalRect };
+    return std::pair<SingleThreadWeakPtr<RenderElement>, LayoutRect> { renderListBox.get(), itemLocalRect };
 }
 
 void Element::scrollIntoView(std::optional<Variant<bool, ScrollIntoViewOptions>>&& arg)
@@ -6228,15 +6228,15 @@ FormAssociatedCustomElement& Element::formAssociatedCustomElementUnsafe() const
     return *customElement;
 }
 
-StylePropertyMapReadOnly* Element::computedStyleMap()
+StylePropertyMapReadOnly& Element::computedStyleMap()
 {
     auto& rareData = ensureElementRareData();
     if (auto* map = rareData.computedStyleMap())
-        return map;
+        return *map;
 
     auto map = ComputedStylePropertyMapReadOnly::create(*this);
     rareData.setComputedStyleMap(WTF::move(map));
-    return rareData.computedStyleMap();
+    return *rareData.computedStyleMap();
 }
 
 bool Element::hasDuplicateAttribute() const

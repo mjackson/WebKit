@@ -70,7 +70,7 @@ class GridLayout {
 public:
     GridLayout(const GridFormattingContext&);
 
-    std::pair<UsedTrackSizes, GridItemRects> layout(GridFormattingContext::GridLayoutConstraints, UnplacedGridItems&);
+    std::pair<UsedTrackSizes, GridItemRects> layout(const GridFormattingContext::GridLayoutConstraints&, UnplacedGridItems&);
 
 private:
 
@@ -81,7 +81,7 @@ private:
 
     static TrackSizingFunctionsList trackSizingFunctions(size_t implicitGridTracksCount, const Vector<Style::GridTrackSize> gridTemplateTrackSizes);
 
-    static UsedTrackSizes performGridSizingAlgorithm(const PlacedGridItems&, const TrackSizingFunctionsList& columnTrackSizingFunctionsList, const TrackSizingFunctionsList& rowTrackSizingFunctionsList);
+    static UsedTrackSizes performGridSizingAlgorithm(const PlacedGridItems&, const TrackSizingFunctionsList& columnTrackSizingFunctionsList, const TrackSizingFunctionsList& rowTrackSizingFunctionsList, const GridFormattingContext::GridLayoutConstraints&);
 
     std::pair<UsedInlineSizes, UsedBlockSizes> layoutGridItems(const PlacedGridItems&, const UsedTrackSizes&) const;
 

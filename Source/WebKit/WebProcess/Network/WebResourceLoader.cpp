@@ -242,13 +242,28 @@ void WebResourceLoader::didReceiveData(IPC::SharedBufferReference&& data, uint64
         return;
     }
 
-    if (!m_numBytesReceived)
+    bool isFirstDidReceiveData = !m_numBytesReceived;
+    if (isFirstDidReceiveData)
         WEBRESOURCELOADER_RELEASE_LOG(WEBRESOURCELOADER_DIDRECEIVEDATA);
     m_numBytesReceived += data.size();
 
     auto delta = calculateBytesTransferredOverNetworkDelta(bytesTransferredOverNetwork);
 
-    coreLoader->didReceiveData(data.isNull() ? SharedBuffer::create() : data.unsafeBuffer().releaseNonNull(), delta, DataPayloadBytes);
+    RefPtr<SharedBuffer> sharedBuffer;
+    if (data.isNull())
+        sharedBuffer = SharedBuffer::create();
+    else if (data.size() < WTF::pageSize() && isFirstDidReceiveData) {
+        // For resources less than a page in size, copy the data to a new malloc'd buffer rather
+        // than using the entire page sent to us to reduce internal fragmentation.
+        //
+        // We only do this only for the first data segment. If there are multiple segments in this
+        // resource, it will likely end up in a SharedBufferBuilder, which will copy the data when
+        // made contiguous.
+        sharedBuffer = SharedBuffer::create(data.span());
+    } else
+        sharedBuffer = data.unsafeBuffer();
+
+    coreLoader->didReceiveData(sharedBuffer.releaseNonNull(), delta, DataPayloadBytes);
 
 #if ENABLE(CONTENT_EXTENSIONS)
     if (delta) {

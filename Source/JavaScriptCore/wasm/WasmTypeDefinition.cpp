@@ -611,17 +611,19 @@ bool TypeDefinition::isFinalType() const
     return true;
 }
 
-RTT::RTT(RTTKind kind)
+RTT::RTT(RTTKind kind, StructFieldCount fieldCount)
     : TrailingArrayType(1)
     , m_kind(kind)
+    , m_fieldCount(fieldCount)
     , m_displaySizeExcludingThis(size() - 1)
 {
     at(0) = this;
 }
 
-RTT::RTT(RTTKind kind, const RTT& supertype)
+RTT::RTT(RTTKind kind, const RTT& supertype, StructFieldCount fieldCount)
     : TrailingArrayType(supertype.size() + 1)
     , m_kind(kind)
+    , m_fieldCount(fieldCount)
     , m_displaySizeExcludingThis(size() - 1)
 {
     ASSERT(supertype.size() == (supertype.displaySizeExcludingThis() + 1));
@@ -630,22 +632,22 @@ RTT::RTT(RTTKind kind, const RTT& supertype)
     at(supertype.size()) = this;
 }
 
-RefPtr<RTT> RTT::tryCreate(RTTKind kind)
+RefPtr<RTT> RTT::tryCreate(RTTKind kind, StructFieldCount fieldCount)
 {
     auto result = tryFastMalloc(allocationSize(/* itself */ 1));
     void* memory = nullptr;
     if (!result.getValue(memory))
         return nullptr;
-    return adoptRef(new (NotNull, memory) RTT(kind));
+    return adoptRef(new (NotNull, memory) RTT(kind, fieldCount));
 }
 
-RefPtr<RTT> RTT::tryCreate(RTTKind kind, const RTT& supertype)
+RefPtr<RTT> RTT::tryCreate(RTTKind kind, const RTT& supertype, StructFieldCount fieldCount)
 {
     auto result = tryFastMalloc(allocationSize(supertype.size() + 1));
     void* memory = nullptr;
     if (!result.getValue(memory))
         return nullptr;
-    return adoptRef(new (NotNull, memory) RTT(kind, supertype));
+    return adoptRef(new (NotNull, memory) RTT(kind, supertype, fieldCount));
 }
 
 bool RTT::isSubRTT(const RTT& parent) const
@@ -1058,24 +1060,28 @@ void TypeInformation::registerCanonicalRTTForType(TypeIndex type)
 Ref<RTT> TypeInformation::createCanonicalRTTForType(const AbstractLocker&, const TypeDefinition& def)
 {
     const TypeDefinition& signature = def.unroll();
+    const TypeDefinition& expanded = signature.expand();
     RTTKind kind;
-    if (signature.expand().is<FunctionSignature>())
+    StructFieldCount fieldCount = 0;
+    if (expanded.is<FunctionSignature>())
         kind = RTTKind::Function;
-    else if (signature.expand().is<ArrayType>())
+    else if (expanded.is<ArrayType>())
         kind = RTTKind::Array;
-    else
+    else {
         kind = RTTKind::Struct;
+        fieldCount = expanded.as<StructType>()->fieldCount();
+    }
 
     if (signature.is<Subtype>() && signature.as<Subtype>()->supertypeCount() > 0) {
         Ref superTypeDef = TypeInformation::get(signature.as<Subtype>()->firstSuperType());
         auto superRTT = superTypeDef->m_rtt;
         ASSERT(superRTT);
-        auto protector = RTT::tryCreate(kind, *superRTT);
+        auto protector = RTT::tryCreate(kind, *superRTT, fieldCount);
         RELEASE_ASSERT(protector);
         return protector.releaseNonNull();
     }
 
-    auto protector = RTT::tryCreate(kind);
+    auto protector = RTT::tryCreate(kind, fieldCount);
     RELEASE_ASSERT(protector);
     return protector.releaseNonNull();
 }

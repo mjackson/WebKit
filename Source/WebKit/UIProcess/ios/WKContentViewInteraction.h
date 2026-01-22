@@ -154,7 +154,7 @@ enum class PickerDismissalReason : uint8_t;
 
 @class WKTextAnimationManager;
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
 @class WKDigitalCredentialsPicker;
 #endif
 
@@ -434,7 +434,7 @@ struct ImageAnalysisContextMenuActionData {
 #if HAVE(CONTACTSUI)
     RetainPtr<WKContactPicker> _contactPicker;
 #endif
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
     RetainPtr<WKDigitalCredentialsPicker> _digitalCredentialsPicker;
 #endif
     RetainPtr<UIGestureRecognizer> _previewGestureRecognizer;
@@ -843,7 +843,7 @@ FOR_EACH_PRIVATE_WKCONTENTVIEW_ACTION(DECLARE_WKCONTENTVIEW_ACTION_FOR_WEB_VIEW)
 - (void)_showShareSheet:(const WebCore::ShareDataWithParsedURL&)shareData inRect:(std::optional<WebCore::FloatRect>)rect completionHandler:(WTF::CompletionHandler<void(bool)>&&)completionHandler;
 - (void)_showContactPicker:(const WebCore::ContactsRequestData&)requestData completionHandler:(WTF::CompletionHandler<void(std::optional<Vector<WebCore::ContactInfo>>&&)>&&)completionHandler;
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
 - (void)_showDigitalCredentialsPicker:(const WebCore::DigitalCredentialsRequestData&)requestData completionHandler:(WTF::CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&&)completionHandler;
 - (void)_dismissDigitalCredentialsPicker:(CompletionHandler<void(bool)>&&)completionHandler;
 #endif

@@ -80,7 +80,7 @@ private:
     friend class LibWebRTCMediaEndpoint;
     friend class LibWebRTCRtpSenderBackend;
     RTCPeerConnection& connection() { return m_peerConnection; }
-    Ref<RTCPeerConnection> protectedConnection() { return m_peerConnection.get(); }
+    Ref<RTCPeerConnection> protectedConnection() { return m_peerConnection; }
 
     void getStatsSucceeded(const DeferredPromise&, Ref<RTCStatsReport>&&);
 

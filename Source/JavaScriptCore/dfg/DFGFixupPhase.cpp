@@ -1964,6 +1964,10 @@ private:
                 && m_graph.isWatchingArrayIteratorProtocolWatchpoint(node->child1().node())
                 && m_graph.isWatchingHavingABadTimeWatchpoint(node->child1().node()))
                 fixEdge<ArrayUse>(node->child1());
+            else if (node->child1()->shouldSpeculateSetObject()
+                && m_graph.isWatchingSetIteratorProtocolWatchpoint(node->child1().node())
+                && m_graph.isWatchingHavingABadTimeWatchpoint(node->child1().node()))
+                fixEdge<SetObjectUse>(node->child1());
             else
                 fixEdge<CellUse>(node->child1());
             break;
@@ -5162,6 +5166,7 @@ private:
             if (!m_graph.hasExitSite(node->origin.semantic, BadType)) {
                 if (!node->shouldSpeculateInt32() && node->shouldSpeculateNumber()) {
                     node->setResult(NodeResultDouble);
+                    node->mergeFlags(NodeMustGenerate); // Absorbs speculation check from the using edge
                     return true;
                 }
             }

@@ -824,6 +824,10 @@ class RunTest262Tests(TestWithFailureCount, CustomFlagsMixin, ShellMixin):
     command = ["perl", "Tools/Scripts/test262-runner", "--verbose", WithProperties("--%(configuration)s")]
     test_summary_re = re.compile(r'^\! NEW FAIL')
 
+    def __init__(self, *args, **kwargs):
+        kwargs['timeout'] = 60 * 60
+        super().__init__(*args, **kwargs)
+
     def run(self):
         filter_command = ' '.join(self.command) + ' 2>&1 | python3 Tools/Scripts/filter-test-logs test262'
         self.command = self.shell_command(filter_command)
@@ -2285,10 +2289,3 @@ class RebootWithUpdatedCrossTargetImage(shell.ShellCommand):
         if rc == SUCCESS:
             self.build.buildFinished(['Rebooting with updated image, retrying build'], RETRY)
         defer.returnValue(rc)
-
-
-class SetO3OptimizationLevel(shell.ShellCommand):
-    command = ["Tools/Scripts/set-webkit-configuration", "--force-optimization-level=O3"]
-    name = "set-o3-optimization-level"
-    description = ["set O3 optimization level"]
-    descriptionDone = ["set O3 optimization level"]

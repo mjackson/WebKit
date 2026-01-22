@@ -29,8 +29,10 @@
 #import "WKActionSheet.h"
 #import <UIKit/UIPopoverController.h>
 #import <WebCore/ElementContext.h>
+#import <WebCore/ExceptionData.h>
 #import <WebCore/HTMLMediaElementIdentifier.h>
 #import <WebCore/MediaControlsContextMenuItem.h>
+#import <WebCore/ResolvedCaptionDisplaySettingsOptions.h>
 #import <pal/spi/ios/DataDetectorsUISPI.h>
 #import <wtf/CompletionHandler.h>
 #import <wtf/Forward.h>

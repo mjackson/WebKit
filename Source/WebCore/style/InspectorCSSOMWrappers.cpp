@@ -90,7 +90,7 @@ void InspectorCSSOMWrappers::collect(ListType* listType)
             collect(uncheckedDowncast<CSSStartingStyleRule>(cssRule.get()));
             break;
         case StyleRuleType::Style:
-            m_styleRuleToCSSOMWrapperMap.add(&uncheckedDowncast<CSSStyleRule>(*cssRule).styleRule(), uncheckedDowncast<CSSStyleRule>(cssRule.get()));
+            m_styleRuleToCSSOMWrapperMap.add(&uncheckedDowncast<CSSStyleRule>(*cssRule).styleRule(), uncheckedDowncast<CSSStyleRule>(*cssRule));
 
             // Eagerly collect rules nested in this style rule.
             collect(uncheckedDowncast<CSSStyleRule>(cssRule.get()));

@@ -58,7 +58,7 @@ class MediaDeviceRouteController {
 public:
     WEBCORE_EXPORT static MediaDeviceRouteController& singleton();
 
-    RefPtr<MediaDeviceRouteControllerClient> client() const { return m_client.get(); }
+    RefPtr<MediaDeviceRouteControllerClient> client() const { return m_client; }
     void setClient(MediaDeviceRouteControllerClient* client) { m_client = client; }
 
     RefPtr<MediaDeviceRoute> mostRecentActiveRoute() const;

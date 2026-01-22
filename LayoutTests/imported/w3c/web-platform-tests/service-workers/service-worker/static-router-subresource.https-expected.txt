@@ -2,10 +2,10 @@
 PASS Subresource load not matched with URLPattern condition
 PASS Subresource load matched with URLPattern condition
 PASS Subresource cross origin load matched with URLPattern condition via constructed object
-FAIL Subresource load matched with ignoreCase URLPattern condition assert_equals: expected "Network\n" but got "tvlbp"
+PASS Subresource load matched with ignoreCase URLPattern condition
 PASS Subresource load matched without ignoreCase URLPattern condition
 PASS Subresource load matched with URLPattern condition via URLPatternCompatible
-FAIL Subresource cross origin load not matched with URLPattern condition via URLPatternCompatible promise_test: Unhandled rejection with value: object "TypeError: Load failed"
+PASS Subresource cross origin load not matched with URLPattern condition via URLPatternCompatible
 PASS Subresource load matched with URLPattern condition via string
 PASS Subresource cross origin load not matched with URLPattern condition via string
 PASS Subresource load matched with RequestMode condition

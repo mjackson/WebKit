@@ -117,7 +117,7 @@ ContextMenuController::~ContextMenuController()
 
 Page& ContextMenuController::page()
 {
-    return m_page.get();
+    return m_page;
 }
 
 void ContextMenuController::clearContextMenu()

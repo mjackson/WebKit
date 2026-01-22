@@ -42,6 +42,7 @@ bool isAccessibilityLogChannelEnabled();
         RELEASE_LOG_ERROR_IF(!(assertion), Accessibility, "BROKEN ASSERTION FAILED in %s(%d) : %s\n", __FILE__, __LINE__, WTF_PRETTY_FUNCTION); \
     } \
 } while (0)
+#define AX_BROKEN_ASSERT_NOT_REACHED() AX_BROKEN_ASSERT(false)
 
 #ifndef AX_ASSERTS_ENABLED
 #define AX_ASSERTS_ENABLED 0

@@ -1179,7 +1179,7 @@ void EventHandler::updateSelectionForMouseDrag(const HitTestResult& hitTestResul
         shouldSetDragStartSelection = true;
     }
 
-    RefPtr rootUserSelectAllForMousePressNode = Position::rootUserSelectAllForNode(m_mousePressNode.get());
+    RefPtr rootUserSelectAllForMousePressNode = Position::rootUserSelectAllForNode(m_mousePressNode);
     if (rootUserSelectAllForMousePressNode && rootUserSelectAllForMousePressNode == Position::rootUserSelectAllForNode(target.get())) {
         newSelection.setBase(positionBeforeNode(rootUserSelectAllForMousePressNode.get()).upstream(CanCrossEditingBoundary));
         newSelection.setExtent(positionAfterNode(rootUserSelectAllForMousePressNode.get()).downstream(CanCrossEditingBoundary));
@@ -1440,7 +1440,7 @@ bool EventHandler::scrollOverflow(ScrollDirection direction, ScrollGranularity g
         node = m_frame->document()->focusedElement();
 
     if (!node)
-        node = m_mousePressNode.get();
+        node = m_mousePressNode;
     
     if (node) {
         auto r = node->renderer();
@@ -1461,7 +1461,7 @@ bool EventHandler::logicalScrollOverflow(ScrollLogicalDirection direction, Scrol
         node = m_frame->document()->focusedElement();
 
     if (!node)
-        node = m_mousePressNode.get();
+        node = m_mousePressNode;
     
     if (node) {
         auto r = node->renderer();
@@ -2482,15 +2482,12 @@ bool EventHandler::swallowAnyClickEvent(const PlatformMouseEvent& platformMouseE
     if (!nodeToClick && !m_clickCaptureElement)
         return false;
 
-    bool isPrimaryPointerButton = platformMouseEvent.button() == MouseButton::Left;
-    if (!isPrimaryPointerButton && !protectedFrame()->settings().auxclickEventEnabled())
-        return false;
-
     // The auxclick event should only be fired for the non-primary pointer buttons.
     // In the case of right button, the auxclick event is dispatched after any contextmenu event.
     //
     // The click event should only be fired for the primary pointer button.
 
+    bool isPrimaryPointerButton = platformMouseEvent.button() == MouseButton::Left;
     auto& eventName = isPrimaryPointerButton ? eventNames().clickEvent : eventNames().auxclickEvent;
 
     bool swallowed = false;
@@ -2564,14 +2561,14 @@ HandleUserInputEventResult EventHandler::handleMouseReleaseEvent(const PlatformM
         auto resetImmediateActionStageAfterMouseEventDispatch = makeScopeExit([&] {
             m_immediateActionStage = ImmediateActionStage::None;
         });
-        return !dispatchMouseEvent(eventNames().mouseupEvent, m_lastElementUnderMouse.get(), m_clickCount, platformMouseEvent, FireMouseOverOut::No);
+        return !dispatchMouseEvent(eventNames().mouseupEvent, m_lastElementUnderMouse, m_clickCount, platformMouseEvent, FireMouseOverOut::No);
     }
     m_immediateActionStage = ImmediateActionStage::None;
 
     if (m_lastScrollbarUnderMouse) {
         invalidateClick();
         m_lastScrollbarUnderMouse->mouseUp(platformMouseEvent);
-        return !dispatchMouseEvent(eventNames().mouseupEvent, m_lastElementUnderMouse.get(), m_clickCount, platformMouseEvent, FireMouseOverOut::No);
+        return !dispatchMouseEvent(eventNames().mouseupEvent, m_lastElementUnderMouse, m_clickCount, platformMouseEvent, FireMouseOverOut::No);
     }
 
     constexpr OptionSet<HitTestRequest::Type> hitType { HitTestRequest::Type::Release, HitTestRequest::Type::DisallowUserAgentShadowContent };
@@ -3024,14 +3021,14 @@ void EventHandler::updateMouseEventTargetNode(const AtomString& eventType, Node*
 #endif // ENABLE(IMAGE_ANALYSIS)
 
     if (RefPtr page = frame->page())
-        page->imageOverlayController().elementUnderMouseDidChange(frame, m_elementUnderMouse.get());
+        page->imageOverlayController().elementUnderMouseDidChange(frame, m_elementUnderMouse);
 
     ASSERT_IMPLIES(m_elementUnderMouse, &m_elementUnderMouse->document() == frame->document());
     ASSERT_IMPLIES(m_lastElementUnderMouse, &m_lastElementUnderMouse->document() == frame->document());
 
     // Fire mouseout/mouseover if the mouse has shifted to a different node.
     if (fireMouseOverOut == FireMouseOverOut::Yes) {
-        notifyScrollableAreasOfMouseEvents(eventType, m_lastElementUnderMouse.get(), m_elementUnderMouse.get());
+        notifyScrollableAreasOfMouseEvents(eventType, m_lastElementUnderMouse, m_elementUnderMouse);
 
         if (m_lastElementUnderMouse && &m_lastElementUnderMouse->document() != frame->document()) {
             m_lastElementUnderMouse = nullptr;
@@ -3043,14 +3040,14 @@ void EventHandler::updateMouseEventTargetNode(const AtomString& eventType, Node*
             // or a normal eventhandler on the element itself (they don't bubble).
             // This optimization is necessary since these events can cause O(n^2) capturing event-handler checks.
             auto& eventNames = WebCore::eventNames();
-            bool hasCapturingMouseEnterListener = hierarchyHasCapturingEventListeners(m_elementUnderMouse.get(), eventNames.pointerenterEvent, eventNames.mouseenterEvent);
-            bool hasCapturingMouseLeaveListener = hierarchyHasCapturingEventListeners(m_lastElementUnderMouse.get(), eventNames.pointerleaveEvent, eventNames.mouseleaveEvent);
+            bool hasCapturingMouseEnterListener = hierarchyHasCapturingEventListeners(m_elementUnderMouse, eventNames.pointerenterEvent, eventNames.mouseenterEvent);
+            bool hasCapturingMouseLeaveListener = hierarchyHasCapturingEventListeners(m_lastElementUnderMouse, eventNames.pointerleaveEvent, eventNames.mouseleaveEvent);
 
             Vector<Ref<Element>, 32> leftElementsChain;
-            for (Element* element = m_lastElementUnderMouse.get(); element; element = element->parentElementInComposedTree())
+            for (Element* element = m_lastElementUnderMouse; element; element = element->parentElementInComposedTree())
                 leftElementsChain.append(*element);
             Vector<WeakPtr<Element, WeakPtrImplWithEventTargetData>, 32> elementsUnderMouse;
-            for (Element* element = m_elementUnderMouse.get(); element; element = element->parentElementInComposedTree())
+            for (Element* element = m_elementUnderMouse; element; element = element->parentElementInComposedTree())
                 elementsUnderMouse.append(element);
 
             Vector enteredElementsChain = elementsUnderMouse;
@@ -3067,15 +3064,15 @@ void EventHandler::updateMouseEventTargetNode(const AtomString& eventType, Node*
             }
 
             if (auto lastElementUnderMouse = m_lastElementUnderMouse)
-                lastElementUnderMouse->dispatchMouseEvent(platformMouseEvent, eventNames.mouseoutEvent, 0, m_elementUnderMouse.get());
+                lastElementUnderMouse->dispatchMouseEvent(platformMouseEvent, eventNames.mouseoutEvent, 0, m_elementUnderMouse);
 
             for (auto& chain : leftElementsChain) {
                 if (hasCapturingMouseLeaveListener || chain->hasEventListeners(eventNames.pointerleaveEvent) || chain->hasEventListeners(eventNames.mouseleaveEvent))
-                    chain->dispatchMouseEvent(platformMouseEvent, eventNames.mouseleaveEvent, 0, m_elementUnderMouse.get());
+                    chain->dispatchMouseEvent(platformMouseEvent, eventNames.mouseleaveEvent, 0, m_elementUnderMouse);
             }
 
             if (auto elementUnderMouse = m_elementUnderMouse)
-                elementUnderMouse->dispatchMouseEvent(platformMouseEvent, eventNames.mouseoverEvent, 0, m_lastElementUnderMouse.get());
+                elementUnderMouse->dispatchMouseEvent(platformMouseEvent, eventNames.mouseoverEvent, 0, m_lastElementUnderMouse);
 
             for (auto& chain : enteredElementsChain | std::views::reverse) {
                 if (!chain)
@@ -3083,7 +3080,7 @@ void EventHandler::updateMouseEventTargetNode(const AtomString& eventType, Node*
 
                 if ((hasCapturingMouseEnterListener || chain->hasEventListeners(eventNames.pointerenterEvent) || chain->hasEventListeners(eventNames.mouseenterEvent))
                     && !isElementAnAncestorOfLastElementUnderMouse(chain.get())) {
-                    chain->dispatchMouseEvent(platformMouseEvent, eventNames.mouseenterEvent, 0, m_lastElementUnderMouse.get());
+                    chain->dispatchMouseEvent(platformMouseEvent, eventNames.mouseenterEvent, 0, m_lastElementUnderMouse);
                 }
             }
 
@@ -4318,9 +4315,16 @@ bool EventHandler::internalKeyEvent(const PlatformKeyboardEvent& initialKeyEvent
     keyPressEvent.disambiguateKeyDownEvent(PlatformEvent::Type::Char, backwardCompatibilityMode);
     if (keyPressEvent.text().isEmpty())
         return keydownResult;
+
+    // webkit.org/b/305666: Emojis appear as Chinese characters in Google Docs
+    auto shouldAvoidDispatchingKeyPressEvent = [&] {
+        auto text = keyPressEvent.text();
+        return !text.isEmpty() && !U_IS_BMP(text.characterStartingAt(0));
+    };
+
     auto keypress = KeyboardEvent::create(keyPressEvent, &frame->windowProxy());
     keypress->setTarget(element.copyRef());
-    if (keypress->isComposing()) {
+    if (keypress->isComposing() || shouldAvoidDispatchingKeyPressEvent()) {
         frame->editor().handleKeyboardEvent(keypress);
         return keydownResult;
     }
@@ -5107,7 +5111,7 @@ bool EventHandler::startKeyboardScrollAnimationOnEnclosingScrollableContainer(Sc
         node = m_frame->document()->focusedElement();
 
     if (!node)
-        node = m_mousePressNode.get();
+        node = m_mousePressNode;
 
     if (node) {
         auto renderer = node->renderer();
@@ -5572,7 +5576,7 @@ Expected<bool, RemoteFrameGeometryTransformer> EventHandler::handleTouchEvent(co
         for (auto& target : changedTouches[state].m_targets) {
             ASSERT(is<Node>(target));
 
-            RefPtr<TouchList> targetTouches(isTouchCancelEvent ? emptyList : touchesByTarget.get(target.get()));
+            RefPtr targetTouches = isTouchCancelEvent ? emptyList : RefPtr { touchesByTarget.get(target.get()) };
             ASSERT(targetTouches);
 
             Ref<TouchEvent> touchEvent = TouchEvent::create(effectiveTouches.get(), targetTouches.get(), changedTouches[state].m_touches.get(),
@@ -5690,7 +5694,7 @@ void EventHandler::resetCapturingMouseEventsElement()
 
 Ref<LocalFrame> EventHandler::protectedFrame() const
 {
-    return m_frame.get();
+    return m_frame;
 }
 
 #if !PLATFORM(COCOA) && !PLATFORM(WIN)

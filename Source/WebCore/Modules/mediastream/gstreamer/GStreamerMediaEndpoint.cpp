@@ -2514,6 +2514,8 @@ GUniquePtr<GstStructure> GStreamerMediaEndpoint::preprocessStats(const GRefPtr<G
                 gst_structure_set(structure.get(), "frames-received", G_TYPE_UINT64, *framesReceived, nullptr);
             if (auto keyFramesDecoded = gstStructureGet<uint64_t>(additionalStats.get(), "key-frames-decoded"_s))
                 gst_structure_set(structure.get(), "key-frames-decoded", G_TYPE_UINT64, *keyFramesDecoded, nullptr);
+            if (auto decoderImplementation = gstStructureGetString(additionalStats.get(), "decoder-implementation"_s))
+                gst_structure_set(structure.get(), "decoder-implementation", G_TYPE_STRING, decoderImplementation.utf8(), nullptr);
             auto trackIdentifier = gstStructureGetString(additionalStats.get(), "track-identifier"_s);
             if (!trackIdentifier.isEmpty())
                 gst_structure_set(structure.get(), "track-identifier", G_TYPE_STRING, trackIdentifier.utf8(), nullptr);
@@ -2743,8 +2745,35 @@ Seconds GStreamerMediaEndpoint::statsLogInterval(Seconds reportTimestamp) const
 
 void GStreamerMediaEndpoint::gatherDecoderImplementationName(Function<void(String&&)>&& callback)
 {
-    // TODO: collect stats and lookup InboundRtp "decoder_implementation" field.
-    callback({ });
+    if (isStopped() || !m_webrtcBin) {
+        callback({ });
+        return;
+    }
+
+    GRefPtr<GstPad> pad;
+    for (auto* srcPad : GstIteratorAdaptor<GstPad>(gst_element_iterate_src_pads(m_webrtcBin.get()))) {
+        GRefPtr<GstWebRTCRTPTransceiver> transceiver;
+        g_object_get(srcPad, "transceiver", &transceiver.outPtr(), nullptr);
+
+        GstWebRTCKind kind;
+        g_object_get(transceiver.get(), "kind", &kind, nullptr);
+        if (kind == GST_WEBRTC_KIND_VIDEO) {
+            pad = srcPad;
+            break;
+        }
+    }
+
+    if (!pad) {
+        callback({ });
+        return;
+    }
+
+    m_statsCollector->gatherDecoderImplementationName(pad, [weakThis = ThreadSafeWeakPtr { *this }, this](const auto& pad, const auto* stats) -> GUniquePtr<GstStructure> {
+        RefPtr protectedThis = weakThis.get();
+        if (!protectedThis)
+            return nullptr;
+        return preprocessStats(pad, stats);
+    }, WTF::move(callback));
 }
 
 std::optional<bool> GStreamerMediaEndpoint::canTrickleIceCandidates() const

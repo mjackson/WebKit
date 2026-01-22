@@ -92,6 +92,9 @@ fast/forms/input-text-max-length-emojis.html [ Failure ]
 
 webkit.org/b/188509 fast/dom/Window/window-resize-update-scrollbars.html [ Timeout ]
 
+# Doesn't support removeViewFromWindow()
+media/no-fullscreen-when-hidden.html [ Skip ]
+
 #//////////////////////////////////////////////////////////////////////////////////////////
 # End of Triaged Expectations
 #//////////////////////////////////////////////////////////////////////////////////////////

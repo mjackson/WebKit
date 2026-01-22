@@ -123,7 +123,8 @@ JSDOMGlobalObject::~JSDOMGlobalObject() = default;
 
 void JSDOMGlobalObject::destroy(JSCell* cell)
 {
-    static_cast<JSDOMGlobalObject*>(cell)->JSDOMGlobalObject::~JSDOMGlobalObject();
+    // We cannot rely on jsCast() during JSObject destruction.
+    SUPPRESS_MEMORY_UNSAFE_CAST static_cast<JSDOMGlobalObject*>(cell)->JSDOMGlobalObject::~JSDOMGlobalObject();
 }
 
 JSC_DEFINE_HOST_FUNCTION(makeThisTypeErrorForBuiltins, (JSGlobalObject* globalObject, CallFrame* callFrame))
@@ -154,7 +155,7 @@ JSC_DEFINE_HOST_FUNCTION(makeGetterTypeErrorForBuiltins, (JSGlobalObject* global
     auto attributeName = callFrame->uncheckedArgument(1).getString(globalObject);
     scope.assertNoException();
 
-    auto error = static_cast<ErrorInstance*>(createTypeError(globalObject, JSC::makeDOMAttributeGetterTypeErrorMessage(interfaceName.utf8().data(), attributeName)));
+    auto error = jsCast<ErrorInstance*>(createTypeError(globalObject, JSC::makeDOMAttributeGetterTypeErrorMessage(interfaceName.utf8().data(), attributeName)));
     error->setNativeGetterTypeError();
     return JSValue::encode(error);
 }
@@ -423,7 +424,7 @@ bool JSDOMGlobalObject::canCompileStrings(JSGlobalObject* globalObject, Compilat
     auto throwScope = DECLARE_THROW_SCOPE(vm);
 
     auto& thisObject = static_cast<JSDOMGlobalObject&>(*globalObject);
-    auto* scriptExecutionContext = thisObject.scriptExecutionContext();
+    CheckedPtr scriptExecutionContext = thisObject.scriptExecutionContext();
 
     auto result = canCompile(*scriptExecutionContext, compilationType, codeString, args);
 
@@ -479,11 +480,11 @@ void JSDOMGlobalObject::promiseRejectionTracker(JSGlobalObject* jsGlobalObject, 
     // https://html.spec.whatwg.org/multipage/webappapis.html#the-hostpromiserejectiontracker-implementation
 
     auto& globalObject = *JSC::jsCast<JSDOMGlobalObject*>(jsGlobalObject);
-    auto* context = globalObject.scriptExecutionContext();
+    CheckedPtr context = globalObject.scriptExecutionContext();
     if (!context)
         return;
 
-    auto rejectedPromiseTracker = context->ensureRejectedPromiseTracker();
+    CheckedPtr rejectedPromiseTracker = context->ensureRejectedPromiseTracker();
     if (!rejectedPromiseTracker)
         return;
 
@@ -668,7 +669,7 @@ JSC::JSPromise* JSDOMGlobalObject::instantiateStreaming(JSC::JSGlobalObject* glo
 static ScriptModuleLoader* scriptModuleLoader(JSDOMGlobalObject* globalObject)
 {
     if (globalObject->inherits<JSDOMWindowBase>()) {
-        if (auto document = jsCast<const JSDOMWindowBase*>(globalObject)->wrapped().documentIfLocal())
+        if (RefPtr document = jsCast<const JSDOMWindowBase*>(globalObject)->wrapped().documentIfLocal())
             return &document->moduleLoader();
         return nullptr;
     }
@@ -742,7 +743,7 @@ JSC::JSGlobalObject* JSDOMGlobalObject::deriveShadowRealmGlobalObject(JSC::JSGlo
 
     auto domGlobalObject = jsCast<JSDOMGlobalObject*>(globalObject);
     auto context = domGlobalObject->scriptExecutionContext();
-    if (auto* document = dynamicDowncast<Document>(context)) {
+    if (CheckedPtr document = dynamicDowncast<Document>(context)) {
         // Same-origin iframes present a difficult circumstance because the
         // shadow realm global object cannot retain the incubating realm's
         // global object (that would be a refcount loop); but, same-origin
@@ -758,7 +759,7 @@ JSC::JSGlobalObject* JSDOMGlobalObject::deriveShadowRealmGlobalObject(JSC::JSGlo
         auto& originalWorld = domGlobalObject->world();
 
         while (!document->isTopDocument()) {
-            auto* candidateDocument = document->parentDocument();
+            CheckedPtr candidateDocument = document->parentDocument();
             if (!candidateDocument || !candidateDocument->protectedSecurityOrigin()->isSameOriginDomain(originalOrigin))
                 break;
 

@@ -123,6 +123,9 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
     _panGestureRecognizer = adoptNS([[NSPanGestureRecognizer alloc] initWithTarget:self action:@selector(panGestureRecognized:)]);
     [self configureForScrolling:_panGestureRecognizer.get()];
     [_panGestureRecognizer setDelegate:self];
+#if HAVE(NSGESTURERECOGNIZER_NAME)
+    [_panGestureRecognizer setName:@"WKPanGesture"];
+#endif
     [self enablePanGestureIfNeeded];
 
     CheckedPtr checkedViewImpl = _viewImpl.get();

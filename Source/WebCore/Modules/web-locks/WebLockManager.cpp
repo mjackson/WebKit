@@ -333,13 +333,13 @@ void WebLockManager::signalToAbortTheRequest(WebLockIdentifier lockIdentifier, J
         if (wasAborted && weakThis)
             weakThis->m_pendingRequests.remove(lockIdentifier);
     });
-    if (auto releasePromise = m_releasePromises.take(lockIdentifier))
+    if (RefPtr releasePromise = m_releasePromises.take(lockIdentifier))
         releasePromise->reject<IDLAny>(reason);
 }
 
 void WebLockManager::settleReleasePromise(WebLockIdentifier lockIdentifier, ExceptionOr<JSC::JSValue>&& result)
 {
-    auto releasePromise = m_releasePromises.take(lockIdentifier);
+    RefPtr releasePromise = m_releasePromises.take(lockIdentifier);
     if (!releasePromise)
         return;
 
@@ -360,8 +360,8 @@ void WebLockManager::clientIsGoingAway()
         return;
 
     // Reject all pending promises before clearing
-    for (auto& pair : m_releasePromises)
-        RefPtr { pair.value }->reject(ExceptionCode::AbortError, "Promise was rejected because the browsing context is going away"_s);
+    for (Ref promise : m_releasePromises.values())
+        promise->reject(ExceptionCode::AbortError, "Promise was rejected because the browsing context is going away"_s);
 
     m_pendingRequests.clear();
     m_releasePromises.clear();

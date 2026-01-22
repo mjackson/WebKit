@@ -84,6 +84,7 @@ public:
 
     virtual RefPtr<RenderBundle> finish(const RenderBundleDescriptor&) = 0;
     virtual bool isRemoteRenderBundleEncoderProxy() const { return false; }
+    virtual bool isRenderBundleEncoderImpl() const { return false; }
 
 protected:
     RenderBundleEncoder() = default;

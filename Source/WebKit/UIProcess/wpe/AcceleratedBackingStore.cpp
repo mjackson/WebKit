@@ -82,6 +82,10 @@ AcceleratedBackingStore::AcceleratedBackingStore(WebPageProxy& webPage, WPEView*
         auto& backingStore = *static_cast<AcceleratedBackingStore*>(userData);
         backingStore.bufferReleased(buffer);
     }), this);
+    g_signal_connect(m_wpeView.get(), "notify::toplevel", G_CALLBACK(+[](WPEView* view, GParamSpec*, gpointer userData) {
+        auto& backingStore = *static_cast<AcceleratedBackingStore*>(userData);
+        backingStore.toplevelChanged();
+    }), this);
 }
 
 AcceleratedBackingStore::~AcceleratedBackingStore()
@@ -254,6 +258,9 @@ Expected<Ref<ViewSnapshot>, String> AcceleratedBackingStore::takeSnapshot(std::o
 
 void AcceleratedBackingStore::renderPendingBuffer()
 {
+    if (!wpe_view_get_toplevel(m_wpeView.get()))
+        return;
+
     // Rely on the layout of IntRect matching that of WPERectangle
     // to pass directly a pointer below instead of using copies.
     static_assert(sizeof(WebCore::IntRect) == sizeof(WPERectangle));
@@ -266,7 +273,8 @@ void AcceleratedBackingStore::renderPendingBuffer()
         g_warning("Failed to render frame: %s", error->message);
         frameDone();
         m_pendingBuffer = nullptr;
-    }
+    } else
+        m_committedBuffer = WTF::move(m_pendingBuffer);
     m_pendingDamageRects = { };
 }
 
@@ -279,7 +287,6 @@ void AcceleratedBackingStore::frameDone()
 void AcceleratedBackingStore::bufferRendered()
 {
     frameDone();
-    m_committedBuffer = WTF::move(m_pendingBuffer);
 }
 
 void AcceleratedBackingStore::bufferReleased(WPEBuffer* buffer)
@@ -290,6 +297,17 @@ void AcceleratedBackingStore::bufferReleased(WPEBuffer* buffer)
         if (RefPtr legacyMainFrameProcess = m_legacyMainFrameProcess.get())
             legacyMainFrameProcess->send(Messages::AcceleratedSurface::ReleaseBuffer(id, WTF::move(releaseFence)), m_surfaceID);
     }
+}
+
+void AcceleratedBackingStore::toplevelChanged()
+{
+    if (!wpe_view_get_toplevel(m_wpeView.get()))
+        return;
+
+    if (!m_pendingBuffer || m_fenceMonitor.hasFileDescriptor())
+        return;
+
+    renderPendingBuffer();
 }
 
 RendererBufferDescription AcceleratedBackingStore::bufferDescription() const

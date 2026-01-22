@@ -428,9 +428,9 @@
       "workernames": ["ews127", "ews128", "ews205", "ews206", "ews251", "ews252"]
     },
     {
-      "name": "JSC-Tests-arm64-EWS", "shortname": "jsc-arm64", "icon": "buildAndTest",
-      "factory": "JSCBuildAndTestsFactory", "platform": "mac-sequoia",
-      "configuration": "release", "runTests": "true",
+      "name": "JSC-Tests-O3-Debug-arm64-EWS", "shortname": "jsc-debug-arm64", "icon": "buildAndTest",
+      "factory": "JSCBuildO3AndTestsFactory", "platform": "mac-sequoia",
+      "configuration": "debug", "runTests": "true",
       "workernames": ["ews136", "ews137", "ews265", "ews266"]
     },
     {
@@ -522,7 +522,7 @@
       "type": "Try_Userpass", "name": "try", "port": 5555,
       "builderNames": [
             "Bindings-Tests-EWS", "GTK-Build-EWS", "iOS-26-Build-EWS", "iOS-26-Simulator-Build-EWS",
-            "JSC-ARMv7-32bits-Build-EWS", "JSC-Tests-EWS", "JSC-Tests-arm64-EWS",
+            "JSC-ARMv7-32bits-Build-EWS", "JSC-Tests-EWS", "JSC-Tests-O3-Debug-arm64-EWS",
             "macOS-Tahoe-Debug-Build-EWS", "macOS-Sequoia-Release-Build-EWS", "macOS-Safer-CPP-Checks-EWS",
             "Services-EWS", "Style-EWS", "tvOS-26-Build-EWS", "tvOS-26-Simulator-Build-EWS", "visionOS-26-Build-EWS", "visionOS-26-Simulator-Build-EWS",
             "watchOS-26-Build-EWS", "watchOS-26-Simulator-Build-EWS", "WPE-Build-EWS", "WebKitPerl-Tests-EWS", "WebKitPy-Tests-EWS", "PlayStation-Build-EWS", "Win-Build-EWS",
@@ -537,7 +537,7 @@
       "type": "AnyBranchScheduler", "name": "pull_request",
       "builderNames": [
             "Bindings-Tests-EWS", "GTK-Build-EWS", "iOS-26-Build-EWS", "iOS-26-Simulator-Build-EWS",
-            "JSC-ARMv7-32bits-Build-EWS", "JSC-Tests-EWS", "JSC-Tests-arm64-EWS",
+            "JSC-ARMv7-32bits-Build-EWS", "JSC-Tests-EWS", "JSC-Tests-O3-Debug-arm64-EWS",
             "macOS-Tahoe-Debug-Build-EWS", "macOS-Sequoia-Release-Build-EWS", "macOS-Safer-CPP-Checks-EWS",
             "Services-EWS", "Style-EWS", "Style-EWS", "tvOS-26-Build-EWS", "tvOS-26-Simulator-Build-EWS", "visionOS-26-Build-EWS", "visionOS-26-Simulator-Build-EWS",
             "watchOS-26-Build-EWS", "watchOS-26-Simulator-Build-EWS", "WPE-Build-EWS", "WebKitPerl-Tests-EWS", "WebKitPy-Tests-EWS", "PlayStation-Build-EWS", "Win-Build-EWS",

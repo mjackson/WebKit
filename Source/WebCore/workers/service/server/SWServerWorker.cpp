@@ -96,7 +96,7 @@ ServiceWorkerContextData SWServerWorker::contextData() const
     RefPtr registration = m_registration.get();
     ASSERT(registration);
 
-    return { std::nullopt, registration->data(), m_data.identifier, m_script, m_certificateInfo, m_contentSecurityPolicy, m_crossOriginEmbedderPolicy, m_referrerPolicy, m_data.scriptURL, m_data.type, false, m_lastNavigationWasAppInitiated, m_scriptResourceMap, registration->serviceWorkerPageIdentifier(), registration->navigationPreloadState() };
+    return { std::nullopt, registration->data(), m_data.identifier, m_script, m_certificateInfo, m_contentSecurityPolicy, m_crossOriginEmbedderPolicy, m_referrerPolicy, m_data.scriptURL, m_data.type, false, m_lastNavigationWasAppInitiated, m_scriptResourceMap, registration->serviceWorkerPageIdentifier(), registration->navigationPreloadState(), WTF::map(m_routes, [](auto& route) { return route.copy(); }) };
 }
 
 void SWServerWorker::updateAppInitiatedValue(LastNavigationWasAppInitiated lastNavigationWasAppInitiated)
@@ -150,7 +150,7 @@ void SWServerWorker::startTermination(CompletionHandler<void()>&& callback)
     m_terminationCallbacks.append(WTF::move(callback));
 
     constexpr Seconds terminationDelayForTesting = 1_s;
-    RefPtr<SWServer> server = m_server.get();
+    RefPtr server = m_server;
     m_terminationTimer.startOneShot(server && server->isProcessTerminationDelayEnabled() ? SWServer::defaultTerminationDelay : terminationDelayForTesting);
 
     m_terminationIfPossibleTimer.stop();
@@ -190,7 +190,7 @@ const ClientOrigin& SWServerWorker::origin() const
 
 SWServerToContextConnection* SWServerWorker::contextConnection()
 {
-    RefPtr<SWServer> server = m_server.get();
+    RefPtr server = m_server;
     return server ? server->contextConnectionForRegistrableDomain(topRegistrableDomain()) : nullptr;
 }
 

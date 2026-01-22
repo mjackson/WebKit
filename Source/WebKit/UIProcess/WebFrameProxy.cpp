@@ -64,6 +64,7 @@
 #include <WebCore/Image.h>
 #include <WebCore/MIMETypeRegistry.h>
 #include <WebCore/NavigationScheduler.h>
+#include <WebCore/RemoteFrameLayoutInfo.h>
 #include <WebCore/ShareableBitmapHandle.h>
 #include <WebCore/WebKitJSHandle.h>
 #include <stdio.h>
@@ -670,7 +671,7 @@ Ref<FrameTreeSyncData> WebFrameProxy::calculateFrameTreeSyncData() const
     bool isSecureForPaymentSession = false;
 #endif
 
-    return FrameTreeSyncData::create(isSecureForPaymentSession, securityOrigin(), url().protocol().toString(), IntRect { }, LayoutRect { }, HashMap<FrameIdentifier, std::optional<LayoutRect>> { });
+    return FrameTreeSyncData::create(isSecureForPaymentSession, securityOrigin(), url().protocol().toString(), IntRect { }, LayoutRect { }, HashMap<FrameIdentifier, RemoteFrameLayoutInfo> { });
 }
 
 Ref<SecurityOrigin> WebFrameProxy::securityOrigin() const

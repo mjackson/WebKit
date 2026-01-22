@@ -90,7 +90,7 @@ struct ResolutionContext {
     bool isSVGUseTreeRoot { false };
 };
 
-using KeyframesRuleMap = HashMap<AtomString, RefPtr<StyleRuleKeyframes>>;
+using KeyframesRuleMap = HashMap<AtomString, Ref<StyleRuleKeyframes>>;
 
 class Resolver : public RefCounted<Resolver>, public CanMakeSingleThreadWeakPtr<Resolver> {
     WTF_MAKE_TZONE_ALLOCATED(Resolver);
@@ -194,8 +194,8 @@ private:
 
     std::unique_ptr<Style::CustomFunctionRegistry> m_customFunctionRegistry;
 
-    MQ::MediaQueryEvaluator m_mediaQueryEvaluator;
     std::unique_ptr<RenderStyle> m_rootDefaultStyle;
+    MQ::MediaQueryEvaluator m_mediaQueryEvaluator;
 
     InspectorCSSOMWrappers m_inspectorCSSOMWrappers;
 

@@ -352,6 +352,20 @@ SelectorChecker::MatchResult SelectorChecker::matchRecursively(CheckingContext& 
                 return MatchResult::fails(Match::SelectorFailsLocally);
             break;
         }
+        case CSSSelector::PseudoElement::Picker: {
+            auto* root = context.element->containingShadowRoot();
+            if (!root || root->mode() != ShadowRootMode::UserAgent)
+                return MatchResult::fails(Match::SelectorFailsLocally);
+
+            auto* argumentList = context.selector->argumentList();
+            ASSERT(argumentList && !argumentList->isEmpty());
+
+            auto part = makeString("picker("_s, argumentList->at(0), ')');
+            if (context.element->userAgentPart() != part)
+                return MatchResult::fails(Match::SelectorFailsLocally);
+
+            break;
+        }
         case CSSSelector::PseudoElement::WebKitUnknown:
             return MatchResult::fails(Match::SelectorFailsLocally);
         default: {
@@ -502,7 +516,7 @@ SelectorChecker::MatchResult SelectorChecker::matchRecursively(CheckingContext& 
     case CSSSelector::Relation::ShadowPartDescendant: {
         // Continue matching in the scope where this rule came from.
         RefPtr host = checkingContext.styleScopeOrdinal == Style::ScopeOrdinal::Element
-            ? context.element->shadowHost()
+            ? RefPtr { context.element->shadowHost() }
             : Style::hostForScopeOrdinal(*context.element, checkingContext.styleScopeOrdinal);
         if (!host)
             return MatchResult::fails(Match::SelectorFailsCompletely);
@@ -1215,6 +1229,9 @@ bool SelectorChecker::checkOne(CheckingContext& checkingContext, LocalContext& c
 
         case CSSSelector::PseudoClass::InternalMediaDocument:
             return isMediaDocument(element);
+
+        case CSSSelector::PseudoClass::Open:
+            return matchesOpenPseudoClass(element);
 
         case CSSSelector::PseudoClass::PopoverOpen:
             return matchesPopoverOpenPseudoClass(element);

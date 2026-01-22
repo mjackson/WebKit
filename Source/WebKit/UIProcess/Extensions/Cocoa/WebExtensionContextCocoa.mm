@@ -2958,7 +2958,7 @@ void WebExtensionContext::loadInspectorBackgroundPage(WebInspectorUIProxy& inspe
         WeakPtr<WebExtensionContext> m_extensionContext;
     };
 
-    inspector.protectedExtensionController()->registerExtension(uniqueIdentifier(), uniqueIdentifier(), protectedExtension()->displayName(), [this, protectedThis = Ref { *this }, inspector = Ref { inspector }, tab = Ref { tab }](Expected<RefPtr<API::InspectorExtension>, Inspector::ExtensionError> result) {
+    inspector.protectedExtensionController()->registerExtension(uniqueIdentifier(), uniqueIdentifier(), protectedExtension()->displayName(), [this, protectedThis = Ref { *this }, inspector = Ref { inspector }, tab = Ref { tab }](Expected<Ref<API::InspectorExtension>, Inspector::ExtensionError> result) {
         if (!result) {
             RELEASE_LOG_ERROR(Extensions, "Failed to register Inspector extension (error %{public}hhu)", enumToUnderlyingType(result.error()));
             return;
@@ -2994,7 +2994,7 @@ void WebExtensionContext::loadInspectorBackgroundPage(WebInspectorUIProxy& inspe
             inspectorBackgroundWebView._page->setAlwaysUseRelatedPageProcess();
         }
 
-        Ref inspectorExtension = result.value().releaseNonNull();
+        Ref inspectorExtension = result.value();
         inspectorExtension->setClient(makeUniqueRef<InspectorExtensionClient>(inspectorExtension, *this));
 
         Ref process = inspectorBackgroundWebView._page->legacyMainFrameProcess();

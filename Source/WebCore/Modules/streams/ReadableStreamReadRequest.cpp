@@ -46,12 +46,12 @@ private:
 
     void runChunkSteps(JSC::JSValue value) final
     {
-        m_promise->resolve<IDLDictionary<ReadableStreamReadResult>>({ value, false });
+        m_promise->resolve<IDLDictionary<ReadableStreamReadResult>>(ReadableStreamReadResult { value, false });
     }
 
     void runCloseSteps() final
     {
-        m_promise->resolve<IDLDictionary<ReadableStreamReadResult>>({ JSC::jsUndefined(), true });
+        m_promise->resolve<IDLDictionary<ReadableStreamReadResult>>(ReadableStreamReadResult { JSC::jsUndefined(), true });
     }
 
     void runErrorSteps(JSC::JSValue value) final
@@ -86,12 +86,12 @@ private:
 
     void runChunkSteps(JSC::JSValue value) final
     {
-        m_promise->resolve<IDLDictionary<ReadableStreamReadResult>>({ value, false });
+        m_promise->resolve<IDLDictionary<ReadableStreamReadResult>>(ReadableStreamReadResult { value, false });
     }
 
     void runCloseSteps(JSC::JSValue value) final
     {
-        m_promise->resolve<IDLDictionary<ReadableStreamReadResult>>({ value, true });
+        m_promise->resolve<IDLDictionary<ReadableStreamReadResult>>(ReadableStreamReadResult { value, true });
     }
 
     void runErrorSteps(JSC::JSValue value) final

@@ -93,7 +93,7 @@ WebSocketChannel::ConnectStatus WebSocketChannel::connect(const URL& requestedUR
     ASSERT(!m_suspended);
 
     if (validatedURL->url != requestedURL) {
-        if (RefPtr client = m_client.get())
+        if (RefPtr client = m_client)
             client->didUpgradeURL();
     }
 
@@ -124,7 +124,7 @@ WebSocketChannel::ConnectStatus WebSocketChannel::connect(const URL& requestedUR
 
 Document* WebSocketChannel::document()
 {
-    return m_document.get();
+    return m_document;
 }
 
 String WebSocketChannel::subprotocol()
@@ -226,7 +226,7 @@ void WebSocketChannel::fail(String&& reason)
     m_deflateFramer.didFail();
     m_hasContinuousFrame = false;
     m_continuousFrameData.clear();
-    if (RefPtr client = m_client.get())
+    if (RefPtr client = m_client)
         client->didReceiveMessageError(WTF::move(reason));
 
     if (m_handle && !m_closed)
@@ -298,7 +298,7 @@ void WebSocketChannel::didCloseSocketStream(SocketStreamHandle& handle)
         m_unhandledBufferedAmount = m_handle->bufferedAmount();
         if (m_suspended)
             return;
-        RefPtr client = m_client.get();
+        RefPtr client = m_client;
         m_client = nullptr;
         m_document = nullptr;
         m_handle = nullptr;
@@ -345,7 +345,7 @@ void WebSocketChannel::didFailToReceiveSocketStreamData(SocketStreamHandle& hand
 
 void WebSocketChannel::didUpdateBufferedAmount(SocketStreamHandle&, size_t bufferedAmount)
 {
-    if (RefPtr client = m_client.get())
+    if (RefPtr client = m_client)
         client->didUpdateBufferedAmount(bufferedAmount);
 }
 
@@ -368,7 +368,7 @@ void WebSocketChannel::didFailSocketStream(SocketStreamHandle& handle, const Soc
         LOG_ERROR("%s", message.utf8().data());
     }
     m_shouldDiscardReceivedData = true;
-    if (RefPtr client = m_client.get())
+    if (RefPtr client = m_client)
         client->didReceiveMessageError(WTF::move(message));
     handle.disconnect();
 }
@@ -512,7 +512,7 @@ void WebSocketChannel::startClosingHandshake(int code, const String& reason)
     }
 
     m_closing = true;
-    if (RefPtr client = m_client.get())
+    if (RefPtr client = m_client)
         client->didStartClosingHandshake();
 }
 
@@ -708,7 +708,7 @@ bool WebSocketChannel::processFrame()
 
 RefPtr<WebSocketChannelClient> WebSocketChannel::protectedClient() const
 {
-    return m_client.get();
+    return m_client;
 }
 
 void WebSocketChannel::enqueueTextFrame(CString&& string)

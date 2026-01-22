@@ -42,9 +42,11 @@ struct FetchOptions;
 
 struct ServiceWorkerRoutePattern {
     ServiceWorkerRoutePattern isolatedCopy() &&;
+    ServiceWorkerRoutePattern isolatedCopy() const &;
 
     using Component = String;
 
+    bool shouldIgnoreCase { false };
     Component protocol;
     Component username;
     Component password;
@@ -59,6 +61,7 @@ struct ServiceWorkerRouteCondition {
     WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(ServiceWorkerRouteCondition);
 
     ServiceWorkerRouteCondition isolatedCopy() &&;
+    ServiceWorkerRouteCondition isolatedCopy() const &;
     ServiceWorkerRouteCondition copy() const;
 
     std::optional<ServiceWorkerRoutePattern> urlPattern;
@@ -79,13 +82,14 @@ struct ServiceWorkerRoute {
 
     ServiceWorkerRoute copy() const { return { condition.copy(), source }; }
     ServiceWorkerRoute isolatedCopy() &&;
+    ServiceWorkerRoute isolatedCopy() const &;
 };
 
 std::optional<size_t> countRouterInnerConditions(const ServiceWorkerRouteCondition&, size_t result, size_t depth);
 std::optional<ExceptionData> validateServiceWorkerRoute(ServiceWorkerRoute&);
 
 #if PLATFORM(COCOA)
-bool isRegexpMatching(const String& pattern, StringView value);
+bool isRegexpMatching(const String& pattern, StringView value, bool shouldIgnoreCase);
 #endif
 
 bool matchRouterCondition(const ServiceWorkerRouteCondition&, const FetchOptions&, const ResourceRequest&, bool isServiceWorkerRunning);

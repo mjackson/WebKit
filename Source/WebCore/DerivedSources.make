@@ -646,7 +646,6 @@ JS_BINDING_IDLS := \
     $(WebCore)/Modules/streams/TransformStream.idl \
     $(WebCore)/Modules/streams/TransformStreamDefaultController.idl \
     $(WebCore)/Modules/streams/UnderlyingSource.idl \
-    $(WebCore)/Modules/streams/UnderlyingSourceStartCallback.idl \
     $(WebCore)/Modules/streams/UnderlyingSourceCancelCallback.idl \
     $(WebCore)/Modules/streams/UnderlyingSourcePullCallback.idl \
     $(WebCore)/Modules/streams/UnderlyingSourceStartCallback.idl \

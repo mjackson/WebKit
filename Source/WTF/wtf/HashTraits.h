@@ -225,7 +225,7 @@ template<typename P, typename Q, typename R> struct HashTraits<RefPtr<P, Q, R>> 
     static bool isEmptyValue(const RefPtr<P, Q, R>& value) { return !value; }
 
     using PeekType = P*;
-    static PeekType peek(const RefPtr<P, Q, R>& value) { return value.get(); }
+    static PeekType peek(const RefPtr<P, Q, R>& value) { return value; }
     static PeekType peek(P* value) { return value; }
 
     static void customDeleteBucket(RefPtr<P, Q, R>& value)
@@ -348,6 +348,15 @@ struct PairHashTraits : GenericHashTraits<std::pair<typename FirstTraitsArg::Tra
 
     static constexpr bool emptyValueIsZero = FirstTraits::emptyValueIsZero && SecondTraits::emptyValueIsZero;
     static EmptyValueType emptyValue() { return std::make_pair(FirstTraits::emptyValue(), SecondTraits::emptyValue()); }
+
+    // Override constructEmptyValue to construct elements individually, avoiding move-construction from emptyValue().
+    template <typename Traits>
+    static void constructEmptyValue(TraitType& slot)
+    {
+        FirstTraits::template constructEmptyValue<FirstTraits>(*std::launder(&slot.first));
+        SecondTraits::template constructEmptyValue<SecondTraits>(*std::launder(&slot.second));
+    }
+
     static bool isEmptyValue(const TraitType& value) { return isHashTraitsEmptyValue<FirstTraits>(value.first) && isHashTraitsEmptyValue<SecondTraits>(value.second); }
 
     static constexpr unsigned minimumTableSize = FirstTraits::minimumTableSize;

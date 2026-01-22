@@ -105,7 +105,7 @@ static GRefPtr<GSource> recvSourceNew()
 }
 
 struct RecvSourceData {
-    RiceBackend* backend;
+    ThreadSafeWeakPtr<RiceBackend> backend;
     unsigned streamId;
 };
 WEBKIT_DEFINE_ASYNC_DATA_STRUCT(RecvSourceData);
@@ -271,7 +271,10 @@ void RiceBackend::gatherSocketAddresses(ScriptExecutionContextIdentifier identif
     recvData2->streamId = streamId;
     auto sockets = adoptGRef(rice_sockets_new_with_notify([](auto userData) {
         auto recvData = reinterpret_cast<RecvSourceData*>(userData);
-        if (auto recvSource = recvData->backend->getRecvSourceForStream(recvData->streamId))
+        RefPtr backend = recvData->backend.get();
+        if (!backend)
+            return;
+        if (auto recvSource = backend->getRecvSourceForStream(recvData->streamId))
             recvSourceWakeup(recvSource.get());
     }, recvData2, reinterpret_cast<GDestroyNotify>(destroyRecvSourceData)));
 
@@ -298,7 +301,10 @@ void RiceBackend::gatherSocketAddresses(ScriptExecutionContextIdentifier identif
         recvData->streamId = streamId;
         auto tcpListener = adoptGRef(rice_tcp_listen(interfaceAddresses[i], [](RiceTcpSocket* socket, void* userData) {
             auto recvData = reinterpret_cast<RecvSourceData*>(userData);
-            auto sockets = recvData->backend->getSocketsForStream(recvData->streamId);
+            RefPtr backend = recvData->backend.get();
+            if (!backend)
+                return;
+            auto sockets = backend->getSocketsForStream(recvData->streamId);
             rice_sockets_add_tcp(sockets.get(), socket);
         }, recvData, reinterpret_cast<RiceIoDestroy>(destroyRecvSourceData)));
 
@@ -319,7 +325,10 @@ void RiceBackend::gatherSocketAddresses(ScriptExecutionContextIdentifier identif
         uint8_t data[16384];
 
         auto sourceData = reinterpret_cast<RecvSourceData*>(userData);
-        auto sockets = sourceData->backend->getSocketsForStream(sourceData->streamId);
+        RefPtr backend = sourceData->backend.get();
+        if (!backend)
+            return G_SOURCE_REMOVE;
+        auto sockets = backend->getSocketsForStream(sourceData->streamId);
         if (!sockets)
             return G_SOURCE_CONTINUE;
         while (true) {
@@ -343,7 +352,7 @@ void RiceBackend::gatherSocketAddresses(ScriptExecutionContextIdentifier identif
                 auto handle = SharedMemoryHandle::createCopy(unsafeMakeSpan(data, recv.data.len), SharedMemoryProtection::ReadOnly);
                 if (!handle) [[unlikely]]
                     break;
-                sourceData->backend->notifyIncomingData(sourceData->streamId, protocol, WTF::move(from), WTF::move(to), WTF::move(*handle));
+                backend->notifyIncomingData(sourceData->streamId, protocol, WTF::move(from), WTF::move(to), WTF::move(*handle));
                 break;
             }
             case RICE_IO_RECV_CLOSED:

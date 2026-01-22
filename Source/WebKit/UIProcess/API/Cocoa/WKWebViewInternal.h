@@ -119,7 +119,7 @@ namespace WritingTools {
 enum class TextSuggestionState : uint8_t;
 }
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
 struct DigitalCredentialsRequestData;
 struct DigitalCredentialsResponseData;
 struct MobileDocumentRequest;
@@ -170,7 +170,7 @@ enum class PreferSolidColorHardPocketReason : uint8_t {
 @class _WKFrameHandle;
 @class _WKWarningView;
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
 @class WKDigitalCredentialsPicker;
 #endif
 
@@ -579,7 +579,7 @@ struct PerWebProcessState {
 
 - (void)_didAccessBackForwardList NS_DIRECT;
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
 - (void)_showDigitalCredentialsPicker:(const WebCore::DigitalCredentialsRequestData&)requestData completionHandler:(WTF::CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&&)completionHandler;
 - (void)_dismissDigitalCredentialsPicker:(WTF::CompletionHandler<void(bool)>&&)completionHandler;
 #endif

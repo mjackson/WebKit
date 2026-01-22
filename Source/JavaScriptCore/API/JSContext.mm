@@ -207,7 +207,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 {
     auto& thread = Thread::currentSingleton();
     CallbackData *entry = (CallbackData *)thread.m_apiData;
-    return entry ? entry->context : nil;
+    return entry ? entry->context.get() : nil;
 }
 
 + (JSValue *)currentThis

@@ -86,6 +86,7 @@ public:
     bool needsDeferKeyDownAndKeyPressTimersUntilNextEditingCommand() const;
     WEBCORE_EXPORT bool inputMethodUsesCorrectKeyEventOrder() const;
     bool shouldExposeShowModalDialog() const;
+    bool shouldIgnoreInputModeNone() const;
     bool shouldNavigatorPluginsBeEmpty() const;
     bool returnNullPictureInPictureElementDuringFullscreenChange() const;
 
@@ -305,8 +306,6 @@ public:
     bool shouldDisableDOMAudioSessionQuirk() const;
 
     bool needsSuppressPostLayoutBoundaryEventsQuirk() const;
-
-    bool shouldExposeCredentialsContainerQuirk() const;
 
 #if ENABLE(PICTURE_IN_PICTURE_API)
     bool shouldReportVisibleDueToActivePictureInPictureContent() const;

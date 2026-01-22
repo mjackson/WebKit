@@ -604,6 +604,7 @@ Vector<ASCIILiteral> serializedIdentifiers()
         "WebKit::WebPageProxyIdentifier"_s,
         "WebKit::WebTransportSessionIdentifier"_s,
         "WebKit::WebURLSchemeHandlerIdentifier"_s,
+        "WebKit::WebUndoStepID"_s,
     };
 }
 

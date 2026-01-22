@@ -204,7 +204,7 @@
 #import <pal/spi/cocoa/AVKitSPI.h>
 #endif
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
 #import "WKDigitalCredentialsPicker.h"
 #endif
 
@@ -7837,11 +7837,12 @@ static UITextAutocapitalizationType toUITextAutocapitalize(WebCore::Autocapitali
     if (_focusedElementInformation.elementType == WebKit::InputType::Select)
         return NO;
 
-    if (!self.webView.scrollView.scrollEnabled)
+    UIScrollView *scrollView = animator.scrollView ?: self.webView.scrollView;
+    if (!scrollView.scrollEnabled)
         return NO;
 
 #if HAVE(UISCROLLVIEW_ALLOWS_KEYBOARD_SCROLLING)
-    if (!self.webView.scrollView.allowsKeyboardScrolling)
+    if (!scrollView.allowsKeyboardScrolling)
         return NO;
 #endif
 
@@ -9761,7 +9762,7 @@ static bool canUseQuickboardControllerFor(UITextContentType type)
 
 #endif // HAVE(SHARE_SHEET_UI)
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
 - (void)_showDigitalCredentialsPicker:(const WebCore::DigitalCredentialsRequestData&)requestData completionHandler:(WTF::CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&&)completionHandler
 {
     _digitalCredentialsPicker = adoptNS([[WKDigitalCredentialsPicker alloc] initWithView:self.webView page:_page.get()]);
@@ -9777,7 +9778,7 @@ static bool canUseQuickboardControllerFor(UITextContentType type)
     }
     [_digitalCredentialsPicker dismissWithCompletionHandler:WTF::move(completionHandler)];
 }
-#endif // HAVE(DIGITAL_CREDENTIALS_UI)
+#endif // ENABLE(WEB_AUTHN)
 
 - (void)_showContactPicker:(const WebCore::ContactsRequestData&)requestData completionHandler:(WTF::CompletionHandler<void(std::optional<Vector<WebCore::ContactInfo>>&&)>&&)completionHandler
 {

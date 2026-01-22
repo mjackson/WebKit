@@ -150,9 +150,6 @@ webkit.org/b/298585 fast/forms/validation-message-on-textarea.html [ Failure ]
 # HTML Media Capture
 webkit.org/b/85958 fast/forms/file/file-input-capture.html [ Skip ]
 
-# Hyphenation
-webkit.org/b/221377 [ Debug ] fast/text/hyphenation-unknown-locale.html [ Skip ]
-
 # Input
 webkit.org/b/298525 fast/forms/date/date-validity-badinput.html [ Skip ]
 webkit.org/b/298525 fast/forms/datetimelocal/datetimelocal-validity-badinput.html [ Skip ]
@@ -188,7 +185,6 @@ webkit.org/b/298588 fast/media/mq-pointer.html [ Skip ]
 
 # Pending to create bug.
 [ Release ] fast/events/prevent-default-prevents-interaction-with-scrollbars.html [ Failure Pass ]
-media/no-fullscreen-when-hidden.html [ Failure ]
 media/video-background-tab-playback.html [ Failure ]
 media/video-muted-holds-sleep-assertion.html [ Failure ]
 media/video-unmuted-after-play-holds-sleep-assertion.html [ Failure ]
@@ -392,7 +388,6 @@ webkit.org/b/209275 imported/w3c/web-platform-tests/css/css-writing-modes/vertic
 webkit.org/b/209275 imported/w3c/web-platform-tests/css/css-writing-modes/vertical-alignment-vrl-022.xht [ ImageOnlyFailure ]
 
 webkit.org/b/214290 imported/w3c/web-platform-tests/css/css-text/hyphens/hyphens-out-of-flow-002.html [ Pass ]
-webkit.org/b/257011 imported/w3c/web-platform-tests/css/css-text/hyphens/hyphens-punctuation-001.html [ ImageOnlyFailure ]
 
 webkit.org/b/212351 fast/events/mouse-cursor-update-during-raf.html [ Failure ]
 
@@ -492,6 +487,8 @@ css3/scroll-snap/resnap-after-layout.html [ Skip ] # Timeout.
 #////////////////////////////////////////////////////////////////////////////////////////
 # 4. TESTS CRASHING
 #////////////////////////////////////////////////////////////////////////////////////////
+
+webkit.org/b/305722 [ Debug ] platform/wpe/media/video-punch-hole.html [ Crash Pass ]
 
 webkit.org/b/177633 editing/async-clipboard/clipboard-change-data-while-writing.html [ Failure Pass ]
 webkit.org/b/177633 editing/async-clipboard/clipboard-read-text-from-platform.html [ Failure ]
@@ -880,6 +877,7 @@ webkit.org/b/251107 webgl/2.0.y/conformance/context/premultiplyalpha-test.html [
 webkit.org/b/251107 webgl/2.0.y/conformance2/extensions/ext-render-snorm.html [ Failure ]
 webkit.org/b/251107 webgl/2.0.y/conformance2/extensions/ext-texture-norm16.html [ Failure ]
 webkit.org/b/251107 webgl/2.0.y/conformance2/extensions/webgl-clip-cull-distance.html [ Failure ]
+webgl/1.0.x/conformance/textures/misc/texture-corner-case-videos.html [ Crash Pass ]
 
 # WEBGL2 flakies
 webkit.org/b/251107 webgl/2.0.y/conformance2/rendering/blitframebuffer-test.html [ Pass Failure ]
@@ -962,8 +960,6 @@ webkit.org/b/251554 imported/w3c/web-platform-tests/html/user-activation/consump
 # UNSORTED Expectations. When in doubt, put it here.
 #////////////////////////////////////////////////////////////////////////////////////////
 
-webkit.org/b/258166 fast/inline/hyphen-across-renderers.html [ ImageOnlyFailure ]
-
 fast/canvas/webgl/drawingbuffer-test.html [ Failure ]
 
 imported/w3c/web-platform-tests/css/css-masking/clip/clip-rect-scroll.html [ ImageOnlyFailure ]
@@ -1028,9 +1024,6 @@ webkit.org/b/285298 imported/w3c/web-platform-tests/webcodecs/videoFrame-canvasI
 
 # [WPE] Missing implementation of TestController::setHidden()
 webkit.org/b/268470 fast/mediastream/device-change-event-2.html [ Timeout ]
-
-webkit.org/b/268917 [ Debug ] imported/w3c/web-platform-tests/webaudio/the-audio-api/the-audioworklet-interface/audioworkletprocessor-promises.https.html [ Pass Crash ]
-webkit.org/b/268917 [ Debug ] imported/w3c/web-platform-tests/webaudio/the-audio-api/the-audioworklet-interface/audioworkletglobalscope-sample-rate.https.html [ Pass Crash ]
 
 imported/w3c/web-platform-tests/html/semantics/popovers/popover-focus-2.html [ Failure ]
 
@@ -1117,14 +1110,9 @@ webkit.org/b/279178 fast/scrolling/scroll-into-view-on-composited-scrollable-ove
 
 webkit.org/b/279179 [ Debug ] imported/w3c/web-platform-tests/eventsource/eventsource-constructor-empty-url.any.sharedworker.html [ Failure Pass ]
 
-fast/text/hyphenate-avoid-orphaned-word.html [ Failure ]
-
 fast/hidpi/filters-drop-shadow.html [ ImageOnlyFailure ]
-fast/inline/min-content-width-with-hypens.html [ ImageOnlyFailure ]
 fast/multicol/layers-split-across-columns.html [ ImageOnlyFailure ]
 fast/scrolling/scroll-corner-update-on-direction-change.html [ ImageOnlyFailure Pass ]
-imported/w3c/web-platform-tests/css/css-text/hyphens/hyphens-auto-last-word-001.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-text/hyphens/hyphens-character.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/mathml/relations/css-styling/color-003.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/mathml/relations/css-styling/color-004.tentative.html [ ImageOnlyFailure ]
 

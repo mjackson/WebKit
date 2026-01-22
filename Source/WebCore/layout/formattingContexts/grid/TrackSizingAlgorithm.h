@@ -34,11 +34,17 @@ namespace Layout {
 
 class TrackSizingAlgorithm {
 public:
-    static TrackSizes sizeTracks(const PlacedGridItems&, const TrackSizingFunctionsList&);
+    static TrackSizes sizeTracks(const PlacedGridItems&, const TrackSizingFunctionsList&, std::optional<LayoutUnit> availableSpace);
 
 private:
 
     static UnsizedTracks initializeTrackSizes(const TrackSizingFunctionsList&);
+
+    // Flex track infrastructure
+    static FlexTracks collectFlexTracks(const UnsizedTracks&);
+    static bool hasFlexTracks(const UnsizedTracks&);
+    static double flexFactorSum(const FlexTracks&);
+    static std::optional<LayoutUnit> leftoverSpace(std::optional<LayoutUnit> availableSpace, const UnsizedTracks&);
 };
 
 } // namespace WebCore

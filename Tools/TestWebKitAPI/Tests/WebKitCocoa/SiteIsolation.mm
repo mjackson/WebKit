@@ -975,6 +975,18 @@ TEST(SiteIsolation, WindowOpenRedirect)
     }
 }
 
+TEST(SiteIsolation, InitialNavigationRedirect)
+{
+    HTTPServer server({
+        { "/example"_s, { 302, { { "Location"_s, "https://webkit.org/webkit"_s } }, "redirecting..."_s } },
+        { "/webkit"_s, { "hi"_s } }
+    }, HTTPServer::Protocol::HttpsProxy);
+
+    auto [webView, navigationDelegate] = siteIsolatedViewAndDelegate(server);
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
+    [navigationDelegate waitForDidFinishNavigation];
+}
+
 void pollUntilOpenedWindowIsClosed(RetainPtr<WKWebView> webView, bool& finished)
 {
     [webView evaluateJavaScript:@"openedWindow.closed" completionHandler:makeBlockPtr([webView, &finished](id result, NSError *error) {

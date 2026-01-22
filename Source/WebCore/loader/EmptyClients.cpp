@@ -103,7 +103,7 @@
 #include "LegacyPreviewLoaderClient.h"
 #endif
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
 #include "DigitalCredentialsRequestData.h"
 #include "DigitalCredentialsResponseData.h"
 #include "ExceptionData.h"
@@ -485,7 +485,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(EmptyPaymentCoordinatorClient);
 
 #endif
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
 class EmptyCredentialRequestCoordinatorClient final : public CredentialRequestCoordinatorClient {
     WTF_MAKE_TZONE_ALLOCATED(EmptyCredentialRequestCoordinatorClient);
 public:
@@ -1275,7 +1275,7 @@ PageConfiguration pageConfigurationWithEmptyClients(std::optional<PageIdentifier
         makeUniqueRef<EmptyChromeClient>(),
         makeUniqueRef<EmptyCryptoClient>(),
         makeUniqueRef<DocumentSyncClient>()
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
         , EmptyCredentialRequestCoordinatorClient::create()
 #endif
     };

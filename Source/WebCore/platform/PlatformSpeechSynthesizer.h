@@ -36,6 +36,7 @@
 
 #if PLATFORM(COCOA)
 #include <wtf/RetainPtr.h>
+OBJC_CLASS NSArray;
 OBJC_CLASS WebSpeechSynthesisWrapper;
 #endif
 
@@ -94,6 +95,10 @@ protected:
 private:
     virtual void initializeVoiceList();
     virtual void resetVoiceList();
+
+#if PLATFORM(COCOA)
+    void appendVoices(NSArray *);
+#endif
 
     bool m_voiceListIsInitialized { false };
     PlatformSpeechSynthesizerClient& m_speechSynthesizerClient;

@@ -48,6 +48,9 @@ SharedBufferReference::SharedBufferReference(std::optional<SerializableBuffer>&&
     if (!serializableBuffer->handle)
         return;
 
+    if (auto ledger = serializableBuffer->ledger)
+        serializableBuffer->handle->takeOwnershipOfMemory(*ledger);
+
     auto sharedMemoryBuffer = SharedMemory::map(WTF::move(*serializableBuffer->handle), SharedMemory::Protection::ReadOnly);
     if (!sharedMemoryBuffer || sharedMemoryBuffer->size() < serializableBuffer->size)
         return;
@@ -61,9 +64,9 @@ auto SharedBufferReference::serializableBuffer() const -> std::optional<Serializ
     if (isNull())
         return std::nullopt;
     if (!m_size)
-        return SerializableBuffer { 0, std::nullopt };
+        return SerializableBuffer { 0, std::nullopt, std::nullopt };
     auto sharedMemoryBuffer = m_memory ? m_memory : SharedMemory::copyBuffer(Ref { *m_buffer });
-    return SerializableBuffer { m_size, sharedMemoryBuffer->createHandle(SharedMemory::Protection::ReadOnly) };
+    return SerializableBuffer { m_size, sharedMemoryBuffer->createHandle(SharedMemory::Protection::ReadOnly), m_ledger };
 }
 #endif
 

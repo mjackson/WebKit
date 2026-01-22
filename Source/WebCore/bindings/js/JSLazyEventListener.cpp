@@ -222,9 +222,9 @@ RefPtr<JSLazyEventListener> JSLazyEventListener::create(Document& document, cons
 RefPtr<JSLazyEventListener> JSLazyEventListener::create(LocalDOMWindow& window, const QualifiedName& attributeName, const AtomString& attributeValue)
 {
     ASSERT(window.document());
-    auto& document = *window.document();
-    ASSERT(document.frame());
-    return create({ attributeName, attributeValue, document, nullptr, toJSDOMWindow(document.frame(), mainThreadNormalWorldSingleton()), document.isSVGDocument() });
+    CheckedRef document = *window.document();
+    ASSERT(document->frame());
+    return create({ attributeName, attributeValue, document, nullptr, toJSDOMWindow(document->frame(), mainThreadNormalWorldSingleton()), document->isSVGDocument() });
 }
 
 } // namespace WebCore

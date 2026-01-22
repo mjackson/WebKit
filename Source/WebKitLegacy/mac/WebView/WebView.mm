@@ -1514,7 +1514,7 @@ static void WebKitInitializeGamepadProviderIfNecessary()
 #endif
         makeUniqueRef<WebCryptoClient>(self),
         makeUniqueRef<WebCore::DocumentSyncClient>()
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
         , WebCore::DummyCredentialRequestCoordinatorClient::create()
 #endif
     );
@@ -1772,7 +1772,7 @@ static void WebKitInitializeGamepadProviderIfNecessary()
         makeUniqueRef<WebChromeClientIOS>(self),
         makeUniqueRef<WebCryptoClient>(self),
         makeUniqueRef<WebCore::DocumentSyncClient>()
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
         , WebCore::DummyCredentialRequestCoordinatorClient::create()
 #endif
     );
@@ -3408,7 +3408,7 @@ IGNORE_WARNINGS_END
 
     if (!_private->page)
         return nil;
-    
+
     auto* localMainFrame = dynamicDowncast<WebCore::LocalFrame>(_private->page->mainFrame());
     if (!localMainFrame)
         return nil;
@@ -6009,8 +6009,8 @@ static bool needsWebViewInitThreadWorkaround()
 {
     id docView = [[[self mainFrame] frameView] documentView];
     if ([docView conformsToProtocol:@protocol(_WebDocumentZooming)]) {
-        id <_WebDocumentZooming> zoomingDocView = (id <_WebDocumentZooming>)docView;
-        return [zoomingDocView _canZoomOut];
+        RetainPtr<id<_WebDocumentZooming>> zoomingDocView = (id <_WebDocumentZooming>)docView;
+        return [zoomingDocView.get() _canZoomOut];
     }
     return [self _zoomMultiplier:isTextOnly] / ZoomMultiplierRatio > MinimumZoomMultiplier;
 }
@@ -6020,8 +6020,8 @@ static bool needsWebViewInitThreadWorkaround()
 {
     id docView = [[[self mainFrame] frameView] documentView];
     if ([docView conformsToProtocol:@protocol(_WebDocumentZooming)]) {
-        id <_WebDocumentZooming> zoomingDocView = (id <_WebDocumentZooming>)docView;
-        return [zoomingDocView _canZoomIn];
+        RetainPtr<id<_WebDocumentZooming>> zoomingDocView = (id <_WebDocumentZooming>)docView;
+        return [zoomingDocView.get() _canZoomIn];
     }
     return [self _zoomMultiplier:isTextOnly] * ZoomMultiplierRatio < MaximumZoomMultiplier;
 }
@@ -6030,8 +6030,8 @@ static bool needsWebViewInitThreadWorkaround()
 {
     id docView = [[[self mainFrame] frameView] documentView];
     if ([docView conformsToProtocol:@protocol(_WebDocumentZooming)]) {
-        id <_WebDocumentZooming> zoomingDocView = (id <_WebDocumentZooming>)docView;
-        return [zoomingDocView _zoomOut:sender];
+        RetainPtr<id<_WebDocumentZooming>> zoomingDocView = (id <_WebDocumentZooming>)docView;
+        return [zoomingDocView.get() _zoomOut:sender];
     }
     float newScale = [self _zoomMultiplier:isTextOnly] / ZoomMultiplierRatio;
     if (newScale > MinimumZoomMultiplier)
@@ -6042,8 +6042,8 @@ static bool needsWebViewInitThreadWorkaround()
 {
     id docView = [[[self mainFrame] frameView] documentView];
     if ([docView conformsToProtocol:@protocol(_WebDocumentZooming)]) {
-        id <_WebDocumentZooming> zoomingDocView = (id <_WebDocumentZooming>)docView;
-        return [zoomingDocView _zoomIn:sender];
+        RetainPtr<id<_WebDocumentZooming>> zoomingDocView = (id <_WebDocumentZooming>)docView;
+        return [zoomingDocView.get() _zoomIn:sender];
     }
     float newScale = [self _zoomMultiplier:isTextOnly] * ZoomMultiplierRatio;
     if (newScale < MaximumZoomMultiplier)
@@ -6054,8 +6054,8 @@ static bool needsWebViewInitThreadWorkaround()
 {
     id docView = [[[self mainFrame] frameView] documentView];
     if ([docView conformsToProtocol:@protocol(_WebDocumentZooming)]) {
-        id <_WebDocumentZooming> zoomingDocView = (id <_WebDocumentZooming>)docView;
-        return [zoomingDocView _canResetZoom];
+        RetainPtr<id<_WebDocumentZooming>> zoomingDocView = (id <_WebDocumentZooming>)docView;
+        return [zoomingDocView.get() _canResetZoom];
     }
     return [self _zoomMultiplier:isTextOnly] != 1.0f;
 }
@@ -6064,8 +6064,8 @@ static bool needsWebViewInitThreadWorkaround()
 {
     id docView = [[[self mainFrame] frameView] documentView];
     if ([docView conformsToProtocol:@protocol(_WebDocumentZooming)]) {
-        id <_WebDocumentZooming> zoomingDocView = (id <_WebDocumentZooming>)docView;
-        return [zoomingDocView _resetZoom:sender];
+        RetainPtr<id<_WebDocumentZooming>> zoomingDocView = (id <_WebDocumentZooming>)docView;
+        return [zoomingDocView.get() _resetZoom:sender];
     }
     if ([self _zoomMultiplier:isTextOnly] != 1.0f)
         [self _setZoomMultiplier:1.0f isTextOnly:isTextOnly];
@@ -7305,10 +7305,10 @@ static BOOL findString(NSView <WebDocumentSearching> *searchView, NSString *stri
 
         id <WebDocumentView> view = [[frame.get() frameView] documentView];
         if ([view conformsToProtocol:@protocol(WebDocumentSearching)]) {
-            NSView <WebDocumentSearching> *searchView = (NSView <WebDocumentSearching> *)view;
+            RetainPtr<NSView<WebDocumentSearching>> searchView = (NSView <WebDocumentSearching> *)view;
 
             if (frame.get() == startFrame)
-                startSearchView = searchView;
+                startSearchView = searchView.get();
 
             // In some cases we have to search some content twice; see comment later in this method.
             // We can avoid ever doing this in the common one-frame case by passing the wrap option through
@@ -7316,10 +7316,10 @@ static BOOL findString(NSView <WebDocumentSearching> *searchView, NSString *stri
             // same content.
             WebFindOptions optionsForThisPass = onlyOneFrame ? options : (options & ~WebFindOptionsWrapAround);
 
-            if (findString(searchView, string, optionsForThisPass)) {
-                if (frame.get() != startFrame)
+            if (findString(searchView.get(), string, optionsForThisPass)) {
+                if (frame != startFrame)
                     [startFrame _clearSelection];
-                [[self window] makeFirstResponder:searchView];
+                [[self window] makeFirstResponder:searchView.get()];
                 return YES;
             }
 
@@ -7556,9 +7556,9 @@ static NSAppleEventDescriptor* aeDescFromJSValue(JSC::JSGlobalObject* lexicalGlo
     do {
         id <WebDocumentView> view = [[frame.get() frameView] documentView];
         if ([view conformsToProtocol:@protocol(WebMultipleTextMatches)]) {
-            NSView <WebMultipleTextMatches> *documentView = (NSView <WebMultipleTextMatches> *)view;
-            NSRect documentViewVisibleRect = [documentView visibleRect];
-            for (NSValue *rect in [documentView rectsForTextMatches]) {
+            RetainPtr<NSView<WebMultipleTextMatches>> documentView = (NSView <WebMultipleTextMatches> *)view;
+            NSRect documentViewVisibleRect = [documentView.get() visibleRect];
+            for (NSValue *rect in [documentView.get() rectsForTextMatches]) {
                 NSRect r = [rect rectValue];
                 // Clip rect to document view's visible rect so rect is confined to subframe
                 r = NSIntersectionRect(r, documentViewVisibleRect);
@@ -7567,7 +7567,7 @@ static NSAppleEventDescriptor* aeDescFromJSValue(JSC::JSGlobalObject* lexicalGlo
 
                 @autoreleasepool {
                     // Convert rect to our coordinate system
-                    r = [documentView convertRect:r toView:self];
+                    r = [documentView.get() convertRect:r toView:self];
                     [result addObject:[NSValue valueWithRect:r]];
                 }
             }

@@ -61,7 +61,7 @@ static std::optional<AXID> nodeID(AXObjectCache& cache, Node* node)
 TextMarkerData::TextMarkerData(AXObjectCache& cache, const VisiblePosition& visiblePosition, int charStart, int charOffset, bool ignoredParam, TextMarkerOrigin originParam)
 {
     AX_ASSERT(isMainThread());
-#if ENABLE(AX_THREAD_TEXT_APIS)
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     AX_ASSERT(!AXObjectCache::shouldCreateAXThreadCompatibleMarkers());
 #endif
 
@@ -86,13 +86,13 @@ TextMarkerData::TextMarkerData(AXObjectCache& cache, const CharacterOffset& char
     zeroBytes(*this);
 
     auto visiblePosition = cache.visiblePositionFromCharacterOffset(characterOffsetParam);
-#if ENABLE(AX_THREAD_TEXT_APIS)
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     if (AXObjectCache::shouldCreateAXThreadCompatibleMarkers()) {
         if (std::optional data = cache.textMarkerDataForVisiblePosition(WTF::move(visiblePosition), origin))
             *this = *data;
         return;
     }
-#endif // ENABLE(AX_THREAD_TEXT_APIS)
+#endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
     treeID = cache.treeID().toUInt64();
     auto optionalObjectID = nodeID(cache, characterOffsetParam.node.get());
@@ -276,14 +276,14 @@ AXTextMarkerRange::AXTextMarkerRange(const std::optional<SimpleRange>& range)
     if (!range)
         return;
 
-#if ENABLE(AX_THREAD_TEXT_APIS)
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     if (AXObjectCache::shouldCreateAXThreadCompatibleMarkers()) {
         auto visiblePositionRange = makeVisiblePositionRange(range);
         m_start = AXTextMarker { visiblePositionRange.start };
         m_end = AXTextMarker { visiblePositionRange.end };
         return;
     }
-#endif // ENABLE(AX_THREAD_TEXT_APIS)
+#endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
     if (CheckedPtr cache = range->start.protectedDocument()->axObjectCache()) {
         m_start = AXTextMarker(cache->startOrEndCharacterOffsetForRange(*range, true));
@@ -388,7 +388,7 @@ std::optional<AXTextMarkerRange> AXTextMarkerRange::intersectionWith(const AXTex
         } };
     }
 
-#if ENABLE(AX_THREAD_TEXT_APIS)
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     if (AXObjectCache::useAXThreadTextApis()) {
         if (!*this || !other)
             return { };
@@ -453,7 +453,7 @@ std::optional<AXTextMarkerRange> AXTextMarkerRange::intersectionWith(const AXTex
             intersectionStart = { *current, /* offset */ 0 };
         return { { WTF::move(intersectionStart), WTF::move(intersectionEnd) } };
     }
-#endif // ENABLE(AX_THREAD_TEXT_APIS)
+#endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
     return Accessibility::retrieveValueFromMainThread<std::optional<AXTextMarkerRange>>([this, &other] () -> std::optional<AXTextMarkerRange> {
         auto intersection = WebCore::intersection(*this, other);
@@ -496,10 +496,10 @@ std::partial_ordering operator<=>(const AXTextMarker& marker1, const AXTextMarke
     if (otherObject && !marker2.offset() && otherObject->isRootWebArea())
         return std::partial_ordering::greater;
 
-#if ENABLE(AX_THREAD_TEXT_APIS)
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     if (AXObjectCache::useAXThreadTextApis())
         return object && otherObject ? object->partialOrder(*otherObject) : std::partial_ordering::unordered;
-#endif // ENABLE(AX_THREAD_TEXT_APIS)
+#endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
     auto result = std::partial_ordering::unordered;
     Accessibility::performFunctionOnMainThreadAndWait([&] () {
@@ -521,7 +521,7 @@ bool AXTextMarkerRange::isConfinedTo(std::optional<AXID> objectID) const
         && m_start.treeID() == m_end.treeID();
 }
 
-#if ENABLE(AX_THREAD_TEXT_APIS)
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 String listMarkerTextOnSameLine(const AXTextMarker& marker)
 {
     RefPtr textMarkerObject = marker.object();
@@ -549,15 +549,15 @@ String listMarkerTextOnSameLine(const AXTextMarker& marker)
     }
     return { };
 }
-#endif // ENABLE(AX_THREAD_TEXT_APIS)
+#endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
 String AXTextMarkerRange::toString(IncludeListMarkerText includeListMarkerText, IncludeImageAltText includeImageAltText) const
 {
-#if !ENABLE(AX_THREAD_TEXT_APIS)
+#if !ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     UNUSED_PARAM(includeListMarkerText);
-#endif // !ENABLE(AX_THREAD_TEXT_APIS)
+#endif // !ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
-#if ENABLE(AX_THREAD_TEXT_APIS)
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     if (!isMainThread() && AXObjectCache::useAXThreadTextApis()) {
         // Traverses from m_start to m_end, collecting all text along the way.
         auto start = m_start.toTextRunMarker();
@@ -609,7 +609,7 @@ String AXTextMarkerRange::toString(IncludeListMarkerText includeListMarkerText, 
         result.append(end.runs()->substring(0, end.offset()));
         return result.toString();
     }
-#endif // ENABLE(AX_THREAD_TEXT_APIS)
+#endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
     return Accessibility::retrieveValueFromMainThread<String>([this, includeImageAltText] () -> String {
 
@@ -647,7 +647,7 @@ String AXTextMarkerRange::toString(IncludeListMarkerText includeListMarkerText, 
     });
 }
 
-#if ENABLE(AX_THREAD_TEXT_APIS)
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 AXTextMarker AXTextMarker::convertToDomOffset() const
 {
     AX_ASSERT(!isMainThread());
@@ -1467,7 +1467,7 @@ AXTextMarker AXTextMarker::toTextRunMarker(std::optional<AXID> stopAtID) const
     // AXTextMarker { ID 3: StaticText, Offset 3 }
     // Because we had to walk over ID 2 which had length 3 text.
     size_t precedingOffset = 0;
-    RefPtr current = runs ? WTF::move(object) : findObjectWithRuns(*object, AXDirection::Next, stopAtID);
+    RefPtr current = runs ? WTF::move(object) : RefPtr { findObjectWithRuns(*object, AXDirection::Next, stopAtID) };
     while (current) {
         unsigned totalLength = current->textRuns()->totalLength();
         if (precedingOffset + totalLength >= offset())
@@ -1693,6 +1693,6 @@ AXIsolatedObject* findObjectWithRuns(AXIsolatedObject& start, AXDirection direct
 
 } // namespace Accessibility
 
-#endif // ENABLE(AX_THREAD_TEXT_APIS)
+#endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
 } // namespace WebCore

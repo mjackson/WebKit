@@ -21,7 +21,7 @@ class CWasmTestCase(BaseTestCase):
                 self.quitTest()
 
         except Exception as e:
-            raise Exception(f"Breakpoint test failed: {e}")
+            raise Exception(f"Test failed: {e}")
 
     def continueInterruptTest(self):
         cycles = 10
@@ -277,7 +277,7 @@ class SwiftWasmTestCase(BaseTestCase):
                 self.stepTest()
 
         except Exception as e:
-            raise Exception(f"Breakpoint test failed: {e}")
+            raise Exception(f"Test failed: {e}")
 
     def continueInterruptTest(self):
         cycles = 10
@@ -509,7 +509,7 @@ class NopDropSelectEndTestCase(BaseTestCase):
                 self.stepTest()
 
         except Exception as e:
-            raise Exception(f"Breakpoint test failed: {e}")
+            raise Exception(f"Test failed: {e}")
 
     def stepTest(self):
         self.send_lldb_command_or_raise("b 0x4000000000000021")
@@ -554,7 +554,7 @@ class CallTestCase(BaseTestCase):
                 self.stepTest()
 
         except Exception as e:
-            raise Exception(f"Breakpoint test failed: {e}")
+            raise Exception(f"Test failed: {e}")
 
     def stepTest(self):
         self.send_lldb_command_or_raise("b 0x4000000000000036")
@@ -593,7 +593,7 @@ class CallIndirectTestCase(BaseTestCase):
                 self.stepTest()
 
         except Exception as e:
-            raise Exception(f"Breakpoint test failed: {e}")
+            raise Exception(f"Test failed: {e}")
 
     def stepTest(self):
         self.send_lldb_command_or_raise("b 0x4000000000000046")
@@ -634,7 +634,7 @@ class CallRefTestCase(BaseTestCase):
                 self.stepTest()
 
         except Exception as e:
-            raise Exception(f"Breakpoint test failed: {e}")
+            raise Exception(f"Test failed: {e}")
 
     def stepTest(self):
         self.send_lldb_command_or_raise("b 0x4000000000000043")
@@ -675,7 +675,7 @@ class ReturnCallTestCase(BaseTestCase):
                 self.stepTest()
 
         except Exception as e:
-            raise Exception(f"Tail call test failed: {e}")
+            raise Exception(f"Test failed: {e}")
 
     def stepTest(self):
         self.send_lldb_command_or_raise("b 0x4000000000000035")
@@ -717,7 +717,7 @@ class ReturnCallIndirectTestCase(BaseTestCase):
                 self.stepTest()
 
         except Exception as e:
-            raise Exception(f"Tail call indirect test failed: {e}")
+            raise Exception(f"Test failed: {e}")
 
     def stepTest(self):
         self.send_lldb_command_or_raise("b 0x4000000000000045")
@@ -761,7 +761,7 @@ class ReturnCallRefTestCase(BaseTestCase):
                 self.stepTest()
 
         except Exception as e:
-            raise Exception(f"Tail call ref test failed: {e}")
+            raise Exception(f"Test failed: {e}")
 
     def stepTest(self):
         for _ in range(10):
@@ -805,7 +805,7 @@ class ThrowCatchTestCase(BaseTestCase):
                 self.stepTest()
 
         except Exception as e:
-            raise Exception(f"Tail call ref test failed: {e}")
+            raise Exception(f"Test failed: {e}")
 
     def stepTest(self):
         self.send_lldb_command_or_raise("b 0x4000000000000071")
@@ -870,7 +870,7 @@ class ThrowCatchAllTestCase(BaseTestCase):
             self.stepTest()
 
         except Exception as e:
-            raise Exception(f"Throw catch_all test failed: {e}")
+            raise Exception(f"Test failed: {e}")
 
     def stepTest(self):
         self.send_lldb_command_or_raise("b 0x400000000000006e")
@@ -935,7 +935,7 @@ class DelegateTestCase(BaseTestCase):
             self.stepTest()
 
         except Exception as e:
-            raise Exception(f"Delegate test failed: {e}")
+            raise Exception(f"Test failed: {e}")
 
     def stepTest(self):
         self.send_lldb_command_or_raise("b 0x40000000000000c6")
@@ -1363,7 +1363,7 @@ class TryTableTestCase(BaseTestCase):
             self.stepTest()
 
         except Exception as e:
-            raise Exception(f"Try table test failed: {e}")
+            raise Exception(f"Test failed: {e}")
 
     def stepTest(self):
         self.send_lldb_command_or_raise("b 0x40000000000000aa")
@@ -1443,10 +1443,20 @@ class SystemCallTestCase(BaseTestCase):
 
         try:
             for _ in range(1):
+                self.continueInterruptTest()
                 self.stepTest()
 
         except Exception as e:
-            raise Exception(f"Try table test failed: {e}")
+            raise Exception(f"Test failed: {e}")
+
+    def continueInterruptTest(self):
+        cycles = 5
+        for cycle in range(1, cycles + 1):
+            try:
+                self.send_lldb_command_or_raise("c")
+                self.send_lldb_command_or_raise("process interrupt")
+            except Exception as e:
+                raise Exception(f"Cycle {cycle} failed: {e}")
 
     def stepTest(self):
         self.send_lldb_command_or_raise("si", patterns=[])
@@ -1476,7 +1486,7 @@ class MultiVMSameModuleSameFunctionTestCase(BaseTestCase):
                 self.stepTest()
 
         except Exception as e:
-            raise Exception(f"Try table test failed: {e}")
+            raise Exception(f"Test failed: {e}")
 
     def stepTest(self):
         # FIXME: Add tests when thread select is full supported
@@ -1498,7 +1508,7 @@ class MultiVMSameModuleDifferentFunctionsTestCase(BaseTestCase):
                 self.stepTest()
 
         except Exception as e:
-            raise Exception(f"Try table test failed: {e}")
+            raise Exception(f"Test failed: {e}")
 
     def stepTest(self):
         # FIXME: Add tests when thread select is full supported

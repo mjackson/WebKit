@@ -25,6 +25,8 @@
 
 // https://drafts.csswg.org/css-font-loading/#FontFaceSet-interface
 
-dictionary FontFaceSetLoadEventInit : EventInit {
+[
+    LegacyNativeDictionaryRequiredInterfaceNullability,
+] dictionary FontFaceSetLoadEventInit : EventInit {
     sequence<FontFace> fontfaces = [];
 };

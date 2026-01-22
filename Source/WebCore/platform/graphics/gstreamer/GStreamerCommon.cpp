@@ -1907,7 +1907,7 @@ void configureMediaStreamAudioDecoder(GstElement* element)
         g_object_set(element, "max-errors", -1, nullptr);
 }
 
-void configureMediaStreamVideoDecoder(GstElement* element)
+String configureMediaStreamVideoDecoder(GstElement* element)
 {
     if (gstObjectHasProperty(element, "automatic-request-sync-points"_s))
         g_object_set(element, "automatic-request-sync-points", TRUE, nullptr);
@@ -1920,6 +1920,13 @@ void configureMediaStreamVideoDecoder(GstElement* element)
 
     if (gstObjectHasProperty(element, "max-errors"_s))
         g_object_set(element, "max-errors", -1, nullptr);
+
+    auto factoryName = CStringView::unsafeFromUTF8(GST_OBJECT_NAME(gst_element_get_factory(element)));
+    StringBuilder builder;
+    builder.append("GStreamer "_s, factoryName.span());
+    if (factoryName == "vp9dec"_s || factoryName == "vp8dec"_s)
+        builder.append(" (fallback from: libvpx)"_s);
+    return builder.toString();
 }
 
 void configureVideoRTPDepayloader(GstElement* element)

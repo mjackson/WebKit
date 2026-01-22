@@ -28,6 +28,7 @@
 #include "LocalDOMWindow.h"
 #include "LocalFrame.h"
 #include "LocalFrameView.h"
+#include "MouseEventInit.h"
 #include "RenderBoxModelObjectInlines.h"
 #include "RenderLayer.h"
 #include "RenderLayerInlines.h"
@@ -68,7 +69,7 @@ MouseRelatedEvent::MouseRelatedEvent(enum EventInterfaceType eventInterface, con
 {
 }
 
-MouseRelatedEvent::MouseRelatedEvent(enum EventInterfaceType eventInterface, const AtomString& eventType, const MouseRelatedEventInit& initializer, IsTrusted isTrusted)
+MouseRelatedEvent::MouseRelatedEvent(enum EventInterfaceType eventInterface, const AtomString& eventType, const MouseEventInit& initializer, IsTrusted isTrusted)
     : UIEventWithKeyState(eventInterface, eventType, initializer, isTrusted)
         , m_movementX(initializer.movementX)
         , m_movementY(initializer.movementY)
@@ -84,6 +85,12 @@ MouseRelatedEvent::MouseRelatedEvent(enum EventInterfaceType eventInterface, con
 
     setScreenLocation({ screenX, screenY });
 
+    init(false, DoublePoint::zero());
+}
+
+MouseRelatedEvent::MouseRelatedEvent(enum EventInterfaceType eventInterface, const AtomString& eventType, const EventModifierInit& initializer, IsTrusted isTrusted)
+    : UIEventWithKeyState(eventInterface, eventType, initializer, isTrusted)
+{
     init(false, DoublePoint::zero());
 }
 

@@ -1,3 +1,4 @@
+//@ skip if $addressBits <= 32
 //@ requireOptions("--useWasmJSStringBuiltins=true")
 
 // Test case from rdar://166830652.

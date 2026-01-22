@@ -48,9 +48,7 @@
 namespace WebCore {
 
 class AXIsolatedTree;
-#if ENABLE(AX_THREAD_TEXT_APIS)
 struct AXTextRuns;
-#endif
 
 class AXIsolatedObject final : public AXCoreObject {
     friend class AXIsolatedTree;
@@ -98,7 +96,6 @@ public:
     AXIsolatedObject* crossFrameChildObject() const final;
 #endif
 
-#if ENABLE(AX_THREAD_TEXT_APIS)
     const AXTextRuns* textRuns() const;
     bool hasTextRuns() final
     {
@@ -109,7 +106,6 @@ public:
     AXTextRunLineID listMarkerLineID() const final { return propertyValue<AXTextRunLineID>(AXProperty::ListMarkerLineID); };
     String listMarkerText() const final { return stringAttributeValue(AXProperty::ListMarkerText); }
     FontOrientation fontOrientation() const final { return propertyValue<FontOrientation>(AXProperty::FontOrientation); }
-#endif // ENABLE(AX_THREAD_TEXT_APIS)
 
     String description() const final { return stringAttributeValue(AXProperty::Description); }
 
@@ -141,6 +137,8 @@ private:
     AXIsolatedObject(IsolatedObjectData&&);
     bool isAXIsolatedObjectInstance() const final { return true; }
     AccessibilityObject* associatedAXObject() const;
+
+    RefPtr<AXIsolatedObject> approximateHitTest(const IntPoint&) const;
 
     void setProperty(AXProperty, AXPropertyValueVariant&&);
     void setPropertyInVector(AXProperty property, AXPropertyValueVariant&& value)
@@ -295,6 +293,7 @@ private:
     bool isDescriptionList() const final { return elementName() == ElementName::HTML_dl; }
     std::optional<InputType::Type> inputType() const final { return optionalAttributeValue<InputType::Type>(AXProperty::InputType); };
     FloatPoint screenRelativePosition() const final;
+    FloatRect screenRelativeRect() const;
     IntPoint remoteFrameOffset() const final;
     std::optional<IntRect> cachedRelativeFrame() const { return optionalAttributeValue<IntRect>(AXProperty::RelativeFrame); }
 #if PLATFORM(MAC)
@@ -336,7 +335,9 @@ private:
     bool isGrabbed() final { return boolAttributeValue(AXProperty::IsGrabbed); }
     bool isHiddenUntilFoundContainer() const final { return boolAttributeValue(AXProperty::IsHiddenUntilFoundContainer); }
     Vector<String> determineDropEffects() const final;
-    AXIsolatedObject* accessibilityHitTest(const IntPoint&) const final;
+
+    RefPtr<AXCoreObject> accessibilityHitTest(const IntPoint&) const final;
+
     AXIsolatedObject* focusedUIElement() const final
     {
         return tree()->focusedNode().unsafeGet();

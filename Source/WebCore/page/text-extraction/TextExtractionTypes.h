@@ -36,6 +36,10 @@
 #include <wtf/URL.h>
 #include <wtf/UniqueRef.h>
 
+#if ENABLE(DATA_DETECTION)
+#include <WebCore/DataDetectorType.h>
+#endif
+
 namespace WebCore {
 
 struct FrameIdentifierType;
@@ -99,6 +103,9 @@ struct Request {
     bool includeEventListeners { false };
     bool includeAccessibilityAttributes { false };
     bool includeTextInAutoFilledControls { false };
+#if ENABLE(DATA_DETECTION)
+    OptionSet<DataDetectorType> dataDetectorTypes;
+#endif
 };
 
 struct Editable {

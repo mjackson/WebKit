@@ -44,7 +44,6 @@ svg/filters/filter-image-ref-root.html                                          
 svg/filters/filter-on-filter-for-text.svg                                              [ ImageOnlyFailure ]
 svg/filters/filter-refresh.svg                                                         [ ImageOnlyFailure ]
 svg/filters/filter-width-update.svg                                                    [ ImageOnlyFailure ]
-svg/filters/filter-on-filter-for-text.svg                                              [ ImageOnlyFailure ]
 svg/filters/repeated-drop-shadow-effects.svg                                           [ ImageOnlyFailure ]
 svg/filters/sourceAlpha.svg                                                            [ ImageOnlyFailure ]
 svg/filters/subRegion-one-effect.svg                                                   [ ImageOnlyFailure ]
@@ -210,7 +209,6 @@ svg/filters/filter-source-position.svg                                          
 svg/filters/filter-specified-on-svg-root.html                                          [ ImageOnlyFailure ]
 
 # SVGImage support incomplete
-svg/as-background-image/background-image-preserveaspectRatio-support.html [ ImageOnlyFailure ]
 svg/as-image/image-respects-pageScaleFactor-change.html                   [ ImageOnlyFailure ]
 svg/as-image/img-preserveAspectRatio-support-1.html                       [ Failure ]
 svg/as-image/same-image-two-instances.html                                [ ImageOnlyFailure ]
@@ -371,9 +369,7 @@ svg/text/adding-id-on-pending-path.html [ ImageOnlyFailure ]
 svg/carto.net/button.svg        [ Failure ]
 svg/carto.net/colourpicker.svg  [ Failure ]
 svg/carto.net/combobox.svg      [ Failure ]
-svg/carto.net/scrollbar.svg     [ Failure ]
 svg/carto.net/selectionlist.svg [ Failure ]
-svg/carto.net/slider.svg        [ Failure ]
 svg/carto.net/tabgroup.svg      [ Failure ]
 svg/carto.net/textbox.svg       [ Failure ]
 
@@ -393,10 +389,11 @@ svg/W3C-SVG-1.1/fonts-desc-02-t.svg [ Pass ImageOnlyFailure ]
 svg/W3C-SVG-1.1/fonts-elem-04-b.svg [ Pass ImageOnlyFailure ]
 
 # 2) SVG <image> flakiness
-svg/as-image/image-preserveAspectRatio-all.svg                           [ Pass ImageOnlyFailure ]
 svg/as-background-image/svg-as-background-6.html                         [ Pass ImageOnlyFailure ]
+svg/as-image/image-preserveAspectRatio-all.svg                           [ Pass ImageOnlyFailure ]
 svg/as-image/svg-as-image-pattern-scale.html                             [ Pass ImageOnlyFailure ]
 svg/dynamic-updates/SVGImageElement-svgdom-preserveAspectRatio-prop.html [ Pass ImageOnlyFailure ]
+svg/filters/feImage-target-reappend-to-document.svg                      [ Pass ImageOnlyFailure ]
 
 # 3) Historical flakiness of SMIL animations, we don't pause them in these tests, that should
 # finally be fixed to avoid this falkniess, even if it means adapting the SVG testsuite manually.
@@ -426,7 +423,12 @@ svg/W3C-SVG-1.1/filters-light-04-f.svg         [ Pass ImageOnlyFailure ]
 svg/custom/image-with-prefix-in-webarchive.svg [ Pass ImageOnlyFailure ]
 
 # 4) Unknown origin
-svg/zoom/page/zoom-svg-through-object-with-percentage-size.xhtml [ Pass ImageOnlyFailure ]
+svg/carto.net/scrollbar.svg                                       [ Pass Failure ]
+svg/carto.net/slider.svg                                          [ Pass Failure ]
+svg/custom/scrolling-embedded-svg-file-image-repaint-problem.html [ Pass ImageOnlyFailure ]
+svg/dom/use-element-reference-within-use-shadow-tree.html         [ Pass ImageOnlyFailure ]
+svg/transforms/animated-path-inside-transformed-html.xhtml        [ Pass ImageOnlyFailure ]
+svg/zoom/page/zoom-svg-through-object-with-percentage-size.xhtml  [ Pass ImageOnlyFailure ]
 
 ###################
 # Crash / Timeout #
@@ -434,7 +436,6 @@ svg/zoom/page/zoom-svg-through-object-with-percentage-size.xhtml [ Pass ImageOnl
 
 svg/custom/marker-child-changes-css.svg                [ Crash ]
 svg/custom/marker-child-changes.svg                    [ Crash ]
-svg/custom/path-seg-nan-coordinates-linecap-crash.html [ Crash ]
 svg/custom/pattern-3-step-cycle-dynamic-4.html         [ Pass Crash ]
 
 ###############
@@ -461,7 +462,6 @@ imported/w3c/web-platform-tests/svg/struct/reftests/inner-svg-css-transform.svg 
 imported/w3c/web-platform-tests/svg/struct/reftests/inner-svg-rotate-transform.svg                                [ Pass ]
 imported/w3c/web-platform-tests/svg/struct/reftests/inner-svg-transform.svg                                       [ Pass ]
 imported/w3c/web-platform-tests/svg/struct/reftests/outer-svg-transform.svg                                       [ Pass ]
-svg/W3C-SVG-1.1/fonts-elem-04-b.svg                                                                               [ Pass ]
 svg/W3C-SVG-1.1/text-intro-01-t.svg                                                                               [ Pass ]
 svg/W3C-SVG-1.1/text-intro-02-b.svg                                                                               [ Pass ]
 svg/W3C-SVG-1.1/text-intro-03-b.svg                                                                               [ Pass ]

@@ -514,7 +514,7 @@ static void convertPathToScreenSpaceFunction(PathConversionInfo& conversion, con
 // advancing forward by line from top and backwards by line from the bottom, until we have a visible range.
 - (NSRange)accessibilityVisibleCharacterRange
 {
-#if ENABLE(AX_THREAD_TEXT_APIS)
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     if (AXObjectCache::useAXThreadTextApis()) {
         RefPtr<AXCoreObject> backingObject = self.baseUpdateBackingStore;
         if (!backingObject)
@@ -522,7 +522,7 @@ static void convertPathToScreenSpaceFunction(PathConversionInfo& conversion, con
         std::optional range = backingObject->visibleCharacterRange();
         return range ? *range : NSMakeRange(NSNotFound, 0);
     }
-#endif // ENABLE(AX_THREAD_TEXT_APIS)
+#endif
 
     return Accessibility::retrieveValueFromMainThread<NSRange>([protectedSelf = retainPtr(self)] () -> NSRange {
         RefPtr<AXCoreObject> backingObject = protectedSelf.get().baseUpdateBackingStore;
@@ -568,7 +568,7 @@ NSRange makeNSRange(std::optional<SimpleRange> range)
         return NSMakeRange(NSNotFound, 0);
 
     RefPtr rootEditableElement = frame->selection().selection().rootEditableElement();
-    RefPtr scope = rootEditableElement ? rootEditableElement : document->documentElement();
+    RefPtr scope = rootEditableElement ? rootEditableElement : RefPtr { document->documentElement() };
     if (!scope)
         return NSMakeRange(NSNotFound, 0);
 
@@ -593,7 +593,7 @@ std::optional<SimpleRange> makeDOMRange(Document* document, NSRange range)
     // to use the root editable element of the selection start as the positional base.
     // That fits with AppKit's idea of an input context.
     RefPtr selectionRoot = document->frame()->selection().selection().rootEditableElement();
-    RefPtr scope = selectionRoot ? selectionRoot : document->documentElement();
+    RefPtr scope = selectionRoot ? selectionRoot : RefPtr { document->documentElement() };
     if (!scope)
         return std::nullopt;
 

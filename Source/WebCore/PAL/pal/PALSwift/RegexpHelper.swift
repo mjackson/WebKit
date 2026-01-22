@@ -25,11 +25,11 @@ import Foundation
 import RegexBuilder
 
 public class RegexHelper {
-    public static func match(pattern: NSString, value: NSString) -> Bool {
+    public static func match(pattern: NSString, value: NSString, shouldIgnoreCase: Bool) -> Bool {
         guard let expression = try? Regex(pattern as String) else {
             return false
         }
         let swiftValue = value as String
-        return swiftValue.contains(expression)
+        return swiftValue.contains(shouldIgnoreCase ? expression.ignoresCase() : expression)
     }
 }

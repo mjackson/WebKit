@@ -708,8 +708,8 @@ public:
     [[nodiscard]] PartialResult addArrayInitData(uint32_t, TypedExpression, ExpressionType, uint32_t, ExpressionType, ExpressionType);
     [[nodiscard]] PartialResult addStructNew(uint32_t typeIndex, ArgumentList& args, ExpressionType& result);
     [[nodiscard]] PartialResult addStructNewDefault(uint32_t index, ExpressionType& result);
-    [[nodiscard]] PartialResult addStructGet(ExtGCOpType structGetKind, TypedExpression structReference, const StructType&, uint32_t fieldIndex, ExpressionType& result);
-    [[nodiscard]] PartialResult addStructSet(TypedExpression structReference, const StructType&, uint32_t fieldIndex, ExpressionType value);
+    [[nodiscard]] PartialResult addStructGet(ExtGCOpType structGetKind, TypedExpression structReference, const StructType&, const RTT&, uint32_t fieldIndex, ExpressionType& result);
+    [[nodiscard]] PartialResult addStructSet(TypedExpression structReference, const StructType&, const RTT&, uint32_t fieldIndex, ExpressionType value);
     [[nodiscard]] PartialResult addRefTest(TypedExpression reference, bool allowNull, int32_t heapType, bool shouldNegate, ExpressionType& result);
     [[nodiscard]] PartialResult addRefCast(TypedExpression reference, bool allowNull, int32_t heapType, ExpressionType& result);
     [[nodiscard]] PartialResult addAnyConvertExtern(ExpressionType reference, ExpressionType& result);
@@ -881,7 +881,7 @@ private:
     void emitArraySetUnchecked(uint32_t, Value*, Value*, Value*);
     bool emitArraySetUncheckedWithoutWriteBarrier(uint32_t, Value*, Value*, Value*);
     // Returns true if a writeBarrier/mutatorFence is needed.
-    [[nodiscard]] bool emitStructSet(bool canTrap, Value*, uint32_t, const StructType&, Value*);
+    [[nodiscard]] bool emitStructSet(bool canTrap, Value*, uint32_t, const StructType&, const RTT&, Value*);
     [[nodiscard]] Value* allocateWasmGCArray(uint32_t typeIndex, Value* initValue, Value* size);
     using ArraySegmentOperation = EncodedJSValue SYSV_ABI (&)(JSC::JSWebAssemblyInstance*, uint32_t, uint32_t, uint32_t, uint32_t);
     [[nodiscard]] ExpressionType pushArrayNewFromSegment(ArraySegmentOperation, uint32_t typeIndex, uint32_t segmentIndex, ExpressionType arraySize, ExpressionType offset, ExceptionType);
@@ -889,6 +889,11 @@ private:
     template <typename Generator>
     void emitCheckOrBranchForCast(CastKind, Value*, const Generator&, BasicBlock*);
     Value* emitLoadRTTFromObject(Value*);
+
+    const B3::AbstractHeap* structFieldHeap(const RTT&, uint32_t)
+    {
+        return &m_heaps.JSWebAssemblyStruct_fields.atAnyNumber();
+    }
 
     void unify(Value* phi, const ExpressionType source);
     void unifyValuesWithBlock(const Stack& resultStack, const ControlData& block);
@@ -3026,11 +3031,13 @@ Value* OMGIRGenerator::emitAtomicCompareExchange(ExtAtomicOpType op, Type valueT
     return sanitizeAtomicResult(op, valueType, atomic);
 }
 
-[[nodiscard]] bool OMGIRGenerator::emitStructSet(bool canTrap, Value* structValue, uint32_t fieldIndex, const StructType& structType, Value* argument)
+[[nodiscard]] bool OMGIRGenerator::emitStructSet(bool canTrap, Value* structValue, uint32_t fieldIndex, const StructType& structType, const RTT& rtt, Value* argument)
 {
     structValue = pointerOfWasmRef(structValue);
     auto fieldType = structType.field(fieldIndex).type;
     int32_t fieldOffset = fixupPointerPlusOffset(structValue, JSWebAssemblyStruct::offsetOfData() + structType.offsetOfFieldInPayload(fieldIndex));
+
+    const RTT& definingRTT = rtt.definingRTTForField(fieldIndex);
 
     auto wrapTrapping = [&](auto input) -> B3::Kind {
         if (canTrap)
@@ -3042,12 +3049,12 @@ Value* OMGIRGenerator::emitAtomicCompareExchange(ExtAtomicOpType op, Type valueT
         switch (fieldType.as<PackedType>()) {
         case PackedType::I8: {
             auto* store = m_currentBlock->appendNew<MemoryValue>(m_proc, wrapTrapping(Store8), origin(), argument, structValue, fieldOffset);
-            m_heaps.decorateMemory(&m_heaps.JSWebAssemblyStruct_i8[fieldIndex], store);
+            m_heaps.decorateMemory(structFieldHeap(definingRTT, fieldIndex), store);
             return false;
         }
         case PackedType::I16: {
             auto* store = m_currentBlock->appendNew<MemoryValue>(m_proc, wrapTrapping(Store16), origin(), argument, structValue, fieldOffset);
-            m_heaps.decorateMemory(&m_heaps.JSWebAssemblyStruct_i16[fieldIndex], store);
+            m_heaps.decorateMemory(structFieldHeap(definingRTT, fieldIndex), store);
             return false;
         }
     }
@@ -3056,26 +3063,7 @@ Value* OMGIRGenerator::emitAtomicCompareExchange(ExtAtomicOpType op, Type valueT
     ASSERT(fieldType.is<Type>());
     auto resultType = fieldType.unpacked();
     auto* store = m_currentBlock->appendNew<MemoryValue>(m_proc, wrapTrapping(Store), origin(), argument, structValue, fieldOffset);
-    switch (resultType.kind) {
-    case TypeKind::I32:
-        m_heaps.decorateMemory(&m_heaps.JSWebAssemblyStruct_i32[fieldIndex], store);
-        break;
-    case TypeKind::F32:
-        m_heaps.decorateMemory(&m_heaps.JSWebAssemblyStruct_f32[fieldIndex], store);
-        break;
-    case TypeKind::I64:
-        m_heaps.decorateMemory(&m_heaps.JSWebAssemblyStruct_i64[fieldIndex], store);
-        break;
-    case TypeKind::F64:
-        m_heaps.decorateMemory(&m_heaps.JSWebAssemblyStruct_f64[fieldIndex], store);
-        break;
-    case TypeKind::V128:
-        m_heaps.decorateMemory(&m_heaps.JSWebAssemblyStruct_v128[fieldIndex], store);
-        break;
-    default:
-        m_heaps.decorateMemory(&m_heaps.JSWebAssemblyStruct_ref[fieldIndex], store);
-        break;
-    }
+    m_heaps.decorateMemory(structFieldHeap(definingRTT, fieldIndex), store);
 
     // FIXME: We should be able elide this write barrier if we know we're storing jsNull();
     return isRefType(resultType);
@@ -3904,8 +3892,9 @@ auto OMGIRGenerator::addStructNew(uint32_t typeIndex, ArgumentList& args, Expres
 {
     Value* structValue = allocateWasmGCStructUninitialized(typeIndex);
     const auto& structType = *m_info.typeSignatures[typeIndex]->expand().template as<StructType>();
+    const RTT& rtt = m_info.rtts[typeIndex].get();
     for (uint32_t i = 0; i < args.size(); ++i) {
-        bool needsWriteBarrier = emitStructSet(/* canTrap */ false, structValue, i, structType, get(args[i]));
+        bool needsWriteBarrier = emitStructSet(/* canTrap */ false, structValue, i, structType, rtt, get(args[i]));
         UNUSED_VARIABLE(needsWriteBarrier);
     }
     mutatorFence();
@@ -3917,6 +3906,7 @@ auto OMGIRGenerator::addStructNewDefault(uint32_t typeIndex, ExpressionType& res
 {
     Value* structValue = allocateWasmGCStructUninitialized(typeIndex);
     const auto& structType = *m_info.typeSignatures[typeIndex]->expand().template as<StructType>();
+    const RTT& rtt = m_info.rtts[typeIndex].get();
     for (StructFieldCount i = 0; i < structType.fieldCount(); ++i) {
         Value* initValue;
         if (Wasm::isRefType(structType.field(i).type))
@@ -3926,7 +3916,7 @@ auto OMGIRGenerator::addStructNewDefault(uint32_t typeIndex, ExpressionType& res
         else
             initValue = constant(Int64, 0);
         // We know all the values here are not cells so we don't need a writeBarrier.
-        bool needsWriteBarrier = emitStructSet(/* canTrap */ false, structValue, i, structType, initValue);
+        bool needsWriteBarrier = emitStructSet(/* canTrap */ false, structValue, i, structType, rtt, initValue);
         UNUSED_VARIABLE(needsWriteBarrier);
     }
     mutatorFence();
@@ -3934,11 +3924,13 @@ auto OMGIRGenerator::addStructNewDefault(uint32_t typeIndex, ExpressionType& res
     return { };
 }
 
-auto OMGIRGenerator::addStructGet(ExtGCOpType structGetKind, TypedExpression structReference, const StructType& structType, uint32_t fieldIndex, ExpressionType& result) -> PartialResult
+auto OMGIRGenerator::addStructGet(ExtGCOpType structGetKind, TypedExpression structReference, const StructType& structType, const RTT& rtt, uint32_t fieldIndex, ExpressionType& result) -> PartialResult
 {
     auto fieldType = structType.field(fieldIndex).type;
     auto mutability = structType.field(fieldIndex).mutability;
     auto resultType = fieldType.unpacked();
+
+    const RTT& definingRTT = rtt.definingRTTForField(fieldIndex);
 
     Value* structValue = get(structReference);
 
@@ -3958,11 +3950,11 @@ auto OMGIRGenerator::addStructGet(ExtGCOpType structGetKind, TypedExpression str
         switch (fieldType.as<PackedType>()) {
         case PackedType::I8:
             load = m_currentBlock->appendNew<MemoryValue>(m_proc, wrapTrapping(Load8Z), Int32, origin(), structValue, fieldOffset);
-            m_heaps.decorateMemory(&m_heaps.JSWebAssemblyStruct_i8[fieldIndex], load);
+            m_heaps.decorateMemory(structFieldHeap(definingRTT, fieldIndex), load);
             break;
         case PackedType::I16:
             load = m_currentBlock->appendNew<MemoryValue>(m_proc, wrapTrapping(Load16Z), Int32, origin(), structValue, fieldOffset);
-            m_heaps.decorateMemory(&m_heaps.JSWebAssemblyStruct_i16[fieldIndex], load);
+            m_heaps.decorateMemory(structFieldHeap(definingRTT, fieldIndex), load);
             break;
         }
         if (mutability == Mutability::Immutable)
@@ -3987,26 +3979,7 @@ auto OMGIRGenerator::addStructGet(ExtGCOpType structGetKind, TypedExpression str
 
     ASSERT(fieldType.is<Type>());
     auto* load = m_currentBlock->appendNew<MemoryValue>(m_proc, wrapTrapping(Load), toB3Type(resultType), origin(), structValue, fieldOffset);
-    switch (resultType.kind) {
-    case TypeKind::I32:
-        m_heaps.decorateMemory(&m_heaps.JSWebAssemblyStruct_i32[fieldIndex], load);
-        break;
-    case TypeKind::F32:
-        m_heaps.decorateMemory(&m_heaps.JSWebAssemblyStruct_f32[fieldIndex], load);
-        break;
-    case TypeKind::I64:
-        m_heaps.decorateMemory(&m_heaps.JSWebAssemblyStruct_i64[fieldIndex], load);
-        break;
-    case TypeKind::F64:
-        m_heaps.decorateMemory(&m_heaps.JSWebAssemblyStruct_f64[fieldIndex], load);
-        break;
-    case TypeKind::V128:
-        m_heaps.decorateMemory(&m_heaps.JSWebAssemblyStruct_v128[fieldIndex], load);
-        break;
-    default:
-        m_heaps.decorateMemory(&m_heaps.JSWebAssemblyStruct_ref[fieldIndex], load);
-        break;
-    }
+    m_heaps.decorateMemory(structFieldHeap(definingRTT, fieldIndex), load);
     if (mutability == Mutability::Immutable)
         load->setReadsMutability(B3::Mutability::Immutable);
     result = push(load);
@@ -4014,7 +3987,7 @@ auto OMGIRGenerator::addStructGet(ExtGCOpType structGetKind, TypedExpression str
     return { };
 }
 
-auto OMGIRGenerator::addStructSet(TypedExpression structReference, const StructType& structType, uint32_t fieldIndex, ExpressionType value) -> PartialResult
+auto OMGIRGenerator::addStructSet(TypedExpression structReference, const StructType& structType, const RTT& rtt, uint32_t fieldIndex, ExpressionType value) -> PartialResult
 {
     Value* structValue = get(structReference);
     Value* valueValue = get(value);
@@ -4024,7 +3997,7 @@ auto OMGIRGenerator::addStructSet(TypedExpression structReference, const StructT
     if (structReference.type().isNullable())
         canTrap = emitNullCheckBeforeAccess(structValue, fieldOffset);
 
-    bool needsWriteBarrier = emitStructSet(canTrap, structValue, fieldIndex, structType, valueValue);
+    bool needsWriteBarrier = emitStructSet(canTrap, structValue, fieldIndex, structType, rtt, valueValue);
     if (needsWriteBarrier)
         emitWriteBarrier(pointerOfWasmRef(structValue), instanceValue());
     return { };

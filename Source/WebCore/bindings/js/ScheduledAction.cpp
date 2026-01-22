@@ -153,7 +153,7 @@ void ScheduledAction::execute(WorkerGlobalScope& workerGlobalScope)
     // In a Worker, the execution should always happen on a worker thread.
     ASSERT(workerGlobalScope.thread()->thread() == &Thread::currentSingleton());
 
-    auto* scriptController = workerGlobalScope.script();
+    CheckedPtr scriptController = workerGlobalScope.script();
 
     if (m_function) {
         auto* contextWrapper = scriptController->globalScopeWrapper();

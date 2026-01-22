@@ -38,3 +38,10 @@ if (USE_LIBBACKTRACE)
         LIBBACKTRACE::LIBBACKTRACE
     )
 endif ()
+
+if (WIN32)
+    # WasmDebugServer uses winsock functions
+    list(APPEND JavaScriptCore_LIBRARIES
+        ws2_32
+    )
+endif ()

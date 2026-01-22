@@ -27,7 +27,6 @@
 #include "FilterOperations.h"
 
 #include "AnimationUtilities.h"
-#include "DropShadowFilterOperationWithStyleColor.h"
 #include "FEGaussianBlur.h"
 #include "ImageBuffer.h"
 #include "IntSize.h"
@@ -58,11 +57,6 @@ bool FilterOperations::operationsMatch(const FilterOperations& other) const
     return std::ranges::equal(m_operations, other.m_operations, [](auto& a, auto& b) { return a->isSameType(b.get()); });
 }
 
-bool FilterOperations::hasReferenceFilter() const
-{
-    return hasFilterOfType<FilterOperation::Type::Reference>();
-}
-
 IntOutsets FilterOperations::outsets() const
 {
     IntOutsets totalOutsets;
@@ -76,9 +70,8 @@ IntOutsets FilterOperations::outsets() const
             totalOutsets += outsets;
             break;
         }
-        case FilterOperation::Type::DropShadow:
-        case FilterOperation::Type::DropShadowWithStyleColor: {
-            Ref dropShadowOperation = downcast<DropShadowFilterOperationBase>(operation.get());
+        case FilterOperation::Type::DropShadow: {
+            Ref dropShadowOperation = downcast<DropShadowFilterOperation>(operation.get());
             float stdDeviation = dropShadowOperation->stdDeviation();
             IntSize outsetSize = FEGaussianBlur::calculateOutsetSize({ stdDeviation, stdDeviation });
 
@@ -86,14 +79,11 @@ IntOutsets FilterOperations::outsets() const
             int right = std::max(0, outsetSize.width() + dropShadowOperation->x());
             int bottom = std::max(0, outsetSize.height() + dropShadowOperation->y());
             int left = std::max(0, outsetSize.width() - dropShadowOperation->x());
-            
+
             auto outsets = IntOutsets { top, right, bottom, left };
             totalOutsets += outsets;
             break;
         }
-        case FilterOperation::Type::Reference:
-            ASSERT_NOT_REACHED();
-            break;
         default:
             break;
         }
@@ -101,28 +91,9 @@ IntOutsets FilterOperations::outsets() const
     return totalOutsets;
 }
 
-bool FilterOperations::hasFilterThatAffectsOpacity() const
-{
-    return std::ranges::any_of(m_operations, [](auto& op) { return op->affectsOpacity(); });
-}
-
-bool FilterOperations::hasFilterThatMovesPixels() const
-{
-    return std::ranges::any_of(m_operations, [](auto& op) { return op->movesPixels(); });
-}
-
-bool FilterOperations::hasFilterThatShouldBeRestrictedBySecurityOrigin() const
-{
-    return std::ranges::any_of(m_operations, [](auto& op) { return op->shouldBeRestrictedBySecurityOrigin(); });
-}
-
 bool FilterOperations::canInterpolate(const FilterOperations& to, CompositeOperation compositeOperation) const
 {
     // https://drafts.fxtf.org/filter-effects/#interpolation-of-filters
-
-    // We can't interpolate between lists if a reference filter is involved.
-    if (hasReferenceFilter() || to.hasReferenceFilter())
-        return false;
 
     // Additive and accumulative composition will always yield interpolation.
     if (compositeOperation != CompositeOperation::Replace)

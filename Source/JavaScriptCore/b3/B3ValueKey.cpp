@@ -232,6 +232,9 @@ Value* ValueKey::materialize(Procedure& proc, Origin origin) const
     case AtomicXchg:
     case WasmAddress:
     case WasmBoundsCheck:
+    case WasmStructGet:
+    case WasmStructSet:
+    case WasmStructNew:
     case MemoryCopy:
     case MemoryFill:
     case Fence:

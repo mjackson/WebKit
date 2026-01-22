@@ -157,8 +157,8 @@ private:
     class SetRuleHeaderTextAction;
     class AddRuleAction;
 
-    using IdToInspectorStyleSheet = HashMap<Inspector::Protocol::CSS::StyleSheetId, RefPtr<InspectorStyleSheet>>;
-    using CSSStyleSheetToInspectorStyleSheet = HashMap<CSSStyleSheet*, RefPtr<InspectorStyleSheet>>;
+    using IdToInspectorStyleSheet = HashMap<Inspector::Protocol::CSS::StyleSheetId, Ref<InspectorStyleSheet>>;
+    using CSSStyleSheetToInspectorStyleSheet = HashMap<CSSStyleSheet*, Ref<InspectorStyleSheet>>;
     using DocumentToViaInspectorStyleSheet = HashMap<RefPtr<Document>, Vector<RefPtr<InspectorStyleSheet>>>; // "via inspector" stylesheets
     using PseudoClassHashSet = HashSet<CSSSelector::PseudoClass, IntHash<CSSSelector::PseudoClass>, WTF::StrongEnumHashTraits<CSSSelector::PseudoClass>>;
 

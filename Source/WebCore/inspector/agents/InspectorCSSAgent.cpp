@@ -1295,8 +1295,8 @@ InspectorStyleSheet* InspectorCSSAgent::bindStyleSheet(CSSStyleSheet* styleSheet
         String id = String::number(m_lastStyleSheetId++);
         Document* document = styleSheet->ownerDocument();
         inspectorStyleSheet = InspectorStyleSheet::create(Ref { m_instrumentingAgents.get() }->enabledPageAgent(), id, styleSheet, detectOrigin(styleSheet, document), InspectorDOMAgent::documentURLString(document), this);
-        m_idToInspectorStyleSheet.set(id, inspectorStyleSheet);
-        m_cssStyleSheetToInspectorStyleSheet.set(styleSheet, inspectorStyleSheet);
+        m_idToInspectorStyleSheet.set(id, *inspectorStyleSheet);
+        m_cssStyleSheetToInspectorStyleSheet.set(styleSheet, *inspectorStyleSheet);
         if (m_creatingViaInspectorStyleSheet) {
             auto& inspectorStyleSheetsForDocument = m_documentToInspectorStyleSheet.add(document, Vector<RefPtr<InspectorStyleSheet>>()).iterator->value;
             inspectorStyleSheetsForDocument.append(inspectorStyleSheet);
@@ -1307,12 +1307,12 @@ InspectorStyleSheet* InspectorCSSAgent::bindStyleSheet(CSSStyleSheet* styleSheet
 
 InspectorStyleSheet* InspectorCSSAgent::assertStyleSheetForId(Inspector::Protocol::ErrorString& errorString, const String& styleSheetId)
 {
-    IdToInspectorStyleSheet::iterator it = m_idToInspectorStyleSheet.find(styleSheetId);
+    auto it = m_idToInspectorStyleSheet.find(styleSheetId);
     if (it == m_idToInspectorStyleSheet.end()) {
         errorString = "Missing style sheet for given styleSheetId"_s;
         return nullptr;
     }
-    return it->value.get();
+    return it->value.ptr();
 }
 
 Inspector::Protocol::CSS::StyleSheetOrigin InspectorCSSAgent::detectOrigin(CSSStyleSheet* pageStyleSheet, Document* ownerDocument)

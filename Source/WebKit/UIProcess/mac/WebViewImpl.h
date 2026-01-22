@@ -98,7 +98,7 @@ OBJC_CLASS WKTextTouchBarItemController;
 OBJC_CLASS WebPlaybackControlsManager;
 #endif // HAVE(TOUCH_BAR)
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
 OBJC_CLASS WKDigitalCredentialsPicker;
 #endif
 
@@ -126,7 +126,9 @@ namespace WebCore {
 class DestinationColorSpace;
 class IntPoint;
 struct DataDetectorElementInfo;
+struct ExceptionData;
 struct ShareDataWithParsedURL;
+struct TextAnimationData;
 struct TextRecognitionResult;
 
 #if HAVE(TRANSLATION_UI_SERVICES) && ENABLE(CONTEXT_MENUS)
@@ -192,8 +194,9 @@ namespace WebCore {
 struct DragItem;
 struct ResolvedCaptionDisplaySettingsOptions;
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
 struct DigitalCredentialsRequestData;
+struct DigitalCredentialsResponseData;
 #endif
 
 struct FrameIdentifierType;
@@ -556,7 +559,7 @@ public:
     void showShareSheet(WebCore::ShareDataWithParsedURL&&, WTF::CompletionHandler<void(bool)>&&, WKWebView *);
     void shareSheetDidDismiss(WKShareSheet *);
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
     void showDigitalCredentialsPicker(const WebCore::DigitalCredentialsRequestData&, WTF::CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&&, WKWebView*);
     void dismissDigitalCredentialsPicker(WTF::CompletionHandler<void(bool)>&&, WKWebView*);
 #endif
@@ -973,7 +976,7 @@ private:
 
     RetainPtr<WKShareSheet> _shareSheet;
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
     RetainPtr<WKDigitalCredentialsPicker> _digitalCredentialsPicker;
 #endif
 

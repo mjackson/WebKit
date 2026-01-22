@@ -1038,7 +1038,7 @@ RegisterID* BracketAccessorNode::emitBytecode(BytecodeGenerator& generator, Regi
 
     bool subscriptIsNonIndexString = isNonIndexStringElement(*m_subscript);
     RefPtr<RegisterID> base = subscriptIsNonIndexString
-        ? generator.emitNode(m_base)
+        ? RefPtr { generator.emitNode(m_base) }
         : generator.emitNodeForLeftHandSide(m_base, m_subscriptHasAssignments, m_subscript->isPure(generator));
 
     if (m_base->isOptionalChainBase())

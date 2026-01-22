@@ -8963,6 +8963,8 @@ void SpeculativeJIT::compileSpread(Node* node)
 
     if (node->child1().useKind() == ArrayUse)
         speculateArray(node->child1(), argument);
+    else if (node->child1().useKind() == SetObjectUse)
+        speculateSetObject(node->child1(), argument);
 
     if (m_graph.canDoFastSpread(node, m_state.forNode(node->child1()))) {
 #if USE(JSVALUE64)
@@ -9054,6 +9056,13 @@ void SpeculativeJIT::compileSpread(Node* node)
         callOperation(operationSpreadFastArray, resultGPR, LinkableConstant::globalObject(*this, node), argument);
         cellResult(resultGPR, node);
 #endif // USE(JSVALUE64)
+    } else if (node->child1().useKind() == SetObjectUse) {
+        flushRegisters();
+
+        GPRFlushedCallResult result(this);
+        GPRReg resultGPR = result.gpr();
+        callOperation(operationSpreadSet, resultGPR, LinkableConstant::globalObject(*this, node), argument);
+        cellResult(resultGPR, node);
     } else {
         flushRegisters();
 

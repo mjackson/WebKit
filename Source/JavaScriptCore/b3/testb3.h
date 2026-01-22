@@ -1143,7 +1143,7 @@ void testCallSimpleDouble(double, double);
 void testCallSimpleFloat(float, float);
 void testCallFunctionWithHellaDoubleArguments();
 void testCallFunctionWithHellaFloatArguments();
-void testLinearScanWithCalleeOnStack();
+void testForcedSpillCalleeOnStack();
 void testChillDiv(int num, int den, int res);
 void testChillDivTwice(int num1, int den1, int num2, int den2, int res);
 void testChillDiv64(int64_t num, int64_t den, int64_t res);

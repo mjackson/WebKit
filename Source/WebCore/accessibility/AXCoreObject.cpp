@@ -34,6 +34,7 @@
 #include "DocumentView.h"
 #include "HTMLAreaElement.h"
 #include "LocalFrameView.h"
+#include "Logging.h"
 #include "RenderObjectStyle.h"
 #include "RenderStyle+GettersInlines.h"
 #include "Settings.h"
@@ -1925,7 +1926,8 @@ std::partial_ordering AXCoreObject::partialOrder(const AXCoreObject& other)
         if (ourAncestorIndex > otherAncestorIndex)
             return std::partial_ordering::greater;
 
-        AX_ASSERT_NOT_REACHED();
+        // This can be hit on accessibility/dynamic-text-stitching.html with --accessibility-isolated-tree.
+        AX_BROKEN_ASSERT_NOT_REACHED();
         return std::partial_ordering::equivalent;
     };
 

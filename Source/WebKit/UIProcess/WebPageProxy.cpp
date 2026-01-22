@@ -1848,6 +1848,11 @@ void WebPageProxy::close()
         fullscreenManager->detachFromClient();
 #endif
 
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+    if (m_immersive)
+        dismissImmersiveElement([] { });
+#endif
+
 #if ENABLE(WK_WEB_EXTENSIONS) && PLATFORM(COCOA)
     if (RefPtr webExtensionController = m_webExtensionController)
         webExtensionController->removePage(*this);
@@ -5139,7 +5144,7 @@ void WebPageProxy::receivedNavigationActionPolicyDecision(WebProcessProxy& proce
     auto lockdownMode = (websitePolicies ? websitePolicies->lockdownModeEnabled() : shouldEnableLockdownMode()) ? WebProcessProxy::LockdownMode::Enabled : WebProcessProxy::LockdownMode::Disabled;
 
     if (frame.isMainFrame() && protectedPreferences()->enhancedSecurityHeuristicsEnabled())
-        internals().enhancedSecurityTracker.trackNavigation(navigation);
+        internals().enhancedSecurityTracker.trackNavigation(navigation, hasOpenedPage());
 
     auto enhancedSecurity = currentEnhancedSecurityState(websitePolicies.get());
 
@@ -5465,6 +5470,11 @@ void WebPageProxy::commitProvisionalPage(IPC::Connection& connection, FrameIdent
     // There is no way we'll be able to return to the page in the previous page so close it.
     if (!didSuspendPreviousPage && shouldClosePreviousPage(*provisionalPage))
         send(Messages::WebPage::Close());
+
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+    if (m_immersive)
+        dismissImmersiveElement([] { });
+#endif
 
     const auto oldWebPageID = m_webPageID;
     swapToProvisionalPage(provisionalPage.releaseNonNull());
@@ -9777,7 +9787,7 @@ void WebPageProxy::showDigitalCredentialsPicker(IPC::Connection& connection, con
         completionHandler(makeUnexpected(WebCore::ExceptionData { WebCore::ExceptionCode::SecurityError, "Digital credentials feature is disabled by preference."_s }))
     );
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
     MESSAGE_CHECK_COMPLETION_BASE(
         requestData.topOrigin.securityOrigin()->isSameOriginDomain(SecurityOrigin::create(protectedMainFrame()->url())),
         connection,
@@ -9792,7 +9802,7 @@ void WebPageProxy::showDigitalCredentialsPicker(IPC::Connection& connection, con
 
 void WebPageProxy::fetchRawDigitalCredentialRequests(CompletionHandler<void(Vector<WebCore::MobileDocumentRequest>)>&& completionHandler)
 {
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
     sendWithAsyncReply(Messages::DigitalCredentialsCoordinator::ProvideRawDigitalCredentialRequests(), WTF::move(completionHandler));
 #else
     completionHandler({ });
@@ -9806,7 +9816,7 @@ void WebPageProxy::dismissDigitalCredentialsPicker(IPC::Connection& connection, 
         connection,
         completionHandler(false)
     );
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
     protectedPageClient()->dismissDigitalCredentialsPicker(WTF::move(completionHandler));
 #else
     completionHandler(false);
@@ -10504,9 +10514,7 @@ void WebPageProxy::compositionWasCanceled()
 
 void WebPageProxy::registerEditCommandForUndo(IPC::Connection& connection, WebUndoStepID commandID, String&& label)
 {
-    Ref commandProxy = WebEditCommandProxy::create(commandID, WTF::move(label), *this);
-    MESSAGE_CHECK_BASE(commandProxy->commandID(), connection);
-    registerEditCommand(WTF::move(commandProxy), UndoOrRedo::Undo);
+    registerEditCommand(WebEditCommandProxy::create(commandID, WTF::move(label), *this), UndoOrRedo::Undo);
 }
 
 void WebPageProxy::registerInsertionUndoGrouping()
@@ -10523,17 +10531,32 @@ void WebPageProxy::canUndoRedo(UndoOrRedo action, CompletionHandler<void(bool)>&
     completionHandler(pageClient && pageClient->canUndoRedo(action));
 }
 
-void WebPageProxy::executeUndoRedo(UndoOrRedo action, CompletionHandler<void()>&& completionHandler)
+void WebPageProxy::executeUndoRedo(UndoOrRedo action, CompletionHandler<void(uint32_t undoVersion, Vector<std::pair<WebUndoStepID, UndoOrRedo>>&&)>&& completionHandler)
 {
     if (RefPtr pageClient = this->pageClient())
         pageClient->executeUndoRedo(action);
-    completionHandler();
+    // FIXME: <rdar://168324268> Fix this for site isolation. We need a separate pending undo/redo stack for each process.
+    ++m_undoVersion;
+    completionHandler(m_undoVersion, WTF::moveToVector(std::exchange(m_pendingUndoRedo, { })));
 }
 
 void WebPageProxy::clearAllEditCommands()
 {
     if (RefPtr pageClient = this->pageClient())
         pageClient->clearAllEditCommands();
+}
+
+void WebPageProxy::addPendingUndoRedo(WebUndoStepID commandID, UndoOrRedo action)
+{
+    ++m_undoVersion;
+    m_pendingUndoRedo.append({ commandID, action });
+}
+
+void WebPageProxy::removePendingUndoRedo(WebUndoStepID commandID)
+{
+    m_pendingUndoRedo.removeFirstMatching([commandID](auto& item) {
+        return item.first == commandID;
+    });
 }
 
 #if USE(APPKIT)
@@ -13659,16 +13682,22 @@ void WebPageProxy::allowImmersiveElementFromURL(const URL& url, CompletionHandle
         completion(false);
 }
 
-void WebPageProxy::presentImmersiveElement(const WebCore::LayerHostingContextIdentifier contextID, CompletionHandler<void(bool)>&& completion) const
+void WebPageProxy::presentImmersiveElement(const WebCore::LayerHostingContextIdentifier contextID, CompletionHandler<void(bool)>&& completion)
 {
-    if (RefPtr pageClient = this->pageClient())
-        pageClient->presentImmersiveElement(contextID, WTF::move(completion));
-    else
+    if (RefPtr pageClient = this->pageClient()) {
+        pageClient->presentImmersiveElement(contextID, [weakThis = WeakPtr { *this }, completion = WTF::move(completion)](bool success) mutable {
+            if (success && weakThis)
+                weakThis.get()->m_immersive = true;
+            completion(success);
+        });
+    } else
         completion(false);
 }
 
-void WebPageProxy::dismissImmersiveElement(CompletionHandler<void()>&& completion) const
+void WebPageProxy::dismissImmersiveElement(CompletionHandler<void()>&& completion)
 {
+    m_immersive = false;
+
     if (RefPtr pageClient = this->pageClient())
         pageClient->dismissImmersiveElement(WTF::move(completion));
     else
@@ -16688,8 +16717,10 @@ void WebPageProxy::waitForInitialLinkDecorationFilteringData(WebFramePolicyListe
 void WebPageProxy::beginSiteHasStorageCheck(const URL& url, API::Navigation& navigation, WebFramePolicyListenerProxy& listener)
 {
     protectedWebsiteDataStore()->hasLocalStorageOrCookies(url, [navigation = Ref { navigation }, url, listener = Ref { listener }] (bool hasStorage) mutable {
-        navigation->setHasStorageForCurrentSite(url, hasStorage);
-        listener->didReceiveSiteHasStorageResults();
+        if (url == navigation->currentRequest().url()) {
+            navigation->setHasStorageForCurrentSite(hasStorage);
+            listener->didReceiveSiteHasStorageResults();
+        }
     });
 }
 

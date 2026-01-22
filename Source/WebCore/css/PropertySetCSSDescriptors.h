@@ -56,7 +56,7 @@ protected:
     CSSStyleSheet* parentStyleSheet() const final;
     CSSRule* parentRule() const final;
     // FIXME: To implement.
-    CSSRule* cssRules() const override { return nullptr; }
+    CSSRuleList* cssRules() const override { return nullptr; }
     unsigned length() const final;
     String item(unsigned index) const final;
     RefPtr<DeprecatedCSSOMValue> getPropertyCSSValue(const String& propertyName) final;

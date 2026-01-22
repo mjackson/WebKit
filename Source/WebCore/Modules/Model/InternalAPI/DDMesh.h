@@ -68,6 +68,7 @@ public:
     virtual void updateTexture(const DDUpdateTextureDescriptor&) = 0;
     virtual void updateMaterial(const DDUpdateMaterialDescriptor&) = 0;
     virtual bool isRemoteDDMeshProxy() const { return false; }
+    virtual bool isDDMeshImpl() const { return false; }
     virtual void setEntityTransform(const DDFloat4x4&) = 0;
     virtual std::optional<DDFloat4x4> entityTransform() const = 0;
     virtual bool supportsTransform(const WebCore::TransformationMatrix&) const { return false; }

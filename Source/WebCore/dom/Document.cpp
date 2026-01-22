@@ -8179,7 +8179,7 @@ RefPtr<Document> Document::sameOriginTopLevelTraversable() const
     if (!m_frame)
         return nullptr;
 
-    RefPtr<Frame> topLevelAncestorFrame = m_frame.get();
+    RefPtr<Frame> topLevelAncestorFrame = m_frame;
     for (Frame* parent = topLevelAncestorFrame->tree().parent(); parent; parent = parent->tree().parent())
         topLevelAncestorFrame = parent;
 

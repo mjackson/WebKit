@@ -343,8 +343,8 @@ public:
     [[nodiscard]] PartialResult addArrayInitData(uint32_t, ExpressionType, ExpressionType, uint32_t, ExpressionType, ExpressionType);
     [[nodiscard]] PartialResult addStructNew(uint32_t, ArgumentList&, ExpressionType&);
     [[nodiscard]] PartialResult addStructNewDefault(uint32_t, ExpressionType&);
-    [[nodiscard]] PartialResult addStructGet(ExtGCOpType, ExpressionType, const StructType&, uint32_t, ExpressionType&);
-    [[nodiscard]] PartialResult addStructSet(ExpressionType, const StructType&, uint32_t, ExpressionType);
+    [[nodiscard]] PartialResult addStructGet(ExtGCOpType, ExpressionType, const StructType&, const RTT&, uint32_t, ExpressionType&);
+    [[nodiscard]] PartialResult addStructSet(ExpressionType, const StructType&, const RTT&, uint32_t, ExpressionType);
     [[nodiscard]] PartialResult addRefTest(ExpressionType, bool, int32_t, bool, ExpressionType&);
     [[nodiscard]] PartialResult addRefCast(ExpressionType, bool, int32_t, ExpressionType&);
     [[nodiscard]] PartialResult addAnyConvertExtern(ExpressionType, ExpressionType&);
@@ -1326,7 +1326,7 @@ IPIntGenerator::ExpressionType IPIntGenerator::addConstant(v128_t)
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addStructGet(ExtGCOpType, ExpressionType, const StructType&, uint32_t fieldIndex, ExpressionType&)
+[[nodiscard]] PartialResult IPIntGenerator::addStructGet(ExtGCOpType, ExpressionType, const StructType&, const RTT&, uint32_t fieldIndex, ExpressionType&)
 {
     m_metadata->appendMetadata<IPInt::StructGetSetMetadata>({
         fieldIndex,
@@ -1335,7 +1335,7 @@ IPIntGenerator::ExpressionType IPIntGenerator::addConstant(v128_t)
     return { };
 }
 
-[[nodiscard]] PartialResult IPIntGenerator::addStructSet(ExpressionType, const StructType&, uint32_t fieldIndex, ExpressionType)
+[[nodiscard]] PartialResult IPIntGenerator::addStructSet(ExpressionType, const StructType&, const RTT&, uint32_t fieldIndex, ExpressionType)
 {
     m_metadata->appendMetadata<IPInt::StructGetSetMetadata>({
         fieldIndex,

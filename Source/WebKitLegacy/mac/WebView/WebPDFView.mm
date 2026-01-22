@@ -281,14 +281,14 @@ static BOOL _PDFSelectionsAreEqual(PDFSelection *selectionA, PDFSelection *selec
             newFirstResponder = PDFDocumentView;
     }
 
-    if (!newFirstResponder.get())
+    if (!newFirstResponder)
         return NO;
 
     if (![window makeFirstResponder:newFirstResponder.get()])
         return NO;
-    
+
     [[dataSource webFrame] _clearSelectionInOtherFrames];
-    
+
     return YES;
 }
 
@@ -389,7 +389,7 @@ static BOOL _PDFSelectionsAreEqual(PDFSelection *selectionA, PDFSelection *selec
     NSImage *appIcon = nil;
 
     _applicationInfoForMIMEType([dataSource _responseMIMEType], appName, &appIcon);
-    if (!appName.get())
+    if (!appName)
         appName = UI_STRING_INTERNAL("Finder", "Default application name for Open With context menu");
 
     // To match the PDFKit style, we'll add Open with Preview even when there's no document yet to view, and
@@ -400,9 +400,9 @@ static BOOL _PDFSelectionsAreEqual(PDFSelection *selectionA, PDFSelection *selec
     if (appIcon)
         [item setImage:appIcon];
     [items insertObject:item.get() atIndex:0];
-    
+
     [items insertObject:[NSMenuItem separatorItem] atIndex:1];
-    
+
     // pass the items off to the WebKit context menu mechanism
     WebView *webView = [[dataSource webFrame] webView];
     ASSERT(webView);
@@ -661,7 +661,7 @@ static BOOL _PDFSelectionsAreEqual(PDFSelection *selectionA, PDFSelection *selec
     }
 
     [self _setTextMatches:matches.get()];
-    
+
     return [matches count];
 }
 
@@ -910,21 +910,21 @@ static BOOL _PDFSelectionsAreEqual(PDFSelection *selectionA, PDFSelection *selec
 
 - (void)writeSelectionWithPasteboardTypes:(NSArray *)types toPasteboard:(NSPasteboard *)pasteboard
 {
-    NSAttributedString *attributedString = [self selectedAttributedString];
-    
-    if ([types containsObject:WebCore::legacyRTFDPasteboardTypeSingleton()]) {
-        NSData *RTFDData = [attributedString RTFDFromRange:NSMakeRange(0, [attributedString length]) documentAttributes:@{ }];
-        [pasteboard setData:RTFDData forType:WebCore::legacyRTFDPasteboardTypeSingleton()];
-    }        
-    
-    if ([types containsObject:WebCore::legacyRTFPasteboardTypeSingleton()]) {
-        if ([attributedString containsAttachments])
-            attributedString = WebCore::attributedStringByStrippingAttachmentCharacters(attributedString);
+    RetainPtr attributedString = [self selectedAttributedString];
 
-        NSData *RTFData = [attributedString RTFFromRange:NSMakeRange(0, [attributedString length]) documentAttributes:@{ }];
+    if ([types containsObject:WebCore::legacyRTFDPasteboardTypeSingleton()]) {
+        NSData *RTFDData = [attributedString.get() RTFDFromRange:NSMakeRange(0, [attributedString.get() length]) documentAttributes:@{ }];
+        [pasteboard setData:RTFDData forType:WebCore::legacyRTFDPasteboardTypeSingleton()];
+    }
+
+    if ([types containsObject:WebCore::legacyRTFPasteboardTypeSingleton()]) {
+        if ([attributedString.get() containsAttachments])
+            attributedString = WebCore::attributedStringByStrippingAttachmentCharacters(attributedString.get());
+
+        NSData *RTFData = [attributedString.get() RTFDFromRange:NSMakeRange(0, [attributedString.get() length]) documentAttributes:@{ }];
         [pasteboard setData:RTFData forType:WebCore::legacyRTFPasteboardTypeSingleton()];
     }
-    
+
     if ([types containsObject:WebCore::legacyStringPasteboardTypeSingleton()])
         [pasteboard setString:[self selectedString] forType:WebCore::legacyStringPasteboardTypeSingleton()];
 }

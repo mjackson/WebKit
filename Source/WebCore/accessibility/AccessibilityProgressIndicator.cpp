@@ -84,6 +84,10 @@ String AccessibilityProgressIndicator::valueDescription() const
     if (description.isEmpty())
         description = meter->textContent();
 
+    // If no textual description is available, use the numeric value.
+    if (description.isEmpty())
+        description = String::number(meter->value());
+
     String gaugeRegionValue = gaugeRegionValueDescription();
     if (!gaugeRegionValue.isEmpty())
         description = description.isEmpty() ? gaugeRegionValue : makeString(description, ", "_s,  gaugeRegionValue);

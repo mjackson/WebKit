@@ -6490,7 +6490,7 @@ IntOutsets RenderLayer::filterOutsets() const
 {
     if (m_filters)
         return m_filters->calculateOutsets(renderer(), localBoundingBox());
-    return renderer().style().filter().outsets();
+    return renderer().style().filter().calculateOutsets(renderer().style().usedZoomForLength());
 }
 
 static RenderLayer* parentLayerCrossFrame(const RenderLayer& layer)

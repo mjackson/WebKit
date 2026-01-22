@@ -60,6 +60,8 @@
 #include "AccessibilityTableHeaderContainer.h"
 #include "AriaNotifyOptions.h"
 #include "CaretRectComputation.h"
+#include "Chrome.h"
+#include "ChromeClient.h"
 #include "ContainerNodeInlines.h"
 #include "CustomElementDefaultARIA.h"
 #include "DeprecatedGlobalSettings.h"
@@ -209,10 +211,8 @@ void AccessibilityReplacedText::postTextStateChangeNotification(AXObjectCache* c
 std::atomic<bool> AXObjectCache::gAccessibilityEnabled = false;
 bool AXObjectCache::gAccessibilityEnhancedUserInterfaceEnabled = false;
 std::atomic<bool> AXObjectCache::gForceDeferredSpellChecking = false;
-#if ENABLE(AX_THREAD_TEXT_APIS)
-std::atomic<bool> AXObjectCache::gAccessibilityThreadTextApisEnabled = false;
-#endif
 std::atomic<bool> AXObjectCache::gAccessibilityTextStitchingEnabled = false;
+std::atomic<bool> AXObjectCache::gAccessibilityThreadHitTestingEnabled = false;
 std::atomic<bool> AXObjectCache::gForceInitialFrameCaching = false;
 #if PLATFORM(COCOA)
 std::atomic<bool> AXObjectCache::gAccessibilityDOMIdentifiersEnabled = false;
@@ -233,6 +233,11 @@ void AXObjectCache::setEnhancedUserInterfaceAccessibility(bool flag)
     if (flag)
         enableAccessibility();
 #endif
+}
+
+bool AXObjectCache::isAXThreadHitTestingEnabled()
+{
+    return gAccessibilityThreadHitTestingEnabled;
 }
 
 void AXObjectCache::setForceInitialFrameCaching(bool shouldForce)
@@ -276,10 +281,8 @@ AXObjectCache::AXObjectCache(LocalFrame& localFrame, Document* document)
     setAccessibilityLogChannelEnabled(LOG_CHANNEL(Accessibility).state != logChannelStateOff);
 #endif
 
-#if ENABLE(AX_THREAD_TEXT_APIS)
-    gAccessibilityThreadTextApisEnabled = DeprecatedGlobalSettings::accessibilityThreadTextApisEnabled();
-#endif
     gAccessibilityTextStitchingEnabled = DeprecatedGlobalSettings::accessibilityTextStitchingEnabled();
+    gAccessibilityThreadHitTestingEnabled = DeprecatedGlobalSettings::accessibilityThreadHitTestingEnabled();
 
 #if PLATFORM(COCOA)
     initializeUserDefaultValues();
@@ -478,8 +481,8 @@ bool AXObjectCache::isNodeVisible(const Node* node) const
     if (!renderer)
         return false;
 
-    const auto& style = renderer->style();
-    if (style.display() == DisplayType::None)
+    CheckedRef style = renderer->style();
+    if (style->display() == DisplayType::None)
         return false;
 
     CheckedPtr renderLayer = renderer->enclosingLayer();
@@ -509,12 +512,12 @@ Node* AXObjectCache::modalNode()
 
     // Check the cached current valid aria modal node first.
     // Usually when one dialog sets aria-modal=true, that dialog is the one we want.
-    if (isNodeVisible(m_currentModalElement.get()))
-        return m_currentModalElement.get();
+    if (isNodeVisible(m_currentModalElement))
+        return m_currentModalElement;
 
     // Recompute the valid aria modal node when m_currentModalElement is null or hidden.
     updateCurrentModalNode();
-    return m_currentModalElement.get();
+    return m_currentModalElement;
 }
 
 AccessibilityObject* AXObjectCache::focusedImageMapUIElement(HTMLAreaElement& areaElement)
@@ -617,6 +620,30 @@ void AXObjectCache::setIsolatedTreeFocusedObject(AccessibilityObject* focus)
 }
 #endif
 
+IntPoint AXObjectCache::mapScreenPointToPagePoint(const IntPoint& screenRelativePoint) const
+{
+    RefPtr page = this->page();
+    if (!page) {
+        // We can't do the conversion if we don't have a page.
+        return screenRelativePoint;
+    }
+
+    // FIXME: WebPage::screenToRootView does sync IPC. Can we find a way to convert this point
+    // without sync IPC?
+    auto convertedPoint = page->chrome().client().screenToRootView(WebCore::IntPoint(screenRelativePoint));
+    RefPtr frame = m_document ? m_document->frame() : nullptr;
+    if (RefPtr frameView = frame ? frame->view() : nullptr)
+        convertedPoint.moveBy(frameView->scrollPosition());
+
+    auto obscuredContentInsets = page->obscuredContentInsets();
+    convertedPoint.move(-obscuredContentInsets.left(), -obscuredContentInsets.top());
+    return convertedPoint;
+}
+
+RefPtr<Page> AXObjectCache::page() const
+{
+    return m_document ? m_document->page() : nullptr;
+}
 
 Ref<AccessibilityRenderObject> AXObjectCache::createObjectFromRenderer(RenderObject& renderer)
 {
@@ -1045,7 +1072,7 @@ void AXObjectCache::remove(Node& node)
     m_nodeObjectMapping.remove(node);
     remove(m_nodeIdMapping.take(node));
 
-    if (auto* renderer = node.renderer())
+    if (CheckedPtr renderer = node.renderer())
         remove(*renderer);
 
     // If we're in the middle of a cache update, don't modify any of these vectors because we are currently
@@ -1438,7 +1465,7 @@ void AXObjectCache::setDirtyStitchGroups(const RenderBlock& renderBlock)
     }
 }
 
-#if ENABLE(AX_THREAD_TEXT_APIS)
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 void AXObjectCache::onTextRunsChanged(const RenderObject& renderer)
 {
     if (is<RenderInline>(renderer) || is<RenderListMarker>(renderer)) {
@@ -1591,6 +1618,13 @@ void AXObjectCache::childrenChanged(AccessibilityObject* object)
 void AXObjectCache::valueChanged(Element& element)
 {
     postNotification(&element, AXNotification::ValueChanged);
+
+    for (RefPtr ancestor = get(element); ancestor; ancestor = ancestor->parentObject()) {
+        if (ancestor->supportsLiveRegion()) {
+            postLiveRegionChangeNotification(*ancestor);
+            break;
+        }
+    }
 }
 
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
@@ -1897,7 +1931,7 @@ static bool shouldDeferFocusChange(Element* element)
     if (!element)
         return false;
 
-    auto* renderer = element->renderer();
+    CheckedPtr renderer = element->renderer();
     if (renderer && rendererNeedsDeferredUpdate(*renderer))
         return true;
 
@@ -1912,7 +1946,7 @@ static bool shouldDeferFocusChange(Element* element)
 #endif // PLATFORM(IOS_FAMILY)
 
     // We also want to defer handling focus changes for nodes that haven't yet attached their renderer.
-    if (const auto* style = element->existingComputedStyle())
+    if (CheckedPtr style = element->existingComputedStyle())
         return !renderer && element->rendererIsNeeded(*style);
     // No existing style, so we can't easily determine whether this element will need a renderer.
     // Resolving style is expensive and we don't want to do it now, so make this decision assuming
@@ -2161,7 +2195,7 @@ void AXObjectCache::onAccessibilityPaintFinished()
         return;
 
     for (auto iterator = m_mostRecentlyPaintedText.begin(); iterator != m_mostRecentlyPaintedText.end(); ++iterator) {
-        const auto& renderText = iterator->key;
+        CheckedRef renderText = iterator->key;
         if (auto textBox = InlineIterator::firstTextBoxInLogicalOrderFor(renderText).first) {
             // The line index from TextBox::lineIndex is relative to the containing block, which count lines from
             // other renderers. The LineRange struct we have built expects the start and end line indices to be
@@ -2228,11 +2262,6 @@ void AXObjectCache::onStyleChange(RenderText& renderText, Style::Difference diff
         return;
 
     bool speakAsChanged = oldStyle->speakAs() != newStyle.speakAs();
-#if !ENABLE(AX_THREAD_TEXT_APIS)
-    // In !ENABLE(AX_THREAD_TEXT_APIS), we don't have anything to do if speak-as hasn't changed.
-    if (!speakAsChanged) [[likely]]
-        return;
-#endif // !ENABLE(AX_THREAD_TEXT_APIS)
 
     bool diffIsEqual = difference == Style::DifferenceResult::Equal;
     // When speak-as changes, style difference will be Style::DifferenceResult::Equal (so "equal"
@@ -2259,7 +2288,6 @@ void AXObjectCache::onStyleChange(RenderText& renderText, Style::Difference diff
     if (diffIsEqual)
         return;
 
-#if ENABLE(AX_THREAD_TEXT_APIS)
     if (oldStyle->visitedDependentBackgroundColor() != newStyle.visitedDependentBackgroundColor())
         tree->queueNodeUpdate(object->objectID(), { AXProperty::BackgroundColor });
 
@@ -2282,7 +2310,6 @@ void AXObjectCache::onStyleChange(RenderText& renderText, Style::Difference diff
 
     if (oldStyle->pointerEvents() != newStyle.pointerEvents())
         postNotification(*object, AXNotification::PointerEventsChanged);
-#endif // ENABLE(AX_THREAD_TEXT_APIS)
 
 #else
     UNUSED_PARAM(renderText);
@@ -3132,13 +3159,25 @@ void AXObjectCache::handleAttributeChange(Element* element, const QualifiedName&
         postNotification(element, AXNotification::PlaceholderChanged);
     else if (attrName == hrefAttr || attrName == srcAttr)
         postNotification(element, AXNotification::URLChanged);
-    else if (attrName == idAttr) {
-#if !LOG_DISABLED
-        updateIsolatedTree(get(*element), AXNotification::IdAttributeChanged);
-#endif
-    } else if (attrName == accesskeyAttr)
+    else if (attrName == accesskeyAttr)
         updateIsolatedTree(get(*element), AXNotification::AccessKeyChanged);
 #endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+    else if (attrName == idAttr) {
+        if (RefPtr axObject = get(*element)) {
+            if (std::optional ownerIDs = relatedObjectIDsFor(*axObject, AXRelation::OwnedBy, UpdateRelations::No)) {
+                // If this element is currently owned via aria-owns, notify its owner(s) that their children have
+                // changed (since they no longer own us considering our new id).
+                for (AXID ownerID : *ownerIDs) {
+                    if (RefPtr owner = objectForID(ownerID))
+                        childrenChanged(owner.get());
+                }
+            }
+        }
+
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE) && !LOG_DISABLED
+        updateIsolatedTree(get(*element), AXNotification::IdAttributeChanged);
+#endif
+    }
     else if (attrName == openAttr) {
         if (is<HTMLDialogElement>(*element)) {
             deferModalChange(*element);
@@ -3331,14 +3370,12 @@ void AXObjectCache::handleAttributeChange(Element* element, const QualifiedName&
             for (auto& id : ids) {
                 if (RefPtr ownsTarget = element->treeScope().elementByIdResolvingReferenceTarget(id)) {
                     CheckedPtr renderer = ownsTarget->renderer();
-                    if (auto* containingBlock = renderer ? renderer->containingBlock() : nullptr)
+                    if (CheckedPtr containingBlock = renderer ? renderer->containingBlock() : nullptr)
                         setDirtyStitchGroups(*containingBlock);
                 }
             }
         };
 
-        // FIXME: aria-owns relationships can also change when an object's ID changes. We should update
-        // stitch groups in that case too.
         updateStitchGroups(oldValue);
         updateStitchGroups(newValue);
     }
@@ -3481,11 +3518,11 @@ VisiblePosition AXObjectCache::visiblePositionForTextMarkerData(const TextMarker
     if (deepPosition.isNull())
         return { };
 
-    auto* renderer = deepPosition.deprecatedNode()->renderer();
+    CheckedPtr renderer = deepPosition.deprecatedNode()->renderer();
     if (!renderer)
         return { };
 
-    auto* cache = renderer->document().axObjectCache();
+    CheckedPtr cache = renderer->document().axObjectCache();
     // Return an empty position if the object associated with the text marker has been destroyed.
     if (!cache || !cache->objectForID(*textMarkerData.axObjectID()))
         return { };
@@ -4056,7 +4093,7 @@ std::optional<TextMarkerData> AXObjectCache::textMarkerDataForVisiblePosition(co
     if (RefPtr input = dynamicDowncast<HTMLInputElement>(node); input && input->isSecureField())
         return std::nullopt;
 
-#if ENABLE(AX_THREAD_TEXT_APIS)
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     if (shouldCreateAXThreadCompatibleMarkers()) {
         // We need to convert the DOM offset (which is offset into pre-whitespace-collapse text) into an offset into
         // the rendered, post-whitespace-collapse text.
@@ -4121,7 +4158,7 @@ std::optional<TextMarkerData> AXObjectCache::textMarkerDataForVisiblePosition(co
         unsigned renderedOffset = domOffset - differenceBetweenDomAndRenderedOffsets;
         return createFromRendererAndOffset(const_cast<RenderText&>(*renderText), renderedOffset);
     }
-#endif // ENABLE(AX_THREAD_TEXT_APIS)
+#endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
     // If the visible position has an anchor type referring to a node other than the anchored node, we should
     // set the text marker data with CharacterOffset so that the offset will correspond to the node.
@@ -4688,8 +4725,8 @@ CharacterOffset AXObjectCache::characterOffsetForIndex(int index, const AXCoreOb
 
 const Element* AXObjectCache::rootAXEditableElement(const Node* node)
 {
-    const auto* result = node->rootEditableElement();
-    const auto* element = dynamicDowncast<Element>(*node);
+    CheckedPtr<const Element> result = node->rootEditableElement();
+    CheckedPtr element = dynamicDowncast<Element>(*node);
     if (!element)
         element = node->parentElement();
 
@@ -4698,7 +4735,7 @@ const Element* AXObjectCache::rootAXEditableElement(const Node* node)
             result = element;
     }
 
-    return result;
+    return result.unsafeGet();
 }
 
 static void conditionallyAddNodeToFilterList(Node* node, const Document& document, HashSet<Ref<Node>>& nodesToRemove)
@@ -5464,7 +5501,7 @@ void AXObjectCache::deferSelectedChildrenChangedIfNeeded(Element& selectElement)
 
 void AXObjectCache::deferTextReplacementNotificationForTextControl(HTMLTextFormControlElement& formControlElement, const String& previousValue)
 {
-    auto* renderer = formControlElement.renderer();
+    CheckedPtr renderer = formControlElement.renderer();
     if (!renderer)
         return;
     m_deferredTextFormControlValue.add(formControlElement, previousValue);
@@ -5913,7 +5950,7 @@ bool AXObjectCache::addRelation(Element& origin, const QualifiedName& attribute)
 
     auto& value = origin.attributeWithoutSynchronization(attribute);
     if (value.isNull()) {
-        if (auto* defaultARIA = origin.customElementDefaultARIAIfExists()) {
+        if (CheckedPtr defaultARIA = origin.customElementDefaultARIAIfExists()) {
             for (auto& target : defaultARIA->elementsForAttribute(origin, attribute)) {
                 if (addRelation(origin, target, relation))
                     addedRelation = true;

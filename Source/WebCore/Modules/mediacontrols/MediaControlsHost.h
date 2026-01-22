@@ -178,6 +178,7 @@ private:
     using MenuItemIdentifier = uint64_t;
 
     using MenuData = Variant<
+        std::monostate, // This must be the first alternative for the empty value of HashTraits
 #if ENABLE(VIDEO_PRESENTATION_MODE)
         PictureInPictureTag,
 #endif

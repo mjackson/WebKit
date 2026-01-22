@@ -66,6 +66,7 @@
 #include "VMInspector.h"
 #include "VMTrapsInlines.h"
 #include "WasmCapabilities.h"
+#include <bmalloc/BPlatform.h>
 #include <unicode/uversion.h>
 #include <wtf/ApproximateTime.h>
 #include <wtf/Atomics.h>
@@ -79,15 +80,12 @@
 #include <wtf/WTFProcess.h>
 #include <wtf/unicode/icu/ICUHelpers.h>
 
-#if !USE(SYSTEM_MALLOC)
-#include <bmalloc/BPlatform.h>
 #if BUSE(LIBPAS)
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include <bmalloc/pas_debug_spectrum.h>
 #include <bmalloc/pas_fd_stream.h>
 #include <bmalloc/pas_heap_lock.h>
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
-#endif
 #endif
 
 #if ENABLE(WEBASSEMBLY)
@@ -4106,13 +4104,11 @@ JSC_DEFINE_HOST_FUNCTION(functionIsPrivateSymbol, (JSGlobalObject*, CallFrame* c
 JSC_DEFINE_HOST_FUNCTION(functionDumpAndResetPasDebugSpectrum, (JSGlobalObject*, CallFrame*))
 {
     DollarVMAssertScope assertScope;
-#if !USE(SYSTEM_MALLOC)
 #if BUSE(LIBPAS)
     pas_heap_lock_lock();
     pas_debug_spectrum_dump(&pas_log_stream.base);
     pas_debug_spectrum_reset();
     pas_heap_lock_unlock();
-#endif
 #endif
     return JSValue::encode(jsUndefined());
 }

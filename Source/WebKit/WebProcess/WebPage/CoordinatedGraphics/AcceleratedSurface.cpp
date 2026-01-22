@@ -1006,7 +1006,10 @@ void AcceleratedSurface::willRenderFrame(const IntSize& size)
 
     if (sizeDidChange)
         glViewport(0, 0, size.width(), size.height());
+}
 
+void AcceleratedSurface::clear()
+{
     if (!m_isOpaque) {
         glClearColor(0, 0, 0, 0);
         glClear(GL_COLOR_BUFFER_BIT);

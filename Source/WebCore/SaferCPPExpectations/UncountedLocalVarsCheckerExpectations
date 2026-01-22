@@ -15,13 +15,10 @@ Modules/webaudio/OscillatorNode.cpp
 Modules/webaudio/PannerNode.cpp
 Modules/webaudio/ScriptProcessorNode.cpp
 Modules/webaudio/StereoPannerNode.cpp
-accessibility/AXObjectCache.cpp
 [ iOS ] accessibility/AccessibilityNodeObject.cpp
 [ iOS ] accessibility/ios/AccessibilityObjectIOS.mm
 [ iOS ] accessibility/ios/WebAccessibilityObjectWrapperIOS.mm
-animation/KeyframeEffect.cpp
 bindings/js/JSAbortSignalCustom.cpp
-bindings/js/JSAttrCustom.cpp
 bindings/js/JSAudioWorkletProcessorCustom.cpp
 bindings/js/JSCSSRuleListCustom.cpp
 bindings/js/JSCSSStyleDeclarationCustom.cpp
@@ -30,15 +27,12 @@ bindings/js/JSCustomElementRegistryCustom.cpp
 bindings/js/JSDOMAbstractOperations.h
 bindings/js/JSDOMBindingSecurity.cpp
 bindings/js/JSDOMGlobalObject.cpp
-bindings/js/JSDOMPromiseDeferred.cpp
 bindings/js/JSDOMWindowBase.cpp
 bindings/js/JSDOMWindowCustom.cpp
 bindings/js/JSDOMWindowProperties.cpp
-bindings/js/JSDocumentCustom.cpp
 bindings/js/JSErrorHandler.cpp
 bindings/js/JSHTMLAllCollectionCustom.cpp
 bindings/js/JSHTMLElementCustom.cpp
-bindings/js/JSHTMLTemplateElementCustom.cpp
 bindings/js/JSHistoryCustom.cpp
 bindings/js/JSIDBCursorCustom.cpp
 bindings/js/JSIDBRequestCustom.cpp
@@ -55,11 +49,7 @@ bindings/js/JSResizeObserverCustom.cpp
 bindings/js/JSStylePropertyMapReadOnlyCustom.cpp
 bindings/js/JSSubscriberCustom.cpp
 bindings/js/JSTextTrackCueCustom.cpp
-bindings/js/JSUndoItemCustom.cpp
-bindings/js/JSWebAnimationCustom.cpp
 bindings/js/JSWindowProxy.cpp
-bindings/js/JSWorkerGlobalScopeBase.cpp
-bindings/js/JSXMLHttpRequestCustom.cpp
 bindings/js/ScriptCachedFrameData.cpp
 bindings/js/ScriptModuleLoader.cpp
 bindings/js/StructuredClone.cpp
@@ -77,7 +67,6 @@ css/SelectorFilter.cpp
 css/ShorthandSerializer.cpp
 css/StyleProperties.cpp
 css/StyleRuleImport.cpp
-css/query/MediaQueryFeatures.cpp
 css/typedom/ComputedStylePropertyMapReadOnly.cpp
 css/values/CSSValueAggregates.h
 cssjit/SelectorCompiler.cpp

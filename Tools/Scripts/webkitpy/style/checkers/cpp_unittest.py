@@ -2241,6 +2241,17 @@ class CppStyleTest(CppStyleTestBase):
             '{\n'
             '}\n',
             '')
+        # Test LIFETIME_BOUND allows braces on next line
+        self.assert_multi_line_lint(
+            'T& getValue() LIFETIME_BOUND\n'
+            '{\n'
+            '}\n',
+            '')
+        self.assert_multi_line_lint(
+            'const T& getValue() const LIFETIME_BOUND\n'
+            '{\n'
+            '}\n',
+            '')
         self.assert_multi_line_lint(
             '[]() {\n'
             '}\n',

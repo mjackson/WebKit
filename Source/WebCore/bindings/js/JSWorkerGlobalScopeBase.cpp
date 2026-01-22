@@ -110,7 +110,8 @@ DEFINE_VISIT_CHILDREN(JSWorkerGlobalScopeBase);
 
 void JSWorkerGlobalScopeBase::destroy(JSCell* cell)
 {
-    static_cast<JSWorkerGlobalScopeBase*>(cell)->JSWorkerGlobalScopeBase::~JSWorkerGlobalScopeBase();
+    // We cannot rely on jsCast() during JSObject destruction.
+    SUPPRESS_MEMORY_UNSAFE_CAST static_cast<JSWorkerGlobalScopeBase*>(cell)->JSWorkerGlobalScopeBase::~JSWorkerGlobalScopeBase();
 }
 
 ScriptExecutionContext* JSWorkerGlobalScopeBase::scriptExecutionContext() const
@@ -153,9 +154,9 @@ void JSWorkerGlobalScopeBase::reportViolationForUnsafeEval(JSC::JSGlobalObject* 
 void JSWorkerGlobalScopeBase::queueMicrotaskToEventLoop(JSGlobalObject& object, JSC::QueuedTask&& task)
 {
     JSWorkerGlobalScopeBase& thisObject = static_cast<JSWorkerGlobalScopeBase&>(object);
-    auto& context = thisObject.wrapped();
-    task.setDispatcher(context.eventLoop().jsMicrotaskDispatcher(task));
-    context.eventLoop().queueMicrotask(WTF::move(task));
+    CheckedRef context = thisObject.wrapped();
+    task.setDispatcher(context->eventLoop().jsMicrotaskDispatcher(task));
+    context->eventLoop().queueMicrotask(WTF::move(task));
 }
 
 JSValue toJS(JSGlobalObject* lexicalGlobalObject, JSDOMGlobalObject*, WorkerGlobalScope& workerGlobalScope)
@@ -165,7 +166,7 @@ JSValue toJS(JSGlobalObject* lexicalGlobalObject, JSDOMGlobalObject*, WorkerGlob
 
 JSValue toJS(JSGlobalObject*, WorkerGlobalScope& workerGlobalScope)
 {
-    auto* script = workerGlobalScope.script();
+    CheckedPtr script = workerGlobalScope.script();
     if (!script)
         return jsNull();
     auto* contextWrapper = script->globalScopeWrapper();

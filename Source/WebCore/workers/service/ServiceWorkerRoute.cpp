@@ -59,7 +59,7 @@ std::optional<size_t> countRouterInnerConditions(const ServiceWorkerRouteConditi
     return result;
 }
 
-static URLPatternUtilities::URLPatternStringOptions computeOptions(EncodingCallbackType type, bool ignoreCase)
+static URLPatternUtilities::URLPatternStringOptions computeOptions(EncodingCallbackType type, bool shouldIgnoreCase)
 {
     switch (type) {
     case EncodingCallbackType::Protocol:
@@ -72,24 +72,24 @@ static URLPatternUtilities::URLPatternStringOptions computeOptions(EncodingCallb
     case EncodingCallbackType::IPv6Host:
         return { .delimiterCodepoint = "."_s };
     case EncodingCallbackType::Path:
-        return { "/"_s, "/"_s, ignoreCase };
+        return { "/"_s, "/"_s, shouldIgnoreCase };
     case EncodingCallbackType::OpaquePath:
-        return { { }, { }, ignoreCase };
+        return { { }, { }, shouldIgnoreCase };
     case EncodingCallbackType::Port:
         return { };
     case EncodingCallbackType::Search:
-        return { { }, { }, ignoreCase };
+        return { { }, { }, shouldIgnoreCase };
     case EncodingCallbackType::Hash:
-        return { { }, { }, ignoreCase };
+        return { { }, { }, shouldIgnoreCase };
     }
 
     ASSERT_NOT_REACHED();
     return { };
 }
 
-static Expected<String, ExceptionData> validateAndCompileURLPatternComponent(StringView component, EncodingCallbackType type)
+static Expected<String, ExceptionData> validateAndCompileURLPatternComponent(StringView component, EncodingCallbackType type, bool shouldIgnoreCase)
 {
-    auto options = computeOptions(type, true);
+    auto options = computeOptions(type, shouldIgnoreCase);
     auto result = URLPatternUtilities::URLPatternParser::parse(component, options, type);
     if (result.hasException())
         return makeUnexpected(ExceptionData { result.exception().code(), result.releaseException().releaseMessage() });
@@ -106,14 +106,14 @@ static Expected<String, ExceptionData> validateAndCompileURLPatternComponent(Str
     return generateRegexAndNameList(parts, options).first;
 }
 
-static std::optional<ExceptionData> validateAndUpdateURLPatternComponent(String& component, EncodingCallbackType type)
+static std::optional<ExceptionData> validateAndUpdateURLPatternComponent(String& component, EncodingCallbackType type, bool shouldIgnoreCase)
 {
     if (component == "*"_s) {
         component = { };
         return { };
     }
 
-    auto exceptionOrCompiledExpression = validateAndCompileURLPatternComponent(component, type);
+    auto exceptionOrCompiledExpression = validateAndCompileURLPatternComponent(component, type, shouldIgnoreCase);
     if (!exceptionOrCompiledExpression)
         return exceptionOrCompiledExpression.error();
 
@@ -124,21 +124,21 @@ static std::optional<ExceptionData> validateAndUpdateURLPatternComponent(String&
 static inline std::optional<ExceptionData> validateServiceWorkerRouteCondition(ServiceWorkerRouteCondition& condition)
 {
     if (condition.urlPattern) {
-        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->protocol, EncodingCallbackType::Protocol))
+        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->protocol, EncodingCallbackType::Protocol, condition.urlPattern->shouldIgnoreCase))
             return exception;
-        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->username, EncodingCallbackType::Username))
+        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->username, EncodingCallbackType::Username, condition.urlPattern->shouldIgnoreCase))
             return exception;
-        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->password, EncodingCallbackType::Password))
+        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->password, EncodingCallbackType::Password, condition.urlPattern->shouldIgnoreCase))
             return exception;
-        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->hostname, EncodingCallbackType::Host))
+        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->hostname, EncodingCallbackType::Host, condition.urlPattern->shouldIgnoreCase))
             return exception;
-        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->pathname, EncodingCallbackType::Path))
+        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->pathname, EncodingCallbackType::Path, condition.urlPattern->shouldIgnoreCase))
             return exception;
-        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->port, EncodingCallbackType::Port))
+        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->port, EncodingCallbackType::Port, condition.urlPattern->shouldIgnoreCase))
             return exception;
-        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->search, EncodingCallbackType::Search))
+        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->search, EncodingCallbackType::Search, condition.urlPattern->shouldIgnoreCase))
             return exception;
-        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->hash, EncodingCallbackType::Hash))
+        if (auto exception = validateAndUpdateURLPatternComponent(condition.urlPattern->hash, EncodingCallbackType::Hash, condition.urlPattern->shouldIgnoreCase))
             return exception;
     }
 
@@ -170,47 +170,48 @@ std::optional<ExceptionData> validateServiceWorkerRoute(ServiceWorkerRoute& rout
     return validateServiceWorkerRouteCondition(route.condition);
 }
 
-static bool matchURLPatternComponent(const String& pattern, StringView value)
+static bool matchURLPatternComponent(const String& pattern, StringView value, bool shouldIgnoreCase)
 {
     if (pattern.isNull())
         return true;
 
 #if !PLATFORM(COCOA)
+    UNUSED_PARAM(shouldIgnoreCase);
     // FIXME: Fully support pattern matching, check for case, whitespace...
     bool isPatternFinishingByStar = pattern.endsWith("*"_s);
     return isPatternFinishingByStar ? value.startsWith(pattern.substring(pattern.length() - 1)) : value == pattern;
 #else
-    return isRegexpMatching(pattern, value);
+    return isRegexpMatching(pattern, value, shouldIgnoreCase);
 #endif
 }
 
 static bool matchURLPattern(const ServiceWorkerRoutePattern& urlPattern, const URL& url)
 {
-    if (!matchURLPatternComponent(urlPattern.protocol, url.protocol()))
+    if (!matchURLPatternComponent(urlPattern.protocol, url.protocol(), urlPattern.shouldIgnoreCase))
         return false;
 
-    if (!matchURLPatternComponent(urlPattern.username, url.encodedUser()))
+    if (!matchURLPatternComponent(urlPattern.username, url.encodedUser(), urlPattern.shouldIgnoreCase))
         return false;
 
-    if (!matchURLPatternComponent(urlPattern.password, url.encodedPassword()))
+    if (!matchURLPatternComponent(urlPattern.password, url.encodedPassword(), urlPattern.shouldIgnoreCase))
         return false;
 
-    if (!matchURLPatternComponent(urlPattern.hostname, url.host()))
+    if (!matchURLPatternComponent(urlPattern.hostname, url.host(), urlPattern.shouldIgnoreCase))
         return false;
 
     String port;
     if (auto portNumber = url.port())
         port = String::number(*portNumber);
-    if (!matchURLPatternComponent(urlPattern.port, port))
+    if (!matchURLPatternComponent(urlPattern.port, port, urlPattern.shouldIgnoreCase))
         return false;
 
-    if (!matchURLPatternComponent(urlPattern.pathname, url.path()))
+    if (!matchURLPatternComponent(urlPattern.pathname, url.path(), urlPattern.shouldIgnoreCase))
         return false;
 
-    if (!matchURLPatternComponent(urlPattern.search, url.query()))
+    if (!matchURLPatternComponent(urlPattern.search, url.query(), urlPattern.shouldIgnoreCase))
         return false;
 
-    return matchURLPatternComponent(urlPattern.hash, url.fragmentIdentifier());
+    return matchURLPatternComponent(urlPattern.hash, url.fragmentIdentifier(), urlPattern.shouldIgnoreCase);
 }
 
 // https://w3c.github.io/ServiceWorker/#match-router-condition
@@ -272,6 +273,22 @@ ServiceWorkerRouteCondition ServiceWorkerRouteCondition::isolatedCopy() &&
     };
 }
 
+ServiceWorkerRouteCondition ServiceWorkerRouteCondition::isolatedCopy() const &
+{
+    std::unique_ptr<ServiceWorkerRouteCondition> notConditionCopy;
+    if (notCondition)
+        notConditionCopy = makeUnique<ServiceWorkerRouteCondition>(notCondition->isolatedCopy());
+    return {
+        crossThreadCopy(urlPattern),
+        crossThreadCopy(requestMethod),
+        requestMode,
+        requestDestination,
+        runningStatus,
+        crossThreadCopy(orConditions),
+        WTF::move(notConditionCopy)
+    };
+}
+
 ServiceWorkerRouteCondition ServiceWorkerRouteCondition::copy() const
 {
     std::unique_ptr<ServiceWorkerRouteCondition> notConditionCopy;
@@ -289,10 +306,10 @@ ServiceWorkerRouteCondition ServiceWorkerRouteCondition::copy() const
     };
 }
 
-
 ServiceWorkerRoutePattern ServiceWorkerRoutePattern::isolatedCopy() &&
 {
     return {
+        shouldIgnoreCase,
         crossThreadCopy(WTF::move(protocol)),
         crossThreadCopy(WTF::move(username)),
         crossThreadCopy(WTF::move(password)),
@@ -301,6 +318,21 @@ ServiceWorkerRoutePattern ServiceWorkerRoutePattern::isolatedCopy() &&
         crossThreadCopy(WTF::move(pathname)),
         crossThreadCopy(WTF::move(search)),
         crossThreadCopy(WTF::move(hash))
+    };
+}
+
+ServiceWorkerRoutePattern ServiceWorkerRoutePattern::isolatedCopy() const  &
+{
+    return {
+        shouldIgnoreCase,
+        crossThreadCopy(protocol),
+        crossThreadCopy(username),
+        crossThreadCopy(password),
+        crossThreadCopy(hostname),
+        crossThreadCopy(port),
+        crossThreadCopy(pathname),
+        crossThreadCopy(search),
+        crossThreadCopy(hash)
     };
 }
 
@@ -313,11 +345,28 @@ static RouterSource crossThreadCopyRouterSource(RouterSource&& source)
     });
 }
 
+static RouterSource crossThreadCopyRouterSource(const RouterSource& source)
+{
+    return WTF::switchOn(source, [](const RouterSourceDict& dict) -> RouterSource {
+        return dict.isolatedCopy();
+    }, [](auto value) -> RouterSource {
+        return value;
+    });
+}
+
 ServiceWorkerRoute ServiceWorkerRoute::isolatedCopy() &&
 {
     return {
         WTF::move(condition).isolatedCopy(),
         crossThreadCopyRouterSource(WTF::move(source))
+    };
+}
+
+ServiceWorkerRoute ServiceWorkerRoute::isolatedCopy() const &
+{
+    return {
+        condition.isolatedCopy(),
+        crossThreadCopyRouterSource(source)
     };
 }
 

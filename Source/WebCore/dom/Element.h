@@ -894,7 +894,7 @@ public:
 
     virtual void updateUserAgentShadowTree() { }
 
-    StylePropertyMapReadOnly* computedStyleMap();
+    StylePropertyMapReadOnly& computedStyleMap();
 
     ExplicitlySetAttrElementsMap& explicitlySetAttrElementsMap();
     ExplicitlySetAttrElementsMap* explicitlySetAttrElementsMapIfExists() const;

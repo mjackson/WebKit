@@ -43,6 +43,8 @@
 #include "B3UpsilonValue.h"
 #include "B3ValueKeyInlines.h"
 #include "B3ValueInlines.h"
+#include "B3WasmStructGetValue.h"
+#include "B3WasmStructSetValue.h"
 #include "SIMDShuffle.h"
 #include <wtf/HashMap.h>
 #include <wtf/MathExtras.h>
@@ -3427,6 +3429,32 @@ private:
             }
             default:
                 break;
+            }
+            break;
+        }
+
+        case WasmStructGet: {
+            if (m_value->traps()) {
+                if (m_value->child(0)->opcode() == WasmStructNew) {
+                    WasmStructGetValue* structGet = m_value->as<WasmStructGetValue>();
+                    Value* newValue = m_insertionSet.insert<WasmStructGetValue>(m_index, WasmStructGet, m_value->origin(), m_value->type(), structGet->child(0), structGet->rtt(), structGet->structType(), structGet->fieldIndex(), structGet->fieldHeapKey(), structGet->mutability());
+                    newValue->as<WasmStructFieldValue>()->setRange(structGet->range());
+                    m_value->replaceWithIdentity(newValue);
+                    m_changed = true;
+                }
+            }
+            break;
+        }
+
+        case WasmStructSet: {
+            if (m_value->traps()) {
+                if (m_value->child(0)->opcode() == WasmStructNew) {
+                    WasmStructSetValue* structSet = m_value->as<WasmStructSetValue>();
+                    Value* newValue = m_insertionSet.insert<WasmStructSetValue>(m_index, WasmStructSet, m_value->origin(), structSet->child(0), structSet->child(1), structSet->rtt(), structSet->structType(), structSet->fieldIndex(), structSet->fieldHeapKey());
+                    newValue->as<WasmStructFieldValue>()->setRange(structSet->range());
+                    m_value->replaceWithIdentity(newValue);
+                    m_changed = true;
+                }
             }
             break;
         }

@@ -39,7 +39,7 @@ class RadioButtonGroup {
 public:
     bool isEmpty() const { return m_members.isEmptyIgnoringNullReferences(); }
     bool isRequired() const { return m_requiredCount; }
-    RefPtr<HTMLInputElement> checkedButton() const { return m_checkedButton.get(); }
+    RefPtr<HTMLInputElement> checkedButton() const { return m_checkedButton; }
     void add(HTMLInputElement&);
     void updateCheckedState(HTMLInputElement&);
     void requiredStateChanged(HTMLInputElement&);

@@ -132,6 +132,8 @@ public:
         case AtomicXchgSub:
         case AtomicXchgXor:
         case AtomicXchg:
+        case WasmStructGet:
+        case WasmStructSet:
             return true;
         default:
             return false;

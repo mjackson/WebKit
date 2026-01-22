@@ -28,7 +28,7 @@
 
 #include "Logging.h"
 
-#if ENABLE(AX_THREAD_TEXT_APIS)
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
 #include <algorithm>
 #include <wtf/text/MakeString.h>
@@ -253,4 +253,4 @@ FloatRect AXTextRuns::localRect(unsigned start, unsigned end, FontOrientation or
 }
 
 } // namespace WebCore
-#endif // ENABLE(AX_THREAD_TEXT_APIS)
+#endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)

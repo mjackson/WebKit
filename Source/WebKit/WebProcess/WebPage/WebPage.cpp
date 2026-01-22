@@ -419,15 +419,12 @@
 #endif
 
 #if ENABLE(WEB_AUTHN)
+#include "DigitalCredentialsCoordinator.h"
 #include "WebAuthenticatorCoordinator.h"
 #include <WebCore/AuthenticatorCoordinator.h>
-
-#if HAVE(DIGITAL_CREDENTIALS_UI)
-#include "DigitalCredentialsCoordinator.h"
 #include <WebCore/DigitalCredentialsRequestData.h>
 #include <WebCore/DigitalCredentialsResponseData.h>
 #include <WebCore/ExceptionData.h>
-#endif // HAVE(DIGITAL_CREDENTIALS_UI)
 #endif // ENABLE(WEB_AUTHN)
 
 #if PLATFORM(IOS_FAMILY) && ENABLE(DEVICE_ORIENTATION)
@@ -809,7 +806,7 @@ WebPage::WebPage(PageIdentifier pageID, WebPageCreationParameters&& parameters)
         makeUniqueRef<WebChromeClient>(*this),
         makeUniqueRef<WebCryptoClient>(this->identifier()),
         makeUniqueRef<WebDocumentSyncClient>(*this)
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
         , DigitalCredentialsCoordinator::create(*this)
 #endif
     );
@@ -2026,6 +2023,9 @@ void WebPage::close()
     m_printContext = nullptr;
     if (RefPtr localFrame = m_mainFrame->coreLocalFrame())
         localFrame->loader().detachFromParent();
+
+    if (RefPtr provisionalFrame = m_mainFrame->provisionalFrame())
+        provisionalFrame->loader().detachFromParent();
 
 #if ENABLE(SCROLLING_THREAD)
     if (m_useAsyncScrolling)
@@ -5611,24 +5611,36 @@ void WebPage::removeWebEditCommand(WebUndoStepID stepID)
         undoStep->didRemoveFromUndoManager();
 }
 
-void WebPage::unapplyEditCommand(WebUndoStepID stepID)
+void WebPage::unapplyEditCommand(uint32_t undoVersion, WebUndoStepID stepID, CompletionHandler<void()>&& completionHandler)
 {
+    if (undoVersion < m_currentUndoVersion)
+        return completionHandler();
+
+    m_currentUndoVersion = undoVersion;
+
     RefPtr step = webUndoStep(stepID);
     if (!step)
-        return;
+        return completionHandler();
 
     step->protectedStep()->unapply();
+    completionHandler();
 }
 
-void WebPage::reapplyEditCommand(WebUndoStepID stepID)
+void WebPage::reapplyEditCommand(uint32_t undoVersion, WebUndoStepID stepID, CompletionHandler<void()>&& completionHandler)
 {
+    if (undoVersion < m_currentUndoVersion)
+        return completionHandler();
+
+    m_currentUndoVersion = undoVersion;
+
     RefPtr step = webUndoStep(stepID);
     if (!step)
-        return;
+        return completionHandler();
 
     setIsInRedo(true);
     step->protectedStep()->reapply();
     setIsInRedo(false);
+    completionHandler();
 }
 
 void WebPage::didRemoveEditCommand(WebUndoStepID commandID)
@@ -8272,7 +8284,7 @@ void WebPage::registerURLSchemeHandler(WebURLSchemeHandlerIdentifier handlerIden
     WebCore::LegacySchemeRegistry::registerURLSchemeAsHandledBySchemeHandler(scheme);
     WebCore::LegacySchemeRegistry::registerURLSchemeAsCORSEnabled(scheme);
     auto schemeResult = m_schemeToURLSchemeHandlerProxyMap.add(scheme, WebURLSchemeHandlerProxy::create(*this, handlerIdentifier));
-    m_identifierToURLSchemeHandlerProxyMap.add(handlerIdentifier, Ref { *schemeResult.iterator->value }.get());
+    m_identifierToURLSchemeHandlerProxyMap.add(handlerIdentifier, Ref { schemeResult.iterator->value }.get());
 }
 
 void WebPage::urlSchemeTaskWillPerformRedirection(WebURLSchemeHandlerIdentifier handlerIdentifier, WebCore::ResourceLoaderIdentifier taskIdentifier, ResourceResponse&& response, ResourceRequest&& request, CompletionHandler<void(WebCore::ResourceRequest&&)>&& completionHandler)
@@ -8455,7 +8467,7 @@ void WebPage::showContactPicker(WebCore::ContactsRequestData&& requestData, Comp
     sendWithAsyncReply(Messages::WebPageProxy::ShowContactPicker(WTF::move(requestData)), WTF::move(callback));
 }
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
 void WebPage::showDigitalCredentialsPicker(const WebCore::DigitalCredentialsRequestData& requestData, CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&& completionHandler)
 {
     sendWithAsyncReply(Messages::WebPageProxy::ShowDigitalCredentialsPicker(requestData), WTF::move(completionHandler));

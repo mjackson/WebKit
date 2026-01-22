@@ -34,6 +34,7 @@
 #include "B3BlockInsertionSet.h"
 #include "B3CCallValue.h"
 #include "B3CaseCollectionInlines.h"
+#include "B3CheckValue.h"
 #include "B3ConstPtrValue.h"
 #include "B3FenceValue.h"
 #include "B3InsertionSetInlines.h"
@@ -45,8 +46,20 @@
 #include "B3UpsilonValue.h"
 #include "B3UseCounts.h"
 #include "B3ValueInlines.h"
+#include "B3WasmStructGetValue.h"
+#include "B3WasmStructNewValue.h"
+#include "B3WasmStructSetValue.h"
 #include "CCallHelpers.h"
+#include "GPRInfo.h"
+#include "JSCJSValueInlines.h"
+#include "JSCell.h"
+#include "JSObject.h"
+#include "JSWebAssemblyStruct.h"
 #include "LinkBuffer.h"
+#include "MarkedSpace.h"
+#include "WasmExceptionType.h"
+#include "WasmOperations.h"
+#include "WasmThunks.h"
 #include <cmath>
 #include <numeric>
 #include <wtf/BitVector.h>
@@ -556,6 +569,218 @@ private:
                 m_changed = true;
                 break;
             }
+
+            case WasmStructGet: {
+                WasmStructGetValue* structGet = m_value->as<WasmStructGetValue>();
+                Value* structPtr = structGet->child(0);
+                SUPPRESS_UNCOUNTED_LOCAL const Wasm::StructType* structType = structGet->structType();
+                Wasm::StructFieldCount fieldIndex = structGet->fieldIndex();
+                auto fieldType = structType->field(fieldIndex).type;
+                bool canTrap = structGet->kind().traps();
+                HeapRange range = structGet->range();
+                Mutability mutability = structGet->mutability();
+
+                int32_t fieldOffset = JSWebAssemblyStruct::offsetOfData() + structType->offsetOfFieldInPayload(fieldIndex);
+
+                auto wrapTrapping = [&](auto input) -> B3::Kind {
+                    if (canTrap)
+                        return trapping(input);
+                    return input;
+                };
+
+                Value* result;
+                if (fieldType.is<Wasm::PackedType>()) {
+                    switch (fieldType.as<Wasm::PackedType>()) {
+                    case Wasm::PackedType::I8:
+                        result = m_insertionSet.insert<MemoryValue>(m_index, wrapTrapping(Load8Z), Int32, m_origin, structPtr, fieldOffset, range);
+                        break;
+                    case Wasm::PackedType::I16:
+                        result = m_insertionSet.insert<MemoryValue>(m_index, wrapTrapping(Load16Z), Int32, m_origin, structPtr, fieldOffset, range);
+                        break;
+                    }
+                } else {
+                    ASSERT(fieldType.is<Wasm::Type>());
+                    auto unpacked = fieldType.unpacked();
+                    Type b3Type;
+                    switch (unpacked.kind) {
+                    case Wasm::TypeKind::I32:
+                        b3Type = Int32;
+                        break;
+                    case Wasm::TypeKind::I64:
+                        b3Type = Int64;
+                        break;
+                    case Wasm::TypeKind::F32:
+                        b3Type = Float;
+                        break;
+                    case Wasm::TypeKind::F64:
+                        b3Type = Double;
+                        break;
+                    case Wasm::TypeKind::V128:
+                        b3Type = V128;
+                        break;
+                    default:
+                        // Reference types are stored as Int64 (pointer-sized)
+                        b3Type = Int64;
+                        break;
+                    }
+                    result = m_insertionSet.insert<MemoryValue>(m_index, wrapTrapping(Load), b3Type, m_origin, structPtr, fieldOffset, range);
+                }
+
+                result->as<MemoryValue>()->setReadsMutability(mutability);
+                m_value->replaceWithIdentity(result);
+                m_changed = true;
+                break;
+            }
+
+            case WasmStructSet: {
+                WasmStructSetValue* structSet = m_value->as<WasmStructSetValue>();
+                Value* structPtr = structSet->child(0);
+                Value* value = structSet->child(1);
+                SUPPRESS_UNCOUNTED_LOCAL const Wasm::StructType* structType = structSet->structType();
+                Wasm::StructFieldCount fieldIndex = structSet->fieldIndex();
+                auto fieldType = structType->field(fieldIndex).type;
+                bool canTrap = structSet->kind().traps();
+                HeapRange range = structSet->range();
+
+                int32_t fieldOffset = JSWebAssemblyStruct::offsetOfData() + structType->offsetOfFieldInPayload(fieldIndex);
+
+                auto wrapTrapping = [&](auto input) -> B3::Kind {
+                    if (canTrap)
+                        return trapping(input);
+                    return input;
+                };
+
+                if (fieldType.is<Wasm::PackedType>()) {
+                    switch (fieldType.as<Wasm::PackedType>()) {
+                    case Wasm::PackedType::I8:
+                        m_insertionSet.insert<MemoryValue>(m_index, wrapTrapping(Store8), m_origin, value, structPtr, fieldOffset, range);
+                        break;
+                    case Wasm::PackedType::I16:
+                        m_insertionSet.insert<MemoryValue>(m_index, wrapTrapping(Store16), m_origin, value, structPtr, fieldOffset, range);
+                        break;
+                    }
+                } else
+                    m_insertionSet.insert<MemoryValue>(m_index, wrapTrapping(Store), m_origin, value, structPtr, fieldOffset, range);
+
+                m_value->replaceWithNop();
+                m_changed = true;
+                break;
+            }
+
+            case WasmStructNew: {
+                WasmStructNewValue* structNew = m_value->as<WasmStructNewValue>();
+                Value* instance = structNew->instance();
+                Value* structureID = structNew->structureID();
+                SUPPRESS_UNCOUNTED_LOCAL const Wasm::StructType* structType = structNew->structType();
+                uint32_t typeIndex = structNew->typeIndex();
+                int32_t allocatorsBaseOffset = structNew->allocatorsBaseOffset();
+
+                size_t allocationSize = JSWebAssemblyStruct::allocationSize(structType->instancePayloadSize());
+
+                static_assert(!(MarkedSpace::sizeStep & (MarkedSpace::sizeStep - 1)), "MarkedSpace::sizeStep must be a power of two.");
+                unsigned stepShift = getLSBSet(MarkedSpace::sizeStep);
+                size_t sizeClass = (allocationSize + MarkedSpace::sizeStep - 1) >> stepShift;
+                bool useFastPath = (sizeClass <= (MarkedSpace::largeCutoff >> stepShift));
+
+                BasicBlock* before = m_blockInsertionSet.splitForward(m_block, m_index, &m_insertionSet);
+                BasicBlock* slowPath = m_blockInsertionSet.insertBefore(m_block);
+
+                UpsilonValue* fastUpsilon = nullptr;
+                if (useFastPath) {
+                    BasicBlock* fastPathContinuation = m_blockInsertionSet.insertBefore(m_block);
+
+                    // Replace the Jump added by splitForward with Nop so we can add our own control flow
+                    before->replaceLastWithNew<Value>(m_proc, Nop, m_origin);
+
+                    // The Instance constructor initializes all the allocators on creation, thus it is never nullptr.
+                    int32_t allocatorOffset = allocatorsBaseOffset + static_cast<int32_t>(sizeClass * sizeof(Allocator));
+                    Value* allocator = before->appendNew<MemoryValue>(m_proc, Load, pointerType(), m_origin, instance, allocatorOffset);
+
+                    PatchpointValue* patchpoint = before->appendNew<PatchpointValue>(m_proc, pointerType(), m_origin);
+                    if (isARM64()) {
+                        // emitAllocateWithNonNullAllocator uses the scratch registers on ARM.
+                        patchpoint->clobber(RegisterSetBuilder::macroClobberedGPRs());
+                    }
+                    patchpoint->effects.terminal = true;
+                    patchpoint->appendSomeRegisterWithClobber(allocator);
+                    patchpoint->numGPScratchRegisters++;
+                    patchpoint->resultConstraints = { ValueRep::SomeEarlyRegister };
+
+                    patchpoint->setGenerator([=](CCallHelpers& jit, const StackmapGenerationParams& params) {
+                        AllowMacroScratchRegisterUsage allowScratch(jit);
+                        CCallHelpers::JumpList jumpToSlowPath;
+
+                        GPRReg allocatorGPR = params[1].gpr();
+
+                        // We use a patchpoint to emit the allocation path because whenever we mess with
+                        // allocation paths, we already reason about them at the machine code level. We know
+                        // exactly what instruction sequence we want. We're confident that no compiler
+                        // optimization could make this code better. So, it's best to have the code in
+                        // AssemblyHelpers::emitAllocate(). That way, the same optimized path is shared by
+                        // all of the compiler tiers.
+                        jit.emitAllocateWithNonNullAllocator(
+                            params[0].gpr(), JITAllocator::variableNonNull(), allocatorGPR, params.gpScratch(0),
+                            jumpToSlowPath, CCallHelpers::SlowAllocationResult::UndefinedBehavior);
+
+                        CCallHelpers::Jump jumpToSuccess;
+                        if (!params.fallsThroughToSuccessor(0))
+                            jumpToSuccess = jit.jump();
+
+                        Vector<Box<CCallHelpers::Label>> labels = params.successorLabels();
+
+                        params.addLatePath([=](CCallHelpers& jit) {
+                            jumpToSlowPath.linkTo(*labels[1], &jit);
+                            if (jumpToSuccess.isSet())
+                                jumpToSuccess.linkTo(*labels[0], &jit);
+                        });
+                    });
+
+                    before->setSuccessors({ fastPathContinuation, FrequencyClass::Normal }, { slowPath, FrequencyClass::Rare });
+
+                    // Header initialization happens in fastPathContinuation, not in fastPath
+                    Value* cell = patchpoint;
+                    Value* typeInfo = fastPathContinuation->appendNew<Const32Value>(m_proc, m_origin, JSWebAssemblyStruct::typeInfoBlob().blob());
+                    fastPathContinuation->appendNew<MemoryValue>(m_proc, Store, m_origin, structureID, cell, static_cast<int32_t>(JSCell::structureIDOffset()));
+                    fastPathContinuation->appendNew<MemoryValue>(m_proc, Store, m_origin, typeInfo, cell, static_cast<int32_t>(JSCell::indexingTypeAndMiscOffset()));
+                    fastPathContinuation->appendNew<MemoryValue>(m_proc, Store, m_origin, fastPathContinuation->appendIntConstant(m_proc, m_origin, pointerType(), 0), cell, static_cast<int32_t>(JSObject::butterflyOffset()));
+
+                    fastUpsilon = fastPathContinuation->appendNew<UpsilonValue>(m_proc, m_origin, cell);
+                    fastPathContinuation->appendNew<Value>(m_proc, Jump, m_origin);
+                    fastPathContinuation->setSuccessors(m_block);
+                } else {
+                    // Just redirect the Jump added by splitForward to slowPath
+                    before->setSuccessors(slowPath);
+                }
+
+                Value* slowFunctionAddress = slowPath->appendNew<ConstPtrValue>(m_proc, m_origin, tagCFunction<OperationPtrTag>(Wasm::operationWasmStructNewEmpty));
+                Value* typeIndexValue = slowPath->appendNew<Const32Value>(m_proc, m_origin, typeIndex);
+                Value* slowResult = slowPath->appendNew<CCallValue>(m_proc, Int64, m_origin, Effects::forCall(), slowFunctionAddress, instance, typeIndexValue);
+
+                // Null check for slow path result
+                Value* isNull = slowPath->appendNew<Value>(m_proc, Equal, m_origin, slowResult, slowPath->appendNew<Const64Value>(m_proc, m_origin, JSValue::encode(jsNull())));
+                CheckValue* check = slowPath->appendNew<CheckValue>(m_proc, Check, m_origin, isNull);
+                check->setGenerator([=](CCallHelpers& jit, const StackmapGenerationParams&) {
+                    jit.move(CCallHelpers::TrustedImm32(static_cast<uint32_t>(Wasm::ExceptionType::BadStructNew)), GPRInfo::argumentGPR1);
+                    jit.nearCallThunk(CodeLocationLabel<JITThunkPtrTag>(Wasm::Thunks::singleton().stub(Wasm::throwExceptionFromOMGThunkGenerator).code()));
+                });
+
+                UpsilonValue* slowUpsilon = slowPath->appendNew<UpsilonValue>(m_proc, m_origin, slowResult);
+                slowPath->appendNew<Value>(m_proc, Jump, m_origin);
+                slowPath->setSuccessors(m_block);
+
+                Value* phi = m_insertionSet.insert<Value>(m_index, Phi, pointerType(), m_origin);
+                if (fastUpsilon)
+                    fastUpsilon->setPhi(phi);
+                slowUpsilon->setPhi(phi);
+
+                m_insertionSet.insert<MemoryValue>(m_index, Store, m_origin, m_insertionSet.insert<Const32Value>(m_index, m_origin, structType->instancePayloadSize()), phi, static_cast<int32_t>(JSWebAssemblyStruct::offsetOfSize()));
+
+                m_value->replaceWithIdentity(phi);
+                before->updatePredecessorsAfter();
+                m_changed = true;
+                break;
+            }
+
             default:
                 break;
             }

@@ -802,7 +802,7 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
         JSValue asyncContext = arguments[2];
 #endif
 
-        if (!promiseSpeciesWatchpointIsValid(vm, promise)) [[unlikely]]
+        if (!promiseSpeciesWatchpointIsValid(promise)) [[unlikely]]
             RELEASE_AND_RETURN(scope, promiseResolveThenableJobFastSlow(globalObject, promise, promiseToResolve));
 
 #if USE(BUN_JSC_ADDITIONS)
@@ -834,7 +834,7 @@ void runInternalMicrotask(JSGlobalObject* globalObject, InternalMicrotask task, 
         JSValue context = arguments[1];
         auto task = static_cast<InternalMicrotask>(payload);
 
-        if (!promiseSpeciesWatchpointIsValid(vm, promise)) [[unlikely]]
+        if (!promiseSpeciesWatchpointIsValid(promise)) [[unlikely]]
             RELEASE_AND_RETURN(scope, promiseResolveThenableJobWithInternalMicrotaskFastSlow(globalObject, promise, task, context));
 
         switch (promise->status()) {

@@ -164,7 +164,7 @@ JSC::Bindings::Instance* HTMLPlugInElement::bindingsInstance()
 
 PluginViewBase* HTMLPlugInElement::pluginWidget(PluginLoadingPolicy loadPolicy) const
 {
-    CheckedPtr renderWidget = loadPolicy == PluginLoadingPolicy::Load ? renderWidgetLoadingPlugin() : this->renderWidget();
+    CheckedPtr renderWidget = loadPolicy == PluginLoadingPolicy::Load ? renderWidgetLoadingPlugin() : CheckedPtr { this->renderWidget() };
     if (!renderWidget)
         return nullptr;
 

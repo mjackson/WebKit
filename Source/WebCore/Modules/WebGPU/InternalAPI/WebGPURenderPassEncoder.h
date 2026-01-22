@@ -101,6 +101,7 @@ public:
     virtual void end() = 0;
 
     virtual bool isRemoteRenderPassEncoderProxy() const { return false; }
+    virtual bool isRenderPassEncoderImpl() const { return false; }
 
 protected:
     RenderPassEncoder() = default;

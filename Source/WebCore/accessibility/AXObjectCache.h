@@ -444,7 +444,7 @@ public:
 #if PLATFORM(MAC)
     void onDocumentRenderTreeCreation(const Document&);
 #endif
-#if ENABLE(AX_THREAD_TEXT_APIS)
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     void onTextRunsChanged(const RenderObject&);
 #endif
 
@@ -518,11 +518,12 @@ public:
 
     static bool accessibilityEnabled();
     WEBCORE_EXPORT static bool accessibilityEnhancedUserInterfaceEnabled();
-#if ENABLE(AX_THREAD_TEXT_APIS)
-    static bool useAXThreadTextApis() { return gAccessibilityThreadTextApisEnabled && !isMainThread(); }
-    static bool shouldCreateAXThreadCompatibleMarkers() { return gAccessibilityThreadTextApisEnabled && isIsolatedTreeEnabled(); }
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+    static bool useAXThreadTextApis() { return !isMainThread(); }
+    static bool shouldCreateAXThreadCompatibleMarkers() { return isIsolatedTreeEnabled(); }
 #endif
     static bool isAXTextStitchingEnabled() { return gAccessibilityTextStitchingEnabled; }
+    WEBCORE_EXPORT static bool isAXThreadHitTestingEnabled();
 
 #if PLATFORM(COCOA)
     static bool shouldRepostNotificationsForTests() { return gShouldRepostNotificationsForTests; }
@@ -641,9 +642,12 @@ public:
 
     AXComputedObjectAttributeCache* computedObjectAttributeCache() { return m_computedObjectAttributeCache.get(); }
 
-    Document* document() const { return m_document.get(); }
+    Document* document() const { return m_document; }
     RefPtr<Document> protectedDocument() const;
     FrameIdentifier frameID() const { return m_frameID; }
+
+    RefPtr<Page> page() const;
+    IntPoint mapScreenPointToPagePoint(const IntPoint&) const;
 
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     inline void objectBecameIgnored(const AccessibilityObject&);
@@ -917,12 +921,10 @@ private:
     // FIXME: since the following only affects the behavior of isolated objects, we should move it into AXIsolatedTree in order to keep this class main thread only.
     static std::atomic<bool> gForceInitialFrameCaching;
 
-#if ENABLE(AX_THREAD_TEXT_APIS)
-    // Accessed on and off the main thread.
-    static std::atomic<bool> gAccessibilityThreadTextApisEnabled;
-#endif
     // Accessed on and off the main thread.
     static std::atomic<bool> gAccessibilityTextStitchingEnabled;
+    // Accessed on and off the main thread.
+    static std::atomic<bool> gAccessibilityThreadHitTestingEnabled;
 
 #if PLATFORM(COCOA)
     static std::atomic<bool> gAccessibilityDOMIdentifiersEnabled;

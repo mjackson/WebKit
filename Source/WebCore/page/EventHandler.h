@@ -177,7 +177,7 @@ public:
     WEBCORE_EXPORT HitTestResult hitTestResultAtPoint(const LayoutPoint&, OptionSet<HitTestRequest::Type>) const;
 
     bool mousePressed() const { return m_mousePressed; }
-    Node* mousePressNode() const { return m_mousePressNode.get(); }
+    Node* mousePressNode() const { return m_mousePressNode; }
 
     WEBCORE_EXPORT ScrollableArea* focusedScrollableArea() const;
 

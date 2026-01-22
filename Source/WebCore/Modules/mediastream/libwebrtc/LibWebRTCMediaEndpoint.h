@@ -198,7 +198,7 @@ private:
     SetLocalSessionDescriptionObserver<LibWebRTCMediaEndpoint> m_setLocalSessionDescriptionObserver;
     SetRemoteSessionDescriptionObserver<LibWebRTCMediaEndpoint> m_setRemoteSessionDescriptionObserver;
 
-    MemoryCompactRobinHoodHashMap<String, RefPtr<MediaStream>> m_remoteStreamsById;
+    MemoryCompactRobinHoodHashMap<String, Ref<MediaStream>> m_remoteStreamsById;
 
     bool m_isInitiator { false };
     Timer m_statsLogTimer;

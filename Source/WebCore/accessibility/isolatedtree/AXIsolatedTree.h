@@ -131,11 +131,6 @@ enum class AXProperty : uint16_t {
     Abbreviation,
     ARIALevel,
     ARIARoleDescription,
-#if !ENABLE(AX_THREAD_TEXT_APIS)
-    // Rather than caching text content as property when ENABLE(AX_THREAD_TEXT_APIS), we should
-    // synthesize it on-the-fly using AXProperty::TextRuns.
-    AttributedText,
-#endif // !ENABLE(AX_THREAD_TEXT_APIS)
     AXColumnCount,
     AXColumnIndex,
     AXColumnIndexText,
@@ -243,10 +238,8 @@ enum class AXProperty : uint16_t {
     KeyShortcuts,
     Language,
     LinethroughColor,
-#if ENABLE(AX_THREAD_TEXT_APIS)
     ListMarkerLineID,
     ListMarkerText,
-#endif // ENABLE(AX_THREAD_TEXT_APIS)
     LiveRegionAtomic,
     LocalizedActionVerb,
     MathFencedOpenString,
@@ -300,15 +293,8 @@ enum class AXProperty : uint16_t {
     SupportsCurrent,
     SupportsKeyShortcuts,
     TextContentPrefixFromListMarker,
-#if !ENABLE(AX_THREAD_TEXT_APIS)
-    // Rather than caching text content as property when ENABLE(AX_THREAD_TEXT_APIS), we should
-    // synthesize it on-the-fly using AXProperty::TextRuns.
-    TextContent,
-#endif // !ENABLE(AX_THREAD_TEXT_APIS)
     TextInputMarkedTextMarkerRange,
-#if ENABLE(AX_THREAD_TEXT_APIS)
     TextRuns,
-#endif
     TitleAttribute,
     URL,
     UnderlineColor,
@@ -343,13 +329,11 @@ using AXPropertyValueVariant = Variant<std::nullptr_t, Markable<AXID>, String, b
     , RetainPtr<id>
     , Style::SpeakAs
 #endif // PLATFORM(COCOA)
-#if ENABLE(AX_THREAD_TEXT_APIS)
     , RetainPtr<CTFontRef>
     , FontOrientation
     , std::unique_ptr<AXTextRuns>
     , AXTextRunLineID
     , FrameIdentifier
-#endif // ENABLE(AX_THREAD_TEXT_APIS)
 >;
 using AXPropertyVector = Vector<std::pair<AXProperty, AXPropertyValueVariant>>;
 WTF::TextStream& operator<<(WTF::TextStream&, const AXPropertyVector&);
@@ -579,10 +563,8 @@ public:
     void queueNodeRemoval(const AccessibilityObject&);
     void processQueuedNodeUpdates();
 
-#if ENABLE(AX_THREAD_TEXT_APIS)
     AXTextMarker firstMarker();
     AXTextMarker lastMarker();
-#endif
 
 private:
     AXIsolatedTree(AXObjectCache&);

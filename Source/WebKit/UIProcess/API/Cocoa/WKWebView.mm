@@ -168,6 +168,7 @@
 #import <WebCore/ColorSerialization.h>
 #import <WebCore/ContentExtensionsBackend.h>
 #import <WebCore/DOMException.h>
+#import <WebCore/DataDetectorType.h>
 #import <WebCore/ElementContext.h>
 #import <WebCore/ElementTargetingTypes.h>
 #import <WebCore/ExceptionCode.h>
@@ -230,7 +231,7 @@
 #import "DataDetectionResult.h"
 #endif
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
 #import <WebKit/WKDigitalCredentialsPicker.h>
 #import <WebCore/DigitalCredentialsRequestData.h>
 #import <WebCore/DigitalCredentialsResponseData.h>
@@ -341,7 +342,7 @@ RetainPtr<NSError> nsErrorFromExceptionDetails(const std::optional<WebCore::Exce
 
 WK_OBJECT_DISABLE_DISABLE_KVC_IVAR_ACCESS;
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
 - (void)_showDigitalCredentialsPicker:(const WebCore::DigitalCredentialsRequestData&)requestData completionHandler:(WTF::CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&&)completionHandler
 {
     LOG(DigitalCredentials, "Did not show digital credentials picker because it is not implemented.");
@@ -353,7 +354,7 @@ WK_OBJECT_DISABLE_DISABLE_KVC_IVAR_ACCESS;
     LOG(DigitalCredentials, "Did not dismiss digital credentials picker because it is not implemented.");
     completionHandler(false);
 }
-#endif // HAVE(DIGITAL_CREDENTIALS_UI)
+#endif // ENABLE(WEB_AUTHN)
 
 - (instancetype)initWithFrame:(CGRect)frame
 {
@@ -7161,6 +7162,24 @@ static HashMap<String, HashMap<WebCore::JSHandleIdentifier, String>> extractClie
     return result;
 }
 
+#if ENABLE(DATA_DETECTION)
+
+static OptionSet<WebCore::DataDetectorType> coreDataDetectorTypes(_WKTextExtractionDataDetectorTypes types)
+{
+    OptionSet<WebCore::DataDetectorType> coreTypes;
+    if (types & _WKTextExtractionDataDetectorMoney)
+        coreTypes.add(WebCore::DataDetectorType::Money);
+    if (types & _WKTextExtractionDataDetectorAddress)
+        coreTypes.add(WebCore::DataDetectorType::Address);
+    if (types & _WKTextExtractionDataDetectorCalendarEvent)
+        coreTypes.add(WebCore::DataDetectorType::CalendarEvent);
+    if (types & _WKTextExtractionDataDetectorTrackingNumber)
+        coreTypes.add(WebCore::DataDetectorType::TrackingNumber);
+    return coreTypes;
+}
+
+#endif // ENABLE(DATA_DETECTION)
+
 #endif // USE(APPLE_INTERNAL_SDK) || (!PLATFORM(WATCHOS) && !PLATFORM(APPLETV))
 
 - (void)_requestTextExtractionInternal:(_WKTextExtractionConfiguration *)configuration completion:(CompletionHandler<void(std::optional<WebCore::TextExtraction::Item>&&)>&&)completion
@@ -7213,6 +7232,9 @@ static HashMap<String, HashMap<WebCore::JSHandleIdentifier, String>> extractClie
             .includeEventListeners = !!configuration.includeEventListeners,
             .includeAccessibilityAttributes = !!configuration.includeAccessibilityAttributes,
             .includeTextInAutoFilledControls = !!configuration.includeTextInAutoFilledControls,
+#if ENABLE(DATA_DETECTION)
+            .dataDetectorTypes = coreDataDetectorTypes(configuration.dataDetectorTypes),
+#endif
         };
     };
 

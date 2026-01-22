@@ -738,7 +738,7 @@ private:
 #endif
 
 #if ENABLE(CONTENT_EXTENSIONS)
-    MemoryCompactRobinHoodHashMap<String, RefPtr<StyleSheetContents>> m_pendingNamedContentExtensionStyleSheets;
+    MemoryCompactRobinHoodHashMap<String, Ref<StyleSheetContents>> m_pendingNamedContentExtensionStyleSheets;
     MemoryCompactRobinHoodHashMap<String, Vector<std::pair<String, uint32_t>>> m_pendingContentExtensionDisplayNoneSelectors;
 #endif
     String m_customUserAgent;

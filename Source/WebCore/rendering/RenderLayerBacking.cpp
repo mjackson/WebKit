@@ -39,7 +39,6 @@
 #include "DebugOverlayRegions.h"
 #include "DebugPageOverlays.h"
 #include "DocumentPage.h"
-#include "DropShadowFilterOperationWithStyleColor.h"
 #include "EventRegion.h"
 #include "GraphicsContext.h"
 #include "GraphicsLayer.h"
@@ -840,12 +839,12 @@ void RenderLayerBacking::updateChildrenTransformAndAnchorPoint(const LayoutRect&
 
 void RenderLayerBacking::updateFilters(const RenderStyle& style)
 {
-    m_canCompositeFilters = m_graphicsLayer->setFilters(Style::toPlatform(style.filter(), style));
+    m_canCompositeFilters = !style.filter().hasReferenceFilter() && m_graphicsLayer->setFilters(Style::toPlatform(style.filter(), style));
 }
 
 void RenderLayerBacking::updateBackdropFilters(const RenderStyle& style)
 {
-    m_canCompositeBackdropFilters = m_graphicsLayer->setBackdropFilters(Style::toPlatform(style.backdropFilter(), style));
+    m_canCompositeBackdropFilters = !style.backdropFilter().hasReferenceFilter() && m_graphicsLayer->setBackdropFilters(Style::toPlatform(style.backdropFilter(), style));
 }
 
 void RenderLayerBacking::updateBackdropFiltersGeometry()
@@ -2095,6 +2094,8 @@ bool RenderLayerBacking::maintainsEventRegion() const
 #endif
 #if ENABLE(TOUCH_EVENT_REGIONS)
     if (renderer().document().hasTouchEventHandlers())
+        return true;
+    if (renderer().document().needsPointerEventHandlingForPopover())
         return true;
 #endif
 

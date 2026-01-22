@@ -166,11 +166,8 @@ list(APPEND JavaScriptCore_SOURCES
 
 set(JavaScriptCore_FRAMEWORKS
     WTF
+    bmalloc
 )
-
-if(NOT USE_SYSTEM_MALLOC)
-    list(APPEND JavaScriptCore_FRAMEWORKS bmalloc)
-endif()
 
 if(USE_CAPSTONE)
     list(APPEND JavaScriptCore_LIBRARIES capstone)
@@ -1847,6 +1844,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     wasm/debugger/WasmDebugServer.h
     wasm/debugger/WasmDebugServerUtilities.h
     wasm/debugger/WasmExecutionHandler.h
+    wasm/debugger/WasmGDBPacketParser.h
     wasm/debugger/WasmMemoryHandler.h
     wasm/debugger/WasmModuleDebugInfo.h
     wasm/debugger/WasmModuleManager.h

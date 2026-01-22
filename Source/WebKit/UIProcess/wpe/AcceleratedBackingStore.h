@@ -95,6 +95,7 @@ private:
     void renderPendingBuffer();
     void bufferRendered();
     void bufferReleased(WPEBuffer*);
+    void toplevelChanged();
 
     WeakPtr<WebPageProxy> m_webPage;
     GRefPtr<WPEView> m_wpeView;

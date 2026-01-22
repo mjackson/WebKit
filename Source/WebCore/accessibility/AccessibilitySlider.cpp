@@ -108,12 +108,12 @@ void AccessibilitySlider::addChildren()
 #endif
 }
 
-AccessibilityObject* AccessibilitySlider::elementAccessibilityHitTest(const IntPoint& point) const
+RefPtr<AccessibilityObject> AccessibilitySlider::elementAccessibilityHitTest(const IntPoint& point) const
 {
     if (m_children.size()) {
         AX_ASSERT(m_children.size() == 1);
         if (Ref { m_children[0] }->elementRect().contains(point))
-            return dynamicDowncast<AccessibilityObject>(m_children[0].get());
+            return downcast<AccessibilityObject>(m_children[0].get());
     }
 
     return checkedAxObjectCache()->getOrCreate(checkedRenderer().get());

@@ -331,7 +331,7 @@ void ScriptController::initScriptForWindowProxy(JSWindowProxy& windowProxy)
 
 Ref<LocalFrame> ScriptController::protectedFrame() const
 {
-    return m_frame.get();
+    return m_frame;
 }
 
 static Identifier jsValueToModuleKey(JSGlobalObject* lexicalGlobalObject, JSValue value)
@@ -567,7 +567,7 @@ JSObject* ScriptController::jsObjectForPluginElement(HTMLPlugInElement* plugin)
     // Create a JSObject bound to this element
     auto* globalObj = globalObject(pluginWorldSingleton());
     // FIXME: is normal okay? - used for NP plugins?
-    JSValue jsElementValue = toJS(globalObj, globalObj, plugin);
+    JSValue jsElementValue = plugin ? toJS(globalObj, globalObj, *plugin) : jsNull();
     if (!jsElementValue || !jsElementValue.isObject())
         return nullptr;
     

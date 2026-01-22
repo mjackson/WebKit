@@ -1429,7 +1429,6 @@ webkit.org/b/256217 [ Debug ] imported/w3c/web-platform-tests/background-fetch/p
 [ Debug ] imported/w3c/web-platform-tests/webcodecs/videoFrame-construction.crossOriginSource.sub.html [ Pass Failure ]
 imported/w3c/web-platform-tests/css/css-sizing/aspect-ratio/replaced-element-035.html [ Pass ImageOnlyFailure ]
 fast/forms/file/entries-api/image-no-transcode-open-panel.html [ Pass Crash ]
-[ Debug arm64 ] media/track/track-css-visible-stroke.html [ Pass Crash ]
 media/track/video-track-addition-and-frame-removal.html [ Pass Crash ]
 media/track/track-cue-left-align.html [ Pass Crash ]
 http/tests/media/modern-media-controls/skip-back-support/skip-back-support-live-broadcast.html [ Pass Crash ]
@@ -1499,8 +1498,6 @@ webkit.org/b/260113 [ arm64 ] http/wpt/webauthn/ctap-hid-failure.https.html [ Pa
 
 # rdar://108846032 (REGRESSION (263506@main): [ Sonoma wk2 ] fast/layoutformattingcontext/horizontal-sizing-with-trailing-letter-spacing.html: WebCore::Layout::Line::TrimmableTrailingContent::remove)
 [ Sonoma+ ] fast/layoutformattingcontext/horizontal-sizing-with-trailing-letter-spacing.html [ Skip ]
-
-webkit.org/b/239627 [ arm64 ] fast/scrolling/mac/adjust-scroll-snap-during-gesture.html [ Pass Failure ]
 
 # Enable Sonoma only test added in rdar://110488738.
 [ Sonoma+ ] accessibility/mac/attributed-string/attributed-string-has-completion-annotation.html [ Pass ]
@@ -2159,7 +2156,7 @@ webkit.org/b/295743 [ Debug ] media/video-display-aspect-ratio.html [ Pass Failu
 # Digital Credentials tests timeout.
 [ Sequoia ] imported/w3c/web-platform-tests/digital-credentials/allow-attribute-with-get.https.html [ Skip ]
 [ Sequoia ] imported/w3c/web-platform-tests/digital-credentials/get.tentative.https.html [ Skip ]
-[ Sequoia ] imported/w3c/web-platform-tests/digital-credentials/user-activation.https.html [ Skip ]
+[ Sequoia ] imported/w3c/web-platform-tests/digital-credentials/user-activation-get.https.html [ Skip ]
 
 # FIXME: Needs bug.
 http/tests/resourceLoadStatistics/website-data-removal-for-site-navigated-to-with-unfiltered-link-decoration-before-short-deletion.html [ Failure ]
@@ -2436,3 +2433,19 @@ webkit.org/b/305508 http/tests/resourceLoadStatistics/log-cross-site-load-with-l
 webkit.org/b/305581 http/tests/workers/service/shownotification-allowed.html [ Pass Failure ]
 
 webkit.org/b/303348 http/tests/site-isolation/remote-frame-loaded-while-hidden.html [ ImageOnlyFailure ]
+
+webkit.org/b/305660 [ Debug ] http/tests/cache-storage/cache-clearing-all.https.html [ Pass Failure ]
+
+webkit.org/b/305670 media/track/track-css-visible-stroke.html [ ImageOnlyFailure ]
+
+webkit.org/b/305671 fast/animation/css-animation-throttling.html [ Pass Failure ]
+
+webkit.org/b/305673 [ Debug ] inspector/idl-extensions/CanvasRenderingContext2D/setPath.html [ Timeout ]
+
+webkit.org/b/305675 fast/animation/request-animation-frame-throttle-subframe-zero-size.html [ Pass Failure ]
+
+webkit.org/b/305947 compositing/visibility/frameset-visibility-hidden.html [ ImageOnlyFailure Pass ]
+
+webkit.org/b/305958 imported/w3c/web-platform-tests/media-source/mediasource-changetype-play.html [ Pass Failure ]
+
+webkit.org/b/305959 fast/text/FontFaceSet-status-after-style-update.html [ Pass Failure ]

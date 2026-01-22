@@ -114,6 +114,7 @@ public:
     void willDestroyGLContext();
     void willRenderFrame(const WebCore::IntSize&);
     void didRenderFrame();
+    void clear();
 
 #if ENABLE(DAMAGE_TRACKING)
     void setFrameDamage(WebCore::Damage&&);

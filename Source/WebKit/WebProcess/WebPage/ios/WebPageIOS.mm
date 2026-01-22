@@ -5353,7 +5353,7 @@ void WebPage::updateLayoutViewportHeightExpansionTimerFired()
         auto& hitTestedNodes = hitTestResult.listBasedTestResult();
         HashSet<Ref<Element>> elementsOutsideOfAnyLargeViewportConstrainedContainers;
         for (auto& node : hitTestedNodes) {
-            RefPtr firstParentOrSelf = dynamicDowncast<Element>(node) ?: node->parentElementInComposedTree();
+            RefPtr firstParentOrSelf = dynamicDowncast<Element>(node.get()) ?: node->parentElementInComposedTree();
             Vector<Ref<Element>> ancestorsForHitTestedNode;
             for (RefPtr parent = firstParentOrSelf; parent; parent = parent->parentElementInComposedTree()) {
                 if (largeViewportConstrainedElements.contains(*parent))

@@ -1904,7 +1904,7 @@ bool BBQJIT::emitStructSet(GPRReg structGPR, const StructType& structType, uint3
     return { };
 }
 
-[[nodiscard]] PartialResult BBQJIT::addStructGet(ExtGCOpType structGetKind, TypedExpression typedStruct, const StructType& structType, uint32_t fieldIndex, Value& result)
+[[nodiscard]] PartialResult BBQJIT::addStructGet(ExtGCOpType structGetKind, TypedExpression typedStruct, const StructType& structType, const RTT&, uint32_t fieldIndex, Value& result)
 {
     auto structValue = typedStruct.value();
     TypeKind resultKind = structType.field(fieldIndex).type.unpacked().kind;
@@ -1975,7 +1975,7 @@ bool BBQJIT::emitStructSet(GPRReg structGPR, const StructType& structType, uint3
     return { };
 }
 
-[[nodiscard]] PartialResult BBQJIT::addStructSet(TypedExpression typedStruct, const StructType& structType, uint32_t fieldIndex, Value value)
+[[nodiscard]] PartialResult BBQJIT::addStructSet(TypedExpression typedStruct, const StructType& structType, const RTT&, uint32_t fieldIndex, Value value)
 {
     auto structValue = typedStruct.value();
     if (structValue.isConst()) {

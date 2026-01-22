@@ -1,46 +1,12 @@
 Modules/push-api/PushDatabase.cpp
 Modules/webaudio/AudioWorkletGlobalScope.cpp
 accessibility/AXObjectCache.cpp
-accessibility/AccessibilityListBoxOption.cpp
-accessibility/AccessibilityMathMLElement.cpp
-accessibility/AccessibilityNodeObject.cpp
 accessibility/AccessibilityObject.cpp
 accessibility/AccessibilityRenderObject.cpp
 [ iOS ] accessibility/cocoa/AXTextMarkerCocoa.mm
-accessibility/cocoa/AccessibilityObjectCocoa.mm
 [ iOS ] accessibility/ios/AccessibilityObjectIOS.mm
 [ iOS ] accessibility/ios/WebAccessibilityObjectWrapperIOS.mm
-[ Mac ] accessibility/isolatedtree/AXIsolatedObject.cpp
-[ Mac ] accessibility/isolatedtree/AXIsolatedTree.cpp
-[ Mac ] accessibility/mac/AccessibilityObjectMac.mm
-animation/AcceleratedEffectStackUpdater.cpp
-animation/BlendingKeyframes.cpp
-animation/DocumentTimeline.cpp
-animation/KeyframeEffect.cpp
-animation/ViewTimeline.cpp
-animation/WebAnimation.cpp
-bindings/js/JSAttrCustom.cpp
-bindings/js/JSCSSStyleDeclarationCustom.cpp
-bindings/js/JSCustomElementInterface.cpp
-bindings/js/JSDOMAbstractOperations.h
-bindings/js/JSDOMConvertPromise.h
 bindings/js/JSDOMGlobalObject.cpp
-bindings/js/JSDOMPromiseDeferred.cpp
-bindings/js/JSDOMWindowBase.cpp
-bindings/js/JSDOMWindowCustom.cpp
-bindings/js/JSDOMWindowProperties.cpp
-bindings/js/JSDocumentCustom.cpp
-bindings/js/JSHTMLElementCustom.cpp
-bindings/js/JSHTMLTemplateElementCustom.cpp
-bindings/js/JSLazyEventListener.cpp
-bindings/js/JSNodeCustom.cpp
-bindings/js/JSPluginElementFunctions.cpp
-bindings/js/JSUndoItemCustom.cpp
-bindings/js/JSWebAnimationCustom.cpp
-bindings/js/JSWorkerGlobalScopeBase.cpp
-bindings/js/JSXMLHttpRequestCustom.cpp
-bindings/js/ScheduledAction.cpp
-bindings/js/ScriptModuleLoader.cpp
 contentextensions/ContentExtensionsBackend.cpp
 css/CSSStyleSheet.cpp
 css/FontFaceSet.cpp
@@ -49,7 +15,6 @@ css/SelectorChecker.cpp
 css/SelectorFilter.cpp
 css/StyleAttributeMutationScope.h
 css/StyleRuleImport.cpp
-css/query/ContainerQueryFeatures.cpp
 css/typedom/ComputedStylePropertyMapReadOnly.cpp
 dom/CollectionIndexCacheInlines.h
 dom/CustomElementReactionQueue.cpp
@@ -65,7 +30,6 @@ dom/MouseRelatedEvent.cpp
 dom/Node.cpp
 dom/NodeTraversal.cpp
 dom/Position.cpp
-dom/PositionIterator.cpp
 dom/RadioButtonGroups.cpp
 dom/Range.cpp
 dom/ShadowRoot.cpp
