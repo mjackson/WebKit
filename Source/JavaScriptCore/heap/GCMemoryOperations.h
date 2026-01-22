@@ -122,7 +122,7 @@ ALWAYS_INLINE void gcSafeMemcpy(T* dst, const T* src, size_t bytes)
             :
             : "d0", "d1", "memory", "cc"
         );
-#endif // CPU(X86_64)
+#endif // CPU(X86_64) || CPU(ARM64)
     } else {
         RELEASE_ASSERT(isX86_64());
 #if CPU(X86_64)
@@ -262,10 +262,37 @@ ALWAYS_INLINE void gcSafeZeroMemory(T* dst, size_t bytes)
         : "a"(zero)
         : "memory"
     );
-#elif CPU(ARM64) && !(OS(WINDOWS))
-    // On Windows ARM64, LLVM has a bug (llvm/llvm-project#47432) that causes a
-    // fatal error "Failed to evaluate function length in SEH unwind info" when
-    // inline assembly contains alignment directives. Fall back to scalar code.
+#elif CPU(ARM64) && OS(WINDOWS)
+    // Windows ARM64: omit .p2align to avoid LLVM SEH bug (llvm/llvm-project#47432)
+    uint64_t alignedBytes = (static_cast<uint64_t>(bytes) / 64) * 64;
+    uint64_t dstPtr = static_cast<uint64_t>(std::bit_cast<uintptr_t>(dst));
+    uint64_t end = dstPtr + bytes;
+    uint64_t alignedEnd = dstPtr + alignedBytes;
+    asm volatile(
+        "movi d0, #0\t\n"
+        "movi d1, #0\t\n"
+
+        "2:\t\n"
+        "cmp %x[dstPtr], %x[alignedEnd]\t\n"
+        "b.eq 4f\t\n"
+        "stnp q0, q0, [%x[dstPtr]]\t\n"
+        "stnp q0, q0, [%x[dstPtr], #0x20]\t\n"
+        "add %x[dstPtr], %x[dstPtr], #0x40\t\n"
+        "b 2b\t\n"
+
+        "4:\t\n"
+        "cmp %x[dstPtr], %x[end]\t\n"
+        "b.eq 5f\t\n"
+        "str d0, [%x[dstPtr]], #0x8\t\n"
+        "b 4b\t\n"
+
+        "5:\t\n"
+
+        : [alignedBytes] "+r" (alignedBytes), [bytes] "+r" (bytes), [dstPtr] "+r" (dstPtr), [end] "+r" (end), [alignedEnd] "+r" (alignedEnd)
+        :
+        : "d0", "d1", "memory", "cc"
+    );
+#elif CPU(ARM64)
     uint64_t alignedBytes = (static_cast<uint64_t>(bytes) / 64) * 64;
     uint64_t dstPtr = static_cast<uint64_t>(std::bit_cast<uintptr_t>(dst));
     uint64_t end = dstPtr + bytes;

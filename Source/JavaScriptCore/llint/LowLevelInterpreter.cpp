@@ -588,21 +588,26 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
     SYMBOL_STRING(label) ":\n"
 #endif
 
-// On Windows ARM64, we disable alignment directives in inline assembly because
-// LLVM has a bug (llvm/llvm-project#47432) that causes a fatal error
-// "Failed to evaluate function length in SEH unwind info" when inline assembly
-// contains alignment directives. The alignment is not strictly required for
-// correctness, only for performance optimization.
 #if OS(WINDOWS) && CPU(ARM64)
-#define OFFLINE_ASM_ALIGN4B ""
-#define OFFLINE_ASM_NOALIGN ""
-#define OFFLINE_ASM_ALIGN_TRAP(align) ""
+// COFF uses power-of-two alignment: .align N means 2^N bytes
+// For 4-byte alignment: log2(4) = 2
+#define OFFLINE_ASM_ALIGN4B ".align 2\n"
 #else
 #define OFFLINE_ASM_ALIGN4B ".balign 4\n"
+#endif
 #define OFFLINE_ASM_NOALIGN ""
 
 #if CPU(ARM64) || CPU(ARM64E)
+#if OS(WINDOWS)
+// COFF uses power-of-two alignment: .align N means 2^N bytes
+// For 256-byte alignment: log2(256) = 8, for 64-byte: log2(64) = 6
+// Note: COFF doesn't support fill value, so padding bytes are zeros
+#define OFFLINE_ASM_ALIGN_TRAP_256 "\n .align 8\n"
+#define OFFLINE_ASM_ALIGN_TRAP_64 "\n .align 6\n"
+#define OFFLINE_ASM_ALIGN_TRAP(align) OFFLINE_ASM_ALIGN_TRAP_##align
+#else
 #define OFFLINE_ASM_ALIGN_TRAP(align) OFFLINE_ASM_BEGIN_SPACER "\n .balignl " #align ", 0xd4388e20\n" // pad with brk instructions
+#endif
 #elif CPU(X86_64)
 #define OFFLINE_ASM_ALIGN_TRAP(align) OFFLINE_ASM_BEGIN_SPACER "\n .balign " #align ", 0xcc\n" // pad with int 3 instructions
 #elif CPU(ARM)
@@ -610,7 +615,6 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 #elif CPU(RISCV64)
 #define OFFLINE_ASM_ALIGN_TRAP(align) OFFLINE_ASM_BEGIN_SPACER "\n .balignw " #align ", 0x9002\n" // pad with c.ebreak instructions
 #endif
-#endif // !(OS(WINDOWS) && CPU(ARM64))
 
 #define OFFLINE_ASM_EXPORT_SYMBOL(symbol)
 

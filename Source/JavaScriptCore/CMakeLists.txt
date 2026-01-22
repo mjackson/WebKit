@@ -2165,6 +2165,19 @@ if(TARGET WTF_CopyHeaders)
     add_dependencies(LowLevelInterpreterLib WTF_CopyHeaders)
 endif()
 
+# Windows ARM64: Disable unwind tables to work around LLVM bug #47432
+# (alignment directives in inline asm break SEH unwind info calculation)
+if (WIN32 AND WTF_CPU_ARM64)
+    target_compile_options(LowLevelInterpreterLib PRIVATE -fno-unwind-tables)
+
+    # Also disable for other files with alignment directives in inline asm
+    set_source_files_properties(
+        assembler/MacroAssemblerARM64.cpp
+        jit/ThunkGenerators.cpp
+        PROPERTIES COMPILE_FLAGS "-fno-unwind-tables"
+    )
+endif()
+
 if(CMAKE_COMPILER_IS_GNUCXX AND GCC_OFFLINEASM_SOURCE_MAP)
     message(STATUS "Enabling asm postprocessing")
 

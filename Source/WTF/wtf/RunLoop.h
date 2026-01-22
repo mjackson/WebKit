@@ -439,17 +439,11 @@ private:
     // access to the RunLoop containing it.
     RunLoop& m_parent;
 #else
+    // USE(GENERIC_EVENT_LOOP) without USE(BUN_EVENT_LOOP)
+    // wakeUp(), stop(), cycle() are already declared as public methods above
     void scheduleWithLock(TimerBase::ScheduledTask&) WTF_REQUIRES_LOCK(m_loopLock);
     void unscheduleWithLock(TimerBase::ScheduledTask&) WTF_REQUIRES_LOCK(m_loopLock);
     void wakeUpWithLock() WTF_REQUIRES_LOCK(m_loopLock);
-    void wakeUp();
-    void stop();
-    CycleResult static cycle(RunLoopMode = DefaultRunLoopMode);
-
-    // Some of the above member functions need to call RunLoop member functions, and they can't call
-    // them directly anymore since they are not on the same class. So the RunLoopGenericState needs
-    // access to the RunLoop containing it.
-    RunLoop& m_parent;
 #endif
 
     enum class RunMode {

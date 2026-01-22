@@ -83,7 +83,9 @@ __asm__(
 #elif CPU(ARM64) && OS(WINDOWS)
 __asm__(
     ".text" "\n"
-    ".balign 16" "\n"
+    // COFF uses power-of-two alignment: .align N means 2^N bytes
+    // For 16-byte alignment: log2(16) = 4
+    ".align 4" "\n"
     ".globl " SYMBOL_STRING(currentStackPointer) "\n"
     SYMBOL_STRING(currentStackPointer) ":" "\n"
 

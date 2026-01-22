@@ -133,9 +133,8 @@ void initializeWithOptionsCustomization(const ScopedLambda<void()>& optionsCusto
 
         NativeCalleeRegistry::initialize();
 #if ENABLE(WEBASSEMBLY) && ENABLE(JIT)
-        if (Wasm::isSupported()) {
+        if (Wasm::isSupported())
             Wasm::Thunks::initialize();
-        }
 #endif
 
         if (VM::isInMiniMode())

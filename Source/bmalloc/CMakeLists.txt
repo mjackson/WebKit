@@ -754,7 +754,10 @@ add_definitions(-DPAS_BMALLOC=1)
 
 if (MSVC)
     add_compile_options(/wd4206)
-    add_compile_options(-mcx16)
+    # -mcx16 is only valid for x86/x86_64 (16-byte compare-and-swap)
+    if (NOT WTF_CPU_ARM64)
+        add_compile_options(-mcx16)
+    endif ()
 endif ()
 
 WEBKIT_FRAMEWORK_DECLARE(bmalloc)

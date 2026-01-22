@@ -23,7 +23,12 @@ const OS_NAME = platform().toLowerCase();
 const ARCH_NAME_RAW = arch();
 const IS_MAC = OS_NAME === "darwin";
 const IS_LINUX = OS_NAME === "linux";
-const IS_ARM64 = ARCH_NAME_RAW === "arm64" || ARCH_NAME_RAW === "aarch64";
+const IS_WINDOWS = OS_NAME === "win32";
+// On Windows, use PROCESSOR_ARCHITECTURE env var to get native arch (Bun may run under x64 emulation)
+const NATIVE_ARCH = IS_WINDOWS
+  ? (process.env.PROCESSOR_ARCHITECTURE || ARCH_NAME_RAW).toUpperCase()
+  : ARCH_NAME_RAW;
+const IS_ARM64 = NATIVE_ARCH === "ARM64" || NATIVE_ARCH === "AARCH64" || ARCH_NAME_RAW === "arm64";
 
 // Paths
 const WEBKIT_DIR = import.meta.dirname;
@@ -32,16 +37,35 @@ const WEBKIT_RELEASE_DIR = join(WEBKIT_BUILD_DIR, "Release");
 const WEBKIT_DEBUG_DIR = join(WEBKIT_BUILD_DIR, "Debug");
 const WEBKIT_RELEASE_DIR_LTO = join(WEBKIT_BUILD_DIR, "ReleaseLTO");
 
+// Windows ICU paths - use vcpkg static build
+// Auto-detect triplet: prefer arm64 if it exists, otherwise x64
+const VCPKG_ARM64_PATH = join(WEBKIT_DIR, "vcpkg_installed", "arm64-windows-static");
+const VCPKG_X64_PATH = join(WEBKIT_DIR, "vcpkg_installed", "x64-windows-static");
+const VCPKG_ROOT = existsSync(VCPKG_ARM64_PATH) ? VCPKG_ARM64_PATH : VCPKG_X64_PATH;
+const ICU_INCLUDE_DIR = join(VCPKG_ROOT, "include");
+
+// Get ICU library paths based on build config (debug uses 'd' suffix libraries)
+function getICULibraryPaths(config: BuildConfig) {
+  const isDebug = config === "debug";
+  // vcpkg static ICU libraries: release in lib/, debug in debug/lib/ with 'd' suffix
+  const libDir = isDebug ? join(VCPKG_ROOT, "debug", "lib") : join(VCPKG_ROOT, "lib");
+  const suffix = isDebug ? "d" : "";
+  return {
+    ICU_LIBRARY: libDir,
+    ICU_DATA_LIBRARY: join(libDir, `sicudt${suffix}.lib`),
+    ICU_I18N_LIBRARY: join(libDir, `sicuin${suffix}.lib`),
+    ICU_UC_LIBRARY: join(libDir, `sicuuc${suffix}.lib`),
+  };
+}
+
 // Homebrew prefix detection
 const HOMEBREW_PREFIX = IS_ARM64 ? "/opt/homebrew/" : "/usr/local/";
 
 // Compiler detection
 function findExecutable(names: string[]): string | null {
   for (const name of names) {
-    const result = spawnSync("which", [name], { encoding: "utf8" });
-    if (result.status === 0) {
-      return result.stdout.trim();
-    }
+    const path = Bun.which(name);
+    if (path) return path;
   }
   return null;
 }
@@ -51,8 +75,13 @@ const CCACHE = findExecutable(["ccache"]);
 const HAS_CCACHE = CCACHE !== null;
 
 // Configure compilers with ccache if available
-const CC_BASE = findExecutable(["clang-19", "clang"]) || "clang";
-const CXX_BASE = findExecutable(["clang++-19", "clang++"]) || "clang++";
+// On Windows, use clang-cl for MSVC compatibility
+const CC_BASE = IS_WINDOWS
+  ? findExecutable(["clang-cl.exe", "clang-cl"]) || "clang-cl"
+  : findExecutable(["clang-19", "clang"]) || "clang";
+const CXX_BASE = IS_WINDOWS
+  ? findExecutable(["clang-cl.exe", "clang-cl"]) || "clang-cl"
+  : findExecutable(["clang++-19", "clang++"]) || "clang++";
 
 const CC = HAS_CCACHE ? CCACHE : CC_BASE;
 const CXX = HAS_CCACHE ? CCACHE : CXX_BASE;
@@ -70,7 +99,7 @@ const getBuildDir = (config: BuildConfig) => {
 };
 
 // Common CMake flags
-const getCommonFlags = () => {
+const getCommonFlags = (config: BuildConfig) => {
   const flags = [
     "-DPORT=JSCOnly",
     "-DENABLE_STATIC_JSC=ON",
@@ -111,6 +140,27 @@ const getCommonFlags = () => {
       "-DUSE_VISIBILITY_ATTRIBUTE=1",
       "-DENABLE_REMOTE_INSPECTOR=ON"
     );
+  } else if (IS_WINDOWS) {
+    // Find lld-link for Windows builds
+    const lldLink = findExecutable(["lld-link.exe", "lld-link"]) || "lld-link";
+    // Get ICU library paths for this build config (debug uses 'd' suffix libraries)
+    const icuPaths = getICULibraryPaths(config);
+
+    flags.push(
+      "-DENABLE_REMOTE_INSPECTOR=ON",
+      "-DUSE_VISIBILITY_ATTRIBUTE=1",
+      "-DUSE_SYSTEM_MALLOC=ON",
+      `-DCMAKE_LINKER=${lldLink}`,
+      `-DICU_ROOT=${VCPKG_ROOT}`,
+      `-DICU_LIBRARY=${icuPaths.ICU_LIBRARY}`,
+      `-DICU_INCLUDE_DIR=${ICU_INCLUDE_DIR}`,
+      // Explicitly set ICU library paths to use vcpkg static libs (debug has 'd' suffix)
+      `-DICU_DATA_LIBRARY_RELEASE=${icuPaths.ICU_DATA_LIBRARY}`,
+      `-DICU_I18N_LIBRARY_RELEASE=${icuPaths.ICU_I18N_LIBRARY}`,
+      `-DICU_UC_LIBRARY_RELEASE=${icuPaths.ICU_UC_LIBRARY}`,
+      "-DCMAKE_C_FLAGS=/DU_STATIC_IMPLEMENTATION",
+      "-DCMAKE_CXX_FLAGS=/DU_STATIC_IMPLEMENTATION /clang:-fno-c++-static-destructors"
+    );
   }
 
   return flags;
@@ -118,7 +168,7 @@ const getCommonFlags = () => {
 
 // Build-specific CMake flags
 const getBuildFlags = (config: BuildConfig) => {
-  const flags = [...getCommonFlags()];
+  const flags = [...getCommonFlags(config)];
 
   switch (config) {
     case "debug":
@@ -131,23 +181,39 @@ const getBuildFlags = (config: BuildConfig) => {
       );
 
       if (IS_MAC || IS_LINUX) {
-        // Enable address sanitizer by default on Mac debug builds
+        // Enable address sanitizer by default on Mac/Linux debug builds
         flags.push("-DENABLE_SANITIZERS=address");
         // To disable asan, comment the line above and uncomment:
         // flags.push("-DENABLE_MALLOC_HEAP_BREAKDOWN=ON");
       }
+
+      if (IS_WINDOWS) {
+        flags.push("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebug");
+      }
       break;
 
     case "lto":
-      flags.push(
-        "-DCMAKE_BUILD_TYPE=Release",
-        "-DCMAKE_C_FLAGS=-flto=full",
-        "-DCMAKE_CXX_FLAGS=-flto=full"
-      );
+      flags.push("-DCMAKE_BUILD_TYPE=Release");
+      if (IS_WINDOWS) {
+        // On Windows, append LTO flags to existing Windows-specific flags
+        flags.push(
+          "-DCMAKE_C_FLAGS=/DU_STATIC_IMPLEMENTATION -flto=full",
+          "-DCMAKE_CXX_FLAGS=/DU_STATIC_IMPLEMENTATION /clang:-fno-c++-static-destructors -flto=full",
+          "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded"
+        );
+      } else {
+        flags.push(
+          "-DCMAKE_C_FLAGS=-flto=full",
+          "-DCMAKE_CXX_FLAGS=-flto=full"
+        );
+      }
       break;
 
     default: // release
       flags.push("-DCMAKE_BUILD_TYPE=RelWithDebInfo");
+      if (IS_WINDOWS) {
+        flags.push("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded");
+      }
       break;
   }
 
