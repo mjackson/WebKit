@@ -1889,7 +1889,7 @@ Result<void> TypeChecker::visit(AST::ArrayTypeExpression& array)
 
     Types::Array::Size size;
     if (array.maybeElementCount()) {
-        UNWRAP(elementCountType, infer(*array.maybeElementCount(), Evaluation::Override));
+        UNWRAP(elementCountType, infer(*array.maybeElementCount(), std::min(m_evaluation, Evaluation::Override)));
         if (!unify(m_types.i32Type(), elementCountType) && !unify(m_types.u32Type(), elementCountType)) [[unlikely]]
             TYPE_ERROR(array.span(), "array count must be an i32 or u32 value, found '"_s, *elementCountType, '\'');
 

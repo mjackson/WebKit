@@ -43,6 +43,7 @@
 #import "WKContentViewInteraction.h"
 #import "WKPreferencesInternal.h"
 #import "WKWebViewInternal.h"
+#import "WebFrameProxy.h"
 #import "WebPageProxy.h"
 #import "WebPageProxyTesting.h"
 #import "WebProcessPool.h"

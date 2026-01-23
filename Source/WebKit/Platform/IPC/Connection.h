@@ -35,6 +35,8 @@
 #include "SyncRequestID.h"
 #include "Timeout.h"
 #include <atomic>
+#include <bmalloc/TZoneHeap.h>
+#include <bmalloc/bmalloc.h>
 #include <new>
 #include <tuple>
 #include <wtf/Assertions.h>
@@ -85,11 +87,6 @@
 
 #if USE(GLIB)
 #include <wtf/glib/GSocketMonitor.h>
-#endif
-
-#if !USE(SYSTEM_MALLOC)
-#include <bmalloc/TZoneHeap.h>
-#include <bmalloc/bmalloc.h>
 #endif
 
 #if USE(UNIX_DOMAIN_SOCKETS)

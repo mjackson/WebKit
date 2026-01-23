@@ -486,7 +486,7 @@ void PlatformCALayerRemote::adoptSublayers(PlatformCALayer& source)
 
 void PlatformCALayerRemote::addAnimationForKey(const String& key, PlatformCAAnimation& animation)
 {
-    auto addResult = m_animations.set(key, &animation);
+    auto addResult = m_animations.set(key, animation);
     bool appendToAddedAnimations = true;
     if (!addResult.isNewEntry) {
         // There is already an animation for this key. If the animation has not been sent to the UI
@@ -536,8 +536,8 @@ void PlatformCALayerRemote::animationStarted(const String& key, MonotonicTime be
 {
     auto it = m_animations.find(key);
     if (it != m_animations.end())
-        downcast<PlatformCAAnimationRemote>(*it->value).didStart(currentTimeToMediaTime(beginTime));
-    
+        downcast<PlatformCAAnimationRemote>(it->value.get()).didStart(currentTimeToMediaTime(beginTime));
+
     if (m_owner)
         m_owner->platformCALayerAnimationStarted(key, beginTime);
 }

@@ -138,11 +138,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
     //     return [JSValue valueWithJSValueRef:result inContext:self];
     // }
 
-    // auto* apiGlobalObject = JSC::jsDynamicCast<JSC::JSAPIGlobalObject*>(globalObject);
-    // if (!apiGlobalObject)
-    //     return [JSValue valueWithNewPromiseRejectedWithReason:[JSValue valueWithNewErrorFromMessage:@"Context does not support module loading" inContext:self] inContext:self];
-
-    // auto scope = DECLARE_CATCH_SCOPE(vm);
+    // auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
     // JSC::JSValue result = apiGlobalObject->loadAndEvaluateJSScriptModule(locker, script);
     // if (scope.exception()) {
     //     JSValueRef exceptionValue = toRef(apiGlobalObject, scope.exception()->value());
@@ -165,7 +161,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
         return [JSValue valueWithUndefinedInContext:self];
     }
 
-    auto scope = DECLARE_CATCH_SCOPE(vm);
+    auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
     JSC::JSArray* result = globalObject->moduleLoader()->dependencyKeysIfEvaluated(globalObject, JSC::jsString(vm, String([[script sourceURL] absoluteString])));
     if (scope.exception()) {
         JSValueRef exceptionValue = toRef(globalObject, scope.exception()->value());
@@ -207,7 +203,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 {
     auto& thread = Thread::currentSingleton();
     CallbackData *entry = (CallbackData *)thread.m_apiData;
-    return entry ? entry->context : nil;
+    return entry ? entry->context.get() : nil;
 }
 
 + (JSValue *)currentThis

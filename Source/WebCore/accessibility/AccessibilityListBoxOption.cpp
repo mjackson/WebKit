@@ -89,7 +89,7 @@ LayoutRect AccessibilityListBoxOption::elementRect() const
     if (!listBoxParentNode)
         return { };
 
-    auto* listBoxRenderer = dynamicDowncast<RenderListBox>(listBoxParentNode->renderer());
+    CheckedPtr listBoxRenderer = dynamicDowncast<RenderListBox>(listBoxParentNode->renderer());
     if (!listBoxRenderer)
         return { };
 
@@ -157,7 +157,7 @@ AccessibilityObject* AccessibilityListBoxOption::parentObject() const
     if (!parentNode)
         return nullptr;
 
-    auto* cache = m_node->document().axObjectCache();
+    CheckedPtr cache = m_node->document().axObjectCache();
     return cache ? cache->getOrCreate(*parentNode) : nullptr;
 }
 

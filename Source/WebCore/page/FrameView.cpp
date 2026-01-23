@@ -79,6 +79,18 @@ FloatBoxExtent FrameView::obscuredContentInsets(InsetType type) const
     return { };
 }
 
+CornerRadii FrameView::scrollbarAvoidanceCornerRadii() const
+{
+    Ref frame = this->frame();
+    if (!frame->isMainFrame())
+        return { };
+
+    if (RefPtr page = frame->page())
+        return page->chrome().client().scrollbarAvoidanceCornerRadii();
+
+    return { };
+}
+
 float FrameView::visibleContentScaleFactor() const
 {
     Ref frame = this->frame();
@@ -268,6 +280,47 @@ FloatRect FrameView::convertFromContainingViewToRenderer(const RenderElement* re
     auto rect = viewToContents(viewRect);
 
     return renderer->absoluteToLocalQuad(rect).boundingBox();
+}
+
+// MARK: -
+
+FloatPoint FrameView::absoluteToLayoutViewportPoint(FloatPoint p) const
+{
+    Ref frame = this->frame();
+
+    ASSERT(frame->settings().visualViewportEnabled());
+    p.scale(1 / frame->frameScaleFactor());
+    p.moveBy(-layoutViewportRect().location());
+    return p;
+}
+
+FloatPoint FrameView::layoutViewportToAbsolutePoint(FloatPoint p) const
+{
+    Ref frame = this->frame();
+
+    ASSERT(frame->settings().visualViewportEnabled());
+    p.moveBy(layoutViewportRect().location());
+    return p.scaled(frame->frameScaleFactor());
+}
+
+FloatRect FrameView::layoutViewportToAbsoluteRect(FloatRect rect) const
+{
+    Ref frame = this->frame();
+
+    ASSERT(frame->settings().visualViewportEnabled());
+    rect.moveBy(layoutViewportRect().location());
+    rect.scale(frame->frameScaleFactor());
+    return rect;
+}
+
+FloatRect FrameView::absoluteToLayoutViewportRect(FloatRect rect) const
+{
+    Ref frame = this->frame();
+
+    ASSERT(frame->settings().visualViewportEnabled());
+    rect.scale(1 / frame->frameScaleFactor());
+    rect.moveBy(-layoutViewportRect().location());
+    return rect;
 }
 
 // MARK: -

@@ -1023,7 +1023,7 @@ static inline ExceptionOr<PeerConnectionBackend::CertificateInformation> certifi
     auto& value = std::get<JSC::Strong<JSC::JSObject>>(algorithmIdentifier);
 
     JSC::VM& vm = lexicalGlobalObject.vm();
-    auto scope = DECLARE_CATCH_SCOPE(vm);
+    auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
 
     auto parametersConversionResult = convertDictionary<RTCPeerConnection::CertificateParameters>(lexicalGlobalObject, value.get());
     if (parametersConversionResult.hasException(scope)) [[unlikely]] {

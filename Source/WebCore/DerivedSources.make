@@ -646,7 +646,6 @@ JS_BINDING_IDLS := \
     $(WebCore)/Modules/streams/TransformStream.idl \
     $(WebCore)/Modules/streams/TransformStreamDefaultController.idl \
     $(WebCore)/Modules/streams/UnderlyingSource.idl \
-    $(WebCore)/Modules/streams/UnderlyingSourceStartCallback.idl \
     $(WebCore)/Modules/streams/UnderlyingSourceCancelCallback.idl \
     $(WebCore)/Modules/streams/UnderlyingSourcePullCallback.idl \
     $(WebCore)/Modules/streams/UnderlyingSourceStartCallback.idl \
@@ -1055,8 +1054,6 @@ JS_BINDING_IDLS := \
     $(WebCore)/css/ElementCSSInlineStyle+Typedom.idl \
     $(WebCore)/css/FontFace.idl \
     $(WebCore)/css/FontFaceSet.idl \
-    $(WebCore)/css/FontFaceSetLoadEvent.idl \
-    $(WebCore)/css/FontFaceSetLoadEventInit.idl \
     $(WebCore)/css/FontFaceSource.idl \
     $(WebCore)/css/LinkStyle.idl \
     $(WebCore)/css/MediaList.idl \

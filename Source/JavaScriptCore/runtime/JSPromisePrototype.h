@@ -55,7 +55,7 @@ protected:
     JSPromisePrototype(VM&, Structure*);
 };
 
-bool promiseSpeciesWatchpointIsValid(VM&, JSPromise*);
+bool promiseSpeciesWatchpointIsValid(JSPromise*);
 JSC_DECLARE_HOST_FUNCTION(promiseProtoFuncThen);
 
 } // namespace JSC

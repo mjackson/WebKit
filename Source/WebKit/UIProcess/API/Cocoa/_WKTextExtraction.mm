@@ -55,6 +55,7 @@
     if (!(self = [super init]))
         return nil;
 
+    _dataDetectorTypes = _WKTextExtractionDataDetectorNone;
     _filterOptions = _WKTextExtractionFilterAll;
     _includeURLs = !onlyVisibleText;
     _includeRects = !onlyVisibleText;

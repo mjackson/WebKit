@@ -240,6 +240,18 @@
 #endif
 #endif
 
+#if !defined(USE_MIMALLOC)
+#define USE_MIMALLOC 0
+#endif
+
+#if !defined(USE_SYSTEM_MALLOC)
+#if OS(DARWIN) && !CPU(ADDRESS64)
+#define USE_SYSTEM_MALLOC 1
+#else
+#define USE_SYSTEM_MALLOC 0
+#endif
+#endif
+
 #if PLATFORM(COCOA)
 #define USE_DICTATION_ALTERNATIVES 1
 #endif
@@ -302,7 +314,7 @@
 #endif
 
 #if !defined(USE_TZONE_MALLOC)
-#if (CPU(ARM64) || CPU(X86_64)) && OS(DARWIN) && (__SIZEOF_POINTER__ == 8) && !USE(SYSTEM_MALLOC)
+#if (!USE(MIMALLOC) && !USE(SYSTEM_MALLOC)) && (CPU(ARM64) || CPU(X86_64)) && OS(DARWIN) && CPU(ADDRESS64)
 #define USE_TZONE_MALLOC 1
 #else
 #define USE_TZONE_MALLOC 0

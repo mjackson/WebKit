@@ -1377,7 +1377,7 @@ void DocumentLoader::commitData(const SharedBuffer& data)
     if (!m_pendingNamedContentExtensionStyleSheets.isEmpty() || !m_pendingContentExtensionDisplayNoneSelectors.isEmpty()) {
         CheckedRef extensionStyleSheets = m_frame->protectedDocument()->extensionStyleSheets();
         for (auto& pendingStyleSheet : m_pendingNamedContentExtensionStyleSheets)
-            extensionStyleSheets->maybeAddContentExtensionSheet(pendingStyleSheet.key, Ref { *pendingStyleSheet.value });
+            extensionStyleSheets->maybeAddContentExtensionSheet(pendingStyleSheet.key, Ref { pendingStyleSheet.value });
         for (auto& pendingSelectorEntry : m_pendingContentExtensionDisplayNoneSelectors) {
             for (const auto& pendingSelector : pendingSelectorEntry.value)
                 extensionStyleSheets->addDisplayNoneSelector(pendingSelectorEntry.key, pendingSelector.first, pendingSelector.second);
@@ -1750,7 +1750,7 @@ void DocumentLoader::clearArchiveResources()
 
 SharedBuffer* DocumentLoader::parsedArchiveData() const
 {
-    return m_parsedArchiveData.get();
+    return m_parsedArchiveData;
 }
 
 #endif // ENABLE(WEB_ARCHIVE) || ENABLE(MHTML)
@@ -2558,7 +2558,7 @@ void DocumentLoader::becomeMainResourceClient()
 void DocumentLoader::addPendingContentExtensionSheet(const String& identifier, StyleSheetContents& sheet)
 {
     ASSERT(!m_gotFirstByte);
-    m_pendingNamedContentExtensionStyleSheets.set(identifier, &sheet);
+    m_pendingNamedContentExtensionStyleSheets.set(identifier, sheet);
 }
 
 void DocumentLoader::addPendingContentExtensionDisplayNoneSelector(const String& identifier, const String& selector, uint32_t selectorID)
@@ -2584,7 +2584,7 @@ void DocumentLoader::setPreviewConverter(RefPtr<PreviewConverter>&& previewConve
 
 PreviewConverter* DocumentLoader::previewConverter() const
 {
-    return m_previewConverter.get();
+    return m_previewConverter;
 }
 
 #endif

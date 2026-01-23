@@ -33,6 +33,21 @@
 namespace WebCore {
 namespace Layout {
 
+struct FlexTrack {
+    size_t trackIndex;
+    Style::GridTrackBreadth::Flex flexFactor;
+    LayoutUnit baseSize;
+    LayoutUnit growthLimit;
+
+    constexpr FlexTrack(size_t index, Style::GridTrackBreadth::Flex factor, LayoutUnit base, LayoutUnit growth)
+        : trackIndex(index)
+        , flexFactor(factor)
+        , baseSize(base)
+        , growthLimit(growth)
+    {
+    }
+};
+
 struct UnsizedTrack {
     LayoutUnit baseSize;
     LayoutUnit growthLimit;
@@ -40,7 +55,7 @@ struct UnsizedTrack {
 };
 
 // https://drafts.csswg.org/css-grid-1/#algo-track-sizing
-TrackSizes TrackSizingAlgorithm::sizeTracks(const PlacedGridItems&, const TrackSizingFunctionsList& trackSizingFunctions)
+TrackSizes TrackSizingAlgorithm::sizeTracks(const PlacedGridItems&, const TrackSizingFunctionsList& trackSizingFunctions, std::optional<LayoutUnit> availableSpace)
 {
     // 1. Initialize Track Sizes
     auto unsizedTracks = initializeTrackSizes(trackSizingFunctions);
@@ -58,8 +73,28 @@ TrackSizes TrackSizingAlgorithm::sizeTracks(const PlacedGridItems&, const TrackS
     UNUSED_VARIABLE(maximizeTracks);
 
     // 4. Expand Flexible Tracks
-    auto expandFlexibleTracks = [] {
-        notImplemented();
+    auto expandFlexibleTracks = [&] {
+        if (!hasFlexTracks(unsizedTracks))
+            return;
+        auto flexTracks = collectFlexTracks(unsizedTracks);
+        double totalFlex = flexFactorSum(flexTracks);
+        if (!totalFlex)
+            return;
+
+        auto space = leftoverSpace(availableSpace, unsizedTracks);
+        if (!space)
+            return;
+
+        // https://drafts.csswg.org/css-grid-1/#typedef-flex
+        // FIXME: Handle the case where the total flex factor is less than 1fr.
+        if (totalFlex < 1.0) {
+            ASSERT_NOT_IMPLEMENTED_YET();
+            return;
+        }
+
+        // FIXME: finish implementation for flex track sizing.
+        auto frSize = space.value() / LayoutUnit { totalFlex };
+        UNUSED_VARIABLE(frSize);
     };
     UNUSED_VARIABLE(expandFlexibleTracks);
 
@@ -131,6 +166,59 @@ UnsizedTracks TrackSizingAlgorithm::initializeTrackSizes(const TrackSizingFuncti
 
         return { baseSize(), growthLimit(), trackSizingFunctions };
     });
+}
+
+FlexTracks TrackSizingAlgorithm::collectFlexTracks(const UnsizedTracks& unsizedTracks)
+{
+    FlexTracks flexTracks;
+
+    for (auto [trackIndex, track] : indexedRange(unsizedTracks)) {
+        const auto& maxTrackSizingFunction = track.trackSizingFunction.max;
+
+        if (maxTrackSizingFunction.isFlex()) {
+            auto flexFactor = maxTrackSizingFunction.flex();
+            flexTracks.append(FlexTrack(trackIndex, flexFactor, track.baseSize, track.growthLimit));
+        }
+    }
+
+    return flexTracks;
+}
+
+bool TrackSizingAlgorithm::hasFlexTracks(const UnsizedTracks& unsizedTracks)
+{
+    return std::ranges::any_of(unsizedTracks, [](auto& track) {
+        return track.trackSizingFunction.max.isFlex();
+    });
+}
+
+double TrackSizingAlgorithm::flexFactorSum(const FlexTracks& flexTracks)
+{
+    double total = 0.0;
+    for (auto& track : flexTracks)
+        total += track.flexFactor.value;
+    return total;
+}
+
+// https://drafts.csswg.org/css-grid-1/#algo-find-fr-size
+// https://drafts.csswg.org/css-grid-1/#leftover-space
+std::optional<LayoutUnit> TrackSizingAlgorithm::leftoverSpace(std::optional<LayoutUnit> availableSpace, const UnsizedTracks& unsizedTracks)
+{
+    if (!availableSpace)
+        return std::nullopt;
+
+    // Sum only non-flexible tracks. Flexible tracks are being sized, so their base sizes don't count against available space.
+    // FIXME: This doesn't implement step 4 of "Find the Size of an fr" where some flex tracks should be treated as inflexible.
+    LayoutUnit usedSpace;
+    for (const auto& track : unsizedTracks) {
+        if (!track.trackSizingFunction.max.isFlex())
+            usedSpace += track.baseSize;
+    }
+
+    auto leftoverSpace = availableSpace.value() - usedSpace;
+    if (leftoverSpace <= 0_lu)
+        return { 0 };
+
+    return leftoverSpace;
 }
 
 } // namespace Layout

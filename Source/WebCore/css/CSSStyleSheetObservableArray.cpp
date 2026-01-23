@@ -56,17 +56,17 @@ bool CSSStyleSheetObservableArray::setValueAt(JSC::JSGlobalObject* lexicalGlobal
     if (sheetConversionResult.hasException(scope)) [[unlikely]]
         return false;
 
-    if (auto exception = shouldThrowWhenAddingSheet(*sheetConversionResult.returnValue())) {
+    if (auto exception = shouldThrowWhenAddingSheet(sheetConversionResult.returnValue())) {
         throwException(lexicalGlobalObject, scope, createDOMException(*lexicalGlobalObject, WTF::move(*exception)));
         return false;
     }
 
     if (index == m_sheets.size())
-        m_sheets.append(*sheetConversionResult.returnValue());
+        m_sheets.append(sheetConversionResult.returnValue());
     else
-        m_sheets[index] = *sheetConversionResult.returnValue();
+        m_sheets[index] = sheetConversionResult.returnValue();
 
-    didAddSheet(*sheetConversionResult.releaseReturnValue());
+    didAddSheet(sheetConversionResult.releaseReturnValue());
     return true;
 }
 

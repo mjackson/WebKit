@@ -157,6 +157,22 @@ static bool shouldJoinWithPreviousLine(const TextExtractionLine& previous, const
     return isCurrencySymbol(previousText[previousText.length() - 1]) && textIsNumericValue;
 }
 
+static bool shouldEmitExtraSpace(char16_t previousCharacter, char16_t nextCharacter)
+{
+    if (isUnicodeWhitespace(previousCharacter) || isUnicodeWhitespace(nextCharacter))
+        return false;
+
+    auto previousCharacterMask = U_GET_GC_MASK(previousCharacter);
+    if (isOpeningPunctuation(previousCharacterMask) || (previousCharacterMask & U_GC_PI_MASK))
+        return false;
+
+    auto nextCharacterMask = U_GET_GC_MASK(nextCharacter);
+    if (isOpeningPunctuation(nextCharacterMask) || (nextCharacterMask & U_GC_PI_MASK))
+        return true;
+
+    return !(nextCharacterMask & U_GC_PO_MASK);
+}
+
 class TextExtractionAggregator : public RefCounted<TextExtractionAggregator> {
     WTF_MAKE_NONCOPYABLE(TextExtractionAggregator);
     WTF_MAKE_TZONE_ALLOCATED(TextExtractionAggregator);
@@ -212,6 +228,13 @@ public:
 
                 if (shouldEmitFullStopBetweenLines(*previousLine, previousText, line, text))
                     return '.';
+
+                if (previousLine->enclosingBlockNumber == line.enclosingBlockNumber) {
+                    if (shouldEmitExtraSpace(previousText[previousText.length() - 1], text[0]))
+                        return ' ';
+
+                    return std::nullopt;
+                }
 
                 return '\n';
             }();
@@ -497,16 +520,10 @@ private:
 
     void addVersionNumberIfNeeded()
     {
-        if (onlyIncludeText())
+        if (!useJSONOutput())
             return;
 
-        if (useJSONOutput()) {
-            protectedRootJSONObject()->setInteger("version"_s, version());
-            return;
-        }
-
-        auto versionText = (useHTMLOutput() || useMarkdownOutput()) ? makeString("<!-- version="_s, version(), " -->"_s) : makeString("version="_s, version());
-        addResult({ advanceToNextLine(), 0 }, { WTF::move(versionText) });
+        protectedRootJSONObject()->setInteger("version"_s, version());
     }
 
     uint32_t version() const

@@ -495,7 +495,7 @@ Vector<Ref<StyleRuleKeyframe>> Resolver::keyframeRulesForName(const AtomString& 
         return timingFunction;
     };
 
-    RefPtr keyframesRule = it->value.get();
+    Ref keyframesRule = it->value;
     auto* keyframes = &keyframesRule->keyframes();
 
     using KeyframeUniqueKey = std::tuple<StyleRuleKeyframe::Key, RefPtr<const TimingFunction>, CompositeOperation>;

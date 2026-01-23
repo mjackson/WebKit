@@ -101,11 +101,53 @@ LayoutUnit usedInlineSizeForGridItem(const PlacedGridItem& placedGridItem, Layou
     return { };
 }
 
-LayoutUnit usedBlockSizeForGridItem(const PlacedGridItem& placedGridItem)
+LayoutUnit usedBlockSizeForGridItem(const PlacedGridItem& placedGridItem, LayoutUnit borderAndPadding, const TrackSizes& usedRowSizes,
+    LayoutUnit rowsGap)
 {
+    auto rowsSize = [&] {
+        auto rowsStartPosition = computeGridLinePosition(placedGridItem.rowStartLine(), usedRowSizes, rowsGap);
+        auto rowsEndPosition = computeGridLinePosition(placedGridItem.rowEndLine(), usedRowSizes, rowsGap);
+        ASSERT(rowsEndPosition >= rowsStartPosition);
+        return rowsEndPosition - rowsStartPosition;
+    };
+
     auto& blockAxisSizes = placedGridItem.blockAxisSizes();
-    if (auto fixedBlockSize = blockAxisSizes.preferredSize.tryFixed())
-        return LayoutUnit { fixedBlockSize->resolveZoom(placedGridItem.usedZoom()) };
+    auto& preferredSize = blockAxisSizes.preferredSize;
+    if (auto fixedBlockSize = preferredSize.tryFixed())
+        return LayoutUnit { fixedBlockSize->resolveZoom(placedGridItem.usedZoom()) } + borderAndPadding;
+
+    if (preferredSize.isAuto()) {
+        // Grid item calculations for automatic sizes in a given dimensions vary by their
+        // self-alignment values:
+        auto alignmentPosition = placedGridItem.blockAxisAlignment().position();
+
+        // normal:
+        // If the grid item has no preferred aspect ratio, and no natural size in the relevant
+        // axis (if it is a replaced element), the grid item is sized as for align-self: stretch.
+        //
+        // https://www.w3.org/TR/css-align-3/#propdef-align-self
+        //
+        // When the box’s computed width/height (as appropriate to the axis) is auto and neither of
+        // its margins (in the appropriate axis) are auto, sets the box’s used size to the length
+        // necessary to make its outer size as close to filling the alignment container as possible
+        // while still respecting the constraints imposed by min-height/min-width/max-height/max-width.
+        auto& marginStart = blockAxisSizes.marginStart;
+        auto& marginEnd = blockAxisSizes.marginEnd;
+        if ((alignmentPosition == ItemPosition::Normal) && !placedGridItem.hasPreferredAspectRatio() && !placedGridItem.isReplacedElement()
+            && !marginStart.isAuto() && !marginEnd.isAuto()) {
+            auto& usedZoom = placedGridItem.usedZoom();
+
+            auto minimumSize = LayoutUnit { blockAxisSizes.minimumSize.tryFixed()->resolveZoom(usedZoom) };
+            auto maximumSize = [&blockAxisSizes, &usedZoom] {
+                auto& computedMaximumSize = blockAxisSizes.maximumSize;
+                if (computedMaximumSize.isNone())
+                    return LayoutUnit::max();
+                return LayoutUnit { computedMaximumSize.tryFixed()->resolveZoom(usedZoom) };
+            };
+            auto stretchedBlockSize = rowsSize() - LayoutUnit { marginStart.tryFixed()->resolveZoom(usedZoom) } - LayoutUnit { marginEnd.tryFixed()->resolveZoom(usedZoom) } - borderAndPadding;
+            return std::max(minimumSize, std::min(maximumSize(), stretchedBlockSize));
+        }
+    }
 
     ASSERT_NOT_IMPLEMENTED_YET();
     return { };

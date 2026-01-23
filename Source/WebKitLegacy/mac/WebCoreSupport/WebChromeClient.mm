@@ -230,11 +230,11 @@ void WebChromeClient::takeFocus(FocusDirection direction)
         // m_webView may contain subviews within it, we ask it for the next key
         // view of the last view in its key view loop. This makes m_webView
         // behave as if it had no subviews, which is the behavior we want.
-        NSView *lastView = [m_webView _findLastViewInKeyViewLoop];
+        RetainPtr lastView = [m_webView _findLastViewInKeyViewLoop];
         // avoid triggering assertions if the WebView is the only thing in the key loop
-        if ([m_webView _becomingFirstResponderFromOutside] && m_webView == [lastView nextValidKeyView])
+        if ([m_webView _becomingFirstResponderFromOutside] && m_webView == [lastView.get() nextValidKeyView])
             return;
-        [[m_webView window] selectKeyViewFollowingView:lastView];
+        [[m_webView window] selectKeyViewFollowingView:lastView.get()];
     } else {
         // avoid triggering assertions if the WebView is the only thing in the key loop
         if ([m_webView _becomingFirstResponderFromOutside] && m_webView == [m_webView previousValidKeyView])
@@ -263,7 +263,7 @@ void WebChromeClient::focusedFrameChanged(Frame*)
 RefPtr<Page> WebChromeClient::createWindow(LocalFrame& frame, const String& openedMainFrameName, const WindowFeatures& features, const NavigationAction&)
 {
     RetainPtr<id> delegate = [m_webView UIDelegate];
-    WebView *newWebView;
+    RetainPtr<WebView> newWebView;
 
 #if ENABLE(FULLSCREEN_API)
     if (RefPtr document = frame.document()) {
@@ -311,7 +311,7 @@ RefPtr<Page> WebChromeClient::createWindow(LocalFrame& frame, const String& open
     else
         newWebView = CallUIDelegate(m_webView, @selector(webView:createWebViewWithRequest:), nil);
 
-    RefPtr newPage = core(newWebView);
+    RefPtr newPage = core(newWebView.get());
     if (newPage) {
         if (!features.wantsNoOpener()) {
             m_webView.page->protectedStorageNamespaceProvider()->cloneSessionStorageNamespaceForPage(*m_webView.page, *newPage);
@@ -491,22 +491,22 @@ void WebChromeClient::addMessageToConsole(MessageSource source, MessageLevel lev
             return;
     }
 
-    NSString *messageSource = stringForMessageSource(source);
+    RetainPtr messageSource = stringForMessageSource(source);
     RetainPtr dictionary = @{
         @"message": message.createNSString().get(),
         @"lineNumber": @(lineNumber),
         @"columnNumber": @(columnNumber),
         @"sourceURL": sourceURL.createNSString().get(),
-        @"MessageSource": messageSource,
+        @"MessageSource": messageSource.get(),
         @"MessageLevel": stringForMessageLevel(level),
     };
 
 #if PLATFORM(IOS_FAMILY)
-    [[[m_webView _UIKitDelegateForwarder] asyncForwarder] webView:m_webView addMessageToConsole:dictionary.get() withSource:messageSource];
+    [[[m_webView _UIKitDelegateForwarder] asyncForwarder] webView:m_webView addMessageToConsole:dictionary.get() withSource:messageSource.get()];
     UNUSED_VARIABLE(respondsToNewSelector);
 #else
     if (respondsToNewSelector)
-        CallUIDelegate(m_webView, selector, dictionary.get(), messageSource);
+        CallUIDelegate(m_webView, selector, dictionary.get(), messageSource.get());
     else
         CallUIDelegate(m_webView, selector, dictionary.get());
 #endif
@@ -657,13 +657,13 @@ void WebChromeClient::scrollContainingScrollViewsToRevealRect(const IntRect& r) 
 {
     // FIXME: This scrolling behavior should be under the control of the embedding client,
     // perhaps in a delegate method, rather than something WebKit does unconditionally.
-    NSView *coordinateView = [[[m_webView mainFrame] frameView] documentView];
+    RetainPtr coordinateView = [[[m_webView mainFrame] frameView] documentView];
     NSRect rect = r;
     for (RetainPtr<NSView> view = m_webView; view; view = [view.get() superview]) {
         if ([view.get() isKindOfClass:[NSClipView class]]) {
             RetainPtr clipView = (NSClipView *)view.get();
             NSView *documentView = [clipView.get() documentView];
-            [documentView scrollRectToVisible:[documentView convertRect:rect fromView:coordinateView]];
+            [documentView scrollRectToVisible:[documentView convertRect:rect fromView:coordinateView.get()]];
         }
     }
 }
@@ -695,18 +695,18 @@ void WebChromeClient::mouseDidMoveOverElement(const HitTestResult& result, Optio
 
 void WebChromeClient::setToolTip(const String& toolTip)
 {
-    NSView<WebDocumentView> *documentView = [[[m_webView _selectedOrMainFrame] frameView] documentView];
-    if ([documentView isKindOfClass:[WebHTMLView class]])
-        [(WebHTMLView *)documentView _setToolTip:toolTip.createNSString().get()];
+    RetainPtr documentView = [[[m_webView _selectedOrMainFrame] frameView] documentView];
+    if ([documentView.get() isKindOfClass:[WebHTMLView class]])
+        [(WebHTMLView *)documentView.get() _setToolTip:toolTip.createNSString().get()];
 }
 
 void WebChromeClient::print(LocalFrame& frame, const StringWithDirection&)
 {
-    WebFrame *webFrame = kit(&frame);
+    RetainPtr webFrame = kit(&frame);
     if ([[m_webView UIDelegate] respondsToSelector:@selector(webView:printFrame:)])
-        CallUIDelegate(m_webView, @selector(webView:printFrame:), webFrame);
+        CallUIDelegate(m_webView, @selector(webView:printFrame:), webFrame.get());
     else
-        CallUIDelegate(m_webView, @selector(webView:printFrameView:), [webFrame frameView]);
+        CallUIDelegate(m_webView, @selector(webView:printFrameView:), [webFrame.get() frameView]);
 }
 
 void WebChromeClient::exceededDatabaseQuota(LocalFrame& frame, const String& databaseName, DatabaseDetails)
@@ -821,18 +821,18 @@ void WebChromeClient::setCursor(const WebCore::Cursor& cursor)
     if (!m_webView)
         return;
 
-    NSWindow *window = [m_webView window];
+    RetainPtr window = [m_webView window];
     if (!window)
         return;
 
-    if ([window windowNumber] != [NSWindow windowNumberAtPoint:[NSEvent mouseLocation] belowWindowWithWindowNumber:0])
+    if ([window.get() windowNumber] != [NSWindow windowNumberAtPoint:[NSEvent mouseLocation] belowWindowWithWindowNumber:0])
         return;
 
-    NSCursor *platformCursor = cursor.platformCursor();
-    if ([NSCursor currentCursor] == platformCursor)
+    RetainPtr platformCursor = cursor.platformCursor();
+    if ([NSCursor currentCursor] == platformCursor.get())
         return;
 
-    [platformCursor set];
+    [platformCursor.get() set];
 }
 
 void WebChromeClient::setCursorHiddenUntilMouseMoves(bool hiddenUntilMouseMoves)
@@ -926,8 +926,8 @@ bool WebChromeClient::shouldPaintEntireContents() const
 #if PLATFORM(IOS_FAMILY)
     return false;
 #else
-    NSView *documentView = [[[m_webView mainFrame] frameView] documentView];
-    return [documentView layer];
+    RetainPtr documentView = [[[m_webView mainFrame] frameView] documentView];
+    return [documentView.get() layer];
 #endif
 }
 

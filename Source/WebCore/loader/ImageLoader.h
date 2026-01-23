@@ -68,9 +68,9 @@ public:
 
     void elementDidMoveToNewDocument(Document&);
 
-    Element& element() { return m_element.get(); }
-    const Element& element() const { return m_element.get(); }
-    Ref<Element> protectedElement() const { return m_element.get(); }
+    Element& element() { return m_element; }
+    const Element& element() const { return m_element; }
+    Ref<Element> protectedElement() const { return m_element; }
 
     bool shouldIgnoreCandidateWhenLoadingFromArchive(const ImageCandidate&) const;
 

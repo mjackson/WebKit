@@ -423,7 +423,7 @@ Vector<AXIsolatedTree::NodeChange> AXIsolatedTree::resolveAppends()
     if (m_unresolvedPendingAppends.isEmpty())
         return { };
 
-    auto* cache = axObjectCache();
+    CheckedPtr cache = axObjectCache();
     if (!cache)
         return { };
 
@@ -853,7 +853,6 @@ void AXIsolatedTree::updateNodeProperties(AccessibilityObject& axObject, const A
             properties.append({ AXProperty::TextInputMarkedTextMarkerRange, WTF::makeUnique<AXIDAndCharacterRange>(value) });
             break;
         }
-#if ENABLE(AX_THREAD_TEXT_APIS)
         case AXProperty::BackgroundColor:
             properties.append({ AXProperty::BackgroundColor, axObject.backgroundColor() });
             break;
@@ -913,7 +912,6 @@ void AXIsolatedTree::updateNodeProperties(AccessibilityObject& axObject, const A
             }
             break;
         }
-#endif // ENABLE(AX_THREAD_TEXT_APIS)
         case AXProperty::URL:
             properties.append({ AXProperty::URL, WTF::makeUnique<URL>(axObject.url().isolatedCopy()) });
             break;
@@ -1610,7 +1608,7 @@ void AXIsolatedTree::queueNodeUpdate(AXID objectID, const NodeUpdateOptions& opt
     if (options.shouldUpdateNode)
         m_needsUpdateNode.add(objectID);
 
-    if (auto* cache = axObjectCache())
+    if (CheckedPtr cache = axObjectCache())
         cache->startUpdateTreeSnapshotTimer();
 }
 
@@ -1706,7 +1704,6 @@ void AXIsolatedTree::processQueuedNodeUpdates()
         WTFEndSignpostAlways(this, UpdateAccessibilityIsolatedTree);
 }
 
-#if ENABLE(AX_THREAD_TEXT_APIS)
 AXTextMarker AXIsolatedTree::firstMarker()
 {
     AX_ASSERT(!isMainThread());
@@ -1725,10 +1722,9 @@ AXTextMarker AXIsolatedTree::lastMarker()
 
     const auto& children = root->unignoredChildren();
     // Start the `findLast` traversal from the last child of the root to reduce the amount of traversal done.
-    RefPtr endObject = children.isEmpty() ? root : dynamicDowncast<AXIsolatedObject>(children[children.size() - 1].get());
+    RefPtr endObject = children.isEmpty() ? root : dynamicDowncast<AXIsolatedObject>(children[children.size() - 1]);
     return endObject ? AXTextMarker { *endObject, 0 }.findLast() : AXTextMarker();
 }
-#endif // ENABLE(AX_THREAD_TEXT_APIS)
 
 std::optional<AXPropertyFlag> convertToPropertyFlag(AXProperty property)
 {
@@ -1836,14 +1832,12 @@ static bool shouldCacheElementName(ElementName name)
     case ElementName::HTML_ins:
     case ElementName::HTML_th:
     case ElementName::HTML_time:
-#if ENABLE(AX_THREAD_TEXT_APIS)
     case ElementName::HTML_mark:
     case ElementName::HTML_attachment:
     case ElementName::HTML_thead:
     case ElementName::HTML_tbody:
     case ElementName::HTML_tfoot:
     case ElementName::HTML_output:
-#endif // ENABLE(AX_THREAD_TEXT_APIS)
         return true;
     default:
         return false;
@@ -1913,7 +1907,6 @@ IsolatedObjectData createIsolatedObjectData(const Ref<AccessibilityObject>& axOb
             setProperty(AXProperty::ElementName, elementName);
         setProperty(AXProperty::TitleAttribute, object.titleAttribute().isolatedCopy());
 
-#if ENABLE(AX_THREAD_TEXT_APIS)
         setProperty(AXProperty::TextRuns, WTF::makeUnique<AXTextRuns>(object.textRuns()));
         switch (object.textEmissionBehavior()) {
         case TextEmissionBehavior::DoubleNewline:
@@ -1932,7 +1925,6 @@ IsolatedObjectData createIsolatedObjectData(const Ref<AccessibilityObject>& axOb
             setProperty(AXProperty::ListMarkerText, object.listMarkerText().isolatedCopy());
             setProperty(AXProperty::ListMarkerLineID, object.listMarkerLineID());
         }
-#endif // ENABLE(AX_THREAD_TEXT_APIS)
 
         String language = object.language();
         if (!language.isEmpty())
@@ -2031,9 +2023,6 @@ IsolatedObjectData createIsolatedObjectData(const Ref<AccessibilityObject>& axOb
         setProperty(AXProperty::HasBoldFont, object.hasBoldFont());
         setProperty(AXProperty::HasItalicFont, object.hasItalicFont());
         setProperty(AXProperty::HasPlainText, object.hasPlainText());
-#if !ENABLE(AX_THREAD_TEXT_APIS)
-        setProperty(AXProperty::TextContentPrefixFromListMarker, object.textContentPrefixFromListMarker());
-#endif
         setProperty(AXProperty::IsKeyboardFocusable, object.isKeyboardFocusable());
         setProperty(AXProperty::BrailleRoleDescription, object.brailleRoleDescription().isolatedCopy());
         setProperty(AXProperty::BrailleLabel, object.brailleLabel().isolatedCopy());
@@ -2057,8 +2046,8 @@ IsolatedObjectData createIsolatedObjectData(const Ref<AccessibilityObject>& axOb
             RefPtr crossFrameParent = axObject->crossFrameParentObject();
             if (crossFrameParent) {
                 WeakPtr parentCache = crossFrameParent->axObjectCache();
-                if (parentCache && parentCache->frameID()) {
-                    setProperty(AXProperty::CrossFrameParentFrameID, *parentCache->frameID());
+                if (parentCache) {
+                    setProperty(AXProperty::CrossFrameParentFrameID, parentCache->frameID());
                     setProperty(AXProperty::CrossFrameParentAXID, Markable { crossFrameParent->objectID() });
                 }
             }

@@ -51,7 +51,7 @@ SWServerWorker* SWServerWorker::existingWorkerForIdentifier(ServiceWorkerIdentif
 }
 
 // FIXME: Use r-value references for script and contentSecurityPolicy
-SWServerWorker::SWServerWorker(SWServer& server, SWServerRegistration& registration, const URL& scriptURL, const ScriptBuffer& script, const CertificateInfo& certificateInfo, const ContentSecurityPolicyResponseHeaders& contentSecurityPolicy, const CrossOriginEmbedderPolicy& crossOriginEmbedderPolicy, String&& referrerPolicy, WorkerType type, ServiceWorkerIdentifier identifier, MemoryCompactRobinHoodHashMap<URL, ServiceWorkerContextData::ImportedScript>&& scriptResourceMap)
+SWServerWorker::SWServerWorker(SWServer& server, SWServerRegistration& registration, const URL& scriptURL, const ScriptBuffer& script, const CertificateInfo& certificateInfo, const ContentSecurityPolicyResponseHeaders& contentSecurityPolicy, const CrossOriginEmbedderPolicy& crossOriginEmbedderPolicy, String&& referrerPolicy, WorkerType type, ServiceWorkerIdentifier identifier, MemoryCompactRobinHoodHashMap<URL, ServiceWorkerContextData::ImportedScript>&& scriptResourceMap, Vector<ServiceWorkerRoute>&& routes)
     : m_server(server)
     , m_registrationKey(registration.key())
     , m_registration(registration)
@@ -66,6 +66,7 @@ SWServerWorker::SWServerWorker(SWServer& server, SWServerRegistration& registrat
     , m_terminationTimer(*this, &SWServerWorker::terminationTimerFired)
     , m_terminationIfPossibleTimer(*this, &SWServerWorker::terminationIfPossibleTimerFired)
     , m_lastNavigationWasAppInitiated(server.clientIsAppInitiatedForRegistrableDomain(m_topSite.domain()))
+    , m_routes(WTF::move(routes))
 {
     m_data.scriptURL.removeFragmentIdentifier();
 
@@ -96,7 +97,7 @@ ServiceWorkerContextData SWServerWorker::contextData() const
     RefPtr registration = m_registration.get();
     ASSERT(registration);
 
-    return { std::nullopt, registration->data(), m_data.identifier, m_script, m_certificateInfo, m_contentSecurityPolicy, m_crossOriginEmbedderPolicy, m_referrerPolicy, m_data.scriptURL, m_data.type, false, m_lastNavigationWasAppInitiated, m_scriptResourceMap, registration->serviceWorkerPageIdentifier(), registration->navigationPreloadState() };
+    return { std::nullopt, registration->data(), m_data.identifier, m_script, m_certificateInfo, m_contentSecurityPolicy, m_crossOriginEmbedderPolicy, m_referrerPolicy, m_data.scriptURL, m_data.type, false, m_lastNavigationWasAppInitiated, m_scriptResourceMap, registration->serviceWorkerPageIdentifier(), registration->navigationPreloadState(), WTF::map(m_routes, [](auto& route) { return route.copy(); }) };
 }
 
 void SWServerWorker::updateAppInitiatedValue(LastNavigationWasAppInitiated lastNavigationWasAppInitiated)
@@ -150,7 +151,7 @@ void SWServerWorker::startTermination(CompletionHandler<void()>&& callback)
     m_terminationCallbacks.append(WTF::move(callback));
 
     constexpr Seconds terminationDelayForTesting = 1_s;
-    RefPtr<SWServer> server = m_server.get();
+    RefPtr server = m_server;
     m_terminationTimer.startOneShot(server && server->isProcessTerminationDelayEnabled() ? SWServer::defaultTerminationDelay : terminationDelayForTesting);
 
     m_terminationIfPossibleTimer.stop();
@@ -190,7 +191,7 @@ const ClientOrigin& SWServerWorker::origin() const
 
 SWServerToContextConnection* SWServerWorker::contextConnection()
 {
-    RefPtr<SWServer> server = m_server.get();
+    RefPtr server = m_server;
     return server ? server->contextConnectionForRegistrableDomain(topRegistrableDomain()) : nullptr;
 }
 
@@ -533,13 +534,18 @@ std::optional<ExceptionData> SWServerWorker::addRoutes(Vector<ServiceWorkerRoute
 }
 
 // https://w3c.github.io/ServiceWorker/#get-router-source
-RouterSource SWServerWorker::getRouterSource(const FetchOptions& options, const ResourceRequest& request) const
+std::optional<RouterSource> SWServerWorker::getRouterSource(const FetchOptions& options, const ResourceRequest& request) const
 {
     for (auto& route : m_routes) {
         if (matchRouterCondition(route.condition, options, request, isRunning()))
             return route.source;
     }
 
+    return { };
+}
+
+RouterSource SWServerWorker::defaultRouterSource() const
+{
     return m_shouldSkipHandleFetch ? RouterSourceEnum::Network : RouterSourceEnum::FetchEvent;
 }
 

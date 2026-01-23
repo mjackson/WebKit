@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include "CatchScope.h"
+#include "TopExceptionScope.h"
 #include "StackAlignment.h"
 #include "VM.h"
 

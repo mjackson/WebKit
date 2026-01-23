@@ -38,8 +38,10 @@ struct GridAreaLines;
 struct GridItemRect;
 struct TrackSizingFunctions;
 struct UnsizedTrack;
+struct FlexTrack;
 
 using BorderBoxPositions = Vector<LayoutUnit>;
+using FlexTracks = Vector<FlexTrack>;
 using GridAreas = HashMap<UnplacedGridItem, GridAreaLines>;
 using GridCell = Vector<UnplacedGridItem, 1>;
 using GridItemRects = Vector<GridItemRect>;

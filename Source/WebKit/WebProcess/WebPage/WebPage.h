@@ -32,6 +32,7 @@
 #include "SandboxExtension.h"
 #include <JavaScriptCore/InspectorFrontendChannel.h>
 #include <WebCore/BoxExtents.h>
+#include <WebCore/CornerRadii.h>
 #include <WebCore/DictionaryPopupInfo.h>
 #include <WebCore/DisabledAdaptations.h>
 #include <WebCore/DragActions.h>
@@ -341,11 +342,10 @@ struct TranslationContextMenuInfo;
 struct UserMediaRequestIdentifierType;
 struct ViewportArguments;
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
 struct DigitalCredentialsRequestData;
 struct DigitalCredentialsResponseData;
 struct MobileDocumentRequest;
-#endif
+
 
 using BackForwardItemIdentifier = ProcessQualified<ObjectIdentifier<BackForwardItemIdentifierType>>;
 using DictationContext = ObjectIdentifier<DictationContextType>;
@@ -539,6 +539,7 @@ struct WebPageCreationParameters;
 struct WebPageProxyIdentifierType;
 struct WebPreferencesStore;
 struct WebURLSchemeHandlerIdentifierType;
+struct WebUndoStepIDType;
 struct WebsitePoliciesData;
 
 template<typename T> class MonotonicObjectIdentifier;
@@ -568,7 +569,7 @@ using VisitedLinkTableIdentifier = ObjectIdentifier<VisitedLinkTableIdentifierTy
 using WKEventModifiers = uint32_t;
 using WebPageProxyIdentifier = ObjectIdentifier<WebPageProxyIdentifierType>;
 using WebURLSchemeHandlerIdentifier = ObjectIdentifier<WebURLSchemeHandlerIdentifierType>;
-using WebUndoStepID = uint64_t;
+using WebUndoStepID = ObjectIdentifier<WebUndoStepIDType>;
 
 enum class DisallowLayoutViewportHeightExpansionReason : uint8_t {
     ElementFullScreen       = 1 << 0,
@@ -608,6 +609,10 @@ public:
 #if ENABLE(ASYNC_SCROLLING)
     WebCore::ScrollingCoordinator* scrollingCoordinator() const;
     RefPtr<WebCore::ScrollingCoordinator> protectedScrollingCoordinator() const;
+#endif
+
+#if HAVE(NSVIEW_CORNER_CONFIGURATION)
+    const WebCore::CornerRadii& scrollbarAvoidanceCornerRadii() const { return m_scrollbarAvoidanceCornerRadii; }
 #endif
 
     WebPageGroupProxy* pageGroup() const { return m_pageGroup.get(); }
@@ -746,6 +751,8 @@ public:
     WebUndoStep* webUndoStep(WebUndoStepID);
     void addWebUndoStep(WebUndoStepID, Ref<WebUndoStep>&&);
     void removeWebEditCommand(WebUndoStepID);
+    void unapplyEditCommand(uint32_t undoVersion, WebUndoStepID, CompletionHandler<void()>&&);
+    void reapplyEditCommand(uint32_t undoVersion, WebUndoStepID, CompletionHandler<void()>&&);
     bool isInRedo() const { return m_isInRedo; }
     void setIsInRedo(bool isInRedo) { m_isInRedo = isInRedo; }
 
@@ -1723,7 +1730,7 @@ public:
     void showShareSheet(WebCore::ShareDataWithParsedURL&&, CompletionHandler<void(bool)>&& callback);
     void showContactPicker(WebCore::ContactsRequestData&&, CompletionHandler<void(std::optional<Vector<WebCore::ContactInfo>>&&)>&&);
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
     void showDigitalCredentialsPicker(const WebCore::DigitalCredentialsRequestData&, CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&&);
     void dismissDigitalCredentialsPicker(CompletionHandler<void(bool)>&&);
 #endif
@@ -2320,6 +2327,10 @@ private:
     void setObscuredContentInsetsFenced(const WebCore::FloatBoxExtent&, const WTF::MachSendRight&);
 #endif
 
+#if HAVE(NSVIEW_CORNER_CONFIGURATION)
+    void setScrollbarAvoidanceCornerRadii(WebCore::CornerRadii&&);
+#endif
+
     void viewWillStartLiveResize();
     void viewWillEndLiveResize();
 
@@ -2399,8 +2410,6 @@ private:
 
     void setMainFrameIsScrollable(bool);
 
-    void unapplyEditCommand(WebUndoStepID commandID);
-    void reapplyEditCommand(WebUndoStepID commandID);
     void didRemoveEditCommand(WebUndoStepID commandID);
 
     void updateLastNodeBeforeWritingSuggestions(const WebCore::KeyboardEvent&);
@@ -2704,7 +2713,7 @@ private:
     DrawingAreaType m_drawingAreaType;
 #endif
 
-    HashMap<TextCheckerRequestID, RefPtr<WebCore::TextCheckingRequest>> m_pendingTextCheckingRequestMap;
+    HashMap<TextCheckerRequestID, Ref<WebCore::TextCheckingRequest>> m_pendingTextCheckingRequestMap;
 
     WebCore::FloatSize m_defaultUnobscuredSize;
     WebCore::FloatSize m_minimumUnobscuredSize;
@@ -2765,6 +2774,10 @@ private:
     RetainPtr<WKAccessibilityWebPageObject> m_mockAccessibilityElement;
 #endif
 
+#if HAVE(NSVIEW_CORNER_CONFIGURATION)
+    WebCore::CornerRadii m_scrollbarAvoidanceCornerRadii;
+#endif
+
 #if ENABLE(PLATFORM_DRIVEN_TEXT_CHECKING)
     const UniqueRef<TextCheckingControllerProxy> m_textCheckingControllerProxy;
 #endif
@@ -2794,7 +2807,8 @@ private:
     RunLoop::Timer m_setCanStartMediaTimer;
     bool m_mayStartMediaWhenInWindow { false };
 
-    HashMap<WebUndoStepID, RefPtr<WebUndoStep>> m_undoStepMap;
+    HashMap<WebUndoStepID, Ref<WebUndoStep>> m_undoStepMap;
+    uint32_t m_currentUndoVersion { 0 };
 
 #if ENABLE(CONTEXT_MENUS)
     std::unique_ptr<API::InjectedBundle::PageContextMenuClient> m_contextMenuClient;
@@ -3099,7 +3113,7 @@ private:
     UnixFileDescriptor m_hostFileDescriptor;
 #endif
 
-    HashMap<String, RefPtr<WebURLSchemeHandlerProxy>> m_schemeToURLSchemeHandlerProxyMap;
+    HashMap<String, Ref<WebURLSchemeHandlerProxy>> m_schemeToURLSchemeHandlerProxyMap;
     HashMap<WebURLSchemeHandlerIdentifier, WeakRef<WebURLSchemeHandlerProxy>> m_identifierToURLSchemeHandlerProxyMap;
 
     HashMap<uint64_t, Function<void(bool granted)>> m_storageAccessResponseCallbackMap;

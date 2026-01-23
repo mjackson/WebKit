@@ -419,8 +419,8 @@ public:
         return { };
     }
 
-    [[nodiscard]] PartialResult addStructGet(ExtGCOpType, ExpressionType, const StructType&, uint32_t, ExpressionType&) CONST_EXPR_STUB
-    [[nodiscard]] PartialResult addStructSet(ExpressionType, const StructType&, uint32_t, ExpressionType) CONST_EXPR_STUB
+    [[nodiscard]] PartialResult addStructGet(ExtGCOpType, ExpressionType, const StructType&, const RTT&, uint32_t, ExpressionType&) CONST_EXPR_STUB
+    [[nodiscard]] PartialResult addStructSet(ExpressionType, const StructType&, const RTT&, uint32_t, ExpressionType) CONST_EXPR_STUB
     [[nodiscard]] PartialResult addRefTest(ExpressionType, bool, int32_t, bool, ExpressionType&) CONST_EXPR_STUB
     [[nodiscard]] PartialResult addRefCast(ExpressionType, bool, int32_t, ExpressionType&) CONST_EXPR_STUB
 

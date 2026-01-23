@@ -158,8 +158,8 @@ private:
     WeakRef<WebProcess> m_webProcess;
     HashSet<RefPtr<WebCore::ResourceLoader>> m_internallyFailedResourceLoaders;
     RunLoop::Timer m_internallyFailedLoadTimer;
-    
-    HashMap<WebCore::ResourceLoaderIdentifier, RefPtr<WebResourceLoader>> m_webResourceLoaders;
+
+    HashMap<WebCore::ResourceLoaderIdentifier, Ref<WebResourceLoader>> m_webResourceLoaders;
     HashMap<WebCore::ResourceLoaderIdentifier, WeakRef<WebURLSchemeTaskProxy>> m_urlSchemeTasks;
     HashMap<WebCore::ResourceLoaderIdentifier, PingLoadCompletionHandler> m_pingLoadCompletionHandlers;
     HashMap<WebCore::ResourceLoaderIdentifier, PreconnectCompletionHandler> m_preconnectCompletionHandlers;

@@ -884,7 +884,7 @@ void Scope::didChangeExtensionStyleSheets()
 
 void Scope::didChangeViewportSize()
 {
-    Ref<ContainerNode> rootNode = m_document.get();
+    Ref<ContainerNode> rootNode = m_document;
     if (m_shadowRoot)
         rootNode = *m_shadowRoot;
     else {

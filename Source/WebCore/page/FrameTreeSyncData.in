@@ -35,5 +35,5 @@ FrameRect : WebCore::IntRect [Headers=<WebCore/IntRect.h>]
 
 FrameLayoutViewportRect : WebCore::LayoutRect [Headers=<WebCore/LayoutRect.h>]
 
-# Rectangle of the visible portion of the frame in its parent frame, in the coordinate space of the document of the parent frame
-ChildrenFrameVisibleRectMap : HashMap<WebCore::FrameIdentifier, std::optional<WebCore::LayoutRect>> [Headers=<WebCore/LayoutRect.h>,<WebCore/FrameIdentifier.h>]
+# Collection of layout info regarding children frames of this frame.
+ChildrenFrameLayoutInfo : HashMap<WebCore::FrameIdentifier, WebCore::RemoteFrameLayoutInfo> [Headers=<WebCore/FrameIdentifier.h>,<WebCore/RemoteFrameLayoutInfo.h>]

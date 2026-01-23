@@ -26,7 +26,7 @@
 #import "config.h"
 #import "WKDigitalCredentialsPicker.h"
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
 
 #if PLATFORM(IOS_FAMILY)
 #import "UIKitSPI.h"
@@ -308,10 +308,10 @@ static RetainPtr<NSArray<NSArray<WKIdentityDocumentPresentmentRequestAuthenticat
 
     for (auto&& validatedRequest : requestData.requests) {
 
-        RetainPtr<NSArray<WKIdentityDocumentPresentmentMobileDocumentPresentmentRequest *>> presentmentRequests = mapPresentmentRequests(validatedRequest.presentmentRequests);
-        RetainPtr<NSArray<NSArray<WKIdentityDocumentPresentmentRequestAuthenticationCertificate *> *>> authenticationCertificates = mapRequestAuthentications(validatedRequest.requestAuthentications);
+        RetainPtr presentmentRequests = mapPresentmentRequests(validatedRequest.presentmentRequests);
+        RetainPtr authenticationCertificates = mapRequestAuthentications(validatedRequest.requestAuthentications);
 
-        RetainPtr mobileDocumentRequest = [WebKit::allocWKIdentityDocumentPresentmentMobileDocumentRequestInstance() initWithPresentmentRequests:presentmentRequests.get() authenticationCertificates:authenticationCertificates.get()];
+        RetainPtr mobileDocumentRequest = adoptNS([WebKit::allocWKIdentityDocumentPresentmentMobileDocumentRequestInstance() initWithPresentmentRequests:presentmentRequests.get() authenticationCertificates:authenticationCertificates.get()]);
         [mobileDocumentRequests addObject:mobileDocumentRequest.get()];
     }
 
@@ -372,7 +372,7 @@ static RetainPtr<NSArray<NSArray<WKIdentityDocumentPresentmentRequestAuthenticat
         if ([protocol isEqualToString:@"org.iso.mdoc"]) {
             Ref object = JSON::Object::create();
             object->setString("response"_s, responseData);
-            auto responseObject = WebCore::DigitalCredentialsResponseData(IdentityCredentialProtocol::OrgIsoMdoc, object->toJSONString());
+            WebCore::DigitalCredentialsResponseData responseObject { IdentityCredentialProtocol::OrgIsoMdoc, object->toJSONString() };
             [self completeWith:WTF::move(responseObject)];
         } else {
             LOG(DigitalCredentials, "Unknown protocol response from document provider. Can't convert it %s.", [protocol UTF8String]);
@@ -448,4 +448,4 @@ static RetainPtr<NSArray<NSArray<WKIdentityDocumentPresentmentRequestAuthenticat
 
 @end // WKDigitalCredentialsPicker
 
-#endif // HAVE(DIGITAL_CREDENTIALS_UI)
+#endif // ENABLE(WEB_AUTHN)

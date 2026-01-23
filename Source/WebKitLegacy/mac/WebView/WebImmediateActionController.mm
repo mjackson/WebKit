@@ -92,8 +92,8 @@
 
     id animationController = [_immediateActionRecognizer animationController];
     if (PAL::isQuickLookUIFrameworkAvailable() && [animationController isKindOfClass:PAL::getQLPreviewMenuItemClassSingleton()]) {
-        QLPreviewMenuItem *menuItem = (QLPreviewMenuItem *)animationController;
-        menuItem.delegate = nil;
+        RetainPtr menuItem = (QLPreviewMenuItem *)animationController;
+        menuItem.get().delegate = nil;
     }
 
     _immediateActionRecognizer = nil;
@@ -498,11 +498,11 @@ static WebCore::IntRect elementBoundingBoxInWindowCoordinatesFromNode(WebCore::N
 
     [_currentActionContext setHighlightFrame:[_webView.window convertRectToScreen:elementBoundingBoxInWindowCoordinatesFromNode(_hitTestResult.URLElement())]];
 
-    NSArray *menuItems = [[PAL::getDDActionsManagerClassSingleton() sharedManager] menuItemsForTargetURL:_hitTestResult.absoluteLinkURL().string().createNSString().get() actionContext:_currentActionContext.get()];
-    if (menuItems.count != 1)
+    RetainPtr menuItems = [[PAL::getDDActionsManagerClassSingleton() sharedManager] menuItemsForTargetURL:_hitTestResult.absoluteLinkURL().string().createNSString().get() actionContext:_currentActionContext.get()];
+    if ([menuItems.get() count] != 1)
         return nil;
-    
-    return menuItems.lastObject;
+
+    return menuItems.get().lastObject;
 }
 
 #pragma mark Text action

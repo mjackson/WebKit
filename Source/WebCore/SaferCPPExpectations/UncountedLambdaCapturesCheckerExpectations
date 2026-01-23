@@ -64,6 +64,7 @@ style/Styleable.cpp
 style/computed/data/StyleCustomPropertyData.cpp
 style/values/StyleValueTypes.h
 style/values/backgrounds/StyleFillLayers.h
+style/values/filter-effects/StyleFilterInterpolation.h
 style/values/images/StyleGradient.cpp
 style/values/primitives/StylePrimitiveKeyword+CSSValueCreation.h
 style/values/primitives/StylePrimitiveKeyword+Serialization.h

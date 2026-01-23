@@ -138,10 +138,10 @@ void WKNotifyHistoryItemChanged()
 {
     WebCoreThreadViolationCheckRoundOne();
 
-    RetainPtr item = [self initWithWebCoreHistoryItem:HistoryItem::create(LegacyHistoryItemClient::singleton(), URLString, title)];
+    SUPPRESS_UNRETAINED_LOCAL auto item = [self initWithWebCoreHistoryItem:HistoryItem::create(LegacyHistoryItemClient::singleton(), URLString, title)];
     item->_private->_lastVisitedTime = time;
 
-    return item.autorelease();
+    return item;
 }
 
 - (void)dealloc
@@ -241,10 +241,10 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         for (unsigned i = 0; i < size; ++i) {
             RetainPtr child = kit(const_cast<HistoryItem*>(children[i].ptr()));
             [result appendString:@"\n"];
-            [result appendString:[child description]];
+            [result appendString:[child.get() description]];
         }
         // shift all the contents over.  A bit slow, but hey, this is for debugging.
-        NSRange replRange = { static_cast<NSUInteger>(currPos), [result length] - currPos };
+        NSRange replRange = { static_cast<NSUInteger>(currPos), [result.get() length] - currPos };
         [result replaceOccurrencesOfString:@"\n" withString:@"\n    " options:0 range:replRange];
     }
 
@@ -263,8 +263,8 @@ WebHistoryItem *kit(HistoryItem* item)
 {
     if (!item)
         return nil;
-    if (auto wrapper = historyItemWrappers().get(*item))
-        return retainPtr(wrapper).autorelease();
+    if (RetainPtr<WebHistoryItem> wrapper = historyItemWrappers().get(*item))
+        return wrapper.autorelease();
     return adoptNS([[WebHistoryItem alloc] initWithWebCoreHistoryItem:*item]).autorelease();
 }
 
@@ -275,7 +275,7 @@ WebHistoryItem *kit(HistoryItem* item)
 
 - (id)initWithURLString:(NSString *)URLString title:(NSString *)title displayTitle:(NSString *)displayTitle lastVisitedTimeInterval:(NSTimeInterval)time
 {
-    auto item = [self initWithWebCoreHistoryItem:HistoryItem::create(LegacyHistoryItemClient::singleton(), URLString, title, displayTitle)];
+    SUPPRESS_UNRETAINED_LOCAL auto item = [self initWithWebCoreHistoryItem:HistoryItem::create(LegacyHistoryItemClient::singleton(), URLString, title, displayTitle)];
     if (!item)
         return nil;
     item->_private->_lastVisitedTime = time;

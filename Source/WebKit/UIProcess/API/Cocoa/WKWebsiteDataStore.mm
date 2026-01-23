@@ -36,6 +36,7 @@
 #import "RestrictedOpenerType.h"
 #import "ShouldGrandfatherStatistics.h"
 #import "UserNotificationsSPI.h"
+#import "WKAPICast.h"
 #import "WKError.h"
 #import "WKHTTPCookieStoreInternal.h"
 #import "WKNSArray.h"

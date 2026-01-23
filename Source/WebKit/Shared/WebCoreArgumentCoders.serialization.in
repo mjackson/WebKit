@@ -870,6 +870,15 @@ header: <WebCore/RenderStyleConstants.h>
     WebCore::FloatSize radii().bottomRight();
 }
 
+#if HAVE(NSVIEW_CORNER_CONFIGURATION)
+class WebCore::CornerRadii {
+    WebCore::FloatSize topLeft();
+    WebCore::FloatSize topRight();
+    WebCore::FloatSize bottomLeft();
+    WebCore::FloatSize bottomRight();
+};
+#endif
+
 webkit_platform_headers: <WebCore/IntRect.h>
 
 [AdditionalEncoder=StreamConnectionEncoder, WebKitPlatform] class WebCore::IntRect {
@@ -2184,6 +2193,11 @@ class WebCore::LayoutRect {
     WebCore::LayoutSize m_size;
 };
 
+struct WebCore::RemoteFrameLayoutInfo {
+    std::optional<WebCore::LayoutRect> visibleRectInParent;
+    float usedZoom;
+};
+
 header: <WebCore/VP9Utilities.h>
 [CustomHeader] struct WebCore::ScreenDataOverrides {
     double width;
@@ -2584,6 +2598,16 @@ header: <wtf/MachSendRight.h>
     [Validator='!!m_handle && *m_handle'] Win32Handle m_handle;
 #endif
     uint64_t m_size;
+};
+
+header: <WebCore/SharedMemory.h>
+[CustomHeader] enum class WebCore::MemoryLedger : uint8_t {
+    None,
+    Default,
+    Network,
+    Media,
+    Graphics,
+    Neural
 };
 
 header: <WebCore/TextIndicator.h>
@@ -4167,6 +4191,7 @@ header: <WebCore/DataDetectorType.h>
     TrackingNumber,
     FlightNumber,
     LookupSuggestion,
+    Money,
 };
 #endif
 
@@ -5298,6 +5323,7 @@ enum class WebCore::RunningStatus : bool
 
 header: <WebCore/ServiceWorkerRoute.h>
 [CustomHeader] struct WebCore::ServiceWorkerRoutePattern {
+    bool shouldIgnoreCase;
     String protocol;
     String username;
     String password;
@@ -6164,6 +6190,7 @@ struct WebCore::ServiceWorkerContextData {
     MemoryCompactRobinHoodHashMap<URL, WebCore::ServiceWorkerImportedScript> scriptResourceMap;
     std::optional<WebCore::ScriptExecutionContextIdentifier> serviceWorkerPageIdentifier;
     WebCore::NavigationPreloadState navigationPreloadState;
+    Vector<WebCore::ServiceWorkerRoute> routes;
 };
 
 #if HAVE(SCREEN_CAPTURE_KIT)
@@ -6345,9 +6372,6 @@ struct WebCore::MockWebAuthenticationConfiguration {
     std::optional<WebCore::MockWebAuthenticationConfiguration::CcidConfiguration> ccid;
 };
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
-
-
 header: <WebCore/ISO18013.h>
 [Nested] struct WebCore::ISO18013ElementInfo {
     bool isRetaining;
@@ -6391,8 +6415,6 @@ struct WebCore::DigitalCredentialsResponseData {
 [Nested] enum class WebCore::IdentityCredentialProtocol : uint8_t {
     OrgIsoMdoc
 };
-
-#endif // HAVE(DIGITAL_CREDENTIALS_UI)
 
 #endif // ENABLE(WEB_AUTHN)
 
@@ -6827,6 +6849,9 @@ header: <WebCore/TextExtractionTypes.h>
     bool includeEventListeners;
     bool includeAccessibilityAttributes;
     bool includeTextInAutoFilledControls;
+#if ENABLE(DATA_DETECTION)
+    OptionSet<WebCore::DataDetectorType> dataDetectorTypes;
+#endif
 };
 
 header: <WebCore/TextExtractionTypes.h>
@@ -7472,6 +7497,11 @@ class WebCore::NetworkLoadMetrics {
     MonotonicTime responseStart;
     MonotonicTime responseEnd;
     MonotonicTime workerStart;
+    [NotSerialized] MonotonicTime workerRouterEvaluationStart;
+    [NotSerialized] MonotonicTime workerCacheLookupStart;
+    [NotSerialized] String workerMatchedRouterSource;
+    [NotSerialized] String workerFinalRouterSource;
+
     MonotonicTime firstInterimResponseStart;
 
     String protocol;
@@ -8026,9 +8056,9 @@ header: <WebCore/SharedBuffer.h>
     float stdDeviation();
 };
 [CustomHeader, RefCounted] class WebCore::DropShadowFilterOperation {
+    WebCore::Color color();
     WebCore::IntPoint location();
     int stdDeviation();
-    WebCore::Color color();
 };
 [CustomHeader, RefCounted] class WebCore::DefaultFilterOperation {
     WebCore::FilterOperation::Type representedType();
@@ -8508,13 +8538,11 @@ enum class WebCore::EdgeModeType : uint8_t {
 
 header: <WebCore/FilterOperation.h>
 [Nested] enum class WebCore::FilterOperation::Type : uint8_t {
-    Reference,
     Grayscale,
     Sepia,
     Saturate,
     HueRotate,
     Invert,
-    AppleInvertLightness,
     Opacity,
     Brightness,
     Contrast,

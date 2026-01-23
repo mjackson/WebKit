@@ -37,6 +37,7 @@
 #include "DocumentView.h"
 #include "Editing.h"
 #include "Editor.h"
+#include "ElementAncestorIteratorInlines.h"
 #include "ElementInlines.h"
 #include "EventHandler.h"
 #include "EventListenerMap.h"
@@ -78,6 +79,7 @@
 #include "RenderView.h"
 #include "RunJavaScriptParameters.h"
 #include "ScriptController.h"
+#include "Settings.h"
 #include "SimpleRange.h"
 #include "StaticRange.h"
 #include "StringEntropyHelpers.h"
@@ -99,6 +101,10 @@
 #include <wtf/Scope.h>
 #include <wtf/text/MakeString.h>
 #include <wtf/text/StringBuilder.h>
+
+#if ENABLE(DATA_DETECTION)
+#include "DataDetection.h"
+#endif
 
 namespace WebCore {
 namespace TextExtraction {
@@ -952,6 +958,59 @@ static Node* nodeFromJSHandle(JSHandleIdentifier identifier)
     return nullptr;
 }
 
+#if ENABLE(DATA_DETECTION)
+
+static RefPtr<ContainerNode> findContainerNodeForDataDetectorResults(Node& rootNode, OptionSet<DataDetectorType> types)
+{
+    struct RangeAndArea {
+        SimpleRange range;
+        double area;
+    };
+
+    std::optional<RangeAndArea> largestRange;
+    for (auto range : DataDetection::detectRanges(makeRangeSelectingNodeContents(rootNode), types)) {
+        double areaAboveMaximumYOffset = 0;
+        for (auto rect : RenderObject::absoluteTextRects(range)) {
+            static constexpr auto maximumYOffset = 3000;
+            if (rect.y() < maximumYOffset)
+                areaAboveMaximumYOffset += FloatRect { rect }.area();
+        }
+
+        if (areaAboveMaximumYOffset <= 0)
+            continue;
+
+        if (!largestRange || largestRange->area < areaAboveMaximumYOffset)
+            largestRange = { range, areaAboveMaximumYOffset };
+    }
+
+    if (!largestRange)
+        return { };
+
+    RefPtr commonAncestor = commonInclusiveAncestor<ComposedTree>(largestRange->range);
+    if (!commonAncestor)
+        return { };
+
+    // FIXME: Consider making this size threshold client-configurable in the future.
+    static constexpr FloatSize minimumSize { 280, 300 };
+    for (CheckedPtr renderer = commonAncestor->renderer(); renderer; renderer = renderer->parent()) {
+        bool wasFixed = false;
+        auto bounds = renderer->absoluteBoundingBoxRect(true, &wasFixed);
+        if ((bounds.width() < minimumSize.width() || bounds.height() < minimumSize.height()) && !wasFixed)
+            continue;
+
+        RefPtr node = renderer->node();
+        if (RefPtr containerNode = dynamicDowncast<ContainerNode>(node))
+            return containerNode;
+
+        if (&rootNode == node)
+            break;
+    }
+
+    return { };
+}
+
+#endif // ENABLE(DATA_DETECTION)
+
 Item extractItem(Request&& request, LocalFrame& frame)
 {
     auto frameID = frame.frameID();
@@ -972,6 +1031,17 @@ Item extractItem(Request&& request, LocalFrame& frame)
 
         return nodeFromJSHandle(*request.targetNodeHandleIdentifier);
     }();
+
+#if ENABLE(DATA_DETECTION)
+    if (request.dataDetectorTypes && extractionRootNode)
+        extractionRootNode = findContainerNodeForDataDetectorResults(*extractionRootNode, request.dataDetectorTypes);
+#endif
+
+    if (frame.settings().textExtractionDebugUIEnabled() && extractionRootNode) {
+        RefPtr elementAncestor = lineageOfType<HTMLElement>(*extractionRootNode).first();
+        if (elementAncestor && elementAncestor != bodyElement)
+            elementAncestor->setInlineStyleProperty(CSSPropertyBoxShadow, "0 0 10px #0088FF"_s, IsImportant::Yes);
+    }
 
     if (!extractionRootNode)
         return root;
@@ -1895,7 +1965,8 @@ RefPtr<Element> elementForExtractedText(const LocalFrame& frame, ExtractedText&&
     if (!node)
         return { };
 
-    return dynamicDowncast<Element>(node) ?: node->parentElementInComposedTree();
+    RefPtr element = dynamicDowncast<Element>(node);
+    return element ? element : RefPtr { node->parentElementInComposedTree() };
 }
 
 std::optional<SimpleRange> rangeForExtractedText(const LocalFrame& frame, ExtractedText&& extractedText)

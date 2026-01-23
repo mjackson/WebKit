@@ -2725,7 +2725,8 @@ FOR_EACH_WASM_MEMORY_STORE_OP(CREATE_CASE)
 
             ExpressionType result;
             const auto& structType = *m_info.typeSignatures[structGetInput.indices.structTypeIndex]->expand().template as<StructType>();
-            WASM_TRY_ADD_TO_CONTEXT(addStructGet(op, structGetInput.structReference, structType, structGetInput.indices.fieldIndex, result));
+            const RTT& rtt = m_info.rtts[structGetInput.indices.structTypeIndex].get();
+            WASM_TRY_ADD_TO_CONTEXT(addStructGet(op, structGetInput.structReference, structType, rtt, structGetInput.indices.fieldIndex, result));
 
             m_expressionStack.constructAndAppend(structGetInput.field.type.unpacked(), result);
             break;
@@ -2745,7 +2746,8 @@ FOR_EACH_WASM_MEMORY_STORE_OP(CREATE_CASE)
                 m_context.notifyFunctionUsesSIMD();
 
             const auto& structType = *m_info.typeSignatures[structSetInput.indices.structTypeIndex]->expand().template as<StructType>();
-            WASM_TRY_ADD_TO_CONTEXT(addStructSet(structSetInput.structReference, structType, structSetInput.indices.fieldIndex, value));
+            const RTT& rtt = m_info.rtts[structSetInput.indices.structTypeIndex].get();
+            WASM_TRY_ADD_TO_CONTEXT(addStructSet(structSetInput.structReference, structType, rtt, structSetInput.indices.fieldIndex, value));
             break;
         }
         case ExtGCOpType::RefTest:

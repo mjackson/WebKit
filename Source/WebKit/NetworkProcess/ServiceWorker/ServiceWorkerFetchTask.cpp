@@ -244,6 +244,9 @@ void ServiceWorkerFetchTask::didReceiveRedirectResponse(WebCore::ResourceRespons
 {
     cancelPreloadIfNecessary();
 
+    if (RefPtr loader = m_loader)
+        loader->setWorkerFinalRouterSource(RouterSourceEnum::FetchEvent);
+
     processRedirectResponse(WTF::move(response), ShouldSetSource::Yes);
 }
 
@@ -269,6 +272,9 @@ void ServiceWorkerFetchTask::didReceiveResponse(WebCore::ResourceResponse&& resp
 {
     if (m_preloader && !m_preloader->isServiceWorkerNavigationPreloadEnabled())
         cancelPreloadIfNecessary();
+
+    if (RefPtr loader = m_loader)
+        loader->setWorkerFinalRouterSource(RouterSourceEnum::FetchEvent);
 
     processResponse(WTF::move(response), needsContinueDidReceiveResponseMessage, ShouldSetSource::Yes);
 }
@@ -532,6 +538,9 @@ void ServiceWorkerFetchTask::preloadResponseIsReady()
             serviceWorkerConnection->unregisterFetch(*this);
         m_serviceWorkerConnection = nullptr;
 
+        if (RefPtr loader = m_loader)
+            loader->setWorkerFinalRouterSource(RouterSourceEnum::Network);
+
         m_isLoadingFromPreloader = true;
         processPreloadResponse();
         return;
@@ -688,6 +697,8 @@ std::optional<SharedPreferencesForWebProcess> ServiceWorkerFetchTask::sharedPref
 
 void ServiceWorkerFetchTask::loadFromCache(NetworkStorageManager& manager, WebCore::ClientOrigin&& origin, WebCore::RetrieveRecordsOptions&& options, String&& cacheName)
 {
+    RefPtr loader = m_loader;
+    loader->setWorkerCacheLookupStart(MonotonicTime::now());
     manager.queryCacheStorage(WTF::move(origin), WTF::move(options), WTF::move(cacheName), [weakThis = WeakPtr { *this }](auto&& response) {
         if (RefPtr protectedThis = weakThis.get())
             protectedThis->respondWithCacheResponse(WTF::move(response));
@@ -697,12 +708,17 @@ void ServiceWorkerFetchTask::loadFromCache(NetworkStorageManager& manager, WebCo
 void ServiceWorkerFetchTask::respondWithCacheResponse(std::optional<DOMCacheEngine::Record>&& record)
 {
     if (!record) {
+        if (RefPtr loader = m_loader)
+            loader->setWorkerFinalRouterSource(RouterSourceEnum::Network);
         didNotHandle();
         return;
     }
 
     if (m_isDone)
         return;
+
+    if (RefPtr loader = m_loader)
+        loader->setWorkerFinalRouterSource(RouterSourceEnum::Cache);
 
     bool needsContinueDidReceiveResponseMessage = m_currentRequest.requester() == ResourceRequestRequester::Main;
     processResponse(std::exchange(record->response, { }), needsContinueDidReceiveResponseMessage, ShouldSetSource::No);

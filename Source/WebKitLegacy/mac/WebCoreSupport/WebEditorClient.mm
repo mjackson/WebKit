@@ -480,8 +480,8 @@ void _WebCreateFragment(Document& document, NSAttributedString *string, Fragment
 void WebEditorClient::setInsertionPasteboard(const String& pasteboardName)
 {
 #if !PLATFORM(IOS_FAMILY)
-    NSPasteboard *pasteboard = pasteboardName.isEmpty() ? nil : [NSPasteboard pasteboardWithName:pasteboardName.createNSString().get()];
-    [m_webView _setInsertionPasteboard:pasteboard];
+    RetainPtr<NSPasteboard> pasteboard = pasteboardName.isEmpty() ? nil : [NSPasteboard pasteboardWithName:pasteboardName.createNSString().get()];
+    [m_webView _setInsertionPasteboard:pasteboard.get()];
 #endif
 }
 
@@ -733,27 +733,27 @@ static DOMElement *dynamicDowncastToKit(Element& element)
 
 void WebEditorClient::textFieldDidBeginEditing(Element& element)
 {
-    auto *inputElement = dynamicDowncastToKit<HTMLInputElement>(element);
+    RetainPtr inputElement = dynamicDowncastToKit<HTMLInputElement>(element);
     if (!inputElement)
         return;
 
-    FormDelegateLog(inputElement);
-    CallFormDelegate(m_webView, @selector(textFieldDidBeginEditing:inFrame:), inputElement, kit(element.document().frame()));
+    FormDelegateLog(inputElement.get());
+    CallFormDelegate(m_webView, @selector(textFieldDidBeginEditing:inFrame:), inputElement.get(), kit(element.document().frame()));
 }
 
 void WebEditorClient::textFieldDidEndEditing(Element& element)
 {
-    auto *inputElement = dynamicDowncastToKit<HTMLInputElement>(element);
+    RetainPtr inputElement = dynamicDowncastToKit<HTMLInputElement>(element);
     if (!inputElement)
         return;
 
-    FormDelegateLog(inputElement);
-    CallFormDelegate(m_webView, @selector(textFieldDidEndEditing:inFrame:), inputElement, kit(element.document().frame()));
+    FormDelegateLog(inputElement.get());
+    CallFormDelegate(m_webView, @selector(textFieldDidEndEditing:inFrame:), inputElement.get(), kit(element.document().frame()));
 }
 
 void WebEditorClient::textDidChangeInTextField(Element& element)
 {
-    auto *inputElement = dynamicDowncastToKit<HTMLInputElement>(element);
+    RetainPtr inputElement = dynamicDowncastToKit<HTMLInputElement>(element);
     if (!inputElement)
         return;
 
@@ -762,8 +762,8 @@ void WebEditorClient::textDidChangeInTextField(Element& element)
         return;
 #endif
 
-    FormDelegateLog(inputElement);
-    CallFormDelegate(m_webView, @selector(textDidChangeInTextField:inFrame:), inputElement, kit(element.document().frame()));
+    FormDelegateLog(inputElement.get());
+    CallFormDelegate(m_webView, @selector(textDidChangeInTextField:inFrame:), inputElement.get(), kit(element.document().frame()));
 }
 
 static SEL selectorForKeyEvent(KeyboardEvent* event)
@@ -793,35 +793,35 @@ IGNORE_WARNINGS_END
 
 bool WebEditorClient::doTextFieldCommandFromEvent(Element& element, KeyboardEvent* event)
 {
-    auto *inputElement = dynamicDowncastToKit<HTMLInputElement>(element);
+    RetainPtr inputElement = dynamicDowncastToKit<HTMLInputElement>(element);
     if (!inputElement)
         return NO;
 
-    FormDelegateLog(inputElement);
+    FormDelegateLog(inputElement.get());
     if (SEL commandSelector = selectorForKeyEvent(event))
-        return CallFormDelegateReturningBoolean(NO, m_webView, @selector(textField:doCommandBySelector:inFrame:), inputElement, commandSelector, kit(element.document().frame()));
+        return CallFormDelegateReturningBoolean(NO, m_webView, @selector(textField:doCommandBySelector:inFrame:), inputElement.get(), commandSelector, kit(element.document().frame()));
     return NO;
 }
 
 void WebEditorClient::textWillBeDeletedInTextField(Element& element)
 {
-    auto *inputElement = dynamicDowncastToKit<HTMLInputElement>(element);
+    RetainPtr inputElement = dynamicDowncastToKit<HTMLInputElement>(element);
     if (!inputElement)
         return;
 
-    FormDelegateLog(inputElement);
+    FormDelegateLog(inputElement.get());
     // We're using the deleteBackward selector for all deletion operations since the autofill code treats all deletions the same way.
-    CallFormDelegateReturningBoolean(NO, m_webView, @selector(textField:doCommandBySelector:inFrame:), inputElement, @selector(deleteBackward:), kit(element.document().frame()));
+    CallFormDelegateReturningBoolean(NO, m_webView, @selector(textField:doCommandBySelector:inFrame:), inputElement.get(), @selector(deleteBackward:), kit(element.document().frame()));
 }
 
 void WebEditorClient::textDidChangeInTextArea(Element& element)
 {
-    auto *textAreaElement = dynamicDowncastToKit<HTMLTextAreaElement>(element);
+    RetainPtr textAreaElement = dynamicDowncastToKit<HTMLTextAreaElement>(element);
     if (!textAreaElement)
         return;
 
-    FormDelegateLog(textAreaElement);
-    CallFormDelegate(m_webView, @selector(textDidChangeInTextArea:inFrame:), textAreaElement, kit(element.document().frame()));
+    FormDelegateLog(textAreaElement.get());
+    CallFormDelegate(m_webView, @selector(textDidChangeInTextArea:inFrame:), textAreaElement.get(), kit(element.document().frame()));
 }
 
 #if PLATFORM(IOS_FAMILY)
@@ -1095,9 +1095,9 @@ void WebEditorClient::getGuessesForWord(const String& word, const String& contex
         [checker checkString:nsContext.get() range:NSMakeRange(0, context.length()) types:NSTextCheckingTypeOrthography options:options inSpellDocumentWithTag:spellCheckerDocumentTag() orthography:&orthography wordCount:0];
         language = [checker languageForWordRange:NSMakeRange(0, context.length()) inString:nsContext.get() orthography:orthography];
     }
-    NSArray *stringsArray = [checker guessesForWordRange:NSMakeRange(0, word.length()) inString:word.createNSString().get() language:language.get() inSpellDocumentWithTag:spellCheckerDocumentTag()];
-    if (stringsArray.count)
-        guesses = makeVector<String>(stringsArray);
+    RetainPtr stringsArray = [checker guessesForWordRange:NSMakeRange(0, word.length()) inString:word.createNSString().get() language:language.get() inSpellDocumentWithTag:spellCheckerDocumentTag()];
+    if (stringsArray.get().count)
+        guesses = makeVector<String>(stringsArray.get());
 }
 
 #endif // !PLATFORM(IOS_FAMILY)

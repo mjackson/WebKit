@@ -1352,7 +1352,7 @@ void WebPageProxy::addTextAnimationForAnimationIDWithCompletionHandler(IPC::Conn
     // The shape of the iOS API requires us to have stored this completionHandler when we call into the WebProcess
     // to replace the text and generate the text indicator of the replacement text.
     if (auto destinationAnimationCompletionHandler = internals().completionHandlerForDestinationTextIndicatorForSourceID.take(uuid))
-        destinationAnimationCompletionHandler(textIndicator->data());
+        destinationAnimationCompletionHandler(textIndicator);
 
     // Storing and sending information for the different shaped SPI on iOS.
     if (styleData.runMode == WebCore::TextAnimationRunMode::RunAnimation) {
@@ -1362,7 +1362,7 @@ void WebPageProxy::addTextAnimationForAnimationIDWithCompletionHandler(IPC::Conn
         if (styleData.style == WebCore::TextAnimationType::Final) {
             if (auto sourceAnimationID = internals().sourceAnimationIDtoDestinationAnimationID.take(uuid)) {
                 if (auto completionHandler = internals().completionHandlerForDestinationTextIndicatorForSourceID.take(sourceAnimationID))
-                    completionHandler(textIndicator->data());
+                    completionHandler(textIndicator);
             }
         }
     }
@@ -1382,7 +1382,7 @@ void WebPageProxy::callCompletionHandlerForAnimationID(const WTF::UUID& uuid, We
 }
 
 #if PLATFORM(IOS_FAMILY)
-void WebPageProxy::storeDestinationCompletionHandlerForAnimationID(const WTF::UUID& destinationAnimationUUID, CompletionHandler<void(std::optional<WebCore::TextIndicatorData>)>&& completionHandler)
+void WebPageProxy::storeDestinationCompletionHandlerForAnimationID(const WTF::UUID& destinationAnimationUUID, CompletionHandler<void(RefPtr<WebCore::TextIndicator>&&)>&& completionHandler)
 {
     internals().completionHandlerForDestinationTextIndicatorForSourceID.add(destinationAnimationUUID, WTF::move(completionHandler));
 }

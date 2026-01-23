@@ -347,7 +347,7 @@ void GraphicsContextSkia::drawNativeImage(NativeImage& nativeImage, const FloatR
 
     m_canvas.drawImageRect(imageForDrawing, normalizedSrcRect, normalizedDestRect, toSkSamplingOptions(m_state.imageInterpolationQuality()), &paint, clampingConstraint);
     if (inExtraTransparencyLayer)
-        endTransparencyLayer();
+        restoreLayer();
 
     if (options.orientation() != ImageOrientation::Orientation::None)
         m_canvas.restore();
@@ -433,7 +433,7 @@ void GraphicsContextSkia::drawSkiaPath(const SkPath& path, SkPaint& paint)
     }
     m_canvas.drawPath(path, paint);
     if (inExtraTransparencyLayer)
-        endTransparencyLayer();
+        restoreLayer();
 }
 
 bool GraphicsContextSkia::drawPathAsSingleElement(const Path& path, SkPaint& paint)

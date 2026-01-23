@@ -33,6 +33,7 @@
 #include <wtf/ApproximateTime.h>
 #include <wtf/CheckedRef.h>
 #include <wtf/CompletionHandler.h>
+#include <wtf/Deque.h>
 #include <wtf/ObjectIdentifier.h>
 #include <wtf/OptionSet.h>
 #include <wtf/ProcessID.h>
@@ -109,6 +110,7 @@ class CaptureDevice;
 class CertificateInfo;
 class Color;
 class ContentFilterUnblockHandler;
+class CornerRadii;
 class Cursor;
 class DataSegment;
 class DestinationColorSpace;
@@ -610,6 +612,7 @@ struct WebPopupItem;
 struct WebPreferencesStore;
 struct WebSpeechSynthesisVoice;
 struct WebURLSchemeHandlerIdentifierType;
+struct WebUndoStepIDType;
 struct WebsitePoliciesData;
 
 #if (PLATFORM(GTK) || PLATFORM(WPE)) && (USE(GBM) || OS(ANDROID))
@@ -682,7 +685,7 @@ using TransactionIdentifier = MonotonicObjectIdentifier<TransactionIDType>;
 using TransactionID = WebCore::ProcessQualified<TransactionIdentifier>;
 using WebPageProxyIdentifier = ObjectIdentifier<WebPageProxyIdentifierType>;
 using WebURLSchemeHandlerIdentifier = ObjectIdentifier<WebURLSchemeHandlerIdentifierType>;
-using WebUndoStepID = uint64_t;
+using WebUndoStepID = ObjectIdentifier<WebUndoStepIDType>;
 
 class WebPageProxy final : public API::ObjectImpl<API::Object::Type::Page>, public IPC::MessageReceiver {
 public:
@@ -1007,6 +1010,10 @@ public:
 
     double overflowHeightForTopScrollEdgeEffect() const { return m_overflowHeightForTopScrollEdgeEffect; }
     void setOverflowHeightForTopScrollEdgeEffect(double);
+#if HAVE(NSVIEW_CORNER_CONFIGURATION)
+    void setScrollbarAvoidanceCornerRadii(WebCore::CornerRadii&&);
+#endif
+
 #endif // PLATFORM(MAC)
 
     // Corresponds to the web content's `<meta name="theme-color">` or application manifest's `"theme_color"`.
@@ -1774,6 +1781,10 @@ public:
 
     bool canUndo();
     bool canRedo();
+    void addPendingUndoRedo(WebUndoStepID, UndoOrRedo);
+    void removePendingUndoRedo(WebUndoStepID);
+    uint32_t undoVersion() const { return m_undoVersion; }
+    void updateUndoVersion() { ++m_undoVersion; }
 
 #if PLATFORM(COCOA)
     void registerKeypressCommandName(const String& name) { m_knownKeypressCommandNames.add(name); }
@@ -2710,7 +2721,7 @@ public:
 
     void callCompletionHandlerForAnimationID(const WTF::UUID&, WebCore::TextAnimationRunMode);
 #if PLATFORM(IOS_FAMILY)
-    void storeDestinationCompletionHandlerForAnimationID(const WTF::UUID&, CompletionHandler<void(std::optional<WebCore::TextIndicatorData>)>&&);
+    void storeDestinationCompletionHandlerForAnimationID(const WTF::UUID&, CompletionHandler<void(RefPtr<WebCore::TextIndicator>&&)>&&);
 #endif
     void getTextIndicatorForID(const WTF::UUID&, CompletionHandler<void(RefPtr<WebCore::TextIndicator>&&)>&&);
     void updateUnderlyingTextVisibilityForTextAnimationID(const WTF::UUID&, bool, CompletionHandler<void()>&& = [] { });
@@ -3084,8 +3095,8 @@ private:
 
 #if ENABLE(MODEL_ELEMENT_IMMERSIVE)
     void allowImmersiveElementFromURL(const URL&, CompletionHandler<void(bool)>&&) const;
-    void presentImmersiveElement(const WebCore::LayerHostingContextIdentifier, CompletionHandler<void(bool)>&&) const;
-    void dismissImmersiveElement(CompletionHandler<void()>&&) const;
+    void presentImmersiveElement(const WebCore::LayerHostingContextIdentifier, CompletionHandler<void(bool)>&&);
+    void dismissImmersiveElement(CompletionHandler<void()>&&);
 #endif
 
     WebCore::Color platformUnderPageBackgroundColor() const;
@@ -3135,11 +3146,11 @@ private:
     std::optional<IPC::AsyncReplyID> willPerformPasteCommand(WebCore::DOMPasteAccessCategory, CompletionHandler<void()>&&, std::optional<WebCore::FrameIdentifier> = std::nullopt);
 
     // Undo management
-    void registerEditCommandForUndo(IPC::Connection&, WebUndoStepID commandID, String&& label);
+    void registerEditCommandForUndo(IPC::Connection&, WebUndoStepID, String&& label);
     void registerInsertionUndoGrouping();
     void clearAllEditCommands();
     void canUndoRedo(UndoOrRedo, CompletionHandler<void(bool)>&&);
-    void executeUndoRedo(UndoOrRedo, CompletionHandler<void()>&&);
+    void executeUndoRedo(UndoOrRedo, CompletionHandler<void(uint32_t undoVersion, Vector<std::pair<WebUndoStepID, UndoOrRedo>>&&)>&&);
 
     // Keyboard handling
 #if PLATFORM(COCOA)
@@ -3634,6 +3645,9 @@ private:
 
     RefPtr<WebInspectorUIProxy> m_inspector;
 
+    Deque<std::pair<WebUndoStepID, UndoOrRedo>> m_pendingUndoRedo;
+    uint32_t m_undoVersion { 0 };
+
 #if ENABLE(FULLSCREEN_API)
     RefPtr<WebFullScreenManagerProxy> m_fullScreenManager;
     std::unique_ptr<API::FullscreenClient> m_fullscreenClient;
@@ -4088,6 +4102,10 @@ private:
 #if PLATFORM(VISION)
     bool m_gamepadsConnected { false };
 #endif
+#endif
+
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+    bool m_immersive { false };
 #endif
 
 #if HAVE(AUDIT_TOKEN)

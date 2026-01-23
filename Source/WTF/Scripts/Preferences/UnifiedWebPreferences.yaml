@@ -201,13 +201,13 @@ AccessibilityTextStitchingEnabled:
       "ENABLE(ACCESSIBILITY_TEXT_STITCHING)": true
       default: false
 
-AccessibilityThreadTextApisEnabled:
+AccessibilityThreadHitTestingEnabled:
   type: bool
-  status: embedder
-  humanReadableName: "Off Main-Thread Accessibility Text APIs"
-  humanReadableDescription: "Serve accessibility text APIs off the main-thread"
+  status: internal
+  defaultsOverridable: true
+  humanReadableName: "Off Main-Thread Accessibility Hit Testing"
+  humanReadableDescription: "Serve accessibility hit tests off the main-thread"
   webcoreBinding: DeprecatedGlobalSettings
-  condition: ENABLE(AX_THREAD_TEXT_APIS)
   defaultValue:
     WebKitLegacy:
       default: true
@@ -753,20 +753,6 @@ AutomaticallyForceEnableScrollingIfNeededToRevealUI:
     WebCore:
       default: true
 
-AuxclickEventEnabled:
-  type: bool
-  status: stable
-  category: dom
-  humanReadableName: "Enable `auxclick` event"
-  humanReadableDescription: "Enable the `auxclick` UI event"
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
-    WebCore:
-      default: true
-
 AzimuthAngleEnabled:
   type: bool
   status: stable
@@ -1099,20 +1085,6 @@ CSSAxisRelativePositionKeywordsEnabled:
     WebCore:
       default: true
 
-CSSBackgroundClipBorderAreaEnabled:
-  type: bool
-  status: stable
-  category: css
-  humanReadableName: "CSS background-clip: border-area"
-  humanReadableDescription: "Enable the border-area value for background-clip"
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
-    WebCore:
-      default: true
-
 CSSColorLayersEnabled:
   type: bool
   category: css
@@ -1140,20 +1112,6 @@ CSSConstrainedDynamicRangeLimitEnabled:
       default: false
     WebCore:
       default: false
-
-CSSContrastColorEnabled:
-  type: bool
-  category: css
-  status: stable
-  humanReadableName: "CSS contrast-color()"
-  humanReadableDescription: "Enable support for CSS Color Module Level 5 contrast-color()"
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
-    WebCore:
-      default: true
 
 CSSCornerShapeEnabled:
   type: bool
@@ -1339,20 +1297,6 @@ CSSPaintingAPIEnabled:
     WebCore:
       default: false
 
-CSSProgressFunctionEnabled:
-  type: bool
-  category: css
-  status: stable
-  humanReadableName: "CSS progress()"
-  humanReadableDescription: "Enable support for CSS Values and Units Module Level 5 progress()"
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
-    WebCore:
-      default: true
-
 CSSRandomFunctionEnabled:
   type: bool
   category: css
@@ -1380,34 +1324,6 @@ CSSRhythmicSizingEnabled:
       default: false
     WebCore:
       default: false
-
-CSSRubyAlignEnabled:
-  type: bool
-  status: stable
-  category: css
-  humanReadableName: "CSS ruby-align property"
-  humanReadableDescription: "Enable ruby-align"
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
-    WebCore:
-      default: true
-
-CSSRubyOverhangEnabled:
-  type: bool
-  status: stable
-  category: css
-  humanReadableName: "CSS ruby-overhang property"
-  humanReadableDescription: "Enable ruby-overhang"
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
-    WebCore:
-      default: true
 
 CSSScrollAnchoringEnabled:
   type: bool
@@ -1472,48 +1388,6 @@ CSSSelectorJITCompilerEnabled:
   humanReadableName: "CSS Selector JIT Compiler"
   humanReadableDescription: "Enable the JIT compiler for CSS selectors"
   condition: ENABLE(CSS_SELECTOR_JIT)
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
-    WebCore:
-      default: true
-
-CSSShapeFunctionEnabled:
-  type: bool
-  status: stable
-  category: css
-  humanReadableName: "CSS shape() function"
-  humanReadableDescription: "Enable the CSS shape() function"
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
-    WebCore:
-      default: true
-
-CSSTextAutospaceEnabled:
-  type: bool
-  status: stable
-  category: css
-  humanReadableName: "CSS text-autospace property"
-  humanReadableDescription: "Enable the property text-autospace, defined in CSS Text 4"
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
-    WebCore:
-      default: true
-
-CSSTextBoxTrimEnabled:
-  type: bool
-  status: stable
-  category: css
-  humanReadableName: "CSS text-box-trim property"
-  humanReadableDescription: "Enable text-box-trim"
   defaultValue:
     WebKitLegacy:
       default: true
@@ -3446,34 +3320,6 @@ GetBoundingClientRectZoomedEnabled:
     WebCore:
       default: true
 
-GetCoalescedEventsEnabled:
-  type: bool
-  status: stable
-  category: dom
-  humanReadableName: "Pointer Events getCoalescedEvents API"
-  humanReadableDescription: "Enable the `getCoalescedEvents` function of the Pointer Events API"
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
-    WebCore:
-      default: true
-
-GetPredictedEventsEnabled:
-  type: bool
-  status: stable
-  category: dom
-  humanReadableName: "Pointer Events getPredictedEvents API"
-  humanReadableDescription: "Enable the `getPredictedEvents` function of the Pointer Events API"
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
-    WebCore:
-      default: true
-
 GetUserMediaRequiresFocus:
   type: bool
   status: internal
@@ -3559,6 +3405,20 @@ HTMLEnhancedSelectParsingEnabled:
        default: true
      WebCore:
        default: true
+
+HTMLEnhancedSelectPseudoElementsEnabled:
+   type: bool
+   status: unstable
+   category: css
+   humanReadableName: "Enhanced HTML select element pseudo-elements"
+   humanReadableDescription: "Enable enhanced HTML select element pseudo-elements"
+   defaultValue:
+     WebKitLegacy:
+       default: false
+     WebKit:
+       default: false
+     WebCore:
+       default: false
 
 HTMLEnhancedSelectSelectedContentEnabled:
    type: bool
@@ -3802,21 +3662,6 @@ ImageAnalysisDuringFindInPageEnabled:
       default: false
     WebCore:
       default: false
-
-ImageAnimationControlEnabled:
-  type: bool
-  status: stable
-  category: animation
-  humanReadableName: "Image Animation Control"
-  humanReadableDescription: "Enable controls for image animations"
-  condition: ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
-    WebCore:
-      default: true
 
 ImageCaptureEnabled:
   type: bool
@@ -5916,6 +5761,20 @@ OffscreenCanvasInWorkersEnabled:
       "PLATFORM(COCOA) || PLATFORM(GTK) || PLATFORM(WPE)": true
       default: false
 
+OpenPseudoClassEnabled:
+  type: bool
+  status: testable
+  humanReadableName: ":open pseudo-class"
+  humanReadableDescription: "Enable the :open CSS pseudo-class"
+  category: css
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
+
 OpenXRDMABufRelaxedForTesting:
   type: bool
   status: internal
@@ -6543,17 +6402,17 @@ ReadableByteStreamFetchSourceEnabled:
 
 ReadableStreamIterableEnabled:
   type: bool
-  status: preview
+  status: stable
   category: dom
   humanReadableName: "ReadableStream async iterable"
   humanReadableDescription: "Enable ReadableStream async iterable"
   defaultValue:
     WebCore:
-      default: false
+      default: true
     WebKitLegacy:
-      default: false
+      default: true
     WebKit:
-      default: false
+      default: true
 
 RemoteMediaSessionManagerEnabled:
   type: bool
@@ -6999,6 +6858,20 @@ ScriptTrackingPrivacyLoggingEnabled:
     WebCore:
       default: false
 
+ScriptTrackingPrivacyNetworkRequestBlockingEnabled:
+  type: bool
+  status: internal
+  humanReadableName: "Script Tracking Privacy Network Requests Blocking"
+  humanReadableDescription: "Block network requests made from tracking scripts"
+  exposed: [ WebKit ]
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
+
 ScriptTrackingPrivacyProtectionsEnabled:
   type: bool
   status: internal
@@ -7026,20 +6899,6 @@ ScrollAnimatorEnabled:
       default: false
     WebCore:
       default: false
-
-ScrollDrivenAnimationsEnabled:
-  type: bool
-  status: stable
-  category: animation
-  humanReadableName: "Scroll-driven Animations"
-  humanReadableDescription: "Enable Scroll-driven Animations"
-  defaultValue:
-    WebKitLegacy:
-      default: false
-    WebKit:
-      default: true
-    WebCore:
-      default: true
 
 ScrollToTextFragmentEnabled:
   type: bool
@@ -8191,6 +8050,20 @@ TextAutosizingUsesIdempotentMode:
     WebCore:
       default: false
 
+TextExtractionDebugUIEnabled:
+  type: bool
+  status: internal
+  humanReadableName: "Text Extraction Debug UI"
+  humanReadableDescription: "Enable Text Extraction Debug UI"
+  exposed: [ WebKit ]
+  defaultValue:
+    WebCore:
+      default: false
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+
 TextExtractionEnabled:
   type: bool
   status: embedder
@@ -8277,7 +8150,7 @@ TextTracksInMSEEnabled:
 
 ThreadedScrollDrivenAnimationsEnabled:
   type: bool
-  status: preview
+  status: stable
   category: animation
   humanReadableName: "Threaded Scroll-driven Animations"
   humanReadableDescription: "Run qualifying scroll-driven animations on a separate thread"
@@ -8286,9 +8159,9 @@ ThreadedScrollDrivenAnimationsEnabled:
     WebKitLegacy:
       default: false
     WebKit:
-      default: false
+      default: true
     WebCore:
-      default: false
+      default: true
 
 ThreadedScrollingEnabled:
   type: bool
@@ -8495,7 +8368,7 @@ UnifyDamagedRegions:
        default: false
      WebCore:
        default: false
-       
+
 UpdateSceneGeometryEnabled:
   type: bool
   status: internal
@@ -9157,20 +9030,6 @@ WebAnimationsCustomFrameRateEnabled:
       default: false
     WebCore:
       default: false
-
-WebAnimationsOverallProgressPropertyEnabled:
-  type: bool
-  status: stable
-  category: animation
-  humanReadableName: "Web Animations 'overallProgress' property"
-  humanReadableDescription: "Support for Animation's overallProgress property"
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
-    WebCore:
-      default: true
 
 WebArchiveDebugModeEnabled:
   type: bool

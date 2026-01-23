@@ -117,7 +117,7 @@ ContextMenuController::~ContextMenuController()
 
 Page& ContextMenuController::page()
 {
-    return m_page.get();
+    return m_page;
 }
 
 void ContextMenuController::clearContextMenu()
@@ -1069,7 +1069,7 @@ void ContextMenuController::populate()
 
 #if ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
     auto canAddAnimationControls = [&] () -> bool {
-        if (!frame->page() || !frame->page()->settings().imageAnimationControlEnabled())
+        if (!frame->page())
             return false;
 
         return Image::systemAllowsAnimationControls() || frame->page()->settings().allowAnimationControlsOverride();

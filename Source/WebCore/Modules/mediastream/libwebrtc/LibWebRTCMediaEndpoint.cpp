@@ -525,7 +525,7 @@ void LibWebRTCMediaEndpoint::stop()
     if (!m_isClosed)
         close();
 
-    for (RefPtr stream : m_remoteStreamsById.values())
+    for (Ref stream : m_remoteStreamsById.values())
         stream->inactivate();
     m_remoteStreamsById.clear();
 }
@@ -801,11 +801,11 @@ static Vector<LibWebRTCMediaEndpointTransceiverState> transceiverStatesFromPeerC
 Vector<Ref<MediaStream>> LibWebRTCMediaEndpoint::mediaStreamsFromRTCStreamIds(const Vector<String>& receiverStreamIds)
 {
     Ref document = downcast<Document>(*protectedPeerConnectionBackend()->protectedConnection()->scriptExecutionContext());
-    return WTF::map(receiverStreamIds, [this, &document](auto& id) -> Ref<MediaStream> {
+    return WTF::map(receiverStreamIds, [this, &document](auto& id) {
         auto addResult = m_remoteStreamsById.ensure(id, [id, &document]() {
             return MediaStream::create(document, MediaStreamPrivate::create(document->logger(), { }, String(id)), MediaStream::AllowEventTracks::Yes);
         });
-        return *addResult.iterator->value;
+        return addResult.iterator->value;
     });
 }
 

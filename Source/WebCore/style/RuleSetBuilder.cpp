@@ -556,7 +556,7 @@ void RuleSetBuilder::addMutatingRulesToResolver()
         if (auto* positionTryRule = dynamicDowncast<StyleRulePositionTry>(rule.get())) {
             // "If multiple @position-try rules are declared with the same name, the last one in document order wins."
             // https://drafts.csswg.org/css-anchor-position-1/#fallback-rule
-            m_ruleSet->m_positionTryRules.set(positionTryRule->name(), positionTryRule);
+            m_ruleSet->m_positionTryRules.set(positionTryRule->name(), *positionTryRule);
         }
 
         if (auto* functionRule = dynamicDowncast<StyleRuleFunction>(rule.get())) {

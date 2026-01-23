@@ -322,7 +322,7 @@ static String makeSaltFilePath(const String& baseDirectoryPath)
     return FileSystem::pathByAppendingComponent(makeVersionedDirectoryPath(baseDirectoryPath), saltFileName);
 }
 
-RefPtr<Storage> Storage::open(const String& baseCachePath, Mode mode, size_t capacity)
+RefPtr<Storage> Storage::open(const String& baseCachePath, Mode mode, size_t capacity, size_t mainResourceBlobMemoryCacheFileLimit)
 {
     ASSERT(RunLoop::isMain());
     ASSERT(!baseCachePath.isNull());
@@ -348,7 +348,7 @@ RefPtr<Storage> Storage::open(const String& baseCachePath, Mode mode, size_t cap
     if (!salt)
         return nullptr;
 
-    return adoptRef(new Storage(cachePath, mode, *salt, capacity));
+    return adoptRef(new Storage(cachePath, mode, *salt, capacity, mainResourceBlobMemoryCacheFileLimit));
 }
 
 using RecordFileTraverseFunction = Function<void (const String& fileName, const String& hashString, const String& type, bool isBlob, const String& recordDirectoryPath)>;
@@ -398,11 +398,7 @@ static void deleteEmptyRecordsDirectories(const String& recordsPath)
     });
 }
 
-// Cache a small number of recently used memory mapped main resource blobs to speed up hot loads of
-// recently visited websites.
-static constexpr unsigned blobStorageMemoryCacheFileLimit = 0;
-
-Storage::Storage(const String& baseDirectoryPath, Mode mode, Salt salt, size_t capacity)
+Storage::Storage(const String& baseDirectoryPath, Mode mode, Salt salt, size_t capacity, size_t mainResourceBlobMemoryCacheFileLimit)
     : m_basePath(baseDirectoryPath)
     , m_recordsPath(makeRecordsDirectoryPath(baseDirectoryPath))
     , m_mode(mode)
@@ -413,7 +409,7 @@ Storage::Storage(const String& baseDirectoryPath, Mode mode, Salt salt, size_t c
     , m_ioQueue(ConcurrentWorkQueue::create("com.apple.WebKit.Cache.Storage"_s, WorkQueue::QOS::UserInteractive))
     , m_backgroundIOQueue(ConcurrentWorkQueue::create("com.apple.WebKit.Cache.Storage.background"_s, WorkQueue::QOS::Utility))
     , m_serialBackgroundIOQueue(WorkQueue::create("com.apple.WebKit.Cache.Storage.serialBackground"_s, WorkQueue::QOS::Utility))
-    , m_blobStorage(makeBlobDirectoryPath(baseDirectoryPath), m_salt, blobStorageMemoryCacheFileLimit)
+    , m_blobStorage(makeBlobDirectoryPath(baseDirectoryPath), m_salt, mainResourceBlobMemoryCacheFileLimit)
 {
     ASSERT(RunLoop::isMain());
 

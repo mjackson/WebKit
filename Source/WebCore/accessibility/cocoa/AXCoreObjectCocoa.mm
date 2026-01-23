@@ -512,9 +512,9 @@ PlatformRoleMap createPlatformRoleMap()
 {
     struct RoleEntry {
         AccessibilityRole value;
-        NSString *string;
+        RetainPtr<NSString> string;
     };
-    static const auto roles = std::to_array<RoleEntry>({
+    static const NeverDestroyed roles = std::to_array<RoleEntry>({
         { AccessibilityRole::Unknown, NSAccessibilityUnknownRole },
         { AccessibilityRole::Button, NSAccessibilityButtonRole },
         { AccessibilityRole::RadioButton, NSAccessibilityRadioButtonRole },
@@ -647,12 +647,12 @@ PlatformRoleMap createPlatformRoleMap()
         { AccessibilityRole::FrameHost, NSAccessibilityGroupRole },
     });
     PlatformRoleMap roleMap;
-    for (auto& role : roles)
-        roleMap.add(static_cast<unsigned>(role.value), role.string);
+    for (auto& role : roles.get())
+        roleMap.add(static_cast<unsigned>(role.value), role.string.get());
     return roleMap;
 }
 
-#if ENABLE(AX_THREAD_TEXT_APIS)
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 std::optional<AXTextMarkerRange> markerRangeFrom(NSRange range, const AXCoreObject& object)
 {
     std::optional stopAtID = object.idOfNextSiblingIncludingIgnoredOrParent();
@@ -665,7 +665,7 @@ std::optional<AXTextMarkerRange> markerRangeFrom(NSRange range, const AXCoreObje
         return std::nullopt;
     return std::optional(AXTextMarkerRange { WTF::move(markerToLocation), WTF::move(markerToRangeEnd) });
 }
-#endif // ENABLE(AX_THREAD_TEXT_APIS)
+#endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
 } // namespace Accessibility
 

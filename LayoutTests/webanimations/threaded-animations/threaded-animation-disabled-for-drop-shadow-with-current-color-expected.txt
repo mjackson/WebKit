@@ -1,3 +1,0 @@
-
-PASS Animations cannot be threaded with a drop-shadow() filter using currentcolor.
-

@@ -904,8 +904,8 @@ bool Element::hasFocusableStyle() const
         return isFocusableStyle(renderStyle());
 
     // Compute style in yet unstyled subtree without resolving full style.
-    auto* style = const_cast<Element&>(*this).resolveComputedStyle(ResolveComputedStyleMode::RenderedOnly);
-    return isFocusableStyle(style);
+    CheckedPtr style = const_cast<Element&>(*this).resolveComputedStyle(ResolveComputedStyleMode::RenderedOnly);
+    return isFocusableStyle(style.get());
 }
 
 bool Element::isFocusable() const
@@ -1067,7 +1067,7 @@ void Element::setHovered(bool value, Style::InvalidationScope invalidationScope,
         protectedDocument()->userActionElements().setHovered(*this, value);
     }
 
-    if (auto* style = renderStyle(); style && style->hasUsedAppearance()) {
+    if (CheckedPtr style = renderStyle(); style && style->hasUsedAppearance()) {
         if (CheckedPtr renderer = this->renderer(); renderer && renderer->theme().supportsHover())
             renderer->repaint();
     }
@@ -1195,7 +1195,7 @@ static std::optional<std::pair<SingleThreadWeakPtr<RenderElement>, LayoutRect>> 
         itemIndex = 0;
 
     auto itemLocalRect = renderListBox->itemBoundingBoxRect({ }, itemIndex);
-    return std::pair<SingleThreadWeakPtr<RenderElement>, LayoutRect> { renderListBox.releaseNonNull(), itemLocalRect };
+    return std::pair<SingleThreadWeakPtr<RenderElement>, LayoutRect> { renderListBox.get(), itemLocalRect };
 }
 
 void Element::scrollIntoView(std::optional<Variant<bool, ScrollIntoViewOptions>>&& arg)
@@ -1902,7 +1902,7 @@ LayoutRect Element::absoluteEventBounds(bool& boundsIncludeAllDescendantElements
             result = LayoutRect(checkedRenderer()->localToAbsoluteQuad(*localRect, UseTransforms, &includesFixedPositionElements).boundingBox());
     } else {
         CheckedPtr renderer = this->renderer();
-        if (auto* box = dynamicDowncast<RenderBox>(renderer.get())) {
+        if (CheckedPtr box = dynamicDowncast<RenderBox>(renderer.get())) {
             bool computedBounds = false;
             
             if (CheckedPtr fragmentedFlow = box->enclosingFragmentedFlow()) {
@@ -2434,9 +2434,9 @@ static RefPtr<Element> getElementByIdIncludingDisconnected(const Element& startE
     // is connected. However, the TreeScopeOrderedMap that is used for
     // TreeScope::getElementById() only stores connected elements.
     if (RefPtr root = startElement.rootElement()) {
-        for (auto& element : descendantsOfType<Element>(*root)) {
-            if (element.getIdAttribute() == id)
-                return const_cast<Element*>(&element);
+        for (CheckedRef element : descendantsOfType<Element>(*root)) {
+            if (element->getIdAttribute() == id)
+                return const_cast<Element*>(element.ptr());
         }
     }
 
@@ -2700,7 +2700,7 @@ static void invalidateSiblingsIfNeeded(Element& element)
 {
     if (!element.affectsNextSiblingElementStyle())
         return;
-    auto* parent = element.parentElement();
+    CheckedPtr parent = element.parentElement();
     if (parent && parent->styleValidity() >= Style::Validity::SubtreeInvalid)
         return;
 
@@ -3240,7 +3240,7 @@ void Element::removedFromAncestor(RemovalType removalType, ContainerNode& oldPar
 
     if (usesEffectiveTextDirection()) [[unlikely]] {
         if (!hasValidTextDirectionState()) {
-            if (auto* parent = parentOrShadowHostElement(); !(parent && parent->usesEffectiveTextDirection()))
+            if (CheckedPtr parent = parentOrShadowHostElement(); !(parent && parent->usesEffectiveTextDirection()))
                 setUsesEffectiveTextDirection(false);
         }
     }
@@ -3528,7 +3528,7 @@ ShadowRoot& Element::createUserAgentShadowRoot()
 {
     ASSERT(!userAgentShadowRoot());
     Ref newShadow = ShadowRoot::create(document(), ShadowRootMode::UserAgent);
-    ShadowRoot& shadow = newShadow.unsafeGet();
+    SUPPRESS_UNCHECKED_LOCAL auto& shadow = newShadow.unsafeGet();
     addShadowRoot(WTF::move(newShadow));
     return shadow;
 }
@@ -3573,7 +3573,7 @@ void Element::clearReactionQueueFromFailedCustomElement()
     ASSERT(isFailedOrPrecustomizedCustomElement());
     if (hasRareData()) {
         // Clear the queue instead of deleting it since this function can be called inside CustomElementReactionQueue::invokeAll during upgrades.
-        if (auto* queue = elementRareData()->customElementReactionQueue())
+        if (CheckedPtr queue = elementRareData()->customElementReactionQueue())
             queue->clear();
     }
 }
@@ -3618,12 +3618,12 @@ CustomElementRegistry* Element::customElementRegistry() const
 CustomElementDefaultARIA& Element::customElementDefaultARIA()
 {
     ASSERT(isPrecustomizedOrDefinedCustomElement());
-    auto* defaultARIA = elementRareData()->customElementDefaultARIA();
+    CheckedPtr defaultARIA = elementRareData()->customElementDefaultARIA();
     if (!defaultARIA) {
         elementRareData()->setCustomElementDefaultARIA(makeUnique<CustomElementDefaultARIA>());
         defaultARIA = elementRareData()->customElementDefaultARIA();
     }
-    return *defaultARIA;
+    return *defaultARIA.unsafeGet();
 }
 
 CheckedRef<CustomElementDefaultARIA> Element::checkedCustomElementDefaultARIA()
@@ -4648,7 +4648,7 @@ const RenderStyle* Element::renderOrDisplayContentsStyle() const
 const RenderStyle* Element::renderOrDisplayContentsStyle(const std::optional<Style::PseudoElementIdentifier>& pseudoElementIdentifier) const
 {
     if (pseudoElementIdentifier) {
-        if (auto* style = renderOrDisplayContentsStyle()) {
+        if (CheckedPtr style = renderOrDisplayContentsStyle()) {
             if (auto* cachedPseudoStyle = style->getCachedPseudoStyle(*pseudoElementIdentifier))
                 return cachedPseudoStyle;
         }
@@ -4690,7 +4690,7 @@ const RenderStyle* Element::resolveComputedStyle(ResolveComputedStyleMode mode)
                 rootmost = element;
                 continue;
             }
-            auto* existing = element->existingComputedStyle();
+            CheckedPtr existing = element->existingComputedStyle();
             if (!existing) {
                 rootmost = element;
                 continue;
@@ -4716,7 +4716,8 @@ const RenderStyle* Element::resolveComputedStyle(ResolveComputedStyleMode mode)
     for (RefPtr toResolve = this; toResolve != ancestorWithValidStyle; toResolve = toResolve->parentElementInComposedTree())
         elementsRequiringComputedStyle.append(toResolve);
 
-    auto* computedStyle = ancestorWithValidStyle ? ancestorWithValidStyle->existingComputedStyle() : nullptr;
+    // document->updateStyleIfNeeded() may delete computedStyle, but if it does we return early.
+    SUPPRESS_UNCHECKED_LOCAL auto* computedStyle = ancestorWithValidStyle ? ancestorWithValidStyle->existingComputedStyle() : nullptr;
 
     // On iOS request delegates called during styleForElement may result in re-entering WebKit and killing the style resolver.
     Style::PostResolutionCallbackDisabler disabler(document, Style::PostResolutionCallbackDisabler::DrainCallbacks::No);
@@ -4733,7 +4734,7 @@ const RenderStyle* Element::resolveComputedStyle(ResolveComputedStyleMode mode)
         auto style = document->styleForElementIgnoringPendingStylesheets(*element, computedStyle);
         computedStyle = style.get();
         ElementRareData& rareData = element->ensureElementRareData();
-        if (auto* existing = rareData.computedStyle()) {
+        if (CheckedPtr existing = rareData.computedStyle()) {
             auto changes = Style::determineChanges(*existing, *style);
             if (changes - Style::Change::NonInherited) {
                 for (Ref child : composedTreeChildren(*element)) {
@@ -4756,24 +4757,24 @@ const RenderStyle& Element::resolvePseudoElementStyle(const Style::PseudoElement
 {
     ASSERT(!isPseudoElement());
 
-    auto* parentStyle = existingComputedStyle();
+    CheckedPtr parentStyle = existingComputedStyle();
     ASSERT(parentStyle);
     ASSERT(!parentStyle->getCachedPseudoStyle(pseudoElementIdentifier));
 
     Ref document = this->document();
     Style::PostResolutionCallbackDisabler disabler(document, Style::PostResolutionCallbackDisabler::DrainCallbacks::No);
 
-    auto style = document->styleForElementIgnoringPendingStylesheets(*this, parentStyle, pseudoElementIdentifier);
+    auto style = document->styleForElementIgnoringPendingStylesheets(*this, parentStyle.get(), pseudoElementIdentifier);
     if (!style) {
         style = RenderStyle::createPtr();
         style->inheritFrom(*parentStyle);
         style->setPseudoElementIdentifier(pseudoElementIdentifier);
     }
 
-    auto* computedStyle = style.get();
-    const_cast<RenderStyle*>(parentStyle)->addCachedPseudoStyle(WTF::move(style));
+    CheckedPtr computedStyle = style.get();
+    const_cast<RenderStyle*>(parentStyle.get())->addCachedPseudoStyle(WTF::move(style));
     ASSERT(parentStyle->getCachedPseudoStyle(pseudoElementIdentifier));
-    return *computedStyle;
+    return *computedStyle.unsafeGet();
 }
 
 const RenderStyle* Element::computedStyle(const std::optional<Style::PseudoElementIdentifier>& pseudoElementIdentifier)
@@ -4787,7 +4788,7 @@ const RenderStyle* Element::computedStyle(const std::optional<Style::PseudoEleme
     }
 
     // FIXME: This should call resolveComputedStyle() unconditionally so we check if the style is valid.
-    auto* style = existingComputedStyle();
+    CheckedPtr style = existingComputedStyle();
     if (!style)
         style = resolveComputedStyle();
 
@@ -4797,7 +4798,7 @@ const RenderStyle* Element::computedStyle(const std::optional<Style::PseudoEleme
         return &resolvePseudoElementStyle(*pseudoElementIdentifier);
     }
 
-    return style;
+    return style.unsafeGet();
 }
 
 // FIXME: The caller should be able to just use computedStyle().
@@ -5474,7 +5475,7 @@ void Element::clearLastRememberedLogicalHeight()
 
 bool Element::isSpellCheckingEnabled() const
 {
-    for (auto* ancestor = this; ancestor; ancestor = ancestor->parentOrShadowHostElement()) {
+    for (SUPPRESS_UNCHECKED_LOCAL auto* ancestor = this; ancestor; ancestor = ancestor->parentOrShadowHostElement()) {
         auto& value = ancestor->attributeWithoutSynchronization(HTMLNames::spellcheckAttr);
         if (value.isNull())
             continue;
@@ -6051,10 +6052,10 @@ static ExceptionOr<Ref<Element>> contextElementForInsertion(const String& where,
     auto contextNodeResult = contextNodeForInsertion(where, element);
     if (contextNodeResult.hasException())
         return contextNodeResult.releaseException();
-    auto& contextNode = contextNodeResult.releaseReturnValue();
-    RefPtr contextElement = dynamicDowncast<Element>(contextNode);
-    if (!contextElement || (contextNode.document().isHTMLDocument() && is<HTMLHtmlElement>(contextNode)))
-        return Ref<Element> { HTMLBodyElement::create(contextNode.protectedDocument()) };
+    CheckedRef contextNode = contextNodeResult.releaseReturnValue();
+    RefPtr contextElement = dynamicDowncast<Element>(contextNode.get());
+    if (!contextElement || (contextNode->document().isHTMLDocument() && is<HTMLHtmlElement>(contextNode.get())))
+        return Ref<Element> { HTMLBodyElement::create(contextNode->protectedDocument()) };
     return contextElement.releaseNonNull();
 }
 
@@ -6228,15 +6229,15 @@ FormAssociatedCustomElement& Element::formAssociatedCustomElementUnsafe() const
     return *customElement;
 }
 
-StylePropertyMapReadOnly* Element::computedStyleMap()
+StylePropertyMapReadOnly& Element::computedStyleMap()
 {
     auto& rareData = ensureElementRareData();
     if (auto* map = rareData.computedStyleMap())
-        return map;
+        return *map;
 
     auto map = ComputedStylePropertyMapReadOnly::create(*this);
     rareData.setComputedStyleMap(WTF::move(map));
-    return rareData.computedStyleMap();
+    return *rareData.computedStyleMap();
 }
 
 bool Element::hasDuplicateAttribute() const
@@ -6286,7 +6287,7 @@ bool Element::checkVisibility(const CheckVisibilityOptions& options)
     if (!renderer())
         return false;
 
-    auto* style = computedStyle();
+    CheckedPtr style = computedStyle();
 
     // Disconnected node, not rendered.
     if (!style)
@@ -6319,7 +6320,7 @@ bool Element::checkVisibility(const CheckVisibilityOptions& options)
         return false;
 
     for (RefPtr ancestor = this; ancestor; ancestor = ancestor->parentElementInComposedTree()) {
-        auto* ancestorStyle = ancestor->computedStyle();
+        CheckedPtr ancestorStyle = ancestor->computedStyle();
         if (ancestorStyle->display() == DisplayType::None)
             return false;
 
@@ -6383,8 +6384,8 @@ bool Element::isInVisibilityAdjustmentSubtree() const
         return false;
 
     auto lineageIsInAdjustmentSubtree = [this] {
-        for (auto& element : lineageOfType<Element>(*this)) {
-            if (element.visibilityAdjustment().contains(VisibilityAdjustment::Subtree))
+        for (CheckedRef element : lineageOfType<Element>(*this)) {
+            if (element->visibilityAdjustment().contains(VisibilityAdjustment::Subtree))
                 return true;
         }
         return false;
@@ -6445,11 +6446,11 @@ RefPtr<HTMLElement> Element::topmostPopoverAncestor(TopLayerElementType topLayer
             return nullptr;
         };
 
-        auto* candidateAncestor = nearestInclusiveOpenPopover(*candidate);
+        RefPtr candidateAncestor = nearestInclusiveOpenPopover(*candidate);
         if (!candidateAncestor)
             return;
         if (!topmostAncestor || topLayerPositions.get(*topmostAncestor) < topLayerPositions.get(*candidateAncestor))
-            topmostAncestor = candidateAncestor;
+            topmostAncestor = WTF::move(candidateAncestor);
     };
 
     checkAncestor(parentElementInComposedTree());

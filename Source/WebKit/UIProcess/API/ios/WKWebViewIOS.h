@@ -23,6 +23,7 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#import "APINavigation.h"
 #import "WKBaseScrollView.h"
 #import "WKWebViewInternal.h"
 #import "_WKTapHandlingResult.h"

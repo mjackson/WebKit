@@ -3950,10 +3950,6 @@ bool RenderBlockFlow::layoutSimpleBlockContentInInline(MarginInfo& marginInfo)
     if (!inlineLayout())
         return false;
 
-    // Tables rely on inline layout recomputing the block height.
-    if (isRenderTableCell())
-        return false;
-
     for (auto walker = InlineWalker(*this); !walker.atEnd(); walker.advance()) {
         ASSERT(!walker.current()->selfNeedsLayout());
 
@@ -3965,6 +3961,9 @@ bool RenderBlockFlow::layoutSimpleBlockContentInInline(MarginInfo& marginInfo)
         auto isEligibleForBlockOnlyLayout = [&] {
             // Do not interfere with margin collapsing.
             if (!blockRenderer->isInFlow() || !logicalHeight)
+                return false;
+            // FIXME: This should be some narrower test.
+            if (blockRenderer->isRenderTable())
                 return false;
             if (CheckedPtr renderBlock = dynamicDowncast<RenderBlock>(*blockRenderer))
                 return !renderBlock->containsFloats();
@@ -4053,7 +4052,7 @@ std::pair<float, float> RenderBlockFlow::inlineContentTopAndBottomIncludingInkOv
 
 RenderBlockFlow::InlineContentStatus RenderBlockFlow::markInlineContentDirtyForLayout(RelayoutChildren relayoutChildren)
 {
-    auto contentNeedsNormalChildLayoutOnly = true;
+    auto contentNeedsNormalChildLayoutOnly = std::optional<bool> { };
     auto hasInFlowBlockLevelElement = false;
     auto hasSimpleOutOfFlowContentOnly = !hasLineIfEmpty();
     auto hasSimpleStaticPositionForInlineLevelOutOfFlowContentByStyle = hasSimpleStaticPositionForInlineLevelOutOfFlowChildrenByStyle(style());
@@ -4062,7 +4061,7 @@ RenderBlockFlow::InlineContentStatus RenderBlockFlow::markInlineContentDirtyForL
         auto& renderer = *walker.current();
         auto* box = dynamicDowncast<RenderBox>(renderer);
         hasInFlowBlockLevelElement = hasInFlowBlockLevelElement || (box && box->isBlockLevelBox() && box->isInFlow());
-        auto childNeedsLayout = relayoutChildren == RelayoutChildren::Yes || (box && box->hasRelativeDimensions());
+        auto childNeedsLayout = relayoutChildren == RelayoutChildren::Yes || (box && box->hasRelativeDimensions() && !box->isBlockLevelBox());
         auto childNeedsPreferredWidthComputation = relayoutChildren == RelayoutChildren::Yes && box && box->shouldInvalidatePreferredWidths();
         if (childNeedsLayout)
             renderer.setNeedsLayout(MarkOnlyThis);
@@ -4105,12 +4104,12 @@ RenderBlockFlow::InlineContentStatus RenderBlockFlow::markInlineContentDirtyForL
 
         // Non inline box inline level elements (e.g. <img>) report self-needs-layout on style change, and RenderText also reports self-needs-layout on content change.
         // Inline boxes report normal-child-needs-layout when their children need (any) layout.
-        contentNeedsNormalChildLayoutOnly = contentNeedsNormalChildLayoutOnly && (!renderer.needsLayout() || renderer.needsNormalChildOrSimplifiedLayoutOnly());
+        contentNeedsNormalChildLayoutOnly = contentNeedsNormalChildLayoutOnly.value_or(true) && (!renderer.needsLayout() || renderer.needsNormalChildOrSimplifiedLayoutOnly());
 
         if (is<RenderLineBreak>(renderer) || is<RenderInline>(renderer) || is<RenderText>(renderer))
             renderer.clearNeedsLayout();
 
-#if ENABLE(ACCESSIBILITY_ISOLATED_TREE) && ENABLE(AX_THREAD_TEXT_APIS)
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
         if (CheckedPtr cache = protectedDocument()->existingAXObjectCache())
             cache->onTextRunsChanged(renderer);
 #endif
@@ -4120,7 +4119,7 @@ RenderBlockFlow::InlineContentStatus RenderBlockFlow::markInlineContentDirtyForL
             continue;
         }
     }
-    return { hasSimpleOutOfFlowContentOnly, hasInFlowBlockLevelElement ? std::make_optional(contentNeedsNormalChildLayoutOnly) : std::nullopt };
+    return { hasSimpleOutOfFlowContentOnly, hasInFlowBlockLevelElement ? contentNeedsNormalChildLayoutOnly : std::nullopt };
 }
 
 std::optional<LayoutUnit> RenderBlockFlow::updateLineClampStateAndLogicalHeightAfterLayout()
@@ -4212,7 +4211,8 @@ void RenderBlockFlow::layoutInlineContent(RelayoutChildren relayoutChildren, Lay
         if (layoutSimpleBlockContentInInline(marginInfo)) {
             setLogicalHeight(previousHeight);
             handleAfterSideOfBlock(marginInfo, previousHeight - (borderAndPaddingLogicalHeight() + scrollbarLogicalHeight()));
-            updateRepaintTopAndBottomAfterLayout(relayoutChildren, { }, oldContentTopAndBottomIncludingInkOverflow, repaintLogicalTop, repaintLogicalBottom);
+            // Pass empty rect as partialRepaintRect because child blocks issue their own repaints if needed.
+            updateRepaintTopAndBottomAfterLayout(relayoutChildren, LayoutRect { }, oldContentTopAndBottomIncludingInkOverflow, repaintLogicalTop, repaintLogicalBottom);
             return;
         }
     }

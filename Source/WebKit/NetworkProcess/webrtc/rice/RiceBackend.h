@@ -40,6 +40,8 @@
 #include <wtf/RefCounted.h>
 #include <wtf/RunLoop.h>
 #include <wtf/TZoneMalloc.h>
+#include <wtf/ThreadSafeRefCounted.h>
+#include <wtf/ThreadSafeWeakPtr.h>
 #include <wtf/URL.h>
 #include <wtf/URLHash.h>
 #include <wtf/Vector.h>
@@ -60,14 +62,14 @@ struct RiceBackendIdentifierType;
 
 using RiceBackendIdentifier = ObjectIdentifier<RiceBackendIdentifierType>;
 
-class RiceBackend : public RefCounted<RiceBackend>, public IPC::MessageReceiver, public IPC::MessageSender, public Identified<RiceBackendIdentifier> {
+class RiceBackend : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<RiceBackend, WTF::DestructionThread::Main>, public IPC::MessageReceiver, public IPC::MessageSender, public Identified<RiceBackendIdentifier> {
     WTF_MAKE_TZONE_ALLOCATED(RiceBackend);
 public:
     static void initialize(NetworkConnectionToWebProcess&, WebKit::WebPageProxyIdentifier&&, CompletionHandler<void(RefPtr<RiceBackend>&&)>&&);
     ~RiceBackend();
 
-    void ref() const final { RefCounted::ref(); }
-    void deref() const final { RefCounted::deref(); }
+    void ref() const final { ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr::ref(); }
+    void deref() const final { ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr::deref(); }
 
     void didReceiveMessage(IPC::Connection&, IPC::Decoder&);
     void didReceiveSyncMessage(IPC::Connection&, IPC::Decoder&, UniqueRef<IPC::Encoder>&);

@@ -45,7 +45,7 @@ import socket
 import sys
 import time
 
-from Shared.steps import ShellMixin, SetBuildSummary
+from Shared.steps import ShellMixin, SetBuildSummary, SetO3OptimizationLevel
 
 if sys.version_info < (3, 9):  # noqa: UP036
     print('ERROR: Minimum supported Python version for this code is Python 3.9')
@@ -259,8 +259,7 @@ class GitHubMixin(object):
     @defer.inlineCallbacks
     def get_number_of_prs_with_label(self, label, retry=0):
         project = self.getProperty('project') or CANONICAL_GITHUB_PROJECT
-        owner, name = project.split('/', 1)
-        query_body = '{repository(owner:"%s", name:"%s") { pullRequests(labels: "%s") { totalCount } } }' % (owner, name, label)
+        query_body = '{search(query: "repo:%s is:pr is:open label:%s", type: ISSUE, first: 1) { issueCount } }' % (project, label)
         query = {'query': query_body}
 
         for attempt in range(retry + 1):
@@ -269,7 +268,7 @@ class GitHubMixin(object):
                 if 'errors' in response:
                     yield self._addToLog('stdio', response['errors'][0]['message'])
                 else:
-                    num_prs = response['data']['repository']['pullRequests']['totalCount']
+                    num_prs = response['data']['search']['issueCount']
                     break
             except Exception as e:
                 yield self._addToLog('stdio', 'Failed to retrieve number of PRs.\n')
@@ -2588,8 +2587,7 @@ class RetrievePRDataFromLabel(buildstep.BuildStep, GitHubMixin, AddToLogMixin):
     @defer.inlineCallbacks
     def getAllPRData(self, limit, label, retry=0):
         project = self.getProperty('project') or CANONICAL_GITHUB_PROJECT
-        owner, name = project.split('/', 1)
-        query_body = '{repository(owner:"%s", name:"%s") { pullRequests(labels: "%s", last: %s) { edges { node { title number commits(last: 3) { nodes { commit { commitUrl status { state contexts { context state } } } } } } } } } }' % (owner, name, label, limit)
+        query_body = '{search(query: "repo:%s is:pr label:%s", type: ISSUE, last: %s) { edges { node { ... on PullRequest { title number commits(last: 3) { nodes { commit { commitUrl status { state contexts { context state } } } } } } } } } }' % (project, label, limit)
         query = {'query': query_body}
 
         yield self._addToLog('stdio', f"Fetching all PRs with label {label}...\n")
@@ -2605,7 +2603,7 @@ class RetrievePRDataFromLabel(buildstep.BuildStep, GitHubMixin, AddToLogMixin):
                 if 'errors' in response:
                     yield self._addToLog('stdio', response['errors'][0]['message'])
                 else:
-                    all_pr_data = response['data']['repository']['pullRequests']['edges']
+                    all_pr_data = response['data']['search']['edges']
                     break
             except Exception as e:
                 yield self._addToLog('stdio', 'Failed to retrieve PR data.\n')
@@ -2630,7 +2628,7 @@ class CheckStatusOfPR(buildstep.BuildStep, GitHubMixin, AddToLogMixin):
     flunkOnFailure = False
     haltOnFailure = False
     EMBEDDED_CHECKS = ['ios', 'ios-sim', 'ios-wk2', 'ios-wk2-wpt', 'api-ios', 'vision', 'vision-sim', 'vision-wk2', 'tv', 'tv-sim', 'watch', 'watch-sim']
-    MACOS_CHECKS = ['mac', 'mac-AS-debug', 'api-mac', 'api-mac-debug', 'mac-wk1', 'mac-wk2', 'mac-AS-debug-wk2', 'mac-wk2-stress', 'mac-safer-cpp', 'jsc', 'jsc-arm64']
+    MACOS_CHECKS = ['mac', 'mac-AS-debug', 'api-mac', 'api-mac-debug', 'mac-wk1', 'mac-wk2', 'mac-AS-debug-wk2', 'mac-wk2-stress', 'mac-safer-cpp', 'jsc', 'jsc-debug-arm64']
     LINUX_CHECKS = ['gtk', 'gtk-wk2', 'api-gtk', 'wpe', 'wpe-cairo-libwebrtc', 'wpe-wk2', 'api-wpe']
     WINDOWS_CHECKS = ['win']
     EWS_WEBKIT_FAILED = 0
@@ -3746,6 +3744,11 @@ class RunJavaScriptCoreTests(shell.Test, AddToLogMixin, ShellMixin):
         if SHOULD_FILTER_LOGS is True:
             self.command = self.shell_command(' '.join(quote(str(c)) for c in self.command) + ' 2>&1 | Tools/Scripts/filter-test-logs jsc')
         rc = yield super().run()
+        defer.returnValue(rc)
+
+    @defer.inlineCallbacks
+    def runCommand(self, command):
+        yield super().runCommand(command)
 
         yield self._addToLog('json', '\n')
         logLines = self.log_observer_json.getStdout().rstrip()
@@ -3754,7 +3757,7 @@ class RunJavaScriptCoreTests(shell.Test, AddToLogMixin, ShellMixin):
             jsc_results = json.loads(json_text)
         except Exception as ex:
             yield self._addToLog('stderr', f'ERROR: unable to parse data, exception: {ex}')
-            defer.returnValue(rc)
+            return
 
         if jsc_results.get('allMasmTestsPassed') is False:
             self.binaryFailures.append('testmasm')
@@ -3776,7 +3779,7 @@ class RunJavaScriptCoreTests(shell.Test, AddToLogMixin, ShellMixin):
         if len(self.stressTestFailures) > self.FAILURE_THRESHOLD:
             self.setProperty(self.prefix + 'stress_test_failures', [f'Too many failures: {len(self.stressTestFailures)} jsc tests failed'])
             yield self._addToLog('stderr', f'Too many failures: {len(self.stressTestFailures)} jsc tests failed\n')
-            defer.returnValue(rc)
+            return
 
         self.setProperty(self.prefix + 'stress_test_failures', self.stressTestFailures)
         is_main = self.getProperty('github.base.ref', DEFAULT_BRANCH) == DEFAULT_BRANCH
@@ -3785,8 +3788,6 @@ class RunJavaScriptCoreTests(shell.Test, AddToLogMixin, ShellMixin):
             self.setProperty('jsc_stress_test_failures_filtered', sorted(self.stressTestFailures_filtered))
             self.setProperty('jsc_binary_failures_filtered', sorted(self.binaryFailures_filtered))
             self.setProperty('results-db_jsc_pre_existing', sorted(self.preexisting_failures_in_results_db))
-
-        defer.returnValue(rc)
 
     def evaluateCommand(self, cmd):
         rc = super().evaluateCommand(cmd)
@@ -3823,6 +3824,7 @@ class RunJavaScriptCoreTests(shell.Test, AddToLogMixin, ShellMixin):
                 RevertAppliedChanges(),
                 CleanWorkingDirectory(),
                 ValidateChange(verifyBugClosed=False, addURLs=False),
+                SetO3OptimizationLevel(),
                 CompileJSCWithoutChange(),
                 ValidateChange(verifyBugClosed=False, addURLs=False),
                 KillOldProcesses(),
@@ -5214,18 +5216,15 @@ class AnalyzeLayoutTestsResultsRedTree(AnalyzeLayoutTestsResults):
         self.setProperty('build_summary', message)
         return SUCCESS
 
-    def report_warning(self, message):
-        self.build.results = WARNINGS
-        self.descriptionDone = message
-        self.setProperty('build_summary', message)
-        return WARNINGS
-
     def report_infrastructure_issue_and_maybe_retry_build(self, message):
         retry_count = int(self.getProperty('retry_count', 0))
         if retry_count >= self.MAX_RETRY:
             message += '\nReached the maximum number of retries ({}). Unable to determine if change is bad or there is a pre-existent infrastructure issue.'.format(self.MAX_RETRY)
             self.send_email_for_infrastructure_issue(message)
-            return self.report_warning(message)
+            self.build.results = FAILURE
+            self.descriptionDone = message
+            self.setProperty('build_summary', message)
+            return FAILURE
         message += "\nRetrying build [retry count is {} of {}]".format(retry_count, self.MAX_RETRY)
         self.setProperty('retry_count', retry_count + 1)
         self.send_email_for_infrastructure_issue(message)

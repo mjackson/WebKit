@@ -25,7 +25,7 @@
 
 #pragma once
 
-#if ENABLE(AX_THREAD_TEXT_APIS)
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
 #include <CoreText/CTFont.h>
 #include <WebCore/AXLoggerBase.h>
@@ -186,4 +186,4 @@ public:
 };
 
 } // namespace WebCore
-#endif // ENABLE(AX_THREAD_TEXT_APIS)
+#endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)

@@ -57,6 +57,7 @@ private:
     RenderPassEncoderImpl& operator=(RenderPassEncoderImpl&&) = delete;
 
     WGPURenderPassEncoder backing() const { return m_backing.get(); }
+    bool isRenderPassEncoderImpl() const final { return true; }
 
     void setPipeline(const RenderPipeline&) final;
 
@@ -108,5 +109,9 @@ private:
 };
 
 } // namespace WebCore::WebGPU
+
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::WebGPU::RenderPassEncoderImpl)
+    static bool isType(const WebCore::WebGPU::RenderPassEncoder& encoder) { return encoder.isRenderPassEncoderImpl(); }
+SPECIALIZE_TYPE_TRAITS_END()
 
 #endif // HAVE(WEBGPU_IMPLEMENTATION)

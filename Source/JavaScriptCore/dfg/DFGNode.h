@@ -2614,6 +2614,18 @@ public:
         }
     }
 
+    bool isPhantomArgumentsAllocation()
+    {
+        switch (op()) {
+        case PhantomDirectArguments:
+        case PhantomCreateRest:
+        case PhantomClonedArguments:
+            return true;
+        default:
+            return false;
+        }
+    }
+
     bool hasArrayModes()
     {
         switch (op()) {
@@ -3245,6 +3257,11 @@ public:
     bool shouldSpeculateProxyObject()
     {
         return isProxyObjectSpeculation(prediction());
+    }
+
+    bool shouldSpeculateSetObject()
+    {
+        return isSetObjectSpeculation(prediction());
     }
 
     bool shouldSpeculateGlobalProxy()

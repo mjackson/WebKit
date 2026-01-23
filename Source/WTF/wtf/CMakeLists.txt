@@ -143,6 +143,7 @@ set(WTF_PUBLIC_HEADERS
     Int128.h
     InterferenceGraph.h
     IntervalSet.h
+    IsIncreasing.h
     IterationStatus.h
     IteratorRange.h
     JSONValues.h
@@ -791,9 +792,7 @@ set(WTF_LIBRARIES
     ICU::uc
 )
 
-if (NOT USE_SYSTEM_MALLOC)
-    set(WTF_FRAMEWORKS bmalloc)
-endif ()
+set(WTF_FRAMEWORKS bmalloc)
 
 if (ATOMICS_REQUIRE_LIBATOMIC)
     list(APPEND WTF_LIBRARIES atomic)

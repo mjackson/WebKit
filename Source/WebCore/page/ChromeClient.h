@@ -23,6 +23,7 @@
 
 #include <WebCore/AutoplayEvent.h>
 #include <WebCore/ContactInfo.h>
+#include <WebCore/CornerRadii.h>
 #include <WebCore/DatabaseDetails.h>
 #include <WebCore/DeviceOrientationOrMotionPermissionState.h>
 #include <WebCore/DisabledAdaptations.h>
@@ -73,7 +74,7 @@ OBJC_CLASS NSData;
 #include <WebCore/PlatformXR.h>
 #endif
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
 #include <WebCore/DigitalCredentialsProtocols.h>
 #include <WebCore/DigitalCredentialsRequestData.h>
 #include <WebCore/DigitalCredentialsResponseData.h>
@@ -139,7 +140,7 @@ class ViewportConstraints;
 class Widget;
 class WorkerClient;
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
 struct DigitalCredentialsRequestData;
 struct MobileDocumentRequest;
 #endif
@@ -326,6 +327,8 @@ public:
     virtual void scrollContainingScrollViewsToRevealRect(const IntRect&) const { }; // Currently only Mac has a non empty implementation.
     virtual void scrollMainFrameToRevealRect(const IntRect&) const { };
 
+    virtual CornerRadii scrollbarAvoidanceCornerRadii() const { return { }; }
+
     virtual bool shouldUnavailablePluginMessageBeButton(PluginUnavailabilityReason) const { return false; }
     virtual void unavailablePluginButtonClicked(Element&, PluginUnavailabilityReason) const { }
     virtual void mouseDidMoveOverElement(const HitTestResult&, OptionSet<PlatformEventModifier>, const String& toolTip, TextDirection) = 0;
@@ -418,7 +421,7 @@ public:
     virtual void showShareSheet(ShareDataWithParsedURL&&, CompletionHandler<void(bool)>&& callback) { callback(false); }
     virtual void showContactPicker(ContactsRequestData&&, CompletionHandler<void(std::optional<Vector<ContactInfo>>&&)>&& callback) { callback(std::nullopt); }
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
     virtual void showDigitalCredentialsPicker(const DigitalCredentialsRequestData&, CompletionHandler<void(Expected<DigitalCredentialsResponseData, ExceptionData>&&)>&& completionHandler)
     {
         completionHandler(makeUnexpected(ExceptionData { ExceptionCode::NotSupportedError, "Digital credentials are not supported."_s }));

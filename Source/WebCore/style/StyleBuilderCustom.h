@@ -100,7 +100,6 @@ inline Color forwardInheritedValue(const Color& value) { auto copy = value; retu
 inline EasingFunction forwardInheritedValue(const EasingFunction& value) { auto copy = value; return copy; }
 inline GapGutter forwardInheritedValue(const GapGutter& value) { auto copy = value; return copy; }
 inline FontFamilies forwardInheritedValue(const FontFamilies& value) { auto copy = value; return copy; }
-inline FilterOperations forwardInheritedValue(const FilterOperations& value) { auto copy = value; return copy; }
 inline ScrollMarginEdge forwardInheritedValue(const ScrollMarginEdge& value) { auto copy = value; return copy; }
 inline ScrollPaddingEdge forwardInheritedValue(const ScrollPaddingEdge& value) { auto copy = value; return copy; }
 inline LineWidth forwardInheritedValue(const LineWidth& value) { auto copy = value; return copy; }

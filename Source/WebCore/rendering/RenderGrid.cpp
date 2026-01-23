@@ -1637,46 +1637,7 @@ void RenderGrid::layoutGridItems(GridLayoutState& gridLayoutState)
 
 void RenderGrid::layoutMasonryItems(GridLayoutState& gridLayoutState)
 {
-    populateGridPositionsForDirection(m_trackSizingAlgorithm, Style::GridTrackSizingDirection::Columns);
-    populateGridPositionsForDirection(m_trackSizingAlgorithm, Style::GridTrackSizingDirection::Rows);
-
-    for (auto& gridItem : childrenOfType<RenderBox>(*this)) {
-        if (currentGrid().orderIterator().shouldSkipChild(gridItem)) {
-            if (gridItem.isOutOfFlowPositioned())
-                prepareGridItemForPositionedLayout(gridItem);
-            continue;
-        }
-
-        auto* renderGrid = dynamicDowncast<RenderGrid>(gridItem);
-        if (renderGrid && (renderGrid->isSubgridColumns() || renderGrid->isSubgridRows()))
-            gridItem.setNeedsLayout(MarkOnlyThis);
-
-        // Setting the definite grid area's sizes. It may imply that the
-        // item must perform a layout if its area differs from the one
-        // used during the track sizing algorithm.
-        updateGridAreaIncludingAlignment(gridItem);
-
-        LayoutRect oldGridItemRect = gridItem.frameRect();
-
-        // Stretching logic might force a grid item layout, so we need to run it before the layoutIfNeeded
-        // call to avoid unnecessary relayouts. This might imply that grid item margins, needed to correctly
-        // determine the available space before stretching, are not set yet.
-        applyStretchAlignmentToGridItemIfNeeded(gridItem, gridLayoutState);
-        applySubgridStretchAlignmentToGridItemIfNeeded(gridItem);
-
-        gridItem.layoutIfNeeded();
-
-        // We need pending layouts to be done in order to compute auto-margins properly.
-        GridLayoutFunctions::updateAutoMarginsIfNeeded(gridItem, writingMode());
-
-        setLogicalPositionForGridItem(gridItem);
-
-        // If the grid item moved, we have to repaint it as well as any floating/positioned
-        // descendants. An exception is if we need a layout. In this case, we know we're going to
-        // repaint ourselves (and the grid item) anyway.
-        if (!selfNeedsLayout() && gridItem.checkForRepaintDuringLayout())
-            gridItem.repaintDuringLayoutIfMoved(oldGridItemRect);
-    }
+    layoutGridItems(gridLayoutState);
 }
 
 void RenderGrid::prepareGridItemForPositionedLayout(RenderBox& gridItem)

@@ -76,7 +76,7 @@ unsigned ComputedStylePropertyMapReadOnly::size() const
 
     Style::Extractor::updateStyleIfNeededForProperty(*element.get(), CSSPropertyCustom);
 
-    auto* style = element->computedStyle();
+    CheckedPtr style = element->computedStyle();
     if (!style)
         return 0;
 
@@ -95,7 +95,7 @@ Vector<StylePropertyMapReadOnly::StylePropertyMapEntry> ComputedStylePropertyMap
     // Ensure custom property counts are correct.
     Style::Extractor::updateStyleIfNeededForProperty(*element.get(), CSSPropertyCustom);
 
-    auto* style = element->computedStyle();
+    CheckedPtr style = element->computedStyle();
     if (!style)
         return values;
 

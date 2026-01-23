@@ -45,17 +45,15 @@ bindings/js/JSCustomElementInterface.cpp
 bindings/js/JSDOMBindingSecurity.cpp
 bindings/js/JSDOMBindingSecurity.h
 bindings/js/JSDOMConvertBase.h
-bindings/js/JSDOMConvertInterface.h
+bindings/js/JSDOMConvertNullable.h
 bindings/js/JSDOMGlobalObject.cpp
 bindings/js/JSDOMPromiseDeferred.cpp
 bindings/js/JSDOMWindowBase.cpp
 bindings/js/JSElementCustom.cpp
 bindings/js/JSExecState.cpp
 bindings/js/JSHTMLElementCustom.cpp
-bindings/js/JSHTMLTemplateElementCustom.cpp
 bindings/js/JSIDBObjectStoreCustom.cpp
 bindings/js/JSIntersectionObserverCustom.cpp
-bindings/js/JSIntersectionObserverEntryCustom.cpp
 bindings/js/JSLazyEventListener.cpp
 bindings/js/JSNavigatorCustom.cpp
 bindings/js/JSNodeCustom.cpp
@@ -82,7 +80,6 @@ css/SelectorCheckerTestFunctions.h
 css/SelectorFilter.cpp
 css/StyleAttributeMutationScope.h
 css/parser/SizesAttributeParser.cpp
-css/query/MediaQueryFeatures.cpp
 css/typedom/ComputedStylePropertyMapReadOnly.cpp
 css/typedom/InlineStylePropertyMap.cpp
 dom/Attr.cpp
@@ -674,4 +671,3 @@ workers/WorkerThread.cpp
 workers/shared/context/SharedWorkerThreadProxy.cpp
 worklets/PaintWorkletGlobalScope.cpp
 worklets/WorkletGlobalScope.cpp
-xml/parser/XMLDocumentParserLibxml2.cpp

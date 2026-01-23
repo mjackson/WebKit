@@ -30,6 +30,7 @@
 
 #import "APIFindClient.h"
 #import "FrontBoardServicesSPI.h"
+#import "ImageOptions.h"
 #import "LayerProperties.h"
 #import "NativeWebWheelEvent.h"
 #import "NavigationState.h"
@@ -46,6 +47,7 @@
 #import "VideoPresentationManagerProxy.h"
 #import "ViewGestureController.h"
 #import "VisibleContentRectUpdateInfo.h"
+#import "WKAPICast.h"
 #import "WKBackForwardListItemInternal.h"
 #import "WKColorExtensionView.h"
 #import "WKContentViewInteraction.h"

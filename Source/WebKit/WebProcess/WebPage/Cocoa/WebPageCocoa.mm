@@ -1745,6 +1745,9 @@ void WebPage::insertTextAsync(const String& text, const EditingRange& replacemen
         return;
 
     UserGestureIndicator gestureIndicator { options.processingUserGesture ? IsProcessingUserGesture::Yes : IsProcessingUserGesture::No, frame->document() };
+    std::optional<UserTypingGestureIndicator> userTypingGestureIndicator;
+    if (options.processingUserGesture)
+        userTypingGestureIndicator.emplace(*frame);
 
     bool replacesText = false;
     if (replacementEditingRange.location != notFound) {

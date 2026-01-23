@@ -405,6 +405,63 @@ TEST(WKWebExtensionAPIRuntime, GetFrameId)
     [manager run];
 }
 
+TEST(WKWebExtensionAPIRuntime, GetDocumentId)
+{
+    TestWebKitAPI::HTTPServer server({
+        { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, "<iframe src='/subframe'></iframe>"_s } },
+        { "/subframe"_s, { { { "Content-Type"_s, "text/html"_s } }, "Subframe Content"_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::Http);
+
+    auto *urlRequest = server.requestWithLocalhost();
+
+    auto *backgroundScript = Util::constructScript(@[
+        @"browser.test.sendMessage('Load Tab')"
+    ]);
+
+    auto *contentScript = Util::constructScript(@[
+        @"function isValidDocId(input) {",
+        @"  return typeof input === 'string' && input.length > 0",
+        @"}",
+
+        @"if (window.top === window) {",
+        @"  browser.test.assertThrows(() => browser.runtime.getDocumentId(), /required argument is missing/, 'Method should throw on incorrect input undefined')",
+        @"  browser.test.assertThrows(() => browser.runtime.getDocumentId(null), /value is invalid, because an object is expected/, 'Method should throw on incorrect input type')",
+        @"  browser.test.assertThrows(() => browser.runtime.getDocumentId('test'), /value is invalid, because an object is expected/, 'Method should throw on incorrect input type')",
+        @"  browser.test.assertThrows(() => browser.runtime.getDocumentId({}), /not a valid window or frame element/, 'Method should throw on incorrect input objects')",
+
+        @"  const mainDocId = browser.runtime.getDocumentId(window)",
+        @"  browser.test.assertTrue(isValidDocId(mainDocId), 'Main document should return a valid documentId')",
+
+        @"  const frameElement = document.querySelector('iframe')",
+        @"  const subFrameElementDocId = browser.runtime.getDocumentId(frameElement)",
+        @"  browser.test.assertTrue(isValidDocId(subFrameElementDocId), 'Subframe element should return a valid documentId')",
+
+        @"  const subFrameWindow = frameElement.contentWindow",
+        @"  const subFrameWindowDocId = browser.runtime.getDocumentId(subFrameWindow)",
+        @"  browser.test.assertEq(subFrameElementDocId, subFrameWindowDocId, 'DocumentId from element and window should match')",
+        @"  browser.test.assertTrue(mainDocId !== subFrameWindowDocId, 'Main documentId and subframe documentId should be different')",
+        @"} else {",
+        @"  const subFrameDocId = browser.runtime.getDocumentId(window)",
+        @"  browser.test.assertTrue(isValidDocId(subFrameDocId), 'Subframe document should return a valid documentId')",
+
+        @"  const topDocId = browser.runtime.getDocumentId(window.top)",
+        @"  browser.test.assertTrue(isValidDocId(topDocId), 'Subframe should be able to retrieve the top window documentId')",
+        @"}",
+
+        @"browser.test.notifyPass()"
+    ]);
+
+    auto manager = Util::loadExtension(runtimeContentScriptManifest, @{ @"background.js": backgroundScript, @"content.js": contentScript });
+
+    [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
+
+    [manager runUntilTestMessage:@"Load Tab"];
+
+    [manager.get().defaultTab.webView loadRequest:urlRequest];
+
+    [manager run];
+}
+
 TEST(WKWebExtensionAPIRuntime, LastError)
 {
     auto *backgroundScript = Util::constructScript(@[

@@ -52,6 +52,7 @@ static ExceptionOr<ServiceWorkerRoutePattern> toServiceWorkerRoutePattern(const 
         return Exception { ExceptionCode::TypeError, "Service Worker route url pattern has regexp groups"_s };
 
     return ServiceWorkerRoutePattern {
+        pattern.shouldIgnoreCase(),
         pattern.protocol(),
         pattern.username(),
         pattern.password(),

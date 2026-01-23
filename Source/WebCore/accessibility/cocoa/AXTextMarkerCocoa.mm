@@ -26,6 +26,8 @@
 #import "AXTextMarker.h"
 
 #import <Foundation/NSRange.h>
+#import <WebCore/AXLoggerBase.h>
+#import <WebCore/Logging.h>
 #import <wtf/StdLibExtras.h>
 
 #if PLATFORM(MAC)
@@ -71,7 +73,7 @@ RetainPtr<PlatformTextMarkerData> AXTextMarker::platformData() const
 #endif
 }
 
-#if ENABLE(AX_THREAD_TEXT_APIS)
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 // FIXME: There's a lot of duplicated code between this function and AXTextMarkerRange::toString().
 RetainPtr<NSAttributedString> AXTextMarkerRange::toAttributedString(AXCoreObject::SpellCheck spellCheck) const
 {
@@ -145,14 +147,16 @@ RetainPtr<NSAttributedString> AXTextMarkerRange::toAttributedString(AXCoreObject
 
     return result;
 }
-#endif // ENABLE(AX_THREAD_TEXT_APIS)
+#endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
 #if PLATFORM(MAC)
 
 AXTextMarkerRange::AXTextMarkerRange(AXTextMarkerRangeRef textMarkerRangeRef)
 {
     if (!textMarkerRangeRef || CFGetTypeID(textMarkerRangeRef) != AXTextMarkerRangeGetTypeID()) {
-        AX_ASSERT_NOT_REACHED();
+        // FIXME: This is hit on any webpage when using VoiceOver and then turning on Accessibility Inspector
+        // and trying to hit-test something.
+        AX_BROKEN_ASSERT_NOT_REACHED();
         return;
     }
 

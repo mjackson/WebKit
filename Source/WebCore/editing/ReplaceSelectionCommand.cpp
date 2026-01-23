@@ -642,9 +642,8 @@ static bool fragmentNeedsColorTransformed(ReplacementFragment& fragment, const P
         if (!editableRootRenderer || editableRootRenderer->style().appleColorFilter().isNone())
             return false;
 
-        const auto& colorFilter = editableRootRenderer->style().appleColorFilter();
-        for (const auto& colorFilterOperation : colorFilter) {
-            if (colorFilterOperation->type() != FilterOperation::Type::AppleInvertLightness)
+        for (const auto& colorFilterFunction : editableRootRenderer->style().appleColorFilter()) {
+            if (!WTF::holdsAlternative<Style::AppleInvertLightnessFunction>(colorFilterFunction))
                 return false;
         }
     }

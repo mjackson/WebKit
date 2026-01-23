@@ -3952,7 +3952,7 @@ bool GraphicsLayerCA::createFilterAnimationsFromKeyframes(const GraphicsLayerKey
     auto& operations = downcast<GraphicsLayerFilterAnimationValue>(valueList.at(listIndex)).value();
 
     // FIXME: We can't currently hardware animate shadows.
-    if (operations.hasFilterOfType<FilterOperation::Type::DropShadowWithStyleColor>())
+    if (operations.hasFilterOfType<FilterOperation::Type::DropShadow>())
         return false;
 
     // Make sure the platform layer didn't fallback to using software filter compositing instead.

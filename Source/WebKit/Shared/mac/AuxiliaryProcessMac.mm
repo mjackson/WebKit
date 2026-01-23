@@ -779,18 +779,7 @@ void AuxiliaryProcess::applySandboxProfileForDaemon(const String& profilePath, c
     RELEASE_ASSERT(success);
 }
 
-#if USE(APPKIT)
-void AuxiliaryProcess::stopNSAppRunLoop()
-{
-    ASSERT([NSApp isRunning]);
-    [NSApp stop:nil];
-
-    RetainPtr event = [NSEvent otherEventWithType:NSEventTypeApplicationDefined location:NSMakePoint(0, 0) modifierFlags:0 timestamp:0.0 windowNumber:0 context:nil subtype:0 data1:0 data2:0];
-    [NSApp postEvent:event.get() atStart:true];
-}
-#endif
-
-#if !PLATFORM(MACCATALYST) && ENABLE(WEBPROCESS_NSRUNLOOP)
+#if PLATFORM(MAC)
 void AuxiliaryProcess::stopNSRunLoop()
 {
     ASSERT([NSRunLoop mainRunLoop]);
@@ -798,7 +787,7 @@ void AuxiliaryProcess::stopNSRunLoop()
         exitProcess(0);
     }];
 }
-#endif
+#endif // PLATFORM(MAC)
 
 void AuxiliaryProcess::setQOS(int latencyQOS, int throughputQOS)
 {

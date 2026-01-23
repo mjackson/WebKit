@@ -76,7 +76,7 @@ WindowProxy::~WindowProxy()
 
 Frame* WindowProxy::frame() const
 {
-    return m_frame.get();
+    return m_frame;
 }
 
 void WindowProxy::detachFromFrame()

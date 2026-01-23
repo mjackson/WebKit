@@ -1130,7 +1130,8 @@ JSValueRef WebFrame::jsWrapperForWorld(InjectedBundleNodeHandle* nodeHandle, Inj
     auto* globalObject = localFrame->checkedScript()->globalObject(world->protectedCoreWorld());
 
     JSLockHolder lock(globalObject);
-    return toRef(globalObject, toJS(globalObject, globalObject, RefPtr { nodeHandle->coreNode() }.get()));
+    RefPtr coreNode = nodeHandle->coreNode();
+    return toRef(globalObject, coreNode ? toJS(globalObject, globalObject, coreNode.releaseNonNull()) : JSC::jsNull());
 }
 
 JSValueRef WebFrame::jsWrapperForWorld(InjectedBundleRangeHandle* rangeHandle, InjectedBundleScriptWorld* world)

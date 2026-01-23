@@ -1167,7 +1167,7 @@ Navigation::DispatchResult Navigation::innerDispatchNavigateEvent(NavigationNavi
         for (auto& handler : event->handlers()) {
             auto callbackResult = handler->invoke();
             if (callbackResult.type() != CallbackResultType::UnableToExecute) {
-                Ref promise = callbackResult.releaseReturnValue().releaseNonNull();
+                Ref promise = callbackResult.releaseReturnValue();
                 // Because rejection is reported as `navigateerror` event, we can mark this as handled.
                 if (!promise->isSuspended())
                     promise->markAsHandled();

@@ -596,7 +596,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'layout-tests',
             'set-build-summary'
         ],
-        'JSC-Tests-arm64-EWS': [
+        'JSC-Tests-O3-Debug-arm64-EWS': [
             'configure-build',
             'check-change-relevance',
             'validate-change',
@@ -612,6 +612,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'checkout-pull-request',
             'kill-old-processes',
             'validate-change',
+            'set-o3-optimization-level',
             'compile-jsc',
             'jscore-test'
         ],

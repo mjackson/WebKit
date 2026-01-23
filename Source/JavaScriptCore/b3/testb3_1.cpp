@@ -589,7 +589,7 @@ void run(const TestConfig* config)
 
     addCallTests(config, tasks);
 
-    RUN(testLinearScanWithCalleeOnStack());
+    RUN(testForcedSpillCalleeOnStack());
 
     RUN(testChillDiv(4, 2, 2));
     RUN(testChillDiv(1, 0, 0));

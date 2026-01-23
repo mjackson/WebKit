@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include "CatchScope.h"
+#include "TopExceptionScope.h"
 #include "Debugger.h"
 #include "MicrotaskQueue.h"
 
@@ -34,7 +34,7 @@ namespace JSC {
 template<bool useCallOnEachMicrotask>
 inline void MicrotaskQueue::performMicrotaskCheckpoint(VM& vm, NOESCAPE const Invocable<QueuedTask::Result(QueuedTask&)> auto& functor)
 {
-    auto catchScope = DECLARE_CATCH_SCOPE(vm);
+    auto catchScope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
     if (vm.executionForbidden()) [[unlikely]]
         clear();
     else {

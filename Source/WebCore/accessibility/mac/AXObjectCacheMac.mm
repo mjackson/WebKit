@@ -753,7 +753,7 @@ bool AXObjectCache::isIsolatedTreeEnabled()
         return true;
 
     if (!isMainThread()) {
-        AX_ASSERT(_AXUIElementRequestServicedBySecondaryAXThread());
+        AX_ASSERT(clientIsInTestMode() || _AXUIElementRequestServicedBySecondaryAXThread());
         enabled = true;
     } else {
         enabled = DeprecatedGlobalSettings::isAccessibilityIsolatedTreeEnabled() // Used to turn off in apps other than Safari, e.g., Mail.

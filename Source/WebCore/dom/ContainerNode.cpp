@@ -561,6 +561,8 @@ ExceptionOr<void> ContainerNode::insertBefore(Node& newChild, RefPtr<Node>&& ref
     Ref<ContainerNode> protectedThis(*this);
     Ref next = refChild.releaseNonNull();
 
+    uint64_t domTreeVersion = document().domTreeVersion();
+
     NodeVector targets;
     auto removeResult = removeSelfOrChildNodesForInsertion(newChild, targets);
     if (removeResult.hasException())
@@ -568,11 +570,13 @@ ExceptionOr<void> ContainerNode::insertBefore(Node& newChild, RefPtr<Node>&& ref
     if (targets.isEmpty())
         return { };
 
-    // We need this extra check because removeSelfOrChildNodesForInsertion() can fire mutation events.
-    for (auto& child : targets) {
-        auto checkAcceptResult = checkAcceptChildGuaranteedNodeTypes(*this, child);
-        if (checkAcceptResult.hasException())
-            return checkAcceptResult.releaseException();
+    if (document().domTreeVersion() != domTreeVersion) {
+        // Check conditions again when mutation events in removeSelfOrChildNodesForInsertion mutated DOM tree.
+        for (auto& child : targets) {
+            auto checkAcceptResult = checkAcceptChildGuaranteedNodeTypes(*this, child);
+            if (checkAcceptResult.hasException())
+                return checkAcceptResult.releaseException();
+        }
     }
 
     InspectorInstrumentation::willInsertDOMNode(protectedDocument(), *this);
@@ -665,6 +669,8 @@ ExceptionOr<void> ContainerNode::replaceChild(Node& newChild, Node& oldChild)
 
     Ref protectedThis { *this };
 
+    uint64_t domTreeVersion = document().domTreeVersion();
+
     // Make sure replacing the old child with the new is ok
     auto validityResult = checkPreReplacementValidity(*this, newChild, oldChild, ShouldValidateChildParent::Yes);
     if (validityResult.hasException())
@@ -682,11 +688,13 @@ ExceptionOr<void> ContainerNode::replaceChild(Node& newChild, Node& oldChild)
             return collectResult.releaseException();
     }
 
-    // Do this one more time because removeSelfOrChildNodesForInsertion() fires a MutationEvent.
-    for (auto& child : targets) {
-        validityResult = checkPreReplacementValidity(*this, child, oldChild, ShouldValidateChildParent::No);
-        if (validityResult.hasException())
-            return validityResult.releaseException();
+    if (document().domTreeVersion() != domTreeVersion) {
+        // Check conditions again when mutation events in removeSelfOrChildNodesForInsertion mutated DOM tree.
+        for (auto& child : targets) {
+            validityResult = checkPreReplacementValidity(*this, child, oldChild, ShouldValidateChildParent::No);
+            if (validityResult.hasException())
+                return validityResult.releaseException();
+        }
     }
 
     // Remove the node we're replacing.
@@ -700,7 +708,7 @@ ExceptionOr<void> ContainerNode::replaceChild(Node& newChild, Node& oldChild)
         if (removeResult.hasException())
             return removeResult.releaseException();
 
-        // Does this one more time because removeChild() fires a MutationEvent.
+        // Check conditions again because removeChild fires a MutationEvent.
         for (auto& child : targets) {
             validityResult = checkPreReplacementValidity(*this, child, oldChild, ShouldValidateChildParent::No);
             if (validityResult.hasException())
@@ -886,6 +894,8 @@ ExceptionOr<void> ContainerNode::appendChildWithoutPreInsertionValidityCheck(Nod
 {
     Ref protectedThis { *this };
 
+    uint64_t domTreeVersion = document().domTreeVersion();
+
     NodeVector targets;
     auto removeResult = removeSelfOrChildNodesForInsertion(newChild, targets);
     if (removeResult.hasException())
@@ -894,11 +904,13 @@ ExceptionOr<void> ContainerNode::appendChildWithoutPreInsertionValidityCheck(Nod
     if (targets.isEmpty())
         return { };
 
-    // We need this extra check because removeSelfOrChildNodesForInsertion() can fire mutation events.
-    for (auto& child : targets) {
-        auto nodeTypeResult = checkAcceptChildGuaranteedNodeTypes(*this, child);
-        if (nodeTypeResult.hasException())
-            return nodeTypeResult.releaseException();
+    if (document().domTreeVersion() != domTreeVersion) {
+        // Check conditions when mutation events in removeSelfOrChildNodesForInsertion mutated DOM tree.
+        for (auto& child : targets) {
+            auto nodeTypeResult = checkAcceptChildGuaranteedNodeTypes(*this, child);
+            if (nodeTypeResult.hasException())
+                return nodeTypeResult.releaseException();
+        }
     }
 
     InspectorInstrumentation::willInsertDOMNode(protectedDocument(), *this);
@@ -925,6 +937,8 @@ ExceptionOr<void> ContainerNode::appendChildWithoutPreInsertionValidityCheck(Nod
 
 ExceptionOr<void> ContainerNode::insertChildrenBeforeWithoutPreInsertionValidityCheck(NodeVector&& newChildren, Node* nextChild)
 {
+    uint64_t domTreeVersion = document().domTreeVersion();
+
     RefPtr refChild = nextChild;
     for (auto& child : newChildren) {
         if (RefPtr oldParent = child->parentNode()) {
@@ -935,11 +949,13 @@ ExceptionOr<void> ContainerNode::insertChildrenBeforeWithoutPreInsertionValidity
         }
     }
 
-    // We need this extra check because removeChild() above can fire mutation events.
-    for (auto& child : newChildren) {
-        auto nodeTypeResult = checkAcceptChildGuaranteedNodeTypes(*this, child);
-        if (nodeTypeResult.hasException())
-            return nodeTypeResult.releaseException();
+    if (document().domTreeVersion() != domTreeVersion) {
+        // Check conditions when mutation events in removeChild mutated DOM tree.
+        for (auto& child : newChildren) {
+            auto nodeTypeResult = checkAcceptChildGuaranteedNodeTypes(*this, child);
+            if (nodeTypeResult.hasException())
+                return nodeTypeResult.releaseException();
+        }
     }
 
     InspectorInstrumentation::willInsertDOMNode(protectedDocument(), *this);

@@ -771,6 +771,7 @@ SERIALIZATION_DESCRIPTION_FILES = \
 	Shared/ScriptTrackingPrivacyFilter.serialization.in \
 	Shared/ScrollingAccelerationCurve.serialization.in \
 	Shared/SerializedNode.serialization.in \
+	Shared/ServiceWorkerTimingInfo.serialization.in \
 	Shared/SessionState.serialization.in \
 	Shared/SyntheticEditingCommandType.serialization.in \
 	Shared/TextFlags.serialization.in \

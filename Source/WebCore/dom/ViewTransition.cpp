@@ -255,25 +255,26 @@ void ViewTransition::callUpdateCallback()
         return;
 
     Ref document = *this->document();
-    RefPtr<DOMPromise> callbackPromise;
+    Ref callbackPromise = [&] -> Ref<DOMPromise> {
+        if (!m_updateCallback) {
+            auto promiseAndWrapper = createPromiseAndWrapper(document);
+            Ref { promiseAndWrapper.second }->resolve();
+            return WTF::move(promiseAndWrapper.first);
+        }
 
-    if (!m_updateCallback) {
-        auto promiseAndWrapper = createPromiseAndWrapper(document);
-        Ref { promiseAndWrapper.second }->resolve();
-        callbackPromise = WTF::move(promiseAndWrapper.first);
-    } else {
         auto result = RefPtr { m_updateCallback }->invoke();
-        callbackPromise = result.type() == CallbackResultType::Success ? result.releaseReturnValue() : nullptr;
-        if (!callbackPromise || callbackPromise->isSuspended()) {
+        if (result.type() != CallbackResultType::Success || result.returnValue()->isSuspended()) {
             auto promiseAndWrapper = createPromiseAndWrapper(document);
             // FIXME: First case should reject with `ExceptionCode::ExistingExceptionError`.
             if (result.type() == CallbackResultType::ExceptionThrown)
                 Ref { promiseAndWrapper.second }->reject(ExceptionCode::TypeError);
             else
                 Ref { promiseAndWrapper.second }->reject();
-            callbackPromise = WTF::move(promiseAndWrapper.first);
+            return WTF::move(promiseAndWrapper.first);
         }
-    }
+
+        return result.releaseReturnValue();
+    }();
 
     callbackPromise->whenSettledWithResult([weakThis = WeakPtr { *this }](auto*, bool isFulfilled, auto result) mutable {
         RefPtr protectedThis = weakThis.get();
@@ -346,7 +347,7 @@ static AtomString effectiveViewTransitionName(RenderLayerModelObject& renderer, 
     auto& transitionName = renderer.style().viewTransitionName();
 
     auto computeScope = [&] -> Style::Scope* {
-        auto scope = Style::Scope::forOrdinal(originatingElement, transitionName.scopeOrdinal());
+        SUPPRESS_UNCHECKED_LOCAL auto scope = Style::Scope::forOrdinal(originatingElement, transitionName.scopeOrdinal());
         if (!scope || scope != &documentScope)
             return nullptr;
         return scope;
@@ -357,7 +358,7 @@ static AtomString effectiveViewTransitionName(RenderLayerModelObject& renderer, 
             return nullAtom();
         },
         [&](const CSS::Keyword::Auto&) {
-            auto scope = computeScope();
+            SUPPRESS_UNCHECKED_LOCAL auto scope = computeScope();
             if (!scope || !renderer.element())
                 return nullAtom();
 
@@ -371,7 +372,7 @@ static AtomString effectiveViewTransitionName(RenderLayerModelObject& renderer, 
             return makeAtomString("-ua-auto-"_s, String::number(element->nodeIdentifier().toRawValue()));
         },
         [&](const CSS::Keyword::MatchElement&) {
-            auto scope = computeScope();
+            SUPPRESS_UNCHECKED_LOCAL auto scope = computeScope();
             if (!scope || isCrossDocument || !renderer.element())
                 return nullAtom();
 
@@ -379,7 +380,7 @@ static AtomString effectiveViewTransitionName(RenderLayerModelObject& renderer, 
             return makeAtomString("-ua-auto-"_s, String::number(element->nodeIdentifier().toRawValue()));
         },
         [&](const CustomIdentifier& customIdentifier) {
-            auto scope = computeScope();
+            SUPPRESS_UNCHECKED_LOCAL auto scope = computeScope();
             if (!scope)
                 return nullAtom();
 
@@ -445,10 +446,10 @@ static RefPtr<ImageBuffer> snapshotElementVisualOverflowClippedToViewport(LocalF
     IntRect paintRect = enclosingIntRect(snapshotRect);
 
     if (layerRenderer->isDocumentElementRenderer()) {
-        auto& view = layerRenderer->view();
-        layerRenderer = view;
+        CheckedRef view = layerRenderer->view();
+        layerRenderer = view.get();
 
-        auto scrollPosition = CheckedRef { view.frameView() }->scrollPosition();
+        auto scrollPosition = CheckedRef { view->frameView() }->scrollPosition();
         paintRect.moveBy(scrollPosition);
     }
 
@@ -496,19 +497,19 @@ static ExceptionOr<void> forEachRendererInPaintOrder(NOESCAPE const std::functio
     LayerListMutationDetector mutationChecker(layer);
 #endif
 
-    for (auto* child : layer.negativeZOrderLayers()) {
+    for (CheckedPtr child : layer.negativeZOrderLayers()) {
         auto result = forEachRendererInPaintOrder(function, *child);
         if (result.hasException())
             return result.releaseException();
     }
 
-    for (auto* child : layer.normalFlowLayers()) {
+    for (CheckedPtr child : layer.normalFlowLayers()) {
         auto result = forEachRendererInPaintOrder(function, *child);
         if (result.hasException())
             return result.releaseException();
     }
 
-    for (auto* child : layer.positiveZOrderLayers()) {
+    for (CheckedPtr child : layer.positiveZOrderLayers()) {
         auto result = forEachRendererInPaintOrder(function, *child);
         if (result.hasException())
             return result.releaseException();

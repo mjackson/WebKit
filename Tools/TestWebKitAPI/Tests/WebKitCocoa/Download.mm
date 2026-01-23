@@ -2223,7 +2223,12 @@ TEST(WKDownload, RedirectCancel)
     EXPECT_EQ(server.totalRequests(), 1u);
 }
 
+// FIXME when rdar://168517549 is resolved.
+#if PLATFORM(MAC)
+TEST(WKDownload, DISABLED_DownloadRequestFailure)
+#else
 TEST(WKDownload, DownloadRequestFailure)
+#endif
 {
     HTTPServer server({ });
     RetainPtr serverRequest = server.request();

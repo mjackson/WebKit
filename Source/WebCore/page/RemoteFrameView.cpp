@@ -60,7 +60,10 @@ LayoutRect RemoteFrameView::layoutViewportRect() const
 
 std::optional<LayoutRect> RemoteFrameView::visibleRectOfChild(const Frame& child) const
 {
-    return m_frame->frameTreeSyncData().childrenFrameVisibleRectMap.get(child.frameID());
+    auto maybeInfo = m_frame->frameTreeSyncData().childrenFrameLayoutInfo.getOptional(child.frameID());
+    return maybeInfo.and_then([] (auto& info) {
+        return info.visibleRectInParent;
+    });
 }
 
 // FIXME: Implement all the stubs below.

@@ -114,6 +114,7 @@ public:
     void willDestroyGLContext();
     void willRenderFrame(const WebCore::IntSize&);
     void didRenderFrame();
+    void clear();
 
 #if ENABLE(DAMAGE_TRACKING)
     void setFrameDamage(WebCore::Damage&&);
@@ -353,6 +354,8 @@ private:
 #endif
 
     private:
+        // FIXME: Allow configuring the initial buffer count, e.g. for triple buffering.
+        static constexpr unsigned s_initialBuffers = 2;
         static constexpr unsigned s_maximumBuffers = 4;
 
         std::unique_ptr<RenderTarget> createTarget() const;

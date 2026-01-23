@@ -339,4 +339,34 @@ uint64_t PerformanceResourceTiming::decodedBodySize() const
     return decodedBodySize;
 }
 
+double PerformanceResourceTiming::workerRouterEvaluationStart() const
+{
+    // FIXME: Align time computation with other timestamps.
+    Seconds difference = m_resourceTiming.networkLoadMetrics().workerRouterEvaluationStart - m_timeOrigin;
+    if (difference.value() <= 0)
+        return 0.0;
+    auto reducedPrecision = Performance::reduceTimeResolution(difference).milliseconds();
+    return reducedPrecision ? reducedPrecision : 1;
+}
+
+double PerformanceResourceTiming::workerCacheLookupStart() const
+{
+    // FIXME: Align time computation with other timestamps.
+    Seconds difference = m_resourceTiming.networkLoadMetrics().workerCacheLookupStart - m_timeOrigin;
+    if (difference.value() <= 0)
+        return 0.0;
+    auto reducedPrecision = Performance::reduceTimeResolution(difference).milliseconds();
+    return reducedPrecision ? reducedPrecision : 1;
+}
+
+const String& PerformanceResourceTiming::workerMatchedRouterSource() const
+{
+    return m_resourceTiming.networkLoadMetrics().workerMatchedRouterSource;
+}
+
+const String& PerformanceResourceTiming::workerFinalRouterSource() const
+{
+    return m_resourceTiming.networkLoadMetrics().workerFinalRouterSource;
+}
+
 } // namespace WebCore

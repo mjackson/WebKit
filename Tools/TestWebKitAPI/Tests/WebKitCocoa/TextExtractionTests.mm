@@ -479,9 +479,8 @@ TEST(TextExtractionTests, NodesToSkip)
     }()];
 
     NSArray<NSString *> *lines = [debugText componentsSeparatedByString:@"\n"];
-    EXPECT_EQ([lines count], 3u);
-    EXPECT_WK_STREQ("Test", lines[0]);
-    EXPECT_WK_STREQ("0", lines[1]);
+    EXPECT_EQ([lines count], 1u);
+    EXPECT_WK_STREQ("Test 0", lines[0]);
 }
 
 TEST(TextExtractionTests, RequestJSHandleForNodeIdentifier)
@@ -512,7 +511,7 @@ TEST(TextExtractionTests, RequestJSHandleForNodeIdentifier)
         return configuration.autorelease();
     }()];
 
-    EXPECT_WK_STREQ(debugTextForSubject.get(), @"root\n\taria-label='Heading','Subject'\nversion=2");
+    EXPECT_WK_STREQ(debugTextForSubject.get(), @"root\n\taria-label='Heading','Subject'");
 
     RetainPtr debugTextForBody = [webView synchronouslyGetDebugText:^{
         RetainPtr configuration = adoptNS([_WKTextExtractionConfiguration new]);
@@ -523,7 +522,7 @@ TEST(TextExtractionTests, RequestJSHandleForNodeIdentifier)
         return configuration.autorelease();
     }()];
 
-    EXPECT_WK_STREQ(debugTextForBody.get(), @"root,'“The quick brown fox jumped over the lazy dog”'\nversion=2");
+    EXPECT_WK_STREQ(debugTextForBody.get(), @"root,'“The quick brown fox jumped over the lazy dog”'");
 }
 
 TEST(TextExtractionTests, ResolveTargetNodeFromSelectorData)
@@ -562,7 +561,7 @@ TEST(TextExtractionTests, ResolveTargetNodeFromSelectorData)
         return configuration.autorelease();
     }()];
 
-    EXPECT_WK_STREQ(debugText.get(), @"root\n\taria-label='Heading','Subject'\nversion=2");
+    EXPECT_WK_STREQ(debugText.get(), @"root\n\taria-label='Heading','Subject'");
 }
 
 #if HAVE(SAFARI_SAFE_BROWSING_NAMESPACED_LISTS)

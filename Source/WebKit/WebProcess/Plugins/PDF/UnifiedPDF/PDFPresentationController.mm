@@ -110,7 +110,7 @@ RefPtr<GraphicsLayer> PDFPresentationController::makePageContainerLayer(PDFDocum
 {
     auto addLayerShadow = [](GraphicsLayer& layer, IntPoint shadowOffset, const Color& shadowColor, int shadowStdDeviation) {
         Vector<Ref<FilterOperation>> filterOperations;
-        filterOperations.append(DropShadowFilterOperation::create(shadowOffset, shadowStdDeviation, shadowColor));
+        filterOperations.append(DropShadowFilterOperation::create(shadowColor, shadowOffset, shadowStdDeviation));
         layer.setFilters(FilterOperations { WTF::move(filterOperations) });
     };
 

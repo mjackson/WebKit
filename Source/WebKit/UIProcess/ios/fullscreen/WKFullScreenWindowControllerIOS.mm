@@ -139,9 +139,12 @@ static void resizeScene(UIWindowScene *scene, CGSize size, BOOL useDefaultSceneG
         if (updateSceneGeometryEnabled)
             [scene setUsesDefaultGeometry:useDefaultSceneGeometry];
 #endif
+        // FIXME: Migrate to windowResizability or requestGeometryUpdate (rdar://168305873).
+        ALLOW_DEPRECATED_DECLARATIONS_BEGIN
         [scene mrui_requestResizeToSize:size options:nil completion:makeBlockPtr([completionHandler = WTF::move(completionHandler)](CGSize sizeReceived, NSError *error) mutable {
             completionHandler();
         }).get()];
+        ALLOW_DEPRECATED_DECLARATIONS_END
     } completion:nil];
 }
 

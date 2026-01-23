@@ -283,12 +283,17 @@ RefPtr<ServiceWorkerFetchTask> WebSWServerConnection::createFetchTask(NetworkRes
         return nullptr;
     }
 
-    // FIXME: Add support for cache route w/o cacheName, for now we go to fetch event.
+    if (worker->hasRouterRules())
+        loader.setWorkerRouterEvaluationStart(MonotonicTime::now());
+
     bool shouldRaceNetworkAndFetchHandler = false;
     String cacheName;
     auto routerSource = worker->getRouterSource(loader.parameters().options, request);
-    if (std::holds_alternative<RouterSourceEnum>(routerSource)) {
-        switch (std::get<RouterSourceEnum>(routerSource)) {
+    auto routerSourceOrDefault = routerSource.value_or(worker->defaultRouterSource());
+    if (auto* routerSourceEnum = std::get_if<RouterSourceEnum>(&routerSourceOrDefault)) {
+        if (routerSource)
+            loader.setWorkerMatchedRouterSource(*routerSourceEnum);
+        switch (*routerSourceEnum) {
         case RouterSourceEnum::Cache:
             cacheName = emptyString();
             if (registration->shouldSoftUpdate(loader.parameters().options))
@@ -300,12 +305,15 @@ RefPtr<ServiceWorkerFetchTask> WebSWServerConnection::createFetchTask(NetworkRes
             shouldRaceNetworkAndFetchHandler = true;
             break;
         case RouterSourceEnum::Network:
+            loader.setWorkerFinalRouterSource(RouterSourceEnum::Network);
             if (registration->shouldSoftUpdate(loader.parameters().options))
                 registration->scheduleSoftUpdate(loader.isAppInitiated() ? WebCore::IsAppInitiated::Yes : WebCore::IsAppInitiated::No);
             return nullptr;
         }
-    } else
-        cacheName = std::get<RouterSourceDict>(routerSource).cacheName;
+    } else {
+        loader.setWorkerMatchedRouterSource(RouterSourceEnum::Cache);
+        cacheName = std::get<RouterSourceDict>(*routerSource).cacheName;
+    }
 
     if (!cacheName.isNull()) {
         Ref storageManager = session()->storageManager();

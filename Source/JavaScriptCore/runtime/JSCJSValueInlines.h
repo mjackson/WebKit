@@ -29,7 +29,7 @@
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
-#include "CatchScope.h"
+#include "TopExceptionScope.h"
 #include "Error.h"
 #include "ExceptionHelpers.h"
 #include "Identifier.h"

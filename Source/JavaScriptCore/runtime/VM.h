@@ -423,8 +423,9 @@ private:
 
 public:
     bool didEnterVM { false };
-    bool m_isInService { false };
+
 private:
+    bool m_isInService { false };
     VMIdentifier m_identifier;
     const Ref<JSLock> m_apiLock;
     VMThreadContext m_threadContext;
@@ -1118,6 +1119,7 @@ public:
     void logEvent(CodeBlock*, const char* summary, const Func& func);
 
     std::optional<RefPtr<Thread>> ownerThread() const { return m_apiLock->ownerThread(); }
+    std::optional<uint64_t> ownerThreadUID() const { return m_apiLock->ownerThreadUID(); }
 
     ALWAYS_INLINE VMTraps& traps() { return m_threadContext.traps(); }
     ALWAYS_INLINE const VMTraps& traps() const { return m_threadContext.traps(); }
@@ -1359,12 +1361,12 @@ private:
     void checkStaticAsserts(); // Not for calling.
 
     friend class Heap;
-    friend class CatchScope; // Friend for exception checking purpose only.
     friend class ExceptionScope; // Friend for exception checking purpose only.
+    friend class TopExceptionScope; // Friend for exception checking purpose only.
+    friend class ThrowScope; // Friend for exception checking purpose only.
     friend class JSDollarVMHelper;
     friend class LLIntOffsetsExtractor;
     friend class SuspendExceptionScope;
-    friend class ThrowScope; // Friend for exception checking purpose only.
     friend class VMTraps;
 };
 

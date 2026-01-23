@@ -352,7 +352,7 @@ static AccessibilityObjectWrapper* AccessibilityUnignoredAncestor(AccessibilityO
         return nil;
 
     // Try a fuzzy hit test first to find an accessible element.
-    AXCoreObject *axObject = nullptr;
+    RefPtr<AXCoreObject> axObject = nullptr;
     {
         AXAttributeCacheScope enableCache(self.axBackingObject->axObjectCache());
         axObject = self.axBackingObject->accessibilityHitTest(IntPoint(point));

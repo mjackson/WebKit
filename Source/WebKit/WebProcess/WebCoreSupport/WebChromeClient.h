@@ -156,6 +156,8 @@ private:
     void scrollContainingScrollViewsToRevealRect(const WebCore::IntRect&) const final; // Currently only Mac has a non empty implementation.
     void scrollMainFrameToRevealRect(const WebCore::IntRect&) const final;
 
+    WebCore::CornerRadii scrollbarAvoidanceCornerRadii() const final;
+
     bool shouldUnavailablePluginMessageBeButton(WebCore::PluginUnavailabilityReason) const final;
     void unavailablePluginButtonClicked(WebCore::Element&, WebCore::PluginUnavailabilityReason) const final;
 
@@ -212,11 +214,6 @@ private:
     void runOpenPanel(WebCore::LocalFrame&, WebCore::FileChooser&) final;
     void showShareSheet(WebCore::ShareDataWithParsedURL&&, WTF::CompletionHandler<void(bool)>&&) final;
     void showContactPicker(WebCore::ContactsRequestData&&, WTF::CompletionHandler<void(std::optional<Vector<WebCore::ContactInfo>>&&)>&&) final;
-
-#if HAVE(DIGITAL_CREDENTIALS_UI)
-    void showDigitalCredentialsPicker(const WebCore::DigitalCredentialsRequestData&, WTF::CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&&) final;
-    void dismissDigitalCredentialsPicker(WTF::CompletionHandler<void(bool)>&&) final;
-#endif
 
     void loadIconForFiles(const Vector<String>&, WebCore::FileIconLoader&) final;
 
@@ -471,6 +468,8 @@ private:
     void setUserIsInteracting(bool) final;
 
 #if ENABLE(WEB_AUTHN)
+    void showDigitalCredentialsPicker(const WebCore::DigitalCredentialsRequestData&, WTF::CompletionHandler<void(Expected<WebCore::DigitalCredentialsResponseData, WebCore::ExceptionData>&&)>&&) final;
+    void dismissDigitalCredentialsPicker(WTF::CompletionHandler<void(bool)>&&) final;
     void setMockWebAuthenticationConfiguration(const WebCore::MockWebAuthenticationConfiguration&) final;
 #endif
 

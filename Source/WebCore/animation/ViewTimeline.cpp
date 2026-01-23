@@ -369,10 +369,10 @@ void ViewTimeline::cacheCurrentTime()
 
         enum class PaddingEdge : bool { Start, End };
         auto scrollPadding = [&](PaddingEdge edge) {
-            auto& style = sourceRenderer->style();
+            CheckedRef style = sourceRenderer->style();
             if (edge == PaddingEdge::Start)
-                return scrollDirection.isVertical ? style.scrollPaddingTop() : style.scrollPaddingLeft();
-            return scrollDirection.isVertical ? style.scrollPaddingBottom() : style.scrollPaddingRight();
+                return scrollDirection.isVertical ? style->scrollPaddingTop() : style->scrollPaddingLeft();
+            return scrollDirection.isVertical ? style->scrollPaddingBottom() : style->scrollPaddingRight();
         };
         auto zoom = sourceRenderer->style().usedZoomForLength();
 
@@ -390,7 +390,7 @@ void ViewTimeline::cacheCurrentTime()
             insetEnd = Style::evaluate<float>(m_insets.end(), scrollContainerSize, Style::ZoomNeeded { });
 
         StickinessAdjustmentData stickyData;
-        if (auto stickyContainer = dynamicDowncast<RenderBoxModelObject>(this->stickyContainer().get())) {
+        if (CheckedPtr stickyContainer = dynamicDowncast<RenderBoxModelObject>(this->stickyContainer().get())) {
             FloatRect constrainingRect = stickyContainer->constrainingRectForStickyPosition();
             StickyPositionViewportConstraints constraints;
             stickyContainer->computeStickyPositionConstraints(constraints, constrainingRect);
@@ -469,7 +469,7 @@ CheckedPtr<const RenderElement> ViewTimeline::stickyContainer() const
 
     CheckedPtr renderer = subject->renderer();
 
-    auto scrollerRenderer = sourceScrollerRenderer();
+    CheckedPtr scrollerRenderer = sourceScrollerRenderer();
     while (renderer && renderer.get() != scrollerRenderer) {
         if (renderer->isStickilyPositioned())
             return renderer;

@@ -50,7 +50,7 @@ public:
         return adoptRef(*new TouchEvent);
     }
 
-    struct Init : MouseRelatedEventInit {
+    struct Init : EventModifierInit {
         RefPtr<TouchList> touches;
         RefPtr<TouchList> targetTouches;
         RefPtr<TouchList> changedTouches;

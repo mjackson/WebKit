@@ -1446,9 +1446,9 @@ public:
     [[nodiscard]] PartialResult addStructNewDefault(uint32_t typeIndex, ExpressionType& result);
     [[nodiscard]] PartialResult addStructNew(uint32_t typeIndex, ArgumentList& args, Value& result);
 
-    [[nodiscard]] PartialResult addStructGet(ExtGCOpType structGetKind, TypedExpression structValue, const StructType& structType, uint32_t fieldIndex, Value& result);
+    [[nodiscard]] PartialResult addStructGet(ExtGCOpType structGetKind, TypedExpression structValue, const StructType& structType, const RTT&, uint32_t fieldIndex, Value& result);
 
-    [[nodiscard]] PartialResult addStructSet(TypedExpression structValue, const StructType& structType, uint32_t fieldIndex, Value value);
+    [[nodiscard]] PartialResult addStructSet(TypedExpression structValue, const StructType& structType, const RTT&, uint32_t fieldIndex, Value value);
 
     enum class CastKind { Test, Cast };
     void emitRefTestOrCast(CastKind, const TypedExpression&, GPRReg, bool allowNull, int32_t toHeapType, JumpList& failureCases);

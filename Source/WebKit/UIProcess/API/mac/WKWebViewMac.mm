@@ -29,6 +29,7 @@
 #if PLATFORM(MAC)
 
 #import "AppKitSPI.h"
+#import "WKAPICast.h"
 #import "WKIntelligenceTextEffectCoordinator.h"
 #import "WKTextFinderClient.h"
 #import "WKWebViewConfigurationPrivate.h"
@@ -42,6 +43,7 @@
 #import "_WKHitTestResultInternal.h"
 #import "_WKWarningView.h"
 #import <WebCore/CGWindowUtilities.h>
+#import <WebCore/CornerRadii.h>
 #import <WebCore/LegacyNSPasteboardTypes.h>
 #import <WebKit/WKUIDelegatePrivate.h>
 #import <pal/spi/mac/NSTextFinderSPI.h>
@@ -49,6 +51,10 @@
 #import <pal/spi/mac/NSViewSPI.h>
 #import <wtf/StdLibExtras.h>
 #import <wtf/cocoa/RuntimeApplicationChecksCocoa.h>
+
+#if USE(APPLE_INTERNAL_SDK) && __has_include(<WebKitAdditions/WKWebViewMacAdditionsBefore.mm>)
+#import <WebKitAdditions/WKWebViewMacAdditionsBefore.mm>
+#endif
 
 _WKOverlayScrollbarStyle toAPIScrollbarStyle(std::optional<WebCore::ScrollbarOverlayStyle> coreScrollbarStyle)
 {
@@ -835,6 +841,40 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
     _impl->viewDidChangeBackingProperties();
 }
 
+#if HAVE(NSVIEW_CORNER_CONFIGURATION)
+
+- (void)_viewDidChangeEffectiveCornerRadii
+{
+    if (!_impl)
+        return;
+
+    WebCore::CornerRadii newRadii;
+    if (RetainPtr<NSViewCornerRadii> radii = self._effectiveCornerRadii) {
+        newRadii = WebCore::CornerRadii {
+            static_cast<float>([radii topLeft]),
+            static_cast<float>([radii topRight]),
+            static_cast<float>([radii bottomLeft]),
+            static_cast<float>([radii bottomRight])
+        };
+    }
+
+    if (_lastViewCornerRadii == newRadii)
+        return;
+
+    _lastViewCornerRadii = newRadii;
+    _page->setScrollbarAvoidanceCornerRadii(WTF::move(newRadii));
+}
+
+- (NSViewCornerConfiguration *)_cornerConfiguration
+{
+    if (self.enclosingScrollView)
+        return [super _cornerConfiguration];
+
+    return [NSViewCornerConfiguration configurationWithRadius:_NSCornerRadius.containerConcentricRadius];
+}
+
+#endif
+
 - (void)_activeSpaceDidChange:(NSNotification *)notification
 {
     _impl->activeSpaceDidChange();
@@ -1173,6 +1213,10 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
 }
 
 #endif // ENABLE(CONTENT_INSET_BACKGROUND_FILL)
+
+#if USE(APPLE_INTERNAL_SDK) && __has_include(<WebKitAdditions/WKWebViewMacAdditionsAfter.mm>)
+#import <WebKitAdditions/WKWebViewMacAdditionsAfter.mm>
+#endif
 
 @end
 

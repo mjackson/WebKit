@@ -181,7 +181,7 @@ private:
     SingleThreadWeakPtr<DocumentLoader> m_dataSource;
 
     HashMap<Ref<Element>, RetainPtr<NSDictionary>> m_attributesForElements;
-    HashMap<RetainPtr<CFTypeRef>, RefPtr<Element>> m_textTableFooters;
+    HashMap<RetainPtr<CFTypeRef>, Ref<Element>> m_textTableFooters;
     HashMap<Ref<Element>, RetainPtr<NSDictionary>> m_aggregatedAttributesForElements;
 
     UserSelectNoneStateCache m_userSelectNoneStateCache;
@@ -332,10 +332,10 @@ static RetainPtr<NSFileWrapper> fileWrapperForURL(DocumentLoader* dataSource, NS
         }
     }
 
-    NSCachedURLResponse *cachedResponse = [[NSURLCache sharedURLCache] cachedResponseForRequest:adoptNS([[NSMutableURLRequest alloc] initWithURL:URL]).get()];
+    RetainPtr cachedResponse = [[NSURLCache sharedURLCache] cachedResponseForRequest:adoptNS([[NSMutableURLRequest alloc] initWithURL:URL]).get()];
     if (cachedResponse) {
-        auto wrapper = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:[cachedResponse data]]);
-        [wrapper setPreferredFilename:[[cachedResponse response] suggestedFilename]];
+        auto wrapper = adoptNS([[NSFileWrapper alloc] initRegularFileWithContents:[cachedResponse.get() data]]);
+        [wrapper setPreferredFilename:[[cachedResponse.get() response] suggestedFilename]];
         return wrapper;
     }
 
@@ -345,17 +345,17 @@ static RetainPtr<NSFileWrapper> fileWrapperForURL(DocumentLoader* dataSource, NS
 
 static PlatformFont *_fontForNameAndSize(NSString *fontName, CGFloat size, NSMutableDictionary *cache)
 {
-    PlatformFont *font = [cache objectForKey:fontName];
+    RetainPtr font = [cache objectForKey:fontName];
 #if PLATFORM(IOS_FAMILY)
     if (font)
-        return [font fontWithSize:size];
+        return [font.get() fontWithSize:size];
 
     font = [PlatformFontClass fontWithName:fontName size:size];
 #else
     NSFontManager *fontManager = [NSFontManager sharedFontManager];
     if (font) {
-        font = [fontManager convertFont:font toSize:size];
-        return font;
+        font = [fontManager convertFont:font.get() toSize:size];
+        return font.autorelease();
     }
     font = [fontManager fontWithFamily:fontName traits:0 weight:0 size:size];
 #endif
@@ -428,9 +428,9 @@ static PlatformFont *_fontForNameAndSize(NSString *fontName, CGFloat size, NSMut
     if (!font)
         font = WebDefaultFont();
 #endif
-    [cache setObject:font forKey:fontName];
+    [cache setObject:font.get() forKey:fontName];
 
-    return font;
+    return font.autorelease();
 }
 
 static NSParagraphStyle *defaultParagraphStyle()
@@ -1017,9 +1017,9 @@ NSDictionary *HTMLConverter::computedAttributesForElement(Element& element)
 
     String textShadow = _caches->propertyValueForNode(element, CSSPropertyTextShadow);
     if (textShadow.length() > 4) {
-        NSShadow *shadow = _shadowForShadowStyle(textShadow.createNSString().get());
+        RetainPtr shadow = _shadowForShadowStyle(textShadow.createNSString().get());
         if (shadow)
-            [attrs setObject:shadow forKey:NSShadowAttributeName];
+            [attrs setObject:shadow.get() forKey:NSShadowAttributeName];
     }
 
     RefPtr blockElement = _blockLevelElementForNode(&element);
@@ -1782,7 +1782,7 @@ BOOL HTMLConverter::_processElement(Element& element, NSInteger depth)
             _addTableCellForElement(nil);
         _addTableForElement(tableElement.get());
     } else if (displayValue == "table-footer-group"_s && [_textTables count] > 0) {
-        m_textTableFooters.add((__bridge CFTypeRef)[_textTables lastObject], &element);
+        m_textTableFooters.add((__bridge CFTypeRef)[_textTables lastObject], element);
         retval = NO;
     } else if (displayValue == "table-row"_s && [_textTables count] > 0) {
         auto color = _colorForElement(element, CSSPropertyBackgroundColor);

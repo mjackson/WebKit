@@ -151,6 +151,7 @@
 #include "RTCController.h"
 #include "Range.h"
 #include "RemoteFrame.h"
+#include "RemoteFrameLayoutInfo.h"
 #include "RenderDescendantIterator.h"
 #include "RenderElementInlines.h"
 #include "RenderImage.h"
@@ -445,8 +446,6 @@ Page::Page(PageConfiguration&& pageConfiguration)
 #endif
 #if ENABLE(WEB_AUTHN)
     , m_authenticatorCoordinator(makeUniqueRefWithoutRefCountedCheck<AuthenticatorCoordinator>(*this, WTF::move(pageConfiguration.authenticatorCoordinatorClient)))
-#endif
-#if HAVE(DIGITAL_CREDENTIALS_UI)
     , m_credentialRequestCoordinator(CredentialRequestCoordinator::create(WTF::move(pageConfiguration.credentialRequestCoordinatorClient), *this))
 #endif
 #if ENABLE(APPLICATION_MANIFEST)
@@ -686,7 +685,7 @@ ScrollingCoordinator* Page::scrollingCoordinator()
         protectedScrollingCoordinator()->windowScreenDidChange(m_displayID, m_displayNominalFramesPerSecond);
     }
 
-    return m_scrollingCoordinator.get();
+    return m_scrollingCoordinator;
 }
 
 RefPtr<ScrollingCoordinator> Page::protectedScrollingCoordinator()
@@ -2184,14 +2183,19 @@ void Page::syncLocalFrameInfoToRemote()
         frameView->updateLayoutViewportRect();
 
         {
-            HashMap<FrameIdentifier, std::optional<LayoutRect>> visibleRectMap;
+            HashMap<FrameIdentifier, RemoteFrameLayoutInfo> childrenFrameLayoutInfo;
 
             for (RefPtr child = frame.tree().firstChild(); child; child = child->tree().traverseNextSkippingChildren()) {
                 auto visibleRect = frameView->visibleRectOfChild(*child.get());
-                visibleRectMap.add(child->frameID(), visibleRect);
+
+                float usedZoom = 1.0;
+                if (CheckedPtr ownerRenderer = child->ownerRenderer())
+                    usedZoom = ownerRenderer->style().usedZoom();
+
+                childrenFrameLayoutInfo.add(child->frameID(), RemoteFrameLayoutInfo { .visibleRectInParent = visibleRect, .usedZoom = usedZoom });
             }
 
-            frame.loader().client().broadcastChildrenFrameVisibleRectMapToOtherProcesses(visibleRectMap);
+            frame.loader().client().broadcastChildrenFrameLayoutInfoToOtherProcesses(childrenFrameLayoutInfo);
         }
     });
 }
@@ -2670,9 +2674,6 @@ bool Page::shouldUpdateAccessibilityRegions() const
 #if ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
 void Page::setImageAnimationEnabled(bool enabled)
 {
-    if (!settings().imageAnimationControlEnabled())
-        return;
-
     // This method overrides any individually set animation play-states (so we need to do work even if `enabled` is
     // already equal to `m_imageAnimationEnabled` because there may be individually playing or paused images).
     m_imageAnimationEnabled = enabled;

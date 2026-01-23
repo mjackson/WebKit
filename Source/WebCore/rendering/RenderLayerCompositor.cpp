@@ -2963,7 +2963,7 @@ String RenderLayerCompositor::layerTreeAsText(OptionSet<LayerTreeAsTextOptions> 
     updateCompositingForLayerTreeAsTextDump();
 
     // Exclude any implicitly created layers that wrap the root contents layer, unless the caller explicitly requested the true root to be included.
-    RefPtr dumpRootLayer = (options & LayerTreeAsTextOptions::IncludeRootLayers) ? rootGraphicsLayer() : m_rootContentsLayer;
+    RefPtr dumpRootLayer = (options & LayerTreeAsTextOptions::IncludeRootLayers) ? RefPtr { rootGraphicsLayer() } : m_rootContentsLayer;
 
     if (!dumpRootLayer)
         return String();

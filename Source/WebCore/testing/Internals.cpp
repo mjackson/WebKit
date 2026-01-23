@@ -272,6 +272,7 @@
 #include "WritingDirection.h"
 #include "XMLHttpRequest.h"
 #include <JavaScriptCore/CodeBlock.h>
+#include <JavaScriptCore/FunctionExecutable.h>
 #include <JavaScriptCore/InspectorAgentBase.h>
 #include <JavaScriptCore/InspectorFrontendChannel.h>
 #include <JavaScriptCore/JSCInlines.h>
@@ -356,6 +357,7 @@
 
 #if ENABLE(WEB_AUDIO)
 #include "AudioContext.h"
+#include "WaveShaperDSPKernel.h"
 #endif
 
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
@@ -1205,9 +1207,6 @@ bool Internals::isImageAnimating(HTMLImageElement& element)
 void Internals::setImageAnimationEnabled(bool enabled)
 {
     if (auto* page = contextDocument() ? contextDocument()->page() : nullptr) {
-        if (!page->settings().imageAnimationControlEnabled())
-            return;
-
         // We need to set this here to mimic the behavior of the AX preference changing
         Image::setSystemAllowsAnimationControls(!enabled);
         page->setImageAnimationEnabled(enabled);
@@ -1369,10 +1368,9 @@ void Internals::setSpeculativeTilingDelayDisabledForTesting(bool disabled)
         frameView->setSpeculativeTilingDelayDisabledForTesting(disabled);
 }
 
-
-Node* Internals::treeScopeRootNode(Node& node)
+Node& Internals::treeScopeRootNode(Node& node)
 {
-    return &node.treeScope().rootNode();
+    return node.treeScope().rootNode();
 }
 
 Node* Internals::parentTreeScope(Node& node)
@@ -1587,9 +1585,9 @@ Ref<CSSComputedStyleDeclaration> Internals::computedStyleIncludingVisitedInfo(El
     return CSSComputedStyleDeclaration::create(element, CSSComputedStyleDeclaration::AllowVisited::Yes);
 }
 
-Node* Internals::ensureUserAgentShadowRoot(Element& host)
+Node& Internals::ensureUserAgentShadowRoot(Element& host)
 {
-    return &host.ensureUserAgentShadowRoot();
+    return host.ensureUserAgentShadowRoot();
 }
 
 Node* Internals::shadowRoot(Element& host)
@@ -2945,9 +2943,9 @@ String Internals::parserMetaData(JSC::JSValue code)
     String functionName;
     ASCIILiteral suffix = ""_s;
 
-    if (executable->isFunctionExecutable()) {
+    if (auto* functionExecutable = jsDynamicCast<FunctionExecutable*>(executable)) {
         prefix = "function \""_s;
-        functionName = static_cast<FunctionExecutable*>(executable)->ecmaName().string();
+        functionName = functionExecutable->ecmaName().string();
         suffix = "\""_s;
     } else if (executable->isEvalExecutable())
         prefix = "eval"_s;
@@ -3512,6 +3510,30 @@ ExceptionOr<uint64_t> Internals::verticalScrollbarLayerID(Node* node) const
         return areaOrException.releaseException();
 
     return getLayerID(areaOrException.returnValue()->layerForVerticalScrollbar());
+}
+
+ExceptionOr<Ref<DOMRect>> Internals::horizontalScrollbarFrameRect(Node* node) const
+{
+    auto areaOrException = scrollableAreaForNode(node);
+    if (areaOrException.hasException())
+        return areaOrException.releaseException();
+
+    if (auto* scrollbar = areaOrException.returnValue()->horizontalScrollbar())
+        return DOMRect::create(scrollbar->frameRect());
+
+    return DOMRect::create();
+}
+
+ExceptionOr<Ref<DOMRect>> Internals::verticalScrollbarFrameRect(Node* node) const
+{
+    auto areaOrException = scrollableAreaForNode(node);
+    if (areaOrException.hasException())
+        return areaOrException.releaseException();
+
+    if (auto* scrollbar = areaOrException.returnValue()->verticalScrollbar())
+        return DOMRect::create(scrollbar->frameRect());
+
+    return DOMRect::create();
 }
 
 ExceptionOr<Internals::ScrollingNodeID> Internals::scrollingNodeIDForNode(Node* node)
@@ -5394,6 +5416,13 @@ void Internals::setAudioContextRestrictions(AudioContext& context, StringView re
             restrictions.add(AudioContext::BehaviorRestrictionFlags::RequirePageConsentForAudioStartRestriction);
     }
     context.addBehaviorRestriction(restrictions);
+}
+
+Vector<float> Internals::waveShaperProcessCurveWithData(Vector<float> source, Vector<float> curve)
+{
+    Vector<float> destination(source.size(), 0.0f);
+    WaveShaperDSPKernel::processCurveWithData(std::span { source }, std::span { destination }, std::span { curve });
+    return destination;
 }
 
 void Internals::useMockAudioDestinationCocoa()
@@ -7594,7 +7623,7 @@ bool Internals::destroySleepDisabler(unsigned identifier)
 
 #if ENABLE(WEBXR)
 
-ExceptionOr<RefPtr<WebXRTest>> Internals::xrTest()
+ExceptionOr<Ref<WebXRTest>> Internals::xrTest()
 {
     auto* document = contextDocument();
     if (!document || !document->window() || !document->settings().webXREnabled())
@@ -7607,7 +7636,7 @@ ExceptionOr<RefPtr<WebXRTest>> Internals::xrTest()
 
         m_xrTest = WebXRTest::create(NavigatorWebXR::xr(*navigator));
     }
-    return m_xrTest.get();
+    return Ref<WebXRTest> { *m_xrTest };
 }
 
 #endif

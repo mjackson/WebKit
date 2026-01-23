@@ -2155,6 +2155,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     page/RemoteFrame.h
     page/RemoteFrameClient.h
     page/RemoteFrameGeometryTransformer.h
+    page/RemoteFrameLayoutInfo.h
     page/RemoteFrameView.h
     page/RemoteUserInputEventData.h
     page/RenderingUpdateScheduler.h
@@ -2197,7 +2198,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     page/UserMediaRequestIdentifier.h
     page/UserMessageHandler.h
     page/UserMessageHandlerDescriptor.h
-    page/UserMessageHandlerDescriptorTypes.h
     page/UserMessageHandlersNamespace.h
     page/UserScript.h
     page/UserScriptTypes.h
@@ -3375,7 +3375,19 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/values/fill-stroke/StyleStrokeWidth.h
 
     style/values/filter-effects/StyleAppleColorFilter.h
+    style/values/filter-effects/StyleAppleInvertLightnessFunction.h
+    style/values/filter-effects/StyleBlurFunction.h
+    style/values/filter-effects/StyleBrightnessFunction.h
+    style/values/filter-effects/StyleContrastFunction.h
+    style/values/filter-effects/StyleDropShadowFunction.h
     style/values/filter-effects/StyleFilter.h
+    style/values/filter-effects/StyleFilterReference.h
+    style/values/filter-effects/StyleGrayscaleFunction.h
+    style/values/filter-effects/StyleHueRotateFunction.h
+    style/values/filter-effects/StyleInvertFunction.h
+    style/values/filter-effects/StyleOpacityFunction.h
+    style/values/filter-effects/StyleSaturateFunction.h
+    style/values/filter-effects/StyleSepiaFunction.h
 
     style/values/flexbox/StyleFlexBasis.h
     style/values/flexbox/StyleFlexGrow.h
