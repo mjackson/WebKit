@@ -387,8 +387,14 @@ inline void vmZeroAndPurge(void* p, size_t vmSize, VMTag usage)
     BUNUSED_PARAM(usage);
 
     vmValidate(p, vmSize);
-    DWORD result = DiscardVirtualMemory(p, vmSize);
-    RELEASE_BASSERT(result == ERROR_SUCCESS);
+    // DiscardVirtualMemory does not guarantee zeroing and fails on memory
+    // managed by libpas within reserved Gigacage regions. Use decommit+recommit
+    // which releases physical pages and provides demand-zeroed pages on next
+    // access, matching the behavior of mmap(MAP_FIXED|MAP_ANON) on Unix.
+    BOOL success = VirtualFree(p, vmSize, MEM_DECOMMIT);
+    RELEASE_BASSERT(success);
+    void* result = VirtualAlloc(p, vmSize, MEM_COMMIT, PAGE_READWRITE);
+    RELEASE_BASSERT(result == p);
 }
 
 inline void vmDeallocatePhysicalPages(void* p, size_t vmSize)
