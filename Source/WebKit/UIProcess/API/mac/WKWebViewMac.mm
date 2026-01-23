@@ -43,7 +43,6 @@
 #import "_WKHitTestResultInternal.h"
 #import "_WKWarningView.h"
 #import <WebCore/CGWindowUtilities.h>
-#import <WebCore/CornerRadii.h>
 #import <WebCore/LegacyNSPasteboardTypes.h>
 #import <WebKit/WKUIDelegatePrivate.h>
 #import <pal/spi/mac/NSTextFinderSPI.h>
@@ -840,40 +839,6 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
 {
     _impl->viewDidChangeBackingProperties();
 }
-
-#if HAVE(NSVIEW_CORNER_CONFIGURATION)
-
-- (void)_viewDidChangeEffectiveCornerRadii
-{
-    if (!_impl)
-        return;
-
-    WebCore::CornerRadii newRadii;
-    if (RetainPtr<NSViewCornerRadii> radii = self._effectiveCornerRadii) {
-        newRadii = WebCore::CornerRadii {
-            static_cast<float>([radii topLeft]),
-            static_cast<float>([radii topRight]),
-            static_cast<float>([radii bottomLeft]),
-            static_cast<float>([radii bottomRight])
-        };
-    }
-
-    if (_lastViewCornerRadii == newRadii)
-        return;
-
-    _lastViewCornerRadii = newRadii;
-    _page->setScrollbarAvoidanceCornerRadii(WTF::move(newRadii));
-}
-
-- (NSViewCornerConfiguration *)_cornerConfiguration
-{
-    if (self.enclosingScrollView)
-        return [super _cornerConfiguration];
-
-    return [NSViewCornerConfiguration configurationWithRadius:_NSCornerRadius.containerConcentricRadius];
-}
-
-#endif
 
 - (void)_activeSpaceDidChange:(NSNotification *)notification
 {

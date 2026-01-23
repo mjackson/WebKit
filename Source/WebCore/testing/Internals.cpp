@@ -1999,6 +1999,10 @@ void Internals::setEnableWebRTCEncryption(bool value)
 #endif
 }
 
+bool Internals::hasPeerConnectionEnabledServiceClass(const RTCPeerConnection& connection)
+{
+    return connection.protectedBackend()->shouldEnableServiceClass();
+}
 #endif // ENABLE(WEB_RTC)
 
 #if ENABLE(MEDIA_STREAM)
@@ -3510,30 +3514,6 @@ ExceptionOr<uint64_t> Internals::verticalScrollbarLayerID(Node* node) const
         return areaOrException.releaseException();
 
     return getLayerID(areaOrException.returnValue()->layerForVerticalScrollbar());
-}
-
-ExceptionOr<Ref<DOMRect>> Internals::horizontalScrollbarFrameRect(Node* node) const
-{
-    auto areaOrException = scrollableAreaForNode(node);
-    if (areaOrException.hasException())
-        return areaOrException.releaseException();
-
-    if (auto* scrollbar = areaOrException.returnValue()->horizontalScrollbar())
-        return DOMRect::create(scrollbar->frameRect());
-
-    return DOMRect::create();
-}
-
-ExceptionOr<Ref<DOMRect>> Internals::verticalScrollbarFrameRect(Node* node) const
-{
-    auto areaOrException = scrollableAreaForNode(node);
-    if (areaOrException.hasException())
-        return areaOrException.releaseException();
-
-    if (auto* scrollbar = areaOrException.returnValue()->verticalScrollbar())
-        return DOMRect::create(scrollbar->frameRect());
-
-    return DOMRect::create();
 }
 
 ExceptionOr<Internals::ScrollingNodeID> Internals::scrollingNodeIDForNode(Node* node)

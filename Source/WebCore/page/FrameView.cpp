@@ -79,18 +79,6 @@ FloatBoxExtent FrameView::obscuredContentInsets(InsetType type) const
     return { };
 }
 
-CornerRadii FrameView::scrollbarAvoidanceCornerRadii() const
-{
-    Ref frame = this->frame();
-    if (!frame->isMainFrame())
-        return { };
-
-    if (RefPtr page = frame->page())
-        return page->chrome().client().scrollbarAvoidanceCornerRadii();
-
-    return { };
-}
-
 float FrameView::visibleContentScaleFactor() const
 {
     Ref frame = this->frame();

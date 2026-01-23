@@ -611,20 +611,22 @@ bool TypeDefinition::isFinalType() const
     return true;
 }
 
-RTT::RTT(RTTKind kind, StructFieldCount fieldCount)
+RTT::RTT(RTTKind kind, bool isFinalType, StructFieldCount fieldCount)
     : TrailingArrayType(1)
     , m_kind(kind)
-    , m_fieldCount(fieldCount)
+    , m_isFinalType(isFinalType)
     , m_displaySizeExcludingThis(size() - 1)
+    , m_fieldCount(fieldCount)
 {
     at(0) = this;
 }
 
-RTT::RTT(RTTKind kind, const RTT& supertype, StructFieldCount fieldCount)
+RTT::RTT(RTTKind kind, const RTT& supertype, bool isFinalType, StructFieldCount fieldCount)
     : TrailingArrayType(supertype.size() + 1)
     , m_kind(kind)
-    , m_fieldCount(fieldCount)
+    , m_isFinalType(isFinalType)
     , m_displaySizeExcludingThis(size() - 1)
+    , m_fieldCount(fieldCount)
 {
     ASSERT(supertype.size() == (supertype.displaySizeExcludingThis() + 1));
     for (size_t i = 0; i < supertype.span().size(); ++i)
@@ -632,22 +634,22 @@ RTT::RTT(RTTKind kind, const RTT& supertype, StructFieldCount fieldCount)
     at(supertype.size()) = this;
 }
 
-RefPtr<RTT> RTT::tryCreate(RTTKind kind, StructFieldCount fieldCount)
+RefPtr<RTT> RTT::tryCreate(RTTKind kind, bool isFinalType, StructFieldCount fieldCount)
 {
     auto result = tryFastMalloc(allocationSize(/* itself */ 1));
     void* memory = nullptr;
     if (!result.getValue(memory))
         return nullptr;
-    return adoptRef(new (NotNull, memory) RTT(kind, fieldCount));
+    return adoptRef(new (NotNull, memory) RTT(kind, isFinalType, fieldCount));
 }
 
-RefPtr<RTT> RTT::tryCreate(RTTKind kind, const RTT& supertype, StructFieldCount fieldCount)
+RefPtr<RTT> RTT::tryCreate(RTTKind kind, const RTT& supertype, bool isFinalType, StructFieldCount fieldCount)
 {
     auto result = tryFastMalloc(allocationSize(supertype.size() + 1));
     void* memory = nullptr;
     if (!result.getValue(memory))
         return nullptr;
-    return adoptRef(new (NotNull, memory) RTT(kind, supertype, fieldCount));
+    return adoptRef(new (NotNull, memory) RTT(kind, supertype, isFinalType, fieldCount));
 }
 
 bool RTT::isSubRTT(const RTT& parent) const
@@ -1061,6 +1063,7 @@ Ref<RTT> TypeInformation::createCanonicalRTTForType(const AbstractLocker&, const
 {
     const TypeDefinition& signature = def.unroll();
     const TypeDefinition& expanded = signature.expand();
+    bool isFinalType = signature.isFinalType();
     RTTKind kind;
     StructFieldCount fieldCount = 0;
     if (expanded.is<FunctionSignature>())
@@ -1076,12 +1079,12 @@ Ref<RTT> TypeInformation::createCanonicalRTTForType(const AbstractLocker&, const
         Ref superTypeDef = TypeInformation::get(signature.as<Subtype>()->firstSuperType());
         auto superRTT = superTypeDef->m_rtt;
         ASSERT(superRTT);
-        auto protector = RTT::tryCreate(kind, *superRTT, fieldCount);
+        auto protector = RTT::tryCreate(kind, *superRTT, isFinalType, fieldCount);
         RELEASE_ASSERT(protector);
         return protector.releaseNonNull();
     }
 
-    auto protector = RTT::tryCreate(kind, fieldCount);
+    auto protector = RTT::tryCreate(kind, isFinalType, fieldCount);
     RELEASE_ASSERT(protector);
     return protector.releaseNonNull();
 }

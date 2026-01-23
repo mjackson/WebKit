@@ -823,9 +823,7 @@ enum ContentsFormat {
     unsigned long long layerIDForElement(Element element);
     unsigned long long horizontalScrollbarLayerID(optional Node? node = null);
     unsigned long long verticalScrollbarLayerID(optional Node? node = null);
-    DOMRect horizontalScrollbarFrameRect(optional Node? node = null);
-    DOMRect verticalScrollbarFrameRect(optional Node? node = null);
-
+    
     ScrollingNodeID scrollingNodeIDForNode(optional Node? node = null);
 
     // Flags for platformLayerTreeAsText.
@@ -1118,6 +1116,7 @@ enum ContentsFormat {
     [Conditional=WEB_RTC] undefined stopPeerConnection(RTCPeerConnection connection);
     [Conditional=WEB_RTC] undefined clearPeerConnectionFactory();
     [Conditional=WEB_RTC] undefined setEnableWebRTCEncryption(boolean enabled);
+    [Conditional=WEB_RTC] boolean hasPeerConnectionEnabledServiceClass(RTCPeerConnection connection);
 
     [Conditional=VIDEO] undefined simulateSystemSleep();
     [Conditional=VIDEO] undefined simulateSystemWake();

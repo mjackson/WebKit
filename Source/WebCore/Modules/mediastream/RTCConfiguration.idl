@@ -53,6 +53,14 @@
 
 [
     Conditional=WEB_RTC,
+    EnabledBySetting=PeerConnectionEnabled
+] enum RTCConfigurationTargetLatency {
+  "lowest",
+  "none"
+};
+
+[
+    Conditional=WEB_RTC,
     EnabledBySetting=PeerConnectionEnabled,
     JSGenerateToJSObject,
     JSGenerateToNativeObject,
@@ -65,4 +73,5 @@
     // FIXME 169662: missing peerIdentity
     sequence<RTCCertificate> certificates;
     [EnforceRange] octet iceCandidatePoolSize = 0;
+    RTCConfigurationTargetLatency targetLatency = "lowest";
 };

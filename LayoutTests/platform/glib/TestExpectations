@@ -2689,6 +2689,8 @@ webkit.org/b/235885 webrtc/remove-track.html [ Crash Failure ]
 # Stopping a transceiver is unsupported in GstWebRTC.
 imported/w3c/web-platform-tests/webrtc/protocol/transceiver-mline-recycling.html [ Failure ]
 
+webrtc/RTCConfiguration-targetLatency.html [ Failure ]
+
 # Specific to LibWebRTC:
 webkit.org/b/235885 webrtc/disable-encryption.html [ Skip ]
 webkit.org/b/235885 webrtc/libwebrtc/ [ Skip ]

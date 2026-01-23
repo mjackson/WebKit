@@ -61,7 +61,6 @@ OBJC_CLASS NSView;
 
 namespace WebCore {
 
-class CornerRadii;
 class FloatQuad;
 class HostWindow;
 class LegacyTileCache;
@@ -192,8 +191,6 @@ public:
     enum class InsetType : bool { WebCoreInset, WebCoreOrPlatformInset };
     virtual FloatBoxExtent obscuredContentInsets(InsetType = InsetType::WebCoreInset) const { return 0; }
     IntRect frameRectShrunkByInset() const;
-
-    virtual CornerRadii scrollbarAvoidanceCornerRadii() const;
 
     // The visible content rect has a location that is the scrolled offset of the document. The width and height are the unobscured viewport
     // width and height. By default the scrollbars themselves are excluded from this rectangle, but an optional boolean argument allows them
@@ -423,7 +420,7 @@ public:
     virtual void updateScrollbarSteps();
 
     // Called to update the scrollbars to accurately reflect the state of the view.
-    WEBCORE_EXPORT void updateScrollbars(const ScrollPosition& desiredPosition);
+    void updateScrollbars(const ScrollPosition& desiredPosition);
 
 protected:
     ScrollView();

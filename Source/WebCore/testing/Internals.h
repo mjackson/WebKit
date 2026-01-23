@@ -571,8 +571,6 @@ public:
 
     ExceptionOr<uint64_t> horizontalScrollbarLayerID(Node*) const;
     ExceptionOr<uint64_t> verticalScrollbarLayerID(Node*) const;
-    ExceptionOr<Ref<DOMRect>> horizontalScrollbarFrameRect(Node*) const;
-    ExceptionOr<Ref<DOMRect>> verticalScrollbarFrameRect(Node*) const;
 
     ExceptionOr<String> scrollbarsControllerTypeForNode(Node*) const;
 
@@ -810,6 +808,7 @@ public:
     uint64_t sframeCounter(const RTCRtpSFrameTransform&);
     uint64_t sframeKeyId(const RTCRtpSFrameTransform&);
     void setEnableWebRTCEncryption(bool);
+    bool hasPeerConnectionEnabledServiceClass(const RTCPeerConnection&);
 #endif
 
     String getImageSourceURL(Element&);

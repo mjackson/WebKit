@@ -599,12 +599,13 @@ ExceptionOr<void> RTCPeerConnection::initializeWithConfiguration(RTCConfiguratio
     if (certificates.hasException())
         return certificates.releaseException();
 
-    lazyInitialize(m_backend, PeerConnectionBackend::create(*this, { servers.releaseReturnValue(), configuration.iceTransportPolicy, configuration.bundlePolicy, configuration.rtcpMuxPolicy, configuration.iceCandidatePoolSize, certificates.releaseReturnValue() }));
+    lazyInitialize(m_backend, PeerConnectionBackend::create(*this, { servers.releaseReturnValue(), configuration.iceTransportPolicy, configuration.bundlePolicy, configuration.rtcpMuxPolicy, configuration.iceCandidatePoolSize, certificates.releaseReturnValue(), configuration.targetLatency == RTCConfiguration::TargetLatency::Lowest }));
 
     if (!m_backend)
         return Exception { ExceptionCode::InvalidAccessError, "Bad Configuration Parameters"_s };
 
     m_configuration = WTF::move(configuration);
+
     return { };
 }
 
@@ -631,6 +632,9 @@ ExceptionOr<void> RTCPeerConnection::setConfiguration(RTCConfiguration&& configu
                 return Exception { ExceptionCode::InvalidModificationError, "A certificate given in constructor is not present"_s };
         }
     }
+
+    if (configuration.targetLatency != m_configuration.targetLatency)
+        return Exception { ExceptionCode::TypeError, "Configuration targetLatency is immutable"_s };
 
     if (!protectedBackend()->setConfiguration({ servers.releaseReturnValue(), configuration.iceTransportPolicy, configuration.bundlePolicy, configuration.rtcpMuxPolicy, configuration.iceCandidatePoolSize, { } }))
         return Exception { ExceptionCode::InvalidAccessError, "Bad Configuration Parameters"_s };

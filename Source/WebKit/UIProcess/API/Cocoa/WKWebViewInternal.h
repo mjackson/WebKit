@@ -33,7 +33,6 @@
 #import <WebCore/CocoaView.h>
 #import <WebCore/CocoaWritingToolsTypes.h>
 #import <WebCore/ColorCocoa.h>
-#import <WebCore/CornerRadii.h>
 #import <WebCore/FixedContainerEdges.h>
 #import <WebCore/LayerHostingContextIdentifier.h>
 #import <WebCore/TextExtractionTypes.h>
@@ -347,9 +346,6 @@ struct PerWebProcessState {
     RetainPtr<WKTextFinderClient> _textFinderClient;
 #if HAVE(NSWINDOW_SNAPSHOT_READINESS_HANDLER)
     BlockPtr<void()> _windowSnapshotReadinessHandler;
-#endif
-#if HAVE(NSVIEW_CORNER_CONFIGURATION)
-    WebCore::CornerRadii _lastViewCornerRadii;
 #endif
 #endif // PLATFORM(MAC)
 

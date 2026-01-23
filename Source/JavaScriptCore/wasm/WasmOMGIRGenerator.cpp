@@ -50,6 +50,7 @@
 #include "B3VariableValue.h"
 #include "B3WasmAddressValue.h"
 #include "B3WasmBoundsCheckValue.h"
+#include "B3WasmRefTypeCheckValue.h"
 #include "B3WasmStructGetValue.h"
 #include "B3WasmStructNewValue.h"
 #include "B3WasmStructSetValue.h"
@@ -947,8 +948,6 @@ private:
     using ArraySegmentOperation = EncodedJSValue SYSV_ABI (&)(JSC::JSWebAssemblyInstance*, uint32_t, uint32_t, uint32_t, uint32_t);
     [[nodiscard]] ExpressionType pushArrayNewFromSegment(ArraySegmentOperation, uint32_t typeIndex, uint32_t segmentIndex, ExpressionType arraySize, ExpressionType offset, ExceptionType);
     void emitRefTestOrCast(CastKind, TypedExpression, bool, int32_t, bool, ExpressionType&);
-    template <typename Generator>
-    void emitCheckOrBranchForCast(CastKind, Value*, const Generator&, BasicBlock*);
     Value* emitLoadRTTFromObject(Value*);
 
     const B3::AbstractHeap* structFieldHeap(const RTT& rtt, uint32_t fieldIndex)
@@ -3938,277 +3937,33 @@ auto OMGIRGenerator::addRefCast(TypedExpression reference, bool allowNull, int32
 void OMGIRGenerator::emitRefTestOrCast(CastKind castKind, TypedExpression reference, bool allowNull, int32_t toHeapType, bool shouldNegate, ExpressionType& result)
 {
     Value* value = get(reference);
-    if (castKind == CastKind::Cast)
-        result = push(value);
 
-    BasicBlock* continuation = m_proc.addBlock();
-    BasicBlock* trueBlock = nullptr;
-    BasicBlock* falseBlock = nullptr;
-    if (castKind == CastKind::Test) {
-        trueBlock = m_proc.addBlock();
-        falseBlock = m_proc.addBlock();
+    RefPtr<const Wasm::RTT> targetRTT;
+    if (!typeIndexIsType(static_cast<Wasm::TypeIndex>(toHeapType))) {
+        targetRTT = m_info.rtts[toHeapType].ptr();
+        toHeapType = 0;
+        ASSERT(!typeIndexIsType(static_cast<Wasm::TypeIndex>(toHeapType)));
     }
 
-    auto castFailure = [this, origin = this->origin()] (CCallHelpers& jit, const B3::StackmapGenerationParams&) {
-        this->emitExceptionCheck(jit, origin, ExceptionType::CastFailure);
-    };
-
-    auto castAccessOffset = [&] -> std::optional<ptrdiff_t> {
-        if (castKind == CastKind::Test)
-            return std::nullopt;
-
-        if (allowNull)
-            return std::nullopt;
-
-        if (typeIndexIsType(static_cast<Wasm::TypeIndex>(toHeapType)))
-            return std::nullopt;
-
-        Wasm::TypeDefinition& signature = m_info.typeSignatures[toHeapType];
-        if (signature.expand().is<Wasm::FunctionSignature>())
-            return WebAssemblyFunctionBase::offsetOfRTT();
-
-        if (!reference.type().definitelyIsCellOrNull())
-            return std::nullopt;
-
-        if (!reference.type().definitelyIsWasmGCObjectOrNull())
-            return JSCell::typeInfoTypeOffset();
-        return JSCell::structureIDOffset();
-    };
-
-    bool canTrap = false;
-    auto wrapTrapping = [&](auto input) -> B3::Kind {
-        if (canTrap) {
-            canTrap = false;
-            return trapping(input);
-        }
-        return input;
-    };
-    // Ensure reference nullness agrees with heap type.
-    {
-        BasicBlock* nullCase = m_proc.addBlock();
-        BasicBlock* nonNullCase = m_proc.addBlock();
-
-        Value* isNull = nullptr;
-        if (reference.type().isNullable()) {
-            if (auto offset = castAccessOffset(); offset && offset.value() <= maxAcceptableOffsetForNullReference()) {
-                isNull = constant(Int32, 0);
-                canTrap = true;
-            } else
-                isNull = m_currentBlock->appendNew<Value>(m_proc, Equal, origin(), value, m_currentBlock->appendNew<WasmConstRefValue>(m_proc, origin(), JSValue::encode(jsNull())));
-        } else
-            isNull = constant(Int32, 0);
-
-        m_currentBlock->appendNewControlValue(m_proc, B3::Branch, origin(), isNull, FrequentedBlock(nullCase), FrequentedBlock(nonNullCase));
-        nullCase->addPredecessor(m_currentBlock);
-        nonNullCase->addPredecessor(m_currentBlock);
-
-        m_currentBlock = nullCase;
-        if (castKind == CastKind::Cast) {
-            if (!allowNull) {
-                B3::PatchpointValue* throwException = m_currentBlock->appendNew<B3::PatchpointValue>(m_proc, B3::Void, origin());
-                throwException->setGenerator(castFailure);
-            }
-            m_currentBlock->appendNewControlValue(m_proc, Jump, origin(), continuation);
-            continuation->addPredecessor(m_currentBlock);
-        } else {
-            BasicBlock* nextBlock;
-            if (!allowNull)
-                nextBlock = falseBlock;
-            else
-                nextBlock = trueBlock;
-            m_currentBlock->appendNewControlValue(m_proc, Jump, origin(), nextBlock);
-            nextBlock->addPredecessor(m_currentBlock);
-        }
-
-        m_currentBlock = nonNullCase;
+    OptionSet<B3::WasmRefTypeCheckFlag> flags;
+    if (allowNull) {
+        // If incoming type is not nullable, let's not allow null.
+        if (reference.type().isNullable())
+            flags.add(B3::WasmRefTypeCheckFlag::AllowNull);
     }
+    if (shouldNegate)
+        flags.add(B3::WasmRefTypeCheckFlag::ShouldNegate);
+    if (reference.type().isNullable())
+        flags.add(B3::WasmRefTypeCheckFlag::ReferenceIsNullable);
+    if (reference.type().definitelyIsCellOrNull())
+        flags.add(B3::WasmRefTypeCheckFlag::DefinitelyIsCellOrNull);
+    if (reference.type().definitelyIsWasmGCObjectOrNull())
+        flags.add(B3::WasmRefTypeCheckFlag::DefinitelyIsWasmGCObjectOrNull);
 
-    if (typeIndexIsType(static_cast<Wasm::TypeIndex>(toHeapType))) {
-        switch (static_cast<TypeKind>(toHeapType)) {
-        case Wasm::TypeKind::Funcref:
-        case Wasm::TypeKind::Externref:
-        case Wasm::TypeKind::Anyref:
-        case Wasm::TypeKind::Exnref:
-            // Casts to these types cannot fail as they are the top types of their respective hierarchies, and static type-checking does not allow cross-hierarchy casts.
-            break;
-        case Wasm::TypeKind::Noneref:
-        case Wasm::TypeKind::Nofuncref:
-        case Wasm::TypeKind::Noexternref:
-        case Wasm::TypeKind::Noexnref:
-            // Casts to any bottom type should always fail.
-            if (castKind == CastKind::Cast) {
-                B3::PatchpointValue* throwException = m_currentBlock->appendNew<B3::PatchpointValue>(m_proc, B3::Void, origin());
-                throwException->setGenerator(castFailure);
-            } else {
-                m_currentBlock->appendNewControlValue(m_proc, Jump, origin(), falseBlock);
-                falseBlock->addPredecessor(m_currentBlock);
-                m_currentBlock = m_proc.addBlock();
-            }
-            break;
-        case Wasm::TypeKind::Eqref: {
-            auto nop = [] (CCallHelpers&, const B3::StackmapGenerationParams&) { };
-            BasicBlock* endBlock = castKind == CastKind::Cast ? continuation : trueBlock;
-            BasicBlock* checkObject = m_proc.addBlock();
-
-            // The eqref case chains together checks for i31, array, and struct with disjunctions so the control flow is more complicated, and requires some extra basic blocks to be created.
-            emitCheckOrBranchForCast(CastKind::Test, m_currentBlock->appendNew<Value>(m_proc, Below, origin(), value, constant(pointerType(), JSValue::NumberTag)), nop, checkObject);
-            Value* untagged = m_currentBlock->appendNew<Value>(m_proc, Trunc, origin(), value);
-            emitCheckOrBranchForCast(CastKind::Test, m_currentBlock->appendNew<Value>(m_proc, GreaterThan, origin(), untagged, constant(Int32, Wasm::maxI31ref)), nop, checkObject);
-            emitCheckOrBranchForCast(CastKind::Test, m_currentBlock->appendNew<Value>(m_proc, LessThan, origin(), untagged, constant(Int32, Wasm::minI31ref)), nop, checkObject);
-            m_currentBlock->appendNewControlValue(m_proc, Jump, origin(), endBlock);
-            checkObject->addPredecessor(m_currentBlock);
-            endBlock->addPredecessor(m_currentBlock);
-
-            m_currentBlock = checkObject;
-            if (!reference.type().definitelyIsCellOrNull())
-                emitCheckOrBranchForCast(castKind, m_currentBlock->appendNew<Value>(m_proc, BitAnd, origin(), value, constant(pointerType(), JSValue::NotCellMask)), castFailure, falseBlock);
-            if (!reference.type().definitelyIsWasmGCObjectOrNull()) {
-                auto* jsType = m_currentBlock->appendNew<MemoryValue>(m_proc, Load8Z, Int32, origin(), value, safeCast<int32_t>(JSCell::typeInfoTypeOffset()));
-                m_heaps.decorateMemory(&m_heaps.JSCell_typeInfoType, jsType);
-
-                emitCheckOrBranchForCast(castKind, m_currentBlock->appendNew<Value>(m_proc, NotEqual, origin(), jsType, constant(Int32, JSType::WebAssemblyGCObjectType)), castFailure, falseBlock);
-            }
-            break;
-        }
-        case Wasm::TypeKind::I31ref: {
-            emitCheckOrBranchForCast(castKind, m_currentBlock->appendNew<Value>(m_proc, Below, origin(), value, constant(pointerType(), JSValue::NumberTag)), castFailure, falseBlock);
-            Value* untagged = m_currentBlock->appendNew<Value>(m_proc, Trunc, origin(), value);
-            emitCheckOrBranchForCast(castKind, m_currentBlock->appendNew<Value>(m_proc, GreaterThan, origin(), untagged, constant(Int32, Wasm::maxI31ref)), castFailure, falseBlock);
-            emitCheckOrBranchForCast(castKind, m_currentBlock->appendNew<Value>(m_proc, LessThan, origin(), untagged, constant(Int32, Wasm::minI31ref)), castFailure, falseBlock);
-            break;
-        }
-        case Wasm::TypeKind::Arrayref:
-        case Wasm::TypeKind::Structref: {
-            if (!reference.type().definitelyIsCellOrNull())
-                emitCheckOrBranchForCast(castKind, m_currentBlock->appendNew<Value>(m_proc, BitAnd, origin(), value, constant(pointerType(), JSValue::NotCellMask)), castFailure, falseBlock);
-            if (!reference.type().definitelyIsWasmGCObjectOrNull()) {
-                auto* jsType = m_currentBlock->appendNew<MemoryValue>(m_proc, Load8Z, Int32, origin(), value, safeCast<int32_t>(JSCell::typeInfoTypeOffset()));
-                m_heaps.decorateMemory(&m_heaps.JSCell_typeInfoType, jsType);
-
-                emitCheckOrBranchForCast(castKind, m_currentBlock->appendNew<Value>(m_proc, NotEqual, origin(), jsType, constant(Int32, JSType::WebAssemblyGCObjectType)), castFailure, falseBlock);
-            }
-            Value* rtt = emitLoadRTTFromObject(pointerOfWasmRef(value));
-            auto* kind = m_currentBlock->appendNew<MemoryValue>(m_proc, Load8Z, origin(), rtt, safeCast<int32_t>(RTT::offsetOfKind()));
-            m_heaps.decorateMemory(&m_heaps.WasmRTT_kind, kind);
-            kind->setControlDependent(false);
-
-            emitCheckOrBranchForCast(castKind, m_currentBlock->appendNew<Value>(m_proc, NotEqual, origin(), kind, constant(Int32, static_cast<uint8_t>(static_cast<TypeKind>(toHeapType) == Wasm::TypeKind::Arrayref ? RTTKind::Array : RTTKind::Struct))), castFailure, falseBlock);
-            break;
-        }
-        default:
-            RELEASE_ASSERT_NOT_REACHED();
-        }
-    } else {
-        Wasm::TypeDefinition& signature = m_info.typeSignatures[toHeapType];
-        Ref targetRTT = m_info.rtts[toHeapType];
-
-        ([&] {
-            Value* structure = nullptr;
-            MemoryValue* rtt;
-            if (signature.expand().is<Wasm::FunctionSignature>()) {
-                rtt = m_currentBlock->appendNew<MemoryValue>(m_proc, wrapTrapping(B3::Load), pointerType(), origin(), value, safeCast<int32_t>(WebAssemblyFunctionBase::offsetOfRTT()));
-                m_heaps.decorateMemory(&m_heaps.WebAssemblyFunctionBase_rtt, rtt);
-            } else {
-                // The cell check is only needed for non-functions, as the typechecker does not allow non-Cell values for funcref casts.
-                if (!reference.type().definitelyIsCellOrNull())
-                    emitCheckOrBranchForCast(castKind, m_currentBlock->appendNew<Value>(m_proc, BitAnd, origin(), value, constant(Int64, JSValue::NotCellMask)), castFailure, falseBlock);
-
-                if (!reference.type().definitelyIsWasmGCObjectOrNull()) {
-                    auto* jsType = m_currentBlock->appendNew<MemoryValue>(m_proc, wrapTrapping(Load8Z), Int32, origin(), value, safeCast<int32_t>(JSCell::typeInfoTypeOffset()));
-                    m_heaps.decorateMemory(&m_heaps.JSCell_typeInfoType, jsType);
-                    emitCheckOrBranchForCast(castKind, m_currentBlock->appendNew<Value>(m_proc, NotEqual, origin(), jsType, constant(Int32, JSType::WebAssemblyGCObjectType)), castFailure, falseBlock);
-                }
-                Value* structureID = m_currentBlock->appendNew<MemoryValue>(m_proc, wrapTrapping(B3::Load), Int32, origin(), value, safeCast<int32_t>(JSCell::structureIDOffset()));
-                m_heaps.decorateMemory(&m_heaps.JSCell_structureID, structureID);
-                structure = decodeNonNullStructure(structureID);
-                if (targetRTT->displaySizeExcludingThis() < WebAssemblyGCStructure::inlinedTypeDisplaySize) {
-                    auto* targetRTTPointer = constant(pointerType(), std::bit_cast<uintptr_t>(targetRTT.ptr()));
-                    auto* pointer = m_currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, pointerType(), origin(), structure, safeCast<int32_t>(WebAssemblyGCStructure::offsetOfInlinedTypeDisplay() + targetRTT->displaySizeExcludingThis() * sizeof(RefPtr<const RTT>)));
-                    m_heaps.decorateMemory(&m_heaps.WebAssemblyGCStructure_inlinedTypeDisplays[targetRTT->displaySizeExcludingThis()], pointer);
-                    pointer->setReadsMutability(B3::Mutability::Immutable);
-                    pointer->setControlDependent(false);
-
-                    emitCheckOrBranchForCast(castKind, m_currentBlock->appendNew<Value>(m_proc, NotEqual, origin(), pointer, targetRTTPointer), castFailure, falseBlock);
-                    return;
-                }
-
-                rtt = m_currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, pointerType(), origin(), structure, safeCast<int32_t>(WebAssemblyGCStructure::offsetOfRTT()));
-                m_heaps.decorateMemory(&m_heaps.WebAssemblyGCStructure_rtt, rtt);
-                rtt->setControlDependent(false);
-            }
-
-            auto* targetRTTPointer = constant(pointerType(), std::bit_cast<uintptr_t>(targetRTT.ptr()));
-            BasicBlock* equalBlock;
-            if (castKind == CastKind::Cast)
-                equalBlock = continuation;
-            else
-                equalBlock = trueBlock;
-            BasicBlock* slowPath = m_proc.addBlock();
-            m_currentBlock->appendNewControlValue(m_proc, B3::Branch, origin(), m_currentBlock->appendNew<Value>(m_proc, Equal, origin(), rtt, targetRTTPointer), FrequentedBlock(equalBlock), FrequentedBlock(slowPath));
-            equalBlock->addPredecessor(m_currentBlock);
-            slowPath->addPredecessor(m_currentBlock);
-
-            m_currentBlock = slowPath;
-            if (signature.isFinalType()) {
-                // If signature is final type and pointer equality failed, this value must not be a subtype.
-                emitCheckOrBranchForCast(castKind, constant(Int32, 1), castFailure, falseBlock);
-            } else {
-                auto* displaySizeExcludingThis = m_currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, Int32, origin(), rtt, safeCast<int32_t>(RTT::offsetOfDisplaySizeExcludingThis()));
-                m_heaps.decorateMemory(&m_heaps.WasmRTT_displaySizeExcludingThis, displaySizeExcludingThis);
-                displaySizeExcludingThis->setControlDependent(false);
-
-                emitCheckOrBranchForCast(castKind, m_currentBlock->appendNew<Value>(m_proc, BelowEqual, origin(), displaySizeExcludingThis, constant(Int32, targetRTT->displaySizeExcludingThis())), castFailure, falseBlock);
-
-                auto* pointer = m_currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, pointerType(), origin(), rtt, safeCast<int32_t>(RTT::offsetOfData() + targetRTT->displaySizeExcludingThis() * sizeof(RefPtr<const RTT>)));
-                m_heaps.decorateMemory(&m_heaps.WasmRTT_data[targetRTT->displaySizeExcludingThis()], pointer);
-                pointer->setReadsMutability(B3::Mutability::Immutable);
-                pointer->setControlDependent(false);
-
-                emitCheckOrBranchForCast(castKind, m_currentBlock->appendNew<Value>(m_proc, NotEqual, origin(), pointer, targetRTTPointer), castFailure, falseBlock);
-            }
-        }());
-    }
-
-    if (castKind == CastKind::Cast) {
-        m_currentBlock->appendNewControlValue(m_proc, Jump, origin(), continuation);
-        continuation->addPredecessor(m_currentBlock);
-        m_currentBlock = continuation;
-    } else {
-        m_currentBlock->appendNewControlValue(m_proc, Jump, origin(), trueBlock);
-        trueBlock->addPredecessor(m_currentBlock);
-        m_currentBlock = trueBlock;
-        UpsilonValue* trueUpsilon = m_currentBlock->appendNew<UpsilonValue>(m_proc, origin(), constant(B3::Int32, shouldNegate ? 0 : 1));
-        m_currentBlock->appendNewControlValue(m_proc, Jump, origin(), continuation);
-        continuation->addPredecessor(m_currentBlock);
-
-        m_currentBlock = falseBlock;
-        UpsilonValue* falseUpsilon = m_currentBlock->appendNew<UpsilonValue>(m_proc, origin(), constant(B3::Int32, shouldNegate ? 1 : 0));
-        m_currentBlock->appendNewControlValue(m_proc, Jump, origin(), continuation);
-        continuation->addPredecessor(m_currentBlock);
-
-        m_currentBlock = continuation;
-        Value* phi = m_currentBlock->appendNew<Value>(m_proc, Phi, B3::Int32, origin());
-        trueUpsilon->setPhi(phi);
-        falseUpsilon->setPhi(phi);
-        result = push(phi);
-    }
-}
-
-template <typename Generator>
-void OMGIRGenerator::emitCheckOrBranchForCast(CastKind kind, Value* condition, const Generator& generator, BasicBlock* falseBlock)
-{
-    if (kind == CastKind::Cast) {
-        CheckValue* check = m_currentBlock->appendNew<CheckValue>(m_proc, Check, origin(), condition);
-        check->setGenerator(generator);
-    } else {
-        ASSERT(falseBlock);
-        BasicBlock* success = m_proc.addBlock();
-        m_currentBlock->appendNewControlValue(m_proc, B3::Branch, origin(), condition,
-            FrequentedBlock(falseBlock), FrequentedBlock(success));
-        falseBlock->addPredecessor(m_currentBlock);
-        success->addPredecessor(m_currentBlock);
-        m_currentBlock = success;
-    }
+    auto type = castKind == CastKind::Cast ? Int64 : Int32;
+    auto kind = castKind == CastKind::Cast ? trapping(WasmRefCast) : WasmRefTest;
+    auto* castValue = m_currentBlock->appendNew<B3::WasmRefTypeCheckValue>(m_proc, kind, type, origin(), toHeapType, flags, WTF::move(targetRTT), value);
+    result = push(castValue);
 }
 
 Value* OMGIRGenerator::decodeNonNullStructure(Value* structureID)

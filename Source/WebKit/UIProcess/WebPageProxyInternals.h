@@ -45,7 +45,6 @@
 #include "WebPopupMenuProxy.h"
 #include "WebURLSchemeHandlerIdentifier.h"
 #include "WindowKind.h"
-#include <WebCore/CornerRadii.h>
 #include <WebCore/FrameLoaderTypes.h>
 #include <WebCore/PrivateClickMeasurement.h>
 #include <WebCore/RegistrableDomain.h>
@@ -445,10 +444,6 @@ public:
     std::optional<TextManipulationParameters> textManipulationParameters;
 
     EnhancedSecurityTracking enhancedSecurityTracker;
-
-#if HAVE(NSVIEW_CORNER_CONFIGURATION)
-    WebCore::CornerRadii scrollbarAvoidanceCornerRadii;
-#endif
 
     explicit Internals(WebPageProxy&, std::optional<WebCore::SecurityOriginData>);
 

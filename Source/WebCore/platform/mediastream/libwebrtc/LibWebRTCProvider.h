@@ -121,8 +121,9 @@ public:
         virtual void suspend() { };
         virtual void resume() { };
         virtual void disableRelay() { };
+        virtual bool shouldEnableServiceClass() { return true; }
     };
-    virtual std::unique_ptr<SuspendableSocketFactory> createSocketFactory(String&& /* userAgent */, ScriptExecutionContextIdentifier, bool /* isFirstParty */, RegistrableDomain&&);
+    virtual std::unique_ptr<SuspendableSocketFactory> createSocketFactory(String&& /* userAgent */, ScriptExecutionContextIdentifier, bool /* isFirstParty */, RegistrableDomain&&, bool /* enableServiceClass */);
 
 protected:
     LibWebRTCProvider();

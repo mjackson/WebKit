@@ -51,10 +51,6 @@ messages -> WebPage WantsAsyncDispatchMessage {
     SetUnderlayColor(WebCore::Color color)
     SetUnderPageBackgroundColorOverride(WebCore::Color underPageBackgroundColorOverride)
 
-#if HAVE(NSVIEW_CORNER_CONFIGURATION)
-    SetScrollbarAvoidanceCornerRadii(WebCore::CornerRadii cornerRadii)
-#endif
-
     SetNeedsFixedContainerEdgesUpdate()
 
     ViewWillStartLiveResize()
