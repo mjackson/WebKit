@@ -119,12 +119,14 @@ jobs:
               previousRows = tableLines.length > 0 ? '\n' + tableLines.join('\n') : '';
             }
 
-            const body = `${marker}
-## Preview Builds
-
-| Commit | Release | Date |
-|--------|---------|------|
-${newEntry}${previousRows}`;
+            const body = [
+              marker,
+              '## Preview Builds',
+              '',
+              '| Commit | Release | Date |',
+              '|--------|---------|------|',
+              newEntry + previousRows
+            ].join('\n');
 
             if (existing) {
               await github.rest.issues.updateComment({
