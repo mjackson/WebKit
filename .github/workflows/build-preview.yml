@@ -13,7 +13,6 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  issues: write
 
 concurrency:
   group: preview-build-pr-${{ github.event.pull_request.number || inputs.pr_number }}
@@ -25,23 +24,23 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       sha: ${{ steps.pr.outputs.sha }}
-      short_sha: ${{ steps.pr.outputs.short_sha }}
       release_tag: ${{ steps.pr.outputs.release_tag }}
       pr_number: ${{ steps.pr.outputs.pr_number }}
 
     steps:
-      - name: Check org membership
+      - name: Check permissions
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
-            try {
-              await github.rest.orgs.checkMembershipForUser({
-                org: 'oven-sh',
-                username: context.actor
-              });
-            } catch (e) {
-              core.setFailed(`${context.actor} is not a member of oven-sh. Preview builds must be triggered manually via workflow_dispatch.`);
+            const { data: permission } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.actor
+            });
+
+            if (!['admin', 'write'].includes(permission.permission)) {
+              core.setFailed(`${context.actor} does not have write access. Preview builds must be triggered manually via workflow_dispatch.`);
             }
 
       - name: Get PR information
@@ -68,7 +67,6 @@ jobs:
             const releaseTag = `autobuild-preview-pr-${prNumber}-${shortSha}`;
 
             core.setOutput('sha', sha);
-            core.setOutput('short_sha', shortSha);
             core.setOutput('release_tag', releaseTag);
             core.setOutput('pr_number', prNumber);
 
@@ -85,56 +83,61 @@ jobs:
       llvm_version: '19'
 
   notify:
-    name: Notify Completion
+    name: Update PR Comment
     needs: [trigger, build]
     runs-on: ubuntu-latest
-    if: always()
+    if: needs.build.result == 'success'
     permissions:
-      issues: write
       pull-requests: write
     steps:
-      - name: Post success comment
-        if: needs.build.result == 'success'
+      - name: Update preview build comment
         uses: actions/github-script@v7
         with:
           script: |
+            const marker = '<!-- preview-build-comment -->';
+            const prNumber = ${{ needs.trigger.outputs.pr_number }};
             const releaseTag = '${{ needs.trigger.outputs.release_tag }}';
-            const body = "✅ Preview build completed\n\n" +
-              "**Release**: [" + releaseTag + "](https://github.com/" + context.repo.owner + "/" + context.repo.repo + "/releases/tag/" + releaseTag + ")";
+            const sha = '${{ needs.trigger.outputs.sha }}';
+            const shortSha = sha.substring(0, 8);
+            const releaseUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/tag/${releaseTag}`;
+            const newEntry = `| \`${shortSha}\` | [\`${releaseTag}\`](${releaseUrl}) | ${new Date().toISOString().replace('T', ' ').substring(0, 19)} UTC |`;
 
-            await github.rest.issues.createComment({
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: ${{ needs.trigger.outputs.pr_number }},
-              body: body
+              issue_number: prNumber,
+              per_page: 100
             });
+            const existing = comments.find(c => c.body.includes(marker));
 
-      - name: Post failure comment
-        if: needs.build.result == 'failure'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const body = "❌ Preview build failed\n\n" +
-              "Check the [workflow run](" + context.serverUrl + "/" + context.repo.owner + "/" + context.repo.repo + "/actions/runs/" + context.runId + ") for details.";
+            // Build table
+            let previousRows = '';
+            if (existing) {
+              const lines = existing.body.split('\n');
+              const tableLines = lines.filter(l => l.startsWith('| `'));
+              previousRows = tableLines.length > 0 ? '\n' + tableLines.join('\n') : '';
+            }
 
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: ${{ needs.trigger.outputs.pr_number }},
-              body: body
-            });
+            const body = `${marker}
+## Preview Builds
 
-      - name: Post cancellation comment
-        if: needs.build.result == 'cancelled'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const body = "⚠️ Preview build was cancelled\n\n" +
-              "This may have been caused by a newer commit being pushed to the same PR.";
+| Commit | Release | Date |
+|--------|---------|------|
+${newEntry}${previousRows}`;
 
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: ${{ needs.trigger.outputs.pr_number }},
-              body: body
-            });
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: body
+              });
+            }
