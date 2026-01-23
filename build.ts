@@ -108,6 +108,7 @@ const getCommonFlags = (config: BuildConfig) => {
     "-DUSE_BUN_JSC_ADDITIONS=ON",
     "-DUSE_BUN_EVENT_LOOP=ON",
     "-DENABLE_FTL_JIT=ON",
+    "-DUSE_MIMALLOC=ON",
     "-G",
     "Ninja",
   ];
@@ -149,7 +150,6 @@ const getCommonFlags = (config: BuildConfig) => {
     flags.push(
       "-DENABLE_REMOTE_INSPECTOR=ON",
       "-DUSE_VISIBILITY_ATTRIBUTE=1",
-      "-DUSE_SYSTEM_MALLOC=ON",
       `-DCMAKE_LINKER=${lldLink}`,
       `-DICU_ROOT=${VCPKG_ROOT}`,
       `-DICU_LIBRARY=${icuPaths.ICU_LIBRARY}`,
