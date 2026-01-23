@@ -488,7 +488,7 @@ void pas_page_malloc_deallocate(void* ptr, size_t size)
         return;
 
 #if PAS_OS(WINDOWS)
-    VirtualFree(ptr, size, MEM_RELEASE);
+    VirtualFree(ptr, 0, MEM_RELEASE);
 #else
     munmap(ptr, size);
 #endif
