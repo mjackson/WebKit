@@ -48,6 +48,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include <bmalloc/pas_thread_local_cache.h>
 #elif USE(MIMALLOC)
 #include <bmalloc/mimalloc.h>
+#include <mimalloc/types.h>
 #endif
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 #endif
@@ -139,11 +140,10 @@ public:
         }
         m_usedBlocks.set(0);
 #elif USE(MIMALLOC)
-        // Pass the full structure heap range to mimalloc. The start address is aligned to
-        // mappedHeapSize (a large power of 2), satisfying mimalloc's arena alignment requirements.
-        // mimalloc stores its arena metadata at the beginning of the managed region, so no
-        // allocation will occur at offset 0 (avoiding conflict with the empty StructureID).
-        RELEASE_ASSERT(mi_manage_os_memory_ex(reinterpret_cast<void*>(g_jscConfig.startOfStructureHeap), g_jscConfig.sizeOfStructureHeap, false, false, false, -1, true, &structureArena));
+        constexpr size_t offset = std::max(MarkedBlock::blockSize, static_cast<size_t>(MI_ARENA_SLICE_SIZE));                                                                              
+        void* memory = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(g_jscConfig.startOfStructureHeap) + offset);                                                                    
+        size_t size = g_jscConfig.sizeOfStructureHeap - offset;                                                                                                                            
+        RELEASE_ASSERT(mi_manage_os_memory_ex(memory, size, false, false, false, -1, true, &structureArena));
         structureHeap = mi_heap_new_in_arena(structureArena);
 #else
         m_usedBlocks.set(0);

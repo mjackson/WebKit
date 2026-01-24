@@ -681,6 +681,9 @@ add_definitions(-DPAS_BMALLOC=1)
 
 if (USE_MIMALLOC)
     add_definitions(-DUSE_MIMALLOC=1)
+    list(APPEND bmalloc_INTERFACE_INCLUDE_DIRECTORIES
+        "${BMALLOC_DIR}/mimalloc/mimalloc/include"
+    )
 endif ()
 
 if (USE_SYSTEM_MALLOC)
