@@ -48,6 +48,7 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include <bmalloc/pas_thread_local_cache.h>
 #elif USE(MIMALLOC)
 #include <bmalloc/mimalloc.h>
+#include <mimalloc/types.h>
 #endif
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 #endif
