@@ -18,10 +18,6 @@ if (WIN32)
     list(APPEND jsc_LIBRARIES Winmm)
 endif ()
 
-if (USE_MIMALLOC AND USE_BUN_JSC_ADDITIONS)
-    list(APPEND jsc_LIBRARIES $<TARGET_OBJECTS:mimalloc-obj>)
-endif ()
-
 if (ENABLE_FUZZILLI)
   list(APPEND jsc_SOURCES ../fuzzilli/Fuzzilli.cpp)
 endif ()

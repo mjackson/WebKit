@@ -6,10 +6,6 @@ set(MI_BUILD_STATIC OFF CACHE BOOL "Build mimalloc static library" FORCE)
 set(MI_BUILD_OBJECT ON CACHE BOOL "Build mimalloc object library" FORCE)
 set(MI_BUILD_TESTS OFF CACHE BOOL "Build mimalloc tests" FORCE)
 
-if (USE_BUN_JSC_ADDITIONS)
-    set(MI_USE_CXX ON CACHE BOOL "Use C++ compiler for mimalloc (avoids GCC stdatomic.h incompatibility with clang)" FORCE)
-endif ()
-
 WEBKIT_INCLUDE_CONFIG_FILES_IF_EXISTS()
 
 add_subdirectory(mimalloc)

@@ -649,7 +649,7 @@ if (ATOMICS_REQUIRE_LIBATOMIC)
     list(APPEND bmalloc_LIBRARIES atomic)
 endif ()
 
-if (USE_MIMALLOC AND NOT USE_BUN_JSC_ADDITIONS)
+if (USE_MIMALLOC)
     list(APPEND bmalloc_LIBRARIES $<TARGET_OBJECTS:mimalloc-obj>)
 endif ()
 
@@ -681,9 +681,6 @@ add_definitions(-DPAS_BMALLOC=1)
 
 if (USE_MIMALLOC)
     add_definitions(-DUSE_MIMALLOC=1)
-    list(APPEND bmalloc_INTERFACE_INCLUDE_DIRECTORIES
-        "${BMALLOC_DIR}/mimalloc/mimalloc/include"
-    )
 endif ()
 
 if (USE_SYSTEM_MALLOC)

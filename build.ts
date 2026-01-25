@@ -108,7 +108,6 @@ const getCommonFlags = (config: BuildConfig) => {
     "-DUSE_BUN_JSC_ADDITIONS=ON",
     "-DUSE_BUN_EVENT_LOOP=ON",
     "-DENABLE_FTL_JIT=ON",
-    "-DUSE_MIMALLOC=ON",
     "-G",
     "Ninja",
   ];
