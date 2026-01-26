@@ -82,7 +82,7 @@ SpeechRecognitionPermissionManager::SpeechRecognitionPermissionManager(WebPagePr
 SpeechRecognitionPermissionManager::~SpeechRecognitionPermissionManager()
 {
     for (auto& [request, frameInfo] : m_requests)
-        Ref { request }->complete(WebCore::SpeechRecognitionError { WebCore::SpeechRecognitionErrorType::NotAllowed, "Permission manager has exited"_s });
+        protect(request)->complete(WebCore::SpeechRecognitionError { WebCore::SpeechRecognitionErrorType::NotAllowed, "Permission manager has exited"_s });
 }
 
 RefPtr<WebPageProxy> SpeechRecognitionPermissionManager::protectedPage() const
@@ -117,7 +117,7 @@ void SpeechRecognitionPermissionManager::startProcessingRequest()
 {
     Ref page = *this->page();
     page->syncIfMockDevicesEnabledChanged();
-    if (page->protectedPreferences()->mockCaptureDevicesEnabled()) {
+    if (protect(page->preferences())->mockCaptureDevicesEnabled()) {
         m_microphoneCheck = CheckResult::Granted;
         m_speechRecognitionServiceCheck = CheckResult::Granted;
     } else {

@@ -42,6 +42,7 @@ public:
     void ref() const final { RefCounted::ref(); }
     void deref() const final { RefCounted::deref(); }
 
+    virtual bool isJSViewTransitionUpdateCallback() const { return false; }
     virtual CallbackResult<Ref<DOMPromise>> invoke() = 0;
 
 private:

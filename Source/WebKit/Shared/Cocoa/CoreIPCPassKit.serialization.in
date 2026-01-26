@@ -68,6 +68,7 @@ webkit_platform_headers: "CoreIPCPKSecureElementPass.h"
     installmentAuthorizationToken: String
 }
 
+#if !HAVE(WK_SECURE_CODING_PKPAYMENTTOKEN)
 [WebKitSecureCodingClass=PAL::getPKPaymentTokenClassSingleton(), SupportWKKeyedCoder, WebKitPlatform] webkit_secure_coding PKPaymentToken {
     paymentInstrumentName: String?
     paymentNetwork: String?
@@ -77,6 +78,7 @@ webkit_platform_headers: "CoreIPCPKSecureElementPass.h"
     redeemURL: URL
     retryNonce: String
 }
+#endif
 
 [WebKitSecureCodingClass=PAL::getPKShippingMethodClassSingleton(), SupportWKKeyedCoder, WebKitPlatform] webkit_secure_coding PKShippingMethod {
     label: String

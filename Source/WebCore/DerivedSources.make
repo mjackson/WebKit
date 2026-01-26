@@ -380,7 +380,7 @@ JS_BINDING_IDLS := \
     $(WebCore)/Modules/identity/DigitalCredential.idl \
     $(WebCore)/Modules/identity/DigitalCredentialGetRequest.idl \
     $(WebCore)/Modules/identity/DigitalCredentialRequestOptions.idl \
-    $(WebCore)/Modules/identity/IdentityCredentialProtocol.idl \
+    $(WebCore)/Modules/identity/DigitalCredentialPresentationProtocol.idl \
     $(WebCore)/Modules/identity/protocols/ISO18013/MobileDocumentRequest.idl \
     $(WebCore)/Modules/indexeddb/IDBCursor.idl \
     $(WebCore)/Modules/indexeddb/IDBCursorDirection.idl \

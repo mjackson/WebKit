@@ -1747,8 +1747,8 @@ $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIIRFilterOptions.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIIRFilterOptions.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIPAddressSpace.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIPAddressSpace.h
-$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIdentityCredentialProtocol.cpp
-$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIdentityCredentialProtocol.h
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSDigitalCredentialPresentationProtocol.cpp
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSDigitalCredentialPresentationProtocol.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIdleDeadline.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIdleDeadline.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIdleRequestCallback.cpp

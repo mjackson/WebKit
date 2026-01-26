@@ -677,7 +677,7 @@ void WebBackForwardList::backForwardAddItemShared(IPC::Connection& connection, R
         ASSERT(!isRemoteFrameNavigation || webPageProxy->preferences().siteIsolationEnabled());
 
         auto navigatedFrameID = navigatedFrameState->frameID;
-        Ref item = WebBackForwardListItem::create(completeFrameStateForNavigation(WTF::move(navigatedFrameState)), webPageProxy->identifier(), navigatedFrameID, webPageProxy->protectedBrowsingContextGroup().ptr());
+        Ref item = WebBackForwardListItem::create(completeFrameStateForNavigation(WTF::move(navigatedFrameState)), webPageProxy->identifier(), navigatedFrameID, protect(webPageProxy->browsingContextGroup()).ptr());
         item->setResourceDirectoryURL(webPageProxy->currentResourceDirectoryURL());
         item->setIsRemoteFrameNavigation(isRemoteFrameNavigation);
         item->setEnhancedSecurity(process->enhancedSecurity());
@@ -719,9 +719,9 @@ void WebBackForwardList::backForwardUpdateItem(IPC::Connection& connection, Ref<
         Ref process = *downcast<WebProcessProxy>(AuxiliaryProcessProxy::fromConnection(connection));
         if (!!item->backForwardCacheEntry() != frameState->hasCachedPage) {
             if (frameState->hasCachedPage)
-            webPageProxy->protectedBackForwardCache()->addEntry(*item, process->coreProcessIdentifier());
+            protect(webPageProxy->backForwardCache())->addEntry(*item, process->coreProcessIdentifier());
             else if (!item->suspendedPage())
-            webPageProxy->protectedBackForwardCache()->removeEntry(*item);
+            protect(webPageProxy->backForwardCache())->removeEntry(*item);
         }
 
         frameItem->setFrameState(WTF::move(frameState));
@@ -749,7 +749,7 @@ void WebBackForwardList::backForwardListContainsItem(WebCore::BackForwardItemIde
 void WebBackForwardList::backForwardGoToItemShared(BackForwardItemIdentifier itemID, CompletionHandler<void(const WebBackForwardListCounts&)>&& completionHandler)
 {
     if (RefPtr webPageProxy = m_page.get())
-        MESSAGE_CHECK_COMPLETION(webPageProxy->protectedLegacyMainFrameProcess(), !WebKit::isInspectorPage(*webPageProxy), completionHandler(counts()));
+        MESSAGE_CHECK_COMPLETION(protect(webPageProxy->legacyMainFrameProcess()), !WebKit::isInspectorPage(*webPageProxy), completionHandler(counts()));
 
     RefPtr item = itemForID(itemID);
     if (!item)

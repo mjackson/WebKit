@@ -56,6 +56,7 @@
 #import "WebEditCommandProxy.h"
 #import "WebPageProxy.h"
 #import "WebPopupMenuProxyMac.h"
+#import "WebPreferences.h"
 #import "WebViewImpl.h"
 #import "WindowServerConnection.h"
 #import "_WKDownloadInternal.h"
@@ -311,6 +312,11 @@ void PageClientImpl::didCommitLoadForMainFrame(const String&, bool)
 
 #if ENABLE(TEXT_EXTRACTION_FILTER)
     [webView() _clearTextExtractionFilterCache];
+#endif
+
+#if ENABLE(SYSTEM_TEXT_EXTRACTION)
+    if (impl->page().preferences().systemTextExtractionEnabled())
+        [webView() _addTextExtractionAnnotation];
 #endif
 }
 

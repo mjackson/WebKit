@@ -34,6 +34,7 @@
 #include <WebCore/JSDOMConvertBufferSource.h>
 #include <WebCore/JSDOMConvertInterface.h>
 #include <WebCore/JSDOMConvertNull.h>
+#include <WebCore/JSDOMConvertNullable.h>
 #include <WebCore/JSDOMConvertUndefined.h>
 
 namespace WebCore {

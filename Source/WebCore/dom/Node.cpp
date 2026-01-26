@@ -629,8 +629,8 @@ ExceptionOr<NodeVector> Node::convertNodesOrStringsIntoNodeVector(FixedVector<No
         ASSERT(std::holds_alternative<RefPtr<Node>>(variant));
         RefPtr node = WTF::move(std::get<RefPtr<Node>>(variant));
         ASSERT(node);
-        if (CheckedPtr fragment = dynamicDowncast<DocumentFragment>(node.get()); fragment) [[unlikely]] {
-            for (CheckedPtr child = fragment->firstChild(); child; child = child->nextSibling())
+        if (RefPtr fragment = dynamicDowncast<DocumentFragment>(node.get()); fragment) [[unlikely]] {
+            for (RefPtr child = fragment->firstChild(); child; child = child->nextSibling())
                 nodeVector.append(*child);
         } else
             nodeVector.append(node.releaseNonNull());
@@ -731,7 +731,7 @@ ExceptionOr<void> Node::normalize()
     while (RefPtr firstChild = node->firstChild())
         node = WTF::move(firstChild);
     while (node) {
-        if (CheckedPtr element = dynamicDowncast<Element>(*node))
+        if (RefPtr element = dynamicDowncast<Element>(*node))
             element->normalizeAttributes();
 
         if (node == this)
@@ -963,7 +963,7 @@ void Node::updateAncestorsForStyleRecalc()
 {
     markAncestorsForInvalidatedStyle();
 
-    CheckedPtr documentElement = document().documentElement();
+    RefPtr documentElement = document().documentElement();
     if (!documentElement)
         return;
     if (!documentElement->childNeedsStyleRecalc() && !documentElement->needsStyleRecalc())
@@ -1050,10 +1050,10 @@ inline bool Document::shouldInvalidateNodeListAndCollectionCachesForAttribute(co
 template <typename InvalidationFunction>
 void Document::invalidateNodeListAndCollectionCaches(InvalidationFunction invalidate)
 {
-    for (auto* list : copyToVectorSpecialization<Vector<LiveNodeList*, 8>>(m_listsInvalidatedAtDocument))
+    for (RefPtr list : copyToVectorSpecialization<Vector<LiveNodeList*, 8>>(m_listsInvalidatedAtDocument))
         invalidate(*list);
 
-    for (auto* collection : copyToVectorSpecialization<Vector<HTMLCollection*, 8>>(m_collectionsInvalidatedAtDocument))
+    for (RefPtr collection : copyToVectorSpecialization<Vector<HTMLCollection*, 8>>(m_collectionsInvalidatedAtDocument))
         invalidate(*collection);
 }
 
@@ -1200,7 +1200,7 @@ bool Node::isComposedTreeDescendantOf(const Node& node) const
 Node* Node::pseudoAwarePreviousSibling() const
 {
     auto* pseudoElement = dynamicDowncast<PseudoElement>(*this);
-    CheckedPtr parentOrHost = pseudoElement ? pseudoElement->hostElement() : parentElement();
+    RefPtr parentOrHost = pseudoElement ? pseudoElement->hostElement() : parentElement();
     if (parentOrHost && !previousSibling()) {
         if (isAfterPseudoElement() && parentOrHost->lastChild())
             return parentOrHost->lastChild();
@@ -1213,7 +1213,7 @@ Node* Node::pseudoAwarePreviousSibling() const
 Node* Node::pseudoAwareNextSibling() const
 {
     auto* pseudoElement = dynamicDowncast<PseudoElement>(*this);
-    CheckedPtr parentOrHost = pseudoElement ? pseudoElement->hostElement() : parentElement();
+    RefPtr parentOrHost = pseudoElement ? pseudoElement->hostElement() : parentElement();
     if (parentOrHost && !nextSibling()) {
         if (isBeforePseudoElement() && parentOrHost->firstChild())
             return parentOrHost->firstChild();
@@ -1318,7 +1318,7 @@ bool Node::isClosedShadowHidden(const Node& otherNode) const
     // Use Vector instead of HashSet since we expect the number of ancestor tree scopes to be small.
     Vector<TreeScope*, 8> ancestorScopesOfThisNode;
 
-    for (auto* scope = &treeScope(); scope; scope = scope->parentTreeScope())
+    for (RefPtr scope = &treeScope(); scope; scope = scope->parentTreeScope())
         ancestorScopesOfThisNode.append(scope);
 
     for (auto* treeScopeThatCanAccessOtherNode = &otherNode.treeScope(); treeScopeThatCanAccessOtherNode; treeScopeThatCanAccessOtherNode = treeScopeThatCanAccessOtherNode->parentTreeScope()) {
@@ -1346,14 +1346,14 @@ static inline ShadowRoot* parentShadowRoot(const Node& node)
 
 HTMLSlotElement* Node::assignedSlot() const
 {
-    if (CheckedPtr shadowRoot = parentShadowRoot(*this))
+    if (RefPtr shadowRoot = parentShadowRoot(*this))
         return shadowRoot->findAssignedSlot(*this);
     return nullptr;
 }
 
 HTMLSlotElement* Node::assignedSlotForBindings() const
 {
-    CheckedPtr shadowRoot = parentShadowRoot(*this);
+    RefPtr shadowRoot = parentShadowRoot(*this);
     if (shadowRoot && shadowRoot->mode() == ShadowRootMode::Open)
         return shadowRoot->findAssignedSlot(*this);
     return nullptr;
@@ -1665,18 +1665,18 @@ static const AtomString& locateDefaultNamespace(const Node& node, const AtomStri
         return parent ? locateDefaultNamespace(*parent, prefix) : nullAtom();
     }
     case Node::DOCUMENT_NODE:
-        if (CheckedPtr documentElement = uncheckedDowncast<Document>(node).documentElement())
+        if (RefPtr documentElement = uncheckedDowncast<Document>(node).documentElement())
             return locateDefaultNamespace(*documentElement, prefix);
         return nullAtom();
     case Node::DOCUMENT_TYPE_NODE:
     case Node::DOCUMENT_FRAGMENT_NODE:
         return nullAtom();
     case Node::ATTRIBUTE_NODE:
-        if (CheckedPtr ownerElement = uncheckedDowncast<Attr>(node).ownerElement())
+        if (RefPtr ownerElement = uncheckedDowncast<Attr>(node).ownerElement())
             return locateDefaultNamespace(*ownerElement, prefix);
         return nullAtom();
     default:
-        if (CheckedPtr parent = node.parentElement())
+        if (RefPtr parent = node.parentElement())
             return locateDefaultNamespace(*parent, prefix);
         return nullAtom();
     }
@@ -1722,18 +1722,18 @@ const AtomString& Node::lookupPrefix(const AtomString& namespaceURI) const
     case ELEMENT_NODE:
         return locateNamespacePrefix(uncheckedDowncast<Element>(*this), namespaceURI);
     case DOCUMENT_NODE:
-        if (CheckedPtr documentElement = uncheckedDowncast<Document>(*this).documentElement())
+        if (RefPtr documentElement = uncheckedDowncast<Document>(*this).documentElement())
             return locateNamespacePrefix(*documentElement, namespaceURI);
         return nullAtom();
     case DOCUMENT_FRAGMENT_NODE:
     case DOCUMENT_TYPE_NODE:
         return nullAtom();
     case ATTRIBUTE_NODE:
-        if (CheckedPtr ownerElement = uncheckedDowncast<Attr>(*this).ownerElement())
+        if (RefPtr ownerElement = uncheckedDowncast<Attr>(*this).ownerElement())
             return locateNamespacePrefix(*ownerElement, namespaceURI);
         return nullAtom();
     default:
-        if (CheckedPtr parent = parentElement())
+        if (RefPtr parent = parentElement())
             return locateNamespacePrefix(*parent, namespaceURI);
         return nullAtom();
     }
@@ -1851,16 +1851,16 @@ unsigned short Node::compareDocumentPosition(Node& otherNode)
     auto* attr1 = dynamicDowncast<Attr>(*this);
     auto* attr2 = dynamicDowncast<Attr>(otherNode);
 
-    CheckedPtr start1 = attr1 ? attr1->ownerElement() : this;
-    CheckedPtr start2 = attr2 ? attr2->ownerElement() : &otherNode;
+    RefPtr start1 = attr1 ? attr1->ownerElement() : this;
+    RefPtr start2 = attr2 ? attr2->ownerElement() : &otherNode;
 
     if (!start1 || !start2)
         return compareDetachedElementsPosition(*this, otherNode);
 
     if (attr1 && attr2 && start1 == start2) {
-        auto& element = downcast<Element>(*start1);
-        element.synchronizeAllAttributes();
-        for (auto& attribute : element.attributes()) {
+        Ref element = downcast<Element>(*start1);
+        element->synchronizeAllAttributes();
+        for (auto& attribute : element->attributes()) {
             if (attr1->qualifiedName() == attribute.name())
                 return DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC | DOCUMENT_POSITION_FOLLOWING;
             if (attr2->qualifiedName() == attribute.name())
@@ -1903,7 +1903,7 @@ FloatPoint Node::convertToPage(const FloatPoint& p) const
         return renderer()->localToAbsolute(p, UseTransforms);
 
     // Otherwise go up the tree looking for a renderer
-    if (CheckedPtr parent = parentElement())
+    if (RefPtr parent = parentElement())
         return parent->convertToPage(p);
 
     // No parent - no conversion needed
@@ -1917,7 +1917,7 @@ FloatPoint Node::convertFromPage(const FloatPoint& p) const
         return renderer()->absoluteToLocal(p, UseTransforms);
 
     // Otherwise go up the tree looking for a renderer
-    if (CheckedPtr parent = parentElement())
+    if (RefPtr parent = parentElement())
         return parent->convertFromPage(p);
 
     // No parent - no conversion needed
@@ -2126,11 +2126,11 @@ void Node::getCandidateSubresourceURLs(ListHashSet<URL>& urls) const
 
 Element* Node::enclosingLinkEventParentOrSelf()
 {
-    for (CheckedPtr node = this; node; node = node->parentInComposedTree()) {
+    for (SUPPRESS_UNCOUNTED_LOCAL auto* node = this; node; node = node->parentInComposedTree()) {
         // For imagemaps, the enclosing link element is the associated area element not the image itself.
         // So we don't let images be the enclosing link element, even though isLink sometimes returns
         // true for them.
-        if (auto* element = dynamicDowncast<Element>(*node); element && element->isLink() && !is<HTMLImageElement>(*element))
+        if (SUPPRESS_UNCOUNTED_LOCAL auto* element = dynamicDowncast<Element>(*node); element && element->isLink() && !is<HTMLImageElement>(*element))
             return element;
     }
 
@@ -2150,7 +2150,7 @@ static unsigned traverseSubtreeToUpdateTreeScope(Node& root, NOESCAPE const Move
         moveNode(*node);
         ++count;
 
-        CheckedPtr element = dynamicDowncast<Element>(*node);
+        RefPtr element = dynamicDowncast<Element>(*node);
         if (!element)
             continue;
 
@@ -2161,7 +2161,7 @@ static unsigned traverseSubtreeToUpdateTreeScope(Node& root, NOESCAPE const Move
             }
         }
 
-        if (CheckedPtr shadow = element->shadowRoot())
+        if (RefPtr shadow = element->shadowRoot())
             count += moveShadowRoot(*shadow);
     }
     return count;
@@ -2219,8 +2219,8 @@ void Node::moveTreeToNewScope(Node& root, TreeScope& oldScope, TreeScope& newSco
 {
     ASSERT(&oldScope != &newScope);
 
-    CheckedRef oldDocument = oldScope.documentScope();
-    CheckedRef newDocument = newScope.documentScope();
+    Ref oldDocument = oldScope.documentScope();
+    Ref newDocument = newScope.documentScope();
     bool newScopeIsUAShadowTree = newScope.rootNode().hasBeenInUserAgentShadowTree();
     if (&oldDocument.get() != &newDocument.get()) {
         oldDocument->incrementReferencingNodeCount();
@@ -2232,7 +2232,7 @@ void Node::moveTreeToNewScope(Node& root, TreeScope& oldScope, TreeScope& newSco
                 node.setTreeScope(newScope);
                 node.moveNodeToNewDocumentFastCase(oldDocument, newDocument);
             }, [&](ShadowRoot& shadowRoot) {
-                ASSERT_WITH_SECURITY_IMPLICATION(&shadowRoot.document() == &oldDocument.get());
+                ASSERT_WITH_SECURITY_IMPLICATION(&shadowRoot.document() == oldDocument.ptr());
                 shadowRoot.moveShadowRootToNewParentScope(newScope, newDocument);
                 return moveShadowTreeToNewDocumentFastCase(shadowRoot, oldDocument, newDocument);
             });
@@ -2248,13 +2248,13 @@ void Node::moveTreeToNewScope(Node& root, TreeScope& oldScope, TreeScope& newSco
                 node.setTreeScope(newScope);
                 node.moveNodeToNewDocumentSlowCase(oldDocument, newDocument);
             }, [&](ShadowRoot& shadowRoot) {
-                ASSERT_WITH_SECURITY_IMPLICATION(&shadowRoot.document() == &oldDocument.get());
+                ASSERT_WITH_SECURITY_IMPLICATION(&shadowRoot.document() == oldDocument.ptr());
                 shadowRoot.moveShadowRootToNewParentScope(newScope, newDocument);
                 moveShadowTreeToNewDocumentSlowCase(shadowRoot, oldDocument, newDocument);
                 return 0; // Unused
             });
         }
-        RELEASE_ASSERT_WITH_SECURITY_IMPLICATION(&oldScope.documentScope() == &oldDocument.get() && &newScope.documentScope() == &newDocument.get());
+        RELEASE_ASSERT_WITH_SECURITY_IMPLICATION(&oldScope.documentScope() == oldDocument.ptr() && &newScope.documentScope() == newDocument.ptr());
         oldDocument->decrementReferencingNodeCount();
     } else {
         traverseSubtreeToUpdateTreeScope(root, [&](Node& node) {
@@ -2576,11 +2576,11 @@ HashMap<Ref<MutationObserver>, MutationRecordDeliveryOptions> Node::registeredMu
 
     for (RefPtr node = this; node; node = node->parentNode()) {
         if (auto* registry = node->mutationObserverRegistry()) {
-            for (auto& registration : *registry)
+            for (Ref registration : *registry)
                 collectMatchingObserversForMutation(registration);
         }
         if (auto* registry = node->transientMutationObserverRegistry()) {
-            for (auto& registration : *registry)
+            for (Ref registration : *registry)
                 collectMatchingObserversForMutation(registration);
         }
     }
@@ -2643,12 +2643,12 @@ void Node::notifyMutationObserversNodeWillDetach()
 
     for (CheckedPtr node = parentNode(); node; node = node->parentNode()) {
         if (auto* registry = node->mutationObserverRegistry()) {
-            for (auto& registration : *registry)
+            for (Ref registration : *registry)
                 registration->observedSubtreeNodeWillDetach(*this);
         }
         if (auto* transientRegistry = node->transientMutationObserverRegistry()) {
-            for (auto& registration : *transientRegistry)
-                registration.observedSubtreeNodeWillDetach(*this);
+            for (Ref registration : *transientRegistry)
+                registration->observedSubtreeNodeWillDetach(*this);
         }
     }
 }

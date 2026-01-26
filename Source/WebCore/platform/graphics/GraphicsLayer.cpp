@@ -392,7 +392,7 @@ void GraphicsLayer::removeAllChildren()
 
 void GraphicsLayer::removeFromParentInternal()
 {
-    if (auto* parent = m_parent.get()) {
+    if (RefPtr parent = m_parent.get()) {
         setParent(nullptr);
         parent->m_children.removeFirstMatching([this](auto& layer) {
             return layer.ptr() == this;
@@ -894,10 +894,10 @@ void GraphicsLayer::traverse(GraphicsLayer& layer, NOESCAPE const Function<void(
     for (auto& childLayer : layer.children())
         traverse(childLayer.get(), traversalFunc);
 
-    if (auto* replicaLayer = layer.replicaLayer())
+    if (RefPtr replicaLayer = layer.replicaLayer())
         traverse(*replicaLayer, traversalFunc);
 
-    if (auto* maskLayer = layer.maskLayer())
+    if (RefPtr maskLayer = layer.maskLayer())
         traverse(*maskLayer, traversalFunc);
 }
 

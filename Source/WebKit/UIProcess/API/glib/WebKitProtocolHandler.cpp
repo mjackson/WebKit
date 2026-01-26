@@ -106,7 +106,7 @@ void WebKitProtocolHandler::handleRequest(WebKitURISchemeRequest* request)
     URL requestURL = URL(String::fromLatin1(webkit_uri_scheme_request_get_uri(request)));
     if (requestURL.host() == "gpu"_s) {
         auto& page = webkitURISchemeRequestGetWebPage(request);
-        page.protectedLegacyMainFrameProcess()->sendWithAsyncReply(Messages::WebPage::GetRenderProcessInfo(), [this, request = GRefPtr<WebKitURISchemeRequest>(request)](RenderProcessInfo&& info) {
+        protect(page.legacyMainFrameProcess())->sendWithAsyncReply(Messages::WebPage::GetRenderProcessInfo(), [this, request = GRefPtr<WebKitURISchemeRequest>(request)](RenderProcessInfo&& info) {
             handleGPU(request.get(), WTF::move(info));
         }, page.webPageIDInMainFrameProcess());
         return;
@@ -242,7 +242,7 @@ static String webkitDrmGetModifierName(uint64_t modifier)
     std::unique_ptr<char, decltype(free)*> modifierName(drmGetFormatModifierName(modifier), free);
     return makeString(String::fromUTF8(modifierVendor.get()), "_"_s, String::fromUTF8(modifierName.get()));
 #else
-    return { }
+    return { };
 #endif
 }
 

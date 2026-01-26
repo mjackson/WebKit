@@ -103,6 +103,8 @@ ExceptionOr<void> NavigateEvent::intercept(Document& document, NavigationInterce
 
     ASSERT(!m_interceptionState || m_interceptionState == InterceptionState::Intercepted);
 
+    m_interceptionState = InterceptionState::Intercepted;
+
     if (options.handler)
         m_handlers.append(options.handler.releaseNonNull());
 
@@ -115,8 +117,6 @@ ExceptionOr<void> NavigateEvent::intercept(Document& document, NavigationInterce
         // FIXME: Print warning to console if it was already set.
         m_scrollBehavior = options.scroll;
     }
-
-    m_interceptionState = InterceptionState::Intercepted;
 
     return { };
 }

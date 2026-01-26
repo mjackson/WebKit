@@ -135,7 +135,7 @@ static Vector<Ref<AuxiliaryProcessProxy>> auxiliaryProcessesForPage(WebPageProxy
     // We should fix that, perhaps by storing mediaState on a per-frame basis.
     auxiliaryProcesses.append(page.legacyMainFrameProcess());
 
-    page.protectedBrowsingContextGroup()->forEachRemotePage(page, [&](auto& remotePage) {
+    protect(page.browsingContextGroup())->forEachRemotePage(page, [&](auto& remotePage) {
         if (WebCore::MediaProducer::needsMediaCapability(remotePage.mediaState()))
             auxiliaryProcesses.append(remotePage.process());
     });
@@ -231,7 +231,7 @@ void ExtensionCapabilityGranter::revoke(const ExtensionCapability& capability, W
 
     grants.append(page.legacyMainFrameProcess().extensionCapabilityGrants().take(environmentIdentifier));
 
-    page.protectedBrowsingContextGroup()->forEachRemotePage(page, [&](auto& remotePage) {
+    protect(page.browsingContextGroup())->forEachRemotePage(page, [&](auto& remotePage) {
         grants.append(remotePage.process().extensionCapabilityGrants().take(environmentIdentifier));
     });
 

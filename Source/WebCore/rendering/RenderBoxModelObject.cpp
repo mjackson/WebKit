@@ -629,7 +629,7 @@ void RenderBoxModelObject::computeStickyPositionConstraints(StickyPositionViewpo
         float availableSpace = constrainingRect.width() - constraints.leftOffset() - constraints.rightOffset();
         if (constraints.stickyBoxRect().width() > availableSpace) {
             float delta = constraints.stickyBoxRect().width() - availableSpace;
-            if (writingMode().isAnyLeftToRight())
+            if (containingBlock->writingMode().isAnyLeftToRight())
                 constraints.setRightOffset(constraints.rightOffset() - delta);
             else
                 constraints.setLeftOffset(constraints.leftOffset() - delta);
@@ -640,7 +640,7 @@ void RenderBoxModelObject::computeStickyPositionConstraints(StickyPositionViewpo
         float availableSpace = constrainingRect.height() - constraints.topOffset() - constraints.bottomOffset();
         if (constraints.stickyBoxRect().height() > availableSpace) {
             float delta = constraints.stickyBoxRect().height() - availableSpace;
-            if (writingMode().isAnyTopToBottom())
+            if (containingBlock->writingMode().isAnyTopToBottom())
                 constraints.setBottomOffset(constraints.bottomOffset() - delta);
             else
                 constraints.setTopOffset(constraints.topOffset() - delta);

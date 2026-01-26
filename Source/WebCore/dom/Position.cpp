@@ -1018,7 +1018,7 @@ bool Position::isCandidate() const
 
 bool Position::isRenderedCharacter() const
 {
-    CheckedPtr text = dynamicDowncast<Text>(deprecatedNode());
+    RefPtr text = dynamicDowncast<Text>(deprecatedNode());
     CheckedPtr renderer = text ? text->renderer() : nullptr;
     return renderer && renderer->containsRenderedCharacterOffset(m_offset);
 }
@@ -1626,8 +1626,8 @@ template<TreeType treeType> std::partial_ordering treeOrder(const Position& a, c
     if (a.isNull() || b.isNull())
         return a.isNull() && b.isNull() ? std::partial_ordering::equivalent : std::partial_ordering::unordered;
 
-    CheckedPtr aContainer = a.containerNode();
-    CheckedPtr bContainer = b.containerNode();
+    RefPtr aContainer = a.containerNode();
+    RefPtr bContainer = b.containerNode();
 
     if (!aContainer || !bContainer) {
         if (!commonInclusiveAncestor<treeType>(*a.anchorNode(), *b.anchorNode()))

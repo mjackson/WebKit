@@ -73,7 +73,6 @@
 #import <WebCore/PlatformScreen.h>
 #import <WebCore/Quirks.h>
 #import <WebCore/Site.h>
-#import <WebCore/VelocityData.h>
 #import <pal/spi/cocoa/NSAccessibilitySPI.h>
 #import <pal/spi/cocoa/QuartzCoreSPI.h>
 #import <wtf/Condition.h>
@@ -243,8 +242,6 @@ typedef NS_ENUM(NSInteger, _WKPrintRenderingCallbackType) {
 #endif // ENABLE(MODEL_PROCESS)
 #endif // !USE(EXTENSIONKIT)
 #endif // HAVE(VISIBILITY_PROPAGATION_VIEW)
-
-    WebCore::HistoricalVelocityData _historicalKinematicData;
 
     RetainPtr<WKNSUndoManager> _undoManager;
     RetainPtr<WKNSKeyEventSimulatorUndoManager> _undoManagerForSimulatingKeyEvents;
@@ -672,52 +669,12 @@ typedef NS_ENUM(NSInteger, _WKPrintRenderingCallbackType) {
     return unobscuredContentRect;
 }
 
-- (void)didUpdateVisibleRect:(CGRect)visibleContentRect
-    unobscuredRect:(CGRect)unobscuredContentRect
-    contentInsets:(UIEdgeInsets)contentInsets
-    unobscuredRectInScrollViewCoordinates:(CGRect)unobscuredRectInScrollViewCoordinates
-    obscuredInsets:(UIEdgeInsets)obscuredInsets
-    unobscuredSafeAreaInsets:(UIEdgeInsets)unobscuredSafeAreaInsets
-    inputViewBounds:(CGRect)inputViewBounds
-    scale:(CGFloat)zoomScale minimumScale:(CGFloat)minimumScale
-    viewStability:(OptionSet<WebKit::ViewStabilityFlag>)viewStability
-    enclosedInScrollableAncestorView:(BOOL)enclosedInScrollableAncestorView
-    sendEvenIfUnchanged:(BOOL)sendEvenIfUnchanged
+- (void)didUpdateVisibleRect:(const WebKit::VisibleContentRectUpdateInfo &)visibleContentRectUpdateInfo sendEvenIfUnchanged:(BOOL)sendEvenIfUnchanged
 {
     RefPtr drawingArea = _page->drawingArea();
     if (!drawingArea)
         return;
 
-    MonotonicTime timestamp = MonotonicTime::now();
-    WebCore::VelocityData velocityData;
-    bool inStableState = viewStability.isEmpty();
-    if (!inStableState)
-        velocityData = _historicalKinematicData.velocityForNewData(visibleContentRect.origin, zoomScale, timestamp);
-    else {
-        _historicalKinematicData.clear();
-        velocityData = { 0, 0, 0, timestamp };
-    }
-
-    CGRect unobscuredContentRectRespectingInputViewBounds = [self _computeUnobscuredContentRectRespectingInputViewBounds:unobscuredContentRect inputViewBounds:inputViewBounds];
-    WebCore::FloatRect fixedPositionRectForLayout = _page->computeLayoutViewportRect(unobscuredContentRect, unobscuredContentRectRespectingInputViewBounds, _page->layoutViewportRect(), zoomScale, WebCore::LayoutViewportConstraint::ConstrainedToDocumentRect);
-
-    WebKit::VisibleContentRectUpdateInfo visibleContentRectUpdateInfo(
-        visibleContentRect,
-        unobscuredContentRect,
-        WebKit::floatBoxExtent(contentInsets),
-        unobscuredRectInScrollViewCoordinates,
-        unobscuredContentRectRespectingInputViewBounds,
-        fixedPositionRectForLayout,
-        WebKit::floatBoxExtent(obscuredInsets),
-        WebKit::floatBoxExtent(unobscuredSafeAreaInsets),
-        zoomScale,
-        viewStability,
-        !!_sizeChangedSinceLastVisibleContentRectUpdate,
-        !!self.webView._allowsViewportShrinkToFit,
-        !!enclosedInScrollableAncestorView,
-        self.webView->_needsScrollend,
-        velocityData,
-        downcast<WebKit::RemoteLayerTreeDrawingAreaProxy>(*drawingArea).lastCommittedMainFrameLayerTreeTransactionID());
 
     LOG_WITH_STREAM(VisibleRects, stream << "-[WKContentView didUpdateVisibleRect]" << visibleContentRectUpdateInfo.dump());
 
@@ -735,6 +692,7 @@ typedef NS_ENUM(NSInteger, _WKPrintRenderingCallbackType) {
 
     [self updateFixedClippingView:layoutViewport];
 
+    bool inStableState = visibleContentRectUpdateInfo.viewStability().isEmpty();
     if (wasStableState && !inStableState)
         [self _didExitStableState];
 }
@@ -743,11 +701,6 @@ typedef NS_ENUM(NSInteger, _WKPrintRenderingCallbackType) {
 {
     self.webView->_needsScrollend = YES;
     [self _didEndScrollingOrZooming];
-}
-
-- (void)didInterruptScrolling
-{
-    _historicalKinematicData.clear();
 }
 
 - (void)willStartZoomOrScroll

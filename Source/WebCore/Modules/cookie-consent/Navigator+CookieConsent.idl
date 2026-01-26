@@ -27,5 +27,5 @@
     EnabledBySetting=CookieConsentAPIEnabled,
     ImplementedBy=NavigatorCookieConsent,
 ] partial interface Navigator {
-    Promise<boolean> requestCookieConsent(optional RequestCookieConsentOptions options);
+    Promise<boolean> requestCookieConsent(optional RequestCookieConsentOptions options = {});
 };

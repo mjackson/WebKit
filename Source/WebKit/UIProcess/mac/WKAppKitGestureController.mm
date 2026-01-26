@@ -145,7 +145,7 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
     RefPtr page = _page.get();
     if (!page)
         return;
-    bool panGestureEnabled = page->protectedPreferences()->useAppKitGestures();
+    bool panGestureEnabled = protect(page->preferences())->useAppKitGestures();
     WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG(page->identifier().toUInt64(), "%@ setEnabled:%d", _panGestureRecognizer.get(), static_cast<int>(panGestureEnabled));
     [_panGestureRecognizer setEnabled:panGestureEnabled];
 }

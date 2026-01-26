@@ -1,4 +1,4 @@
-# Copyright (C) 2025 Apple Inc. All rights reserved.
+# Copyright (C) 2025-2026 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -25,7 +25,7 @@ from buildbot.process import buildstep, logobserver, properties
 from buildbot.process.results import Results, SUCCESS, FAILURE, CANCELLED, WARNINGS, SKIPPED, EXCEPTION, RETRY
 from buildbot.steps import master, shell, transfer, trigger
 from buildbot.steps.source import git
-from twisted.internet import defer
+from twisted.internet import defer, reactor
 from shlex import quote
 
 import json
@@ -583,3 +583,34 @@ class SetO3OptimizationLevel(shell.ShellCommand):
     name = "set-o3-optimization-level"
     description = ["set O3 optimization level"]
     descriptionDone = ["set O3 optimization level"]
+
+
+class WaitForDuration(buildstep.BuildStep):
+    name = 'wait'
+    DEFAULT_WAIT_DURATION = 60
+
+    def __init__(self, duration=DEFAULT_WAIT_DURATION, **kwargs):
+        self.duration = duration
+        self.delayedCall = None
+        self.deferred = None
+        super().__init__(**kwargs)
+
+    @defer.inlineCallbacks
+    def run(self):
+        self.description = [f'Waiting for {self.duration}s']
+        self.descriptionDone = [f'Waited for {self.duration}s']
+
+        self.deferred = defer.Deferred()
+        self.delayedCall = reactor.callLater(self.duration, self.deferred.callback, None)
+        try:
+            yield self.deferred
+            return SUCCESS
+        except defer.CancelledError:
+            return CANCELLED
+
+    def interrupt(self, reason):
+        if self.delayedCall and self.delayedCall.active():
+            self.delayedCall.cancel()
+        if self.deferred and not self.deferred.called:
+            self.deferred.cancel()
+        return super().interrupt(reason)

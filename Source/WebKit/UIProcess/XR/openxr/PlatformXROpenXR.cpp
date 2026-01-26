@@ -87,7 +87,7 @@ void OpenXRCoordinator::getPrimaryDeviceInfo(WebPageProxy& page, DeviceInfoCallb
 {
     ASSERT(RunLoop::isMain());
 
-    initializeDevice(page.protectedPreferences()->openXRDMABufRelaxedForTesting());
+    initializeDevice(protect(page.preferences())->openXRDMABufRelaxedForTesting());
     if (m_instance == XR_NULL_HANDLE || m_systemId == XR_NULL_SYSTEM_ID) {
         LOG(XR, "Failed to initialize OpenXR system");
         callback(std::nullopt);
@@ -249,7 +249,7 @@ void OpenXRCoordinator::startSession(WebPageProxy& page, WeakPtr<PlatformXRCoord
     ASSERT(RunLoop::isMain());
     LOG(XR, "OpenXRCoordinator::startSession");
 
-    initializeDevice(page.protectedPreferences()->openXRDMABufRelaxedForTesting());
+    initializeDevice(protect(page.preferences())->openXRDMABufRelaxedForTesting());
 
     WTF::switchOn(m_state,
         [&](Idle&) {

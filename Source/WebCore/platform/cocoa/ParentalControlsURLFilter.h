@@ -55,7 +55,7 @@ public:
 
     WEBCORE_EXPORT virtual ~ParentalControlsURLFilter();
     virtual bool isEnabledImpl() const;
-    void isURLAllowed(const URL&, ParentalControlsContentFilter&);
+    void isURLAllowed(const URL& mainDocumentURL, const URL&, ParentalControlsContentFilter&);
     WEBCORE_EXPORT void isURLAllowed(const URL&, CompletionHandler<void(bool, NSData *)>&&);
     virtual void allowURL(const URL&, CompletionHandler<void(bool)>&&);
 

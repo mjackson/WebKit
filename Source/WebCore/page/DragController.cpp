@@ -46,6 +46,7 @@
 #include "DragActions.h"
 #include "DragClient.h"
 #include "DragData.h"
+#include "DragEventTargetData.h"
 #include "DragImage.h"
 #include "DragState.h"
 #include "Editing.h"
@@ -141,7 +142,6 @@ bool isDraggableLink(const Element& element)
 }
 
 #if ENABLE(DRAG_SUPPORT)
-    
 static PlatformMouseEvent createMouseEvent(const DragData& dragData)
 {
     auto modifiers = PlatformKeyboardEvent::currentStateOfModifierKeys();
@@ -239,30 +239,28 @@ inline static bool dragIsHandledByDocument(DragHandlingMethod dragHandlingMethod
     return dragHandlingMethod != DragHandlingMethod::None && dragHandlingMethod != DragHandlingMethod::PageLoad;
 }
 
-bool DragController::performDragOperation(DragData&& dragData)
+DragEventTargetData DragController::performDragOperation(DragData&& dragData, LocalFrame& frame)
 {
     if (!m_droppedImagePlaceholders.isEmpty() && m_droppedImagePlaceholderRange && tryToUpdateDroppedImagePlaceholders(dragData)) {
         m_droppedImagePlaceholders.clear();
         m_droppedImagePlaceholderRange = std::nullopt;
         m_documentUnderMouse = nullptr;
         clearDragCaret();
-        return true;
+        return { DragEventHandled::Yes };
     }
 
     removeAllDroppedImagePlaceholders();
 
     SetForScope isPerformingDrop(m_isPerformingDrop, true);
-    RefPtr focusedOrMainFrame = m_page->focusController().focusedOrMainFrame();
-    if (!focusedOrMainFrame)
-        return false;
 
-    IgnoreSelectionChangeForScope ignoreSelectionChanges { *focusedOrMainFrame };
+    IntPoint point = frame.protectedView()->windowToContents(dragData.clientPosition());
+    auto hitTestResult = HitTestResult { point };
 
-    RefPtr localMainFrame = m_page->localMainFrame();
-    if (!localMainFrame)
-        return false;
-
-    m_documentUnderMouse = localMainFrame->documentAtPoint(dragData.clientPosition());
+    if (frame.contentRenderer()) {
+        static constexpr OptionSet<HitTestRequest::Type> hitType { HitTestRequest::Type::ReadOnly, HitTestRequest::Type::Active, HitTestRequest::Type::AllowChildFrameContent };
+        hitTestResult = frame.eventHandler().hitTestResultAtPoint(point, hitType);
+    }
+    m_documentUnderMouse = hitTestResult.innerNode() ? &hitTestResult.innerNode()->document() : nullptr;
 
     disallowFileAccessIfNeeded(dragData);
 
@@ -270,43 +268,51 @@ bool DragController::performDragOperation(DragData&& dragData)
     if (RefPtr document = m_documentUnderMouse)
         shouldOpenExternalURLsPolicy = document->shouldOpenExternalURLsPolicyToPropagate();
 
-    if ((m_dragDestinationActionMask.contains(DragDestinationAction::DHTML)) && dragIsHandledByDocument(m_dragHandlingMethod)) {
+    if (RefPtr remoteFrame = dynamicDowncast<RemoteFrame>(EventHandler::subframeForTargetNode(hitTestResult.protectedTargetNode().get())))
+        return { remoteFrame->frameID() };
+
+    if (m_dragDestinationActionMask.contains(DragDestinationAction::DHTML) && dragIsHandledByDocument(m_dragHandlingMethod) && frame.view()) {
         client().willPerformDragDestinationAction(DragDestinationAction::DHTML, dragData);
-        bool preventedDefault = false;
-        if (localMainFrame->view())
-            preventedDefault = localMainFrame->eventHandler().performDragAndDrop(createMouseEvent(dragData), Pasteboard::create(dragData), dragData.draggingSourceOperationMask(), dragData.containsFiles());
-        if (preventedDefault) {
+
+        auto mouseEvent = createMouseEvent(dragData);
+        auto pasteboard = Pasteboard::create(dragData);
+        auto mask = dragData.draggingSourceOperationMask();
+        auto containsFiles = dragData.containsFiles();
+
+        DragEventTargetData performDragAndDropResult = frame.eventHandler().performDragAndDrop(mouseEvent, WTF::move(pasteboard), mask, containsFiles, hitTestResult, WTF::move(dragData));
+
+        if (auto handled = std::get_if<DragEventHandled>(&performDragAndDropResult); handled && *handled == DragEventHandled::Yes) {
             clearDragCaret();
             m_documentUnderMouse = nullptr;
-            return true;
+            return { DragEventHandled::Yes };
         }
     }
 
-    if ((m_dragDestinationActionMask.contains(DragDestinationAction::Edit)) && concludeEditDrag(dragData)) {
+    if (m_dragDestinationActionMask.contains(DragDestinationAction::Edit) && concludeEditDrag(dragData)) {
         client().didConcludeEditDrag();
         m_documentUnderMouse = nullptr;
         clearDragCaret();
-        return true;
+        return { DragEventHandled::Yes };
     }
 
     m_documentUnderMouse = nullptr;
     clearDragCaret();
 
     if (!operationForLoad(dragData))
-        return false;
+        return { DragEventHandled::No };
 
     auto urlString = dragData.asURL();
     if (urlString.isEmpty())
-        return false;
+        return { DragEventHandled::No };
 
     client().willPerformDragDestinationAction(DragDestinationAction::Load, dragData);
     ResourceRequest resourceRequest { WTF::move(urlString) };
     resourceRequest.setIsAppInitiated(false);
-    FrameLoadRequest frameLoadRequest { *localMainFrame, WTF::move(resourceRequest) };
+    FrameLoadRequest frameLoadRequest { frame, WTF::move(resourceRequest) };
     frameLoadRequest.setShouldOpenExternalURLsPolicy(shouldOpenExternalURLsPolicy);
     frameLoadRequest.setIsRequestFromClientOrUserInput();
-    localMainFrame->loader().load(WTF::move(frameLoadRequest));
-    return true;
+    frame.loader().load(WTF::move(frameLoadRequest));
+    return { DragEventHandled::Yes };
 }
 
 void DragController::mouseMovedIntoDocument(RefPtr<Document>&& newDocument)

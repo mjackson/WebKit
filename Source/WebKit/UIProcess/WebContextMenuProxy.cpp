@@ -69,7 +69,7 @@ void WebContextMenuProxy::show()
     Ref contextMenuListener = WebContextMenuListenerProxy::create(*this);
     m_contextMenuListener = contextMenuListener.copyRef();
     page->contextMenuClient().getContextMenuFromProposedMenu(*page, proposedItems(), contextMenuListener, m_context.webHitTestResultData().value(),
-        page->protectedLegacyMainFrameProcess()->transformHandlesToObjects(m_userData.protectedObject().get()).get());
+        protect(page->legacyMainFrameProcess())->transformHandlesToObjects(m_userData.protectedObject().get()).get());
 }
 
 void WebContextMenuProxy::useContextMenuItems(Vector<Ref<WebContextMenuItem>>&& items)
@@ -81,7 +81,7 @@ void WebContextMenuProxy::useContextMenuItems(Vector<Ref<WebContextMenuItem>>&& 
         return;
 
     // Since showContextMenuWithItems can spin a nested run loop we need to turn off the responsiveness timer.
-    page->protectedLegacyMainFrameProcess()->stopResponsivenessTimer();
+    protect(page->legacyMainFrameProcess())->stopResponsivenessTimer();
 
     // Protect |this| from being deallocated if WebPageProxy code is re-entered from the menu runloop or delegates.
     Ref protectedThis { *this };

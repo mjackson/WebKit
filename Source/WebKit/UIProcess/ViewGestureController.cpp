@@ -131,7 +131,7 @@ void ViewGestureController::connectToProcess()
 
     m_webPageIDInMainFrameProcess = page->webPageIDInMainFrameProcess();
     m_mainFrameProcess = page->legacyMainFrameProcess();
-    Ref { *m_mainFrameProcess }->addMessageReceiver(Messages::ViewGestureController::messageReceiverName(), *m_webPageIDInMainFrameProcess, *this);
+    protect(*m_mainFrameProcess)->addMessageReceiver(Messages::ViewGestureController::messageReceiverName(), *m_webPageIDInMainFrameProcess, *this);
     m_isConnectedToProcess = true;
 }
 
@@ -675,7 +675,7 @@ void ViewGestureController::willEndSwipeGesture(WebBackForwardListItem& targetIt
     m_didStartProvisionalLoad = false;
     m_pendingNavigation = page->goToBackForwardItem(targetItem);
 
-    RefPtr currentItem = Ref { page->backForwardList() }->currentItem();
+    RefPtr currentItem = protect(page->backForwardList())->currentItem();
     // The main frame will not be navigated so hide the snapshot right away.
     if (currentItem && currentItem->itemIsClone(targetItem)) {
         removeSwipeSnapshot();
@@ -746,7 +746,7 @@ void ViewGestureController::requestRenderTreeSizeNotificationIfNeeded()
     if (page->provisionalPageProxy())
         page->provisionalPageProxy()->send(Messages::ViewGestureGeometryCollector::SetRenderTreeSizeNotificationThreshold(threshold));
     else
-        page->protectedLegacyMainFrameProcess()->send(Messages::ViewGestureGeometryCollector::SetRenderTreeSizeNotificationThreshold(threshold), page->webPageIDInMainFrameProcess());
+        protect(page->legacyMainFrameProcess())->send(Messages::ViewGestureGeometryCollector::SetRenderTreeSizeNotificationThreshold(threshold), page->webPageIDInMainFrameProcess());
 }
 
 FloatPoint ViewGestureController::scaledMagnificationOrigin(FloatPoint origin, double scale)
@@ -779,7 +779,7 @@ void ViewGestureController::prepareMagnificationGesture(FloatPoint origin)
         return;
 
     m_magnification = page->pageScaleFactor();
-    page->protectedLegacyMainFrameProcess()->send(Messages::ViewGestureGeometryCollector::CollectGeometryForMagnificationGesture(), page->webPageIDInMainFrameProcess());
+    protect(page->legacyMainFrameProcess())->send(Messages::ViewGestureGeometryCollector::CollectGeometryForMagnificationGesture(), page->webPageIDInMainFrameProcess());
 
     m_initialMagnification = m_magnification;
     m_initialMagnificationOrigin = FloatPoint(origin);

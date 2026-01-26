@@ -49,7 +49,10 @@ static double networkLoadTimeToDOMHighResTimeStamp(MonotonicTime timeOrigin, Mon
     ASSERT(timeOrigin);
     if (timeStamp <= timeOrigin)
         return 0.0;
-    return Performance::reduceTimeResolution(timeStamp - timeOrigin).milliseconds();
+    auto result = Performance::reduceTimeResolution(timeStamp - timeOrigin);
+    if (!result)
+        result = Performance::timeResolution();
+    return result.milliseconds();
 }
 
 static double fetchStart(MonotonicTime timeOrigin, const ResourceTiming& resourceTiming)
@@ -341,22 +344,12 @@ uint64_t PerformanceResourceTiming::decodedBodySize() const
 
 double PerformanceResourceTiming::workerRouterEvaluationStart() const
 {
-    // FIXME: Align time computation with other timestamps.
-    Seconds difference = m_resourceTiming.networkLoadMetrics().workerRouterEvaluationStart - m_timeOrigin;
-    if (difference.value() <= 0)
-        return 0.0;
-    auto reducedPrecision = Performance::reduceTimeResolution(difference).milliseconds();
-    return reducedPrecision ? reducedPrecision : 1;
+    return networkLoadTimeToDOMHighResTimeStamp(m_timeOrigin, m_resourceTiming.networkLoadMetrics().workerRouterEvaluationStart);
 }
 
 double PerformanceResourceTiming::workerCacheLookupStart() const
 {
-    // FIXME: Align time computation with other timestamps.
-    Seconds difference = m_resourceTiming.networkLoadMetrics().workerCacheLookupStart - m_timeOrigin;
-    if (difference.value() <= 0)
-        return 0.0;
-    auto reducedPrecision = Performance::reduceTimeResolution(difference).milliseconds();
-    return reducedPrecision ? reducedPrecision : 1;
+    return networkLoadTimeToDOMHighResTimeStamp(m_timeOrigin, m_resourceTiming.networkLoadMetrics().workerCacheLookupStart);
 }
 
 const String& PerformanceResourceTiming::workerMatchedRouterSource() const

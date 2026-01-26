@@ -77,6 +77,10 @@
 #include "VideoReceiverEndpointManager.h"
 #endif
 
+#if PLATFORM(IOS_FAMILY)
+#include <WebCore/MediaSessionHelperIOS.h>
+#endif
+
 #include <wtf/NativePromise.h>
 
 namespace WebKit {
@@ -885,6 +889,15 @@ void RemoteMediaPlayerProxy::setShouldPlayToPlaybackTarget(bool shouldPlay)
 void RemoteMediaPlayerProxy::setWirelessPlaybackTarget(MediaPlaybackTargetContextSerialized&& targetContext)
 {
     Ref { *m_player }->setWirelessPlaybackTarget(targetContext.playbackTarget());
+}
+
+MediaPlaybackTargetType RemoteMediaPlayerProxy::playbackTargetType() const
+{
+#if PLATFORM(IOS_FAMILY)
+    if (RefPtr playbackTarget = MediaSessionHelper::protectedSharedHelper()->playbackTarget())
+        return playbackTarget->type();
+#endif
+    return MediaPlaybackTargetType::None;
 }
 #endif // ENABLE(WIRELESS_PLAYBACK_TARGET)
 

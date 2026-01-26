@@ -293,7 +293,7 @@ Ref<WebProcessProxy> WebProcessProxy::create(WebProcessPool& processPool, Websit
             for (auto& processPool : WebProcessPool::allProcessPools())
                 processPool->webProcessCache().clear();
             if (liveProcessesLRU().computeSize() >= s_maxProcessCount)
-                Ref { liveProcessesLRU().first() }->requestTermination(ProcessTerminationReason::ExceededProcessCountLimit);
+                protect(liveProcessesLRU().first())->requestTermination(ProcessTerminationReason::ExceededProcessCountLimit);
         }
         ASSERT(liveProcessesLRU().computeSize() < s_maxProcessCount);
         liveProcessesLRU().add(proxy.get());
@@ -765,7 +765,7 @@ WebPageProxy* WebProcessProxy::webPage(PageIdentifier pageID)
 WebPageProxy* WebProcessProxy::audioCapturingWebPage()
 {
     for (WeakRef page : globalPageMap().values()) {
-        if (Ref { page.get() }->hasActiveAudioStream())
+        if (protect(page.get())->hasActiveAudioStream())
             return page.ptr();
     }
     return nullptr;
@@ -845,7 +845,7 @@ void WebProcessProxy::addExistingWebPage(WebPageProxy& webPage, BeginsUsingDataS
 
     if (beginsUsingDataStore == BeginsUsingDataStore::Yes) {
         RELEASE_ASSERT(m_processPool);
-        protectedProcessPool()->pageBeginUsingWebsiteDataStore(webPage, webPage.protectedWebsiteDataStore());
+        protectedProcessPool()->pageBeginUsingWebsiteDataStore(webPage, protect(webPage.websiteDataStore()));
     }
 
     initializePreferencesForGPUAndNetworkProcesses(webPage);
@@ -905,7 +905,7 @@ void WebProcessProxy::removeWebPage(WebPageProxy& webPage, EndsUsingDataStore en
     reportProcessDisassociatedWithPageIfNecessary(webPage.identifier());
 
     if (endsUsingDataStore == EndsUsingDataStore::Yes)
-        protectedProcessPool()->pageEndUsingWebsiteDataStore(webPage, webPage.protectedWebsiteDataStore());
+        protectedProcessPool()->pageEndUsingWebsiteDataStore(webPage, protect(webPage.websiteDataStore()));
 
     removeVisitedLinkStoreUser(webPage.visitedLinkStore(), webPage.identifier());
     updateRegistrationWithDataStore();
@@ -915,7 +915,7 @@ void WebProcessProxy::removeWebPage(WebPageProxy& webPage, EndsUsingDataStore en
     protectedWebsiteDataStore()->propagateSettingUpdates();
 
 #if ENABLE(MEDIA_STREAM)
-    UserMediaProcessManager::singleton().revokeSandboxExtensionsIfNeeded(Ref { *this });
+    UserMediaProcessManager::singleton().revokeSandboxExtensionsIfNeeded(protect(*this));
 #endif
 
     maybeShutDown();
@@ -2529,7 +2529,7 @@ void WebProcessProxy::createSpeechRecognitionServer(SpeechRecognitionServerIdent
         page->requestSpeechRecognitionPermission(request, WTF::move(frameInfo), WTF::move(completionHandler));
     };
     auto checkIfMockCaptureDevicesEnabled = [weakPage = WeakPtr { targetPage }]() {
-        return weakPage && weakPage->protectedPreferences()->mockCaptureDevicesEnabled();
+        return weakPage && protect(weakPage->preferences())->mockCaptureDevicesEnabled();
     };
 
     m_speechRecognitionServerMap.ensure(identifier, [&]() {

@@ -27,7 +27,7 @@
     EnabledBySetting=CommandAttributesEnabled,
     Exposed=Window
 ] interface CommandEvent : Event {
-    constructor([AtomString] DOMString type, optional CommandEventInit eventInitDict);
+    constructor([AtomString] DOMString type, optional CommandEventInit eventInitDict = {});
 
     readonly attribute Element? source;
     readonly attribute DOMString command;

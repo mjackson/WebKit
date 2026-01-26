@@ -20,7 +20,7 @@
  * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #ifndef PAS_LOCK_H
@@ -231,6 +231,126 @@ static inline void pas_lock_testing_assert_held(pas_lock* lock)
 {
     if (PAS_ENABLE_TESTING)
         os_unfair_lock_assert_owner(&lock->lock);
+}
+
+PAS_END_EXTERN_C;
+
+#elif PAS_OS(LINUX)
+
+#include <linux/futex.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+
+PAS_BEGIN_EXTERN_C;
+
+struct pas_lock;
+typedef struct pas_lock pas_lock;
+
+struct pas_lock {
+    unsigned futex;
+};
+
+#define PAS_LOCK_INITIALIZER ((pas_lock){ .futex = 0 })
+
+static inline void pas_lock_construct(pas_lock* lock)
+{
+    *lock = PAS_LOCK_INITIALIZER;
+}
+
+static inline void pas_lock_construct_disabled(pas_lock* lock)
+{
+    pas_zero_memory(lock, sizeof(pas_lock));
+}
+
+static inline long pas_lock_futex_wait(unsigned* addr, unsigned val)
+{
+    return syscall(SYS_futex, addr, FUTEX_WAIT | FUTEX_PRIVATE_FLAG, val, NULL, NULL, 0);
+}
+
+static inline long pas_lock_futex_wake(unsigned* addr)
+{
+    return syscall(SYS_futex, addr, FUTEX_WAKE | FUTEX_PRIVATE_FLAG, 1, NULL, NULL, 0);
+}
+
+static inline void pas_lock_lock(pas_lock* lock)
+{
+    unsigned expected = 0;
+
+    if (PAS_LOCK_VERBOSE)
+        pas_log("Thread %p Locking lock %p\n", (void*)pthread_self(), lock);
+
+    pas_race_test_will_lock(lock);
+
+    /* Fast path: Try to acquire 0 -> 1 */
+    if (__atomic_compare_exchange_n(&lock->futex, &expected, 1, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
+        pas_race_test_did_lock(lock);
+        return;
+    }
+
+    /* Slow path: lock is contended */
+    do {
+        /* If lock is currently 1 (locked, no waiters), mark it as 2 (locked with waiters) */
+        if (expected == 1) {
+            expected = __atomic_exchange_n(&lock->futex, 2, __ATOMIC_ACQUIRE);
+            // If we swapped 0 -> 2, we actually acquired the lock.
+            if (expected == 0) {
+                pas_race_test_did_lock(lock);
+                return;
+            }
+        }
+
+        /* If still not free, wait for wakeup */
+        if (expected != 0)
+            pas_lock_futex_wait(&lock->futex, 2);
+
+        /* Try to acquire the lock: 0 -> 2 (since we know there's contention) */
+        expected = 0;
+    } while (!__atomic_compare_exchange_n(&lock->futex, &expected, 2, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED));
+
+    pas_race_test_did_lock(lock);
+}
+
+static inline bool pas_lock_try_lock(pas_lock* lock)
+{
+    unsigned expected = 0;
+    bool result;
+
+    if (PAS_LOCK_VERBOSE)
+        pas_log("Thread %p Trylocking lock %p\n", (void*)pthread_self(), lock);
+
+    result = __atomic_compare_exchange_n(&lock->futex, &expected, 1, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED);
+
+    if (result)
+        pas_race_test_did_try_lock(lock);
+
+    return result;
+}
+
+static inline void pas_lock_unlock(pas_lock* lock)
+{
+    if (PAS_LOCK_VERBOSE)
+        pas_log("Thread %p Unlocking lock %p\n", (void*)pthread_self(), lock);
+
+    pas_race_test_will_unlock(lock);
+
+    /* If we had no waiters (state was 1), just unlock to 0 */
+    if (__atomic_fetch_sub(&lock->futex, 1, __ATOMIC_RELEASE) == 1)
+        return; /* No waiters, we're done */
+
+    /* We had waiters (state was 2), so we need to wake them up */
+    __atomic_store_n(&lock->futex, 0, __ATOMIC_RELEASE);
+    pas_lock_futex_wake(&lock->futex);
+}
+
+static inline void pas_lock_assert_held(pas_lock* lock)
+{
+    PAS_ASSERT(__atomic_load_n(&lock->futex, __ATOMIC_RELAXED) != 0);
+}
+
+static inline void pas_lock_testing_assert_held(pas_lock* lock)
+{
+    if (PAS_ENABLE_TESTING)
+        PAS_TESTING_ASSERT(__atomic_load_n(&lock->futex, __ATOMIC_RELAXED) != 0);
 }
 
 PAS_END_EXTERN_C;

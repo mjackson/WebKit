@@ -674,6 +674,7 @@ SERIALIZATION_DESCRIPTION_FILES = \
 	Shared/Cocoa/CoreIPCPersonNameComponents.serialization.in \
 	Shared/Cocoa/CoreIPCPKDateComponentsRange.serialization.in \
 	Shared/Cocoa/CoreIPCPKPaymentMerchantSession.serialization.in \
+	Shared/Cocoa/CoreIPCPKPaymentToken.serialization.in \
 	Shared/Cocoa/CoreIPCPlist.serialization.in \
 	Shared/Cocoa/CoreIPCPresentationIntent.serialization.in \
 	Shared/Cocoa/CoreIPCSecureCoding.serialization.in \
@@ -694,6 +695,7 @@ SERIALIZATION_DESCRIPTION_FILES = \
 	Shared/DebuggableInfoData.serialization.in \
 	Shared/DocumentEditingContext.serialization.in \
 	Shared/DragControllerAction.serialization.in \
+	Shared/DragEventForwardingData.serialization.in \
 	Shared/DrawingAreaInfo.serialization.in \
 	Shared/EditingRange.serialization.in \
 	Shared/EditorState.serialization.in \
@@ -1044,6 +1046,7 @@ all : JSWebExtensionAPIUnified.mm $(EXTENSION_INTERFACES:%=JS%.h) $(EXTENSION_IN
 ifeq ($(USE_INTERNAL_SDK),YES)
 WEBKIT_ADDITIONS_SWIFT_FILES = \
 	UIWindowScene+Extras.swift \
+	WKWebView+SystemTextExtraction.swift \
 #
 
 $(WEBKIT_ADDITIONS_SWIFT_FILES): %.swift : %.swift.in

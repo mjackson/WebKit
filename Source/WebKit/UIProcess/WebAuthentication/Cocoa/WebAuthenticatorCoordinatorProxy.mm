@@ -585,7 +585,7 @@ void WebAuthenticatorCoordinatorProxy::performRequest(WebAuthenticationRequestDa
 {
 #if HAVE(UNIFIED_ASC_AUTH_UI)
     RefPtr webPageProxy = m_webPageProxy.get();
-    if (!webPageProxy || !webPageProxy->protectedPreferences()->webAuthenticationASEnabled()) {
+    if (!webPageProxy || !protect(webPageProxy->preferences())->webAuthenticationASEnabled()) {
         auto context = contextForRequest(WTF::move(requestData));
         if (context.get() == nullptr) {
             handler({ }, (AuthenticatorAttachment)0, ExceptionData { ExceptionCode::NotAllowedError, "The origin of the document is not the same as its ancestors."_s });

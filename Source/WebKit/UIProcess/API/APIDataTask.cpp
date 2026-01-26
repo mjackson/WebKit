@@ -64,7 +64,7 @@ DataTask::DataTask(std::optional<WebKit::DataTaskIdentifier> identifier, WeakPtr
     : m_identifier(identifier)
     , m_page(WTF::move(page))
     , m_originalURL(WTF::move(originalURL))
-    , m_networkProcess(m_page ? WeakPtr { protectedPage()->protectedWebsiteDataStore()->networkProcess() } : nullptr)
+    , m_networkProcess(m_page ? WeakPtr { protect(protectedPage()->websiteDataStore())->networkProcess() } : nullptr)
     , m_sessionID(m_page ? std::optional<PAL::SessionID> { protectedPage()->sessionID() } : std::nullopt)
     , m_client(DataTaskClient::create())
 {

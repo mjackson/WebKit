@@ -62,7 +62,6 @@
 
 #if PLATFORM(IOS_FAMILY)
 #include "LocalizedStrings.h"
-#include "RenderThemeIOS.h"
 #endif
 
 namespace WebCore {
@@ -152,33 +151,25 @@ void RenderMenuList::adjustInnerStyle()
 
     innerStyle.setPaddingBox(WTF::move(paddingBox));
 
-    if (document().page()->chrome().selectItemWritingDirectionIsNatural()) {
-        // Items in the popup will not respect the CSS text-align and direction properties,
-        // so we must adjust our own style to match.
-        innerStyle.setTextAlign(Style::TextAlign::Left);
-        TextDirection direction = (m_buttonText && m_buttonText->text().defaultWritingDirection() == U_RIGHT_TO_LEFT) ? TextDirection::RTL : TextDirection::LTR;
-        innerStyle.setDirection(direction);
 #if PLATFORM(IOS_FAMILY)
-    } else if (document().page()->chrome().selectItemAlignmentFollowsMenuWritingDirection()) {
-        innerStyle.setTextAlign(writingMode().isBidiLTR() ? Style::TextAlign::Left : Style::TextAlign::Right);
-        TextDirection direction;
-        UnicodeBidi unicodeBidi;
-        if (selectElement().multiple() && selectedOptionCount(*this) != 1) {
-            direction = (m_buttonText && m_buttonText->text().defaultWritingDirection() == U_RIGHT_TO_LEFT) ? TextDirection::RTL : TextDirection::LTR;
-            unicodeBidi = UnicodeBidi::Normal;
-        } else if (m_optionStyle) {
-            direction = m_optionStyle->writingMode().bidiDirection();
-            unicodeBidi = m_optionStyle->unicodeBidi();
-        } else {
-            direction = style().writingMode().bidiDirection();
-            unicodeBidi = style().unicodeBidi();
-        }
-
-        innerStyle.setDirection(direction);
-        innerStyle.setUnicodeBidi(unicodeBidi);
+    innerStyle.setTextAlign(writingMode().isBidiLTR() ? Style::TextAlign::Left : Style::TextAlign::Right);
+    TextDirection direction;
+    UnicodeBidi unicodeBidi;
+    if (selectElement().multiple() && selectedOptionCount(*this) != 1) {
+        direction = (m_buttonText && m_buttonText->text().defaultWritingDirection() == U_RIGHT_TO_LEFT) ? TextDirection::RTL : TextDirection::LTR;
+        unicodeBidi = UnicodeBidi::Normal;
+    } else if (m_optionStyle) {
+        direction = m_optionStyle->writingMode().bidiDirection();
+        unicodeBidi = m_optionStyle->unicodeBidi();
+    } else {
+        direction = style().writingMode().bidiDirection();
+        unicodeBidi = style().unicodeBidi();
     }
+
+    innerStyle.setDirection(direction);
+    innerStyle.setUnicodeBidi(unicodeBidi);
 #else
-    } else if (m_optionStyle && document().page()->chrome().selectItemAlignmentFollowsMenuWritingDirection()) {
+    if (m_optionStyle) {
         if ((m_optionStyle->writingMode().bidiDirection() != innerStyle.writingMode().bidiDirection()
             || m_optionStyle->unicodeBidi() != innerStyle.unicodeBidi()))
             m_innerBlock->setNeedsLayoutAndPreferredWidthsUpdate();

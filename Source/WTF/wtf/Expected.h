@@ -322,22 +322,22 @@ public:
         std::swap(base::s, o.s);
     }
 
-    constexpr const value_type* operator->() const { return &std::get<0>(base::s); }
-    value_type* operator->() { return &std::get<0>(base::s); }
-    constexpr const value_type& operator*() const & { return std::get<0>(base::s); }
-    value_type& operator*() & { return std::get<0>(base::s); }
-    constexpr const value_type&& operator*() const && { return WTF::move(std::get<0>(base::s)); }
-    constexpr value_type&& operator*() && { return WTF::move(std::get<0>(base::s)); }
+    constexpr const value_type* operator->() const LIFETIME_BOUND { return &std::get<0>(base::s); }
+    value_type* operator->() LIFETIME_BOUND { return &std::get<0>(base::s); }
+    constexpr const value_type& operator*() const & LIFETIME_BOUND { return std::get<0>(base::s); }
+    value_type& operator*() & LIFETIME_BOUND { return std::get<0>(base::s); }
+    constexpr const value_type&& operator*() const && LIFETIME_BOUND { return WTF::move(std::get<0>(base::s)); }
+    constexpr value_type&& operator*() && LIFETIME_BOUND { return WTF::move(std::get<0>(base::s)); }
     constexpr explicit operator bool() const { return has_value(); }
     constexpr bool has_value() const { return !base::s.index(); }
-    constexpr const value_type& value() const & { return std::get<0>(base::s); }
-    constexpr value_type& value() & { return std::get<0>(base::s); }
-    constexpr const value_type&& value() const && { return WTF::move(std::get<0>(base::s)); }
-    constexpr value_type&& value() && { return WTF::move(std::get<0>(base::s)); }
-    constexpr const error_type& error() const & { return std::get<1>(base::s); }
-    error_type& error() & { return std::get<1>(base::s); }
-    constexpr error_type&& error() && { return WTF::move(std::get<1>(base::s)); }
-    constexpr const error_type&& error() const && { return WTF::move(std::get<1>(base::s)); }
+    constexpr const value_type& value() const & LIFETIME_BOUND { return std::get<0>(base::s); }
+    constexpr value_type& value() & LIFETIME_BOUND { return std::get<0>(base::s); }
+    constexpr const value_type&& value() const && LIFETIME_BOUND { return WTF::move(std::get<0>(base::s)); }
+    constexpr value_type&& value() && LIFETIME_BOUND { return WTF::move(std::get<0>(base::s)); }
+    constexpr const error_type& error() const & LIFETIME_BOUND { return std::get<1>(base::s); }
+    error_type& error() & LIFETIME_BOUND { return std::get<1>(base::s); }
+    constexpr error_type&& error() && LIFETIME_BOUND { return WTF::move(std::get<1>(base::s)); }
+    constexpr const error_type&& error() const && LIFETIME_BOUND { return WTF::move(std::get<1>(base::s)); }
     template<class U> constexpr value_type value_or(U&& u) const & { return has_value() ? **this : static_cast<value_type>(std::forward<U>(u)); }
     template<class U> value_type value_or(U&& u) && { return has_value() ? WTF::move(**this) : static_cast<value_type>(std::forward<U>(u)); }
 };

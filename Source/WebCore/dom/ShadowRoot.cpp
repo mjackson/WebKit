@@ -219,7 +219,7 @@ CustomElementRegistry* ShadowRoot::registryForBindings() const
 {
     if (usesNullCustomElementRegistry())
         return nullptr;
-    auto* registry = customElementRegistry();
+    SUPPRESS_UNCOUNTED_LOCAL auto* registry = customElementRegistry();
     if (RefPtr window = document().window(); window && !registry)
         registry = &window->ensureCustomElementRegistry();
     return registry;

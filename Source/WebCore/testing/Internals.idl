@@ -823,7 +823,9 @@ enum ContentsFormat {
     unsigned long long layerIDForElement(Element element);
     unsigned long long horizontalScrollbarLayerID(optional Node? node = null);
     unsigned long long verticalScrollbarLayerID(optional Node? node = null);
-    
+    DOMRect horizontalScrollbarFrameRect(optional Node? node = null);
+    DOMRect verticalScrollbarFrameRect(optional Node? node = null);
+
     ScrollingNodeID scrollingNodeIDForNode(optional Node? node = null);
 
     // Flags for platformLayerTreeAsText.
@@ -978,6 +980,8 @@ enum ContentsFormat {
 
     undefined startTrackingRenderingUpdates();
     unsigned long renderingUpdateCount();
+
+    double? timeToNextRenderingUpdate();
 
     attribute CompositingPolicy? compositingPolicyOverride;
 

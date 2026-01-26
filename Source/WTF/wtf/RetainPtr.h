@@ -187,7 +187,7 @@ template<typename T> [[nodiscard]] RetainPtr<RetainPtrType<T>> retainPtr(T);
 
 template<typename T> inline RetainPtr<T>::~RetainPtr()
 {
-    if (auto ptr = std::exchange(m_ptr, nullptr))
+    SUPPRESS_UNRETAINED_LOCAL if (auto ptr = std::exchange(m_ptr, nullptr))
         releaseFoundationPtr(ptr);
 }
 
@@ -318,6 +318,21 @@ template<typename T> inline RetainPtr<RetainPtrType<T>> retainPtr(T ptr)
     return ptr;
 }
 
+#ifdef __OBJC__
+template<typename T>
+    requires IsNSType<T>
+ALWAYS_INLINE CLANG_POINTER_CONVERSION RetainPtr<RetainPtrType<T>> protect(T ptr)
+{
+    return ptr;
+}
+#endif
+
+template<typename T>
+ALWAYS_INLINE CLANG_POINTER_CONVERSION RetainPtr<T> protect(const RetainPtr<T>& ptr)
+{
+    return ptr;
+}
+
 template<typename T> struct IsSmartPtr<RetainPtr<T>> {
     static constexpr bool value = true;
     static constexpr bool isNullable = true;
@@ -379,6 +394,7 @@ ALWAYS_INLINE void lazyInitialize(const RetainPtr<T>& ptr, RetainPtr<U>&& obj)
 using WTF::RetainPtr;
 using WTF::adoptCF;
 using WTF::lazyInitialize;
+using WTF::protect;
 using WTF::retainPtr;
 using WTF::safeCFEqual;
 using WTF::safeCFHash;

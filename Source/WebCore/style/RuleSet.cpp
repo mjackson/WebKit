@@ -247,7 +247,7 @@ void RuleSet::addRule(RuleData&& ruleData, CascadeLayerIdentifier cascadeLayerId
             case CSSSelector::PseudoElement::ViewTransitionImagePair:
             case CSSSelector::PseudoElement::ViewTransitionOld:
             case CSSSelector::PseudoElement::ViewTransitionNew:
-                if (selector->argumentList()->first() != starAtom())
+                if (selector->stringList()->first() != starAtom())
                     namedPseudoElementSelector = selector;
                 break;
             default:
@@ -395,7 +395,7 @@ void RuleSet::addRule(RuleData&& ruleData, CascadeLayerIdentifier cascadeLayerId
     }
 
     if (namedPseudoElementSelector) {
-        addToRuleSet(namedPseudoElementSelector->argumentList()->first(), m_namedPseudoElementRules, ruleData);
+        addToRuleSet(namedPseudoElementSelector->stringList()->first(), m_namedPseudoElementRules, ruleData);
         return;
     }
 

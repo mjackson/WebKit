@@ -1,4 +1,4 @@
-# Copyright (C) 2024 Apple Inc. All rights reserved.
+# Copyright (C) 2024-2026 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -41,7 +41,7 @@ LLVM_DIR = 'llvm-project'
 SWIFT_DIR = 'swift-project/swift'
 
 # Workaround for https://github.com/buildbot/buildbot/issues/4669
-FakeBuild.addStepsAfterLastStep = lambda FakeBuild, step_factories: None
+FakeBuild.addStepsAfterCurrentStep = lambda FakeBuild, step_factories: None
 FakeBuild._builderid = 1
 
 
@@ -704,6 +704,28 @@ class TestBuildSwift(BuildStepMixinAdditions, unittest.TestCase):
             .exit(1),
         )
         self.expect_outcome(result=FAILURE, state_string='Failed to build Swift')
+        return self.run_step()
+
+
+class TestWaitForDuration(BuildStepMixinAdditions, unittest.TestCase):
+    def setUp(self):
+        self.longMessage = True
+        return self.setup_test_build_step()
+
+    def tearDown(self):
+        return self.tear_down_test_build_step()
+
+    def test_default_duration(self):
+        step = WaitForDuration()
+        self.assertEqual(step.duration, WaitForDuration.DEFAULT_WAIT_DURATION)
+
+    def test_custom_duration(self):
+        step = WaitForDuration(duration=300)
+        self.assertEqual(step.duration, 300)
+
+    def test_success(self):
+        self.setup_step(WaitForDuration(duration=1))
+        self.expect_outcome(result=SUCCESS, state_string='Waited for 1s')
         return self.run_step()
 
 

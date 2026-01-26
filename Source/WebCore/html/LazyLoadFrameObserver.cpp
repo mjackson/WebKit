@@ -84,7 +84,7 @@ LazyLoadFrameObserver::LazyLoadFrameObserver(HTMLIFrameElement& element)
 void LazyLoadFrameObserver::observe(const AtomString& frameURL, const ReferrerPolicy& referrerPolicy)
 {
     auto& frameObserver = m_element->lazyLoadFrameObserver();
-    auto* intersectionObserver = frameObserver.intersectionObserver(m_element->protectedDocument());
+    RefPtr intersectionObserver = frameObserver.intersectionObserver(m_element->protectedDocument());
     if (!intersectionObserver)
         return;
     m_frameURL = frameURL;

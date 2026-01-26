@@ -51,7 +51,7 @@ enum RTCRtpSFrameTransformCompatibilityMode {
     InterfaceName=SFrameTransform,
     JSGenerateToNativeObject,
 ] interface RTCRtpSFrameTransform : EventTarget {
-    [CallWith=CurrentScriptExecutionContext] constructor(optional RTCRtpSFrameTransformOptions options);
+    [CallWith=CurrentScriptExecutionContext] constructor(optional RTCRtpSFrameTransformOptions options = {});
 
     [Custom] Promise<undefined> setEncryptionKey(CryptoKey key, optional any keyID);
     // FIXME: Add support for missing methods.

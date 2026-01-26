@@ -228,8 +228,6 @@ public:
     WEBCORE_EXPORT void focusNSView(NSView*);
 #endif
 
-    bool selectItemWritingDirectionIsNatural();
-    bool selectItemAlignmentFollowsMenuWritingDirection();
     RefPtr<PopupMenu> createPopupMenu(PopupMenuClient&) const;
     RefPtr<SearchPopupMenu> createSearchPopupMenu(PopupMenuClient&) const;
 

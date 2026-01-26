@@ -111,7 +111,7 @@ Vector<StylePropertyMapReadOnly::StylePropertyMapEntry> ComputedStylePropertyMap
         return makeKeyValuePair(nameString(propertyID), StylePropertyMapReadOnly::reifyValueToVector(document, WTF::move(value), propertyID));
     });
 
-    for (const auto* map : { nonInheritedCustomProperties.ptr(), inheritedCustomProperties.ptr() }) {
+    for (const RefPtr map : { nonInheritedCustomProperties.ptr(), inheritedCustomProperties.ptr() }) {
         map->forEach([&](auto& it) {
             values.append(
                 makeKeyValuePair(

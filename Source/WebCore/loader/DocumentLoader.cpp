@@ -2620,10 +2620,24 @@ void DocumentLoader::handleProvisionalLoadFailureFromContentFilter(const URL& bl
     protectedFrameLoader()->load(FrameLoadRequest(*frame(), URL { blockedPageURL }, WTF::move(substituteData)));
 }
 
+#if HAVE(WEBCONTENTRESTRICTIONS)
 #if HAVE(WEBCONTENTRESTRICTIONS_PATH_SPI)
 String DocumentLoader::webContentRestrictionsConfigurationPath() const
 {
     return emptyString();
+}
+#endif
+
+URL DocumentLoader::mainDocumentURL() const
+{
+    RefPtr loaderFrame = frame();
+    if (!loaderFrame)
+        return { };
+
+    if (RefPtr origin = loaderFrame->mainFrame().frameDocumentSecurityOrigin())
+        return origin->toURL();
+
+    return { };
 }
 #endif
 #endif // ENABLE(CONTENT_FILTERING)

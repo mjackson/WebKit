@@ -163,8 +163,11 @@ bool ParentalControlsURLFilter::isEnabled() const
     return *m_isEnabled;
 }
 
-void ParentalControlsURLFilter::isURLAllowed(const URL& url, ParentalControlsContentFilter& filter)
+void ParentalControlsURLFilter::isURLAllowed(const URL& mainDocumentURL, const URL& url, ParentalControlsContentFilter& filter)
 {
+    // FIXME: rdar://168622817
+    UNUSED_PARAM(mainDocumentURL);
+
     isURLAllowedImpl(url, { [protectedThis = Ref { *this }, weakFilter = ThreadSafeWeakPtr { filter }] (bool allowed, NSData *replacementData) mutable {
         ASSERT(!isMainThread());
         if (RefPtr filter = weakFilter.get())

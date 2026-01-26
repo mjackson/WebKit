@@ -49,6 +49,8 @@ public:
 
     void showCaptionDisplaySettings(HTMLMediaElement&, const ResolvedCaptionDisplaySettingsOptions&, CompletionHandler<void(ExceptionOr<void>)>&&) override;
 
+    virtual bool isJSMockCaptionDisplaySettingsClientCallback() const { return false; }
+
 private:
     virtual bool hasCallback() const = 0;
 };

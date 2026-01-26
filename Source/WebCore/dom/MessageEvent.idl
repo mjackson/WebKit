@@ -33,7 +33,7 @@ typedef (WindowProxy or MessagePort or ServiceWorker) MessageEventSource;
     JSCustomMarkFunction,
     ReportExtraMemoryCost,
 ] interface MessageEvent : Event {
-    constructor([AtomString] DOMString type, optional MessageEventInit eventInitDict);
+    constructor([AtomString] DOMString type, optional MessageEventInit eventInitDict = {});
 
     readonly attribute USVString origin;
     readonly attribute DOMString lastEventId;

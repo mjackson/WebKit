@@ -62,6 +62,7 @@
 
 #if ENABLE(VIDEO_PRESENTATION_MODE)
 #include "RemotePageVideoPresentationManagerProxy.h"
+#include "VideoPresentationManagerProxy.h"
 #endif
 
 #if PLATFORM(IOS_FAMILY) && ENABLE(DEVICE_ORIENTATION)
@@ -143,16 +144,16 @@ void RemotePageProxy::injectPageIntoNewProcess()
     Ref drawingArea = *page->drawingArea();
     m_drawingArea = RemotePageDrawingAreaProxy::create(drawingArea.get(), m_process);
 #if ENABLE(FULLSCREEN_API)
-    m_fullscreenManager = RemotePageFullscreenManagerProxy::create(pageID(), page->protectedFullScreenManager().get(), m_process);
+    m_fullscreenManager = RemotePageFullscreenManagerProxy::create(pageID(), protect(page->fullScreenManager()), m_process);
 #endif
 #if ENABLE(VIDEO_PRESENTATION_MODE)
-    m_videoPresentationManager = RemotePageVideoPresentationManagerProxy::create(pageID(), m_process, page->protectedVideoPresentationManager().get());
+    m_videoPresentationManager = RemotePageVideoPresentationManagerProxy::create(pageID(), m_process, protect(page->videoPresentationManager()));
 #endif
 #if PLATFORM(IOS_FAMILY) && ENABLE(DEVICE_ORIENTATION)
-    m_webDeviceOrientationUpdateProvider = RemotePageWebDeviceOrientationUpdateProviderProxy::create(pageID(), m_process, page->protectedWebDeviceOrientationUpdateProviderProxy().get());
+    m_webDeviceOrientationUpdateProvider = RemotePageWebDeviceOrientationUpdateProviderProxy::create(pageID(), m_process, protect(page->webDeviceOrientationUpdateProviderProxy()));
 #endif
 #if PLATFORM(IOS_FAMILY) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
-    m_playbackSessionManager = RemotePagePlaybackSessionManagerProxy::create(pageID(), page->protectedPlaybackSessionManager().get(), m_process);
+    m_playbackSessionManager = RemotePagePlaybackSessionManagerProxy::create(pageID(), protect(page->playbackSessionManager()), m_process);
 #endif
 
     if (RefPtr screenOrientationManager = page->screenOrientationManager())
@@ -166,7 +167,7 @@ void RemotePageProxy::injectPageIntoNewProcess()
             m_webPageID,
             page->creationParametersForRemotePage(m_process, drawingArea.get(), RemotePageParameters {
                 URL(page->pageLoadState().url()),
-                page->protectedMainFrame()->frameTreeCreationParameters(),
+                protect(page->mainFrame())->frameTreeCreationParameters(),
                 websitePolicies ? std::make_optional(websitePolicies->dataForProcess(m_process)) : std::nullopt
             })
         ), 0

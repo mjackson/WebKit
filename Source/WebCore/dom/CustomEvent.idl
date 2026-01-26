@@ -28,7 +28,7 @@
     Exposed=*,
     JSCustomMarkFunction,
 ] interface CustomEvent : Event {
-    constructor([AtomString] DOMString type, optional CustomEventInit eventInitDict);
+    constructor([AtomString] DOMString type, optional CustomEventInit eventInitDict = {});
 
     [CustomGetter] readonly attribute any detail;
 

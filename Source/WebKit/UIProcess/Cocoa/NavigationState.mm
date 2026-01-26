@@ -437,7 +437,7 @@ static void trySOAuthorization(Ref<API::NavigationAction>&& navigationAction, We
         completionHandler(false);
         return;
     }
-    page.protectedWebsiteDataStore()->soAuthorizationCoordinator(page).tryAuthorize(WTF::move(navigationAction), page, WTF::move(completionHandler));
+    protect(page.websiteDataStore())->soAuthorizationCoordinator(page).tryAuthorize(WTF::move(navigationAction), page, WTF::move(completionHandler));
 #else
     completionHandler(false);
 #endif
@@ -570,7 +570,7 @@ void NavigationState::NavigationClient::decidePolicyForNavigationAction(WebPageP
     if (!m_navigationState || (!m_navigationState->m_navigationDelegateMethods.webViewDecidePolicyForNavigationActionDecisionHandler
         && !m_navigationState->m_navigationDelegateMethods.webViewDecidePolicyForNavigationActionWithPreferencesUserInfoDecisionHandler
         && !m_navigationState->m_navigationDelegateMethods.webViewDecidePolicyForNavigationActionWithPreferencesDecisionHandler)) {
-        auto completionHandler = [webPage = Ref { webPageProxy }, listener = WTF::move(listener), navigationAction, defaultWebsitePolicies] (bool interceptedNavigation) {
+        auto completionHandler = [webPage = protect(webPageProxy), listener = WTF::move(listener), navigationAction, defaultWebsitePolicies] (bool interceptedNavigation) {
             if (interceptedNavigation) {
                 listener->ignore(WasNavigationIntercepted::Yes);
                 return;
@@ -630,12 +630,12 @@ void NavigationState::NavigationClient::decidePolicyForNavigationAction(WebPageP
     })();
 
     auto checker = CompletionHandlerCallChecker::create(navigationDelegate.get(), selectorForCompletionHandlerChecker);
-    auto decisionHandlerWithPreferencesOrPolicies = [localListener = WTF::move(listener), navigationAction, checker = WTF::move(checker), webPageProxy = Ref { webPageProxy }, subframeNavigation, defaultWebsitePolicies] (WKNavigationActionPolicy actionPolicy, WKWebpagePreferences *preferences) mutable {
+    auto decisionHandlerWithPreferencesOrPolicies = [localListener = WTF::move(listener), navigationAction, checker = WTF::move(checker), webPageProxy = protect(webPageProxy), subframeNavigation, defaultWebsitePolicies] (WKNavigationActionPolicy actionPolicy, WKWebpagePreferences *preferences) mutable {
         if (checker->completionHandlerHasBeenCalled())
             return;
         checker->didCallCompletionHandler();
 
-        RefPtr<API::WebsitePolicies> apiWebsitePolicies = preferences ?  RefPtr { preferences->_websitePolicies.get() } : defaultWebsitePolicies;
+        RefPtr<API::WebsitePolicies> apiWebsitePolicies = preferences ?  protect(preferences->_websitePolicies.get()) : defaultWebsitePolicies;
 
         if (apiWebsitePolicies) {
             if (apiWebsitePolicies->websiteDataStore() && subframeNavigation)
@@ -1180,7 +1180,7 @@ void NavigationState::NavigationClient::didReceiveAuthenticationChallenge(WebPag
         return authenticationChallenge.listener().completeChallenge(WebKit::AuthenticationChallengeDisposition::RejectProtectionSpaceAndContinue);
 
     auto checker = CompletionHandlerCallChecker::create(navigationDelegate.get(), @selector(webView:didReceiveAuthenticationChallenge:completionHandler:));
-    [static_cast<id<WKNavigationDelegatePrivate>>(navigationDelegate) webView:navigationState->webView().get() didReceiveAuthenticationChallenge:protectedWrapper(authenticationChallenge).get() completionHandler:makeBlockPtr([challenge = Ref { authenticationChallenge }, checker = WTF::move(checker)](NSURLSessionAuthChallengeDisposition disposition, NSURLCredential *credential) {
+    [static_cast<id<WKNavigationDelegatePrivate>>(navigationDelegate) webView:navigationState->webView().get() didReceiveAuthenticationChallenge:protectedWrapper(authenticationChallenge).get() completionHandler:makeBlockPtr([challenge = protect(authenticationChallenge), checker = WTF::move(checker)](NSURLSessionAuthChallengeDisposition disposition, NSURLCredential *credential) {
         if (checker->completionHandlerHasBeenCalled())
             return;
         checker->didCallCompletionHandler();

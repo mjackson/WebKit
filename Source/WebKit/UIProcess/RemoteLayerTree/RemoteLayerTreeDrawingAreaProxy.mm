@@ -104,10 +104,10 @@ RemoteLayerTreeDrawingAreaProxy::RemoteLayerTreeDrawingAreaProxy(WebPageProxy& p
     // FIXME: We should do this somewhere else.
     IOSurfacePool::sharedPoolSingleton().setPoolSize(0);
 
-    if (pageProxy.protectedPreferences()->tiledScrollingIndicatorVisible())
+    if (protect(pageProxy.preferences())->tiledScrollingIndicatorVisible())
         initializeDebugIndicator();
 
-    if (pageProxy.protectedPreferences()->slowFrameIndicatorVisible())
+    if (protect(pageProxy.preferences())->slowFrameIndicatorVisible())
         initializeSlowFrameIndicator();
 }
 
@@ -773,7 +773,7 @@ TextStream& operator<<(TextStream& ts, const PendingCommit& pendingCommit)
 bool RemoteLayerTreeDrawingAreaProxy::allowMultipleCommitLayerTreePending()
 {
     if (RefPtr page = this->page())
-        return page->protectedPreferences()->allowMultipleCommitLayerTreePending();
+        return protect(page->preferences())->allowMultipleCommitLayerTreePending();
     return false;
 }
 

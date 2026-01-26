@@ -185,8 +185,8 @@ IntersectionObserver::IntersectionObserver(Document& document, Ref<IntersectionO
     } else if (root) {
         auto& observerData = downcast<Element>(*root).ensureIntersectionObserverData();
         observerData.observers.append(*this);
-    } else if (auto* frame = document.frame()) {
-        if (auto* localFrame = dynamicDowncast<LocalFrame>(frame->mainFrame()))
+    } else if (RefPtr frame = document.frame()) {
+        if (RefPtr localFrame = dynamicDowncast<LocalFrame>(frame->mainFrame()))
             m_implicitRootDocument = localFrame->document();
     }
 
@@ -351,7 +351,7 @@ static void expandRootBoundsWithRootMargin(FloatRect& rootBounds, const Intersec
 
 static std::optional<LayoutRect> computeClippedRectInRootContentsSpace(const LayoutRect& rect, const SecurityOrigin& targetSecurityOrigin, Variant<const RenderElement*, const Frame*> rendererOrFrame, std::optional<IntersectionObserverMarginBox> scrollMargin)
 {
-    auto rendererOrFrameSecurityOrigin = WTF::visit(WTF::makeVisitor(
+    RefPtr rendererOrFrameSecurityOrigin = WTF::visit(WTF::makeVisitor(
         [&] (const RenderElement* renderer) { return Ref<const Frame>(renderer->frame())->frameDocumentSecurityOrigin(); },
         [&] (const Frame* frame) { return frame->frameDocumentSecurityOrigin(); }
     ), rendererOrFrame);

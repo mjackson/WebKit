@@ -494,10 +494,10 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     Modules/identity/CredentialRequestCoordinatorClient.h
     Modules/identity/DigitalCredential.h
     Modules/identity/DigitalCredentialGetRequest.h
+    Modules/identity/DigitalCredentialPresentationProtocol.h
     Modules/identity/DigitalCredentialRequestOptions.h
     Modules/identity/DigitalCredentialsRequestData.h
     Modules/identity/DigitalCredentialsResponseData.h
-    Modules/identity/IdentityCredentialProtocol.h
 
     Modules/identity/dummy/DummyCredentialRequestCoordinatorClient.h
 
@@ -1347,6 +1347,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     dom/DeviceOrientationData.h
     dom/DeviceOrientationOrMotionPermissionState.h
     dom/Document.h
+    dom/DocumentSecurityPolicy.h
     dom/DocumentClasses.h
     dom/DocumentEnums.h
     dom/DocumentEventLoop.h
@@ -2298,6 +2299,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/Decimal.h
     platform/DeferrableTask.h
     platform/DragData.h
+    platform/DragEventTargetData.h
     platform/DragImage.h
     platform/DragItem.h
     platform/EventTrackingRegions.h
@@ -2756,6 +2758,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/graphics/SystemFontDatabase.h
     platform/graphics/SystemImage.h
     platform/graphics/TabSize.h
+    platform/graphics/TextMeasurementCache.h
     platform/graphics/TextRun.h
     platform/graphics/TextRunHash.h
     platform/graphics/TextTrackRepresentation.h
@@ -2771,7 +2774,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/graphics/VideoTarget.h
     platform/graphics/VideoTrackPrivate.h
     platform/graphics/VideoTrackPrivateClient.h
-    platform/graphics/WidthCache.h
     platform/graphics/WidthIterator.h
     platform/graphics/WindRule.h
 

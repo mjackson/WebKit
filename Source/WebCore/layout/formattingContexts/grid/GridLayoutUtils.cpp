@@ -43,16 +43,8 @@ LayoutUnit computeGapValue(const Style::GapGutter& gap)
     return { };
 }
 
-LayoutUnit usedInlineSizeForGridItem(const PlacedGridItem& placedGridItem, LayoutUnit borderAndPadding, const TrackSizes& usedColumnSizes,
-    LayoutUnit columnsGap)
+LayoutUnit usedInlineSizeForGridItem(const PlacedGridItem& placedGridItem, LayoutUnit borderAndPadding, LayoutUnit columnsSize)
 {
-    auto columnsSize = [&] {
-        auto columnsStartPosition = computeGridLinePosition(placedGridItem.columnStartLine(), usedColumnSizes, columnsGap);
-        auto columnsEndPosition = computeGridLinePosition(placedGridItem.columnEndLine(), usedColumnSizes, columnsGap);
-        ASSERT(columnsEndPosition >= columnsStartPosition);
-        return columnsEndPosition - columnsStartPosition;
-    };
-
     auto& inlineAxisSizes = placedGridItem.inlineAxisSizes();
     ASSERT(inlineAxisSizes.minimumSize.isFixed() && (inlineAxisSizes.maximumSize.isFixed() || inlineAxisSizes.maximumSize.isNone()));
 
@@ -89,7 +81,7 @@ LayoutUnit usedInlineSizeForGridItem(const PlacedGridItem& placedGridItem, Layou
                 return LayoutUnit { computedMaximumSize.tryFixed()->resolveZoom(usedZoom) };
             };
 
-            auto stretchedWidth = columnsSize() - LayoutUnit { marginStart.tryFixed()->resolveZoom(usedZoom) } - LayoutUnit { marginEnd.tryFixed()->resolveZoom(usedZoom) } - borderAndPadding;
+            auto stretchedWidth = columnsSize - LayoutUnit { marginStart.tryFixed()->resolveZoom(usedZoom) } - LayoutUnit { marginEnd.tryFixed()->resolveZoom(usedZoom) } - borderAndPadding;
             return std::max(minimumSize, std::min(maximumSize(), stretchedWidth));
         }
 
@@ -101,16 +93,8 @@ LayoutUnit usedInlineSizeForGridItem(const PlacedGridItem& placedGridItem, Layou
     return { };
 }
 
-LayoutUnit usedBlockSizeForGridItem(const PlacedGridItem& placedGridItem, LayoutUnit borderAndPadding, const TrackSizes& usedRowSizes,
-    LayoutUnit rowsGap)
+LayoutUnit usedBlockSizeForGridItem(const PlacedGridItem& placedGridItem, LayoutUnit borderAndPadding, LayoutUnit rowsSize)
 {
-    auto rowsSize = [&] {
-        auto rowsStartPosition = computeGridLinePosition(placedGridItem.rowStartLine(), usedRowSizes, rowsGap);
-        auto rowsEndPosition = computeGridLinePosition(placedGridItem.rowEndLine(), usedRowSizes, rowsGap);
-        ASSERT(rowsEndPosition >= rowsStartPosition);
-        return rowsEndPosition - rowsStartPosition;
-    };
-
     auto& blockAxisSizes = placedGridItem.blockAxisSizes();
     auto& preferredSize = blockAxisSizes.preferredSize;
     if (auto fixedBlockSize = preferredSize.tryFixed())
@@ -144,7 +128,7 @@ LayoutUnit usedBlockSizeForGridItem(const PlacedGridItem& placedGridItem, Layout
                     return LayoutUnit::max();
                 return LayoutUnit { computedMaximumSize.tryFixed()->resolveZoom(usedZoom) };
             };
-            auto stretchedBlockSize = rowsSize() - LayoutUnit { marginStart.tryFixed()->resolveZoom(usedZoom) } - LayoutUnit { marginEnd.tryFixed()->resolveZoom(usedZoom) } - borderAndPadding;
+            auto stretchedBlockSize = rowsSize - LayoutUnit { marginStart.tryFixed()->resolveZoom(usedZoom) } - LayoutUnit { marginEnd.tryFixed()->resolveZoom(usedZoom) } - borderAndPadding;
             return std::max(minimumSize, std::min(maximumSize(), stretchedBlockSize));
         }
     }
@@ -163,6 +147,17 @@ LayoutUnit computeGridLinePosition(size_t gridLineIndex, const TrackSizes& track
     auto numberOfGaps = gridLineIndex > 0 ? gridLineIndex - 1 : 0;
 
     return sumOfTrackSizes + (numberOfGaps * gap);
+}
+
+LayoutUnit gridAreaDimensionSize(size_t startLine, size_t endLine, const TrackSizes& trackSizes, LayoutUnit gap)
+{
+    ASSERT(endLine > startLine);
+
+    auto startPosition = computeGridLinePosition(startLine, trackSizes, gap);
+    auto endPosition = computeGridLinePosition(endLine, trackSizes, gap);
+    ASSERT(endPosition >= startPosition);
+
+    return endPosition - startPosition;
 }
 
 }

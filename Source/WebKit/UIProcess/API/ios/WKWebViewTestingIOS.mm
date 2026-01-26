@@ -316,7 +316,7 @@ static void dumpUIView(TextStream& ts, UIView *view, bool traverse)
 {
     if (!layerID)
         return nil;
-    RetainPtr view = downcast<WebKit::RemoteLayerTreeDrawingAreaProxyIOS>(_page->protectedDrawingArea())->viewWithLayerIDForTesting({ ObjectIdentifier<WebCore::PlatformLayerIdentifierType>(layerID), _page->legacyMainFrameProcess().coreProcessIdentifier() });
+    RetainPtr view = downcast<WebKit::RemoteLayerTreeDrawingAreaProxyIOS>(protect(_page->drawingArea()))->viewWithLayerIDForTesting({ ObjectIdentifier<WebCore::PlatformLayerIdentifierType>(layerID), _page->legacyMainFrameProcess().coreProcessIdentifier() });
     if (!view)
         return nil;
 

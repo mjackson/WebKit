@@ -302,7 +302,7 @@ public:
 
     bool checkVisibility(const CheckVisibilityOptions&);
 
-    WEBCORE_EXPORT void scrollIntoView(std::optional<Variant<bool, ScrollIntoViewOptions>>&& arg);
+    WEBCORE_EXPORT void scrollIntoView(Variant<bool, ScrollIntoViewOptions>&&);
     WEBCORE_EXPORT void scrollIntoView(bool alignToTop = true);
     WEBCORE_EXPORT void scrollIntoViewIfNeeded(bool centerIfNeeded = true);
     WEBCORE_EXPORT void scrollIntoViewIfNotVisible(bool centerIfNotVisible = true, AllowScrollingOverflowHidden = AllowScrollingOverflowHidden::Yes);
@@ -594,7 +594,7 @@ public:
     RefPtr<Element> findFocusDelegate(FocusTrigger = FocusTrigger::Other);
     RefPtr<Element> findAutofocusDelegate(FocusTrigger = FocusTrigger::Other);
 
-    static AXTextStateChangeIntent defaultFocusTextStateChangeIntent() { return AXTextStateChangeIntent(AXTextStateChangeTypeSelectionMove, AXTextSelection { AXTextSelectionDirectionDiscontiguous, AXTextSelectionGranularityUnknown, true }); }
+    static AXTextStateChangeIntent defaultFocusTextStateChangeIntent() { return AXTextStateChangeIntent(AXTextStateChangeType::SelectionMove, AXTextSelection { AXTextSelectionDirection::Discontiguous, AXTextSelectionGranularity::Unknown, true }); }
     virtual void focus(const FocusOptions& = { });
     virtual void focusForBindings(FocusOptions&&);
     void findTargetAndUpdateFocusAppearance(SelectionRestorationMode, SelectionRevealMode = SelectionRevealMode::Reveal);
@@ -882,7 +882,7 @@ public:
 
     RefPtr<Element> findAnchorElementForLink(String& outAnchorName);
 
-    ExceptionOr<Ref<WebAnimation>> animate(JSC::JSGlobalObject&, JSC::Strong<JSC::JSObject>&&, std::optional<Variant<double, KeyframeAnimationOptions>>&&);
+    ExceptionOr<Ref<WebAnimation>> animate(JSC::JSGlobalObject&, JSC::Strong<JSC::JSObject>&&, Variant<double, KeyframeAnimationOptions>&&);
     Vector<Ref<WebAnimation>> getAnimations(std::optional<GetAnimationsOptions>);
 
     String description() const override;

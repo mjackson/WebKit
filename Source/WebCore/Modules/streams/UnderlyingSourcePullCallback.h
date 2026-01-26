@@ -46,6 +46,7 @@ public:
     void ref() const final { RefCounted::ref(); }
     void deref() const final { RefCounted::deref(); }
 
+    virtual bool isJSUnderlyingSourcePullCallback() const { return false; }
     virtual CallbackResult<Ref<DOMPromise>> invoke(JSC::JSValue, ReadableByteStreamController&) = 0;
 
 private:

@@ -471,7 +471,7 @@ void HTMLInputElement::setDefaultSelectionAfterFocus(SelectionRestorationMode re
     ASSERT(isTextField());
     unsigned start = 0;
     auto direction = SelectionHasNoDirection;
-    auto* frame = document().frame();
+    RefPtr frame = document().frame();
     if (frame && frame->editor().behavior().shouldMoveSelectionToEndWhenFocusingTextInput()) {
         start = std::numeric_limits<unsigned>::max();
         direction = SelectionHasForwardDirection;
@@ -515,7 +515,7 @@ void HTMLInputElement::resignStrongPasswordAppearance()
     setAutofilled(false);
     setAutofilledAndViewable(false);
     setAutofillButtonType(AutoFillButtonType::None);
-    if (auto* page = document().page())
+    if (RefPtr page = document().page())
         page->chrome().client().inputElementDidResignStrongPasswordAppearance(*this);
 }
 
@@ -594,7 +594,7 @@ void HTMLInputElement::updateType(const AtomString& typeAttributeValue)
             attributeChanged(alignAttr, nullAtom(), align->value());
     }
 
-    if (auto* form = this->form(); form && wasSuccessfulSubmitButtonCandidate != m_inputType->canBeSuccessfulSubmitButton())
+    if (RefPtr form = this->form(); form && wasSuccessfulSubmitButtonCandidate != m_inputType->canBeSuccessfulSubmitButton())
         form->resetDefaultButton();
 
     runPostTypeUpdateTasks();
@@ -1140,7 +1140,7 @@ ValueOrReference<String> HTMLInputElement::value() const
 {
     if (shouldApplyScriptTrackingPrivacyProtection())
         return m_inputType->defaultValue();
-    if (auto* fileInput = dynamicDowncast<FileInputType>(*m_inputType))
+    if (RefPtr fileInput = dynamicDowncast<FileInputType>(*m_inputType))
         return fileInput->firstElementPathForInputValue();
 
     if (!m_valueIfDirty.isNull())
@@ -1412,7 +1412,7 @@ bool HTMLInputElement::isURLAttribute(const Attribute& attribute) const
 
 ExceptionOr<void> HTMLInputElement::showPicker()
 {
-    auto* frame = document().frame();
+    RefPtr frame = document().frame();
     if (!frame)
         return { };
 
@@ -1422,12 +1422,12 @@ ExceptionOr<void> HTMLInputElement::showPicker()
     // In cross-origin iframes it should throw a "SecurityError" DOMException except on file and color. In same-origin iframes it should work fine.
     // https://github.com/whatwg/html/issues/6909#issuecomment-917138991
     if (!m_inputType->allowsShowPickerAcrossFrames()) {
-        auto* localTopFrame = dynamicDowncast<LocalFrame>(frame->tree().top());
+        RefPtr localTopFrame = dynamicDowncast<LocalFrame>(frame->tree().top());
         if (!localTopFrame || !frame->protectedDocument()->protectedSecurityOrigin()->isSameOriginAs(localTopFrame->protectedDocument()->protectedSecurityOrigin()))
             return Exception { ExceptionCode::SecurityError, "Input showPicker() called from cross-origin iframe."_s };
     }
 
-    auto* window = frame->window();
+    RefPtr window = frame->window();
     if (!window || !window->consumeTransientActivation())
         return Exception { ExceptionCode::NotAllowedError, "Input showPicker() requires a user gesture."_s };
 
@@ -1627,7 +1627,7 @@ FileList* HTMLInputElement::files()
 
 void HTMLInputElement::setFiles(RefPtr<FileList>&& files, WasSetByJavaScript wasSetByJavaScript)
 {
-    if (auto* fileInputType = dynamicDowncast<FileInputType>(*m_inputType))
+    if (RefPtr fileInputType = dynamicDowncast<FileInputType>(*m_inputType))
         fileInputType->setFiles(WTF::move(files), wasSetByJavaScript);
 }
 
@@ -1858,20 +1858,20 @@ void HTMLInputElement::requiredStateChanged()
 
 Color HTMLInputElement::valueAsColor() const
 {
-    if (auto* colorInputType = dynamicDowncast<ColorInputType>(*m_inputType))
+    if (RefPtr colorInputType = dynamicDowncast<ColorInputType>(*m_inputType))
         return colorInputType->valueAsColor();
     return Color::black;
 }
 
 void HTMLInputElement::selectColor(StringView color)
 {
-    if (auto* colorInputType = dynamicDowncast<ColorInputType>(*m_inputType))
+    if (RefPtr colorInputType = dynamicDowncast<ColorInputType>(*m_inputType))
         colorInputType->selectColor(color);
 }
 
 Vector<Color> HTMLInputElement::suggestedColors() const
 {
-    if (auto* colorInputType = dynamicDowncast<ColorInputType>(*m_inputType))
+    if (RefPtr colorInputType = dynamicDowncast<ColorInputType>(*m_inputType))
         return colorInputType->suggestedColors();
     return { };
 }

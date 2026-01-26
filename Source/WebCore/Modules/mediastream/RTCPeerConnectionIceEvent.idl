@@ -35,7 +35,7 @@
     EnabledBySetting=PeerConnectionEnabled,
     Exposed=Window
 ] interface RTCPeerConnectionIceEvent : Event {
-    constructor([AtomString] DOMString type, optional RTCPeerConnectionIceEventInit eventInitDict);
+    constructor([AtomString] DOMString type, optional RTCPeerConnectionIceEventInit eventInitDict = {});
 
     readonly attribute RTCIceCandidate? candidate;
     readonly attribute DOMString? url;

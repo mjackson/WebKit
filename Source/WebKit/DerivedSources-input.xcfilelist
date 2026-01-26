@@ -7,6 +7,7 @@ $(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/platform-enabled-swift-args.x86_64.r
 $(BUILT_PRODUCTS_DIR)/usr/local/include/WebKitAdditions/AdditionalFeatureDefines.h
 $(BUILT_PRODUCTS_DIR)/usr/local/include/WebKitAdditions/AdditionalPlatform.h
 $(BUILT_PRODUCTS_DIR)/usr/local/include/WebKitAdditions/AdditionalPlatformHave.h
+$(BUILT_PRODUCTS_DIR)/usr/local/include/WebKitAdditions/WKWebView+SystemTextExtraction.swift.in
 $(BUILT_PRODUCTS_DIR)/usr/local/include/wtf/Compiler.h
 $(BUILT_PRODUCTS_DIR)/usr/local/include/wtf/Platform.h
 $(BUILT_PRODUCTS_DIR)/usr/local/include/wtf/PlatformCPU.h
@@ -268,6 +269,7 @@ $(PROJECT_DIR)/Shared/Cocoa/CoreIPCNSValue.serialization.in
 $(PROJECT_DIR)/Shared/Cocoa/CoreIPCNull.serialization.in
 $(PROJECT_DIR)/Shared/Cocoa/CoreIPCPKDateComponentsRange.serialization.in
 $(PROJECT_DIR)/Shared/Cocoa/CoreIPCPKPaymentMerchantSession.serialization.in
+$(PROJECT_DIR)/Shared/Cocoa/CoreIPCPKPaymentToken.serialization.in
 $(PROJECT_DIR)/Shared/Cocoa/CoreIPCPassKit.serialization.in
 $(PROJECT_DIR)/Shared/Cocoa/CoreIPCPersonNameComponents.serialization.in
 $(PROJECT_DIR)/Shared/Cocoa/CoreIPCPlist.serialization.in
@@ -291,6 +293,7 @@ $(PROJECT_DIR)/Shared/Databases/IndexedDB/WebIDBResult.serialization.in
 $(PROJECT_DIR)/Shared/DebuggableInfoData.serialization.in
 $(PROJECT_DIR)/Shared/DocumentEditingContext.serialization.in
 $(PROJECT_DIR)/Shared/DragControllerAction.serialization.in
+$(PROJECT_DIR)/Shared/DragEventForwardingData.serialization.in
 $(PROJECT_DIR)/Shared/DrawingAreaInfo.serialization.in
 $(PROJECT_DIR)/Shared/EditingRange.serialization.in
 $(PROJECT_DIR)/Shared/EditorState.serialization.in

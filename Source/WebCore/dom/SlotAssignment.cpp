@@ -84,7 +84,7 @@ static HTMLSlotElement* nextSlotElementSkippingSubtree(ContainerNode& startingNo
             return NodeTraversal::nextSkippingChildren(node);
         return NodeTraversal::next(node);
     };
-    for (CheckedPtr node = nextNode(startingNode); node; node = nextNode(*node)) {
+    for (RefPtr node = nextNode(startingNode); node; node = nextNode(*node)) {
         if (auto* slotElement = dynamicDowncast<HTMLSlotElement>(*node))
             return slotElement;
     }
@@ -221,7 +221,7 @@ void NamedSlotAssignment::resolveSlotsAfterSlotMutation(ShadowRoot& shadowRoot, 
         slot->seenFirstElement = false;
 
     unsigned slotCount = 0;
-    CheckedPtr currentElement = nextSlotElementSkippingSubtree(shadowRoot, subtreeToSkip);
+    RefPtr currentElement = nextSlotElementSkippingSubtree(shadowRoot, subtreeToSkip);
     for (; currentElement; currentElement = nextSlotElementSkippingSubtree(*currentElement, subtreeToSkip)) {
         auto& currentSlotName = slotNameFromAttributeValue(currentElement->attributeWithoutSynchronization(nameAttr));
         auto* currentSlot = m_slots.get(currentSlotName);
@@ -425,7 +425,7 @@ void NamedSlotAssignment::assignSlots(ShadowRoot& shadowRoot)
         }
     }
 
-    if (CheckedPtr host = shadowRoot.host()) {
+    if (RefPtr host = shadowRoot.host()) {
         for (RefPtr child = host->firstChild(); child; child = child->nextSibling()) {
             if (!is<Text>(*child) && !is<Element>(*child))
                 continue;
@@ -457,10 +457,10 @@ void NamedSlotAssignment::assignToSlot(Node& child, const AtomString& slotName)
 
 HTMLSlotElement* ManualSlotAssignment::findAssignedSlot(const Node& node)
 {
-    CheckedPtr slot = node.manuallyAssignedSlot();
+    RefPtr slot = node.manuallyAssignedSlot();
     if (!slot)
         return nullptr;
-    CheckedPtr containingShadowRoot = slot->containingShadowRoot();
+    RefPtr containingShadowRoot = slot->containingShadowRoot();
     return containingShadowRoot && containingShadowRoot->host() == node.parentNode() ? slot.unsafeGet() : nullptr;
 }
 
@@ -566,7 +566,7 @@ void ManualSlotAssignment::slotManualAssignmentDidChange(HTMLSlotElement& slot, 
         scheduleSlotChangeEventIfNeeded();
         return;
     }
-    for (CheckedRef currentSlot : descendantsOfType<HTMLSlotElement>(shadowRoot)) {
+    for (Ref currentSlot : descendantsOfType<HTMLSlotElement>(shadowRoot)) {
         if (affectedSlots.contains(currentSlot))
             currentSlot->enqueueSlotChangeEvent();
         else if (currentSlot.ptr() == &slot)

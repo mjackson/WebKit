@@ -267,8 +267,8 @@ static ALWAYS_INLINE unsigned getArgumentsLength(ClonedArguments* arguments)
     return lengthValue.asInt32();
 }
 
-template<typename Arguments, typename Functor>
-static ALWAYS_INLINE void forEachArgumentsElement(JSGlobalObject* globalObject, Arguments* arguments, unsigned length, const Functor& func)
+template<typename Arguments>
+static ALWAYS_INLINE void forEachArgumentsElement(JSGlobalObject* globalObject, Arguments* arguments, unsigned length, const Invocable<void(JSValue, unsigned)> auto& func)
 {
     auto scope = DECLARE_THROW_SCOPE(globalObject->vm());
     unsigned i;

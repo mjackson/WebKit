@@ -97,6 +97,7 @@ private:
     bool isRootFrame() const final { return false; }
     void documentURLForConsoleLog(CompletionHandler<void(const URL&)>&&) final;
     SecurityOrigin* frameDocumentSecurityOrigin() const final;
+    std::optional<DocumentSecurityPolicy> frameDocumentSecurityPolicy() const final;
     String frameURLProtocol() const final;
     float usedZoomForChild(const Frame&) const final;
 

@@ -43,6 +43,7 @@
 #import "_WKHitTestResultInternal.h"
 #import "_WKWarningView.h"
 #import <WebCore/CGWindowUtilities.h>
+#import <WebCore/CornerRadii.h>
 #import <WebCore/LegacyNSPasteboardTypes.h>
 #import <WebKit/WKUIDelegatePrivate.h>
 #import <pal/spi/mac/NSTextFinderSPI.h>
@@ -167,7 +168,7 @@ static WebCore::FloatBoxExtent coreBoxExtentsFromEdgeInsets(NSEdgeInsets insets)
     if (!page)
         return NO;
 
-    if (!page->protectedLegacyMainFrameProcess()->isResponsive())
+    if (!protect(page->legacyMainFrameProcess())->isResponsive())
         return NO;
 
     if (page->isSuspended())
@@ -840,6 +841,40 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
     _impl->viewDidChangeBackingProperties();
 }
 
+#if HAVE(NSVIEW_CORNER_CONFIGURATION)
+
+- (void)_viewDidChangeEffectiveCornerRadii
+{
+    if (!_impl)
+        return;
+
+    WebCore::CornerRadii newRadii;
+    if (RetainPtr<NSViewCornerRadii> radii = self._effectiveCornerRadii) {
+        newRadii = WebCore::CornerRadii {
+            static_cast<float>([radii topLeft]),
+            static_cast<float>([radii topRight]),
+            static_cast<float>([radii bottomLeft]),
+            static_cast<float>([radii bottomRight])
+        };
+    }
+
+    if (_lastViewCornerRadii == newRadii)
+        return;
+
+    _lastViewCornerRadii = newRadii;
+    _page->setScrollbarAvoidanceCornerRadii(WTF::move(newRadii));
+}
+
+- (NSViewCornerConfiguration *)_cornerConfiguration
+{
+    if (self.enclosingScrollView)
+        return [super _cornerConfiguration];
+
+    return [NSViewCornerConfiguration configurationWithRadius:_NSCornerRadius.containerConcentricRadius];
+}
+
+#endif
+
 - (void)_activeSpaceDidChange:(NSNotification *)notification
 {
     _impl->activeSpaceDidChange();
@@ -1425,19 +1460,6 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         _impl->resetSecureInputState();
 }
 
-- (void)_setContentOffsetX:(NSNumber *)x y:(NSNumber *)y animated:(BOOL)animated
-{
-    std::optional<int> optionalX = std::nullopt;
-    if (x)
-        optionalX = static_cast<int>([x doubleValue]);
-
-    std::optional<int> optionalY = std::nullopt;
-    if (y)
-        optionalY = static_cast<int>([y doubleValue]);
-
-    _page->setContentOffset(optionalX, optionalY, animated ? WebCore::ScrollIsAnimated::Yes : WebCore::ScrollIsAnimated::No);
-}
-
 #pragma mark - QLPreviewPanelController
 
 - (BOOL)acceptsPreviewPanelControl:(QLPreviewPanel *)panel
@@ -1557,26 +1579,6 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 - (void)_setRubberBandingEnabled:(_WKRectEdge)state
 {
     _impl->setRubberBandingEnabled(state);
-}
-
-- (BOOL)_alwaysBounceVertical
-{
-    return _impl->alwaysBounceVertical();
-}
-
-- (void)_setAlwaysBounceVertical:(BOOL)value
-{
-    _impl->setAlwaysBounceVertical(value);
-}
-
-- (BOOL)_alwaysBounceHorizontal
-{
-    return _impl->alwaysBounceHorizontal();
-}
-
-- (void)_setAlwaysBounceHorizontal:(BOOL)value
-{
-    _impl->setAlwaysBounceHorizontal(value);
 }
 
 - (NSColor *)_backgroundColor

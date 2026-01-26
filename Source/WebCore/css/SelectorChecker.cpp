@@ -38,6 +38,7 @@
 #include "ElementTraversal.h"
 #include "FrameSelection.h"
 #include "HTMLDocument.h"
+#include "HTMLHeadingElement.h"
 #include "HTMLNames.h"
 #include "HTMLSlotElement.h"
 #include "InspectorInstrumentation.h"
@@ -68,7 +69,7 @@ static bool matchesActiveViewTransitionTypePseudoClass(const Element& element, c
     if (&element != element.document().documentElement())
         return false;
 
-    if (const auto* viewTransition = element.document().activeViewTransition()) {
+    if (const RefPtr viewTransition = element.document().activeViewTransition()) {
         const auto& activeTypes = viewTransition->types();
 
         for (const auto& type : types) {
@@ -357,10 +358,10 @@ SelectorChecker::MatchResult SelectorChecker::matchRecursively(CheckingContext& 
             if (!root || root->mode() != ShadowRootMode::UserAgent)
                 return MatchResult::fails(Match::SelectorFailsLocally);
 
-            auto* argumentList = context.selector->argumentList();
-            ASSERT(argumentList && !argumentList->isEmpty());
+            auto* stringList = context.selector->stringList();
+            ASSERT(stringList && !stringList->isEmpty());
 
-            auto part = makeString("picker("_s, argumentList->at(0), ')');
+            auto part = makeString("picker("_s, stringList->at(0), ')');
             if (context.element->userAgentPart() != part)
                 return MatchResult::fails(Match::SelectorFailsLocally);
 
@@ -1000,6 +1001,16 @@ bool SelectorChecker::checkOne(CheckingContext& checkingContext, LocalContext& c
                 return true;
             break;
         }
+        case CSSSelector::PseudoClass::Heading: {
+            CheckedPtr headingElement = dynamicDowncast<HTMLHeadingElement>(element.get());
+            if (!headingElement)
+                return false;
+
+            if (auto* integerList = selector.integerList())
+                return integerList->contains(static_cast<int>(headingElement->level()));
+
+            return true;
+        }
         case CSSSelector::PseudoClass::NthOfType: {
             if (CheckedPtr parentElement = dynamicDowncast<Element>(element->parentNode())) {
                 auto relation = context.isSubjectOrAdjacentElement ? Style::Relation::ChildrenAffectedByForwardPositionalRules : Style::Relation::DescendantsAffectedByForwardPositionalRules;
@@ -1249,8 +1260,8 @@ bool SelectorChecker::checkOne(CheckingContext& checkingContext, LocalContext& c
             return matchesActiveViewTransitionPseudoClass(element);
 
         case CSSSelector::PseudoClass::ActiveViewTransitionType: {
-            ASSERT(selector.argumentList() && !selector.argumentList()->isEmpty());
-            return matchesActiveViewTransitionTypePseudoClass(element, *selector.argumentList());
+            ASSERT(selector.stringList() && !selector.stringList()->isEmpty());
+            return matchesActiveViewTransitionTypePseudoClass(element, *selector.stringList());
         }
 
         }
@@ -1322,9 +1333,9 @@ bool SelectorChecker::checkOne(CheckingContext& checkingContext, LocalContext& c
             for (auto& partName : element->partNames())
                 appendTranslatedPartNameToRuleScope(translatedPartNames, partName);
 
-            ASSERT(selector.argumentList());
+            ASSERT(selector.stringList());
 
-            for (auto& part : *selector.argumentList()) {
+            for (auto& part : *selector.stringList()) {
                 if (!translatedPartNames.contains(part))
                     return false;
             }
@@ -1335,9 +1346,9 @@ bool SelectorChecker::checkOne(CheckingContext& checkingContext, LocalContext& c
             // Always matches when not specifically requested so it gets added to the collectedPseudoElements.
             if (!requestedPseudoElement)
                 return true;
-            if (requestedPseudoElement->type != PseudoElementType::Highlight || !selector.argumentList())
+            if (requestedPseudoElement->type != PseudoElementType::Highlight || !selector.stringList())
                 return false;
-            return selector.argumentList()->first() == requestedPseudoElement->nameArgument;
+            return selector.stringList()->first() == requestedPseudoElement->nameArgument;
 
         case CSSSelector::PseudoElement::ViewTransitionGroup:
         case CSSSelector::PseudoElement::ViewTransitionImagePair:
@@ -1346,10 +1357,10 @@ bool SelectorChecker::checkOne(CheckingContext& checkingContext, LocalContext& c
             // Always matches when not specifically requested so it gets added to the collectedPseudoElements.
             if (!requestedPseudoElement)
                 return true;
-            if (requestedPseudoElement->type != CSSSelector::stylePseudoElementTypeFor(selector.pseudoElement()) || !selector.argumentList())
+            if (requestedPseudoElement->type != CSSSelector::stylePseudoElementTypeFor(selector.pseudoElement()) || !selector.stringList())
                 return false;
 
-            auto& list = *selector.argumentList();
+            auto& list = *selector.stringList();
             auto& name = list.first();
             if (name != starAtom() && name != requestedPseudoElement->nameArgument)
                 return false;

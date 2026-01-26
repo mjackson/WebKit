@@ -97,7 +97,7 @@ bool RemoteLayerTreeHost::replayDynamicContentScalingDisplayListsIntoBackingStor
 {
 #if ENABLE(RE_DYNAMIC_CONTENT_SCALING)
     RefPtr page = m_drawingArea->page();
-    return page && page->protectedPreferences()->replayCGDisplayListsIntoBackingStore();
+    return page && protect(page->preferences())->replayCGDisplayListsIntoBackingStore();
 #else
     return false;
 #endif
@@ -115,7 +115,7 @@ bool RemoteLayerTreeHost::threadedAnimationsEnabled() const
 bool RemoteLayerTreeHost::cssUnprefixedBackdropFilterEnabled() const
 {
     RefPtr page = protectedDrawingArea()->page();
-    return page && page->protectedPreferences()->cssUnprefixedBackdropFilterEnabled();
+    return page && protect(page->preferences())->cssUnprefixedBackdropFilterEnabled();
 }
 
 #if PLATFORM(MAC)
@@ -208,7 +208,7 @@ bool RemoteLayerTreeHost::updateLayerTree(const IPC::Connection& connection, con
     // FIXME: with site isolation, a single process can send multiple transactions.
     // https://bugs.webkit.org/show_bug.cgi?id=301261
     if (threadedAnimationsEnabled() && !transaction.timelinesUpdate().isEmpty())
-        Ref { *m_drawingArea }->updateTimelinesRegistration(processIdentifier, transaction.timelinesUpdate(), MonotonicTime::now());
+        protect(*m_drawingArea)->updateTimelinesRegistration(processIdentifier, transaction.timelinesUpdate(), MonotonicTime::now());
 #endif
 
     for (auto& changedLayer : transaction.changedLayerProperties()) {
@@ -376,7 +376,7 @@ void RemoteLayerTreeHost::clearLayers()
 {
     for (auto& keyAndNode : m_nodes) {
         m_animationDelegates.remove(keyAndNode.key);
-        Ref { keyAndNode.value }->detachFromParent();
+        protect(keyAndNode.value)->detachFromParent();
     }
 
     m_nodes.clear();

@@ -77,8 +77,10 @@
 #import <WebCore/GraphicsContextCG.h>
 #import <WebCore/IOSurfacePool.h>
 #import <WebCore/LocalCurrentTraitCollection.h>
+#import <WebCore/LocalFrameView.h>
 #import <WebCore/MIMETypeRegistry.h>
 #import <WebCore/UserInterfaceLayoutDirection.h>
+#import <WebCore/VelocityData.h>
 #import <pal/spi/cocoa/QuartzCoreSPI.h>
 #import <pal/spi/ios/GraphicsServicesSPI.h>
 #import <ranges>
@@ -2313,7 +2315,7 @@ static WebCore::FloatPoint constrainContentOffset(WebCore::FloatPoint contentOff
     if (![self usesStandardContentView])
         return;
 
-    [_contentView didInterruptScrolling];
+    _historicalKinematicData.clear();
     [self _scheduleVisibleContentRectUpdateAfterScrollInView:scrollView];
 }
 
@@ -2834,10 +2836,81 @@ static bool scrollViewCanScroll(UIScrollView *scrollView)
     return _perProcessState.liveResizeParameters || _perProcessState.dynamicViewportUpdateMode != WebKit::DynamicViewportUpdateMode::NotResizing || _perProcessState.isAnimatingFullScreenExit;
 }
 
-- (void)_updateVisibleContentRects
+- (std::optional<WebKit::VisibleContentRectUpdateInfo>)_createVisibleContentRectUpdate
 {
+    RefPtr drawingArea = _page->drawingArea();
+    if (!drawingArea)
+        return std::nullopt;
+
+    if (![self usesStandardContentView])
+        return std::nullopt;
+
     auto viewStability = _viewStabilityWhenVisibleContentRectUpdateScheduled;
 
+    CGRect visibleRectInContentCoordinates = [self _visibleContentRect];
+
+    UIEdgeInsets computedContentInsetUnadjustedForKeyboard = [self _computedObscuredInset];
+    if (!_haveSetObscuredInsets)
+        computedContentInsetUnadjustedForKeyboard.bottom -= _totalScrollViewBottomInsetAdjustmentForKeyboard;
+
+    CGFloat scaleFactor = contentZoomScale(self);
+    CGRect unobscuredRect = UIEdgeInsetsInsetRect(self.bounds, computedContentInsetUnadjustedForKeyboard);
+    WebCore::FloatRect unobscuredRectInContentCoordinates = WebCore::FloatRect(_perProcessState.frozenUnobscuredContentRect ? _perProcessState.frozenUnobscuredContentRect.value() : [self convertRect:unobscuredRect toView:_contentView.get()]);
+    if (![_contentView sizeChangedSinceLastVisibleContentRectUpdate])
+        unobscuredRectInContentCoordinates.intersect([self _contentBoundsExtendedForRubberbandingWithScale:scaleFactor]);
+
+    auto contentInsets = [self currentlyVisibleContentInsetsWithScale:scaleFactor obscuredInsets:computedContentInsetUnadjustedForKeyboard];
+
+    if (viewStability.isEmpty()) {
+        auto* coordinator = downcast<WebKit::RemoteScrollingCoordinatorProxyIOS>(_page->scrollingCoordinatorProxy());
+        if (coordinator && coordinator->hasActiveSnapPoint()) {
+            CGPoint currentPoint = [_scrollView contentOffset];
+            CGPoint activePoint = coordinator->nearestActiveContentInsetAdjustedSnapOffset(unobscuredRect.origin.y, currentPoint);
+
+            if (!CGPointEqualToPoint(activePoint, currentPoint)) {
+                RetainPtr<WKScrollView> strongScrollView = _scrollView;
+                RunLoop::mainSingleton().dispatch([strongScrollView, activePoint] {
+                    [strongScrollView setContentOffset:activePoint animated:NO];
+                });
+            }
+        }
+    }
+
+    MonotonicTime timestamp = MonotonicTime::now();
+    WebCore::VelocityData velocityData;
+    bool inStableState = viewStability.isEmpty();
+    if (!inStableState)
+        velocityData = _historicalKinematicData.velocityForNewData(visibleRectInContentCoordinates.origin, scaleFactor, timestamp);
+    else {
+        _historicalKinematicData.clear();
+        velocityData = { 0, 0, 0, timestamp };
+    }
+
+    CGRect unobscuredContentRectRespectingInputViewBounds = [_contentView _computeUnobscuredContentRectRespectingInputViewBounds:unobscuredRectInContentCoordinates inputViewBounds:_inputViewBoundsInWindow];
+    WebCore::FloatRect fixedPositionRectForLayout = _page->computeLayoutViewportRect(unobscuredRectInContentCoordinates, unobscuredContentRectRespectingInputViewBounds, _page->layoutViewportRect(), scaleFactor, WebCore::LayoutViewportConstraint::ConstrainedToDocumentRect);
+
+    return { {
+        visibleRectInContentCoordinates,
+        unobscuredRectInContentCoordinates,
+        WebKit::floatBoxExtent(contentInsets),
+        unobscuredRect,
+        unobscuredContentRectRespectingInputViewBounds,
+        fixedPositionRectForLayout,
+        WebKit::floatBoxExtent(_obscuredInsets),
+        WebKit::floatBoxExtent([self _computedUnobscuredSafeAreaInset]),
+        scaleFactor,
+        viewStability,
+        !![_contentView sizeChangedSinceLastVisibleContentRectUpdate],
+        !!_allowsViewportShrinkToFit,
+        scrollViewCanScroll([self _scroller]),
+        !!_needsScrollend,
+        velocityData,
+        downcast<WebKit::RemoteLayerTreeDrawingAreaProxy>(*drawingArea).lastCommittedMainFrameLayerTreeTransactionID()
+    } };
+}
+
+- (void)_updateVisibleContentRects
+{
     if (![self usesStandardContentView]) {
         [_passwordView setFrame:self.bounds];
         [_customContentView web_computedContentInsetDidChange];
@@ -2873,6 +2946,12 @@ static bool scrollViewCanScroll(UIScrollView *scrollView)
         return;
     }
 
+    [self _updateScrollViewContentInsetsIfNecessary];
+
+    auto visibleContentRectUpdateInfo = [self _createVisibleContentRectUpdate];
+    if (!visibleContentRectUpdateInfo)
+        return;
+
     if (_perProcessState.didDeferUpdateVisibleContentRectsForAnyReason)
         WKWEBVIEW_RELEASE_LOG("%p (pageProxyID=%llu) -[WKWebView _updateVisibleContentRects:] - performing first visible content rect update after deferring updates", self, _page->identifier().toUInt64());
 
@@ -2880,48 +2959,7 @@ static bool scrollViewCanScroll(UIScrollView *scrollView)
     _perProcessState.didDeferUpdateVisibleContentRectsForUnstableScrollView = NO;
     _perProcessState.didDeferUpdateVisibleContentRectsForAnyReason = NO;
 
-    [self _updateScrollViewContentInsetsIfNecessary];
-
-    CGRect visibleRectInContentCoordinates = [self _visibleContentRect];
-
-    UIEdgeInsets computedContentInsetUnadjustedForKeyboard = [self _computedObscuredInset];
-    if (!_haveSetObscuredInsets)
-        computedContentInsetUnadjustedForKeyboard.bottom -= _totalScrollViewBottomInsetAdjustmentForKeyboard;
-
-    CGFloat scaleFactor = contentZoomScale(self);
-    CGRect unobscuredRect = UIEdgeInsetsInsetRect(self.bounds, computedContentInsetUnadjustedForKeyboard);
-    WebCore::FloatRect unobscuredRectInContentCoordinates = WebCore::FloatRect(_perProcessState.frozenUnobscuredContentRect ? _perProcessState.frozenUnobscuredContentRect.value() : [self convertRect:unobscuredRect toView:_contentView.get()]);
-    if (![_contentView sizeChangedSinceLastVisibleContentRectUpdate])
-        unobscuredRectInContentCoordinates.intersect([self _contentBoundsExtendedForRubberbandingWithScale:scaleFactor]);
-
-    auto contentInsets = [self currentlyVisibleContentInsetsWithScale:scaleFactor obscuredInsets:computedContentInsetUnadjustedForKeyboard];
-
-    if (viewStability.isEmpty()) {
-        auto* coordinator = downcast<WebKit::RemoteScrollingCoordinatorProxyIOS>(_page->scrollingCoordinatorProxy());
-        if (coordinator && coordinator->hasActiveSnapPoint()) {
-            CGPoint currentPoint = [_scrollView contentOffset];
-            CGPoint activePoint = coordinator->nearestActiveContentInsetAdjustedSnapOffset(unobscuredRect.origin.y, currentPoint);
-
-            if (!CGPointEqualToPoint(activePoint, currentPoint)) {
-                RetainPtr<WKScrollView> strongScrollView = _scrollView;
-                RunLoop::mainSingleton().dispatch([strongScrollView, activePoint] {
-                    [strongScrollView setContentOffset:activePoint animated:NO];
-                });
-            }
-        }
-    }
-
-    [_contentView didUpdateVisibleRect:visibleRectInContentCoordinates
-        unobscuredRect:unobscuredRectInContentCoordinates
-        contentInsets:contentInsets
-        unobscuredRectInScrollViewCoordinates:unobscuredRect
-        obscuredInsets:_obscuredInsets
-        unobscuredSafeAreaInsets:[self _computedUnobscuredSafeAreaInset]
-        inputViewBounds:_inputViewBoundsInWindow
-        scale:scaleFactor minimumScale:[_scrollView minimumZoomScale]
-        viewStability:viewStability
-        enclosedInScrollableAncestorView:scrollViewCanScroll([self _scroller])
-        sendEvenIfUnchanged:_alwaysSendNextVisibleContentRectUpdate];
+    [_contentView didUpdateVisibleRect:*visibleContentRectUpdateInfo sendEvenIfUnchanged:_alwaysSendNextVisibleContentRectUpdate];
 
     while (!_visibleContentRectUpdateCallbacks.isEmpty()) {
         auto callback = _visibleContentRectUpdateCallbacks.takeLast();
@@ -3887,17 +3925,6 @@ static bool isLockdownModeWarningNeeded()
 {
     _forcesInitialScaleFactor = forcesInitialScaleFactor;
     [self _doAfterNextPresentationUpdate:^{ }];
-}
-
-- (BOOL)_allowsMagnification
-{
-    return _allowsMagnification;
-}
-
-- (void)_setAllowsMagnification:(BOOL)allowsMagnification
-{
-    _allowsMagnification = allowsMagnification;
-    [_contentView _updateDoubleTapGestureRecognizerEnablement];
 }
 
 #if ENABLE(MODEL_PROCESS)
@@ -4923,6 +4950,21 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
 }
 
 @end // WKWebView (WKPrivateIOS)
+
+@implementation WKWebView (WKViewInternalIOS_SwiftNonObjCxxSupport)
+
+- (BOOL)_allowsMagnification
+{
+    return _allowsMagnification;
+}
+
+- (void)_setAllowsMagnification:(BOOL)allowsMagnification
+{
+    _allowsMagnification = allowsMagnification;
+    [_contentView _updateDoubleTapGestureRecognizerEnablement];
+}
+
+@end
 
 #if ENABLE(FULLSCREEN_API)
 

@@ -34,7 +34,7 @@ typedef double DOMHighResTimeStamp;
 ] interface PerformanceObserver {
     [CallWith=CurrentScriptExecutionContext] constructor(PerformanceObserverCallback callback);
 
-    undefined observe(optional PerformanceObserverInit options);
+    undefined observe(optional PerformanceObserverInit options = {});
     undefined disconnect();
     sequence<PerformanceEntry> takeRecords();
     [CallWith=CurrentScriptExecutionContext] static readonly attribute FrozenArray<DOMString> supportedEntryTypes;

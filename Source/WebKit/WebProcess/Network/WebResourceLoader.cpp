@@ -321,6 +321,7 @@ void WebResourceLoader::didFinishResourceLoad(NetworkLoadMetrics&& networkLoadMe
     }
 
     updateNetworkLoadMetrics(networkLoadMetrics);
+    networkLoadMetrics.markComplete();
 
 #if ENABLE(CONTENT_EXTENSIONS)
     if (networkLoadMetrics.responseBodyBytesReceived != std::numeric_limits<uint64_t>::max()) {

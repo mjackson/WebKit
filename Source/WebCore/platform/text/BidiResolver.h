@@ -444,7 +444,7 @@ bool BidiResolverBase<Iterator, Run, DerivedClass>::commitExplicitEmbedding()
 
     for (auto& embedding : m_currentExplicitEmbeddingSequence) {
         if (embedding.direction == U_POP_DIRECTIONAL_FORMAT) {
-            if (auto* parentContext = toContext->parent())
+            if (RefPtr parentContext = toContext->parent())
                 toContext = parentContext;
         } else {
             UCharDirection direction = (embedding.direction == U_RIGHT_TO_LEFT_EMBEDDING || embedding.direction == U_RIGHT_TO_LEFT_OVERRIDE) ? U_RIGHT_TO_LEFT : U_LEFT_TO_RIGHT;
@@ -583,7 +583,7 @@ void BidiResolverBase<Iterator, Run, DerivedClass>::createBidiRunsForLine(const 
     while (true) {
         UCharDirection dirCurrent;
         if (pastEnd && (hardLineBreak || m_current.atEnd())) {
-            BidiContext* c = context();
+            RefPtr c = context();
             if (hardLineBreak) {
                 // A deviation from the Unicode Bidi Algorithm in order to match
                 // WinIE and user expectations: hard line breaks reset bidi state

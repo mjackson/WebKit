@@ -166,11 +166,11 @@ static void postTextStateChangeNotification(AXObjectCache* cache, const VisibleP
     if (!node)
         return;
     if (insertedText.length() && deletedText.length())
-        cache->postTextReplacementNotification(node.get(), AXTextEditTypeDelete, insertedText, AXTextEditTypeInsert, deletedText, position);
+        cache->postTextReplacementNotification(node.get(), AXTextEditType::Delete, insertedText, AXTextEditType::Insert, deletedText, position);
     else if (deletedText.length())
-        cache->postTextStateChangeNotification(node.get(), AXTextEditTypeInsert, deletedText, position);
+        cache->postTextStateChangeNotification(node.get(), AXTextEditType::Insert, deletedText, position);
     else if (insertedText.length())
-        cache->postTextStateChangeNotification(node.get(), AXTextEditTypeDelete, insertedText, position);
+        cache->postTextStateChangeNotification(node.get(), AXTextEditType::Delete, insertedText, position);
 }
 
 void AccessibilityUndoReplacedText::postTextStateChangeNotificationForUnapply(AXObjectCache* cache)

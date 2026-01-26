@@ -30,7 +30,7 @@ typedef (double? or TimelineRangeOffset or DOMString) KeyframeOffset;
     Exposed=Window,
     JSGenerateToNativeObject,
 ] interface KeyframeEffect : AnimationEffect {
-    [CallWith=CurrentGlobalObject&CurrentDocument] constructor(Element? target, object? keyframes, optional (unrestricted double or KeyframeEffectOptions) options);
+    [CallWith=CurrentGlobalObject&CurrentDocument] constructor(Element? target, object? keyframes, optional (unrestricted double or KeyframeEffectOptions) options = {});
     constructor(KeyframeEffect source);
 
     attribute Element? target;

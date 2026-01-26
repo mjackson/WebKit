@@ -41,7 +41,7 @@ from .steps import *
 
 CURRENT_HOSTNAME = socket.gethostname().strip()
 # Workaround for https://github.com/buildbot/buildbot/issues/4669
-FakeBuild.addStepsAfterLastStep = lambda FakeBuild, step_factories: None
+FakeBuild.addStepsAfterCurrentStep = lambda FakeBuild, step_factories: None
 FakeBuild._builderid = 1
 
 

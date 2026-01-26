@@ -44,15 +44,15 @@
 - (void)_setKeyWindow:(NSWindow *)newKeyWindow;
 @end
 
-@interface TestNSTextView : NSTextView
+@interface TestTextView : NSTextView
 #else
-@interface TestNSTextView : UITextView
+@interface TestTextView : UITextView
 #endif
 @property (readonly) BOOL didBecomeFirstResponder;
 @property (readonly) BOOL didSeeKeyDownEvent;
 @end
 
-@implementation TestNSTextView {
+@implementation TestTextView {
     BOOL _isBecomingFirstResponder;
 }
 
@@ -108,11 +108,8 @@ static auto advanceFocusRelinquishToChrome = R"FOCUSRESOURCE(
 <div id="div1" contenteditable="true" tabindex="1">Main 1</div><br>
 )FOCUSRESOURCE"_s;
 
-static std::tuple<RetainPtr<TestWKWebView>, RetainPtr<TestNavigationDelegate>, RetainPtr<TestUIDelegate>> makeWebViewAndDelegates(HTTPServer& server, bool enableSiteIsolation = false)
+static std::tuple<RetainPtr<TestWKWebView>, RetainPtr<TestNavigationDelegate>, RetainPtr<TestUIDelegate>> makeWebViewAndDelegates(RetainPtr<WKWebViewConfiguration> configuration)
 {
-    RetainPtr configuration = server.httpsProxyConfiguration();
-    [[configuration preferences] _setSiteIsolationEnabled:enableSiteIsolation];
-
     RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
 
     RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
@@ -129,6 +126,11 @@ static std::tuple<RetainPtr<TestWKWebView>, RetainPtr<TestNavigationDelegate>, R
     };
 };
 
+static std::tuple<RetainPtr<TestWKWebView>, RetainPtr<TestNavigationDelegate>, RetainPtr<TestUIDelegate>> makeWebViewAndDelegates(HTTPServer& server)
+{
+    return makeWebViewAndDelegates(server.httpsProxyConfiguration());
+}
+
 TEST(FocusWebView, AdvanceFocusRelinquishToChrome)
 {
     HTTPServer server({
@@ -142,7 +144,7 @@ TEST(FocusWebView, AdvanceFocusRelinquishToChrome)
 #endif
     NSRect textFieldFrame = NSMakeRect(0, 400, 400, 100);
 
-    __block RetainPtr textField = adoptNS([[TestNSTextView alloc] initWithFrame:textFieldFrame]);
+    __block RetainPtr textField = adoptNS([[TestTextView alloc] initWithFrame:textFieldFrame]);
     textField.get().editable = YES;
     textField.get().selectable = YES;
 #if PLATFORM(MAC)
@@ -185,19 +187,9 @@ TEST(FocusWebView, AdvanceFocusRelinquishToChrome)
     EXPECT_FALSE(textField.get().didSeeKeyDownEvent);
 }
 
-// FIXME when rdar://168688750 is resolved.
 TEST(FocusWebView, DISABLED_MultipleFrames)
 {
-    auto exampleHTML = "<script>"
-        "onload = () => {"
-        "    let i = document.getElementById('input');"
-        "    i.addEventListener('focus', () => {"
-        "        alert('main frame focused');"
-        "    });"
-        "    i.focus()"
-        "};"
-        "</script>"
-        "<body>"
+    auto exampleHTML = "<body>"
         "<input id='input'>"
         "<iframe src='https://webkit.org/webkitframe'></iframe>"
         "<iframe src='https://apple.com/appleframe'></iframe>"
@@ -219,20 +211,30 @@ TEST(FocusWebView, DISABLED_MultipleFrames)
         { "/appleframe"_s, { iframeHTML } },
     }, HTTPServer::Protocol::HttpsProxy);
 
-    auto [webView, navigationDelegate, uiDelegate] = makeWebViewAndDelegates(server, true);
+    RetainPtr configuration = server.httpsProxyConfiguration();
+    [[configuration preferences] _setSiteIsolationEnabled:YES];
+    auto [webView, navigationDelegate, uiDelegate] = makeWebViewAndDelegates(WTF::move(configuration));
 
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
     [navigationDelegate waitForDidFinishNavigation];
+    [webView evaluateJavaScript:@""
+        "let i = document.getElementById('input');"
+        "i.addEventListener('focus', () => {"
+        "    alert('main frame focused');"
+        "});"
+        "i.focus()" completionHandler:nil];
 
-#if PLATFORM(MAC)
     EXPECT_WK_STREQ([uiDelegate waitForAlert], "main frame focused");
-#else
-    // FIXME: Investigate why this is different than macOS.
-    EXPECT_WK_STREQ([uiDelegate waitForAlert], "https://webkit.org focused");
-#endif
     [webView typeCharacter:'\t'];
     EXPECT_WK_STREQ([uiDelegate waitForAlert], "https://webkit.org focused");
-    // FIXME: Typing tab again should focus https://apple.com with site isolation on like it does with site isolation off.
+    [webView typeCharacter:'\t'];
+#if PLATFORM(MAC)
+    EXPECT_WK_STREQ([uiDelegate waitForAlert], "main frame focused"); // FIXME: This should be webkit.org like it is with site isolation off.
+#else
+    EXPECT_WK_STREQ([uiDelegate waitForAlert], "https://webkit.org focused"); // FIXME: This should be the same as it is on macOS.
+#endif
+    [webView typeCharacter:'\t'];
+    EXPECT_WK_STREQ([uiDelegate waitForAlert], "main frame focused"); // FIXME: This should be apple.com like it is with site isolation off
 }
 
 TEST(FocusWebView, DoNotFocusWebViewWhenUnparented)
@@ -322,7 +324,7 @@ void CrossOriginIframeRelinquishToChromeTests::runTest()
     NSRect newWindowFrame = NSMakeRect(0, 0, 400, 500);
 #endif
     NSRect textFieldFrame = NSMakeRect(0, 400, 400, 100);
-    RetainPtr textField = adoptNS([[TestNSTextView alloc] initWithFrame:textFieldFrame]);
+    RetainPtr textField = adoptNS([[TestTextView alloc] initWithFrame:textFieldFrame]);
     [textField setEditable:YES];
     [textField setSelectable:YES];
 

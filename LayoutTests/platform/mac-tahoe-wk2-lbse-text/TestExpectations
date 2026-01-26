@@ -373,6 +373,9 @@ svg/carto.net/selectionlist.svg [ Failure ]
 svg/carto.net/tabgroup.svg      [ Failure ]
 svg/carto.net/textbox.svg       [ Failure ]
 
+# Missing text output
+svg/animations/svg-element-attribute-changed-crash.html [ Failure ]
+
 ###############
 # Buggy tests #
 ###############

@@ -870,6 +870,15 @@ header: <WebCore/RenderStyleConstants.h>
     WebCore::FloatSize radii().bottomRight();
 }
 
+#if HAVE(NSVIEW_CORNER_CONFIGURATION)
+class WebCore::CornerRadii {
+    WebCore::FloatSize topLeft();
+    WebCore::FloatSize topRight();
+    WebCore::FloatSize bottomLeft();
+    WebCore::FloatSize bottomRight();
+};
+#endif
+
 webkit_platform_headers: <WebCore/IntRect.h>
 
 [AdditionalEncoder=StreamConnectionEncoder, WebKitPlatform] class WebCore::IntRect {
@@ -4468,9 +4477,12 @@ struct WebCore::BackgroundFetchRecordInformation {
     String referrer;
 };
 
-struct WebCore::BackgroundFetchOptions {
-    Vector<WebCore::ImageResource> icons;
+struct WebCore::BackgroundFetchUIOptions {
+    std::optional<Vector<WebCore::ImageResource>> icons;
     String title;
+};
+
+struct WebCore::BackgroundFetchOptions : WebCore::BackgroundFetchUIOptions {
     uint64_t downloadTotal;
 };
 
@@ -4503,6 +4515,9 @@ header: <WebCore/MediaPlayer.h>
     std::optional<Vector<WebCore::FourCC>> allowedMediaVideoCodecIDs;
     std::optional<Vector<WebCore::FourCC>> allowedMediaAudioCodecIDs;
     std::optional<Vector<WebCore::FourCC>> allowedMediaCaptionFormatTypes;
+#if ENABLE(WIRELESS_PLAYBACK_TARGET)
+    WebCore::MediaPlaybackTargetType playbackTargetType;
+#endif
 };
 
 header: <WebCore/MediaPlayer.h>
@@ -5185,6 +5200,9 @@ enum class WebCore::FirstPartyWebsiteDataRemovalMode : uint8_t {
     AllButCookiesLiveOnTestingTimeout,
     AllButCookiesReproTestingTimeout
 };
+
+header: <WebCore/DragData.h>
+[CustomHeader] enum class WebCore::DragEventHandled : bool;
 
 header: <WebCore/DragData.h>
 [OptionSet, CustomHeader] enum class WebCore::DragApplicationFlags : uint8_t {
@@ -6399,11 +6417,11 @@ struct WebCore::DigitalCredentialsRequestData {
 };
 
 struct WebCore::DigitalCredentialsResponseData {
-    WebCore::IdentityCredentialProtocol protocol;
+    WebCore::DigitalCredentialPresentationProtocol protocol;
     String responseDataJSON;
 };
 
-[Nested] enum class WebCore::IdentityCredentialProtocol : uint8_t {
+[Nested] enum class WebCore::DigitalCredentialPresentationProtocol : uint8_t {
     OrgIsoMdoc
 };
 
@@ -9073,6 +9091,11 @@ enum class WebCore::ShouldGoToHistoryItem : uint8_t {
     No,
     Yes,
     ItemUnknown
+};
+
+struct WebCore::DocumentSecurityPolicy {
+    WebCore::CrossOriginEmbedderPolicy crossOriginEmbedderPolicy;
+    WebCore::CrossOriginOpenerPolicy crossOriginOpenerPolicy;
 };
 
 header: <WebCore/ProcessSwapDisposition.h>

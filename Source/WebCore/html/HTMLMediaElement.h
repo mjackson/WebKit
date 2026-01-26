@@ -490,6 +490,7 @@ public:
     void isWirelessPlaybackTargetDisabledChanged();
     bool hasTargetAvailabilityListeners();
     bool hasEnabledTargetAvailabilityListeners();
+    MediaPlaybackTargetType playbackTargetType() const final;
 #endif
 
     bool isPlayingToWirelessPlaybackTarget() const override { return m_isPlayingToWirelessTarget; };

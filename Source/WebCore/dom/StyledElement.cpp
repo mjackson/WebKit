@@ -66,7 +66,7 @@ void StyledElement::synchronizeStyleAttributeInternalImpl()
     ASSERT(elementData());
     ASSERT(elementData()->styleAttributeIsDirty());
     elementData()->setStyleAttributeIsDirty(false);
-    if (const StyleProperties* inlineStyle = this->inlineStyle())
+    if (RefPtr<const StyleProperties> inlineStyle = this->inlineStyle())
         setSynchronizedLazyAttribute(styleAttr, inlineStyle->asTextAtom(CSS::defaultSerializationContext()));
 }
 
@@ -116,7 +116,7 @@ CSSStyleProperties* StyledElement::inlineStyleCSSOMWrapper()
 {
     if (!inlineStyle() || !inlineStyle()->hasCSSOMWrapper())
         return 0;
-    auto* cssomWrapper = ensureMutableInlineStyle()->cssStyleProperties();
+    SUPPRESS_UNCOUNTED_LOCAL auto* cssomWrapper = ensureMutableInlineStyle()->cssStyleProperties();
     ASSERT(cssomWrapper && cssomWrapper->parentElement() == this);
     return cssomWrapper;
 }
@@ -168,7 +168,7 @@ void StyledElement::dirtyStyleAttribute()
     elementData()->setStyleAttributeIsDirty(true);
 
     if (styleResolver().ruleSets().selectorsForStyleAttribute() != Style::SelectorsForStyleAttribute::None) {
-        if (auto* inlineStyle = this->inlineStyle()) {
+        if (RefPtr inlineStyle = this->inlineStyle()) {
             elementData()->setStyleAttributeIsDirty(false);
             auto newValue = inlineStyle->asTextAtom(CSS::defaultSerializationContext());
             Style::AttributeChangeInvalidation styleInvalidation(*this, styleAttr, attributeWithoutSynchronization(styleAttr), newValue);
@@ -200,7 +200,7 @@ void StyledElement::invalidateStyleAttribute()
 
     // In the rare case of selectors like "[style] ~ div" we need to synchronize immediately to invalidate.
     if (selectorsForStyleAttribute == Style::SelectorsForStyleAttribute::NonSubjectPosition) {
-        if (auto* inlineStyle = this->inlineStyle()) {
+        if (RefPtr inlineStyle = this->inlineStyle()) {
             elementData()->setStyleAttributeIsDirty(false);
             auto newValue = inlineStyle->asTextAtom(CSS::defaultSerializationContext());
             Style::AttributeChangeInvalidation styleInvalidation(*this, styleAttr, attributeWithoutSynchronization(styleAttr), newValue);
@@ -344,11 +344,11 @@ void StyledElement::rebuildPresentationalHintStyle()
     collectExtraStyleForPresentationalHints(style);
 
     // ShareableElementData doesn't store presentation attribute style, so make sure we have a UniqueElementData.
-    auto& elementData = ensureUniqueElementData();
+    Ref elementData = ensureUniqueElementData();
 
-    elementData.setPresentationalHintStyleIsDirty(false);
+    elementData->setPresentationalHintStyleIsDirty(false);
     if (style->isEmpty()) {
-        elementData.m_presentationalHintStyle = nullptr;
+        elementData->m_presentationalHintStyle = nullptr;
         return;
     }
 
@@ -371,7 +371,7 @@ void StyledElement::rebuildPresentationalHintStyle()
         return true;
     }();
 
-    elementData.m_presentationalHintStyle = shouldDeduplicate ? style->immutableDeduplicatedCopy() : style->immutableCopy();
+    elementData->m_presentationalHintStyle = shouldDeduplicate ? style->immutableDeduplicatedCopy() : style->immutableCopy();
 }
 
 void StyledElement::addPropertyToPresentationalHintStyle(MutableStyleProperties& style, CSSPropertyID propertyID, CSSValueID identifier)

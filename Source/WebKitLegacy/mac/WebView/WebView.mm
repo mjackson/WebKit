@@ -157,6 +157,7 @@
 #import <WebCore/DocumentView.h>
 #import <WebCore/DragController.h>
 #import <WebCore/DragData.h>
+#import <WebCore/DragEventTargetData.h>
 #import <WebCore/DragItem.h>
 #import <WebCore/DummyCredentialRequestCoordinatorClient.h>
 #import <WebCore/DummyModelPlayerProvider.h>
@@ -2014,7 +2015,16 @@ static void WebKitInitializeGamepadProviderIfNecessary()
 {
     WebThreadLock();
     auto dragData = [self dragDataForSession:session client:clientPosition global:globalPosition operation:operation];
-    return _private->page->dragController().performDragOperation(WTF::move(dragData));
+    RefPtr page = _private->page;
+    if (!page)
+        return false;
+    RefPtr frame = page->focusController().focusedOrMainFrame();
+    if (!frame)
+        return false;
+    auto dragEventTargetData = _private->page->dragController().performDragOperation(WTF::move(dragData), *frame);
+    if (auto handled = std::get_if<WebCore::DragEventHandled>(&dragEventTargetData); handled && *handled == WebCore::DragEventHandled::Yes)
+        return true;
+    return false;
 }
 
 - (void)_endedDataInteraction:(CGPoint)clientPosition global:(CGPoint)globalPosition
@@ -6393,7 +6403,8 @@ static bool needsWebViewInitThreadWorkaround()
                     fileNames->append(path.get());
                     if (fileNames->size() == fileCount) {
                         dragData->setFileNames(*fileNames);
-                        core(self)->dragController().performDragOperation(WebCore::DragData { *dragData });
+                        RefPtr localMainFrame = dynamicDowncast<WebCore::LocalFrame>(_private->page->mainFrame());
+                        core(self)->dragController().performDragOperation(WebCore::DragData { *dragData }, *localMainFrame);
                         delete dragData;
                         delete fileNames;
                     }
@@ -6403,10 +6414,12 @@ static bool needsWebViewInitThreadWorkaround()
 
         return true;
     }
-    bool returnValue = core(self)->dragController().performDragOperation(WebCore::DragData { *dragData });
+    RefPtr localMainFrame = dynamicDowncast<WebCore::LocalFrame>(_private->page->mainFrame());
+    auto dragEventTargetData = core(self)->dragController().performDragOperation(WebCore::DragData { *dragData }, *localMainFrame);
     delete dragData;
-
-    return returnValue;
+    if (auto handled = std::get_if<WebCore::DragEventHandled>(&dragEventTargetData); handled && *handled == WebCore::DragEventHandled::Yes)
+        return true;
+    return false;
 }
 
 - (NSView *)_hitTest:(NSPoint *)point dragTypes:(NSSet *)types

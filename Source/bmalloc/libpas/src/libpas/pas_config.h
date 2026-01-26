@@ -86,11 +86,7 @@
 #define PAS_ARM __PAS_ARM
 
 #ifndef PAS_ENABLE_MTE
-#if defined(PAS_BMALLOC)
 #define PAS_ENABLE_MTE (PAS_USE_APPLE_INTERNAL_SDK && __PAS_ARM64E)
-#else /* !defined(PAS_BMALLOC) */
-#define PAS_ENABLE_MTE 0
-#endif /* defined(PAS_BMALLOC) */
 #endif /* PAS_ENABLE_MTE */
 
 #define PAS_RISCV __PAS_RISCV
@@ -142,7 +138,7 @@
 
 #define PAS_ALLOCATOR_INDEX_BYTES        4
 
-#if PAS_OS(DARWIN) || PAS_PLATFORM(PLAYSTATION) || (PAS_OS(LINUX) && PAS_COMPILER(CLANG))
+#if PAS_OS(DARWIN) || PAS_OS(LINUX) || PAS_PLATFORM(PLAYSTATION)
 #define PAS_USE_SPINLOCKS                0
 #else
 #define PAS_USE_SPINLOCKS                1

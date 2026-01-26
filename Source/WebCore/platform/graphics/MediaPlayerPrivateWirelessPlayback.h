@@ -38,6 +38,8 @@
 
 namespace WebCore {
 
+class MediaPlaybackTarget;
+
 class MediaPlayerPrivateWirelessPlayback final
     : public MediaPlayerPrivateInterface
 #if !RELEASE_LOG_DISABLED
@@ -61,6 +63,7 @@ private:
 
     // MediaPlayerPrivateInterface
     constexpr MediaPlayerType mediaPlayerType() const final { return MediaPlayerType::WirelessPlayback; }
+    void load(const String&) final;
 #if ENABLE(MEDIA_SOURCE)
     void load(const URL&, const LoadOptions&, MediaSourcePrivateClient&) final { }
 #endif
@@ -84,6 +87,20 @@ private:
     void paint(GraphicsContext&, const FloatRect&) final { }
     DestinationColorSpace colorSpace() final { return DestinationColorSpace::SRGB(); }
 
+#if ENABLE(WIRELESS_PLAYBACK_TARGET)
+    static OptionSet<MediaPlaybackTargetType> playbackTargetTypes();
+    String wirelessPlaybackTargetName() const final;
+    MediaPlayer::WirelessPlaybackTargetType wirelessPlaybackTargetType() const final;
+    bool wirelessVideoPlaybackDisabled() const final { return !m_allowsWirelessVideoPlayback; }
+    void setWirelessVideoPlaybackDisabled(bool disabled) final { m_allowsWirelessVideoPlayback = !disabled; }
+    OptionSet<MediaPlaybackTargetType> supportedPlaybackTargetTypes() const final;
+    bool isCurrentPlaybackTargetWireless() const final;
+    void setWirelessPlaybackTarget(Ref<MediaPlaybackTarget>&&) final;
+    void setShouldPlayToPlaybackTarget(bool) final;
+#endif
+
+    void updateURLStringIfNeeded();
+
 #if !RELEASE_LOG_DISABLED
     // LoggerHelper
     const Logger& logger() const final { return m_logger.get(); }
@@ -94,6 +111,12 @@ private:
 
     ThreadSafeWeakPtr<MediaPlayer> m_player;
     PlatformTimeRanges m_buffered;
+    String m_urlString;
+#if ENABLE(WIRELESS_PLAYBACK_TARGET)
+    bool m_allowsWirelessVideoPlayback { true };
+    bool m_shouldPlayToTarget { false };
+    RefPtr<MediaPlaybackTarget> m_playbackTarget;
+#endif
 #if !RELEASE_LOG_DISABLED
     const Ref<const Logger> m_logger;
     const uint64_t m_logIdentifier;

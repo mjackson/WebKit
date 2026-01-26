@@ -578,7 +578,7 @@ uint64_t VideoPresentationModelContext::nextChildIdentifier() const
 
 const Logger* VideoPresentationModelContext::loggerPtr() const
 {
-    return Ref { m_playbackSessionModel }->loggerPtr();
+    return protect(m_playbackSessionModel)->loggerPtr();
 }
 
 WTFLogChannel& VideoPresentationModelContext::logChannel() const
@@ -600,7 +600,7 @@ VideoPresentationManagerProxy::VideoPresentationManagerProxy(WebPageProxy& page,
 {
     ALWAYS_LOG(LOGIDENTIFIER);
     RefPtr protectedPage = m_page.get();
-    protectedPage->protectedLegacyMainFrameProcess()->addMessageReceiver(Messages::VideoPresentationManagerProxy::messageReceiverName(), protectedPage->webPageIDInMainFrameProcess(), *this);
+    protect(protectedPage->legacyMainFrameProcess())->addMessageReceiver(Messages::VideoPresentationManagerProxy::messageReceiverName(), protectedPage->webPageIDInMainFrameProcess(), *this);
 }
 
 VideoPresentationManagerProxy::~VideoPresentationManagerProxy()
@@ -615,7 +615,7 @@ void VideoPresentationManagerProxy::invalidate()
 {
     ALWAYS_LOG(LOGIDENTIFIER);
     if (RefPtr page = m_page.get()) {
-        page->protectedLegacyMainFrameProcess()->removeMessageReceiver(Messages::VideoPresentationManagerProxy::messageReceiverName(), page->webPageIDInMainFrameProcess());
+        protect(page->legacyMainFrameProcess())->removeMessageReceiver(Messages::VideoPresentationManagerProxy::messageReceiverName(), page->webPageIDInMainFrameProcess());
         m_page = nullptr;
     }
 
@@ -1130,12 +1130,12 @@ void VideoPresentationManagerProxy::setPlayerIdentifier(PlaybackSessionContextId
 
 void VideoPresentationManagerProxy::audioSessionCategoryChanged(PlaybackSessionContextIdentifier contextId, WebCore::AudioSessionCategory category, WebCore::AudioSessionMode mode, WebCore::RouteSharingPolicy policy)
 {
-    Ref { ensureModel(contextId) }->audioSessionCategoryChanged(category, mode, policy);
+    protect(ensureModel(contextId))->audioSessionCategoryChanged(category, mode, policy);
 }
 
 void VideoPresentationManagerProxy::routingContextUIDChanged(PlaybackSessionContextIdentifier contextId, const String& routingContextUID)
 {
-    Ref { ensureModel(contextId) }->routingContextUIDChanged(routingContextUID);
+    protect(ensureModel(contextId))->routingContextUIDChanged(routingContextUID);
 }
 
 void VideoPresentationManagerProxy::setHasVideo(PlaybackSessionContextIdentifier contextId, bool hasVideo)
@@ -1145,7 +1145,7 @@ void VideoPresentationManagerProxy::setHasVideo(PlaybackSessionContextIdentifier
 
     if (auto* modelAndInterface = findModelAndInterface(contextId)) {
         modelAndInterface->first->m_hasVideo = hasVideo;
-        Ref { modelAndInterface->second }->hasVideoChanged(hasVideo);
+        protect(modelAndInterface->second)->hasVideoChanged(hasVideo);
     }
 }
 
@@ -1360,7 +1360,7 @@ void VideoPresentationManagerProxy::performCaptionDisplaySettingsAction(Playback
 
     WebCore::HTMLMediaElementIdentifier htmlMediaElementIdentifier { contextId.object() };
 
-    mainFrame->getFrameInfo([protectedPage = RefPtr { page }, action = WTF::move(action), htmlMediaElementIdentifier](std::optional<FrameInfoData>&& frameInfo) {
+    mainFrame->getFrameInfo([protectedPage = protect(page), action = WTF::move(action), htmlMediaElementIdentifier](std::optional<FrameInfoData>&& frameInfo) {
         if (!frameInfo || !protectedPage)
             return;
 
@@ -1682,7 +1682,7 @@ RefPtr<PlatformVideoPresentationInterface> VideoPresentationManagerProxy::bestVi
 {
     if (m_lastInteractedWithVideo) {
         if (auto* modelAndInterface = findModelAndInterface(*m_lastInteractedWithVideo); modelAndInterface && modelAndInterface->first->isChildOfElementFullscreen())
-            return Ref { modelAndInterface->second };
+            return protect(modelAndInterface->second);
     }
 #if PLATFORM(IOS_FAMILY)
     if (!m_page)

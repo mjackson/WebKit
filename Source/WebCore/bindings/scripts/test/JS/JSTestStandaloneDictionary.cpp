@@ -79,7 +79,7 @@ static_assert(IsIncreasing<
     , offsetof(DictionaryImplName, partialCallbackMember)
 #endif
 #if ENABLE(Conditional13) || ENABLE(Conditional14)
-    , offsetof(DictionaryImplName, partialUnsignedLongMemberWithImplementedAs)
+    , offsetof(DictionaryImplName, partialUnsignedLongMember)
 #endif
 #if ENABLE(Conditional13) || ENABLE(Conditional14)
     , offsetof(DictionaryImplName, partialBooleanMemberWithIgnoredConditional)
@@ -138,7 +138,7 @@ template<> ConversionResult<IDLDictionary<DictionaryImplName>> convertDictionary
         nullableUnionWithNullDefaultValueValue = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "nullableUnionWithNullDefaultValue"_s));
         RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
     }
-    auto nullableUnionWithNullDefaultValueConversionResult = convertOptionalWithDefault<IDLNullable<IDLUnion<IDLDOMString, IDLBoolean>>>(lexicalGlobalObject, nullableUnionWithNullDefaultValueValue, [&]() -> ConversionResult<IDLNullable<IDLUnion<IDLDOMString, IDLBoolean>>> { return typename Converter<IDLNullable<IDLUnion<IDLDOMString, IDLBoolean>>>::ReturnType { std::nullopt }; });
+    auto nullableUnionWithNullDefaultValueConversionResult = convertOptionalWithDefault<IDLNullable<IDLUnion<IDLDOMString, IDLBoolean>>>(lexicalGlobalObject, nullableUnionWithNullDefaultValueValue, [&] -> ConversionResult<IDLNullable<IDLUnion<IDLDOMString, IDLBoolean>>> { return typename Converter<IDLNullable<IDLUnion<IDLDOMString, IDLBoolean>>>::ReturnType { std::nullopt }; });
     if (nullableUnionWithNullDefaultValueConversionResult.hasException(throwScope)) [[unlikely]]
         return ConversionResultException { };
 #if ENABLE(Conditional13) || ENABLE(Conditional14)
@@ -274,7 +274,7 @@ template<> ConversionResult<IDLDictionary<DictionaryImplName>> convertDictionary
         unionMemberWithDefaultValueValue = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "unionMemberWithDefaultValue"_s));
         RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
     }
-    auto unionMemberWithDefaultValueConversionResult = convertOptionalWithDefault<IDLUnion<IDLEnumeration<TestStandaloneDictionary::EnumInStandaloneDictionaryFile>, IDLDouble>>(lexicalGlobalObject, unionMemberWithDefaultValueValue, [&]() -> ConversionResult<IDLUnion<IDLEnumeration<TestStandaloneDictionary::EnumInStandaloneDictionaryFile>, IDLDouble>> { return Converter<IDLUnion<IDLEnumeration<TestStandaloneDictionary::EnumInStandaloneDictionaryFile>, IDLDouble>>::ReturnType { TestStandaloneDictionary::EnumInStandaloneDictionaryFile::EnumValue1 }; });
+    auto unionMemberWithDefaultValueConversionResult = convertOptionalWithDefault<IDLUnion<IDLEnumeration<TestStandaloneDictionary::EnumInStandaloneDictionaryFile>, IDLDouble>>(lexicalGlobalObject, unionMemberWithDefaultValueValue, [&] -> ConversionResult<IDLUnion<IDLEnumeration<TestStandaloneDictionary::EnumInStandaloneDictionaryFile>, IDLDouble>> { return Converter<IDLUnion<IDLEnumeration<TestStandaloneDictionary::EnumInStandaloneDictionaryFile>, IDLDouble>>::ReturnType { TestStandaloneDictionary::EnumInStandaloneDictionaryFile::EnumValue1 }; });
     if (unionMemberWithDefaultValueConversionResult.hasException(throwScope)) [[unlikely]]
         return ConversionResultException { };
     return DictionaryImplName {

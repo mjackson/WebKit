@@ -108,17 +108,17 @@ Element* CachedHTMLCollection<HTMLCollectionClass, traversalType>::namedItem(con
     if (name.isEmpty())
         return nullptr;
 
-    ContainerNode& root = rootNode();
-    if (traversalType != CollectionTraversalType::CustomForwardOnly && root.isInTreeScope()) {
+    Ref root = rootNode();
+    if (traversalType != CollectionTraversalType::CustomForwardOnly && root->isInTreeScope()) {
         WeakPtr<Element, WeakPtrImplWithEventTargetData> candidate;
 
-        TreeScope& treeScope = root.treeScope();
-        if (treeScope.hasElementWithId(name)) {
-            if (!treeScope.containsMultipleElementsWithId(name))
-                candidate = treeScope.getElementById(name);
-        } else if (treeScope.hasElementWithName(name)) {
-            if (!treeScope.containsMultipleElementsWithName(name)) {
-                if ((candidate = treeScope.getElementByName(name))) {
+        Ref treeScope = root->treeScope();
+        if (treeScope->hasElementWithId(name)) {
+            if (!treeScope->containsMultipleElementsWithId(name))
+                candidate = treeScope->getElementById(name);
+        } else if (treeScope->hasElementWithName(name)) {
+            if (!treeScope->containsMultipleElementsWithName(name)) {
+                if ((candidate = treeScope->getElementByName(name))) {
                     if (!is<HTMLElement>(*candidate))
                         candidate = nullptr;
                     else if (type() == CollectionType::DocAll && !nameShouldBeVisibleInDocumentAll(*candidate))
@@ -129,7 +129,7 @@ Element* CachedHTMLCollection<HTMLCollectionClass, traversalType>::namedItem(con
             return nullptr;
 
         if (candidate && collection().elementMatches(*candidate)) {
-            if (traversalType == CollectionTraversalType::ChildrenOnly ? candidate->parentNode() == &root : candidate->isDescendantOf(root))
+            if (traversalType == CollectionTraversalType::ChildrenOnly ? candidate->parentNode() == root.ptr() : candidate->isDescendantOf(root))
                 return candidate.get();
         }
     }

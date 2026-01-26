@@ -197,6 +197,7 @@ public:
     void setShouldPlayToPlaybackTarget(bool);
     void setWirelessPlaybackTarget(MediaPlaybackTargetContextSerialized&&);
     void mediaPlayerCurrentPlaybackTargetIsWirelessChanged(bool) final;
+    WebCore::MediaPlaybackTargetType playbackTargetType() const final;
 #endif
 
 #if ENABLE(LEGACY_ENCRYPTED_MEDIA)

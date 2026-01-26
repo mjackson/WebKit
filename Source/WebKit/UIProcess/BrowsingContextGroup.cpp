@@ -61,13 +61,13 @@ void BrowsingContextGroup::sharedProcessForSite(WebsiteDataStore& websiteDataSto
     }
     websiteDataStore.fetchDomainsWithUserInteraction([
         protectedThis = Ref { *this },
-        websiteDataStore = Ref { websiteDataStore },
-        preferences = Ref { preferences },
+        websiteDataStore = protect(websiteDataStore),
+        preferences = protect(preferences),
         site = Site { site },
         mainFrameSite = Site { mainFrameSite },
         lockdownMode,
         enhancedSecurity,
-        pageConfiguration = Ref { pageConfiguration },
+        pageConfiguration = protect(pageConfiguration),
         completionHandler = WTF::move(completionHandler)
     ](const HashSet<WebCore::RegistrableDomain>& domainsWithUserInteraction) mutable {
 
@@ -288,7 +288,7 @@ void BrowsingContextGroup::transitionPageToRemotePage(WebPageProxy& page, const 
         return HashSet<Ref<RemotePageProxy>> { };
     }).iterator->value;
 
-    Ref newRemotePage = RemotePageProxy::create(page, page.protectedLegacyMainFrameProcess(), openerSite, &page.messageReceiverRegistration(), page.webPageIDInMainFrameProcess());
+    Ref newRemotePage = RemotePageProxy::create(page, protect(page.legacyMainFrameProcess()), openerSite, &page.messageReceiverRegistration(), page.webPageIDInMainFrameProcess());
 #if ASSERT_ENABLED
     for (auto& existingPage : set) {
         ASSERT(existingPage->process().coreProcessIdentifier() != newRemotePage->process().coreProcessIdentifier() || existingPage->site() != newRemotePage->site());

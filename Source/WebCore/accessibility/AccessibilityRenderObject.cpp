@@ -1834,7 +1834,7 @@ static void setTextSelectionIntent(AXObjectCache* cache, AXTextStateChangeType t
 {
     if (!cache)
         return;
-    AXTextStateChangeIntent intent(type, AXTextSelection { AXTextSelectionDirectionDiscontiguous, AXTextSelectionGranularityUnknown, false });
+    AXTextStateChangeIntent intent(type, AXTextSelection { AXTextSelectionDirection::Discontiguous, AXTextSelectionGranularity::Unknown, false });
     cache->setTextSelectionIntent(intent);
     cache->setIsSynchronizingSelection(true);
 }
@@ -1849,7 +1849,7 @@ static void clearTextSelectionIntent(AXObjectCache* cache)
 
 void AccessibilityRenderObject::setSelectedTextRange(CharacterRange&& range)
 {
-    setTextSelectionIntent(axObjectCache(), range.length ? AXTextStateChangeTypeSelectionExtend : AXTextStateChangeTypeSelectionMove);
+    setTextSelectionIntent(axObjectCache(), range.length ? AXTextStateChangeType::SelectionExtend : AXTextStateChangeType::SelectionMove);
 
     CheckedPtr client = m_renderer ? m_renderer->document().editor().client() : nullptr;
     if (client)
@@ -2117,13 +2117,13 @@ void AccessibilityRenderObject::setSelectedVisiblePositionRange(const VisiblePos
             }
         }
 
-        setTextSelectionIntent(axObjectCache(), start == end ? AXTextStateChangeTypeSelectionMove : AXTextStateChangeTypeSelectionExtend);
+        setTextSelectionIntent(axObjectCache(), start == end ? AXTextStateChangeType::SelectionMove : AXTextStateChangeType::SelectionExtend);
         textControl->focus();
         textControl->setSelectionRange(start, end);
     } else if (m_renderer) {
         // Make selection and tell the document to use it. If it's zero length, then move to that position.
         if (range.start == range.end) {
-            setTextSelectionIntent(axObjectCache(), AXTextStateChangeTypeSelectionMove);
+            setTextSelectionIntent(axObjectCache(), AXTextStateChangeType::SelectionMove);
 
             auto start = range.start;
             if (auto elementRange = simpleRange()) {
@@ -2133,7 +2133,7 @@ void AccessibilityRenderObject::setSelectedVisiblePositionRange(const VisiblePos
 
             m_renderer->frame().selection().moveTo(start, UserTriggered::Yes);
         } else {
-            setTextSelectionIntent(axObjectCache(), AXTextStateChangeTypeSelectionExtend);
+            setTextSelectionIntent(axObjectCache(), AXTextStateChangeType::SelectionExtend);
 
             VisibleSelection newSelection = VisibleSelection(range.start, range.end);
             m_renderer->frame().selection().setSelection(newSelection, FrameSelection::defaultSetSelectionOptions(UserTriggered::Yes));

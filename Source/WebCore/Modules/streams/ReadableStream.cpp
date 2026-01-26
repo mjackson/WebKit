@@ -83,15 +83,15 @@ static ExceptionOr<bool> isReadableByteSource(JSC::ThrowScope& throwScope, JSDOM
     return true;
 }
 
-ExceptionOr<Ref<ReadableStream>> ReadableStream::create(JSDOMGlobalObject& globalObject, std::optional<JSC::Strong<JSC::JSObject>>&& underlyingSourceValue, std::optional<JSC::Strong<JSC::JSObject>>&& strategyValue)
+ExceptionOr<Ref<ReadableStream>> ReadableStream::create(JSDOMGlobalObject& globalObject, JSC::Strong<JSC::JSObject>&& underlyingSourceValue, JSC::Strong<JSC::JSObject>&& strategyValue)
 {
     JSC::JSValue underlyingSource = JSC::jsUndefined();
     if (underlyingSourceValue)
-        underlyingSource = underlyingSourceValue->get();
+        underlyingSource = underlyingSourceValue.get();
 
     JSC::JSValue strategy = JSC::jsUndefined();
     if (strategyValue)
-        strategy = strategyValue->get();
+        strategy = strategyValue.get();
 
     Ref vm = globalObject.vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);

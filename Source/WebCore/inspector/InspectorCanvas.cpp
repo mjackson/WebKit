@@ -412,7 +412,7 @@ Ref<Inspector::Protocol::Canvas::Canvas> InspectorCanvas::buildObjectForCanvas(b
         .setHeight(size.height())
         .release();
 
-    if (auto* node = canvasElement()) {
+    if (RefPtr node = canvasElement()) {
         String cssCanvasName = node->document().nameForCSSCanvasElement(*node);
         if (!cssCanvasName.isEmpty())
             canvas->setCssCanvasName(cssCanvasName);
@@ -546,7 +546,7 @@ int InspectorCanvas::indexForData(DuplicateDataVariant data)
             String dataURL = "data:,"_s;
 
             if (CachedImage* cachedImage = imageElement->cachedImage()) {
-                Image* image = cachedImage->image();
+                RefPtr<Image> image = cachedImage->image();
                 if (image && image != &Image::nullImage()) {
                     auto imageBuffer = ImageBuffer::create(image->size(), RenderingMode::Unaccelerated, RenderingPurpose::Unspecified, 1, DestinationColorSpace::SRGB(), PixelFormat::BGRA8);
                     imageBuffer->context().drawImage(*image, FloatPoint(0, 0));
@@ -624,7 +624,7 @@ int InspectorCanvas::indexForData(DuplicateDataVariant data)
             String dataURL = "data:,"_s;
 
             if (auto* cachedImage = cssImageValue->image()) {
-                auto* image = cachedImage->image();
+                RefPtr image = cachedImage->image();
                 if (image && image != &Image::nullImage()) {
                     auto imageBuffer = ImageBuffer::create(image->size(), RenderingMode::Unaccelerated, RenderingPurpose::Unspecified, 1, DestinationColorSpace::SRGB(), PixelFormat::BGRA8);
                     imageBuffer->context().drawImage(*image, FloatPoint(0, 0));

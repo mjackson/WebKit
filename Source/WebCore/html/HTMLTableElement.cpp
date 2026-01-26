@@ -548,7 +548,7 @@ const MutableStyleProperties* HTMLTableElement::additionalCellStyle() const
     return m_sharedCellStyle.get();
 }
 
-static MutableStyleProperties* leakGroupBorderStyle(bool rows)
+static Ref<MutableStyleProperties> makeGroupBorderStyle(bool rows)
 {
     auto style = MutableStyleProperties::create();
     if (rows) {
@@ -562,7 +562,7 @@ static MutableStyleProperties* leakGroupBorderStyle(bool rows)
         style->setProperty(CSSPropertyBorderLeftStyle, CSSValueSolid);
         style->setProperty(CSSPropertyBorderRightStyle, CSSValueSolid);
     }
-    return &style.leakRef();
+    return style;
 }
 
 const MutableStyleProperties* HTMLTableElement::additionalGroupStyle(bool rows) const
@@ -570,11 +570,11 @@ const MutableStyleProperties* HTMLTableElement::additionalGroupStyle(bool rows) 
     if (m_rulesAttr != GroupsRules)
         return nullptr;
     if (rows) {
-        static auto* rowBorderStyle = leakGroupBorderStyle(true);
-        return rowBorderStyle;
+        static NeverDestroyed<Ref<MutableStyleProperties>> rowBorderStyle = makeGroupBorderStyle(true);
+        return rowBorderStyle->ptr();
     }
-    static auto* columnBorderStyle = leakGroupBorderStyle(false);
-    return columnBorderStyle;
+    static NeverDestroyed<Ref<MutableStyleProperties>> columnBorderStyle = makeGroupBorderStyle(false);
+    return columnBorderStyle->ptr();
 }
 
 bool HTMLTableElement::isURLAttribute(const Attribute& attribute) const

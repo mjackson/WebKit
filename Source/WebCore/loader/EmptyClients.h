@@ -101,8 +101,6 @@ class EmptyChromeClient : public ChromeClient {
     bool runJavaScriptConfirm(LocalFrame&, const String&) final { return false; }
     bool runJavaScriptPrompt(LocalFrame&, const String&, const String&, String&) final { return false; }
 
-    bool selectItemWritingDirectionIsNatural() final { return false; }
-    bool selectItemAlignmentFollowsMenuWritingDirection() final { return false; }
     RefPtr<PopupMenu> createPopupMenu(PopupMenuClient&) const final;
     RefPtr<SearchPopupMenu> createSearchPopupMenu(PopupMenuClient&) const final;
 

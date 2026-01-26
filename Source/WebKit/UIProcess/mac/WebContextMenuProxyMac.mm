@@ -164,7 +164,7 @@
     ASSERT(!sender || [sender isKindOfClass:NSMenuItem.class]);
     WebKit::WebContextMenuItemData item(WebCore::ContextMenuItemType::Action, static_cast<WebCore::ContextMenuAction>([sender tag]), [sender title], [sender isEnabled], [(NSMenuItem *)sender state] == NSControlStateValueOn);
     if (representedObject)
-        item.setUserData(RefPtr { [checked_objc_cast<WKUserDataWrapper>(representedObject.get()) userData] }.get());
+        item.setUserData(protect([checked_objc_cast<WKUserDataWrapper>(representedObject.get()) userData]).get());
 
     menuProxy->contextMenuItemSelected(item);
 }
@@ -212,24 +212,24 @@
 
 - (void)menuWillOpen:(NSMenu *)menu
 {
-    Ref { *_menuProxy }->didShowContextMenu(menu);
+    protect(*_menuProxy)->didShowContextMenu(menu);
 }
 
 - (void)menuDidClose:(NSMenu *)menu
 {
-    Ref { *_menuProxy }->didDismissContextMenu(menu);
+    protect(*_menuProxy)->didDismissContextMenu(menu);
 }
 
 #pragma mark - WKCaptionStyleMenuControllerDelegate
 
 - (void)captionStyleMenuWillOpen:(NSMenu *)menu
 {
-    Ref { *_menuProxy }->captionStyleMenuWillOpen();
+    protect(*_menuProxy)->captionStyleMenuWillOpen();
 }
 
 - (void)captionStyleMenuDidClose:(NSMenu *)menu
 {
-    Ref { *_menuProxy }->captionStyleMenuDidClose();
+    protect(*_menuProxy)->captionStyleMenuDidClose();
 }
 
 @end
@@ -360,7 +360,7 @@ void WebContextMenuProxyMac::appendRemoveBackgroundItemToControlledImageMenuIfNe
 {
 #if ENABLE(IMAGE_ANALYSIS_ENHANCEMENTS)
     RefPtr page = this->page();
-    if (!page || !page->protectedPreferences()->removeBackgroundEnabled())
+    if (!page || !protect(page->preferences())->removeBackgroundEnabled())
         return;
 
     auto context = m_context.controlledImageElementContext();
@@ -497,7 +497,7 @@ RetainPtr<NSMenuItem> WebContextMenuProxyMac::createShareMenuItem(ShareMenuItemT
     if (hitTestData.imageSharedMemory) {
         if (usePlaceholder)
             [items addObject:adoptNS([[NSImage alloc] init]).get()];
-        else if (auto image = adoptNS([[NSImage alloc] initWithData:Ref { *hitTestData.imageSharedMemory }->toNSData().get()])) {
+        else if (auto image = adoptNS([[NSImage alloc] initWithData:protect(*hitTestData.imageSharedMemory)->toNSData().get()])) {
             RetainPtr title = hitTestData.imageText.createNSString();
             if (![title length])
                 title = WEB_UI_NSSTRING(@"Image", "Fallback title for images in the share sheet");
@@ -550,7 +550,7 @@ void WebContextMenuProxyMac::show()
 bool WebContextMenuProxyMac::showAfterPostProcessingContextData()
 {
 #if ENABLE(CONTEXT_MENU_QR_CODE_DETECTION)
-    if (!protectedPage()->protectedPreferences()->contextMenuQRCodeDetectionEnabled())
+    if (!protect(protectedPage()->preferences())->contextMenuQRCodeDetectionEnabled())
         return false;
 
     ASSERT(m_context.webHitTestResultData());

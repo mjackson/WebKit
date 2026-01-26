@@ -452,9 +452,8 @@ void RTCPeerConnection::setRemoteDescription(RTCSessionDescriptionInit&& remoteD
 void RTCPeerConnection::addIceCandidate(Candidate&& rtcCandidate, Ref<DeferredPromise>&& promise)
 {
     std::optional<Exception> exception;
-    RefPtr<RTCIceCandidate> candidate;
-    if (rtcCandidate) {
-        candidate = WTF::switchOn(*rtcCandidate, [&exception](RTCIceCandidateInit& init) -> RefPtr<RTCIceCandidate> {
+    RefPtr candidate = WTF::switchOn(rtcCandidate,
+        [&exception](RTCIceCandidateInit& init) -> RefPtr<RTCIceCandidate> {
             if (init.candidate.isEmpty())
                 return nullptr;
 
@@ -464,10 +463,11 @@ void RTCPeerConnection::addIceCandidate(Candidate&& rtcCandidate, Ref<DeferredPr
                 return nullptr;
             }
             return result.releaseReturnValue();
-        }, [](RefPtr<RTCIceCandidate>& iceCandidate) {
+        },
+        [](RefPtr<RTCIceCandidate>& iceCandidate) -> RefPtr<RTCIceCandidate> {
             return WTF::move(iceCandidate);
-        });
-    }
+        }
+    );
 
     ALWAYS_LOG(LOGIDENTIFIER, "Received ice candidate:\n", candidate ? candidate->candidate() : "null"_s);
 

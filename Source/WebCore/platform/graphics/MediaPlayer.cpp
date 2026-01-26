@@ -257,6 +257,10 @@ private:
 
     MediaPlayerClientIdentifier mediaPlayerClientIdentifier() const final { return identifier(); }
 
+#if ENABLE(WIRELESS_PLAYBACK_TARGET)
+    MediaPlaybackTargetType playbackTargetType() const final { return MediaPlaybackTargetType::None; }
+#endif
+
     class NullMediaResourceLoader final : public PlatformMediaResourceLoader {
         WTF_MAKE_TZONE_ALLOCATED_INLINE(NullMediaResourceLoader);
         void sendH2Ping(const URL&, CompletionHandler<void(Expected<Seconds, ResourceError>&&)>&& completionHandler) final
@@ -607,6 +611,9 @@ CheckedPtr<const MediaPlayerFactory> MediaPlayer::nextBestMediaEngine(const Medi
     parameters.allowedMediaVideoCodecIDs = allowedMediaVideoCodecIDs();
     parameters.allowedMediaAudioCodecIDs = allowedMediaAudioCodecIDs();
     parameters.allowedMediaCaptionFormatTypes = allowedMediaCaptionFormatTypes();
+#if ENABLE(WIRELESS_PLAYBACK_TARGET)
+    parameters.playbackTargetType = playbackTargetType();
+#endif
 
     if (m_activeEngineIdentifier) {
         if (current)
@@ -2106,6 +2113,13 @@ void MediaPlayer::elementIdChanged(const String& id) const
     if (RefPtr playerPrivate = m_private)
         playerPrivate->elementIdChanged(id);
 }
+
+#if ENABLE(WIRELESS_PLAYBACK_TARGET)
+MediaPlaybackTargetType MediaPlayer::playbackTargetType() const
+{
+    return protectedClient()->playbackTargetType();
+}
+#endif
 
 String convertEnumerationToString(MediaPlayer::ReadyState enumerationValue)
 {

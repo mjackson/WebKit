@@ -720,8 +720,12 @@ void ServiceWorkerFetchTask::respondWithCacheResponse(std::optional<DOMCacheEngi
     if (RefPtr loader = m_loader)
         loader->setWorkerFinalRouterSource(RouterSourceEnum::Cache);
 
+    auto response = std::exchange(record->response, { });
+    if (response.url().isNull())
+        response.setURL(URL { m_currentRequest.url() });
+
     bool needsContinueDidReceiveResponseMessage = m_currentRequest.requester() == ResourceRequestRequester::Main;
-    processResponse(std::exchange(record->response, { }), needsContinueDidReceiveResponseMessage, ShouldSetSource::No);
+    processResponse(WTF::move(response), needsContinueDidReceiveResponseMessage, ShouldSetSource::No);
     if (needsContinueDidReceiveResponseMessage) {
         m_cacheRecord = WTF::move(*record);
         return;

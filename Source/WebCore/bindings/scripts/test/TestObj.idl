@@ -284,6 +284,7 @@ enum TestConfidence { "high", "kinda-low" };
     undefined    methodWithOptionalXPathNSResolver(optional XPathNSResolver? resolver);
     undefined    methodWithOptionalRecord(optional record<DOMString, long>? record = null);
     undefined    methodWithOptionalPromise(optional Promise<undefined> promise);
+    undefined    methodWithOptionalDictNoDefault(optional TestDictionaryThatShouldNotTolerateNull dict);
     undefined    methodWithOptionalDictIsDefault(optional TestDictionary dict = {});
 
     // Callback interface parameters.

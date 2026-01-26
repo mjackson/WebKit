@@ -139,7 +139,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(NetworkProcessProxy);
 Vector<Ref<NetworkProcessProxy>> NetworkProcessProxy::allNetworkProcesses()
 {
     return WTF::map(networkProcessesSet(), [](auto& networkProcess) {
-        return Ref { networkProcess };
+        return protect(networkProcess);
     });
 }
 
@@ -153,7 +153,7 @@ Ref<NetworkProcessProxy> NetworkProcessProxy::ensureDefaultNetworkProcess()
 {
     auto& networkProcess = defaultNetworkProcess();
     if (networkProcess)
-        return Ref { *networkProcess };
+        return protect(*networkProcess);
 
     auto newNetworkProcess = NetworkProcessProxy::create();
     networkProcess = newNetworkProcess.get();
@@ -375,7 +375,7 @@ Ref<DownloadProxy> NetworkProcessProxy::createDownloadProxy(WebsiteDataStore& da
     if (!m_downloadProxyMap)
         lazyInitialize(m_downloadProxyMap, makeUniqueWithoutRefCountedCheck<DownloadProxyMap>(*this));
 
-    return Ref { *m_downloadProxyMap }->createDownloadProxy(dataStore, WTF::move(client), resourceRequest, frameInfo, originatingPage);
+    return protect(*m_downloadProxyMap)->createDownloadProxy(dataStore, WTF::move(client), resourceRequest, frameInfo, originatingPage);
 }
 
 void NetworkProcessProxy::dataTaskWithRequest(WebPageProxy& page, PAL::SessionID sessionID, WebCore::ResourceRequest&& request, const std::optional<SecurityOriginData>& topOrigin, bool shouldRunAtForegroundPriority, CompletionHandler<void(API::DataTask&)>&& completionHandler)
@@ -1258,7 +1258,7 @@ void NetworkProcessProxy::deleteWebsiteDataInUIProcessForRegistrableDomains(PAL:
         return;
     }
 
-    websiteDataStore->fetchDataForRegistrableDomains(dataTypes, fetchOptions, WTF::move(domains), [dataTypes, websiteDataStore = Ref { *websiteDataStore }, completionHandler = WTF::move(completionHandler)] (Vector<WebsiteDataRecord>&& matchingDataRecords, HashSet<WebCore::RegistrableDomain>&& domainsWithMatchingDataRecords) mutable {
+    websiteDataStore->fetchDataForRegistrableDomains(dataTypes, fetchOptions, WTF::move(domains), [dataTypes, websiteDataStore = protect(*websiteDataStore), completionHandler = WTF::move(completionHandler)] (Vector<WebsiteDataRecord>&& matchingDataRecords, HashSet<WebCore::RegistrableDomain>&& domainsWithMatchingDataRecords) mutable {
         websiteDataStore->removeData(dataTypes, WTF::move(matchingDataRecords), [domainsWithMatchingDataRecords = WTF::move(domainsWithMatchingDataRecords), completionHandler = WTF::move(completionHandler)] () mutable {
             completionHandler(WTF::move(domainsWithMatchingDataRecords));
         });
@@ -1674,7 +1674,7 @@ void NetworkProcessProxy::testProcessIncomingSyncMessagesWhenWaitingForSyncReply
     if (!page)
         return reply(false);
 
-    auto syncResult = page->protectedLegacyMainFrameProcess()->sendSync(Messages::WebPage::TestProcessIncomingSyncMessagesWhenWaitingForSyncReply(), page->webPageIDInMainFrameProcess(), Seconds::infinity(), IPC::SendSyncOption::ForceDispatchWhenDestinationIsWaitingForUnboundedSyncReply);
+    auto syncResult = protect(page->legacyMainFrameProcess())->sendSync(Messages::WebPage::TestProcessIncomingSyncMessagesWhenWaitingForSyncReply(), page->webPageIDInMainFrameProcess(), Seconds::infinity(), IPC::SendSyncOption::ForceDispatchWhenDestinationIsWaitingForUnboundedSyncReply);
     auto [handled] = syncResult.takeReplyOr(false);
     reply(handled);
 }

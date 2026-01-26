@@ -65,15 +65,13 @@ struct IDLType {
     using SequenceStorageType = T;
     using DictionaryStorageType = T;
     using UnionStorageType = T;
+    using CallbackReturnType = T;
 
     using ConversionResultType = T;
     using NullableConversionResultType = std::optional<T>;
 
     using ParameterType = T;
     using NullableParameterType = std::optional<ImplementationType>;
-
-    using CallbackReturnType = T;
-    using NullableCallbackReturnType = std::optional<ImplementationType>;
 
     using InnerParameterType = T;
     using NullableInnerParameterType = std::optional<ImplementationType>;
@@ -100,11 +98,10 @@ struct IDLNull : IDLType<std::nullptr_t> { };
 
 struct IDLAny : IDLType<JSC::Strong<JSC::Unknown>> {
     using SequenceStorageType = JSC::JSValue;
+    using CallbackReturnType = JSC::JSValue;
+
     using ParameterType = JSC::JSValue;
     using NullableParameterType = JSC::JSValue;
-
-    using CallbackReturnType = JSC::JSValue;
-    using NullableCallbackReturnType = JSC::JSValue;
 
     using ConversionResultType = JSC::JSValue;
     using NullableConversionResultType = JSC::JSValue;
@@ -117,7 +114,6 @@ struct IDLAny : IDLType<JSC::Strong<JSC::Unknown>> {
 
 struct IDLUndefined : IDLType<std::monostate> {
     using CallbackReturnType = void;
-    using NullableCallbackReturnType = void;
 };
 
 struct IDLBoolean : IDLType<bool> { };
@@ -273,7 +269,7 @@ template<typename T> struct IDLCallbackFunction : IDLWrapper<T> {
 
 template<typename T> struct IDLDictionary : IDLType<T> {
     using ParameterType = const T&;
-    using NullableParameterType = const T&;
+    using NullableParameterType = const std::optional<T>&;
 };
 
 template<typename T> struct IDLEnumeration : IDLType<T> { };

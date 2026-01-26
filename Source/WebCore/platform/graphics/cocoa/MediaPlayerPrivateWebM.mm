@@ -151,6 +151,12 @@ MediaPlayer::SupportsType MediaPlayerPrivateWebM::supportsType(const MediaEngine
     if (parameters.isMediaSource || parameters.isMediaStream || parameters.requiresRemotePlayback)
         return MediaPlayer::SupportsType::IsNotSupported;
 
+#if ENABLE(WIRELESS_PLAYBACK_TARGET)
+    // This engine does not support wireless playback.
+    if (parameters.playbackTargetType != MediaPlaybackTargetType::None)
+        return MediaPlayer::SupportsType::IsNotSupported;
+#endif
+
     return SourceBufferParserWebM::isContentTypeSupported(parameters.type, parameters.supportsLimitedMatroska);
 }
 

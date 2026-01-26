@@ -325,7 +325,7 @@ void WebFrameProxy::didFailProvisionalLoad()
         m_navigateCallback({ }, { });
 }
 
-void WebFrameProxy::didCommitLoad(const String& contentType, const WebCore::CertificateInfo& certificateInfo, bool containsPluginDocument)
+void WebFrameProxy::didCommitLoad(const String& contentType, const WebCore::CertificateInfo& certificateInfo, bool containsPluginDocument, DocumentSecurityPolicy&& documentSecurityPolicy)
 {
     m_frameLoadState.didCommitLoad();
 
@@ -333,9 +333,10 @@ void WebFrameProxy::didCommitLoad(const String& contentType, const WebCore::Cert
     m_MIMEType = contentType;
     m_certificateInfo = certificateInfo;
     m_containsPluginDocument = containsPluginDocument;
+    m_documentSecurityPolicy = WTF::move(documentSecurityPolicy);
 
     RefPtr webPage = page();
-    if (webPage && webPage->protectedPreferences()->siteIsolationEnabled())
+    if (webPage && protect(webPage->preferences())->siteIsolationEnabled())
         broadcastFrameTreeSyncData(calculateFrameTreeSyncData());
 }
 
@@ -434,7 +435,7 @@ bool WebFrameProxy::didHandleContentFilterUnblockNavigation(const ResourceReques
     ASSERT(page);
 
 #if HAVE(WEBCONTENTRESTRICTIONS_PATH_SPI)
-    m_contentFilterUnblockHandler.setConfigurationPath(page->protectedWebsiteDataStore()->configuration().webContentRestrictionsConfigurationFile());
+    m_contentFilterUnblockHandler.setConfigurationPath(protect(page->websiteDataStore())->configuration().webContentRestrictionsConfigurationFile());
 #endif
 
 #if HAVE(WEBCONTENTRESTRICTIONS)
@@ -446,7 +447,7 @@ bool WebFrameProxy::didHandleContentFilterUnblockNavigation(const ResourceReques
                 m_contentFilterUnblockHandler.configurationPath()
 #endif
             };
-            page->protectedWebsiteDataStore()->protectedNetworkProcess()->allowEvaluatedURL(parameters, [page](bool unblocked) {
+            protect(page->websiteDataStore())->protectedNetworkProcess()->allowEvaluatedURL(parameters, [page](bool unblocked) {
                 if (unblocked)
                     page->reload({ });
             });
@@ -537,13 +538,13 @@ void WebFrameProxy::prepareForProvisionalLoadInProcess(WebProcessProxy& process,
     CommitTiming commitTiming = effectiveOrigin ? CommitTiming::Immediately : CommitTiming::WaitForLoad;
 
     m_provisionalFrame = nullptr;
-    m_provisionalFrame = adoptRef(*new ProvisionalFrameProxy(*this, group.ensureProcessForSite(site, mainFrameSite, process, page->protectedPreferences()), commitTiming));
-    page->protectedWebsiteDataStore()->protectedNetworkProcess()->addAllowedFirstPartyForCookies(process, mainFrameDomain, LoadedWebArchive::No, [pageID = page->webPageIDInProcess(process), completionHandler = WTF::move(completionHandler)] mutable {
+    m_provisionalFrame = adoptRef(*new ProvisionalFrameProxy(*this, group.ensureProcessForSite(site, mainFrameSite, process, protect(page->preferences())), commitTiming));
+    protect(page->websiteDataStore())->protectedNetworkProcess()->addAllowedFirstPartyForCookies(process, mainFrameDomain, LoadedWebArchive::No, [pageID = page->webPageIDInProcess(process), completionHandler = WTF::move(completionHandler)] mutable {
         completionHandler(pageID);
     });
 }
 
-void WebFrameProxy::commitProvisionalFrame(IPC::Connection& connection, FrameIdentifier frameID, FrameInfoData&& frameInfo, ResourceRequest&& request, std::optional<WebCore::NavigationIdentifier> navigationID, String&& mimeType, bool frameHasCustomContentProvider, FrameLoadType frameLoadType, const CertificateInfo& certificateInfo, bool usedLegacyTLS, bool privateRelayed, String&& proxyName, WebCore::ResourceResponseSource source, bool containsPluginDocument, HasInsecureContent hasInsecureContent, MouseEventPolicy mouseEventPolicy, const UserData& userData)
+void WebFrameProxy::commitProvisionalFrame(IPC::Connection& connection, FrameIdentifier frameID, FrameInfoData&& frameInfo, ResourceRequest&& request, std::optional<WebCore::NavigationIdentifier> navigationID, String&& mimeType, bool frameHasCustomContentProvider, FrameLoadType frameLoadType, const CertificateInfo& certificateInfo, bool usedLegacyTLS, bool privateRelayed, String&& proxyName, WebCore::ResourceResponseSource source, bool containsPluginDocument, HasInsecureContent hasInsecureContent, MouseEventPolicy mouseEventPolicy, DocumentSecurityPolicy&& documentSecurityPolicy, const UserData& userData)
 {
     ASSERT(m_page);
     if (m_provisionalFrame) {
@@ -551,7 +552,7 @@ void WebFrameProxy::commitProvisionalFrame(IPC::Connection& connection, FrameIde
         if (RefPtr process = std::exchange(m_provisionalFrame, nullptr)->takeFrameProcess())
             m_frameProcess = process.releaseNonNull();
     }
-    protectedPage()->didCommitLoadForFrame(connection, frameID, WTF::move(frameInfo), WTF::move(request), navigationID, WTF::move(mimeType), frameHasCustomContentProvider, frameLoadType, certificateInfo, usedLegacyTLS, privateRelayed, WTF::move(proxyName), source, containsPluginDocument, hasInsecureContent, mouseEventPolicy, userData);
+    protectedPage()->didCommitLoadForFrame(connection, frameID, WTF::move(frameInfo), WTF::move(request), navigationID, WTF::move(mimeType), frameHasCustomContentProvider, frameLoadType, certificateInfo, usedLegacyTLS, privateRelayed, WTF::move(proxyName), source, containsPluginDocument, hasInsecureContent, mouseEventPolicy, WTF::move(documentSecurityPolicy), userData);
 }
 
 void WebFrameProxy::getFrameInfo(CompletionHandler<void(std::optional<FrameInfoData>&&)>&& completionHandler)
@@ -596,7 +597,7 @@ void WebFrameProxy::getFrameTree(CompletionHandler<void(std::optional<FrameTreeN
     });
 
     RefPtr page = this->page();
-    bool isSiteIsolationEnabled = page && page->protectedPreferences()->siteIsolationEnabled();
+    bool isSiteIsolationEnabled = page && protect(page->preferences())->siteIsolationEnabled();
     size_t index = 0;
     for (Ref childFrame : m_childFrames) {
         childFrame->getFrameTree([aggregator, index = index++, frameID = this->frameID(), isSiteIsolationEnabled] (std::optional<FrameTreeNodeData>&& data) {
@@ -671,7 +672,7 @@ Ref<FrameTreeSyncData> WebFrameProxy::calculateFrameTreeSyncData() const
     bool isSecureForPaymentSession = false;
 #endif
 
-    return FrameTreeSyncData::create(isSecureForPaymentSession, securityOrigin(), url().protocol().toString(), IntRect { }, LayoutRect { }, HashMap<FrameIdentifier, RemoteFrameLayoutInfo> { });
+    return FrameTreeSyncData::create(isSecureForPaymentSession, securityOrigin(), m_documentSecurityPolicy, url().protocol().toString(), IntRect { }, LayoutRect { }, HashMap<FrameIdentifier, RemoteFrameLayoutInfo> { });
 }
 
 Ref<SecurityOrigin> WebFrameProxy::securityOrigin() const
@@ -690,7 +691,7 @@ void WebFrameProxy::broadcastFrameTreeSyncData(Ref<FrameTreeSyncData>&& data)
     if (!webPage)
         return;
 
-    RELEASE_ASSERT(webPage->protectedPreferences()->siteIsolationEnabled());
+    RELEASE_ASSERT(protect(webPage->preferences())->siteIsolationEnabled());
 
     webPage->forEachWebContentProcess([&](auto& webProcess, auto pageID) {
         webProcess.send(Messages::WebPage::AllFrameTreeSyncDataChangedInAnotherProcess(m_frameID, data), pageID);
@@ -749,7 +750,7 @@ auto WebFrameProxy::traverseNext(CanWrap canWrap) const -> TraversalResult
 
     if (canWrap == CanWrap::Yes) {
         if (RefPtr page = m_page.get())
-            return { page->protectedMainFrame(), DidWrap::Yes };
+            return { protect(page->mainFrame()), DidWrap::Yes };
 
     }
     return { };
@@ -835,7 +836,7 @@ void WebFrameProxy::updateOpener(std::optional<WebCore::FrameIdentifier> newOpen
     m_opener = WebFrameProxy::webFrame(newOpener);
 
     RefPtr webPage = page();
-    if (!m_opener && webPage && !webPage->protectedPreferences()->siteIsolationEnabled())
+    if (!m_opener && webPage && !protect(webPage->preferences())->siteIsolationEnabled())
         m_disownedOpener = previousOpener.get();
 }
 

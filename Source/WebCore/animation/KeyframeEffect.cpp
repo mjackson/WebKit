@@ -767,46 +767,47 @@ static inline ExceptionOr<void> processPropertyIndexedKeyframes(JSGlobalObject& 
     return { };
 }
 
-ExceptionOr<Ref<KeyframeEffect>> KeyframeEffect::create(JSGlobalObject& lexicalGlobalObject, Document& document, Element* target, Strong<JSObject>&& keyframes, std::optional<Variant<double, KeyframeEffectOptions>>&& options)
+ExceptionOr<Ref<KeyframeEffect>> KeyframeEffect::create(JSGlobalObject& lexicalGlobalObject, Document& document, Element* target, Strong<JSObject>&& keyframes, Variant<double, KeyframeEffectOptions>&& options)
 {
     auto keyframeEffect = adoptRef(*new KeyframeEffect(target, { }));
     keyframeEffect->m_document = document;
 
-    if (options) {
-        OptionalEffectTiming timing;
-        auto optionsValue = options.value();
-        if (std::holds_alternative<double>(optionsValue)) {
-            Variant<double, String> duration = std::get<double>(optionsValue);
+    auto timing = WTF::switchOn(WTF::move(options),
+        [&](double duration) -> ExceptionOr<OptionalEffectTiming> {
+            OptionalEffectTiming timing;
             timing.duration = duration;
-        } else {
-            auto keyframeEffectOptions = std::get<KeyframeEffectOptions>(optionsValue);
-
-            auto setPseudoElementResult = keyframeEffect->setPseudoElement(keyframeEffectOptions.pseudoElement);
+            return timing;
+        },
+        [&](KeyframeEffectOptions&& options) -> ExceptionOr<OptionalEffectTiming> {
+            auto setPseudoElementResult = keyframeEffect->setPseudoElement(WTF::move(options.pseudoElement));
             if (setPseudoElementResult.hasException())
                 return setPseudoElementResult.releaseException();
 
-            auto convertedDuration = keyframeEffectOptions.durationAsDoubleOrString();
+            auto convertedDuration = options.durationAsDoubleOrString();
             if (!convertedDuration)
                 return Exception { ExceptionCode::TypeError };
 
-            timing = {
-                *convertedDuration,
-                keyframeEffectOptions.iterations,
-                keyframeEffectOptions.delay,
-                keyframeEffectOptions.endDelay,
-                keyframeEffectOptions.iterationStart,
-                keyframeEffectOptions.easing,
-                keyframeEffectOptions.fill,
-                keyframeEffectOptions.direction
-            };
+            keyframeEffect->setComposite(options.composite);
+            keyframeEffect->setIterationComposite(options.iterationComposite);
 
-            keyframeEffect->setComposite(keyframeEffectOptions.composite);
-            keyframeEffect->setIterationComposite(keyframeEffectOptions.iterationComposite);
+            return OptionalEffectTiming {
+                *convertedDuration,
+                options.iterations,
+                options.delay,
+                options.endDelay,
+                options.iterationStart,
+                options.easing,
+                options.fill,
+                options.direction
+            };
         }
-        auto updateTimingResult = keyframeEffect->updateTiming(document, timing);
-        if (updateTimingResult.hasException())
-            return updateTimingResult.releaseException();
-    }
+    );
+    if (timing.hasException())
+        return timing.releaseException();
+
+    auto updateTimingResult = keyframeEffect->updateTiming(document, timing.releaseReturnValue());
+    if (updateTimingResult.hasException())
+        return updateTimingResult.releaseException();
 
     auto processKeyframesResult = keyframeEffect->processKeyframes(lexicalGlobalObject, document, WTF::move(keyframes));
     if (processKeyframesResult.hasException())

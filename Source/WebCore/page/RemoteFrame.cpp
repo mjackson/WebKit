@@ -88,7 +88,7 @@ void RemoteFrame::didFinishLoadInAnotherProcess()
 {
     m_preventsParentFromBeingComplete = false;
 
-    if (auto* ownerElement = this->ownerElement())
+    if (RefPtr ownerElement = this->ownerElement())
         ownerElement->document().checkCompleted();
 }
 
@@ -187,6 +187,11 @@ void RemoteFrame::reportMixedContentViolation(bool blocked, const URL& target) c
 SecurityOrigin* RemoteFrame::frameDocumentSecurityOrigin() const
 {
     return frameTreeSyncData().frameDocumentSecurityOrigin.get();
+}
+
+std::optional<DocumentSecurityPolicy> RemoteFrame::frameDocumentSecurityPolicy() const
+{
+    return frameTreeSyncData().frameDocumentSecurityPolicy;
 }
 
 String RemoteFrame::frameURLProtocol() const

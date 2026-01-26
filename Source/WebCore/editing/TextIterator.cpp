@@ -39,6 +39,7 @@
 #include "HTMLBodyElement.h"
 #include "HTMLElement.h"
 #include "HTMLFrameOwnerElement.h"
+#include "HTMLHeadingElement.h"
 #include "HTMLImageElement.h"
 #include "HTMLInputElement.h"
 #include "HTMLLegendElement.h"
@@ -893,16 +894,6 @@ static bool shouldEmitNewlineForNode(Node* node, bool emitsOriginalText)
     return emitsOriginalText || !(node->isInShadowTree() && is<HTMLInputElement>(*node->shadowHost()));
 }
 
-static bool hasHeaderTag(HTMLElement& element)
-{
-    return element.hasTagName(h1Tag)
-        || element.hasTagName(h2Tag)
-        || element.hasTagName(h3Tag)
-        || element.hasTagName(h4Tag)
-        || element.hasTagName(h5Tag)
-        || element.hasTagName(h6Tag);
-}
-
 static bool shouldEmitReplacementInsteadOfNode(const Node& node)
 {
     // Placeholders should eventually disappear, so treating them as a line break doesn't make sense
@@ -919,7 +910,7 @@ bool shouldEmitNewlinesBeforeAndAfterNode(Node& node)
         if (hasDisplayContents(node))
             return false;
         RefPtr element = dynamicDowncast<HTMLElement>(node);
-        return element && (hasHeaderTag(*element)
+        return element && (is<HTMLHeadingElement>(*element)
             || element->hasTagName(blockquoteTag)
             || element->hasTagName(ddTag)
             || element->hasTagName(divTag)
@@ -992,7 +983,7 @@ static bool shouldEmitExtraNewlineForNode(Node& node)
 
     // NOTE: We only do this for a select set of nodes, and WinIE appears not to do this at all.
     RefPtr element = dynamicDowncast<HTMLElement>(node);
-    if (!element || (!hasHeaderTag(*element) && !is<HTMLParagraphElement>(*element)))
+    if (!element || (!is<HTMLHeadingElement>(*element) && !is<HTMLParagraphElement>(*element)))
         return false;
 
     auto bottomMargin = renderBox->collapsedMarginAfter();

@@ -171,7 +171,7 @@
 #import <WebCore/RenderLayerBacking.h>
 #import <WebCore/RenderLayerScrollableArea.h>
 #import <WebCore/RenderObjectInlines.h>
-#import <WebCore/RenderThemeIOS.h>
+#import <WebCore/RenderTheme.h>
 #import <WebCore/RenderVideoInlines.h>
 #import <WebCore/RenderView.h>
 #import <WebCore/RenderedDocumentMarker.h>
@@ -1353,7 +1353,7 @@ void WebPage::sendTapHighlightForNodeIfNecessary(WebKit::TapIdentifier requestID
 #if ENABLE(PDF_PLUGIN)
     if (RefPtr pluginView = pluginViewForFrame(updatedNode->document().frame())) {
         if (auto rect = pluginView->highlightRectForTapAtPoint(point)) {
-            auto highlightColor = RenderThemeIOS::singleton().platformTapHighlightColor();
+            auto highlightColor = RenderTheme::singleton().platformTapHighlightColor();
             auto highlightQuads = Vector { FloatQuad { WTF::move(*rect) } };
             send(Messages::WebPageProxy::DidGetTapHighlightGeometries(requestID, WTF::move(highlightColor), WTF::move(highlightQuads), { }, { }, { }, { }, true));
             return;

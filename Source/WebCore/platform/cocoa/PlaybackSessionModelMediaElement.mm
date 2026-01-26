@@ -117,20 +117,20 @@ void PlaybackSessionModelMediaElement::setMediaElement(HTMLMediaElement* mediaEl
         for (auto& eventName : observedEventNames())
             newMediaElement->addEventListener(eventName, *this, false);
 
-        auto& audioTracks = newMediaElement->ensureAudioTracks();
-        audioTracks.addEventListener(events.addtrackEvent, *this, false);
-        audioTracks.addEventListener(events.changeEvent, *this, false);
-        audioTracks.addEventListener(events.removetrackEvent, *this, false);
+        Ref audioTracks = newMediaElement->ensureAudioTracks();
+        audioTracks->addEventListener(events.addtrackEvent, *this, false);
+        audioTracks->addEventListener(events.changeEvent, *this, false);
+        audioTracks->addEventListener(events.removetrackEvent, *this, false);
 
-        auto& videoTracks = newMediaElement->ensureVideoTracks();
-        videoTracks.addEventListener(events.addtrackEvent, *this, false);
-        videoTracks.addEventListener(events.changeEvent, *this, false);
-        videoTracks.addEventListener(events.removetrackEvent, *this, false);
+        Ref videoTracks = newMediaElement->ensureVideoTracks();
+        videoTracks->addEventListener(events.addtrackEvent, *this, false);
+        videoTracks->addEventListener(events.changeEvent, *this, false);
+        videoTracks->addEventListener(events.removetrackEvent, *this, false);
 
-        auto& textTracks = newMediaElement->ensureTextTracks();
-        textTracks.addEventListener(events.addtrackEvent, *this, false);
-        textTracks.addEventListener(events.changeEvent, *this, false);
-        textTracks.addEventListener(events.removetrackEvent, *this, false);
+        Ref textTracks = newMediaElement->ensureTextTracks();
+        textTracks->addEventListener(events.addtrackEvent, *this, false);
+        textTracks->addEventListener(events.changeEvent, *this, false);
+        textTracks->addEventListener(events.removetrackEvent, *this, false);
         m_isListening = true;
     }
 
@@ -509,16 +509,16 @@ void PlaybackSessionModelMediaElement::updateMediaSelectionOptions()
     if (!mediaElement->document().page())
         return;
 
-    auto& captionPreferences = mediaElement->document().page()->checkedGroup()->ensureCaptionPreferences();
+    Ref captionPreferences = mediaElement->document().page()->checkedGroup()->ensureCaptionPreferences();
     auto* textTracks = mediaElement->textTracks();
     if (textTracks && textTracks->length())
-        m_legibleTracksForMenu = captionPreferences.sortedTrackListForMenu(textTracks, { TextTrack::Kind::Subtitles, TextTrack::Kind::Captions, TextTrack::Kind::Descriptions });
+        m_legibleTracksForMenu = captionPreferences->sortedTrackListForMenu(textTracks, { TextTrack::Kind::Subtitles, TextTrack::Kind::Captions, TextTrack::Kind::Descriptions });
     else
         m_legibleTracksForMenu.clear();
 
     auto* audioTracks = mediaElement->audioTracks();
     if (audioTracks && audioTracks->length() > 1)
-        m_audioTracksForMenu = captionPreferences.sortedTrackListForMenu(audioTracks);
+        m_audioTracksForMenu = captionPreferences->sortedTrackListForMenu(audioTracks);
     else
         m_audioTracksForMenu.clear();
 
@@ -541,7 +541,7 @@ void PlaybackSessionModelMediaElement::maybeUpdateVideoMetadata()
     if (!mediaElement)
         return;
     RefPtr videoTracks = mediaElement->videoTracks();
-    auto* selectedItem = videoTracks ? videoTracks->selectedItem() : nullptr;
+    RefPtr selectedItem = videoTracks ? videoTracks->selectedItem() : nullptr;
 
     // Occasionally, when tearing down an AVAssetTrack in a HLS stream, the tracks
     // exposed to web content are recreated, and a "removetrack" event is fired before
@@ -711,9 +711,9 @@ Vector<MediaSelectionOption> PlaybackSessionModelMediaElement::audioMediaSelecti
     if (!mediaElement || !mediaElement->document().page())
         return { };
 
-    auto& captionPreferences = mediaElement->document().page()->checkedGroup()->ensureCaptionPreferences();
+    Ref captionPreferences = mediaElement->document().page()->checkedGroup()->ensureCaptionPreferences();
     return m_audioTracksForMenu.map([&](auto& audioTrack) {
-        return captionPreferences.mediaSelectionOptionForTrack(audioTrack.get());
+        return captionPreferences->mediaSelectionOptionForTrack(audioTrack.get());
     });
 }
 
@@ -734,9 +734,9 @@ Vector<MediaSelectionOption> PlaybackSessionModelMediaElement::legibleMediaSelec
     if (!mediaElement || !mediaElement->document().page())
         return { };
 
-    auto& captionPreferences = mediaElement->document().page()->checkedGroup()->ensureCaptionPreferences();
+    Ref captionPreferences = mediaElement->document().page()->checkedGroup()->ensureCaptionPreferences();
     return m_legibleTracksForMenu.map([&](auto& track) {
-        return captionPreferences.mediaSelectionOptionForTrack(track.get());
+        return captionPreferences->mediaSelectionOptionForTrack(track.get());
     });
 }
 

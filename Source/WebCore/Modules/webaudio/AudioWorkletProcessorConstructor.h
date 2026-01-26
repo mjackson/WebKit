@@ -47,6 +47,7 @@ public:
     void ref() const final { RefCounted::ref(); }
     void deref() const final { RefCounted::deref(); }
 
+    virtual bool isJSAudioWorkletProcessorConstructor() const { return false; }
     virtual CallbackResult<Ref<AudioWorkletProcessor>> invoke(JSC::Strong<JSC::JSObject> options) = 0;
     virtual CallbackResult<Ref<AudioWorkletProcessor>> invokeRethrowingException(JSC::Strong<JSC::JSObject> options) = 0;
 

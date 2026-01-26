@@ -39,6 +39,7 @@
 #include "Connection.h"
 #include "ContentAsStringIncludesChildFrames.h"
 #include "DragControllerAction.h"
+#include "DragEventForwardingData.h"
 #include "DrawingArea.h"
 #include "DrawingAreaMessages.h"
 #include "EditorState.h"
@@ -215,6 +216,7 @@
 #include <WebCore/DocumentView.h>
 #include <WebCore/DragController.h>
 #include <WebCore/DragData.h>
+#include <WebCore/DragEventTargetData.h>
 #include <WebCore/Editing.h>
 #include <WebCore/Editor.h>
 #include <WebCore/ElementAncestorIteratorInlines.h>
@@ -615,6 +617,9 @@ WebPage::WebPage(PageIdentifier pageID, WebPageCreationParameters&& parameters)
     , m_shouldRenderWebGLInGPUProcess { parameters.shouldRenderWebGLInGPUProcess }
 #endif
     , m_shouldSendConsoleLogsToUIProcessForTesting(parameters.shouldSendConsoleLogsToUIProcessForTesting)
+#if HAVE(NSVIEW_CORNER_CONFIGURATION)
+    , m_scrollbarAvoidanceCornerRadii(parameters.scrollbarAvoidanceCornerRadii)
+#endif
 #if ENABLE(PLATFORM_DRIVEN_TEXT_CHECKING)
     , m_textCheckingControllerProxy(makeUniqueRefWithoutRefCountedCheck<TextCheckingControllerProxy>(*this))
 #endif
@@ -5438,7 +5443,7 @@ void WebPage::performDragControllerAction(DragControllerAction action, const Int
         return completionHandler(std::nullopt, DragHandlingMethod::None, false, 0, { }, { }, std::nullopt);
 
     case DragControllerAction::PerformDragOperation: {
-        m_page->dragController().performDragOperation(WTF::move(dragData));
+        m_page->dragController().performDragOperation(WTF::move(dragData), *localMainFrame);
         return completionHandler(std::nullopt, DragHandlingMethod::None, false, 0, { }, { }, std::nullopt);
     }
     }
@@ -5480,24 +5485,41 @@ void WebPage::performDragControllerAction(std::optional<FrameIdentifier> frameID
     ASSERT_NOT_REACHED();
 }
 
-void WebPage::performDragOperation(WebCore::DragData&& dragData, SandboxExtension::Handle&& sandboxExtensionHandle, Vector<SandboxExtension::Handle>&& sandboxExtensionsHandleArray, CompletionHandler<void(bool)>&& completionHandler)
+void WebPage::performDragOperation(std::optional<WebCore::FrameIdentifier> frameID, WebCore::DragData&& dragData, SandboxExtension::Handle&& sandboxExtensionHandle, Vector<SandboxExtension::Handle>&& sandboxExtensionsForUpload, CompletionHandler<void(DragOperationResult dragOperationResult)>&& completionHandler)
 {
-    ASSERT(!m_pendingDropSandboxExtension);
+    m_pendingDropSandboxExtensionHandle = WTF::move(sandboxExtensionHandle);
+    m_pendingDropExtensionHandlesForFileUpload = WTF::move(sandboxExtensionsForUpload);
 
-    m_pendingDropSandboxExtension = SandboxExtension::create(WTF::move(sandboxExtensionHandle));
-    for (size_t i = 0; i < sandboxExtensionsHandleArray.size(); i++) {
-        if (auto extension = SandboxExtension::create(WTF::move(sandboxExtensionsHandleArray[i])))
-            m_pendingDropExtensionsForFileUpload.append(extension);
+    RefPtr frame = frameID ? WebProcess::singleton().webFrame(*frameID) : &mainWebFrame();
+    if (!frame) {
+        ASSERT_NOT_REACHED();
+        completionHandler(false);
+        return;
     }
 
-    bool handled = m_page->dragController().performDragOperation(WTF::move(dragData));
+    RefPtr localFrame = frame->coreLocalFrame();
+    if (!localFrame) {
+        ASSERT_NOT_REACHED();
+        completionHandler(false);
+        return;
+    }
 
-    // If we started loading a local file, the sandbox extension tracker would have adopted this
-    // pending drop sandbox extension. If not, we'll play it safe and clear it.
-    m_pendingDropSandboxExtension = nullptr;
+    DragEventTargetData dragEventTargetData = m_page->dragController().performDragOperation(WTF::move(dragData), *localFrame);
 
-    m_pendingDropExtensionsForFileUpload.clear();
-    completionHandler(handled);
+    WTF::switchOn(dragEventTargetData, [&](WebCore::DragEventHandled handled) {
+        completionHandler(handled == WebCore::DragEventHandled::Yes);
+    }, [&](WebCore::FrameIdentifier targetFrameID) {
+        if (targetFrameID != *frameID && m_pendingDropSandboxExtensionHandle && m_pendingDropExtensionHandlesForFileUpload) {
+            DragEventForwardingData result {
+                targetFrameID,
+                WTF::move(*m_pendingDropSandboxExtensionHandle),
+                WTF::move(*m_pendingDropExtensionHandlesForFileUpload)
+            };
+            completionHandler(WTF::move(result));
+            return;
+        }
+        completionHandler(false);
+    });
 }
 #endif
 
@@ -5530,14 +5552,21 @@ void WebPage::dragEnded(std::optional<FrameIdentifier> frameID, IntPoint clientP
 
 void WebPage::willPerformLoadDragDestinationAction()
 {
-    m_sandboxExtensionTracker.willPerformLoadDragDestinationAction(WTF::move(m_pendingDropSandboxExtension));
+    if (auto pendingDropSandboxExtensionHandle = std::exchange(m_pendingDropSandboxExtensionHandle, std::nullopt))
+        m_sandboxExtensionTracker.willPerformLoadDragDestinationAction(SandboxExtension::create(WTF::move(pendingDropSandboxExtensionHandle.value())));
 }
 
 void WebPage::mayPerformUploadDragDestinationAction()
 {
-    for (RefPtr extension : m_pendingDropExtensionsForFileUpload)
-        extension->consumePermanently();
-    m_pendingDropExtensionsForFileUpload.clear();
+    if (!m_pendingDropExtensionHandlesForFileUpload)
+        return;
+
+    for (auto& extensionHandle : *m_pendingDropExtensionHandlesForFileUpload) {
+        if (auto extension = SandboxExtension::create(WTF::move(extensionHandle)))
+            extension->consumePermanently();
+    }
+
+    m_pendingDropExtensionHandlesForFileUpload = std::nullopt;
 }
 
 void WebPage::didStartDrag()

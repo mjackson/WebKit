@@ -122,6 +122,9 @@ struct MediaEngineSupportParameters {
     std::optional<Vector<FourCC>> allowedMediaVideoCodecIDs;
     std::optional<Vector<FourCC>> allowedMediaAudioCodecIDs;
     std::optional<Vector<FourCC>> allowedMediaCaptionFormatTypes;
+#if ENABLE(WIRELESS_PLAYBACK_TARGET)
+    MediaPlaybackTargetType playbackTargetType { MediaPlaybackTargetType::None };
+#endif
 };
 
 struct SeekTarget {
@@ -352,6 +355,10 @@ public:
 
 #if PLATFORM(IOS_FAMILY)
     virtual bool canShowWhileLocked() const { return false; }
+#endif
+
+#if ENABLE(WIRELESS_PLAYBACK_TARGET)
+    virtual MediaPlaybackTargetType playbackTargetType() const = 0;
 #endif
 };
 
@@ -820,6 +827,10 @@ private:
     void loadWithNextMediaEngine(const MediaPlayerFactory*);
     CheckedPtr<const MediaPlayerFactory> nextMediaEngine(const MediaPlayerFactory*);
     void reloadTimerFired();
+
+#if ENABLE(WIRELESS_PLAYBACK_TARGET)
+    MediaPlaybackTargetType playbackTargetType() const;
+#endif
 
     WeakPtr<MediaPlayerClient> m_client;
     Timer m_reloadTimer;

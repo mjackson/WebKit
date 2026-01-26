@@ -68,6 +68,7 @@
 #import "WebDataListSuggestionsDropdownIOS.h"
 #import "WebEditCommandProxy.h"
 #import "WebPageProxy.h"
+#import "WebPreferences.h"
 #import "WebProcessProxy.h"
 #import "_WKDownloadInternal.h"
 #import <WebCore/AXObjectCache.h>
@@ -367,6 +368,11 @@ void PageClientImpl::didCommitLoadForMainFrame(const String& mimeType, bool useC
 
 #if ENABLE(TEXT_EXTRACTION_FILTER)
     [webView _clearTextExtractionFilterCache];
+#endif
+
+#if ENABLE(SYSTEM_TEXT_EXTRACTION)
+    if ([webView _protectedPage]->preferences().systemTextExtractionEnabled())
+        [webView _addTextExtractionAnnotation];
 #endif
 }
 

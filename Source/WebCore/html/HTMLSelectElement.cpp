@@ -210,9 +210,6 @@ bool HTMLSelectElement::valueMissing() const
 bool HTMLSelectElement::usesMenuList() const
 {
 #if !PLATFORM(IOS_FAMILY)
-    if (RenderTheme::singleton().delegatesMenuListRendering())
-        return true;
-
     return !m_multiple && m_size <= 1;
 #else
     return !m_multiple;

@@ -1198,7 +1198,7 @@ static std::optional<std::pair<SingleThreadWeakPtr<RenderElement>, LayoutRect>> 
     return std::pair<SingleThreadWeakPtr<RenderElement>, LayoutRect> { renderListBox.get(), itemLocalRect };
 }
 
-void Element::scrollIntoView(std::optional<Variant<bool, ScrollIntoViewOptions>>&& arg)
+void Element::scrollIntoView(Variant<bool, ScrollIntoViewOptions>&& arg)
 {
     Ref document = this->document();
     document->updateContentRelevancyForScrollIfNeeded(*this);
@@ -1223,14 +1223,17 @@ void Element::scrollIntoView(std::optional<Variant<bool, ScrollIntoViewOptions>>
         absoluteBounds = renderer->absoluteAnchorRectWithScrollMargin(&insideFixed).marginRect;
     }
 
-    ScrollIntoViewOptions options;
-    if (arg) {
-        auto value = arg.value();
-        if (std::holds_alternative<ScrollIntoViewOptions>(value))
-            options = std::get<ScrollIntoViewOptions>(value);
-        else if (!std::get<bool>(value))
-            options.blockPosition = ScrollLogicalPosition::End;
-    }
+    auto options = WTF::switchOn(arg,
+        [&](bool boolArg) -> ScrollIntoViewOptions {
+            ScrollIntoViewOptions options;
+            if (!boolArg)
+                options.blockPosition = ScrollLogicalPosition::End;
+            return options;
+        },
+        [](ScrollIntoViewOptions options) -> ScrollIntoViewOptions {
+            return options;
+        }
+    );
 
     auto writingMode = renderer->writingMode();
     auto alignX = toScrollAlignmentForInlineDirection(options.inlinePosition, writingMode);
@@ -1458,7 +1461,7 @@ static int adjustOffsetForZoomAndSubpixelLayout(RenderBoxModelObject& renderer, 
 static HashSet<TreeScope*> collectAncestorTreeScopeAsHashSet(Node& node)
 {
     HashSet<TreeScope*> ancestors;
-    for (auto* currentScope = &node.treeScope(); currentScope; currentScope = currentScope->parentTreeScope())
+    for (RefPtr currentScope = &node.treeScope(); currentScope; currentScope = currentScope->parentTreeScope())
         ancestors.add(currentScope);
     return ancestors;
 }
@@ -3168,22 +3171,22 @@ void Element::removedFromAncestor(RemovalType removalType, ContainerNode& oldPar
     }
 
     if (removalType.treeScopeChanged) {
-        auto& oldTreeScope = oldParentOfRemovedTree.treeScope();
+        Ref oldTreeScope = oldParentOfRemovedTree.treeScope();
         RefPtr<HTMLDocument> oldHTMLDocument = removalType.disconnectedFromDocument
-            && oldParentOfRemovedTree.isInDocumentTree() ? dynamicDowncast<HTMLDocument>(oldTreeScope.documentScope()) : nullptr;
+            && oldParentOfRemovedTree.isInDocumentTree() ? dynamicDowncast<HTMLDocument>(oldTreeScope->documentScope()) : nullptr;
 
         if (auto& idValue = getIdAttribute(); !idValue.isEmpty()) {
-            oldTreeScope.removeElementById(idValue, *this);
+            oldTreeScope->removeElementById(idValue, *this);
             if (oldHTMLDocument)
                 updateIdForDocument(*oldHTMLDocument, idValue, nullAtom(), HTMLDocumentNamedItemMapsUpdatingCondition::Always);
         }
         if (auto& nameValue = getNameAttribute(); !nameValue.isEmpty()) {
-            oldTreeScope.removeElementByName(nameValue, *this);
+            oldTreeScope->removeElementByName(nameValue, *this);
             if (oldHTMLDocument)
                 updateNameForDocument(*oldHTMLDocument, nameValue, nullAtom());
         }
         if (oldParentOfRemovedTree.isInShadowTree()) {
-            if (RefPtr registry = oldTreeScope.customElementRegistry()) {
+            if (RefPtr registry = oldTreeScope->customElementRegistry()) {
                 if (registry->isScoped() && !usesScopedCustomElementRegistryMap()) [[unlikely]]
                     CustomElementRegistry::addToScopedCustomElementRegistryMap(*this, *registry);
             }
@@ -3806,13 +3809,13 @@ ExceptionOr<RefPtr<Attr>> Element::setAttributeNode(Attr& attrNode)
         synchronizeAllAttributes();
     }
 
-    auto& elementData = ensureUniqueElementData();
+    Ref elementData = ensureUniqueElementData();
 
-    auto existingAttributeIndex = elementData.findAttributeIndexByName(attrNode.qualifiedName());
+    auto existingAttributeIndex = elementData->findAttributeIndexByName(attrNode.qualifiedName());
 
     if (existingAttributeIndex == ElementData::attributeNotFound) {
         attachAttributeNodeIfNeeded(attrNode);
-        setAttributeInternal(elementData.findAttributeIndexByName(attrNode.qualifiedName()), attrNode.qualifiedName(), attrNodeValue, InSynchronizationOfLazyAttribute::No);
+        setAttributeInternal(elementData->findAttributeIndexByName(attrNode.qualifiedName()), attrNode.qualifiedName(), attrNodeValue, InSynchronizationOfLazyAttribute::No);
     } else {
         const Attribute& attribute = attributeAt(existingAttributeIndex);
         if (oldAttrNode)
@@ -3866,15 +3869,15 @@ ExceptionOr<RefPtr<Attr>> Element::setAttributeNodeNS(Attr& attrNode)
     {
         ScriptDisallowedScope::InMainThread scriptDisallowedScope;
         synchronizeAllAttributes();
-        auto& elementData = ensureUniqueElementData();
+        Ref elementData = ensureUniqueElementData();
 
-        index = elementData.findAttributeIndexByName(attrNode.qualifiedName());
+        index = elementData->findAttributeIndexByName(attrNode.qualifiedName());
 
         if (index != ElementData::attributeNotFound) {
             if (oldAttrNode)
-                detachAttrNodeFromElementWithValue(oldAttrNode.get(), elementData.attributeAt(index).value());
+                detachAttrNodeFromElementWithValue(oldAttrNode.get(), elementData->attributeAt(index).value());
             else
-                oldAttrNode = Attr::create(protectedDocument(), attrNode.qualifiedName(), elementData.attributeAt(index).value());
+                oldAttrNode = Attr::create(protectedDocument(), attrNode.qualifiedName(), elementData->attributeAt(index).value());
         }
     }
 
@@ -3951,16 +3954,16 @@ void Element::removeAttributeInternal(unsigned index, InSynchronizationOfLazyAtt
 {
     ASSERT_WITH_SECURITY_IMPLICATION(index < attributeCount());
 
-    UniqueElementData& elementData = ensureUniqueElementData();
+    Ref<UniqueElementData> elementData = ensureUniqueElementData();
 
-    QualifiedName name = elementData.attributeAt(index).name();
-    AtomString valueBeingRemoved = elementData.attributeAt(index).value();
+    QualifiedName name = elementData->attributeAt(index).name();
+    AtomString valueBeingRemoved = elementData->attributeAt(index).value();
 
     if (RefPtr attrNode = attrIfExists(name))
-        detachAttrNodeFromElementWithValue(attrNode.get(), elementData.attributeAt(index).value());
+        detachAttrNodeFromElementWithValue(attrNode.get(), elementData->attributeAt(index).value());
 
     if (inSynchronizationOfLazyAttribute == InSynchronizationOfLazyAttribute::Yes) {
-        elementData.removeAttributeAt(index);
+        elementData->removeAttributeAt(index);
         return;
     }
 
@@ -3968,7 +3971,7 @@ void Element::removeAttributeInternal(unsigned index, InSynchronizationOfLazyAtt
     willModifyAttribute(name, valueBeingRemoved, nullAtom());
     {
         Style::AttributeChangeInvalidation styleInvalidation(*this, name, valueBeingRemoved, nullAtom());
-        elementData.removeAttributeAt(index);
+        elementData->removeAttributeAt(index);
     }
 
     didRemoveAttribute(name, valueBeingRemoved);
@@ -5887,7 +5890,7 @@ void Element::cloneAttributesFromElement(const Element& other)
 
     // If 'other' has a mutable ElementData, convert it to an immutable one so we can share it between both elements.
     // We can only do this if there is no CSSOM wrapper for other's inline style, and there are no presentation attributes.
-    auto* uniqueElementData = dynamicDowncast<UniqueElementData>(*other.m_elementData);
+    RefPtr uniqueElementData = dynamicDowncast<UniqueElementData>(*other.m_elementData);
     if (uniqueElementData
         && !uniqueElementData->presentationalHintStyle()
         && (!uniqueElementData->inlineStyle() || !uniqueElementData->inlineStyle()->hasCSSOMWrapper()))
@@ -6125,30 +6128,26 @@ RefPtr<Element> Element::findAnchorElementForLink(String& outAnchorName)
     return nullptr;
 }
 
-ExceptionOr<Ref<WebAnimation>> Element::animate(JSC::JSGlobalObject& lexicalGlobalObject, JSC::Strong<JSC::JSObject>&& keyframes, std::optional<Variant<double, KeyframeAnimationOptions>>&& options)
+ExceptionOr<Ref<WebAnimation>> Element::animate(JSC::JSGlobalObject& lexicalGlobalObject, JSC::Strong<JSC::JSObject>&& keyframes, Variant<double, KeyframeAnimationOptions>&& options)
 {
     String id = emptyString();
     std::optional<RefPtr<AnimationTimeline>> timeline;
     Variant<FramesPerSecond, AnimationFrameRatePreset> frameRate = AnimationFrameRatePreset::Auto;
-    std::optional<Variant<double, KeyframeEffectOptions>> keyframeEffectOptions;
     TimelineRangeValue animationRangeStart;
     TimelineRangeValue animationRangeEnd;
-    if (options) {
-        auto optionsValue = options.value();
-        Variant<double, KeyframeEffectOptions> keyframeEffectOptionsVariant;
-        if (std::holds_alternative<double>(optionsValue))
-            keyframeEffectOptionsVariant = std::get<double>(optionsValue);
-        else {
-            auto keyframeEffectOptions = std::get<KeyframeAnimationOptions>(optionsValue);
-            id = keyframeEffectOptions.id;
-            frameRate = keyframeEffectOptions.frameRate;
-            timeline = keyframeEffectOptions.timeline;
-            animationRangeStart = keyframeEffectOptions.rangeStart;
-            animationRangeEnd = keyframeEffectOptions.rangeEnd;
-            keyframeEffectOptionsVariant = WTF::move(keyframeEffectOptions);
+    auto keyframeEffectOptions = WTF::switchOn(options,
+        [](double value) -> Variant<double, KeyframeEffectOptions> {
+            return value;
+        },
+        [&](const KeyframeAnimationOptions& options) -> Variant<double, KeyframeEffectOptions> {
+            id = options.id;
+            frameRate = options.frameRate;
+            timeline = options.timeline;
+            animationRangeStart = options.rangeStart;
+            animationRangeEnd = options.rangeEnd;
+            return options;
         }
-        keyframeEffectOptions = keyframeEffectOptionsVariant;
-    }
+    );
 
     Ref document = this->document();
     auto keyframeEffectResult = KeyframeEffect::create(lexicalGlobalObject, document, this, WTF::move(keyframes), WTF::move(keyframeEffectOptions));

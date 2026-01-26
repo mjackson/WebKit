@@ -110,7 +110,7 @@ void StyleRuleImport::requestStyleSheet()
     CheckedPtr document = m_parentStyleSheet->singleOwnerDocument();
     if (!document)
         return;
-    auto* page = document->page();
+    RefPtr page = document->page();
     if (!page)
         return;
 
@@ -123,8 +123,8 @@ void StyleRuleImport::requestStyleSheet()
 
     // Check for a cycle in our import chain.  If we encounter a stylesheet
     // in our parent chain with the same URL, then just bail.
-    StyleSheetContents* rootSheet = m_parentStyleSheet;
-    for (StyleSheetContents* sheet = m_parentStyleSheet; sheet; sheet = sheet->parentStyleSheet()) {
+    RefPtr rootSheet = m_parentStyleSheet;
+    for (RefPtr sheet = m_parentStyleSheet; sheet; sheet = sheet->parentStyleSheet()) {
         if (equalIgnoringFragmentIdentifier(absURL, sheet->baseURL())
             || equalIgnoringFragmentIdentifier(absURL, document->completeURL(sheet->originalURL())))
             return;

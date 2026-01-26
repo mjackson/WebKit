@@ -247,7 +247,12 @@ bool waitUntilMicrophoneState(WKWebView *webView, WKMediaCaptureState expectedSt
     return expectedState == microphoneCaptureState;
 }
 
+// FIXME when rdar://168769459 is resolved.
+#if PLATFORM(MAC) && !defined(NDEBUG)
+TEST(WebKit2, DISABLED_CaptureMuteAPI)
+#else
 TEST(WebKit2, CaptureMuteAPI)
+#endif
 {
     auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);

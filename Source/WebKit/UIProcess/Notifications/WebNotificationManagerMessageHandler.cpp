@@ -132,7 +132,7 @@ void WebNotificationManagerMessageHandler::getPermissionStateSync(WebCore::Secur
 
 std::optional<SharedPreferencesForWebProcess> WebNotificationManagerMessageHandler::sharedPreferencesForWebProcess(const IPC::Connection&) const
 {
-    return protectedPage()->protectedLegacyMainFrameProcess()->sharedPreferencesForWebProcess();
+    return protect(protectedPage()->legacyMainFrameProcess())->sharedPreferencesForWebProcess();
 }
 
 } // namespace WebKit

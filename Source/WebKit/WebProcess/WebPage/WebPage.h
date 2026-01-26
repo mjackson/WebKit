@@ -32,11 +32,11 @@
 #include "SandboxExtension.h"
 #include <JavaScriptCore/InspectorFrontendChannel.h>
 #include <WebCore/BoxExtents.h>
+#include <WebCore/CornerRadii.h>
 #include <WebCore/DictionaryPopupInfo.h>
 #include <WebCore/DisabledAdaptations.h>
 #include <WebCore/DragActions.h>
 #include <WebCore/FocusOptions.h>
-#include <WebCore/FrameIdentifier.h>
 #include <WebCore/FrameLoaderTypes.h>
 #include <WebCore/FrameTreeSyncData.h>
 #include <WebCore/HighlightVisibility.h>
@@ -172,10 +172,10 @@ class CachedPage;
 class CaptureDevice;
 class DocumentLoader;
 class DocumentSyncData;
+class DragData;
 #if ENABLE(RE_DYNAMIC_CONTENT_SCALING)
 class DynamicContentScalingDisplayList;
 #endif
-class DragData;
 class WeakPtrImplWithEventTargetData;
 class Exception;
 class FontAttributeChanges;
@@ -235,6 +235,7 @@ enum class DOMPasteAccessResponse : uint8_t;
 enum class DataDetectorType : uint8_t;
 enum class DragApplicationFlags : uint8_t;
 enum class DragHandlingMethod : uint8_t;
+enum class DragEventHandled : bool;
 enum class DeviceOrientationOrMotionPermissionState : uint8_t;
 enum class EventHandling : uint8_t;
 enum class EventMakesGamepadsVisible : bool;
@@ -346,8 +347,12 @@ struct DigitalCredentialsResponseData;
 struct MobileDocumentRequest;
 
 
+struct FrameIdentifierType;
+using FrameIdentifier = ObjectIdentifier<FrameIdentifierType>;
+
 using BackForwardItemIdentifier = ProcessQualified<ObjectIdentifier<BackForwardItemIdentifierType>>;
 using DictationContext = ObjectIdentifier<DictationContextType>;
+using DragEventTargetData = Variant<DragEventHandled, WebCore::FrameIdentifier>;
 using HTMLMediaElementIdentifier = ObjectIdentifier<MediaPlayerClientIdentifierType>;
 using MediaProducerMediaStateFlags = OptionSet<MediaProducerMediaState>;
 using MediaProducerMutedStateFlags = OptionSet<MediaProducerMutedState>;
@@ -491,6 +496,7 @@ struct DataDetectionResult;
 struct DeferredDidReceiveMouseEvent;
 struct DocumentEditingContext;
 struct DocumentEditingContextRequest;
+struct DragEventForwardingData;
 struct DragInitiationResult;
 struct EditingRange;
 struct EditorState;
@@ -546,6 +552,7 @@ template<typename T> class MonotonicObjectIdentifier;
 using ActivityStateChangeID = uint64_t;
 using ContentWorldIdentifier = WebCore::ProcessQualified<ObjectIdentifier<ContentWorldIdentifierType>>;
 using GeolocationIdentifier = ObjectIdentifier<GeolocationIdentifierType>;
+using DragOperationResult = Variant<bool, DragEventForwardingData>;
 using ImageBufferBackendHandle = Variant<
     WebCore::ShareableBitmapHandle
 #if PLATFORM(COCOA)
@@ -608,6 +615,10 @@ public:
 #if ENABLE(ASYNC_SCROLLING)
     WebCore::ScrollingCoordinator* scrollingCoordinator() const;
     RefPtr<WebCore::ScrollingCoordinator> protectedScrollingCoordinator() const;
+#endif
+
+#if HAVE(NSVIEW_CORNER_CONFIGURATION)
+    const WebCore::CornerRadii& scrollbarAvoidanceCornerRadii() const { return m_scrollbarAvoidanceCornerRadii; }
 #endif
 
     WebPageGroupProxy* pageGroup() const { return m_pageGroup.get(); }
@@ -1349,7 +1360,7 @@ public:
 
 #if ENABLE(DRAG_SUPPORT) && !PLATFORM(GTK)
     void performDragControllerAction(std::optional<WebCore::FrameIdentifier>, DragControllerAction, WebCore::DragData&&, CompletionHandler<void(std::optional<WebCore::DragOperation>, WebCore::DragHandlingMethod, bool, unsigned, WebCore::IntRect, WebCore::IntRect, std::optional<WebCore::RemoteUserInputEventData>)>&&);
-    void performDragOperation(WebCore::DragData&&, SandboxExtensionHandle&&, Vector<SandboxExtensionHandle>&&, CompletionHandler<void(bool)>&&);
+    void performDragOperation(std::optional<WebCore::FrameIdentifier>, WebCore::DragData&&, SandboxExtension::Handle&&, Vector<SandboxExtension::Handle>&&,  CompletionHandler<void(DragOperationResult dragOperationResult)>&&);
 #endif
 
 #if ENABLE(DRAG_SUPPORT)
@@ -2322,6 +2333,10 @@ private:
     void setObscuredContentInsetsFenced(const WebCore::FloatBoxExtent&, const WTF::MachSendRight&);
 #endif
 
+#if HAVE(NSVIEW_CORNER_CONFIGURATION)
+    void setScrollbarAvoidanceCornerRadii(WebCore::CornerRadii&&);
+#endif
+
     void viewWillStartLiveResize();
     void viewWillEndLiveResize();
 
@@ -2765,6 +2780,10 @@ private:
     RetainPtr<WKAccessibilityWebPageObject> m_mockAccessibilityElement;
 #endif
 
+#if HAVE(NSVIEW_CORNER_CONFIGURATION)
+    WebCore::CornerRadii m_scrollbarAvoidanceCornerRadii;
+#endif
+
 #if ENABLE(PLATFORM_DRIVEN_TEXT_CHECKING)
     const UniqueRef<TextCheckingControllerProxy> m_textCheckingControllerProxy;
 #endif
@@ -2897,8 +2916,8 @@ private:
 
     SandboxExtensionTracker m_sandboxExtensionTracker;
 
-    RefPtr<SandboxExtension> m_pendingDropSandboxExtension;
-    Vector<RefPtr<SandboxExtension>> m_pendingDropExtensionsForFileUpload;
+    std::optional<SandboxExtension::Handle> m_pendingDropSandboxExtensionHandle;
+    std::optional<Vector<SandboxExtension::Handle>> m_pendingDropExtensionHandlesForFileUpload;
 
     PAL::HysteresisActivity m_pageScrolledHysteresis;
 

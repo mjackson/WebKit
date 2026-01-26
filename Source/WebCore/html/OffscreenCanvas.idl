@@ -68,6 +68,6 @@ enum OffscreenRenderingContextType
     [CallWith=CurrentGlobalObject] OffscreenRenderingContext? getContext(OffscreenRenderingContextType contextType, any... arguments);
     // FIXME: `transferToImageBitmap` should not return a nullable type.
     ImageBitmap? transferToImageBitmap();
-    Promise<Blob> convertToBlob(optional ImageEncodeOptions options);
+    Promise<Blob> convertToBlob(optional ImageEncodeOptions options = {});
 
 };

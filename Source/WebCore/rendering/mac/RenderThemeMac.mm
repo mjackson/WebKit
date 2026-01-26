@@ -148,7 +148,7 @@ enum {
     leftPadding
 };
 
-RenderTheme& RenderTheme::singleton()
+RenderThemeMac& RenderTheme::singleton()
 {
     static NeverDestroyed<RenderThemeMac> theme;
     return theme;

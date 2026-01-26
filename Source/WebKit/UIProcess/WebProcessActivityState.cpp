@@ -42,7 +42,7 @@ static Seconds webProcessSuspensionDelay(const WebPageProxy* page)
     if (!page)
         return WebProcessPool::defaultWebProcessSuspensionDelay();
 
-    RefPtr processPool = page->protectedLegacyMainFrameProcess()->processPoolIfExists();
+    RefPtr processPool = protect(page->legacyMainFrameProcess())->processPoolIfExists();
     if (!processPool)
         return WebProcessPool::defaultWebProcessSuspensionDelay();
 
@@ -234,7 +234,7 @@ bool WebProcessActivityState::hasValidOpeningAppLinkActivity() const
 void WebProcessActivityState::updateWebProcessSuspensionDelay()
 {
     Seconds timeout = WTF::visit(WTF::makeVisitor([&](const WeakRef<WebPageProxy>& page) {
-        return webProcessSuspensionDelay(Ref { page.get() }.ptr());
+        return webProcessSuspensionDelay(protect(page.get()).ptr());
     }, [&] (const WeakRef<RemotePageProxy>& page) {
         return webProcessSuspensionDelay(page->protectedPage().get());
     }), m_page);

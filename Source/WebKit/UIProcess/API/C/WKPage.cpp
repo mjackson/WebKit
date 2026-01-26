@@ -455,12 +455,12 @@ WKStringRef WKPageCopyTitle(WKPageRef pageRef)
 
 WKFrameRef WKPageGetMainFrame(WKPageRef pageRef)
 {
-    return toAPI(toProtectedImpl(pageRef)->protectedMainFrame().get());
+    return toAPI(protect(toProtectedImpl(pageRef)->mainFrame()).get());
 }
 
 WKFrameRef WKPageGetFocusedFrame(WKPageRef pageRef)
 {
-    return toAPI(toProtectedImpl(pageRef)->protectedFocusedFrame().get());
+    return toAPI(protect(toProtectedImpl(pageRef)->focusedFrame()).get());
 }
 
 WKFrameRef WKPageGetFrameSetLargestFrame(WKPageRef pageRef)
@@ -475,12 +475,12 @@ uint64_t WKPageGetRenderTreeSize(WKPageRef page)
 
 WKWebsiteDataStoreRef WKPageGetWebsiteDataStore(WKPageRef page)
 {
-    return toAPI(toProtectedImpl(page)->protectedWebsiteDataStore().ptr());
+    return toAPI(protect(toProtectedImpl(page)->websiteDataStore()).ptr());
 }
 
 WKInspectorRef WKPageGetInspector(WKPageRef pageRef)
 {
-    return toAPI(toProtectedImpl(pageRef)->protectedInspector().get());
+    return toAPI(protect(toProtectedImpl(pageRef)->inspector()).get());
 }
 
 double WKPageGetEstimatedProgress(WKPageRef pageRef)
@@ -1418,7 +1418,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         milestones.add(WebCore::LayoutMilestone::DidFirstVisuallyNonEmptyLayout);
 
     if (milestones)
-        webPageProxy->protectedLegacyMainFrameProcess()->send(Messages::WebPage::ListenForLayoutMilestones(milestones), webPageProxy->webPageIDInMainFrameProcess());
+        protect(webPageProxy->legacyMainFrameProcess())->send(Messages::WebPage::ListenForLayoutMilestones(milestones), webPageProxy->webPageIDInMainFrameProcess());
 
     webPageProxy->setLoaderClient(WTF::move(loaderClient));
 }
@@ -3034,7 +3034,7 @@ WKArrayRef WKPageCopyRelatedPages(WKPageRef pageRef)
 {
     Vector<RefPtr<API::Object>> relatedPages;
 
-    for (Ref page : toProtectedImpl(pageRef)->protectedLegacyMainFrameProcess()->pages()) {
+    for (Ref page : protect(toProtectedImpl(pageRef)->legacyMainFrameProcess())->pages()) {
         if (page.ptr() != toProtectedImpl(pageRef))
             relatedPages.append(WTF::move(page));
     }
@@ -3525,5 +3525,5 @@ void WKPageFindStringForTesting(WKPageRef pageRef, void* context, WKStringRef st
 void WKPageClearBackForwardCache(WKPageRef page)
 {
     RefPtr protectedPage = toProtectedImpl(page);
-    protectedPage->protectedBackForwardCache()->removeEntriesForPage(*protectedPage);
+    protect(protectedPage->backForwardCache())->removeEntriesForPage(*protectedPage);
 }

@@ -184,6 +184,12 @@ MediaPlayer::SupportsType MediaPlayerPrivateMediaSourceAVFObjC::supportsTypeAndC
     if (!parameters.isMediaSource)
         return MediaPlayer::SupportsType::IsNotSupported;
 
+#if ENABLE(WIRELESS_PLAYBACK_TARGET)
+    // This engine does not support wireless playback.
+    if (parameters.playbackTargetType != MediaPlaybackTargetType::None)
+        return MediaPlayer::SupportsType::IsNotSupported;
+#endif
+
     if (!contentTypeMeetsContainerAndCodecTypeRequirements(parameters.type, parameters.allowedMediaContainerTypes, parameters.allowedMediaCodecTypes))
         return MediaPlayer::SupportsType::IsNotSupported;
 

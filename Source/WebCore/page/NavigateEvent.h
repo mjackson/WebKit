@@ -109,7 +109,6 @@ public:
     ExceptionOr<void> scroll(Document&);
 
     bool wasIntercepted() const { return m_interceptionState.has_value(); }
-    void setCanIntercept(bool canIntercept) { m_canIntercept = canIntercept; }
     void setInterceptionState(InterceptionState interceptionState) { m_interceptionState = interceptionState; }
 
     void finish(Document&, InterceptionHandlersDidFulfill, FocusDidChange);

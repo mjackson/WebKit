@@ -7929,6 +7929,18 @@ SystemPreviewEnabled:
   disableInLockdownMode: true
   sharedPreferenceForWebProcess: true
 
+SystemTextExtractionEnabled:
+  type: bool
+  status: internal
+  humanReadableName: "System Text Extraction"
+  humanReadableDescription: "Enable System Text Extraction"
+  condition: ENABLE(SYSTEM_TEXT_EXTRACTION)
+  webcoreBinding: none
+  exposed: [ WebKit ]
+  defaultValue:
+    WebKit:
+      default: false
+
 TabsToLinks:
   type: bool
   status: embedder

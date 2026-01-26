@@ -191,7 +191,7 @@ void EventPath::setRelatedTarget(Node& origin, Node& relatedNode)
 void EventPath::adjustForDisabledFormControl()
 {
     for (unsigned i = 0; i < m_path.size(); ++i) {
-        CheckedPtr element = dynamicDowncast<Element>(m_path[i].node());
+        RefPtr element = dynamicDowncast<Element>(m_path[i].node());
         if (element && element->isDisabledFormControl()) {
             m_path.shrink(i);
             return;
@@ -322,12 +322,12 @@ RelatedNodeRetargeter::RelatedNodeRetargeter(Ref<Node>&& relatedNode, Node& targ
     : m_relatedNode(WTF::move(relatedNode))
     , m_retargetedRelatedNode(m_relatedNode.copyRef())
 {
-    auto& targetTreeScope = target.treeScope();
+    Ref targetTreeScope = target.treeScope();
     RefPtr currentTreeScope = m_relatedNode->treeScope();
-    if (currentTreeScope == &targetTreeScope && target.isConnected() && m_relatedNode->isConnected()) [[likely]]
+    if (currentTreeScope == targetTreeScope.ptr() && target.isConnected() && m_relatedNode->isConnected()) [[likely]]
         return;
 
-    if (&currentTreeScope->documentScope() != &targetTreeScope.documentScope()
+    if (&currentTreeScope->documentScope() != &targetTreeScope->documentScope()
         || (m_relatedNode->hasBeenInUserAgentShadowTree() && !m_relatedNode->isConnected())) {
         m_hasDifferentTreeRoot = true;
         m_retargetedRelatedNode = nullptr;
@@ -343,7 +343,7 @@ RelatedNodeRetargeter::RelatedNodeRetargeter(Ref<Node>&& relatedNode, Node& targ
 
     // FIXME: We should collect this while constructing the event path.
     Vector<Ref<TreeScope>, 8> targetTreeScopeAncestors;
-    for (TreeScope* currentTreeScope = &targetTreeScope; currentTreeScope; currentTreeScope = currentTreeScope->parentTreeScope())
+    for (RefPtr currentTreeScope = targetTreeScope.ptr(); currentTreeScope; currentTreeScope = currentTreeScope->parentTreeScope())
         targetTreeScopeAncestors.append(*currentTreeScope);
     ASSERT_WITH_SECURITY_IMPLICATION(!targetTreeScopeAncestors.isEmpty());
 
@@ -383,8 +383,8 @@ void RelatedNodeRetargeter::moveToNewTreeScope(TreeScope* previousTreeScope, Tre
     if (m_hasDifferentTreeRoot)
         return;
 
-    auto& currentRelatedNodeScope = m_retargetedRelatedNode->treeScope();
-    if (previousTreeScope != &currentRelatedNodeScope) {
+    Ref currentRelatedNodeScope = m_retargetedRelatedNode->treeScope();
+    if (previousTreeScope != currentRelatedNodeScope.ptr()) {
         // currentRelatedNode is still outside our shadow tree. New tree scope may contain currentRelatedNode
         // but there is no need to re-target it. Moving into a slot (thereby a deeper shadow tree) doesn't matter.
         return;
@@ -407,7 +407,7 @@ void RelatedNodeRetargeter::moveToNewTreeScope(TreeScope* previousTreeScope, Tre
         ASSERT(previousTreeScope->parentTreeScope() == &newTreeScope);
         m_lowestCommonAncestorIndex++;
         ASSERT_WITH_SECURITY_IMPLICATION(m_ancestorTreeScopes.isEmpty() || m_lowestCommonAncestorIndex < m_ancestorTreeScopes.size());
-        m_retargetedRelatedNode = downcast<ShadowRoot>(currentRelatedNodeScope.rootNode()).host();
+        m_retargetedRelatedNode = downcast<ShadowRoot>(currentRelatedNodeScope->rootNode()).host();
         ASSERT(&newTreeScope == &m_retargetedRelatedNode->treeScope());
     }
 }
@@ -423,7 +423,7 @@ inline Node* RelatedNodeRetargeter::nodeInLowestCommonAncestor()
 void RelatedNodeRetargeter::collectTreeScopes()
 {
     ASSERT(m_ancestorTreeScopes.isEmpty());
-    for (auto* currentTreeScope = &m_relatedNode->treeScope(); currentTreeScope; currentTreeScope = currentTreeScope->parentTreeScope())
+    for (RefPtr currentTreeScope = &m_relatedNode->treeScope(); currentTreeScope; currentTreeScope = currentTreeScope->parentTreeScope())
         m_ancestorTreeScopes.append(*currentTreeScope);
     ASSERT_WITH_SECURITY_IMPLICATION(!m_ancestorTreeScopes.isEmpty());
 }

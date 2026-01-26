@@ -76,7 +76,7 @@ String CSSFunctionRule::cssText() const
     for (auto& parameter : styleRuleFunction().parameters()) {
         builder.append(separator);
         serializeIdentifier(parameter.name, builder);
-        // FIMXE: Serialize the type.
+        // FIXME: Serialize the type.
 
         if (RefPtr defaultValue = parameter.defaultValue)
             builder.append(": "_s, defaultValue->serialize());

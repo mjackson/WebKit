@@ -5160,9 +5160,9 @@ void HTMLMediaElement::addTextTrack(Ref<TextTrack>&& track)
         Ref document = this->document();
         document->registerForCaptionPreferencesChangedCallbacks(*this);
         if (RefPtr page = document->page()) {
-            auto& captionPreferences = page->checkedGroup()->ensureCaptionPreferences();
-            m_captionDisplayMode = captionPreferences.captionDisplayMode();
-            m_userPrefersTextDescriptions = captionPreferences.userPrefersTextDescriptions();
+            Ref captionPreferences = page->checkedGroup()->ensureCaptionPreferences();
+            m_captionDisplayMode = captionPreferences->captionDisplayMode();
+            m_userPrefersTextDescriptions = captionPreferences->userPrefersTextDescriptions();
             m_userPrefersExtendedDescriptions = m_userPrefersTextDescriptions && document->settings().extendedAudioDescriptionsEnabled();
         }
     }
@@ -5384,7 +5384,7 @@ void HTMLMediaElement::configureTextTrackGroup(const TrackGroup& group)
     ASSERT(group.tracks.size());
 
     RefPtr page = document().page();
-    CaptionUserPreferences* captionPreferences = page ? &page->checkedGroup()->ensureCaptionPreferences() : nullptr;
+    RefPtr captionPreferences = page ? &page->checkedGroup()->ensureCaptionPreferences() : nullptr;
     CaptionUserPreferences::CaptionDisplayMode displayMode = captionPreferences ? captionPreferences->captionDisplayMode() : CaptionUserPreferences::CaptionDisplayMode::Automatic;
 
     // First, find the track in the group that should be enabled (if any).
@@ -5554,7 +5554,7 @@ void HTMLMediaElement::setSelectedTextTrack(TextTrack* trackToSelect)
     if (!page)
         return;
 
-    auto& captionPreferences = page->checkedGroup()->ensureCaptionPreferences();
+    Ref captionPreferences = page->checkedGroup()->ensureCaptionPreferences();
     CaptionUserPreferences::CaptionDisplayMode displayMode;
     if (trackToSelect == &TextTrack::captionMenuOffItemSingleton())
         displayMode = CaptionUserPreferences::CaptionDisplayMode::ForcedOnly;
@@ -5565,10 +5565,10 @@ void HTMLMediaElement::setSelectedTextTrack(TextTrack* trackToSelect)
     else {
         displayMode = CaptionUserPreferences::CaptionDisplayMode::AlwaysOn;
         if (trackToSelect->validBCP47Language().length())
-            captionPreferences.setPreferredLanguage(trackToSelect->validBCP47Language());
+            captionPreferences->setPreferredLanguage(trackToSelect->validBCP47Language());
     }
 
-    captionPreferences.setCaptionDisplayMode(displayMode);
+    captionPreferences->setCaptionDisplayMode(displayMode);
 }
 
 void HTMLMediaElement::scheduleConfigureTextTracks()
@@ -7240,6 +7240,11 @@ bool HTMLMediaElement::isWirelessPlaybackTargetDisabled() const
     return m_wirelessPlaybackTargetDisabled;
 }
 
+MediaPlaybackTargetType HTMLMediaElement::playbackTargetType() const
+{
+    return protectedMediaSession()->playbackTargetType();
+}
+
 #endif // ENABLE(WIRELESS_PLAYBACK_TARGET)
 
 void HTMLMediaElement::dispatchEvent(Event& event)
@@ -7768,10 +7773,10 @@ bool HTMLMediaElement::hasClosedCaptions() const
         return false;
 
     for (unsigned i = 0; i < m_textTracks->length(); ++i) {
-        auto& track = *m_textTracks->item(i);
-        if (track.readinessState() == TextTrack::FailedToLoad)
+        Ref track = *m_textTracks->item(i);
+        if (track->readinessState() == TextTrack::FailedToLoad)
             continue;
-        if (track.kind() == TextTrack::Kind::Captions || track.kind() == TextTrack::Kind::Subtitles)
+        if (track->kind() == TextTrack::Kind::Captions || track->kind() == TextTrack::Kind::Subtitles)
             return true;
     }
 
@@ -8027,11 +8032,11 @@ void HTMLMediaElement::captionPreferencesChanged()
     if (!page)
         return;
 
-    auto& captionPreferences = page->checkedGroup()->ensureCaptionPreferences();
-    m_userPrefersTextDescriptions = captionPreferences.userPrefersTextDescriptions();
+    Ref captionPreferences = page->checkedGroup()->ensureCaptionPreferences();
+    m_userPrefersTextDescriptions = captionPreferences->userPrefersTextDescriptions();
     m_userPrefersExtendedDescriptions = m_userPrefersTextDescriptions && document().settings().extendedAudioDescriptionsEnabled();
 
-    CaptionUserPreferences::CaptionDisplayMode displayMode = captionPreferences.captionDisplayMode();
+    CaptionUserPreferences::CaptionDisplayMode displayMode = captionPreferences->captionDisplayMode();
     if (captionDisplayMode() == displayMode)
         return;
 
@@ -8064,10 +8069,10 @@ void HTMLMediaElement::markCaptionAndSubtitleTracksAsUnconfigured(ReconfigureMod
     // captions and non-default tracks should be displayed based on language
     // preferences if the user has turned captions on).
     for (unsigned i = 0; i < m_textTracks->length(); ++i) {
-        auto& track = *m_textTracks->item(i);
-        auto kind = track.kind();
+        Ref track = *m_textTracks->item(i);
+        auto kind = track->kind();
         if (kind == TextTrack::Kind::Subtitles || kind == TextTrack::Kind::Captions)
-            track.setHasBeenConfigured(false);
+            track->setHasBeenConfigured(false);
     }
 
     m_processingPreferenceChange = true;
@@ -8474,8 +8479,8 @@ Vector<Ref<PlatformTextTrack>> HTMLMediaElement::outOfBandTrackSources()
         if (!isAllowedToLoadMediaURL(*this, url, trackElement->isInUserAgentShadowTree()))
             continue;
 
-        auto& track = trackElement->track();
-        auto kind = track.kind();
+        Ref track = trackElement->track();
+        auto kind = track->kind();
 
         // FIXME: The switch statement below preserves existing behavior where we ignore chapters and metadata tracks.
         // If we confirm this behavior is valuable, we should remove this comment. Otherwise, remove both comment and switch.
@@ -8490,7 +8495,7 @@ Vector<Ref<PlatformTextTrack>> HTMLMediaElement::outOfBandTrackSources()
             continue;
         }
 
-        outOfBandTrackSources.append(PlatformTextTrack::createOutOfBand(trackElement->attributeWithoutSynchronization(labelAttr), trackElement->attributeWithoutSynchronization(srclangAttr), url.string(), toPlatform(track.mode()), toPlatform(kind), track.uniqueId(), trackElement->isDefault()));
+        outOfBandTrackSources.append(PlatformTextTrack::createOutOfBand(trackElement->attributeWithoutSynchronization(labelAttr), trackElement->attributeWithoutSynchronization(srclangAttr), url.string(), toPlatform(track->mode()), toPlatform(kind), track->uniqueId(), trackElement->isDefault()));
     }
 
     return outOfBandTrackSources;
@@ -8573,7 +8578,7 @@ const String& HTMLMediaElement::mediaPlayerMediaCacheDirectory() const
 String HTMLMediaElement::sourceApplicationIdentifier() const
 {
     if (RefPtr frame = document().frame()) {
-        if (NetworkingContext* networkingContext = frame->loader().networkingContext())
+        if (RefPtr networkingContext = frame->loader().networkingContext())
             return networkingContext->sourceApplicationIdentifier();
     }
     return emptyString();
@@ -8808,7 +8813,7 @@ Ref<VideoPlaybackQuality> HTMLMediaElement::getVideoPlaybackQuality() const
 
 void HTMLMediaElement::updatePageScaleFactorJSProperty()
 {
-    Page* page = document().page();
+    RefPtr page = document().page();
     if (!page)
         return;
 
@@ -8817,7 +8822,7 @@ void HTMLMediaElement::updatePageScaleFactorJSProperty()
 
 void HTMLMediaElement::updateUsesLTRUserInterfaceLayoutDirectionJSProperty()
 {
-    Page* page = document().page();
+    RefPtr page = document().page();
     if (!page)
         return;
 

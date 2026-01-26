@@ -423,7 +423,7 @@ bool JSDOMGlobalObject::canCompileStrings(JSGlobalObject* globalObject, Compilat
     VM& vm = globalObject->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
 
-    auto& thisObject = static_cast<JSDOMGlobalObject&>(*globalObject);
+    auto& thisObject = *jsCast<JSDOMGlobalObject*>(globalObject);
     CheckedPtr scriptExecutionContext = thisObject.scriptExecutionContext();
 
     auto result = canCompile(*scriptExecutionContext, compilationType, codeString, args);
@@ -441,7 +441,7 @@ bool JSDOMGlobalObject::canCompileStrings(JSGlobalObject* globalObject, Compilat
 
 Structure* JSDOMGlobalObject::trustedScriptStructure(JSGlobalObject* globalObject)
 {
-    auto& thisObject = static_cast<JSDOMGlobalObject&>(*globalObject);
+    auto& thisObject = *jsCast<JSDOMGlobalObject*>(globalObject);
 
     return getDOMStructure<JSTrustedScript>(globalObject->vm(), thisObject);
 }

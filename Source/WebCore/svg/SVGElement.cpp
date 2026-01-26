@@ -562,8 +562,15 @@ void SVGElement::attributeChanged(const QualifiedName& name, const AtomString& o
 void SVGElement::synchronizeAttribute(const QualifiedName& name)
 {
     // If the value of the property has changed, serialize the new value to the attribute.
-    if (auto value = propertyRegistry().synchronize(name))
+    if (auto value = propertyRegistry().synchronize(name)) {
+        // If the serialized value is empty and the attribute doesn't exist,
+        // don't recreate it. This handles the case where the attribute was
+        // explicitly removed after the list was emptied.
+        if (value->isEmpty() && !hasAttribute(name))
+            return;
+
         setSynchronizedLazyAttribute(name, AtomString { *value });
+    }
 }
 
 void SVGElement::synchronizeAllAttributes()

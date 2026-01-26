@@ -32,7 +32,7 @@ typedef sequence<Report> ReportList;
     ActiveDOMObject,
     JSCustomMarkFunction
 ] interface ReportingObserver {
-    [CallWith=CurrentScriptExecutionContext] constructor(ReportingObserverCallback callback, optional ReportingObserverOptions options);
+    [CallWith=CurrentScriptExecutionContext] constructor(ReportingObserverCallback callback, optional ReportingObserverOptions options = {});
     undefined observe();
     undefined disconnect();
     ReportList takeRecords();

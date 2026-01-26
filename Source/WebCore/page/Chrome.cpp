@@ -595,16 +595,6 @@ void Chrome::windowScreenDidChange(PlatformDisplayID displayID, std::optional<Fr
     protectedPage()->windowScreenDidChange(displayID, nominalFrameInterval);
 }
 
-bool Chrome::selectItemWritingDirectionIsNatural()
-{
-    return m_client->selectItemWritingDirectionIsNatural();
-}
-
-bool Chrome::selectItemAlignmentFollowsMenuWritingDirection()
-{
-    return m_client->selectItemAlignmentFollowsMenuWritingDirection();
-}
-
 RefPtr<PopupMenu> Chrome::createPopupMenu(PopupMenuClient& client) const
 {
     notifyPopupOpeningObservers();

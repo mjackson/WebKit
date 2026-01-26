@@ -594,6 +594,7 @@ accessibility/AXStitchUtilities.cpp
 accessibility/AXTableHelpers.cpp
 accessibility/AXTextMarker.cpp
 accessibility/AXTextRun.cpp
+accessibility/AXTextStateChangeIntent.cpp
 accessibility/AXTreeStore.cpp
 accessibility/AXUtilities.cpp
 accessibility/AXAttachmentHelpers.cpp
@@ -4399,7 +4400,7 @@ JSIDBVersionChangeEvent.cpp
 JSIIRFilterNode.cpp
 JSIIRFilterOptions.cpp
 JSIPAddressSpace.cpp
-JSIdentityCredentialProtocol.cpp
+JSDigitalCredentialPresentationProtocol.cpp
 JSIdleDeadline.cpp
 JSIdleRequestCallback.cpp
 JSIdleRequestOptions.cpp

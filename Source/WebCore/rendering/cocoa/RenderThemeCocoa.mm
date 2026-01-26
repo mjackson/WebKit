@@ -253,11 +253,6 @@ static inline bool canShowCapsLockIndicator()
     return true;
 }
 
-RenderThemeCocoa& RenderThemeCocoa::singleton()
-{
-    return static_cast<RenderThemeCocoa&>(RenderTheme::singleton());
-}
-
 void RenderThemeCocoa::purgeCaches()
 {
 #if ENABLE(VIDEO)

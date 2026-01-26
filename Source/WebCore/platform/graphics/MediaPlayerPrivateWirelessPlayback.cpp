@@ -29,6 +29,8 @@
 #if ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)
 
 #include "Logging.h"
+#include "MediaDeviceRoute.h"
+#include "MediaPlaybackTargetWirelessPlayback.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
@@ -53,8 +55,10 @@ private:
     {
     }
 
-    MediaPlayer::SupportsType supportsTypeAndCodecs(const MediaEngineSupportParameters&) const final
+    MediaPlayer::SupportsType supportsTypeAndCodecs(const MediaEngineSupportParameters& parameters) const final
     {
+        if (MediaPlayerPrivateWirelessPlayback::playbackTargetTypes().contains(parameters.playbackTargetType))
+            return MediaPlayer::SupportsType::IsSupported;
         return MediaPlayer::SupportsType::IsNotSupported;
     }
 };
@@ -74,6 +78,87 @@ MediaPlayerPrivateWirelessPlayback::MediaPlayerPrivateWirelessPlayback(MediaPlay
 }
 
 MediaPlayerPrivateWirelessPlayback::~MediaPlayerPrivateWirelessPlayback() = default;
+
+void MediaPlayerPrivateWirelessPlayback::load(const String& urlString)
+{
+    m_urlString = urlString;
+    ALWAYS_LOG(LOGIDENTIFIER, urlString);
+    updateURLStringIfNeeded();
+}
+
+#if ENABLE(WIRELESS_PLAYBACK_TARGET)
+
+OptionSet<MediaPlaybackTargetType> MediaPlayerPrivateWirelessPlayback::playbackTargetTypes()
+{
+    return { MediaPlaybackTargetType::WirelessPlayback };
+}
+
+String MediaPlayerPrivateWirelessPlayback::wirelessPlaybackTargetName() const
+{
+    if (RefPtr playbackTarget = m_playbackTarget)
+        return playbackTarget->deviceName();
+    return { };
+}
+
+MediaPlayer::WirelessPlaybackTargetType MediaPlayerPrivateWirelessPlayback::wirelessPlaybackTargetType() const
+{
+    RefPtr playbackTarget = m_playbackTarget;
+    if (!playbackTarget)
+        return MediaPlayer::WirelessPlaybackTargetType::TargetTypeNone;
+
+    switch (playbackTarget->targetType()) {
+    case MediaPlaybackTargetType::Serialized:
+    case MediaPlaybackTargetType::None:
+    case MediaPlaybackTargetType::AVOutputContext:
+    case MediaPlaybackTargetType::Mock:
+        return MediaPlayer::WirelessPlaybackTargetType::TargetTypeNone;
+    case MediaPlaybackTargetType::WirelessPlayback:
+        return MediaPlayer::WirelessPlaybackTargetType::TargetTypeAirPlay;
+    }
+
+    ASSERT_NOT_REACHED();
+    return MediaPlayer::WirelessPlaybackTargetType::TargetTypeNone;
+}
+
+OptionSet<MediaPlaybackTargetType> MediaPlayerPrivateWirelessPlayback::supportedPlaybackTargetTypes() const
+{
+    return MediaPlayerPrivateWirelessPlayback::playbackTargetTypes();
+}
+
+bool MediaPlayerPrivateWirelessPlayback::isCurrentPlaybackTargetWireless() const
+{
+    if (RefPtr playbackTarget = m_playbackTarget)
+        return m_shouldPlayToTarget && playbackTarget->hasActiveRoute();
+    return false;
+}
+
+void MediaPlayerPrivateWirelessPlayback::setWirelessPlaybackTarget(Ref<MediaPlaybackTarget>&& playbackTarget)
+{
+    m_playbackTarget = WTF::move(playbackTarget);
+    updateURLStringIfNeeded();
+}
+
+void MediaPlayerPrivateWirelessPlayback::setShouldPlayToPlaybackTarget(bool shouldPlayToTarget)
+{
+    if (shouldPlayToTarget == m_shouldPlayToTarget)
+        return;
+
+    m_shouldPlayToTarget = shouldPlayToTarget;
+
+    if (RefPtr player = m_player.get())
+        player->currentPlaybackTargetIsWirelessChanged(isCurrentPlaybackTargetWireless());
+}
+
+void MediaPlayerPrivateWirelessPlayback::updateURLStringIfNeeded()
+{
+    RefPtr playbackTarget = dynamicDowncast<MediaPlaybackTargetWirelessPlayback>(m_playbackTarget);
+    if (!playbackTarget)
+        return;
+
+    // FIXME: pass the URL to the route
+}
+
+#endif // ENABLE(WIRELESS_PLAYBACK_TARGET)
 
 #if !RELEASE_LOG_DISABLED
 WTFLogChannel& MediaPlayerPrivateWirelessPlayback::logChannel() const

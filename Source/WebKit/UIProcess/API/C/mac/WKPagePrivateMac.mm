@@ -70,7 +70,7 @@ static Ref<WebKit::WebPageProxy> protectedPage(WKObservablePageState *state)
 
 - (void)dealloc
 {
-    Ref { *_observer }->clearObject();
+    protect(*_observer)->clearObject();
 
     ensureOnMainRunLoop([page = WTF::move(_page), observer = std::exchange(_observer, nullptr)] {
         page->protectedPageLoadState()->removeObserver(*observer);
@@ -101,7 +101,7 @@ static Ref<WebKit::WebPageProxy> protectedPage(WKObservablePageState *state)
 
 - (BOOL)_webProcessIsResponsive
 {
-    return protectedPage(self)->protectedLegacyMainFrameProcess()->isResponsive();
+    return protect(protectedPage(self)->legacyMainFrameProcess())->isResponsive();
 }
 
 - (double)estimatedProgress

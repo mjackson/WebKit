@@ -893,16 +893,6 @@ void WebChromeClient::elementDidBlur(WebCore::Element& element)
 }
 #endif
 
-bool WebChromeClient::selectItemWritingDirectionIsNatural()
-{
-    return false;
-}
-
-bool WebChromeClient::selectItemAlignmentFollowsMenuWritingDirection()
-{
-    return true;
-}
-
 RefPtr<WebCore::PopupMenu> WebChromeClient::createPopupMenu(WebCore::PopupMenuClient& client) const
 {
 #if !PLATFORM(IOS_FAMILY)

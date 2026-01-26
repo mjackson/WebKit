@@ -2084,6 +2084,11 @@
 #define HAVE_IMMERSIVE_VIDEO_METADATA_SUPPORT 1
 #endif
 
+#if !defined(HAVE_NSVIEW_CORNER_CONFIGURATION) \
+    && (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 260100)
+#define HAVE_NSVIEW_CORNER_CONFIGURATION 1
+#endif
+
 #if !defined(HAVE_LIBPROC) \
     && __has_include(<libproc.h>)
 #define HAVE_LIBPROC 1

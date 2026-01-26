@@ -505,8 +505,8 @@ void AsyncScrollingCoordinator::setMouseMovedInContentArea(ScrollableArea& scrol
         return;
 
     auto mousePosition = scrollableArea.lastKnownMousePositionInView();
-    auto horizontalScrollbar = scrollableArea.horizontalScrollbar();
-    auto verticalScrollbar = scrollableArea.verticalScrollbar();
+    RefPtr horizontalScrollbar = scrollableArea.horizontalScrollbar();
+    RefPtr verticalScrollbar = scrollableArea.verticalScrollbar();
 
     MouseLocationState state = { horizontalScrollbar ? horizontalScrollbar->convertFromContainingView(mousePosition) : IntPoint(), verticalScrollbar ? verticalScrollbar->convertFromContainingView(mousePosition) : IntPoint() };
     stateNode->setMouseMovedInContentArea(state);
@@ -608,7 +608,7 @@ LocalFrameView* AsyncScrollingCoordinator::frameViewForScrollingNode(LocalFrame&
         auto* localFrame = dynamicDowncast<LocalFrame>(frame.get());
         if (!localFrame)
             continue;
-        if (auto* view = localFrame->view()) {
+        if (SUPPRESS_UNCOUNTED_LOCAL auto* view = localFrame->view()) {
             if (view->scrollingNodeID() == parentNode->scrollingNodeID())
                 return view;
         }
@@ -672,7 +672,7 @@ void AsyncScrollingCoordinator::animatedScrollWillStartForNode(ScrollingNodeID s
     if (!page)
         return;
 
-    auto* frameView = frameViewForScrollingNode(scrollingNodeID);
+    RefPtr frameView = frameViewForScrollingNode(scrollingNodeID);
     if (!frameView)
         return;
 
@@ -713,7 +713,7 @@ void AsyncScrollingCoordinator::wheelEventScrollWillStartForNode(ScrollingNodeID
     if (!page)
         return;
 
-    auto* frameView = frameViewForScrollingNode(scrollingNodeID);
+    RefPtr frameView = frameViewForScrollingNode(scrollingNodeID);
     if (!frameView)
         return;
 
@@ -897,7 +897,7 @@ void AsyncScrollingCoordinator::reconcileScrollPosition(LocalFrameView& frameVie
         scrollContainerLayer->syncBoundsOrigin(frameView.scrollPosition());
 #else
     // This uses scrollPosition because the root content layer accounts for scrollOrigin (see LocalFrameView::positionForRootContentLayer()).
-    auto* scrolledContentsLayer = scrolledContentsLayerForFrameView(frameView);
+    RefPtr scrolledContentsLayer = scrolledContentsLayerForFrameView(frameView);
     if (!scrolledContentsLayer)
         return;
     if (scrollingLayerPositionAction == ScrollingLayerPositionAction::Set)
@@ -1019,7 +1019,7 @@ void AsyncScrollingCoordinator::setNodeLayers(ScrollingNodeID nodeID, const Node
 
     node->setLayer(nodeLayers.layer.get());
 
-    if (auto* scrollingNode = dynamicDowncast<ScrollingStateScrollingNode>(*node)) {
+    if (RefPtr scrollingNode = dynamicDowncast<ScrollingStateScrollingNode>(*node)) {
         scrollingNode->setScrollContainerLayer(nodeLayers.scrollContainerLayer.get());
         scrollingNode->setScrolledContentsLayer(nodeLayers.scrolledContentsLayer.get());
         scrollingNode->setHorizontalScrollbarLayer(nodeLayers.horizontalScrollbarLayer.get());
@@ -1029,7 +1029,7 @@ void AsyncScrollingCoordinator::setNodeLayers(ScrollingNodeID nodeID, const Node
                 scrollingNode->setScrollbarLayoutDirection(scrollableArea->shouldPlaceVerticalScrollbarOnLeft() ? UserInterfaceLayoutDirection::RTL : UserInterfaceLayoutDirection::LTR);
         }
 
-        if (auto* frameScrollingNode = dynamicDowncast<ScrollingStateFrameScrollingNode>(*scrollingNode)) {
+        if (RefPtr frameScrollingNode = dynamicDowncast<ScrollingStateFrameScrollingNode>(*scrollingNode)) {
             frameScrollingNode->setInsetClipLayer(nodeLayers.insetClipLayer.get());
             frameScrollingNode->setCounterScrollingLayer(nodeLayers.counterScrollingLayer.get());
             frameScrollingNode->setRootContentsLayer(nodeLayers.rootContentsLayer.get());
@@ -1087,8 +1087,8 @@ void AsyncScrollingCoordinator::setScrollingNodeScrollableAreaGeometry(std::opti
     if (!scrollingNode)
         return;
 
-    auto* verticalScrollbar = scrollableArea.verticalScrollbar();
-    auto* horizontalScrollbar = scrollableArea.horizontalScrollbar();
+    RefPtr verticalScrollbar = scrollableArea.verticalScrollbar();
+    RefPtr horizontalScrollbar = scrollableArea.horizontalScrollbar();
     scrollingNode->setScrollerImpsFromScrollbars(verticalScrollbar, horizontalScrollbar);
     if (horizontalScrollbar)
         scrollingNode->setScrollbarEnabledState(ScrollbarOrientation::Horizontal, horizontalScrollbar->enabled());
@@ -1154,7 +1154,7 @@ void AsyncScrollingCoordinator::setPositionedNodeConstraints(ScrollingNodeID nod
         return;
 
     ASSERT(is<ScrollingStatePositionedNode>(*node));
-    if (auto* positionedNode = dynamicDowncast<ScrollingStatePositionedNode>(*node))
+    if (RefPtr positionedNode = dynamicDowncast<ScrollingStatePositionedNode>(*node))
         positionedNode->updateConstraints(constraints);
 }
 
@@ -1164,9 +1164,9 @@ void AsyncScrollingCoordinator::setRelatedOverflowScrollingNodes(ScrollingNodeID
     if (!node)
         return;
 
-    if (auto* positionedNode = dynamicDowncast<ScrollingStatePositionedNode>(*node))
+    if (RefPtr positionedNode = dynamicDowncast<ScrollingStatePositionedNode>(*node))
         positionedNode->setRelatedOverflowScrollingNodes(WTF::move(relatedNodes));
-    else if (auto* overflowScrollProxyNode = dynamicDowncast<ScrollingStateOverflowScrollProxyNode>(*node)) {
+    else if (RefPtr overflowScrollProxyNode = dynamicDowncast<ScrollingStateOverflowScrollProxyNode>(*node)) {
         if (!relatedNodes.isEmpty())
             overflowScrollProxyNode->setOverflowScrollingNode(relatedNodes[0]);
         else

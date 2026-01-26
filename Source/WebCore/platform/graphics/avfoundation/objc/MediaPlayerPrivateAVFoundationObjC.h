@@ -311,10 +311,11 @@ private:
     bool wirelessVideoPlaybackDisabled() const final;
     void setWirelessVideoPlaybackDisabled(bool) final;
     OptionSet<MediaPlaybackTargetType> supportedPlaybackTargetTypes() const final;
+    static OptionSet<MediaPlaybackTargetType> playbackTargetTypes();
     void updateDisableExternalPlayback();
 #endif
 
-#if ENABLE(WIRELESS_PLAYBACK_TARGET) && PLATFORM(MAC)
+#if ENABLE(WIRELESS_PLAYBACK_TARGET)
     void setWirelessPlaybackTarget(Ref<MediaPlaybackTarget>&&) final;
     void setShouldPlayToPlaybackTarget(bool) final;
 #endif
@@ -444,9 +445,11 @@ private:
 
     MemoryCompactRobinHoodHashMap<String, Ref<InbandChapterTrackPrivateAVFObjC>> m_chapterTracks;
 
-#if ENABLE(WIRELESS_PLAYBACK_TARGET) && PLATFORM(MAC)
-    RetainPtr<AVOutputContext> m_outputContext;
+#if ENABLE(WIRELESS_PLAYBACK_TARGET)
     RefPtr<MediaPlaybackTarget> m_playbackTarget;
+#if PLATFORM(MAC)
+    RetainPtr<AVOutputContext> m_outputContext;
+#endif
 #endif
 
 #if ENABLE(LEGACY_ENCRYPTED_MEDIA)

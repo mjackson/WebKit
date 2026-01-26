@@ -95,7 +95,7 @@ bool UserMediaPermissionRequestProxyMac::canRequestDisplayCapturePermission()
     if (!manager)
         return false;
     RefPtr page = manager->page();
-    if (!page || (!overridePreference && page->protectedPreferences()->requireUAGetDisplayMediaPrompt()))
+    if (!page || (!overridePreference && protect(page->preferences())->requireUAGetDisplayMediaPrompt()))
         return false;
 
     return DisplayCaptureSessionManager::singleton().canRequestDisplayCapturePermission();

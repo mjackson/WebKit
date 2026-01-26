@@ -50,6 +50,7 @@
 #include "DocumentView.h"
 #include "DragController.h"
 #include "DragEvent.h"
+#include "DragEventTargetData.h"
 #include "DragState.h"
 #include "Editing.h"
 #include "Editor.h"
@@ -107,6 +108,7 @@
 #include "PseudoClassChangeInvalidation.h"
 #include "Range.h"
 #include "RemoteFrame.h"
+#include "RemoteFrameClient.h"
 #include "RemoteFrameGeometryTransformer.h"
 #include "RemoteFrameView.h"
 #include "RemoteUserInputEventData.h"
@@ -1550,7 +1552,7 @@ RefPtr<Frame> EventHandler::subframeForTargetNode(Node* node)
     if (!renderWidget)
         return nullptr;
 
-    auto* frameView = dynamicDowncast<FrameView>(renderWidget->widget());
+    RefPtr frameView = dynamicDowncast<FrameView>(renderWidget->widget());
     if (!frameView)
         return nullptr;
 
@@ -1682,7 +1684,7 @@ std::optional<Cursor> EventHandler::selectCursor(const HitTestResult& result, bo
         return std::nullopt;
 
     auto renderer = node->renderer();
-    if (auto element = dynamicDowncast<Element>(*node); element && result.pseudoElementIdentifier()) {
+    if (RefPtr element = dynamicDowncast<Element>(*node); element && result.pseudoElementIdentifier()) {
         auto* pseudoElementRenderer = Styleable(*element, result.pseudoElementIdentifier()).renderer();
         renderer = pseudoElementRenderer ? pseudoElementRenderer : renderer;
     }
@@ -1742,15 +1744,15 @@ std::optional<Cursor> EventHandler::selectCursor(const HitTestResult& result, bo
             if (!visibleContentRect.contains(cursorRect))
                 continue;
 
-            Image* image = cachedImage->imageForRenderer(renderer);
+            RefPtr image = cachedImage->imageForRenderer(renderer);
 #if ENABLE(MOUSE_CURSOR_SCALE)
             // Ensure no overflow possible in calculations above.
             if (scale < minimumCursorScale)
                 continue;
-            return Cursor(image, hotSpot, scale);
+            return Cursor(image.get(), hotSpot, scale);
 #else
             ASSERT(scale == 1);
-            return Cursor(image, hotSpot);
+            return Cursor(image.get(), hotSpot);
 #endif // ENABLE(MOUSE_CURSOR_SCALE)
         }
     }
@@ -2051,9 +2053,9 @@ HandleUserInputEventResult EventHandler::handleMousePressEvent(const PlatformMou
     m_mousePressNode = mouseEvent.targetNode();
     frame->protectedDocument()->setFocusNavigationStartingNode(mouseEvent.protectedTargetNode().get());
 
-    Scrollbar* scrollbar = scrollbarForMouseEvent(mouseEvent, frame->view());
-    updateLastScrollbarUnderMouse(scrollbar, SetOrClearLastScrollbar::Set);
-    bool passedToScrollbar = scrollbar && passMousePressEventToScrollbar(mouseEvent, scrollbar);
+    RefPtr scrollbar = scrollbarForMouseEvent(mouseEvent, frame->view());
+    updateLastScrollbarUnderMouse(scrollbar.get(), SetOrClearLastScrollbar::Set);
+    bool passedToScrollbar = scrollbar && passMousePressEventToScrollbar(mouseEvent, scrollbar.get());
 
     if (!passedToScrollbar) {
         auto subframe = subframeForHitTestResult(mouseEvent);
@@ -2105,12 +2107,13 @@ HandleUserInputEventResult EventHandler::handleMousePressEvent(const PlatformMou
         return false;
     }
 
-    RenderLayer* layer = m_clickNode->renderer() ? m_clickNode->renderer()->enclosingLayer() : nullptr;
     auto localPoint = roundedIntPoint(mouseEvent.hitTestResult().localPoint());
-    if (layer && layer->isPointInResizeControl(localPoint)) {
+    if (CheckedPtr layer = m_clickNode->renderer() ? m_clickNode->renderer()->enclosingLayer() : nullptr; layer && layer->isPointInResizeControl(localPoint)) {
         layer->setInResizeMode(true);
         m_resizeLayer = *layer;
         m_offsetFromResizeCorner = layer->offsetFromResizeCorner(localPoint);
+        layer = nullptr;
+
         dispatchMouseEvent(eventNames().mousedownEvent, mouseEvent.protectedTargetNode().get(), m_clickCount, platformMouseEvent, FireMouseOverOut::Yes);
         return true;
     }
@@ -2193,7 +2196,7 @@ bool EventHandler::handleMouseDoubleClickEvent(const PlatformMouseEvent& platfor
 
 ScrollableArea* EventHandler::enclosingScrollableArea(Node* node) const
 {
-    for (auto ancestor = node; ancestor; ancestor = ancestor->parentOrShadowHostNode()) {
+    for (RefPtr ancestor = node; ancestor; ancestor = ancestor->parentOrShadowHostNode()) {
         if (is<HTMLIFrameElement>(*ancestor))
             return nullptr;
 
@@ -2219,11 +2222,11 @@ ScrollableArea* EventHandler::enclosingScrollableArea(Node* node) const
             }
         }
 
-        auto* layer = renderer->enclosingLayer();
+        CheckedPtr layer = renderer->enclosingLayer();
         if (!layer)
             return nullptr;
 
-        if (auto* scrollableLayer = layer->enclosingScrollableLayer(IncludeSelfOrNot::IncludeSelf, CrossFrameBoundaries::No)) {
+        if (CheckedPtr scrollableLayer = layer->enclosingScrollableLayer(IncludeSelfOrNot::IncludeSelf, CrossFrameBoundaries::No)) {
             if (!scrollableLayer->isRenderViewLayer())
                 return scrollableLayer->scrollableArea();
         }
@@ -2452,7 +2455,7 @@ static RefPtr<Node> targetNodeForClickEvent(Node* mousePressNode, Node* mouseRel
             return commonAncestor;
     }
 
-    auto mouseReleaseShadowHost = mouseReleaseNode->shadowHost();
+    RefPtr mouseReleaseShadowHost = mouseReleaseNode->shadowHost();
     if (mouseReleaseShadowHost && mouseReleaseShadowHost == mousePressNode->shadowHost()) {
         // We want to dispatch the click to the shadow tree host element to give listeners the illusion that the
         // shadow tree is a single element. For example, we want to give the illusion that <input type="range">
@@ -2707,13 +2710,13 @@ bool EventHandler::canDropCurrentlyDraggedImageAsFile() const
     return !sourceOrigin || m_frame->document()->protectedSecurityOrigin()->canReceiveDragData(*sourceOrigin);
 }
 
-static std::pair<bool, RefPtr<LocalFrame>> contentFrameForNode(Node* target)
+static std::pair<bool, RefPtr<Frame>> contentFrameForNode(Node* target)
 {
     RefPtr frameElement = dynamicDowncast<HTMLFrameElementBase>(target);
     if (!frameElement)
         return { false, nullptr };
 
-    return { true, dynamicDowncast<LocalFrame>(frameElement->contentFrame()) };
+    return { true, frameElement->contentFrame() };
 }
 
 static std::optional<DragOperation> convertDropZoneOperationToDragOperation(const String& dragOperation)
@@ -2819,8 +2822,8 @@ EventHandler::DragTargetResponse EventHandler::updateDragAndDrop(const PlatformM
         //
         // Moreover, this ordering conforms to section 7.9.4 of the HTML 5 spec. <http://dev.w3.org/html5/spec/Overview.html#drag-and-drop-processing-model>.
         if (auto [isFrameOwner, targetFrame] = contentFrameForNode(newTarget.get()); isFrameOwner) {
-            if (targetFrame)
-                response = targetFrame->eventHandler().updateDragAndDrop(event, makePasteboard, sourceOperationMask, draggingFiles);
+            if (RefPtr localTargetFrame = dynamicDowncast<LocalFrame>(targetFrame))
+                response = localTargetFrame->eventHandler().updateDragAndDrop(event, makePasteboard, sourceOperationMask, draggingFiles);
         } else if (newTarget) {
             // As per section 7.9.4 of the HTML 5 spec., we must always fire a drag event before firing a dragenter, dragleave, or dragover event.
             dispatchEventToDragSourceElement(eventNames().dragEvent, event);
@@ -2829,8 +2832,8 @@ EventHandler::DragTargetResponse EventHandler::updateDragAndDrop(const PlatformM
 
         if (auto [isFrameOwner, targetFrame] = contentFrameForNode(m_dragTarget.copyRef().get()); isFrameOwner) {
             // FIXME: Recursing again here doesn't make sense if the newTarget and m_dragTarget were in the same frame.
-            if (targetFrame)
-                response = targetFrame->eventHandler().updateDragAndDrop(event, makePasteboard, sourceOperationMask, draggingFiles);
+            if (RefPtr localTargetFrame = dynamicDowncast<LocalFrame>(targetFrame))
+                response = localTargetFrame->eventHandler().updateDragAndDrop(event, makePasteboard, sourceOperationMask, draggingFiles);
         } else if (RefPtr dragTarget = m_dragTarget) {
             auto dataTransfer = DataTransfer::createForUpdatingDropTarget(dragTarget->protectedDocument(), makePasteboard(), sourceOperationMask, draggingFiles);
             dispatchDragEvent(eventNames().dragleaveEvent, *dragTarget, event, dataTransfer.get());
@@ -2844,8 +2847,8 @@ EventHandler::DragTargetResponse EventHandler::updateDragAndDrop(const PlatformM
         }
     } else {
         if (auto [isFrameOwner, targetFrame] = contentFrameForNode(newTarget.get()); isFrameOwner) {
-            if (targetFrame)
-                response = targetFrame->eventHandler().updateDragAndDrop(event, makePasteboard, sourceOperationMask, draggingFiles);
+            if (RefPtr localTargetFrame = dynamicDowncast<LocalFrame>(targetFrame))
+                response = localTargetFrame->eventHandler().updateDragAndDrop(event, makePasteboard, sourceOperationMask, draggingFiles);
         } else if (newTarget) {
             // Note, when dealing with sub-frames, we may need to fire only a dragover event as a drag event may have been fired earlier.
             if (!m_shouldOnlyFireDragOverEvent)
@@ -2863,8 +2866,8 @@ void EventHandler::cancelDragAndDrop(const PlatformMouseEvent& event, std::uniqu
     Ref frame = m_frame.get();
 
     if (auto [isFrameOwner, targetFrame] = contentFrameForNode(m_dragTarget.copyRef().get()); isFrameOwner) {
-        if (targetFrame)
-            targetFrame->eventHandler().cancelDragAndDrop(event, WTF::move(pasteboard), sourceOperationMask, draggingFiles);
+        if (RefPtr localTargetFrame = dynamicDowncast<LocalFrame>(targetFrame))
+            localTargetFrame->eventHandler().cancelDragAndDrop(event, WTF::move(pasteboard), sourceOperationMask, draggingFiles);
     } else if (RefPtr dragTarget = m_dragTarget) {
         dispatchEventToDragSourceElement(eventNames().dragEvent, event);
 
@@ -2875,21 +2878,38 @@ void EventHandler::cancelDragAndDrop(const PlatformMouseEvent& event, std::uniqu
     clearDragState();
 }
 
-bool EventHandler::performDragAndDrop(const PlatformMouseEvent& event, std::unique_ptr<Pasteboard>&& pasteboard, OptionSet<DragOperation> sourceOperationMask, bool draggingFiles)
+DragEventTargetData EventHandler::performDragAndDrop(const PlatformMouseEvent& event, std::unique_ptr<Pasteboard>&& pasteboard, OptionSet<DragOperation> sourceOperationMask, bool draggingFiles, const HitTestResult& result, DragData&& dragData)
 {
-    Ref frame = m_frame.get();
+    auto scopeExit = makeScopeExit([&] {
+        clearDragState();
+    });
 
+    Ref frame = m_frame.get();
+    RefPtr subframe = EventHandler::subframeForTargetNode(result.protectedTargetNode().get());
     bool preventedDefault = false;
+#if PLATFORM(COCOA) && ENABLE(DRAG_SUPPORT)
+    if (RefPtr remoteFrame = dynamicDowncast<RemoteFrame>(subframe)) {
+        if (auto remoteUserInputEventData = userInputEventDataForRemoteFrame(remoteFrame.get(), result.roundedPointInInnerNodeFrame()))
+            return remoteUserInputEventData->targetFrameID;
+    }
+#endif
     if (auto [isFrameOwner, targetFrame] = contentFrameForNode(m_dragTarget.copyRef().get()); isFrameOwner) {
-        if (targetFrame)
-            preventedDefault = targetFrame->eventHandler().performDragAndDrop(event, WTF::move(pasteboard), sourceOperationMask, draggingFiles);
+        if (RefPtr localTargetFrame = dynamicDowncast<LocalFrame>(targetFrame)) {
+            auto dragEventTargetData = localTargetFrame->eventHandler().performDragAndDrop(event, WTF::move(pasteboard), sourceOperationMask, draggingFiles, result, WTF::move(dragData));
+            return dragEventTargetData;
+        }
+#if PLATFORM(COCOA) && ENABLE(DRAG_SUPPORT)
+        if (RefPtr remoteTargetFrame = dynamicDowncast<RemoteFrame>(targetFrame)) {
+            if (auto remoteUserInputEventData = userInputEventDataForRemoteFrame(remoteTargetFrame.get(), result.roundedPointInInnerNodeFrame()))
+                return remoteUserInputEventData->targetFrameID;
+        }
+#endif
     } else if (RefPtr dragTarget = m_dragTarget) {
         Ref dataTransfer = DataTransfer::createForDrop(dragTarget->protectedDocument(), WTF::move(pasteboard), sourceOperationMask, draggingFiles);
         preventedDefault = dispatchDragEvent(eventNames().dropEvent, *dragTarget, event, dataTransfer);
         dataTransfer->makeInvalidForSecurity();
     }
-    clearDragState();
-    return preventedDefault;
+    return preventedDefault ? DragEventHandled::Yes : DragEventHandled::No;
 }
 
 void EventHandler::clearDragState()
@@ -2970,7 +2990,7 @@ RefPtr<Element> EventHandler::textRecognitionCandidateElement() const
         return nullptr;
 
     if (candidateElement->document().settings().textRecognitionInVideosEnabled()) {
-        if (auto video = dynamicDowncast<HTMLVideoElement>(*candidateElement); video && video->paused())
+        if (RefPtr video = dynamicDowncast<HTMLVideoElement>(*candidateElement); video && video->paused())
             return candidateElement;
     }
 
@@ -2992,7 +3012,7 @@ static RefPtr<Element> getElementOrAncestorElementForNode(Node* targetNode)
             targetElement = asElement;
             break;
         }
-        targetNode = targetNode->parentInComposedTree();
+        SUPPRESS_UNCOUNTED_LOCAL targetNode = targetNode->parentInComposedTree();
     }
 
     return targetElement;
@@ -3044,10 +3064,10 @@ void EventHandler::updateMouseEventTargetNode(const AtomString& eventType, Node*
             bool hasCapturingMouseLeaveListener = hierarchyHasCapturingEventListeners(m_lastElementUnderMouse, eventNames.pointerleaveEvent, eventNames.mouseleaveEvent);
 
             Vector<Ref<Element>, 32> leftElementsChain;
-            for (Element* element = m_lastElementUnderMouse; element; element = element->parentElementInComposedTree())
+            for (RefPtr element = m_lastElementUnderMouse; element; element = element->parentElementInComposedTree())
                 leftElementsChain.append(*element);
             Vector<WeakPtr<Element, WeakPtrImplWithEventTargetData>, 32> elementsUnderMouse;
-            for (Element* element = m_elementUnderMouse; element; element = element->parentElementInComposedTree())
+            for (RefPtr element = m_elementUnderMouse; element; element = element->parentElementInComposedTree())
                 elementsUnderMouse.append(element);
 
             Vector enteredElementsChain = elementsUnderMouse;
@@ -3112,7 +3132,7 @@ void EventHandler::clearElementUnderMouse()
     if (!page)
         return;
 
-    auto* imageOverlayController = page->imageOverlayControllerIfExists();
+    RefPtr imageOverlayController = page->imageOverlayControllerIfExists();
     if (!imageOverlayController)
         return;
 
@@ -3818,7 +3838,7 @@ bool EventHandler::sendContextMenuEvent(const PlatformMouseEvent& event)
 
 #if ENABLE(POINTER_LOCK)
     // Context menus should not be handled while pointer is locked.
-    if (auto* page = frame->page(); !page || page->pointerLockController().isLocked())
+    if (RefPtr page = frame->page(); !page || page->pointerLockController().isLocked())
         return false;
 #endif
 
@@ -4390,7 +4410,7 @@ static void setInitialKeyboardSelection(LocalFrame& frame, SelectionDirection di
         break;
     }
 
-    AXTextStateChangeIntent intent(AXTextStateChangeTypeSelectionMove, AXTextSelection { AXTextSelectionDirectionDiscontiguous, AXTextSelectionGranularityUnknown, false });
+    AXTextStateChangeIntent intent(AXTextStateChangeType::SelectionMove, AXTextSelection { AXTextSelectionDirection::Discontiguous, AXTextSelectionGranularity::Unknown, false });
     selection.setSelection(visiblePosition, FrameSelection::defaultSetSelectionOptions(UserTriggered::Yes), intent);
 }
 
@@ -4845,7 +4865,7 @@ bool EventHandler::handleTextInputEvent(const String& text, Event* underlyingEve
 
     Ref frame = m_frame.get();
 
-    EventTarget* target;
+    RefPtr<EventTarget> target;
     if (underlyingEvent)
         target = underlyingEvent->target();
     else

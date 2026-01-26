@@ -833,7 +833,7 @@ static CSSSelectorList viewTransitionSelector(CSSSelector::PseudoElement element
     }
 
     groupSelector->setValue(selectorName);
-    groupSelector->setArgumentList({ { name } });
+    groupSelector->setStringList({ { name } });
 
     selectorList.first()->prependInComplexSelector(CSSSelector::Relation::Subselector, WTF::move(groupSelector));
 

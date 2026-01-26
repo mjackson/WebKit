@@ -137,11 +137,11 @@ LocalFrameView* MouseRelatedEvent::frameViewFromWindowProxy(WindowProxy* windowP
     if (!windowProxy)
         return nullptr;
 
-    auto* window = dynamicDowncast<LocalDOMWindow>(windowProxy->window());
+    RefPtr window = dynamicDowncast<LocalDOMWindow>(windowProxy->window());
     if (!window)
         return nullptr;
 
-    auto* frame = window->localFrame();
+    RefPtr frame = window->localFrame();
     return frame ? frame->view() : nullptr;
 }
 

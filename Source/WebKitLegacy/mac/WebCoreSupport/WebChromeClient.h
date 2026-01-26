@@ -220,8 +220,6 @@ private:
     void exitFullScreenForElement(WebCore::Element*, CompletionHandler<void()>&&) final;
 #endif
 
-    bool selectItemWritingDirectionIsNatural() override;
-    bool selectItemAlignmentFollowsMenuWritingDirection() override;
     RefPtr<WebCore::PopupMenu> createPopupMenu(WebCore::PopupMenuClient&) const override;
     RefPtr<WebCore::SearchPopupMenu> createSearchPopupMenu(WebCore::PopupMenuClient&) const override;
 

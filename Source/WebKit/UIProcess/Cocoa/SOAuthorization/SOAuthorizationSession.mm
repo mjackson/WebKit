@@ -360,10 +360,10 @@ void SOAuthorizationSession::complete(NSHTTPURLResponse *httpResponse, NSData *d
         size_t totalHeaderSize = 0;
         for (const auto& cookie : cookies)
             totalHeaderSize += cookie.name.length() + cookie.value.length() + 1;
-        AUTHORIZATIONSESSION_RELEASE_LOG("complete: Setting %zu cookies with total header size ~%zu bytes in data store %p", cookies.size(), totalHeaderSize, page->protectedWebsiteDataStore().ptr());
+        AUTHORIZATIONSESSION_RELEASE_LOG("complete: Setting %zu cookies with total header size ~%zu bytes in data store %p", cookies.size(), totalHeaderSize, protect(page->websiteDataStore()).ptr());
     }
 
-    page->protectedWebsiteDataStore()->protectedCookieStore()->setCookies(WTF::move(cookies), [weakThis = ThreadSafeWeakPtr { *this }, response = WTF::move(response), data = adoptNS([[NSData alloc] initWithData:data])] () mutable {
+    protect(page->websiteDataStore())->protectedCookieStore()->setCookies(WTF::move(cookies), [weakThis = ThreadSafeWeakPtr { *this }, response = WTF::move(response), data = adoptNS([[NSData alloc] initWithData:data])] () mutable {
         auto protectedThis = weakThis.get();
         if (!protectedThis)
             return;

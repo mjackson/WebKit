@@ -79,20 +79,20 @@ static const AtomString& forcedKeyword()
 
 TextTrack& TextTrack::captionMenuOffItemSingleton()
 {
-    static TextTrack& off = TextTrack::create(nullptr, "off menu item"_s, emptyAtom(), emptyAtom(), emptyAtom()).leakRef();
-    return off;
+    static NeverDestroyed<Ref<TextTrack>> off = TextTrack::create(nullptr, "off menu item"_s, emptyAtom(), emptyAtom(), emptyAtom());
+    return off->get();
 }
 
 TextTrack& TextTrack::captionMenuOnItemSingleton()
 {
-    static TextTrack& on = TextTrack::create(nullptr, "on menu item"_s, emptyAtom(), emptyAtom(), emptyAtom()).leakRef();
-    return on;
+    static NeverDestroyed<Ref<TextTrack>> on = TextTrack::create(nullptr, "on menu item"_s, emptyAtom(), emptyAtom(), emptyAtom());
+    return on->get();
 }
 
 TextTrack& TextTrack::captionMenuAutomaticItemSingleton()
 {
-    static TextTrack& automatic = TextTrack::create(nullptr, "automatic menu item"_s, emptyAtom(), emptyAtom(), emptyAtom()).leakRef();
-    return automatic;
+    static NeverDestroyed<Ref<TextTrack>> automatic = TextTrack::create(nullptr, "automatic menu item"_s, emptyAtom(), emptyAtom(), emptyAtom());
+    return automatic->get();
 }
 
 TextTrack::Kind TextTrack::convertKind(const AtomString& kind)

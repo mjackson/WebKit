@@ -105,7 +105,7 @@ static WKSyntheticClickType toWKSyntheticClickType(WebKit::WebMouseEventSyntheti
 
 - (WKFrameInfo *)sourceFrame
 {
-    return wrapper(Ref { *_navigationAction }->sourceFrame());
+    return wrapper(protect(*_navigationAction)->sourceFrame());
 }
 
 - (WKFrameInfo *)targetFrame
@@ -181,7 +181,7 @@ static WKSyntheticClickType toWKSyntheticClickType(WebKit::WebMouseEventSyntheti
 
 - (NSURL *)_originalURL
 {
-    return Ref { *_navigationAction }->originalURL().createNSURL().autorelease();
+    return protect(*_navigationAction)->originalURL().createNSURL().autorelease();
 }
 
 - (BOOL)_isUserInitiated
@@ -254,7 +254,7 @@ static WKSyntheticClickType toWKSyntheticClickType(WebKit::WebMouseEventSyntheti
     RefPtr page = sourceFrame->page();
     if (!page)
         return;
-    page->protectedWebsiteDataStore()->storePrivateClickMeasurement(*privateClickMeasurement);
+    protect(page->websiteDataStore())->storePrivateClickMeasurement(*privateClickMeasurement);
 }
 
 - (_WKHitTestResult *)_hitTestResult

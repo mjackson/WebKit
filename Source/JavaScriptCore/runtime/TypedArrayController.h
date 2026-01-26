@@ -43,10 +43,12 @@ class JS_EXPORT TypedArrayController : public RefCounted<TypedArrayController> {
 public:
     JS_EXPORT TypedArrayController();
     virtual ~TypedArrayController();
-
+    
     JS_EXPORT virtual JSArrayBuffer* toJS(JSGlobalObject*, JSGlobalObject*, ArrayBuffer*) = 0;
     JS_EXPORT virtual void registerWrapper(JSGlobalObject*, ArrayBuffer*, JSArrayBuffer*) = 0;
     JS_EXPORT virtual bool isAtomicsWaitAllowedOnCurrentThread() = 0;
+
+    JS_EXPORT virtual bool isWebCoreTypedArrayController() const { return false; }
 };
 
 } // namespace JSC

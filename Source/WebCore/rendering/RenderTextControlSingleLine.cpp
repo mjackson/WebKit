@@ -53,10 +53,6 @@
 #include <wtf/StackStats.h>
 #include <wtf/TZoneMallocInlines.h>
 
-#if PLATFORM(IOS_FAMILY)
-#include "RenderThemeIOS.h"
-#endif
-
 namespace WebCore {
 
 using namespace HTMLNames;

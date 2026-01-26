@@ -116,10 +116,10 @@ RefPtr<ContainerNode> highestEditableRoot(const Position& position, EditableType
 
 Element* lowestEditableAncestor(Node* node)
 {
-    for (; node; node = node->parentNode()) {
-        if (node->hasEditableStyle())
-            return node->rootEditableElement();
-        if (is<HTMLBodyElement>(*node))
+    for (RefPtr currentNode = node; currentNode; currentNode = currentNode->parentNode()) {
+        if (currentNode->hasEditableStyle())
+            return currentNode->rootEditableElement();
+        if (is<HTMLBodyElement>(*currentNode))
             break;
     }
     return nullptr;
@@ -169,7 +169,7 @@ bool isEditablePosition(const Position& position, EditableType editableType)
 
 bool isAtUnsplittableElement(const Position& position)
 {
-    Node* node = position.containerNode();
+    RefPtr node = position.containerNode();
     return node == editableRootForPosition(position) || node == enclosingNodeOfType(position, isTableCell);
 }
 
@@ -683,12 +683,12 @@ bool canMergeLists(Element* firstList, Element* secondList)
 static Node* previousNodeConsideringAtomicNodes(const Node* node)
 {
     if (node->previousSibling()) {
-        Node* n = node->previousSibling();
+        SUPPRESS_UNCOUNTED_LOCAL auto* n = node->previousSibling();
         while (!isAtomicNode(n) && n->lastChild())
             n = n->lastChild();
         return n;
     }
-    
+
     return node->parentNode();
 }
 
@@ -706,8 +706,9 @@ static Node* nextNodeConsideringAtomicNodes(const Node* node)
     return nullptr;
 }
 
-Node* previousLeafNode(const Node* node)
+Node* previousLeafNode(const Node* nodeArg)
 {
+    SUPPRESS_UNCOUNTED_LOCAL auto* node = nodeArg;
     while ((node = previousNodeConsideringAtomicNodes(node))) {
         if (isAtomicNode(node))
             return const_cast<Node*>(node);
@@ -715,8 +716,9 @@ Node* previousLeafNode(const Node* node)
     return nullptr;
 }
 
-Node* nextLeafNode(const Node* node)
+Node* nextLeafNode(const Node* nodeArg)
 {
+    SUPPRESS_UNCOUNTED_LOCAL auto* node = nodeArg;
     while ((node = nextNodeConsideringAtomicNodes(node))) {
         if (isAtomicNode(node))
             return const_cast<Node*>(node);

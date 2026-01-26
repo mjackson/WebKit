@@ -46,7 +46,7 @@
 
     readonly attribute boolean isConnected;
     [DOMJIT=Getter] readonly attribute Document? ownerDocument;
-    Node getRootNode(optional GetRootNodeOptions options);
+    Node getRootNode(optional GetRootNodeOptions options = {});
     [DOMJIT=Getter] readonly attribute Node? parentNode;
     readonly attribute Element? parentElement;
     boolean hasChildNodes();

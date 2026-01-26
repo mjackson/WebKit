@@ -352,7 +352,7 @@ void WebPageProxy::setDeviceOrientation(IntDegrees deviceOrientation)
     if (m_screenOrientationManager)
         m_screenOrientationManager->setCurrentOrientation(orientation);
 
-    protectedBrowsingContextGroup()->forEachRemotePage(*this, [orientation](auto& remotePageProxy) {
+    protect(browsingContextGroup())->forEachRemotePage(*this, [orientation](auto& remotePageProxy) {
         remotePageProxy.setCurrentOrientation(orientation);
     });
 
@@ -788,7 +788,7 @@ void WebPageProxy::registerWebProcessAccessibilityToken(std::span<const uint8_t>
 {
     // Note: The WebFrameProxy with this FrameIdentifier might not exist in the UI process. See rdar://130998804.
     if (RefPtr pageClient = this->pageClient())
-        pageClient->accessibilityWebProcessTokenReceived(data, protectedLegacyMainFrameProcess()->protectedConnection()->remoteProcessID());
+        pageClient->accessibilityWebProcessTokenReceived(data, protect(legacyMainFrameProcess())->protectedConnection()->remoteProcessID());
 }
 
 void WebPageProxy::relayAccessibilityNotification(String&& notificationName, std::span<const uint8_t> data)
@@ -1926,7 +1926,7 @@ void WebPageProxy::setPromisedDataForImage(IPC::Connection&, const String&, Shar
 
 void WebPageProxy::isPotentialTapInProgress(CompletionHandler<void(bool)>&& completion)
 {
-    completion(protectedPageClient()->isPotentialTapInProgress());
+    completion(protect(pageClient())->isPotentialTapInProgress());
 }
 
 #endif // PLATFORM(IOS_FAMILY)

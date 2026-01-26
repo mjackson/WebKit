@@ -32,6 +32,7 @@
 #import "MediaDeviceRoute.h"
 #import "MediaPlaybackTargetCocoa.h"
 #import "MediaPlaybackTargetWirelessPlayback.h"
+#import "MediaPlayerEnums.h"
 #import "PlatformMediaSessionManager.h"
 #import "WebCoreThreadRun.h"
 #import <AVFoundation/AVAudioSession.h>

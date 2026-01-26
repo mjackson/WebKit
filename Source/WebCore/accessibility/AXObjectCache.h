@@ -619,10 +619,6 @@ public:
     // Requests clients to announce to the user the given message in the way they deem appropriate.
     WEBCORE_EXPORT void announce(const String&);
 
-#ifndef NDEBUG
-    void showIntent(const AXTextStateChangeIntent&);
-#endif
-
     void setTextSelectionIntent(const AXTextStateChangeIntent&);
     void setIsSynchronizingSelection(bool);
 

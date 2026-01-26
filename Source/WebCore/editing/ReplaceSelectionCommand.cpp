@@ -53,6 +53,7 @@
 #include "HTMLBRElement.h"
 #include "HTMLBaseElement.h"
 #include "HTMLBodyElement.h"
+#include "HTMLHeadingElement.h"
 #include "HTMLInputElement.h"
 #include "HTMLLIElement.h"
 #include "HTMLLinkElement.h"
@@ -540,16 +541,6 @@ static bool isMailPasteAsQuotationNode(const Node& node)
     return node.hasTagName(blockquoteTag) && downcast<Element>(node).attributeWithoutSynchronization(classAttr) == ApplePasteAsQuotation;
 }
 
-static bool isHeaderElement(const Node& a)
-{
-    return a.hasTagName(h1Tag)
-        || a.hasTagName(h2Tag)
-        || a.hasTagName(h3Tag)
-        || a.hasTagName(h4Tag)
-        || a.hasTagName(h5Tag)
-        || a.hasTagName(h6Tag);
-}
-
 static bool haveSameTagName(Node& a, Node* b)
 {
     RefPtr elementA = dynamicDowncast<Element>(a);
@@ -573,7 +564,7 @@ bool ReplaceSelectionCommand::shouldMerge(const VisiblePosition& source, const V
         && (!sourceBlock->hasTagName(blockquoteTag) || isMailBlockquote(*sourceBlock))
         && enclosingListChild(sourceBlock.get()) == enclosingListChild(destinationNode.get())
         && enclosingTableCell(source.deepEquivalent()) == enclosingTableCell(destination.deepEquivalent())
-        && (!isHeaderElement(*sourceBlock) || haveSameTagName(*sourceBlock, destinationBlock.get()))
+        && (!is<HTMLHeadingElement>(*sourceBlock) || haveSameTagName(*sourceBlock, destinationBlock.get()))
         // Don't merge to or from a position before or after a block because it would
         // be a no-op and cause infinite recursion.
         && !isBlock(*sourceNode) && !isBlock(*destinationNode);
@@ -858,8 +849,8 @@ void ReplaceSelectionCommand::makeInsertedContentRoundTrippableWithHTMLTreeBuild
             }
         }
 
-        if (isHeaderElement(*node)) {
-            if (RefPtr headerElement = highestEnclosingNodeOfType(positionInParentBeforeNode(node.get()), isHeaderElement)) {
+        if (is<HTMLHeadingElement>(*node)) {
+            if (RefPtr headerElement = highestEnclosingNodeOfType(positionInParentBeforeNode(node.get()), [](auto& node) { return is<HTMLHeadingElement>(node); })) {
                 if (headerElement->parentNode() && headerElement->parentNode()->isContentRichlyEditable())
                     moveNodeOutOfAncestor(*node, *headerElement, insertedNodes);
                 else {

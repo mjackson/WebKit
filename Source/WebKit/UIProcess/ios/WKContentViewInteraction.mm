@@ -4400,7 +4400,7 @@ FOR_EACH_PRIVATE_WKCONTENTVIEW_ACTION(FORWARD_ACTION_TO_WKWEBVIEW)
         return nil;
     auto& dictationContextsForSelection = _page->editorState().postLayoutData->dictationContextsForSelection;
     return createNSArray(dictationContextsForSelection, [&] (auto& dictationContext) -> NSObject * {
-        RetainPtr alternatives = _page->protectedPageClient()->platformDictationAlternatives(dictationContext);
+        RetainPtr alternatives = protect(_page->pageClient())->platformDictationAlternatives(dictationContext);
 #if USE(BROWSERENGINEKIT)
         if (!self.shouldUseAsyncInteractions)
             return [[alternatives _nsTextAlternative] autorelease];
@@ -7022,7 +7022,7 @@ static WebKit::WritingDirection coreWritingDirection(NSWritingDirection directio
         RefPtr page = strongSelf->_page;
         Vector<WebCore::DictationContext> contextsToRemove;
         for (auto context : contexts) {
-            auto alternatives = page->protectedPageClient()->platformDictationAlternatives(context);
+            auto alternatives = protect(page->pageClient())->platformDictationAlternatives(context);
             if (!alternatives)
                 continue;
 

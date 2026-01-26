@@ -62,19 +62,19 @@ SmartMagnificationController::SmartMagnificationController(WKContentView *conten
     : m_webPageProxy(*contentView.page)
     , m_contentView(contentView)
 {
-    m_webPageProxy->protectedLegacyMainFrameProcess()->addMessageReceiver(Messages::SmartMagnificationController::messageReceiverName(), m_webPageProxy->webPageIDInMainFrameProcess(), *this);
+    protect(m_webPageProxy->legacyMainFrameProcess())->addMessageReceiver(Messages::SmartMagnificationController::messageReceiverName(), m_webPageProxy->webPageIDInMainFrameProcess(), *this);
 }
 
 SmartMagnificationController::~SmartMagnificationController()
 {
     if (RefPtr page = m_webPageProxy.get())
-        page->protectedLegacyMainFrameProcess()->removeMessageReceiver(Messages::SmartMagnificationController::messageReceiverName(), page->webPageIDInMainFrameProcess());
+        protect(page->legacyMainFrameProcess())->removeMessageReceiver(Messages::SmartMagnificationController::messageReceiverName(), page->webPageIDInMainFrameProcess());
 }
 
 void SmartMagnificationController::handleSmartMagnificationGesture(FloatPoint origin)
 {
     if (RefPtr page = m_webPageProxy.get())
-        page->protectedLegacyMainFrameProcess()->send(Messages::ViewGestureGeometryCollector::CollectGeometryForSmartMagnificationGesture(origin), page->webPageIDInMainFrameProcess());
+        protect(page->legacyMainFrameProcess())->send(Messages::ViewGestureGeometryCollector::CollectGeometryForSmartMagnificationGesture(origin), page->webPageIDInMainFrameProcess());
 }
 
 void SmartMagnificationController::handleResetMagnificationGesture(FloatPoint origin)

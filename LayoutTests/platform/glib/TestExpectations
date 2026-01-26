@@ -2743,8 +2743,6 @@ webkit.org/b/235885 webrtc/peer-connection-remote-audio-mute2.html [ Crash Pass 
 webkit.org/b/235885 webrtc/peer-connection-track-end.html [ Failure ]
 webkit.org/b/235885 webrtc/video-disabled-black.html [ Crash Pass ]
 webkit.org/b/235885 webrtc/video-maxFramerate.html [ Failure ]
-webkit.org/b/235885 webrtc/video-mute.html [ Skip ]
-webkit.org/b/235885 webrtc/video-mute-vp8.html [ Skip ]
 webkit.org/b/235885 webrtc/video-replace-muted-track.html [ Skip ]
 # webkit.org/b/235885 webrtc/video-stats.html [ Failure ]
 webkit.org/b/303673 webrtc/video-stats.html [ Timeout ]
@@ -2887,9 +2885,6 @@ imported/w3c/web-platform-tests/webrtc/RTCRtpReceiver-video-jitterBufferTarget-s
 
 # Also skipped on mac, timing out because relying on MediaStream::onactive event which is not exposed.
 webkit.org/b/151344 fast/mediastream/MediaStream-add-ended-tracks.html [ Skip ]
-
-# webrtcbin doesn't emit "outbound-rtp" stats until it's in connected state
-webkit.org/b/280117 webrtc/audio-muted-stats.html [ Failure ]
 
 # webrtcbin sets the transceiver name as track id on SSRC lines.
 fast/mediastream/RTCPeerConnection-inspect-offer.html [ Failure ]

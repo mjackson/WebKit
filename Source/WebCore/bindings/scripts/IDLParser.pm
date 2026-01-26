@@ -70,7 +70,7 @@ struct( IDLInterface => {
     isMixin => '$', # Used for mixin interfaces
     isPartial => '$', # Used for partial interfaces
     iterable => '$', # Used for iterable interfaces, of type 'IDLIterable'
-    asyncIterable => '$', # Used for asycn iterable interfaces, of type 'IDLAsyncIterable'
+    asyncIterable => '$', # Used for async_iterable interfaces, of type 'IDLAsyncIterable'
     mapLike => '$', # Used for mapLike interfaces, of type 'IDLMapLike'
     setLike => '$', # Used for setLike interfaces, of type 'IDLSetLike'
     extendedAttributes => '%',
@@ -630,7 +630,7 @@ my $nextMixinMembers_1 = '^(\(|attribute|ByteString|DOMString|USVString|any|bool
 my $nextNamespaceMembers_1 = '^(\(|ByteString|DOMString|USVString|any|boolean|byte|const|double|float|long|object|octet|readonly|sequence|short|symbol|undefined|unrestricted|unsigned)$';
 my $nextPartialInterfaceMember_1 = '^(\(|ByteString|DOMString|USVString|any|attribute|boolean|byte|const|deleter|double|float|getter|inherit|long|object|octet|readonly|sequence|setter|short|static|stringifier|symbol|undefined|unrestricted|unsigned)$';
 my $nextSingleType_1 = '^(ByteString|DOMString|USVString|boolean|byte|double|float|long|object|octet|sequence|short|symbol|undefined|unrestricted|unsigned)$';
-my $nextArgumentName_1 = '^(async|attribute|callback|const|constructor|deleter|dictionary|enum|getter|includes|inherit|interface|iterable|maplike|mixin|namespace|partial|readonly|required|setlike|setter|static|stringifier|typedef|unrestricted)$';
+my $nextArgumentName_1 = '^(async_iterable|attribute|callback|const|constructor|deleter|dictionary|enum|getter|includes|inherit|interface|iterable|maplike|mixin|namespace|partial|readonly|required|setlike|setter|static|stringifier|typedef|unrestricted)$';
 my $nextConstValue_1 = '^(false|true)$';
 my $nextConstValue_2 = '^(-|Infinity|NaN)$';
 my $nextCallbackOrInterface = '^(callback|interface)$';
@@ -1273,7 +1273,7 @@ sub parsePartialInterfaceMember
     if ($next->value() eq "iterable") {
         return $self->parseIterableRest($extendedAttributeList);
     }
-    if ($next->value() eq "async") {
+    if ($next->value() eq "async_iterable") {
         return $self->parseAsyncIterable($extendedAttributeList);
     }
     if ($next->value() eq "readonly") {
@@ -1460,10 +1460,9 @@ sub parseDefaultValue
         return "[]";
     }
     if ($next->value() eq "{") {
-        # Accept {} but just ignore it.
         $self->assertTokenValue($self->getToken(), "{", __LINE__);
         $self->assertTokenValue($self->getToken(), "}", __LINE__);
-        return undef;
+        return "{}";
     }
     $self->assertUnexpectedToken($next->value(), __LINE__);
 }
@@ -2026,9 +2025,8 @@ sub parseAsyncIterable
     my $extendedAttributeList = shift;
 
     my $next = $self->nextToken();
-    if ($next->value() eq "async") {
-        $self->assertTokenValue($self->getToken(), "async", __LINE__);
-        $self->assertTokenValue($self->getToken(), "iterable", __LINE__);
+    if ($next->value() eq "async_iterable") {
+        $self->assertTokenValue($self->getToken(), "async_iterable", __LINE__);
 
         my $asyncIterable = IDLAsyncIterable->new();
 

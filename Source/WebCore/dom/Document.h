@@ -432,8 +432,6 @@ using RenderingContext = Variant<
     RefPtr<CanvasRenderingContext2D>
 >;
 
-using StartViewTransitionCallbackOptions = std::optional<Variant<RefPtr<JSViewTransitionUpdateCallback>, StartViewTransitionOptions>>;
-
 class DocumentParserYieldToken {
     WTF_MAKE_TZONE_ALLOCATED_EXPORT(DocumentParserYieldToken, WEBCORE_EXPORT);
 public:
@@ -555,7 +553,7 @@ public:
     void whenVisible(Function<void()>&&);
 
     WEBCORE_EXPORT ExceptionOr<Ref<Element>> createElementForBindings(const AtomString& tagName);
-    ExceptionOr<Ref<Element>> createElementForBindings(const AtomString& tagName, std::optional<Variant<String, ElementCreationOptions>>&&);
+    ExceptionOr<Ref<Element>> createElementForBindings(const AtomString& tagName, Variant<String, ElementCreationOptions>&&);
     WEBCORE_EXPORT Ref<DocumentFragment> createDocumentFragment();
     WEBCORE_EXPORT Ref<Text> createTextNode(String&& data);
     WEBCORE_EXPORT Ref<Comment> createComment(String&& data);
@@ -565,7 +563,7 @@ public:
     WEBCORE_EXPORT ExceptionOr<Ref<Attr>> createAttributeNS(const AtomString& namespaceURI, const AtomString& qualifiedName, bool shouldIgnoreNamespaceChecks = false);
     WEBCORE_EXPORT ExceptionOr<Ref<Node>> importNode(Node& nodeToImport, Variant<bool, ImportNodeOptions>&&);
     WEBCORE_EXPORT ExceptionOr<Ref<Element>> createElementNS(const AtomString& namespaceURI, const AtomString& qualifiedName);
-    ExceptionOr<Ref<Element>> createElementNS(const AtomString& namespaceURI, const AtomString& qualifiedName, std::optional<Variant<String, ElementCreationOptions>>&&);
+    ExceptionOr<Ref<Element>> createElementNS(const AtomString& namespaceURI, const AtomString& qualifiedName, Variant<String, ElementCreationOptions>&&);
 
     WEBCORE_EXPORT Ref<Element> createElement(const QualifiedName&, bool createdByParser, CustomElementRegistry* = nullptr);
 
@@ -1789,6 +1787,7 @@ public:
     void unobserveForContainIntrinsicSize(Element&);
     void resetObservationSizeForContainIntrinsicSize(Element&);
 
+    using StartViewTransitionCallbackOptions = Variant<RefPtr<JSViewTransitionUpdateCallback>, StartViewTransitionOptions>;
     RefPtr<ViewTransition> startViewTransition(StartViewTransitionCallbackOptions&&);
     ViewTransition* activeViewTransition() const;
     bool activeViewTransitionCapturedDocumentElement() const;

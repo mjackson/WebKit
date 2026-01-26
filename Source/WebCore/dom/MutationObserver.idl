@@ -36,7 +36,7 @@
 ] interface MutationObserver {
     constructor(MutationCallback callback);
 
-    undefined observe(Node target, optional MutationObserverInit options);
+    undefined observe(Node target, optional MutationObserverInit options = {});
     undefined disconnect();
     [ResultField=records] sequence<MutationRecord> takeRecords();
 };

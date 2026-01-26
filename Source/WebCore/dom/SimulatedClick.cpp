@@ -58,7 +58,7 @@ private:
     {
         setUnderlyingEvent(underlyingEvent.get());
 
-        if (auto* mouseEvent = dynamicDowncast<MouseEvent>(this->underlyingEvent())) {
+        if (RefPtr mouseEvent = dynamicDowncast<MouseEvent>(this->underlyingEvent())) {
             setScreenLocation(mouseEvent->screenLocation());
             initCoordinates(mouseEvent->clientLocation());
         } else if (source == SimulatedClickSource::UserAgent) {

@@ -72,8 +72,11 @@ Vector<ContentFilter::Type>& ContentFilter::types()
 std::unique_ptr<ContentFilter> ContentFilter::create(ContentFilterClient& client)
 {
     PlatformContentFilter::FilterParameters params {
+#if HAVE(WEBCONTENTRESTRICTIONS)
 #if HAVE(WEBCONTENTRESTRICTIONS_PATH_SPI)
         client.webContentRestrictionsConfigurationPath(),
+#endif
+        client.mainDocumentURL(),
 #endif
     };
     auto filters = types().map([params](auto& type) {

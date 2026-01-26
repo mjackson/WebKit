@@ -203,7 +203,7 @@ void AccessibilityReplacedText::postTextStateChangeNotification(AXObjectCache* c
     VisiblePosition position = selection.start();
     auto node = highestEditableRoot(position.deepEquivalent(), HasEditableAXRole);
     if (m_replacedText.length())
-        cache->postTextReplacementNotification(node.get(), AXTextEditTypeDelete, m_replacedText, type, text, position);
+        cache->postTextReplacementNotification(node.get(), AXTextEditType::Delete, m_replacedText, type, text, position);
     else
         cache->postTextStateChangeNotification(node.get(), type, text, position);
 }
@@ -2378,128 +2378,6 @@ void AXObjectCache::onTextCompositionChange(Node& node, CompositionState composi
 #endif
 }
 
-#ifndef NDEBUG
-void AXObjectCache::showIntent(const AXTextStateChangeIntent &intent)
-{
-    switch (intent.type) {
-    case AXTextStateChangeTypeUnknown:
-        dataLog("Unknown");
-        break;
-    case AXTextStateChangeTypeEdit:
-        dataLog("Edit::");
-        break;
-    case AXTextStateChangeTypeSelectionMove:
-        dataLog("Move::");
-        break;
-    case AXTextStateChangeTypeSelectionExtend:
-        dataLog("Extend::");
-        break;
-    case AXTextStateChangeTypeSelectionBoundary:
-        dataLog("Boundary::");
-        break;
-    }
-    switch (intent.type) {
-    case AXTextStateChangeTypeUnknown:
-        break;
-    case AXTextStateChangeTypeEdit:
-        switch (intent.editType) {
-        case AXTextEditTypeUnknown:
-            dataLog("Unknown");
-            break;
-        case AXTextEditTypeDelete:
-            dataLog("Delete");
-            break;
-        case AXTextEditTypeInsert:
-            dataLog("Insert");
-            break;
-        case AXTextEditTypeDictation:
-            dataLog("DictationInsert");
-            break;
-        case AXTextEditTypeTyping:
-            dataLog("TypingInsert");
-            break;
-        case AXTextEditTypeCut:
-            dataLog("Cut");
-            break;
-        case AXTextEditTypePaste:
-            dataLog("Paste");
-            break;
-        case AXTextEditTypeReplace:
-            dataLog("Replace");
-            break;
-        case AXTextEditTypeAttributesChange:
-            dataLog("AttributesChange");
-            break;
-        }
-        break;
-    case AXTextStateChangeTypeSelectionMove:
-    case AXTextStateChangeTypeSelectionExtend:
-    case AXTextStateChangeTypeSelectionBoundary:
-        switch (intent.selection.direction) {
-        case AXTextSelectionDirectionUnknown:
-            dataLog("Unknown::");
-            break;
-        case AXTextSelectionDirectionBeginning:
-            dataLog("Beginning::");
-            break;
-        case AXTextSelectionDirectionEnd:
-            dataLog("End::");
-            break;
-        case AXTextSelectionDirectionPrevious:
-            dataLog("Previous::");
-            break;
-        case AXTextSelectionDirectionNext:
-            dataLog("Next::");
-            break;
-        case AXTextSelectionDirectionDiscontiguous:
-            dataLog("Discontiguous::");
-            break;
-        }
-        switch (intent.selection.direction) {
-        case AXTextSelectionDirectionUnknown:
-        case AXTextSelectionDirectionBeginning:
-        case AXTextSelectionDirectionEnd:
-        case AXTextSelectionDirectionPrevious:
-        case AXTextSelectionDirectionNext:
-            switch (intent.selection.granularity) {
-            case AXTextSelectionGranularityUnknown:
-                dataLog("Unknown");
-                break;
-            case AXTextSelectionGranularityCharacter:
-                dataLog("Character");
-                break;
-            case AXTextSelectionGranularityWord:
-                dataLog("Word");
-                break;
-            case AXTextSelectionGranularityLine:
-                dataLog("Line");
-                break;
-            case AXTextSelectionGranularitySentence:
-                dataLog("Sentence");
-                break;
-            case AXTextSelectionGranularityParagraph:
-                dataLog("Paragraph");
-                break;
-            case AXTextSelectionGranularityPage:
-                dataLog("Page");
-                break;
-            case AXTextSelectionGranularityDocument:
-                dataLog("Document");
-                break;
-            case AXTextSelectionGranularityAll:
-                dataLog("All");
-                break;
-            }
-            break;
-        case AXTextSelectionDirectionDiscontiguous:
-            break;
-        }
-        break;
-    }
-    dataLog("\n");
-}
-#endif
-
 void AXObjectCache::setTextSelectionIntent(const AXTextStateChangeIntent& intent)
 {
     m_textSelectionIntent = intent;
@@ -2574,7 +2452,7 @@ void AXObjectCache::postTextStateChangeNotification(AccessibilityObject* object,
         axObject = rootWebArea();
 
     if (axObject) {
-        const AXTextStateChangeIntent& newIntent = (intent.type == AXTextStateChangeTypeUnknown || (m_isSynchronizingSelection && m_textSelectionIntent.type != AXTextStateChangeTypeUnknown)) ? m_textSelectionIntent : intent;
+        const AXTextStateChangeIntent& newIntent = (intent.type == AXTextStateChangeType::Unknown || (m_isSynchronizingSelection && m_textSelectionIntent.type != AXTextStateChangeType::Unknown)) ? m_textSelectionIntent : intent;
 
 #if PLATFORM(COCOA)
         if (enqueuePasswordNotification(*axObject, { newIntent, { }, { }, selection }))
@@ -2600,7 +2478,7 @@ void AXObjectCache::postTextStateChangeNotification(AccessibilityObject* object,
 void AXObjectCache::postTextStateChangeNotification(Node* node, AXTextEditType type, const String& text, const VisiblePosition& position)
 {
     AXTRACE(makeString("AXObjectCache::postTextStateChangeNotification 0x"_s, hex(reinterpret_cast<uintptr_t>(this))));
-    if (!node || type == AXTextEditTypeUnknown)
+    if (!node || type == AXTextEditType::Unknown)
         return;
 
     stopCachingComputedObjectAttributes();
@@ -2635,9 +2513,9 @@ void AXObjectCache::postTextReplacementNotification(Node* node, AXTextEditType d
 {
     if (!node)
         return;
-    if (deletionType != AXTextEditTypeDelete)
+    if (deletionType != AXTextEditType::Delete)
         return;
-    if (!(insertionType == AXTextEditTypeInsert || insertionType == AXTextEditTypeTyping || insertionType == AXTextEditTypeDictation || insertionType == AXTextEditTypePaste))
+    if (!(insertionType == AXTextEditType::Insert || insertionType == AXTextEditType::Typing || insertionType == AXTextEditType::Dictation || insertionType == AXTextEditType::Paste))
         return;
 
     stopCachingComputedObjectAttributes();
@@ -2650,7 +2528,7 @@ void AXObjectCache::postTextReplacementNotification(Node* node, AXTextEditType d
         return;
 
 #if PLATFORM(COCOA)
-    if (enqueuePasswordNotification(*object, { { AXTextEditTypeReplace }, deletedText, insertedText, { position, position } }))
+    if (enqueuePasswordNotification(*object, { { AXTextEditType::Replace }, deletedText, insertedText, { position, position } }))
         return;
 #endif
 
@@ -2673,14 +2551,14 @@ void AXObjectCache::postTextReplacementNotificationForTextControl(HTMLTextFormCo
         return;
 
 #if PLATFORM(COCOA)
-    if (enqueuePasswordNotification(*object, { { AXTextEditTypeReplace }, deletedText, insertedText, { } }))
+    if (enqueuePasswordNotification(*object, { { AXTextEditType::Replace }, deletedText, insertedText, { } }))
         return;
 #endif
 
     postTextReplacementPlatformNotificationForTextControl(object.get(), deletedText, insertedText);
 #else // PLATFORM(COCOA) || USE(ATSPI)
-    nodeTextChangePlatformNotification(object.get(), textChangeForEditType(AXTextEditTypeDelete), 0, deletedText);
-    nodeTextChangePlatformNotification(object.get(), textChangeForEditType(AXTextEditTypeInsert), 0, insertedText);
+    nodeTextChangePlatformNotification(object.get(), textChangeForEditType(AXTextEditType::Delete), 0, deletedText);
+    nodeTextChangePlatformNotification(object.get(), textChangeForEditType(AXTextEditType::Insert), 0, insertedText);
 #endif
 }
 
@@ -2738,28 +2616,28 @@ void AXObjectCache::passwordNotificationTimerFired()
     auto notification = m_passwordNotifications.takeFirst();
     auto& context = notification.second;
     switch (context.intent.type) {
-    case AXTextStateChangeTypeEdit:
+    case AXTextStateChangeType::Edit:
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
         updateIsolatedTree(notification.first, AXNotification::ValueChanged);
 #endif
-        if (context.intent.editType == AXTextEditTypeReplace) {
+        if (context.intent.editType == AXTextEditType::Replace) {
             postTextReplacementPlatformNotification(notification.first.ptr(),
-                AXTextEditTypeDelete, context.deletedText, AXTextEditTypeInsert, context.insertedText, context.selection.start());
+                AXTextEditType::Delete, context.deletedText, AXTextEditType::Insert, context.insertedText, context.selection.start());
         } else {
             postTextStateChangePlatformNotification(notification.first.ptr(),
                 context.intent.editType, context.insertedText, context.selection.start());
         }
         break;
-    case AXTextStateChangeTypeSelectionMove:
-    case AXTextStateChangeTypeSelectionExtend:
-    case AXTextStateChangeTypeSelectionBoundary:
+    case AXTextStateChangeType::SelectionMove:
+    case AXTextStateChangeType::SelectionExtend:
+    case AXTextStateChangeType::SelectionBoundary:
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
         updateIsolatedTree(notification.first, AXNotification::SelectedTextChanged);
 #endif
         postTextSelectionChangePlatformNotification(notification.first.ptr(),
             context.intent, context.selection);
         break;
-    case AXTextStateChangeTypeUnknown:
+    case AXTextStateChangeType::Unknown:
         // No additional context, fallback to a ValueChanged notification.
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
         updateIsolatedTree(notification.first, AXNotification::ValueChanged);
@@ -5036,14 +4914,10 @@ void AXObjectCache::performDeferredCacheUpdate(ForceLayout forceLayout)
             // Re-generate the subtree rooted at the webarea.
             if (RefPtr webArea = rootWebArea()) {
                 AXLOG("Regenerating isolated tree from AXObjectCache::performDeferredCacheUpdate().");
-#if ENABLE(INCLUDE_IGNORED_IN_CORE_AX_TREE)
                 // m_deferredRegenerateIsolatedTree is only set when we change the active modal, which effects the ignored
-                // status of every object on the page. With ENABLE(INCLUDE_IGNORED_IN_CORE_AX_TREE), this means we only have
-                // to re-compute is-ignored for every object, rather than re-compute all objects entirely as when this flag is off.
+                // status of every object on the page. This means we only have to re-compute is-ignored for every object,
+                // rather than re-compute all objects entirely.
                 tree->updatePropertiesForSelfAndDescendants(*webArea, { AXProperty::IsIgnored });
-#else
-                tree->generateSubtree(*webArea);
-#endif // ENABLE(INCLUDE_IGNORED_IN_CORE_AX_TREE)
 
                 // In some cases, the ID of the focus after a dialog pops up doesn't match the ID in the last focus change notification, creating a mismatch between the isolated tree cached focused object ID and the actual focused object ID.
                 // For this reason, reset the focused object ID.
@@ -6076,19 +5950,19 @@ void AXObjectCache::announce(const String&)
 AXTextChange AXObjectCache::textChangeForEditType(AXTextEditType type)
 {
     switch (type) {
-    case AXTextEditTypeCut:
-    case AXTextEditTypeDelete:
+    case AXTextEditType::Cut:
+    case AXTextEditType::Delete:
         return AXTextChange::Deleted;
-    case AXTextEditTypeInsert:
-    case AXTextEditTypeDictation:
-    case AXTextEditTypeTyping:
-    case AXTextEditTypePaste:
+    case AXTextEditType::Insert:
+    case AXTextEditType::Dictation:
+    case AXTextEditType::Typing:
+    case AXTextEditType::Paste:
         return AXTextChange::Inserted;
-    case AXTextEditTypeReplace:
+    case AXTextEditType::Replace:
         return AXTextChange::Replaced;
-    case AXTextEditTypeAttributesChange:
+    case AXTextEditType::AttributesChange:
         return AXTextChange::AttributesChanged;
-    case AXTextEditTypeUnknown:
+    case AXTextEditType::Unknown:
         AX_ASSERT_NOT_REACHED();
         return AXTextChange::Inserted;
     }

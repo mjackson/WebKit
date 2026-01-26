@@ -1574,7 +1574,7 @@ FloatPoint GraphicsLayerCA::computePositionRelativeToBase(float& pageScale) cons
 
     bool didFindAnyLayerThatAppliesPageScale = false;
     FloatPoint offset;
-    for (const GraphicsLayer* currLayer = this; currLayer; currLayer = currLayer->parent()) {
+    for (RefPtr<const GraphicsLayer> currLayer = this; currLayer; currLayer = currLayer->parent()) {
         if (currLayer->appliesPageScale()) {
             pageScale *= currLayer->pageScaleFactor();
             didFindAnyLayerThatAppliesPageScale = true;
@@ -4887,7 +4887,7 @@ void GraphicsLayerCA::changeLayerTypeTo(PlatformCALayer::LayerType newLayerType)
     if (isMaskLayer()) {
         // A mask layer's superlayer is the layer that it masks. Set the MaskLayerChanged dirty bit
         // so that the parent will fix up the platform layers in commitLayerChangesAfterSublayers().
-        if (GraphicsLayer* parentLayer = parent())
+        if (RefPtr parentLayer = parent())
             downcast<GraphicsLayerCA>(*parentLayer).noteLayerPropertyChanged(MaskLayerChanged);
     } else if (oldLayer->superlayer()) {
         // Skip this step if we don't have a superlayer. This is probably a benign
@@ -5047,13 +5047,13 @@ FloatPoint GraphicsLayerCA::positionForCloneRootLayer() const
 
 void GraphicsLayerCA::propagateLayerChangeToReplicas(ScheduleFlushOrNot scheduleFlush)
 {
-    for (GraphicsLayer* currentLayer = this; currentLayer; currentLayer = currentLayer->parent()) {
-        auto& currentLayerCA = downcast<GraphicsLayerCA>(*currentLayer);
-        if (!currentLayerCA.hasCloneLayers())
+    for (RefPtr<GraphicsLayer> currentLayer = this; currentLayer; currentLayer = currentLayer->parent()) {
+        Ref currentLayerCA = downcast<GraphicsLayerCA>(*currentLayer);
+        if (!currentLayerCA->hasCloneLayers())
             break;
 
-        if (currentLayerCA.replicaLayer())
-            downcast<GraphicsLayerCA>(*currentLayerCA.replicaLayer()).noteLayerPropertyChanged(ReplicatedLayerChanged, scheduleFlush);
+        if (currentLayerCA->replicaLayer())
+            downcast<GraphicsLayerCA>(*currentLayerCA->replicaLayer()).noteLayerPropertyChanged(ReplicatedLayerChanged, scheduleFlush);
     }
 }
 

@@ -49,7 +49,7 @@ WebScreenOrientationManagerProxy::WebScreenOrientationManagerProxy(WebPageProxy&
     : m_page(page)
     , m_currentOrientation(orientation)
 {
-    page.protectedLegacyMainFrameProcess()->addMessageReceiver(Messages::WebScreenOrientationManagerProxy::messageReceiverName(), page.webPageIDInMainFrameProcess(), *this);
+    protect(page.legacyMainFrameProcess())->addMessageReceiver(Messages::WebScreenOrientationManagerProxy::messageReceiverName(), page.webPageIDInMainFrameProcess(), *this);
 }
 
 WebScreenOrientationManagerProxy::~WebScreenOrientationManagerProxy()
@@ -57,7 +57,7 @@ WebScreenOrientationManagerProxy::~WebScreenOrientationManagerProxy()
     unlockIfNecessary();
 
     Ref page = m_page.get();
-    page->protectedLegacyMainFrameProcess()->removeMessageReceiver(Messages::WebScreenOrientationManagerProxy::messageReceiverName(), page->webPageIDInMainFrameProcess());
+    protect(page->legacyMainFrameProcess())->removeMessageReceiver(Messages::WebScreenOrientationManagerProxy::messageReceiverName(), page->webPageIDInMainFrameProcess());
 }
 
 std::optional<SharedPreferencesForWebProcess> WebScreenOrientationManagerProxy::sharedPreferencesForWebProcess(IPC::Connection& connection) const

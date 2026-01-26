@@ -83,13 +83,13 @@ typedef (object or DOMString) AlgorithmIdentifier;
     ExportMacro=WEBCORE_EXPORT,
     Exposed=Window
 ] interface RTCPeerConnection : EventTarget {
-    [CallWith=CurrentDocument] constructor(optional RTCConfiguration configuration);
+    [CallWith=CurrentDocument] constructor(optional RTCConfiguration configuration = {});
 
     // 4.3.2 Interface Definition
-    Promise<RTCSessionDescriptionInit> createOffer(optional RTCOfferOptions offerOptions);
-    Promise<RTCSessionDescriptionInit> createAnswer(optional RTCAnswerOptions answerOptions);
+    Promise<RTCSessionDescriptionInit> createOffer(optional RTCOfferOptions offerOptions = {});
+    Promise<RTCSessionDescriptionInit> createAnswer(optional RTCAnswerOptions answerOptions = {});
 
-    Promise<undefined> setLocalDescription(optional RTCLocalSessionDescriptionInit description);
+    Promise<undefined> setLocalDescription(optional RTCLocalSessionDescriptionInit description = {});
     readonly attribute RTCSessionDescription? localDescription;
     readonly attribute RTCSessionDescription? currentLocalDescription;
     readonly attribute RTCSessionDescription? pendingLocalDescription;
@@ -99,7 +99,7 @@ typedef (object or DOMString) AlgorithmIdentifier;
     readonly attribute RTCSessionDescription? currentRemoteDescription;
     readonly attribute RTCSessionDescription? pendingRemoteDescription;
 
-    Promise<undefined> addIceCandidate(optional (RTCIceCandidateInit or RTCIceCandidate) candidate);
+    Promise<undefined> addIceCandidate(optional (RTCIceCandidateInit or RTCIceCandidate) candidate = {});
 
     readonly attribute RTCSignalingState signalingState;
     readonly attribute RTCIceGatheringState iceGatheringState;
@@ -132,7 +132,7 @@ typedef (object or DOMString) AlgorithmIdentifier;
     RTCRtpSender addTrack(MediaStreamTrack track, MediaStream... streams);
     undefined removeTrack(RTCRtpSender sender);
 
-    RTCRtpTransceiver addTransceiver((MediaStreamTrack or DOMString) track, optional RTCRtpTransceiverInit init);
+    RTCRtpTransceiver addTransceiver((MediaStreamTrack or DOMString) track, optional RTCRtpTransceiverInit init = {});
 
     attribute EventHandler ontrack;
 

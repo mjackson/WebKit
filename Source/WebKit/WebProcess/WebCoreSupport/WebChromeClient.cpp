@@ -883,6 +883,15 @@ void WebChromeClient::scrollContainingScrollViewsToRevealRect(const IntRect&) co
     notImplemented();
 }
 
+CornerRadii WebChromeClient::scrollbarAvoidanceCornerRadii() const
+{
+#if HAVE(NSVIEW_CORNER_CONFIGURATION)
+    if (RefPtr page = m_page.get())
+        return page->scrollbarAvoidanceCornerRadii();
+#endif
+    return { };
+}
+
 bool WebChromeClient::shouldUnavailablePluginMessageBeButton(PluginUnavailabilityReason pluginUnavailabilityReason) const
 {
     switch (pluginUnavailabilityReason) {
@@ -1058,16 +1067,6 @@ bool WebChromeClient::shouldNotifyOnFormChanges()
 {
     RefPtr page = m_page.get();
     return page && page->injectedBundleFormClient().shouldNotifyOnFormChanges(page.get());
-}
-
-bool WebChromeClient::selectItemWritingDirectionIsNatural()
-{
-    return false;
-}
-
-bool WebChromeClient::selectItemAlignmentFollowsMenuWritingDirection()
-{
-    return true;
 }
 
 RefPtr<PopupMenu> WebChromeClient::createPopupMenu(PopupMenuClient& client) const

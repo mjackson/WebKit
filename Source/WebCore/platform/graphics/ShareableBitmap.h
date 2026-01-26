@@ -47,12 +47,7 @@ class GraphicsContext;
 class Image;
 class NativeImage;
 
-#if OS(DARWIN)
-inline constexpr auto defaultCopyOnWrite = SharedMemory::CopyOnWrite::Yes;
-#else
-// FIXME: https://bugs.webkit.org/show_bug.cgi?id=305633
 inline constexpr auto defaultCopyOnWrite = SharedMemory::CopyOnWrite::No;
-#endif
 
 class ShareableBitmapConfiguration {
 public:

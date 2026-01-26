@@ -2505,7 +2505,7 @@ unsigned AccessibilityNodeObject::computeCellSlots()
     };
 
     // Step 4: Let the table be the table represented by the table element.
-    RefPtr tableElement = this->node();
+    RefPtr tableElement = element();
     // `isAriaTable()` will return true for table-like ARIA structures (grid, treegrid, table).
     if (!is<HTMLTableElement>(tableElement.get()) && !isAriaTable())
         return 0;
@@ -2579,8 +2579,9 @@ unsigned AccessibilityNodeObject::computeCellSlots()
             processRowGroup(*element);
     };
     // Step 7: Let the current element be the first element child of the table element.
-    for (RefPtr currentElement = tableElement->firstChild(); currentElement; currentElement = currentElement->nextSibling()) {
-        processTableDescendant(currentElement.get());
+    // Use composedTreeChildren to traverse shadow DOM children too.
+    for (Ref child : composedTreeChildren<0>(*tableElement)) {
+        processTableDescendant(&child.get());
         // Step 17 + 18: Advance the current element to the next child of the table.
     }
 

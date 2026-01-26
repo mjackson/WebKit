@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2025 Apple Inc. All rights reserved.
+# Copyright (C) 2018-2026 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -45,7 +45,7 @@ import socket
 import sys
 import time
 
-from Shared.steps import ShellMixin, SetBuildSummary, SetO3OptimizationLevel
+from Shared.steps import ShellMixin, SetBuildSummary, SetO3OptimizationLevel, WaitForDuration
 
 if sys.version_info < (3, 9):  # noqa: UP036
     print('ERROR: Minimum supported Python version for this code is Python 3.9')
@@ -82,6 +82,9 @@ LLVM_DIR = 'llvm-project'
 STATIC_ANALYSIS_ARCHIVE_PATH = '/tmp/static-analysis.zip'
 SHOULD_FILTER_LOGS = load_password('SHOULD_FILTER_LOGS', default=True)
 SHOULD_LOAD_CONTRIBUTORS_FROM_NETWORK = load_password('SHOULD_FILTER_LOGS', default=True)
+SUFFIX_WITHOUT_CHANGE = '-without-change'
+MACOS_SEQUOIA_TRIGGER = 'feature-disabled-for-now'
+MACOS_SEQUOIA_BUILDER_NAME = 'feature-disabled-for-now'
 
 if CURRENT_HOSTNAME in EWS_BUILD_HOSTNAMES:
     CURRENT_HOSTNAME = 'ews-build.webkit.org'
@@ -2942,6 +2945,8 @@ class Trigger(trigger.Trigger):
         properties_to_pass['retry_count'] = properties.Property('retry_count', default=0)
         properties_to_pass['os_version_builder'] = properties.Property('os_version', default='')
         properties_to_pass['xcode_version_builder'] = properties.Property('xcode_version', default='')
+        properties_to_pass['parent_buildnumber'] = properties.Property('buildnumber')
+        properties_to_pass['parent_builderid'] = properties.Property('builderid')
         if self.include_revision:
             properties_to_pass['ews_revision'] = properties.Property('got_revision')
         return properties_to_pass
@@ -3414,6 +3419,16 @@ class CompileWebKit(shell.Compile, AddToLogMixin, ShellMixin):
                         patch=bool(self.getProperty('patch_id')),
                         pull_request=bool(self.getProperty('github.number')),
                     ))
+
+                    builder_name = self.getProperty('buildername', '')
+                    if builder_name in [MACOS_SEQUOIA_BUILDER_NAME]:
+                        steps_to_add.extend([
+                            RevertAppliedChanges(),
+                            ValidateChange(verifyBugClosed=False, addURLs=False),
+                            CompileWebKitWithoutChange(),
+                            GenerateS3URL(f"{self.getProperty('fullPlatform')}-{self.getProperty('archForUpload')}-{self.getProperty('configuration')}{SUFFIX_WITHOUT_CHANGE}"),
+                            UploadFileToS3(f"WebKitBuild/{self.getProperty('configuration')}.zip", links={self.name: 'Archive without change'}),
+                        ])
 
         # Using a single addStepsAfterCurrentStep because of https://github.com/buildbot/buildbot/issues/4874
         self.build.addStepsAfterCurrentStep(steps_to_add)
@@ -4355,17 +4370,23 @@ class RunWebKitTests(shell.Test, AddToLogMixin, ShellMixin):
                     KillOldProcesses(),
                     ReRunWebKitTests(),
                 ]
-            else:
-                if platform != 'win':
-                    steps_to_add += [
-                        RevertAppliedChanges(),
-                        CleanWorkingDirectory(),
-                        ValidateChange(verifyBugClosed=False, addURLs=False),
-                        CompileWebKitWithoutChange(retry_build_on_failure=True),
-                        ValidateChange(verifyBugClosed=False, addURLs=False),
-                        KillOldProcesses(),
-                        RunWebKitTestsWithoutChange(),
-                    ]
+            elif platform != 'win':
+                steps_to_add += [
+                    RevertAppliedChanges(),
+                    CleanWorkingDirectory(),
+                    ValidateChange(verifyBugClosed=False, addURLs=False)
+                ]
+                triggered_by = self.getProperty('triggered_by', [])
+                if MACOS_SEQUOIA_TRIGGER in triggered_by:
+                    steps_to_add.extend([DownloadBuiltProduct(suffix=SUFFIX_WITHOUT_CHANGE), ExtractBuiltProduct()])
+                else:
+                    steps_to_add.append(CompileWebKitWithoutChange(retry_build_on_failure=True))
+
+                steps_to_add += [
+                    ValidateChange(verifyBugClosed=False, addURLs=False),
+                    KillOldProcesses(),
+                    RunWebKitTestsWithoutChange(),
+                ]
         self.build.addStepsAfterCurrentStep(steps_to_add)
 
         return rc
@@ -4537,7 +4558,14 @@ class ReRunWebKitTests(RunWebKitTests):
                     RevertAppliedChanges(),
                     CleanWorkingDirectory(),
                     ValidateChange(verifyBugClosed=False, addURLs=False),
-                    CompileWebKitWithoutChange(retry_build_on_failure=True),
+                ]
+                triggered_by = self.getProperty('triggered_by', [])
+                if MACOS_SEQUOIA_TRIGGER in triggered_by:
+                    steps_to_add.extend([DownloadBuiltProduct(suffix=SUFFIX_WITHOUT_CHANGE), ExtractBuiltProduct()])
+                else:
+                    steps_to_add.append(CompileWebKitWithoutChange(retry_build_on_failure=True))
+
+                steps_to_add += [
                     ValidateChange(verifyBugClosed=False, addURLs=False),
                     KillOldProcesses(),
                     RunWebKitTestsWithoutChange()
@@ -5330,20 +5358,21 @@ class AnalyzeLayoutTestsResultsRedTree(AnalyzeLayoutTestsResults):
 
         # The checks below need to be after the timeout ones (above) because when a timeout is trigerred no results will be generated for the step.
         # The step with_change_repeat_failures generated no list of failures or flakies, which should only happen when the return code of the step is SUCESS or WARNINGS.
-        if not with_change_repeat_failures_results_nonflaky_failures and not with_change_repeat_failures_results_flakies:
-            with_change_repeat_failures_retcode = self.getProperty('with_change_repeat_failures_retcode', FAILURE)
-            if with_change_repeat_failures_retcode not in [SUCCESS, WARNINGS]:
+        with_change_repeat_failures_retcode = self.getProperty('with_change_repeat_failures_retcode', FAILURE)
+        if with_change_repeat_failures_retcode not in [SUCCESS, WARNINGS]:
+            if not with_change_repeat_failures_results_nonflaky_failures and not with_change_repeat_failures_results_flakies:
                 return defer.returnValue(self.report_infrastructure_issue_and_maybe_retry_build('The step "layout-tests-repeat-failures" failed to generate any list of failures or flakies and returned an error code.'))
 
-        # Check the same for the step without_change_repeat_failures
-        if not without_change_repeat_failures_results_nonflaky_failures and not without_change_repeat_failures_results_flakies:
+            # Check the same for the step without_change_repeat_failures but only if with_change_repeat_failures also returned an error code.
             without_change_repeat_failures_retcode = self.getProperty('without_change_repeat_failures_retcode', FAILURE)
             if without_change_repeat_failures_retcode not in [SUCCESS, WARNINGS]:
-                return defer.returnValue(self.report_infrastructure_issue_and_maybe_retry_build('The step "layout-tests-repeat-failures-without-change" failed to generate any list of failures or flakies and returned an error code.'))
+                if not without_change_repeat_failures_results_nonflaky_failures and not without_change_repeat_failures_results_flakies:
+                    return defer.returnValue(self.report_infrastructure_issue_and_maybe_retry_build('The step "layout-tests-repeat-failures-without-change" failed to generate any list of failures or flakies and returned an error code.'))
 
         # Warn EWS bot watchers about flakies so they can garden those. Include the step where the flaky was found in the e-mail to know if it was found with change or without it.
         # Due to the way this class works most of the flakies are filtered on the step with change even when those were pre-existent issues (so this is also useful for bot watchers).
         all_flaky_failures = first_run_flakies.union(with_change_repeat_failures_results_flakies).union(without_change_repeat_failures_results_flakies)
+        all_flaky_failures.update(first_run_failures - with_change_repeat_failures_results_nonflaky_failures)
         flaky_steps_dict = {}
         for flaky_failure in all_flaky_failures:
             step_names = []
@@ -5578,6 +5607,8 @@ class DownloadBuiltProduct(shell.ShellCommand):
         self.suffix = suffix
         self.name += suffix
         super().__init__(logEnviron=False, **kwargs)
+        if suffix == SUFFIX_WITHOUT_CHANGE:
+            self.haltOnFailure = False
 
     @defer.inlineCallbacks
     def run(self):
@@ -5596,7 +5627,10 @@ class DownloadBuiltProduct(shell.ShellCommand):
 
         rc = yield super().run()
         if rc == FAILURE:
-            self.build.addStepsAfterCurrentStep([DownloadBuiltProductFromMaster()])
+            if self.suffix == SUFFIX_WITHOUT_CHANGE:
+                self.build.addStepsAfterCurrentStep([CheckParentBuildStatus()])
+            else:
+                self.build.addStepsAfterCurrentStep([DownloadBuiltProductFromMaster()])
         defer.returnValue(rc)
 
 
@@ -5621,6 +5655,86 @@ class DownloadBuiltProductFromMaster(transfer.FileDownload):
     def getResultSummary(self):
         if self.results != SUCCESS:
             return {'step': 'Failed to download built product from build master'}
+        return super().getResultSummary()
+
+
+class CheckParentBuildStatus(buildstep.BuildStep):
+    name = 'check-parent-build-status'
+    description = ['checking parent build status']
+    descriptionDone = ['Checked parent build status']
+    flunkOnFailure = False
+    haltOnFailure = False
+
+    WAIT_DURATION_SECONDS = 300
+    PARENT_BUILD_ONGOING_MSG = 'Parent build is still in progress, waiting to re-check'
+    PARENT_BUILD_SUCCESS_MSG = 'Parent build succeeded, downloading built product'
+    PARENT_BUILD_SUCCESS_BUT_DOWNLOAD_FAILED_MSG = 'Parent build succeeded but built product not available'
+
+    def __init__(self, after_waiting=False, **kwargs):
+        super().__init__(**kwargs)
+        self._summary = ''
+        self.after_waiting = after_waiting
+
+    @defer.inlineCallbacks
+    def run(self):
+        parent_buildnumber = self.getProperty('parent_buildnumber')
+        parent_builderid = self.getProperty('parent_builderid')
+
+        if not parent_buildnumber or not parent_builderid:
+            self._summary = 'No parent build information available'
+            self.build.buildFinished([self._summary], FAILURE)
+            return defer.returnValue(FAILURE)
+
+        try:
+            parent_builderid = int(parent_builderid)
+        except (ValueError, TypeError):
+            self._summary = 'Invalid parent build information'
+            self.build.buildFinished([self._summary], FAILURE)
+            return defer.returnValue(FAILURE)
+
+        parent_build = yield self.master.data.get(('builders', parent_builderid, 'builds', parent_buildnumber))
+
+        if not parent_build:
+            self._summary = f'Could not find parent build with builder id: {parent_builderid} and number: {parent_buildnumber}'
+            self.build.buildFinished([self._summary], FAILURE)
+            return defer.returnValue(FAILURE)
+
+        parent_build_result = parent_build.get('results')
+
+        if parent_build_result is None:
+            self._summary = self.PARENT_BUILD_ONGOING_MSG
+            self.descriptionDone = self._summary
+            # Parent build not finished yet, wait and re-check
+            self.build.addStepsAfterCurrentStep([
+                WaitForDuration(duration=self.WAIT_DURATION_SECONDS),
+                CheckParentBuildStatus(after_waiting=True),
+            ])
+            return defer.returnValue(SUCCESS)
+
+        if parent_build_result in [SUCCESS, WARNINGS]:
+            if self.after_waiting:
+                # Parent build just finished after waiting, try downloading the built product
+                self._summary = self.PARENT_BUILD_SUCCESS_MSG
+                self.descriptionDone = self._summary
+                self.build.addStepsAfterCurrentStep([
+                    DownloadBuiltProduct(suffix=SUFFIX_WITHOUT_CHANGE),
+                ])
+                return defer.returnValue(SUCCESS)
+            else:
+                # Parent build was successful but download of build product failed, this is unexpected
+                self._summary = self.PARENT_BUILD_SUCCESS_BUT_DOWNLOAD_FAILED_MSG
+                self.descriptionDone = self._summary
+                self.build.buildFinished([self._summary], FAILURE)
+                return defer.returnValue(FAILURE)
+
+        self._summary = f'Parent build failed with result: {Results[parent_build_result]}'
+        self.descriptionDone = self._summary
+        self.build.buildFinished([self._summary], FAILURE)
+        return defer.returnValue(FAILURE)
+
+    def getResultSummary(self):
+        if self._summary:
+            return {'step': self._summary}
         return super().getResultSummary()
 
 
@@ -5858,7 +5972,13 @@ class ReRunAPITests(RunAPITests):
             self.steps_to_add.append(InstallWpeDependencies())
         elif platform == 'gtk':
             self.steps_to_add.append(InstallGtkDependencies())
-        self.steps_to_add.append(CompileWebKitWithoutChange(retry_build_on_failure=True))
+
+        triggered_by = self.getProperty('triggered_by', [])
+        if MACOS_SEQUOIA_TRIGGER in triggered_by:
+            self.steps_to_add.extend([DownloadBuiltProduct(suffix=SUFFIX_WITHOUT_CHANGE), ExtractBuiltProduct()])
+        else:
+            self.steps_to_add.append(CompileWebKitWithoutChange(retry_build_on_failure=True))
+
         self.steps_to_add.append(ValidateChange(verifyBugClosed=False, addURLs=False))
         self.steps_to_add.append(KillOldProcesses())
         self.steps_to_add.append(RunAPITestsWithoutChange())

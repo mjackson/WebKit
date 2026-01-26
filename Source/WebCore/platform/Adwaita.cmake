@@ -2,6 +2,8 @@ list(APPEND WebCore_PRIVATE_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/platform/adwaita"
 
     "${WEBCORE_DIR}/platform/graphics/adwaita"
+
+    "${WEBCORE_DIR}/rendering/adwaita"
 )
 
 list(APPEND WebCore_UNIFIED_SOURCE_LIST_FILES

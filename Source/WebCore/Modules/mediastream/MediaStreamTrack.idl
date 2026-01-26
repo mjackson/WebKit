@@ -53,7 +53,7 @@ enum MediaStreamTrackState { "live", "ended" };
     MediaTrackCapabilities getCapabilities();
     MediaTrackConstraints getConstraints();
     MediaTrackSettings getSettings();
-    Promise<undefined> applyConstraints(optional MediaTrackConstraints constraints);
+    Promise<undefined> applyConstraints(optional MediaTrackConstraints constraints = {});
 };
 
 [

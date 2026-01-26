@@ -209,7 +209,7 @@ void DisplayCaptureSessionManager::promptForGetDisplayMedia(UserMediaPermissionR
     }
 
     if (WebCore::ScreenCaptureKitSharingSessionManager::isAvailable()) {
-        if (!page.protectedPreferences()->useGPUProcessForDisplayCapture()) {
+        if (!protect(page.preferences())->useGPUProcessForDisplayCapture()) {
             WebCore::ScreenCaptureKitSharingSessionManager::singleton().promptForGetDisplayMedia(toScreenCaptureKitPromptType(promptType), WTF::move(completionHandler));
             return;
         }
@@ -252,7 +252,7 @@ void DisplayCaptureSessionManager::cancelGetDisplayMediaPrompt(WebPageProxy& pag
     if (!isAvailable() || !WebCore::ScreenCaptureKitSharingSessionManager::isAvailable())
         return;
 
-    if (!page.protectedPreferences()->useGPUProcessForDisplayCapture()) {
+    if (!protect(page.preferences())->useGPUProcessForDisplayCapture()) {
         WebCore::ScreenCaptureKitSharingSessionManager::singleton().cancelGetDisplayMediaPrompt();
         return;
     }

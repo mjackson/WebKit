@@ -113,7 +113,7 @@ RenderThemeIOS::RenderThemeIOS() = default;
 
 RenderThemeIOS::~RenderThemeIOS() = default;
 
-RenderTheme& RenderTheme::singleton()
+RenderThemeIOS& RenderTheme::singleton()
 {
     static NeverDestroyed<RenderThemeIOS> theme;
     return theme;

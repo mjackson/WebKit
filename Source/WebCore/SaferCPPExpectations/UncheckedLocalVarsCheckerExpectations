@@ -12,7 +12,6 @@ dom/TreeScope.cpp
 [ Mac ] editing/AlternativeTextController.cpp
 editing/ApplyBlockElementCommand.cpp
 editing/BreakBlockquoteCommand.cpp
-editing/ChangeListTypeCommand.cpp
 editing/DictationCommand.cpp
 editing/Editing.cpp
 editing/Editor.cpp
@@ -32,30 +31,18 @@ editing/cocoa/WebContentReaderCocoa.mm
 [ Mac ] editing/mac/EditorMac.mm
 [ Mac ] editing/mac/FrameSelectionMac.mm
 editing/markup.cpp
-html/CachedHTMLCollectionInlines.h
-html/CollectionTraversalInlines.h
 [ iOS ] html/HTMLAnchorElement.cpp
-html/HTMLDocument.cpp
-html/HTMLFormElement.cpp
 [ iOS ] html/HTMLImageLoader.cpp
 html/HTMLInputElement.cpp
 html/HTMLStyleElement.cpp
 html/HTMLTextFormControlElement.cpp
-html/MediaElementSession.cpp
-html/ModelDocument.cpp
-html/ValidatedFormListedElement.cpp
 html/ValidationMessage.cpp
 html/canvas/CanvasRenderingContext2D.cpp
 html/canvas/CanvasRenderingContext2DBase.cpp
-html/parser/HTMLConstructionSite.cpp
 inspector/InspectorAuditAccessibilityObject.cpp
-inspector/InspectorCanvas.cpp
 inspector/InspectorCanvasCallTracer.cpp
 inspector/InspectorInstrumentation.cpp
-inspector/InspectorNodeFinder.cpp
 inspector/InspectorOverlay.cpp
-inspector/InspectorStyleSheet.cpp
-inspector/PageDebugger.cpp
 inspector/WorkerToPageFrontendChannel.h
 inspector/agents/InspectorAnimationAgent.cpp
 inspector/agents/InspectorCSSAgent.cpp
@@ -128,40 +115,30 @@ layout/layouttree/LayoutTreeBuilder.cpp
 loader/FrameLoader.cpp
 loader/archive/cf/LegacyWebArchive.cpp
 loader/cache/MemoryCache.cpp
-mathml/MathMLSelectElement.cpp
 page/AutoscrollController.cpp
 [ iOS ] page/Chrome.cpp
 [ iOS ] page/DOMTimer.cpp
 page/DragController.cpp
 page/ElementTargetingController.cpp
 page/EventHandler.cpp
-page/FocusController.cpp
 page/FrameSnapshotting.cpp
 page/FrameView.cpp
 page/ImageOverlayController.cpp
 page/IntelligenceTextEffectsSupport.cpp
 page/InteractionRegion.cpp
 page/IntersectionObserver.cpp
-page/LocalDOMWindow.cpp
 page/LocalFrame.cpp
 page/LocalFrameView.cpp
 page/LocalFrameViewLayoutContext.cpp
 page/PageColorSampler.cpp
-page/PageSerializer.cpp
 page/PrintContext.cpp
-page/RemoteFrame.cpp
 page/ResizeObservation.cpp
-page/ResizeObserver.cpp
-page/ResourceUsageOverlay.cpp
-page/ScreenOrientation.cpp
-page/ScrollBehavior.cpp
 page/SpatialNavigation.cpp
 [ iOS ] page/ios/ContentChangeObserver.cpp
 [ iOS ] page/ios/EventHandlerIOS.mm
 [ iOS ] page/ios/FrameIOS.mm
 [ Mac ] page/mac/EventHandlerMac.mm
 [ Mac ] page/mac/ImageOverlayControllerMac.mm
-[ Mac ] page/mac/ServicesOverlayController.mm
 page/scrolling/AsyncScrollingCoordinator.cpp
 page/scrolling/ScrollAnchoringController.cpp
 page/scrolling/ScrollSnapOffsetsInfo.cpp
@@ -169,7 +146,6 @@ page/scrolling/ScrollingCoordinator.cpp
 page/writing-tools/WritingToolsController.mm
 platform/DictationCaretAnimator.cpp
 platform/DragImage.cpp
-platform/ScrollView.cpp
 platform/animation/AcceleratedEffect.cpp
 platform/graphics/GraphicsLayer.cpp
 platform/graphics/ca/GraphicsLayerCA.cpp

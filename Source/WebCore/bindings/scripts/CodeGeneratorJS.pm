@@ -1248,7 +1248,7 @@ sub GeneratePut
     }
     
     if ($namedSetterOperation) {
-        # FIMXE: We need a more comprehensive story for Symbols.
+        # FIXME: We need a more comprehensive story for Symbols.
         push(@$outputArray, "    if (!propertyName.isSymbol()) {\n");
         
         my $additionalIndent = "";
@@ -1491,7 +1491,7 @@ sub GenerateDefineOwnProperty
     # 2. If O supports named properties, O does not implement an interface with the [Global]
     #    extended attribute and P is not an unforgeable property name of O, then:
     if ($namedGetterOperation && !IsGlobalInterface($interface)) {
-        # FIMXE: We need a more comprehensive story for Symbols.
+        # FIXME: We need a more comprehensive story for Symbols.
         push(@$outputArray, "    if (!propertyName.isSymbol()) {\n");
         
         my $additionalIndent = "";
@@ -1918,7 +1918,7 @@ sub GetArgumentDefaultValueFunctor
     if (defined($argument->default) && !WillConvertUndefinedToDefaultParameterValue($argument->type, $argument->default)) {
         my $IDLType = GetIDLType($interface, $argument->type);
         my $defaultValue = GenerateDefaultValue($interface, $argument, $argument->type, $argument->default);
-        return "[&]() -> ConversionResult<${IDLType}> { return ${defaultValue}; }";
+        return "[&] -> ConversionResult<${IDLType}> { return ${defaultValue}; }";
     }
 
     return undef;
@@ -1928,10 +1928,10 @@ sub GetDictionaryMemberDefaultValueFunctor
 {
     my ($interface, $member) = @_;
 
-    if (!$member->isRequired && defined $member->default) {
+    if (!$member->isRequired && defined $member->default && !WillConvertUndefinedToDefaultParameterValue($member->type, $member->default)) {
         my $IDLType = GetIDLType($interface, $member->type);
         my $defaultValue = GenerateDefaultValue($interface, $member, $member->type, $member->default);
-        return "[&]() -> ConversionResult<${IDLType}> { return ${defaultValue}; }";
+        return "[&] -> ConversionResult<${IDLType}> { return ${defaultValue}; }";
     }
 
     return undef;
@@ -2726,10 +2726,7 @@ sub GenerateDefaultValue
         return "typename Converter<${IDLType}>::ReturnType { std::nullopt }";
     }
 
-    if ($defaultValue eq "[]") {
-        return "Converter<${IDLType}>::ReturnType { }";
-    }
-
+    return "Converter<${IDLType}>::ReturnType { }" if $defaultValue eq "[]";
     return "Converter<${IDLType}>::ReturnType { jsUndefined() }" if $defaultValue eq "undefined";
     return "Converter<${IDLType}>::ReturnType { PNaN }" if $defaultValue eq "NaN";
 
@@ -2819,14 +2816,14 @@ sub GenerateDictionaryChecks
     $result .= "      0\n";
     foreach my $member (@{$dictionary->members}) {
         my $conditional = $member->extendedAttributes->{Conditional};
-        my $name = $member->name;
 
         if ($conditional) {
             my $conditionalString = $codeGenerator->GenerateConditionalStringFromAttributeValue($conditional);
             $result .= "#if ${conditionalString}\n";
         }
 
-        $result .= "    , offsetof(${className}, ${name})\n";
+        my $implementationName = $member->extendedAttributes->{ImplementedAs} || $member->name;
+        $result .= "    , offsetof(${className}, ${implementationName})\n";
 
         if ($conditional) {
             $result .= "#endif\n" ;
@@ -2863,7 +2860,7 @@ sub GenerateDictionaryImplementationMemberConversion
     my $implementedAsKey = $member->extendedAttributes->{ImplementedAs} || $key;
 
     my $IDLType = GetIDLType($typeScope, $type);
-    my $adjustedIDLType = (!$member->isRequired && !defined $member->default) ? "IDLOptional<${IDLType}>" : $IDLType;
+    my $adjustedIDLType = GetIDLTypeForDictionaryMember($typeScope, $member);
 
     my $needsRuntimeCheck = NeedsRuntimeCheck($dictionary, $member);
     my $indent = "";
@@ -2904,8 +2901,8 @@ sub GenerateDictionaryImplementationMemberConversion
         $memberConversion .= "${indent}    }\n";
     }
 
-    my $optional = !$member->isRequired;
     my $defaultValueFunctor = GetDictionaryMemberDefaultValueFunctor($typeScope, $member);
+    my $optional = !$member->isRequired && ((defined($member->default) && !WillConvertUndefinedToDefaultParameterValue($member->type, $member->default)) || !defined($member->default));
 
     my $conversion = JSValueToNative($typeScope, $member, "${key}Value", $conditional, "&lexicalGlobalObject", "lexicalGlobalObject", "", "*jsCast<JSDOMGlobalObject*>(&lexicalGlobalObject)", undef, undef, $optional, $defaultValueFunctor);
 
@@ -3090,7 +3087,8 @@ sub GenerateConvertDictionaryForLegacyNativeDictionaryRequiredInterfaceNullabili
                 $result .= "${indent}    result.$implementedAsKey = ${implementedAsKey}ConversionResult.releaseReturnValue();\n";
             } elsif (defined $member->default) {
                 my $defaultValueFunctor = GetDictionaryMemberDefaultValueFunctor($typeScope, $member);
-                my $conversion = JSValueToNative($typeScope, $member, "${key}Value", $conditional, "&lexicalGlobalObject", "lexicalGlobalObject", "", "*jsCast<JSDOMGlobalObject*>(&lexicalGlobalObject)", undef, undef, 1, $defaultValueFunctor);
+                my $optional = !WillConvertUndefinedToDefaultParameterValue($member->type, $member->default);
+                my $conversion = JSValueToNative($typeScope, $member, "${key}Value", $conditional, "&lexicalGlobalObject", "lexicalGlobalObject", "", "*jsCast<JSDOMGlobalObject*>(&lexicalGlobalObject)", undef, undef, $optional, $defaultValueFunctor);
 
                 $result .= "${indent}    auto ${implementedAsKey}ConversionResult = ${conversion};\n";
                 $result .= "${indent}    if (${implementedAsKey}ConversionResult.hasException(throwScope)) [[unlikely]]\n";
@@ -3108,7 +3106,6 @@ sub GenerateConvertDictionaryForLegacyNativeDictionaryRequiredInterfaceNullabili
                     $result .= "${indent}            result.$implementedAsKey = *${implementedAsKey}ParseResult;\n";
                     $result .= "${indent}    }\n";
                 } else {
-                    my $defaultValueFunctor = GetDictionaryMemberDefaultValueFunctor($typeScope, $member);
                     my $conversion = JSValueToNative($typeScope, $member, "${key}Value", $conditional, "&lexicalGlobalObject", "lexicalGlobalObject", "", "*jsCast<JSDOMGlobalObject*>(&lexicalGlobalObject)", undef, undef, undef, undef);
 
                     $result .= "${indent}    if (!${key}Value.isUndefined()) {\n";
@@ -6547,7 +6544,7 @@ sub GenerateOperationBodyDefinition
         }
 
         GenerateArgumentsCountCheck($outputArray, $operation, $interface, $indent);
-        my $functionString = GenerateParametersCheck($outputArray, $operation, $interface, $functionImplementationName, $indent);
+        my $functionString = GenerateOperationParametersCheck($outputArray, $operation, $interface, $functionImplementationName, $indent);
 
         my $hasThrowScope = 1;
         if ($operation->extendedAttributes->{ResultField}) {
@@ -7000,65 +6997,72 @@ sub WillConvertUndefinedToDefaultParameterValue
     my ($parameterType, $defaultValue) = @_;
 
     my $automaticallyGeneratedDefaultValue = $automaticallyGeneratedDefaultValues{$parameterType->name};
-    return 1 if defined $automaticallyGeneratedDefaultValue && $automaticallyGeneratedDefaultValue eq $defaultValue;
+    return 1 if defined $automaticallyGeneratedDefaultValue && $automaticallyGeneratedDefaultValue eq $defaultValue && !$parameterType->extendedAttributes->{EnforceRange};
 
     return 1 if $defaultValue eq "null" && $codeGenerator->IsWrapperType($parameterType);
-    return 1 if $defaultValue eq "[]" && $codeGenerator->IsDictionaryType($parameterType);
+    return 1 if $defaultValue eq "{}";
 
     return 0;
 }
 
-sub GenerateParametersCheck
+sub IsDictionaryLiteralDefaultValueValid
 {
-    my ($outputArray, $operation, $interface, $functionImplementationName, $indent) = @_;
+    my ($type) = @_;
 
-    my $interfaceName = $interface->type->name;
-    my $visibleInterfaceName = $codeGenerator->GetVisibleInterfaceName($interface);
-    my $numArguments = @{$operation->arguments};
-    my $conditional = $operation->extendedAttributes->{Conditional};
-    my $isConstructor = $operation->isConstructor;
-
-    my $functionName = GetFullyQualifiedImplementationCallName($interface, $operation, $functionImplementationName, "impl", $conditional);
-    
-    my @arguments = ();
-    AddAdditionalArgumentsForImplementationCall(\@arguments, $interface, $operation, "impl", "*lexicalGlobalObject", "*callFrame", "*castedThis");
-    
-    my $callWith = $operation->extendedAttributes->{CallWith};
-    assert("[CallWith=Relevant*] can't be used with static operations.") if $operation->isStatic && $codeGenerator->ExtendedAttributeContains($callWith, qr/^Relevant/);
-    my $quotedFunctionName;
-    if (!$isConstructor) {
-        my $name = $operation->name;
-        $quotedFunctionName = "\"$name\"_s";
-        push(@arguments, GenerateCallWithUsingPointers($callWith, \@$outputArray, "JSValue::encode(jsUndefined())", "*castedThis"));
-    } else {
-        $quotedFunctionName = "nullptr";
-        unless ($callWith) {
-            $callWith = $operation->extendedAttributes->{LegacyFactoryFunctionCallWith};
-        }
-        push(@arguments, GenerateConstructorCallWithUsingPointers($callWith, \@$outputArray, $visibleInterfaceName, "*castedThis"));
+    if ($codeGenerator->IsDictionaryType($type)) {
+        return 1;
     }
 
+    if ($type->isUnion) {
+        my $hasDictionaryMember = 0;
+        foreach my $memberType (GetFlattenedMemberTypes($type)) {
+            if ($codeGenerator->IsDictionaryType($memberType)) {
+                $hasDictionaryMember = 1;
+                last;
+            }
+        }
+        return $hasDictionaryMember;
+    }
+
+    return 0;
+}
+
+sub IsArrayLiteralDefaultValueValid
+{
+    my ($type) = @_;
+
+    return $codeGenerator->IsSequenceOrFrozenArrayType($type);
+}
+
+
+sub GenerateArgumentConversions
+{
+    my ($outputArray, $inputArguments, $outputArguments, $globalObjectReference, $interface, $quotedFunctionName, $functionImplementationName, $conditional, $indent) = @_;
+
     my $argumentIndex = 0;
-    foreach my $argument (@{$operation->arguments}) {
+    foreach my $argument (@$inputArguments) {
         my $type = $argument->type;
         AddToImplIncludesForIDLType($type, $conditional);
 
-        if ($argument->isOptional && !defined($argument->default)) {
-            # As per Web IDL, optional dictionary arguments are always considered to have a default value of an empty dictionary, unless otherwise specified.
-            $argument->default("[]") if $codeGenerator->IsDictionaryType($type);
+        if ($argument->isOptional) {
+            if (!defined($argument->default)) {
+                # We use undefined as default value for optional arguments of type 'any' unless specified otherwise.
+                $argument->default("undefined") if $type->name eq "any";
 
-            # Treat undefined the same as an empty sequence Or frozen array.
-            $argument->default("[]") if $codeGenerator->IsSequenceOrFrozenArrayType($type);
+                # We use the null string as default value for arguments of type DOMString unless specified otherwise.
+                $argument->default("null") if $codeGenerator->IsStringType($type);
 
-            # We use undefined as default value for optional arguments of type 'any' unless specified otherwise.
-            $argument->default("undefined") if $type->name eq "any";
-
-            # We use the null string as default value for arguments of type DOMString unless specified otherwise.
-            $argument->default("null") if $codeGenerator->IsStringType($type);
-
-            # As per Web IDL, passing undefined for a nullable argument is treated as null. Therefore, use null as
-            # default value for nullable arguments unless otherwise specified.
-            $argument->default("null") if $type->isNullable;
+                # As per Web IDL, passing undefined for a nullable argument is treated as null. Therefore, use null as
+                # default value for nullable arguments unless otherwise specified.
+                $argument->default("null") if $type->isNullable;
+            } else {
+                if ($argument->default eq "{}" and !IsDictionaryLiteralDefaultValueValid($type)) {
+                    assert("Default value '{}' is only supported by dictionary and union types containing a dictionary");
+                }
+                if ($argument->default eq "[]" and !IsArrayLiteralDefaultValueValid($type)) {
+                    assert("Default value '[]' is only supported by sequence and frozen array types");
+                }
+            }
         }
 
         my $name = $argument->name;
@@ -7083,12 +7087,11 @@ sub GenerateParametersCheck
             }
 
             my $argumentLookupForConversion = "argument${argumentIndex}.value()";
-            my $globalObjectReference = $operation->isStatic ? "*jsCast<JSDOMGlobalObject*>(lexicalGlobalObject)" : "*castedThis->globalObject()";
 
             my $argumentExceptionThrowerFunctor = GetArgumentExceptionThrowerFunctor($interface, $argument, $argumentIndex, $quotedFunctionName);
             my $argumentDefaultValueFunctor = GetArgumentDefaultValueFunctor($interface, $argument);
 
-            my $optional = $argument->isOptional && ((defined($argument->default) && !WillConvertUndefinedToDefaultParameterValue($argument->type, $argument->default))|| !defined($argument->default));
+            my $optional = $argument->isOptional && ((defined($argument->default) && !WillConvertUndefinedToDefaultParameterValue($argument->type, $argument->default)) || !defined($argument->default));
 
             my $nativeValue = JSValueToNative($interface, $argument, $argumentLookupForConversion, $conditional, "lexicalGlobalObject", "*lexicalGlobalObject", "*castedThis", $globalObjectReference, $argumentExceptionThrowerFunctor, $functionImplementationName, $optional, $argumentDefaultValueFunctor);
 
@@ -7099,9 +7102,44 @@ sub GenerateParametersCheck
             $value = "${name}ConversionResult.releaseReturnValue()";
         }
 
-        push(@arguments, $value);
+        push(@$outputArguments, $value);
         $argumentIndex++;
     }
+}
+
+sub GenerateOperationParametersCheck
+{
+    my ($outputArray, $operation, $interface, $functionImplementationName, $indent) = @_;
+
+    my $interfaceName = $interface->type->name;
+    my $visibleInterfaceName = $codeGenerator->GetVisibleInterfaceName($interface);
+    my $numArguments = @{$operation->arguments};
+    my $conditional = $operation->extendedAttributes->{Conditional};
+    my $isConstructor = $operation->isConstructor;
+    my $globalObjectReference = $operation->isStatic ? "*jsCast<JSDOMGlobalObject*>(lexicalGlobalObject)" : "*castedThis->globalObject()";
+
+    my $functionName = GetFullyQualifiedImplementationCallName($interface, $operation, $functionImplementationName, "impl", $conditional);
+    
+    my @arguments = ();
+
+    AddAdditionalArgumentsForImplementationCall(\@arguments, $interface, $operation, "impl", "*lexicalGlobalObject", "*callFrame", "*castedThis");
+
+    my $callWith = $operation->extendedAttributes->{CallWith};
+    assert("[CallWith=Relevant*] can't be used with static operations.") if $operation->isStatic && $codeGenerator->ExtendedAttributeContains($callWith, qr/^Relevant/);
+    my $quotedFunctionName;
+    if (!$isConstructor) {
+        my $name = $operation->name;
+        $quotedFunctionName = "\"$name\"_s";
+        push(@arguments, GenerateCallWithUsingPointers($callWith, \@$outputArray, "JSValue::encode(jsUndefined())", "*castedThis"));
+    } else {
+        $quotedFunctionName = "nullptr";
+        unless ($callWith) {
+            $callWith = $operation->extendedAttributes->{LegacyFactoryFunctionCallWith};
+        }
+        push(@arguments, GenerateConstructorCallWithUsingPointers($callWith, \@$outputArray, $visibleInterfaceName, "*castedThis"));
+    }
+
+    GenerateArgumentConversions($outputArray, \@{$operation->arguments}, \@arguments, $globalObjectReference, $interface, $quotedFunctionName, $functionImplementationName, $conditional, $indent);
 
     push(@arguments, "WTF::move(promise)") if $operation->type && $codeGenerator->IsPromiseType($operation->type) && !$operation->extendedAttributes->{PromiseProxy} && !$operation->extendedAttributes->{ReturnsOwnPromise};
     push(@arguments, "WTF::move(promise), WTF::move(promise2)") if $operation->extendedAttributes->{ReturnsPromisePair};
@@ -7181,6 +7219,12 @@ sub GenerateCallbackFunctionHeader
 
     push(@headerContent, "} // namespace WebCore\n");
 
+    my $name = $callbackFunction->type->name;
+    my $className = GetCallbackClassName($name);
+    push(@headerContent, "\nSPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::${className})\n");
+    push(@headerContent, "    static bool isType(const WebCore::${name}& callback) { return callback.is${className}(); }\n");
+    push(@headerContent, "SPECIALIZE_TYPE_TRAITS_END()\n");
+
     my $conditionalString = $codeGenerator->GenerateConditionalString($callbackFunction);
     push(@headerContent, "\n#endif // ${conditionalString}\n") if $conditionalString;
 }
@@ -7224,6 +7268,12 @@ sub GenerateCallbackInterfaceHeader
 
     push(@headerContent, "} // namespace WebCore\n");
 
+    my $name = $callbackInterface->type->name;
+    my $className = GetCallbackClassName($name);
+    push(@headerContent, "\nSPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::${className})\n");
+    push(@headerContent, "    static bool isType(const WebCore::${name}& callback) { return callback.is${className}(); }\n");
+    push(@headerContent, "SPECIALIZE_TYPE_TRAITS_END()\n");
+
     my $conditionalString = $codeGenerator->GenerateConditionalString($callbackInterface);
     push(@headerContent, "\n#endif // ${conditionalString}\n") if $conditionalString;
 }
@@ -7266,6 +7316,7 @@ sub GenerateCallbackHeaderContent
     $includesRef->{"IDLTypes.h"} = 1;
     $includesRef->{"JSCallbackData.h"} = 1;
     $includesRef->{"<wtf/Forward.h>"} = 1;
+    $includesRef->{"<wtf/TypeCasts.h>"} = 1;
     $includesRef->{"${name}.h"} = 1;
 
     my $exportMacro = GetExportMacroForJSClass($interfaceOrCallback);
@@ -7330,6 +7381,7 @@ sub GenerateCallbackHeaderContent
     push(@$contentRef, "    ${className}(JSC::JSObject*, JSDOMGlobalObject*);\n\n");
 
     push(@$contentRef, "    bool hasCallback() const final { return m_data && m_data->callback(); }\n\n");
+    push(@$contentRef, "    bool is${className}() const final { return true; }\n\n");
 
     if (!$generateIsReachable) {
         push(@$contentRef, "    void visitJSFunction(JSC::AbstractSlotVisitor&) override;\n\n");
@@ -7584,9 +7636,9 @@ sub GenerateCallbackImplementationContent
 
     push(@$contentRef, "JSC::JSValue toJS(${name}& impl)\n");
     push(@$contentRef, "{\n");
-    push(@$contentRef, "    if (!static_cast<${className}&>(impl).callbackData())\n");
-    push(@$contentRef, "        return jsNull();\n\n");
-    push(@$contentRef, "    return static_cast<${className}&>(impl).callbackData()->callback();\n");
+    push(@$contentRef, "    if (auto* callbackData = downcast<${className}>(impl).callbackData())\n");
+    push(@$contentRef, "        return callbackData->callback();\n");
+    push(@$contentRef, "    return jsNull();\n\n");
     push(@$contentRef, "}\n\n");
 
     push(@$contentRef, "ScriptExecutionContext* ${className}::scriptExecutionContext() const\n");
@@ -7807,63 +7859,42 @@ END
         next if $propertyName eq "[Symbol.Iterator]" or $propertyName eq "[Symbol.asyncIterator]";
 
         if ($propertyName eq "forEach") {
-            push(@implContent,  <<END);
-static inline EncodedJSValue ${functionName}Caller(JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame, JS$interfaceName* thisObject)
-{
-    return JSValue::encode(iteratorForEach<${iteratorName}>(*lexicalGlobalObject, *callFrame, *thisObject));
-}
-
-END
+            push(@implContent, "static inline EncodedJSValue ${functionName}Caller(JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame, JS$interfaceName* thisObject)\n");
+            push(@implContent, "{\n");
+            push(@implContent, "    return JSValue::encode(iteratorForEach<${iteratorName}>(*lexicalGlobalObject, *callFrame, *thisObject));\n");
+            push(@implContent, "}\n\n");
         } else {
             my $iterationKind = "Entries";
             $iterationKind = "Keys" if $propertyName eq "keys";
             $iterationKind = "Values" if $propertyName eq "values";
             $iterationKind = "Values" if $propertyName eq "entries" and not $iterable->isKeyValue;
 
-            push(@implContent,  <<END);
-static inline EncodedJSValue ${functionName}Caller(JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame, JS$interfaceName* thisObject)
-{
-    UNUSED_PARAM(callFrame);
-    SUPPRESS_UNCOUNTED_LOCAL auto& vm = JSC::getVM(lexicalGlobalObject);
-    auto throwScope = DECLARE_THROW_SCOPE(vm);
-END
+            push(@implContent, "static inline EncodedJSValue ${functionName}Caller(JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame, JS$interfaceName* thisObject)\n");
+            push(@implContent, "{\n");
+            push(@implContent, "    SUPPRESS_UNCOUNTED_LOCAL auto& vm = JSC::getVM(lexicalGlobalObject);\n");
+            push(@implContent, "    auto throwScope = DECLARE_THROW_SCOPE(vm);\n");
+            push(@implContent, "    UNUSED_PARAM(throwScope);\n");
+            push(@implContent, "    UNUSED_PARAM(callFrame);\n");
 
-            my @creationArgumentList = ($iterationKind);
+            my @arguments = ();
+            push(@arguments, "*thisObject");
+            push(@arguments, "*lexicalGlobalObject");
+            push(@arguments, "throwScope");
+            push(@arguments, "IterationKind::${iterationKind}");
+
             if ($interface->asyncIterable) {
-                my $argumentIndex = 0;
                 my $quotedFunctionName = "\"$functionName\"_s";
-                my $conditional = $codeGenerator->GenerateConditionalString($operation);
-                foreach my $argument (@{$interface->asyncIterable->arguments}) {
-                    my $name = $argument->name;
-                    my $type = $argument->type;
-                    AddToImplIncludesForIDLType($type, $conditional);
+                my $globalObjectReference = "*castedThis->globalObject()";
+                my $conditional = $operation->extendedAttributes->{Conditional};
 
-                    my $globalObjectReference = "*castedThis->globalObject()";
-                    my $argumentExceptionThrowerFunctor = GetArgumentExceptionThrowerFunctor($interface, $argument, $argumentIndex, $quotedFunctionName);
-                    my $argumentDefaultValueFunctor = GetArgumentDefaultValueFunctor($interface, $argument);
-                    my $optional = 1;
-                    my $argumentLookupForConversion = "argument${argumentIndex}.value()";
-                    my $nativeValue = JSValueToNative($interface, $argument, $argumentLookupForConversion, $conditional, "lexicalGlobalObject", "*lexicalGlobalObject", "*castedThis", $globalObjectReference, $argumentExceptionThrowerFunctor, $functionName, $optional, $argumentDefaultValueFunctor);
-
-                    push(@implContent, <<END);
-    EnsureStillAliveScope argument${argumentIndex} = callFrame->argument($argumentIndex);
-    auto ${name}ConversionResult = ${nativeValue};
-    if (${name}ConversionResult.hasException(throwScope)) [[unlikely]]
-       return encodedJSValue();
-END
-                    push(@creationArgumentList, ", ");
-                    push(@creationArgumentList, "${name}ConversionResult.releaseReturnValue()");
-
-                    $argumentIndex++;
-                }
+                GenerateArgumentsCountCheck(\@implContent, $interface->asyncIterable, $interface, "    ");
+                GenerateArgumentConversions(\@implContent, \@{$interface->asyncIterable->arguments}, \@arguments, $globalObjectReference, $interface, $quotedFunctionName, $functionName, $conditional, "    ");
             }
-            my $iteratorCreateParameters = join("", @creationArgumentList);
 
-            push(@implContent,  <<END);
-    RELEASE_AND_RETURN(throwScope, JSValue::encode(iteratorCreate<${iteratorName}>(*thisObject, *lexicalGlobalObject, throwScope, IterationKind::${iteratorCreateParameters})));
-}
+            my $functionCall = "iteratorCreate<${iteratorName}>(" . join(", ", @arguments) . ")";
 
-END
+            push(@implContent, "    RELEASE_AND_RETURN(throwScope, JSValue::encode(${functionCall}));\n");
+            push(@implContent, "}\n\n");
         }
 
         push(@implContent,  <<END);
@@ -8057,6 +8088,18 @@ sub GetIDLTypeForArgument
     my $optional = $argument->isOptional && ((defined($argument->default) && !WillConvertUndefinedToDefaultParameterValue($argument->type, $argument->default))|| !defined($argument->default));
 
     my $IDLType = GetIDLType($interface, $argument->type);
+    $IDLType = "IDLOptional<" . $IDLType . ">" if $optional && !$defaultValueFunctor;
+    return $IDLType;
+}
+
+sub GetIDLTypeForDictionaryMember
+{
+    my ($interface, $member) = @_;
+
+    my $defaultValueFunctor = GetDictionaryMemberDefaultValueFunctor($interface, $member);
+    my $optional = !$member->isRequired && ((defined($member->default) && !WillConvertUndefinedToDefaultParameterValue($member->type, $member->default)) || !defined($member->default));
+
+    my $IDLType = GetIDLType($interface, $member->type);
     $IDLType = "IDLOptional<" . $IDLType . ">" if $optional && !$defaultValueFunctor;
     return $IDLType;
 }
@@ -8818,7 +8861,7 @@ sub GenerateConstructorDefinition
             GenerateArgumentsCountCheck($outputArray, $operation, $interface, "    ");
 
             my $functionImplementationName = $generatingLegacyFactoryFunction ? "createForLegacyFactoryFunction" : "create";
-            my $functionString = GenerateParametersCheck($outputArray, $operation, $interface, $functionImplementationName, "    ");
+            my $functionString = GenerateOperationParametersCheck($outputArray, $operation, $interface, $functionImplementationName, "    ");
 
             push(@$outputArray, "    auto object = ${functionString};\n");
             push(@$outputArray, "    if constexpr (IsExceptionOr<decltype(object)>)\n");

@@ -43,6 +43,7 @@ public:
     void ref() const final { RefCounted::ref(); }
     void deref() const final { RefCounted::deref(); }
 
+    virtual bool isJSWebLockGrantedCallback() const { return false; }
     virtual CallbackResult<Ref<DOMPromise>> invoke(WebLock*) = 0;
 
 private:

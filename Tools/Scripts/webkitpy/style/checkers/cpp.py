@@ -2038,6 +2038,21 @@ def check_function_definition(filename, file_extension, clean_lines, line_number
                     error(line_number, 'security/missing_warn_unused_return', 5,
                           'decode() function returning a value is missing WARN_UNUSED_RETURN attribute')
 
+    # Check for new protected*() member functions that should use regular getters with protect() at call site.
+    if function_state.is_declaration:
+        # Extract the simple function name (without class qualifiers).
+        simple_function_name = function_name.split('::')[-1] if '::' in function_name else function_name
+        # Only check getter-style functions with no parameters.
+        parameter_list = function_state.parameter_list()
+        # Check if it starts with 'protected', has no parameters (getter-style).
+        if simple_function_name.startswith('protected') and len(simple_function_name) > len('protected') and not parameter_list:
+            error(line_number, 'readability/protected_getter', 4,
+                  'Do not add new protected*() getter functions. Call the regular getter and use protect() at the call site instead.')
+        # Check if it starts with 'checked', has no parameters (getter-style).
+        if simple_function_name.startswith('checked') and len(simple_function_name) > len('checked') and not parameter_list:
+            error(line_number, 'readability/checked_getter', 4,
+                  'Do not add new checked*() getter functions. Call the regular getter and use protect() at the call site instead.')
+
     attributes = function_state.attributes_after_definition(r'(\bWARN_[0-9A-Z_]+\b|__attribute__\(\(__[a-z_]+__\)\))')
     if len(attributes) > 0:
         attribute_text = ', '.join(attributes)
@@ -5117,6 +5132,8 @@ class CppChecker(object):
         'readability/naming/protected',
         'readability/naming/underscores',
         'readability/null',
+        'readability/checked_getter',
+        'readability/protected_getter',
         'readability/streams',
         'readability/todo',
         'readability/utf8',

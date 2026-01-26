@@ -140,7 +140,7 @@ WorkQueue& WebsiteDataStore::websiteDataStoreIOQueueSingleton()
 void WebsiteDataStore::forEachWebsiteDataStore(NOESCAPE Function<void(WebsiteDataStore&)>&& function)
 {
     for (auto& dataStore : allDataStores().values())
-        function(Ref { dataStore.get() });
+        function(protect(dataStore.get()));
 }
 
 Ref<WebsiteDataStore> WebsiteDataStore::createNonPersistent()
@@ -287,7 +287,7 @@ Ref<WebsiteDataStore> WebsiteDataStore::dataStoreForIdentifier(const WTF::UUID& 
     InitializeWebKit2();
     for (auto& dataStore : allDataStores().values()) {
         if (dataStore->configuration().identifier() == uuid)
-            return Ref { dataStore.get() };
+            return protect(dataStore.get());
     }
 
     Ref configuration = WebsiteDataStoreConfiguration::create(uuid);
@@ -309,7 +309,7 @@ WebsiteDataStore* WebsiteDataStore::existingDataStoreForSessionID(PAL::SessionID
 #if HAVE(APP_SSO)
 SOAuthorizationCoordinator& WebsiteDataStore::soAuthorizationCoordinator(const WebPageProxy& pageProxy)
 {
-    RELEASE_ASSERT(pageProxy.protectedPreferences()->isExtensibleSSOEnabled());
+    RELEASE_ASSERT(protect(pageProxy.preferences())->isExtensibleSSOEnabled());
     if (!m_soAuthorizationCoordinator)
         lazyInitialize(m_soAuthorizationCoordinator, WTF::makeUnique<SOAuthorizationCoordinator>());
 
@@ -569,7 +569,7 @@ void WebsiteDataStore::fetchDomainsWithUserInteraction(CompletionHandler<void(co
     if (!shouldFetch)
         return;
 
-    protectedNetworkProcess()->sendWithAsyncReply(Messages::NetworkProcess::FetchWebsitesWithUserInteractions(sessionID()), [this, protectedThis = RefPtr { *this }](HashSet<WebCore::RegistrableDomain>&& domains) {
+    protectedNetworkProcess()->sendWithAsyncReply(Messages::NetworkProcess::FetchWebsitesWithUserInteractions(sessionID()), [this, protectedThis = Ref { *this }](HashSet<WebCore::RegistrableDomain>&& domains) {
         domains.addAll(platformAdditionalDomainsWithUserInteraction());
         m_domainsWithUserInteractions = WTF::move(domains);
 
@@ -837,7 +837,7 @@ private:
 
 void WebsiteDataStore::fetchDataForRegistrableDomains(OptionSet<WebsiteDataType> dataTypes, OptionSet<WebsiteDataFetchOption> fetchOptions, Vector<WebCore::RegistrableDomain>&& domains, CompletionHandler<void(Vector<WebsiteDataRecord>&&, HashSet<WebCore::RegistrableDomain>&&)>&& completionHandler)
 {
-    fetchDataAndApply(dataTypes, fetchOptions, Ref { m_queue }, [domains = crossThreadCopy(domains), completionHandler = WTF::move(completionHandler)] (auto&& existingDataRecords) mutable {
+    fetchDataAndApply(dataTypes, fetchOptions, protect(m_queue), [domains = crossThreadCopy(domains), completionHandler = WTF::move(completionHandler)] (auto&& existingDataRecords) mutable {
         ASSERT(!RunLoop::isMain());
         
         Vector<WebsiteDataRecord> matchingDataRecords;
@@ -2591,7 +2591,7 @@ void WebsiteDataStore::forwardAppBoundDomainsToITPIfInitialized(CompletionHandle
     propagateAppBoundDomains(protectedGlobalDefaultDataStore().get(), *appBoundDomains);
 
     for (auto& store : allDataStores().values())
-        propagateAppBoundDomains(Ref { store.get() }.ptr(), *appBoundDomains);
+        propagateAppBoundDomains(protect(store.get()).ptr(), *appBoundDomains);
 }
 
 void WebsiteDataStore::setAppBoundDomainsForITP(const HashSet<WebCore::RegistrableDomain>& domains, CompletionHandler<void()>&& completionHandler)
@@ -2620,7 +2620,7 @@ void WebsiteDataStore::forwardManagedDomainsToITPIfInitialized(CompletionHandler
     propagateManagedDomains(protectedGlobalDefaultDataStore().get(), *managedDomains);
 
     for (auto& store : allDataStores().values())
-        propagateManagedDomains(Ref { store.get() }.ptr(), *managedDomains);
+        propagateManagedDomains(protect(store.get()).ptr(), *managedDomains);
 }
 
 void WebsiteDataStore::setManagedDomainsForITP(const HashSet<WebCore::RegistrableDomain>& domains, CompletionHandler<void()>&& completionHandler)
@@ -2948,7 +2948,7 @@ bool WebsiteDataStore::builtInNotificationsEnabled() const
         return defaultBuiltInNotificationsEnabled();
 
     for (Ref page : m_pages) {
-        if (page->protectedPreferences()->builtInNotificationsEnabled())
+        if (protect(page->preferences())->builtInNotificationsEnabled())
             return true;
     }
     return false;

@@ -79,7 +79,7 @@ void RemoteWebInspectorUIProxy::setDiagnosticLoggingAvailable(bool available)
 {
 #if ENABLE(INSPECTOR_TELEMETRY)
     if (RefPtr page = m_inspectorPage.get())
-        page->protectedLegacyMainFrameProcess()->send(Messages::RemoteWebInspectorUI::SetDiagnosticLoggingAvailable(available), page->webPageIDInMainFrameProcess());
+        protect(page->legacyMainFrameProcess())->send(Messages::RemoteWebInspectorUI::SetDiagnosticLoggingAvailable(available), page->webPageIDInMainFrameProcess());
 #else
     UNUSED_PARAM(available);
 #endif
@@ -93,7 +93,7 @@ void RemoteWebInspectorUIProxy::initialize(Ref<API::DebuggableInfo>&& debuggable
     createFrontendPageAndWindow();
 
     RefPtr inspectorPage = m_inspectorPage.get();
-    inspectorPage->protectedLegacyMainFrameProcess()->send(Messages::RemoteWebInspectorUI::Initialize(m_debuggableInfo->debuggableInfoData(), backendCommandsURL), m_inspectorPage->webPageIDInMainFrameProcess());
+    protect(inspectorPage->legacyMainFrameProcess())->send(Messages::RemoteWebInspectorUI::Initialize(m_debuggableInfo->debuggableInfoData(), backendCommandsURL), m_inspectorPage->webPageIDInMainFrameProcess());
     inspectorPage->loadRequest(URL { WebInspectorUIProxy::inspectorPageURL() });
 }
 
@@ -116,19 +116,19 @@ void RemoteWebInspectorUIProxy::show()
 void RemoteWebInspectorUIProxy::showConsole()
 {
     if (RefPtr page = m_inspectorPage.get())
-        page->protectedLegacyMainFrameProcess()->send(Messages::RemoteWebInspectorUI::ShowConsole { }, page->webPageIDInMainFrameProcess());
+        protect(page->legacyMainFrameProcess())->send(Messages::RemoteWebInspectorUI::ShowConsole { }, page->webPageIDInMainFrameProcess());
 }
 
 void RemoteWebInspectorUIProxy::showResources()
 {
     if (RefPtr page = m_inspectorPage.get())
-        page->protectedLegacyMainFrameProcess()->send(Messages::RemoteWebInspectorUI::ShowResources { }, page->webPageIDInMainFrameProcess());
+        protect(page->legacyMainFrameProcess())->send(Messages::RemoteWebInspectorUI::ShowResources { }, page->webPageIDInMainFrameProcess());
 }
 
 void RemoteWebInspectorUIProxy::sendMessageToFrontend(const String& message)
 {
     if (RefPtr page = m_inspectorPage.get())
-        page->protectedLegacyMainFrameProcess()->send(Messages::RemoteWebInspectorUI::SendMessageToFrontend(message), page->webPageIDInMainFrameProcess());
+        protect(page->legacyMainFrameProcess())->send(Messages::RemoteWebInspectorUI::SendMessageToFrontend(message), page->webPageIDInMainFrameProcess());
 }
 
 void RemoteWebInspectorUIProxy::frontendLoaded()
@@ -217,7 +217,7 @@ void RemoteWebInspectorUIProxy::setInspectorPageDeveloperExtrasEnabled(bool enab
     if (!inspectorPage)
         return;
 
-    inspectorPage->protectedPreferences()->setDeveloperExtrasEnabled(enabled);
+    protect(inspectorPage->preferences())->setDeveloperExtrasEnabled(enabled);
 }
 
 void RemoteWebInspectorUIProxy::setPageAndTextZoomFactors(double pageZoomFactor, double textZoomFactor)
@@ -245,7 +245,7 @@ void RemoteWebInspectorUIProxy::createFrontendPageAndWindow()
 
     trackInspectorPage(*inspectorPage, nullptr);
 
-    inspectorPage->protectedLegacyMainFrameProcess()->addMessageReceiver(Messages::RemoteWebInspectorUIProxy::messageReceiverName(), inspectorPage->webPageIDInMainFrameProcess(), *this);
+    protect(inspectorPage->legacyMainFrameProcess())->addMessageReceiver(Messages::RemoteWebInspectorUIProxy::messageReceiverName(), inspectorPage->webPageIDInMainFrameProcess(), *this);
 
 #if ENABLE(INSPECTOR_EXTENSIONS)
     m_extensionController = WebInspectorUIExtensionControllerProxy::create(*inspectorPage);
@@ -258,7 +258,7 @@ void RemoteWebInspectorUIProxy::closeFrontendPageAndWindow()
     if (!inspectorPage)
         return;
 
-    inspectorPage->protectedLegacyMainFrameProcess()->removeMessageReceiver(Messages::RemoteWebInspectorUIProxy::messageReceiverName(), inspectorPage->webPageIDInMainFrameProcess());
+    protect(inspectorPage->legacyMainFrameProcess())->removeMessageReceiver(Messages::RemoteWebInspectorUIProxy::messageReceiverName(), inspectorPage->webPageIDInMainFrameProcess());
 
     untrackInspectorPage(*inspectorPage);
 
