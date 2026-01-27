@@ -33,6 +33,7 @@
 #include "RemoteMediaPlayerManager.h"
 #include "RemoteMediaPlayerState.h"
 #include "RemoteMediaResourceIdentifier.h"
+#include "RemoteMediaResourceLoaderIdentifier.h"
 #include "RemoteMediaResourceProxy.h"
 #include "RemoteVideoFrameObjectHeapProxy.h"
 #include "RemoteVideoFrameProxy.h"
@@ -76,6 +77,7 @@ class PixelBufferConformerCV;
 namespace WebKit {
 
 class RemoteAudioSourceProvider;
+class RemoteMediaResourceLoaderProxy;
 class UserData;
 struct AudioTrackPrivateRemoteConfiguration;
 struct TextTrackPrivateRemoteConfiguration;
@@ -172,9 +174,6 @@ public:
     void updateGenericCue(WebCore::TrackID, WebCore::GenericCueData&&);
     void removeGenericCue(WebCore::TrackID, WebCore::GenericCueData&&);
 
-    void requestResource(RemoteMediaResourceIdentifier, WebCore::ResourceRequest&&, WebCore::PlatformMediaResourceLoader::LoadOptions);
-    void removeResource(RemoteMediaResourceIdentifier);
-    void sendH2Ping(const URL&, CompletionHandler<void(Expected<WTF::Seconds, WebCore::ResourceError>&&)>&&);
     void resourceNotSupported();
 
     void activeSourceBuffersChanged();
@@ -509,6 +508,9 @@ private:
     void setMessageClientForTesting(WeakPtr<WebCore::MessageClientForTesting>) final;
     void sendInternalMessage(const WebCore::MessageForTesting&);
 
+    void createResourceLoader(RemoteMediaResourceLoaderIdentifier);
+    void destroyResourceLoader(RemoteMediaResourceLoaderIdentifier);
+
     ThreadSafeWeakPtr<WebCore::MediaPlayer> m_player;
 #if PLATFORM(COCOA)
     mutable UniqueRef<WebCore::VideoLayerManager> m_videoLayerManager;
@@ -565,6 +567,7 @@ private:
     String m_defaultSpatialTrackingLabel;
     String m_spatialTrackingLabel;
     WeakPtr<WebCore::MessageClientForTesting> m_internalMessageClient;
+    HashMap<RemoteMediaResourceLoaderIdentifier, RefPtr<RemoteMediaResourceLoaderProxy>> m_mediaResourceLoaders;
 };
 
 } // namespace WebKit

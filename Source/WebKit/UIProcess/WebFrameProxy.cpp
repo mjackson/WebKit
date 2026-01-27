@@ -151,21 +151,16 @@ WebFrameProxy::~WebFrameProxy()
 template<typename M, typename C> void WebFrameProxy::sendWithAsyncReply(M&& message, C&& completionHandler)
 {
     // Use AuxiliaryProcessProxy::sendMessage to handle process crashes and launches more gracefully.
-    protectedProcess()->sendWithAsyncReply(std::forward<M>(message), std::forward<C>(completionHandler), m_frameID);
+    protect(process())->sendWithAsyncReply(std::forward<M>(message), std::forward<C>(completionHandler), m_frameID);
 }
 
 template<typename M> void WebFrameProxy::send(M&& message)
 {
     // Use AuxiliaryProcessProxy::sendMessage to handle process crashes and launches more gracefully.
-    protectedProcess()->send(std::forward<M>(message), m_frameID);
+    protect(process())->send(std::forward<M>(message), m_frameID);
 }
 
 WebPageProxy* WebFrameProxy::page() const
-{
-    return m_page.get();
-}
-
-RefPtr<WebPageProxy> WebFrameProxy::protectedPage() const
 {
     return m_page.get();
 }
@@ -210,11 +205,6 @@ WebProcessProxy& WebFrameProxy::process() const
     return m_frameProcess->process();
 }
 
-Ref<WebProcessProxy> WebFrameProxy::protectedProcess() const
-{
-    return process();
-}
-
 ProcessID WebFrameProxy::processID() const
 {
     return process().processID();
@@ -234,7 +224,7 @@ void WebFrameProxy::navigateServiceWorkerClient(WebCore::ScriptExecutionContextI
         return;
     }
 
-    protectedPage()->sendWithAsyncReplyToProcessContainingFrame(frameID(), Messages::WebPage::NavigateServiceWorkerClient { documentIdentifier, url }, CompletionHandler<void(WebCore::ScheduleLocationChangeResult)> { [this, protectedThis = Ref { *this }, callback = WTF::move(callback)](auto result) mutable {
+    protect(page())->sendWithAsyncReplyToProcessContainingFrame(frameID(), Messages::WebPage::NavigateServiceWorkerClient { documentIdentifier, url }, CompletionHandler<void(WebCore::ScheduleLocationChangeResult)> { [this, protectedThis = Ref { *this }, callback = WTF::move(callback)](auto result) mutable {
         switch (result) {
         case WebCore::ScheduleLocationChangeResult::Stopped:
             callback({ }, { });
@@ -269,7 +259,7 @@ void WebFrameProxy::loadData(std::span<const uint8_t> data, const String& type, 
     ASSERT(!isMainFrame());
     if (RefPtr page = m_page.get()) {
         if (baseURL.protocolIsFile())
-            protectedProcess()->addPreviouslyApprovedFileURL(baseURL);
+            protect(process())->addPreviouslyApprovedFileURL(baseURL);
         page->sendToProcessContainingFrame(m_frameID, Messages::WebPage::LoadDataInFrame(data, type, encodingName, baseURL, m_frameID));
     }
 }
@@ -548,11 +538,11 @@ void WebFrameProxy::commitProvisionalFrame(IPC::Connection& connection, FrameIde
 {
     ASSERT(m_page);
     if (m_provisionalFrame) {
-        protectedProcess()->send(Messages::WebPage::LoadDidCommitInAnotherProcess(frameID, m_layerHostingContextIdentifier), *webPageIDInCurrentProcess());
+        protect(process())->send(Messages::WebPage::LoadDidCommitInAnotherProcess(frameID, m_layerHostingContextIdentifier), *webPageIDInCurrentProcess());
         if (RefPtr process = std::exchange(m_provisionalFrame, nullptr)->takeFrameProcess())
             m_frameProcess = process.releaseNonNull();
     }
-    protectedPage()->didCommitLoadForFrame(connection, frameID, WTF::move(frameInfo), WTF::move(request), navigationID, WTF::move(mimeType), frameHasCustomContentProvider, frameLoadType, certificateInfo, usedLegacyTLS, privateRelayed, WTF::move(proxyName), source, containsPluginDocument, hasInsecureContent, mouseEventPolicy, WTF::move(documentSecurityPolicy), userData);
+    protect(page())->didCommitLoadForFrame(connection, frameID, WTF::move(frameInfo), WTF::move(request), navigationID, WTF::move(mimeType), frameHasCustomContentProvider, frameLoadType, certificateInfo, usedLegacyTLS, privateRelayed, WTF::move(proxyName), source, containsPluginDocument, hasInsecureContent, mouseEventPolicy, WTF::move(documentSecurityPolicy), userData);
 }
 
 void WebFrameProxy::getFrameInfo(CompletionHandler<void(std::optional<FrameInfoData>&&)>&& completionHandler)
@@ -660,7 +650,7 @@ void WebFrameProxy::remoteProcessDidTerminate(WebProcessProxy& process, ClearFra
     if (m_frameLoadState.state() == FrameLoadState::State::Finished)
         return;
 
-    notifyParentOfLoadCompletion(protectedProcess());
+    notifyParentOfLoadCompletion(protect(this->process()));
 }
 
 Ref<FrameTreeSyncData> WebFrameProxy::calculateFrameTreeSyncData() const
@@ -716,7 +706,7 @@ void WebFrameProxy::notifyParentOfLoadCompletion(WebProcessProxy& childFrameProc
 std::optional<WebCore::PageIdentifier> WebFrameProxy::webPageIDInCurrentProcess()
 {
     if (RefPtr page = m_page.get())
-        return page->webPageIDInProcess(protectedProcess());
+        return page->webPageIDInProcess(protect(process()));
     return std::nullopt;
 }
 

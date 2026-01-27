@@ -30,7 +30,6 @@
 
 #include "RemoteMediaPlayerProxy.h"
 #include "RemoteMediaResourceLoader.h"
-#include "RemoteMediaResourceManager.h"
 #include <WebCore/ResourceResponse.h>
 #include <WebCore/SharedBuffer.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -41,17 +40,15 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(RemoteMediaResource);
 
 using namespace WebCore;
 
-Ref<RemoteMediaResource> RemoteMediaResource::create(RemoteMediaResourceManager& remoteMediaResourceManager, RemoteMediaPlayerProxy& remoteMediaPlayerProxy, RemoteMediaResourceIdentifier identifier)
+Ref<RemoteMediaResource> RemoteMediaResource::create(RemoteMediaResourceLoader& loader, RemoteMediaResourceIdentifier identifier)
 {
-    return adoptRef(*new RemoteMediaResource(remoteMediaResourceManager, remoteMediaPlayerProxy, identifier));
+    return adoptRef(*new RemoteMediaResource(loader, identifier));
 }
 
-RemoteMediaResource::RemoteMediaResource(RemoteMediaResourceManager& remoteMediaResourceManager, RemoteMediaPlayerProxy& remoteMediaPlayerProxy, RemoteMediaResourceIdentifier identifier)
-    : m_remoteMediaResourceManager(remoteMediaResourceManager)
-    , m_remoteMediaPlayerProxy(remoteMediaPlayerProxy)
+RemoteMediaResource::RemoteMediaResource(RemoteMediaResourceLoader& loader, RemoteMediaResourceIdentifier identifier)
+    : m_remoteMediaResourceLoader(loader)
     , m_id(identifier)
 {
-    ASSERT(isMainRunLoop());
 }
 
 RemoteMediaResource::~RemoteMediaResource()
@@ -66,13 +63,8 @@ void RemoteMediaResource::shutdown()
 
     setClient(nullptr);
 
-    if (RefPtr remoteMediaResourceManager = m_remoteMediaResourceManager.get())
-        remoteMediaResourceManager->removeMediaResource(m_id);
-
-    ensureOnMainRunLoop([remoteMediaPlayerProxy = WTF::move(m_remoteMediaPlayerProxy), id = m_id] {
-        if (remoteMediaPlayerProxy)
-            remoteMediaPlayerProxy->removeResource(id);
-    });
+    if (RefPtr loader = m_remoteMediaResourceLoader.get())
+        loader->removeMediaResource(m_id);
 }
 
 bool RemoteMediaResource::didPassAccessControlCheck() const

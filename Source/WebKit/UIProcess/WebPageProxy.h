@@ -768,7 +768,6 @@ public:
     WebInspectorUIProxy* inspector() const;
 
     GeolocationPermissionRequestManagerProxy& geolocationPermissionRequestManager();
-    Ref<GeolocationPermissionRequestManagerProxy> protectedGeolocationPermissionRequestManager();
 
     void resourceLoadDidSendRequest(ResourceLoadInfo&&, WebCore::ResourceRequest&&);
     void resourceLoadDidPerformHTTPRedirection(ResourceLoadInfo&&, WebCore::ResourceResponse&&, WebCore::ResourceRequest&&);
@@ -821,7 +820,6 @@ public:
 
 #if ENABLE(FULLSCREEN_API)
     WebFullScreenManagerProxy* fullScreenManager();
-    RefPtr<WebFullScreenManagerProxy> protectedFullScreenManager();
     void setFullScreenClientForTesting(std::unique_ptr<WebKit::WebFullScreenManagerProxyClient>&&);
 
     API::FullscreenClient& fullscreenClient() const { return *m_fullscreenClient; }
@@ -830,14 +828,11 @@ public:
 
 #if ENABLE(VIDEO_PRESENTATION_MODE)
     PlaybackSessionManagerProxy* playbackSessionManager() { return m_playbackSessionManager.get(); }
-    RefPtr<PlaybackSessionManagerProxy> protectedPlaybackSessionManager();
     VideoPresentationManagerProxy* videoPresentationManager();
-    RefPtr<VideoPresentationManagerProxy> protectedVideoPresentationManager();
     void setMockVideoPresentationModeEnabled(bool);
 #endif
 
 #if PLATFORM(IOS_FAMILY) && ENABLE(DEVICE_ORIENTATION)
-    RefPtr<WebDeviceOrientationUpdateProviderProxy> protectedWebDeviceOrientationUpdateProviderProxy();
 #endif
 
     WebScreenOrientationManagerProxy* screenOrientationManager() { return m_screenOrientationManager.get(); }
@@ -1313,12 +1308,9 @@ public:
 
 #if PLATFORM(MAC)
     CALayer *acceleratedCompositingRootLayer() const;
-    RetainPtr<CALayer> protectedAcceleratedCompositingRootLayer() const;
 
     CALayer *headerBannerLayer() const;
-    RetainPtr<CALayer> protectedHeaderBannerLayer() const;
     CALayer *footerBannerLayer() const;
-    RetainPtr<CALayer> protectedFooterBannerLayer() const;
     int headerBannerHeight() const;
     int footerBannerHeight() const;
 #endif
@@ -1362,7 +1354,6 @@ public:
 
     void startWindowDrag();
     NSWindow *platformWindow();
-    RetainPtr<NSWindow> protectedPlatformWindow();
     void rootViewToWindow(const WebCore::IntRect& viewRect, WebCore::IntRect& windowRect);
 
     RetainPtr<NSView> inspectorAttachmentView();
@@ -1799,7 +1790,6 @@ public:
     ProcessID modelProcessID() const;
 
     WebBackForwardCache& backForwardCache() const;
-    Ref<WebBackForwardCache> protectedBackForwardCache() const;
 
     const WebPreferences& preferences() const { return m_preferences; }
     WebPreferences& preferences() { return m_preferences; }
@@ -1890,8 +1880,6 @@ public:
 
     const PageLoadState& pageLoadState() const;
     PageLoadState& pageLoadState();
-    Ref<const PageLoadState> protectedPageLoadState() const;
-    Ref<PageLoadState> protectedPageLoadState();
 
 #if PLATFORM(COCOA)
     void handleAlternativeTextUIResult(const String& result);
@@ -2248,7 +2236,6 @@ public:
     void updateCurrentModifierState();
 
     ProvisionalPageProxy* provisionalPageProxy() const { return m_provisionalPage.get(); }
-    RefPtr<ProvisionalPageProxy> protectedProvisionalPageProxy() const;
     void commitProvisionalPage(IPC::Connection&, WebCore::FrameIdentifier, FrameInfoData&&, WebCore::ResourceRequest&&, std::optional<WebCore::NavigationIdentifier>, String&& mimeType, bool frameHasCustomContentProvider, WebCore::FrameLoadType, const WebCore::CertificateInfo&, bool usedLegacyTLS, bool privateRelayed, String&& proxyName, WebCore::ResourceResponseSource, bool containsPluginDocument, WebCore::HasInsecureContent, WebCore::MouseEventPolicy, WebCore::DocumentSecurityPolicy&&, const UserData&);
     void destroyProvisionalPage();
 
@@ -2780,11 +2767,9 @@ public:
     void didAdjustVisibilityWithSelectors(Vector<String>&&);
 
     BrowsingContextGroup& browsingContextGroup() const { return m_browsingContextGroup; }
-    Ref<BrowsingContextGroup> protectedBrowsingContextGroup() const;
     std::optional<WebCore::FrameIdentifier> openerFrameIdentifier() const { return m_openerFrameIdentifier; }
 
     WebPageProxyTesting* pageForTesting() const;
-    RefPtr<WebPageProxyTesting> protectedPageForTesting() const;
 
     void hasActiveNowPlayingSessionChanged(bool);
 
@@ -2840,7 +2825,7 @@ public:
     bool hasAccessibilityActivityForTesting();
 #endif
 
-    Ref<AboutSchemeHandler> protectedAboutSchemeHandler();
+    AboutSchemeHandler& aboutSchemeHandler() const { return m_aboutSchemeHandler; }
 
     bool hasProvisionalPage() const { return m_provisionalPage; }
     bool isRemoteFrameNavigation(Ref<WebProcessProxy>);
@@ -3061,7 +3046,6 @@ private:
 
 #if ENABLE(MEDIA_STREAM)
     UserMediaPermissionRequestManagerProxy& userMediaPermissionRequestManager();
-    Ref<UserMediaPermissionRequestManagerProxy> protectedUserMediaPermissionRequestManager();
     void requestUserMediaPermissionForFrame(IPC::Connection&, WebCore::UserMediaRequestIdentifier, FrameInfoData&&, const WebCore::SecurityOriginData& userMediaDocumentOriginIdentifier, const WebCore::SecurityOriginData& topLevelDocumentOriginIdentifier, WebCore::MediaStreamRequest&&);
     void enumerateMediaDevicesForFrame(IPC::Connection&, WebCore::FrameIdentifier, const WebCore::SecurityOriginData& userMediaDocumentOriginData, const WebCore::SecurityOriginData& topLevelDocumentOriginData, CompletionHandler<void(const Vector<WebCore::CaptureDeviceWithCapabilities>&, WebCore::MediaDeviceHashSalts&&)>&&);
     void beginMonitoringCaptureDevices();
@@ -3071,7 +3055,6 @@ private:
 
 #if ENABLE(ENCRYPTED_MEDIA)
     MediaKeySystemPermissionRequestManagerProxy& mediaKeySystemPermissionRequestManager();
-    Ref<MediaKeySystemPermissionRequestManagerProxy> protectedMediaKeySystemPermissionRequestManager();
 #endif
     void requestMediaKeySystemPermissionForFrame(IPC::Connection&, WebCore::MediaKeySystemRequestIdentifier, WebCore::FrameIdentifier, WebCore::ClientOrigin&&, const String&);
 
@@ -3549,7 +3532,7 @@ private:
     void takeTextExtractionAssertion();
     void dropTextExtractionAssertion();
 
-    RefPtr<SpeechRecognitionPermissionManager> protectedSpeechRecognitionPermissionManager();
+    SpeechRecognitionPermissionManager* speechRecognitionPermissionManager() const { return m_speechRecognitionPermissionManager; }
 
 #if PLATFORM(COCOA)
     String presentingApplicationBundleIdentifier() const;

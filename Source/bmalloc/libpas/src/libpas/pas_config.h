@@ -27,6 +27,7 @@
 #define PAS_CONFIG_H
 
 #include "pas_config_prefix.h"
+#include "pas_platform.h"
 
 #include "stdbool.h"
 
@@ -86,7 +87,11 @@
 #define PAS_ARM __PAS_ARM
 
 #ifndef PAS_ENABLE_MTE
-#define PAS_ENABLE_MTE (PAS_USE_APPLE_INTERNAL_SDK && __PAS_ARM64E)
+#if defined(PAS_BMALLOC)
+#define PAS_ENABLE_MTE (PAS_USE_APPLE_INTERNAL_SDK && __PAS_ARM64E && !PAS_ASAN_ENABLED)
+#else /* !defined(PAS_BMALLOC) */
+#define PAS_ENABLE_MTE 0
+#endif /* defined(PAS_BMALLOC) */
 #endif /* PAS_ENABLE_MTE */
 
 #define PAS_RISCV __PAS_RISCV
@@ -137,12 +142,6 @@
                                                        << (PAS_COMPACT_PTR_BITS & 63)) - 1))
 
 #define PAS_ALLOCATOR_INDEX_BYTES        4
-
-#if PAS_OS(DARWIN) || PAS_OS(LINUX) || PAS_PLATFORM(PLAYSTATION)
-#define PAS_USE_SPINLOCKS                0
-#else
-#define PAS_USE_SPINLOCKS                1
-#endif
 
 #endif /* PAS_CONFIG_H */
 

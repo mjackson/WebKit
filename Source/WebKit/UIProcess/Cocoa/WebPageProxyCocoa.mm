@@ -260,7 +260,7 @@ std::optional<IPC::AsyncReplyID> WebPageProxy::grantAccessToCurrentPasteboardDat
         return std::nullopt;
     }
     if (RefPtr frame = WebFrameProxy::webFrame(frameID))
-        return WebPasteboardProxy::singleton().grantAccessToCurrentData(frame->protectedProcess(), pasteboardName, WTF::move(completionHandler));
+        return WebPasteboardProxy::singleton().grantAccessToCurrentData(protect(frame->process()), pasteboardName, WTF::move(completionHandler));
     return WebPasteboardProxy::singleton().grantAccessToCurrentData(m_legacyMainFrameProcess, pasteboardName, WTF::move(completionHandler));
 }
 
@@ -550,7 +550,7 @@ WebPageProxy::Internals::~Internals() = default;
 
 std::optional<SharedPreferencesForWebProcess> WebPageProxy::Internals::sharedPreferencesForWebPaymentMessages() const
 {
-    return protect(protectedPage()->legacyMainFrameProcess())->sharedPreferencesForWebProcess();
+    return protect(protect(page)->legacyMainFrameProcess())->sharedPreferencesForWebProcess();
 }
 
 IPC::Connection* WebPageProxy::Internals::paymentCoordinatorConnection(const WebPaymentCoordinatorProxy&)
@@ -570,7 +570,7 @@ void WebPageProxy::Internals::getPaymentCoordinatorEmbeddingUserAgent(WebPagePro
 
 CocoaWindow *WebPageProxy::Internals::paymentCoordinatorPresentingWindow(const WebPaymentCoordinatorProxy&) const
 {
-    RefPtr pageClient = protectedPage()->pageClient();
+    RefPtr pageClient = protect(page)->pageClient();
     return pageClient ? pageClient->platformWindow() : nullptr;
 }
 
@@ -586,12 +586,12 @@ const String& WebPageProxy::Internals::paymentCoordinatorSourceApplicationSecond
 
 void WebPageProxy::Internals::paymentCoordinatorAddMessageReceiver(WebPaymentCoordinatorProxy&, IPC::ReceiverName receiverName, IPC::MessageReceiver& messageReceiver)
 {
-    protect(protectedPage()->legacyMainFrameProcess())->addMessageReceiver(receiverName, page->webPageIDInMainFrameProcess(), messageReceiver);
+    protect(protect(page)->legacyMainFrameProcess())->addMessageReceiver(receiverName, page->webPageIDInMainFrameProcess(), messageReceiver);
 }
 
 void WebPageProxy::Internals::paymentCoordinatorRemoveMessageReceiver(WebPaymentCoordinatorProxy&, IPC::ReceiverName receiverName)
 {
-    protect(protectedPage()->legacyMainFrameProcess())->removeMessageReceiver(receiverName, page->webPageIDInMainFrameProcess());
+    protect(protect(page)->legacyMainFrameProcess())->removeMessageReceiver(receiverName, page->webPageIDInMainFrameProcess());
 }
 
 #endif // ENABLE(APPLE_PAY)
@@ -1161,7 +1161,7 @@ void WebPageProxy::setMediaCapability(RefPtr<MediaCapability>&& capability)
 void WebPageProxy::deactivateMediaCapability(MediaCapability& capability)
 {
     WEBPAGEPROXY_RELEASE_LOG(ProcessCapabilities, "deactivateMediaCapability: deactivating (envID=%{public}s) for URL '%{sensitive}s'", capability.environmentIdentifier().utf8().data(), capability.webPageURL().string().utf8().data());
-    Ref processPool { protect(legacyMainFrameProcess())->protectedProcessPool() };
+    Ref processPool = protect(legacyMainFrameProcess())->processPool();
     processPool->extensionCapabilityGranter().setMediaCapabilityActive(capability, false);
     processPool->extensionCapabilityGranter().revoke(capability, *this);
 }
@@ -1194,7 +1194,7 @@ void WebPageProxy::updateMediaCapability()
         return;
     }
 
-    Ref processPool { protect(legacyMainFrameProcess())->protectedProcessPool() };
+    Ref processPool = protect(legacyMainFrameProcess())->processPool();
 
     if (shouldActivateMediaCapability())
         processPool->extensionCapabilityGranter().setMediaCapabilityActive(*mediaCapability, true);
@@ -1698,7 +1698,7 @@ void WebPageProxy::getWebArchiveDataWithSelectedFrames(WebFrameProxy& rootFrame,
     RefPtr currentFrame = &rootFrame;
     while (currentFrame) {
         if (!selectedFrameIdentifiers || selectedFrameIdentifiers->contains(currentFrame->frameID())) {
-            processFrames.ensure(currentFrame->protectedProcess(), [&] {
+            processFrames.ensure(protect(currentFrame->process()), [&] {
                 return Vector<WebCore::FrameIdentifier> { };
             }).iterator->value.append(currentFrame->frameID());
         }

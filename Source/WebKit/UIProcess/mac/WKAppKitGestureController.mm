@@ -39,6 +39,7 @@
 #import "WebPreferences.h"
 #import "WebViewImpl.h"
 #import "WebWheelEvent.h"
+#import <Carbon/Carbon.h>
 #import <WebCore/FloatPoint.h>
 #import <WebCore/FloatSize.h>
 #import <WebCore/IntPoint.h>
@@ -99,6 +100,7 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
     WeakPtr<WebKit::WebPageProxy> _page;
     WeakPtr<WebKit::WebViewImpl> _viewImpl;
     RetainPtr<NSPanGestureRecognizer> _panGestureRecognizer;
+    RetainPtr<NSClickGestureRecognizer> _clickGestureRecognizer;
     bool _isMomentumActive;
 }
 
@@ -107,6 +109,10 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
 #else
 
 - (void)configureForScrolling:(NSPanGestureRecognizer *)gesture
+{
+}
+
+- (void)configureForClicking:(NSClickGestureRecognizer *)gesture
 {
 }
 
@@ -120,34 +126,62 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
     _page = page.get();
     _viewImpl = viewImpl.get();
 
+    [self setUpPanGestureRecognizer];
+    [self setUpClickGestureRecognizer];
+    [self addGesturesToWebView];
+    [self enableGesturesIfNeeded];
+
+    return self;
+}
+
+- (void)setUpPanGestureRecognizer
+{
     _panGestureRecognizer = adoptNS([[NSPanGestureRecognizer alloc] initWithTarget:self action:@selector(panGestureRecognized:)]);
     [self configureForScrolling:_panGestureRecognizer.get()];
     [_panGestureRecognizer setDelegate:self];
 #if HAVE(NSGESTURERECOGNIZER_NAME)
     [_panGestureRecognizer setName:@"WKPanGesture"];
 #endif
+}
 
-    CheckedPtr checkedViewImpl = _viewImpl.get();
-    [checkedViewImpl->protectedView() addGestureRecognizer:_panGestureRecognizer.get()];
+- (void)setUpClickGestureRecognizer
+{
+    _clickGestureRecognizer = adoptNS([[NSClickGestureRecognizer alloc] initWithTarget:self action:@selector(clickGestureRecognized:)]);
+    [self configureForClicking:_clickGestureRecognizer.get()];
+    [_clickGestureRecognizer setDelegate:self];
+#if HAVE(NSGESTURERECOGNIZER_NAME)
+    [_clickGestureRecognizer setName:@"WKClickGesture"];
+#endif
+}
 
-    [self enableGesturesIfNeeded];
+- (void)addGesturesToWebView
+{
+    CheckedPtr viewImpl = _viewImpl.get();
+    if (!viewImpl)
+        return;
 
-    return self;
+    RetainPtr webView = viewImpl->view();
+    if (!webView)
+        return;
+
+    [webView addGestureRecognizer:_panGestureRecognizer.get()];
+    [webView addGestureRecognizer:_clickGestureRecognizer.get()];
 }
 
 - (void)enableGesturesIfNeeded
 {
-    [self enablePanGestureIfNeeded];
+    [self enableGestureIfNeeded:_panGestureRecognizer.get()];
+    [self enableGestureIfNeeded:_clickGestureRecognizer.get()];
 }
 
-- (void)enablePanGestureIfNeeded
+- (void)enableGestureIfNeeded:(NSGestureRecognizer *)gesture
 {
     RefPtr page = _page.get();
     if (!page)
         return;
-    bool panGestureEnabled = protect(page->preferences())->useAppKitGestures();
-    WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG(page->identifier().toUInt64(), "%@ setEnabled:%d", _panGestureRecognizer.get(), static_cast<int>(panGestureEnabled));
-    [_panGestureRecognizer setEnabled:panGestureEnabled];
+    bool gestureEnabled = protect(page->preferences())->useAppKitGestures();
+    WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG(page->identifier().toUInt64(), "%@ setEnabled:%d", gesture, static_cast<int>(gestureEnabled));
+    [gesture setEnabled:gestureEnabled];
 }
 
 #pragma mark - Gesture Recognition
@@ -184,6 +218,39 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
 
     [self sendWheelEventForGesture:panGesture.get()];
     [self startMomentumIfNeededForGesture:panGesture.get()];
+}
+
+- (void)clickGestureRecognized:(NSGestureRecognizer *)gesture
+{
+    CheckedPtr viewImpl = _viewImpl.get();
+    if (!viewImpl)
+        return;
+
+    RetainPtr webView = viewImpl->view();
+    if (!webView)
+        return;
+
+    RefPtr page = _page.get();
+    if (!page)
+        return;
+
+    WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG(page->identifier().toUInt64(), "%@", gesture);
+
+    RetainPtr clickGesture = dynamic_objc_cast<NSClickGestureRecognizer>(gesture);
+    if (!clickGesture || _clickGestureRecognizer != clickGesture)
+        return;
+
+    auto timestamp = GetCurrentEventTime();
+ALLOW_NEW_API_WITHOUT_GUARDS_BEGIN
+    auto modifierFlags = [gesture modifierFlags];
+ALLOW_NEW_API_WITHOUT_GUARDS_END
+    auto location = [gesture locationInView:nil];
+    auto windowNumber = viewImpl->windowNumber();
+    RetainPtr mouseDown = [NSEvent mouseEventWithType:NSEventTypeLeftMouseDown location:location modifierFlags:modifierFlags timestamp:timestamp windowNumber:windowNumber context:NULL eventNumber:0 clickCount:1 pressure:1.0];
+    RetainPtr mouseUp = [NSEvent mouseEventWithType:NSEventTypeLeftMouseUp location:location modifierFlags:modifierFlags timestamp:timestamp windowNumber:windowNumber context:NULL eventNumber:0 clickCount:1 pressure:0.0];
+
+    viewImpl->mouseDown(mouseDown.get());
+    viewImpl->mouseUp(mouseUp.get());
 }
 
 #pragma mark - Wheel Event Handling
@@ -336,6 +403,19 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
 
     page->handleNativeWheelEvent(WebKit::NativeWebWheelEvent { cancelEvent });
     WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG(page->identifier().toUInt64(), "Interrupted momentum scrolling");
+}
+
+#pragma mark - NSGestureRecognizerDelegate
+
+static inline bool isSamePair(NSGestureRecognizer *a, NSGestureRecognizer *b, NSGestureRecognizer *x, NSGestureRecognizer *y)
+{
+    return (a == x && b == y) || (b == x && a == y);
+}
+
+- (BOOL)gestureRecognizer:(NSGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(NSGestureRecognizer *)otherGestureRecognizer
+{
+    WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG(RefPtr { _page.get() }->identifier().toUInt64(), "Gesture: %@, Other gesture: %@", gestureRecognizer, otherGestureRecognizer);
+    return isSamePair(gestureRecognizer, otherGestureRecognizer, _clickGestureRecognizer.get(), _panGestureRecognizer.get());
 }
 
 @end

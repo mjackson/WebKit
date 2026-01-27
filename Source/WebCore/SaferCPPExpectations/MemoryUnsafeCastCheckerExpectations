@@ -4,7 +4,6 @@ dom/NodeRareData.h
 [ iOS ] platform/ios/VideoPresentationInterfaceIOS.mm
 [ iOS ] platform/ios/wak/WAKView.mm
 [ iOS ] platform/ios/wak/WAKWindow.mm
-rendering/svg/SVGRenderTreeAsText.cpp
 svg/properties/SVGAnimatedDecoratedProperty.h
 svg/properties/SVGAnimatedPrimitiveProperty.h
 svg/properties/SVGAnimatedPropertyAccessorImpl.h

@@ -1762,9 +1762,9 @@ void WebPageProxy::processWillBecomeForeground()
 void WebPageProxy::Internals::isUserFacingChanged(bool isUserFacing)
 {
     if (!isUserFacing)
-        protectedPage()->suspendAllMediaPlayback([] { });
+        protect(page)->suspendAllMediaPlayback([] { });
     else
-        protectedPage()->resumeAllMediaPlayback([] { });
+        protect(page)->resumeAllMediaPlayback([] { });
 }
 
 #endif
@@ -1882,7 +1882,7 @@ FloatSize WebPageProxy::viewLayoutSize() const
 
 void WebPageProxy::didRefreshDisplay()
 {
-    m_configuration->protectedProcessPool()->didRefreshDisplay();
+    protect(m_configuration->processPool())->didRefreshDisplay();
 }
 
 #if ENABLE(PDF_PAGE_NUMBER_INDICATOR)

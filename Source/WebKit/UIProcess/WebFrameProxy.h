@@ -146,7 +146,6 @@ public:
 
     WebCore::FrameIdentifier frameID() const { return m_frameID; }
     WebPageProxy* page() const;
-    RefPtr<WebPageProxy> protectedPage() const;
 
     bool pageIsClosed() const { return !m_page; } // Needs to be thread-safe.
 
@@ -229,7 +228,6 @@ public:
     RefPtr<WebFrameProxy> childFrame(uint64_t index) const;
 
     WebProcessProxy& process() const;
-    Ref<WebProcessProxy> protectedProcess() const;
     void setProcess(FrameProcess&);
     const FrameProcess& frameProcess() const { return m_frameProcess.get(); }
     FrameProcess& frameProcess() { return m_frameProcess.get(); }

@@ -1869,7 +1869,7 @@ static void appendStringToResult(NSMutableString *result, NSString *string)
         return nil;
 
     // The only object without a parent wrapper at this point should be a scroll view.
-    AX_ASSERT(self.axBackingObject->isScrollView());
+    AX_ASSERT(self.axBackingObject->isScrollArea());
 
     // Verify this is the top document. If not, we might need to go through the platform widget.
     auto* frameView = self.axBackingObject->documentFrameView();

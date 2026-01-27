@@ -188,9 +188,9 @@ void WebAutomationSession::setProcessPool(WebKit::WebProcessPool* processPool)
         pool->addMessageReceiver(Messages::WebAutomationSession::messageReceiverName(), *this);
 }
 
-RefPtr<WebProcessPool> WebAutomationSession::protectedProcessPool() const
+WebProcessPool* WebAutomationSession::processPool() const
 {
-    return const_cast<WebProcessPool*>(m_processPool.get());
+    return m_processPool.get();
 }
 
 // NOTE: this class could be split at some point to support local and remote automation sessions.
@@ -370,7 +370,7 @@ Ref<Inspector::Protocol::Automation::BrowsingContext> WebAutomationSession::buil
     return Inspector::Protocol::Automation::BrowsingContext::create()
         .setHandle(handle)
         .setActive(isActive)
-        .setUrl(page.protectedPageLoadState()->activeURL())
+        .setUrl(protect(page.pageLoadState())->activeURL())
         .setWindowOrigin(WTF::move(originObject))
         .setWindowSize(WTF::move(sizeObject))
         .release();
@@ -421,8 +421,9 @@ void WebAutomationSession::getNextContext(Vector<Ref<WebPageProxy>>&& pages, Ref
 
 void WebAutomationSession::getBrowsingContexts(CommandCallback<Ref<JSON::ArrayOf<Inspector::Protocol::Automation::BrowsingContext>>>&& callback)
 {
+    Ref processPool = *m_processPool;
     Vector<Ref<WebPageProxy>> pages;
-    for (Ref process : protectedProcessPool()->processes()) {
+    for (Ref process : processPool->processes()) {
         for (Ref page : process->pages()) {
             if (!page->isControlledByAutomation())
                 continue;
@@ -593,7 +594,7 @@ void WebAutomationSession::waitForNavigationToComplete(const Inspector::Protocol
     // we return without waiting since we know it will timeout for sure. We want to check
     // arguments first, though.
     bool shouldTimeoutDueToUnexpectedAlert = pageLoadStrategy == Inspector::Protocol::Automation::PageLoadStrategy::Normal
-        && page->protectedPageLoadState()->isLoading() && m_client->isShowingJavaScriptDialogOnPage(*this, *page);
+        && protect(page->pageLoadState())->isLoading() && m_client->isShowingJavaScriptDialogOnPage(*this, *page);
 
     if (!optionalFrameHandle.isEmpty()) {
         bool frameNotFound = false;
@@ -687,8 +688,9 @@ static WebPageProxy* findPageForFrameID(const WebProcessPool& processPool, Frame
 
 void WebAutomationSession::respondToPendingFrameNavigationCallbacksWithTimeout(HashMap<FrameIdentifier, Inspector::CommandCallback<void>>& map)
 {
+    Ref processPool = *m_processPool;
     for (auto id : copyToVector(map.keys())) {
-        RefPtr page = findPageForFrameID(*protectedProcessPool(), id);
+        RefPtr page = findPageForFrameID(processPool, id);
         auto callback = map.take(id);
         if (page && m_client->isShowingJavaScriptDialogOnPage(*this, *page))
             callback({ });
@@ -812,7 +814,7 @@ void WebAutomationSession::willShowJavaScriptDialog(WebPageProxy& page, const St
         m_bidiProcessor->browsingContextDomainNotifier().userPromptOpened(handleForWebPageProxy(page), userPromptType, userPromptHandlerType, message, m_client->defaultTextOfCurrentJavaScriptDialogOnPage(*this, page).value_or(defaultText.value_or(emptyString())));
 #endif
 
-        if (page->protectedPageLoadState()->isLoading()) {
+        if (protect(page->pageLoadState())->isLoading()) {
             m_loadTimer.stop();
             respondToPendingFrameNavigationCallbacksWithTimeout(m_pendingNormalNavigationInBrowsingContextCallbacksPerFrame);
             respondToPendingPageNavigationCallbacksWithTimeout(m_pendingNormalNavigationInBrowsingContextCallbacksPerPage);
@@ -962,7 +964,7 @@ void WebAutomationSession::navigationOccurredForFrame(const WebFrameProxy& frame
             m_loadTimer.stop();
             callback({ });
         }
-        m_domainNotifier->browsingContextCleared(handleForWebPageProxy(*frame.protectedPage()));
+        m_domainNotifier->browsingContextCleared(handleForWebPageProxy(*protect(frame.page())));
     } else {
         if (auto callback = m_pendingNormalNavigationInBrowsingContextCallbacksPerFrame.take(frame.frameID())) {
             m_loadTimer.stop();
@@ -1806,7 +1808,7 @@ void WebAutomationSession::addSingleCookie(const Inspector::Protocol::Automation
     auto page = webPageProxyForHandle(browsingContextHandle);
     ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!page, WindowNotFound);
 
-    URL activeURL { page->protectedPageLoadState()->activeURL() };
+    URL activeURL { protect(page->pageLoadState())->activeURL() };
     ASSERT(activeURL.isValid());
 
     WebCore::Cookie cookie;
@@ -1863,7 +1865,7 @@ CommandResult<void> WebAutomationSession::deleteAllCookies(const Inspector::Prot
     RefPtr page = webPageProxyForHandle(browsingContextHandle);
     SYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!page, WindowNotFound);
 
-    URL activeURL { page->protectedPageLoadState()->activeURL() };
+    URL activeURL { protect(page->pageLoadState())->activeURL() };
     ASSERT(activeURL.isValid());
 
     String host = activeURL.host().toString();

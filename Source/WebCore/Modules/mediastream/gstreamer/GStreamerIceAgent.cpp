@@ -532,9 +532,22 @@ static GstWebRTCICETransport* webkitGstWebRTCIceAgentFindTransport(GstWebRTCICE*
     return webkitGstWebRTCIceStreamFindTransport(stream, component);
 }
 
-static void webkitGstWebRTCIceAgentSetTos(GstWebRTCICE*, GstWebRTCICEStream*, guint)
+static void webkitGstWebRTCIceAgentSetTos(GstWebRTCICE* ice, GstWebRTCICEStream* stream, guint tos)
 {
-    GST_FIXME("Not implemented yet.");
+    auto self = WEBKIT_GST_WEBRTC_ICE_BACKEND(ice);
+    auto backend = self->priv->iceBackend;
+    if (!backend) [[unlikely]]
+        return;
+
+    for (auto& riceStream : self->priv->streams.values()) {
+        if (riceStream->stream->stream_id != stream->stream_id)
+            continue;
+
+        GST_DEBUG_OBJECT(ice, "Setting socket TOS to %u on stream %u", tos, riceStream->riceStreamId);
+        backend->setSocketTypeOfService(riceStream->riceStreamId, tos);
+        return;
+    }
+    GST_WARNING_OBJECT(ice, "Unable to find stream %u and apply TOS on its sockets", stream->stream_id);
 }
 
 static gboolean webkitGstWebRTCIceAgentSetLocalCredentials(GstWebRTCICE*, GstWebRTCICEStream* stream, const gchar* ufrag, const gchar* pwd)

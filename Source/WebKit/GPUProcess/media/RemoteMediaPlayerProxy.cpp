@@ -28,6 +28,7 @@
 
 #if ENABLE(GPU_PROCESS) && ENABLE(VIDEO)
 
+#include "ArgumentCoders.h"
 #include "GPUConnectionToWebProcess.h"
 #include "LayerHostingContext.h"
 #include "Logging.h"
@@ -42,7 +43,6 @@
 #include "RemoteMediaResource.h"
 #include "RemoteMediaResourceIdentifier.h"
 #include "RemoteMediaResourceLoader.h"
-#include "RemoteMediaResourceManager.h"
 #include "RemoteAudioSessionProxy.h"
 #include "RemoteTextTrackProxy.h"
 #include "RemoteVideoFrameObjectHeap.h"
@@ -375,35 +375,6 @@ void RemoteMediaPlayerProxy::setPresentationSize(const WebCore::IntSize& size)
 
     m_configuration.presentationSize = size;
     protectedPlayer()->setPresentationSize(size);
-}
-
-RefPtr<PlatformMediaResource> RemoteMediaPlayerProxy::requestResource(ResourceRequest&& request, PlatformMediaResourceLoader::LoadOptions options)
-{
-    ASSERT(isMainRunLoop());
-
-    RefPtr manager = m_manager.get();
-    ASSERT(manager && manager->gpuConnectionToWebProcess());
-    if (!manager || !manager->gpuConnectionToWebProcess())
-        return nullptr;
-
-    Ref remoteMediaResourceManager = manager->gpuConnectionToWebProcess()->remoteMediaResourceManager();
-    auto remoteMediaResourceIdentifier = RemoteMediaResourceIdentifier::generate();
-    auto remoteMediaResource = RemoteMediaResource::create(remoteMediaResourceManager, *this, remoteMediaResourceIdentifier);
-    remoteMediaResourceManager->addMediaResource(remoteMediaResourceIdentifier, remoteMediaResource);
-
-    protectedConnection()->send(Messages::MediaPlayerPrivateRemote::RequestResource(remoteMediaResourceIdentifier, request, options), m_id);
-
-    return remoteMediaResource;
-}
-
-void RemoteMediaPlayerProxy::sendH2Ping(const URL& url, CompletionHandler<void(Expected<WTF::Seconds, WebCore::ResourceError>&&)>&& completionHandler)
-{
-    protectedConnection()->sendWithAsyncReply(Messages::MediaPlayerPrivateRemote::SendH2Ping(url), WTF::move(completionHandler), m_id);
-}
-
-void RemoteMediaPlayerProxy::removeResource(RemoteMediaResourceIdentifier remoteMediaResourceIdentifier)
-{
-    protectedConnection()->send(Messages::MediaPlayerPrivateRemote::RemoveResource(remoteMediaResourceIdentifier), m_id);
 }
 
 // MediaPlayerClient
@@ -931,7 +902,14 @@ CachedResourceLoader* RemoteMediaPlayerProxy::mediaPlayerCachedResourceLoader() 
 
 Ref<PlatformMediaResourceLoader> RemoteMediaPlayerProxy::mediaPlayerCreateResourceLoader()
 {
-    return RemoteMediaResourceLoader::create(*this);
+    auto loader = RemoteMediaResourceLoader::create(*this, protectedConnection());
+    protectedConnection()->send(Messages::MediaPlayerPrivateRemote::CreateResourceLoader(loader->identifier()), m_id);
+    return loader;
+}
+
+void RemoteMediaPlayerProxy::destroyResourceLoader(RemoteMediaResourceLoaderIdentifier loaderIdentifier)
+{
+    protectedConnection()->send(Messages::MediaPlayerPrivateRemote::DestroyResourceLoader(loaderIdentifier), m_id);
 }
 
 bool RemoteMediaPlayerProxy::doesHaveAttribute(const AtomString&, AtomString*) const

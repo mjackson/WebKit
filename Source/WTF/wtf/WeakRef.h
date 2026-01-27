@@ -217,6 +217,20 @@ inline WeakPtr<match_constness_t<Source, Target>, WeakPtrImpl> dynamicDowncast(W
     return WeakPtr<match_constness_t<Source, Target>, WeakPtrImpl> { unsafeRefDowncast<match_constness_t<Source, Target>>(source.releaseImpl()), source.enableWeakPtrThreadingAssertions() };
 }
 
+template<typename T, typename WeakPtrImpl, typename PtrTraits = RawPtrTraits<T>>
+    requires HasRefPtrMemberFunctions<T>::value
+ALWAYS_INLINE Ref<T, PtrTraits> protect(const WeakRef<T, WeakPtrImpl>& weakRef)
+{
+    return Ref<T, PtrTraits>(*weakRef.ptr());
+}
+
+template<typename T, typename WeakPtrImpl, typename CheckedPtrTraits = RawPtrTraits<T>>
+    requires (HasCheckedPtrMemberFunctions<T>::value && !HasRefPtrMemberFunctions<T>::value)
+ALWAYS_INLINE CheckedRef<T, CheckedPtrTraits> protect(const WeakRef<T, WeakPtrImpl>& weakRef)
+{
+    return CheckedRef<T, CheckedPtrTraits>(*weakRef.ptr());
+}
+
 } // namespace WTF
 
 using WTF::EnableWeakPtrThreadingAssertions;

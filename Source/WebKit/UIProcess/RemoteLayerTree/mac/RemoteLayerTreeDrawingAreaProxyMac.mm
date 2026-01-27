@@ -121,7 +121,7 @@ DelegatedScrollingMode RemoteLayerTreeDrawingAreaProxyMac::delegatedScrollingMod
 
 std::unique_ptr<RemoteScrollingCoordinatorProxy> RemoteLayerTreeDrawingAreaProxyMac::createScrollingCoordinatorProxy() const
 {
-    return makeUnique<RemoteScrollingCoordinatorProxyMac>(*protectedPage());
+    return makeUnique<RemoteScrollingCoordinatorProxyMac>(*protect(page()));
 }
 
 DisplayLink* RemoteLayerTreeDrawingAreaProxyMac::existingDisplayLink()
@@ -140,7 +140,7 @@ DisplayLink& RemoteLayerTreeDrawingAreaProxyMac::displayLink()
 {
     ASSERT(m_displayID);
 
-    auto& displayLinks = protectedPage()->configuration().processPool().displayLinks();
+    auto& displayLinks = protect(page())->configuration().processPool().displayLinks();
     return displayLinks.displayLinkForDisplay(*m_displayID);
 }
 
@@ -619,7 +619,7 @@ MachSendRight RemoteLayerTreeDrawingAreaProxyMac::createFence()
     if (!page)
         return MachSendRight();
 
-    RetainPtr<CAContext> rootLayerContext = [page->protectedAcceleratedCompositingRootLayer() context];
+    RetainPtr<CAContext> rootLayerContext = [protect(page->acceleratedCompositingRootLayer()) context];
     if (!rootLayerContext)
         return MachSendRight();
 

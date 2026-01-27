@@ -34,9 +34,20 @@ namespace Layout {
 
 class IntegrationUtils;
 
+struct GridItemSizingFunctions {
+    GridItemSizingFunctions(Function<LayoutUnit(const ElementBox& gridItem, const IntegrationUtils&)> minContentContributionFunction, Function<LayoutUnit(const ElementBox& gridItem, const IntegrationUtils&)> maxContentContributionFunction)
+        : minContentContribution(WTF::move(minContentContributionFunction))
+        , maxContentContribution(WTF::move(maxContentContributionFunction))
+    {
+    }
+
+    Function<LayoutUnit(const ElementBox& gridItem, const IntegrationUtils&)> minContentContribution;
+    Function<LayoutUnit(const ElementBox& gridItem, const IntegrationUtils&)> maxContentContribution;
+};
+
 class TrackSizingAlgorithm {
 public:
-    static TrackSizes sizeTracks(const PlacedGridItems&, const PlacedGridItemSpanList&, const TrackSizingFunctionsList&, std::optional<LayoutUnit> availableSpace, const IntegrationUtils&);
+    static TrackSizes sizeTracks(const PlacedGridItems&, const PlacedGridItemSpanList&, const TrackSizingFunctionsList&, std::optional<LayoutUnit> availableSpace, const GridItemSizingFunctions&, const IntegrationUtils&);
 
 private:
 
@@ -46,7 +57,7 @@ private:
     static FlexTracks collectFlexTracks(const UnsizedTracks&);
     static bool hasFlexTracks(const UnsizedTracks&);
     static double flexFactorSum(const FlexTracks&);
-    static std::optional<LayoutUnit> leftoverSpace(std::optional<LayoutUnit> availableSpace, const UnsizedTracks&);
+    static LayoutUnit findSizeOfFr(const UnsizedTracks&, LayoutUnit spaceToFill);
 };
 
 } // namespace WebCore

@@ -214,7 +214,7 @@ void DisplayCaptureSessionManager::promptForGetDisplayMedia(UserMediaPermissionR
             return;
         }
 
-        Ref gpuProcess = page.configuration().protectedProcessPool()->ensureGPUProcess();
+        Ref gpuProcess = protect(page.configuration().processPool())->ensureGPUProcess();
         gpuProcess->updateSandboxAccess(false, false, true);
         gpuProcess->promptForGetDisplayMedia(toScreenCaptureKitPromptType(promptType), WTF::move(completionHandler));
         return;

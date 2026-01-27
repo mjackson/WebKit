@@ -453,12 +453,12 @@ static void dumpCALayer(TextStream& ts, CALayer *layer, bool traverse)
 
 - (BOOL)_hasServiceWorkerBackgroundActivityForTesting
 {
-    return _page ? _page->configuration().protectedProcessPool()->hasServiceWorkerBackgroundActivityForTesting() : false;
+    return _page ? protect(_page->configuration().processPool())->hasServiceWorkerBackgroundActivityForTesting() : false;
 }
 
 - (BOOL)_hasServiceWorkerForegroundActivityForTesting
 {
-    return _page ? _page->configuration().protectedProcessPool()->hasServiceWorkerForegroundActivityForTesting() : false;
+    return _page ? protect(_page->configuration().processPool())->hasServiceWorkerForegroundActivityForTesting() : false;
 }
 
 - (void)_denyNextUserMediaRequest

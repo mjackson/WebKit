@@ -160,6 +160,38 @@ LayoutUnit gridAreaDimensionSize(size_t startLine, size_t endLine, const TrackSi
     return endPosition - startPosition;
 }
 
+LayoutUnit inlineAxisMinContentContribution(const ElementBox& gridItem, const IntegrationUtils& integrationUtils)
+{
+    return integrationUtils.preferredMinWidth(gridItem);
+}
+
+LayoutUnit inlineAxisMaxContentContribution(const ElementBox& gridItem, const IntegrationUtils& integrationUtils)
+{
+    return integrationUtils.preferredMaxWidth(gridItem);
+}
+
+GridItemSizingFunctions inlineAxisGridItemSizingFunctions()
+{
+    return { inlineAxisMinContentContribution, inlineAxisMaxContentContribution };
+}
+
+LayoutUnit blockAxisMinContentContribution(const ElementBox&, const IntegrationUtils&)
+{
+    ASSERT_NOT_IMPLEMENTED_YET();
+    return { };
+}
+
+LayoutUnit blockAxisMaxContentContribution(const ElementBox&, const IntegrationUtils&)
+{
+    ASSERT_NOT_IMPLEMENTED_YET();
+    return { };
+}
+
+GridItemSizingFunctions blockAxisGridItemSizingFunctions()
+{
+    return { blockAxisMinContentContribution, blockAxisMaxContentContribution };
+}
+
 }
 }
 }

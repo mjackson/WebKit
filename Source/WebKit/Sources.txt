@@ -92,7 +92,6 @@ GPUProcess/media/RemoteMediaPlayerManagerProxy.cpp
 GPUProcess/media/RemoteMediaPlayerProxy.cpp
 GPUProcess/media/RemoteMediaResource.cpp
 GPUProcess/media/RemoteMediaResourceLoader.cpp
-GPUProcess/media/RemoteMediaResourceManager.cpp
 GPUProcess/media/RemoteVideoFrameObjectHeap.cpp
 GPUProcess/media/RemoteMediaSourceProxy.cpp
 GPUProcess/media/RemoteRemoteCommandListenerProxy.cpp
@@ -836,6 +835,7 @@ WebProcess/GPU/media/RemoteLegacyCDMSession.cpp
 WebProcess/GPU/media/RemoteMediaEngineConfigurationFactory.cpp
 WebProcess/GPU/media/RemoteMediaPlayerManager.cpp
 WebProcess/GPU/media/RemoteMediaPlayerMIMETypeCache.cpp @no-unify
+WebProcess/GPU/media/RemoteMediaResourceLoaderProxy.cpp
 WebProcess/GPU/media/RemoteMediaResourceProxy.cpp
 WebProcess/GPU/media/RemoteVideoFrameProxy.cpp
 WebProcess/GPU/media/RemoteRemoteCommandListener.cpp

@@ -47,9 +47,7 @@ public:
 private:
     MockMediaDeviceRoute();
 
-#if HAVE(AVROUTING_FRAMEWORK)
     RetainPtr<WebMockMediaDeviceRoute> m_platformRoute;
-#endif
 };
 
 } // namespace WebCore

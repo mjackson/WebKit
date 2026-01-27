@@ -890,24 +890,18 @@ void WebCoreNSURLSessionDataTaskClient::loadFinished(PlatformMediaResource& reso
         if (Ref { [strongSession rangeResponseGenerator] }->willHandleRequest(self, retainPtr(self.originalRequest).get()))
             return;
         _resumeSessionID++;
-        ensureOnMainThread([loader = Ref { [strongSession loader] }, protectedSelf = WTF::move(protectedSelf), self, sessionID = _resumeSessionID] () mutable {
-            auto resource = loader->requestResource(self.originalRequest, PlatformMediaResourceLoader::LoadOption::DisallowCaching);
-            if (resource)
-                resource->setClient(adoptRef(*new WebCoreNSURLSessionDataTaskClient(protectedSelf.get(), *_targetDispatcher)));
-            _targetDispatcher->dispatch([protectedSelf = WTF::move(protectedSelf), self, resource = WTF::move(resource), sessionID] () mutable {
-                ASSERT(!self.resource);
-                if (resource) {
-                    if (self->_state != NSURLSessionTaskStateRunning || sessionID != _resumeSessionID) {
-                        resource->shutdown();
-                        return;
-                    }
-                    self.resource = resource.get();
-                    return;
-                }
-                // A nil return from requestResource means the load was cancelled by a delegate client
-                [self _resource:nil loadFinishedWithError:ResourceError(ResourceError::Type::Cancellation).protectedNSError().get() metrics: { }];
-            });
-        });
+        Ref loader = [strongSession loader];
+        if (auto resource = loader->requestResource(self.originalRequest, PlatformMediaResourceLoader::LoadOption::DisallowCaching)) {
+            resource->setClient(adoptRef(*new WebCoreNSURLSessionDataTaskClient(protectedSelf.get(), *_targetDispatcher)));
+            if (self->_state != NSURLSessionTaskStateRunning) {
+                resource->shutdown();
+                return;
+            }
+            self.resource = resource.get();
+            return;
+        }
+        // A nil return from requestResource means the load was cancelled by a delegate client
+        [self _resource:nil loadFinishedWithError:ResourceError(ResourceError::Type::Cancellation).protectedNSError().get() metrics: { }];
     });
 }
 

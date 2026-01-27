@@ -236,9 +236,10 @@ RTCStatsReport::TransportStats::TransportStats(const GstStructure* structure)
     // stats.rtcpTransportStatsId =
     // stats.localCertificateId =
     // stats.remoteCertificateId =
-    // stats.tlsVersion =
-    // stats.dtlsCipher =
-    // stats.srtpCipher =
+
+    tlsVersion = gstStructureGetString(structure, "tls-version"_s).span();
+    dtlsCipher = gstStructureGetString(structure, "dtls-cipher"_s).span();
+    srtpCipher = gstStructureGetString(structure, "srtp-cipher"_s).span();
 }
 
 RTCStatsReport::IceCandidateStats::IceCandidateStats(GstWebRTCStatsType statsType, const GstStructure* structure)

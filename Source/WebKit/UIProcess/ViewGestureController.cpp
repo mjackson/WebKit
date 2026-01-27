@@ -304,7 +304,7 @@ void ViewGestureController::didSameDocumentNavigationForMainFrame(SameDocumentNa
 void ViewGestureController::checkForActiveLoads()
 {
     RefPtr page = m_webPageProxy.get();
-    if (page && page->protectedPageLoadState()->isLoading()) {
+    if (page && protect(page->pageLoadState())->isLoading()) {
         if (!m_swipeActiveLoadMonitoringTimer.isActive())
             m_swipeActiveLoadMonitoringTimer.startRepeating(swipeSnapshotRemovalActiveLoadMonitoringInterval);
         return;

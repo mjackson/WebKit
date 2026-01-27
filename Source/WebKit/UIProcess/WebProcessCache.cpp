@@ -457,7 +457,7 @@ WebProcessCache::CachedProcess::CachedProcess(Ref<WebProcessProxy>&& process, Se
     RELEASE_ASSERT(!m_process->pageCount());
     RefPtr dataStore = m_process->websiteDataStore();
     RELEASE_ASSERT_WITH_MESSAGE(dataStore && !dataStore->processes().contains(*m_process), "Only processes with pages should be registered with the data store");
-    protectedProcess()->setIsInProcessCache(true);
+    protect(this->process())->setIsInProcessCache(true);
     m_evictionTimer.startOneShot(cachedProcessEvictionDelay);
 }
 
@@ -507,7 +507,7 @@ void WebProcessCache::CachedProcess::evictionTimerFired()
 {
     ASSERT(m_process);
     auto process = m_process.copyRef();
-    process->protectedProcessPool()->webProcessCache().removeProcess(*process, ShouldShutDownProcess::Yes);
+    protect(process->processPool())->webProcessCache().removeProcess(*process, ShouldShutDownProcess::Yes);
 }
 
 #if PLATFORM(COCOA) || PLATFORM(GTK) || PLATFORM(WPE)
@@ -526,7 +526,7 @@ void WebProcessCache::CachedProcess::suspensionTimerFired()
 {
     ASSERT(m_process);
     m_backgroundActivity = nullptr;
-    protectedProcess()->platformSuspendProcess();
+    protect(process())->platformSuspendProcess();
 }
 #endif
 

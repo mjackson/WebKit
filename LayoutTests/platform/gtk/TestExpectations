@@ -1653,3 +1653,6 @@ webkit.org/b/305509 imported/w3c/web-platform-tests/css/css-pseudo/marker-animat
 webkit.org/b/305509 imported/w3c/web-platform-tests/css/css-view-transitions/start-view-transtion-skips-active.html [ Failure Pass ]
 webkit.org/b/305509 imported/w3c/web-platform-tests/event-timing/interactionid-orphan-pointerup.html [ Failure Pass ]
 webkit.org/b/305509 imported/w3c/web-platform-tests/html/semantics/embedded-content/media-elements/track/track-element/track-cues-pause-on-exit.html [ Failure Pass ]
+
+# AVFoundation-specific audio description functionality not available on GStreamer platforms
+http/tests/media/hls/hls-audio-description-track-kind.html [ Skip ]

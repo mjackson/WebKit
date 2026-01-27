@@ -675,6 +675,9 @@ public:
     void characterIndexForPoint(NSPoint, void(^)(NSUInteger));
     void typingAttributesWithCompletionHandler(void(^)(NSDictionary<NSString *, id> *));
 
+    NSRect unionRectInVisibleSelectedRange() const;
+    NSRect documentVisibleRect() const;
+
     bool isContentRichlyEditable() const;
 
 #if ENABLE(MULTI_REPRESENTATION_HEIC)
@@ -850,6 +853,9 @@ private:
     void fulfillDeferredImageAnalysisOverlayViewHierarchyTask();
 #endif
 
+    bool pageIsScrolledToTop() const { return m_lastPageScrollPosition.y() <= 0; }
+    void pageScrollingHysteresisFired(PAL::HysteresisState);
+
     bool hasContentRelativeChildViews() const;
 
     void suppressContentRelativeChildViews();
@@ -994,6 +1000,7 @@ private:
     id m_flagsChangedEventMonitor { nullptr };
 
     const UniqueRef<PAL::HysteresisActivity> m_contentRelativeViewsHysteresis;
+    std::unique_ptr<PAL::HysteresisActivity> m_pageScrollingHysteresis;
 
     RetainPtr<NSColorSpace> m_colorSpace;
 
@@ -1077,7 +1084,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     RetainPtr<WKTextAnimationManager> m_textAnimationTypeManager;
 #endif
 
-    bool m_pageIsScrolledToTop { true };
+    WebCore::IntPoint m_lastPageScrollPosition;
     bool m_isRegisteredScrollViewSeparatorTrackingAdapter { false };
     NSRect m_lastScrollViewFrame { NSZeroRect };
 

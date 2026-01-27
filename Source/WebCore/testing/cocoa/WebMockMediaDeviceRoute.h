@@ -25,10 +25,10 @@
 
 #pragma once
 
-#if HAVE(AVROUTING_FRAMEWORK)
+#if ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)
 
 #import <WebKitAdditions/MediaDeviceRouteAdditions.h>
-#import <pal/spi/ios/AVRoutingSPI.h>
+#import <WebKitAdditions/WebMockMediaDeviceRouteAdditions.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -37,4 +37,4 @@ NS_ASSUME_NONNULL_BEGIN
 
 NS_ASSUME_NONNULL_END
 
-#endif // HAVE(AVROUTING_FRAMEWORK)
+#endif // ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)

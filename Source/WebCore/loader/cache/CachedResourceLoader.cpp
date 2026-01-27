@@ -1064,12 +1064,20 @@ RefPtr<DocumentLoader> CachedResourceLoader::protectedDocumentLoader() const
 ResourceErrorOr<CachedResourceHandle<CachedResource>> CachedResourceLoader::requestResource(CachedResource::Type type, CachedResourceRequest&& request, ForPreload forPreload, ImageLoading imageLoading)
 {
     URL url = request.resourceRequest().url();
-    if (!frame() || !frame()->page()) {
-        CACHEDRESOURCELOADER_RELEASE_LOG("requestResource: failed because no frame or page");
+    RefPtr framePtr = this->frame();
+    if (!framePtr) {
+        CACHEDRESOURCELOADER_RELEASE_LOG("requestResource: failed because no frame");
         return makeUnexpected(ResourceError { errorDomainWebKitInternal, 0, url, "Invalid loader state"_s });
     }
+    Ref frame = framePtr.releaseNonNull();
 
-    Ref frame = *this->frame();
+    RefPtr pagePtr = frame->page();
+    if (!pagePtr) {
+        CACHEDRESOURCELOADER_RELEASE_LOG("requestResource: failed because no page");
+        return makeUnexpected(ResourceError { errorDomainWebKitInternal, 0, url, "Invalid loader state"_s });
+    }
+    Ref page = pagePtr.releaseNonNull();
+
     if (!url.isValid()) {
         CACHEDRESOURCELOADER_RELEASE_LOG_WITH_FRAME("requestResource: URL is invalid", frame.get());
         return makeUnexpected(ResourceError { errorDomainWebKitInternal, 0, url, "URL is invalid"_s });
@@ -1103,7 +1111,6 @@ ResourceErrorOr<CachedResourceHandle<CachedResource>> CachedResourceLoader::requ
         url = request.resourceRequest().url();
     }
 
-    Ref page = *frame->page();
     URL committedDocumentURL { frame->document() ? frame->document()->url() : URL { } };
     if (RefPtr documentLoader = m_documentLoader.get()) {
         if (shouldPerformHTTPSUpgrade(committedDocumentURL, request.resourceRequest().url(), frame, type, page->settings().httpsByDefault(), documentLoader->advancedPrivacyProtections(), documentLoader->httpsByDefaultMode())) {

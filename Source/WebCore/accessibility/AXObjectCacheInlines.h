@@ -95,18 +95,6 @@ inline void AXObjectCache::willUpdateObjectRegions()
     m_geometryManager->willUpdateObjectRegions();
 }
 
-inline void AXObjectCache::objectBecameIgnored(const AccessibilityObject& object)
-{
-    if (RefPtr tree = AXIsolatedTree::treeForFrameID(m_frameID))
-        tree->objectBecameIgnored(object);
-}
-
-inline void AXObjectCache::objectBecameUnignored(const AccessibilityObject& object)
-{
-    if (RefPtr tree = AXIsolatedTree::treeForFrameID(m_frameID))
-        tree->objectBecameUnignored(object);
-}
-
 #endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
 } // WebCore

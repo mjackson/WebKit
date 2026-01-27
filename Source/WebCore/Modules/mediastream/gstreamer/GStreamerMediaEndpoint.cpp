@@ -1051,32 +1051,38 @@ void GStreamerMediaEndpoint::setDescription(const RTCSessionDescription* descrip
     auto sdpType = RTCSdpType::Offer;
 
     if (description) {
-        if (description->sdp().isEmpty()) {
-            failureCallback(nullptr);
-            return;
-        }
-        auto sdp = makeStringByReplacingAll(description->sdp(), "opus"_s, "OPUS"_s);
-        if (gst_sdp_message_new_from_text(sdp.utf8().data(), &message.outPtr()) != GST_SDP_OK) {
-            failureCallback(nullptr);
-            return;
-        }
         sdpType = description->type();
-        if (descriptionType == DescriptionType::Local && sdpType == RTCSdpType::Answer && !gst_sdp_message_get_version(message.get())) {
-            GError error;
-            error.message = const_cast<gchar*>("Expect line: v=");
-            failureCallback(&error);
+        if (description->sdp().isEmpty() && sdpType != RTCSdpType::Rollback) {
+            failureCallback(nullptr);
             return;
         }
-        if (descriptionType == DescriptionType::Remote) {
-            GUniqueOutPtr<GstWebRTCSessionDescription> currentDescription;
 
-            g_object_get(m_webrtcBin.get(), "current-remote-description", &currentDescription.outPtr(), nullptr);
-            if (currentDescription && !validateRTPHeaderExtensions(currentDescription->sdp, message.get())) {
+        if (!description->sdp().isEmpty()) {
+            auto sdp = makeStringByReplacingAll(description->sdp(), "opus"_s, "OPUS"_s);
+            if (gst_sdp_message_new_from_text(sdp.utf8().data(), &message.outPtr()) != GST_SDP_OK) {
                 failureCallback(nullptr);
                 return;
             }
+
+            if (descriptionType == DescriptionType::Local && sdpType == RTCSdpType::Answer && !gst_sdp_message_get_version(message.get())) {
+                GError error;
+                error.message = const_cast<gchar*>("Expect line: v=");
+                failureCallback(&error);
+                return;
+            }
+            if (descriptionType == DescriptionType::Remote) {
+                GUniqueOutPtr<GstWebRTCSessionDescription> currentDescription;
+
+                g_object_get(m_webrtcBin.get(), "current-remote-description", &currentDescription.outPtr(), nullptr);
+                if (currentDescription && !validateRTPHeaderExtensions(currentDescription->sdp, message.get())) {
+                    failureCallback(nullptr);
+                    return;
+                }
+            }
         }
-    } else if (gst_sdp_message_new(&message.outPtr()) != GST_SDP_OK) {
+    }
+
+    if (!message && gst_sdp_message_new(&message.outPtr()) != GST_SDP_OK) {
         failureCallback(nullptr);
         return;
     }
@@ -1672,6 +1678,15 @@ ExceptionOr<GStreamerMediaEndpoint::Backends> GStreamerMediaEndpoint::createTran
 {
     if (!m_webrtcBin)
         return Exception { ExceptionCode::InvalidStateError, "End-point has not been configured yet"_s };
+
+    Vector<String> allRids;
+    for (const auto& encoding : init.sendEncodings) {
+        if (encoding.rid.length() > 16)
+            return Exception { ExceptionCode::TypeError, "The rid attribute should not exceed 16 characters"_s };
+        if (allRids.contains(encoding.rid))
+            return Exception { ExceptionCode::TypeError, "Duplicate rid found"_s };
+        allRids.append(encoding.rid);
+    }
 
     // The current add-transceiver implementation in webrtcbin is synchronous and doesn't trigger
     // negotiation-needed signals but we keep the m_shouldIgnoreNegotiationNeededSignal in case this
@@ -2436,6 +2451,9 @@ GUniquePtr<GstStructure> GStreamerMediaEndpoint::preprocessStats(const GRefPtr<G
             return nullptr;
 
         for (auto& sender : peerConnectionBackend->connection().getSenders()) {
+            if (sender.get().isStopped())
+                continue;
+
             auto& backend = peerConnectionBackend->backendFromRTPSender(sender);
             GUniquePtr<GstStructure> stats, captureStats;
             ASCIILiteral captureStatsName;

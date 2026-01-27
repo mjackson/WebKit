@@ -278,7 +278,7 @@ void PolicyChecker::checkNavigationPolicy(ResourceRequest&& request, const Resou
             if (isInitialEmptyDocumentLoad)
                 POLICYCHECKER_RELEASE_LOG_FORWARDABLE_WITH_THIS(checkedThis, POLICYCHECKER_CHECKNAVIGATIONPOLICY_CONTINUE_INITIAL_EMPTY_DOCUMENT);
             else
-                POLICYCHECKER_RELEASE_LOG_WITH_THIS(checkedThis, "checkNavigationPolicy: continuing because this policyAction from dispatchDecidePolicyForNavigationAction is Use");
+                POLICYCHECKER_RELEASE_LOG_FORWARDABLE_WITH_THIS(checkedThis, POLICYCHECKER_CHECKNAVIGATIONPOLICY_CONTINUE_POLICYACTION_IS_USE);
             checkedThis = nullptr;
             return function(WTF::move(request), formSubmission, NavigationPolicyDecision::ContinueLoad);
         }

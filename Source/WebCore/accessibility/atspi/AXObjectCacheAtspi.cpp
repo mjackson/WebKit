@@ -53,7 +53,7 @@ void AXObjectCache::platformPerformDeferredCacheUpdate()
 
         auto* axParent = axObject.parentObjectUnignored();
         if (!axParent) {
-            if (axObject.isScrollView() && document() && axObject.scrollView() == document()->view())
+            if (axObject.isScrollArea() && document() && axObject.scrollView() == document()->view())
                 wrapper->setParent(nullptr); // nullptr means root.
             return;
         }

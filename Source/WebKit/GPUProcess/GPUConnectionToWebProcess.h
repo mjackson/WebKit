@@ -123,7 +123,6 @@ class RemoteWCLayerTreeHost;
 #if ENABLE(VIDEO)
 class RemoteAudioVideoRendererProxyManager;
 class RemoteMediaPlayerManagerProxy;
-class RemoteMediaResourceManager;
 class RemoteVideoFrameObjectHeap;
 #endif
 
@@ -170,8 +169,6 @@ public:
 #if ENABLE(VIDEO)
     RemoteAudioVideoRendererProxyManager& remoteAudioVideoRendererProxyManager();
     Ref<RemoteAudioVideoRendererProxyManager> protectedRemoteAudioVideoRendererProxyManager();
-    RemoteMediaResourceManager& remoteMediaResourceManager();
-    Ref<RemoteMediaResourceManager> protectedRemoteMediaResourceManager();
 #endif
 
     PAL::SessionID sessionID() const { return m_sessionID; }
@@ -390,7 +387,6 @@ private:
     RefPtr<RemoteSharedResourceCache> m_sharedResourceCache;
 #if ENABLE(VIDEO)
     const std::unique_ptr<RemoteAudioVideoRendererProxyManager> m_remoteAudioVideoRendererProxyManager;
-    RefPtr<RemoteMediaResourceManager> m_remoteMediaResourceManager WTF_GUARDED_BY_CAPABILITY(mainThread);
     Ref<RemoteMediaPlayerManagerProxy> m_remoteMediaPlayerManagerProxy;
 #endif
 #if ENABLE(LINEAR_MEDIA_PLAYER)

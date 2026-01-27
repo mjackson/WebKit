@@ -206,6 +206,8 @@ class Internals final
     , public RealtimeMediaSourceObserver
     , private RealtimeMediaSource::AudioSampleObserver
     , private RealtimeMediaSource::VideoFrameObserver
+#else
+    , public CanMakeWeakPtr<Internals>
 #endif
     {
     WTF_MAKE_TZONE_ALLOCATED(Internals);
@@ -855,6 +857,7 @@ public:
     ExceptionOr<String> captionsStyleSheetOverride();
     ExceptionOr<void> setCaptionsStyleSheetOverride(const String&);
     ExceptionOr<void> setPrimaryAudioTrackLanguageOverride(const String&);
+    ExceptionOr<void> setPreferredAudioCharacteristicsForTesting(const Vector<String>&);
     ExceptionOr<void> setCaptionDisplayMode(const String&);
     String captionDisplayMode() const;
 #if ENABLE(VIDEO)

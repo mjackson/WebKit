@@ -632,7 +632,7 @@ public:
 
     bool isListItem() const { return role() == AccessibilityRole::ListItem; }
     bool isCheckboxOrRadio() const { return isCheckbox() || isRadioButton(); }
-    bool isScrollView() const { return role() == AccessibilityRole::ScrollArea; }
+    bool isScrollArea() const { return role() == AccessibilityRole::ScrollArea; }
     bool isCanvas() const { return role() == AccessibilityRole::Canvas; }
     bool isPopUpButton() const { return role() == AccessibilityRole::PopUpButton; }
     bool isColorWell() const { return role() == AccessibilityRole::ColorWell; }
@@ -1797,7 +1797,7 @@ inline bool AXCoreObject::isAncestorOfObject(const AXCoreObject& axObject) const
 inline AXCoreObject* AXCoreObject::axScrollView() const
 {
     return Accessibility::findAncestor(*this, true, [] (const auto& ancestor) {
-        return ancestor.isScrollView();
+        return ancestor.isScrollArea();
     });
 }
 

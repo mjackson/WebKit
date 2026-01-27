@@ -54,22 +54,22 @@ WK_OBJECT_DISABLE_DISABLE_KVC_IVAR_ACCESS;
 
 - (WKBackForwardListItem *)currentItem
 {
-    return WebKit::wrapper(self._protectedList->protectedCurrentItem().get());
+    return WebKit::wrapper(protect(self._protectedList->currentItem()).get());
 }
 
 - (WKBackForwardListItem *)backItem
 {
-    return WebKit::wrapper(self._protectedList->protectedBackItem().get());
+    return WebKit::wrapper(protect(self._protectedList->backItem()).get());
 }
 
 - (WKBackForwardListItem *)forwardItem
 {
-    return WebKit::wrapper(self._protectedList->protectedForwardItem().get());
+    return WebKit::wrapper(protect(self._protectedList->forwardItem()).get());
 }
 
 - (WKBackForwardListItem *)itemAtIndex:(NSInteger)index
 {
-    return WebKit::wrapper(self._protectedList->protectedItemAtIndex(index).get());
+    return WebKit::wrapper(protect(self._protectedList->itemAtIndex(index)).get());
 }
 
 - (NSArray *)backList

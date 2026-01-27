@@ -238,7 +238,7 @@ set(WebKit_MESSAGES_IN_FILES
     GPUProcess/media/RemoteMediaEngineConfigurationFactoryProxy
     GPUProcess/media/RemoteMediaPlayerManagerProxy
     GPUProcess/media/RemoteMediaPlayerProxy
-    GPUProcess/media/RemoteMediaResourceManager
+    GPUProcess/media/RemoteMediaResourceLoader
     GPUProcess/media/RemoteMediaSourceProxy
     GPUProcess/media/RemoteRemoteCommandListenerProxy
     GPUProcess/media/RemoteSourceBufferProxy
@@ -354,6 +354,7 @@ set(WebKit_MESSAGES_IN_FILES
 
     WebProcess/GPU/media/AudioVideoRendererRemoteMessageReceiver
     WebProcess/GPU/media/RemoteAudioHardwareListener
+    WebProcess/GPU/media/RemoteMediaResourceLoaderProxy
     WebProcess/GPU/media/MediaPlayerPrivateRemote
     WebProcess/GPU/media/MediaSourcePrivateRemoteMessageReceiver
     WebProcess/GPU/media/RemoteAudioSession

@@ -2667,6 +2667,11 @@ std::optional<SourceCodeKey> decodeSourceCodeKey(VM& vm, Ref<CachedBytecode> cac
 }
 UnlinkedCodeBlock* decodeCodeBlockImpl(VM& vm, const SourceCodeKey& key, Ref<CachedBytecode> cachedBytecode)
 {
+    MonotonicTime before;
+    size_t cachedBytecodeSize = cachedBytecode->size();
+    if (Options::reportBytecodeCacheDecodeTimes()) [[unlikely]]
+        before = MonotonicTime::now();
+
     auto* cachedEntry = std::bit_cast<const GenericCacheEntry*>(cachedBytecode->span().data());
     Ref decoder = Decoder::create(vm, WTF::move(cachedBytecode), &key.source().provider());
     std::pair<SourceCodeKey, UnlinkedCodeBlock*> entry;
@@ -2677,6 +2682,12 @@ UnlinkedCodeBlock* decodeCodeBlockImpl(VM& vm, const SourceCodeKey& key, Ref<Cac
     }
     if (entry.first != key)
         return nullptr;
+
+    if (Options::reportBytecodeCacheDecodeTimes()) [[unlikely]] {
+        MonotonicTime after = MonotonicTime::now();
+        dataLogLn("BytecodeCache: decoded ", key.source().provider().sourceURL(), " (", cachedBytecodeSize, " bytes) in ", (after - before).milliseconds(), " ms.");
+    }
+
     return entry.second;
 }
 

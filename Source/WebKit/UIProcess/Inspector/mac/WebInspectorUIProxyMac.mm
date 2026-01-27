@@ -606,7 +606,7 @@ void WebInspectorUIProxy::platformBringToFront()
 void WebInspectorUIProxy::platformBringInspectedPageToFront()
 {
     if (RefPtr inspectedPage = m_inspectedPage.get())
-        [inspectedPage->protectedPlatformWindow() makeKeyAndOrderFront:nil];
+        [protect(inspectedPage->platformWindow()) makeKeyAndOrderFront:nil];
 }
 
 bool WebInspectorUIProxy::platformIsFront()

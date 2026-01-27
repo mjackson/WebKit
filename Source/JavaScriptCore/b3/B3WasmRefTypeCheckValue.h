@@ -64,6 +64,9 @@ public:
     B3_SPECIALIZE_VALUE_FOR_FIXED_CHILDREN(1)
     B3_SPECIALIZE_VALUE_FOR_FINAL_SIZE_FIXED_CHILDREN
 
+private:
+    void dumpMeta(CommaPrinter&, PrintStream&) const final;
+
 protected:
     friend class Procedure;
     friend class Value;

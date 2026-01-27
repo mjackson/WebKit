@@ -4119,7 +4119,7 @@ RegisterID* ShortCircuitReadModifyResolveNode::emitBytecode(BytecodeGenerator& g
 
     generator.emitNode(uncheckedResult.get(), m_right); // Execute side effects first.
 
-    bool threwException = isReadOnly ? generator.emitReadOnlyExceptionIfNeeded(var) : false;
+    bool threwException = isReadOnly && generator.emitReadOnlyExceptionIfNeeded(var);
 
     if (!threwException)
         generator.emitExpressionInfo(divot(), divotStart(), divotEnd());

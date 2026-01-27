@@ -372,6 +372,20 @@ template<typename T, typename U, typename WeakPtrImpl, typename PtrTraits> inlin
     return a.get() == b;
 }
 
+template<typename T, typename WeakPtrImpl, typename PtrTraits, typename RefPtrTraits = RawPtrTraits<T>, typename RefDerefTraits = DefaultRefDerefTraits<T>>
+    requires HasRefPtrMemberFunctions<T>::value
+ALWAYS_INLINE RefPtr<T, RefPtrTraits, RefDerefTraits> protect(const WeakPtr<T, WeakPtrImpl, PtrTraits>& weakPtr)
+{
+    return RefPtr<T, RefPtrTraits, RefDerefTraits>(weakPtr.get());
+}
+
+template<typename T, typename WeakPtrImpl, typename WeakPtrPtrTraits, typename CheckedPtrTraits = RawPtrTraits<T>>
+    requires (HasCheckedPtrMemberFunctions<T>::value && !HasRefPtrMemberFunctions<T>::value)
+ALWAYS_INLINE CheckedPtr<T, CheckedPtrTraits> protect(const WeakPtr<T, WeakPtrImpl, WeakPtrPtrTraits>& weakPtr)
+{
+    return CheckedPtr<T, CheckedPtrTraits>(weakPtr.get());
+}
+
 template<class T, typename = std::enable_if_t<!IsSmartPtr<T>::value>>
 WeakPtr(const T* value, EnableWeakPtrThreadingAssertions = EnableWeakPtrThreadingAssertions::Yes) -> WeakPtr<T, typename T::WeakPtrImplType>;
 

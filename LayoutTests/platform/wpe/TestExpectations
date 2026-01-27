@@ -1291,3 +1291,6 @@ webkit.org/b/305201 fast/forms/datalist/data-list-search-input-with-appearance-n
 webkit.org/b/305501 platform/glib/non-compositing/simple-dom.html [ Pass ImageOnlyFailure ]
 webkit.org/b/305511 imported/w3c/web-platform-tests/event-timing/crossiframe.html [ Failure Pass ]
 webkit.org/b/305512 imported/w3c/web-platform-tests/focus/focus-large-element-in-overflow-hidden-container.html [ ImageOnlyFailure Pass ]
+
+# AVFoundation-specific audio description functionality not available on GStreamer platforms
+http/tests/media/hls/hls-audio-description-track-kind.html [ Skip ]

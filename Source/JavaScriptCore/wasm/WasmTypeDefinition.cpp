@@ -612,31 +612,32 @@ bool TypeDefinition::isFinalType() const
 }
 
 RTT::RTT(RTTKind kind, bool isFinalType, StructFieldCount fieldCount)
-    : TrailingArrayType(1)
+    : TrailingArrayType(std::max(1u, inlinedDisplaySize))
     , m_kind(kind)
     , m_isFinalType(isFinalType)
-    , m_displaySizeExcludingThis(size() - 1)
+    , m_displaySizeExcludingThis(0)
     , m_fieldCount(fieldCount)
 {
     at(0) = this;
 }
 
 RTT::RTT(RTTKind kind, const RTT& supertype, bool isFinalType, StructFieldCount fieldCount)
-    : TrailingArrayType(supertype.size() + 1)
+    : TrailingArrayType(std::max(supertype.displaySizeExcludingThis() + 2, inlinedDisplaySize))
     , m_kind(kind)
     , m_isFinalType(isFinalType)
-    , m_displaySizeExcludingThis(size() - 1)
+    , m_displaySizeExcludingThis(supertype.displaySizeExcludingThis() + 1)
     , m_fieldCount(fieldCount)
 {
-    ASSERT(supertype.size() == (supertype.displaySizeExcludingThis() + 1));
-    for (size_t i = 0; i < supertype.span().size(); ++i)
+    unsigned actualDisplaySize = supertype.displaySizeExcludingThis() + 2;
+    ASSERT(actualDisplaySize == (m_displaySizeExcludingThis + 1));
+    for (size_t i = 0; i < actualDisplaySize - 1; ++i)
         span()[i] = supertype.span()[i];
-    at(supertype.size()) = this;
+    at(m_displaySizeExcludingThis) = this;
 }
 
 RefPtr<RTT> RTT::tryCreate(RTTKind kind, bool isFinalType, StructFieldCount fieldCount)
 {
-    auto result = tryFastMalloc(allocationSize(/* itself */ 1));
+    auto result = tryFastMalloc(allocationSize(std::max(/* itself */ 1u, inlinedDisplaySize)));
     void* memory = nullptr;
     if (!result.getValue(memory))
         return nullptr;
@@ -645,7 +646,8 @@ RefPtr<RTT> RTT::tryCreate(RTTKind kind, bool isFinalType, StructFieldCount fiel
 
 RefPtr<RTT> RTT::tryCreate(RTTKind kind, const RTT& supertype, bool isFinalType, StructFieldCount fieldCount)
 {
-    auto result = tryFastMalloc(allocationSize(supertype.size() + 1));
+    unsigned allocationCount = std::max(supertype.displaySizeExcludingThis() + 2, inlinedDisplaySize);
+    auto result = tryFastMalloc(allocationSize(allocationCount));
     void* memory = nullptr;
     if (!result.getValue(memory))
         return nullptr;

@@ -206,7 +206,6 @@ protected:
 #if USE(QUICK_LOOK)
     const RefPtr<LegacyPreviewLoader> m_previewLoader;
 #endif
-    bool m_canCrossOriginRequestsAskUserForCredentials { true };
 
 private:
     virtual void willCancel(const ResourceError&) = 0;

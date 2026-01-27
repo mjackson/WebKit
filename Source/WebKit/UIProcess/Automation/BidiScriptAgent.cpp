@@ -205,7 +205,7 @@ void BidiScriptAgent::getRealms(const BrowsingContext& optionalBrowsingContext, 
         pagesToProcess.append(*resolvedPageForContext);
     else {
         // Enumerate all controlled pages; filtering by context happens during collection
-        for (Ref process : session->protectedProcessPool()->processes()) {
+        for (Ref process : protect(session->processPool())->processes()) {
             for (Ref page : process->pages()) {
                 if (page->isControlledByAutomation())
                     pagesToProcess.append(page);
@@ -405,7 +405,7 @@ std::optional<String> BidiScriptAgent::contextHandleForFrame(const FrameInfoData
         return std::nullopt;
 
     if (frameInfo.webPageProxyID) {
-        for (Ref process : session->protectedProcessPool()->processes()) {
+        for (Ref process : protect(session->processPool())->processes()) {
             for (Ref page : process->pages()) {
                 if (page->identifier() == *frameInfo.webPageProxyID)
                     return session->handleForWebPageProxy(page);

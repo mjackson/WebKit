@@ -254,13 +254,13 @@ void WebContextMenuProxyMac::contextMenuItemSelected(const WebContextMenuItemDat
     clearServicesMenu();
 #endif
 
-    protectedPage()->contextMenuItemSelected(item, m_frameInfo);
+    protect(page())->contextMenuItemSelected(item, m_frameInfo);
 }
 
 #if ENABLE(WRITING_TOOLS)
 void WebContextMenuProxyMac::handleContextMenuWritingTools(WebCore::WritingTools::RequestedTool tool)
 {
-    protectedPage()->handleContextMenuWritingTools(tool);
+    protect(page())->handleContextMenuWritingTools(tool);
 }
 #endif
 
@@ -277,7 +277,7 @@ void WebContextMenuProxyMac::setupServicesMenu()
     bool includeEditorServices = m_context.controlledDataIsEditable();
     bool hasControlledImage = m_context.controlledImage();
     bool isPDFAttachment = false;
-    auto attachment = protectedPage()->attachmentForIdentifier(m_context.controlledImageAttachmentID());
+    auto attachment = protect(page())->attachmentForIdentifier(m_context.controlledImageAttachmentID());
     if (attachment)
         isPDFAttachment = attachment->utiType() == String(UTTypePDF.identifier);
     NSArray *items = nil;
@@ -550,7 +550,7 @@ void WebContextMenuProxyMac::show()
 bool WebContextMenuProxyMac::showAfterPostProcessingContextData()
 {
 #if ENABLE(CONTEXT_MENU_QR_CODE_DETECTION)
-    if (!protect(protectedPage()->preferences())->contextMenuQRCodeDetectionEnabled())
+    if (!protect(page()->preferences())->contextMenuQRCodeDetectionEnabled())
         return false;
 
     ASSERT(m_context.webHitTestResultData());
@@ -807,7 +807,7 @@ void WebContextMenuProxyMac::getContextMenuFromItems(const Vector<WebContextMenu
 #endif // ENABLE(IMAGE_ANALYSIS)
 
 #if HAVE(TRANSLATION_UI_SERVICES)
-    if (!protectedPage()->canHandleContextMenuTranslation() || isPopover) {
+    if (!protect(page())->canHandleContextMenuTranslation() || isPopover) {
         filteredItems.removeAllMatching([] (auto& item) {
             return item.action() == ContextMenuItemTagTranslate;
         });
@@ -815,7 +815,7 @@ void WebContextMenuProxyMac::getContextMenuFromItems(const Vector<WebContextMenu
 #endif
 
 #if ENABLE(WRITING_TOOLS)
-    if (!protectedPage()->canHandleContextMenuWritingTools() || isPopover) {
+    if (!protect(page())->canHandleContextMenuWritingTools() || isPopover) {
         filteredItems.removeAllMatching([] (auto& item) {
             auto action = item.action();
             return action == ContextMenuItemTagWritingTools || action == ContextMenuItemTagProofread || action == ContextMenuItemTagRewrite || action == ContextMenuItemTagSummarize;
@@ -1104,12 +1104,12 @@ WKMenuDelegate *WebContextMenuProxyMac::menuDelegate()
 
 void WebContextMenuProxyMac::didShowContextMenu(NSMenu *)
 {
-    protectedPage()->didShowContextMenu();
+    protect(page())->didShowContextMenu();
 }
 
 void WebContextMenuProxyMac::didDismissContextMenu(NSMenu *menu)
 {
-    protectedPage()->didDismissContextMenu();
+    protect(page())->didDismissContextMenu();
 
     if (m_captionStyleMenuController && [m_captionStyleMenuController hasAncestor:menu])
         captionStyleMenuDidClose();
@@ -1118,13 +1118,13 @@ void WebContextMenuProxyMac::didDismissContextMenu(NSMenu *menu)
 void WebContextMenuProxyMac::captionStyleMenuWillOpen()
 {
     if (auto identifier = m_context.mediaElementIdentifier())
-        protectedPage()->showCaptionDisplaySettingsPreview(m_frameInfo, *identifier);
+        protect(page())->showCaptionDisplaySettingsPreview(m_frameInfo, *identifier);
 }
 
 void WebContextMenuProxyMac::captionStyleMenuDidClose()
 {
     if (auto identifier = m_context.mediaElementIdentifier())
-        protectedPage()->hideCaptionDisplaySettingsPreview(m_frameInfo, *identifier);
+        protect(page())->hideCaptionDisplaySettingsPreview(m_frameInfo, *identifier);
 }
 
 } // namespace WebKit

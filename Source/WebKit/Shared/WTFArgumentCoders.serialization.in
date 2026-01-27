@@ -158,7 +158,7 @@ template: struct WebKit::PDFPluginIdentifierType
 template: struct WebKit::PageGroupIdentifierType
 template: struct WebKit::RemoteAudioDestinationIdentifierType
 template: struct WebKit::RemoteAudioHardwareListenerIdentifierType
-template: struct WebKit::RemoteMediaResourceIdentifierType
+template: struct WebKit::RemoteMediaResourceLoaderIdentifierType
 template: struct WebKit::RemoteRemoteCommandListenerIdentifierType
 template: struct WebKit::RiceBackendIdentifierType
 template: struct WebKit::SampleBufferDisplayLayerIdentifierType
@@ -216,6 +216,7 @@ template: struct WebKit::RemoteGraphicsContextIdentifierType
 template: struct WebKit::RemoteDisplayListIdentifierType
 template: struct WebKit::RemoteDisplayListRecorderIdentifierType
 template: struct WebKit::RemoteGraphicsContextGLIdentifierType
+template: struct WebKit::RemoteMediaResourceIdentifierType
 template: struct WebKit::RemoteRenderingBackendIdentifierType
 template: struct WebKit::RemoteSerializedImageBufferIdentifierType
 template: struct WebKit::RemoteSnapshotIdentifierType

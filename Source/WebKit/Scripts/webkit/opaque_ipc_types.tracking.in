@@ -408,7 +408,7 @@
     [Legacy] MessageParamReply WebPage.DidGetLoadDecisionForIcon iconData
     [Legacy] MessageParam RemoteImageDecoderAVFProxy.CreateDecoder data
     [Legacy] MessageParam RemoteImageDecoderAVFProxy.SetData data
-    [Legacy] MessageParam RemoteMediaResourceManager.DataReceived data
+    [Legacy] MessageParam RemoteMediaResourceLoader.DataReceived data
     [Legacy] MessageParam RemoteSourceBufferProxy.Append data
     [Legacy] MessageParam WebProcess.ConsumeAudioComponentRegistrations registrationData
     [Legacy] MessageParam WebPageProxy.RegisterAttachmentIdentifierFromData data
@@ -434,7 +434,7 @@
 [UnsafeWrapper] std::optional<WebCore::SharedMemory::Handle> {
     [Legacy] MessageParamReply WebPage.DrawPagesForPrinting data
     [Legacy] MessageParamReply WebPage.DrawPagesForPrintingDuringDOMPrintOperation data
-    [Legacy] MessageParamReply RemoteMediaResourceManager.DataReceived remoteData
+    [Legacy] MessageParamReply RemoteMediaResourceLoader.DataReceived remoteData
     [Legacy] MessageParam RemoteBuffer.Copy data
     [Legacy] MessageParam RemoteQueue.WriteBuffer data
     [Legacy] MessageParam RemoteQueue.WriteTexture dataHandle

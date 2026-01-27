@@ -205,6 +205,9 @@ void CaptionUserPreferences::setPreferredAudioCharacteristic(const String& chara
 
 Vector<String> CaptionUserPreferences::preferredAudioCharacteristics() const
 {
+    if (testingMode() && !m_preferredAudioCharacteristicsForTesting.isEmpty())
+        return m_preferredAudioCharacteristicsForTesting;
+
     Vector<String> characteristics;
     if (!m_userPreferredAudioCharacteristic.isEmpty())
         characteristics.append(m_userPreferredAudioCharacteristic);

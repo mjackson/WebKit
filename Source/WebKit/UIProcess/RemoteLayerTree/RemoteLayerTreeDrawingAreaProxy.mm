@@ -782,11 +782,7 @@ bool ProcessState::canSendDisplayDidRefresh(RemoteLayerTreeDrawingAreaProxy& dra
     if (pendingCommits.size() >= 2)
         return false;
     if (pendingCommits.size() == 1)
-#if PLATFORM(IOS_FAMILY)
-        return false;
-#else
         return drawingArea.allowMultipleCommitLayerTreePending() && pendingCommits[0].pendingMessage == PendingCommitMessage::CommitLayerTree && delayedCommits >= 4;
-#endif
     return true;
 }
 

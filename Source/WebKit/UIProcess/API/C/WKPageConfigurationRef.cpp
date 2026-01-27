@@ -49,7 +49,7 @@ WKPageConfigurationRef WKPageConfigurationCreate()
 
 WKContextRef WKPageConfigurationGetContext(WKPageConfigurationRef configuration)
 {
-    return toAPI(toProtectedImpl(configuration)->protectedProcessPool().get());
+    return toAPI(protect(toProtectedImpl(configuration)->processPool()).get());
 }
 
 void WKPageConfigurationSetContext(WKPageConfigurationRef configuration, WKContextRef context)
@@ -98,7 +98,7 @@ void WKPageConfigurationSetRelatedPage(WKPageConfigurationRef configuration, WKP
 
 WKWebsiteDataStoreRef WKPageConfigurationGetWebsiteDataStore(WKPageConfigurationRef configuration)
 {
-    return toAPI(toProtectedImpl(configuration)->protectedWebsiteDataStore().get());
+    return toAPI(protect(toProtectedImpl(configuration)->websiteDataStore()).get());
 }
 
 void WKPageConfigurationSetWebsiteDataStore(WKPageConfigurationRef configuration, WKWebsiteDataStoreRef websiteDataStore)

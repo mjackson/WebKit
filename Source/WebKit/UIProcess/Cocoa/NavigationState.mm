@@ -132,7 +132,7 @@ NavigationState::NavigationState(WKWebView *webView)
     ASSERT(!navigationStates().contains(*page));
 
     navigationStates().add(*page, *this);
-    page->protectedPageLoadState()->addObserver(*this);
+    protect(page->pageLoadState())->addObserver(*this);
 }
 
 NavigationState::~NavigationState()
@@ -142,7 +142,7 @@ NavigationState::~NavigationState()
         ASSERT(navigationStates().get(*page) == this);
 
         navigationStates().remove(*page);
-        page->protectedPageLoadState()->removeObserver(*this);
+        protect(page->pageLoadState())->removeObserver(*this);
     }
 }
 

@@ -198,7 +198,7 @@ WKTypeID WKPageGetTypeID()
 
 WKContextRef WKPageGetContext(WKPageRef pageRef)
 {
-    return toAPI(toProtectedImpl(pageRef)->configuration().protectedProcessPool().ptr());
+    return toAPI(protect(toProtectedImpl(pageRef)->configuration().processPool()).ptr());
 }
 
 WKPageGroupRef WKPageGetPageGroup(WKPageRef pageRef)
@@ -450,7 +450,7 @@ void WKPageUpdateWebsitePolicies(WKPageRef pageRef, WKWebsitePoliciesRef website
 
 WKStringRef WKPageCopyTitle(WKPageRef pageRef)
 {
-    return toCopiedAPI(toProtectedImpl(pageRef)->protectedPageLoadState()->title());
+    return toCopiedAPI(protect(toProtectedImpl(pageRef)->pageLoadState())->title());
 }
 
 WKFrameRef WKPageGetMainFrame(WKPageRef pageRef)
@@ -1196,7 +1196,7 @@ void WKPageSetFullScreenClientForTesting(WKPageRef pageRef, const WKPageFullScre
         {
             if (!m_client.willEnterFullScreen)
                 return completionHandler(false);
-            m_client.willEnterFullScreen(toAPI(protectedPage().get()), toAPI(API::CompletionListener::create([completionHandler = WTF::move(completionHandler)] (WKTypeRef) mutable {
+            m_client.willEnterFullScreen(toAPI(protect(page()).get()), toAPI(API::CompletionListener::create([completionHandler = WTF::move(completionHandler)] (WKTypeRef) mutable {
                 completionHandler(true);
             }).ptr()), m_client.base.clientInfo);
         }
@@ -1205,7 +1205,7 @@ void WKPageSetFullScreenClientForTesting(WKPageRef pageRef, const WKPageFullScre
         {
             if (!m_client.beganEnterFullScreen)
                 return completionHandler(false);
-            m_client.beganEnterFullScreen(toAPI(protectedPage().get()), toAPI(initialFrame), toAPI(finalFrame), m_client.base.clientInfo);
+            m_client.beganEnterFullScreen(toAPI(protect(page()).get()), toAPI(initialFrame), toAPI(finalFrame), m_client.base.clientInfo);
             completionHandler(true);
         }
 
@@ -1213,7 +1213,7 @@ void WKPageSetFullScreenClientForTesting(WKPageRef pageRef, const WKPageFullScre
         {
             if (!m_client.exitFullScreen)
                 return completionHandler();
-            m_client.exitFullScreen(toAPI(protectedPage().get()), m_client.base.clientInfo);
+            m_client.exitFullScreen(toAPI(protect(page()).get()), m_client.base.clientInfo);
             completionHandler();
         }
 
@@ -1221,7 +1221,7 @@ void WKPageSetFullScreenClientForTesting(WKPageRef pageRef, const WKPageFullScre
         {
             if (!m_client.beganExitFullScreen)
                 return completionHandler();
-            m_client.beganExitFullScreen(toAPI(protectedPage().get()), toAPI(initialFrame), toAPI(finalFrame), toAPI(API::CompletionListener::create([completionHandler = WTF::move(completionHandler)] (WKTypeRef) mutable {
+            m_client.beganExitFullScreen(toAPI(protect(page()).get()), toAPI(initialFrame), toAPI(finalFrame), toAPI(API::CompletionListener::create([completionHandler = WTF::move(completionHandler)] (WKTypeRef) mutable {
                 completionHandler();
             }).ptr()), m_client.base.clientInfo);
         }
@@ -1230,7 +1230,7 @@ void WKPageSetFullScreenClientForTesting(WKPageRef pageRef, const WKPageFullScre
         void updateImageSource() override { }
 #endif
 
-        RefPtr<WebPageProxy> protectedPage() const { return m_page.get(); }
+        WebPageProxy* page() const { return m_page; }
 
         WeakPtr<WebPageProxy> m_page;
     };
@@ -2075,7 +2075,7 @@ void WKPageSetPageUIClient(WKPageRef pageRef, const WKPageUIClientBase* wkClient
             if (!m_client.shouldAllowDeviceOrientationAndMotionAccess)
                 return completionHandler(false);
 
-            auto origin = API::SecurityOrigin::create(SecurityOrigin::createFromString(page.protectedPageLoadState()->activeURL()).get());
+            auto origin = API::SecurityOrigin::create(SecurityOrigin::createFromString(protect(page.pageLoadState())->activeURL()).get());
             auto apiFrameInfo = API::FrameInfo::create(WTF::move(frameInfo));
             completionHandler(m_client.shouldAllowDeviceOrientationAndMotionAccess(toAPI(&page), toAPI(origin.ptr()), toAPI(apiFrameInfo.ptr()), m_client.base.clientInfo));
         }
@@ -2853,7 +2853,7 @@ WK_EXPORT WKURLRef WKPageCopyPendingAPIRequestURL(WKPageRef pageRef)
 
 WKURLRef WKPageCopyActiveURL(WKPageRef pageRef)
 {
-    return toCopiedURLAPI(toProtectedImpl(pageRef)->protectedPageLoadState()->activeURL());
+    return toCopiedURLAPI(protect(toProtectedImpl(pageRef)->pageLoadState())->activeURL());
 }
 
 WKURLRef WKPageCopyProvisionalURL(WKPageRef pageRef)
@@ -3376,7 +3376,7 @@ void WKPageSetMockCaptureDevicesInterrupted(WKPageRef pageRef, bool isCameraInte
 #if ENABLE(MEDIA_STREAM) && ENABLE(GPU_PROCESS)
     Ref preferences = toProtectedImpl(pageRef)->preferences();
     if (preferences->useGPUProcessForMediaEnabled()) {
-        Ref gpuProcess = toProtectedImpl(pageRef)->configuration().protectedProcessPool()->ensureGPUProcess();
+        Ref gpuProcess = protect(toProtectedImpl(pageRef)->configuration().processPool())->ensureGPUProcess();
         gpuProcess->setMockCaptureDevicesInterrupted(isCameraInterrupted, isMicrophoneInterrupted);
     }
 #endif
@@ -3400,7 +3400,7 @@ void WKPageTriggerMockCaptureConfigurationChange(WKPageRef pageRef, bool forCame
     if (!preferences->useGPUProcessForMediaEnabled())
         return;
 
-    Ref gpuProcess = toProtectedImpl(pageRef)->configuration().protectedProcessPool()->ensureGPUProcess();
+    Ref gpuProcess = protect(toProtectedImpl(pageRef)->configuration().processPool())->ensureGPUProcess();
     gpuProcess->triggerMockCaptureConfigurationChange(forCamera, forMicrophone, forDisplay);
 #endif // ENABLE(GPU_PROCESS)
 

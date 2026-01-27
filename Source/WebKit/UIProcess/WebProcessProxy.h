@@ -208,7 +208,6 @@ public:
 
     WebProcessPool* processPoolIfExists() const;
     inline WebProcessPool& processPool() const; // This function is implemented in WebProcessPool.h.
-    inline Ref<WebProcessPool> protectedProcessPool() const; // This function is implemented in WebProcessPool.h.
 
     std::optional<SharedPreferencesForWebProcess> sharedPreferencesForWebProcess() const { return m_sharedPreferencesForWebProcess; }
     const SharedPreferencesForWebProcess& sharedPreferencesForWebProcessValue() const { return m_sharedPreferencesForWebProcess; }
@@ -238,7 +237,6 @@ public:
     void disableRemoteWorkers(OptionSet<RemoteWorkerType>);
 
     WebsiteDataStore* websiteDataStore() const { ASSERT(m_websiteDataStore); return m_websiteDataStore.get(); }
-    RefPtr<WebsiteDataStore> protectedWebsiteDataStore() const;
     void setWebsiteDataStore(WebsiteDataStore&);
     
     PAL::SessionID sessionID() const;
@@ -500,7 +498,7 @@ public:
 #if ENABLE(MEDIA_STREAM)
     static void muteCaptureInPagesExcept(WebCore::PageIdentifier);
     SpeechRecognitionRemoteRealtimeMediaSourceManager& ensureSpeechRecognitionRemoteRealtimeMediaSourceManager();
-    RefPtr<SpeechRecognitionRemoteRealtimeMediaSourceManager> protectedSpeechRecognitionRemoteRealtimeMediaSourceManager();
+    SpeechRecognitionRemoteRealtimeMediaSourceManager* speechRecognitionRemoteRealtimeMediaSourceManager() const { return m_speechRecognitionRemoteRealtimeMediaSourceManager.get(); }
 #endif
     void pageMutedStateChanged(WebCore::PageIdentifier, WebCore::MediaProducerMutedStateFlags);
     void pageIsBecomingInvisible(WebCore::PageIdentifier);

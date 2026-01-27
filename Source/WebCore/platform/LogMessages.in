@@ -161,6 +161,7 @@ PERFORMANCEMONITOR_MEASURE_CPUUSAGE_IN_ACTIVITYSTATE, "PerformanceMonitor::measu
 
 POLICYCHECKER_CHECKNAVIGATIONPOLICY_CONTINUE_LOAD_IN_ANOTHER_PROCESS, "[pageID=%" PRIu64 ", frameID=%" PRIu64 "] PolicyChecker::checkNavigationPolicy: stopping because policyAction from dispatchDecidePolicyForNavigationAction is LoadWillContinueInAnotherProcess", (uint64_t, uint64_t), DEFAULT, Loading
 POLICYCHECKER_CHECKNAVIGATIONPOLICY_CONTINUE_INITIAL_EMPTY_DOCUMENT, "[pageID=%" PRIu64 ", frameID=%" PRIu64 "] PolicyChecker::checkNavigationPolicy: continuing because this is an initial empty document", (uint64_t, uint64_t), DEFAULT, Loading
+POLICYCHECKER_CHECKNAVIGATIONPOLICY_CONTINUE_POLICYACTION_IS_USE, "[pageID=%" PRIu64 ", frameID=%" PRIu64 "] PolicyChecker::checkNavigationPolicy: continuing because this policyAction from dispatchDecidePolicyForNavigationAction is Use", (uint64_t, uint64_t), DEFAULT, Loading
 
 LIBWEBRTCMEDIAENDPOINT_ONSTATSDELIVERED, "RTCStats (%" PRIu64 ") %s", (uint64_t, CString), DEFAULT, WebRTCStats
 LIBWEBRTC_LOG_ERROR, "LibWebRTC error: %s", (CString), DEFAULT, WebRTC

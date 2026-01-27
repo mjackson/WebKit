@@ -36,14 +36,8 @@ namespace WebCore {
 
 Ref<MediaPlaybackTargetWirelessPlayback> MediaPlaybackTargetWirelessPlayback::create(std::optional<WTF::UUID> identifier, bool hasActiveRoute)
 {
-#if HAVE(AVROUTING_FRAMEWORK)
     return adoptRef(*new MediaPlaybackTargetWirelessPlayback(MediaDeviceRouteController::singleton().routeForIdentifier(identifier), hasActiveRoute));
-#else
-    return adoptRef(*new MediaPlaybackTargetWirelessPlayback(WTF::move(identifier), hasActiveRoute));
-#endif
 }
-
-#if HAVE(AVROUTING_FRAMEWORK)
 
 Ref<MediaPlaybackTargetWirelessPlayback> MediaPlaybackTargetWirelessPlayback::create(MediaDeviceRoute& route)
 {
@@ -57,37 +51,18 @@ MediaPlaybackTargetWirelessPlayback::MediaPlaybackTargetWirelessPlayback(RefPtr<
 {
 }
 
-#else
-
-MediaPlaybackTargetWirelessPlayback::MediaPlaybackTargetWirelessPlayback(std::optional<WTF::UUID> identifier, bool hasActiveRoute)
-    : MediaPlaybackTarget { Type::WirelessPlayback }
-    , m_identifier { WTF::move(identifier) }
-    , m_hasActiveRoute { hasActiveRoute }
-{
-}
-
-#endif // HAVE(AVROUTING_FRAMEWORK)
-
 MediaPlaybackTargetWirelessPlayback::~MediaPlaybackTargetWirelessPlayback() = default;
 
 std::optional<WTF::UUID> MediaPlaybackTargetWirelessPlayback::identifier() const
 {
-#if HAVE(AVROUTING_FRAMEWORK)
     if (RefPtr route = m_route)
         return m_route->identifier();
     return std::nullopt;
-#else
-    return m_identifier;
-#endif
 }
 
 MediaDeviceRoute* MediaPlaybackTargetWirelessPlayback::route() const
 {
-#if HAVE(AVROUTING_FRAMEWORK)
     return m_route.get();
-#else
-    return nil;
-#endif
 }
 
 String MediaPlaybackTargetWirelessPlayback::deviceName() const

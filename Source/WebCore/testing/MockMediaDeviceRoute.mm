@@ -41,19 +41,13 @@ Ref<MockMediaDeviceRoute> MockMediaDeviceRoute::create()
 }
 
 MockMediaDeviceRoute::MockMediaDeviceRoute()
-#if HAVE(AVROUTING_FRAMEWORK)
     : m_platformRoute { adoptNS([[WebMockMediaDeviceRoute alloc] init]) }
-#endif
 {
 }
 
 WebMediaDevicePlatformRoute *MockMediaDeviceRoute::platformRoute() const
 {
-#if HAVE(AVROUTING_FRAMEWORK)
     return m_platformRoute.get();
-#else
-    return nil;
-#endif
 }
 
 } // namespace WebCore

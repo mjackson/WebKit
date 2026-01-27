@@ -328,13 +328,15 @@ UsedTrackSizes GridLayout::performGridSizingAlgorithm(const PlacedGridItems& pla
     auto columnSpanList = placedGridItems.map([](const PlacedGridItem& gridItem) {
         return WTF::Range<size_t> { gridItem.columnStartLine(), gridItem.columnEndLine() };
     });
-    auto columnSizes = TrackSizingAlgorithm::sizeTracks(placedGridItems, columnSpanList, columnTrackSizingFunctionsList, layoutConstraints.inlineAxisAvailableSpace, integrationUtils);
+    auto columnSizes = TrackSizingAlgorithm::sizeTracks(placedGridItems, columnSpanList, columnTrackSizingFunctionsList, layoutConstraints.inlineAxisAvailableSpace,
+        GridLayoutUtils::inlineAxisGridItemSizingFunctions(), integrationUtils);
 
     auto rowSpanList = placedGridItems.map([](const PlacedGridItem& gridItem) {
         return WTF::Range<size_t> { gridItem.rowStartLine(), gridItem.rowEndLine() };
     });
     // 2. Next, the track sizing algorithm resolves the sizes of the grid rows.
-    auto rowSizes = TrackSizingAlgorithm::sizeTracks(placedGridItems, rowSpanList, rowTrackSizingFunctionsList, layoutConstraints.blockAxisAvailableSpace, integrationUtils);
+    auto rowSizes = TrackSizingAlgorithm::sizeTracks(placedGridItems, rowSpanList, rowTrackSizingFunctionsList, layoutConstraints.blockAxisAvailableSpace,
+        GridLayoutUtils::blockAxisGridItemSizingFunctions(), integrationUtils);
 
     // 3. Then, if the min-content contribution of any grid item has changed based on the
     // row sizes and alignment calculated in step 2, re-resolve the sizes of the grid

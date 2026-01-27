@@ -136,7 +136,7 @@ MachSendRight DrawingAreaProxy::createFence()
 #if PLATFORM(MAC)
 void DrawingAreaProxy::didChangeViewExposedRect()
 {
-    if (!protectedPage()->hasRunningProcess())
+    if (!protect(page())->hasRunningProcess())
         return;
 
     if (!m_viewExposedRectChangedTimer.isActive())

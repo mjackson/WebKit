@@ -288,7 +288,7 @@ void SuspendedPageProxy::didProcessRequestToSuspend(SuspensionState newSuspensio
 void SuspendedPageProxy::suspensionTimedOut()
 {
     RELEASE_LOG_ERROR(ProcessSwapping, "%p - SuspendedPageProxy::suspensionTimedOut() destroying the suspended page because it failed to suspend in time", this);
-    protectedBackForwardCache()->removeEntry(*this); // Will destroy |this|.
+    protect(backForwardCache())->removeEntry(*this); // Will destroy |this|.
 }
 
 WebPageProxy* SuspendedPageProxy::page() const

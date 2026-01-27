@@ -28,6 +28,7 @@
 
 #if ENABLE(GPU_PROCESS) && ENABLE(VIDEO)
 
+#include "ArgumentCoders.h"
 #include "AudioTrackPrivateRemoteConfiguration.h"
 #include "Logging.h"
 #include "RemoteAudioSourceProvider.h"
@@ -36,7 +37,7 @@
 #include "RemoteLegacyCDMSession.h"
 #include "RemoteMediaPlayerManagerProxyMessages.h"
 #include "RemoteMediaPlayerProxyMessages.h"
-#include "RemoteMediaResourceManagerMessages.h"
+#include "RemoteMediaResourceLoaderProxy.h"
 #include "SandboxExtension.h"
 #include "TextTrackPrivateRemoteConfiguration.h"
 #include "VideoLayerRemote.h"
@@ -1651,44 +1652,6 @@ void MediaPlayerPrivateRemote::setShouldDisableHDR(bool shouldDisable)
     protectedConnection()->send(Messages::RemoteMediaPlayerProxy::SetShouldDisableHDR(shouldDisable), m_id);
 }
 
-void MediaPlayerPrivateRemote::requestResource(RemoteMediaResourceIdentifier remoteMediaResourceIdentifier, WebCore::ResourceRequest&& request, WebCore::PlatformMediaResourceLoader::LoadOptions options)
-{
-    assertIsMainRunLoop();
-
-    ASSERT(!m_mediaResources.contains(remoteMediaResourceIdentifier));
-
-    RefPtr player = m_player.get();
-    RefPtr resource = player ? player->mediaResourceLoader()->requestResource(WTF::move(request), options) : nullptr;
-
-    if (!resource) {
-        // FIXME: Get the error from MediaResourceLoader::requestResource.
-        protectedConnection()->send(Messages::RemoteMediaResourceManager::LoadFailed(remoteMediaResourceIdentifier, { ResourceError::Type::Cancellation }), 0);
-        return;
-    }
-    // PlatformMediaResource owns the PlatformMediaResourceClient
-    resource->setClient(adoptRef(*new RemoteMediaResourceProxy(connection(), *resource, remoteMediaResourceIdentifier)));
-    m_mediaResources.add(remoteMediaResourceIdentifier, resource.releaseNonNull());
-}
-
-void MediaPlayerPrivateRemote::sendH2Ping(const URL& url, CompletionHandler<void(Expected<WTF::Seconds, WebCore::ResourceError>&&)>&& completionHandler)
-{
-    RefPtr player = m_player.get();
-    if (!player) {
-        completionHandler(makeUnexpected(internalError(url)));
-        return;
-    }
-    player->mediaResourceLoader()->sendH2Ping(url, WTF::move(completionHandler));
-}
-
-void MediaPlayerPrivateRemote::removeResource(RemoteMediaResourceIdentifier remoteMediaResourceIdentifier)
-{
-    assertIsMainRunLoop();
-
-    // The client(RemoteMediaResourceProxy) will be destroyed as well
-    if (auto resource = m_mediaResources.take(remoteMediaResourceIdentifier))
-        resource->shutdown();
-}
-
 void MediaPlayerPrivateRemote::resourceNotSupported()
 {
     if (RefPtr player = m_player.get())
@@ -1899,6 +1862,24 @@ void MediaPlayerPrivateRemote::sendInternalMessage(const WebCore::MessageForTest
     // We were sent a message, but no internal message client exists. Notify the
     // GPU process that we have no internal message client.
     protectedConnection()->send(Messages::RemoteMediaPlayerProxy::SetHasMessageClientForTesting(false), m_id);
+}
+
+void MediaPlayerPrivateRemote::createResourceLoader(RemoteMediaResourceLoaderIdentifier identifier)
+{
+    auto player = m_player.get();
+    if (!player)
+        return;
+
+    ASSERT(!m_mediaResourceLoaders.contains(identifier));
+    m_mediaResourceLoaders.ensure(identifier, [&] {
+        return RemoteMediaResourceLoaderProxy::create(connection(), player->mediaResourceLoader(), identifier);
+    });
+}
+
+void MediaPlayerPrivateRemote::destroyResourceLoader(RemoteMediaResourceLoaderIdentifier identifier)
+{
+    ASSERT(!m_mediaResourceLoaders.contains(identifier));
+    m_mediaResourceLoaders.remove(identifier);
 }
 
 void MediaPlayerPrivateRemote::gpuProcessConnectionDidClose()

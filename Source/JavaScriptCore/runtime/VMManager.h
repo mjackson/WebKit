@@ -244,7 +244,7 @@ public:
 
     ALWAYS_INLINE static bool isValidVM(VM* vm)
     {
-        return vm == s_recentVM ? true : isValidVMSlow(vm);
+        return vm == s_recentVM || isValidVMSlow(vm);
     }
 
     // StopTheWorld APIs ======================================================

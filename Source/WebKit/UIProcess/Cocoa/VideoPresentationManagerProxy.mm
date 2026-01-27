@@ -1114,7 +1114,7 @@ void VideoPresentationManagerProxy::setupFullscreenWithID(PlaybackSessionContext
     UNUSED_PARAM(blocksReturnToFullscreenFromPictureInPicture);
     IntRect initialWindowRect;
     page->rootViewToWindow(enclosingIntRect(screenRect), initialWindowRect);
-    interface->setupFullscreen(initialWindowRect, page->protectedPlatformWindow().get(), videoFullscreenMode, allowsPictureInPicture);
+    interface->setupFullscreen(initialWindowRect, protect(page->platformWindow()).get(), videoFullscreenMode, allowsPictureInPicture);
     interface->setupCaptionsLayer(retainPtr([view layer]).get(), initialSize);
 #endif
 }
@@ -1223,7 +1223,7 @@ void VideoPresentationManagerProxy::exitFullscreen(PlaybackSessionContextIdentif
 #if PLATFORM(IOS_FAMILY)
     completionHandler(ensureInterface(contextId)->exitFullscreen(finalRect));
 #else
-    completionHandler(ensureInterface(contextId)->exitFullscreen(finalWindowRect, page->protectedPlatformWindow().get()));
+    completionHandler(ensureInterface(contextId)->exitFullscreen(finalWindowRect, protect(page->platformWindow()).get()));
 #endif
 }
 
@@ -1324,7 +1324,7 @@ void VideoPresentationManagerProxy::preparedToReturnToInline(PlaybackSessionCont
 #if PLATFORM(IOS_FAMILY)
     ensureInterface(contextId)->preparedToReturnToInline(visible, inlineRect);
 #else
-    ensureInterface(contextId)->preparedToReturnToInline(visible, inlineWindowRect, page->protectedPlatformWindow().get());
+    ensureInterface(contextId)->preparedToReturnToInline(visible, inlineWindowRect, protect(page->platformWindow()).get());
 #endif
 }
 

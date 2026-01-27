@@ -1056,6 +1056,7 @@ enum ContentsFormat {
     [Conditional=VIDEO] DOMString captionsStyleSheetOverride();
     [Conditional=VIDEO] undefined setCaptionsStyleSheetOverride(DOMString override);
     [Conditional=VIDEO] undefined setPrimaryAudioTrackLanguageOverride(DOMString language);
+    [Conditional=VIDEO] undefined setPreferredAudioCharacteristicsForTesting(sequence<DOMString> characteristics);
     [Conditional=VIDEO] undefined setCaptionDisplayMode(DOMString mode);
     [Conditional=VIDEO] readonly attribute DOMString captionDisplayMode;
     [Conditional=VIDEO] TextTrackCueGeneric? createGenericCue(double startTime, double endTime, DOMString text);

@@ -926,12 +926,11 @@ private:
     Value* emitAtomicBinaryRMWOp(ExtAtomicOpType, Type, Value* pointer, Value*, uint32_t offset);
     Value* emitAtomicCompareExchange(ExtAtomicOpType, Type, Value* pointer, Value* expected, Value*, uint32_t offset);
 
-    Value* decodeNonNullStructure(Value* structureID);
     Value* encodeStructureID(Value* structure);
 
     Value* allocatorForWasmGCHeapCellSize(Value* size, BasicBlock* slowPath);
     Value* allocateWasmGCHeapCell(Value* allocator, BasicBlock* slowPath);
-    Value* allocateWasmGCObject(Value* allocator, Value* structureID, Value* typeInfo, BasicBlock* slowPath);
+    Value* allocateWasmGCObject(const RTT*, Value* allocator, Value* structureID, Value* typeInfo, BasicBlock* slowPath);
     Value* allocateWasmGCArrayUninitialized(uint32_t typeIndex, Value* size);
 
     void mutatorFence();
@@ -948,7 +947,6 @@ private:
     using ArraySegmentOperation = EncodedJSValue SYSV_ABI (&)(JSC::JSWebAssemblyInstance*, uint32_t, uint32_t, uint32_t, uint32_t);
     [[nodiscard]] ExpressionType pushArrayNewFromSegment(ArraySegmentOperation, uint32_t typeIndex, uint32_t segmentIndex, ExpressionType arraySize, ExpressionType offset, ExceptionType);
     void emitRefTestOrCast(CastKind, TypedExpression, bool, int32_t, bool, ExpressionType&);
-    Value* emitLoadRTTFromObject(Value*);
 
     const B3::AbstractHeap* structFieldHeap(const RTT& rtt, uint32_t fieldIndex)
     {
@@ -3563,10 +3561,10 @@ Value* OMGIRGenerator::emitGetArrayPayloadBase(Wasm::StorageType fieldType, Valu
 {
     auto payloadBase = m_currentBlock->appendNew<Value>(m_proc, Add, pointerType(), origin(), pointerOfWasmRef(arrayref), constant(pointerType(), JSWebAssemblyArray::offsetOfData()));
     if (JSWebAssemblyArray::needsAlignmentCheck(fieldType)) {
-        auto isPreciseAllocation = m_currentBlock->appendNew<Value>(m_proc, BitAnd, origin(), pointerOfWasmRef(arrayref), constant(pointerType(), PreciseAllocation::halfAlignment));
-        return m_currentBlock->appendNew<Value>(m_proc, B3::Select, origin(), isPreciseAllocation,
-            payloadBase,
-            m_currentBlock->appendNew<Value>(m_proc, Add, origin(), payloadBase, constant(pointerType(), JSWebAssemblyArray::v128AlignmentShift)));
+        // Round-up to 16x for PreciseAllocation + V128 array data handling.
+        return m_currentBlock->appendNew<Value>(m_proc, BitAnd, origin(),
+            m_currentBlock->appendNew<Value>(m_proc, Add, origin(), payloadBase, constant(pointerType(), 15)),
+            constant(pointerType(), -16));
     }
     return payloadBase;
 }
@@ -3966,13 +3964,6 @@ void OMGIRGenerator::emitRefTestOrCast(CastKind castKind, TypedExpression refere
     result = push(castValue);
 }
 
-Value* OMGIRGenerator::decodeNonNullStructure(Value* structureID)
-{
-    return m_currentBlock->appendNew<Value>(m_proc, B3::BitOr, origin(),
-        m_currentBlock->appendNew<Value>(m_proc, ZExt32, origin(), structureID),
-        constant(pointerType(), structureIDBase()));
-}
-
 Value* OMGIRGenerator::encodeStructureID(Value* structure)
 {
     return m_currentBlock->appendNew<B3::Value>(m_proc, B3::Trunc, origin(), structure);
@@ -4060,7 +4051,7 @@ Value* OMGIRGenerator::allocateWasmGCHeapCell(Value* allocator, BasicBlock* slow
     return patchpoint;
 }
 
-Value* OMGIRGenerator::allocateWasmGCObject(Value* allocator, Value* structureID, Value* typeInfo, BasicBlock* slowPath)
+Value* OMGIRGenerator::allocateWasmGCObject(const RTT* rtt, Value* allocator, Value* structureID, Value* typeInfo, BasicBlock* slowPath)
 {
     auto* cell = allocateWasmGCHeapCell(allocator, slowPath);
 
@@ -4072,6 +4063,10 @@ Value* OMGIRGenerator::allocateWasmGCObject(Value* allocator, Value* structureID
 
     auto* storeButterfly = m_currentBlock->appendNew<B3::MemoryValue>(m_proc, B3::Store, origin(), constant(pointerType(), 0), cell, safeCast<int32_t>(JSObject::butterflyOffset()));
     m_heaps.decorateMemory(&m_heaps.JSObject_butterfly, storeButterfly);
+
+    auto* storeRTT = m_currentBlock->appendNew<B3::MemoryValue>(m_proc, B3::Store, origin(), constant(pointerType(), std::bit_cast<uintptr_t>(rtt)), cell, safeCast<int32_t>(WebAssemblyGCObjectBase::offsetOfRTT()));
+    m_heaps.decorateMemory(&m_heaps.WebAssemblyGCObjectBase_rtt, storeRTT);
+
     return cell;
 }
 
@@ -4086,13 +4081,14 @@ Value* OMGIRGenerator::allocateWasmGCArrayUninitialized(uint32_t typeIndex, Valu
     structureID->setControlDependent(false);
 
     const ArrayType* typeDefinition = m_info.typeSignatures[typeIndex]->expand().template as<ArrayType>();
+    Ref<const RTT> rtt = m_info.rtts[typeIndex];
     size_t elementSize = typeDefinition->elementType().type.elementSize();
     auto* extended = pointerOfInt32(size);
     auto* shifted = m_currentBlock->appendNew<Value>(m_proc, Shl, origin(), extended, constant(Int32, getLSBSet(elementSize)));
     auto* sizeInBytes = m_currentBlock->appendNew<Value>(m_proc, Add, pointerType(), origin(), shifted, constant(pointerType(), sizeof(JSWebAssemblyArray)));
     auto* allocator = allocatorForWasmGCHeapCellSize(sizeInBytes, slowPath);
     auto* typeInfo = constant(Int32, JSWebAssemblyArray::typeInfoBlob().blob());
-    auto* cell = allocateWasmGCObject(allocator, structureID, typeInfo, slowPath);
+    auto* cell = allocateWasmGCObject(rtt.ptr(), allocator, structureID, typeInfo, slowPath);
     auto* fastValue = m_currentBlock->appendNew<UpsilonValue>(m_proc, origin(), wasmRefOfCell(cell));
     m_currentBlock->appendNewControlValue(m_proc, Jump, origin(), continuation);
     continuation->addPredecessor(m_currentBlock);
@@ -4142,20 +4138,6 @@ void OMGIRGenerator::mutatorFence()
     continuation->addPredecessor(m_currentBlock);
 
     m_currentBlock = continuation;
-}
-
-Value* OMGIRGenerator::emitLoadRTTFromObject(Value* reference)
-{
-    Value* structureID = m_currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, Int32, origin(), reference, safeCast<int32_t>(JSCell::structureIDOffset()));
-    m_heaps.decorateMemory(&m_heaps.JSCell_structureID, structureID);
-
-    Value* structure = decodeNonNullStructure(structureID);
-
-    auto* rtt = m_currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, pointerType(), origin(), structure, safeCast<int32_t>(WebAssemblyGCStructure::offsetOfRTT()));
-    m_heaps.decorateMemory(&m_heaps.WebAssemblyGCStructure_rtt, rtt);
-    rtt->setControlDependent(false);
-
-    return rtt;
 }
 
 auto OMGIRGenerator::addAnyConvertExtern(ExpressionType reference, ExpressionType& result) -> PartialResult

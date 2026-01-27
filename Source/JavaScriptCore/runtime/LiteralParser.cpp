@@ -1497,7 +1497,7 @@ JSValue LiteralParser<CharType, reviverMode>::parseRecursively(VM& vm, uint8_t* 
                         m_parseErrorMessage = "Attempted to redefine __proto__ property"_s;
                         return { };
                     }
-                    PutPropertySlot slot(object, m_nullOrCodeBlock ? m_nullOrCodeBlock->ownerExecutable()->isInStrictContext() : false);
+                    PutPropertySlot slot(object, m_nullOrCodeBlock && m_nullOrCodeBlock->ownerExecutable()->isInStrictContext());
                     JSValue(object).put(m_globalObject, ident, value, slot);
                     RETURN_IF_EXCEPTION(scope, { });
                 } else if (std::optional<uint32_t> index = parseIndex(ident)) {
@@ -1675,7 +1675,7 @@ JSValue LiteralParser<CharType, reviverMode>::parse(VM& vm, ParserState initialS
                             m_parseErrorMessage = "Attempted to redefine __proto__ property"_s;
                             return { };
                         }
-                        PutPropertySlot slot(object, m_nullOrCodeBlock ? m_nullOrCodeBlock->ownerExecutable()->isInStrictContext() : false);
+                        PutPropertySlot slot(object, m_nullOrCodeBlock && m_nullOrCodeBlock->ownerExecutable()->isInStrictContext());
                         JSValue(object).put(m_globalObject, ident, primitive, slot);
                         RETURN_IF_EXCEPTION(scope, { });
                     } else {
@@ -1770,7 +1770,7 @@ JSValue LiteralParser<CharType, reviverMode>::parse(VM& vm, ParserState initialS
                     m_parseErrorMessage = "Attempted to redefine __proto__ property"_s;
                     return { };
                 }
-                PutPropertySlot slot(object, m_nullOrCodeBlock ? m_nullOrCodeBlock->ownerExecutable()->isInStrictContext() : false);
+                PutPropertySlot slot(object, m_nullOrCodeBlock && m_nullOrCodeBlock->ownerExecutable()->isInStrictContext());
                 JSValue(object).put(m_globalObject, ident, lastValue, slot);
                 RETURN_IF_EXCEPTION(scope, { });
             } else {

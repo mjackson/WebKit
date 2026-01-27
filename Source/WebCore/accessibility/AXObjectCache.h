@@ -645,10 +645,8 @@ public:
     RefPtr<Page> page() const;
     IntPoint mapScreenPointToPagePoint(const IntPoint&) const;
 
-#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
-    inline void objectBecameIgnored(const AccessibilityObject&);
-    inline void objectBecameUnignored(const AccessibilityObject&);
-#endif
+    void objectBecameIgnored(const AccessibilityObject&);
+    void objectBecameUnignored(const AccessibilityObject&);
 
 #if PLATFORM(COCOA)
     static void setShouldRepostNotificationsForTests(bool);

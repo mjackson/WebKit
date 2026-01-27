@@ -48,6 +48,7 @@ DECLARE_SYSTEM_HEADER
 #import <AppKit/NSScrollPocket_Private.h>
 #endif
 
+#import <AppKit/NSGestureRecognizer_Private.h>
 #import <AppKit/NSPanGestureRecognizer_Private.h>
 
 #if HAVE(NSVIEW_CORNER_CONFIGURATION)
@@ -164,6 +165,12 @@ typedef NS_ENUM(NSInteger, NSScrollPocketEdge) {
 - (void)_invalidateCornerConfiguration;
 @end
 
+#endif
+
+#if !HAVE(NSGESTURERECOGNIZER_MODIFIER_FLAGS)
+@interface NSGestureRecognizer (SPI)
+- (NSEventModifierFlags)modifierFlags;
+@end
 #endif
 
 #endif

@@ -88,10 +88,15 @@ void MediaResourceLoader::sendH2Ping(const URL& url, CompletionHandler<void(Expe
 {
     assertIsMainThread();
 
-    if (!m_document || !m_document->frame())
+    RefPtr document = this->document();
+    if (!document)
         return completionHandler(makeUnexpected(internalError(url)));
 
-    m_document->protectedFrame()->loader().client().sendH2Ping(url, WTF::move(completionHandler));
+    RefPtr frame = document->frame();
+    if (!frame)
+        return completionHandler(makeUnexpected(internalError(url)));
+
+    frame->loader().client().sendH2Ping(url, WTF::move(completionHandler));
 }
 
 static LoadedFromOpaqueSource computeLoadedFromOpaqueSource(const Document& document, const HashSet<URL>& nonOpaqueLoadURLs, const URL& url, const std::optional<LoadedFromOpaqueSource> loadedFromOpaqueSource)
@@ -149,12 +154,12 @@ RefPtr<PlatformMediaResource> MediaResourceLoader::requestResource(ResourceReque
         cachingPolicy };
     loaderOptions.sameOriginDataURLFlag = SameOriginDataURLFlag::Set;
     loaderOptions.destination = m_destination;
-    loaderOptions.loadedFromOpaqueSource = computeLoadedFromOpaqueSource(*m_document, m_nonOpaqueLoadURLs, request.url(), m_loadedFromOpaqueSource);
+    loaderOptions.loadedFromOpaqueSource = computeLoadedFromOpaqueSource(*document, m_nonOpaqueLoadURLs, request.url(), m_loadedFromOpaqueSource);
     auto cachedRequest = createPotentialAccessControlRequest(WTF::move(request), WTF::move(loaderOptions), *document, m_crossOriginMode);
     if (RefPtr element = m_element.get())
         cachedRequest.setInitiator(*element);
 
-    auto resource = m_document->protectedCachedResourceLoader()->requestMedia(WTF::move(cachedRequest)).value_or(nullptr);
+    auto resource = document->protectedCachedResourceLoader()->requestMedia(WTF::move(cachedRequest)).value_or(nullptr);
     if (!resource)
         return nullptr;
 

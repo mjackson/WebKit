@@ -2419,6 +2419,7 @@ webkit.org/b/305086 [ arm64 ] imported/w3c/web-platform-tests/media-source/media
 webkit.org/b/305403 [ Sequoia ] http/tests/performance/performance-resource-timing-redirection-cross-origin-media.html [ Failure ]
 
 # webkit.org/b/296008 [macOS Debug] http/tests/media/hls and platform/mac/media/encrypted-media tests are timing out on some EWS bots
+[ Sequoia+ arm64 ] http/tests/media/hls/hls-audio-description-track-kind.html [ Timeout ]
 [ Sequoia+ arm64 ] http/tests/media/hls/hls-audio-tracks-language.html [ Timeout ]
 [ Sequoia+ arm64 ] http/tests/media/hls/hls-webvtt-default.html [ Timeout ]
 [ Sequoia+ arm64 ] http/tests/media/hls/hls-webvtt-style.html [ Timeout ]
@@ -2448,3 +2449,7 @@ webkit.org/b/305958 imported/w3c/web-platform-tests/media-source/mediasource-cha
 webkit.org/b/305959 fast/text/FontFaceSet-status-after-style-update.html [ Pass Failure ]
 
 webkit.org/b/306047 accessibility/mac/replaced-element-text-selection.html [ Pass Failure ]
+
+webkit.org/b/306278 [ arm64 ] media/media-source/media-managedmse-resume-after-remove.html [ Pass Failure ]
+
+webkit.org/b/306294 http/wpt/offscreen-canvas/transferToImageBitmap-webgl.html [ ImageOnlyFailure Pass ]

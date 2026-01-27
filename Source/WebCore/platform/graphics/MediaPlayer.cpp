@@ -261,8 +261,16 @@ private:
     MediaPlaybackTargetType playbackTargetType() const final { return MediaPlaybackTargetType::None; }
 #endif
 
-    class NullMediaResourceLoader final : public PlatformMediaResourceLoader {
+    class NullMediaResourceLoader final
+        : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<NullMediaResourceLoader>
+        , public PlatformMediaResourceLoader {
         WTF_MAKE_TZONE_ALLOCATED_INLINE(NullMediaResourceLoader);
+    public:
+        void ref() const final { ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr::ref(); }
+        void deref() const final { ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr::deref(); }
+        ThreadSafeWeakPtrControlBlock& controlBlock() const final { return ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr::controlBlock(); }
+        uint32_t weakRefCount() const final { return ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr::weakRefCount(); }
+    private:
         void sendH2Ping(const URL&, CompletionHandler<void(Expected<Seconds, ResourceError>&&)>&& completionHandler) final
         {
             completionHandler(makeUnexpected(ResourceError { }));

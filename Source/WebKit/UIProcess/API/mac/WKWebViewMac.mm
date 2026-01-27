@@ -739,6 +739,16 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_BEGIN
     _impl->removeTextPlaceholder(placeholder, willInsertText, completionHandler);
 }
 
+- (NSRect)unionRectInVisibleSelectedRange
+{
+    return _impl->unionRectInVisibleSelectedRange();
+}
+
+- (NSRect)documentVisibleRect
+{
+    return _impl->documentVisibleRect();
+}
+
 - (void)showContextMenuForSelection:(id)sender
 {
     _page->handleContextMenuKeyEvent();

@@ -286,7 +286,7 @@ public:
     AccessibilityObjectInclusion defaultObjectInclusion() const;
     inline bool isIgnoredByDefault() const;
     bool includeIgnoredInCoreTree() const;
-    bool isARIAHidden() const;
+    virtual bool isARIAHidden() const;
 
     bool isShowingValidationMessage() const;
     String validationMessage() const;
@@ -756,7 +756,7 @@ public:
     void mathPostscripts(AccessibilityMathMultiscriptPairs&) override { }
 
     // Visibility.
-    bool isAXHidden() const;
+    virtual bool isAXHidden() const;
     bool isRenderHidden() const;
     inline bool isHidden() const;
     bool isOnScreen() const final;

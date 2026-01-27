@@ -2688,7 +2688,7 @@ void WebsiteDataStore::openWindowFromServiceWorker(const String& urlString, cons
             return;
         }
 
-        if (!newPage->protectedPageLoadState()->isLoading()) {
+        if (!protect(newPage->pageLoadState())->isLoading()) {
             RELEASE_LOG(Loading, "The WKWebView provided in response to a ServiceWorker openWindow request was not in the loading state");
             callback(std::nullopt);
             return;

@@ -547,7 +547,7 @@ static void logResourceResponseSource(LocalFrame* frame, ResourceResponse::Sourc
 
 bool ResourceLoader::shouldAllowResourceToAskForCredentials() const
 {
-    if (m_canCrossOriginRequestsAskUserForCredentials)
+    if (!cachedResource() || cachedResource()->type() == CachedResource::Type::MainResource)
         return true;
     RefPtr frame = m_frame.get();
     if (!frame)

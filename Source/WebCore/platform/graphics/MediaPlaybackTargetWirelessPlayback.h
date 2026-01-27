@@ -37,9 +37,7 @@ class MediaDeviceRoute;
 class MediaPlaybackTargetWirelessPlayback final : public MediaPlaybackTarget {
 public:
     WEBCORE_EXPORT static Ref<MediaPlaybackTargetWirelessPlayback> create(std::optional<WTF::UUID> identifier, bool hasActiveRoute);
-#if HAVE(AVROUTING_FRAMEWORK)
     static Ref<MediaPlaybackTargetWirelessPlayback> create(MediaDeviceRoute&);
-#endif
 
     ~MediaPlaybackTargetWirelessPlayback();
 
@@ -48,22 +46,14 @@ public:
     MediaDeviceRoute* route() const;
 
 private:
-#if HAVE(AVROUTING_FRAMEWORK)
     MediaPlaybackTargetWirelessPlayback(RefPtr<MediaDeviceRoute>&&, bool hasActiveRoute);
-#else
-    MediaPlaybackTargetWirelessPlayback(std::optional<WTF::UUID> identifier, bool hasActiveRoute);
-#endif
 
     // MediaPlaybackTarget
     String deviceName() const final;
     bool hasActiveRoute() const final { return m_hasActiveRoute; }
     bool supportsRemoteVideoPlayback() const final { return hasActiveRoute(); }
 
-#if HAVE(AVROUTING_FRAMEWORK)
     RefPtr<MediaDeviceRoute> m_route;
-#else
-    std::optional<WTF::UUID> m_identifier;
-#endif
     bool m_hasActiveRoute;
 };
 

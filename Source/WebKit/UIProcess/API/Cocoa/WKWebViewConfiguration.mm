@@ -357,7 +357,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
 - (WKProcessPool *)processPool
 {
-    return wrapper(self._protectedPageConfiguration->protectedProcessPool().get());
+    return wrapper(protect(self._protectedPageConfiguration->processPool()).get());
 }
 
 - (void)setProcessPool:(WKProcessPool *)processPool
@@ -470,7 +470,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
 - (WKWebsiteDataStore *)websiteDataStore
 {
-    return wrapper(self._protectedPageConfiguration->protectedWebsiteDataStore().get());
+    return wrapper(protect(self._protectedPageConfiguration->websiteDataStore()).get());
 }
 
 - (WKAudiovisualMediaTypes)mediaTypesRequiringUserActionForPlayback

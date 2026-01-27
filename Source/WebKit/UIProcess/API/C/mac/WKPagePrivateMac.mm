@@ -63,7 +63,7 @@ static Ref<WebKit::WebPageProxy> protectedPage(WKObservablePageState *state)
     _page = WTF::move(page);
     Ref observer = WebKit::PageLoadStateObserver::create(self, @"URL");
     _observer = observer.get();
-    protectedPage(self)->protectedPageLoadState()->addObserver(observer.get());
+    protect(protectedPage(self)->pageLoadState())->addObserver(observer.get());
 
     return self;
 }
@@ -73,7 +73,7 @@ static Ref<WebKit::WebPageProxy> protectedPage(WKObservablePageState *state)
     protect(*_observer)->clearObject();
 
     ensureOnMainRunLoop([page = WTF::move(_page), observer = std::exchange(_observer, nullptr)] {
-        page->protectedPageLoadState()->removeObserver(*observer);
+        protect(page->pageLoadState())->removeObserver(*observer);
     });
 
     [super dealloc];
@@ -81,22 +81,22 @@ static Ref<WebKit::WebPageProxy> protectedPage(WKObservablePageState *state)
 
 - (BOOL)isLoading
 {
-    return protectedPage(self)->protectedPageLoadState()->isLoading();
+    return protect(protectedPage(self)->pageLoadState())->isLoading();
 }
 
 - (NSString *)title
 {
-    return protectedPage(self)->protectedPageLoadState()->title().createNSString().autorelease();
+    return protect(protectedPage(self)->pageLoadState())->title().createNSString().autorelease();
 }
 
 - (NSURL *)URL
 {
-    return [NSURL _web_URLWithWTFString:protectedPage(self)->protectedPageLoadState()->activeURL()];
+    return [NSURL _web_URLWithWTFString:protect(protectedPage(self)->pageLoadState())->activeURL()];
 }
 
 - (BOOL)hasOnlySecureContent
 {
-    return protectedPage(self)->protectedPageLoadState()->hasOnlySecureContent();
+    return protect(protectedPage(self)->pageLoadState())->hasOnlySecureContent();
 }
 
 - (BOOL)_webProcessIsResponsive
@@ -137,7 +137,7 @@ _WKRemoteObjectRegistry *WKPageGetObjectRegistry(WKPageRef pageRef)
 
 bool WKPageIsURLKnownHSTSHost(WKPageRef page, WKURLRef url)
 {
-    return WebKit::toProtectedImpl(page)->configuration().protectedProcessPool()->isURLKnownHSTSHost(WebKit::toImpl(url)->string());
+    return protect(WebKit::toProtectedImpl(page)->configuration().processPool())->isURLKnownHSTSHost(WebKit::toImpl(url)->string());
 }
 
 WKNavigation *WKPageLoadURLRequestReturningNavigation(WKPageRef pageRef, WKURLRequestRef urlRequestRef)

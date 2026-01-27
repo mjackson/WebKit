@@ -117,7 +117,7 @@ void AXIsolatedTree::createEmptyContent(AccessibilityObject& axRoot)
 {
     AX_ASSERT(isMainThread());
     AX_ASSERT(!axRoot.isDetached());
-    AX_ASSERT(axRoot.isScrollView() && !axRoot.parentObject());
+    AX_ASSERT(axRoot.isScrollArea() && !axRoot.parentObject());
 
     // An empty content tree consists only of the ScrollView and WebArea objects.
     m_isEmptyContentTree = true;
@@ -1977,7 +1977,7 @@ IsolatedObjectData createIsolatedObjectData(const Ref<AccessibilityObject>& axOb
             setProperty(AXProperty::InputType, *inputType);
 
         bool isWebArea = axObject->isWebArea();
-        bool isScrollArea = axObject->isScrollView();
+        bool isScrollArea = axObject->isScrollArea();
         if (isScrollArea && !axObject->parentObject()) {
             // Eagerly cache the screen relative position for the root. AXIsolatedObject::screenRelativePosition()
             // of non-root objects depend on the root object's screen relative position, so make sure it's there

@@ -105,6 +105,8 @@ public:
         GST_BUFFER_FLAG_SET(buffer, GST_BUFFER_FLAG_DROPPABLE);
         return false;
     }
+
+    [[nodiscard]] virtual GRefPtr<GstCaps> videoSinkGLCapsFormat() const { return nullptr;  }
 };
 
 class GStreamerHolePunchQuirk : public GStreamerQuirkBase {
@@ -138,6 +140,8 @@ public:
     std::optional<bool> isHardwareAccelerated(GstElementFactory*) const;
     GstElementFactoryListType audioVideoDecoderFactoryListType() const;
     Vector<String> disallowedWebAudioDecoders() const;
+
+    [[nodiscard]] GRefPtr<GstCaps> videoSinkGLCapsFormat() const;
 
     bool supportsVideoHolePunchRendering() const;
     GstElement* createHolePunchVideoSink(bool isLegacyPlaybin, const MediaPlayer*);

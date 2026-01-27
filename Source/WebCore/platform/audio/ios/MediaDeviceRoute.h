@@ -25,7 +25,7 @@
 
 #pragma once
 
-#if HAVE(AVROUTING_FRAMEWORK)
+#if ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)
 
 #include <WebKitAdditions/MediaDeviceRouteAdditions.h>
 #include <wtf/AbstractRefCountedAndCanMakeWeakPtr.h>
@@ -169,4 +169,4 @@ private:
 
 } // namespace WebCore
 
-#endif // HAVE(AVROUTING_FRAMEWORK)
+#endif // ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)

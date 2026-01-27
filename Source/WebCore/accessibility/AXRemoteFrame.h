@@ -50,7 +50,7 @@ private:
     explicit AXRemoteFrame(AXID, AXObjectCache&);
 
     AccessibilityRole determineAccessibilityRole() final { return AccessibilityRole::RemoteFrame; }
-    bool computeIsIgnored() const final { return false; }
+    bool computeIsIgnored() const final;
     bool isAXRemoteFrame() const final { return true; }
     LayoutRect elementRect() const final;
 

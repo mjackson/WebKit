@@ -519,9 +519,9 @@ bool OptionRange::isInRange(unsigned count) const
         return true;
 
     if ((m_lowLimit <= count) && (count <= m_highLimit))
-        return m_state == Normal ? true : false;
+        return m_state == Normal;
 
-    return m_state == Normal ? false : true;
+    return m_state != Normal;
 }
 
 void OptionRange::dump(PrintStream& out) const

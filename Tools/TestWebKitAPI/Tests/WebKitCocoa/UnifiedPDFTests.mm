@@ -269,7 +269,12 @@ UNIFIED_PDF_TEST(TabKeyOnPDFTextFieldShouldNotCrash)
     testTabKeysAtPoint(NSMakePoint(220, 300));
 }
 
+// FIXME when rdar://168769459 is resolved.
+#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED < 260000
+UNIFIED_PDF_TEST(DISABLED_PrintSize)
+#else
 UNIFIED_PDF_TEST(PrintSize)
+#endif
 {
     RetainPtr configuration = configurationForWebViewTestingUnifiedPDF();
     RetainPtr schemeHandler = adoptNS([TestURLSchemeHandler new]);

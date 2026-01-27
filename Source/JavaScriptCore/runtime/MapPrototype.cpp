@@ -89,10 +89,8 @@ void MapPrototype::finishCreation(VM& vm, JSGlobalObject* globalObject)
     putDirectWithoutTransition(vm, vm.propertyNames->set, setFunc, static_cast<unsigned>(PropertyAttribute::DontEnum));
     putDirectWithoutTransition(vm, vm.propertyNames->builtinNames().setPrivateName(), setFunc, static_cast<unsigned>(PropertyAttribute::DontEnum));
 
-    if (Options::useMapGetOrInsert()) {
-        JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("getOrInsert"_s, mapProtoFuncGetOrInsert, static_cast<unsigned>(PropertyAttribute::DontEnum), 2, ImplementationVisibility::Public);
-        JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("getOrInsertComputed"_s, mapProtoFuncGetOrInsertComputed, static_cast<unsigned>(PropertyAttribute::DontEnum), 2, ImplementationVisibility::Public);
-    }
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("getOrInsert"_s, mapProtoFuncGetOrInsert, static_cast<unsigned>(PropertyAttribute::DontEnum), 2, ImplementationVisibility::Public);
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("getOrInsertComputed"_s, mapProtoFuncGetOrInsertComputed, static_cast<unsigned>(PropertyAttribute::DontEnum), 2, ImplementationVisibility::Public);
 
     JSFunction* sizeGetter = JSFunction::create(vm, globalObject, 0, "get size"_s, mapProtoFuncSize, ImplementationVisibility::Public);
     GetterSetter* sizeAccessor = GetterSetter::create(vm, globalObject, sizeGetter, nullptr);

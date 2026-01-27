@@ -143,8 +143,8 @@ bool RemoteLayerTreeHost::updateBannerLayers(const std::optional<MainFrameData>&
     if (!page)
         return false;
 
-    bool headerBannerLayerChanged = updateBannerLayer(page->protectedHeaderBannerLayer().get(), scrolledContentsLayer.get());
-    bool footerBannerLayerChanged = updateBannerLayer(page->protectedFooterBannerLayer().get(), scrolledContentsLayer.get());
+    bool headerBannerLayerChanged = updateBannerLayer(protect(page->headerBannerLayer()).get(), scrolledContentsLayer.get());
+    bool footerBannerLayerChanged = updateBannerLayer(protect(page->footerBannerLayer()).get(), scrolledContentsLayer.get());
     return headerBannerLayerChanged || footerBannerLayerChanged;
 }
 #endif

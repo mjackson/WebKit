@@ -48,7 +48,7 @@ class MediaPlayerPrivateAVFoundation
     : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<MediaPlayerPrivateAVFoundation, WTF::DestructionThread::Main>
     , public MediaPlayerPrivateInterface
 #if !RELEASE_LOG_DISABLED
-    , private LoggerHelper
+    , protected LoggerHelper
 #endif
 {
 public:

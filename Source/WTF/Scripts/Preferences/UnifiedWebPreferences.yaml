@@ -278,17 +278,20 @@ AllowMultiElementImplicitSubmission:
 
 AllowMultipleCommitLayerTreePending:
   type: bool
-  status: testable
+  status: internal
   category: dom
   humanReadableName: "Allow requesting CommitLayerTree before the previous has completed"
   humanReadableDescription: "Allow requesting CommitLayerTree before the previous has completed"
   defaultValue:
     WebKitLegacy:
-      default: false
+      "PLATFORM(IOS_FAMILY)": false
+      default: true
     WebKit:
-      default: false
+      "PLATFORM(IOS_FAMILY)": false
+      default: true
     WebCore:
-      default: false
+      "PLATFORM(IOS_FAMILY)": false
+      default: true
 
 AllowPrivacySensitiveOperationsInNonPersistentDataStores:
   type: bool
@@ -8098,6 +8101,16 @@ TextExtractionFilterEnabled:
     WebKit:
       "ENABLE(TEXT_EXTRACTION_FILTER)": true
       default: false
+
+TextInputClientSelectionUpdatesEnabled:
+  type: bool
+  status: embedder
+  webcoreBinding: none
+  condition: PLATFORM(MAC)
+  exposed: [ WebKit ]
+  defaultValue:
+    WebKit:
+      default: WebKit::defaultTextInputClientSelectionUpdatesEnabled()
 
 TextInteractionEnabled:
   type: bool

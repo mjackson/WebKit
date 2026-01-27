@@ -5,7 +5,7 @@
 #testDiv a{width:30px;height:30px;text-align:center;line-height:30px;}
 #testDiv a span{width:10px;height:10px;opacity:0.9;vertical-align:-1px;}
 </style>
-<div id=testDiv style="position:absolute">
+<div id=testDiv style="position:absolute; font-family: Ahem">
 <a><span id=test></span></a>
 </div>
 <script>
@@ -13,6 +13,6 @@ description("Test for https://bugs.webkit.org/show_bug.cgi?id=71996");
 var test = document.getElementById("test");
 var style = window.getComputedStyle(test);
 shouldBeEqualToString("style.verticalAlign", "-1px");
-shouldBe("test.offsetTop", "10");
+shouldBeCloseTo("test.offsetTop", 10, 1);
 isSuccessfullyParsed();
 </script>

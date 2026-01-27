@@ -4679,7 +4679,7 @@ void BytecodeGenerator::emitTryWithFinallyThatDoesNotShadowException(FinallyCont
 
 void BytecodeGenerator::emitGenericEnumeration(ThrowableExpressionData* node, ExpressionNode* subjectNode, const ScopedLambda<void(BytecodeGenerator&, RegisterID*)>& callBack, ForOfNode* forLoopNode, RegisterID* forLoopSymbolTable)
 {
-    bool isForAwait = forLoopNode ? forLoopNode->isForAwait() : false;
+    bool isForAwait = forLoopNode && forLoopNode->isForAwait();
     auto shouldEmitAwait = isForAwait ? EmitAwait::Yes : EmitAwait::No;
     ASSERT(!isForAwait || (isAsyncFunctionParseMode(parseMode()) || isModuleParseMode(parseMode())));
 

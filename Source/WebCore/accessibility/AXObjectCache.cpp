@@ -5408,7 +5408,7 @@ AccessibilityObject* AXObjectCache::rootWebArea()
     if (!m_document)
         return nullptr;
     RefPtr root = getOrCreate(m_document->view());
-    if (!root || !root->isScrollView())
+    if (!root || !root->isScrollArea())
         return nullptr;
     return root->webAreaObject();
 }
@@ -6016,5 +6016,35 @@ bool AXObjectCache::isAppleInternalInstall()
     return isInternal;
 }
 #endif // PLATFORM(COCOA)
+
+void AXObjectCache::objectBecameIgnored(const AccessibilityObject& object)
+{
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+    if (RefPtr tree = AXIsolatedTree::treeForFrameID(m_frameID))
+        tree->objectBecameIgnored(object);
+#endif
+#if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
+    if (RefPtr scrollView = dynamicDowncast<AccessibilityScrollView>(object); scrollView && scrollView->role() == AccessibilityRole::FrameHost)
+        const_cast<AccessibilityScrollView*>(scrollView.get())->updateHostedFrameInheritedState();
+#endif
+#if !ENABLE(ACCESSIBILITY_ISOLATED_TREE) && !ENABLE(ACCESSIBILITY_LOCAL_FRAME)
+    UNUSED_PARAM(object);
+#endif
+}
+
+void AXObjectCache::objectBecameUnignored(const AccessibilityObject& object)
+{
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+    if (RefPtr tree = AXIsolatedTree::treeForFrameID(m_frameID))
+        tree->objectBecameUnignored(object);
+#endif
+#if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
+    if (RefPtr scrollView = dynamicDowncast<AccessibilityScrollView>(object); scrollView && scrollView->role() == AccessibilityRole::FrameHost)
+        const_cast<AccessibilityScrollView*>(scrollView.get())->updateHostedFrameInheritedState();
+#endif
+#if !ENABLE(ACCESSIBILITY_ISOLATED_TREE) && !ENABLE(ACCESSIBILITY_LOCAL_FRAME)
+    UNUSED_PARAM(object);
+#endif
+}
 
 } // namespace WebCore

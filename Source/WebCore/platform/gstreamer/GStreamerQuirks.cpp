@@ -32,6 +32,7 @@
 #include "GStreamerQuirkBcmNexus.h"
 #include "GStreamerQuirkBroadcom.h"
 #include "GStreamerQuirkOpenMAX.h"
+#include "GStreamerQuirkQualcomm.h"
 #include "GStreamerQuirkRealtek.h"
 #include "GStreamerQuirkRialto.h"
 #include "GStreamerQuirkWesteros.h"
@@ -87,7 +88,7 @@ GStreamerQuirksManager::GStreamerQuirksManager(bool isForTesting, bool loadQuirk
     GST_DEBUG("Attempting to parse requested quirks: %s", GST_STR_NULL(quirksString.utf8()));
     if (quirksString) {
         if (WTF::equalLettersIgnoringASCIICase(quirksString.span(), "help"_s)) {
-            gst_printerrln("Supported quirks for WEBKIT_GST_QUIRKS are: amlogic, broadcom, bcmnexus, openmax, realtek, rialto, westeros");
+            gst_printerrln("Supported quirks for WEBKIT_GST_QUIRKS are: amlogic, broadcom, bcmnexus, openmax, qualcomm, realtek, rialto, westeros");
             return;
         }
 
@@ -101,6 +102,8 @@ GStreamerQuirksManager::GStreamerQuirksManager(bool isForTesting, bool loadQuirk
                 quirk = WTF::makeUnique<GStreamerQuirkBcmNexus>();
             else if (WTF::equalLettersIgnoringASCIICase(identifier, "openmax"_s))
                 quirk = WTF::makeUnique<GStreamerQuirkOpenMAX>();
+            else if (WTF::equalLettersIgnoringASCIICase(identifier, "qualcomm"_s))
+                quirk = WTF::makeUnique<GStreamerQuirkQualcomm>();
             else if (WTF::equalLettersIgnoringASCIICase(identifier, "realtek"_s))
                 quirk = WTF::makeUnique<GStreamerQuirkRealtek>();
             else if (WTF::equalLettersIgnoringASCIICase(identifier, "rialto"_s))
@@ -125,6 +128,7 @@ GStreamerQuirksManager::GStreamerQuirksManager(bool isForTesting, bool loadQuirk
         ADD_QUIRK(Broadcom);
         ADD_QUIRK(BcmNexus);
         ADD_QUIRK(OpenMAX);
+        ADD_QUIRK(Qualcomm);
         ADD_QUIRK(Realtek);
         ADD_QUIRK(Rialto);
         ADD_QUIRK(Westeros);
@@ -310,6 +314,15 @@ bool GStreamerQuirksManager::shouldParseIncomingLibWebRTCBitStream() const
             return false;
     }
     return true;
+}
+
+GRefPtr<GstCaps> GStreamerQuirksManager::videoSinkGLCapsFormat() const
+{
+    for (auto& quirk : m_quirks) {
+        if (auto caps = quirk->videoSinkGLCapsFormat())
+            return caps;
+    }
+    return nullptr;
 }
 
 bool GStreamerQuirksManager::needsBufferingPercentageCorrection() const

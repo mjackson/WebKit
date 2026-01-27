@@ -5671,11 +5671,9 @@ void BBQJIT::emitArrayGetPayload(StorageType type, GPRReg arrayGPR, GPRReg paylo
         return;
     }
 
-    // FIXME: This could probably use a moveConditionally but we don't have enough scratches and this case is unlikely to exist in practice.
-    m_jit.addPtr(MacroAssembler::TrustedImm32(JSWebAssemblyArray::offsetOfData()), arrayGPR, payloadGPR);
-    auto precise = m_jit.branchTestPtr(MacroAssembler::NonZero, arrayGPR, MacroAssembler::TrustedImm32(PreciseAllocation::halfAlignment));
-    m_jit.addPtr(MacroAssembler::TrustedImm32(JSWebAssemblyArray::v128AlignmentShift), payloadGPR, payloadGPR);
-    precise.link(m_jit);
+    // Round-up to 16x for PreciseAllocation + V128 array data handling.
+    m_jit.addPtr(MacroAssembler::TrustedImm32(JSWebAssemblyArray::offsetOfData() + 15), arrayGPR, payloadGPR);
+    m_jit.andPtr(MacroAssembler::TrustedImm32(-16), payloadGPR);
 }
 
 } // namespace JSC::Wasm::BBQJITImpl

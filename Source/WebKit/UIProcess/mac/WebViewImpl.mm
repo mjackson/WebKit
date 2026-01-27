@@ -1287,6 +1287,8 @@ static RetainPtr<_WKWebViewTextInputNotifications> subscribeToTextInputNotificat
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(WebViewImpl);
 
+static constexpr auto viewStateHysteresis = 500_ms;
+
 WebViewImpl::WebViewImpl(WKWebView *view, WebProcessPool& processPool, Ref<API::PageConfiguration>&& configuration)
     : m_view(view)
     , m_pageClient(makeUniqueRefWithoutRefCountedCheck<PageClientImpl>(view, view))
@@ -1297,7 +1299,7 @@ WebViewImpl::WebViewImpl(WKWebView *view, WebProcessPool& processPool, Ref<API::
     , m_undoTarget(adoptNS([[WKEditorUndoTarget alloc] init]))
     , m_windowVisibilityObserver(adoptNS([[WKWindowVisibilityObserver alloc] initWithView:view impl:*this]))
     , m_accessibilitySettingsObserver(adoptNS([[WKAccessibilitySettingsObserver alloc] initWithImpl:*this]))
-    , m_contentRelativeViewsHysteresis(makeUniqueRef<PAL::HysteresisActivity>([this](auto state) { this->contentRelativeViewsHysteresisTimerFired(state); }, 500_ms))
+    , m_contentRelativeViewsHysteresis(makeUniqueRef<PAL::HysteresisActivity>([this](auto state) { this->contentRelativeViewsHysteresisTimerFired(state); }, viewStateHysteresis))
     , m_mouseTrackingObserver(adoptNS([[WKMouseTrackingObserver alloc] initWithViewImpl:*this]))
     , m_primaryTrackingArea(adoptNS([[NSTrackingArea alloc] initWithRect:view.frame options:trackingAreaOptions() owner:m_mouseTrackingObserver.get() userInfo:nil]))
     , m_flagsChangedEventMonitorTrackingArea(adoptNS([[NSTrackingArea alloc] initWithRect:view.frame options:flagsChangedEventMonitorTrackingAreaOptions() owner:m_mouseTrackingObserver.get() userInfo:nil]))
@@ -1388,6 +1390,11 @@ WebViewImpl::WebViewImpl(WKWebView *view, WebProcessPool& processPool, Ref<API::
     m_textInputNotifications = subscribeToTextInputNotifications(this);
 #endif
 
+    m_pageScrollingHysteresis = makeUnique<PAL::HysteresisActivity>([weakThis = WeakPtr { *this }](auto state) {
+        if (CheckedPtr checkedImpl = weakThis.get())
+            checkedImpl->pageScrollingHysteresisFired(state);
+    }, viewStateHysteresis);
+
     m_appKitGestureController = adoptNS([[WKAppKitGestureController alloc] initWithPage:m_page viewImpl:*this]);
 
     WebProcessPool::statistics().wkViewCount++;
@@ -1396,7 +1403,7 @@ WebViewImpl::WebViewImpl(WKWebView *view, WebProcessPool& processPool, Ref<API::
 WebViewImpl::~WebViewImpl()
 {
     if (m_remoteObjectRegistry) {
-        m_page->configuration().protectedProcessPool()->removeMessageReceiver(Messages::RemoteObjectRegistry::messageReceiverName(), m_page->identifier());
+        protect(m_page->configuration().processPool())->removeMessageReceiver(Messages::RemoteObjectRegistry::messageReceiverName(), m_page->identifier());
         [m_remoteObjectRegistry _invalidate];
         m_remoteObjectRegistry = nil;
     }
@@ -2197,7 +2204,7 @@ void WebViewImpl::windowWillClose()
 
 void WebViewImpl::screenDidChangeColorSpace()
 {
-    m_page->configuration().protectedProcessPool()->screenPropertiesChanged();
+    protect(m_page->configuration().processPool())->screenPropertiesChanged();
 }
 
 void WebViewImpl::applicationShouldSuppressHDR(bool suppress)
@@ -2393,20 +2400,23 @@ void WebViewImpl::activeSpaceDidChange()
 
 void WebViewImpl::pageDidScroll(const IntPoint& scrollPosition)
 {
-    bool pageIsScrolledToTop = scrollPosition.y() <= 0;
-    if (pageIsScrolledToTop == m_pageIsScrolledToTop)
+    if (scrollPosition == m_lastPageScrollPosition)
         return;
 
-    [m_view.get() willChangeValueForKey:@"hasScrolledContentsUnderTitlebar"];
+    bool pageIsScrolledToTopDidChange = (scrollPosition.y() <= 0) != pageIsScrolledToTop();
+    if (pageIsScrolledToTopDidChange)
+        [protectedView() willChangeValueForKey:@"hasScrolledContentsUnderTitlebar"];
 
-    m_pageIsScrolledToTop = pageIsScrolledToTop;
+    m_lastPageScrollPosition = scrollPosition;
+    m_pageScrollingHysteresis->impulse();
 
+    if (pageIsScrolledToTopDidChange) {
 #if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
-    updateScrollPocketVisibilityWhenScrolledToTop();
-    updatePrefersSolidColorHardPocket();
+        updateScrollPocketVisibilityWhenScrolledToTop();
+        updatePrefersSolidColorHardPocket();
 #endif
-
-    [m_view.get() didChangeValueForKey:@"hasScrolledContentsUnderTitlebar"];
+        [protectedView() didChangeValueForKey:@"hasScrolledContentsUnderTitlebar"];
+    }
 }
 
 #if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
@@ -2414,7 +2424,7 @@ void WebViewImpl::pageDidScroll(const IntPoint& scrollPosition)
 void WebViewImpl::updateScrollPocketVisibilityWhenScrolledToTop()
 {
     RetainPtr view = m_view.get();
-    if ([view _usesAutomaticContentInsetBackgroundFill] && m_pageIsScrolledToTop)
+    if ([view _usesAutomaticContentInsetBackgroundFill] && pageIsScrolledToTop())
         [view _addReasonToHideTopScrollPocket:HideScrollPocketReason::ScrolledToTop];
     else
         [view _removeReasonToHideTopScrollPocket:HideScrollPocketReason::ScrolledToTop];
@@ -2457,7 +2467,7 @@ NSRect WebViewImpl::scrollViewFrame()
 
 bool WebViewImpl::hasScrolledContentsUnderTitlebar()
 {
-    return m_isRegisteredScrollViewSeparatorTrackingAdapter && !m_pageIsScrolledToTop;
+    return m_isRegisteredScrollViewSeparatorTrackingAdapter && !pageIsScrolledToTop();
 }
 
 void WebViewImpl::updateTitlebarAdjacencyState()
@@ -2894,24 +2904,29 @@ void WebViewImpl::centerSelectionInVisibleArea()
 
 void WebViewImpl::selectionDidChange()
 {
+    Ref page = m_page.get();
+
     updateFontManagerIfNeeded();
     if (!m_isHandlingAcceptedCandidate)
         m_softSpaceRange = NSMakeRange(NSNotFound, 0);
 #if HAVE(TOUCH_BAR)
     updateTouchBar();
-    if (m_page->editorState().hasPostLayoutData())
+    if (page->editorState().hasPostLayoutData())
         requestCandidatesForSelectionIfNeeded();
 #endif
 
+    if (page->editorState().hasPostLayoutData()) {
 #if HAVE(REDESIGNED_TEXT_CURSOR)
-    if (m_page->editorState().hasPostLayoutData())
         updateCursorAccessoryPlacement();
 #endif
+        if (protect(page->preferences())->textInputClientSelectionUpdatesEnabled())
+            [protect(inputContext()) textInputClientDidUpdateSelection];
+    }
 
 #if ENABLE(WRITING_TOOLS)
-    if (isEditable() || m_page->configuration().writingToolsBehavior() == WebCore::WritingTools::Behavior::Complete) {
-        auto isRange = m_page->editorState().hasPostLayoutData() && m_page->editorState().selectionIsRange;
-        auto selectionRect = isRange ? m_page->editorState().postLayoutData->selectionBoundingRect : IntRect { };
+    if (isEditable() || page->configuration().writingToolsBehavior() == WebCore::WritingTools::Behavior::Complete) {
+        auto isRange = page->editorState().hasPostLayoutData() && page->editorState().selectionIsRange;
+        auto selectionRect = isRange ? page->editorState().postLayoutData->selectionBoundingRect : IntRect { };
 
         // The affordance will only show up if the selected range consists of >= 50 characters.
         [[PAL::getWTWritingToolsClassSingleton() sharedInstance] scheduleShowAffordanceForSelectionRect:selectionRect ofView:m_view.get().get() forDelegate:(NSObject<WTWritingToolsDelegate> *)m_view.get().get()];
@@ -3003,6 +3018,34 @@ void WebViewImpl::typingAttributesWithCompletionHandler(void(^completion)(NSDict
         auto attributesAsDictionary = attributes.createDictionary();
         completion(attributesAsDictionary.get());
     });
+}
+
+NSRect WebViewImpl::unionRectInVisibleSelectedRange() const
+{
+    RetainPtr view = m_view.get();
+    if (!view)
+        return NSZeroRect;
+
+    Ref page = m_page.get();
+    if (!page->editorState().selectionIsRange)
+        return NSZeroRect;
+
+    auto selectionRect = page->selectionBoundingRectInRootViewCoordinates();
+    if (selectionRect.isEmpty())
+        return NSZeroRect;
+
+    return selectionRect;
+}
+
+NSRect WebViewImpl::documentVisibleRect() const
+{
+    RetainPtr view = m_view.get();
+    if (!view)
+        return NSZeroRect;
+
+    FloatRect visibleRect = [view bounds];
+    visibleRect.contract(m_page->obscuredContentInsets());
+    return visibleRect;
 }
 
 void WebViewImpl::changeFontColorFromSender(id sender)
@@ -3656,6 +3699,22 @@ void WebViewImpl::contentRelativeViewsHysteresisTimerFired(PAL::HysteresisState 
         restoreContentRelativeChildViews();
 }
 
+void WebViewImpl::pageScrollingHysteresisFired(PAL::HysteresisState state)
+{
+    RetainPtr context = inputContext();
+    if (!context)
+        return;
+
+    switch (state) {
+    case PAL::HysteresisState::Started:
+        [context textInputClientWillStartScrollingOrZooming];
+        break;
+    case PAL::HysteresisState::Stopped:
+        [context textInputClientDidEndScrollingOrZooming];
+        break;
+    }
+}
+
 void WebViewImpl::suppressContentRelativeChildViews()
 {
 #if ENABLE(WRITING_TOOLS)
@@ -4187,7 +4246,7 @@ _WKRemoteObjectRegistry *WebViewImpl::remoteObjectRegistry()
     if (!m_remoteObjectRegistry) {
         m_remoteObjectRegistry = adoptNS([[_WKRemoteObjectRegistry alloc] _initWithWebPageProxy:m_page.get()]);
         Ref webRemoteObjectRegistry = [m_remoteObjectRegistry remoteObjectRegistry];
-        m_page->configuration().protectedProcessPool()->addMessageReceiver(Messages::RemoteObjectRegistry::messageReceiverName(), m_page->identifier(), webRemoteObjectRegistry);
+        protect(m_page->configuration().processPool())->addMessageReceiver(Messages::RemoteObjectRegistry::messageReceiverName(), m_page->identifier(), webRemoteObjectRegistry);
     }
 
     return m_remoteObjectRegistry.get();
@@ -7184,7 +7243,7 @@ void WebViewImpl::updatePrefersSolidColorHardPocket()
         if ([view _hasVisibleColorExtensionView:BoxSide::Top])
             return YES;
 
-        if (m_pageIsScrolledToTop)
+        if (pageIsScrolledToTop())
             return YES;
 
         if (view->_preferSolidColorHardPocketReasons)

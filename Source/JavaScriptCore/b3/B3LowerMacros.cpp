@@ -678,6 +678,7 @@ private:
                 Value* structureID = structNew->structureID();
                 SUPPRESS_UNCOUNTED_LOCAL const Wasm::StructType* structType = structNew->structType();
                 uint32_t typeIndex = structNew->typeIndex();
+                auto rtt = structNew->rtt();
                 int32_t allocatorsBaseOffset = structNew->allocatorsBaseOffset();
 
                 size_t allocationSize = JSWebAssemblyStruct::allocationSize(structType->instancePayloadSize());
@@ -748,6 +749,7 @@ private:
                     fastPathContinuation->appendNew<MemoryValue>(m_proc, Store, m_origin, structureID, cell, static_cast<int32_t>(JSCell::structureIDOffset()));
                     fastPathContinuation->appendNew<MemoryValue>(m_proc, Store, m_origin, typeInfo, cell, static_cast<int32_t>(JSCell::indexingTypeAndMiscOffset()));
                     fastPathContinuation->appendNew<MemoryValue>(m_proc, Store, m_origin, fastPathContinuation->appendIntConstant(m_proc, m_origin, pointerType(), 0), cell, static_cast<int32_t>(JSObject::butterflyOffset()));
+                    fastPathContinuation->appendNew<MemoryValue>(m_proc, Store, m_origin, fastPathContinuation->appendIntConstant(m_proc, m_origin, pointerType(), std::bit_cast<uintptr_t>(rtt.ptr())), cell, static_cast<int32_t>(WebAssemblyGCObjectBase::offsetOfRTT()));
 
                     fastUpsilon = fastPathContinuation->appendNew<UpsilonValue>(m_proc, m_origin, cell);
                     fastPathContinuation->appendNew<Value>(m_proc, Jump, m_origin);
@@ -777,8 +779,6 @@ private:
                 if (fastUpsilon)
                     fastUpsilon->setPhi(phi);
                 slowUpsilon->setPhi(phi);
-
-                m_insertionSet.insert<MemoryValue>(m_index, Store, m_origin, m_insertionSet.insert<Const32Value>(m_index, m_origin, structType->instancePayloadSize()), phi, static_cast<int32_t>(JSWebAssemblyStruct::offsetOfSize()));
 
                 m_value->replaceWithIdentity(phi);
                 before->updatePredecessorsAfter();
@@ -1200,18 +1200,6 @@ private:
             }
         };
 
-        auto decodeNonNullStructure = [&](Value* structureID) -> Value* {
-            return currentBlock->appendNew<Value>(m_proc, B3::BitOr, m_origin, currentBlock->appendNew<Value>(m_proc, ZExt32, m_origin, structureID), constant(Int64, structureIDBase()));
-        };
-
-        auto emitLoadRTTFromObject = [&](Value* reference) -> Value* {
-            Value* structureID = currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, Int32, m_origin, reference, safeCast<int32_t>(JSCell::structureIDOffset()));
-            Value* structure = decodeNonNullStructure(structureID);
-            auto* rtt = currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, pointerType(), m_origin, structure, safeCast<int32_t>(WebAssemblyGCStructure::offsetOfRTT()));
-            rtt->setControlDependent(false);
-            return rtt;
-        };
-
         auto emitCheckOrBranchForCast = [&](CastKind kind, Value* condition, const auto& generator, BasicBlock* falseBlock) {
             if (kind == CastKind::Cast) {
                 CheckValue* check = currentBlock->appendNew<CheckValue>(m_proc, Check, m_origin, condition);
@@ -1327,7 +1315,7 @@ private:
 
                     emitCheckOrBranchForCast(castKind, currentBlock->appendNew<Value>(m_proc, NotEqual, m_origin, jsType, constant(Int32, JSType::WebAssemblyGCObjectType)), castFailure, falseBlock);
                 }
-                Value* rtt = emitLoadRTTFromObject(value);
+                Value* rtt = currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, pointerType(), m_origin, value, safeCast<int32_t>(WebAssemblyGCObjectBase::offsetOfRTT()));
                 auto* kind = currentBlock->appendNew<MemoryValue>(m_proc, Load8Z, m_origin, rtt, safeCast<int32_t>(Wasm::RTT::offsetOfKind()));
                 kind->setControlDependent(false);
 
@@ -1339,7 +1327,6 @@ private:
             }
         } else {
             ([&] {
-                Value* structure = nullptr;
                 MemoryValue* rtt;
                 if (targetRTT->kind() == Wasm::RTTKind::Function)
                     rtt = currentBlock->appendNew<MemoryValue>(m_proc, wrapTrapping(B3::Load), Int64, m_origin, value, safeCast<int32_t>(WebAssemblyFunctionBase::offsetOfRTT()));
@@ -1352,11 +1339,11 @@ private:
                         auto* jsType = currentBlock->appendNew<MemoryValue>(m_proc, wrapTrapping(Load8Z), Int32, m_origin, value, safeCast<int32_t>(JSCell::typeInfoTypeOffset()));
                         emitCheckOrBranchForCast(castKind, currentBlock->appendNew<Value>(m_proc, NotEqual, m_origin, jsType, constant(Int32, JSType::WebAssemblyGCObjectType)), castFailure, falseBlock);
                     }
-                    Value* structureID = currentBlock->appendNew<MemoryValue>(m_proc, wrapTrapping(B3::Load), Int32, m_origin, value, safeCast<int32_t>(JSCell::structureIDOffset()));
-                    structure = decodeNonNullStructure(structureID);
-                    if (targetRTT->displaySizeExcludingThis() < WebAssemblyGCStructure::inlinedTypeDisplaySize) {
+
+                    rtt = currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, pointerType(), m_origin, value, safeCast<int32_t>(WebAssemblyGCObjectBase::offsetOfRTT()));
+                    if (targetRTT->displaySizeExcludingThis() < Wasm::RTT::inlinedDisplaySize) {
                         auto* targetRTTPointer = constant(Int64, std::bit_cast<uintptr_t>(targetRTT));
-                        auto* pointer = currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, Int64, m_origin, structure, safeCast<int32_t>(WebAssemblyGCStructure::offsetOfInlinedTypeDisplay() + targetRTT->displaySizeExcludingThis() * sizeof(RefPtr<const Wasm::RTT>)));
+                        auto* pointer = currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, Int64, m_origin, rtt, safeCast<int32_t>(Wasm::RTT::offsetOfData() + targetRTT->displaySizeExcludingThis() * sizeof(RefPtr<const Wasm::RTT>)));
                         pointer->setReadsMutability(B3::Mutability::Immutable);
                         pointer->setControlDependent(false);
 
@@ -1364,8 +1351,6 @@ private:
                         return;
                     }
 
-                    rtt = currentBlock->appendNew<MemoryValue>(m_proc, B3::Load, Int64, m_origin, structure, safeCast<int32_t>(WebAssemblyGCStructure::offsetOfRTT()));
-                    rtt->setControlDependent(false);
                 }
 
                 auto* targetRTTPointer = constant(Int64, std::bit_cast<uintptr_t>(targetRTT));

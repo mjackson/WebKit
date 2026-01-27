@@ -28,9 +28,28 @@
 
 #if ENABLE(B3_JIT)
 
+#include "B3ValueInlines.h"
+
 namespace JSC::B3 {
 
 WasmRefTypeCheckValue::~WasmRefTypeCheckValue() = default;
+
+void WasmRefTypeCheckValue::dumpMeta(CommaPrinter& comma, PrintStream& out) const
+{
+    out.print(comma, "targetHeapType = ", m_targetHeapType);
+    if (m_targetRTT)
+        out.print(comma, "targetRTT = ", RawPointer(m_targetRTT.get()));
+    if (allowNull())
+        out.print(comma, "allowNull");
+    if (shouldNegate())
+        out.print(comma, "shouldNegate");
+    if (referenceIsNullable())
+        out.print(comma, "referenceIsNullable");
+    if (definitelyIsCellOrNull())
+        out.print(comma, "definitelyIsCellOrNull");
+    if (definitelyIsWasmGCObjectOrNull())
+        out.print(comma, "definitelyIsWasmGCObjectOrNull");
+}
 
 } // namespace JSC::B3
 

@@ -49,8 +49,6 @@
 #include "RemoteMediaPlayerManagerProxyMessages.h"
 #include "RemoteMediaPlayerProxy.h"
 #include "RemoteMediaPlayerProxyMessages.h"
-#include "RemoteMediaResourceManager.h"
-#include "RemoteMediaResourceManagerMessages.h"
 #include "RemoteRemoteCommandListenerProxy.h"
 #include "RemoteRemoteCommandListenerProxyMessages.h"
 #include "RemoteRenderingBackend.h"
@@ -470,11 +468,6 @@ void GPUConnectionToWebProcess::didClose(IPC::Connection& connection)
     RemoteLegacyCDMFactoryProxy& legacyCdmFactoryProxy();
 #endif
 
-#if ENABLE(VIDEO)
-    if (RefPtr remoteMediaResourceManager = m_remoteMediaResourceManager)
-        remoteMediaResourceManager->stopListeningForIPC();
-#endif
-
     Ref gpuProcess = this->gpuProcess();
     gpuProcess->connectionToWebProcessClosed(connection);
     gpuProcess->removeGPUConnectionToWebProcess(*this); // May destroy |this|.
@@ -615,26 +608,6 @@ RemoteAudioDestinationManager& GPUConnectionToWebProcess::remoteAudioDestination
 Ref<RemoteAudioDestinationManager> GPUConnectionToWebProcess::protectedRemoteAudioDestinationManager()
 {
     return remoteAudioDestinationManager();
-}
-#endif
-
-#if ENABLE(VIDEO)
-RemoteMediaResourceManager& GPUConnectionToWebProcess::remoteMediaResourceManager()
-{
-    assertIsMainThread();
-
-    if (!m_remoteMediaResourceManager) {
-        Ref manager = RemoteMediaResourceManager::create();
-        manager->initializeConnection(m_connection.ptr());
-        m_remoteMediaResourceManager = WTF::move(manager);
-    }
-
-    return *m_remoteMediaResourceManager;
-}
-
-Ref<RemoteMediaResourceManager> GPUConnectionToWebProcess::protectedRemoteMediaResourceManager()
-{
-    return remoteMediaResourceManager();
 }
 #endif
 

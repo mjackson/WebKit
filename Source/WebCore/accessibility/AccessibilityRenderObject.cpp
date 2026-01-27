@@ -3176,7 +3176,7 @@ ScrollableArea* AccessibilityRenderObject::getScrollableAreaIfScrollable() const
 {
     // If the parent is a scroll view, then this object isn't really scrollable, the parent ScrollView should handle the scrolling.
     if (RefPtr parent = parentObject()) {
-        if (parent->isScrollView())
+        if (parent->isScrollArea())
             return nullptr;
     }
 

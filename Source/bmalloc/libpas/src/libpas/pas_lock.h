@@ -52,72 +52,7 @@ typedef enum pas_lock_lock_mode pas_lock_lock_mode;
 
 PAS_END_EXTERN_C;
 
-#if PAS_USE_SPINLOCKS
-
-PAS_BEGIN_EXTERN_C;
-
-struct pas_lock;
-typedef struct pas_lock pas_lock;
-
-struct pas_lock {
-    bool lock;
-    bool is_spinning;
-};
-
-#define PAS_LOCK_INITIALIZER ((pas_lock){ .lock = false, .is_spinning = false })
-
-static inline void pas_lock_construct(pas_lock* lock)
-{
-    *lock = PAS_LOCK_INITIALIZER;
-}
-
-static inline void pas_lock_construct_disabled(pas_lock* lock)
-{
-    *lock = PAS_LOCK_INITIALIZER;
-    lock->lock = true; /* This isn't great; it'll just mean that if we use the lock wrong then
-                          we'll infinite loop. But we test in a mode where we don't use this
-                          code path. */
-}
-
-PAS_API PAS_NEVER_INLINE void pas_lock_lock_slow(pas_lock* lock);
-
-static inline void pas_lock_lock(pas_lock* lock)
-{
-    pas_race_test_will_lock(lock);
-    if (!pas_compare_and_swap_bool_weak(&lock->lock, false, true))
-        pas_lock_lock_slow(lock);
-    pas_race_test_did_lock(lock);
-}
-
-static inline bool pas_lock_try_lock(pas_lock* lock)
-{
-    bool result;
-    result = !pas_compare_and_swap_bool_strong(&lock->lock, false, true);
-    if (result)
-        pas_race_test_did_try_lock(lock);
-    return result;
-}
-
-static inline void pas_lock_unlock(pas_lock* lock)
-{
-    pas_race_test_will_unlock(lock);
-    pas_atomic_store_bool((bool*)&lock->lock, false);
-}
-
-static inline void pas_lock_assert_held(pas_lock* lock)
-{
-    PAS_ASSERT(lock->lock);
-}
-
-static inline void pas_lock_testing_assert_held(pas_lock* lock)
-{
-    PAS_TESTING_ASSERT(lock->lock);
-}
-
-PAS_END_EXTERN_C;
-
-#elif PAS_OS(DARWIN) /* !PAS_USE_SPINLOCKS */
-
+#if PAS_OS(DARWIN)
 
 #if defined(__has_include) && __has_include(<os/lock_private.h>) && (defined(LIBPAS) || defined(PAS_BMALLOC))
 #define PAS_USE_ULOCK_SPI 1
@@ -235,127 +170,7 @@ static inline void pas_lock_testing_assert_held(pas_lock* lock)
 
 PAS_END_EXTERN_C;
 
-#elif PAS_OS(LINUX)
-
-#include <linux/futex.h>
-#include <sys/syscall.h>
-#include <unistd.h>
-
-PAS_BEGIN_EXTERN_C;
-
-struct pas_lock;
-typedef struct pas_lock pas_lock;
-
-struct pas_lock {
-    unsigned futex;
-};
-
-#define PAS_LOCK_INITIALIZER ((pas_lock){ .futex = 0 })
-
-static inline void pas_lock_construct(pas_lock* lock)
-{
-    *lock = PAS_LOCK_INITIALIZER;
-}
-
-static inline void pas_lock_construct_disabled(pas_lock* lock)
-{
-    pas_zero_memory(lock, sizeof(pas_lock));
-}
-
-static inline long pas_lock_futex_wait(unsigned* addr, unsigned val)
-{
-    return syscall(SYS_futex, addr, FUTEX_WAIT | FUTEX_PRIVATE_FLAG, val, NULL, NULL, 0);
-}
-
-static inline long pas_lock_futex_wake(unsigned* addr)
-{
-    return syscall(SYS_futex, addr, FUTEX_WAKE | FUTEX_PRIVATE_FLAG, 1, NULL, NULL, 0);
-}
-
-static inline void pas_lock_lock(pas_lock* lock)
-{
-    unsigned expected = 0;
-
-    if (PAS_LOCK_VERBOSE)
-        pas_log("Thread %p Locking lock %p\n", (void*)pthread_self(), lock);
-
-    pas_race_test_will_lock(lock);
-
-    /* Fast path: Try to acquire 0 -> 1 */
-    if (__atomic_compare_exchange_n(&lock->futex, &expected, 1, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
-        pas_race_test_did_lock(lock);
-        return;
-    }
-
-    /* Slow path: lock is contended */
-    do {
-        /* If lock is currently 1 (locked, no waiters), mark it as 2 (locked with waiters) */
-        if (expected == 1) {
-            expected = __atomic_exchange_n(&lock->futex, 2, __ATOMIC_ACQUIRE);
-            // If we swapped 0 -> 2, we actually acquired the lock.
-            if (expected == 0) {
-                pas_race_test_did_lock(lock);
-                return;
-            }
-        }
-
-        /* If still not free, wait for wakeup */
-        if (expected != 0)
-            pas_lock_futex_wait(&lock->futex, 2);
-
-        /* Try to acquire the lock: 0 -> 2 (since we know there's contention) */
-        expected = 0;
-    } while (!__atomic_compare_exchange_n(&lock->futex, &expected, 2, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED));
-
-    pas_race_test_did_lock(lock);
-}
-
-static inline bool pas_lock_try_lock(pas_lock* lock)
-{
-    unsigned expected = 0;
-    bool result;
-
-    if (PAS_LOCK_VERBOSE)
-        pas_log("Thread %p Trylocking lock %p\n", (void*)pthread_self(), lock);
-
-    result = __atomic_compare_exchange_n(&lock->futex, &expected, 1, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED);
-
-    if (result)
-        pas_race_test_did_try_lock(lock);
-
-    return result;
-}
-
-static inline void pas_lock_unlock(pas_lock* lock)
-{
-    if (PAS_LOCK_VERBOSE)
-        pas_log("Thread %p Unlocking lock %p\n", (void*)pthread_self(), lock);
-
-    pas_race_test_will_unlock(lock);
-
-    /* If we had no waiters (state was 1), just unlock to 0 */
-    if (__atomic_fetch_sub(&lock->futex, 1, __ATOMIC_RELEASE) == 1)
-        return; /* No waiters, we're done */
-
-    /* We had waiters (state was 2), so we need to wake them up */
-    __atomic_store_n(&lock->futex, 0, __ATOMIC_RELEASE);
-    pas_lock_futex_wake(&lock->futex);
-}
-
-static inline void pas_lock_assert_held(pas_lock* lock)
-{
-    PAS_ASSERT(__atomic_load_n(&lock->futex, __ATOMIC_RELAXED) != 0);
-}
-
-static inline void pas_lock_testing_assert_held(pas_lock* lock)
-{
-    if (PAS_ENABLE_TESTING)
-        PAS_TESTING_ASSERT(__atomic_load_n(&lock->futex, __ATOMIC_RELAXED) != 0);
-}
-
-PAS_END_EXTERN_C;
-
-#elif PAS_PLATFORM(PLAYSTATION) /* !PAS_USE_SPINLOCKS */
+#elif PAS_PLATFORM(PLAYSTATION)
 
 #include <errno.h>
 #include <pthread_np.h>
@@ -439,214 +254,92 @@ static inline void pas_lock_testing_assert_held(pas_lock* lock)
 
 PAS_END_EXTERN_C;
 
-
-#elif PAS_OS(LINUX)  /* !PAS_USE_SPINLOCKS */
-
-#include <sys/syscall.h>
-#include <linux/futex.h>
-#include <unistd.h>     // For syscall()
+#elif PAS_OS(LINUX) || PAS_OS(WINDOWS) || PAS_OS(FREEBSD)
 
 PAS_BEGIN_EXTERN_C;
 
-/*
- *   0b00 => unlocked
- *   0b01 => locked (uncontended)
- *   0b11 => locked + contended
- */
-enum {
-    PAS_LOCK_UNLOCKED  = 0, /* 0b00 */
-    PAS_LOCK_LOCKED    = 1, /* 0b01 */
-    PAS_LOCK_CONTENDED = 3  /* 0b11 */
-};
-
-struct pas_lock {
-    int state;
-};
-
+struct pas_lock;
 typedef struct pas_lock pas_lock;
 
-#define PAS_LOCK_INITIALIZER ((pas_lock){ .state = PAS_LOCK_UNLOCKED })
+struct pas_lock {
+    unsigned futex;
+};
 
-static inline long pas_sys_futex(void* addr1, int op, int val1,
-                                 struct timespec* timeout, void* addr2, int val3)
-{
-    return syscall(SYS_futex, addr1, op, val1, timeout, addr2, val3);
-}
+#define PAS_LOCK_INITIALIZER ((pas_lock){ .futex = 0 })
 
-#if PAS_X86_64
-
-/*
- * On x86_64, we can use inline assembly for "lock bts" to set bit 0 of [memory].
- * If the bit was already 1, CF=1 => the lock was held; if CF=0, we acquired it from 0.
- * 
- * Acquire semantics: we typically rely on the “locked” instruction plus an lfence or
- * a concurrency barrier. In practice, “lock” prefixed instructions on x86 enforce enough
- * ordering for lock acquisition. For additional caution, you might add an "mfence" or
- * "__atomic_thread_fence(__ATOMIC_ACQUIRE)" after bts if needed in your environment.
- */
-static inline bool pas_try_lock_bts_x86(volatile int* state_ptr)
-{
-    bool was_locked; 
-    /* was_locked gets CF=1 if bit 0 was already set => lock was not free. */
-    __asm__ volatile(
-        "lock btsl $0, (%1)\n\t"
-        /* setc = "set carry if CF=1". So was_locked=1 if the bit was already set. */
-        "setc %0\n\t"
-        : "=r"(was_locked)
-        : "r"(state_ptr)
-        : "memory", "cc"
-    );
-    /* If was_locked==true => CF=1 => the bit was set => we failed to acquire. */
-    return !was_locked;
-}
-
-#endif /* PAS_X86_64 */
-
-/*
- * Fallback if not x86_64: compare-and-swap 0->1. 
- * You could also do something else for ARM, like an LSE-based approach, etc.
- */
-static inline bool pas_try_lock_cas(volatile int* state_ptr)
-{
-    uint32_t oldv = pas_compare_and_swap_uint32_strong((uint32_t*)state_ptr, PAS_LOCK_UNLOCKED, PAS_LOCK_LOCKED);
-    return (oldv == PAS_LOCK_UNLOCKED);
-}
-
-/* CPU pause or yield for spin loops. */
-static PAS_ALWAYS_INLINE void pas_lock_cpu_pause(void)
-{
-#if PAS_ARM64
-    __asm__ volatile("yield" ::: "memory");
-#elif PAS_X86_64
-    __asm__ volatile("pause" ::: "memory");
-#else
-    sched_yield();
-#endif
-}
-
-/* Lock initialization. */
 static inline void pas_lock_construct(pas_lock* lock)
 {
     *lock = PAS_LOCK_INITIALIZER;
 }
 
-/* Disabled => set state to INT_MAX so it's never acquired. */
 static inline void pas_lock_construct_disabled(pas_lock* lock)
 {
-    *lock = PAS_LOCK_INITIALIZER;
-    lock->state = INT_MAX;
+    pas_zero_memory(lock, sizeof(pas_lock));
 }
 
-/*
- * Attempt a fast lock with inline assembly on x86_64,
- * otherwise fallback to CAS. 
- */
-static inline bool pas_lock_try_lock_impl(pas_lock* lock)
-{
-#if PAS_X86_64
-    return pas_try_lock_bts_x86((volatile int*)&lock->state);
-#else
-    return pas_try_lock_cas((volatile int*)&lock->state);
-#endif
-}
+PAS_API PAS_NEVER_INLINE void pas_lock_lock_slow(pas_lock* lock, unsigned expected);
+PAS_API PAS_NEVER_INLINE void pas_lock_unlock_slow(pas_lock* lock);
 
-/*
- * Full lock routine:
- *   1) Quick attempt
- *   2) Spin for a short while if that fails.
- *   3) Mark contended (0b11), wait with futex until unlocked.
- */
 static inline void pas_lock_lock(pas_lock* lock)
 {
-    static const size_t spin_count = 40;
+    unsigned expected = 0;
+
+    if (PAS_LOCK_VERBOSE)
+        pas_log("Thread %p Locking lock %p\n", (void*)pthread_self(), lock);
+
     pas_race_test_will_lock(lock);
 
-    /* --- Fast path: if lock was 0 => now 1. */
-    if (pas_lock_try_lock_impl(lock)) {
-        pas_race_test_did_lock(lock);
-        return;
-    }
+    /* Fast path: Try to acquire 0 -> 1 */
+    if (PAS_UNLIKELY(!__atomic_compare_exchange_n(&lock->futex, &expected, 1, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)))
+        pas_lock_lock_slow(lock, expected);
 
-    /* --- Spin a little, hoping it becomes unlocked. */
-    for (size_t i = 0; i < spin_count; i++) {
-        pas_lock_cpu_pause();
-        /* Check if it’s unlocked => try again. */
-        if (lock->state == PAS_LOCK_UNLOCKED) {
-            if (pas_lock_try_lock_impl(lock)) {
-                pas_race_test_did_lock(lock);
-                return;
-            }
-        }
-    }
-
-    /* --- Slow path: unify behind "contended=3" & futex. */
-    for (;;) {
-        int s = __atomic_load_n(&lock->state, __ATOMIC_RELAXED);
-
-        if (s == PAS_LOCK_UNLOCKED) {
-            /* Try to lock from 0->1 again. */
-            if (pas_lock_try_lock_impl(lock)) {
-                pas_race_test_did_lock(lock);
-                return;
-            }
-        } else {
-            /* Mark contended if it's only locked=0b01. 
-             * If it's already contended=0b11, that's fine; we can skip.
-             */
-            if (s == PAS_LOCK_LOCKED) {
-                pas_compare_and_swap_uint32_strong((uint32_t*)&lock->state, PAS_LOCK_LOCKED, PAS_LOCK_CONTENDED);
-            }
-
-            /* If still locked or contended => wait on futex. */
-            if (lock->state != PAS_LOCK_UNLOCKED)
-                pas_sys_futex(&lock->state, FUTEX_WAIT_PRIVATE, PAS_LOCK_CONTENDED, NULL, NULL, 0);
-        }
-
-        /* Then loop around in case of spurious wake-up or CAS race. */
-    }
+    pas_race_test_did_lock(lock);
 }
 
-/*
- * Non-blocking try-lock entry point.
- * Returns true if we acquired from unlocked => locked.
- */
 static inline bool pas_lock_try_lock(pas_lock* lock)
 {
-    bool result = pas_lock_try_lock_impl(lock);
+    unsigned expected = 0;
+    bool result;
+
+    if (PAS_LOCK_VERBOSE)
+        pas_log("Thread %p Trylocking lock %p\n", (void*)pthread_self(), lock);
+
+    result = __atomic_compare_exchange_n(&lock->futex, &expected, 1, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED);
+
     if (result)
         pas_race_test_did_try_lock(lock);
+
     return result;
 }
 
-/*
- * Unlock: set state=0, do a FUTEX_WAKE if it was contended (0b11).
- * On x86, "store .release" can typically be done by just writing,
- * but we want a memory barrier if needed. We can also do a small CAS loop.
- */
 static inline void pas_lock_unlock(pas_lock* lock)
 {
+    if (PAS_LOCK_VERBOSE)
+        pas_log("Thread %p Unlocking lock %p\n", (void*)pthread_self(), lock);
+
     pas_race_test_will_unlock(lock);
 
-    int old_state = __atomic_exchange_n(&lock->state, PAS_LOCK_UNLOCKED, __ATOMIC_RELEASE);
-    if (old_state == PAS_LOCK_CONTENDED)
-        pas_sys_futex(&lock->state, FUTEX_WAKE_PRIVATE, INT_MAX, NULL, NULL, 0);
+    /* If we had no waiters (state was 1), just unlock to 0 */
+    if (PAS_UNLIKELY(__atomic_fetch_sub(&lock->futex, 1, __ATOMIC_RELEASE) != 1))
+        pas_lock_unlock_slow(lock);
 }
 
 static inline void pas_lock_assert_held(pas_lock* lock)
 {
-    PAS_ASSERT(lock->state != PAS_LOCK_UNLOCKED);
+    PAS_ASSERT(__atomic_load_n(&lock->futex, __ATOMIC_RELAXED) != 0);
 }
 
 static inline void pas_lock_testing_assert_held(pas_lock* lock)
 {
-    PAS_TESTING_ASSERT(lock->state != PAS_LOCK_UNLOCKED);
+    if (PAS_ENABLE_TESTING)
+        PAS_TESTING_ASSERT(__atomic_load_n(&lock->futex, __ATOMIC_RELAXED) != 0);
 }
 
 PAS_END_EXTERN_C;
 
-#else /* !PAS_USE_SPINLOCKS */
+#else
 #error "No pas_lock implementation found"
-#endif /* !PAS_USE_SPINLOCKS */
+#endif
 
 PAS_BEGIN_EXTERN_C;
 
