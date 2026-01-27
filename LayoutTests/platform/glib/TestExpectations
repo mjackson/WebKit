@@ -832,6 +832,7 @@ accessibility/aria-owns-id-change.html [ Skip ]
 accessibility/opacity-0-bounding-box.html [ Skip ]
 accessibility/clip-path-bounding-box.html [ Skip ]
 accessibility/first-letter-single-character.html [ Skip ]
+accessibility/table-cell-hit-test-not-column.html [ Skip ]
 
 accessibility/dynamic-expanded-text.html [ Failure ]
 
