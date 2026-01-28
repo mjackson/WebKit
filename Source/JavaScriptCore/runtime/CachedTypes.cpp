@@ -1541,18 +1541,23 @@ private:
 
 class CachedSourceOrigin : public CachedObject<SourceOrigin> {
 public:
+    // Upstream WebKit stores sourceOrigin.url().string() and re-parses it
+    // on decode with URL({}, string). In Bun, source origins are always
+    // file paths constructed via fileURLWithFileSystemPath. On Windows,
+    // fileURLWithFileSystemPath produces a URL with a different internal
+    // host() than what re-parsing the same URL's string() gives (drive
+    // letter "B:" is treated as host). This breaks SourceCodeKey::operator==
+    // which compares host(). To avoid this, we store the file system path
+    // directly and reconstruct via fileURLWithFileSystemPath on decode,
+    // so both encode/decode and runtime use the same construction path.
     void encode(Encoder& encoder, const SourceOrigin& sourceOrigin)
     {
-        dataLogLnIf(Options::verboseDiskCache(), "[Disk Cache] CachedSourceOrigin encode: url='", sourceOrigin.url().string(), "' host='", sourceOrigin.url().host(), "'");
-        m_string.encode(encoder, sourceOrigin.url().string());
+        m_string.encode(encoder, sourceOrigin.url().fileSystemPath());
     }
 
     SourceOrigin decode(Decoder& decoder) const
     {
-        String decodedString = m_string.decode(decoder);
-        URL decodedURL({ }, decodedString);
-        dataLogLnIf(Options::verboseDiskCache(), "[Disk Cache] CachedSourceOrigin decode: stored='", decodedString, "' decoded_host='", decodedURL.host(), "'");
-        return SourceOrigin { WTF::move(decodedURL) };
+        return SourceOrigin { URL::fileURLWithFileSystemPath(m_string.decode(decoder)) };
     }
 
 private:
