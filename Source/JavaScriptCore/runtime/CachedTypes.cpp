@@ -1543,12 +1543,16 @@ class CachedSourceOrigin : public CachedObject<SourceOrigin> {
 public:
     void encode(Encoder& encoder, const SourceOrigin& sourceOrigin)
     {
+        dataLogLnIf(Options::verboseDiskCache(), "[Disk Cache] CachedSourceOrigin encode: url='", sourceOrigin.url().string(), "' host='", sourceOrigin.url().host(), "'");
         m_string.encode(encoder, sourceOrigin.url().string());
     }
 
     SourceOrigin decode(Decoder& decoder) const
     {
-        return SourceOrigin { URL({ }, m_string.decode(decoder)) };
+        String decodedString = m_string.decode(decoder);
+        URL decodedURL({ }, decodedString);
+        dataLogLnIf(Options::verboseDiskCache(), "[Disk Cache] CachedSourceOrigin decode: stored='", decodedString, "' decoded_host='", decodedURL.host(), "'");
+        return SourceOrigin { WTF::move(decodedURL) };
     }
 
 private:
@@ -2680,8 +2684,13 @@ UnlinkedCodeBlock* decodeCodeBlockImpl(VM& vm, const SourceCodeKey& key, Ref<Cac
         if (!cachedEntry->decode(decoder.get(), entry))
             return nullptr;
     }
-    if (entry.first != key)
+    if (entry.first != key) {
+        dataLogLnIf(Options::verboseDiskCache(), "[Disk Cache] key mismatch for ", key.source().provider().sourceURL(),
+            " hash: ", entry.first.hash(), " vs ", key.hash(),
+            " length: ", entry.first.length(), " vs ", key.length(),
+            " host: '", entry.first.host(), "' vs '", key.host(), "'");
         return nullptr;
+    }
 
     if (Options::reportBytecodeCacheDecodeTimes()) [[unlikely]] {
         MonotonicTime after = MonotonicTime::now();
