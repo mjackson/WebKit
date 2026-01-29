@@ -1552,7 +1552,15 @@ public:
     // so both encode/decode and runtime use the same construction path.
     void encode(Encoder& encoder, const SourceOrigin& sourceOrigin)
     {
-        m_string.encode(encoder, sourceOrigin.url().fileSystemPath());
+        String path = sourceOrigin.url().fileSystemPath();
+#if OS(WINDOWS)
+        // fileSystemPath() returns backslashes on Windows, but
+        // fileURLWithFileSystemPath handles forward and back slashes
+        // differently — forward slashes match how source URLs are
+        // constructed at runtime (e.g. "B:/BUN/root/app.js").
+        path = makeStringByReplacingAll(path, '\\', '/');
+#endif
+        m_string.encode(encoder, path);
     }
 
     SourceOrigin decode(Decoder& decoder) const
