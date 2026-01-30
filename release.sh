@@ -37,7 +37,7 @@ export WEBKIT_RELEASE_TYPE=${WEBKIT_RELEASE_TYPE:-"Release"}
 # Set default MARCH_FLAG based on architecture if not already set
 if [ -z "${MARCH_FLAG:-}" ]; then
     if [ "$BUILDKIT_ARCH" == "arm64" ]; then
-        export MARCH_FLAG="-march=armv8-a+crc -mtune=ampere1"
+        export MARCH_FLAG="-march=armv8-a+crc -mtune=ampere1 -moutline-atomics"
     elif [ "$BUILDKIT_ARCH" == "amd64" ]; then
         export MARCH_FLAG="-march=nehalem"
     fi

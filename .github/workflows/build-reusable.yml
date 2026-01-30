@@ -217,7 +217,7 @@ jobs:
         run: |
           rm -rf ${{runner.temp}}/bun-webkit ${{runner.temp}}/bun-webkit.tar.gz
           if [ "${{matrix.package_json_arch}}" = "arm64" ]; then
-            export MARCH_FLAG="-march=armv8-a+crc -mtune=ampere1"
+            export MARCH_FLAG="-march=armv8-a+crc -mtune=ampere1 -moutline-atomics"
           elif [ "${{matrix.package_json_arch}}" = "x64" ]; then
             export MARCH_FLAG="-march=nehalem"
           fi
@@ -372,7 +372,7 @@ jobs:
         run: |
           rm -rf ${{runner.temp}}/bun-webkit ${{runner.temp}}/bun-webkit.tar.gz
           if [ "${{matrix.package_json_arch}}" = "arm64" ]; then
-            export MARCH_FLAG="-march=armv8-a+crc -mtune=ampere1"
+            export MARCH_FLAG="-march=armv8-a+crc -mtune=ampere1 -moutline-atomics"
           elif [ "${{matrix.package_json_arch}}" = "x64" ]; then
             export MARCH_FLAG="-march=nehalem"
           fi
