@@ -407,7 +407,7 @@ void GPUProcessProxy::updateSandboxAccess(bool allowAudioCapture, bool allowVide
         m_hasSentMicrophoneSandboxExtension = true;
 
 #if HAVE(SCREEN_CAPTURE_KIT)
-    if (allowDisplayCapture && !m_hasSentDisplayCaptureSandboxExtension && addDisplayCaptureSandboxExtension(protectedConnection()->getAuditToken(), extensions))
+    if (allowDisplayCapture && !m_hasSentDisplayCaptureSandboxExtension && addDisplayCaptureSandboxExtension(protect(connection())->getAuditToken(), extensions))
         m_hasSentDisplayCaptureSandboxExtension = true;
 #endif
 
@@ -687,13 +687,13 @@ void GPUProcessProxy::updateProcessAssertion()
 
     if (hasAnyForegroundWebProcesses) {
         if (!ProcessThrottler::isValidForegroundActivity(m_activityFromWebProcesses.get())) {
-            m_activityFromWebProcesses = protectedThrottler()->foregroundActivity("GPU for foreground view(s)"_s);
+            m_activityFromWebProcesses = protect(throttler())->foregroundActivity("GPU for foreground view(s)"_s);
         }
         return;
     }
     if (hasAnyBackgroundWebProcesses) {
         if (!ProcessThrottler::isValidBackgroundActivity(m_activityFromWebProcesses.get())) {
-            m_activityFromWebProcesses = protectedThrottler()->backgroundActivity("GPU for background view(s)"_s);
+            m_activityFromWebProcesses = protect(throttler())->backgroundActivity("GPU for background view(s)"_s);
         }
         return;
     }

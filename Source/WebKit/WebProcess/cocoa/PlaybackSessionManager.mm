@@ -301,7 +301,7 @@ void PlaybackSessionManager::setUpPlaybackControlsManager(WebCore::HTMLMediaElem
             RefPtr previousElement = dynamicDowncast<HTMLVideoElement>(mediaElementWithContextId(*previousContextId));
             if (RefPtr videoElement = dynamicDowncast<HTMLVideoElement>(mediaElement); videoElement && previousElement
                 && previousElement->fullscreenMode() != HTMLMediaElement::VideoFullscreenModeNone) {
-                page->protectedVideoPresentationManager()->swapFullscreenModes(*videoElement, *previousElement);
+                protect(page->videoPresentationManager())->swapFullscreenModes(*videoElement, *previousElement);
 
                 page->send(Messages::PlaybackSessionManagerProxy::SwapFullscreenModes(processQualify(contextId), processQualify(*previousContextId)));
 

@@ -3082,6 +3082,28 @@ auto ByteCodeParser::handleIntrinsicCall(Node* callee, Operand resultOperand, Ca
             return CallOptimizationResult::Inlined;
         }
 
+        case StringPrototypeStartsWithIntrinsic: {
+            if (argumentCountIncludingThis < 2)
+                return CallOptimizationResult::DidNothing;
+
+            if (m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, Uncountable) || m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadType))
+                return CallOptimizationResult::DidNothing;
+
+            insertChecks();
+            Node* thisValue = get(virtualRegisterForArgumentIncludingThis(0, registerOffset));
+            Node* search = get(virtualRegisterForArgumentIncludingThis(1, registerOffset));
+            Node* result = nullptr;
+            if (argumentCountIncludingThis == 2)
+                result = addToGraph(StringStartsWith, thisValue, search);
+            else {
+                Node* index = get(virtualRegisterForArgumentIncludingThis(2, registerOffset));
+                result = addToGraph(StringStartsWith, thisValue, search, index);
+            }
+
+            setResult(result);
+            return CallOptimizationResult::Inlined;
+        }
+
         case CharAtIntrinsic: {
             if (argumentCountIncludingThis < 1)
                 return CallOptimizationResult::DidNothing;
@@ -3374,6 +3396,19 @@ auto ByteCodeParser::handleIntrinsicCall(Node* callee, Operand resultOperand, Ca
 
             insertChecks();
             setResult(addToGraph(ObjectCreate, get(virtualRegisterForArgumentIncludingThis(1, registerOffset))));
+            return CallOptimizationResult::Inlined;
+        }
+
+        case ObjectDefinePropertyIntrinsic: {
+            if (argumentCountIncludingThis != 4)
+                return CallOptimizationResult::DidNothing;
+
+            insertChecks();
+            Node* target = get(virtualRegisterForArgumentIncludingThis(1, registerOffset));
+            Node* key = get(virtualRegisterForArgumentIncludingThis(2, registerOffset));
+            Node* descriptor = get(virtualRegisterForArgumentIncludingThis(3, registerOffset));
+            addToGraph(ObjectDefineProperty, target, key, descriptor);
+            setResult(target);
             return CallOptimizationResult::Inlined;
         }
 
@@ -4997,6 +5032,18 @@ bool ByteCodeParser::handleIntrinsicGetter(Operand result, SpeculatedType predic
         return true;
     }
 #endif
+
+    case JSSetSizeIntrinsic: {
+        insertChecks();
+        set(result, addToGraph(MapOrSetSize, Edge(thisNode, SetObjectUse)));
+        return true;
+    }
+
+    case JSMapSizeIntrinsic: {
+        insertChecks();
+        set(result, addToGraph(MapOrSetSize, Edge(thisNode, MapObjectUse)));
+        return true;
+    }
 
     default:
         return false;
@@ -8856,11 +8903,6 @@ void ByteCodeParser::parseBlock(unsigned limit)
             }
             LAST_OPCODE_LINKED(op_ret);
         }
-        case op_end:
-            ASSERT(!inlineCallFrame());
-            addToGraph(Return, get(currentInstruction->as<OpEnd>().m_value));
-            flushForReturn();
-            LAST_OPCODE(op_end);
 
         case op_throw:
             addToGraph(Throw, get(currentInstruction->as<OpThrow>().m_value));

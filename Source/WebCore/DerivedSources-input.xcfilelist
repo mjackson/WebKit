@@ -518,8 +518,8 @@ $(PROJECT_DIR)/Modules/highlight/Highlight.idl
 $(PROJECT_DIR)/Modules/highlight/HighlightRegistry.idl
 $(PROJECT_DIR)/Modules/identity/DigitalCredential.idl
 $(PROJECT_DIR)/Modules/identity/DigitalCredentialGetRequest.idl
-$(PROJECT_DIR)/Modules/identity/DigitalCredentialRequestOptions.idl
 $(PROJECT_DIR)/Modules/identity/DigitalCredentialPresentationProtocol.idl
+$(PROJECT_DIR)/Modules/identity/DigitalCredentialRequestOptions.idl
 $(PROJECT_DIR)/Modules/identity/protocols/ISO18013/MobileDocumentRequest.idl
 $(PROJECT_DIR)/Modules/indexeddb/IDBCursor.idl
 $(PROJECT_DIR)/Modules/indexeddb/IDBCursorDirection.idl
@@ -2154,6 +2154,7 @@ $(PROJECT_DIR)/testing/MockCaptionDisplaySettingsClientCallback.idl
 $(PROJECT_DIR)/testing/MockContentFilterSettings.idl
 $(PROJECT_DIR)/testing/MockMediaDeviceRoute.idl
 $(PROJECT_DIR)/testing/MockMediaDeviceRouteController.idl
+$(PROJECT_DIR)/testing/MockMediaDeviceRouteURLCallback.idl
 $(PROJECT_DIR)/testing/MockPageOverlay.idl
 $(PROJECT_DIR)/testing/MockPaymentAddress.idl
 $(PROJECT_DIR)/testing/MockPaymentContactFields.idl

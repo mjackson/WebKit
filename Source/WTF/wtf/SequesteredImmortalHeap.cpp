@@ -37,7 +37,11 @@ namespace WTF {
 SequesteredImmortalHeap& SequesteredImmortalHeap::instance()
 {
     // FIXME: this storage is not contained within the sequestered region
-    static NeverDestroyed<SequesteredImmortalHeap> instance;
+    static LazyNeverDestroyed<SequesteredImmortalHeap> instance;
+    static std::once_flag onceFlag;
+    std::call_once(onceFlag, [] {
+        instance.construct();
+    });
     return instance.get();
 }
 

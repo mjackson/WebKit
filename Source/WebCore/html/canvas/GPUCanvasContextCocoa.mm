@@ -296,7 +296,7 @@ void GPUCanvasContextCocoa::reshape()
     unconfigure();
     if (configuration) {
         GPUCanvasConfiguration canvasConfiguration {
-            configuration->device.ptr(),
+            configuration->device,
             configuration->format,
             configuration->usage,
             configuration->viewFormats,
@@ -358,7 +358,7 @@ GPUCanvasContext::CanvasType GPUCanvasContextCocoa::canvas()
 
 static bool equalConfigurations(const auto& a, const auto& b)
 {
-    return a.device.ptr() == b.device.get()
+    return a.device.ptr()   == b.device.ptr()
         && a.format         == b.format
         && a.usage          == b.usage
         && a.viewFormats    == b.viewFormats
@@ -404,10 +404,6 @@ ExceptionOr<void> GPUCanvasContextCocoa::configure(GPUCanvasConfiguration&& conf
         unconfigure();
     }
 
-    ASSERT(configuration.device);
-    if (!configuration.device)
-        return Exception { ExceptionCode::TypeError, "GPUCanvasContextCocoa::configure: Device is required but missing"_s };
-
     if (auto error = configuration.device->errorValidatingSupportedFormat(configuration.format))
         return Exception { ExceptionCode::TypeError, makeString("GPUCanvasContext.configure: Unsupported texture format: "_s, *error) };
 
@@ -449,7 +445,7 @@ ExceptionOr<void> GPUCanvasContextCocoa::configure(GPUCanvasConfiguration&& conf
 
     m_layerContentsDisplayDelegate->setOpaque(configuration.alphaMode == GPUCanvasAlphaMode::Opaque);
     m_configuration = {
-        *configuration.device,
+        configuration.device,
         configuration.format,
         configuration.usage,
         configuration.viewFormats,
@@ -480,7 +476,7 @@ std::optional<GPUCanvasConfiguration> GPUCanvasContextCocoa::getConfiguration() 
     std::optional<GPUCanvasConfiguration> configuration;
     if (m_configuration) {
         configuration.emplace(GPUCanvasConfiguration {
-            m_configuration->device.ptr(),
+            m_configuration->device,
             m_configuration->format,
             m_configuration->usage,
             m_configuration->viewFormats,

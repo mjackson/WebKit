@@ -1010,7 +1010,7 @@ static void addBrowsingContextControllerMethodStubsIfNeeded()
 - (WKBackForwardList *)backForwardList
 {
     [self _didAccessBackForwardList];
-    return wrapper(_page->backForwardList());
+    return wrapper(_page->backForwardListWrapper());
 }
 
 - (id <WKNavigationDelegate>)navigationDelegate
@@ -4448,32 +4448,32 @@ static RetainPtr<NSArray> wkTextManipulationErrors(NSArray<_WKTextManipulationIt
 
 - (void)_setStatusBarIsVisible:(BOOL)visible
 {
-    _page->setStatusBarIsVisible(visible);
+    UNUSED_PARAM(visible);
 }
 
 - (BOOL)_statusBarIsVisible
 {
-    return _page->statusBarIsVisible();
+    return NO;
 }
 
 - (void)_setMenuBarIsVisible:(BOOL)visible
 {
-    _page->setMenuBarIsVisible(visible);
+    UNUSED_PARAM(visible);
 }
 
 - (BOOL)_menuBarIsVisible
 {
-    return _page->menuBarIsVisible();
+    return NO;
 }
 
 - (void)_setToolbarsAreVisible:(BOOL)visible
 {
-    _page->setToolbarsAreVisible(visible);
+    UNUSED_PARAM(visible);
 }
 
 - (BOOL)_toolbarsAreVisible
 {
-    return _page->toolbarsAreVisible();
+    return NO;
 }
 
 - (void)_toggleInWindow
@@ -4785,8 +4785,8 @@ static void convertAndAddHighlight(Vector<Ref<WebCore::SharedMemory>>& buffers, 
     _page->loadAndDecodeImage(request, sizeConstraint, maximumBytesFromNetwork, [completionHandler = makeBlockPtr(completionHandler), url](Expected<Ref<WebCore::ShareableBitmap>, WebCore::ResourceError>&& result) mutable {
         if (!result) {
             if (result.error().isNull())
-                return completionHandler(nil, WebCore::internalError(url).protectedNSError().get()); // This can happen if IPC fails.
-            return completionHandler(nil, result.error().protectedNSError().get());
+                return completionHandler(nil, protect(WebCore::internalError(url).nsError()).get()); // This can happen if IPC fails.
+            return completionHandler(nil, protect(result.error().nsError()).get());
         }
         Ref bitmap = result.value();
 #if PLATFORM(MAC)
@@ -5613,7 +5613,7 @@ static inline OptionSet<WebCore::LayoutMilestone> layoutMilestones(_WKRenderingP
 - (void)_getContentsAsStringWithCompletionHandlerKeepIPCConnectionAliveForTesting:(void (^)(NSString *, NSError *))completionHandler
 {
     THROW_IF_SUSPENDED;
-    _page->getContentsAsString(WebKit::ContentAsStringIncludesChildFrames::No, [handler = makeBlockPtr(completionHandler), connection = _page->legacyMainFrameProcess().protectedConnection()](String string) {
+    _page->getContentsAsString(WebKit::ContentAsStringIncludesChildFrames::No, [handler = makeBlockPtr(completionHandler), connection = protect(_page->legacyMainFrameProcess().connection())](String string) {
         handler(string.createNSString().get(), nil);
     });
 }
@@ -6705,7 +6705,7 @@ static Vector<Ref<API::TargetedElementInfo>> elementsFromWKElements(NSArray<_WKT
     if (!popupMenu->isVisible())
         return nil;
 
-    return popupMenu->protectedPopup();
+    return protect(popupMenu->popup());
 }
 
 #endif // PLATFORM(MAC)
@@ -7089,7 +7089,13 @@ static RetainPtr<_WKTextExtractionResult> createEmptyTextExtractionResult()
     }
 #endif // PLATFORM(MAC)
 
-    targetFrame->handleTextExtractionInteraction(WTF::move(interaction), [weakSelf = WeakObjCPtr<WKWebView>(self), weakPage = WeakPtr { *page }, completionHandler = makeBlockPtr(WTF::move(completionHandler))](bool success, String&& description) mutable {
+    UniqueRef assertionScope = _page->createTextExtractionAssertionScope();
+    targetFrame->handleTextExtractionInteraction(WTF::move(interaction), [
+        weakSelf = WeakObjCPtr<WKWebView>(self),
+        weakPage = WeakPtr { *page },
+        assertionScope = WTF::move(assertionScope),
+        completionHandler = makeBlockPtr(WTF::move(completionHandler))
+    ](bool success, String&& description) mutable {
         RetainPtr<NSString> errorDescription;
         if (!success)
             errorDescription = description.createNSString();
@@ -7102,7 +7108,7 @@ static RetainPtr<_WKTextExtractionResult> createEmptyTextExtractionResult()
         if (!strongPage)
             return completionHandler(result.get());
 
-        Ref aggregator = EagerCallbackAggregator<void()>::create([completion = WTF::move(completionHandler), result] {
+        Ref aggregator = EagerCallbackAggregator<void()>::create([completion = WTF::move(completionHandler), assertionScope = WTF::move(assertionScope), result] mutable {
             completion(result.get());
         });
 

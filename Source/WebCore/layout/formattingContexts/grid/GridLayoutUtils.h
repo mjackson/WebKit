@@ -41,6 +41,9 @@ LayoutUnit computeGapValue(const Style::GapGutter&);
 LayoutUnit usedInlineSizeForGridItem(const PlacedGridItem&, LayoutUnit borderAndPadding, LayoutUnit columnsSize);
 LayoutUnit usedBlockSizeForGridItem(const PlacedGridItem&, LayoutUnit borderAndPadding, LayoutUnit rowsSize);
 
+LayoutUnit usedInlineMinimumSize(const PlacedGridItem&, const TrackSizingFunctionsList&, LayoutUnit borderAndPadding, LayoutUnit columnsSize);
+LayoutUnit usedBlockMinimumSize(const PlacedGridItem&, const TrackSizingFunctionsList&, LayoutUnit borderAndPadding, LayoutUnit rowsSize);
+
 LayoutUnit computeGridLinePosition(size_t gridLineIndex, const TrackSizes&, LayoutUnit gap);
 LayoutUnit gridAreaDimensionSize(size_t startLine, size_t endLine, const TrackSizes&, LayoutUnit gap);
 

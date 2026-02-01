@@ -220,6 +220,7 @@ LocalFrameView::LocalFrameView(LocalFrame& frame)
     ScrollableArea::setVerticalScrollElasticity(verticalElasticity);
     ScrollableArea::setHorizontalScrollElasticity(horizontalElasticity);
 #endif
+
     if (m_frame->document() && m_frame->document()->settings().cssScrollAnchoringEnabled())
         m_scrollAnchoringController = WTF::makeUnique<ScrollAnchoringController>(*this);
 }
@@ -1943,10 +1944,8 @@ void LocalFrameView::setLayoutViewportOverrideRect(std::optional<LayoutRect> rec
     m_layoutViewportOverrideRect = rect;
     LayoutRect newRect = layoutViewportRect();
 
-    if (oldRect != newRect) {
-        invalidateScrollAnchoringElement();
+    if (oldRect != newRect)
         updateScrollAnchoringElement();
-    }
 
     // Triggering layout on height changes is necessary to make bottom-fixed elements behave correctly.
     if (oldRect.height() != newRect.height())
@@ -3626,7 +3625,6 @@ void LocalFrameView::scrollOffsetChangedViaPlatformWidgetImpl(const ScrollOffset
     updateCompositingLayersAfterScrolling();
     repaintSlowRepaintObjects();
     scrollPositionChanged(scrollPositionFromOffset(oldOffset), scrollPositionFromOffset(newOffset));
-    invalidateScrollAnchoringElement();
     updateScrollAnchoringElement();
 
     if (auto* renderView = this->renderView()) {
@@ -4724,18 +4722,18 @@ void LocalFrameView::queueScrollableAreaForScrollAnchoringUpdate(ScrollableArea&
 
 void LocalFrameView::updateScrollAnchoringElementsForScrollableAreas()
 {
-    updateScrollAnchoringElement();
+    updateScrollAnchoringElement(ComputeNewScrollAnchor::No);
     if (!m_scrollableAreas)
         return;
     for (auto& scrollableArea : *m_scrollableAreas)
         scrollableArea.updateScrollAnchoringElement();
 }
 
-void LocalFrameView::updateScrollAnchoringPositionForScrollableAreas()
+void LocalFrameView::adjustScrollAnchoringPositionForScrollableAreas()
 {
     auto scrollableAreasNeedingUpdate = std::exchange(m_scrollableAreasWithScrollAnchoringControllersNeedingUpdate, { });
     for (auto& scrollableArea : scrollableAreasNeedingUpdate)
-        scrollableArea.updateScrollPositionForScrollAnchoringController();
+        scrollableArea.adjustScrollAnchoringPosition();
 }
 
 void LocalFrameView::updateAnchorPositionedAfterScroll()
@@ -4800,7 +4798,6 @@ void LocalFrameView::scheduleResizeEventIfNeeded()
     }
 
     // TODO: move this to a method called for all scrollable areas
-    invalidateScrollAnchoringElement();
     updateScrollAnchoringElement();
 
     LOG_WITH_STREAM(Events, stream << "LocalFrameView " << this << " scheduleResizeEventIfNeeded scheduling resize event for document" << document << ", size " << currentSize);
@@ -7109,24 +7106,6 @@ float LocalFrameView::deviceScaleFactor() const
 void LocalFrameView::writeRenderTreeAsText(TextStream& ts, OptionSet<RenderAsTextFlag> behavior)
 {
     externalRepresentationForLocalFrame(ts, frame(), behavior);
-}
-
-void LocalFrameView::updateScrollAnchoringElement()
-{
-    if (m_scrollAnchoringController)
-        m_scrollAnchoringController->updateAnchorElement();
-}
-
-void LocalFrameView::updateScrollPositionForScrollAnchoringController()
-{
-    if (m_scrollAnchoringController)
-        m_scrollAnchoringController->adjustScrollPositionForAnchoring();
-}
-
-void LocalFrameView::invalidateScrollAnchoringElement()
-{
-    if (m_scrollAnchoringController)
-        m_scrollAnchoringController->invalidateAnchorElement();
 }
 
 void LocalFrameView::scrollbarStyleDidChange()

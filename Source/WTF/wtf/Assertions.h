@@ -702,20 +702,24 @@ static constexpr bool unreachableForValue = false;
 #define PUBLIC_LOG_STRING "{public}s"
 #define PRIVATE_LOG_STRING "{private}s"
 #define SENSITIVE_LOG_STRING "{sensitive}s"
-#define RELEASE_LOG(channel, ...) SUPPRESS_UNCOUNTED_LOCAL os_log(LOG_CHANNEL(channel).osLogChannel, __VA_ARGS__)
-#define RELEASE_LOG_ERROR(channel, ...) SUPPRESS_UNCOUNTED_LOCAL os_log_error(LOG_CHANNEL(channel).osLogChannel, __VA_ARGS__)
-#define RELEASE_LOG_FAULT(channel, ...) SUPPRESS_UNCOUNTED_LOCAL os_log_fault(LOG_CHANNEL(channel).osLogChannel, __VA_ARGS__)
+#define RELEASE_LOG(channel, ...) WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN SUPPRESS_UNCOUNTED_LOCAL os_log(LOG_CHANNEL(channel).osLogChannel, __VA_ARGS__) WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
+#define RELEASE_LOG_ERROR(channel, ...) WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN SUPPRESS_UNCOUNTED_LOCAL os_log_error(LOG_CHANNEL(channel).osLogChannel, __VA_ARGS__) WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
+#define RELEASE_LOG_FAULT(channel, ...) WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN SUPPRESS_UNCOUNTED_LOCAL os_log_fault(LOG_CHANNEL(channel).osLogChannel, __VA_ARGS__) WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 #define RELEASE_LOG_FAULT_WITH_PAYLOAD(channel, message) os_fault_with_payload(OS_REASON_WEBKIT, 0, nullptr, 0, message, 0)
-#define RELEASE_LOG_INFO(channel, ...) SUPPRESS_UNCOUNTED_LOCAL os_log_info(LOG_CHANNEL(channel).osLogChannel, __VA_ARGS__)
-#define RELEASE_LOG_DEBUG(channel, ...) SUPPRESS_UNCOUNTED_LOCAL os_log_debug(LOG_CHANNEL(channel).osLogChannel, __VA_ARGS__)
+#define RELEASE_LOG_INFO(channel, ...) WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN SUPPRESS_UNCOUNTED_LOCAL os_log_info(LOG_CHANNEL(channel).osLogChannel, __VA_ARGS__) WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
+#define RELEASE_LOG_DEBUG(channel, ...) WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN SUPPRESS_UNCOUNTED_LOCAL os_log_debug(LOG_CHANNEL(channel).osLogChannel, __VA_ARGS__) WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 #define RELEASE_LOG_WITH_LEVEL(channel, logLevel, ...) do { \
     if (LOG_CHANNEL(channel).level >= (logLevel)) \
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN \
         SUPPRESS_UNCOUNTED_LOCAL os_log(LOG_CHANNEL(channel).osLogChannel, __VA_ARGS__); \
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END \
 } while (0)
 
 #define RELEASE_LOG_WITH_LEVEL_IF(isAllowed, channel, logLevel, ...) do { \
     if ((isAllowed) && LOG_CHANNEL(channel).level >= (logLevel)) \
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN \
         SUPPRESS_UNCOUNTED_LOCAL os_log(LOG_CHANNEL(channel).osLogChannel, __VA_ARGS__); \
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END \
 } while (0)
 
 #elif OS(ANDROID)

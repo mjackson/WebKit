@@ -124,14 +124,14 @@ ExceptionOr<Ref<ReadableStream>> ReadableStream::create(JSDOMGlobalObject& globa
         }
     }
 
-    return createFromJSValues(globalObject, underlyingSource, strategy);
+    return createFromJSValues(globalObject, underlyingSource, strategy, { });
 }
 
-ExceptionOr<Ref<ReadableStream>> ReadableStream::createFromJSValues(JSC::JSGlobalObject& globalObject, JSC::JSValue underlyingSource, JSC::JSValue strategy)
+ExceptionOr<Ref<ReadableStream>> ReadableStream::createFromJSValues(JSC::JSGlobalObject& globalObject, JSC::JSValue underlyingSource, JSC::JSValue strategy, std::optional<double> highWaterMark)
 {
     auto& jsDOMGlobalObject = *JSC::jsCast<JSDOMGlobalObject*>(&globalObject);
     RefPtr protectedContext { jsDOMGlobalObject.scriptExecutionContext() };
-    auto result = InternalReadableStream::createFromUnderlyingSource(jsDOMGlobalObject, underlyingSource, strategy);
+    auto result = InternalReadableStream::createFromUnderlyingSource(jsDOMGlobalObject, underlyingSource, strategy, highWaterMark);
     if (result.hasException())
         return result.releaseException();
 
@@ -151,12 +151,12 @@ ExceptionOr<Ref<ReadableStream>> ReadableStream::createFromByteUnderlyingSource(
 
 ExceptionOr<Ref<InternalReadableStream>> ReadableStream::createInternalReadableStream(JSDOMGlobalObject& globalObject, Ref<ReadableStreamSource>&& source)
 {
-    return InternalReadableStream::createFromUnderlyingSource(globalObject, toJSNewlyCreated(&globalObject, &globalObject, WTF::move(source)), JSC::jsUndefined());
+    return InternalReadableStream::createFromUnderlyingSource(globalObject, toJSNewlyCreated(&globalObject, &globalObject, WTF::move(source)), JSC::jsUndefined(), { });
 }
 
-ExceptionOr<Ref<ReadableStream>> ReadableStream::create(JSDOMGlobalObject& globalObject, Ref<ReadableStreamSource>&& source)
+ExceptionOr<Ref<ReadableStream>> ReadableStream::create(JSDOMGlobalObject& globalObject, Ref<ReadableStreamSource>&& source, std::optional<double> highWaterMark)
 {
-    return createFromJSValues(globalObject, toJSNewlyCreated(&globalObject, &globalObject, WTF::move(source)), JSC::jsUndefined());
+    return createFromJSValues(globalObject, toJSNewlyCreated(&globalObject, &globalObject, WTF::move(source)), JSC::jsUndefined(), highWaterMark);
 }
 
 Ref<ReadableStream> ReadableStream::create(Ref<InternalReadableStream>&& internalReadableStream)

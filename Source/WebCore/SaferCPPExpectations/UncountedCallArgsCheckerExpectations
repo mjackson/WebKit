@@ -1,5 +1,4 @@
 Modules/cache/DOMCache.cpp
-Modules/credentialmanagement/CredentialsContainer.cpp
 Modules/entriesapi/FileSystemDirectoryEntry.cpp
 Modules/entriesapi/FileSystemEntry.cpp
 Modules/entriesapi/FileSystemFileEntry.cpp
@@ -433,6 +432,7 @@ inspector/agents/InspectorTimelineAgent.cpp
 inspector/agents/InspectorWorkerAgent.cpp
 inspector/agents/page/PageAuditAgent.cpp
 inspector/agents/page/PageCanvasAgent.cpp
+inspector/agents/page/PageConsoleAgent.cpp
 inspector/agents/page/PageDOMDebuggerAgent.cpp
 inspector/agents/page/PageDebuggerAgent.cpp
 inspector/agents/page/PageNetworkAgent.cpp
@@ -535,7 +535,6 @@ platform/ScrollView.cpp
 platform/ScrollableArea.cpp
 platform/Widget.cpp
 platform/animation/AcceleratedEffectValues.cpp
-platform/audio/cocoa/AudioFileReaderCocoa.cpp
 [ iOS ] platform/audio/ios/MediaSessionManagerIOS.mm
 [ Mac ] platform/cocoa/DragImageCocoa.mm
 platform/cocoa/PlaybackSessionModelMediaElement.mm
@@ -552,7 +551,6 @@ platform/graphics/ImageAdapter.cpp
 platform/graphics/ImageBackingStore.h
 platform/graphics/ImageBufferContextSwitcher.cpp
 platform/graphics/ImageFrameWorkQueue.cpp
-platform/graphics/Path.cpp
 platform/graphics/TransparencyLayerContextSwitcher.cpp
 platform/graphics/avfoundation/InbandMetadataTextTrackPrivateAVF.cpp
 [ iOS ] platform/graphics/avfoundation/SampleBufferDisplayLayer.h

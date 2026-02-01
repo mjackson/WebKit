@@ -202,7 +202,7 @@ void PDFDocument::postMessageToIframe(const String& name, JSC::JSObject* data)
 
     WindowPostMessageOptions options;
     if (data)
-        options = WindowPostMessageOptions { "/"_s, Vector { JSC::Strong<JSC::JSObject> { vm, data } } };
+        options.transfer = Vector { JSC::Strong<JSC::JSObject> { vm, data } };
     auto returnValue = contentWindow->postMessage(*contentWindowGlobalObject, *contentWindow, message, WTF::move(options));
     if (returnValue.hasException())
         returnValue.releaseException();

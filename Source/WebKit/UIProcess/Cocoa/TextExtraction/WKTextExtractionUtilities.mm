@@ -157,8 +157,13 @@ inline static RetainPtr<WKTextExtractionItem> createItemWithChildren(const TextE
                 accessibilityRole:accessibilityRole.get()
                 nodeIdentifier:nodeIdentifier.get()]);
         }, [&](const TextExtraction::SelectData& data) -> RetainPtr<WKTextExtractionItem> {
+            auto selectedValues = WTF::compactMap(data.options, [](auto& option) -> std::optional<String> {
+                if (option.isSelected)
+                    return { option.value };
+                return { };
+            });
             return adoptNS([[WKTextExtractionSelectItem alloc]
-                initWithSelectedValues:createNSArray(data.selectedValues).get()
+                initWithSelectedValues:createNSArray(selectedValues).get()
                 supportsMultiple:data.isMultiple
                 rectInWebView:rectInWebView
                 children:children

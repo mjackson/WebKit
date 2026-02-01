@@ -123,7 +123,6 @@
 #include "LoginStatus.h"
 #include "LowPowerModeNotifier.h"
 #include "MediaCanStartListener.h"
-#include "MediaEngineConfigurationFactory.h"
 #include "MemoryCache.h"
 #include "ModelPlayerProvider.h"
 #include "NavigationScheduler.h"
@@ -139,6 +138,7 @@
 #include "PerformanceLogging.h"
 #include "PerformanceLoggingClient.h"
 #include "PerformanceMonitor.h"
+#include "PlatformMediaEngineConfigurationFactory.h"
 #include "PlatformMediaSessionManager.h"
 #include "PlatformScreen.h"
 #include "PlatformStrategies.h"
@@ -2344,7 +2344,7 @@ void Page::updateRendering()
     });
 
     runProcessingStep(RenderingUpdateStep::IntersectionObservations, [] (Document& document) {
-        document.updateIntersectionObservations();
+        document.updateIntersectionObservers();
     });
 
     runProcessingStep(RenderingUpdateStep::Images, [] (Document& document) {
@@ -6015,7 +6015,7 @@ RefPtr<MediaSessionManagerInterface> Page::mediaSessionManager()
         Ref { *m_mediaSessionManager }->setShouldDeactivateAudioSession(true);
 #endif
 
-        MediaEngineConfigurationFactory::setMediaSessionManagerProvider([] (PageIdentifier identifier) {
+        PlatformMediaEngineConfigurationFactory::setMediaSessionManagerProvider([](PageIdentifier identifier) {
             return Page::mediaSessionManagerForPageIdentifier(identifier);
         });
     }

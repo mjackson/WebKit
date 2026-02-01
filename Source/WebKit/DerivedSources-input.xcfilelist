@@ -279,6 +279,7 @@ $(PROJECT_DIR)/Shared/Cocoa/CoreIPCString.serialization.in
 $(PROJECT_DIR)/Shared/Cocoa/CoreIPCStringSet.serialization.in
 $(PROJECT_DIR)/Shared/Cocoa/CoreIPCURL.serialization.in
 $(PROJECT_DIR)/Shared/Cocoa/DataDetectionResult.serialization.in
+$(PROJECT_DIR)/Shared/Cocoa/GestureTypes.serialization.in
 $(PROJECT_DIR)/Shared/Cocoa/InsertTextOptions.serialization.in
 $(PROJECT_DIR)/Shared/Cocoa/MachSendRightAnnotated.serialization.in
 $(PROJECT_DIR)/Shared/Cocoa/RemoteObjectInvocation.serialization.in

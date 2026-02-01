@@ -770,7 +770,7 @@ void LocalAuthenticator::continueGetAssertionAfterResponseSelected(Ref<WebCore::
     auto callback = [weakThis = WeakPtr { *this }, response = WTF::move(response)] (LocalConnection::UserVerification verification) mutable {
         ASSERT(RunLoop::isMain());
         if (RefPtr protectedThis = weakThis.get())
-            protectedThis->continueGetAssertionAfterUserVerification(WTF::move(response), verification, response->protectedLAContext().get());
+            protectedThis->continueGetAssertionAfterUserVerification(WTF::move(response), verification, protect(response->laContext()).get());
     };
 
     m_connection->verifyUser(accessControlRef.get(), context.get(), WTF::move(callback));

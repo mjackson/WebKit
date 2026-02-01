@@ -221,7 +221,6 @@ private:
 #endif
 
         id<WKUIDelegatePrivate> uiDelegatePrivate();
-        RetainPtr<id<WKUIDelegatePrivate>> protectedUIDelegatePrivate();
 
         WeakPtr<UIDelegate> m_uiDelegate;
     };

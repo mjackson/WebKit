@@ -160,9 +160,7 @@ static size_t requiredBytesInCopy(const GPUImageCopyTexture& destination, const 
 {
     using namespace WebGPU;
 
-    auto texture = destination.texture;
-    if (!texture)
-        return 0;
+    Ref texture = destination.texture;
 
     auto aspectSpecificFormat = GPUTexture::aspectSpecificFormat(texture->format(), destination.aspect);
     uint32_t blockWidth = GPUTexture::texelBlockWidth(aspectSpecificFormat);
@@ -1151,7 +1149,7 @@ ExceptionOr<void> GPUQueue::copyExternalImageToTexture(ScriptExecutionContext& c
         RELEASE_ASSERT(callbackScopeIsSafe);
         auto destinationTexture = destination.texture;
         auto sizeInBytes = imageBytes.size();
-        if (!imageBytes.data() || !sizeInBytes || !destinationTexture || (imageBytes.size() % 4))
+        if (!imageBytes.data() || !sizeInBytes || (imageBytes.size() % 4))
             return;
 
         bool supportedFormat;

@@ -72,7 +72,7 @@ public:
     };
 
     static ExceptionOr<Ref<ReadableStream>> create(JSDOMGlobalObject&, JSC::Strong<JSC::JSObject>&&, JSC::Strong<JSC::JSObject>&&);
-    static ExceptionOr<Ref<ReadableStream>> create(JSDOMGlobalObject&, Ref<ReadableStreamSource>&&);
+    static ExceptionOr<Ref<ReadableStream>> create(JSDOMGlobalObject&, Ref<ReadableStreamSource>&&, std::optional<double> = { });
     static ExceptionOr<Ref<ReadableStream>> createFromByteUnderlyingSource(JSDOMGlobalObject&, JSC::JSValue underlyingSource, UnderlyingSource&&, double highWaterMark);
     static Ref<ReadableStream> create(Ref<InternalReadableStream>&&);
 
@@ -174,7 +174,7 @@ public:
     ExceptionOr<Ref<Iterator>> createIterator(ScriptExecutionContext*, std::optional<IteratorOptions>&&);
 
 protected:
-    static ExceptionOr<Ref<ReadableStream>> createFromJSValues(JSC::JSGlobalObject&, JSC::JSValue, JSC::JSValue);
+    static ExceptionOr<Ref<ReadableStream>> createFromJSValues(JSC::JSGlobalObject&, JSC::JSValue, JSC::JSValue, std::optional<double>);
     static ExceptionOr<Ref<InternalReadableStream>> createInternalReadableStream(JSDOMGlobalObject&, Ref<ReadableStreamSource>&&);
     explicit ReadableStream(ScriptExecutionContext*, RefPtr<InternalReadableStream>&& = { }, RefPtr<DependencyToVisit>&& = { }, IsSourceReachableFromOpaqueRoot = IsSourceReachableFromOpaqueRoot::No);
 

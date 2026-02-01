@@ -274,23 +274,25 @@ template<typename T> struct IDLDictionary : IDLType<T> {
 
 template<typename T> struct IDLEnumeration : IDLType<T> { };
 
-template<typename T> struct IDLNullable : IDLType<typename T::NullableType> {
+template<typename T> struct IDLNullableBase : IDLType<typename T::NullableType> {
     using InnerType = T;
 
     using ConversionResultType = typename T::NullableConversionResultType;
-    using NullableConversionResultType = typename T::NullableConversionResultType;
+    using NullableConversionResultType = std::optional<ConversionResultType>;
 
     using ParameterType = typename T::NullableParameterType;
-    using NullableParameterType = typename T::NullableParameterType;
+    using NullableParameterType = std::optional<ParameterType>;
 
     using InnerParameterType = typename T::NullableInnerParameterType;
-    using NullableInnerParameterType = typename T::NullableInnerParameterType;
-
-    using NullableType = typename T::NullableType;
-    static inline auto nullValue() -> decltype(T::nullValue()) { return T::nullValue(); }
-    template<typename U> static inline bool isNullValue(U&& value) { return T::isNullValue(std::forward<U>(value)); }
-    template<typename U> static inline auto extractValueFromNullable(U&& value) -> decltype(T::extractValueFromNullable(std::forward<U>(value))) { return T::extractValueFromNullable(std::forward<U>(value)); }
+    using NullableInnerParameterType = std::optional<InnerParameterType>;
 };
+
+template<typename T> struct IDLNullable : IDLNullableBase<T> { };
+
+// `IDLOptional` is just like `IDLNullable`, but used in places that where the type is implicitly optional,
+// like optional arguments to functions without default values, or non-required members of dictionaries
+// without default values.
+template<typename T> struct IDLOptional : IDLNullableBase<T> { };
 
 template<typename T> struct IDLSequence : IDLType<Vector<typename T::InnerParameterType>> {
     using InnerType = T;
@@ -410,27 +412,6 @@ struct IDLScheduledAction : IDLType<std::unique_ptr<ScheduledAction>> { };
 struct IDLWebGLAny : IDLType<WebGLAny> { };
 struct IDLWebGLExtensionAny : IDLType<WebGLExtensionAny> { };
 #endif
-
-// `IDLOptional` is just like `IDLNullable`, but used in places that where the type is implicitly optional,
-// like optional arguments to functions without default values, or non-required members of dictionaries
-// without default values.
-template<typename T> struct IDLOptional : IDLType<typename T::NullableType> {
-    using InnerType = T;
-
-    using ConversionResultType = typename T::NullableConversionResultType;
-    using NullableConversionResultType = typename T::NullableConversionResultType;
-
-    using ParameterType = typename T::NullableParameterType;
-    using NullableParameterType = typename T::NullableParameterType;
-
-    using InnerParameterType = typename T::NullableInnerParameterType;
-    using NullableInnerParameterType = typename T::NullableInnerParameterType;
-
-    using NullableType = typename T::NullableType;
-    static inline auto nullValue() -> decltype(T::nullValue()) { return T::nullValue(); }
-    template<typename U> static inline bool isNullValue(U&& value) { return T::isNullValue(std::forward<U>(value)); }
-    template<typename U> static inline auto extractValueFromNullable(U&& value) -> decltype(T::extractValueFromNullable(std::forward<U>(value))) { return T::extractValueFromNullable(std::forward<U>(value)); }
-};
 
 // Helper predicates
 

@@ -97,6 +97,7 @@ def generate_message_receiver_implementations_file(log_messages, log_messages_re
                 file.write("    auto osLog = adoptOSObject(os_log_create(\"com.apple.WebKit\", \"" + category + "\"));\n")
                 file.write("    auto osLogPointer = osLog.get();\n")
 
+            file.write("WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN\n")
             file.write("    os_log_with_type(osLogPointer, " + os_log_type + ", \"WebContent[%d]: \"" + format_string)
             file.write(", static_cast<uint32_t>(m_pid)")
             arguments_string = log_declarations_module.get_arguments_string(parameters, log_declarations_module.PARAMETER_LIST_INCLUDE_NAME | log_declarations_module.PARAMETER_LIST_MODIFY_CSTRING)
@@ -104,6 +105,7 @@ def generate_message_receiver_implementations_file(log_messages, log_messages_re
                 file.write(", ")
             file.write(arguments_string)
             file.write(");\n")
+            file.write("WTF_ALLOW_UNSAFE_BUFFER_USAGE_END\n")
             file.write("}\n\n")
         file.close()
 

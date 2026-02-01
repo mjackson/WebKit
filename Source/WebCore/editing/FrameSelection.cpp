@@ -83,6 +83,7 @@
 #include "RenderWidget.h"
 #include "RenderedPosition.h"
 #include "ScriptDisallowedScope.h"
+#include "SelectionGeometry.h"
 #include "Settings.h"
 #include "ShadowRoot.h"
 #include "SimpleCaretAnimator.h"
@@ -103,7 +104,6 @@
 #include "Color.h"
 #include "RenderObject.h"
 #include "RenderStyle.h"
-#include "SelectionGeometry.h"
 #endif
 
 namespace WebCore {

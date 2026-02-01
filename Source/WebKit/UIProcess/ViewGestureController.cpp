@@ -53,6 +53,11 @@
 #include "ViewGestureGeometryCollectorMessages.h"
 #endif
 
+// FIXME: https://bugs.webkit.org/show_bug.cgi?id=306415
+#if ENABLE(BACK_FORWARD_LIST_SWIFT)
+#include "WebKit-Swift.h"
+#endif
+
 namespace WebKit {
 using namespace WebCore;
 
@@ -475,11 +480,6 @@ ViewGestureController::PendingSwipeTracker::PendingSwipeTracker(WebPageProxy& we
 {
 }
 
-Ref<ViewGestureController> ViewGestureController::PendingSwipeTracker::protectedViewGestureController() const
-{
-    return m_viewGestureController.get();
-}
-
 bool ViewGestureController::PendingSwipeTracker::scrollEventCanBecomeSwipe(PlatformScrollEvent event, ViewGestureController::SwipeDirection& potentialSwipeDirection)
 {
     if (!scrollEventCanStartSwipe(event) || !scrollEventCanInfluenceSwipe(event))
@@ -503,7 +503,7 @@ bool ViewGestureController::PendingSwipeTracker::scrollEventCanBecomeSwipe(Platf
         return false;
 
     potentialSwipeDirection = tryingToSwipeBack ? SwipeDirection::Back : SwipeDirection::Forward;
-    return protectedViewGestureController()->canSwipeInDirection(potentialSwipeDirection, DeferToConflictingGestures::No);
+    return protect(m_viewGestureController)->canSwipeInDirection(potentialSwipeDirection, DeferToConflictingGestures::No);
 }
 
 bool ViewGestureController::PendingSwipeTracker::handleEvent(PlatformScrollEvent event)
@@ -570,7 +570,7 @@ bool ViewGestureController::PendingSwipeTracker::tryToStartSwipe(PlatformScrollE
     }
 
     if (std::abs(m_cumulativeDelta.width()) >= minimumHorizontalSwipeDistance)
-        protectedViewGestureController()->startSwipeGesture(event, m_direction);
+        protect(m_viewGestureController)->startSwipeGesture(event, m_direction);
     else
         m_state = State::InsufficientMagnitude;
 

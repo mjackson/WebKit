@@ -265,9 +265,10 @@
 			isEditable = 1;
 			outputFiles = (
 				"$(BUILT_PRODUCTS_DIR)/DerivedSources/WGSL/TypeDeclarations.h",
+				"$(BUILT_PRODUCTS_DIR)/DerivedSources/WGSL/TypeOverloads.h",
 			);
 			runOncePerArchitecture = 0;
-			script = "/usr/bin/env ruby \"${SCRIPT_INPUT_FILE_0}\" \"${INPUT_FILE_PATH}\" \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			script = "/usr/bin/env ruby \"${SCRIPT_INPUT_FILE_0}\" \"${INPUT_FILE_PATH}\" \"${SCRIPT_OUTPUT_FILE_0}\" \"${SCRIPT_OUTPUT_FILE_1}\"\n";
 		};
 /* End PBXBuildRule section */
 

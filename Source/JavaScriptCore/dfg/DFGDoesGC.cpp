@@ -276,6 +276,7 @@ bool doesGC(Graph& graph, Node* node)
     case DataViewSet:
     case PutByOffset:
     case WeakMapGet:
+    case MapOrSetSize:
     case NumberIsNaN:
     case NumberIsFinite:
     case NumberIsSafeInteger:
@@ -305,6 +306,7 @@ bool doesGC(Graph& graph, Node* node)
     case DataViewGetByteLengthAsInt52:
     case DefineDataProperty:
     case DefineAccessorProperty:
+    case ObjectDefineProperty:
     case DeleteById:
     case DeleteByVal:
     case DirectCall:
@@ -482,6 +484,7 @@ bool doesGC(Graph& graph, Node* node)
     case ValueNegate:
     case DateSetTime:
     case StringIndexOf:
+    case StringStartsWith:
     case ResolvePromiseFirstResolving:
     case RejectPromiseFirstResolving:
     case FulfillPromiseFirstResolving:

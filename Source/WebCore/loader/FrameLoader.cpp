@@ -1751,7 +1751,7 @@ void FrameLoader::load(FrameLoadRequest&& request, std::optional<NavigationReque
     if (!request.hasSubstituteData())
         request.setSubstituteData(defaultSubstituteDataForURL(request.resourceRequest().url()));
 
-    Ref loader = m_client->createDocumentLoader(request.takeResourceRequest(), request.takeSubstituteData());
+    Ref loader = m_client->createDocumentLoader(request.takeResourceRequest(), request.takeSubstituteData(), request.takeOriginalResourceRequest());
     loader->setIsContentRuleListRedirect(request.isContentRuleListRedirect());
     loader->setIsRequestFromClientOrUserInput(request.isRequestFromClientOrUserInput());
     loader->setIsContinuingLoadAfterProvisionalLoadStarted(request.shouldTreatAsContinuingLoad() == ShouldTreatAsContinuingLoad::YesAfterProvisionalLoadStarted);
@@ -1828,7 +1828,7 @@ void FrameLoader::load(DocumentLoader& newDocumentLoader, const SecurityOrigin* 
         type = FrameLoadType::Same;
     } else if (shouldTreatURLAsSameAsCurrent(requesterOrigin, newDocumentLoader.unreachableURL()) && isReload(m_loadType))
         type = m_loadType;
-    else if (m_loadType == FrameLoadType::RedirectWithLockedBackForwardList && ((!newDocumentLoader.unreachableURL().isEmpty() && newDocumentLoader.substituteData().isValid()) || shouldTreatCurrentLoadAsContinuingLoad()))
+    else if ((m_loadType == FrameLoadType::RedirectWithLockedBackForwardList || policyChecker().loadType() == FrameLoadType::RedirectWithLockedBackForwardList) && ((!newDocumentLoader.unreachableURL().isEmpty() && newDocumentLoader.substituteData().isValid()) || shouldTreatCurrentLoadAsContinuingLoad()))
         type = FrameLoadType::RedirectWithLockedBackForwardList;
     else
         type = FrameLoadType::Standard;

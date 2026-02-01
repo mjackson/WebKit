@@ -80,6 +80,7 @@ enum class MouseEventPolicy : uint8_t;
 enum class ResourceResponseSource : uint8_t;
 enum class SandboxFlag : uint16_t;
 enum class ScrollbarMode : uint8_t;
+enum class ShouldFocusElement : bool;
 
 namespace TextExtraction {
 struct ExtractedText;
@@ -265,7 +266,7 @@ public:
 
     WebCore::LayerHostingContextIdentifier layerHostingContextIdentifier() const { return m_layerHostingContextIdentifier; }
     void setAppBadge(const WebCore::SecurityOriginData&, std::optional<uint64_t> badge);
-    void findFocusableElementDescendingIntoRemoteFrame(WebCore::FocusDirection, const WebCore::FocusEventData&, CompletionHandler<void(WebCore::FoundElementInRemoteFrame)>&&);
+    void findFocusableElementDescendingIntoRemoteFrame(WebCore::FocusDirection, const WebCore::FocusEventData&, WebCore::ShouldFocusElement, CompletionHandler<void(WebCore::FoundElementInRemoteFrame)>&&);
 
     std::optional<WebCore::DocumentSecurityPolicy> documentSecurityPolicy() const { return m_documentSecurityPolicy; }
 

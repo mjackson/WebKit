@@ -292,9 +292,7 @@ void WebPage::getRenderProcessInfo(CompletionHandler<void(RenderProcessInfo&&)>&
         break;
     }
 
-#if USE(SKIA)
     info.msaaSampleCount = display->msaaSampleCount();
-#endif
 
 #if USE(GBM)
     if (info.platform != "WPE"_s) {

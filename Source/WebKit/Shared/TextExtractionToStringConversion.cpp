@@ -751,12 +751,16 @@ static void populateJSONForItem(JSON::Object& jsonObject, const TextExtraction::
                 jsonObject.setString("alt"_s, imageData.altText);
         },
         [&](const TextExtraction::SelectData& selectData) {
-            if (!selectData.selectedValues.isEmpty()) {
-                Ref selectedArray = JSON::Array::create();
-                for (auto& value : selectData.selectedValues)
-                    selectedArray->pushString(value);
-                jsonObject.setArray("selected"_s, WTF::move(selectedArray));
+            Ref optionsArray = JSON::Array::create();
+            for (auto& option : selectData.options) {
+                Ref object = JSON::Object::create();
+                object->setString("value"_s, option.value);
+                object->setString("label"_s, option.label);
+                object->setBoolean("selected"_s, option.isSelected);
+                optionsArray->pushObject(WTF::move(object));
             }
+            if (optionsArray->length())
+                jsonObject.setArray("options"_s, WTF::move(optionsArray));
             if (selectData.isMultiple)
                 jsonObject.setBoolean("multiple"_s, true);
         },
@@ -1183,34 +1187,43 @@ static void addPartsForItem(const TextExtraction::Item& item, std::optional<Node
         [&](const TextExtraction::SelectData& selectData) {
             if (aggregator.useHTMLOutput()) {
                 auto attributes = partsForItem(item, aggregator, includeRectForParentItem);
-
-                if (!selectData.selectedValues.isEmpty()) {
-                    auto escapedValues = selectData.selectedValues.map([](auto& value) {
-                        return makeString('\'', escapeString(value), '\'');
-                    });
-                    attributes.append(makeString("selected=["_s, commaSeparatedString(escapedValues), ']'));
-                }
-
                 if (attributes.isEmpty())
                     parts.append(makeString('<', item.nodeName.convertToASCIILowercase(), '>'));
                 else
                     parts.append(makeString('<', item.nodeName.convertToASCIILowercase(), ' ', makeStringByJoining(attributes, " "_s), '>'));
+
+                aggregator.addResult(line, WTF::move(parts));
+
+                for (auto& option : selectData.options) {
+                    auto optionLine = TextExtractionLine { aggregator.advanceToNextLine(), line.indentLevel + 1 };
+                    if (option.isSelected)
+                        aggregator.addResult(optionLine, { makeString("<option value='"_s, escapeStringForHTML(option.value), "' selected>"_s, escapeStringForHTML(option.label), "</option>"_s) });
+                    else
+                        aggregator.addResult(optionLine, { makeString("<option value='"_s, escapeStringForHTML(option.value), "'>"_s, escapeStringForHTML(option.label), "</option>"_s) });
+                }
+
+                aggregator.addResult({ aggregator.advanceToNextLine(), line.indentLevel }, { makeString("</select>"_s) });
             } else if (!aggregator.useMarkdownOutput()) {
                 parts.append("select"_s);
                 parts.appendVector(partsForItem(item, aggregator, includeRectForParentItem));
 
-                if (!selectData.selectedValues.isEmpty()) {
-                    auto escapedValues = selectData.selectedValues.map([](auto& value) {
-                        return makeString('\'', escapeString(value), '\'');
-                    });
-                    parts.append(makeString("selected=["_s, commaSeparatedString(escapedValues), ']'));
+                for (auto& option : selectData.options) {
+                    auto optionLine = TextExtractionLine { aggregator.advanceToNextLine(), line.indentLevel + 1 };
+                    Vector<String> optionParts { "option"_s };
+                    if (option.isSelected)
+                        optionParts.append("selected"_s);
+                    if (!option.value.isEmpty())
+                        optionParts.append(makeString("value='"_s, escapeString(option.value), '\''));
+                    if (!option.label.isEmpty() && !equalIgnoringASCIICase(option.label, option.value))
+                        optionParts.append(makeString('\'', escapeString(option.label), '\''));
+                    aggregator.addResult(optionLine, WTF::move(optionParts));
                 }
 
                 if (selectData.isMultiple)
                     parts.append("multiple"_s);
-            }
 
-            aggregator.addResult(line, WTF::move(parts));
+                aggregator.addResult(line, WTF::move(parts));
+            }
         },
         [&](const TextExtraction::ImageItemData& imageData) {
             if (aggregator.useHTMLOutput()) {

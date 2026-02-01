@@ -732,7 +732,7 @@ void WebLoaderStrategy::networkProcessCrashed()
     WEBLOADERSTRATEGY_RELEASE_LOG_ERROR_BASIC("networkProcessCrashed: failing all pending resource loaders");
 
     for (auto& loader : m_webResourceLoaders.values()) {
-        scheduleInternallyFailedLoad(*loader->protectedResourceLoader());
+        scheduleInternallyFailedLoad(*protect(loader->resourceLoader()));
         loader->detachFromCoreLoader();
     }
 
@@ -860,7 +860,7 @@ void WebLoaderStrategy::loadResourceSynchronously(FrameLoader& frameLoader, WebC
     loadParameters.contentEncodingSniffingPolicy = ContentEncodingSniffingPolicy::Default;
     loadParameters.storedCredentialsPolicy = options.credentials == FetchOptions::Credentials::Omit ? StoredCredentialsPolicy::DoNotUse : StoredCredentialsPolicy::Use;
     loadParameters.clientCredentialPolicy = clientCredentialPolicy;
-    loadParameters.shouldClearReferrerOnHTTPSToHTTPRedirect = shouldClearReferrerOnHTTPSToHTTPRedirect(webFrame ? webFrame->protectedCoreLocalFrame().get() : nullptr);
+    loadParameters.shouldClearReferrerOnHTTPSToHTTPRedirect = shouldClearReferrerOnHTTPSToHTTPRedirect(webFrame ? protect(webFrame->coreLocalFrame()).get() : nullptr);
     loadParameters.shouldRestrictHTTPResponseAccess = shouldPerformSecurityChecks();
 
     loadParameters.options = options;
@@ -875,7 +875,7 @@ void WebLoaderStrategy::loadResourceSynchronously(FrameLoader& frameLoader, WebC
     if (webFrame)
         loadParameters.isNavigatingToAppBoundDomain = webFrame->isTopFrameNavigatingToAppBoundDomain();
 #endif
-    addParametersShared(webFrame->protectedCoreLocalFrame().get(), loadParameters);
+    addParametersShared(protect(webFrame->coreLocalFrame()).get(), loadParameters);
 
     data.shrink(0);
 
@@ -906,7 +906,7 @@ void WebLoaderStrategy::browsingContextRemoved(LocalFrame& frame)
     if (!networkProcessConnection)
         return;
 
-    Ref page = *WebPage::fromCorePage(*frame.protectedPage());
+    Ref page = *WebPage::fromCorePage(*protect(frame.page()));
     networkProcessConnection->connection().send(Messages::NetworkConnectionToWebProcess::BrowsingContextRemoved(page->webPageProxyIdentifier(), page->identifier(), WebFrame::fromCoreFrame(frame)->frameID()), 0);
 }
 
@@ -1031,7 +1031,7 @@ void WebLoaderStrategy::preconnectTo(WebCore::ResourceRequest&& request, WebPage
 #if ENABLE(APP_BOUND_DOMAINS)
     parameters.isNavigatingToAppBoundDomain = webFrame.isTopFrameNavigatingToAppBoundDomain();
 #endif
-    if (RefPtr loader = policySourceDocumentLoaderForFrame(*webFrame.protectedCoreLocalFrame()))
+    if (RefPtr loader = policySourceDocumentLoaderForFrame(*protect(webFrame.coreLocalFrame())))
         parameters.advancedPrivacyProtections = loader->advancedPrivacyProtections();
 
     std::optional<WebCore::ResourceLoaderIdentifier> preconnectionIdentifier;

@@ -213,7 +213,7 @@ RTCStatsReport::TransportStats::TransportStats(const GstStructure* structure)
     }
 
     // https://gitlab.freedesktop.org/gstreamer/gstreamer/-/commit/9e38ee7526ecbb12320d1aef29a0c74b815eb4ef
-#if GST_CHECK_VERSION(1, 27, 0)
+#if GST_CHECK_VERSION(1, 28, 0)
     if (gst_structure_has_field_typed(structure, "dtls-role", GST_TYPE_WEBRTC_DTLS_ROLE)) {
         GstWebRTCDTLSRole role;
         gst_structure_get(structure, "dtls-role", GST_TYPE_WEBRTC_DTLS_ROLE, &role, nullptr);
@@ -255,7 +255,7 @@ RTCStatsReport::IceCandidateStats::IceCandidateStats(GstWebRTCStatsType statsTyp
     port = gstStructureGet<unsigned>(structure, "port"_s);
     priority = gstStructureGet<unsigned>(structure, "priority"_s);
 
-#if GST_CHECK_VERSION(1, 27, 0)
+#if GST_CHECK_VERSION(1, 28, 0)
     GstWebRTCICETcpCandidateType gstTcpType;
     if (gst_structure_get(structure, "tcp-type", &gstTcpType, nullptr)) {
         switch (gstTcpType) {

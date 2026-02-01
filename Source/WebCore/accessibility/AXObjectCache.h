@@ -207,6 +207,15 @@ struct AXTextChangeContext {
 };
 #endif // PLATFORM(COCOA)
 
+#if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
+// When this is updated, WebCoreArgumentCoders.serialization.in must be updated as well.
+struct InheritedFrameState {
+    bool isAXHidden { false };
+    bool isInert { false };
+    bool isRenderHidden { false };
+};
+#endif
+
 struct AXNotificationWithData {
     using DataVariant = Variant<std::monostate, AriaNotifyData
 #if PLATFORM(COCOA)
@@ -286,6 +295,9 @@ public:
 
     // Returns the root object for a specific frame.
     WEBCORE_EXPORT AXCoreObject* rootObjectForFrame(LocalFrame&);
+#if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
+    WEBCORE_EXPORT void setFrameInheritedState(LocalFrame&, const InheritedFrameState&);
+#endif
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     WEBCORE_EXPORT void buildIsolatedTreeIfNeeded();
 #endif

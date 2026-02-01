@@ -81,8 +81,8 @@ MediaPlayerPrivateWirelessPlayback::~MediaPlayerPrivateWirelessPlayback() = defa
 
 void MediaPlayerPrivateWirelessPlayback::load(const String& urlString)
 {
-    m_urlString = urlString;
     ALWAYS_LOG(LOGIDENTIFIER, urlString);
+    m_urlString = urlString;
     updateURLStringIfNeeded();
 }
 
@@ -155,7 +155,9 @@ void MediaPlayerPrivateWirelessPlayback::updateURLStringIfNeeded()
     if (!playbackTarget)
         return;
 
-    // FIXME: pass the URL to the route
+    playbackTarget->loadURL(m_urlString, [](const MediaDeviceRouteLoadURLResult&) {
+        // FIXME: Advance readyState once the target has loaded the URL
+    });
 }
 
 #endif // ENABLE(WIRELESS_PLAYBACK_TARGET)

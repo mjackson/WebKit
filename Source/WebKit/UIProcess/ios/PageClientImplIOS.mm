@@ -30,6 +30,7 @@
 
 #import "APIData.h"
 #import "APIOpenPanelParameters.h"
+#import "APIPageConfiguration.h"
 #import "APIUIClient.h"
 #import "ApplicationStateTracker.h"
 #import "DrawingAreaProxy.h"
@@ -165,7 +166,18 @@ bool PageClientImpl::isActiveViewVisible()
     if (!webView)
         return false;
 
-    if (isViewInWindow() && ![webView _isBackground])
+    auto page = webView->_page;
+    auto shouldTreatAsForeground = [&] {
+        if (![webView _isBackground])
+            return true;
+
+        if (page && page->configuration().backgroundTextExtractionEnabled())
+            return true;
+
+        return false;
+    };
+
+    if (isViewInWindow() && shouldTreatAsForeground())
         return true;
     
     if ([webView _isShowingVideoPictureInPicture])
@@ -175,7 +187,6 @@ bool PageClientImpl::isActiveViewVisible()
         return true;
 
 #if ENABLE(WEBXR) && !USE(OPENXR)
-    auto page = webView->_page;
     if (page && page->xrSystem() && page->xrSystem()->hasActiveSession())
         return true;
 #endif
@@ -224,6 +235,14 @@ bool PageClientImpl::isViewVisibleOrOccluded()
 bool PageClientImpl::isVisuallyIdle()
 {
     return !isActiveViewVisible();
+}
+
+WebCore::DestinationColorSpace PageClientImpl::colorSpace()
+{
+    if (!m_colorSpace)
+        m_colorSpace = screenColorSpace(nullptr);
+
+    return *m_colorSpace;
 }
 
 void PageClientImpl::processDidExit()

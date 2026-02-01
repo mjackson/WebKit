@@ -124,11 +124,6 @@ Node* InjectedBundleNodeHandle::coreNode()
     return m_node.get();
 }
 
-RefPtr<Node> InjectedBundleNodeHandle::protectedCoreNode()
-{
-    return m_node.get();
-}
-
 RefPtr<InjectedBundleNodeHandle> InjectedBundleNodeHandle::document()
 {
     if (!m_node)
@@ -154,7 +149,7 @@ IntRect InjectedBundleNodeHandle::absoluteBoundingRect(bool* isReplaced)
     if (!m_node)
         return { };
 
-    return protectedCoreNode()->pixelSnappedAbsoluteBoundingRect(isReplaced);
+    return protect(coreNode())->pixelSnappedAbsoluteBoundingRect(isReplaced);
 }
 
 static RefPtr<WebImage> imageForRect(LocalFrameView* frameView, const IntRect& paintingRect, const std::optional<float>& bitmapWidth, SnapshotOptions options)

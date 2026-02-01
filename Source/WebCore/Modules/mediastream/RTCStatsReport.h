@@ -356,7 +356,7 @@ public:
 #endif
 
         String transportId;
-        String address;
+        std::optional<String> address;
         std::optional<int32_t> port;
         String protocol;
         RTCIceCandidateType candidateType;

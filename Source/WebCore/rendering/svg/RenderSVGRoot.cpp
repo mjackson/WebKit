@@ -170,7 +170,8 @@ LayoutUnit RenderSVGRoot::computeReplacedLogicalWidth(ShouldComputePreferred sho
 
     // Percentage units are not scaled, Length(100, %) resolves to 100% of the unzoomed RenderView content size.
     // However for SVGs purposes we need to always include zoom in the RenderSVGRoot boundaries.
-    result *= style().usedZoom();
+    if (isDocumentElementRenderer())
+        result *= style().usedZoom();
     return result;
 }
 
@@ -190,7 +191,8 @@ LayoutUnit RenderSVGRoot::computeReplacedLogicalHeight(std::optional<LayoutUnit>
 
     // Percentage units are not scaled, Length(100, %) resolves to 100% of the unzoomed RenderView content size.
     // However for SVGs purposes we need to always include zoom in the RenderSVGRoot boundaries.
-    result *= style().usedZoom();
+    if (isDocumentElementRenderer())
+        result *= style().usedZoom();
     return result;
 }
 

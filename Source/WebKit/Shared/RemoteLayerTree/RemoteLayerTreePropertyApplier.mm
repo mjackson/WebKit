@@ -29,9 +29,11 @@
 #import "Logging.h"
 #import "PlatformCAAnimationRemote.h"
 #import "PlatformCALayerRemote.h"
+#import "RemoteLayerTreeDrawingAreaProxy.h"
 #import "RemoteLayerTreeHost.h"
 #import "RemoteLayerTreeInteractionRegionLayers.h"
 #import "WKVideoView.h"
+#import "WebPageProxy.h"
 #import <QuartzCore/QuartzCore.h>
 #import <WebCore/ContentsFormatCocoa.h>
 #import <WebCore/GraphicsLayerEnums.h>
@@ -425,8 +427,18 @@ void RemoteLayerTreePropertyApplier::applyPropertiesToLayer(CALayer *layer, Remo
     if (properties.changedProperties & LayerChange::NameChanged)
         layer.name = properties.name.createNSString().get();
 
-    if (properties.changedProperties & LayerChange::BackgroundColorChanged)
-        layer.backgroundColor = cgColorFromColor(properties.backgroundColor).get();
+    if (properties.changedProperties & LayerChange::BackgroundColorChanged) {
+        auto colorSpace = [&]() {
+            Ref drawingArea = layerTreeHost->drawingArea();
+            if (RefPtr webPage = drawingArea->page())
+                return webPage->colorSpace();
+
+            return DestinationColorSpace::SRGB();
+        }();
+
+        RetainPtr cgColor = cachedCGColorInDestinationStandardRange(properties.backgroundColor, colorSpace);
+        layer.backgroundColor = cgColor.get();
+    }
 
     if (properties.changedProperties & LayerChange::BorderColorChanged)
         layer.borderColor = cgColorFromColor(properties.borderColor).get();
@@ -565,7 +577,7 @@ void RemoteLayerTreePropertyApplier::applyProperties(RemoteLayerTreeNode& node, 
 {
     BEGIN_BLOCK_OBJC_EXCEPTIONS
 
-    applyPropertiesToLayer(node.protectedLayer().get(), &node, layerTreeHost, properties);
+    applyPropertiesToLayer(protect(node.layer()).get(), &node, layerTreeHost, properties);
     if (properties.changedProperties & LayerChange::EventRegionChanged)
         node.setEventRegion(properties.eventRegion);
     updateMask(node, properties, relatedLayers);

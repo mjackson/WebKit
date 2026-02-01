@@ -138,6 +138,11 @@ ExceptionOr<void> ServiceWorker::postMessage(JSC::JSGlobalObject& globalObject, 
     return { };
 }
 
+ExceptionOr<void> ServiceWorker::postMessage(JSC::JSGlobalObject& globalObject, JSC::JSValue messageValue, Vector<JSC::Strong<JSC::JSObject>>&& transfer)
+{
+    return postMessage(globalObject, messageValue, StructuredSerializeOptions { WTF::move(transfer) });
+}
+
 enum EventTargetInterfaceType ServiceWorker::eventTargetInterface() const
 {
     return EventTargetInterfaceType::ServiceWorker;

@@ -86,6 +86,7 @@
 #include "RenderElement.h"
 #include "ScriptController.h"
 #include "ScriptDisallowedScope.h"
+#include "SelectionGeometry.h"
 #include "Settings.h"
 #include "ShadowRoot.h"
 #include "SimulatedClick.h"
@@ -102,10 +103,6 @@
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/StringBuilder.h>
-
-#if PLATFORM(IOS_FAMILY)
-#include "SelectionGeometry.h"
-#endif
 
 namespace WebCore {
 
@@ -1392,14 +1389,10 @@ void HTMLElement::setPopover(const AtomString& value)
     setAttributeWithoutSynchronization(HTMLNames::popoverAttr, value);
 }
 
-#if PLATFORM(IOS_FAMILY)
-
 SelectionRenderingBehavior HTMLElement::selectionRenderingBehavior(const Node* node)
 {
     return ImageOverlay::isOverlayText(node) ? SelectionRenderingBehavior::UseIndividualQuads : SelectionRenderingBehavior::CoalesceBoundingRects;
 }
-
-#endif // PLATFORM(IOS_FAMILY)
 
 } // namespace WebCore
 

@@ -35,6 +35,7 @@
 #include "LocalizedStrings.h"
 #include "MouseEvent.h"
 #include "PseudoClassChangeInvalidation.h"
+#include "ScriptDisallowedScope.h"
 #include "ShadowRoot.h"
 #include "ShouldNotFireMutationEventsScope.h"
 #include "SlotAssignment.h"
@@ -112,17 +113,21 @@ void HTMLDetailsElement::didAddUserAgentShadowRoot(ShadowRoot& root)
 {
     Ref document = this->document();
     Ref summarySlot = HTMLSlotElement::create(slotTag, document);
+    ScriptDisallowedScope::EventAllowedScope summarySlotScope { summarySlot };
     summarySlot->setAttributeWithoutSynchronization(nameAttr, summarySlotName());
 
     Ref defaultSummary = HTMLSummaryElement::create(summaryTag, document);
+    ScriptDisallowedScope::EventAllowedScope defaultSummaryScope { defaultSummary };
     defaultSummary->appendChild(Text::create(document, defaultDetailsSummaryText()));
     m_defaultSummary = defaultSummary.get();
 
     summarySlot->appendChild(defaultSummary);
+    ScriptDisallowedScope::EventAllowedScope rootScope { root };
     root.appendChild(summarySlot);
     m_summarySlot = WTF::move(summarySlot);
 
     Ref defaultSlot = HTMLSlotElement::create(slotTag, document);
+    ScriptDisallowedScope::EventAllowedScope defaultSlotScope { defaultSlot };
     defaultSlot->setUserAgentPart(UserAgentParts::detailsContent());
     ASSERT(!hasAttributeWithoutSynchronization(openAttr));
     defaultSlot->setInlineStyleProperty(CSSPropertyContentVisibility, CSSValueHidden);
@@ -131,7 +136,8 @@ void HTMLDetailsElement::didAddUserAgentShadowRoot(ShadowRoot& root)
     m_defaultSlot = WTF::move(defaultSlot);
 
     static MainThreadNeverDestroyed<const String> stylesheet(StringImpl::createWithoutCopying(detailsElementShadowUserAgentStyleSheet));
-    Ref style = HTMLStyleElement::create(HTMLNames::styleTag, document, false);
+    Ref style = HTMLStyleElement::create(document);
+    ScriptDisallowedScope::EventAllowedScope styleScope { style };
     style->setTextContent(String { stylesheet });
     root.appendChild(WTF::move(style));
 }

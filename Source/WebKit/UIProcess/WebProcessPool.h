@@ -184,12 +184,6 @@ public:
     }
 
     template <typename T>
-    RefPtr<T> protectedSupplement()
-    {
-        return supplement<T>();
-    }
-
-    template <typename T>
     void addSupplement()
     {
         m_supplements.add(T::supplementName(), T::create(this));
@@ -402,7 +396,6 @@ public:
     GPUProcessProxy& ensureGPUProcess();
     Ref<GPUProcessProxy> ensureProtectedGPUProcess();
     GPUProcessProxy* gpuProcess() const { return m_gpuProcess.get(); }
-    RefPtr<GPUProcessProxy> protectedGPUProcess() const { return gpuProcess(); }
 #endif
 
 #if ENABLE(MODEL_PROCESS)
@@ -452,7 +445,6 @@ public:
     NSMutableDictionary *ensureBundleParameters();
     RetainPtr<NSMutableDictionary> ensureProtectedBundleParameters();
     NSMutableDictionary *bundleParameters() { return m_bundleParameters.get(); }
-    RetainPtr<NSMutableDictionary> protectedBundleParameters();
 #else
     void updateProcessSuppressionState() const { }
 #endif
@@ -581,7 +573,7 @@ public:
     static void platformInitializeNetworkProcess(NetworkProcessCreationParameters&);
     static Vector<String> urlSchemesWithCustomProtocolHandlers();
 
-    Ref<WebProcessProxy> createNewWebProcess(WebsiteDataStore*, WebProcessProxy::LockdownMode, EnhancedSecurity, WebProcessProxy::IsPrewarmed = WebProcessProxy::IsPrewarmed::No, WebCore::CrossOriginMode = WebCore::CrossOriginMode::Shared);
+    Ref<WebProcessProxy> createNewWebProcess(WebsiteDataStore*, WebProcessProxy::LockdownMode, EnhancedSecurity, WebProcessProxy::EnableWebAssemblyDebugger = WebProcessProxy::EnableWebAssemblyDebugger::No, WebProcessProxy::IsPrewarmed = WebProcessProxy::IsPrewarmed::No, WebCore::CrossOriginMode = WebCore::CrossOriginMode::Shared);
 
     bool hasAudibleMediaActivity() const { return !!m_audibleMediaActivity; }
 #if PLATFORM(IOS_FAMILY)

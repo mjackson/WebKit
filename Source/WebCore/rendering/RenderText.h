@@ -86,9 +86,8 @@ public:
 
     void boundingRects(Vector<LayoutRect>&, const LayoutPoint& accumulatedOffset) const final;
     Vector<IntRect> absoluteRectsForRange(unsigned startOffset = 0, unsigned endOffset = UINT_MAX, bool useSelectionHeight = false, bool* wasFixed = nullptr) const;
-#if PLATFORM(IOS_FAMILY)
+
     void collectSelectionGeometries(Vector<SelectionGeometry>&, unsigned startOffset = 0, unsigned endOffset = std::numeric_limits<unsigned>::max()) final;
-#endif
 
     void absoluteQuads(Vector<FloatQuad>&, bool* wasFixed) const final;
     Vector<FloatQuad> absoluteQuadsForRange(unsigned startOffset = 0, unsigned endOffset = UINT_MAX, OptionSet<RenderObject::BoundingRectBehavior> = { }, bool* wasFixed = nullptr) const;

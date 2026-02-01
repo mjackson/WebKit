@@ -613,7 +613,7 @@ void SVGSMILElement::disconnectConditions()
             // our condition event listener, in case it later fires.
             RefPtr eventBase = eventBaseFor(condition);
             if (eventBase)
-                eventBase->removeEventListener(condition.m_name, Ref { *condition.m_eventListener }, false);
+                eventBase->removeEventListener(condition.m_name, Ref { *condition.m_eventListener }, { .capture = false });
             condition.m_eventListener->disconnectAnimation();
             condition.m_eventListener = nullptr;
         } else if (condition.m_type == Condition::Syncbase) {

@@ -100,7 +100,8 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
     WeakPtr<WebKit::WebPageProxy> _page;
     WeakPtr<WebKit::WebViewImpl> _viewImpl;
     RetainPtr<NSPanGestureRecognizer> _panGestureRecognizer;
-    RetainPtr<NSClickGestureRecognizer> _clickGestureRecognizer;
+    RetainPtr<NSClickGestureRecognizer> _singleClickGestureRecognizer;
+    RetainPtr<NSClickGestureRecognizer> _doubleClickGestureRecognizer;
     bool _isMomentumActive;
 }
 
@@ -112,7 +113,11 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
 {
 }
 
-- (void)configureForClicking:(NSClickGestureRecognizer *)gesture
+- (void)configureForSingleClick:(NSClickGestureRecognizer *)gesture
+{
+}
+
+- (void)configureForDoubleClick:(NSClickGestureRecognizer *)gesture
 {
 }
 
@@ -127,7 +132,8 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
     _viewImpl = viewImpl.get();
 
     [self setUpPanGestureRecognizer];
-    [self setUpClickGestureRecognizer];
+    [self setUpSingleClickGestureRecognizer];
+    [self setUpDoubleClickGestureRecognizer];
     [self addGesturesToWebView];
     [self enableGesturesIfNeeded];
 
@@ -144,13 +150,23 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
 #endif
 }
 
-- (void)setUpClickGestureRecognizer
+- (void)setUpSingleClickGestureRecognizer
 {
-    _clickGestureRecognizer = adoptNS([[NSClickGestureRecognizer alloc] initWithTarget:self action:@selector(clickGestureRecognized:)]);
-    [self configureForClicking:_clickGestureRecognizer.get()];
-    [_clickGestureRecognizer setDelegate:self];
+    _singleClickGestureRecognizer = adoptNS([[NSClickGestureRecognizer alloc] initWithTarget:self action:@selector(singleClickGestureRecognized:)]);
+    [self configureForSingleClick:_singleClickGestureRecognizer.get()];
+    [_singleClickGestureRecognizer setDelegate:self];
 #if HAVE(NSGESTURERECOGNIZER_NAME)
-    [_clickGestureRecognizer setName:@"WKClickGesture"];
+    [_singleClickGestureRecognizer setName:@"WKSingleClickGesture"];
+#endif
+}
+
+- (void)setUpDoubleClickGestureRecognizer
+{
+    _doubleClickGestureRecognizer = adoptNS([[NSClickGestureRecognizer alloc] initWithTarget:self action:@selector(doubleClickGestureRecognized:)]);
+    [self configureForDoubleClick:_doubleClickGestureRecognizer.get()];
+    [_doubleClickGestureRecognizer setDelegate:self];
+#if HAVE(NSGESTURERECOGNIZER_NAME)
+    [_doubleClickGestureRecognizer setName:@"WKDoubleClickGesture"];
 #endif
 }
 
@@ -165,13 +181,15 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
         return;
 
     [webView addGestureRecognizer:_panGestureRecognizer.get()];
-    [webView addGestureRecognizer:_clickGestureRecognizer.get()];
+    [webView addGestureRecognizer:_singleClickGestureRecognizer.get()];
+    [webView addGestureRecognizer:_doubleClickGestureRecognizer.get()];
 }
 
 - (void)enableGesturesIfNeeded
 {
     [self enableGestureIfNeeded:_panGestureRecognizer.get()];
-    [self enableGestureIfNeeded:_clickGestureRecognizer.get()];
+    [self enableGestureIfNeeded:_singleClickGestureRecognizer.get()];
+    [self enableGestureIfNeeded:_doubleClickGestureRecognizer.get()];
 }
 
 - (void)enableGestureIfNeeded:(NSGestureRecognizer *)gesture
@@ -220,7 +238,7 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
     [self startMomentumIfNeededForGesture:panGesture.get()];
 }
 
-- (void)clickGestureRecognized:(NSGestureRecognizer *)gesture
+- (void)singleClickGestureRecognized:(NSGestureRecognizer *)gesture
 {
     CheckedPtr viewImpl = _viewImpl.get();
     if (!viewImpl)
@@ -237,7 +255,7 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
     WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG(page->identifier().toUInt64(), "%@", gesture);
 
     RetainPtr clickGesture = dynamic_objc_cast<NSClickGestureRecognizer>(gesture);
-    if (!clickGesture || _clickGestureRecognizer != clickGesture)
+    if (!clickGesture || _singleClickGestureRecognizer != clickGesture)
         return;
 
     auto timestamp = GetCurrentEventTime();
@@ -251,6 +269,32 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
 
     viewImpl->mouseDown(mouseDown.get());
     viewImpl->mouseUp(mouseUp.get());
+}
+
+- (void)doubleClickGestureRecognized:(NSGestureRecognizer *)gesture
+{
+    CheckedPtr viewImpl = _viewImpl.get();
+    if (!viewImpl)
+        return;
+
+    RetainPtr webView = viewImpl->view();
+    if (!webView)
+        return;
+
+    RefPtr page = _page.get();
+    if (!page)
+        return;
+
+    WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG(page->identifier().toUInt64(), "%@", gesture);
+
+    RetainPtr clickGesture = dynamic_objc_cast<NSClickGestureRecognizer>(gesture);
+    if (!clickGesture || _doubleClickGestureRecognizer != clickGesture)
+        return;
+
+    viewImpl->dismissContentRelativeChildWindowsWithAnimation(false);
+
+    auto magnificationOrigin = [webView convertPoint:[gesture locationInView:nil] fromView:nil];
+    viewImpl->ensureProtectedGestureController()->handleSmartMagnificationGesture(magnificationOrigin);
 }
 
 #pragma mark - Wheel Event Handling
@@ -415,7 +459,22 @@ static inline bool isSamePair(NSGestureRecognizer *a, NSGestureRecognizer *b, NS
 - (BOOL)gestureRecognizer:(NSGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(NSGestureRecognizer *)otherGestureRecognizer
 {
     WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG(RefPtr { _page.get() }->identifier().toUInt64(), "Gesture: %@, Other gesture: %@", gestureRecognizer, otherGestureRecognizer);
-    return isSamePair(gestureRecognizer, otherGestureRecognizer, _clickGestureRecognizer.get(), _panGestureRecognizer.get());
+    if (isSamePair(gestureRecognizer, otherGestureRecognizer, _singleClickGestureRecognizer.get(), _panGestureRecognizer.get()))
+        return YES;
+    return NO;
+}
+
+- (BOOL)gestureRecognizerShouldBegin:(NSGestureRecognizer *)gestureRecognizer
+{
+    WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG(RefPtr { _page.get() }->identifier().toUInt64(), "Gesture: %@", gestureRecognizer);
+
+    if (gestureRecognizer == _doubleClickGestureRecognizer.get()) {
+        CheckedPtr viewImpl = _viewImpl.get();
+        if (!viewImpl || !viewImpl->allowsMagnification())
+            return NO;
+    }
+
+    return YES;
 }
 
 @end

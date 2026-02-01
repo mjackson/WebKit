@@ -185,10 +185,12 @@ void RuleSet::addRule(RuleData&& ruleData, CascadeLayerIdentifier cascadeLayerId
     const CSSSelector* focusVisibleSelector = nullptr;
     const CSSSelector* rootElementSelector = nullptr;
     const CSSSelector* hostPseudoClassSelector = nullptr;
+    const CSSSelector* fullscreenPseudoClassSelector = nullptr;
     const CSSSelector* customPseudoElementSelector = nullptr;
     const CSSSelector* slottedPseudoElementSelector = nullptr;
     const CSSSelector* partPseudoElementSelector = nullptr;
     const CSSSelector* namedPseudoElementSelector = nullptr;
+    const CSSSelector* otherPseudoElementSelector = nullptr;
 #if ENABLE(VIDEO)
     const CSSSelector* cuePseudoElementSelector = nullptr;
 #endif
@@ -251,6 +253,7 @@ void RuleSet::addRule(RuleData&& ruleData, CascadeLayerIdentifier cascadeLayerId
                     namedPseudoElementSelector = selector;
                 break;
             default:
+                otherPseudoElementSelector = selector;
                 break;
             }
             break;
@@ -273,6 +276,14 @@ void RuleSet::addRule(RuleData&& ruleData, CascadeLayerIdentifier cascadeLayerId
             case CSSSelector::PseudoClass::Root:
                 rootElementSelector = selector;
                 break;
+#if ENABLE(FULLSCREEN_API)
+            case CSSSelector::PseudoClass::Fullscreen:
+            case CSSSelector::PseudoClass::InternalInWindowFullscreen:
+            case CSSSelector::PseudoClass::InternalFullscreenDocument:
+            case CSSSelector::PseudoClass::InternalAnimatingFullscreenTransition:
+                fullscreenPseudoClassSelector = selector;
+                break;
+#endif
             case CSSSelector::PseudoClass::Scope:
                 m_hasHostOrScopePseudoClassRulesInUniversalBucket = true;
                 break;
@@ -394,6 +405,11 @@ void RuleSet::addRule(RuleData&& ruleData, CascadeLayerIdentifier cascadeLayerId
         return;
     }
 
+    if (fullscreenPseudoClassSelector) {
+        m_fullscreenPseudoClassRules.append(ruleData);
+        return;
+    }
+
     if (namedPseudoElementSelector) {
         addToRuleSet(namedPseudoElementSelector->stringList()->first(), m_namedPseudoElementRules, ruleData);
         return;
@@ -409,6 +425,43 @@ void RuleSet::addRule(RuleData&& ruleData, CascadeLayerIdentifier cascadeLayerId
         addToRuleSet(tagSelector->tagLowercaseLocalName(), m_tagLowercaseLocalNameRules, ruleData);
         return;
     }
+
+    auto addUniversalPseudoElement = [&] {
+        if (!otherPseudoElementSelector)
+            return false;
+
+        // Check this is a simple selector like "::marker" that applies to HTML elements.
+        if (otherPseudoElementSelector->precedingInComplexSelector())
+            return false;
+
+        bool isHTMLNamespace = false;
+        auto* last = otherPseudoElementSelector->lastInCompound();
+        if (last->precedingInComplexSelector() == otherPseudoElementSelector) {
+            // Check that implicit * is present with the right namespace and nothing else.
+            if (last->match() != CSSSelector::Match::Tag)
+                return false;
+
+            ASSERT(last->tagQName().localName() == starAtom());
+            auto& namespaceURI = last->tagQName().namespaceURI();
+            isHTMLNamespace = namespaceURI == xhtmlNamespaceURI;
+            if (!isHTMLNamespace && namespaceURI != starAtom())
+                return false;
+        } else if (last != otherPseudoElementSelector)
+            return false;
+
+        auto stylePseudoElement = CSSSelector::stylePseudoElementTypeFor(otherPseudoElementSelector->pseudoElement());
+        if (!stylePseudoElement)
+            return false;
+
+        m_universalPseudoElementRules.append(ruleData);
+        m_universalHTMLPseudoElementTypes.add(*stylePseudoElement);
+        if (!isHTMLNamespace)
+            m_universalPseudoElementTypes.add(*stylePseudoElement);
+        return true;
+    };
+
+    if (addUniversalPseudoElement())
+        return;
 
     // If we didn't find a specialized map to stick it in, file under universal rules.
     m_universalRules.append(ruleData);
@@ -459,8 +512,10 @@ void RuleSet::traverseRuleDatas(Function&& function)
     traverseVector(m_partPseudoElementRules);
     traverseVector(m_focusPseudoClassRules);
     traverseVector(m_focusVisiblePseudoClassRules);
+    traverseVector(m_fullscreenPseudoClassRules);
     traverseVector(m_rootElementRules);
     traverseVector(m_universalRules);
+    traverseVector(m_universalPseudoElementRules);
 }
 
 template<typename Function> void RuleSet::traverseRuleDatas(Function&& function) const
@@ -562,8 +617,10 @@ void RuleSet::shrinkToFit()
     m_partPseudoElementRules.shrinkToFit();
     m_focusPseudoClassRules.shrinkToFit();
     m_focusVisiblePseudoClassRules.shrinkToFit();
+    m_fullscreenPseudoClassRules.shrinkToFit();
     m_rootElementRules.shrinkToFit();
     m_universalRules.shrinkToFit();
+    m_universalPseudoElementRules.shrinkToFit();
 
     m_pageRules.shrinkToFit();
     m_features.shrinkToFit();

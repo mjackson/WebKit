@@ -100,4 +100,9 @@ ExceptionOr<void> ServiceWorkerClient::postMessage(JSC::JSGlobalObject& globalOb
     return { };
 }
 
+ExceptionOr<void> ServiceWorkerClient::postMessage(JSC::JSGlobalObject& globalObject, JSC::JSValue messageValue, Vector<JSC::Strong<JSC::JSObject>>&& transfer)
+{
+    return postMessage(globalObject, messageValue, StructuredSerializeOptions { WTF::move(transfer) });
+}
+
 } // namespace WebCore

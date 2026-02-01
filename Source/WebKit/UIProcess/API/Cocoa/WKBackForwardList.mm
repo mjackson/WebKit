@@ -32,12 +32,12 @@
 #import <wtf/AlignedStorage.h>
 
 @implementation WKBackForwardList {
-    AlignedStorage<WebKit::WebBackForwardList> _list;
+    AlignedStorage<WebKit::WebBackForwardListWrapper> _list;
 }
 
 WK_OBJECT_DISABLE_DISABLE_KVC_IVAR_ACCESS;
 
-- (Ref<WebKit::WebBackForwardList>)_protectedList
+- (Ref<WebKit::WebBackForwardListWrapper>)_protectedList
 {
     return *_list;
 }

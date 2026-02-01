@@ -31,6 +31,7 @@
 #include <wtf/Forward.h>
 #include <wtf/RefCountedAndCanMakeWeakPtr.h>
 #include <wtf/RunLoop.h>
+#include <wtf/SwiftBridging.h>
 #include <wtf/TZoneMalloc.h>
 
 namespace WebKit {
@@ -62,6 +63,16 @@ private:
     Markable<WebCore::BackForwardItemIdentifier> m_backForwardItemID;
     RefPtr<SuspendedPageProxy> m_suspendedPage;
     RunLoop::Timer m_expirationTimer;
-};
+} SWIFT_SHARED_REFERENCE(refWebBackForwardCacheEntry, derefWebBackForwardCacheEntry);
 
 } // namespace WebKit
+
+inline void refWebBackForwardCacheEntry(WebKit::WebBackForwardCacheEntry* WTF_NONNULL obj)
+{
+    WTF::ref(obj);
+}
+
+inline void derefWebBackForwardCacheEntry(WebKit::WebBackForwardCacheEntry* WTF_NONNULL obj)
+{
+    WTF::deref(obj);
+}

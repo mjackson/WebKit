@@ -3,7 +3,7 @@
  *               1999 Waldo Bastian (bastian@kde.org)
  *               2001 Andreas Schlapbach (schlpbch@iam.unibe.ch)
  *               2001-2003 Dirk Mueller (mueller@kde.org)
- * Copyright (C) 2002-2022 Apple Inc. All rights reserved.
+ * Copyright (C) 2002-2026 Apple Inc. All rights reserved.
  * Copyright (C) 2008 David Smith (catfish.man@gmail.com)
  * Copyright (C) 2010 Google Inc. All rights reserved.
  *
@@ -302,6 +302,8 @@ std::optional<PseudoElementType> CSSSelector::stylePseudoElementTypeFor(PseudoEl
         return PseudoElementType::Before;
     case PseudoElement::After:
         return PseudoElementType::After;
+    case PseudoElement::Checkmark:
+        return PseudoElementType::Checkmark;
     case PseudoElement::WebKitScrollbar:
         return PseudoElementType::WebKitScrollbar;
     case PseudoElement::WebKitScrollbarButton:
@@ -351,6 +353,7 @@ std::optional<CSSSelector::PseudoElement> CSSSelector::parsePseudoElementName(St
 
     auto type = findPseudoElementName(name);
     if (!type) {
+        ASSERT_WITH_MESSAGE(!isUASheetBehavior(context.mode), "Unknown pseudo-element %s in user-agent stylesheet", name.toString().utf8().data());
         if (name.startsWithIgnoringASCIICase("-webkit-"_s))
             return PseudoElement::WebKitUnknown;
         return type;

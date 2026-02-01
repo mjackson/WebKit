@@ -7206,11 +7206,6 @@ TEST(SiteIsolation, StatusBarVisibility)
     auto [opener, opened] = openerAndOpenedViews(server);
     NSString *statusBarVisible = @"window.statusbar.visible";
     EXPECT_TRUE([[opener.webView objectByEvaluatingJavaScript:statusBarVisible] boolValue]);
-    EXPECT_FALSE([[opened.webView objectByEvaluatingJavaScript:statusBarVisible] boolValue]);
-    EXPECT_FALSE([[opened.webView objectByEvaluatingJavaScript:statusBarVisible inFrame:[opened.webView firstChildFrame]] boolValue]);
-    EXPECT_TRUE([opener.webView _statusBarIsVisible]);
-    EXPECT_FALSE([opened.webView _statusBarIsVisible]);
-    [opened.webView _setStatusBarIsVisible:YES];
     EXPECT_TRUE([[opened.webView objectByEvaluatingJavaScript:statusBarVisible] boolValue]);
     EXPECT_TRUE([[opened.webView objectByEvaluatingJavaScript:statusBarVisible inFrame:[opened.webView firstChildFrame]] boolValue]);
 }

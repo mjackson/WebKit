@@ -413,24 +413,22 @@ RefPtr<NativeImage> HTMLVideoElement::nativeImageForCurrentTime() const
     return player ? player->nativeImageForCurrentTime() : nullptr;
 }
 
-RefPtr<ShareableBitmap> HTMLVideoElement::bitmapImageForCurrentTime() const
+RefPtr<ShareableBitmap> HTMLVideoElement::bitmapImageForCurrentTimeSync() const
 {
-    RefPtr image = nativeImageForCurrentTime();
-    if (!image)
+    RefPtr player = this->player();
+    if (!player)
         return { };
 
-    auto imageSize = image->size();
-    auto bitmap = ShareableBitmap::create({ imageSize, colorSpace() });
-    if (!bitmap)
-        return { };
+    return player->bitmapImageForCurrentTimeSync();
+}
 
-    auto context = bitmap->createGraphicsContext();
-    if (!context)
-        return { };
+Ref<HTMLVideoElement::BitmapImagePromise> HTMLVideoElement::bitmapImageForCurrentTime() const
+{
+    RefPtr player = this->player();
+    if (!player)
+        return BitmapImagePromise::createAndReject();
 
-    context->drawNativeImage(*image, FloatRect { { }, imageSize }, FloatRect { { }, imageSize });
-
-    return bitmap;
+    return player->bitmapImageForCurrentTime();
 }
 
 ExceptionOr<void> HTMLVideoElement::webkitEnterFullscreen()

@@ -3053,7 +3053,7 @@ def check_wtf_os_object_ptr(clean_lines, line_number, file_state, error):
         return
 
 def check_wtf_xpc_object_ptr(clean_lines, line_number, file_state, error):
-    """Looks for usage of RetainPtr / OSObjectPtr with XPC objects, which should be replaced with XPCObjectPtr.
+    """Looks for usage of RetainPtr with XPC objects, which should be replaced with OSObjectPtr.
 
     Args:
       clean_lines: A CleansedLines instance containing the file.
@@ -3066,19 +3066,11 @@ def check_wtf_xpc_object_ptr(clean_lines, line_number, file_state, error):
     line = clean_lines.elided[line_number]  # Get rid of comments and strings.
     using_retain_ptr = search(r'RetainPtr<xpc_', line)
     if using_retain_ptr:
-        error(line_number, 'runtime/wtf_xpc_object_ptr', 4, "Use 'XPCObjectPtr' instead of 'RetainPtr' for XPC objects.")
+        error(line_number, 'runtime/wtf_xpc_object_ptr', 4, "Use 'OSObjectPtr' instead of 'RetainPtr' for XPC objects.")
         return
     using_adoptns = search(r'adoptNS\(xpc_', line)
     if using_adoptns:
-        error(line_number, 'runtime/wtf_xpc_object_ptr', 4, "Use 'adoptXPCObject()' instead of 'adoptNS()' for XPC objects.")
-        return
-    using_osobject_ptr = search(r'OSObjectPtr<xpc_', line)
-    if using_osobject_ptr:
-        error(line_number, 'runtime/wtf_xpc_object_ptr', 4, "Use 'XPCObjectPtr' instead of 'OSObjectPtr' for XPC objects.")
-        return
-    using_adoptosobject = search(r'adoptOSObject\(xpc_', line)
-    if using_adoptosobject:
-        error(line_number, 'runtime/wtf_xpc_object_ptr', 4, "Use 'adoptXPCObject()' instead of 'adoptOSObject()' for XPC objects.")
+        error(line_number, 'runtime/wtf_xpc_object_ptr', 4, "Use 'adoptOSObject()' instead of 'adoptNS()' for XPC objects.")
         return
 
 

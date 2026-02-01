@@ -34,6 +34,7 @@
 #endif
 #include "AXNotifications.h"
 #include "AXObjectCache.h"
+#include "AXRemoteFrame.h"
 #include "AXSearchManager.h"
 #include "AXTextRun.h"
 #include "AXUtilities.h"
@@ -1132,6 +1133,9 @@ TextStream& operator<<(WTF::TextStream& stream, AXProperty property)
         stream << "RemoteFramePlatformElement";
         break;
 #if PLATFORM(COCOA)
+    case AXProperty::RemoteFrameProcessIdentifier:
+        stream << "RemoteFrameProcessIdentifier";
+        break;
     case AXProperty::RemoteParent:
         stream << "RemoteParent";
         break;
@@ -1328,6 +1332,13 @@ void streamAXCoreObject(TextStream& stream, const AXCoreObject& object, const Op
 
     if (options & AXStreamOptions::Role)
         stream.dumpProperty("role"_s, object.role());
+
+#if PLATFORM(COCOA)
+    if (object.role() == AccessibilityRole::RemoteFrame) {
+        pid_t pid = object.remoteFrameProcessIdentifier();
+        stream.dumpProperty("remotePID"_s, pid);
+    }
+#endif
 
     auto* axObject = dynamicDowncast<AccessibilityObject>(object);
     if (axObject) {

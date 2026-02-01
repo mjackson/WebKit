@@ -208,7 +208,7 @@ class alignas(16 * KB) SequesteredImmortalHeap {
     static constexpr size_t sequesteredImmortalHeapSlotSize { 16 * KB };
 public:
     static constexpr size_t slotSize { 128 };
-    static constexpr size_t numSlots { 64 };
+    static constexpr size_t numSlots { 110 };
 
     enum class AllocationFailureMode {
         Assert,
@@ -235,7 +235,7 @@ public:
         _pthread_setspecific_direct(key, reinterpret_cast<void*>(slot));
         pthread_key_init_np(key, nullptr);
 
-        dataLogIf(verbose, "SequesteredImmortalHeap: thread (", Thread::currentSingleton(), ") allocated slot ", instance().m_nextFreeIndex - 1, " (", slot, ")");
+        dataLogLnIf(verbose, "SequesteredImmortalHeap: thread (", Thread::currentSingleton(), ") allocated slot ", instance().m_nextFreeIndex - 1, " (", slot, ")");
         return slot;
     }
 

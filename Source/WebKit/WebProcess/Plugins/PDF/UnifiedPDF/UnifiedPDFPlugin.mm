@@ -202,7 +202,7 @@ UnifiedPDFPlugin::UnifiedPDFPlugin(HTMLPlugInElement& element)
     [m_accessibilityDocumentObject setPDFPlugin:this];
     RefPtr frame = m_frame.get();
     if (isFullMainFramePlugin())
-        [m_accessibilityDocumentObject setParent:frame->protectedPage()->protectedAccessibilityRemoteObject().get()];
+        [m_accessibilityDocumentObject setParent:protect(protect(frame->page())->accessibilityRemoteObject()).get()];
 
     if (protectedPresentationController()->wantsWheelEvents())
         wantsWheelEventsChanged();
@@ -701,8 +701,8 @@ void UnifiedPDFPlugin::updateLayerHierarchy()
 {
     ensureLayers();
 
-    // The protectedGraphicsLayer()'s position is set in RenderLayerBacking::updateAfterWidgetResize().
-    protectedGraphicsLayer()->setSize(size());
+    // The protect(graphicsLayer())'s position is set in RenderLayerBacking::updateAfterWidgetResize().
+    protect(graphicsLayer())->setSize(size());
     protectedOverflowControlsContainer()->setSize(size());
 
     auto scrollContainerRect = availableContentsRect();
@@ -1322,7 +1322,7 @@ void UnifiedPDFPlugin::deviceOrPageScaleFactorChanged(CheckForMagnificationGestu
     bool gestureAllowsScaleUpdate = checkForMagnificationGesture == CheckForMagnificationGesture::No || !m_inMagnificationGesture;
 
     if (!handlesPageScaleFactor() || gestureAllowsScaleUpdate)
-        protectedGraphicsLayer()->noteDeviceOrPageScaleFactorChangedIncludingDescendants();
+        protect(graphicsLayer())->noteDeviceOrPageScaleFactorChangedIncludingDescendants();
 
     if (gestureAllowsScaleUpdate)
         protectedPresentationController()->deviceOrPageScaleFactorChanged();
@@ -2098,7 +2098,7 @@ bool UnifiedPDFPlugin::handleMouseEvent(const WebMouseEvent& event)
                     if (RefPtr webPage = frame->page(); webPage && webPage->hasActiveContextMenuInteraction())
                         return false;
 #endif
-                    auto immediateActionStage = frame->protectedCoreLocalFrame()->eventHandler().immediateActionStage();
+                    auto immediateActionStage = protect(frame->coreLocalFrame())->eventHandler().immediateActionStage();
                     return !immediateActionBeganOrWasCompleted(immediateActionStage);
                 }();
 
@@ -3401,10 +3401,10 @@ void UnifiedPDFPlugin::collectFindMatchRects(const String& target, WebCore::Find
 void UnifiedPDFPlugin::updateFindOverlay(HideFindIndicator hideFindIndicator)
 {
     Ref frame = *m_frame;
-    frame->protectedPage()->findController().didInvalidateFindRects();
+    protect(frame->page())->findController().didInvalidateFindRects();
 
     if (hideFindIndicator == HideFindIndicator::Yes)
-        frame->protectedPage()->findController().hideFindIndicator();
+        protect(frame->page())->findController().hideFindIndicator();
 }
 
 Vector<FloatRect> UnifiedPDFPlugin::rectsForTextMatchesInRect(const IntRect& clipRect) const
@@ -3562,7 +3562,7 @@ std::optional<TextIndicatorData> UnifiedPDFPlugin::textIndicatorDataForPageRect(
         RefPtr frame = m_frame.get();
         if (!frame || !frame->page())
             return 1.0;
-        return frame->protectedPage()->pageScaleFactor();
+        return protect(frame->page())->pageScaleFactor();
     }();
     float deviceScaleFactor = this->deviceScaleFactor();
 
@@ -3896,11 +3896,11 @@ auto UnifiedPDFPlugin::updatePageNumberIndicatorVisibility() -> IndicatorVisible
         return IndicatorVisible::No;
 
     if (shouldShowPageNumberIndicator()) {
-        m_frame->protectedPage()->createPDFPageNumberIndicator(*this, frameForPageNumberIndicatorInRootViewCoordinates(), m_documentLayout.pageCount());
+        protect(m_frame->page())->createPDFPageNumberIndicator(*this, frameForPageNumberIndicatorInRootViewCoordinates(), m_documentLayout.pageCount());
         return IndicatorVisible::Yes;
     }
 
-    m_frame->protectedPage()->removePDFPageNumberIndicator(*this);
+    protect(m_frame->page())->removePDFPageNumberIndicator(*this);
     return IndicatorVisible::No;
 }
 
@@ -3909,7 +3909,7 @@ void UnifiedPDFPlugin::updatePageNumberIndicatorLocation()
     if (!m_frame || !m_frame->page())
         return;
 
-    m_frame->protectedPage()->updatePDFPageNumberIndicatorLocation(*this, frameForPageNumberIndicatorInRootViewCoordinates());
+    protect(m_frame->page())->updatePDFPageNumberIndicatorLocation(*this, frameForPageNumberIndicatorInRootViewCoordinates());
 }
 
 void UnifiedPDFPlugin::updatePageNumberIndicatorCurrentPage(const std::optional<IntRect>& maybeUnobscuredContentRectInRootView)
@@ -3932,7 +3932,7 @@ void UnifiedPDFPlugin::updatePageNumberIndicatorCurrentPage(const std::optional<
     auto scrollPositionInPluginSpace = convertFromRootViewToPlugin(FloatPoint { unobscuredContentRectInRootView->center() });
     auto scrollPositionInDocumentLayoutSpace = convertDown(CoordinateSpace::Plugin, CoordinateSpace::PDFDocumentLayout, scrollPositionInPluginSpace);
     auto currentPageIndex = m_presentationController->nearestPageIndexForDocumentPoint(scrollPositionInDocumentLayoutSpace);
-    m_frame->protectedPage()->updatePDFPageNumberIndicatorCurrentPage(*this, currentPageIndex + 1);
+    protect(m_frame->page())->updatePDFPageNumberIndicatorCurrentPage(*this, currentPageIndex + 1);
 }
 
 
@@ -4079,7 +4079,7 @@ void UnifiedPDFPlugin::setActiveAnnotation(SetActiveAnnotationParams&& setActive
             RefPtr newActiveAnnotation = PDFPluginAnnotation::create(annotation.get(), this);
             newActiveAnnotation->attach(m_annotationContainer.get());
             m_activeAnnotation = WTF::move(newActiveAnnotation);
-            revealAnnotation(protectedActiveAnnotation()->protectedAnnotation().get());
+            revealAnnotation(protect(activeAnnotation())->protectedAnnotation().get());
         } else
             m_activeAnnotation = nullptr;
     });
@@ -4857,6 +4857,15 @@ RefPtr<WebCore::GraphicsLayer> UnifiedPDFPlugin::protectedScrollContainerLayer()
 RefPtr<WebCore::GraphicsLayer> UnifiedPDFPlugin::protectedOverflowControlsContainer() const
 {
     return m_overflowControlsContainer;
+}
+
+void UnifiedPDFPlugin::effectiveAppearanceDidChange()
+{
+    if (!isFullMainFramePlugin())
+        return;
+
+    if (RefPtr rootLayer = m_rootLayer)
+        rootLayer->setBackgroundColor(pluginBackgroundColor());
 }
 
 ViewportConfiguration::Parameters UnifiedPDFPlugin::viewportParameters()

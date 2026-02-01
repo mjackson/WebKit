@@ -423,12 +423,23 @@ public:
     bool overscrollBehaviorAllowsRubberBand() const { return horizontalOverscrollBehavior() != OverscrollBehavior::None || verticalOverscrollBehavior() != OverscrollBehavior::None; }
     bool shouldBlockScrollPropagation(const FloatSize&) const;
     FloatSize deltaForPropagation(const FloatSize&) const;
+
     WEBCORE_EXPORT virtual float adjustVerticalPageScrollStepForFixedContent(float step);
+
     virtual bool needsAnimatedScroll() const { return false; }
-    virtual void updateScrollAnchoringElement() { }
-    virtual void updateScrollPositionForScrollAnchoringController() { }
-    virtual void invalidateScrollAnchoringElement() { }
+
+    // Anchor positioning
     virtual void updateAnchorPositionedAfterScroll() { }
+
+    // Scroll anchoring
+    enum class ComputeNewScrollAnchor : bool {
+        No,
+        Yes
+    };
+    void updateScrollAnchoringElement(ComputeNewScrollAnchor = ComputeNewScrollAnchor::Yes);
+    void adjustScrollAnchoringPosition();
+    virtual ScrollAnchoringController* scrollAnchoringController() const { return nullptr; }
+
     virtual std::optional<FrameIdentifier> rootFrameID() const { return std::nullopt; }
 
     WEBCORE_EXPORT void setScrollbarsController(std::unique_ptr<ScrollbarsController>&&);

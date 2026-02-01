@@ -118,7 +118,6 @@ public:
     const WebCore::ResourceResponse& response() const { return m_response; }
 
     NetworkConnectionToWebProcess& connectionToWebProcess() const { return m_connection; }
-    Ref<NetworkConnectionToWebProcess> protectedConnectionToWebProcess() const;
     PAL::SessionID sessionID() const { return m_connection->sessionID(); }
     WebCore::ResourceLoaderIdentifier coreIdentifier() const { return *m_parameters.identifier; }
     WebCore::FrameIdentifier frameID() const { return m_parameters.webFrameID; }

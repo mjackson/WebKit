@@ -593,7 +593,7 @@ void SVGElement::commitPropertyChange(SVGProperty* property)
     svgAttributeChanged(propertyRegistry().propertyAttributeName(*property));
 }
 
-void SVGElement::commitPropertyChange(SVGAnimatedProperty& animatedProperty)
+void SVGElement::commitPropertyChange(SVGAnimatedPropertyBase& animatedProperty)
 {
     QualifiedName attributeName = propertyRegistry().animatedPropertyAttributeName(animatedProperty);
     ASSERT(attributeName != nullQName());

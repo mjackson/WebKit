@@ -513,6 +513,11 @@ TEST_F(WGSLMetalCompilationTests, Override)
     expectGenerateError(file("override.wgsl"_s), "array count must be greater than 0"_s);
 }
 
+TEST_F(WGSLMetalCompilationTests, OverrideComplexExpression)
+{
+    testCompilation(file("override-complex-expression.wgsl"_s));
+}
+
 TEST_F(WGSLMetalCompilationTests, PackUnpack)
 {
     testCompilation(file("pack-unpack.wgsl"_s),

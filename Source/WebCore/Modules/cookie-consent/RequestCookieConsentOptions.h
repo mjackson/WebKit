@@ -30,7 +30,7 @@
 namespace WebCore {
 
 struct RequestCookieConsentOptions {
-    RefPtr<VoidCallback> moreInfo;
+    std::optional<RefPtr<VoidCallback>> moreInfo;
 };
 
 } // namespace WebCore

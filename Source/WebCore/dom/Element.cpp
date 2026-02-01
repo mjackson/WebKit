@@ -1246,7 +1246,7 @@ void Element::scrollIntoView(Variant<bool, ScrollIntoViewOptions>&& arg)
         isHorizontal ? alignX : alignY,
         isHorizontal ? alignY : alignX,
         ShouldAllowCrossOriginScrolling::No,
-        options.behavior.value_or(ScrollBehavior::Auto)
+        options.behavior
     };
     LocalFrameView::scrollRectToVisible(absoluteBounds, *renderer, insideFixed, visibleOptions);
 }
@@ -1324,7 +1324,7 @@ void Element::scrollBy(const ScrollToOptions& options)
 
 void Element::scrollBy(double x, double y)
 {
-    scrollBy(ScrollToOptions(x, y));
+    scrollBy(ScrollToOptions { { ScrollBehavior::Auto }, x, y });
 }
 
 void Element::scrollTo(const ScrollToOptions& options, ScrollClamping clamping, ScrollSnapPointSelectionMethod snapPointSelectionMethod, std::optional<FloatSize> originalScrollDelta)
@@ -1394,7 +1394,7 @@ void Element::scrollTo(const ScrollToOptions& options, ScrollClamping clamping, 
         clampToInteger(scrollToOptions.top.value() * renderer->style().usedZoom())
     );
 
-    auto animated = useSmoothScrolling(scrollToOptions.behavior.value_or(ScrollBehavior::Auto), this) ? ScrollIsAnimated::Yes : ScrollIsAnimated::No;
+    auto animated = useSmoothScrolling(scrollToOptions.behavior, this) ? ScrollIsAnimated::Yes : ScrollIsAnimated::No;
     if (animated == ScrollIsAnimated::Yes)
         setHasEverHadSmoothScroll(true);
 
@@ -1404,7 +1404,7 @@ void Element::scrollTo(const ScrollToOptions& options, ScrollClamping clamping, 
 
 void Element::scrollTo(double x, double y)
 {
-    scrollTo(ScrollToOptions(x, y));
+    scrollTo(ScrollToOptions { { ScrollBehavior::Auto }, x, y });
 }
 
 static double localZoomForRenderer(const RenderElement& renderer)

@@ -746,42 +746,42 @@ Crypto& LocalDOMWindow::crypto() const
 BarProp& LocalDOMWindow::locationbar()
 {
     if (!m_locationbar)
-        m_locationbar = BarProp::create(*this, BarProp::Locationbar);
+        m_locationbar = BarProp::create(*this);
     return *m_locationbar;
 }
 
 BarProp& LocalDOMWindow::menubar()
 {
     if (!m_menubar)
-        m_menubar = BarProp::create(*this, BarProp::Menubar);
+        m_menubar = BarProp::create(*this);
     return *m_menubar;
 }
 
 BarProp& LocalDOMWindow::personalbar()
 {
     if (!m_personalbar)
-        m_personalbar = BarProp::create(*this, BarProp::Personalbar);
+        m_personalbar = BarProp::create(*this);
     return *m_personalbar;
 }
 
 BarProp& LocalDOMWindow::scrollbars()
 {
     if (!m_scrollbars)
-        m_scrollbars = BarProp::create(*this, BarProp::Scrollbars);
+        m_scrollbars = BarProp::create(*this);
     return *m_scrollbars;
 }
 
 BarProp& LocalDOMWindow::statusbar()
 {
     if (!m_statusbar)
-        m_statusbar = BarProp::create(*this, BarProp::Statusbar);
+        m_statusbar = BarProp::create(*this);
     return *m_statusbar;
 }
 
 BarProp& LocalDOMWindow::toolbar()
 {
     if (!m_toolbar)
-        m_toolbar = BarProp::create(*this, BarProp::Toolbar);
+        m_toolbar = BarProp::create(*this);
     return *m_toolbar;
 }
 
@@ -1780,7 +1780,7 @@ double LocalDOMWindow::devicePixelRatio() const
 
 void LocalDOMWindow::scrollBy(double x, double y) const
 {
-    scrollBy(ScrollToOptions(x, y));
+    scrollBy(ScrollToOptions { { ScrollBehavior::Auto }, x, y });
 }
 
 void LocalDOMWindow::scrollBy(const ScrollToOptions& options) const
@@ -1807,7 +1807,7 @@ void LocalDOMWindow::scrollBy(const ScrollToOptions& options) const
 
 void LocalDOMWindow::scrollTo(double x, double y, ScrollClamping clamping) const
 {
-    scrollTo(ScrollToOptions(x, y), clamping);
+    scrollTo(ScrollToOptions { { ScrollBehavior::Auto }, x, y }, clamping);
 }
 
 void LocalDOMWindow::scrollTo(const ScrollToOptions& options, ScrollClamping clamping, ScrollSnapPointSelectionMethod snapPointSelectionMethod, std::optional<FloatSize> originalScrollDelta) const
@@ -1837,7 +1837,7 @@ void LocalDOMWindow::scrollTo(const ScrollToOptions& options, ScrollClamping cla
 
     // FIXME: Should we use document()->scrollingElement()?
     // See https://bugs.webkit.org/show_bug.cgi?id=205059
-    auto animated = useSmoothScrolling(scrollToOptions.behavior.value_or(ScrollBehavior::Auto), document()->protectedDocumentElement().get()) ? ScrollIsAnimated::Yes : ScrollIsAnimated::No;
+    auto animated = useSmoothScrolling(scrollToOptions.behavior, document()->protectedDocumentElement().get()) ? ScrollIsAnimated::Yes : ScrollIsAnimated::No;
     auto scrollPositionChangeOptions = ScrollPositionChangeOptions::createProgrammaticWithOptions(clamping, animated, snapPointSelectionMethod, originalScrollDelta);
     view->setContentsScrollPosition(layoutPos, scrollPositionChangeOptions);
 }
@@ -2320,7 +2320,7 @@ void LocalDOMWindow::resetAllGeolocationPermission()
 
 bool LocalDOMWindow::removeEventListener(const AtomString& eventType, EventListener& listener, const EventListenerOptions& options)
 {
-    if (!EventTarget::removeEventListener(eventType, listener, options.capture))
+    if (!EventTarget::removeEventListener(eventType, listener, options))
         return false;
 
     RefPtr document = this->document();

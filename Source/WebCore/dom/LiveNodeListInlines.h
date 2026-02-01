@@ -85,8 +85,8 @@ inline ContainerNode& LiveNodeList::rootNode() const
 }
 
 template <class NodeListType, CollectionTraversalType traversalType>
-CachedLiveNodeList<NodeListType, traversalType>::CachedLiveNodeList(ContainerNode& ownerNode, NodeListInvalidationType invalidationType)
-    : LiveNodeList(ownerNode, invalidationType)
+CachedLiveNodeList<NodeListType, traversalType>::CachedLiveNodeList(ContainerNode& ownerNode, LiveNodeListType type, NodeListInvalidationType invalidationType)
+    : LiveNodeList(ownerNode, type, invalidationType)
 {
 }
 

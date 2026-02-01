@@ -1789,6 +1789,7 @@ JS_BINDING_IDLS := \
     $(WebCore)/testing/MockContentFilterSettings.idl \
 	$(WebCore)/testing/MockMediaDeviceRoute.idl \
 	$(WebCore)/testing/MockMediaDeviceRouteController.idl \
+	$(WebCore)/testing/MockMediaDeviceRouteURLCallback.idl \
     $(WebCore)/testing/MockPageOverlay.idl \
     $(WebCore)/testing/MockPaymentAddress.idl \
     $(WebCore)/testing/MockPaymentContactFields.idl \

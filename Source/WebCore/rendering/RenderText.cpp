@@ -58,6 +58,7 @@
 #include "RenderedDocumentMarker.h"
 #include "SVGElementTypeHelpers.h"
 #include "SVGInlineTextBox.h"
+#include "SelectionGeometry.h"
 #include "Settings.h"
 #include "SurrogatePairAwareTextIterator.h"
 #include "Text.h"
@@ -79,7 +80,6 @@
 #include "Document.h"
 #include "EditorClient.h"
 #include "Page.h"
-#include "SelectionGeometry.h"
 #endif
 
 namespace WebCore {
@@ -507,7 +507,6 @@ Vector<IntRect> RenderText::absoluteRectsForRange(unsigned start, unsigned end, 
     });
 }
 
-#if PLATFORM(IOS_FAMILY)
 // This function is similar in spirit to addLineBoxRects, but returns rectangles
 // which are annotated with additional state which helps the iPhone draw selections in its unique way.
 // Full annotations are added in this class.
@@ -567,7 +566,6 @@ void RenderText::collectSelectionGeometries(Vector<SelectionGeometry>& rects, un
         rects.append(selectionGeometry);
     }
 }
-#endif
 
 static std::optional<IntRect> ellipsisRectForTextBox(const InlineIterator::TextBox& textBox, unsigned start, unsigned end)
 {

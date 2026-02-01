@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<script src='../resources/testharness.js'></script>
+<script src='../resources/testharnessreport.js'></script>
+<script>
+function createReadableStreamAndPort()
+{
+    const channel = new MessageChannel();
+    channel.port1.start();
+    channel.port2.start();
+
+    const stream = internals.readableStreamFromMessagePort(channel.port2);
+    return { stream, port: channel.port1 };
+}
+
+promise_test(async t => {
+    if (!window.internals)
+        return;
+
+    const { stream, port } = createReadableStreamAndPort();
+    const reader = stream.getReader();
+
+    port.postMessage({ type:"chunk", value:"test" });
+
+    const chunk = await reader.read();
+    assert_equals(chunk.value, "test");
+
+    port.postMessage({ type:"close" });
+    await reader.closed;
+}, 'Validate default behavior');
+
+promise_test(async t => {
+    if (!window.internals)
+        return;
+
+    const { stream, port } = createReadableStreamAndPort();
+    const reader = stream.getReader();
+
+    port.postMessage({ type:"ee" });
+    await promise_rejects_js(t, TypeError, reader.closed);
+}, 'Validate invalid type');
+
+function createReadableStreamReaderFromMessage(message)
+{
+    const { stream, port } = createReadableStreamAndPort();
+    port.postMessage(message);
+    return stream.getReader();
+}
+
+promise_test(async t => {
+    if (!window.internals)
+        return;
+
+    let reader = createReadableStreamReaderFromMessage({ });
+    await promise_rejects_dom(t, "DataCloneError", reader.closed);
+
+    reader = createReadableStreamReaderFromMessage(1);
+    await promise_rejects_dom(t, "DataCloneError", reader.closed);
+
+    reader = createReadableStreamReaderFromMessage(undefined);
+    await promise_rejects_dom(t, "DataCloneError", reader.closed);
+
+    reader = createReadableStreamReaderFromMessage(null);
+    await promise_rejects_dom(t, "DataCloneError", reader.closed);
+
+}, 'Validate invalid object messages');
+</script>

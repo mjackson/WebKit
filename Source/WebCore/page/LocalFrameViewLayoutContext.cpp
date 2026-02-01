@@ -343,16 +343,21 @@ void LocalFrameViewLayoutContext::didLayout(bool canDeferUpdateLayerPositions)
 {
     m_layoutUpdateCount++;
 
-    auto updateLayerPositions = UpdateLayerPositions { needsFullRepaint() };
-    if (m_pendingUpdateLayerPositions)
-        m_pendingUpdateLayerPositions->merge(updateLayerPositions);
-    else
-        m_pendingUpdateLayerPositions = updateLayerPositions;
+    requestUpdateLayerPositions(needsFullRepaint());
 
     if (!canDeferUpdateLayerPositions)
         flushUpdateLayerPositions();
 
     m_updateCompositingLayersIsPending = true;
+}
+
+void LocalFrameViewLayoutContext::requestUpdateLayerPositions(bool needsFullRepaint)
+{
+    auto updateLayerPositions = UpdateLayerPositions { needsFullRepaint };
+    if (m_pendingUpdateLayerPositions)
+        m_pendingUpdateLayerPositions->merge(updateLayerPositions);
+    else
+        m_pendingUpdateLayerPositions = updateLayerPositions;
 }
 
 void LocalFrameViewLayoutContext::flushUpdateLayerPositions()
@@ -392,6 +397,19 @@ bool LocalFrameViewLayoutContext::updateCompositingLayersAfterStyleChange()
     m_lastRepaintRectEnvironment = WTF::move(repaintRectEnvironment);
 
     return view->compositor().didRecalcStyleWithNoPendingLayout();
+}
+
+void LocalFrameViewLayoutContext::markForUpdateLayerPositionsAfterSVGTransformChange()
+{
+    CheckedPtr view = renderView();
+    if (!view)
+        return;
+
+    if (needsLayout() || isInLayout())
+        return;
+
+    requestUpdateLayerPositions();
+    view->page().scheduleRenderingUpdate({ RenderingUpdateStep::LayerFlush });
 }
 
 void LocalFrameViewLayoutContext::updateCompositingLayersAfterLayout()

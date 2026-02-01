@@ -1390,6 +1390,39 @@ private:
             break;
         }
 
+        case StringStartsWith: {
+            Node* stringNode = m_node->child1().node();
+            String string = stringNode->tryGetString(m_graph);
+            if (!string)
+                break;
+
+            String searchString = m_node->child2()->tryGetString(m_graph);
+            if (!searchString)
+                break;
+
+            unsigned startPosition = 0;
+            if (m_node->child3()) {
+                if (!m_node->child3()->isInt32Constant())
+                    break;
+                int32_t pos = m_node->child3()->asInt32();
+                if (pos < 0)
+                    startPosition = 0;
+                else
+                    startPosition = std::min<unsigned>(pos, string.length());
+            }
+
+            bool result;
+            if (!startPosition)
+                result = string.startsWith(searchString);
+            else
+                result = string.hasInfixStartingAt(searchString, startPosition);
+
+            m_changed = true;
+            m_insertionSet.insertNode(m_nodeIndex, SpecNone, Check, m_node->origin, m_node->children.justChecks());
+            m_graph.convertToConstant(m_node, jsBoolean(result));
+            break;
+        }
+
         case GetByVal:
         case GetByValMegamorphic: {
             Edge& baseEdge = m_graph.child(m_node, 0);
@@ -1890,4 +1923,3 @@ bool performStrengthReduction(Graph& graph)
 } } // namespace JSC::DFG
 
 #endif // ENABLE(DFG_JIT)
-

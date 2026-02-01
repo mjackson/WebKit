@@ -228,8 +228,8 @@ ExceptionOr<void> FetchRequest::initializeWith(const String& url, Init&& init)
             return fillResult.releaseException();
     }
 
-    if (init.body) {
-        auto setBodyResult = setBody(WTF::move(*init.body));
+    if (init.body && init.body.value()) {
+        auto setBodyResult = setBody(WTF::move(*init.body.value()));
         if (setBodyResult.hasException())
             return setBodyResult.releaseException();
     }
@@ -276,7 +276,7 @@ ExceptionOr<void> FetchRequest::initializeWith(FetchRequest& input, Init&& init)
     if (RefPtr document = dynamicDowncast<Document>(context); document && document->settings().localNetworkAccessEnabled())
         m_targetAddressSpace = updateTargetAddressSpaceIfNeeded(*init.targetAddressSpace, m_request.url());
 
-    auto setBodyResult = init.body ? setBody(WTF::move(*init.body)) : setBody(input);
+    auto setBodyResult = init.body && init.body.value() ? setBody(WTF::move(*init.body.value())) : setBody(input);
     if (setBodyResult.hasException())
         return setBodyResult;
 

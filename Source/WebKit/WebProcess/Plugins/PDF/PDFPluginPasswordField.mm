@@ -46,7 +46,7 @@ Ref<PDFPluginPasswordField> PDFPluginPasswordField::create(PDFPluginBase* plugin
 
 PDFPluginPasswordField::~PDFPluginPasswordField()
 {
-    protectedElement()->removeEventListener(eventNames().keyupEvent, *eventListener(), false);
+    protectedElement()->removeEventListener(eventNames().keyupEvent, *eventListener(), { .capture = false });
 }
 
 Ref<Element> PDFPluginPasswordField::createAnnotationElement()

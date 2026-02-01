@@ -544,7 +544,7 @@ void FocusController::setFocusedInternal(bool focused)
     }
 }
 
-FocusableElementSearchResult FocusController::findAndFocusElementStartingWithLocalFrame(FocusDirection direction, const FocusEventData& focusEventData, LocalFrame& frame)
+FocusableElementSearchResult FocusController::findFocusableElementStartingWithLocalFrame(FocusDirection direction, const FocusEventData& focusEventData, LocalFrame& frame, ShouldFocusElement shouldFocusElement)
 {
     RefPtr document = frame.document();
     if (!document)
@@ -554,18 +554,19 @@ FocusableElementSearchResult FocusController::findAndFocusElementStartingWithLoc
     // We therefore assume we have an active user gesture, which is necessary for element-finding and focus-advancing to work.
     UserGestureIndicator gestureIndicator(IsProcessingUserGesture::Yes, document.get());
 
-    return findAndFocusElementInDocumentOrderStartingWithFrame(frame, document->documentElement(), nullptr, direction, focusEventData, InitialFocus::No, ContinuingRemoteSearch::Yes);
+    return findFocusableElementInDocumentOrderStartingWithFrame(frame, document->documentElement(), nullptr, direction, focusEventData, InitialFocus::No, ContinuingRemoteSearch::Yes, shouldFocusElement);
 }
 
-FocusableElementSearchResult FocusController::findFocusableElementDescendingIntoSubframes(FocusDirection direction, Element* startingElement, const FocusEventData& focusEventData)
+FocusableElementSearchResult FocusController::findFocusableElementDescendingIntoSubframes(FocusDirection direction, Element* startingElement, const FocusEventData& focusEventData, ShouldFocusElement shouldFocusElement)
 {
     // The node we found might be a HTMLFrameOwnerElement, so descend down the tree until we find either:
     // 1) a focusable node, or
     // 2) the deepest-nested HTMLFrameOwnerElement.
+
     RefPtr element = startingElement;
     while (RefPtr owner = dynamicDowncast<HTMLFrameOwnerElement>(element)) {
         if (RefPtr remoteFrame = dynamicDowncast<RemoteFrame>(owner->contentFrame())) {
-            remoteFrame->client().findFocusableElementDescendingIntoRemoteFrame(direction, focusEventData, [](FoundElementInRemoteFrame) {
+            remoteFrame->client().findFocusableElementDescendingIntoRemoteFrame(direction, focusEventData, shouldFocusElement, [](FoundElementInRemoteFrame) {
                 // FIXME: Implement sibling frame search by continuing here.
             });
 
@@ -576,7 +577,7 @@ FocusableElementSearchResult FocusController::findFocusableElementDescendingInto
         if (!localContentFrame || !localContentFrame->document())
             break;
         localContentFrame->protectedDocument()->updateLayoutIgnorePendingStylesheets();
-        auto findResult = findFocusableElementWithinScope(direction, FocusNavigationScope::scopeOwnedByIFrame(*owner), nullptr, focusEventData);
+        auto findResult = findFocusableElementWithinScope(direction, FocusNavigationScope::scopeOwnedByIFrame(*owner), nullptr, focusEventData, shouldFocusElement);
         if (!findResult.element)
             break;
         ASSERT(element != findResult.element);
@@ -651,12 +652,12 @@ bool FocusController::advanceFocusInDocumentOrder(FocusDirection direction, cons
         return false;
 
     RefPtr startingNode = document->focusNavigationStartingNode(direction);
-    auto findResult = findAndFocusElementInDocumentOrderStartingWithFrame(*frame, startingNode, startingNode, direction, focusEventData, initialFocus, ContinuingRemoteSearch::No);
+    auto findResult = findFocusableElementInDocumentOrderStartingWithFrame(*frame, startingNode, startingNode, direction, focusEventData, initialFocus, ContinuingRemoteSearch::No, ShouldFocusElement::Yes);
 
     return findResult.element || findResult.relinquishedFocusToChrome == RelinquishedFocusToChrome::Yes;
 }
 
-FocusableElementSearchResult FocusController::findAndFocusElementInDocumentOrderStartingWithFrame(Ref<LocalFrame> frame, RefPtr<Node> scopeNode, RefPtr<Node> startingNode, FocusDirection direction, const FocusEventData& focusEventData, InitialFocus initialFocus, ContinuingRemoteSearch continuingRemoteSearch)
+FocusableElementSearchResult FocusController::findFocusableElementInDocumentOrderStartingWithFrame(Ref<LocalFrame> frame, RefPtr<Node> scopeNode, RefPtr<Node> startingNode, FocusDirection direction, const FocusEventData& focusEventData, InitialFocus initialFocus, ContinuingRemoteSearch continuingRemoteSearch, ShouldFocusElement shouldFocusElement)
 {
     RefPtr document = frame->document();
     RELEASE_ASSERT(document);
@@ -670,7 +671,7 @@ FocusableElementSearchResult FocusController::findAndFocusElementInDocumentOrder
     if (continuingRemoteSearch == ContinuingRemoteSearch::No)
         document->updateLayoutIgnorePendingStylesheets();
 
-    auto findResult = findFocusableElementAcrossFocusScope(direction, FocusNavigationScope::scopeOf(scopeNode ? *scopeNode : *document), startingNode.get(), focusEventData);
+    auto findResult = findFocusableElementAcrossFocusScope(direction, FocusNavigationScope::scopeOf(scopeNode ? *scopeNode : *document), startingNode.get(), focusEventData, shouldFocusElement);
     if (findResult.continuedSearchInRemoteFrame == ContinuedSearchInRemoteFrame::Yes) {
         // In currently supported cases (e.g. descendant-frame-only search), the following steps occurs in the remote frame's WebContent process
         // FIXME: Make sure they happen in all cases (e.g. searching sibling frames)
@@ -693,7 +694,7 @@ FocusableElementSearchResult FocusController::findAndFocusElementInDocumentOrder
         RefPtr localTopDocument = m_page->localTopDocument();
         if (!localTopDocument)
             return findResult;
-        findResult = findFocusableElementAcrossFocusScope(direction, FocusNavigationScope::scopeOf(*localTopDocument), nullptr, focusEventData);
+        findResult = findFocusableElementAcrossFocusScope(direction, FocusNavigationScope::scopeOf(*localTopDocument), nullptr, focusEventData, shouldFocusElement);
 
         if (!findResult.element)
             return findResult;
@@ -712,21 +713,24 @@ FocusableElementSearchResult FocusController::findAndFocusElementInDocumentOrder
         if (!owner->contentFrame())
             return findResult;
 
-        document->setFocusedElement(nullptr);
-        setFocusedFrame(owner->protectedContentFrame().get());
+        if (shouldFocusElement == ShouldFocusElement::Yes) {
+            document->setFocusedElement(nullptr);
+            setFocusedFrame(owner->protectedContentFrame().get());
+        }
         return findResult;
     }
-    
+
     // FIXME: It would be nice to just be able to call setFocusedElement(node) here, but we can't do
     // that because some elements (e.g. HTMLInputElement and HTMLTextAreaElement) do extra work in
     // their focus() methods.
 
     Ref newDocument = element->document();
 
-    if (newDocument.ptr() != document) {
-        // Focus is going away from this document, so clear the focused node.
+    if (newDocument.ptr() != document && shouldFocusElement == ShouldFocusElement::Yes)
         document->setFocusedElement(nullptr);
-    }
+
+    if (shouldFocusElement == ShouldFocusElement::No)
+        return findResult;
 
     setFocusedFrame(newDocument->protectedFrame().get());
 
@@ -739,31 +743,32 @@ FocusableElementSearchResult FocusController::findAndFocusElementInDocumentOrder
     }
 
     element->focus({ SelectionRestorationMode::SelectAll, direction, { }, { }, FocusVisibility::Visible });
+
     return findResult;
 }
 
-FocusableElementSearchResult FocusController::findFocusableElementAcrossFocusScope(FocusDirection direction, const FocusNavigationScope& scope, Node* currentNode, const FocusEventData& focusEventData)
+FocusableElementSearchResult FocusController::findFocusableElementAcrossFocusScope(FocusDirection direction, const FocusNavigationScope& scope, Node* currentNode, const FocusEventData& focusEventData, ShouldFocusElement shouldFocusElement)
 {
     ASSERT(!is<Element>(currentNode) || !isNonFocusableScopeOwner(downcast<Element>(*currentNode), focusEventData));
 
     if (RefPtr currentElement = dynamicDowncast<Element>(currentNode); currentElement && direction == FocusDirection::Forward) {
         if (isFocusableScopeOwner(*currentElement, focusEventData)) {
-            auto candidateInInnerScope = findFocusableElementWithinScope(direction, FocusNavigationScope::scopeOwnedByScopeOwner(*currentElement), nullptr, focusEventData);
+            auto candidateInInnerScope = findFocusableElementWithinScope(direction, FocusNavigationScope::scopeOwnedByScopeOwner(*currentElement), nullptr, focusEventData, shouldFocusElement);
             if (candidateInInnerScope.element)
                 return candidateInInnerScope;
         } else if (RefPtr popover = openPopoverForInvoker(currentNode)) {
-            auto candidateInInnerScope = findFocusableElementWithinScope(direction, FocusNavigationScope::scopeOwnedByScopeOwner(*popover), nullptr, focusEventData);
+            auto candidateInInnerScope = findFocusableElementWithinScope(direction, FocusNavigationScope::scopeOwnedByScopeOwner(*popover), nullptr, focusEventData, shouldFocusElement);
             if (candidateInInnerScope.element)
                 return candidateInInnerScope;
         }
     }
 
-    auto candidateInCurrentScope = findFocusableElementWithinScope(direction, scope, currentNode, focusEventData);
+    auto candidateInCurrentScope = findFocusableElementWithinScope(direction, scope, currentNode, focusEventData, shouldFocusElement);
     if (candidateInCurrentScope.element) {
         if (direction == FocusDirection::Backward) {
             // Skip through invokers if they have popovers with focusable contents, and navigate through those contents instead.
             while (RefPtr popover = openPopoverForInvoker(candidateInCurrentScope.element.get())) {
-                auto candidate = findFocusableElementWithinScope(direction, FocusNavigationScope::scopeOwnedByScopeOwner(*popover), nullptr, focusEventData);
+                auto candidate = findFocusableElementWithinScope(direction, FocusNavigationScope::scopeOwnedByScopeOwner(*popover), nullptr, focusEventData, shouldFocusElement);
                 if (candidate.element)
                     candidateInCurrentScope = candidate;
                 else
@@ -777,7 +782,7 @@ FocusableElementSearchResult FocusController::findFocusableElementAcrossFocusSco
     RefPtr owner = scope.owner();
     while (owner) {
         if (direction == FocusDirection::Backward && isFocusableScopeOwner(*owner, focusEventData))
-            return findFocusableElementDescendingIntoSubframes(direction, owner.get(), focusEventData);
+            return findFocusableElementDescendingIntoSubframes(direction, owner.get(), focusEventData, shouldFocusElement);
 
         // If we're getting out of a popover backwards, focus the invoker itself instead of the node preceding it, if possible.
         RefPtr invoker = invokerForOpenPopover(owner.get());
@@ -785,7 +790,7 @@ FocusableElementSearchResult FocusController::findFocusableElementAcrossFocusSco
             return { invoker.get() };
 
         auto outerScope = FocusNavigationScope::scopeOf(invoker ? *invoker : *owner);
-        auto candidateInOuterScope = findFocusableElementWithinScope(direction, outerScope, invoker ? invoker.get() : owner.get(), focusEventData);
+        auto candidateInOuterScope = findFocusableElementWithinScope(direction, outerScope, invoker ? invoker.get() : owner.get(), focusEventData, shouldFocusElement);
         if (candidateInOuterScope.element)
             return candidateInOuterScope;
         owner = outerScope.owner();
@@ -793,13 +798,13 @@ FocusableElementSearchResult FocusController::findFocusableElementAcrossFocusSco
     return candidateInCurrentScope;
 }
 
-FocusableElementSearchResult FocusController::findFocusableElementWithinScope(FocusDirection direction, const FocusNavigationScope& scope, Node* start, const FocusEventData& focusEventData)
+FocusableElementSearchResult FocusController::findFocusableElementWithinScope(FocusDirection direction, const FocusNavigationScope& scope, Node* start, const FocusEventData& focusEventData, ShouldFocusElement shouldFocusElement)
 {
     // Starting node is exclusive.
     auto candidate = direction == FocusDirection::Forward
         ? nextFocusableElementWithinScope(scope, start, focusEventData)
         : previousFocusableElementWithinScope(scope, start, focusEventData);
-    return findFocusableElementDescendingIntoSubframes(direction, candidate.element.get(), focusEventData);
+    return findFocusableElementDescendingIntoSubframes(direction, candidate.element.get(), focusEventData, shouldFocusElement);
 }
 
 FocusableElementSearchResult FocusController::nextFocusableElementWithinScope(const FocusNavigationScope& scope, Node* start, const FocusEventData& focusEventData)
@@ -898,14 +903,14 @@ FocusableElementSearchResult FocusController::nextFocusableElement(Node& start)
 {
     // FIXME: This can return a non-focusable shadow host.
     // FIXME: This can't give the correct answer that takes modifier keys into account since it doesn't pass event data.
-    return findFocusableElementAcrossFocusScope(FocusDirection::Forward, FocusNavigationScope::scopeOf(start), &start, { });
+    return findFocusableElementAcrossFocusScope(FocusDirection::Forward, FocusNavigationScope::scopeOf(start), &start, { }, ShouldFocusElement::No);
 }
 
 FocusableElementSearchResult FocusController::previousFocusableElement(Node& start)
 {
     // FIXME: This can return a non-focusable shadow host.
     // FIXME: This can't give the correct answer that takes modifier keys into account since it doesn't pass event data.
-    return findFocusableElementAcrossFocusScope(FocusDirection::Backward, FocusNavigationScope::scopeOf(start), &start, { });
+    return findFocusableElementAcrossFocusScope(FocusDirection::Backward, FocusNavigationScope::scopeOf(start), &start, { }, ShouldFocusElement::No);
 }
 
 Element* FocusController::nextFocusableElementOrScopeOwner(const FocusNavigationScope& scope, Node* start, const FocusEventData& focusEventData)

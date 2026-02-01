@@ -828,13 +828,15 @@
 #define ENABLE_B3_JIT 1
 #endif
 
-#if ENABLE(WEBASSEMBLY) && ENABLE(JIT) && CPU(ARM)
+#if CPU(ARM)
+#undef ENABLE_WEBASSEMBLY
+#define ENABLE_WEBASSEMBLY 0
 #undef ENABLE_B3_JIT
-#define ENABLE_B3_JIT 1
+#define ENABLE_B3_JIT 0
 #undef ENABLE_WEBASSEMBLY_OMGJIT
 #define ENABLE_WEBASSEMBLY_OMGJIT 0
 #undef ENABLE_WEBASSEMBLY_BBQJIT
-#define ENABLE_WEBASSEMBLY_BBQJIT 1
+#define ENABLE_WEBASSEMBLY_BBQJIT 0
 #endif
 
 #if !defined(ENABLE_WEBASSEMBLY) && (ENABLE(B3_JIT) && PLATFORM(COCOA) && CPU(ADDRESS64))
@@ -845,6 +847,12 @@
 
 #if !defined(ENABLE_WEBASSEMBLY) && CPU(ADDRESS64) && PLATFORM(COCOA) && !ENABLE(C_LOOP)
 #define ENABLE_WEBASSEMBLY 1
+#endif
+
+/* WebAssembly Debugger - GDB Remote Protocol debugging for WebAssembly.
+ * Restricted to macOS ARM64 only. Supports JSC shell TCP socket mode and WebKit RWI integration. */
+#if !defined(ENABLE_WEBASSEMBLY_DEBUGGER) && PLATFORM(MAC) && CPU(ARM64) && ENABLE(WEBASSEMBLY)
+#define ENABLE_WEBASSEMBLY_DEBUGGER 1
 #endif
 
 /* The SamplingProfiler is the probabilistic and low-overhead profiler used by

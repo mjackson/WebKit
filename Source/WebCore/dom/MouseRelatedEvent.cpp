@@ -252,16 +252,31 @@ void MouseRelatedEvent::computeRelativePosition()
     while (node && !node->renderer())
         node = node->parentNode();
 
-    CheckedPtr<RenderLayer> layer;
-    if (node && (layer = node->renderer()->enclosingLayer())) {
-        for (; layer; layer = layer->parent()) {
-            m_layerLocation -= toLayoutSize(layer->location());
+    if (node) {
+        CheckedPtr layer = node->renderer()->enclosingLayer();
+        while (layer && !layer->isSelfPaintingLayer())
+            layer = layer->parent();
+
+        if (layer) {
+            // Start with absoluteLocation which is already in absolute coordinates
+            // (has zoom factor applied via documentToAbsoluteScaleFactor).
+            auto layerLocationInAbsoluteCoords = absoluteLocation();
+
+            // Convert layer position to absolute coordinates accounting for transforms.
+            auto layerAbsolutePosition = layer->renderer().localToAbsolute(FloatPoint(), UseTransforms);
+
+            // Subtract the layer's absolute position from the mouse absolute position.
+            layerLocationInAbsoluteCoords.moveBy(-layerAbsolutePosition);
+
+            // Scale back to page coordinates (remove zoom factor).
+            auto inverseScaleFactor = 1 / documentToAbsoluteScaleFactor();
+            m_layerLocation = LayoutPoint(layerLocationInAbsoluteCoords.scaled(inverseScaleFactor));
         }
     }
 
     m_hasCachedRelativePosition = true;
 }
-    
+
 DoublePoint MouseRelatedEvent::locationInRootViewCoordinates() const
 {
     if (RefPtr frameView = frameViewFromWindowProxy(view()))

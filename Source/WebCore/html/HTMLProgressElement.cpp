@@ -30,6 +30,7 @@
 #include "PseudoClassChangeInvalidation.h"
 #include "RenderProgress.h"
 #include "RenderStyle+GettersInlines.h"
+#include "ScriptDisallowedScope.h"
 #include "ShadowRoot.h"
 #include "TypedElementDescendantIteratorInlines.h"
 #include <wtf/TZoneMallocInlines.h>
@@ -145,11 +146,14 @@ void HTMLProgressElement::didAddUserAgentShadowRoot(ShadowRoot& root)
 
     Ref document = this->document();
     Ref inner = ProgressInnerElement::create(document);
+    ScriptDisallowedScope::EventAllowedScope rootScope { root };
     root.appendChild(inner);
 
     Ref bar = ProgressBarElement::create(document);
     Ref valueElement = ProgressValueElement::create(document);
+    ScriptDisallowedScope::EventAllowedScope valueElementScope { valueElement };
     valueElement->setInlineSizePercentage(HTMLProgressElement::IndeterminatePosition * 100);
+    ScriptDisallowedScope::EventAllowedScope barScope { bar };
     bar->appendChild(valueElement);
     m_valueElement = WTF::move(valueElement);
 

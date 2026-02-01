@@ -4,7 +4,7 @@
  *           (C) 2001 Peter Kelly (pmk@post.com)
  *           (C) 2001 Dirk Mueller (mueller@kde.org)
  *           (C) 2007 David Smith (catfish.man@gmail.com)
- * Copyright (C) 2004-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2004-2026 Apple Inc. All rights reserved.
  *           (C) 2007 Eric Seidel (eric@webkit.org)
  *
  * This library is free software; you can redistribute it and/or
@@ -416,6 +416,7 @@ auto TreeResolver::resolveElement(Element& element, const RenderStyle* existingS
     resolveAndAddPseudoElementStyle({ PseudoElementType::Before });
     resolveAndAddPseudoElementStyle({ PseudoElementType::After });
     resolveAndAddPseudoElementStyle({ PseudoElementType::Backdrop });
+    resolveAndAddPseudoElementStyle({ PseudoElementType::Checkmark });
 
     if (isDocumentElement && m_document->hasViewTransitionPseudoElementTree()) {
         resolveAndAddPseudoElementStyle({ PseudoElementType::ViewTransition });

@@ -684,6 +684,7 @@ SERIALIZATION_DESCRIPTION_FILES = \
 	Shared/Cocoa/CoreIPCURL.serialization.in \
 	Shared/Cocoa/CoreIPCCFCharacterSet.serialization.in \
 	Shared/Cocoa/DataDetectionResult.serialization.in \
+	Shared/Cocoa/GestureTypes.serialization.in \
 	Shared/Cocoa/InsertTextOptions.serialization.in \
 	Shared/Cocoa/RemoteObjectInvocation.serialization.in \
 	Shared/Cocoa/RevealItem.serialization.in \
@@ -736,7 +737,6 @@ SERIALIZATION_DESCRIPTION_FILES = \
 	Shared/IPCTester.serialization.in \
 	Shared/ios/CursorContext.serialization.in \
 	Shared/ios/DynamicViewportSizeUpdate.serialization.in \
-	Shared/ios/GestureTypes.serialization.in \
 	Shared/ios/HardwareKeyboardState.serialization.in \
 	Shared/ios/InteractionInformationAtPosition.serialization.in \
 	Shared/ios/InteractionInformationRequest.serialization.in \

@@ -1656,6 +1656,10 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
     case MapSet:
         break;
 
+    case MapOrSetSize:
+        setTypeForNode(node, SpecInt32Only);
+        break;
+
     case MapGet:
         clearForNode(node);
         break;
@@ -2597,6 +2601,10 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         
     case StringIndexOf:
         setNonCellTypeForNode(node, SpecInt32Only);
+        break;
+
+    case StringStartsWith:
+        setNonCellTypeForNode(node, SpecBoolean);
         break;
 
     case StringFromCharCode: {
@@ -5233,6 +5241,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
 
     case DefineDataProperty:
     case DefineAccessorProperty:
+    case ObjectDefineProperty:
         clobberWorld();
         break;
         

@@ -603,7 +603,7 @@ void SystemPreviewController::takeActivityToken()
     if (!page)
         return;
 
-    m_activity = page->legacyMainFrameProcess().protectedThrottler()->backgroundActivity("System preview download"_s);
+    m_activity = protect(page->legacyMainFrameProcess().throttler())->backgroundActivity("System preview download"_s);
 #endif
 }
 

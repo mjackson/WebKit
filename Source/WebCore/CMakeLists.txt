@@ -132,7 +132,6 @@ set(WebCore_PRIVATE_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/html/track"
     "${WEBCORE_DIR}/inspector"
     "${WEBCORE_DIR}/inspector/agents"
-    "${WEBCORE_DIR}/inspector/agents/frame"
     "${WEBCORE_DIR}/inspector/agents/page"
     "${WEBCORE_DIR}/inspector/agents/worker"
     "${WEBCORE_DIR}/layout"
@@ -2497,6 +2496,7 @@ set(WebCoreTestSupport_IDL_FILES
     testing/MockContentFilterSettings.idl
     testing/MockMediaDeviceRoute.idl
     testing/MockMediaDeviceRouteController.idl
+    testing/MockMediaDeviceRouteURLCallback.idl
     testing/MockPageOverlay.idl
     testing/MockWebAuthenticationConfiguration.idl
     testing/ServiceWorkerInternals.idl

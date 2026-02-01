@@ -147,11 +147,6 @@ void WebBackForwardListItem::removeFromBackForwardCache()
     ASSERT(!m_backForwardCacheEntry);
 }
 
-RefPtr<WebBackForwardCacheEntry> WebBackForwardListItem::protectedBackForwardCacheEntry() const
-{
-    return m_backForwardCacheEntry;
-}
-
 void WebBackForwardListItem::setBackForwardCacheEntry(RefPtr<WebBackForwardCacheEntry>&& backForwardCacheEntry)
 {
     m_backForwardCacheEntry = WTF::move(backForwardCacheEntry);
@@ -164,7 +159,7 @@ SuspendedPageProxy* WebBackForwardListItem::suspendedPage() const
 
 Ref<FrameState> WebBackForwardListItem::navigatedFrameState() const
 {
-    return protectedNavigatedFrameItem()->copyFrameStateWithChildren();
+    return protect(navigatedFrameItem())->copyFrameStateWithChildren();
 }
 
 Ref<FrameState> WebBackForwardListItem::mainFrameState() const
@@ -212,17 +207,7 @@ WebBackForwardListFrameItem& WebBackForwardListItem::navigatedFrameItem() const
     return m_mainFrameItem;
 }
 
-Ref<WebBackForwardListFrameItem> WebBackForwardListItem::protectedNavigatedFrameItem() const
-{
-    return navigatedFrameItem();
-}
-
 WebBackForwardListFrameItem& WebBackForwardListItem::mainFrameItem() const
-{
-    return m_mainFrameItem;
-}
-
-Ref<WebBackForwardListFrameItem> WebBackForwardListItem::protectedMainFrameItem() const
 {
     return m_mainFrameItem;
 }
@@ -230,6 +215,14 @@ Ref<WebBackForwardListFrameItem> WebBackForwardListItem::protectedMainFrameItem(
 String WebBackForwardListItem::loggingString()
 {
     return m_mainFrameItem->loggingString();
+}
+
+void WebBackForwardListItem::updateFrameID(FrameIdentifier oldFrameID, FrameIdentifier newFrameID)
+{
+    if (RefPtr frameItem = m_mainFrameItem->childItemForFrameID(oldFrameID))
+        frameItem->updateFrameID(newFrameID);
+    if (m_navigatedFrameID && *m_navigatedFrameID == oldFrameID)
+        m_navigatedFrameID = newFrameID;
 }
 
 } // namespace WebKit

@@ -193,7 +193,9 @@ bool ScrollingEffectsController::handleWheelEvent(const PlatformWheelEvent& whee
 
 #if HAVE(OS_SIGNPOST)
     if (momentumPhase == PlatformWheelEventPhase::Began)
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
         SUPPRESS_UNRETAINED_ARG os_signpost_interval_begin(WTFSignpostLogHandle(), OS_SIGNPOST_ID_EXCLUSIVE, "Momentum scroll", "isAnimation=YES");
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 #endif
 
     if (!m_momentumScrollInProgress && (momentumPhase == PlatformWheelEventPhase::Began || momentumPhase == PlatformWheelEventPhase::Changed))
@@ -241,7 +243,9 @@ bool ScrollingEffectsController::handleWheelEvent(const PlatformWheelEvent& whee
 
     if (m_momentumScrollInProgress && momentumPhase == PlatformWheelEventPhase::Ended) {
 #if HAVE(OS_SIGNPOST)
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
         SUPPRESS_UNRETAINED_ARG os_signpost_interval_end(WTFSignpostLogHandle(), OS_SIGNPOST_ID_EXCLUSIVE, "Momentum scroll");
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 #endif
         m_momentumScrollInProgress = false;
         m_ignoreMomentumScrolls = false;

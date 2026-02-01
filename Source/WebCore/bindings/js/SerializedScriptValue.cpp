@@ -599,9 +599,13 @@ static ErrorType toErrorType(SerializableErrorType value)
 }
 
 enum class PredefinedColorSpaceTag : uint8_t {
-    SRGB = 0
+    SRGB = 0,
 #if ENABLE(PREDEFINED_COLOR_SPACE_DISPLAY_P3)
-    , DisplayP3 = 1
+    DisplayP3 = 1,
+#endif
+    SRGBLinear = 2,
+#if ENABLE(PREDEFINED_COLOR_SPACE_DISPLAY_P3)
+    DisplayP3Linear = 3,
 #endif
 };
 
@@ -614,6 +618,9 @@ enum DestinationColorSpaceTag {
 #if PLATFORM(COCOA)
     DestinationColorSpaceCGColorSpaceNameTag = 3,
     DestinationColorSpaceCGColorSpacePropertyListTag = 4,
+#endif
+#if ENABLE(DESTINATION_COLOR_SPACE_DISPLAY_P3)
+    DestinationColorSpaceLinearDisplayP3Tag = 5,
 #endif
 };
 
@@ -933,12 +940,19 @@ static_assert(TerminatorTag > MAX_ARRAY_INDEX);
  * DOMQuadData :-
  *      <p1:DOMPointData> <p2:DOMPointData> <p3:DOMPointData> <p4:DOMPointData>
  *
+ * PredefinedColorSpaceTag :
+ *        PredefinedColorSpaceTag::SRGB
+ *      | PredefinedColorSpaceTag::DisplayP3
+ *      | PredefinedColorSpaceTag::SRGBLinear
+ *      | PredefinedColorSpaceTag::DisplayP3Linear
+ *
  * DestinationColorSpace :-
  *        DestinationColorSpaceSRGBTag
  *      | DestinationColorSpaceLinearSRGBTag
  *      | DestinationColorSpaceDisplayP3Tag
  *      | DestinationColorSpaceCGColorSpaceNameTag <nameDataLength:uint32_t> <nameData:uint8_t>{nameDataLength}
  *      | DestinationColorSpaceCGColorSpacePropertyListTag <propertyListDataLength:uint32_t> <propertyListData:uint8_t>{propertyListDataLength}
+ *      | DestinationColorSpaceLinearDisplayP3Tag
  */
 
 using DeserializationResult = std::pair<JSC::JSValue, SerializationReturnCode>;
@@ -2436,9 +2450,15 @@ private:
         case PredefinedColorSpace::SRGB:
             writeLittleEndian<uint8_t>(m_buffer, static_cast<uint8_t>(PredefinedColorSpaceTag::SRGB));
             break;
+        case PredefinedColorSpace::SRGBLinear:
+            writeLittleEndian<uint8_t>(m_buffer, static_cast<uint8_t>(PredefinedColorSpaceTag::SRGBLinear));
+            break;
 #if ENABLE(PREDEFINED_COLOR_SPACE_DISPLAY_P3)
         case PredefinedColorSpace::DisplayP3:
             writeLittleEndian<uint8_t>(m_buffer, static_cast<uint8_t>(PredefinedColorSpaceTag::DisplayP3));
+            break;
+        case PredefinedColorSpace::DisplayP3Linear:
+            writeLittleEndian<uint8_t>(m_buffer, static_cast<uint8_t>(PredefinedColorSpaceTag::DisplayP3Linear));
             break;
 #endif
         }
@@ -2468,6 +2488,11 @@ private:
 #if ENABLE(DESTINATION_COLOR_SPACE_DISPLAY_P3)
         if (destinationColorSpace == DestinationColorSpace::DisplayP3()) {
             write(DestinationColorSpaceDisplayP3Tag);
+            return;
+        }
+
+        if (destinationColorSpace == DestinationColorSpace::LinearDisplayP3()) {
+            write(DestinationColorSpaceLinearDisplayP3Tag);
             return;
         }
 #endif
@@ -3909,9 +3934,15 @@ private:
         case PredefinedColorSpaceTag::SRGB:
             result = PredefinedColorSpace::SRGB;
             return true;
+        case PredefinedColorSpaceTag::SRGBLinear:
+            result = PredefinedColorSpace::SRGBLinear;
+            return true;
 #if ENABLE(PREDEFINED_COLOR_SPACE_DISPLAY_P3)
         case PredefinedColorSpaceTag::DisplayP3:
             result = PredefinedColorSpace::DisplayP3;
+            return true;
+        case PredefinedColorSpaceTag::DisplayP3Linear:
+            result = PredefinedColorSpace::DisplayP3Linear;
             return true;
 #endif
         default:
@@ -3959,6 +3990,9 @@ private:
 #if ENABLE(DESTINATION_COLOR_SPACE_DISPLAY_P3)
         case DestinationColorSpaceDisplayP3Tag:
             destinationColorSpace = DestinationColorSpace::DisplayP3();
+            return true;
+        case DestinationColorSpaceLinearDisplayP3Tag:
+            destinationColorSpace = DestinationColorSpace::LinearDisplayP3();
             return true;
 #endif
 #if PLATFORM(COCOA)

@@ -1239,7 +1239,7 @@ void RenderBlockFlow::adjustOutOfFlowBlock(RenderBox& child, const MarginInfo& m
         logicalTop += collapsedBeforePos - collapsedBeforeNeg;
     }
 
-    RenderLayer* childLayer = child.layer();
+    CheckedPtr childLayer = child.layer();
     if (childLayer->staticBlockPosition() != logicalTop) {
         childLayer->setStaticBlockPosition(logicalTop);
         if (hasStaticBlockPosition)
@@ -4267,16 +4267,16 @@ void RenderBlockFlow::setStaticPositionsForSimpleOutOfFlowContent()
 
     for (auto walker = InlineWalker(*this); !walker.atEnd(); walker.advance()) {
         auto& renderer = downcast<RenderBox>(*walker.current());
-        auto& layer = *renderer.layer();
+        CheckedRef layer = *renderer.layer();
 
         ASSERT(renderer.isOutOfFlowPositioned());
 
-        auto previousStaticPosition = LayoutPoint { layer.staticInlinePosition(), layer.staticBlockPosition() };
+        auto previousStaticPosition = LayoutPoint { layer->staticInlinePosition(), layer->staticBlockPosition() };
         auto delta = staticPosition - previousStaticPosition;
         auto hasStaticInlinePositioning = renderer.style().hasStaticInlinePosition(isHorizontalWritingMode());
 
-        layer.setStaticInlinePosition(staticPosition.x());
-        layer.setStaticBlockPosition(staticPosition.y());
+        layer->setStaticInlinePosition(staticPosition.x());
+        layer->setStaticBlockPosition(staticPosition.y());
 
         if (!delta.isZero() && hasStaticInlinePositioning)
             renderer.setChildNeedsLayout(MarkOnlyThis);

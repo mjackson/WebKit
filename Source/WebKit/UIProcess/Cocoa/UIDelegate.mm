@@ -325,11 +325,6 @@ id<WKUIDelegatePrivate> UIDelegate::UIClient::uiDelegatePrivate()
     return m_uiDelegate ? (id<WKUIDelegatePrivate>)m_uiDelegate->m_delegate.getAutoreleased() : nil;
 }
 
-RetainPtr<id<WKUIDelegatePrivate>> UIDelegate::UIClient::protectedUIDelegatePrivate()
-{
-    return uiDelegatePrivate();
-}
-
 #if PLATFORM(MAC) || HAVE(UIKIT_WITH_MOUSE_SUPPORT)
 void UIDelegate::UIClient::mouseDidMoveOverElement(WebPageProxy& page, const WebHitTestResultData& data, OptionSet<WebEventModifier> modifiers)
 {
@@ -376,7 +371,7 @@ void UIDelegate::UIClient::createNewPage(WebKit::WebPageProxy&, Ref<API::PageCon
     // FIXME: Remove this once the cause of rdar://148942809 is found and fixed.
     RetainPtr relatedWebView = [protectedWrapper(configuration) _relatedWebView];
     ALLOW_DEPRECATED_DECLARATIONS_END
-    bool siteIsolationEnabled = configuration->protectedPreferences()->siteIsolationEnabled();
+    bool siteIsolationEnabled = protect(configuration->preferences())->siteIsolationEnabled();
 
     if (uiDelegate->m_delegateMethods.webViewCreateWebViewWithConfigurationForNavigationActionWindowFeaturesAsync) {
         auto checker = CompletionHandlerCallChecker::create(delegate.get(), @selector(_webView:createWebViewWithConfiguration:forNavigationAction:windowFeatures:completionHandler:));
@@ -901,7 +896,7 @@ bool UIDelegate::UIClient::focusFromServiceWorker(WebKit::WebPageProxy& proxy)
         return false;
 #endif
     }
-    return [protectedUIDelegatePrivate() _focusWebViewFromServiceWorker:uiDelegate->m_webView.get().get()];
+    return [protect(uiDelegatePrivate()) _focusWebViewFromServiceWorker:uiDelegate->m_webView.get().get()];
 }
 
 bool UIDelegate::UIClient::runOpenPanel(WebPageProxy& page, WebFrameProxy* webFrameProxy, FrameInfoData&& frameInfo, API::OpenPanelParameters* openPanelParameters, WebOpenPanelResultListenerProxy* listener)

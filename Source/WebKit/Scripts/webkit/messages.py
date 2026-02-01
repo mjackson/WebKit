@@ -374,6 +374,7 @@ def atomic_object_identifier(type):
         'WebKit::RemoteDisplayListIdentifier',
         'WebKit::RemoteDisplayListRecorderIdentifier',
         'WebKit::RemoteMediaResourceIdentifier',
+        'WebKit::RemotePathImplIdentifier',
         'WebKit::RemoteSerializedImageBufferIdentifier',
         'WebKit::RemoteSnapshotIdentifier',
         'WebKit::RemoteSnapshotRecorderIdentifier',
@@ -523,6 +524,7 @@ def serialized_identifiers():
         'WebKit::RemoteMediaResourceIdentifier',
         'WebKit::RemoteMediaResourceLoaderIdentifier',
         'WebKit::RemoteMediaSourceIdentifier',
+        'WebKit::RemotePathImplIdentifier',
         'WebKit::RemoteRemoteCommandListenerIdentifier',
         'WebKit::RemoteSerializedImageBufferIdentifier',
         'WebKit::RemoteSnapshotIdentifier',
@@ -696,7 +698,7 @@ def conditions_for_header(header):
         '"DataDetectionResult.h"': ["PLATFORM(COCOA)"],
         '"DynamicViewportSizeUpdate.h"': ["PLATFORM(IOS_FAMILY)"],
         '"RendererBufferFormat.h"': ["PLATFORM(GTK)", "PLATFORM(WPE)"],
-        '"GestureTypes.h"': ["PLATFORM(IOS_FAMILY)"],
+        '"GestureTypes.h"': ["PLATFORM(COCOA)"],
         '"InputMethodState.h"': ["PLATFORM(GTK)", "PLATFORM(WPE)"],
         '"MediaPlaybackTargetContextSerialized.h"': ["ENABLE(WIRELESS_PLAYBACK_TARGET)"],
         '"MediaPlayerPrivateRemote.h"': ["ENABLE(GPU_PROCESS) && ENABLE(VIDEO)"],
@@ -829,6 +831,7 @@ def generate_messages_header(receiver):
     result.append('\n')
 
     if receiver.condition:
+        result.append('#include <wtf/Platform.h>\n')
         result.append('#if %s\n\n' % receiver.condition)
 
     result += forward_declarations_and_headers(receiver)
@@ -1255,6 +1258,7 @@ def headers_for_type(type, for_implementation_file=False):
         'WebCore::IncludeSecureCookies': ['<WebCore/CookieJar.h>'],
         'WebCore::IndexIDToIndexKeyMap': ['<WebCore/IndexKey.h>'],
         'WebCore::IndexedDB::ObjectStoreOverwriteMode': ['<WebCore/IndexedDB.h>'],
+        'WebCore::InheritedFrameState': ['<WebCore/AXObjectCache.h>'],
         'WebCore::InputMode': ['<WebCore/InputMode.h>'],
         'WebCore::InspectorBackendClientDeveloperPreference': ['<WebCore/InspectorBackendClient.h>'],
         'WebCore::InspectorFrontendClientAppearance': ['<WebCore/InspectorFrontendClient.h>'],
@@ -1378,6 +1382,7 @@ def headers_for_type(type, for_implementation_file=False):
         'WebCore::SharedWorkerObjectIdentifierID': ['"GeneratedSerializers.h"'],
         'WebCore::ShareDataWithParsedURL': ['<WebCore/ShareData.h>'],
         'WebCore::ShouldContinuePolicyCheck': ['<WebCore/FrameLoaderTypes.h>'],
+        'WebCore::ShouldFocusElement': ['<WebCore/FocusControllerTypes.h>'],
         'WebCore::ShouldGoToHistoryItem': ['<WebCore/LocalFrameLoaderClient.h>'],
         'WebCore::ShouldNotifyWhenResolved': ['<WebCore/ServiceWorkerTypes.h>'],
         'WebCore::ShouldPause': ['<WebCore/MediaSessionHelperIOS.h>'],

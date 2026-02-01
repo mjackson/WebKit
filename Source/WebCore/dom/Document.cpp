@@ -997,10 +997,10 @@ void Document::commonTeardown()
     m_documentFragmentForInnerOuterHTML = nullptr;
     m_frameMemoryMonitor = nullptr;
 
-    auto intersectionObservers = m_intersectionObservers;
-    for (auto& weakIntersectionObserver : intersectionObservers) {
-        if (RefPtr intersectionObserver = weakIntersectionObserver.get())
-            intersectionObserver->disconnect();
+    auto localIntersectionObservers = m_localIntersectionObservers;
+    for (auto& weakLocalIntersectionObserver : localIntersectionObservers) {
+        if (RefPtr localIntersectionObserver = weakLocalIntersectionObserver.get())
+            localIntersectionObserver->disconnect();
     }
 
     auto resizeObservers = m_resizeObservers;
@@ -3138,37 +3138,37 @@ auto Document::updateLayout(OptionSet<LayoutOptions> layoutOptions, const Elemen
                 if (context && (!context->renderer() || !context->renderer()->style().isSkippedRootOrSkippedContent()))
                     return false;
 
-                CheckedPtr rootForLayout = rootForSkippedLayout(context ? *context->renderer() : *renderView());
-                if (!rootForLayout) {
+                if (CheckedPtr rootForLayout = rootForSkippedLayout(context ? *context->renderer() : *renderView())) {
+
+                    auto markRendererDirtyIfNeeded = [&](auto& renderer) {
+                        auto everhadLayoutAndWasSkippedDuringLast = renderer.wasSkippedDuringLastLayoutDueToContentVisibility();
+                        // Never had layout or was skipped at the last one (or marked dirty since the last layout, but not self needs layout which is required to "refresh" stale content).
+                        if (!everhadLayoutAndWasSkippedDuringLast || *everhadLayoutAndWasSkippedDuringLast || (renderer.needsLayout() && !renderer.selfNeedsLayout()))
+                            renderer.setNeedsLayout();
+                        return renderer.needsLayout();
+                    };
+
+                    auto isSkippedContentStale = markRendererDirtyIfNeeded(*rootForLayout);
+                    if (layoutOptions.contains(LayoutOptions::TreatContentVisibilityHiddenAsVisible)) {
+                        for (CheckedRef descendant : descendantsOfType<RenderObject>(*rootForLayout))
+                            isSkippedContentStale |= markRendererDirtyIfNeeded(descendant.get());
+                    } else if (layoutOptions.contains(LayoutOptions::TreatContentVisibilityAutoAsVisible) || layoutOptions.contains(LayoutOptions::TreatRevealedWhenFoundAsVisible)) {
+                        for (CheckedRef descendant : descendantsOfType<RenderObject>(*rootForLayout)) {
+                            // FIXME: While 'c-v: auto' is used 'hidden' inside 'c-v: hidden' we could entirly skip hidden subtrees here.
+                            auto shouldLayoutSkippedContent = (layoutOptions.contains(LayoutOptions::TreatContentVisibilityAutoAsVisible) && descendant->style().usedContentVisibility() == ContentVisibility::Auto)
+                                || (layoutOptions.contains(LayoutOptions::TreatRevealedWhenFoundAsVisible) && descendant->style().autoRevealsWhenFound());
+
+                            if (shouldLayoutSkippedContent)
+                                isSkippedContentStale |= markRendererDirtyIfNeeded(descendant.get());
+                        }
+                    }
+
+                    if (!isSkippedContentStale)
+                        return false;
+                } else {
                     ASSERT_NOT_REACHED();
                     return false;
                 }
-
-                auto markRendererDirtyIfNeeded = [&](auto& renderer) {
-                    auto everhadLayoutAndWasSkippedDuringLast = renderer.wasSkippedDuringLastLayoutDueToContentVisibility();
-                    // Never had layout or was skipped at the last one (or marked dirty since the last layout, but not self needs layout which is required to "refresh" stale content).
-                    if (!everhadLayoutAndWasSkippedDuringLast || *everhadLayoutAndWasSkippedDuringLast || (renderer.needsLayout() && !renderer.selfNeedsLayout()))
-                        renderer.setNeedsLayout();
-                    return renderer.needsLayout();
-                };
-
-                auto isSkippedContentStale = markRendererDirtyIfNeeded(*rootForLayout);
-                if (layoutOptions.contains(LayoutOptions::TreatContentVisibilityHiddenAsVisible)) {
-                    for (CheckedRef descendant : descendantsOfType<RenderObject>(*rootForLayout))
-                        isSkippedContentStale |= markRendererDirtyIfNeeded(descendant.get());
-                } else if (layoutOptions.contains(LayoutOptions::TreatContentVisibilityAutoAsVisible) || layoutOptions.contains(LayoutOptions::TreatRevealedWhenFoundAsVisible)) {
-                    for (CheckedRef descendant : descendantsOfType<RenderObject>(*rootForLayout)) {
-                        // FIXME: While 'c-v: auto' is used 'hidden' inside 'c-v: hidden' we could entirly skip hidden subtrees here.
-                        auto shouldLayoutSkippedContent = (layoutOptions.contains(LayoutOptions::TreatContentVisibilityAutoAsVisible) && descendant->style().usedContentVisibility() == ContentVisibility::Auto)
-                            || (layoutOptions.contains(LayoutOptions::TreatRevealedWhenFoundAsVisible) && descendant->style().autoRevealsWhenFound());
-
-                        if (shouldLayoutSkippedContent)
-                            isSkippedContentStale |= markRendererDirtyIfNeeded(descendant.get());
-                    }
-                }
-
-                if (!isSkippedContentStale)
-                    return false;
 
                 auto overrideTypes = [&] {
                     auto types = OptionSet<ContentVisibilityOverrideScope::OverrideType> { };
@@ -3204,7 +3204,7 @@ auto Document::updateLayout(OptionSet<LayoutOptions> layoutOptions, const Elemen
 
     if (layoutOptions.contains(LayoutOptions::IgnorePendingStylesheets)) {
         if (RefPtr frameView = view())
-            frameView->updateScrollAnchoringPositionForScrollableAreas();
+            frameView->adjustScrollAnchoringPositionForScrollableAreas();
     }
 
     m_ignorePendingStylesheets = oldIgnore;
@@ -6009,7 +6009,7 @@ void Document::runScrollSteps()
             protectedPage()->scheduleRenderingUpdate({ RenderingUpdateStep::Scroll });
 
         frameView->updateScrollAnchoringElementsForScrollableAreas();
-        frameView->updateScrollAnchoringPositionForScrollableAreas();
+        frameView->adjustScrollAnchoringPositionForScrollableAreas();
     }
 
     // FIXME: The order of dispatching is not specified: https://github.com/WICG/visual-viewport/issues/66.
@@ -8288,7 +8288,7 @@ bool Document::drawsHDRContent() const
 template <CollectionType collectionType>
 Ref<HTMLCollection> Document::ensureCachedCollection()
 {
-    return ensureRareData().ensureNodeLists().addCachedCollection<GenericCachedHTMLCollection<CollectionTypeTraits<collectionType>::traversalType>>(*this, collectionType);
+    return ensureRareData().ensureNodeLists().addCachedCollection<GenericCachedHTMLCollection<collectionType>>(*this);
 }
 
 Ref<HTMLCollection> Document::images()
@@ -8298,7 +8298,7 @@ Ref<HTMLCollection> Document::images()
 
 Ref<HTMLCollection> Document::applets()
 {
-    return ensureRareData().ensureNodeLists().addCachedCollection<EmptyHTMLCollection>(*this, CollectionType::DocEmpty);
+    return ensureRareData().ensureNodeLists().addCachedCollection<EmptyHTMLCollection>(*this);
 }
 
 Ref<HTMLCollection> Document::embeds()
@@ -8328,22 +8328,22 @@ Ref<HTMLCollection> Document::anchors()
 
 Ref<HTMLAllCollection> Document::all()
 {
-    return ensureRareData().ensureNodeLists().addCachedCollection<HTMLAllCollection>(*this, CollectionType::DocAll);
+    return ensureRareData().ensureNodeLists().addCachedCollection<HTMLAllCollection>(*this);
 }
 
 Ref<HTMLCollection> Document::allFilteredByName(const AtomString& name)
 {
-    return ensureRareData().ensureNodeLists().addCachedCollection<HTMLAllNamedSubCollection>(*this, CollectionType::DocumentAllNamedItems, name);
+    return ensureRareData().ensureNodeLists().addCachedCollection<HTMLAllNamedSubCollection>(*this, name);
 }
 
 Ref<HTMLCollection> Document::windowNamedItems(const AtomString& name)
 {
-    return ensureRareData().ensureNodeLists().addCachedCollection<WindowNameCollection>(*this, CollectionType::WindowNamedItems, name);
+    return ensureRareData().ensureNodeLists().addCachedCollection<WindowNameCollection>(*this, name);
 }
 
 Ref<HTMLCollection> Document::documentNamedItems(const AtomString& name)
 {
-    return ensureRareData().ensureNodeLists().addCachedCollection<DocumentNameCollection>(*this, CollectionType::DocumentNamedItems, name);
+    return ensureRareData().ensureNodeLists().addCachedCollection<DocumentNameCollection>(*this, name);
 }
 
 Ref<NodeList> Document::getElementsByName(const AtomString& elementName)
@@ -10492,21 +10492,73 @@ void Document::scheduleRenderingUpdate(OptionSet<RenderingUpdateStep> requestedS
 
 void Document::addIntersectionObserver(IntersectionObserver& observer)
 {
-    ASSERT(m_intersectionObservers.find(&observer) == notFound);
-    m_intersectionObservers.append(observer);
+    ASSERT(!m_localIntersectionObservers.contains(&observer));
+    ASSERT(!m_remoteIntersectionObservers.contains(&observer));
+
+    switch (observer.type()) {
+    case IntersectionObserver::Type::Local:
+        m_localIntersectionObservers.append(observer);
+        break;
+
+    case IntersectionObserver::Type::Remote:
+        m_remoteIntersectionObservers.append(observer);
+        break;
+    }
 }
 
 void Document::removeIntersectionObserver(IntersectionObserver& observer)
 {
-    m_intersectionObservers.removeFirst(&observer);
+    bool removed = false;
+
+    switch (observer.type()) {
+    case IntersectionObserver::Type::Local:
+        ASSERT(!m_remoteIntersectionObservers.contains(&observer));
+        removed = m_localIntersectionObservers.removeFirst(&observer);
+        break;
+
+    case IntersectionObserver::Type::Remote:
+        ASSERT(!m_localIntersectionObservers.contains(&observer));
+        removed = m_remoteIntersectionObservers.removeFirst(&observer);
+        break;
+    }
+
+    ASSERT_UNUSED(removed, removed);
 }
 
-void Document::updateIntersectionObservations()
+static void updateAndNotifyIntersectionObservers(const Vector<WeakPtr<IntersectionObserver>>& intersectionObservers, const Frame& hostFrame)
 {
-    updateIntersectionObservations(m_intersectionObservers);
+    Vector<WeakPtr<IntersectionObserver>> intersectionObserversWithPendingNotifications;
+
+    for (auto& weakObserver : intersectionObservers) {
+        RefPtr observer = weakObserver.get();
+        if (!observer)
+            continue;
+
+        auto needNotify = observer->updateObservations(hostFrame);
+        if (needNotify == IntersectionObserver::NeedNotify::Yes)
+            intersectionObserversWithPendingNotifications.append(observer);
+    }
+
+    for (auto& weakObserver : intersectionObserversWithPendingNotifications) {
+        if (RefPtr observer = weakObserver.get())
+            observer->notify();
+    }
 }
 
-void Document::updateIntersectionObservations(const Vector<WeakPtr<IntersectionObserver>>& intersectionObservers)
+void Document::updateRemoteIntersectionObservers()
+{
+    RefPtr page = this->page();
+    if (!page)
+        return;
+
+    RefPtr mainFrame = this->page()->mainFrame();
+    if (!mainFrame)
+        return;
+
+    updateAndNotifyIntersectionObservers(m_remoteIntersectionObservers, *mainFrame);
+}
+
+void Document::updateIntersectionObservers()
 {
     RefPtr frame = this->frame();
     if (!frame)
@@ -10522,32 +10574,18 @@ void Document::updateIntersectionObservations(const Vector<WeakPtr<IntersectionO
 
     bool needsLayout = frameView->layoutContext().isLayoutPending() || (renderView() && renderView()->needsLayout());
     if (needsLayout || hasPendingStyleRecalc()) {
-        if (!intersectionObservers.isEmpty()) {
+        if (numberOfIntersectionObservers()) {
             LOG_WITH_STREAM(IntersectionObserver, stream << "Document " << this << " updateIntersectionObservations - needsLayout " << needsLayout << " or has pending style recalc " << hasPendingStyleRecalc() << "; scheduling another update");
             scheduleRenderingUpdate(RenderingUpdateStep::IntersectionObservations);
         }
         return;
     }
 
-    Vector<WeakPtr<IntersectionObserver>> intersectionObserversWithPendingNotifications;
+    updateAndNotifyIntersectionObservers(m_localIntersectionObservers, *frame);
+    updateRemoteIntersectionObservers();
 
-    for (auto& weakObserver : intersectionObservers) {
-        RefPtr observer = weakObserver.get();
-        if (!observer)
-            continue;
-
-        auto needNotify = observer->updateObservations(*frame);
-        if (needNotify == IntersectionObserver::NeedNotify::Yes)
-            intersectionObserversWithPendingNotifications.append(observer);
-    }
-
-    if (intersectionObserversWithPendingNotifications.size())
-        LOG_WITH_STREAM(IntersectionObserver, stream << "Document " << this << " updateIntersectionObservations - notifying observers");
-
-    for (auto& weakObserver : intersectionObserversWithPendingNotifications) {
-        if (RefPtr observer = weakObserver.get())
-            observer->notify();
-    }
+    if (frame->isMainFrame())
+        page->chrome().client().updateRemoteIntersectionObserversInOtherWebProcesses();
 }
 
 void Document::scheduleInitialIntersectionObservationUpdate()

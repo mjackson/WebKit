@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <WebCore/FreeSpaceScenario.h>
 #include <WebCore/GridTypeAliases.h>
 #include <WebCore/LayoutUnit.h>
 
@@ -47,7 +48,7 @@ struct GridItemSizingFunctions {
 
 class TrackSizingAlgorithm {
 public:
-    static TrackSizes sizeTracks(const PlacedGridItems&, const PlacedGridItemSpanList&, const TrackSizingFunctionsList&, std::optional<LayoutUnit> availableSpace, const GridItemSizingFunctions&, const IntegrationUtils&);
+    static TrackSizes sizeTracks(const PlacedGridItems&, const PlacedGridItemSpanList&, const TrackSizingFunctionsList&, std::optional<LayoutUnit> availableSpace, const GridItemSizingFunctions&, FreeSpaceScenario, const IntegrationUtils&);
 
 private:
 

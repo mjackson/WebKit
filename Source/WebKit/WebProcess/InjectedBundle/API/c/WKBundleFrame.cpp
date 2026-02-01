@@ -140,7 +140,7 @@ unsigned WKBundleFrameGetPendingUnloadCount(WKBundleFrameRef frameRef)
 
 WKBundlePageRef WKBundleFrameGetPage(WKBundleFrameRef frameRef)
 {
-    return toAPI(WebKit::toProtectedImpl(frameRef)->protectedPage().get());
+    return toAPI(protect(WebKit::toProtectedImpl(frameRef)->page()).get());
 }
 
 void WKBundleFrameStopLoading(WKBundleFrameRef frameRef)
@@ -288,7 +288,7 @@ void WKBundleFrameFocus(WKBundleFrameRef frameRef)
     if (!coreFrame)
         return;
 
-    coreFrame->protectedPage()->focusController().setFocusedFrame(coreFrame.get());
+    protect(coreFrame->page())->focusController().setFocusedFrame(coreFrame.get());
 }
 
 void _WKBundleFrameGenerateTestReport(WKBundleFrameRef frameRef, WKStringRef message, WKStringRef group)
@@ -338,6 +338,6 @@ void* _WKAccessibilityRootObjectForTesting(WKBundleFrameRef frameRef)
 #endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
     CheckedPtr cache = getAXObjectCache();
-    RefPtr root = cache ? cache->rootObjectForFrame(*WebKit::toProtectedImpl(frameRef)->protectedCoreLocalFrame()) : nullptr;
+    RefPtr root = cache ? cache->rootObjectForFrame(*protect(WebKit::toProtectedImpl(frameRef)->coreLocalFrame())) : nullptr;
     return root ? root->wrapper() : nullptr;
 }

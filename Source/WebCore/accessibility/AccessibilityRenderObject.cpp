@@ -819,7 +819,9 @@ String AccessibilityRenderObject::stringValue() const
                     return overriddenDescription;
             }
         }
-        return renderMenuList->text();
+        if (RefPtr option = selectElement->item(selectedIndex))
+            return option->label();
+        return String();
     }
 
 #if PLATFORM(COCOA)
@@ -2502,8 +2504,15 @@ AccessibilityRole AccessibilityRenderObject::determineAccessibilityRole()
     }
     if (m_renderer->isRenderTextControlMultiLine())
         return AccessibilityRole::TextArea;
-    if (m_renderer->isRenderMenuList())
+    if (m_renderer->isRenderMenuList()) {
+#if !PLATFORM(IOS_FAMILY)
+        // On non-iOS platforms, <select multiple> may use RenderMenuList but should still
+        // have ListBox accessibility role, not PopUpButton. Check the multiple attribute.
+        if (RefPtr selectElement = dynamicDowncast<HTMLSelectElement>(node))
+            return selectElement->multiple() ? AccessibilityRole::ListBox : AccessibilityRole::PopUpButton;
+#endif
         return AccessibilityRole::PopUpButton;
+    }
     if (m_renderer->isRenderListBox())
         return AccessibilityRole::ListBox;
 

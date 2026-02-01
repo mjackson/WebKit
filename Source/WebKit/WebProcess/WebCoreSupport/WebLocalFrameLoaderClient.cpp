@@ -1456,7 +1456,7 @@ void WebLocalFrameLoaderClient::restoreViewState()
     // FIXME: This should not be necessary. WebCore should be correctly invalidating
     // the view on restores from the back/forward cache.
     if (page && m_frame.ptr() == &page->mainWebFrame())
-        page->protectedDrawingArea()->setNeedsDisplay();
+        protect(page->drawingArea())->setNeedsDisplay();
 #endif
 }
 
@@ -1481,14 +1481,19 @@ void WebLocalFrameLoaderClient::prepareForDataSourceReplacement()
     notImplemented();
 }
 
+Ref<DocumentLoader> WebLocalFrameLoaderClient::createDocumentLoader(ResourceRequest&& request, SubstituteData&& substituteData, ResourceRequest&& originalRequest)
+{
+    return protect(m_frame->page())->createDocumentLoader(protectedLocalFrame(), WTF::move(request), WTF::move(substituteData), WTF::move(originalRequest));
+}
+
 Ref<DocumentLoader> WebLocalFrameLoaderClient::createDocumentLoader(ResourceRequest&& request, SubstituteData&& substituteData)
 {
-    return m_frame->protectedPage()->createDocumentLoader(protectedLocalFrame(), WTF::move(request), WTF::move(substituteData));
+    return createDocumentLoader(WTF::move(request), WTF::move(substituteData), { });
 }
 
 void WebLocalFrameLoaderClient::updateCachedDocumentLoader(WebCore::DocumentLoader& loader)
 {
-    m_frame->protectedPage()->updateCachedDocumentLoader(loader, protectedLocalFrame());
+    protect(m_frame->page())->updateCachedDocumentLoader(loader, protectedLocalFrame());
 }
 
 void WebLocalFrameLoaderClient::setTitle(const StringWithDirection& title, const URL& url)
@@ -1533,7 +1538,7 @@ void WebLocalFrameLoaderClient::savePlatformDataToCachedFrame(CachedFrame*)
 void WebLocalFrameLoaderClient::transitionToCommittedFromCachedFrame(CachedFrame*)
 {
     const ResourceResponse& response = m_localFrame->loader().documentLoader()->response();
-    m_frameHasCustomContentProvider = m_frame->isMainFrame() && m_frame->protectedPage()->shouldUseCustomContentProviderForResponse(response);
+    m_frameHasCustomContentProvider = m_frame->isMainFrame() && protect(m_frame->page())->shouldUseCustomContentProviderForResponse(response);
     m_frameCameFromBackForwardCache = true;
 }
 
@@ -1610,7 +1615,7 @@ void WebLocalFrameLoaderClient::transitionToCommittedForNewPage(InitializingIfra
     if (isMainFrame)
         view->setDelegatedScrollingMode(drawingArea->delegatedScrollingMode());
 
-    webPage->protectedCorePage()->setDelegatesScaling(drawingArea->usesDelegatedPageScaling());
+    protect(webPage->corePage())->setDelegatesScaling(drawingArea->usesDelegatedPageScaling());
 #endif
 
     if (webPage->scrollPinningBehavior() != ScrollPinningBehavior::DoNotPin)
@@ -1702,7 +1707,7 @@ ObjectContentType WebLocalFrameLoaderClient::objectContentType(const URL& url, c
         if (mimeType.isEmpty()) {
             // Check if there's a plug-in around that can handle the extension.
             if (RefPtr webPage = m_frame->page()) {
-                if (pluginSupportsExtension(webPage->protectedCorePage()->protectedPluginData(), extension))
+                if (pluginSupportsExtension(protect(webPage->corePage())->protectedPluginData(), extension))
                     return ObjectContentType::PlugIn;
             }
             return ObjectContentType::Frame;
@@ -1719,7 +1724,7 @@ ObjectContentType WebLocalFrameLoaderClient::objectContentType(const URL& url, c
 
     if (RefPtr webPage = m_frame->page()) {
         auto allowedPluginTypes = PluginData::OnlyApplicationPlugins;
-        if (webPage->protectedCorePage()->protectedPluginData()->supportsMimeType(mimeType, allowedPluginTypes))
+        if (protect(webPage->corePage())->protectedPluginData()->supportsMimeType(mimeType, allowedPluginTypes))
             return ObjectContentType::PlugIn;
     }
 

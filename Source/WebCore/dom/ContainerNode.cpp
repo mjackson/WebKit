@@ -1222,11 +1222,11 @@ Ref<HTMLCollection> ContainerNode::getElementsByTagName(const AtomString& qualif
     ASSERT(!qualifiedName.isNull());
 
     if (qualifiedName == starAtom())
-        return ensureRareData().ensureNodeLists().addCachedCollection<AllDescendantsCollection>(*this, CollectionType::AllDescendants);
+        return ensureRareData().ensureNodeLists().addCachedCollection<AllDescendantsCollection>(*this);
 
     if (document().isHTMLDocument())
-        return ensureRareData().ensureNodeLists().addCachedCollection<HTMLTagCollection>(*this, CollectionType::ByHTMLTag, qualifiedName);
-    return ensureRareData().ensureNodeLists().addCachedCollection<TagCollection>(*this, CollectionType::ByTag, qualifiedName);
+        return ensureRareData().ensureNodeLists().addCachedCollection<HTMLTagCollection>(*this, qualifiedName);
+    return ensureRareData().ensureNodeLists().addCachedCollection<TagCollection>(*this, qualifiedName);
 }
 
 Ref<HTMLCollection> ContainerNode::getElementsByTagNameNS(const AtomString& namespaceURI, const AtomString& localName)
@@ -1237,7 +1237,7 @@ Ref<HTMLCollection> ContainerNode::getElementsByTagNameNS(const AtomString& name
 
 Ref<HTMLCollection> ContainerNode::getElementsByClassName(const AtomString& classNames)
 {
-    return ensureRareData().ensureNodeLists().addCachedCollection<ClassCollection>(*this, CollectionType::ByClass, classNames);
+    return ensureRareData().ensureNodeLists().addCachedCollection<ClassCollection>(*this, classNames);
 }
 
 Ref<RadioNodeList> ContainerNode::radioNodeList(const AtomString& name)
@@ -1248,7 +1248,7 @@ Ref<RadioNodeList> ContainerNode::radioNodeList(const AtomString& name)
 
 Ref<HTMLCollection> ContainerNode::children()
 {
-    return ensureRareData().ensureNodeLists().addCachedCollection<GenericCachedHTMLCollection<CollectionTypeTraits<CollectionType::NodeChildren>::traversalType>>(*this, CollectionType::NodeChildren);
+    return ensureRareData().ensureNodeLists().addCachedCollection<HTMLNodeChildrenCollection>(*this);
 }
 
 Element* ContainerNode::firstElementChild() const

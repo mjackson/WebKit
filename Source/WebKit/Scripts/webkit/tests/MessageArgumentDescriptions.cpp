@@ -571,6 +571,7 @@ Vector<ASCIILiteral> serializedIdentifiers()
         "WebKit::RemoteMediaResourceIdentifier"_s,
         "WebKit::RemoteMediaResourceLoaderIdentifier"_s,
         "WebKit::RemoteMediaSourceIdentifier"_s,
+        "WebKit::RemotePathImplIdentifier"_s,
         "WebKit::RemoteRemoteCommandListenerIdentifier"_s,
         "WebKit::RemoteSerializedImageBufferIdentifier"_s,
         "WebKit::RemoteSnapshotIdentifier"_s,

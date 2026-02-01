@@ -142,7 +142,7 @@ const WebBackForwardListCounts& WebBackForwardListProxy::cacheListCountsIfNecess
     if (!m_cachedBackForwardListCounts) {
         WebBackForwardListCounts backForwardListCounts;
         if (m_page) {
-            auto sendResult = WebProcess::singleton().protectedParentProcessConnection()->sendSync(Messages::WebBackForwardList::BackForwardListCounts(), m_page->identifier());
+            auto sendResult = protect(WebProcess::singleton().parentProcessConnection())->sendSync(Messages::WebBackForwardList::BackForwardListCounts(), m_page->identifier());
             if (sendResult.succeeded())
                 std::tie(backForwardListCounts) = sendResult.takeReply();
         }

@@ -97,6 +97,7 @@ namespace WebKit {
 
 class ViewSnapshot;
 class WebBackForwardList;
+using WebBackForwardListWrapper = WebBackForwardList;
 class WebBackForwardListItem;
 class WebPageProxy;
 class WebProcessProxy;
@@ -337,7 +338,6 @@ private:
         void setShouldIgnorePinnedState(bool ignore) { m_shouldIgnorePinnedState = ignore; }
 
     private:
-        Ref<ViewGestureController> protectedViewGestureController() const;
 
         bool tryToStartSwipe(PlatformScrollEvent);
         bool scrollEventCanBecomeSwipe(PlatformScrollEvent, SwipeDirection&);

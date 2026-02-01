@@ -404,7 +404,6 @@ namespace JSC {
         void emit_op_del_by_val(const JSInstruction*);
         void emitSlow_op_del_by_val(const JSInstruction*, Vector<SlowCaseEntry>::iterator&);
         void emit_op_div(const JSInstruction*);
-        void emit_op_end(const JSInstruction*);
         void emit_op_enter(const JSInstruction*);
         void emit_op_get_scope(const JSInstruction*);
         void emit_op_eq(const JSInstruction*);

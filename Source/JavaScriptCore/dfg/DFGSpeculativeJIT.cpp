@@ -14057,6 +14057,24 @@ void SpeculativeJIT::compileDefineAccessorProperty(Node* node)
     noResult(node, UseChildrenCalledExplicitly);
 }
 
+void SpeculativeJIT::compileObjectDefineProperty(Node* node)
+{
+    SpeculateCellOperand target(this, node->child1());
+    JSValueOperand key(this, node->child2());
+    SpeculateCellOperand descriptor(this, node->child3());
+
+    GPRReg targetGPR = target.gpr();
+    JSValueRegs keyRegs = key.jsValueRegs();
+    GPRReg descriptorGPR = descriptor.gpr();
+
+    speculateObject(node->child1(), targetGPR);
+    speculateObject(node->child3(), descriptorGPR);
+
+    flushRegisters();
+    callOperation(operationObjectDefineProperty, LinkableConstant::globalObject(*this, node), targetGPR, keyRegs, descriptorGPR);
+    noResult(node);
+}
+
 void SpeculativeJIT::emitAllocateButterfly(GPRReg storageResultGPR, GPRReg sizeGPR, GPRReg scratch1, GPRReg scratch2, GPRReg scratch3, JumpList& slowCases)
 {
     RELEASE_ASSERT(RegisterSetBuilder(storageResultGPR, sizeGPR, scratch1, scratch2, scratch3).numberOfSetGPRs() == 5);
@@ -15863,6 +15881,34 @@ void SpeculativeJIT::compileLogShadowChickenTail(Node* node)
     noResult(node);
 }
 
+void SpeculativeJIT::compileMapOrSetSize(Node* node)
+{
+    SpeculateCellOperand mapOrSet(this, node->child1());
+    GPRTemporary storage(this);
+    GPRTemporary result(this);
+
+    GPRReg mapOrSetGPR = mapOrSet.gpr();
+    GPRReg storageGPR = storage.gpr();
+    GPRReg resultGPR = result.gpr();
+
+    if (node->child1().useKind() == MapObjectUse) {
+        speculateMapObject(node->child1(), mapOrSetGPR);
+        loadPtr(Address(mapOrSetGPR, JSMap::offsetOfStorage()), storageGPR);
+    } else {
+        ASSERT(node->child1().useKind() == SetObjectUse);
+        speculateSetObject(node->child1(), mapOrSetGPR);
+        loadPtr(Address(mapOrSetGPR, JSSet::offsetOfStorage()), storageGPR);
+    }
+
+    move(TrustedImm32(0), resultGPR);
+    auto nullCase = branchTestPtr(Zero, storageGPR);
+    // offsetOfAliveEntryCount() is the same for both JSSet::Helper and JSMap::Helper.
+    load32(Address(storageGPR, JSSet::Helper::offsetOfAliveEntryCount()), resultGPR);
+
+    nullCase.link(this);
+    strictInt32Result(resultGPR, node);
+}
+
 void SpeculativeJIT::compileSetAdd(Node* node)
 {
     SpeculateCellOperand set(this, node->child1());
@@ -17234,6 +17280,46 @@ void SpeculativeJIT::compileStringIndexOf(Node* node)
         callOperation(operationStringIndexOf, resultGPR, LinkableConstant::globalObject(*this, node), baseGPR, argumentGPR);
 
     strictInt32Result(resultGPR, node);
+}
+
+void SpeculativeJIT::compileStringStartsWith(Node* node)
+{
+    if (node->child3()) {
+        SpeculateCellOperand base(this, node->child1());
+        SpeculateCellOperand argument(this, node->child2());
+        SpeculateInt32Operand index(this, node->child3());
+
+        GPRReg baseGPR = base.gpr();
+        GPRReg argumentGPR = argument.gpr();
+        GPRReg indexGPR = index.gpr();
+
+        speculateString(node->child1(), baseGPR);
+        speculateString(node->child2(), argumentGPR);
+
+        flushRegisters();
+        GPRFlushedCallResult result(this);
+        GPRReg resultGPR = result.gpr();
+        callOperation(operationStringStartsWithWithIndex, resultGPR, LinkableConstant::globalObject(*this, node), baseGPR, argumentGPR, indexGPR);
+
+        unblessedBooleanResult(resultGPR, node);
+        return;
+    }
+
+    SpeculateCellOperand base(this, node->child1());
+    SpeculateCellOperand argument(this, node->child2());
+
+    GPRReg baseGPR = base.gpr();
+    GPRReg argumentGPR = argument.gpr();
+
+    speculateString(node->child1(), baseGPR);
+    speculateString(node->child2(), argumentGPR);
+
+    flushRegisters();
+    GPRFlushedCallResult result(this);
+    GPRReg resultGPR = result.gpr();
+    callOperation(operationStringStartsWith, resultGPR, LinkableConstant::globalObject(*this, node), baseGPR, argumentGPR);
+
+    unblessedBooleanResult(resultGPR, node);
 }
 
 void SpeculativeJIT::compileGlobalIsNaN(Node* node)

@@ -149,7 +149,7 @@ ExceptionOr<void> HTMLTableRowElement::deleteCell(int index)
 
 Ref<HTMLCollection> HTMLTableRowElement::cells()
 {
-    return ensureRareData().ensureNodeLists().addCachedCollection<GenericCachedHTMLCollection<CollectionTypeTraits<CollectionType::TRCells>::traversalType>>(*this, CollectionType::TRCells);
+    return ensureRareData().ensureNodeLists().addCachedCollection<HTMLTRCellsCollection>(*this);
 }
 
 }

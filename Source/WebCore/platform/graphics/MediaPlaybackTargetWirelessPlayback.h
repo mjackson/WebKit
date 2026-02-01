@@ -27,6 +27,7 @@
 
 #if ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)
 
+#include <WebCore/MediaDeviceRouteLoadURLResult.h>
 #include <WebCore/MediaPlaybackTarget.h>
 #include <wtf/UUID.h>
 
@@ -44,6 +45,8 @@ public:
     WEBCORE_EXPORT std::optional<WTF::UUID> identifier() const;
 
     MediaDeviceRoute* route() const;
+
+    void loadURL(const String&, CompletionHandler<void(const MediaDeviceRouteLoadURLResult&)>&&);
 
 private:
     MediaPlaybackTargetWirelessPlayback(RefPtr<MediaDeviceRoute>&&, bool hasActiveRoute);

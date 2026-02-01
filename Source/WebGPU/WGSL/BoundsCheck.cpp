@@ -46,12 +46,20 @@ public:
         return std::nullopt;
     }
 
+    void visit(AST::Variable&) override;
     void visit(AST::IndexAccessExpression&) override;
 
 private:
     ShaderModule& m_shaderModule;
 };
 
+
+void BoundsCheckVisitor::visit(AST::Variable& variable)
+{
+    if (variable.flavor() == AST::VariableFlavor::Override)
+        return;
+    AST::Visitor::visit(variable);
+}
 
 void BoundsCheckVisitor::visit(AST::IndexAccessExpression& access)
 {

@@ -415,13 +415,13 @@ void RenderView::paintBoxDecorations(PaintInfo& paintInfo, const LayoutPoint&)
     // a transform, transparency layer, etc.
     Ref document = this->document();
     for (RefPtr element = document->ownerElement(); element && element->renderer(); element = element->protectedDocument()->ownerElement()) {
-        RenderLayer* layer = element->renderer()->enclosingLayer();
+        CheckedPtr layer = element->renderer()->enclosingLayer();
         if (layer->cannotBlitToWindow()) {
             frameView().setCannotBlitToWindow();
             break;
         }
 
-        if (auto* compositingLayer = layer->enclosingCompositingLayerForRepaint().layer) {
+        if (CheckedPtr compositingLayer = layer->enclosingCompositingLayerForRepaint().layer) {
             if (!compositingLayer->backing()->paintsIntoWindow()) {
                 frameView().setCannotBlitToWindow();
                 break;

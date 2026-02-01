@@ -75,17 +75,7 @@ private:
     bool canRunModal() const final;
     void runModal() final;
 
-    void setToolbarsVisible(bool);
-    bool toolbarsVisible() const final;
-
-    void setStatusbarVisible(bool);
-    bool statusbarVisible() const final;
-
-    void setScrollbarsVisible(bool);
-    bool scrollbarsVisible() const final;
-
-    void setMenubarVisible(bool);
-    bool menubarVisible() const final;
+    bool isPopup() const final;
 
     void setResizable(bool) final;
 

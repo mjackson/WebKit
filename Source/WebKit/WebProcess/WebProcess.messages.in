@@ -197,10 +197,6 @@ messages -> WebProcess : AuxiliaryProcess WantsAsyncDispatchMessage {
     PowerSourceDidChange(bool hasAC)
 #endif
 
-#if PLATFORM(GTK) && !USE(GTK4) && USE(CAIRO)
-    SetUseSystemAppearanceForScrollbars(bool useSystemAppearanceForScrollbars)
-#endif
-
 #if PLATFORM(COCOA)
     DidWriteToPasteboardAsynchronously(String pasteboardName) CanDispatchOutOfOrder
 #endif

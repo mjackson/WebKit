@@ -2236,7 +2236,6 @@ void Node::moveTreeToNewScope(Node& root, TreeScope& oldScope, TreeScope& newSco
                 shadowRoot.moveShadowRootToNewParentScope(newScope, newDocument);
                 return moveShadowTreeToNewDocumentFastCase(shadowRoot, oldDocument, newDocument);
             });
-//            UNUSED_PARAM(nodeCount);
             newDocument->incrementReferencingNodeCount(nodeCount);
             oldDocument->decrementReferencingNodeCount(nodeCount);
         } else {

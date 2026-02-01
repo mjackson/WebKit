@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2017-2026 Apple Inc. All rights reserved.
  * Copyright (C) 2015 Google Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -50,7 +50,6 @@
 #include "RenderLayer.h"
 #include "RenderLineBreak.h"
 #include "RenderMathMLFenced.h"
-#include "RenderMenuList.h"
 #include "RenderMultiColumnFlow.h"
 #include "RenderMultiColumnSet.h"
 #include "RenderMultiColumnSpannerPlaceholder.h"
@@ -360,11 +359,6 @@ void RenderTreeBuilder::attachInternal(RenderElement& parent, RenderPtr<RenderOb
         return;
     }
 
-    if (auto* menuList = dynamicDowncast<RenderMenuList>(parent)) {
-        formControlsBuilder().attach(*menuList, WTF::move(child), beforeChild);
-        return;
-    }
-
     if (auto* container = dynamicDowncast<LegacyRenderSVGContainer>(parent)) {
         svgBuilder().attach(*container, WTF::move(child), beforeChild);
         return;
@@ -435,9 +429,6 @@ RenderPtr<RenderObject> RenderTreeBuilder::detach(RenderElement& parent, RenderO
 
     if (auto* blockFlow = dynamicDowncast<RenderBlockFlow>(parent))
         return blockBuilder().detach(*blockFlow, child, willBeDestroyed, canCollapseAnonymousBlock);
-
-    if (auto* menuList = dynamicDowncast<RenderMenuList>(parent))
-        return formControlsBuilder().detach(*menuList, child, willBeDestroyed);
 
     if (auto* button = dynamicDowncast<RenderButton>(parent))
         return formControlsBuilder().detach(*button, child, willBeDestroyed);
@@ -1018,8 +1009,10 @@ void RenderTreeBuilder::updateAfterDescendants(RenderElement& renderer)
         firstLetterBuilder().updateAfterDescendants(*block);
     if (auto* listItem = dynamicDowncast<RenderListItem>(renderer))
         listBuilder().updateItemMarker(*listItem);
-    if (auto* blockFlow = dynamicDowncast<RenderBlockFlow>(renderer))
+    if (auto* blockFlow = dynamicDowncast<RenderBlockFlow>(renderer)) {
         multiColumnBuilder().updateAfterDescendants(*blockFlow);
+        formControlsBuilder().updateAfterDescendants(*blockFlow);
+    }
 }
 
 RenderPtr<RenderObject> RenderTreeBuilder::detachFromRenderGrid(RenderGrid& parent, RenderObject& child, WillBeDestroyed willBeDestroyed)

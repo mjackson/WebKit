@@ -63,6 +63,11 @@
 #include <WebCore/ShouldTreatAsContinuingLoad.h>
 #include <wtf/TZoneMallocInlines.h>
 
+// FIXME: https://bugs.webkit.org/show_bug.cgi?id=306415
+#if ENABLE(BACK_FORWARD_LIST_SWIFT)
+#include "WebKit-Swift.h"
+#endif
+
 #define MESSAGE_CHECK(assertion) MESSAGE_CHECK_BASE(assertion, process().connection())
 
 namespace WebKit {
@@ -88,7 +93,7 @@ ProvisionalPageProxy::ProvisionalPageProxy(WebPageProxy& page, Ref<FrameProcess>
     , m_shouldReuseMainFrame(protect(page.preferences())->siteIsolationEnabled() && (page.openedByDOM() || page.hasPageOpenedByMainFrame()))
     , m_provisionalLoadURL(isProcessSwappingOnNavigationResponse ? request.url() : URL())
 #if USE(RUNNINGBOARD)
-    , m_provisionalLoadActivity(m_frameProcess->process().protectedThrottler()->foregroundActivity("Provisional Load"_s))
+    , m_provisionalLoadActivity(protect(m_frameProcess->process().throttler())->foregroundActivity("Provisional Load"_s))
 #endif
 #if HAVE(VISIBILITY_PROPAGATION_VIEW)
     , m_contextIDForVisibilityPropagationInWebProcess(suspendedPage ? suspendedPage->contextIDForVisibilityPropagationInWebProcess() : 0)
@@ -699,7 +704,7 @@ void ProvisionalPageProxy::didReceiveMessage(IPC::Connection& connection, IPC::D
 
     if (decoder.messageName() == Messages::WebBackForwardList::BackForwardUpdateItem::name()) {
         if (RefPtr page = m_page.get())
-            page->backForwardList().didReceiveMessage(connection, decoder);
+            page->backForwardListMessageReceiver().didReceiveMessage(connection, decoder);
         return;
     }
 
@@ -836,7 +841,7 @@ void ProvisionalPageProxy::didReceiveSyncMessage(IPC::Connection& connection, IP
     RefPtr page = m_page.get();
     if (page) {
         if (decoder.messageReceiverName() == Messages::WebBackForwardList::messageReceiverName())
-            page->backForwardList().didReceiveSyncMessage(connection, decoder, replyEncoder);
+            page->backForwardListMessageReceiver().didReceiveSyncMessage(connection, decoder, replyEncoder);
         else
             page->didReceiveSyncMessage(connection, decoder, replyEncoder);
     }

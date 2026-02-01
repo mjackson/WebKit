@@ -364,7 +364,6 @@ void WebPage::getPlatformEditorState(LocalFrame& frame, EditorState& result) con
     if (!result.hasPostLayoutAndVisualData())
         return;
 
-    ASSERT(frame.view());
     auto& postLayoutData = *result.postLayoutData;
     auto& visualData = *result.visualData;
 
@@ -385,12 +384,8 @@ void WebPage::getPlatformEditorState(LocalFrame& frame, EditorState& result) con
     const auto& selection = frame.selection().selection();
     std::optional<SimpleRange> selectedRange;
     postLayoutData.isStableStateUpdate = m_isInStableState;
-    bool startNodeIsInsideFixedPosition = false;
-    bool endNodeIsInsideFixedPosition = false;
+
     if (selection.isCaret()) {
-        visualData.caretRectAtStart = view->contentsToRootView(frame.selection().absoluteCaretBounds(&startNodeIsInsideFixedPosition));
-        endNodeIsInsideFixedPosition = startNodeIsInsideFixedPosition;
-        visualData.caretRectAtEnd = visualData.caretRectAtStart;
         // FIXME: The following check should take into account writing direction.
         postLayoutData.isReplaceAllowed = result.isContentEditable && atBoundaryOfGranularity(selection.start(), TextGranularity::WordGranularity, SelectionDirection::Forward);
 
@@ -400,13 +395,9 @@ void WebPage::getPlatformEditorState(LocalFrame& frame, EditorState& result) con
         if (selection.isContentEditable())
             charactersAroundPosition(selection.start(), postLayoutData.characterAfterSelection, postLayoutData.characterBeforeSelection, postLayoutData.twoCharacterBeforeSelection);
     } else if (selection.isRange()) {
-        visualData.caretRectAtStart = view->contentsToRootView(VisiblePosition(selection.start()).absoluteCaretBounds(&startNodeIsInsideFixedPosition));
-        visualData.caretRectAtEnd = view->contentsToRootView(VisiblePosition(selection.end()).absoluteCaretBounds(&endNodeIsInsideFixedPosition));
         selectedRange = selection.toNormalizedRange();
         String selectedText;
         if (selectedRange) {
-            auto [selectionGeometries, intersectingLayerIDs] = RenderObject::collectSelectionGeometries(*selectedRange);
-            convertContentToRootView(view, selectionGeometries);
             selectedText = plainTextForDisplay(*selectedRange);
             postLayoutData.selectedTextLength = selectedText.length();
             const int maxSelectedTextLength = 200;
@@ -433,9 +424,6 @@ void WebPage::getPlatformEditorState(LocalFrame& frame, EditorState& result) con
 
             if (auto imageElement = findSelectedEditableImageElement())
                 postLayoutData.selectedEditableImage = contextForElement(*imageElement);
-
-            visualData.selectionGeometries = WTF::move(selectionGeometries);
-            visualData.intersectingLayerIDs = WTF::move(intersectingLayerIDs);
         }
         // FIXME: We should disallow replace when the string contains only CJ characters.
         postLayoutData.isReplaceAllowed = result.isContentEditable && !result.isInPasswordField && !selectedText.containsOnly<isASCIIWhitespace>();
@@ -450,7 +438,6 @@ void WebPage::getPlatformEditorState(LocalFrame& frame, EditorState& result) con
     }
 #endif
 
-    postLayoutData.insideFixedPosition = startNodeIsInsideFixedPosition || endNodeIsInsideFixedPosition;
     if (!selection.isNone()) {
         bool selectionIsEditable = selection.hasEditableStyle();
         if (selectionIsEditable) {
@@ -1728,44 +1715,6 @@ void WebPage::setForceAlwaysUserScalable(bool userScalable)
     m_viewportConfiguration.setForceAlwaysUserScalable(userScalable);
 }
 
-static IntRect elementBoundsInFrame(const LocalFrame& frame, const Element& focusedElement)
-{
-    frame.document()->updateLayout(LayoutOptions::IgnorePendingStylesheets);
-    
-    if (focusedElement.hasTagName(HTMLNames::textareaTag) || focusedElement.hasTagName(HTMLNames::inputTag) || focusedElement.hasTagName(HTMLNames::selectTag))
-        return WebPage::absoluteInteractionBounds(focusedElement);
-
-    if (auto* rootEditableElement = focusedElement.rootEditableElement())
-        return WebPage::absoluteInteractionBounds(*rootEditableElement);
-
-    return { };
-}
-
-static IntPoint constrainPoint(const IntPoint& point, const LocalFrame& frame, const Element& focusedElement)
-{
-    ASSERT(&focusedElement.document() == frame.document());
-    const int DEFAULT_CONSTRAIN_INSET = 2;
-    IntRect innerFrame = elementBoundsInFrame(frame, focusedElement);
-    IntPoint constrainedPoint = point;
-
-    int minX = innerFrame.x() + DEFAULT_CONSTRAIN_INSET;
-    int maxX = innerFrame.maxX() - DEFAULT_CONSTRAIN_INSET;
-    int minY = innerFrame.y() + DEFAULT_CONSTRAIN_INSET;
-    int maxY = innerFrame.maxY() - DEFAULT_CONSTRAIN_INSET;
-
-    if (point.x() < minX)
-        constrainedPoint.setX(minX);
-    else if (point.x() > maxX)
-        constrainedPoint.setX(maxX);
-
-    if (point.y() < minY)
-        constrainedPoint.setY(minY);
-    else if (point.y() >= maxY)
-        constrainedPoint.setY(maxY);
-                    
-    return constrainedPoint;
-}
-
 static bool insideImageOverlay(const VisiblePosition& position)
 {
     RefPtr container = position.deepEquivalent().containerNode();
@@ -1792,141 +1741,6 @@ static std::optional<SimpleRange> expandForImageOverlay(const SimpleRange& range
     }
 
     return makeSimpleRange({ expandedStart, expandedEnd });
-}
-
-void WebPage::selectWithGesture(const IntPoint& point, GestureType gestureType, GestureRecognizerState gestureState, bool isInteractingWithFocusedElement, CompletionHandler<void(const WebCore::IntPoint&, GestureType, GestureRecognizerState, OptionSet<SelectionFlags>)>&& completionHandler)
-{
-    if (static_cast<GestureRecognizerState>(gestureState) == GestureRecognizerState::Began)
-        updateFocusBeforeSelectingTextAtLocation(point);
-
-    RefPtr frame = m_page->focusController().focusedOrMainFrame();
-    if (!frame)
-        return;
-
-    VisiblePosition position = visiblePositionInFocusedNodeForPoint(*frame, point, isInteractingWithFocusedElement);
-
-    if (position.isNull()) {
-        completionHandler(point, gestureType, gestureState, { });
-        return;
-    }
-    std::optional<SimpleRange> range;
-    OptionSet<SelectionFlags> flags;
-    GestureRecognizerState wkGestureState = static_cast<GestureRecognizerState>(gestureState);
-    switch (static_cast<GestureType>(gestureType)) {
-    case GestureType::PhraseBoundary: {
-        if (!frame->editor().hasComposition())
-            break;
-        auto markedRange = frame->editor().compositionRange();
-        auto startPosition = VisiblePosition { makeDeprecatedLegacyPosition(markedRange->start) };
-        position = std::clamp(position, startPosition, VisiblePosition { makeDeprecatedLegacyPosition(markedRange->end) });
-        if (wkGestureState != GestureRecognizerState::Began)
-            flags = distanceBetweenPositions(startPosition, frame->selection().selection().start()) != distanceBetweenPositions(startPosition, position) ? SelectionFlags::PhraseBoundaryChanged : OptionSet<SelectionFlags> { };
-        else
-            flags = SelectionFlags::PhraseBoundaryChanged;
-        range = makeSimpleRange(position);
-        break;
-    }
-
-    case GestureType::OneFingerTap: {
-        auto [adjustedPosition, withinWordBoundary] = wordBoundaryForPositionWithoutCrossingLine(position);
-        if (withinWordBoundary == WithinWordBoundary::Yes)
-            flags = SelectionFlags::WordIsNearTap;
-        range = makeSimpleRange(adjustedPosition);
-        break;
-    }
-
-    case GestureType::Loupe:
-        if (position.rootEditableElement())
-            range = makeSimpleRange(position);
-        else {
-#if !PLATFORM(MACCATALYST)
-            range = wordRangeFromPosition(position);
-#else
-            switch (wkGestureState) {
-            case GestureRecognizerState::Began:
-                m_startingGestureRange = makeSimpleRange(position);
-                break;
-            case GestureRecognizerState::Changed:
-                if (m_startingGestureRange) {
-                    auto& start = m_startingGestureRange->start;
-                    if (makeDeprecatedLegacyPosition(start) < position)
-                        range = makeSimpleRange(start, position);
-                    else
-                        range = makeSimpleRange(position, start);
-                }
-                break;
-            case GestureRecognizerState::Ended:
-            case GestureRecognizerState::Cancelled:
-                m_startingGestureRange = std::nullopt;
-                break;
-            case GestureRecognizerState::Failed:
-            case GestureRecognizerState::Possible:
-                ASSERT_NOT_REACHED();
-                break;
-            }
-#endif
-        }
-        break;
-
-    case GestureType::TapAndAHalf:
-        switch (wkGestureState) {
-        case GestureRecognizerState::Began:
-            range = wordRangeFromPosition(position);
-            if (range)
-                m_currentWordRange = { { *range } };
-            else
-                m_currentWordRange = std::nullopt;
-            break;
-        case GestureRecognizerState::Changed:
-            if (!m_currentWordRange)
-                break;
-            range = m_currentWordRange;
-            if (position < makeDeprecatedLegacyPosition(range->start))
-                range->start = *makeBoundaryPoint(position);
-            if (position > makeDeprecatedLegacyPosition(range->end))
-                range->end = *makeBoundaryPoint(position);
-            break;
-        case GestureRecognizerState::Ended:
-        case GestureRecognizerState::Cancelled:
-            m_currentWordRange = std::nullopt;
-            break;
-        case GestureRecognizerState::Failed:
-        case GestureRecognizerState::Possible:
-            ASSERT_NOT_REACHED();
-        }
-        break;
-
-    case GestureType::OneFingerDoubleTap:
-        if (atBoundaryOfGranularity(position, TextGranularity::LineGranularity, SelectionDirection::Forward)) {
-            // Double-tap at end of line only places insertion point there.
-            // This helps to get the callout for pasting at ends of lines,
-            // paragraphs, and documents.
-            range = makeSimpleRange(position);
-         } else
-            range = wordRangeFromPosition(position);
-        break;
-
-    case GestureType::TwoFingerSingleTap:
-        // Single tap with two fingers selects the entire paragraph.
-        range = enclosingTextUnitOfGranularity(position, TextGranularity::ParagraphGranularity, SelectionDirection::Forward);
-        break;
-
-    case GestureType::OneFingerTripleTap:
-        if (atBoundaryOfGranularity(position, TextGranularity::LineGranularity, SelectionDirection::Forward)) {
-            // Triple-tap at end of line only places insertion point there.
-            // This helps to get the callout for pasting at ends of lines, paragraphs, and documents.
-            range = makeSimpleRange(position);
-        } else
-            range = enclosingTextUnitOfGranularity(position, TextGranularity::ParagraphGranularity, SelectionDirection::Forward);
-        break;
-
-    default:
-        break;
-    }
-    if (range)
-        frame->selection().setSelectedRange(range, position.affinity(), WebCore::FrameSelection::ShouldCloseTyping::Yes, UserTriggered::Yes);
-
-    completionHandler(point, gestureType, gestureState, flags);
 }
 
 static std::pair<std::optional<SimpleRange>, SelectionWasFlipped> rangeForPointInRootViewCoordinates(LocalFrame& frame, const IntPoint& pointInRootViewCoordinates, bool baseIsStart, bool selectionFlippingEnabled)
@@ -2092,52 +1906,6 @@ IntRect WebPage::rootViewBounds(const Node& node)
         return { };
 
     return view->contentsToRootView(renderer->absoluteBoundingBoxRect());
-}
-
-IntRect WebPage::absoluteInteractionBounds(const Node& node)
-{
-    RefPtr frame = node.document().frame();
-    if (!frame)
-        return { };
-
-    RefPtr view = frame->view();
-    if (!view)
-        return { };
-
-    auto* renderer = node.renderer();
-    if (!renderer)
-        return { };
-
-    if (CheckedPtr box = dynamicDowncast<RenderBox>(*renderer)) {
-        FloatRect rect;
-        // FIXME: want borders or not?
-        if (box->style().isOverflowVisible())
-            rect = box->layoutOverflowRect();
-        else
-            rect = box->clientBoxRect();
-        return box->localToAbsoluteQuad(rect).enclosingBoundingBox();
-    }
-
-    auto& style = renderer->style();
-    FloatRect boundingBox = renderer->absoluteBoundingBoxRect(true /* use transforms*/);
-    // This is wrong. It's subtracting borders after converting to absolute coords on something that probably doesn't represent a rectangular element.
-    boundingBox.move(WebCore::Style::evaluate<float>(style.usedBorderLeftWidth(), WebCore::Style::ZoomNeeded { }), WebCore::Style::evaluate<float>(style.usedBorderTopWidth(), WebCore::Style::ZoomNeeded { }));
-    boundingBox.setWidth(boundingBox.width() - WebCore::Style::evaluate<float>(style.usedBorderLeftWidth(), WebCore::Style::ZoomNeeded { }) - WebCore::Style::evaluate<float>(style.usedBorderRightWidth(), WebCore::Style::ZoomNeeded { }));
-    boundingBox.setHeight(boundingBox.height() - WebCore::Style::evaluate<float>(style.usedBorderBottomWidth(), WebCore::Style::ZoomNeeded { }) - WebCore::Style::evaluate<float>(style.usedBorderTopWidth(), WebCore::Style::ZoomNeeded { }));
-    return enclosingIntRect(boundingBox);
-}
-
-IntRect WebPage::rootViewInteractionBounds(const Node& node)
-{
-    RefPtr frame = node.document().frame();
-    if (!frame)
-        return { };
-
-    RefPtr view = frame->view();
-    if (!view)
-        return { };
-
-    return view->contentsToRootView(absoluteInteractionBounds(node));
 }
 
 void WebPage::clearSelection()
@@ -2758,13 +2526,6 @@ void WebPage::getRectsAtSelectionOffsetWithText(int32_t offset, const String& te
     completionHandler(selectionGeometries);
 }
 
-VisiblePosition WebPage::visiblePositionInFocusedNodeForPoint(const LocalFrame& frame, const IntPoint& point, bool isInteractingWithFocusedElement)
-{
-    IntPoint adjustedPoint(frame.view()->rootViewToContents(point));
-    IntPoint constrainedPoint = m_focusedElement && isInteractingWithFocusedElement ? constrainPoint(adjustedPoint, frame, *m_focusedElement) : adjustedPoint;
-    return frame.visiblePositionForPoint(constrainedPoint);
-}
-
 void WebPage::selectPositionAtPoint(const WebCore::IntPoint& point, bool isInteractingWithFocusedElement, CompletionHandler<void()>&& completionHandler)
 {
     SetForScope userIsInteractingChange { m_userIsInteracting, true };
@@ -2847,30 +2608,6 @@ std::optional<SimpleRange> WebPage::rangeForGranularityAtPoint(LocalFrame& frame
     }
     ASSERT_NOT_REACHED();
     return std::nullopt;
-}
-
-void WebPage::updateFocusBeforeSelectingTextAtLocation(const IntPoint& point)
-{
-    static constexpr OptionSet hitType { HitTestRequest::Type::ReadOnly, HitTestRequest::Type::Active, HitTestRequest::Type::AllowVisibleChildFrameContentOnly };
-    RefPtr localMainFrame = m_page->localMainFrame();
-    if (!localMainFrame)
-        return;
-
-    auto result = localMainFrame->eventHandler().hitTestResultAtPoint(point, hitType);
-    RefPtr hitNode = result.innerNode();
-    if (!hitNode || !hitNode->renderer())
-        return;
-
-    RefPtr frame = result.innerNodeFrame();
-    m_page->focusController().setFocusedFrame(frame.get());
-
-    if (!result.isOverWidget())
-        return;
-
-#if ENABLE(PDF_PLUGIN)
-    if (RefPtr pluginView = pluginViewForFrame(frame.get()))
-        pluginView->focusPluginElement();
-#endif
 }
 
 void WebPage::setSelectionRange(const WebCore::IntPoint& point, WebCore::TextGranularity granularity, bool isInteractingWithFocusedElement)
@@ -3464,7 +3201,7 @@ static void focusedElementPositionInformation(WebPage& page, Element& focusedEle
     const uint32_t kHitAreaHeight = 66;
     Ref view = *frame->view();
     IntPoint adjustedPoint(view->rootViewToContents(request.point));
-    IntPoint constrainedPoint = constrainPoint(adjustedPoint, *frame, focusedElement);
+    IntPoint constrainedPoint = WebPage::constrainPoint(adjustedPoint, *frame, focusedElement);
     VisiblePosition position = frame->visiblePositionForPoint(constrainedPoint);
 
     auto compositionRange = frame->editor().compositionRange();
@@ -4991,7 +4728,8 @@ void WebPage::applicationDidEnterBackground(bool isSuspendedUnderLock)
     [[NSNotificationCenter defaultCenter] postNotificationName:WebUIApplicationDidEnterBackgroundNotification object:nil userInfo:@{@"isSuspendedUnderLock": @(isSuspendedUnderLock)}];
 
     m_isSuspendedUnderLock = isSuspendedUnderLock;
-    freezeLayerTree(LayerTreeFreezeReason::BackgroundApplication);
+    if (!m_backgroundTextExtractionEnabled)
+        freezeLayerTree(LayerTreeFreezeReason::BackgroundApplication);
 
     // FIXME(224775): Move to WebProcess
     if (RefPtr manager = mediaSessionManagerIfExists())
@@ -5011,7 +4749,8 @@ void WebPage::applicationWillEnterForeground(bool isSuspendedUnderLock)
     m_isSuspendedUnderLock = false;
     cancelMarkLayersVolatile();
 
-    unfreezeLayerTree(LayerTreeFreezeReason::BackgroundApplication);
+    if (!m_backgroundTextExtractionEnabled)
+        unfreezeLayerTree(LayerTreeFreezeReason::BackgroundApplication);
 
     [[NSNotificationCenter defaultCenter] postNotificationName:WebUIApplicationWillEnterForegroundNotification object:nil userInfo:@{@"isSuspendedUnderLock": @(isSuspendedUnderLock)}];
 
@@ -6196,7 +5935,7 @@ void WebPage::focusTextInputContextAndPlaceCaret(const ElementContext& elementCo
     // because we only want to do so if the caret can be placed.
     UserGestureIndicator gestureIndicator { IsProcessingUserGesture::Yes, &target->document() };
     SetForScope userIsInteractingChange { m_userIsInteracting, true };
-    protectedCorePage()->focusController().setFocusedElement(target.get(), targetFrame.ptr());
+    protect(corePage())->focusController().setFocusedElement(target.get(), targetFrame.ptr());
 
     // Setting the focused element could tear down the element's renderer. Check that we still have one.
     if (m_focusedElement != target || !target->renderer()) {

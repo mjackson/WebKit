@@ -30,6 +30,7 @@
 #include "ASTDirective.h"
 #include "ASTIdentityExpression.h"
 #include "CallGraph.h"
+#include "Overload.h"
 #include "TypeStore.h"
 #include "WGSL.h"
 #include "WGSLEnums.h"
@@ -51,7 +52,9 @@ public:
     ShaderModule(const String& source, const Configuration& configuration)
         : m_source(source)
         , m_configuration(configuration)
-    { }
+    {
+        initializeOverloads();
+    }
 
     const String& source() const { return m_source; }
     const Configuration& configuration() const { return m_configuration; }
@@ -272,11 +275,11 @@ public:
 
     OptionSet<Extension>& enabledExtensions() { return m_enabledExtensions; }
     OptionSet<LanguageFeature> requiredFeatures() { return m_requiredFeatures; }
-    bool containsOverride(uint32_t idValue) const
+    bool containsOverrideID(uint32_t idValue) const
     {
         return m_pipelineOverrideIds.contains(idValue);
     }
-    void addOverride(uint32_t idValue)
+    void addOverrideID(uint32_t idValue)
     {
         m_pipelineOverrideIds.add(idValue);
     }
@@ -295,9 +298,15 @@ public:
         m_finalOverrideValidations.append(WTF::move(validator));
     }
 
-    std::optional<Error> validateOverrides(const HashMap<String, ConstantValue>&);
+    std::optional<Error> validateOverrides(const PrepareResult&, HashMap<String, ConstantValue>&);
+
+    OverloadedDeclaration* lookupOverload(const String&);
+
+    void addOverride(AST::Variable& variable) { m_overrides.append(&variable); }
 
 private:
+    void initializeOverloads();
+
     String m_source;
     bool m_usesExternalTextures { false };
     bool m_usesPackArray { false };
@@ -337,6 +346,8 @@ private:
     HashSet<uint32_t, DefaultHash<uint32_t>, WTF::UnsignedWithZeroKeyHashTraits<uint32_t>> m_pipelineOverrideIds;
     HashMap<const AST::Expression*, Vector<Function<std::optional<String>(const ConstantValue&)>>> m_overrideValidations;
     Vector<Function<std::optional<Error>()>> m_finalOverrideValidations;
+    HashMap<String, OverloadedDeclaration> m_overloadedOperations;
+    Vector<AST::Variable*> m_overrides;
 };
 
 } // namespace WGSL

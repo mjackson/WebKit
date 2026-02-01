@@ -270,21 +270,73 @@ async function waitForElementById(id) {
 }
 
 // Executes the operation and waits until an accessibility notification of the provided
-// `notificationName` is received. A notification listener is added to the AccessibilityUIElement
-// passed in; before the operation is executed. The `operation` is expected to be a function,
+// `notificationName` is received. A notification listener is added to the passed
+// AccessibilityUIElement if not null, or a global listener is installed, before
+// the operation is executed. The `operation` is expected to be a function,
 // which can optionally be async.
-async function waitForNotification(accessibilityElement, notificationName, operation) {
-    var reached = false;
-    function listener(receivedNotification) {
-        if (receivedNotification == notificationName) {
-            reached = true;
-            accessibilityElement.removeNotificationListener(listener);
-        }
+async function waitForNotification(axElement, notificationName, operation) {
+    var received = false;
+
+    function elementListener(notification) {
+        if (notification != notificationName)
+            return;
+        received = true;
+        axElement.removeNotificationListener(elementListener);
     }
 
-    accessibilityElement.addNotificationListener(listener);
+    function globalListener(element, notification) {
+        if (notification != notificationName)
+            return;
+        received = true;
+        accessibilityController.removeNotificationListener(globalListener);
+    }
+
+    if (axElement)
+        axElement.addNotificationListener(elementListener);
+    else
+        accessibilityController.addNotificationListener(globalListener);
+
     await operation();
-    await waitFor(() => { return reached; });
+    await waitFor(() => { return received; });
+}
+
+// Executes the passed operation function and waits for expectedCount number of
+// notifications of the given name. It takes a notificationHandler function to
+// be executed when the proper notifications are received. Similarly to
+// waitForNotification, the listener can be added to the given AccessibilityUIElement
+// or globally.
+async function waitForNotifications(axElement, notificationName, expectedCount, operation, notificationHandler) {
+    var receivedCount = 0;
+
+    function elementListener(notification) {
+        if (notification != notificationName)
+            return;
+        ++receivedCount;
+
+        notificationHandler(axElement, notification);
+
+        if (receivedCount == expectedCount)
+            axElement.removeNotificationListener(elementListener);
+    }
+
+    function globalListener(element, notification) {
+        if (notification != notificationName)
+            return;
+        ++receivedCount;
+
+        notificationHandler(element, notification);
+
+        if (receivedCount == expectedCount)
+            accessibilityController.removeNotificationListener(globalListener);
+    }
+
+    if (axElement)
+        axElement.addNotificationListener(elementListener);
+    else
+        accessibilityController.addNotificationListener(globalListener);
+
+    await operation();
+    await waitFor(() => { return receivedCount == expectedCount; });
 }
 
 // Expect an expression to equal a value and return the result as a string.

@@ -6406,32 +6406,30 @@ class WebKitStyleTest(CppStyleTestBase):
 
     def test_wtf_xpc_object_ptr(self):
         self.assert_lint(
-            'XPCObjectPtr<xpc_connection_t> connection = adoptXPCObject(xpc_connection_create_from_endpoint(endpoint));',
+            'OSObjectPtr<xpc_connection_t> connection = adoptOSObject(xpc_connection_create_from_endpoint(endpoint));',
             '',
             'foo.cpp')
 
         self.assert_lint(
             'RetainPtr<xpc_connection_t> m_connection;',
-            "Use 'XPCObjectPtr' instead of 'RetainPtr' for XPC objects."
+            "Use 'OSObjectPtr' instead of 'RetainPtr' for XPC objects."
             "  [runtime/wtf_xpc_object_ptr] [4]",
             'foo.mm')
 
         self.assert_lint(
             'OSObjectPtr<xpc_connection_t> m_connection;',
-            "Use 'XPCObjectPtr' instead of 'OSObjectPtr' for XPC objects."
-            "  [runtime/wtf_xpc_object_ptr] [4]",
+            '',
             'foo.mm')
 
         self.assert_lint(
             'auto connection = adoptNS(xpc_connection_create_from_endpoint(endpoint));',
-            "Use 'adoptXPCObject()' instead of 'adoptNS()' for XPC objects."
+            "Use 'adoptOSObject()' instead of 'adoptNS()' for XPC objects."
             "  [runtime/wtf_xpc_object_ptr] [4]",
             'foo.mm')
 
         self.assert_lint(
             'auto connection = adoptOSObject(xpc_connection_create_from_endpoint(endpoint));',
-            "Use 'adoptXPCObject()' instead of 'adoptOSObject()' for XPC objects."
-            "  [runtime/wtf_xpc_object_ptr] [4]",
+            '',
             'foo.mm')
 
     def test_lock_guard(self):

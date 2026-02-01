@@ -46,6 +46,7 @@
 #include "NodeName.h"
 #include "RenderObjectInlines.h"
 #include "RenderTextControlMultiLine.h"
+#include "ScriptDisallowedScope.h"
 #include "ShadowRoot.h"
 #include "Text.h"
 #include "TextControlInnerElements.h"
@@ -93,6 +94,7 @@ Ref<HTMLTextAreaElement> HTMLTextAreaElement::create(Document& document)
 
 void HTMLTextAreaElement::didAddUserAgentShadowRoot(ShadowRoot& root)
 {
+    ScriptDisallowedScope::EventAllowedScope rootScope { root };
     root.appendChild(TextControlInnerTextElement::create(protectedDocument(), isInnerTextElementEditable()));
 }
 

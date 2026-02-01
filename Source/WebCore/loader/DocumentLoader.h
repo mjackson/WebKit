@@ -187,9 +187,14 @@ class DocumentLoader
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(DocumentLoader, DocumentLoader);
     friend class ContentFilter;
 public:
+    static Ref<DocumentLoader> create(ResourceRequest&& request, SubstituteData&& data, ResourceRequest&& originalRequest)
+    {
+        return adoptRef(*new DocumentLoader(WTF::move(request), WTF::move(data), WTF::move(originalRequest)));
+    }
+
     static Ref<DocumentLoader> create(ResourceRequest&& request, SubstituteData&& data)
     {
-        return adoptRef(*new DocumentLoader(WTF::move(request), WTF::move(data)));
+        return adoptRef(*new DocumentLoader(WTF::move(request), WTF::move(data), { }));
     }
 
     USING_CAN_MAKE_WEAKPTR(CachedRawResourceClient);
@@ -548,6 +553,7 @@ public:
     void setCrossSiteRequester(NavigationRequester&& crossSiteRequester) { m_crossSiteRequester = WTF::move(crossSiteRequester); }
 
 protected:
+    WEBCORE_EXPORT DocumentLoader(ResourceRequest&&, SubstituteData&&, ResourceRequest&&);
     WEBCORE_EXPORT DocumentLoader(ResourceRequest&&, SubstituteData&&);
 
     WEBCORE_EXPORT virtual void attachToFrame();

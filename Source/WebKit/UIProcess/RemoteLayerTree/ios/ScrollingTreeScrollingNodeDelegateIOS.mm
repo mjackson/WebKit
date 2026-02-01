@@ -536,7 +536,7 @@ bool ScrollingTreeScrollingNodeDelegateIOS::shouldAllowPanGestureRecognizerToRec
     if (!scrollingCoordinatorProxy)
         return true;
 
-    if (RefPtr pageClient = scrollingCoordinatorProxy->protectedWebPageProxy()->pageClient())
+    if (RefPtr pageClient = protect(scrollingCoordinatorProxy->webPageProxy())->pageClient())
         return !pageClient->isSimulatingCompatibilityPointerTouches();
 
     return true;

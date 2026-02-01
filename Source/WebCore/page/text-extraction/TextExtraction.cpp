@@ -304,9 +304,12 @@ static inline TextAndSelectedRangeMap collectText(Node& node, IncludeTextInAutoF
     return result;
 }
 
-static inline bool canMerge(const Item& destinationItem, const Item& sourceItem)
+static inline bool canMerge(const TraversalContext& context, const Item& destinationItem, const Item& sourceItem)
 {
     if (!destinationItem.children.isEmpty() || !sourceItem.children.isEmpty())
+        return false;
+
+    if (!context.mergeParagraphs && destinationItem.enclosingBlockNumber != sourceItem.enclosingBlockNumber)
         return false;
 
     if (!std::holds_alternative<TextItemData>(destinationItem.data) || !std::holds_alternative<TextItemData>(sourceItem.data))
@@ -320,8 +323,6 @@ static inline bool canMerge(const Item& destinationItem, const Item& sourceItem)
 
 static inline void merge(Item& destinationItem, Item&& sourceItem)
 {
-    ASSERT(canMerge(destinationItem, sourceItem));
-
     auto& destination = std::get<TextItemData>(destinationItem.data);
     auto& source = std::get<TextItemData>(sourceItem.data);
 
@@ -549,11 +550,11 @@ static inline Variant<SkipExtraction, ItemData, URL, Editable> extractItemData(N
                 continue;
 
             if (RefPtr option = dynamicDowncast<HTMLOptionElement>(*item)) {
-                if (!option->selected())
-                    continue;
-
-                if (auto optionValue = option->value(); !optionValue.isEmpty())
-                    selectData.selectedValues.append(WTF::move(optionValue));
+                selectData.options.append({
+                    .value = option->value(),
+                    .label = option->label(),
+                    .isSelected = option->selected(),
+                });
             }
         }
         selectData.isMultiple = select->multiple();
@@ -885,12 +886,12 @@ static inline void extractRecursive(Node& node, Item& parentItem, TraversalConte
         return;
 
     if (context.mergeParagraphs && parentItem.children.isEmpty()) {
-        if (canMerge(parentItem, *item))
+        if (canMerge(context, parentItem, *item))
             return merge(parentItem, WTF::move(*item));
     }
 
     if (!parentItem.children.isEmpty()) {
-        if (auto& lastChild = parentItem.children.last(); canMerge(lastChild, *item))
+        if (auto& lastChild = parentItem.children.last(); canMerge(context, lastChild, *item))
             return merge(lastChild, WTF::move(*item));
     }
 

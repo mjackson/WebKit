@@ -2836,6 +2836,17 @@ sub GenerateDictionaryChecks
     return $result;
 }
 
+sub GetPermissiveEnumDefault
+{
+    my ($typeScope, $member) = @_;
+
+    my $enumClassName = GetEnumerationClassName($member->type, $typeScope);
+    return ($enumClassName, "std::nullopt") unless defined $member->default;
+
+    my $enumValue = GetEnumerationValueName(substr($member->default, 1, -1));
+    return ($enumClassName, "${enumClassName}::${enumValue}");
+}
+
 sub GenerateDictionaryImplementationMemberConversion
 {
     my ($typeScope, $name, $dictionary, $className, $member, $initializationIndent) = @_;
@@ -2904,7 +2915,21 @@ sub GenerateDictionaryImplementationMemberConversion
     my $defaultValueFunctor = GetDictionaryMemberDefaultValueFunctor($typeScope, $member);
     my $optional = !$member->isRequired && ((defined($member->default) && !WillConvertUndefinedToDefaultParameterValue($member->type, $member->default)) || !defined($member->default));
 
-    my $conversion = JSValueToNative($typeScope, $member, "${key}Value", $conditional, "&lexicalGlobalObject", "lexicalGlobalObject", "", "*jsCast<JSDOMGlobalObject*>(&lexicalGlobalObject)", undef, undef, $optional, $defaultValueFunctor);
+    my $conversion;
+    if ($member->extendedAttributes->{PermissiveInvalidValue} && $codeGenerator->IsEnumType($type)) {
+        my ($enumClassName, $defaultValue) = GetPermissiveEnumDefault($typeScope, $member);
+        my $returnExpr = $defaultValue eq "std::nullopt" ? "parseResult" : "parseResult.value_or(${defaultValue})";
+
+        $conversion = "[&]() -> ConversionResult<${adjustedIDLType}> {\n";
+        $conversion .= "        if (${key}Value.isUndefined())\n";
+        $conversion .= "            return ${defaultValue};\n";
+        $conversion .= "        auto parseResult = parseEnumeration<${enumClassName}>(lexicalGlobalObject, ${key}Value);\n";
+        $conversion .= "        RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });\n";
+        $conversion .= "        return ${returnExpr};\n";
+        $conversion .= "    }()";
+    } else {
+        $conversion = JSValueToNative($typeScope, $member, "${key}Value", $conditional, "&lexicalGlobalObject", "lexicalGlobalObject", "", "*jsCast<JSDOMGlobalObject*>(&lexicalGlobalObject)", undef, undef, $optional, $defaultValueFunctor);
+    }
 
     if ($needsRuntimeCheck) {
         $memberConversion .= "            return $conversion;\n";
@@ -3086,21 +3111,30 @@ sub GenerateConvertDictionaryForLegacyNativeDictionaryRequiredInterfaceNullabili
                 $result .= "${indent}        return ConversionResultException { };\n";
                 $result .= "${indent}    result.$implementedAsKey = ${implementedAsKey}ConversionResult.releaseReturnValue();\n";
             } elsif (defined $member->default) {
-                my $defaultValueFunctor = GetDictionaryMemberDefaultValueFunctor($typeScope, $member);
-                my $optional = !WillConvertUndefinedToDefaultParameterValue($member->type, $member->default);
-                my $conversion = JSValueToNative($typeScope, $member, "${key}Value", $conditional, "&lexicalGlobalObject", "lexicalGlobalObject", "", "*jsCast<JSDOMGlobalObject*>(&lexicalGlobalObject)", undef, undef, $optional, $defaultValueFunctor);
+                if ($member->extendedAttributes->{PermissiveInvalidValue} && $codeGenerator->IsEnumType($type)) {
+                    my ($enumClassName, $defaultValue) = GetPermissiveEnumDefault($typeScope, $member);
+                    $result .= "${indent}    if (${key}Value.isUndefined())\n";
+                    $result .= "${indent}        result.$implementedAsKey = ${defaultValue};\n";
+                    $result .= "${indent}    else {\n";
+                    $result .= "${indent}        auto ${implementedAsKey}ParseResult = parseEnumeration<${enumClassName}>(lexicalGlobalObject, ${key}Value);\n";
+                    $result .= "${indent}        RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });\n";
+                    $result .= "${indent}        result.$implementedAsKey = ${implementedAsKey}ParseResult.value_or(${defaultValue});\n";
+                    $result .= "${indent}    }\n";
+                } else {
+                    my $defaultValueFunctor = GetDictionaryMemberDefaultValueFunctor($typeScope, $member);
+                    my $optional = !WillConvertUndefinedToDefaultParameterValue($member->type, $member->default);
+                    my $conversion = JSValueToNative($typeScope, $member, "${key}Value", $conditional, "&lexicalGlobalObject", "lexicalGlobalObject", "", "*jsCast<JSDOMGlobalObject*>(&lexicalGlobalObject)", undef, undef, $optional, $defaultValueFunctor);
 
-                $result .= "${indent}    auto ${implementedAsKey}ConversionResult = ${conversion};\n";
-                $result .= "${indent}    if (${implementedAsKey}ConversionResult.hasException(throwScope)) [[unlikely]]\n";
-                $result .= "${indent}        return ConversionResultException { };\n";
-                $result .= "${indent}    result.$implementedAsKey = ${implementedAsKey}ConversionResult.releaseReturnValue();\n";
+                    $result .= "${indent}    auto ${implementedAsKey}ConversionResult = ${conversion};\n";
+                    $result .= "${indent}    if (${implementedAsKey}ConversionResult.hasException(throwScope)) [[unlikely]]\n";
+                    $result .= "${indent}        return ConversionResultException { };\n";
+                    $result .= "${indent}    result.$implementedAsKey = ${implementedAsKey}ConversionResult.releaseReturnValue();\n";
+                }
             } else {
                 if ($member->extendedAttributes->{PermissiveInvalidValue} && $codeGenerator->IsEnumType($type)) {
-                    # For enum members with PermissiveInvalidValue, use parseEnumeration directly
-                    # which returns std::optional and doesn't throw on invalid values.
-                    my $className = GetEnumerationClassName($type, $typeScope);
+                    my ($enumClassName, $defaultValue) = GetPermissiveEnumDefault($typeScope, $member);
                     $result .= "${indent}    if (!${key}Value.isUndefined()) {\n";
-                    $result .= "${indent}        auto ${implementedAsKey}ParseResult = parseEnumeration<${className}>(lexicalGlobalObject, ${key}Value);\n";
+                    $result .= "${indent}        auto ${implementedAsKey}ParseResult = parseEnumeration<${enumClassName}>(lexicalGlobalObject, ${key}Value);\n";
                     $result .= "${indent}        RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });\n";
                     $result .= "${indent}        if (${implementedAsKey}ParseResult)\n";
                     $result .= "${indent}            result.$implementedAsKey = *${implementedAsKey}ParseResult;\n";
@@ -7024,6 +7058,11 @@ sub IsDictionaryLiteralDefaultValueValid
         return $hasDictionaryMember;
     }
 
+    # FIXME: The WebIDL spec does not actually allow `{}` to be used for records, but WebGPU currently depends on it.
+    if ($codeGenerator->IsRecordType($type)) {
+        return 1;
+    }
+
     return 0;
 }
 
@@ -7033,7 +7072,6 @@ sub IsArrayLiteralDefaultValueValid
 
     return $codeGenerator->IsSequenceOrFrozenArrayType($type);
 }
-
 
 sub GenerateArgumentConversions
 {
@@ -7057,10 +7095,10 @@ sub GenerateArgumentConversions
                 $argument->default("null") if $type->isNullable;
             } else {
                 if ($argument->default eq "{}" and !IsDictionaryLiteralDefaultValueValid($type)) {
-                    assert("Default value '{}' is only supported by dictionary and union types containing a dictionary");
+                    assert("Default value '{}' is only supported by dictionary types, union types containing a dictionary (and record types as a non-standard extension)");
                 }
                 if ($argument->default eq "[]" and !IsArrayLiteralDefaultValueValid($type)) {
-                    assert("Default value '[]' is only supported by sequence and frozen array types");
+                    assert("Default value '[]' is only supported by sequence types and frozen array types");
                 }
             }
         }

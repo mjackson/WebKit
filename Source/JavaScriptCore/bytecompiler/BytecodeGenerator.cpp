@@ -3988,12 +3988,6 @@ RegisterID* BytecodeGenerator::emitReturn(RegisterID* src)
     return src;
 }
 
-RegisterID* BytecodeGenerator::emitEnd(RegisterID* src)
-{
-    OpEnd::emit(this, src);
-    return src;
-}
-
 template<typename ConstructOp>
 RegisterID* BytecodeGenerator::emitConstructImpl(RegisterID* dst, RegisterID* func, RegisterID* lazyThis, ExpectedFunction expectedFunction, CallArguments& callArguments, const JSTextPosition& divot, const JSTextPosition& divotStart, const JSTextPosition& divotEnd)
 {

@@ -75,7 +75,7 @@ ALWAYS_INLINE JSString* stringSlice(JSGlobalObject* globalObject, VM& vm, JSStri
 {
     if constexpr (std::is_same_v<NumberType, int32_t>) {
         auto [from, to] = extractSliceOffsets(length, start, endValue);
-        return jsSubstring(vm, globalObject, string, from, to - from);
+        return jsSubstring(globalObject, vm, string, from, to - from);
     } else {
         NumberType from = start < 0 ? length + start : start;
         NumberType end = endValue.value_or(length);
@@ -85,7 +85,7 @@ ALWAYS_INLINE JSString* stringSlice(JSGlobalObject* globalObject, VM& vm, JSStri
                 from = 0;
             if (to > length)
                 to = length;
-            return jsSubstring(vm, globalObject, string, static_cast<unsigned>(from), static_cast<unsigned>(to) - static_cast<unsigned>(from));
+            return jsSubstring(globalObject, vm, string, static_cast<unsigned>(from), static_cast<unsigned>(to) - static_cast<unsigned>(from));
         }
         return jsEmptyString(vm);
     }
@@ -306,7 +306,7 @@ ALWAYS_INLINE String tryMakeReplacedString(const String& string, const String& r
 
 enum class StringReplaceUseTable : bool { No, Yes };
 template<StringReplaceSubstitutions substitutions, StringReplaceUseTable useTable, typename TableType>
-ALWAYS_INLINE JSString* stringReplaceStringString(JSGlobalObject* globalObject, JSString* stringCell, const String& string, const String& search, const String& replacement, const TableType* table)
+ALWAYS_INLINE JSString* stringReplaceStringString(JSGlobalObject* globalObject, JSString* stringCell, const String& string, const String& search, JSString* replacementCell, const String& replacement, const TableType* table)
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -323,7 +323,44 @@ ALWAYS_INLINE JSString* stringReplaceStringString(JSGlobalObject* globalObject, 
 
     size_t searchLength = search.length();
     size_t matchEnd = matchStart + searchLength;
-    auto result = tryMakeReplacedString<substitutions>(string, replacement, matchStart, matchEnd);
+
+    bool noSubstitutions = substitutions == StringReplaceSubstitutions::No;
+    if constexpr (substitutions == StringReplaceSubstitutions::Yes)
+        noSubstitutions = replacement.find('$') == WTF::notFound;
+
+    if (noSubstitutions) {
+        std::array<JSString*, 3> strings { };
+        size_t count = 0;
+        if (matchStart) {
+            strings[count++] = jsSubstring(globalObject, vm, stringCell, 0, matchStart);
+            RETURN_IF_EXCEPTION(scope, nullptr);
+        }
+
+        if (!replacement.isEmpty())
+            strings[count++] = replacementCell;
+
+        unsigned suffixLength = string.length() - matchEnd;
+        if (suffixLength) {
+            strings[count++] = jsSubstring(globalObject, vm, stringCell, matchEnd, suffixLength);
+            RETURN_IF_EXCEPTION(scope, nullptr);
+        }
+
+        switch (count) {
+        case 0:
+            return jsEmptyString(vm);
+        case 1:
+            return strings[0];
+        case 2:
+            RELEASE_AND_RETURN(scope, jsString(globalObject, strings[0], strings[1]));
+        case 3:
+            RELEASE_AND_RETURN(scope, jsString(globalObject, strings[0], strings[1], strings[2]));
+        default:
+            RELEASE_ASSERT_NOT_REACHED();
+            return nullptr;
+        }
+    }
+
+    auto result = tryMakeReplacedString<StringReplaceSubstitutions::Yes>(string, replacement, matchStart, matchEnd);
     if (!result) [[unlikely]] {
         throwOutOfMemoryError(globalObject, scope);
         return nullptr;
@@ -392,21 +429,25 @@ inline JSString* replaceUsingStringSearch(VM& vm, JSGlobalObject* globalObject, 
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     CallData callData;
+    JSString* replacementCell = nullptr;
     String replaceString;
     if (replaceValue.isString()) {
-        replaceString = asString(replaceValue)->value(globalObject);
+        replacementCell = asString(replaceValue);
+        replaceString = replacementCell->value(globalObject);
         RETURN_IF_EXCEPTION(scope, nullptr);
     } else {
         callData = JSC::getCallDataInline(replaceValue);
         if (callData.type == CallData::Type::None) {
-            replaceString = replaceValue.toWTFString(globalObject);
+            replacementCell = replaceValue.toString(globalObject);
+            RETURN_IF_EXCEPTION(scope, nullptr);
+            replaceString = replacementCell->value(globalObject);
             RETURN_IF_EXCEPTION(scope, nullptr);
         }
     }
 
     if (!replaceString.isNull()) {
         if constexpr (mode == StringReplaceMode::Single)
-            RELEASE_AND_RETURN(scope, (stringReplaceStringString<StringReplaceSubstitutions::Yes, StringReplaceUseTable::No, BoyerMooreHorspoolTable<uint8_t>>(globalObject, jsString, string, searchString, replaceString, nullptr)));
+            RELEASE_AND_RETURN(scope, (stringReplaceStringString<StringReplaceSubstitutions::Yes, StringReplaceUseTable::No, BoyerMooreHorspoolTable<uint8_t>>(globalObject, jsString, string, searchString, replacementCell, replaceString, nullptr)));
         else {
             ASSERT(mode == StringReplaceMode::Global);
             RELEASE_AND_RETURN(scope, (stringReplaceAllStringString<StringReplaceSubstitutions::Yes, StringReplaceUseTable::No, BoyerMooreHorspoolTable<uint8_t>>(globalObject, jsString, string, searchString, replaceString, nullptr)));
@@ -431,13 +472,13 @@ inline JSString* replaceUsingStringSearch(VM& vm, JSGlobalObject* globalObject, 
     do {
         JSValue replacement;
         if (cachedCall) {
-            auto* substring = jsSubstring(vm, globalObject, jsString, matchStart, searchStringLength);
+            auto* substring = jsSubstring(globalObject, vm, jsString, matchStart, searchStringLength);
             RETURN_IF_EXCEPTION(scope, nullptr);
             replacement = cachedCall->callWithArguments(globalObject, jsUndefined(), substring, jsNumber(matchStart), jsString);
             RETURN_IF_EXCEPTION(scope, nullptr);
         } else {
             MarkedArgumentBuffer args;
-            auto* substring = jsSubstring(vm, globalObject, jsString, matchStart, searchString.impl()->length());
+            auto* substring = jsSubstring(globalObject, vm, jsString, matchStart, searchString.impl()->length());
             RETURN_IF_EXCEPTION(scope, nullptr);
             args.append(substring);
             args.append(jsNumber(matchStart));
@@ -1343,7 +1384,7 @@ ALWAYS_INLINE JSString* replaceUsingRegExpSearch(VM& vm, JSGlobalObject* globalO
                 if (matchStart < 0)
                     patternValue = jsUndefined();
                 else {
-                    patternValue = jsSubstring(vm, globalObject, string, matchStart, matchLen);
+                    patternValue = jsSubstring(globalObject, vm, string, matchStart, matchLen);
                     RETURN_IF_EXCEPTION(scope, nullptr);
                 }
 
@@ -1363,7 +1404,7 @@ ALWAYS_INLINE JSString* replaceUsingRegExpSearch(VM& vm, JSGlobalObject* globalO
                             if (captureStart < 0)
                                 captureValue = jsUndefined();
                             else {
-                                captureValue = jsSubstring(vm, globalObject, string, captureStart, captureLen);
+                                captureValue = jsSubstring(globalObject, vm, string, captureStart, captureLen);
                                 RETURN_IF_EXCEPTION(scope, nullptr);
                             }
                             groups->putDirect(vm, Identifier::fromString(vm, groupName), captureValue);
@@ -1428,7 +1469,7 @@ ALWAYS_INLINE JSString* replaceUsingRegExpSearch(VM& vm, JSGlobalObject* globalO
                 if (matchStart < 0)
                     patternValue = jsUndefined();
                 else {
-                    patternValue = jsSubstring(vm, globalObject, string, matchStart, matchLen);
+                    patternValue = jsSubstring(globalObject, vm, string, matchStart, matchLen);
                     RETURN_IF_EXCEPTION(scope, nullptr);
                 }
 
@@ -1448,7 +1489,7 @@ ALWAYS_INLINE JSString* replaceUsingRegExpSearch(VM& vm, JSGlobalObject* globalO
                             if (captureStart < 0)
                                 captureValue = jsUndefined();
                             else {
-                                captureValue = jsSubstring(vm, globalObject, string, captureStart, captureLen);
+                                captureValue = jsSubstring(globalObject, vm, string, captureStart, captureLen);
                                 RETURN_IF_EXCEPTION(scope, nullptr);
                             }
                             groups->putDirect(vm, Identifier::fromString(vm, groupName), captureValue);

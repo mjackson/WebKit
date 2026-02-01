@@ -167,8 +167,14 @@ struct TextFormControlData {
     bool isChecked { false };
 };
 
+struct SelectOptionData {
+    String value;
+    String label;
+    bool isSelected { false };
+};
+
 struct SelectData {
-    Vector<String> selectedValues;
+    Vector<SelectOptionData> options;
     bool isMultiple { false };
 };
 

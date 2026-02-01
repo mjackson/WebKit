@@ -110,7 +110,7 @@ static WKSyntheticClickType toWKSyntheticClickType(WebKit::WebMouseEventSyntheti
 
 - (WKFrameInfo *)targetFrame
 {
-    return wrapper(_navigationAction->protectedTargetFrame().get());
+    return wrapper(protect(_navigationAction->targetFrame()).get());
 }
 
 - (WKNavigationType)navigationType
@@ -216,7 +216,7 @@ static WKSyntheticClickType toWKSyntheticClickType(WebKit::WebMouseEventSyntheti
 
 - (_WKUserInitiatedAction *)_userInitiatedAction
 {
-    return wrapper(_navigationAction->protectedUserInitiatedAction().get());
+    return wrapper(protect(_navigationAction->userInitiatedAction()).get());
 }
 
 - (BOOL)isContentRuleListRedirect
@@ -236,7 +236,7 @@ static WKSyntheticClickType toWKSyntheticClickType(WebKit::WebMouseEventSyntheti
 
 - (WKNavigation *)_mainFrameNavigation
 {
-    return wrapper(_navigationAction->protectedMainFrameNavigation().get());
+    return wrapper(protect(_navigationAction->mainFrameNavigation()).get());
 }
 
 

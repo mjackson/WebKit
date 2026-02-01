@@ -68,9 +68,12 @@ static ExceptionOr<FileSystemWritableFileStream::WriteParams> writeParamsFromChu
     });
 }
 
-static void fetchDataBytesForWrite(const FileSystemWritableFileStream::DataVariant& data, CompletionHandler<void(ExceptionOr<std::span<const uint8_t>>&&)>&& completionHandler)
+static void fetchDataBytesForWrite(const std::optional<FileSystemWritableFileStream::DataVariant>& data, CompletionHandler<void(ExceptionOr<std::span<const uint8_t>>&&)>&& completionHandler)
 {
-    WTF::switchOn(data, [&](const RefPtr<JSC::ArrayBufferView>& bufferView) {
+    if (!data)
+        return completionHandler(Exception { ExceptionCode::TypeError });
+
+    WTF::switchOn(*data, [&](const RefPtr<JSC::ArrayBufferView>& bufferView) {
         if (!bufferView || bufferView->isDetached())
             return completionHandler(Exception { ExceptionCode::TypeError });
 

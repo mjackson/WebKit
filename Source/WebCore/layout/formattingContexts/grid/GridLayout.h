@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <WebCore/FreeSpaceScenario.h>
 #include <WebCore/GridFormattingContext.h>
 #include <WebCore/GridTypeAliases.h>
 #include <WebCore/StyleGridTrackBreadth.h>
@@ -66,7 +67,7 @@ private:
 
     static TrackSizingFunctionsList trackSizingFunctions(size_t implicitGridTracksCount, const Vector<Style::GridTrackSize> gridTemplateTrackSizes);
 
-    UsedTrackSizes performGridSizingAlgorithm(const PlacedGridItems&, const TrackSizingFunctionsList& columnTrackSizingFunctionsList, const TrackSizingFunctionsList& rowTrackSizingFunctionsList, const GridFormattingContext::GridLayoutConstraints&) const;
+    UsedTrackSizes performGridSizingAlgorithm(const PlacedGridItems&, const TrackSizingFunctionsList&, const TrackSizingFunctionsList&, const GridFormattingContext::GridLayoutConstraints&, FreeSpaceScenario columnFreeSpaceScenario, FreeSpaceScenario rowFreeSpaceScenario) const;
 
     std::pair<UsedInlineSizes, UsedBlockSizes> layoutGridItems(const PlacedGridItems&, const UsedTrackSizes&) const;
 

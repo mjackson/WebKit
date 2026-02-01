@@ -1314,7 +1314,7 @@ void InspectorDOMAgent::focusNode()
         return;
 
     auto& globalObject = mainWorldGlobalObject(*frame);
-    auto injectedScript = m_injectedScriptManager.injectedScriptFor(&globalObject);
+    auto injectedScript = m_injectedScriptManager->injectedScriptFor(&globalObject);
     if (injectedScript.hasNoValue())
         return;
 
@@ -3128,7 +3128,7 @@ RefPtr<Node> InspectorDOMAgent::nodeForPath(const String& path)
 
 Node* InspectorDOMAgent::nodeForObjectId(const Inspector::Protocol::Runtime::RemoteObjectId& objectId)
 {
-    InjectedScript injectedScript = m_injectedScriptManager.injectedScriptForObjectId(objectId);
+    auto injectedScript = m_injectedScriptManager->injectedScriptForObjectId(objectId);
     if (injectedScript.hasNoValue())
         return nullptr;
 
@@ -3158,7 +3158,7 @@ RefPtr<Inspector::Protocol::Runtime::RemoteObject> InspectorDOMAgent::resolveNod
         return nullptr;
 
     auto& globalObject = mainWorldGlobalObject(*frame);
-    auto injectedScript = m_injectedScriptManager.injectedScriptFor(&globalObject);
+    auto injectedScript = m_injectedScriptManager->injectedScriptFor(&globalObject);
     if (injectedScript.hasNoValue())
         return nullptr;
 

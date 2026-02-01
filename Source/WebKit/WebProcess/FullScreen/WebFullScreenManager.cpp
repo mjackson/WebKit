@@ -151,7 +151,7 @@ void WebFullScreenManager::videoControlsManagerDidChange()
         return;
     }
 
-    RefPtr currentPlaybackControlsElement = dynamicDowncast<WebCore::HTMLVideoElement>(m_page->protectedPlaybackSessionManager()->currentPlaybackControlsElement());
+    RefPtr currentPlaybackControlsElement = dynamicDowncast<WebCore::HTMLVideoElement>(protect(m_page->playbackSessionManager())->currentPlaybackControlsElement());
     if (!currentPlaybackControlsElement) {
         setPIPStandbyElement(nullptr);
         return;
@@ -184,7 +184,7 @@ void WebFullScreenManager::setPIPStandbyElement(WebCore::HTMLVideoElement* pipSt
 
 bool WebFullScreenManager::supportsFullScreenForElement(const WebCore::Element& element, bool withKeyboard)
 {
-    if (!m_page->protectedCorePage()->isDocumentFullscreenEnabled())
+    if (!protect(m_page->corePage())->isDocumentFullscreenEnabled())
         return false;
 
     if (m_inWindowFullScreenMode && &element != m_element)
@@ -296,7 +296,7 @@ void WebFullScreenManager::enterFullScreenForElement(Element& element, HTMLMedia
         return;
     }
 
-    if (RefPtr currentPlaybackControlsElement = m_page->protectedPlaybackSessionManager()->currentPlaybackControlsElement())
+    if (RefPtr currentPlaybackControlsElement = protect(m_page->playbackSessionManager())->currentPlaybackControlsElement())
         currentPlaybackControlsElement->prepareForVideoFullscreenStandby();
 #endif
 
@@ -449,7 +449,7 @@ void WebFullScreenManager::didEnterFullScreen(CompletionHandler<bool(bool)>&& co
     }
 
 #if PLATFORM(IOS_FAMILY) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
-    RefPtr currentPlaybackControlsElement = m_page->protectedPlaybackSessionManager()->currentPlaybackControlsElement();
+    RefPtr currentPlaybackControlsElement = protect(m_page->playbackSessionManager())->currentPlaybackControlsElement();
     setPIPStandbyElement(dynamicDowncast<WebCore::HTMLVideoElement>(currentPlaybackControlsElement.get()));
 #endif
 
@@ -579,7 +579,7 @@ void WebFullScreenManager::didExitFullScreen(CompletionHandler<void()>&& complet
 
     clearElement();
 
-    if (RefPtr localMainFrame = m_page->protectedCorePage()->localMainFrame()) {
+    if (RefPtr localMainFrame = protect(m_page->corePage())->localMainFrame()) {
         // Make sure overflow: hidden is unapplied from the root element before restoring.
         RefPtr view = localMainFrame->view();
         view->forceLayout();
@@ -646,12 +646,12 @@ void WebFullScreenManager::close()
 
 void WebFullScreenManager::setFullscreenInsets(const WebCore::FloatBoxExtent& insets)
 {
-    m_page->protectedCorePage()->setFullscreenInsets(insets);
+    protect(m_page->corePage())->setFullscreenInsets(insets);
 }
 
 void WebFullScreenManager::setFullscreenAutoHideDuration(Seconds duration)
 {
-    m_page->protectedCorePage()->setFullscreenAutoHideDuration(duration);
+    protect(m_page->corePage())->setFullscreenAutoHideDuration(duration);
 }
 
 void WebFullScreenManager::handleEvent(WebCore::ScriptExecutionContext& context, WebCore::Event& event)

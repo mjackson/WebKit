@@ -154,6 +154,9 @@ http/tests/media/modern-media-controls/overflow-support [ Pass ]
 # media/modern-media-controls/overflow-support [ Pass ]
 # media/modern-media-controls/tracks-support [ Pass ]
 
+# Uses caLayerTreeAsText
+compositing/background-color/background-color-clamping.html [ Pass ]
+
 media/media-webm-av1.html [ Skip ]
 
 media/media-source/media-managedmse-airplay.html [ Pass ]
@@ -3784,10 +3787,16 @@ webkit.org/b/240918 [ Debug ] fast/loader/user-style-sheet-resource-load-callbac
 
 webkit.org/b/241253 fast/text/bulgarian-system-language-shaping.html [ Pass ]
 
-# These tests have different results on iOS
-imported/w3c/web-platform-tests/css/css-scroll-anchoring/device-pixel-adjustment.html
-imported/w3c/web-platform-tests/css/css-scroll-anchoring/history-restore-anchors.html
-imported/w3c/web-platform-tests/css/css-scroll-anchoring/infinite-scroll-event.tentative.html
+# These tests have different results or fail on iOS
+webkit.org/b/306639 imported/w3c/web-platform-tests/css/css-scroll-anchoring/adjustments-in-scroll-event-handler.tentative.html
+webkit.org/b/306639 imported/w3c/web-platform-tests/css/css-scroll-anchoring/after-scrollable-range-shrinkage-002.html
+webkit.org/b/306639 imported/w3c/web-platform-tests/css/css-scroll-anchoring/after-scrollable-range-shrinkage-003.html
+webkit.org/b/306639 imported/w3c/web-platform-tests/css/css-scroll-anchoring/contenteditable-insert-line-at-top.tentative.html
+webkit.org/b/306639 imported/w3c/web-platform-tests/css/css-scroll-anchoring/device-pixel-adjustment.html
+webkit.org/b/306639 imported/w3c/web-platform-tests/css/css-scroll-anchoring/history-restore-anchors.html
+webkit.org/b/306639 imported/w3c/web-platform-tests/css/css-scroll-anchoring/infinite-scroll-event.tentative.html
+webkit.org/b/306639 imported/w3c/web-platform-tests/css/css-scroll-anchoring/zero-scroll-offset-001.html
+webkit.org/b/306639 imported/w3c/web-platform-tests/css/css-scroll-anchoring/zero-scroll-offset-002.html
 
 webkit.org/b/258184 [ Debug ] media/track/track-webvtt-no-snap-to-lines-overlap.html [ Pass Crash ]
 
@@ -5832,8 +5841,6 @@ webkit.org/b/171638 [ Release ] http/tests/xmlhttprequest/methods.html [ Pass Ti
 webkit.org/b/232017 [ Debug ] http/tests/xmlhttprequest/xhr-and-parse-large-document.html [ Slow ]
 webkit.org/b/232017 [ Debug ] http/tests/xmlhttprequest/xhr-large-document.html [ Slow ]
 
-webkit.org/b/171830 [ Debug ] http/tests/websocket/tests/hybi/workers/close.html [ Pass Failure ]
-
 webkit.org/b/230522 http/tests/websocket/tests/hybi/alert-in-event-handler.html [ Pass Crash ]
 
 webkit.org/b/169637 imported/w3c/web-platform-tests/xhr/timeout-multiple-fetches.html [ Pass Failure ]
@@ -5932,8 +5939,6 @@ webkit.org/b/203637 fast/css-custom-paint/simple-hidpi.html [ Pass ImageOnlyFail
 webkit.org/b/206630 [ Debug ] fast/forms/validationMessage.html [ Pass Timeout ]
 
 webkit.org/b/206687 imported/w3c/web-platform-tests/beacon/idlharness.any.html [ Pass Timeout ]
-
-webkit.org/b/207156 [ Release ] http/tests/websocket/tests/hybi/workers/close.html [ Pass Failure ]
 
 webkit.org/b/207386 imported/w3c/web-platform-tests/css/css-transitions/properties-value-002.html [ Pass Failure ]
 
@@ -8177,7 +8182,6 @@ webkit.org/b/296566 [ Release ] imported/w3c/web-platform-tests/screen-orientati
 
 # webkit.org/b/295803 2x http/tests/webcodecs/ (layout-tests) tests flakey text failures
 [ Release ] http/tests/webcodecs/video-encoder-callbacks-do-not-leak.html [ Pass Failure ]
-[ Release ] http/tests/webcodecs/video-decoder-callbacks-do-not-leak.html [ Pass Failure ]
 
 webkit.org/b/296637 [ Release ] http/tests/dom/noopener-window-not-targetable.html [ Pass Failure ]
 
@@ -8454,3 +8458,10 @@ webkit.org/b/305605 media/volume-sleep-disable.html [ Failure ]
 
 imported/w3c/web-platform-tests/uievents/mouse/layer-coords-transform.html [ Skip ]
 imported/w3c/web-platform-tests/uievents/mouse/mouse_boundary_events_on_image_map.html [ Skip ]
+
+webkit.org/b/306360 http/tests/download/sandboxed-iframe-download-not-allowed.html [ Pass Failure ]
+
+webkit.org/b/306570 http/tests/webcodecs/video-decoder-callbacks-do-not-leak.html [ Pass Failure ]
+
+webkit.org/b/306678 [ Release ] compositing/rtl/rtl-scrolling-with-transformed-descendants.html [ Pass Failure ]
+

@@ -2847,10 +2847,11 @@ bool RenderThemeCocoa::paintMenuListButtonDecorationsForVectorBasedControls(cons
     if (auto fixedPaddingEnd = style->paddingEnd().tryFixed())
         glyphPaddingEnd = fixedPaddingEnd->resolveZoom(usedZoom);
 
-    // Add RenderMenuList inner start padding for symmetry.
-    if (CheckedPtr menulist = dynamicDowncast<RenderMenuList>(box); menulist && menulist->innerRenderer()) {
-        if (auto innerPaddingStart = menulist->innerRenderer()->style().paddingStart().tryFixed())
-            glyphPaddingEnd += innerPaddingStart->resolveZoom(usedZoom);
+    // Add popup internal start padding for symmetry.
+    if (is<RenderMenuList>(box)) {
+        auto internalPadding = popupInternalPaddingBox(style.get());
+        if (auto paddingStart = internalPadding.start(style->writingMode()).tryFixed())
+            glyphPaddingEnd += paddingStart->resolveZoom(usedZoom);
     }
 
     if (!style->writingMode().isInlineFlipped())

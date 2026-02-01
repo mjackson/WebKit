@@ -753,7 +753,7 @@ static RetainPtr<NSMenuItem> createMenuActionItem(const WebContextMenuItemData& 
     [menuItem setIdentifier:menuItemIdentifier(item.action()).get()];
 
     if (item.userData())
-        [menuItem setRepresentedObject:adoptNS([[WKUserDataWrapper alloc] initWithUserData:item.protectedUserData().get()]).get()];
+        [menuItem setRepresentedObject:adoptNS([[WKUserDataWrapper alloc] initWithUserData:protect(item.userData()).get()]).get()];
 
     return menuItem;
 }
@@ -1030,7 +1030,7 @@ void WebContextMenuProxyMac::useContextMenuItems(Vector<Ref<WebContextMenuItem>>
             webExtensionController->addItemsToContextMenu(page, m_context, menu);
 #endif
 
-        page->contextMenuClient().menuFromProposedMenu(page, menu, m_context, m_userData.protectedObject().get(), WTF::move(menuFromProposedMenu));
+        page->contextMenuClient().menuFromProposedMenu(page, menu, m_context, protect(m_userData.object()).get(), WTF::move(menuFromProposedMenu));
     });
 }
 

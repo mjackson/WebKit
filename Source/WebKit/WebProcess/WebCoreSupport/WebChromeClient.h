@@ -99,10 +99,7 @@ private:
 
     void reportProcessCPUTime(Seconds, WebCore::ActivityStateForCPUSampling) final;
 
-    bool toolbarsVisible() const final;
-    bool statusbarVisible() const final;
-    bool scrollbarsVisible() const final;
-    bool menubarVisible() const final;
+    bool isPopup() const final;
     
     void setResizable(bool) final;
     
@@ -584,6 +581,8 @@ private:
 #if ENABLE(VIDEO)
     void showCaptionDisplaySettings(WebCore::HTMLMediaElement&, const WebCore::ResolvedCaptionDisplaySettingsOptions&, CompletionHandler<void(WebCore::ExceptionOr<void>)>&&) final;
 #endif
+
+    void updateRemoteIntersectionObserversInOtherWebProcesses() final;
 
     mutable bool m_cachedMainFrameHasHorizontalScrollbar { false };
     mutable bool m_cachedMainFrameHasVerticalScrollbar { false };

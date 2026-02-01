@@ -52,7 +52,7 @@ class WeakPtrImplWithEventTargetData;
 enum class LoadedFromOpaqueSource : bool;
 
 class MediaResourceLoader final
-    : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<MediaResourceLoader>
+    : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<MediaResourceLoader, WTF::DestructionThread::Main>
     , public PlatformMediaResourceLoader
     , public ContextDestructionObserver {
     WTF_MAKE_TZONE_ALLOCATED_EXPORT(MediaResourceLoader, WEBCORE_EXPORT);

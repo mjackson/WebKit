@@ -363,7 +363,7 @@ void SOAuthorizationSession::complete(NSHTTPURLResponse *httpResponse, NSData *d
         AUTHORIZATIONSESSION_RELEASE_LOG("complete: Setting %zu cookies with total header size ~%zu bytes in data store %p", cookies.size(), totalHeaderSize, protect(page->websiteDataStore()).ptr());
     }
 
-    protect(page->websiteDataStore())->protectedCookieStore()->setCookies(WTF::move(cookies), [weakThis = ThreadSafeWeakPtr { *this }, response = WTF::move(response), data = adoptNS([[NSData alloc] initWithData:data])] () mutable {
+    protect(protect(page->websiteDataStore())->cookieStore())->setCookies(WTF::move(cookies), [weakThis = ThreadSafeWeakPtr { *this }, response = WTF::move(response), data = adoptNS([[NSData alloc] initWithData:data])] () mutable {
         auto protectedThis = weakThis.get();
         if (!protectedThis)
             return;

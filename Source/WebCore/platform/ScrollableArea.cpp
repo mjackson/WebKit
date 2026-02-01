@@ -259,7 +259,7 @@ void ScrollableArea::scrollPositionChanged(const ScrollPosition& position)
 
     if (scrollPosition() != oldPosition) {
         scrollbarsController().notifyContentAreaScrolled(scrollPosition() - oldPosition);
-        invalidateScrollAnchoringElement();
+
         updateScrollAnchoringElement();
         updateAnchorPositionedAfterScroll();
     }
@@ -279,6 +279,24 @@ bool ScrollableArea::handleWheelEventForScrolling(const PlatformWheelEvent& whee
 void ScrollableArea::stopKeyboardScrollAnimation()
 {
     scrollAnimator().stopKeyboardScrollAnimation();
+}
+
+void ScrollableArea::updateScrollAnchoringElement(ComputeNewScrollAnchor computeNewScrollAnchor)
+{
+    CheckedPtr controller = scrollAnchoringController();
+    if (!controller)
+        return;
+
+    if (computeNewScrollAnchor == ComputeNewScrollAnchor::Yes)
+        controller->invalidateAnchorElement();
+
+    controller->updateAnchorElement();
+}
+
+void ScrollableArea::adjustScrollAnchoringPosition()
+{
+    if (CheckedPtr controller = scrollAnchoringController())
+        controller->adjustScrollPositionForAnchoring();
 }
 
 #if ENABLE(TOUCH_EVENTS)

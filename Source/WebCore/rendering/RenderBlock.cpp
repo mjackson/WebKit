@@ -1442,6 +1442,9 @@ GapRects RenderBlock::selectionGapRectsForRepaint(const RenderLayerModelObject* 
     FloatPoint containerPoint = localToContainerPoint(FloatPoint(), repaintContainer, UseTransforms);
     LayoutPoint offsetFromRepaintContainer(containerPoint - toFloatSize(scrollPosition()));
 
+#if ENABLE(TEXT_SELECTION)
+    ASSERT(isSelectionRoot());
+#endif
     LogicalSelectionOffsetCaches cache(*this);
     LayoutUnit lastTop;
     LayoutUnit lastLeft = logicalLeftSelectionOffset(*this, lastTop, cache);
@@ -1454,6 +1457,7 @@ void RenderBlock::paintSelection(PaintInfo& paintInfo, const LayoutPoint& paintO
 {
 #if ENABLE(TEXT_SELECTION)
     if (shouldPaintSelectionGaps() && paintInfo.phase == PaintPhase::Foreground) {
+        ASSERT(isSelectionRoot());
         LogicalSelectionOffsetCaches cache(*this);
         LayoutUnit lastTop;
         LayoutUnit lastLeft = logicalLeftSelectionOffset(*this, lastTop, cache);
@@ -1462,7 +1466,7 @@ void RenderBlock::paintSelection(PaintInfo& paintInfo, const LayoutPoint& paintO
 
         LayoutRect gapRectsBounds = selectionGaps(*this, paintOffset, LayoutSize(), lastTop, lastLeft, lastRight, cache, &paintInfo);
         if (!gapRectsBounds.isEmpty()) {
-            if (RenderLayer* layer = enclosingLayer()) {
+            if (CheckedPtr layer = enclosingLayer()) {
                 gapRectsBounds.moveBy(-paintOffset);
                 if (!hasLayer()) {
                     LayoutRect localBounds(gapRectsBounds);

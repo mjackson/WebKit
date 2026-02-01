@@ -261,24 +261,9 @@ void Chrome::runModal()
     m_client->runModal();
 }
 
-bool Chrome::toolbarsVisible() const
+bool Chrome::isPopup() const
 {
-    return m_client->toolbarsVisible();
-}
-
-bool Chrome::statusbarVisible() const
-{
-    return m_client->statusbarVisible();
-}
-
-bool Chrome::scrollbarsVisible() const
-{
-    return m_client->scrollbarsVisible();
-}
-
-bool Chrome::menubarVisible() const
-{
-    return m_client->menubarVisible();
+    return m_client->isPopup();
 }
 
 void Chrome::setResizable(bool b)

@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2023 Apple Inc. All rights reserved.
+# Copyright (C) 2018-2026 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -20,6 +20,8 @@
 # OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+# This file us consumed by generator/main.rb in order to generate Bytecodes.h/BytecodeStructs.h
 
 types [
     :VirtualRegister,
@@ -1132,11 +1134,6 @@ op :debug,
         data: VirtualRegister,
     }
 
-op :end,
-    args: {
-        value: VirtualRegister,
-    }
-
 op :get_property_enumerator,
     args: {
         dst: VirtualRegister,
@@ -1417,6 +1414,8 @@ op_group :ProfiledUnaryOp,
         operand: VirtualRegister,
         profileIndex: unsigned,
     }
+
+# If you add any bytecodes after bitnot make sure to update isOpcode
 
 end_section :Bytecode
 

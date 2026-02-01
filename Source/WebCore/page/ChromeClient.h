@@ -252,10 +252,7 @@ public:
     virtual bool canRunModal() const = 0;
     virtual void runModal() = 0;
 
-    virtual bool toolbarsVisible() const = 0;
-    virtual bool statusbarVisible() const = 0;
-    virtual bool scrollbarsVisible() const = 0;
-    virtual bool menubarVisible() const = 0;
+    virtual bool isPopup() const = 0;
 
     virtual void setResizable(bool) = 0;
 
@@ -792,6 +789,8 @@ public:
 #if ENABLE(VIDEO)
     WEBCORE_EXPORT virtual void showCaptionDisplaySettings(HTMLMediaElement&, const ResolvedCaptionDisplaySettingsOptions&, CompletionHandler<void(ExceptionOr<void>)>&&);
 #endif
+
+    virtual void updateRemoteIntersectionObserversInOtherWebProcesses() { }
 
     WEBCORE_EXPORT virtual ~ChromeClient();
 

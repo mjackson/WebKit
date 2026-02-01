@@ -153,7 +153,6 @@ void OffscreenCanvas::setHeight(unsigned newHeight)
 
 void OffscreenCanvas::didUpdateSizeProperties()
 {
-    resetGraphicsContextState();
     if (RefPtr context = dynamicDowncast<OffscreenCanvasRenderingContext2D>(m_context.get()))
         context->reset();
 

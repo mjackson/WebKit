@@ -164,6 +164,10 @@ enum FullScreenState : NSInteger {
 #else
 static constexpr auto baseScale = 1;
 static constexpr auto baseMinimumEffectiveDeviceWidth = 0;
+
+#if PLATFORM(VISION)
+static void configureElementFullscreenLayer(CALayer *) { }
+#endif
 #endif
 
 struct WKWebViewState {
@@ -1109,6 +1113,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         [_window setNeedsLayout];
         [_window layoutIfNeeded];
     }
+    WebKit::configureElementFullscreenLayer([_window layer]);
 #endif
 
     _rootViewController = adoptNS([[UIViewController alloc] init]);

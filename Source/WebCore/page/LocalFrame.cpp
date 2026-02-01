@@ -94,6 +94,7 @@
 #include "ProcessWarming.h"
 #include "RemoteFrame.h"
 #include "RenderLayerCompositor.h"
+#include "RenderObjectInlines.h"
 #include "RenderStyle+GettersInlines.h"
 #include "RenderTableCell.h"
 #include "RenderText.h"
@@ -197,7 +198,7 @@ LocalFrame::LocalFrame(Page& page, ClientCreator&& clientCreator, FrameIdentifie
     , m_sandboxFlags(sandboxFlags)
     , m_parentFrameOrOpenerReferrerPolicy(referrerPolicy)
     , m_eventHandler(makeUniqueRef<EventHandler>(*this))
-    , m_inspectorController(makeUniqueRefWithoutRefCountedCheck<FrameInspectorController>(*this, page.protectedInspectorController()))
+    , m_inspectorController(makeUniqueRefWithoutRefCountedCheck<FrameInspectorController>(*this))
     , m_consoleClient(makeUniqueRef<FrameConsoleClient>(*this))
 {
     ProcessWarming::initializeNames();
@@ -943,18 +944,28 @@ VisiblePosition LocalFrame::visiblePositionForPoint(const IntPoint& framePoint) 
     return visiblePos;
 }
 
+HitTestResult LocalFrame::hitTestResultAtPoint(IntPoint point, OptionSet<HitTestRequest::Type> hitType)
+{
+    IntPoint pointInContents = protectedView()->windowToContents(point);
+
+    if (hitType.isEmpty())
+        return HitTestResult { pointInContents };
+
+    return eventHandler().hitTestResultAtPoint(pointInContents, hitType);
+}
+
 Document* LocalFrame::documentAtPoint(const IntPoint& point)
 {
     if (!view())
         return nullptr;
 
-    IntPoint pt = protectedView()->windowToContents(point);
-    HitTestResult result = HitTestResult(pt);
-
+    OptionSet<HitTestRequest::Type> hitType;
     if (contentRenderer()) {
-        constexpr OptionSet<HitTestRequest::Type> hitType { HitTestRequest::Type::ReadOnly, HitTestRequest::Type::Active, HitTestRequest::Type::DisallowUserAgentShadowContent, HitTestRequest::Type::AllowChildFrameContent };
-        result = eventHandler().hitTestResultAtPoint(pt, hitType);
+        hitType = { HitTestRequest::Type::ReadOnly, HitTestRequest::Type::Active, HitTestRequest::Type::DisallowUserAgentShadowContent, HitTestRequest::Type::AllowChildFrameContent };
     }
+
+    auto result = hitTestResultAtPoint(point, hitType);
+
     return result.innerNode() ? &result.innerNode()->document() : 0;
 }
 
@@ -1124,10 +1135,15 @@ void LocalFrame::setPageAndTextZoomFactors(float pageZoomFactor, float textZoomF
 
 float LocalFrame::usedZoomForChild(const Frame& child) const
 {
-    if (CheckedPtr ownerRenderer = child.ownerRenderer())
-        return ownerRenderer->style().usedZoom();
+    CheckedPtr childOwnerRenderer = child.ownerRenderer();
+    if (!childOwnerRenderer)
+        return 1.0;
 
-    return 1.0;
+    // Ensure |child| is a child of this frame.
+    ASSERT(child.tree().parent()->frameID() == frameID());
+    ASSERT(childOwnerRenderer->frame().frameID() == frameID());
+
+    return childOwnerRenderer->style().usedZoom();
 }
 
 void LocalFrame::suspendActiveDOMObjectsAndAnimations()

@@ -230,6 +230,7 @@ struct UIEdgeInsets;
 - (void)_webView:(WKWebView *)webView setRecentlyAccessedGamepads:(BOOL)recentlyAccessedGamepads WK_API_AVAILABLE(visionos(2.0));
 - (void)_webView:(WKWebView *)webView gamepadsConnectedStateDidChange:(BOOL)gamepadsConnected WK_API_AVAILABLE(visionos(2.0));
 
+- (BOOL)_webViewShowsPerWebViewModalPresentation:(WKWebView *)webView WK_API_AVAILABLE(visionos(WK_XROS_TBA));
 - (void)_webViewWillPresentModalUI:(WKWebView *)webView WK_API_AVAILABLE(visionos(WK_XROS_TBA));
 #endif
 

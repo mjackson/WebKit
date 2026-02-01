@@ -809,6 +809,7 @@ TEST(WKNavigation, ShouldGoToBackForwardListItem)
     if (isSiteIsolationEnabled(webView.get()))
         return;
 
+    navigationComplete = false;
     auto delegate = adoptNS([[BackForwardDelegateWithShouldGo alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]]];

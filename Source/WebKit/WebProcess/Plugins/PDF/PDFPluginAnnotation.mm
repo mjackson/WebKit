@@ -97,8 +97,8 @@ void PDFPluginAnnotation::commit()
 PDFPluginAnnotation::~PDFPluginAnnotation()
 {
     Ref element = *m_element;
-    element->removeEventListener(eventNames().changeEvent, *m_eventListener, false);
-    element->removeEventListener(eventNames().blurEvent, *m_eventListener, false);
+    element->removeEventListener(eventNames().changeEvent, *m_eventListener, { .capture = false });
+    element->removeEventListener(eventNames().blurEvent, *m_eventListener, { .capture = false });
 
     m_eventListener->setAnnotation(nullptr);
 

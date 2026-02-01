@@ -49,8 +49,8 @@ class MediaStreamTrackProcessor
     WTF_MAKE_TZONE_ALLOCATED(MediaStreamTrackProcessor);
 public:
     struct Init {
-        RefPtr<MediaStreamTrack> track;
-        unsigned short maxBufferSize { 1 };
+        Ref<MediaStreamTrack> track;
+        std::optional<unsigned short> maxBufferSize;
     };
 
     static ExceptionOr<Ref<MediaStreamTrackProcessor>> create(ScriptExecutionContext&, Init&&);

@@ -1168,7 +1168,9 @@ static void warningHandler(void* closure, const char* message, ...)
 {
     va_list args;
     va_start(args, message);
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
     protectedParser(closure)->error(XMLErrors::Type::Warning, message, args);
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
     va_end(args);
 }
 
@@ -1177,7 +1179,9 @@ static void fatalErrorHandler(void* closure, const char* message, ...)
 {
     va_list args;
     va_start(args, message);
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
     protectedParser(closure)->error(XMLErrors::Type::Fatal, message, args);
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
     va_end(args);
 }
 
@@ -1186,7 +1190,9 @@ static void normalErrorHandler(void* closure, const char* message, ...)
 {
     va_list args;
     va_start(args, message);
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
     protectedParser(closure)->error(XMLErrors::Type::NonFatal, message, args);
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
     va_end(args);
 }
 

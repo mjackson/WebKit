@@ -33,6 +33,7 @@
 #include <WebCore/ShouldTreatAsContinuingLoad.h>
 #include <WebCore/SubstituteData.h>
 #include <wtf/Forward.h>
+#include <wtf/Markable.h>
 
 namespace WebCore {
 
@@ -127,6 +128,10 @@ public:
     const ResourceRequest& resourceRequest() const { return m_resourceRequest; }
     ResourceRequest takeResourceRequest() { return std::exchange(m_resourceRequest, { }); }
 
+    void setOriginalResourceRequest(ResourceRequest originalResourceRequest) { m_originalResourceRequest = originalResourceRequest; }
+    bool hasOriginalResourceRequest() const { return !!m_originalResourceRequest; }
+    ResourceRequest takeOriginalResourceRequest() { return m_originalResourceRequest.value_or(ResourceRequest { }); }
+
     const AtomString& frameName() const { return m_frameName; }
     void setFrameName(const AtomString& frameName) { m_frameName = frameName; }
 
@@ -177,6 +182,7 @@ private:
     AtomString m_frameName;
     SubstituteData m_substituteData;
     String m_clientRedirectSourceForHistory;
+    Markable<ResourceRequest> m_originalResourceRequest;
 
     bool m_shouldCheckNewWindowPolicy { false };
     ShouldTreatAsContinuingLoad m_shouldTreatAsContinuingLoad { ShouldTreatAsContinuingLoad::No };

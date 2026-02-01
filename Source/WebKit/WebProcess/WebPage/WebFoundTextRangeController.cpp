@@ -119,7 +119,7 @@ static inline Vector<WebFoundTextRange::PDFData> findPDFMatchesInFrame(Frame* fr
 
 void WebFoundTextRangeController::findTextRangesForStringMatches(const String& string, OptionSet<FindOptions> options, uint32_t maxMatchCount, CompletionHandler<void(HashMap<WebCore::FrameIdentifier, Vector<WebFoundTextRange>>&&)>&& completionHandler)
 {
-    auto matchingRanges = protectedWebPage()->protectedCorePage()->findTextMatches(string, core(options), maxMatchCount, false);
+    auto matchingRanges = protect(protectedWebPage()->corePage())->findTextMatches(string, core(options), maxMatchCount, false);
     Vector<WebCore::SimpleRange> findMatches = WTF::move(matchingRanges.ranges);
 
     if (findMatches.size() > 0)
@@ -283,7 +283,7 @@ void WebFoundTextRangeController::clearAllDecoratedFoundText()
     clearCachedRanges();
     m_decoratedRanges.clear();
     m_unhighlightedFoundRanges.clear();
-    protectedWebPage()->protectedCorePage()->unmarkAllTextMatches();
+    protect(protectedWebPage()->corePage())->unmarkAllTextMatches();
 
     m_highlightedRange = { };
     m_textIndicator = nullptr;
@@ -558,12 +558,12 @@ Vector<WebCore::FloatRect> WebFoundTextRangeController::rectsForTextMatchesInRec
 
 WebCore::LocalFrame* WebFoundTextRangeController::frameForFoundTextRange(const WebFoundTextRange& range) const
 {
-    Ref mainFrame = protectedWebPage()->protectedCorePage()->mainFrame();
+    Ref mainFrame = protect(protectedWebPage()->corePage())->mainFrame();
 
     if (range.pathToFrame.isEmpty())
         return dynamicDowncast<WebCore::LocalFrame>(mainFrame.ptr());
 
-    RefPtr foundFrame = mainFrame->protectedPage()->findFrameByPath(range.pathToFrame);
+    RefPtr foundFrame = protect(mainFrame->page())->findFrameByPath(range.pathToFrame);
     return dynamicDowncast<WebCore::LocalFrame>(foundFrame.get());
 }
 

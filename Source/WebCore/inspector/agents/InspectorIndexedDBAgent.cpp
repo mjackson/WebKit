@@ -387,11 +387,11 @@ public:
 
         auto* lexicalGlobalObject = context.globalObject();
 
-        auto key = m_injectedScript.wrapObject(toJS(*lexicalGlobalObject, *lexicalGlobalObject, cursor->protectedKey().get()), String(), true);
+        auto key = m_injectedScript.wrapObject(toJS(*lexicalGlobalObject, *lexicalGlobalObject, protect(cursor->key()).get()), String(), true);
         if (!key)
             return;
 
-        auto primaryKey = m_injectedScript.wrapObject(toJS(*lexicalGlobalObject, *lexicalGlobalObject, cursor->protectedPrimaryKey().get()), String(), true);
+        auto primaryKey = m_injectedScript.wrapObject(toJS(*lexicalGlobalObject, *lexicalGlobalObject, protect(cursor->primaryKey()).get()), String(), true);
         if (!primaryKey)
             return;
 
@@ -634,7 +634,7 @@ void InspectorIndexedDBAgent::requestData(const String& securityOrigin, const St
         }
     }
 
-    auto injectedScript = m_injectedScriptManager.injectedScriptFor(&mainWorldGlobalObject(*frame));
+    auto injectedScript = m_injectedScriptManager->injectedScriptFor(&mainWorldGlobalObject(*frame));
     auto dataLoader = DataLoader::create(document, WTF::move(callback), injectedScript, objectStoreName, indexName, WTF::move(idbKeyRange), skipCount, pageSize);
     dataLoader->start(idbFactory, document->protectedSecurityOrigin().ptr(), databaseName);
 }

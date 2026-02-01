@@ -2498,6 +2498,14 @@
    },
    {
       "emails" : [
+         "d_delatoba@apple.com"
+      ],
+      "github" : "diegodelatoba",
+      "name" : "Diego De La Toba",
+      "status" : "committer"
+   },
+   {
+      "emails" : [
          "diegohcg@webkit.org",
          "diego.gonzalez@openbossa.org"
       ],
@@ -4474,6 +4482,16 @@
       "name" : "Johan K. Jensen",
       "nicks" : [
          "johankj"
+      ]
+   },
+   {
+      "emails" : [
+         "johannes.odland@gmail.com",
+         "johannes@odland.dev"
+      ],
+      "name" : "Johannes Odland",
+      "nicks" : [
+         "johannesodland"
       ]
    },
    {
@@ -7764,6 +7782,7 @@
    },
    {
       "emails" : [
+         "sosuke@bun.com",
          "sosuke@bun.sh",
          "aosukeke@gmail.com"
       ],
@@ -8112,7 +8131,8 @@
       "name" : "Tim Chevalier",
       "nicks" : [
          "tim"
-      ]
+      ],
+      "status" : "committer"
    },
    {
       "aliases" : [

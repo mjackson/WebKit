@@ -184,8 +184,17 @@ std::pair<UsedTrackSizes, GridItemRects> GridLayout::layout(const GridFormatting
     auto columnTrackSizingFunctionsList = trackSizingFunctions(columnsCount, gridTemplateColumnsTrackSizes);
     auto rowTrackSizingFunctionsList = trackSizingFunctions(rowsCount, gridTemplateRowsTrackSizes);
 
+    // 2. FIXME: Find the size of the grid container.
+
     // 3. Given the resulting grid container size, run the Grid Sizing Algorithm to size the grid.
-    UsedTrackSizes usedTrackSizes = performGridSizingAlgorithm(placedGridItems, columnTrackSizingFunctionsList, rowTrackSizingFunctionsList, layoutConstraints);
+    // FIXME: Handle FreeSpaceScenario::MinContent and FreeSpaceScenario::Indefinite once intrinsic sizing is supported.
+    auto columnFreeSpaceScenario = layoutConstraints.inlineAxisAvailableSpace.has_value()
+        ? FreeSpaceScenario::Definite
+        : FreeSpaceScenario::Indefinite;
+    auto rowFreeSpaceScenario = layoutConstraints.blockAxisAvailableSpace.has_value()
+        ? FreeSpaceScenario::Definite
+        : FreeSpaceScenario::Indefinite;
+    UsedTrackSizes usedTrackSizes = performGridSizingAlgorithm(placedGridItems, columnTrackSizingFunctionsList, rowTrackSizingFunctionsList, layoutConstraints, columnFreeSpaceScenario, rowFreeSpaceScenario);
 
     // 4. Lay out the grid items into their respective containing blocks. Each grid area’s
     // width and height are considered definite for this purpose.
@@ -320,7 +329,7 @@ TrackSizingFunctionsList GridLayout::trackSizingFunctions(size_t implicitGridTra
 
 // https://www.w3.org/TR/css-grid-1/#algo-grid-sizing
 UsedTrackSizes GridLayout::performGridSizingAlgorithm(const PlacedGridItems& placedGridItems,
-    const TrackSizingFunctionsList& columnTrackSizingFunctionsList, const TrackSizingFunctionsList& rowTrackSizingFunctionsList, const GridFormattingContext::GridLayoutConstraints& layoutConstraints) const
+    const TrackSizingFunctionsList& columnTrackSizingFunctionsList, const TrackSizingFunctionsList& rowTrackSizingFunctionsList, const GridFormattingContext::GridLayoutConstraints& layoutConstraints, FreeSpaceScenario columnFreeSpaceScenario, FreeSpaceScenario rowFreeSpaceScenario) const
 {
     auto& integrationUtils = formattingContext().integrationUtils();
 
@@ -329,14 +338,14 @@ UsedTrackSizes GridLayout::performGridSizingAlgorithm(const PlacedGridItems& pla
         return WTF::Range<size_t> { gridItem.columnStartLine(), gridItem.columnEndLine() };
     });
     auto columnSizes = TrackSizingAlgorithm::sizeTracks(placedGridItems, columnSpanList, columnTrackSizingFunctionsList, layoutConstraints.inlineAxisAvailableSpace,
-        GridLayoutUtils::inlineAxisGridItemSizingFunctions(), integrationUtils);
+        GridLayoutUtils::inlineAxisGridItemSizingFunctions(), columnFreeSpaceScenario, integrationUtils);
 
     auto rowSpanList = placedGridItems.map([](const PlacedGridItem& gridItem) {
         return WTF::Range<size_t> { gridItem.rowStartLine(), gridItem.rowEndLine() };
     });
     // 2. Next, the track sizing algorithm resolves the sizes of the grid rows.
     auto rowSizes = TrackSizingAlgorithm::sizeTracks(placedGridItems, rowSpanList, rowTrackSizingFunctionsList, layoutConstraints.blockAxisAvailableSpace,
-        GridLayoutUtils::blockAxisGridItemSizingFunctions(), integrationUtils);
+        GridLayoutUtils::blockAxisGridItemSizingFunctions(), rowFreeSpaceScenario, integrationUtils);
 
     // 3. Then, if the min-content contribution of any grid item has changed based on the
     // row sizes and alignment calculated in step 2, re-resolve the sizes of the grid

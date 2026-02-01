@@ -505,8 +505,14 @@ AccessibilityRole AccessibilityNodeObject::determineAccessibilityRoleFromNode(Tr
 
     if (element->isLink())
         return AccessibilityRole::Link;
-    if (RefPtr selectElement = dynamicDowncast<HTMLSelectElement>(*element))
+    if (RefPtr selectElement = dynamicDowncast<HTMLSelectElement>(*element)) {
+#if PLATFORM(IOS_FAMILY)
+        // On iOS, all select elements (including multiple) use popup menus, so use PopUpButton role.
+        return AccessibilityRole::PopUpButton;
+#else
         return selectElement->multiple() ? AccessibilityRole::ListBox : AccessibilityRole::PopUpButton;
+#endif
+    }
     if (is<HTMLImageElement>(*element) && element->hasAttributeWithoutSynchronization(usemapAttr))
         return AccessibilityRole::ImageMap;
 
@@ -825,6 +831,16 @@ void AccessibilityNodeObject::addChildren()
     for (auto* child = node->firstChild(); child; child = child->nextSibling())
         addChild(cache->getOrCreate(*child));
 #else
+    // For listbox selects, use listItems() to get option elements instead of
+    // composedTreeChildren which would return shadow DOM content.
+    if (RefPtr selectElement = dynamicDowncast<HTMLSelectElement>(node); selectElement && !selectElement->usesMenuList()) {
+        for (const auto& listItem : selectElement->listItems()) {
+            if (listItem)
+                addChild(cache->getOrCreate(*listItem));
+        }
+        return;
+    }
+
     if (RefPtr containerNode = dynamicDowncast<ContainerNode>(*node)) {
         // Specify an InlineContextCapacity template parameter of 0 to avoid allocating ComposedTreeIterator's
         // internal vector on the stack. See comment in AccessibilityRenderObject::addChildren() for a full

@@ -249,6 +249,7 @@ namespace JSC { namespace DFG {
     macro(PutSetterByVal, NodeMustGenerate) \
     macro(DefineDataProperty, NodeMustGenerate | NodeHasVarArgs) \
     macro(DefineAccessorProperty, NodeMustGenerate | NodeHasVarArgs) \
+    macro(ObjectDefineProperty, NodeMustGenerate) \
     macro(DeleteById, NodeResultBoolean | NodeMustGenerate) \
     macro(DeleteByVal, NodeResultBoolean | NodeMustGenerate) \
     macro(CheckStructure, NodeMustGenerate) \
@@ -359,6 +360,7 @@ namespace JSC { namespace DFG {
     macro(StringReplaceRegExp, NodeResultJS | NodeMustGenerate) \
     macro(StringReplaceString, NodeResultJS | NodeMustGenerate) \
     macro(StringIndexOf, NodeResultInt32) \
+    macro(StringStartsWith, NodeResultBoolean) \
     \
     /* Optimizations for string access */ \
     macro(StringAt, NodeResultJS) \
@@ -595,6 +597,7 @@ namespace JSC { namespace DFG {
     macro(MapIterationEntry, NodeResultJS) \
     macro(MapIterationEntryKey, NodeResultInt32) \
     macro(MapIterationEntryValue, NodeResultJS) \
+    macro(MapOrSetSize, NodeResultInt32) \
     macro(SetAdd, NodeMustGenerate) \
     macro(MapSet, NodeMustGenerate | NodeHasVarArgs) \
     macro(MapOrSetDelete, NodeMustGenerate | NodeResultBoolean) \

@@ -76,7 +76,7 @@ Ref<PDFPluginTextAnnotation> PDFPluginTextAnnotation::create(PDFAnnotation *anno
 
 PDFPluginTextAnnotation::~PDFPluginTextAnnotation()
 {
-    protectedElement()->removeEventListener(eventNames().keydownEvent, *eventListener(), false);
+    protectedElement()->removeEventListener(eventNames().keydownEvent, *eventListener(), { .capture = false });
 }
 
 Ref<Element> PDFPluginTextAnnotation::createAnnotationElement()

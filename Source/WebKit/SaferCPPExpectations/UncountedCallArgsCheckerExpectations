@@ -5,7 +5,6 @@
 [ iOS ] NetworkProcess/NetworkProcess.cpp
 [ iOS ] NetworkProcess/cocoa/NetworkProcessCocoa.mm
 [ iOS ] NetworkProcess/ios/NetworkConnectionToWebProcessIOS.mm
-Platform/IPC/ArgumentCoders.h
 [ iOS ] Shared/ApplePay/ios/WebPaymentCoordinatorProxyIOS.mm
 [ iOS ] UIProcess/API/Cocoa/WKContextMenuElementInfo.mm
 [ iOS ] UIProcess/API/Cocoa/WKWebExtensionCommand.mm

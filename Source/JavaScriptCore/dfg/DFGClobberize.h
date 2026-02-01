@@ -236,6 +236,7 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case StringCharCodeAt:
     case StringCodePointAt:
     case StringIndexOf:
+    case StringStartsWith:
     case CompareStrictEq:
     case SameValue:
     case IsEmpty:
@@ -763,6 +764,7 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case SetPrivateBrand:
     case DefineDataProperty:
     case DefineAccessorProperty:
+    case ObjectDefineProperty:
     case DeleteById:
     case DeleteByVal:
     case ArrayPush:
@@ -2444,6 +2446,14 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         AbstractHeapKind heap = (mapEdge.useKind() == WeakMapObjectUse) ? JSWeakMapFields : JSWeakSetFields;
         read(heap);
         def(HeapLocation(WeakMapGetLoc, heap, mapEdge, keyEdge), LazyNode(node));
+        return;
+    }
+
+    case MapOrSetSize: {
+        Edge& mapOrSetEdge = node->child1();
+        AbstractHeapKind heap = (mapOrSetEdge.useKind() == MapObjectUse) ? JSMapFields : JSSetFields;
+        read(heap);
+        def(HeapLocation(MapOrSetSizeLoc, heap, mapOrSetEdge), LazyNode(node));
         return;
     }
 

@@ -2273,6 +2273,11 @@ typedef NS_ENUM(NSInteger, EndEditingReason) {
 #endif // ENABLE(TOUCH_EVENTS)
 }
 
+- (void)_touchEventsGestureRecognizerReset
+{
+    _page->resetPointerCapture();
+}
+
 #if ENABLE(TOUCH_EVENTS)
 - (void)_handleTouchActionsForTouchEvent:(const WebKit::NativeWebTouchEvent&)touchEvent
 {
@@ -3300,7 +3305,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     if (![self _hasValidOutstandingPositionInformationRequest:request])
         [self requestAsynchronousPositionInformationUpdate:request];
 
-    bool receivedResponse = process->protectedConnection()->waitForAndDispatchImmediately<Messages::WebPageProxy::DidReceivePositionInformation>(_page->webPageIDInMainFrameProcess(), 1_s, IPC::WaitForOption::InterruptWaitingIfSyncMessageArrives) == IPC::Error::NoError;
+    bool receivedResponse = protect(process->connection())->waitForAndDispatchImmediately<Messages::WebPageProxy::DidReceivePositionInformation>(_page->webPageIDInMainFrameProcess(), 1_s, IPC::WaitForOption::InterruptWaitingIfSyncMessageArrives) == IPC::Error::NoError;
     _hasValidPositionInformation = receivedResponse && _positionInformation.canBeValid;
     return _hasValidPositionInformation;
 }
@@ -5129,7 +5134,7 @@ static UIPasteboard *pasteboardForAccessCategory(WebCore::DOMPasteAccessCategory
     if (auto pasteAccessCategory = std::exchange(_domPasteRequestCategory, std::nullopt)) {
         if (response == WebCore::DOMPasteAccessResponse::GrantedForCommand || response == WebCore::DOMPasteAccessResponse::GrantedForGesture) {
             if (auto replyID = _page->grantAccessToCurrentPasteboardData(pasteboardNameForAccessCategory(*pasteAccessCategory), [] () { }))
-                _page->websiteDataStore().protectedNetworkProcess()->connection().waitForAsyncReplyAndDispatchImmediately<Messages::NetworkProcess::AllowFilesAccessFromWebProcess>(*replyID, 100_ms);
+                protect(_page->websiteDataStore().networkProcess())->connection().waitForAsyncReplyAndDispatchImmediately<Messages::NetworkProcess::AllowFilesAccessFromWebProcess>(*replyID, 100_ms);
         }
     }
 
@@ -12189,7 +12194,9 @@ static WebKit::DocumentEditingContextRequest toWebRequest(id request)
 
         if (!linkedOnOrAfterSDKWithBehavior(SDKAlignedBehavior::SendsNativeMouseEvents)
             && WTF::IOSApplication::isEssentialSkeleton()) { // <rdar://problem/62694519>
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
             os_log_error(OS_LOG_DEFAULT, "WARNING: This application has been observed to ignore mouse events in web content; touch events will be sent until it is built against the iOS 13.4 SDK, but after that, the web content must respect mouse or pointer events in addition to touch events in order to behave correctly when a trackpad or mouse is used.");
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
             return NO;
         }
 

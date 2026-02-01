@@ -192,6 +192,14 @@ void WebPageProxy::didCommitLayerTree(const RemoteLayerTreeTransaction& layerTre
     }
 }
 
+WebCore::DestinationColorSpace WebPageProxy::colorSpace() const
+{
+    if (RefPtr pageClient = this->pageClient())
+        return pageClient->colorSpace();
+
+    return WebCore::DestinationColorSpace::SRGB();
+}
+
 void WebPageProxy::didCommitMainFrameData(const MainFrameData& mainFrameData, const TransactionID& transactionID)
 {
     themeColorChanged(mainFrameData.themeColor);
@@ -349,7 +357,7 @@ void WebPageProxy::createSandboxExtensionsIfNeeded(const Vector<String>& files, 
         return;
 
     auto createSandboxExtension = [protectedThis = Ref { *this }] (const String& path) {
-        auto token = protect(protectedThis->legacyMainFrameProcess())->protectedConnection()->getAuditToken();
+        auto token = protect(protect(protectedThis->legacyMainFrameProcess())->connection())->getAuditToken();
         ASSERT(token);
 
         if (token) {
@@ -1610,7 +1618,7 @@ bool WebPageProxy::tryToSendCommandToActiveControlledVideo(PlatformMediaSession:
     if (!hasActiveVideoForControlsManager())
         return false;
 
-    WeakPtr model = protect(playbackSessionManager())->protectedControlsManagerInterface()->playbackSessionModel();
+    WeakPtr model = protect(protect(playbackSessionManager())->controlsManagerInterface())->playbackSessionModel();
     if (!model)
         return false;
 
@@ -1756,6 +1764,33 @@ NSDictionary *WebPageProxy::getAccessibilityWebProcessDebugInfo()
     };
 }
 
+NSArray *WebPageProxy::getAccessibilityWebProcessDebugInfoForAllProcesses()
+{
+    const Seconds messageTimeout(5);
+    RetainPtr<NSMutableArray<NSDictionary *>> allResults = adoptNS([[NSMutableArray alloc] init]);
+
+    forEachWebContentProcess([&](auto& webProcess, auto pageID) {
+        auto sendResult = webProcess.sendSync(Messages::WebPage::GetAccessibilityWebProcessDebugInfo(), pageID, messageTimeout);
+        if (!sendResult.succeeded())
+            return;
+
+        auto [result] = sendResult.takeReplyOr(WebCore::AXDebugInfo({ 0, 0 }));
+
+        [allResults addObject:@{
+            @"pid": [NSNumber numberWithInt:webProcess.processID()],
+            @"axIsEnabled": [NSNumber numberWithBool:result.isAccessibilityEnabled],
+            @"axIsThreadInitialized": [NSNumber numberWithBool:result.isAccessibilityThreadInitialized],
+            @"axLiveTree": result.liveTree.createNSString().get(),
+            @"axIsolatedTree": result.isolatedTree.createNSString().get(),
+            @"warnings": createNSArray(result.warnings).get(),
+            @"axWebProcessRemoteHash": [NSNumber numberWithUnsignedInteger:result.remoteTokenHash],
+            @"axWebProcessLocalHash": [NSNumber numberWithUnsignedInteger:result.webProcessLocalTokenHash]
+        }];
+    });
+
+    return allResults.autorelease();
+}
+
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 void WebPageProxy::clearAccessibilityIsolatedTree()
 {
@@ -1765,6 +1800,14 @@ void WebPageProxy::clearAccessibilityIsolatedTree()
 }
 #endif
 #endif // PLATFORM(MAC)
+
+void WebPageProxy::selectWithGesture(IntPoint point, GestureType gestureType, GestureRecognizerState gestureState, bool isInteractingWithFocusedElement, CompletionHandler<void(const IntPoint&, GestureType, GestureRecognizerState, OptionSet<SelectionFlags>)>&& callback)
+{
+    if (!hasRunningProcess())
+        return callback({ }, GestureType::Loupe, GestureRecognizerState::Possible, { });
+
+    WTF::protect(legacyMainFrameProcess())->sendWithAsyncReply(Messages::WebPage::SelectWithGesture(point, gestureType, gestureState, isInteractingWithFocusedElement), WTF::move(callback), webPageIDInMainFrameProcess());
+}
 
 } // namespace WebKit
 

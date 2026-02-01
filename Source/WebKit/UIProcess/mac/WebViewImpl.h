@@ -247,7 +247,6 @@ public:
     WebPageProxy& page() { return m_page.get(); }
 
     WKWebView *view() const { return m_view.getAutoreleased(); }
-    RetainPtr<WKWebView> protectedView() const { return m_view.get(); };
 
     void processWillSwap();
     void processDidExit();
@@ -416,7 +415,6 @@ public:
 #if ENABLE(FULLSCREEN_API)
     bool hasFullScreenWindowController() const;
     WKFullScreenWindowController *fullScreenWindowController();
-    RetainPtr<WKFullScreenWindowController> protectedFullScreenWindowController();
     void closeFullScreenWindowController();
 #endif
     NSView *fullScreenPlaceholderView();
@@ -607,8 +605,7 @@ public:
 
     _WKWarningView *warningView() { return m_warningView.get(); }
 
-    ViewGestureController* gestureController() { return m_gestureController.get(); }
-    RefPtr<ViewGestureController> protectedGestureController() const;
+    ViewGestureController* gestureController() const { return m_gestureController.get(); }
     ViewGestureController& ensureGestureController();
     Ref<ViewGestureController> ensureProtectedGestureController();
     void setAllowsBackForwardNavigationGestures(bool);

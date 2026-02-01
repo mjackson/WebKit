@@ -1730,7 +1730,11 @@ TEST(ProcessSwap, ServerRedirectFromNewWebView)
 
     EXPECT_FALSE(serverRedirected);
     EXPECT_EQ(2, numberOfDecidePolicyCalls);
-    EXPECT_EQ(1u, seenPIDs.size());
+
+    // Site Isolation currently swap process during cross-site redirect even though the process has not committed load.
+    // This might be changed if rdar://116203552 is fixed.
+    unsigned processCount = isSiteIsolationEnabled(webView.get()) ? 2u : 1u;
+    EXPECT_EQ(processCount, seenPIDs.size());
 }
 
 TEST(ProcessSwap, ServerRedirect)
@@ -8780,7 +8784,8 @@ TEST(ProcessSwap, COEPProcessSwapOnSiteWhereLockdownModeIsDisabled)
     TestWebKitAPI::Util::run(&finishedNavigation);
     finishedNavigation = false;
 
-    EXPECT_TRUE(isJITEnabled(webView.get()));
+    EXPECT_WK_STREQ([webView _webContentProcessVariantForFrame:nil], @"security");
+    EXPECT_FALSE(isJITEnabled(webView.get()));
 }
 
 #endif // !PLATFORM(IOS_FAMILY)
@@ -9269,7 +9274,7 @@ TEST(ProcessSwap, LockdownModeSystemSettingChangeDoesNotReloadViewsWhenModeIsSet
     auto delegate = adoptNS([TestNavigationDelegate new]);
     [webView setNavigationDelegate:delegate.get()];
 
-    EXPECT_TRUE(isJITEnabled(webView.get()));
+    EXPECT_FALSE(isJITEnabled(webView.get()));
 
     __block bool finishedNavigation = false;
     delegate.get().didFinishNavigation = ^(WKWebView *, WKNavigation *) {
@@ -9283,7 +9288,8 @@ TEST(ProcessSwap, LockdownModeSystemSettingChangeDoesNotReloadViewsWhenModeIsSet
     pid_t pid1 = [webView _webProcessIdentifier];
     EXPECT_NE(pid1, 0);
 
-    EXPECT_TRUE(isJITEnabled(webView.get()));
+    EXPECT_WK_STREQ([webView _webContentProcessVariantForFrame:nil], @"security");
+    EXPECT_FALSE(isJITEnabled(webView.get()));
 
     finishedNavigation = false;
     // Now change the global setting.
@@ -9296,7 +9302,8 @@ TEST(ProcessSwap, LockdownModeSystemSettingChangeDoesNotReloadViewsWhenModeIsSet
     pid_t pid2 = [webView _webProcessIdentifier];
     EXPECT_EQ(pid1, pid2);
 
-    EXPECT_TRUE(isJITEnabled(webView.get()));
+    EXPECT_WK_STREQ([webView _webContentProcessVariantForFrame:nil], @"security");
+    EXPECT_FALSE(isJITEnabled(webView.get()));
 }
 
 TEST(ProcessSwap, LockdownModeSystemSettingChangeDoesNotReloadViewsWhenModeIsSetExplicitly3)
@@ -9380,7 +9387,8 @@ TEST(ProcessSwap, LockdownModeSystemSettingChangeDoesNotReloadViewsWhenModeIsSet
     pid_t pid1 = [webView _webProcessIdentifier];
     EXPECT_NE(pid1, 0);
 
-    EXPECT_TRUE(isJITEnabled(webView.get()));
+    EXPECT_WK_STREQ([webView _webContentProcessVariantForFrame:nil], @"security");
+    EXPECT_FALSE(isJITEnabled(webView.get()));
 
     finishedNavigation = false;
     // Now change the global setting.
@@ -9393,8 +9401,8 @@ TEST(ProcessSwap, LockdownModeSystemSettingChangeDoesNotReloadViewsWhenModeIsSet
     pid_t pid2 = [webView _webProcessIdentifier];
     EXPECT_EQ(pid1, pid2);
 
-    EXPECT_TRUE(isJITEnabled(webView.get()));
-
+    EXPECT_WK_STREQ([webView _webContentProcessVariantForFrame:nil], @"security");
+    EXPECT_FALSE(isJITEnabled(webView.get()));
 }
 
 #endif

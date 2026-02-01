@@ -150,7 +150,7 @@ private:
     // The layer tree host that handles accelerated compositing.
     std::unique_ptr<LayerTreeHost> m_layerTreeHost;
 
-#if PLATFORM(WPE)
+#if PLATFORM(WPE) || PLATFORM(GTK)
     // Frame renderer used in non-composited mode.
     std::unique_ptr<NonCompositedFrameRenderer> m_nonCompositedFrameRenderer;
 #endif

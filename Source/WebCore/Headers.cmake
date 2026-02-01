@@ -1841,6 +1841,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     layout/formattingContexts/flex/FlexRect.h
     layout/formattingContexts/flex/LogicalFlexItem.h
 
+    layout/formattingContexts/grid/FreeSpaceScenario.h
     layout/formattingContexts/grid/GridAreaLines.h
     layout/formattingContexts/grid/GridFormattingContext.h
     layout/formattingContexts/grid/GridItemRect.h
@@ -2327,9 +2328,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/LowPowerModeNotifier.h
     platform/MIMETypeRegistry.h
     platform/MainThreadSharedTimer.h
-    platform/MediaCapabilitiesDecodingInfo.h
-    platform/MediaCapabilitiesEncodingInfo.h
-    platform/MediaCapabilitiesInfo.h
     platform/MediaDescription.h
     platform/MediaPromiseTypes.h
     platform/MediaSample.h
@@ -2411,6 +2409,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/ScrollbarsControllerInlines.h
     platform/ScrollingEffectsController.h
     platform/SearchPopupMenu.h
+    platform/SelectionGeometry.h
     platform/SerializedPlatformDataCue.h
     platform/SerializedPlatformDataCueValue.h
     platform/ShareableResource.h
@@ -2729,6 +2728,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/graphics/PlatformLayerIdentifier.h
     platform/graphics/PlatformMediaResourceLoader.h
     platform/graphics/PlatformPath.h
+    platform/graphics/PlatformPathImpl.h
     platform/graphics/PlatformPlaybackSessionInterface.h
     platform/graphics/PlatformTextTrack.h
     platform/graphics/PlatformTimeRanges.h
@@ -2899,17 +2899,20 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/libwebrtc/LibWebRTCVPXVideoDecoder.h
     platform/libwebrtc/LibWebRTCVPXVideoEncoder.h
 
-    platform/mediacapabilities/AudioConfiguration.h
-    platform/mediacapabilities/ColorGamut.h
-    platform/mediacapabilities/HdrMetadataType.h
-    platform/mediacapabilities/MediaConfiguration.h
-    platform/mediacapabilities/MediaDecodingConfiguration.h
-    platform/mediacapabilities/MediaDecodingType.h
-    platform/mediacapabilities/MediaEncodingConfiguration.h
-    platform/mediacapabilities/MediaEncodingType.h
-    platform/mediacapabilities/MediaEngineConfigurationFactory.h
-    platform/mediacapabilities/TransferFunction.h
-    platform/mediacapabilities/VideoConfiguration.h
+    platform/mediacapabilities/PlatformMediaCapabilitiesAudioConfiguration.h
+    platform/mediacapabilities/PlatformMediaCapabilitiesColorGamut.h
+    platform/mediacapabilities/PlatformMediaCapabilitiesDecodingInfo.h
+    platform/mediacapabilities/PlatformMediaCapabilitiesEncodingInfo.h
+    platform/mediacapabilities/PlatformMediaCapabilitiesHdrMetadataType.h
+    platform/mediacapabilities/PlatformMediaCapabilitiesInfo.h
+    platform/mediacapabilities/PlatformMediaCapabilitiesTransferFunction.h
+    platform/mediacapabilities/PlatformMediaCapabilitiesVideoConfiguration.h
+    platform/mediacapabilities/PlatformMediaConfiguration.h
+    platform/mediacapabilities/PlatformMediaDecodingConfiguration.h
+    platform/mediacapabilities/PlatformMediaDecodingType.h
+    platform/mediacapabilities/PlatformMediaEncodingConfiguration.h
+    platform/mediacapabilities/PlatformMediaEncodingType.h
+    platform/mediacapabilities/PlatformMediaEngineConfigurationFactory.h
 
     platform/mediarecorder/MediaRecorderPrivate.h
     platform/mediarecorder/MediaRecorderPrivateAVFImpl.h

@@ -3152,6 +3152,11 @@ void SpeculativeJIT::compile(Node* node)
         break;
     }
 
+    case StringStartsWith: {
+        compileStringStartsWith(node);
+        break;
+    }
+
     case FunctionToString:
         compileFunctionToString(node);
         break;
@@ -3648,6 +3653,11 @@ void SpeculativeJIT::compile(Node* node)
         break;
     }
 
+    case ObjectDefineProperty: {
+        compileObjectDefineProperty(node);
+        break;
+    }
+
     case DefineAccessorProperty: {
         compileDefineAccessorProperty(node);
         break;
@@ -3956,6 +3966,10 @@ void SpeculativeJIT::compile(Node* node)
 
     case ExtractValueFromWeakMapGet:
         compileExtractValueFromWeakMapGet(node);
+        break;
+
+    case MapOrSetSize:
+        compileMapOrSetSize(node);
         break;
 
     case SetAdd:

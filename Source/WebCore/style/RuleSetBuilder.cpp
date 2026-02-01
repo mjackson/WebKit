@@ -515,33 +515,33 @@ void RuleSetBuilder::addMutatingRulesToResolver()
             m_ruleSet->m_resolverMutatingRulesInLayers.append(collectedRule);
 
         auto& rule = collectedRule.rule;
-        if (auto* styleRuleFontFace = dynamicDowncast<StyleRuleFontFace>(rule.get())) {
+        if (RefPtr styleRuleFontFace = dynamicDowncast<StyleRuleFontFace>(rule.get())) {
             m_resolver->document().protectedFontSelector()->addFontFaceRule(*styleRuleFontFace, false);
             m_resolver->invalidateMatchedDeclarationsCache();
             continue;
         }
-        if (auto* styleRuleFontPaletteValues = dynamicDowncast<StyleRuleFontPaletteValues>(rule.get())) {
+        if (RefPtr styleRuleFontPaletteValues = dynamicDowncast<StyleRuleFontPaletteValues>(rule.get())) {
             m_resolver->document().protectedFontSelector()->addFontPaletteValuesRule(*styleRuleFontPaletteValues);
             m_resolver->invalidateMatchedDeclarationsCache();
             continue;
         }
-        if (auto* styleRuleFontFeatureValues = dynamicDowncast<StyleRuleFontFeatureValues>(rule.get())) {
+        if (RefPtr styleRuleFontFeatureValues = dynamicDowncast<StyleRuleFontFeatureValues>(rule.get())) {
             m_resolver->document().protectedFontSelector()->addFontFeatureValuesRule(*styleRuleFontFeatureValues);
             m_resolver->invalidateMatchedDeclarationsCache();
             continue;
         }
-        if (auto* styleRuleKeyframes = dynamicDowncast<StyleRuleKeyframes>(rule.get())) {
+        if (RefPtr styleRuleKeyframes = dynamicDowncast<StyleRuleKeyframes>(rule.get())) {
             m_resolver->addKeyframeStyle(*styleRuleKeyframes);
             continue;
         }
-        if (auto* styleRuleCounterStyle = dynamicDowncast<StyleRuleCounterStyle>(rule.get())) {
+        if (RefPtr styleRuleCounterStyle = dynamicDowncast<StyleRuleCounterStyle>(rule.get())) {
             if (m_resolver->scopeType() == Resolver::ScopeType::ShadowTree)
                 continue;
             auto& registry = m_resolver->document().styleScope().counterStyleRegistry();
             registry.addCounterStyle(styleRuleCounterStyle->descriptors());
             continue;
         }
-        if (auto* styleRuleProperty = dynamicDowncast<StyleRuleProperty>(rule.get())) {
+        if (RefPtr styleRuleProperty = dynamicDowncast<StyleRuleProperty>(rule.get())) {
             // "A @property is invalid if it occurs in a stylesheet inside of a shadow tree, and must be ignored."
             // https://drafts.css-houdini.org/css-properties-values-api/#at-property-rule
             if (m_resolver->scopeType() == Resolver::ScopeType::ShadowTree)
@@ -550,16 +550,16 @@ void RuleSetBuilder::addMutatingRulesToResolver()
             registry.registerFromStylesheet(styleRuleProperty->descriptor());
             continue;
         }
-        if (auto* styleRuleViewTransition = dynamicDowncast<StyleRuleViewTransition>(rule.get()))
+        if (RefPtr styleRuleViewTransition = dynamicDowncast<StyleRuleViewTransition>(rule.get()))
             m_ruleSet->setViewTransitionRule(*styleRuleViewTransition);
 
-        if (auto* positionTryRule = dynamicDowncast<StyleRulePositionTry>(rule.get())) {
+        if (RefPtr positionTryRule = dynamicDowncast<StyleRulePositionTry>(rule.get())) {
             // "If multiple @position-try rules are declared with the same name, the last one in document order wins."
             // https://drafts.csswg.org/css-anchor-position-1/#fallback-rule
             m_ruleSet->m_positionTryRules.set(positionTryRule->name(), *positionTryRule);
         }
 
-        if (auto* functionRule = dynamicDowncast<StyleRuleFunction>(rule.get())) {
+        if (RefPtr functionRule = dynamicDowncast<StyleRuleFunction>(rule.get())) {
             auto declarationsList = m_functionDeclarationsMap.get(*functionRule);
             CheckedRef registry = m_resolver->ensureCustomFunctionRegistry();
             registry->registerFunction(*functionRule, declarationsList);

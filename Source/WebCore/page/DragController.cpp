@@ -253,13 +253,12 @@ DragEventTargetData DragController::performDragOperation(DragData&& dragData, Lo
 
     SetForScope isPerformingDrop(m_isPerformingDrop, true);
 
-    IntPoint point = frame.protectedView()->windowToContents(dragData.clientPosition());
-    auto hitTestResult = HitTestResult { point };
+    OptionSet<HitTestRequest::Type> hitType;
+    if (frame.contentRenderer())
+        hitType = { HitTestRequest::Type::ReadOnly, HitTestRequest::Type::Active, HitTestRequest::Type::AllowChildFrameContent };
 
-    if (frame.contentRenderer()) {
-        static constexpr OptionSet<HitTestRequest::Type> hitType { HitTestRequest::Type::ReadOnly, HitTestRequest::Type::Active, HitTestRequest::Type::AllowChildFrameContent };
-        hitTestResult = frame.eventHandler().hitTestResultAtPoint(point, hitType);
-    }
+    auto hitTestResult = frame.hitTestResultAtPoint(dragData.clientPosition(), hitType);
+
     m_documentUnderMouse = hitTestResult.innerNode() ? &hitTestResult.innerNode()->document() : nullptr;
 
     disallowFileAccessIfNeeded(dragData);

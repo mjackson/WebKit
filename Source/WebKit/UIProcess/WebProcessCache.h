@@ -84,7 +84,6 @@ private:
 
         Ref<WebProcessProxy> takeProcess();
         WebProcessProxy& process() { ASSERT(m_process); return *m_process; }
-        RefPtr<WebProcessProxy> protectedProcess() const { return m_process; }
         void startSuspensionTimer();
 
 #if PLATFORM(COCOA) || PLATFORM(GTK) || PLATFORM(WPE)

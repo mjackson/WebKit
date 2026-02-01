@@ -555,7 +555,7 @@ ExceptionOr<void> Navigation::updateCurrentEntry(UpdateCurrentEntryOptions&& opt
     auto currentEntryChangeEvent = NavigationCurrentEntryChangeEvent::create(eventNames().currententrychangeEvent, {
         { false, false, false },
         std::nullopt,
-        current
+        current.releaseNonNull()
     });
     dispatchEvent(currentEntryChangeEvent);
 
@@ -756,7 +756,9 @@ void Navigation::updateForNavigation(Ref<HistoryItem>&& item, NavigationNavigati
         notifyCommittedToEntry(ongoingAPIMethodTracker.get(), protectedCurrentEntry().get(), navigationType);
 
     auto currentEntryChangeEvent = NavigationCurrentEntryChangeEvent::create(eventNames().currententrychangeEvent, {
-        { false, false, false }, navigationType, oldCurrentEntry
+        { false, false, false },
+        navigationType,
+        oldCurrentEntry.releaseNonNull()
     });
     dispatchEvent(currentEntryChangeEvent);
 
@@ -1078,16 +1080,16 @@ Navigation::DispatchResult Navigation::innerDispatchNavigateEvent(NavigationNavi
     auto init = NavigateEvent::Init {
         { false, canBeCanceled, false },
         navigationType,
-        destination.ptr(),
+        destination,
+        canIntercept,
+        UserGestureIndicator::processingUserGesture(document.get()),
+        hashChange,
         Ref { abortController->signal() },
         formData,
         downloadRequestFilename,
         info,
-        updatedSourceElement.get(),
-        canIntercept,
-        UserGestureIndicator::processingUserGesture(document.get()),
-        hashChange,
         document->page() && document->page()->isInSwipeAnimation(),
+        updatedSourceElement.get(),
     };
 
     // Free up no longer needed info.

@@ -89,7 +89,7 @@
 #include "ServiceWorkerDebuggableProxy.h"
 #endif
 
-#if ENABLE(REMOTE_INSPECTOR) && ENABLE(WEBASSEMBLY)
+#if ENABLE(WEBASSEMBLY_DEBUGGER) && ENABLE(REMOTE_INSPECTOR)
 #include "WasmDebuggerDebuggable.h"
 #endif
 
@@ -191,8 +191,9 @@ public:
 
     enum class ShouldLaunchProcess : bool { No, Yes };
     enum class LockdownMode : bool { Disabled, Enabled };
+    enum class EnableWebAssemblyDebugger : bool { No, Yes };
 
-    static Ref<WebProcessProxy> create(WebProcessPool&, WebsiteDataStore*, LockdownMode, EnhancedSecurity, IsPrewarmed, WebCore::CrossOriginMode = WebCore::CrossOriginMode::Shared, ShouldLaunchProcess = ShouldLaunchProcess::Yes);
+    static Ref<WebProcessProxy> create(WebProcessPool&, WebsiteDataStore*, LockdownMode, EnhancedSecurity, IsPrewarmed, WebCore::CrossOriginMode = WebCore::CrossOriginMode::Shared, ShouldLaunchProcess = ShouldLaunchProcess::Yes, EnableWebAssemblyDebugger = EnableWebAssemblyDebugger::No);
     static Ref<WebProcessProxy> createForRemoteWorkers(RemoteWorkerType, WebProcessPool&, WebCore::Site&&, WebsiteDataStore&, LockdownMode, EnhancedSecurity);
 
     ~WebProcessProxy();
@@ -582,8 +583,9 @@ public:
     bool receivedLogsDuringLaunchForTesting() const { return m_didReceiveLogsDuringLaunchForTesting; }
 #endif
 
-#if ENABLE(REMOTE_INSPECTOR) && ENABLE(WEBASSEMBLY)
+#if ENABLE(WEBASSEMBLY_DEBUGGER) && ENABLE(REMOTE_INSPECTOR)
     void createWasmDebuggerTarget();
+    bool createWasmDebuggerDebuggable() const { return m_createWasmDebuggerDebuggable; }
     void destroyWasmDebuggerTarget();
     void connectWasmDebuggerTarget(bool isAutomaticConnection, bool immediatelyPause);
     void disconnectWasmDebuggerTarget();
@@ -600,7 +602,7 @@ public:
 private:
     Type type() const final { return Type::WebContent; }
 
-    WebProcessProxy(WebProcessPool&, WebsiteDataStore*, IsPrewarmed, WebCore::CrossOriginMode, LockdownMode, EnhancedSecurity);
+    WebProcessProxy(WebProcessPool&, WebsiteDataStore*, IsPrewarmed, WebCore::CrossOriginMode, LockdownMode, EnhancedSecurity, [[maybe_unused]] EnableWebAssemblyDebugger = EnableWebAssemblyDebugger::No);
 
     // AuxiliaryProcessProxy
     ASCIILiteral processName() const final { return "WebContent"_s; }
@@ -913,8 +915,9 @@ private:
 #if ENABLE(REMOTE_INSPECTOR) && PLATFORM(COCOA)
     HashMap<WebCore::ServiceWorkerIdentifier, Ref<ServiceWorkerDebuggableProxy>> m_serviceWorkerDebuggableProxies;
 #endif
-#if ENABLE(REMOTE_INSPECTOR) && ENABLE(WEBASSEMBLY)
+#if ENABLE(WEBASSEMBLY_DEBUGGER) && ENABLE(REMOTE_INSPECTOR)
     RefPtr<WasmDebuggerDebuggable> m_wasmDebuggerDebuggable;
+    bool m_createWasmDebuggerDebuggable { false };
 #endif
 
     HashMap<String, SandboxExtension::Handle> m_fileSandboxExtensions;

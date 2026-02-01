@@ -82,11 +82,11 @@ void VideoPresentationModelVideoElement::cleanVideoListeners()
     if (RefPtr videoElement = m_videoElement) {
         videoElement->removeClient(*this);
         for (auto& eventName : observedEventNames())
-            videoElement->removeEventListener(eventName, m_videoListener, false);
+            videoElement->removeEventListener(eventName, m_videoListener, { .capture = false });
     }
     if (RefPtr document = m_document.get()) {
         for (auto& eventName : documentObservedEventNames())
-            document->removeEventListener(eventName, m_videoListener, false);
+            document->removeEventListener(eventName, m_videoListener, { .capture = false });
     }
 }
 

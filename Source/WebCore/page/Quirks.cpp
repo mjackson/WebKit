@@ -244,7 +244,7 @@ bool Quirks::needsPerDocumentAutoplayBehavior() const
     ASSERT(document->isTopDocument());
     return allowedAutoplayQuirks(document).contains(AutoplayQuirk::PerDocumentAutoplayBehavior);
 #else
-    return m_quirksData.isNetflix;
+    return m_quirksData.isNetflix || m_quirksData.isNBA;
 #endif
 }
 
@@ -1040,8 +1040,6 @@ Ref<NodeList> Quirks::applyFacebookFlagQuirk(Document& document, NodeList& nodeL
     return StaticElementList::create(WTF::move(elements));
 }
 
-// warbyparker.com rdar://72839707
-// baidu.com rdar://56421276
 bool Quirks::shouldEnableLegacyGetUserMediaQuirk() const
 {
     QUIRKS_EARLY_RETURN_IF_DISABLED_WITH_VALUE(false);
@@ -2619,16 +2617,6 @@ static void handleGuardianQuirks(QuirksData& quirksData, const URL& /* quirksURL
 #endif // PLATFORM(IOS_FAMILY)
 
 #if ENABLE(MEDIA_STREAM)
-static void handleBaiduQuirks(QuirksData& quirksData, const URL& quirksURL, const String& /* quirksDomainString */, const URL& /* documentURL */)
-{
-    auto topDocumentHost = quirksURL.host();
-    if (topDocumentHost != "www.baidu.com"_s)
-        return;
-
-    // baidu.com rdar://56421276
-    quirksData.enableQuirk(QuirksData::SiteSpecificQuirk::ShouldEnableLegacyGetUserMediaQuirk);
-}
-
 static void handleCodepenQuirks(QuirksData& quirksData, const URL& quirksURL, const String& /* quirksDomainString */, const URL& /* documentURL */)
 {
     auto topDocumentHost = quirksURL.host();
@@ -2636,14 +2624,6 @@ static void handleCodepenQuirks(QuirksData& quirksData, const URL& quirksURL, co
         return;
 
     quirksData.enableQuirk(QuirksData::SiteSpecificQuirk::ShouldEnableSpeakerSelectionPermissionsPolicyQuirk);
-}
-
-static void handleWarbyParkerQuirks(QuirksData& quirksData, const URL& /* quirksURL */, const String& quirksDomainString, const URL&  /* documentURL */)
-{
-    QUIRKS_EARLY_RETURN_IF_NOT_DOMAIN("warbyparker.com"_s);
-
-    // warbyparker.com rdar://72839707
-    quirksData.enableQuirk(QuirksData::SiteSpecificQuirk::ShouldEnableLegacyGetUserMediaQuirk);
 }
 
 static void handleACTestingQuirks(QuirksData& quirksData, const URL& /* quirksURL */, const String& quirksDomainString, const URL&  /* documentURL */)
@@ -3045,6 +3025,8 @@ static void handleNBAQuirks(QuirksData& quirksData, const URL& /* quirksURL */, 
 #if PLATFORM(IOS)
     QUIRKS_EARLY_RETURN_IF_NOT_DOMAIN("nba.com"_s);
 
+    quirksData.isNBA = true;
+
     quirksData.setQuirkState(QuirksData::SiteSpecificQuirk::ShouldEnterNativeFullscreenWhenCallingElementRequestFullscreen, PAL::currentUserInterfaceIdiomIsSmallScreen());
 #else
     UNUSED_PARAM(quirksData);
@@ -3395,7 +3377,6 @@ void Quirks::determineRelevantQuirks()
 #endif
         { "bbc"_s, &handleBBCQuirks },
 #if ENABLE(MEDIA_STREAM)
-        { "baidu"_s, &handleBaiduQuirks },
         { "codepen"_s, &handleCodepenQuirks },
 #endif
         { "bankofamerica"_s, &handleBankOfAmericaQuirks },
@@ -3494,9 +3475,6 @@ void Quirks::determineRelevantQuirks()
         { "walmart"_s, &handleWalmartQuirks },
 #endif
         { "wikipedia"_s, &handleWikipediaQuirks },
-#if ENABLE(MEDIA_STREAM)
-        { "warbyparker"_s, &handleWarbyParkerQuirks },
-#endif
 #if PLATFORM(MAC)
         { "weather"_s, &handleWeatherQuirks },
 #endif

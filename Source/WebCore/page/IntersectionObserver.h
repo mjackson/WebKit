@@ -82,6 +82,13 @@ public:
 
     ~IntersectionObserver();
 
+    // Local: root is in the same process as the observer.
+    // Remote: root is in different process as the observer.
+    // Only situation where this applies is an observer created in a cross-site frame,
+    // where the top document and frame is of different origin.
+    enum class Type : bool { Local, Remote };
+    Type type() const { return m_type; }
+
     Document* trackingDocument() const;
 
     ContainerNode* root() const { return m_root.get(); }
@@ -138,6 +145,8 @@ private:
 
     enum class ApplyRootMargin : bool { No, Yes };
     IntersectionObservationState computeIntersectionState(const IntersectionObserverRegistration&, FrameView&, Element& target, ApplyRootMargin) const;
+
+    Type m_type { Type::Local };
 
     WeakPtr<Document, WeakPtrImplWithEventTargetData> m_implicitRootDocument;
     WeakPtr<ContainerNode, WeakPtrImplWithEventTargetData> m_root;

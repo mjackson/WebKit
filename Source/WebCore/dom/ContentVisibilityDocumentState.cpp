@@ -30,6 +30,7 @@
 #include "ContentVisibilityAutoStateChangeEvent.h"
 #include "DocumentTimeline.h"
 #include "EventNames.h"
+#include "FrameDestructionObserverInlines.h"
 #include "FrameSelection.h"
 #include "IntersectionObserverCallback.h"
 #include "IntersectionObserverEntry.h"
@@ -169,9 +170,11 @@ bool ContentVisibilityDocumentState::checkRelevancyOfContentVisibilityElement(El
     updateAnimations(target, wasSkippedContent, isSkippedContent);
     target.queueTaskKeepingThisNodeAlive(TaskSource::DOMManipulation, [&, isSkippedContent] {
         if (target.isConnected()) {
-            ContentVisibilityAutoStateChangeEvent::Init init;
-            init.skipped = isSkippedContent == IsSkippedContent::Yes;
-            target.dispatchEvent(ContentVisibilityAutoStateChangeEvent::create(eventNames().contentvisibilityautostatechangeEvent, init));
+            ContentVisibilityAutoStateChangeEvent::Init init {
+                { false, false, false },
+                isSkippedContent == IsSkippedContent::Yes
+            };
+            target.dispatchEvent(ContentVisibilityAutoStateChangeEvent::create(eventNames().contentvisibilityautostatechangeEvent, WTF::move(init)));
         }
     });
     return true;
@@ -203,7 +206,10 @@ HadInitialVisibleContentVisibilityDetermination ContentVisibilityDocumentState::
     }
     auto hadInitialVisibleContentVisibilityDetermination = HadInitialVisibleContentVisibilityDetermination::No;
     if (!elementsToCheck.isEmpty()) {
-        elementsToCheck.first()->protectedDocument()->updateIntersectionObservations({ m_observer });
+        Ref document = elementsToCheck.first()->document();
+        if (m_observer->updateObservations(*document->protectedFrame()) == IntersectionObserver::NeedNotify::Yes)
+            m_observer->notify();
+
         for (auto& element : elementsToCheck) {
             checkRelevancyOfContentVisibilityElement(element, { ContentRelevancy::OnScreen });
             if (element->isRelevantToUser())

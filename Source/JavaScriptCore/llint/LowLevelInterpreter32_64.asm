@@ -2562,16 +2562,6 @@ commonOp(llint_op_catch, macro() end, macro (size)
     dispatchOp(size, op_catch)
 end)
 
-llintOp(op_end, OpEnd, macro (size, get, dispatch)
-    checkSwitchToJITForEpilogue()
-    get(m_value, t0)
-    assertNotConstant(size, t0)
-    loadi TagOffset[cfr, t0, 8], t1
-    loadi PayloadOffset[cfr, t0, 8], t0
-    doReturn()
-end)
-
-
 op(llint_throw_from_slow_path_trampoline, macro()
     getVMFromCallFrame(t1, t2)
     copyCalleeSavesToVMEntryFrameCalleeSavesBuffer(t1, t2)

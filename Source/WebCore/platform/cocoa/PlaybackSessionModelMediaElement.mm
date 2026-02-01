@@ -87,23 +87,23 @@ void PlaybackSessionModelMediaElement::setMediaElement(HTMLMediaElement* mediaEl
 
     if (oldMediaElement && m_isListening) {
         for (auto& eventName : observedEventNames())
-            oldMediaElement->removeEventListener(eventName, *this, false);
+            oldMediaElement->removeEventListener(eventName, *this, { .capture = false });
         if (auto* audioTracks = oldMediaElement->audioTracks()) {
-            audioTracks->removeEventListener(events.addtrackEvent, *this, false);
-            audioTracks->removeEventListener(events.changeEvent, *this, false);
-            audioTracks->removeEventListener(events.removetrackEvent, *this, false);
+            audioTracks->removeEventListener(events.addtrackEvent, *this, { .capture = false });
+            audioTracks->removeEventListener(events.changeEvent, *this, { .capture = false });
+            audioTracks->removeEventListener(events.removetrackEvent, *this, { .capture = false });
         }
 
         if (auto* videoTracks = oldMediaElement->videoTracks()) {
-            videoTracks->removeEventListener(events.addtrackEvent, *this, false);
-            videoTracks->removeEventListener(events.changeEvent, *this, false);
-            videoTracks->removeEventListener(events.removetrackEvent, *this, false);
+            videoTracks->removeEventListener(events.addtrackEvent, *this, { .capture = false });
+            videoTracks->removeEventListener(events.changeEvent, *this, { .capture = false });
+            videoTracks->removeEventListener(events.removetrackEvent, *this, { .capture = false });
         }
 
         if (auto* textTracks = oldMediaElement->textTracks()) {
-            textTracks->removeEventListener(events.addtrackEvent, *this, false);
-            textTracks->removeEventListener(events.changeEvent, *this, false);
-            textTracks->removeEventListener(events.removetrackEvent, *this, false);
+            textTracks->removeEventListener(events.addtrackEvent, *this, { .capture = false });
+            textTracks->removeEventListener(events.changeEvent, *this, { .capture = false });
+            textTracks->removeEventListener(events.removetrackEvent, *this, { .capture = false });
         }
     }
     m_isListening = false;

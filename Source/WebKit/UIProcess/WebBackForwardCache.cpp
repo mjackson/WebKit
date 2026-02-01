@@ -136,7 +136,7 @@ Ref<SuspendedPageProxy> WebBackForwardCache::takeSuspendedPage(WebBackForwardLis
 
     ASSERT(m_itemsWithCachedPage.contains(item));
     ASSERT(item.backForwardCacheEntry());
-    Ref suspendedPage = item.protectedBackForwardCacheEntry()->takeSuspendedPage();
+    Ref suspendedPage = protect(item.backForwardCacheEntry())->takeSuspendedPage();
     removeEntry(item);
     return suspendedPage;
 }

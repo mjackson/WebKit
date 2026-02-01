@@ -67,16 +67,6 @@ void JIT::emit_op_mov(const JSInstruction* currentInstruction)
     storeValue(jsRegT10, addressFor(dst));
 }
 
-void JIT::emit_op_end(const JSInstruction* currentInstruction)
-{
-    auto bytecode = currentInstruction->as<OpEnd>();
-    static_assert(noOverlap(returnValueJSR, callFrameRegister));
-    emitGetVirtualRegister(bytecode.m_value, returnValueJSR);
-    emitRestoreCalleeSaves();
-    emitFunctionEpilogue();
-    ret();
-}
-
 void JIT::emit_op_jmp(const JSInstruction* currentInstruction)
 {
     auto bytecode = currentInstruction->as<OpJmp>();

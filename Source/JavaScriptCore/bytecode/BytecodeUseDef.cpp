@@ -110,7 +110,6 @@ void computeUsesForBytecodeIndexImpl(const JSInstruction* instruction, Checkpoin
     USES(OpThrow, value)
     USES(OpThrowStaticError, message)
     USES(OpDebug, data)
-    USES(OpEnd, value)
     USES(OpRet, value)
     USES(OpJtrue, condition)
     USES(OpJfalse, condition)
@@ -384,7 +383,6 @@ void computeDefsForBytecodeIndexImpl(unsigned numVars, const JSInstruction* inst
 
     // These don't define anything.
     case op_put_to_scope:
-    case op_end:
     case op_throw:
     case op_throw_static_error:
     case op_check_tdz:

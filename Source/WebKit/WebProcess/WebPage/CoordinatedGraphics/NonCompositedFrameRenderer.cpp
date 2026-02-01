@@ -47,7 +47,7 @@ NonCompositedFrameRenderer::NonCompositedFrameRenderer(WebPage& webPage)
             m_shouldRenderFollowupFrame = false;
             display();
         }
-    }))
+    }, AcceleratedSurface::RenderingPurpose::NonComposited))
 {
 #if ENABLE(DAMAGE_TRACKING)
     resetFrameDamage();
@@ -56,10 +56,12 @@ NonCompositedFrameRenderer::NonCompositedFrameRenderer(WebPage& webPage)
 
 bool NonCompositedFrameRenderer::initialize()
 {
-    static_assert(sizeof(GLNativeWindowType) <= sizeof(uint64_t), "GLNativeWindowType must not be longer than 64 bits.");
-    m_context = GLContext::create(PlatformDisplay::sharedDisplay(), m_surface->window());
-    if (!m_context || !m_context->makeContextCurrent())
-        return false;
+    if (m_surface->usesGL()) {
+        static_assert(sizeof(GLNativeWindowType) <= sizeof(uint64_t), "GLNativeWindowType must not be longer than 64 bits.");
+        m_context = GLContext::create(PlatformDisplay::sharedDisplay(), m_surface->window());
+        if (!m_context || !m_context->makeContextCurrent())
+            return false;
+    }
 
     m_surface->didCreateCompositingRunLoop(RunLoop::mainSingleton());
     LayerTreeContext layerTreeContext;
@@ -107,7 +109,9 @@ void NonCompositedFrameRenderer::display()
 
     m_surface->willRenderFrame(webPage->size());
     auto* graphicsContext = m_surface->graphicsContext();
-    if (!graphicsContext || !m_context->makeContextCurrent())
+    if (!graphicsContext)
+        return;
+    if (m_context && !m_context->makeContextCurrent())
         return;
 #if ENABLE(DAMAGE_TRACKING)
     if (m_frameDamage) {

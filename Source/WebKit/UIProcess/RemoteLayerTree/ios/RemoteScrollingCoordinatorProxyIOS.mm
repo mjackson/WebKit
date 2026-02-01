@@ -478,13 +478,13 @@ FloatRect RemoteScrollingCoordinatorProxyIOS::currentLayoutViewport() const
 
 void RemoteScrollingCoordinatorProxyIOS::scrollingTreeNodeWillStartPanGesture(ScrollingNodeID nodeID)
 {
-    protectedWebPageProxy()->scrollingNodeScrollViewWillStartPanGesture(nodeID);
+    protect(webPageProxy())->scrollingNodeScrollViewWillStartPanGesture(nodeID);
 }
 
 // This is not called for the main scroll view.
 void RemoteScrollingCoordinatorProxyIOS::scrollingTreeNodeWillStartScroll(ScrollingNodeID nodeID)
 {
-    protectedWebPageProxy()->scrollingNodeScrollWillStartScroll(nodeID);
+    protect(webPageProxy())->scrollingNodeScrollWillStartScroll(nodeID);
 
     m_uiState.addNodeWithActiveUserScroll(nodeID);
     sendUIStateChangedIfNecessary();
@@ -493,7 +493,7 @@ void RemoteScrollingCoordinatorProxyIOS::scrollingTreeNodeWillStartScroll(Scroll
 // This is not called for the main scroll view.
 void RemoteScrollingCoordinatorProxyIOS::scrollingTreeNodeDidEndScroll(ScrollingNodeID nodeID)
 {
-    protectedWebPageProxy()->scrollingNodeScrollDidEndScroll(nodeID);
+    protect(webPageProxy())->scrollingNodeScrollDidEndScroll(nodeID);
 
     m_uiState.removeNodeWithActiveUserScroll(nodeID);
     sendUIStateChangedIfNecessary();

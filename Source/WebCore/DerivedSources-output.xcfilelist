@@ -909,6 +909,8 @@ $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSDigitalCredential.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSDigitalCredential.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSDigitalCredentialGetRequest.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSDigitalCredentialGetRequest.h
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSDigitalCredentialPresentationProtocol.cpp
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSDigitalCredentialPresentationProtocol.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSDigitalCredentialRequestOptions.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSDigitalCredentialRequestOptions.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSDistanceModelType.cpp
@@ -1747,8 +1749,6 @@ $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIIRFilterOptions.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIIRFilterOptions.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIPAddressSpace.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIPAddressSpace.h
-$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSDigitalCredentialPresentationProtocol.cpp
-$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSDigitalCredentialPresentationProtocol.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIdleDeadline.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIdleDeadline.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSIdleRequestCallback.cpp
@@ -2011,6 +2011,8 @@ $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSMockMediaDeviceRoute.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSMockMediaDeviceRoute.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSMockMediaDeviceRouteController.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSMockMediaDeviceRouteController.h
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSMockMediaDeviceRouteURLCallback.cpp
+$(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSMockMediaDeviceRouteURLCallback.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSMockPageOverlay.cpp
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSMockPageOverlay.h
 $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/JSMockPaymentAddress.cpp

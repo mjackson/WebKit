@@ -584,12 +584,12 @@ bool HTMLTableElement::isURLAttribute(const Attribute& attribute) const
 
 Ref<HTMLCollection> HTMLTableElement::rows()
 {
-    return ensureRareData().ensureNodeLists().addCachedCollection<HTMLTableRowsCollection>(*this, CollectionType::TableRows);
+    return ensureRareData().ensureNodeLists().addCachedCollection<HTMLTableRowsCollection>(*this);
 }
 
 Ref<HTMLCollection> HTMLTableElement::tBodies()
 {
-    return ensureRareData().ensureNodeLists().addCachedCollection<GenericCachedHTMLCollection<CollectionTypeTraits<CollectionType::TableTBodies>::traversalType>>(*this, CollectionType::TableTBodies);
+    return ensureRareData().ensureNodeLists().addCachedCollection<HTMLTableTBodiesCollection>(*this);
 }
 
 const AtomString& HTMLTableElement::rules() const

@@ -115,7 +115,7 @@ void RemoteLayerTreeNode::detachFromParent()
         return;
     }
 #endif
-    [protectedLayer() removeFromSuperlayer];
+    [protect(layer()) removeFromSuperlayer];
 }
 
 void RemoteLayerTreeNode::setEventRegion(const WebCore::EventRegion& eventRegion)
@@ -290,7 +290,7 @@ void RemoteLayerTreeNode::addToHostingNode(RemoteLayerTreeNode& hostingNode)
 #if PLATFORM(IOS_FAMILY)
     [hostingNode.uiView() addSubview:uiView()];
 #else
-    [hostingNode.protectedLayer() addSublayer:protectedLayer().get()];
+    [protect(hostingNode.layer()) addSublayer:protect(layer()).get()];
 #endif
 }
 
@@ -299,7 +299,7 @@ void RemoteLayerTreeNode::removeFromHostingNode()
 #if PLATFORM(IOS_FAMILY)
     [uiView() removeFromSuperview];
 #else
-    [protectedLayer() removeFromSuperlayer];
+    [protect(layer()) removeFromSuperlayer];
 #endif
 }
 
@@ -333,10 +333,5 @@ void RemoteLayerTreeNode::setAcceleratedEffectsAndBaseValues(const WebCore::Acce
     host.animationsWereAddedToNode(*this);
 }
 #endif
-
-RetainPtr<CALayer> RemoteLayerTreeNode::protectedLayer() const
-{
-    return layer();
-}
 
 }

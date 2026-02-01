@@ -209,7 +209,6 @@ set(BUILD_VARIANTS
 
 set(LLINT_ASM
     llint/InPlaceInterpreter.asm
-    llint/InPlaceInterpreter32_64.asm
     llint/InPlaceInterpreter64.asm
     llint/LowLevelInterpreter.asm
     llint/LowLevelInterpreter32_64.asm
@@ -1383,6 +1382,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/JSFloat64Array.h
     runtime/JSFunction.h
     runtime/JSFunctionInlines.h
+    runtime/JSFunctionWithFields.h
     runtime/JSGenerator.h
     runtime/JSGeneratorFunction.h
     runtime/JSGeneratorFunctionInlines.h

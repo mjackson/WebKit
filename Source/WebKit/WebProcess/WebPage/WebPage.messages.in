@@ -65,6 +65,10 @@ messages -> WebPage WantsAsyncDispatchMessage {
     MouseEvent(WebCore::FrameIdentifier frameID, WebKit::WebMouseEvent event, std::optional<Vector<WebKit::SandboxExtensionHandle>> sandboxExtensions)
     SetLastKnownMousePosition(WebCore::FrameIdentifier frameID, WebCore::DoublePoint eventPoint, WebCore::DoublePoint globalPoint, enum:uint8_t std::optional<WebCore::LastKnownMousePositionSource> source);
 
+#if PLATFORM(COCOA)
+    SelectWithGesture(WebCore::IntPoint point, enum:uint8_t WebKit::GestureType gestureType, enum:uint8_t WebKit::GestureRecognizerState gestureState, bool isInteractingWithFocusedElement) -> (WebCore::IntPoint point, enum:uint8_t WebKit::GestureType gestureType, enum:uint8_t WebKit::GestureRecognizerState gestureState, OptionSet<WebKit::SelectionFlags> flags)
+#endif
+
 #if PLATFORM(IOS_FAMILY)
     SetSceneIdentifier(String sceneIdentifier)
     SetViewportConfigurationViewLayoutSize(WebCore::FloatSize size, double scaleFactor, double minimumEffectiveDeviceWidth)
@@ -86,7 +90,6 @@ messages -> WebPage WantsAsyncDispatchMessage {
     InspectorNodeSearchMovedToPosition(WebCore::FloatPoint point)
     InspectorNodeSearchEndedAtPosition(WebCore::FloatPoint point)
     BlurFocusedElement()
-    SelectWithGesture(WebCore::IntPoint point, enum:uint8_t WebKit::GestureType gestureType, enum:uint8_t WebKit::GestureRecognizerState gestureState, bool isInteractingWithFocusedElement) -> (WebCore::IntPoint point, enum:uint8_t WebKit::GestureType gestureType, enum:uint8_t WebKit::GestureRecognizerState gestureState, OptionSet<WebKit::SelectionFlags> flags)
     UpdateSelectionWithTouches(WebCore::IntPoint point, enum:uint8_t WebKit::SelectionTouch touches, bool baseIsStart) -> (WebCore::IntPoint point, enum:uint8_t WebKit::SelectionTouch touch, OptionSet<WebKit::SelectionFlags> selectionFlags)
     SelectWithTwoTouches(WebCore::IntPoint from, WebCore::IntPoint to, enum:uint8_t WebKit::GestureType gestureType, enum:uint8_t WebKit::GestureRecognizerState gestureState) -> (WebCore::IntPoint point, enum:uint8_t WebKit::GestureType gestureType, enum:uint8_t WebKit::GestureRecognizerState gestureState, OptionSet<WebKit::SelectionFlags> selectionFlags)
     ExtendSelection(enum:uint8_t WebCore::TextGranularity granularity) -> ()
@@ -177,6 +180,7 @@ messages -> WebPage WantsAsyncDispatchMessage {
 
     CancelPointer(WebCore::PointerID pointerId, WebCore::IntPoint documentPoint)
     TouchWithIdentifierWasRemoved(WebCore::PointerID pointerId)
+    ResetPointerCapture()
 
     DidEndColorPicker()
     DidChooseColor(WebCore::Color color)
@@ -397,8 +401,12 @@ messages -> WebPage WantsAsyncDispatchMessage {
 
 
     # Popup menu.
+#if !PLATFORM(IOS_FAMILY)
     DidChangeSelectedIndexForActivePopupMenu(int32_t newIndex)
+#endif
+#if !PLATFORM(COCOA)
     SetTextForActivePopupMenu(int32_t index)
+#endif
 #if PLATFORM(GTK)
     FailedToShowPopupMenu()
 #endif
@@ -522,6 +530,9 @@ messages -> WebPage WantsAsyncDispatchMessage {
 
     BindRemoteAccessibilityFrames(int processIdentifier, WebCore::FrameIdentifier frameID, struct WebCore::AccessibilityRemoteToken dataToken) -> (struct WebCore::AccessibilityRemoteToken token, int processIdentifier) Synchronous
     UpdateRemotePageAccessibilityOffset(WebCore::FrameIdentifier frameID, WebCore::IntPoint offset);
+#if ENABLE(ACCESSIBILITY_LOCAL_FRAME)
+    UpdateRemotePageAccessibilityInheritedState(WebCore::FrameIdentifier frameID, struct WebCore::InheritedFrameState state);
+#endif
     ResolveAccessibilityHitTestForTesting(WebCore::FrameIdentifier frameID, WebCore::IntPoint point) -> (String result)
     EnableAccessibility()
 
@@ -638,10 +649,6 @@ messages -> WebPage WantsAsyncDispatchMessage {
     FlushDeferredDidReceiveMouseEvent()
 
     PerformHitTestForMouseEvent(WebKit::WebMouseEvent event) -> (struct WebKit::WebHitTestResultData hitTestResult, OptionSet<WebKit::WebEventModifier> modifiers)
-
-    SetStatusBarIsVisible(bool visible)
-    SetMenuBarIsVisible(bool visible)
-    SetToolbarsAreVisible(bool visible)
 
     SetUseColorAppearance(bool useDarkAppearance, bool useElevatedUserInterfaceLevel)
 
@@ -936,4 +943,6 @@ messages -> WebPage WantsAsyncDispatchMessage {
 #if ENABLE(MODEL_ELEMENT_IMMERSIVE)
     ExitImmersive()
 #endif
+
+    UpdateRemoteIntersectionObservers();
 }

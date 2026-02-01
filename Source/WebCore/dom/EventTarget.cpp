@@ -121,7 +121,7 @@ bool EventTarget::addEventListener(const AtomString& eventType, Ref<EventListene
     if (RefPtr signal = options.signal) {
         signal->addAlgorithm([weakThis = WeakPtr { *this }, eventType, listener = WeakPtr { listener }, capture = options.capture](JSC::JSValue) {
             if (weakThis && listener)
-                Ref { *weakThis }->removeEventListener(eventType, *listener, capture);
+                Ref { *weakThis }->removeEventListener(eventType, *listener, { .capture = capture });
         });
     }
 
@@ -158,7 +158,7 @@ void EventTarget::removeEventListenerForBindings(const AtomString& eventType, Re
         SUPPRESS_UNCOUNTED_LAMBDA_CAPTURE removeEventListener(eventType, *listener, options);
     }, [&](bool capture) {
         // FIXME: Ideally we'd be able to mark the makeVisitor() lamdbas as NOESCAPE to avoid having to suppress.
-        SUPPRESS_UNCOUNTED_LAMBDA_CAPTURE removeEventListener(eventType, *listener, capture);
+        SUPPRESS_UNCOUNTED_LAMBDA_CAPTURE removeEventListener(eventType, *listener, { .capture = capture });
     });
 
     WTF::visit(visitor, variant);
@@ -186,7 +186,7 @@ void EventTarget::setAttributeEventListener(const AtomString& eventType, JSC::JS
     RefPtr existingListener = attributeEventListener(eventType, isolatedWorld);
     if (!listener.isObject()) {
         if (existingListener)
-            removeEventListener(eventType, *existingListener, false);
+            removeEventListener(eventType, *existingListener, { .capture = false });
     } else if (existingListener) {
         bool capture = false;
 
@@ -205,7 +205,7 @@ bool EventTarget::setAttributeEventListener(const AtomString& eventType, RefPtr<
     RefPtr existingListener = attributeEventListener(eventType, isolatedWorld);
     if (!listener) {
         if (existingListener)
-            removeEventListener(eventType, *existingListener, false);
+            removeEventListener(eventType, *existingListener, { .capture = false });
         return false;
     }
     if (existingListener) {
@@ -384,7 +384,7 @@ void EventTarget::innerInvokeEventListeners(Event& event, EventListenerVector li
 
         // Do this before invocation to avoid reentrancy issues.
         if (registeredListener->isOnce())
-            removeEventListener(event.type(), callback, registeredListener->useCapture());
+            removeEventListener(event.type(), callback, { .capture = registeredListener->useCapture() });
 
         if (registeredListener->isPassive())
             event.setInPassiveListener(true);
