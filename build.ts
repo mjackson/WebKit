@@ -129,15 +129,10 @@ const getCommonFlags = (config: BuildConfig) => {
 
   if (IS_MAC) {
     flags.push(
-      "-DENABLE_SINGLE_THREADED_VM_ENTRY_SCOPE=ON",
-      "-DBUN_FAST_TLS=ON",
-      "-DPTHREAD_JIT_PERMISSIONS_API=1",
-      "-DUSE_PTHREAD_JIT_PERMISSIONS_API=ON"
+      "-DENABLE_REMOTE_INSPECTOR=ON"
     );
   } else if (IS_LINUX) {
     flags.push(
-      "-DJSEXPORT_PRIVATE=WTF_EXPORT_DECLARATION",
-      "-DUSE_VISIBILITY_ATTRIBUTE=1",
       "-DENABLE_REMOTE_INSPECTOR=ON"
     );
   } else if (IS_WINDOWS) {
