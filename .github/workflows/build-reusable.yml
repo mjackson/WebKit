@@ -1,7 +1,7 @@
 name: Build WebKit (Reusable)
 
 env:
-  LLVM_VERSION: 19
+  LLVM_VERSION: 21
 
 on:
   workflow_call:
@@ -98,20 +98,20 @@ jobs:
           HOMEBREW_NO_INSTALL_CLEANUP: 1
           HOMEBREW_NO_ANALYTICS_THIS_RUN: 1
         run: |
-          echo "${{matrix.brew_prefix}}/llvm@${{env.LLVM_VERSION}}/bin" >> $GITHUB_PATH
-          brew install llvm@${{env.LLVM_VERSION}} python icu4c ninja -f --overwrite
-          brew link llvm@${{env.LLVM_VERSION}} -f --overwrite
+          echo "${{matrix.brew_prefix}}/llvm@21/bin" >> $GITHUB_PATH
+          brew install llvm@21 python icu4c ninja -f --overwrite
+          brew link llvm@21 -f --overwrite
       - name: Run
         env:
           ICU_INCLUDE_DIRS: ${{matrix.brew_prefix}}/icu4c/include
           ICU_ROOT: ${{matrix.brew_prefix}}/icu4c
           LDFLAGS: "${{env.LDFLAGS}} "
-          CC: "${{matrix.brew_prefix}}/llvm@${{env.LLVM_VERSION}}/bin/clang"
-          CXX: "${{matrix.brew_prefix}}/llvm@${{env.LLVM_VERSION}}/bin/clang++"
-          RANLIB: "${{matrix.brew_prefix}}/llvm@${{env.LLVM_VERSION}}/bin/llvm-ranlib"
-          AR: "${{matrix.brew_prefix}}/llvm@${{env.LLVM_VERSION}}/bin/llvm-ar"
-          CMAKE_C_COMPILER: "${{matrix.brew_prefix}}/llvm@${{env.LLVM_VERSION}}/bin/clang"
-          CMAKE_CXX_COMPILER: "${{matrix.brew_prefix}}/llvm@${{env.LLVM_VERSION}}/bin/clang++"
+          CC: "${{matrix.brew_prefix}}/llvm@21/bin/clang"
+          CXX: "${{matrix.brew_prefix}}/llvm@21/bin/clang++"
+          RANLIB: "${{matrix.brew_prefix}}/llvm@21/bin/llvm-ranlib"
+          AR: "${{matrix.brew_prefix}}/llvm@21/bin/llvm-ar"
+          CMAKE_C_COMPILER: "${{matrix.brew_prefix}}/llvm@21/bin/clang"
+          CMAKE_CXX_COMPILER: "${{matrix.brew_prefix}}/llvm@21/bin/clang++"
           CMAKE_C_FLAGS: " -fno-exceptions ${{matrix.cpp_flags}} -fvisibility=hidden -fvisibility-inlines-hidden -O3 -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -faddrsig "
           CMAKE_CXX_FLAGS: " -fno-exceptions ${{matrix.cpp_flags}} -fvisibility=hidden -fvisibility-inlines-hidden -O3 -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -faddrsig -fno-c++-static-destructors "
           CMAKE_OSX_DEPLOYMENT_TARGET: "13.0"
@@ -273,7 +273,7 @@ jobs:
         run: |
           "C:\Program Files\7-Zip" >> $Env:GITHUB_PATH
           scoop config use_external_7zip true
-          scoop install ninja llvm@19.1.7
+          scoop install ninja llvm@21.1.8
           Join-Path (Resolve-Path ~).Path "scoop\apps\llvm\current\bin" >> $Env:GITHUB_PATH
       - name: Install LLVM and Ninja (ARM64)
         if: matrix.platform == 'ARM64'

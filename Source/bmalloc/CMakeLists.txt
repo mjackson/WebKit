@@ -628,6 +628,7 @@ endif ()
 
 if (CMAKE_SYSTEM_NAME MATCHES "Darwin")
     list(APPEND bmalloc_SOURCES
+        bmalloc/LibcxxHashMemoryShim.cpp
         bmalloc/TZoneLog.cpp
     )
 endif ()
