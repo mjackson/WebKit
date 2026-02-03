@@ -1137,6 +1137,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/BrandedStructure.h
     runtime/BufferMemoryHandle.h
     runtime/BundlePath.h
+    runtime/BunOperatorOverloading.h
     runtime/Butterfly.h
     runtime/ButterflyInlines.h
     runtime/BytecodeCacheError.h

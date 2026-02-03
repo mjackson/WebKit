@@ -57,6 +57,10 @@
 #include "TypeProfilerLog.h"
 #include "runtime/Error.h"
 
+#if USE(BUN_OPERATOR_OVERLOADING)
+#include "BunOperatorOverloading.h"
+#endif
+
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 namespace JSC {
@@ -431,6 +435,16 @@ JSC_DEFINE_COMMON_SLOW_PATH(slow_path_negate)
     BEGIN();
     auto bytecode = pc->as<OpNegate>();
     JSValue operand = GET_C(bytecode.m_operand).jsValue();
+
+#if USE(BUN_OPERATOR_OVERLOADING)
+    if (operand.isObject()) {
+        if (auto result = JSValue::decode(Bun__tryUnaryOp(globalObject, JSValue::encode(operand), BunUnaryOp_Negate))) {
+            RETURN(result);
+        }
+        CHECK_EXCEPTION();
+    }
+#endif
+
     JSValue primValue = operand.toPrimitive(globalObject, PreferNumber);
     CHECK_EXCEPTION();
 

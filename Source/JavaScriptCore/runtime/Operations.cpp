@@ -36,6 +36,15 @@ NEVER_INLINE JSValue jsAddSlowCase(JSGlobalObject* globalObject, JSValue v1, JSV
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
+
+#if USE(BUN_OPERATOR_OVERLOADING)
+    if (v1.isObject() || v2.isObject()) {
+        if (auto result = JSValue::decode(Bun__tryBinaryOp(globalObject, JSValue::encode(v1), JSValue::encode(v2), BunBinaryOp_Add)))
+            return result;
+        RETURN_IF_EXCEPTION(scope, { });
+    }
+#endif
+
     JSValue p1 = v1.toPrimitive(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
     JSValue p2 = v2.toPrimitive(globalObject);

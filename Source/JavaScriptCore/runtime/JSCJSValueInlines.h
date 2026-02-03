@@ -46,6 +46,10 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include <wtf/text/MakeString.h>
 #include <wtf/text/StringImpl.h>
 
+#if USE(BUN_OPERATOR_OVERLOADING)
+#include "BunOperatorOverloading.h"
+#endif
+
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 namespace JSC {
@@ -601,6 +605,15 @@ ALWAYS_INLINE bool JSValue::equalSlowCaseInline(JSGlobalObject* globalObject, JS
         if (v1 == v2)
             return true;
 
+#if USE(BUN_OPERATOR_OVERLOADING)
+        if (v1.isObject() || v2.isObject()) {
+            int32_t cmpResult = Bun__tryCompareOp(globalObject, JSValue::encode(v1), JSValue::encode(v2), BunCompareOp_Equal);
+            if (cmpResult != 0)
+                return cmpResult > 0;
+            RETURN_IF_EXCEPTION(scope, false);
+        }
+#endif
+
         if (v1.isUndefinedOrNull()) {
             if (v2.isUndefinedOrNull())
                 return true;
@@ -735,6 +748,14 @@ inline bool JSValue::strictEqual(JSGlobalObject* globalObject, JSValue v1, JSVal
         return v1.asHeapBigInt()->equalsToInt32(v2.bigInt32AsInt32());
     if (v1.isBigInt32() && v2.isHeapBigInt())
         return v2.asHeapBigInt()->equalsToInt32(v1.bigInt32AsInt32());
+#endif
+
+#if USE(BUN_OPERATOR_OVERLOADING)
+    if (v1.isObject() || v2.isObject()) {
+        int32_t cmpResult = Bun__tryCompareOp(globalObject, JSValue::encode(v1), JSValue::encode(v2), BunCompareOp_StrictEqual);
+        if (cmpResult != 0)
+            return cmpResult > 0;
+    }
 #endif
 
     if (v1.isCell() && v2.isCell())

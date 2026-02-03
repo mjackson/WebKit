@@ -28,6 +28,10 @@
 #include "JSString.h"
 #include <wtf/text/MakeString.h>
 
+#if USE(BUN_OPERATOR_OVERLOADING)
+#include "BunOperatorOverloading.h"
+#endif
+
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 namespace JSC {
@@ -462,6 +466,15 @@ ALWAYS_INLINE bool jsLess(JSGlobalObject* globalObject, JSValue v1, JSValue v2)
         return codePointCompareLessThan(s1, s2);
     }
 
+#if USE(BUN_OPERATOR_OVERLOADING)
+    if (v1.isObject() || v2.isObject()) {
+        int32_t cmpResult = Bun__tryCompareOp(globalObject, JSValue::encode(v1), JSValue::encode(v2), BunCompareOp_LessThan);
+        if (cmpResult != 0)
+            return cmpResult > 0;
+        RETURN_IF_EXCEPTION(scope, false);
+    }
+#endif
+
     double n1;
     double n2;
     JSValue p1;
@@ -511,6 +524,15 @@ ALWAYS_INLINE bool jsLessEq(JSGlobalObject* globalObject, JSValue v1, JSValue v2
         RETURN_IF_EXCEPTION(scope, false);
         return !codePointCompareLessThan(s2, s1);
     }
+
+#if USE(BUN_OPERATOR_OVERLOADING)
+    if (v1.isObject() || v2.isObject()) {
+        int32_t cmpResult = Bun__tryCompareOp(globalObject, JSValue::encode(v1), JSValue::encode(v2), BunCompareOp_LessThanOrEqual);
+        if (cmpResult != 0)
+            return cmpResult > 0;
+        RETURN_IF_EXCEPTION(scope, false);
+    }
+#endif
 
     double n1;
     double n2;
@@ -570,7 +592,14 @@ ALWAYS_INLINE JSValue jsAdd(JSGlobalObject* globalObject, JSValue v1, JSValue v2
 {
     if (v1.isNumber() && v2.isNumber())
         return jsNumber(v1.asNumber() + v2.asNumber());
-        
+
+#if USE(BUN_OPERATOR_OVERLOADING)
+    if (v1.isObject() || v2.isObject()) {
+        if (auto result = JSValue::decode(Bun__tryBinaryOp(globalObject, JSValue::encode(v1), JSValue::encode(v2), BunBinaryOp_Add)))
+            return result;
+    }
+#endif
+
     return jsAddNonNumber(globalObject, v1, v2);
 }
 
@@ -610,6 +639,13 @@ ALWAYS_INLINE JSValue arithmeticBinaryOp(JSGlobalObject* globalObject, JSValue v
 
 ALWAYS_INLINE JSValue jsSub(JSGlobalObject* globalObject, JSValue v1, JSValue v2)
 {
+#if USE(BUN_OPERATOR_OVERLOADING)
+    if (v1.isObject() || v2.isObject()) {
+        if (auto result = JSValue::decode(Bun__tryBinaryOp(globalObject, JSValue::encode(v1), JSValue::encode(v2), BunBinaryOp_Sub)))
+            return result;
+    }
+#endif
+
     auto doubleOp = [] (double left, double right) -> double {
         return left - right;
     };
@@ -623,6 +659,13 @@ ALWAYS_INLINE JSValue jsSub(JSGlobalObject* globalObject, JSValue v1, JSValue v2
 
 ALWAYS_INLINE JSValue jsMul(JSGlobalObject* globalObject, JSValue v1, JSValue v2)
 {
+#if USE(BUN_OPERATOR_OVERLOADING)
+    if (v1.isObject() || v2.isObject()) {
+        if (auto result = JSValue::decode(Bun__tryBinaryOp(globalObject, JSValue::encode(v1), JSValue::encode(v2), BunBinaryOp_Mul)))
+            return result;
+    }
+#endif
+
     auto doubleOp = [] (double left, double right) -> double {
         return left * right;
     };
@@ -636,6 +679,13 @@ ALWAYS_INLINE JSValue jsMul(JSGlobalObject* globalObject, JSValue v1, JSValue v2
 
 ALWAYS_INLINE JSValue jsDiv(JSGlobalObject* globalObject, JSValue v1, JSValue v2)
 {
+#if USE(BUN_OPERATOR_OVERLOADING)
+    if (v1.isObject() || v2.isObject()) {
+        if (auto result = JSValue::decode(Bun__tryBinaryOp(globalObject, JSValue::encode(v1), JSValue::encode(v2), BunBinaryOp_Div)))
+            return result;
+    }
+#endif
+
     auto doubleOp = [] (double left, double right) -> double {
         return left / right;
     };
@@ -649,6 +699,13 @@ ALWAYS_INLINE JSValue jsDiv(JSGlobalObject* globalObject, JSValue v1, JSValue v2
 
 ALWAYS_INLINE JSValue jsRemainder(JSGlobalObject* globalObject, JSValue v1, JSValue v2)
 {
+#if USE(BUN_OPERATOR_OVERLOADING)
+    if (v1.isObject() || v2.isObject()) {
+        if (auto result = JSValue::decode(Bun__tryBinaryOp(globalObject, JSValue::encode(v1), JSValue::encode(v2), BunBinaryOp_Remainder)))
+            return result;
+    }
+#endif
+
     auto doubleOp = [] (double left, double right) -> double {
         return Math::fmodDouble(left, right);
     };
@@ -662,6 +719,13 @@ ALWAYS_INLINE JSValue jsRemainder(JSGlobalObject* globalObject, JSValue v1, JSVa
 
 ALWAYS_INLINE JSValue jsPow(JSGlobalObject* globalObject, JSValue v1, JSValue v2)
 {
+#if USE(BUN_OPERATOR_OVERLOADING)
+    if (v1.isObject() || v2.isObject()) {
+        if (auto result = JSValue::decode(Bun__tryBinaryOp(globalObject, JSValue::encode(v1), JSValue::encode(v2), BunBinaryOp_Pow)))
+            return result;
+    }
+#endif
+
     auto doubleOp = [] (double left, double right) -> double {
         return operationMathPow(left, right);
     };
@@ -718,6 +782,14 @@ ALWAYS_INLINE JSValue jsBitwiseNot(JSGlobalObject* globalObject, JSValue v)
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
+#if USE(BUN_OPERATOR_OVERLOADING)
+    if (v.isObject()) {
+        if (auto result = JSValue::decode(Bun__tryUnaryOp(globalObject, JSValue::encode(v), BunUnaryOp_BitwiseNot)))
+            return result;
+        RETURN_IF_EXCEPTION(scope, { });
+    }
+#endif
+
     auto operandNumeric = v.toBigIntOrInt32(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
 
@@ -738,6 +810,14 @@ ALWAYS_INLINE JSValue shift(JSGlobalObject* globalObject, JSValue v1, JSValue v2
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
+
+#if USE(BUN_OPERATOR_OVERLOADING)
+    if (v1.isObject() || v2.isObject()) {
+        if (auto result = JSValue::decode(Bun__tryBinaryOp(globalObject, JSValue::encode(v1), JSValue::encode(v2), isLeft ? BunBinaryOp_LShift : BunBinaryOp_RShift)))
+            return result;
+        RETURN_IF_EXCEPTION(scope, { });
+    }
+#endif
 
     auto leftNumeric = v1.toBigIntOrInt32(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
@@ -852,6 +932,13 @@ ALWAYS_INLINE JSValue bitwiseBinaryOp(JSGlobalObject* globalObject, JSValue v1, 
 
 ALWAYS_INLINE JSValue jsBitwiseAnd(JSGlobalObject* globalObject, JSValue v1, JSValue v2)
 {
+#if USE(BUN_OPERATOR_OVERLOADING)
+    if (v1.isObject() || v2.isObject()) {
+        if (auto result = JSValue::decode(Bun__tryBinaryOp(globalObject, JSValue::encode(v1), JSValue::encode(v2), BunBinaryOp_BitwiseAnd)))
+            return result;
+    }
+#endif
+
     auto int32Op = [] (int32_t left, int32_t right) -> int32_t {
         return left & right;
     };
@@ -867,6 +954,13 @@ ALWAYS_INLINE JSValue jsBitwiseAnd(JSGlobalObject* globalObject, JSValue v1, JSV
 
 ALWAYS_INLINE JSValue jsBitwiseOr(JSGlobalObject* globalObject, JSValue v1, JSValue v2)
 {
+#if USE(BUN_OPERATOR_OVERLOADING)
+    if (v1.isObject() || v2.isObject()) {
+        if (auto result = JSValue::decode(Bun__tryBinaryOp(globalObject, JSValue::encode(v1), JSValue::encode(v2), BunBinaryOp_BitwiseOr)))
+            return result;
+    }
+#endif
+
     auto int32Op = [] (int32_t left, int32_t right) -> int32_t {
         return left | right;
     };
@@ -883,6 +977,13 @@ ALWAYS_INLINE JSValue jsBitwiseOr(JSGlobalObject* globalObject, JSValue v1, JSVa
 
 ALWAYS_INLINE JSValue jsBitwiseXor(JSGlobalObject* globalObject, JSValue v1, JSValue v2)
 {
+#if USE(BUN_OPERATOR_OVERLOADING)
+    if (v1.isObject() || v2.isObject()) {
+        if (auto result = JSValue::decode(Bun__tryBinaryOp(globalObject, JSValue::encode(v1), JSValue::encode(v2), BunBinaryOp_BitwiseXor)))
+            return result;
+    }
+#endif
+
     auto int32Op = [] (int32_t left, int32_t right) -> int32_t {
         return left ^ right;
     };

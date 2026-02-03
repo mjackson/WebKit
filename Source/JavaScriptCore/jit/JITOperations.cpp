@@ -78,6 +78,10 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 #include "VMInlines.h"
 #include "VMTrapsInlines.h"
 
+#if USE(BUN_OPERATOR_OVERLOADING)
+#include "BunOperatorOverloading.h"
+#endif
+
 IGNORE_WARNINGS_BEGIN("frame-address")
 
 namespace JSC {
@@ -4932,6 +4936,14 @@ JSC_DEFINE_JIT_OPERATION(operationArithNegate, EncodedJSValue, (JSGlobalObject* 
 
     JSValue operand = JSValue::decode(encodedOperand);
 
+#if USE(BUN_OPERATOR_OVERLOADING)
+    if (operand.isObject()) {
+        if (auto result = JSValue::decode(Bun__tryUnaryOp(globalObject, encodedOperand, BunUnaryOp_Negate)))
+            OPERATION_RETURN(scope, JSValue::encode(result));
+        OPERATION_RETURN_IF_EXCEPTION(scope, encodedJSValue());
+    }
+#endif
+
     JSValue primValue = operand.toPrimitive(globalObject, PreferNumber);
     OPERATION_RETURN_IF_EXCEPTION(scope, encodedJSValue());
 
@@ -4959,6 +4971,16 @@ JSC_DEFINE_JIT_OPERATION(operationArithNegateProfiled, EncodedJSValue, (JSGlobal
 
     JSValue operand = JSValue::decode(encodedOperand);
     arithProfile->observeArg(operand);
+
+#if USE(BUN_OPERATOR_OVERLOADING)
+    if (operand.isObject()) {
+        if (auto result = JSValue::decode(Bun__tryUnaryOp(globalObject, encodedOperand, BunUnaryOp_Negate))) {
+            arithProfile->observeResult(result);
+            OPERATION_RETURN(scope, JSValue::encode(result));
+        }
+        OPERATION_RETURN_IF_EXCEPTION(scope, encodedJSValue());
+    }
+#endif
 
     JSValue primValue = operand.toPrimitive(globalObject, PreferNumber);
     OPERATION_RETURN_IF_EXCEPTION(scope, encodedJSValue());
@@ -5003,7 +5025,17 @@ JSC_DEFINE_JIT_OPERATION(operationArithNegateProfiledOptimize, EncodedJSValue, (
 #if ENABLE(MATH_IC_STATS)
     callFrame->codeBlock()->dumpMathICStats();
 #endif
-    
+
+#if USE(BUN_OPERATOR_OVERLOADING)
+    if (operand.isObject()) {
+        if (auto result = JSValue::decode(Bun__tryUnaryOp(globalObject, encodedOperand, BunUnaryOp_Negate))) {
+            arithProfile->observeResult(result);
+            OPERATION_RETURN(scope, JSValue::encode(result));
+        }
+        OPERATION_RETURN_IF_EXCEPTION(scope, encodedJSValue());
+    }
+#endif
+
     JSValue primValue = operand.toPrimitive(globalObject, PreferNumber);
     OPERATION_RETURN_IF_EXCEPTION(scope, encodedJSValue());
 
@@ -5045,6 +5077,14 @@ JSC_DEFINE_JIT_OPERATION(operationArithNegateOptimize, EncodedJSValue, (JSGlobal
 
 #if ENABLE(MATH_IC_STATS)
     callFrame->codeBlock()->dumpMathICStats();
+#endif
+
+#if USE(BUN_OPERATOR_OVERLOADING)
+    if (operand.isObject()) {
+        if (auto result = JSValue::decode(Bun__tryUnaryOp(globalObject, encodedOperand, BunUnaryOp_Negate)))
+            OPERATION_RETURN(scope, JSValue::encode(result));
+        OPERATION_RETURN_IF_EXCEPTION(scope, encodedJSValue());
+    }
 #endif
 
     JSValue primValue = operand.toPrimitive(globalObject, PreferNumber);
