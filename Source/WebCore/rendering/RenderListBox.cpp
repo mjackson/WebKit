@@ -1201,7 +1201,7 @@ void RenderListBox::scrollDidEnd()
 {
     if (ScrollAnimator* scrollAnimator = existingScrollAnimator(); scrollAnimator && !scrollAnimator->isUserScrollInProgress() && !isAwaitingScrollend()) {
         setIsAwaitingScrollend(false);
-        selectElement().protectedDocument()->addPendingScrollEventTarget(selectElement(), ScrollEventType::Scrollend);
+        protect(selectElement().document())->addPendingScrollEventTarget(selectElement(), ScrollEventType::Scrollend);
     }
 }
 

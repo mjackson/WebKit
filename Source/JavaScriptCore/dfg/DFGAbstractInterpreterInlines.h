@@ -2401,6 +2401,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
                 || value.isType(SpecBoolean)
                 || value.isType(SpecSymbol)
                 || value.isType(SpecOther)) {
+                bool didFold = false;
                 switch (node->op()) {
                 case CompareLess:
                 case CompareGreater:
@@ -2408,6 +2409,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
                     if (value.isType(SpecSymbol))
                         break;
                     setConstant(node, jsBoolean(false));
+                    didFold = true;
                     break;
                 case CompareLessEq:
                 case CompareGreaterEq: {
@@ -2421,12 +2423,14 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
                 }
                 case CompareEq:
                     setConstant(node, jsBoolean(true));
+                    didFold = true;
                     break;
                 default:
                     DFG_CRASH(m_graph, node, "Unexpected node type");
                     break;
                 }
-                break;
+                if (didFold)
+                    break;
             }
         }
 

@@ -705,7 +705,7 @@ TEST(TextExtractionTests, SubframeInteractions)
     __block RetainPtr subframes = adoptNS([NSMutableArray new]);
     RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
     [navigationDelegate setDidCommitLoadWithRequestInFrame:^(WKWebView *, NSURLRequest *, WKFrameInfo *frame) {
-        if (!frame.mainFrame && ![frame.request.URL.scheme isEqualToString:@"about:blank"])
+        if (!frame.mainFrame && ![frame.request.URL.scheme isEqualToString:@"about"])
             [subframes addObject:frame];
     }];
     [webView setNavigationDelegate:navigationDelegate.get()];
@@ -721,7 +721,26 @@ TEST(TextExtractionTests, SubframeInteractions)
     [extractionConfiguration setIncludeURLs:NO];
     [extractionConfiguration setAdditionalFrames:subframes.get()];
 
+    RetainPtr world = [WKContentWorld _worldWithConfiguration:^{
+        RetainPtr configuration = adoptNS([_WKContentWorldConfiguration new]);
+        [configuration setAllowJSHandleCreation:YES];
+        return configuration.autorelease();
+    }()];
+
+    for (WKFrameInfo *subframe in subframes.get()) {
+        RetainPtr button = [webView querySelector:@"button" frame:subframe world:world.get()];
+        EXPECT_NOT_NULL(button);
+        [extractionConfiguration addClientAttribute:@"foo" value:@"bar" forNode:button.get()];
+    }
+
+    auto numberOfMatches = [](NSString *text, NSString *patternString) {
+        RetainPtr pattern = [NSRegularExpression regularExpressionWithPattern:patternString options:0 error:nil];
+        return [pattern numberOfMatchesInString:text options:0 range:NSMakeRange(0, text.length)];
+    };
+
     RetainPtr debugText = [webView synchronouslyGetDebugText:extractionConfiguration.get()];
+    EXPECT_EQ(numberOfMatches(debugText.get(), @"foo='bar'"), 2u);
+
     {
         RetainPtr interaction = adoptNS([[_WKTextExtractionInteraction alloc] initWithAction:_WKTextExtractionActionClick]);
         [interaction setNodeIdentifier:extractNodeIdentifier(debugText.get(), @"Same origin: click here")];
@@ -746,9 +765,7 @@ TEST(TextExtractionTests, SubframeInteractions)
     }
 
     RetainPtr debugTextAfterClicks = [webView synchronouslyGetDebugText:extractionConfiguration.get()];
-    RetainPtr clickCountPattern = [NSRegularExpression regularExpressionWithPattern:@"Click count: 1" options:0 error:nil];
-    NSUInteger numberOfMatches = [clickCountPattern numberOfMatchesInString:debugTextAfterClicks.get() options:0 range:NSMakeRange(0, [debugTextAfterClicks length])];
-    EXPECT_EQ(numberOfMatches, 2u);
+    EXPECT_EQ(numberOfMatches(debugTextAfterClicks.get(), @"Click count: 1"), 2u);
 }
 
 TEST(TextExtractionTests, InjectedBundle)

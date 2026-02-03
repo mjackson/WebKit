@@ -89,13 +89,9 @@ bool SequesteredImmortalHeap::scavengeImpl(void* /*userdata*/)
     dataLogLnIf(verbose, "SequesteredImmortalHeap: scavenging");
     {
         Locker listLocker { m_scavengerLock };
-        auto bound = m_nextFreeIndex;
-        ASSERT(bound <= m_allocatorSlots.size());
+        auto bound = m_slotManager.allocatedCount();
         for (size_t i = 0; i < bound; i++) {
-            // FIXME: Refactor the SeqImmortalHeap <-> SeqArenaAllocator
-            // relationship so that we don't have to assume data layouts
-            // here
-            auto& queue = *reinterpret_cast<ConcurrentDecommitQueue*>(&m_allocatorSlots[i]);
+            auto& queue = *reinterpret_cast<ConcurrentDecommitQueue*>(&m_slotManager[i]);
             queue.decommit();
         }
     }

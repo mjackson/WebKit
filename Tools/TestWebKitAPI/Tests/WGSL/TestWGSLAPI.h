@@ -113,6 +113,8 @@ inline Check check(const String& pattern)
     return [&](const String& msl, unsigned offset) -> unsigned {
         JSC::Yarr::RegularExpression test(pattern);
         auto result = test.match(msl, offset);
+        if (result == -1)
+            __builtin_trap();
         EXPECT_NE(result, -1);
         return result;
     };

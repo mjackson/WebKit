@@ -70,7 +70,7 @@ void WebRemoteFrameClient::frameDetached()
     m_frame->invalidate();
 
     if (ownerElement)
-        ownerElement->protectedDocument()->checkCompleted();
+        protect(ownerElement->document())->checkCompleted();
 }
 
 void WebRemoteFrameClient::frameRectDidChange(IntRect rect)

@@ -3895,7 +3895,7 @@ static inline void collapseCaretWidth(IntRect& rect)
 
 IntRect Editor::firstRectForRange(const SimpleRange& range) const
 {
-    range.start.protectedDocument()->updateLayout();
+    protect(range.start.document())->updateLayout();
 
     VisiblePosition start(makeDeprecatedLegacyPosition(range.start));
 

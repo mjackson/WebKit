@@ -94,9 +94,6 @@ public:
 
     WebBackForwardListFrameItem& mainFrameItem() const SWIFT_RETURNS_INDEPENDENT_VALUE;
 
-    void setIsRemoteFrameNavigation(bool isRemoteFrameNavigation) { m_isRemoteFrameNavigation = isRemoteFrameNavigation; }
-    bool isRemoteFrameNavigation() const { return m_isRemoteFrameNavigation; }
-
     void setWasRestoredFromSession();
 
     String loggingString();
@@ -127,7 +124,6 @@ private:
 #if PLATFORM(COCOA) || PLATFORM(GTK) || PLATFORM(WPE)
     RefPtr<ViewSnapshot> m_snapshot;
 #endif
-    bool m_isRemoteFrameNavigation { false };
     EnhancedSecurity m_enhancedSecurity { EnhancedSecurity::Disabled };
 } SWIFT_SHARED_REFERENCE(refBackForwardListItem, derefBackForwardListItem);
 

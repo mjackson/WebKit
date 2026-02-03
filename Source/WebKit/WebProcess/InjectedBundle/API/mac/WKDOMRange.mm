@@ -124,7 +124,7 @@ static Ref<WebCore::Range> protectedImpl(WKDOMRange *range)
 - (NSString *)text
 {
     auto range = makeSimpleRange(protectedImpl(self));
-    range.start.protectedDocument()->updateLayout();
+    protect(range.start.document())->updateLayout();
     return plainText(range).createNSString().autorelease();
 }
 
@@ -136,7 +136,7 @@ static Ref<WebCore::Range> protectedImpl(WKDOMRange *range)
 - (NSArray *)textRects
 {
     auto range = makeSimpleRange(protectedImpl(self));
-    range.start.protectedDocument()->updateLayout(WebCore::LayoutOptions::IgnorePendingStylesheets);
+    protect(range.start.document())->updateLayout(WebCore::LayoutOptions::IgnorePendingStylesheets);
     return createNSArray(WebCore::RenderObject::absoluteTextRects(range)).autorelease();
 }
 

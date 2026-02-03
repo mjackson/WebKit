@@ -498,16 +498,16 @@ WI.TreeElement = class TreeElement extends WI.Object
             this.treeOutline.dispatchEventToListeners(WI.TreeOutline.Event.ElementRevealed, {element: this});
     }
 
-    revealed(ignoreHidden)
+    get revealed()
     {
-        if (!ignoreHidden && this.hidden)
+        if (this._hidden)
             return false;
 
         var currentAncestor = this.parent;
         while (currentAncestor && !currentAncestor.root) {
             if (!currentAncestor.expanded)
                 return false;
-            if (!ignoreHidden && currentAncestor.hidden)
+            if (currentAncestor._hidden)
                 return false;
             currentAncestor = currentAncestor.parent;
         }
@@ -590,7 +590,7 @@ WI.TreeElement = class TreeElement extends WI.Object
     traverseNextTreeElement(skipUnrevealed, stayWithin, dontPopulate, info)
     {
         function shouldSkip(element) {
-            return skipUnrevealed && !element.revealed(true);
+            return skipUnrevealed && !element.revealed;
         }
 
         var depthChange = 0;
@@ -623,7 +623,7 @@ WI.TreeElement = class TreeElement extends WI.Object
     traversePreviousTreeElement(skipUnrevealed, dontPopulate)
     {
         function shouldSkip(element) {
-            return skipUnrevealed && !element.revealed(true);
+            return skipUnrevealed && !element.revealed;
         }
 
         var element = this;

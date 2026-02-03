@@ -76,6 +76,8 @@ public:
     static ExceptionOr<Ref<ReadableStream>> createFromByteUnderlyingSource(JSDOMGlobalObject&, JSC::JSValue underlyingSource, UnderlyingSource&&, double highWaterMark);
     static Ref<ReadableStream> create(Ref<InternalReadableStream>&&);
 
+    static ExceptionOr<Ref<ReadableStream>> from(JSDOMGlobalObject&, JSC::JSValue);
+
     virtual ~ReadableStream();
 
     // ContextDestructionObserver.

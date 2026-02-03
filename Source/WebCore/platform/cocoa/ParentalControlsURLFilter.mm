@@ -165,10 +165,7 @@ bool ParentalControlsURLFilter::isEnabled() const
 
 void ParentalControlsURLFilter::isURLAllowed(const URL& mainDocumentURL, const URL& url, ParentalControlsContentFilter& filter)
 {
-    // FIXME: rdar://168622817
-    UNUSED_PARAM(mainDocumentURL);
-
-    isURLAllowedImpl(url, { [protectedThis = Ref { *this }, weakFilter = ThreadSafeWeakPtr { filter }] (bool allowed, NSData *replacementData) mutable {
+    isURLAllowedImpl(mainDocumentURL, url, { [protectedThis = Ref { *this }, weakFilter = ThreadSafeWeakPtr { filter }] (bool allowed, NSData *replacementData) mutable {
         ASSERT(!isMainThread());
         if (RefPtr filter = weakFilter.get())
             filter->didReceiveAllowDecisionOnQueue(allowed, replacementData);
@@ -177,7 +174,8 @@ void ParentalControlsURLFilter::isURLAllowed(const URL& mainDocumentURL, const U
 
 void ParentalControlsURLFilter::isURLAllowed(const URL& url, CompletionHandler<void(bool, NSData *)>&& completionHandler)
 {
-    isURLAllowedImpl(url, { [protectedThis = Ref { *this }, completionHandler = WTF::move(completionHandler)] (bool allowed, NSData *replacementData) mutable {
+    // FIXME: rdar://168622817, remove URL { } parameter eventually
+    isURLAllowedImpl(URL { }, url, { [protectedThis = Ref { *this }, completionHandler = WTF::move(completionHandler)] (bool allowed, NSData *replacementData) mutable {
         ASSERT(!isMainThread());
         callOnMainRunLoop([completionHandler = WTF::move(completionHandler), allowed, replacementData = RetainPtr { replacementData }]() mutable {
             completionHandler(allowed, replacementData.get());
@@ -185,8 +183,10 @@ void ParentalControlsURLFilter::isURLAllowed(const URL& url, CompletionHandler<v
     }, CompletionHandlerCallThread::AnyThread });
 }
 
-void ParentalControlsURLFilter::isURLAllowedImpl(const URL& url, CompletionHandler<void(bool, NSData *)>&& completionHandler)
+void ParentalControlsURLFilter::isURLAllowedImpl(const URL& mainDocumentURL, const URL& url, CompletionHandler<void(bool, NSData *)>&& completionHandler)
 {
+    // FIXME: rdar://168622817
+    UNUSED_PARAM(mainDocumentURL);
     ASSERT(isMainThread());
 
     RetainPtr wcrBrowserEngineClient = effectiveWCRBrowserEngineClient();

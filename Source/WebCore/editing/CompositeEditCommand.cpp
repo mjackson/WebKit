@@ -913,7 +913,7 @@ RefPtr<Text> CompositeEditCommand::textNodeForRebalance(const Position& position
     if (!textNode || !textNode->length())
         return nullptr;
 
-    textNode->protectedDocument()->updateStyleIfNeeded();
+    protect(textNode->document())->updateStyleIfNeeded();
 
     ScriptDisallowedScope::InMainThread scriptDisallowedScope;
 
@@ -1624,7 +1624,7 @@ bool CompositeEditCommand::breakOutOfEmptyListItem()
                 // If listNode does NOT appear at the end, then we should consider it as a regular paragraph.
                 // e.g. <ul><li> <ul><li><br></li></ul> hello</li></ul> should become <ul><li> <div><br></div> hello</li></ul> at the end
                 splitElement(*liElement, *listNode);
-                removeNodePreservingChildren(*listNode->protectedParentNode());
+                removeNodePreservingChildren(*protect(listNode->parentNode()));
                 newBlock = HTMLLIElement::create(document);
             }
             // If listNode does NOT appear at the end of the outer list item, then behave as if in a regular paragraph.

@@ -230,7 +230,7 @@ void RenderSVGImage::paintForeground(PaintInfo& paintInfo, const LayoutPoint& pa
 
         auto localVisibleRect = visibleRect;
         localVisibleRect.moveBy(-paintOffset);
-        protectedDocument()->didPaintImage(protectedImageElement().get(), cachedImage(), localVisibleRect);
+        protect(document())->didPaintImage(protectedImageElement().get(), cachedImage(), localVisibleRect);
     }
 }
 
@@ -368,7 +368,7 @@ void RenderSVGImage::imageChanged(WrappedImagePtr newImage, const IntRect* rect)
 
     if (auto* image = imageResource().cachedImage(); image && image->currentFrameIsComplete(this)) {
         if (auto styleable = Styleable::fromRenderer(*this))
-            protectedDocument()->didLoadImage(styleable->protectedElement().get(), image);
+            protect(document())->didLoadImage(styleable->protectedElement().get(), image);
     }
 }
 

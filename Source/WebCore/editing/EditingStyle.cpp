@@ -851,7 +851,7 @@ void EditingStyle::removeStyleAddedByNode(Node* node)
 {
     if (!node || !node->parentNode())
         return;
-    auto parentStyle = copyPropertiesFromComputedStyle(node->protectedParentNode().get(), PropertiesToInclude::EditingPropertiesInEffect);
+    auto parentStyle = copyPropertiesFromComputedStyle(protect(node->parentNode()).get(), PropertiesToInclude::EditingPropertiesInEffect);
     auto nodeStyle = copyPropertiesFromComputedStyle(node, PropertiesToInclude::EditingPropertiesInEffect);
     removeEquivalentProperties(parentStyle.get());
     removeEquivalentProperties(nodeStyle.get());
@@ -862,7 +862,7 @@ void EditingStyle::removeStyleConflictingWithStyleOfNode(Node& node)
     if (!node.parentNode() || !m_mutableStyle)
         return;
 
-    auto parentStyle = copyPropertiesFromComputedStyle(node.protectedParentNode().get(), PropertiesToInclude::EditingPropertiesInEffect);
+    auto parentStyle = copyPropertiesFromComputedStyle(protect(node.parentNode()).get(), PropertiesToInclude::EditingPropertiesInEffect);
     auto nodeStyle = EditingStyle::create(&node, PropertiesToInclude::EditingPropertiesInEffect);
     nodeStyle->removeEquivalentProperties(parentStyle.get());
 
@@ -1768,7 +1768,7 @@ RefPtr<EditingStyle> EditingStyle::styleAtSelectionStart(const VisibleSelection&
         return nullptr;
 
     Ref style = EditingStyle::create(element.get(), propertiesToInclude);
-    style->mergeTypingStyle(element->protectedDocument());
+    style->mergeTypingStyle(protect(element->document()));
 
     // If background color is transparent, traverse parent nodes until we hit a different value or document root
     // Also, if the selection is a range, ignore the background color at the start of selection,

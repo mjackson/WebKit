@@ -2109,7 +2109,7 @@ void RenderBox::imageChanged(WrappedImagePtr image, const IntRect*)
     if (styleImage && isNonEmpty) {
         incrementVisuallyNonEmptyPixelCountIfNeeded(flooredIntSize(styleImage->imageSize(this, style().usedZoom())));
         if (auto styleable = Styleable::fromRenderer(*this))
-            protectedDocument()->didLoadImage(styleable->protectedElement().get(), styleImage->cachedImage());
+            protect(document())->didLoadImage(styleable->protectedElement().get(), styleImage->cachedImage());
     }
 
     if (!isComposited())

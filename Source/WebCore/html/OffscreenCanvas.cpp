@@ -241,7 +241,7 @@ ExceptionOr<std::optional<OffscreenRenderingContext>> OffscreenCanvas::getContex
             RETURN_IF_EXCEPTION(scope, Exception { ExceptionCode::ExistingExceptionError });
             Ref scriptExecutionContext = *this->scriptExecutionContext();
             if (RefPtr globalScope = dynamicDowncast<WorkerGlobalScope>(scriptExecutionContext)) {
-                if (RefPtr gpu = globalScope->protectedNavigator()->gpu())
+                if (RefPtr gpu = protect(globalScope->navigator())->gpu())
                     m_context = GPUCanvasContext::create(*this, *gpu, nullptr);
             } else if (RefPtr document = dynamicDowncast<Document>(scriptExecutionContext)) {
                 if (RefPtr window = document->window()) {

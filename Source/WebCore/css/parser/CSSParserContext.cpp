@@ -84,7 +84,7 @@ CSSParserContext::CSSParserContext(const Document& document, const URL& sheetBas
     this->charset = charset;
     mode = document.inQuirksMode() ? HTMLQuirksMode : HTMLStandardMode;
     isHTMLDocument = document.isHTMLDocument();
-    hasDocumentSecurityOrigin = sheetBaseURL.isNull() || document.protectedSecurityOrigin()->canRequest(baseURL, OriginAccessPatternsForWebProcess::singleton());
+    hasDocumentSecurityOrigin = sheetBaseURL.isNull() || protect(document.securityOrigin())->canRequest(baseURL, OriginAccessPatternsForWebProcess::singleton());
     webkitMediaTextTrackDisplayQuirkEnabled = document.quirks().needsWebKitMediaTextTrackDisplayQuirk();
 }
 

@@ -105,11 +105,6 @@ SWClientConnection& ServiceWorker::swConnection()
     return ServiceWorkerProvider::singleton().serviceWorkerConnection();
 }
 
-Ref<SWClientConnection> ServiceWorker::protectedSWConnection()
-{
-    return swConnection();
-}
-
 ExceptionOr<void> ServiceWorker::postMessage(JSC::JSGlobalObject& globalObject, JSC::JSValue messageValue, StructuredSerializeOptions&& options)
 {
     if (m_isStopped)
@@ -134,7 +129,7 @@ ExceptionOr<void> ServiceWorker::postMessage(JSC::JSGlobalObject& globalObject, 
     }();
 
     MessageWithMessagePorts message { messageData.releaseReturnValue(), portsOrException.releaseReturnValue() };
-    protectedSWConnection()->postMessageToServiceWorker(identifier(), WTF::move(message), sourceIdentifier);
+    protect(swConnection())->postMessageToServiceWorker(identifier(), WTF::move(message), sourceIdentifier);
     return { };
 }
 

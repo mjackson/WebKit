@@ -501,7 +501,7 @@ ExceptionOr<void> HTMLElement::setInnerText(String&& text)
 
     // FIXME: This should use replaceAll(), after we fix that to work properly for DocumentFragment.
     // Add text nodes and <br> elements.
-    Ref fragment = textToFragment(protectedDocument(), WTF::move(text));
+    Ref fragment = textToFragment(protect(document()), WTF::move(text));
     // It's safe to dispatch events on the new fragment since author scripts have no access to it yet.
     ScriptDisallowedScope::EventAllowedScope allowedScope(fragment.get());
     return replaceChildrenWithFragment(*this, WTF::move(fragment));
@@ -519,9 +519,9 @@ ExceptionOr<void> HTMLElement::setOuterText(String&& text)
 
     // Convert text to fragment with <br> tags instead of linebreaks if needed.
     if (text.contains([](char16_t c) { return c == '\n' || c == '\r'; }))
-        newChild = textToFragment(protectedDocument(), WTF::move(text));
+        newChild = textToFragment(protect(document()), WTF::move(text));
     else
-        newChild = Text::create(protectedDocument(), WTF::move(text));
+        newChild = Text::create(protect(document()), WTF::move(text));
 
     if (!parentNode())
         return Exception { ExceptionCode::HierarchyRequestError };
@@ -965,7 +965,7 @@ void HTMLElement::setAutocorrect(bool autocorrect)
 InputMode HTMLElement::canonicalInputMode() const
 {
     auto mode = inputModeForAttributeValue(attributeWithoutSynchronization(inputmodeAttr));
-    if (mode == InputMode::None && protectedDocument()->quirks().shouldIgnoreInputModeNone())
+    if (mode == InputMode::None && protect(document())->quirks().shouldIgnoreInputModeNone())
         return InputMode::Unspecified;
     return mode;
 }
@@ -1073,7 +1073,7 @@ static ExceptionOr<bool> checkPopoverValidity(HTMLElement& element, PopoverVisib
     if (auto* dialog = dynamicDowncast<HTMLDialogElement>(element); dialog && dialog->isModal())
         return Exception { ExceptionCode::InvalidStateError, "Element is a modal <dialog> element"_s };
 
-    if (!element.protectedDocument()->isFullyActive())
+    if (!protect(element.document())->isFullyActive())
         return Exception { ExceptionCode::InvalidStateError, "Invalid for popovers within documents that are not fully active"_s };
 
 #if ENABLE(FULLSCREEN_API)
@@ -1263,7 +1263,7 @@ ExceptionOr<void> HTMLElement::hidePopoverInternal(FocusPreviousElement focusPre
 
     Ref document = this->document();
     if (RefPtr element = popoverData()->previouslyFocusedElement()) {
-        if (focusPreviousElement == FocusPreviousElement::Yes && isShadowIncludingInclusiveAncestorOf(document->protectedFocusedElement().get())) {
+        if (focusPreviousElement == FocusPreviousElement::Yes && isShadowIncludingInclusiveAncestorOf(protect(document->focusedElement()).get())) {
             FocusOptions options;
             options.preventScroll = true;
             element->focus(options);

@@ -3380,6 +3380,20 @@ class TestAnalyzeLayoutTestsResultsRedTree(BuildStepMixinAdditions, unittest.Tes
         self.assertTrue(expected_infrastructure_error in self._emails_list[0])
         return step_result
 
+    def test_first_step_error_exit_code_with_only_flakies(self):
+        self.configureStep()
+        self.configureCommonProperties()
+        first_run_flakies = ["test/flaky1.html", "test/flaky2.html"]
+        self.setProperty('first_run_failures', [])
+        self.setProperty('first_run_flakies', first_run_flakies)
+        self.expect_outcome(result=SUCCESS, state_string='Passed layout tests')
+        step_result = self.run_step()
+        self.assertEqual(len(self._emails_list), 1)
+        self.assertTrue('Subject: Info about 2 flaky failures' in self._emails_list[0])
+        for flaky_test in first_run_flakies:
+            self.assertTrue(f'Test name: <a href="https://github.com/WebKit/WebKit/blob/main/LayoutTests/{flaky_test}">{flaky_test}</a>' in self._emails_list[0])
+        return step_result
+
     def test_step_retry_with_change_exits_early_error(self):
         self.configureStep()
         self.configureCommonProperties()

@@ -343,7 +343,7 @@ void RenderImage::imageChanged(WrappedImagePtr newImage, const IntRect* rect)
 
     if (auto* image = cachedImage(); image && image->currentFrameIsComplete(this)) {
         if (auto styleable = Styleable::fromRenderer(*this))
-            protectedDocument()->didLoadImage(styleable->protectedElement().get(), image);
+            protect(document())->didLoadImage(styleable->protectedElement().get(), image);
     }
 }
 
@@ -699,7 +699,7 @@ void RenderImage::paintReplaced(PaintInfo& paintInfo, const LayoutPoint& paintOf
             if (auto styleable = Styleable::fromRenderer(*this)) {
                 auto localVisibleRect = visibleRect;
                 localVisibleRect.moveBy(-paintOffset);
-                protectedDocument()->didPaintImage(styleable->element, cachedImage(), localVisibleRect);
+                protect(document())->didPaintImage(styleable->element, cachedImage(), localVisibleRect);
             }
         }
     }

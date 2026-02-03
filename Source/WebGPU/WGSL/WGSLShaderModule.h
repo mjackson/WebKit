@@ -286,16 +286,9 @@ public:
     bool hasFeature(const String& featureName) const { return m_configuration.supportedFeatures.contains(featureName); }
 
     template<typename Validator>
-    void addOverrideValidation(AST::Expression& expression, Validator&& validator)
-    {
-        auto result = m_overrideValidations.add(&expression, Vector<Function<std::optional<String>(const ConstantValue&)>> { });
-        result.iterator->value.append(WTF::move(validator));
-    }
-
-    template<typename Validator>
     void addOverrideValidation(Validator&& validator)
     {
-        m_finalOverrideValidations.append(WTF::move(validator));
+        m_overrideValidations.append(WTF::move(validator));
     }
 
     std::optional<Error> validateOverrides(const PrepareResult&, HashMap<String, ConstantValue>&);
@@ -344,8 +337,7 @@ private:
     std::optional<CallGraph> m_callGraph;
     Vector<std::function<void()>> m_replacements;
     HashSet<uint32_t, DefaultHash<uint32_t>, WTF::UnsignedWithZeroKeyHashTraits<uint32_t>> m_pipelineOverrideIds;
-    HashMap<const AST::Expression*, Vector<Function<std::optional<String>(const ConstantValue&)>>> m_overrideValidations;
-    Vector<Function<std::optional<Error>()>> m_finalOverrideValidations;
+    Vector<Function<std::optional<Error>(const HashMap<String, ConstantValue>&)>> m_overrideValidations;
     HashMap<String, OverloadedDeclaration> m_overloadedOperations;
     Vector<AST::Variable*> m_overrides;
 };

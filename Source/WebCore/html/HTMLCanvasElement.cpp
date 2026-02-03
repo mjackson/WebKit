@@ -371,7 +371,7 @@ CanvasRenderingContext2D* HTMLCanvasElement::createContext2d(const String& type,
 
 #if ENABLE(PIXEL_FORMAT_RGBA16F) && HAVE(SUPPORT_HDR_DISPLAY)
     if (m_context->pixelFormat() == PixelFormat::RGBA16F)
-        protectedDocument()->setHasHDRContent();
+        protect(document())->setHasHDRContent();
 #endif
 
 #if USE(CA) || USE(SKIA)
@@ -664,7 +664,7 @@ void HTMLCanvasElement::paint(GraphicsContext& context, const LayoutRect& r)
     m_context->clearAccumulatedDirtyRect();
 
     if (!context.paintingDisabled()) {
-        if (!usesContentsAsLayerContents() || protectedDocument()->printing() || m_isSnapshotting) {
+        if (!usesContentsAsLayerContents() || protect(document())->printing() || m_isSnapshotting) {
             if (m_context->compositingResultsNeedUpdating())
                 m_context->prepareForDisplay();
             if (m_context->isSurfaceBufferTransparentBlack(CanvasRenderingContext::SurfaceBuffer::DisplayBuffer)) {
@@ -798,7 +798,7 @@ ExceptionOr<Ref<OffscreenCanvas>> HTMLCanvasElement::transferControlToOffscreen(
         return Exception { ExceptionCode::InvalidStateError };
 
     std::unique_ptr placeholderContext = PlaceholderRenderingContext::create(*this);
-    Ref offscreen = OffscreenCanvas::create(protectedDocument().get(), *placeholderContext);
+    Ref offscreen = OffscreenCanvas::create(protect(document()).get(), *placeholderContext);
     m_context = WTF::move(placeholderContext);
     if (m_context->delegatesDisplay())
         invalidateStyleAndLayerComposition();
@@ -887,7 +887,7 @@ ExceptionOr<Ref<MediaStream>> HTMLCanvasElement::captureStream(std::optional<dou
 
 SecurityOrigin* HTMLCanvasElement::securityOrigin() const
 {
-    return &protectedDocument()->securityOrigin();
+    return &protect(document())->securityOrigin();
 }
 
 void HTMLCanvasElement::createImageBuffer() const
@@ -1046,7 +1046,7 @@ void HTMLCanvasElement::dispatchEvent(Event& event)
 
 std::unique_ptr<CSSParserContext> HTMLCanvasElement::createCSSParserContext() const
 {
-    return makeUnique<CSSParserContext>(protectedDocument().get());
+    return makeUnique<CSSParserContext>(protect(document()).get());
 }
 
 WebCoreOpaqueRoot root(HTMLCanvasElement* canvas)

@@ -279,7 +279,7 @@ WKSecurityOriginRef WKBundleFrameCopySecurityOrigin(WKBundleFrameRef frameRef)
     if (!coreFrame)
         return 0;
 
-    return WebKit::toCopiedAPI(coreFrame->protectedDocument()->protectedSecurityOrigin().ptr());
+    return WebKit::toCopiedAPI(protect(protect(coreFrame->document())->securityOrigin()).ptr());
 }
 
 void WKBundleFrameFocus(WKBundleFrameRef frameRef)
@@ -301,7 +301,7 @@ void _WKBundleFrameGenerateTestReport(WKBundleFrameRef frameRef, WKStringRef mes
         return;
 
     if (RefPtr document = coreFrame->document())
-        document->protectedReportingScope()->generateTestReport(WebKit::toWTFString(message), WebKit::toWTFString(group));
+        protect(document->reportingScope())->generateTestReport(WebKit::toWTFString(message), WebKit::toWTFString(group));
 }
 
 void* _WKAccessibilityRootObjectForTesting(WKBundleFrameRef frameRef)

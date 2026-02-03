@@ -17511,19 +17511,6 @@ IGNORE_CLANG_WARNINGS_END
 
 #endif
 
-void WebPageProxy::updateRemoteIntersectionObserversInOtherWebProcesses(IPC::Connection& connection)
-{
-    Ref originWebProcess = WebProcessProxy::fromConnection(connection);
-
-    forEachWebContentProcess([&] (WebProcessProxy& webProcess, WebCore::PageIdentifier pageID) {
-        // Don't send the message back to where it comes from
-        if (originWebProcess == webProcess)
-            return;
-
-        webProcess.send(Messages::WebPage::UpdateRemoteIntersectionObservers(), pageID);
-    });
-}
-
 } // namespace WebKit
 
 #undef WEBPAGEPROXY_RELEASE_LOG

@@ -7184,8 +7184,11 @@ static std::optional<WebCore::JSHandleIdentifier> jsHandleIdentifierInFrame(cons
     if (!nodeHandle)
         return std::nullopt;
 
-    if (auto info = nodeHandle->_ref->info(); info.frameInfo.frameID == frame.frameID())
-        return info.identifier;
+    auto handleInfo = nodeHandle->_ref->info();
+    if (RefPtr handleFrame = WebKit::WebFrameProxy::webFrame(handleInfo.frameInfo.frameID)) {
+        if (handleFrame->process().coreProcessIdentifier() == frame.process().coreProcessIdentifier())
+            return handleInfo.identifier;
+    }
 
     return std::nullopt;
 }

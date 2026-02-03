@@ -164,7 +164,7 @@ LayoutUnit SearchInputType::clientPaddingRight() const
 
 FontSelector* SearchInputType::fontSelector() const
 {
-    return &protectedElement()->protectedDocument()->fontSelector();
+    return &protect(protectedElement()->document())->fontSelector();
 }
 
 HostWindow* SearchInputType::hostWindow() const
@@ -302,7 +302,7 @@ void SearchInputType::createShadowSubtree()
     m_resultsButton = WTF::move(resultsButton);
 
     Ref cancelButton = SearchFieldCancelButtonElement::create(document);
-    container->insertBefore(cancelButton, textWrapper->protectedNextSibling());
+    container->insertBefore(cancelButton, protect(textWrapper->nextSibling()));
     m_cancelButton = WTF::move(cancelButton);
 }
 

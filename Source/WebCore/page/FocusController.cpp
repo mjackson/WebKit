@@ -540,7 +540,7 @@ void FocusController::setFocusedInternal(bool focused)
     RefPtr focusedFrame = focusedLocalFrame();
     if (focusedFrame && focusedFrame->view()) {
         focusedFrame->checkedSelection()->setFocused(focused);
-        dispatchEventsOnWindowAndFocusedElement(focusedFrame->protectedDocument().get(), focused);
+        dispatchEventsOnWindowAndFocusedElement(protect(focusedFrame->document()).get(), focused);
     }
 }
 
@@ -576,7 +576,7 @@ FocusableElementSearchResult FocusController::findFocusableElementDescendingInto
         auto* localContentFrame = dynamicDowncast<LocalFrame>(owner->contentFrame());
         if (!localContentFrame || !localContentFrame->document())
             break;
-        localContentFrame->protectedDocument()->updateLayoutIgnorePendingStylesheets();
+        protect(localContentFrame->document())->updateLayoutIgnorePendingStylesheets();
         auto findResult = findFocusableElementWithinScope(direction, FocusNavigationScope::scopeOwnedByIFrame(*owner), nullptr, focusEventData, shouldFocusElement);
         if (!findResult.element)
             break;
@@ -742,7 +742,7 @@ FocusableElementSearchResult FocusController::findFocusableElementInDocumentOrde
         }
     }
 
-    element->focus({ SelectionRestorationMode::SelectAll, direction, { }, { }, FocusVisibility::Visible });
+    element->focus({ { }, { }, SelectionRestorationMode::SelectAll, direction, { }, { }, FocusVisibility::Visible });
 
     return findResult;
 }
@@ -1132,7 +1132,7 @@ void FocusController::setActiveInternal(bool active)
 
     RefPtr focusedFrame = focusedLocalFrame();
     if (focusedFrame && isFocused())
-        dispatchEventsOnWindowAndFocusedElement(focusedFrame->protectedDocument().get(), active);
+        dispatchEventsOnWindowAndFocusedElement(protect(focusedFrame->document()).get(), active);
 }
 
 static void contentAreaDidShowOrHide(ScrollableArea* scrollableArea, bool didShow)
@@ -1288,7 +1288,7 @@ bool FocusController::advanceFocusDirectionallyInContainer(const ContainerNode& 
         ASSERT(is<LocalFrame>(frameElement->contentFrame()));
 
         if (focusCandidate.isOffscreenAfterScrolling) {
-            scrollInDirection(focusCandidate.visibleNode->protectedDocument(), direction);
+            scrollInDirection(protect(focusCandidate.visibleNode->document()), direction);
             return true;
         }
         // Navigate into a new frame.
@@ -1297,7 +1297,7 @@ bool FocusController::advanceFocusDirectionallyInContainer(const ContainerNode& 
         RefPtr focusedElement = focusedOrMainFrame ? focusedOrMainFrame->document()->focusedElement() : nullptr;
         if (focusedElement && !hasOffscreenRect(*focusedElement))
             rect = nodeRectInAbsoluteCoordinates(*focusedElement, true /* ignore border */);
-        dynamicDowncast<LocalFrame>(frameElement->contentFrame())->protectedDocument()->updateLayoutIgnorePendingStylesheets();
+        protect(dynamicDowncast<LocalFrame>(frameElement->contentFrame())->document())->updateLayoutIgnorePendingStylesheets();
         if (!advanceFocusDirectionallyInContainer(*dynamicDowncast<LocalFrame>(frameElement->contentFrame())->document(), rect, direction, focusEventData)) {
             // The new frame had nothing interesting, need to find another candidate.
             RefPtr visibleNode = focusCandidate.visibleNode.get();
@@ -1327,7 +1327,7 @@ bool FocusController::advanceFocusDirectionallyInContainer(const ContainerNode& 
 
     // We found a new focus node, navigate to it.
     RefPtr element = focusCandidate.focusableNode.get();
-    element->focus({ SelectionRestorationMode::SelectAll, direction });
+    element->focus({ { }, { }, SelectionRestorationMode::SelectAll, direction });
     return true;
 }
 

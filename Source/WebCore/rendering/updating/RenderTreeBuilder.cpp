@@ -459,7 +459,7 @@ void RenderTreeBuilder::attachToRenderElement(RenderElement& parent, RenderPtr<R
         if (afterChild && afterChild->isAnonymous() && !afterChild->isBeforeContent())
             table = afterChild;
         else {
-            auto newTable = Table::createAnonymousTableWithStyle(parent.protectedDocument(), parent.style());
+            auto newTable = Table::createAnonymousTableWithStyle(protect(parent.document()), parent.style());
             table = newTable.get();
             attach(parent, WTF::move(newTable), beforeChild);
         }
@@ -783,7 +783,7 @@ void RenderTreeBuilder::createAnonymousWrappersForInlineContent(RenderBlock& par
 
         child = inlineRunEnd->nextSibling();
 
-        auto newBlock = Block::createAnonymousBlockWithStyle(parent.protectedDocument(), parent.style());
+        auto newBlock = Block::createAnonymousBlockWithStyle(protect(parent.document()), parent.style());
         auto& block = *newBlock;
         attachToRenderElementInternal(parent, WTF::move(newBlock), inlineRunStart);
         moveChildren(parent, block, inlineRunStart, child, RenderTreeBuilder::NormalizeAfterInsertion::No);
@@ -853,7 +853,7 @@ void RenderTreeBuilder::childFlowStateChangesAndAffectsParentBlock(RenderElement
     }
     // An anonymous block must be made to wrap this inline.
     auto* parent = child.parent();
-    auto newBlock = Block::createAnonymousBlockWithStyle(parent->protectedDocument(), parent->style());
+    auto newBlock = Block::createAnonymousBlockWithStyle(protect(parent->document()), parent->style());
     auto& block = *newBlock;
     attachToRenderElementInternal(*parent, WTF::move(newBlock), &child);
     auto thisToMove = detachFromRenderElement(*parent, child, WillBeDestroyed::No);
@@ -1176,19 +1176,19 @@ void RenderTreeBuilder::removeFloatingObjects(RenderBlock& renderer)
 RenderPtr<RenderBox> RenderTreeBuilder::createAnonymousBoxWithSameTypeAndWithStyle(const RenderBox& renderer, const RenderStyle& style)
 {
     if (is<RenderTableCell>(renderer))
-        return Table::createAnonymousTableCellWithStyle(renderer.protectedDocument(), style);
+        return Table::createAnonymousTableCellWithStyle(protect(renderer.document()), style);
 
     if (is<RenderTableRow>(renderer))
-        return Table::createAnonymousTableRowWithStyle(renderer.protectedDocument(), style);
+        return Table::createAnonymousTableRowWithStyle(protect(renderer.document()), style);
 
     if (is<RenderTableSection>(renderer))
-        return Table::createAnonymousTableSectionWithStyle(renderer.protectedDocument(), style);
+        return Table::createAnonymousTableSectionWithStyle(protect(renderer.document()), style);
 
     if (is<RenderTable>(renderer))
-        return Table::createAnonymousTableWithStyle(renderer.protectedDocument(), style);
+        return Table::createAnonymousTableWithStyle(protect(renderer.document()), style);
 
     if (is<RenderBlock>(renderer))
-        return Block::createAnonymousBlockWithStyle(renderer.protectedDocument(), style);
+        return Block::createAnonymousBlockWithStyle(protect(renderer.document()), style);
 
     ASSERT_NOT_REACHED();
     return { };

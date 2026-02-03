@@ -5373,7 +5373,7 @@ class AnalyzeLayoutTestsResultsRedTree(AnalyzeLayoutTestsResults):
         # The checks below need to be after the timeout ones (above) because when a timeout is trigerred no results will be generated for the step.
         # The step with_change_repeat_failures generated an error code. That means there should be either tests failing or tests flakies. Check that.
         with_change_repeat_failures_retcode = self.getProperty('with_change_repeat_failures_retcode', FAILURE)
-        if with_change_repeat_failures_retcode not in [SUCCESS, WARNINGS]:
+        if first_run_failures and with_change_repeat_failures_retcode not in [SUCCESS, WARNINGS]:
             if not with_change_repeat_failures_results_nonflaky_failures and not with_change_repeat_failures_results_flakies:
                 return defer.returnValue(self.report_infrastructure_issue_and_maybe_retry_build('The step "layout-tests-repeat-failures" failed to generate any list of failures or flakies and returned an error code.'))
             elif with_change_repeat_failures_results_nonflaky_failures:

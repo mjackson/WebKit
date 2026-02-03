@@ -71,7 +71,7 @@ RenderProgress* HTMLProgressElement::renderProgress() const
 {
     if (auto* renderProgress = dynamicDowncast<RenderProgress>(renderer()))
         return renderProgress;
-    return downcast<RenderProgress>(descendantsOfType<Element>(*protectedUserAgentShadowRoot()).first()->renderer());
+    return downcast<RenderProgress>(descendantsOfType<Element>(*protect(userAgentShadowRoot())).first()->renderer());
 }
 
 RefPtr<ProgressValueElement> HTMLProgressElement::protectedValueElement()
@@ -136,7 +136,7 @@ void HTMLProgressElement::didElementStateChange()
     if (CheckedPtr renderer = renderProgress())
         renderer->updateFromElement();
 
-    if (CheckedPtr cache = protectedDocument()->existingAXObjectCache())
+    if (CheckedPtr cache = protect(document())->existingAXObjectCache())
         cache->valueChanged(*this);
 }
 

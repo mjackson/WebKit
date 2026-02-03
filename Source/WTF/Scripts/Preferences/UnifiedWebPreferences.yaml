@@ -693,18 +693,16 @@ AudioControlsScaleWithPageZoom:
 
 AudioDescriptionsEnabled:
   type: bool
-  status: preview
+  status: stable
   category: media
   condition: ENABLE(VIDEO)
   humanReadableName: "Audio descriptions for video - Standard"
   humanReadableDescription: "Enable standard audio descriptions for video"
   defaultValue:
-    WebKitLegacy:
-      default: false
     WebKit:
-      default: false
+      default: true
     WebCore:
-      default: false
+      default: true
 
 AuthorAndUserStylesEnabled:
   type: bool
@@ -2845,21 +2843,18 @@ ExposeSpeakersWithoutMicrophoneEnabled:
     WebCore:
       default: false
 
-# FIXME: Is this implemented for WebKitLegacy? If not, this should be excluded from WebKitLegacy entirely.
 ExtendedAudioDescriptionsEnabled:
   type: bool
-  status: preview
+  status: stable
   category: media
   condition: ENABLE(VIDEO)
   humanReadableName: "Audio descriptions for video - Extended"
   humanReadableDescription: "Enable extended audio descriptions for video"
   defaultValue:
-    WebKitLegacy:
-      default: false
     WebKit:
-      default: false
+      default: true
     WebCore:
-      default: false
+      default: true
 
 ExtendedProofreadingEnabled:
   type: bool
@@ -6404,6 +6399,20 @@ ReadableByteStreamFetchSourceEnabled:
     WebKit:
       default: true
 
+ReadableStreamFromEnabled:
+  type: bool
+  status: testable
+  category: dom
+  humanReadableName: "ReadableStream.from"
+  humanReadableDescription: "Enable ReadableStream.from"
+  defaultValue:
+    WebCore:
+      default: false
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+
 ReadableStreamIterableEnabled:
   type: bool
   status: stable
@@ -8770,13 +8779,13 @@ VerticalFormControlsEnabled:
   humanReadableDescription: "Enable support for form controls in vertical writing mode"
   defaultValue:
     WebKitLegacy:
-      "PLATFORM(COCOA)": true
+      "PLATFORM(COCOA) || USE(THEME_ADWAITA)": true
       default: false
     WebKit:
-      "PLATFORM(COCOA)": true
+      "PLATFORM(COCOA) || USE(THEME_ADWAITA)": true
       default: false
     WebCore:
-      "PLATFORM(COCOA)": true
+      "PLATFORM(COCOA) || USE(THEME_ADWAITA)": true
       default: false
 
 VideoFullsceenPrefersMostVisibleHeuristic:

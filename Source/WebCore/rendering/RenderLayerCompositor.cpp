@@ -1032,7 +1032,7 @@ static std::optional<ScrollingNodeID> frameHostingNodeForFrame(LocalFrame& frame
         return { };
 
     // Find the frame's enclosing layer in our render tree.
-    RefPtr ownerElement = frame.protectedDocument()->ownerElement();
+    RefPtr ownerElement = protect(frame.document())->ownerElement();
     if (!ownerElement)
         return { };
 
@@ -1686,7 +1686,7 @@ void RenderLayerCompositor::collectViewTransitionNewContentLayers(RenderLayer& l
     if (!downcast<RenderViewTransitionCapture>(layer.renderer()).canUseExistingLayers())
         return;
 
-    RefPtr activeViewTransition = layer.renderer().protectedDocument()->activeViewTransition();
+    RefPtr activeViewTransition = protect(layer.renderer().document())->activeViewTransition();
     if (!activeViewTransition)
         return;
 
@@ -1703,7 +1703,7 @@ void RenderLayerCompositor::collectViewTransitionNewContentLayers(RenderLayer& l
         return;
 
     if (capturedRenderer->isDocumentElementRenderer()) {
-        ASSERT(capturedRenderer->protectedDocument()->activeViewTransitionCapturedDocumentElement());
+        ASSERT(protect(capturedRenderer->document())->activeViewTransitionCapturedDocumentElement());
         capturedRenderer = &capturedRenderer->view();
         ASSERT(capturedRenderer->hasLayer());
     }
@@ -1853,7 +1853,7 @@ void RenderLayerCompositor::updateBackingAndHierarchy(RenderLayer& layer, Vector
         // Layers that are captured in a view transition get manually parented to their pseudo in collectViewTransitionNewContentLayers.
         // The view transition root (when the document element is captured) gets parented in RenderLayerBacking::childForSuperlayers.
         bool skipAddToEnclosing = layer.renderer().capturedInViewTransition() && !layer.renderer().isDocumentElementRenderer();
-        if (layer.renderer().isViewTransitionContainingBlock() && layer.renderer().protectedDocument()->activeViewTransitionCapturedDocumentElement())
+        if (layer.renderer().isViewTransitionContainingBlock() && protect(layer.renderer().document())->activeViewTransitionCapturedDocumentElement())
             skipAddToEnclosing = true;
 
         if (!skipAddToEnclosing)
@@ -3907,7 +3907,7 @@ bool RenderLayerCompositor::requiresCompositingForBackfaceVisibility(RenderLayer
 
 bool RenderLayerCompositor::requiresCompositingForViewTransition(RenderLayerModelObject& renderer) const
 {
-    return renderer.effectiveCapturedInViewTransition() || renderer.isRenderViewTransitionCapture() || renderer.isViewTransitionContainingBlock() || (renderer.isRenderView() && renderer.protectedDocument()->activeViewTransition());
+    return renderer.effectiveCapturedInViewTransition() || renderer.isRenderViewTransitionCapture() || renderer.isViewTransitionContainingBlock() || (renderer.isRenderView() && protect(renderer.document())->activeViewTransition());
 }
 
 bool RenderLayerCompositor::requiresCompositingForVideo(RenderLayerModelObject& renderer) const
@@ -5251,7 +5251,7 @@ void RenderLayerCompositor::attachRootLayer(RootLayerAttachment attachment)
         case RootLayerAttachedViaEnclosingFrame: {
             // The layer will get hooked up via RenderLayerBacking::updateConfiguration()
             // for the frame's renderer in the parent document.
-            if (RefPtr ownerElement = m_renderView.protectedDocument()->ownerElement()) {
+            if (RefPtr ownerElement = protect(m_renderView.document())->ownerElement()) {
                 ownerElement->scheduleInvalidateStyleAndLayerComposition();
                 if (CheckedPtr renderer = ownerElement->renderer())
                     renderer->repaint();
@@ -5286,7 +5286,7 @@ void RenderLayerCompositor::detachRootLayer()
         else
             RefPtr { m_rootContentsLayer }->removeFromParent();
 
-        if (RefPtr ownerElement = m_renderView.protectedDocument()->ownerElement())
+        if (RefPtr ownerElement = protect(m_renderView.document())->ownerElement())
             ownerElement->scheduleInvalidateStyleAndLayerComposition();
 
         if (auto frameRootScrollingNodeID = m_renderView.frameView().scrollingNodeID()) {
@@ -5341,7 +5341,7 @@ void RenderLayerCompositor::notifyIFramesOfCompositingChange()
 {
     // Compositing affects the answer to RenderIFrame::requiresAcceleratedCompositing(), so
     // we need to schedule a style recalc in our parent document.
-    if (RefPtr ownerElement = m_renderView.protectedDocument()->ownerElement())
+    if (RefPtr ownerElement = protect(m_renderView.document())->ownerElement())
         ownerElement->scheduleInvalidateStyleAndLayerComposition();
 }
 

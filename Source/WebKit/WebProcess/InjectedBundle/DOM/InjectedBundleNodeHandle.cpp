@@ -129,7 +129,7 @@ RefPtr<InjectedBundleNodeHandle> InjectedBundleNodeHandle::document()
     if (!m_node)
         return nullptr;
 
-    return getOrCreate(m_node->protectedDocument());
+    return getOrCreate(protect(m_node->document()));
 }
 
 // Additional DOM Operations
@@ -215,7 +215,7 @@ RefPtr<WebImage> InjectedBundleNodeHandle::renderedImage(SnapshotOptions options
     if (!frameView)
         return nullptr;
 
-    m_node->protectedDocument()->updateLayout();
+    protect(m_node->document())->updateLayout();
 
     CheckedPtr renderer = m_node->renderer();
     if (!renderer)

@@ -34,7 +34,6 @@
 #import "PDFPluginTextAnnotation.h"
 #import <CoreGraphics/CoreGraphics.h>
 #import <PDFKit/PDFKit.h>
-#import <WebCore/AddEventListenerOptionsInlines.h>
 #import <WebCore/CSSPrimitiveValue.h>
 #import <WebCore/CSSPropertyNames.h>
 #import <WebCore/DocumentEventLoop.h>
@@ -78,8 +77,8 @@ void PDFPluginAnnotation::attach(Element* parent)
     if (!element->hasClass())
         element->setAttributeWithoutSynchronization(classAttr, "annotation"_s);
     element->setAttributeWithoutSynchronization(x_apple_pdf_annotationAttr, "true"_s);
-    element->addEventListener(eventNames().changeEvent, *m_eventListener, false);
-    element->addEventListener(eventNames().blurEvent, *m_eventListener, false);
+    element->addEventListener(eventNames().changeEvent, *m_eventListener);
+    element->addEventListener(eventNames().blurEvent, *m_eventListener);
 
     updateGeometry();
 
@@ -102,7 +101,7 @@ PDFPluginAnnotation::~PDFPluginAnnotation()
 
     m_eventListener->setAnnotation(nullptr);
 
-    element->protectedDocument()->checkedEventLoop()->queueTask(TaskSource::InternalAsyncTask, [weakElement = WeakPtr<Node, WeakPtrImplWithEventTargetData> { element.get() }]() {
+    protect(element->document())->checkedEventLoop()->queueTask(TaskSource::InternalAsyncTask, [weakElement = WeakPtr<Node, WeakPtrImplWithEventTargetData> { element.get() }]() {
         if (RefPtr element = weakElement.get())
             element->remove();
     });

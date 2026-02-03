@@ -51,7 +51,6 @@ public:
     ~ScrollAnchoringController();
 
     void adjustScrollPositionForAnchoring();
-    CandidateExaminationResult examineAnchorCandidate(Element&);
 
     void invalidateAnchorElement();
     void updateAnchorElement();
@@ -59,6 +58,9 @@ public:
     void notifyChildHadSuppressingStyleChange();
     bool isInScrollAnchoringAncestorChain(const RenderObject&);
 
+    bool hasAnchorElement() const { return !!m_anchorElement; }
+
+    CandidateExaminationResult examineAnchorCandidate(Element&);
     Element* anchorElement() const { return m_anchorElement.get(); }
 
 private:
@@ -66,12 +68,15 @@ private:
 
     Element* findAnchorElementRecursive(Element*);
     bool didFindPriorityCandidate(Document&);
+
     FloatPoint computeOffsetFromOwningScroller(RenderObject&);
+
     LocalFrameView& frameView();
 
     CheckedRef<ScrollableArea> m_owningScrollableArea;
     WeakPtr<Element, WeakPtrImplWithEventTargetData> m_anchorElement;
     FloatPoint m_lastOffsetForAnchorElement;
+
     bool m_midUpdatingScrollPositionForAnchorElement { false };
     bool m_isQueuedForScrollPositionUpdate { false };
     bool m_shouldSuppressScrollPositionUpdate { false };

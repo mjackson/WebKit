@@ -36,6 +36,7 @@
 #import <WebCore/SecurityOrigin.h>
 #import <pal/spi/cocoa/NSFileManagerSPI.h>
 #import <wtf/Deque.h>
+#import <wtf/NeverDestroyed.h>
 #import <wtf/SoftLinking.h>
 #import <wtf/WeakObjCPtr.h>
 #import <wtf/cf/NotificationCenterCF.h>
@@ -117,10 +118,10 @@ struct PermissionRequest {
 
 + (instancetype)sharedPolicyDecider
 {
-    static WKWebGeolocationPolicyDecider *policyDecider = nil;
-    if (!policyDecider)
-        policyDecider = [[WKWebGeolocationPolicyDecider alloc] init];
-    return policyDecider;
+    static NeverDestroyed<RetainPtr<WKWebGeolocationPolicyDecider>> policyDecider;
+    if (!policyDecider.get())
+        policyDecider.get() = adoptNS([[WKWebGeolocationPolicyDecider alloc] init]);
+    return policyDecider.get().get();
 }
 
 - (id)init

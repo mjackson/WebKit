@@ -27,7 +27,6 @@
 
 #if ENABLE(PDFJS)
 
-#include "AddEventListenerOptionsInlines.h"
 #include "DocumentLoader.h"
 #include "EventListener.h"
 #include "EventNames.h"
@@ -164,7 +163,7 @@ void PDFDocument::createDocumentStructure()
     m_iframe->setAttribute(styleAttr, "width: 100%; height: 100%; border: 0; display: block;"_s);
 
     m_listener = PDFDocumentEventListener::create(*this);
-    m_iframe->addEventListener(eventNames().loadEvent, *m_listener, false);
+    m_iframe->addEventListener(eventNames().loadEvent, *m_listener);
 
     body->appendChild(*m_iframe);
 }
@@ -253,7 +252,7 @@ void PDFDocument::injectStyleAndContentScript()
     ASSERT(contentDocument->body());
     m_script = HTMLScriptElement::create(scriptTag, *contentDocument, false);
     ASSERT(m_listener);
-    m_script->addEventListener(eventNames().loadEvent, *m_listener, false);
+    m_script->addEventListener(eventNames().loadEvent, *m_listener);
     m_script->setAttribute(srcAttr, "webkit-pdfjs-viewer://pdfjs/extras/content-script.js"_s);
     contentDocument->body()->appendChild(*m_script);
 

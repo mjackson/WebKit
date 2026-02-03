@@ -659,10 +659,10 @@ static bool isOriginClean(const auto& source, ScriptExecutionContext& context)
     }, [&](const RefPtr<ImageData>) -> ResultType {
         return true;
     }, [&](const RefPtr<HTMLImageElement> imageElement) -> ResultType {
-        return imageElement->originClean(*context.protectedSecurityOrigin().get());
+        return imageElement->originClean(*protect(context.securityOrigin()).get());
     }, [&](const RefPtr<HTMLVideoElement> videoElement) -> ResultType {
 #if PLATFORM(COCOA)
-        return !videoElement->taintsOrigin(*context.protectedSecurityOrigin().get());
+        return !videoElement->taintsOrigin(*protect(context.securityOrigin()).get());
 #else
         UNUSED_PARAM(videoElement);
 #endif

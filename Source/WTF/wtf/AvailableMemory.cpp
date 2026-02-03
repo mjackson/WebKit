@@ -30,6 +30,8 @@
 #include <array>
 #include <mutex>
 #include <wtf/PageBlock.h>
+#include <wtf/text/ParsingUtilities.h>
+#include <wtf/text/StringToIntegerConversion.h>
 
 #if PLATFORM(IOS_FAMILY)
 #include <wtf/spi/darwin/MemoryStatusSPI.h>
@@ -124,23 +126,14 @@ struct LinuxMemory {
         if (numBytes <= 0)
             return 0;
 
-        std::array<char, 32> rssBuffer;
-        {
-            auto begin = std::find(statmBuffer.begin(), statmBuffer.end(), ' ');
-            if (begin == statmBuffer.end())
-                return 0;
-
-            std::advance(begin, 1);
-            auto end = std::find(begin, statmBuffer.end(), ' ');
-            if (end == statmBuffer.end())
-                return 0;
-
-            auto last = std::copy_n(begin, std::min<size_t>(31, std::distance(begin, end)), rssBuffer.begin());
-            *last = '\0';
+        auto parsingBuffer = spanReinterpretCast<const Latin1Character>(unsafeMakeSpan(statmBuffer.data(), numBytes));
+        skipUntil<isASCIIWhitespace>(parsingBuffer);
+        if (parsingBuffer.size() && isASCIIWhitespace(parsingBuffer[0])) {
+            auto result = checkedProduct<size_t>(pageSize, parseInteger<size_t>(parsingBuffer).value_or(0));
+            if (!result.hasOverflowed()) [[likely]]
+                return result.value();
         }
-
-        unsigned long dirtyPages = strtoul(rssBuffer.data(), nullptr, 10);
-        return dirtyPages * pageSize;
+        return 0;
     }
 
     long pageSize { 0 };

@@ -2134,8 +2134,6 @@ public:
 
     bool isPopup() const { return m_isPopup; }
 
-    void updateRemoteIntersectionObservers();
-
 private:
     WebPage(WebCore::PageIdentifier, WebPageCreationParameters&&);
 

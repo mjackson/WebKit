@@ -1377,9 +1377,10 @@ static RetainPtr<NSString> displayStringForDocumentsAtURLs(NSArray<NSURL *> *url
         RetainPtr filePath = [temporaryDirectory stringByAppendingPathComponent:coordinatedOriginalURL.lastPathComponent];
         RetainPtr destinationFileURL = adoptNS([[NSURL alloc] initFileURLWithPath:filePath.get() isDirectory:NO]);
 
-        if (asCopy)
-            didMoveOrCopy = [fileManager copyItemAtURL:coordinatedOriginalURL toURL:destinationFileURL.get() error:&error];
-        else
+        if (asCopy) {
+            // This is a safer cpp false positive. Despite having `copy` in its name, this method returns a BOOL.
+            SUPPRESS_RETAINPTR_CTOR_ADOPT didMoveOrCopy = [fileManager copyItemAtURL:coordinatedOriginalURL toURL:destinationFileURL.get() error:&error];
+        } else
             didMoveOrCopy = [fileManager moveItemAtURL:coordinatedOriginalURL toURL:destinationFileURL.get() error:&error];
 
         if (!didMoveOrCopy || error) {

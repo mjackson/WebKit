@@ -288,3 +288,11 @@ selectors = [
     { name = "_setDecelerationTrackingBehavior:", class = "UIScrollView" },
 ]
 requires = ["HAVE_UISCROLLVIEW_DECELERATION_TRACKING_BEHAVIOR"]
+
+[[temporary-usage]]
+request = "rdar://168622817"
+cleanup = "rdar://169487203"
+selectors = [
+    { name = "evaluateURL:mainDocumentURL:completionHandler:", class = "BEWebContentFilter" },
+]
+requires = ["HAVE_WEBCONTENTRESTRICTIONS_TRANSITIVE_TRUST"]

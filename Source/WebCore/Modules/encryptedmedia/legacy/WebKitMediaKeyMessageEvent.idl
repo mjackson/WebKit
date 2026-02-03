@@ -30,7 +30,7 @@
 ] interface WebKitMediaKeyMessageEvent : Event {
     constructor([AtomString] DOMString type, optional WebKitMediaKeyMessageEventInit eventInitDict = {});
 
-    readonly attribute Uint8Array message;
+    readonly attribute Uint8Array? message;
     readonly attribute DOMString destinationURL;
 };
 

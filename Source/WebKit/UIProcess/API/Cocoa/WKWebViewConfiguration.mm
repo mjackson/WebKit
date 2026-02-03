@@ -366,9 +366,14 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     self._protectedPageConfiguration->setProcessPool(processPool ? processPool->_processPool.get() : nullptr);
 }
 
+- (Ref<WebKit::WebPreferences>)_webPreferences
+{
+    return self._protectedPageConfiguration->preferences();
+}
+
 - (WKPreferences *)preferences
 {
-    return wrapper(protect(self._protectedPageConfiguration->preferences()).get());
+    return wrapper(self._webPreferences.get());
 }
 
 - (void)setPreferences:(WKPreferences *)preferences
@@ -725,12 +730,12 @@ static NSString *defaultApplicationNameForUserAgent()
 
 - (BOOL)_respectsImageOrientation
 {
-    return Ref { *self.preferences->_preferences }->shouldRespectImageOrientation();
+    return self._webPreferences->shouldRespectImageOrientation();
 }
 
 - (void)_setRespectsImageOrientation:(BOOL)respectsImageOrientation
 {
-    Ref { *self.preferences->_preferences }->setShouldRespectImageOrientation(respectsImageOrientation);
+    self._webPreferences->setShouldRespectImageOrientation(respectsImageOrientation);
 }
 
 - (BOOL)_printsBackgrounds
@@ -1569,6 +1574,23 @@ static WebKit::AttributionOverrideTesting toAttributionOverrideTesting(_WKAttrib
     return NO;
 #endif
 }
+
+- (void)_setSystemTextExtractionEnabled:(BOOL)enabled
+{
+#if ENABLE(SYSTEM_TEXT_EXTRACTION)
+    self._webPreferences->setSystemTextExtractionEnabled(enabled);
+#endif
+}
+
+- (BOOL)_systemTextExtractionEnabled
+{
+#if ENABLE(SYSTEM_TEXT_EXTRACTION)
+    return self._webPreferences->systemTextExtractionEnabled();
+#else
+    return NO;
+#endif
+}
+
 
 - (void)_setBackgroundTextExtractionEnabled:(BOOL)enabled
 {

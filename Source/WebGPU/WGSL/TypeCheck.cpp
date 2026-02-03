@@ -1275,12 +1275,12 @@ Result<void> TypeChecker::visit(AST::IndexAccessExpression& access)
         auto size = typeSize.value_or(0);
         if (!size && constantBase)
             size = std::get<T>(*constantBase).upperBound();
-        if (!size)
-            return { };
 
         auto index = constantIndex->integerValue();
-        if (index < 0 || static_cast<size_t>(index) >= size) [[unlikely]]
-            TYPE_ERROR(access.span(), "index "_s, index, " is out of bounds [0.."_s, size - 1, ']');
+        if (index < 0 || (size && static_cast<size_t>(index) >= size)) [[unlikely]] {
+            String bounds = size ?  makeString(" [0.."_s, size - 1, "]"_s) : ""_s;
+            TYPE_ERROR(access.span(), "index "_s, index, " is out of bounds"_s, bounds);
+        }
 
         if (constantBase)
             access.setConstantValue(std::get<T>(*constantBase)[index]);
@@ -1908,12 +1908,6 @@ Result<void> TypeChecker::visit(AST::ArrayTypeExpression& array)
                 auto result = m_arrayCountOverrides.add(identifier->identifier().id(), identifier);
                 countExpression = result.iterator->value;
             }
-
-            m_shaderModule.addOverrideValidation(*countExpression, [&](const ConstantValue& elementCount) -> std::optional<String> {
-                if (elementCount.integerValue() < 1)
-                    return { "array count must be greater than 0"_s };
-                return std::nullopt;
-            });
             size = { countExpression };
         }
     }

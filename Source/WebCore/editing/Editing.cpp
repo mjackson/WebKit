@@ -475,7 +475,7 @@ VisiblePosition closestEditablePositionInElementForAbsolutePoint(const Element& 
         return { };
 
     Ref<const Element> protectedElement { element };
-    element.protectedDocument()->updateLayoutIgnorePendingStylesheets();
+    protect(element.document())->updateLayoutIgnorePendingStylesheets();
 
     CheckedPtr renderer = element.renderer();
     // Look at the inner element of a form control, not the control itself, as it is the editable part.

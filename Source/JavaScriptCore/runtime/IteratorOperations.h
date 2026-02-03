@@ -52,6 +52,7 @@ JS_EXPORT_PRIVATE JSValue iteratorNextExported(JSGlobalObject*, IterationRecord,
 JSValue iteratorNextWithCachedCall(JSGlobalObject*, IterationRecord, CachedCall*, JSValue argument = JSValue());
 JS_EXPORT_PRIVATE JSValue iteratorValue(JSGlobalObject*, JSValue iterResult);
 bool iteratorComplete(JSGlobalObject*, JSValue iterResult);
+JS_EXPORT_PRIVATE bool iteratorCompleteExported(JSGlobalObject*, JSValue iterResult);
 JS_EXPORT_PRIVATE JSValue iteratorStep(JSGlobalObject*, IterationRecord);
 JS_EXPORT_PRIVATE JSValue iteratorStepWithCachedCall(JSGlobalObject*, IterationRecord, CachedCall*);
 JS_EXPORT_PRIVATE void iteratorClose(JSGlobalObject*, JSValue iterator);

@@ -242,7 +242,7 @@ bool selectionAllowsSmartLists(const String& text, const VisibleSelection& selec
     if (!document)
         return false;
 
-    if (!document->protectedEditor()->isSmartListsEnabled())
+    if (!protect(document->editor())->isSmartListsEnabled())
         return false;
 
     if (text != " "_s) {

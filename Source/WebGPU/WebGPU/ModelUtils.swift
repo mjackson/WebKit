@@ -27,7 +27,7 @@ import DirectResource
 import Metal
 @_spi(RealityCoreRendererAPI) import RealityKit
 @_spi(SGInternal) import RealityKit
-internal import WebGPU_Private.DDModelTypes
+internal import WebGPU_Private.ModelTypes
 @_spi(UsdLoaderAPI) import _USDStageKit_SwiftUI
 
 nonisolated func mapSemantic(_ semantic: LowLevelMesh.VertexSemantic) -> _Proto_LowLevelMeshResource_v1.VertexSemantic {

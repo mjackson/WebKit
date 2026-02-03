@@ -159,7 +159,7 @@ void PluginDocumentParser::appendBytes(DocumentWriter&, std::span<const uint8_t>
     // recurse too many times and delay its post-layout tasks (such as creating
     // the widget). Here we kick off the pending post-layout tasks so that we
     // can synchronously redirect data to the plugin.
-    frame->protectedView()->flushAnyPendingPostLayoutTasks();
+    protect(frame->view())->flushAnyPendingPostLayoutTasks();
 
     if (CheckedPtr renderer = Ref { *m_embedElement }->renderWidget()) {
         if (RefPtr widget = renderer->widget()) {

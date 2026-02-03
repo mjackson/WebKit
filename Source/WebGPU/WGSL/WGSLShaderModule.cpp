@@ -72,19 +72,8 @@ std::optional<Error> ShaderModule::validateOverrides(const PrepareResult& prepar
         overrideValues.add(variable->name(), *maybeValue);
     }
 
-    for (const auto& [expression, validators] : m_overrideValidations) {
-        auto maybeValue = evaluate(*this, *expression, overrideValues);
-        if (!maybeValue)
-            continue;
-
-        for (const auto& validator : validators) {
-            if (auto maybeError = validator(*maybeValue))
-                return { Error(*maybeError, expression->span()) };
-        }
-    }
-
-    for (const auto& validator : m_finalOverrideValidations) {
-        if (auto maybeError = validator())
+    for (const auto& validator : m_overrideValidations) {
+        if (auto maybeError = validator(overrideValues))
             return maybeError;
     }
 

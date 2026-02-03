@@ -1,7 +1,15 @@
 function axDebug(msg)
 {
-    getOrCreate("console", "div").innerText += `${msg}\n`;
-};
+    var log = document.getElementById("log");
+    if (!log)
+        log = document.getElementById("console");
+    if (!log) {
+        log = document.createElement("div");
+        log.id = "console";
+        document.body.insertBefore(log, document.body.firstChild);
+    }
+    log.innerText += `${msg}\n`;
+}
 
 // This function is necessary when printing AX attributes that are stringified with angle brackets:
 //    AXChildren: <array of size 0>
@@ -240,10 +248,17 @@ function waitFor(condition)
         // Schedule a timeout after 3 seconds if condition is never met.
         let timeoutID = setTimeout(() => {
             clearInterval(intervalID);
+
+            // Output a message to indicate that this call is timing out and avoid masking any possible failure.
+            let conditionString = condition.toString();
+            if (conditionString.length > 80)
+                conditionString = `${conditionString.substring(0, 80)}...`;
+            axDebug(`Condition '${conditionString}' was not satisfied in 3s, timing out.`);
+
             resolve(false);
         }, 3000);
 
-	// Repeatedly poll for the condition to be true.
+        // Repeatedly poll for the condition to be true.
         let intervalID = setInterval(() => {
             try {
                 if (condition()) {

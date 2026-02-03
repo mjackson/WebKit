@@ -534,7 +534,7 @@ void SVGElement::attributeChanged(const QualifiedName& name, const AtomString& o
 
     switch (name.nodeName()) {
     case AttributeNames::idAttr:
-        protectedDocument()->checkedSVGExtensions()->rebuildAllElementReferencesForTarget(*this);
+        protect(document())->checkedSVGExtensions()->rebuildAllElementReferencesForTarget(*this);
         break;
     case AttributeNames::classAttr:
         m_className->setBaseValInternal(newValue);

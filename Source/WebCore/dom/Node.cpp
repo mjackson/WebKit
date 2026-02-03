@@ -1287,19 +1287,9 @@ Element* Node::shadowHost() const
     return nullptr;
 }
 
-RefPtr<Element> Node::protectedShadowHost() const
-{
-    return shadowHost();
-}
-
 ShadowRoot* Node::containingShadowRoot() const
 {
     return dynamicDowncast<ShadowRoot>(treeScope().rootNode());
-}
-
-RefPtr<ShadowRoot> Node::protectedContainingShadowRoot() const
-{
-    return containingShadowRoot();
 }
 
 #if ASSERT_ENABLED

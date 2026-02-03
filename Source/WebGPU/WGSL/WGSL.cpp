@@ -122,6 +122,8 @@ inline Variant<PrepareResult, Error> prepareImpl(ShaderModule& shaderModule, con
 
 Variant<String, Error> generate(ShaderModule& shaderModule, PrepareResult& prepareResult, HashMap<String, ConstantValue>& constantValues, DeviceState&& deviceState)
 {
+    CompilationScope generationScope(shaderModule);
+
     PhaseTimes phaseTimes;
     String result;
     if (auto maybeError = shaderModule.validateOverrides(prepareResult, constantValues))
@@ -167,17 +169,18 @@ std::optional<ConstantValue> evaluate(ShaderModule& module, const AST::Expressio
         if (function == "array"_s)
             return ConstantArray(WTF::move(arguments));
 
-        // struct case
-        if (!function) {
-            auto& structType = std::get<Types::Struct>(*expression.inferredType());
+        if (auto* structType = std::get_if<Types::Struct>(expression.inferredType())) {
             HashMap<String, ConstantValue> constantFields;
             for (unsigned i = 0; i < argumentCount; ++i) {
                 auto& argument = arguments[i];
-                auto& member = structType.structure.members()[i];
+                auto& member = structType->structure.members()[i];
                 constantFields.set(member.originalName(), argument);
             }
             return ConstantStruct { WTF::move(constantFields) };
         }
+
+        if (!function)
+            return std::nullopt;
 
         auto* overload = module.lookupOverload(function);
         if (!overload || !overload->constantFunction)
@@ -239,6 +242,9 @@ std::optional<ConstantValue> evaluate(ShaderModule& module, const AST::Expressio
         auto base = evaluate(module, access.base(), overrideValues);
         const auto& fieldName = access.originalFieldName().id();
         auto length = fieldName.length();
+
+        if (!base)
+            break;
 
         if (auto* constantStruct = std::get_if<ConstantStruct>(&*base)) {
             result = constantStruct->fields.get(fieldName);

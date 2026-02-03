@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2023-2024, 2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -41,7 +41,7 @@
 
 #define BUSE_TZONE_SPEC_NAME_ARG 0
 #if BUSE_TZONE_SPEC_NAME_ARG
-#define TZONE_SPEC_NAME_ARG(x)  , x
+#define TZONE_SPEC_NAME_ARG(x)  x, __FILE__, __LINE__,
 #else
 #define TZONE_SPEC_NAME_ARG(x)
 #endif
@@ -130,40 +130,62 @@ enum class TZoneMallocFallback : uint8_t {
 extern BEXPORT TZoneMallocFallback tzoneMallocFallback;
 
 using HeapRef = void*;
+using TZoneDescriptor = uint64_t;
 
-struct SizeAndAlignment {
-    using Value = uint64_t;
-
-    static constexpr Value encode(unsigned size, unsigned alignment)
+struct TZoneDescriptorHashTrait {
+    static constexpr unsigned long hash(TZoneDescriptor descriptor)
     {
-        return (static_cast<uint64_t>(alignment) << 32) | size;
-    }
-
-    template<typename T>
-    static constexpr Value encode()
-    {
-        size_t size = ::bmalloc::TZone::sizeClass<T>();
-        size_t alignment = ::bmalloc::TZone::alignment<T>();
-        return encode(size, alignment);
-    }
-
-    static unsigned decodeSize(Value value) { return value; }
-    static unsigned decodeAlignment(Value value) { return value >> 32; }
-
-    static constexpr unsigned long hash(Value value)
-    {
-        return (decodeSize(value) ^ decodeAlignment(value)) >> 3;
+        return (descriptor >> 32) ^ descriptor;
     }
 };
 
 struct TZoneSpecification {
+
+    constexpr unsigned sizeClass() const { return TZone::sizeClassFor(size); }
+
+    template<typename T>
+    static constexpr unsigned encodeSize()
+    {
+        // This tracks the actual size (not sizeClass) of the TZone type.
+        constexpr size_t size = sizeof(T);
+        static_assert(size <= UINT32_MAX);
+        return size;
+    }
+
+    template<typename T>
+    static constexpr uint16_t encodeAlignment()
+    {
+        constexpr size_t alignment = TZone::alignment<T>();
+        static_assert(alignment <= UINT16_MAX);
+        static_assert(isPowerOfTwo(alignment));
+        return alignment;
+    }
+
+    template<typename T>
+    static constexpr TZoneDescriptor encodeDescriptor()
+    {
+        size_t sizeClass = TZone::sizeClass<T>();
+        size_t alignment = TZone::alignment<T>();
+        return encodeDescriptor(sizeClass, alignment);
+    }
+
+    static constexpr TZoneDescriptor encodeDescriptor(unsigned sizeClass, uint16_t alignment)
+    {
+        return (static_cast<uint64_t>(alignment) << 32) | sizeClass;
+    }
+
     HeapRef* addressOfHeapRef;
     unsigned size;
+    uint16_t alignment;
     CompactAllocationMode allocationMode;
-    SizeAndAlignment::Value sizeAndAlignment;
+    TZoneDescriptor descriptor;
 #if BUSE_TZONE_SPEC_NAME_ARG
     const char* name;
+    const char* file;
+    unsigned line;
 #endif
+
+    friend class TZoneDescriptorDecoder;
 };
 
 template<typename T>
@@ -186,7 +208,7 @@ BEXPORT void tzoneFree(void*);
 #define MAKE_BTZONE_MALLOCED_COMMON(_type, _compactMode, _exportMacro) \
 public: \
     using HeapRef = ::bmalloc::api::HeapRef; \
-    using SizeAndAlignment = ::bmalloc::api::SizeAndAlignment; \
+    using TZoneDescriptor = ::bmalloc::api::TZoneDescriptor; \
     using TZoneMallocFallback = ::bmalloc::api::TZoneMallocFallback; \
     using CompactAllocationMode = ::bmalloc::CompactAllocationMode; \
 private: \
@@ -240,7 +262,14 @@ private: \
 private: \
     static _exportMacro BNO_INLINE void* operatorNewSlow(size_t size) \
     { \
-        static const TZoneSpecification s_heapSpec = { &s_heapRef, sizeof(_type), ::bmalloc::api::compactAllocationMode<_type>(), SizeAndAlignment::encode<_type>() TZONE_SPEC_NAME_ARG(#_type) }; \
+        static const TZoneSpecification s_heapSpec = { \
+            &s_heapRef, \
+            TZoneSpecification::encodeSize<_type>(), \
+            TZoneSpecification::encodeAlignment<_type>(), \
+            ::bmalloc::api::compactAllocationMode<_type>(), \
+            TZoneSpecification::encodeDescriptor<_type>(), \
+            TZONE_SPEC_NAME_ARG(#_type) \
+        }; \
         if constexpr (::bmalloc::api::compactAllocationMode<_type>() == CompactAllocationMode::Compact) \
             return ::bmalloc::api::tzoneAllocateCompactSlow(size, s_heapSpec); \
         return ::bmalloc::api::tzoneAllocate ## _compactMode ## Slow(size, s_heapSpec); \

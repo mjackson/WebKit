@@ -85,7 +85,7 @@ bool StaticRange::computeValidity() const
         return false;
     if (startContainer.ptr() == endContainer.ptr())
         return endOffset() > startOffset();
-    if (!connectedInSameTreeScope(startContainer->protectedRootNode().ptr(), endContainer->protectedRootNode().ptr()))
+    if (!connectedInSameTreeScope(protect(startContainer->rootNode()).ptr(), protect(endContainer->rootNode()).ptr()))
         return false;
     return !is_gt(treeOrder<ComposedTree>(startContainer, endContainer));
 }

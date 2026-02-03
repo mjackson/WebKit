@@ -81,7 +81,7 @@ CachedResourceHandle<CachedScript> LoadableSpeculationRules::requestSpeculationR
     request.upgradeInsecureRequestIfNeeded(document);
     request.setPriority(ResourceLoadPriority::Low);
 
-    return document.protectedCachedResourceLoader()->requestScript(WTF::move(request)).value_or(nullptr);
+    return protect(document.cachedResourceLoader())->requestScript(WTF::move(request)).value_or(nullptr);
 }
 
 bool LoadableSpeculationRules::load(Document& document, const URL& url)

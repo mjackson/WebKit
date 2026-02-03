@@ -166,7 +166,7 @@ static inline String targetReferenceFromResource(SVGElement& element)
     else
         ASSERT_NOT_REACHED();
 
-    return SVGURIReference::fragmentIdentifierFromIRIString(target, element.protectedDocument());
+    return SVGURIReference::fragmentIdentifierFromIRIString(target, protect(element.document()));
 }
 
 static inline bool isChainableResource(const SVGElement& element, const SVGElement& linkedResource)

@@ -267,7 +267,7 @@ bool HitTestResult::allowsFollowingLink() const
     if (!document)
         return false;
 
-    return document->protectedSecurityOrigin()->canDisplay(linkURL, OriginAccessPatternsForWebProcess::singleton());
+    return protect(document->securityOrigin())->canDisplay(linkURL, OriginAccessPatternsForWebProcess::singleton());
 }
 
 bool HitTestResult::allowsFollowingImageURL() const
@@ -284,7 +284,7 @@ bool HitTestResult::allowsFollowingImageURL() const
     if (!document)
         return false;
 
-    return document->protectedSecurityOrigin()->canDisplay(linkURL, OriginAccessPatternsForWebProcess::singleton());
+    return protect(document->securityOrigin())->canDisplay(linkURL, OriginAccessPatternsForWebProcess::singleton());
 }
 
 String HitTestResult::selectedText() const

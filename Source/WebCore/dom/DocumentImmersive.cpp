@@ -90,12 +90,12 @@ void DocumentImmersive::requestImmersive(HTMLModelElement* element, CompletionHa
         RELEASE_LOG_ERROR(Immersive, "%p - DocumentImmersive: %s", protectedThis.get(), message.utf8().data());
         if (emitErrorEvent == EmitErrorEvent::Yes) {
             protectedThis->queueImmersiveEventForElement(DocumentImmersive::EventType::Error, *protectedElement);
-            protectedThis->protectedDocument()->scheduleRenderingUpdate(RenderingUpdateStep::Immersive);
+            protect(protectedThis->document())->scheduleRenderingUpdate(RenderingUpdateStep::Immersive);
         }
         completionHandler(Exception { ExceptionCode::TypeError, message });
     };
 
-    if (!protectedDocument()->isFullyActive())
+    if (!protect(document())->isFullyActive())
         return handleError("Cannot request immersive on a document that is not fully active."_s, EmitErrorEvent::No, WTF::move(completionHandler));
 
     if (RefPtr window = document().window(); !window || !window->consumeTransientActivation())

@@ -757,7 +757,6 @@ symbols = [
     "CGPDFDocumentIsTaggedPDF",
     "CGPDFPageLayoutGetAreaOfInterestAtPoint",
     "CGSVGDocumentCreateFromData",
-    "CGSVGDocumentRelease",
     "FBSActivateForEventOptionTypeBackgroundContentFetching",
     "FBSOpenApplicationOptionKeyActivateForEvent",
     "FBSOpenApplicationOptionKeyPayloadOptions",

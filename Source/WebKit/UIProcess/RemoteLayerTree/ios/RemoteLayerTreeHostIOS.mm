@@ -92,7 +92,7 @@ RefPtr<RemoteLayerTreeNode> RemoteLayerTreeHost::makeNode(const RemoteLayerTreeT
         if (![WKMaterialHostingSupport isMaterialHostingAvailable])
             return makeWithView(adoptNS([[WKCompositingView alloc] init]));
 
-        return makeWithView([[WKMaterialHostingView alloc] init]);
+        return makeWithView(adoptNS([[WKMaterialHostingView alloc] init]));
     }
 #endif
 

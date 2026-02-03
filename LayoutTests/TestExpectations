@@ -411,7 +411,6 @@ media/video-element-fullscreen-not-in-dom-accelerated-iphone.html [ Skip ]
 # Per specification, if the scripts are identical, we do not install the new script and return the existing registration.
 imported/w3c/web-platform-tests/service-workers/service-worker/import-scripts-redirect.https.html [ Skip ]
 
-imported/w3c/web-platform-tests/service-workers/service-worker/resource-timing-cross-origin.https.html [ Failure ]
 imported/w3c/web-platform-tests/service-workers/service-worker/svg-target-reftest.https.html [ ImageOnlyFailure ]
 
 imported/w3c/web-platform-tests/service-workers/service-worker/partitioned-cookies.tentative.https.html [ Pass Failure ]
@@ -8204,8 +8203,6 @@ webkit.org/b/295810 [ Debug ] fast/dynamic/disappearing-content-on-size-change-c
 webkit.org/b/301250 ipc/dictionary-callbacks.html [ Skip ]
 
 imported/w3c/web-platform-tests/fetch/security/dangling-markup/dangling-markup-mitigation.tentative.https.html [ Skip ]
-
-webkit.org/b/305054 [ Debug ] ipc/serialized-type-info.html [ Failure ]
 
 webkit.org/b/89153 http/tests/websocket/tests/hybi/workers/close.html [ Pass Failure ]
 

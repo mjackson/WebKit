@@ -292,7 +292,7 @@ void HTMLSelectElement::remove(int optionIndex)
 
 String HTMLSelectElement::value() const
 {
-    if (protectedDocument()->requiresScriptTrackingPrivacyProtection(ScriptTrackingPrivacyCategory::FormControls))
+    if (protect(document())->requiresScriptTrackingPrivacyProtection(ScriptTrackingPrivacyCategory::FormControls))
         return emptyString();
     for (auto& item : listItems()) {
         if (RefPtr option = dynamicDowncast<HTMLOptionElement>(item.get())) {
@@ -519,7 +519,7 @@ ExceptionOr<void> HTMLSelectElement::setItem(unsigned index, HTMLOptionElement* 
 
     // If we are adding options, we should check 'index > maxSelectItems' first to avoid integer overflow.
     if (index > length() && index >= maxSelectItems) {
-        protectedDocument()->addConsoleMessage(MessageSource::Other, MessageLevel::Warning, makeString("Unable to expand the option list and set an option at index. The maximum list length is "_s, maxSelectItems, '.'));
+        protect(document())->addConsoleMessage(MessageSource::Other, MessageLevel::Warning, makeString("Unable to expand the option list and set an option at index. The maximum list length is "_s, maxSelectItems, '.'));
         return { };
     }
 
@@ -552,7 +552,7 @@ ExceptionOr<void> HTMLSelectElement::setLength(unsigned newLength)
 {
     // If we are adding options, we should check 'index > maxSelectItems' first to avoid integer overflow.
     if (newLength > length() && newLength > maxSelectItems) {
-        protectedDocument()->addConsoleMessage(MessageSource::Other, MessageLevel::Warning, makeString("Unable to expand the option list to length "_s, newLength, " items. The maximum number of items allowed is "_s, maxSelectItems, '.'));
+        protect(document())->addConsoleMessage(MessageSource::Other, MessageLevel::Warning, makeString("Unable to expand the option list to length "_s, newLength, " items. The maximum number of items allowed is "_s, maxSelectItems, '.'));
         return { };
     }
 
@@ -560,7 +560,7 @@ ExceptionOr<void> HTMLSelectElement::setLength(unsigned newLength)
 
     if (diff < 0) { // Add dummy elements.
         do {
-            auto result = add(HTMLOptionElement::create(protectedDocument()).ptr(), std::nullopt);
+            auto result = add(HTMLOptionElement::create(protect(document())).ptr(), std::nullopt);
             if (result.hasException())
                 return result;
         } while (++diff);
@@ -1236,7 +1236,7 @@ bool HTMLSelectElement::platformHandleKeydownEvent(KeyboardEvent* event)
     if (!document().settings().spatialNavigationEnabled()) {
         if (event->keyIdentifier() == "Down"_s || event->keyIdentifier() == "Up"_s) {
             focus();
-            protectedDocument()->updateStyleIfNeeded();
+            protect(document())->updateStyleIfNeeded();
             // Calling focus() may cause us to lose our renderer. Return true so
             // that our caller doesn't process the event further, but don't set
             // the event as handled.
@@ -1335,7 +1335,7 @@ void HTMLSelectElement::menuListDefaultEventHandler(Event& event)
         if (RenderTheme::singleton().popsMenuBySpaceOrReturn()) {
             if (keyCode == ' ' || keyCode == '\r') {
                 focus();
-                protectedDocument()->updateStyleIfNeeded();
+                protect(document())->updateStyleIfNeeded();
 
                 // Calling focus() may remove the renderer or change the renderer type.
                 if (!is<RenderMenuList>(renderer()))
@@ -1352,7 +1352,7 @@ void HTMLSelectElement::menuListDefaultEventHandler(Event& event)
         } else if (RenderTheme::singleton().popsMenuByArrowKeys()) {
             if (keyCode == ' ') {
                 focus();
-                protectedDocument()->updateStyleIfNeeded();
+                protect(document())->updateStyleIfNeeded();
 
                 // Calling focus() may remove the renderer or change the renderer type.
                 if (!is<RenderMenuList>(renderer()))
@@ -1380,7 +1380,7 @@ void HTMLSelectElement::menuListDefaultEventHandler(Event& event)
     if (RefPtr mouseEvent = dynamicDowncast<MouseEvent>(event); event.type() == eventNames.mousedownEvent && mouseEvent && mouseEvent->button() == MouseButton::Left) {
         focus();
 #if !PLATFORM(IOS_FAMILY)
-        protectedDocument()->updateStyleIfNeeded();
+        protect(document())->updateStyleIfNeeded();
 
         if (is<RenderMenuList>(renderer())) {
             ASSERT(!m_popupIsVisible);
@@ -1469,7 +1469,7 @@ void HTMLSelectElement::listBoxDefaultEventHandler(Event& event)
     RefPtr frame = document().frame();
     if (event.type() == eventNames.mousedownEvent && mouseEvent && mouseEvent->button() == MouseButton::Left) {
         focus();
-        protectedDocument()->updateStyleIfNeeded();
+        protect(document())->updateStyleIfNeeded();
 
         // Calling focus() may remove or change our renderer, in which case we don't want to handle the event further.
         CheckedPtr renderListBox = dynamicDowncast<RenderListBox>(this->renderer());
@@ -1814,7 +1814,7 @@ ExceptionOr<void> HTMLSelectElement::showPicker()
 
     // In cross-origin iframes it should throw a "SecurityError" DOMException. In same-origin iframes it should work fine.
     RefPtr localTopFrame = dynamicDowncast<LocalFrame>(frame->tree().top());
-    if (!localTopFrame || !frame->protectedDocument()->protectedSecurityOrigin()->isSameOriginAs(localTopFrame->protectedDocument()->protectedSecurityOrigin()))
+    if (!localTopFrame || !protect(protect(frame->document())->securityOrigin())->isSameOriginAs(protect(protect(localTopFrame->document())->securityOrigin())))
         return Exception { ExceptionCode::SecurityError, "Select showPicker() called from cross-origin iframe."_s };
 
     RefPtr window = frame->window();
@@ -2032,7 +2032,7 @@ LayoutUnit HTMLSelectElement::clientPaddingRight() const
 
 FontSelector* HTMLSelectElement::fontSelector() const
 {
-    return &protectedDocument()->fontSelector();
+    return &protect(document())->fontSelector();
 }
 
 HostWindow* HTMLSelectElement::hostWindow() const
@@ -2048,7 +2048,7 @@ void HTMLSelectElement::didUpdateActiveOption(int optionIndex)
     if (!AXObjectCache::accessibilityEnabled())
         return;
 
-    CheckedPtr axCache = protectedDocument()->existingAXObjectCache();
+    CheckedPtr axCache = protect(document())->existingAXObjectCache();
     if (!axCache)
         return;
 
@@ -2060,8 +2060,8 @@ void HTMLSelectElement::didUpdateActiveOption(int optionIndex)
     if (listIndex < 0 || listIndex >= static_cast<int>(listItems().size()))
         return;
 
-    if (CheckedPtr renderer = this->renderer())
-        axCache->onSelectedOptionChanged(*renderer, optionIndex);
+    if (renderer())
+        axCache->onSelectedOptionChanged(*this, optionIndex);
 }
 
 } // namespace WebCore

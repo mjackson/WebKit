@@ -599,31 +599,27 @@ struct OrderedHashTableTraits {
 
 typedef IntHash<EncodedJSValue> EncodedJSValueHash;
 
-} // namespace JSC
-
-namespace WTF {
-
 #if USE(JSVALUE32_64)
-template<> struct HashTraits<JSC::EncodedJSValue> : GenericHashTraits<JSC::EncodedJSValue> {
+struct EncodedJSValueHashTraits : HashTraits<EncodedJSValue> {
     static constexpr bool emptyValueIsZero = false;
-    static JSC::EncodedJSValue emptyValue() { return JSC::JSValue::encode(JSC::JSValue()); }
+    static EncodedJSValue emptyValue() { return JSValue::encode(JSValue()); }
+    static void constructDeletedValue(EncodedJSValue& slot) { slot = JSValue::encode(JSValue(JSValue::HashTableDeletedValue)); }
+    static bool isDeletedValue(EncodedJSValue value) { return value == JSValue::encode(JSValue(JSValue::HashTableDeletedValue)); }
 };
-#endif
-
-} // namespace WTF
-
-namespace JSC {
-
+#else
 struct EncodedJSValueHashTraits : HashTraits<EncodedJSValue> {
     static void constructDeletedValue(EncodedJSValue& slot) { slot = JSValue::encode(JSValue(JSValue::HashTableDeletedValue)); }
     static bool isDeletedValue(EncodedJSValue value) { return value == JSValue::encode(JSValue(JSValue::HashTableDeletedValue)); }
 };
+#endif
 
 typedef std::pair<EncodedJSValue, SourceCodeRepresentation> EncodedJSValueWithRepresentation;
 
-struct EncodedJSValueWithRepresentationHashTraits : HashTraits<EncodedJSValueWithRepresentation> {
+struct EncodedJSValueWithRepresentationHashTraits : WTF::GenericHashTraits<EncodedJSValueWithRepresentation> {
     static constexpr bool emptyValueIsZero = false;
     static EncodedJSValueWithRepresentation emptyValue() { return std::make_pair(JSValue::encode(JSValue()), SourceCodeRepresentation::Other); }
+    static void constructDeletedValue(EncodedJSValueWithRepresentation& slot) { slot = std::make_pair(JSValue::encode(JSValue(JSValue::HashTableDeletedValue)), SourceCodeRepresentation::Other); }
+    static bool isDeletedValue(EncodedJSValueWithRepresentation value) { return value == std::make_pair(JSValue::encode(JSValue(JSValue::HashTableDeletedValue)), SourceCodeRepresentation::Other); }
 };
 
 struct EncodedJSValueWithRepresentationHash {

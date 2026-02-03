@@ -202,8 +202,8 @@ struct IDLObject : IDLType<JSC::Strong<JSC::JSObject>> {
 template<typename T> struct IDLWrapper : IDLType<Ref<T>> {
     using RawType = T;
 
-    // FIXME: This is needed to work around unions storing non-nullable interfaces using RefPtr rather than Ref<>.
-    // See "Support using Ref for IDLInterfaces in IDL unions (https://bugs.webkit.org/show_bug.cgi?id=274729)".
+    // FIXME: This is needed to work around unions storing non-nullable interfaces and buffer source types using RefPtr rather than Ref<>.
+    // See "Support using Ref for interfaces and buffer source types in IDL unions (https://bugs.webkit.org/show_bug.cgi?id=274729)".
     using UnionStorageType = RefPtr<T>;
 
     using CallbackReturnType = Ref<T>;

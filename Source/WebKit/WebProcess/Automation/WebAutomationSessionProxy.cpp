@@ -365,7 +365,7 @@ WebCore::AccessibilityObject* WebAutomationSessionProxy::getAccessibilityObjectF
     if (!WebCore::AXObjectCache::accessibilityEnabled())
         WebCore::AXObjectCache::enableAccessibility();
 
-    if (CheckedPtr axObjectCache = coreElement->protectedDocument()->axObjectCache()) {
+    if (CheckedPtr axObjectCache = protect(coreElement->document())->axObjectCache()) {
         // Force a layout and cache update. If we don't, and this request has come in before the render tree was built,
         // the accessibility object for this element will not be created (because it doesn't yet have its renderer).
         axObjectCache->performDeferredCacheUpdate(ForceLayout::Yes);
@@ -848,7 +848,7 @@ void WebAutomationSessionProxy::computeElementLayout(WebCore::PageIdentifier pag
     }
 
     auto elementInViewCenterPoint = visiblePortionOfElementRect.center();
-    auto elementList = containerElement->protectedTreeScope()->elementsFromPoint(elementInViewCenterPoint.x(), elementInViewCenterPoint.y(), WebCore::HitTestSource::User);
+    auto elementList = protect(containerElement->treeScope())->elementsFromPoint(elementInViewCenterPoint.x(), elementInViewCenterPoint.y(), WebCore::HitTestSource::User);
     auto index = elementList.findIf([containerElement](auto& item) {
         return item.ptr() == containerElement;
     });

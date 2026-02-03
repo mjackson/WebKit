@@ -65,7 +65,7 @@ protected:
 #endif
     WEBCORE_EXPORT ParentalControlsURLFilter();
 
-    virtual void isURLAllowedImpl(const URL&, CompletionHandler<void(bool, NSData *)>&&);
+    virtual void isURLAllowedImpl(const URL& mainDocumentURL, const URL&, CompletionHandler<void(bool, NSData *)>&&);
 
 private:
     WCRBrowserEngineClient* effectiveWCRBrowserEngineClient();

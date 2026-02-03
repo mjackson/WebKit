@@ -405,11 +405,11 @@ ExceptionOr<RefPtr<DocumentFragment>> Range::processContents(ActionType action)
         // Collapse the range, making sure that the result is not within a node that was partially selected.
         if (action == Extract || action == Delete) {
             if (partialStart && commonRoot->contains(*partialStart)) {
-                auto result = setStart(partialStart->protectedParentNode().releaseNonNull(), partialStart->computeNodeIndex() + 1);
+                auto result = setStart(protect(partialStart->parentNode()).releaseNonNull(), partialStart->computeNodeIndex() + 1);
                 if (result.hasException())
                     return result.releaseException();
             } else if (partialEnd && commonRoot->contains(*partialEnd)) {
-                auto result = setStart(partialEnd->protectedParentNode().releaseNonNull(), partialEnd->computeNodeIndex());
+                auto result = setStart(protect(partialEnd->parentNode()).releaseNonNull(), partialEnd->computeNodeIndex());
                 if (result.hasException())
                     return result.releaseException();
             }
@@ -634,7 +634,7 @@ ExceptionOr<RefPtr<Node>> processAncestorsAndTheirSiblings(Range::ActionType act
                     if (result.hasException())
                         return result.releaseException();
                 } else {
-                    auto result = clonedContainer->insertBefore(child.get(), clonedContainer->protectedFirstChild());
+                    auto result = clonedContainer->insertBefore(child.get(), protect(clonedContainer->firstChild()));
                     if (result.hasException())
                         return result.releaseException();
                 }
@@ -645,7 +645,7 @@ ExceptionOr<RefPtr<Node>> processAncestorsAndTheirSiblings(Range::ActionType act
                     if (result.hasException())
                         return result.releaseException();
                 } else {
-                    auto result = clonedContainer->insertBefore(child->cloneNode(true), clonedContainer->protectedFirstChild());
+                    auto result = clonedContainer->insertBefore(child->cloneNode(true), protect(clonedContainer->firstChild()));
                     if (result.hasException())
                         return result.releaseException();
                 }
@@ -756,7 +756,7 @@ ExceptionOr<Ref<DocumentFragment>> Range::createContextualFragment(Variant<RefPt
     else
         element = node->parentElement();
     if (!element || (element->document().isHTMLDocument() && is<HTMLHtmlElement>(*element)))
-        element = HTMLBodyElement::create(node->protectedDocument());
+        element = HTMLBodyElement::create(protect(node->document()));
     return WebCore::createContextualFragment(*element, stringValueHolder.releaseReturnValue(), { ParserContentPolicy::AllowScriptingContent, ParserContentPolicy::DoNotMarkAlreadyStarted });
 }
 
@@ -1010,9 +1010,9 @@ void Range::textRemoved(Node& text, unsigned offset, unsigned length)
 static inline void boundaryTextNodesMerged(RangeBoundaryPoint& boundary, NodeWithIndex& oldNode, unsigned offset)
 {
     if (&boundary.container() == oldNode.node())
-        boundary.set(oldNode.node()->protectedPreviousSibling().releaseNonNull(), boundary.offset() + offset, nullptr);
+        boundary.set(protect(oldNode.node()->previousSibling()).releaseNonNull(), boundary.offset() + offset, nullptr);
     else if (&boundary.container() == oldNode.node()->parentNode() && boundary.offset() == static_cast<unsigned>(oldNode.index()))
-        boundary.set(oldNode.node()->protectedPreviousSibling().releaseNonNull(), offset, nullptr);
+        boundary.set(protect(oldNode.node()->previousSibling()).releaseNonNull(), offset, nullptr);
 }
 
 void Range::textNodesMerged(NodeWithIndex& oldNode, unsigned offset)
@@ -1036,7 +1036,7 @@ static inline void boundaryTextNodesSplit(RangeBoundaryPoint& boundary, Text& ol
         unsigned boundaryOffset = boundary.offset();
         if (boundaryOffset > splitOffset) {
             if (parent)
-                boundary.set(oldNode.protectedNextSibling().releaseNonNull(), boundaryOffset - splitOffset, nullptr);
+                boundary.set(protect(oldNode.nextSibling()).releaseNonNull(), boundaryOffset - splitOffset, nullptr);
             else
                 boundary.setOffset(splitOffset);
         }
@@ -1094,7 +1094,7 @@ ExceptionOr<void> Range::expand(const String& unit)
 
 Ref<DOMRectList> Range::getClientRects() const
 {
-    startContainer().protectedDocument()->updateLayout();
+    protect(startContainer().document())->updateLayout();
     return DOMRectList::create(RenderObject::clientBorderAndTextRects(makeSimpleRange(*this)));
 }
 
@@ -1105,7 +1105,7 @@ Ref<DOMRect> Range::getBoundingClientRect() const
 
 Ref<DOMRect> Range::boundingClientRect(const SimpleRange& simpleRange)
 {
-    simpleRange.startContainer().protectedDocument()->updateLayout();
+    protect(simpleRange.startContainer().document())->updateLayout();
     return DOMRect::create(unionRectIgnoringZeroRects(RenderObject::clientBorderAndTextRects(simpleRange)));
 }
 

@@ -907,7 +907,7 @@ void LocalFrameView::updateSnapOffsets()
     LayoutRect viewport = LayoutRect(IntPoint(), baseLayoutViewportSize());
     viewport.move(-rootRenderer->marginLeft(), -rootRenderer->marginTop());
 
-    updateSnapOffsetsForScrollableArea(*this, *rootRenderer, *styleToUse, viewport, rootRenderer->style().writingMode(), m_frame->document()->protectedFocusedElement().get());
+    updateSnapOffsetsForScrollableArea(*this, *rootRenderer, *styleToUse, viewport, rootRenderer->style().writingMode(), protect(m_frame->document()->focusedElement()).get());
 }
 
 bool LocalFrameView::isScrollSnapInProgress() const
@@ -3123,7 +3123,7 @@ bool LocalFrameView::scrollToAnchorFragment(StringView fragmentIdentifier)
     if (anchorElement) {
         // If the anchor accepts keyboard focus, move focus there to aid users relying on keyboard navigation.
         if (anchorElement->isFocusable())
-            document->setFocusedElement(anchorElement.get(), { { }, { }, { }, { }, FocusVisibility::Visible });
+            document->setFocusedElement(anchorElement.get(), { { }, { }, { }, { }, { }, { }, FocusVisibility::Visible });
         else {
             document->setFocusedElement(nullptr);
             document->setFocusNavigationStartingNode(anchorElement.get());
@@ -3171,7 +3171,7 @@ void LocalFrameView::maintainScrollPositionAtScrollToTextFragmentRange(SimpleRan
 
 void LocalFrameView::scrollElementToRect(const Element& element, const IntRect& rect)
 {
-    m_frame->protectedDocument()->updateLayoutIgnorePendingStylesheets();
+    protect(m_frame->document())->updateLayoutIgnorePendingStylesheets();
 
     LayoutRect bounds;
     if (RenderElement* renderer = element.renderer())
@@ -3452,7 +3452,7 @@ TemporarySelectionChange LocalFrameView::revealRangeWithTemporarySelection(const
         TemporarySelectionOption::UserTriggered,
         TemporarySelectionOption::ForceCenterScroll
     };
-    return { range.startContainer().protectedDocument(), { range }, defaultOptions | extraOptions };
+    return { protect(range.startContainer().document()), { range }, defaultOptions | extraOptions };
 }
 
 static ScrollPositionChangeOptions scrollPositionChangeOptionsForElement(const LocalFrameView& frameView, Element* element, const ScrollRectToVisibleOptions& options)
@@ -4428,7 +4428,7 @@ bool LocalFrameView::safeToPropagateScrollToParent() const
     if (!parentDocument)
         return false;
 
-    return document->protectedSecurityOrigin()->isSameOriginDomain(parentDocument->protectedSecurityOrigin());
+    return protect(document->securityOrigin())->isSameOriginDomain(protect(parentDocument->securityOrigin()));
 }
 
 void LocalFrameView::scheduleScrollToAnchorAndTextFragment()
@@ -4576,9 +4576,9 @@ void LocalFrameView::scrollToPendingTextFragmentRange()
                 return;
         }
         if (m_haveCreatedTextIndicator)
-            document->protectedPage()->chrome().client().updateTextIndicator(WTF::move(textIndicator));
+            protect(document->page())->chrome().client().updateTextIndicator(WTF::move(textIndicator));
         else {
-            document->protectedPage()->chrome().client().setTextIndicator(WTF::move(textIndicator));
+            protect(document->page())->chrome().client().setTextIndicator(WTF::move(textIndicator));
             m_haveCreatedTextIndicator = true;
         }
     }
@@ -5322,7 +5322,7 @@ void LocalFrameView::updateScrollCorner()
         m_scrollCorner = nullptr;
     else {
         if (!m_scrollCorner) {
-            m_scrollCorner = createRenderer<RenderScrollbarPart>(renderer->protectedDocument(), WTF::move(*cornerStyle));
+            m_scrollCorner = createRenderer<RenderScrollbarPart>(protect(renderer->document()), WTF::move(*cornerStyle));
             m_scrollCorner->initializeStyle();
         } else
             m_scrollCorner->setStyle(WTF::move(*cornerStyle));

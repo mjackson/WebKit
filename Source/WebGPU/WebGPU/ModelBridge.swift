@@ -22,7 +22,7 @@
 // THE POSSIBILITY OF SUCH DAMAGE.
 
 import Metal
-internal import WebGPU_Private.DDModelTypes
+internal import WebGPU_Private.ModelTypes
 
 #if canImport(RealityCoreRenderer, _version: 9999)
 @_spi(RealityCoreRendererAPI) @_spi(ShaderGraph) import RealityKit
@@ -37,7 +37,7 @@ typealias String = Swift.String
 
 @objc
 @implementation
-extension DDBridgeVertexAttributeFormat {
+extension WebBridgeVertexAttributeFormat {
     let semantic: Int
     let format: UInt
     let layoutIndex: Int
@@ -58,7 +58,7 @@ extension DDBridgeVertexAttributeFormat {
 
 @objc
 @implementation
-extension DDBridgeVertexLayout {
+extension WebBridgeVertexLayout {
     let bufferIndex: Int
     let bufferOffset: Int
     let bufferStride: Int
@@ -76,7 +76,7 @@ extension DDBridgeVertexLayout {
 
 @objc
 @implementation
-extension DDBridgeMeshPart {
+extension WebBridgeMeshPart {
     let indexOffset: Int
     let indexCount: Int
     let topology: MTLPrimitiveType
@@ -103,19 +103,19 @@ extension DDBridgeMeshPart {
 
 @objc
 @implementation
-extension DDBridgeMeshDescriptor {
+extension WebBridgeMeshDescriptor {
     let vertexBufferCount: Int
     let vertexCapacity: Int
-    let vertexAttributes: [DDBridgeVertexAttributeFormat]
-    let vertexLayouts: [DDBridgeVertexLayout]
+    let vertexAttributes: [WebBridgeVertexAttributeFormat]
+    let vertexLayouts: [WebBridgeVertexLayout]
     let indexCapacity: Int
     let indexType: MTLIndexType
 
     init(
         vertexBufferCount: Int,
         vertexCapacity: Int,
-        vertexAttributes: [DDBridgeVertexAttributeFormat],
-        vertexLayouts: [DDBridgeVertexLayout],
+        vertexAttributes: [WebBridgeVertexAttributeFormat],
+        vertexLayouts: [WebBridgeVertexLayout],
         indexCapacity: Int,
         indexType: MTLIndexType
     ) {
@@ -130,7 +130,7 @@ extension DDBridgeMeshDescriptor {
 
 @objc
 @implementation
-extension DDBridgeSkinningData {
+extension WebBridgeSkinningData {
     let influencePerVertexCount: UInt8
     let jointTransformsData: Data?
     let inverseBindPosesData: Data?
@@ -157,7 +157,7 @@ extension DDBridgeSkinningData {
 
 @objc
 @implementation
-extension DDBridgeBlendShapeData {
+extension WebBridgeBlendShapeData {
     let weights: Data
     let positionOffsets: [Data]
     let normalOffsets: [Data]
@@ -175,7 +175,7 @@ extension DDBridgeBlendShapeData {
 
 @objc
 @implementation
-extension DDBridgeRenormalizationData {
+extension WebBridgeRenormalizationData {
     let vertexIndicesPerTriangle: Data
     let vertexAdjacencies: Data
     let vertexAdjacencyEndIndices: Data
@@ -193,15 +193,15 @@ extension DDBridgeRenormalizationData {
 
 @objc
 @implementation
-extension DDBridgeDeformationData {
-    let skinningData: DDBridgeSkinningData?
-    let blendShapeData: DDBridgeBlendShapeData?
-    let renormalizationData: DDBridgeRenormalizationData?
+extension WebBridgeDeformationData {
+    let skinningData: WebBridgeSkinningData?
+    let blendShapeData: WebBridgeBlendShapeData?
+    let renormalizationData: WebBridgeRenormalizationData?
 
     init(
-        skinningData: DDBridgeSkinningData?,
-        blendShapeData: DDBridgeBlendShapeData?,
-        renormalizationData: DDBridgeRenormalizationData?
+        skinningData: WebBridgeSkinningData?,
+        blendShapeData: WebBridgeBlendShapeData?,
+        renormalizationData: WebBridgeRenormalizationData?
     ) {
         self.skinningData = skinningData
         self.blendShapeData = blendShapeData
@@ -211,29 +211,29 @@ extension DDBridgeDeformationData {
 
 @objc
 @implementation
-extension DDBridgeUpdateMesh {
+extension WebBridgeUpdateMesh {
     let identifier: String
-    let updateType: DDBridgeDataUpdateType
-    let descriptor: DDBridgeMeshDescriptor?
-    let parts: [DDBridgeMeshPart]
+    let updateType: WebBridgeDataUpdateType
+    let descriptor: WebBridgeMeshDescriptor?
+    let parts: [WebBridgeMeshPart]
     let indexData: Data?
     let vertexData: [Data]
     let instanceTransformsData: Data? // [float4x4]
     let instanceTransformsCount: Int
     let materialPrims: [String]
-    let deformationData: DDBridgeDeformationData?
+    let deformationData: WebBridgeDeformationData?
 
     init(
         identifier: String,
-        updateType: DDBridgeDataUpdateType,
-        descriptor: DDBridgeMeshDescriptor?,
-        parts: [DDBridgeMeshPart],
+        updateType: WebBridgeDataUpdateType,
+        descriptor: WebBridgeMeshDescriptor?,
+        parts: [WebBridgeMeshPart],
         indexData: Data?,
         vertexData: [Data],
         instanceTransforms: Data?,
         instanceTransformsCount: Int,
         materialPrims: [String],
-        deformationData: DDBridgeDeformationData?
+        deformationData: WebBridgeDeformationData?
     ) {
         self.identifier = identifier
         self.updateType = updateType
@@ -248,7 +248,7 @@ extension DDBridgeUpdateMesh {
     }
 }
 
-extension DDBridgeUpdateMesh {
+extension WebBridgeUpdateMesh {
     var instanceTransforms: [simd_float4x4] {
         guard let data = instanceTransformsData else {
             return []
@@ -279,7 +279,7 @@ extension DDBridgeUpdateMesh {
 
 @objc
 @implementation
-extension DDBridgeImageAsset {
+extension WebBridgeImageAsset {
     let data: Data?
     let width: Int
     let height: Int
@@ -321,13 +321,13 @@ extension DDBridgeImageAsset {
 
 @objc
 @implementation
-extension DDBridgeUpdateTexture {
-    let imageAsset: DDBridgeImageAsset?
+extension WebBridgeUpdateTexture {
+    let imageAsset: WebBridgeImageAsset?
     let identifier: String
     let hashString: String
 
     init(
-        imageAsset: DDBridgeImageAsset?,
+        imageAsset: WebBridgeImageAsset?,
         identifier: String,
         hashString: String
     ) {
@@ -339,7 +339,7 @@ extension DDBridgeUpdateTexture {
 
 @objc
 @implementation
-extension DDBridgeUpdateMaterial {
+extension WebBridgeUpdateMaterial {
     let materialGraph: Data?
     let identifier: String
 
@@ -354,15 +354,15 @@ extension DDBridgeUpdateMaterial {
 
 @objc
 @implementation
-extension DDBridgeNode {
-    let bridgeNodeType: DDBridgeNodeType
-    let builtin: DDBridgeBuiltin
-    let constant: DDBridgeConstantContainer
+extension WebBridgeNode {
+    let bridgeNodeType: WebBridgeNodeType
+    let builtin: WebBridgeBuiltin
+    let constant: WebBridgeConstantContainer
 
     init(
-        bridgeNodeType: DDBridgeNodeType,
-        builtin: DDBridgeBuiltin,
-        constant: DDBridgeConstantContainer
+        bridgeNodeType: WebBridgeNodeType,
+        builtin: WebBridgeBuiltin,
+        constant: WebBridgeConstantContainer
     ) {
         self.bridgeNodeType = bridgeNodeType
         self.builtin = builtin
@@ -372,12 +372,12 @@ extension DDBridgeNode {
 
 @objc
 @implementation
-extension DDBridgeInputOutput {
-    let type: DDBridgeDataType
+extension WebBridgeInputOutput {
+    let type: WebBridgeDataType
     let name: String
 
     init(
-        type: DDBridgeDataType,
+        type: WebBridgeDataType,
         name: String
     ) {
         self.type = type
@@ -387,14 +387,14 @@ extension DDBridgeInputOutput {
 
 @objc
 @implementation
-extension DDBridgeConstantContainer {
-    let constant: DDBridgeConstant
-    let constantValues: [DDValueString]
+extension WebBridgeConstantContainer {
+    let constant: WebBridgeConstant
+    let constantValues: [WebValueString]
     let name: String
 
     init(
-        constant: DDBridgeConstant,
-        constantValues: [DDValueString],
+        constant: WebBridgeConstant,
+        constantValues: [WebValueString],
         name: String
     ) {
         self.constant = constant
@@ -405,7 +405,7 @@ extension DDBridgeConstantContainer {
 
 @objc
 @implementation
-extension DDBridgeBuiltin {
+extension WebBridgeBuiltin {
     let definition: String
     let name: String
 
@@ -420,7 +420,7 @@ extension DDBridgeBuiltin {
 
 @objc
 @implementation
-extension DDBridgeEdge {
+extension WebBridgeEdge {
     let upstreamNodeIndex: Int
     let downstreamNodeIndex: Int
     let upstreamOutputName: String
@@ -441,7 +441,7 @@ extension DDBridgeEdge {
 
 @objc
 @implementation
-extension DDValueString {
+extension WebValueString {
     let number: NSNumber
     let string: String
 
@@ -491,9 +491,9 @@ private func convertSemantic(_ semantic: LowLevelMesh.VertexSemantic) -> Int {
     }
 }
 
-private func webAttributesFromAttributes(_ attributes: [LowLevelMesh.Attribute]) -> [DDBridgeVertexAttributeFormat] {
+private func webAttributesFromAttributes(_ attributes: [LowLevelMesh.Attribute]) -> [WebBridgeVertexAttributeFormat] {
     attributes.map({ a in
-        DDBridgeVertexAttributeFormat(
+        WebBridgeVertexAttributeFormat(
             semantic: convertSemantic(a.semantic),
             format: a.format.rawValue,
             layoutIndex: a.layoutIndex,
@@ -502,13 +502,13 @@ private func webAttributesFromAttributes(_ attributes: [LowLevelMesh.Attribute])
     })
 }
 
-private func webLayoutsFromLayouts(_ attributes: [LowLevelMesh.Layout]) -> [DDBridgeVertexLayout] {
+private func webLayoutsFromLayouts(_ attributes: [LowLevelMesh.Layout]) -> [WebBridgeVertexLayout] {
     attributes.map({ a in
-        DDBridgeVertexLayout(bufferIndex: a.bufferIndex, bufferOffset: a.bufferOffset, bufferStride: a.bufferStride)
+        WebBridgeVertexLayout(bufferIndex: a.bufferIndex, bufferOffset: a.bufferOffset, bufferStride: a.bufferStride)
     })
 }
 
-extension DDBridgeMeshDescriptor {
+extension WebBridgeMeshDescriptor {
     @nonobjc
     convenience init(_ request: LowLevelMesh.Descriptor) {
         self.init(
@@ -521,7 +521,7 @@ extension DDBridgeMeshDescriptor {
         )
     }
 }
-extension DDBridgeSkinningData {
+extension WebBridgeSkinningData {
     var jointTransforms: [simd_float4x4] {
         guard let data = jointTransformsData else {
             return []
@@ -650,7 +650,7 @@ extension DDBridgeSkinningData {
         )
     }
 }
-extension DDBridgeBlendShapeData {
+extension WebBridgeBlendShapeData {
     @nonobjc
     convenience init?(_ request: _Proto_DeformationData_v1.BlendShapeData?) {
         guard let request else {
@@ -664,7 +664,7 @@ extension DDBridgeBlendShapeData {
         )
     }
 }
-extension DDBridgeRenormalizationData {
+extension WebBridgeRenormalizationData {
     @nonobjc
     convenience init?(_ request: _Proto_DeformationData_v1.RenormalizationData?) {
         guard let request else {
@@ -678,7 +678,7 @@ extension DDBridgeRenormalizationData {
         )
     }
 }
-extension DDBridgeDeformationData {
+extension WebBridgeDeformationData {
     @nonobjc
     convenience init?(_ request: _Proto_DeformationData_v1?) {
         guard let request else {
@@ -692,7 +692,7 @@ extension DDBridgeDeformationData {
         )
     }
 }
-extension DDBridgeImageAsset {
+extension WebBridgeImageAsset {
     @nonobjc
     convenience init(_ asset: LowLevelTexture.Descriptor, data: Data) {
         self.init(

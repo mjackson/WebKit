@@ -202,7 +202,7 @@ void PageSerializer::serializeFrame(LocalFrame* frame)
 
     Vector<Ref<Node>> serializedNodes;
     SerializerMarkupAccumulator accumulator(*this, *document, &serializedNodes);
-    String text = accumulator.serializeNodes(*document->protectedDocumentElement(), SerializedNodes::SubtreeIncludingNode);
+    String text = accumulator.serializeNodes(*protect(document->documentElement()), SerializedNodes::SubtreeIncludingNode);
     m_resources.append({ url, document->suggestedMIMEType(), SharedBuffer::create(textEncoding.encode(text, PAL::UnencodableHandling::Entities)) });
     m_resourceURLs.add(url);
 

@@ -61,10 +61,10 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(FrameInspectorController);
 
 FrameInspectorController::FrameInspectorController(LocalFrame& frame)
     : m_frame(frame)
-    , m_instrumentingAgents(InstrumentingAgents::create(*this, frame.protectedPage()->protectedInspectorController()->instrumentingAgents()))
-    , m_injectedScriptManager(frame.protectedPage()->protectedInspectorController()->injectedScriptManager())
+    , m_instrumentingAgents(InstrumentingAgents::create(*this, protect(frame.page())->protectedInspectorController()->instrumentingAgents()))
+    , m_injectedScriptManager(protect(frame.page())->protectedInspectorController()->injectedScriptManager())
     , m_frontendRouter(FrontendRouter::create())
-    , m_backendDispatcher(BackendDispatcher::create(m_frontendRouter.copyRef(), &frame.protectedPage()->protectedInspectorController()->backendDispatcher()))
+    , m_backendDispatcher(BackendDispatcher::create(m_frontendRouter.copyRef(), &protect(frame.page())->protectedInspectorController()->backendDispatcher()))
     , m_executionStopwatch(Stopwatch::create())
 {
 }

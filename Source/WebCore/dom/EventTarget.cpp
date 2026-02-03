@@ -32,7 +32,7 @@
 #include "config.h"
 #include "EventTarget.h"
 
-#include "AddEventListenerOptionsInlines.h"
+#include "AbortSignal.h"
 #include "DOMWrapperWorld.h"
 #include "EventNames.h"
 #include "EventPath.h"
@@ -132,6 +132,11 @@ bool EventTarget::addEventListener(const AtomString& eventType, Ref<EventListene
     return true;
 }
 
+bool EventTarget::addEventListener(const AtomString& eventType, Ref<EventListener>&& listener)
+{
+    return addEventListener(eventType, WTF::move(listener), { });
+}
+
 void EventTarget::addEventListenerForBindings(const AtomString& eventType, RefPtr<EventListener>&& listener, AddEventListenerOptionsOrBoolean&& variant)
 {
     if (!listener)
@@ -142,7 +147,7 @@ void EventTarget::addEventListenerForBindings(const AtomString& eventType, RefPt
         SUPPRESS_UNCOUNTED_LAMBDA_CAPTURE addEventListener(eventType, listener.releaseNonNull(), options);
     }, [&](bool capture) {
         // FIXME: Ideally we'd be able to mark the makeVisitor() lamdbas as NOESCAPE to avoid having to suppress.
-        SUPPRESS_UNCOUNTED_LAMBDA_CAPTURE addEventListener(eventType, listener.releaseNonNull(), capture);
+        SUPPRESS_UNCOUNTED_LAMBDA_CAPTURE addEventListener(eventType, listener.releaseNonNull(), { { capture }, std::nullopt, false, nullptr, false });
     });
 
     WTF::visit(visitor, variant);

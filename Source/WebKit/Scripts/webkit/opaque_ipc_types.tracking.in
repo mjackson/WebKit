@@ -255,10 +255,10 @@
     [Legacy] StructureParam WebCore::WrappedCryptoKey.encryptedKey
     [Legacy] StructureParam JSC::ArrayBuffer.toVector()
     [Legacy] StructureParam WebCore::MockWebAuthenticationConfiguration::HidConfiguration.pinProtocols
-    [Legacy] StructureParam WebCore::DDModel::DDImageAsset.data
-    [Legacy] StructureParam WebCore::DDModel::DDMaterialDescriptor.materialGraph
-    [Legacy] StructureParam WebCore::DDModel::DDUpdateMaterialDescriptor.materialGraph
-    [Legacy] StructureParam WebCore::DDModel::DDUpdateMeshDescriptor.indexData
+    [Legacy] StructureParam WebModel::ImageAsset.data
+    [Legacy] StructureParam WebModel::MaterialDescriptor.materialGraph
+    [Legacy] StructureParam WebModel::UpdateMaterialDescriptor.materialGraph
+    [Legacy] StructureParam WebModel::UpdateMeshDescriptor.indexData
     [Legacy] StructureParam WebCore::CustomFontCreationData.fontFaceData
 
     [NotSentFromWebContent] MessageParam WebPage.GetInformationFromImageData imageData
@@ -473,7 +473,7 @@
     [DebugOnly] MessageParam WebPasteboardProxy.TestIPCSharedMemory handle
 }
 
-[Legacy] StructureParam WebCore::DDModel::DDUpdateMeshDescriptor.vertexData Vector<Vector<uint8_t>>
+[Legacy] StructureParam WebModel::UpdateMeshDescriptor.vertexData Vector<Vector<uint8_t>>
 
 [UnsafeWrapper] AliasParam IPC::TransferString::IPCData Variant<std::monostate, std::span<const uint8_t>, std::span<const char16_t>, IPC::TransferString::SharedSpan8, IPC::TransferString::SharedSpan16>
 

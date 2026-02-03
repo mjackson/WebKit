@@ -33,6 +33,7 @@
 #include "WebFoundTextRange.h"
 #include "WebMouseEvent.h"
 #include <WebCore/AffineTransform.h>
+#include <WebCore/EventTarget.h>
 #include <WebCore/FindOptions.h>
 #include <WebCore/FloatRect.h>
 #include <WebCore/PageIdentifier.h>
@@ -63,6 +64,7 @@ OBJC_CLASS PDFSelection;
 OBJC_CLASS WKAccessibilityPDFDocumentObject;
 
 namespace WebCore {
+class AXObjectCache;
 class Color;
 class FragmentedSharedBuffer;
 class GraphicsContext;

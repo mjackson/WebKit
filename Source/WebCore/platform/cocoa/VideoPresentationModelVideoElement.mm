@@ -28,7 +28,6 @@
 
 #if ENABLE(VIDEO_PRESENTATION_MODE)
 
-#import "AddEventListenerOptionsInlines.h"
 #import "DocumentFullscreen.h"
 #import "Event.h"
 #import "EventListener.h"
@@ -110,10 +109,10 @@ void VideoPresentationModelVideoElement::setVideoElement(HTMLVideoElement* video
         videoElement->addClient(*this);
         m_document = videoElement->document();
         for (auto& eventName : observedEventNames())
-            videoElement->addEventListener(eventName, m_videoListener, false);
+            videoElement->addEventListener(eventName, m_videoListener);
         m_isListening = true;
         for (auto& eventName : documentObservedEventNames())
-            videoElement->document().addEventListener(eventName, m_videoListener, false);
+            videoElement->document().addEventListener(eventName, m_videoListener);
     }
 
     updateForEventName(eventNameAll());

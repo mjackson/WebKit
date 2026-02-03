@@ -80,14 +80,14 @@ void DOMAsyncIterator::callNext(Callback&& callback)
     auto result = JSC::iteratorNextExported(globalObject, { m_iterator->guardedObject(), guardedObject() }, { });
     if (auto* exception = scope.exception()) {
         scope.clearException();
-        callback(globalObject, false, exception);
+        callback(globalObject, false, exception->value());
         return;
     }
 
     auto* promise = JSC::JSPromise::resolvedPromise(globalObject, result);
     if (auto* exception = scope.exception()) {
         scope.clearException();
-        callback(globalObject, false, exception);
+        callback(globalObject, false, exception->value());
         return;
     }
 
@@ -116,7 +116,7 @@ void DOMAsyncIterator::callReturn(JSC::JSValue reason, Callback&& callback)
     auto returnMethod = m_iterator->object()->getMethod(globalObject, callData, vm->propertyNames->returnKeyword, "return property should be callable"_s);
     if (auto* exception = scope.exception()) {
         scope.clearException();
-        callback(globalObject, false, exception);
+        callback(globalObject, false, exception->value());
         return;
     }
 
@@ -133,14 +133,14 @@ void DOMAsyncIterator::callReturn(JSC::JSValue reason, Callback&& callback)
     auto result = JSC::call(globalObject, returnMethod, callData, m_iterator->guardedObject(), arguments);
     if (auto* exception = scope.exception()) {
         scope.clearException();
-        callback(globalObject, false, exception);
+        callback(globalObject, false, exception->value());
         return;
     }
 
     auto* promise = JSC::JSPromise::resolvedPromise(globalObject, result);
     if (auto* exception = scope.exception()) {
         scope.clearException();
-        callback(globalObject, false, exception);
+        callback(globalObject, false, exception->value());
         return;
     }
 

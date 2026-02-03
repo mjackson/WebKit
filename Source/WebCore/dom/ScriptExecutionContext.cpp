@@ -468,7 +468,7 @@ bool ScriptExecutionContext::canIncludeErrorDetails(CachedScript* script, const 
         ASSERT(securityOrigin()->toString() == script->origin()->toString());
         return script->isCORSSameOrigin();
     }
-    return protectedSecurityOrigin()->canRequest(completeSourceURL, OriginAccessPatternsForWebProcess::singleton());
+    return protect(securityOrigin())->canRequest(completeSourceURL, OriginAccessPatternsForWebProcess::singleton());
 }
 
 void ScriptExecutionContext::reportException(const String& errorMessage, int lineNumber, int columnNumber, const String& sourceURL, JSC::Exception* exception, RefPtr<ScriptCallStack>&& callStack, CachedScript* cachedScript, bool fromModule)
@@ -679,7 +679,7 @@ String ScriptExecutionContext::domainForCachePartition() const
     if (m_storageBlockingPolicy != StorageBlockingPolicy::BlockThirdParty)
         return emptyString();
 
-    return protectedTopOrigin()->domainForCachePartition();
+    return protect(topOrigin())->domainForCachePartition();
 }
 
 bool ScriptExecutionContext::allowsMediaDevices() const
@@ -706,7 +706,7 @@ void ScriptExecutionContext::registerServiceWorker(ServiceWorker& serviceWorker)
     ASSERT_UNUSED(addResult, addResult.isNewEntry);
 
     ensureOnMainThread([identifier = serviceWorker.identifier()] {
-        ServiceWorkerProvider::singleton().protectedServiceWorkerConnection()->registerServiceWorkerInServer(identifier);
+        protect(ServiceWorkerProvider::singleton().serviceWorkerConnection())->registerServiceWorkerInServer(identifier);
     });
 }
 
@@ -715,7 +715,7 @@ void ScriptExecutionContext::unregisterServiceWorker(ServiceWorker& serviceWorke
     m_serviceWorkers.remove(serviceWorker.identifier());
 
     ensureOnMainThread([identifier = serviceWorker.identifier()] {
-        ServiceWorkerProvider::singleton().protectedServiceWorkerConnection()->unregisterServiceWorkerInServer(identifier);
+        protect(ServiceWorkerProvider::singleton().serviceWorkerConnection())->unregisterServiceWorkerInServer(identifier);
     });
 }
 
@@ -882,7 +882,7 @@ ScriptExecutionContext::HasResourceAccess ScriptExecutionContext::canAccessResou
     case ResourceType::SessionStorage:
         if (m_storageBlockingPolicy == StorageBlockingPolicy::BlockAll)
             return HasResourceAccess::No;
-        if ((m_storageBlockingPolicy == StorageBlockingPolicy::BlockThirdParty) && !protectedTopOrigin()->isSameOriginAs(*origin) && !origin->hasUniversalAccess())
+        if ((m_storageBlockingPolicy == StorageBlockingPolicy::BlockThirdParty) && !protect(topOrigin())->isSameOriginAs(*origin) && !origin->hasUniversalAccess())
             return HasResourceAccess::DefaultForThirdParty;
         return HasResourceAccess::Yes;
     }
@@ -1006,7 +1006,7 @@ bool ScriptExecutionContext::requiresScriptTrackingPrivacyProtection(ScriptTrack
     if (category == ScriptTrackingPrivacyCategory::NetworkRequests && !page->settings().scriptTrackingPrivacyNetworkRequestBlockingEnabled())
         return false;
 
-    if (page->shouldAllowScriptAccess(taintedURL, protectedTopOrigin(), category))
+    if (page->shouldAllowScriptAccess(taintedURL, protect(topOrigin()), category))
         return false;
 
     if (!page->settings().scriptTrackingPrivacyLoggingEnabled())

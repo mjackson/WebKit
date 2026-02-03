@@ -2582,7 +2582,7 @@
 		F4DBC0C1276AA6CA0001D169 /* _WKModalContainerInfoInternal.h in Headers */ = {isa = PBXBuildFile; fileRef = F4DBC0C0276AA6CA0001D169 /* _WKModalContainerInfoInternal.h */; };
 		F4DF71E82B069AC6009A4522 /* WKExtendedTextInputTraits.h in Headers */ = {isa = PBXBuildFile; fileRef = F4DF71D72B0689A5009A4522 /* WKExtendedTextInputTraits.h */; };
 		F4DF72122B0C3A8C009A4522 /* WKBaseScrollView.h in Headers */ = {isa = PBXBuildFile; fileRef = F4DF72102B0C324F009A4522 /* WKBaseScrollView.h */; };
-		F4E038F82F230571003A8F3A /* WKWebView+SystemTextExtraction.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4E038F72F230567003A8F3A /* WKWebView+SystemTextExtraction.swift */; };
+		F4E038F82F230571003A8F3A /* $(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/WKWebView+SystemTextExtraction.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4E038F72F230567003A8F3A /* $(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/WKWebView+SystemTextExtraction.swift */; };
 		F4E07ACA2D8479D400322226 /* WKIdentityDocumentPresentmentController.h in Headers */ = {isa = PBXBuildFile; fileRef = F4E07AC52D84701600322226 /* WKIdentityDocumentPresentmentController.h */; };
 		F4E08FDD2D84B27E00322226 /* WKIdentityDocumentPresentmentRequest.h in Headers */ = {isa = PBXBuildFile; fileRef = F4E08FDA2D84AE0500322226 /* WKIdentityDocumentPresentmentRequest.h */; };
 		F4E08FE52D84B98500322226 /* WKIdentityDocumentPresentmentMobileDocumentRequest.h in Headers */ = {isa = PBXBuildFile; fileRef = F4E08FDE2D84B55600322226 /* WKIdentityDocumentPresentmentMobileDocumentRequest.h */; };
@@ -3470,19 +3470,19 @@
 		089C1667FE841158C02AAC07 /* en */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		0D02BE3129B6D0F7005852BF /* WebGPUInternalError.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WebGPUInternalError.h; sourceTree = "<group>"; };
 		0D02BE3229B6D0F8005852BF /* WebGPUInternalError.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = WebGPUInternalError.cpp; sourceTree = "<group>"; };
-		0D078EB42E7387FA00A9B266 /* RemoteDDMesh.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RemoteDDMesh.h; sourceTree = "<group>"; };
-		0D078EB52E7387FA00A9B266 /* RemoteDDMesh.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RemoteDDMesh.cpp; sourceTree = "<group>"; };
-		0D078EB62E7387FA00A9B266 /* RemoteDDMesh.messages.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = RemoteDDMesh.messages.in; sourceTree = "<group>"; };
+		0D078EB42E7387FA00A9B266 /* RemoteMesh.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RemoteMesh.h; sourceTree = "<group>"; };
+		0D078EB52E7387FA00A9B266 /* RemoteMesh.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RemoteMesh.cpp; sourceTree = "<group>"; };
+		0D078EB62E7387FA00A9B266 /* RemoteMesh.messages.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = RemoteMesh.messages.in; sourceTree = "<group>"; };
 		0D078EBA2E738BCD00A9B266 /* ModelObjectHeap.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ModelObjectHeap.h; sourceTree = "<group>"; };
 		0D078EBB2E738BCD00A9B266 /* ModelObjectHeap.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ModelObjectHeap.cpp; sourceTree = "<group>"; };
 		0D078EBC2E738DB500A9B266 /* ModelConvertFromBackingContext.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ModelConvertFromBackingContext.h; sourceTree = "<group>"; };
 		0D078EBD2E738DB500A9B266 /* ModelConvertToBackingContext.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ModelConvertToBackingContext.h; sourceTree = "<group>"; };
-		0D078EBE2E73907700A9B266 /* RemoteDDMeshProxy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RemoteDDMeshProxy.h; sourceTree = "<group>"; };
-		0D078EBF2E73907700A9B266 /* RemoteDDMeshProxy.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RemoteDDMeshProxy.cpp; sourceTree = "<group>"; };
+		0D078EBE2E73907700A9B266 /* RemoteMeshProxy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RemoteMeshProxy.h; sourceTree = "<group>"; };
+		0D078EBF2E73907700A9B266 /* RemoteMeshProxy.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RemoteMeshProxy.cpp; sourceTree = "<group>"; };
 		0D20EA192C59E2CE00CA61BD /* DigitalCredentialsCoordinator.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = DigitalCredentialsCoordinator.cpp; sourceTree = "<group>"; };
 		0D20EA1C2C59E2F900CA61BD /* DigitalCredentialsCoordinator.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DigitalCredentialsCoordinator.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.xcfilelist; };
 		0D25BC912B69D92100916722 /* WebGPUInternalError.serialization.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = WebGPUInternalError.serialization.in; sourceTree = "<group>"; };
-		0D60CB352E8AFA4B00A3FF66 /* DDModelIdentifier.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DDModelIdentifier.h; sourceTree = "<group>"; };
+		0D60CB352E8AFA4B00A3FF66 /* WebModelIdentifier.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WebModelIdentifier.h; sourceTree = "<group>"; };
 		0D6D0AA32C6AD99B0073F63D /* RemoteXRView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RemoteXRView.h; sourceTree = "<group>"; };
 		0D6D0AA42C6AD99B0073F63D /* RemoteXRView.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RemoteXRView.cpp; sourceTree = "<group>"; };
 		0D6D0AA52C6AD99B0073F63D /* RemoteXRView.messages.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = RemoteXRView.messages.in; sourceTree = "<group>"; };
@@ -3511,9 +3511,6 @@
 		0D943C082C6555DB00D33BA5 /* RemoteXRSubImage.messages.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = RemoteXRSubImage.messages.in; sourceTree = "<group>"; };
 		0D943C092C65560E00D33BA5 /* RemoteXRSubImageProxy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RemoteXRSubImageProxy.h; sourceTree = "<group>"; };
 		0D943C0A2C65560E00D33BA5 /* RemoteXRSubImageProxy.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RemoteXRSubImageProxy.cpp; sourceTree = "<group>"; };
-		0D9649072E73D370000F9CDA /* ModelObjectDescriptorBase.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ModelObjectDescriptorBase.h; sourceTree = "<group>"; };
-		0D9649092E73D563000F9CDA /* ModelObjectDescriptorBase.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ModelObjectDescriptorBase.cpp; sourceTree = "<group>"; };
-		0D96490A2E73D563000F9CDA /* ModelObjectDescriptorBase.serialization.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = ModelObjectDescriptorBase.serialization.in; sourceTree = "<group>"; };
 		0D9649122E748610000F9CDA /* ModelDowncastConvertToBackingContext.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ModelDowncastConvertToBackingContext.h; sourceTree = "<group>"; };
 		0D9649132E748673000F9CDA /* ModelDowncastConvertToBackingContext.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ModelDowncastConvertToBackingContext.cpp; sourceTree = "<group>"; };
 		0D9D28E72C81473B002CB4C7 /* WKDigitalCredentialsPicker.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WKDigitalCredentialsPicker.h; sourceTree = "<group>"; };
@@ -8822,7 +8819,7 @@
 		F4DF71D82B0689A5009A4522 /* WKExtendedTextInputTraits.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WKExtendedTextInputTraits.mm; sourceTree = "<group>"; };
 		F4DF72102B0C324F009A4522 /* WKBaseScrollView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WKBaseScrollView.h; sourceTree = "<group>"; };
 		F4DF72112B0C324F009A4522 /* WKBaseScrollView.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WKBaseScrollView.mm; sourceTree = "<group>"; };
-		F4E038F72F230567003A8F3A /* WKWebView+SystemTextExtraction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/WKWebView+SystemTextExtraction.swift"; sourceTree = "<group>"; };
+		F4E038F72F230567003A8F3A /* $(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/WKWebView+SystemTextExtraction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/WKWebView+SystemTextExtraction.swift"; sourceTree = "<group>"; };
 		F4E07AC52D84701600322226 /* WKIdentityDocumentPresentmentController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WKIdentityDocumentPresentmentController.h; sourceTree = "<group>"; };
 		F4E08FDA2D84AE0500322226 /* WKIdentityDocumentPresentmentRequest.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WKIdentityDocumentPresentmentRequest.h; sourceTree = "<group>"; };
 		F4E08FDE2D84B55600322226 /* WKIdentityDocumentPresentmentMobileDocumentRequest.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WKIdentityDocumentPresentmentMobileDocumentRequest.h; sourceTree = "<group>"; };
@@ -9317,9 +9314,9 @@
 		0753694A2DC589F4006446F8 /* TextExtraction */ = {
 			isa = PBXGroup;
 			children = (
+				F4E038F72F230567003A8F3A /* $(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/WKWebView+SystemTextExtraction.swift */,
 				F48EC3562B7585A300D1B886 /* WKTextExtractionUtilities.h */,
 				F48EC3542B7585A300D1B886 /* WKTextExtractionUtilities.mm */,
-				F4E038F72F230567003A8F3A /* WKWebView+SystemTextExtraction.swift */,
 				073A63D72DC344F40057A3F5 /* WKWebView+TextExtraction.swift */,
 			);
 			path = TextExtraction;
@@ -9688,12 +9685,9 @@
 		0D078EA72E73865C00A9B266 /* Model */ = {
 			isa = PBXGroup;
 			children = (
-				0D60CB352E8AFA4B00A3FF66 /* DDModelIdentifier.h */,
 				0D078EBC2E738DB500A9B266 /* ModelConvertFromBackingContext.h */,
 				0D078EBD2E738DB500A9B266 /* ModelConvertToBackingContext.h */,
-				0D9649092E73D563000F9CDA /* ModelObjectDescriptorBase.cpp */,
-				0D9649072E73D370000F9CDA /* ModelObjectDescriptorBase.h */,
-				0D96490A2E73D563000F9CDA /* ModelObjectDescriptorBase.serialization.in */,
+				0D60CB352E8AFA4B00A3FF66 /* WebModelIdentifier.h */,
 			);
 			path = Model;
 			sourceTree = "<group>";
@@ -9703,9 +9697,9 @@
 			children = (
 				0D078EBB2E738BCD00A9B266 /* ModelObjectHeap.cpp */,
 				0D078EBA2E738BCD00A9B266 /* ModelObjectHeap.h */,
-				0D078EB52E7387FA00A9B266 /* RemoteDDMesh.cpp */,
-				0D078EB42E7387FA00A9B266 /* RemoteDDMesh.h */,
-				0D078EB62E7387FA00A9B266 /* RemoteDDMesh.messages.in */,
+				0D078EB52E7387FA00A9B266 /* RemoteMesh.cpp */,
+				0D078EB42E7387FA00A9B266 /* RemoteMesh.h */,
+				0D078EB62E7387FA00A9B266 /* RemoteMesh.messages.in */,
 			);
 			path = Model;
 			sourceTree = "<group>";
@@ -9715,8 +9709,8 @@
 			children = (
 				0D9649132E748673000F9CDA /* ModelDowncastConvertToBackingContext.cpp */,
 				0D9649122E748610000F9CDA /* ModelDowncastConvertToBackingContext.h */,
-				0D078EBF2E73907700A9B266 /* RemoteDDMeshProxy.cpp */,
-				0D078EBE2E73907700A9B266 /* RemoteDDMeshProxy.h */,
+				0D078EBF2E73907700A9B266 /* RemoteMeshProxy.cpp */,
+				0D078EBE2E73907700A9B266 /* RemoteMeshProxy.h */,
 			);
 			path = Model;
 			sourceTree = "<group>";
@@ -21511,6 +21505,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F4E038F82F230571003A8F3A /* $(BUILT_PRODUCTS_DIR)/DerivedSources/WebKit/WKWebView+SystemTextExtraction.swift in Sources */,
 				5790A67125679F1A0077C5A7 /* _WKAuthenticationExtensionsClientInputs.mm in Sources */,
 				5790A67D2567A13E0077C5A7 /* _WKAuthenticationExtensionsClientOutputs.mm in Sources */,
 				5790A6892567A28A0077C5A7 /* _WKAuthenticatorAssertionResponse.mm in Sources */,
@@ -21965,7 +21960,6 @@
 				079A4DB02D73EA4A00CA387F /* WKURLSchemeHandlerAdapter.swift in Sources */,
 				079A4DA52D72CE3F00CA387F /* WKWebpagePreferences+Extras.swift in Sources */,
 				07642AEF2DEABBA100561888 /* WKWebsiteDataStore+SwiftOverlay.swift in Sources */,
-				F4E038F82F230571003A8F3A /* WKWebView+SystemTextExtraction.swift in Sources */,
 				075369492DC589E1006446F8 /* WKWebView+TextExtraction.swift in Sources */,
 				079A4DA32D72CDB400CA387F /* WKWebViewConfiguration+Extras.swift in Sources */,
 				C14D306924B79BE000480387 /* XPCEndpoint.mm in Sources */,

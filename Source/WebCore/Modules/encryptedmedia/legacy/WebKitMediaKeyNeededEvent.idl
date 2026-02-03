@@ -30,7 +30,7 @@
 ] interface WebKitMediaKeyNeededEvent : Event {
     constructor([AtomString] DOMString type, optional WebKitMediaKeyNeededEventInit eventInitDict = {});
 
-    readonly attribute Uint8Array initData;
+    readonly attribute Uint8Array? initData;
 };
 
 dictionary WebKitMediaKeyNeededEventInit : EventInit {

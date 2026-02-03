@@ -25,10 +25,10 @@
 
 #pragma once
 
+#include <WebCore/FrameIdentifier.h>
 #include <WebCore/KeyboardScroll.h>
 #include <WebCore/RectEdges.h>
 #include <WebCore/ScrollAlignment.h>
-#include <WebCore/ScrollAnchoringController.h>
 #include <WebCore/ScrollSnapOffsetsInfo.h>
 #include <WebCore/ScrollTypes.h>
 #include <WebCore/Scrollbar.h>
@@ -54,6 +54,7 @@ class PlatformWheelEvent;
 class ScrollAnimator;
 class ScrollbarsController;
 class GraphicsLayer;
+class ScrollAnchoringController;
 class TiledBacking;
 class Element;
 

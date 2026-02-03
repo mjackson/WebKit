@@ -303,6 +303,10 @@
 #define ENABLE_IOS_TOUCH_EVENTS 0
 #endif
 
+#if !defined(ENABLE_ISO18013_DOCUMENT_REQUEST_INFO)
+#define ENABLE_ISO18013_DOCUMENT_REQUEST_INFO 0
+#endif
+
 #if !defined(ENABLE_IPC_TESTING_API)
 /* Enable IPC testing on all ASAN builds and debug builds. */
 #if (ASAN_ENABLED || !defined(NDEBUG)) && PLATFORM(COCOA)

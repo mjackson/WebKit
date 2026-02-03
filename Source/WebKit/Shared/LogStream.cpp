@@ -90,7 +90,8 @@ void LogStream::logOnBehalfOfWebContent(std::span<const uint8_t> logSubsystem, s
         auto category = byteCast<char>(logCategory.data());
         if (equalSpans("Testing\0"_span, logCategory))
             globalLogCountForTesting++;
-        osLog = adoptOSObject(os_log_create(subsystem, category));
+        // Adopting is needed here but static analysis is not able to tell.
+        SUPPRESS_RETAINPTR_CTOR_ADOPT osLog = adoptOSObject(os_log_create(subsystem, category));
     }
 
     auto osLogPointer = osLog.get() ? osLog.get() : OS_LOG_DEFAULT;

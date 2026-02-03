@@ -1632,7 +1632,7 @@ ExceptionOr<void> CanvasRenderingContext2DBase::drawImage(HTMLImageElement& imag
             orientation = Style::toPlatform(computedStyle->imageOrientation()).orientation();
     }
 
-    auto result = drawImage(imageElement.protectedDocument().get(), *cachedImage, imageElement.checkedRenderer().get(), imageRect, srcRect, dstRect, op, blendMode, orientation);
+    auto result = drawImage(protect(imageElement.document()).get(), *cachedImage, imageElement.checkedRenderer().get(), imageRect, srcRect, dstRect, op, blendMode, orientation);
 
     if (!result.hasException())
         checkOrigin(&imageElement);
@@ -1655,7 +1655,7 @@ ExceptionOr<void> CanvasRenderingContext2DBase::drawImage(SVGImageElement& image
 
     auto imageRect = FloatRect(FloatPoint(), size(imageElement, ImageSizeType::BeforeDevicePixelRatio));
 
-    auto result = drawImage(imageElement.protectedDocument().get(), *cachedImage, imageElement.checkedRenderer().get(), imageRect, srcRect, dstRect, op, blendMode);
+    auto result = drawImage(protect(imageElement.document()).get(), *cachedImage, imageElement.checkedRenderer().get(), imageRect, srcRect, dstRect, op, blendMode);
 
     if (!result.hasException())
         checkOrigin(&imageElement);

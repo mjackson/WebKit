@@ -1,5 +1,7 @@
 
 FAIL :null_characters:contains_null=true;placement="comment" assert_unreached:
+  - (in subcase: ) EXPECTATION FAILED: Expected validation error
+      at (elided: below max severity)
   - (in subcase: ) VALIDATION FAILED: Missing expected compilationInfo 'error' message.
 
 
@@ -7,8 +9,6 @@ FAIL :null_characters:contains_null=true;placement="comment" assert_unreached:
     // Here is a \0 character
     expectCompileResult@http://127.0.0.1:8000/webgpu/webgpu/shader/validation/shader_validation_test.js:73:28
     @http://127.0.0.1:8000/webgpu/webgpu/shader/validation/parse/blankspace.spec.js:25:24
-  - (in subcase: ) EXPECTATION FAILED: Expected validation error
-      at (elided: below max severity)
   - (in subcase: ) INFO: subcase ran
  Reached unreachable code
 PASS :null_characters:contains_null=true;placement="delimiter"

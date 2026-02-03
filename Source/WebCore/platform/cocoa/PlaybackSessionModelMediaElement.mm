@@ -28,7 +28,6 @@
 
 #if PLATFORM(IOS_FAMILY) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
 
-#import "AddEventListenerOptionsInlines.h"
 #import "AudioTrackList.h"
 #import "DocumentPage.h"
 #import "Event.h"
@@ -115,22 +114,22 @@ void PlaybackSessionModelMediaElement::setMediaElement(HTMLMediaElement* mediaEl
 
     if (newMediaElement) {
         for (auto& eventName : observedEventNames())
-            newMediaElement->addEventListener(eventName, *this, false);
+            newMediaElement->addEventListener(eventName, *this);
 
         Ref audioTracks = newMediaElement->ensureAudioTracks();
-        audioTracks->addEventListener(events.addtrackEvent, *this, false);
-        audioTracks->addEventListener(events.changeEvent, *this, false);
-        audioTracks->addEventListener(events.removetrackEvent, *this, false);
+        audioTracks->addEventListener(events.addtrackEvent, *this);
+        audioTracks->addEventListener(events.changeEvent, *this);
+        audioTracks->addEventListener(events.removetrackEvent, *this);
 
         Ref videoTracks = newMediaElement->ensureVideoTracks();
-        videoTracks->addEventListener(events.addtrackEvent, *this, false);
-        videoTracks->addEventListener(events.changeEvent, *this, false);
-        videoTracks->addEventListener(events.removetrackEvent, *this, false);
+        videoTracks->addEventListener(events.addtrackEvent, *this);
+        videoTracks->addEventListener(events.changeEvent, *this);
+        videoTracks->addEventListener(events.removetrackEvent, *this);
 
         Ref textTracks = newMediaElement->ensureTextTracks();
-        textTracks->addEventListener(events.addtrackEvent, *this, false);
-        textTracks->addEventListener(events.changeEvent, *this, false);
-        textTracks->addEventListener(events.removetrackEvent, *this, false);
+        textTracks->addEventListener(events.addtrackEvent, *this);
+        textTracks->addEventListener(events.changeEvent, *this);
+        textTracks->addEventListener(events.removetrackEvent, *this);
         m_isListening = true;
     }
 

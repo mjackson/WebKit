@@ -28,7 +28,6 @@
 #include "Internals.h"
 
 #include "AXObjectCacheInlines.h"
-#include "AddEventListenerOptionsInlines.h"
 #include "AnimationTimeline.h"
 #include "AnimationTimelinesController.h"
 #include "AudioSession.h"
@@ -3386,7 +3385,7 @@ ExceptionOr<void> Internals::setInspectorIsUnderTest(bool isUnderTest)
     if (!document || !document->page())
         return Exception { ExceptionCode::InvalidAccessError };
 
-    document->protectedPage()->inspectorController().setIsUnderTest(isUnderTest);
+    protect(document->page())->inspectorController().setIsUnderTest(isUnderTest);
     return { };
 }
 
@@ -4124,7 +4123,7 @@ ExceptionOr<void> Internals::setFullscreenAutoHideDuration(double duration)
     RefPtr document = contextDocument();
     if (!document || !document->page())
         return Exception { ExceptionCode::InvalidStateError };
-    document->protectedPage()->setFullscreenAutoHideDuration(Seconds(duration));
+    protect(document->page())->setFullscreenAutoHideDuration(Seconds(duration));
     return { };
 }
 
@@ -5543,7 +5542,7 @@ RefPtr<HTMLMediaElement> Internals::bestMediaElementForRemoteControls(Internals:
     if (!document || !document->page())
         return nullptr;
 
-    return document->protectedPage()->bestMediaElementForRemoteControls(purpose, document.get());
+    return protect(document->page())->bestMediaElementForRemoteControls(purpose, document.get());
 }
 
 Internals::MediaSessionState Internals::mediaSessionState(HTMLMediaElement& element)
@@ -7397,7 +7396,7 @@ void Internals::addPrefetchLoadEventListener(HTMLLinkElement& link, RefPtr<Event
 {
     if (link.document().settings().linkPrefetchEnabled() && equalLettersIgnoringASCIICase(link.rel(), "prefetch"_s)) {
         link.allowPrefetchLoadAndErrorForTesting();
-        link.addEventListener(eventNames().loadEvent, listener.releaseNonNull(), false);
+        link.addEventListener(eventNames().loadEvent, listener.releaseNonNull());
     }
 }
 
@@ -8227,7 +8226,7 @@ void Internals::setTopDocumentURLForQuirks(const String& urlString)
     if (!document || !document->page())
         return;
 
-    document->protectedPage()->settings().setNeedsSiteSpecificQuirks(true);
+    protect(document->page())->settings().setNeedsSiteSpecificQuirks(true);
     document->quirks().setTopDocumentURLForTesting(URL { urlString });
 }
 
@@ -8398,7 +8397,7 @@ ExceptionOr<void> Internals::copyImageAtLocation(int x, int y)
         return Exception { ExceptionCode::InvalidAccessError };
 
     auto hitTestResult = localFrame->eventHandler().hitTestResultAtPoint(IntPoint(x, y), hitType);
-    localFrame->protectedEditor()->copyImage(hitTestResult);
+    protect(localFrame->editor())->copyImage(hitTestResult);
 #endif
     UNUSED_PARAM(x);
     UNUSED_PARAM(y);

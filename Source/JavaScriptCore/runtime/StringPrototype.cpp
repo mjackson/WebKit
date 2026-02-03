@@ -1257,19 +1257,40 @@ static inline JSValue trimString(JSGlobalObject* globalObject, JSValue thisValue
     String str = thisValue.toWTFString(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
 
-    unsigned left = 0;
-    if constexpr (static_cast<uint8_t>(trimKind) & static_cast<uint8_t>(TrimKind::TrimStart)) {
-        while (left < str.length() && isStrWhiteSpace(str[left]))
-            left++;
+    unsigned length = str.length();
+    if (!length) [[unlikely]] {
+        if (thisValue.isString())
+            return thisValue;
+        RELEASE_AND_RETURN(scope, jsEmptyString(vm));
     }
-    unsigned right = str.length();
-    if constexpr (static_cast<uint8_t>(trimKind) & static_cast<uint8_t>(TrimKind::TrimEnd)) {
-        while (right > left && isStrWhiteSpace(str[right - 1]))
-            right--;
+
+    unsigned left = 0;
+    unsigned right = length;
+
+    if (str.is8Bit()) {
+        auto characters = str.span8();
+        if constexpr (static_cast<uint8_t>(trimKind) & static_cast<uint8_t>(TrimKind::TrimStart)) {
+            while (left < length && isStrWhiteSpace(characters[left]))
+                left++;
+        }
+        if constexpr (static_cast<uint8_t>(trimKind) & static_cast<uint8_t>(TrimKind::TrimEnd)) {
+            while (right > left && isStrWhiteSpace(characters[right - 1]))
+                right--;
+        }
+    } else {
+        auto characters = str.span16();
+        if constexpr (static_cast<uint8_t>(trimKind) & static_cast<uint8_t>(TrimKind::TrimStart)) {
+            while (left < length && isStrWhiteSpace(characters[left]))
+                left++;
+        }
+        if constexpr (static_cast<uint8_t>(trimKind) & static_cast<uint8_t>(TrimKind::TrimEnd)) {
+            while (right > left && isStrWhiteSpace(characters[right - 1]))
+                right--;
+        }
     }
 
     // Don't gc allocate a new string if we don't have to.
-    if (left == 0 && right == str.length() && thisValue.isString())
+    if (!left && right == length && thisValue.isString())
         return thisValue;
 
     RELEASE_AND_RETURN(scope, jsString(vm, str.substringSharingImpl(left, right - left)));

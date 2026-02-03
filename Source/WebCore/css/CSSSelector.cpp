@@ -608,6 +608,10 @@ String CSSSelector::selectorText(StringView separator, StringView rightSide) con
                     }, ' '),
                 ')');
                 break;
+            case PseudoElement::Picker:
+                ASSERT(selector->stringList() && !selector->stringList()->isEmpty());
+                builder.append("::picker("_s, selector->stringList()->at(0), ')');
+                break;
 #if ENABLE(VIDEO)
             case PseudoElement::Cue: {
                 builder.append("::cue"_s);

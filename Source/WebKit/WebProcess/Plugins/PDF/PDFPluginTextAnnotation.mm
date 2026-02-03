@@ -30,7 +30,6 @@
 
 #import "PDFAnnotationTypeHelpers.h"
 #import "PDFKitSPI.h"
-#import <WebCore/AddEventListenerOptionsInlines.h>
 #import <WebCore/CSSPrimitiveValue.h>
 #import <WebCore/CSSPropertyNames.h>
 #import <WebCore/ColorCocoa.h>
@@ -86,7 +85,7 @@ Ref<Element> PDFPluginTextAnnotation::createAnnotationElement()
     bool isMultiline = [textAnnotation isMultiline];
 
     Ref element = downcast<HTMLTextFormControlElement>(document->createElement(isMultiline ? textareaTag : inputTag, false));
-    element->addEventListener(eventNames().keydownEvent, *eventListener(), false);
+    element->addEventListener(eventNames().keydownEvent, *eventListener());
 
     if (!textAnnotation)
         return element;

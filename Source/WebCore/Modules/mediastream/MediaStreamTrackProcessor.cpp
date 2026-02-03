@@ -262,6 +262,10 @@ void MediaStreamTrackProcessor::Source::doPull()
 
 void MediaStreamTrackProcessor::Source::doCancel(JSC::JSValue)
 {
+    auto scope = makeScopeExit([&] {
+        cancelFinished();
+    });
+
     m_isCancelled = true;
     Ref { m_processor.get() }->stopVideoFrameObserver();
 }

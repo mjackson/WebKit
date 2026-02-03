@@ -75,7 +75,7 @@ void DetailsSlotAssignment::hostChildElementDidChange(const Element& childElemen
         didChangeSlot(summarySlotName(), shadowRoot);
 
         if (RefPtr associatedDetails = dynamicDowncast<HTMLDetailsElement>(shadowRoot.host())) {
-            if (CheckedPtr cache = associatedDetails->protectedDocument()->existingAXObjectCache())
+            if (CheckedPtr cache = protect(associatedDetails->document())->existingAXObjectCache())
                 cache->onDetailsSummarySlotChange(*associatedDetails);
         }
     } else
@@ -151,7 +151,7 @@ bool HTMLDetailsElement::isActiveSummary(const HTMLSummaryElement& summary) cons
     if (summary.parentNode() != this)
         return false;
 
-    RefPtr slot = protectedShadowRoot()->findAssignedSlot(summary);
+    RefPtr slot = protect(shadowRoot())->findAssignedSlot(summary);
     return slot && slot == summarySlot.get();
 }
 

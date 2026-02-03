@@ -286,7 +286,7 @@ static bool canCachePage(Page& page)
     if (RefPtr provisionalDocumentLoader = localMainFrame->loader().provisionalDocumentLoader()) {
         if (provisionalDocumentLoader->responseClearSiteDataValues().contains(ClearSiteDataValue::Cache)) {
             if (RefPtr topDocument = localMainFrame->document()) {
-                if (topDocument->protectedSecurityOrigin()->isSameOriginAs(SecurityOrigin::create(provisionalDocumentLoader->response().url()))) {
+                if (protect(topDocument->securityOrigin())->isSameOriginAs(SecurityOrigin::create(provisionalDocumentLoader->response().url()))) {
                     PCLOG("   -`Clear-Site-Data: cache` HTTP header is present"_s);
                     isCacheable = false;
                 }
@@ -325,7 +325,7 @@ void BackForwardCache::dump() const
     for (auto& item : m_cachedPageMap) {
         if (auto* cachedPage = std::get_if<UniqueRef<CachedPage>>(&item.value)) {
             RefPtr document = (*cachedPage)->document();
-            WTFLogAlways("  Page %p, document %p %s", (*cachedPage)->protectedPage().ptr(), document.get(), document ? document->url().string().utf8().data() : "");
+            WTFLogAlways("  Page %p, document %p %s", protect((*cachedPage)->page()).ptr(), document.get(), document ? document->url().string().utf8().data() : "");
         }
     }
 }
@@ -378,7 +378,7 @@ void BackForwardCache::markPagesForDeviceOrPageScaleChanged(Page& page)
             ASSERT(!m_items.contains(item.key));
             continue;
         }
-        if (&page.mainFrame() == &(*cachedPage)->cachedMainFrame()->protectedView()->frame())
+        if (&page.mainFrame() == &protect((*cachedPage)->cachedMainFrame()->view())->frame())
             (*cachedPage)->markForDeviceOrPageScaleChanged();
     }
 }
@@ -391,7 +391,7 @@ void BackForwardCache::markPagesForContentsSizeChanged(Page& page)
             ASSERT(!m_items.contains(item.key));
             continue;
         }
-        if (&page.mainFrame() == &(*cachedPage)->cachedMainFrame()->protectedView()->frame())
+        if (&page.mainFrame() == &protect((*cachedPage)->cachedMainFrame()->view())->frame())
             (*cachedPage)->markForContentsSizeChanged();
     }
 }

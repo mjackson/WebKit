@@ -519,7 +519,7 @@ void FetchResponse::consumeBodyReceivedByChunk(ConsumeDataByChunkCallback&& call
     }
 
     ASSERT(isLoading());
-    protectedLoader()->consumeDataByChunk(WTF::move(callback));
+    protect(loader())->consumeDataByChunk(WTF::move(callback));
 }
 
 void FetchResponse::setBodyData(ResponseData&& data, uint64_t bodySizeWithPadding)
@@ -555,7 +555,7 @@ void FetchResponse::consumeBodyAsStream()
     }
 
     ASSERT(m_loader);
-    auto data = protectedLoader()->startStreaming();
+    auto data = protect(loader())->startStreaming();
     if (data) {
         Ref readableStreamSource = *m_readableStreamSource;
         if (!readableStreamSource->enqueue(data->tryCreateArrayBuffer())) {

@@ -565,8 +565,6 @@ static Vector<String> eventListenerTypesToStringArray(OptionSet<TextExtraction::
 static String containerTypeString(TextExtraction::ContainerType containerType)
 {
     switch (containerType) {
-    case TextExtraction::ContainerType::Root:
-        return "root"_s;
     case TextExtraction::ContainerType::ViewportConstrained:
         return "overlay"_s;
     case TextExtraction::ContainerType::List:
@@ -606,7 +604,7 @@ static String jsonTypeStringForItem(const TextExtraction::Item& item, const Text
             return result.isEmpty() ? "container"_str : result;
         },
         [](const TextExtraction::TextItemData&) -> String { return "text"_s; },
-        [](const TextExtraction::ScrollableItemData&) -> String { return "scrollable"_s; },
+        [](const TextExtraction::ScrollableItemData& scrollableData) -> String { return scrollableData.isRoot ? "root"_s : "scrollable"_s; },
         [](const TextExtraction::ImageItemData&) -> String { return "image"_s; },
         [](const TextExtraction::SelectData&) -> String { return "select"_s; },
         [](const TextExtraction::ContentEditableData&) -> String { return "contentEditable"_s; },
@@ -742,7 +740,13 @@ static void populateJSONForItem(JSON::Object& jsonObject, const TextExtraction::
             Ref contentSize = JSON::Object::create();
             contentSize->setInteger("width"_s, static_cast<int>(scrollableData.contentSize.width()));
             contentSize->setInteger("height"_s, static_cast<int>(scrollableData.contentSize.height()));
-            jsonObject.setObject("contentSize"_s, WTF::move(contentSize));
+            if (scrollableData.hasOverflowItems) {
+                jsonObject.setObject("contentSize"_s, WTF::move(contentSize));
+                Ref scrollPosition = JSON::Object::create();
+                scrollPosition->setInteger("x"_s, scrollableData.scrollPosition.x());
+                scrollPosition->setInteger("y"_s, scrollableData.scrollPosition.y());
+                jsonObject.setObject("scrollPosition"_s, WTF::move(scrollPosition));
+            }
         },
         [&](const TextExtraction::ImageItemData& imageData) {
             if (!imageData.completedSource.isEmpty() && aggregator.includeURLs())
@@ -841,7 +845,7 @@ static Vector<String> partsForItem(const TextExtraction::Item& item, const TextE
         auto size = item.rectInRootView.size();
         parts.append(makeString("["_s,
             static_cast<int>(origin.x()), ',', static_cast<int>(origin.y()), ";"_s,
-            static_cast<int>(size.width()), 'x', static_cast<int>(size.height()), ']'));
+            static_cast<int>(size.width()), u'×', static_cast<int>(size.height()), ']'));
     }
 
     if (!item.accessibilityRole.isEmpty())
@@ -916,6 +920,8 @@ static void addPartsForText(const TextExtraction::TextItemData& textItem, Vector
                     auto escapedText = escapeStringForMarkdown(trimmedContent);
                     if (isStrikethrough)
                         escapedText = makeString("~~"_s, WTF::move(escapedText), "~~"_s);
+                    else if (valueOrDefault(urlString).containsIgnoringASCIICase(escapedText))
+                        escapedText = { };
                     textParts.append(urlString ? makeString('[', WTF::move(escapedText), "]("_s, WTF::move(*urlString), ')') : escapedText);
                 } else
                     textParts.append(makeString('\'', escapeString(trimmedContent), '\''));
@@ -963,9 +969,7 @@ static void addPartsForItem(const TextExtraction::Item& item, std::optional<Node
 
             if (aggregator.useHTMLOutput()) {
                 String tagName;
-                if (containerType == TextExtraction::ContainerType::Root)
-                    tagName = "body"_s;
-                else if (!item.nodeName.isEmpty())
+                if (!item.nodeName.isEmpty())
                     tagName = item.nodeName.convertToASCIILowercase();
 
                 if (!tagName.isEmpty()) {
@@ -1172,15 +1176,19 @@ static void addPartsForItem(const TextExtraction::Item& item, std::optional<Node
         },
         [&](const TextExtraction::ScrollableItemData& scrollableData) {
             if (aggregator.useHTMLOutput()) {
+                auto tagName = scrollableData.isRoot ? "body"_s : item.nodeName.convertToASCIILowercase();
                 auto attributes = partsForItem(item, aggregator, includeRectForParentItem);
                 if (attributes.isEmpty())
-                    parts.append(makeString('<', item.nodeName.convertToASCIILowercase(), '>'));
+                    parts.append(makeString('<', tagName, '>'));
                 else
-                    parts.append(makeString('<', item.nodeName.convertToASCIILowercase(), ' ', makeStringByJoining(attributes, " "_s), '>'));
+                    parts.append(makeString('<', tagName, ' ', makeStringByJoining(attributes, " "_s), '>'));
             } else if (!aggregator.useMarkdownOutput()) {
-                parts.append("scrollable"_s);
+                parts.append(scrollableData.isRoot ? "root"_s : "scrollable"_s);
                 parts.appendVector(partsForItem(item, aggregator, includeRectForParentItem));
-                parts.append(makeString("contentSize=["_s, scrollableData.contentSize.width(), 'x', scrollableData.contentSize.height(), ']'));
+                if (scrollableData.hasOverflowItems) {
+                    parts.append(makeString("scrollPosition=("_s, scrollableData.scrollPosition.x(), ',', scrollableData.scrollPosition.y(), ')'));
+                    parts.append(makeString("contentSize=["_s, scrollableData.contentSize.width(), u'×', scrollableData.contentSize.height(), ']'));
+                }
             }
             aggregator.addResult(line, WTF::move(parts));
         },
@@ -1331,6 +1339,9 @@ static void addTextRepresentationRecursive(const TextExtraction::Item& item, std
     });
 
     bool omitChildTextNode = [&] {
+        if (aggregator.useMarkdownOutput())
+            return false;
+
         if (item.children.size() != 1)
             return false;
 
@@ -1350,7 +1361,7 @@ static void addTextRepresentationRecursive(const TextExtraction::Item& item, std
         if (!aggregator.useHTMLOutput())
             return { };
 
-        if (item.dataAs<TextExtraction::ContainerType>() == TextExtraction::ContainerType::Root)
+        if (auto scrollableData = item.dataAs<TextExtraction::ScrollableItemData>(); scrollableData && scrollableData->isRoot)
             return "body"_s;
 
         return item.nodeName.convertToASCIILowercase();

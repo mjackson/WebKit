@@ -282,7 +282,7 @@ MESSAGE_RECEIVERS = \
 	GPUProcess/ShapeDetection/RemoteBarcodeDetector \
 	GPUProcess/ShapeDetection/RemoteFaceDetector \
 	GPUProcess/ShapeDetection/RemoteTextDetector \
-	GPUProcess/graphics/Model/RemoteDDMesh \
+	GPUProcess/graphics/Model/RemoteMesh \
 	GPUProcess/graphics/RemoteGraphicsContext \
 	GPUProcess/graphics/RemoteGraphicsContextGL \
 	GPUProcess/graphics/RemoteImageBuffer \
@@ -839,7 +839,6 @@ SERIALIZATION_DESCRIPTION_FILES = \
 	Shared/mac/SecItemRequestData.serialization.in \
 	Shared/mac/SecItemResponseData.serialization.in \
 	Shared/mac/WebHitTestResultPlatformData.serialization.in \
-	Shared/Model/ModelObjectDescriptorBase.serialization.in \
 	Shared/WebsiteDataStoreParameters.serialization.in \
 	Shared/WebsiteData/UnifiedOriginStorageLevel.serialization.in \
 	Shared/WebsiteData/WebsiteData.serialization.in \
@@ -941,7 +940,7 @@ SERIALIZATION_DESCRIPTION_FILES = \
 WEBCORE_SERIALIZATION_DESCRIPTION_FILES = \
 	HTTPHeaderNames.serialization.in \
 	ActivityState.serialization.in \
-	DDModel.serialization.in \
+	WebModel.serialization.in \
 	DocumentSyncData.serialization.in \
 	DragActions.serialization.in \
 	FrameTreeSyncData.serialization.in \

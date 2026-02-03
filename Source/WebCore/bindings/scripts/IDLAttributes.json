@@ -287,6 +287,10 @@
             "contextsAllowed": ["interface", "namespace", "dictionary", "dictionary-member", "attribute", "operation", "constant"],
             "values": ["*"]
         },
+        "ImplementationRequired": {
+            "contextsAllowed": ["dictionary-member"],
+            "notes": "Allows treating the dictionary member as required when the specification doesn't specify the required keyword but using it is unobservable."
+        },
         "InterfaceName": {
             "contextsAllowed": ["interface", "namespace"],
             "values": ["*"]

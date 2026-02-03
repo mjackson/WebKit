@@ -1190,6 +1190,7 @@ dom/AbortSignal.cpp
 dom/AbstractRange.cpp
 dom/ActiveDOMCallback.cpp
 dom/ActiveDOMObject.cpp
+dom/AddEventListenerOptions.cpp
 dom/AllDescendantsCollection.cpp
 dom/Attr.cpp
 dom/BeforeTextInsertedEvent.cpp

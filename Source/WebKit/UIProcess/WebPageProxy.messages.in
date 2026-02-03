@@ -693,6 +693,4 @@ messages -> WebPageProxy {
 #if ENABLE(VIDEO)
     ShowCaptionDisplaySettings(WebCore::MediaPlayerClientIdentifier identifier, struct WebCore::ResolvedCaptionDisplaySettingsOptions options) -> (Expected<void, WebCore::ExceptionData> response)
 #endif
-
-    UpdateRemoteIntersectionObserversInOtherWebProcesses();
 }

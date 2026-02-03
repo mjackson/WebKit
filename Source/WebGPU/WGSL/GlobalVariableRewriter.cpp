@@ -1345,7 +1345,7 @@ auto RewriteGlobalVariables::determineUsedGlobals(const AST::Function& function)
             return makeUnexpected(Error(makeString("entry point '"_s, m_entryPointInformation->originalName, "' uses variables '"_s, bindingResult.iterator->value->declaration->originalName(), "' and '"_s, variable.originalName(), "', both which use the same resource binding: @group("_s, group, ") @binding("_s, binding, ')'), variable.span()));
     }
 
-    m_shaderModule.addOverrideValidation([span = function.span(), variables = WTF::move(workgroupVariables), maximumCombinedWorkgroupVariablesSize] -> std::optional<Error> {
+    m_shaderModule.addOverrideValidation([span = function.span(), variables = WTF::move(workgroupVariables), maximumCombinedWorkgroupVariablesSize](auto&) -> std::optional<Error> {
         CheckedUint32 combinedWorkgroupVariablesSize = 0;
         for (const Type* type : variables)
             combinedWorkgroupVariablesSize += type->size();
@@ -1353,7 +1353,7 @@ auto RewriteGlobalVariables::determineUsedGlobals(const AST::Function& function)
             return { Error(makeString("The combined byte size of all variables in the workgroup address space exceeds "_s, String::number(maximumCombinedWorkgroupVariablesSize), " bytes"_s), span) };
         return std::nullopt;
     });
-    m_shaderModule.addOverrideValidation([span = function.span(), variables = WTF::move(privateVariables)] -> std::optional<Error> {
+    m_shaderModule.addOverrideValidation([span = function.span(), variables = WTF::move(privateVariables)](auto&) -> std::optional<Error> {
         CheckedUint32 combinedPrivateVariablesSize = 0;
         for (const Type* type : variables)
             combinedPrivateVariablesSize += type->size();

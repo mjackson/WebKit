@@ -876,7 +876,6 @@ webkit.org/b/251107 webgl/2.0.y/conformance2/rendering/blitframebuffer-filter-ou
 webkit.org/b/251107 webgl/2.0.y/conformance/context/premultiplyalpha-test.html [ Failure ]
 webkit.org/b/251107 webgl/2.0.y/conformance2/extensions/ext-render-snorm.html [ Failure ]
 webkit.org/b/251107 webgl/2.0.y/conformance2/extensions/ext-texture-norm16.html [ Failure ]
-webkit.org/b/251107 webgl/2.0.y/conformance2/extensions/webgl-clip-cull-distance.html [ Failure ]
 webgl/1.0.x/conformance/textures/misc/texture-corner-case-videos.html [ Crash Pass ]
 
 # WEBGL2 flakies
@@ -1070,8 +1069,7 @@ imported/w3c/web-platform-tests/css/compositing/background-blending/background-b
 
 media/media-source/media-detachablemse-append.html [ Timeout Crash Pass ]
 
-# Do not uncomment until the EWS issue is fixed, see webkit.org/b/306451 and webkit.org/b/306336
-# http/tests/login-status/login-status-api-getter-setter-functions.html [ Failure ]
+http/tests/login-status/login-status-api-getter-setter-functions.html [ Failure ]
 
 imported/w3c/web-platform-tests/css/css-overflow/scrollbar-gutter-root-both-edges.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-overflow/scrollbar-gutter-root.html [ ImageOnlyFailure ]
@@ -1307,3 +1305,5 @@ webkit.org/b/306384 imported/w3c/web-platform-tests/css/css-scroll-snap/scroll-t
 webkit.org/b/306384 imported/w3c/web-platform-tests/css/css-scroll-snap/scroll-target-padding-002.html [ ImageOnlyFailure ]
 
 webkit.org/b/306469 imported/w3c/web-platform-tests/encrypted-media/clearkey-update-non-ascii-input.https.html [ Pass Failure ]
+
+webkit.org/b/306758 media/event-attributes.html [ Pass Failure ]

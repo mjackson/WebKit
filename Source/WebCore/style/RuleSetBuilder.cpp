@@ -38,6 +38,7 @@
 #include "CSSViewTransitionRule.h"
 #include "CustomFunctionRegistry.h"
 #include "Document.h"
+#include "DocumentInlines.h"
 #include "MediaQueryEvaluator.h"
 #include "MutableCSSSelector.h"
 #include "StyleCustomPropertyRegistry.h"
@@ -516,17 +517,17 @@ void RuleSetBuilder::addMutatingRulesToResolver()
 
         auto& rule = collectedRule.rule;
         if (RefPtr styleRuleFontFace = dynamicDowncast<StyleRuleFontFace>(rule.get())) {
-            m_resolver->document().protectedFontSelector()->addFontFaceRule(*styleRuleFontFace, false);
+            protect(m_resolver->document().fontSelector())->addFontFaceRule(*styleRuleFontFace, false);
             m_resolver->invalidateMatchedDeclarationsCache();
             continue;
         }
         if (RefPtr styleRuleFontPaletteValues = dynamicDowncast<StyleRuleFontPaletteValues>(rule.get())) {
-            m_resolver->document().protectedFontSelector()->addFontPaletteValuesRule(*styleRuleFontPaletteValues);
+            protect(m_resolver->document().fontSelector())->addFontPaletteValuesRule(*styleRuleFontPaletteValues);
             m_resolver->invalidateMatchedDeclarationsCache();
             continue;
         }
         if (RefPtr styleRuleFontFeatureValues = dynamicDowncast<StyleRuleFontFeatureValues>(rule.get())) {
-            m_resolver->document().protectedFontSelector()->addFontFeatureValuesRule(*styleRuleFontFeatureValues);
+            protect(m_resolver->document().fontSelector())->addFontFeatureValuesRule(*styleRuleFontFeatureValues);
             m_resolver->invalidateMatchedDeclarationsCache();
             continue;
         }

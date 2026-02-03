@@ -49,9 +49,7 @@ WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
 #include <skia/core/SkColorSpace.h>
 #include <skia/core/SkPixmap.h>
 #include <skia/core/SkStream.h>
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // Skia port
 #include <skia/encode/SkPngEncoder.h>
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
 
 namespace WebKit {

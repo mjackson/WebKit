@@ -251,7 +251,7 @@ LayoutUnit RenderSearchField::clientPaddingRight() const
 
 FontSelector* RenderSearchField::fontSelector() const
 {
-    return &protectedDocument()->fontSelector();
+    return &protect(document())->fontSelector();
 }
 
 HostWindow* RenderSearchField::hostWindow() const

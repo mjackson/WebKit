@@ -398,7 +398,7 @@ bool Chrome::print(LocalFrame& frame)
     // FIXME: This should have PageGroupLoadDeferrer, like runModal() or runJavaScriptAlert(), because it's no different from those.
 
     if (frame.document()->isSandboxed(SandboxFlag::Modals)) {
-        frame.document()->protectedWindow()->printErrorMessage("Use of window.print is not allowed in a sandboxed frame when the allow-modals flag is not set."_s);
+        protect(frame.document()->window())->printErrorMessage("Use of window.print is not allowed in a sandboxed frame when the allow-modals flag is not set."_s);
         return false;
     }
 

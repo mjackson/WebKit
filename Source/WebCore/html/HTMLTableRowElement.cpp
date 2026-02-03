@@ -122,7 +122,7 @@ ExceptionOr<Ref<HTMLTableCellElement>> HTMLTableRowElement::insertCell(int index
     int numCells = children->length();
     if (index > numCells)
         return Exception { ExceptionCode::IndexSizeError };
-    Ref cell = HTMLTableCellElement::create(tdTag, protectedDocument());
+    Ref cell = HTMLTableCellElement::create(tdTag, protect(document()));
     ExceptionOr<void> result;
     if (numCells == index || index == -1)
         result = appendChild(cell);

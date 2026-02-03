@@ -1436,7 +1436,12 @@ sub parseDictionaryMember
 
             $self->assertExtendedAttributesValidForContext($extendedAttributeList, "dictionary-member");
 
-            # Substitute a value specified by the `ImplementationDefaultValue` extended attribute if necessary.
+            # Override `isRequired` if the `ImplementationRequired` extended attribute is set.
+            if (defined($extendedAttributeList->{ImplementationRequired})) {
+                $member->isRequired(1);
+            }
+
+            # Override `default` if the `ImplementationDefaultValue` extended attribute is set.
             if (!defined($member->default) && defined($extendedAttributeList->{ImplementationDefaultValue})) {
                 $member->default($extendedAttributeList->{ImplementationDefaultValue});
             }

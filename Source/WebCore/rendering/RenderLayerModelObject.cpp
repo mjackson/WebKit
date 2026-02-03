@@ -514,7 +514,7 @@ RenderSVGResourceMasker* RenderLayerModelObject::svgMaskerResourceFromStyle() co
     if (!maskImage)
         return nullptr;
 
-    auto resourceID = SVGURIReference::fragmentIdentifierFromIRIString(maskImage->url(), protectedDocument());
+    auto resourceID = SVGURIReference::fragmentIdentifierFromIRIString(maskImage->url(), protect(document()));
 
     if (RefPtr referencedMaskElement = ReferencedSVGResources::referencedMaskElement(treeScopeForSVGReferences(), *maskImage)) {
         if (auto* referencedMaskerRenderer = dynamicDowncast<RenderSVGResourceMasker>(referencedMaskElement->renderer()))

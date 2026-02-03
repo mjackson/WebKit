@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2006-2026 Apple Inc. All rights reserved.
  * Copyright (C) 2011 Google Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -212,7 +212,6 @@ public:
     WEBCORE_EXPORT virtual void detachFromFrame(LoadWillContinueInAnotherProcess);
 
     WEBCORE_EXPORT FrameLoader* frameLoader() const;
-    WEBCORE_EXPORT RefPtr<FrameLoader> protectedFrameLoader() const;
     WEBCORE_EXPORT SubresourceLoader* mainResourceLoader() const;
     WEBCORE_EXPORT RefPtr<FragmentedSharedBuffer> mainResourceData() const;
     
@@ -225,7 +224,6 @@ public:
     ResourceRequest& request();
 
     CachedResourceLoader& cachedResourceLoader() { return m_cachedResourceLoader; }
-    Ref<CachedResourceLoader> protectedCachedResourceLoader() const;
 
     const SubstituteData& substituteData() const { return m_substituteData; }
 
@@ -736,7 +734,7 @@ private:
     std::unique_ptr<IntegrityPolicy> m_integrityPolicyReportOnly;
 
 #if ENABLE(CONTENT_FILTERING)
-    std::unique_ptr<ContentFilter> m_contentFilter;
+    RefPtr<ContentFilter> m_contentFilter;
     ResourceError m_blockedError;
     URL m_blockedPageURL;
     SubstituteData m_substituteDataFromContentFilter;

@@ -186,14 +186,8 @@ IntersectionObserver::IntersectionObserver(Document& document, Ref<IntersectionO
         auto& observerData = downcast<Element>(*root).ensureIntersectionObserverData();
         observerData.observers.append(*this);
     } else if (RefPtr frame = document.frame()) {
-        if (RefPtr localFrame = dynamicDowncast<LocalFrame>(frame->mainFrame())) {
-            // implicitRootDocument is in same process
+        if (RefPtr localFrame = dynamicDowncast<LocalFrame>(frame->mainFrame()))
             m_implicitRootDocument = localFrame->document();
-        } else {
-            // Main frame's document is in different process, so the current document tracks it.
-            m_type = Type::Remote;
-            m_implicitRootDocument = document;
-        }
     }
 
     std::ranges::sort(m_thresholds);
@@ -483,6 +477,9 @@ auto IntersectionObserver::computeIntersectionState(const IntersectionObserverRe
             return;
 
         if (root()) {
+            if (trackingDocument() != &target.document())
+                return;
+
             if (!root()->renderer())
                 return;
 
@@ -503,16 +500,16 @@ auto IntersectionObserver::computeIntersectionState(const IntersectionObserverRe
             return;
         }
 
+        ASSERT(hostFrameView.frame().isMainFrame());
+        // FIXME: Handle the case of an implicit-root observer that has a target in a different frame tree.
+        if (&targetRenderer->frame().mainFrame() != &hostFrameView.frame())
+            return;
+
         intersectionState.canComputeIntersection = true;
-        intersectionState.rootBounds = layoutViewportRectForIntersection();
-
-        if (RefPtr localHostFrameView = dynamicDowncast<LocalFrameView>(hostFrameView))
-            rootUsedZoom = localHostFrameView->renderView()->style().usedZoom();
-        else if (RefPtr parentFrame = hostFrameView.frame().tree().parent())
-            rootUsedZoom = parentFrame->usedZoomForChild(hostFrameView.frame());
-
-        // FIXME: provide this in some way if the host frame is remote.
+        // FIXME: provide these information in some way if the host frame is remote.
         rootRenderer = downcast<LocalFrameView>(hostFrameView).renderView();
+        rootUsedZoom = downcast<LocalFrameView>(hostFrameView).renderView()->style().usedZoom();
+        intersectionState.rootBounds = layoutViewportRectForIntersection();
     };
 
     computeRootBounds();
@@ -640,7 +637,7 @@ auto IntersectionObserver::updateObservations(const Frame& hostFrame) -> NeedNot
 
         bool isSameOriginObservation = [&] () {
             if (RefPtr hostFrameSecurityOrigin = hostFrame.frameDocumentSecurityOrigin())
-                return target->document().protectedSecurityOrigin()->isSameOriginDomain(*hostFrameSecurityOrigin);
+                return protect(target->document().securityOrigin())->isSameOriginDomain(*hostFrameSecurityOrigin);
 
             return false;
         }();

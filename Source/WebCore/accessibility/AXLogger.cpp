@@ -1309,7 +1309,7 @@ TextStream& operator<<(TextStream& stream, AXObjectCache& axObjectCache)
     RefPtr document = axObjectCache.document();
     if (!document)
         stream << "No document!";
-    else if (RefPtr root = axObjectCache.get(document->protectedView().get())) {
+    else if (RefPtr root = axObjectCache.get(protect(document->view()).get())) {
         constexpr OptionSet<AXStreamOptions> options = { AXStreamOptions::ObjectID, AXStreamOptions::Role, AXStreamOptions::ParentID, AXStreamOptions::IdentifierAttribute, AXStreamOptions::OuterHTML, AXStreamOptions::DisplayContents, AXStreamOptions::Address, AXStreamOptions::RendererOrNode };
         streamSubtree(stream, root.releaseNonNull(), options);
     } else

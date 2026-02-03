@@ -71,7 +71,6 @@ public:
     void removeResource(MediaResource&);
 
     Document* document();
-    RefPtr<Document> protectedDocument();
     const String& crossOriginMode() const;
 
     WEBCORE_EXPORT static void recordResponsesForTesting();
@@ -125,7 +124,6 @@ public:
     void notifyFinished(CachedResource&, const NetworkLoadMetrics&, LoadWillContinueInAnotherProcess) override;
 
 private:
-    CachedResourceHandle<CachedRawResource> protectedResource() const;
 
     MediaResource(MediaResourceLoader&, CachedResourceHandle<CachedRawResource>&&);
     void ensureShutdown();

@@ -181,7 +181,7 @@ std::optional<SimpleRange> VisibleSelection::toNormalizedRange() const
     // in the course of running edit commands which modify the DOM.
     // Failing to call this can result in equivalentXXXPosition calls returning
     // incorrect results.
-    m_start.anchorNode()->protectedDocument()->updateLayout();
+    protect(m_start.anchorNode()->document())->updateLayout();
 
     // Check again, because updating layout can clear the selection.
     if (isNoneOrOrphaned())

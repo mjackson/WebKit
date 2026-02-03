@@ -361,7 +361,7 @@ RefPtr<Page> WebChromeClient::createWindow(LocalFrame& frame, const String& open
 {
 #if ENABLE(FULLSCREEN_API)
     if (RefPtr document = frame.document())
-        document->protectedFullscreen()->fullyExitFullscreen();
+        protect(document->fullscreen())->fullyExitFullscreen();
 #endif
 
     auto& webProcess = WebProcess::singleton();
@@ -1142,7 +1142,7 @@ RefPtr<WebCore::WebGPU::GPU> WebChromeClient::createGPUForWebGPU() const
     RefPtr page = m_page.get();
     if (!page)
         return nullptr;
-    return RemoteGPUProxy::create(WebGPU::DowncastConvertToBackingContext::create(), DDModel::DowncastConvertToBackingContext::create(), page.releaseNonNull());
+    return RemoteGPUProxy::create(WebGPU::DowncastConvertToBackingContext::create(), ModelDowncastConvertToBackingContext::create(), page.releaseNonNull());
 #else
     return WebCore::WebGPU::create([](WebCore::WebGPU::WorkItem&& workItem) {
         callOnMainRunLoop(WTF::move(workItem));
@@ -2416,11 +2416,5 @@ void WebChromeClient::showCaptionDisplaySettings(HTMLMediaElement& element, cons
     });
 }
 #endif
-
-void WebChromeClient::updateRemoteIntersectionObserversInOtherWebProcesses()
-{
-    if (RefPtr page = m_page.get())
-        page->send(Messages::WebPageProxy::UpdateRemoteIntersectionObserversInOtherWebProcesses());
-}
 
 } // namespace WebKit

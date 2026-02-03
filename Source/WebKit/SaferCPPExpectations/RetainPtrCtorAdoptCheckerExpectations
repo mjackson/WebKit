@@ -6,6 +6,7 @@
 [ iOS ] UIProcess/API/Cocoa/_WKTouchEventGenerator.mm
 [ iOS ] UIProcess/API/ios/WKWebViewIOS.mm
 [ iOS ] UIProcess/Extensions/Cocoa/WebExtensionCocoa.mm
+[ iOS ] UIProcess/RemoteLayerTree/ios/RemoteLayerTreeHostIOS.mm
 [ iOS ] UIProcess/ios/WKContentViewInteraction.mm
 [ iOS ] UIProcess/ios/WKWebGeolocationPolicyDeciderIOS.mm
 [ iOS ] UIProcess/ios/forms/WKFileUploadPanel.mm

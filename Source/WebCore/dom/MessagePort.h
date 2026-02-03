@@ -110,6 +110,7 @@ private:
     MessagePort(ScriptExecutionContext&, const MessagePortIdentifier& local, const MessagePortIdentifier& remote);
 
     bool addEventListener(const AtomString& eventType, Ref<EventListener>&&, const AddEventListenerOptions&) final;
+    using EventTarget::addEventListener;
     bool removeEventListener(const AtomString& eventType, EventListener&, const EventListenerOptions&) final;
 
     // ActiveDOMObject.

@@ -808,7 +808,7 @@ String WebFrame::innerText() const
     if (!localFrame->document()->documentElement())
         return String();
 
-    return localFrame->protectedDocument()->protectedDocumentElement()->innerText();
+    return protect(protect(localFrame->document())->documentElement())->innerText();
 }
 
 RefPtr<WebFrame> WebFrame::parentFrame() const
@@ -862,7 +862,7 @@ unsigned WebFrame::pendingUnloadCount() const
     if (!localFrame)
         return 0;
 
-    return localFrame->protectedDocument()->protectedWindow()->pendingUnloadEventListeners();
+    return protect(protect(localFrame->document())->window())->pendingUnloadEventListeners();
 }
 
 bool WebFrame::allowsFollowingLink(const URL& url) const

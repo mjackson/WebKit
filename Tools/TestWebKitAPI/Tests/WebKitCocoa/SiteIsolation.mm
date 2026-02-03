@@ -3931,7 +3931,7 @@ TEST(SiteIsolation, ValidateSessionRestoreWithoutNavigating)
     EXPECT_TRUE([newIsolatedSessionState isEqualForTesting:normalSessionState.get()]);
 }
 
-TEST(SiteIsolation, DiscardUncachedBackItemForNavigatedOverIframe)
+TEST(SiteIsolation, BackNavigationOverCrossSiteIframeWithoutBFCache)
 {
     HTTPServer server({
         { "/example"_s, { "<iframe src='https://webkit.org/a'></iframe>"_s } },
@@ -3956,7 +3956,7 @@ TEST(SiteIsolation, DiscardUncachedBackItemForNavigatedOverIframe)
     EXPECT_WK_STREQ("c", [webView _test_waitForAlert]);
 
     [webView goBack];
-    EXPECT_WK_STREQ("a", [webView _test_waitForAlert]);
+    EXPECT_WK_STREQ("b", [webView _test_waitForAlert]);
 }
 
 TEST(SiteIsolation, ProtocolProcessSeparation)

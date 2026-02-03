@@ -3604,7 +3604,7 @@ GraphicsLayer* RenderLayerBacking::childForSuperlayers() const
     if (m_owningLayer.isRenderViewLayer()) {
         // If the document element is captured, then the RenderView's layer will get attached
         // into the view-transition tree, and we instead want to attach the root of the VT tree to our ancestor.
-        if (m_owningLayer.renderer().protectedDocument()->activeViewTransitionCapturedDocumentElement()) {
+        if (protect(m_owningLayer.renderer().document())->activeViewTransitionCapturedDocumentElement()) {
             if (WeakPtr viewTransitionContainingBlock = m_owningLayer.renderer().view().viewTransitionContainingBlock(); viewTransitionContainingBlock && viewTransitionContainingBlock->hasLayer() && viewTransitionContainingBlock->layer()->backing())
                 return viewTransitionContainingBlock->layer()->backing()->childForSuperlayers();
         }

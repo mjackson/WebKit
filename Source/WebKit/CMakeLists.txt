@@ -194,7 +194,7 @@ set(WebKit_MESSAGES_IN_FILES
     GPUProcess/graphics/RemoteImageBufferSet
     GPUProcess/graphics/RemoteRenderingBackend
 
-    GPUProcess/graphics/Model/RemoteDDMesh
+    GPUProcess/graphics/Model/RemoteMesh
 
     GPUProcess/graphics/WebGPU/RemoteAdapter
     GPUProcess/graphics/WebGPU/RemoteBindGroup
@@ -614,8 +614,6 @@ set(WebKit_SERIALIZATION_IN_FILES
 
     Shared/Gamepad/GamepadData.serialization.in
 
-    Shared/Model/ModelObjectDescriptorBase.serialization.in
-
     Shared/WebGPU/WebGPUBindGroupDescriptor.serialization.in
     Shared/WebGPU/WebGPUBindGroupEntry.serialization.in
     Shared/WebGPU/WebGPUBindGroupLayoutDescriptor.serialization.in
@@ -731,7 +729,7 @@ set(WebCore_GENERATED_SERIALIZATION_IN_FILES
 
 set(WebCore_SERIALIZATION_IN_FILES
     ActivityState.serialization.in
-    DDModel.serialization.in
+    WebModel.serialization.in
     DocumentSyncData.serialization.in
     DragActions.serialization.in
     FrameTreeSyncData.serialization.in

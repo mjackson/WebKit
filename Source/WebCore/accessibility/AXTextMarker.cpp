@@ -119,7 +119,7 @@ AXTextMarker::AXTextMarker(const VisiblePosition& visiblePosition, TextMarkerOri
     if (!node)
         return;
 
-    CheckedPtr cache = node->protectedDocument()->axObjectCache();
+    CheckedPtr cache = protect(node->document())->axObjectCache();
     if (!cache)
         return;
 
@@ -134,7 +134,7 @@ AXTextMarker::AXTextMarker(const CharacterOffset& characterOffset, TextMarkerOri
     if (characterOffset.isNull())
         return;
 
-    if (CheckedPtr cache = characterOffset.node->protectedDocument()->axObjectCache())
+    if (CheckedPtr cache = protect(characterOffset.node->document())->axObjectCache())
         m_data = cache->textMarkerDataForCharacterOffset(characterOffset, origin);
 }
 
@@ -285,7 +285,7 @@ AXTextMarkerRange::AXTextMarkerRange(const std::optional<SimpleRange>& range)
     }
 #endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
-    if (CheckedPtr cache = range->start.protectedDocument()->axObjectCache()) {
+    if (CheckedPtr cache = protect(range->start.document())->axObjectCache()) {
         m_start = AXTextMarker(cache->startOrEndCharacterOffsetForRange(*range, true));
         m_end = AXTextMarker(cache->startOrEndCharacterOffsetForRange(*range, false));
     }

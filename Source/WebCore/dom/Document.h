@@ -545,7 +545,6 @@ public:
     
     Element* documentElement() const { return m_documentElement.get(); }
     AsyncNodeDeletionQueue& asyncNodeDeletionQueue() { return m_asyncNodeDeletionQueue; };
-    inline RefPtr<Element> protectedDocumentElement() const; // Defined in DocumentInlines.h.
     static constexpr ptrdiff_t documentElementMemoryOffset() { return OBJECT_OFFSETOF(Document, m_documentElement); }
 
     WEBCORE_EXPORT Element* activeElement();
@@ -655,7 +654,6 @@ public:
     WEBCORE_EXPORT Ref<NodeList> getElementsByName(const AtomString& elementName);
 
     WakeLockManager& wakeLockManager();
-    Ref<WakeLockManager> protectedWakeLockManager();
 
     // Other methods (not part of DOM)
     bool isSynthesized() const { return m_isSynthesized; }
@@ -697,9 +695,7 @@ public:
 
     CSSFontSelector* fontSelectorIfExists() { return m_fontSelector.get(); }
     const CSSFontSelector* fontSelectorIfExists() const { return m_fontSelector.get(); }
-    inline CSSFontSelector& fontSelector();
-    inline const CSSFontSelector& fontSelector() const;
-    Ref<CSSFontSelector> protectedFontSelector() const;
+    inline CSSFontSelector& fontSelector() const; // Defined in DocumentInlines.h.
 
     WEBCORE_EXPORT bool haveStylesheetsLoaded() const;
     bool isIgnoringPendingStylesheets() const { return m_ignorePendingStylesheets; }
@@ -731,9 +727,7 @@ public:
     void setStateForNewFormElements(const Vector<AtomString>&);
 
     inline LocalFrameView* view() const; // Defined in DocumentView.h.
-    inline RefPtr<LocalFrameView> protectedView() const; // Defined in DocumentView.h.
     inline Page* page() const; // Defined in DocumentPage.h.
-    inline RefPtr<Page> protectedPage() const; // Defined in DocumentPage.h.
     WEBCORE_EXPORT RefPtr<LocalFrame> localMainFrame() const;
     const Settings& settings() const { return m_settings.get(); }
     EditingBehavior editingBehavior() const;
@@ -796,7 +790,6 @@ public:
     WEBCORE_EXPORT void pageSizeAndMarginsInPixels(int pageIndex, IntSize& pageSize, int& marginTop, int& marginRight, int& marginBottom, int& marginLeft);
 
     inline CachedResourceLoader& cachedResourceLoader(); // Defined in DocumentResourceLoader.h
-    inline Ref<CachedResourceLoader> protectedCachedResourceLoader() const; // Defined in DocumentResourceLoader.h
 
     WEBCORE_EXPORT void didBecomeCurrentDocumentInFrame();
     void destroyRenderTree();
@@ -839,7 +832,6 @@ public:
     bool visuallyOrdered() const { return m_visuallyOrdered; }
 
     WEBCORE_EXPORT DocumentLoader* loader() const;
-    WEBCORE_EXPORT RefPtr<DocumentLoader> protectedLoader() const;
 
     WEBCORE_EXPORT ExceptionOr<RefPtr<WindowProxy>> openForBindings(LocalDOMWindow& activeWindow, LocalDOMWindow& firstDOMWindow, const String& url, const AtomString& name, const String& features);
     WEBCORE_EXPORT ExceptionOr<Document&> openForBindings(Document* entryDocument, const String&, const String&);
@@ -911,10 +903,8 @@ public:
     bool requiresTrustedTypes() const { return m_requiresTrustedTypes && !shouldBypassMainWorldContentSecurityPolicy(); }
 
     IDBClient::IDBConnectionProxy* idbConnectionProxy() final;
-    RefPtr<IDBClient::IDBConnectionProxy> protectedIDBConnectionProxy();
     StorageConnection* storageConnection();
     SocketProvider* socketProvider() final;
-    RefPtr<SocketProvider> protectedSocketProvider();
     RefPtr<RTCDataChannelRemoteHandlerConnection> createRTCDataChannelRemoteHandlerConnection() final;
 
 #if ENABLE(WEB_RTC)
@@ -931,7 +921,6 @@ public:
     
     virtual Ref<DocumentParser> createParser();
     DocumentParser* parser() const { return m_parser.get(); }
-    inline RefPtr<DocumentParser> protectedParser() const; // Defined in DocumentInlines.h.
     ScriptableDocumentParser* scriptableDocumentParser() const;
     HTMLDocumentParser* htmlDocumentParser() const;
 
@@ -990,7 +979,6 @@ public:
     WEBCORE_EXPORT bool setFocusedElement(Element*, BroadcastFocusedElement = BroadcastFocusedElement::Yes);
     WEBCORE_EXPORT bool setFocusedElement(Element*, const FocusOptions&, BroadcastFocusedElement = BroadcastFocusedElement::Yes);
     Element* focusedElement() const { return m_focusedElement.get(); }
-    inline RefPtr<Element> protectedFocusedElement() const; // Defined in DocumentInlines.h.
     inline bool wasLastFocusByClick() const;
     void setLatestFocusTrigger(FocusTrigger trigger) { m_latestFocusTrigger = trigger; }
     UserActionElementSet& userActionElements()  { return m_userActionElements; }
@@ -1068,16 +1056,13 @@ public:
     void takeDOMWindowFrom(Document&);
 
     LocalDOMWindow* window() const { return m_domWindow.get(); }
-    inline RefPtr<LocalDOMWindow> protectedWindow() const; // Defined in DocumentWindow.h.
 
     // In DOM Level 2, the Document's LocalDOMWindow is called the defaultView.
     WEBCORE_EXPORT WindowProxy* windowProxy() const;
-    RefPtr<WindowProxy> protectedWindowProxy() const;
 
     inline bool hasBrowsingContext() const; // Defined in DocumentInlines.h.
 
     Document& contextDocument() const;
-    Ref<Document> protectedContextDocument() const { return contextDocument(); }
     void setContextDocument(Ref<Document>&& document) { m_contextDocument = WTF::move(document); }
     
     OptionSet<ParserContentPolicy> parserContentPolicy() const { return m_parserContentPolicy; }
@@ -1261,13 +1246,11 @@ public:
     // This is the "body element" as defined by HTML5, the first body or frameset child of the
     // document element. See https://html.spec.whatwg.org/multipage/dom.html#the-body-element-2.
     WEBCORE_EXPORT HTMLElement* bodyOrFrameset() const;
-    WEBCORE_EXPORT RefPtr<HTMLElement> protectedBodyOrFrameset() const;
     WEBCORE_EXPORT ExceptionOr<void> setBodyOrFrameset(RefPtr<HTMLElement>&&);
 
     Location* location() const;
 
     WEBCORE_EXPORT HTMLHeadElement* head();
-    RefPtr<HTMLHeadElement> protectedHead();
 
     inline const DocumentMarkerController* markersIfExists() const { return m_markers.get(); }
     inline DocumentMarkerController* markersIfExists() { return m_markers.get(); }
@@ -1284,7 +1267,6 @@ public:
     WEBCORE_EXPORT ExceptionOr<String> queryCommandValue(const String& command);
 
     UndoManager& undoManager() const;
-    inline Ref<UndoManager> protectedUndoManager() const; // Defined in DocumentInlines.h.
 
     // designMode support
     enum class DesignMode : bool { Off, On };
@@ -1293,17 +1275,14 @@ public:
     WEBCORE_EXPORT void setDesignMode(const String&);
 
     WEBCORE_EXPORT Document* parentDocument() const;
-    RefPtr<Document> protectedParentDocument() const { return parentDocument(); }
 
     WEBCORE_EXPORT Document* mainFrameDocument() const;
-    RefPtr<Document> protectedMainFrameDocument() const { return mainFrameDocument(); }
     bool isTopDocument() const { return mainFrameDocument() == this; }
 
     RefPtr<Document> sameOriginTopLevelTraversable() const;
 
     ScriptRunner* scriptRunnerIfExists() { return m_scriptRunner.get(); }
     inline ScriptRunner& scriptRunner();
-    Ref<ScriptRunner> protectedScriptRunner();
     inline ScriptModuleLoader& moduleLoader();
 
     Element* currentScript() const { return !m_currentScriptStack.isEmpty() ? m_currentScriptStack.last().get() : nullptr; }
@@ -1349,7 +1328,6 @@ public:
     WEBCORE_EXPORT EventLoopTaskGroup& eventLoop() final;
     inline CheckedRef<EventLoopTaskGroup> checkedEventLoop(); // Defined in DocumentEventLoop.h
     WindowEventLoop& windowEventLoop();
-    Ref<WindowEventLoop> protectedWindowEventLoop();
 
     ScriptedAnimationController* scriptedAnimationController() { return m_scriptedAnimationController.get(); }
     void suspendScriptedAnimationControllerCallbacks();
@@ -1408,7 +1386,6 @@ public:
 
     void setDecoder(RefPtr<TextResourceDecoder>&&);
     TextResourceDecoder* decoder() const { return m_decoder.get(); }
-    inline RefPtr<TextResourceDecoder> protectedDecoder() const; // Defined in DocumentInlines.h.
 
     WEBCORE_EXPORT String displayStringModifiedByEncoding(const String&) const;
 
@@ -1480,8 +1457,6 @@ public:
     const DocumentFullscreen* fullscreenIfExists() const { return m_fullscreen.get(); }
     WEBCORE_EXPORT DocumentFullscreen& fullscreen();
     WEBCORE_EXPORT const DocumentFullscreen& fullscreen() const;
-    WEBCORE_EXPORT Ref<DocumentFullscreen> protectedFullscreen();
-    WEBCORE_EXPORT Ref<const DocumentFullscreen> protectedFullscreen() const;
 #endif
 
 #if ENABLE(MODEL_ELEMENT_IMMERSIVE)
@@ -1489,8 +1464,6 @@ public:
     const DocumentImmersive* immersiveIfExists() const { return m_immersive.get(); }
     WEBCORE_EXPORT DocumentImmersive& immersive();
     WEBCORE_EXPORT const DocumentImmersive& immersive() const;
-    WEBCORE_EXPORT Ref<DocumentImmersive> protectedImmersive();
-    WEBCORE_EXPORT Ref<const DocumentImmersive> protectedImmersive() const;
 #endif
 
 #if ENABLE(POINTER_LOCK)
@@ -1674,10 +1647,8 @@ public:
     void addMessage(MessageSource, MessageLevel, const String& message, const String& sourceURL, unsigned lineNumber, unsigned columnNumber, RefPtr<Inspector::ScriptCallStack>&&, JSC::JSGlobalObject* = nullptr, unsigned long requestIdentifier = 0) final;
 
     SecurityOrigin& securityOrigin() const { return *SecurityContext::securityOrigin(); }
-    inline Ref<SecurityOrigin> protectedSecurityOrigin() const; // Defined in DocumentSecurityOrigin.h.
     WEBCORE_EXPORT SecurityOrigin& topOrigin() const final;
     URL topURL() const;
-    Ref<SecurityOrigin> protectedTopOrigin() const;
     inline ClientOrigin clientOrigin() const;
 
     inline bool isSameOriginAsTopDocument() const; // Defined in DocumentSecurityOrigin
@@ -1764,16 +1735,9 @@ public:
 
     void addIntersectionObserver(IntersectionObserver&);
     void removeIntersectionObserver(IntersectionObserver&);
-    unsigned numberOfIntersectionObservers() const { return m_localIntersectionObservers.size() + m_remoteIntersectionObservers.size(); }
-
-    // Update ONLY remote intersection observers registered to this document.
-    // When the main frame updates its rendering, it sends an IPC message to request its child documents
-    // to update their remote observers, which ends up calling this.
-    WEBCORE_EXPORT void updateRemoteIntersectionObservers();
-
-    // Update local and remote intersection observers that are registered to this document.
-    void updateIntersectionObservers();
-
+    unsigned numberOfIntersectionObservers() const { return m_intersectionObservers.size(); }
+    void updateIntersectionObservations();
+    void updateIntersectionObservations(const Vector<WeakPtr<IntersectionObserver>>&);
     void scheduleInitialIntersectionObservationUpdate();
     IntersectionObserverData& ensureIntersectionObserverData();
     IntersectionObserverData* intersectionObserverDataIfExists() { return m_intersectionObserverData.get(); }
@@ -1977,12 +1941,10 @@ public:
 
     HighlightRegistry* textExtractionHighlightRegistryIfExists() const { return m_textExtractionHighlightRegistry.get(); }
     HighlightRegistry& textExtractionHighlightRegistry();
-    Ref<HighlightRegistry> protectedTextExtractionHighlightRegistry();
-        
+
 #if ENABLE(APP_HIGHLIGHTS)
     HighlightRegistry* appHighlightRegistryIfExists() { return m_appHighlightRegistry.get(); }
     WEBCORE_EXPORT HighlightRegistry& appHighlightRegistry();
-    WEBCORE_EXPORT Ref<HighlightRegistry> protectedAppHighlightRegistry();
 
     WEBCORE_EXPORT AppHighlightStorage& appHighlightStorage();
     AppHighlightStorage* appHighlightStorageIfExists() const { return m_appHighlightStorage.get(); };
@@ -2013,8 +1975,6 @@ public:
 
     WEBCORE_EXPORT Editor& editor();
     WEBCORE_EXPORT const Editor& editor() const;
-    WEBCORE_EXPORT Ref<Editor> protectedEditor();
-    WEBCORE_EXPORT Ref<const Editor> protectedEditor() const;
     FrameSelection& selection() { return m_selection; }
     const FrameSelection& selection() const { return m_selection; }
 
@@ -2047,7 +2007,6 @@ public:
 
     ReportingScope* reportingScopeIfExists() const { return m_reportingScope.get(); }
     inline ReportingScope& reportingScope() const;
-    inline Ref<ReportingScope> protectedReportingScope() const; // Defined in DocumentInlines.h.
     WEBCORE_EXPORT String endpointURIForToken(const String&) const final;
 
     bool hasSleepDisabler() const { return !!m_sleepDisabler; }
@@ -2076,12 +2035,10 @@ public:
     unsigned unloadCounter() const { return m_unloadCounter; }
 
     WEBCORE_EXPORT FrameMemoryMonitor& frameMemoryMonitor();
-    Ref<FrameMemoryMonitor> protectedFrameMemoryMonitor();
 
 #if ENABLE(CONTENT_EXTENSIONS)
     ResourceMonitor* resourceMonitorIfExists();
     ResourceMonitor& resourceMonitor();
-    Ref<ResourceMonitor> protectedResourceMonitor();
     ResourceMonitor* parentResourceMonitorIfExists();
 
     bool shouldSkipResourceMonitorThrottling() const { return m_shouldSkipResourceMonitorThrottling; }
@@ -2145,7 +2102,6 @@ private:
     WEBCORE_EXPORT DocumentImmersive& ensureImmersive();
 #endif
     inline DocumentFontLoader& fontLoader();
-    Ref<DocumentFontLoader> protectedFontLoader();
     DocumentFontLoader& ensureFontLoader();
     CSSFontSelector& ensureFontSelector();
     UndoManager& ensureUndoManager();
@@ -2475,15 +2431,7 @@ private:
 
     WeakHashSet<HTMLImageElement, WeakPtrImplWithEventTargetData> m_dynamicMediaQueryDependentImages;
 
-    // Intersection observers in which the root is local to this document.
-    Vector<WeakPtr<IntersectionObserver>> m_localIntersectionObservers;
-
-    // Intersection observers in which the root is remote (in a different process)
-    // With the way Intersection Observers is designed, the only possible scenario
-    // is if the observer has the root as the main frame's document, and the main
-    // frame is in another process.
-    Vector<WeakPtr<IntersectionObserver>> m_remoteIntersectionObservers;
-
+    Vector<WeakPtr<IntersectionObserver>> m_intersectionObservers;
     Timer m_intersectionObserversInitialUpdateTimer;
     // This is only non-null when this document is an explicit root.
     const std::unique_ptr<IntersectionObserverData> m_intersectionObserverData;

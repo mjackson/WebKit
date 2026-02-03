@@ -507,7 +507,7 @@ RefPtr<HTMLElement> ApplyStyleCommand::splitAncestorsWithUnicodeBidi(Node* node,
     while (currentNode) {
         RefPtr parent = downcast<Element>(currentNode->parentNode());
         if (before ? currentNode->previousSibling() : currentNode->nextSibling())
-            splitElement(*parent, before ? *currentNode : *currentNode->protectedNextSibling());
+            splitElement(*parent, before ? *currentNode : *protect(currentNode->nextSibling()));
         if (parent == highestAncestorWithUnicodeBidi)
             break;
         currentNode = parent;
@@ -1009,7 +1009,7 @@ RefPtr<HTMLElement> ApplyStyleCommand::highestAncestorWithConflictingInlineStyle
 
 void ApplyStyleCommand::applyInlineStyleToPushDown(Node& node, EditingStyle* style)
 {
-    node.protectedDocument()->updateStyleIfNeeded();
+    protect(node.document())->updateStyleIfNeeded();
 
     if (!style || style->isEmpty() || !node.renderer() || is<HTMLIFrameElement>(node))
         return;
@@ -1181,7 +1181,7 @@ void ApplyStyleCommand::removeInlineStyle(EditingStyle& style, const Position& s
 bool ApplyStyleCommand::nodeFullySelected(Element& element, const Position& start, const Position& end) const
 {
     // The tree may have changed and Position::upstream() relies on an up-to-date layout.
-    element.protectedDocument()->updateLayoutIgnorePendingStylesheets();
+    protect(element.document())->updateLayoutIgnorePendingStylesheets();
     return firstPositionInOrBeforeNode(&element) >= start && lastPositionInOrAfterNode(&element).upstream() <= end;
 }
 

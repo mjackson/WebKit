@@ -297,7 +297,7 @@ void PlaybackSessionManager::setUpPlaybackControlsManager(WebCore::HTMLMediaElem
 
     Ref page = *m_page;
     if (auto previousContextId = std::exchange(m_controlsManagerContextId, contextId)) {
-        if (mediaElement.protectedDocument()->quirks().needsNowPlayingFullscreenSwapQuirk()) {
+        if (protect(mediaElement.document())->quirks().needsNowPlayingFullscreenSwapQuirk()) {
             RefPtr previousElement = dynamicDowncast<HTMLVideoElement>(mediaElementWithContextId(*previousContextId));
             if (RefPtr videoElement = dynamicDowncast<HTMLVideoElement>(mediaElement); videoElement && previousElement
                 && previousElement->fullscreenMode() != HTMLMediaElement::VideoFullscreenModeNone) {

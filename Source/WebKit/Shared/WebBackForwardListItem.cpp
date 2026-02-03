@@ -169,22 +169,16 @@ Ref<FrameState> WebBackForwardListItem::mainFrameState() const
 
 const String& WebBackForwardListItem::originalURL() const
 {
-    if (m_isRemoteFrameNavigation)
-        return emptyString();
     return mainFrameItem().frameState().originalURLString;
 }
 
 const String& WebBackForwardListItem::url() const
 {
-    if (m_isRemoteFrameNavigation)
-        return emptyString();
     return mainFrameItem().frameState().urlString;
 }
 
 const String& WebBackForwardListItem::title() const
 {
-    if (m_isRemoteFrameNavigation)
-        return emptyString();
     return mainFrameItem().frameState().title;
 }
 

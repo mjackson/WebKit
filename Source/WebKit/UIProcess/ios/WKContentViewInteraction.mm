@@ -12842,7 +12842,7 @@ static RetainPtr<NSItemProvider> createItemProvider(const WebKit::WebPageProxy& 
     return valueOrDefault(_imageAnalysisContextMenuActionData).hasVisualSearchResults;
 }
 
-- (CGImageRef)copySubjectResultForImageContextMenu
+- (CGImageRef)subjectResultForImageContextMenu
 {
     return valueOrDefault(_imageAnalysisContextMenuActionData).copySubjectResult.getAutoreleased();
 }
@@ -13305,7 +13305,7 @@ static BOOL shouldUseMachineReadableCodeMenuFromImageAnalysisResult(CocoaImageAn
                 continue;
 
             if ([action.identifier isEqual:elementActionTypeToUIActionIdentifier(_WKElementActionTypeCopyCroppedImage)]) {
-                if (self.copySubjectResultForImageContextMenu)
+                if (self.subjectResultForImageContextMenu)
                     action.attributes &= ~UIMenuElementAttributesDisabled;
 
                 continue;
@@ -13359,15 +13359,15 @@ static BOOL shouldUseMachineReadableCodeMenuFromImageAnalysisResult(CocoaImageAn
 
 - (BOOL)actionSheetAssistantShouldIncludeCopySubjectAction:(WKActionSheetAssistant *)assistant
 {
-    return !!self.copySubjectResultForImageContextMenu;
+    return !!self.subjectResultForImageContextMenu;
 }
 
 - (void)actionSheetAssistant:(WKActionSheetAssistant *)assistant copySubject:(UIImage *)image sourceMIMEType:(NSString *)sourceMIMEType
 {
-    if (!self.copySubjectResultForImageContextMenu)
+    if (!self.subjectResultForImageContextMenu)
         return;
 
-    auto [data, type] = WebKit::imageDataForRemoveBackground(self.copySubjectResultForImageContextMenu, (__bridge CFStringRef)sourceMIMEType);
+    auto [data, type] = WebKit::imageDataForRemoveBackground(self.subjectResultForImageContextMenu, (__bridge CFStringRef)sourceMIMEType);
     if (!data)
         return;
 

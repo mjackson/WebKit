@@ -4977,6 +4977,8 @@ webkit.org/b/278719 fast/events/touch/touch-fractional-coordinates.html [ Skip ]
 # Need rebaseline
 svg/zoom/page/ [ Skip ]
 
+webkit.org/b/306759 fast/events/attribute-listener-deletion-crash.html [ Pass Failure ]
+
 # Navigation API flaky tests
 webkit.org/b/299333 http/wpt/navigation-api/ [ Failure Pass ]
 

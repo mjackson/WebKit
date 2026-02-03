@@ -242,14 +242,14 @@ template<typename T, typename WeakPtrImpl, typename PtrTraits = RawPtrTraits<T>>
     requires HasRefPtrMemberFunctions<T>::value
 ALWAYS_INLINE CLANG_POINTER_CONVERSION Ref<T, PtrTraits> protect(const WeakRef<T, WeakPtrImpl>& weakRef)
 {
-    return Ref<T, PtrTraits>(*weakRef.ptr());
+    return Ref<T, PtrTraits>(weakRef.get());
 }
 
 template<typename T, typename WeakPtrImpl, typename CheckedPtrTraits = RawPtrTraits<T>>
     requires (HasCheckedPtrMemberFunctions<T>::value && !HasRefPtrMemberFunctions<T>::value)
 ALWAYS_INLINE CLANG_POINTER_CONVERSION CheckedRef<T, CheckedPtrTraits> protect(const WeakRef<T, WeakPtrImpl>& weakRef)
 {
-    return CheckedRef<T, CheckedPtrTraits>(*weakRef.ptr());
+    return CheckedRef<T, CheckedPtrTraits>(weakRef.get());
 }
 
 } // namespace WTF

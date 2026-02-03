@@ -23,7 +23,7 @@
 
 internal import Metal
 internal import OSLog
-internal import WebGPU_Private.DDModelTypes
+internal import WebGPU_Private.ModelTypes
 internal import simd
 
 #if canImport(RealityCoreRenderer, _version: 9999)
@@ -92,7 +92,7 @@ private func mapSemantic(_ semantic: Int) -> _Proto_LowLevelMeshResource_v1.Vert
 }
 
 extension _Proto_LowLevelMeshResource_v1.Descriptor {
-    nonisolated static func fromLlmDescriptor(_ llmDescriptor: DDBridgeMeshDescriptor) -> Self {
+    nonisolated static func fromLlmDescriptor(_ llmDescriptor: WebBridgeMeshDescriptor) -> Self {
         var descriptor = Self.init()
         descriptor.vertexCapacity = Int(llmDescriptor.vertexCapacity)
         descriptor.vertexAttributes = llmDescriptor.vertexAttributes.map { attribute in
@@ -126,7 +126,7 @@ private func isNonZero(matrix: simd_float4x4) -> Bool {
 }
 
 private func makeMTLTextureFromImageAsset(
-    _ imageAsset: DDBridgeImageAsset,
+    _ imageAsset: WebBridgeImageAsset,
     device: MTLDevice,
     generateMips: Bool,
     overridePixelFormat: Bool = false
@@ -212,7 +212,7 @@ private func makeMTLTextureFromImageAsset(
 }
 
 private func makeTextureFromImageAsset(
-    _ imageAsset: DDBridgeImageAsset,
+    _ imageAsset: WebBridgeImageAsset,
     device: MTLDevice,
     renderContext: _Proto_LowLevelRenderContext_v1,
     commandQueue: MTLCommandQueue,
@@ -320,7 +320,7 @@ private class RenderTargetWrapper {
 
 @objc
 @implementation
-extension DDUSDConfiguration {
+extension WebUSDConfiguration {
     @nonobjc
     fileprivate let device: MTLDevice
     @nonobjc
@@ -387,10 +387,10 @@ extension DDUSDConfiguration {
     }
 }
 
-extension DDBridgeReceiver {
+extension WebBridgeReceiver {
     fileprivate func configureDeformation(
         identifier: _Proto_ResourceId,
-        deformationData: DDBridgeDeformationData,
+        deformationData: WebBridgeDeformationData,
         commandBuffer: MTLCommandBuffer
     ) {
         var deformers: [_Proto_LowLevelDeformerDescription_v1] = []
@@ -494,7 +494,7 @@ extension DDBridgeReceiver {
 
 @objc
 @implementation
-extension DDBridgeReceiver {
+extension WebBridgeReceiver {
     @nonobjc
     fileprivate let device: MTLDevice
     @nonobjc
@@ -575,9 +575,9 @@ extension DDBridgeReceiver {
     fileprivate var dontCaptureAgain: Bool = false
 
     init(
-        configuration: DDUSDConfiguration,
-        diffuseAsset: DDBridgeImageAsset,
-        specularAsset: DDBridgeImageAsset
+        configuration: WebUSDConfiguration,
+        diffuseAsset: WebBridgeImageAsset,
+        specularAsset: WebBridgeImageAsset
     ) throws {
         self.renderContext = configuration.renderContext
         self.renderWorkload = configuration.renderWorkload
@@ -699,7 +699,7 @@ extension DDBridgeReceiver {
     }
 
     @objc(updateTexture:)
-    func updateTexture(_ data: DDBridgeUpdateTexture) {
+    func updateTexture(_ data: WebBridgeUpdateTexture) {
         guard let asset = data.imageAsset else {
             logError("Image asset was nil")
             return
@@ -725,7 +725,7 @@ extension DDBridgeReceiver {
     }
 
     @objc(updateMaterial:completionHandler:)
-    func updateMaterial(_ data: consuming sending DDBridgeUpdateMaterial) async {
+    func updateMaterial(_ data: WebBridgeUpdateMaterial) async {
         logInfo("updateMaterial (pre-dispatch) \(data.identifier)")
         do {
             let identifier = data.identifier
@@ -763,7 +763,7 @@ extension DDBridgeReceiver {
     }
 
     @objc(updateMesh:completionHandler:)
-    func updateMesh(_ data: consuming sending DDBridgeUpdateMesh) async {
+    func updateMesh(_ data: WebBridgeUpdateMesh) async {
         let identifier = data.identifier
         logInfo("(update mesh) \(identifier) Material ids \(data.materialPrims)")
 
@@ -906,7 +906,7 @@ extension DDBridgeReceiver {
     }
 
     @objc
-    func setEnvironmentMap(_ imageAsset: DDBridgeImageAsset) {
+    func setEnvironmentMap(_ imageAsset: WebBridgeImageAsset) {
         do {
             guard let mtlTextureEquirectangular = makeMTLTextureFromImageAsset(imageAsset, device: device, generateMips: true) else {
                 fatalError("Could not make metal texture from environment asset data")
@@ -965,9 +965,9 @@ extension DDBridgeReceiver {
     }
 }
 
-private func webPartsFromParts(_ parts: [LowLevelMesh.Part]) -> [DDBridgeMeshPart] {
+private func webPartsFromParts(_ parts: [LowLevelMesh.Part]) -> [WebBridgeMeshPart] {
     parts.map({ a in
-        DDBridgeMeshPart(
+        WebBridgeMeshPart(
             indexOffset: a.indexOffset,
             indexCount: a.indexCount,
             topology: a.topology,
@@ -978,20 +978,20 @@ private func webPartsFromParts(_ parts: [LowLevelMesh.Part]) -> [DDBridgeMeshPar
     })
 }
 
-private func convert(_ m: _Proto_DataUpdateType_v1) -> DDBridgeDataUpdateType {
+private func convert(_ m: _Proto_DataUpdateType_v1) -> WebBridgeDataUpdateType {
     if m == .initial {
         return .initial
     }
     return .delta
 }
 
-private func webUpdateTextureRequestFromUpdateTextureRequest(_ request: _Proto_TextureDataUpdate_v1) -> DDBridgeUpdateTexture {
+private func webUpdateTextureRequestFromUpdateTextureRequest(_ request: _Proto_TextureDataUpdate_v1) -> WebBridgeUpdateTexture {
     // FIXME: remove placeholder code
     // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
     // swift-format-ignore: NeverForceUnwrap
     let descriptor = request.descriptor!
     let data = request.data
-    return DDBridgeUpdateTexture(
+    return WebBridgeUpdateTexture(
         imageAsset: .init(descriptor, data: data),
         identifier: request.identifier,
         hashString: request.hashString
@@ -1000,13 +1000,13 @@ private func webUpdateTextureRequestFromUpdateTextureRequest(_ request: _Proto_T
 
 private func webUpdateMeshRequestFromUpdateMeshRequest(
     _ request: _Proto_MeshDataUpdate_v1
-) -> DDBridgeUpdateMesh {
-    var descriptor: DDBridgeMeshDescriptor?
+) -> WebBridgeUpdateMesh {
+    var descriptor: WebBridgeMeshDescriptor?
     if let requestDescriptor = request.descriptor {
         descriptor = .init(requestDescriptor)
     }
 
-    return DDBridgeUpdateMesh(
+    return WebBridgeUpdateMesh(
         identifier: request.identifier,
         updateType: convert(request.updateType),
         descriptor: descriptor,
@@ -1022,13 +1022,13 @@ private func webUpdateMeshRequestFromUpdateMeshRequest(
 
 nonisolated func webUpdateMaterialRequestFromUpdateMaterialRequest(
     _ request: _Proto_MaterialDataUpdate_v1
-) -> DDBridgeUpdateMaterial {
-    DDBridgeUpdateMaterial(materialGraph: request.materialSourceArchive, identifier: request.identifier)
+) -> WebBridgeUpdateMaterial {
+    WebBridgeUpdateMaterial(materialGraph: request.materialSourceArchive, identifier: request.identifier)
 }
 
 final class USDModelLoader: _Proto_UsdStageSession_v1.Delegate {
     fileprivate let usdLoader: _Proto_UsdStageSession_v1
-    private let objcLoader: DDBridgeModelLoader
+    private let objcLoader: WebBridgeModelLoader
 
     @nonobjc
     private let dispatchSerialQueue: DispatchSerialQueue
@@ -1043,7 +1043,7 @@ final class USDModelLoader: _Proto_UsdStageSession_v1.Delegate {
     @nonobjc
     fileprivate var timeCodePerSecond: TimeInterval = 1
 
-    init(objcInstance: DDBridgeModelLoader) {
+    init(objcInstance: WebBridgeModelLoader) {
         objcLoader = objcInstance
         usdLoader = .init()
         dispatchSerialQueue = DispatchSerialQueue(label: "USDModelWebProcess", qos: .userInteractive)
@@ -1103,6 +1103,14 @@ final class USDModelLoader: _Proto_UsdStageSession_v1.Delegate {
         }
     }
 
+    func duration() -> Double {
+        if timeCodePerSecond > 0 {
+            return (endTime - startTime) / timeCodePerSecond
+        }
+
+        return 0.0
+    }
+
     func loadModel(from data: Data) {
     }
 
@@ -1115,15 +1123,15 @@ final class USDModelLoader: _Proto_UsdStageSession_v1.Delegate {
 
 @objc
 @implementation
-extension DDBridgeModelLoader {
+extension WebBridgeModelLoader {
     @nonobjc
     var loader: USDModelLoader?
     @nonobjc
-    var modelUpdated: ((DDBridgeUpdateMesh) -> (Void))?
+    var modelUpdated: ((WebBridgeUpdateMesh) -> (Void))?
     @nonobjc
-    var textureUpdatedCallback: ((DDBridgeUpdateTexture) -> (Void))?
+    var textureUpdatedCallback: ((WebBridgeUpdateTexture) -> (Void))?
     @nonobjc
-    var materialUpdatedCallback: ((DDBridgeUpdateMaterial) -> (Void))?
+    var materialUpdatedCallback: ((WebBridgeUpdateMaterial) -> (Void))?
 
     @nonobjc
     fileprivate var retainedRequests: Set<NSObject> = []
@@ -1140,9 +1148,9 @@ extension DDBridgeModelLoader {
         materialUpdatedCallback:
     )
     func setCallbacksWithModelUpdatedCallback(
-        _ modelUpdatedCallback: @escaping ((DDBridgeUpdateMesh) -> (Void)),
-        textureUpdatedCallback: @escaping ((DDBridgeUpdateTexture) -> (Void)),
-        materialUpdatedCallback: @escaping ((DDBridgeUpdateMaterial) -> (Void))
+        _ modelUpdatedCallback: @escaping ((WebBridgeUpdateMesh) -> (Void)),
+        textureUpdatedCallback: @escaping ((WebBridgeUpdateTexture) -> (Void)),
+        materialUpdatedCallback: @escaping ((WebBridgeUpdateMaterial) -> (Void))
     ) {
         self.modelUpdated = modelUpdatedCallback
         self.textureUpdatedCallback = textureUpdatedCallback
@@ -1164,21 +1172,29 @@ extension DDBridgeModelLoader {
         retainedRequests.remove(request)
     }
 
-    fileprivate func updateMesh(webRequest: DDBridgeUpdateMesh) {
+    @objc
+    func duration() -> Double {
+        guard let loader else {
+            return 0.0
+        }
+        return loader.duration()
+    }
+
+    fileprivate func updateMesh(webRequest: WebBridgeUpdateMesh) {
         if let modelUpdated {
             retainedRequests.insert(webRequest)
             modelUpdated(webRequest)
         }
     }
 
-    fileprivate func updateTexture(webRequest: DDBridgeUpdateTexture) {
+    fileprivate func updateTexture(webRequest: WebBridgeUpdateTexture) {
         if let textureUpdatedCallback {
             retainedRequests.insert(webRequest)
             textureUpdatedCallback(webRequest)
         }
     }
 
-    fileprivate func updateMaterial(webRequest: DDBridgeUpdateMaterial) {
+    fileprivate func updateMaterial(webRequest: WebBridgeUpdateMaterial) {
         if let materialUpdatedCallback {
             retainedRequests.insert(webRequest)
             materialUpdatedCallback(webRequest)
@@ -1186,7 +1202,7 @@ extension DDBridgeModelLoader {
     }
 }
 
-extension DDBridgeSkinningData {
+extension WebBridgeSkinningData {
     fileprivate func makeDeformerDescription(device: MTLDevice) -> _Proto_LowLevelDeformerDescription_v1 {
         // FIXME: https://bugs.webkit.org/show_bug.cgi?id=305857
         // swift-format-ignore: NeverForceUnwrap
@@ -1270,7 +1286,7 @@ extension DDBridgeSkinningData {
 #else
 @objc
 @implementation
-extension DDUSDConfiguration {
+extension WebUSDConfiguration {
     init(device: MTLDevice) {
     }
 
@@ -1281,11 +1297,11 @@ extension DDUSDConfiguration {
 
 @objc
 @implementation
-extension DDBridgeReceiver {
+extension WebBridgeReceiver {
     init(
-        configuration: DDUSDConfiguration,
-        diffuseAsset: DDBridgeImageAsset,
-        specularAsset: DDBridgeImageAsset
+        configuration: WebUSDConfiguration,
+        diffuseAsset: WebBridgeImageAsset,
+        specularAsset: WebBridgeImageAsset
     ) throws {
     }
 
@@ -1294,15 +1310,15 @@ extension DDBridgeReceiver {
     }
 
     @objc(updateTexture:)
-    func updateTexture(_ data: DDBridgeUpdateTexture) {
+    func updateTexture(_ data: WebBridgeUpdateTexture) {
     }
 
     @objc(updateMaterial:completionHandler:)
-    func updateMaterial(_ data: DDBridgeUpdateMaterial) async {
+    func updateMaterial(_ data: WebBridgeUpdateMaterial) async {
     }
 
     @objc(updateMesh:completionHandler:)
-    func updateMesh(_ data: DDBridgeUpdateMesh) async {
+    func updateMesh(_ data: WebBridgeUpdateMesh) async {
     }
 
     @objc(setTransform:)
@@ -1318,13 +1334,13 @@ extension DDBridgeReceiver {
     }
 
     @objc
-    func setEnvironmentMap(_ imageAsset: DDBridgeImageAsset) {
+    func setEnvironmentMap(_ imageAsset: WebBridgeImageAsset) {
     }
 }
 
 @objc
 @implementation
-extension DDBridgeModelLoader {
+extension WebBridgeModelLoader {
     override init() {
         super.init()
     }
@@ -1335,9 +1351,9 @@ extension DDBridgeModelLoader {
         materialUpdatedCallback:
     )
     func setCallbacksWithModelUpdatedCallback(
-        _ modelUpdatedCallback: @escaping ((DDBridgeUpdateMesh) -> (Void)),
-        textureUpdatedCallback: @escaping ((DDBridgeUpdateTexture) -> (Void)),
-        materialUpdatedCallback: @escaping ((DDBridgeUpdateMaterial) -> (Void))
+        _ modelUpdatedCallback: @escaping ((WebBridgeUpdateMesh) -> (Void)),
+        textureUpdatedCallback: @escaping ((WebBridgeUpdateTexture) -> (Void)),
+        materialUpdatedCallback: @escaping ((WebBridgeUpdateMaterial) -> (Void))
     ) {
     }
 
@@ -1351,6 +1367,11 @@ extension DDBridgeModelLoader {
 
     @objc
     func requestCompleted(_ request: NSObject) {
+    }
+
+    @objc
+    func duration() -> Double {
+        0.0
     }
 }
 #endif

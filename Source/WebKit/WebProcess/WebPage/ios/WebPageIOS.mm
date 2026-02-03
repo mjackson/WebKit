@@ -3472,7 +3472,7 @@ static void selectionPositionInformation(WebPage& page, const InteractionInforma
                 return InteractionInformationAtPosition::Selectability::UnselectableDueToMediaControls;
         }
 
-        if (hitNode->protectedDocument()->quirks().shouldAvoidStartingSelectionOnMouseDownOverPointerCursor(*hitNode))
+        if (protect(hitNode->document())->quirks().shouldAvoidStartingSelectionOnMouseDownOverPointerCursor(*hitNode))
             return InteractionInformationAtPosition::Selectability::UnselectableDueToUserSelectNoneOrQuirk;
 
         return InteractionInformationAtPosition::Selectability::Selectable;

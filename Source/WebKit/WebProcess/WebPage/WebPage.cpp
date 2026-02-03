@@ -3383,7 +3383,7 @@ void WebPage::pageStoppedScrolling()
 {
     // Maintain the current history item's scroll position up-to-date.
     if (RefPtr frame = m_mainFrame->coreLocalFrame())
-        frame->loader().history().saveScrollPositionAndViewStateToItem(frame->loader().history().protectedCurrentItem().get());
+        frame->loader().history().saveScrollPositionAndViewStateToItem(protect(frame->loader().history().currentItem()).get());
 }
 
 void WebPage::setHasActiveAnimatedScrolls(bool hasActiveAnimatedScrolls)
@@ -5380,7 +5380,7 @@ void WebPage::notifyReportObservers(FrameIdentifier frameID, Ref<WebCore::Report
     if (!coreFrame)
         return;
     if (RefPtr document = coreFrame->document())
-        document->protectedReportingScope()->notifyReportObservers(WTF::move(report));
+        protect(document->reportingScope())->notifyReportObservers(WTF::move(report));
 }
 
 void WebPage::sendReportToEndpoints(FrameIdentifier frameID, URL&& baseURL, const Vector<String>& endpointURIs, const Vector<String>& endpointTokens, IPC::FormDataReference&& reportData, WebCore::ViolationReportType reportType)
@@ -5683,7 +5683,7 @@ void WebPage::closeCurrentTypingCommand()
         return;
 
     if (RefPtr document = frame->document())
-        document->protectedEditor()->closeTyping();
+        protect(document->editor())->closeTyping();
 }
 
 void WebPage::setActivePopupMenu(WebPopupMenu* menu)
@@ -7788,7 +7788,7 @@ void WebPage::didSameDocumentNavigationForFrame(WebFrame& frame)
 {
     RefPtr<API::Object> userData;
 
-    auto navigationID = frame.coreLocalFrame()->loader().protectedDocumentLoader()->navigationID();
+    auto navigationID = protect(frame.coreLocalFrame()->loader().documentLoader())->navigationID();
 
     if (frame.isMainFrame())
         m_pendingNavigationID = std::nullopt;
@@ -8612,7 +8612,7 @@ void WebPage::insertAttachment(const String& identifier, std::optional<uint64_t>
 void WebPage::updateAttachmentAttributes(const String& identifier, std::optional<uint64_t>&& fileSize, const String& contentType, const String& fileName, const IPC::SharedBufferReference& associatedElementData, CompletionHandler<void()>&& callback)
 {
     if (RefPtr attachment = attachmentElementWithIdentifier(identifier)) {
-        attachment->protectedDocument()->updateLayout();
+        protect(attachment->document())->updateLayout();
         attachment->updateAttributes(WTF::move(fileSize), AtomString { contentType }, AtomString { fileName });
         attachment->updateAssociatedElementWithData(contentType, associatedElementData.isNull() ? WebCore::SharedBuffer::create() : associatedElementData.unsafeBuffer().releaseNonNull());
     }
@@ -9090,7 +9090,7 @@ void WebPage::requestTextRecognition(Element& element, TextRecognitionOptions&& 
         }
 
         auto cachedImage = renderImage->cachedImage();
-        auto imageURL = cachedImage ? weakElement->protectedDocument()->completeURL(cachedImage->url().string()) : URL { };
+        auto imageURL = cachedImage ? protect(weakElement->document())->completeURL(cachedImage->url().string()) : URL { };
         protectedPage->sendWithAsyncReply(Messages::WebPageProxy::RequestTextRecognition(WTF::move(imageURL), WTF::move(*bitmapHandle), options.sourceLanguageIdentifier, options.targetLanguageIdentifier), [webPage, weakElement, resolveAndRemoveHandlerFollowingError = WTF::move(resolveAndRemoveHandlerFollowingError)] (auto&& result) mutable {
             RefPtr protectedPage { webPage.get() };
             if (!protectedPage)
@@ -9339,7 +9339,7 @@ void WebPage::createAppHighlightInSelectedRange(WebCore::CreateNewGroupForHighli
     if (!selectionRange)
         return;
 
-    document->protectedAppHighlightRegistry()->addAnnotationHighlightWithRange(StaticRange::create(selectionRange.value()));
+    protect(document->appHighlightRegistry())->addAnnotationHighlightWithRange(StaticRange::create(selectionRange.value()));
     document->appHighlightStorage().storeAppHighlight(StaticRange::create(selectionRange.value()), [completionHandler = WTF::move(completionHandler), protectedThis = Ref { *this }, this] (WebCore::AppHighlight&& highlight) mutable {
         highlight.isNewGroup = m_internals->highlightIsNewGroup;
         highlight.requestOriginatedInApp = m_internals->highlightRequestOriginatedInApp;
@@ -9373,7 +9373,7 @@ void WebPage::setAppHighlightsVisibility(WebCore::HighlightVisibility appHighlig
         if (!localFrame)
             continue;
         if (RefPtr document = localFrame->document())
-            document->protectedAppHighlightRegistry()->setHighlightVisibility(appHighlightVisibility);
+            protect(document->appHighlightRegistry())->setHighlightVisibility(appHighlightVisibility);
     }
 }
 
@@ -9533,7 +9533,7 @@ bool WebPage::handlesPageScaleGesture()
 void WebPage::generateTestReport(String&& message, String&& group)
 {
     if (RefPtr localTopDocument = this->localTopDocument())
-        localTopDocument->protectedReportingScope()->generateTestReport(WTF::move(message), WTF::move(group));
+        protect(localTopDocument->reportingScope())->generateTestReport(WTF::move(message), WTF::move(group));
 }
 
 #if ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
@@ -10410,15 +10410,6 @@ void WebPage::hideCaptionDisplaySettingsPreview(HTMLMediaElementIdentifier ident
 #endif
 }
 #endif
-
-void WebPage::updateRemoteIntersectionObservers()
-{
-    if (RefPtr page = m_page) {
-        page->forEachDocument([] (Document& document) {
-            document.updateRemoteIntersectionObservers();
-        });
-    }
-}
 
 } // namespace WebKit
 

@@ -135,7 +135,7 @@ void WebFoundTextRangeController::findTextRangesForStringMatches(const String& s
     HashMap<WebCore::FrameIdentifier, Vector<WebFoundTextRange>> frameMatches;
     for (const auto& [foundTextRange, simpleRange] : WTF::zippedRange(webFoundTextRanges, validSimpleRanges)) {
         m_cachedFoundRanges.add(foundTextRange, simpleRange.makeWeakSimpleRange());
-        const auto frameID = simpleRange.startContainer().protectedDocument()->frame()->frameID();
+        const auto frameID = protect(simpleRange.startContainer().document())->frame()->frameID();
         auto& matches = frameMatches.ensure(frameID, createEmptyVector).iterator->value;
         matches.append(foundTextRange);
     }
@@ -191,10 +191,10 @@ void WebFoundTextRangeController::decorateTextRangeWithStyle(const WebFoundTextR
     if (auto simpleRange = simpleRangeFromFoundTextRange(range)) {
         switch (style) {
         case FindDecorationStyle::Normal:
-            simpleRange->start.protectedDocument()->checkedMarkers()->removeMarkers(*simpleRange, WebCore::DocumentMarkerType::TextMatch);
+            protect(simpleRange->start.document())->checkedMarkers()->removeMarkers(*simpleRange, WebCore::DocumentMarkerType::TextMatch);
             break;
         case FindDecorationStyle::Found: {
-            auto addedMarker = simpleRange->start.protectedDocument()->checkedMarkers()->addMarker(*simpleRange, WebCore::DocumentMarkerType::TextMatch);
+            auto addedMarker = protect(simpleRange->start.document())->checkedMarkers()->addMarker(*simpleRange, WebCore::DocumentMarkerType::TextMatch);
             if (!addedMarker)
                 m_unhighlightedFoundRanges.add(range);
             break;
@@ -213,7 +213,7 @@ void WebFoundTextRangeController::decorateTextRangeWithStyle(const WebFoundTextR
                 HashSet<WebFoundTextRange> rangesToRemove;
                 for (auto unhighlightedRange : m_unhighlightedFoundRanges) {
                     if (auto unhighlightedSimpleRange = simpleRangeFromFoundTextRange(unhighlightedRange)) {
-                        auto addedMarker = unhighlightedSimpleRange->start.protectedDocument()->checkedMarkers()->addMarker(*unhighlightedSimpleRange, WebCore::DocumentMarkerType::TextMatch);
+                        auto addedMarker = protect(unhighlightedSimpleRange->start.document())->checkedMarkers()->addMarker(*unhighlightedSimpleRange, WebCore::DocumentMarkerType::TextMatch);
                         if (addedMarker)
                             rangesToRemove.add(unhighlightedRange);
                     }

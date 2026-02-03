@@ -968,7 +968,7 @@ VisiblePosition previousLinePosition(const VisiblePosition& visiblePosition, Lay
     if (!node)
         return VisiblePosition();
     
-    node->protectedDocument()->updateLayoutIgnorePendingStylesheets();
+    protect(node->document())->updateLayoutIgnorePendingStylesheets();
     
     CheckedPtr renderer = node->renderer();
     if (!renderer)
@@ -1026,7 +1026,7 @@ VisiblePosition nextLinePosition(const VisiblePosition& visiblePosition, LayoutU
     if (!node)
         return VisiblePosition();
     
-    node->protectedDocument()->updateLayoutIgnorePendingStylesheets();
+    protect(node->document())->updateLayoutIgnorePendingStylesheets();
 
     if (!node->renderer())
         return VisiblePosition();

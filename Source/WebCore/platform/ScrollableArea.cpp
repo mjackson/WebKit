@@ -40,6 +40,7 @@
 #include "LayoutRect.h"
 #include "Logging.h"
 #include "PlatformWheelEvent.h"
+#include "ScrollAnchoringController.h"
 #include "ScrollAnimator.h"
 #include "ScrollbarTheme.h"
 #include "ScrollbarsControllerMock.h"

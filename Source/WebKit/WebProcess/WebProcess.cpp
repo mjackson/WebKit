@@ -2225,11 +2225,11 @@ void WebProcess::establishRemoteWorkerContextConnectionToNetworkProcess(RemoteWo
     switch (workerType) {
     case RemoteWorkerType::ServiceWorker:
         SWContextManager::singleton().setConnection(WebSWContextManagerConnection::create(WTF::move(ipcConnection), WTF::move(site), serviceWorkerPageIdentifier, pageGroupID, webPageProxyID, pageID, store, WTF::move(initializationData)));
-        SWContextManager::singleton().protectedConnection()->establishConnection(WTF::move(completionHandler));
+        protect(SWContextManager::singleton().connection())->establishConnection(WTF::move(completionHandler));
         break;
     case RemoteWorkerType::SharedWorker:
         SharedWorkerContextManager::singleton().setConnection(WebSharedWorkerContextManagerConnection::create(WTF::move(ipcConnection), WTF::move(site), pageGroupID, webPageProxyID, pageID, store, WTF::move(initializationData)));
-        SharedWorkerContextManager::singleton().protectedConnection()->establishConnection(WTF::move(completionHandler));
+        protect(SharedWorkerContextManager::singleton().connection())->establishConnection(WTF::move(completionHandler));
         break;
     }
 }

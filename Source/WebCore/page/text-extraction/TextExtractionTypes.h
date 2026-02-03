@@ -29,6 +29,7 @@
 #include <WebCore/CharacterRange.h>
 #include <WebCore/FloatRect.h>
 #include <WebCore/FloatSize.h>
+#include <WebCore/IntPoint.h>
 #include <WebCore/NodeIdentifier.h>
 #include <WebCore/WebKitJSHandle.h>
 #include <wtf/Forward.h>
@@ -124,6 +125,9 @@ struct TextItemData {
 
 struct ScrollableItemData {
     FloatSize contentSize;
+    IntPoint scrollPosition;
+    bool isRoot { false };
+    bool hasOverflowItems { false };
 };
 
 struct ImageItemData {
@@ -179,7 +183,6 @@ struct SelectData {
 };
 
 enum class ContainerType : uint8_t {
-    Root,
     ViewportConstrained,
     List,
     ListItem,

@@ -10,7 +10,7 @@ Page1 displayed first time.
 Page2 loaded
 Page2 displayed first time.
 Other page loaded
-Other displayed.
+Other page displayed.
 Popup loaded
 Popup pageshow: not-persisted
 Page2 loaded

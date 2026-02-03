@@ -467,7 +467,7 @@ NotificationData Notification::data() const
         m_tag,
         m_lang,
         m_direction,
-        context->protectedSecurityOrigin()->toString(),
+        protect(context->securityOrigin())->toString(),
         m_serviceWorkerRegistrationURL,
         identifier(),
         context->identifier(),

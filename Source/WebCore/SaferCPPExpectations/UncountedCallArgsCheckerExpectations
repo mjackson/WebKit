@@ -51,6 +51,7 @@ Modules/webaudio/OfflineAudioDestinationNode.cpp
 Modules/webaudio/OscillatorNode.cpp
 Modules/webaudio/PannerNode.cpp
 Modules/webaudio/ScriptProcessorNode.cpp
+Modules/webauthn/AuthenticatorResponse.cpp
 Modules/webcodecs/WebCodecsAudioData.cpp
 Modules/webcodecs/WebCodecsAudioInternalData.h
 Modules/webcodecs/WebCodecsVideoFrame.cpp
@@ -102,7 +103,6 @@ bindings/js/JSDOMBindingSecurity.cpp
 bindings/js/JSDOMBindingSecurity.h
 bindings/js/JSDOMBindingSecurityInlines.h
 bindings/js/JSDOMConvertBase.h
-bindings/js/JSDOMConvertBufferSource.h
 bindings/js/JSDOMConvertCallbacks.h
 bindings/js/JSDOMConvertEventListener.h
 bindings/js/JSDOMConvertNullable.h

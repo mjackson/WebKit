@@ -67,7 +67,7 @@ RenderBlock& RenderTreeBuilder::FormControls::findOrCreateParentForChild(RenderB
     if (innerRenderer)
         return *innerRenderer;
 
-    auto wrapper = Block::createAnonymousBlockWithStyle(parent.protectedDocument(), parent.style());
+    auto wrapper = Block::createAnonymousBlockWithStyle(protect(parent.document()), parent.style());
     innerRenderer = wrapper.get();
     m_builder.blockBuilder().attach(parent, WTF::move(wrapper), nullptr);
     parent.setInnerRenderer(*innerRenderer);

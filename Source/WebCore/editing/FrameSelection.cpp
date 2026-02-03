@@ -2008,7 +2008,7 @@ Color CaretBase::computeCaretColor(const RenderStyle& elementStyle, const Node* 
 #else
         auto cssColorValue = CSSValueAppleSystemBlue;
 #endif
-        auto styleColorOptions = node->protectedDocument()->styleColorOptions(&elementStyle);
+        auto styleColorOptions = protect(node->document())->styleColorOptions(&elementStyle);
         auto systemAccentColor = RenderTheme::singleton().systemColor(cssColorValue, styleColorOptions | StyleColorOptions::UseSystemAppearance);
 
         Style::ColorResolver colorResolver { elementStyle };
@@ -2507,7 +2507,7 @@ void FrameSelection::setFocusedElementIfNeeded(OptionSet<SetSelectionOption> opt
                 FocusOptions focusOptions;
                 if (options & SetSelectionOption::ForBindings)
                     focusOptions.trigger = FocusTrigger::Bindings;
-                document->protectedPage()->focusController().setFocusedElement(target.get(), document->protectedFrame().get(), focusOptions);
+                protect(document->page())->focusController().setFocusedElement(target.get(), document->protectedFrame().get(), focusOptions);
                 return;
             }
             target = target->parentOrShadowHostElement();
@@ -2516,7 +2516,7 @@ void FrameSelection::setFocusedElementIfNeeded(OptionSet<SetSelectionOption> opt
     }
 
     if (caretBrowsing)
-        document->protectedPage()->focusController().setFocusedElement(nullptr, document->protectedFrame().get());
+        protect(document->page())->focusController().setFocusedElement(nullptr, document->protectedFrame().get());
 }
 
 void DragCaretController::paintDragCaret(LocalFrame* frame, GraphicsContext& p, const LayoutPoint& paintOffset) const
@@ -2738,7 +2738,7 @@ void FrameSelection::setShouldShowBlockCursor(bool shouldShowBlockCursor)
 {
     m_shouldShowBlockCursor = shouldShowBlockCursor;
 
-    protectedDocument()->updateLayoutIgnorePendingStylesheets();
+    protect(document())->updateLayoutIgnorePendingStylesheets();
 
     updateAppearance();
 }

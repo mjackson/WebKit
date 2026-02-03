@@ -94,7 +94,6 @@
 #include "ProcessWarming.h"
 #include "RemoteFrame.h"
 #include "RenderLayerCompositor.h"
-#include "RenderObjectInlines.h"
 #include "RenderStyle+GettersInlines.h"
 #include "RenderTableCell.h"
 #include "RenderText.h"
@@ -250,7 +249,7 @@ LocalFrame::~LocalFrame()
     if (!loader->isComplete())
         loader->closeURL();
 
-    loader->clear(protectedDocument(), false);
+    loader->clear(protect(document()), false);
     checkedScript()->updatePlatformScriptObjects();
 
     // FIXME: We should not be doing all this work inside the destructor
@@ -299,7 +298,7 @@ void LocalFrame::setView(RefPtr<LocalFrameView>&& view)
     // notified. If we wait until the view is destroyed, then things won't be hooked up enough for
     // these calls to work.
     if (!view && m_doc && m_doc->backForwardCacheState() != Document::InBackForwardCache)
-        protectedDocument()->willBeRemovedFromFrame();
+        protect(document())->willBeRemovedFromFrame();
     
     if (RefPtr view = m_view)
         view->checkedLayoutContext()->unscheduleLayout();
@@ -334,7 +333,7 @@ void LocalFrame::setDocument(RefPtr<Document>&& newDocument)
     if (RefPtr previousDocument = m_doc) {
 #if ENABLE(ATTACHMENT_ELEMENT)
         for (Ref attachment : previousDocument->attachmentElementsByIdentifier().values())
-            protectedEditor()->didRemoveAttachmentElement(attachment);
+            protect(editor())->didRemoveAttachmentElement(attachment);
 #endif
 
         if (previousDocument->backForwardCacheState() != Document::InBackForwardCache)
@@ -438,7 +437,7 @@ void LocalFrame::invalidateContentEventRegionsIfNeeded(InvalidateContentEventReg
         return;
 
     if (RefPtr ownerElement = this->ownerElement())
-        ownerElement->protectedDocument()->invalidateEventRegionsForFrame(*ownerElement);
+        protect(ownerElement->document())->invalidateEventRegionsForFrame(*ownerElement);
 }
 
 #if ENABLE(ORIENTATION_EVENTS)
@@ -696,7 +695,7 @@ void LocalFrame::setPrinting(bool printing, FloatSize pageSize, FloatSize origin
     // See https://bugs.webkit.org/show_bug.cgi?id=43704
     ResourceCacheValidationSuppressor validationSuppressor(document->cachedResourceLoader());
 
-    protectedView()->adjustMediaTypeForPrinting(printing);
+    protect(view())->adjustMediaTypeForPrinting(printing);
 
     // FIXME: Consider invoking Page::updateRendering or an equivalent.
     document->styleScope().didChangeStyleSheetEnvironment();
@@ -878,7 +877,7 @@ void LocalFrame::clearTimers(LocalFrameView *view, Document *document)
 
 void LocalFrame::clearTimers()
 {
-    clearTimers(protectedView().get(), protectedDocument().get());
+    clearTimers(protect(view()).get(), protect(document()).get());
 }
 
 CheckedRef<ScriptController> LocalFrame::checkedScript()
@@ -946,7 +945,7 @@ VisiblePosition LocalFrame::visiblePositionForPoint(const IntPoint& framePoint) 
 
 HitTestResult LocalFrame::hitTestResultAtPoint(IntPoint point, OptionSet<HitTestRequest::Type> hitType)
 {
-    IntPoint pointInContents = protectedView()->windowToContents(point);
+    IntPoint pointInContents = protect(view())->windowToContents(point);
 
     if (hitType.isEmpty())
         return HitTestResult { pointInContents };
@@ -978,12 +977,12 @@ std::optional<SimpleRange> LocalFrame::rangeForPoint(const IntPoint& framePoint)
         return std::nullopt;
 
     if (auto previousCharacterRange = makeSimpleRange(position.previous(), position)) {
-        if (protectedEditor()->firstRectForRange(*previousCharacterRange).contains(framePoint))
+        if (protect(editor())->firstRectForRange(*previousCharacterRange).contains(framePoint))
             return *previousCharacterRange;
     }
 
     if (auto nextCharacterRange = makeSimpleRange(position, position.next())) {
-        if (protectedEditor()->firstRectForRange(*nextCharacterRange).contains(framePoint))
+        if (protect(editor())->firstRectForRange(*nextCharacterRange).contains(framePoint))
             return *nextCharacterRange;
     }
 
@@ -997,7 +996,7 @@ void LocalFrame::createView(const IntSize& viewportSize, const std::optional<Col
     bool isRootFrame = this->isRootFrame();
 
     if (isRootFrame && view())
-        protectedView()->setParentVisible(false);
+        protect(view())->setParentVisible(false);
 
     setView(nullptr);
 
@@ -1021,7 +1020,7 @@ void LocalFrame::createView(const IntSize& viewportSize, const std::optional<Col
     if (CheckedPtr ownerRenderer = this->ownerRenderer())
         ownerRenderer->setWidget(frameView);
 
-    protectedView()->setCanHaveScrollbars(scrollingMode() != ScrollbarMode::AlwaysOff);
+    protect(view())->setCanHaveScrollbars(scrollingMode() != ScrollbarMode::AlwaysOff);
 }
 
 LocalDOMWindow* LocalFrame::window() const
@@ -1072,7 +1071,7 @@ String LocalFrame::trackedRepaintRectsAsText() const
 {
     if (!m_view)
         return String();
-    return protectedView()->trackedRepaintRectsAsText();
+    return protect(view())->trackedRepaintRectsAsText();
 }
 
 void LocalFrame::setPageZoomFactor(float factor)
@@ -1098,7 +1097,7 @@ void LocalFrame::setPageAndTextZoomFactors(float pageZoomFactor, float textZoomF
     if (!document)
         return;
 
-    protectedEditor()->dismissCorrectionPanelAsIgnored();
+    protect(editor())->dismissCorrectionPanelAsIgnored();
 
     // Respect SVGs zoomAndPan="disabled" property in standalone SVG documents.
     // FIXME: How to handle compound documents + zoomAndPan="disabled"? Needs SVG WG clarification.
@@ -1135,15 +1134,10 @@ void LocalFrame::setPageAndTextZoomFactors(float pageZoomFactor, float textZoomF
 
 float LocalFrame::usedZoomForChild(const Frame& child) const
 {
-    CheckedPtr childOwnerRenderer = child.ownerRenderer();
-    if (!childOwnerRenderer)
-        return 1.0;
+    if (CheckedPtr ownerRenderer = child.ownerRenderer())
+        return ownerRenderer->style().usedZoom();
 
-    // Ensure |child| is a child of this frame.
-    ASSERT(child.tree().parent()->frameID() == frameID());
-    ASSERT(childOwnerRenderer->frame().frameID() == frameID());
-
-    return childOwnerRenderer->style().usedZoom();
+    return 1.0;
 }
 
 void LocalFrame::suspendActiveDOMObjectsAndAnimations()
@@ -1209,7 +1203,7 @@ FloatSize LocalFrame::screenSize() const
     if (m_overrideScreenSize)
         return m_overrideScreenSize->size;
 
-    auto defaultSize = screenRect(protectedView().get()).size();
+    auto defaultSize = screenRect(protect(view()).get()).size();
     RefPtr document = this->document();
     if (!document)
         return defaultSize;
@@ -1321,7 +1315,7 @@ void LocalFrame::documentURLOrOriginDidChange()
     RefPtr page = this->page();
     RefPtr document = this->document();
     if (page && document)
-        page->setMainFrameURLAndOrigin(document->url(), document->protectedSecurityOrigin());
+        page->setMainFrameURLAndOrigin(document->url(), protect(document->securityOrigin()));
 }
 
 void LocalFrame::dispatchLoadEventToParent()
@@ -1351,7 +1345,7 @@ void LocalFrame::frameWasDisconnectedFromOwner() const
     if (RefPtr window = m_doc->window())
         window->willDetachDocumentFromFrame();
 
-    protectedDocument()->detachFromFrame();
+    protect(document())->detachFromFrame();
 }
 
 void LocalFrame::storageAccessExceptionReceivedForDomain(const RegistrableDomain& domain)

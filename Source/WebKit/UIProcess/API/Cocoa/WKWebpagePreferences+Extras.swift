@@ -59,6 +59,9 @@ extension WKWebpagePreferences {
         if let isLockdownModeEnabled = wrapped.backingIsLockdownModeEnabled, self.isLockdownModeEnabled != isLockdownModeEnabled {
             self.isLockdownModeEnabled = isLockdownModeEnabled
         }
+
+        self.alternateRequest = wrapped.alternateRequest
+        self.overrideReferrer = wrapped.overrideReferrer
     }
 }
 

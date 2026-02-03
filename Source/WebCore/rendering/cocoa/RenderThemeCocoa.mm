@@ -310,7 +310,7 @@ void RenderThemeCocoa::paintFileUploadIconDecorations(const RenderElement&, cons
 
 Seconds RenderThemeCocoa::animationRepeatIntervalForProgressBar(const RenderProgress& renderer) const
 {
-    return renderer.protectedPage()->preferredRenderingUpdateInterval();
+    return protect(renderer.page())->preferredRenderingUpdateInterval();
 }
 
 #if ENABLE(APPLE_PAY)

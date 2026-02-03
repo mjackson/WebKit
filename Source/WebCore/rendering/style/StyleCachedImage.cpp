@@ -126,7 +126,7 @@ LegacyRenderSVGResourceContainer* StyleCachedImage::uncheckedRenderSVGResource(c
     }
 
     if (!m_cachedImage) {
-        auto fragmentIdentifier = SVGURIReference::fragmentIdentifierFromIRIString(m_url, renderer->protectedDocument());
+        auto fragmentIdentifier = SVGURIReference::fragmentIdentifierFromIRIString(m_url, protect(renderer->document()));
         return uncheckedRenderSVGResource(renderer->treeScopeForSVGReferences(), fragmentIdentifier);
     }
 

@@ -43,8 +43,6 @@ using namespace WebCore;
 inline static WKTextExtractionContainer containerType(TextExtraction::ContainerType type)
 {
     switch (type) {
-    case TextExtraction::ContainerType::Root:
-        return WKTextExtractionContainerRoot;
     case TextExtraction::ContainerType::ViewportConstrained:
         return WKTextExtractionContainerViewportConstrained;
     case TextExtraction::ContainerType::List:
@@ -148,6 +146,16 @@ inline static RetainPtr<WKTextExtractionItem> createItemWithChildren(const TextE
                 accessibilityRole:accessibilityRole.get()
                 nodeIdentifier:nodeIdentifier.get()]);
         }, [&](const TextExtraction::ScrollableItemData& data) -> RetainPtr<WKTextExtractionItem> {
+            if (data.isRoot) {
+                return adoptNS([[WKTextExtractionContainerItem alloc]
+                    initWithContainer:WKTextExtractionContainerRoot
+                    rectInWebView:rectInWebView
+                    children:children
+                    eventListeners:eventListeners
+                    ariaAttributes:ariaAttributes.get()
+                    accessibilityRole:accessibilityRole.get()
+                    nodeIdentifier:nodeIdentifier.get()]);
+            }
             return adoptNS([[WKTextExtractionScrollableItem alloc]
                 initWithContentSize:data.contentSize
                 rectInWebView:rectInWebView
@@ -257,12 +265,7 @@ static RetainPtr<WKTextExtractionItem> createItemRecursive(const TextExtraction:
 
 RetainPtr<WKTextExtractionItem> createItem(const TextExtraction::Item& item, RootViewToWebViewConverter&& converter)
 {
-    if (!std::holds_alternative<TextExtraction::ContainerType>(item.data)) {
-        ASSERT_NOT_REACHED();
-        return nil;
-    }
-
-    if (std::get<TextExtraction::ContainerType>(item.data) != TextExtraction::ContainerType::Root) {
+    if (auto data = item.dataAs<TextExtraction::ScrollableItemData>(); !data || !data->isRoot) {
         ASSERT_NOT_REACHED();
         return nil;
     }

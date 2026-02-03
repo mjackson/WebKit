@@ -261,7 +261,7 @@ void writeSVGPaintingFeatures(TextStream& ts, const RenderElement& renderer, Opt
         if (!element)
             return;
 
-        auto fragment = SVGURIReference::fragmentIdentifierFromIRIString(value, element->protectedDocument());
+        auto fragment = SVGURIReference::fragmentIdentifierFromIRIString(value, protect(element->document()));
         writeIfNotEmpty(ts, name, fragment);
     };
 

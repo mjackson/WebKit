@@ -102,6 +102,34 @@
                     "device": "Mac16,11",
                     "xcode": "Xcode 26.0.1-17A400"
                   },
+                  {
+                    "name": "bot10001",
+                    "platform": "mac-tahoe",
+                    "os": "macOS Tahoe 26.2-25C56",
+                    "device": "Mac16,11",
+                    "xcode": "Xcode 26.2-17C52"
+                  },
+                  {
+                    "name": "bot10002",
+                    "platform": "mac-tahoe",
+                    "os": "macOS Tahoe 26.2-25C56",
+                    "device": "Mac16,11",
+                    "xcode": "Xcode 26.2-17C52"
+                  },
+                  {
+                    "name": "bot10003",
+                    "platform": "mac-tahoe",
+                    "os": "macOS Tahoe 26.2-25C56",
+                    "device": "Mac16,11",
+                    "xcode": "Xcode 26.2-17C52"
+                  },
+                  {
+                    "name": "bot10004",
+                    "platform": "mac-tahoe",
+                    "os": "macOS Tahoe 26.2-25C56",
+                    "device": "Mac16,11",
+                    "xcode": "Xcode 26.2-17C52"
+                  },
 
                   { "name": "wincairo-debug-build-01", "platform": "win" },
                   { "name": "wincairo-debug-tests-01", "platform": "win" },
@@ -199,7 +227,7 @@
                       "tahoe-applesilicon-release-tests-test262", "tahoe-release-tests-wk2-accessibility-isolated-tree", 
                       "tahoe-release-tests-wk2-site-isolation-tree", "tahoe-release-world-leaks-tests"
                   ],
-                  "workernames": ["bot678"]
+                  "workernames": ["bot678", "bot10004"]
                   },
                   { "name": "Apple-Tahoe-Release-WK1-Tests", "factory": "TestWebKit1AllButJSCFactory",
                   "platform": "mac-tahoe", "configuration": "release", "architectures": ["x86_64", "arm64"],
@@ -214,7 +242,7 @@
                   { "name": "Apple-Tahoe-Release-AppleSilicon-WK2-Tests", "factory": "TestAllButJSCFactory",
                   "platform": "mac-tahoe", "configuration": "release", "architectures": ["x86_64", "arm64"],
                   "additionalArguments": ["--no-retry-failures"],
-                  "workernames": ["bot246"]
+                  "workernames": ["bot246", "bot10003"]
                   },
                   { "name": "Apple-Tahoe-Release-AppleSilicon-WK1-Tests", "factory": "TestWebKit1AllButJSCFactory",
                   "platform": "mac-tahoe", "configuration": "release", "architectures": ["x86_64", "arm64"],
@@ -250,7 +278,7 @@
                       "tahoe-debug-tests-wk1", "tahoe-debug-tests-wk2", "tahoe-debug-applesilicon-tests-wk1",
                       "tahoe-debug-applesilicon-tests-wk2"
                   ],
-                  "workernames": ["bot621"]
+                  "workernames": ["bot621", "bot10002"]
                   },
                   { "name": "Apple-Tahoe-Debug-WK1-Tests", "factory": "TestWebKit1AllButJSCFactory",
                   "platform": "mac-tahoe", "configuration": "debug", "architectures": ["x86_64", "arm64"],
@@ -270,7 +298,7 @@
                   { "name": "Apple-Tahoe-Debug-AppleSilicon-WK2-Tests", "factory": "TestAllButJSCFactory",
                   "platform": "mac-tahoe", "configuration": "debug", "architectures": ["x86_64", "arm64"],
                   "additionalArguments": ["--no-retry-failures"],
-                  "workernames": ["bot257"]
+                  "workernames": ["bot257", "bot10001"]
                   },
                   { "name": "Apple-Tahoe-LLINT-CLoop-BuildAndTest", "factory": "BuildAndTestLLINTCLoopFactory",
                   "platform": "mac-tahoe", "configuration": "debug", "architectures": ["x86_64", "arm64"],

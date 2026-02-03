@@ -189,6 +189,7 @@ void RuleSet::addRule(RuleData&& ruleData, CascadeLayerIdentifier cascadeLayerId
     const CSSSelector* customPseudoElementSelector = nullptr;
     const CSSSelector* slottedPseudoElementSelector = nullptr;
     const CSSSelector* partPseudoElementSelector = nullptr;
+    const CSSSelector* pickerPseudoElementSelector = nullptr;
     const CSSSelector* namedPseudoElementSelector = nullptr;
     const CSSSelector* otherPseudoElementSelector = nullptr;
 #if ENABLE(VIDEO)
@@ -230,6 +231,9 @@ void RuleSet::addRule(RuleData&& ruleData, CascadeLayerIdentifier cascadeLayerId
             break;
         case CSSSelector::Match::PseudoElement:
             switch (selector->pseudoElement()) {
+            case CSSSelector::PseudoElement::Picker:
+                pickerPseudoElementSelector = selector;
+                break;
             case CSSSelector::PseudoElement::UserAgentPart:
             case CSSSelector::PseudoElement::UserAgentPartLegacyAlias:
                 customPseudoElementSelector = selector;
@@ -331,17 +335,25 @@ void RuleSet::addRule(RuleData&& ruleData, CascadeLayerIdentifier cascadeLayerId
         return;
     }
 
-    if (customPseudoElementSelector) {
+    auto* userAgentPartSelector = customPseudoElementSelector ? customPseudoElementSelector : pickerPseudoElementSelector;
+    if (userAgentPartSelector) {
         // FIXME: Custom pseudo elements are handled by the shadow tree's selector filter. It doesn't know about the main DOM.
         ruleData.disableSelectorFiltering();
 
-        auto* nextSelector = customPseudoElementSelector->precedingInComplexSelector();
-        if (nextSelector && nextSelector->match() == CSSSelector::Match::PseudoElement && nextSelector->pseudoElement() == CSSSelector::PseudoElement::Part) {
+        auto* previousSelector = userAgentPartSelector->precedingInComplexSelector();
+        if (previousSelector && previousSelector->match() == CSSSelector::Match::PseudoElement && previousSelector->pseudoElement() == CSSSelector::PseudoElement::Part) {
             // Handle selectors like ::part(foo)::placeholder with the part codepath.
             m_partPseudoElementRules.append(ruleData);
             return;
         }
 
+        if (pickerPseudoElementSelector) [[unlikely]] {
+            // Look up useragentpart="picker(...)".
+            addToRuleSet(AtomString(makeString("picker("_s, pickerPseudoElementSelector->stringList()->at(0), ')')), m_userAgentPartRules, ruleData);
+            return;
+        }
+
+        ASSERT(customPseudoElementSelector);
         addToRuleSet(customPseudoElementSelector->value(), m_userAgentPartRules, ruleData);
 
 #if ENABLE(VIDEO)

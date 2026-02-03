@@ -42,6 +42,7 @@ namespace Layout {
 
 class ImplicitGrid;
 
+struct GridAreaSizes;
 struct UsedTrackSizes;
 struct UsedMargins;
 
@@ -69,13 +70,13 @@ private:
 
     UsedTrackSizes performGridSizingAlgorithm(const PlacedGridItems&, const TrackSizingFunctionsList&, const TrackSizingFunctionsList&, const GridFormattingContext::GridLayoutConstraints&, FreeSpaceScenario columnFreeSpaceScenario, FreeSpaceScenario rowFreeSpaceScenario) const;
 
-    std::pair<UsedInlineSizes, UsedBlockSizes> layoutGridItems(const PlacedGridItems&, const UsedTrackSizes&) const;
+    std::pair<UsedInlineSizes, UsedBlockSizes> layoutGridItems(const PlacedGridItems&, const GridAreaSizes&) const;
 
     static Vector<UsedMargins> computeInlineMargins(const PlacedGridItems&, const Style::ZoomFactor&);
     static Vector<UsedMargins> computeBlockMargins(const PlacedGridItems&, const Style::ZoomFactor&);
 
-    static BorderBoxPositions performInlineAxisSelfAlignment(const PlacedGridItems&, const Vector<UsedMargins>&);
-    static BorderBoxPositions performBlockAxisSelfAlignment(const PlacedGridItems&, const Vector<UsedMargins>&);
+    static BorderBoxPositions performInlineAxisSelfAlignment(const PlacedGridItems&, const Vector<UsedMargins>&, const Vector<LayoutUnit>& gridAreaInlineSizes);
+    static BorderBoxPositions performBlockAxisSelfAlignment(const PlacedGridItems&, const Vector<UsedMargins>&, const Vector<LayoutUnit>& gridAreaBlockSizes);
 
     const GridFormattingContext& formattingContext() const { return m_gridFormattingContext; }
 
