@@ -25,36 +25,13 @@
 
 #pragma once
 
-#include "JSGlobalObjectInlines.h"
 #include "JSMapIterator.h"
-#include "MapIteratorPrototype.h"
 
 namespace JSC {
 
 inline Structure* JSMapIterator::createStructure(VM& vm, JSGlobalObject* globalObject, JSValue prototype)
 {
     return Structure::create(vm, globalObject, prototype, TypeInfo(JSMapIteratorType, StructureFlags), info());
-}
-
-ALWAYS_INLINE bool JSMapIterator::isIteratorProtocolFastAndNonObservable()
-{
-    JSGlobalObject* globalObject = this->globalObject();
-    if (!globalObject->isMapPrototypeIteratorProtocolFastAndNonObservable())
-        return false;
-
-    VM& vm = globalObject->vm();
-    Structure* structure = this->structure();
-    // This is the fast case. Many map iterators will be an original map iterator.
-    if (structure == globalObject->mapIteratorStructure())
-        return true;
-
-    if (getPrototypeDirect() != globalObject->mapIteratorPrototype())
-        return false;
-
-    if (getDirectOffset(vm, vm.propertyNames->next) != invalidOffset)
-        return false;
-
-    return true;
 }
 
 } // namespace JSC

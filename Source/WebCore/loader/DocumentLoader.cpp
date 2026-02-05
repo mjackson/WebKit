@@ -1571,7 +1571,7 @@ void DocumentLoader::setNavigationID(NavigationIdentifier navigationID)
 void DocumentLoader::clearMainResourceLoader()
 {
     m_loadingMainResource = false;
-    m_isContinuingLoadAfterProvisionalLoadStarted = false;
+    m_isContinuingLoad = ShouldTreatAsContinuingLoad::No;
 
     RefPtr frameLoader = this->frameLoader();
 
@@ -2402,7 +2402,7 @@ void DocumentLoader::clearMainResource()
 #endif
 
     m_mainResource = nullptr;
-    m_isContinuingLoadAfterProvisionalLoadStarted = false;
+    m_isContinuingLoad = ShouldTreatAsContinuingLoad::No;
 
     unregisterReservedServiceWorkerClient();
 }

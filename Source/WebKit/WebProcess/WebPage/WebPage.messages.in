@@ -226,7 +226,7 @@ messages -> WebPage WantsAsyncDispatchMessage {
 
     SetCurrentHistoryItemForReattach(Ref<WebKit::FrameState> frameState)
 
-    DidRemoveBackForwardItem(WebCore::BackForwardItemIdentifier backForwardItemID)
+    DidRemoveBackForwardItem(WebCore::BackForwardFrameItemIdentifier backForwardFrameItemID)
 
     UpdateWebsitePolicies(struct WebKit::WebsitePoliciesData websitePolicies)
 
@@ -437,6 +437,8 @@ messages -> WebPage WantsAsyncDispatchMessage {
     UppercaseWord(WebCore::FrameIdentifier frameID)
     LowercaseWord(WebCore::FrameIdentifier frameID)
     CapitalizeWord(WebCore::FrameIdentifier frameID)
+    ConvertToTraditionalChinese(WebCore::FrameIdentifier frameID)
+    ConvertToSimplifiedChinese(WebCore::FrameIdentifier frameID)
 #endif
 #if PLATFORM(COCOA)
     SetSmartInsertDeleteEnabled(bool isSmartInsertDeleteEnabled)

@@ -315,6 +315,10 @@
 #include "APIApplicationManifest.h"
 #endif
 
+#if ENABLE(BACK_FORWARD_LIST_SWIFT)
+#include "WebBackForwardListSwiftUtilities.h"
+#endif
+
 #if PLATFORM(COCOA)
 #include "RemoteScrollingCoordinatorMessages.h"
 #include "RemoteScrollingCoordinatorProxy.h"
@@ -2670,7 +2674,11 @@ RefPtr<API::Navigation> WebPageProxy::goToBackForwardItem(WebBackForwardListFram
         launchProcess(Site { URL { item->url() } }, ProcessLaunchReason::InitialProcess);
 
         if (item != backForwardList().currentItem())
+#if ENABLE(BACK_FORWARD_LIST_SWIFT)
+            backForwardList().goToItem(&*item);
+#else
             backForwardList().goToItem(*item);
+#endif
     }
 
     Ref process = m_legacyMainFrameProcess;
@@ -5771,7 +5779,11 @@ SessionState WebPageProxy::sessionState(WTF::Function<bool (WebBackForwardListIt
     RELEASE_ASSERT(RunLoop::isMain());
     SessionState sessionState;
 
+#if ENABLE(BACK_FORWARD_LIST_SWIFT)
+    sessionState.backForwardListState = backForwardList().backForwardListState(WebBackForwardListItemFilter::create(WTF::move(filter)).ptr());
+#else
     sessionState.backForwardListState = backForwardList().backForwardListState(WTF::move(filter));
+#endif
 
     String provisionalURLString = internals().pageLoadState.pendingAPIRequestURL();
     if (provisionalURLString.isEmpty())
@@ -7229,6 +7241,12 @@ void WebPageProxy::didStartProvisionalLoadForFrameShared(Ref<WebProcessProxy>&& 
         m_pageLoadTiming = nullptr;
         m_pageLoadTimingPendingCommit = makeUnique<WebPageLoadTiming>(timestamp);
         m_generatePageLoadTimingTimer.stop();
+
+#if HAVE(SAFE_BROWSING)
+        for (auto& handler : std::exchange(m_deferredModalHandlers, { }))
+            handler(false);
+        m_isSafeBrowsingCheckInProgress = false;
+#endif
     }
 
     // If a provisional load has since been started in another process, ignore this message.
@@ -7608,7 +7626,11 @@ static OptionSet<CrossSiteNavigationDataTransfer::Flag> checkIfNavigationContain
 void WebPageProxy::didCommitLoadForFrame(IPC::Connection& connection, FrameIdentifier frameID, FrameInfoData&& frameInfo, ResourceRequest&& request, std::optional<WebCore::NavigationIdentifier> navigationID, String&& mimeType, bool frameHasCustomContentProvider, FrameLoadType frameLoadType, const CertificateInfo& certificateInfo, bool usedLegacyTLS, bool wasPrivateRelayed, String&& proxyName, const WebCore::ResourceResponseSource source, bool containsPluginDocument, HasInsecureContent hasInsecureContent, MouseEventPolicy mouseEventPolicy, DocumentSecurityPolicy&& documentSecurityPolicy, const UserData& userData)
 {
     LOG(Loading, "(Loading) WebPageProxy %" PRIu64 " didCommitLoadForFrame in navigation %" PRIu64, identifier().toUInt64(), navigationID ? navigationID->toUInt64() : 0);
+#if ENABLE(BACK_FORWARD_LIST_SWIFT)
+    LOG(BackForward, "(Back/Forward) After load commit, back/forward list is now:%s", std::string(backForwardList().loggingString()).data());
+#else
     LOG(BackForward, "(Back/Forward) After load commit, back/forward list is now:%s", backForwardList().loggingString().utf8().data());
+#endif
 
     RefPtr protectedPageClient { pageClient() };
 
@@ -8559,6 +8581,9 @@ void WebPageProxy::decidePolicyForNavigationAction(Ref<WebProcessProxy>&& proces
         message = WTF::move(message),
         frameInfo,
         protectedPageClient = protect(pageClient())
+#if HAVE(SAFE_BROWSING)
+        , shouldExpectSafeBrowsingResult
+#endif
     ] (PolicyAction policyAction, API::WebsitePolicies* policies, ProcessSwapRequestedByClient processSwapRequestedByClient, std::optional<NavigatingToAppBoundDomain> isAppBoundDomain, WasNavigationIntercepted wasNavigationIntercepted) mutable {
         WEBPAGEPROXY_RELEASE_LOG(Loading, "decidePolicyForNavigationAction: listener called: frameID=%" PRIu64 ", isMainFrame=%d, navigationID=%" PRIu64  ", policyAction=%" PUBLIC_LOG_STRING ", isAppBoundDomain=%d, wasNavigationIntercepted=%d", frame->frameID().toUInt64(), frame->isMainFrame(), navigation ? navigation->navigationID().toUInt64() : 0, toString(policyAction).characters(), !!isAppBoundDomain, wasNavigationIntercepted == WasNavigationIntercepted::Yes);
 
@@ -8639,16 +8664,25 @@ void WebPageProxy::decidePolicyForNavigationAction(Ref<WebProcessProxy>&& proces
                 protectedPageLoadState->setTitleFromBrowsingWarning(transaction, { });
 
                 switchOn(result, [&] (const URL& url) {
+#if HAVE(SAFE_BROWSING)
+                    protectedThis->completeSafeBrowsingCheckForModals(false);
+#endif
                     completionHandler(PolicyAction::Ignore);
                     protectedThis->loadRequest({ URL { url } });
                 }, [&protectedThis, &completionHandler, policyAction] (ContinueUnsafeLoad continueUnsafeLoad) {
                     switch (continueUnsafeLoad) {
                     case ContinueUnsafeLoad::No:
+#if HAVE(SAFE_BROWSING)
+                        protectedThis->completeSafeBrowsingCheckForModals(false);
+#endif
                         if (!protectedThis->hasCommittedAnyProvisionalLoads())
                             protectedThis->m_uiClient->close(protectedThis.ptr());
                         completionHandler(PolicyAction::Ignore);
                         break;
                     case ContinueUnsafeLoad::Yes:
+#if HAVE(SAFE_BROWSING)
+                        protectedThis->completeSafeBrowsingCheckForModals(true);
+#endif
                         completionHandler(policyAction);
                         break;
                     }
@@ -8657,6 +8691,10 @@ void WebPageProxy::decidePolicyForNavigationAction(Ref<WebProcessProxy>&& proces
             m_uiClient->didShowSafeBrowsingWarning();
             return;
         }
+#if HAVE(SAFE_BROWSING)
+        if (shouldExpectSafeBrowsingResult == ShouldExpectSafeBrowsingResult::Yes)
+            protectedThis->completeSafeBrowsingCheckForModals(true);
+#endif
         completionHandlerWrapper(policyAction);
 
     }, ShouldExpectSafeBrowsingResult::No, shouldExpectAppBoundDomainResult, shouldWaitForInitialLinkDecorationFilteringData, shouldWaitForSiteHasStorageCheck);
@@ -8938,16 +8976,25 @@ void WebPageProxy::decidePolicyForResponseShared(Ref<WebProcessProxy>&& process,
                 protectedPageLoadState->setTitleFromBrowsingWarning(transaction, { });
 
                 switchOn(result, [&] (const URL& url) {
+#if HAVE(SAFE_BROWSING)
+                    protectedThis->completeSafeBrowsingCheckForModals(false);
+#endif
                     completionHandler(PolicyAction::Ignore);
                     protectedThis->loadRequest(URL { url });
                 }, [&protectedThis, &completionHandler, policyAction] (ContinueUnsafeLoad continueUnsafeLoad) {
                     switch (continueUnsafeLoad) {
                     case ContinueUnsafeLoad::No:
+#if HAVE(SAFE_BROWSING)
+                        protectedThis->completeSafeBrowsingCheckForModals(false);
+#endif
                         if (!protectedThis->hasCommittedAnyProvisionalLoads())
                             protectedThis->m_uiClient->close(protectedThis.ptr());
                         completionHandler(PolicyAction::Ignore);
                         break;
                     case ContinueUnsafeLoad::Yes:
+#if HAVE(SAFE_BROWSING)
+                        protectedThis->completeSafeBrowsingCheckForModals(true);
+#endif
                         completionHandler(policyAction);
                         break;
                     }
@@ -8991,12 +9038,22 @@ void WebPageProxy::showBrowsingWarning(RefPtr<WebKit::BrowsingWarning>&& safeBro
         protectedPageLoadState->setTitleFromBrowsingWarning(transaction, { });
 
         switchOn(result, [protectedThis] (const URL& url) {
+#if HAVE(SAFE_BROWSING)
+            protectedThis->completeSafeBrowsingCheckForModals(false);
+#endif
             protectedThis->loadRequest(URL { url });
         }, [protectedThis] (ContinueUnsafeLoad continueUnsafeLoad) {
-            if (continueUnsafeLoad == ContinueUnsafeLoad::No)
+            if (continueUnsafeLoad == ContinueUnsafeLoad::No) {
+#if HAVE(SAFE_BROWSING)
+                protectedThis->completeSafeBrowsingCheckForModals(false);
+#endif
                 protectedThis->goBack();
-            else
+            } else {
+#if HAVE(SAFE_BROWSING)
+                protectedThis->completeSafeBrowsingCheckForModals(true);
+#endif
                 protect(protectedThis->pageClient())->clearBrowsingWarning();
+            }
         });
     });
     m_uiClient->didShowSafeBrowsingWarning();
@@ -9519,12 +9576,24 @@ void WebPageProxy::runJavaScriptAlert(IPC::Connection& connection, FrameIdentifi
             automationSession->willShowJavaScriptDialog(*this, message, std::nullopt);
     }
 
-    runModalJavaScriptDialog(WTF::move(frame), WTF::move(frameInfo), WTF::move(message), [reply = WTF::move(reply)](WebPageProxy& page, WebFrameProxy* frame, FrameInfoData&& frameInfo, String&& message, CompletionHandler<void()>&& completion) mutable {
-        page.m_uiClient->runJavaScriptAlert(page, WTF::move(message), frame, WTF::move(frameInfo), [reply = WTF::move(reply), completion = WTF::move(completion)]() mutable {
-            reply();
-            completion();
+    auto showModal = [protectedThis = Ref { *this }](RefPtr<WebFrameProxy>&& frame, FrameInfoData&& frameInfo, String&& message, CompletionHandler<void()>&& reply) mutable {
+        protectedThis->runModalJavaScriptDialog(WTF::move(frame), WTF::move(frameInfo), WTF::move(message), [reply = WTF::move(reply)](WebPageProxy& page, WebFrameProxy* frame, FrameInfoData&& frameInfo, String&& message, CompletionHandler<void()>&& completion) mutable {
+            page.m_uiClient->runJavaScriptAlert(page, WTF::move(message), frame, WTF::move(frameInfo), [reply = WTF::move(reply), completion = WTF::move(completion)]() mutable {
+                reply();
+                completion();
+            });
         });
+    };
+
+#if HAVE(SAFE_BROWSING)
+    deferModalUntilSafeBrowsingCompletes([protectedThis = Ref { *this }, frame = WTF::move(frame), frameInfo = WTF::move(frameInfo), message = WTF::move(message), reply = WTF::move(reply), showModal = WTF::move(showModal)](bool shouldShow) mutable {
+        if (!shouldShow)
+            return reply();
+        showModal(WTF::move(frame), WTF::move(frameInfo), WTF::move(message), WTF::move(reply));
     });
+#else
+    showModal(WTF::move(frame), WTF::move(frameInfo), WTF::move(message), WTF::move(reply));
+#endif
 }
 
 void WebPageProxy::runJavaScriptConfirm(IPC::Connection& connection, FrameIdentifier frameID, FrameInfoData&& frameInfo, String&& message, CompletionHandler<void(bool)>&& reply)
@@ -9543,12 +9612,24 @@ void WebPageProxy::runJavaScriptConfirm(IPC::Connection& connection, FrameIdenti
             automationSession->willShowJavaScriptDialog(*this, message, std::nullopt);
     }
 
-    runModalJavaScriptDialog(WTF::move(frame), WTF::move(frameInfo), WTF::move(message), [reply = WTF::move(reply)](WebPageProxy& page, WebFrameProxy* frame, FrameInfoData&& frameInfo, String&& message, CompletionHandler<void()>&& completion) mutable {
-        page.m_uiClient->runJavaScriptConfirm(page, WTF::move(message), frame, WTF::move(frameInfo), [reply = WTF::move(reply), completion = WTF::move(completion)](bool result) mutable {
-            reply(result);
-            completion();
+    auto showModal = [protectedThis = Ref { *this }](RefPtr<WebFrameProxy>&& frame, FrameInfoData&& frameInfo, String&& message, CompletionHandler<void(bool)>&& reply) mutable {
+        protectedThis->runModalJavaScriptDialog(WTF::move(frame), WTF::move(frameInfo), WTF::move(message), [reply = WTF::move(reply)](WebPageProxy& page, WebFrameProxy* frame, FrameInfoData&& frameInfo, String&& message, CompletionHandler<void()>&& completion) mutable {
+            page.m_uiClient->runJavaScriptConfirm(page, WTF::move(message), frame, WTF::move(frameInfo), [reply = WTF::move(reply), completion = WTF::move(completion)](bool result) mutable {
+                reply(result);
+                completion();
+            });
         });
+    };
+
+#if HAVE(SAFE_BROWSING)
+    deferModalUntilSafeBrowsingCompletes([protectedThis = Ref { *this }, frame = WTF::move(frame), frameInfo = WTF::move(frameInfo), message = WTF::move(message), reply = WTF::move(reply), showModal = WTF::move(showModal)](bool shouldShow) mutable {
+        if (!shouldShow)
+            return reply(false);
+        showModal(WTF::move(frame), WTF::move(frameInfo), WTF::move(message), WTF::move(reply));
     });
+#else
+    showModal(WTF::move(frame), WTF::move(frameInfo), WTF::move(message), WTF::move(reply));
+#endif
 }
 
 void WebPageProxy::runJavaScriptPrompt(IPC::Connection& connection, FrameIdentifier frameID, FrameInfoData&& frameInfo, String&& message, String&& defaultValue, CompletionHandler<void(const String&)>&& reply)
@@ -9567,12 +9648,24 @@ void WebPageProxy::runJavaScriptPrompt(IPC::Connection& connection, FrameIdentif
             automationSession->willShowJavaScriptDialog(*this, message, defaultValue);
     }
 
-    runModalJavaScriptDialog(WTF::move(frame), WTF::move(frameInfo), WTF::move(message), [reply = WTF::move(reply), defaultValue= WTF::move(defaultValue)](WebPageProxy& page, WebFrameProxy* frame, FrameInfoData&& frameInfo, String&& message, CompletionHandler<void()>&& completion) mutable {
-        page.m_uiClient->runJavaScriptPrompt(page, WTF::move(message), WTF::move(defaultValue), frame, WTF::move(frameInfo), [reply = WTF::move(reply), completion = WTF::move(completion)](auto& result) mutable {
-            reply(result);
-            completion();
+    auto showModal = [protectedThis = Ref { *this }](RefPtr<WebFrameProxy>&& frame, FrameInfoData&& frameInfo, String&& message, String&& defaultValue, CompletionHandler<void(const String&)>&& reply) mutable {
+        protectedThis->runModalJavaScriptDialog(WTF::move(frame), WTF::move(frameInfo), WTF::move(message), [reply = WTF::move(reply), defaultValue = WTF::move(defaultValue)](WebPageProxy& page, WebFrameProxy* frame, FrameInfoData&& frameInfo, String&& message, CompletionHandler<void()>&& completion) mutable {
+            page.m_uiClient->runJavaScriptPrompt(page, WTF::move(message), WTF::move(defaultValue), frame, WTF::move(frameInfo), [reply = WTF::move(reply), completion = WTF::move(completion)](auto& result) mutable {
+                reply(result);
+                completion();
+            });
         });
+    };
+
+#if HAVE(SAFE_BROWSING)
+    deferModalUntilSafeBrowsingCompletes([protectedThis = Ref { *this }, frame = WTF::move(frame), frameInfo = WTF::move(frameInfo), message = WTF::move(message), defaultValue = WTF::move(defaultValue), reply = WTF::move(reply), showModal = WTF::move(showModal)](bool shouldShow) mutable {
+        if (!shouldShow)
+            return reply({ });
+        showModal(WTF::move(frame), WTF::move(frameInfo), WTF::move(message), WTF::move(defaultValue), WTF::move(reply));
     });
+#else
+    showModal(WTF::move(frame), WTF::move(frameInfo), WTF::move(message), WTF::move(defaultValue), WTF::move(reply));
+#endif
 }
 
 void WebPageProxy::setStatusText(const String& text)
@@ -10481,12 +10574,20 @@ void WebPageProxy::requestDOMPasteAccess(IPC::Connection& connection, DOMPasteAc
 
 void WebPageProxy::backForwardAddItemShared(IPC::Connection& connection, Ref<FrameState>&& navigatedFrameState, LoadedWebArchive loadedWebArchive)
 {
+#if ENABLE(BACK_FORWARD_LIST_SWIFT)
+    backForwardList().backForwardAddItemShared(&connection, WTF::move(navigatedFrameState), loadedWebArchive);
+#else
     backForwardList().backForwardAddItemShared(connection, WTF::move(navigatedFrameState), loadedWebArchive);
+#endif
 }
 
 void WebPageProxy::backForwardGoToItemShared(BackForwardItemIdentifier itemID, CompletionHandler<void(const WebBackForwardListCounts&)>&& completionHandler)
 {
+#if ENABLE(BACK_FORWARD_LIST_SWIFT)
+    backForwardList().backForwardGoToItemShared(itemID, CompletionHandlers::WebBackForwardList::BackForwardGoToItemCompletionHandler::create(WTF::move(completionHandler)).ptr());
+#else
     backForwardList().backForwardGoToItemShared(itemID, WTF::move(completionHandler));
+#endif
 }
 
 void WebPageProxy::compositionWasCanceled()
@@ -10569,6 +10670,22 @@ void WebPageProxy::capitalizeWord()
     if (!targetFrameID)
         return;
     sendToProcessContainingFrame(targetFrameID, Messages::WebPage::CapitalizeWord(*targetFrameID));
+}
+
+void WebPageProxy::convertToTraditionalChinese()
+{
+    auto targetFrameID = focusedOrMainFrame() ? std::optional(focusedOrMainFrame()->frameID()) : std::nullopt;
+    if (!targetFrameID)
+        return;
+    sendToProcessContainingFrame(targetFrameID, Messages::WebPage::ConvertToTraditionalChinese(*targetFrameID));
+}
+
+void WebPageProxy::convertToSimplifiedChinese()
+{
+    auto targetFrameID = focusedOrMainFrame() ? std::optional(focusedOrMainFrame()->frameID()) : std::nullopt;
+    if (!targetFrameID)
+        return;
+    sendToProcessContainingFrame(targetFrameID, Messages::WebPage::ConvertToSimplifiedChinese(*targetFrameID));
 }
 #endif
 
@@ -13780,9 +13897,9 @@ void WebPageProxy::didFinishLoadingDataForCustomContentProvider(String&& suggest
         pageClient->didFinishLoadingDataForCustomContentProvider(ResourceResponseBase::sanitizeSuggestedFilename(WTF::move(suggestedFilename)), dataReference);
 }
 
-void WebPageProxy::backForwardRemovedItem(BackForwardItemIdentifier itemID)
+void WebPageProxy::backForwardRemovedItem(BackForwardFrameItemIdentifier frameItemID)
 {
-    send(Messages::WebPage::DidRemoveBackForwardItem(itemID));
+    send(Messages::WebPage::DidRemoveBackForwardItem(frameItemID));
 }
 
 void WebPageProxy::setCanRunModal(bool canRunModal)

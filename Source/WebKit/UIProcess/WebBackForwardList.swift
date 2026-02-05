@@ -29,6 +29,82 @@ internal import WebCore_Private
 internal import WebKit_Internal
 internal import wtf
 
+// A note on swift-format-ignore: NeverForceUnwrap:
+// This file currently aims to closely adhere to the C++ original which uses
+// RefPtr.get() and friends frequently; this is functionally similar to force
+// unwrapping so that's been retained.
+
+// rdar://164119356 may allow us to automate some of these conformances
+// using SWIFT_CONFORMS_TO_PROTOCOL
+extension WebKit.RefFrameState: CxxRef {
+    typealias Pointee = WebKit.FrameState
+}
+
+extension WebKit.RefWebBackForwardListItem: CxxRef {
+    typealias Pointee = WebKit.WebBackForwardListItem
+}
+
+extension WebKit.VectorRefFrameState: CxxRefVector {
+    typealias Element = WebKit.RefFrameState
+}
+
+extension WebKit.BackForwardListItemVector: CxxRefVector {
+    typealias Element = WebKit.RefWebBackForwardListItem
+}
+
+// Some of these utility functions would be better in WebBackForwardListSwiftUtilities.h
+// but can't be put there as we are unable to use swift::Array and swift::String
+// rdar://161270632
+
+// Temporary partial WTF logging support from Swift
+// rdar://168139823 is the task of exposing WebKit logging properly in Swift
+private func backForwardLog(_ msgCreator: @autoclosure () -> String) {
+    // rdar://133777029 likely will allow us to avoid the performance penalty
+    // of creating the string if logging is disabled.
+    let msg = msgCreator()
+
+    let span = msg.utf8CString.span
+    // Safety: the buffer pointer is guaranteed to be
+    // valid and null-terminated during the call to
+    // doLog
+    unsafe span.withUnsafeBufferPointer { ptr in
+        // swift-format-ignore: NeverForceUnwrap
+        unsafe doLog(ptr.baseAddress!)
+    }
+}
+
+private func loadingReleaseLog(_ msgCreator: @autoclosure () -> String) {
+    let msg = msgCreator()
+
+    let span = msg.utf8CString.span
+    // Safety: the buffer pointer is guaranteed to be
+    // valid and null-terminated during the call to
+    // doLoadingReleaseLog
+    unsafe span.withUnsafeBufferPointer { ptr in
+        // swift-format-ignore: NeverForceUnwrap
+        unsafe doLoadingReleaseLog(ptr.baseAddress!)
+    }
+}
+
+// Temporary partial MESSAGE_CHECK_BASE support from Swift
+// Idiomatic equivalent represented by rdar://168139740
+private func messageCheck(process: WebKit.RefWebProcessProxy, _ assertion: @autoclosure () -> Bool) -> Bool {
+    messageCheckCompletion(process: process, completionHandler: {}, assertion())
+}
+
+private func messageCheckCompletion(
+    process: WebKit.RefWebProcessProxy,
+    completionHandler: () -> Void,
+    _ assertion: @autoclosure () -> Bool
+) -> Bool {
+    if !assertion() {
+        messageCheckFailed(process)
+        completionHandler()
+        return true
+    }
+    return false
+}
+
 final class WebBackForwardList {
     private static let defaultCapacity = 100
 

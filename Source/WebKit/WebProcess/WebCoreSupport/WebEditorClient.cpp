@@ -507,6 +507,16 @@ void WebEditorClient::subFrameScrollPositionChanged()
 
 #endif
 
+#if PLATFORM(COCOA)
+
+bool WebEditorClient::shouldAllowSingleClickToChangeSelection(WebCore::Node& targetNode, const WebCore::VisibleSelection& newSelection) const
+{
+    RefPtr page = m_page.get();
+    return page ? page->shouldAllowSingleClickToChangeSelection(targetNode, newSelection) : false;
+}
+
+#endif // PLATFORM(COCOA)
+
 static bool getActionTypeForKeyEvent(KeyboardEvent* event, WKInputFieldActionType& type)
 {
     String key = event->keyIdentifier();

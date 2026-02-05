@@ -560,7 +560,9 @@ Ref<CSSValue> Builder::resolveInternalAutoBaseFunction(CSSValue& value)
     if (functionValue->name() != CSSValueInternalAutoBase)
         return value;
 
-    RefPtr result = const_cast<CSSValue*>(m_state->style().appearance() == StyleAppearance::Base ? functionValue->item(1) : functionValue->item(0));
+    // usedAppearance() is inaccurate at this stage of style resolution, check against both `appearance: base-select` & `appearance: base`.
+    bool isAppearanceBase = m_state->style().appearance() == StyleAppearance::Base || m_state->style().appearance() == StyleAppearance::BaseSelect;
+    RefPtr result = const_cast<CSSValue*>(isAppearanceBase ? functionValue->item(1) : functionValue->item(0));
 
     if (!result)
         return value;

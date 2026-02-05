@@ -1149,7 +1149,6 @@ private:
             setPrediction(SpecCellOther);
             break;
 
-        case GetRestLength:
         case ArrayIndexOf:
         case RegExpSearch: {
             setPrediction(SpecInt32Only);

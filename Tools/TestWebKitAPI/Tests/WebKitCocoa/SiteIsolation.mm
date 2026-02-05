@@ -810,6 +810,33 @@ TEST(SiteIsolation, NavigationAfterWindowOpen)
         Util::spinRunLoop();
 }
 
+TEST(SiteIsolation, CrossSiteIFrameWindowOpensMainFrameSite)
+{
+    HTTPServer server({
+        { "/example"_s, { "<iframe src='https://webkit.org/iframe'></iframe>"_s } },
+        { "/iframe"_s, { "<script>w = window.open('https://example.com/opened')</script>"_s } },
+        { "/opened"_s, { "hi"_s } }
+    }, HTTPServer::Protocol::HttpsProxy);
+
+    auto [opener, opened] = openerAndOpenedViews(server);
+
+    checkFrameTreesInProcesses(opener.webView.get(), {
+        { // example.com process
+            "https://example.com"_s, // Main frame
+            Vector<ExpectedFrameTree> { { RemoteFrame } } // Child frame
+        },
+        { // webkit.org process
+            RemoteFrame, // Main frame
+            Vector<ExpectedFrameTree> { { "https://webkit.org"_s } } // Child frame
+        }
+    });
+
+    checkFrameTreesInProcesses(opened.webView.get(), {
+        { RemoteFrame },
+        { "https://example.com"_s }
+    });
+}
+
 TEST(SiteIsolation, OpenBeforeInitialLoad)
 {
     HTTPServer server({

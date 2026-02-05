@@ -1657,7 +1657,7 @@ struct WKWebsiteData {
         return NO;
 
     dispatch_async(mainDispatchQueueSingleton(), ^{
-        WKWebsiteDataStore *dataStore = _WKWebsiteDataStoreBSActionHandler.shared->_webPushActionHandler.get()(webPushAction.get());
+        RetainPtr dataStore = _WKWebsiteDataStoreBSActionHandler.shared->_webPushActionHandler.get()(webPushAction.get());
         [dataStore _handleWebPushAction:webPushAction.get()];
     });
 
@@ -1676,7 +1676,7 @@ struct WKWebsiteData {
             continue;
         }
 
-        WKWebsiteDataStore *dataStoreForPushAction = _webPushActionHandler.get()(pushAction);
+        RetainPtr dataStoreForPushAction = _webPushActionHandler.get()(pushAction);
         if (dataStoreForPushAction) {
             [dataStoreForPushAction _handleWebPushAction:pushAction];
             if (action.canSendResponse)

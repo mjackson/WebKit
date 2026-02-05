@@ -98,7 +98,11 @@ namespace WebKit {
 
 class ViewSnapshot;
 class WebBackForwardList;
+#if ENABLE(BACK_FORWARD_LIST_SWIFT)
+class WebBackForwardListWrapper;
+#else
 using WebBackForwardListWrapper = WebBackForwardList;
+#endif
 class WebBackForwardListItem;
 class WebPageProxy;
 class WebProcessProxy;
@@ -234,7 +238,11 @@ private:
     void didStartProvisionalOrSameDocumentLoadForMainFrame();
 
 #if PLATFORM(COCOA)
+#if ENABLE(BACK_FORWARD_LIST_SWIFT)
+    std::optional<WebBackForwardList> backForwardListForNavigation() const;
+#else
     WebBackForwardList* backForwardListForNavigation() const;
+#endif
 #endif
 
     class SnapshotRemovalTracker : public CanMakeCheckedPtr<SnapshotRemovalTracker> {

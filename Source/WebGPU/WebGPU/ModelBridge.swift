@@ -24,7 +24,7 @@
 import Metal
 internal import WebGPU_Private.ModelTypes
 
-#if canImport(RealityCoreRenderer, _version: 6) && canImport(USDKit, _version: 34)
+#if canImport(RealityCoreRenderer, _version: 6) && canImport(USDStageKit, _version: 34)
 @_spi(RealityCoreRendererAPI) import RealityKit
 @_spi(UsdLoaderAPI) import _USDKit_RealityKit
 @_spi(SwiftAPI) import DirectResource
@@ -795,7 +795,7 @@ extension WebBridgeLiteral {
     }
 }
 
-#if canImport(RealityCoreRenderer, _version: 6) && canImport(USDKit, _version: 34)
+#if canImport(RealityCoreRenderer, _version: 6) && canImport(USDStageKit, _version: 34)
 
 internal func toData<T>(_ input: [T]) -> Data {
     unsafe input.withUnsafeBytes { bufferPointer in

@@ -960,7 +960,7 @@ void XMLDocumentParser::endElementNs()
             else
                 scriptElement->registerImportMap(ScriptSourceCode(scriptElement->scriptContent(), scriptElement->sourceTaintedOrigin(), URL(document()->url()), m_scriptStartPosition, JSC::SourceProviderSourceType::ImportMap));
         } else if (scriptElement->willBeParserExecuted() && scriptElement->loadableScript()) {
-            m_pendingScript = PendingScript::create(*scriptElement, *scriptElement->protectedLoadableScript());
+            m_pendingScript = PendingScript::create(*scriptElement, *protect(scriptElement->loadableScript()));
             RefPtr { m_pendingScript }->setClient(*this);
 
             // m_pendingScript will be nullptr if script was already loaded and setClient() executed it.

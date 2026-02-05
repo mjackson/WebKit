@@ -80,8 +80,8 @@ public:
 
     void rateChanged(OptionSet<WebCore::PlaybackSessionModel::PlaybackState> playbackState, double /* playbackRate */, double /* defaultPlaybackRate */) override
     {
-        if (auto *controller = m_parent.getAutoreleased())
-            controller.playing = playbackState.contains(WebCore::PlaybackSessionModel::PlaybackState::Playing);
+        if (RetainPtr controller = m_parent.getAutoreleased())
+            controller.get().playing = playbackState.contains(WebCore::PlaybackSessionModel::PlaybackState::Playing);
     }
 
     void isPictureInPictureSupportedChanged(bool) override
@@ -90,8 +90,8 @@ public:
 
     void pictureInPictureActiveChanged(bool active) override
     {
-        if (auto *controller = m_parent.getAutoreleased())
-            controller.pictureInPictureActive = active;
+        if (RetainPtr controller = m_parent.getAutoreleased())
+            controller.get().pictureInPictureActive = active;
     }
 
     void setInterface(WebCore::PlaybackSessionInterfaceIOS* interface)
@@ -410,7 +410,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
     _playbackClient.setInterface(playbackSessionInterface.get());
 
-    WebCore::PlaybackSessionModel* playbackSessionModel = playbackSessionInterface ? playbackSessionInterface->playbackSessionModel() : nullptr;
+    CheckedPtr playbackSessionModel = playbackSessionInterface ? playbackSessionInterface->playbackSessionModel() : nullptr;
     self.playing = playbackSessionModel ? playbackSessionModel->isPlaying() : NO;
     bool isPiPEnabled = false;
     if (RefPtr page = [self._webView _page].get())
@@ -909,7 +909,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     self._webView.frame = self.view.bounds;
     [_animatingView insertSubview:self._webView atIndex:0];
 
-    if (auto* manager = self._manager)
+    if (RefPtr<WebKit::WebFullScreenManagerProxy> manager = self._manager)
         manager->setFullscreenAutoHideDuration(Seconds(showHideAnimationDuration));
 
     [super viewWillAppear:animated];
@@ -1022,7 +1022,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
 - (RefPtr<WebCore::PlatformPlaybackSessionInterface>)_playbackSessionInterface
 {
-    auto page = [self._webView _page];
+    RefPtr page = [self._webView _page].get();
     if (!page)
         return nullptr;
 
@@ -1050,7 +1050,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     if (!interface)
         return;
 
-    auto model = interface->playbackSessionModel();
+    CheckedPtr model = interface->playbackSessionModel();
     if (!model)
         return;
 
@@ -1071,7 +1071,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     if (!playbackSessionInterface)
         return;
 
-    if (auto* playbackSessionModel = playbackSessionInterface->playbackSessionModel())
+    if (CheckedPtr playbackSessionModel = playbackSessionInterface->playbackSessionModel())
         playbackSessionModel->togglePictureInPicture();
 }
 
@@ -1122,7 +1122,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 - (void)_updateWebViewFullscreenInsets
 {
     ASSERT(_valid);
-    if (auto* manager = self._manager)
+    if (RefPtr<WebKit::WebFullScreenManagerProxy> manager = self._manager)
         manager->setFullscreenInsets(self._effectiveFullscreenInsets);
 }
 
@@ -1146,7 +1146,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         page->suspendActiveDOMObjectsAndAnimations();
     }
 
-    UIAlertAction* exitAction = [UIAlertAction actionWithTitle:WEB_UI_STRING_KEY("Exit Full Screen", "Exit Full Screen (Element Full Screen)", "Full Screen Deceptive Website Exit Action").createNSString().get() style:UIAlertActionStyleCancel handler:^(UIAlertAction * action) {
+    RetainPtr exitAction = [UIAlertAction actionWithTitle:WEB_UI_STRING_KEY("Exit Full Screen", "Exit Full Screen (Element Full Screen)", "Full Screen Deceptive Website Exit Action").createNSString().get() style:UIAlertActionStyleCancel handler:^(UIAlertAction * action) {
         [self _cancelAction:action];
         if (RefPtr page = self._webView._page.get()) {
             page->resumeActiveDOMObjectsAndAnimations();
@@ -1154,7 +1154,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         }
     }];
 
-    UIAlertAction* stayAction = [UIAlertAction actionWithTitle:WEB_UI_STRING_KEY("Stay in Full Screen", "Stay in Full Screen (Element Full Screen)", "Full Screen Deceptive Website Stay Action").createNSString().get() style:UIAlertActionStyleDefault handler:^(UIAlertAction * action) {
+    RetainPtr stayAction = [UIAlertAction actionWithTitle:WEB_UI_STRING_KEY("Stay in Full Screen", "Stay in Full Screen (Element Full Screen)", "Full Screen Deceptive Website Stay Action").createNSString().get() style:UIAlertActionStyleDefault handler:^(UIAlertAction * action) {
         if (RefPtr page = self._webView._page.get()) {
             page->resumeActiveDOMObjectsAndAnimations();
             page->resumeAllMediaPlayback([] { });
@@ -1162,8 +1162,8 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         _secheuristic.reset();
     }];
 
-    [alert addAction:exitAction];
-    [alert addAction:stayAction];
+    [alert addAction:exitAction.get()];
+    [alert addAction:stayAction.get()];
     [self presentViewController:alert.get() animated:YES completion:nil];
 }
 

@@ -167,6 +167,8 @@ private:
     WebCore::SecurityOriginData m_origin;
 };
 
+using RefPtrViewSnapshot = RefPtr<ViewSnapshot>;
+
 class ViewSnapshotStore {
     WTF_MAKE_NONCOPYABLE(ViewSnapshotStore);
     friend class ViewSnapshot;

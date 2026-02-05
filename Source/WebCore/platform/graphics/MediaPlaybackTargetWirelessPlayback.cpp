@@ -74,13 +74,13 @@ String MediaPlaybackTargetWirelessPlayback::deviceName() const
     return { };
 }
 
-void MediaPlaybackTargetWirelessPlayback::loadURL(const String& urlString, CompletionHandler<void(const MediaDeviceRouteLoadURLResult&)>&& completionHandler)
+void MediaPlaybackTargetWirelessPlayback::loadURL(const URL& url, CompletionHandler<void(const MediaDeviceRouteLoadURLResult&)>&& completionHandler)
 {
     RefPtr route = m_route;
     if (!route)
         return completionHandler(makeUnexpected(MediaDeviceRouteLoadURLError::NoRoute));
 
-    route->loadURL(urlString, WTF::move(completionHandler));
+    route->loadURL(url, WTF::move(completionHandler));
 }
 
 } // namespace WebCore

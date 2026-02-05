@@ -68,7 +68,7 @@ TextMarkerData::TextMarkerData(AXObjectCache& cache, const VisiblePosition& visi
     zeroBytes(*this);
     treeID = cache.treeID().toUInt64();
     auto position = visiblePosition.deepEquivalent();
-    auto optionalObjectID = nodeID(cache, position.protectedAnchorNode().get());
+    auto optionalObjectID = nodeID(cache, protect(position.anchorNode()).get());
     objectID = optionalObjectID ? optionalObjectID->toUInt64() : 0;
     offset = !visiblePosition.isNull() ? std::max(position.deprecatedEditingOffset(), 0) : 0;
     anchorType = position.anchorType();

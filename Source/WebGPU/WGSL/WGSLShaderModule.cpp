@@ -35,6 +35,14 @@ namespace WGSL {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ShaderModule);
 
+Result<ConstantValue> ShaderModule::ensureOverrideValue(const AST::Expression& expression, const HashMap<String, ConstantValue>& overrideValues) const
+{
+    auto maybeValue = evaluate(*this, expression, overrideValues);
+    if (!maybeValue)
+        return makeUnexpected(Error("Failed to evaluate override value"_s, expression.span()));
+    return { *maybeValue };
+}
+
 std::optional<Error> ShaderModule::validateOverrides(const PrepareResult& prepareResult, HashMap<String, ConstantValue>& overrideValues)
 {
     for (auto* variable : m_overrides) {
@@ -65,9 +73,9 @@ std::optional<Error> ShaderModule::validateOverrides(const PrepareResult& prepar
             continue;
         }
 
-        auto maybeValue = evaluate(*this, *initializer, overrideValues);
+        auto maybeValue = ensureOverrideValue(*initializer, overrideValues);
         if (!maybeValue)
-            return { Error("Failed to evaluate override value"_s, initializer->span()) };
+            return maybeValue.error();
 
         overrideValues.add(variable->name(), *maybeValue);
     }
@@ -86,7 +94,7 @@ void ShaderModule::initializeOverloads()
     #include "TypeOverloads.h" // NOLINT
 }
 
-OverloadedDeclaration* ShaderModule::lookupOverload(const String& name)
+const OverloadedDeclaration* ShaderModule::lookupOverload(const String& name) const
 {
     auto it = m_overloadedOperations.find(name);
     if (it == m_overloadedOperations.end())

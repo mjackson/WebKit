@@ -1754,7 +1754,7 @@ TEST_F(PointerLockTests, MouseDeviceMove)
     float deltaY = 5.0f;
     RetainPtr mouseInput = [fakeMouse() mouseInput];
     if (GCMouseMoved handler = [mouseInput mouseMovedHandler]) {
-        RetainPtr profile = dynamic_objc_cast<GCPhysicalInputProfile>(mouseInput);
+        RetainPtr profile = dynamic_objc_cast<GCPhysicalInputProfile>(mouseInput.get());
         dispatch_async([profile handlerQueue], ^{
             // Positive cursor movement is a move up, not down.
             handler(mouseInput.get(), deltaX, -deltaY);

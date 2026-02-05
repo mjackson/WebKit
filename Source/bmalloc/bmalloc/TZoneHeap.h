@@ -132,6 +132,11 @@ extern BEXPORT TZoneMallocFallback tzoneMallocFallback;
 using HeapRef = void*;
 using TZoneDescriptor = uint64_t;
 
+enum class TZoneCategory : uint8_t {
+    SizeAndAlignment,
+    BuiltinTypeDescriptor,
+};
+
 struct TZoneDescriptorHashTrait {
     static constexpr unsigned long hash(TZoneDescriptor descriptor)
     {
@@ -140,7 +145,84 @@ struct TZoneDescriptorHashTrait {
 };
 
 struct TZoneSpecification {
+private:
+    // The descriptor is encoded as follows:
+    //   width (bits):      2               21                    5                   36      => total 64 bits
+    //   content:      [ category ][ sizeClassDividedBy16 ][ alignmentLog2 ][ category defined hash ]
+    //
+    // category: holds the TZoneCategory enum.
+    // sizeClassDividedBy16: holds the sizeClass / 16.
+    //     Since all sizeClasses are multiples of 16, we can encode a sizeClass up to 32MB - 1.
+    // alignmentLog2: the alignment is computed as 2 to the power of alignmentLog2.
+    //     This allows us to encode up to an alignment of ~2MB.
+    // category defined hash: this field is defined by the category.
+    //     For example, TZoneCategory::BuiltinTypeDescriptor stores a hash generated from
+    //     the builtin type descriptor there.
+    //
+    // It is important that the sizeClass and alignment info is captured in descriptor
+    // without any aliasing. This ensures that the TZone group chosen using the descriptor
+    // is guaranteed to have buckets with iso heaps that cater to the correct size and alignment.
 
+    // Bit count of each field:
+    static constexpr unsigned numCategoryDefinedHashBits = 36;
+    static constexpr unsigned numAlignmentLog2Bits = 5;
+    static constexpr unsigned numSizeClassDividedBy16Bits = 21;
+    static constexpr unsigned numCategoryBits = 2;
+
+    static_assert(numCategoryBits + numSizeClassDividedBy16Bits + numAlignmentLog2Bits + numCategoryDefinedHashBits == 64);
+
+    // Bit shift for each field:
+    static constexpr unsigned categoryDefinedHashShift = 0;
+    static constexpr unsigned alignmentLog2Shift = categoryDefinedHashShift + numCategoryDefinedHashBits;
+    static constexpr unsigned sizeClassDividedBy16Shift = alignmentLog2Shift + numAlignmentLog2Bits;
+    static constexpr unsigned categoryShift = sizeClassDividedBy16Shift + numSizeClassDividedBy16Bits;
+
+    // Max value (non-inclusive) for each field:
+    static constexpr uint64_t categoryDefinedHashLimit = 1ull << numCategoryDefinedHashBits;
+    static constexpr size_t alignmentLimit = 1ull << (1 << numAlignmentLog2Bits); // pow(2, alignmentLog2)
+    static constexpr size_t sizeClassLimit = (1ull << numSizeClassDividedBy16Bits) * 16;
+    static constexpr unsigned categoryLimit = 1 << numCategoryBits;
+
+    template<typename T>
+    static constexpr bool usesBuiltinTypeDescriptor()
+    {
+        if (!BCOMPILER_HAS_CLANG_BUILTIN(__builtin_tmo_get_type_descriptor))
+            return false;
+        if constexpr (requires { std::remove_pointer_t<T>::usesBuiltinTypeDescriptorTZoneCategory; })
+            return std::remove_pointer_t<T>::usesBuiltinTypeDescriptorTZoneCategory;
+        return false;
+    }
+
+    template<typename T>
+    static constexpr TZoneDescriptor encodeDefaultDescriptor()
+    {
+        constexpr TZoneCategory category = encodeCategory<T>();
+        constexpr size_t sizeClass = TZone::sizeClass<T>();
+        constexpr uint64_t alignment = TZone::alignment<T>();
+
+        static_assert(static_cast<unsigned>(category) < categoryLimit);
+        static_assert(sizeClass < sizeClassLimit);
+        static_assert(alignment < alignmentLimit);
+        static_assert(isPowerOfTwo(alignment));
+
+        return encodeDefaultDescriptor(category, sizeClass, alignment);
+    }
+
+    template<typename T>
+    static constexpr uint64_t encodeBuiltinTypeDescriptorHash()
+    {
+#if BCOMPILER_HAS_CLANG_BUILTIN(__builtin_tmo_get_type_descriptor)
+        if constexpr (usesBuiltinTypeDescriptor<T>()) {
+            constexpr uint64_t descriptor = __builtin_tmo_get_type_descriptor(T);
+            constexpr uint64_t categoryDefinedHash = (descriptor >> 32) | (descriptor & UINT_MAX);
+            static_assert(categoryDefinedHash < categoryDefinedHashLimit);
+            return categoryDefinedHash;
+        }
+#endif
+        return 0;
+    }
+
+public:
     constexpr unsigned sizeClass() const { return TZone::sizeClassFor(size); }
 
     template<typename T>
@@ -162,21 +244,37 @@ struct TZoneSpecification {
     }
 
     template<typename T>
-    static constexpr TZoneDescriptor encodeDescriptor()
+    static constexpr TZoneCategory encodeCategory()
     {
-        size_t sizeClass = TZone::sizeClass<T>();
-        size_t alignment = TZone::alignment<T>();
-        return encodeDescriptor(sizeClass, alignment);
+        if constexpr (usesBuiltinTypeDescriptor<T>())
+            return TZoneCategory::BuiltinTypeDescriptor;
+        return TZoneCategory::SizeAndAlignment;
     }
 
-    static constexpr TZoneDescriptor encodeDescriptor(unsigned sizeClass, uint16_t alignment)
+    template<typename T>
+    static constexpr TZoneDescriptor encodeDescriptor()
     {
-        return (static_cast<uint64_t>(alignment) << 32) | sizeClass;
+        TZoneDescriptor descriptor = encodeDefaultDescriptor<T>();
+        if constexpr (encodeCategory<T>() == TZoneCategory::BuiltinTypeDescriptor)
+            descriptor |= encodeBuiltinTypeDescriptorHash<T>(); // Adding only the category defined hash.
+        return descriptor;
+    }
+
+    static constexpr TZoneDescriptor encodeDefaultDescriptor(TZoneCategory category, unsigned sizeClass, uint16_t alignment)
+    {
+        size_t sizeClassDividedBy16 = sizeClass / 16;
+        unsigned alignmentLog2 = log2(alignment);
+
+        uint64_t descriptor = static_cast<uint64_t>(category) << categoryShift;
+        descriptor |= static_cast<uint64_t>(sizeClassDividedBy16) << sizeClassDividedBy16Shift;
+        descriptor |= static_cast<uint64_t>(alignmentLog2) << alignmentLog2Shift;
+        return descriptor;
     }
 
     HeapRef* addressOfHeapRef;
     unsigned size;
     uint16_t alignment;
+    TZoneCategory category;
     CompactAllocationMode allocationMode;
     TZoneDescriptor descriptor;
 #if BUSE_TZONE_SPEC_NAME_ARG
@@ -266,6 +364,7 @@ private: \
             &s_heapRef, \
             TZoneSpecification::encodeSize<_type>(), \
             TZoneSpecification::encodeAlignment<_type>(), \
+            TZoneSpecification::encodeCategory<_type>(), \
             ::bmalloc::api::compactAllocationMode<_type>(), \
             TZoneSpecification::encodeDescriptor<_type>(), \
             TZONE_SPEC_NAME_ARG(#_type) \

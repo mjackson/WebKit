@@ -293,9 +293,11 @@ public:
 
     std::optional<Error> validateOverrides(const PrepareResult&, HashMap<String, ConstantValue>&);
 
-    OverloadedDeclaration* lookupOverload(const String&);
+    const OverloadedDeclaration* lookupOverload(const String&) const;
 
     void addOverride(AST::Variable& variable) { m_overrides.append(&variable); }
+
+    Result<ConstantValue> ensureOverrideValue(const AST::Expression&, const HashMap<String, ConstantValue>&) const;
 
 private:
     void initializeOverloads();

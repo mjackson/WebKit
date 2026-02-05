@@ -201,8 +201,6 @@ enum class ContainerType : uint8_t {
 using ItemData = Variant<ContainerType, TextItemData, ScrollableItemData, ImageItemData, SelectData, ContentEditableData, TextFormControlData, FormData, LinkItemData, IFrameData>;
 
 struct Item {
-    WTF_MAKE_STRUCT_TZONE_ALLOCATED_EXPORT(Item, WEBCORE_EXPORT);
-
     ItemData data;
     FloatRect rectInRootView;
     Vector<Item> children;
@@ -229,12 +227,19 @@ struct Item {
     }
 };
 
-struct PageItems {
-    Item mainFrameItem;
-    HashMap<FrameIdentifier, UniqueRef<Item>> subFrameItems;
+struct Result {
+    WTF_MAKE_STRUCT_TZONE_ALLOCATED_EXPORT(Result, WEBCORE_EXPORT);
+
+    Item rootItem;
+    unsigned visibleTextLength { 0 };
 };
 
-WEBCORE_EXPORT Item collatePageItems(PageItems&&);
+struct PageResults {
+    Result mainFrameResult;
+    HashMap<FrameIdentifier, UniqueRef<Result>> subFrameResults;
+};
+
+WEBCORE_EXPORT Result collatePageResults(PageResults&&);
 
 struct FilterRuleData {
     String name;

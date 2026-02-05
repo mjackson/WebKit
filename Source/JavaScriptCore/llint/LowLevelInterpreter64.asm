@@ -1441,29 +1441,6 @@ llintOpWithReturn(op_bitnot, OpBitnot, macro (size, get, dispatch, return)
 end)
 
 
-llintOp(op_overrides_has_instance, OpOverridesHasInstance, macro (size, get, dispatch)
-    get(m_dst, t3)
-
-    get(m_hasInstanceValue, t1)
-    loadConstantOrVariable(size, t1, t0)
-    loadp CodeBlock[cfr], t2
-    loadp CodeBlock::m_globalObject[t2], t2
-    loadp JSGlobalObject::m_functionProtoHasInstanceSymbolFunction[t2], t2
-    bqneq t0, t2, .opOverridesHasInstanceNotDefaultSymbol
-
-    get(m_constructor, t1)
-    loadConstantOrVariable(size, t1, t0)
-    tbz JSCell::m_flags[t0], ImplementsDefaultHasInstance, t1
-    orq ValueFalse, t1
-    storeq t1, [cfr, t3, 8]
-    dispatch()
-
-.opOverridesHasInstanceNotDefaultSymbol:
-    storeq ValueTrue, [cfr, t3, 8]
-    dispatch()
-end)
-
-
 llintOpWithReturn(op_is_empty, OpIsEmpty, macro (size, get, dispatch, return)
     get(m_operand, t1)
     loadConstantOrVariable(size, t1, t0)
@@ -3211,20 +3188,6 @@ llintOpWithMetadata(op_profile_control_flow, OpProfileControlFlow, macro (size, 
     loadp OpProfileControlFlow::Metadata::m_basicBlockLocation[t5], t0
     addq 1, BasicBlockLocation::m_executionCount[t0]
     dispatch()
-end)
-
-llintOpWithReturn(op_get_rest_length, OpGetRestLength, macro (size, get, dispatch, return)
-    loadi PayloadOffset + ArgumentCountIncludingThis[cfr], t0
-    subi 1, t0
-    getu(size, OpGetRestLength, m_numParametersToSkip, t1)
-    bilteq t0, t1, .storeZero
-    subi t1, t0
-    jmp .boxUp
-.storeZero:
-    move 0, t0
-.boxUp:
-    orq numberTag, t0
-    return(t0)
 end)
 
 llintOpWithMetadata(op_instanceof, OpInstanceof, macro (size, get, dispatch, metadata, return)

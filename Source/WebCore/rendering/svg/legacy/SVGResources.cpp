@@ -190,7 +190,7 @@ static inline CheckedPtr<LegacyRenderSVGResourceContainer> paintingResourceFromS
     if (!paintURL)
         return nullptr;
 
-    id = SVGURIReference::fragmentIdentifierFromIRIString(*paintURL, treeScope.protectedDocumentScope());
+    id = SVGURIReference::fragmentIdentifierFromIRIString(*paintURL, protect(treeScope.documentScope()));
     CheckedPtr container = getRenderSVGResourceContainerById(treeScope, id);
     if (!container) {
         hasPendingResource = true;

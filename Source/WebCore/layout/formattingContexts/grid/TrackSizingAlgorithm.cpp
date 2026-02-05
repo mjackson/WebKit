@@ -26,6 +26,7 @@
 #include "config.h"
 #include "TrackSizingAlgorithm.h"
 
+#include "GridLayoutUtils.h"
 #include "LayoutIntegrationUtils.h"
 #include "NotImplemented.h"
 #include "PlacedGridItem.h"
@@ -75,12 +76,17 @@ struct InflexibleTrackState {
     }
 };
 
+struct FrSizeComponents {
+    LayoutUnit baseSizeSum;
+    double flexFactorSum;
+};
+
 // https://drafts.csswg.org/css-grid-1/#algo-find-fr-size
 // Step 1-3: Compute Hypothetical fr Size
-static LayoutUnit computeHypotheticalFrSize(const UnsizedTracks& tracks, LayoutUnit spaceToFill, const InflexibleTrackState& state)
+static FrSizeComponents computeFRSizeComponents(const UnsizedTracks& tracks, const InflexibleTrackState& state)
 {
-    // Let leftover space be the space to fill minus the base sizes of the non-flexible grid tracks.
-    LayoutUnit leftoverSpace = spaceToFill;
+    // Sum the base sizes of the non-flexible grid tracks.
+    LayoutUnit baseSizeSum = 0;
     // Let flex factor sum be the sum of the flex factors of the flexible tracks.
     double flexFactorSum = 0.0;
 
@@ -88,26 +94,10 @@ static LayoutUnit computeHypotheticalFrSize(const UnsizedTracks& tracks, LayoutU
         if (state.isFlexible(index, track))
             flexFactorSum += track.trackSizingFunction.max.flex().value;
         else
-            leftoverSpace -= track.baseSize;
+            baseSizeSum += track.baseSize;
     }
 
-    // If leftover space is negative, the non-flexible tracks have already exceeded the space to fill; flex tracks should be sized to zero.
-    // https://www.w3.org/TR/css-grid-1/#grid-track-concept
-    if (leftoverSpace <= 0_lu)
-        return 0_lu;
-
-    // https://drafts.csswg.org/css-grid-1/#typedef-flex
-    // Values between 0fr and 1fr have a somewhat special behavior: when the sum of the
-    // flex factors is less than 1, they take up less than 100% of the leftover space.
-    // Handle this by clamping flex factor sum to at least 1.0. Thus, a grid with a single
-    // 0.5fr track will have a hypothetical fr size of leftoverSpace / 1.0, and the track will use
-    // (0.5 * leftoverSpace) total.
-    flexFactorSum = std::max(1.0, flexFactorSum);
-
-    // Let the hypothetical fr size be the leftover space divided by the flex factor sum.
-    LayoutUnit hypotheticalFrSize = leftoverSpace / LayoutUnit(flexFactorSum);
-
-    return hypotheticalFrSize;
+    return { baseSizeSum, flexFactorSum };
 }
 
 // https://drafts.csswg.org/css-grid-1/#algo-find-fr-size
@@ -176,7 +166,27 @@ static Vector<LayoutUnit> maxContentContributions(const PlacedGridItems& gridIte
     });
 }
 
-static void sizeTracksToFitNonSpanningItems(UnsizedTracks& unsizedTracks, const PlacedGridItems& gridItems, const PlacedGridItemSpanList& gridItemSpanList,
+static Vector<LayoutUnit> minimumContributions(const PlacedGridItems& gridItems, const ComputedSizesList& gridItemComputedSizesList,
+    const GridItemIndexes& gridItemIndexes, const IntegrationUtils& integrationUtils, const GridItemSizingFunctions& gridItemSizingFunctions)
+{
+    // The minimum contribution of an item is the smallest outer size it can have. Specifically,
+    return gridItemIndexes.map([&](size_t gridItemIndex) -> LayoutUnit {
+        // if the item’s computed preferred size behaves as auto or depends on the size of its
+        // containing block in the relevant axis, its minimum contribution is the outer size
+        // that would result from assuming the item’s used minimum size as its preferred size.
+        auto& preferredSize = gridItemComputedSizesList[gridItemIndex].preferredSize;
+        if (GridLayoutUtils::preferredSizeBehavesAsAuto(preferredSize) || GridLayoutUtils::preferredSizeDependsOnContainingBlockSize(preferredSize)) {
+            ASSERT_NOT_IMPLEMENTED_YET();
+            return { };
+        }
+        // else the item’s minimum contribution is its min-content contribution.
+        return gridItemSizingFunctions.minContentContribution(gridItems[gridItemIndex].layoutBox(), integrationUtils);
+    });
+}
+
+// https://drafts.csswg.org/css-grid-1/#algo-single-span-items
+static void sizeTracksToFitNonSpanningItems(UnsizedTracks& unsizedTracks, const PlacedGridItems& gridItems,
+    const ComputedSizesList& gridItemComputedSizesList, const PlacedGridItemSpanList& gridItemSpanList,
     const IntegrationUtils& integrationUtils, const GridItemSizingFunctions& gridItemSizingFunctions)
 {
     // For each track with an intrinsic track sizing function and not a flexible sizing function, consider the items in it with a span of 1:
@@ -205,8 +215,24 @@ static void sizeTracksToFitNonSpanningItems(UnsizedTracks& unsizedTracks, const 
                 return std::max({ }, std::ranges::max(itemContributions));
             },
             [&](const CSS::Keyword::Auto&) -> LayoutUnit {
-                ASSERT_NOT_IMPLEMENTED_YET();
-                return { };
+                auto isBeingSizedUnderMinOrMaxContentConstraint = [] {
+                    notImplemented();
+                    return false;
+                };
+                // If the track has an auto min track sizing function and the grid container
+                // is being sized under a min-/max-content constraint, set the track’s base
+                // size to the maximum of its items’ limited min-content
+                // contributions, floored at zero.
+                if (isBeingSizedUnderMinOrMaxContentConstraint()) {
+                    ASSERT_NOT_IMPLEMENTED_YET();
+                    return { };
+                }
+                // Otherwise, set the track’s base size to the maximum of its items’ minimum
+                // contributions, floored at zero.
+                auto contributions = minimumContributions(gridItems, gridItemComputedSizesList, singleSpanningItemsIndexes, integrationUtils, gridItemSizingFunctions);
+                if (contributions.isEmpty())
+                    return { };
+                return std::max({ }, std::ranges::max(contributions));
             },
             [&](const auto&) -> LayoutUnit {
                 ASSERT_NOT_REACHED();
@@ -256,7 +282,8 @@ static void sizeTracksToFitNonSpanningItems(UnsizedTracks& unsizedTracks, const 
 }
 
 // https://drafts.csswg.org/css-grid-1/#algo-content
-static void resolveIntrinsicTrackSizes(UnsizedTracks& unsizedTracks, const PlacedGridItems& gridItems, const PlacedGridItemSpanList& gridItemSpanList,
+static void resolveIntrinsicTrackSizes(UnsizedTracks& unsizedTracks, const PlacedGridItems& gridItems,
+    const ComputedSizesList& gridItemComputedSizesList, const PlacedGridItemSpanList& gridItemSpanList,
     const IntegrationUtils& integrationUtils, const GridItemSizingFunctions& gridItemSizingFunctions)
 {
     // 1. Shim baseline-aligned items so their intrinsic size contributions reflect their
@@ -267,7 +294,8 @@ static void resolveIntrinsicTrackSizes(UnsizedTracks& unsizedTracks, const Place
     UNUSED_VARIABLE(shimBaselineAlignedItems);
 
     // 2. Size tracks to fit non-spanning items.
-    sizeTracksToFitNonSpanningItems(unsizedTracks, gridItems, gridItemSpanList, integrationUtils, gridItemSizingFunctions);
+    sizeTracksToFitNonSpanningItems(unsizedTracks, gridItems, gridItemComputedSizesList, gridItemSpanList,
+        integrationUtils, gridItemSizingFunctions);
 
     // 3. Increase sizes to accommodate spanning items crossing content-sized tracks:
     // Next, consider the items with a span of 2 that do not span a track with a flexible
@@ -290,7 +318,11 @@ static void resolveIntrinsicTrackSizes(UnsizedTracks& unsizedTracks, const Place
     UNUSED_VARIABLE(setInfiniteGrowthLimitsToBaseSize);
 }
 
-TrackSizes TrackSizingAlgorithm::sizeTracks(const PlacedGridItems& gridItems, const PlacedGridItemSpanList& gridItemSpanList, const TrackSizingFunctionsList& trackSizingFunctions, std::optional<LayoutUnit> availableSpace, const GridItemSizingFunctions& gridItemSizingFunctions, FreeSpaceScenario freeSpaceScenario, const IntegrationUtils& integrationUtils)
+// https://drafts.csswg.org/css-grid-1/#algo-track-sizing
+TrackSizes TrackSizingAlgorithm::sizeTracks(const PlacedGridItems& gridItems, const ComputedSizesList& gridItemComputedSizesList,
+    const PlacedGridItemSpanList& gridItemSpanList, const TrackSizingFunctionsList& trackSizingFunctions,
+    std::optional<LayoutUnit> availableSpace, const GridItemSizingFunctions& gridItemSizingFunctions,
+    const IntegrationUtils& integrationUtils, const FreeSpaceScenario& freeSpaceScenario, const LayoutUnit& gapSize)
 {
     ASSERT(gridItems.size() == gridItemSpanList.size());
 
@@ -298,7 +330,7 @@ TrackSizes TrackSizingAlgorithm::sizeTracks(const PlacedGridItems& gridItems, co
     auto unsizedTracks = initializeTrackSizes(trackSizingFunctions);
 
     // 2. Resolve Intrinsic Track Sizes
-    resolveIntrinsicTrackSizes(unsizedTracks, gridItems, gridItemSpanList, integrationUtils, gridItemSizingFunctions);
+    resolveIntrinsicTrackSizes(unsizedTracks, gridItems, gridItemComputedSizesList, gridItemSpanList, integrationUtils, gridItemSizingFunctions);
 
     // 3. Maximize Tracks
     auto maximizeTracks = [] {
@@ -343,8 +375,8 @@ TrackSizes TrackSizingAlgorithm::sizeTracks(const PlacedGridItems& gridItems, co
         // https://drafts.csswg.org/css-grid-1/#algo-flex-tracks
         // Otherwise, if the free space is a definite length:
         // The used flex fraction is the result of finding the size of an fr using all of the
-        // grid tracks and a space to fill of the available grid space.
-        auto frSize = findSizeOfFr(unsizedTracks, *availableSpace);
+        // grid tracks and a space to fill of the available grid space (minus gutters).
+        auto frSize = findSizeOfFr(unsizedTracks, availableSpace.value(), gapSize);
 
         // For each flexible track, if the product of the used flex fraction and the track's flex factor is greater than the track's base size, set its base size to that product.
         for (auto& flexTrack : flexTracks) {
@@ -457,15 +489,41 @@ double TrackSizingAlgorithm::flexFactorSum(const FlexTracks& flexTracks)
 }
 
 // https://drafts.csswg.org/css-grid-1/#algo-find-fr-size
-LayoutUnit TrackSizingAlgorithm::findSizeOfFr(const UnsizedTracks& tracks, LayoutUnit spaceToFill)
+LayoutUnit TrackSizingAlgorithm::findSizeOfFr(const UnsizedTracks& tracks, const LayoutUnit& availableSpace, const LayoutUnit& gapSize)
 {
-    ASSERT(spaceToFill >= 0_lu);
+    ASSERT(availableSpace >= 0_lu);
+
+    // https://www.w3.org/TR/css-grid-1/#algo-terms
+    // free space = available grid space - sum of base sizes - gutters.
+    LayoutUnit totalGutters = tracks.size() > 1 ? gapSize * LayoutUnit(tracks.size() - 1) : 0_lu;
 
     InflexibleTrackState state;
+    FrSizeComponents components;
+    LayoutUnit freeSpace;
+    double flexFactorSum;
     LayoutUnit hypotheticalFrSize;
 
     while (true) {
-        hypotheticalFrSize = computeHypotheticalFrSize(tracks, spaceToFill, state);
+        components = computeFRSizeComponents(tracks, state);
+
+        // free space = available grid space - sum of base sizes - gutters.
+        freeSpace = availableSpace - components.baseSizeSum - totalGutters;
+
+        // If leftover space is negative, the non-flexible tracks have already exceeded the space to fill; flex tracks should be sized to zero.
+        // https://www.w3.org/TR/css-grid-1/#grid-track-concept
+        if (freeSpace <= 0_lu)
+            return 0_lu;
+
+        // https://drafts.csswg.org/css-grid-1/#typedef-flex
+        // Values between 0fr and 1fr have a somewhat special behavior: when the sum of the
+        // flex factors is less than 1, they take up less than 100% of the leftover space.
+        // Handle this by clamping flex factor sum to at least 1.0. Thus, a grid with a single
+        // 0.5fr track will have a hypothetical fr size of leftoverSpace / 1.0, and the track will use
+        // (0.5 * leftoverSpace) total.
+        flexFactorSum = std::max(1.0, components.flexFactorSum);
+
+        // Let the hypothetical fr size be the leftover space divided by the flex factor sum.
+        hypotheticalFrSize = freeSpace / LayoutUnit(flexFactorSum);
 
         // If the hypothetical fr size is valid for all flexible tracks, return that size.
         // Otherwise, restart the algorithm treating the invalid tracks as inflexible.

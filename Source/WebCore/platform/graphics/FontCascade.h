@@ -66,45 +66,8 @@ class TextRun;
 namespace DisplayList {
 class DisplayList;
 }
-    
+
 struct GlyphData;
-
-struct GlyphOverflow {
-    bool isEmpty() const
-    {
-        return !left && !right && !top && !bottom;
-    }
-
-    void extendTo(const GlyphOverflow& other)
-    {
-        left = std::max(left, other.left);
-        right = std::max(right, other.right);
-        top = std::max(top, other.top);
-        bottom = std::max(bottom, other.bottom);
-    }
-
-    void extendTop(float extendTo)
-    {
-        top = std::max(top, LayoutUnit(ceilf(extendTo)));
-    }
-
-    void extendBottom(float extendTo)
-    {
-        bottom = std::max(bottom, LayoutUnit(ceilf(extendTo)));
-    }
-
-    bool operator!=(const GlyphOverflow& other)
-    {
-        // FIXME: Probably should name this rather than making it the != operator since it ignores the value of computeBounds.
-        return left != other.left || right != other.right || top != other.top || bottom != other.bottom;
-    }
-
-    LayoutUnit left;
-    LayoutUnit right;
-    LayoutUnit top;
-    LayoutUnit bottom;
-    bool computeBounds { false };
-};
 
 #if USE(CORE_TEXT)
 AffineTransform computeBaseOverallTextMatrix(const std::optional<AffineTransform>& syntheticOblique);
@@ -178,7 +141,7 @@ public:
     TextAutospace textAutospace() const { return m_fontDescription.textAutospace(); }
     bool isFixedPitch() const;
     bool canTakeFixedPitchFastContentMeasuring() const;
-    
+
     bool enableKerning() const { return m_enableKerning; }
     bool requiresShaping() const { return m_requiresShaping; }
 
@@ -253,7 +216,7 @@ private:
     void adjustSelectionRectForSimpleText(const TextRun&, LayoutRect& selectionRect, unsigned from, unsigned to) const;
     void adjustSelectionRectForSimpleTextWithFixedPitch(const TextRun&, LayoutRect& selectionRect, unsigned from, unsigned to) const;
     float width(CodePath, const TextRun&, SingleThreadWeakHashSet<const Font>* fallbackFonts = nullptr, GlyphOverflow* = nullptr) const;
-    WEBCORE_EXPORT float widthForSimpleTextSlow(StringView text, TextDirection, float*) const;
+    WEBCORE_EXPORT float widthForSimpleTextSlow(StringView text, TextDirection, FontCascadeFonts::GlyphGeometryCacheEntry*) const;
     ALWAYS_INLINE bool canHandleRunAsSimpleText(const TextRun&, unsigned from, unsigned to) const;
 
     std::optional<GlyphData> getEmphasisMarkGlyphData(const AtomString&) const;
@@ -465,9 +428,9 @@ inline float FontCascade::widthForTextUsingSimplifiedMeasuring(StringView text, 
     if (text.isEmpty())
         return 0;
     ASSERT(codePath(TextRun(text)) != CodePath::Complex);
-    float* cacheEntry = fonts()->widthCache().add(text, std::numeric_limits<float>::quiet_NaN());
-    if (cacheEntry && !std::isnan(*cacheEntry))
-        return *cacheEntry;
+    auto* cacheEntry = fonts()->glyphGeometryCache().add(text, { });
+    if (cacheEntry && cacheEntry->width)
+        return *cacheEntry->width;
 
     return widthForSimpleTextSlow(text, textDirection, cacheEntry);
 }

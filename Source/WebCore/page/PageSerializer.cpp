@@ -212,7 +212,7 @@ void PageSerializer::serializeFrame(LocalFrame* frame)
             continue;
         // We have to process in-line style as it might contain some resources (typically background images).
         if (RefPtr styledElement = dynamicDowncast<StyledElement>(*element))
-            retrieveResourcesForProperties(styledElement->protectedInlineStyle().get(), document.get());
+            retrieveResourcesForProperties(protect(styledElement->inlineStyle()).get(), document.get());
 
         if (RefPtr imageElement = dynamicDowncast<HTMLImageElement>(*element)) {
             auto url = document->completeURL(imageElement->attributeWithoutSynchronization(HTMLNames::srcAttr));

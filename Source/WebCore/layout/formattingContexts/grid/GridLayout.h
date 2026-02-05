@@ -43,6 +43,7 @@ namespace Layout {
 class ImplicitGrid;
 
 struct GridAreaSizes;
+struct GridLayoutState;
 struct UsedTrackSizes;
 struct UsedMargins;
 
@@ -57,7 +58,7 @@ class GridLayout {
 public:
     GridLayout(const GridFormattingContext&);
 
-    std::pair<UsedTrackSizes, GridItemRects> layout(const GridFormattingContext::GridLayoutConstraints&, UnplacedGridItems&, const GridDefinition&);
+    std::pair<UsedTrackSizes, GridItemRects> layout(UnplacedGridItems&, const GridLayoutState&);
 
 private:
 
@@ -68,7 +69,7 @@ private:
 
     static TrackSizingFunctionsList trackSizingFunctions(size_t implicitGridTracksCount, const Vector<Style::GridTrackSize> gridTemplateTrackSizes);
 
-    UsedTrackSizes performGridSizingAlgorithm(const PlacedGridItems&, const TrackSizingFunctionsList&, const TrackSizingFunctionsList&, const GridFormattingContext::GridLayoutConstraints&, FreeSpaceScenario columnFreeSpaceScenario, FreeSpaceScenario rowFreeSpaceScenario) const;
+    UsedTrackSizes performGridSizingAlgorithm(const PlacedGridItems&, const TrackSizingFunctionsList&, const TrackSizingFunctionsList&, const GridLayoutConstraints&, FreeSpaceScenario columnFreeSpaceScenario, FreeSpaceScenario rowFreeSpaceScenario) const;
 
     std::pair<UsedInlineSizes, UsedBlockSizes> layoutGridItems(const PlacedGridItems&, const GridAreaSizes&) const;
 

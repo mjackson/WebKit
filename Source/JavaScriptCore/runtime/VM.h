@@ -1412,6 +1412,8 @@ namespace WTF {
 // lifetime threaded from JSC entrance. Until that, we explicitly suppress
 // Ref<VM> lifetime checking by using ThreadSafeRefCountedWithSuppressingSaferCPPChecking.
 template<> struct DefaultRefDerefTraits<JSC::VM> {
+    static constexpr bool isDefaultImplementation = false;
+
     static ALWAYS_INLINE JSC::VM* refIfNotNull(JSC::VM* ptr)
     {
         if (ptr) [[likely]]

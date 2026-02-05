@@ -1227,7 +1227,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
     configuration.get()._preventsSystemHTTPProxyAuthentication = parameters.preventsSystemHTTPProxyAuthentication;
     configuration.get()._requiresSecureHTTPSProxyConnection = parameters.requiresSecureHTTPSProxyConnection;
-    configuration.get().connectionProxyDictionary = RetainPtr { (NSDictionary *)parameters.proxyConfiguration.get()?: proxyDictionary(parameters.httpProxy, parameters.httpsProxy) }.get();
+    configuration.get().connectionProxyDictionary = parameters.proxyConfiguration ? RetainPtr { (NSDictionary *)parameters.proxyConfiguration.get() }.get() : proxyDictionary(parameters.httpProxy, parameters.httpsProxy).get();
 
 #if PLATFORM(IOS_FAMILY)
     if (!m_dataConnectionServiceType.isEmpty())
@@ -1403,11 +1403,11 @@ SessionWrapper& NetworkSessionCocoa::sessionWrapperForTask(std::optional<WebPage
 #if ENABLE(APP_BOUND_DOMAINS)
 SessionWrapper& NetworkSessionCocoa::appBoundSession(std::optional<WebPageProxyIdentifier> webPageProxyID, WebCore::StoredCredentialsPolicy storedCredentialsPolicy)
 {
-    auto& sessionSet = sessionSetForPage(webPageProxyID);
-    
-    if (!sessionSet.appBoundSession) {
-        sessionSet.appBoundSession = makeUnique<IsolatedSession>();
-        sessionSet.appBoundSession->checkedSessionWithCredentialStorage()->initialize(sessionSet.sessionWithCredentialStorage->session.get().configuration, *this, WebCore::StoredCredentialsPolicy::Use, NavigatingToAppBoundDomain::Yes);
+    Ref sessionSet = sessionSetForPage(webPageProxyID);
+
+    if (!sessionSet->appBoundSession) {
+        sessionSet->appBoundSession = makeUnique<IsolatedSession>();
+        sessionSet->appBoundSession->checkedSessionWithCredentialStorage()->initialize(sessionSet->sessionWithCredentialStorage->session.get().configuration, *this, WebCore::StoredCredentialsPolicy::Use, NavigatingToAppBoundDomain::Yes);
     }
 
     auto& sessionWrapper = [&](auto storedCredentialsPolicy) -> SessionWrapper& {
@@ -1415,7 +1415,7 @@ SessionWrapper& NetworkSessionCocoa::appBoundSession(std::optional<WebPageProxyI
         case WebCore::StoredCredentialsPolicy::Use:
         case WebCore::StoredCredentialsPolicy::DoNotUse:
             LOG(NetworkSession, "Using app-bound NSURLSession.");
-            return sessionSet.appBoundSession->sessionWithCredentialStorage.get();
+            return sessionSet->appBoundSession->sessionWithCredentialStorage.get();
         case WebCore::StoredCredentialsPolicy::EphemeralStateless:
             return initializeEphemeralStatelessSessionIfNeeded(webPageProxyID, NavigatingToAppBoundDomain::Yes);
         }

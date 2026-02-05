@@ -112,6 +112,8 @@ protected:
     void clearPendingEvents() { m_pendingEvents.clear(); }
 
 private:
+    using CompletionHandlerScope = Document::CompletionHandlerScope;
+
 #if !RELEASE_LOG_DISABLED
     const Logger& logger() const { return protectedDocument()->logger(); }
     uint64_t logIdentifier() const { return m_logIdentifier; }
@@ -147,8 +149,6 @@ private:
 #if !RELEASE_LOG_DISABLED
     const uint64_t m_logIdentifier;
 #endif
-
-    class CompletionHandlerScope;
 };
 
 }

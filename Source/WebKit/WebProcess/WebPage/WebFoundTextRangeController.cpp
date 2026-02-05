@@ -202,7 +202,7 @@ void WebFoundTextRangeController::decorateTextRangeWithStyle(const WebFoundTextR
         case FindDecorationStyle::Highlighted: {
             m_highlightedRange = range;
 
-            auto ancestorsRevealed = revealClosedDetailsAndHiddenUntilFoundAncestors(simpleRange->protectedStartContainer());
+            auto ancestorsRevealed = revealClosedDetailsAndHiddenUntilFoundAncestors(protect(simpleRange->startContainer()));
 
             if (m_findPageOverlay)
                 setTextIndicatorWithRange(*simpleRange);

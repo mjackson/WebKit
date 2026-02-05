@@ -229,11 +229,6 @@ void ProcessingInstruction::setXSLStyleSheet(const String& href, const URL& base
 }
 #endif
 
-RefPtr<StyleSheet> ProcessingInstruction::protectedSheet() const
-{
-    return m_sheet;
-}
-
 void ProcessingInstruction::parseStyleSheet(const String& sheet)
 {
     Ref styleSheet = *m_sheet;

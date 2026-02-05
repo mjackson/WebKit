@@ -1357,25 +1357,31 @@ void HTMLMediaElement::checkPlaybackTargetCompatibility()
     if (!m_isPlayingToWirelessTarget)
         return;
 
+    auto playbackTargetType = protectedMediaSession()->playbackTargetType();
+    ASSERT(playbackTargetType != MediaPlaybackTargetType::None);
+
     Ref player = *m_player;
-    if (player->supportedPlaybackTargetTypes().contains(protectedMediaSession()->playbackTargetType()))
+    if (playbackTargetType == MediaPlaybackTargetType::None || player->supportedPlaybackTargetTypes().contains(playbackTargetType))
         return;
 
-    auto tryToSwitchEngines = !m_remotePlaybackConfiguration && m_loadState == LoadingFromSourceElement;
-    if (tryToSwitchEngines) {
+#if ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)
+    if (!m_remotePlaybackConfiguration && playbackTargetType == MediaPlaybackTargetType::WirelessPlayback && m_loadState != WaitingForSource) {
         m_remotePlaybackConfiguration = { currentMediaTime(), playbackRate(), paused() };
-        tryToSwitchEngines = havePotentialSourceChild();
+        scheduleRebuildMediaEngineForWirelessPlayback();
+        return;
     }
+#endif
 
-    if (!tryToSwitchEngines) {
-        ERROR_LOG(LOGIDENTIFIER, "player incompatible, calling setShouldPlayToPlaybackTarget(false)");
-        m_failedToPlayToWirelessTarget = true;
-        m_remotePlaybackConfiguration = { };
-        player->setShouldPlayToPlaybackTarget(false);
+    if (!m_remotePlaybackConfiguration && m_loadState == LoadingFromSourceElement && havePotentialSourceChild()) {
+        m_remotePlaybackConfiguration = { currentMediaTime(), playbackRate(), paused() };
+        scheduleNextSourceChild();
         return;
     }
 
-    scheduleNextSourceChild();
+    ERROR_LOG(LOGIDENTIFIER, "player incompatible, calling setShouldPlayToPlaybackTarget(false)");
+    m_failedToPlayToWirelessTarget = true;
+    m_remotePlaybackConfiguration = { };
+    player->setShouldPlayToPlaybackTarget(false);
 #endif
 }
 
@@ -3888,13 +3894,13 @@ void HTMLMediaElement::seek(const MediaTime& time)
 
 void HTMLMediaElement::seekInternal(const MediaTime& time)
 {
-    ALWAYS_LOG(LOGIDENTIFIER, time);
+    HTMLMEDIAELEMENT_RELEASE_LOG(SEEKINTERNAL, time.toDouble());
     seekWithTolerance({ time, MediaTime::zeroTime(), MediaTime::zeroTime() }, false);
 }
 
 void HTMLMediaElement::seekWithTolerance(const SeekTarget& target, bool fromDOM)
 {
-    ALWAYS_LOG(LOGIDENTIFIER, "SeekTarget = ", target);
+    HTMLMEDIAELEMENT_RELEASE_LOG(SEEKWITHTOLERANCE, target.toString().utf8());
     // 4.8.10.9 Seeking
 
     // 1 - Set the media element's show poster flag to false.
@@ -4071,7 +4077,7 @@ void HTMLMediaElement::finishSeek()
     // 14 - Set the seeking IDL attribute to false.
     clearSeeking();
 
-    ALWAYS_LOG(LOGIDENTIFIER, "current time = ", currentMediaTime(), ", pending seek = ", !!m_pendingSeek);
+    HTMLMEDIAELEMENT_RELEASE_LOG(FINISHSEEK, currentMediaTime().toDouble(), !!m_pendingSeek);
 
     if (!m_pendingSeek) {
         // Don't update text track cues immediately because there are frequently several seeks in quick
@@ -5890,7 +5896,8 @@ void HTMLMediaElement::mediaPlayerTimeChanged()
             // then seek to the earliest possible position of the media resource and abort these steps when the direction of
             // playback is forwards,
             if (now >= dur && (now + dur) > MediaTime::zeroTime()) {
-                ALWAYS_LOG(LOGIDENTIFIER, "current time (", now, ") is greater then duration (", dur, "), looping");
+                HTMLMEDIAELEMENT_RELEASE_LOG(MEDIAPLAYERTIMECHANGED_LOOPING, now.toDouble(), dur.toDouble());
+
                 seekInternal(MediaTime::zeroTime());
             }
         } else if ((now <= MediaTime::zeroTime() && playbackRate < 0) || (now >= dur && playbackRate > 0)) {
@@ -6021,7 +6028,7 @@ void HTMLMediaElement::mediaPlayerMuteChanged()
 
 void HTMLMediaElement::mediaPlayerSeeked(const MediaTime&)
 {
-    ALWAYS_LOG(LOGIDENTIFIER);
+    HTMLMEDIAELEMENT_RELEASE_LOG(MEDIAPLAYERSEEKED);
 
 #if ENABLE(MEDIA_SOURCE)
     if (RefPtr mediaSource = m_mediaSource)
@@ -10275,6 +10282,55 @@ void HTMLMediaElement::canProduceAudioChanged()
     protectedMediaSession()->canProduceAudioChanged();
     updateSleepDisabling();
 }
+
+#if ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)
+
+void HTMLMediaElement::scheduleRebuildMediaEngineForWirelessPlayback()
+{
+    queueCancellableTaskKeepingObjectAlive(*this, TaskSource::MediaElement, m_resourceSelectionTaskCancellationGroup, [](auto& element) {
+        element.rebuildMediaEngineForWirelessPlayback();
+    });
+}
+
+static ContentType inferredContentTypeFromURL(const URL& url)
+{
+    ContentType contentType;
+
+    if (url.protocolIsData())
+        contentType = ContentType { mimeTypeFromDataURL(url.string()) };
+
+    if (contentType.isEmpty())
+        contentType = ContentType::fromURL(url);
+
+    if (contentType.isEmpty())
+        contentType = ContentType { applicationOctetStreamAtom() };
+
+    return contentType;
+}
+
+void HTMLMediaElement::rebuildMediaEngineForWirelessPlayback()
+{
+    setReadyState(MediaPlayer::ReadyState::HaveNothing);
+
+    switch (m_loadState) {
+    case WaitingForSource:
+        ASSERT_NOT_REACHED();
+        break;
+
+    case LoadingFromSrcAttr:
+        createMediaPlayer();
+        loadResource(currentSrc(), inferredContentTypeFromURL(currentSrc()));
+        break;
+
+    case LoadingFromSourceElement:
+        m_currentSourceNode = nullptr;
+        m_nextChildNodeToConsider = childrenOfType<HTMLSourceElement>(*this).first();
+        loadNextSourceChild();
+        break;
+    }
+}
+
+#endif // ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)
 
 } // namespace WebCore
 

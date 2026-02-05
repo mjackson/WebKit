@@ -6810,6 +6810,46 @@ class WebKitStyleTest(CppStyleTestBase):
         self.assert_lint('postTask([foo = checkedFoo(), bar](ScriptExecutionContext& context) {', '')
         self.assert_lint('postTask([foo = bar().checkedFoo(), bar](ScriptExecutionContext& context) {', '')
 
+        # Tests for protect() free function used in variable initialization (should warn)
+        self.assert_lint(
+            'auto foo = protect(m_foo);',
+            'Do not use protect() for variable initialization. Use the declared type (not auto) and remove the call to protect().  [safercpp/protected_getter_for_init] [4]',
+            'foo.cpp')
+
+        self.assert_lint(
+            'Ref foo = protect(m_foo);',
+            'Do not use protect() for variable initialization. Use the declared type (not auto) and remove the call to protect().  [safercpp/protected_getter_for_init] [4]',
+            'foo.cpp')
+
+        self.assert_lint(
+            'RefPtr foo = protect(m_foo);',
+            'Do not use protect() for variable initialization. Use the declared type (not auto) and remove the call to protect().  [safercpp/protected_getter_for_init] [4]',
+            'foo.cpp')
+
+        self.assert_lint(
+            'CheckedRef foo = protect(m_foo);',
+            'Do not use protect() for variable initialization. Use the declared type (not auto) and remove the call to protect().  [safercpp/protected_getter_for_init] [4]',
+            'foo.cpp')
+
+        self.assert_lint(
+            'CheckedPtr foo = protect(m_foo);',
+            'Do not use protect() for variable initialization. Use the declared type (not auto) and remove the call to protect().  [safercpp/protected_getter_for_init] [4]',
+            'foo.cpp')
+
+        self.assert_lint(
+            'if (RefPtr bar = protect(m_bar)) {',
+            'Do not use protect() for variable initialization. Use the declared type (not auto) and remove the call to protect().  [safercpp/protected_getter_for_init] [4]',
+            'foo.cpp')
+
+        # Valid uses of protect() - should NOT warn
+        self.assert_lint('protect(foo)->doSomething();', '', 'foo.cpp')
+        self.assert_lint('protect(foo).doSomething();', '', 'foo.cpp')
+        self.assert_lint('RefPtr foo = protect(bar())->foo();', '', 'foo.cpp')
+        self.assert_lint('someFunction(protect(foo));', '', 'foo.cpp')
+        self.assert_lint('return protect(m_foo);', '', 'foo.cpp')
+        self.assert_lint('postTask([foo = protect(m_foo)] {', '', 'foo.cpp')
+        self.assert_lint('postTask([foo = protect(m_foo), bar] {', '', 'foo.cpp')
+
     def test_ctype_fucntion(self):
         self.assert_lint(
             'int i = isascii(8);',

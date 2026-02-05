@@ -320,18 +320,4 @@ bool BrowsingContextGroup::hasRemotePages(const WebPageProxy& page)
     return it != m_remotePages.end() && !it->value.isEmpty();
 }
 
-bool BrowsingContextGroup::isFrameProcessInUseForMainFrame(const FrameProcess& process)
-{
-    for (Ref page : m_pages) {
-        RefPtr mainFrame = page->mainFrame();
-        if (!mainFrame)
-            continue;
-
-        if (&mainFrame->frameProcess() == &process)
-            return true;
-    }
-
-    return false;
-}
-
 } // namespace WebKit

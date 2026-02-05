@@ -125,10 +125,10 @@ public:
     id bridgingAutorelease();
 #endif
 
-    constexpr PtrType get() const LIFETIME_BOUND { return m_ptr; }
-    constexpr PtrType unsafeGet() const { return m_ptr; } // FIXME: Replace with get() then remove.
-    constexpr PtrType operator->() const LIFETIME_BOUND { return m_ptr; }
-    constexpr explicit operator PtrType() const LIFETIME_BOUND { return m_ptr; }
+    constexpr PtrType get() const LIFETIME_BOUND { return static_cast<PtrType>(const_cast<std::remove_const_t<std::remove_pointer_t<StorageType>>*>(m_ptr)); }
+    constexpr PtrType unsafeGet() const { return static_cast<PtrType>(const_cast<std::remove_const_t<std::remove_pointer_t<StorageType>>*>(m_ptr)); } // FIXME: Replace with get() then remove.
+    constexpr PtrType operator->() const LIFETIME_BOUND { return get(); }
+    constexpr operator PtrType() const LIFETIME_BOUND { return get(); }
     constexpr explicit operator bool() const { return m_ptr; }
 
     constexpr bool operator!() const { return !m_ptr; }
@@ -347,6 +347,9 @@ template<typename T> struct IsSmartPtr<RetainPtr<T>> {
     static constexpr bool value = true;
     static constexpr bool isNullable = true;
 };
+
+template<typename T> inline constexpr bool IsRetainPtr = false;
+template<typename T> inline constexpr bool IsRetainPtr<RetainPtr<T>> = true;
 
 template<typename P> struct HashTraits<RetainPtr<P>> : SimpleClassHashTraits<RetainPtr<P>> {
     static RetainPtr<P>::PtrType emptyValue() { return nullptr; }

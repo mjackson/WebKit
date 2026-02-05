@@ -26,7 +26,7 @@ internal import OSLog
 internal import WebGPU_Private.ModelTypes
 internal import simd
 
-#if canImport(RealityCoreRenderer, _version: 6) && canImport(USDKit, _version: 34)
+#if canImport(RealityCoreRenderer, _version: 6) && canImport(USDStageKit, _version: 34)
 @_spi(RealityCoreRendererAPI) import RealityKit
 @_spi(RealityCoreTextureProcessingAPI) import RealityCoreTextureProcessing
 @_spi(UsdLoaderAPI) import _USDKit_RealityKit
@@ -984,7 +984,7 @@ extension WebUSDConfiguration {
 
     @objc(initWithDevice:)
     init(device: MTLDevice) {
-        let renderTarget = _Proto_LowLevelRenderTarget_v1.Descriptor.texture(color: .bgra8Unorm, sampleCount: 4)
+        let renderTarget = _Proto_LowLevelRenderTarget_v1.Descriptor.texture(color: .bgra8Unorm_srgb, sampleCount: 4)
         self.renderTargetWrapper.descriptor = renderTarget
         self.device = device
         do {
@@ -997,7 +997,7 @@ extension WebUSDConfiguration {
     @objc(createMaterialCompiler:)
     func createMaterialCompiler() async {
         do {
-            try await self.appRenderer.createMaterialCompiler(renderTargetDescriptor: .texture(color: .bgra8Unorm, sampleCount: 4))
+            try await self.appRenderer.createMaterialCompiler(renderTargetDescriptor: .texture(color: .bgra8Unorm_srgb, sampleCount: 4))
         } catch {
             fatalError("Exception creating renderer \(error)")
         }
@@ -1655,6 +1655,8 @@ nonisolated func webUpdateMaterialRequestFromUpdateMaterialRequest(
 
 final class USDModelLoader: _Proto_UsdStageSession_v1.Delegate {
     fileprivate let usdLoader: _Proto_UsdStageSession_v1
+    fileprivate var stage: UsdStage?
+    fileprivate var data: Data?
     private let objcLoader: WebBridgeModelLoader
 
     @nonobjc
@@ -1730,12 +1732,34 @@ final class USDModelLoader: _Proto_UsdStageSession_v1.Delegate {
         }
     }
 
+    func loadModel(data: Foundation.Data) {
+        do {
+            self.data = data
+            // swift-format-ignore: NeverForceUnwrap
+            self.stage = try UsdStage.open(buffer: self.data!)
+            guard let stage = self.stage else {
+                logError("model data is corrupted")
+                return
+            }
+            self.timeCodePerSecond = stage.timeCodesPerSecond
+            self.startTime = stage.startTimeCode
+            self.endTime = stage.endTimeCode
+            self.usdLoader.loadStage(stage)
+        } catch {
+            fatalError(error.localizedDescription)
+        }
+    }
+
     func duration() -> Double {
         if timeCodePerSecond > 0 {
             return (endTime - startTime) / timeCodePerSecond
         }
 
         return 0.0
+    }
+
+    func currentTime() -> Double {
+        time - startTime
     }
 
     func loadModel(from data: Data) {
@@ -1790,6 +1814,11 @@ extension WebBridgeModelLoader {
     }
 
     @objc
+    func loadModel(_ data: Foundation.Data) {
+        self.loader?.loadModel(data: data)
+    }
+
+    @objc
     func update(_ deltaTime: Double) {
         self.loader?.update(deltaTime: deltaTime)
     }
@@ -1805,6 +1834,14 @@ extension WebBridgeModelLoader {
             return 0.0
         }
         return loader.duration()
+    }
+
+    @objc
+    func currentTime() -> Double {
+        guard let loader else {
+            return 0.0
+        }
+        return loader.currentTime()
     }
 
     fileprivate func updateMesh(webRequest: WebBridgeUpdateMesh) {
@@ -1989,6 +2026,10 @@ extension WebBridgeModelLoader {
     }
 
     @objc
+    func loadModel(_ data: Foundation.Data) {
+    }
+
+    @objc
     func update(_ deltaTime: Double) {
     }
 
@@ -1998,6 +2039,11 @@ extension WebBridgeModelLoader {
 
     @objc
     func duration() -> Double {
+        0.0
+    }
+
+    @objc
+    func currentTime() -> Double {
         0.0
     }
 }

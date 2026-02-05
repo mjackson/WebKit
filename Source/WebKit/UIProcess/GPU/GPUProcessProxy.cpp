@@ -773,7 +773,7 @@ void GPUProcessProxy::terminateWebProcess(WebCore::ProcessIdentifier webProcessI
 void GPUProcessProxy::didCreateContextForVisibilityPropagation(WebPageProxyIdentifier webPageProxyID, WebCore::PageIdentifier pageID, LayerHostingContextID contextID)
 {
     RELEASE_LOG(Process, "%p - GPUProcessProxy::didCreateContextForVisibilityPropagation: webPageProxyID: %" PRIu64 ", pagePID: %" PRIu64 ", contextID: %u", this, webPageProxyID.toUInt64(), pageID.toUInt64(), contextID);
-    auto page = WebProcessProxy::webPage(webPageProxyID);
+    RefPtr page = WebProcessProxy::webPage(webPageProxyID);
     if (!page) {
         RELEASE_LOG(Process, "%p - GPUProcessProxy::didCreateContextForVisibilityPropagation() No WebPageProxy with this identifier", this);
         return;
@@ -782,7 +782,7 @@ void GPUProcessProxy::didCreateContextForVisibilityPropagation(WebPageProxyIdent
         page->didCreateContextInGPUProcessForVisibilityPropagation(contextID);
         return;
     }
-    auto* provisionalPage = page->provisionalPageProxy();
+    RefPtr provisionalPage = page->provisionalPageProxy();
     if (provisionalPage && provisionalPage->webPageID() == pageID) {
         provisionalPage->didCreateContextInGPUProcessForVisibilityPropagation(contextID);
         return;

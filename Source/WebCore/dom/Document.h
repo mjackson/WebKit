@@ -35,6 +35,7 @@
 #include <WebCore/DocumentEnums.h>
 #include <WebCore/DocumentEventTiming.h>
 #include <WebCore/Element.h>
+#include <WebCore/ExceptionOr.h>
 #include <WebCore/FocusControllerTypes.h>
 #include <WebCore/FontSelectorClient.h>
 #include <WebCore/FrameDestructionObserver.h>
@@ -321,8 +322,6 @@ struct SystemPreviewInfo;
 class RTCPeerConnection;
 #endif
 
-template<typename> class ExceptionOr;
-
 enum class CollectionType : uint8_t;
 enum CSSPropertyID : uint16_t;
 enum class DidUpdateAnyContentRelevancy : bool;
@@ -514,6 +513,24 @@ public:
     using ContainerNode::ref;
     using ContainerNode::deref;
     using TreeScope::rootNode;
+
+#if ENABLE(FULLSCREEN_API) || ENABLE(MODEL_ELEMENT_IMMERSIVE)
+    class CompletionHandlerScope final {
+    public:
+        CompletionHandlerScope(CompletionHandler<void(ExceptionOr<void>)>&& completionHandler)
+            : m_completionHandler(WTF::move(completionHandler)) { }
+        CompletionHandlerScope(CompletionHandlerScope&&) = default;
+        CompletionHandlerScope& operator=(CompletionHandlerScope&&) = default;
+        ~CompletionHandlerScope()
+        {
+            if (m_completionHandler)
+                m_completionHandler({ });
+        }
+        CompletionHandler<void(ExceptionOr<void>)> release() { return WTF::move(m_completionHandler); }
+    private:
+        CompletionHandler<void(ExceptionOr<void>)> m_completionHandler;
+    };
+#endif
 
     bool canContainRangeEndPoint() const final { return true; }
 

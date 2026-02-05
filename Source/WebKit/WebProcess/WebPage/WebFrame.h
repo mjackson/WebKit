@@ -73,8 +73,8 @@ namespace TextExtraction {
 struct ExtractedText;
 struct InteractionDescription;
 struct Interaction;
-struct Item;
 struct Request;
+struct Result;
 }
 
 enum class FocusDirection : uint8_t;
@@ -287,7 +287,7 @@ public:
     void disconnectInspector();
     void sendMessageToInspectorTarget(const String& message);
 
-    void requestTextExtraction(WebCore::TextExtraction::Request&&, CompletionHandler<void(WebCore::TextExtraction::Item&&)>&&);
+    void requestTextExtraction(WebCore::TextExtraction::Request&&, CompletionHandler<void(WebCore::TextExtraction::Result&&)>&&);
     void handleTextExtractionInteraction(WebCore::TextExtraction::Interaction&&, CompletionHandler<void(bool, String&&)>&&);
     void describeTextExtractionInteraction(WebCore::TextExtraction::Interaction&&, CompletionHandler<void(WebCore::TextExtraction::InteractionDescription&&)>&&);
     void takeSnapshotOfExtractedText(WebCore::TextExtraction::ExtractedText&&, CompletionHandler<void(RefPtr<WebCore::TextIndicator>&&)>&&);

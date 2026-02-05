@@ -273,19 +273,18 @@ RTCStatsReport::TransportStats RTCStatsReport::TransportStats::convert(const Gst
     auto getDtlsRole = [&] -> std::optional<DtlsRole> {
     // https://gitlab.freedesktop.org/gstreamer/gstreamer/-/commit/9e38ee7526ecbb12320d1aef29a0c74b815eb4ef
 #if GST_CHECK_VERSION(1, 28, 0)
-        if (gst_structure_has_field_typed(structure, "dtls-role", GST_TYPE_WEBRTC_DTLS_ROLE)) {
-            GstWebRTCDTLSRole role;
-            gst_structure_get(structure, "dtls-role", GST_TYPE_WEBRTC_DTLS_ROLE, &role, nullptr);
-            switch (role) {
-            case GST_WEBRTC_DTLS_ROLE_CLIENT:
-                return DtlsRole::Client;
-            case GST_WEBRTC_DTLS_ROLE_SERVER:
-                return DtlsRole::Server;
-            case GST_WEBRTC_DTLS_ROLE_UNKNOWN:
-                return DtlsRole::Unknown;
-            default:
-                return std::nullopt;
-            }
+        if (!gst_structure_has_field_typed(structure, "dtls-role", GST_TYPE_WEBRTC_DTLS_ROLE))
+            return std::nullopt;
+
+        GstWebRTCDTLSRole role;
+        gst_structure_get(structure, "dtls-role", GST_TYPE_WEBRTC_DTLS_ROLE, &role, nullptr);
+        switch (role) {
+        case GST_WEBRTC_DTLS_ROLE_CLIENT:
+            return DtlsRole::Client;
+        case GST_WEBRTC_DTLS_ROLE_SERVER:
+            return DtlsRole::Server;
+        case GST_WEBRTC_DTLS_ROLE_UNKNOWN:
+            return DtlsRole::Unknown;
         }
 #else
         return std::nullopt;

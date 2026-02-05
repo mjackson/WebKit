@@ -924,7 +924,6 @@ webkit.org/b/143153 imported/w3c/web-platform-tests/css/css-text/text-transform/
 webkit.org/b/143153 imported/w3c/web-platform-tests/css/css-text/text-transform/text-transform-fullwidth-005.xht [ ImageOnlyFailure ]
 
 Bug(WPE) media/media-playback-page-visibility.html [ Timeout ]
-Bug(WPE) media/video-canvas-createPattern.html [ Failure ]
 
 webkit.org/b/230277 imported/w3c/web-platform-tests/css/css-transforms/backface-visibility-hidden-006.html [ ImageOnlyFailure ]
 webkit.org/b/262893 imported/w3c/web-platform-tests/css/css-transforms/backface-visibility-hidden-005.html [ ImageOnlyFailure ]
@@ -1307,3 +1306,21 @@ webkit.org/b/306384 imported/w3c/web-platform-tests/css/css-scroll-snap/scroll-t
 webkit.org/b/306469 imported/w3c/web-platform-tests/encrypted-media/clearkey-update-non-ascii-input.https.html [ Pass Failure ]
 
 webkit.org/b/306758 media/event-attributes.html [ Pass Failure ]
+
+# [WPE] Canvas font tests sometimes unexpectedly pass
+webkit.org/b/307098 imported/w3c/web-platform-tests/html/canvas/element/manual/text/canvas.2d.fontStretch.condensed.html [ ImageOnlyFailure Pass ]
+webkit.org/b/307098 imported/w3c/web-platform-tests/html/canvas/element/manual/text/canvas.2d.fontStretch.expanded.html [ ImageOnlyFailure Pass ]
+webkit.org/b/307098 imported/w3c/web-platform-tests/html/canvas/element/manual/text/canvas.2d.fontStretch.extra-condensed.html [ ImageOnlyFailure Pass ]
+webkit.org/b/307098 imported/w3c/web-platform-tests/html/canvas/element/manual/text/canvas.2d.fontStretch.extra-expanded.html [ ImageOnlyFailure Pass ]
+webkit.org/b/307098 imported/w3c/web-platform-tests/html/canvas/element/manual/text/canvas.2d.fontStretch.semi-condensed.html [ ImageOnlyFailure Pass ]
+webkit.org/b/307098 imported/w3c/web-platform-tests/html/canvas/element/manual/text/canvas.2d.fontStretch.semi-expanded.html [ ImageOnlyFailure Pass ]
+webkit.org/b/307098 imported/w3c/web-platform-tests/html/canvas/element/manual/text/canvas.2d.fontStretch.ultra-condensed.html [ ImageOnlyFailure Pass ]
+webkit.org/b/307098 imported/w3c/web-platform-tests/html/canvas/element/manual/text/canvas.2d.fontStretch.ultra-expanded.html [ ImageOnlyFailure Pass ]
+webkit.org/b/307098 imported/w3c/web-platform-tests/html/canvas/offscreen/text/canvas.2d.fontStretch.condensed.html [ ImageOnlyFailure Pass ]
+webkit.org/b/307098 imported/w3c/web-platform-tests/html/canvas/offscreen/text/canvas.2d.fontStretch.expanded.html [ ImageOnlyFailure Pass ]
+webkit.org/b/307098 imported/w3c/web-platform-tests/html/canvas/offscreen/text/canvas.2d.fontStretch.extra-condensed.html [ ImageOnlyFailure Pass ]
+webkit.org/b/307098 imported/w3c/web-platform-tests/html/canvas/offscreen/text/canvas.2d.fontStretch.extra-expanded.html [ ImageOnlyFailure Pass ]
+webkit.org/b/307098 imported/w3c/web-platform-tests/html/canvas/offscreen/text/canvas.2d.fontStretch.semi-condensed.html [ ImageOnlyFailure Pass ]
+webkit.org/b/307098 imported/w3c/web-platform-tests/html/canvas/offscreen/text/canvas.2d.fontStretch.semi-expanded.html [ ImageOnlyFailure Pass ]
+webkit.org/b/307098 imported/w3c/web-platform-tests/html/canvas/offscreen/text/canvas.2d.fontStretch.ultra-condensed.html [ ImageOnlyFailure Pass ]
+webkit.org/b/307098 imported/w3c/web-platform-tests/html/canvas/offscreen/text/canvas.2d.fontStretch.ultra-expanded.html [ ImageOnlyFailure Pass ]

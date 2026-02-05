@@ -73,6 +73,7 @@
 #include "PaymentValidationErrors.h"
 #include "Settings.h"
 #include <JavaScriptCore/JSONObject.h>
+#include <JavaScriptCore/VM.h>
 #include <wtf/text/MakeString.h>
 
 namespace WebCore {
@@ -448,7 +449,7 @@ Vector<Ref<ApplePayError>> ApplePayPaymentHandler::computeErrors(String&& error,
 
     computePayerErrors(WTF::move(payerErrors), errors);
 
-    auto scope = DECLARE_THROW_SCOPE(protectedScriptExecutionContext()->protectedVM().get());
+    auto scope = DECLARE_THROW_SCOPE(protect(protect(scriptExecutionContext())->vm()).get());
     auto exception = computePaymentMethodErrors(paymentMethodErrors, errors);
     if (exception.hasException())
         TRY_CLEAR_EXCEPTION(scope, errors);
@@ -460,7 +461,7 @@ Vector<Ref<ApplePayError>> ApplePayPaymentHandler::computeErrors(JSC::JSObject* 
 {
     Vector<Ref<ApplePayError>> errors;
 
-    auto scope = DECLARE_THROW_SCOPE(protectedScriptExecutionContext()->protectedVM().get());
+    auto scope = DECLARE_THROW_SCOPE(protect(protect(scriptExecutionContext())->vm()).get());
     auto exception = computePaymentMethodErrors(paymentMethodErrors, errors);
     if (exception.hasException())
         TRY_CLEAR_EXCEPTION(scope, errors);

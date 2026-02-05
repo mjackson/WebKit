@@ -2454,7 +2454,7 @@ static bool usesVisuallyContiguousBidiTextSelection(const SimpleRange& range)
     UNUSED_PARAM(range);
     return false;
 #else
-    return protect(range.protectedStartContainer()->document())->settings().visuallyContiguousBidiTextSelectionEnabled();
+    return protect(range.startContainer().document())->settings().visuallyContiguousBidiTextSelectionEnabled();
 #endif
 }
 

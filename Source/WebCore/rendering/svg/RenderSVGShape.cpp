@@ -146,6 +146,7 @@ void RenderSVGShape::layout()
 
         m_needsShapeUpdate = false;
         setCurrentSVGLayoutRect(enclosingLayoutRect(m_fillBoundingBox));
+        m_cachedVisualOverflowRect = std::nullopt;
     }
 
     updateLayerTransform();

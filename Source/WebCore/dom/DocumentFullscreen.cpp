@@ -69,22 +69,6 @@
 
 namespace WebCore {
 
-class DocumentFullscreen::CompletionHandlerScope final {
-public:
-    CompletionHandlerScope(CompletionHandler<void(ExceptionOr<void>)>&& completionHandler)
-        : m_completionHandler(WTF::move(completionHandler)) { }
-    CompletionHandlerScope(CompletionHandlerScope&&) = default;
-    CompletionHandlerScope& operator=(CompletionHandlerScope&&) = default;
-    ~CompletionHandlerScope()
-    {
-        if (m_completionHandler)
-            m_completionHandler({ });
-    }
-    CompletionHandler<void(ExceptionOr<void>)> release() { return WTF::move(m_completionHandler); }
-private:
-    CompletionHandler<void(ExceptionOr<void>)> m_completionHandler;
-};
-
 // MARK: - Constructor.
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(DocumentFullscreen);

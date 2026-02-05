@@ -286,6 +286,7 @@ struct AccessibilityRemoteToken;
 struct AppHighlight;
 struct AriaNotifyData;
 struct AttributedString;
+struct BackForwardFrameItemIdentifierType;
 struct BackForwardItemIdentifierType;
 struct CharacterRange;
 struct CompositionHighlight;
@@ -354,6 +355,7 @@ struct FrameIdentifierType;
 using FrameIdentifier = ObjectIdentifier<FrameIdentifierType>;
 
 using BackForwardItemIdentifier = ProcessQualified<ObjectIdentifier<BackForwardItemIdentifierType>>;
+using BackForwardFrameItemIdentifier = ProcessQualified<ObjectIdentifier<BackForwardFrameItemIdentifierType>>;
 using DictationContext = ObjectIdentifier<DictationContextType>;
 using DragEventTargetData = Variant<DragEventHandled, WebCore::FrameIdentifier>;
 using HTMLMediaElementIdentifier = ObjectIdentifier<MediaPlayerClientIdentifierType>;
@@ -1055,10 +1057,11 @@ public:
 #endif
 
 #if PLATFORM(COCOA)
+    bool shouldAllowSingleClickToChangeSelection(WebCore::Node& targetNode, const WebCore::VisibleSelection& newSelection);
     void selectWithGesture(const WebCore::IntPoint&, GestureType, GestureRecognizerState, bool isInteractingWithFocusedElement, CompletionHandler<void(const WebCore::IntPoint&, GestureType, GestureRecognizerState, OptionSet<SelectionFlags>)>&&);
     void updateFocusBeforeSelectingTextAtLocation(const WebCore::IntPoint&);
     WebCore::VisiblePosition visiblePositionInFocusedNodeForPoint(const WebCore::LocalFrame&, const WebCore::IntPoint&, bool isInteractingWithFocusedElement);
-#endif
+#endif // PLATFORM(COCOA)
 
 #if PLATFORM(IOS_FAMILY)
     void textInputContextsInRect(WebCore::FloatRect, CompletionHandler<void(const Vector<WebCore::ElementContext>&)>&&);
@@ -1171,7 +1174,6 @@ public:
 
     void updateSelectionWithDelta(int64_t locationDelta, int64_t lengthDelta, CompletionHandler<void()>&&);
     void requestDocumentEditingContext(WebKit::DocumentEditingContextRequest&&, CompletionHandler<void(WebKit::DocumentEditingContext&&)>&&);
-    bool shouldAllowSingleClickToChangeSelection(WebCore::Node& targetNode, const WebCore::VisibleSelection& newSelection);
     bool shouldDrawVisuallyContiguousBidiSelection() const;
 #endif // PLATFORM(IOS_FAMILY)
 
@@ -2315,7 +2317,7 @@ private:
     void loadURLInFrame(URL&&, const String& referrer, WebCore::FrameIdentifier);
     void loadDataInFrame(std::span<const uint8_t>, String&& MIMEType, String&& encodingName, URL&& baseURL, WebCore::FrameIdentifier);
 
-    void didRemoveBackForwardItem(WebCore::BackForwardItemIdentifier);
+    void didRemoveBackForwardItem(WebCore::BackForwardFrameItemIdentifier);
     void setCurrentHistoryItemForReattach(Ref<FrameState>&&);
 
     void requestFontAttributesAtSelectionStart(CompletionHandler<void(const WebCore::FontAttributes&)>&&);
@@ -2487,6 +2489,8 @@ private:
     void uppercaseWord(WebCore::FrameIdentifier);
     void lowercaseWord(WebCore::FrameIdentifier);
     void capitalizeWord(WebCore::FrameIdentifier);
+    void convertToTraditionalChinese(WebCore::FrameIdentifier);
+    void convertToSimplifiedChinese(WebCore::FrameIdentifier);
 #endif
 
     bool shouldDispatchSyntheticMouseEventsWhenModifyingSelection() const;

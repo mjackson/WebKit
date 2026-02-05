@@ -632,7 +632,7 @@ void RemoteLayerTreePropertyApplier::applyHierarchyUpdates(RemoteLayerTreeNode& 
             return true;
         if (properties.children.isEmpty())
             return false;
-        auto* childNode = relatedLayers.get(properties.children.first());
+        RefPtr childNode = relatedLayers.get(properties.children.first());
         ASSERT(childNode);
         return childNode && childNode->uiView();
     };

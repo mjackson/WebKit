@@ -538,7 +538,9 @@ TEST(WKNavigation, DecidePolicyForPageCacheNavigation)
 - (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler
 {
     EXPECT_TRUE(!!navigationAction._mainFrameNavigation);
+    EXPECT_TRUE(!!navigationAction.mainFrameNavigation);
     EXPECT_EQ(navigationAction._mainFrameNavigation, navigation);
+    EXPECT_EQ(navigationAction.mainFrameNavigation, navigation);
     decisionHandler(WKNavigationActionPolicyAllow);
 }
 

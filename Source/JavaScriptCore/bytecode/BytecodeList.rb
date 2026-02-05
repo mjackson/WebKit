@@ -1145,13 +1145,6 @@ op :unreachable
 op :create_rest,
     args: {
         dst: VirtualRegister,
-        arraySize: VirtualRegister,
-        numParametersToSkip: unsigned,
-    }
-
-op :get_rest_length,
-    args: {
-        dst: VirtualRegister,
         numParametersToSkip: unsigned,
     }
 
@@ -1374,13 +1367,6 @@ op :identity_with_profile,
         srcDst: VirtualRegister,
         topProfile: unsigned,
         bottomProfile: unsigned,
-    }
-
-op :overrides_has_instance,
-    args: {
-        dst: VirtualRegister,
-        constructor: VirtualRegister,
-        hasInstanceValue: VirtualRegister,
     }
 
 op :typeof,

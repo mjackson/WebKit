@@ -119,6 +119,7 @@ void RenderSVGImage::layout()
 
     updateImageViewport();
     setCurrentSVGLayoutRect(enclosingLayoutRect(m_objectBoundingBox));
+    m_cachedVisualOverflowRect = std::nullopt;
 
     updateLayerTransform();
 

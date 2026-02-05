@@ -407,9 +407,8 @@ bool WebProcessProxy::WebProcessXPCEventHandler::handleXPCEvent(xpc_object_t eve
         if (!subsystem.isEmpty() && !category.isEmpty())
             osLog = adoptOSObject(os_log_create(subsystem.utf8().data(), category.utf8().data()));
 
-        auto osLogPointer = osLog ? osLog.get() : OS_LOG_DEFAULT;
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
-        os_log_with_type(osLogPointer, static_cast<os_log_type_t>(logType), "WebContent[%d] %{public}s", static_cast<int>(pid), messageString.utf8().data());
+        os_log_with_type(osLog ? osLog.get() : OS_LOG_DEFAULT, static_cast<os_log_type_t>(logType), "WebContent[%d] %{public}s", static_cast<int>(pid), messageString.utf8().data());
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
         webProcess->m_didReceiveLogsDuringLaunchForTesting = true;
     } else if (messageName == disableLogMessageName) {

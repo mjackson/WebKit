@@ -59,7 +59,7 @@ void WebPaymentCoordinatorProxy::platformShowPaymentUI(WebPageProxyIdentifier we
         paymentRequest = platformPaymentRequest(originatingURL, linkIconURLs, request);
 
     checkedClient()->getPaymentCoordinatorEmbeddingUserAgent(webPageProxyID, [webPageProxyID, paymentRequest, weakThis = WeakPtr { *this }, completionHandler = WTF::move(completionHandler)](const String& userAgent) mutable {
-        auto paymentCoordinatorProxy = weakThis.get();
+        RefPtr paymentCoordinatorProxy = weakThis.get();
         if (!paymentCoordinatorProxy)
             return completionHandler(false);
 

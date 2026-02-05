@@ -88,7 +88,9 @@ inline CFTypeRef bridgeCFCast(id object)
 
 // Use bridge_id_cast to convert from CF -> id without ref churn.
 
-inline id bridge_id_cast(CFTypeRef object)
+template<typename T>
+    requires (!IsRetainPtr<std::remove_cvref_t<T>>)
+inline id bridge_id_cast(T object)
 {
 #ifdef __OBJC__
     return (__bridge id)object;

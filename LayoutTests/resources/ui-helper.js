@@ -1791,6 +1791,11 @@ window.UIHelper = class UIHelper {
         return new Promise(resolve => testRunner.runUIScript(`uiController.setHardwareKeyboardAttached(${attached ? "true" : "false"})`, resolve));
     }
 
+    static setShowKeyboardAfterElementFocusDelay(delay)
+    {
+        return new Promise(resolve => testRunner.runUIScript(`uiController.setShowKeyboardAfterElementFocusDelay(${delay})`, resolve));
+    }
+
     static setWebViewEditable(editable)
     {
         return new Promise(resolve => testRunner.runUIScript(`uiController.setWebViewEditable(${editable ? "true" : "false"})`, resolve));

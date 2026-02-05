@@ -599,6 +599,12 @@ void ContextMenuController::contextMenuItemSelected(ContextMenuAction action, co
     case ContextMenuItemTagCapitalize:
         protect(frame->editor())->capitalizeWord();
         break;
+    case ContextMenuItemTagConvertToTraditionalChinese:
+        frame->protectedEditor()->convertToTraditionalChinese();
+        break;
+    case ContextMenuItemTagConvertToSimplifiedChinese:
+        frame->protectedEditor()->convertToSimplifiedChinese();
+        break;
 #endif
 #if PLATFORM(COCOA)
     case ContextMenuItemTagChangeBack:
@@ -854,19 +860,52 @@ void ContextMenuController::createAndAppendSubstitutionsSubMenu(ContextMenuItem&
     substitutionsMenuItem.setSubMenu(&substitutionsMenu);
 }
 
-void ContextMenuController::createAndAppendTransformationsSubMenu(ContextMenuItem& transformationsMenuItem)
+bool ContextMenuController::createAndAppendTransformationsSubMenu(ContextMenuItem& transformationsMenuItem)
 {
+    auto showCaseTransformations = true;
+    auto showConvertToSimplifiedChinese = false;
+    auto showConvertToTraditionalChinese = false;
+
+    if (RefPtr node = m_context.hitTestResult().innerNonSharedNode()) {
+        if (RefPtr frame = node->document().frame()) {
+            auto selectedText = frame->editor().selectedText();
+            auto selectionLength = selectedText.length();
+
+            // Match AppKit's text analysis behavior: look at the first 200 characters when
+            // determining which transformations to show. If more than 200 characters
+            // are selected, show the case transformation items regardless.
+            static constexpr unsigned maximumLengthForAnalysis = 200;
+            selectedText = selectedText.left(maximumLengthForAnalysis);
+            showCaseTransformations = (selectionLength > maximumLengthForAnalysis) || frame->editor().canApplyCaseTransformations(selectedText);
+            showConvertToTraditionalChinese = frame->editor().canConvertToTraditionalChinese(selectedText);
+            showConvertToSimplifiedChinese = frame->editor().canConvertToSimplifiedChinese(selectedText);
+        };
+    }
     ContextMenu transformationsMenu;
 
-    ContextMenuItem makeUpperCase(ContextMenuItemType::Action, ContextMenuItemTagMakeUpperCase, contextMenuItemTagMakeUpperCase());
-    ContextMenuItem makeLowerCase(ContextMenuItemType::Action, ContextMenuItemTagMakeLowerCase, contextMenuItemTagMakeLowerCase());
-    ContextMenuItem capitalize(ContextMenuItemType::Action, ContextMenuItemTagCapitalize, contextMenuItemTagCapitalize());
+    if (showCaseTransformations) {
+        ContextMenuItem makeUpperCase(ContextMenuItemType::Action, ContextMenuItemTagMakeUpperCase, contextMenuItemTagMakeUpperCase());
+        ContextMenuItem makeLowerCase(ContextMenuItemType::Action, ContextMenuItemTagMakeLowerCase, contextMenuItemTagMakeLowerCase());
+        ContextMenuItem capitalize(ContextMenuItemType::Action, ContextMenuItemTagCapitalize, contextMenuItemTagCapitalize());
 
-    appendItem(makeUpperCase, &transformationsMenu);
-    appendItem(makeLowerCase, &transformationsMenu);
-    appendItem(capitalize, &transformationsMenu);
+        appendItem(makeUpperCase, &transformationsMenu);
+        appendItem(makeLowerCase, &transformationsMenu);
+        appendItem(capitalize, &transformationsMenu);
+    }
+
+    if (showConvertToTraditionalChinese) {
+        ContextMenuItem convertToTraditionalChinese(ContextMenuItemType::Action, ContextMenuItemTagConvertToTraditionalChinese, contextMenuItemTagConvertToTraditionalChinese());
+        appendItem(convertToTraditionalChinese, &transformationsMenu);
+    }
+
+    if (showConvertToSimplifiedChinese) {
+        ContextMenuItem convertToSimplifiedChinese(ContextMenuItemType::Action, ContextMenuItemTagConvertToSimplifiedChinese, contextMenuItemTagConvertToSimplifiedChinese());
+        appendItem(convertToSimplifiedChinese, &transformationsMenu);
+    }
 
     transformationsMenuItem.setSubMenu(&transformationsMenu);
+
+    return showCaseTransformations || showConvertToTraditionalChinese || showConvertToSimplifiedChinese;
 }
 
 #endif // PLATFORM(COCOA)
@@ -1404,8 +1443,8 @@ void ContextMenuController::populate()
             appendItem(substitutionsMenuItem, m_contextMenu.get());
             ContextMenuItem transformationsMenuItem(ContextMenuItemType::Submenu, ContextMenuItemTagTransformationsMenu,
                 contextMenuItemTagTransformationsMenu());
-            createAndAppendTransformationsSubMenu(transformationsMenuItem);
-            appendItem(transformationsMenuItem, m_contextMenu.get());
+            if (createAndAppendTransformationsSubMenu(transformationsMenuItem))
+                appendItem(transformationsMenuItem, m_contextMenu.get());
 #endif
 #if PLATFORM(GTK) || PLATFORM(WPE)
             bool shouldShowFontMenu = frame->editor().canEditRichly();
@@ -1666,6 +1705,8 @@ void ContextMenuController::checkOrEnableIfNeeded(ContextMenuItem& item) const
         case ContextMenuItemTagMakeLowerCase:
         case ContextMenuItemTagCapitalize:
         case ContextMenuItemTagChangeBack:
+        case ContextMenuItemTagConvertToTraditionalChinese:
+        case ContextMenuItemTagConvertToSimplifiedChinese:
             shouldEnable = frame->editor().canEdit();
             break;
         case ContextMenuItemTagCorrectSpellingAutomatically:

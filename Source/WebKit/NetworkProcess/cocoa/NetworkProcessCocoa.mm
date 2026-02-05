@@ -142,8 +142,8 @@ void NetworkProcess::platformInitializeNetworkProcessCocoa(const NetworkProcessC
     if (auto auditToken = protect(parentProcessConnection())->getAuditToken()) {
         bool isNetworkAccessBlockedInUIProcess = (1 == sandbox_check_by_audit_token(*auditToken, "network-outbound", SANDBOX_FILTER_PATH, "/private/var/run/mDNSResponder"));
 
-        auto xpcConnection = protect(parentProcessConnection())->xpcConnection();
-        auto [signingIdentifier, isPlatformBinary] = codeSigningIdentifierAndPlatformBinaryStatus(xpcConnection);
+        OSObjectPtr xpcConnection = protect(parentProcessConnection())->xpcConnection();
+        auto [signingIdentifier, isPlatformBinary] = codeSigningIdentifierAndPlatformBinaryStatus(xpcConnection.get());
         if (!isPlatformBinary && isNetworkAccessBlockedInUIProcess) {
             RELEASE_LOG(Process, "Setting sandbox state flag to block network access");
             if (auto auditTokenForSelf = WTF::auditTokenForSelf()) {

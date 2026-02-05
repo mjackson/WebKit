@@ -386,10 +386,10 @@ static void delayBetweenMove(int eventIndex, double elapsed)
         return;
 
     CFIndex callbackID = IOHIDEventGetIntegerValue(event, kIOHIDEventFieldVendorDefinedData);
-    NSNumber *key = @(callbackID);
-    void (^completionBlock)() = [_eventCallbacks objectForKey:key];
+    RetainPtr key = @(callbackID);
+    void (^completionBlock)() = [_eventCallbacks objectForKey:key.get()];
     if (completionBlock) {
-        [_eventCallbacks removeObjectForKey:key];
+        [_eventCallbacks removeObjectForKey:key.get()];
         completionBlock();
         Block_release(completionBlock);
     }

@@ -34,6 +34,7 @@
 #include "RenderStyle+GettersInlines.h"
 #include "RenderTextControl.h"
 #include "RenderTreeBuilderMultiColumn.h"
+#include "Settings.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
@@ -105,6 +106,7 @@ RenderBlock* RenderTreeBuilder::Block::continuationBefore(RenderBlock& parent, R
 
 RenderTreeBuilder::Block::Block(RenderTreeBuilder& builder)
     : m_builder(builder)
+    , m_buildsSimpleAnonymousBlocks(!builder.view().settings().anonymousBlockGenerationDisabled())
 {
 }
 
@@ -227,6 +229,27 @@ void RenderTreeBuilder::Block::attachIgnoringContinuation(RenderBlock& parent, R
             beforeChild = m_builder.splitAnonymousBoxesAroundChild(parent, *beforeChild);
             RELEASE_ASSERT_WITH_SECURITY_IMPLICATION(beforeChild->parent() == &parent);
         }
+    }
+
+    auto shouldBuildAnonymousBlock = [&] {
+        constexpr auto parentRequiresAnonymousBlock = EnumSet {
+            DisplayType::Flex,
+            DisplayType::InlineFlex,
+            DisplayType::Box,
+            DisplayType::InlineBox,
+            DisplayType::Grid,
+            DisplayType::InlineGrid
+        };
+        return m_buildsSimpleAnonymousBlocks || parentRequiresAnonymousBlock.contains(parent.style().display());
+    };
+
+    if (!shouldBuildAnonymousBlock()) {
+        if (!parent.firstChild())
+            parent.setChildrenInline(child->isInline());
+        else if (child->isInline())
+            parent.setChildrenInline(true);
+        m_builder.attachToRenderElement(parent, WTF::move(child), beforeChild);
+        return;
     }
 
     if (child->isFloatingOrOutOfFlowPositioned()) {

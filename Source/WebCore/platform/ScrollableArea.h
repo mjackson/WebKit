@@ -371,6 +371,10 @@ public:
 
     virtual bool isInStableState() const { return true; }
 
+#if USE(COORDINATED_GRAPHICS_ASYNC_SCROLLBAR)
+    float scrollbarOpacity() const;
+#endif
+
     // NOTE: Only called from Internals for testing.
     WEBCORE_EXPORT void setScrollOffsetFromInternals(const ScrollOffset&);
 

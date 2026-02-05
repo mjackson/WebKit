@@ -33,6 +33,7 @@
 #import <pal/spi/cocoa/IOKitSPI.h>
 
 @implementation WKFormPeripheralBase {
+    WeakObjCPtr<WKContentView> _view;
     RetainPtr<NSObject <WKFormControl>> _control;
 }
 
@@ -80,6 +81,11 @@
 - (NSObject <WKFormControl> *)control
 {
     return _control.get();
+}
+
+- (WKContentView *)view
+{
+    return _view.getAutoreleased();
 }
 
 - (BOOL)handleKeyEvent:(UIEvent *)event

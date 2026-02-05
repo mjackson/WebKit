@@ -39,6 +39,8 @@
 #include "JSStreamPipeOptions.h"
 #include "JSUnderlyingSource.h"
 #include "JSWritableStream.h"
+#include "MessageChannel.h"
+#include "MessagePort.h"
 #include "QueuingStrategy.h"
 #include "ReadableByteStreamController.h"
 #include "ReadableStreamBYOBReader.h"
@@ -47,6 +49,7 @@
 #include "Settings.h"
 #include "StreamPipeToUtilities.h"
 #include "StreamTeeUtilities.h"
+#include "StreamTransferUtilities.h"
 #include "WebCoreOpaqueRootInlines.h"
 #include "WritableStream.h"
 #include <JavaScriptCore/IteratorOperations.h>
@@ -586,19 +589,20 @@ void ReadableStream::addReadRequest(Ref<ReadableStreamReadRequest>&& readRequest
 }
 
 // https://streams.spec.whatwg.org/#readable-stream-pipe-to
-static void pipeToInternal(JSDOMGlobalObject& globalObject, ReadableStream& source, WritableStream& destination, StreamPipeOptions&& options, RefPtr<DeferredPromise>&& promise)
+static std::optional<Exception> pipeToInternal(JSDOMGlobalObject& globalObject, ReadableStream& source, WritableStream& destination, StreamPipeOptions&& options, RefPtr<DeferredPromise>&& promise)
 {
     auto readerOrException = ReadableStreamDefaultReader::create(globalObject, source);
     if (readerOrException.hasException())
-        return;
+        return readerOrException.releaseException();
 
     auto writerOrException = acquireWritableStreamDefaultWriter(globalObject, destination);
     if (writerOrException.hasException())
-        return;
+        return writerOrException.releaseException();
 
     source.markAsDisturbed();
 
     readableStreamPipeTo(globalObject, source, destination, readerOrException.releaseReturnValue(), writerOrException.releaseReturnValue(), WTF::move(options), WTF::move(promise));
+    return { };
 }
 
 // https://streams.spec.whatwg.org/#rs-pipe-to
@@ -811,6 +815,42 @@ ExceptionOr<Ref<ReadableStream::Iterator>> ReadableStream::createIterator(Script
         return readerOrException.releaseException();
 
     return Iterator::create(readerOrException.releaseReturnValue(), options.value_or(IteratorOptions { }).preventCancel);
+}
+
+// https://streams.spec.whatwg.org/#rs-transfer
+bool ReadableStream::canTransfer() const
+{
+    RefPtr context = scriptExecutionContext();
+    return context && context->settingsValues().readableStreamTransferEnabled && !isLocked();
+}
+
+ExceptionOr<DetachedReadableStream> ReadableStream::runTransferSteps(JSDOMGlobalObject& globalObject)
+{
+    ASSERT(!isLocked());
+
+    RefPtr context = globalObject.scriptExecutionContext();
+    Ref channel = MessageChannel::create(*context);
+    Ref port1 = channel->port1();
+    Ref port2 = channel->port2();
+
+    auto result = setupCrossRealmTransformWritable(globalObject, port1.get());
+    if (result.hasException()) {
+        port2->close();
+        return result.releaseException();
+    }
+    Ref writable = result.releaseReturnValue();
+
+    if (auto exception = pipeToInternal(globalObject, *this, writable.get(), { }, nullptr)) {
+        port2->close();
+        return WTF::move(*exception);
+    }
+
+    return DetachedReadableStream { WTF::move(port2) };
+}
+
+ExceptionOr<Ref<ReadableStream>> ReadableStream::runTransferReceivingSteps(JSDOMGlobalObject& globalObject, DetachedReadableStream&& detachedReadableStream)
+{
+    return setupCrossRealmTransformReadable(globalObject, detachedReadableStream.readableStreamPort.get());
 }
 
 template<typename Visitor>

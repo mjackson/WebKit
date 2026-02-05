@@ -36,6 +36,7 @@
 
 namespace JSC {
 class CallFrame;
+class JSGlobalObject;
 class JSObject;
 class JSValue;
 }

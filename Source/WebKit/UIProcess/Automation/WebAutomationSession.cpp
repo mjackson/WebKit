@@ -922,15 +922,25 @@ void WebAutomationSession::traverseHistoryInBrowsingContext(const Inspector::Pro
         return;
     }
 
-    Ref backForwardList = page->backForwardList();
+#if ENABLE(BACK_FORWARD_LIST_SWIFT)
+    WebBackForwardListWrapper& backForwardList = page->backForwardListWrapper();
+    unsigned backCount = backForwardList.backListCount();
+    unsigned forwardCount = backForwardList.forwardListCount();
+#else
+    Ref backForwardList = page->backForwardListWrapper();
     unsigned backCount = backForwardList->backListCount();
     unsigned forwardCount = backForwardList->forwardListCount();
+#endif
     int currentIndex = static_cast<int>(backCount);
     int targetIndex = currentIndex + delta;
     ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(targetIndex < 0, InvalidParameter);
     ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(targetIndex >= static_cast<int>(backCount + forwardCount + 1), InvalidParameter);
 
+#if ENABLE(BACK_FORWARD_LIST_SWIFT)
+    RefPtr targetItem = backForwardList.itemAtIndex(targetIndex);
+#else
     RefPtr targetItem = backForwardList->itemAtIndex(targetIndex);
+#endif
     ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!targetItem, InternalError);
 
     page->goToBackForwardItem(*targetItem);

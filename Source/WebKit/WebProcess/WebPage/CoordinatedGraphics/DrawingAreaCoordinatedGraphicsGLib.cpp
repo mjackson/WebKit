@@ -59,7 +59,6 @@ using namespace WebCore;
 DrawingAreaCoordinatedGraphics::DrawingAreaCoordinatedGraphics(WebPage& webPage, const WebPageCreationParameters& parameters)
     : DrawingArea(parameters.drawingAreaIdentifier, webPage)
     , m_isPaintingSuspended(!(parameters.activityState & ActivityState::IsVisible))
-    , m_exitCompositingTimer(RunLoop::mainSingleton(), "DrawingAreaCoordinatedGraphics::ExitCompositingTimer"_s, this, &DrawingAreaCoordinatedGraphics::exitAcceleratedCompositingMode)
     , m_displayTimer(RunLoop::mainSingleton(), "DrawingAreaCoordinatedGraphics::DisplayTimer"_s, this, &DrawingAreaCoordinatedGraphics::displayTimerFired)
 {
 #if !PLATFORM(WPE)
@@ -201,12 +200,7 @@ void DrawingAreaCoordinatedGraphics::setLayerTreeStateIsFrozen(bool isFrozen)
 
     if (m_layerTreeHost)
         m_layerTreeHost->setLayerTreeStateIsFrozen(isFrozen);
-
-    if (isFrozen)
-        m_exitCompositingTimer.stop();
-    else if (m_wantsToExitAcceleratedCompositingMode)
-        exitAcceleratedCompositingModeSoon();
-    else if (!m_layerTreeHost)
+    else if (!isFrozen)
         scheduleDisplay();
 }
 
@@ -214,7 +208,7 @@ void DrawingAreaCoordinatedGraphics::updatePreferences(const WebPreferencesStore
 {
     Settings& settings = m_webPage->corePage()->settings();
 #if PLATFORM(GTK)
-    if (settings.acceleratedCompositingEnabled())
+    if (settings.hardwareAccelerationEnabled())
         WebProcess::singleton().initializePlatformDisplayIfNeeded();
 #endif
     settings.setForceCompositingMode(store.getBoolValueForKey(WebPreferencesKey::forceCompositingModeKey()));
@@ -222,9 +216,7 @@ void DrawingAreaCoordinatedGraphics::updatePreferences(const WebPreferencesStore
     // in order to be scrolled by the ScrollingCoordinator.
     settings.setAcceleratedCompositingForFixedPositionEnabled(settings.acceleratedCompositingEnabled());
 
-    m_alwaysUseCompositing = settings.acceleratedCompositingEnabled() && settings.forceCompositingMode();
-
-    m_supportsAsyncScrolling = store.getBoolValueForKey(WebPreferencesKey::threadedScrollingEnabledKey());
+    m_supportsAsyncScrolling = settings.acceleratedCompositingEnabled() && store.getBoolValueForKey(WebPreferencesKey::threadedScrollingEnabledKey());
 #if ENABLE(DEVELOPER_MODE)
     if (m_supportsAsyncScrolling) {
         auto disableAsyncScrolling = StringView::fromLatin1(getenv("WEBKIT_DISABLE_ASYNC_SCROLLING"));
@@ -243,13 +235,12 @@ void DrawingAreaCoordinatedGraphics::updatePreferences(const WebPreferencesStore
 
 bool DrawingAreaCoordinatedGraphics::enterAcceleratedCompositingModeIfNeeded()
 {
-    ASSERT(!m_layerTreeHost);
-    if (!m_alwaysUseCompositing) {
+    if (m_webPage->corePage()->settings().acceleratedCompositingEnabled()) {
+        m_layerTreeHost = makeUnique<LayerTreeHost>(m_webPage);
+        if (m_isPaintingSuspended)
+            m_layerTreeHost->pauseRendering();
+    } else
         m_nonCompositedFrameRenderer = NonCompositedFrameRenderer::create(m_webPage);
-        return false;
-    }
-
-    enterAcceleratedCompositingMode(nullptr);
     return true;
 }
 
@@ -291,39 +282,14 @@ void DrawingAreaCoordinatedGraphics::unregisterScrollingTree()
 
 GraphicsLayerFactory* DrawingAreaCoordinatedGraphics::graphicsLayerFactory()
 {
-    if (!m_layerTreeHost)
-        enterAcceleratedCompositingMode(nullptr);
-    return m_layerTreeHost ? m_layerTreeHost->graphicsLayerFactory() : nullptr;
+    RELEASE_ASSERT(m_layerTreeHost);
+    return m_layerTreeHost->graphicsLayerFactory();
 }
 
 void DrawingAreaCoordinatedGraphics::setRootCompositingLayer(WebCore::Frame&, GraphicsLayer* graphicsLayer)
 {
-    if (m_layerTreeHost) {
-        if (graphicsLayer) {
-            // We're already in accelerated compositing mode, but the root compositing layer changed.
-            m_exitCompositingTimer.stop();
-            m_wantsToExitAcceleratedCompositingMode = false;
-        }
+    if (m_layerTreeHost)
         m_layerTreeHost->setRootCompositingLayer(graphicsLayer);
-
-        if (!graphicsLayer && !m_alwaysUseCompositing) {
-            // We'll exit accelerated compositing mode on a timer, to avoid re-entering
-            // compositing code via display() and layout.
-            // If we're leaving compositing mode because of a setSize, it is safe to
-            // exit accelerated compositing mode right away.
-            if (m_inUpdateGeometry)
-                exitAcceleratedCompositingMode();
-            else
-                exitAcceleratedCompositingModeSoon();
-        }
-        return;
-    }
-
-    if (!graphicsLayer)
-        return;
-
-    // We're actually entering accelerated compositing mode.
-    enterAcceleratedCompositingMode(graphicsLayer);
 }
 
 void DrawingAreaCoordinatedGraphics::triggerRenderingUpdate()
@@ -479,19 +445,6 @@ void DrawingAreaCoordinatedGraphics::commitTransientZoom(double scale, FloatPoin
 }
 #endif
 
-void DrawingAreaCoordinatedGraphics::exitAcceleratedCompositingModeSoon()
-{
-    if (m_layerTreeStateIsFrozen) {
-        m_wantsToExitAcceleratedCompositingMode = true;
-        return;
-    }
-
-    if (exitAcceleratedCompositingModePending())
-        return;
-
-    m_exitCompositingTimer.startOneShot(0_s);
-}
-
 void DrawingAreaCoordinatedGraphics::suspendPainting()
 {
     ASSERT(!m_isPaintingSuspended);
@@ -525,90 +478,17 @@ void DrawingAreaCoordinatedGraphics::resumePainting()
     m_webPage->corePage()->resumeScriptedAnimations();
 }
 
-void DrawingAreaCoordinatedGraphics::enterAcceleratedCompositingMode(GraphicsLayer* graphicsLayer)
-{
-#if PLATFORM(GTK)
-    if (!m_alwaysUseCompositing) {
-        m_webPage->corePage()->settings().setForceCompositingMode(true);
-        m_alwaysUseCompositing = true;
-    }
-#endif
-
-    m_exitCompositingTimer.stop();
-    m_wantsToExitAcceleratedCompositingMode = false;
-
-    ASSERT(!m_layerTreeHost);
-    m_layerTreeHost = makeUnique<LayerTreeHost>(m_webPage);
-
-    if (m_layerTreeStateIsFrozen)
-        m_layerTreeHost->setLayerTreeStateIsFrozen(true);
-    if (m_isPaintingSuspended)
-        m_layerTreeHost->pauseRendering();
-
-    m_layerTreeHost->setRootCompositingLayer(graphicsLayer);
-
-    if (m_shouldSendEnterAcceleratedCompositingMode)
-        sendEnterAcceleratedCompositingModeIfNeeded();
-
-    // Non-composited content will now be handled exclusively by the layer tree host.
-    m_dirtyRegion = WebCore::Region();
-    m_scrollRect = IntRect();
-    m_scrollOffset = IntSize();
-    m_displayTimer.stop();
-    m_isWaitingForDidUpdate = false;
-}
-
 void DrawingAreaCoordinatedGraphics::sendEnterAcceleratedCompositingModeIfNeeded()
 {
     if (m_compositingAccordingToProxyMessages)
         return;
 
-    if (!m_layerTreeHost) {
-        m_shouldSendEnterAcceleratedCompositingMode = true;
-        return;
-    }
+    RELEASE_ASSERT(m_layerTreeHost || m_nonCompositedFrameRenderer);
+    LayerTreeContext layerTreeContext;
+    layerTreeContext.contextID = m_layerTreeHost ? m_layerTreeHost->layerTreeContext().contextID : m_nonCompositedFrameRenderer->surfaceID();
 
-    send(Messages::DrawingAreaProxy::EnterAcceleratedCompositingMode(0, m_layerTreeHost->layerTreeContext()));
+    send(Messages::DrawingAreaProxy::EnterAcceleratedCompositingMode(0, layerTreeContext));
     m_compositingAccordingToProxyMessages = true;
-}
-
-void DrawingAreaCoordinatedGraphics::exitAcceleratedCompositingMode()
-{
-    if (m_alwaysUseCompositing)
-        return;
-
-    ASSERT(!m_layerTreeStateIsFrozen);
-
-    m_exitCompositingTimer.stop();
-    m_wantsToExitAcceleratedCompositingMode = false;
-
-    ASSERT(m_layerTreeHost);
-    m_layerTreeHost = nullptr;
-
-    Ref webPage = m_webPage.get();
-
-    m_dirtyRegion = webPage->bounds();
-
-    if (m_inUpdateGeometry)
-        return;
-
-    UpdateInfo updateInfo;
-    if (m_isPaintingSuspended) {
-        updateInfo.viewSize = webPage->size();
-        updateInfo.deviceScaleFactor = webPage->corePage()->deviceScaleFactor();
-    } else
-        display(updateInfo);
-
-    // Send along a complete update of the page so we can paint the contents right after we exit the
-    // accelerated compositing mode, eliminiating flicker.
-    if (m_compositingAccordingToProxyMessages) {
-        send(Messages::DrawingAreaProxy::ExitAcceleratedCompositingMode(0, WTF::move(updateInfo)));
-        m_compositingAccordingToProxyMessages = false;
-    } else {
-        // If we left accelerated compositing mode before we sent an EnterAcceleratedCompositingMode message to the
-        // UI process, we still need to let it know about the new contents, so send an Update message.
-        send(Messages::DrawingAreaProxy::Update(0, WTF::move(updateInfo)));
-    }
 }
 
 void DrawingAreaCoordinatedGraphics::scheduleDisplay()

@@ -135,7 +135,7 @@ static bool gtkCanUseHardwareAcceleration()
     return canUseHardwareAcceleration;
 }
 
-bool AcceleratedBackingStore::checkRequirements()
+bool AcceleratedBackingStore::canUseHardwareAcceleration()
 {
     if (!rendererBufferTransportMode().isEmpty())
         return gtkCanUseHardwareAcceleration();
@@ -190,11 +190,8 @@ Vector<RendererBufferFormat> AcceleratedBackingStore::preferredBufferFormats()
 }
 #endif
 
-RefPtr<AcceleratedBackingStore> AcceleratedBackingStore::create(WebPageProxy& webPage)
+Ref<AcceleratedBackingStore> AcceleratedBackingStore::create(WebPageProxy& webPage)
 {
-    if (!HardwareAccelerationManager::singleton().canUseHardwareAcceleration() || !checkRequirements())
-        return nullptr;
-
     return adoptRef(*new AcceleratedBackingStore(webPage));
 }
 

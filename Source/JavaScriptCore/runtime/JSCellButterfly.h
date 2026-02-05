@@ -40,7 +40,6 @@ namespace JSC {
 
 class ClonedArguments;
 class DirectArguments;
-class JSMapIterator;
 class JSSet;
 class ScopedArguments;
 
@@ -150,7 +149,6 @@ public:
     static JSCellButterfly* createFromDirectArguments(JSGlobalObject*, DirectArguments*);
     static JSCellButterfly* createFromScopedArguments(JSGlobalObject*, ScopedArguments*);
     static JSCellButterfly* createFromSet(JSGlobalObject*, JSSet*);
-    static JSCellButterfly* createFromMapIterator(JSGlobalObject*, JSMapIterator*);
     static JSCellButterfly* createFromString(JSGlobalObject*, JSString*);
     static JSCellButterfly* tryCreateFromArgList(VM&, ArgList);
 

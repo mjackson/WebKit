@@ -103,7 +103,7 @@ static Ref<WebCore::Range> protectedImpl(WKDOMRange *range)
 
 - (WKDOMNode *)startContainer
 {
-    return WebKit::toWKDOMNode(protectedImpl(self)->protectedStartContainer().ptr());
+    return WebKit::toWKDOMNode(protect(protectedImpl(self)->startContainer()).ptr());
 }
 
 - (NSInteger)startOffset
@@ -113,7 +113,7 @@ static Ref<WebCore::Range> protectedImpl(WKDOMRange *range)
 
 - (WKDOMNode *)endContainer
 {
-    return WebKit::toWKDOMNode(protectedImpl(self)->protectedEndContainer().ptr());
+    return WebKit::toWKDOMNode(protect(protectedImpl(self)->endContainer()).ptr());
 }
 
 - (NSInteger)endOffset

@@ -83,7 +83,6 @@ public:
     void transitionProvisionalPageToRemotePage(ProvisionalPageProxy&, const WebCore::Site& provisionalNavigationFailureSite);
 
     bool hasRemotePages(const WebPageProxy&);
-    bool isFrameProcessInUseForMainFrame(const FrameProcess&);
 
 private:
     BrowsingContextGroup();

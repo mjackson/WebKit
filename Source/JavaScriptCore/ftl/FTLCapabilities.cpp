@@ -385,7 +385,6 @@ inline CapabilityLevel canCompile(Node* node)
     case DeleteById:
     case DeleteByVal:
     case CreateRest:
-    case GetRestLength:
     case RegExpExec:
     case RegExpExecNonGlobalOrSticky:
     case RegExpTest:

@@ -398,8 +398,8 @@ public:
         if (m_highestNodeToBeSerialized && m_highestNodeToBeSerialized->hasTagName(bodyTag))
             return;
 
-        auto block = enclosingBlock(start.deepEquivalent().protectedContainerNode());
-        if (!block || block != enclosingBlock(end.deepEquivalent().protectedContainerNode()))
+        auto block = enclosingBlock(protect(start.deepEquivalent().containerNode()));
+        if (!block || block != enclosingBlock(protect(end.deepEquivalent().containerNode())))
             return;
 
         auto renderer = block->renderer();
@@ -815,7 +815,7 @@ RefPtr<Node> StyledMarkupAccumulator::serializeNodes(const Position& start, cons
         return nullptr;
     RefPtr pastEnd = end.computeNodeAfterPosition();
     if (!pastEnd && end.containerNode())
-        pastEnd = nextSkippingChildren(*end.protectedContainerNode());
+        pastEnd = nextSkippingChildren(*protect(end.containerNode()));
 
     if (!m_highestNodeToBeSerialized)
         m_highestNodeToBeSerialized = traverseNodesForSerialization(*startNode, pastEnd.get(), NodeTraversalMode::DoNotEmitString);

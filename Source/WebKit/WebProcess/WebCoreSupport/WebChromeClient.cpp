@@ -181,7 +181,14 @@
 
 #if PLATFORM(MAC)
 #include "RemoteScrollbarsController.h"
+#endif
+
+#if PLATFORM(MAC) || USE(COORDINATED_GRAPHICS_ASYNC_SCROLLBAR)
 #include <WebCore/ScrollbarsControllerMock.h>
+#endif
+
+#if USE(COORDINATED_GRAPHICS_ASYNC_SCROLLBAR)
+#include "ScrollbarsControllerCoordinated.h"
 #endif
 
 #if ENABLE(DAMAGE_TRACKING)
@@ -1347,7 +1354,7 @@ RefPtr<WebCore::ScrollingCoordinator> WebChromeClient::createScrollingCoordinato
 
 #endif
 
-#if PLATFORM(MAC)
+#if PLATFORM(MAC) || USE(COORDINATED_GRAPHICS_ASYNC_SCROLLBAR)
 void WebChromeClient::ensureScrollbarsController(Page& corePage, ScrollableArea& area, bool update) const
 {
     RefPtr page = m_page.get();
@@ -1362,6 +1369,7 @@ void WebChromeClient::ensureScrollbarsController(Page& corePage, ScrollableArea&
         return;
     }
 
+#if PLATFORM(MAC)
 #if ENABLE(TILED_CA_DRAWING_AREA)
     switch (protect(page->drawingArea())->type()) {
     case DrawingAreaType::RemoteLayerTree: {
@@ -1381,6 +1389,15 @@ void WebChromeClient::ensureScrollbarsController(Page& corePage, ScrollableArea&
         area.setScrollbarsController(ScrollbarsController::create(area));
     else if (area.usesCompositedScrolling() && (!currentScrollbarsController || !is<RemoteScrollbarsController>(currentScrollbarsController)))
         area.setScrollbarsController(makeUnique<RemoteScrollbarsController>(area, corePage.scrollingCoordinator()));
+#endif
+#elif USE(COORDINATED_GRAPHICS_ASYNC_SCROLLBAR)
+    if (area.usesCompositedScrolling()) {
+        if (!currentScrollbarsController || !is<ScrollbarsControllerCoordinated>(currentScrollbarsController))
+            area.setScrollbarsController(makeUnique<ScrollbarsControllerCoordinated>(area, corePage.scrollingCoordinator()));
+    } else {
+        if (!currentScrollbarsController || is<ScrollbarsControllerCoordinated>(currentScrollbarsController))
+            area.setScrollbarsController(ScrollbarsController::create(area));
+    }
 #endif
 }
 

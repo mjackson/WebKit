@@ -292,6 +292,12 @@ LineLayout* LineLayout::containing(RenderObject& renderer)
                 ASSERT(parentInlineBox->settings().blocksInInlineLayoutEnabled());
                 return dynamicDowncast<RenderBlockFlow>(parentInlineBox->containingBlock());
             }
+            if (auto* parentBlock = dynamicDowncast<RenderBlockFlow>(renderer.parent())) {
+                if (parentBlock->childrenInline()) {
+                    ASSERT(parentBlock->settings().anonymousBlockGenerationDisabled());
+                    return parentBlock;
+                }
+            }
             return { };
         };
         if (auto* blockContainer = adjustedContainingBlock())

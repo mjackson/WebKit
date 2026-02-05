@@ -255,7 +255,7 @@ bool selectionAllowsSmartLists(const String& text, const VisibleSelection& selec
         return false;
     }
 
-    if (enclosingList(selection.base().protectedAnchorNode().get())) {
+    if (enclosingList(protect(selection.base().anchorNode()).get())) {
         // Smart Lists can not be "activated" if the selection is already within a list.
         return false;
     }

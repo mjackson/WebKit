@@ -453,7 +453,7 @@ static bool isMarketplaceKitURL(const URL& url)
 static void interceptMarketplaceKitNavigation(Ref<API::NavigationAction>&& action, WebPageProxy& page)
 {
     std::optional<FrameIdentifier> sourceFrameID;
-    if (auto sourceFrame = action->sourceFrame())
+    if (RefPtr sourceFrame = action->sourceFrame())
         sourceFrameID = sourceFrame->handle()->frameID();
 
     auto addConsoleError = [sourceFrameID, url = action->request().url(), weakPage = WeakPtr { page }](const String& error) {

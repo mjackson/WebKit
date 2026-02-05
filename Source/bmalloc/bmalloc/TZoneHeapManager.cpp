@@ -313,14 +313,23 @@ public:
 
     inline TZoneDescriptor value() const { return m_value; }
 
+    inline TZoneCategory category() const
+    {
+        return static_cast<TZoneCategory>(m_value >> TZoneSpecification::categoryShift);
+    }
+
     inline unsigned sizeClass() const
     {
-        return m_value;
+        constexpr unsigned sizeClassDividedBy16Mask = (1ull << TZoneSpecification::numSizeClassDividedBy16Bits) - 1;
+        unsigned sizeClassDividedBy16 = (m_value >> TZoneSpecification::sizeClassDividedBy16Shift) & sizeClassDividedBy16Mask;
+        return sizeClassDividedBy16 * 16;
     }
 
     inline unsigned alignment() const
     {
-        return m_value >> 32;
+        constexpr unsigned alignmentLog2Mask = (1ull << TZoneSpecification::numAlignmentLog2Bits) - 1;
+        unsigned alignmentLog2 = (m_value >> TZoneSpecification::alignmentLog2Shift) & alignmentLog2Mask;
+        return 1ull << alignmentLog2;
     }
 
 private:
@@ -415,14 +424,10 @@ void TZoneHeapManager::dumpRegisteredTypes()
 
         TZONE_LOG_DEBUG("TZoneHeap registered descriptors: %zu @ <pid%u>\n", m_registeredDescriptors.size(), getpid());
 
-        TZONE_LOG_DEBUG("      Size  Align  Bckts  Types  Inuse ");
-        for (unsigned i = 0; i < largestBucketCount; i++)
-            TZONE_LOG_DEBUG("  %sBkt%u", i < 10 ? " " : "", i);
+        TZONE_LOG_DEBUG("    Cat    Size  Align  Bckts  Types  Inuse ");
         TZONE_LOG_DEBUG("\n");
 
-        TZONE_LOG_DEBUG("    ------  -----  -----  -----  ----- ");
-        for (unsigned i = 0; i < largestBucketCount; i++)
-            TZONE_LOG_DEBUG("  -----");
+        TZONE_LOG_DEBUG("    ---  ------  -----  -----  -----  ----- ");
         TZONE_LOG_DEBUG("\n");
 
         for (auto iter = m_registeredDescriptors.begin(); iter < registeredDescriptorsEnd; iter++) {
@@ -442,11 +447,11 @@ void TZoneHeapManager::dumpRegisteredTypes()
 
             totalUseBucketCount += usedBuckets;
 
-            TZONE_LOG_DEBUG("    %6u  %5u  %5u  %5u  %5u ", descriptor.sizeClass(), descriptor.alignment(), bucketCount, typeCount, usedBuckets);
+            TZONE_LOG_DEBUG("    %2uc  %6u  %5u  %5u  %5u  %5u : ", static_cast<unsigned>(descriptor.category()), descriptor.sizeClass(), descriptor.alignment(), bucketCount, typeCount, usedBuckets);
 
             for (unsigned bucket = 0; bucket < group->numberOfBuckets; ++bucket)
                 TZONE_LOG_DEBUG("  %5u", group->bucketUseCounts[bucket]);
-            TZONE_LOG_DEBUG("\n");
+            TZONE_LOG_DEBUG(" descriptor: %" PRIx64 "\n", descriptor.value());
 
             if (bucketCountHistogram.size() <= bucketCount)
                 bucketCountHistogram.resize(bucketCount + 1);
@@ -677,8 +682,9 @@ pas_heap_ref* TZoneHeapManager::TZoneHeapManager::heapRefForTZoneTypeDifferentSi
         spec.addressOfHeapRef,
         static_cast<unsigned>(requestedSize),
         spec.alignment,
+        TZoneCategory::SizeAndAlignment,
         spec.allocationMode,
-        TZoneSpecification::encodeDescriptor(newSizeClass, spec.alignment),
+        TZoneSpecification::encodeDefaultDescriptor(TZoneCategory::SizeAndAlignment, newSizeClass, spec.alignment),
 #if BUSE_TZONE_SPEC_NAME_ARG
         // These values are only for debugging. We have no curent way to get these
         // values from the child TZone class that failed to declare itself

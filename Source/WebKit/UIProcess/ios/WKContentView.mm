@@ -243,6 +243,8 @@ typedef NS_ENUM(NSInteger, _WKPrintRenderingCallbackType) {
 #endif // !USE(EXTENSIONKIT)
 #endif // HAVE(VISIBILITY_PROPAGATION_VIEW)
 
+    __weak UIScreen *_screen;
+
     RetainPtr<WKNSUndoManager> _undoManager;
     RetainPtr<WKNSKeyEventSimulatorUndoManager> _undoManagerForSimulatingKeyEvents;
 
@@ -385,7 +387,7 @@ typedef NS_ENUM(NSInteger, _WKPrintRenderingCallbackType) {
 #if ENABLE(GPU_PROCESS)
 - (void)_setupVisibilityPropagationForGPUProcess
 {
-    auto* gpuProcess = _page->configuration().processPool().gpuProcess();
+    RefPtr gpuProcess = _page->configuration().processPool().gpuProcess();
     if (!gpuProcess)
         return;
 
@@ -412,7 +414,7 @@ typedef NS_ENUM(NSInteger, _WKPrintRenderingCallbackType) {
 #if ENABLE(MODEL_PROCESS)
 - (void)_setupVisibilityPropagationForModelProcess
 {
-    auto* modelProcess = _page->configuration().processPool().modelProcess();
+    RefPtr modelProcess = _page->configuration().processPool().modelProcess();
     if (!modelProcess)
         return;
     auto processIdentifier = modelProcess->processID();
@@ -433,7 +435,7 @@ typedef NS_ENUM(NSInteger, _WKPrintRenderingCallbackType) {
 - (void)_removeVisibilityPropagationViewForWebProcess
 {
 #if USE(EXTENSIONKIT)
-    if (auto page = _page.get()) {
+    if (RefPtr page = _page.get()) {
         for (WKVisibilityPropagationView *visibilityPropagationView in _visibilityPropagationViews.get())
             [visibilityPropagationView stopPropagatingVisibilityToProcess:page->legacyMainFrameProcess()];
     }
@@ -450,8 +452,8 @@ typedef NS_ENUM(NSInteger, _WKPrintRenderingCallbackType) {
 - (void)_removeVisibilityPropagationViewForGPUProcess
 {
 #if USE(EXTENSIONKIT)
-    auto page = _page.get();
-    if (auto gpuProcess = page ? page->configuration().processPool().gpuProcess() : nullptr) {
+    RefPtr page = _page.get();
+    if (RefPtr gpuProcess = page ? page->configuration().processPool().gpuProcess() : nullptr) {
         for (WKVisibilityPropagationView *visibilityPropagationView in _visibilityPropagationViews.get())
             [visibilityPropagationView stopPropagatingVisibilityToProcess:*gpuProcess];
     }
@@ -786,6 +788,12 @@ typedef NS_ENUM(NSInteger, _WKPrintRenderingCallbackType) {
 - (void)_updateForScreen:(UIScreen *)screen
 {
     ASSERT(screen);
+
+    _screen = screen;
+
+    if (RefPtr page = _page)
+        page->windowScreenDidChange(page->generateDisplayIDFromPageID());
+
     [self _accessibilityRegisterUIProcessTokens];
 }
 
@@ -1052,6 +1060,11 @@ static void storeAccessibilityRemoteConnectionInformation(id element, pid_t pid,
 - (double)_targetContentZoomScaleForRect:(const WebCore::FloatRect&)targetRect currentScale:(double)currentScale fitEntireRect:(BOOL)fitEntireRect minimumScale:(double)minimumScale maximumScale:(double)maximumScale
 {
     return [_webView _targetContentZoomScaleForRect:targetRect currentScale:currentScale fitEntireRect:fitEntireRect minimumScale:minimumScale maximumScale:maximumScale];
+}
+
+- (UIScreen *)_screen
+{
+    return _screen;
 }
 
 #if ENABLE(MODEL_PROCESS)

@@ -110,7 +110,7 @@ WI.DOMNodeStyles = class DOMNodeStyles extends WI.Object
 
             let ruleId = rule.id;
             if (ruleId) {
-                let ruleKey = `${ruleId.styleSheetId}:${ruleId.ordinal}`;
+                let ruleKey = rule.stringId;
                 if (seenRuleIds.has(ruleKey))
                     continue;
                 seenRuleIds.add(ruleKey);
@@ -610,11 +610,7 @@ WI.DOMNodeStyles = class DOMNodeStyles extends WI.Object
         inherited = inherited || false;
 
         var id = payload.styleId;
-        var mapKey = id ? id.styleSheetId + ":" + id.ordinal : null;
-        if (pseudoId)
-            mapKey += ":" + pseudoId;
-        if (type === WI.CSSStyleDeclaration.Type.Attribute)
-            mapKey += ":" + node.id + ":attribute";
+        var mapKey = WI.CSSStyleDeclaration.stringIdForStyleId(id, {pseudoId, type, node});
 
         let style = rule ? rule.style : null;
         console.assert(matchesNode || style);
@@ -688,7 +684,7 @@ WI.DOMNodeStyles = class DOMNodeStyles extends WI.Object
         // editability solely based on the existence of the id like the open source front-end does.
         var id = payload.ruleId || payload.style.styleId;
 
-        var mapKey = id ? id.styleSheetId + ":" + id.ordinal + ":" + (inherited ? "I" : "N") + ":" + (pseudoId ? pseudoId + ":" : "") + node.id : null;
+        var mapKey = WI.CSSStyleDeclaration.stringIdForStyleId(id, {inherited, pseudoId, node});
 
         // Rules can match multiple times if they have multiple selectors or because of inheritance. We keep a count
         // of occurrences so we have unique rules per occurrence, that way properties will be correctly marked as overridden.
@@ -744,7 +740,7 @@ WI.DOMNodeStyles = class DOMNodeStyles extends WI.Object
 
             let ruleIdForMap = null;
             if (ruleId) {
-                ruleIdForMap = `${ruleId.styleSheetId}-${ruleId.ordinal}`;
+                ruleIdForMap = WI.CSSStyleDeclaration.stringIdForStyleId(ruleId);
 
                 let existingGroupingForRuleId = this._groupingsMap.get(ruleIdForMap);
                 if (existingGroupingForRuleId) {

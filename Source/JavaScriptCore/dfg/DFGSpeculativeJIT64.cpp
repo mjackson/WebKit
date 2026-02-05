@@ -4690,11 +4690,6 @@ void SpeculativeJIT::compile(Node* node)
     case SetArgumentCountIncludingThis:
         compileSetArgumentCountIncludingThis(node);
         break;
-
-    case GetRestLength: {
-        compileGetRestLength(node);
-        break;
-    }
         
     case GetScope:
     case GetEvalScope:
@@ -8404,7 +8399,7 @@ void SpeculativeJIT::compileCreateClonedArguments(Node* node)
 
         JumpList slowCases;
 
-        emitGetLength(node->origin.semantic, sizeGPR);
+        emitGetArgumentCount(node->origin.semantic, sizeGPR);
 
         move(TrustedImmPtr(nullptr), storageGPR);
         slowCases.append(branch32(AboveOrEqual, sizeGPR, TrustedImm32(MAX_STORAGE_VECTOR_LENGTH)));
@@ -8449,7 +8444,7 @@ void SpeculativeJIT::compileCreateClonedArguments(Node* node)
 
             setupArgument(5, [&] (GPRReg destGPR) { move(storageGPR, destGPR); });
             setupArgument(4, [&] (GPRReg destGPR) { emitGetCallee(node->origin.semantic, destGPR); });
-            setupArgument(3, [&] (GPRReg destGPR) { emitGetLength(node->origin.semantic, destGPR); });
+            setupArgument(3, [&] (GPRReg destGPR) { emitGetArgumentCount(node->origin.semantic, destGPR); });
             setupArgument(2, [&] (GPRReg destGPR) { emitGetArgumentStart(node->origin.semantic, destGPR); });
             setupArgument(
                 1, [&] (GPRReg destGPR) {
@@ -8487,7 +8482,7 @@ void SpeculativeJIT::compileCreateClonedArguments(Node* node)
     // Arguments: 0:JSGlobalObject*, 1:structure, 2:start, 3:length, 4:callee, 5:butterfly
     setupArgument(5, [&] (GPRReg destGPR) { move(TrustedImm32(0), destGPR); });
     setupArgument(4, [&] (GPRReg destGPR) { emitGetCallee(node->origin.semantic, destGPR); });
-    setupArgument(3, [&] (GPRReg destGPR) { emitGetLength(node->origin.semantic, destGPR); });
+    setupArgument(3, [&] (GPRReg destGPR) { emitGetArgumentCount(node->origin.semantic, destGPR); });
     setupArgument(2, [&] (GPRReg destGPR) { emitGetArgumentStart(node->origin.semantic, destGPR); });
     setupArgument(
         1, [&] (GPRReg destGPR) {

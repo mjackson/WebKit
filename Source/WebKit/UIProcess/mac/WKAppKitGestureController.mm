@@ -26,7 +26,7 @@
 #import "config.h"
 #import "WKAppKitGestureController.h"
 
-#if PLATFORM(MAC)
+#if HAVE(APPKIT_GESTURES_SUPPORT)
 
 #import "AppKitSPI.h"
 #import "NativeWebWheelEvent.h"
@@ -108,6 +108,8 @@ static WebCore::FloatSize toRawPlatformDelta(WebCore::FloatSize delta)
 #if USE(APPLE_INTERNAL_SDK) && __has_include(<WebKitAdditions/WKAppKitGestureControllerAdditions.mm>)
 #import <WebKitAdditions/WKAppKitGestureControllerAdditions.mm>
 #else
+
+static NSString * const textSelectionClickGestureName = @"";
 
 - (void)configureForScrolling:(NSPanGestureRecognizer *)gesture
 {
@@ -459,8 +461,14 @@ static inline bool isSamePair(NSGestureRecognizer *a, NSGestureRecognizer *b, NS
 - (BOOL)gestureRecognizer:(NSGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(NSGestureRecognizer *)otherGestureRecognizer
 {
     WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG(RefPtr { _page.get() }->logIdentifier(), "Gesture: %@, Other gesture: %@", gestureRecognizer, otherGestureRecognizer);
+
     if (isSamePair(gestureRecognizer, otherGestureRecognizer, _singleClickGestureRecognizer.get(), _panGestureRecognizer.get()))
         return YES;
+
+    if ((gestureRecognizer == _singleClickGestureRecognizer.get() && [otherGestureRecognizer.name isEqualToString:textSelectionClickGestureName])
+        || (otherGestureRecognizer == _singleClickGestureRecognizer.get() && [gestureRecognizer.name isEqualToString:textSelectionClickGestureName]))
+        return YES;
+
     return NO;
 }
 
@@ -481,4 +489,4 @@ static inline bool isSamePair(NSGestureRecognizer *a, NSGestureRecognizer *b, NS
 
 #undef WK_APPKIT_GESTURE_CONTROLLER_RELEASE_LOG
 
-#endif
+#endif // HAVE(APPKIT_GESTURES_SUPPORT)

@@ -49,6 +49,7 @@
 #include "ScriptController.h"
 #include "ScriptDisallowedScope.h"
 #include "ShadowRoot.h"
+#include "StyleLengthResolution.h"
 #include "StyleResolver.h"
 #include "TextEvent.h"
 #include "TextEventInputType.h"
@@ -144,13 +145,7 @@ std::optional<Style::UnadjustedStyle> TextControlInnerElement::resolveCustomStyl
         newStyle->setTextOverflow(TextOverflow::Clip);
         newStyle->setOverflowX(Overflow::Hidden);
         newStyle->setOverflowY(Overflow::Hidden);
-
-        // Set "flex-basis: 1em". Note that CSSPrimitiveValue::resolveAsLength<int>() only needs the element's
-        // style to calculate em lengths. Since the element might not be in a document, just pass nullptr
-        // for the root element style, the parent element style, and the render view.
-        auto emSize = CSSPrimitiveValue::create(1, CSSUnitType::CSS_EM);
-        int pixels = emSize->resolveAsLength<int>(CSSToLengthConversionData { *newStyle, nullptr, nullptr, nullptr });
-        newStyle->setFlexBasis(Style::FlexBasis::Fixed { static_cast<float>(pixels) });
+        newStyle->setFlexBasis(Style::FlexBasis::Fixed { static_cast<float>(Style::emToPx<int>(1, *newStyle)) });
     }
 
     return Style::UnadjustedStyle { WTF::move(newStyle) };

@@ -148,7 +148,7 @@ Variant<PrepareResult, Error> prepare(ShaderModule& ast, const String& entryPoin
     return prepareImpl(ast, pipelineLayouts);
 }
 
-std::optional<ConstantValue> evaluate(ShaderModule& module, const AST::Expression& expression, const HashMap<String, ConstantValue>& overrideValues)
+std::optional<ConstantValue> evaluate(const ShaderModule& module, const AST::Expression& expression, const HashMap<String, ConstantValue>& overrideValues)
 {
     std::optional<ConstantValue> result;
     if (auto constantValue = expression.constantValue())

@@ -259,11 +259,11 @@ static UIAxis axesForDelta(WebCore::FloatSize delta)
 
 - (UIViewController *)_wk_viewControllerForFullScreenPresentation
 {
-    auto controller = self.window.rootViewController;
-    UIViewController *nextPresentedController = nil;
-    while ((nextPresentedController = controller.presentedViewController))
-        controller = nextPresentedController;
-    return controller.viewIfLoaded.window == self.window ? controller : nil;
+    RetainPtr<UIViewController> controller = self.window.rootViewController;
+    RetainPtr<UIViewController> nextPresentedController;
+    while ((nextPresentedController = controller.get().presentedViewController))
+        controller = WTF::move(nextPresentedController);
+    return controller.get().viewIfLoaded.window == self.window ? controller.autorelease() : nil;
 }
 
 - (WebCore::FloatQuad)_wk_convertQuad:(const WebCore::FloatQuad&)quad toCoordinateSpace:(id<UICoordinateSpace>)destination

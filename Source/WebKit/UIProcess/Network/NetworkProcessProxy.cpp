@@ -1769,7 +1769,7 @@ void NetworkProcessProxy::clearAppBoundSession(PAL::SessionID sessionID, Complet
 
 void NetworkProcessProxy::getAppBoundDomains(PAL::SessionID sessionID, CompletionHandler<void(HashSet<WebCore::RegistrableDomain>&&)>&& completionHandler)
 {
-    if (auto* store = websiteDataStoreFromSessionID(sessionID)) {
+    if (RefPtr store = websiteDataStoreFromSessionID(sessionID)) {
         store->getAppBoundDomains([completionHandler = WTF::move(completionHandler)] (auto& appBoundDomains) mutable {
             auto appBoundDomainsCopy = appBoundDomains;
             completionHandler(WTF::move(appBoundDomainsCopy));

@@ -2399,6 +2399,14 @@
    },
    {
       "emails" : [
+         "stockley@apple.com",
+         "david@stockley.me"
+      ],
+      "github" : "WDUK",
+      "name" : "David Stockley"
+   },
+   {
+      "emails" : [
          "davidtranhq@gmail.com",
          "david_tran5@apple.com",
          "dtran253@uwo.ca"

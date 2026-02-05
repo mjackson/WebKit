@@ -29,6 +29,7 @@
 
 #include <WebCore/MediaDeviceRouteLoadURLResult.h>
 #include <WebCore/MediaPlaybackTarget.h>
+#include <wtf/Forward.h>
 #include <wtf/UUID.h>
 
 namespace WebCore {
@@ -46,7 +47,7 @@ public:
 
     MediaDeviceRoute* route() const;
 
-    void loadURL(const String&, CompletionHandler<void(const MediaDeviceRouteLoadURLResult&)>&&);
+    void loadURL(const URL&, CompletionHandler<void(const MediaDeviceRouteLoadURLResult&)>&&);
 
 private:
     MediaPlaybackTargetWirelessPlayback(RefPtr<MediaDeviceRoute>&&, bool hasActiveRoute);

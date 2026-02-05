@@ -878,6 +878,7 @@ runtime/IntlRelativeTimeFormatConstructor.cpp
 runtime/IntlRelativeTimeFormatPrototype.cpp
 runtime/IntlSegmentIterator.cpp
 runtime/IntlSegmentIteratorPrototype.cpp
+runtime/IntlSegmentDataObject.cpp
 runtime/IntlSegmenter.cpp
 runtime/IntlSegmenterConstructor.cpp
 runtime/IntlSegmenterPrototype.cpp

@@ -217,17 +217,17 @@ NEVER_INLINE void substituteBackreferencesSlow(StringBuilder& result, StringView
         }
 
         int backrefStart;
-        int backrefLength;
+        int backrefEnd;
         int advance = 0;
         if (ref == '&') {
             backrefStart = ovector[0];
-            backrefLength = ovector[1] - backrefStart;
+            backrefEnd = ovector[1];
         } else if (ref == '`') {
             backrefStart = 0;
-            backrefLength = ovector[0];
+            backrefEnd = ovector[0];
         } else if (ref == '\'') {
             backrefStart = ovector[1];
-            backrefLength = source.length() - backrefStart;
+            backrefEnd = source.length();
         } else if (reg && ref == '<') {
             // Named back reference
             if (!hasNamedCaptures)
@@ -242,10 +242,10 @@ NEVER_INLINE void substituteBackreferencesSlow(StringBuilder& result, StringView
 
             if (!backrefIndex || backrefIndex > reg->numSubpatterns()) {
                 backrefStart = 0;
-                backrefLength = 0;
+                backrefEnd = 0;
             } else {
                 backrefStart = ovector[2 * backrefIndex];
-                backrefLength = ovector[2 * backrefIndex + 1] - backrefStart;
+                backrefEnd = ovector[2 * backrefIndex + 1];
             }
             advance = nameLength + 1;
         } else if (reg && isASCIIDigit(ref)) {
@@ -266,7 +266,7 @@ NEVER_INLINE void substituteBackreferencesSlow(StringBuilder& result, StringView
             if (!backrefIndex)
                 continue;
             backrefStart = ovector[2 * backrefIndex];
-            backrefLength = ovector[2 * backrefIndex + 1] - backrefStart;
+            backrefEnd = ovector[2 * backrefIndex + 1];
         } else
             continue;
 
@@ -274,8 +274,8 @@ NEVER_INLINE void substituteBackreferencesSlow(StringBuilder& result, StringView
             result.append(replacement.substring(offset, i - offset));
         i += 1 + advance;
         offset = i + 1;
-        if (backrefStart >= 0)
-            result.append(source.substring(backrefStart, backrefLength));
+        if (backrefStart >= 0 && backrefEnd >= backrefStart)
+            result.append(source.substring(backrefStart, backrefEnd - backrefStart));
     } while ((i = replacement.find('$', i + 1)) != notFound);
 
     if (replacement.length() - offset)

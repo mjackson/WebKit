@@ -1776,9 +1776,6 @@ private:
         case CreateRest:
             compileCreateRest();
             break;
-        case GetRestLength:
-            compileGetRestLength();
-            break;
         case RegExpExec:
             compileRegExpExec();
             break;
@@ -9212,16 +9209,19 @@ IGNORE_CLANG_WARNINGS_END
     void compileCreateRest()
     {
         JSGlobalObject* globalObject = m_graph.globalObjectFor(m_origin.semantic);
+        InlineCallFrame* inlineCallFrame = m_origin.semantic.inlineCallFrame();
+        unsigned numberOfArgumentsToSkip = m_node->numberOfArgumentsToSkip();
+        LValue arrayLength = getSpreadLengthFromInlineCallFrame(inlineCallFrame, numberOfArgumentsToSkip);
         if (m_graph.isWatchingHavingABadTimeWatchpoint(m_node)) {
             LBasicBlock continuation = m_out.newBlock();
-            LValue arrayLength = lowInt32(m_node->child1());
             LBasicBlock loopStart = m_out.newBlock();
+
             RegisteredStructure structure = m_graph.registerStructure(globalObject->originalRestParameterStructure());
             ArrayValues arrayValues = allocateUninitializedContiguousJSArray(arrayLength, structure);
             LValue array = arrayValues.array;
             LValue butterfly = arrayValues.butterfly;
             ValueFromBlock startLength = m_out.anchor(arrayLength);
-            LValue argumentRegion = m_out.add(getArgumentsStart(), m_out.constInt64(sizeof(Register) * m_node->numberOfArgumentsToSkip()));
+            LValue argumentRegion = m_out.add(getArgumentsStart(), m_out.constInt64(sizeof(Register) * numberOfArgumentsToSkip));
             m_out.branch(m_out.equal(arrayLength, m_out.constInt32(0)),
                 unsure(continuation), unsure(loopStart));
 
@@ -9240,31 +9240,9 @@ IGNORE_CLANG_WARNINGS_END
             return;
         }
 
-        LValue arrayLength = lowInt32(m_node->child1());
         LValue argumentStart = getArgumentsStart();
-        LValue numberOfArgumentsToSkip = m_out.constInt32(m_node->numberOfArgumentsToSkip());
         setJSValue(vmCall(
-            Int64, operationCreateRest, weakPointer(globalObject), argumentStart, numberOfArgumentsToSkip, arrayLength));
-    }
-
-    void compileGetRestLength()
-    {
-        LBasicBlock nonZeroLength = m_out.newBlock();
-        LBasicBlock continuation = m_out.newBlock();
-
-        ValueFromBlock zeroLengthResult = m_out.anchor(m_out.constInt32(0));
-
-        LValue numberOfArgumentsToSkip = m_out.constInt32(m_node->numberOfArgumentsToSkip());
-        LValue argumentsLength = getArgumentsLength().value;
-        m_out.branch(m_out.above(argumentsLength, numberOfArgumentsToSkip),
-            unsure(nonZeroLength), unsure(continuation));
-
-        LBasicBlock lastNext = m_out.appendTo(nonZeroLength, continuation);
-        ValueFromBlock nonZeroLengthResult = m_out.anchor(m_out.sub(argumentsLength, numberOfArgumentsToSkip));
-        m_out.jump(continuation);
-
-        m_out.appendTo(continuation, lastNext);
-        setInt32(m_out.phi(Int32, zeroLengthResult, nonZeroLengthResult));
+            Int64, operationCreateRest, weakPointer(globalObject), argumentStart, m_out.constInt32(numberOfArgumentsToSkip), arrayLength));
     }
 
     const AbstractHeap& abstractHeapForOwnPropertyKeysCache(NodeType type)
@@ -10188,8 +10166,6 @@ IGNORE_CLANG_WARNINGS_END
             speculateArray(m_node->child1());
         else if (m_node->child1().useKind() == SetObjectUse)
             speculateSetObject(m_node->child1());
-        else if (m_node->child1().useKind() == MapIteratorObjectUse)
-            speculateMapIteratorObject(m_node->child1());
 
         if (m_graph.canDoFastSpread(m_node, m_state.forNode(m_node->child1()))) {
             LBasicBlock copyOnWriteContiguousCheck = m_out.newBlock();
@@ -10354,9 +10330,6 @@ IGNORE_CLANG_WARNINGS_END
             m_out.appendTo(continuation, lastNext);
             result = m_out.phi(pointerType(), fastResult, slowResult);
             mutatorFence();
-        } else if (m_node->child1().useKind() == MapIteratorObjectUse) {
-            // MapIterator spread does not use inline fast path; call the C++ operation directly.
-            result = vmCall(pointerType(), operationSpreadMapIterator, weakPointer(globalObject), argument);
         } else
             result = vmCall(pointerType(), operationSpreadGeneric, weakPointer(globalObject), argument);
 

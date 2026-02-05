@@ -252,7 +252,7 @@ void ApplyStyleCommand::applyBlockStyle(EditingStyle& style)
     while (paragraphStart.isNotNull() && paragraphStart != beyondEnd) {
         StyleChange styleChange(&style, paragraphStart.deepEquivalent());
         if (styleChange.cssStyle() || m_removeOnly) {
-            RefPtr<Node> block = enclosingBlock(paragraphStart.deepEquivalent().protectedDeprecatedNode());
+            RefPtr<Node> block = enclosingBlock(protect(paragraphStart.deepEquivalent().deprecatedNode()));
             if (!m_removeOnly) {
                 RefPtr<Node> newBlock = moveParagraphContentsToNewBlockIfNecessary(paragraphStart.deepEquivalent());
                 if (newBlock)
@@ -1226,8 +1226,8 @@ void ApplyStyleCommand::splitTextElementAtStart(const Position& start, const Pos
     else
         newEnd = end;
 
-    splitTextNodeContainingElement(*start.protectedContainerText(), start.offsetInContainerNode());
-    updateStartEnd(positionBeforeNode(start.protectedContainerNode().get()), newEnd);
+    splitTextNodeContainingElement(*protect(start.containerText()), start.offsetInContainerNode());
+    updateStartEnd(positionBeforeNode(protect(start.containerNode()).get()), newEnd);
 }
 
 void ApplyStyleCommand::splitTextElementAtEnd(const Position& start, const Position& end)
@@ -1235,7 +1235,7 @@ void ApplyStyleCommand::splitTextElementAtEnd(const Position& start, const Posit
     ASSERT(is<Text>(end.containerNode()));
 
     bool shouldUpdateStart = start.containerNode() == end.containerNode();
-    splitTextNodeContainingElement(*end.protectedContainerText(), end.offsetInContainerNode());
+    splitTextNodeContainingElement(*protect(end.containerText()), end.offsetInContainerNode());
 
     RefPtr parentElement = end.containerNode()->parentNode();
     if (!parentElement || !parentElement->previousSibling())
@@ -1299,7 +1299,7 @@ bool ApplyStyleCommand::mergeStartWithPreviousIfIdentical(const Position& start,
     unsigned startOffset = startChild->computeNodeIndex();
     unsigned endOffset = end.deprecatedEditingOffset() + (startNode == end.deprecatedNode() ? startOffset : 0);
     updateStartEnd({ startNode.get(), startOffset, Position::PositionIsOffsetInAnchor },
-        { end.protectedDeprecatedNode(), endOffset, Position::PositionIsOffsetInAnchor });
+        { protect(end.deprecatedNode()), endOffset, Position::PositionIsOffsetInAnchor });
     return true;
 }
 

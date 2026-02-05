@@ -1217,7 +1217,7 @@ void EventHandler::updateSelectionForMouseDrag(const HitTestResult& hitTestResul
     m_frame->selection().setSelectionByMouseIfDifferent(newSelection, m_frame->selection().granularity(),
         FrameSelection::EndPointsAdjustmentMode::AdjustAtBidiBoundary);
 
-    if (oldSelection != newSelection && ImageOverlay::isOverlayText(newSelection.start().protectedContainerNode().get()) && ImageOverlay::isOverlayText(newSelection.end().protectedContainerNode().get()))
+    if (oldSelection != newSelection && ImageOverlay::isOverlayText(protect(newSelection.start().containerNode()).get()) && ImageOverlay::isOverlayText(protect(newSelection.end().containerNode()).get()))
         invalidateClick();
 }
 

@@ -56,7 +56,7 @@
 
 @implementation WKSwipeTransitionController
 {
-    WebKit::ViewGestureController *_gestureController;
+    WeakPtr<WebKit::ViewGestureController> _gestureController;
     RetainPtr<_UINavigationInteractiveTransitionBase> _backTransitionController;
     RetainPtr<_UINavigationInteractiveTransitionBase> _forwardTransitionController;
     WeakObjCPtr<UIView> _gestureRecognizerView;
@@ -103,17 +103,19 @@ static const float swipeSnapshotRemovalRenderTreeSizeTargetFraction = 0.5;
 
 - (void)startInteractiveTransition:(_UINavigationInteractiveTransitionBase *)transition
 {
-    protect(*_gestureController)->beginSwipeGesture(transition, [self directionForTransition:transition]);
+    if (RefPtr gestureController = _gestureController)
+        gestureController->beginSwipeGesture(transition, [self directionForTransition:transition]);
 }
 
 - (BOOL)shouldBeginInteractiveTransition:(_UINavigationInteractiveTransitionBase *)transition
 {
-    if (_gestureController->hasActiveSwipeGesture())
+    RefPtr gestureController = _gestureController;
+    if (!gestureController || gestureController->hasActiveSwipeGesture())
         return NO;
 
     using enum WebKit::ViewGestureController::DeferToConflictingGestures;
     auto deferToConflictingGestures = transition.gestureRecognizer.state == UIGestureRecognizerStateFailed ? Yes : No;
-    return protect(*_gestureController)->canSwipeInDirection([self directionForTransition:transition], deferToConflictingGestures);
+    return gestureController->canSwipeInDirection([self directionForTransition:transition], deferToConflictingGestures);
 }
 
 - (BOOL)interactiveTransition:(_UINavigationInteractiveTransitionBase *)transition gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer
@@ -220,7 +222,7 @@ void ViewGestureController::beginSwipeGesture(_UINavigationInteractiveTransition
     // Copy the snapshot from this view to the one that owns the back forward list, so that
     // swiping forward will have the correct snapshot.
     if (m_webPageProxyForBackForwardListForCurrentSwipe != page.get()) {
-        if (auto* currentViewHistoryItem = page->backForwardList().currentItem())
+        if (RefPtr currentViewHistoryItem = page->backForwardList().currentItem())
             backForwardList.currentItem()->setSnapshot(currentViewHistoryItem->snapshot());
     }
 
@@ -236,7 +238,7 @@ void ViewGestureController::beginSwipeGesture(_UINavigationInteractiveTransition
     [m_snapshotView layer].name = @"SwipeSnapshot";
 
     RetainPtr<UIColor> backgroundColor = [UIColor whiteColor];
-    if (ViewSnapshot* snapshot = targetItem->snapshot()) {
+    if (RefPtr snapshot = targetItem->snapshot()) {
         float deviceScaleFactor = page->deviceScaleFactor();
         WebCore::FloatSize swipeLayerSizeInDeviceCoordinates(liveSwipeViewFrame.size);
         swipeLayerSizeInDeviceCoordinates.scale(deviceScaleFactor);
@@ -337,13 +339,13 @@ void ViewGestureController::willEndSwipeGesture(WebBackForwardListItem& targetIt
         return;
 
     m_snapshotRemovalTargetRenderTreeSize = 0;
-    if (ViewSnapshot* snapshot = targetItem.snapshot())
+    if (RefPtr snapshot = targetItem.snapshot())
         m_snapshotRemovalTargetRenderTreeSize = snapshot->renderTreeSize() * swipeSnapshotRemovalRenderTreeSizeTargetFraction;
 
     m_didStartProvisionalLoad = false;
     m_pendingNavigation = protect(m_webPageProxyForBackForwardListForCurrentSwipe)->goToBackForwardItem(targetItem);
 
-    auto* currentItem = m_webPageProxyForBackForwardListForCurrentSwipe->backForwardList().currentItem();
+    RefPtr currentItem = m_webPageProxyForBackForwardListForCurrentSwipe->backForwardList().currentItem();
     // The main frame will not be navigated so hide the snapshot right away.
     if (currentItem && currentItem->itemIsClone(targetItem)) {
         removeSwipeSnapshot();
@@ -360,7 +362,7 @@ void ViewGestureController::willEndSwipeGesture(WebBackForwardListItem& targetIt
             protectedThis->removeSwipeSnapshot();
     });
 
-    if (ViewSnapshot* snapshot = targetItem.snapshot()) {
+    if (RefPtr snapshot = targetItem.snapshot()) {
         m_backgroundColorForCurrentSnapshot = snapshot->backgroundColor();
         if (RefPtr page = m_webPageProxy.get())
             page->didChangeBackgroundColor();
@@ -422,7 +424,7 @@ void ViewGestureController::endSwipeGesture(WebBackForwardListItem* targetItem, 
             return;
 
         RefPtr page = protectedThis->m_webPageProxy.get();
-        auto* drawingArea = page ? page->provisionalDrawingArea() : nullptr;
+        RefPtr drawingArea = page ? page->provisionalDrawingArea() : nullptr;
         if (!drawingArea) {
             protectedThis->removeSwipeSnapshot();
             return;

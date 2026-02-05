@@ -198,7 +198,6 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node, bool igno
     case IdentityWithProfile:
     case GetCallee:
     case GetArgumentCountIncludingThis:
-    case GetRestLength:
     case GetLocal:
     case GetStack:
     case ExitOK:

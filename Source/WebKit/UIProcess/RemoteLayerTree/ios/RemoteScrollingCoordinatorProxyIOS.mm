@@ -93,7 +93,7 @@ void RemoteScrollingCoordinatorProxyIOS::clearTouchActionsForTouchIdentifier(uns
 
 UIScrollView *RemoteScrollingCoordinatorProxyIOS::scrollViewForScrollingNodeID(std::optional<ScrollingNodeID> nodeID) const
 {
-    auto* treeNode = scrollingTree().nodeForID(nodeID);
+    RefPtr treeNode = scrollingTree().nodeForID(nodeID);
 
     if (RefPtr overflowScrollingNode = dynamicDowncast<ScrollingTreeOverflowScrollingNodeIOS>(treeNode))
         return overflowScrollingNode->scrollView();
@@ -373,7 +373,7 @@ void RemoteScrollingCoordinatorProxyIOS::connectStateNodeLayers(ScrollingStateTr
     for (auto& currNode : stateTree.nodeMap().values()) {
         if (currNode->hasChangedProperty(ScrollingStateNode::Property::Layer)) {
             auto platformLayerID = currNode->layer().layerID();
-            auto remoteLayerTreeNode = layerTreeHost.nodeForID(platformLayerID);
+            RefPtr remoteLayerTreeNode = layerTreeHost.nodeForID(platformLayerID);
             if (remoteLayerTreeNode)
                 currNode->setLayer(remoteLayerTreeNode->layer());
 #if ENABLE(OVERLAY_REGIONS_IN_EVENT_REGION)
@@ -396,56 +396,56 @@ void RemoteScrollingCoordinatorProxyIOS::connectStateNodeLayers(ScrollingStateTr
 
         switch (currNode->nodeType()) {
         case ScrollingNodeType::Overflow: {
-            auto& scrollingStateNode = downcast<ScrollingStateOverflowScrollingNode>(currNode.get());
+            Ref scrollingStateNode = downcast<ScrollingStateOverflowScrollingNode>(currNode.get());
 
-            if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::ScrollContainerLayer)) {
-                auto platformLayerID = scrollingStateNode.scrollContainerLayer().layerID();
-                auto remoteLayerTreeNode = layerTreeHost.nodeForID(platformLayerID);
+            if (scrollingStateNode->hasChangedProperty(ScrollingStateNode::Property::ScrollContainerLayer)) {
+                auto platformLayerID = scrollingStateNode->scrollContainerLayer().layerID();
+                RefPtr remoteLayerTreeNode = layerTreeHost.nodeForID(platformLayerID);
                 if (remoteLayerTreeNode)
-                    scrollingStateNode.setScrollContainerLayer(remoteLayerTreeNode->layer());
+                    scrollingStateNode->setScrollContainerLayer(remoteLayerTreeNode->layer());
             }
 
-            if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::ScrolledContentsLayer))
-                scrollingStateNode.setScrolledContentsLayer(layerTreeHost.layerForID(scrollingStateNode.scrolledContentsLayer().layerID()));
+            if (scrollingStateNode->hasChangedProperty(ScrollingStateNode::Property::ScrolledContentsLayer))
+                scrollingStateNode->setScrolledContentsLayer(layerTreeHost.layerForID(scrollingStateNode->scrolledContentsLayer().layerID()));
             break;
         };
         case ScrollingNodeType::MainFrame:
         case ScrollingNodeType::Subframe: {
-            auto& scrollingStateNode = downcast<ScrollingStateFrameScrollingNode>(currNode.get());
+            Ref scrollingStateNode = downcast<ScrollingStateFrameScrollingNode>(currNode.get());
 
-            if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::ScrollContainerLayer)) {
-                auto platformLayerID = scrollingStateNode.scrollContainerLayer().layerID();
-                auto remoteLayerTreeNode = layerTreeHost.nodeForID(platformLayerID);
+            if (scrollingStateNode->hasChangedProperty(ScrollingStateNode::Property::ScrollContainerLayer)) {
+                auto platformLayerID = scrollingStateNode->scrollContainerLayer().layerID();
+                RefPtr remoteLayerTreeNode = layerTreeHost.nodeForID(platformLayerID);
                 if (remoteLayerTreeNode)
-                    scrollingStateNode.setScrollContainerLayer(remoteLayerTreeNode->layer());
+                    scrollingStateNode->setScrollContainerLayer(remoteLayerTreeNode->layer());
             }
 
-            if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::ScrolledContentsLayer))
-                scrollingStateNode.setScrolledContentsLayer(layerTreeHost.layerForID(scrollingStateNode.scrolledContentsLayer().layerID()));
+            if (scrollingStateNode->hasChangedProperty(ScrollingStateNode::Property::ScrolledContentsLayer))
+                scrollingStateNode->setScrolledContentsLayer(layerTreeHost.layerForID(scrollingStateNode->scrolledContentsLayer().layerID()));
 
-            if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::CounterScrollingLayer))
-                scrollingStateNode.setCounterScrollingLayer(layerTreeHost.layerForID(scrollingStateNode.counterScrollingLayer().layerID()));
+            if (scrollingStateNode->hasChangedProperty(ScrollingStateNode::Property::CounterScrollingLayer))
+                scrollingStateNode->setCounterScrollingLayer(layerTreeHost.layerForID(scrollingStateNode->counterScrollingLayer().layerID()));
 
             // FIXME: we should never have header and footer layers coming from the WebProcess.
-            if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::HeaderLayer))
-                scrollingStateNode.setHeaderLayer(layerTreeHost.layerForID(scrollingStateNode.headerLayer().layerID()));
+            if (scrollingStateNode->hasChangedProperty(ScrollingStateNode::Property::HeaderLayer))
+                scrollingStateNode->setHeaderLayer(layerTreeHost.layerForID(scrollingStateNode->headerLayer().layerID()));
 
-            if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::FooterLayer))
-                scrollingStateNode.setFooterLayer(layerTreeHost.layerForID(scrollingStateNode.footerLayer().layerID()));
+            if (scrollingStateNode->hasChangedProperty(ScrollingStateNode::Property::FooterLayer))
+                scrollingStateNode->setFooterLayer(layerTreeHost.layerForID(scrollingStateNode->footerLayer().layerID()));
             break;
         }
         case ScrollingNodeType::PluginScrolling: {
-            auto& scrollingStateNode = downcast<ScrollingStatePluginScrollingNode>(currNode.get());
+            Ref scrollingStateNode = downcast<ScrollingStatePluginScrollingNode>(currNode.get());
 
-            if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::ScrollContainerLayer)) {
-                auto platformLayerID = scrollingStateNode.scrollContainerLayer().layerID();
-                auto remoteLayerTreeNode = layerTreeHost.nodeForID(platformLayerID);
+            if (scrollingStateNode->hasChangedProperty(ScrollingStateNode::Property::ScrollContainerLayer)) {
+                auto platformLayerID = scrollingStateNode->scrollContainerLayer().layerID();
+                RefPtr remoteLayerTreeNode = layerTreeHost.nodeForID(platformLayerID);
                 if (remoteLayerTreeNode)
-                    scrollingStateNode.setScrollContainerLayer(remoteLayerTreeNode->layer());
+                    scrollingStateNode->setScrollContainerLayer(remoteLayerTreeNode->layer());
             }
 
-            if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::ScrolledContentsLayer))
-                scrollingStateNode.setScrolledContentsLayer(layerTreeHost.layerForID(scrollingStateNode.scrolledContentsLayer().layerID()));
+            if (scrollingStateNode->hasChangedProperty(ScrollingStateNode::Property::ScrolledContentsLayer))
+                scrollingStateNode->setScrolledContentsLayer(layerTreeHost.layerForID(scrollingStateNode->scrolledContentsLayer().layerID()));
             break;
         }
         case ScrollingNodeType::OverflowProxy:
@@ -499,7 +499,7 @@ void RemoteScrollingCoordinatorProxyIOS::scrollingTreeNodeDidEndScroll(Scrolling
 void RemoteScrollingCoordinatorProxyIOS::establishLayerTreeScrollingRelations(const RemoteLayerTreeHost& remoteLayerTreeHost)
 {
     for (auto layerID : m_layersWithScrollingRelations) {
-        if (auto* layerNode = remoteLayerTreeHost.nodeForID(layerID)) {
+        if (RefPtr layerNode = remoteLayerTreeHost.nodeForID(layerID)) {
             layerNode->setActingScrollContainerID(std::nullopt);
             layerNode->setStationaryScrollContainerIDs({ });
         }
@@ -513,26 +513,26 @@ void RemoteScrollingCoordinatorProxyIOS::establishLayerTreeScrollingRelations(co
         Vector<PlatformLayerIdentifier> stationaryScrollContainerIDs;
 
         for (auto overflowNodeID : positionedNode->relatedOverflowScrollingNodes()) {
-            auto* node = scrollingTree().nodeForID(overflowNodeID);
-            auto* overflowNode = dynamicDowncast<ScrollingTreeOverflowScrollingNode>(node);
+            RefPtr node = scrollingTree().nodeForID(overflowNodeID);
+            RefPtr overflowNode = dynamicDowncast<ScrollingTreeOverflowScrollingNode>(node.get());
             MESSAGE_CHECK(overflowNode);
             auto layerID = RemoteLayerTreeNode::layerID(static_cast<CALayer*>(overflowNode->scrollContainerLayer()));
             MESSAGE_CHECK(layerID);
             stationaryScrollContainerIDs.append(*layerID);
         }
 
-        if (auto* layerNode = RemoteLayerTreeNode::forCALayer(positionedNode->layer())) {
+        if (RefPtr layerNode = RemoteLayerTreeNode::forCALayer(positionedNode->layer())) {
             layerNode->setStationaryScrollContainerIDs(WTF::move(stationaryScrollContainerIDs));
             m_layersWithScrollingRelations.add(layerNode->layerID());
         }
     }
 
     for (auto& scrollProxyNode : scrollingTree().activeOverflowScrollProxyNodes()) {
-        auto* node = scrollingTree().nodeForID(scrollProxyNode->overflowScrollingNodeID());
-        auto* overflowNode = dynamicDowncast<ScrollingTreeOverflowScrollingNode>(node);
+        RefPtr node = scrollingTree().nodeForID(scrollProxyNode->overflowScrollingNodeID());
+        RefPtr overflowNode = dynamicDowncast<ScrollingTreeOverflowScrollingNode>(node.get());
         MESSAGE_CHECK(overflowNode);
 
-        if (auto* layerNode = RemoteLayerTreeNode::forCALayer(scrollProxyNode->layer())) {
+        if (RefPtr layerNode = RemoteLayerTreeNode::forCALayer(scrollProxyNode->layer())) {
             layerNode->setActingScrollContainerID(RemoteLayerTreeNode::layerID(static_cast<CALayer*>(overflowNode->scrollContainerLayer())));
             m_layersWithScrollingRelations.add(layerNode->layerID());
         }
@@ -570,7 +570,7 @@ bool RemoteScrollingCoordinatorProxyIOS::shouldSetScrollViewDecelerationRateFast
 void RemoteScrollingCoordinatorProxyIOS::setRootNodeIsInUserScroll(bool value)
 {
     // FIXME: Locking
-    auto* rootNode = scrollingTree().rootNode();
+    RefPtr rootNode = scrollingTree().rootNode();
     if (!rootNode)
         return;
 
@@ -584,7 +584,7 @@ void RemoteScrollingCoordinatorProxyIOS::setRootNodeIsInUserScroll(bool value)
 
 bool RemoteScrollingCoordinatorProxyIOS::shouldSnapForMainFrameScrolling(ScrollEventAxis axis) const
 {
-    auto* rootNode = scrollingTree().rootNode();
+    RefPtr rootNode = scrollingTree().rootNode();
     if (rootNode)
         return rootNode->snapOffsetsInfo().offsetsForAxis(axis).size();
 
@@ -593,7 +593,7 @@ bool RemoteScrollingCoordinatorProxyIOS::shouldSnapForMainFrameScrolling(ScrollE
 
 std::pair<float, std::optional<unsigned>> RemoteScrollingCoordinatorProxyIOS::closestSnapOffsetForMainFrameScrolling(ScrollEventAxis axis, float currentScrollOffset, FloatPoint scrollDestination, float velocity) const
 {
-    auto* rootNode = scrollingTree().rootNode();
+    RefPtr rootNode = scrollingTree().rootNode();
     const auto& snapOffsetsInfo = rootNode->snapOffsetsInfo();
 
     auto zoomScale = [protect(webPageProxy())->cocoaView() scrollView].zoomScale;
@@ -605,7 +605,7 @@ std::pair<float, std::optional<unsigned>> RemoteScrollingCoordinatorProxyIOS::cl
 
 bool RemoteScrollingCoordinatorProxyIOS::hasActiveSnapPoint() const
 {
-    auto* rootNode = scrollingTree().rootNode();
+    RefPtr rootNode = scrollingTree().rootNode();
     if (!rootNode)
         return false;
 
@@ -627,7 +627,7 @@ CGPoint RemoteScrollingCoordinatorProxyIOS::nearestActiveContentInsetAdjustedSna
 {
     CGPoint activePoint = currentPoint;
 
-    auto* rootNode = scrollingTree().rootNode();
+    RefPtr rootNode = scrollingTree().rootNode();
     if (!rootNode)
         return CGPointZero;
 

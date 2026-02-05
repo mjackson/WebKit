@@ -5091,7 +5091,6 @@ http/tests/security/aboutBlank/xss-DENIED-set-opener.html
 http/tests/security/isolatedWorld/cross-origin-xhr.html
 http/tests/security/javascriptURL/xss-ALLOWED-from-javascript-url-window-open.html
 http/tests/security/javascriptURL/xss-ALLOWED-to-javascript-url-window-open.html
-http/tests/security/mixedContent/about-blank-iframe-in-main-frame.html
 http/tests/security/mixedContent/redirect-http-to-https-iframe-in-main-frame.html
 http/tests/security/referrer-policy-redirect-link.html
 http/tests/security/referrer-policy-redirect-link-downgrade.html
@@ -7587,7 +7586,6 @@ imported/w3c/web-platform-tests/screen-orientation/lock-unlock-check.html [ Pass
 fast/forms/ios/time-picker-value-change.html [ Pass Failure ]
 
 imported/w3c/web-platform-tests/css/css-anchor-position/position-try-cascade-layer-reorder.html [ Failure ]
-imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-anchors-visible-after-scroll-in-document.html [ ImageOnlyFailure ]
 
 # FAIL results are platform dependent
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-invalid-fallback.html [ Failure ]
@@ -7597,6 +7595,10 @@ imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-position-t
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-position-try-008.html [ Failure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-position-try-010.html [ Failure ]
 imported/w3c/web-platform-tests/css/css-contain/content-visibility/content-visibility-anchor-positioning-001.html [ Failure ]
+
+# Flaky anchor positioning tests
+imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-position-try-015.tentative.html [ Pass ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-anchors-visible-after-scroll-in-document.html [ Pass ImageOnlyFailure ]
 
 # webkit.org/b/277901 Regression: (246931@main?) [ iOS ] imported/w3c/web-platform-tests/workers/SharedWorker_dataUrl.html is a flaky failure
 imported/w3c/web-platform-tests/workers/SharedWorker_dataUrl.html [ Pass Failure ]
@@ -8399,13 +8401,12 @@ webkit.org/b/263872 imported/w3c/web-platform-tests/scroll-animations/scroll-tim
 webkit.org/b/303341 imported/w3c/web-platform-tests/css/css-contain/content-visibility/content-visibility-intrinsic-size-001.html [ Pass ImageOnlyFailure ]
 
 webkit.org/b/303507 http/tests/xmlhttprequest/origin-exact-matching.html [ Timeout ]
-webkit.org/b/303507 inspector/animation/nameChanged.html [ Timeout ]
-webkit.org/b/303507 inspector/audit/basic-error.html [ Timeout ]
-webkit.org/b/303507 inspector/canvas/console-record-offscreen-webgl.html [ Timeout ]
-webkit.org/b/303507 inspector/dom/customElementState.html [ Timeout ]
-webkit.org/b/303507 inspector/injected-script/observable.html [ Timeout ]
-webkit.org/b/303507 inspector/network/intercept-aborted-request.html [ Timeout ]
-webkit.org/b/303507 inspector/page/filter-cookies-for-domain.html [ Timeout ]
+webkit.org/b/303507 [ Release ] inspector/animation/nameChanged.html [ Timeout ]
+webkit.org/b/303507 [ Release ] inspector/audit/basic-error.html [ Timeout ]
+webkit.org/b/303507 [ Release ] inspector/canvas/console-record-offscreen-webgl.html [ Timeout ]
+webkit.org/b/303507 [ Release ] inspector/dom/customElementState.html [ Timeout ]
+webkit.org/b/303507 [ Release ] inspector/injected-script/observable.html [ Timeout ]
+webkit.org/b/303507 [ Release ] inspector/page/filter-cookies-for-domain.html [ Timeout ]
 
 # webkit.org/b/303639 Mass-marking flaky tests
 compositing/backing/page-scale-overlap-in-iframe.html [ Pass Failure ]
@@ -8469,3 +8470,15 @@ webkit.org/b/306778 webrtc/video-addTransceiver.html [ Pass Failure ]
 
 webkit.org/b/306785 imported/w3c/web-platform-tests/storage-access-api/requestStorageAccess-insecure.sub.window.html [ Pass Failure ]
 
+webkit.org/b/306984 [ Debug ] fast/canvas/fallback-content.html [ Skip ]
+webkit.org/b/306984 [ Debug ] fast/rendering/render-style-null-optgroup-crash.html [ Skip ]
+webkit.org/b/306984 [ Debug ] fast/dom/HTMLProgressElement/progress-element-with-child-crash.html [ Skip ]
+
+webkit.org/b/306998 [ Debug ] inspector/animation/nameChanged.html [ Skip ]
+webkit.org/b/306998 [ Debug ] inspector/audit/basic-error.html [ Skip ]
+webkit.org/b/306998 [ Debug ] inspector/canvas/console-record-offscreen-webgl.html [ Skip ]
+webkit.org/b/306998 [ Debug ] inspector/dom/customElementState.html [ Skip ]
+webkit.org/b/306998 [ Debug ] inspector/injected-script/observable.html [ Skip ]
+webkit.org/b/306998 [ Debug ] inspector/page/filter-cookies-for-domain.html [ Skip ]
+
+webkit.org/b/307091 inspector/network/intercept-aborted-request.html [ Skip ]

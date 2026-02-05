@@ -2348,7 +2348,7 @@ std::optional<BoundaryPoint> Document::caretPositionFromPoint(const LayoutPoint&
         return std::nullopt;
 
     unsigned offset = rangeCompliantPosition.offsetInContainerNode();
-    node = retargetToScope(*rangeCompliantPosition.protectedContainerNode());
+    node = retargetToScope(*protect(rangeCompliantPosition.containerNode()));
     if (node != rangeCompliantPosition.containerNode())
         offset = 0;
 

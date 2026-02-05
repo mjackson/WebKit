@@ -120,10 +120,6 @@ fast/dom/Window/slow-unload-handler-only-frame-is-stopped.html
 
 webkit.org/b/306558 accessibility/mac/style-range.html [ Failure ]
 
-# Skip accessibility tests that use the accessibility client API on most builders;
-# requires an extra permission for WKTR
-accessibility/mac/client [ Skip ]
-
 # Skip glib-only combobox accessibility tests.
 accessibility/combobox/gtk [ Skip ]
 
@@ -188,8 +184,6 @@ fast/mediastream/RTCPeerConnection-stats.html [ Skip ]
 
 # Asserts in debug.
 [ Debug ] fast/images/large-size-image-crash.html [ Skip ]
-
-webkit.org/b/306891 [ Debug ] imported/w3c/web-platform-tests/css/css-grid/computed-grid-column.html [ Timeout ]
 
 # rdar://110799490 2x media/track/ tests are flaky crashes.
 media/track/track-user-stylesheet.html [ Pass Crash ]

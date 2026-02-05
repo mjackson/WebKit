@@ -333,29 +333,31 @@ void ScrollingTreeScrollingNodeDelegateIOS::commitStateAfterChildren(const Scrol
         || scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::ScrollOrigin)
         || scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::ScrollableAreaParams)) {
         BEGIN_BLOCK_OBJC_EXCEPTIONS
-        auto scrollView = this->scrollView();
+        RetainPtr scrollView = this->scrollView();
         if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::ScrollContainerLayer)) {
             if (!m_scrollViewDelegate)
                 m_scrollViewDelegate = adoptNS([[WKScrollingNodeScrollViewDelegate alloc] initWithScrollingTreeNodeDelegate:*this]);
 
-            scrollView.scrollsToTop = NO;
-            scrollView.delegate = m_scrollViewDelegate.get();
-            scrollView.baseScrollViewDelegate = m_scrollViewDelegate.get();
+            scrollView.get().scrollsToTop = NO;
+            scrollView.get().delegate = m_scrollViewDelegate.get();
+            scrollView.get().baseScrollViewDelegate = m_scrollViewDelegate.get();
 
-#if HAVE(UISCROLLVIEW_DECELERATION_TRACKING_BEHAVIOR)
-            if ([scrollView respondsToSelector:@selector(_setDecelerationTrackingBehavior:)])
-                [scrollView _setDecelerationTrackingBehavior:_UIScrollViewDecelerationTrackingBehaviorAdaptive];
-#endif
+ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+            if ([scrollView respondsToSelector:@selector(_setAvoidsJumpOnInterruptedBounce:)]) {
+                [scrollView setTracksImmediatelyWhileDecelerating:NO];
+                [scrollView _setAvoidsJumpOnInterruptedBounce:YES];
+            }
+ALLOW_DEPRECATED_DECLARATIONS_END
         }
 
         bool recomputeInsets = scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::TotalContentsSize);
         if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::ReachableContentsSize)) {
-            scrollView.contentSize = scrollingStateNode.reachableContentsSize();
+            scrollView.get().contentSize = scrollingStateNode.reachableContentsSize();
             recomputeInsets = true;
         }
         if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::ScrollableAreaParams)) {
             auto params = scrollingStateNode.scrollableAreaParameters();
-            updateScrollViewForOverscrollBehavior(scrollView, params.horizontalOverscrollBehavior, params.verticalOverscrollBehavior, AllowOverscrollToPreventScrollPropagation::Yes);
+            updateScrollViewForOverscrollBehavior(scrollView.get(), params.horizontalOverscrollBehavior, params.verticalOverscrollBehavior, AllowOverscrollToPreventScrollPropagation::Yes);
         }
         if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::ScrollOrigin))
             recomputeInsets = true;
@@ -369,7 +371,7 @@ void ScrollingTreeScrollingNodeDelegateIOS::commitStateAfterChildren(const Scrol
             if (scrollOrigin().y())
                 insets.top = reachableContentsSize().height() - totalContentsSize().height();
 
-            scrollView.contentInset = insets;
+            scrollView.get().contentInset = insets;
         }
         END_BLOCK_OBJC_EXCEPTIONS
     }
@@ -384,7 +386,7 @@ void ScrollingTreeScrollingNodeDelegateIOS::commitStateAfterChildren(const Scrol
 
     if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::ScrollableAreaParams)) {
         BEGIN_BLOCK_OBJC_EXCEPTIONS
-        UIScrollView *scrollView = this->scrollView();
+        RetainPtr scrollView = this->scrollView();
 
         [scrollView setShowsHorizontalScrollIndicator:!(scrollingNode->horizontalNativeScrollbarVisibility() == NativeScrollbarVisibility::HiddenByStyle)];
         [scrollView setShowsVerticalScrollIndicator:!(scrollingNode->verticalNativeScrollbarVisibility() == NativeScrollbarVisibility::HiddenByStyle)];
@@ -402,7 +404,7 @@ void ScrollingTreeScrollingNodeDelegateIOS::commitStateAfterChildren(const Scrol
         auto scrollbarWidth = scrollingStateNode.scrollbarWidth();
 
         BEGIN_BLOCK_OBJC_EXCEPTIONS
-        UIScrollView *scrollView = this->scrollView();
+        RetainPtr scrollView = this->scrollView();
 
         [scrollView setShowsHorizontalScrollIndicator:(scrollbarWidth != ScrollbarWidth::None && scrollingNode->horizontalNativeScrollbarVisibility() != NativeScrollbarVisibility::HiddenByStyle)];
         [scrollView setShowsVerticalScrollIndicator:(scrollbarWidth != ScrollbarWidth::None && scrollingNode->horizontalNativeScrollbarVisibility() != NativeScrollbarVisibility::HiddenByStyle)];
@@ -451,7 +453,7 @@ void ScrollingTreeScrollingNodeDelegateIOS::stopAnimatedScroll()
 #if HAVE(UISCROLLVIEW_ASYNCHRONOUS_SCROLL_EVENT_HANDLING)
 void ScrollingTreeScrollingNodeDelegateIOS::handleAsynchronousCancelableScrollEvent(WKBaseScrollView *scrollView, WKBEScrollViewScrollUpdate *update, void (^completion)(BOOL handled))
 {
-    auto* scrollingCoordinatorProxy = downcast<WebKit::RemoteScrollingTree>(scrollingTree())->scrollingCoordinatorProxy();
+    CheckedPtr scrollingCoordinatorProxy = downcast<WebKit::RemoteScrollingTree>(scrollingTree())->scrollingCoordinatorProxy();
     if (scrollingCoordinatorProxy) {
         if (RefPtr pageClient = protect(scrollingCoordinatorProxy->webPageProxy())->pageClient())
             pageClient->handleAsynchronousCancelableScrollEvent(scrollView, update, completion);
@@ -519,7 +521,7 @@ UIScrollView *ScrollingTreeScrollingNodeDelegateIOS::findActingScrollParent(UISc
 {
     ASSERT(scrollView == this->scrollView());
 
-    auto* scrollingCoordinatorProxy = downcast<RemoteScrollingTree>(scrollingTree())->scrollingCoordinatorProxy();
+    CheckedPtr scrollingCoordinatorProxy = downcast<RemoteScrollingTree>(scrollingTree())->scrollingCoordinatorProxy();
     if (!scrollingCoordinatorProxy)
         return nil;
 
@@ -544,7 +546,7 @@ bool ScrollingTreeScrollingNodeDelegateIOS::shouldAllowPanGestureRecognizerToRec
 
 void ScrollingTreeScrollingNodeDelegateIOS::computeActiveTouchActionsForGestureRecognizer(UIGestureRecognizer* gestureRecognizer)
 {
-    auto* scrollingCoordinatorProxy = dynamicDowncast<RemoteScrollingCoordinatorProxyIOS>(downcast<RemoteScrollingTree>(scrollingTree())->scrollingCoordinatorProxy());
+    CheckedPtr scrollingCoordinatorProxy = dynamicDowncast<RemoteScrollingCoordinatorProxyIOS>(downcast<RemoteScrollingTree>(scrollingTree())->scrollingCoordinatorProxy());
     if (!scrollingCoordinatorProxy)
         return;
 
@@ -558,7 +560,7 @@ void ScrollingTreeScrollingNodeDelegateIOS::computeActiveTouchActionsForGestureR
 
 void ScrollingTreeScrollingNodeDelegateIOS::cancelPointersForGestureRecognizer(UIGestureRecognizer* gestureRecognizer)
 {
-    auto* scrollingCoordinatorProxy = downcast<RemoteScrollingTree>(scrollingTree())->scrollingCoordinatorProxy();
+    CheckedPtr scrollingCoordinatorProxy = downcast<RemoteScrollingTree>(scrollingTree())->scrollingCoordinatorProxy();
     if (!scrollingCoordinatorProxy)
         return;
 

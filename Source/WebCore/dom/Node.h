@@ -2,7 +2,7 @@
  * Copyright (C) 1999 Lars Knoll (knoll@kde.org)
  *           (C) 1999 Antti Koivisto (koivisto@kde.org)
  *           (C) 2001 Dirk Mueller (mueller@kde.org)
- * Copyright (C) 2004-2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2004-2020, 2026 Apple Inc. All rights reserved.
  * Copyright (C) 2008, 2009 Torch Mobile Inc. All rights reserved. (http://www.torchmobile.com/)
  *
  * This library is free software; you can redistribute it and/or
@@ -123,6 +123,9 @@ class Node : public EventTarget, public CanMakeCheckedPtr<Node> {
     friend class Document;
     friend class TreeScope;
 public:
+    // This opts the entire Node family tree into being allocated in the BuiltinTypeDescriptor TZone category.
+    static constexpr bool usesBuiltinTypeDescriptorTZoneCategory = true;
+
     enum NodeType {
         ELEMENT_NODE = 1,
         ATTRIBUTE_NODE = 2,

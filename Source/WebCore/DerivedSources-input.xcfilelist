@@ -598,6 +598,7 @@ $(PROJECT_DIR)/Modules/mediastream/MediaSettingsRange.idl
 $(PROJECT_DIR)/Modules/mediastream/MediaStream.idl
 $(PROJECT_DIR)/Modules/mediastream/MediaStreamTrack.idl
 $(PROJECT_DIR)/Modules/mediastream/MediaStreamTrackEvent.idl
+$(PROJECT_DIR)/Modules/mediastream/MediaStreamTrackHandle.idl
 $(PROJECT_DIR)/Modules/mediastream/MediaStreamTrackProcessor.idl
 $(PROJECT_DIR)/Modules/mediastream/MediaTrackCapabilities.idl
 $(PROJECT_DIR)/Modules/mediastream/MediaTrackConstraints.idl

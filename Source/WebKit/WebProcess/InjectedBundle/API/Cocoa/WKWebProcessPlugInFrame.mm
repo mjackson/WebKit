@@ -194,7 +194,7 @@ static Ref<WebKit::WebFrame> protectedFrame(WKWebProcessPlugInFrame *frame)
     RefPtr coreFrame = protectedFrame(self)->coreLocalFrame();
     if (!coreFrame)
         return nil;
-    return coreFrame->protectedDocument()->protectedSecurityOrigin()->toString().createNSString().autorelease();
+    return protect(protect(coreFrame->document())->securityOrigin())->toString().createNSString().autorelease();
 }
 
 static RetainPtr<NSArray> collectIcons(WebCore::LocalFrame* frame, OptionSet<WebCore::LinkIconType> iconTypes)

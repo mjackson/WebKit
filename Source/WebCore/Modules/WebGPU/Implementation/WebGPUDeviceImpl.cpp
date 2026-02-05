@@ -288,8 +288,6 @@ RefPtr<ShaderModule> DeviceImpl::createShaderModule(const ShaderModuleDescriptor
 {
     auto label = descriptor.label.utf8();
 
-    auto source = descriptor.code.utf8();
-
     auto entryPoints = descriptor.hints.map([](const auto& hint) {
         return hint.key.utf8();
     });
@@ -307,7 +305,7 @@ RefPtr<ShaderModule> DeviceImpl::createShaderModule(const ShaderModuleDescriptor
     }
 
     WGPUShaderModuleDescriptor backingDescriptor {
-        .wgslDescriptor = source.data(),
+        .wgslDescriptor = descriptor.code,
         .label = label.data(),
         .hintCount = hintsEntries.size(),
         .hints = hintsEntries.size() ? &hintsEntries[0] : nullptr,

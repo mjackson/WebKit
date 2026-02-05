@@ -108,7 +108,7 @@ String DOMURL::createPublicURL(ScriptExecutionContext& scriptExecutionContext, U
     if (publicURL.isEmpty())
         return String();
 
-    scriptExecutionContext.protectedPublicURLManager()->registerURL(publicURL, registrable);
+    protect(scriptExecutionContext.publicURLManager())->registerURL(publicURL, registrable);
 
     return publicURL.string();
 }
@@ -128,7 +128,7 @@ void DOMURL::revokeObjectURL(ScriptExecutionContext& scriptExecutionContext, con
 
     MemoryCache::removeRequestFromSessionCaches(scriptExecutionContext, request);
 
-    scriptExecutionContext.protectedPublicURLManager()->revoke(request.url());
+    protect(scriptExecutionContext.publicURLManager())->revoke(request.url());
 }
 
 } // namespace WebCore

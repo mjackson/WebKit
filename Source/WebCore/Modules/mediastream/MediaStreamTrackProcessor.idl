@@ -34,11 +34,12 @@
     [CallWith=CurrentGlobalObject] readonly attribute ReadableStream readable;
 };
 
+typedef (MediaStreamTrack or MediaStreamTrackHandle) MediaStreamTrackOrHandle;
+
 // https://w3c.github.io/mediacapture-transform/#dictdef-mediastreamtrackprocessorinit
 [
     Conditional=MEDIA_STREAM&WEB_CODECS,
 ] dictionary MediaStreamTrackProcessorInit {
-    // FIXME: `track` should be of type `(MediaStreamTrack or MediaStreamTrackHandle)`.
-    required MediaStreamTrack track;
+    required MediaStreamTrackOrHandle track;
     [EnforceRange] unsigned short maxBufferSize;
 };

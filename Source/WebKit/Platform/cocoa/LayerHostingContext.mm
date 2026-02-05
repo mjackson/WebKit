@@ -191,7 +191,7 @@ RetainPtr<BELayerHierarchyHostingTransactionCoordinator> LayerHostingContext::cr
 {
     // We are leaking the send right here, since [BELayerHierarchyHostingTransactionCoordinator coordinatorWithPort] takes ownership of the send right, even in the error case.
     NSError *error = nil;
-    auto coordinator = [BELayerHierarchyHostingTransactionCoordinator coordinatorWithPort:sendRightAnnotated.sendRight.leakSendRight() data:toNSData(sendRightAnnotated.data.span()).get() error:&error];
+    RetainPtr coordinator = [BELayerHierarchyHostingTransactionCoordinator coordinatorWithPort:sendRightAnnotated.sendRight.leakSendRight() data:toNSData(sendRightAnnotated.data.span()).get() error:&error];
     if (error)
         RELEASE_LOG_ERROR(Process, "Could not create update coordinator, error = %@", error);
     return coordinator;
@@ -212,7 +212,7 @@ RetainPtr<BELayerHierarchyHandle> LayerHostingContext::createHostingHandle(WTF::
 {
     // We are leaking the send right here, since [BELayerHierarchyHandle handleWithPort] takes ownership of the send right, even in the error case.
     NSError *error = nil;
-    auto handle = [BELayerHierarchyHandle handleWithPort:sendRightAnnotated.sendRight.leakSendRight() data:toNSData(sendRightAnnotated.data.span()).get() error:&error];
+    RetainPtr handle = [BELayerHierarchyHandle handleWithPort:sendRightAnnotated.sendRight.leakSendRight() data:toNSData(sendRightAnnotated.data.span()).get() error:&error];
     if (error)
         RELEASE_LOG_ERROR(Process, "Could not create layer hierarchy handle, error = %@", error);
     return handle;

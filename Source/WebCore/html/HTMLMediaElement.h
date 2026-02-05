@@ -1178,6 +1178,11 @@ private:
     void maybeUpdatePlayerPreload() const;
     void canProduceAudioChanged();
 
+#if ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)
+    void scheduleRebuildMediaEngineForWirelessPlayback();
+    void rebuildMediaEngineForWirelessPlayback();
+#endif
+
     Timer m_progressEventTimer;
     Timer m_playbackProgressTimer;
     Timer m_scanTimer;

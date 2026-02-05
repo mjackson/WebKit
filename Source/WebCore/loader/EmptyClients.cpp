@@ -361,6 +361,11 @@ private:
     void uppercaseWord() final { }
     void lowercaseWord() final { }
     void capitalizeWord() final { }
+    bool canApplyCaseTransformations(const String&) final { return true; }
+    bool canConvertToTraditionalChinese(const String&) final { return false; }
+    bool canConvertToSimplifiedChinese(const String&) final { return false; }
+    void convertToTraditionalChinese() final { }
+    void convertToSimplifiedChinese() final { }
 #endif
 
 #if USE(AUTOMATIC_TEXT_REPLACEMENT)

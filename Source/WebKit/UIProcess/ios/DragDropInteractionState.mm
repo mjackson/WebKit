@@ -231,7 +231,7 @@ void DragDropInteractionState::deliverDelayedDropPreview(UIView *contentView, CG
     for (size_t i = 0; i < placeholderRects.size(); ++i) {
         UIDragItem *item = [items objectAtIndex:i];
         auto& placeholderRect = placeholderRects[i];
-        auto defaultPreview = defaultDropPreview(item);
+        RetainPtr defaultPreview = defaultDropPreview(item);
         auto defaultPreviewSize = [defaultPreview size];
         if (!defaultPreview || defaultPreviewSize.width <= 0 || defaultPreviewSize.height <= 0 || placeholderRect.isEmpty())
             continue;
@@ -396,12 +396,12 @@ void DragDropInteractionState::updatePreviewsForActiveDragSources()
         if (!canUpdatePreviewForActiveDragSource(source))
             continue;
 
-        UIDragItem *dragItem = dragItemMatchingIdentifier(m_dragSession.get(), source.itemIdentifier);
+        RetainPtr dragItem = dragItemMatchingIdentifier(m_dragSession.get(), source.itemIdentifier);
         if (!dragItem)
             continue;
 
         if (source.action.contains(DragSourceAction::Link)) {
-            dragItem.previewProvider = [title = source.linkTitle.createNSString(), url = source.linkURL.createNSURL()] () -> UIDragPreview * {
+            dragItem.get().previewProvider = [title = source.linkTitle.createNSString(), url = source.linkURL.createNSURL()] () -> UIDragPreview * {
                 RetainPtr preview = [UIDragPreview previewForURL:url.get() title:title.get()];
 #if PLATFORM(VISION)
                 // FIXME: This is a slightly unfortunate since we end up copying the preview parameters,
@@ -419,7 +419,7 @@ void DragDropInteractionState::updatePreviewsForActiveDragSources()
         }
         else if (source.action.contains(DragSourceAction::Color)) {
             if (auto* draggedImage = std::get_if<RetainPtr<UIImage>>(&source.dragPreviewContent)) {
-                dragItem.previewProvider = [image = *draggedImage] {
+                dragItem.get().previewProvider = [image = *draggedImage] {
                     RetainPtr imageView = adoptNS([[UIImageView alloc] initWithImage:image.get()]);
                     RetainPtr parameters = adoptNS([[UIDragPreviewParameters alloc] initWithTextLineRects:@[ [NSValue valueWithCGRect:[imageView bounds]] ]]);
                     return adoptNS([[UIDragPreview alloc] initWithView:imageView.get() parameters:parameters.get()]).autorelease();

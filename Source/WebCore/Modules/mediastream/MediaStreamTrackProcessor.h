@@ -27,6 +27,7 @@
 #if ENABLE(MEDIA_STREAM) && ENABLE(WEB_CODECS)
 
 #include "MediaStreamTrack.h"
+#include "MediaStreamTrackHandle.h"
 #include "ReadableStreamSource.h"
 #include "RealtimeMediaSource.h"
 #include "WebCodecsVideoFrame.h"
@@ -49,7 +50,7 @@ class MediaStreamTrackProcessor
     WTF_MAKE_TZONE_ALLOCATED(MediaStreamTrackProcessor);
 public:
     struct Init {
-        Ref<MediaStreamTrack> track;
+        Variant<RefPtr<MediaStreamTrack>, RefPtr<MediaStreamTrackHandle>> track;
         std::optional<unsigned short> maxBufferSize;
     };
 

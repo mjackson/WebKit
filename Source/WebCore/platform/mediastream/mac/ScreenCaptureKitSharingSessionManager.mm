@@ -206,6 +206,7 @@ void ScreenCaptureKitSharingSessionManager::completeDeviceSelection(SCContentFil
     }
     case SCShareableContentStyleNone:
     case SCShareableContentStyleApplication:
+    default:
         ASSERT_NOT_REACHED();
         return;
     }

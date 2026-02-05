@@ -46,6 +46,7 @@ class DOMPromise;
 class DeferredPromise;
 class InternalReadableStream;
 class JSDOMGlobalObject;
+class MessagePort;
 class ReadableStreamBYOBReader;
 class ReadableStreamDefaultReader;
 class ReadableStreamReadRequest;
@@ -56,6 +57,10 @@ struct StreamPipeOptions;
 struct UnderlyingSource;
 
 using ReadableStreamReader = Variant<RefPtr<ReadableStreamDefaultReader>, RefPtr<ReadableStreamBYOBReader>>;
+
+struct DetachedReadableStream {
+    Ref<MessagePort> readableStreamPort;
+};
 
 class ReadableStream : public RefCounted<ReadableStream>, public ContextDestructionObserver {
 public:
@@ -80,6 +85,9 @@ public:
 
     virtual ~ReadableStream();
 
+    ExceptionOr<DetachedReadableStream> runTransferSteps(JSDOMGlobalObject&);
+    static ExceptionOr<Ref<ReadableStream>> runTransferReceivingSteps(JSDOMGlobalObject&, DetachedReadableStream&&);
+
     // ContextDestructionObserver.
     void ref() const final { RefCounted::ref(); }
     void deref() const final { RefCounted::deref(); }
@@ -93,6 +101,7 @@ public:
 
     void lock();
     bool isLocked() const;
+    bool canTransfer() const;
     WEBCORE_EXPORT bool isDisturbed() const;
 
     Ref<DOMPromise> cancel(JSDOMGlobalObject&, JSC::JSValue);

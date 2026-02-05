@@ -41,30 +41,15 @@ OTHER_MODULE_VERIFIER_FLAGS_ = -iframework "$(WK_PRIVATE_SDK_DIR)$(WK_OVERRIDE_F
 WK_HAS_VALID_OBJCXX_MODULE = YES;
 
 WK_HAS_VALID_OBJCXX_MODULE[sdk=macosx15*] = ;
-WK_HAS_VALID_OBJCXX_MODULE[sdk=macosx26.0*] = ;
-WK_HAS_VALID_OBJCXX_MODULE[sdk=macosx26.1*] = ;
-WK_HAS_VALID_OBJCXX_MODULE[sdk=macosx26.2*] = ;
-WK_HAS_VALID_OBJCXX_MODULE[sdk=macosx26.3*] = ;
+WK_HAS_VALID_OBJCXX_MODULE[sdk=macosx26.*] = ;
 
-WK_HAS_VALID_OBJCXX_MODULE[sdk=iphone*26.0*] = ;
-WK_HAS_VALID_OBJCXX_MODULE[sdk=iphone*26.1*] = ;
-WK_HAS_VALID_OBJCXX_MODULE[sdk=iphone*26.2*] = ;
-WK_HAS_VALID_OBJCXX_MODULE[sdk=iphone*26.3*] = ;
+WK_HAS_VALID_OBJCXX_MODULE[sdk=iphone*26.*] = ;
 
-WK_HAS_VALID_OBJCXX_MODULE[sdk=appletv*26.0*] = ;
-WK_HAS_VALID_OBJCXX_MODULE[sdk=appletv*26.1*] = ;
-WK_HAS_VALID_OBJCXX_MODULE[sdk=appletv*26.2*] = ;
-WK_HAS_VALID_OBJCXX_MODULE[sdk=appletv*26.3*] = ;
+WK_HAS_VALID_OBJCXX_MODULE[sdk=appletv*26.*] = ;
 
-WK_HAS_VALID_OBJCXX_MODULE[sdk=watch*26.0*] = ;
-WK_HAS_VALID_OBJCXX_MODULE[sdk=watch*26.1*] = ;
-WK_HAS_VALID_OBJCXX_MODULE[sdk=watch*26.2*] = ;
-WK_HAS_VALID_OBJCXX_MODULE[sdk=watch*26.3*] = ;
+WK_HAS_VALID_OBJCXX_MODULE[sdk=watch*26.*] = ;
 
-WK_HAS_VALID_OBJCXX_MODULE[sdk=xr*26.0*] = ;
-WK_HAS_VALID_OBJCXX_MODULE[sdk=xr*26.1*] = ;
-WK_HAS_VALID_OBJCXX_MODULE[sdk=xr*26.2*] = ;
-WK_HAS_VALID_OBJCXX_MODULE[sdk=xr*26.3*] = ;
+WK_HAS_VALID_OBJCXX_MODULE[sdk=xr*26.*] = ;
 
 // FIXME: https://bugs.webkit.org/show_bug.cgi?id=300146
 WK_HAS_VALID_OBJCXX_MODULE[sdk=iphonesimulator*] = ;

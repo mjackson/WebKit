@@ -67,6 +67,7 @@ public: \
             &s_heapRef, \
             TZoneSpecification::encodeSize<_type>(), \
             TZoneSpecification::encodeAlignment<_type>(), \
+            TZoneSpecification::encodeCategory<_type>(), \
             ::bmalloc::api::compactAllocationMode<_type>(), \
             TZoneSpecification::encodeDescriptor<_type>(), \
             TZONE_SPEC_NAME_ARG(#_type) \
@@ -109,6 +110,7 @@ const TZoneSpecification _type::s_heapSpec = { \
     &_type::s_heapRef, \
     TZoneSpecification::encodeSize<_type>(), \
     TZoneSpecification::encodeAlignment<_type>(), \
+    TZoneSpecification::encodeCategory<_type>(), \
     ::bmalloc::api::compactAllocationMode<_type>(), \
     TZoneSpecification::encodeDescriptor<_type>(), \
     TZONE_SPEC_NAME_ARG(#_type) \

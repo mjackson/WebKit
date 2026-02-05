@@ -261,6 +261,7 @@ void WebModelPlayer::load(Model& modelSource, LayoutSize size)
     if (!gpu)
         return;
 
+    size.scale(document->deviceScaleFactor());
     WebModel::ImageAsset diffuseTexture {
         .data = loadData(adoptCF(static_cast<CFStringRef>(@"modelDefaultDiffuseData"))),
         .width = 64,
@@ -294,7 +295,6 @@ void WebModelPlayer::load(Model& modelSource, LayoutSize size)
     });
 
     m_modelLoader = adoptNS([[WebBridgeModelLoader alloc] init]);
-    RetainPtr nsURL = modelSource.url().createNSURL();
     Ref protectedThis = Ref { *this };
     [m_modelLoader setCallbacksWithModelUpdatedCallback:^(WebBridgeUpdateMesh *updateRequest) {
         ensureOnMainThreadWithProtectedThis([updateRequest] (Ref<WebModelPlayer> protectedThis) {
@@ -337,7 +337,9 @@ void WebModelPlayer::load(Model& modelSource, LayoutSize size)
             [protectedThis->m_modelLoader requestCompleted:updateMaterial];
         });
     }];
-    [m_modelLoader loadModelFrom:nsURL.get()];
+
+    m_retainedData = modelSource.data()->createNSData();
+    [m_modelLoader loadModel:m_retainedData.get()];
 }
 
 void WebModelPlayer::notifyEntityTransformUpdated()
@@ -416,12 +418,15 @@ void WebModelPlayer::setAnimationIsPlaying(bool, CompletionHandler<void(bool suc
 {
 }
 
-void WebModelPlayer::isLoopingAnimation(CompletionHandler<void(std::optional<bool>&&)>&&)
+void WebModelPlayer::isLoopingAnimation(CompletionHandler<void(std::optional<bool>&&)>&& completion)
 {
+    completion(m_isLooping);
 }
 
-void WebModelPlayer::setIsLoopingAnimation(bool, CompletionHandler<void(bool success)>&&)
+void WebModelPlayer::setIsLoopingAnimation(bool shouldLoop, CompletionHandler<void(bool success)>&& completion)
 {
+    m_isLooping = shouldLoop;
+    completion(shouldLoop);
 }
 
 void WebModelPlayer::animationDuration(CompletionHandler<void(std::optional<Seconds>&&)>&& completion)
@@ -521,7 +526,11 @@ void WebModelPlayer::update()
     constexpr float elapsedTime = 1.f / 60.f;
     simulate(elapsedTime);
 
-    [m_modelLoader update:paused() ? 0.f : (m_playbackRate * elapsedTime)];
+    auto timeDelta = paused() ? 0.f : (m_playbackRate * elapsedTime);
+    if (!m_isLooping && [m_modelLoader currentTime] > [m_modelLoader duration])
+        timeDelta = 0.f;
+
+    [m_modelLoader update:timeDelta];
     if (m_didFinishLoading) {
         if (RefPtr currentModel = m_currentModel)
             currentModel->render();

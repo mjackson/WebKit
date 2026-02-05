@@ -29,7 +29,6 @@
 #include "JSAccessibilityUIElement.h"
 
 #if PLATFORM(MAC)
-#include "mac/AccessibilityUIElementClientMac.h"
 #include "mac/AccessibilityUIElementMac.h"
 #elif PLATFORM(IOS_FAMILY)
 #include "ios/AccessibilityUIElementIOS.h"

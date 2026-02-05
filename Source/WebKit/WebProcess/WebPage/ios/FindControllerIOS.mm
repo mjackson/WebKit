@@ -79,7 +79,7 @@ void FindIndicatorOverlayClientIOS::drawRect(PageOverlay& overlay, GraphicsConte
     if (!m_textIndicator)
         return;
 
-    Image* indicatorImage = m_textIndicator->contentImage();
+    RefPtr indicatorImage = m_textIndicator->contentImage();
     if (!indicatorImage)
         return;
 
@@ -149,8 +149,8 @@ void FindController::resetMatchIndex()
 
 static void setSelectionChangeUpdatesEnabledInAllFrames(WebPage& page, bool enabled)
 {
-    for (auto* coreFrame = page.mainFrame(); coreFrame; coreFrame = coreFrame->tree().traverseNext()) {
-        auto* localFrame = dynamicDowncast<LocalFrame>(coreFrame);
+    for (RefPtr coreFrame = page.mainFrame(); coreFrame; coreFrame = coreFrame->tree().traverseNext()) {
+        RefPtr localFrame = dynamicDowncast<LocalFrame>(coreFrame.get());
         if (!localFrame)
             continue;
         protect(localFrame)->editor().setIgnoreSelectionChanges(enabled);

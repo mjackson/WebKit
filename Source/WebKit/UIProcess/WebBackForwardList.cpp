@@ -34,6 +34,7 @@
 #include "WebBackForwardCache.h"
 #include "WebBackForwardListCounts.h"
 #include "WebBackForwardListFrameItem.h"
+#include "WebBackForwardListSwiftUtilities.h"
 #include "WebFrameProxy.h"
 #include "WebInspectorUtilities.h"
 #include "WebPageProxy.h"
@@ -497,7 +498,7 @@ void WebBackForwardList::didRemoveItem(WebBackForwardListItem& backForwardListIt
 {
     backForwardListItem.wasRemovedFromBackForwardList();
 
-    protect(m_page)->backForwardRemovedItem(backForwardListItem.identifier());
+    protect(m_page)->backForwardRemovedItem(backForwardListItem.mainFrameItem().identifier());
 
 #if PLATFORM(COCOA) || PLATFORM(GTK)
     backForwardListItem.setSnapshot(nullptr);
@@ -683,9 +684,9 @@ void WebBackForwardList::backForwardUpdateItem(IPC::Connection& connection, Ref<
         Ref process = *downcast<WebProcessProxy>(AuxiliaryProcessProxy::fromConnection(connection));
         if (!!item->backForwardCacheEntry() != frameState->hasCachedPage) {
             if (frameState->hasCachedPage)
-            protect(webPageProxy->backForwardCache())->addEntry(*item, process->coreProcessIdentifier());
+                protect(webPageProxy->backForwardCache())->addEntry(*item, process->coreProcessIdentifier());
             else if (!item->suspendedPage())
-            protect(webPageProxy->backForwardCache())->removeEntry(*item);
+                protect(webPageProxy->backForwardCache())->removeEntry(*item);
         }
 
         auto oldFrameID = frameItem->frameID();
@@ -856,3 +857,33 @@ String WebBackForwardListWrapper::loggingString()
 #endif // ENABLE(BACK_FORWARD_LIST_SWIFT)
 
 } // namespace WebKit
+
+#if ENABLE(BACK_FORWARD_LIST_SWIFT)
+
+WebCore::BackForwardFrameItemIdentifier generateBackForwardFrameItemIdentifier()
+{
+    return WebCore::BackForwardFrameItemIdentifier::generate();
+}
+
+WebCore::BackForwardItemIdentifier generateBackForwardItemIdentifier()
+{
+    return WebCore::BackForwardItemIdentifier::generate();
+}
+
+// rdar://168139823 is the task of doing a productionized version of WebKit Swift logging
+void doLog(const char* WTF_NONNULL msg)
+{
+    LOG(BackForward, "%s", msg);
+}
+
+void doLoadingReleaseLog(const char* WTF_NONNULL msg)
+{
+    RELEASE_LOG(Loading, "%s", msg);
+}
+// rdar://168139740 is the task of doing a productionized Swift MESSAGE_CHECK
+void messageCheckFailed(Ref<WebKit::WebProcessProxy> process)
+{
+    MESSAGE_CHECK_BASE(false, process->connection());
+}
+
+#endif // ENABLE(BACK_FORWARD_LIST_SWIFT)

@@ -29,8 +29,6 @@
 #include "ButterflyInlines.h"
 #include "ClonedArguments.h"
 #include "DirectArguments.h"
-#include "JSMapInlines.h"
-#include "JSMapIteratorInlines.h"
 #include "JSObjectInlines.h"
 #include "JSSetInlines.h"
 #include "ScopedArguments.h"
@@ -269,77 +267,6 @@ JSCellButterfly* JSCellButterfly::createFromSet(JSGlobalObject* globalObject, JS
         result->setIndex(vm, index++, transitionResult.key);
         entry = transitionResult.entry;
     }
-
-    return result;
-}
-
-JSCellButterfly* JSCellButterfly::createFromMapIterator(JSGlobalObject* globalObject, JSMapIterator* iterator)
-{
-    VM& vm = globalObject->vm();
-    auto scope = DECLARE_THROW_SCOPE(vm);
-
-    // If the iterator is closed, return an empty array.
-    JSCell* sentinel = vm.orderedHashTableSentinel();
-    JSCell* storage = iterator->tryGetStorage();
-    if (storage == sentinel) {
-        JSCellButterfly* result = JSCellButterfly::tryCreate(vm, vm.cellButterflyStructure(CopyOnWriteArrayWithContiguous), 0);
-        if (!result) [[unlikely]] {
-            throwOutOfMemoryError(globalObject, scope);
-            return nullptr;
-        }
-        return result;
-    }
-
-    JSMap* map = iterator->iteratedObject();
-
-    // If storage is null (empty map), get it from the map.
-    if (!storage) {
-        storage = map->storage();
-        if (!storage) {
-            JSCellButterfly* result = JSCellButterfly::tryCreate(vm, vm.cellButterflyStructure(CopyOnWriteArrayWithContiguous), 0);
-            if (!result) [[unlikely]] {
-                throwOutOfMemoryError(globalObject, scope);
-                return nullptr;
-            }
-            return result;
-        }
-    }
-
-    // Calculate the maximum possible length (this is an upper bound).
-    // The actual length may be less if the iterator has already been partially consumed.
-    unsigned maxLength = map->size();
-    JSCellButterfly* result = JSCellButterfly::tryCreate(vm, vm.cellButterflyStructure(CopyOnWriteArrayWithContiguous), maxLength);
-    if (!result) [[unlikely]] {
-        throwOutOfMemoryError(globalObject, scope);
-        return nullptr;
-    }
-
-    if (!maxLength)
-        return result;
-
-    using Helper = JSMap::Helper;
-    JSMap::Storage& storageRef = *jsCast<JSMap::Storage*>(storage);
-    IterationKind kind = iterator->kind();
-    // Entries is not supported in the fast path - it requires creating [key, value] pairs.
-    ASSERT(kind == IterationKind::Keys || kind == IterationKind::Values);
-    Helper::Entry startEntry = iterator->entry();
-    unsigned index = 0;
-
-    for (Helper::Entry entry = startEntry;; ++entry) {
-        auto transitionResult = Helper::transitAndNext(vm, storageRef, entry);
-        if (!transitionResult.storage)
-            break;
-
-        if (kind == IterationKind::Keys)
-            result->setIndex(vm, index++, transitionResult.key);
-        else // IterationKind::Values
-            result->setIndex(vm, index++, transitionResult.value);
-
-        entry = transitionResult.entry;
-    }
-
-    // Adjust the public length to the actual number of elements.
-    result->toButterfly()->setPublicLength(index);
 
     return result;
 }

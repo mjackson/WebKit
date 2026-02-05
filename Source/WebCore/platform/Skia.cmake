@@ -22,6 +22,7 @@ list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/graphics/skia/SkiaReplayCanvas.h
     platform/graphics/skia/SkiaSpanExtras.h
     platform/graphics/skia/SkiaSystemFallbackFontCache.h
+    platform/graphics/skia/SkiaTextureAtlasPacker.h
 )
 
 list(APPEND WebCore_LIBRARIES

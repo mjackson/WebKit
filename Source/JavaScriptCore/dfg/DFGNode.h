@@ -3253,11 +3253,6 @@ public:
         return isSetObjectSpeculation(prediction());
     }
 
-    bool shouldSpeculateMapIteratorObject()
-    {
-        return isMapIteratorSpeculation(prediction());
-    }
-
     bool shouldSpeculateGlobalProxy()
     {
         return isGlobalProxySpeculation(prediction());
@@ -3625,7 +3620,7 @@ public:
     
     bool hasNumberOfArgumentsToSkip()
     {
-        return op() == CreateRest || op() == PhantomCreateRest || op() == GetRestLength || op() == GetMyArgumentByVal || op() == GetMyArgumentByValOutOfBounds;
+        return op() == CreateRest || op() == PhantomCreateRest || op() == GetMyArgumentByVal || op() == GetMyArgumentByValOutOfBounds;
     }
 
     unsigned numberOfArgumentsToSkip()

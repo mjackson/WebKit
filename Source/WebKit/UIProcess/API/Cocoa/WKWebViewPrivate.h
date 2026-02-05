@@ -649,7 +649,6 @@ typedef NS_OPTIONS(NSUInteger, _WKWebViewDataType) {
 - (NSUInteger)accessibilityUIProcessLocalTokenHash;
 - (NSArray<NSNumber *> *)registeredRemoteAccessibilityPids;
 - (bool)hasRemoteAccessibilityChild;
-- (NSData *)_remoteAccessibilityChildToken;
 #endif
 
 #if TARGET_OS_IPHONE

@@ -96,7 +96,6 @@ public:
     void setIsDeclarativeShadowRoot(bool flag) { m_isDeclarativeShadowRoot = flag; }
 
     Element* host() const { return m_host; }
-    RefPtr<Element> protectedHost() const { return m_host; }
     void setHost(WeakPtr<Element, WeakPtrImplWithEventTargetData>&& host) { m_host = WTF::move(host); }
 
     bool hasScopedCustomElementRegistry() const { return m_hasScopedCustomElementRegistry; }

@@ -130,6 +130,11 @@ static WKSyntheticClickType toWKSyntheticClickType(WebKit::WebMouseEventSyntheti
     return _navigationAction->shouldPerformDownload();
 }
 
+- (WKNavigation *)mainFrameNavigation
+{
+    return wrapper(protect(_navigationAction->mainFrameNavigation()).get());
+}
+
 #if PLATFORM(IOS_FAMILY)
 - (WKSyntheticClickType)_syntheticClickType
 {
@@ -236,9 +241,8 @@ static WKSyntheticClickType toWKSyntheticClickType(WebKit::WebMouseEventSyntheti
 
 - (WKNavigation *)_mainFrameNavigation
 {
-    return wrapper(protect(_navigationAction->mainFrameNavigation()).get());
+    return [self mainFrameNavigation];
 }
-
 
 - (void)_storeSKAdNetworkAttribution
 {

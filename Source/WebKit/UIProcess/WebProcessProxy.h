@@ -954,6 +954,14 @@ private:
 
 WTF::TextStream& operator<<(WTF::TextStream&, const WebProcessProxy&);
 
+using RefWebProcessProxy = Ref<WebProcessProxy>;
+
+// Workaround for rdar://162519380
+inline RefPtr<WebProcessProxy> downcastToWebProcessProxy(AuxiliaryProcessProxy* WTF_NONNULL app)
+{
+    return downcast<WebProcessProxy>(app);
+}
+
 } // namespace WebKit
 
 inline void refWebProcessProxy(WebKit::WebProcessProxy* WTF_NONNULL obj)

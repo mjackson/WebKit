@@ -278,7 +278,7 @@ void ExtensionCapabilityGranter::setMediaCapabilityActive(MediaCapability& capab
 #endif
         return ExtensionCapabilityActivationPromise::createAndReject(ExtensionCapabilityGrantError::PlatformError);
     })->whenSettled(RunLoop::mainSingleton(), [weakCapability = WeakPtr { capability }, isActive](auto&& result) {
-        auto capability = weakCapability.get();
+        RefPtr capability = weakCapability.get();
         if (!capability)
             return;
 

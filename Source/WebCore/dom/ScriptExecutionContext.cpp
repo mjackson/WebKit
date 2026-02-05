@@ -539,11 +539,6 @@ void ScriptExecutionContext::addConsoleMessage(MessageSource source, MessageLeve
     addMessage(source, level, message, sourceURL, lineNumber, columnNumber, nullptr, state, requestIdentifier);
 }
 
-Ref<SecurityOrigin> ScriptExecutionContext::protectedTopOrigin() const
-{
-    return topOrigin();
-}
-
 bool ScriptExecutionContext::dispatchErrorEvent(const String& errorMessage, int lineNumber, int columnNumber, const String& sourceURL, JSC::Exception* exception, CachedScript* cachedScript, bool fromModule)
 {
     RefPtr target = errorEventTarget();
@@ -571,21 +566,11 @@ int ScriptExecutionContext::circularSequentialID()
     return m_circularSequentialID;
 }
 
-Ref<JSC::VM> ScriptExecutionContext::protectedVM()
-{
-    return vm();
-}
-
 PublicURLManager& ScriptExecutionContext::publicURLManager()
 {
     if (!m_publicURLManager)
         m_publicURLManager = PublicURLManager::create(this);
     return *m_publicURLManager;
-}
-
-Ref<PublicURLManager> ScriptExecutionContext::protectedPublicURLManager()
-{
-    return publicURLManager();
 }
 
 void ScriptExecutionContext::adjustMinimumDOMTimerInterval(Seconds oldMinimumTimerInterval)
@@ -630,7 +615,7 @@ RejectedPromiseTracker* ScriptExecutionContext::ensureRejectedPromiseTrackerSlow
         if (!scriptController || scriptController->isTerminatingExecution())
             return nullptr;
     }
-    m_rejectedPromiseTracker = makeUnique<RejectedPromiseTracker>(*this, protectedVM());
+    m_rejectedPromiseTracker = makeUnique<RejectedPromiseTracker>(*this, protect(vm()));
     return m_rejectedPromiseTracker.get();
 }
 
@@ -970,11 +955,6 @@ GuaranteedSerialFunctionDispatcher& ScriptExecutionContext::nativePromiseDispatc
     return *m_nativePromiseDispatcher;
 }
 
-Ref<GuaranteedSerialFunctionDispatcher> ScriptExecutionContext::protectedNativePromiseDispatcher()
-{
-    return nativePromiseDispatcher();
-}
-
 bool ScriptExecutionContext::requiresScriptTrackingPrivacyProtection(ScriptTrackingPrivacyCategory category, IncludeConsoleLog includeConsoleLog)
 {
     RefPtr vm = vmIfExists();
@@ -1034,11 +1014,6 @@ bool ScriptExecutionContext::isAlwaysOnLoggingAllowed() const
 WebCoreOpaqueRoot root(ScriptExecutionContext* context)
 {
     return WebCoreOpaqueRoot { context };
-}
-
-RefPtr<SocketProvider> ScriptExecutionContext::protectedSocketProvider()
-{
-    return socketProvider();
 }
 
 } // namespace WebCore

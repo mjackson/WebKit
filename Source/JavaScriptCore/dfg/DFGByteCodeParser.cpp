@@ -7391,31 +7391,10 @@ void ByteCodeParser::parseBlock(unsigned limit)
             NEXT_OPCODE(op_new_reg_exp);
         }
 
-        case op_get_rest_length: {
-            auto bytecode = currentInstruction->as<OpGetRestLength>();
-            InlineCallFrame* inlineCallFrame = this->inlineCallFrame();
-            Node* length;
-            if (inlineCallFrame && !inlineCallFrame->isVarargs()) {
-                unsigned argumentsLength = inlineCallFrame->argumentCountIncludingThis - 1;
-                JSValue restLength;
-                if (argumentsLength <= bytecode.m_numParametersToSkip)
-                    restLength = jsNumber(0);
-                else
-                    restLength = jsNumber(argumentsLength - bytecode.m_numParametersToSkip);
-
-                length = jsConstant(restLength);
-            } else
-                length = addToGraph(GetRestLength, OpInfo(bytecode.m_numParametersToSkip));
-            set(bytecode.m_dst, length);
-            NEXT_OPCODE(op_get_rest_length);
-        }
-
         case op_create_rest: {
             auto bytecode = currentInstruction->as<OpCreateRest>();
             noticeArgumentsUse();
-            Node* arrayLength = get(bytecode.m_arraySize);
-            set(bytecode.m_dst,
-                addToGraph(CreateRest, OpInfo(bytecode.m_numParametersToSkip), arrayLength));
+            set(bytecode.m_dst, addToGraph(CreateRest, OpInfo(bytecode.m_numParametersToSkip)));
             NEXT_OPCODE(op_create_rest);
         }
             
@@ -7624,17 +7603,6 @@ void ByteCodeParser::parseBlock(unsigned limit)
             auto bytecode = currentInstruction->as<OpCheckTdz>();
             addToGraph(CheckNotEmpty, get(bytecode.m_targetVirtualRegister));
             NEXT_OPCODE(op_check_tdz);
-        }
-
-        case op_overrides_has_instance: {
-            auto bytecode = currentInstruction->as<OpOverridesHasInstance>();
-            JSFunction* defaultHasInstanceSymbolFunction = m_inlineStackTop->m_codeBlock->globalObjectFor(currentCodeOrigin())->functionProtoHasInstanceSymbolFunction();
-
-            Node* constructor = get(VirtualRegister(bytecode.m_constructor));
-            Node* hasInstanceValue = get(VirtualRegister(bytecode.m_hasInstanceValue));
-
-            set(VirtualRegister(bytecode.m_dst), addToGraph(OverridesHasInstance, OpInfo(m_graph.freeze(defaultHasInstanceSymbolFunction)), constructor, hasInstanceValue));
-            NEXT_OPCODE(op_overrides_has_instance);
         }
 
         case op_identity_with_profile: {

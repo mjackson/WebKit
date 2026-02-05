@@ -182,8 +182,6 @@ public:
     }
     JSMap::Helper::Entry entry() const { return JSMap::Helper::toNumber(internalField(Field::Entry).get()); }
 
-    inline bool isIteratorProtocolFastAndNonObservable();
-
     void setIteratedObject(VM& vm, JSMap* map) { internalField(Field::IteratedObject).set(vm, this, map); }
     void setStorage(VM& vm, JSCell* storage) { internalField(Field::Storage).set(vm, this, storage); }
     void setEntry(VM& vm, JSMap::Helper::Entry entry) { internalField(Field::Entry).set(vm, this, JSMap::Helper::toJSValue(entry)); }

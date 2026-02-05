@@ -96,7 +96,6 @@ public:
         ArrayBufferDetachWatchpointSet,
         ArrayIteratorProtocolWatchpointSet,
         SetIteratorProtocolWatchpointSet,
-        MapIteratorProtocolWatchpointSet,
         NumberToStringWatchpointSet,
         StructureCacheClearedWatchpointSet,
         StringToStringWatchpointSet,

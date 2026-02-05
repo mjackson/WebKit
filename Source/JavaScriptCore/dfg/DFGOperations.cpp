@@ -66,7 +66,6 @@
 #include "JSLexicalEnvironment.h"
 #include "JSMap.h"
 #include "JSMapIterator.h"
-#include "JSMapIteratorInlines.h"
 #include "JSPromiseConstructor.h"
 #include "JSPromiseReaction.h"
 #include "JSPropertyNameEnumerator.h"
@@ -4686,23 +4685,6 @@ JSC_DEFINE_JIT_OPERATION(operationSpreadSet, JSCell*, (JSGlobalObject* globalObj
     JSSet* set = jsCast<JSSet*>(cell);
 
     OPERATION_RETURN(scope, JSCellButterfly::createFromSet(globalObject, set));
-}
-
-JSC_DEFINE_JIT_OPERATION(operationSpreadMapIterator, JSCell*, (JSGlobalObject* globalObject, JSCell* cell))
-{
-    VM& vm = globalObject->vm();
-    CallFrame* callFrame = DECLARE_CALL_FRAME(vm);
-    JITOperationPrologueCallFrameTracer tracer(vm, callFrame);
-    auto scope = DECLARE_THROW_SCOPE(vm);
-
-    ASSERT(jsDynamicCast<JSMapIterator*>(cell));
-    JSMapIterator* iterator = jsCast<JSMapIterator*>(cell);
-    // Entries is not supported in the fast path - it requires creating [key, value] pairs.
-    // The slow path in CommonSlowPathsInlines.h filters out Entries, but DFG/FTL may still
-    // reach here if the code was compiled before we observed Entries usage.
-    ASSERT(iterator->kind() == IterationKind::Keys || iterator->kind() == IterationKind::Values);
-
-    OPERATION_RETURN(scope, JSCellButterfly::createFromMapIterator(globalObject, iterator));
 }
 
 JSC_DEFINE_JIT_OPERATION(operationSpreadFastArray, JSCell*, (JSGlobalObject* globalObject, JSCell* cell))

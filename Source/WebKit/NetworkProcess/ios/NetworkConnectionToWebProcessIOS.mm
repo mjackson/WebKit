@@ -83,28 +83,28 @@ std::optional<SharedPreferencesForWebProcess> NetworkConnectionToWebProcess::sha
 
 const String& NetworkConnectionToWebProcess::paymentCoordinatorBoundInterfaceIdentifier(const WebPaymentCoordinatorProxy&)
 {
-    if (auto* session = downcast<NetworkSessionCocoa>(networkSession()))
+    if (CheckedPtr session = downcast<NetworkSessionCocoa>(networkSession()))
         return session->boundInterfaceIdentifier();
     return emptyString();
 }
 
 const String& NetworkConnectionToWebProcess::paymentCoordinatorCTDataConnectionServiceType(const WebPaymentCoordinatorProxy&)
 {
-    if (auto* session = downcast<NetworkSessionCocoa>(networkSession()))
+    if (CheckedPtr session = downcast<NetworkSessionCocoa>(networkSession()))
         return session->dataConnectionServiceType();
     return emptyString();
 }
 
 const String& NetworkConnectionToWebProcess::paymentCoordinatorSourceApplicationBundleIdentifier(const WebPaymentCoordinatorProxy&)
 {
-    if (auto* session = downcast<NetworkSessionCocoa>(networkSession()))
+    if (CheckedPtr session = downcast<NetworkSessionCocoa>(networkSession()))
         return session->sourceApplicationBundleIdentifier();
     return emptyString();
 }
 
 const String& NetworkConnectionToWebProcess::paymentCoordinatorSourceApplicationSecondaryIdentifier(const WebPaymentCoordinatorProxy&)
 {
-    if (auto* session = downcast<NetworkSessionCocoa>(networkSession()))
+    if (CheckedPtr session = downcast<NetworkSessionCocoa>(networkSession()))
         return session->sourceApplicationSecondaryIdentifier();
     return emptyString();
 }

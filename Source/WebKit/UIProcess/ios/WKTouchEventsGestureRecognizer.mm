@@ -307,7 +307,7 @@ static CGFloat rollAngleOrDefault(UITouch *touch, bool shouldReadRollAngle)
 
     for (UITouch *touch in touches) {
         // Get the identifier of this touch. Or create one if one did not exist.
-        auto associatedIdentifier = dynamic_objc_cast<NSNumber>(objc_getAssociatedObject(touch, &associatedTouchIdentifierKey));
+        RetainPtr associatedIdentifier = dynamic_objc_cast<NSNumber>(objc_getAssociatedObject(touch, &associatedTouchIdentifierKey));
 
         // Create a new identifier for trackpad events in the Begin phase regardless, because the UITouch
         // instance persists between trackpad clicks, and there is existing web content that does not expect subsequent
@@ -319,10 +319,10 @@ static CGFloat rollAngleOrDefault(UITouch *touch, bool shouldReadRollAngle)
 
         if (!associatedIdentifier) {
             associatedIdentifier = [NSNumber numberWithUnsignedInt:nextTouchIdentifier()];
-            objc_setAssociatedObject(touch, &associatedTouchIdentifierKey, associatedIdentifier, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            objc_setAssociatedObject(touch, &associatedTouchIdentifierKey, associatedIdentifier.get(), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         }
 
-        [_activeTouchesByIdentifier setObject:touch forKey:associatedIdentifier];
+        [_activeTouchesByIdentifier setObject:touch forKey:associatedIdentifier.get()];
 
         // iPhone WebKit works as if it is full screen. Therefore Web coords are Global coords.
         auto& touchPoint = _lastTouchEvent.touchPoints[touchIndex];

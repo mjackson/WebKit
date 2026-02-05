@@ -39,10 +39,6 @@
 #include "AccessibilityNotificationHandler.h"
 #endif
 
-#if PLATFORM(MAC)
-#include "mac/AccessibilityUIElementClientMac.h"
-#endif
-
 namespace WTR {
 
 Ref<AccessibilityController> AccessibilityController::create()
@@ -82,16 +78,6 @@ void AccessibilityController::setForceInitialFrameCaching(bool shouldForce)
     WKAccessibilitySetForceInitialFrameCaching(shouldForce);
 }
 
-void AccessibilityController::setClientAccessibilityMode(bool flag)
-{
-    m_enableClientAccessibilityMode = flag;
-
-    if (flag) {
-        setIsolatedTreeMode(true);
-        platformInitializeClientAccessibility();
-    }
-}
-
 void AccessibilityController::makeWindowObject(JSContextRef context)
 {
     setGlobalObjectProperty(context, "accessibilityController", this);
@@ -116,11 +102,6 @@ bool AccessibilityController::enhancedAccessibilityEnabled()
 
 Ref<AccessibilityUIElement> AccessibilityController::rootElement(JSContextRef context)
 {
-#if PLATFORM(MAC)
-    if (m_enableClientAccessibilityMode)
-        return AccessibilityUIElementClientMac::createForUIProcess();
-#endif
-
     PlatformUIElement root;
     executeOnAXThreadAndWait([&] () {
         root = static_cast<PlatformUIElement>(_WKAccessibilityRootObjectForTesting(WKBundleFrameForJavaScriptContext(context)));
@@ -198,11 +179,6 @@ void AccessibilityController::announce(JSStringRef message)
 #if !PLATFORM(MAC)
 void AccessibilityController::platformInitialize()
 {
-}
-
-void AccessibilityController::platformInitializeClientAccessibility()
-{
-    // Client accessibility mode is only supported on macOS
 }
 #endif
 

@@ -962,10 +962,6 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case SetArgumentCountIncludingThis:
         write(AbstractHeap(Stack, VirtualRegister(CallFrameSlot::argumentCountIncludingThis)));
         return;
-
-    case GetRestLength:
-        read(Stack);
-        return;
         
     case GetLocal:
         read(AbstractHeap(Stack, node->operand()));

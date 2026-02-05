@@ -119,9 +119,9 @@ AcceleratedSurface::AcceleratedSurface(WebPage& webPage, Function<void()>&& fram
     : m_webPage(webPage)
     , m_frameCompleteHandler(WTF::move(frameCompleteHandler))
     , m_id(generateID())
-    , m_swapChain(m_id, renderingPurpose, webPage.corePage()->settings().useHardwareBuffersForFrameRendering())
+    , m_swapChain(m_id, renderingPurpose, webPage.corePage()->settings().hardwareAccelerationEnabled())
     , m_isVisible(webPage.activityState().contains(ActivityState::IsVisible))
-    , m_useExplicitSync(useExplicitSync())
+    , m_useExplicitSync(usesGL() && useExplicitSync())
 {
     auto color = webPage.backgroundColor();
     m_backgroundColor = color ? color->toResolvedColorComponentsInColorSpace(WebCore::ColorSpace::SRGB) : white;
@@ -704,6 +704,13 @@ void AcceleratedSurface::RenderTargetWPEBackend::didRenderFrame(Vector<IntRect, 
 AcceleratedSurface::SwapChain::SwapChain(uint64_t surfaceID, RenderingPurpose renderingPurpose, bool useHardwareBuffersForFrameRendering)
     : m_surfaceID(surfaceID)
 {
+#if PLATFORM(GTK) || ENABLE(WPE_PLATFORM)
+    if (renderingPurpose == RenderingPurpose::NonComposited && !useHardwareBuffersForFrameRendering) {
+        m_type = Type::SharedMemoryWithoutGL;
+        return;
+    }
+#endif
+
     auto& display = PlatformDisplay::sharedDisplay();
     switch (display.type()) {
 #if PLATFORM(GTK) || ENABLE(WPE_PLATFORM)

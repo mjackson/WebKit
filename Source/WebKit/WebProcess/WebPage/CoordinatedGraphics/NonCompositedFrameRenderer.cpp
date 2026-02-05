@@ -65,9 +65,6 @@ bool NonCompositedFrameRenderer::initialize()
     }
 
     m_surface->didCreateCompositingRunLoop(RunLoop::mainSingleton());
-    LayerTreeContext layerTreeContext;
-    layerTreeContext.contextID = m_surface->surfaceID();
-    m_webPage.get().send(Messages::DrawingAreaProxy::EnterAcceleratedCompositingMode(0, layerTreeContext), m_webPage.get().drawingArea()->identifier().toUInt64(), { });
     return true;
 }
 

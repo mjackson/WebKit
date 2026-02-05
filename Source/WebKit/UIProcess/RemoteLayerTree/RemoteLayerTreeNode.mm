@@ -110,7 +110,7 @@ void RemoteLayerTreeNode::detachFromParent()
     removeInteractionRegionsContainer();
 #endif
 #if PLATFORM(IOS_FAMILY)
-    if (auto view = uiView()) {
+    if (RetainPtr view = uiView()) {
         [view removeFromSuperview];
         return;
     }
@@ -138,12 +138,12 @@ void RemoteLayerTreeNode::applyBackingStore(RemoteLayerTreeHost* host, RemoteLay
     if (asyncContentsIdentifier() && properties.contentsRenderingResourceIdentifier() && *asyncContentsIdentifier() >= *properties.contentsRenderingResourceIdentifier())
         return;
 
-    UIView* hostingView = nil;
+    RetainPtr<UIView> hostingView;
 #if PLATFORM(IOS_FAMILY)
     hostingView = uiView();
 #endif
 
-    properties.applyBackingStoreToNode(*this, host->replayDynamicContentScalingDisplayListsIntoBackingStore(), hostingView);
+    properties.applyBackingStoreToNode(*this, host->replayDynamicContentScalingDisplayListsIntoBackingStore(), hostingView.get());
 
     if (auto identifier = properties.contentsRenderingResourceIdentifier())
         setAsyncContentsIdentifier(*identifier);

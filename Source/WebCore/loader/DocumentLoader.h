@@ -105,6 +105,7 @@ struct IntegrityPolicy;
 enum class ClearSiteDataValue : uint8_t;
 enum class LoadWillContinueInAnotherProcess : bool;
 enum class ShouldContinue;
+enum class ShouldTreatAsContinuingLoad : uint8_t;
 
 using ResourceLoaderMap = HashSet<RefPtr<ResourceLoader>>;
 
@@ -519,8 +520,9 @@ public:
     std::unique_ptr<IntegrityPolicy> integrityPolicy();
     std::unique_ptr<IntegrityPolicy> integrityPolicyReportOnly();
 
-    bool isContinuingLoadAfterProvisionalLoadStarted() const { return m_isContinuingLoadAfterProvisionalLoadStarted; }
-    void setIsContinuingLoadAfterProvisionalLoadStarted(bool isContinuingLoadAfterProvisionalLoadStarted) { m_isContinuingLoadAfterProvisionalLoadStarted = isContinuingLoadAfterProvisionalLoadStarted; }
+    bool isContinuingLoadAfterProvisionalLoadStarted() const { return m_isContinuingLoad == ShouldTreatAsContinuingLoad::YesAfterProvisionalLoadStarted; }
+    bool isContinuingLoadAfterNavigationPolicyDecision() const { return m_isContinuingLoad == ShouldTreatAsContinuingLoad::YesAfterNavigationPolicyDecision; }
+    void setIsContinuingLoad(ShouldTreatAsContinuingLoad shouldTreatAsContinuingLoad) { m_isContinuingLoad = shouldTreatAsContinuingLoad; }
 
     bool isRequestFromClientOrUserInput() const { return m_isRequestFromClientOrUserInput; }
     void setIsRequestFromClientOrUserInput(bool isRequestFromClientOrUserInput) { m_isRequestFromClientOrUserInput = isRequestFromClientOrUserInput; }
@@ -780,6 +782,7 @@ private:
     ShouldOpenExternalURLsPolicy m_shouldOpenExternalURLsPolicy { ShouldOpenExternalURLsPolicy::ShouldNotAllow };
     PushAndNotificationsEnabledPolicy m_pushAndNotificationsEnabledPolicy { PushAndNotificationsEnabledPolicy::UseGlobalPolicy };
     InlineMediaPlaybackPolicy m_inlineMediaPlaybackPolicy { InlineMediaPlaybackPolicy::Default };
+    ShouldTreatAsContinuingLoad m_isContinuingLoad { ShouldTreatAsContinuingLoad::No };
     WebpagePreferences m_preferences;
     // The triggering action's requester should take precedence. This is used for site-isolation situations that require a cross-site requester.
     std::optional<NavigationRequester> m_crossSiteRequester;
@@ -803,7 +806,6 @@ private:
     bool m_isContentRuleListRedirect { false };
     bool m_isClientRedirect { false };
     bool m_isLoadingMultipartContent { false };
-    bool m_isContinuingLoadAfterProvisionalLoadStarted { false };
     bool m_isInFinishedLoadingOfEmptyDocument { false };
     bool m_isInitialAboutBlank { false };
 

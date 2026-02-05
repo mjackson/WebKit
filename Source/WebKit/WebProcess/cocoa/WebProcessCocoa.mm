@@ -757,7 +757,7 @@ void WebProcess::updateProcessName(IsInProcessInitialization isInProcessInitiali
 #if PLATFORM(IOS_FAMILY)
 static NSString *webProcessLoaderAccessibilityBundlePath()
 {
-    NSString *path = (__bridge NSString *)GSSystemRootDirectory();
+    RetainPtr path = (__bridge NSString *)GSSystemRootDirectory();
 #if PLATFORM(MACCATALYST)
     path = [path stringByAppendingPathComponent:@"System/iOSSupport"];
 #endif
@@ -766,7 +766,7 @@ static NSString *webProcessLoaderAccessibilityBundlePath()
 
 static NSString *webProcessAccessibilityBundlePath()
 {
-    NSString *path = (__bridge NSString *)GSSystemRootDirectory();
+    RetainPtr path = (__bridge NSString *)GSSystemRootDirectory();
 #if PLATFORM(MACCATALYST)
     path = [path stringByAppendingPathComponent:@"System/iOSSupport"];
 #endif
@@ -781,20 +781,20 @@ static void registerWithAccessibility()
 #endif
 
 #if PLATFORM(IOS_FAMILY)
-    NSString *bundlePath = webProcessLoaderAccessibilityBundlePath();
+    RetainPtr bundlePath = webProcessLoaderAccessibilityBundlePath();
     NSError *error = nil;
-    if (![[NSBundle bundleWithPath:bundlePath] loadAndReturnError:&error])
-        LOG_ERROR("Failed to load accessibility bundle at %@: %@", bundlePath, error);
+    if (![[NSBundle bundleWithPath:bundlePath.get()] loadAndReturnError:&error])
+        LOG_ERROR("Failed to load accessibility bundle at %@: %@", bundlePath.get(), error);
 
     // This code will eagerly start the in-process AX server.
     // This enables us to revoke the Mach bootstrap sandbox extension.
-    NSString *webProcessAXBundlePath = webProcessAccessibilityBundlePath();
-    NSBundle *bundle = [NSBundle bundleWithPath:webProcessAXBundlePath];
+    RetainPtr webProcessAXBundlePath = webProcessAccessibilityBundlePath();
+    RetainPtr bundle = [NSBundle bundleWithPath:webProcessAXBundlePath.get()];
     error = nil;
     if ([bundle loadAndReturnError:&error])
         [[bundle principalClass] safeValueForKey:@"accessibilityInitializeBundle"];
     else
-        LOG_ERROR("Failed to load accessibility bundle at %@: %@", webProcessAXBundlePath, error);
+        LOG_ERROR("Failed to load accessibility bundle at %@: %@", webProcessAXBundlePath.get(), error);
 #endif
 }
 

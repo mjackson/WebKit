@@ -634,7 +634,7 @@ void WebPageProxy::applicationDidEnterBackground()
     // We normally delay process suspension when the app is backgrounded until the current page load completes. However,
     // we do not want to do so when the screen is locked for power reasons.
     if (isSuspendedUnderLock) {
-        if (auto* navigationState = NavigationState::fromWebPage(*this))
+        if (RefPtr navigationState = NavigationState::fromWebPage(*this))
             navigationState->releaseNetworkActivity(NavigationState::NetworkActivityReleaseReason::ScreenLocked);
     }
 #endif
@@ -1599,17 +1599,17 @@ String WebPageProxy::predictedUserAgentForRequest(const WebCore::ResourceRequest
     if (!customUserAgent().isEmpty())
         return customUserAgent();
 
-    const API::WebsitePolicies& policies = m_configuration->defaultWebsitePolicies();
-    if (!policies.customUserAgent().isEmpty())
-        return policies.customUserAgent();
+    Ref policies = m_configuration->defaultWebsitePolicies();
+    if (!policies->customUserAgent().isEmpty())
+        return policies->customUserAgent();
 
-    if (policies.applicationNameForDesktopUserAgent().isEmpty())
+    if (policies->applicationNameForDesktopUserAgent().isEmpty())
         return userAgent();
 
     if (!useDesktopClassBrowsing(policies, request))
         return userAgent();
 
-    return standardUserAgentWithApplicationName(policies.applicationNameForDesktopUserAgent(), emptyString(), UserAgentType::Desktop);
+    return standardUserAgentWithApplicationName(policies->applicationNameForDesktopUserAgent(), emptyString(), UserAgentType::Desktop);
 }
 
 WebContentMode WebPageProxy::effectiveContentModeAfterAdjustingPolicies(API::WebsitePolicies& policies, const WebCore::ResourceRequest& request)

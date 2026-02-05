@@ -1300,8 +1300,6 @@ webkit.org/b/228591 fast/scrolling/mac/programmatic-scroll-overrides-rubberband.
 
 webkit.org/b/229163 webrtc/video-addTransceiver.html [ Pass Failure ]
 
-webkit.org/b/229166 webrtc/utf8-sdp.html [ Pass Failure ]
-
 #rdar://82043074 ([Star wk2 Debug arm64,Sky/AzulE wk2 Guard-Malloc] imported/w3c/web-platform-tests/xhr/xhr-timeout-longtask.any.html is a flaky failure)
 imported/w3c/web-platform-tests/xhr/xhr-timeout-longtask.any.html [ Pass Failure ]
 
@@ -1616,7 +1614,7 @@ http/tests/webgpu/webgpu/api/validation/render_pipeline/vertex_state.html [ Pass
 http/tests/webgpu/webgpu/api/validation/encoding/cmds/render/draw.html [ Skip ]
 http/tests/webgpu/webgpu/api/validation/createTexture.html [ Skip ]
 http/tests/webgpu/webgpu/api/validation/error_scope.html [ Skip ]
-http/tests/webgpu/webgpu/shader/execution/expression/call/builtin/distance.html [ Skip ]
+[ Debug ] http/tests/webgpu/webgpu/shader/execution/expression/call/builtin/distance.html [ Skip ]
 
 # Slow tests or too slow for Intel
 [ arm64 ] http/tests/webgpu/webgpu/api/operation/vertex_state/correctness.html [ Slow ]
@@ -1655,8 +1653,6 @@ http/tests/webgpu/webgpu/shader/execution/robust_access.html [ Skip ]
 http/tests/webgpu/webgpu/shader/execution/zero_init.html [ Skip ]
 http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/clamp.html [ Skip ]
 http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/faceForward.html [ Skip ]
-http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/fma.html [ Skip ]
-http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/length.html [ Skip ]
 http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/mix.html [ Skip ]
 http/tests/webgpu/webgpu/shader/execution/expression/constructor/non_zero.html [ Skip ]
 http/tests/webgpu/webgpu/shader/execution/expression/unary/af_arithmetic.html [ Skip ]
@@ -1672,34 +1668,16 @@ http/tests/webgpu/webgpu/shader/validation/decl/context_dependent_resolution.htm
 http/tests/webgpu/webgpu/shader/validation/expression/binary/add_sub_mul.html [ Skip ]
 http/tests/webgpu/webgpu/shader/validation/expression/binary/div_rem.html [ Skip ]
 http/tests/webgpu/webgpu/shader/validation/expression/binary/bitwise_shift.html [ Skip ]
-http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/asin.html [ Skip ]
-http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/acos.html [ Skip ]
-http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/cross.html [ Skip ]
-http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/degrees.html [ Skip ]
-http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/distance.html [ Skip ]
-http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/atanh.html [ Skip ]
-http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/acosh.html [ Skip ]
-http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/cosh.html [ Skip ]
-http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/exp2.html [ Skip ]
-http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/inverseSqrt.html [ Skip ]
-http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/exp.html [ Skip ]
 http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/dot.html [ Skip ]
 http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/extractBits.html [ Skip ]
 http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/pow.html [ Skip ]
 http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/ldexp.html [ Skip ]
-http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/log.html [ Skip ]
 http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/insertBits.html [ Skip ]
 http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/normalize.html [ Skip ]
-http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/log2.html [ Skip ]
 http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/refract.html [ Skip ]
-http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/sinh.html [ Skip ]
 http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/smoothstep.html [ Skip ]
 http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/textureSample.html [ Skip ]
-http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/quantizeToF16.html [ Skip ]
-http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/reflect.html [ Skip ]
 http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/textureSampleGrad.html [ Skip ]
-http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/sqrt.html [ Skip ]
-http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/unpack2x16float.html [ Skip ]
 http/tests/webgpu/webgpu/shader/validation/expression/call/builtin/textureSampleLevel.html [ Skip ]
 http/tests/webgpu/webgpu/shader/validation/parse/diagnostic.html [ Skip ]
 http/tests/webgpu/webgpu/shader/validation/parse/shadow_builtins.html [ Skip ]
@@ -2465,3 +2443,9 @@ webkit.org/b/306808 http/tests/webgpu/webgpu/shader/validation/parse/blankspace.
 webkit.org/b/306821 [ Tahoe ] fast/css-grid-layout/grid-item-display.html [ Pass Failure ]
 
 webkit.org/b/306379 [ Tahoe Debug ] webrtc/addICECandidate-closed.html [ Skip ]
+
+webkit.org/b/307084 [ Tahoe Release ] webgl/smell-test.html [ ImageOnlyFailure Pass ]
+
+
+webkit.org/b/307088 [ Tahoe Release ] webgl/webgl-and-dom-in-gpup.html [ ImageOnlyFailure Pass ]
+

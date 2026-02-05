@@ -1437,8 +1437,8 @@ void WebLocalFrameLoaderClient::saveViewStateToItem(HistoryItem& historyItem)
 void WebLocalFrameLoaderClient::restoreViewState()
 {
 #if PLATFORM(IOS_FAMILY)
-    auto* currentItem = m_localFrame->loader().history().currentItem();
-    if (auto* view =  m_localFrame->view()) {
+    RefPtr currentItem = m_localFrame->loader().history().currentItem();
+    if (RefPtr view = m_localFrame->view()) {
         if (m_frame->isMainFrame())
             protect(m_frame->page())->restorePageState(*currentItem);
         else if (!view->wasScrolledByUser())

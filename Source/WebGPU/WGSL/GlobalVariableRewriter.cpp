@@ -107,6 +107,7 @@ private:
     Result<UsedGlobals> determineUsedGlobals(const AST::Function&);
     void collectDynamicOffsetGlobals(const PipelineLayout&);
     void usesOverride(AST::Variable&);
+    void validateUsedGlobals(const UsedGlobals&) const;
     Vector<unsigned> insertStructs(const UsedResources&);
     Result<Vector<unsigned>> insertStructs(PipelineLayout&, const UsedResources&);
     AST::StructureMember& createArgumentBufferEntry(unsigned binding, AST::Variable&);
@@ -1071,6 +1072,7 @@ std::optional<Error> RewriteGlobalVariables::visitEntryPoint(const CallGraph::En
     insertParameters(entryPoint.function, *maybeGroups);
     insertMaterializations(entryPoint.function, usedGlobals.resources);
     insertLocalDefinitions(entryPoint.function, usedGlobals.privateGlobals);
+    validateUsedGlobals(usedGlobals);
 
     for (auto* global : usedGlobals.privateGlobals) {
         if (!global || !global->declaration)
@@ -1080,6 +1082,31 @@ std::optional<Error> RewriteGlobalVariables::visitEntryPoint(const CallGraph::En
             m_entryPointInformation->sizeForWorkgroupVariables += getRoundedSize(*variable);
     }
     return std::nullopt;
+}
+
+void RewriteGlobalVariables::validateUsedGlobals(const UsedGlobals& usedGlobals) const
+{
+    const auto& validateGlobal = [&](const Global* global) {
+        auto* variable = global->declaration;
+        if (auto* initializer = variable->maybeInitializer()) {
+            if (initializer->constantValue())
+                return;
+            m_shaderModule.addOverrideValidation([&shaderModule = m_shaderModule, initializer](auto& overrideValues) -> std::optional<Error> {
+                auto maybeValue = shaderModule.ensureOverrideValue(*initializer, overrideValues);
+                if (!maybeValue)
+                    return maybeValue.error();
+                return std::nullopt;
+            });
+        }
+    };
+
+    for (const auto* global : usedGlobals.privateGlobals)
+        validateGlobal(global);
+
+    for (const auto& [_, bindings] : usedGlobals.resources) {
+        for (const auto& [_, global] : bindings)
+            validateGlobal(global);
+    }
 }
 
 void RewriteGlobalVariables::collectDynamicOffsetGlobals(const PipelineLayout& pipelineLayout)

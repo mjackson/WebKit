@@ -296,17 +296,28 @@ float FontCascade::width(const TextRun& run, SingleThreadWeakHashSet<const Font>
     }
 
     bool hasWordSpacingOrLetterSpacing = wordSpacing() || letterSpacing();
-    float* cacheEntry = glyphOverflow ? nullptr : fonts()->widthCache().add(run, std::numeric_limits<float>::quiet_NaN(), enableKerning() || requiresShaping(), hasWordSpacingOrLetterSpacing, !textAutospace().isNoAutospace());
-    if (cacheEntry && !std::isnan(*cacheEntry))
-        return *cacheEntry;
+
+    auto* cacheEntry = fonts()->glyphGeometryCache().add(run, { }, enableKerning() || requiresShaping(), hasWordSpacingOrLetterSpacing, !textAutospace().isNoAutospace());
+
+    if (cacheEntry && cacheEntry->width) {
+        if (!glyphOverflow)
+            return *cacheEntry->width;
+        if (cacheEntry->glyphOverflow && cacheEntry->glyphOverflow->computeBounds == glyphOverflow->computeBounds) {
+            *glyphOverflow = *cacheEntry->glyphOverflow;
+            return *cacheEntry->width;
+        }
+    }
 
     SingleThreadWeakHashSet<const Font> localFallbackFonts;
     if (!fallbackFonts)
         fallbackFonts = &localFallbackFonts;
 
     float result = width(codePathToUse, run, fallbackFonts, glyphOverflow);
-    if (cacheEntry && fallbackFonts->isEmptyIgnoringNullReferences())
-        *cacheEntry = result;
+    if (cacheEntry && fallbackFonts->isEmptyIgnoringNullReferences()) {
+        cacheEntry->width = result;
+        if (glyphOverflow)
+            cacheEntry->glyphOverflow = *glyphOverflow;
+    }
     return result;
 }
 
@@ -336,7 +347,7 @@ float FontCascade::width(CodePath codePathToUse, const TextRun& run, SingleThrea
     return it.runWidthSoFar();
 }
 
-NEVER_INLINE float FontCascade::widthForSimpleTextSlow(StringView text, TextDirection textDirection, float* cacheEntry) const
+NEVER_INLINE float FontCascade::widthForSimpleTextSlow(StringView text, TextDirection textDirection, FontCascadeFonts::GlyphGeometryCacheEntry* cacheEntry) const
 {
 #if PLATFORM(GTK) || PLATFORM(WPE)
     TextRun run { text, 0, 0, ExpansionBehavior::defaultBehavior(), textDirection, false, false };
@@ -365,7 +376,7 @@ NEVER_INLINE float FontCascade::widthForSimpleTextSlow(StringView text, TextDire
     result += WebCore::width(initialAdvance);
 #endif
     if (cacheEntry)
-        *cacheEntry = result;
+        cacheEntry->width = result;
     return result;
 }
 
@@ -378,9 +389,9 @@ float FontCascade::widthForSimpleTextWithFixedPitch(StringView text, bool whites
     if (whitespaceIsCollapsed)
         return text.length() * monospaceCharacterWidth;
 
-    float* cacheEntry = fonts()->widthCache().add(text, std::numeric_limits<float>::quiet_NaN());
-    if (cacheEntry && !std::isnan(*cacheEntry))
-        return *cacheEntry;
+    auto* cacheEntry = fonts()->glyphGeometryCache().add(text, { });
+    if (cacheEntry && cacheEntry->width)
+        return *cacheEntry->width;
 
     auto width = 0.f;
     for (unsigned index = 0; index < text.length(); ++index) {
@@ -395,7 +406,7 @@ float FontCascade::widthForSimpleTextWithFixedPitch(StringView text, bool whites
     }
 
     if (cacheEntry)
-        *cacheEntry = width;
+        cacheEntry->width = width;
     return width;
 }
 

@@ -279,19 +279,15 @@ AllowMultiElementImplicitSubmission:
 AllowMultipleCommitLayerTreePending:
   type: bool
   status: internal
-  category: dom
   humanReadableName: "Allow requesting CommitLayerTree before the previous has completed"
   humanReadableDescription: "Allow requesting CommitLayerTree before the previous has completed"
   defaultValue:
     WebKitLegacy:
-      "PLATFORM(IOS_FAMILY)": false
-      default: true
+      default: false
     WebKit:
-      "PLATFORM(IOS_FAMILY)": false
-      default: true
+      default: false
     WebCore:
-      "PLATFORM(IOS_FAMILY)": false
-      default: true
+      default: false
 
 AllowPrivacySensitiveOperationsInNonPersistentDataStores:
   type: bool
@@ -498,6 +494,20 @@ AnimatedImageAsyncDecodingEnabled:
       default: true
     WebCore:
       default: true
+
+AnonymousBlockGenerationDisabled:
+  type: bool
+  status: unstable
+  category: css
+  humanReadableName: "Disable anonymous block generation"
+  humanReadableDescription: "Disable anonymous block generation for mixed blocks"
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
 
 AppBadgeEnabled:
   type: bool
@@ -3459,6 +3469,20 @@ HTTPSByDefaultEnabled:
     WebCore:
       default: false
 
+HardwareAccelerationEnabled:
+  type: bool
+  status: internal
+  humanReadableName: "Hardware acceleration"
+  humanReadableDescription: "Enable hardware acceleration"
+  condition: PLATFORM(GTK) || ENABLE(WPE_PLATFORM)
+  defaultValue:
+    WebKitLegacy:
+      default: true
+    WebKit:
+      default: true
+    WebCore:
+      default: true
+
 HiddenPageCSSAnimationSuspensionEnabled:
   type: bool
   status: embedder
@@ -5263,7 +5287,7 @@ MediaSourcePrefersDecompressionSession:
 
 MediaSourceUseRemoteAudioVideoRenderer:
   type: bool
-  status: stable
+  status: testable
   category: media
   humanReadableName: "MSE player uses GPU renderer"
   humanReadableDescription: "MSE player uses GPU renderer"
@@ -5272,10 +5296,25 @@ MediaSourceUseRemoteAudioVideoRenderer:
     WebKitLegacy:
       default: false
     WebKit:
-      default: true
+      default: false
     WebCore:
-      default: true
+      default: false
   sharedPreferenceForWebProcess: true
+
+MediaStreamTrackHandleEnabled:
+  type: bool
+  status: preview
+  category: media
+  humanReadableName: "MediaStreamTrackHandle"
+  humanReadableDescription: "Enable MediaStreamTrackHandle"
+  condition: ENABLE(MEDIA_STREAM)
+  defaultValue:
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
+    WebCore:
+      default: false
 
 MediaStreamTrackProcessingEnabled:
   type: bool
@@ -6398,17 +6437,17 @@ ReadableByteStreamFetchSourceEnabled:
 
 ReadableStreamFromEnabled:
   type: bool
-  status: testable
+  status: stable
   category: dom
   humanReadableName: "ReadableStream.from"
   humanReadableDescription: "Enable ReadableStream.from"
   defaultValue:
     WebCore:
-      default: false
+      default: true
     WebKitLegacy:
-      default: false
+      default: true
     WebKit:
-      default: false
+      default: true
 
 ReadableStreamIterableEnabled:
   type: bool
@@ -6423,6 +6462,20 @@ ReadableStreamIterableEnabled:
       default: true
     WebKit:
       default: true
+
+ReadableStreamTransferEnabled:
+  type: bool
+  status: testable
+  category: dom
+  humanReadableName: "ReadableStream transfer"
+  humanReadableDescription: "Enable ReadableStream transfer"
+  defaultValue:
+    WebCore:
+      default: false
+    WebKitLegacy:
+      default: false
+    WebKit:
+      default: false
 
 RemoteMediaSessionManagerEnabled:
   type: bool
@@ -8558,12 +8611,10 @@ UseGPUProcessForWebGLEnabled:
     WebKit:
       "ENABLE(GPU_PROCESS_BY_DEFAULT) && ENABLE(GPU_PROCESS_WEBGL_BY_DEFAULT)": true
       "USE(GRAPHICS_LAYER_WC)": true
-      "PLATFORM(GTK) || PLATFORM(WPE)" : true
       default: false
     WebCore:
       "ENABLE(GPU_PROCESS_BY_DEFAULT) && ENABLE(GPU_PROCESS_WEBGL_BY_DEFAULT)": true
       "USE(GRAPHICS_LAYER_WC)": true
-      "PLATFORM(GTK) || PLATFORM(WPE)" : true
       default: false
   sharedPreferenceForWebProcess: true
 
@@ -8578,17 +8629,6 @@ UseGiantTiles:
       default: false
     WebCore:
       default: false
-
-UseHardwareBuffersForFrameRendering:
-  type: bool
-  status: embedder
-  defaultValue:
-    WebKitLegacy:
-      default: true
-    WebKit:
-      default: true
-    WebCore:
-      default: true
 
 UseIFCForSVGText:
   type: bool

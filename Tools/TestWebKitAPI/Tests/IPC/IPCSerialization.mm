@@ -28,6 +28,7 @@
 #import "ArgumentCodersCocoa.h"
 #import "CoreIPCCFDictionary.h"
 #import "CoreIPCError.h"
+#import "CoreIPCPKPaymentSetupFeature.h"
 #import "CoreIPCPlistDictionary.h"
 #import "Encoder.h"
 #import "MessageSenderInlines.h"
@@ -465,6 +466,7 @@ struct ObjCHolderForTesting {
         RetainPtr<PKPaymentToken>,
         RetainPtr<PKShippingMethod>,
         RetainPtr<PKPayment>,
+        RetainPtr<PKPaymentSetupFeature>,
 #endif
         RetainPtr<NSShadow>,
         RetainPtr<NSValue>
@@ -1701,6 +1703,44 @@ TEST(IPCSerialization, AVOutputContext)
     runTestNS({ outputContext.get() });
 }
 #endif // USE(AVFOUNDATION) && PLATFORM(MAC)
+
+#if USE(PASSKIT) && HAVE(WK_SECURE_CODING_PKPAYMENTSETUPFEATURE)
+TEST(IPCSerialization, PKPaymentSetupFeature)
+{
+    WebKit::CoreIPCPKPaymentSetupFeatureData data;
+
+    Vector<RetainPtr<NSString>> identifiers;
+    identifiers.append(@"identifier1");
+    identifiers.append(@"identifier2");
+    identifiers.append(@"identifier3");
+    data.identifiers = WTF::move(identifiers);
+
+    data.localizedDisplayName = @"Test Payment Feature";
+    data.type = WebKit::PKPaymentSetupFeatureType::AppleCard;
+    data.state = WebKit::PKPaymentSetupFeatureState::Supported;
+    data.supportedOptions = WebKit::PKPaymentSetupFeatureSupportedOptions::Installments;
+    data.supportedDevices = OptionSet<WebKit::PKPaymentSetupFeatureSupportedDevices> {
+        WebKit::PKPaymentSetupFeatureSupportedDevices::Phone,
+        WebKit::PKPaymentSetupFeatureSupportedDevices::Watch
+    };
+    data.productIdentifier = @"product123";
+    data.partnerIdentifier = @"partner456";
+    data.featureIdentifier = @(789);
+    data.lastUpdated = [NSDate dateWithTimeIntervalSince1970:1000000];
+    data.expiry = [NSDate dateWithTimeIntervalSince1970:2000000];
+    data.productType = @(5);
+    data.productState = @(6);
+    data.notificationTitle = @"Setup Complete";
+    data.notificationMessage = @"Your payment feature is ready";
+    data.discoveryCardIdentifier = @"discovery999";
+
+    WebKit::CoreIPCPKPaymentSetupFeature PaymentSetupFeature { std::optional { WTF::move(data) } };
+    RetainPtr<PKPaymentSetupFeature> feature = PaymentSetupFeature.toID();
+
+    runTestNS({ feature.get() });
+}
+
+#endif
 
 #if PLATFORM(MAC)
 

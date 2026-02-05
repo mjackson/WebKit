@@ -251,6 +251,7 @@ Modules/mediastream/MediaDevices.cpp
 Modules/mediastream/MediaStream.cpp
 Modules/mediastream/MediaStreamTrack.cpp
 Modules/mediastream/MediaStreamTrackEvent.cpp
+Modules/mediastream/MediaStreamTrackHandle.cpp
 Modules/mediastream/MediaStreamTrackProcessor.cpp
 Modules/mediastream/MediaTrackCapabilities.cpp
 Modules/mediastream/MediaTrackConstraints.cpp
@@ -807,7 +808,6 @@ bindings/js/WebCoreJSClientData.cpp
 bindings/js/WebCoreTypedArrayController.cpp
 bindings/js/WindowProxy.cpp
 bindings/js/WorkerModuleScriptLoader.cpp
-bridge/IdentifierRep.cpp
 bridge/jsc/BridgeJSC.cpp
 bridge/runtime_array.cpp
 bridge/runtime_method.cpp
@@ -2841,7 +2841,7 @@ rendering/GlyphDisplayListCacheRemoval.cpp
 rendering/Grid.cpp
 rendering/GridBaselineAlignment.cpp
 rendering/GridLayoutFunctions.cpp
-rendering/GridLayoutState.cpp
+rendering/RenderGridLayoutState.cpp
 rendering/GridMasonryLayout.cpp
 rendering/GridTrackSizingAlgorithm.cpp
 rendering/HitTestLocation.cpp
@@ -4508,6 +4508,7 @@ JSMediaStreamAudioSourceNode.cpp
 JSMediaStreamAudioSourceOptions.cpp
 JSMediaStreamTrack.cpp
 JSMediaStreamTrackEvent.cpp
+JSMediaStreamTrackHandle.cpp
 JSMediaStreamTrackProcessor.cpp
 JSMediaTrackCapabilities.cpp
 JSMediaTrackConstraints.cpp

@@ -117,11 +117,11 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     [self updateColorPickerState];
     [self configurePresentation];
 
-    auto presentingViewController = _view._wk_viewControllerForFullScreenPresentation;
+    RetainPtr<UIViewController> presentingViewController = _view._wk_viewControllerForFullScreenPresentation;
 #if PLATFORM(VISION)
     [_view page]->dispatchWillPresentModalUI();
 #endif
-    [presentingViewController presentViewController:_colorPickerViewController.get() animated:YES completion:nil];
+    [presentingViewController.get() presentViewController:_colorPickerViewController.get() animated:YES completion:nil];
 }
 
 - (void)controlUpdateEditing

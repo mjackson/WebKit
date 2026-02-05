@@ -129,6 +129,14 @@ private:
 
 typedef Vector<Ref<WebBackForwardListItem>> BackForwardListItemVector;
 
+using RefWebBackForwardListItem = Ref<WebKit::WebBackForwardListItem>;
+using RefPtrWebBackForwardListItem = RefPtr<WebKit::WebBackForwardListItem>;
+
+// Workaround for rdar://85881664
+inline API::Object* WTF_NONNULL toAPIObject(WebBackForwardListItem* WTF_NONNULL item) SWIFT_RETURNS_UNRETAINED {
+    return item;
+}
+
 } // namespace WebKit
 
 inline void refBackForwardListItem(WebKit::WebBackForwardListItem* WTF_NONNULL obj)

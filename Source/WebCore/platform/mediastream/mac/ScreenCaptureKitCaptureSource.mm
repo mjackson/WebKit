@@ -297,6 +297,7 @@ void ScreenCaptureKitCaptureSource::sessionFilterDidChange(SCContentFilter* cont
     }
     case SCShareableContentStyleNone:
     case SCShareableContentStyleApplication:
+    default:
         ASSERT_NOT_REACHED();
         return;
     }
@@ -417,6 +418,7 @@ void ScreenCaptureKitCaptureSource::startContentStream()
     }
     case SCShareableContentStyleNone:
     case SCShareableContentStyleApplication:
+    default:
         ASSERT_NOT_REACHED();
         return;
         break;

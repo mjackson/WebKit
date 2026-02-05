@@ -190,7 +190,7 @@ Mesh::Mesh(const WebModelCreateMeshDescriptor& descriptor, WebGPU::Instance& ins
     , m_descriptor(descriptor)
 {
     id<MTLDevice> device = instance.device();
-    MTLTextureDescriptor *textureDescriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm width:descriptor.width height:descriptor.height mipmapped:NO];
+    MTLTextureDescriptor *textureDescriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm_sRGB width:descriptor.width height:descriptor.height mipmapped:NO];
     m_textures = [NSMutableArray array];
     for (RetainPtr ioSurface : descriptor.ioSurfaces)
         [m_textures addObject:[device newTextureWithDescriptor:textureDescriptor iosurface:ioSurface.get() plane:0]];

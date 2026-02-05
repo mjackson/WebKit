@@ -644,13 +644,13 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         return;
     }
 
-    NSDictionary *settingsInfo = @{
+    RetainPtr settingsInfo = @{
         pushActionVersionKeySingleton(): currentPushActionVersionSingleton(),
         pushActionPartitionKeySingleton(): subscriptionSetIdentifier.pushPartition.createNSString().get(),
         pushActionTypeKeySingleton(): _WKWebPushActionTypePushEvent
     };
     RetainPtr<BSMutableSettings> bsSettings = adoptNS([[BSMutableSettings alloc] init]);
-    [bsSettings setObject:settingsInfo forSetting:WebKit::WebPushD::pushActionSetting];
+    [bsSettings setObject:settingsInfo.get() forSetting:WebKit::WebPushD::pushActionSetting];
 
     RetainPtr bsResponder = [BSActionResponder responderWithHandler:^void (BSActionResponse *response) {
         if (response.error)

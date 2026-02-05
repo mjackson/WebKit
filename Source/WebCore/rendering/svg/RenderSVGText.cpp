@@ -972,6 +972,7 @@ void RenderSVGText::updatePositionAndOverflow(const FloatRect& boundaries)
         clearOverflow();
 
         m_objectBoundingBox = boundaries;
+        m_cachedVisualOverflowRect = std::nullopt;
 
         auto boundingRect = enclosingLayoutRect(m_objectBoundingBox);
         setLocation(boundingRect.location());

@@ -426,7 +426,6 @@ namespace JSC { namespace DFG {
     macro(NewMap, NodeResultJS) \
     macro(NewSet, NodeResultJS) \
     /* Rest Parameter */\
-    macro(GetRestLength, NodeResultInt32) \
     macro(CreateRest, NodeResultJS | NodeMustGenerate) \
     \
     macro(Spread, NodeResultJS | NodeMustGenerate) \
