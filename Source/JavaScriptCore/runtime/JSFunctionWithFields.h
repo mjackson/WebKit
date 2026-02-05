@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include <JavaScriptCore/JSFunction.h>
+#include "JSFunction.h"
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 

@@ -1772,7 +1772,6 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
 
     wasm/WasmBBQDisassembler.h
     wasm/WasmBBQJIT.h
-    wasm/WasmBBQJIT32_64.h
     wasm/WasmBBQJIT64.h
     wasm/WasmBBQPlan.h
     wasm/WasmBaselineData.h
