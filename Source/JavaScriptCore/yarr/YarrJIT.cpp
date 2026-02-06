@@ -3939,7 +3939,7 @@ class YarrGenerator final : public YarrJITInfo {
                 // Clear nested captures at the start of each iteration.
                 // This is required by ECMAScript spec - capture groups are reset to undefined
                 // at the beginning of each iteration of a quantified group.
-                if (m_compileMode == JITCompileMode::IncludeSubpatterns && term->containsAnyCaptures()) {
+                if (shouldRecordSubpatterns() && term->containsAnyCaptures()) {
                     for (unsigned subpattern = term->parentheses.subpatternId; subpattern <= term->parentheses.lastSubpatternId; subpattern++)
                         clearSubpattern(subpattern);
                 }
@@ -4039,7 +4039,7 @@ class YarrGenerator final : public YarrJITInfo {
                     m_jit.store32(MacroAssembler::TrustedImm32(-1), MacroAssembler::Address(newParenContextReg, ParenContext::matchAmountOffset()));
 
                     // Clear captures at BEGIN (before iteration runs) so each iteration starts fresh.
-                    if (m_compileMode == JITCompileMode::IncludeSubpatterns) {
+                    if (shouldRecordSubpatterns() && term->containsAnyCaptures()) {
                         for (unsigned subpattern = term->parentheses.subpatternId; subpattern <= term->parentheses.lastSubpatternId; subpattern++)
                             clearSubpattern(subpattern);
                     }
