@@ -1501,14 +1501,31 @@ public:
         m_hasMetadata = metadataTable.m_hasMetadata;
         if (!m_hasMetadata)
             return;
-        m_is32Bit = metadataTable.m_is32Bit;
         m_numValueProfiles = metadataTable.m_numValueProfiles;
-        if (m_is32Bit) {
-            for (unsigned i = UnlinkedMetadataTable::s_offsetTableEntries; i--;)
-                m_metadata[i] = metadataTable.offsetTable32()[i];
-        } else {
-            for (unsigned i = UnlinkedMetadataTable::s_offsetTableEntries; i--;)
-                m_metadata[i] = metadataTable.offsetTable16()[i];
+
+        // We serialize per-opcode entry counts instead of the finalized byte
+        // offsets. The byte offsets depend on sizeof(Metadata) for each opcode,
+        // which differs between platforms due to C++ ABI differences (e.g.
+        // MSVC vs Itanium class tail-padding rules). Counts are platform-
+        // independent; the target recomputes correct offsets via finalize().
+        //
+        // Recover counts by replaying finalize()'s offset walk. At each
+        // opcode, the region [alignedPos, nextOpcodeStart) was filled with
+        // count * metadataSize(i) bytes.
+        unsigned pos = UnlinkedMetadataTable::s_offset16TableSize;
+        for (unsigned i = 0; i < UnlinkedMetadataTable::s_offsetTableEntries - 1; i++) {
+            unsigned nextPos = metadataTable.m_is32Bit
+                ? metadataTable.offsetTable32()[i + 1]
+                : metadataTable.offsetTable16()[i + 1];
+            unsigned size = metadataSize(static_cast<OpcodeID>(i));
+            if (!size || pos >= nextPos) {
+                m_counts[i] = 0;
+                pos = nextPos;
+                continue;
+            }
+            pos = roundUpToMultipleOf(metadataAlignment(static_cast<OpcodeID>(i)), pos);
+            m_counts[i] = (nextPos - pos) / size;
+            pos = nextPos;
         }
     }
 
@@ -1517,26 +1534,23 @@ public:
         if (!m_hasMetadata)
             return UnlinkedMetadataTable::empty();
 
-        Ref<UnlinkedMetadataTable> metadataTable = UnlinkedMetadataTable::create(m_is32Bit, m_numValueProfiles, m_metadata[UnlinkedMetadataTable::s_offsetTableEntries - 1]);
-        metadataTable->m_isFinalized = true;
-        metadataTable->m_isLinked = false;
-        metadataTable->m_hasMetadata = m_hasMetadata;
+        // Create an unfinalized metadata table, populate it with counts,
+        // then finalize it. finalize() recomputes the offset table using
+        // the target platform's metadataSize()/metadataAlignment() values.
+        Ref<UnlinkedMetadataTable> metadataTable = UnlinkedMetadataTable::create();
+        metadataTable->m_hasMetadata = true;
         metadataTable->m_numValueProfiles = m_numValueProfiles;
-        if (m_is32Bit) {
-            for (unsigned i = UnlinkedMetadataTable::s_offsetTableEntries; i--;)
-                metadataTable->offsetTable32()[i] = m_metadata[i];
-        } else {
-            for (unsigned i = UnlinkedMetadataTable::s_offsetTableEntries; i--;)
-                metadataTable->offsetTable16()[i] = m_metadata[i];
-        }
+        auto* buffer = metadataTable->preprocessBuffer();
+        for (unsigned i = 0; i < UnlinkedMetadataTable::s_offsetTableEntries - 1; i++)
+            buffer[i] = m_counts[i];
+        metadataTable->finalize();
         return metadataTable;
     }
 
 private:
     bool m_hasMetadata;
-    bool m_is32Bit;
     unsigned m_numValueProfiles;
-    std::array<unsigned, UnlinkedMetadataTable::s_offsetTableEntries> m_metadata;
+    std::array<unsigned, UnlinkedMetadataTable::s_offsetTableEntries - 1> m_counts;
 };
 
 class CachedSourceOrigin : public CachedObject<SourceOrigin> {
