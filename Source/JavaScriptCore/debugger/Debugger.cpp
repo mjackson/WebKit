@@ -165,6 +165,8 @@ Debugger::~Debugger()
 
 void Debugger::attach(JSGlobalObject* globalObject)
 {
+    if (globalObject->debugger() == this)
+        return;
     ASSERT(!globalObject->debugger());
     globalObject->setDebugger(this);
     m_globalObjects.add(globalObject);

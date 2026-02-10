@@ -474,9 +474,24 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
     bool didHandleTrap = false;
     while (needHandling(mask)) {
         auto event = takeTopPriorityTrap(mask);
+        if (event == NoEvent)
+            break;
         switch (event) {
         case NeedDebuggerBreak:
             invalidateCodeBlocksOnStack(vm.topCallFrame);
+            // If a debugger is attached and wants to pause, call breakProgram()
+            // to immediately enter the pause loop. This is needed because baseline
+            // JIT doesn't have debug hooks that call pauseIfNeeded().
+            // breakProgram() is safe here because we're on the JS thread and
+            // NOT inside a StopTheWorld callback (NeedDebuggerBreak is processed
+            // after NeedStopTheWorld in the same handleTraps call, but the STW
+            // has already resumed by then).
+            if (vm.topCallFrame) {
+                if (auto* globalObject = vm.topCallFrame->lexicalGlobalObject(vm)) {
+                    if (auto* debugger = globalObject->debugger())
+                        debugger->breakProgram();
+                }
+            }
             didHandleTrap = true;
             break;
 
