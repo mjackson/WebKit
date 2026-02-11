@@ -1175,9 +1175,6 @@ public:
     static RuntimeFlags javaScriptRuntimeFlags(const JSGlobalObject*) { return RuntimeFlags(); }
 
     JS_EXPORT_PRIVATE void queueMicrotask(InternalMicrotask, JSValue, JSValue, JSValue, JSValue);
-#if USE(BUN_JSC_ADDITIONS)
-    JS_EXPORT_PRIVATE void queueMicrotask(InternalMicrotask, JSValue, JSValue, JSValue, JSValue, JSValue);
-#endif
 
     JS_EXPORT_PRIVATE static void queueMicrotaskToEventLoop(JSGlobalObject&, QueuedTask&&);
     JS_EXPORT_PRIVATE static void promiseRejectionTracker(JSGlobalObject*, JSPromise*, JSPromiseRejectionOperation);
