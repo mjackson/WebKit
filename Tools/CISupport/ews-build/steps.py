@@ -83,8 +83,6 @@ STATIC_ANALYSIS_ARCHIVE_PATH = '/tmp/static-analysis.zip'
 SHOULD_FILTER_LOGS = load_password('SHOULD_FILTER_LOGS', default=True)
 SHOULD_LOAD_CONTRIBUTORS_FROM_NETWORK = load_password('SHOULD_FILTER_LOGS', default=True)
 SUFFIX_WITHOUT_CHANGE = '-without-change'
-MACOS_SEQUOIA_TRIGGER = 'macos-sequoia-release-build-ews'
-MACOS_SEQUOIA_BUILDER_NAME = 'macOS-Sequoia-Release-Build-EWS'
 
 if CURRENT_HOSTNAME in EWS_BUILD_HOSTNAMES:
     CURRENT_HOSTNAME = 'ews-build.webkit.org'
@@ -657,7 +655,7 @@ class ConfigureBuild(buildstep.BuildStep, AddToLogMixin):
     description = ['configuring build']
     descriptionDone = ['Configured build']
 
-    def __init__(self, platform, configuration, architectures, buildOnly, triggers, remotes, additionalArguments, triggered_by=None):
+    def __init__(self, platform, configuration, architectures, buildOnly, triggers, remotes, additionalArguments, triggered_by=None, rebuild_without_change_on_builder=False):
         super().__init__()
         self.platform = platform
         if platform != 'jsc-only':
@@ -670,6 +668,7 @@ class ConfigureBuild(buildstep.BuildStep, AddToLogMixin):
         self.triggered_by = triggered_by
         self.remotes = remotes
         self.additionalArguments = additionalArguments
+        self.rebuild_without_change_on_builder = rebuild_without_change_on_builder
 
     @defer.inlineCallbacks
     def run(self):
@@ -692,6 +691,8 @@ class ConfigureBuild(buildstep.BuildStep, AddToLogMixin):
             self.setProperty('remotes', self.remotes, 'config.json')
         if self.additionalArguments:
             self.setProperty('additionalArguments', self.additionalArguments, 'config.json')
+        if self.rebuild_without_change_on_builder:
+            self.setProperty('rebuild_without_change_on_builder', self.rebuild_without_change_on_builder, 'config.json')
 
         self.add_patch_id_url()
         yield self.add_pr_details()
@@ -2632,7 +2633,7 @@ class CheckStatusOfPR(buildstep.BuildStep, GitHubMixin, AddToLogMixin):
     haltOnFailure = False
     EMBEDDED_CHECKS = ['ios', 'ios-sim', 'ios-wk2', 'ios-wk2-wpt', 'api-ios', 'vision', 'vision-sim', 'vision-wk2', 'tv', 'tv-sim', 'watch', 'watch-sim']
     MACOS_CHECKS = ['mac', 'mac-AS-debug', 'api-mac', 'api-mac-debug', 'mac-wk1', 'mac-wk2', 'mac-AS-debug-wk2', 'mac-wk2-stress', 'mac-safer-cpp', 'jsc', 'jsc-debug-arm64']
-    LINUX_CHECKS = ['gtk', 'gtk-wk2', 'api-gtk', 'wpe', 'wpe-libwebrtc', 'wpe-wk2', 'api-wpe']
+    LINUX_CHECKS = ['gtk', 'gtk-wk2', 'api-gtk', 'wpe', 'gtk3-libwebrtc', 'wpe-wk2', 'api-wpe']
     WINDOWS_CHECKS = ['win']
     EWS_WEBKIT_FAILED = 0
     EWS_WEBKIT_PASSED = 1
@@ -2947,6 +2948,7 @@ class Trigger(trigger.Trigger):
         properties_to_pass['xcode_version_builder'] = properties.Property('xcode_version', default='')
         properties_to_pass['parent_buildnumber'] = properties.Property('buildnumber')
         properties_to_pass['parent_builderid'] = properties.Property('builderid')
+        properties_to_pass['rebuild_without_change_on_builder'] = properties.Property('rebuild_without_change_on_builder', default=False)
         if self.include_revision:
             properties_to_pass['ews_revision'] = properties.Property('got_revision')
         return properties_to_pass
@@ -3434,8 +3436,7 @@ class CompileWebKit(shell.Compile, AddToLogMixin, ShellMixin):
                         pull_request=bool(self.getProperty('github.number')),
                     ))
 
-                    builder_name = self.getProperty('buildername', '')
-                    if builder_name in [MACOS_SEQUOIA_BUILDER_NAME]:
+                    if self.getProperty('rebuild_without_change_on_builder', False):
                         steps_to_add.extend([
                             RevertAppliedChanges(),
                             ValidateChange(verifyBugClosed=False, addURLs=False),
@@ -4390,8 +4391,7 @@ class RunWebKitTests(shell.Test, AddToLogMixin, ShellMixin):
                     CleanWorkingDirectory(),
                     ValidateChange(verifyBugClosed=False, addURLs=False)
                 ]
-                triggered_by = self.getProperty('triggered_by', [])
-                if MACOS_SEQUOIA_TRIGGER in triggered_by:
+                if self.getProperty('rebuild_without_change_on_builder', False):
                     steps_to_add.extend([DownloadBuiltProduct(suffix=SUFFIX_WITHOUT_CHANGE), ExtractBuiltProduct()])
                 else:
                     steps_to_add.append(CompileWebKitWithoutChange(retry_build_on_failure=True))
@@ -4573,8 +4573,7 @@ class ReRunWebKitTests(RunWebKitTests):
                     CleanWorkingDirectory(),
                     ValidateChange(verifyBugClosed=False, addURLs=False),
                 ]
-                triggered_by = self.getProperty('triggered_by', [])
-                if MACOS_SEQUOIA_TRIGGER in triggered_by:
+                if self.getProperty('rebuild_without_change_on_builder', False):
                     steps_to_add.extend([DownloadBuiltProduct(suffix=SUFFIX_WITHOUT_CHANGE), ExtractBuiltProduct()])
                 else:
                     steps_to_add.append(CompileWebKitWithoutChange(retry_build_on_failure=True))
@@ -5994,8 +5993,7 @@ class ReRunAPITests(RunAPITests):
         elif platform == 'gtk':
             self.steps_to_add.append(InstallGtkDependencies())
 
-        triggered_by = self.getProperty('triggered_by', [])
-        if MACOS_SEQUOIA_TRIGGER in triggered_by:
+        if self.getProperty('rebuild_without_change_on_builder', False):
             self.steps_to_add.extend([DownloadBuiltProduct(suffix=SUFFIX_WITHOUT_CHANGE), ExtractBuiltProduct()])
         else:
             self.steps_to_add.append(CompileWebKitWithoutChange(retry_build_on_failure=True))
@@ -6658,16 +6656,15 @@ class PrintConfiguration(steps.ShellSequence, ShellMixin):
         self.setProperty('xcode_version', xcode_version)
         os_version_builder = self.getProperty('os_version_builder', '')
         xcode_version_builder = self.getProperty('xcode_version_builder', '')
-        # TEMPORARY: Disabled OS/SDK version mismatch check
-        # os_major_version_mismatch = os_version and os_version_builder and (os_version.split('.')[:2] != os_version_builder.split('.')[:2])
-        # xcode_version_mismatch = xcode_version and xcode_version_builder and (xcode_version != xcode_version_builder)
+        os_major_version_mismatch = os_version and os_version_builder and (os_version.split('.')[:2] != os_version_builder.split('.')[:2])
+        xcode_version_mismatch = xcode_version and xcode_version_builder and (xcode_version != xcode_version_builder)
 
-        # if os_major_version_mismatch or xcode_version_mismatch:
-        #     message = f'Error: OS/SDK version mismatch, please inform an admin.'
-        #     detailed_message = message + f' Builder: OS={os_version_builder}, Xcode={xcode_version_builder}; Tester: OS={os_version}, Xcode={xcode_version}'
-        #     print(f'\n{detailed_message}')
-        #     self.build.stopBuild(reason=detailed_message, results=FAILURE)
-        #     self.build.buildFinished([message], FAILURE)
+        if os_major_version_mismatch or xcode_version_mismatch:
+            message = f'Error: OS/SDK version mismatch, please inform an admin.'
+            detailed_message = message + f' Builder: OS={os_version_builder}, Xcode={xcode_version_builder}; Tester: OS={os_version}, Xcode={xcode_version}'
+            print(f'\n{detailed_message}')
+            self.build.stopBuild(reason=detailed_message, results=FAILURE)
+            self.build.buildFinished([message], FAILURE)
 
     def getResultSummary(self):
         if self.results not in [SUCCESS, WARNINGS, EXCEPTION]:

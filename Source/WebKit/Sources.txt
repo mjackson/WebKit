@@ -496,6 +496,7 @@ UIProcess/API/APIContextMenuElementInfo.cpp
 UIProcess/API/APIDataTask.cpp
 UIProcess/API/APIDebuggableInfo.cpp
 UIProcess/API/APIFeature.cpp
+UIProcess/API/APIFormInfo.cpp
 UIProcess/API/APIFrameInfo.cpp
 UIProcess/API/APIFrameTreeNode.cpp
 UIProcess/API/APIHTTPCookieStore.cpp

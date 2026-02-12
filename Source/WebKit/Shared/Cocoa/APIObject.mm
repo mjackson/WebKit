@@ -33,6 +33,7 @@
 #import "WKContentWorldInternal.h"
 #import "WKContextMenuElementInfoInternal.h"
 #import "WKDownloadInternal.h"
+#import "WKFormInfoInternal.h"
 #import "WKFrameInfoInternal.h"
 #import "WKHTTPCookieStoreInternal.h"
 #import "WKNSArray.h"
@@ -542,6 +543,10 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
     case Type::JSBuffer:
         SUPPRESS_RETAINPTR_CTOR_ADOPT wrapper = [_WKJSBuffer alloc];
+        break;
+
+    case Type::FormInfo:
+        SUPPRESS_RETAINPTR_CTOR_ADOPT wrapper = [WKFormInfo alloc];
         break;
 
     default:

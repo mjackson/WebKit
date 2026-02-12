@@ -125,7 +125,6 @@ public:
 
     FragmentedSharedBuffer* data() { return m_encodedImageData.get(); }
     const FragmentedSharedBuffer* data() const { return m_encodedImageData.get(); }
-    WEBCORE_EXPORT RefPtr<FragmentedSharedBuffer> protectedData() const;
 
     virtual DestinationColorSpace colorSpace();
     virtual bool hasHDRContent() const { return false; }

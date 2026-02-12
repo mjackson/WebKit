@@ -4557,7 +4557,7 @@ class TestCheckChangeRelevance(BuildStepMixinAdditions, unittest.TestCase):
         queues = ['Commit-Queue', 'Style-EWS', 'GTK-Build-EWS', 'GTK-WK2-Tests-EWS',
                   'iOS-13-Build-EWS', 'iOS-13-Simulator-Build-EWS', 'iOS-13-Simulator-WK2-Tests-EWS',
                   'macOS-Catalina-Release-Build-EWS', 'macOS-Catalina-Release-WK2-Tests-EWS', 'macOS-Catalina-Debug-Build-EWS',
-                  'PlayStation-Build-EWS', 'Win-Build-EWS', 'WPE-Build-EWS', 'WebKitPerl-Tests-EWS', 'WPE-LibWebRTC-Build-EWS']
+                  'PlayStation-Build-EWS', 'Win-Build-EWS', 'WPE-Build-EWS', 'WebKitPerl-Tests-EWS', 'GTK-GTK3-LibWebRTC-Build-EWS']
         for queue in queues:
             self.setup_step(CheckChangeRelevance())
             self.setProperty('buildername', queue)
@@ -10394,6 +10394,7 @@ class TestTrigger(BuildStepMixinAdditions, unittest.TestCase):
         self.assertIn('ews_revision', props)
         self.assertIn('parent_buildnumber', props)
         self.assertIn('parent_builderid', props)
+        self.assertIn('rebuild_without_change_on_builder', props)
         self.assertNotIn('github.number', props)
         self.assertNotIn('github.head.sha', props)
         self.assertNotIn('repository', props)

@@ -341,7 +341,7 @@ void WebFullScreenManager::enterFullScreenForElement(Element& element, HTMLMedia
     m_page->prepareToEnterElementFullScreen();
 
     if (RefPtr page = m_page->corePage()) {
-        if (RefPtr view = page->protectedMainFrame()->virtualView())
+        if (RefPtr view = protect(page->mainFrame())->virtualView())
             m_scrollPosition = view->scrollPosition();
     }
 

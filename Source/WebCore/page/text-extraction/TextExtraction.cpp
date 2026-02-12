@@ -193,6 +193,22 @@ static inline TextNodesAndText collectText(const SimpleRange& range, IncludeText
     return nodesAndText;
 }
 
+static void addBoxShadowIfNeeded(Node& node, String&& styleValue)
+{
+    Ref document = node.document();
+    if (!document->settings().textExtractionDebugUIEnabled())
+        return;
+
+    RefPtr element = lineageOfType<HTMLElement>(node).first();
+    if (!element)
+        return;
+
+    if (element == document->body())
+        return;
+
+    element->setInlineStyleProperty(CSSPropertyBoxShadow, WTF::move(styleValue), IsImportant::Yes);
+}
+
 using ClientNodeAttributesMap = WeakHashMap<Node, HashMap<String, String>, WeakPtrImplWithEventTargetData>;
 
 struct TraversalContext {
@@ -204,6 +220,8 @@ struct TraversalContext {
     const FrameIdentifier frameIdentifier;
     Vector<WeakPtr<Node, WeakPtrImplWithEventTargetData>> enclosingBlocks;
     WeakHashMap<Node, unsigned, WeakPtrImplWithEventTargetData> enclosingBlockNumberMap;
+    WeakHashSet<Node, WeakPtrImplWithEventTargetData> additionalContainersToCollect;
+    unsigned inAdditionalContainerToCollectCount { 0 };
     Vector<bool, 1> hasOverflowItemsStack;
     unsigned onlyCollectTextAndLinksCount { 0 };
     bool mergeParagraphs { false };
@@ -440,6 +458,9 @@ static inline Variant<SkipExtraction, ItemData, URL, Editable> extractItemData(N
 
                 auto shortenedURLString = [&] {
                     auto shortenedURL = StringEntropyHelpers::removeHighEntropyComponents(url);
+                    if (shortenedURL.protocolIsFile())
+                        return shortenedURL.path().toString();
+
                     auto shortenedString = shortenedURL.string();
                     if (!shortenedURL.protocolIsInHTTPFamily())
                         return shortenedString;
@@ -701,7 +722,13 @@ static inline void extractRecursive(Node& node, Item& parentItem, TraversalConte
     if (isBlock)
         context.pushEnclosingBlock(node);
 
-    auto popEnclosingBlockScope = makeScopeExit([&] {
+    bool isAdditionalContainerToCollect = context.additionalContainersToCollect.contains(node);
+    if (isAdditionalContainerToCollect)
+        context.inAdditionalContainerToCollectCount++;
+
+    auto extractionScope = makeScopeExit([&] {
+        if (isAdditionalContainerToCollect)
+            context.inAdditionalContainerToCollectCount--;
         if (isBlock)
             context.popEnclosingBlock();
     });
@@ -823,7 +850,7 @@ static inline void extractRecursive(Node& node, Item& parentItem, TraversalConte
         },
         [&](ItemData&& result) {
             auto bounds = rootViewBounds(node);
-            if (!context.shouldIncludeNodeWithRect(bounds)) {
+            if (!context.inAdditionalContainerToCollectCount && !context.shouldIncludeNodeWithRect(bounds)) {
                 if (context.hasOverflowItemsStack.isEmpty()) {
                     ASSERT_NOT_REACHED();
                     return;
@@ -993,6 +1020,27 @@ static Node* nodeFromJSHandle(JSHandleIdentifier identifier)
     return nullptr;
 }
 
+static RefPtr<ContainerNode> findLargeContainerAboveNode(Node& node, Node* belowRootNode = nullptr)
+{
+    // FIXME: Consider making this size threshold client-configurable in the future.
+    static constexpr FloatSize minimumSize { 280, 300 };
+    for (CheckedPtr renderer = node.renderer(); renderer; renderer = renderer->parent()) {
+        bool wasFixed = false;
+        auto bounds = renderer->absoluteBoundingBoxRect(true, &wasFixed);
+        if ((bounds.width() < minimumSize.width() || bounds.height() < minimumSize.height()) && !wasFixed)
+            continue;
+
+        RefPtr node = renderer->node();
+        if (RefPtr containerNode = dynamicDowncast<ContainerNode>(node))
+            return containerNode;
+
+        if (belowRootNode && belowRootNode == node)
+            break;
+    }
+
+    return { };
+}
+
 #if ENABLE(DATA_DETECTION)
 
 static RefPtr<ContainerNode> findContainerNodeForDataDetectorResults(Node& rootNode, OptionSet<DataDetectorType> types)
@@ -1025,23 +1073,7 @@ static RefPtr<ContainerNode> findContainerNodeForDataDetectorResults(Node& rootN
     if (!commonAncestor)
         return { };
 
-    // FIXME: Consider making this size threshold client-configurable in the future.
-    static constexpr FloatSize minimumSize { 280, 300 };
-    for (CheckedPtr renderer = commonAncestor->renderer(); renderer; renderer = renderer->parent()) {
-        bool wasFixed = false;
-        auto bounds = renderer->absoluteBoundingBoxRect(true, &wasFixed);
-        if ((bounds.width() < minimumSize.width() || bounds.height() < minimumSize.height()) && !wasFixed)
-            continue;
-
-        RefPtr node = renderer->node();
-        if (RefPtr containerNode = dynamicDowncast<ContainerNode>(node))
-            return containerNode;
-
-        if (&rootNode == node)
-            break;
-    }
-
-    return { };
+    return findLargeContainerAboveNode(*commonAncestor, &rootNode);
 }
 
 #endif // ENABLE(DATA_DETECTION)
@@ -1072,11 +1104,8 @@ Result extractItem(Request&& request, LocalFrame& frame)
         extractionRootNode = findContainerNodeForDataDetectorResults(*extractionRootNode, request.dataDetectorTypes);
 #endif
 
-    if (frame.settings().textExtractionDebugUIEnabled() && extractionRootNode) {
-        RefPtr elementAncestor = lineageOfType<HTMLElement>(*extractionRootNode).first();
-        if (elementAncestor && elementAncestor != bodyElement)
-            elementAncestor->setInlineStyleProperty(CSSPropertyBoxShadow, "0 0 10px #0088FF"_s, IsImportant::Yes);
-    }
+    if (extractionRootNode)
+        addBoxShadowIfNeeded(*extractionRootNode, "0 0 10px #0088FF"_s);
 
     if (!extractionRootNode)
         return { root, 0 };
@@ -1119,6 +1148,23 @@ Result extractItem(Request&& request, LocalFrame& frame)
                 nodesToSkip.add(node.releaseNonNull());
         }
 
+        WeakHashSet<Node, WeakPtrImplWithEventTargetData> additionalContainersToCollect;
+        RefPtr extractionRoot = dynamicDowncast<ContainerNode>(*extractionRootNode);
+        if (extractionRoot && request.includeOffscreenPasswordFields && request.collectionRectInRootView) {
+            Vector<Ref<HTMLInputElement>> passwordFields;
+            for (Ref input : descendantsOfType<HTMLInputElement>(*extractionRoot)) {
+                if (input->isPasswordField())
+                    passwordFields.append(input);
+            }
+
+            for (Ref passwordField : passwordFields) {
+                if (RefPtr container = findLargeContainerAboveNode(passwordField)) {
+                    addBoxShadowIfNeeded(*container, "0 0 10px #cb30e0"_s);
+                    additionalContainersToCollect.add(container.releaseNonNull());
+                }
+            }
+        }
+
         TraversalContext context {
             .originalRequest = { request },
             .clientNodeAttributes = WTF::move(clientNodeAttributes),
@@ -1128,6 +1174,8 @@ Result extractItem(Request&& request, LocalFrame& frame)
             .frameIdentifier = WTF::move(frameID),
             .enclosingBlocks = { },
             .enclosingBlockNumberMap = { },
+            .additionalContainersToCollect = WTF::move(additionalContainersToCollect),
+            .inAdditionalContainerToCollectCount = 0,
             .hasOverflowItemsStack = { false },
             .onlyCollectTextAndLinksCount = 0,
             .mergeParagraphs = request.mergeParagraphs,
@@ -1205,7 +1253,7 @@ static void extractRenderedTokens(Vector<TokenAndBlockOffset>& tokensAndOffsets,
     };
 
     if (CheckedPtr frameRenderer = dynamicDowncast<RenderIFrame>(*renderer)) {
-        if (RefPtr contentDocument = frameRenderer->protectedIframeElement()->contentDocument())
+        if (RefPtr contentDocument = protect(frameRenderer->iframeElement())->contentDocument())
             extractRenderedTokens(tokensAndOffsets, *contentDocument, direction);
         return;
     }
@@ -1248,7 +1296,7 @@ static void extractRenderedTokens(Vector<TokenAndBlockOffset>& tokensAndOffsets,
         }
 
         if (CheckedPtr frameRenderer = dynamicDowncast<RenderIFrame>(descendant)) {
-            if (RefPtr contentDocument = frameRenderer->protectedIframeElement()->contentDocument())
+            if (RefPtr contentDocument = protect(frameRenderer->iframeElement())->contentDocument())
                 extractRenderedTokens(tokensAndOffsets, *contentDocument, direction);
             continue;
         }
@@ -1419,15 +1467,15 @@ static constexpr auto interactedWithSelectElementDescription = "Successfully upd
 static void dispatchSimulatedClick(LocalFrame& frame, IntPoint location, CompletionHandler<void(bool, String&&)>&& completion)
 {
     frame.eventHandler().handleMouseMoveEvent({
-        location, location, MouseButton::Left, PlatformEvent::Type::MouseMoved, 0, { }, MonotonicTime::now(), ForceAtClick, SyntheticClickType::NoTap
+        location, location, MouseButton::Left, PlatformEvent::Type::MouseMoved, 0, { }, MonotonicTime::now(), ForceAtClick, SyntheticClickType::NoTap, MouseEventInputSource::Hardware
     });
 
     frame.eventHandler().handleMousePressEvent({
-        location, location, MouseButton::Left, PlatformEvent::Type::MousePressed, 1, { }, MonotonicTime::now(), ForceAtClick, SyntheticClickType::NoTap
+        location, location, MouseButton::Left, PlatformEvent::Type::MousePressed, 1, { }, MonotonicTime::now(), ForceAtClick, SyntheticClickType::NoTap, MouseEventInputSource::Hardware
     });
 
     frame.eventHandler().handleMouseReleaseEvent({
-        location, location, MouseButton::Left, PlatformEvent::Type::MouseReleased, 1, { }, MonotonicTime::now(), ForceAtClick, SyntheticClickType::NoTap
+        location, location, MouseButton::Left, PlatformEvent::Type::MouseReleased, 1, { }, MonotonicTime::now(), ForceAtClick, SyntheticClickType::NoTap, MouseEventInputSource::Hardware
     });
 
     completion(true, { });
@@ -1470,6 +1518,8 @@ static void dispatchSimulatedClick(Node& targetNode, const String& searchText, C
     RefPtr frame = document->frame();
     if (!frame)
         return completion(false, nullFrameDescription);
+
+    addBoxShadowIfNeeded(targetNode, "0 0 16px #34c759"_s);
 
     std::optional<FloatRect> targetRectInRootView;
     if (!searchText.isEmpty()) {
@@ -1523,6 +1573,7 @@ static bool selectOptionByValue(NodeIdentifier identifier, const String& optionT
         if (optionText.isEmpty())
             return false;
 
+        addBoxShadowIfNeeded(*select, "0 0 16px #34c759"_s);
         select->setValue(optionText);
         return select->selectedIndex() != -1;
     }
@@ -1530,16 +1581,20 @@ static bool selectOptionByValue(NodeIdentifier identifier, const String& optionT
     return false;
 }
 
-static RefPtr<Node> resolveNodeWithBodyAsFallback(LocalFrame& frame, std::optional<NodeIdentifier> identifier)
+static HTMLElement* documentBodyElement(const LocalFrame& frame)
+{
+    if (RefPtr document = frame.document())
+        return document->body();
+
+    return nullptr;
+}
+
+static RefPtr<Node> resolveNodeWithBodyAsFallback(const LocalFrame& frame, std::optional<NodeIdentifier> identifier)
 {
     if (identifier)
         return Node::fromIdentifier(WTF::move(*identifier));
 
-    RefPtr document = frame.document();
-    if (!document)
-        return { };
-
-    return document->body();
+    return documentBodyElement(frame);
 }
 
 static std::optional<SimpleRange> rangeForTextInContainer(const String& searchText, Ref<Node>&& node)
@@ -1559,6 +1614,7 @@ static void selectText(LocalFrame& frame, std::optional<NodeIdentifier>&& identi
     if (RefPtr control = dynamicDowncast<HTMLTextFormControlElement>(*foundNode)) {
         // FIXME: This should probably honor `searchText`.
         control->select();
+        addBoxShadowIfNeeded(*control, "0 0 16px #34c759"_s);
         return completion(true, { });
     }
 
@@ -1609,6 +1665,7 @@ static void scrollBy(LocalFrame& frame, std::optional<NodeIdentifier>&& identifi
     if (!scroller)
         return completion(false, "No scrollable area found"_s);
 
+    addBoxShadowIfNeeded(*foundNode, "0 0 16px #34c759"_s);
     scroller->scrollToOffsetWithoutAnimation(FloatPoint { scroller->scrollOffset() } + scrollDelta);
     completion(true, { });
 }
@@ -1718,6 +1775,9 @@ void handleInteraction(Interaction&& interaction, LocalFrame& frame, CompletionH
         if (auto identifier = interaction.nodeIdentifier)
             return dispatchSimulatedClick(*identifier, WTF::move(interaction.text), WTF::move(completion));
 
+        if (RefPtr body = documentBodyElement(frame); body && !interaction.text.isEmpty())
+            return dispatchSimulatedClick(*body, WTF::move(interaction.text), WTF::move(completion));
+
         return completion(false, "Missing location and nodeIdentifier"_s);
     }
     case Action::SelectMenuItem: {
@@ -1778,9 +1838,9 @@ static String normalizedLabelText(const Element& element)
     return { };
 }
 
-static String wrapWithDoubleQuotes(String&& text)
+static String wrapWithDoubleQuotes(StringView text)
 {
-    return makeString(u"“", WTF::move(text), u"”");
+    return makeString(u"“", text, u"”");
 }
 
 static String textDescription(const Element& element, Vector<String>& stringsToValidate, bool isTargetElement = true)
@@ -1855,6 +1915,8 @@ static String textDescription(Node* node, Vector<String>& stringsToValidate)
     if (!node)
         return { };
 
+    addBoxShadowIfNeeded(*node, "0 0 16px #ff383c"_s);
+
     auto addRenderedTextOrLabeledChild = [&](const String& description) {
         StringBuilder extendedDescription;
         extendedDescription.append(description);
@@ -1897,6 +1959,31 @@ static String textDescription(std::optional<NodeIdentifier> identifier, Vector<S
         return { };
 
     return textDescription(RefPtr { Node::fromIdentifier(*identifier) }.get(), stringsToValidate);
+}
+
+static String textDescription(LocalFrame& frame, std::optional<NodeIdentifier> identifier, const String& searchText, Vector<String>& stringsToValidate)
+{
+    if (!identifier && searchText.isEmpty())
+        return { };
+
+    RefPtr target = resolveNodeWithBodyAsFallback(frame, identifier);
+    auto searchTextPrefix = emptyString();
+    if (!searchText.isEmpty()) {
+        auto range = searchForText(*target, searchText);
+        if (!range)
+            return { };
+
+        target = commonInclusiveAncestor<ComposedTree>(*range);
+
+        auto escapedSearchText = normalizeText(searchText);
+        stringsToValidate.append(escapedSearchText);
+        searchTextPrefix = makeString(wrapWithDoubleQuotes(escapedSearchText), " in "_s);
+    }
+
+    if (!target)
+        return { };
+
+    return makeString(WTF::move(searchTextPrefix), textDescription(target.get(), stringsToValidate));
 }
 
 static String textDescription(LocalFrame& frame, FloatPoint locationInRootView, Vector<String>& stringsToValidate)
@@ -1945,11 +2032,25 @@ InteractionDescription interactionDescription(const Interaction& interaction, Lo
         return { };
     }());
 
+    bool usesSearchText = [&] {
+        switch (action) {
+        case Action::SelectText:
+        case Action::Click:
+        case Action::HighlightText:
+            return true;
+        case Action::SelectMenuItem:
+        case Action::TextInput:
+        case Action::KeyPress:
+        case Action::ScrollBy:
+            return false;
+        }
+        ASSERT_NOT_REACHED();
+        return false;
+    }();
+
     Vector<String> stringsToValidate;
-    if (!isSingleKeyPress) {
+    if (!usesSearchText) {
         if (auto escapedString = normalizeText(interaction.text); !escapedString.isEmpty()) {
-            if (action == Action::Click)
-                description.append(" over text"_s);
             description.append(makeString(" "_s, wrapWithDoubleQuotes(String { escapedString })));
             stringsToValidate.append(WTF::move(escapedString));
         }
@@ -1990,7 +2091,9 @@ InteractionDescription interactionDescription(const Interaction& interaction, Lo
         auto roundedLocation = roundedIntPoint(*location);
         description.append(" at coordinates ("_s, roundedLocation.x(), ", "_s, roundedLocation.y(), ')');
         appendElementString(frame, *location, stringsToValidate);
-    } else
+    } else if (usesSearchText)
+        appendElementString(frame, interaction.nodeIdentifier, interaction.text, stringsToValidate);
+    else
         appendElementString(interaction.nodeIdentifier, stringsToValidate);
 
     bool appendedReplaceTextDescription = false;
@@ -2023,21 +2126,7 @@ std::optional<SimpleRange> rangeForExtractedText(const LocalFrame& frame, Extrac
 {
     auto [text, nodeIdentifier] = extractedText;
 
-    RefPtr node = [&] -> RefPtr<Node> {
-        if (nodeIdentifier) {
-            if (RefPtr node = Node::fromIdentifier(*nodeIdentifier))
-                return node;
-        }
-
-        if (RefPtr document = frame.document())
-            return document->body();
-
-        return { };
-    }();
-
-    if (!node)
-        return { };
-
+    RefPtr node = resolveNodeWithBodyAsFallback(frame, nodeIdentifier);
     if (text.isEmpty())
         return { makeRangeSelectingNodeContents(*node) };
 
@@ -2095,7 +2184,7 @@ void applyRules(const String& input, std::optional<NodeIdentifier>&& containerNo
                 return jsNull();
 
             JSLockHolder lock { &lexicalGlobalObject };
-            return toJS(&lexicalGlobalObject, mainFrame->checkedScript()->globalObject(world), *containerNode);
+            return toJS(&lexicalGlobalObject, protect(mainFrame->script())->globalObject(world), *containerNode);
         });
         return std::make_optional(WTF::move(argumentMap));
     };
@@ -2133,7 +2222,7 @@ void applyRules(const String& input, std::optional<NodeIdentifier>&& containerNo
         };
 
         JSLockHolder lock(commonVM());
-        mainFrame->checkedScript()->executeAsynchronousUserAgentScriptInWorld(world, WTF::move(parameters), [document, aggregator, filteredStrings](auto valueOrException) {
+        protect(mainFrame->script())->executeAsynchronousUserAgentScriptInWorld(world, WTF::move(parameters), [document, aggregator, filteredStrings](auto valueOrException) {
             if (!valueOrException)
                 return;
 

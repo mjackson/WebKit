@@ -108,6 +108,7 @@
 #include "IntlNumberFormatConstructor.h"
 #include "IntlNumberFormatPrototype.h"
 #include "IntlObject.h"
+#include "IntlPartObject.h"
 #include "IntlPluralRules.h"
 #include "IntlPluralRulesPrototype.h"
 #include "IntlRelativeTimeFormat.h"
@@ -231,6 +232,7 @@
 #include "ObjectPropertyChangeAdaptiveWatchpoint.h"
 #include "ObjectPropertyConditionSet.h"
 #include "ObjectPrototypeInlines.h"
+#include "PinballCompletion.h"
 #include "ProfilerSupport.h"
 #include "ProxyConstructorInlines.h"
 #include "ProxyObjectInlines.h"
@@ -314,6 +316,10 @@
 #include "WebAssemblyRuntimeErrorPrototype.h"
 #include "WebAssemblyStructConstructor.h"
 #include "WebAssemblyStructPrototype.h"
+#include "WebAssemblySuspendErrorConstructor.h"
+#include "WebAssemblySuspendErrorPrototype.h"
+#include "WebAssemblySuspendingConstructor.h"
+#include "WebAssemblySuspendingPrototype.h"
 #include "WebAssemblyTableConstructor.h"
 #include "WebAssemblyTablePrototype.h"
 #include "WebAssemblyTagConstructor.h"
@@ -1695,6 +1701,22 @@ capitalName ## Constructor* lowerName ## Constructor = featureFlag ? capitalName
         [] (const Initializer<Structure>& init) {
             init.set(createSegmentDataObjectWithIsWordLikeStructure(init.vm, *init.owner));
         });
+    m_intlPartObjectStructure.initLater(
+        [] (const Initializer<Structure>& init) {
+            init.set(createIntlPartObjectStructure(init.vm, *init.owner));
+        });
+    m_intlPartObjectWithSourceStructure.initLater(
+        [] (const Initializer<Structure>& init) {
+            init.set(createIntlPartObjectWithSourceStructure(init.vm, *init.owner));
+        });
+    m_intlPartObjectWithUnitStructure.initLater(
+        [] (const Initializer<Structure>& init) {
+            init.set(createIntlPartObjectWithUnitStructure(init.vm, *init.owner));
+        });
+    m_intlPartObjectWithUnitAndSourceStructure.initLater(
+        [] (const Initializer<Structure>& init) {
+            init.set(createIntlPartObjectWithUnitAndSourceStructure(init.vm, *init.owner));
+        });
 
     m_dateTimeFormatStructure.initLater(
         [] (LazyClassStructure::Initializer& init) {
@@ -2955,6 +2977,10 @@ void JSGlobalObject::visitChildrenImpl(JSCell* cell, Visitor& visitor)
     thisObject->m_segmentsStructure.visit(visitor);
     thisObject->m_segmentDataObjectStructure.visit(visitor);
     thisObject->m_segmentDataObjectWithIsWordLikeStructure.visit(visitor);
+    thisObject->m_intlPartObjectStructure.visit(visitor);
+    thisObject->m_intlPartObjectWithSourceStructure.visit(visitor);
+    thisObject->m_intlPartObjectWithUnitStructure.visit(visitor);
+    thisObject->m_intlPartObjectWithUnitAndSourceStructure.visit(visitor);
     thisObject->m_dateTimeFormatStructure.visit(visitor);
     thisObject->m_numberFormatStructure.visit(visitor);
 

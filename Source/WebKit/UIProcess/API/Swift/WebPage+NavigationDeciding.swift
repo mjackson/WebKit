@@ -140,6 +140,18 @@ extension WebPage {
         mutating func decideAuthenticationChallengeDisposition(
             for challenge: URLAuthenticationChallenge
         ) async -> (URLSession.AuthChallengeDisposition, URLCredential?)
+
+        /// Allow the application to process form autofill information before a form submission actually takes place.
+        ///
+        /// This is an informative callback only. The form values cannot be changed, nor can the navigation be changed
+        /// to not submit a form.
+        ///
+        /// The form submission will not actually proceed until after this callback asynchronously resolves.
+        ///
+        /// - Parameter formInfo: The form values that will be submitted for this navigation
+        @available(WK_IOS_TBA, WK_MAC_TBA, WK_XROS_TBA, *)
+        @MainActor
+        mutating func willSubmit(formInfo: WKFormInfo) async
     }
 }
 
@@ -170,6 +182,11 @@ extension WebPage.NavigationDeciding {
         for challenge: URLAuthenticationChallenge
     ) async -> (URLSession.AuthChallengeDisposition, URLCredential?) {
         (.performDefaultHandling, nil)
+    }
+
+    /// By default, this method does nothing.
+    @MainActor
+    public func willSubmit(formInfo: WKFormInfo) async {
     }
 }
 
