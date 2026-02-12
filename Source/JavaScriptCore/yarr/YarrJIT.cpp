@@ -2240,11 +2240,13 @@ class YarrGenerator final : public YarrJITInfo {
             matches.append(m_jit.jump());
             tryNonZeroMatch.link(&m_jit);
 
-            // Check if we have input remaining to match
+            // Check if we have input remaining to match.
+            // Update beginIndex before the check so the backtrack code's
+            // zero-width progress guard sees the current position even
+            // when checkNotEnoughInput bails out early.
+            storeToFrame(m_regs.index, parenthesesFrameLocation + BackTrackInfoBackReference::beginIndex());
             m_jit.sub32(patternIndex, patternTemp);
             matches.append(checkNotEnoughInput(patternTemp));
-
-            storeToFrame(m_regs.index, parenthesesFrameLocation + BackTrackInfoBackReference::beginIndex());
 
             matchBackreference(opIndex, incompleteMatches, characterOrTemp, patternIndex, patternTemp, subpatternIdReg == m_regs.unicodeAndSubpatternIdTemp ? subpatternIdReg : InvalidGPRReg);
 
