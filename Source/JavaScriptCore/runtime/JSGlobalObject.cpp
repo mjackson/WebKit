@@ -753,13 +753,11 @@ JSC_DEFINE_HOST_FUNCTION(enqueueJob, (JSGlobalObject* globalObject, CallFrame* c
 {
     auto* job = jsCast<JSFunction*>(callFrame->argument(0));
     ASSERT(job->globalObject() == globalObject);
-    // For $enqueueJob, we invoke the job function with up to 4 arguments directly
     JSValue argument0 = callFrame->argument(1);
     JSValue argument1 = callFrame->argument(2);
     JSValue argument2 = callFrame->argument(3);
-    JSValue argument3 = callFrame->argument(4);
-    // BunInvokeJobWithArguments expects: job, arg0, arg1, arg2, arg3
-    JSC::QueuedTask task { nullptr, JSC::InternalMicrotask::BunInvokeJobWithArguments, 0, globalObject, job, argument0, argument1, argument2, argument3 };
+    // maxMicrotaskArguments=4: job + 3 user arguments
+    JSC::QueuedTask task { nullptr, JSC::InternalMicrotask::BunInvokeJobWithArguments, 0, globalObject, job, argument0, argument1, argument2 };
     globalObject->vm().queueMicrotask(WTF::move(task));
     return encodedJSUndefined();
 }
@@ -3730,17 +3728,6 @@ void JSGlobalObject::promiseRejectionTracker(JSGlobalObject* globalObject, JSPro
     }
 }
 
-#if USE(BUN_JSC_ADDITIONS)
-void JSGlobalObject::queueMicrotask(InternalMicrotask job, JSValue argument0, JSValue argument1, JSValue argument2, JSValue argument3, JSValue argument4)
-{
-    QueuedTask task { nullptr, job, 0, this, argument0, argument1, argument2, argument3, argument4 };
-    if (globalObjectMethodTable()->queueMicrotaskToEventLoop) {
-        globalObjectMethodTable()->queueMicrotaskToEventLoop(*this, WTF::move(task));
-        return;
-    }
-    vm().queueMicrotask(WTF::move(task));
-}
-#endif
 
 void JSGlobalObject::reportUncaughtExceptionAtEventLoop(JSGlobalObject*, Exception* exception)
 {
