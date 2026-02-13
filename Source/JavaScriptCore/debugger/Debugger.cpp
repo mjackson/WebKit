@@ -28,7 +28,6 @@
 #include "HeapIterationScope.h"
 #include "JSCInlines.h"
 #include "JSGenerator.h"
-#include "JSModuleRecord.h"
 #include "MarkedSpaceInlines.h"
 #include "Microtask.h"
 #include "VMEntryScopeInlines.h"
@@ -164,37 +163,33 @@ Debugger::~Debugger()
         globalObject->setDebugger(nullptr);
 }
 
+void Debugger::notifySourceParsedForExistingCode(JSGlobalObject* globalObject)
+{
+    // Enumerate all CodeBlocks to find source providers for scripts that were
+    // already loaded before the debugger attached. Fires sourceParsed for each
+    // one, notifying observers (e.g., InspectorDebuggerAgent sends scriptParsed).
+    UncheckedKeyHashSet<RefPtr<SourceProvider>> sourceProviders;
+    {
+        JSLockHolder locker(m_vm);
+        m_vm.heap.forEachCodeBlock([&](CodeBlock* codeBlock) {
+            if (codeBlock->globalObject() == globalObject) {
+                if (auto* provider = codeBlock->ownerExecutable()->source().provider())
+                    sourceProviders.add(provider);
+            }
+        });
+    }
+    for (auto& sourceProvider : sourceProviders)
+        sourceParsed(globalObject, sourceProvider.get(), -1, nullString());
+}
+
 void Debugger::attach(JSGlobalObject* globalObject)
 {
     if (globalObject->debugger() == this) {
 #if USE(BUN_JSC_ADDITIONS)
-        // Debugger was pre-attached (e.g., SIGUSR1 runtime inspector activation)
-        // before any observers were registered. sourceParsed() was a no-op during
-        // the initial attach() because canDispatchFunctionToObservers() returned
-        // false. Replay sourceParsed events now that observers have been added
-        // (via Debugger.enable → addObserver).
-        if (canDispatchFunctionToObservers()) {
-            UncheckedKeyHashSet<RefPtr<SourceProvider>> sourceProviders;
-            {
-                JSLockHolder locker(m_vm);
-                HeapIterationScope iterationScope(m_vm.heap);
-                m_vm.heap.objectSpace().forEachLiveCell(iterationScope, [&] (HeapCell* heapCell, HeapCell::Kind kind) {
-                    if (isJSCellKind(kind)) {
-                        auto* cell = static_cast<JSCell*>(heapCell);
-                        if (auto* function = jsDynamicCast<JSFunction*>(cell)) {
-                            if (function->scope()->globalObject() == globalObject && function->executable()->isFunctionExecutable() && !function->isHostOrBuiltinFunction())
-                                sourceProviders.add(jsCast<FunctionExecutable*>(function->executable())->source().provider());
-                        } else if (auto* moduleRecord = jsDynamicCast<JSModuleRecord*>(cell)) {
-                            if (auto* provider = moduleRecord->sourceCode().provider())
-                                sourceProviders.add(provider);
-                        }
-                    }
-                    return IterationStatus::Continue;
-                });
-            }
-            for (auto& sourceProvider : sourceProviders)
-                sourceParsed(globalObject, sourceProvider.get(), -1, nullString());
-        }
+        // Debugger was pre-attached before observers were registered.
+        // Replay sourceParsed events now that observers exist.
+        if (canDispatchFunctionToObservers())
+            notifySourceParsedForExistingCode(globalObject);
 #endif
         return;
     }
@@ -205,23 +200,7 @@ void Debugger::attach(JSGlobalObject* globalObject)
     m_vm.setShouldBuildPCToCodeOriginMapping();
 
     // Call `sourceParsed` after iterating because it will execute JavaScript in Web Inspector.
-    UncheckedKeyHashSet<RefPtr<SourceProvider>> sourceProviders;
-    {
-        JSLockHolder locker(m_vm);
-        HeapIterationScope iterationScope(m_vm.heap);
-        m_vm.heap.objectSpace().forEachLiveCell(iterationScope, [&] (HeapCell* heapCell, HeapCell::Kind kind) {
-            if (isJSCellKind(kind)) {
-                auto* cell = static_cast<JSCell*>(heapCell);
-                if (auto* function = jsDynamicCast<JSFunction*>(cell)) {
-                    if (function->scope()->globalObject() == globalObject && function->executable()->isFunctionExecutable() && !function->isHostOrBuiltinFunction())
-                        sourceProviders.add(jsCast<FunctionExecutable*>(function->executable())->source().provider());
-                }
-            }
-            return IterationStatus::Continue;
-        });
-    }
-    for (auto& sourceProvider : sourceProviders)
-        sourceParsed(globalObject, sourceProvider.get(), -1, nullString());
+    notifySourceParsedForExistingCode(globalObject);
 }
 
 void Debugger::detach(JSGlobalObject* globalObject, ReasonForDetach reason)
