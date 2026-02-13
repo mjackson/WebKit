@@ -161,6 +161,8 @@ public:
     void registerCodeBlock(CodeBlock*);
     void forEachRegisteredCodeBlock(NOESCAPE const Function<void(CodeBlock*)>&);
 
+    bool isPauseAtNextOpportunitySet() const { return m_pauseAtNextOpportunity; }
+
     void didCreateNativeExecutable(NativeExecutable&);
     void willCallNativeExecutable(CallFrame*);
 
