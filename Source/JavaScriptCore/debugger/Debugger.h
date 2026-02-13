@@ -163,7 +163,9 @@ public:
     void registerCodeBlock(CodeBlock*);
     void forEachRegisteredCodeBlock(NOESCAPE const Function<void(CodeBlock*)>&);
 
+#if USE(BUN_JSC_ADDITIONS)
     bool isPauseAtNextOpportunitySet() const { return m_pauseAtNextOpportunity; }
+#endif
 
     void didCreateNativeExecutable(NativeExecutable&);
     void willCallNativeExecutable(CallFrame*);
