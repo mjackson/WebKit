@@ -165,6 +165,11 @@ Debugger::~Debugger()
 
 void Debugger::notifySourceParsedForExistingCode(JSGlobalObject* globalObject)
 {
+    // Avoid heap walk when no observers are registered — sourceParsed will
+    // early-return for every entry anyway.
+    if (!canDispatchFunctionToObservers())
+        return;
+
     // Enumerate all CodeBlocks to find source providers for scripts that were
     // already loaded before the debugger attached. Fires sourceParsed for each
     // one, notifying observers (e.g., InspectorDebuggerAgent sends scriptParsed).
