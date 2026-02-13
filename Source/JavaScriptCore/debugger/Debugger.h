@@ -142,6 +142,8 @@ public:
 
     JS_EXPORT_PRIVATE virtual void sourceParsed(JSGlobalObject*, SourceProvider*, int errorLineNumber, const WTF::String& errorMessage);
 
+    void notifySourceParsedForExistingCode(JSGlobalObject*);
+
     void exception(JSGlobalObject*, CallFrame*, JSValue exceptionValue, bool hasCatchHandler);
     void atStatement(CallFrame*);
     void atExpression(CallFrame*);
