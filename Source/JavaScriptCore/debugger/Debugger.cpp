@@ -28,6 +28,7 @@
 #include "HeapIterationScope.h"
 #include "JSCInlines.h"
 #include "JSGenerator.h"
+#include "JSModuleRecord.h"
 #include "MarkedSpaceInlines.h"
 #include "Microtask.h"
 #include "VMEntryScopeInlines.h"
@@ -165,6 +166,38 @@ Debugger::~Debugger()
 
 void Debugger::attach(JSGlobalObject* globalObject)
 {
+    if (globalObject->debugger() == this) {
+#if USE(BUN_JSC_ADDITIONS)
+        // Debugger was pre-attached (e.g., SIGUSR1 runtime inspector activation)
+        // before any observers were registered. sourceParsed() was a no-op during
+        // the initial attach() because canDispatchFunctionToObservers() returned
+        // false. Replay sourceParsed events now that observers have been added
+        // (via Debugger.enable → addObserver).
+        if (canDispatchFunctionToObservers()) {
+            UncheckedKeyHashSet<RefPtr<SourceProvider>> sourceProviders;
+            {
+                JSLockHolder locker(m_vm);
+                HeapIterationScope iterationScope(m_vm.heap);
+                m_vm.heap.objectSpace().forEachLiveCell(iterationScope, [&] (HeapCell* heapCell, HeapCell::Kind kind) {
+                    if (isJSCellKind(kind)) {
+                        auto* cell = static_cast<JSCell*>(heapCell);
+                        if (auto* function = jsDynamicCast<JSFunction*>(cell)) {
+                            if (function->scope()->globalObject() == globalObject && function->executable()->isFunctionExecutable() && !function->isHostOrBuiltinFunction())
+                                sourceProviders.add(jsCast<FunctionExecutable*>(function->executable())->source().provider());
+                        } else if (auto* moduleRecord = jsDynamicCast<JSModuleRecord*>(cell)) {
+                            if (auto* provider = moduleRecord->sourceCode().provider())
+                                sourceProviders.add(provider);
+                        }
+                    }
+                    return IterationStatus::Continue;
+                });
+            }
+            for (auto& sourceProvider : sourceProviders)
+                sourceParsed(globalObject, sourceProvider.get(), -1, nullString());
+        }
+#endif
+        return;
+    }
     ASSERT(!globalObject->debugger());
     globalObject->setDebugger(this);
     m_globalObjects.add(globalObject);

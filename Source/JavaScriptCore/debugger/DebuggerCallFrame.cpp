@@ -152,7 +152,14 @@ DebuggerScope* DebuggerCallFrame::scope(VM& vm)
         CodeBlock* codeBlock = m_validMachineFrame->isNativeCalleeFrame() ? nullptr : m_validMachineFrame->codeBlock();
         if (isTailDeleted())
             scope = m_shadowChickenFrame.scope;
-        else if (codeBlock && codeBlock->scopeRegister().isValid())
+        // Code compiled without CodeGenerationMode::Debugger may have its scope
+        // register repurposed by the DFG (DFGStackLayoutPhase invalidates it when
+        // needsScopeRegister() is false). Reading the scope register from such a
+        // frame crashes because the slot contains stale data (e.g., a VirtualRegister
+        // offset instead of a JSScope pointer). ShadowChicken has the same guard.
+        // Falls through to callee->scope() which is always valid.
+        else if (codeBlock && codeBlock->scopeRegister().isValid()
+                 && codeBlock->wasCompiledWithDebuggingOpcodes())
             scope = m_validMachineFrame->scope(codeBlock->scopeRegister().offset());
         else if (JSCallee* callee = jsDynamicCast<JSCallee*>(m_validMachineFrame->jsCallee()))
             scope = callee->scope();

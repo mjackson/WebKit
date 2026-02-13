@@ -265,7 +265,9 @@ if (COMPILER_IS_GCC_OR_CLANG)
                                                 -Wl,-U,_WTFTimer__secondsUntilTimer
                                                 -Wl,-U,_WTFTimer__cancel
                                                 -Wl,-U,_Bun__errorInstance__finalize
-                                                -Wl,-U,_Bun__reportUnhandledError)
+                                                -Wl,-U,_Bun__reportUnhandledError
+                                                -Wl,-U,_Bun__drainQueuedCDPMessages
+                                                -Wl,-U,_Bun__shouldBreakAfterMessageDrain)
         else()
             WEBKIT_PREPEND_GLOBAL_COMPILER_FLAGS(-Wl,-u,_WTFTimer__create
                                                 -Wl,-u,_WTFTimer__update
@@ -274,7 +276,9 @@ if (COMPILER_IS_GCC_OR_CLANG)
                                                 -Wl,-u,_WTFTimer__secondsUntilTimer
                                                 -Wl,-u,_WTFTimer__cancel
                                                 -Wl,-u,_Bun__errorInstance__finalize
-                                                -Wl,-u,_Bun__reportUnhandledError)
+                                                -Wl,-u,_Bun__reportUnhandledError
+                                                -Wl,-u,_Bun__drainQueuedCDPMessages
+                                                -Wl,-u,_Bun__shouldBreakAfterMessageDrain)
         endif()
     endif ()
 
