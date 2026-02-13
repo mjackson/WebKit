@@ -302,6 +302,15 @@ private:
             if (!traps().needHandling(VMTraps::AsyncEvents))
                 return workDone(locker);
 
+            // If polling traps are now enabled (e.g., set during a STW callback),
+            // the signal-based mechanism is no longer needed. The mutator will
+            // check m_trapBits at every loop back-edge. Continuing to suspend the
+            // mutator and walk its stack is dangerous because STW may have
+            // jettisoned all JIT code, leaving stale CodeBlock pointers on the
+            // stack that tryInstallTrapBreakpoints would crash on.
+            if (Options::usePollingTraps())
+                return workDone(locker);
+
             // We know that no trap could have been processed and re-added because we are holding the lock.
             if (vmIsInactive(m_vm))
                 return workDone(locker);
