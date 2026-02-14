@@ -29,6 +29,7 @@
 #include "CallFrameInlines.h"
 #include "CodeBlock.h"
 #include "CodeBlockSet.h"
+#include "Debugger.h"
 #include "DFGCommonData.h"
 #include "ExceptionHelpers.h"
 #include "HeapInlines.h"
@@ -45,6 +46,11 @@
 #include <wtf/Scope.h>
 #include <wtf/ThreadMessage.h>
 #include <wtf/threads/Signals.h>
+
+#if USE(BUN_JSC_ADDITIONS)
+extern "C" __attribute__((weak)) void Bun__drainQueuedCDPMessages(JSC::VM&);
+extern "C" __attribute__((weak)) bool Bun__shouldBreakAfterMessageDrain(JSC::VM&);
+#endif
 
 namespace JSC {
 
@@ -479,19 +485,23 @@ bool VMTraps::handleTraps(VMTraps::BitField mask)
         switch (event) {
         case NeedDebuggerBreak:
             invalidateCodeBlocksOnStack(vm.topCallFrame);
-            // If a debugger is attached and wants to pause, call breakProgram()
-            // to immediately enter the pause loop. This is needed because baseline
-            // JIT doesn't have debug hooks that call pauseIfNeeded().
-            // breakProgram() is safe here because we're on the JS thread and
-            // NOT inside a StopTheWorld callback (NeedDebuggerBreak is processed
-            // after NeedStopTheWorld in the same handleTraps call, but the STW
-            // has already resumed by then).
-            if (vm.topCallFrame) {
-                if (auto* globalObject = vm.topCallFrame->lexicalGlobalObject(vm)) {
-                    if (auto* debugger = globalObject->debugger())
-                        debugger->breakProgram();
+#if USE(BUN_JSC_ADDITIONS)
+            // Drain queued CDP messages. If a command like Debugger.pause
+            // is dispatched, it sets m_javaScriptPauseScheduled on the agent.
+            if (Bun__drainQueuedCDPMessages)
+                Bun__drainQueuedCDPMessages(vm);
+            // Only enter breakProgram() if a pause was actually requested
+            // (bootstrap, Debugger.pause command, breakpoint). For plain
+            // message delivery, the drain above is sufficient.
+            if (!Bun__shouldBreakAfterMessageDrain || Bun__shouldBreakAfterMessageDrain(vm)) {
+                if (vm.topCallFrame) {
+                    if (auto* globalObject = vm.topCallFrame->lexicalGlobalObject(vm)) {
+                        if (auto* debugger = globalObject->debugger())
+                            debugger->breakProgram();
+                    }
                 }
             }
+#endif
             didHandleTrap = true;
             break;
 
