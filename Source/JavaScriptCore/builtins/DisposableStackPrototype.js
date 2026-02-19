@@ -31,11 +31,30 @@ function getAsyncDisposableMethod(value)
 
     var method = value.@@asyncDispose;
 
+    if (@isUndefinedOrNull(method)) {
+        // Per spec, fall back to @@dispose when @@asyncDispose is not present.
+        method = value.@@dispose;
+
+        if (@isUndefinedOrNull(method))
+            return @undefined;
+
+        if (!@isCallable(method))
+            @throwTypeError("@@dispose must be callable");
+
+        // Wrap the sync dispose method to return a Promise.
+        var syncMethod = method;
+        return () => {
+            try {
+                syncMethod.@call(value);
+            } catch (e) {
+                return @promiseReject(@Promise, e);
+            }
+            return @promiseResolve(@Promise, @undefined);
+        };
+    }
+
     if (!@isCallable(method))
         @throwTypeError("@@asyncDispose must be callable");
-
-    if (@isUndefinedOrNull(method))
-        return @undefined;
 
     return () => {
         try {
@@ -63,7 +82,7 @@ function createDisposableResource(value, isAsync /* , method */)
             if (isAsync) {
                 method = @getAsyncDisposableMethod(value);
                 if (method === @undefined)
-                    @throwTypeError("@@asyncDispose must not be an undefined");
+                    @throwTypeError("Either @@asyncDispose or @@dispose is required");
             } else {
                 method = value.@@dispose;
                 if (!@isCallable(method))

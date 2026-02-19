@@ -153,7 +153,7 @@ function use(value)
     if (@getAsyncDisposableStackInternalField(this, @asyncDisposableStackFieldState) === @AsyncDisposableStackStateDisposed)
         throw new @ReferenceError("AsyncDisposableStack.prototype.use requires that |this| be a pending AsyncDisposableStack object");
 
-    @addDisposableResource(@getDisposableStackInternalField(this, @disposableStackFieldCapability), value, /* isAsync */ true);
+    @addDisposableResource(@getAsyncDisposableStackInternalField(this, @asyncDisposableStackFieldCapability), value, /* isAsync */ true);
 
     return value;
 }
