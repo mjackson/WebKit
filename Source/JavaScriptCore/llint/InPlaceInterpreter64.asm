@@ -10758,24 +10758,26 @@ mintAlign(_end)
 if ARM64 or ARM64E
     loadpairq [sc3], t3, wasmInstance
     addp t3, cfr, PL
-else
+elsif X86_64
+    # Load all saved state from sc3 BEFORE moving sp, so that the saved
+    # state region is above sp during the loads. This matches the ARM64
+    # pattern where loadpairq reads everything in one instruction.
+    # We defer computing PL = t3 + cfr until after unboxWasmCallee because
+    # ws1 = t5 = PL on x86_64, so unboxWasmCallee clobbers PL as scratch.
     loadq [sc3], wasmInstance
+    loadq 8[sc3], t3
+    loadp (2 * SlotSize)[sc3], PC
 end
     move mintRetDst, sp
-
-if X86_64
-    move wasmInstance, sc2
-end
 
     # Restore PC / MC
     loadp Callee[cfr], ws0
     unboxWasmCallee(ws0, ws1)
     storep ws0, UnboxedWasmCalleeStackSlot[cfr]
 if X86_64
-    move sc2, wasmInstance
-    loadq 8[sc3], t3
+    # Compute PL after unboxWasmCallee, which clobbers ws1 (= t5 = PL on x86_64).
+    # t3 still holds the saved (PL - cfr) value loaded above.
     addp t3, cfr, PL
-    loadp (2 * SlotSize)[sc3], PC
 end
 
     # Restore memory
