@@ -348,7 +348,11 @@ if (COMPILER_IS_GCC_OR_CLANG)
             endif ()
 
             if (CLANG_ASAN_LIBRARY AND CLANG_ASAN_RT_LIBRARY)
-                set(SANITIZER_LINK_FLAGS "\"${CLANG_ASAN_LIBRARY}\" \"${CLANG_ASAN_RT_LIBRARY}\"")
+                # The thunk library must be linked with /WHOLEARCHIVE to force inclusion of
+                # all its symbols — particularly operator new/delete replacements and weak
+                # function stubs (__asan_new, __asan_delete, __sanitizer_register_weak_function,
+                # etc.) that would otherwise be dropped by the linker as unreferenced.
+                set(SANITIZER_LINK_FLAGS "/WHOLEARCHIVE:\"${CLANG_ASAN_LIBRARY}\" \"${CLANG_ASAN_RT_LIBRARY}\"")
                 message(STATUS "Found ASAN libraries: ${CLANG_ASAN_LIBRARY} ${CLANG_ASAN_RT_LIBRARY}")
             else ()
                 message(FATAL_ERROR "ASAN libraries not found at CLANG_LIB_PATH=${CLANG_LIB_PATH}. "
@@ -362,6 +366,13 @@ if (COMPILER_IS_GCC_OR_CLANG)
             if (${SANITIZER} MATCHES "address")
                 WEBKIT_PREPEND_GLOBAL_COMPILER_FLAGS("-fno-omit-frame-pointer -fno-optimize-sibling-calls")
                 set(SANITIZER_COMPILER_FLAGS "-fsanitize=address ${SANITIZER_COMPILER_FLAGS}")
+                if (MSVC)
+                    # Disable MSVC STL container annotations to avoid /failifmismatch errors
+                    # when linking against static libraries not compiled with ASAN (e.g., ICU).
+                    # The STL emits annotate_string/annotate_vector pragmas when __SANITIZE_ADDRESS__
+                    # is defined, causing mismatches with non-ASAN object files.
+                    WEBKIT_PREPEND_GLOBAL_COMPILER_FLAGS("-D_DISABLE_STRING_ANNOTATION -D_DISABLE_VECTOR_ANNOTATION")
+                endif ()
                 # On MSVC (clang-cl), CMake passes linker flags directly to lld-link which
                 # doesn't understand -fsanitize=. The ASAN .lib files are already in
                 # SANITIZER_LINK_FLAGS from the find_library block above.
