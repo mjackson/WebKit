@@ -1103,6 +1103,8 @@ size_t VM::updateSoftReservedZoneSize(size_t softReservedZoneSize)
 // guard page mechanism, which can fail if the guard page has been consumed by
 // another thread or security software.
 
+extern "C" void Bun__panic(const char* message, size_t length) __attribute__((weak));
+
 static void preCommitStackMemory(void* stackLimit)
 {
     char* base = reinterpret_cast<char*>(stackLimit);
@@ -1110,9 +1112,14 @@ static void preCommitStackMemory(void* stackLimit)
     if (current <= base)
         return;
     SIZE_T size = current - base;
-    void* result = VirtualAlloc(base, size, MEM_COMMIT, PAGE_READWRITE);
-    RELEASE_ASSERT_RESOURCE_AVAILABLE(result, MemoryExhaustion,
-        "preCommitStackMemory: VirtualAlloc MEM_COMMIT failed");
+    for (unsigned attempt = 0; attempt < 3; ++attempt) {
+        if (VirtualAlloc(base, size, MEM_COMMIT, PAGE_READWRITE))
+            return;
+    }
+    static constexpr char kPanicMessage[] = "preCommitStackMemory: VirtualAlloc MEM_COMMIT failed";
+    if (Bun__panic)
+        Bun__panic(kPanicMessage, sizeof(kPanicMessage) - 1);
+    CRASH();
 }
 #endif
 
